@@ -34,9 +34,42 @@ Original prompt: Please implement the proposed Mandate of Đại Việt document
 - Adjusted the portrait again so the collar is a mirrored centered V, the cap/band sits closer to the head, and the rounded head is no longer cut flat by the hat.
 - Added a hair layer under the hat with centered fringe and side hair, and moved collar rendering into a separate centered V layer drawn after the head so it is not hidden/skewed by shirt/head order.
 - Added deterministic random face variants while preserving the fixed portrait anchors: head shape/size, eyes, nose, mouth, beard, collar, shirt, hat, skin, hair, beard, and outfit colors now vary per hero id.
+- Reworked fog-of-war puffs into layered overlapping circle clusters (shadow, body, highlight passes) so unexplored districts read as fluffy clouds instead of flat tinted ellipses.
+- Building construction is now a timed order: `buildDistrictBuilding` spends resources and queues a `BuildOrder` (2 economy ticks); `progressBuildOrders` advances/completes orders each tick and adds the building to the district.
+- The land panel shows `Building <type>: progress/required` while a construction order is active, and the build modal blocks new orders on a district that already has one in progress.
+- The map now shows a hammer-and-progress badge over districts under construction, and completed farm/mine/market buildings render small satellite icons (crop patch + cottage, mine mound, market stall) around the settlement.
+- Verification: `npm run build` passes; Playwright check confirmed cloud-styled fog over hidden districts, the Build modal queuing a farm with a 0/2 progress order, and the farm decoration appearing on the capital after the order completed.
 
 ## TODO
 - Future work: broaden automated gameplay checks for multi-turn battle capture and victory flow.
 - Future work: split Phaser into a separate manual chunk if the Vite bundle-size warning becomes a release concern.
 - Future work: replace generated paper/settlement drawings with final custom art assets once an art direction is locked.
 - Future work: expose the face recipe in hero detail/debug UI if designers want manual overrides per named hero.
+- Implemented expansion-race gameplay pass: larger 24x40 map, 25 districts, two non-neutral factions, one player capital, one rival capital, and 23 neutral districts.
+- Replaced visible economy with food, supplies, gold, and humans; resource bar now shows stock plus net rate.
+- Added tile-derived district capacity, terrain summaries, district outputs, and terrain-gated Farm/Mine/Market building actions.
+- Updated neutral expansion: adjacent neutral land can be bought with gold, neutral/rival land can be conquered by adjacent armies, and victory triggers when the rival capital is captured.
+- Updated AI to slowly claim/build frontier districts and disabled automatic politics/card interruptions for this expansion-focused pass.
+- Verification: `npm run build` passes; Vite still reports the existing Phaser bundle-size warning.
+- Verification: Playwright client generated `output/web-game/shot-1.png` and `state-1.json`; targeted browser state check confirmed two factions + neutral ownership, adjacent buy, non-adjacent buy block, farm build output increase, and rival-capital victory.
+- Removed the duplicated year/season status from the bottom command bar and reduced it to a compact single-row dock.
+- Added fixed map controls for zoom in, zoom out, and Terrain/Control render-mode switching.
+- Added control render mode that colors districts by owner while preserving borders, roads, settlements, and army markers.
+- Changed Build flow: selecting an owned land and pressing Build now opens a modal listing Farm/Mine/Market structures, costs, eligibility, and blocked reasons; building from the modal updates resources and district output.
+- Verification: `npm run build` passes; targeted Playwright checks confirmed zoom changes camera scale, render mode toggles to control, build modal opens for the selected capital, and modal Farm build spends resources and increases output.
+- Screenshot artifacts: `output/web-game/ui-controls-before.png`, `output/web-game/control-mode.png`, and `output/web-game/build-modal.png`.
+- Made map scale configurable through `src/game/gameplayConfig.ts`; current config is 30x52 hexes with a target of 40 neutral districts, producing 42 total districts including the two capitals.
+- Added fog of war: only owned lands and border lands are visible, explored state persists, hidden districts render under fog, control mode does not reveal hidden ownership, and hidden enemy armies are not drawn.
+- Moved zoom/view controls to the bottom-right as compact icon buttons. The view-mode button is now icon-only and switches between terrain and control render modes.
+- Changed peaceful land buying from instant ownership to timed acquisition orders. Buying adjacent neutral border land spends gold, leaves the land neutral while progress advances, shows `progress/required` in the land panel, and renders an on-map acquisition marker inside the visible land area.
+- Hardened Build modal focus by storing the build target land before opening the modal, fixing the case where pressing Build lost the selected land.
+- Verification: `npm run build` passes; targeted Playwright checks confirmed 30x52 config, 42 districts, fog hiding the rival army, build modal preserving selected capital, timed acquisition order creation/completion, and visible acquisition progress marker.
+- Screenshot artifacts: `output/web-game/fog-initial.png`, `output/web-game/control-bottom-right.png`, `output/web-game/build-focus-fixed.png`, and `output/web-game/acquire-progress-visible.png`.
+- Reworked fog rendering so hidden land is covered by a continuous pale cloud/white layer above terrain and district borders, preventing visible hex tile outlines in fog.
+- Verification: `npm run build` passes; Playwright screenshot `output/web-game/shot-0.png` confirms hidden areas no longer expose hex borders.
+- Optimized fog rendering by replacing per-hidden-hex cloud primitives with cached district boundary fills, keeping the white fog look while reducing draw shape count.
+- Verification: `npm run build` passes; Playwright screenshot `output/web-game/shot-0.png` confirms the optimized flat fog still hides unrevealed tiles cleanly.
+- Restored a cloud-like fog look without per-hex rendering by adding three large deterministic puffs per hidden district over the cached district fill.
+- Fixed Build focus issues: map input is now blocked over the bottom sheet, the opening camera centers on the player capital, and the main Build command falls back to the visible owned capital when no district is selected.
+- Verification: `npm run build` passes; Playwright confirmed main Build opens the build modal, land-panel Build opens the same modal without losing `selectedLandId`, and a modal Farm build spends resources and adds the building.
+- Screenshot artifacts: `output/web-game/build-main-modal.png` and `output/web-game/build-panel-modal.png`.

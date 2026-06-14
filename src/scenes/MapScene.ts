@@ -2,10 +2,11 @@ import Phaser from 'phaser';
 import { ACTION_BAR_HEIGHT, COLORS, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID } from '../game/constants';
 import { TouchController } from '../input/TouchController';
 import { createInitialGameState } from '../state/GameState';
-import { acquireLand, findLand, getNearestPlayerArmy, upgradeLand } from '../systems/LandSystem';
+import { acquireLand, findLand, getAcquisitionOrder, getNearestPlayerArmy } from '../systems/LandSystem';
 import { advanceRealtimeMonth } from '../systems/RealtimeSystem';
+import { buildDistrictBuilding } from '../systems/ResourceSystem';
 import { createBattlePreview, createPlayerArmy, moveArmy, attackLand } from '../systems/WarSystem';
-import type { GameState, Land } from '../state/types';
+import type { GameState, Land, LandBuildingType } from '../state/types';
 import type { HexTile } from '../map/hexMapGenerator';
 import { EDGE_DIRECTIONS, axialToPixel, hexCorners, hexKey, hexRoundedCorners, pixelToAxial } from '../map/hex';
 import type { HexCoord } from '../map/hex';
@@ -14,8 +15,12 @@ import { TERRAIN_REGISTRY } from '../map/terrainTypes';
 import { recruitHero } from '../systems/HeroSystem';
 import { choosePoliticsCard } from '../systems/PoliticsSystem';
 import { compactNumber } from '../utils/format';
+import { SHEET_TOP } from '../ui/BottomSheet';
 
 const MAP_SCALE = 1.72;
+const MIN_CAMERA_ZOOM = 0.72;
+const MAX_CAMERA_ZOOM = 1.65;
+const CAMERA_ZOOM_STEP = 0.16;
 const REALTIME_TICK_MS = 5500;
 
 /** Deterministic small hash, used to seed per-road randomness from a stable key. */
@@ -34,8 +39,14 @@ export class MapScene extends Phaser.Scene {
   private zoneGraphics = new Map<string, Phaser.GameObjects.Graphics>();
   private selectionGraphics!: Phaser.GameObjects.Graphics;
   private armyMarkers: Phaser.GameObjects.GameObject[] = [];
+  private acquisitionMarkers: Phaser.GameObjects.GameObject[] = [];
+  private buildMarkers: Phaser.GameObjects.GameObject[] = [];
   private mapGraphics!: Phaser.GameObjects.Graphics;
+  private terrainGraphics!: Phaser.GameObjects.Graphics;
+  private controlGraphics!: Phaser.GameObjects.Graphics;
+  private fogGraphics!: Phaser.GameObjects.Graphics;
   private hexTileMap = new Map<string, HexTile>();
+  private landBoundaryLoops = new Map<string, Array<Array<{ x: number; y: number }>>>();
   private hexOffsetX = 0;
   private hexOffsetY = 0;
   private worldWidth = 0;
@@ -91,7 +102,10 @@ export class MapScene extends Phaser.Scene {
       return;
     }
 
-    const landId = this.findLandIdAt(this.cameras.main.scrollX + point.x, this.cameras.main.scrollY + point.y);
+    const landId = this.findLandIdAt(
+      this.cameras.main.scrollX + point.x / this.cameras.main.zoom,
+      this.cameras.main.scrollY + point.y / this.cameras.main.zoom,
+    );
     if (landId) {
       this.selectLand(landId);
     }
@@ -110,10 +124,7 @@ export class MapScene extends Phaser.Scene {
     this.touch = new TouchController(this);
     this.touch.enableFullscreenKey();
     this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
-    this.cameras.main.setScroll(
-      Math.max(0, this.worldWidth / 2 - GAME_WIDTH / 2),
-      Math.max(0, this.worldHeight / 2 - GAME_HEIGHT / 2),
-    );
+    this.centerCameraOnPlayerStart();
     this.enableMapDrag();
     this.game.canvas.addEventListener('pointerdown', this.domPointerDown);
     this.game.canvas.addEventListener('pointermove', this.domPointerMove);
@@ -159,6 +170,14 @@ export class MapScene extends Phaser.Scene {
       createPlayerArmy(this.state, heroId, soldiers);
       this.refresh();
     });
+    ui.events.on('ui:zoom-map', (direction: number) => {
+      this.zoomMap(direction);
+    });
+    ui.events.on('ui:toggle-render-mode', () => {
+      this.state.mapRenderMode = this.state.mapRenderMode === 'terrain' ? 'control' : 'terrain';
+      this.applyRenderMode();
+      this.scene.get('UIScene').events.emit('state-changed');
+    });
   }
 
   update(_time: number, delta: number): void {
@@ -191,8 +210,8 @@ export class MapScene extends Phaser.Scene {
         return;
       }
 
-      const deltaX = pointer.x - pointer.prevPosition.x;
-      const deltaY = pointer.y - pointer.prevPosition.y;
+      const deltaX = (pointer.x - pointer.prevPosition.x) / this.cameras.main.zoom;
+      const deltaY = (pointer.y - pointer.prevPosition.y) / this.cameras.main.zoom;
       this.dragDistance += Math.abs(deltaX) + Math.abs(deltaY);
       if (this.dragDistance > 40) {
         this.isDraggingMap = true;
@@ -201,12 +220,12 @@ export class MapScene extends Phaser.Scene {
       this.cameras.main.scrollX = Phaser.Math.Clamp(
         this.cameras.main.scrollX - deltaX,
         0,
-        Math.max(0, this.worldWidth - GAME_WIDTH),
+        Math.max(0, this.worldWidth - GAME_WIDTH / this.cameras.main.zoom),
       );
       this.cameras.main.scrollY = Phaser.Math.Clamp(
         this.cameras.main.scrollY - deltaY,
         0,
-        Math.max(0, this.worldHeight - GAME_HEIGHT),
+        Math.max(0, this.worldHeight - GAME_HEIGHT / this.cameras.main.zoom),
       );
     });
 
@@ -234,8 +253,8 @@ export class MapScene extends Phaser.Scene {
       acquireLand(this.state, landId);
     }
 
-    if (action === 'upgrade') {
-      upgradeLand(this.state, landId);
+    if (action.startsWith('build:')) {
+      buildDistrictBuilding(this.state, landId, action.replace('build:', '') as LandBuildingType);
     }
 
     if (action === 'move') {
@@ -286,6 +305,7 @@ export class MapScene extends Phaser.Scene {
   private drawMap(): void {
     this.drawPaperBackground();
     this.drawHexTerrain();
+    this.drawControlMap();
     this.drawZoneOverlays();
     this.selectionGraphics = this.add.graphics();
     this.selectionGraphics.setDepth(60);
@@ -296,6 +316,9 @@ export class MapScene extends Phaser.Scene {
     }
 
     this.drawArmies();
+    this.drawFogOfWar();
+    this.drawAcquisitionMarkers();
+    this.drawBuildMarkers();
   }
 
   private drawPaperBackground(): void {
@@ -315,6 +338,7 @@ export class MapScene extends Phaser.Scene {
   /** Renders every hex tile as a continuous terrain texture, behind the zone color overlays. */
   private drawHexTerrain(): void {
     const graphics = this.add.graphics();
+    this.terrainGraphics = graphics;
     const hexSize = this.state.mapConfig.hexSize;
     const rng = createRng(this.state.mapConfig.seed + 9001);
 
@@ -348,6 +372,175 @@ export class MapScene extends Phaser.Scene {
         }
       }
     }
+  }
+
+  private drawControlMap(): void {
+    this.controlGraphics = this.add.graphics();
+    this.repaintControlMap();
+    this.applyRenderMode();
+  }
+
+  private repaintControlMap(): void {
+    if (!this.controlGraphics) {
+      return;
+    }
+
+    this.controlGraphics.clear();
+    const hexSize = this.state.mapConfig.hexSize;
+    for (const tile of this.state.hexTiles) {
+      const land = tile.landId ? findLand(this.state, tile.landId) : undefined;
+      const pixel = axialToPixel(tile.coord, hexSize);
+      const center = { x: this.wx(pixel.x), y: this.wy(pixel.y) };
+      const corners = hexRoundedCorners(center, hexSize * MAP_SCALE).map(([x, y]) => ({ x, y }));
+      const color = land?.isVisible ? this.getOwnerColor(land.ownerId) : COLORS.neutral;
+      this.controlGraphics.fillStyle(color, land?.isVisible ? 0.88 : 0.45);
+      this.controlGraphics.fillPoints(corners, true);
+    }
+  }
+
+  private applyRenderMode(): void {
+    this.terrainGraphics?.setVisible(this.state.mapRenderMode === 'terrain');
+    this.controlGraphics?.setVisible(this.state.mapRenderMode === 'control');
+  }
+
+  private drawFogOfWar(): void {
+    this.fogGraphics = this.add.graphics();
+    this.fogGraphics.setDepth(78);
+    this.repaintFogOfWar();
+  }
+
+  private repaintFogOfWar(): void {
+    if (!this.fogGraphics) {
+      return;
+    }
+
+    this.fogGraphics.clear();
+    for (const land of this.state.lands) {
+      if (land.isVisible) {
+        continue;
+      }
+
+      this.fogGraphics.fillStyle(0xd7e4ea, land.isExplored ? 0.85 : 0.94);
+      for (const loop of this.traceLandBoundaryLoops(land.id)) {
+        this.fogGraphics.fillPoints(loop, true);
+      }
+
+      this.paintFogPuffs(land);
+    }
+  }
+
+  /**
+   * Paints a small cluster of overlapping rounded puffs over a hidden district, with a
+   * darker shadow layer beneath and brighter highlight circles on top so the fog reads
+   * as a cottony cloud rather than a flat tint.
+   */
+  private paintFogPuffs(land: Land): void {
+    const seed = hashString(land.id);
+    const baseRadius = Phaser.Math.Clamp(30 + land.buildingCapacity * 9, 38, 78);
+    const alpha = land.isExplored ? 0.55 : 0.85;
+    const centerX = this.wx(land.x);
+    const centerY = this.wy(land.y);
+    const puffCount = 6;
+
+    const puffs: Array<{ x: number; y: number; radius: number }> = [];
+    for (let index = 0; index < puffCount; index += 1) {
+      const angle = ((seed + index * 67) % 360) * Phaser.Math.DEG_TO_RAD;
+      const distance = baseRadius * (0.2 + (((seed >> (index * 3)) & 7) / 14));
+      const radius = baseRadius * (0.45 + (((seed >> (index * 5)) & 3) * 0.14));
+      puffs.push({
+        x: centerX + Math.cos(angle) * distance,
+        y: centerY + Math.sin(angle) * distance * 0.7,
+        radius,
+      });
+    }
+
+    // Shadow pass: slightly offset downward, gives the cloud cluster depth.
+    this.fogGraphics.fillStyle(0xb9c7cd, alpha * 0.55);
+    for (const puff of puffs) {
+      this.fogGraphics.fillCircle(puff.x, puff.y + puff.radius * 0.22, puff.radius * 0.96);
+    }
+
+    // Body pass: soft white/grey puffs forming the bulk of the cloud.
+    this.fogGraphics.fillStyle(0xf3f8fb, alpha);
+    for (const puff of puffs) {
+      this.fogGraphics.fillCircle(puff.x, puff.y, puff.radius);
+    }
+
+    // Highlight pass: brighter, smaller circles on the upper-left of each puff.
+    this.fogGraphics.fillStyle(0xffffff, Math.min(1, alpha + 0.1));
+    for (const puff of puffs) {
+      this.fogGraphics.fillCircle(puff.x - puff.radius * 0.28, puff.y - puff.radius * 0.32, puff.radius * 0.55);
+    }
+  }
+
+  private traceLandBoundaryLoops(landId: string): Array<Array<{ x: number; y: number }>> {
+    const cached = this.landBoundaryLoops.get(landId);
+    if (cached) {
+      return cached;
+    }
+
+    const edges = this.traceLandBoundaryEdges(landId);
+    const points = new Map<string, { x: number; y: number }>();
+    const adjacency = new Map<string, Array<{ to: string; edgeIndex: number }>>();
+    const pointKey = (x: number, y: number) => `${Math.round(x * 10)}:${Math.round(y * 10)}`;
+
+    const addPoint = (x: number, y: number): string => {
+      const key = pointKey(x, y);
+      if (!points.has(key)) {
+        points.set(key, { x, y });
+      }
+      return key;
+    };
+
+    const addAdjacent = (from: string, to: string, edgeIndex: number): void => {
+      const list = adjacency.get(from) ?? [];
+      list.push({ to, edgeIndex });
+      adjacency.set(from, list);
+    };
+
+    edges.forEach(([x1, y1, x2, y2], edgeIndex) => {
+      const from = addPoint(x1, y1);
+      const to = addPoint(x2, y2);
+      addAdjacent(from, to, edgeIndex);
+      addAdjacent(to, from, edgeIndex);
+    });
+
+    const loops: Array<Array<{ x: number; y: number }>> = [];
+    const used = new Set<number>();
+
+    while (used.size < edges.length) {
+      const startEdgeIndex = edges.findIndex((_, edgeIndex) => !used.has(edgeIndex));
+      if (startEdgeIndex < 0) {
+        break;
+      }
+
+      const [x1, y1, x2, y2] = edges[startEdgeIndex];
+      const start = pointKey(x1, y1);
+      let previous = start;
+      let current = pointKey(x2, y2);
+      used.add(startEdgeIndex);
+
+      const loop = [points.get(start)!, points.get(current)!];
+      while (current !== start) {
+        const candidates = (adjacency.get(current) ?? []).filter((candidate) => !used.has(candidate.edgeIndex));
+        if (candidates.length === 0) {
+          break;
+        }
+
+        const next = candidates.find((candidate) => candidate.to !== previous) ?? candidates[0];
+        used.add(next.edgeIndex);
+        previous = current;
+        current = next.to;
+        loop.push(points.get(current)!);
+      }
+
+      if (loop.length > 3 && current === start) {
+        loops.push(loop);
+      }
+    }
+
+    this.landBoundaryLoops.set(landId, loops);
+    return loops;
   }
 
   /** Groups contiguous hexes that share the same terrain type, for merged region decoration. */
@@ -411,7 +604,7 @@ export class MapScene extends Phaser.Scene {
 
     graphics.clear();
     const edges = this.traceLandBoundaryEdges(land.id);
-    const color = this.getOwnerColor(land.ownerId);
+    const color = land.isVisible ? this.getOwnerColor(land.ownerId) : COLORS.neutral;
 
     // Dark base stroke keeps the border legible against any terrain color underneath.
     graphics.lineStyle(5, 0x2b2012, 0.32);
@@ -496,12 +689,12 @@ export class MapScene extends Phaser.Scene {
   /** Roads are wider where they meet a bigger settlement: castles widest, then cities/temples, then villages/mines. */
   private roadWidth(land: Land): number {
     if (land.type === 'castle' || land.type === 'enemyCastle') {
-      return 7 + land.upgradeLevel * 0.8;
+      return 7 + land.buildings.length * 0.45;
     }
     if (land.type === 'market' || land.type === 'temple') {
-      return 5 + land.upgradeLevel * 0.6;
+      return 5 + land.buildings.length * 0.35;
     }
-    return 3 + land.upgradeLevel * 0.4;
+    return 3 + land.buildings.length * 0.25;
   }
 
   /**
@@ -556,6 +749,10 @@ export class MapScene extends Phaser.Scene {
   }
 
   private createLandNode(land: Land): void {
+    if (!land.isVisible) {
+      return;
+    }
+
     const container = this.add.container(this.wx(land.x), this.wy(land.y));
     const settlement = this.createSettlementCluster(land);
     const label = this.add.text(0, 15, this.shortName(land), {
@@ -591,7 +788,7 @@ export class MapScene extends Phaser.Scene {
 
   /**
    * Cities/temples render one building cluster per "fortress"/"shrine" hex tile they own.
-   * Castles get a surrounding wall; markets/temples don't. Upgrades grow the building density.
+   * Castles get a surrounding wall; markets/temples don't. Built improvements grow density.
    */
   private createSettlementCluster(land: Land): Phaser.GameObjects.Container {
     const cluster = this.add.container(0, 0);
@@ -619,13 +816,15 @@ export class MapScene extends Phaser.Scene {
       this.addCityWall(cluster, cityCoords, land, hexSize);
     }
 
-    const houseCount = Math.min(6, 3 + land.upgradeLevel);
+    const houseCount = Math.min(6, 3 + land.buildings.length);
     for (const coord of cityCoords) {
       const pixel = axialToPixel(coord, hexSize);
       const relX = (pixel.x - land.x) * MAP_SCALE;
       const relY = (pixel.y - land.y) * MAP_SCALE;
       this.addBuildingGroup(cluster, relX, relY, isShrineCity, houseCount);
     }
+
+    this.addBuildingDecorations(cluster, land);
 
     return cluster;
   }
@@ -679,8 +878,46 @@ export class MapScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Draws small satellite icons around a city/temple settlement for each constructed
+   * farm/mine/market building, so completed builds become visible on the map.
+   */
+  private addBuildingDecorations(cluster: Phaser.GameObjects.Container, land: Land): void {
+    const positions: Array<[number, number]> = [
+      [-48, -6], [48, -6], [-48, 24], [48, 24], [-48, 54], [48, 54],
+    ];
+    let posIndex = 0;
+
+    for (const building of land.buildings) {
+      const [x, y] = positions[posIndex % positions.length];
+      posIndex += 1;
+
+      if (building === 'farm') {
+        this.addCropPatch(cluster, x, y, 0.85);
+        this.addCottage(cluster, x, y + 5, 0.75, 0xb9823e);
+      } else if (building === 'mine') {
+        const mound = this.add.triangle(x, y + 4, -11 * 0.8, 7 * 0.8, 11 * 0.8, 7 * 0.8, 0, -8 * 0.8, 0x8d8a86, 0.92);
+        const entrance = this.add.rectangle(x, y + 5, 5, 5, 0x3a3530, 0.9);
+        cluster.add([mound, entrance]);
+      } else if (building === 'market') {
+        const stall = this.add.rectangle(x, y, 10, 6, 0xd9b35a, 0.92).setStrokeStyle(1, 0x7c4a2c, 0.5);
+        const roof = this.add.triangle(x, y - 5, -6, 2, 6, 2, 0, -4, 0xb33b3b, 0.9);
+        cluster.add([stall, roof]);
+      }
+    }
+  }
+
   private selectLand(landId: string): void {
     if (this.isDraggingMap || this.state.isPaused) {
+      return;
+    }
+
+    const selected = findLand(this.state, landId);
+    if (!selected?.isVisible) {
+      this.state.selectedLandId = undefined;
+      this.state.latestBattlePreview = undefined;
+      this.state.message = 'This district is beyond your scouts. Expand to its border to reveal it.';
+      this.refresh();
       return;
     }
 
@@ -712,7 +949,7 @@ export class MapScene extends Phaser.Scene {
 
     for (const army of this.state.armies) {
       const land = findLand(this.state, army.landId);
-      if (!land) {
+      if (!land?.isVisible) {
         continue;
       }
 
@@ -746,6 +983,112 @@ export class MapScene extends Phaser.Scene {
       }
       this.armyMarkers.push(marker);
     }
+  }
+
+  private drawAcquisitionMarkers(): void {
+    for (const marker of this.acquisitionMarkers) {
+      marker.destroy();
+    }
+    this.acquisitionMarkers = [];
+
+    for (const order of this.state.acquisitionOrders) {
+      const land = findLand(this.state, order.landId);
+      if (!land?.isVisible) {
+        continue;
+      }
+
+      const { x, y } = this.getVisibleLandMarkerPoint(land);
+      const marker = this.add.container(x, y);
+      marker.setDepth(72);
+      const progress = Phaser.Math.Clamp(order.progress / order.required, 0, 1);
+      const back = this.add.circle(0, 0, 17, 0x211103, 0.78).setStrokeStyle(2, 0xffde72, 0.95);
+      const wedge = this.add.graphics();
+      wedge.fillStyle(0xffde72, 0.88);
+      wedge.slice(0, 0, 13, Phaser.Math.DegToRad(-90), Phaser.Math.DegToRad(-90 + progress * 360), false);
+      wedge.fillPath();
+      const coin = this.add.circle(0, 0, 6, 0xd9b35a, 1).setStrokeStyle(1, 0x3b2410, 0.8);
+      const text = this.add.text(0, 23, `${order.progress}/${order.required}`, {
+        color: '#211103',
+        fontSize: '10px',
+        fontStyle: '700',
+        backgroundColor: '#f3e6c4',
+        padding: { x: 3, y: 1 },
+      }).setOrigin(0.5);
+      marker.add([back, wedge, coin, text]);
+      this.acquisitionMarkers.push(marker);
+    }
+  }
+
+  /** Shows a hammer-and-progress badge over any district with construction underway. */
+  private drawBuildMarkers(): void {
+    for (const marker of this.buildMarkers) {
+      marker.destroy();
+    }
+    this.buildMarkers = [];
+
+    for (const order of this.state.buildOrders) {
+      const land = findLand(this.state, order.landId);
+      if (!land?.isVisible) {
+        continue;
+      }
+
+      const { x, y } = this.getVisibleLandMarkerPoint(land);
+      const marker = this.add.container(x, y);
+      marker.setDepth(72);
+      const progress = Phaser.Math.Clamp(order.progress / order.required, 0, 1);
+      const back = this.add.circle(0, 0, 17, 0x2c2210, 0.78).setStrokeStyle(2, 0x8fd97a, 0.95);
+      const wedge = this.add.graphics();
+      wedge.fillStyle(0x8fd97a, 0.88);
+      wedge.slice(0, 0, 13, Phaser.Math.DegToRad(-90), Phaser.Math.DegToRad(-90 + progress * 360), false);
+      wedge.fillPath();
+      const head = this.add.rectangle(0, -2, 10, 5, 0x9c835c, 1).setStrokeStyle(1, 0x3b2410, 0.8);
+      const handle = this.add.rectangle(0, 3, 3, 9, 0x6f4a2a, 1);
+      const text = this.add.text(0, 23, `${order.progress}/${order.required}`, {
+        color: '#211103',
+        fontSize: '10px',
+        fontStyle: '700',
+        backgroundColor: '#dff5cf',
+        padding: { x: 3, y: 1 },
+      }).setOrigin(0.5);
+      marker.add([back, wedge, head, handle, text]);
+      this.buildMarkers.push(marker);
+    }
+  }
+
+  private getVisibleLandMarkerPoint(land: Land): { x: number; y: number } {
+    const camera = this.cameras.main;
+    const hexSize = this.state.mapConfig.hexSize;
+    const bottomSheetTop = GAME_HEIGHT - ACTION_BAR_HEIGHT - 250;
+    const maxScreenY = land.id === this.state.selectedLandId ? bottomSheetTop - 42 : GAME_HEIGHT - ACTION_BAR_HEIGHT - 28;
+    const visibleCenters: Array<{ x: number; y: number }> = [];
+
+    for (const tile of this.state.hexTiles) {
+      if (tile.landId !== land.id) {
+        continue;
+      }
+
+      const pixel = axialToPixel(tile.coord, hexSize);
+      const worldX = this.wx(pixel.x);
+      const worldY = this.wy(pixel.y);
+      const screenX = (worldX - camera.scrollX) * camera.zoom;
+      const screenY = (worldY - camera.scrollY) * camera.zoom;
+      if (screenX < 24 || screenX > GAME_WIDTH - 76 || screenY < HEADER_HEIGHT + 36 || screenY > maxScreenY) {
+        continue;
+      }
+      visibleCenters.push({ x: worldX, y: worldY });
+    }
+
+    if (visibleCenters.length > 0) {
+      const sum = visibleCenters.reduce((acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }), { x: 0, y: 0 });
+      return { x: sum.x / visibleCenters.length, y: sum.y / visibleCenters.length };
+    }
+
+    const fallbackScreenX = Phaser.Math.Clamp((this.wx(land.x) - camera.scrollX) * camera.zoom, 34, GAME_WIDTH - 86);
+    const fallbackScreenY = Phaser.Math.Clamp((this.wy(land.y) - camera.scrollY) * camera.zoom, HEADER_HEIGHT + 46, maxScreenY);
+    return {
+      x: camera.scrollX + fallbackScreenX / camera.zoom,
+      y: camera.scrollY + fallbackScreenY / camera.zoom,
+    };
   }
 
   private animateSoldierColumn(
@@ -794,11 +1137,28 @@ export class MapScene extends Phaser.Scene {
   }
 
   private refresh(): void {
+    this.repaintControlMap();
+    this.applyRenderMode();
+    this.repaintFogOfWar();
     this.repaintAllZones();
     this.updateSelectionOutline();
+    this.redrawLandNodes();
     this.drawArmies();
+    this.drawAcquisitionMarkers();
+    this.drawBuildMarkers();
     this.events.emit('state-changed');
     this.scene.get('UIScene').events.emit('state-changed');
+  }
+
+  private redrawLandNodes(): void {
+    for (const node of this.landNodes.values()) {
+      node.destroy(true);
+    }
+    this.landNodes.clear();
+
+    for (const land of this.state.lands) {
+      this.createLandNode(land);
+    }
   }
 
   private getOwnerColor(ownerId: string): number {
@@ -811,14 +1171,15 @@ export class MapScene extends Phaser.Scene {
 
   /** Lands without a fortress/shrine hex cluster (farms, iron mines) get a small themed village instead. */
   private addResourceCluster(cluster: Phaser.GameObjects.Container, land: Land): void {
-    const scale = 1 + land.upgradeLevel * 0.15;
+    const developmentLevel = land.buildings.length;
+    const scale = 1 + developmentLevel * 0.15;
 
     if (land.type === 'farm') {
-      this.addFarmCluster(cluster, scale, land.upgradeLevel);
+      this.addFarmCluster(cluster, scale, developmentLevel);
     } else if (land.type === 'iron') {
-      this.addMineCluster(cluster, scale, land.upgradeLevel);
+      this.addMineCluster(cluster, scale, developmentLevel);
     } else {
-      this.addBuildingGroup(cluster, 0, 0, false, Math.min(6, 2 + land.upgradeLevel));
+      this.addBuildingGroup(cluster, 0, 0, false, Math.min(6, 2 + developmentLevel));
     }
   }
 
@@ -898,11 +1259,17 @@ export class MapScene extends Phaser.Scene {
     return this.isScreenPointOverFixedUi(pointer.x, pointer.y);
   }
 
-  private isScreenPointOverFixedUi(_x: number, y: number): boolean {
+  private isScreenPointOverFixedUi(x: number, y: number): boolean {
     return (
       this.state.isPaused ||
       performance.now() < (window.__suppressMapInputUntil ?? 0) ||
       y < HEADER_HEIGHT ||
+      (Boolean(this.state.selectedLandId || this.state.latestBattlePreview) &&
+        y >= SHEET_TOP &&
+        y <= GAME_HEIGHT - ACTION_BAR_HEIGHT) ||
+      (x > GAME_WIDTH - 74 &&
+        ((y > GAME_HEIGHT - ACTION_BAR_HEIGHT - 150 && y < GAME_HEIGHT - ACTION_BAR_HEIGHT) ||
+          (y > GAME_HEIGHT - ACTION_BAR_HEIGHT - 386 && y < GAME_HEIGHT - ACTION_BAR_HEIGHT - 236))) ||
       y > GAME_HEIGHT - ACTION_BAR_HEIGHT
     );
   }
@@ -925,6 +1292,35 @@ export class MapScene extends Phaser.Scene {
     const rawY = worldY / MAP_SCALE + this.hexOffsetY;
     const coord = pixelToAxial(rawX, rawY, hexSize);
     return this.hexTileMap.get(hexKey(coord))?.landId;
+  }
+
+  private zoomMap(direction: number): void {
+    const camera = this.cameras.main;
+    const oldZoom = camera.zoom;
+    const nextZoom = Phaser.Math.Clamp(oldZoom + direction * CAMERA_ZOOM_STEP, MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM);
+    if (nextZoom === oldZoom) {
+      return;
+    }
+
+    const centerWorldX = camera.scrollX + GAME_WIDTH / (2 * oldZoom);
+    const centerWorldY = camera.scrollY + GAME_HEIGHT / (2 * oldZoom);
+    camera.setZoom(nextZoom);
+    camera.scrollX = Phaser.Math.Clamp(centerWorldX - GAME_WIDTH / (2 * nextZoom), 0, Math.max(0, this.worldWidth - GAME_WIDTH / nextZoom));
+    camera.scrollY = Phaser.Math.Clamp(centerWorldY - GAME_HEIGHT / (2 * nextZoom), 0, Math.max(0, this.worldHeight - GAME_HEIGHT / nextZoom));
+    this.state.message = `Map zoom ${Math.round(nextZoom * 100)}%.`;
+    this.scene.get('UIScene').events.emit('state-changed');
+  }
+
+  private centerCameraOnPlayerStart(): void {
+    const camera = this.cameras.main;
+    const startLand = this.state.lands.find((land) => land.ownerId === PLAYER_KINGDOM_ID);
+    const targetX = startLand ? this.wx(startLand.x) : this.worldWidth / 2;
+    const targetY = startLand ? this.wy(startLand.y) : this.worldHeight / 2;
+
+    camera.setScroll(
+      Phaser.Math.Clamp(targetX - GAME_WIDTH / 2, 0, Math.max(0, this.worldWidth - GAME_WIDTH)),
+      Phaser.Math.Clamp(targetY - GAME_HEIGHT / 2, 0, Math.max(0, this.worldHeight - GAME_HEIGHT)),
+    );
   }
 
   private shortName(land: Land): string {

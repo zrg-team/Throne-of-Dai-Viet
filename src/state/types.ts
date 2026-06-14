@@ -1,8 +1,12 @@
 import type { HexTile, MapGenConfig } from '../map/hexMapGenerator';
 
-export type ResourceKey = 'food' | 'gold' | 'manpower' | 'stability' | 'influence';
+export type ResourceKey = 'food' | 'supplies' | 'gold' | 'humans';
 
 export type LandType = 'castle' | 'farm' | 'market' | 'iron' | 'temple' | 'enemyCastle';
+
+export type LandBuildingType = 'farm' | 'mine' | 'market';
+
+export type MapRenderMode = 'terrain' | 'control';
 
 export type HeroType = 'general' | 'governor' | 'minister' | 'agent';
 
@@ -20,24 +24,21 @@ export type KingdomPersonality =
 
 export interface ResourceBag {
   food: number;
+  supplies: number;
   gold: number;
-  manpower: number;
-  stability: number;
-  influence: number;
+  humans: number;
 }
 
-export interface LandBonus {
-  resource: ResourceKey;
-  amount: number;
-}
-
-export interface LandUpgrade {
-  id: string;
-  name: string;
-  costGold: number;
-  description: string;
-  bonus: Partial<ResourceBag>;
-  defense?: number;
+export interface TerrainSummary {
+  plains: number;
+  fields: number;
+  riceFields: number;
+  forest: number;
+  mountains: number;
+  hills: number;
+  water: number;
+  fortress: number;
+  shrine: number;
 }
 
 export interface Land {
@@ -50,15 +51,18 @@ export interface Land {
   y: number;
   defense: number;
   loyalty: number;
-  bonus: LandBonus;
   neighbors: string[];
-  upgradeLevel: number;
-  upgrade: LandUpgrade;
+  buildings: LandBuildingType[];
+  buildingCapacity: number;
+  terrainSummary: TerrainSummary;
+  outputs: ResourceBag;
+  isVisible: boolean;
+  isExplored: boolean;
   special: string;
 }
 
 /** Authored land data before hex-map generation fills in position/adjacency. */
-export type LandTemplate = Omit<Land, 'x' | 'y' | 'neighbors'>;
+export type LandTemplate = Omit<Land, 'x' | 'y' | 'neighbors' | 'buildingCapacity' | 'terrainSummary' | 'outputs' | 'isVisible' | 'isExplored'>;
 
 export interface Kingdom {
   id: string;
@@ -102,7 +106,7 @@ export interface PoliticsChoice {
   id: string;
   label: string;
   description: string;
-  effects: Partial<ResourceBag>;
+  effects: Record<string, number>;
 }
 
 export interface PoliticsCard {
@@ -121,6 +125,21 @@ export interface BattlePreview {
   defenderPower: number;
 }
 
+export interface AcquisitionOrder {
+  landId: string;
+  buyerId: string;
+  progress: number;
+  required: number;
+  costGold: number;
+}
+
+export interface BuildOrder {
+  landId: string;
+  building: LandBuildingType;
+  progress: number;
+  required: number;
+}
+
 export interface GameState {
   year: number;
   season: Season;
@@ -128,6 +147,9 @@ export interface GameState {
   realtimeSeconds: number;
   ordersRemaining: number;
   resources: ResourceBag;
+  resourceRates: ResourceBag;
+  mapRenderMode: MapRenderMode;
+  mapSettings: MapGenConfig & { neutralDistrictTarget: number };
   hexTiles: HexTile[];
   mapConfig: MapGenConfig;
   lands: Land[];
@@ -143,6 +165,8 @@ export interface GameState {
   selectedLandId?: string;
   awaitingMoveArmyId?: string;
   latestBattlePreview?: BattlePreview;
+  acquisitionOrders: AcquisitionOrder[];
+  buildOrders: BuildOrder[];
   message: string;
   victory: boolean;
 }

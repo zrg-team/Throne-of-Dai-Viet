@@ -35,10 +35,9 @@ export const PARCHMENT = {
 /** SVG icon textures for the resource bar, loaded by PreloadScene from /public/icons. */
 export const RESOURCE_ICONS: Record<ResourceKey, { key: string; file: string }> = {
   food: { key: 'icon-food', file: 'food' },
+  supplies: { key: 'icon-supplies', file: 'supplies' },
   gold: { key: 'icon-gold', file: 'gold' },
-  manpower: { key: 'icon-manpower', file: 'manpower' },
-  stability: { key: 'icon-stability', file: 'stability' },
-  influence: { key: 'icon-influence', file: 'influence' },
+  humans: { key: 'icon-humans', file: 'manpower' },
 };
 export const RESOURCE_ICON_SIZE = 32;
 

@@ -11,7 +11,6 @@
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "Bundler",
-    "baseUrl": ".",
     "paths": {
       "phaser": ["./node_modules/phaser/types/phaser.d.ts"]
     },

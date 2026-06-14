@@ -1,7 +1,5 @@
-import { createHeroDraft } from './HeroSystem';
-import { drawPoliticsCard } from './PoliticsSystem';
-import { checkVictory } from './LandSystem';
-import { collectPlayerIncome, payPlayerUpkeep } from './ResourceSystem';
+import { checkVictory, progressAcquisitions, refreshPlayerVisibility } from './LandSystem';
+import { collectPlayerIncome, progressBuildOrders } from './ResourceSystem';
 import { runBotTurns } from './BotSystem';
 import type { GameState, Season } from '../state/types';
 
@@ -13,7 +11,8 @@ export function advanceRealtimeMonth(state: GameState): void {
   }
 
   collectPlayerIncome(state);
-  payPlayerUpkeep(state);
+  const acquisitionCompleted = progressAcquisitions(state);
+  const buildCompleted = progressBuildOrders(state);
 
   for (const army of state.armies) {
     army.hasMoved = false;
@@ -30,15 +29,11 @@ export function advanceRealtimeMonth(state: GameState): void {
   }
 
   state.ordersRemaining = 3;
-
-  if (state.turn % 5 === 0) {
-    createHeroDraft(state);
-  } else if (state.turn % 4 === 0) {
-    drawPoliticsCard(state);
-  } else {
-    state.message = `Time passes: Year ${state.year}, ${state.season}.`;
+  if (!acquisitionCompleted && !buildCompleted) {
+    state.message = `Economy tick: Year ${state.year}, ${state.season}. Expand, build, and prepare for the rival capital.`;
   }
 
   runBotTurns(state);
+  refreshPlayerVisibility(state);
   checkVictory(state);
 }

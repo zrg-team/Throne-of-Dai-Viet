@@ -31,7 +31,16 @@ window.render_game_to_text = () => {
     mode: state.victory ? 'victory' : state.awaitingMoveArmyId ? 'moving_army' : 'playing',
     time: `Year ${state.year}, ${state.season}`,
     realtimeSeconds: Math.round(state.realtimeSeconds),
+    mapRenderMode: state.mapRenderMode,
+    mapSettings: state.mapSettings,
     resources: state.resources,
+    resourceRates: state.resourceRates,
+    visibility: {
+      visible: state.lands.filter((land) => land.isVisible).length,
+      explored: state.lands.filter((land) => land.isExplored).length,
+      total: state.lands.length,
+    },
+    acquisitionOrders: state.acquisitionOrders,
     selectedLand: selectedLand
       ? {
           id: selectedLand.id,
@@ -40,6 +49,10 @@ window.render_game_to_text = () => {
           type: selectedLand.type,
           defense: selectedLand.defense,
           loyalty: selectedLand.loyalty,
+          buildings: selectedLand.buildings,
+          buildingCapacity: selectedLand.buildingCapacity,
+          terrainSummary: selectedLand.terrainSummary,
+          outputs: selectedLand.outputs,
         }
       : null,
     armies: state.armies.map((army) => ({

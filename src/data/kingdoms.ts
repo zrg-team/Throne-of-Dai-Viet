@@ -10,17 +10,10 @@ export const kingdomTemplates: Kingdom[] = [
     isDefeated: false,
   },
   {
-    id: 'north-lords',
+    id: 'northern-rival',
     name: 'Northern Mountain Lords',
     color: COLORS.enemyNorth,
-    personality: 'defensive',
-    isDefeated: false,
-  },
-  {
-    id: 'south-league',
-    name: 'Southern Port League',
-    color: COLORS.enemySouth,
-    personality: 'economic',
+    personality: 'expansionist',
     isDefeated: false,
   },
 ];

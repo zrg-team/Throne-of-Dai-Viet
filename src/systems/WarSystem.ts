@@ -1,6 +1,6 @@
 import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../game/constants';
-import { checkVictory, findLand, isAdjacent } from './LandSystem';
-import { applyResourceDelta } from './ResourceSystem';
+import { checkVictory, findLand, isAdjacent, refreshPlayerVisibility } from './LandSystem';
+import { applyResourceDelta, canSpend, refreshAllLandOutputs } from './ResourceSystem';
 import type { Army, BattlePreview, GameState, Land } from '../state/types';
 
 function armyPower(army: Army): number {
@@ -58,7 +58,7 @@ export function moveArmy(state: GameState, armyId: string, targetLandId: string)
     return false;
   }
 
-  if (targetLand.ownerId !== PLAYER_KINGDOM_ID && targetLand.ownerId !== NEUTRAL_OWNER_ID) {
+  if (targetLand.ownerId !== PLAYER_KINGDOM_ID) {
     return attackLand(state, army.id, targetLand.id);
   }
 
@@ -70,11 +70,17 @@ export function moveArmy(state: GameState, armyId: string, targetLandId: string)
 }
 
 export function createPlayerArmy(state: GameState, heroId: string | undefined, soldiers: number): boolean {
-  const available = Math.max(0, state.resources.manpower);
+  const available = Math.max(0, state.resources.humans);
   const total = clamp(Math.floor(soldiers), 100, Math.max(100, available));
+  const suppliesCost = Math.max(8, Math.ceil(total / 130));
 
-  if (total > state.resources.manpower) {
-    state.message = 'Not enough manpower to raise that army.';
+  if (total > state.resources.humans) {
+    state.message = 'Not enough humans to raise that army.';
+    return false;
+  }
+
+  if (!canSpend(state, { supplies: suppliesCost })) {
+    state.message = `Need ${suppliesCost} supplies to equip that army.`;
     return false;
   }
 
@@ -101,8 +107,9 @@ export function createPlayerArmy(state: GameState, heroId: string | undefined, s
     hasMoved: false,
   };
 
-  state.resources.manpower -= total;
+  applyResourceDelta(state, { humans: -total, supplies: -suppliesCost });
   state.armies.push(army);
+  refreshAllLandOutputs(state);
 
   const hero = heroId ? state.heroes.find((candidate) => candidate.id === heroId) : undefined;
   if (hero) {
@@ -130,6 +137,7 @@ export function attackLand(state: GameState, armyId: string, targetLandId: strin
 
   const victory = preview.attackerPower >= preview.defenderPower * 0.72;
   const lossRate = victory ? 0.16 : 0.32;
+  const supplyCost = Math.max(4, Math.ceil((army.units.spearmen + army.units.archers + army.units.heavyInfantry) / 420));
 
   army.units.spearmen = Math.max(0, Math.floor(army.units.spearmen * (1 - lossRate)));
   army.units.archers = Math.max(0, Math.floor(army.units.archers * (1 - lossRate * 0.9)));
@@ -139,6 +147,7 @@ export function attackLand(state: GameState, armyId: string, targetLandId: strin
   army.hasMoved = true;
   state.awaitingMoveArmyId = undefined;
   state.latestBattlePreview = undefined;
+  applyResourceDelta(state, { supplies: -supplyCost });
 
   if (victory) {
     const defeatedArmies = state.armies.filter(
@@ -152,13 +161,13 @@ export function attackLand(state: GameState, armyId: string, targetLandId: strin
     targetLand.ownerId = PLAYER_KINGDOM_ID;
     targetLand.loyalty = Math.max(45, targetLand.loyalty - 15);
     army.landId = targetLand.id;
-    applyResourceDelta(state, { stability: targetLand.type === 'enemyCastle' ? 8 : -2 });
+    refreshAllLandOutputs(state);
+    refreshPlayerVisibility(state);
     state.message = `Victory at ${targetLand.name}. The land is captured.`;
     checkVictory(state);
     return true;
   }
 
-  applyResourceDelta(state, { stability: -5 });
   state.message = `Defeat at ${targetLand.name}. The army falls back.`;
   return false;
 }

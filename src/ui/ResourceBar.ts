@@ -4,7 +4,7 @@ import type { GameState, ResourceKey } from '../state/types';
 import { compactNumber } from '../utils/format';
 import { createLabel, LACQUER, PARCHMENT, RESOURCE_ICONS } from './theme';
 
-const RESOURCE_ORDER: ResourceKey[] = ['food', 'gold', 'manpower', 'stability', 'influence'];
+const RESOURCE_ORDER: ResourceKey[] = ['food', 'supplies', 'gold', 'humans'];
 const ICON_DISPLAY_SIZE = 15;
 const ROW_Y = 30;
 
@@ -45,7 +45,9 @@ export class ResourceBar extends Phaser.GameObjects.Container {
   refresh(): void {
     this.seasonText.setText(`Year ${this.gameState.year} - ${this.gameState.season}`);
     RESOURCE_ORDER.forEach((resource) => {
-      this.resourceTexts[resource].setText(compactNumber(this.gameState.resources[resource]));
+      const rate = this.gameState.resourceRates[resource];
+      const signedRate = rate > 0 ? `+${compactNumber(rate)}` : compactNumber(rate);
+      this.resourceTexts[resource].setText(`${compactNumber(this.gameState.resources[resource])} (${signedRate})`);
     });
   }
 }

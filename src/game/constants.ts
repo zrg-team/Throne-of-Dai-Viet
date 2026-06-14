@@ -2,7 +2,7 @@ export const GAME_WIDTH = 390;
 export const GAME_HEIGHT = 844;
 
 export const HEADER_HEIGHT = 44;
-export const ACTION_BAR_HEIGHT = 60;
+export const ACTION_BAR_HEIGHT = 50;
 
 export const PLAYER_KINGDOM_ID = 'dai-viet';
 export const NEUTRAL_OWNER_ID = 'neutral';

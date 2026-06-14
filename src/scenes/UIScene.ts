@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COLORS, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT } from '../game/constants';
+import { COLORS, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID } from '../game/constants';
 import {
   ACTION_BUTTON_GAP,
   ACTION_BUTTON_HEIGHT,
@@ -17,9 +17,10 @@ import { LandPanel } from '../ui/LandPanel';
 import { ResourceBar } from '../ui/ResourceBar';
 import { createLabel, createPanel, createWoodButton, PARCHMENT } from '../ui/theme';
 import { createHeroDraft } from '../systems/HeroSystem';
-import type { GameState, Hero, PoliticsCard } from '../state/types';
+import { getBuildOptions } from '../systems/ResourceSystem';
+import type { GameState, Hero, Land, PoliticsCard } from '../state/types';
 
-type ModalScreen = 'none' | 'heroes' | 'court' | 'army' | 'request';
+type ModalScreen = 'none' | 'heroes' | 'court' | 'army' | 'request' | 'build';
 
 export class UIScene extends Phaser.Scene {
   private state!: GameState;
@@ -28,7 +29,9 @@ export class UIScene extends Phaser.Scene {
   private bottomSheet!: BottomSheet;
   private messageText!: Phaser.GameObjects.Text;
   private modalLayer!: Phaser.GameObjects.Container;
+  private mapControls: Phaser.GameObjects.GameObject[] = [];
   private modalScreen: ModalScreen = 'none';
+  private modalBuildLandId?: string;
   private requestBadge: Phaser.GameObjects.GameObject[] = [];
   private selectedArmyLeaderId?: string;
   private armySoldiers = 400;
@@ -66,7 +69,7 @@ export class UIScene extends Phaser.Scene {
     this.messageText = this.add.text(14, HEADER_HEIGHT + 6, '', {
       color: '#1e2a22',
       fontSize: '12px',
-      wordWrap: { width: GAME_WIDTH - 28 },
+      wordWrap: { width: GAME_WIDTH - 126 },
     }).setDepth(110);
 
     this.events.on('state-changed', () => this.refresh());
@@ -173,7 +176,7 @@ export class UIScene extends Phaser.Scene {
         return;
       }
       if (x >= 266 && x <= 330 && y >= 365 && y <= 407) {
-        this.armySoldiers = Math.min(Math.max(100, this.state.resources.manpower), this.armySoldiers + 100);
+        this.armySoldiers = Math.min(Math.max(100, this.state.resources.humans), this.armySoldiers + 100);
         this.refresh();
         return;
       }
@@ -217,8 +220,29 @@ export class UIScene extends Phaser.Scene {
     }
 
     if (action === 'build') {
-      this.closeModal();
-      this.state.message = 'Build mode: tap an owned land, then choose Upgrade.';
+      const selectedLand = this.getSelectedLand();
+      const buildLand = selectedLand?.ownerId === PLAYER_KINGDOM_ID ? selectedLand : this.getDefaultBuildLand();
+      if (!buildLand) {
+        this.state.message = 'Select one of your districts, then press Build.';
+        this.refresh();
+        return;
+      }
+      this.openBuildModal(buildLand.id);
+      return;
+    }
+
+    if (action === 'zoom-in') {
+      this.events.emit('ui:zoom-map', 1);
+      return;
+    }
+
+    if (action === 'zoom-out') {
+      this.events.emit('ui:zoom-map', -1);
+      return;
+    }
+
+    if (action === 'toggle-render-mode') {
+      this.events.emit('ui:toggle-render-mode');
       this.refresh();
       return;
     }
@@ -254,6 +278,7 @@ export class UIScene extends Phaser.Scene {
     window.__suppressMapInputUntil = performance.now() + 280;
     this.modalLayer.removeAll(true);
     this.modalLayer.setVisible(false);
+    this.modalBuildLandId = undefined;
   }
 
   private refresh(): void {
@@ -261,6 +286,7 @@ export class UIScene extends Phaser.Scene {
     this.actionBar.refresh();
     this.messageText.setText(this.state.message);
     this.clearRequestBadge();
+    this.clearMapControls();
 
     if (this.state.victory) {
       this.showVictory();
@@ -275,6 +301,7 @@ export class UIScene extends Phaser.Scene {
 
     this.modalLayer.removeAll(true);
     this.modalLayer.setVisible(false);
+    this.renderMapControls();
 
     if (this.state.pendingCourtRequest) {
       this.renderCourtRequestBadge(this.state.pendingCourtRequest);
@@ -291,6 +318,12 @@ export class UIScene extends Phaser.Scene {
     const selectedLand = this.state.lands.find((land) => land.id === this.state.selectedLandId);
     if (selectedLand) {
       const panel = new LandPanel(this, this.state, (action, landId) => {
+        if (action === 'open-build') {
+          if (selectedLand.ownerId === 'dai-viet') {
+            this.openBuildModal(selectedLand.id);
+          }
+          return;
+        }
         this.events.emit('ui:land-action', action, landId);
       });
       this.bottomSheet.show(panel.render(selectedLand));
@@ -321,6 +354,11 @@ export class UIScene extends Phaser.Scene {
 
     if (this.modalScreen === 'request' && this.state.activePoliticsCard) {
       this.showPoliticsScreen(this.state.activePoliticsCard);
+      return;
+    }
+
+    if (this.modalScreen === 'build') {
+      this.showBuildScreen();
     }
   }
 
@@ -425,7 +463,7 @@ export class UIScene extends Phaser.Scene {
   private showArmyScreen(): void {
     this.addModalBase('Army', 'Choose a leader, assign soldiers, then raise an army on the map. Gameplay is paused.');
     const leaders = this.state.heroes.length > 0 ? this.state.heroes : [];
-    const maxSoldiers = Math.max(100, this.state.resources.manpower);
+    const maxSoldiers = Math.max(100, this.state.resources.humans);
     this.armySoldiers = Phaser.Math.Clamp(this.armySoldiers, 100, maxSoldiers);
 
     if (leaders.length === 0) {
@@ -460,7 +498,7 @@ export class UIScene extends Phaser.Scene {
       box,
       createLabel(this, GAME_WIDTH / 2, 342, 'Soldiers to assign', 'label', { fontSize: '16px' }).setOrigin(0.5),
       createLabel(this, GAME_WIDTH / 2, 385, `${this.armySoldiers}`, 'label', { fontSize: '36px' }).setOrigin(0.5),
-      createLabel(this, GAME_WIDTH / 2, 425, `Available manpower: ${this.state.resources.manpower}`, 'caption').setOrigin(0.5),
+      createLabel(this, GAME_WIDTH / 2, 425, `Available humans: ${this.state.resources.humans}  Supplies: ${this.state.resources.supplies}`, 'caption').setOrigin(0.5),
       createWoodButton(this, 92, 386, 64, 42, '-100', () => {
         this.armySoldiers = Math.max(100, this.armySoldiers - 100);
         this.refresh();
@@ -474,6 +512,52 @@ export class UIScene extends Phaser.Scene {
         this.closeModal();
       }, { variant: 'highlight' }),
     ]);
+  }
+
+  private showBuildScreen(): void {
+    const land = this.getBuildLand();
+    this.addModalBase('Build', land ? land.name : 'Select a district first.');
+
+    if (!land || land.ownerId !== 'dai-viet') {
+      this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, 235, 'Select one of your districts before building.', 'label', {
+        fontSize: '16px',
+        align: 'center',
+        wordWrap: { width: 280 },
+      }).setOrigin(0.5));
+      return;
+    }
+
+    const terrain = formatTerrain(land);
+    const capacity = createPanel(this, 35, 116, 320, 78);
+    this.modalLayer.add([
+      capacity,
+      createLabel(this, 55, 132, `Capacity: ${land.buildings.length}/${land.buildingCapacity}`, 'label', { fontSize: '16px' }),
+      createLabel(this, 55, 160, `Terrain: ${terrain}`, 'body', { fontSize: '12px', wordWrap: { width: 280 } }),
+    ]);
+
+    getBuildOptions(this.state, land).forEach((option, index) => {
+      const y = 240 + index * 142;
+      const card = createPanel(this, 35, y - 50, 320, 112, {
+        border: option.canBuild ? 0xffde72 : 0x9b7860,
+        borderAlpha: option.canBuild ? 0.95 : 0.6,
+      });
+      const cost = formatCost(option.cost);
+      const detail = option.canBuild ? buildDescription(option.type, land) : option.reason ?? 'Unavailable';
+      this.modalLayer.add([
+        card,
+        createLabel(this, 55, y - 32, option.label.replace('Build ', ''), 'label', { fontSize: '18px' }),
+        createLabel(this, 55, y - 4, `Cost: ${cost}`, 'caption', { fontSize: '12px' }),
+        createLabel(this, 55, y + 18, detail, 'body', { fontSize: '12px', wordWrap: { width: 182 } }),
+        createWoodButton(this, 292, y + 16, 92, 38, option.canBuild ? 'Build' : 'Why?', () => {
+          if (option.canBuild) {
+            this.events.emit('ui:land-action', `build:${option.type}`, land.id);
+          } else {
+            this.state.message = option.reason ?? 'That structure is not available here.';
+          }
+          this.refresh();
+        }, { variant: option.canBuild ? 'highlight' : 'dark', fontSize: '12px' }),
+      ]);
+    });
   }
 
   private showPoliticsScreen(card: PoliticsCard): void {
@@ -573,6 +657,103 @@ export class UIScene extends Phaser.Scene {
     this.requestBadge = [];
   }
 
+  private renderMapControls(): void {
+    const hasBottomSheet = Boolean(this.state.selectedLandId || this.state.latestBattlePreview);
+    const bottomAnchor = hasBottomSheet ? SHEET_TOP - 10 : GAME_HEIGHT - 54;
+    const x = GAME_WIDTH - 24;
+
+    this.mapControls = [
+      this.createMapIconButton(x, bottomAnchor - 104, 'zoom-in', () => this.handleAction('zoom-in')),
+      this.createMapIconButton(x, bottomAnchor - 62, 'zoom-out', () => this.handleAction('zoom-out')),
+      this.createMapIconButton(x, bottomAnchor - 20, 'mode', () => this.handleAction('toggle-render-mode')),
+    ];
+  }
+
+  private createMapIconButton(
+    x: number,
+    y: number,
+    icon: 'zoom-in' | 'zoom-out' | 'mode',
+    onClick: () => void,
+  ): Phaser.GameObjects.Container {
+    const container = this.add.container(x, y).setDepth(430);
+    const g = this.add.graphics();
+    g.fillStyle(0xf3e6c4, 0.96);
+    g.fillRoundedRect(-18, -18, 36, 36, 8);
+    g.lineStyle(2, 0x7a1f1f, 0.92);
+    g.strokeRoundedRect(-18, -18, 36, 36, 8);
+    g.lineStyle(3, 0x211103, 0.9);
+
+    if (icon === 'zoom-in' || icon === 'zoom-out') {
+      g.lineBetween(-8, 0, 8, 0);
+      if (icon === 'zoom-in') {
+        g.lineBetween(0, -8, 0, 8);
+      }
+    } else if (this.state.mapRenderMode === 'terrain') {
+      g.fillStyle(0x8d8a86, 0.95);
+      g.fillTriangle(-10, 8, 0, -9, 10, 8);
+      g.fillStyle(0x5bb6d6, 0.9);
+      g.fillRect(-10, 9, 20, 3);
+    } else {
+      g.fillStyle(0x55c878, 0.95);
+      g.fillRect(-10, -9, 9, 18);
+      g.fillStyle(0xb85b53, 0.95);
+      g.fillRect(1, -9, 9, 18);
+      g.lineStyle(2, 0x211103, 0.82);
+      g.strokeRect(-10, -9, 20, 18);
+    }
+
+    const hit = this.add.rectangle(0, 0, 42, 42, 0xffffff, 0.001).setInteractive({ useHandCursor: true });
+    hit.on(
+      'pointerdown',
+      (
+        _pointer: Phaser.Input.Pointer,
+        _localX: number,
+        _localY: number,
+        event: Phaser.Types.Input.EventData,
+      ) => event.stopPropagation(),
+    );
+    hit.on(
+      'pointerup',
+      (
+        _pointer: Phaser.Input.Pointer,
+        _localX: number,
+        _localY: number,
+        event: Phaser.Types.Input.EventData,
+      ) => {
+        event.stopPropagation();
+        onClick();
+      },
+    );
+    container.add([g, hit]);
+    return container;
+  }
+
+  private clearMapControls(): void {
+    for (const item of this.mapControls) {
+      item.destroy();
+    }
+    this.mapControls = [];
+  }
+
+  private getSelectedLand(): Land | undefined {
+    return this.state.lands.find((land) => land.id === this.state.selectedLandId);
+  }
+
+  private getDefaultBuildLand(): Land | undefined {
+    return this.state.lands.find((land) => land.ownerId === PLAYER_KINGDOM_ID && land.isVisible);
+  }
+
+  private getBuildLand(): Land | undefined {
+    const landId = this.modalBuildLandId ?? this.state.selectedLandId;
+    return this.state.lands.find((land) => land.id === landId);
+  }
+
+  private openBuildModal(landId: string): void {
+    this.modalBuildLandId = landId;
+    this.state.selectedLandId = landId;
+    this.openModal('build');
+  }
+
   private pickDefaultLeader(): Hero | undefined {
     return this.state.heroes.find((hero) => hero.type === 'general') ?? this.state.heroes[0];
   }
@@ -594,4 +775,29 @@ export class UIScene extends Phaser.Scene {
       ),
     ]);
   }
+}
+
+function formatCost(cost: Partial<GameState['resources']>): string {
+  return Object.entries(cost)
+    .map(([key, value]) => `${value} ${key}`)
+    .join(', ');
+}
+
+function formatTerrain(land: Land): string {
+  const grass = land.terrainSummary.plains + land.terrainSummary.fields + land.terrainSummary.riceFields + land.terrainSummary.forest;
+  const ore = land.terrainSummary.mountains + land.terrainSummary.hills;
+  const water = land.terrainSummary.water;
+  const city = land.terrainSummary.fortress + land.terrainSummary.shrine;
+  return `grass ${grass}, ore ${ore}, water ${water}, city ${city}`;
+}
+
+function buildDescription(type: string, land: Land): string {
+  if (type === 'farm') {
+    const waterBonus = land.terrainSummary.water > 0 ? ' Water boosts food.' : '';
+    return `Produces food from grass and field tiles.${waterBonus}`;
+  }
+  if (type === 'mine') {
+    return 'Produces supplies from mountain and hill tiles.';
+  }
+  return 'Produces gold and supplies from roads and city access.';
 }

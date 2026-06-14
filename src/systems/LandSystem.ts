@@ -1,5 +1,6 @@
 import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../game/constants';
-import { applyResourceDelta, canSpend } from './ResourceSystem';
+import { ACQUISITION_TICKS_REQUIRED } from '../game/gameplayConfig';
+import { applyResourceDelta, canSpend, refreshAllLandOutputs } from './ResourceSystem';
 import type { GameState, Land } from '../state/types';
 
 export function findLand(state: GameState, landId: string): Land | undefined {
@@ -21,6 +22,40 @@ export function getNearestPlayerArmy(state: GameState, targetLandId: string) {
   });
 }
 
+export function isLandVisibleToPlayer(state: GameState, landId: string): boolean {
+  return findLand(state, landId)?.isVisible ?? false;
+}
+
+export function refreshPlayerVisibility(state: GameState): void {
+  const visibleLandIds = new Set<string>();
+
+  for (const land of state.lands) {
+    if (land.ownerId !== PLAYER_KINGDOM_ID) {
+      continue;
+    }
+
+    visibleLandIds.add(land.id);
+    for (const neighborId of land.neighbors) {
+      visibleLandIds.add(neighborId);
+    }
+  }
+
+  for (const order of state.acquisitionOrders) {
+    if (order.buyerId === PLAYER_KINGDOM_ID) {
+      visibleLandIds.add(order.landId);
+    }
+  }
+
+  for (const land of state.lands) {
+    land.isVisible = visibleLandIds.has(land.id);
+    land.isExplored = land.isExplored || land.isVisible;
+  }
+}
+
+export function getAcquisitionOrder(state: GameState, landId: string) {
+  return state.acquisitionOrders.find((order) => order.landId === landId);
+}
+
 export function acquireLand(state: GameState, landId: string): boolean {
   const land = findLand(state, landId);
 
@@ -28,44 +63,70 @@ export function acquireLand(state: GameState, landId: string): boolean {
     return false;
   }
 
+  if (getAcquisitionOrder(state, landId)) {
+    state.message = `${land.name} is already being acquired.`;
+    return false;
+  }
+
+  const hasOwnedNeighbor = land.neighbors.some((neighborId) => findLand(state, neighborId)?.ownerId === PLAYER_KINGDOM_ID);
+  if (!hasOwnedNeighbor) {
+    state.message = 'You can buy only neutral land adjacent to your districts.';
+    return false;
+  }
+
   const cost = {
-    gold: land.type === 'market' ? 55 : 40,
-    influence: land.type === 'temple' ? 30 : 20,
+    gold: 24 + Math.ceil(land.defense * 0.5) + Math.ceil(land.buildingCapacity * 2),
   };
 
   if (!canSpend(state, cost)) {
-    state.message = 'Not enough gold or influence to acquire this land.';
+    state.message = `Need ${cost.gold} gold to buy this land.`;
     return false;
   }
 
-  applyResourceDelta(state, { gold: -cost.gold, influence: -cost.influence });
-  land.ownerId = PLAYER_KINGDOM_ID;
-  land.loyalty = Math.max(land.loyalty, 68);
-  state.message = `${land.name} joins Đại Việt peacefully.`;
+  applyResourceDelta(state, { gold: -cost.gold });
+  state.acquisitionOrders.push({
+    landId,
+    buyerId: PLAYER_KINGDOM_ID,
+    progress: 0,
+    required: ACQUISITION_TICKS_REQUIRED,
+    costGold: cost.gold,
+  });
+  refreshPlayerVisibility(state);
+  state.message = `Acquiring ${land.name}. Progress will complete over ${ACQUISITION_TICKS_REQUIRED} economy ticks.`;
   return true;
 }
 
-export function upgradeLand(state: GameState, landId: string): boolean {
-  const land = findLand(state, landId);
+export function progressAcquisitions(state: GameState): boolean {
+  const completed: string[] = [];
 
-  if (!land || land.ownerId !== PLAYER_KINGDOM_ID) {
+  for (const order of state.acquisitionOrders) {
+    order.progress += 1;
+    if (order.progress >= order.required) {
+      completed.push(order.landId);
+    }
+  }
+
+  if (completed.length === 0) {
     return false;
   }
 
-  if (land.upgradeLevel >= 2) {
-    state.message = `${land.name} is already developed for the MVP.`;
-    return false;
+  for (const landId of completed) {
+    const land = findLand(state, landId);
+    const order = getAcquisitionOrder(state, landId);
+    if (!land || !order || land.ownerId !== NEUTRAL_OWNER_ID) {
+      continue;
+    }
+
+    land.ownerId = order.buyerId;
+    land.loyalty = Math.max(land.loyalty, 68);
+    if (order.buyerId === PLAYER_KINGDOM_ID) {
+      state.message = `${land.name} joins Đại Việt peacefully.`;
+    }
   }
 
-  if (!canSpend(state, { gold: land.upgrade.costGold })) {
-    state.message = 'Not enough gold to upgrade this land.';
-    return false;
-  }
-
-  applyResourceDelta(state, { gold: -land.upgrade.costGold });
-  land.upgradeLevel += 1;
-  land.defense += land.upgrade.defense ?? 0;
-  state.message = `${land.upgrade.name} completed in ${land.name}.`;
+  state.acquisitionOrders = state.acquisitionOrders.filter((order) => !completed.includes(order.landId));
+  refreshAllLandOutputs(state);
+  refreshPlayerVisibility(state);
   return true;
 }
 
