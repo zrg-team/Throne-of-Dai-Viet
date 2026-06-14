@@ -537,7 +537,7 @@ export class UIScene extends Phaser.Scene {
 
     getBuildOptions(this.state, land).forEach((option, index) => {
       const y = 240 + index * 142;
-      const card = createPanel(this, 35, y - 50, 320, 112, {
+      const card = createPanel(this, 35, y - 32, 320, 112, {
         border: option.canBuild ? 0xffde72 : 0x9b7860,
         borderAlpha: option.canBuild ? 0.95 : 0.6,
       });
@@ -545,7 +545,7 @@ export class UIScene extends Phaser.Scene {
       const detail = option.canBuild ? buildDescription(option.type, land) : option.reason ?? 'Unavailable';
       this.modalLayer.add([
         card,
-        createLabel(this, 55, y - 32, option.label.replace('Build ', ''), 'label', { fontSize: '18px' }),
+        createLabel(this, 55, y - 22, option.label.replace('Build ', ''), 'label', { fontSize: '18px' }),
         createLabel(this, 55, y - 4, `Cost: ${cost}`, 'caption', { fontSize: '12px' }),
         createLabel(this, 55, y + 18, detail, 'body', { fontSize: '12px', wordWrap: { width: 182 } }),
         createWoodButton(this, 292, y + 16, 92, 38, option.canBuild ? 'Build' : 'Why?', () => {

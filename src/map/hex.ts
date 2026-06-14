@@ -1,3 +1,6 @@
+/** Scale factor applied to all hex pixel coordinates when projecting into world space. */
+export const MAP_SCALE = 1.72;
+
 export interface HexCoord {
   q: number;
   r: number;
@@ -92,30 +95,6 @@ export function hexCorners(center: PixelPoint, size: number): number[][] {
     corners.push([center.x + size * Math.cos(angle), center.y + size * Math.sin(angle)]);
   }
   return corners;
-}
-
-/**
- * Hex outline with each corner chamfered into two points near the corner, softening
- * the silhouette. `inset` is the fraction of each adjacent edge cut off at the corner.
- * Drawn slightly oversized so chamfered tiles still tile without gaps.
- */
-export function hexRoundedCorners(center: PixelPoint, size: number, inset = 0.16): number[][] {
-  const corners = hexCorners(center, size * 1.03);
-  const points: number[][] = [];
-  for (let index = 0; index < 6; index += 1) {
-    const current = corners[index];
-    const previous = corners[(index + 5) % 6];
-    const next = corners[(index + 1) % 6];
-    points.push([
-      current[0] + (previous[0] - current[0]) * inset,
-      current[1] + (previous[1] - current[1]) * inset,
-    ]);
-    points.push([
-      current[0] + (next[0] - current[0]) * inset,
-      current[1] + (next[1] - current[1]) * inset,
-    ]);
-  }
-  return points;
 }
 
 /**

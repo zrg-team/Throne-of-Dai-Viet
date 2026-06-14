@@ -1,6 +1,16 @@
 import type Phaser from 'phaser';
 import type { LandType } from '../state/types';
 import type { PixelPoint } from './hex';
+import { INK } from '../ui/inkTheme';
+import {
+  decorateFields,
+  decorateForest,
+  decorateHills,
+  decorateMountains,
+  decoratePlains,
+  decorateRiceFields,
+  decorateWater,
+} from '../ui/MapRenderer';
 
 export type HexTerrainType =
   | 'plains'
@@ -36,162 +46,58 @@ export interface TerrainDef {
 
 const ALL_LAND_TYPES: LandType[] = ['castle', 'farm', 'market', 'iron', 'temple', 'enemyCastle'];
 
-function randomIndex(rng: () => number, length: number): number {
-  return Math.floor(rng() * length);
-}
-
-function shuffle<T>(items: T[], rng: () => number): T[] {
-  const result = [...items];
-  for (let index = result.length - 1; index > 0; index -= 1) {
-    const swapIndex = randomIndex(rng, index + 1);
-    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
-  }
-  return result;
-}
-
 export const TERRAIN_REGISTRY: Record<HexTerrainType, TerrainDef> = {
   plains: {
-    color: 0x7cb863,
+    color: INK.landPlains,
     preferredFor: ALL_LAND_TYPES,
     weight: 2,
-    decorate: (graphics, center, size, rng) => {
-      graphics.fillStyle(0x6aa854, 0.5);
-      for (let index = 0; index < 6; index += 1) {
-        const px = center.x + (rng() - 0.5) * size * 1.1;
-        const py = center.y + (rng() - 0.5) * size * 1.1;
-        graphics.fillTriangle(px - 1.5, py + 2.5, px + 1.5, py + 2.5, px, py - 2.5);
-      }
-    },
+    decorate: decoratePlains,
   },
   fields: {
-    color: 0xd2c45a,
+    color: INK.landFields,
     preferredFor: ['farm'],
     weight: 3,
-    decorate: (graphics, center, size, rng) => {
-      graphics.fillStyle(0xeede9d, 0.4);
-      for (let row = -1; row <= 1; row += 1) {
-        const y = center.y + row * size * 0.32;
-        graphics.fillRect(center.x - size * 0.6, y - size * 0.05, size * 1.2, size * 0.1);
-      }
-      void rng;
-    },
+    decorate: decorateFields,
   },
   riceFields: {
-    color: 0x9bcf6f,
+    color: INK.landRice,
     preferredFor: ['farm'],
     weight: 2,
-    decorate: (graphics, center, size, rng) => {
-      graphics.lineStyle(1, 0x4daeb7, 0.4);
-      for (let row = -1; row <= 1; row += 1) {
-        const y = center.y + row * size * 0.32;
-        graphics.lineBetween(center.x - size * 0.6, y, center.x + size * 0.6, y);
-      }
-      void rng;
-    },
+    decorate: decorateRiceFields,
   },
   forest: {
-    color: 0x4f7d3f,
+    color: INK.landForest,
     preferredFor: ['farm'],
     weight: 1,
-    decorateRegion: (graphics, centers, size, rng) => {
-      // Scatter tree clumps across the whole merged patch so it reads as one forest, not
-      // a grid of identical hexes each with their own trees.
-      const treeCount = Math.round(centers.length * 2.5);
-      for (let index = 0; index < treeCount; index += 1) {
-        const anchor = centers[randomIndex(rng, centers.length)];
-        const px = anchor.x + (rng() - 0.5) * size * 1.4;
-        const py = anchor.y + (rng() - 0.5) * size * 1.4;
-        const scale = 0.7 + rng() * 0.6;
-        graphics.fillStyle(0x355c2b, 0.6);
-        graphics.fillTriangle(
-          px,
-          py + size * 0.22 * scale,
-          px - size * 0.18 * scale,
-          py + size * 0.4 * scale,
-          px + size * 0.18 * scale,
-          py + size * 0.4 * scale,
-        );
-        graphics.fillTriangle(
-          px,
-          py - size * 0.05 * scale,
-          px - size * 0.2 * scale,
-          py + size * 0.25 * scale,
-          px + size * 0.2 * scale,
-          py + size * 0.25 * scale,
-        );
-      }
-    },
+    decorateRegion: decorateForest,
   },
   mountains: {
-    color: 0x8d8a86,
+    color: INK.mountain,
     preferredFor: ['iron'],
     weight: 2,
-    decorateRegion: (graphics, centers, size, rng) => {
-      // A handful of large overlapping peaks across the merged patch reads as one
-      // mountain range, not per-hex icons.
-      const peakCount = Math.max(1, Math.round(centers.length / 2));
-      const peaks = shuffle(centers, rng).slice(0, peakCount);
-
-      for (const peak of peaks) {
-        const scale = 2.1 + rng() * 1.4;
-        const px = peak.x + (rng() - 0.5) * size * 0.7;
-        const py = peak.y + (rng() - 0.5) * size * 0.4;
-        const height = size * 0.45 * scale;
-
-        graphics.fillStyle(0x65605a, 0.7);
-        graphics.fillTriangle(
-          px - size * 0.45 * scale,
-          py + size * 0.35,
-          px + size * 0.45 * scale,
-          py + size * 0.35,
-          px,
-          py - height,
-        );
-
-        if (scale > 2.6) {
-          graphics.fillStyle(0xf6efd8, 0.65);
-          graphics.fillTriangle(px - size * 0.16, py - height + size * 0.35, px + size * 0.16, py - height + size * 0.35, px, py - height);
-        }
-      }
-    },
+    decorateRegion: decorateMountains,
   },
   hills: {
-    color: 0xa9a36f,
+    color: INK.hills,
     preferredFor: ['iron'],
     weight: 2,
-    decorateRegion: (graphics, centers, size, rng) => {
-      // Overlapping ellipses across the merged patch form one continuous rolling ridge.
-      const ridgeCount = Math.max(1, Math.round(centers.length * 0.7));
-      const ridges = shuffle(centers, rng).slice(0, ridgeCount);
-
-      for (const ridge of ridges) {
-        const scale = 1.1 + rng() * 0.6;
-        const px = ridge.x + (rng() - 0.5) * size * 0.7;
-        const py = ridge.y + size * 0.2 + (rng() - 0.5) * size * 0.3;
-        graphics.fillStyle(0x8b7056, 0.3);
-        graphics.fillEllipse(px, py, size * 0.9 * scale, size * 0.5 * scale);
-      }
-    },
+    decorateRegion: decorateHills,
   },
   water: {
-    color: 0x5bb6d6,
+    color: INK.sea,
     preferredFor: [],
     weight: 0,
-    decorate: (graphics, center, size, rng) => {
-      graphics.lineStyle(1.5, 0xf4fbfd, 0.4);
-      graphics.lineBetween(center.x - size * 0.5, center.y, center.x + size * 0.5, center.y);
-      void rng;
-    },
+    decorate: decorateWater,
   },
   fortress: {
-    color: 0xada497,
+    color: INK.cloudShadow,
     preferredFor: [],
     weight: 0,
     // Building clusters are drawn separately (createSettlementCluster); keep this hex a
     // plain merged city platform so the ground reads as one paved area, not per-hex icons.
   },
   shrine: {
-    color: 0xc7e0c1,
+    color: INK.cloud,
     preferredFor: [],
     weight: 0,
   },
