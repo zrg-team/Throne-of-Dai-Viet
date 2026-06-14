@@ -1,0 +1,92 @@
+import Phaser from 'phaser';
+import { COLORS, GAME_WIDTH } from '../game/constants';
+import type { Hero } from '../state/types';
+import { SHEET_BOTTOM, SHEET_TOP } from './BottomSheet';
+import { renderHeroFace } from './FaceRenderer';
+
+export class HeroDraftPanel {
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly onPick: (heroId: string) => void,
+  ) {}
+
+  render(heroes: Hero[]): Phaser.GameObjects.GameObject[] {
+    const activeHero = heroes[0];
+    const items: Phaser.GameObjects.GameObject[] = [
+      this.scene.add.text(GAME_WIDTH / 2, SHEET_TOP + 16, 'Hero Offer', {
+        color: COLORS.text,
+        fontSize: '17px',
+        fontStyle: '700',
+      }).setOrigin(0.5),
+      this.scene.add.text(GAME_WIDTH / 2, SHEET_TOP + 40, 'Tap the front card to recruit', {
+        color: '#f5dfaa',
+        fontSize: '11px',
+      }).setOrigin(0.5),
+    ];
+
+    heroes.slice(0, 3).reverse().forEach((hero, stackIndex) => {
+      const realIndex = heroes.indexOf(hero);
+      const card = this.createHeroCard(hero, realIndex);
+      card.setRotation((realIndex - 1) * 0.032);
+      card.setAlpha(realIndex === 0 ? 1 : 0.84);
+      card.setScale(1 - realIndex * 0.028);
+      card.setY(card.y + realIndex * 7);
+      items.push(card);
+    });
+
+    const reject = this.scene.add.rectangle(52, SHEET_BOTTOM - 38, 72, 28, 0x56352c, 1).setInteractive({ useHandCursor: true });
+    reject.setStrokeStyle(2, 0x9b7860, 0.95);
+    const keep = this.scene.add.rectangle(338, SHEET_BOTTOM - 38, 72, 28, 0xffde72, 1).setInteractive({ useHandCursor: true });
+    keep.setStrokeStyle(2, 0x9b7860, 0.95);
+    keep.on('pointerup', () => activeHero && this.onPick(activeHero.id));
+    items.push(
+      reject,
+      this.scene.add.text(52, SHEET_BOTTOM - 38, 'Pass', {
+        color: COLORS.text,
+        fontSize: '12px',
+      }).setOrigin(0.5),
+      keep,
+      this.scene.add.text(338, SHEET_BOTTOM - 38, 'Recruit', {
+        color: COLORS.darkText,
+        fontSize: '12px',
+        fontStyle: '700',
+      }).setOrigin(0.5),
+    );
+
+    return items;
+  }
+
+  private createHeroCard(hero: Hero, index: number): Phaser.GameObjects.Container {
+    const x = GAME_WIDTH / 2;
+    const y = SHEET_TOP + 123 + index * 6;
+    const container = this.scene.add.container(x, y);
+    const card = this.scene.add.rectangle(0, 0, 326, 154, 0xf0dca8, 1).setInteractive({ useHandCursor: true });
+    card.setStrokeStyle(4, index === 0 ? 0xffde72 : 0x9b7860, 0.96);
+    const portrait = renderHeroFace(this.scene, hero, -98, -2, 0.72);
+    const title = this.scene.add.text(-22, -60, hero.name, {
+      color: '#2a1403',
+      fontSize: '17px',
+      fontStyle: '700',
+      wordWrap: { width: 148 },
+    });
+    const type = this.scene.add.text(-22, -35, `${hero.rarity} ${hero.type}`, {
+      color: '#6b5230',
+      fontSize: '12px',
+      fontStyle: '700',
+    });
+    const effect = this.scene.add.text(-22, -8, hero.effect, {
+      color: '#2a1403',
+      fontSize: '11px',
+      lineSpacing: 2,
+      wordWrap: { width: 154 },
+    });
+    const upkeep = this.scene.add.text(132, 53, `${hero.upkeepGold}g`, {
+      color: '#2a1403',
+      fontSize: '15px',
+      fontStyle: '700',
+    }).setOrigin(1, 0.5);
+    card.on('pointerup', () => index === 0 && this.onPick(hero.id));
+    container.add([card, portrait, title, type, effect, upkeep]);
+    return container;
+  }
+}
