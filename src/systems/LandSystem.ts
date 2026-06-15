@@ -1,7 +1,13 @@
 import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../game/constants';
-import { ACQUISITION_TICKS_REQUIRED } from '../game/gameplayConfig';
 import { applyResourceDelta, canSpend, refreshAllLandOutputs } from './ResourceSystem';
+import { getCourtBonuses } from './CourtSystem';
 import type { GameState, Land } from '../state/types';
+
+/** Larger, better-defended, more developed districts take longer to peacefully annex. */
+export function getAcquisitionTicksRequired(land: Land): number {
+  const valueScore = land.defense + land.buildingCapacity * 2 + (land.terrainSummary.fortress + land.terrainSummary.shrine) * 4;
+  return Math.max(2, Math.min(6, Math.round(valueScore / 12)));
+}
 
 export function findLand(state: GameState, landId: string): Land | undefined {
   return state.lands.find((land) => land.id === landId);
@@ -14,12 +20,6 @@ export function isAdjacent(state: GameState, fromLandId: string, toLandId: strin
 
 export function getPlayerArmyAtLand(state: GameState, landId: string) {
   return state.armies.find((army) => army.kingdomId === PLAYER_KINGDOM_ID && army.landId === landId);
-}
-
-export function getNearestPlayerArmy(state: GameState, targetLandId: string) {
-  return state.armies.find((army) => {
-    return army.kingdomId === PLAYER_KINGDOM_ID && isAdjacent(state, army.landId, targetLandId);
-  });
 }
 
 export function isLandVisibleToPlayer(state: GameState, landId: string): boolean {
@@ -56,6 +56,10 @@ export function getAcquisitionOrder(state: GameState, landId: string) {
   return state.acquisitionOrders.find((order) => order.landId === landId);
 }
 
+export function getSiegeOrder(state: GameState, landId: string) {
+  return state.siegeOrders.find((order) => order.landId === landId);
+}
+
 export function acquireLand(state: GameState, landId: string): boolean {
   const land = findLand(state, landId);
 
@@ -84,15 +88,17 @@ export function acquireLand(state: GameState, landId: string): boolean {
   }
 
   applyResourceDelta(state, { gold: -cost.gold });
+  const baseRequired = getAcquisitionTicksRequired(land);
+  const required = Math.max(1, Math.round(baseRequired * getCourtBonuses(state).acquisitionSpeedMult));
   state.acquisitionOrders.push({
     landId,
     buyerId: PLAYER_KINGDOM_ID,
     progress: 0,
-    required: ACQUISITION_TICKS_REQUIRED,
+    required,
     costGold: cost.gold,
   });
   refreshPlayerVisibility(state);
-  state.message = `Acquiring ${land.name}. Progress will complete over ${ACQUISITION_TICKS_REQUIRED} economy ticks.`;
+  state.message = `Acquiring ${land.name}. Progress will complete over ${required} economy ticks.`;
   return true;
 }
 

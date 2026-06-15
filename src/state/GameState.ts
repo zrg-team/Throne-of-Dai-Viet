@@ -1,12 +1,13 @@
 import { ORDERS_PER_SEASON } from '../game/constants';
 import { GAMEPLAY_MAP_CONFIG } from '../game/gameplayConfig';
-import { heroTemplates } from '../data/heroes';
+import { generateKingHero, heroTemplates } from '../data/heroes';
 import { kingdomTemplates } from '../data/kingdoms';
 import { landTemplates } from '../data/lands';
 import { politicsCardTemplates } from '../data/politicsCards';
 import { computeCentroid, computeNeighbors, generateHexMap, type MapGenConfig } from '../map/hexMapGenerator';
 import { refreshAllLandOutputs } from '../systems/ResourceSystem';
 import { refreshPlayerVisibility } from '../systems/LandSystem';
+import { createInitialCourtState } from '../systems/CourtSystem';
 import type { GameState, Land, LandTemplate, ResourceBag, TerrainSummary } from './types';
 
 const MAP_CONFIG: MapGenConfig = GAMEPLAY_MAP_CONFIG;
@@ -103,10 +104,10 @@ export function createInitialGameState(): GameState {
     realtimeSeconds: 0,
     ordersRemaining: ORDERS_PER_SEASON,
     resources: {
-      food: 135,
-      supplies: 70,
-      gold: 110,
-      humans: 560,
+      food: 120,
+      supplies: 55,
+      gold: 90,
+      humans: 540,
     },
     resourceRates: { ...EMPTY_RESOURCE_BAG },
     mapRenderMode: 'terrain',
@@ -116,20 +117,6 @@ export function createInitialGameState(): GameState {
     lands,
     kingdoms: structuredClone(kingdomTemplates),
     armies: [
-      {
-        id: 'first-army',
-        kingdomId: 'dai-viet',
-        name: '1st Army',
-        landId: 'thang-long',
-        units: {
-          spearmen: 1200,
-          archers: 500,
-          heavyInfantry: 0,
-        },
-        morale: 76,
-        supply: 88,
-        hasMoved: false,
-      },
       {
         id: 'rival-host',
         kingdomId: 'northern-rival',
@@ -142,21 +129,27 @@ export function createInitialGameState(): GameState {
         },
         morale: 73,
         supply: 84,
-        hasMoved: false,
+        rations: 300,
+        provisions: 200,
       },
     ],
-    heroes: [],
+    heroes: [generateKingHero()],
     heroDeck: structuredClone(heroTemplates),
     politicsDeck: structuredClone(politicsCardTemplates),
+    court: createInitialCourtState(),
     activeHeroDraft: undefined,
     activePoliticsCard: undefined,
     pendingCourtRequest: undefined,
     isPaused: false,
     selectedLandId: undefined,
-    awaitingMoveArmyId: undefined,
+    selectedArmyId: undefined,
     latestBattlePreview: undefined,
+    latestBattleResult: undefined,
     acquisitionOrders: [],
     buildOrders: [],
+    movementOrders: [],
+    siegeOrders: [],
+    recruitmentOrders: [],
     message: 'Expansion race begins. Buy nearby neutral land, build districts, then capture the rival capital.',
     victory: false,
   };

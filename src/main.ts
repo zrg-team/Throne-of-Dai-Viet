@@ -28,7 +28,7 @@ window.render_game_to_text = () => {
 
   return JSON.stringify({
     coordinateSystem: 'Phaser canvas pixels, origin top-left, x right, y down',
-    mode: state.victory ? 'victory' : state.awaitingMoveArmyId ? 'moving_army' : 'playing',
+    mode: state.victory ? 'victory' : state.movementOrders.length > 0 ? 'moving_army' : state.selectedArmyId ? 'army_selected' : 'playing',
     time: `Year ${state.year}, ${state.season}`,
     realtimeSeconds: Math.round(state.realtimeSeconds),
     mapRenderMode: state.mapRenderMode,
@@ -62,9 +62,19 @@ window.render_game_to_text = () => {
       total: army.units.spearmen + army.units.archers + army.units.heavyInfantry,
       morale: army.morale,
       supply: army.supply,
+      rations: army.rations,
+      provisions: army.provisions,
     })),
     draftChoices: state.activeHeroDraft?.map((hero) => hero.name) ?? [],
     politicsCard: state.activePoliticsCard?.title ?? null,
+    court: {
+      stability: Math.round(state.court.stability),
+      influence: Math.round(state.court.influence),
+      favor: Math.round(state.court.favor),
+      favorThreshold: state.court.favorThreshold,
+      unlockedSeats: state.court.unlockedSeats,
+      seats: state.court.seats,
+    },
     message: state.message,
   });
 };

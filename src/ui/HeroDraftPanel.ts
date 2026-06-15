@@ -1,10 +1,13 @@
 import Phaser from 'phaser';
 import { COLORS, GAME_WIDTH } from '../game/constants';
 import type { Hero } from '../state/types';
+import { makeSwipeableCard, staggerIn } from './animations';
 import { SHEET_BOTTOM, SHEET_TOP } from './BottomSheet';
 import { renderHeroFace } from './FaceRenderer';
 
 export class HeroDraftPanel {
+  private lastFrontHeroId?: string;
+
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly onPick: (heroId: string) => void,
@@ -24,6 +27,11 @@ export class HeroDraftPanel {
       }).setOrigin(0.5),
     ];
 
+    const isNewDraft = activeHero?.id !== this.lastFrontHeroId;
+    this.lastFrontHeroId = activeHero?.id;
+
+    const cards: Phaser.GameObjects.Container[] = [];
+    let frontCard: Phaser.GameObjects.Container | undefined;
     heroes.slice(0, 3).reverse().forEach((hero, stackIndex) => {
       const realIndex = heroes.indexOf(hero);
       const card = this.createHeroCard(hero, realIndex);
@@ -32,7 +40,22 @@ export class HeroDraftPanel {
       card.setScale(1 - realIndex * 0.028);
       card.setY(card.y + realIndex * 7);
       items.push(card);
+      cards.push(card);
+      if (realIndex === 0) {
+        frontCard = card;
+      }
     });
+
+    if (isNewDraft) {
+      staggerIn(this.scene, cards, { staggerMs: 90, offsetY: -30, duration: 240 });
+    }
+
+    if (frontCard && activeHero) {
+      makeSwipeableCard(this.scene, frontCard, 326, 154, {
+        onSwipeRight: () => this.onPick(activeHero.id),
+        onSwipeLeft: () => {},
+      });
+    }
 
     const reject = this.scene.add.rectangle(52, SHEET_BOTTOM - 38, 72, 28, 0x56352c, 1).setInteractive({ useHandCursor: true });
     reject.setStrokeStyle(2, 0x9b7860, 0.95);

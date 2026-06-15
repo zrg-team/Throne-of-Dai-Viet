@@ -24,8 +24,8 @@ function runSingleBot(state: GameState, kingdom: Kingdom): void {
   if (buildTarget) {
     const building = chooseBuilding(buildTarget);
     if (building && buildTarget.buildings.length < buildTarget.buildingCapacity) {
-      buildTarget.buildings.push(building);
-      buildTarget.outputs = calculateLandOutputs(buildTarget);
+      buildTarget.buildings.push({ type: building, level: 1 });
+      buildTarget.outputs = calculateLandOutputs(state, buildTarget);
       if (isLandVisibleToPlayer(state, buildTarget.id)) {
         state.message = `${kingdom.name} develops ${buildTarget.name}.`;
       }

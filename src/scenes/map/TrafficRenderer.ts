@@ -4,7 +4,7 @@
  * `InkMapItemRenderer` (cart/traveler glyphs).
  */
 import Phaser from 'phaser';
-import { createRng } from '../../map/random';
+import { buildRoadCurve } from '../../map/roadCurve';
 import { hashString } from '../../utils/math';
 import type { GameState, Land } from '../../state/types';
 import type { InkMapRenderer } from '../../ui/MapRenderer';
@@ -14,8 +14,8 @@ type WorldTransform = (value: number) => number;
 type SettlementAnchor = (land: Land) => { x: number; y: number };
 
 export class TrafficRenderer {
-  private cartMarkers: Phaser.GameObjects.GameObject[] = [];
-  private travelerMarkers: Phaser.GameObjects.GameObject[] = [];
+  private cartMarkers = new Map<string, Phaser.GameObjects.GameObject>();
+  private travelerMarkers = new Map<string, Phaser.GameObjects.GameObject[]>();
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -36,7 +36,7 @@ export class TrafficRenderer {
 
         const from = getAnchor(land);
         const to = getAnchor(neighbor);
-        const curve = this.buildRoadCurve(state, from, to, `${land.id}|${neighbor.id}`, wx, wy);
+        const curve = buildRoadCurve(state, from, to, `${land.id}|${neighbor.id}`, wx, wy);
         this.drawRoad(graphics, curve, this.roadWidth(land), this.roadWidth(neighbor));
       }
     }
@@ -44,7 +44,11 @@ export class TrafficRenderer {
     return graphics;
   }
 
-  /** Animated ox-carts shuttling along roads between farms and the cities they're connected to. */
+  /**
+   * Animated ox-carts shuttling along roads between farms and the cities they're connected
+   * to. Existing carts are left running (and their tweens untouched) so this can be called
+   * again on every refresh to pick up newly-revealed settlements as fog of war lifts.
+   */
   drawCarts(
     state: GameState,
     wx: WorldTransform,
@@ -52,10 +56,7 @@ export class TrafficRenderer {
     getAnchor: SettlementAnchor,
     getCityCenter: (land: Land) => { x: number; y: number } | undefined,
   ): Phaser.GameObjects.GameObject[] {
-    for (const cart of this.cartMarkers) {
-      cart.destroy();
-    }
-    this.cartMarkers = [];
+    const activeKeys = new Set<string>();
 
     for (const land of state.lands) {
       if (land.type !== 'farm' || !land.isVisible) {
@@ -68,15 +69,21 @@ export class TrafficRenderer {
           continue;
         }
 
+        const key = `${land.id}|${neighbor.id}`;
+        activeKeys.add(key);
+        if (this.cartMarkers.has(key)) {
+          continue;
+        }
+
         const from = getAnchor(land);
         const to = getAnchor(neighbor);
-        const curve = this.buildRoadCurve(state, from, to, `${land.id}|${neighbor.id}`, wx, wy);
+        const curve = buildRoadCurve(state, from, to, key, wx, wy);
 
         const cart = this.inkItems.createCart();
         cart.setDepth(69);
-        this.cartMarkers.push(cart);
+        this.cartMarkers.set(key, cart);
 
-        const seed = hashString(`cart|${land.id}|${neighbor.id}`);
+        const seed = hashString(`cart|${key}`);
         const progress = { t: (seed % 100) / 100 };
         const duration = 16000 + (seed % 11) * 1200;
         const updateCart = () => {
@@ -96,15 +103,23 @@ export class TrafficRenderer {
       }
     }
 
-    return this.cartMarkers;
+    for (const [key, cart] of this.cartMarkers) {
+      if (!activeKeys.has(key)) {
+        cart.destroy();
+        this.cartMarkers.delete(key);
+      }
+    }
+
+    return [...this.cartMarkers.values()];
   }
 
-  /** Slow-walking ink travelers wandering every road between connected settlements, for a livelier map. */
+  /**
+   * Slow-walking ink travelers wandering every road between connected settlements, for a
+   * livelier map. Existing travelers are left running so this can be called again on every
+   * refresh to pick up newly-revealed settlements as fog of war lifts.
+   */
   drawTravelers(state: GameState, wx: WorldTransform, wy: WorldTransform, getAnchor: SettlementAnchor): Phaser.GameObjects.GameObject[] {
-    for (const traveler of this.travelerMarkers) {
-      traveler.destroy();
-    }
-    this.travelerMarkers = [];
+    const activeKeys = new Set<string>();
 
     for (const land of state.lands) {
       for (const neighborId of land.neighbors) {
@@ -113,16 +128,23 @@ export class TrafficRenderer {
           continue;
         }
 
+        const key = `${land.id}|${neighbor.id}`;
+        activeKeys.add(key);
+        if (this.travelerMarkers.has(key)) {
+          continue;
+        }
+
         const from = getAnchor(land);
         const to = getAnchor(neighbor);
-        const curve = this.buildRoadCurve(state, from, to, `${land.id}|${neighbor.id}`, wx, wy);
+        const curve = buildRoadCurve(state, from, to, key, wx, wy);
+        const travelers: Phaser.GameObjects.GameObject[] = [];
 
         for (let index = 0; index < 2; index += 1) {
           const traveler = this.inkItems.createTraveler();
           traveler.setDepth(69);
-          this.travelerMarkers.push(traveler);
+          travelers.push(traveler);
 
-          const seed = hashString(`traveler|${land.id}|${neighbor.id}|${index}`);
+          const seed = hashString(`traveler|${key}|${index}`);
           const progress = { t: (seed % 100) / 100 };
           const duration = 20000 + (seed % 13) * 1500;
           const updateTraveler = () => {
@@ -140,10 +162,21 @@ export class TrafficRenderer {
             onUpdate: updateTraveler,
           });
         }
+
+        this.travelerMarkers.set(key, travelers);
       }
     }
 
-    return this.travelerMarkers;
+    for (const [key, travelers] of this.travelerMarkers) {
+      if (!activeKeys.has(key)) {
+        for (const traveler of travelers) {
+          traveler.destroy();
+        }
+        this.travelerMarkers.delete(key);
+      }
+    }
+
+    return [...this.travelerMarkers.values()].flat();
   }
 
   /** Roads are wider where they meet a bigger settlement: castles widest, then cities/temples, then villages/mines. */
@@ -155,42 +188,6 @@ export class TrafficRenderer {
       return 5 + land.buildings.length * 0.35;
     }
     return 3 + land.buildings.length * 0.25;
-  }
-
-  /**
-   * A gently winding spline between two settlements: a couple of waypoints are nudged
-   * sideways by a deterministic, seeded amount so the road meanders instead of running
-   * dead straight.
-   */
-  private buildRoadCurve(
-    state: GameState,
-    from: { x: number; y: number },
-    to: { x: number; y: number },
-    seedKey: string,
-    wx: WorldTransform,
-    wy: WorldTransform,
-  ): Phaser.Curves.Spline {
-    const rng = createRng(state.mapConfig.seed + hashString(seedKey));
-    const fromW = { x: wx(from.x), y: wy(from.y) };
-    const toW = { x: wx(to.x), y: wy(to.y) };
-    const dx = toW.x - fromW.x;
-    const dy = toW.y - fromW.y;
-    const length = Math.hypot(dx, dy) || 1;
-    const normalX = -dy / length;
-    const normalY = dx / length;
-
-    const points: Phaser.Math.Vector2[] = [new Phaser.Math.Vector2(fromW.x, fromW.y)];
-    const waypointCount = length > 90 ? 2 : 1;
-    for (let index = 1; index <= waypointCount; index += 1) {
-      const t = index / (waypointCount + 1);
-      const jitter = (rng() - 0.5) * length * 0.22;
-      points.push(
-        new Phaser.Math.Vector2(fromW.x + dx * t + normalX * jitter, fromW.y + dy * t + normalY * jitter),
-      );
-    }
-    points.push(new Phaser.Math.Vector2(toW.x, toW.y));
-
-    return new Phaser.Curves.Spline(points);
   }
 
   /**

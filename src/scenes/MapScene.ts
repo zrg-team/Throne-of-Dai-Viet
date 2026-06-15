@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
-import { ACTION_BAR_HEIGHT, COLORS, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID } from '../game/constants';
+import { ACTION_BAR_HEIGHT, COLORS, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID, REALTIME_TICK_MS } from '../game/constants';
 import { TouchController } from '../input/TouchController';
 import { createInitialGameState } from '../state/GameState';
-import { acquireLand, findLand, getAcquisitionOrder, getNearestPlayerArmy } from '../systems/LandSystem';
+import { acquireLand, findLand, getAcquisitionOrder, isAdjacent } from '../systems/LandSystem';
 import { advanceRealtimeMonth } from '../systems/RealtimeSystem';
-import { buildDistrictBuilding } from '../systems/ResourceSystem';
-import { createBattlePreview, createPlayerArmy, moveArmy, attackLand } from '../systems/WarSystem';
+import { buildDistrictBuilding, upgradeDistrictBuilding } from '../systems/ResourceSystem';
+import { createBattlePreview, queueRecruitment, issueMoveOrder, attackLand, cancelSiege } from '../systems/WarSystem';
 import type { GameState, Land, LandBuildingType } from '../state/types';
 import type { HexTile } from '../map/hexMapGenerator';
 import { MAP_SCALE, axialToPixel, hexCorners, hexKey, pixelToAxial } from '../map/hex';
@@ -17,6 +17,7 @@ import { choosePoliticsCard } from '../systems/PoliticsSystem';
 import { SHEET_TOP } from '../ui/BottomSheet';
 import { InkMapRenderer } from '../ui/MapRenderer';
 import { InkMapItemRenderer } from '../ui/MapItemRenderer';
+import { ArmyRenderer } from './map/ArmyRenderer';
 import { OverlayRenderer } from './map/OverlayRenderer';
 import { SettlementRenderer } from './map/SettlementRenderer';
 import { TrafficRenderer } from './map/TrafficRenderer';
@@ -24,15 +25,15 @@ import { TrafficRenderer } from './map/TrafficRenderer';
 const MIN_CAMERA_ZOOM = 0.72;
 const MAX_CAMERA_ZOOM = 1.65;
 const CAMERA_ZOOM_STEP = 0.16;
-const REALTIME_TICK_MS = 5500;
 
 export class MapScene extends Phaser.Scene {
   private state!: GameState;
   private touch!: TouchController;
   private landNodes = new Map<string, Phaser.GameObjects.Container>();
-  private armyMarkers: Phaser.GameObjects.GameObject[] = [];
   private acquisitionMarkers: Phaser.GameObjects.GameObject[] = [];
   private buildMarkers: Phaser.GameObjects.GameObject[] = [];
+  private siegeMarkers: Phaser.GameObjects.GameObject[] = [];
+  private recruitMarkers: Phaser.GameObjects.GameObject[] = [];
   private mapGraphics!: Phaser.GameObjects.Graphics;
   private terrainGraphics!: Phaser.GameObjects.Graphics;
   private terrainDecorationGraphics!: Phaser.GameObjects.Graphics;
@@ -42,6 +43,7 @@ export class MapScene extends Phaser.Scene {
   private settlements!: SettlementRenderer;
   private traffic!: TrafficRenderer;
   private overlays!: OverlayRenderer;
+  private armies!: ArmyRenderer;
   private hexTileMap = new Map<string, HexTile>();
   private hexOffsetX = 0;
   private hexOffsetY = 0;
@@ -50,6 +52,8 @@ export class MapScene extends Phaser.Scene {
   private realtimeAccumulator = 0;
   private isDraggingMap = false;
   private dragDistance = 0;
+  private draggingArmyId?: string;
+  private dragLineGraphics?: Phaser.GameObjects.Graphics;
   private domDown?: { x: number; y: number };
   private domDragDistance = 0;
   private readonly domPointerDown = (event: PointerEvent): void => {
@@ -121,12 +125,14 @@ export class MapScene extends Phaser.Scene {
     this.settlements = new SettlementRenderer(this, this.inkItems);
     this.traffic = new TrafficRenderer(this, this.inkMap, this.inkItems);
     this.overlays = new OverlayRenderer(this, this.inkMap);
+    this.armies = new ArmyRenderer(this, this.inkItems);
     this.computeWorldBounds();
     this.touch = new TouchController(this);
     this.touch.enableFullscreenKey();
     this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
     this.centerCameraOnPlayerStart();
     this.enableMapDrag();
+    this.enableArmyDrag();
     this.game.canvas.addEventListener('pointerdown', this.domPointerDown);
     this.game.canvas.addEventListener('pointermove', this.domPointerMove);
     this.game.canvas.addEventListener('pointerup', this.domPointerUp);
@@ -167,8 +173,12 @@ export class MapScene extends Phaser.Scene {
       attackLand(this.state, armyId, landId);
       this.refresh();
     });
-    ui.events.on('ui:create-army', (heroId: string | undefined, soldiers: number) => {
-      createPlayerArmy(this.state, heroId, soldiers);
+    ui.events.on('ui:retreat-siege', (armyId: string, landId: string) => {
+      cancelSiege(this.state, armyId, landId);
+      this.refresh();
+    });
+    ui.events.on('ui:create-army', (heroId: string, soldiers: number, food: number, supplies: number) => {
+      queueRecruitment(this.state, heroId, soldiers, food, supplies);
       this.refresh();
     });
     ui.events.on('ui:zoom-map', (direction: number) => {
@@ -191,14 +201,31 @@ export class MapScene extends Phaser.Scene {
 
     if (this.realtimeAccumulator >= REALTIME_TICK_MS) {
       this.realtimeAccumulator = 0;
+      const arrivals = this.state.movementOrders
+        .filter((order) => order.progress + 1 >= order.legRequired)
+        .map((order) => {
+          const army = this.state.armies.find((candidate) => candidate.id === order.armyId);
+          return army ? { fromLandId: army.landId, toLandId: order.path[0], isPlayer: army.kingdomId === PLAYER_KINGDOM_ID } : undefined;
+        })
+        .filter((arrival): arrival is { fromLandId: string; toLandId: string; isPlayer: boolean } => Boolean(arrival));
+
       advanceRealtimeMonth(this.state);
+
+      for (const arrival of arrivals) {
+        const fromLand = findLand(this.state, arrival.fromLandId);
+        const toLand = findLand(this.state, arrival.toLandId);
+        if (fromLand && toLand) {
+          this.animateSoldierColumn(this.wx(fromLand.x), this.wy(fromLand.y), this.wx(toLand.x), this.wy(toLand.y), arrival.isPlayer);
+        }
+      }
+
       this.refresh();
     }
   }
 
   private enableMapDrag(): void {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (this.isPointerOverFixedUi(pointer)) {
+      if (this.isPointerOverFixedUi(pointer) || this.draggingArmyId) {
         return;
       }
 
@@ -207,7 +234,7 @@ export class MapScene extends Phaser.Scene {
     });
 
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (!pointer.isDown || this.isPointerOverFixedUi(pointer)) {
+      if (!pointer.isDown || this.isPointerOverFixedUi(pointer) || this.draggingArmyId) {
         return;
       }
 
@@ -231,7 +258,7 @@ export class MapScene extends Phaser.Scene {
     });
 
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-      if (this.isPointerOverFixedUi(pointer)) {
+      if (this.isPointerOverFixedUi(pointer) || this.draggingArmyId) {
         return;
       }
 
@@ -249,6 +276,101 @@ export class MapScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Select-then-drag army control: a player army marker's `pointerdown` (wired via
+   * `ArmyRenderer`) selects it and arms `draggingArmyId`; while armed, global
+   * `pointermove` draws a live drag line from the army to the pointer, and
+   * `pointerup` resolves the land under the pointer and issues a march order.
+   */
+  private enableArmyDrag(): void {
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (!this.draggingArmyId) {
+        return;
+      }
+
+      const army = this.state.armies.find((candidate) => candidate.id === this.draggingArmyId);
+      const land = army ? findLand(this.state, army.landId) : undefined;
+      if (!land) {
+        return;
+      }
+
+      if (!this.dragLineGraphics) {
+        this.dragLineGraphics = this.add.graphics();
+        this.dragLineGraphics.setDepth(72);
+      }
+
+      const anchor = this.getSettlementAnchor(land);
+      const from = new Phaser.Math.Vector2(this.wx(anchor.x), this.wy(anchor.y));
+      const to = new Phaser.Math.Vector2(pointer.worldX, pointer.worldY);
+      const direction = to.clone().subtract(from);
+      const length = direction.length();
+
+      this.dragLineGraphics.clear();
+      this.dragLineGraphics.lineStyle(3, COLORS.selected, 0.85);
+
+      if (length < 1) {
+        return;
+      }
+
+      const normal = new Phaser.Math.Vector2(-direction.y, direction.x).normalize();
+      const midpoint = from.clone().add(to).scale(0.5);
+      const control = midpoint.add(normal.scale(length * 0.15));
+      const curve = new Phaser.Curves.QuadraticBezier(from, control, to);
+      const points = curve.getPoints(20);
+
+      this.dragLineGraphics.beginPath();
+      this.dragLineGraphics.moveTo(points[0].x, points[0].y);
+      for (const point of points.slice(1)) {
+        this.dragLineGraphics.lineTo(point.x, point.y);
+      }
+      this.dragLineGraphics.strokePath();
+
+      const tangent = curve.getTangent(1).normalize();
+      const arrowBack = new Phaser.Math.Vector2(-tangent.y, tangent.x);
+      const apex = to.clone().add(tangent.clone().scale(14));
+      const left = to.clone().add(arrowBack.clone().scale(6));
+      const right = to.clone().subtract(arrowBack.clone().scale(6));
+
+      this.dragLineGraphics.fillStyle(COLORS.selected, 0.9);
+      this.dragLineGraphics.fillTriangle(apex.x, apex.y, left.x, left.y, right.x, right.y);
+    });
+
+    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      if (!this.draggingArmyId) {
+        return;
+      }
+
+      const armyId = this.draggingArmyId;
+      this.draggingArmyId = undefined;
+      this.dragLineGraphics?.clear();
+
+      const landId = this.findLandIdAt(pointer.worldX, pointer.worldY);
+      if (landId) {
+        issueMoveOrder(this.state, armyId, landId);
+      }
+
+      this.refresh();
+    });
+  }
+
+  private onArmyPointerDown(armyId: string, _pointer: Phaser.Input.Pointer): void {
+    if (this.state.isPaused) {
+      return;
+    }
+
+    if (this.state.selectedArmyId === armyId) {
+      this.state.selectedArmyId = undefined;
+      this.draggingArmyId = undefined;
+    } else {
+      this.state.selectedArmyId = armyId;
+      this.draggingArmyId = armyId;
+      this.isDraggingMap = false;
+      this.dragDistance = 0;
+    }
+
+    this.refresh();
+  }
+
   private handleLandAction(action: string, landId: string): void {
     if (action === 'acquire') {
       acquireLand(this.state, landId);
@@ -258,22 +380,16 @@ export class MapScene extends Phaser.Scene {
       buildDistrictBuilding(this.state, landId, action.replace('build:', '') as LandBuildingType);
     }
 
-    if (action === 'move') {
-      const army = getNearestPlayerArmy(this.state, landId);
-      if (army) {
-        this.state.awaitingMoveArmyId = army.id;
-        this.state.message = `Select an adjacent land for ${army.name}.`;
-      } else {
-        this.state.message = 'No player army is adjacent to that land.';
-      }
+    if (action.startsWith('upgrade:')) {
+      upgradeDistrictBuilding(this.state, landId, Number(action.slice('upgrade:'.length)));
     }
 
     if (action === 'preview') {
-      const army = getNearestPlayerArmy(this.state, landId);
-      if (army) {
+      const army = this.state.armies.find((candidate) => candidate.id === this.state.selectedArmyId);
+      if (army && isAdjacent(this.state, army.landId, landId)) {
         this.state.latestBattlePreview = createBattlePreview(this.state, army.id, landId);
       } else {
-        this.state.message = 'Move an army next to this land before attacking.';
+        this.state.message = 'Select an army adjacent to this land before attacking.';
       }
     }
 
@@ -318,9 +434,12 @@ export class MapScene extends Phaser.Scene {
     }
 
     this.drawArmies();
+    this.updateArmyHighlight();
     this.drawFogOfWar();
     this.drawAcquisitionMarkers();
     this.drawBuildMarkers();
+    this.drawSiegeMarkers();
+    this.drawRecruitMarkers();
   }
 
   private drawPaperBackground(): void {
@@ -495,43 +614,31 @@ export class MapScene extends Phaser.Scene {
       return;
     }
 
-    if (this.state.awaitingMoveArmyId) {
-      const army = this.state.armies.find((candidate) => candidate.id === this.state.awaitingMoveArmyId);
-      const fromLand = army ? findLand(this.state, army.landId) : undefined;
-      const moved = moveArmy(this.state, this.state.awaitingMoveArmyId, landId);
-      const toLand = findLand(this.state, landId);
-      if (moved && fromLand && toLand) {
-        this.animateSoldierColumn(
-          this.wx(fromLand.x),
-          this.wy(fromLand.y),
-          this.wx(toLand.x),
-          this.wy(toLand.y),
-          army?.kingdomId === PLAYER_KINGDOM_ID,
-        );
-      }
-    }
-
     this.state.selectedLandId = landId;
     this.refresh();
   }
 
   private drawArmies(): void {
-    for (const marker of this.armyMarkers) {
-      marker.destroy();
-    }
-    this.armyMarkers = [];
+    this.armies.drawArmies(
+      this.state,
+      (value) => this.wx(value),
+      (value) => this.wy(value),
+      (land) => this.getSettlementAnchor(land),
+      (armyId, pointer) => this.onArmyPointerDown(armyId, pointer),
+    );
+  }
 
-    for (const army of this.state.armies) {
-      const land = findLand(this.state, army.landId);
-      if (!land?.isVisible) {
-        continue;
-      }
-
-      const center = this.getCityCenter(land) ?? { x: land.x, y: land.y };
-      const total = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
-      const isPlayer = army.kingdomId === PLAYER_KINGDOM_ID;
-      const marker = this.inkItems.createArmyMarker(this.wx(center.x) + 18, this.wy(center.y) - 28, total, isPlayer);
-      this.armyMarkers.push(marker);
+  private updateArmyHighlight(): void {
+    if (this.state.selectedArmyId) {
+      this.overlays.highlightReachableLands(
+        this.state,
+        this.hexTileMap,
+        (value) => this.wx(value),
+        (value) => this.wy(value),
+        this.state.selectedArmyId,
+      );
+    } else {
+      this.overlays.clearArmyHighlight();
     }
   }
 
@@ -571,6 +678,46 @@ export class MapScene extends Phaser.Scene {
       const marker = this.inkItems.createProgressBadge(x, y, order.progress, order.required, 'build');
       marker.setDepth(72);
       this.buildMarkers.push(marker);
+    }
+  }
+
+  /** Shows a crossed-swords progress badge over any district currently under siege. */
+  private drawSiegeMarkers(): void {
+    for (const marker of this.siegeMarkers) {
+      marker.destroy();
+    }
+    this.siegeMarkers = [];
+
+    for (const order of this.state.siegeOrders) {
+      const land = findLand(this.state, order.landId);
+      if (!land?.isVisible) {
+        continue;
+      }
+
+      const { x, y } = this.getVisibleLandMarkerPoint(land);
+      const marker = this.inkItems.createProgressBadge(x, y, order.progress, order.required, 'siege');
+      marker.setDepth(72);
+      this.siegeMarkers.push(marker);
+    }
+  }
+
+  /** Shows a flag-and-progress badge over the capital while an army is being recruited. */
+  private drawRecruitMarkers(): void {
+    for (const marker of this.recruitMarkers) {
+      marker.destroy();
+    }
+    this.recruitMarkers = [];
+
+    for (const order of this.state.recruitmentOrders) {
+      const land = findLand(this.state, order.landId);
+      if (!land?.isVisible) {
+        continue;
+      }
+
+      const { x, y } = this.getVisibleLandMarkerPoint(land);
+      const marker = this.inkItems.createProgressBadge(x, y, order.progress, order.required, 'recruit');
+      marker.setDepth(72);
+      this.recruitMarkers.push(marker);
     }
   }
 
@@ -662,9 +809,14 @@ export class MapScene extends Phaser.Scene {
     this.repaintAllZones();
     this.updateSelectionOutline();
     this.redrawLandNodes();
+    this.drawCarts();
+    this.drawTravelers();
     this.drawArmies();
+    this.updateArmyHighlight();
     this.drawAcquisitionMarkers();
     this.drawBuildMarkers();
+    this.drawSiegeMarkers();
+    this.drawRecruitMarkers();
     this.events.emit('state-changed');
     this.scene.get('UIScene').events.emit('state-changed');
   }

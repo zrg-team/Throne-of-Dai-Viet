@@ -4,7 +4,13 @@ export type ResourceKey = 'food' | 'supplies' | 'gold' | 'humans';
 
 export type LandType = 'castle' | 'farm' | 'market' | 'iron' | 'temple' | 'enemyCastle';
 
-export type LandBuildingType = 'farm' | 'mine' | 'market';
+export type LandBuildingType = 'farm' | 'mine' | 'market' | 'wall' | 'tower' | 'barracks' | 'shrine';
+
+/** A constructed building on a district: its type and current upgrade level. */
+export interface LandBuildingInstance {
+  type: LandBuildingType;
+  level: number;
+}
 
 export type MapRenderMode = 'terrain' | 'control';
 
@@ -52,7 +58,7 @@ export interface Land {
   defense: number;
   loyalty: number;
   neighbors: string[];
-  buildings: LandBuildingType[];
+  buildings: LandBuildingInstance[];
   buildingCapacity: number;
   terrainSummary: TerrainSummary;
   outputs: ResourceBag;
@@ -87,7 +93,37 @@ export interface Army {
   generalHeroId?: string;
   morale: number;
   supply: number;
-  hasMoved: boolean;
+  /** Food units carried by the army; depletes each economy tick. */
+  rations: number;
+  /** Supply units carried by the army; depletes each economy tick and affects march speed/morale. */
+  provisions: number;
+}
+
+/** An in-progress march: an army advancing one land per leg toward `path`'s last entry. */
+export interface MovementOrder {
+  armyId: string;
+  /** Remaining land ids to visit, in order. The last entry is the final destination. */
+  path: string[];
+  /** Ticks accumulated toward completing the current leg (path[0]). */
+  progress: number;
+  /** Ticks required to complete the current leg (path[0]). */
+  legRequired: number;
+}
+
+/** Core hero stats (0-100). Drive court position bonuses and land assignment bonuses. */
+export interface HeroStats {
+  /** Army power in battle. */
+  martial: number;
+  /** Recruitment speed, build/upgrade speed, march speed. */
+  logistics: number;
+  /** Resource output %, building cost reduction. */
+  administration: number;
+  /** Influence gain, peaceful acquisition speed. */
+  diplomacy: number;
+  /** Stability regen, land loyalty regen. */
+  loyalty: number;
+  /** Favor generation, army morale regen, recruitment via fame. */
+  renown: number;
 }
 
 export interface Hero {
@@ -98,6 +134,11 @@ export interface Hero {
   upkeepGold: number;
   description: string;
   effect: string;
+  stats: HeroStats;
+  /** While seated in court, biases the politics card draw toward this card type. */
+  cardBias?: PoliticsCard['type'];
+  /** While seated in court, adds this card template to the active politics deck. */
+  signatureCardId?: string;
   assignedTo?: string;
   fatigue: number;
 }
@@ -125,6 +166,27 @@ export interface BattlePreview {
   defenderPower: number;
 }
 
+export interface BattleResult {
+  attackerArmyId: string;
+  targetLandId: string;
+  victory: boolean;
+  attackerPower: number;
+  defenderPower: number;
+  /** Ticks until the besieged district falls; only set when `victory` is true. */
+  siegeTicks?: number;
+}
+
+/** An in-progress siege: a victorious army occupies the land while it slowly falls to the attacker. */
+export interface SiegeOrder {
+  landId: string;
+  armyId: string;
+  attackerKingdomId: string;
+  /** Land the besieging army marched from, used if the player retreats instead of waiting it out. */
+  fromLandId: string;
+  progress: number;
+  required: number;
+}
+
 export interface AcquisitionOrder {
   landId: string;
   buyerId: string;
@@ -136,8 +198,50 @@ export interface AcquisitionOrder {
 export interface BuildOrder {
   landId: string;
   building: LandBuildingType;
+  kind: 'build' | 'upgrade';
+  /** Index into land.buildings; only set for kind === 'upgrade'. */
+  buildingIndex?: number;
   progress: number;
   required: number;
+}
+
+/** An in-progress training order: a new army being assembled at `landId` over several ticks. */
+export interface RecruitmentOrder {
+  id: string;
+  landId: string;
+  heroId: string;
+  totalSoldiers: number;
+  rations: number;
+  provisions: number;
+  progress: number;
+  required: number;
+}
+
+export type CourtPositionId =
+  | 'marshal'
+  | 'quartermaster'
+  | 'treasurer'
+  | 'steward'
+  | 'chancellor'
+  | 'spymaster'
+  | 'censor'
+  | 'masterOfHorse';
+
+/** Kingdom-wide court state: seated heroes, unlocked seats, and political stats. */
+export interface CourtState {
+  /** Position id -> seated hero id. */
+  seats: Partial<Record<CourtPositionId, string>>;
+  /** Positions the player can currently assign heroes to. */
+  unlockedSeats: CourtPositionId[];
+  /** Internal order; low stability raises rebellion/crisis risk. 0-100. */
+  stability: number;
+  /** Diplomatic capital; spent on peaceful actions, gained from court bonuses. 0-100. */
+  influence: number;
+  /** Accumulates each economy tick; a new hero draft arrives once it reaches favorThreshold. */
+  favor: number;
+  favorThreshold: number;
+  /** Economy ticks remaining before the next politics card may be drawn. */
+  cardCooldown: number;
 }
 
 export interface GameState {
@@ -158,15 +262,20 @@ export interface GameState {
   heroes: Hero[];
   heroDeck: Hero[];
   politicsDeck: PoliticsCard[];
+  court: CourtState;
   activeHeroDraft?: Hero[];
   activePoliticsCard?: PoliticsCard;
   pendingCourtRequest?: PoliticsCard;
   isPaused: boolean;
   selectedLandId?: string;
-  awaitingMoveArmyId?: string;
+  selectedArmyId?: string;
   latestBattlePreview?: BattlePreview;
+  latestBattleResult?: BattleResult;
   acquisitionOrders: AcquisitionOrder[];
   buildOrders: BuildOrder[];
+  movementOrders: MovementOrder[];
+  siegeOrders: SiegeOrder[];
+  recruitmentOrders: RecruitmentOrder[];
   message: string;
   victory: boolean;
 }

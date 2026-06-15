@@ -9,7 +9,7 @@ export const landTemplates: LandTemplate[] = [
     ownerId: PLAYER_KINGDOM_ID,
     defense: 48,
     loyalty: 100,
-    buildings: ['market', 'farm'],
+    buildings: [{ type: 'market', level: 1 }, { type: 'farm', level: 1 }],
     special: 'Player capital. Roads and markets turn expansion into gold and supplies.',
   },
   {
@@ -19,7 +19,7 @@ export const landTemplates: LandTemplate[] = [
     ownerId: 'northern-rival',
     defense: 50,
     loyalty: 94,
-    buildings: ['market', 'mine'],
+    buildings: [{ type: 'market', level: 1 }, { type: 'mine', level: 1 }],
     special: 'Rival capital. Capture it to win the campaign.',
   },
   {

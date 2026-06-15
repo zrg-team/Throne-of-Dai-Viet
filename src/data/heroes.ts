@@ -1,4 +1,46 @@
-import type { Hero } from '../state/types';
+import type { Hero, HeroStats } from '../state/types';
+
+const KING_NAMES = [
+  'Lý Thánh Tông',
+  'Trần Nhân Tông',
+  'Lê Thái Tổ',
+  'Đinh Bộ Lĩnh',
+  'Ngô Quyền',
+  'Quang Trung',
+];
+
+const KING_TRAITS: Array<{ effect: string; upkeepGold: number }> = [
+  { effect: '+10% morale for all your armies.', upkeepGold: 12 },
+  { effect: '+8% army power in battle.', upkeepGold: 14 },
+  { effect: '+5% max rations capacity for armies.', upkeepGold: 10 },
+];
+
+const KING_STATS: HeroStats = {
+  martial: 78,
+  logistics: 50,
+  administration: 40,
+  diplomacy: 45,
+  loyalty: 55,
+  renown: 75,
+};
+
+/** Generates the player's starting commander - a randomized King, not part of the hero draft deck. */
+export function generateKingHero(): Hero {
+  const name = KING_NAMES[Math.floor(Math.random() * KING_NAMES.length)];
+  const trait = KING_TRAITS[Math.floor(Math.random() * KING_TRAITS.length)];
+
+  return {
+    id: 'king',
+    name,
+    type: 'general',
+    rarity: 'Legendary',
+    upkeepGold: trait.upkeepGold,
+    description: 'The reigning king, leading the kingdom\'s armies from the front.',
+    effect: trait.effect,
+    stats: { ...KING_STATS },
+    fatigue: 0,
+  };
+}
 
 export const heroTemplates: Hero[] = [
   {
@@ -9,6 +51,7 @@ export const heroTemplates: Hero[] = [
     upkeepGold: 8,
     description: 'A mountain general who attacks well in rough lands.',
     effect: '+20% attack when fighting iron or mountain lands.',
+    stats: { martial: 55, logistics: 35, administration: 15, diplomacy: 15, loyalty: 25, renown: 30 },
     fatigue: 0,
   },
   {
@@ -19,6 +62,7 @@ export const heroTemplates: Hero[] = [
     upkeepGold: 6,
     description: 'A practical commander who trusts archers.',
     effect: '+10% army power when archers are present.',
+    stats: { martial: 38, logistics: 28, administration: 12, diplomacy: 10, loyalty: 18, renown: 20 },
     fatigue: 0,
   },
   {
@@ -29,6 +73,7 @@ export const heroTemplates: Hero[] = [
     upkeepGold: 11,
     description: 'A disciplined heavy infantry captain.',
     effect: '+18% assault power with heavy infantry.',
+    stats: { martial: 68, logistics: 42, administration: 18, diplomacy: 15, loyalty: 28, renown: 35 },
     fatigue: 0,
   },
   {
@@ -39,6 +84,7 @@ export const heroTemplates: Hero[] = [
     upkeepGold: 6,
     description: 'A governor who protects rice stores.',
     effect: '+30% food from assigned farm.',
+    stats: { martial: 12, logistics: 25, administration: 52, diplomacy: 20, loyalty: 35, renown: 18 },
     fatigue: 0,
   },
   {
@@ -49,6 +95,7 @@ export const heroTemplates: Hero[] = [
     upkeepGold: 5,
     description: 'A careful storehouse administrator.',
     effect: '+8 loyalty and +8 defense in assigned land.',
+    stats: { martial: 15, logistics: 18, administration: 35, diplomacy: 15, loyalty: 40, renown: 15 },
     fatigue: 0,
   },
   {
@@ -59,6 +106,7 @@ export const heroTemplates: Hero[] = [
     upkeepGold: 9,
     description: 'A reformer of irrigation and village labor.',
     effect: 'Farm upgrades cost 20% less.',
+    stats: { martial: 10, logistics: 30, administration: 65, diplomacy: 25, loyalty: 32, renown: 22 },
     fatigue: 0,
   },
   {
@@ -69,6 +117,7 @@ export const heroTemplates: Hero[] = [
     upkeepGold: 7,
     description: 'A treasurer trained by port merchants.',
     effect: '+15% gold from markets.',
+    stats: { martial: 10, logistics: 22, administration: 50, diplomacy: 30, loyalty: 20, renown: 25 },
     fatigue: 0,
   },
   {
@@ -79,6 +128,8 @@ export const heroTemplates: Hero[] = [
     upkeepGold: 5,
     description: 'A scholar who strengthens legitimacy.',
     effect: '+5 influence per season.',
+    cardBias: 'law',
+    stats: { martial: 8, logistics: 15, administration: 25, diplomacy: 38, loyalty: 30, renown: 22 },
     fatigue: 0,
   },
   {
@@ -89,6 +140,8 @@ export const heroTemplates: Hero[] = [
     upkeepGold: 14,
     description: 'A court architect who turns order into power.',
     effect: '+1 order every fourth season.',
+    cardBias: 'opportunity',
+    stats: { martial: 18, logistics: 35, administration: 55, diplomacy: 60, loyalty: 70, renown: 50 },
     fatigue: 0,
   },
   {
@@ -99,6 +152,7 @@ export const heroTemplates: Hero[] = [
     upkeepGold: 6,
     description: 'A patient negotiator with village lords.',
     effect: '+20% peaceful acquisition chance.',
+    stats: { martial: 15, logistics: 25, administration: 20, diplomacy: 52, loyalty: 28, renown: 30 },
     fatigue: 0,
   },
   {
@@ -109,6 +163,9 @@ export const heroTemplates: Hero[] = [
     upkeepGold: 5,
     description: 'A quiet spy who finds weak forts.',
     effect: '-8 target defense before battle preview.',
+    cardBias: 'crisis',
+    signatureCardId: 'spy-network-windfall',
+    stats: { martial: 32, logistics: 20, administration: 12, diplomacy: 30, loyalty: 15, renown: 25 },
     fatigue: 0,
   },
   {
@@ -119,6 +176,8 @@ export const heroTemplates: Hero[] = [
     upkeepGold: 9,
     description: 'A famous agent who can turn rivals against each other.',
     effect: '+25 influence from successful political opportunities.',
+    cardBias: 'opportunity',
+    stats: { martial: 28, logistics: 30, administration: 22, diplomacy: 62, loyalty: 35, renown: 58 },
     fatigue: 0,
   },
 ];

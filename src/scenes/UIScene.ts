@@ -16,11 +16,25 @@ import { renderHeroFace } from '../ui/FaceRenderer';
 import { LandPanel } from '../ui/LandPanel';
 import { ResourceBar } from '../ui/ResourceBar';
 import { createLabel, createPanel, createWoodButton, PARCHMENT } from '../ui/theme';
-import { createHeroDraft } from '../systems/HeroSystem';
-import { getBuildOptions } from '../systems/ResourceSystem';
-import type { GameState, Hero, Land, PoliticsCard } from '../state/types';
+import { makeSwipeableCard, popInModal, staggerIn } from '../ui/animations';
+import { BUILDING_LABELS, getBuildOptions, getLaborStatus, getUpgradeOptions } from '../systems/ResourceSystem';
+import {
+  ALL_COURT_POSITIONS,
+  COURT_POSITION_LABELS,
+  assignHeroToLand,
+  assignHeroToPosition,
+  removeHeroFromPosition,
+} from '../systems/CourtSystem';
+import { ARMY_DEFAULT_PROVISIONS, ARMY_DEFAULT_RATIONS, ARMY_LOGISTICS_STEP } from '../game/gameplayConfig';
+import type { CourtPositionId, GameState, Hero, Land, PoliticsCard } from '../state/types';
 
-type ModalScreen = 'none' | 'heroes' | 'court' | 'army' | 'request' | 'build';
+type CourtPicker = { kind: 'position'; positionId: CourtPositionId } | { kind: 'land'; landId: string };
+
+type ModalScreen = 'none' | 'heroes' | 'court' | 'army' | 'request' | 'build' | 'battle-result';
+
+/** Vertical bounds of the scrollable build-option list within the build modal's paper. */
+const BUILD_LIST_TOP = 224;
+const BUILD_LIST_HEIGHT = 561;
 
 export class UIScene extends Phaser.Scene {
   private state!: GameState;
@@ -31,10 +45,20 @@ export class UIScene extends Phaser.Scene {
   private modalLayer!: Phaser.GameObjects.Container;
   private mapControls: Phaser.GameObjects.GameObject[] = [];
   private modalScreen: ModalScreen = 'none';
+  private modalJustOpened = false;
   private modalBuildLandId?: string;
   private requestBadge: Phaser.GameObjects.GameObject[] = [];
   private selectedArmyLeaderId?: string;
   private armySoldiers = 400;
+  private armyFood = ARMY_DEFAULT_RATIONS;
+  private armySupplies = ARMY_DEFAULT_PROVISIONS;
+  private courtTab: 'positions' | 'governors' = 'positions';
+  private courtPicker?: CourtPicker;
+  private lastCourtView?: string;
+  private buildListContainer?: Phaser.GameObjects.Container;
+  private buildScrollY = 0;
+  private buildMaxScroll = 0;
+  private buildDragStart?: { pointerY: number; scrollY: number };
   private readonly domPointerUp = (event: PointerEvent): void => {
     const point = this.toGamePoint(event);
     if (!point) {
@@ -74,6 +98,7 @@ export class UIScene extends Phaser.Scene {
 
     this.events.on('state-changed', () => this.refresh());
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => this.handlePointerUp(pointer));
+    this.input.on('wheel', (pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number) => this.handleBuildListWheel(pointer, dy));
     this.game.canvas.addEventListener('pointerup', this.domPointerUp);
     this.game.canvas.addEventListener('mouseup', this.domMouseUp);
     this.refresh();
@@ -145,31 +170,21 @@ export class UIScene extends Phaser.Scene {
       }
     }
 
-    if (this.modalScreen === 'court') {
-      this.state.heroes.slice(0, 5).forEach((hero, index) => {
-        const rowY = 142 + index * 102;
-        if (y >= rowY + 10 && y <= rowY + 38 && x >= 108 && x <= 186) {
-          hero.assignedTo = 'court';
-          this.state.message = `${hero.name} serves in court.`;
-          this.refresh();
-        }
-        if (y >= rowY + 10 && y <= rowY + 38 && x >= 196 && x <= 288) {
-          hero.assignedTo = 'thang-long';
-          this.state.message = `${hero.name} governs Thăng Long.`;
-          this.refresh();
-        }
-      });
-      return;
-    }
-
     if (this.modalScreen === 'army') {
-      this.state.heroes.slice(0, 3).forEach((hero, index) => {
-        const cardX = 82 + index * 114;
+      const leaders = this.state.heroes.filter((hero) => !hero.assignedTo);
+      const visibleLeaders = leaders.slice(0, 3);
+      visibleLeaders.forEach((hero, index) => {
+        const cardX = GAME_WIDTH / 2 + (index - (visibleLeaders.length - 1) / 2) * 114;
         if (x >= cardX - 47 && x <= cardX + 47 && y >= 122 && y <= 248) {
           this.selectedArmyLeaderId = hero.id;
           this.refresh();
         }
       });
+
+      if (leaders.length === 0) {
+        return;
+      }
+
       if (x >= 60 && x <= 124 && y >= 365 && y <= 407) {
         this.armySoldiers = Math.max(100, this.armySoldiers - 100);
         this.refresh();
@@ -180,8 +195,33 @@ export class UIScene extends Phaser.Scene {
         this.refresh();
         return;
       }
-      if (x >= 97 && x <= 293 && y >= 532 && y <= 580) {
-        this.events.emit('ui:create-army', this.selectedArmyLeaderId, this.armySoldiers);
+      if (x >= 60 && x <= 124 && y >= 499 && y <= 541) {
+        this.armyFood = Math.max(0, this.armyFood - ARMY_LOGISTICS_STEP);
+        this.refresh();
+        return;
+      }
+      if (x >= 266 && x <= 330 && y >= 499 && y <= 541) {
+        this.armyFood = Math.min(this.state.resources.food, this.armyFood + ARMY_LOGISTICS_STEP);
+        this.refresh();
+        return;
+      }
+      if (x >= 60 && x <= 124 && y >= 589 && y <= 631) {
+        this.armySupplies = Math.max(0, this.armySupplies - ARMY_LOGISTICS_STEP);
+        this.refresh();
+        return;
+      }
+      if (x >= 266 && x <= 330 && y >= 589 && y <= 631) {
+        this.armySupplies = Math.min(this.state.resources.supplies, this.armySupplies + ARMY_LOGISTICS_STEP);
+        this.refresh();
+        return;
+      }
+      if (x >= 97 && x <= 293 && y >= 686 && y <= 734) {
+        if (!this.selectedArmyLeaderId) {
+          this.state.message = 'Choose a commander before creating an army.';
+          this.refresh();
+          return;
+        }
+        this.events.emit('ui:create-army', this.selectedArmyLeaderId, this.armySoldiers, this.armyFood, this.armySupplies);
         this.closeModal();
       }
       return;
@@ -203,12 +243,13 @@ export class UIScene extends Phaser.Scene {
 
   private handleAction(action: string): void {
     if (action === 'heroes') {
-      createHeroDraft(this.state);
       this.openModal('heroes');
       return;
     }
 
     if (action === 'court') {
+      this.courtTab = 'positions';
+      this.courtPicker = undefined;
       this.openModal('court');
       return;
     }
@@ -251,7 +292,7 @@ export class UIScene extends Phaser.Scene {
       this.closeModal();
       this.state.selectedLandId = undefined;
       this.state.latestBattlePreview = undefined;
-      this.state.awaitingMoveArmyId = undefined;
+      this.state.selectedArmyId = undefined;
       this.state.message = 'Map mode: drag the region, then tap a land or army order.';
       this.bottomSheet.hide();
       this.refresh();
@@ -260,6 +301,7 @@ export class UIScene extends Phaser.Scene {
 
   private openModal(screen: ModalScreen): void {
     this.modalScreen = screen;
+    this.modalJustOpened = true;
     this.state.isPaused = true;
     this.bottomSheet.hide();
 
@@ -274,11 +316,14 @@ export class UIScene extends Phaser.Scene {
   private closeModal(): void {
     this.modalScreen = 'none';
     this.state.activePoliticsCard = undefined;
+    this.state.latestBattleResult = undefined;
     this.state.isPaused = false;
     window.__suppressMapInputUntil = performance.now() + 280;
     this.modalLayer.removeAll(true);
     this.modalLayer.setVisible(false);
     this.modalBuildLandId = undefined;
+    this.buildListContainer = undefined;
+    this.buildDragStart = undefined;
   }
 
   private refresh(): void {
@@ -290,6 +335,11 @@ export class UIScene extends Phaser.Scene {
 
     if (this.state.victory) {
       this.showVictory();
+      return;
+    }
+
+    if (this.modalScreen === 'none' && this.state.latestBattleResult) {
+      this.openModal('battle-result');
       return;
     }
 
@@ -339,26 +389,21 @@ export class UIScene extends Phaser.Scene {
 
     if (this.modalScreen === 'heroes') {
       this.showHeroesScreen();
-      return;
-    }
-
-    if (this.modalScreen === 'court') {
+    } else if (this.modalScreen === 'court') {
       this.showCourtScreen();
-      return;
-    }
-
-    if (this.modalScreen === 'army') {
+    } else if (this.modalScreen === 'army') {
       this.showArmyScreen();
-      return;
-    }
-
-    if (this.modalScreen === 'request' && this.state.activePoliticsCard) {
+    } else if (this.modalScreen === 'request' && this.state.activePoliticsCard) {
       this.showPoliticsScreen(this.state.activePoliticsCard);
-      return;
+    } else if (this.modalScreen === 'build') {
+      this.showBuildScreen();
+    } else if (this.modalScreen === 'battle-result') {
+      this.showBattleResultScreen();
     }
 
-    if (this.modalScreen === 'build') {
-      this.showBuildScreen();
+    if (this.modalJustOpened) {
+      this.modalJustOpened = false;
+      popInModal(this, this.modalLayer, GAME_WIDTH / 2, GAME_HEIGHT / 2);
     }
   }
 
@@ -377,14 +422,28 @@ export class UIScene extends Phaser.Scene {
       ) => event.stopPropagation(),
     );
 
-    const paper = createPanel(this, GAME_WIDTH / 2 - 181, GAME_HEIGHT / 2 - 371, 362, 742, {
+    const panelX = GAME_WIDTH / 2 - 181;
+    const panelY = GAME_HEIGHT / 2 - 371;
+    const panelWidth = 362;
+    const panelRadius = 14;
+    const headerHeight = 86;
+
+    const paper = createPanel(this, panelX, panelY, panelWidth, 742, {
       fill: 0xc4ae68,
       border: 0xf5dfaa,
       borderAlpha: 0.88,
       borderWidth: 4,
-      radius: 14,
+      radius: panelRadius,
     });
-    const darkTop = this.add.rectangle(GAME_WIDTH / 2, 64, 362, 86, PARCHMENT.dark, 0.96);
+
+    // Header sits flush inside the panel's top edge, sharing its rounded
+    // corners and gilt border so it reads as one piece, not a floating bar.
+    const darkTop = this.add.graphics({ x: panelX, y: panelY });
+    const headerRadius = { tl: panelRadius, tr: panelRadius, bl: 0, br: 0 };
+    darkTop.fillStyle(PARCHMENT.dark, 0.96);
+    darkTop.fillRoundedRect(0, 0, panelWidth, headerHeight, headerRadius);
+    darkTop.lineStyle(4, 0xf5dfaa, 0.88);
+    darkTop.strokeRoundedRect(0, 0, panelWidth, headerHeight, headerRadius);
     const titleText = createLabel(this, GAME_WIDTH / 2, 42, title, 'title').setOrigin(0.5);
     const subtitleText = createLabel(this, GAME_WIDTH / 2, 75, subtitle, 'subtitle', {
       align: 'center',
@@ -399,20 +458,74 @@ export class UIScene extends Phaser.Scene {
     this.addModalBase('Heroes', 'Recruit one hero. The game is paused while you inspect the cards.');
 
     if (!this.state.activeHeroDraft || this.state.activeHeroDraft.length === 0) {
-      this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, 230, 'No heroes are waiting at court.', 'label', {
+      const favor = this.state.court.favor;
+      const threshold = this.state.court.favorThreshold;
+      this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, 116, 'No heroes are waiting at court.', 'label', {
         fontSize: '16px',
+        align: 'center',
+        wordWrap: { width: 290 },
       }).setOrigin(0.5));
+      this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, 148, `Next arrival: Favor ${Math.round(favor)}/${threshold}`, 'caption', {
+        fontSize: '12px',
+      }).setOrigin(0.5));
+      const favorRatio = Phaser.Math.Clamp(favor / threshold, 0, 1);
+      const favorBarBg = this.add.rectangle(GAME_WIDTH / 2 - 100, 172, 200, 12, 0x3f2a1a, 0.6).setOrigin(0, 0.5);
+      const favorBarFill = this.add.rectangle(GAME_WIDTH / 2 - 100, 172, 200 * favorRatio, 12, 0x55c878, 0.95).setOrigin(0, 0.5);
+      this.modalLayer.add([favorBarBg, favorBarFill]);
+
+      this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, 204, 'Current Roster', 'label', { fontSize: '14px' }).setOrigin(0.5));
+      const rosterRows: Phaser.GameObjects.Container[] = [];
+      this.state.heroes.slice(0, 7).forEach((hero, index) => {
+        const y = 236 + index * 64;
+        const card = createPanel(this, 28, y - 26, 334, 56);
+        const portrait = renderHeroFace(this, hero, 52, y, 0.42);
+        const name = createLabel(this, 84, y - 18, hero.name, 'label', { fontSize: '13px' });
+        const assignment = createLabel(this, 84, y + 2, `Assigned: ${hero.assignedTo ?? 'idle'}`, 'caption', {
+          fontSize: '11px',
+          wordWrap: { width: 250 },
+        });
+        const row = this.add.container(0, 0, [card, portrait, name, assignment]);
+        this.modalLayer.add(row);
+        rosterRows.push(row);
+      });
+      if (this.modalJustOpened) {
+        staggerIn(this, rosterRows);
+      }
       return;
     }
 
     const [front, second, third] = this.state.activeHeroDraft;
+    const draftCards: Phaser.GameObjects.Container[] = [];
     if (third) {
-      this.modalLayer.add(this.drawHeroCard(third, GAME_WIDTH / 2 + 18, 394, 0.94, 0.08, false));
+      const card = this.drawHeroCard(third, GAME_WIDTH / 2 + 18, 394, 0.94, 0.08, false);
+      this.modalLayer.add(card);
+      draftCards.push(card);
     }
     if (second) {
-      this.modalLayer.add(this.drawHeroCard(second, GAME_WIDTH / 2 - 16, 382, 0.97, -0.06, false));
+      const card = this.drawHeroCard(second, GAME_WIDTH / 2 - 16, 382, 0.97, -0.06, false);
+      this.modalLayer.add(card);
+      draftCards.push(card);
     }
-    this.modalLayer.add(this.drawHeroCard(front, GAME_WIDTH / 2, 372, 1, 0, true));
+    const frontCard = this.drawHeroCard(front, GAME_WIDTH / 2, 372, 1, 0, true);
+    this.modalLayer.add(frontCard);
+    draftCards.push(frontCard);
+
+    if (this.modalJustOpened) {
+      staggerIn(this, draftCards, { staggerMs: 90, offsetY: -40, duration: 260 });
+    }
+
+    makeSwipeableCard(this, frontCard, 304, 500, {
+      onSwipeRight: () => {
+        this.events.emit('ui:hero-pick', front.id);
+        this.closeModal();
+      },
+      onSwipeLeft: () => {
+        this.state.activeHeroDraft = undefined;
+        this.state.message = 'The visiting heroes leave court.';
+        this.closeModal();
+        this.refresh();
+      },
+    });
 
     this.modalLayer.add(createWoodButton(this, 110, 748, 126, 42, 'Pass', () => {
       this.state.activeHeroDraft = undefined;
@@ -427,78 +540,220 @@ export class UIScene extends Phaser.Scene {
   }
 
   private showCourtScreen(): void {
-    this.addModalBase('Court', 'Assign recruited heroes to court service or a city. The game is paused here.');
+    this.addModalBase('Court', 'Seat heroes in court positions or appoint them as governors. The game is paused here.');
 
-    if (this.state.heroes.length === 0) {
-      this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, 240, 'No recruited heroes yet. Open Heroes first.', 'label', {
-        fontSize: '16px',
+    const courtPickerKey = this.courtPicker
+      ? `${this.courtPicker.kind}:${this.courtPicker.kind === 'position' ? this.courtPicker.positionId : this.courtPicker.landId}`
+      : 'none';
+    const viewKey = `${this.courtTab}|${courtPickerKey}`;
+    const animateRows = this.modalJustOpened || viewKey !== this.lastCourtView;
+    this.lastCourtView = viewKey;
+
+    if (this.courtPicker) {
+      this.showCourtHeroPicker(this.courtPicker, animateRows);
+      return;
+    }
+
+    const court = this.state.court;
+    const stats: Array<{ label: string; value: number; max: number; color: number }> = [
+      { label: 'Stability', value: court.stability, max: 100, color: 0x5bb6d6 },
+      { label: 'Influence', value: court.influence, max: 100, color: 0xd9b35a },
+      { label: 'Favor', value: court.favor, max: court.favorThreshold, color: 0x55c878 },
+    ];
+    stats.forEach((stat, index) => {
+      const y = 110 + index * 32;
+      const suffix = stat.label === 'Favor' ? `/${Math.round(stat.max)}` : '';
+      this.modalLayer.add(createLabel(this, 28, y - 7, `${stat.label}: ${Math.round(stat.value)}${suffix}`, 'label', { fontSize: '12px' }));
+      const ratio = Phaser.Math.Clamp(stat.value / stat.max, 0, 1);
+      const barBg = this.add.rectangle(196, y, 152, 12, 0x3f2a1a, 0.6).setOrigin(0, 0.5);
+      const barFill = this.add.rectangle(196, y, 152 * ratio, 12, stat.color, 0.95).setOrigin(0, 0.5);
+      this.modalLayer.add([barBg, barFill]);
+    });
+
+    this.modalLayer.add(createWoodButton(this, GAME_WIDTH / 2 - 60, 202, 110, 34, 'Positions', () => {
+      this.courtTab = 'positions';
+      this.refresh();
+    }, { variant: this.courtTab === 'positions' ? 'highlight' : 'dark', fontSize: '12px' }));
+    this.modalLayer.add(createWoodButton(this, GAME_WIDTH / 2 + 60, 202, 110, 34, 'Governors', () => {
+      this.courtTab = 'governors';
+      this.refresh();
+    }, { variant: this.courtTab === 'governors' ? 'highlight' : 'dark', fontSize: '12px' }));
+
+    if (this.courtTab === 'positions') {
+      this.showCourtPositions(animateRows);
+    } else {
+      this.showCourtGovernors(animateRows);
+    }
+  }
+
+  private showCourtPositions(animateRows: boolean): void {
+    const rows: Phaser.GameObjects.Container[] = [];
+    ALL_COURT_POSITIONS.forEach((positionId, index) => {
+      const y = 246 + index * 58;
+      const unlocked = this.state.court.unlockedSeats.includes(positionId);
+      const heroId = this.state.court.seats[positionId];
+      const hero = heroId ? this.state.heroes.find((candidate) => candidate.id === heroId) : undefined;
+      const card = createPanel(this, 28, y - 24, 334, 50, {
+        border: unlocked ? 0xffde72 : 0x9b7860,
+        borderAlpha: unlocked ? 0.9 : 0.5,
+      });
+      const status = !unlocked ? 'Locked - needs a Shrine' : hero ? hero.name : 'Vacant';
+      const rowItems: Phaser.GameObjects.GameObject[] = [
+        card,
+        createLabel(this, 40, y - 16, COURT_POSITION_LABELS[positionId], 'label', { fontSize: '13px' }),
+        createLabel(this, 40, y + 3, status, 'caption', { fontSize: '11px', wordWrap: { width: 210 } }),
+      ];
+
+      if (unlocked) {
+        if (hero) {
+          rowItems.push(createWoodButton(this, 317, y - 6, 64, 30, 'Remove', () => {
+            removeHeroFromPosition(this.state, positionId);
+            this.refresh();
+          }, { variant: 'dark', fontSize: '10px' }));
+        } else {
+          rowItems.push(createWoodButton(this, 317, y - 6, 64, 30, 'Assign', () => {
+            this.courtPicker = { kind: 'position', positionId };
+            this.refresh();
+          }, { fontSize: '10px' }));
+        }
+      }
+
+      const row = this.add.container(0, 0, rowItems);
+      this.modalLayer.add(row);
+      rows.push(row);
+    });
+
+    if (animateRows) {
+      staggerIn(this, rows);
+    }
+  }
+
+  private showCourtGovernors(animateRows: boolean): void {
+    const lands = this.state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).slice(0, 7);
+
+    if (lands.length === 0) {
+      this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, 280, 'No districts under your rule yet.', 'label', {
+        fontSize: '14px',
         align: 'center',
         wordWrap: { width: 290 },
       }).setOrigin(0.5));
       return;
     }
 
-    this.state.heroes.slice(0, 5).forEach((hero, index) => {
-      const y = 142 + index * 102;
-      const card = createPanel(this, GAME_WIDTH / 2 - 167, y - 44, 334, 88);
-      const portrait = renderHeroFace(this, hero, 56, y, 0.44);
-      const title = createLabel(this, 104, y - 31, hero.name, 'label', { fontSize: '15px' });
-      const assignment = createLabel(this, 104, y - 8, `Assigned: ${hero.assignedTo ?? 'idle'}`, 'caption', {
-        wordWrap: { width: 170 },
-      });
-      const court = createWoodButton(this, 147, y + 24, 78, 28, 'Court', () => {
-        hero.assignedTo = 'court';
-        this.state.message = `${hero.name} serves in court.`;
-        this.refresh();
-      }, { variant: 'dark', fontSize: '12px' });
-      const city = createWoodButton(this, 242, y + 24, 92, 28, 'City', () => {
-        hero.assignedTo = 'thang-long';
-        this.state.message = `${hero.name} governs Thăng Long.`;
-        this.refresh();
-      }, { fontSize: '12px' });
-      this.modalLayer.add([card, portrait, title, assignment, court, city]);
+    const rows: Phaser.GameObjects.Container[] = [];
+    lands.forEach((land, index) => {
+      const y = 246 + index * 58;
+      const governor = this.state.heroes.find((candidate) => candidate.assignedTo === land.id);
+      const card = createPanel(this, 28, y - 24, 334, 50);
+      const row = this.add.container(0, 0, [
+        card,
+        createLabel(this, 40, y - 16, land.name, 'label', { fontSize: '13px' }),
+        createLabel(this, 40, y + 3, governor ? `Governor: ${governor.name}` : 'No governor', 'caption', {
+          fontSize: '11px',
+          wordWrap: { width: 210 },
+        }),
+        createWoodButton(this, 317, y - 6, 64, 30, governor ? 'Change' : 'Assign', () => {
+          this.courtPicker = { kind: 'land', landId: land.id };
+          this.refresh();
+        }, { fontSize: '10px' }),
+      ]);
+      this.modalLayer.add(row);
+      rows.push(row);
     });
+
+    if (animateRows) {
+      staggerIn(this, rows);
+    }
+  }
+
+  private showCourtHeroPicker(picker: CourtPicker, animateRows: boolean): void {
+    this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, 110, 'Choose a hero', 'label', { fontSize: '16px' }).setOrigin(0.5));
+
+    if (this.state.heroes.length === 0) {
+      this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, 200, 'No recruited heroes yet. Open Heroes first.', 'label', {
+        fontSize: '14px',
+        align: 'center',
+        wordWrap: { width: 290 },
+      }).setOrigin(0.5));
+    }
+
+    const rows: Phaser.GameObjects.Container[] = [];
+    this.state.heroes.slice(0, 8).forEach((hero, index) => {
+      const y = 150 + index * 58;
+      const card = createPanel(this, 28, y - 24, 334, 50);
+      const portrait = renderHeroFace(this, hero, 50, y, 0.4);
+      const name = createLabel(this, 80, y - 16, hero.name, 'label', { fontSize: '13px' });
+      const assignment = createLabel(this, 80, y + 3, `Now: ${hero.assignedTo ?? 'idle'}`, 'caption', {
+        fontSize: '11px',
+        wordWrap: { width: 180 },
+      });
+      const select = createWoodButton(this, 317, y - 6, 64, 30, 'Select', () => {
+        if (picker.kind === 'position') {
+          assignHeroToPosition(this.state, hero.id, picker.positionId);
+        } else {
+          assignHeroToLand(this.state, hero.id, picker.landId);
+        }
+        this.courtPicker = undefined;
+        this.refresh();
+      }, { fontSize: '10px' });
+      const row = this.add.container(0, 0, [card, portrait, name, assignment, select]);
+      this.modalLayer.add(row);
+      rows.push(row);
+    });
+
+    if (animateRows) {
+      staggerIn(this, rows);
+    }
+
+    this.modalLayer.add(createWoodButton(this, GAME_WIDTH / 2, 690, 150, 40, 'Cancel', () => {
+      this.courtPicker = undefined;
+      this.refresh();
+    }, { variant: 'dark' }));
   }
 
   private showArmyScreen(): void {
-    this.addModalBase('Army', 'Choose a leader, assign soldiers, then raise an army on the map. Gameplay is paused.');
-    const leaders = this.state.heroes.length > 0 ? this.state.heroes : [];
+    this.addModalBase('Army', 'Choose a leader, assign soldiers and supplies, then raise an army on the map. Gameplay is paused.');
+    const leaders = this.state.heroes.filter((hero) => !hero.assignedTo);
     const maxSoldiers = Math.max(100, this.state.resources.humans);
     this.armySoldiers = Phaser.Math.Clamp(this.armySoldiers, 100, maxSoldiers);
+    this.armyFood = Phaser.Math.Clamp(this.armyFood, 0, Math.max(0, this.state.resources.food));
+    this.armySupplies = Phaser.Math.Clamp(this.armySupplies, 0, Math.max(0, this.state.resources.supplies));
 
     if (leaders.length === 0) {
-      this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, 208, 'Recruit a hero before creating a led army.', 'label', {
+      this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, 208, 'All commanders are leading armies.', 'label', {
         fontSize: '16px',
         align: 'center',
         wordWrap: { width: 292 },
       }).setOrigin(0.5));
-    } else {
-      leaders.slice(0, 3).forEach((hero, index) => {
-        const x = 82 + index * 114;
-        const selected = hero.id === this.selectedArmyLeaderId;
-        const card = this.add.rectangle(x, 185, 94, 126, selected ? 0xffde72 : 0xf0dca8, 1).setInteractive({ useHandCursor: true });
-        card.setStrokeStyle(3, selected ? 0x2a1403 : 0x9b7860, 0.9);
-        card.on('pointerup', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
-          event.stopPropagation();
-          this.selectedArmyLeaderId = hero.id;
-          this.refresh();
-        });
-        const portrait = renderHeroFace(this, hero, x, 162, 0.55);
-        const name = createLabel(this, x, 236, hero.name, 'label', {
-          fontSize: '10px',
-          align: 'center',
-          wordWrap: { width: 82 },
-        }).setOrigin(0.5);
-        this.modalLayer.add([card, portrait, name]);
-      });
+      return;
     }
+
+    const visibleLeaders = leaders.slice(0, 3);
+    visibleLeaders.forEach((hero, index) => {
+      const x = GAME_WIDTH / 2 + (index - (visibleLeaders.length - 1) / 2) * 114;
+      const selected = hero.id === this.selectedArmyLeaderId;
+      const card = this.add.rectangle(x, 185, 94, 126, selected ? 0xffde72 : 0xf0dca8, 1).setInteractive({ useHandCursor: true });
+      card.setStrokeStyle(3, selected ? 0x2a1403 : 0x9b7860, 0.9);
+      card.on('pointerup', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+        event.stopPropagation();
+        this.selectedArmyLeaderId = hero.id;
+        this.refresh();
+      });
+      const portrait = renderHeroFace(this, hero, x, 162, 0.55);
+      const name = createLabel(this, x, 236, hero.name, 'label', {
+        fontSize: '10px',
+        align: 'center',
+        wordWrap: { width: 82 },
+      }).setOrigin(0.5);
+      this.modalLayer.add([card, portrait, name]);
+    });
 
     const box = createPanel(this, GAME_WIDTH / 2 - 152, 325, 304, 130);
     this.modalLayer.add([
       box,
       createLabel(this, GAME_WIDTH / 2, 342, 'Soldiers to assign', 'label', { fontSize: '16px' }).setOrigin(0.5),
       createLabel(this, GAME_WIDTH / 2, 385, `${this.armySoldiers}`, 'label', { fontSize: '36px' }).setOrigin(0.5),
-      createLabel(this, GAME_WIDTH / 2, 425, `Available humans: ${this.state.resources.humans}  Supplies: ${this.state.resources.supplies}`, 'caption').setOrigin(0.5),
+      createLabel(this, GAME_WIDTH / 2, 425, `Available humans: ${this.state.resources.humans}`, 'caption').setOrigin(0.5),
       createWoodButton(this, 92, 386, 64, 42, '-100', () => {
         this.armySoldiers = Math.max(100, this.armySoldiers - 100);
         this.refresh();
@@ -507,11 +762,45 @@ export class UIScene extends Phaser.Scene {
         this.armySoldiers = Math.min(maxSoldiers, this.armySoldiers + 100);
         this.refresh();
       }, { variant: 'dark' }),
-      createWoodButton(this, GAME_WIDTH / 2, 556, 196, 48, 'Create Army', () => {
-        this.events.emit('ui:create-army', this.selectedArmyLeaderId, this.armySoldiers);
+    ]);
+
+    const logisticsBox = createPanel(this, GAME_WIDTH / 2 - 152, 465, 304, 210);
+    this.modalLayer.add([
+      logisticsBox,
+      createLabel(this, GAME_WIDTH / 2, 482, 'Food to send', 'label', { fontSize: '16px' }).setOrigin(0.5),
+      createLabel(this, GAME_WIDTH / 2, 520, `${this.armyFood}`, 'label', { fontSize: '28px' }).setOrigin(0.5),
+      createWoodButton(this, 92, 520, 64, 42, `-${ARMY_LOGISTICS_STEP}`, () => {
+        this.armyFood = Math.max(0, this.armyFood - ARMY_LOGISTICS_STEP);
+        this.refresh();
+      }, { variant: 'dark' }),
+      createWoodButton(this, 298, 520, 64, 42, `+${ARMY_LOGISTICS_STEP}`, () => {
+        this.armyFood = Math.min(this.state.resources.food, this.armyFood + ARMY_LOGISTICS_STEP);
+        this.refresh();
+      }, { variant: 'dark' }),
+      createLabel(this, GAME_WIDTH / 2, 562, 'Supplies to send', 'label', { fontSize: '16px' }).setOrigin(0.5),
+      createLabel(this, GAME_WIDTH / 2, 610, `${this.armySupplies}`, 'label', { fontSize: '28px' }).setOrigin(0.5),
+      createWoodButton(this, 92, 610, 64, 42, `-${ARMY_LOGISTICS_STEP}`, () => {
+        this.armySupplies = Math.max(0, this.armySupplies - ARMY_LOGISTICS_STEP);
+        this.refresh();
+      }, { variant: 'dark' }),
+      createWoodButton(this, 298, 610, 64, 42, `+${ARMY_LOGISTICS_STEP}`, () => {
+        this.armySupplies = Math.min(this.state.resources.supplies, this.armySupplies + ARMY_LOGISTICS_STEP);
+        this.refresh();
+      }, { variant: 'dark' }),
+      createLabel(this, GAME_WIDTH / 2, 650, `Available food: ${this.state.resources.food}  Supplies: ${this.state.resources.supplies}`, 'caption').setOrigin(0.5),
+    ]);
+
+    this.modalLayer.add(
+      createWoodButton(this, GAME_WIDTH / 2, 710, 196, 48, 'Create Army', () => {
+        if (!this.selectedArmyLeaderId) {
+          this.state.message = 'Choose a commander before creating an army.';
+          this.refresh();
+          return;
+        }
+        this.events.emit('ui:create-army', this.selectedArmyLeaderId, this.armySoldiers, this.armyFood, this.armySupplies);
         this.closeModal();
       }, { variant: 'highlight' }),
-    ]);
+    );
   }
 
   private showBuildScreen(): void {
@@ -528,26 +817,83 @@ export class UIScene extends Phaser.Scene {
     }
 
     const terrain = formatTerrain(land);
-    const capacity = createPanel(this, 35, 116, 320, 78);
+    const labor = getLaborStatus(this.state);
+    const capacity = createPanel(this, 35, 116, 320, 100);
     this.modalLayer.add([
       capacity,
       createLabel(this, 55, 132, `Capacity: ${land.buildings.length}/${land.buildingCapacity}`, 'label', { fontSize: '16px' }),
-      createLabel(this, 55, 160, `Terrain: ${terrain}`, 'body', { fontSize: '12px', wordWrap: { width: 280 } }),
+      createLabel(this, 55, 160, `Terrain: ${terrain}`, 'body', { fontSize: '12px', wordWrap: { width: 290 } }),
+      createLabel(this, 55, 196, `Labor: needs ${labor.required} workers (efficiency ${Math.round(labor.efficiency * 100)}%)`, 'body', { fontSize: '12px', wordWrap: { width: 290 } }),
     ]);
 
-    getBuildOptions(this.state, land).forEach((option, index) => {
-      const y = 240 + index * 142;
+    const dragZone = this.add.zone(0, BUILD_LIST_TOP, GAME_WIDTH, BUILD_LIST_HEIGHT).setOrigin(0, 0).setInteractive();
+    this.input.setDraggable(dragZone);
+    dragZone.on('dragstart', (pointer: Phaser.Input.Pointer) => {
+      this.buildDragStart = { pointerY: pointer.y, scrollY: this.buildScrollY };
+    });
+    dragZone.on('drag', (pointer: Phaser.Input.Pointer) => {
+      if (!this.buildDragStart || !this.buildListContainer) {
+        return;
+      }
+      const delta = pointer.y - this.buildDragStart.pointerY;
+      this.buildScrollY = Phaser.Math.Clamp(this.buildDragStart.scrollY - delta, 0, this.buildMaxScroll);
+      this.buildListContainer.y = -this.buildScrollY;
+    });
+    dragZone.on('dragend', () => {
+      this.buildDragStart = undefined;
+    });
+    this.modalLayer.add(dragZone);
+
+    const upgradeOptions = getUpgradeOptions(this.state, land);
+    const options = getBuildOptions(this.state, land);
+    this.buildListContainer = this.add.container(0, 0);
+    this.modalLayer.add(this.buildListContainer);
+    const buildRows: Phaser.GameObjects.Container[] = [];
+
+    upgradeOptions.forEach((option, index) => {
+      const y = 264 + index * 142;
+      const card = createPanel(this, 35, y - 32, 320, 112, {
+        border: option.canUpgrade ? 0xffde72 : 0x9b7860,
+        borderAlpha: option.canUpgrade ? 0.95 : 0.6,
+      });
+      const cost = formatCost(option.cost);
+      const label = `${BUILDING_LABELS[option.type].replace('Build ', '')} - Level ${option.level}/${option.maxLevel}`;
+      const atMax = option.level >= option.maxLevel;
+      const costLine = atMax ? 'Maximum level reached.' : `Upgrade cost: ${cost}`;
+      const detail = !atMax && !option.canUpgrade ? option.reason ?? 'Unavailable' : '';
+      const row = this.add.container(0, 0, [
+        card,
+        createLabel(this, 55, y - 22, label, 'label', { fontSize: '18px' }),
+        createLabel(this, 55, y - 2, costLine, 'caption', { fontSize: '12px', wordWrap: { width: 182 } }),
+        createLabel(this, 55, y + 24, detail, 'body', { fontSize: '12px', wordWrap: { width: 182 } }),
+        createWoodButton(this, 292, y + 16, 92, 38, atMax ? 'Max' : option.canUpgrade ? 'Upgrade' : 'Why?', () => {
+          if (option.canUpgrade) {
+            this.events.emit('ui:land-action', `upgrade:${option.index}`, land.id);
+          } else if (!atMax) {
+            this.state.message = option.reason ?? 'That building cannot be upgraded right now.';
+          }
+          this.refresh();
+        }, { variant: option.canUpgrade ? 'highlight' : 'dark', fontSize: '12px' }),
+      ]);
+      this.buildListContainer?.add(row);
+      buildRows.push(row);
+    });
+
+    const upgradeBlockHeight = upgradeOptions.length > 0 ? upgradeOptions.length * 142 : 0;
+
+    options.forEach((option, index) => {
+      const y = 264 + upgradeBlockHeight + index * 142;
       const card = createPanel(this, 35, y - 32, 320, 112, {
         border: option.canBuild ? 0xffde72 : 0x9b7860,
         borderAlpha: option.canBuild ? 0.95 : 0.6,
       });
       const cost = formatCost(option.cost);
       const detail = option.canBuild ? buildDescription(option.type, land) : option.reason ?? 'Unavailable';
-      this.modalLayer.add([
+      const row = this.add.container(0, 0, [
         card,
         createLabel(this, 55, y - 22, option.label.replace('Build ', ''), 'label', { fontSize: '18px' }),
-        createLabel(this, 55, y - 4, `Cost: ${cost}`, 'caption', { fontSize: '12px' }),
-        createLabel(this, 55, y + 18, detail, 'body', { fontSize: '12px', wordWrap: { width: 182 } }),
+        createLabel(this, 55, y - 4, `Cost: ${cost}`, 'caption', { fontSize: '12px', wordWrap: { width: 182 } }),
+        createLabel(this, 55, y + 24, detail, 'body', { fontSize: '12px', wordWrap: { width: 182 } }),
         createWoodButton(this, 292, y + 16, 92, 38, option.canBuild ? 'Build' : 'Why?', () => {
           if (option.canBuild) {
             this.events.emit('ui:land-action', `build:${option.type}`, land.id);
@@ -557,12 +903,89 @@ export class UIScene extends Phaser.Scene {
           this.refresh();
         }, { variant: option.canBuild ? 'highlight' : 'dark', fontSize: '12px' }),
       ]);
+      this.buildListContainer?.add(row);
+      buildRows.push(row);
     });
+
+    const totalCards = upgradeOptions.length + options.length;
+    const contentHeight = totalCards > 0 ? 112 + (totalCards - 1) * 142 : 0;
+    this.buildMaxScroll = Math.max(0, contentHeight - BUILD_LIST_HEIGHT);
+    this.buildScrollY = Phaser.Math.Clamp(this.buildScrollY, 0, this.buildMaxScroll);
+    this.buildListContainer.y = -this.buildScrollY;
+
+    const maskShape = this.make.graphics({}, false);
+    maskShape.fillRect(0, BUILD_LIST_TOP, GAME_WIDTH, BUILD_LIST_HEIGHT);
+    this.buildListContainer.setMask(maskShape.createGeometryMask());
+
+    if (this.modalJustOpened) {
+      staggerIn(this, buildRows);
+    }
+  }
+
+  private handleBuildListWheel(pointer: Phaser.Input.Pointer, deltaY: number): void {
+    if (this.modalScreen !== 'build' || !this.buildListContainer) {
+      return;
+    }
+
+    if (pointer.y < BUILD_LIST_TOP || pointer.y > BUILD_LIST_TOP + BUILD_LIST_HEIGHT) {
+      return;
+    }
+
+    this.buildScrollY = Phaser.Math.Clamp(this.buildScrollY + deltaY, 0, this.buildMaxScroll);
+    this.buildListContainer.y = -this.buildScrollY;
+  }
+
+  private showBattleResultScreen(): void {
+    const result = this.state.latestBattleResult;
+    if (!result) {
+      this.closeModal();
+      return;
+    }
+
+    const land = this.state.lands.find((candidate) => candidate.id === result.targetLandId);
+    const army = this.state.armies.find((candidate) => candidate.id === result.attackerArmyId);
+    const armyName = army?.name ?? 'Your army';
+    const landName = land?.name ?? 'the district';
+
+    this.addModalBase(result.victory ? 'Victory!' : 'Defeat', landName);
+
+    const bodyText = result.victory
+      ? `${armyName} broke the defenses of ${landName}.\n\nYour power: ${result.attackerPower}\nEnemy power: ${result.defenderPower}\n\nThe army now besieges the district. It will fall in ${result.siegeTicks} economy ${result.siegeTicks === 1 ? 'tick' : 'ticks'}.`
+      : `${armyName} was repelled at ${landName}.\n\nYour power: ${result.attackerPower}\nEnemy power: ${result.defenderPower}\n\nThe army falls back to recover.`;
+
+    this.modalLayer.add(
+      createLabel(this, GAME_WIDTH / 2, 210, bodyText, 'body', {
+        fontSize: '14px',
+        lineSpacing: 6,
+        align: 'center',
+        wordWrap: { width: 300 },
+      }).setOrigin(0.5, 0),
+    );
+
+    if (result.victory) {
+      this.modalLayer.add(
+        createWoodButton(this, GAME_WIDTH / 2 - 85, GAME_HEIGHT - 120, 150, 40, 'Retreat', () => {
+          this.events.emit('ui:retreat-siege', result.attackerArmyId, result.targetLandId);
+          this.closeModal();
+        }, { variant: 'dark' }),
+      );
+      this.modalLayer.add(
+        createWoodButton(this, GAME_WIDTH / 2 + 85, GAME_HEIGHT - 120, 150, 40, 'Continue', () => this.closeModal(), {
+          variant: 'highlight',
+        }),
+      );
+    } else {
+      this.modalLayer.add(
+        createWoodButton(this, GAME_WIDTH / 2 - 75, GAME_HEIGHT - 120, 150, 40, 'Continue', () => this.closeModal(), {
+          variant: 'highlight',
+        }),
+      );
+    }
   }
 
   private showPoliticsScreen(card: PoliticsCard): void {
     this.addModalBase('Court Request', 'Read the request and choose a response. Gameplay is paused.');
-    const eventCard = createPanel(this, GAME_WIDTH / 2 - 157, 145, 314, 430, { borderWidth: 4 });
+    const eventCard = createPanel(this, GAME_WIDTH / 2 - 157, 145, 314, 460, { borderWidth: 4 });
     this.modalLayer.add([
       eventCard,
       createLabel(this, GAME_WIDTH / 2, 174, card.title, 'label', {
@@ -578,13 +1001,13 @@ export class UIScene extends Phaser.Scene {
     ]);
 
     card.choices.forEach((choice, index) => {
-      const y = 458 + index * 86;
+      const y = 420 + index * 100;
       this.modalLayer.add(createWoodButton(this, GAME_WIDTH / 2, y, 268, 58, choice.label, () => {
         this.events.emit('ui:politics-choice', choice.id);
         this.closeModal();
       }, { variant: index === 0 ? 'dark' : 'wood' }));
-      this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, y + 28, choice.description, 'body', {
-        color: index === 0 ? '#f5dfaa' : '#2a1403',
+      this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, y + 36, choice.description, 'body', {
+        color: '#2a1403',
         fontSize: '11px',
         align: 'center',
         wordWrap: { width: 236 },
@@ -751,11 +1174,15 @@ export class UIScene extends Phaser.Scene {
   private openBuildModal(landId: string): void {
     this.modalBuildLandId = landId;
     this.state.selectedLandId = landId;
+    this.buildScrollY = 0;
     this.openModal('build');
   }
 
   private pickDefaultLeader(): Hero | undefined {
-    return this.state.heroes.find((hero) => hero.type === 'general') ?? this.state.heroes[0];
+    return (
+      this.state.heroes.find((hero) => hero.type === 'general' && !hero.assignedTo) ??
+      this.state.heroes.find((hero) => !hero.assignedTo)
+    );
   }
 
   private showVictory(): void {
@@ -798,6 +1225,12 @@ function buildDescription(type: string, land: Land): string {
   }
   if (type === 'mine') {
     return 'Produces supplies from mountain and hill tiles.';
+  }
+  if (type === 'wall') {
+    return 'Raises this district\'s defense by 6.';
+  }
+  if (type === 'tower') {
+    return 'Raises this district\'s defense by 10.';
   }
   return 'Produces gold and supplies from roads and city access.';
 }

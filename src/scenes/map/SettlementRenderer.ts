@@ -119,7 +119,7 @@ export class SettlementRenderer {
     for (const building of land.buildings) {
       const [x, y] = positions[posIndex % positions.length];
       posIndex += 1;
-      cluster.add(this.inkItems.createBuildingGlyph(building, x, y));
+      cluster.add(this.inkItems.createBuildingGlyph(building.type, x, y));
     }
   }
 

@@ -9,6 +9,9 @@ export const NEUTRAL_OWNER_ID = 'neutral';
 
 export const ORDERS_PER_SEASON = 3;
 
+/** Real-time interval, in ms, between economy ticks (acquisitions, builds, army marches). */
+export const REALTIME_TICK_MS = 5500;
+
 export const COLORS = {
   background: 0xd9cfb7,
   paper: 0xe9dcc1,

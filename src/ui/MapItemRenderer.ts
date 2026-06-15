@@ -4,13 +4,14 @@
  * terrain/background and `inkTheme` for shared palette/brush helpers.
  */
 import Phaser from 'phaser';
+import { COLORS } from '../game/constants';
 import { INK, brushStroke } from './inkTheme';
 import { compactNumber } from '../utils/format';
 import { IsoBuildingRenderer } from './IsoBuildingRenderer';
 import { SoldierRenderer } from './SoldierRenderer';
 import type { LandBuildingType } from '../state/types';
 
-export type ProgressBadgeVariant = 'acquisition' | 'build';
+export type ProgressBadgeVariant = 'acquisition' | 'build' | 'siege' | 'recruit';
 
 export class InkMapItemRenderer {
   private readonly buildings: IsoBuildingRenderer;
@@ -100,8 +101,8 @@ export class InkMapItemRenderer {
   }
 
   /** Red ink seal-stamp army marker with a troop-count glyph and a small marching soldier formation. */
-  createArmyMarker(x: number, y: number, total: number, isPlayer: boolean): Phaser.GameObjects.Container {
-    const container = this.scene.add.container(x, y);
+  createArmyMarker(total: number, isPlayer: boolean): Phaser.GameObjects.Container {
+    const container = this.scene.add.container(0, 0);
     const sealColor = isPlayer ? INK.sealRed : INK.ink;
 
     const seal = this.scene.add.rectangle(0, -18, 42, 26, sealColor, 0.92).setStrokeStyle(2, INK.inkSoft, 0.9);
@@ -118,11 +119,66 @@ export class InkMapItemRenderer {
     return container;
   }
 
+  /**
+   * Gold command-pennant planted beside a selected army's seal marker. Reuses the
+   * same gold (`COLORS.selected`) as the map's drag/march indicators so "selected"
+   * reads consistently across the UI, and a swallowtail shape keeps it visually
+   * distinct from the red destination pennant (`createDestinationArrow`).
+   */
+  createSelectionFlag(): Phaser.GameObjects.Container {
+    const container = this.scene.add.container(0, 0);
+    const graphics = this.scene.add.graphics();
+
+    const poleX = -18;
+    const poleTop = -58;
+    const poleBottom = -26;
+
+    graphics.lineStyle(2, INK.ink, 0.9);
+    graphics.lineBetween(poleX, poleBottom, poleX, poleTop);
+
+    graphics.fillStyle(COLORS.selected, 0.95);
+    graphics.beginPath();
+    graphics.moveTo(poleX, poleTop);
+    graphics.lineTo(poleX + 18, poleTop + 4);
+    graphics.lineTo(poleX + 10, poleTop + 9);
+    graphics.lineTo(poleX + 18, poleTop + 14);
+    graphics.lineTo(poleX, poleTop + 18);
+    graphics.closePath();
+    graphics.fillPath();
+    graphics.lineStyle(0.8, INK.ink, 0.6);
+    graphics.strokePath();
+
+    container.add(graphics);
+    return container;
+  }
+
+  /** Small ink pennant/flag, planted on a selected army's march destination. */
+  createDestinationArrow(): Phaser.GameObjects.Container {
+    const container = this.scene.add.container(0, 0);
+    const graphics = this.scene.add.graphics();
+
+    graphics.lineStyle(2, INK.ink, 0.9);
+    graphics.lineBetween(0, 6, 0, -16);
+
+    graphics.fillStyle(INK.sealRed, 0.95);
+    graphics.beginPath();
+    graphics.moveTo(0, -16);
+    graphics.lineTo(13, -11);
+    graphics.lineTo(0, -6);
+    graphics.closePath();
+    graphics.fillPath();
+    graphics.lineStyle(0.6, INK.ink, 0.5);
+    graphics.strokePath();
+
+    container.add(graphics);
+    return container;
+  }
+
   /** Circular red ink seal with a brush-stroke progress ring, for acquisition/build orders. */
   createProgressBadge(x: number, y: number, progress: number, required: number, variant: ProgressBadgeVariant): Phaser.GameObjects.Container {
     const container = this.scene.add.container(x, y);
     const ratio = Phaser.Math.Clamp(progress / required, 0, 1);
-    const ringColor = variant === 'acquisition' ? INK.sealRed : INK.landForest;
+    const ringColor = variant === 'acquisition' || variant === 'siege' ? INK.sealRed : INK.landForest;
 
     const back = this.scene.add.circle(0, 0, 17, INK.ink, 0.78).setStrokeStyle(2, ringColor, 0.95);
     const wedge = this.scene.add.graphics();
@@ -135,6 +191,19 @@ export class InkMapItemRenderer {
     if (variant === 'acquisition') {
       const coin = this.scene.add.circle(0, 0, 6, INK.sealRed, 1).setStrokeStyle(1, INK.cloud, 0.8);
       container.add(coin);
+    } else if (variant === 'siege') {
+      const swords = this.scene.add.graphics();
+      swords.lineStyle(2, INK.cloud, 0.95);
+      swords.lineBetween(-6, -6, 6, 6);
+      swords.lineBetween(-6, 6, 6, -6);
+      container.add(swords);
+    } else if (variant === 'recruit') {
+      const flag = this.scene.add.graphics();
+      flag.lineStyle(2, INK.cloud, 0.95);
+      flag.lineBetween(-4, 7, -4, -7);
+      flag.fillStyle(INK.cloud, 0.95);
+      flag.fillTriangle(-4, -7, -4, -1, 6, -4);
+      container.add(flag);
     } else {
       const head = this.scene.add.rectangle(0, -2, 10, 5, INK.cloud, 1).setStrokeStyle(1, INK.ink, 0.8);
       const handle = this.scene.add.rectangle(0, 3, 3, 9, INK.inkSoft, 1);

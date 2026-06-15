@@ -5,7 +5,7 @@
  * `src/map/boundary.ts` for the underlying region geometry.
  */
 import Phaser from 'phaser';
-import { COLORS } from '../../game/constants';
+import { COLORS, PLAYER_KINGDOM_ID } from '../../game/constants';
 import { traceLandBoundaryEdges, traceLandBoundaryLoops } from '../../map/boundary';
 import type { HexTile } from '../../map/hexMapGenerator';
 import { hashString } from '../../utils/math';
@@ -19,8 +19,10 @@ export class OverlayRenderer {
   private zoneGraphics = new Map<string, Phaser.GameObjects.Graphics>();
   private cloudGraphics = new Map<string, Phaser.GameObjects.Graphics>();
   private landBoundaryLoops = new Map<string, Array<Array<{ x: number; y: number }>>>();
+  private armyHighlightLoops = new Map<string, Array<Array<{ x: number; y: number }>>>();
   private selectionGraphics!: Phaser.GameObjects.Graphics;
   private fogGraphics!: Phaser.GameObjects.Graphics;
+  private armyHighlightGraphics?: Phaser.GameObjects.Graphics;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -175,5 +177,76 @@ export class OverlayRenderer {
 
     graphics.clear();
     this.inkMap.drawCloud(graphics, 0, 0, baseRadius, seed, alpha);
+  }
+
+  /**
+   * Soft gold highlight over every land the given army could be ordered to: its
+   * own territory reachable via owned lands (BFS over `land.neighbors`, same
+   * connectivity rule as march pathfinding) plus the non-player lands bordering
+   * that territory (attackable on arrival).
+   */
+  highlightReachableLands(
+    state: GameState,
+    hexTileMap: Map<string, HexTile>,
+    wx: WorldTransform,
+    wy: WorldTransform,
+    armyId: string,
+  ): void {
+    if (!this.armyHighlightGraphics) {
+      this.armyHighlightGraphics = this.scene.add.graphics();
+      this.armyHighlightGraphics.setDepth(55);
+    }
+
+    this.armyHighlightGraphics.clear();
+    const army = state.armies.find((candidate) => candidate.id === armyId);
+    if (!army) {
+      return;
+    }
+
+    const reachable = new Set<string>();
+    const visited = new Set<string>([army.landId]);
+    const queue: string[] = [army.landId];
+
+    while (queue.length > 0) {
+      const current = queue.shift() as string;
+      const land = state.lands.find((candidate) => candidate.id === current);
+      if (!land) {
+        continue;
+      }
+
+      for (const neighborId of land.neighbors) {
+        if (visited.has(neighborId)) {
+          continue;
+        }
+        visited.add(neighborId);
+
+        const neighbor = state.lands.find((candidate) => candidate.id === neighborId);
+        if (!neighbor) {
+          continue;
+        }
+
+        reachable.add(neighborId);
+        if (neighbor.ownerId === PLAYER_KINGDOM_ID) {
+          queue.push(neighborId);
+        }
+      }
+    }
+
+    for (const landId of reachable) {
+      for (const loop of traceLandBoundaryLoops(state, hexTileMap, wx, wy, this.armyHighlightLoops, landId)) {
+        this.armyHighlightGraphics.fillStyle(COLORS.selected, 0.22);
+        this.armyHighlightGraphics.fillPoints(loop, true);
+      }
+
+      this.armyHighlightGraphics.lineStyle(2.5, COLORS.selected, 0.8);
+      for (const [x1, y1, x2, y2] of traceLandBoundaryEdges(state, hexTileMap, wx, wy, landId)) {
+        this.armyHighlightGraphics.lineBetween(x1, y1, x2, y2);
+      }
+    }
+  }
+
+  /** Clears the reachable-lands highlight, e.g. when no army is selected. */
+  clearArmyHighlight(): void {
+    this.armyHighlightGraphics?.clear();
   }
 }

@@ -1,6 +1,9 @@
 import { checkVictory, progressAcquisitions, refreshPlayerVisibility } from './LandSystem';
 import { collectPlayerIncome, progressBuildOrders } from './ResourceSystem';
+import { progressArmyLogistics, progressMovementOrders, progressRecruitmentOrders, progressSiegeOrders } from './WarSystem';
 import { runBotTurns } from './BotSystem';
+import { progressCourt } from './CourtSystem';
+import { progressPoliticsCooldown } from './PoliticsSystem';
 import type { GameState, Season } from '../state/types';
 
 const seasons: Season[] = ['Spring', 'Summer', 'Autumn', 'Winter'];
@@ -13,10 +16,12 @@ export function advanceRealtimeMonth(state: GameState): void {
   collectPlayerIncome(state);
   const acquisitionCompleted = progressAcquisitions(state);
   const buildCompleted = progressBuildOrders(state);
-
-  for (const army of state.armies) {
-    army.hasMoved = false;
-  }
+  progressSiegeOrders(state);
+  progressMovementOrders(state);
+  progressRecruitmentOrders(state);
+  progressArmyLogistics(state);
+  progressCourt(state);
+  progressPoliticsCooldown(state);
 
   state.turn += 1;
   const nextSeasonIndex = seasons.indexOf(state.season) + 1;

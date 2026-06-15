@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS } from '../game/constants';
 import type { ResourceKey } from '../state/types';
+import { addPressFeedback } from './animations';
 
 /** Wood tones used for buttons / nav chrome. */
 export const WOOD = {
@@ -219,6 +220,7 @@ export function createWoodButton(
   });
 
   container.add([graphics, text, hitArea]);
+  addPressFeedback(scene, container, hitArea);
   return container;
 }
 

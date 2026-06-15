@@ -401,4 +401,124 @@ export const politicsCardTemplates: PoliticsCard[] = [
       },
     ],
   },
+  {
+    id: 'border-rebellion',
+    title: 'Border Rebellion',
+    type: 'crisis',
+    description: 'A frontier district rises against your tax collectors.',
+    choices: [
+      {
+        id: 'suppress',
+        label: 'Suppress',
+        description: 'Send troops to restore order.',
+        effects: { stability: 6, gold: -30, humans: -40 },
+      },
+      {
+        id: 'negotiate',
+        label: 'Negotiate',
+        description: 'Lower taxes to calm the district.',
+        effects: { stability: 10, gold: -15, influence: -5 },
+      },
+    ],
+  },
+  {
+    id: 'plague-outbreak',
+    title: 'Plague Outbreak',
+    type: 'crisis',
+    description: 'Disease spreads through crowded districts.',
+    choices: [
+      {
+        id: 'quarantine',
+        label: 'Quarantine',
+        description: 'Contain the plague at economic cost.',
+        effects: { humans: -30, gold: -20, stability: 4 },
+      },
+      {
+        id: 'pray',
+        label: 'Pray for Mercy',
+        description: 'Let it run its course.',
+        effects: { humans: -70, stability: -6 },
+      },
+    ],
+  },
+  {
+    id: 'tax-revolt',
+    title: 'Tax Revolt',
+    type: 'problem',
+    description: 'Merchants refuse to pay the new levies.',
+    choices: [
+      {
+        id: 'enforce',
+        label: 'Enforce',
+        description: 'Collect the gold but anger the people.',
+        effects: { gold: 35, stability: -8 },
+      },
+      {
+        id: 'repeal',
+        label: 'Repeal Levy',
+        description: 'Abandon the tax to restore calm.',
+        effects: { gold: -20, stability: 7 },
+      },
+    ],
+  },
+  {
+    id: 'wandering-hero',
+    title: 'A Wandering Hero Arrives',
+    type: 'opportunity',
+    description: 'A skilled traveler offers their service to the court.',
+    choices: [
+      {
+        id: 'welcome',
+        label: 'Welcome Them',
+        description: 'Spend influence and gold to host them.',
+        effects: { influence: -12, gold: -10 },
+      },
+      {
+        id: 'send-away',
+        label: 'Send Them Away',
+        description: 'Keep your resources, lose the chance.',
+        effects: { influence: 4 },
+      },
+    ],
+  },
+  {
+    id: 'royal-festival',
+    title: 'Royal Festival',
+    type: 'opportunity',
+    description: 'The court proposes a festival to celebrate the season.',
+    choices: [
+      {
+        id: 'host',
+        label: 'Host Festival',
+        description: 'Spend gold and food to boost morale and order.',
+        effects: { gold: -30, food: -15, stability: 9, influence: 5 },
+      },
+      {
+        id: 'skip',
+        label: 'Skip It',
+        description: 'Save resources, miss the goodwill.',
+        effects: { stability: -3 },
+      },
+    ],
+  },
+  {
+    id: 'spy-network-windfall',
+    title: 'Spy Network Windfall',
+    type: 'opportunity',
+    description: 'Your spies uncover a rival treasury convoy ripe for plunder.',
+    choices: [
+      {
+        id: 'raid',
+        label: 'Raid the Convoy',
+        description: 'Seize a fortune, but the act risks your standing.',
+        effects: { gold: 90, stability: -12, influence: -8 },
+      },
+      {
+        id: 'let-pass',
+        label: 'Let It Pass',
+        description: 'Avoid the risk and the reward.',
+        effects: { influence: 3 },
+      },
+    ],
+  },
 ];

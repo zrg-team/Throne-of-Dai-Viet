@@ -247,6 +247,15 @@ export class IsoBuildingRenderer {
       return [mound, entrance];
     }
 
+    if (building === 'barracks') {
+      this.drawHouse(graphics, x, y + 4, 14, CITY_HOUSE_STYLE);
+      graphics.lineStyle(1.5, INK.ink, 0.8);
+      graphics.lineBetween(x + 8, y - 2, x + 8, y - 14);
+      graphics.fillStyle(INK.sealRed, 0.95);
+      graphics.fillTriangle(x + 8, y - 14, x + 8, y - 8, x + 15, y - 11);
+      return [graphics];
+    }
+
     // market
     this.drawHouse(graphics, x, y + 4, 14, CITY_HOUSE_STYLE, INK.sealRed);
     return [graphics];
