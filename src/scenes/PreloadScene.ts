@@ -8,8 +8,9 @@ export class PreloadScene extends Phaser.Scene {
 
   preload(): void {
     const size = { width: RESOURCE_ICON_SIZE, height: RESOURCE_ICON_SIZE };
+    const baseUrl = import.meta.env.BASE_URL;
     for (const icon of Object.values(RESOURCE_ICONS)) {
-      this.load.svg(icon.key, `/icons/${icon.file}.svg`, size);
+      this.load.svg(icon.key, `${baseUrl}icons/${icon.file}.svg`, size);
     }
   }
 

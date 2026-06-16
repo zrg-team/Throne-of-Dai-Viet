@@ -12,6 +12,10 @@ const homepagePath = (() => {
 
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? homepagePath : '/',
+  publicDir: 'public',
+  build: {
+    copyPublicDir: true,
+  },
   server: {
     port: 5173,
   },
