@@ -6,6 +6,7 @@
  */
 import Phaser from 'phaser';
 import type { PixelPoint } from '../map/hex';
+import { MAP_VISUAL_CONFIG } from '../game/gameplayConfig';
 import { INK, brushStroke, inkOutline, shade, washFill, waveLine, cloudMotif } from './inkTheme';
 
 function randomIndex(rng: () => number, length: number): number {
@@ -106,6 +107,7 @@ function jaggedRidge(px: number, py: number, halfWidth: number, height: number, 
 export function decorateMountains(graphics: Phaser.GameObjects.Graphics, centers: PixelPoint[], size: number, rng: () => number): void {
   const peakCount = Math.max(1, Math.round(centers.length * 0.9));
   const peaks = shuffle(centers, rng).slice(0, peakCount);
+  const opacity = MAP_VISUAL_CONFIG.mountainOpacity;
 
   // Compute each peak's geometry up front, then draw back-to-front (by vertical position)
   // so nearer peaks (lower on screen) overlap and sit in front of ones behind them.
@@ -116,7 +118,7 @@ export function decorateMountains(graphics: Phaser.GameObjects.Graphics, centers
     const py = peak.y + (rng() - 0.5) * size * 0.4;
     const height = size * 0.6 * scale;
     const halfWidth = size * 0.5 * scale;
-    const ridgePeaks = style === 0 ? 1 + Math.floor(rng() * 2) : style === 1 ? 3 + Math.floor(rng() * 2) : 2;
+    const ridgePeaks = style === 0 ? 1 + Math.floor(rng() * 2) : style === 1 ? 2 + Math.floor(rng() * 2) : 2;
     return { px, py, height, halfWidth, style, ridgePeaks, seed: Math.round(px + py) };
   });
   drawables.sort((a, b) => a.py - b.py);
@@ -125,35 +127,55 @@ export function decorateMountains(graphics: Phaser.GameObjects.Graphics, centers
     const points = jaggedRidge(px, py, halfWidth, height, ridgePeaks, size, rng);
     const fillColor = style === 2 ? shade(INK.mountain, 1.05) : shade(INK.mountain, 0.9 - style * 0.08);
 
-    washFill(graphics, points, fillColor, 0.8);
-    inkOutline(graphics, points, INK.ink, 0.8, false, seed);
+    washFill(graphics, points, fillColor, opacity.fill);
+    inkOutline(graphics, points, INK.ink, opacity.outline, false, seed);
 
     // Fainter inner ridge for layered depth, echoing the outer silhouette.
     if (style !== 2) {
       const innerPoints = jaggedRidge(px, py - height * 0.05, halfWidth * 0.6, height * 0.55, ridgePeaks, size, rng);
-      inkOutline(graphics, innerPoints, INK.inkSoft, 0.5, false, seed + 11);
+      inkOutline(graphics, innerPoints, INK.inkSoft, opacity.innerRidge, false, seed + 11);
     }
 
     // Pale mist band weaving across the lower slopes.
     const mistY = py - height * (0.12 + rng() * 0.22);
-    graphics.fillStyle(INK.cloud, 0.55);
+    graphics.fillStyle(INK.cloud, opacity.mist);
     graphics.fillEllipse(px + (rng() - 0.5) * halfWidth * 0.5, mistY, halfWidth * (1.1 + rng() * 0.4), size * (0.16 + rng() * 0.1));
   }
 }
 
 /** Soft ink-wash ridgelines across a merged hills patch. */
 export function decorateHills(graphics: Phaser.GameObjects.Graphics, centers: PixelPoint[], size: number, rng: () => number): void {
-  const ridgeCount = Math.max(1, Math.round(centers.length * 0.7));
+  const ridgeCount = Math.max(1, Math.round(centers.length * 0.55));
   const ridges = shuffle(centers, rng).slice(0, ridgeCount);
 
   for (const ridge of ridges) {
-    const scale = 1.1 + rng() * 0.6;
+    const scale = 1 + rng() * 0.65;
     const px = ridge.x + (rng() - 0.5) * size * 0.7;
-    const py = ridge.y + size * 0.2 + (rng() - 0.5) * size * 0.3;
-    graphics.fillStyle(shade(INK.hills, 0.85), 0.32);
-    graphics.fillEllipse(px, py, size * 0.9 * scale, size * 0.5 * scale);
-    graphics.lineStyle(1, INK.inkSoft, 0.3);
-    graphics.strokeEllipse(px, py, size * 0.9 * scale, size * 0.5 * scale);
+    const py = ridge.y + size * 0.18 + (rng() - 0.5) * size * 0.26;
+    const width = size * (0.95 + rng() * 0.45) * scale;
+    const height = size * (0.26 + rng() * 0.14) * scale;
+    const seed = Math.round(px * 3 + py * 7);
+
+    graphics.fillStyle(shade(INK.hills, 0.78), 0.2);
+    graphics.fillEllipse(px, py + height * 0.22, width, height * 1.1);
+
+    const outer: PixelPoint[] = [];
+    const inner: PixelPoint[] = [];
+    for (let step = 0; step <= 12; step += 1) {
+      const t = step / 12;
+      const x = px - width / 2 + width * t;
+      const arc = Math.sin(t * Math.PI);
+      outer.push({ x, y: py - arc * height + (rng() - 0.5) * size * 0.025 });
+      inner.push({ x, y: py + height * 0.14 - arc * height * 0.5 + (rng() - 0.5) * size * 0.02 });
+    }
+
+    brushStroke(graphics, outer, 2.2, INK.inkSoft, 0.42, seed);
+    brushStroke(graphics, inner, 1.2, INK.inkFaint, 0.32, seed + 41);
+
+    if (rng() > 0.45) {
+      const footY = py + height * (0.28 + rng() * 0.18);
+      waveLine(graphics, px - width * 0.38, footY, px + width * 0.38, footY, size * 0.025, 5, INK.inkFaint, 0.26);
+    }
   }
 }
 

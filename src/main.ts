@@ -28,7 +28,7 @@ window.render_game_to_text = () => {
 
   return JSON.stringify({
     coordinateSystem: 'Phaser canvas pixels, origin top-left, x right, y down',
-    mode: state.victory ? 'victory' : state.movementOrders.length > 0 ? 'moving_army' : state.selectedArmyId ? 'army_selected' : 'playing',
+    mode: state.victory ? 'victory' : state.pendingCourtRequest || state.activePoliticsCard ? 'court_request' : state.movementOrders.length > 0 ? 'moving_army' : state.selectedArmyId ? 'army_selected' : 'playing',
     time: `Year ${state.year}, ${state.season}`,
     realtimeSeconds: Math.round(state.realtimeSeconds),
     mapRenderMode: state.mapRenderMode,
@@ -60,6 +60,9 @@ window.render_game_to_text = () => {
       kingdomId: army.kingdomId,
       landId: army.landId,
       total: army.units.spearmen + army.units.archers + army.units.heavyInfantry,
+      level: army.level,
+      experience: army.experience,
+      experienceToNextLevel: army.experienceToNextLevel,
       morale: army.morale,
       supply: army.supply,
       rations: army.rations,
@@ -67,6 +70,8 @@ window.render_game_to_text = () => {
     })),
     draftChoices: state.activeHeroDraft?.map((hero) => hero.name) ?? [],
     politicsCard: state.activePoliticsCard?.title ?? null,
+    pendingCourtRequest: state.pendingCourtRequest?.title ?? null,
+    activeCourtModifiers: state.activeCourtModifiers,
     court: {
       stability: Math.round(state.court.stability),
       influence: Math.round(state.court.influence),

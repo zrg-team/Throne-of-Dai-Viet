@@ -1,9 +1,7 @@
-import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../game/constants';
-import { applyResourceDelta, canSpend, refreshAllLandOutputs } from './ResourceSystem';
-import { getCourtBonuses } from './CourtSystem';
+import { PLAYER_KINGDOM_ID } from '../game/constants';
 import type { GameState, Land } from '../state/types';
 
-/** Larger, better-defended, more developed districts take longer to peacefully annex. */
+/** Larger, better-defended, more developed districts take longer to siege or settle. */
 export function getAcquisitionTicksRequired(land: Land): number {
   const valueScore = land.defense + land.buildingCapacity * 2 + (land.terrainSummary.fortress + land.terrainSummary.shrine) * 4;
   return Math.max(2, Math.min(6, Math.round(valueScore / 12)));
@@ -58,82 +56,6 @@ export function getAcquisitionOrder(state: GameState, landId: string) {
 
 export function getSiegeOrder(state: GameState, landId: string) {
   return state.siegeOrders.find((order) => order.landId === landId);
-}
-
-export function acquireLand(state: GameState, landId: string): boolean {
-  const land = findLand(state, landId);
-
-  if (!land || land.ownerId !== NEUTRAL_OWNER_ID) {
-    return false;
-  }
-
-  if (getAcquisitionOrder(state, landId)) {
-    state.message = `${land.name} is already being acquired.`;
-    return false;
-  }
-
-  const hasOwnedNeighbor = land.neighbors.some((neighborId) => findLand(state, neighborId)?.ownerId === PLAYER_KINGDOM_ID);
-  if (!hasOwnedNeighbor) {
-    state.message = 'You can buy only neutral land adjacent to your districts.';
-    return false;
-  }
-
-  const cost = {
-    gold: 24 + Math.ceil(land.defense * 0.5) + Math.ceil(land.buildingCapacity * 2),
-  };
-
-  if (!canSpend(state, cost)) {
-    state.message = `Need ${cost.gold} gold to buy this land.`;
-    return false;
-  }
-
-  applyResourceDelta(state, { gold: -cost.gold });
-  const baseRequired = getAcquisitionTicksRequired(land);
-  const required = Math.max(1, Math.round(baseRequired * getCourtBonuses(state).acquisitionSpeedMult));
-  state.acquisitionOrders.push({
-    landId,
-    buyerId: PLAYER_KINGDOM_ID,
-    progress: 0,
-    required,
-    costGold: cost.gold,
-  });
-  refreshPlayerVisibility(state);
-  state.message = `Acquiring ${land.name}. Progress will complete over ${required} economy ticks.`;
-  return true;
-}
-
-export function progressAcquisitions(state: GameState): boolean {
-  const completed: string[] = [];
-
-  for (const order of state.acquisitionOrders) {
-    order.progress += 1;
-    if (order.progress >= order.required) {
-      completed.push(order.landId);
-    }
-  }
-
-  if (completed.length === 0) {
-    return false;
-  }
-
-  for (const landId of completed) {
-    const land = findLand(state, landId);
-    const order = getAcquisitionOrder(state, landId);
-    if (!land || !order || land.ownerId !== NEUTRAL_OWNER_ID) {
-      continue;
-    }
-
-    land.ownerId = order.buyerId;
-    land.loyalty = Math.max(land.loyalty, 68);
-    if (order.buyerId === PLAYER_KINGDOM_ID) {
-      state.message = `${land.name} joins Đại Việt peacefully.`;
-    }
-  }
-
-  state.acquisitionOrders = state.acquisitionOrders.filter((order) => !completed.includes(order.landId));
-  refreshAllLandOutputs(state);
-  refreshPlayerVisibility(state);
-  return true;
 }
 
 export function checkVictory(state: GameState): void {

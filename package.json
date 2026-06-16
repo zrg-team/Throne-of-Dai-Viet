@@ -2,6 +2,11 @@
   "name": "mandate-of-dai-viet",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://zrg-team.github.io/Throne-of-Dai-Viet/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zrg-team/Throne-of-Dai-Viet.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",

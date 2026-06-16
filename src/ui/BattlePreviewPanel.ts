@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { BattlePreview, GameState } from '../state/types';
 import { SHEET_BOTTOM, SHEET_TOP } from './BottomSheet';
-import { createLabel, createPanel, createWoodButton } from './theme';
+import { InkUI, INK_UI } from './InkUI';
 
 export class BattlePreviewPanel {
   constructor(
@@ -11,33 +11,31 @@ export class BattlePreviewPanel {
   ) {}
 
   render(preview: BattlePreview): Phaser.GameObjects.GameObject[] {
+    const ui = new InkUI(this.scene);
     const land = this.state.lands.find((candidate) => candidate.id === preview.targetLandId);
     const army = this.state.armies.find((candidate) => candidate.id === preview.attackerArmyId);
 
     const items: Phaser.GameObjects.GameObject[] = [
-      createPanel(this.scene, 24, SHEET_TOP + 22, 342, 174, { borderWidth: 4 }),
-      createLabel(this.scene, 44, SHEET_TOP + 40, 'Battle Preview', 'label', { fontSize: '19px' }),
-      createLabel(
-        this.scene,
-        44,
-        SHEET_TOP + 78,
-        `${army?.name ?? 'Army'} attacks ${land?.name ?? 'target'}\nYour power: ${preview.attackerPower}\nEnemy power: ${preview.defenderPower}\nEstimated win chance: ${preview.winChance}%`,
-        'body',
-        { fontSize: '14px', lineSpacing: 6 },
-      ),
+      ui.card({ x: 18, y: SHEET_TOP + 20, width: 354, height: 62 }, {
+        title: 'Battle Preview',
+        subtitle: `${army?.name ?? 'Army'} attacks ${land?.name ?? 'target'}`,
+        status: `${preview.winChance}%`,
+        border: preview.winChance >= 55 ? INK_UI.gold : INK_UI.cinnabar,
+      }),
+      ui.card({ x: 18, y: SHEET_TOP + 92, width: 354, height: 88 }, {
+        rows: [
+          { label: 'Your power', value: `${preview.attackerPower}` },
+          { label: 'Enemy power', value: `${preview.defenderPower}` },
+          { label: 'Estimate', value: preview.winChance >= 55 ? 'Advantage' : 'High risk' },
+        ],
+      }),
     ];
 
     items.push(
-      createWoodButton(
-        this.scene,
-        16 + 75,
-        SHEET_BOTTOM - 56 + 20,
-        150,
-        40,
-        'Attack',
-        () => this.onAttack(preview.attackerArmyId, preview.targetLandId),
-        { variant: 'highlight', fontSize: '14px' },
-      ),
+      ui.button({ x: 120, y: SHEET_BOTTOM - 44, width: 150, height: 36 }, 'Attack', () => this.onAttack(preview.attackerArmyId, preview.targetLandId), {
+        variant: 'primary',
+        fontSize: '14px',
+      }),
     );
 
     return items;

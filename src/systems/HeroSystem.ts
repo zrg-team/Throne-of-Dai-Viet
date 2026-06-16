@@ -1,17 +1,19 @@
 import { PLAYER_KINGDOM_ID } from '../game/constants';
 import { chooseByIndex } from '../utils/math';
-import type { GameState, Hero } from '../state/types';
+import type { GameState, Hero, HeroType } from '../state/types';
 
-export function createHeroDraft(state: GameState): void {
+export function createHeroDraft(state: GameState, preferredType?: HeroType): void {
   if (state.activeHeroDraft || state.heroDeck.length === 0) {
     return;
   }
 
-  const offset = state.turn % state.heroDeck.length;
+  const preferred = preferredType ? state.heroDeck.filter((hero) => hero.type === preferredType) : [];
+  const pool = preferred.length > 0 ? preferred : state.heroDeck;
+  const offset = state.turn % pool.length;
   const picks: Hero[] = [];
 
-  for (let index = 0; index < Math.min(3, state.heroDeck.length); index += 1) {
-    const hero = chooseByIndex(state.heroDeck, offset + index);
+  for (let index = 0; index < Math.min(3, pool.length); index += 1) {
+    const hero = chooseByIndex(pool, offset + index);
     if (hero && !picks.some((pick) => pick.id === hero.id)) {
       picks.push(hero);
     }

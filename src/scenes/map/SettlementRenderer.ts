@@ -41,6 +41,10 @@ export class SettlementRenderer {
    */
   createSettlementCluster(state: GameState, land: Land): Phaser.GameObjects.Container {
     const cluster = this.scene.add.container(0, 0);
+    if (!land.hasVillage) {
+      return cluster;
+    }
+
     const hexSize = state.mapConfig.hexSize;
     const cityCoords: HexCoord[] = [];
     let isShrineCity = false;

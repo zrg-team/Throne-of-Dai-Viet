@@ -11,10 +11,31 @@ import {
   RECRUIT_BASE_PER_TICK,
   RECRUIT_BARRACKS_BONUS,
 } from '../game/gameplayConfig';
+import { occupyEmptyLand } from './AcquisitionSystem';
 import { checkVictory, findLand, getAcquisitionTicksRequired, getSiegeOrder, isAdjacent, refreshPlayerVisibility } from './LandSystem';
 import { applyResourceDelta, canSpend, getBarracksLevel, refreshAllLandOutputs } from './ResourceSystem';
 import { getCourtBonuses } from './CourtSystem';
 import type { Army, BattlePreview, GameState, Land, RecruitmentOrder, SiegeOrder } from '../state/types';
+
+const MAX_ARMY_LEVEL = 5;
+
+function totalUnits(army: Army): number {
+  return army.units.spearmen + army.units.archers + army.units.heavyInfantry;
+}
+
+function getArmyExperienceToNext(level: number): number {
+  return 100 + (level - 1) * 60;
+}
+
+function getOwnedBarracksLevel(state: GameState): number {
+  return state.lands
+    .filter((land) => land.ownerId === PLAYER_KINGDOM_ID)
+    .reduce((sum, land) => sum + getBarracksLevel(land), 0);
+}
+
+function getArmyLevelCap(state: GameState): number {
+  return Math.min(MAX_ARMY_LEVEL, 1 + getOwnedBarracksLevel(state) + getCourtBonuses(state).armyLevelCapBonus);
+}
 
 function armyPower(state: GameState, army: Army): number {
   const unitPower =
@@ -22,7 +43,8 @@ function armyPower(state: GameState, army: Army): number {
     army.units.archers * 1.25 +
     army.units.heavyInfantry * 1.8;
   const powerMult = army.kingdomId === PLAYER_KINGDOM_ID ? getCourtBonuses(state).armyPowerMult : 1;
-  return unitPower * (army.morale / 100) * (army.supply / 100) * powerMult;
+  const levelMult = 1 + Math.max(0, army.level - 1) * 0.08;
+  return unitPower * (army.morale / 100) * (army.supply / 100) * powerMult * levelMult;
 }
 
 function defenderPower(state: GameState, targetLand: Land): number {
@@ -183,7 +205,11 @@ export function progressMovementOrders(state: GameState): boolean {
     }
 
     if (nextLand.ownerId !== PLAYER_KINGDOM_ID) {
-      attackLand(state, army.id, nextLandId);
+      if (nextLand.ownerId === 'neutral' && !nextLand.hasVillage) {
+        occupyEmptyLand(state, army.id, nextLandId);
+      } else {
+        attackLand(state, army.id, nextLandId);
+      }
       state.movementOrders = state.movementOrders.filter((candidate) => candidate !== order);
       continue;
     }
@@ -219,7 +245,8 @@ export function queueRecruitment(state: GameState, heroId: string, soldiers: num
 
   const available = Math.max(0, state.resources.humans);
   const total = clamp(Math.floor(soldiers), 100, Math.max(100, available));
-  const suppliesCost = Math.max(8, Math.ceil(total / 130));
+  const courtBonuses = getCourtBonuses(state);
+  const suppliesCost = Math.max(5, Math.ceil((total / 130) * courtBonuses.recruitmentSupplyCostMult));
   const rationsCost = Math.max(0, Math.floor(rations));
   const provisionsCost = Math.max(0, Math.floor(provisions));
 
@@ -238,7 +265,7 @@ export function queueRecruitment(state: GameState, heroId: string, soldiers: num
     return false;
   }
 
-  const capital = findLand(state, 'thang-long') ?? state.lands.find((land) => land.ownerId === PLAYER_KINGDOM_ID);
+  const capital = findRecruitmentLand(state);
   if (!capital) {
     state.message = 'No owned city can raise an army.';
     return false;
@@ -250,7 +277,7 @@ export function queueRecruitment(state: GameState, heroId: string, soldiers: num
   }
 
   const barracksLevel = getBarracksLevel(capital);
-  const perTick = RECRUIT_BASE_PER_TICK * (1 + barracksLevel * RECRUIT_BARRACKS_BONUS) * getCourtBonuses(state).recruitSpeedMult;
+  const perTick = RECRUIT_BASE_PER_TICK * (1 + barracksLevel * RECRUIT_BARRACKS_BONUS) * courtBonuses.recruitSpeedMult;
   const required = Math.max(1, Math.ceil(total / perTick));
 
   applyResourceDelta(state, { humans: -total, food: -rationsCost, supplies: -(suppliesCost + provisionsCost) });
@@ -294,24 +321,35 @@ export function progressRecruitmentOrders(state: GameState): boolean {
     }
 
     const total = order.totalSoldiers;
+    const bonuses = getCourtBonuses(state);
+    const barracksLevel = getBarracksLevel(land);
+    const level = Math.min(getArmyLevelCap(state), Math.max(1, 1 + Math.floor(barracksLevel / 2) + bonuses.nextArmyLevelBonus));
+    const heavyShare = Math.min(0.28, 0.1 + bonuses.nextArmyHeavyBonus);
+    const archerShare = Math.min(0.45, 0.28 + bonuses.nextArmyArchersBonus);
+    const heavy = Math.floor(total * heavyShare);
+    const archers = Math.floor(total * archerShare);
     const army: Army = {
       id: order.id,
       kingdomId: PLAYER_KINGDOM_ID,
       name: `${state.armies.filter((candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID).length + 1} Army`,
       landId: land.id,
       units: {
-        spearmen: Math.floor(total * 0.62),
-        archers: Math.floor(total * 0.28),
-        heavyInfantry: Math.max(0, total - Math.floor(total * 0.62) - Math.floor(total * 0.28)),
+        spearmen: Math.max(0, total - archers - heavy),
+        archers,
+        heavyInfantry: heavy,
       },
       generalHeroId: order.heroId,
       morale: 82,
       supply: 88,
       rations: order.rations,
       provisions: order.provisions,
+      level,
+      experience: 0,
+      experienceToNextLevel: getArmyExperienceToNext(level),
     };
 
     state.armies.push(army);
+    consumeNextArmyModifiers(state);
 
     const hero = state.heroes.find((candidate) => candidate.id === order.heroId);
     if (hero) {
@@ -338,7 +376,7 @@ export function progressArmyLogistics(state: GameState): boolean {
       continue;
     }
 
-    const total = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
+    const total = totalUnits(army);
     if (total <= 0) {
       disbanded.push(army);
       continue;
@@ -363,7 +401,7 @@ export function progressArmyLogistics(state: GameState): boolean {
       army.morale -= ARMY_MORALE_LOSS_NO_PROVISIONS;
     }
 
-    army.morale += moraleRegen;
+    army.morale += moraleRegen + Math.max(0, army.level - 1) * 0.25;
     army.morale = Math.min(100, Math.max(0, army.morale));
 
     const remaining = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
@@ -392,6 +430,7 @@ export function progressArmyLogistics(state: GameState): boolean {
   }
 
   state.armies = state.armies.filter((army) => !disbanded.includes(army));
+  refreshAllLandOutputs(state);
   return true;
 }
 
@@ -415,7 +454,7 @@ export function attackLand(state: GameState, armyId: string, targetLandId: strin
 
   const victory = preview.attackerPower >= preview.defenderPower * 0.72;
   const lossRate = victory ? 0.16 : 0.32;
-  const supplyCost = Math.max(4, Math.ceil((army.units.spearmen + army.units.archers + army.units.heavyInfantry) / 420));
+  const supplyCost = Math.max(2, Math.ceil((totalUnits(army) / 420) * getCourtBonuses(state).battleSupplyCostMult));
 
   army.units.spearmen = Math.max(0, Math.floor(army.units.spearmen * (1 - lossRate)));
   army.units.archers = Math.max(0, Math.floor(army.units.archers * (1 - lossRate * 0.9)));
@@ -424,6 +463,7 @@ export function attackLand(state: GameState, armyId: string, targetLandId: strin
   army.supply = Math.max(25, army.supply - 10);
   state.latestBattlePreview = undefined;
   applyResourceDelta(state, { supplies: -supplyCost });
+  awardBattleExperience(state, army, preview.defenderPower, victory);
 
   if (victory) {
     const defeatedArmies = state.armies.filter(
@@ -466,6 +506,35 @@ export function attackLand(state: GameState, armyId: string, targetLandId: strin
     defenderPower: preview.defenderPower,
   };
   return false;
+}
+
+export function disbandArmy(state: GameState, armyId: string): boolean {
+  const army = state.armies.find((candidate) => candidate.id === armyId && candidate.kingdomId === PLAYER_KINGDOM_ID);
+  if (!army) {
+    return false;
+  }
+
+  const returnedHumans = totalUnits(army);
+  applyResourceDelta(state, { humans: returnedHumans });
+  if (army.generalHeroId) {
+    const hero = state.heroes.find((candidate) => candidate.id === army.generalHeroId);
+    if (hero) {
+      hero.assignedTo = undefined;
+    }
+  }
+
+  state.movementOrders = state.movementOrders.filter((order) => order.armyId !== army.id);
+  state.siegeOrders = state.siegeOrders.filter((order) => order.armyId !== army.id);
+  state.armies = state.armies.filter((candidate) => candidate.id !== army.id);
+  if (state.selectedArmyId === army.id) {
+    state.selectedArmyId = undefined;
+  }
+  if (state.latestBattlePreview?.attackerArmyId === army.id) {
+    state.latestBattlePreview = undefined;
+  }
+  state.message = `${army.name} disbands. ${returnedHumans} humans return home; its XP is lost.`;
+  refreshAllLandOutputs(state);
+  return true;
 }
 
 /** Withdraws a besieging army back to the land it marched from, abandoning the siege. */
@@ -521,5 +590,38 @@ function findRetreatLand(state: GameState, land: Land): string | undefined {
   return land.neighbors.find((neighborId) => {
     const neighbor = findLand(state, neighborId);
     return neighbor?.ownerId === land.ownerId;
+  });
+}
+
+function findRecruitmentLand(state: GameState): Land | undefined {
+  const owned = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
+  return owned
+    .slice()
+    .sort((a, b) => {
+      const aScore = (a.type === 'castle' ? 100 : 0) + getBarracksLevel(a) * 20 + (a.terrainSummary.fortress + a.terrainSummary.shrine);
+      const bScore = (b.type === 'castle' ? 100 : 0) + getBarracksLevel(b) * 20 + (b.terrainSummary.fortress + b.terrainSummary.shrine);
+      return bScore - aScore;
+    })[0];
+}
+
+function awardBattleExperience(state: GameState, army: Army, defenderPowerValue: number, victory: boolean): void {
+  if (army.kingdomId !== PLAYER_KINGDOM_ID) {
+    return;
+  }
+
+  const gain = Math.max(8, Math.ceil((defenderPowerValue / 80) * (victory ? 1 : 0.35) * getCourtBonuses(state).armyXpMult));
+  army.experience += gain;
+  const cap = getArmyLevelCap(state);
+  while (army.level < cap && army.experience >= army.experienceToNextLevel) {
+    army.experience -= army.experienceToNextLevel;
+    army.level += 1;
+    army.experienceToNextLevel = getArmyExperienceToNext(army.level);
+    army.morale = Math.min(100, army.morale + 5);
+  }
+}
+
+function consumeNextArmyModifiers(state: GameState): void {
+  state.activeCourtModifiers = state.activeCourtModifiers.filter((modifier) => {
+    return !modifier.nextArmyLevelBonus && !modifier.nextArmyArchersBonus && !modifier.nextArmyHeavyBonus;
   });
 }

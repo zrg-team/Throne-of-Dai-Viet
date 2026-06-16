@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import type { GameState } from '../state/types';
-import { createWoodButton, LACQUER, PARCHMENT } from './theme';
+import { InkUI, INK_UI } from './InkUI';
 
 export const ACTION_BUTTON_LABELS = ['Build', 'Heroes', 'Court', 'Army', 'Map'];
 export const ACTION_BUTTON_WIDTH = 72;
@@ -22,21 +22,22 @@ export class ActionBar extends Phaser.GameObjects.Container {
   ) {
     super(scene, 0, 0);
     this.setDepth(420);
+    const ui = new InkUI(scene);
     const top = GAME_HEIGHT - ACTION_BAR_HEIGHT;
-    this.add(scene.add.rectangle(0, top, GAME_WIDTH, ACTION_BAR_HEIGHT, PARCHMENT.dark, 0.98).setOrigin(0, 0));
-    this.add(scene.add.rectangle(0, top, GAME_WIDTH, 3, LACQUER.gold, 0.9).setOrigin(0, 0));
+    this.add(scene.add.rectangle(0, top, GAME_WIDTH, ACTION_BAR_HEIGHT, INK_UI.backgroundInk, 0.96).setOrigin(0, 0));
+    this.add(scene.add.rectangle(14, top + 3, GAME_WIDTH - 28, 2, INK_UI.cinnabar, 0.78).setOrigin(0, 0));
 
     ACTION_BUTTON_LABELS.forEach((label, index) => {
-      const x = actionButtonLeft(index) + ACTION_BUTTON_WIDTH / 2;
-      const button = createWoodButton(
-        scene,
-        x,
-        ACTION_BUTTON_Y,
-        ACTION_BUTTON_WIDTH,
-        ACTION_BUTTON_HEIGHT,
+      const button = ui.button(
+        {
+          x: actionButtonLeft(index),
+          y: ACTION_BUTTON_Y - ACTION_BUTTON_HEIGHT / 2,
+          width: ACTION_BUTTON_WIDTH,
+          height: ACTION_BUTTON_HEIGHT,
+        },
         label,
         () => this.onAction(label.toLowerCase()),
-        { fontSize: '12px' },
+        { fontSize: '12px', variant: label === 'Map' ? 'ghost' : 'secondary' },
       );
       this.add(button);
     });

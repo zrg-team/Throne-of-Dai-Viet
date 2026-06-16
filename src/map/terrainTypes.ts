@@ -44,7 +44,7 @@ export interface TerrainDef {
   ) => void;
 }
 
-const ALL_LAND_TYPES: LandType[] = ['castle', 'farm', 'market', 'iron', 'temple', 'enemyCastle'];
+const ALL_LAND_TYPES: LandType[] = ['castle', 'farm', 'market', 'iron', 'temple', 'enemyCastle', 'wilderness'];
 
 export const TERRAIN_REGISTRY: Record<HexTerrainType, TerrainDef> = {
   plains: {
@@ -67,19 +67,19 @@ export const TERRAIN_REGISTRY: Record<HexTerrainType, TerrainDef> = {
   },
   forest: {
     color: INK.landForest,
-    preferredFor: ['farm'],
+    preferredFor: ['farm', 'wilderness'],
     weight: 1,
     decorateRegion: decorateForest,
   },
   mountains: {
     color: INK.mountain,
-    preferredFor: ['iron'],
+    preferredFor: ['iron', 'wilderness'],
     weight: 2,
     decorateRegion: decorateMountains,
   },
   hills: {
     color: INK.hills,
-    preferredFor: ['iron'],
+    preferredFor: ['iron', 'wilderness'],
     weight: 2,
     decorateRegion: decorateHills,
   },

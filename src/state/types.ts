@@ -2,7 +2,7 @@ import type { HexTile, MapGenConfig } from '../map/hexMapGenerator';
 
 export type ResourceKey = 'food' | 'supplies' | 'gold' | 'humans';
 
-export type LandType = 'castle' | 'farm' | 'market' | 'iron' | 'temple' | 'enemyCastle';
+export type LandType = 'castle' | 'farm' | 'market' | 'iron' | 'temple' | 'enemyCastle' | 'wilderness';
 
 export type LandBuildingType = 'farm' | 'mine' | 'market' | 'wall' | 'tower' | 'barracks' | 'shrine';
 
@@ -65,10 +65,18 @@ export interface Land {
   isVisible: boolean;
   isExplored: boolean;
   special: string;
+  /** People living here. Gained as humans resource on acquisition. */
+  population: number;
+  /** Local militia strength. Drives noble power and affects all acquisition methods. */
+  localSoldiers: number;
+  /** Whether a settled community exists. Gates which acquisition methods are available. */
+  hasVillage: boolean;
+  /** Per-kingdom trust (0–100). Defaults to 40 when not set. */
+  trust: Record<string, number>;
 }
 
 /** Authored land data before hex-map generation fills in position/adjacency. */
-export type LandTemplate = Omit<Land, 'x' | 'y' | 'neighbors' | 'buildingCapacity' | 'terrainSummary' | 'outputs' | 'isVisible' | 'isExplored'>;
+export type LandTemplate = Omit<Land, 'x' | 'y' | 'neighbors' | 'buildingCapacity' | 'terrainSummary' | 'outputs' | 'isVisible' | 'isExplored' | 'population' | 'localSoldiers' | 'hasVillage' | 'trust'>;
 
 export interface Kingdom {
   id: string;
@@ -97,6 +105,9 @@ export interface Army {
   rations: number;
   /** Supply units carried by the army; depletes each economy tick and affects march speed/morale. */
   provisions: number;
+  level: number;
+  experience: number;
+  experienceToNextLevel: number;
 }
 
 /** An in-progress march: an army advancing one land per leg toward `path`'s last entry. */
@@ -143,11 +154,51 @@ export interface Hero {
   fatigue: number;
 }
 
+export interface CourtModifier {
+  id: string;
+  label: string;
+  remainingTicks?: number;
+  resourceRateModifier?: Partial<ResourceBag>;
+  recruitSpeedModifier?: number;
+  courtCardSpeedModifier?: number;
+  armyXpModifier?: number;
+  buildingCostModifier?: number;
+  buildSpeedBonus?: number;
+  upgradeSpeedBonus?: number;
+  acquisitionCostModifier?: number;
+  armyGoldUpkeepModifier?: number;
+  buildingGoldUpkeepModifier?: number;
+  buildingSuppliesUpkeepModifier?: number;
+  marketGoldOutputModifier?: number;
+  recruitmentSupplyCostModifier?: number;
+  nextArmyLevelBonus?: number;
+  nextArmyArchersBonus?: number;
+  nextArmyHeavyBonus?: number;
+  battleSupplyCostModifier?: number;
+  armyLevelCapBonus?: number;
+}
+
+export interface CourtEffect extends Partial<Omit<CourtModifier, 'id' | 'label' | 'remainingTicks'>> {
+  resourceDelta?: Partial<ResourceBag>;
+  durationTicks?: number;
+  permanent?: boolean;
+  freeBuilding?: LandBuildingType;
+  freeUpgrade?: LandBuildingType;
+  freeHeroDraft?: true | HeroType;
+  completeBuildOrder?: boolean;
+  completeUpgradeOrder?: boolean;
+  restoreArmyReadiness?: boolean;
+  defenseBoost?: number;
+  nextCourtCardSoon?: boolean;
+  extraCourtDraw?: boolean;
+  duplicateNextCourtChoice?: boolean;
+}
+
 export interface PoliticsChoice {
   id: string;
   label: string;
   description: string;
-  effects: Record<string, number>;
+  effects: CourtEffect;
 }
 
 export interface PoliticsCard {
@@ -187,12 +238,19 @@ export interface SiegeOrder {
   required: number;
 }
 
+export type AcquisitionMethod = 'bribe' | 'diplomacy' | 'intimidation' | 'settle' | 'occupy' | 'conquest';
+
 export interface AcquisitionOrder {
   landId: string;
   buyerId: string;
   progress: number;
   required: number;
   costGold: number;
+  method: AcquisitionMethod;
+  /** Hero assigned to a diplomatic claim. */
+  heroId?: string;
+  /** Army applying pressure in an intimidation order. */
+  armyId?: string;
 }
 
 export interface BuildOrder {
@@ -262,6 +320,7 @@ export interface GameState {
   heroes: Hero[];
   heroDeck: Hero[];
   politicsDeck: PoliticsCard[];
+  activeCourtModifiers: CourtModifier[];
   court: CourtState;
   activeHeroDraft?: Hero[];
   activePoliticsCard?: PoliticsCard;

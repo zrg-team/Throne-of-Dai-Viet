@@ -2,7 +2,7 @@ import { PLAYER_KINGDOM_ID } from '../game/constants';
 import { heroTemplates } from '../data/heroes';
 import { politicsCardTemplates } from '../data/politicsCards';
 import { createHeroDraft } from './HeroSystem';
-import type { CourtPositionId, CourtState, GameState, Hero, HeroStats } from '../state/types';
+import type { CourtModifier, CourtPositionId, CourtState, GameState, Hero, HeroStats, ResourceBag } from '../state/types';
 
 export const ALL_COURT_POSITIONS: CourtPositionId[] = [
   'marshal',
@@ -53,10 +53,25 @@ export interface CourtBonuses {
   influenceRegen: number;
   favorPerTick: number;
   acquisitionSpeedMult: number;
+  acquisitionCostMult: number;
   cardFrequencyMult: number;
+  resourceRateModifier: Partial<ResourceBag>;
+  buildingGoldUpkeepMult: number;
+  buildingSuppliesUpkeepMult: number;
+  marketGoldOutputMult: number;
+  recruitmentSupplyCostMult: number;
+  upgradeSpeedBonus: number;
+  armyXpMult: number;
+  armyGoldUpkeepMult: number;
+  battleSupplyCostMult: number;
+  nextArmyLevelBonus: number;
+  nextArmyArchersBonus: number;
+  nextArmyHeavyBonus: number;
+  armyLevelCapBonus: number;
 }
 
-type CourtBonusDelta = Partial<Record<keyof CourtBonuses, number>>;
+type NumericCourtBonusKey = Exclude<keyof CourtBonuses, 'resourceRateModifier'>;
+type CourtBonusDelta = Partial<Record<NumericCourtBonusKey, number>>;
 
 const BASE_STABILITY_REGEN = 0.15;
 const BASE_INFLUENCE_REGEN = 0.05;
@@ -138,7 +153,20 @@ export function getCourtBonuses(state: GameState): CourtBonuses {
     influenceRegen: 0,
     favorPerTick: 0,
     acquisitionSpeedMult: 0,
+    acquisitionCostMult: 0,
     cardFrequencyMult: 0,
+    buildingGoldUpkeepMult: 0,
+    buildingSuppliesUpkeepMult: 0,
+    marketGoldOutputMult: 0,
+    recruitmentSupplyCostMult: 0,
+    upgradeSpeedBonus: 0,
+    armyXpMult: 0,
+    armyGoldUpkeepMult: 0,
+    battleSupplyCostMult: 0,
+    nextArmyLevelBonus: 0,
+    nextArmyArchersBonus: 0,
+    nextArmyHeavyBonus: 0,
+    armyLevelCapBonus: 0,
   };
 
   for (const [positionId, heroId] of Object.entries(state.court.seats)) {
@@ -151,9 +179,39 @@ export function getCourtBonuses(state: GameState): CourtBonuses {
     }
     const effects = COURT_POSITION_EFFECTS[positionId as CourtPositionId](hero.stats);
     for (const [key, value] of Object.entries(effects)) {
-      delta[key as keyof CourtBonuses] += value ?? 0;
+      delta[key as NumericCourtBonusKey] += value ?? 0;
     }
   }
+
+  const resourceRateModifier: Partial<ResourceBag> = {};
+  for (const modifier of state.activeCourtModifiers) {
+    if (modifier.resourceRateModifier) {
+      for (const [key, value] of Object.entries(modifier.resourceRateModifier)) {
+        const resourceKey = key as keyof ResourceBag;
+        resourceRateModifier[resourceKey] = (resourceRateModifier[resourceKey] ?? 0) + (value ?? 0);
+      }
+    }
+    delta.recruitSpeedMult += modifier.recruitSpeedModifier ?? 0;
+    delta.cardFrequencyMult += modifier.courtCardSpeedModifier ?? 0;
+    delta.armyPowerMult += 0;
+    delta.buildingCostMult += modifier.buildingCostModifier ?? 0;
+    delta.buildSpeedBonus += modifier.buildSpeedBonus ?? 0;
+    delta.upgradeSpeedBonus += modifier.upgradeSpeedBonus ?? 0;
+    delta.acquisitionCostMult += modifier.acquisitionCostModifier ?? 0;
+    delta.armyXpMult += modifier.armyXpModifier ?? 0;
+    delta.buildingGoldUpkeepMult += modifier.buildingGoldUpkeepModifier ?? 0;
+    delta.buildingSuppliesUpkeepMult += modifier.buildingSuppliesUpkeepModifier ?? 0;
+    delta.marketGoldOutputMult += modifier.marketGoldOutputModifier ?? 0;
+    delta.recruitmentSupplyCostMult += modifier.recruitmentSupplyCostModifier ?? 0;
+    delta.armyGoldUpkeepMult += modifier.armyGoldUpkeepModifier ?? 0;
+    delta.battleSupplyCostMult += modifier.battleSupplyCostModifier ?? 0;
+    delta.nextArmyLevelBonus += modifier.nextArmyLevelBonus ?? 0;
+    delta.nextArmyArchersBonus += modifier.nextArmyArchersBonus ?? 0;
+    delta.nextArmyHeavyBonus += modifier.nextArmyHeavyBonus ?? 0;
+    delta.armyLevelCapBonus += modifier.armyLevelCapBonus ?? 0;
+  }
+
+  const filledSeatCount = Object.values(state.court.seats).filter(Boolean).length;
 
   return {
     goldOutputMult: 1 + delta.goldOutputMult,
@@ -168,8 +226,37 @@ export function getCourtBonuses(state: GameState): CourtBonuses {
     influenceRegen: BASE_INFLUENCE_REGEN + delta.influenceRegen,
     favorPerTick: BASE_FAVOR_PER_TICK + delta.favorPerTick + getShrineFavor(state),
     acquisitionSpeedMult: clamp(1 + delta.acquisitionSpeedMult, 0.4, 1),
-    cardFrequencyMult: clamp(1 + delta.cardFrequencyMult, 0.5, 2),
+    acquisitionCostMult: clamp(1 + delta.acquisitionCostMult, 0.45, 1.4),
+    cardFrequencyMult: clamp(1 + filledSeatCount * 0.22 + delta.cardFrequencyMult, 0.5, 3.5),
+    resourceRateModifier,
+    buildingGoldUpkeepMult: clamp(1 + delta.buildingGoldUpkeepMult, 0.35, 1.5),
+    buildingSuppliesUpkeepMult: clamp(1 + delta.buildingSuppliesUpkeepMult, 0.35, 1.5),
+    marketGoldOutputMult: clamp(1 + delta.marketGoldOutputMult, 0.4, 2.5),
+    recruitmentSupplyCostMult: clamp(1 + delta.recruitmentSupplyCostMult, 0.45, 1.5),
+    upgradeSpeedBonus: Math.round(delta.upgradeSpeedBonus),
+    armyXpMult: clamp(1 + delta.armyXpMult, 0.5, 3),
+    armyGoldUpkeepMult: clamp(1 + delta.armyGoldUpkeepMult, 0.35, 1.8),
+    battleSupplyCostMult: clamp(1 + delta.battleSupplyCostMult, 0.35, 1.5),
+    nextArmyLevelBonus: Math.max(0, Math.round(delta.nextArmyLevelBonus)),
+    nextArmyArchersBonus: Math.max(0, delta.nextArmyArchersBonus),
+    nextArmyHeavyBonus: Math.max(0, delta.nextArmyHeavyBonus),
+    armyLevelCapBonus: Math.max(0, Math.round(delta.armyLevelCapBonus)),
   };
+}
+
+export function addCourtModifier(state: GameState, modifier: CourtModifier): void {
+  state.activeCourtModifiers.push(modifier);
+}
+
+function progressCourtModifiers(state: GameState): void {
+  for (const modifier of state.activeCourtModifiers) {
+    if (typeof modifier.remainingTicks === 'number') {
+      modifier.remainingTicks -= 1;
+    }
+  }
+  state.activeCourtModifiers = state.activeCourtModifiers.filter((modifier) => {
+    return typeof modifier.remainingTicks !== 'number' || modifier.remainingTicks > 0;
+  });
 }
 
 /** Recomputes which court seats are unlocked based on shrines built on player lands. */
@@ -311,6 +398,7 @@ function syncSignatureCards(state: GameState): void {
 
 /** Advances Favor, hero arrival, stability/influence, and governed-land loyalty by one economy tick. */
 export function progressCourt(state: GameState): void {
+  progressCourtModifiers(state);
   refreshCourtSeats(state);
   const bonuses = getCourtBonuses(state);
 

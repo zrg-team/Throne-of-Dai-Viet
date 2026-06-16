@@ -152,6 +152,70 @@ export class InkMapItemRenderer {
     return container;
   }
 
+  /** Đinh-style yellow/red pennant marking land owned by the player. */
+  createPlayerLandFlag(isCapital = false): Phaser.GameObjects.Container {
+    const container = this.scene.add.container(0, 0);
+    const pole = this.scene.add.graphics();
+    const cloth = this.scene.add.graphics();
+    const scale = isCapital ? 1.22 : 1;
+    const poleX = 0;
+    const poleTop = -46 * scale;
+    const poleBottom = 8 * scale;
+    const flagW = 25 * scale;
+    const flagH = 17 * scale;
+
+    pole.lineStyle(2.2 * scale, INK.ink, 0.85);
+    pole.lineBetween(poleX, poleBottom, poleX, poleTop);
+    pole.fillStyle(INK.ink, 0.24);
+    pole.fillEllipse(poleX, poleBottom + 2 * scale, 12 * scale, 4 * scale);
+
+    cloth.fillStyle(0xf4cf27, 0.98);
+    cloth.beginPath();
+    cloth.moveTo(poleX, poleTop);
+    cloth.lineTo(poleX + flagW * 0.45, poleTop + 1.5 * scale);
+    cloth.lineTo(poleX + flagW, poleTop);
+    cloth.lineTo(poleX + flagW, poleTop + flagH);
+    cloth.lineTo(poleX + flagW * 0.46, poleTop + flagH - 1.3 * scale);
+    cloth.lineTo(poleX, poleTop + flagH);
+    cloth.closePath();
+    cloth.fillPath();
+
+    cloth.lineStyle(2.2 * scale, INK.sealRed, 0.95);
+    cloth.strokePath();
+
+    cloth.lineStyle(2 * scale, INK.sealRed, 0.95);
+    cloth.beginPath();
+    cloth.moveTo(poleX + 9 * scale, poleTop + 6 * scale);
+    cloth.lineTo(poleX + 15 * scale, poleTop + 6 * scale);
+    cloth.lineTo(poleX + 13 * scale, poleTop + 12 * scale);
+    cloth.strokePath();
+
+    this.scene.tweens.add({
+      targets: cloth,
+      scaleX: { from: 0.96, to: 1.08 },
+      skewX: { from: -0.05, to: 0.05 },
+      duration: 900 + (isCapital ? 120 : 0),
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    container.add([pole, cloth]);
+    return container;
+  }
+
+  /** Gold ink-wash base behind the player capital so it reads as the seat of power. */
+  createCapitalHighlight(): Phaser.GameObjects.Graphics {
+    const graphics = this.scene.add.graphics();
+    graphics.fillStyle(0xf4cf27, 0.18);
+    graphics.fillEllipse(0, 4, 88, 44);
+    graphics.lineStyle(2, 0xf4cf27, 0.65);
+    graphics.strokeEllipse(0, 4, 92, 48);
+    graphics.lineStyle(1.2, INK.sealRed, 0.45);
+    graphics.strokeEllipse(0, 4, 72, 34);
+    return graphics;
+  }
+
   /** Small ink pennant/flag, planted on a selected army's march destination. */
   createDestinationArrow(): Phaser.GameObjects.Container {
     const container = this.scene.add.container(0, 0);

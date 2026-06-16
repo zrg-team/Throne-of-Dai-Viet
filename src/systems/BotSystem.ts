@@ -1,5 +1,5 @@
 import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../game/constants';
-import { isLandVisibleToPlayer } from './LandSystem';
+import { getAcquisitionTicksRequired, getAcquisitionOrder, isLandVisibleToPlayer } from './LandSystem';
 import { calculateLandOutputs } from './ResourceSystem';
 import type { GameState, Kingdom, Land, LandBuildingType } from '../state/types';
 
@@ -20,6 +20,32 @@ function runSingleBot(state: GameState, kingdom: Kingdom): void {
     return;
   }
 
+  const frontier = ownedLands
+    .flatMap((land) => land.neighbors)
+    .map((neighborId) => state.lands.find((land) => land.id === neighborId))
+    .filter((land): land is Land => Boolean(land));
+
+  const neutralTarget = frontier
+    .filter((land) => land.ownerId === NEUTRAL_OWNER_ID)
+    .sort((a, b) => scoreNeutralTarget(b) - scoreNeutralTarget(a))[0];
+
+  const hasActiveAcquisition = state.acquisitionOrders.some((order) => order.buyerId === kingdom.id);
+  if (neutralTarget && !hasActiveAcquisition && !getAcquisitionOrder(state, neutralTarget.id) && state.turn % 3 === 0) {
+    const required = getAcquisitionTicksRequired(neutralTarget);
+    state.acquisitionOrders.push({
+      landId: neutralTarget.id,
+      buyerId: kingdom.id,
+      progress: 0,
+      required,
+      costGold: 0,
+      method: 'conquest',
+    });
+    if (isLandVisibleToPlayer(state, neutralTarget.id)) {
+      state.message = `${kingdom.name} begins claiming ${neutralTarget.name}.`;
+    }
+    return;
+  }
+
   const buildTarget = pickBuildTarget(ownedLands, state.turn);
   if (buildTarget) {
     const building = chooseBuilding(buildTarget);
@@ -31,24 +57,6 @@ function runSingleBot(state: GameState, kingdom: Kingdom): void {
       }
       return;
     }
-  }
-
-  const frontier = ownedLands
-    .flatMap((land) => land.neighbors)
-    .map((neighborId) => state.lands.find((land) => land.id === neighborId))
-    .filter((land): land is Land => Boolean(land));
-
-  const neutralTarget = frontier
-    .filter((land) => land.ownerId === NEUTRAL_OWNER_ID)
-    .sort((a, b) => scoreNeutralTarget(b) - scoreNeutralTarget(a))[0];
-
-  if (neutralTarget && state.turn % 2 === 0) {
-    neutralTarget.ownerId = kingdom.id;
-    neutralTarget.loyalty = Math.max(neutralTarget.loyalty, 58);
-    if (isLandVisibleToPlayer(state, neutralTarget.id)) {
-      state.message = `${kingdom.name} claims ${neutralTarget.name}.`;
-    }
-    return;
   }
 
   const playerTarget = frontier.find((land) => land.ownerId === PLAYER_KINGDOM_ID);

@@ -13,6 +13,34 @@ export const GAMEPLAY_MAP_CONFIG: GameplayMapConfig = {
   neutralDistrictTarget: 40,
 };
 
+export const MOUNTAIN_OPACITY_PRESETS = {
+  light: {
+    fill: 0.45,
+    outline: 0.5,
+    innerRidge: 0.3,
+    mist: 0.42,
+  },
+  balanced: {
+    fill: 0.6,
+    outline: 0.62,
+    innerRidge: 0.38,
+    mist: 0.5,
+  },
+  strong: {
+    fill: 1,
+    outline: 1,
+    innerRidge: 0.85,
+    mist: 0.85,
+  },
+} as const;
+
+export type MountainOpacityPreset = keyof typeof MOUNTAIN_OPACITY_PRESETS;
+export const ACTIVE_MOUNTAIN_OPACITY_PRESET: MountainOpacityPreset = 'balanced';
+
+export const MAP_VISUAL_CONFIG = {
+  mountainOpacity: MOUNTAIN_OPACITY_PRESETS[ACTIVE_MOUNTAIN_OPACITY_PRESET],
+} as const;
+
 export const BUILD_TICKS_REQUIRED = 3;
 export const UPGRADE_TICKS_REQUIRED = 4;
 export const MAX_BUILDING_LEVEL = 3;

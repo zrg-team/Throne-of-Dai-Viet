@@ -152,7 +152,8 @@ export function calculateLandOutputs(state: GameState, land: Land, efficiency = 
       outputs.gold += 2 * multiplier;
     }
     if (building.type === 'market') {
-      outputs.gold += (7 + roads * 2) * multiplier;
+      const marketMult = land.ownerId === PLAYER_KINGDOM_ID ? getCourtBonuses(state).marketGoldOutputMult : 1;
+      outputs.gold += (7 + roads * 2) * multiplier * marketMult;
       outputs.supplies += (2 + roads) * multiplier;
       outputs.humans += 2 * multiplier;
     }
@@ -219,6 +220,13 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
   const heroUpkeep = state.heroes.reduce((sum, hero) => sum + hero.upkeepGold, 0);
   const foodUpkeep = Math.ceil(playerTroops / 250) + Math.ceil(state.resources.humans / 120);
   const suppliesUpkeep = Math.ceil(playerTroops / 650);
+  const armyGoldUpkeep = state.armies
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)
+    .reduce((sum, army) => {
+      const total = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
+      return sum + Math.ceil(total / 500) + Math.max(0, army.level - 1);
+    }, 0);
+  const courtBonuses = getCourtBonuses(state);
 
   let buildingMaintenanceGold = 0;
   let buildingMaintenanceSupplies = 0;
@@ -228,14 +236,18 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
     }
     for (const building of land.buildings) {
       const upkeep = BUILDING_UPKEEP[building.type];
-      buildingMaintenanceGold += (upkeep.gold ?? 0) * building.level;
-      buildingMaintenanceSupplies += (upkeep.supplies ?? 0) * building.level;
+      buildingMaintenanceGold += Math.ceil((upkeep.gold ?? 0) * building.level * courtBonuses.buildingGoldUpkeepMult);
+      buildingMaintenanceSupplies += Math.ceil((upkeep.supplies ?? 0) * building.level * courtBonuses.buildingSuppliesUpkeepMult);
     }
+  }
+
+  for (const [key, value] of Object.entries(courtBonuses.resourceRateModifier)) {
+    rates[key as ResourceKey] += value ?? 0;
   }
 
   rates.food -= foodUpkeep;
   rates.supplies -= suppliesUpkeep + buildingMaintenanceSupplies;
-  rates.gold -= heroUpkeep + buildingMaintenanceGold;
+  rates.gold -= heroUpkeep + buildingMaintenanceGold + Math.ceil(armyGoldUpkeep * courtBonuses.armyGoldUpkeepMult);
 
   const foodAfterUpkeep = rates.food;
   const ownedLandCount = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length;
@@ -368,7 +380,7 @@ export function upgradeDistrictBuilding(state: GameState, landId: string, buildi
   }
 
   applyResourceDelta(state, Object.fromEntries(Object.entries(option.cost).map(([key, value]) => [key, -(value ?? 0)])));
-  const required = Math.max(1, UPGRADE_TICKS_REQUIRED - getCourtBonuses(state).buildSpeedBonus);
+  const required = Math.max(1, UPGRADE_TICKS_REQUIRED - getCourtBonuses(state).buildSpeedBonus - getCourtBonuses(state).upgradeSpeedBonus);
   state.buildOrders.push({
     landId,
     building: option.type,
@@ -378,6 +390,33 @@ export function upgradeDistrictBuilding(state: GameState, landId: string, buildi
     required,
   });
   state.message = `${BUILDING_LABELS[option.type].replace('Build ', '')} upgrade to level ${option.level + 1} started in ${land.name}. Ready in ${required} economy ticks.`;
+  return true;
+}
+
+export function destroyDistrictBuilding(state: GameState, landId: string, buildingIndex: number): boolean {
+  const land = state.lands.find((candidate) => candidate.id === landId);
+  if (!land || land.ownerId !== PLAYER_KINGDOM_ID) {
+    return false;
+  }
+
+  if (getBuildOrder(state, land.id)) {
+    state.message = 'Finish current construction before destroying a building.';
+    return false;
+  }
+
+  const building = land.buildings[buildingIndex];
+  if (!building) {
+    return false;
+  }
+
+  const label = BUILDING_LABELS[building.type].replace('Build ', '');
+  const defenseBonus = DEFENSE_BONUSES[building.type];
+  if (defenseBonus) {
+    land.defense = Math.max(0, land.defense - defenseBonus * building.level);
+  }
+  land.buildings.splice(buildingIndex, 1);
+  refreshAllLandOutputs(state);
+  state.message = `${label} destroyed in ${land.name}. Maintenance cost reduced.`;
   return true;
 }
 

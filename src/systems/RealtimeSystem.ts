@@ -1,4 +1,5 @@
-import { checkVictory, progressAcquisitions, refreshPlayerVisibility } from './LandSystem';
+import { progressAcquisitions } from './AcquisitionSystem';
+import { checkVictory, refreshPlayerVisibility } from './LandSystem';
 import { collectPlayerIncome, progressBuildOrders } from './ResourceSystem';
 import { progressArmyLogistics, progressMovementOrders, progressRecruitmentOrders, progressSiegeOrders } from './WarSystem';
 import { runBotTurns } from './BotSystem';

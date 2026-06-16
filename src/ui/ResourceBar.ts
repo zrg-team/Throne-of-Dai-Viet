@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, HEADER_HEIGHT } from '../game/constants';
 import type { GameState, ResourceKey } from '../state/types';
 import { compactNumber } from '../utils/format';
-import { createLabel, LACQUER, PARCHMENT, RESOURCE_ICONS } from './theme';
+import { InkUI, INK_UI } from './InkUI';
+import { RESOURCE_ICONS } from './theme';
 
 const RESOURCE_ORDER: ResourceKey[] = ['food', 'supplies', 'gold', 'humans'];
 const ICON_DISPLAY_SIZE = 15;
@@ -15,12 +16,13 @@ export class ResourceBar extends Phaser.GameObjects.Container {
   constructor(scene: Phaser.Scene, private readonly gameState: GameState) {
     super(scene, 0, 0);
     this.setDepth(80);
+    const ui = new InkUI(scene);
 
-    const back = scene.add.rectangle(0, 0, GAME_WIDTH, HEADER_HEIGHT, PARCHMENT.dark, 0.97).setOrigin(0, 0);
-    const accent = scene.add.rectangle(0, HEADER_HEIGHT - 3, GAME_WIDTH, 3, LACQUER.gold, 0.9).setOrigin(0, 0);
+    const back = scene.add.rectangle(0, 0, GAME_WIDTH, HEADER_HEIGHT, INK_UI.backgroundInk, 0.96).setOrigin(0, 0);
+    const accent = scene.add.rectangle(14, HEADER_HEIGHT - 3, GAME_WIDTH - 28, 2, INK_UI.cinnabar, 0.78).setOrigin(0, 0);
     this.add([back, accent]);
 
-    this.seasonText = createLabel(scene, 12, 5, '', 'title', { fontSize: '15px' });
+    this.seasonText = ui.label(12, 4, '', 'title', { color: '#fff6bd', fontSize: '15px' });
     this.add(this.seasonText);
 
     const itemWidth = (GAME_WIDTH - 24) / RESOURCE_ORDER.length;
@@ -31,7 +33,7 @@ export class ResourceBar extends Phaser.GameObjects.Container {
         .image(x, ROW_Y, RESOURCE_ICONS[resource].key)
         .setOrigin(0, 0.5)
         .setDisplaySize(ICON_DISPLAY_SIZE, ICON_DISPLAY_SIZE);
-      const text = createLabel(scene, x + ICON_DISPLAY_SIZE + 4, ROW_Y, '', 'subtitle', {
+      const text = ui.label(x + ICON_DISPLAY_SIZE + 4, ROW_Y, '', 'subtitle', {
         fontSize: '12px',
       }).setOrigin(0, 0.5);
       this.resourceTexts[resource] = text;
@@ -48,6 +50,7 @@ export class ResourceBar extends Phaser.GameObjects.Container {
       const rate = this.gameState.resourceRates[resource];
       const signedRate = rate > 0 ? `+${compactNumber(rate)}` : compactNumber(rate);
       this.resourceTexts[resource].setText(`${compactNumber(this.gameState.resources[resource])} (${signedRate})`);
+      this.resourceTexts[resource].setColor(rate < 0 ? '#f0a09a' : rate > 0 ? '#d9f0bd' : '#e9d6aa');
     });
   }
 }

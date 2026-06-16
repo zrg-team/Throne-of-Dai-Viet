@@ -41,6 +41,16 @@ Original prompt: Please implement the proposed Mandate of Đại Việt document
 - Verification: `npm run build` passes; Playwright check confirmed cloud-styled fog over hidden districts, the Build modal queuing a farm with a 0/2 progress order, and the farm decoration appearing on the capital after the order completed.
 
 ## TODO
+- Implemented shared ink UI renderer pass: added `InkUI` primitives for buttons, panels, cards, modals, stat bars, and masked scroll areas; routed legacy panel/button helpers through the new renderer; migrated HUD chrome, court/build scroll lists, land/battle panels, army modal, court request, battle result, victory panel, and map overlay controls to the ink-scroll visual style.
+- Fixed follow-up UI overlap issues: enlarged modal headers, shortened modal subtitles, converted Heroes roster to content-bound scroll cards, compacted the court request badge into a red seal, removed stale Build scroll code, trimmed bottom-sheet text, and removed the Army selected badge that overlapped portraits.
+- Verification: `yarn build` passes; web-game Playwright client runs; targeted Playwright screenshots checked for Heroes, Court, Army, court badge, and selected-land bottom sheet with no browser console errors. Vite still reports the existing Phaser bundle-size warning.
+- Screenshot artifacts: `output/web-game/ui-recheck-heroes.png`, `output/web-game/ui-recheck-court.png`, `output/web-game/ui-recheck-army-final.png`, `output/web-game/ui-recheck-court-badge.png`, and `output/web-game/ui-recheck-land.png`.
+- Simplified the shared UI style after review: removed diagonal/ornamental panel treatment, flattened buttons/panels/cards, changed modal close to a simple `×` glyph with invisible hit area, and replaced the circular Court alert with a compact pill.
+- Verification: `yarn build` passes; web-game Playwright client runs; targeted screenshots checked for the cleaned Heroes, Court, Army, and Court alert layouts with no browser console errors.
+- Screenshot artifacts: `output/web-game/ui-clean-heroes.png`, `output/web-game/ui-clean-court.png`, `output/web-game/ui-clean-army.png`, and `output/web-game/ui-clean-court-badge.png`.
+- Fixed generic text-flow issues: `InkUI.card` now stacks long row values vertically instead of two-column wrapping into neighboring rows; dense Build capacity cards and bottom-sheet cards have larger reserved heights; Build option rows were tightened so visible cards are complete rather than clipped through buttons.
+- Verification: `yarn build` passes; web-game Playwright client runs; targeted Build and selected-land screenshots checked with no browser console errors.
+- Screenshot artifacts: `output/web-game/ui-flow-build-final.png` and `output/web-game/ui-flow-land-final.png`.
 - Future work: broaden automated gameplay checks for multi-turn battle capture and victory flow.
 - Future work: split Phaser into a separate manual chunk if the Vite bundle-size warning becomes a release concern.
 - Future work: replace generated paper/settlement drawings with final custom art assets once an art direction is locked.
@@ -73,3 +83,21 @@ Original prompt: Please implement the proposed Mandate of Đại Việt document
 - Fixed Build focus issues: map input is now blocked over the bottom sheet, the opening camera centers on the player capital, and the main Build command falls back to the visible owned capital when no district is selected.
 - Verification: `npm run build` passes; Playwright confirmed main Build opens the build modal, land-panel Build opens the same modal without losing `selectedLandId`, and a modal Farm build spends resources and adds the building.
 - Screenshot artifacts: `output/web-game/build-main-modal.png` and `output/web-game/build-panel-modal.png`.
+- Implemented court/map/AI/army revamp: randomized campaign seed and district names/types every new game, farthest-apart player/rival starts, mandatory reusable court-card deck with 32 cards / 64 non-stability outcomes, court modifiers, hidden court stat bars, AI timed acquisition orders, player army disbanding, army gold upkeep, and barracks-backed army veterancy.
+- Verification: `npm run build` passes; Vite still reports the existing Phaser bundle-size warning.
+- Verification: Playwright client generated fresh `output/web-game/shot-0.png` through `shot-4.png`; targeted browser checks confirmed random seeds change on reload, mandatory court request cannot be closed before choosing, court choice resumes play and applies modifiers, rival AI queues acquisition orders before ownership changes, and disband returns surviving soldiers to humans.
+- Screenshot artifact: `output/web-game/court-request-mandatory.png`.
+- Fixed follow-up UI overflow: compact land bottom sheet now shows garrison/status instead of long blocked-build reasons, and Army disband card explicitly says humans return while XP is lost.
+- Verification: `npm run build` passes; targeted Playwright screenshots checked `output/web-game/land-panel-no-overflow.png` and `output/web-game/army-disband-xp-copy-fixed.png` with no console errors.
+- Refined map edges and building management: removed the extra world padding, added low-opacity random background hex tiles around the generated map, compacted land-panel text further, and added Build-modal destroy actions for existing buildings to reduce maintenance at the cost of losing that building's output.
+- Verification: `npm run build` passes; targeted Playwright screenshots checked `output/web-game/map-edge-faint-tiles.png`, `output/web-game/land-panel-compact-status.png`, and `output/web-game/build-modal-destroy-building-final.png`; targeted browser state confirmed destroy removes one building and refreshes resource rates with no console errors.
+- Corrected the map-edge follow-up: restored iOS/world padding and changed the padded area from random/washed filler blocks to normal terrain-style tiles cloned from the nearest real map edge, including normal terrain decorations.
+- Verification: `npm run build` passes; Vite still reports the existing Phaser bundle-size warning.
+- Added more breathing room around the map by increasing the world padding to 220px; padding tiles still clone the nearest edge terrain and hidden-source padding remains clouded until the source land is visible.
+- Verification: `npm run build` passes; Vite still reports the existing Phaser bundle-size warning.
+- Added a visible sandy coast buffer for discovered non-water tiles that border water or empty map space, so revealed land no longer cuts directly into dark sea.
+- Verification: `npm run build` passes; Vite still reports the existing Phaser bundle-size warning.
+- Widened the sandy coast buffer strokes so coastline reads as a beach band instead of a thin outline.
+- Verification: `npm run build` passes; Vite still reports the existing Phaser bundle-size warning.
+- Fixed coast placement so cloned padding land tiles count as land neighbors; sand no longer draws between visible land and land-like padding, only against water or true empty edge.
+- Verification: `npm run build` passes; Vite still reports the existing Phaser bundle-size warning.

@@ -30,7 +30,7 @@ export class TrafficRenderer {
     for (const land of state.lands) {
       for (const neighborId of land.neighbors) {
         const neighbor = state.lands.find((candidate) => candidate.id === neighborId);
-        if (!neighbor || land.id > neighbor.id) {
+        if (!neighbor || land.id > neighbor.id || !this.hasSettlement(land) || !this.hasSettlement(neighbor)) {
           continue;
         }
 
@@ -59,13 +59,13 @@ export class TrafficRenderer {
     const activeKeys = new Set<string>();
 
     for (const land of state.lands) {
-      if (land.type !== 'farm' || !land.isVisible) {
+      if (land.type !== 'farm' || !land.isVisible || !this.hasSettlement(land)) {
         continue;
       }
 
       for (const neighborId of land.neighbors) {
         const neighbor = state.lands.find((candidate) => candidate.id === neighborId);
-        if (!neighbor || !neighbor.isVisible || !getCityCenter(neighbor)) {
+        if (!neighbor || !neighbor.isVisible || !this.hasSettlement(neighbor) || !getCityCenter(neighbor)) {
           continue;
         }
 
@@ -124,7 +124,7 @@ export class TrafficRenderer {
     for (const land of state.lands) {
       for (const neighborId of land.neighbors) {
         const neighbor = state.lands.find((candidate) => candidate.id === neighborId);
-        if (!neighbor || land.id > neighbor.id || !land.isVisible || !neighbor.isVisible) {
+        if (!neighbor || land.id > neighbor.id || !land.isVisible || !neighbor.isVisible || !this.hasSettlement(land) || !this.hasSettlement(neighbor)) {
           continue;
         }
 
@@ -188,6 +188,10 @@ export class TrafficRenderer {
       return 5 + land.buildings.length * 0.35;
     }
     return 3 + land.buildings.length * 0.25;
+  }
+
+  private hasSettlement(land: Land): boolean {
+    return land.hasVillage;
   }
 
   /**
