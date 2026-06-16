@@ -11,6 +11,7 @@
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "Bundler",
+    "types": ["vite/client"],
     "paths": {
       "phaser": ["./node_modules/phaser/types/phaser.d.ts"]
     },
