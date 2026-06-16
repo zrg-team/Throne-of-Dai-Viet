@@ -34,7 +34,17 @@ type CourtPicker =
   | { kind: 'land'; landId: string }
   | { kind: 'diplomacy'; landId: string };
 
-type ModalScreen = 'none' | 'heroes' | 'court' | 'army' | 'request' | 'build' | 'battle-result' | 'land-detail';
+type ModalScreen =
+  | 'none'
+  | 'heroes'
+  | 'court'
+  | 'army'
+  | 'request'
+  | 'build'
+  | 'battle-result'
+  | 'land-detail'
+  | 'game-menu'
+  | 'exit-menu';
 
 export class UIScene extends Phaser.Scene {
   private state!: GameState;
@@ -45,6 +55,7 @@ export class UIScene extends Phaser.Scene {
   private messageText!: Phaser.GameObjects.Text;
   private modalLayer!: Phaser.GameObjects.Container;
   private mapControls: Phaser.GameObjects.GameObject[] = [];
+  private gameMenuButton: Phaser.GameObjects.GameObject[] = [];
   private modalScreen: ModalScreen = 'none';
   private modalJustOpened = false;
   private modalBuildLandId?: string;
@@ -83,6 +94,21 @@ export class UIScene extends Phaser.Scene {
 
   init(data: { state: GameState }): void {
     this.state = data.state;
+    this.modalScreen = 'none';
+    this.modalJustOpened = false;
+    this.modalBuildLandId = undefined;
+    this.requestBadge = [];
+    this.selectedArmyLeaderId = undefined;
+    this.armySoldiers = 400;
+    this.armyFood = ARMY_DEFAULT_RATIONS;
+    this.armySupplies = ARMY_DEFAULT_PROVISIONS;
+    this.courtTab = 'positions';
+    this.courtPicker = undefined;
+    this.lastCourtView = undefined;
+    this.activeScrollAreas = [];
+    this.compactCard = [];
+    this.mapControls = [];
+    this.gameMenuButton = [];
   }
 
   create(): void {
@@ -95,17 +121,22 @@ export class UIScene extends Phaser.Scene {
     this.messageText = this.add.text(14, HEADER_HEIGHT + 6, '', {
       color: '#1e2a22',
       fontSize: '12px',
-      wordWrap: { width: GAME_WIDTH - 126 },
+      wordWrap: { width: GAME_WIDTH - 28 },
     }).setDepth(110);
 
     this.events.on('state-changed', () => this.refresh());
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => this.handlePointerUp(pointer));
     this.game.canvas.addEventListener('pointerup', this.domPointerUp);
     this.game.canvas.addEventListener('mouseup', this.domMouseUp);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.cleanup());
     this.refresh();
   }
 
   shutdown(): void {
+    this.cleanup();
+  }
+
+  private cleanup(): void {
     this.game.canvas.removeEventListener('pointerup', this.domPointerUp);
     this.game.canvas.removeEventListener('mouseup', this.domMouseUp);
   }
@@ -113,6 +144,11 @@ export class UIScene extends Phaser.Scene {
   private handlePointerUp(pointer: Phaser.Input.Pointer): void {
     if (this.modalScreen !== 'none') {
       this.handleModalTap(pointer.x, pointer.y);
+      return;
+    }
+
+    if (pointer.x >= GAME_WIDTH - 64 && pointer.x <= GAME_WIDTH - 4 && pointer.y >= 0 && pointer.y <= HEADER_HEIGHT - 18) {
+      this.openModal('game-menu');
       return;
     }
 
@@ -335,6 +371,7 @@ export class UIScene extends Phaser.Scene {
     this.messageText.setText(this.state.message);
     this.clearRequestBadge();
     this.clearMapControls();
+    this.clearGameMenuButton();
     this.clearCompactCard();
 
     if (this.state.victory) {
@@ -360,6 +397,7 @@ export class UIScene extends Phaser.Scene {
 
     this.clearModalLayer();
     this.modalLayer.setVisible(false);
+    this.renderGameMenuButton();
     this.renderMapControls();
 
     if (this.state.pendingCourtRequest) {
@@ -402,6 +440,10 @@ export class UIScene extends Phaser.Scene {
       this.showBattleResultScreen();
     } else if (this.modalScreen === 'land-detail') {
       this.showLandDetailScreen();
+    } else if (this.modalScreen === 'game-menu') {
+      this.showGameMenuScreen();
+    } else if (this.modalScreen === 'exit-menu') {
+      this.showExitMenuScreen();
     }
 
     if (this.modalJustOpened) {
@@ -1049,6 +1091,54 @@ export class UIScene extends Phaser.Scene {
     });
   }
 
+  private showGameMenuScreen(): void {
+    this.addModalBase('Game Menu', 'Campaign controls.');
+    const content = this.modalContentBounds;
+
+    this.modalLayer.add(this.ui.card({ x: content.x, y: content.y + 28, width: content.width, height: 118 }, {
+      title: 'Current Campaign',
+      body: `Year ${this.state.year}, ${this.state.season}\n${this.state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length} districts under your rule.`,
+      border: INK_UI.gold,
+    }));
+
+    this.modalLayer.add(this.ui.button({ x: 58, y: 332, width: 274, height: 46 }, 'Continue', () => {
+      this.closeModal();
+      this.refresh();
+    }, { variant: 'primary', fontSize: '14px' }));
+    this.modalLayer.add(this.ui.button({ x: 58, y: 402, width: 274, height: 46 }, 'Save Snapshot', () => {
+      this.events.emit('ui:save-snapshot');
+      this.closeModal();
+    }, { variant: 'secondary', fontSize: '14px' }));
+    this.modalLayer.add(this.ui.button({ x: 58, y: 472, width: 274, height: 46 }, 'Exit to Menu', () => {
+      this.modalScreen = 'exit-menu';
+      this.modalJustOpened = true;
+      this.refresh();
+    }, { variant: 'danger', fontSize: '14px' }));
+  }
+
+  private showExitMenuScreen(): void {
+    this.addModalBase('Exit to Menu', 'Choose how to leave this campaign.');
+    const content = this.modalContentBounds;
+
+    this.modalLayer.add(this.ui.card({ x: content.x, y: content.y + 28, width: content.width, height: 118 }, {
+      title: 'Unsaved progress may be lost',
+      body: 'Save a snapshot before returning to the main menu, or leave without changing the saved slot.',
+      border: INK_UI.cinnabar,
+    }));
+
+    this.modalLayer.add(this.ui.button({ x: 58, y: 332, width: 274, height: 46 }, 'Save and Exit', () => {
+      this.events.emit('ui:exit-to-menu', true);
+    }, { variant: 'primary', fontSize: '14px' }));
+    this.modalLayer.add(this.ui.button({ x: 58, y: 402, width: 274, height: 46 }, 'Exit Without Saving', () => {
+      this.events.emit('ui:exit-to-menu', false);
+    }, { variant: 'danger', fontSize: '14px' }));
+    this.modalLayer.add(this.ui.button({ x: 58, y: 472, width: 274, height: 46 }, 'Cancel', () => {
+      this.modalScreen = 'game-menu';
+      this.modalJustOpened = true;
+      this.refresh();
+    }, { variant: 'secondary', fontSize: '14px' }));
+  }
+
   private drawHeroCard(
     hero: Hero,
     x: number,
@@ -1192,6 +1282,46 @@ export class UIScene extends Phaser.Scene {
       item.destroy();
     }
     this.mapControls = [];
+  }
+
+  private renderGameMenuButton(): void {
+    const hit = this.add.rectangle(GAME_WIDTH - 34, 13, 60, 26, 0xffffff, 0.001)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(430);
+    hit.on(
+      'pointerdown',
+      (
+        _pointer: Phaser.Input.Pointer,
+        _localX: number,
+        _localY: number,
+        event: Phaser.Types.Input.EventData,
+      ) => event.stopPropagation(),
+    );
+    hit.on(
+      'pointerup',
+      (
+        _pointer: Phaser.Input.Pointer,
+        _localX: number,
+        _localY: number,
+        event: Phaser.Types.Input.EventData,
+      ) => {
+        event.stopPropagation();
+        this.openModal('game-menu');
+      },
+    );
+    const text = this.ui.label(GAME_WIDTH - 12, 5, 'Menu', 'button', {
+      color: '#fff6bd',
+      fontSize: '12px',
+      align: 'right',
+    }).setOrigin(1, 0).setDepth(431);
+    this.gameMenuButton = [hit, text];
+  }
+
+  private clearGameMenuButton(): void {
+    for (const item of this.gameMenuButton) {
+      item.destroy();
+    }
+    this.gameMenuButton = [];
   }
 
   private clearCompactCard(): void {

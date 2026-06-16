@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from './constants';
 import { BootScene } from '../scenes/BootScene';
+import { MenuScene } from '../scenes/MenuScene';
 import { MapScene } from '../scenes/MapScene';
 import { PreloadScene } from '../scenes/PreloadScene';
 import { UIScene } from '../scenes/UIScene';
@@ -24,5 +25,5 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   render: {
     preserveDrawingBuffer: true,
   },
-  scene: [BootScene, PreloadScene, MapScene, UIScene],
+  scene: [BootScene, PreloadScene, MenuScene, MapScene, UIScene],
 };

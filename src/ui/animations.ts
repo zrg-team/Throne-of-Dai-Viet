@@ -9,22 +9,55 @@ export function addPressFeedback(
   scene: Phaser.Scene,
   container: Phaser.GameObjects.Container,
   hitArea: Phaser.GameObjects.GameObject,
+  bounds?: { width: number; height: number },
 ): void {
+  const press = { ratio: 1 };
+  let base = {
+    x: container.x,
+    y: container.y,
+    scaleX: container.scaleX,
+    scaleY: container.scaleY,
+  };
+  const width = bounds?.width ?? 0;
+  const height = bounds?.height ?? 0;
+  const applyScale = (ratio: number) => {
+    container.setScale(base.scaleX * ratio, base.scaleY * ratio);
+    container.setPosition(
+      base.x + (width * base.scaleX * (1 - ratio)) / 2,
+      base.y + (height * base.scaleY * (1 - ratio)) / 2,
+    );
+  };
+
   hitArea.on('pointerdown', () => {
+    scene.tweens.killTweensOf(press);
+    base = {
+      x: container.x,
+      y: container.y,
+      scaleX: container.scaleX,
+      scaleY: container.scaleY,
+    };
+    press.ratio = 1;
     scene.tweens.add({
-      targets: container,
-      scale: 0.94,
+      targets: press,
+      ratio: 0.94,
       duration: 60,
       ease: 'Quad.Out',
+      onUpdate: () => applyScale(press.ratio),
     });
   });
 
   const release = () => {
+    scene.tweens.killTweensOf(press);
     scene.tweens.add({
-      targets: container,
-      scale: 1,
+      targets: press,
+      ratio: 1,
       duration: 120,
       ease: 'Back.Out',
+      onUpdate: () => applyScale(press.ratio),
+      onComplete: () => {
+        container.setScale(base.scaleX, base.scaleY);
+        container.setPosition(base.x, base.y);
+      },
     });
   };
 

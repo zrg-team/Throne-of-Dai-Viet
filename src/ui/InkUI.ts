@@ -386,7 +386,7 @@ export class InkUI {
 
     container.add([graphics, text, hitArea]);
     if (!disabled) {
-      addPressFeedback(this.scene, container, hitArea);
+      addPressFeedback(this.scene, container, hitArea, { width: bounds.width, height: bounds.height });
     }
     return container;
   }
@@ -534,7 +534,7 @@ function textStyle(variant: 'title' | 'subtitle' | 'body' | 'label' | 'caption' 
     case 'caption':
       return { color: INK_UI_HEX.mutedText, fontSize: '11px' };
     case 'button':
-      return { color: INK_UI_HEX.inkText, fontSize: '13px', fontStyle: '700' };
+      return { color: INK_UI_HEX.inkText, fontFamily: 'Georgia, Times New Roman, serif', fontSize: '13px', fontStyle: '700' };
     default:
       return { color: INK_UI_HEX.inkText, fontSize: '13px' };
   }
@@ -554,14 +554,28 @@ function drawButtonSurface(
 
   g.clear();
   if (variant !== 'ghost') {
-    g.fillStyle(INK_UI.brush, 0.08 * alpha);
-    g.fillRoundedRect(1, pressed ? 2 : 2, width, height, radius);
+    g.fillStyle(INK_UI.brush, 0.24 * alpha);
+    g.fillRoundedRect(3, pressed ? 5 : 5, width, height, radius);
     g.fillStyle(pressed ? palette.bottom : palette.top, alpha);
+    g.fillRoundedRect(0, pressed ? 2 : 0, width, height, radius);
+    g.lineStyle(1, 0xfff0b8, disabled ? 0.12 : pressed ? 0.18 : 0.34);
+    g.lineBetween(10, (pressed ? 2 : 0) + 8, width - 10, (pressed ? 2 : 0) + 8);
+
+    if (width >= 220 && height >= 42) {
+      const y = (pressed ? 2 : 0) + height / 2;
+      const notchAlpha = disabled ? 0.18 : 0.44;
+      const notchColor = variant === 'danger' ? INK_UI.goldLight : INK_UI.gold;
+      g.fillStyle(notchColor, notchAlpha);
+      g.fillTriangle(14, y, 23, y - 5, 23, y + 5);
+      g.fillTriangle(width - 14, y, width - 23, y - 5, width - 23, y + 5);
+    }
+  } else {
+    g.fillStyle(INK_UI.parchment, pressed ? 0.18 : 0.12);
     g.fillRoundedRect(0, pressed ? 1 : 0, width, height, radius);
   }
 
-  g.lineStyle(2, palette.border, 0.86 * alpha);
-  g.strokeRoundedRect(0, pressed ? 1 : 0, width, height, radius);
+  g.lineStyle(2, palette.border, 0.9 * alpha);
+  g.strokeRoundedRect(0, pressed ? 2 : 0, width, height, radius);
 }
 
 function buttonPalette(variant: InkButtonVariant, pressed: boolean): { top: number; bottom: number; border: number } {
@@ -583,8 +597,8 @@ function buttonPalette(variant: InkButtonVariant, pressed: boolean): { top: numb
     return { top: INK_UI.parchment, bottom: INK_UI.parchment, border: INK_UI.softBrush };
   }
   return {
-    top: pressed ? INK_UI.parchmentShade : INK_UI.parchment,
-    bottom: pressed ? INK_UI.parchmentDark : INK_UI.parchmentShade,
+    top: pressed ? INK_UI.parchmentDark : 0xd9c584,
+    bottom: pressed ? 0xbba466 : INK_UI.parchmentShade,
     border: variant === 'disabled' ? INK_UI.softBrush : INK_UI.brush,
   };
 }

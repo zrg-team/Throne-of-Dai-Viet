@@ -16,6 +16,10 @@ const game = new Phaser.Game(gameConfig);
 window.__phaserGame = game;
 
 window.render_game_to_text = () => {
+  if (window.__phaserGame?.scene.isActive('MenuScene')) {
+    return JSON.stringify({ mode: 'menu' });
+  }
+
   const state = window.__mandateState;
 
   if (!state) {

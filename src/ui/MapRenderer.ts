@@ -74,108 +74,129 @@ export function decorateForest(graphics: Phaser.GameObjects.Graphics, centers: P
 }
 
 /**
- * Builds a jagged ridge silhouette: a row of `peakCount` irregular peaks separated by
- * shallow valleys, running from the left base point to the right base point. Open shape -
- * the base edge is intentionally omitted so the silhouette fades into the terrain.
- */
-function jaggedRidge(px: number, py: number, halfWidth: number, height: number, peakCount: number, size: number, rng: () => number): PixelPoint[] {
-  const points: PixelPoint[] = [{ x: px - halfWidth, y: py }];
-  const span = halfWidth * 2;
-  for (let index = 0; index < peakCount; index += 1) {
-    const peakT = (index + 0.5) / peakCount;
-    const peakX = px - halfWidth + peakT * span + (rng() - 0.5) * size * 0.15;
-    const dominant = index === Math.floor((peakCount - 1) / 2) ? 1 : 0.65 + rng() * 0.25;
-    const peakHeight = height * (0.55 + rng() * 0.45) * dominant;
-    points.push({ x: peakX, y: py - peakHeight });
-
-    if (index < peakCount - 1) {
-      const valleyT = (index + 1) / peakCount;
-      const valleyX = px - halfWidth + valleyT * span;
-      const valleyHeight = peakHeight * (0.25 + rng() * 0.25);
-      points.push({ x: valleyX, y: py - valleyHeight });
-    }
-  }
-  points.push({ x: px + halfWidth, y: py });
-  return points;
-}
-
-/**
- * Layered ink-brush mountain silhouettes: jagged multi-peak ridgelines in a few varied
- * styles (tall single peak, rolling ridge, low hill cluster), each with a fainter inner
- * ridge stroke for depth and a pale mist band weaving across the lower slopes.
+ * Shoulder-silhouette mountain: a 7-point polygon with a secondary shoulder peak,
+ * inner ridge stroke for depth, snow cap at the summit, and a mist band across the
+ * mid-slopes. Matches the style used on the main menu landscape.
  */
 export function decorateMountains(graphics: Phaser.GameObjects.Graphics, centers: PixelPoint[], size: number, rng: () => number): void {
   const peakCount = Math.max(1, Math.round(centers.length * 0.9));
   const peaks = shuffle(centers, rng).slice(0, peakCount);
   const opacity = MAP_VISUAL_CONFIG.mountainOpacity;
 
-  // Compute each peak's geometry up front, then draw back-to-front (by vertical position)
-  // so nearer peaks (lower on screen) overlap and sit in front of ones behind them.
+  // Resolve geometry up front, then draw back-to-front so nearer peaks overlap.
   const drawables = peaks.map((peak) => {
-    const style = Math.floor(rng() * 3);
-    const scale = style === 2 ? 1.6 + rng() * 1.2 : 2.4 + rng() * 2;
-    const px = peak.x + (rng() - 0.5) * size * 0.7;
-    const py = peak.y + (rng() - 0.5) * size * 0.4;
-    const height = size * 0.6 * scale;
-    const halfWidth = size * 0.5 * scale;
-    const ridgePeaks = style === 0 ? 1 + Math.floor(rng() * 2) : style === 1 ? 2 + Math.floor(rng() * 2) : 2;
-    return { px, py, height, halfWidth, style, ridgePeaks, seed: Math.round(px + py) };
+    const scale = 2.0 + rng() * 1.8;
+    const px = peak.x + (rng() - 0.5) * size * 0.65;
+    const py = peak.y + (rng() - 0.5) * size * 0.35;
+    const halfW = size * 0.46 * scale;
+    const h    = size * 0.56 * scale;
+    const jx   = (rng() - 0.5) * halfW * 0.26;
+    return { px, py, halfW, h, jx, seed: Math.round(px * 3 + py * 7) };
   });
   drawables.sort((a, b) => a.py - b.py);
 
-  for (const { px, py, height, halfWidth, style, ridgePeaks, seed } of drawables) {
-    const points = jaggedRidge(px, py, halfWidth, height, ridgePeaks, size, rng);
-    const fillColor = style === 2 ? shade(INK.mountain, 1.05) : shade(INK.mountain, 0.9 - style * 0.08);
+  for (const { px, py, halfW, h, jx, seed } of drawables) {
+    // Main silhouette with a secondary shoulder on the right flank
+    const pts = [
+      { x: px - halfW,               y: py },
+      { x: px - halfW * 0.54,        y: py - h * 0.52 },
+      { x: px - halfW * 0.15 + jx,   y: py - h * 0.80 },
+      { x: px + jx,                   y: py - h },
+      { x: px + halfW * 0.22 + jx,   y: py - h * 0.84 },
+      { x: px + halfW * 0.50,         y: py - h * 0.48 },
+      { x: px + halfW,                y: py },
+    ];
+    washFill(graphics, pts, shade(INK.mountain, 0.88), opacity.fill);
+    inkOutline(graphics, pts, INK.ink, opacity.outline, false, seed);
 
-    washFill(graphics, points, fillColor, opacity.fill);
-    inkOutline(graphics, points, INK.ink, opacity.outline, false, seed);
+    // Fainter inner ridge echoing the outer silhouette for layered depth
+    const innerPts = [
+      { x: px - halfW * 0.52,        y: py - 2 },
+      { x: px - halfW * 0.18 + jx,   y: py - h * 0.74 },
+      { x: px + jx,                   y: py - h * 0.96 },
+      { x: px + halfW * 0.24 + jx,   y: py - h * 0.76 },
+      { x: px + halfW * 0.50,         y: py - 2 },
+    ];
+    inkOutline(graphics, innerPts, INK.inkSoft, opacity.innerRidge, false, seed + 11);
 
-    // Fainter inner ridge for layered depth, echoing the outer silhouette.
-    if (style !== 2) {
-      const innerPoints = jaggedRidge(px, py - height * 0.05, halfWidth * 0.6, height * 0.55, ridgePeaks, size, rng);
-      inkOutline(graphics, innerPoints, INK.inkSoft, opacity.innerRidge, false, seed + 11);
-    }
+    // Snow cap at the summit
+    graphics.fillStyle(INK.mountainMist, Math.min(1, opacity.mist * 1.6));
+    graphics.fillTriangle(
+      px + jx,                   py - h,
+      px + jx - halfW * 0.20,   py - h * 0.72,
+      px + jx + halfW * 0.18,   py - h * 0.68,
+    );
 
-    // Pale mist band weaving across the lower slopes.
-    const mistY = py - height * (0.12 + rng() * 0.22);
-    graphics.fillStyle(INK.cloud, opacity.mist);
-    graphics.fillEllipse(px + (rng() - 0.5) * halfWidth * 0.5, mistY, halfWidth * (1.1 + rng() * 0.4), size * (0.16 + rng() * 0.1));
+    // Pale mist band across the mid-slopes
+    graphics.fillStyle(INK.cloud, opacity.mist * 0.55);
+    graphics.fillEllipse(px, py - h * 0.38, halfW * 1.5, h * 0.20);
   }
 }
 
-/** Soft ink-wash ridgelines across a merged hills patch. */
+/**
+ * Natural ink-wash hill mounds: each hill uses an asymmetric 7-point polygon
+ * (peak offset, unequal slopes) so no two look alike. Horizontal contour strokes
+ * inside the body follow the terrain surface in the Chinese ink-wash tradition.
+ * Geometry is pre-computed so mounds draw back-to-front for correct overlap.
+ */
 export function decorateHills(graphics: Phaser.GameObjects.Graphics, centers: PixelPoint[], size: number, rng: () => number): void {
-  const ridgeCount = Math.max(1, Math.round(centers.length * 0.55));
-  const ridges = shuffle(centers, rng).slice(0, ridgeCount);
+  const moundCount = Math.max(1, Math.round(centers.length * 0.80));
+  const selected   = shuffle(centers, rng).slice(0, moundCount);
 
-  for (const ridge of ridges) {
-    const scale = 1 + rng() * 0.65;
-    const px = ridge.x + (rng() - 0.5) * size * 0.7;
-    const py = ridge.y + size * 0.18 + (rng() - 0.5) * size * 0.26;
-    const width = size * (0.95 + rng() * 0.45) * scale;
-    const height = size * (0.26 + rng() * 0.14) * scale;
-    const seed = Math.round(px * 3 + py * 7);
+  const drawables = selected.map((center) => {
+    const scale  = 0.70 + rng() * 0.84;
+    const px     = center.x + (rng() - 0.5) * size * 0.72;
+    const py     = center.y + (rng() - 0.5) * size * 0.44;
+    const halfW  = size * (0.44 + rng() * 0.34) * scale;
+    const h      = size * (0.24 + rng() * 0.18) * scale;
+    const jxPeak = (rng() - 0.5) * halfW * 0.36;  // peak shifted left or right
+    const slopeL = 0.68 + rng() * 0.64;            // left slope steepness factor
+    const slopeR = 0.68 + rng() * 0.64;            // right slope steepness factor
+    const bump   = (rng() - 0.5) * h * 0.22;       // shoulder irregularity
+    const jxBg   = (rng() - 0.5) * halfW * 0.52;   // background hill lateral offset
+    const hBg    = 0.66 + rng() * 0.24;             // background hill height ratio
+    // Two horizontal contour stroke heights (normalised 0–1 within hill height)
+    const texH   = [0.34 + rng() * 0.14, 0.56 + rng() * 0.14] as const;
+    const seed   = Math.round(px * 3 + py * 7);
+    return { px, py, halfW, h, jxPeak, slopeL, slopeR, bump, jxBg, hBg, texH, seed };
+  });
+  drawables.sort((a, b) => a.py - b.py);
 
-    graphics.fillStyle(shade(INK.hills, 0.78), 0.2);
-    graphics.fillEllipse(px, py + height * 0.22, width, height * 1.1);
+  for (const { px, py, halfW, h, jxPeak, slopeL, slopeR, bump, jxBg, hBg, texH, seed } of drawables) {
+    // ── Background hill – paler, laterally offset, sits behind ───────────
+    const bgPts = [
+      { x: px + jxBg - halfW * 1.20,       y: py },
+      { x: px + jxBg - halfW * 0.50,       y: py - h * 0.56 * hBg },
+      { x: px + jxBg + jxPeak * 0.4,       y: py - h * hBg },
+      { x: px + jxBg + halfW * 0.54,       y: py - h * 0.52 * hBg },
+      { x: px + jxBg + halfW * 1.20,       y: py },
+    ];
+    washFill(graphics, bgPts, shade(INK.hills, 0.96), 0.18);
+    inkOutline(graphics, bgPts, INK.inkFaint, 0.13, false, seed + 77);
 
-    const outer: PixelPoint[] = [];
-    const inner: PixelPoint[] = [];
-    for (let step = 0; step <= 12; step += 1) {
-      const t = step / 12;
-      const x = px - width / 2 + width * t;
-      const arc = Math.sin(t * Math.PI);
-      outer.push({ x, y: py - arc * height + (rng() - 0.5) * size * 0.025 });
-      inner.push({ x, y: py + height * 0.14 - arc * height * 0.5 + (rng() - 0.5) * size * 0.02 });
+    // ── Primary hill – asymmetric silhouette with shoulder irregularity ───
+    const pts = [
+      { x: px - halfW,                  y: py },
+      { x: px - halfW * 0.58,           y: py - h * 0.42 * slopeL },
+      { x: px - halfW * 0.18 + jxPeak, y: py - h * 0.80 + bump },
+      { x: px + jxPeak,                 y: py - h },
+      { x: px + halfW * 0.26 + jxPeak, y: py - h * 0.78 + bump * 0.5 },
+      { x: px + halfW * 0.58,           y: py - h * 0.38 * slopeR },
+      { x: px + halfW,                  y: py },
+    ];
+    washFill(graphics, pts, shade(INK.hills, 0.82), 0.52);
+    inkOutline(graphics, pts, INK.inkSoft, 0.44, false, seed);
+
+    // ── Horizontal contour strokes – ink-wash surface texture ────────────
+    for (const tH of texH) {
+      const wAtH = halfW * Math.sqrt(Math.max(0, 1 - tH * tH));
+      const ty   = py - tH * h;
+      waveLine(graphics, px + jxPeak - wAtH * 0.74, ty, px + jxPeak + wAtH * 0.70, ty, h * 0.028, 5, INK.inkSoft, 0.22);
     }
 
-    brushStroke(graphics, outer, 2.2, INK.inkSoft, 0.42, seed);
-    brushStroke(graphics, inner, 1.2, INK.inkFaint, 0.32, seed + 41);
-
-    if (rng() > 0.45) {
-      const footY = py + height * (0.28 + rng() * 0.18);
-      waveLine(graphics, px - width * 0.38, footY, px + width * 0.38, footY, size * 0.025, 5, INK.inkFaint, 0.26);
-    }
+    // ── Soft base shadow ──────────────────────────────────────────────────
+    graphics.fillStyle(INK.ink, 0.06);
+    graphics.fillEllipse(px, py + 2, halfW * 1.72, h * 0.24);
   }
 }
 

@@ -30,7 +30,14 @@ export class TrafficRenderer {
     for (const land of state.lands) {
       for (const neighborId of land.neighbors) {
         const neighbor = state.lands.find((candidate) => candidate.id === neighborId);
-        if (!neighbor || land.id > neighbor.id || !this.hasSettlement(land) || !this.hasSettlement(neighbor)) {
+        if (
+          !neighbor ||
+          land.id > neighbor.id ||
+          !land.isVisible ||
+          !neighbor.isVisible ||
+          !this.hasSettlement(land) ||
+          !this.hasSettlement(neighbor)
+        ) {
           continue;
         }
 

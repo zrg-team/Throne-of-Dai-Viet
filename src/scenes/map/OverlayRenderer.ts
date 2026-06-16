@@ -74,8 +74,12 @@ export class OverlayRenderer {
     }
 
     graphics.clear();
+    if (!land.isVisible) {
+      return;
+    }
+
     const edges = traceLandBoundaryEdges(state, hexTileMap, wx, wy, land.id);
-    const color = land.isVisible ? getOwnerColor(land.ownerId) : COLORS.neutral;
+    const color = getOwnerColor(land.ownerId);
     // Unowned territory borders fade into faint ink wash so the map doesn't read as a
     // dense grid of tiles; owned/claimed borders stay crisp as ownership signal.
     const alpha = color === COLORS.neutral ? 0.12 : 0.9;

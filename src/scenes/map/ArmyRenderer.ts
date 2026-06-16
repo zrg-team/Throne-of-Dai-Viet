@@ -13,7 +13,7 @@ import type { InkMapItemRenderer } from '../../ui/MapItemRenderer';
 
 type WorldTransform = (value: number) => number;
 type SettlementAnchor = (land: Land) => { x: number; y: number };
-type ArmyPointerHandler = (armyId: string, pointer: Phaser.Input.Pointer) => void;
+type ArmyPointerHandler = (armyId: string, pointer: Phaser.Input.Pointer, event: Phaser.Types.Input.EventData) => void;
 
 const MARKER_OFFSET_X = 18;
 const MARKER_OFFSET_Y = -28;
@@ -66,7 +66,15 @@ export class ArmyRenderer {
 
         if (isPlayer) {
           marker.setInteractive(new Phaser.Geom.Circle(0, -18, 28), Phaser.Geom.Circle.Contains);
-          marker.on('pointerdown', (pointer: Phaser.Input.Pointer) => onArmyPointerDown(army.id, pointer));
+          marker.on(
+            'pointerdown',
+            (
+              pointer: Phaser.Input.Pointer,
+              _localX: number,
+              _localY: number,
+              event: Phaser.Types.Input.EventData,
+            ) => onArmyPointerDown(army.id, pointer, event),
+          );
         }
       }
 

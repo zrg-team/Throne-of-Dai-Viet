@@ -1,0 +1,86 @@
+import type { GameState } from './types';
+
+export const SAVE_SNAPSHOT_VERSION = 1;
+export const SAVE_SNAPSHOT_KEY = 'mandate:snapshot:v1';
+
+export interface SaveSnapshot {
+  version: typeof SAVE_SNAPSHOT_VERSION;
+  savedAt: string;
+  state: GameState;
+}
+
+export function saveSnapshot(state: GameState): SaveSnapshot | undefined {
+  if (!canUseLocalStorage()) {
+    return undefined;
+  }
+
+  const snapshot: SaveSnapshot = {
+    version: SAVE_SNAPSHOT_VERSION,
+    savedAt: new Date().toISOString(),
+    state: normalizeSnapshotState(state),
+  };
+
+  localStorage.setItem(SAVE_SNAPSHOT_KEY, JSON.stringify(snapshot));
+  return snapshot;
+}
+
+export function loadSnapshot(): SaveSnapshot | undefined {
+  if (!canUseLocalStorage()) {
+    return undefined;
+  }
+
+  const raw = localStorage.getItem(SAVE_SNAPSHOT_KEY);
+  if (!raw) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as SaveSnapshot;
+    if (!isValidSnapshot(parsed)) {
+      return undefined;
+    }
+    parsed.state = normalizeSnapshotState(parsed.state);
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}
+
+export function hasSnapshot(): boolean {
+  return Boolean(loadSnapshot());
+}
+
+export function snapshotLabel(snapshot = loadSnapshot()): string {
+  if (!snapshot) {
+    return 'No saved campaign';
+  }
+
+  const date = new Date(snapshot.savedAt);
+  if (Number.isNaN(date.getTime())) {
+    return 'Saved campaign';
+  }
+
+  return `Saved ${date.toLocaleString()}`;
+}
+
+function normalizeSnapshotState(state: GameState): GameState {
+  const clone = structuredClone(state);
+  clone.isPaused = false;
+  clone.latestBattleResult = undefined;
+  return clone;
+}
+
+function canUseLocalStorage(): boolean {
+  return typeof localStorage !== 'undefined';
+}
+
+function isValidSnapshot(value: SaveSnapshot): value is SaveSnapshot {
+  return (
+    value?.version === SAVE_SNAPSHOT_VERSION &&
+    typeof value.savedAt === 'string' &&
+    Boolean(value.state) &&
+    Array.isArray(value.state.lands) &&
+    Array.isArray(value.state.armies) &&
+    Array.isArray(value.state.hexTiles)
+  );
+}
