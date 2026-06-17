@@ -2,8 +2,10 @@ import Phaser from 'phaser';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import type { GameState } from '../state/types';
 import { InkUI, INK_UI } from './InkUI';
+import { t } from '../i18n';
 
 export const ACTION_BUTTON_LABELS = ['Build', 'Heroes', 'Court', 'Army', 'Map'];
+const ACTION_KEYS = ['build', 'heroes', 'court', 'army', 'map'] as const;
 export const ACTION_BUTTON_WIDTH = 72;
 export const ACTION_BUTTON_HEIGHT = 36;
 export const ACTION_BUTTON_GAP = 4;
@@ -27,7 +29,7 @@ export class ActionBar extends Phaser.GameObjects.Container {
     this.add(scene.add.rectangle(0, top, GAME_WIDTH, ACTION_BAR_HEIGHT, INK_UI.backgroundInk, 0.96).setOrigin(0, 0));
     this.add(scene.add.rectangle(14, top + 3, GAME_WIDTH - 28, 2, INK_UI.cinnabar, 0.78).setOrigin(0, 0));
 
-    ACTION_BUTTON_LABELS.forEach((label, index) => {
+    ACTION_KEYS.forEach((action, index) => {
       const button = ui.button(
         {
           x: actionButtonLeft(index),
@@ -35,9 +37,9 @@ export class ActionBar extends Phaser.GameObjects.Container {
           width: ACTION_BUTTON_WIDTH,
           height: ACTION_BUTTON_HEIGHT,
         },
-        label,
-        () => this.onAction(label.toLowerCase()),
-        { fontSize: '12px', variant: label === 'Map' ? 'ghost' : 'secondary' },
+        t(`action.${action}`),
+        () => this.onAction(action),
+        { fontSize: '11px', variant: action === 'map' ? 'ghost' : 'secondary' },
       );
       this.add(button);
     });

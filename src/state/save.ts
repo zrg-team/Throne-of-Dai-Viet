@@ -1,4 +1,5 @@
 import type { GameState } from './types';
+import { t } from '../i18n';
 
 export const SAVE_SNAPSHOT_VERSION = 1;
 export const SAVE_SNAPSHOT_KEY = 'mandate:snapshot:v1';
@@ -52,15 +53,15 @@ export function hasSnapshot(): boolean {
 
 export function snapshotLabel(snapshot = loadSnapshot()): string {
   if (!snapshot) {
-    return 'No saved campaign';
+    return t('save.noSavedCampaign');
   }
 
   const date = new Date(snapshot.savedAt);
   if (Number.isNaN(date.getTime())) {
-    return 'Saved campaign';
+    return t('save.savedCampaign');
   }
 
-  return `Saved ${date.toLocaleString()}`;
+  return t('save.savedDate', { date: date.toLocaleString() });
 }
 
 function normalizeSnapshotState(state: GameState): GameState {

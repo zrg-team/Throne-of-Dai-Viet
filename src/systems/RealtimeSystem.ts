@@ -6,6 +6,7 @@ import { runBotTurns } from './BotSystem';
 import { progressCourt } from './CourtSystem';
 import { progressPoliticsCooldown } from './PoliticsSystem';
 import type { GameState, Season } from '../state/types';
+import { seasonLabel, t } from '../i18n';
 
 const seasons: Season[] = ['Spring', 'Summer', 'Autumn', 'Winter'];
 
@@ -36,7 +37,7 @@ export function advanceRealtimeMonth(state: GameState): void {
 
   state.ordersRemaining = 3;
   if (!acquisitionCompleted && !buildCompleted) {
-    state.message = `Economy tick: Year ${state.year}, ${state.season}. Expand, build, and prepare for the rival capital.`;
+    state.message = t('msg.economyTick', { year: state.year, season: seasonLabel(state.season) });
   }
 
   runBotTurns(state);

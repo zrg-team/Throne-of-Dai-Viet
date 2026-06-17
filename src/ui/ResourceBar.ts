@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, HEADER_HEIGHT } from '../game/constants';
 import type { GameState, ResourceKey } from '../state/types';
 import { compactNumber } from '../utils/format';
+import { seasonLabel, t } from '../i18n';
 import { InkUI, INK_UI } from './InkUI';
 import { RESOURCE_ICONS } from './theme';
 
@@ -45,7 +46,7 @@ export class ResourceBar extends Phaser.GameObjects.Container {
   }
 
   refresh(): void {
-    this.seasonText.setText(`Year ${this.gameState.year} - ${this.gameState.season}`);
+    this.seasonText.setText(t('time.yearSeason', { year: this.gameState.year, season: seasonLabel(this.gameState.season) }));
     RESOURCE_ORDER.forEach((resource) => {
       const rate = this.gameState.resourceRates[resource];
       const signedRate = rate > 0 ? `+${compactNumber(rate)}` : compactNumber(rate);

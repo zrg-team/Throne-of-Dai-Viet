@@ -8,6 +8,7 @@ import { EDGE_DIRECTIONS, MAP_SCALE, axialToPixel, hexCorners, hexKey } from '..
 import type { HexCoord } from '../../map/hex';
 import type { GameState, Land } from '../../state/types';
 import type { InkMapItemRenderer } from '../../ui/MapItemRenderer';
+import { brushStroke } from '../../ui/inkTheme';
 
 export class SettlementRenderer {
   constructor(
@@ -69,13 +70,20 @@ export class SettlementRenderer {
       this.addCityWall(cluster, cityCoords, land, hexSize);
     }
 
-    const houseCount = Math.min(6, 3 + land.buildings.length);
-    for (const coord of cityCoords) {
-      const pixel = axialToPixel(coord, hexSize);
-      const relX = (pixel.x - land.x) * MAP_SCALE;
-      const relY = (pixel.y - land.y) * MAP_SCALE;
-      this.inkItems.addBuildingGroup(cluster, relX, relY, isShrineCity, houseCount);
-    }
+    // Inter-hex roads added before buildings so they render underneath.
+    this.addInterHexRoads(cluster, cityCoords, land, hexSize);
+
+    // Collect all hex centers in relative pixel space, sorted back-to-front.
+    // addCityCluster renders them all in a single globally Y-sorted pass so
+    // buildings from different hexes correctly interleave in depth.
+    const centers = [...cityCoords]
+      .sort((a, b) => axialToPixel(a, hexSize).y - axialToPixel(b, hexSize).y)
+      .map(coord => {
+        const pixel = axialToPixel(coord, hexSize);
+        return { x: (pixel.x - land.x) * MAP_SCALE, y: (pixel.y - land.y) * MAP_SCALE };
+      });
+
+    this.inkItems.addCityCluster(cluster, centers, isShrineCity, land.type === 'market' ? 'market' : isShrineCity ? 'shrine' : 'city');
 
     this.addBuildingDecorations(cluster, land);
 
@@ -125,6 +133,41 @@ export class SettlementRenderer {
       posIndex += 1;
       cluster.add(this.inkItems.createBuildingGlyph(building.type, x, y));
     }
+  }
+
+  /**
+   * Draws a dirt/stone road between every pair of adjacent city hexes in the cluster.
+   * Added before building groups so roads appear beneath buildings.
+   */
+  private addInterHexRoads(
+    cluster: Phaser.GameObjects.Container,
+    cityCoords: HexCoord[],
+    land: Land,
+    hexSize: number,
+  ): void {
+    if (cityCoords.length < 2) return;
+
+    const graphics = this.scene.add.graphics();
+    const maxAdjacentDist = hexSize * MAP_SCALE * 2.1;
+
+    for (let i = 0; i < cityCoords.length; i += 1) {
+      for (let j = i + 1; j < cityCoords.length; j += 1) {
+        const pA = axialToPixel(cityCoords[i], hexSize);
+        const pB = axialToPixel(cityCoords[j], hexSize);
+        const ax = (pA.x - land.x) * MAP_SCALE;
+        const ay = (pA.y - land.y) * MAP_SCALE;
+        const bx = (pB.x - land.x) * MAP_SCALE;
+        const by = (pB.y - land.y) * MAP_SCALE;
+        if (Math.hypot(ax - bx, ay - by) > maxAdjacentDist) continue;
+
+        const seed = Math.round(ax + ay * 3 + bx * 7 + by * 11);
+        // Wide soft underlay then narrower crisp pass for a hand-drawn road feel.
+        brushStroke(graphics, [{ x: ax, y: ay }, { x: bx, y: by }], 5, 0xc4b890, 0.45, seed);
+        brushStroke(graphics, [{ x: ax, y: ay }, { x: bx, y: by }], 2.5, 0xa89870, 0.35, seed + 53);
+      }
+    }
+
+    cluster.add(graphics);
   }
 
   /** Lands without a fortress/shrine hex cluster (farms, iron mines) get a small themed village instead. */

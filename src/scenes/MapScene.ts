@@ -23,6 +23,7 @@ import { ArmyRenderer } from './map/ArmyRenderer';
 import { OverlayRenderer } from './map/OverlayRenderer';
 import { SettlementRenderer } from './map/SettlementRenderer';
 import { TrafficRenderer } from './map/TrafficRenderer';
+import { t } from '../i18n';
 
 const MIN_CAMERA_ZOOM = 0.72;
 const MAX_CAMERA_ZOOM = 1.65;
@@ -248,7 +249,7 @@ export class MapScene extends Phaser.Scene {
     });
     ui.events.on('ui:save-snapshot', () => {
       const snapshot = saveSnapshot(this.state);
-      this.state.message = snapshot ? 'Campaign snapshot saved.' : 'Save is unavailable in this browser.';
+      this.state.message = snapshot ? t('msg.snapshotSaved') : t('msg.saveUnavailable');
       this.refresh();
     });
     ui.events.on('ui:exit-to-menu', (saveFirst: boolean) => {
@@ -375,7 +376,7 @@ export class MapScene extends Phaser.Scene {
       this.isDraggingMap = false;
       this.dragDistance = 0;
       const army = this.state.armies.find((candidate) => candidate.id === armyId);
-      this.state.message = army ? `${army.name} selected. Tap a visible land to move.` : 'Army selected.';
+      this.state.message = army ? t('msg.armySelectedNamed', { army: army.name }) : t('msg.armySelected');
     }
 
     this.refresh();
@@ -395,7 +396,7 @@ export class MapScene extends Phaser.Scene {
       if (army) {
         startIntimidation(this.state, landId, army.id);
       } else {
-        this.state.message = 'Select an army stationed in an adjacent district first.';
+        this.state.message = t('msg.selectAdjacentArmy');
       }
     }
 
@@ -420,7 +421,7 @@ export class MapScene extends Phaser.Scene {
       if (army && isAdjacent(this.state, army.landId, landId)) {
         this.state.latestBattlePreview = createBattlePreview(this.state, army.id, landId);
       } else {
-        this.state.message = 'Select an army adjacent to this land before attacking.';
+        this.state.message = t('msg.selectArmyBeforeAttack');
       }
     }
 
@@ -813,15 +814,37 @@ export class MapScene extends Phaser.Scene {
     const settlement = this.settlements.createSettlementCluster(this.state, land);
     container.add(settlement);
 
-    const label = this.add.text(0, 15, this.shortName(land), {
-      color: '#211103',
+    container.add(this.createLandLabel(land, isPlayerCapital));
+    this.landNodes.set(land.id, container);
+  }
+
+  private createLandLabel(land: Land, isPlayerCapital: boolean): Phaser.GameObjects.Container {
+    const labelText = isPlayerCapital ? `${this.shortName(land)} ${t('common.capital')}` : this.shortName(land);
+    const label = this.add.text(0, 0, labelText, {
+      color: '#241407',
       fontSize: '10px',
       align: 'center',
       fontStyle: '700',
-      wordWrap: { width: 88 },
-    }).setOrigin(0.5, 0);
-    container.add(label);
-    this.landNodes.set(land.id, container);
+      lineSpacing: -1,
+      wordWrap: { width: 82 },
+    }).setOrigin(0.5);
+    label.setShadow(1, 1, '#f4e5b8', 0, true, true);
+
+    const width = Math.max(44, Math.min(90, label.width + 12));
+    const height = label.height + 6;
+    const labelY = isPlayerCapital ? 30 : 27;
+    const container = this.add.container(0, labelY);
+    const backing = this.add.graphics();
+
+    backing.fillStyle(0xf0dfae, 0.78);
+    backing.fillRoundedRect(-width / 2, -height / 2, width, height, 4);
+    backing.lineStyle(1, 0x4f3a20, 0.58);
+    backing.strokeRoundedRect(-width / 2, -height / 2, width, height, 4);
+    backing.lineStyle(1, 0xfff0bf, 0.42);
+    backing.lineBetween(-width / 2 + 5, -height / 2 + 3, width / 2 - 5, -height / 2 + 3);
+
+    container.add([backing, label]);
+    return container;
   }
 
   /** Average pixel position of a land's city/shrine hexes, or undefined if it has none. */

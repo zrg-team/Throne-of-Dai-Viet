@@ -36,6 +36,16 @@ export class InkMapItemRenderer {
     this.buildings.addBuildingGroup(cluster, x, y, isShrine, houseCount);
   }
 
+  /** Unified city cluster: all hex centers rendered as one globally Y-sorted pass with connector buildings. */
+  addCityCluster(
+    cluster: Phaser.GameObjects.Container,
+    centers: ReadonlyArray<{ x: number; y: number }>,
+    isShrine: boolean,
+    kind?: 'city' | 'market' | 'shrine',
+  ): void {
+    this.buildings.addCityCluster(cluster, centers, isShrine, kind);
+  }
+
   /** Ink brush-stroke wall outline around a city's contiguous hex cluster. */
   drawCityWall(graphics: Phaser.GameObjects.Graphics, edges: Array<[number, number, number, number]>): void {
     for (const [x1, y1, x2, y2] of edges) {

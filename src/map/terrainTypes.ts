@@ -4,6 +4,7 @@ import type { PixelPoint } from './hex';
 import { INK } from '../ui/inkTheme';
 import {
   decorateFields,
+  decorateFortress,
   decorateForest,
   decorateHills,
   decorateMountains,
@@ -90,11 +91,10 @@ export const TERRAIN_REGISTRY: Record<HexTerrainType, TerrainDef> = {
     decorate: decorateWater,
   },
   fortress: {
-    color: INK.cloudShadow,
+    color: 0xd4c8a4, // warm limestone / paved-stone platform
     preferredFor: [],
     weight: 0,
-    // Building clusters are drawn separately (createSettlementCluster); keep this hex a
-    // plain merged city platform so the ground reads as one paved area, not per-hex icons.
+    decorate: decorateFortress,
   },
   shrine: {
     color: INK.cloud,

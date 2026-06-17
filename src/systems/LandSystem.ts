@@ -1,5 +1,6 @@
 import { PLAYER_KINGDOM_ID } from '../game/constants';
 import type { GameState, Land } from '../state/types';
+import { t } from '../i18n';
 
 /** Larger, better-defended, more developed districts take longer to siege or settle. */
 export function getAcquisitionTicksRequired(land: Land): number {
@@ -65,6 +66,6 @@ export function checkVictory(state: GameState): void {
   state.victory = enemyCastles.length === 0;
 
   if (state.victory) {
-    state.message = 'Victory! All rival castles have fallen to Đại Việt.';
+    state.message = t('msg.victory');
   }
 }

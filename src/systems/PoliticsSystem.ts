@@ -5,6 +5,7 @@ import { MAX_BUILDING_LEVEL } from '../game/gameplayConfig';
 import { PLAYER_KINGDOM_ID } from '../game/constants';
 import { addCourtModifier, getCourtBonuses } from './CourtSystem';
 import type { CourtEffect, GameState, HeroType, Land, LandBuildingType, ResourceBag } from '../state/types';
+import { buildingLabel, politicsChoiceDescription, politicsChoiceLabel, politicsTitle, t } from '../i18n';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -46,7 +47,7 @@ export function drawPoliticsCard(state: GameState): void {
   const card = state.politicsDeck[index];
   state.pendingCourtRequest = card;
   state.isPaused = true;
-  state.message = `Court requests attention: ${card.title}`;
+  state.message = t('msg.courtAttention', { title: politicsTitle(card) });
 }
 
 /** Decrements the court card cooldown each economy tick, drawing a new card and resetting the cooldown once it elapses. */
@@ -78,7 +79,7 @@ export function choosePoliticsCard(state: GameState, choiceId: string): boolean 
     return false;
   }
 
-  applyCourtEffect(state, choice.label, choice.effects);
+  applyCourtEffect(state, politicsChoiceLabel(choice), choice.effects);
 
   state.activePoliticsCard = undefined;
   state.isPaused = false;
@@ -88,7 +89,7 @@ export function choosePoliticsCard(state: GameState, choiceId: string): boolean 
   if (choice.effects.extraCourtDraw) {
     drawPoliticsCard(state);
   }
-  state.message = `${choice.label}: ${choice.description}`;
+  state.message = t('msg.politicsChoice', { label: politicsChoiceLabel(choice), description: politicsChoiceDescription(choice) });
   return true;
 }
 
@@ -203,7 +204,7 @@ function grantFreeBuilding(state: GameState, type: LandBuildingType): void {
   });
 
   if (!land) {
-    state.message = `No district has room for a free ${BUILDING_LABELS[type].replace('Build ', '')}.`;
+    state.message = t('msg.noFreeBuildingRoom', { building: buildingLabel(type) });
     return;
   }
 

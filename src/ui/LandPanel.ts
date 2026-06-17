@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH, PLAYER_KINGDOM_ID } from '../game/constants';
-import type { GameState, Land } from '../state/types';
+import type { GameState, Land, ResourceKey } from '../state/types';
 import { getAssignedDiplomaticHero, getBribeSuccessChance, getDiplomacyThreshold, getLandTrust, getNoblePower } from '../systems/AcquisitionSystem';
 import { getAcquisitionOrder, getSiegeOrder, isAdjacent } from '../systems/LandSystem';
 import { getBuildOrder } from '../systems/ResourceSystem';
 import { getRecruitmentOrder } from '../systems/WarSystem';
 import { ACTION_BAR_HEIGHT } from './BottomSheet';
 import { InkUI, INK_UI } from './InkUI';
+import { buildingLabel, landTypeLabel, resourceLabel, t } from '../i18n';
 
 const CARD_H = 92;
 const CARD_W = GAME_WIDTH - 16;
@@ -26,9 +27,9 @@ export class LandPanel {
     const ui = new InkUI(this.scene);
     const y = COMPACT_CARD_Y;
 
-    const ownerLabel = land.ownerId === PLAYER_KINGDOM_ID ? 'Yours'
-      : land.ownerId === 'neutral' ? 'Neutral'
-      : 'Rival';
+    const ownerLabel = land.ownerId === PLAYER_KINGDOM_ID ? t('owner.yours')
+      : land.ownerId === 'neutral' ? t('owner.neutral')
+      : t('owner.rival');
     const borderColor = land.ownerId === PLAYER_KINGDOM_ID ? INK_UI.gold
       : land.ownerId === 'neutral' ? INK_UI.softBrush
       : INK_UI.cinnabar;
@@ -70,7 +71,7 @@ export class LandPanel {
 
     const detailsBtn = ui.button(
       { x: CARD_X + CARD_W - 82, y: y + CARD_H - 28, width: 74, height: 22 },
-      'Details ›',
+      t('action.details'),
       () => this.emitAction('open-land-detail', land.id),
       { variant: 'secondary', fontSize: '11px' },
     );
@@ -88,19 +89,19 @@ export class LandPanel {
     const buildOrder = getBuildOrder(this.state, land.id);
     const recruitment = getRecruitmentOrder(this.state, land.id);
 
-    const owner = this.state.kingdoms.find((k) => k.id === land.ownerId)?.name ?? 'Neutral';
+    const owner = this.state.kingdoms.find((k) => k.id === land.ownerId)?.name ?? t('owner.neutral');
     const outputs = formatOutputs(land);
     const terrain = formatTerrain(land);
     const buildings = land.buildings.length > 0
-      ? land.buildings.map((b) => `${b.type}${b.level > 1 ? ` Lv${b.level}` : ''}`).join(', ')
-      : 'none';
+      ? land.buildings.map((b) => `${buildingLabel(b.type)}${b.level > 1 ? ` ${t('building.level', { level: b.level })}` : ''}`).join(', ')
+      : t('building.none');
 
     const infoLines: string[] = [
-      `Owner: ${owner}   Type: ${land.type}`,
-      `Defense: ${land.defense}   Size: ${land.buildings.length}/${land.buildingCapacity}`,
-      `Terrain: ${terrain}`,
-      `Output: ${outputs}`,
-      `Buildings: ${buildings}`,
+      t('land.ownerType', { owner, type: landTypeLabel(land.type) }),
+      t('land.defenseSize', { defense: land.defense, used: land.buildings.length, max: land.buildingCapacity }),
+      t('land.terrain', { terrain }),
+      t('land.output', { outputs }),
+      t('land.buildings', { buildings }),
     ];
 
     if (land.ownerId === 'neutral') {
@@ -108,21 +109,26 @@ export class LandPanel {
         const trust = Math.floor(getLandTrust(land, PLAYER_KINGDOM_ID));
         const threshold = Math.ceil(getDiplomacyThreshold(land));
         const power = getNoblePower(land);
-        infoLines.push(`Population: ${land.population}   Soldiers: ${land.localSoldiers}`);
-        infoLines.push(`Noble Power: ${power}   Trust: ${trust}/${threshold}`);
+        infoLines.push(t('land.populationSoldiers', { population: land.population, soldiers: land.localSoldiers }));
+        infoLines.push(t('land.nobleTrust', { power, trust, threshold }));
       } else {
-        infoLines.push('Wilderness — uninhabited, no garrison.');
+        infoLines.push(t('land.wilderness'));
       }
     }
 
     if (siege) {
-      infoLines.push(`⚔ Under siege: ${siege.progress}/${siege.required} ticks`);
+      infoLines.push(`⚔ ${t('land.underSiege', { progress: siege.progress, required: siege.required })}`);
     } else if (acquisition) {
       infoLines.push(formatAcquisitionStatus(this.state, acquisition, land));
     } else if (buildOrder) {
-      infoLines.push(`🔨 ${buildOrder.kind === 'upgrade' ? 'Upgrading' : 'Building'} ${buildOrder.building}: ${buildOrder.progress}/${buildOrder.required}`);
+      infoLines.push(`🔨 ${t('land.buildingStatus', {
+        kind: t(buildOrder.kind === 'upgrade' ? 'order.upgrading' : 'order.building'),
+        building: buildingLabel(buildOrder.building),
+        progress: buildOrder.progress,
+        required: buildOrder.required,
+      })}`);
     } else if (recruitment) {
-      infoLines.push(`⚙ Recruiting: ${recruitment.progress}/${recruitment.required}`);
+      infoLines.push(`⚙ ${t('land.recruiting', { progress: recruitment.progress, required: recruitment.required })}`);
     }
 
     const actions = this.getActions(land, acquisition);
@@ -147,14 +153,14 @@ export class LandPanel {
 
     if (land.ownerId === 'neutral') {
       if (acquisition) {
-        return armyAdjacentToLand && land.hasVillage ? [{ id: 'preview', label: 'Conquer', variant: 'danger' }] : [];
+        return armyAdjacentToLand && land.hasVillage ? [{ id: 'preview', label: t('action.conquer'), variant: 'danger' }] : [];
       }
 
       if (!land.hasVillage) {
         const acts: LandAction[] = [
-          { id: 'settle', label: 'Settle', variant: 'primary' },
+          { id: 'settle', label: t('action.settle'), variant: 'primary' },
         ];
-        if (armyAdjacentToLand) acts.push({ id: 'preview', label: 'March In', variant: 'secondary' });
+        if (armyAdjacentToLand) acts.push({ id: 'preview', label: t('action.marchIn'), variant: 'secondary' });
         return acts;
       }
 
@@ -162,29 +168,29 @@ export class LandPanel {
       const acts: LandAction[] = [];
 
       if (armyInAdjacentOwnedLand) {
-        acts.push({ id: 'intimidate', label: 'Intimidate', variant: 'primary' });
-        acts.push({ id: 'bribe', label: `Bribe (${bribeChance}%)`, variant: 'secondary' });
-        if (armyAdjacentToLand) acts.push({ id: 'preview', label: 'Conquer', variant: 'danger' });
+        acts.push({ id: 'intimidate', label: t('action.intimidate'), variant: 'primary' });
+        acts.push({ id: 'bribe', label: t('action.bribe', { chance: bribeChance }), variant: 'secondary' });
+        if (armyAdjacentToLand) acts.push({ id: 'preview', label: t('action.conquer'), variant: 'danger' });
       } else if (armyAdjacentToLand) {
-        acts.push({ id: 'bribe', label: `Bribe (${bribeChance}%)`, variant: 'secondary' });
-        acts.push({ id: 'preview', label: 'Conquer', variant: 'danger' });
+        acts.push({ id: 'bribe', label: t('action.bribe', { chance: bribeChance }), variant: 'secondary' });
+        acts.push({ id: 'preview', label: t('action.conquer'), variant: 'danger' });
       } else {
         const freeHero = this.state.heroes.find((h) => !h.assignedTo);
         const trust = Math.floor(getLandTrust(land, PLAYER_KINGDOM_ID));
         const threshold = Math.ceil(getDiplomacyThreshold(land));
-        acts.push({ id: 'bribe', label: `Bribe (${bribeChance}%)`, variant: 'secondary' });
+        acts.push({ id: 'bribe', label: t('action.bribe', { chance: bribeChance }), variant: 'secondary' });
         acts.push(freeHero
-          ? { id: 'diplomatize', label: `Assign Hero (${trust}/${threshold})`, variant: 'primary' }
-          : { id: 'diplomatize', label: 'Need Hero', variant: 'disabled' });
+          ? { id: 'diplomatize', label: t('action.assignHero', { trust, threshold }), variant: 'primary' }
+          : { id: 'diplomatize', label: t('action.needHero'), variant: 'disabled' });
       }
       return acts;
     }
 
     if (land.ownerId === PLAYER_KINGDOM_ID) {
-      return [{ id: 'open-build', label: 'Build', variant: 'primary' }];
+      return [{ id: 'open-build', label: t('action.build'), variant: 'primary' }];
     }
 
-    return armyAdjacentToLand ? [{ id: 'preview', label: 'Battle', variant: 'danger' }] : [];
+    return armyAdjacentToLand ? [{ id: 'preview', label: t('action.battle'), variant: 'danger' }] : [];
   }
 }
 
@@ -193,32 +199,32 @@ function buildStatLine(
   acquisition: ReturnType<typeof getAcquisitionOrder>,
   siege: ReturnType<typeof getSiegeOrder>,
 ): string {
-  if (siege) return `⚔ Siege: ${siege.progress}/${siege.required}`;
+  if (siege) return `⚔ ${t('land.siegeShort', { progress: siege.progress, required: siege.required })}`;
   if (acquisition) {
     switch (acquisition.method) {
-      case 'bribe': return `✓ Bribe accepted — joining soon`;
-      case 'diplomacy': return `📜 Diplomat: trust building...`;
-      case 'intimidation': return `⚔ Pressure: ${Math.floor(acquisition.progress)}/100`;
-      case 'settle': return `🏕 Settlers: ${acquisition.progress}/${acquisition.required}`;
-      case 'occupy': return `Moving in...`;
-      default: return `Acquiring: ${acquisition.progress}/${acquisition.required}`;
+      case 'bribe': return `✓ ${t('land.bribeJoiningSoon')}`;
+      case 'diplomacy': return `📜 ${t('land.diplomatBuilding')}`;
+      case 'intimidation': return `⚔ ${t('land.pressure', { progress: Math.floor(acquisition.progress) })}`;
+      case 'settle': return `🏕 ${t('land.settlers', { progress: acquisition.progress, required: acquisition.required })}`;
+      case 'occupy': return t('land.movingIn');
+      default: return t('land.acquiring', { progress: acquisition.progress, required: acquisition.required });
     }
   }
   if (land.ownerId === 'neutral') {
     return land.hasVillage
-      ? `Def ${land.defense} · Pop ${land.population} · Power ${getNoblePower(land)}`
-      : `Def ${land.defense} · Wilderness · No garrison`;
+      ? t('land.defPopPower', { defense: land.defense, population: land.population, power: getNoblePower(land) })
+      : t('land.defWilderness', { defense: land.defense });
   }
-  return `Def ${land.defense} · Size ${land.buildings.length}/${land.buildingCapacity}`;
+  return t('land.defSize', { defense: land.defense, used: land.buildings.length, max: land.buildingCapacity });
 }
 
 function buildSubLine(land: Land): string {
   if (land.ownerId === 'neutral' && land.hasVillage) {
     const trust = Math.floor(getLandTrust(land, PLAYER_KINGDOM_ID));
-    return `Trust ${trust}/100 · Soldiers ${land.localSoldiers}`;
+    return t('land.trustSoldiers', { trust, soldiers: land.localSoldiers });
   }
   const outputs = formatOutputs(land);
-  return outputs ? `Output: ${outputs}` : land.special.slice(0, 52);
+  return outputs ? t('land.output', { outputs }) : land.special.slice(0, 52);
 }
 
 function formatAcquisitionStatus(
@@ -228,30 +234,35 @@ function formatAcquisitionStatus(
 ): string {
   if (!order) return '';
   switch (order.method) {
-    case 'bribe': return `✓ Bribe: joining next season`;
+    case 'bribe': return `✓ ${t('land.bribeNextSeason')}`;
     case 'diplomacy': {
       const trust = Math.floor(getLandTrust(land, PLAYER_KINGDOM_ID));
       const hero = getAssignedDiplomaticHero(state, order);
       return hero
-        ? `📜 ${hero.name}: trust ${trust}/${order.required}`
-        : `📜 Missing hero: trust ${trust}/${order.required}`;
+        ? `📜 ${t('land.heroTrust', { hero: hero.name, trust, required: order.required })}`
+        : `📜 ${t('land.missingHeroTrust', { trust, required: order.required })}`;
     }
-    case 'intimidation': return `⚔ Army pressure: ${Math.floor(order.progress)}/100`;
-    case 'settle': return `🏕 Settlers en route: ${order.progress}/${order.required}`;
-    case 'occupy': return `Moving in...`;
-    default: return `Acquiring: ${order.progress}/${order.required}`;
+    case 'intimidation': return `⚔ ${t('land.armyPressure', { progress: Math.floor(order.progress) })}`;
+    case 'settle': return `🏕 ${t('land.settlersEnRoute', { progress: order.progress, required: order.required })}`;
+    case 'occupy': return t('land.movingIn');
+    default: return t('land.acquiring', { progress: order.progress, required: order.required });
   }
 }
 
 function formatOutputs(land: Land): string {
   const parts = Object.entries(land.outputs)
     .filter(([, v]) => v !== 0)
-    .map(([k, v]) => `+${v} ${k}`);
-  return parts.length === 0 ? 'none yet' : parts.slice(0, 3).join(', ');
+    .map(([k, v]) => `+${v} ${resourceLabel(k as ResourceKey)}`);
+  return parts.length === 0 ? t('building.noneYet') : parts.slice(0, 3).join(', ');
 }
 
 function formatTerrain(land: Land): string {
   const grass = land.terrainSummary.plains + land.terrainSummary.fields + land.terrainSummary.riceFields + land.terrainSummary.forest;
   const ore = land.terrainSummary.mountains + land.terrainSummary.hills;
-  return `grass ${grass}, ore ${ore}, water ${land.terrainSummary.water}, city ${land.terrainSummary.fortress + land.terrainSummary.shrine}`;
+  return t('terrain.summary', {
+    grass,
+    ore,
+    water: land.terrainSummary.water,
+    city: land.terrainSummary.fortress + land.terrainSummary.shrine,
+  });
 }

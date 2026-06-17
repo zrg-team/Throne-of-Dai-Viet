@@ -3,6 +3,7 @@ import { heroTemplates } from '../data/heroes';
 import { politicsCardTemplates } from '../data/politicsCards';
 import { createHeroDraft } from './HeroSystem';
 import type { CourtModifier, CourtPositionId, CourtState, GameState, Hero, HeroStats, ResourceBag } from '../state/types';
+import { t } from '../i18n';
 
 export const ALL_COURT_POSITIONS: CourtPositionId[] = [
   'marshal',
@@ -28,6 +29,10 @@ export const COURT_POSITION_LABELS: Record<CourtPositionId, string> = {
   censor: 'Censor',
   masterOfHorse: 'Master of Horse',
 };
+
+export function getCourtPositionLabel(positionId: CourtPositionId): string {
+  return t(`courtPosition.${positionId}`);
+}
 
 export const COURT_POSITION_DESCRIPTIONS: Record<CourtPositionId, string> = {
   marshal: 'Martial: army power. Logistics: recruitment speed.',
@@ -297,7 +302,7 @@ function releaseHeroAssignment(state: GameState, hero: Hero): void {
 /** Seats a hero in a court position, vacating any prior duty and bumping a previous occupant, if any. */
 export function assignHeroToPosition(state: GameState, heroId: string, positionId: CourtPositionId): boolean {
   if (!state.court.unlockedSeats.includes(positionId)) {
-    state.message = `The ${COURT_POSITION_LABELS[positionId]} seat is not yet built.`;
+    state.message = t('msg.seatNotBuilt', { seat: getCourtPositionLabel(positionId) });
     return false;
   }
 
@@ -323,7 +328,7 @@ export function assignHeroToPosition(state: GameState, heroId: string, positionI
 
   state.court.seats[positionId] = heroId;
   hero.assignedTo = `court:${positionId}`;
-  state.message = `${hero.name} takes the seat of ${COURT_POSITION_LABELS[positionId]}.`;
+  state.message = t('msg.heroTakesSeat', { hero: hero.name, seat: getCourtPositionLabel(positionId) });
   return true;
 }
 
@@ -356,7 +361,7 @@ export function assignHeroToLand(state: GameState, heroId: string, landId: strin
 
   releaseHeroAssignment(state, hero);
   hero.assignedTo = landId;
-  state.message = `${hero.name} governs ${land.name}.`;
+  state.message = t('msg.heroGoverns', { hero: hero.name, land: land.name });
   return true;
 }
 

@@ -16,6 +16,7 @@ import { checkVictory, findLand, getAcquisitionTicksRequired, getSiegeOrder, isA
 import { applyResourceDelta, canSpend, getBarracksLevel, refreshAllLandOutputs } from './ResourceSystem';
 import { getCourtBonuses } from './CourtSystem';
 import type { Army, BattlePreview, GameState, Land, RecruitmentOrder, SiegeOrder } from '../state/types';
+import { t, tickLabel } from '../i18n';
 
 const MAX_ARMY_LEVEL = 5;
 
@@ -154,7 +155,7 @@ export function issueMoveOrder(state: GameState, armyId: string, targetLandId: s
 
   const path = findLandPath(state, army.landId, targetLandId);
   if (!path) {
-    state.message = 'No route to that land through your territory.';
+    state.message = t('msg.noRoute');
     return false;
   }
 
@@ -175,7 +176,7 @@ export function issueMoveOrder(state: GameState, armyId: string, targetLandId: s
   const targetLand = findLand(state, targetLandId);
   const totalTicks = getTotalPathTicks(state, army, path);
   state.selectedArmyId = undefined;
-  state.message = `${army.name} marches toward ${targetLand?.name ?? targetLandId} (${totalTicks} ${totalTicks === 1 ? 'tick' : 'ticks'}).`;
+  state.message = t('msg.marches', { army: army.name, land: targetLand?.name ?? targetLandId, ticks: totalTicks, tickLabel: tickLabel(totalTicks) });
   return true;
 }
 
@@ -217,7 +218,7 @@ export function progressMovementOrders(state: GameState): boolean {
     army.landId = nextLandId;
     if (order.path.length === 0) {
       state.movementOrders = state.movementOrders.filter((candidate) => candidate !== order);
-      state.message = `${army.name} arrives at ${nextLand.name}.`;
+      state.message = t('msg.arrives', { army: army.name, land: nextLand.name });
     } else {
       const nextTarget = findLand(state, order.path[0]);
       order.legRequired = nextTarget ? getLegTicks(army, nextTarget) : 1;
@@ -239,7 +240,7 @@ export function getRecruitmentOrder(state: GameState, landId: string) {
 export function queueRecruitment(state: GameState, heroId: string, soldiers: number, rations: number, provisions: number): boolean {
   const hero = state.heroes.find((candidate) => candidate.id === heroId);
   if (!hero || hero.assignedTo) {
-    state.message = 'Choose a commander before creating an army.';
+    state.message = t('msg.chooseCommander');
     return false;
   }
 
@@ -251,28 +252,28 @@ export function queueRecruitment(state: GameState, heroId: string, soldiers: num
   const provisionsCost = Math.max(0, Math.floor(provisions));
 
   if (total > state.resources.humans) {
-    state.message = 'Not enough humans to raise that army.';
+    state.message = t('msg.notEnoughHumansArmy');
     return false;
   }
 
   if (!canSpend(state, { food: rationsCost })) {
-    state.message = `Need ${rationsCost} food to send with that army.`;
+    state.message = t('msg.needFoodArmy', { amount: rationsCost });
     return false;
   }
 
   if (!canSpend(state, { supplies: suppliesCost + provisionsCost })) {
-    state.message = `Need ${suppliesCost + provisionsCost} supplies to equip and provision that army.`;
+    state.message = t('msg.needSuppliesArmy', { amount: suppliesCost + provisionsCost });
     return false;
   }
 
   const capital = findRecruitmentLand(state);
   if (!capital) {
-    state.message = 'No owned city can raise an army.';
+    state.message = t('msg.noOwnedCityArmy');
     return false;
   }
 
   if (getRecruitmentOrder(state, capital.id)) {
-    state.message = `${capital.name} is already training a new army.`;
+    state.message = t('msg.alreadyTraining', { land: capital.name });
     return false;
   }
 
@@ -295,7 +296,7 @@ export function queueRecruitment(state: GameState, heroId: string, soldiers: num
   });
   hero.assignedTo = id;
   refreshAllLandOutputs(state);
-  state.message = `Recruiting ${total} soldiers at ${capital.name}. Ready in ${required} ${required === 1 ? 'tick' : 'ticks'}.`;
+  state.message = t('msg.recruitingArmy', { total, land: capital.name, ticks: required, tickLabel: tickLabel(required) });
   return true;
 }
 
@@ -358,7 +359,7 @@ export function progressRecruitmentOrders(state: GameState): boolean {
 
     state.selectedArmyId = army.id;
     state.isPaused = false;
-    state.message = `${army.name} finished training at ${land.name}.`;
+    state.message = t('msg.finishedTraining', { army: army.name, land: land.name });
   }
 
   state.recruitmentOrders = state.recruitmentOrders.filter((order) => !completed.includes(order));
@@ -426,7 +427,7 @@ export function progressArmyLogistics(state: GameState): boolean {
       state.selectedArmyId = undefined;
     }
 
-    state.message = `${army.name} has starved and disbanded.`;
+    state.message = t('msg.starvedDisbanded', { army: army.name });
   }
 
   state.armies = state.armies.filter((army) => !disbanded.includes(army));
@@ -448,7 +449,7 @@ export function attackLand(state: GameState, armyId: string, targetLandId: strin
   }
 
   if (getSiegeOrder(state, targetLandId)) {
-    state.message = `${targetLand.name} is already under siege.`;
+    state.message = t('msg.alreadyUnderSiege', { land: targetLand.name });
     return false;
   }
 
@@ -485,7 +486,7 @@ export function attackLand(state: GameState, armyId: string, targetLandId: strin
       progress: 0,
       required: siegeTicks,
     });
-    state.message = `Victory at ${targetLand.name}. The army besieges the district (${siegeTicks} ${siegeTicks === 1 ? 'tick' : 'ticks'} to fall).`;
+    state.message = t('msg.victoryAt', { land: targetLand.name, ticks: siegeTicks, tickLabel: tickLabel(siegeTicks) });
     state.latestBattleResult = {
       attackerArmyId: armyId,
       targetLandId,
@@ -497,7 +498,7 @@ export function attackLand(state: GameState, armyId: string, targetLandId: strin
     return true;
   }
 
-  state.message = `Defeat at ${targetLand.name}. The army falls back.`;
+  state.message = t('msg.defeatAt', { land: targetLand.name });
   state.latestBattleResult = {
     attackerArmyId: armyId,
     targetLandId,
@@ -532,7 +533,7 @@ export function disbandArmy(state: GameState, armyId: string): boolean {
   if (state.latestBattlePreview?.attackerArmyId === army.id) {
     state.latestBattlePreview = undefined;
   }
-  state.message = `${army.name} disbands. ${returnedHumans} humans return home; its XP is lost.`;
+  state.message = t('msg.disbands', { army: army.name, humans: returnedHumans });
   refreshAllLandOutputs(state);
   return true;
 }
@@ -549,7 +550,7 @@ export function cancelSiege(state: GameState, armyId: string, landId: string): b
 
   state.siegeOrders = state.siegeOrders.filter((candidate) => candidate !== order);
   army.landId = order.fromLandId;
-  state.message = `${army.name} withdraws from the siege of ${land.name}.`;
+  state.message = t('msg.withdraws', { army: army.name, land: land.name });
   return true;
 }
 
@@ -576,7 +577,7 @@ export function progressSiegeOrders(state: GameState): boolean {
 
     land.ownerId = order.attackerKingdomId;
     land.loyalty = Math.max(45, land.loyalty - 15);
-    state.message = `${land.name} falls! The district is captured.`;
+    state.message = t('msg.landFalls', { land: land.name });
   }
 
   state.siegeOrders = state.siegeOrders.filter((order) => !completed.includes(order));

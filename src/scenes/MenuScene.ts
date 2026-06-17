@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { createInitialGameState } from '../state/GameState';
 import { hasSnapshot, loadSnapshot, snapshotLabel } from '../state/save';
+import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
 import { InkMapItemRenderer } from '../ui/MapItemRenderer';
 import { decorateForest, decorateRiceFields, decorateWater, InkMapRenderer } from '../ui/MapRenderer';
 import { InkUI, INK_UI } from '../ui/InkUI';
@@ -35,10 +36,9 @@ export class MenuScene extends Phaser.Scene {
   private drawBackground(): void {
     this.inkMap.drawBackground(GAME_WIDTH, GAME_HEIGHT);
     this.drawLandscape();
-    this.drawInkCitadel();
     this.drawArmies();
     this.drawFogBands();
-    this.drawBronzeSeal();
+    this.drawDaiVietLotusSeal();
   }
 
   private drawLandscape(): void {
@@ -133,16 +133,6 @@ export class MenuScene extends Phaser.Scene {
 
     // River from mountain area, flowing through forest to the sea
     this.drawInkRiver();
-
-    // Road on the right bank winding down from the citadel
-    const roadG = this.add.graphics();
-    this.inkMap.drawRoad(roadG, [
-      { x: 262, y: 316 },
-      { x: 238, y: 392 },
-      { x: 210, y: 480 },
-      { x: 178, y: 576 },
-      { x: 142, y: 674 },
-    ], 7, 4);
   }
 
   /**
@@ -228,11 +218,11 @@ export class MenuScene extends Phaser.Scene {
       { x: 96,  y: 630 },
       { x: 140, y: 522 },
       { x: 172, y: 410 },
-      { x: 198, y: 304 },
-      { x: 232, y: 240 },
+      { x: 194, y: 318 },
+      { x: 200, y: 226 },
     ];
-    brushStroke(river, riverPoints, 18, INK.seaDeep, 0.54, 87);
-    brushStroke(river, riverPoints, 9,  INK.waterLine, 0.46, 91);
+    brushStroke(river, riverPoints, 26, INK.seaDeep, 0.54, 87);
+    brushStroke(river, riverPoints, 18,  INK.waterLine, 0.46, 91);
     const rng = createMenuRng(91);
     for (const point of riverPoints) {
       decorateWater(river, point, 44, rng);
@@ -242,26 +232,37 @@ export class MenuScene extends Phaser.Scene {
     }
   }
 
-  /** Draws three army formations on the right bank of the river. */
+  /** Two opposing armies facing each other across the river. */
   private drawArmies(): void {
     const g = this.add.graphics();
 
-    const units: Array<{ cx: number; cy: number; color: number; cols: number; rows: number; capital: boolean; scale: number }> = [
-      { cx: 286, cy: 388, color: INK.sealRed,     cols: 5, rows: 3, capital: true,  scale: 0.88 },
-      { cx: 338, cy: 466, color: INK.sealRedDark,  cols: 4, rows: 3, capital: false, scale: 0.78 },
-      { cx: 274, cy: 526, color: 0x3e4a2c,          cols: 4, rows: 2, capital: false, scale: 0.70 },
+    // Right bank – Dai Viet (player), all same red with same flag
+    const rightFormations = [
+      { cx: 270, cy: 368, cols: 5, rows: 3 },
+      { cx: 322, cy: 446, cols: 4, rows: 3 },
+      { cx: 264, cy: 520, cols: 4, rows: 2 },
     ];
-
-    for (let i = 0; i < units.length; i += 1) {
-      const { cx, cy, color, cols, rows, capital, scale } = units[i];
-      this.drawSoldiers(g, cx, cy, color, cols, rows);
-
-      // Flag positioned at the right edge of the formation using existing renderer
+    for (const { cx, cy, cols, rows } of rightFormations) {
+      this.drawSoldiers(g, cx, cy, INK.sealRed, cols, rows);
       const totalW = (cols - 1) * 11;
       const totalH = (rows - 1) * 11;
-      const flag = this.inkItems.createPlayerLandFlag(capital, this.previewFlagSeed + i);
+      const flag = this.inkItems.createPlayerLandFlag(false, this.previewFlagSeed);
       flag.setPosition(cx + totalW / 2 + 14, cy + totalH / 2 + 4);
-      flag.setScale(1);
+    }
+
+    // Left bank – enemy army, all same dark olive with same flag
+    const leftFormations = [
+      { cx: 98,  cy: 368, cols: 4, rows: 3 },
+      { cx: 60,  cy: 446, cols: 5, rows: 3 },
+      { cx: 96,  cy: 518, cols: 4, rows: 2 },
+    ];
+    const enemySeed = this.previewFlagSeed + 777;
+    for (const { cx, cy, cols, rows } of leftFormations) {
+      this.drawSoldiers(g, cx, cy, 0x4e3820, cols, rows);
+      const totalW = (cols - 1) * 11;
+      const totalH = (rows - 1) * 11;
+      const flag = this.inkItems.createPlayerLandFlag(false, enemySeed);
+      flag.setPosition(cx - totalW / 2 - 14, cy + totalH / 2 + 4);
     }
   }
 
@@ -292,35 +293,6 @@ export class MenuScene extends Phaser.Scene {
     }
   }
 
-  private drawInkCitadel(): void {
-    const g = this.add.graphics({ x: 250, y: 272 });
-    g.fillStyle(INK.ink, 0.26);
-    g.fillEllipse(0, 48, 112, 30);
-    const body = [
-      { x: -44, y: 18 },
-      { x: 44,  y: 18 },
-      { x: 44,  y: 54 },
-      { x: -44, y: 54 },
-    ];
-    washFill(g, body, INK.sealRed, 0.92);
-    inkOutline(g, body, INK.ink, 0.62, true, 12);
-    const roof = [
-      { x: -54, y: 18 },
-      { x: 0,   y: -21 },
-      { x: 54,  y: 18 },
-    ];
-    washFill(g, roof, INK_UI.goldLight, 0.94);
-    inkOutline(g, roof, INK.inkSoft, 0.48, true, 17);
-    g.fillStyle(INK.sealRedDark, 0.92);
-    g.fillRect(-24, 26, 16, 24);
-    g.fillRect(8,   26, 16, 24);
-    g.fillStyle(INK_UI.goldLight, 0.92);
-    for (let dx = -34; dx <= 34; dx += 17) {
-      g.fillRect(dx, 10, 8, 10);
-    }
-    this.tweens.add({ targets: g, y: 268, duration: 2800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-  }
-
   private drawFogBands(): void {
     const clouds = [
       { x: 64,  y: 154, radius: 48, seed: 91,  alpha: 0.72 },
@@ -341,27 +313,53 @@ export class MenuScene extends Phaser.Scene {
     }
   }
 
-  private drawBronzeSeal(): void {
+  private drawDaiVietLotusSeal(): void {
     const seal = this.add.graphics({ x: GAME_WIDTH / 2, y: 68 });
     seal.fillStyle(INK.sealRedDark, 0.94);
     seal.fillCircle(0, 0, 48);
     seal.lineStyle(5, INK_UI.gold, 0.92);
     seal.strokeCircle(0, 0, 48);
-    seal.lineStyle(2, INK_UI.goldLight, 0.72);
-    for (let index = 0; index < 16; index += 1) {
-      const angle = (Math.PI * 2 * index) / 16;
-      seal.lineBetween(
-        Math.cos(angle) * 18, Math.sin(angle) * 18,
-        Math.cos(angle) * 39, Math.sin(angle) * 39,
-      );
-    }
-    seal.fillStyle(INK_UI.goldLight, 0.95);
-    seal.fillCircle(0, 0, 9);
+
+    seal.fillStyle(shade(INK.sealRedDark, 0.72), 0.34);
+    seal.fillCircle(0, 0, 36);
+    seal.lineStyle(1.4, INK_UI.goldLight, 0.48);
+    seal.strokeCircle(0, 0, 34);
+
+    seal.lineStyle(2.2, INK_UI.gold, 0.78);
+    seal.strokeRoundedRect(-25, -25, 50, 50, 8);
+
+    seal.lineStyle(3.4, 0x4d2c16, 0.30);
+    seal.lineBetween(0, 20, 0, 1);
+    seal.lineStyle(2.1, INK_UI.goldLight, 0.94);
+    seal.lineBetween(0, 20, 0, 1);
+
+    seal.fillStyle(INK_UI.goldLight, 0.96);
+    seal.fillEllipse(0, -4, 13, 34);
+    seal.fillEllipse(-13, 1, 16, 29);
+    seal.fillEllipse(13, 1, 16, 29);
+    seal.fillEllipse(-24, 8, 19, 20);
+    seal.fillEllipse(24, 8, 19, 20);
+
+    seal.fillStyle(INK_UI.gold, 0.98);
+    seal.fillEllipse(0, 13, 46, 13);
+    seal.fillEllipse(-14, 19, 22, 9);
+    seal.fillEllipse(14, 19, 22, 9);
+
+    seal.lineStyle(1.2, 0x4d2c16, 0.45);
+    seal.lineBetween(0, -18, 0, 14);
+    seal.lineBetween(-11, -11, -3, 14);
+    seal.lineBetween(11, -11, 3, 14);
+    seal.lineBetween(-24, 6, -6, 17);
+    seal.lineBetween(24, 6, 6, 17);
+
+    seal.fillStyle(INK_UI.goldLight, 0.94);
+    seal.fillCircle(0, -17, 3.2);
   }
 
   private render(): void {
     this.clearContent();
     this.renderTitle();
+    this.renderLanguageSelector();
     if (this.mode === 'confirm-new') {
       this.renderConfirmNew();
     } else {
@@ -402,18 +400,7 @@ export class MenuScene extends Phaser.Scene {
 
   private renderMain(): void {
     const saved = hasSnapshot();
-    const saveLabel = this.add.text(GAME_WIDTH / 2, 208, snapshotLabel(), {
-      color: '#f3dd9a',
-      fontSize: '12px',
-      fontStyle: '700',
-      align: 'center',
-      backgroundColor: 'rgba(32,38,31,0.58)',
-      padding: { x: 6, y: 3 },
-      wordWrap: { width: 300 },
-    }).setOrigin(0.5);
-    this.content.push(saveLabel);
-
-    this.content.push(this.ui.button({ x: 54, y: 586, width: 282, height: 54 }, 'Start Campaign', () => {
+    this.content.push(this.ui.button({ x: 54, y: 586, width: 282, height: 54 }, t('menu.startCampaign'), () => {
       if (hasSnapshot()) {
         this.mode = 'confirm-new';
         this.render();
@@ -422,30 +409,114 @@ export class MenuScene extends Phaser.Scene {
       this.startGame(createInitialGameState());
     }, { variant: 'primary', fontSize: '17px' }));
 
-    this.content.push(this.ui.button({ x: 54, y: 654, width: 282, height: 52 }, 'Continue', () => {
+    this.content.push(this.ui.button({ x: 90, y: 658, width: 210, height: 42 }, t('menu.continue'), () => {
       const snapshot = loadSnapshot();
       if (snapshot) {
         this.startGame(snapshot.state);
       }
-    }, { variant: saved ? 'secondary' : 'disabled', fontSize: '17px' }));
+    }, { variant: saved ? 'ghost' : 'disabled', fontSize: '15px' }));
+
+    const saveLabel = this.add.text(GAME_WIDTH / 2, 718, snapshotLabel(), {
+      color: saved ? '#f3dd9a' : '#d8c48e',
+      fontSize: '12px',
+      fontStyle: '700',
+      align: 'center',
+      backgroundColor: 'rgba(32,38,31,0.42)',
+      padding: { x: 6, y: 3 },
+      wordWrap: { width: 250 },
+    }).setOrigin(0.5);
+    this.content.push(saveLabel);
   }
 
   private renderConfirmNew(): void {
     const panel = this.ui.card({ x: 28, y: 528, width: GAME_WIDTH - 56, height: 178 }, {
-      title: 'Start a new campaign?',
-      body: 'The saved snapshot remains until you save again.',
+      title: t('menu.startNewQuestion'),
+      body: t('menu.savedSnapshotKept'),
       border: INK_UI.gold,
       fill: 0xd9c584,
     });
     this.content.push(panel);
 
-    this.content.push(this.ui.button({ x: 54, y: 632, width: 282, height: 46 }, 'Start New Campaign', () => {
+    this.content.push(this.ui.button({ x: 54, y: 632, width: 282, height: 46 }, t('menu.startNewCampaign'), () => {
       this.startGame(createInitialGameState());
     }, { variant: 'danger', fontSize: '14px' }));
-    this.content.push(this.ui.button({ x: 54, y: 690, width: 282, height: 44 }, 'Back', () => {
+    this.content.push(this.ui.button({ x: 54, y: 690, width: 282, height: 44 }, t('menu.back'), () => {
       this.mode = 'main';
       this.render();
     }, { variant: 'secondary', fontSize: '14px' }));
+  }
+
+  private renderLanguageSelector(): void {
+    const current = getLanguage();
+
+    const options: Array<{
+      code: LanguageCode;
+      label: string;
+      flag: string;
+    }> = [
+      {
+        code: 'en',
+        label: 'English',
+        flag: '',
+      },
+      {
+        code: 'vi',
+        label: 'Tiếng Việt',
+        flag: '',
+      },
+    ];
+
+    const itemWidth = 105;
+    const itemHeight = 30;
+    const width = itemWidth * options.length;
+
+    const x = GAME_WIDTH / 2 - width / 2;
+    const y = GAME_HEIGHT - 40;
+
+    const bg = this.add
+      .rectangle(x, y, width, itemHeight, INK_UI.parchment, 0.88)
+      .setOrigin(0, 0);
+
+    bg.setStrokeStyle(2, INK_UI.brush, 0.78);
+    this.content.push(bg);
+
+    options.forEach((option, index) => {
+      const selected = current === option.code;
+      const left = x + index * itemWidth;
+
+      const fill = this.add
+        .rectangle(
+          left + 1,
+          y + 1,
+          itemWidth - 2,
+          itemHeight - 2,
+          selected ? INK_UI.goldLight : INK_UI.parchment,
+          selected ? 0.98 : 0.2,
+        )
+        .setOrigin(0, 0)
+        .setInteractive({ useHandCursor: true });
+
+      const label = this.ui
+        .label(
+          left + itemWidth / 2,
+          y + 7,
+          `${option.flag} ${option.label}`,
+          'button',
+          {
+            color: '#211103',
+            fontSize: '12px',
+            align: 'center',
+          },
+        )
+        .setOrigin(0.5, 0);
+
+      fill.on('pointerup', () => {
+        setLanguage(option.code);
+        this.render();
+      });
+
+      this.content.push(fill, label);
+    });
   }
 
   private startGame(state: ReturnType<typeof createInitialGameState>): void {

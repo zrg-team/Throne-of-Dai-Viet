@@ -8,6 +8,7 @@ import { refreshAllLandOutputs } from '../systems/ResourceSystem';
 import { refreshPlayerVisibility } from '../systems/LandSystem';
 import { createInitialCourtState } from '../systems/CourtSystem';
 import type { GameState, Land, LandTemplate, ResourceBag, TerrainSummary } from './types';
+import { landTypeLabel, t } from '../i18n';
 
 const EMPTY_RESOURCE_BAG: ResourceBag = {
   food: 0,
@@ -44,8 +45,34 @@ function createInitialTrust(ownerId: string): Record<string, number> {
   return trust;
 }
 
-const NAME_PREFIXES = ['Amber', 'Bamboo', 'Cloud', 'Copper', 'Dragon', 'Eastern', 'Golden', 'Hidden', 'Jade', 'Lotus', 'Mist', 'Pine', 'Red', 'River', 'Silver', 'Southern', 'Stone', 'Sun', 'Tiger', 'Western'];
-const NAME_CORES = ['Basin', 'Ford', 'Gate', 'Heights', 'Hollow', 'Lake', 'March', 'Meadow', 'Pass', 'Plain', 'Reach', 'Ridge', 'Road', 'Terrace', 'Valley', 'Village', 'Ward', 'Watch'];
+function createRandomMapConfig(): MapGenConfig {
+  return {
+    ...GAMEPLAY_MAP_CONFIG,
+    seed: randomInt(1_000_000_000),
+  };
+}
+
+const NAME_PREFIXES = [
+  'An', 'Bạch', 'Bình', 'Cẩm', 'Cửu', 'Đại', 'Đông', 'Hà', 'Hải', 'Hoàng',
+  'Hồng', 'Lam', 'Linh', 'Long', 'Nam', 'Ngọc', 'Phong', 'Phú', 'Quảng',
+  'Sơn', 'Tân', 'Thanh', 'Thiên', 'Thủy', 'Trường', 'Vân', 'Việt', 'Xuân'
+];
+
+const NAME_CORES = [
+  'Châu', 'Giang', 'Hải', 'Khê', 'Lâm', 'Lĩnh', 'Phong', 'Sơn', 'Thành',
+  'Trấn', 'Viên', 'Xuyên', 'Động', 'Quan', 'Đô', 'Hương', 'Thôn', 'Ấp',
+  'Bình', 'Cảng', 'Cốc', 'Đèo', 'Lộ', 'Phủ', 'Quận', 'Trại', 'Vực'
+];
+
+const NAME_SUFFIXES = [
+  '', '', '',
+  'Thượng',
+  'Hạ',
+  'Đông',
+  'Tây',
+  'Nam',
+  'Bắc'
+];
 
 function randomInt(maxExclusive: number): number {
   return Math.floor(Math.random() * maxExclusive);
@@ -55,22 +82,23 @@ function pick<T>(items: T[]): T {
   return items[randomInt(items.length)];
 }
 
-function createRandomMapConfig(): MapGenConfig {
-  return {
-    ...GAMEPLAY_MAP_CONFIG,
-    seed: randomInt(1_000_000_000),
-  };
-}
-
 function createRandomLandName(index: number, used: Set<string>): string {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const name = `${pick(NAME_PREFIXES)} ${pick(NAME_CORES)}`;
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const prefix = pick(NAME_PREFIXES);
+    const core = pick(NAME_CORES);
+    const suffix = pick(NAME_SUFFIXES);
+
+    const name = suffix
+      ? `${prefix} ${core} ${suffix}`
+      : `${prefix} ${core}`;
+
     if (!used.has(name)) {
       used.add(name);
       return name;
     }
   }
-  const fallback = `Frontier District ${String(index + 1).padStart(2, '0')}`;
+
+  const fallback = `Biên Trấn ${String(index + 1).padStart(2, '0')}`;
   used.add(fallback);
   return fallback;
 }
@@ -89,7 +117,7 @@ function createGeneratedNeutralDistrict(index: number, usedNames: Set<string>): 
     defense: isWilderness ? 3 + randomInt(6) : type === 'iron' ? 22 + randomInt(9) : type === 'market' ? 16 + randomInt(8) : type === 'temple' ? 15 + randomInt(6) : 10 + randomInt(8),
     loyalty: 55 + randomInt(23),
     buildings: [],
-    special: isWilderness ? 'Uninhabited wilderness. No village, no garrison.' : `Random ${type} district with generated terrain and resources.`,
+    special: isWilderness ? t('special.wilderness') : t('special.randomDistrict', { type: landTypeLabel(type) }),
   };
 }
 
@@ -149,13 +177,13 @@ function createLands(mapConfig: MapGenConfig): { lands: Land[]; hexTiles: GameSt
   const rivalStart = lands.find((land) => land.id === rivalStartId);
 
   if (playerStart) {
-    playerStart.name = `${playerStart.name} Capital`;
+    playerStart.name = `${playerStart.name}`;
     playerStart.type = 'castle';
     playerStart.ownerId = PLAYER_KINGDOM_ID;
     playerStart.defense = Math.max(playerStart.defense, 48);
     playerStart.loyalty = 100;
     playerStart.buildings = [{ type: 'market', level: 1 }, { type: 'farm', level: 1 }];
-    playerStart.special = 'Your randomized starting capital.';
+    playerStart.special = t('special.playerCapital');
     playerStart.hasVillage = true;
     playerStart.population = 120 + randomInt(40);
     playerStart.localSoldiers = Math.floor(playerStart.defense * 0.7);
@@ -163,13 +191,13 @@ function createLands(mapConfig: MapGenConfig): { lands: Land[]; hexTiles: GameSt
   }
 
   if (rivalStart) {
-    rivalStart.name = `${rivalStart.name} Rival Capital`;
+    rivalStart.name = `${rivalStart.name}`;
     rivalStart.type = 'enemyCastle';
     rivalStart.ownerId = 'northern-rival';
     rivalStart.defense = Math.max(rivalStart.defense, 50);
     rivalStart.loyalty = 94;
     rivalStart.buildings = [{ type: 'market', level: 1 }, { type: 'mine', level: 1 }];
-    rivalStart.special = 'Randomized rival capital. Capture it to win the campaign.';
+    rivalStart.special = t('special.rivalCapital');
     rivalStart.hasVillage = true;
     rivalStart.population = 100 + randomInt(40);
     rivalStart.localSoldiers = Math.floor(rivalStart.defense * 0.7);
@@ -293,7 +321,7 @@ export function createInitialGameState(): GameState {
     movementOrders: [],
     siegeOrders: [],
     recruitmentOrders: [],
-    message: 'Expansion race begins. Buy nearby neutral land, build districts, then capture the rival capital.',
+    message: t('msg.initial'),
     victory: false,
   };
 

@@ -16,7 +16,7 @@ export type MapRenderMode = 'terrain' | 'control';
 
 export type HeroType = 'general' | 'governor' | 'minister' | 'agent';
 
-export type UnitType = 'spearmen' | 'archers' | 'heavyInfantry';
+export type UnitType = 'militia' | 'spearmen' | 'archers' | 'crossbowmen' | 'heavyInfantry' | 'lightCavalry' | 'royalGuard' | 'warElephants' | 'siegeEngine' | 'riverMarines';
 
 export type Season = 'Spring' | 'Summer' | 'Autumn' | 'Winter';
 

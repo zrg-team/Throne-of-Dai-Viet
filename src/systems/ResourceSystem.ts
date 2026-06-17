@@ -2,6 +2,7 @@ import { PLAYER_KINGDOM_ID } from '../game/constants';
 import { BUILD_TICKS_REQUIRED, MAX_BUILDING_LEVEL, UPGRADE_TICKS_REQUIRED } from '../game/gameplayConfig';
 import { getCourtBonuses, getLandGovernorOutputMult } from './CourtSystem';
 import type { BuildOrder, GameState, Land, LandBuildingType, ResourceBag, ResourceKey } from '../state/types';
+import { buildingLabel, buildBuildingLabel, formatResourceList, t } from '../i18n';
 
 export interface BuildOption {
   type: LandBuildingType;
@@ -35,6 +36,10 @@ export const BUILDING_LABELS: Record<LandBuildingType, string> = {
   barracks: 'Build Barracks',
   shrine: 'Build Shrine',
 };
+
+function buildOrderKindLabel(kind: BuildOrder['kind']): string {
+  return t(kind === 'upgrade' ? 'order.upgrading' : 'order.building').toLowerCase();
+}
 
 /** One-time construction cost (gold + supplies), paid when the build order is queued. */
 const BUILDING_COSTS: Record<LandBuildingType, Partial<ResourceBag>> = {
@@ -267,14 +272,14 @@ export function collectPlayerIncome(state: GameState): void {
       army.morale = Math.max(25, army.morale - 4);
       army.supply = Math.max(20, army.supply - 6);
     }
-    state.message = 'Food stores are empty. Humans decline and armies lose readiness.';
+    state.message = t('msg.foodEmpty');
   }
 
   if (state.resourceRates.supplies < 0 && state.resources.supplies <= 0) {
     for (const army of state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)) {
       army.supply = Math.max(15, army.supply - 5);
     }
-    state.message = 'Supply stores are empty. Army logistics suffer.';
+    state.message = t('msg.suppliesEmpty');
   }
 }
 
@@ -287,14 +292,19 @@ export function getBuildOptions(state: GameState, land: Land): BuildOption[] {
 
   return (['farm', 'mine', 'market', 'wall', 'tower', 'barracks', 'shrine'] as LandBuildingType[]).map((type) => {
     const terrainReason = getBuildingTerrainBlocker(land, type);
-    const capacityReason = land.buildings.length >= land.buildingCapacity ? 'No free district capacity.' : undefined;
+    const capacityReason = land.buildings.length >= land.buildingCapacity ? t('reason.noCapacity') : undefined;
     const duplicateReason = type === 'market' && land.buildings.filter((building) => building.type === 'market').length >= getMarketLimit(land)
-      ? 'Market limit reached for this district.'
+      ? t('reason.marketLimit')
       : (type === 'wall' || type === 'tower' || type === 'barracks' || type === 'shrine') && land.buildings.some((building) => building.type === type)
-        ? `${BUILDING_LABELS[type].replace('Build ', '')} already built here.`
+        ? t('reason.alreadyBuilt', { building: buildingLabel(type) })
         : undefined;
     const activeOrderReason = activeOrder
-      ? `Already ${activeOrder.kind === 'upgrade' ? 'upgrading' : 'building'} ${BUILDING_LABELS[activeOrder.building].replace('Build ', '')} (${activeOrder.progress}/${activeOrder.required}).`
+      ? t('reason.alreadyOrder', {
+        kind: buildOrderKindLabel(activeOrder.kind),
+        building: buildingLabel(activeOrder.building),
+        progress: activeOrder.progress,
+        required: activeOrder.required,
+      })
       : undefined;
     const cost = scaleResourceBag(BUILDING_COSTS[type], getCourtBonuses(state).buildingCostMult);
     const costReason = !canSpend(state, cost) ? formatCostBlocker(cost) : undefined;
@@ -302,7 +312,7 @@ export function getBuildOptions(state: GameState, land: Land): BuildOption[] {
 
     return {
       type,
-      label: BUILDING_LABELS[type],
+      label: buildBuildingLabel(type),
       cost,
       canBuild: !reason,
       reason,
@@ -316,11 +326,16 @@ export function getUpgradeOptions(state: GameState, land: Land): UpgradeOption[]
   return land.buildings.map((building, index) => {
     const atMaxLevel = building.level >= MAX_BUILDING_LEVEL;
     const activeOrderReason = activeOrder
-      ? `Already ${activeOrder.kind === 'upgrade' ? 'upgrading' : 'building'} ${BUILDING_LABELS[activeOrder.building].replace('Build ', '')} (${activeOrder.progress}/${activeOrder.required}).`
+      ? t('reason.alreadyOrder', {
+        kind: buildOrderKindLabel(activeOrder.kind),
+        building: buildingLabel(activeOrder.building),
+        progress: activeOrder.progress,
+        required: activeOrder.required,
+      })
       : undefined;
     const cost = scaleResourceBag(BUILDING_COSTS[building.type], (UPGRADE_COST_MULTIPLIERS[building.level - 1] ?? 1) * getCourtBonuses(state).buildingCostMult);
     const costReason = !atMaxLevel && !canSpend(state, cost) ? formatCostBlocker(cost) : undefined;
-    const reason = atMaxLevel ? 'Already at maximum level.' : (activeOrderReason ?? costReason);
+    const reason = atMaxLevel ? t('reason.maxLevel') : (activeOrderReason ?? costReason);
 
     return {
       index,
@@ -346,7 +361,7 @@ export function buildDistrictBuilding(state: GameState, landId: string, building
   }
 
   if (!option.canBuild) {
-    state.message = option.reason ?? 'That building cannot be built here.';
+    state.message = option.reason ?? t('msg.cannotBuildHere');
     return false;
   }
 
@@ -359,7 +374,7 @@ export function buildDistrictBuilding(state: GameState, landId: string, building
     progress: 0,
     required,
   });
-  state.message = `${option.label.replace('Build ', '')} construction started in ${land.name}. Ready in ${required} economy ticks.`;
+  state.message = t('msg.startedConstruction', { building: buildingLabel(building), land: land.name, ticks: required });
   return true;
 }
 
@@ -375,7 +390,7 @@ export function upgradeDistrictBuilding(state: GameState, landId: string, buildi
   }
 
   if (!option.canUpgrade) {
-    state.message = option.reason ?? 'That building cannot be upgraded right now.';
+    state.message = option.reason ?? t('msg.cannotUpgrade');
     return false;
   }
 
@@ -389,7 +404,12 @@ export function upgradeDistrictBuilding(state: GameState, landId: string, buildi
     progress: 0,
     required,
   });
-  state.message = `${BUILDING_LABELS[option.type].replace('Build ', '')} upgrade to level ${option.level + 1} started in ${land.name}. Ready in ${required} economy ticks.`;
+  state.message = t('msg.startedUpgrade', {
+    building: buildingLabel(option.type),
+    level: option.level + 1,
+    land: land.name,
+    ticks: required,
+  });
   return true;
 }
 
@@ -400,7 +420,7 @@ export function destroyDistrictBuilding(state: GameState, landId: string, buildi
   }
 
   if (getBuildOrder(state, land.id)) {
-    state.message = 'Finish current construction before destroying a building.';
+    state.message = t('msg.finishBeforeDestroy');
     return false;
   }
 
@@ -409,14 +429,14 @@ export function destroyDistrictBuilding(state: GameState, landId: string, buildi
     return false;
   }
 
-  const label = BUILDING_LABELS[building.type].replace('Build ', '');
+  const label = buildingLabel(building.type);
   const defenseBonus = DEFENSE_BONUSES[building.type];
   if (defenseBonus) {
     land.defense = Math.max(0, land.defense - defenseBonus * building.level);
   }
   land.buildings.splice(buildingIndex, 1);
   refreshAllLandOutputs(state);
-  state.message = `${label} destroyed in ${land.name}. Maintenance cost reduced.`;
+  state.message = t('msg.destroyedBuilding', { building: label, land: land.name });
   return true;
 }
 
@@ -440,7 +460,7 @@ export function progressBuildOrders(state: GameState): boolean {
       continue;
     }
 
-    const label = BUILDING_LABELS[order.building].replace('Build ', '');
+    const label = buildingLabel(order.building);
     const defenseBonus = DEFENSE_BONUSES[order.building];
 
     if (order.kind === 'upgrade' && order.buildingIndex !== undefined) {
@@ -450,14 +470,14 @@ export function progressBuildOrders(state: GameState): boolean {
         if (defenseBonus) {
           land.defense += defenseBonus;
         }
-        state.message = `${label} upgraded to level ${instance.level} in ${land.name}.`;
+        state.message = t('msg.upgradedBuilding', { building: label, level: instance.level, land: land.name });
       }
     } else {
       land.buildings.push({ type: order.building, level: 1 });
       if (defenseBonus) {
         land.defense += defenseBonus;
       }
-      state.message = `${label} completed in ${land.name}.`;
+      state.message = t('msg.completedBuilding', { building: label, land: land.name });
     }
   }
 
@@ -470,17 +490,17 @@ function getBuildingTerrainBlocker(land: Land, building: LandBuildingType): stri
   if (building === 'farm') {
     const grassTiles = land.terrainSummary.plains + land.terrainSummary.fields + land.terrainSummary.riceFields + land.terrainSummary.forest;
     const existingFarms = land.buildings.filter((candidate) => candidate.type === 'farm').length;
-    return grassTiles >= (existingFarms + 1) * 4 ? undefined : 'Needs more grass, field, or rice tiles.';
+    return grassTiles >= (existingFarms + 1) * 4 ? undefined : t('reason.needGrass');
   }
 
   if (building === 'mine') {
     const oreTiles = land.terrainSummary.mountains + land.terrainSummary.hills;
     const existingMines = land.buildings.filter((candidate) => candidate.type === 'mine').length;
-    return oreTiles >= (existingMines + 1) * 3 ? undefined : 'Needs mountain or hill tiles.';
+    return oreTiles >= (existingMines + 1) * 3 ? undefined : t('reason.needOre');
   }
 
   const hasCityCore = land.terrainSummary.fortress + land.terrainSummary.shrine > 0;
-  return hasCityCore || land.neighbors.length >= 3 ? undefined : 'Needs a city core or at least 3 road connections.';
+  return hasCityCore || land.neighbors.length >= 3 ? undefined : t('reason.needCity');
 }
 
 function getMarketLimit(land: Land): number {
@@ -501,8 +521,5 @@ export function getBarracksLevel(land: Land): number {
 }
 
 function formatCostBlocker(cost: Partial<ResourceBag>): string {
-  const parts = Object.entries(cost)
-    .map(([key, value]) => `${value} ${key}`)
-    .join(', ');
-  return `Need ${parts}.`;
+  return t('reason.needCost', { parts: formatResourceList(cost) });
 }

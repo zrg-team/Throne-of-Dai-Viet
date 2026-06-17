@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { gameConfig } from './game/config';
 import type { GameState } from './state/types';
+import { getLanguage, politicsTitle, seasonLabel, t } from './i18n';
 
 declare global {
   interface Window {
@@ -17,7 +18,7 @@ window.__phaserGame = game;
 
 window.render_game_to_text = () => {
   if (window.__phaserGame?.scene.isActive('MenuScene')) {
-    return JSON.stringify({ mode: 'menu' });
+    return JSON.stringify({ mode: 'menu', language: getLanguage() });
   }
 
   const state = window.__mandateState;
@@ -32,8 +33,9 @@ window.render_game_to_text = () => {
 
   return JSON.stringify({
     coordinateSystem: 'Phaser canvas pixels, origin top-left, x right, y down',
+    language: getLanguage(),
     mode: state.victory ? 'victory' : state.pendingCourtRequest || state.activePoliticsCard ? 'court_request' : state.movementOrders.length > 0 ? 'moving_army' : state.selectedArmyId ? 'army_selected' : 'playing',
-    time: `Year ${state.year}, ${state.season}`,
+    time: t('time.yearSeasonComma', { year: state.year, season: seasonLabel(state.season) }),
     realtimeSeconds: Math.round(state.realtimeSeconds),
     mapRenderMode: state.mapRenderMode,
     mapSettings: state.mapSettings,
@@ -73,8 +75,8 @@ window.render_game_to_text = () => {
       provisions: army.provisions,
     })),
     draftChoices: state.activeHeroDraft?.map((hero) => hero.name) ?? [],
-    politicsCard: state.activePoliticsCard?.title ?? null,
-    pendingCourtRequest: state.pendingCourtRequest?.title ?? null,
+    politicsCard: state.activePoliticsCard ? politicsTitle(state.activePoliticsCard) : null,
+    pendingCourtRequest: state.pendingCourtRequest ? politicsTitle(state.pendingCourtRequest) : null,
     activeCourtModifiers: state.activeCourtModifiers,
     court: {
       stability: Math.round(state.court.stability),

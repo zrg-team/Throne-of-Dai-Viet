@@ -3,6 +3,7 @@ import { getAcquisitionOrder, findLand, isLandVisibleToPlayer, refreshPlayerVisi
 import { applyResourceDelta, canSpend, refreshAllLandOutputs } from './ResourceSystem';
 import { getCourtBonuses } from './CourtSystem';
 import type { AcquisitionMethod, AcquisitionOrder, Army, GameState, Hero, Land, ResourceBag } from '../state/types';
+import { formatResourceList, t } from '../i18n';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -127,17 +128,17 @@ function completeLandAcquisition(state: GameState, land: Land, order: Acquisitio
 
   releaseDiplomaticHero(state, order, true);
 
-  const popMsg = land.population > 0 ? ` +${land.population} humans.` : '';
-  const bonusKeys = Object.entries(bonus).map(([k, v]) => `+${v} ${k}`).join(', ');
-  const bonusMsg = bonusKeys ? ` ${bonusKeys}.` : '';
+  const popMsg = land.population > 0 ? t('msg.populationBonus', { population: land.population }) : '';
+  const bonusKeys = formatResourceList(bonus);
+  const bonusMsg = bonusKeys ? t('msg.resourceBonus', { bonus: bonusKeys }) : '';
 
   const methodMessages: Record<AcquisitionMethod, string> = {
-    bribe: `The nobles of ${land.name} accept your terms and surrender authority.${popMsg}${bonusMsg}`,
-    diplomacy: `The people of ${land.name} choose to join Đại Việt.${popMsg}${bonusMsg}`,
-    intimidation: `${land.name} surrenders under military pressure.${popMsg}${bonusMsg}`,
-    settle: `Settlers establish a new community at ${land.name}.`,
-    occupy: `${land.name} occupied — no resistance.`,
-    conquest: `${land.name} joins a rival kingdom.`,
+    bribe: t('msg.acquiredBribe', { land: land.name, popMsg, bonusMsg }),
+    diplomacy: t('msg.acquiredDiplomacy', { land: land.name, popMsg, bonusMsg }),
+    intimidation: t('msg.acquiredIntimidation', { land: land.name, popMsg, bonusMsg }),
+    settle: t('msg.acquiredSettle', { land: land.name }),
+    occupy: t('msg.acquiredOccupy', { land: land.name }),
+    conquest: t('msg.acquiredConquest', { land: land.name }),
   };
   state.message = methodMessages[order.method];
 }
@@ -149,19 +150,19 @@ export function bribeLand(state: GameState, landId: string): boolean {
   if (!land || land.ownerId !== NEUTRAL_OWNER_ID || !land.hasVillage) return false;
 
   if (getAcquisitionOrder(state, landId)) {
-    state.message = `${land.name} already has an acquisition in progress.`;
+    state.message = t('msg.acquisitionProgress', { land: land.name });
     return false;
   }
 
   const hasOwnedNeighbor = land.neighbors.some((nId) => findLand(state, nId)?.ownerId === PLAYER_KINGDOM_ID);
   if (!hasOwnedNeighbor) {
-    state.message = 'You can only act on neutral land adjacent to your districts.';
+    state.message = t('msg.neutralAdjacentOnly');
     return false;
   }
 
   const cost = getGoldBribeCost(state, land);
   if (!canSpend(state, { gold: cost })) {
-    state.message = `Need ${cost} gold to attempt this bribe.`;
+    state.message = t('msg.needGoldBribe', { cost });
     return false;
   }
 
@@ -170,7 +171,7 @@ export function bribeLand(state: GameState, landId: string): boolean {
   const successChance = getBribeSuccessChance(land);
   if (Math.random() > successChance) {
     land.trust[PLAYER_KINGDOM_ID] = Math.max(0, getLandTrust(land, PLAYER_KINGDOM_ID) - 25);
-    state.message = `The nobles of ${land.name} took your gold and refused. Trust lost. Diplomacy will be harder here.`;
+    state.message = t('msg.bribeRefused', { land: land.name });
     return false;
   }
 
@@ -183,7 +184,7 @@ export function bribeLand(state: GameState, landId: string): boolean {
     method: 'bribe',
   });
   refreshPlayerVisibility(state);
-  state.message = `Bribe accepted! ${land.name} will join Đại Việt next season.`;
+  state.message = t('msg.bribeAccepted', { land: land.name });
   return true;
 }
 
@@ -194,35 +195,35 @@ export function startDiplomaticClaim(state: GameState, landId: string, heroId?: 
   if (!land || land.ownerId !== NEUTRAL_OWNER_ID || !land.hasVillage) return false;
 
   if (getAcquisitionOrder(state, landId)) {
-    state.message = `${land.name} already has an acquisition in progress.`;
+    state.message = t('msg.acquisitionProgress', { land: land.name });
     return false;
   }
 
   const hasOwnedNeighbor = land.neighbors.some((nId) => findLand(state, nId)?.ownerId === PLAYER_KINGDOM_ID);
   if (!hasOwnedNeighbor) {
-    state.message = 'You can only act on neutral land adjacent to your districts.';
+    state.message = t('msg.neutralAdjacentOnly');
     return false;
   }
 
   if (!heroId) {
-    state.message = 'Assign a free hero before starting a diplomatic claim.';
+    state.message = t('msg.assignHeroDiplomacy');
     return false;
   }
 
   const hero = state.heroes.find((h) => h.id === heroId);
   if (!hero) {
-    state.message = 'That hero is not available to lead the diplomatic mission.';
+    state.message = t('msg.heroUnavailableDiplomacy');
     return false;
   }
 
   if (hero.assignedTo) {
-    state.message = `${hero.name} is already assigned. Choose a free hero for diplomacy.`;
+    state.message = t('msg.heroAlreadyAssigned', { hero: hero.name });
     return false;
   }
 
   const suppliesCost = getDiplomacySuppliesCost(state, land);
   if (!canSpend(state, { supplies: suppliesCost })) {
-    state.message = `Need ${suppliesCost} supplies for diplomatic gifts and hospitality.`;
+    state.message = t('msg.needSuppliesDiplomacy', { cost: suppliesCost });
     return false;
   }
 
@@ -242,7 +243,7 @@ export function startDiplomaticClaim(state: GameState, landId: string, heroId?: 
   });
 
   refreshPlayerVisibility(state);
-  state.message = `${hero.name} travels to ${land.name} to build trust. Need ${Math.ceil(threshold)}, currently ${Math.floor(currentTrust)}.`;
+  state.message = t('msg.heroTravels', { hero: hero.name, land: land.name, threshold: Math.ceil(threshold), current: Math.floor(currentTrust) });
   return true;
 }
 
@@ -253,7 +254,7 @@ export function startIntimidation(state: GameState, landId: string, armyId: stri
   if (!land || land.ownerId !== NEUTRAL_OWNER_ID || !land.hasVillage) return false;
 
   if (getAcquisitionOrder(state, landId)) {
-    state.message = `${land.name} already has an acquisition in progress.`;
+    state.message = t('msg.acquisitionProgress', { land: land.name });
     return false;
   }
 
@@ -262,13 +263,13 @@ export function startIntimidation(state: GameState, landId: string, armyId: stri
 
   const armyLand = findLand(state, army.landId);
   if (!armyLand || armyLand.ownerId !== PLAYER_KINGDOM_ID || !armyLand.neighbors.includes(landId)) {
-    state.message = `Your army must be stationed in an adjacent owned district to threaten ${land.name}.`;
+    state.message = t('msg.armyAdjacentThreat', { land: land.name });
     return false;
   }
 
   const power = computeArmyPower(army);
   if (power < land.localSoldiers * MIN_INTIMIDATION_RATIO) {
-    state.message = `Your army (power ${Math.round(power)}) is not strong enough to threaten ${land.name} (garrison: ${land.localSoldiers}).`;
+    state.message = t('msg.armyTooWeak', { power: Math.round(power), land: land.name, garrison: land.localSoldiers });
     return false;
   }
 
@@ -283,7 +284,7 @@ export function startIntimidation(state: GameState, landId: string, armyId: stri
   });
 
   refreshPlayerVisibility(state);
-  state.message = `Your army pressures ${land.name}. Keep them stationed nearby until the garrison breaks.`;
+  state.message = t('msg.armyPressures', { land: land.name });
   return true;
 }
 
@@ -299,19 +300,19 @@ export function settleLand(state: GameState, landId: string): boolean {
   if (!land || land.ownerId !== NEUTRAL_OWNER_ID || land.hasVillage) return false;
 
   if (getAcquisitionOrder(state, landId)) {
-    state.message = `${land.name} already has an acquisition in progress.`;
+    state.message = t('msg.acquisitionProgress', { land: land.name });
     return false;
   }
 
   const hasOwnedNeighbor = land.neighbors.some((nId) => findLand(state, nId)?.ownerId === PLAYER_KINGDOM_ID);
   if (!hasOwnedNeighbor) {
-    state.message = 'You can only settle land adjacent to your districts.';
+    state.message = t('msg.settleAdjacentOnly');
     return false;
   }
 
   const humansCost = getSettleHumansCost();
   if (!canSpend(state, { humans: humansCost })) {
-    state.message = `Need ${humansCost} humans to send settlers into the wilderness.`;
+    state.message = t('msg.needHumansSettlers', { cost: humansCost });
     return false;
   }
 
@@ -327,7 +328,7 @@ export function settleLand(state: GameState, landId: string): boolean {
   });
 
   refreshPlayerVisibility(state);
-  state.message = `Settlers depart for ${land.name}. They will establish a new community in ${required} seasons.`;
+  state.message = t('msg.settlersDepart', { land: land.name, seasons: required });
   return true;
 }
 
@@ -351,7 +352,7 @@ export function occupyEmptyLand(state: GameState, armyId: string, landId: string
     armyId,
   });
 
-  state.message = `${army.name} enters ${land.name} — uninhabited wilderness claimed.`;
+  state.message = t('msg.armyEntersWilderness', { army: army.name, land: land.name });
 
   // Resolve immediately next tick via progressAcquisitions, but also record fromLandId on army
   // so the army is already at the new land for pathfinding purposes.
@@ -389,7 +390,7 @@ export function progressAcquisitions(state: GameState): boolean {
           break;
         }
         if (!hero || hero.assignedTo !== getDiplomacyAssignment(order.landId)) {
-          state.message = `Diplomatic claim at ${land.name} cancelled — no assigned hero is leading it.`;
+          state.message = t('msg.diplomacyCancelledNoHero', { land: land.name });
           toCancel.push(order.landId);
           break;
         }
@@ -409,7 +410,7 @@ export function progressAcquisitions(state: GameState): boolean {
         }
         const armyLand = findLand(state, army.landId);
         if (!armyLand || !armyLand.neighbors.includes(order.landId)) {
-          state.message = `Intimidation of ${land.name} cancelled — your army moved away.`;
+          state.message = t('msg.intimidationCancelledMoved', { land: land.name });
           toCancel.push(order.landId);
           break;
         }
@@ -448,7 +449,7 @@ export function progressAcquisitions(state: GameState): boolean {
       land.loyalty = Math.max(land.loyalty, 60);
       const kingdom = state.kingdoms.find((k) => k.id === order.buyerId);
       if (kingdom && isLandVisibleToPlayer(state, landId)) {
-        state.message = `${land.name} joins ${kingdom.name}.`;
+        state.message = t('msg.landJoinsKingdom', { land: land.name, kingdom: kingdom.name });
       }
     }
   }

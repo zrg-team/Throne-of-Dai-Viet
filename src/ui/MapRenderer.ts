@@ -206,6 +206,28 @@ export function decorateWater(graphics: Phaser.GameObjects.Graphics, center: Pix
   void rng;
 }
 
+/**
+ * Warm-stone paving texture for fortress/city hexes: a subtle grid of mortar seams
+ * that reads as a paved city platform beneath the building clusters.
+ */
+export function decorateFortress(graphics: Phaser.GameObjects.Graphics, center: PixelPoint, size: number, rng: () => number): void {
+  const stoneColor = 0xa89e82;
+  graphics.lineStyle(1, stoneColor, 0.28);
+  // Horizontal seam rows.
+  for (let row = -1; row <= 1; row += 1) {
+    const y = center.y + row * size * 0.3;
+    graphics.lineBetween(center.x - size * 0.55, y, center.x + size * 0.55, y);
+  }
+  // Staggered vertical joints (brickwork pattern).
+  const offsets = [-0.27, 0, 0.27];
+  for (let col = 0; col < offsets.length; col += 1) {
+    const x = center.x + offsets[col] * size;
+    const rowShift = (col % 2) * size * 0.15;
+    graphics.lineBetween(x, center.y - size * 0.42 + rowShift, x, center.y + size * 0.42 + rowShift);
+  }
+  void rng;
+}
+
 /** Encapsulates ink-wash background, terrain fill, fog, borders, and road rendering. */
 export class InkMapRenderer {
   constructor(private readonly scene: Phaser.Scene) {}

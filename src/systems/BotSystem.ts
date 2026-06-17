@@ -2,6 +2,7 @@ import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../game/constants';
 import { getAcquisitionTicksRequired, getAcquisitionOrder, isLandVisibleToPlayer } from './LandSystem';
 import { calculateLandOutputs } from './ResourceSystem';
 import type { GameState, Kingdom, Land, LandBuildingType } from '../state/types';
+import { t } from '../i18n';
 
 export function runBotTurns(state: GameState): void {
   for (const kingdom of state.kingdoms) {
@@ -41,7 +42,7 @@ function runSingleBot(state: GameState, kingdom: Kingdom): void {
       method: 'conquest',
     });
     if (isLandVisibleToPlayer(state, neutralTarget.id)) {
-      state.message = `${kingdom.name} begins claiming ${neutralTarget.name}.`;
+      state.message = t('msg.botClaims', { kingdom: kingdom.name, land: neutralTarget.name });
     }
     return;
   }
@@ -53,7 +54,7 @@ function runSingleBot(state: GameState, kingdom: Kingdom): void {
       buildTarget.buildings.push({ type: building, level: 1 });
       buildTarget.outputs = calculateLandOutputs(state, buildTarget);
       if (isLandVisibleToPlayer(state, buildTarget.id)) {
-        state.message = `${kingdom.name} develops ${buildTarget.name}.`;
+        state.message = t('msg.botDevelops', { kingdom: kingdom.name, land: buildTarget.name });
       }
       return;
     }
@@ -62,7 +63,7 @@ function runSingleBot(state: GameState, kingdom: Kingdom): void {
   const playerTarget = frontier.find((land) => land.ownerId === PLAYER_KINGDOM_ID);
   if (playerTarget && state.turn % 4 === 0) {
     playerTarget.loyalty = Math.max(20, playerTarget.loyalty - 8);
-    state.message = `${kingdom.name} pressures ${playerTarget.name}.`;
+    state.message = t('msg.botPressures', { kingdom: kingdom.name, land: playerTarget.name });
   }
 }
 

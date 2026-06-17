@@ -1,6 +1,7 @@
 import { PLAYER_KINGDOM_ID } from '../game/constants';
 import { chooseByIndex } from '../utils/math';
 import type { GameState, Hero, HeroType } from '../state/types';
+import { t } from '../i18n';
 
 export function createHeroDraft(state: GameState, preferredType?: HeroType): void {
   if (state.activeHeroDraft || state.heroDeck.length === 0) {
@@ -20,7 +21,7 @@ export function createHeroDraft(state: GameState, preferredType?: HeroType): voi
   }
 
   state.activeHeroDraft = picks;
-  state.message = 'New heroes arrive at court. Choose one.';
+  state.message = t('msg.newHeroes');
 }
 
 export function recruitHero(state: GameState, heroId: string): boolean {
@@ -37,7 +38,7 @@ export function recruitHero(state: GameState, heroId: string): boolean {
   state.heroes.push(hero);
   state.heroDeck = state.heroDeck.filter((candidate) => candidate.id !== hero.id);
   state.activeHeroDraft = undefined;
-  state.message = `${hero.name} joins the court.`;
+  state.message = t('msg.heroJoins', { hero: hero.name });
 
   if (hero.type === 'general') {
     const army = state.armies.find((candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID);
