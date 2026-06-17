@@ -6,6 +6,13 @@ export const UNIT_SPEED: Record<UnitType, number> = {
   spearmen: 1,
   archers: 1,
   heavyInfantry: 0.75,
+  crossbowmen: 0.75,
+  lightCavalry: 1.25,
+  royalGuard: 0.8,
+  warElephants: 0.6,
+  siegeEngine: 0.5,
+  riverMarines: 0.9,
+  militia: 1,
 };
 
 /** Relative difficulty of crossing a land dominated by each terrain type. Higher values are slower. */
