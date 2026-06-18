@@ -10,6 +10,7 @@ import { compactNumber } from '../utils/format';
 import { IsoBuildingRenderer } from './IsoBuildingRenderer';
 import { SoldierRenderer } from './SoldierRenderer';
 import type { LandBuildingType } from '../state/types';
+import { UI_FONT } from './fonts';
 
 export type ProgressBadgeVariant = 'acquisition' | 'build' | 'siege' | 'recruit';
 type PlayerFlagStyle = 'yellow-seal' | 'red-moon' | 'layered-square' | 'red-fringe-yellow' | 'yellow-red-medallion';
@@ -127,6 +128,7 @@ export class InkMapItemRenderer {
     const seal = this.scene.add.rectangle(0, -18, 42, 26, sealColor, 0.92).setStrokeStyle(2, INK.inkSoft, 0.9);
     const text = this.scene.add.text(0, -18, compactNumber(total), {
       color: '#f3ede0',
+      fontFamily: UI_FONT,
       fontSize: '12px',
       fontStyle: '700',
     }).setOrigin(0.5);
@@ -277,6 +279,7 @@ export class InkMapItemRenderer {
 
     const text = this.scene.add.text(0, 23, `${progress}/${required}`, {
       color: '#f3ede0',
+      fontFamily: UI_FONT,
       fontSize: '10px',
       fontStyle: '700',
       backgroundColor: '#2b332b',

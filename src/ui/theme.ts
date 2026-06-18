@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { ResourceKey } from '../state/types';
 import { InkUI, INK_UI, INK_UI_HEX, type InkButtonVariant, type InkSurfaceOptions } from './InkUI';
+import { UI_FONT } from './fonts';
 
 export const WOOD = {
   light: INK_UI.parchment,
@@ -50,15 +51,15 @@ export type TextVariant =
   | 'buttonDark';
 
 export const TEXT_STYLES: Record<TextVariant, Phaser.Types.GameObjects.Text.TextStyle> = {
-  header: { color: INK_UI_HEX.inkText, fontSize: '15px', fontStyle: '700' },
-  subheader: { color: INK_UI_HEX.mutedText, fontSize: '11px', fontStyle: '700' },
-  title: { color: INK_UI_HEX.lightText, fontSize: '22px', fontStyle: '700' },
-  subtitle: { color: '#e9d6aa', fontSize: '12px' },
-  body: { color: INK_UI_HEX.inkText, fontSize: '13px' },
-  label: { color: INK_UI_HEX.inkText, fontSize: '15px', fontStyle: '700' },
-  caption: { color: INK_UI_HEX.mutedText, fontSize: '11px' },
-  button: { color: INK_UI_HEX.inkText, fontSize: '13px', fontStyle: '700' },
-  buttonDark: { color: INK_UI_HEX.lightText, fontSize: '13px', fontStyle: '700' },
+  header: { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '15px', fontStyle: '700' },
+  subheader: { color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '11px', fontStyle: '700' },
+  title: { color: INK_UI_HEX.lightText, fontFamily: UI_FONT, fontSize: '22px', fontStyle: '700' },
+  subtitle: { color: '#e9d6aa', fontFamily: UI_FONT, fontSize: '12px' },
+  body: { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '13px' },
+  label: { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '15px', fontStyle: '700' },
+  caption: { color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '11px' },
+  button: { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '13px', fontStyle: '700' },
+  buttonDark: { color: INK_UI_HEX.lightText, fontFamily: UI_FONT, fontSize: '13px', fontStyle: '700' },
 };
 
 export function createLabel(

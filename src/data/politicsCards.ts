@@ -55,6 +55,7 @@ export const politicsCardTemplates: PoliticsCard[] = [
     id: 'spring-harvest',
     title: 'Spring Harvest',
     type: 'opportunity',
+    seasons: ['Spring'],
     description: 'A mild season gives villages room to produce a surplus.',
     choices: [
       { id: 'store-rice', label: 'Store Rice', description: 'Food income surges for 6 ticks.', effects: { resourceRateModifier: { food: 7 }, durationTicks: 6 } },
@@ -85,6 +86,7 @@ export const politicsCardTemplates: PoliticsCard[] = [
     id: 'bad-harvest',
     title: 'Bad Harvest',
     type: 'crisis',
+    seasons: ['Autumn', 'Winter'],
     description: 'The court must decide how to absorb a poor harvest.',
     choices: [
       { id: 'tight-rations', label: 'Tight Rations', description: 'Food income falls for 4 ticks.', effects: { resourceRateModifier: { food: -5 }, durationTicks: 4 } },
@@ -132,6 +134,102 @@ export const politicsCardTemplates: PoliticsCard[] = [
     ],
   },
   {
+    id: 'good-harvest',
+    title: 'Good Harvest',
+    type: 'opportunity',
+    seasons: ['Autumn'],
+    description: 'Granaries fill faster than expected, but the court must choose where the surplus goes.',
+    choices: [
+      { id: 'store-harvest', label: 'Store Harvest', description: 'Food income rises briefly.', effects: { resourceRateModifier: { food: 6 }, durationTicks: 4 } },
+      { id: 'sell-surplus', label: 'Sell Surplus', description: 'Spend food for immediate gold.', effects: { resourceDelta: { food: -35, gold: 45 } } },
+    ],
+  },
+  {
+    id: 'flooded-fields',
+    title: 'Flooded Fields',
+    type: 'crisis',
+    seasons: ['Summer', 'Autumn'],
+    description: 'Heavy water ruins low fields and forces emergency work on canals.',
+    choices: [
+      { id: 'accept-flood-losses', label: 'Accept Losses', description: 'Food income falls for several ticks.', effects: { resourceRateModifier: { food: -4 }, durationTicks: 4 } },
+      { id: 'repair-dikes', label: 'Repair Dikes', description: 'Spend supplies and gold to soften the damage.', effects: { resourceDelta: { supplies: -18, gold: -20 }, resourceRateModifier: { food: -1 }, durationTicks: 2 } },
+    ],
+  },
+  {
+    id: 'harsh-winter',
+    title: 'Harsh Winter',
+    type: 'crisis',
+    seasons: ['Winter'],
+    description: 'Cold weather strains stores, roads, and household food reserves.',
+    choices: [
+      { id: 'ration-through-winter', label: 'Ration Stores', description: 'Food and human growth fall briefly.', effects: { resourceRateModifier: { food: -4, humans: -2 }, durationTicks: 4 } },
+      { id: 'winter-relief', label: 'Winter Relief', description: 'Spend food and gold to protect stability.', effects: { resourceDelta: { food: -45, gold: -25 }, stabilityDelta: 5, favorDelta: 4 } },
+    ],
+  },
+  {
+    id: 'granary-spoilage',
+    title: 'Granary Spoilage',
+    type: 'problem',
+    seasons: ['Spring', 'Summer'],
+    description: 'Damp stores and pests threaten the reserve before the next harvest.',
+    choices: [
+      { id: 'dump-spoiled-grain', label: 'Dump Grain', description: 'Food income falls while stores are cleaned.', effects: { resourceRateModifier: { food: -3 }, durationTicks: 4 } },
+      { id: 'fumigate-stores', label: 'Fumigate Stores', description: 'Spend gold and supplies to save part of the reserve.', effects: { resourceDelta: { gold: -22, supplies: -10, food: -15 } } },
+    ],
+  },
+  {
+    id: 'tax-shortfall',
+    title: 'Tax Shortfall',
+    type: 'problem',
+    seasons: ['Winter'],
+    description: 'Trade slows and collectors report less coin than planned.',
+    choices: [
+      { id: 'delay-projects', label: 'Delay Projects', description: 'Gold income falls for several ticks.', effects: { resourceRateModifier: { gold: -4 }, durationTicks: 4 } },
+      { id: 'audit-collectors', label: 'Audit Collectors', description: 'Spend supplies to recover some gold.', effects: { resourceDelta: { supplies: -18, gold: 24 }, courtCardSpeedModifier: 0.15, durationTicks: 3 } },
+    ],
+  },
+  {
+    id: 'market-corruption',
+    title: 'Market Corruption',
+    type: 'problem',
+    description: 'Merchants and clerks hide revenue inside the market network.',
+    choices: [
+      { id: 'tolerate-leakage', label: 'Tolerate Leakage', description: 'Market gold output falls briefly.', effects: { marketGoldOutputModifier: -0.22, durationTicks: 4 } },
+      { id: 'clean-ledgers', label: 'Clean Ledgers', description: 'Spend gold for stability and influence.', effects: { resourceDelta: { gold: -28 }, stabilityDelta: 4, influenceDelta: 3 } },
+    ],
+  },
+  {
+    id: 'mine-accident',
+    title: 'Mine Accident',
+    type: 'crisis',
+    description: 'A shaft collapse threatens production and public order.',
+    choices: [
+      { id: 'close-shafts', label: 'Close Shafts', description: 'Supplies income falls while the mine is secured.', effects: { resourceRateModifier: { supplies: -4 }, durationTicks: 4 } },
+      { id: 'rescue-crews', label: 'Rescue Crews', description: 'Spend food and gold to protect workers.', effects: { resourceDelta: { food: -20, gold: -18 }, stabilityDelta: 3, favorDelta: 3 } },
+    ],
+  },
+  {
+    id: 'army-wage-arrears',
+    title: 'Army Wage Arrears',
+    type: 'crisis',
+    description: 'Captains warn that delayed pay will spread through the camps.',
+    choices: [
+      { id: 'promise-backpay', label: 'Promise Backpay', description: 'Army gold upkeep rises briefly.', effects: { armyGoldUpkeepModifier: 0.25, durationTicks: 3 } },
+      { id: 'pay-arrears', label: 'Pay Arrears', description: 'Spend gold to restore army readiness.', effects: { resourceDelta: { gold: -35 }, restoreArmyReadiness: true } },
+    ],
+  },
+  {
+    id: 'public-festival',
+    title: 'Public Festival',
+    type: 'opportunity',
+    seasons: ['Spring', 'Autumn'],
+    description: 'Communal Halls can host a public feast if the stores can support it.',
+    choices: [
+      { id: 'hold-festival', label: 'Hold Festival', description: 'Spend food for stability, favor, and growth.', effects: { resourceDelta: { food: -35 }, stabilityDelta: 5, favorDelta: 5, resourceRateModifier: { humans: 2 }, durationTicks: 3 } },
+      { id: 'modest-gathering', label: 'Modest Gathering', description: 'Gain a small favor boost without spending stores.', effects: { favorDelta: 2 } },
+    ],
+  },
+  {
     id: 'farm-petition',
     title: 'Farm Petition',
     type: 'opportunity',
@@ -172,13 +270,13 @@ export const politicsCardTemplates: PoliticsCard[] = [
     ],
   },
   {
-    id: 'shrine-patronage',
-    title: 'Shrine Patronage',
+    id: 'communal-hall-patronage',
+    title: 'Communal Hall Patronage',
     type: 'law',
-    description: 'Monks ask for royal patronage in a growing town.',
+    description: 'Village elders ask for a public hall where disputes, festivals, and court orders can be managed.',
     choices: [
-      { id: 'grant-shrine', label: 'Grant Shrine', description: 'Add a free Shrine to a suitable district.', effects: { freeBuilding: 'shrine' } },
-      { id: 'adorn-shrine', label: 'Adorn Shrine', description: 'Upgrade an existing Shrine for free.', effects: { freeUpgrade: 'shrine' } },
+      { id: 'grant-communal-hall', label: 'Grant Hall', description: 'Add a free Communal Hall to a suitable district.', effects: { freeBuilding: 'communalHall' } },
+      { id: 'expand-communal-hall', label: 'Expand Hall', description: 'Upgrade an existing Communal Hall for free.', effects: { freeUpgrade: 'communalHall' } },
     ],
   },
   {

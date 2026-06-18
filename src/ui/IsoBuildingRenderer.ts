@@ -795,6 +795,14 @@ export class IsoBuildingRenderer {
       g.fillTriangle(x + 8, y - 14, x + 8, y - 8, x + 15, y - 11);
       return [g];
     }
+    if (building === 'communalHall') {
+      const seed = x * 0.083 + y * 0.149;
+      this.drawHall(g, x, y + 6, 15, {
+        roof: pick(HALL_ROOFS, seed),
+        wall: pick(HALL_WALLS, seed + 1),
+      });
+      return [g];
+    }
     this.drawHouse(g, x, y + 4, 14, CITY_HOUSE_STYLE);
     return [g];
   }

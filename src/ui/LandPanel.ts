@@ -7,7 +7,8 @@ import { getBuildOrder } from '../systems/ResourceSystem';
 import { getRecruitmentOrder } from '../systems/WarSystem';
 import { ACTION_BAR_HEIGHT } from './BottomSheet';
 import { InkUI, INK_UI } from './InkUI';
-import { buildingLabel, landTypeLabel, resourceLabel, t } from '../i18n';
+import { buildingLabel, heroName, landTypeLabel, resourceLabel, t } from '../i18n';
+import { UI_FONT } from './fonts';
 
 const CARD_H = 92;
 const CARD_W = GAME_WIDTH - 16;
@@ -47,12 +48,14 @@ export class LandPanel {
 
     const nameText = this.scene.add.text(CARD_X + 12, y + 10, land.name, {
       color: INK_UI.inkText,
+      fontFamily: UI_FONT,
       fontSize: '14px',
       fontStyle: 'bold',
     }).setDepth(101);
 
     const statusChip = this.scene.add.text(CARD_X + CARD_W - 10, y + 10, ownerLabel, {
       color: '#fff6bd',
+      fontFamily: UI_FONT,
       fontSize: '10px',
       fontStyle: '700',
       backgroundColor: `#${borderColor.toString(16).padStart(6, '0')}`,
@@ -61,11 +64,13 @@ export class LandPanel {
 
     const stat1 = this.scene.add.text(CARD_X + 12, y + 34, statLine, {
       color: INK_UI.inkText,
+      fontFamily: UI_FONT,
       fontSize: '12px',
     }).setDepth(101);
 
     const stat2 = this.scene.add.text(CARD_X + 12, y + 54, subLine, {
       color: INK_UI.mutedText,
+      fontFamily: UI_FONT,
       fontSize: '11px',
     }).setDepth(101);
 
@@ -239,7 +244,7 @@ function formatAcquisitionStatus(
       const trust = Math.floor(getLandTrust(land, PLAYER_KINGDOM_ID));
       const hero = getAssignedDiplomaticHero(state, order);
       return hero
-        ? `📜 ${t('land.heroTrust', { hero: hero.name, trust, required: order.required })}`
+        ? `📜 ${t('land.heroTrust', { hero: heroName(hero), trust, required: order.required })}`
         : `📜 ${t('land.missingHeroTrust', { trust, required: order.required })}`;
     }
     case 'intimidation': return `⚔ ${t('land.armyPressure', { progress: Math.floor(order.progress) })}`;

@@ -23,6 +23,7 @@ import { ArmyRenderer } from './map/ArmyRenderer';
 import { OverlayRenderer } from './map/OverlayRenderer';
 import { SettlementRenderer } from './map/SettlementRenderer';
 import { TrafficRenderer } from './map/TrafficRenderer';
+import { UI_FONT } from '../ui/fonts';
 import { t } from '../i18n';
 
 const MIN_CAMERA_ZOOM = 0.72;
@@ -822,6 +823,7 @@ export class MapScene extends Phaser.Scene {
     const labelText = isPlayerCapital ? `${this.shortName(land)} ${t('common.capital')}` : this.shortName(land);
     const label = this.add.text(0, 0, labelText, {
       color: '#241407',
+      fontFamily: UI_FONT,
       fontSize: '10px',
       align: 'center',
       fontStyle: '700',

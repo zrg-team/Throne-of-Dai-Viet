@@ -4,7 +4,7 @@ export type ResourceKey = 'food' | 'supplies' | 'gold' | 'humans';
 
 export type LandType = 'castle' | 'farm' | 'market' | 'iron' | 'temple' | 'enemyCastle' | 'wilderness';
 
-export type LandBuildingType = 'farm' | 'mine' | 'market' | 'wall' | 'tower' | 'barracks' | 'shrine';
+export type LandBuildingType = 'farm' | 'mine' | 'market' | 'wall' | 'tower' | 'barracks' | 'communalHall';
 
 /** A constructed building on a district: its type and current upgrade level. */
 export interface LandBuildingInstance {
@@ -108,6 +108,7 @@ export interface Army {
   level: number;
   experience: number;
   experienceToNextLevel: number;
+  unpaidTicks?: number;
 }
 
 /** An in-progress march: an army advancing one land per leg toward `path`'s last entry. */
@@ -189,6 +190,9 @@ export interface CourtEffect extends Partial<Omit<CourtModifier, 'id' | 'label' 
   completeUpgradeOrder?: boolean;
   restoreArmyReadiness?: boolean;
   defenseBoost?: number;
+  favorDelta?: number;
+  stabilityDelta?: number;
+  influenceDelta?: number;
   nextCourtCardSoon?: boolean;
   extraCourtDraw?: boolean;
   duplicateNextCourtChoice?: boolean;
@@ -205,6 +209,7 @@ export interface PoliticsCard {
   id: string;
   title: string;
   type: 'problem' | 'law' | 'opportunity' | 'crisis';
+  seasons?: Season[];
   description: string;
   choices: [PoliticsChoice, PoliticsChoice];
 }

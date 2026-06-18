@@ -1,13 +1,32 @@
 import { PLAYER_KINGDOM_ID } from '../game/constants';
-import { BUILD_TICKS_REQUIRED, MAX_BUILDING_LEVEL, UPGRADE_TICKS_REQUIRED } from '../game/gameplayConfig';
+import { MAX_BUILDING_LEVEL } from '../game/gameplayConfig';
 import { getCourtBonuses, getLandGovernorOutputMult } from './CourtSystem';
-import type { BuildOrder, GameState, Land, LandBuildingType, ResourceBag, ResourceKey } from '../state/types';
-import { buildingLabel, buildBuildingLabel, formatResourceList, t } from '../i18n';
+import type { BuildOrder, GameState, Land, LandBuildingType, ResourceBag, ResourceKey, Season } from '../state/types';
+import { buildingLabel, buildBuildingLabel, formatResourceList, resourceLabel, t } from '../i18n';
+
+export type BuildingCategory = 'production' | 'military' | 'public';
+
+export interface BuildingEconomySpec {
+  type: LandBuildingType;
+  category: BuildingCategory;
+  baseCost: Partial<ResourceBag>;
+  buildLabor: number;
+  buildTicks: number;
+  laborPerLevel: number;
+  output: Partial<ResourceBag>;
+  upkeep: Partial<ResourceBag>;
+  defensePerLevel?: number;
+}
 
 export interface BuildOption {
   type: LandBuildingType;
   label: string;
   cost: Partial<ResourceBag>;
+  labor: number;
+  ticks: number;
+  category: BuildingCategory;
+  upkeep: Partial<ResourceBag>;
+  output: Partial<ResourceBag>;
   canBuild: boolean;
   reason?: string;
 }
@@ -18,13 +37,27 @@ export interface UpgradeOption {
   level: number;
   maxLevel: number;
   cost: Partial<ResourceBag>;
+  labor: number;
+  ticks: number;
+  category: BuildingCategory;
+  upkeep: Partial<ResourceBag>;
+  output: Partial<ResourceBag>;
   canUpgrade: boolean;
   reason?: string;
 }
 
 export interface LaborStatus {
+  available: number;
   required: number;
   efficiency: number;
+}
+
+export interface PublicBuildingEffects {
+  favorPerTick: number;
+  stabilityPerTick: number;
+  influencePerTick: number;
+  growthBonus: number;
+  publicLevels: number;
 }
 
 export const BUILDING_LABELS: Record<LandBuildingType, string> = {
@@ -34,49 +67,107 @@ export const BUILDING_LABELS: Record<LandBuildingType, string> = {
   wall: 'Build Wall',
   tower: 'Build Tower',
   barracks: 'Build Barracks',
-  shrine: 'Build Shrine',
+  communalHall: 'Build Communal Hall',
+};
+
+const RESOURCE_KEYS: ResourceKey[] = ['food', 'supplies', 'gold', 'humans'];
+const BUILDING_ORDER: LandBuildingType[] = ['farm', 'mine', 'market', 'wall', 'tower', 'barracks', 'communalHall'];
+const PRODUCTION_BUILDINGS = new Set<LandBuildingType>(['farm', 'mine', 'market']);
+
+const UPGRADE_COST_MULTIPLIERS = [2.1, 3.3];
+const OUTPUT_MULTIPLIERS = [1, 1.55, 2.15];
+const UPKEEP_MULTIPLIERS = [1, 1.35, 1.8];
+
+export const BUILDING_ECONOMY: Record<LandBuildingType, BuildingEconomySpec> = {
+  farm: {
+    type: 'farm',
+    category: 'production',
+    baseCost: { gold: 32 },
+    buildLabor: 2,
+    buildTicks: 3,
+    laborPerLevel: 2,
+    output: { food: 9 },
+    upkeep: {},
+  },
+  mine: {
+    type: 'mine',
+    category: 'production',
+    baseCost: { gold: 38, food: 8 },
+    buildLabor: 3,
+    buildTicks: 4,
+    laborPerLevel: 3,
+    output: { supplies: 8, gold: 1 },
+    upkeep: { food: 1 },
+  },
+  market: {
+    type: 'market',
+    category: 'production',
+    baseCost: { supplies: 28, food: 8 },
+    buildLabor: 3,
+    buildTicks: 4,
+    laborPerLevel: 3,
+    output: { gold: 9, supplies: 2 },
+    upkeep: { food: 1 },
+  },
+  wall: {
+    type: 'wall',
+    category: 'military',
+    baseCost: { gold: 42 },
+    buildLabor: 2,
+    buildTicks: 3,
+    laborPerLevel: 0,
+    output: {},
+    upkeep: {},
+    defensePerLevel: 8,
+  },
+  tower: {
+    type: 'tower',
+    category: 'military',
+    baseCost: { gold: 58 },
+    buildLabor: 3,
+    buildTicks: 4,
+    laborPerLevel: 0,
+    output: {},
+    upkeep: { gold: 1 },
+    defensePerLevel: 14,
+  },
+  barracks: {
+    type: 'barracks',
+    category: 'military',
+    baseCost: { gold: 56, supplies: 24 },
+    buildLabor: 3,
+    buildTicks: 4,
+    laborPerLevel: 0,
+    output: {},
+    upkeep: { gold: 2, food: 1 },
+  },
+  communalHall: {
+    type: 'communalHall',
+    category: 'public',
+    baseCost: { supplies: 26 },
+    buildLabor: 2,
+    buildTicks: 4,
+    laborPerLevel: 0,
+    output: {},
+    upkeep: { food: 1 },
+  },
 };
 
 function buildOrderKindLabel(kind: BuildOrder['kind']): string {
   return t(kind === 'upgrade' ? 'order.upgrading' : 'order.building').toLowerCase();
 }
 
-/** One-time construction cost (gold + supplies), paid when the build order is queued. */
-const BUILDING_COSTS: Record<LandBuildingType, Partial<ResourceBag>> = {
-  farm: { gold: 36, supplies: 10 },
-  mine: { gold: 46, supplies: 17 },
-  market: { gold: 66, supplies: 22 },
-  wall: { gold: 54, supplies: 24 },
-  tower: { gold: 84, supplies: 30 },
-  barracks: { gold: 72, supplies: 26 },
-  shrine: { gold: 75, supplies: 12 },
-};
-
-/** Multiplies BUILDING_COSTS to get the cost of upgrading from level N to N+1 (index N-1). High on purpose. */
-const UPGRADE_COST_MULTIPLIERS = [2.5, 4];
-
-/** Output multiplier for a building at the given level (1x / 1.6x / 2.2x). */
-function buildingOutputMultiplier(level: number): number {
-  return 1 + (level - 1) * 0.6;
+function outputMultiplier(level: number): number {
+  return OUTPUT_MULTIPLIERS[Math.max(0, Math.min(level - 1, OUTPUT_MULTIPLIERS.length - 1))] ?? 1;
 }
 
-const DEFENSE_BONUSES: Partial<Record<LandBuildingType, number>> = {
-  wall: 6,
-  tower: 10,
-};
+function upkeepMultiplier(level: number): number {
+  return UPKEEP_MULTIPLIERS[Math.max(0, Math.min(level - 1, UPKEEP_MULTIPLIERS.length - 1))] ?? 1;
+}
 
-/** Recurring per-tick upkeep per level: labor (humans) plus gold/supplies maintenance. */
-const BUILDING_UPKEEP: Record<LandBuildingType, { humans: number; gold?: number; supplies?: number }> = {
-  farm: { humans: 2, gold: 1 },
-  mine: { humans: 2, gold: 1 },
-  market: { humans: 2, gold: 2 },
-  wall: { humans: 1, gold: 1 },
-  tower: { humans: 2, gold: 2 },
-  barracks: { humans: 1, gold: 1 },
-  shrine: { humans: 1, gold: 1 },
-};
-
-const RESOURCE_KEYS: ResourceKey[] = ['food', 'supplies', 'gold', 'humans'];
+function upgradeCostMultiplier(level: number): number {
+  return UPGRADE_COST_MULTIPLIERS[Math.max(0, Math.min(level - 1, UPGRADE_COST_MULTIPLIERS.length - 1))] ?? 1;
+}
 
 export function emptyResourceBag(): ResourceBag {
   return {
@@ -105,8 +196,30 @@ export function applyResourceDelta(state: GameState, delta: Partial<ResourceBag>
   }
 }
 
+export function getBuildingCategory(type: LandBuildingType): BuildingCategory {
+  return BUILDING_ECONOMY[type].category;
+}
+
+export function getPublicBuildingEffects(state: GameState): PublicBuildingEffects {
+  const publicLevels = state.lands
+    .filter((land) => land.ownerId === PLAYER_KINGDOM_ID)
+    .reduce((sum, land) => (
+      sum + land.buildings
+        .filter((building) => getBuildingCategory(building.type) === 'public')
+        .reduce((buildingSum, building) => buildingSum + building.level, 0)
+    ), 0);
+
+  return {
+    publicLevels,
+    favorPerTick: publicLevels * 0.4,
+    stabilityPerTick: publicLevels * 0.08,
+    influencePerTick: publicLevels * 0.04,
+    growthBonus: publicLevels,
+  };
+}
+
 export function refreshAllLandOutputs(state: GameState): void {
-  const efficiency = calculateLaborEfficiency(state);
+  const labor = getLaborStatus(state);
   const courtBonuses = getCourtBonuses(state);
 
   for (const land of state.lands) {
@@ -116,7 +229,7 @@ export function refreshAllLandOutputs(state: GameState): void {
     }
 
     const governorMult = getLandGovernorOutputMult(state, land.id);
-    const outputs = calculateLandOutputs(state, land, efficiency * governorMult);
+    const outputs = calculateLandOutputs(state, land, labor.efficiency * governorMult);
     outputs.gold = Math.round(outputs.gold * courtBonuses.goldOutputMult);
     outputs.food = Math.round(outputs.food * courtBonuses.foodOutputMult);
     outputs.supplies = Math.round(outputs.supplies * courtBonuses.suppliesOutputMult);
@@ -130,37 +243,36 @@ export function calculateLandOutputs(state: GameState, land: Land, efficiency = 
   const outputs = emptyResourceBag();
   const ownedNeighbors = land.neighbors.filter((neighborId) => state.lands.find((other) => other.id === neighborId)?.ownerId === PLAYER_KINGDOM_ID).length;
   const roads = Math.floor(land.neighbors.length / 3) + ownedNeighbors * 2;
-  const waterBonus = land.terrainSummary.water > 0 ? 8 : 0;
-  const riceBonus = land.terrainSummary.riceFields > 0 ? 4 : 0;
-  const mountainBonus = land.terrainSummary.mountains > land.terrainSummary.hills ? 4 : 0;
+  const waterBonus = land.terrainSummary.water > 0 ? 2 : 0;
+  const riceBonus = land.terrainSummary.riceFields > 0 ? 2 : 0;
+  const mountainBonus = land.terrainSummary.mountains > land.terrainSummary.hills ? 2 : 0;
 
   if (land.type === 'castle' || land.type === 'enemyCastle') {
     outputs.gold += 8 + roads;
     outputs.supplies += 3 + Math.floor(roads);
-    outputs.humans += 7;
   }
 
   if (land.type === 'market' || land.type === 'temple') {
     outputs.gold += 3 + roads;
     outputs.supplies += Math.max(1, Math.floor(roads / 2));
-    outputs.humans += 2;
   }
 
   for (const building of land.buildings) {
-    const multiplier = buildingOutputMultiplier(building.level) * efficiency;
+    const spec = BUILDING_ECONOMY[building.type];
+    if (spec.category !== 'production') {
+      continue;
+    }
+
+    const multiplier = outputMultiplier(building.level) * efficiency;
     if (building.type === 'farm') {
-      outputs.food += (7 + waterBonus * 0.6 + riceBonus * 0.6) * multiplier;
-      outputs.humans += 1 * multiplier;
-    }
-    if (building.type === 'mine') {
-      outputs.supplies += (7 + mountainBonus * 0.75) * multiplier;
-      outputs.gold += 2 * multiplier;
-    }
-    if (building.type === 'market') {
+      outputs.food += (spec.output.food ?? 0) * multiplier + (waterBonus + riceBonus) * multiplier;
+    } else if (building.type === 'mine') {
+      outputs.supplies += ((spec.output.supplies ?? 0) + mountainBonus) * multiplier;
+      outputs.gold += (spec.output.gold ?? 0) * multiplier;
+    } else if (building.type === 'market') {
       const marketMult = land.ownerId === PLAYER_KINGDOM_ID ? getCourtBonuses(state).marketGoldOutputMult : 1;
-      outputs.gold += (7 + roads * 2) * multiplier * marketMult;
-      outputs.supplies += (2 + roads) * multiplier;
-      outputs.humans += 2 * multiplier;
+      outputs.gold += ((spec.output.gold ?? 0) + roads * 2) * multiplier * marketMult;
+      outputs.supplies += ((spec.output.supplies ?? 0) + Math.floor(roads / 2)) * multiplier;
     }
   }
 
@@ -171,37 +283,100 @@ export function calculateLandOutputs(state: GameState, land: Land, efficiency = 
   return outputs;
 }
 
-/** Total per-tick humans required to staff every building on player-owned lands, scaled by level. */
-function getTotalLaborRequired(state: GameState): number {
+function getBuildingLaborRequired(state: GameState): number {
   let required = 0;
   for (const land of state.lands) {
     if (land.ownerId !== PLAYER_KINGDOM_ID) {
       continue;
     }
     for (const building of land.buildings) {
-      required += BUILDING_UPKEEP[building.type].humans * building.level;
+      const spec = BUILDING_ECONOMY[building.type];
+      required += Math.ceil(spec.laborPerLevel * building.level * upkeepMultiplier(building.level));
     }
   }
   return required;
 }
 
-/**
- * Fraction (0.4-1) of full output that player buildings produce based on
- * available population vs. total labor required to staff them.
- */
-export function calculateLaborEfficiency(state: GameState): number {
-  const required = getTotalLaborRequired(state);
-  if (required <= 0) {
-    return 1;
-  }
-  return Math.min(1, Math.max(0.4, state.resources.humans / required));
+function getConstructionLaborRequired(state: GameState): number {
+  return state.buildOrders.reduce((sum, order) => {
+    const level = order.kind === 'upgrade' ? 2 : 1;
+    return sum + Math.ceil(BUILDING_ECONOMY[order.building].buildLabor * upkeepMultiplier(level));
+  }, 0);
+}
+
+function getPlayerTroops(state: GameState): number {
+  return state.armies
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)
+    .reduce((sum, army) => sum + army.units.spearmen + army.units.archers + army.units.heavyInfantry, 0);
+}
+
+export function getArmyGoldUpkeep(army: { units: { spearmen: number; archers: number; heavyInfantry: number }; level: number }): number {
+  const total = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
+  return Math.ceil(total / 250) + army.level;
+}
+
+function getTotalArmyGoldUpkeep(state: GameState): number {
+  return state.armies
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)
+    .reduce((sum, army) => sum + getArmyGoldUpkeep(army), 0);
 }
 
 export function getLaborStatus(state: GameState): LaborStatus {
+  const available = Math.max(0, Math.floor(state.resources.humans / 40));
+  const required = getBuildingLaborRequired(state) + getConstructionLaborRequired(state);
   return {
-    required: getTotalLaborRequired(state),
-    efficiency: calculateLaborEfficiency(state),
+    available,
+    required,
+    efficiency: required <= 0 ? 1 : Math.min(1, Math.max(0.45, available / required)),
   };
+}
+
+function addBag(target: ResourceBag, delta: Partial<ResourceBag>, sign = 1): void {
+  for (const [key, value] of Object.entries(delta)) {
+    if (!RESOURCE_KEYS.includes(key as ResourceKey)) {
+      continue;
+    }
+    target[key as ResourceKey] += Math.round((value ?? 0) * sign);
+  }
+}
+
+function getSeasonFarmMultiplier(season: Season): number {
+  switch (season) {
+    case 'Spring': return 1.1;
+    case 'Autumn': return 1.25;
+    case 'Winter': return 0.8;
+    case 'Summer':
+    default: return 1;
+  }
+}
+
+function getPopulationFoodMultiplier(season: Season): number {
+  return season === 'Winter' ? 1.15 : 1;
+}
+
+function calculateBuildingUpkeep(state: GameState): ResourceBag {
+  const upkeep = emptyResourceBag();
+  const courtBonuses = getCourtBonuses(state);
+
+  for (const land of state.lands) {
+    if (land.ownerId !== PLAYER_KINGDOM_ID) {
+      continue;
+    }
+    for (const building of land.buildings) {
+      const spec = BUILDING_ECONOMY[building.type];
+      for (const [key, value] of Object.entries(spec.upkeep)) {
+        const resourceKey = key as ResourceKey;
+        const courtMult = resourceKey === 'gold'
+          ? courtBonuses.buildingGoldUpkeepMult
+          : resourceKey === 'supplies'
+            ? courtBonuses.buildingSuppliesUpkeepMult
+            : 1;
+        upkeep[resourceKey] += Math.ceil((value ?? 0) * building.level * upkeepMultiplier(building.level) * courtMult);
+      }
+    }
+  }
+
+  return upkeep;
 }
 
 export function calculatePlayerResourceRates(state: GameState): ResourceBag {
@@ -216,58 +391,56 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
     rates.gold += land.outputs.gold;
   }
 
-  const playerTroops = state.armies
-    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)
-    .reduce(
-      (sum, army) => sum + army.units.spearmen + army.units.archers + army.units.heavyInfantry,
-      0,
-    );
-  const heroUpkeep = state.heroes.reduce((sum, hero) => sum + hero.upkeepGold, 0);
-  const foodUpkeep = Math.ceil(playerTroops / 250) + Math.ceil(state.resources.humans / 120);
-  const suppliesUpkeep = Math.ceil(playerTroops / 650);
-  const armyGoldUpkeep = state.armies
-    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)
-    .reduce((sum, army) => {
-      const total = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
-      return sum + Math.ceil(total / 500) + Math.max(0, army.level - 1);
-    }, 0);
+  rates.food = Math.round(rates.food * getSeasonFarmMultiplier(state.season));
+
   const courtBonuses = getCourtBonuses(state);
-
-  let buildingMaintenanceGold = 0;
-  let buildingMaintenanceSupplies = 0;
-  for (const land of state.lands) {
-    if (land.ownerId !== PLAYER_KINGDOM_ID) {
-      continue;
-    }
-    for (const building of land.buildings) {
-      const upkeep = BUILDING_UPKEEP[building.type];
-      buildingMaintenanceGold += Math.ceil((upkeep.gold ?? 0) * building.level * courtBonuses.buildingGoldUpkeepMult);
-      buildingMaintenanceSupplies += Math.ceil((upkeep.supplies ?? 0) * building.level * courtBonuses.buildingSuppliesUpkeepMult);
-    }
-  }
-
   for (const [key, value] of Object.entries(courtBonuses.resourceRateModifier)) {
-    rates[key as ResourceKey] += value ?? 0;
+    if (key !== 'humans') {
+      rates[key as ResourceKey] += value ?? 0;
+    }
   }
 
-  rates.food -= foodUpkeep;
-  rates.supplies -= suppliesUpkeep + buildingMaintenanceSupplies;
-  rates.gold -= heroUpkeep + buildingMaintenanceGold + Math.ceil(armyGoldUpkeep * courtBonuses.armyGoldUpkeepMult);
+  const buildingUpkeep = calculateBuildingUpkeep(state);
+  addBag(rates, buildingUpkeep, -1);
 
-  const foodAfterUpkeep = rates.food;
+  const playerTroops = getPlayerTroops(state);
+  const heroUpkeep = state.heroes.reduce((sum, hero) => sum + hero.upkeepGold, 0);
+  const populationFoodUpkeep = Math.ceil((state.resources.humans / 140) * getPopulationFoodMultiplier(state.season));
+  const armyRealmFoodPressure = Math.ceil(playerTroops / 300);
+  const suppliesUpkeep = Math.ceil(playerTroops / 650);
+  const armyGoldUpkeep = Math.ceil(getTotalArmyGoldUpkeep(state) * courtBonuses.armyGoldUpkeepMult);
+
+  rates.food -= populationFoodUpkeep + armyRealmFoodPressure;
+  rates.supplies -= suppliesUpkeep;
+  rates.gold -= heroUpkeep + armyGoldUpkeep;
+
+  const foodNetBeforeHumanGrowth = rates.food;
   const ownedLandCount = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length;
-  rates.humans = foodAfterUpkeep >= 0
-    ? Math.max(1, Math.floor(ownedLandCount + foodAfterUpkeep / 8))
-    : -Math.max(1, Math.ceil(Math.abs(foodAfterUpkeep) / 6));
+  const stabilityBonus = state.court.stability >= 70 ? 1 : state.court.stability < 40 ? -1 : 0;
+  const publicGrowthBonus = getPublicBuildingEffects(state).growthBonus;
+  const eventGrowthModifier = courtBonuses.resourceRateModifier.humans ?? 0;
+
+  if (foodNetBeforeHumanGrowth < 0) {
+    rates.humans = state.resources.food <= 0
+      ? -Math.max(1, Math.ceil(Math.abs(foodNetBeforeHumanGrowth) / 5))
+      : 0;
+  } else {
+    rates.humans = Math.max(0, ownedLandCount + Math.floor(foodNetBeforeHumanGrowth / 10) + stabilityBonus + publicGrowthBonus + eventGrowthModifier);
+  }
 
   return rates;
 }
 
 export function collectPlayerIncome(state: GameState): void {
   refreshAllLandOutputs(state);
+  const hadFoodShortage = state.resourceRates.food < 0 && state.resources.food + state.resourceRates.food <= 0;
+  const hadSuppliesShortage = state.resourceRates.supplies < 0 && state.resources.supplies + state.resourceRates.supplies <= 0;
+  if (hadFoodShortage && state.resourceRates.humans >= 0) {
+    state.resourceRates.humans = -Math.max(1, Math.ceil(Math.abs(state.resourceRates.food) / 5));
+  }
   applyResourceDelta(state, state.resourceRates);
 
-  if (state.resourceRates.food < 0 && state.resources.food <= 0) {
+  if (hadFoodShortage) {
     for (const army of state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)) {
       army.morale = Math.max(25, army.morale - 4);
       army.supply = Math.max(20, army.supply - 6);
@@ -275,7 +448,7 @@ export function collectPlayerIncome(state: GameState): void {
     state.message = t('msg.foodEmpty');
   }
 
-  if (state.resourceRates.supplies < 0 && state.resources.supplies <= 0) {
+  if (hadSuppliesShortage) {
     for (const army of state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)) {
       army.supply = Math.max(15, army.supply - 5);
     }
@@ -290,12 +463,13 @@ export function getBuildOrder(state: GameState, landId: string): BuildOrder | un
 export function getBuildOptions(state: GameState, land: Land): BuildOption[] {
   const activeOrder = getBuildOrder(state, land.id);
 
-  return (['farm', 'mine', 'market', 'wall', 'tower', 'barracks', 'shrine'] as LandBuildingType[]).map((type) => {
+  return BUILDING_ORDER.map((type) => {
+    const spec = BUILDING_ECONOMY[type];
     const terrainReason = getBuildingTerrainBlocker(land, type);
     const capacityReason = land.buildings.length >= land.buildingCapacity ? t('reason.noCapacity') : undefined;
     const duplicateReason = type === 'market' && land.buildings.filter((building) => building.type === 'market').length >= getMarketLimit(land)
       ? t('reason.marketLimit')
-      : (type === 'wall' || type === 'tower' || type === 'barracks' || type === 'shrine') && land.buildings.some((building) => building.type === type)
+      : (type === 'wall' || type === 'tower' || type === 'barracks' || type === 'communalHall') && land.buildings.some((building) => building.type === type)
         ? t('reason.alreadyBuilt', { building: buildingLabel(type) })
         : undefined;
     const activeOrderReason = activeOrder
@@ -306,7 +480,7 @@ export function getBuildOptions(state: GameState, land: Land): BuildOption[] {
         required: activeOrder.required,
       })
       : undefined;
-    const cost = scaleResourceBag(BUILDING_COSTS[type], getCourtBonuses(state).buildingCostMult);
+    const cost = scaleResourceBag(spec.baseCost, getCourtBonuses(state).buildingCostMult);
     const costReason = !canSpend(state, cost) ? formatCostBlocker(cost) : undefined;
     const reason = terrainReason ?? capacityReason ?? duplicateReason ?? activeOrderReason ?? costReason;
 
@@ -314,6 +488,11 @@ export function getBuildOptions(state: GameState, land: Land): BuildOption[] {
       type,
       label: buildBuildingLabel(type),
       cost,
+      labor: spec.buildLabor,
+      ticks: Math.max(1, spec.buildTicks - getCourtBonuses(state).buildSpeedBonus),
+      category: spec.category,
+      upkeep: getScaledUpkeep(type, 1),
+      output: getScaledOutput(type, 1),
       canBuild: !reason,
       reason,
     };
@@ -324,6 +503,7 @@ export function getUpgradeOptions(state: GameState, land: Land): UpgradeOption[]
   const activeOrder = getBuildOrder(state, land.id);
 
   return land.buildings.map((building, index) => {
+    const spec = BUILDING_ECONOMY[building.type];
     const atMaxLevel = building.level >= MAX_BUILDING_LEVEL;
     const activeOrderReason = activeOrder
       ? t('reason.alreadyOrder', {
@@ -333,9 +513,10 @@ export function getUpgradeOptions(state: GameState, land: Land): UpgradeOption[]
         required: activeOrder.required,
       })
       : undefined;
-    const cost = scaleResourceBag(BUILDING_COSTS[building.type], (UPGRADE_COST_MULTIPLIERS[building.level - 1] ?? 1) * getCourtBonuses(state).buildingCostMult);
+    const cost = scaleResourceBag(spec.baseCost, upgradeCostMultiplier(building.level) * getCourtBonuses(state).buildingCostMult);
     const costReason = !atMaxLevel && !canSpend(state, cost) ? formatCostBlocker(cost) : undefined;
     const reason = atMaxLevel ? t('reason.maxLevel') : (activeOrderReason ?? costReason);
+    const nextLevel = Math.min(MAX_BUILDING_LEVEL, building.level + 1);
 
     return {
       index,
@@ -343,6 +524,11 @@ export function getUpgradeOptions(state: GameState, land: Land): UpgradeOption[]
       level: building.level,
       maxLevel: MAX_BUILDING_LEVEL,
       cost,
+      labor: Math.ceil(spec.buildLabor * upkeepMultiplier(nextLevel)),
+      ticks: Math.max(1, spec.buildTicks - getCourtBonuses(state).buildSpeedBonus - getCourtBonuses(state).upgradeSpeedBonus),
+      category: spec.category,
+      upkeep: getScaledUpkeep(building.type, nextLevel),
+      output: getScaledOutput(building.type, nextLevel),
       canUpgrade: !reason,
       reason,
     };
@@ -366,15 +552,15 @@ export function buildDistrictBuilding(state: GameState, landId: string, building
   }
 
   applyResourceDelta(state, Object.fromEntries(Object.entries(option.cost).map(([key, value]) => [key, -(value ?? 0)])));
-  const required = Math.max(1, BUILD_TICKS_REQUIRED - getCourtBonuses(state).buildSpeedBonus);
   state.buildOrders.push({
     landId,
     building,
     kind: 'build',
     progress: 0,
-    required,
+    required: option.ticks,
   });
-  state.message = t('msg.startedConstruction', { building: buildingLabel(building), land: land.name, ticks: required });
+  state.message = t('msg.startedConstruction', { building: buildingLabel(building), land: land.name, ticks: option.ticks });
+  refreshAllLandOutputs(state);
   return true;
 }
 
@@ -395,21 +581,21 @@ export function upgradeDistrictBuilding(state: GameState, landId: string, buildi
   }
 
   applyResourceDelta(state, Object.fromEntries(Object.entries(option.cost).map(([key, value]) => [key, -(value ?? 0)])));
-  const required = Math.max(1, UPGRADE_TICKS_REQUIRED - getCourtBonuses(state).buildSpeedBonus - getCourtBonuses(state).upgradeSpeedBonus);
   state.buildOrders.push({
     landId,
     building: option.type,
     kind: 'upgrade',
     buildingIndex,
     progress: 0,
-    required,
+    required: option.ticks,
   });
   state.message = t('msg.startedUpgrade', {
     building: buildingLabel(option.type),
     level: option.level + 1,
     land: land.name,
-    ticks: required,
+    ticks: option.ticks,
   });
+  refreshAllLandOutputs(state);
   return true;
 }
 
@@ -430,7 +616,7 @@ export function destroyDistrictBuilding(state: GameState, landId: string, buildi
   }
 
   const label = buildingLabel(building.type);
-  const defenseBonus = DEFENSE_BONUSES[building.type];
+  const defenseBonus = BUILDING_ECONOMY[building.type].defensePerLevel;
   if (defenseBonus) {
     land.defense = Math.max(0, land.defense - defenseBonus * building.level);
   }
@@ -461,7 +647,7 @@ export function progressBuildOrders(state: GameState): boolean {
     }
 
     const label = buildingLabel(order.building);
-    const defenseBonus = DEFENSE_BONUSES[order.building];
+    const defenseBonus = BUILDING_ECONOMY[order.building].defensePerLevel;
 
     if (order.kind === 'upgrade' && order.buildingIndex !== undefined) {
       const instance = land.buildings[order.buildingIndex];
@@ -486,6 +672,16 @@ export function progressBuildOrders(state: GameState): boolean {
   return true;
 }
 
+function getScaledOutput(type: LandBuildingType, level: number): Partial<ResourceBag> {
+  const output = BUILDING_ECONOMY[type].output;
+  return scaleResourceBag(output, outputMultiplier(level));
+}
+
+function getScaledUpkeep(type: LandBuildingType, level: number): Partial<ResourceBag> {
+  const upkeep = BUILDING_ECONOMY[type].upkeep;
+  return scaleResourceBag(upkeep, level * upkeepMultiplier(level));
+}
+
 function getBuildingTerrainBlocker(land: Land, building: LandBuildingType): string | undefined {
   if (building === 'farm') {
     const grassTiles = land.terrainSummary.plains + land.terrainSummary.fields + land.terrainSummary.riceFields + land.terrainSummary.forest;
@@ -508,9 +704,14 @@ function getMarketLimit(land: Land): number {
 }
 
 function scaleResourceBag(cost: Partial<ResourceBag>, multiplier: number): Partial<ResourceBag> {
-  return Object.fromEntries(
-    Object.entries(cost).map(([key, value]) => [key, Math.ceil((value ?? 0) * multiplier)]),
-  );
+  const scaled: Partial<ResourceBag> = {};
+  for (const [key, value] of Object.entries(cost)) {
+    const amount = Math.ceil((value ?? 0) * multiplier);
+    if (amount > 0) {
+      scaled[key as ResourceKey] = amount;
+    }
+  }
+  return scaled;
 }
 
 /** Sum of levels across all `barracks` buildings on a district - drives recruitment speed. */
@@ -520,6 +721,15 @@ export function getBarracksLevel(land: Land): number {
     .reduce((sum, building) => sum + building.level, 0);
 }
 
+export function formatEconomyLine(values: Partial<ResourceBag>): string {
+  const text = formatResourceList(values);
+  return text || t('building.none');
+}
+
 function formatCostBlocker(cost: Partial<ResourceBag>): string {
   return t('reason.needCost', { parts: formatResourceList(cost) });
+}
+
+export function formatLabor(labor: number): string {
+  return `${labor} ${resourceLabel('humans')}`;
 }

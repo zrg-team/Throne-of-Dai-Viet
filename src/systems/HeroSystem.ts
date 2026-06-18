@@ -1,7 +1,7 @@
 import { PLAYER_KINGDOM_ID } from '../game/constants';
 import { chooseByIndex } from '../utils/math';
 import type { GameState, Hero, HeroType } from '../state/types';
-import { t } from '../i18n';
+import { heroName, t } from '../i18n';
 
 export function createHeroDraft(state: GameState, preferredType?: HeroType): void {
   if (state.activeHeroDraft || state.heroDeck.length === 0) {
@@ -38,7 +38,7 @@ export function recruitHero(state: GameState, heroId: string): boolean {
   state.heroes.push(hero);
   state.heroDeck = state.heroDeck.filter((candidate) => candidate.id !== hero.id);
   state.activeHeroDraft = undefined;
-  state.message = t('msg.heroJoins', { hero: hero.name });
+  state.message = t('msg.heroJoins', { hero: heroName(hero) });
 
   if (hero.type === 'general') {
     const army = state.armies.find((candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID);

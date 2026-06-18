@@ -3,7 +3,7 @@ import { heroTemplates } from '../data/heroes';
 import { politicsCardTemplates } from '../data/politicsCards';
 import { createHeroDraft } from './HeroSystem';
 import type { CourtModifier, CourtPositionId, CourtState, GameState, Hero, HeroStats, ResourceBag } from '../state/types';
-import { t } from '../i18n';
+import { heroName, t } from '../i18n';
 
 export const ALL_COURT_POSITIONS: CourtPositionId[] = [
   'marshal',
@@ -16,7 +16,7 @@ export const ALL_COURT_POSITIONS: CourtPositionId[] = [
   'masterOfHorse',
 ];
 
-/** Seats unlocked from the start, before any shrines are built. */
+/** Seats unlocked from the start, before any public halls are built. */
 const BASE_SEATS: CourtPositionId[] = ['marshal', 'treasurer', 'steward'];
 
 export const COURT_POSITION_LABELS: Record<CourtPositionId, string> = {
@@ -90,7 +90,7 @@ export const COURT_POSITION_EFFECTS: Record<CourtPositionId, (stats: HeroStats) 
   }),
   quartermaster: (stats) => ({
     recruitSpeedMult: stats.logistics * 0.003,
-    acquisitionSpeedMult: -stats.logistics * 0.003,
+    acquisitionSpeedMult: stats.logistics * 0.003,
   }),
   treasurer: (stats) => ({
     goldOutputMult: stats.administration * 0.004,
@@ -106,7 +106,7 @@ export const COURT_POSITION_EFFECTS: Record<CourtPositionId, (stats: HeroStats) 
     cardFrequencyMult: stats.diplomacy * 0.003,
   }),
   spymaster: (stats) => ({
-    acquisitionSpeedMult: -stats.diplomacy * 0.003,
+    acquisitionSpeedMult: stats.diplomacy * 0.003,
     cardFrequencyMult: stats.martial * 0.002,
   }),
   censor: (stats) => ({
@@ -128,19 +128,29 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function getShrineFavor(state: GameState): number {
-  let favor = 0;
+function getCommunalHallLevels(state: GameState): number {
+  let levels = 0;
   for (const land of state.lands) {
     if (land.ownerId !== PLAYER_KINGDOM_ID) {
       continue;
     }
     for (const building of land.buildings) {
-      if (building.type === 'shrine') {
-        favor += building.level * 0.4;
+      if (building.type === 'communalHall') {
+        levels += building.level;
       }
     }
   }
-  return favor;
+  return levels;
+}
+
+function getMarketStabilityPressure(state: GameState): number {
+  return state.lands
+    .filter((land) => land.ownerId === PLAYER_KINGDOM_ID)
+    .reduce((sum, land) => (
+      sum + land.buildings
+        .filter((building) => building.type === 'market')
+        .reduce((buildingSum, building) => buildingSum + building.level * 0.02, 0)
+    ), 0);
 }
 
 /** Aggregates every seated hero's position effects into the kingdom-wide bonus set. */
@@ -217,6 +227,7 @@ export function getCourtBonuses(state: GameState): CourtBonuses {
   }
 
   const filledSeatCount = Object.values(state.court.seats).filter(Boolean).length;
+  const publicLevels = getCommunalHallLevels(state);
 
   return {
     goldOutputMult: 1 + delta.goldOutputMult,
@@ -227,10 +238,10 @@ export function getCourtBonuses(state: GameState): CourtBonuses {
     recruitSpeedMult: 1 + delta.recruitSpeedMult,
     armyPowerMult: 1 + delta.armyPowerMult,
     armyMoraleRegen: delta.armyMoraleRegen,
-    stabilityRegen: BASE_STABILITY_REGEN + delta.stabilityRegen,
-    influenceRegen: BASE_INFLUENCE_REGEN + delta.influenceRegen,
-    favorPerTick: BASE_FAVOR_PER_TICK + delta.favorPerTick + getShrineFavor(state),
-    acquisitionSpeedMult: clamp(1 + delta.acquisitionSpeedMult, 0.4, 1),
+    stabilityRegen: BASE_STABILITY_REGEN + delta.stabilityRegen + publicLevels * 0.08,
+    influenceRegen: BASE_INFLUENCE_REGEN + delta.influenceRegen + publicLevels * 0.04,
+    favorPerTick: BASE_FAVOR_PER_TICK + delta.favorPerTick + publicLevels * 0.4,
+    acquisitionSpeedMult: clamp(1 + delta.acquisitionSpeedMult, 0.4, 1.8),
     acquisitionCostMult: clamp(1 + delta.acquisitionCostMult, 0.45, 1.4),
     cardFrequencyMult: clamp(1 + filledSeatCount * 0.22 + delta.cardFrequencyMult, 0.5, 3.5),
     resourceRateModifier,
@@ -264,14 +275,12 @@ function progressCourtModifiers(state: GameState): void {
   });
 }
 
-/** Recomputes which court seats are unlocked based on shrines built on player lands. */
+/** Recomputes which court seats are unlocked based on Communal Halls built on player lands. */
 export function refreshCourtSeats(state: GameState): void {
-  const shrineLevels = state.lands
-    .filter((land) => land.ownerId === PLAYER_KINGDOM_ID)
-    .reduce((sum, land) => sum + land.buildings.filter((building) => building.type === 'shrine').reduce((s, b) => s + b.level, 0), 0);
+  const communalHallLevels = getCommunalHallLevels(state);
 
   const bonusSeats = ALL_COURT_POSITIONS.filter((positionId) => !BASE_SEATS.includes(positionId));
-  state.court.unlockedSeats = [...BASE_SEATS, ...bonusSeats.slice(0, shrineLevels)];
+  state.court.unlockedSeats = [...BASE_SEATS, ...bonusSeats.slice(0, communalHallLevels)];
 
   for (const positionId of Object.keys(state.court.seats) as CourtPositionId[]) {
     if (!state.court.unlockedSeats.includes(positionId)) {
@@ -328,7 +337,7 @@ export function assignHeroToPosition(state: GameState, heroId: string, positionI
 
   state.court.seats[positionId] = heroId;
   hero.assignedTo = `court:${positionId}`;
-  state.message = t('msg.heroTakesSeat', { hero: hero.name, seat: getCourtPositionLabel(positionId) });
+  state.message = t('msg.heroTakesSeat', { hero: heroName(hero), seat: getCourtPositionLabel(positionId) });
   return true;
 }
 
@@ -361,7 +370,7 @@ export function assignHeroToLand(state: GameState, heroId: string, landId: strin
 
   releaseHeroAssignment(state, hero);
   hero.assignedTo = landId;
-  state.message = t('msg.heroGoverns', { hero: hero.name, land: land.name });
+  state.message = t('msg.heroGoverns', { hero: heroName(hero), land: land.name });
   return true;
 }
 
@@ -428,8 +437,9 @@ export function progressCourt(state: GameState): void {
 
   const playerLandCount = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length;
   const ungovernedPenalty = Math.max(0, playerLandCount - governedLandCount - 3) * 0.15;
+  const marketPressure = getMarketStabilityPressure(state);
 
-  state.court.stability = clamp(state.court.stability + bonuses.stabilityRegen - ungovernedPenalty, 0, 100);
+  state.court.stability = clamp(state.court.stability + bonuses.stabilityRegen - ungovernedPenalty - marketPressure, 0, 100);
   state.court.influence = clamp(state.court.influence + bonuses.influenceRegen, 0, 100);
 
   syncSignatureCards(state);

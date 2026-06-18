@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { gameConfig } from './game/config';
 import type { GameState } from './state/types';
-import { getLanguage, politicsTitle, seasonLabel, t } from './i18n';
+import { getLanguage, heroName, politicsTitle, seasonLabel, t } from './i18n';
 
 declare global {
   interface Window {
@@ -74,7 +74,7 @@ window.render_game_to_text = () => {
       rations: army.rations,
       provisions: army.provisions,
     })),
-    draftChoices: state.activeHeroDraft?.map((hero) => hero.name) ?? [],
+    draftChoices: state.activeHeroDraft?.map((hero) => heroName(hero)) ?? [],
     politicsCard: state.activePoliticsCard ? politicsTitle(state.activePoliticsCard) : null,
     pendingCourtRequest: state.pendingCourtRequest ? politicsTitle(state.pendingCourtRequest) : null,
     activeCourtModifiers: state.activeCourtModifiers,

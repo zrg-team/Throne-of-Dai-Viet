@@ -13,7 +13,7 @@ import {
 } from '../game/gameplayConfig';
 import { occupyEmptyLand } from './AcquisitionSystem';
 import { checkVictory, findLand, getAcquisitionTicksRequired, getSiegeOrder, isAdjacent, refreshPlayerVisibility } from './LandSystem';
-import { applyResourceDelta, canSpend, getBarracksLevel, refreshAllLandOutputs } from './ResourceSystem';
+import { applyResourceDelta, canSpend, getArmyGoldUpkeep, getBarracksLevel, refreshAllLandOutputs } from './ResourceSystem';
 import { getCourtBonuses } from './CourtSystem';
 import type { Army, BattlePreview, GameState, Land, RecruitmentOrder, SiegeOrder } from '../state/types';
 import { t, tickLabel } from '../i18n';
@@ -347,6 +347,7 @@ export function progressRecruitmentOrders(state: GameState): boolean {
       level,
       experience: 0,
       experienceToNextLevel: getArmyExperienceToNext(level),
+      unpaidTicks: 0,
     };
 
     state.armies.push(army);
@@ -370,7 +371,9 @@ export function progressRecruitmentOrders(state: GameState): boolean {
 /** Consumes rations/provisions for every player-owned army each tick, applying morale penalties, starvation attrition, and disbandment. */
 export function progressArmyLogistics(state: GameState): boolean {
   const disbanded: Army[] = [];
+  const unpaidDisbanded = new Set<string>();
   const moraleRegen = getCourtBonuses(state).armyMoraleRegen;
+  const treasuryCannotPay = state.resources.gold <= 0 && state.resourceRates.gold < 0;
 
   for (const army of state.armies) {
     if (army.kingdomId !== PLAYER_KINGDOM_ID) {
@@ -402,6 +405,23 @@ export function progressArmyLogistics(state: GameState): boolean {
       army.morale -= ARMY_MORALE_LOSS_NO_PROVISIONS;
     }
 
+    if (treasuryCannotPay && getArmyGoldUpkeep(army) > 0) {
+      army.unpaidTicks = (army.unpaidTicks ?? 0) + 1;
+      army.morale -= 8;
+      if (army.unpaidTicks === 3) {
+        army.units.spearmen = Math.floor(army.units.spearmen * 0.85);
+        army.units.archers = Math.floor(army.units.archers * 0.85);
+        army.units.heavyInfantry = Math.floor(army.units.heavyInfantry * 0.85);
+      }
+      if (army.unpaidTicks >= 5) {
+        disbanded.push(army);
+        unpaidDisbanded.add(army.id);
+        continue;
+      }
+    } else {
+      army.unpaidTicks = Math.max(0, (army.unpaidTicks ?? 0) - 1);
+    }
+
     army.morale += moraleRegen + Math.max(0, army.level - 1) * 0.25;
     army.morale = Math.min(100, Math.max(0, army.morale));
 
@@ -416,6 +436,11 @@ export function progressArmyLogistics(state: GameState): boolean {
   }
 
   for (const army of disbanded) {
+    const returnedHumans = totalUnits(army);
+    if (returnedHumans > 0) {
+      applyResourceDelta(state, { humans: returnedHumans });
+    }
+
     if (army.generalHeroId) {
       const hero = state.heroes.find((candidate) => candidate.id === army.generalHeroId);
       if (hero) {
@@ -427,7 +452,9 @@ export function progressArmyLogistics(state: GameState): boolean {
       state.selectedArmyId = undefined;
     }
 
-    state.message = t('msg.starvedDisbanded', { army: army.name });
+    state.message = unpaidDisbanded.has(army.id)
+      ? t('msg.unpaidDisbanded', { army: army.name, humans: returnedHumans })
+      : t('msg.starvedDisbanded', { army: army.name, humans: returnedHumans });
   }
 
   state.armies = state.armies.filter((army) => !disbanded.includes(army));

@@ -66,6 +66,38 @@ export function snapshotLabel(snapshot = loadSnapshot()): string {
 
 function normalizeSnapshotState(state: GameState): GameState {
   const clone = structuredClone(state);
+  for (const land of clone.lands) {
+    for (const building of land.buildings) {
+      if ((building.type as string) === 'shrine') {
+        building.type = 'communalHall';
+      }
+    }
+  }
+  for (const order of clone.buildOrders) {
+    if ((order.building as string) === 'shrine') {
+      order.building = 'communalHall';
+    }
+  }
+  for (const army of clone.armies) {
+    army.unpaidTicks ??= 0;
+  }
+  for (const card of [
+    ...clone.politicsDeck,
+    clone.activePoliticsCard,
+    clone.pendingCourtRequest,
+  ]) {
+    if (!card) {
+      continue;
+    }
+    for (const choice of card.choices) {
+      if ((choice.effects.freeBuilding as string | undefined) === 'shrine') {
+        choice.effects.freeBuilding = 'communalHall';
+      }
+      if ((choice.effects.freeUpgrade as string | undefined) === 'shrine') {
+        choice.effects.freeUpgrade = 'communalHall';
+      }
+    }
+  }
   clone.isPaused = false;
   clone.latestBattleResult = undefined;
   return clone;

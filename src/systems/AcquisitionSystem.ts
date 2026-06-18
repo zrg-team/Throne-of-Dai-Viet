@@ -3,7 +3,7 @@ import { getAcquisitionOrder, findLand, isLandVisibleToPlayer, refreshPlayerVisi
 import { applyResourceDelta, canSpend, refreshAllLandOutputs } from './ResourceSystem';
 import { getCourtBonuses } from './CourtSystem';
 import type { AcquisitionMethod, AcquisitionOrder, Army, GameState, Hero, Land, ResourceBag } from '../state/types';
-import { formatResourceList, t } from '../i18n';
+import { formatResourceList, heroName, t } from '../i18n';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -20,9 +20,9 @@ const SETTLE_HUMANS_BASE = 80;
 const SETTLE_TICKS_BASE = 4;
 
 const BUILDING_ACQUISITION_BONUS: Partial<Record<string, Partial<ResourceBag>>> = {
-  farm: { food: 15 },
-  mine: { supplies: 12 },
-  market: { gold: 20 },
+  farm: { food: 8 },
+  mine: { supplies: 6 },
+  market: { gold: 10 },
 };
 
 // ─── Derived Scores ───────────────────────────────────────────────────────────
@@ -217,7 +217,7 @@ export function startDiplomaticClaim(state: GameState, landId: string, heroId?: 
   }
 
   if (hero.assignedTo) {
-    state.message = t('msg.heroAlreadyAssigned', { hero: hero.name });
+    state.message = t('msg.heroAlreadyAssigned', { hero: heroName(hero) });
     return false;
   }
 
@@ -243,7 +243,7 @@ export function startDiplomaticClaim(state: GameState, landId: string, heroId?: 
   });
 
   refreshPlayerVisibility(state);
-  state.message = t('msg.heroTravels', { hero: hero.name, land: land.name, threshold: Math.ceil(threshold), current: Math.floor(currentTrust) });
+  state.message = t('msg.heroTravels', { hero: heroName(hero), land: land.name, threshold: Math.ceil(threshold), current: Math.floor(currentTrust) });
   return true;
 }
 

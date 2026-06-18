@@ -1,11 +1,10 @@
-import { applyResourceDelta } from './ResourceSystem';
-import { BUILDING_LABELS, progressBuildOrders, refreshAllLandOutputs } from './ResourceSystem';
+import { applyResourceDelta, canSpend, progressBuildOrders, refreshAllLandOutputs } from './ResourceSystem';
 import { createHeroDraft } from './HeroSystem';
 import { MAX_BUILDING_LEVEL } from '../game/gameplayConfig';
 import { PLAYER_KINGDOM_ID } from '../game/constants';
 import { addCourtModifier, getCourtBonuses } from './CourtSystem';
 import type { CourtEffect, GameState, HeroType, Land, LandBuildingType, ResourceBag } from '../state/types';
-import { buildingLabel, politicsChoiceDescription, politicsChoiceLabel, politicsTitle, t } from '../i18n';
+import { buildingLabel, formatResourceList, politicsChoiceDescription, politicsChoiceLabel, politicsTitle, t } from '../i18n';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -22,6 +21,10 @@ export function drawPoliticsCard(state: GameState): void {
 
     if (card.type === 'crisis' && state.court.stability < 35) {
       weight *= 2.5;
+    }
+
+    if (card.seasons?.includes(state.season)) {
+      weight *= 2.25;
     }
 
     for (const heroId of Object.values(state.court.seats)) {
@@ -79,6 +82,12 @@ export function choosePoliticsCard(state: GameState, choiceId: string): boolean 
     return false;
   }
 
+  const cost = getChoiceResourceCost(choice.effects);
+  if (Object.keys(cost).length > 0 && !canSpend(state, cost)) {
+    state.message = t('msg.needChoiceCost', { cost: formatResourceList(cost) });
+    return false;
+  }
+
   applyCourtEffect(state, politicsChoiceLabel(choice), choice.effects);
 
   state.activePoliticsCard = undefined;
@@ -130,8 +139,27 @@ function applyCourtEffect(state: GameState, label: string, effect: CourtEffect):
       land.defense += effect.defenseBoost;
     }
   }
+  if (effect.favorDelta) {
+    state.court.favor = Math.max(0, state.court.favor + effect.favorDelta);
+  }
+  if (effect.stabilityDelta) {
+    state.court.stability = clamp(state.court.stability + effect.stabilityDelta, 0, 100);
+  }
+  if (effect.influenceDelta) {
+    state.court.influence = clamp(state.court.influence + effect.influenceDelta, 0, 100);
+  }
 
   refreshAllLandOutputs(state);
+}
+
+function getChoiceResourceCost(effect: CourtEffect): Partial<ResourceBag> {
+  const cost: Partial<ResourceBag> = {};
+  for (const [key, value] of Object.entries(effect.resourceDelta ?? {})) {
+    if ((value ?? 0) < 0) {
+      cost[key as keyof ResourceBag] = Math.abs(value ?? 0);
+    }
+  }
+  return cost;
 }
 
 function createModifier(label: string, effect: CourtEffect) {
@@ -192,7 +220,7 @@ function pickOwnedLand(state: GameState, predicate: (land: Land) => boolean): La
 }
 
 function isSingletonBuilding(type: LandBuildingType): boolean {
-  return type === 'wall' || type === 'tower' || type === 'barracks' || type === 'shrine';
+  return type === 'wall' || type === 'tower' || type === 'barracks' || type === 'communalHall';
 }
 
 function grantFreeBuilding(state: GameState, type: LandBuildingType): void {

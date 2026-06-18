@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { addPressFeedback } from './animations';
+import { UI_FONT } from './fonts';
 
 export interface UIBounds {
   x: number;
@@ -526,17 +527,17 @@ export class InkUI {
 function textStyle(variant: 'title' | 'subtitle' | 'body' | 'label' | 'caption' | 'button'): Phaser.Types.GameObjects.Text.TextStyle {
   switch (variant) {
     case 'title':
-      return { color: INK_UI_HEX.inkText, fontSize: '22px', fontStyle: '700' };
+      return { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '22px', fontStyle: '700' };
     case 'subtitle':
-      return { color: '#e9d6aa', fontSize: '12px' };
+      return { color: '#e9d6aa', fontFamily: UI_FONT, fontSize: '12px' };
     case 'label':
-      return { color: INK_UI_HEX.inkText, fontSize: '15px', fontStyle: '700' };
+      return { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '15px', fontStyle: '700' };
     case 'caption':
-      return { color: INK_UI_HEX.mutedText, fontSize: '11px' };
+      return { color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '11px' };
     case 'button':
-      return { color: INK_UI_HEX.inkText, fontFamily: 'Georgia, Times New Roman, serif', fontSize: '13px', fontStyle: '700' };
+      return { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '13px', fontStyle: '700' };
     default:
-      return { color: INK_UI_HEX.inkText, fontSize: '13px' };
+      return { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '13px' };
   }
 }
 

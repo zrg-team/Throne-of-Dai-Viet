@@ -17,8 +17,9 @@ import { COMPACT_CARD_Y, LandPanel } from '../ui/LandPanel';
 import { ResourceBar } from '../ui/ResourceBar';
 import { createLabel, createPanel, createWoodButton, PARCHMENT } from '../ui/theme';
 import { InkScrollArea, InkUI, INK_UI, type UIBounds } from '../ui/InkUI';
+import { UI_FONT } from '../ui/fonts';
 import { makeSwipeableCard, popInModal, staggerIn } from '../ui/animations';
-import { getBuildOptions, getLaborStatus, getUpgradeOptions } from '../systems/ResourceSystem';
+import { formatEconomyLine, getArmyGoldUpkeep, getBuildOptions, getLaborStatus, getUpgradeOptions } from '../systems/ResourceSystem';
 import {
   ALL_COURT_POSITIONS,
   assignHeroToLand,
@@ -32,6 +33,7 @@ import {
   buildingLabel,
   formatResourceList,
   heroEffect,
+  heroName,
   heroTypeLabel,
   landTypeLabel,
   politicsChoiceDescription,
@@ -63,12 +65,15 @@ type ModalScreen =
   | 'game-menu'
   | 'exit-menu';
 
+const MESSAGE_STRIP_HEIGHT = 42;
+
 export class UIScene extends Phaser.Scene {
   private state!: GameState;
   private resourceBar!: ResourceBar;
   private actionBar!: ActionBar;
   private bottomSheet!: BottomSheet;
   private ui!: InkUI;
+  private messageBackground!: Phaser.GameObjects.Graphics;
   private messageText!: Phaser.GameObjects.Text;
   private modalLayer!: Phaser.GameObjects.Container;
   private mapControls: Phaser.GameObjects.GameObject[] = [];
@@ -135,11 +140,30 @@ export class UIScene extends Phaser.Scene {
     this.actionBar = new ActionBar(this, this.state, (action) => this.handleAction(action));
     this.bottomSheet = new BottomSheet(this);
     this.modalLayer = this.add.container(0, 0).setDepth(500).setVisible(false);
-    this.messageText = this.add.text(14, HEADER_HEIGHT + 6, '', {
+    this.messageBackground = this.add.graphics().setDepth(108);
+    this.messageBackground.fillGradientStyle(
+      INK_UI.parchment,
+      INK_UI.parchment,
+      INK_UI.parchment,
+      INK_UI.parchment,
+      0.76,
+      0.76,
+      0.58,
+      0.58,
+    );
+    this.messageBackground.fillRect(0, HEADER_HEIGHT, GAME_WIDTH, MESSAGE_STRIP_HEIGHT);
+    this.messageBackground.lineStyle(1, INK_UI.gold, 0.42);
+    this.messageBackground.lineBetween(18, HEADER_HEIGHT + 1, GAME_WIDTH - 18, HEADER_HEIGHT + 1);
+    this.messageBackground.lineStyle(1, INK_UI.brush, 0.08);
+    this.messageBackground.lineBetween(0, HEADER_HEIGHT + MESSAGE_STRIP_HEIGHT, GAME_WIDTH, HEADER_HEIGHT + MESSAGE_STRIP_HEIGHT);
+    this.messageText = this.add.text(14, HEADER_HEIGHT + 5, '', {
       color: '#1e2a22',
+      fontFamily: UI_FONT,
       fontSize: '12px',
+      lineSpacing: 1,
       wordWrap: { width: GAME_WIDTH - 28 },
     }).setDepth(110);
+    this.messageText.setMaxLines(2);
 
     this.events.on('state-changed', () => this.refresh());
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => this.handlePointerUp(pointer));
@@ -285,12 +309,20 @@ export class UIScene extends Phaser.Scene {
       const [first, second] = this.state.activePoliticsCard.choices;
       if (x >= 61 && x <= 329 && y >= 429 && y <= 487) {
         this.events.emit('ui:politics-choice', first.id);
-        this.closeModal();
+        if (!this.state.activePoliticsCard) {
+          this.closeModal();
+        } else {
+          this.refresh();
+        }
         return;
       }
       if (x >= 61 && x <= 329 && y >= 515 && y <= 573) {
         this.events.emit('ui:politics-choice', second.id);
-        this.closeModal();
+        if (!this.state.activePoliticsCard) {
+          this.closeModal();
+        } else {
+          this.refresh();
+        }
       }
     }
   }
@@ -514,7 +546,7 @@ export class UIScene extends Phaser.Scene {
         const y = index * 66;
         const row = this.ui.card({ x: 0, y, width: listBounds.width, height: 58 });
         row.add(renderHeroFace(this, hero, 30, 30, 0.34));
-        row.add(createLabel(this, 62, 13, hero.name, 'label', { fontSize: '13px', wordWrap: { width: 238 } }));
+        row.add(createLabel(this, 62, 13, heroName(hero), 'label', { fontSize: '13px', wordWrap: { width: 238 } }));
         row.add(createLabel(this, 62, 34, t('status.assigned', { assignment: hero.assignedTo ?? t('status.idle') }), 'caption', {
           fontSize: '11px',
           wordWrap: { width: 238 },
@@ -629,7 +661,7 @@ export class UIScene extends Phaser.Scene {
       const unlocked = this.state.court.unlockedSeats.includes(positionId);
       const heroId = this.state.court.seats[positionId];
       const hero = heroId ? this.state.heroes.find((candidate) => candidate.id === heroId) : undefined;
-      const status = !unlocked ? t('status.lockedShrine') : hero ? hero.name : t('status.vacant');
+      const status = !unlocked ? t('status.lockedPublic') : hero ? heroName(hero) : t('status.vacant');
       const row = this.ui.card({ x: 0, y, width: bounds.width, height: 54 }, {
         title: getCourtPositionLabel(positionId),
         subtitle: status,
@@ -688,7 +720,7 @@ export class UIScene extends Phaser.Scene {
       const governor = this.state.heroes.find((candidate) => candidate.assignedTo === land.id);
       const row = this.ui.card({ x: 0, y, width: bounds.width, height: 54 }, {
         title: land.name,
-        subtitle: governor ? t('status.governor', { name: governor.name }) : t('status.noGovernor'),
+        subtitle: governor ? t('status.governor', { name: heroName(governor) }) : t('status.noGovernor'),
         action: {
           label: governor ? t('action.change') : t('action.assign'),
           variant: governor ? 'secondary' : 'primary',
@@ -757,7 +789,7 @@ export class UIScene extends Phaser.Scene {
         },
       });
       row.add(renderHeroFace(this, hero, 29, 29, 0.34));
-      row.add(createLabel(this, 58, 12, hero.name, 'label', { fontSize: '13px', wordWrap: { width: 176 } }));
+      row.add(createLabel(this, 58, 12, heroName(hero), 'label', { fontSize: '13px', wordWrap: { width: 176 } }));
       if (picker.kind === 'diplomacy') {
         row.add(createLabel(this, 58, 34, t('status.administration', { value: hero.stats.administration }), 'caption', { fontSize: '11px' }));
       }
@@ -782,7 +814,7 @@ export class UIScene extends Phaser.Scene {
     const leaders = this.state.heroes.filter((hero) => !hero.assignedTo);
     const selectedArmy = this.state.armies.find((army) => army.id === this.state.selectedArmyId && army.kingdomId === PLAYER_KINGDOM_ID)
       ?? this.state.armies.find((army) => army.kingdomId === PLAYER_KINGDOM_ID);
-    const armyBlockHeight = selectedArmy ? 112 : 0;
+    const armyBlockHeight = selectedArmy ? 128 : 0;
     const maxSoldiers = Math.max(100, this.state.resources.humans);
     this.armySoldiers = Phaser.Math.Clamp(this.armySoldiers, 100, maxSoldiers);
     this.armyFood = Phaser.Math.Clamp(this.armyFood, 0, Math.max(0, this.state.resources.food));
@@ -790,10 +822,15 @@ export class UIScene extends Phaser.Scene {
 
     if (selectedArmy) {
       const total = selectedArmy.units.spearmen + selectedArmy.units.archers + selectedArmy.units.heavyInfantry;
-      this.modalLayer.add(this.ui.card({ x: content.x, y: content.y, width: content.width, height: 98 }, {
+      const wage = getArmyGoldUpkeep(selectedArmy);
+      const unpaid = selectedArmy.unpaidTicks ?? 0;
+      const payrollLine = unpaid > 0
+        ? t('status.armyWageUnpaid', { wage, ticks: unpaid })
+        : t('status.armyWage', { wage });
+      this.modalLayer.add(this.ui.card({ x: content.x, y: content.y, width: content.width, height: 114 }, {
         title: `${selectedArmy.name} - ${t('building.level', { level: selectedArmy.level })}`,
         subtitle: `${total} ${t('status.soldiers').toLowerCase()}, XP ${selectedArmy.experience}/${selectedArmy.experienceToNextLevel}`,
-        body: `${t('status.moraleSupply', { morale: Math.round(selectedArmy.morale), supply: Math.round(selectedArmy.supply) })}\n${t('status.disbandInfo')}`,
+        body: `${t('status.moraleSupply', { morale: Math.round(selectedArmy.morale), supply: Math.round(selectedArmy.supply) })}\n${payrollLine}\n${t('status.disbandInfo')}`,
         border: INK_UI.gold,
         action: {
           label: t('action.disband'),
@@ -832,7 +869,7 @@ export class UIScene extends Phaser.Scene {
         this.refresh();
       });
       const portrait = renderHeroFace(this, hero, x + leaderWidth / 2, content.y + armyBlockHeight + 43, 0.5);
-      const name = createLabel(this, x + leaderWidth / 2, content.y + armyBlockHeight + 94, hero.name, 'label', {
+      const name = createLabel(this, x + leaderWidth / 2, content.y + armyBlockHeight + 94, heroName(hero), 'label', {
         fontSize: '10px',
         align: 'center',
         wordWrap: { width: leaderWidth - 16 },
@@ -941,16 +978,16 @@ export class UIScene extends Phaser.Scene {
     const buildRows: Phaser.GameObjects.Container[] = [];
 
     upgradeOptions.forEach((option, index) => {
-      const y = index * 106;
+      const y = index * 136;
       const cost = formatCost(option.cost);
       const label = `${buildingLabel(option.type)} - ${t('building.level', { level: `${option.level}/${option.maxLevel}` })}`;
       const atMax = option.level >= option.maxLevel;
-      const costLine = atMax ? t('status.maximumLevel') : t('status.upgradeCost', { cost });
+      const costLine = atMax ? t('status.maximumLevel') : `${t('status.upgradeCost', { cost })} · ${option.ticks} ${tickLabel(option.ticks)}`;
       const detail = !atMax && !option.canUpgrade ? option.reason ?? t('status.unavailable') : '';
-      const row = this.ui.card({ x: 0, y, width: listBounds.width, height: 96 }, {
+      const row = this.ui.card({ x: 0, y, width: listBounds.width, height: 126 }, {
         title: label,
         subtitle: costLine,
-        body: detail || t('status.improvesDistrict'),
+        body: detail || formatBuildDetails(option),
         border: option.canUpgrade ? INK_UI.gold : INK_UI.softBrush,
         muted: !option.canUpgrade && !atMax,
         actionPlacement: 'right',
@@ -972,7 +1009,7 @@ export class UIScene extends Phaser.Scene {
       buildRows.push(row);
     });
 
-    const destroyStartY = upgradeOptions.length * 106;
+    const destroyStartY = upgradeOptions.length * 136;
     land.buildings.forEach((building, index) => {
       const y = destroyStartY + index * 84;
       const label = `${buildingLabel(building.type)} - ${t('building.level', { level: building.level })}`;
@@ -995,12 +1032,12 @@ export class UIScene extends Phaser.Scene {
     });
 
     options.forEach((option, index) => {
-      const y = destroyStartY + land.buildings.length * 84 + index * 106;
+      const y = destroyStartY + land.buildings.length * 84 + index * 136;
       const cost = formatCost(option.cost);
-      const detail = option.canBuild ? buildDescription(option.type, land) : option.reason ?? t('status.unavailable');
-      const row = this.ui.card({ x: 0, y, width: listBounds.width, height: 96 }, {
+      const detail = option.canBuild ? `${buildDescription(option.type, land)}\n${formatBuildDetails(option)}` : option.reason ?? t('status.unavailable');
+      const row = this.ui.card({ x: 0, y, width: listBounds.width, height: 126 }, {
         title: buildingLabel(option.type),
-        subtitle: t('status.cost', { cost }),
+        subtitle: `${t('status.cost', { cost })} · ${option.ticks} ${tickLabel(option.ticks)}`,
         body: detail,
         border: option.canBuild ? INK_UI.gold : INK_UI.softBrush,
         muted: !option.canBuild,
@@ -1022,7 +1059,7 @@ export class UIScene extends Phaser.Scene {
       buildRows.push(row);
     });
 
-    const contentHeight = upgradeOptions.length * 106 + land.buildings.length * 84 + options.length * 106;
+    const contentHeight = upgradeOptions.length * 136 + land.buildings.length * 84 + options.length * 136;
     scroll.setContentHeight(contentHeight > 0 ? contentHeight - 10 : 0);
 
     if (this.modalJustOpened) {
@@ -1101,7 +1138,11 @@ export class UIScene extends Phaser.Scene {
           variant: index === 0 ? 'danger' : 'primary',
           onClick: () => {
             this.events.emit('ui:politics-choice', choice.id);
-            this.closeModal();
+            if (!this.state.activePoliticsCard) {
+              this.closeModal();
+            } else {
+              this.refresh();
+            }
           },
         },
       }));
@@ -1174,7 +1215,7 @@ export class UIScene extends Phaser.Scene {
     const dark = this.add.rectangle(0, -112, 250, 226, 0x1b0904, 1);
     dark.setStrokeStyle(3, 0x5b3b22, 0.95);
     const portrait = renderHeroFace(this, hero, 0, -110, 1.16);
-    const name = createLabel(this, 0, 34, hero.name, 'label', {
+    const name = createLabel(this, 0, 34, heroName(hero), 'label', {
       fontSize: '22px',
       align: 'center',
       wordWrap: { width: 250 },
@@ -1202,6 +1243,7 @@ export class UIScene extends Phaser.Scene {
     const dot = this.add.circle(badgeX + 11, badgeY + 15, 4, INK_UI.cinnabar, 1).setDepth(431);
     const text = this.add.text(badgeX + 20, badgeY + 8, t('action.court'), {
       color: '#211103',
+      fontFamily: UI_FONT,
       fontSize: '12px',
       fontStyle: '700',
     }).setDepth(431);
@@ -1482,6 +1524,27 @@ function formatCost(cost: Partial<GameState['resources']>): string {
   return formatResourceList(cost);
 }
 
+type BuildDetailOption = ReturnType<typeof getBuildOptions>[number] | ReturnType<typeof getUpgradeOptions>[number];
+
+function formatBuildDetails(option: BuildDetailOption): string {
+  return [
+    `${t('status.category')}: ${categoryLabel(option.category)}`,
+    `${t('status.labor')}: ${option.labor}`,
+    `${t('status.produces')}: ${formatEconomyLine(option.output)}`,
+    `${t('status.upkeep')}: ${formatEconomyLine(option.upkeep)}`,
+  ].join('\n');
+}
+
+function categoryLabel(category: BuildDetailOption['category']): string {
+  if (category === 'production') {
+    return t('category.production');
+  }
+  if (category === 'military') {
+    return t('category.military');
+  }
+  return t('category.public');
+}
+
 function formatTerrain(land: Land): string {
   const grass = land.terrainSummary.plains + land.terrainSummary.fields + land.terrainSummary.riceFields + land.terrainSummary.forest;
   const ore = land.terrainSummary.mountains + land.terrainSummary.hills;
@@ -1503,6 +1566,12 @@ function buildDescription(type: string, land: Land): string {
   }
   if (type === 'tower') {
     return t('desc.tower');
+  }
+  if (type === 'barracks') {
+    return t('desc.barracks');
+  }
+  if (type === 'communalHall') {
+    return t('desc.communalHall');
   }
   return t('desc.market');
 }

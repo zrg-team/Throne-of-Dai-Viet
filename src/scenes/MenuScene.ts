@@ -7,6 +7,7 @@ import { InkMapItemRenderer } from '../ui/MapItemRenderer';
 import { decorateForest, decorateRiceFields, decorateWater, InkMapRenderer } from '../ui/MapRenderer';
 import { InkUI, INK_UI } from '../ui/InkUI';
 import { INK, brushStroke, inkOutline, shade, washFill, waveLine } from '../ui/inkTheme';
+import { TITLE_FONT, UI_FONT } from '../ui/fonts';
 
 type MenuMode = 'main' | 'confirm-new';
 
@@ -370,27 +371,27 @@ export class MenuScene extends Phaser.Scene {
   private renderTitle(): void {
     const shadow = this.ui.label(GAME_WIDTH / 2 + 2, 130, 'MANDATE', 'title', {
       color: '#301509',
-      fontFamily: 'Georgia, Times New Roman, serif',
+      fontFamily: TITLE_FONT,
       fontSize: '36px',
       fontStyle: '700',
       align: 'center',
     }).setOrigin(0.5);
     const title = this.ui.label(GAME_WIDTH / 2, 127, 'MANDATE', 'title', {
       color: '#f3dd9a',
-      fontFamily: 'Georgia, Times New Roman, serif',
+      fontFamily: TITLE_FONT,
       fontSize: '36px',
       fontStyle: '700',
       align: 'center',
     }).setOrigin(0.5);
     const subtitleShadow = this.ui.label(GAME_WIDTH / 2 + 1, 161, 'OF DAI VIET', 'title', {
       color: '#301509',
-      fontFamily: 'Georgia, Times New Roman, serif',
+      fontFamily: TITLE_FONT,
       fontSize: '19px',
       fontStyle: '700',
     }).setOrigin(0.5);
     const subtitle = this.ui.label(GAME_WIDTH / 2, 159, 'OF DAI VIET', 'title', {
       color: '#fff6bd',
-      fontFamily: 'Georgia, Times New Roman, serif',
+      fontFamily: TITLE_FONT,
       fontSize: '19px',
       fontStyle: '700',
     }).setOrigin(0.5);
@@ -418,6 +419,7 @@ export class MenuScene extends Phaser.Scene {
 
     const saveLabel = this.add.text(GAME_WIDTH / 2, 718, snapshotLabel(), {
       color: saved ? '#f3dd9a' : '#d8c48e',
+      fontFamily: UI_FONT,
       fontSize: '12px',
       fontStyle: '700',
       align: 'center',
