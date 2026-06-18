@@ -333,4 +333,172 @@ export const viPolitics: Record<string, PoliticsText> = {
       'discount-contracts': { label: 'Khế Ước Giảm Giá', description: 'Các công trình kế tiếp rẻ hơn trong 6 nhịp.' },
     },
   },
+  'noble-feast': {
+    title: 'Yến Tiệc Hào Tộc',
+    description: 'Triều đình đề xuất tiếp đãi hào tộc. Yến tiệc lớn tốn kém nhưng thu phục lòng người.',
+    choices: {
+      'grand-banquet': { label: 'Đại Tiệc Hoàng Gia', description: 'Tốn lương thực và vàng để tăng mạnh ổn định và ảnh hưởng.' },
+      'modest-reception': { label: 'Tiệc Đơn Giản', description: 'Tốn ít vàng để tăng nhẹ uy tín.' },
+    },
+  },
+  'court-conspiracy': {
+    title: 'Âm Mưu Triều Đình',
+    description: 'Tin đồn về một phe hào tộc đang mưu phản đến tai nhà vua.',
+    choices: {
+      'investigate-plot': { label: 'Điều Tra', description: 'Tốn ảnh hưởng để triệt hạ kẻ phản — ổn định tăng nhưng thu nhập vàng giảm ngắn hạn.' },
+      'ignore-rumors': { label: 'Bỏ Qua Tin Đồn', description: 'Không làm gì — ổn định giảm khi tin đồn lan rộng.' },
+    },
+  },
+  'royal-succession': {
+    title: 'Khủng Hoảng Kế Vị',
+    description: 'Các phe phái tranh nhau ngôi kế thừa, khiến triều đình và các tỉnh bất ổn.',
+    choices: {
+      'settle-succession': { label: 'Giải Quyết Dứt Khoát', description: 'Tốn vàng và ảnh hưởng để giải quyết tranh chấp. Ổn định tăng mạnh.' },
+      'let-crisis-fester': { label: 'Mặc Cho Hỗn Loạn', description: 'Ổn định và uy tín giảm mạnh. Không tốn tài nguyên.' },
+    },
+  },
+  'army-mutiny': {
+    title: 'Binh Biến',
+    description: 'Một đại đội từ chối lệnh vì lương chưa trả và điều kiện khắc nghiệt.',
+    choices: {
+      'pay-soldiers': { label: 'Trả Lương Ngay', description: 'Tốn vàng để khôi phục sẵn sàng và tinh thần quân đội.' },
+      'crush-mutiny': { label: 'Dẹp Binh Biến', description: 'Đàn áp không trả lương — ổn định và uy tín giảm, không tốn vàng.' },
+    },
+  },
+  'war-spoils': {
+    title: 'Chiến Lợi Phẩm',
+    description: 'Lương thực và vũ khí thu được từ biên giới về đến kinh thành. Triều đình quyết định cách sử dụng.',
+    choices: {
+      'rearm-troops': { label: 'Tái Trang Bị Quân Đội', description: 'Chuyển chiến lợi phẩm thành vật tư và khôi phục sẵn sàng chiến đấu.' },
+      'sell-spoils': { label: 'Bán Chiến Lợi Phẩm', description: 'Đổi hàng thu được lấy vàng và lương thực.' },
+    },
+  },
+  'plague-scare': {
+    title: 'Lo Dịch Bệnh',
+    description: 'Sốt lan qua các thị trấn chợ. Triều đình phải hành động trước khi trở thành dịch lớn.',
+    choices: {
+      'enforce-quarantine': { label: 'Phong Tỏa', description: 'Tăng trưởng dân và lương thực giảm khi đường sá đóng — nhưng dịch được kiểm soát.' },
+      'distribute-medicine': { label: 'Phát Thuốc', description: 'Tốn vàng và vật tư để chữa bệnh trực tiếp.' },
+    },
+  },
+  'noble-marriage': {
+    title: 'Hôn Nhân Liên Minh',
+    description: 'Một gia tộc hào tộc đề xuất hôn nhân chiến lược để củng cố mối quan hệ với vương triều.',
+    choices: {
+      'accept-alliance': { label: 'Chấp Thuận Liên Minh', description: 'Tăng ảnh hưởng và ổn định — tốn vàng hồi môn.' },
+      'polite-refusal': { label: 'Từ Chối Lịch Sự', description: 'Nhận một ít thiện chí thay thế.' },
+    },
+  },
+  'silk-road': {
+    title: 'Đoàn Lữ Thương Con Đường Tơ Lụa',
+    description: 'Đoàn thương nhân hiếm gặp từ phương xa đi qua cõi đất, mang theo các giao dịch lạ thường.',
+    choices: {
+      'buy-luxury-goods': { label: 'Mua Hàng Xa Xỉ', description: 'Tốn vàng để tăng ổn định, uy tín và ảnh hưởng.' },
+      'sell-grain-silk': { label: 'Bán Lương Thực Dư', description: 'Đổi lương thực lấy vàng và vật tư.' },
+    },
+  },
+  'scholars-proposal': {
+    title: 'Học Viện Nho Thần',
+    description: 'Các học giả xin triều đình tài trợ một học viện về văn và võ.',
+    choices: {
+      'fund-academy': { label: 'Tài Trợ Học Viện', description: 'Tốn vàng để tăng ảnh hưởng và tốc độ thẻ triều đình vĩnh viễn.' },
+      'recruit-scholars': { label: 'Chiêu Mộ Làm Sĩ Quan', description: 'Biến học giả thành huấn luyện viên quân sự — thưởng kinh nghiệm quân đội.' },
+    },
+  },
+  'temple-rededication': {
+    title: 'Tái Hiến Đền Thờ',
+    description: 'Các thầy tế kêu gọi lễ tái hiến ngôi đền lớn và tưởng nhớ tổ tiên.',
+    choices: {
+      'grand-ceremony': { label: 'Đại Lễ', description: 'Tốn lương và vàng để tăng mạnh ổn định, uy tín và ảnh hưởng.' },
+      'modest-offering': { label: 'Lễ Vật Đơn Giản', description: 'Dâng ít lương thực để tăng nhẹ uy tín.' },
+    },
+  },
+  'river-pirates': {
+    title: 'Thổ Phỉ Sông',
+    description: 'Tàu vũ trang cướp bóc thương nhân trên sông, gây xáo trộn thương mại và hoang mang nông dân.',
+    choices: {
+      'river-patrol': { label: 'Tuần Tra Sông', description: 'Tốn vàng và vật tư để bảo đảm đường thủy. Thu nhập vàng phục hồi.' },
+      'pay-off-pirates': { label: 'Mua Chuộc Thổ Phỉ', description: 'Tốn vàng để đuổi chúng đi — rẻ hơn nhưng không có lợi lâu dài.' },
+    },
+  },
+  'mountain-pass': {
+    title: 'Tranh Chấp Đèo Núi',
+    description: 'Thổ phỉ và các bộ lạc chiếm đèo chiến lược, cắt đứt đường tiếp tế.',
+    choices: {
+      'garrison-pass': { label: 'Đặt Đồn Canh', description: 'Tốn vàng và vật tư để kiểm soát — tăng phòng thủ và ổn định thu nhập vật tư.' },
+      'negotiate-toll': { label: 'Đàm Phán Thu Lệ Phí', description: 'Trả cho bộ lạc địa phương để giữ hòa bình — rẻ hơn, thu nhập vàng vừa phải.' },
+    },
+  },
+  'border-skirmish': {
+    title: 'Giao Chiến Biên Giới',
+    description: 'Lính canh biên giới đụng độ với quân cướp từ bên ngoài, đòi hỏi phản ứng nhanh.',
+    choices: {
+      'reinforce-border': { label: 'Tăng Cường Biên Phòng', description: 'Tốn vật tư và vàng — tăng phòng thủ và phục hồi sẵn sàng quân đội.' },
+      'withhold-response': { label: 'Chờ Đợi', description: 'Tránh tốn kém — ổn định giảm khi dân làng cảm thấy bị bỏ mặc.' },
+    },
+  },
+  'drought-warning': {
+    title: 'Cảnh Báo Hạn Hán',
+    description: 'Nhà chiêm tinh và nông dân cảnh báo về những tháng khô hạn sắp đến. Triều đình có thể chuẩn bị từ sớm.',
+    choices: {
+      'build-reserves': { label: 'Tích Trữ Dự Phòng', description: 'Tốn vàng để dự trữ thêm lương thực — giảm tác động hạn hán.' },
+      'do-nothing-drought': { label: 'Không Làm Gì', description: 'Chấp nhận rủi ro — thu nhập lương thực sẽ giảm mạnh mùa sau.' },
+    },
+  },
+  'elite-deserters': {
+    title: 'Lính Tinh Nhuệ Đào Ngũ',
+    description: 'Những cựu binh kỳ cựu đã lặng lẽ bỏ ngũ, mang theo vũ khí và kinh nghiệm.',
+    choices: {
+      'recall-veterans': { label: 'Triệu Hồi Cựu Binh', description: 'Tốn vàng và vật tư để thu phục họ — quân đội phục hồi sẵn sàng.' },
+      'recruit-fresh': { label: 'Tuyển Quân Mới', description: 'Tốn vàng và dân để bổ sung hàng ngũ nhanh hơn.' },
+    },
+  },
+  'treasury-windfall': {
+    title: 'Bất Ngờ Được Của',
+    description: 'Một khoản thừa kế vô chủ và các khoản nợ thu hồi được làm phình to ngân khố bất ngờ.',
+    choices: {
+      'invest-windfall': { label: 'Đầu Tư Vào Phát Triển', description: 'Chuyển vàng thành tăng trưởng dân và lương thực vĩnh viễn.' },
+      'keep-windfall': { label: 'Giữ Nguyên Vàng', description: 'Giữ tất cả — thu vàng thuần.' },
+    },
+  },
+  'peasant-petition': {
+    title: 'Thỉnh Nguyện Nông Dân',
+    description: 'Đám nông dân chặn đường vào kinh thành, đòi giảm thuế và đối xử công bằng hơn.',
+    choices: {
+      'grant-relief': { label: 'Ban Ân Xá', description: 'Thu nhập vàng giảm ngắn hạn nhưng ổn định và uy tín tăng mạnh.' },
+      'disperse-crowd': { label: 'Giải Tán Đám Đông', description: 'Gửi lính — không tốn tài nguyên nhưng uy tín và ổn định giảm.' },
+    },
+  },
+  'road-building': {
+    title: 'Sắc Lệnh Mở Đường',
+    description: 'Kỹ sư đề xuất mở rộng mạng lưới đường để tăng tốc quân đội, thương mại và xây dựng.',
+    choices: {
+      'military-roads': { label: 'Đường Quân Sự', description: 'Tốn vật tư và vàng — tuyển mộ và di chuyển quân nhanh hơn trong 6 nhịp.' },
+      'merchant-roads': { label: 'Đường Thương Mại', description: 'Tốn vàng — thu nhập vàng và vật tư tăng trong 5 nhịp.' },
+    },
+  },
+  'royal-envoy': {
+    title: 'Phái Sứ Thần Hoàng Gia',
+    description: 'Triều đình đề xuất phái sứ thần mang quà và hảo ý đến các vương quốc lân cận.',
+    choices: {
+      'full-diplomatic-tour': { label: 'Đại Tu Ngoại Giao', description: 'Tốn vàng và ảnh hưởng để cải thiện quan hệ với mọi vương quốc và hủy bỏ mọi nguy cơ xâm lược đang đến gần.' },
+      'token-envoys': { label: 'Cử Sứ Mang Lễ', description: 'Tốn ít vàng để cải thiện nhẹ quan hệ với tất cả các nước.' },
+    },
+  },
+  'border-insult': {
+    title: 'Xúc Phạm Biên Giới',
+    description: 'Một vị vua láng giềng tuyên bố lãnh chúa biên giới của ta đã xúc phạm sứ thần của ông ta. Quan hệ với mọi nước xấu đi trừ khi triều đình hành động nhanh.',
+    choices: {
+      'formal-apology': { label: 'Xin Lỗi Chính Thức', description: 'Tốn vàng và ảnh hưởng để dàn xếp — quan hệ phục hồi với tất cả các nước.' },
+      'reject-accusation': { label: 'Bác Bỏ Lời Buộc Tội', description: 'Kiên quyết đứng vững — quan hệ giảm sâu hơn và nguy cơ thù địch tăng.' },
+    },
+  },
+  'foreign-hostage': {
+    title: 'Trao Đổi Con Tin',
+    description: 'Một triều đình đối địch đề xuất trao đổi con tin quý tộc như bảo đảm hòa bình — tập tục cũ nhưng vẫn còn uy lực.',
+    choices: {
+      'accept-hostage-pact': { label: 'Chấp Nhận Giao Ước', description: 'Gửi con cháu quý tộc — quan hệ cải thiện mạnh và mọi bộ đếm thù địch bị hủy bỏ.' },
+      'decline-hostage-pact': { label: 'Từ Chối Kiên Quyết', description: 'Từ chối trao đổi — quan hệ giảm nhẹ nhưng ổn định được giữ vững.' },
+    },
+  },
 };

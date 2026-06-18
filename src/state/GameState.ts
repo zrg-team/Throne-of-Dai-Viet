@@ -7,7 +7,7 @@ import { computeCentroid, computeNeighbors, generateHexMap, type MapGenConfig } 
 import { refreshAllLandOutputs } from '../systems/ResourceSystem';
 import { refreshPlayerVisibility } from '../systems/LandSystem';
 import { createInitialCourtState } from '../systems/CourtSystem';
-import type { GameState, Land, LandTemplate, ResourceBag, TerrainSummary } from './types';
+import type { Army, CampaignConfig, GameState, Kingdom, Land, LandTemplate, ResourceBag, TerrainSummary } from './types';
 import { landTypeLabel, t } from '../i18n';
 
 const EMPTY_RESOURCE_BAG: ResourceBag = {
@@ -260,6 +260,263 @@ function findLargestConnectedComponent(lands: Land[]): Land[] {
   return largest.length > 1 ? largest : lands;
 }
 
+const RIVAL_KINGDOM_IDS_FOR_CAMPAIGN = ['northern-rival', 'southern-rival', 'eastern-rival'];
+
+const ROYAL_NAMES = [
+  'Lý Công', 'Trần Hưng', 'Nguyễn Văn', 'Lê Lợi', 'Đinh Bộ',
+  'Trịnh Kiểm', 'Nguyễn Hoàng', 'Lê Thánh', 'Phùng Hưng', 'Triệu Quang',
+  'Bùi Thị', 'Quách Mãnh', 'Đoàn Thượng', 'Hồ Quý', 'Mạc Đăng',
+];
+
+function pickRoyalName(): string {
+  return ROYAL_NAMES[randomInt(ROYAL_NAMES.length)];
+}
+
+function createCampaignMapConfig(config: CampaignConfig): MapGenConfig {
+  return {
+    ...GAMEPLAY_MAP_CONFIG,
+    seed: randomInt(1_000_000_000),
+    seaBorderSides: config.seaSides,
+  };
+}
+
+function createCampaignLands(
+  mapConfig: MapGenConfig,
+  rivalKingdomIds: string[],
+): { lands: Land[]; hexTiles: GameState['hexTiles']; playerStartId: string; rivalStartIds: string[] } {
+  const templates = createConfiguredLandTemplates();
+  const { tiles, landHexes } = generateHexMap(templates, mapConfig);
+  const neighbors = computeNeighbors(tiles);
+
+  const lands: Land[] = templates.map((template) => {
+    const hexes = landHexes.get(template.id) ?? [];
+    const centroid = hexes.length > 0 ? computeCentroid(hexes, mapConfig.hexSize) : { x: 0, y: 0 };
+    const summary = createEmptyTerrainSummary();
+    for (const tile of tiles) {
+      if (tile.landId === template.id) {
+        summary[tile.terrain] += 1;
+      }
+    }
+    const nonWaterTiles = Math.max(1, hexes.length - summary.water);
+    const buildingCapacity = Math.max(1, Math.floor(nonWaterTiles / 7));
+    const isWilderness = template.type === 'wilderness';
+    const hasVillage = !isWilderness && (summary.fortress > 0 || summary.shrine > 0 || buildingCapacity >= 2 || template.defense > 12);
+    const grassTiles = summary.plains + summary.fields + summary.riceFields + summary.forest;
+    const cityTiles = summary.fortress + summary.shrine;
+    const population = isWilderness ? 0 : Math.max(0, grassTiles * 7 + cityTiles * 15 + randomInt(20) - 5);
+    const localSoldiers = isWilderness ? 0 : Math.max(0, Math.floor(template.defense * 0.7) + randomInt(6));
+    return {
+      ...template,
+      x: centroid.x,
+      y: centroid.y,
+      neighbors: Array.from(neighbors.get(template.id) ?? []).sort(),
+      buildingCapacity,
+      terrainSummary: summary,
+      outputs: { ...EMPTY_RESOURCE_BAG },
+      isVisible: false,
+      isExplored: false,
+      population,
+      localSoldiers,
+      hasVillage,
+      trust: createInitialTrust(template.ownerId),
+    };
+  });
+
+  const largest = findLargestConnectedComponent(lands);
+  const playerStartId = pickCenterLand(largest).id;
+  const rivalStartIds = pickPeripheryLands(largest, playerStartId, rivalKingdomIds.length).map((l) => l.id);
+
+  const playerStart = lands.find((l) => l.id === playerStartId);
+  if (playerStart) {
+    playerStart.type = 'castle';
+    playerStart.ownerId = PLAYER_KINGDOM_ID;
+    playerStart.defense = Math.max(playerStart.defense, 52);
+    playerStart.loyalty = 100;
+    playerStart.buildings = [{ type: 'market', level: 1 }, { type: 'farm', level: 1 }];
+    playerStart.special = t('special.playerCapital');
+    playerStart.hasVillage = true;
+    playerStart.population = 130 + randomInt(40);
+    playerStart.localSoldiers = Math.floor(playerStart.defense * 0.7);
+    playerStart.trust = createInitialTrust(PLAYER_KINGDOM_ID);
+  }
+
+  for (let i = 0; i < rivalStartIds.length; i += 1) {
+    const rivalLand = lands.find((l) => l.id === rivalStartIds[i]);
+    const kingdomId = rivalKingdomIds[i];
+    if (rivalLand && kingdomId) {
+      rivalLand.type = 'enemyCastle';
+      rivalLand.ownerId = kingdomId;
+      rivalLand.defense = Math.max(rivalLand.defense, 46);
+      rivalLand.loyalty = 90 + randomInt(8);
+      rivalLand.buildings = [{ type: 'market', level: 1 }, { type: 'mine', level: 1 }];
+      rivalLand.special = t('special.rivalCapital');
+      rivalLand.hasVillage = true;
+      rivalLand.population = 100 + randomInt(40);
+      rivalLand.localSoldiers = Math.floor(rivalLand.defense * 0.7);
+      rivalLand.trust = createInitialTrust(rivalLand.ownerId);
+    }
+  }
+
+  return { lands, hexTiles: tiles, playerStartId, rivalStartIds };
+}
+
+function pickCenterLand(lands: Land[]): Land {
+  const avgX = lands.reduce((sum, l) => sum + l.x, 0) / lands.length;
+  const avgY = lands.reduce((sum, l) => sum + l.y, 0) / lands.length;
+  let best = lands[0];
+  let bestDist = Infinity;
+  for (const land of lands) {
+    const d = (land.x - avgX) ** 2 + (land.y - avgY) ** 2;
+    if (d < bestDist) {
+      bestDist = d;
+      best = land;
+    }
+  }
+  return best;
+}
+
+function pickPeripheryLands(lands: Land[], excludeId: string, count: number): Land[] {
+  const candidates = lands.filter((l) => l.id !== excludeId);
+  const chosen: Land[] = [];
+  const usedIds = new Set<string>([excludeId]);
+
+  for (let pick = 0; pick < count; pick += 1) {
+    let bestLand: Land | undefined;
+    let bestMinDist = -1;
+
+    for (const land of candidates) {
+      if (usedIds.has(land.id)) {
+        continue;
+      }
+      let minDist = Infinity;
+      for (const used of [...usedIds].map((id) => lands.find((l) => l.id === id)!).filter(Boolean)) {
+        const d = (land.x - used.x) ** 2 + (land.y - used.y) ** 2;
+        if (d < minDist) {
+          minDist = d;
+        }
+      }
+      if (minDist > bestMinDist) {
+        bestMinDist = minDist;
+        bestLand = land;
+      }
+    }
+
+    if (!bestLand) {
+      break;
+    }
+    chosen.push(bestLand);
+    usedIds.add(bestLand.id);
+  }
+
+  return chosen;
+}
+
+function getDifficultyArmyScale(difficulty: CampaignConfig['difficulty']): number {
+  if (difficulty === 'easy') return 0.70;
+  if (difficulty === 'hard') return 1.35;
+  if (difficulty === 'ironman') return 1.65;
+  return 1.0;
+}
+
+export function createCampaignGameState(config: CampaignConfig): GameState {
+  const mapConfig = createCampaignMapConfig(config);
+  const { lands, hexTiles, rivalStartIds } = createCampaignLands(mapConfig, RIVAL_KINGDOM_IDS_FOR_CAMPAIGN);
+
+  const allKingdoms: Kingdom[] = structuredClone(
+    kingdomTemplates.filter((k) => k.id === PLAYER_KINGDOM_ID || RIVAL_KINGDOM_IDS_FOR_CAMPAIGN.includes(k.id)),
+  );
+
+  for (const kingdom of allKingdoms) {
+    if (kingdom.id !== PLAYER_KINGDOM_ID) {
+      kingdom.king = {
+        name: pickRoyalName(),
+        personality: kingdom.personality,
+        age: randomInt(12),
+      };
+      kingdom.relations = 50;
+    }
+  }
+
+  const armyScale = getDifficultyArmyScale(config.difficulty);
+  const armies: Army[] = [];
+  for (let i = 0; i < RIVAL_KINGDOM_IDS_FOR_CAMPAIGN.length; i += 1) {
+    const kingdomId = RIVAL_KINGDOM_IDS_FOR_CAMPAIGN[i];
+    const landId = rivalStartIds[i];
+    if (!landId) {
+      continue;
+    }
+    const kingdom = allKingdoms.find((k) => k.id === kingdomId);
+    armies.push({
+      id: `${kingdomId}-host`,
+      kingdomId,
+      name: `${kingdom?.name ?? 'Rival'} Army`,
+      landId,
+      units: {
+        spearmen: Math.floor(800 * armyScale),
+        archers: Math.floor(350 * armyScale),
+        heavyInfantry: Math.floor(80 * armyScale),
+      },
+      morale: 70,
+      supply: 80,
+      rations: 250,
+      provisions: 150,
+      level: 1,
+      experience: 0,
+      experienceToNextLevel: 100,
+    });
+  }
+
+  const state: GameState = {
+    year: 1,
+    season: 'Spring',
+    turn: 1,
+    realtimeSeconds: 0,
+    ordersRemaining: ORDERS_PER_SEASON,
+    resources: { food: 140, supplies: 65, gold: 100, humans: 580 },
+    resourceRates: { ...EMPTY_RESOURCE_BAG },
+    mapRenderMode: 'terrain',
+    mapSettings: { ...GAMEPLAY_MAP_CONFIG, seed: mapConfig.seed },
+    hexTiles,
+    mapConfig,
+    lands,
+    kingdoms: allKingdoms,
+    armies,
+    heroes: [generateKingHero()],
+    heroDeck: structuredClone(heroTemplates),
+    politicsDeck: structuredClone(politicsCardTemplates),
+    activeCourtModifiers: [],
+    court: createInitialCourtState(),
+    activeHeroDraft: undefined,
+    activePoliticsCard: undefined,
+    pendingCourtRequest: undefined,
+    isPaused: false,
+    isStrategyPause: false,
+    selectedLandId: undefined,
+    selectedArmyId: undefined,
+    latestBattlePreview: undefined,
+    latestBattleResult: undefined,
+    acquisitionOrders: [],
+    buildOrders: [],
+    movementOrders: [],
+    siegeOrders: [],
+    recruitmentOrders: [],
+    message: t('msg.campaignStart'),
+    victory: false,
+    gameMode: 'campaign',
+    campaignConfig: config,
+    dynastyStatus: { farmerUnrest: 15, nobleRelations: 60, consecutiveLowStability: 0 },
+    campaignScore: { turnsAlive: 0, armiesDefeated: 0, largestArmyDefeated: 0, peakLandsHeld: 1 },
+    spyReports: [],
+    scheduledCampaignEvents: [],
+    isDefeated: false,
+    defeatReason: undefined,
+  };
+
+  refreshAllLandOutputs(state);
+  refreshPlayerVisibility(state);
+  return state;
+}
+
 export function createInitialGameState(): GameState {
   const mapConfig = createRandomMapConfig();
   const { lands, hexTiles, rivalStartId } = createLands(mapConfig);
@@ -312,6 +569,7 @@ export function createInitialGameState(): GameState {
     activePoliticsCard: undefined,
     pendingCourtRequest: undefined,
     isPaused: false,
+    isStrategyPause: false,
     selectedLandId: undefined,
     selectedArmyId: undefined,
     latestBattlePreview: undefined,
@@ -323,6 +581,14 @@ export function createInitialGameState(): GameState {
     recruitmentOrders: [],
     message: t('msg.initial'),
     victory: false,
+    gameMode: 'rival',
+    campaignConfig: undefined,
+    dynastyStatus: undefined,
+    campaignScore: undefined,
+    spyReports: [],
+    scheduledCampaignEvents: [],
+    isDefeated: false,
+    defeatReason: undefined,
   };
 
   refreshAllLandOutputs(state);

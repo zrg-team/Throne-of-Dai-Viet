@@ -419,4 +419,218 @@ export const politicsCardTemplates: PoliticsCard[] = [
       { id: 'discount-contracts', label: 'Discount Contracts', description: 'Next buildings are cheaper for 6 ticks.', effects: { buildingCostModifier: -0.2, durationTicks: 6 } },
     ],
   },
+  // --- NEW CARDS ---
+  {
+    id: 'noble-feast',
+    title: 'Noble Feast',
+    type: 'opportunity',
+    seasons: ['Spring', 'Autumn'],
+    description: 'The court proposes hosting the nobility. A grand feast costs dearly but wins hearts.',
+    choices: [
+      { id: 'grand-banquet', label: 'Grand Banquet', description: 'Spend food and gold for lasting stability and influence.', effects: { resourceDelta: { food: -55, gold: -40 }, stabilityDelta: 10, influenceDelta: 8, favorDelta: 6 } },
+      { id: 'modest-reception', label: 'Modest Reception', description: 'Spend a little gold for a small favor boost.', effects: { resourceDelta: { gold: -15 }, favorDelta: 3, stabilityDelta: 2 } },
+    ],
+  },
+  {
+    id: 'court-conspiracy',
+    title: 'Court Conspiracy',
+    type: 'crisis',
+    description: 'Whispers reach the throne of a noble faction scheming against the dynasty.',
+    choices: [
+      { id: 'investigate-plot', label: 'Investigate', description: 'Spend influence to root out traitors — stability rises but gold income falls briefly.', effects: { influenceDelta: -12, stabilityDelta: 7, resourceRateModifier: { gold: -3 }, durationTicks: 3 } },
+      { id: 'ignore-rumors', label: 'Ignore Rumors', description: 'Do nothing — stability falls as word spreads.', effects: { stabilityDelta: -10, favorDelta: -4 } },
+    ],
+  },
+  {
+    id: 'royal-succession',
+    title: 'Succession Crisis',
+    type: 'crisis',
+    description: 'Rival claimants contest the line of inheritance, shaking the court and provinces alike.',
+    choices: [
+      { id: 'settle-succession', label: 'Settle It Firmly', description: 'Spend gold and influence to resolve the dispute. Stability rises strongly.', effects: { resourceDelta: { gold: -50 }, influenceDelta: -15, stabilityDelta: 15, favorDelta: 5 } },
+      { id: 'let-crisis-fester', label: 'Let It Fester', description: 'Stability and favor fall sharply. No cost.', effects: { stabilityDelta: -18, favorDelta: -8 } },
+    ],
+  },
+  {
+    id: 'army-mutiny',
+    title: 'Army Mutiny',
+    type: 'crisis',
+    description: 'A regiment refuses orders over unpaid wages and harsh conditions.',
+    choices: [
+      { id: 'pay-soldiers', label: 'Pay Immediately', description: 'Spend gold to restore army readiness and morale.', effects: { resourceDelta: { gold: -55 }, restoreArmyReadiness: true, stabilityDelta: 3 } },
+      { id: 'crush-mutiny', label: 'Crush the Mutiny', description: 'Suppress without pay — stability and favor fall, but no gold cost.', effects: { stabilityDelta: -12, favorDelta: -7 } },
+    ],
+  },
+  {
+    id: 'war-spoils',
+    title: 'War Spoils',
+    type: 'opportunity',
+    description: 'Captured stores and equipment arrive from the frontier. The court decides how to use them.',
+    choices: [
+      { id: 'rearm-troops', label: 'Rearm Troops', description: 'Convert spoils into supplies and restore army readiness.', effects: { resourceDelta: { supplies: 70 }, restoreArmyReadiness: true } },
+      { id: 'sell-spoils', label: 'Sell Spoils', description: 'Trade captured goods for gold and food.', effects: { resourceDelta: { gold: 60, food: 40 } } },
+    ],
+  },
+  {
+    id: 'plague-scare',
+    title: 'Plague Scare',
+    type: 'crisis',
+    description: 'Fever spreads through market towns. The court must act before it becomes an epidemic.',
+    choices: [
+      { id: 'enforce-quarantine', label: 'Enforce Quarantine', description: 'Human growth and food income fall while roads are closed — but spread is contained.', effects: { resourceRateModifier: { humans: -4, food: -3 }, durationTicks: 4, stabilityDelta: 2 } },
+      { id: 'distribute-medicine', label: 'Distribute Medicine', description: 'Spend gold and supplies to treat the sick directly.', effects: { resourceDelta: { gold: -38, supplies: -22 }, favorDelta: 6, stabilityDelta: 4 } },
+    ],
+  },
+  {
+    id: 'noble-marriage',
+    title: 'Marriage Alliance',
+    type: 'opportunity',
+    description: 'A noble house proposes a strategic marriage to strengthen the dynasty\'s ties.',
+    choices: [
+      { id: 'accept-alliance', label: 'Accept Alliance', description: 'Gain influence and stability — spend gold on dowry.', effects: { resourceDelta: { gold: -45 }, influenceDelta: 18, stabilityDelta: 8, favorDelta: 5 } },
+      { id: 'polite-refusal', label: 'Polite Refusal', description: 'Gain a small goodwill gesture instead.', effects: { resourceDelta: { gold: 20 }, favorDelta: 2 } },
+    ],
+  },
+  {
+    id: 'silk-road',
+    title: 'Silk Road Caravan',
+    type: 'opportunity',
+    description: 'A rare merchant convoy from distant lands passes through the realm offering unusual trades.',
+    choices: [
+      { id: 'buy-luxury-goods', label: 'Buy Luxury Goods', description: 'Spend gold for stability, favor, and influence.', effects: { resourceDelta: { gold: -60 }, stabilityDelta: 6, favorDelta: 7, influenceDelta: 10 } },
+      { id: 'sell-grain-silk', label: 'Sell Grain Surplus', description: 'Trade food for gold and supplies.', effects: { resourceDelta: { food: -50, gold: 55, supplies: 30 } } },
+    ],
+  },
+  {
+    id: 'scholars-proposal',
+    title: "Scholar's Academy",
+    type: 'law',
+    description: 'Learned men petition the throne to fund an academy for civil and military arts.',
+    choices: [
+      { id: 'fund-academy', label: 'Fund the Academy', description: 'Spend gold for lasting influence and court card speed.', effects: { resourceDelta: { gold: -45 }, influenceDelta: 12, courtCardSpeedModifier: 0.12, permanent: true } },
+      { id: 'recruit-scholars', label: 'Recruit as Officers', description: 'Turn scholars into army trainers — XP bonus for armies.', effects: { armyXpModifier: 0.35, durationTicks: 8 } },
+    ],
+  },
+  {
+    id: 'temple-rededication',
+    title: 'Temple Rededication',
+    type: 'opportunity',
+    seasons: ['Autumn'],
+    description: 'The high priests call for a ceremony to rededicate the great temple and honor the ancestors.',
+    choices: [
+      { id: 'grand-ceremony', label: 'Grand Ceremony', description: 'Spend food and gold for high stability, favor, and influence.', effects: { resourceDelta: { food: -40, gold: -30 }, stabilityDelta: 12, favorDelta: 10, influenceDelta: 6 } },
+      { id: 'modest-offering', label: 'Modest Offering', description: 'Small food offering for a gentle favor boost.', effects: { resourceDelta: { food: -15 }, favorDelta: 4, stabilityDelta: 3 } },
+    ],
+  },
+  {
+    id: 'river-pirates',
+    title: 'River Pirates',
+    type: 'problem',
+    description: 'Armed vessels raid river merchants, disrupting trade and frightening farmers.',
+    choices: [
+      { id: 'river-patrol', label: 'River Patrol', description: 'Spend gold and supplies to secure the waterways. Gold income recovers.', effects: { resourceDelta: { gold: -30, supplies: -20 }, resourceRateModifier: { gold: 2 }, durationTicks: 5 } },
+      { id: 'pay-off-pirates', label: 'Pay Them Off', description: 'Spend gold to make them go away — cheaper but no lasting benefit.', effects: { resourceDelta: { gold: -45 }, stabilityDelta: -3 } },
+    ],
+  },
+  {
+    id: 'mountain-pass',
+    title: 'Mountain Pass Dispute',
+    type: 'crisis',
+    description: 'Bandits and rival clans contest control of a strategic highland route, cutting supply lines.',
+    choices: [
+      { id: 'garrison-pass', label: 'Garrison the Pass', description: 'Spend gold and supplies to secure it — add defense and stabilize supply income.', effects: { resourceDelta: { gold: -35, supplies: -25 }, defenseBoost: 10, resourceRateModifier: { supplies: 2 }, durationTicks: 5 } },
+      { id: 'negotiate-toll', label: 'Negotiate a Toll', description: 'Pay local clans to keep peace — cheaper, yields modest gold income.', effects: { resourceDelta: { gold: -20 }, resourceRateModifier: { gold: 3 }, durationTicks: 4 } },
+    ],
+  },
+  {
+    id: 'border-skirmish',
+    title: 'Border Skirmish',
+    type: 'crisis',
+    description: 'Frontier guards clash with raiders from beyond the border, demanding a swift response.',
+    choices: [
+      { id: 'reinforce-border', label: 'Reinforce the Border', description: 'Spend supplies and gold — add defense and raise army readiness.', effects: { resourceDelta: { supplies: -30, gold: -25 }, defenseBoost: 8, restoreArmyReadiness: true } },
+      { id: 'withhold-response', label: 'Hold Response', description: 'Avoid cost — stability falls as villagers feel abandoned.', effects: { stabilityDelta: -8, favorDelta: -5 } },
+    ],
+  },
+  {
+    id: 'drought-warning',
+    title: 'Drought Warning',
+    type: 'crisis',
+    seasons: ['Summer'],
+    description: 'Astrologers and farmers warn of coming dry months. The court can prepare now or wait.',
+    choices: [
+      { id: 'build-reserves', label: 'Build Reserves', description: 'Spend gold to stock extra food now — reduces drought impact.', effects: { resourceDelta: { gold: -30, food: 60 }, resourceRateModifier: { food: 1 }, durationTicks: 3 } },
+      { id: 'do-nothing-drought', label: 'Do Nothing', description: 'Risk it — food income falls heavily next season.', effects: { resourceRateModifier: { food: -6 }, durationTicks: 5 } },
+    ],
+  },
+  {
+    id: 'elite-deserters',
+    title: 'Elite Deserters',
+    type: 'problem',
+    description: 'Veteran soldiers have quietly left service, taking weapons and training with them.',
+    choices: [
+      { id: 'recall-veterans', label: 'Recall Veterans', description: 'Spend gold and supplies to lure them back — army readiness restored.', effects: { resourceDelta: { gold: -40, supplies: -18 }, restoreArmyReadiness: true, favorDelta: -2 } },
+      { id: 'recruit-fresh', label: 'Recruit Replacements', description: 'Spend gold and humans to fill the ranks faster.', effects: { resourceDelta: { gold: -25, humans: -60 }, recruitSpeedModifier: 0.35, durationTicks: 5 } },
+    ],
+  },
+  {
+    id: 'treasury-windfall',
+    title: 'Treasury Windfall',
+    type: 'opportunity',
+    description: 'An unclaimed inheritance and recovered debts swell the treasury unexpectedly.',
+    choices: [
+      { id: 'invest-windfall', label: 'Invest in Growth', description: 'Convert gold into permanent human growth and food rate.', effects: { resourceDelta: { gold: 60 }, resourceRateModifier: { humans: 2, food: 2 }, permanent: true } },
+      { id: 'keep-windfall', label: 'Hold the Gold', description: 'Keep it all — pure gold gain.', effects: { resourceDelta: { gold: 95 } } },
+    ],
+  },
+  {
+    id: 'peasant-petition',
+    title: 'Peasant Petition',
+    type: 'problem',
+    description: 'A crowd of farmers blocks the road to the capital, demanding lower taxes and fairer treatment.',
+    choices: [
+      { id: 'grant-relief', label: 'Grant Relief', description: 'Reduce gold income briefly but gain stability and strong favor.', effects: { resourceRateModifier: { gold: -4 }, durationTicks: 4, stabilityDelta: 8, favorDelta: 10 } },
+      { id: 'disperse-crowd', label: 'Disperse the Crowd', description: 'Send guards — no resource cost but favor and stability fall.', effects: { stabilityDelta: -9, favorDelta: -8 } },
+    ],
+  },
+  {
+    id: 'road-building',
+    title: 'Road Building Decree',
+    type: 'law',
+    description: 'Engineers propose expanding the road network to speed armies, trade, and builders.',
+    choices: [
+      { id: 'military-roads', label: 'Military Roads', description: 'Spend supplies and gold — army movement and recruitment faster for 6 ticks.', effects: { resourceDelta: { supplies: -25, gold: -30 }, recruitSpeedModifier: 0.3, battleSupplyCostModifier: -0.2, durationTicks: 6 } },
+      { id: 'merchant-roads', label: 'Merchant Roads', description: 'Spend gold — gold and supply income rise for 5 ticks.', effects: { resourceDelta: { gold: -35 }, resourceRateModifier: { gold: 4, supplies: 3 }, durationTicks: 5 } },
+    ],
+  },
+  {
+    id: 'royal-envoy',
+    title: 'Royal Envoy Dispatch',
+    type: 'opportunity',
+    description: 'The court proposes sending envoys bearing gifts and goodwill to neighboring kingdoms.',
+    choices: [
+      { id: 'full-diplomatic-tour', label: 'Grand Tour', description: 'Spend gold and influence to improve relations with all kingdoms and reset any approaching hostility.', effects: { resourceDelta: { gold: -60 }, influenceDelta: -12, relationsAllDelta: 18, hostilityResetAll: true } },
+      { id: 'token-envoys', label: 'Token Gestures', description: 'Spend a little gold for a modest relations boost with all kingdoms.', effects: { resourceDelta: { gold: -25 }, relationsAllDelta: 8 } },
+    ],
+  },
+  {
+    id: 'border-insult',
+    title: 'Border Insult',
+    type: 'crisis',
+    description: 'A neighboring king claims your border lords insulted his envoys. Relations with all kingdoms sour unless the court acts quickly.',
+    choices: [
+      { id: 'formal-apology', label: 'Formal Apology', description: 'Spend gold and influence to smooth things over — relations recover across the board.', effects: { resourceDelta: { gold: -30 }, influenceDelta: -8, relationsAllDelta: 12 } },
+      { id: 'reject-accusation', label: 'Reject the Accusation', description: 'Stand firm — relations fall further and hostility risk rises.', effects: { relationsAllDelta: -15 } },
+    ],
+  },
+  {
+    id: 'foreign-hostage',
+    title: 'Hostage Exchange',
+    type: 'law',
+    description: 'A rival court proposes exchanging noble hostages as a guarantee of peace — an old tradition that still carries weight.',
+    choices: [
+      { id: 'accept-hostage-pact', label: 'Accept the Pact', description: 'Send a noble heir — relations improve strongly and all hostility timers are cancelled.', effects: { influenceDelta: -10, stabilityDelta: -4, relationsAllDelta: 20, hostilityResetAll: true } },
+      { id: 'decline-hostage-pact', label: 'Decline Firmly', description: 'Refuse the exchange — relations slip slightly but stability holds.', effects: { relationsAllDelta: -8, stabilityDelta: 3 } },
+    ],
+  },
 ];

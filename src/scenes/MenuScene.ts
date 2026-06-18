@@ -401,23 +401,27 @@ export class MenuScene extends Phaser.Scene {
 
   private renderMain(): void {
     const saved = hasSnapshot();
-    this.content.push(this.ui.button({ x: 54, y: 586, width: 282, height: 54 }, t('menu.startCampaign'), () => {
+    this.content.push(this.ui.button({ x: 54, y: 548, width: 282, height: 54 }, t('menu.startCampaign'), () => {
+      this.scene.start('CampaignScene');
+    }, { variant: 'primary', fontSize: '17px' }));
+
+    this.content.push(this.ui.button({ x: 90, y: 618, width: 210, height: 40 }, t('menu.quickBattle'), () => {
       if (hasSnapshot()) {
         this.mode = 'confirm-new';
         this.render();
         return;
       }
       this.startGame(createInitialGameState());
-    }, { variant: 'primary', fontSize: '17px' }));
+    }, { variant: 'ghost', fontSize: '14px' }));
 
-    this.content.push(this.ui.button({ x: 90, y: 658, width: 210, height: 42 }, t('menu.continue'), () => {
+    this.content.push(this.ui.button({ x: 90, y: 674, width: 210, height: 42 }, t('menu.continue'), () => {
       const snapshot = loadSnapshot();
       if (snapshot) {
         this.startGame(snapshot.state);
       }
     }, { variant: saved ? 'ghost' : 'disabled', fontSize: '15px' }));
 
-    const saveLabel = this.add.text(GAME_WIDTH / 2, 718, snapshotLabel(), {
+    const saveLabel = this.add.text(GAME_WIDTH / 2, 730, snapshotLabel(), {
       color: saved ? '#f3dd9a' : '#d8c48e',
       fontFamily: UI_FONT,
       fontSize: '12px',
@@ -441,6 +445,7 @@ export class MenuScene extends Phaser.Scene {
 
     this.content.push(this.ui.button({ x: 54, y: 632, width: 282, height: 46 }, t('menu.startNewCampaign'), () => {
       this.startGame(createInitialGameState());
+      // Note: full campaign setup is via "Start Campaign" → CampaignScene
     }, { variant: 'danger', fontSize: '14px' }));
     this.content.push(this.ui.button({ x: 54, y: 690, width: 282, height: 44 }, t('menu.back'), () => {
       this.mode = 'main';

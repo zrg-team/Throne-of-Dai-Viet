@@ -149,6 +149,23 @@ function applyCourtEffect(state: GameState, label: string, effect: CourtEffect):
     state.court.influence = clamp(state.court.influence + effect.influenceDelta, 0, 100);
   }
 
+  if (effect.relationsAllDelta) {
+    const delta = effect.relationsAllDelta;
+    for (const kingdom of state.kingdoms) {
+      if (kingdom.id !== PLAYER_KINGDOM_ID && !kingdom.isDefeated && kingdom.relations !== undefined) {
+        kingdom.relations = clamp(kingdom.relations + delta, 0, 100);
+      }
+    }
+  }
+
+  if (effect.hostilityResetAll) {
+    for (const kingdom of state.kingdoms) {
+      if (kingdom.id !== PLAYER_KINGDOM_ID && !kingdom.isDefeated && (kingdom.hostilityTimer ?? 0) > 0) {
+        kingdom.hostilityTimer = 0;
+      }
+    }
+  }
+
   refreshAllLandOutputs(state);
 }
 

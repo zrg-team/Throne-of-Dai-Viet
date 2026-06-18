@@ -16,4 +16,25 @@ export const kingdomTemplates: Kingdom[] = [
     personality: 'expansionist',
     isDefeated: false,
   },
+  {
+    id: 'southern-rival',
+    name: 'Vương Quốc Phương Nam',
+    color: COLORS.enemySouth,
+    personality: 'aggressive',
+    isDefeated: false,
+  },
+  {
+    id: 'eastern-rival',
+    name: 'Liên Minh Phương Đông',
+    color: 0x4a8fa8,
+    personality: 'economic',
+    isDefeated: false,
+  },
+  {
+    id: 'western-rival',
+    name: 'Bộ Lạc Phương Tây',
+    color: 0x8b6b3d,
+    personality: 'defensive',
+    isDefeated: false,
+  },
 ];

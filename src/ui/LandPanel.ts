@@ -53,7 +53,36 @@ export class LandPanel {
       fontStyle: 'bold',
     }).setDepth(101);
 
-    const statusChip = this.scene.add.text(CARD_X + CARD_W - 10, y + 10, ownerLabel, {
+    const closeX = CARD_X + CARD_W - 20;
+    const closeY = y + 20;
+    const closeBg = this.scene.add.graphics().setDepth(101);
+    closeBg.fillStyle(INK_UI.parchment, 0.98);
+    closeBg.fillCircle(closeX, closeY, 10);
+    closeBg.lineStyle(1.5, INK_UI.brush, 0.82);
+    closeBg.strokeCircle(closeX, closeY, 10);
+
+    const closeGlyph = this.scene.add.text(closeX, closeY - 1, 'x', {
+      color: INK_UI.inkText,
+      fontFamily: UI_FONT,
+      fontSize: '12px',
+      fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(102);
+
+    const closeHit = this.scene.add
+      .circle(closeX, closeY, 13, 0xffffff, 0.001)
+      .setDepth(103)
+      .setInteractive({ useHandCursor: true });
+    closeHit.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      window.__suppressMapInputUntil = performance.now() + 280;
+    });
+    closeHit.on('pointerup', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      window.__suppressMapInputUntil = performance.now() + 280;
+      this.emitAction('clear-selection', land.id);
+    });
+
+    const statusChip = this.scene.add.text(CARD_X + CARD_W - 38, y + 10, ownerLabel, {
       color: '#fff6bd',
       fontFamily: UI_FONT,
       fontSize: '10px',
@@ -81,7 +110,7 @@ export class LandPanel {
       { variant: 'secondary', fontSize: '11px' },
     );
 
-    return [bg, nameText, statusChip, stat1, stat2, detailsBtn];
+    return [bg, nameText, closeBg, closeGlyph, closeHit, statusChip, stat1, stat2, detailsBtn];
   }
 
   /** Returns the full info and action buttons for the detail modal. */

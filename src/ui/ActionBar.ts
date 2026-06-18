@@ -4,51 +4,119 @@ import type { GameState } from '../state/types';
 import { InkUI, INK_UI } from './InkUI';
 import { t } from '../i18n';
 
-export const ACTION_BUTTON_LABELS = ['Build', 'Heroes', 'Court', 'Army', 'Map'];
-const ACTION_KEYS = ['build', 'heroes', 'court', 'army', 'map'] as const;
-export const ACTION_BUTTON_WIDTH = 72;
+const CAMPAIGN_KEYS = ['build', 'heroes', 'court', 'army', 'affairs', 'pause'] as const;
+const RIVAL_KEYS = ['build', 'heroes', 'court', 'army', 'pause'] as const;
+
 export const ACTION_BUTTON_HEIGHT = 36;
-export const ACTION_BUTTON_GAP = 4;
-export const ACTION_BUTTON_MARGIN = 6;
 export const ACTION_BUTTON_Y = GAME_HEIGHT - ACTION_BAR_HEIGHT / 2;
 
-export function actionButtonLeft(index: number): number {
-  return ACTION_BUTTON_MARGIN + index * (ACTION_BUTTON_WIDTH + ACTION_BUTTON_GAP);
+export function getActionKeys(gameMode: string): readonly string[] {
+  return gameMode === 'campaign' ? [...CAMPAIGN_KEYS] : [...RIVAL_KEYS];
 }
 
+function getButtonWidth(gameMode: string): number {
+  return gameMode === 'campaign' ? 60 : 72;
+}
+
+function getButtonGap(gameMode: string): number {
+  return gameMode === 'campaign' ? 3 : 4;
+}
+
+function getButtonMargin(gameMode: string): number {
+  return gameMode === 'campaign' ? 7 : 6;
+}
+
+export function actionButtonLeft(index: number, gameMode = 'rival'): number {
+  return getButtonMargin(gameMode) + index * (getButtonWidth(gameMode) + getButtonGap(gameMode));
+}
+
+export function getActionButtonWidth(gameMode = 'rival'): number {
+  return getButtonWidth(gameMode);
+}
+
+export function getActionButtonGap(gameMode = 'rival'): number {
+  return getButtonGap(gameMode);
+}
+
+export function getActionButtonMargin(gameMode = 'rival'): number {
+  return getButtonMargin(gameMode);
+}
+
+// Legacy constants kept for backwards-compat
+export const ACTION_BUTTON_WIDTH = 72;
+export const ACTION_BUTTON_GAP = 4;
+export const ACTION_BUTTON_MARGIN = 6;
+export const ACTION_BUTTON_LABELS = ['Build', 'Heroes', 'Court', 'Army', 'Pause'];
+
 export class ActionBar extends Phaser.GameObjects.Container {
+  private readonly gameMode: string;
+  private readonly ui: InkUI;
+  private buttonObjects: Phaser.GameObjects.Container[] = [];
+
   constructor(
     scene: Phaser.Scene,
     private readonly gameState: GameState,
     private readonly onAction: (action: string) => void,
   ) {
     super(scene, 0, 0);
+    this.gameMode = gameState.gameMode;
     this.setDepth(420);
-    const ui = new InkUI(scene);
+    this.ui = new InkUI(scene);
+
     const top = GAME_HEIGHT - ACTION_BAR_HEIGHT;
     this.add(scene.add.rectangle(0, top, GAME_WIDTH, ACTION_BAR_HEIGHT, INK_UI.backgroundInk, 0.96).setOrigin(0, 0));
     this.add(scene.add.rectangle(14, top + 3, GAME_WIDTH - 28, 2, INK_UI.cinnabar, 0.78).setOrigin(0, 0));
 
-    ACTION_KEYS.forEach((action, index) => {
-      const button = ui.button(
-        {
-          x: actionButtonLeft(index),
-          y: ACTION_BUTTON_Y - ACTION_BUTTON_HEIGHT / 2,
-          width: ACTION_BUTTON_WIDTH,
-          height: ACTION_BUTTON_HEIGHT,
-        },
-        t(`action.${action}`),
-        () => this.onAction(action),
-        { fontSize: '11px', variant: action === 'map' ? 'ghost' : 'secondary' },
-      );
-      this.add(button);
-    });
-
     scene.add.existing(this);
-    this.refresh();
+    this.buildButtons();
   }
 
   refresh(): void {
-    void this.gameState;
+    this.clearButtons();
+    this.buildButtons();
+  }
+
+  private clearButtons(): void {
+    for (const btn of this.buttonObjects) {
+      this.remove(btn, true);
+    }
+    this.buttonObjects = [];
+  }
+
+  private buildButtons(): void {
+    const keys = getActionKeys(this.gameMode);
+    const bw = getButtonWidth(this.gameMode);
+    const bg = getButtonGap(this.gameMode);
+    const bm = getButtonMargin(this.gameMode);
+    const paused = this.gameState.isStrategyPause;
+
+    keys.forEach((action, index) => {
+      const xLeft = bm + index * (bw + bg);
+      const isPause = action === 'pause';
+      const isAffairs = action === 'affairs';
+
+      let label: string;
+      let variant: string;
+
+      if (isPause) {
+        label = paused ? t('action.resume') : t('action.pause');
+        variant = paused ? 'danger' : 'ghost';
+      } else if (isAffairs) {
+        label = t('action.affairs');
+        variant = 'secondary';
+      } else {
+        label = t(`action.${action}` as Parameters<typeof t>[0]);
+        variant = 'secondary';
+      }
+
+      const button = this.ui.button(
+        { x: xLeft, y: ACTION_BUTTON_Y - ACTION_BUTTON_HEIGHT / 2, width: bw, height: ACTION_BUTTON_HEIGHT },
+        label,
+        () => this.onAction(action),
+        { fontSize: '11px', variant: variant as 'secondary' | 'ghost' | 'danger' | 'primary' },
+      );
+      this.add(button);
+      this.buttonObjects.push(button);
+    });
   }
 }

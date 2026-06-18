@@ -24,6 +24,8 @@ export interface MapGenConfig {
   hexSize: number;
   seed: number;
   riverHexCount?: number;
+  /** Number of map sides (top, right, bottom, left in order) to flood as sea. 0 = all land, 3 = three sea borders. */
+  seaBorderSides?: number;
 }
 
 export interface HexMapResult {
@@ -43,6 +45,10 @@ export function generateHexMap(lands: LandTemplate[], config: MapGenConfig): Hex
     carveRiver(tiles, coords, config.riverHexCount, rng);
   }
 
+  if (config.seaBorderSides && config.seaBorderSides > 0) {
+    applySeaBorders(tiles, coords, config.seaBorderSides, config.cols, config.rows);
+  }
+
   const claimOrder = new Map<string, number>();
   growZones(tiles, coords, lands, rng, claimOrder);
 
@@ -59,6 +65,34 @@ export function generateHexMap(lands: LandTemplate[], config: MapGenConfig): Hex
   assignTerrain(tiles, lands, landHexes, claimOrder, rng);
 
   return { tiles: Array.from(tiles.values()), landHexes };
+}
+
+function applySeaBorders(
+  tiles: Map<string, HexTile>,
+  coords: HexCoord[],
+  seaBorderSides: number,
+  cols: number,
+  rows: number,
+): void {
+  const SEA_DEPTH = 4;
+  const sideChecks: Array<(coord: HexCoord) => boolean> = [
+    (c) => c.r < SEA_DEPTH,
+    (c) => c.q >= cols - 1 - Math.floor(c.r / 2) - SEA_DEPTH + 1,
+    (c) => c.r >= rows - SEA_DEPTH,
+    (c) => c.q <= -Math.floor(c.r / 2) + SEA_DEPTH - 1,
+  ];
+
+  for (const coord of coords) {
+    for (let i = 0; i < seaBorderSides && i < sideChecks.length; i += 1) {
+      if (sideChecks[i](coord)) {
+        const tile = tiles.get(hexKey(coord));
+        if (tile) {
+          tile.terrain = 'water';
+        }
+        break;
+      }
+    }
+  }
 }
 
 function carveRiver(tiles: Map<string, HexTile>, coords: HexCoord[], length: number, rng: () => number): void {

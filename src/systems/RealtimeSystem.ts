@@ -5,13 +5,18 @@ import { progressArmyLogistics, progressMovementOrders, progressRecruitmentOrder
 import { runBotTurns } from './BotSystem';
 import { progressCourt } from './CourtSystem';
 import { progressPoliticsCooldown } from './PoliticsSystem';
+import { tickCampaignEvents } from './CampaignEventSystem';
+import { tickForeignAffairs } from './ForeignAffairsSystem';
+import { tickSpySystem } from './SpySystem';
+import { checkCampaignDefeat, tickDynastyStatus } from './DynastySystem';
+import { PLAYER_KINGDOM_ID } from '../game/constants';
 import type { GameState, Season } from '../state/types';
 import { seasonLabel, t } from '../i18n';
 
 const seasons: Season[] = ['Spring', 'Summer', 'Autumn', 'Winter'];
 
 export function advanceRealtimeMonth(state: GameState): void {
-  if (state.victory) {
+  if (state.victory || state.isDefeated) {
     return;
   }
 
@@ -38,6 +43,21 @@ export function advanceRealtimeMonth(state: GameState): void {
   state.ordersRemaining = 3;
   if (!acquisitionCompleted && !buildCompleted) {
     state.message = t('msg.economyTick', { year: state.year, season: seasonLabel(state.season) });
+  }
+
+  if (state.gameMode === 'campaign' && !state.isDefeated) {
+    tickCampaignEvents(state);
+    tickForeignAffairs(state);
+    tickSpySystem(state);
+    tickDynastyStatus(state);
+    checkCampaignDefeat(state);
+    if (state.campaignScore) {
+      state.campaignScore.turnsAlive = state.turn;
+      state.campaignScore.peakLandsHeld = Math.max(
+        state.campaignScore.peakLandsHeld,
+        state.lands.filter((l) => l.ownerId === PLAYER_KINGDOM_ID).length,
+      );
+    }
   }
 
   runBotTurns(state);

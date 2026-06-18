@@ -8,6 +8,7 @@ declare global {
     __mandateState?: GameState;
     __phaserGame?: Phaser.Game;
     __suppressMapInputUntil?: number;
+    __minimapInputBounds?: Array<{ x: number; y: number; width: number; height: number }>;
     render_game_to_text?: () => string;
     advanceTime?: (ms: number) => void;
   }

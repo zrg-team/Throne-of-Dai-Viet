@@ -78,12 +78,57 @@ export interface Land {
 /** Authored land data before hex-map generation fills in position/adjacency. */
 export type LandTemplate = Omit<Land, 'x' | 'y' | 'neighbors' | 'buildingCapacity' | 'terrainSummary' | 'outputs' | 'isVisible' | 'isExplored' | 'population' | 'localSoldiers' | 'hasVillage' | 'trust'>;
 
+export type GameMode = 'rival' | 'campaign';
+export type Difficulty = 'easy' | 'normal' | 'hard' | 'ironman';
+
+export interface KingdomKing {
+  name: string;
+  personality: KingdomPersonality;
+  age: number;
+}
+
+export interface CampaignConfig {
+  seaSides: 0 | 1 | 2 | 3;
+  difficulty: Difficulty;
+}
+
+export interface CampaignScore {
+  turnsAlive: number;
+  armiesDefeated: number;
+  largestArmyDefeated: number;
+  peakLandsHeld: number;
+}
+
+export interface DynastyStatus {
+  farmerUnrest: number;
+  nobleRelations: number;
+  consecutiveLowStability: number;
+}
+
+export interface SpyReport {
+  id: string;
+  tick: number;
+  message: string;
+}
+
+export interface CampaignEvent {
+  id: string;
+  type: 'bandit-raid' | 'flood' | 'drought' | 'noble-uprising' | 'merchant-bounty' | 'plague' | 'dynasty-attack';
+  scheduledTick: number;
+  sourceKingdomId?: string;
+  targetLandId?: string;
+  resolved: boolean;
+}
+
 export interface Kingdom {
   id: string;
   name: string;
   color: number;
   personality: KingdomPersonality;
   isDefeated: boolean;
+  king?: KingdomKing;
+  relations?: number;
+  hostilityTimer?: number;
 }
 
 export interface UnitCounts {
@@ -196,6 +241,8 @@ export interface CourtEffect extends Partial<Omit<CourtModifier, 'id' | 'label' 
   nextCourtCardSoon?: boolean;
   extraCourtDraw?: boolean;
   duplicateNextCourtChoice?: boolean;
+  relationsAllDelta?: number;
+  hostilityResetAll?: boolean;
 }
 
 export interface PoliticsChoice {
@@ -331,6 +378,7 @@ export interface GameState {
   activePoliticsCard?: PoliticsCard;
   pendingCourtRequest?: PoliticsCard;
   isPaused: boolean;
+  isStrategyPause: boolean;
   selectedLandId?: string;
   selectedArmyId?: string;
   latestBattlePreview?: BattlePreview;
@@ -342,4 +390,12 @@ export interface GameState {
   recruitmentOrders: RecruitmentOrder[];
   message: string;
   victory: boolean;
+  gameMode: GameMode;
+  campaignConfig?: CampaignConfig;
+  campaignScore?: CampaignScore;
+  dynastyStatus?: DynastyStatus;
+  spyReports: SpyReport[];
+  scheduledCampaignEvents: CampaignEvent[];
+  isDefeated: boolean;
+  defeatReason?: 'conquest' | 'collapse';
 }

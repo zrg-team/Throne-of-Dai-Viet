@@ -25,6 +25,7 @@ import { SettlementRenderer } from './map/SettlementRenderer';
 import { TrafficRenderer } from './map/TrafficRenderer';
 import { UI_FONT } from '../ui/fonts';
 import { t } from '../i18n';
+import { MINIMAP_H, MINIMAP_W } from '../ui/MinimapRenderer';
 
 const MIN_CAMERA_ZOOM = 0.72;
 const MAX_CAMERA_ZOOM = 1.65;
@@ -260,10 +261,28 @@ export class MapScene extends Phaser.Scene {
       this.scene.stop('UIScene');
       this.scene.start('MenuScene');
     });
+    ui.events.on('ui:pan-camera', (worldX: number, worldY: number) => {
+      const cam = this.cameras.main;
+      cam.scrollX = Phaser.Math.Clamp(
+        worldX - GAME_WIDTH / (2 * cam.zoom),
+        0,
+        Math.max(0, this.worldWidth - GAME_WIDTH / cam.zoom),
+      );
+      cam.scrollY = Phaser.Math.Clamp(
+        worldY - GAME_HEIGHT / (2 * cam.zoom),
+        0,
+        Math.max(0, this.worldHeight - GAME_HEIGHT / cam.zoom),
+      );
+    });
+    ui.events.on('ui:clear-selection', () => {
+      this.state.selectedLandId = undefined;
+      this.state.latestBattlePreview = undefined;
+      this.refresh();
+    });
   }
 
   update(_time: number, delta: number): void {
-    if (this.state.victory || this.state.isPaused) {
+    if (this.state.victory || this.state.isPaused || this.state.isStrategyPause) {
       return;
     }
 
@@ -1168,6 +1187,19 @@ export class MapScene extends Phaser.Scene {
     return this.state.kingdoms.find((kingdom) => kingdom.id === ownerId)?.color ?? COLORS.neutral;
   }
 
+  get minimapInfo() {
+    const cam = this.cameras.main;
+    return {
+      worldWidth: this.worldWidth,
+      worldHeight: this.worldHeight,
+      hexOffsetX: this.hexOffsetX,
+      hexOffsetY: this.hexOffsetY,
+      scrollX: cam.scrollX,
+      scrollY: cam.scrollY,
+      zoom: cam.zoom,
+    };
+  }
+
   private wx(value: number): number {
     return (value - this.hexOffsetX) * MAP_SCALE;
   }
@@ -1182,8 +1214,9 @@ export class MapScene extends Phaser.Scene {
 
   private isScreenPointOverFixedUi(x: number, y: number): boolean {
     return (
-      this.state.isPaused ||
+      (this.state.isPaused && !this.state.isStrategyPause) ||
       performance.now() < (window.__suppressMapInputUntil ?? 0) ||
+      this.isPointInMinimapUi(x, y) ||
       y < HEADER_HEIGHT ||
       (x >= GAME_WIDTH - 72 && x <= GAME_WIDTH - 8 && y >= HEADER_HEIGHT + 7 && y <= HEADER_HEIGHT + 39) ||
       (Boolean(this.state.selectedLandId || this.state.latestBattlePreview) &&
@@ -1193,6 +1226,24 @@ export class MapScene extends Phaser.Scene {
         ((y > GAME_HEIGHT - ACTION_BAR_HEIGHT - 150 && y < GAME_HEIGHT - ACTION_BAR_HEIGHT) ||
           (y > GAME_HEIGHT - ACTION_BAR_HEIGHT - 386 && y < GAME_HEIGHT - ACTION_BAR_HEIGHT - 236))) ||
       y > GAME_HEIGHT - ACTION_BAR_HEIGHT
+    );
+  }
+
+  private isPointInMinimapUi(x: number, y: number): boolean {
+    const bounds = window.__minimapInputBounds;
+    if (bounds) {
+      return bounds.some((rect) => (
+        x >= rect.x &&
+        x <= rect.x + rect.width &&
+        y >= rect.y &&
+        y <= rect.y + rect.height
+      ));
+    }
+
+    const barTop = GAME_HEIGHT - ACTION_BAR_HEIGHT;
+    return (
+      (x >= 4 && x <= 36 && y >= barTop - 36 && y <= barTop - 4) ||
+      (x >= 6 && x <= 6 + MINIMAP_W && y >= barTop - 110 && y <= barTop - 110 + MINIMAP_H)
     );
   }
 

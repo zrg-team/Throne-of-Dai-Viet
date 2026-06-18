@@ -1,17 +1,20 @@
 import Phaser from 'phaser';
-import { GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID } from '../game/constants';
+import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID } from '../game/constants';
 import {
-  ACTION_BUTTON_GAP,
   ACTION_BUTTON_HEIGHT,
-  ACTION_BUTTON_LABELS,
-  ACTION_BUTTON_MARGIN,
-  ACTION_BUTTON_WIDTH,
   ACTION_BUTTON_Y,
   ActionBar,
   actionButtonLeft,
+  getActionButtonGap,
+  getActionButtonMargin,
+  getActionButtonWidth,
+  getActionKeys,
 } from '../ui/ActionBar';
 import { BattlePreviewPanel } from '../ui/BattlePreviewPanel';
 import { BottomSheet, SHEET_TOP } from '../ui/BottomSheet';
+import { CampaignScorePanel } from '../ui/CampaignScorePanel';
+import { ForeignAffairsPanel } from '../ui/ForeignAffairsPanel';
+import { MINIMAP_H, MINIMAP_W, renderMinimap, type MinimapWorldInfo } from '../ui/MinimapRenderer';
 import { renderHeroFace } from '../ui/FaceRenderer';
 import { COMPACT_CARD_Y, LandPanel } from '../ui/LandPanel';
 import { ResourceBar } from '../ui/ResourceBar';
@@ -35,14 +38,12 @@ import {
   heroEffect,
   heroName,
   heroTypeLabel,
-  landTypeLabel,
   politicsChoiceDescription,
   politicsChoiceLabel,
   politicsDescription,
   politicsTitle,
   politicsTypeLabel,
   rarityLabel,
-  resourceLabel,
   seasonLabel,
   t,
   tickLabel,
@@ -59,11 +60,14 @@ type ModalScreen =
   | 'court'
   | 'army'
   | 'request'
+  | 'politics-result'
   | 'build'
   | 'battle-result'
   | 'land-detail'
   | 'game-menu'
-  | 'exit-menu';
+  | 'exit-menu'
+  | 'campaign-defeat'
+  | 'foreign-affairs';
 
 const MESSAGE_STRIP_HEIGHT = 42;
 
@@ -82,6 +86,11 @@ export class UIScene extends Phaser.Scene {
   private modalJustOpened = false;
   private modalBuildLandId?: string;
   private requestBadge: Phaser.GameObjects.GameObject[] = [];
+  private lastSpyReportCount = 0;
+  private affairsBadge: Phaser.GameObjects.GameObject[] = [];
+  private politicsResultMessage = '';
+  private minimapOpen = false;
+  private minimapObjects: Phaser.GameObjects.GameObject[] = [];
   private selectedArmyLeaderId?: string;
   private armySoldiers = 400;
   private armyFood = ARMY_DEFAULT_RATIONS;
@@ -120,6 +129,8 @@ export class UIScene extends Phaser.Scene {
     this.modalJustOpened = false;
     this.modalBuildLandId = undefined;
     this.requestBadge = [];
+    this.affairsBadge = [];
+    this.lastSpyReportCount = 0;
     this.selectedArmyLeaderId = undefined;
     this.armySoldiers = 400;
     this.armyFood = ARMY_DEFAULT_RATIONS;
@@ -131,6 +142,8 @@ export class UIScene extends Phaser.Scene {
     this.compactCard = [];
     this.mapControls = [];
     this.gameMenuButton = [];
+    this.minimapOpen = false;
+    this.minimapObjects = [];
   }
 
   create(): void {
@@ -204,11 +217,16 @@ export class UIScene extends Phaser.Scene {
       return;
     }
 
-    const stride = ACTION_BUTTON_WIDTH + ACTION_BUTTON_GAP;
-    const index = Math.floor((pointer.x - ACTION_BUTTON_MARGIN) / stride);
-    const action = ACTION_BUTTON_LABELS[index]?.toLowerCase();
-    const left = actionButtonLeft(index);
-    if (action && pointer.x >= left && pointer.x <= left + ACTION_BUTTON_WIDTH) {
+    const gm = this.state.gameMode;
+    const bw = getActionButtonWidth(gm);
+    const bg = getActionButtonGap(gm);
+    const bm = getActionButtonMargin(gm);
+    const keys = getActionKeys(gm);
+    const stride = bw + bg;
+    const index = Math.floor((pointer.x - bm) / stride);
+    const action = keys[index];
+    const left = actionButtonLeft(index, gm);
+    if (action && pointer.x >= left && pointer.x <= left + bw) {
       this.handleAction(action);
     }
   }
@@ -358,6 +376,19 @@ export class UIScene extends Phaser.Scene {
       return;
     }
 
+    if (action === 'foreign-affairs' || action === 'affairs') {
+      if (this.state.gameMode === 'campaign') {
+        this.openModal('foreign-affairs');
+      }
+      return;
+    }
+
+    if (action === 'pause') {
+      this.state.isStrategyPause = !this.state.isStrategyPause;
+      this.refresh();
+      return;
+    }
+
     if (action === 'zoom-in') {
       this.events.emit('ui:zoom-map', 1);
       return;
@@ -386,6 +417,17 @@ export class UIScene extends Phaser.Scene {
   }
 
   private openModal(screen: ModalScreen): void {
+    this.state.isStrategyPause = false;
+    if (screen === 'campaign-defeat') {
+      // Defeat screen pauses but doesn't use the standard modal frame
+      this.modalScreen = screen;
+      this.modalJustOpened = true;
+      this.state.isPaused = true;
+      this.bottomSheet.hide();
+      this.refresh();
+      return;
+    }
+
     this.modalScreen = screen;
     this.modalJustOpened = true;
     this.state.isPaused = true;
@@ -412,6 +454,7 @@ export class UIScene extends Phaser.Scene {
     this.clearModalLayer();
     this.modalLayer.setVisible(false);
     this.modalBuildLandId = undefined;
+    this.refresh();
   }
 
   private refresh(): void {
@@ -419,12 +462,19 @@ export class UIScene extends Phaser.Scene {
     this.actionBar.refresh();
     this.messageText.setText(this.state.message);
     this.clearRequestBadge();
+    this.clearAffairsBadge();
     this.clearMapControls();
     this.clearGameMenuButton();
     this.clearCompactCard();
+    this.clearMinimap();
 
     if (this.state.victory) {
       this.showVictory();
+      return;
+    }
+
+    if (this.modalScreen === 'none' && this.state.isDefeated && this.state.gameMode === 'campaign') {
+      this.openModal('campaign-defeat');
       return;
     }
 
@@ -448,9 +498,23 @@ export class UIScene extends Phaser.Scene {
     this.modalLayer.setVisible(false);
     this.renderGameMenuButton();
     this.renderMapControls();
+    this.renderMinimap();
 
     if (this.state.pendingCourtRequest) {
       this.renderCourtRequestBadge(this.state.pendingCourtRequest);
+    }
+
+    if (this.state.gameMode === 'campaign') {
+      this.renderStabilityBar();
+      const newReports = this.state.spyReports.length > this.lastSpyReportCount;
+      if (newReports) {
+        this.lastSpyReportCount = this.state.spyReports.length;
+        const latest = this.state.spyReports[this.state.spyReports.length - 1];
+        if (latest) {
+          this.state.message = latest.message;
+          this.messageText.setText(this.state.message);
+        }
+      }
     }
 
     if (this.state.latestBattlePreview) {
@@ -475,7 +539,9 @@ export class UIScene extends Phaser.Scene {
     this.clearModalLayer();
     this.modalLayer.setVisible(true);
 
-    if (this.modalScreen === 'heroes') {
+    if (this.modalScreen === 'campaign-defeat') {
+      this.showCampaignDefeatScreen();
+    } else if (this.modalScreen === 'heroes') {
       this.showHeroesScreen();
     } else if (this.modalScreen === 'court') {
       this.showCourtScreen();
@@ -483,6 +549,8 @@ export class UIScene extends Phaser.Scene {
       this.showArmyScreen();
     } else if (this.modalScreen === 'request' && this.state.activePoliticsCard) {
       this.showPoliticsScreen(this.state.activePoliticsCard);
+    } else if (this.modalScreen === 'politics-result') {
+      this.showPoliticsResultScreen();
     } else if (this.modalScreen === 'build') {
       this.showBuildScreen();
     } else if (this.modalScreen === 'battle-result') {
@@ -493,6 +561,8 @@ export class UIScene extends Phaser.Scene {
       this.showGameMenuScreen();
     } else if (this.modalScreen === 'exit-menu') {
       this.showExitMenuScreen();
+    } else if (this.modalScreen === 'foreign-affairs') {
+      this.showForeignAffairsScreen();
     }
 
     if (this.modalJustOpened) {
@@ -1138,15 +1208,30 @@ export class UIScene extends Phaser.Scene {
           variant: index === 0 ? 'danger' : 'primary',
           onClick: () => {
             this.events.emit('ui:politics-choice', choice.id);
-            if (!this.state.activePoliticsCard) {
-              this.closeModal();
-            } else {
-              this.refresh();
-            }
+            // choosePoliticsCard is synchronous — state.message now has the result
+            this.politicsResultMessage = this.state.message;
+            this.modalScreen = 'politics-result';
+            this.modalJustOpened = true;
+            this.refresh();
           },
         },
       }));
     });
+  }
+
+  private showPoliticsResultScreen(): void {
+    this.addModalBase(t('modal.request.result'), t('modal.request.resultSubtitle'));
+    const content = this.modalContentBounds;
+
+    this.modalLayer.add(this.ui.card({ x: content.x, y: content.y + 20, width: content.width, height: 220 }, {
+      title: t('modal.request.decisionMade'),
+      body: this.politicsResultMessage,
+      border: INK_UI.jade,
+    }));
+
+    this.modalLayer.add(createWoodButton(this, GAME_WIDTH / 2, this.modalFooterBounds.y + 22, 180, 44, t('menu.continue'), () => {
+      this.closeModal();
+    }, { variant: 'highlight' }));
   }
 
   private showGameMenuScreen(): void {
@@ -1383,6 +1468,80 @@ export class UIScene extends Phaser.Scene {
     this.gameMenuButton = [];
   }
 
+  private renderMinimap(): void {
+    // Hide when land/preview is selected — compact card fills the bottom area
+    if (this.state.selectedLandId || this.state.latestBattlePreview) return;
+
+    const TOGGLE_SIZE = 28;
+    const barTop = GAME_HEIGHT - ACTION_BAR_HEIGHT;
+    const toggleCX = 6 + TOGGLE_SIZE / 2;
+    const toggleCY = barTop - 6 - TOGGLE_SIZE / 2;
+    const toggleHitSize = TOGGLE_SIZE + 4;
+
+    window.__minimapInputBounds = [{
+      x: toggleCX - toggleHitSize / 2,
+      y: toggleCY - toggleHitSize / 2,
+      width: toggleHitSize,
+      height: toggleHitSize,
+    }];
+
+    // Toggle button
+    const g = this.add.graphics().setDepth(430);
+    g.fillStyle(INK_UI.backgroundInk, 0.92);
+    g.fillRoundedRect(toggleCX - TOGGLE_SIZE / 2, toggleCY - TOGGLE_SIZE / 2, TOGGLE_SIZE, TOGGLE_SIZE, 6);
+    g.lineStyle(1.5, this.minimapOpen ? INK_UI.gold : INK_UI.softBrush, this.minimapOpen ? 0.9 : 0.5);
+    g.strokeRoundedRect(toggleCX - TOGGLE_SIZE / 2, toggleCY - TOGGLE_SIZE / 2, TOGGLE_SIZE, TOGGLE_SIZE, 6);
+    // map icon — 3×3 grid of small squares
+    const iconColor = this.minimapOpen ? INK_UI.gold : 0x9a8c6a;
+    g.fillStyle(iconColor, 0.9);
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) {
+        g.fillRect(toggleCX - 7 + col * 5, toggleCY - 7 + row * 5, 3, 3);
+      }
+    }
+
+    const toggleHit = this.add
+      .rectangle(toggleCX, toggleCY, toggleHitSize, toggleHitSize, 0xffffff, 0.001)
+      .setDepth(431)
+      .setInteractive({ useHandCursor: true });
+    toggleHit.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      window.__suppressMapInputUntil = performance.now() + 500;
+    });
+    toggleHit.on('pointerup', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      window.__suppressMapInputUntil = performance.now() + 500;
+      this.minimapOpen = !this.minimapOpen;
+      this.refresh();
+    });
+    this.minimapObjects.push(g, toggleHit);
+
+    if (!this.minimapOpen) return;
+
+    // Get camera/world info from MapScene without importing it (avoids circular deps)
+    const mapScene = this.scene.get('MapScene') as unknown as { minimapInfo: MinimapWorldInfo };
+    if (!mapScene?.minimapInfo) return;
+    const info = mapScene.minimapInfo;
+
+    const mmX = 6;
+    const mmY = toggleCY - TOGGLE_SIZE / 2 - 6 - MINIMAP_H;
+    window.__minimapInputBounds.push({ x: mmX, y: mmY, width: MINIMAP_W, height: MINIMAP_H });
+    const mmObjects = renderMinimap(this, this.state, info, mmX, mmY, (worldX, worldY) => {
+      this.events.emit('ui:pan-camera', worldX, worldY);
+      this.minimapOpen = false;
+      this.refresh();
+    });
+    this.minimapObjects.push(...mmObjects);
+  }
+
+  private clearMinimap(): void {
+    for (const item of this.minimapObjects) {
+      item.destroy();
+    }
+    this.minimapObjects = [];
+    window.__minimapInputBounds = [];
+  }
+
   private clearCompactCard(): void {
     for (const item of this.compactCard) {
       item.destroy();
@@ -1428,6 +1587,10 @@ export class UIScene extends Phaser.Scene {
       }
       if (action === 'open-build' && land.ownerId === PLAYER_KINGDOM_ID) {
         this.openBuildModal(landId);
+        return;
+      }
+      if (action === 'clear-selection') {
+        this.events.emit('ui:clear-selection');
         return;
       }
       this.events.emit('ui:land-action', action, landId);
@@ -1502,6 +1665,84 @@ export class UIScene extends Phaser.Scene {
 
     this.courtPicker = { kind: 'diplomacy', landId };
     this.openModal('court');
+  }
+
+  private showCampaignDefeatScreen(): void {
+    this.clearModalLayer();
+    this.modalLayer.setVisible(true);
+    const panel = new CampaignScorePanel(this, this.state, () => {
+      this.scene.stop('UIScene');
+      this.scene.start('MenuScene');
+    });
+    for (const obj of panel.render()) {
+      this.modalLayer.add(obj);
+    }
+  }
+
+  private showForeignAffairsScreen(): void {
+    this.addModalBase(t('campaign.affairs.title'), '');
+    const content = this.modalContentBounds;
+
+    const listBounds = { x: content.x, y: content.y, width: content.width, height: content.height };
+    const scroll = this.ui.scrollArea(listBounds);
+    scroll.addTo(this.modalLayer);
+    this.activeScrollAreas.push(scroll);
+
+    const panel = new ForeignAffairsPanel(this, this.state, () => {
+      this.refresh();
+    });
+    const rivals = this.state.kingdoms.filter(
+      (k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated,
+    );
+    const cardH = 178;
+    const gap = 12;
+    const panelItems = panel.render({ x: 0, y: 0, width: content.width, height: rivals.length * (cardH + gap) });
+    for (const obj of panelItems) {
+      scroll.content.add(obj);
+    }
+    scroll.setContentHeight(rivals.length * (cardH + gap));
+  }
+
+  private renderStabilityBar(): void {
+    const ds = this.state.dynastyStatus;
+    if (!ds) return;
+
+    const barY = HEADER_HEIGHT - 8;
+    const segW = Math.floor(GAME_WIDTH / 3);
+    const barH = 4;
+
+    const unrestRatio = 1 - ds.farmerUnrest / 100;
+    const nobleRatio = ds.nobleRelations / 100;
+    const stabilityRatio = Phaser.Math.Clamp(
+      (ds.farmerUnrest < 50 ? 1 : 0) + (ds.nobleRelations > 50 ? 1 : 0),
+      0,
+      1,
+    );
+
+    const segments: Array<{ ratio: number; goodColor: number; badColor: number }> = [
+      { ratio: unrestRatio, goodColor: INK_UI.jade, badColor: INK_UI.cinnabar },
+      { ratio: nobleRatio, goodColor: INK_UI.gold, badColor: INK_UI.cinnabar },
+      { ratio: stabilityRatio, goodColor: INK_UI.jade, badColor: 0xc0392b },
+    ];
+
+    for (let i = 0; i < segments.length; i++) {
+      const { ratio, goodColor, badColor } = segments[i];
+      const x = i * segW;
+      const g = this.add.graphics().setDepth(109);
+      g.fillStyle(INK_UI.brush, 0.3);
+      g.fillRect(x, barY, segW - 1, barH);
+      const fillColor = ratio >= 0.5 ? goodColor : badColor;
+      g.fillStyle(fillColor, 0.82);
+      g.fillRect(x, barY, Math.round((segW - 1) * ratio), barH);
+      this.affairsBadge.push(g);
+    }
+  }
+
+  private clearAffairsBadge(): void {
+    for (const item of this.affairsBadge) {
+      item.destroy();
+    }
+    this.affairsBadge = [];
   }
 
   private showVictory(): void {

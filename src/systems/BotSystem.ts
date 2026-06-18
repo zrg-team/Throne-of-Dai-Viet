@@ -14,6 +14,42 @@ export function runBotTurns(state: GameState): void {
   }
 }
 
+export function launchDynastyAttack(state: GameState, kingdomId: string): void {
+  // Re-exported from CampaignEventSystem to keep BotSystem as the stable API surface.
+  // The actual implementation lives in CampaignEventSystem to avoid circular imports.
+  const kingdom = state.kingdoms.find((k) => k.id === kingdomId && !k.isDefeated);
+  if (!kingdom) return;
+
+  const capitalLand = state.lands.find(
+    (l) => l.ownerId === kingdomId && (l.type === 'enemyCastle' || l.type === 'castle'),
+  );
+  if (!capitalLand) return;
+
+  const existingStrength = state.armies
+    .filter((a) => a.kingdomId === kingdomId)
+    .reduce((sum, a) => sum + a.units.spearmen + a.units.archers + a.units.heavyInfantry, 0);
+  const attackSize = Math.max(600, Math.floor(existingStrength * 1.8));
+
+  state.armies.push({
+    id: `dynasty-attack-${kingdomId}-${state.turn}`,
+    kingdomId,
+    name: `${kingdom.name} Great Army`,
+    landId: capitalLand.id,
+    units: {
+      spearmen: Math.floor(attackSize * 0.58),
+      archers: Math.floor(attackSize * 0.28),
+      heavyInfantry: Math.floor(attackSize * 0.14),
+    },
+    morale: 88,
+    supply: 92,
+    rations: 400,
+    provisions: 300,
+    level: 2,
+    experience: 0,
+    experienceToNextLevel: 160,
+  });
+}
+
 function runSingleBot(state: GameState, kingdom: Kingdom): void {
   const ownedLands = state.lands.filter((land) => land.ownerId === kingdom.id);
   if (ownedLands.length === 0) {
@@ -60,8 +96,10 @@ function runSingleBot(state: GameState, kingdom: Kingdom): void {
     }
   }
 
+  // In campaign mode, friendly kingdoms (relations > 60) don't pressure the player
+  const isFriendlyInCampaign = state.gameMode === 'campaign' && (kingdom.relations ?? 50) > 60;
   const playerTarget = frontier.find((land) => land.ownerId === PLAYER_KINGDOM_ID);
-  if (playerTarget && state.turn % 4 === 0) {
+  if (playerTarget && !isFriendlyInCampaign && state.turn % 4 === 0) {
     playerTarget.loyalty = Math.max(20, playerTarget.loyalty - 8);
     state.message = t('msg.botPressures', { kingdom: kingdom.name, land: playerTarget.name });
   }
