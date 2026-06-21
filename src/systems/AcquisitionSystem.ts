@@ -11,8 +11,10 @@ const BASE_TRUST = 40;
 const INTIMIDATION_REQUIRED = 100;
 const RESIST_FACTOR = 4;
 const MIN_INTIMIDATION_RATIO = 0.5;
-const BRIBE_SUCCESS_BASE = 75;
-const BRIBE_NOBLE_PENALTY = 2;
+const BRIBE_SUCCESS_BASE = 85;
+const BRIBE_NOBLE_PENALTY = 0.9;
+const BRIBE_MIN_CHANCE = 0.25;
+const BRIBE_MAX_CHANCE = 0.9;
 const DIPLOMACY_TRUST_THRESHOLD_BASE = 65;
 const DIPLOMACY_SUPPLIES_BASE = 10;
 const DIPLOMACY_ASSIGNMENT_PREFIX = 'diplomacy-';
@@ -39,7 +41,8 @@ export function getNoblePower(land: Land): number {
 }
 
 export function getBribeSuccessChance(land: Land): number {
-  return Math.max(0.10, (BRIBE_SUCCESS_BASE - getNoblePower(land) * BRIBE_NOBLE_PENALTY) / 100);
+  const raw = (BRIBE_SUCCESS_BASE - getNoblePower(land) * BRIBE_NOBLE_PENALTY) / 100;
+  return Math.min(BRIBE_MAX_CHANCE, Math.max(BRIBE_MIN_CHANCE, raw));
 }
 
 export function getGoldBribeCost(state: GameState, land: Land): number {
@@ -235,7 +238,8 @@ export function startDiplomaticClaim(state: GameState, landId: string, heroId?: 
   state.acquisitionOrders.push({
     landId,
     buyerId: PLAYER_KINGDOM_ID,
-    progress: 0,
+    // Progress tracks trust toward the threshold so the on-map badge reads correctly.
+    progress: Math.floor(currentTrust),
     required: Math.ceil(threshold),
     costGold: 0,
     method: 'diplomacy',
@@ -397,6 +401,8 @@ export function progressAcquisitions(state: GameState): boolean {
         const bonuses = getCourtBonuses(state);
         const gain = (1 + hero.stats.administration * 0.03) * bonuses.acquisitionSpeedMult;
         land.trust[PLAYER_KINGDOM_ID] = Math.min(100, getLandTrust(land, PLAYER_KINGDOM_ID) + gain);
+        // Mirror trust into the order so the progress badge advances visibly.
+        order.progress = Math.floor(land.trust[PLAYER_KINGDOM_ID]);
         if (land.trust[PLAYER_KINGDOM_ID] >= order.required) toComplete.push(order.landId);
         break;
       }

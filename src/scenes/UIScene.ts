@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID } from '../game/constants';
+import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import {
   ACTION_BUTTON_HEIGHT,
   ACTION_BUTTON_Y,
@@ -13,7 +13,20 @@ import {
 import { BattlePreviewPanel } from '../ui/BattlePreviewPanel';
 import { BottomSheet, SHEET_TOP } from '../ui/BottomSheet';
 import { CampaignScorePanel } from '../ui/CampaignScorePanel';
-import { ForeignAffairsPanel } from '../ui/ForeignAffairsPanel';
+import { ForeignAffairsPanel, stanceLabel } from '../ui/ForeignAffairsPanel';
+import { demandTribute, proposeTrade, sendGift } from '../systems/ForeignAffairsSystem';
+import {
+  evaluatePactOffer,
+  getFear,
+  getPrestige,
+  getTrust,
+  giftCost,
+  giftOpinionGain,
+  hasPact,
+  naturalBaseline,
+  proposePact,
+} from '../systems/DiplomacySystem';
+import { canTakeForeignChoice } from '../systems/ForeignEventSystem';
 import { MINIMAP_H, MINIMAP_W, renderMinimap, type MinimapWorldInfo } from '../ui/MinimapRenderer';
 import { renderHeroFace } from '../ui/FaceRenderer';
 import { COMPACT_CARD_Y, LandPanel } from '../ui/LandPanel';
@@ -67,7 +80,8 @@ type ModalScreen =
   | 'game-menu'
   | 'exit-menu'
   | 'campaign-defeat'
-  | 'foreign-affairs';
+  | 'foreign-affairs'
+  | 'foreign-event';
 
 const MESSAGE_STRIP_HEIGHT = 42;
 
@@ -88,6 +102,10 @@ export class UIScene extends Phaser.Scene {
   private requestBadge: Phaser.GameObjects.GameObject[] = [];
   private lastSpyReportCount = 0;
   private affairsBadge: Phaser.GameObjects.GameObject[] = [];
+  private empireBanners: Phaser.GameObjects.GameObject[] = [];
+  private selectedAffairsKingdomId?: string;
+  private affairsPactOpen = false;
+  private affairsPactSweetener = 0;
   private politicsResultMessage = '';
   private minimapOpen = false;
   private minimapObjects: Phaser.GameObjects.GameObject[] = [];
@@ -130,6 +148,10 @@ export class UIScene extends Phaser.Scene {
     this.modalBuildLandId = undefined;
     this.requestBadge = [];
     this.affairsBadge = [];
+    this.empireBanners = [];
+    this.selectedAffairsKingdomId = undefined;
+    this.affairsPactOpen = false;
+    this.affairsPactSweetener = 0;
     this.lastSpyReportCount = 0;
     this.selectedArmyLeaderId = undefined;
     this.armySoldiers = 400;
@@ -377,7 +399,7 @@ export class UIScene extends Phaser.Scene {
     }
 
     if (action === 'foreign-affairs' || action === 'affairs') {
-      if (this.state.gameMode === 'campaign') {
+      if (isCampaignMode(this.state.gameMode)) {
         this.openModal('foreign-affairs');
       }
       return;
@@ -454,6 +476,9 @@ export class UIScene extends Phaser.Scene {
     this.clearModalLayer();
     this.modalLayer.setVisible(false);
     this.modalBuildLandId = undefined;
+    this.selectedAffairsKingdomId = undefined;
+    this.affairsPactOpen = false;
+    this.affairsPactSweetener = 0;
     this.refresh();
   }
 
@@ -463,6 +488,7 @@ export class UIScene extends Phaser.Scene {
     this.messageText.setText(this.state.message);
     this.clearRequestBadge();
     this.clearAffairsBadge();
+    this.clearEmpireBanners();
     this.clearMapControls();
     this.clearGameMenuButton();
     this.clearCompactCard();
@@ -473,7 +499,7 @@ export class UIScene extends Phaser.Scene {
       return;
     }
 
-    if (this.modalScreen === 'none' && this.state.isDefeated && this.state.gameMode === 'campaign') {
+    if (this.modalScreen === 'none' && this.state.isDefeated && isCampaignMode(this.state.gameMode)) {
       this.openModal('campaign-defeat');
       return;
     }
@@ -485,6 +511,11 @@ export class UIScene extends Phaser.Scene {
 
     if (this.modalScreen === 'none' && this.state.pendingCourtRequest) {
       this.openModal('request');
+      return;
+    }
+
+    if (this.modalScreen === 'none' && this.state.pendingForeignCard) {
+      this.openModal('foreign-event');
       return;
     }
 
@@ -504,7 +535,11 @@ export class UIScene extends Phaser.Scene {
       this.renderCourtRequestBadge(this.state.pendingCourtRequest);
     }
 
-    if (this.state.gameMode === 'campaign') {
+    if (this.state.gameMode === 'empire') {
+      this.renderEmpireBanners();
+    }
+
+    if (isCampaignMode(this.state.gameMode)) {
       this.renderStabilityBar();
       const newReports = this.state.spyReports.length > this.lastSpyReportCount;
       if (newReports) {
@@ -563,6 +598,8 @@ export class UIScene extends Phaser.Scene {
       this.showExitMenuScreen();
     } else if (this.modalScreen === 'foreign-affairs') {
       this.showForeignAffairsScreen();
+    } else if (this.modalScreen === 'foreign-event') {
+      this.showForeignEventScreen();
     }
 
     if (this.modalJustOpened) {
@@ -1680,27 +1717,202 @@ export class UIScene extends Phaser.Scene {
   }
 
   private showForeignAffairsScreen(): void {
-    this.addModalBase(t('campaign.affairs.title'), '');
+    const selected = this.selectedAffairsKingdomId
+      ? this.state.kingdoms.find((k) => k.id === this.selectedAffairsKingdomId && !k.isDefeated)
+      : undefined;
+
+    if (selected) {
+      if (this.affairsPactOpen) {
+        this.showPactOffer(selected);
+      } else {
+        this.showForeignAffairsDetail(selected);
+      }
+      return;
+    }
+
+    this.addModalBase(t('campaign.affairs.title'), t('diplo.prestige', { value: Math.round(getPrestige(this.state)) }));
     const content = this.modalContentBounds;
 
-    const listBounds = { x: content.x, y: content.y, width: content.width, height: content.height };
-    const scroll = this.ui.scrollArea(listBounds);
+    const scroll = this.ui.scrollArea({ x: content.x, y: content.y, width: content.width, height: content.height });
     scroll.addTo(this.modalLayer);
     this.activeScrollAreas.push(scroll);
 
-    const panel = new ForeignAffairsPanel(this, this.state, () => {
+    const panel = new ForeignAffairsPanel(this, this.state, () => this.refresh());
+    const rivals = this.state.kingdoms.filter((k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated);
+    const rowH = 96;
+    const items = panel.renderList({ x: 0, y: 0, width: content.width, height: rivals.length * rowH }, (kingdomId) => {
+      this.selectedAffairsKingdomId = kingdomId;
       this.refresh();
     });
-    const rivals = this.state.kingdoms.filter(
-      (k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated,
-    );
-    const cardH = 178;
-    const gap = 12;
-    const panelItems = panel.render({ x: 0, y: 0, width: content.width, height: rivals.length * (cardH + gap) });
-    for (const obj of panelItems) {
+    for (const obj of items) {
       scroll.content.add(obj);
     }
-    scroll.setContentHeight(rivals.length * (cardH + gap));
+    scroll.setContentHeight(rivals.length * rowH);
+  }
+
+  private showForeignAffairsDetail(kingdom: GameState['kingdoms'][number]): void {
+    const relations = Math.round(kingdom.relations ?? 50);
+    this.addModalBase(kingdom.name, `${stanceLabel(relations)} · ${t('diplo.opinion')} ${relations}/100`);
+    const content = this.modalContentBounds;
+
+    // Back to list
+    this.modalLayer.add(this.ui.button({ x: content.x, y: content.y, width: 116, height: 30 }, t('campaign.affairs.back'), () => {
+      this.selectedAffairsKingdomId = undefined;
+      this.refresh();
+    }, { variant: 'secondary', fontSize: '11px' }));
+    this.modalLayer.add(createLabel(this, content.x + content.width, content.y + 6, t('diplo.fearTrust', {
+      fear: Math.round(getFear(this.state, kingdom)),
+      trust: Math.round(getTrust(kingdom)),
+    }), 'caption', { fontSize: '10px', align: 'right' }).setOrigin(1, 0));
+    const appetite = Math.round(kingdom.warAppetite ?? 0);
+    if (appetite >= 40 && !hasPact(kingdom)) {
+      this.modalLayer.add(createLabel(this, content.x + content.width, content.y + 20, t('diplo.warAppetite', { pct: appetite }), 'caption', {
+        fontSize: '10px', align: 'right', color: '#c0392b',
+      }).setOrigin(1, 0));
+    }
+
+    // Opinion breakdown (baseline + each modifier), scrollable
+    const breakdownTop = content.y + 40;
+    const breakdownH = content.height - 40 - 196;
+    const scroll = this.ui.scrollArea({ x: content.x, y: breakdownTop, width: content.width, height: breakdownH });
+    scroll.addTo(this.modalLayer);
+    this.activeScrollAreas.push(scroll);
+
+    const rows: Array<{ label: string; value: number; muted?: boolean }> = [
+      { label: t('diplo.baseline'), value: naturalBaseline(kingdom.personality), muted: true },
+      ...(kingdom.opinionModifiers ?? []).map((m) => ({ label: m.label, value: Math.round(m.value) })),
+    ];
+    let rowY = 0;
+    for (const row of rows) {
+      const g = this.add.graphics();
+      g.fillStyle(INK_UI.parchment, 0.16);
+      g.fillRoundedRect(0, rowY, content.width, 26, 4);
+      scroll.content.add(g);
+      scroll.content.add(createLabel(this, 8, rowY + 6, row.label, 'caption', { fontSize: '11px', wordWrap: { width: content.width - 70 } }));
+      const sign = row.value > 0 ? '+' : '';
+      const valColor = row.muted ? '#6b5230' : row.value >= 0 ? '#5f8f4c' : '#aa3a2c';
+      scroll.content.add(createLabel(this, content.width - 8, rowY + 6, `${sign}${row.value}`, 'label', {
+        fontSize: '12px', align: 'right', color: valColor,
+      }).setOrigin(1, 0));
+      rowY += 30;
+    }
+    if (rows.length <= 1) {
+      scroll.content.add(createLabel(this, 8, rowY + 4, t('diplo.noModifiers'), 'caption', { fontSize: '11px' }));
+      rowY += 24;
+    }
+    scroll.setContentHeight(rowY);
+
+    // Action buttons (2x2) anchored at the bottom
+    const kingdomId = kingdom.id;
+    const giftLabel = t('diplo.action.gift', { cost: giftCost(kingdom), gain: giftOpinionGain(kingdom) });
+    const btnY = content.y + content.height - 150;
+    const btnW = (content.width - 10) / 2;
+    const bh = 42;
+    const act = (fn: () => void) => {
+      fn();
+      this.refresh();
+    };
+    this.modalLayer.add(this.ui.button({ x: content.x, y: btnY, width: btnW, height: bh }, giftLabel, () => act(() => sendGift(this.state, kingdomId)), { variant: 'primary', fontSize: '11px' }));
+    this.modalLayer.add(this.ui.button({ x: content.x + btnW + 10, y: btnY, width: btnW, height: bh }, t('diplo.action.trade'), () => act(() => proposeTrade(this.state, kingdomId)), { variant: 'secondary', fontSize: '11px' }));
+    const pacted = hasPact(kingdom);
+    this.modalLayer.add(this.ui.button({ x: content.x, y: btnY + bh + 10, width: btnW, height: bh }, pacted ? t('diplo.action.pacted') : t('diplo.action.pact'), () => {
+      if (pacted) return;
+      this.affairsPactOpen = true;
+      this.affairsPactSweetener = 0;
+      this.refresh();
+    }, { variant: pacted ? 'disabled' : 'secondary', fontSize: '11px' }));
+    this.modalLayer.add(this.ui.button({ x: content.x + btnW + 10, y: btnY + bh + 10, width: btnW, height: bh }, t('diplo.action.tribute'), () => act(() => demandTribute(this.state, kingdomId)), { variant: 'danger', fontSize: '11px' }));
+  }
+
+  private showPactOffer(kingdom: GameState['kingdoms'][number]): void {
+    this.addModalBase(t('diplo.pactOffer.title'), kingdom.name);
+    const content = this.modalContentBounds;
+    const sweetener = this.affairsPactSweetener;
+    const evaluation = evaluatePactOffer(this.state, kingdom, sweetener);
+
+    let rowY = content.y;
+    for (const reason of evaluation.reasons) {
+      this.modalLayer.add(createLabel(this, content.x + 4, rowY, reason.label, 'caption', { fontSize: '11px', wordWrap: { width: content.width - 70 } }));
+      const sign = reason.value > 0 ? '+' : '';
+      this.modalLayer.add(createLabel(this, content.x + content.width - 4, rowY, `${sign}${reason.value}`, 'label', {
+        fontSize: '12px', align: 'right', color: reason.value >= 0 ? '#5f8f4c' : '#aa3a2c',
+      }).setOrigin(1, 0));
+      rowY += 24;
+    }
+
+    rowY += 10;
+    const verdict = evaluation.accepts ? t('diplo.pactOffer.accepts') : t('diplo.pactOffer.refuses');
+    this.modalLayer.add(createLabel(this, content.x + content.width / 2, rowY, `${verdict}  (${evaluation.score >= 0 ? '+' : ''}${evaluation.score})`, 'label', {
+      fontSize: '15px', align: 'center', color: evaluation.accepts ? '#5f8f4c' : '#aa3a2c',
+    }).setOrigin(0.5, 0));
+    rowY += 36;
+
+    this.modalLayer.add(createLabel(this, content.x + content.width / 2, rowY, t('diplo.pactOffer.sweetener', { gold: sweetener }), 'caption', {
+      fontSize: '12px', align: 'center',
+    }).setOrigin(0.5, 0));
+    rowY += 24;
+    const stepW = 72;
+    this.modalLayer.add(this.ui.button({ x: content.x + content.width / 2 - stepW - 8, y: rowY, width: stepW, height: 34 }, '− 10', () => {
+      this.affairsPactSweetener = Math.max(0, sweetener - 10);
+      this.refresh();
+    }, { variant: 'secondary', fontSize: '13px' }));
+    this.modalLayer.add(this.ui.button({ x: content.x + content.width / 2 + 8, y: rowY, width: stepW, height: 34 }, '+ 10', () => {
+      this.affairsPactSweetener = Math.min(this.state.resources.gold, sweetener + 10);
+      this.refresh();
+    }, { variant: 'secondary', fontSize: '13px' }));
+
+    const footer = this.modalFooterBounds;
+    const halfW = (content.width - 10) / 2;
+    this.modalLayer.add(this.ui.button({ x: content.x, y: footer.y, width: halfW, height: 42 }, t('diplo.pactOffer.propose'), () => {
+      const ok = proposePact(this.state, kingdom.id, this.affairsPactSweetener);
+      if (ok) {
+        this.affairsPactOpen = false;
+        this.affairsPactSweetener = 0;
+      }
+      this.refresh();
+    }, { variant: 'primary', fontSize: '12px' }));
+    this.modalLayer.add(this.ui.button({ x: content.x + halfW + 10, y: footer.y, width: halfW, height: 42 }, t('action.cancel'), () => {
+      this.affairsPactOpen = false;
+      this.refresh();
+    }, { variant: 'secondary', fontSize: '12px' }));
+  }
+
+  private showForeignEventScreen(): void {
+    const card = this.state.pendingForeignCard;
+    if (!card) {
+      this.closeModal();
+      return;
+    }
+    this.addModalBase(card.title, t('fcard.from', { kingdom: card.kingdomName }));
+    const content = this.modalContentBounds;
+
+    this.modalLayer.add(this.ui.card({ x: content.x, y: content.y, width: content.width, height: 150 }, {
+      body: card.description,
+      border: INK_UI.cinnabar,
+    }));
+
+    let y = content.y + 166;
+    for (const choice of card.choices) {
+      const enabled = canTakeForeignChoice(this.state, choice);
+      this.modalLayer.add(this.ui.card({ x: content.x, y, width: content.width, height: 84 }, {
+        title: choice.label,
+        subtitle: choice.description,
+        muted: !enabled,
+        border: enabled ? INK_UI.gold : INK_UI.softBrush,
+        actionPlacement: 'bottom',
+        action: {
+          label: enabled ? t('action.choose') : t('fcard.unavailable'),
+          variant: enabled ? 'primary' : 'disabled',
+          disabled: !enabled,
+          onClick: () => {
+            if (!enabled) return;
+            this.events.emit('ui:foreign-choice', choice.id);
+            this.closeModal();
+          },
+        },
+      }));
+      y += 96;
+    }
   }
 
   private renderStabilityBar(): void {
@@ -1743,6 +1955,79 @@ export class UIScene extends Phaser.Scene {
       item.destroy();
     }
     this.affairsBadge = [];
+  }
+
+  /**
+   * Empire mode: a left-edge strip of banners for the off-map Empires (which never
+   * appear on the board). Each shows the empire's colour, name, a relations tint,
+   * and a ⚔ marker while one of its hosts is invading. Tapping opens foreign affairs.
+   */
+  private renderEmpireBanners(): void {
+    if (this.state.selectedLandId || this.state.latestBattlePreview) {
+      return; // bottom card / preview is up — keep the edge clear
+    }
+
+    const empires = this.state.kingdoms.filter((k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated);
+    const chipW = 108;
+    const chipH = 34;
+    const x = 6;
+    let y = HEADER_HEIGHT + MESSAGE_STRIP_HEIGHT + 8;
+
+    for (const empire of empires) {
+      const relations = empire.relations ?? 50;
+      const relColor = relations >= 65 ? INK_UI.jade : relations <= 35 ? INK_UI.cinnabar : INK_UI.gold;
+      const invading = (this.state.invasions ?? []).some((r) => r.kingdomId === empire.id);
+
+      const g = this.add.graphics().setDepth(430);
+      g.fillStyle(INK_UI.backgroundInk, 0.9);
+      g.fillRoundedRect(x, y, chipW, chipH, 6);
+      g.fillStyle(empire.color, 0.95);
+      g.fillRoundedRect(x, y, 7, chipH, { tl: 6, bl: 6, tr: 0, br: 0 });
+      g.lineStyle(invading ? 2 : 1, invading ? INK_UI.cinnabar : relColor, invading ? 0.95 : 0.7);
+      g.strokeRoundedRect(x, y, chipW, chipH, 6);
+      // relations tick
+      g.fillStyle(relColor, 0.9);
+      g.fillRect(x + 12, y + chipH - 6, (chipW - 18) * Phaser.Math.Clamp(relations / 100, 0, 1), 3);
+
+      const name = this.ui.label(x + 12, y + 4, empire.name, 'caption', {
+        color: '#f3dd9a',
+        fontSize: '9px',
+        wordWrap: { width: chipW - 18 },
+      }).setDepth(431);
+
+      const items: Phaser.GameObjects.GameObject[] = [g, name];
+      if (invading) {
+        items.push(this.ui.label(x + chipW - 6, y + 3, '⚔', 'caption', {
+          color: '#e0857a',
+          fontSize: '12px',
+          align: 'right',
+        }).setOrigin(1, 0).setDepth(431));
+      }
+
+      const hit = this.add.rectangle(x + chipW / 2, y + chipH / 2, chipW, chipH, 0xffffff, 0.001)
+        .setDepth(431)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+        event.stopPropagation();
+        window.__suppressMapInputUntil = performance.now() + 500;
+      });
+      hit.on('pointerup', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+        event.stopPropagation();
+        window.__suppressMapInputUntil = performance.now() + 500;
+        this.openModal('foreign-affairs');
+      });
+      items.push(hit);
+
+      this.empireBanners.push(...items);
+      y += chipH + 6;
+    }
+  }
+
+  private clearEmpireBanners(): void {
+    for (const item of this.empireBanners) {
+      item.destroy();
+    }
+    this.empireBanners = [];
   }
 
   private showVictory(): void {

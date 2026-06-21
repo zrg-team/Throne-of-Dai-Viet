@@ -7,6 +7,7 @@ import { computeCentroid, computeNeighbors, generateHexMap, type MapGenConfig } 
 import { refreshAllLandOutputs } from '../systems/ResourceSystem';
 import { refreshPlayerVisibility } from '../systems/LandSystem';
 import { createInitialCourtState } from '../systems/CourtSystem';
+import { recomputeOpinion } from '../systems/DiplomacySystem';
 import type { Army, CampaignConfig, GameState, Kingdom, Land, LandTemplate, ResourceBag, TerrainSummary } from './types';
 import { landTypeLabel, t } from '../i18n';
 
@@ -434,6 +435,9 @@ export function createCampaignGameState(config: CampaignConfig): GameState {
         age: randomInt(12),
       };
       kingdom.relations = 50;
+      kingdom.opinionModifiers = [];
+      kingdom.giftFatigue = 0;
+      recomputeOpinion(kingdom);
     }
   }
 
@@ -508,6 +512,90 @@ export function createCampaignGameState(config: CampaignConfig): GameState {
     campaignScore: { turnsAlive: 0, armiesDefeated: 0, largestArmyDefeated: 0, peakLandsHeld: 1 },
     spyReports: [],
     scheduledCampaignEvents: [],
+    isDefeated: false,
+    defeatReason: undefined,
+  };
+
+  refreshAllLandOutputs(state);
+  refreshPlayerVisibility(state);
+  return state;
+}
+
+const EMPIRE_KINGDOM_IDS = ['northern-rival', 'southern-rival', 'eastern-rival', 'western-rival'];
+
+/**
+ * "Throne of Empires" mode. The player holds the centre of the map among neutral
+ * districts to expand into; the rival kingdoms are off-map "Empires" that own no
+ * territory and never appear on the board — they pressure the realm only through
+ * court cards, foreign affairs, and invasions (see InvasionSystem). Endless: there
+ * is no elimination victory, only survival and the high-score screen on defeat.
+ */
+export function createEmpireGameState(config: CampaignConfig): GameState {
+  const mapConfig = createCampaignMapConfig(config);
+  // Empty rival list → player castle + neutral districts only, no enemy castles.
+  const { lands, hexTiles } = createCampaignLands(mapConfig, []);
+
+  const allKingdoms: Kingdom[] = structuredClone(
+    kingdomTemplates.filter((k) => k.id === PLAYER_KINGDOM_ID || EMPIRE_KINGDOM_IDS.includes(k.id)),
+  );
+
+  for (const kingdom of allKingdoms) {
+    if (kingdom.id !== PLAYER_KINGDOM_ID) {
+      kingdom.king = {
+        name: pickRoyalName(),
+        personality: kingdom.personality,
+        age: randomInt(12),
+      };
+      kingdom.relations = 50;
+      kingdom.opinionModifiers = [];
+      kingdom.giftFatigue = 0;
+      recomputeOpinion(kingdom);
+    }
+  }
+
+  const state: GameState = {
+    year: 1,
+    season: 'Spring',
+    turn: 1,
+    realtimeSeconds: 0,
+    ordersRemaining: ORDERS_PER_SEASON,
+    resources: { food: 150, supplies: 70, gold: 110, humans: 600 },
+    resourceRates: { ...EMPTY_RESOURCE_BAG },
+    mapRenderMode: 'terrain',
+    mapSettings: { ...GAMEPLAY_MAP_CONFIG, seed: mapConfig.seed },
+    hexTiles,
+    mapConfig,
+    lands,
+    kingdoms: allKingdoms,
+    armies: [],
+    heroes: [generateKingHero()],
+    heroDeck: structuredClone(heroTemplates),
+    politicsDeck: structuredClone(politicsCardTemplates),
+    activeCourtModifiers: [],
+    court: createInitialCourtState(),
+    activeHeroDraft: undefined,
+    activePoliticsCard: undefined,
+    pendingCourtRequest: undefined,
+    isPaused: false,
+    isStrategyPause: false,
+    selectedLandId: undefined,
+    selectedArmyId: undefined,
+    latestBattlePreview: undefined,
+    latestBattleResult: undefined,
+    acquisitionOrders: [],
+    buildOrders: [],
+    movementOrders: [],
+    siegeOrders: [],
+    recruitmentOrders: [],
+    message: t('msg.campaignStart'),
+    victory: false,
+    gameMode: 'empire',
+    campaignConfig: config,
+    dynastyStatus: { farmerUnrest: 15, nobleRelations: 60, consecutiveLowStability: 0 },
+    campaignScore: { turnsAlive: 0, armiesDefeated: 0, largestArmyDefeated: 0, peakLandsHeld: 1 },
+    spyReports: [],
+    scheduledCampaignEvents: [],
+    invasions: [],
     isDefeated: false,
     defeatReason: undefined,
   };

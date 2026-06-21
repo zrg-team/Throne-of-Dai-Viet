@@ -60,6 +60,12 @@ export function getSiegeOrder(state: GameState, landId: string) {
 }
 
 export function checkVictory(state: GameState): void {
+  // Empire mode is endless — survival/high-score, never an elimination win
+  // (there are no enemy castles on the map to clear).
+  if (state.gameMode === 'empire') {
+    return;
+  }
+
   const enemyCastles = state.lands.filter(
     (land) => land.type === 'enemyCastle' && land.ownerId !== PLAYER_KINGDOM_ID,
   );

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH, PLAYER_KINGDOM_ID } from '../game/constants';
 import { MAP_SCALE } from '../map/hex';
 import type { GameState } from '../state/types';
-import { INK_UI } from './InkUI';
+import { getActiveMapTheme } from './mapTheme';
 
 export const MINIMAP_W = 88;
 export const MINIMAP_H = 70;
@@ -33,9 +33,10 @@ export function renderMinimap(
   const scaleY = MINIMAP_H / worldHeight;
 
   const bg = scene.add.graphics().setDepth(425);
-  bg.fillStyle(0x0d0a05, 0.93);
+  const { minimap } = getActiveMapTheme().palette;
+  bg.fillStyle(minimap.background, 0.93);
   bg.fillRoundedRect(anchorX, anchorY, MINIMAP_W, MINIMAP_H, 5);
-  bg.lineStyle(1.5, INK_UI.gold, 0.7);
+  bg.lineStyle(1.5, minimap.border, 0.7);
   bg.strokeRoundedRect(anchorX, anchorY, MINIMAP_W, MINIMAP_H, 5);
 
   const dots = scene.add.graphics().setDepth(426);
@@ -54,15 +55,15 @@ export function renderMinimap(
     let size: number;
 
     if (land.ownerId === PLAYER_KINGDOM_ID) {
-      color = INK_UI.jade;
+      color = minimap.player;
       alpha = 1;
       size = 3;
     } else if (land.ownerId === 'neutral') {
-      color = 0x6b5e3a;
+      color = minimap.neutral;
       alpha = 0.45;
       size = 2;
     } else {
-      color = INK_UI.cinnabar;
+      color = minimap.rival;
       alpha = 0.88;
       size = 3;
     }
@@ -79,7 +80,7 @@ export function renderMinimap(
     const wy = (land.y - hexOffsetY) * MAP_SCALE;
     const mmX = anchorX + wx * scaleX;
     const mmY = anchorY + wy * scaleY;
-    dots.fillStyle(army.kingdomId === PLAYER_KINGDOM_ID ? 0xffffff : 0xff4422, 1);
+    dots.fillStyle(army.kingdomId === PLAYER_KINGDOM_ID ? minimap.playerArmy : minimap.rivalArmy, 1);
     dots.fillCircle(mmX, mmY, 1.5);
   }
 
@@ -90,7 +91,7 @@ export function renderMinimap(
   const vpY = anchorY + Phaser.Math.Clamp(scrollY * scaleY, 0, MINIMAP_H - 2);
   const clampedW = Math.min(vpW, anchorX + MINIMAP_W - vpX);
   const clampedH = Math.min(vpH, anchorY + MINIMAP_H - vpY);
-  dots.lineStyle(1, 0xffffff, 0.7);
+  dots.lineStyle(1, minimap.viewport, 0.7);
   dots.strokeRect(vpX, vpY, Math.max(4, clampedW), Math.max(4, clampedH));
 
   // Interactive hit area

@@ -1,4 +1,5 @@
-import { PLAYER_KINGDOM_ID } from '../game/constants';
+import { isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
+import { addOpinionModifier, breakPact, getFear, giftCost, giftOpinionGain, hasPact, tickDiplomacy } from './DiplomacySystem';
 import type { CampaignEvent, GameState, Kingdom, KingdomPersonality } from '../state/types';
 import { t } from '../i18n';
 
@@ -27,12 +28,12 @@ function pickRandomPersonality(): KingdomPersonality {
   return options[Math.floor(Math.random() * options.length)];
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
 function isKingdomWeak(kingdom: Kingdom, state: GameState): boolean {
   const ownedCount = state.lands.filter((l) => l.ownerId === kingdom.id).length;
+  // Off-map empires hold no districts; judge weakness by relations instead of land count.
+  if (ownedCount === 0) {
+    return (kingdom.relations ?? 50) < 40;
+  }
   const playerCount = state.lands.filter((l) => l.ownerId === PLAYER_KINGDOM_ID).length;
   return ownedCount < playerCount * 0.6;
 }
@@ -52,7 +53,10 @@ function scheduleDynastyAttack(state: GameState, kingdomId: string): void {
 }
 
 export function tickForeignAffairs(state: GameState): void {
-  if (state.gameMode !== 'campaign') return;
+  if (!isCampaignMode(state.gameMode)) return;
+
+  // Decay temporary opinion modifiers + gift fatigue, then drift toward each empire's baseline.
+  tickDiplomacy(state);
 
   for (const kingdom of state.kingdoms) {
     if (kingdom.id === PLAYER_KINGDOM_ID || kingdom.isDefeated) continue;
@@ -66,7 +70,8 @@ export function tickForeignAffairs(state: GameState): void {
       kingdom.king = { name: pickRoyalName(), personality: newPersonality, age: 0 };
 
       if (newPersonality === 'aggressive' || newPersonality === 'expansionist') {
-        kingdom.hostilityTimer = 8 + Math.floor(Math.random() * 8);
+        // A warlike successor inflames war appetite rather than a fixed timer.
+        kingdom.warAppetite = Math.min(100, (kingdom.warAppetite ?? 0) + 30);
         state.message = t('msg.newKingAggressive', { kingdom: kingdom.name });
       } else {
         state.message = t('msg.newKingPeaceful', {
@@ -76,85 +81,132 @@ export function tickForeignAffairs(state: GameState): void {
       }
     }
 
-    if ((kingdom.hostilityTimer ?? 0) > 0) {
-      kingdom.hostilityTimer = (kingdom.hostilityTimer ?? 1) - 1;
-      if (kingdom.hostilityTimer === 0) {
-        scheduleDynastyAttack(state, kingdom.id);
-      }
-    }
+    escalateWarAppetite(state, kingdom);
+  }
+}
 
-    // Relations drift slowly toward neutral
-    if (state.turn % 3 === 0 && kingdom.relations !== undefined) {
-      if (kingdom.relations > 50) {
-        kingdom.relations = clamp(kingdom.relations - 1, 50, 100);
-      } else if (kingdom.relations < 50) {
-        kingdom.relations = clamp(kingdom.relations + 1, 0, 50);
-      }
-    }
+function personalityAggression(personality: KingdomPersonality): number {
+  switch (personality) {
+    case 'aggressive': return 1.4;
+    case 'expansionist': return 0.9;
+    case 'economic': return -0.4;
+    case 'diplomatic': return -1.2;
+    case 'defensive': return -0.2;
+    default: return 0;
+  }
+}
+
+/**
+ * Drives the escalation ladder: war appetite rises with low opinion + low fear +
+ * a warlike temperament, and falls with friendship, deterrence, or a pact. When it
+ * tops out the empire launches an invasion (the consequence of failed diplomacy).
+ */
+function escalateWarAppetite(state: GameState, kingdom: Kingdom): void {
+  const opinion = kingdom.relations ?? 50;
+  const fear = getFear(state, kingdom);
+  let delta = personalityAggression(kingdom.personality);
+
+  if (hasPact(kingdom)) {
+    delta -= 5; // a standing pact rapidly cools aggression
+  } else {
+    if (opinion < 30) delta += 3;
+    else if (opinion < 45) delta += 1.5;
+    else if (opinion > 65) delta -= 2;
+    else delta -= 0.5;
+
+    if (fear < 25) delta += 2;
+    else if (fear > 60) delta -= 2;
+  }
+
+  kingdom.warAppetite = Math.max(0, Math.min(100, (kingdom.warAppetite ?? 0) + delta));
+
+  const pendingAttack = state.scheduledCampaignEvents.some(
+    (e) => e.type === 'dynasty-attack' && e.sourceKingdomId === kingdom.id && !e.resolved,
+  );
+  // Telegraph: a brewing host shows the ⚠ threat marker.
+  kingdom.hostilityTimer = !hasPact(kingdom) && kingdom.warAppetite >= 70 ? 1 : 0;
+
+  if (kingdom.warAppetite >= 100 && !hasPact(kingdom) && !pendingAttack) {
+    scheduleDynastyAttack(state, kingdom.id);
+    kingdom.warAppetite = 30; // cool down after committing to war
   }
 }
 
 export function sendGift(state: GameState, kingdomId: string): boolean {
-  if (state.gameMode !== 'campaign') return false;
+  if (!isCampaignMode(state.gameMode)) return false;
   const kingdom = state.kingdoms.find((k) => k.id === kingdomId);
   if (!kingdom || kingdom.isDefeated) return false;
-  if (state.resources.gold < 30) {
-    state.message = 'Not enough gold to send a gift (need 30).';
+
+  const cost = giftCost(kingdom);
+  if (state.resources.gold < cost) {
+    state.message = t('diplo.giftNoGold', { cost });
     return false;
   }
-  state.resources.gold -= 30;
-  kingdom.relations = clamp((kingdom.relations ?? 50) + 15, 0, 100);
-  state.message = `Gift sent to ${kingdom.name}. Relations improved.`;
+  state.resources.gold -= cost;
+  const gain = giftOpinionGain(kingdom);
+  addOpinionModifier(kingdom, {
+    id: `gift-${state.turn}-${Math.floor(Math.random() * 100000)}`,
+    label: t('diplo.mod.gift'),
+    value: gain,
+    decay: 1.1,
+    source: 'gift',
+  });
+  kingdom.giftFatigue = (kingdom.giftFatigue ?? 0) + 1;
+  state.message = t('diplo.gift', { kingdom: kingdom.name, gain });
   return true;
 }
 
 export function proposeTrade(state: GameState, kingdomId: string): boolean {
-  if (state.gameMode !== 'campaign') return false;
+  if (!isCampaignMode(state.gameMode)) return false;
   const kingdom = state.kingdoms.find((k) => k.id === kingdomId);
   if (!kingdom || kingdom.isDefeated) return false;
   if (state.court.influence < 10) {
-    state.message = 'Not enough influence to propose trade (need 10).';
+    state.message = t('diplo.tradeNoInfluence');
     return false;
   }
   state.court.influence -= 10;
   state.resources.gold += 20;
-  kingdom.relations = clamp((kingdom.relations ?? 50) + 8, 0, 100);
-  state.message = `Trade proposed with ${kingdom.name}. Gold gained, relations improved.`;
-  return true;
-}
-
-export function negotiatePact(state: GameState, kingdomId: string): boolean {
-  if (state.gameMode !== 'campaign') return false;
-  const kingdom = state.kingdoms.find((k) => k.id === kingdomId);
-  if (!kingdom || kingdom.isDefeated) return false;
-  if (state.court.influence < 20) {
-    state.message = 'Not enough influence to negotiate a pact (need 20).';
-    return false;
-  }
-  state.court.influence -= 20;
-  kingdom.hostilityTimer = 0;
-  kingdom.relations = clamp((kingdom.relations ?? 50) + 12, 0, 100);
-  // Remove any pending dynasty-attack from this kingdom
-  state.scheduledCampaignEvents = state.scheduledCampaignEvents.filter(
-    (e) => !(e.type === 'dynasty-attack' && e.sourceKingdomId === kingdomId && !e.resolved),
-  );
-  state.message = `Non-aggression pact signed with ${kingdom.name}.`;
+  addOpinionModifier(kingdom, {
+    id: `trade-${state.turn}-${Math.floor(Math.random() * 100000)}`,
+    label: t('diplo.mod.trade'),
+    value: 8,
+    decay: 0.7,
+    source: 'trade',
+  });
+  state.message = t('diplo.trade', { kingdom: kingdom.name });
   return true;
 }
 
 export function demandTribute(state: GameState, kingdomId: string): boolean {
-  if (state.gameMode !== 'campaign') return false;
+  if (!isCampaignMode(state.gameMode)) return false;
   const kingdom = state.kingdoms.find((k) => k.id === kingdomId);
   if (!kingdom || kingdom.isDefeated) return false;
 
+  // Extorting a treaty partner is a hostile act that breaks the pact (our fault).
+  if (hasPact(kingdom)) {
+    breakPact(state, kingdomId, true);
+  }
+
   if (isKingdomWeak(kingdom, state)) {
     state.resources.gold += 40;
-    kingdom.relations = clamp((kingdom.relations ?? 50) - 20, 0, 100);
-    state.message = `${kingdom.name} pays tribute. Gold gained, but relations soured.`;
+    addOpinionModifier(kingdom, {
+      id: `tribute-${state.turn}-${Math.floor(Math.random() * 100000)}`,
+      label: t('diplo.mod.tribute'),
+      value: -18,
+      decay: 0.5,
+      source: 'tribute',
+    });
+    state.message = t('diplo.tributePaid', { kingdom: kingdom.name });
   } else {
-    kingdom.relations = clamp((kingdom.relations ?? 50) - 30, 0, 100);
+    addOpinionModifier(kingdom, {
+      id: `tribute-refused-${state.turn}-${Math.floor(Math.random() * 100000)}`,
+      label: t('diplo.mod.tributeRefused'),
+      value: -28,
+      decay: 0.4,
+      source: 'tribute',
+    });
     kingdom.hostilityTimer = Math.max(0, Math.floor((kingdom.hostilityTimer ?? 0) / 2));
-    state.message = `${kingdom.name} refuses tribute and is angered. Relations fell sharply.`;
+    state.message = t('diplo.tributeRefused', { kingdom: kingdom.name });
   }
   return true;
 }

@@ -78,8 +78,22 @@ export interface Land {
 /** Authored land data before hex-map generation fills in position/adjacency. */
 export type LandTemplate = Omit<Land, 'x' | 'y' | 'neighbors' | 'buildingCapacity' | 'terrainSummary' | 'outputs' | 'isVisible' | 'isExplored' | 'population' | 'localSoldiers' | 'hasVillage' | 'trust'>;
 
-export type GameMode = 'rival' | 'campaign';
+export type GameMode = 'rival' | 'campaign' | 'empire';
 export type Difficulty = 'easy' | 'normal' | 'hard' | 'ironman';
+
+/** An off-map empire's army marching on the realm (empire mode). Keyed to an `Army.id`. */
+export interface InvasionRecord {
+  armyId: string;
+  kingdomId: string;
+  /** 'raid' pillages a border district then withdraws; 'conquest' besieges to capture land. */
+  intent: 'raid' | 'conquest';
+  /** Land the host is currently marching toward. */
+  targetLandId?: string;
+  /** Set once a raider has pillaged; it then turns for the map edge and despawns. */
+  pillaged?: boolean;
+  /** Edge land a withdrawing raider heads back to before despawning. */
+  exitLandId?: string;
+}
 
 export interface KingdomKing {
   name: string;
@@ -120,6 +134,40 @@ export interface CampaignEvent {
   resolved: boolean;
 }
 
+/** Source category of an opinion modifier, used for icons/grouping in the UI. */
+export type OpinionSource =
+  | 'gift'
+  | 'trade'
+  | 'tribute'
+  | 'treaty'
+  | 'request'
+  | 'war'
+  | 'raid'
+  | 'trait'
+  | 'reputation';
+
+/**
+ * A single reason an empire's opinion of the player is higher or lower. Opinion
+ * (cached as `Kingdom.relations`) is the personality baseline plus the sum of these.
+ * Modifiers with a `decay` shrink toward 0 each tick (temporary); without it they
+ * persist while their condition holds (standing).
+ */
+export interface OpinionModifier {
+  id: string;
+  label: string;
+  value: number;
+  /** Per-tick magnitude reduction toward 0. Omit for standing modifiers. */
+  decay?: number;
+  source: OpinionSource;
+}
+
+/** A binding agreement between an empire and the player. */
+export interface Treaty {
+  type: 'non-aggression';
+  /** Turn the treaty lapses. */
+  expiresTurn: number;
+}
+
 export interface Kingdom {
   id: string;
   name: string;
@@ -127,8 +175,54 @@ export interface Kingdom {
   personality: KingdomPersonality;
   isDefeated: boolean;
   king?: KingdomKing;
+  /** Cached opinion 0-100 = baseline + sum(opinionModifiers). Source of truth is the modifier list. */
   relations?: number;
   hostilityTimer?: number;
+  /** Itemised reasons behind `relations`. */
+  opinionModifiers?: OpinionModifier[];
+  /** Rises each time the player gifts; raises the cost and dampens the gain of further gifts. Decays over time. */
+  giftFatigue?: number;
+  /** 0-100; how much they believe the player's word. Gates treaty acceptance; lost by breaking deals. */
+  trust?: number;
+  /** Active treaties with the player. */
+  treaties?: Treaty[];
+  /** Escalation meter; rises with low opinion + low fear, triggers an invasion when it tops out. */
+  warAppetite?: number;
+}
+
+/** One option on a foreign-affairs event card. */
+export interface ForeignChoice {
+  id: string;
+  label: string;
+  description: string;
+  /** Resources spent (negative) or gained (positive) when chosen. */
+  delta?: Partial<ResourceBag>;
+  /** Decaying opinion change with the asking empire. */
+  opinionDelta?: number;
+  /** Standing opinion change with the asking empire (e.g. a marriage bond). */
+  opinionStanding?: number;
+  /** Opinion change with a named third-party empire (`ForeignCard.rivalId`). */
+  rivalOpinionDelta?: number;
+  prestigeDelta?: number;
+  trustDelta?: number;
+  /** Adds escalation pressure toward an invasion by the asking empire. */
+  provoke?: number;
+  /** Clears the asking empire's war preparations. */
+  appease?: boolean;
+  /** Choice is only credible with a standing army (leverage gate). */
+  requiresArmy?: boolean;
+}
+
+/** An empire-tied dilemma presented to the player (Phase 3 foreign event deck). */
+export interface ForeignCard {
+  id: string;
+  kingdomId: string;
+  kingdomName: string;
+  rivalId?: string;
+  rivalName?: string;
+  title: string;
+  description: string;
+  choices: ForeignChoice[];
 }
 
 export interface UnitCounts {
@@ -396,6 +490,14 @@ export interface GameState {
   dynastyStatus?: DynastyStatus;
   spyReports: SpyReport[];
   scheduledCampaignEvents: CampaignEvent[];
+  /** Active off-map invasions (empire mode only). */
+  invasions?: InvasionRecord[];
+  /** Kingdom-wide diplomatic reputation 0-100; eases deals, raised/lowered by honoring/breaking treaties. */
+  prestige?: number;
+  /** A foreign-affairs dilemma awaiting the player's decision. */
+  pendingForeignCard?: ForeignCard;
+  /** Ticks until another foreign event card may appear. */
+  foreignCardCooldown?: number;
   isDefeated: boolean;
   defeatReason?: 'conquest' | 'collapse';
 }

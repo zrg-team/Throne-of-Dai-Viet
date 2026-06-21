@@ -3,18 +3,19 @@ import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { createInitialGameState } from '../state/GameState';
 import { hasSnapshot, loadSnapshot, snapshotLabel } from '../state/save';
 import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
-import { InkMapItemRenderer } from '../ui/MapItemRenderer';
-import { decorateForest, decorateRiceFields, decorateWater, InkMapRenderer } from '../ui/MapRenderer';
+import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
+import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { InkUI, INK_UI } from '../ui/InkUI';
 import { INK, brushStroke, inkOutline, shade, washFill, waveLine } from '../ui/inkTheme';
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
+import { getMapTheme, MAP_THEME_OPTIONS, setMapTheme } from '../ui/mapTheme';
 
 type MenuMode = 'main' | 'confirm-new';
 
 export class MenuScene extends Phaser.Scene {
   private ui!: InkUI;
-  private inkMap!: InkMapRenderer;
-  private inkItems!: InkMapItemRenderer;
+  private mapRenderer!: MapRenderer;
+  private mapItems!: MapItemRenderer;
   private content: Phaser.GameObjects.GameObject[] = [];
   private mode: MenuMode = 'main';
   private previewFlagSeed = 0;
@@ -27,19 +28,102 @@ export class MenuScene extends Phaser.Scene {
     window.__mandateState = undefined;
     this.registry.remove('gameState');
     this.ui = new InkUI(this);
-    this.inkMap = new InkMapRenderer(this);
-    this.inkItems = new InkMapItemRenderer(this);
+    this.mapRenderer = createMapRenderer(this);
+    this.mapItems = createMapItemRenderer(this);
     this.previewFlagSeed = loadSnapshot()?.state.mapConfig.seed ?? Math.floor(Math.random() * 1_000_000);
     this.drawBackground();
     this.render();
   }
 
   private drawBackground(): void {
-    this.inkMap.drawBackground(GAME_WIDTH, GAME_HEIGHT);
+    this.mapRenderer.drawBackground(GAME_WIDTH, GAME_HEIGHT);
+    if (this.mapRenderer.theme.renderers.menu === 'atlas') {
+      this.drawAtlasLandscape();
+      this.drawArmies();
+      this.drawDaiVietLotusSeal();
+      return;
+    }
     this.drawLandscape();
     this.drawArmies();
     this.drawFogBands();
     this.drawDaiVietLotusSeal();
+  }
+
+  /** Illustrated parchment landscape matching the selectable atlas map style. */
+  private drawAtlasLandscape(): void {
+    const g = this.add.graphics();
+    const rng = createMenuRng(1904);
+    const { ink, inkSoft, water, waterDeep, waterHighlight, terrain, fog } = this.mapRenderer.palette;
+
+    // Soft horizon haze so the receding ranges read as distance.
+    g.fillStyle(fog, 0.45);
+    g.fillRect(0, 150, GAME_WIDTH, 96);
+
+    // Layered ink-silhouette ranges along the horizon (drawn before the land so it overlaps their base).
+    this.mapRenderer.decorateTerrain(g, 'mountains', [
+      { x: 40, y: 214 }, { x: 122, y: 206 }, { x: 210, y: 212 }, { x: 300, y: 204 }, { x: 372, y: 214 },
+    ], 58, createMenuRng(806));
+
+    // Rolling plains from the horizon to the foot of the page.
+    const mainLand = [
+      { x: -20, y: 250 }, { x: 70, y: 232 }, { x: 158, y: 246 }, { x: 246, y: 226 },
+      { x: 330, y: 244 }, { x: GAME_WIDTH + 20, y: 250 },
+      { x: GAME_WIDTH + 20, y: GAME_HEIGHT + 20 }, { x: -20, y: GAME_HEIGHT + 20 },
+    ];
+    washFill(g, mainLand, terrain.plains, 0.92, () => rng());
+    inkOutline(g, mainLand.slice(0, 6), inkSoft, 0.2, false, 31);
+
+    // Left-bank forest band with scattered groves.
+    const forestShape = [
+      { x: -20, y: 238 }, { x: 96, y: 230 }, { x: 196, y: 250 }, { x: 196, y: 320 },
+      { x: 158, y: 430 }, { x: 120, y: 540 }, { x: 78, y: 648 }, { x: 36, y: 752 }, { x: -20, y: 844 },
+    ];
+    washFill(g, forestShape, terrain.forest, 0.78, () => rng());
+    this.mapRenderer.decorateTerrain(g, 'forest', [
+      { x: 44, y: 296 }, { x: 108, y: 320 }, { x: 60, y: 392 }, { x: 138, y: 408 }, { x: 32, y: 470 },
+      { x: 100, y: 500 }, { x: 58, y: 582 }, { x: 96, y: 648 }, { x: 30, y: 700 }, { x: 56, y: 760 },
+    ], 44, createMenuRng(444));
+
+    // Right-bank rice terraces.
+    const riceShape = [
+      { x: 232, y: 320 }, { x: GAME_WIDTH + 20, y: 296 }, { x: GAME_WIDTH + 20, y: 560 },
+      { x: 250, y: 572 }, { x: 214, y: 448 },
+    ];
+    washFill(g, riceShape, terrain.riceFields, 0.7, () => rng());
+    this.mapRenderer.decorateTerrain(g, 'riceFields', [
+      { x: 312, y: 372 }, { x: 360, y: 446 }, { x: 300, y: 506 }, { x: 348, y: 556 },
+    ], 50, createMenuRng(555));
+
+    // Lower plains behind the button column.
+    const lowerPlains = [
+      { x: -20, y: 560 }, { x: GAME_WIDTH + 20, y: 560 },
+      { x: GAME_WIDTH + 20, y: GAME_HEIGHT + 20 }, { x: -20, y: GAME_HEIGHT + 20 },
+    ];
+    washFill(g, lowerPlains, shade(terrain.plains, 0.96), 0.5, () => rng());
+
+    // A broad hand-drawn river dividing the two banks.
+    const river = [
+      { x: 214, y: 226 }, { x: 200, y: 320 }, { x: 224, y: 414 }, { x: 196, y: 512 },
+      { x: 214, y: 612 }, { x: 178, y: 726 }, { x: 188, y: 844 },
+    ];
+    brushStroke(g, river, 40, ink, 0.42, 705);
+    brushStroke(g, river, 34, water, 0.97, 719);
+    brushStroke(g, river, 12, waterHighlight, 0.72, 727);
+    for (let index = 0; index < river.length - 1; index += 1) {
+      waveLine(g, river[index].x - 12, river[index].y + 10, river[index].x + 12, river[index].y + 10, 2, 4, waterDeep, 0.4);
+    }
+
+    // Fortified citadel on the right bank, rendered with the shared iso building renderer.
+    const citadelCenter = { x: 312, y: 256 };
+    const wallG = this.add.graphics();
+    this.mapItems.drawCityWall(wallG, ringEdges(citadelCenter.x, citadelCenter.y, 46, 30));
+    const citadel = this.add.container(0, 0);
+    this.mapItems.addCityCluster(citadel, [citadelCenter, { x: 328, y: 282 }], false, 'city');
+
+    // Riverside villages in the open strip beside the button column.
+    const villages = this.add.container(0, 0);
+    this.mapItems.addCottage(villages, 362, 596, 0.95);
+    this.mapItems.addCottage(villages, 356, 662, 0.85);
   }
 
   private drawLandscape(): void {
@@ -86,7 +170,7 @@ export class MenuScene extends Phaser.Scene {
     washFill(g, forestShape, INK.landForest, 0.80, () => rng());
 
     // Tree silhouettes distributed across the full forest band
-    decorateForest(g, [
+    this.mapRenderer.decorateTerrain(g, 'forest', [
       { x: 42, y: 272 },
       { x: 106, y: 292 },
       { x: 58, y: 362 },
@@ -115,9 +199,7 @@ export class MenuScene extends Phaser.Scene {
     for (let y = 336; y <= 520; y += 30) {
       waveLine(g, 222, y, GAME_WIDTH - 14, y - 7, 2.5, 8, INK.inkSoft, 0.28);
     }
-    decorateRiceFields(g, { x: 306, y: 376 }, 52, riceRng);
-    decorateRiceFields(g, { x: 358, y: 442 }, 52, riceRng);
-    decorateRiceFields(g, { x: 300, y: 496 }, 52, riceRng);
+    this.mapRenderer.decorateTerrain(g, 'riceFields', [{ x: 306, y: 376 }, { x: 358, y: 442 }, { x: 300, y: 496 }], 52, riceRng);
 
     // Lower plains behind the button row
     const lowerPlains = [
@@ -226,7 +308,7 @@ export class MenuScene extends Phaser.Scene {
     brushStroke(river, riverPoints, 18,  INK.waterLine, 0.46, 91);
     const rng = createMenuRng(91);
     for (const point of riverPoints) {
-      decorateWater(river, point, 44, rng);
+      this.mapRenderer.decorateTerrain(river, 'water', [point], 44, rng);
     }
     for (let index = 0; index < 6; index += 1) {
       waveLine(river, 26 + index * 28, 816 - index * 96, 72 + index * 26, 806 - index * 96, 3, 5, INK.waterLine, 0.20);
@@ -244,10 +326,10 @@ export class MenuScene extends Phaser.Scene {
       { cx: 264, cy: 520, cols: 4, rows: 2 },
     ];
     for (const { cx, cy, cols, rows } of rightFormations) {
-      this.drawSoldiers(g, cx, cy, INK.sealRed, cols, rows);
+      this.drawSoldiers(g, cx, cy, this.mapRenderer.palette.mapObjects.player, cols, rows);
       const totalW = (cols - 1) * 11;
       const totalH = (rows - 1) * 11;
-      const flag = this.inkItems.createPlayerLandFlag(false, this.previewFlagSeed);
+      const flag = this.mapItems.createPlayerLandFlag(false, this.previewFlagSeed);
       flag.setPosition(cx + totalW / 2 + 14, cy + totalH / 2 + 4);
     }
 
@@ -259,10 +341,10 @@ export class MenuScene extends Phaser.Scene {
     ];
     const enemySeed = this.previewFlagSeed + 777;
     for (const { cx, cy, cols, rows } of leftFormations) {
-      this.drawSoldiers(g, cx, cy, 0x4e3820, cols, rows);
+      this.drawSoldiers(g, cx, cy, this.mapRenderer.palette.mapObjects.rival, cols, rows);
       const totalW = (cols - 1) * 11;
       const totalH = (rows - 1) * 11;
-      const flag = this.inkItems.createPlayerLandFlag(false, enemySeed);
+      const flag = this.mapItems.createPlayerLandFlag(false, enemySeed);
       flag.setPosition(cx - totalW / 2 - 14, cy + totalH / 2 + 4);
     }
   }
@@ -288,7 +370,7 @@ export class MenuScene extends Phaser.Scene {
         g.fillRect(sx - 2, sy, 4, 6);
         g.fillStyle(shade(bodyColor, 1.28), 0.82);
         g.fillCircle(sx, sy - 2, 2.4);
-        g.lineStyle(0.8, INK.ink, 0.55);
+        g.lineStyle(0.8, this.mapRenderer.palette.ink, 0.55);
         g.lineBetween(sx + 1, sy - 4, sx + 1, sy - 11);
       }
     }
@@ -302,7 +384,7 @@ export class MenuScene extends Phaser.Scene {
     ];
     for (const config of clouds) {
       const cloud = this.add.graphics();
-      this.inkMap.drawCloud(cloud, config.x, config.y, config.radius, config.seed, config.alpha);
+      this.mapRenderer.drawCloud(cloud, config.x, config.y, config.radius, config.seed, config.alpha);
       this.tweens.add({
         targets: cloud,
         x: 16,
@@ -360,6 +442,9 @@ export class MenuScene extends Phaser.Scene {
   private render(): void {
     this.clearContent();
     this.renderTitle();
+    if (this.mode === 'main') {
+      this.renderMapThemeSelector();
+    }
     this.renderLanguageSelector();
     if (this.mode === 'confirm-new') {
       this.renderConfirmNew();
@@ -401,27 +486,23 @@ export class MenuScene extends Phaser.Scene {
 
   private renderMain(): void {
     const saved = hasSnapshot();
-    this.content.push(this.ui.button({ x: 54, y: 548, width: 282, height: 54 }, t('menu.startCampaign'), () => {
-      this.scene.start('CampaignScene');
-    }, { variant: 'primary', fontSize: '17px' }));
+    // Two game modes share the same width/edge for a clean column; Continue below.
+    this.content.push(this.ui.button({ x: 54, y: 512, width: 282, height: 54 }, t('empire.menu.title'), () => {
+      this.scene.start('CampaignScene', { mode: 'empire' });
+    }, { variant: 'primary', fontSize: '16px' }));
 
-    this.content.push(this.ui.button({ x: 90, y: 618, width: 210, height: 40 }, t('menu.quickBattle'), () => {
-      if (hasSnapshot()) {
-        this.mode = 'confirm-new';
-        this.render();
-        return;
-      }
-      this.startGame(createInitialGameState());
-    }, { variant: 'ghost', fontSize: '14px' }));
+    this.content.push(this.ui.button({ x: 54, y: 578, width: 282, height: 54 }, t('menu.startCampaign'), () => {
+      this.scene.start('CampaignScene', { mode: 'campaign' });
+    }, { variant: 'secondary', fontSize: '16px' }));
 
-    this.content.push(this.ui.button({ x: 90, y: 674, width: 210, height: 42 }, t('menu.continue'), () => {
+    this.content.push(this.ui.button({ x: 54, y: 644, width: 282, height: 46 }, t('menu.continue'), () => {
       const snapshot = loadSnapshot();
       if (snapshot) {
         this.startGame(snapshot.state);
       }
     }, { variant: saved ? 'ghost' : 'disabled', fontSize: '15px' }));
 
-    const saveLabel = this.add.text(GAME_WIDTH / 2, 730, snapshotLabel(), {
+    const saveLabel = this.add.text(GAME_WIDTH / 2, 694, snapshotLabel(), {
       color: saved ? '#f3dd9a' : '#d8c48e',
       fontFamily: UI_FONT,
       fontSize: '12px',
@@ -432,6 +513,37 @@ export class MenuScene extends Phaser.Scene {
       wordWrap: { width: 250 },
     }).setOrigin(0.5);
     this.content.push(saveLabel);
+  }
+
+  private renderMapThemeSelector(): void {
+    const current = getMapTheme();
+    const itemWidth = 105;
+    const itemHeight = 28;
+    const width = itemWidth * MAP_THEME_OPTIONS.length;
+    const x = GAME_WIDTH / 2 - width / 2;
+    const y = GAME_HEIGHT - 90;
+
+    const heading = this.ui.label(GAME_WIDTH / 2, y - 14, t('menu.mapTheme'), 'caption', {
+      color: '#f3dd9a', fontSize: '10px', fontStyle: '700', align: 'center',
+    }).setOrigin(0.5, 0);
+    const background = this.add.rectangle(x, y, width, itemHeight, INK_UI.parchment, 0.88).setOrigin(0, 0);
+    background.setStrokeStyle(2, INK_UI.brush, 0.78);
+    this.content.push(heading, background);
+
+    MAP_THEME_OPTIONS.forEach((option, index) => {
+      const selected = current === option.id;
+      const left = x + index * itemWidth;
+      const fill = this.add.rectangle(left + 1, y + 1, itemWidth - 2, itemHeight - 2, selected ? INK_UI.goldLight : INK_UI.parchment, selected ? 0.98 : 0.2)
+        .setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      const label = this.ui.label(left + itemWidth / 2, y + 6, t(option.labelKey), 'button', {
+        color: '#211103', fontSize: '11px', align: 'center',
+      }).setOrigin(0.5, 0);
+      fill.on('pointerup', () => {
+        setMapTheme(option.id);
+        this.scene.restart();
+      });
+      this.content.push(fill, label);
+    });
   }
 
   private renderConfirmNew(): void {
@@ -536,6 +648,19 @@ export class MenuScene extends Phaser.Scene {
     }
     this.content = [];
   }
+}
+
+/** Polygon ring of wall edges around a centre, used to fortify the menu citadel. */
+function ringEdges(cx: number, cy: number, rx: number, ry: number, sides = 8): Array<[number, number, number, number]> {
+  const points: Array<[number, number]> = [];
+  for (let i = 0; i < sides; i += 1) {
+    const a = (i / sides) * Math.PI * 2 - Math.PI / 2;
+    points.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]);
+  }
+  return points.map((p, i): [number, number, number, number] => {
+    const next = points[(i + 1) % sides];
+    return [p[0], p[1], next[0], next[1]];
+  });
 }
 
 function createMenuRng(seed: number): () => number {

@@ -9,7 +9,9 @@ import { tickCampaignEvents } from './CampaignEventSystem';
 import { tickForeignAffairs } from './ForeignAffairsSystem';
 import { tickSpySystem } from './SpySystem';
 import { checkCampaignDefeat, tickDynastyStatus } from './DynastySystem';
-import { PLAYER_KINGDOM_ID } from '../game/constants';
+import { tickInvasions } from './empire/InvasionSystem';
+import { maybeDrawForeignCard } from './ForeignEventSystem';
+import { isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import type { GameState, Season } from '../state/types';
 import { seasonLabel, t } from '../i18n';
 
@@ -45,10 +47,12 @@ export function advanceRealtimeMonth(state: GameState): void {
     state.message = t('msg.economyTick', { year: state.year, season: seasonLabel(state.season) });
   }
 
-  if (state.gameMode === 'campaign' && !state.isDefeated) {
+  if (isCampaignMode(state.gameMode) && !state.isDefeated) {
     tickCampaignEvents(state);
     tickForeignAffairs(state);
+    maybeDrawForeignCard(state);
     tickSpySystem(state);
+    tickInvasions(state);
     tickDynastyStatus(state);
     checkCampaignDefeat(state);
     if (state.campaignScore) {

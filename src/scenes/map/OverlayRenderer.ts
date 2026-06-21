@@ -1,7 +1,7 @@
 /**
  * Map overlay layers drawn above the terrain: per-land ownership borders, the
  * selection outline, and fog-of-war tiles with drifting ink-cloud puffs over
- * hidden districts. Pairs with `InkMapRenderer` for border/cloud styling and
+ * hidden districts. Pairs with the selected environment renderer for border/cloud styling and
  * `src/map/boundary.ts` for the underlying region geometry.
  */
 import Phaser from 'phaser';
@@ -10,7 +10,7 @@ import { traceLandBoundaryEdges, traceLandBoundaryLoops } from '../../map/bounda
 import type { HexTile } from '../../map/hexMapGenerator';
 import { hashString } from '../../utils/math';
 import type { GameState, Land } from '../../state/types';
-import type { InkMapRenderer } from '../../ui/MapRenderer';
+import type { MapRenderer } from '../../ui/MapRenderer';
 
 type WorldTransform = (value: number) => number;
 type OwnerColorLookup = (ownerId: string) => number;
@@ -26,7 +26,7 @@ export class OverlayRenderer {
 
   constructor(
     private readonly scene: Phaser.Scene,
-    private readonly inkMap: InkMapRenderer,
+    private readonly mapRenderer: MapRenderer,
   ) {}
 
   /** Outlines each land's merged hex region in its owner's color (terrain fill stays untinted). */
@@ -82,8 +82,9 @@ export class OverlayRenderer {
     const color = getOwnerColor(land.ownerId);
     // Unowned territory borders fade into faint ink wash so the map doesn't read as a
     // dense grid of tiles; owned/claimed borders stay crisp as ownership signal.
-    const alpha = color === COLORS.neutral ? 0.12 : 0.9;
-    this.inkMap.drawZoneBorder(graphics, edges, color, alpha);
+    const { borders } = this.mapRenderer.palette;
+    const alpha = color === COLORS.neutral ? borders.neutralAlpha : borders.ownedAlpha;
+    this.mapRenderer.drawZoneBorder(graphics, edges, color, alpha);
   }
 
   createSelectionLayer(): void {
@@ -128,7 +129,7 @@ export class OverlayRenderer {
         continue;
       }
 
-      this.fogGraphics.fillStyle(0xd7e4ea, land.isExplored ? 0.85 : 0.94);
+      this.fogGraphics.fillStyle(this.mapRenderer.palette.fog, land.isExplored ? 0.85 : 0.94);
       for (const loop of traceLandBoundaryLoops(state, hexTileMap, wx, wy, this.landBoundaryLoops, land.id)) {
         this.fogGraphics.fillPoints(loop, true);
       }
@@ -180,7 +181,7 @@ export class OverlayRenderer {
     }
 
     graphics.clear();
-    this.inkMap.drawCloud(graphics, 0, 0, baseRadius, seed, alpha);
+    this.mapRenderer.drawCloud(graphics, 0, 0, baseRadius, seed, alpha);
   }
 
   /**

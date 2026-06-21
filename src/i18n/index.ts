@@ -9,6 +9,7 @@ import type {
   Season,
 } from '../state/types';
 import { enCore, viCore } from './catalogs/core';
+import { enEmpire, viEmpire } from './catalogs/empire';
 import { enHeroes, viHeroes } from './catalogs/heroes';
 import { viPolitics } from './catalogs/politics';
 import { enWorld, viWorld } from './catalogs/world';
@@ -23,12 +24,14 @@ const en = {
   ...enCore,
   ...enWorld,
   ...enHeroes,
+  ...enEmpire,
 } as const;
 
 const vi = {
   ...viCore,
   ...viWorld,
   ...viHeroes,
+  ...viEmpire,
 } satisfies Record<keyof typeof en, string>;
 
 export type TranslationKey = keyof typeof en;

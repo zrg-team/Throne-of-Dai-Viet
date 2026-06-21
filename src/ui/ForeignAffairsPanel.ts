@@ -1,12 +1,27 @@
 import Phaser from 'phaser';
-import type { GameState } from '../state/types';
-import { GAME_WIDTH } from '../game/constants';
+import type { GameState, Kingdom } from '../state/types';
+import { GAME_WIDTH, PLAYER_KINGDOM_ID } from '../game/constants';
 import { InkUI, INK_UI } from './InkUI';
-import { createLabel, createWoodButton } from './theme';
-import { demandTribute, negotiatePact, proposeTrade, sendGift } from '../systems/ForeignAffairsSystem';
-import { PLAYER_KINGDOM_ID } from '../game/constants';
+import { createLabel } from './theme';
 import { t } from '../i18n';
 
+export function stanceLabel(relations: number): string {
+  if (relations >= 65) return t('campaign.affairs.friendly');
+  if (relations <= 35) return t('campaign.affairs.hostile');
+  return t('campaign.affairs.neutral');
+}
+
+export function stanceColor(relations: number): number {
+  if (relations >= 65) return INK_UI.jade;
+  if (relations <= 35) return INK_UI.cinnabar;
+  return INK_UI.gold;
+}
+
+/**
+ * Glanceable list of off-map empires for the Ngoại giao panel. Each row shows the
+ * empire's stance + opinion bar + threat/pact icons and is tappable to drill into
+ * the per-empire detail (handled by UIScene).
+ */
 export class ForeignAffairsPanel {
   constructor(
     private readonly scene: Phaser.Scene,
@@ -14,126 +29,98 @@ export class ForeignAffairsPanel {
     private readonly onAction: () => void,
   ) {}
 
-  render(contentBounds: { x: number; y: number; width: number; height: number }): Phaser.GameObjects.GameObject[] {
+  /** Compact, tappable rows. `onSelect(kingdomId)` drills into the detail view. */
+  renderList(
+    contentBounds: { x: number; y: number; width: number; height: number },
+    onSelect: (kingdomId: string) => void,
+  ): Phaser.GameObjects.GameObject[] {
     const ui = new InkUI(this.scene);
     const items: Phaser.GameObjects.GameObject[] = [];
-    const { x, y, width } = contentBounds;
+    const { x, width } = contentBounds;
 
-    const rivals = this.state.kingdoms.filter(
-      (k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated,
-    );
-
+    const rivals = this.state.kingdoms.filter((k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated);
     if (rivals.length === 0) {
-      items.push(createLabel(this.scene, GAME_WIDTH / 2, y + 80, 'No rival kingdoms remain.', 'label', {
-        fontSize: '14px',
-        align: 'center',
-        wordWrap: { width: width - 16 },
+      items.push(createLabel(this.scene, GAME_WIDTH / 2, contentBounds.y + 60, t('campaign.affairs.none'), 'label', {
+        fontSize: '14px', align: 'center', wordWrap: { width: width - 16 },
       }).setOrigin(0.5));
       return items;
     }
 
-    const cardH = 178;
-    const gap = 12;
+    const cardH = 86;
+    const gap = 10;
 
     rivals.forEach((kingdom, i) => {
-      const cardY = y + i * (cardH + gap);
+      const cardY = contentBounds.y + i * (cardH + gap);
       const relations = kingdom.relations ?? 50;
-      const hostile = (kingdom.hostilityTimer ?? 0) > 0;
-      const relLabel = relations >= 65
-        ? t('campaign.affairs.friendly')
-        : relations <= 35
-          ? t('campaign.affairs.hostile')
-          : t('campaign.affairs.neutral');
-      const relColor = relations >= 65 ? INK_UI.jade : relations <= 35 ? INK_UI.cinnabar : INK_UI.gold;
+      const color = stanceColor(relations);
+      const invading = this.isThreatening(kingdom);
+      const hasPact = (kingdom.opinionModifiers ?? []).some((m) => m.source === 'treaty');
 
       items.push(ui.card({ x, y: cardY, width, height: cardH }, {
-        border: hostile ? INK_UI.cinnabar : INK_UI.softBrush,
+        border: invading ? INK_UI.cinnabar : INK_UI.softBrush,
       }));
 
-      // Kingdom name
-      items.push(createLabel(this.scene, x + 12, cardY + 10, kingdom.name, 'label', {
-        fontSize: '13px',
-        wordWrap: { width: width - 24 },
+      // colour swatch
+      const swatch = this.scene.add.graphics();
+      swatch.fillStyle(kingdom.color, 0.95);
+      swatch.fillRoundedRect(x + 8, cardY + 10, 8, cardH - 20, 3);
+      items.push(swatch);
+
+      items.push(createLabel(this.scene, x + 24, cardY + 10, kingdom.name, 'label', {
+        fontSize: '13px', wordWrap: { width: width - 120 },
       }));
-
-      // King name
-      const kingLine = kingdom.king ? t('campaign.affairs.king', { name: kingdom.king.name }) : '';
-      items.push(createLabel(this.scene, x + 12, cardY + 30, kingLine, 'caption', { fontSize: '11px' }));
-
-      // Relations bar
-      const barW = width - 24;
-      const barH = 8;
-      const barX = x + 12;
-      const barY = cardY + 52;
-      const barFill = this.scene.add.graphics();
-      barFill.fillStyle(INK_UI.brush, 0.22);
-      barFill.fillRoundedRect(barX, barY, barW, barH, 4);
-      barFill.fillStyle(relColor, 0.88);
-      barFill.fillRoundedRect(barX, barY, barW * (relations / 100), barH, 4);
-      items.push(barFill);
-
-      items.push(createLabel(this.scene, barX, barY + 12, relLabel, 'caption', {
+      items.push(createLabel(this.scene, x + 24, cardY + 30, kingdom.king ? t('campaign.affairs.king', { name: kingdom.king.name }) : '', 'caption', {
         fontSize: '10px',
-        color: `#${relColor.toString(16).padStart(6, '0')}`,
       }));
 
-      if (hostile) {
-        items.push(createLabel(this.scene, x + width - 12, barY + 12, '⚠ invasion imminent', 'caption', {
-          fontSize: '10px',
-          color: '#c0392b',
-          align: 'right',
+      // opinion bar
+      const barX = x + 24;
+      const barY = cardY + 52;
+      const barW = width - 48;
+      const bar = this.scene.add.graphics();
+      bar.fillStyle(INK_UI.brush, 0.24);
+      bar.fillRoundedRect(barX, barY, barW, 8, 4);
+      bar.fillStyle(color, 0.9);
+      bar.fillRoundedRect(barX, barY, barW * Phaser.Math.Clamp(relations / 100, 0, 1), 8, 4);
+      items.push(bar);
+
+      items.push(createLabel(this.scene, barX, barY + 12, `${stanceLabel(relations)} · ${Math.round(relations)}`, 'caption', {
+        fontSize: '10px',
+        color: `#${color.toString(16).padStart(6, '0')}`,
+      }));
+
+      // right-side status icon + drill hint
+      const statusText = invading ? t('campaign.affairs.threat') : hasPact ? t('campaign.affairs.pactActive') : '';
+      if (statusText) {
+        items.push(createLabel(this.scene, x + width - 12, cardY + 10, statusText, 'caption', {
+          fontSize: '10px', align: 'right',
+          color: invading ? '#c0392b' : '#7fae6a',
         }).setOrigin(1, 0));
       }
+      items.push(createLabel(this.scene, x + width - 12, barY + 12, t('campaign.affairs.details'), 'caption', {
+        fontSize: '10px', align: 'right', color: '#caa85e',
+      }).setOrigin(1, 0));
 
-      // Action buttons (2x2 grid)
-      const btnW = Math.floor((width - 32) / 2);
-      const btnH = 28;
-      const btnRow1Y = cardY + 82;
-      const btnRow2Y = cardY + 116;
-      const btnGap = 8;
-
-      const canGift = this.state.resources.gold >= 30;
-      const canTrade = this.state.court.influence >= 10;
-      const canPact = this.state.court.influence >= 20;
-
-      const makeBtn = (
-        bx: number,
-        by: number,
-        label: string,
-        enabled: boolean,
-        onClick: () => void,
-      ): Phaser.GameObjects.Container => createWoodButton(
-        this.scene,
-        bx + btnW / 2,
-        by + btnH / 2,
-        btnW,
-        btnH,
-        label,
-        enabled ? onClick : () => { /* disabled */ },
-        { variant: enabled ? 'wood' : 'dark', fontSize: '10px' },
-      );
-
-      const btnX1 = x + 12;
-      const btnX2 = x + 12 + btnW + btnGap;
-
-      items.push(makeBtn(btnX1, btnRow1Y, t('campaign.affairs.gift'), canGift, () => {
-        sendGift(this.state, kingdom.id);
-        this.onAction();
-      }));
-      items.push(makeBtn(btnX2, btnRow1Y, t('campaign.affairs.trade'), canTrade, () => {
-        proposeTrade(this.state, kingdom.id);
-        this.onAction();
-      }));
-      items.push(makeBtn(btnX1, btnRow2Y, t('campaign.affairs.pact'), canPact, () => {
-        negotiatePact(this.state, kingdom.id);
-        this.onAction();
-      }));
-      items.push(makeBtn(btnX2, btnRow2Y, t('campaign.affairs.tribute'), true, () => {
-        demandTribute(this.state, kingdom.id);
-        this.onAction();
-      }));
+      const hit = this.scene.add.rectangle(x + width / 2, cardY + cardH / 2, width, cardH, 0xffffff, 0.001)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerup', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+        event.stopPropagation();
+        onSelect(kingdom.id);
+      });
+      items.push(hit);
     });
 
     return items;
+  }
+
+  private isThreatening(kingdom: Kingdom): boolean {
+    if ((kingdom.hostilityTimer ?? 0) > 0) return true;
+    return (this.state.invasions ?? []).some((r) => r.kingdomId === kingdom.id)
+      || this.state.armies.some((a) => a.kingdomId === kingdom.id);
+  }
+
+  /** Kept for callers that just need the action callback hook. */
+  notify(): void {
+    this.onAction();
   }
 }

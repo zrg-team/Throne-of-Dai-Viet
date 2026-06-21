@@ -1,4 +1,4 @@
-import { PLAYER_KINGDOM_ID } from '../game/constants';
+import { isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import type { GameState } from '../state/types';
 
 function clamp(value: number, min: number, max: number): number {
@@ -18,7 +18,7 @@ function humansInArmies(state: GameState): number {
 }
 
 export function tickDynastyStatus(state: GameState): void {
-  if (state.gameMode !== 'campaign' || !state.dynastyStatus) return;
+  if (!isCampaignMode(state.gameMode) || !state.dynastyStatus) return;
 
   const ds = state.dynastyStatus;
 
@@ -61,7 +61,7 @@ export function tickDynastyStatus(state: GameState): void {
 }
 
 export function checkCampaignDefeat(state: GameState): void {
-  if (state.gameMode !== 'campaign' || state.isDefeated) return;
+  if (!isCampaignMode(state.gameMode) || state.isDefeated) return;
   const playerOwns = state.lands.some((l) => l.ownerId === PLAYER_KINGDOM_ID);
   if (!playerOwns) {
     state.isDefeated = true;

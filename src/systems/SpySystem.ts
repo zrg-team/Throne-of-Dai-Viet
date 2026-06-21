@@ -1,4 +1,4 @@
-import { PLAYER_KINGDOM_ID } from '../game/constants';
+import { isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import type { GameState, SpyReport } from '../state/types';
 import { t } from '../i18n';
 
@@ -11,7 +11,7 @@ function makeSpyReport(state: GameState, message: string): SpyReport {
 }
 
 export function tickSpySystem(state: GameState): void {
-  if (state.gameMode !== 'campaign') return;
+  if (!isCampaignMode(state.gameMode)) return;
 
   const spymasterHeroId = state.court.seats['spymaster'];
   if (spymasterHeroId) {

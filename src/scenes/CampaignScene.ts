@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
-import { createCampaignGameState } from '../state/GameState';
+import { createCampaignGameState, createEmpireGameState } from '../state/GameState';
 import { scheduleCampaignEvents } from '../systems/CampaignEventSystem';
-import type { CampaignConfig, Difficulty } from '../state/types';
+import type { CampaignConfig, Difficulty, GameMode } from '../state/types';
 import { InkUI, INK_UI } from '../ui/InkUI';
 import { createLabel } from '../ui/theme';
-import { InkMapRenderer } from '../ui/MapRenderer';
+import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { t } from '../i18n';
 
 type SeaSides = CampaignConfig['seaSides'];
@@ -24,19 +24,24 @@ interface DifficultyOption {
 
 export class CampaignScene extends Phaser.Scene {
   private ui!: InkUI;
-  private inkMap!: InkMapRenderer;
+  private mapRenderer!: MapRenderer;
   private content: Phaser.GameObjects.GameObject[] = [];
   private selectedSeaSides: SeaSides = 0;
   private selectedDifficulty: Difficulty = 'normal';
+  private mode: GameMode = 'campaign';
 
   constructor() {
     super('CampaignScene');
   }
 
+  init(data?: { mode?: GameMode }): void {
+    this.mode = data?.mode === 'empire' ? 'empire' : 'campaign';
+  }
+
   create(): void {
     this.ui = new InkUI(this);
-    this.inkMap = new InkMapRenderer(this);
-    this.inkMap.drawBackground(GAME_WIDTH, GAME_HEIGHT);
+    this.mapRenderer = createMapRenderer(this);
+    this.mapRenderer.drawBackground(GAME_WIDTH, GAME_HEIGHT);
     this.drawBanner();
     this.render();
   }
@@ -70,8 +75,8 @@ export class CampaignScene extends Phaser.Scene {
   private render(): void {
     this.clearContent();
 
-    const title = createLabel(this, GAME_WIDTH / 2, 34, t('campaign.setupTitle'), 'title', {
-      fontSize: '26px',
+    const title = createLabel(this, GAME_WIDTH / 2, 34, this.mode === 'empire' ? t('empire.menu.title') : t('campaign.setupTitle'), 'title', {
+      fontSize: this.mode === 'empire' ? '22px' : '26px',
       align: 'center',
     }).setOrigin(0.5);
     this.content.push(title);
@@ -192,7 +197,9 @@ export class CampaignScene extends Phaser.Scene {
       seaSides: this.selectedSeaSides,
       difficulty: this.selectedDifficulty,
     };
-    const state = createCampaignGameState(config);
+    const state = this.mode === 'empire'
+      ? createEmpireGameState(config)
+      : createCampaignGameState(config);
     scheduleCampaignEvents(state);
     this.scene.start('MapScene', { state });
   }

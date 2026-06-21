@@ -2,14 +2,14 @@
  * Army markers on the map: static seal/troop-count glyphs for armies sitting still,
  * smoothly-sliding markers (with a destination arrow) for armies under a movement
  * order, and a gold command pennant for the player's currently-selected army.
- * Pairs with `InkMapItemRenderer` for the glyphs and `roadCurve` for march geometry.
+ * Pairs with the selected map-item renderer for glyphs and `roadCurve` for march geometry.
  */
 import Phaser from 'phaser';
 import { PLAYER_KINGDOM_ID, REALTIME_TICK_MS } from '../../game/constants';
 import { buildRoadCurve } from '../../map/roadCurve';
 import { findLand } from '../../systems/LandSystem';
 import type { GameState, Land } from '../../state/types';
-import type { InkMapItemRenderer } from '../../ui/MapItemRenderer';
+import type { MapItemRenderer } from '../../ui/MapItemRenderer';
 
 type WorldTransform = (value: number) => number;
 type SettlementAnchor = (land: Land) => { x: number; y: number };
@@ -25,7 +25,7 @@ export class ArmyRenderer {
 
   constructor(
     private readonly scene: Phaser.Scene,
-    private readonly inkItems: InkMapItemRenderer,
+    private readonly mapItems: MapItemRenderer,
   ) {}
 
   /**
@@ -79,9 +79,9 @@ export class ArmyRenderer {
       }
 
       marker.removeAll(true);
-      marker.add(this.inkItems.createArmyMarker(total, isPlayer));
+      marker.add(this.mapItems.createArmyMarker(total, isPlayer));
       if (state.selectedArmyId === army.id) {
-        marker.add(this.inkItems.createSelectionFlag());
+        marker.add(this.mapItems.createSelectionFlag());
       }
 
       const order = state.movementOrders.find((candidate) => candidate.armyId === army.id);
@@ -121,7 +121,7 @@ export class ArmyRenderer {
         const destLand = findLand(state, order.path[order.path.length - 1]);
         if (destLand) {
           const anchor = getAnchor(destLand);
-          const arrow = this.inkItems.createDestinationArrow();
+          const arrow = this.mapItems.createDestinationArrow();
           arrow.setPosition(wx(anchor.x), wy(anchor.y) - 40);
           arrow.setDepth(71);
           this.destinationMarkers.push(arrow);

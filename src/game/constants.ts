@@ -9,6 +9,15 @@ export const NEUTRAL_OWNER_ID = 'neutral';
 
 export const ORDERS_PER_SEASON = 3;
 
+/**
+ * Whether a mode uses the campaign systems (court cards, foreign affairs, spy,
+ * dynasty stability, invasions). True for the classic 'campaign' and the off-map
+ * 'empire' mode.
+ */
+export function isCampaignMode(mode: string): boolean {
+  return mode === 'campaign' || mode === 'empire';
+}
+
 /** Real-time interval, in ms, between economy ticks (acquisitions, builds, army marches). */
 export const REALTIME_TICK_MS = 5500;
 

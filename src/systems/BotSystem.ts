@@ -5,6 +5,9 @@ import type { GameState, Kingdom, Land, LandBuildingType } from '../state/types'
 import { t } from '../i18n';
 
 export function runBotTurns(state: GameState): void {
+  // Off-map empires hold no territory and don't run on-map economy/expansion.
+  if (state.gameMode === 'empire') return;
+
   for (const kingdom of state.kingdoms) {
     if (kingdom.id === PLAYER_KINGDOM_ID || kingdom.isDefeated) {
       continue;

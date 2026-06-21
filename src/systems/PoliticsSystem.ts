@@ -3,6 +3,7 @@ import { createHeroDraft } from './HeroSystem';
 import { MAX_BUILDING_LEVEL } from '../game/gameplayConfig';
 import { PLAYER_KINGDOM_ID } from '../game/constants';
 import { addCourtModifier, getCourtBonuses } from './CourtSystem';
+import { addOpinionModifier } from './DiplomacySystem';
 import type { CourtEffect, GameState, HeroType, Land, LandBuildingType, ResourceBag } from '../state/types';
 import { buildingLabel, formatResourceList, politicsChoiceDescription, politicsChoiceLabel, politicsTitle, t } from '../i18n';
 
@@ -152,8 +153,14 @@ function applyCourtEffect(state: GameState, label: string, effect: CourtEffect):
   if (effect.relationsAllDelta) {
     const delta = effect.relationsAllDelta;
     for (const kingdom of state.kingdoms) {
-      if (kingdom.id !== PLAYER_KINGDOM_ID && !kingdom.isDefeated && kingdom.relations !== undefined) {
-        kingdom.relations = clamp(kingdom.relations + delta, 0, 100);
+      if (kingdom.id !== PLAYER_KINGDOM_ID && !kingdom.isDefeated) {
+        addOpinionModifier(kingdom, {
+          id: `decree-${state.turn}-${kingdom.id}`,
+          label: t('diplo.mod.decree'),
+          value: delta,
+          decay: 0.5,
+          source: 'request',
+        });
       }
     }
   }

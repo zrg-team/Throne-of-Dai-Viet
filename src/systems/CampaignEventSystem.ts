@@ -1,7 +1,8 @@
-import { PLAYER_KINGDOM_ID } from '../game/constants';
+import { isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import { campaignEventTemplates } from '../data/campaignEvents';
 import { addCourtModifier } from './CourtSystem';
 import { applyResourceDelta } from './ResourceSystem';
+import { launchOffMapInvasion } from './empire/InvasionSystem';
 import type { Army, CampaignEvent, Difficulty, GameState } from '../state/types';
 import { t } from '../i18n';
 
@@ -36,7 +37,7 @@ function pickWeightedTemplate(
 }
 
 export function scheduleCampaignEvents(state: GameState): void {
-  if (state.gameMode !== 'campaign' || !state.campaignConfig) return;
+  if (!isCampaignMode(state.gameMode) || !state.campaignConfig) return;
   const { difficulty } = state.campaignConfig;
   const count = difficultyEventCount(difficulty);
   const maxScheduleTurn = difficulty === 'easy' ? 60 : difficulty === 'hard' ? 40 : difficulty === 'ironman' ? 30 : 50;
@@ -80,7 +81,7 @@ export function scheduleCampaignEvents(state: GameState): void {
 }
 
 export function tickCampaignEvents(state: GameState): void {
-  if (state.gameMode !== 'campaign') return;
+  if (!isCampaignMode(state.gameMode)) return;
 
   for (const event of state.scheduledCampaignEvents) {
     if (!event.resolved && event.scheduledTick <= state.turn) {
@@ -160,7 +161,11 @@ function resolveCampaignEvent(state: GameState, event: CampaignEvent): void {
     }
 
     case 'dynasty-attack': {
-      launchDynastyAttack(state, event.sourceKingdomId);
+      if (state.gameMode === 'empire') {
+        launchOffMapInvasion(state, event.sourceKingdomId);
+      } else {
+        launchDynastyAttack(state, event.sourceKingdomId);
+      }
       break;
     }
   }

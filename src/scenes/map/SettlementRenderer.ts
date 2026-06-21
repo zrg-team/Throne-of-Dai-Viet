@@ -1,19 +1,21 @@
 /**
  * Builds the visual cluster for a land's settlement: city/temple building groups with
  * an optional wall, or a themed farm/mine/generic village for lands without a
- * fortress/shrine hex. Delegates actual glyph drawing to `InkMapItemRenderer`.
+ * fortress/shrine hex. Delegates actual glyph drawing to the selected item renderer.
  */
 import Phaser from 'phaser';
 import { EDGE_DIRECTIONS, MAP_SCALE, axialToPixel, hexCorners, hexKey } from '../../map/hex';
 import type { HexCoord } from '../../map/hex';
 import type { GameState, Land } from '../../state/types';
-import type { InkMapItemRenderer } from '../../ui/MapItemRenderer';
+import type { MapItemRenderer } from '../../ui/MapItemRenderer';
 import { brushStroke } from '../../ui/inkTheme';
+import type { MapThemePalette } from '../../ui/mapTheme';
 
 export class SettlementRenderer {
   constructor(
     private readonly scene: Phaser.Scene,
-    private readonly inkItems: InkMapItemRenderer,
+    private readonly mapItems: MapItemRenderer,
+    private readonly palette: MapThemePalette,
   ) {}
 
   /** Average pixel position of a land's city/shrine hexes, or undefined if it has none. */
@@ -83,7 +85,7 @@ export class SettlementRenderer {
         return { x: (pixel.x - land.x) * MAP_SCALE, y: (pixel.y - land.y) * MAP_SCALE };
       });
 
-    this.inkItems.addCityCluster(cluster, centers, isShrineCity, land.type === 'market' ? 'market' : isShrineCity ? 'shrine' : 'city');
+    this.mapItems.addCityCluster(cluster, centers, isShrineCity, land.type === 'market' ? 'market' : isShrineCity ? 'shrine' : 'city');
 
     this.addBuildingDecorations(cluster, land);
 
@@ -114,7 +116,7 @@ export class SettlementRenderer {
       }
     }
 
-    this.inkItems.drawCityWall(graphics, edges);
+    this.mapItems.drawCityWall(graphics, edges);
     cluster.add(graphics);
   }
 
@@ -131,7 +133,7 @@ export class SettlementRenderer {
     for (const building of land.buildings) {
       const [x, y] = positions[posIndex % positions.length];
       posIndex += 1;
-      cluster.add(this.inkItems.createBuildingGlyph(building.type, x, y));
+      cluster.add(this.mapItems.createBuildingGlyph(building.type, x, y));
     }
   }
 
@@ -149,6 +151,7 @@ export class SettlementRenderer {
 
     const graphics = this.scene.add.graphics();
     const maxAdjacentDist = hexSize * MAP_SCALE * 2.1;
+    const { cityRoad } = this.palette;
 
     for (let i = 0; i < cityCoords.length; i += 1) {
       for (let j = i + 1; j < cityCoords.length; j += 1) {
@@ -161,9 +164,8 @@ export class SettlementRenderer {
         if (Math.hypot(ax - bx, ay - by) > maxAdjacentDist) continue;
 
         const seed = Math.round(ax + ay * 3 + bx * 7 + by * 11);
-        // Wide soft underlay then narrower crisp pass for a hand-drawn road feel.
-        brushStroke(graphics, [{ x: ax, y: ay }, { x: bx, y: by }], 5, 0xc4b890, 0.45, seed);
-        brushStroke(graphics, [{ x: ax, y: ay }, { x: bx, y: by }], 2.5, 0xa89870, 0.35, seed + 53);
+        brushStroke(graphics, [{ x: ax, y: ay }, { x: bx, y: by }], 5, cityRoad.bed, 0.55, seed);
+        brushStroke(graphics, [{ x: ax, y: ay }, { x: bx, y: by }], 2.5, cityRoad.track, 0.5, seed + 53);
       }
     }
 
@@ -176,11 +178,11 @@ export class SettlementRenderer {
     const scale = 1 + developmentLevel * 0.15;
 
     if (land.type === 'farm') {
-      cluster.add(this.inkItems.createFarmCluster(scale, developmentLevel));
+      cluster.add(this.mapItems.createFarmCluster(scale, developmentLevel));
     } else if (land.type === 'iron') {
-      cluster.add(this.inkItems.createMineCluster(scale, developmentLevel));
+      cluster.add(this.mapItems.createMineCluster(scale, developmentLevel));
     } else {
-      this.inkItems.addBuildingGroup(cluster, 0, 0, false, Math.min(6, 2 + developmentLevel));
+      this.mapItems.addBuildingGroup(cluster, 0, 0, false, Math.min(6, 2 + developmentLevel));
     }
   }
 }

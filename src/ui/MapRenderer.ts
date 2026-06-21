@@ -6,8 +6,32 @@
  */
 import Phaser from 'phaser';
 import type { PixelPoint } from '../map/hex';
+import type { HexTerrainType } from '../map/terrainTypes';
 import { MAP_VISUAL_CONFIG } from '../game/gameplayConfig';
 import { INK, brushStroke, inkOutline, shade, washFill, waveLine, cloudMotif } from './inkTheme';
+import { AtlasMapRenderer } from './AtlasMapRenderer';
+import { getActiveMapTheme, type MapThemeDefinition, type MapThemePalette, type MapThemeRendererId } from './mapTheme';
+
+export interface MapRenderer {
+  readonly theme: MapThemeDefinition;
+  readonly palette: MapThemePalette;
+  drawBackground(worldWidth: number, worldHeight: number): Phaser.GameObjects.Graphics;
+  drawHexFill(graphics: Phaser.GameObjects.Graphics, corners: PixelPoint[], color: number): void;
+  decorateTerrain(graphics: Phaser.GameObjects.Graphics, terrain: HexTerrainType, centers: PixelPoint[], size: number, rng: () => number): void;
+  drawCloud(graphics: Phaser.GameObjects.Graphics, x: number, y: number, baseRadius: number, seed: number, alpha?: number): void;
+  drawZoneBorder(graphics: Phaser.GameObjects.Graphics, edges: Array<[number, number, number, number]>, color: number, alpha?: number): void;
+  drawRoad(graphics: Phaser.GameObjects.Graphics, points: PixelPoint[], widthFrom: number, widthTo: number): void;
+}
+
+export function createMapRenderer(scene: Phaser.Scene): MapRenderer {
+  const theme = getActiveMapTheme();
+  return environmentRendererFactories[theme.renderers.environment](scene, theme);
+}
+
+const environmentRendererFactories: Record<MapThemeRendererId, (scene: Phaser.Scene, theme: MapThemeDefinition) => MapRenderer> = {
+  atlas: (scene, theme) => new AtlasMapRenderer(scene, theme),
+  ink: (scene, theme) => new InkMapRenderer(scene, theme),
+};
 
 function randomIndex(rng: () => number, length: number): number {
   return Math.floor(rng() * length);
@@ -229,8 +253,47 @@ export function decorateFortress(graphics: Phaser.GameObjects.Graphics, center: 
 }
 
 /** Encapsulates ink-wash background, terrain fill, fog, borders, and road rendering. */
-export class InkMapRenderer {
-  constructor(private readonly scene: Phaser.Scene) {}
+export class InkMapRenderer implements MapRenderer {
+  constructor(
+    private readonly scene: Phaser.Scene,
+    readonly theme: MapThemeDefinition,
+  ) {}
+
+  get palette(): MapThemePalette {
+    return this.theme.palette;
+  }
+
+  decorateTerrain(graphics: Phaser.GameObjects.Graphics, terrain: HexTerrainType, centers: PixelPoint[], size: number, rng: () => number): void {
+    if (centers.length === 0) return;
+    switch (terrain) {
+      case 'plains':
+        centers.forEach((center) => decoratePlains(graphics, center, size, rng));
+        return;
+      case 'fields':
+        centers.forEach((center) => decorateFields(graphics, center, size, rng));
+        return;
+      case 'riceFields':
+        centers.forEach((center) => decorateRiceFields(graphics, center, size, rng));
+        return;
+      case 'forest':
+        decorateForest(graphics, centers, size, rng);
+        return;
+      case 'mountains':
+        decorateMountains(graphics, centers, size, rng);
+        return;
+      case 'hills':
+        decorateHills(graphics, centers, size, rng);
+        return;
+      case 'water':
+        centers.forEach((center) => decorateWater(graphics, center, size, rng));
+        return;
+      case 'fortress':
+        centers.forEach((center) => decorateFortress(graphics, center, size, rng));
+        return;
+      default:
+        return;
+    }
+  }
 
   /** Dark teal sea wash covering the whole world, textured with scattered wave-line strokes. */
   drawBackground(worldWidth: number, worldHeight: number): Phaser.GameObjects.Graphics {

@@ -1,14 +1,13 @@
 /**
  * Roads connecting settlements, plus the animated ox-carts and travelers that
- * wander along them. Pairs with `InkMapRenderer` (road stroke styling) and
- * `InkMapItemRenderer` (cart/traveler glyphs).
+ * wander along them. Pairs with selected environment and item renderers.
  */
 import Phaser from 'phaser';
 import { buildRoadCurve } from '../../map/roadCurve';
 import { hashString } from '../../utils/math';
 import type { GameState, Land } from '../../state/types';
-import type { InkMapRenderer } from '../../ui/MapRenderer';
-import type { InkMapItemRenderer } from '../../ui/MapItemRenderer';
+import type { MapRenderer } from '../../ui/MapRenderer';
+import type { MapItemRenderer } from '../../ui/MapItemRenderer';
 
 type WorldTransform = (value: number) => number;
 type SettlementAnchor = (land: Land) => { x: number; y: number };
@@ -19,8 +18,8 @@ export class TrafficRenderer {
 
   constructor(
     private readonly scene: Phaser.Scene,
-    private readonly inkMap: InkMapRenderer,
-    private readonly inkItems: InkMapItemRenderer,
+    private readonly mapRenderer: MapRenderer,
+    private readonly mapItems: MapItemRenderer,
   ) {}
 
   /** Draws dirt roads connecting each land's settlement (village/city/castle/mine) to its neighbors. */
@@ -86,7 +85,7 @@ export class TrafficRenderer {
         const to = getAnchor(neighbor);
         const curve = buildRoadCurve(state, from, to, key, wx, wy);
 
-        const cart = this.inkItems.createCart();
+        const cart = this.mapItems.createCart();
         cart.setDepth(69);
         this.cartMarkers.set(key, cart);
 
@@ -147,7 +146,7 @@ export class TrafficRenderer {
         const travelers: Phaser.GameObjects.GameObject[] = [];
 
         for (let index = 0; index < 2; index += 1) {
-          const traveler = this.inkItems.createTraveler();
+          const traveler = this.mapItems.createTraveler();
           traveler.setDepth(69);
           travelers.push(traveler);
 
@@ -207,6 +206,6 @@ export class TrafficRenderer {
    * an earthy bed and a slightly lighter, narrower worn track on top.
    */
   private drawRoad(graphics: Phaser.GameObjects.Graphics, curve: Phaser.Curves.Spline, widthFrom: number, widthTo: number): void {
-    this.inkMap.drawRoad(graphics, curve.getSpacedPoints(32), widthFrom, widthTo);
+    this.mapRenderer.drawRoad(graphics, curve.getSpacedPoints(32), widthFrom, widthTo);
   }
 }

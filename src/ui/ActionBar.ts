@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
+import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, isCampaignMode } from '../game/constants';
 import type { GameState } from '../state/types';
 import { InkUI, INK_UI } from './InkUI';
 import { t } from '../i18n';
@@ -11,19 +11,19 @@ export const ACTION_BUTTON_HEIGHT = 36;
 export const ACTION_BUTTON_Y = GAME_HEIGHT - ACTION_BAR_HEIGHT / 2;
 
 export function getActionKeys(gameMode: string): readonly string[] {
-  return gameMode === 'campaign' ? [...CAMPAIGN_KEYS] : [...RIVAL_KEYS];
+  return isCampaignMode(gameMode) ? [...CAMPAIGN_KEYS] : [...RIVAL_KEYS];
 }
 
 function getButtonWidth(gameMode: string): number {
-  return gameMode === 'campaign' ? 60 : 72;
+  return isCampaignMode(gameMode) ? 60 : 72;
 }
 
 function getButtonGap(gameMode: string): number {
-  return gameMode === 'campaign' ? 3 : 4;
+  return isCampaignMode(gameMode) ? 3 : 4;
 }
 
 function getButtonMargin(gameMode: string): number {
-  return gameMode === 'campaign' ? 7 : 6;
+  return isCampaignMode(gameMode) ? 7 : 6;
 }
 
 export function actionButtonLeft(index: number, gameMode = 'rival'): number {
