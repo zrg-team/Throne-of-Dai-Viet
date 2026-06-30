@@ -72,7 +72,7 @@ export class MapScene extends Phaser.Scene {
   private realtimeAccumulator = 0;
   private isDraggingMap = false;
   private dragDistance = 0;
-  private staticRenderSignature = '';
+  private renderSignatures: { bake: string; node: string } = { bake: '', node: '' };
   private suppressNextMapTap = false;
   private domDown?: { x: number; y: number };
   private domDragDistance = 0;
@@ -168,7 +168,7 @@ export class MapScene extends Phaser.Scene {
     this.realtimeAccumulator = 0;
     this.isDraggingMap = false;
     this.dragDistance = 0;
-    this.staticRenderSignature = '';
+    this.renderSignatures = { bake: '', node: '' };
     this.suppressNextMapTap = false;
     this.domDown = undefined;
     this.domDragDistance = 0;
@@ -509,7 +509,7 @@ export class MapScene extends Phaser.Scene {
     this.drawSiegeMarkers();
     this.drawRecruitMarkers();
     this.bakeStaticTerrain();
-    this.staticRenderSignature = this.getStaticRenderSignature();
+    this.renderSignatures = { bake: this.getBakeSignature(), node: this.getNodeSignature() };
   }
 
   private drawPaperBackground(): void {
@@ -1160,8 +1160,13 @@ export class MapScene extends Phaser.Scene {
   }
 
   private refresh(): void {
-    const staticChanged = this.updateStaticRenderSignature();
-    if (staticChanged) {
+    // The baked terrain/control/coast/fog/zone layers depend only on ownership and
+    // visibility, so a building-only change (common on economy ticks) skips the whole
+    // expensive repaint+bake and just refreshes the live settlement nodes.
+    const bakeChanged = this.updateSignature('bake');
+    const nodeChanged = this.updateSignature('node');
+
+    if (bakeChanged) {
       this.drawBackgroundFillerTiles();
       this.repaintHexTerrain();
       this.repaintControlMap();
@@ -1170,11 +1175,17 @@ export class MapScene extends Phaser.Scene {
       this.repaintFillerFogOfWar();
       this.bakeFog();
       this.repaintAllZones();
-      this.redrawLandNodes();
       this.drawFlagMarkers();
       this.drawConnections();
       this.drawCarts();
       this.drawTravelers();
+    }
+
+    if (bakeChanged || nodeChanged) {
+      this.redrawLandNodes();
+    }
+
+    if (bakeChanged) {
       this.bakeStaticTerrain();
     }
 
@@ -1190,23 +1201,32 @@ export class MapScene extends Phaser.Scene {
     this.scene.get('UIScene').events.emit('state-changed');
   }
 
-  private updateStaticRenderSignature(): boolean {
-    const next = this.getStaticRenderSignature();
-    if (next === this.staticRenderSignature) {
+  /** Updates one cached render signature and reports whether it changed. */
+  private updateSignature(kind: 'bake' | 'node'): boolean {
+    const next = kind === 'bake' ? this.getBakeSignature() : this.getNodeSignature();
+    if (next === this.renderSignatures[kind]) {
       return false;
     }
-
-    this.staticRenderSignature = next;
+    this.renderSignatures[kind] = next;
     return true;
   }
 
-  private getStaticRenderSignature(): string {
-    return `${this.state.mapConfig.seed}|${this.state.lands
+  /** Signature of everything baked into the static terrain/fog textures: ownership and
+   *  visibility per land. Deliberately excludes buildings, which only affect live nodes. */
+  private getBakeSignature(): string {
+    return `${this.state.mapConfig.seed}|${this.state.mapRenderMode}|${this.state.lands
+      .map((land) => `${land.id}:${land.ownerId}:${land.isVisible ? 1 : 0}:${land.isExplored ? 1 : 0}`)
+      .join('|')}`;
+  }
+
+  /** Signature of the live settlement nodes: visibility, ownership, and buildings. */
+  private getNodeSignature(): string {
+    return this.state.lands
       .map((land) => {
         const buildings = land.buildings.map((building) => `${building.type}${building.level}`).join(',');
-        return `${land.id}:${land.ownerId}:${land.isVisible ? 1 : 0}:${land.isExplored ? 1 : 0}:${buildings}`;
+        return `${land.id}:${land.ownerId}:${land.isVisible ? 1 : 0}:${buildings}`;
       })
-      .join('|')}`;
+      .join('|');
   }
 
   private redrawLandNodes(): void {

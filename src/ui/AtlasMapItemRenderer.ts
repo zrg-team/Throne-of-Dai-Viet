@@ -5,6 +5,7 @@ import type { MapItemRenderer, ProgressBadgeVariant } from './MapItemRenderer';
 import type { MapThemeDefinition, MapThemePalette } from './mapTheme';
 import { IsoBuildingRenderer } from './IsoBuildingRenderer';
 import { SoldierRenderer } from './SoldierRenderer';
+import { createPlayerLandFlag } from './playerFlag';
 
 /**
  * Map glyphs for the illustrated atlas. Settlements reuse the shared isometric
@@ -144,9 +145,9 @@ export class AtlasMapItemRenderer implements MapItemRenderer {
     return this.createFlag(this.colors.mapObjects.selected, -58, 23);
   }
 
+  /** Uses the shared dynastic standard so atlas land flags match the ink-wash theme. */
   createPlayerLandFlag(isCapital = false, styleSeed = 0): Phaser.GameObjects.Container {
-    const color = styleSeed % 2 === 0 ? this.colors.mapObjects.player : this.colors.mapObjects.market;
-    return this.createFlag(color, isCapital ? -54 : -44, isCapital ? 28 : 23);
+    return createPlayerLandFlag(this.scene, isCapital, styleSeed);
   }
 
   createCapitalHighlight(): Phaser.GameObjects.Graphics {

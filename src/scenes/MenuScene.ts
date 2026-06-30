@@ -79,9 +79,9 @@ export class MenuScene extends Phaser.Scene {
       { x: 158, y: 430 }, { x: 120, y: 540 }, { x: 78, y: 648 }, { x: 36, y: 752 }, { x: -20, y: 844 },
     ];
     washFill(g, forestShape, terrain.forest, 0.78, () => rng());
+    // A handful of distinct groves keeps the bank wooded without crowding the page.
     this.mapRenderer.decorateTerrain(g, 'forest', [
-      { x: 44, y: 296 }, { x: 108, y: 320 }, { x: 60, y: 392 }, { x: 138, y: 408 }, { x: 32, y: 470 },
-      { x: 100, y: 500 }, { x: 58, y: 582 }, { x: 96, y: 648 }, { x: 30, y: 700 }, { x: 56, y: 760 },
+      { x: 56, y: 312 }, { x: 110, y: 396 }, { x: 44, y: 470 }, { x: 92, y: 568 }, { x: 48, y: 690 },
     ], 44, createMenuRng(444));
 
     // Right-bank rice terraces.
@@ -91,7 +91,7 @@ export class MenuScene extends Phaser.Scene {
     ];
     washFill(g, riceShape, terrain.riceFields, 0.7, () => rng());
     this.mapRenderer.decorateTerrain(g, 'riceFields', [
-      { x: 312, y: 372 }, { x: 360, y: 446 }, { x: 300, y: 506 }, { x: 348, y: 556 },
+      { x: 320, y: 392 }, { x: 336, y: 520 },
     ], 50, createMenuRng(555));
 
     // Lower plains behind the button column.

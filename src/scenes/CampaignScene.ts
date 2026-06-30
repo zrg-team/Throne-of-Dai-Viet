@@ -147,17 +147,19 @@ export class CampaignScene extends Phaser.Scene {
       const x = startX + i * btnW;
       const selected = isSelected(option);
 
+      // Unselected tabs stay an opaque parchment chip with dark ink text so they
+      // read on both the dark ink-wash sea and the light illustrated-atlas paper.
       const bg = this.add
-        .rectangle(x + 1, y + 1, btnW - 2, btnH - 2, selected ? INK_UI.goldLight : INK_UI.parchment, selected ? 0.95 : 0.18)
+        .rectangle(x + 1, y + 1, btnW - 2, btnH - 2, selected ? INK_UI.goldLight : INK_UI.parchmentShade, selected ? 0.95 : 0.78)
         .setOrigin(0, 0);
-      bg.setStrokeStyle(selected ? 2 : 1, selected ? INK_UI.gold : INK_UI.brush, selected ? 0.9 : 0.4);
+      bg.setStrokeStyle(selected ? 2 : 1, selected ? INK_UI.gold : INK_UI.brush, selected ? 0.9 : 0.55);
       bg.setInteractive({ useHandCursor: true });
       bg.on('pointerup', () => onSelect(i));
 
       const labelText = createLabel(this, x + btnW / 2, y + btnH / 2, option.label, 'label', {
         fontSize: '13px',
         fontStyle: selected ? '700' : '400',
-        color: selected ? '#211103' : '#f3dd9a',
+        color: selected ? '#211103' : '#3a2a14',
         align: 'center',
       }).setOrigin(0.5);
 

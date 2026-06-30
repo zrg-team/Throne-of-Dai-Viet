@@ -184,53 +184,63 @@ export class AtlasMapRenderer implements MapRenderer {
     }
   }
 
-  /** Round-canopy groves: clustered broadleaf trees with cast shadow, lumpy hand-drawn outline, and stipple. */
+  /** Round-canopy groves: clustered broadleaf trees with cast shadow, layered foliage, a two-tone trunk, and a lumpy hand-drawn outline. */
   private drawForest(graphics: Phaser.GameObjects.Graphics, centers: PixelPoint[], size: number, rng: () => number): void {
-    const { ink, terrain, mapObjects } = this.theme.palette;
+    const { ink, inkSoft, terrain, mapObjects } = this.theme.palette;
+    const canopyDark = shade(terrain.forest, 0.74);
+    const canopyMid = shade(terrain.forest, 0.92);
     const count = Math.max(5, Math.round(centers.length * 5.5));
     const trees = Array.from({ length: count }, () => {
       const anchor = centers[Math.floor(rng() * centers.length)];
       return {
         x: anchor.x + (rng() - 0.5) * size * 1.3,
         y: anchor.y + (rng() - 0.5) * size * 1.05,
-        radius: size * (0.16 + rng() * 0.12),
+        radius: size * (0.17 + rng() * 0.12),
         seed: Math.floor(rng() * 9999),
       };
     });
     trees.sort((a, b) => a.y - b.y);
 
     for (const { x, y, radius, seed } of trees) {
-      // Cast shadow on the ground.
-      graphics.fillStyle(ink, 0.14);
-      graphics.fillEllipse(x + radius * 0.18, y + radius * 0.92, radius * 1.9, radius * 0.62);
+      const crownY = y - radius * 0.24;
 
-      // Lumpy canopy built from a few overlapping blobs in two greens.
-      graphics.fillStyle(shade(terrain.forest, 0.86), 0.96);
-      graphics.fillCircle(x, y - radius * 0.18, radius);
-      graphics.fillCircle(x - radius * 0.62, y, radius * 0.6);
-      graphics.fillCircle(x + radius * 0.6, y + radius * 0.05, radius * 0.58);
-      graphics.fillStyle(terrain.forest, 0.95);
-      graphics.fillCircle(x, y - radius * 0.24, radius * 0.82);
-      // Sun-side highlight.
-      graphics.fillStyle(mapObjects.foliageHighlight, 0.7);
-      graphics.fillCircle(x - radius * 0.34, y - radius * 0.5, radius * 0.5);
+      // Soft cast shadow on the ground.
+      graphics.fillStyle(ink, 0.12);
+      graphics.fillEllipse(x + radius * 0.2, y + radius * 1.0, radius * 1.95, radius * 0.6);
 
-      // Hand-drawn lumpy outline.
+      // Two-tone trunk rising into the canopy.
+      brushStroke(graphics, [{ x, y: y + radius * 1.02 }, { x: x - radius * 0.04, y: crownY + radius * 0.3 }], radius * 0.2, mapObjects.trunk, 0.95, seed + 7);
+      brushStroke(graphics, [{ x: x + radius * 0.05, y: y + radius * 0.96 }, { x, y: crownY + radius * 0.34 }], radius * 0.08, shade(mapObjects.trunk, 1.22), 0.6, seed + 9);
+
+      // Layered canopy: a deep base ring, overlapping mid-tone lobes, then a rounded crown.
+      graphics.fillStyle(canopyDark, 0.97);
+      graphics.fillCircle(x - radius * 0.58, crownY + radius * 0.22, radius * 0.66);
+      graphics.fillCircle(x + radius * 0.6, crownY + radius * 0.26, radius * 0.62);
+      graphics.fillCircle(x, crownY + radius * 0.34, radius * 0.78);
+      graphics.fillStyle(canopyMid, 0.98);
+      graphics.fillCircle(x - radius * 0.4, crownY + radius * 0.02, radius * 0.6);
+      graphics.fillCircle(x + radius * 0.42, crownY + radius * 0.06, radius * 0.56);
+      graphics.fillStyle(terrain.forest, 0.98);
+      graphics.fillCircle(x, crownY - radius * 0.06, radius * 0.86);
+      // Sun-side highlight clusters.
+      graphics.fillStyle(mapObjects.foliageHighlight, 0.85);
+      graphics.fillCircle(x - radius * 0.36, crownY - radius * 0.42, radius * 0.46);
+      graphics.fillCircle(x - radius * 0.02, crownY - radius * 0.52, radius * 0.3);
+
+      // Hand-drawn lumpy outline around the whole crown.
       const ring: PixelPoint[] = [];
-      const lobes = 9;
+      const lobes = 11;
       for (let i = 0; i < lobes; i += 1) {
         const a = (i / lobes) * Math.PI * 2;
-        const rr = radius * (0.96 + ((seed >> i) & 3) * 0.05);
-        ring.push({ x: x + Math.cos(a) * rr, y: y - radius * 0.2 + Math.sin(a) * rr });
+        const rr = radius * (1.0 + ((seed >> i) & 3) * 0.05);
+        ring.push({ x: x + Math.cos(a) * rr, y: crownY + Math.sin(a) * rr });
       }
-      inkOutline(graphics, ring, ink, 0.45, true, seed);
+      inkOutline(graphics, ring, ink, 0.5, true, seed);
 
-      // Foliage stipple + a short trunk.
-      graphics.fillStyle(ink, 0.16);
-      for (let i = 0; i < 3; i += 1) {
-        graphics.fillCircle(x + ((seed >> i) % 7 - 3) * radius * 0.18, y - radius * 0.2 + ((seed >> (i + 3)) % 5 - 2) * radius * 0.2, radius * 0.07);
-      }
-      brushStroke(graphics, [{ x, y: y + radius * 0.45 }, { x, y: y + radius * 1.0 }], 1.1, mapObjects.trunk, 0.62, seed + 7);
+      // A couple of shaded foliage clefts for hand-inked depth.
+      graphics.lineStyle(Math.max(0.8, radius * 0.06), inkSoft, 0.4);
+      graphics.lineBetween(x + radius * 0.1, crownY - radius * 0.2, x + radius * 0.24, crownY + radius * 0.28);
+      graphics.lineBetween(x - radius * 0.3, crownY + radius * 0.04, x - radius * 0.2, crownY + radius * 0.4);
     }
   }
 
