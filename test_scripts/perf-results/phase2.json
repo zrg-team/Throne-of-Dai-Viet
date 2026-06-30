@@ -1,0 +1,19 @@
+{
+  "label": "phase2",
+  "timestamp": "2026-06-30T16:30:36.081Z",
+  "config": {
+    "seed": 1337,
+    "ticks": 80,
+    "repeats": 3,
+    "cpuThrottle": 4
+  },
+  "errors": [],
+  "medianTickMs": 17350.1,
+  "perTickMs": 216.88,
+  "objectCount": 240,
+  "heapMB": 25.92,
+  "actualFps": 29.2,
+  "frameP50": 283.3,
+  "frameP95": 316.6,
+  "frameP99": 316.6
+}

@@ -51,6 +51,11 @@ export class MapScene extends Phaser.Scene {
   private connectionGraphics?: Phaser.GameObjects.Graphics;
   private fillerFogGraphics?: Phaser.GameObjects.Graphics;
   private controlGraphics!: Phaser.GameObjects.Graphics;
+  /** Cached composite of all static map layers below the unit/marker bands (terrain,
+   *  filler, coast, control, zones, decorations, connections, settlement nodes). Baked
+   *  once per static change so Phaser stops re-tessellating ~160k fill commands/frame. */
+  private staticBakeRT?: Phaser.GameObjects.RenderTexture;
+  private lastBakedRenderMode?: string;
   private mapRenderer!: MapRenderer;
   private mapItems!: MapItemRenderer;
   private settlements!: SettlementRenderer;
@@ -498,10 +503,12 @@ export class MapScene extends Phaser.Scene {
     this.updateArmyHighlight();
     this.drawFogOfWar();
     this.drawFillerFogOfWar();
+    this.bakeFog();
     this.drawAcquisitionMarkers();
     this.drawBuildMarkers();
     this.drawSiegeMarkers();
     this.drawRecruitMarkers();
+    this.bakeStaticTerrain();
     this.staticRenderSignature = this.getStaticRenderSignature();
   }
 
@@ -619,7 +626,7 @@ export class MapScene extends Phaser.Scene {
   private drawControlMap(): void {
     this.controlGraphics = this.add.graphics();
     this.repaintControlMap();
-    this.applyRenderMode();
+    this.applyRenderModeVisibility();
   }
 
   private drawCoastBuffer(): void {
@@ -691,11 +698,61 @@ export class MapScene extends Phaser.Scene {
   }
 
   private applyRenderMode(): void {
-    this.mapGraphics?.setVisible(this.state.mapRenderMode === 'terrain');
-    this.terrainGraphics?.setVisible(this.state.mapRenderMode === 'terrain');
-    this.terrainDecorationGraphics?.setVisible(this.state.mapRenderMode === 'terrain');
-    this.coastGraphics?.setVisible(this.state.mapRenderMode === 'terrain');
-    this.controlGraphics?.setVisible(this.state.mapRenderMode === 'control');
+    // The terrain/control layers live inside the static bake, so switching modes just
+    // means re-compositing the bake with the other set of layers visible. Cheap no-op
+    // when the mode hasn't changed (the common per-tick case).
+    if (this.lastBakedRenderMode !== this.state.mapRenderMode) {
+      this.bakeStaticTerrain();
+    }
+  }
+
+  /**
+   * Composites every static layer below the unit/marker bands (depth <= 1.5) into a
+   * single cached RenderTexture, then hides the source Graphics. Replaces ~160k
+   * per-frame fill/triangulation+upload commands with one textured quad. Re-run on
+   * static changes and on render-mode switches; honours the active terrain/control mode.
+   */
+  private bakeStaticTerrain(): void {
+    if (typeof window !== 'undefined' && /[?&]nobake=1\b/.test(window.location.search)) {
+      this.applyRenderModeVisibility();
+      return;
+    }
+    if (!this.staticBakeRT) {
+      this.staticBakeRT = this.add.renderTexture(0, 0, this.worldWidth, this.worldHeight)
+        .setOrigin(0, 0)
+        .setDepth(1.9);
+    }
+
+    type BandLayer = Phaser.GameObjects.GameObject & { depth: number; visible: boolean; setVisible(v: boolean): unknown };
+    const band = this.children.list.filter((obj): obj is BandLayer => {
+      const depth = (obj as unknown as { depth?: unknown }).depth;
+      return obj !== this.staticBakeRT && typeof depth === 'number' && depth <= 1.5;
+    });
+
+    // Show every candidate source, then hide the layers that belong to the inactive
+    // render mode so the composite matches what the live layers used to show.
+    for (const source of band) source.setVisible(true);
+    this.applyRenderModeVisibility();
+
+    const visible = band
+      .filter((obj) => obj.visible)
+      .sort((a, b) => a.depth - b.depth); // V8 stable sort preserves insertion order on ties
+
+    this.staticBakeRT.clear();
+    this.staticBakeRT.draw(visible, 0, 0);
+
+    for (const source of band) source.setVisible(false);
+    this.lastBakedRenderMode = this.state.mapRenderMode;
+  }
+
+  /** Sets terrain-vs-control source-layer visibility for the active render mode. */
+  private applyRenderModeVisibility(): void {
+    const terrainMode = this.state.mapRenderMode === 'terrain';
+    this.mapGraphics?.setVisible(terrainMode);
+    this.terrainGraphics?.setVisible(terrainMode);
+    this.terrainDecorationGraphics?.setVisible(terrainMode);
+    this.coastGraphics?.setVisible(terrainMode);
+    this.controlGraphics?.setVisible(!terrainMode);
   }
 
   private drawFogOfWar(): void {
@@ -704,8 +761,19 @@ export class MapScene extends Phaser.Scene {
 
   private drawFillerFogOfWar(): void {
     this.fillerFogGraphics = this.add.graphics();
-    this.fillerFogGraphics.setDepth(78);
+    this.fillerFogGraphics.setDepth(77.5);
     this.repaintFillerFogOfWar();
+  }
+
+  /** Bakes the static fog tint (main + filler) into a cached texture. Must run after
+   *  both fog layers have been repainted for the current visibility state. */
+  private bakeFog(): void {
+    if (typeof window !== 'undefined' && /[?&]nobake=1\b/.test(window.location.search)) {
+      return; // diagnostic: leave live fog Graphics visible to compare against the bake
+    }
+    if (this.fillerFogGraphics) {
+      this.overlays.bakeFog(this.worldWidth, this.worldHeight, [this.fillerFogGraphics]);
+    }
   }
 
   private repaintFogOfWar(): void {
@@ -813,7 +881,11 @@ export class MapScene extends Phaser.Scene {
       return;
     }
 
-    const container = this.add.container(this.wx(land.x), this.wy(land.y));
+    // Sits just above the static terrain bake (RenderTexture at depth 1.9) so the
+    // settlement cluster + label render live on top of the cached map. Kept live (not
+    // baked) because there are only a handful of visible-land nodes and Phaser's
+    // RenderTexture.draw does not reliably composite deeply-nested containers.
+    const container = this.add.container(this.wx(land.x), this.wy(land.y)).setDepth(2);
     const isPlayerLand = land.ownerId === PLAYER_KINGDOM_ID;
     const isPlayerCapital = isPlayerLand && land.type === 'castle';
     if (isPlayerCapital) {
@@ -1096,12 +1168,14 @@ export class MapScene extends Phaser.Scene {
       this.repaintCoastBuffer();
       this.repaintFogOfWar();
       this.repaintFillerFogOfWar();
+      this.bakeFog();
       this.repaintAllZones();
       this.redrawLandNodes();
       this.drawFlagMarkers();
       this.drawConnections();
       this.drawCarts();
       this.drawTravelers();
+      this.bakeStaticTerrain();
     }
 
     this.applyRenderMode();

@@ -22,6 +22,10 @@ export class ArmyRenderer {
   private markers = new Map<string, Phaser.GameObjects.Container>();
   private moveLegs = new Map<string, string>();
   private destinationMarkers: Phaser.GameObjects.GameObject[] = [];
+  /** Signature (`total|isPlayer`) of each marker's current visual content, so we
+   *  only rebuild the expensive seal+formation when it actually changes. */
+  private contentSig = new Map<string, string>();
+  private selectionFlags = new Map<string, Phaser.GameObjects.Container>();
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -78,10 +82,29 @@ export class ArmyRenderer {
         }
       }
 
-      marker.removeAll(true);
-      marker.add(this.mapItems.createArmyMarker(total, isPlayer));
-      if (state.selectedArmyId === army.id) {
-        marker.add(this.mapItems.createSelectionFlag());
+      // Only rebuild the seal + 12-soldier formation (~40 objects + a looping bob
+      // tween) when the troop count or owner actually changes. On a normal tick
+      // these are unchanged, so we skip the destroy/recreate churn entirely.
+      const sig = `${total}|${isPlayer ? 1 : 0}`;
+      if (this.contentSig.get(army.id) !== sig) {
+        // Kill the old formation's looping tween before destroying its container,
+        // otherwise it keeps ticking against a dead object (CPU leak).
+        this.killTweensDeep(marker);
+        marker.removeAll(true);
+        this.selectionFlags.delete(army.id);
+        marker.add(this.mapItems.createArmyMarker(total, isPlayer));
+        this.contentSig.set(army.id, sig);
+      }
+
+      const selected = state.selectedArmyId === army.id;
+      const hasFlag = this.selectionFlags.has(army.id);
+      if (selected && !hasFlag) {
+        const flag = this.mapItems.createSelectionFlag();
+        marker.add(flag);
+        this.selectionFlags.set(army.id, flag);
+      } else if (!selected && hasFlag) {
+        this.selectionFlags.get(army.id)!.destroy();
+        this.selectionFlags.delete(army.id);
       }
 
       const order = state.movementOrders.find((candidate) => candidate.armyId === army.id);
@@ -136,11 +159,23 @@ export class ArmyRenderer {
 
     for (const [armyId, marker] of this.markers) {
       if (!activeIds.has(armyId)) {
-        this.scene.tweens.killTweensOf(marker);
+        this.killTweensDeep(marker);
         marker.destroy();
         this.markers.delete(armyId);
         this.moveLegs.delete(armyId);
+        this.contentSig.delete(armyId);
+        this.selectionFlags.delete(armyId);
       }
+    }
+  }
+
+  /** Kills tweens on a container and every nested descendant (e.g. the formation's
+   *  looping bob), so destroying it doesn't leave orphaned tweens updating dead objects. */
+  private killTweensDeep(obj: Phaser.GameObjects.GameObject): void {
+    this.scene.tweens.killTweensOf(obj);
+    const list = (obj as Phaser.GameObjects.Container).list;
+    if (Array.isArray(list)) {
+      for (const child of list) this.killTweensDeep(child);
     }
   }
 }

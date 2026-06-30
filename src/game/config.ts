@@ -7,6 +7,13 @@ import { MapScene } from '../scenes/MapScene';
 import { PreloadScene } from '../scenes/PreloadScene';
 import { UIScene } from '../scenes/UIScene';
 
+// Retaining the WebGL drawing buffer forces the browser to preserve the
+// framebuffer every frame — a real GPU-bandwidth/memory cost on mobile tiled
+// GPUs. The game never reads back canvas pixels, so we only enable it when an
+// external screenshot tool explicitly asks via `?capture=1`.
+const needsCapture =
+  typeof window !== 'undefined' && /[?&]capture=1\b/.test(window.location.search);
+
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'game-root',
@@ -24,7 +31,9 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     touch: true,
   },
   render: {
-    preserveDrawingBuffer: true,
+    preserveDrawingBuffer: needsCapture,
+    powerPreference: 'high-performance',
+    roundPixels: true,
   },
   scene: [BootScene, PreloadScene, MenuScene, CampaignScene, MapScene, UIScene],
 };

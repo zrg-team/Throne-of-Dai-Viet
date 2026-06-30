@@ -22,6 +22,7 @@ export class OverlayRenderer {
   private armyHighlightLoops = new Map<string, Array<Array<{ x: number; y: number }>>>();
   private selectionGraphics!: Phaser.GameObjects.Graphics;
   private fogGraphics!: Phaser.GameObjects.Graphics;
+  private fogBakeRT?: Phaser.GameObjects.RenderTexture;
   private armyHighlightGraphics?: Phaser.GameObjects.Graphics;
 
   constructor(
@@ -113,8 +114,31 @@ export class OverlayRenderer {
 
   createFogLayer(state: GameState, hexTileMap: Map<string, HexTile>, wx: WorldTransform, wy: WorldTransform): void {
     this.fogGraphics = this.scene.add.graphics();
-    this.fogGraphics.setDepth(78);
+    // Just below the drifting cloud puffs (depth 78) but still above all unit/marker
+    // layers. The static tint is the single heaviest Graphics on the map (tens of
+    // thousands of fill commands re-tessellated every frame), so it is baked to a
+    // texture via `bakeFog` and this live Graphics is only used as the bake source.
+    this.fogGraphics.setDepth(77.5);
     this.repaintFogOfWar(state, hexTileMap, wx, wy);
+  }
+
+  /**
+   * Bakes the static fog tint (this layer's own Graphics plus any extra static fog
+   * Graphics, e.g. the filler-tile fog) into a single RenderTexture, then hides the
+   * source Graphics. This replaces ~90k per-frame fill/triangulation commands with a
+   * single textured quad. Re-run whenever visibility changes (the static signature).
+   */
+  bakeFog(worldWidth: number, worldHeight: number, extra: Phaser.GameObjects.Graphics[] = []): void {
+    if (!this.fogBakeRT) {
+      this.fogBakeRT = this.scene.add.renderTexture(0, 0, worldWidth, worldHeight)
+        .setOrigin(0, 0)
+        .setDepth(77.5);
+    }
+    const sources = [this.fogGraphics, ...extra];
+    for (const source of sources) source.setVisible(true);
+    this.fogBakeRT.clear();
+    this.fogBakeRT.draw(sources, 0, 0);
+    for (const source of sources) source.setVisible(false);
   }
 
   repaintFogOfWar(state: GameState, hexTileMap: Map<string, HexTile>, wx: WorldTransform, wy: WorldTransform): void {

@@ -1,0 +1,19 @@
+{
+  "label": "final",
+  "timestamp": "2026-06-30T17:03:55.160Z",
+  "config": {
+    "seed": 1337,
+    "ticks": 80,
+    "repeats": 3,
+    "cpuThrottle": 4
+  },
+  "errors": [],
+  "medianTickMs": 4568.8,
+  "perTickMs": 57.11,
+  "objectCount": 191,
+  "heapMB": 25.53,
+  "actualFps": 37.7,
+  "frameP50": 66.6,
+  "frameP95": 66.8,
+  "frameP99": 83.3
+}

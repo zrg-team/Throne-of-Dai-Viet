@@ -13,7 +13,7 @@ page.on('console', msg => {
 page.on('pageerror', err => errors.push(`PAGEERROR: ${err.message}\n${err.stack}`));
 
 try {
-  await page.goto('http://localhost:5173', { waitUntil: 'networkidle', timeout: 15000 });
+  await page.goto('http://localhost:5173/?capture=1', { waitUntil: 'networkidle', timeout: 15000 });
 } catch(e) {
   errors.push('GOTO: ' + e.message);
 }

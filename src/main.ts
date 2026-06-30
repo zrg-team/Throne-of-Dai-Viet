@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { gameConfig } from './game/config';
+import { createInitialGameState } from './state/GameState';
 import type { GameState } from './state/types';
 import { getLanguage, heroName, politicsTitle, seasonLabel, t } from './i18n';
 import { getMapTheme } from './ui/mapTheme';
@@ -12,6 +13,7 @@ declare global {
     __minimapInputBounds?: Array<{ x: number; y: number; width: number; height: number }>;
     render_game_to_text?: () => string;
     advanceTime?: (ms: number) => void;
+    __startBenchGame?: (seed?: number) => void;
   }
 }
 
@@ -98,4 +100,34 @@ window.advanceTime = (ms: number) => {
   for (let index = 0; index < steps; index += 1) {
     game.step(performance.now(), 1000 / 60);
   }
+};
+
+// Deterministic benchmark bootstrap (tooling only). Seeds Math.random so the
+// generated map/state is identical across before/after performance runs, builds
+// a fresh game state, and jumps straight into MapScene (which launches UIScene).
+window.__startBenchGame = (seed = 1337) => {
+  const originalRandom = Math.random;
+  let s = (seed >>> 0) || 1;
+  Math.random = () => {
+    // mulberry32
+    s |= 0;
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  let state: GameState;
+  try {
+    state = createInitialGameState();
+  } finally {
+    Math.random = originalRandom;
+  }
+  window.__mandateState = state;
+  // Mirror the real menu->game transition: stop the menu/campaign scenes so nothing
+  // renders underneath MapScene (otherwise control-render-mode, which hides the opaque
+  // paper background, would reveal them).
+  for (const key of ['MenuScene', 'CampaignScene']) {
+    if (game.scene.getScene(key)) game.scene.stop(key);
+  }
+  game.scene.start('MapScene', { state });
 };

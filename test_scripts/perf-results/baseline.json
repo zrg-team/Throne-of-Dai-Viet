@@ -1,0 +1,19 @@
+{
+  "label": "baseline2",
+  "timestamp": "2026-06-30T17:02:59.552Z",
+  "config": {
+    "seed": 1337,
+    "ticks": 80,
+    "repeats": 3,
+    "cpuThrottle": 4
+  },
+  "errors": [],
+  "medianTickMs": 11930,
+  "perTickMs": 149.13,
+  "objectCount": 189,
+  "heapMB": 25.43,
+  "actualFps": 31,
+  "frameP50": 166.7,
+  "frameP95": 199.9,
+  "frameP99": 199.9
+}
