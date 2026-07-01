@@ -128,17 +128,22 @@ export class OverlayRenderer {
    * source Graphics. This replaces ~90k per-frame fill/triangulation commands with a
    * single textured quad. Re-run whenever visibility changes (the static signature).
    */
-  bakeFog(worldWidth: number, worldHeight: number, extra: Phaser.GameObjects.Graphics[] = []): void {
+  bakeFog(worldWidth: number, worldHeight: number, extra: Phaser.GameObjects.Graphics[] = [], scale = 1): void {
     if (!this.fogBakeRT) {
-      this.fogBakeRT = this.scene.add.renderTexture(0, 0, worldWidth, worldHeight)
+      // Baked at `scale` resolution then displayed scaled up; fog is a soft tint so the
+      // reduced resolution is imperceptible and it cuts the cached-texture memory.
+      this.fogBakeRT = this.scene.add.renderTexture(0, 0, Math.ceil(worldWidth * scale), Math.ceil(worldHeight * scale))
         .setOrigin(0, 0)
+        .setScale(1 / scale)
         .setDepth(77.5);
     }
     const sources = [this.fogGraphics, ...extra];
-    for (const source of sources) source.setVisible(true);
+    // Sources are anchored at world origin, so scaling them shrinks their geometry into
+    // the reduced-res texture.
+    for (const source of sources) { source.setVisible(true); source.setScale(scale); }
     this.fogBakeRT.clear();
     this.fogBakeRT.draw(sources, 0, 0);
-    for (const source of sources) source.setVisible(false);
+    for (const source of sources) { source.setVisible(false); source.setScale(1); }
   }
 
   repaintFogOfWar(state: GameState, hexTileMap: Map<string, HexTile>, wx: WorldTransform, wy: WorldTransform): void {

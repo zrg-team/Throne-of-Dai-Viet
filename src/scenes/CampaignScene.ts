@@ -147,14 +147,14 @@ export class CampaignScene extends Phaser.Scene {
       const x = startX + i * btnW;
       const selected = isSelected(option);
 
-      // Unselected tabs stay an opaque parchment chip with dark ink text so they
-      // read on both the dark ink-wash sea and the light illustrated-atlas paper.
-      const bg = this.add
-        .rectangle(x + 1, y + 1, btnW - 2, btnH - 2, selected ? INK_UI.goldLight : INK_UI.parchmentShade, selected ? 0.95 : 0.78)
-        .setOrigin(0, 0);
-      bg.setStrokeStyle(selected ? 2 : 1, selected ? INK_UI.gold : INK_UI.brush, selected ? 0.9 : 0.55);
-      bg.setInteractive({ useHandCursor: true });
-      bg.on('pointerup', () => onSelect(i));
+      // Shared crayon tile keeps these selectors consistent with the menu's
+      // theme/language tiles; dark ink text reads on both themes' backgrounds.
+      const bounds = { x: x + 2, y, width: btnW - 4, height: btnH };
+      const tile = this.ui.crayonTile(bounds, { selected });
+      const hit = this.add
+        .rectangle(bounds.x + bounds.width / 2, y + btnH / 2, bounds.width, btnH, 0xffffff, 0.001)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => onSelect(i));
 
       const labelText = createLabel(this, x + btnW / 2, y + btnH / 2, option.label, 'label', {
         fontSize: '13px',
@@ -163,7 +163,7 @@ export class CampaignScene extends Phaser.Scene {
         align: 'center',
       }).setOrigin(0.5);
 
-      this.content.push(bg, labelText);
+      this.content.push(tile, hit, labelText);
     }
   }
 

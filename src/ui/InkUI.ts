@@ -192,6 +192,39 @@ export class InkUI {
     return this.scene.add.text(x, y, text, { ...textStyle(variant), ...overrides });
   }
 
+  /**
+   * A hand-drawn "crayon" tile used for every segmented selector (map theme,
+   * language, campaign map-type/difficulty) so those controls read consistently.
+   * Waxy parchment fill with a wobbly double outline; the caller adds the label
+   * and an interactive hit area on top. Selected tiles use a gold fill + cinnabar
+   * outline so the active choice pops on both the light atlas and dark ink themes.
+   */
+  crayonTile(bounds: UIBounds, opts: { selected?: boolean; fill?: number; accent?: number } = {}): Phaser.GameObjects.Graphics {
+    const { selected = false, accent = INK_UI.cinnabar } = opts;
+    const fill = opts.fill ?? (selected ? INK_UI.goldLight : INK_UI.parchment);
+    const radius = 6;
+    const seed = Math.round(bounds.x * 7 + bounds.y * 13 + bounds.width * 3);
+    const g = this.scene.add.graphics({ x: bounds.x, y: bounds.y });
+
+    // Soft cast shadow so the tiles feel like paper cutouts.
+    g.fillStyle(INK_UI.brush, 0.1);
+    g.fillRoundedRect(1.5, 2.5, bounds.width, bounds.height, radius);
+
+    // Waxy fill with a few uneven crayon streaks for texture.
+    g.fillStyle(fill, selected ? 0.98 : 0.92);
+    g.fillRoundedRect(0, 0, bounds.width, bounds.height, radius);
+    const rnd = crayonRng(seed + 5);
+    g.fillStyle(INK_UI.parchmentShade, selected ? 0.1 : 0.18);
+    for (let i = 0; i < 3; i += 1) {
+      const streakY = 3 + rnd() * (bounds.height - 6);
+      g.fillRect(3, streakY, bounds.width - 6, 1.3);
+    }
+
+    // Wobbly hand-drawn double outline.
+    strokeCrayonRect(g, bounds.width, bounds.height, selected ? accent : INK_UI.brush, selected ? 0.95 : 0.72, seed);
+    return g;
+  }
+
   panel(bounds: UIBounds, opts: InkSurfaceOptions = {}): Phaser.GameObjects.Graphics {
     const {
       fill = INK_UI.parchment,
@@ -606,6 +639,52 @@ function buttonPalette(variant: InkButtonVariant, pressed: boolean): { top: numb
 
 function colorToCss(color: number): string {
   return `#${color.toString(16).padStart(6, '0')}`;
+}
+
+function crayonRng(seed: number): () => number {
+  let value = (seed >>> 0) || 1;
+  return () => {
+    value = (value * 1664525 + 1013904223) >>> 0;
+    return value / 0x100000000;
+  };
+}
+
+/** Points sampled around a rectangle perimeter, used as the path for a jittered crayon outline. */
+function rectPerimeter(width: number, height: number, step: number): Array<{ x: number; y: number }> {
+  const points: Array<{ x: number; y: number }> = [];
+  const cols = Math.max(2, Math.round(width / step));
+  const rows = Math.max(2, Math.round(height / step));
+  for (let i = 0; i < cols; i += 1) points.push({ x: (width * i) / cols, y: 0 });
+  for (let i = 0; i < rows; i += 1) points.push({ x: width, y: (height * i) / rows });
+  for (let i = 0; i < cols; i += 1) points.push({ x: width - (width * i) / cols, y: height });
+  for (let i = 0; i < rows; i += 1) points.push({ x: 0, y: height - (height * i) / rows });
+  return points;
+}
+
+/** Two overlapping jittered passes around a rectangle for a waxy, hand-drawn crayon border. */
+function strokeCrayonRect(
+  g: Phaser.GameObjects.Graphics,
+  width: number,
+  height: number,
+  color: number,
+  alpha: number,
+  seed: number,
+): void {
+  const points = rectPerimeter(width, height, 9);
+  for (let pass = 0; pass < 2; pass += 1) {
+    const rnd = crayonRng(seed + pass * 131 + 17);
+    const jitter = pass === 0 ? 1.6 : 0.9;
+    g.lineStyle(pass === 0 ? 2.6 : 1.3, color, alpha * (pass === 0 ? 0.42 : 0.95));
+    g.beginPath();
+    points.forEach((point, index) => {
+      const x = point.x + (rnd() - 0.5) * jitter;
+      const y = point.y + (rnd() - 0.5) * jitter;
+      if (index === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    });
+    g.closePath();
+    g.strokePath();
+  }
 }
 
 function estimateTextHeight(text: string, width: number, fontSize: number, lineSpacing: number): number {

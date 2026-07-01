@@ -11,17 +11,20 @@ const info = await page.evaluate(() => {
   const sc = window.__phaserGame.scene.getScene('MapScene');
   const st = window.__mandateState;
   let graphics = 0, totalCommands = 0;
+  let visibleGraphics = 0, visibleCommands = 0;
   const layers = [];
-  const walk = (o, topDepth) => {
+  const walk = (o, topDepth, parentVisible) => {
+    const vis = parentVisible && o.visible !== false;
     if (o.type === 'Graphics') {
       graphics++;
       const c = o.commandBuffer ? o.commandBuffer.length : 0;
       totalCommands += c;
-      if (c > 500) layers.push({ depth: topDepth, commands: c });
+      if (vis) { visibleGraphics++; visibleCommands += c; }
+      if (c > 500) layers.push({ depth: topDepth, commands: c, visible: vis });
     }
-    if (Array.isArray(o.list)) o.list.forEach((ch) => walk(ch, topDepth));
+    if (Array.isArray(o.list)) o.list.forEach((ch) => walk(ch, topDepth, vis));
   };
-  sc.children.list.forEach((o) => walk(o, o.depth));
+  sc.children.list.forEach((o) => walk(o, o.depth, o.visible !== false));
   layers.sort((a, b) => b.commands - a.commands);
   return {
     world: { w: sc.minimapInfo.worldWidth, h: sc.minimapInfo.worldHeight },
@@ -30,8 +33,9 @@ const info = await page.evaluate(() => {
     visibleLands: st.lands.filter(l => l.isVisible).length,
     armies: st.armies.length,
     liveGraphics: graphics, totalGraphicsCommands: totalCommands,
+    visibleGraphics, visibleCommands,
     mapSceneTopLevel: sc.children.list.length,
-    heavyLayers: layers,
+    heavyLayers: layers.slice(0, 12),
   };
 });
 console.log(JSON.stringify(info, null, 2));

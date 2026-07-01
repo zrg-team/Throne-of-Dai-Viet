@@ -32,6 +32,10 @@ const MIN_CAMERA_ZOOM = 0.72;
 const MAX_CAMERA_ZOOM = 1.65;
 const CAMERA_ZOOM_STEP = 0.16;
 const WORLD_PADDING = 300;
+// Static map layers are baked at reduced resolution and displayed scaled up. The
+// ink-wash terrain tolerates the softening (labels/units stay live + crisp), and it
+// quarters the cached-texture GPU memory (two full-world RTs: ~52 MB -> ~13 MB).
+const BAKE_SCALE = 0.5;
 
 export class MapScene extends Phaser.Scene {
   private state!: GameState;
@@ -718,8 +722,10 @@ export class MapScene extends Phaser.Scene {
       return;
     }
     if (!this.staticBakeRT) {
-      this.staticBakeRT = this.add.renderTexture(0, 0, this.worldWidth, this.worldHeight)
+      // Texture is baked at BAKE_SCALE resolution then displayed scaled up to full world size.
+      this.staticBakeRT = this.add.renderTexture(0, 0, Math.ceil(this.worldWidth * BAKE_SCALE), Math.ceil(this.worldHeight * BAKE_SCALE))
         .setOrigin(0, 0)
+        .setScale(1 / BAKE_SCALE)
         .setDepth(1.9);
     }
 
@@ -738,8 +744,13 @@ export class MapScene extends Phaser.Scene {
       .filter((obj) => obj.visible)
       .sort((a, b) => a.depth - b.depth); // V8 stable sort preserves insertion order on ties
 
+    // Sources are all Graphics anchored at world origin (0,0), so scaling them by
+    // BAKE_SCALE for the draw shrinks their geometry into the reduced-res texture.
+    const scalable = visible as unknown as Array<{ setScale(v: number): unknown }>;
+    for (const source of scalable) source.setScale(BAKE_SCALE);
     this.staticBakeRT.clear();
     this.staticBakeRT.draw(visible, 0, 0);
+    for (const source of scalable) source.setScale(1);
 
     for (const source of band) source.setVisible(false);
     this.lastBakedRenderMode = this.state.mapRenderMode;
@@ -772,7 +783,7 @@ export class MapScene extends Phaser.Scene {
       return; // diagnostic: leave live fog Graphics visible to compare against the bake
     }
     if (this.fillerFogGraphics) {
-      this.overlays.bakeFog(this.worldWidth, this.worldHeight, [this.fillerFogGraphics]);
+      this.overlays.bakeFog(this.worldWidth, this.worldHeight, [this.fillerFogGraphics], BAKE_SCALE);
     }
   }
 

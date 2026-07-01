@@ -79,9 +79,9 @@ export class MenuScene extends Phaser.Scene {
       { x: 158, y: 430 }, { x: 120, y: 540 }, { x: 78, y: 648 }, { x: 36, y: 752 }, { x: -20, y: 844 },
     ];
     washFill(g, forestShape, terrain.forest, 0.78, () => rng());
-    // A handful of distinct groves keeps the bank wooded without crowding the page.
+    // A handful of distinct groves in the upper-left bank, all kept above the button column.
     this.mapRenderer.decorateTerrain(g, 'forest', [
-      { x: 56, y: 312 }, { x: 110, y: 396 }, { x: 44, y: 470 }, { x: 92, y: 568 }, { x: 48, y: 690 },
+      { x: 56, y: 300 }, { x: 116, y: 356 }, { x: 40, y: 424 }, { x: 100, y: 452 },
     ], 44, createMenuRng(444));
 
     // Right-bank rice terraces.
@@ -91,7 +91,7 @@ export class MenuScene extends Phaser.Scene {
     ];
     washFill(g, riceShape, terrain.riceFields, 0.7, () => rng());
     this.mapRenderer.decorateTerrain(g, 'riceFields', [
-      { x: 320, y: 392 }, { x: 336, y: 520 },
+      { x: 322, y: 372 }, { x: 346, y: 452 },
     ], 50, createMenuRng(555));
 
     // Lower plains behind the button column.
@@ -319,11 +319,11 @@ export class MenuScene extends Phaser.Scene {
   private drawArmies(): void {
     const g = this.add.graphics();
 
-    // Right bank – Dai Viet (player), all same red with same flag
+    // Right bank – Dai Viet (player), all same red with same flag.
+    // Kept in the upper field so nothing collides with the button column below (y ≥ 512).
     const rightFormations = [
-      { cx: 270, cy: 368, cols: 5, rows: 3 },
-      { cx: 322, cy: 446, cols: 4, rows: 3 },
-      { cx: 264, cy: 520, cols: 4, rows: 2 },
+      { cx: 268, cy: 356, cols: 5, rows: 3 },
+      { cx: 316, cy: 438, cols: 4, rows: 3 },
     ];
     for (const { cx, cy, cols, rows } of rightFormations) {
       this.drawSoldiers(g, cx, cy, this.mapRenderer.palette.mapObjects.player, cols, rows);
@@ -333,11 +333,10 @@ export class MenuScene extends Phaser.Scene {
       flag.setPosition(cx + totalW / 2 + 14, cy + totalH / 2 + 4);
     }
 
-    // Left bank – enemy army, all same dark olive with same flag
+    // Left bank – enemy army, all same dark olive with same flag.
     const leftFormations = [
-      { cx: 98,  cy: 368, cols: 4, rows: 3 },
-      { cx: 60,  cy: 446, cols: 5, rows: 3 },
-      { cx: 96,  cy: 518, cols: 4, rows: 2 },
+      { cx: 100, cy: 356, cols: 4, rows: 3 },
+      { cx: 62,  cy: 438, cols: 5, rows: 3 },
     ];
     const enemySeed = this.previewFlagSeed + 777;
     for (const { cx, cy, cols, rows } of leftFormations) {
@@ -523,26 +522,27 @@ export class MenuScene extends Phaser.Scene {
     const x = GAME_WIDTH / 2 - width / 2;
     const y = GAME_HEIGHT - 90;
 
-    const heading = this.ui.label(GAME_WIDTH / 2, y - 14, t('menu.mapTheme'), 'caption', {
-      color: '#f3dd9a', fontSize: '10px', fontStyle: '700', align: 'center',
+    const heading = this.ui.label(GAME_WIDTH / 2, y - 16, t('menu.mapTheme'), 'caption', {
+      color: '#3a2a14', fontSize: '10px', fontStyle: '700', align: 'center',
+      backgroundColor: 'rgba(243,230,196,0.55)', padding: { x: 5, y: 1 },
     }).setOrigin(0.5, 0);
-    const background = this.add.rectangle(x, y, width, itemHeight, INK_UI.parchment, 0.88).setOrigin(0, 0);
-    background.setStrokeStyle(2, INK_UI.brush, 0.78);
-    this.content.push(heading, background);
+    this.content.push(heading);
 
     MAP_THEME_OPTIONS.forEach((option, index) => {
       const selected = current === option.id;
       const left = x + index * itemWidth;
-      const fill = this.add.rectangle(left + 1, y + 1, itemWidth - 2, itemHeight - 2, selected ? INK_UI.goldLight : INK_UI.parchment, selected ? 0.98 : 0.2)
-        .setOrigin(0, 0).setInteractive({ useHandCursor: true });
-      const label = this.ui.label(left + itemWidth / 2, y + 6, t(option.labelKey), 'button', {
-        color: '#211103', fontSize: '11px', align: 'center',
-      }).setOrigin(0.5, 0);
-      fill.on('pointerup', () => {
+      const bounds = { x: left + 3, y, width: itemWidth - 6, height: itemHeight };
+      const tile = this.ui.crayonTile(bounds, { selected });
+      const label = this.ui.label(bounds.x + bounds.width / 2, y + itemHeight / 2, t(option.labelKey), 'button', {
+        color: '#211103', fontSize: '11px', fontStyle: selected ? '700' : '400', align: 'center',
+      }).setOrigin(0.5);
+      const hit = this.add.rectangle(bounds.x + bounds.width / 2, y + itemHeight / 2, bounds.width, itemHeight, 0xffffff, 0.001)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => {
         setMapTheme(option.id);
         this.scene.restart();
       });
-      this.content.push(fill, label);
+      this.content.push(tile, label, hit);
     });
   }
 
@@ -592,49 +592,36 @@ export class MenuScene extends Phaser.Scene {
     const x = GAME_WIDTH / 2 - width / 2;
     const y = GAME_HEIGHT - 40;
 
-    const bg = this.add
-      .rectangle(x, y, width, itemHeight, INK_UI.parchment, 0.88)
-      .setOrigin(0, 0);
-
-    bg.setStrokeStyle(2, INK_UI.brush, 0.78);
-    this.content.push(bg);
-
     options.forEach((option, index) => {
       const selected = current === option.code;
       const left = x + index * itemWidth;
+      const bounds = { x: left + 3, y, width: itemWidth - 6, height: itemHeight };
 
-      const fill = this.add
-        .rectangle(
-          left + 1,
-          y + 1,
-          itemWidth - 2,
-          itemHeight - 2,
-          selected ? INK_UI.goldLight : INK_UI.parchment,
-          selected ? 0.98 : 0.2,
-        )
-        .setOrigin(0, 0)
-        .setInteractive({ useHandCursor: true });
-
+      const tile = this.ui.crayonTile(bounds, { selected });
       const label = this.ui
         .label(
-          left + itemWidth / 2,
-          y + 7,
-          `${option.flag} ${option.label}`,
+          bounds.x + bounds.width / 2,
+          y + itemHeight / 2,
+          `${option.flag} ${option.label}`.trim(),
           'button',
           {
             color: '#211103',
             fontSize: '12px',
+            fontStyle: selected ? '700' : '400',
             align: 'center',
           },
         )
-        .setOrigin(0.5, 0);
+        .setOrigin(0.5);
 
-      fill.on('pointerup', () => {
+      const hit = this.add
+        .rectangle(bounds.x + bounds.width / 2, y + itemHeight / 2, bounds.width, itemHeight, 0xffffff, 0.001)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => {
         setLanguage(option.code);
         this.render();
       });
 
-      this.content.push(fill, label);
+      this.content.push(tile, label, hit);
     });
   }
 
