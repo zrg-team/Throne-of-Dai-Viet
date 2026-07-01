@@ -126,11 +126,11 @@ export const MAP_THEMES: Record<MapThemeId, MapThemeDefinition> = {
 
 export const MAP_THEME_OPTIONS = Object.values(MAP_THEMES);
 
-/** The atlas is the default for new devices; the chosen style is an application preference, not save data. */
+/** Ink-wash is the default for new devices; the chosen style is an application preference, not save data. */
 export function getMapTheme(): MapThemeId {
-  if (typeof localStorage === 'undefined') return 'illustrated-atlas';
+  if (typeof localStorage === 'undefined') return 'ink-wash';
   const stored = localStorage.getItem(MAP_THEME_STORAGE_KEY);
-  return stored === 'ink-wash' || stored === 'illustrated-atlas' ? stored : 'illustrated-atlas';
+  return stored === 'ink-wash' || stored === 'illustrated-atlas' ? stored : 'ink-wash';
 }
 
 export function getActiveMapTheme(): MapThemeDefinition {

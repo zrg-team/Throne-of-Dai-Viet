@@ -137,12 +137,24 @@ export class OverlayRenderer {
         .setScale(1 / scale)
         .setDepth(77.5);
     }
+    // Skip if the WebGL context is lost — clearing/drawing the RenderTexture would
+    // dereference a null GL binding. The bake re-runs on the next visibility change.
+    const renderer = this.scene.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
+    if (renderer?.contextLost) {
+      return;
+    }
     const sources = [this.fogGraphics, ...extra];
     // Sources are anchored at world origin, so scaling them shrinks their geometry into
     // the reduced-res texture.
     for (const source of sources) { source.setVisible(true); source.setScale(scale); }
-    this.fogBakeRT.clear();
-    this.fogBakeRT.draw(sources, 0, 0);
+    try {
+      this.fogBakeRT.clear();
+      this.fogBakeRT.draw(sources, 0, 0);
+    } catch (error) {
+      console.warn('Fog bake skipped (renderer unavailable):', error);
+      for (const source of sources) source.setScale(1);
+      return;
+    }
     for (const source of sources) { source.setVisible(false); source.setScale(1); }
   }
 

@@ -75,25 +75,53 @@ export function decorateRiceFields(graphics: Phaser.GameObjects.Graphics, center
   void rng;
 }
 
-/** Scatters dense ink pine-silhouette clumps (a tall canopy plus a smaller inner one) across a merged forest patch. */
+/**
+ * East-Asian ink-painting broadleaf groves. Instead of pointed conifer silhouettes
+ * (which read as European firs), each tree is a lumpy rounded canopy built from a few
+ * overlapping ink-wash blobs in two greens, dabbed with dark foliage stipple dots
+ * (the 点叶 "dotted-leaf" motif of Vietnamese/Chinese landscape painting) over a short
+ * brushed trunk. Drawn back-to-front so nearer canopies overlap.
+ */
 export function decorateForest(graphics: Phaser.GameObjects.Graphics, centers: PixelPoint[], size: number, rng: () => number): void {
-  const treeCount = Math.round(centers.length * 6);
-  for (let index = 0; index < treeCount; index += 1) {
+  const treeCount = Math.round(centers.length * 5);
+  const canopyDark = shade(INK.landForest, 0.6);
+  const canopyMid = shade(INK.landForest, 0.8);
+
+  const trees = Array.from({ length: treeCount }, () => {
     const anchor = centers[randomIndex(rng, centers.length)];
-    const px = anchor.x + (rng() - 0.5) * size * 1.3;
-    const py = anchor.y + (rng() - 0.5) * size * 1.3;
-    const scale = 0.6 + rng() * 0.7;
-    const height = size * 0.45 * scale;
-    const base = size * 0.14 * scale;
+    const scale = 0.72 + rng() * 0.6;
+    return {
+      px: anchor.x + (rng() - 0.5) * size * 1.3,
+      py: anchor.y + (rng() - 0.5) * size * 1.2,
+      r: size * 0.2 * scale,
+      lean: (rng() - 0.5) * size * 0.06,
+      seed: Math.floor(rng() * 9999),
+    };
+  });
+  trees.sort((a, b) => a.py - b.py);
 
-    graphics.fillStyle(shade(INK.landForest, 0.65), 0.7);
-    graphics.fillTriangle(px, py - height, px - size * 0.16 * scale, py + base, px + size * 0.16 * scale, py + base);
+  for (const { px, py, r, lean, seed } of trees) {
+    const crownY = py - r * 0.5;
 
-    graphics.fillStyle(shade(INK.landForest, 0.82), 0.6);
-    graphics.fillTriangle(px, py - height * 0.65, px - size * 0.12 * scale, py + base * 0.4, px + size * 0.12 * scale, py + base * 0.4);
+    // Short, slightly-leaning ink trunk.
+    brushStroke(graphics, [{ x: px, y: py + r * 0.9 }, { x: px + lean, y: crownY + r * 0.35 }], Math.max(1, r * 0.2), INK.inkSoft, 0.72, seed + 3);
 
-    graphics.lineStyle(1, INK.ink, 0.45);
-    graphics.lineBetween(px, py + base, px, py + base + height * 0.25);
+    // Lumpy rounded canopy: a deep base mass, then a lighter rounded crown — no points.
+    graphics.fillStyle(canopyDark, 0.62);
+    graphics.fillCircle(px - r * 0.52, crownY + r * 0.18, r * 0.6);
+    graphics.fillCircle(px + r * 0.54, crownY + r * 0.22, r * 0.56);
+    graphics.fillCircle(px + lean, crownY + r * 0.34, r * 0.72);
+    graphics.fillStyle(canopyMid, 0.66);
+    graphics.fillCircle(px - r * 0.24, crownY, r * 0.52);
+    graphics.fillCircle(px + lean, crownY - r * 0.14, r * 0.64);
+
+    // Dark ink foliage stipple ("dotted leaves") clustered over the crown.
+    graphics.fillStyle(INK.ink, 0.5);
+    for (let dot = 0; dot < 5; dot += 1) {
+      const dx = (((seed >> dot) & 7) - 3.5) * r * 0.24;
+      const dy = (((seed >> (dot + 3)) & 5) - 2.5) * r * 0.2 - r * 0.16;
+      graphics.fillCircle(px + lean + dx, crownY + dy, r * 0.085);
+    }
   }
 }
 

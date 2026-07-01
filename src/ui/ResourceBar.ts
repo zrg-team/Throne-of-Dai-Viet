@@ -20,8 +20,7 @@ export class ResourceBar extends Phaser.GameObjects.Container {
     const ui = new InkUI(scene);
 
     const back = scene.add.rectangle(0, 0, GAME_WIDTH, HEADER_HEIGHT, INK_UI.backgroundInk, 0.96).setOrigin(0, 0);
-    const accent = scene.add.rectangle(14, HEADER_HEIGHT - 3, GAME_WIDTH - 28, 2, INK_UI.cinnabar, 0.78).setOrigin(0, 0);
-    this.add([back, accent]);
+    this.add(back);
 
     this.seasonText = ui.label(12, 4, '', 'title', { color: '#fff6bd', fontSize: '15px' });
     this.add(this.seasonText);

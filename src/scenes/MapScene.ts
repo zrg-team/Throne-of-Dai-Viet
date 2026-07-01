@@ -32,10 +32,29 @@ const MIN_CAMERA_ZOOM = 0.72;
 const MAX_CAMERA_ZOOM = 1.65;
 const CAMERA_ZOOM_STEP = 0.16;
 const WORLD_PADDING = 300;
-// Static map layers are baked at reduced resolution and displayed scaled up. The
-// ink-wash terrain tolerates the softening (labels/units stay live + crisp), and it
-// quarters the cached-texture GPU memory (two full-world RTs: ~52 MB -> ~13 MB).
-const BAKE_SCALE = 0.5;
+
+/**
+ * Resolution the static map layers are baked at (then displayed scaled back up).
+ * Chosen per device: high-end renders full-detail (crisp terrain, ~52 MB of RTs),
+ * low-end drops to half-res to save GPU memory (~13 MB) at the cost of some softness.
+ * Override for testing with `?bakescale=0.75`.
+ */
+function pickBakeScale(): number {
+  if (typeof window !== 'undefined') {
+    const override = /[?&]bakescale=([0-9.]+)/.exec(window.location.search);
+    if (override) return Math.min(1, Math.max(0.25, parseFloat(override[1])));
+  }
+  const nav = (typeof navigator !== 'undefined' ? navigator : undefined) as
+    | (Navigator & { deviceMemory?: number })
+    | undefined;
+  const memoryGb = nav?.deviceMemory; // Chromium only; undefined on Safari/Firefox/desktop
+  const cores = nav?.hardwareConcurrency ?? 4;
+  if (memoryGb !== undefined && memoryGb <= 2) return 0.5; // clearly low-end -> save memory
+  if ((memoryGb ?? 8) >= 8 && cores >= 8) return 1; // high-end -> full detail, no softening
+  return 0.75; // mid / unknown -> lightly downscaled, visually near-lossless
+}
+
+const BAKE_SCALE = pickBakeScale();
 
 export class MapScene extends Phaser.Scene {
   private state!: GameState;
@@ -200,6 +219,7 @@ export class MapScene extends Phaser.Scene {
     this.game.canvas.addEventListener('mousedown', this.domMouseDown);
     this.game.canvas.addEventListener('mousemove', this.domMouseMove);
     this.game.canvas.addEventListener('mouseup', this.domMouseUp);
+    this.game.canvas.addEventListener('webglcontextrestored', this.onContextRestored);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.cleanup());
 
     this.drawMap();
@@ -220,7 +240,20 @@ export class MapScene extends Phaser.Scene {
     this.game.canvas.removeEventListener('mousedown', this.domMouseDown);
     this.game.canvas.removeEventListener('mousemove', this.domMouseMove);
     this.game.canvas.removeEventListener('mouseup', this.domMouseUp);
+    this.game.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
   }
+
+  /** Re-bake the cached terrain + fog textures once a lost WebGL context is restored.
+   *  Both RenderTextures are blanked by a context loss, so both must be redrawn. */
+  private readonly onContextRestored = (): void => {
+    // Defer so Phaser's own context restore (texture re-upload) completes first.
+    this.time.delayedCall(60, () => {
+      if (this.scene.isActive()) {
+        this.bakeStaticTerrain();
+        this.bakeFog();
+      }
+    });
+  };
 
   private registerUiEvents(): void {
     const ui = this.scene.get('UIScene');
@@ -744,12 +777,29 @@ export class MapScene extends Phaser.Scene {
       .filter((obj) => obj.visible)
       .sort((a, b) => a.depth - b.depth); // V8 stable sort preserves insertion order on ties
 
+    // If the WebGL context has been lost (GPU reset, or too many live contexts across
+    // tabs), clearing/drawing the RenderTexture dereferences a null GL binding and
+    // crashes. Bail with the live source layers still visible; `onContextRestored`
+    // re-runs the bake once the context returns.
+    const renderer = this.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
+    if (renderer?.contextLost) {
+      return;
+    }
+
     // Sources are all Graphics anchored at world origin (0,0), so scaling them by
     // BAKE_SCALE for the draw shrinks their geometry into the reduced-res texture.
     const scalable = visible as unknown as Array<{ setScale(v: number): unknown }>;
     for (const source of scalable) source.setScale(BAKE_SCALE);
-    this.staticBakeRT.clear();
-    this.staticBakeRT.draw(visible, 0, 0);
+    try {
+      this.staticBakeRT.clear();
+      this.staticBakeRT.draw(visible, 0, 0);
+    } catch (error) {
+      // A context loss racing the guard above can still null the GL bindings mid-bake;
+      // keep the live layers visible and recover on the next restore instead of throwing.
+      console.warn('Static terrain bake skipped (renderer unavailable):', error);
+      for (const source of scalable) source.setScale(1);
+      return;
+    }
     for (const source of scalable) source.setScale(1);
 
     for (const source of band) source.setVisible(false);
