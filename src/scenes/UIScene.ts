@@ -187,10 +187,8 @@ export class UIScene extends Phaser.Scene {
       0.58,
     );
     this.messageBackground.fillRect(0, HEADER_HEIGHT, GAME_WIDTH, MESSAGE_STRIP_HEIGHT);
-    this.messageBackground.lineStyle(1, INK_UI.gold, 0.42);
-    this.messageBackground.lineBetween(18, HEADER_HEIGHT + 1, GAME_WIDTH - 18, HEADER_HEIGHT + 1);
-    this.messageBackground.lineStyle(1, INK_UI.brush, 0.08);
-    this.messageBackground.lineBetween(0, HEADER_HEIGHT + MESSAGE_STRIP_HEIGHT, GAME_WIDTH, HEADER_HEIGHT + MESSAGE_STRIP_HEIGHT);
+    // The parchment fill alone delimits the message strip; no drawn divider lines under
+    // the resource bar (they read as a stray coloured line beneath the numbers).
     this.messageText = this.add.text(14, HEADER_HEIGHT + 5, '', {
       color: '#1e2a22',
       fontFamily: UI_FONT,
