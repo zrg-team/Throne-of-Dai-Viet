@@ -3,6 +3,7 @@ import type { GameState } from '../state/types';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { InkUI, INK_UI } from './InkUI';
 import { createLabel, createWoodButton } from './theme';
+import { bankLegacy, computeRunScore, getLegacy, rankForScore } from '../state/legacy';
 import { t } from '../i18n';
 
 const PANEL_W = GAME_WIDTH - 48;
@@ -59,15 +60,36 @@ export class CampaignScorePanel {
       ];
 
       const rowY = PANEL_Y + 160;
-      const rowH = 62;
+      const rowH = 54;
       scoreLines.forEach((line, i) => {
         const y = rowY + i * rowH;
         const g = this.scene.add.graphics();
         g.fillStyle(INK_UI.parchment, i % 2 === 0 ? 0.22 : 0.1);
         g.fillRoundedRect(PANEL_X + 16, y, PANEL_W - 32, rowH - 4, 6);
         items.push(g);
-        items.push(createLabel(this.scene, PANEL_X + 28, y + 20, line, 'label', { fontSize: '14px' }));
+        items.push(createLabel(this.scene, PANEL_X + 28, y + 16, line, 'label', { fontSize: '14px' }));
       });
+
+      // Empire mode: bank Legacy once and show the earned points + lifetime rank.
+      if (this.state.gameMode === 'empire') {
+        let earned = 0;
+        if (!this.state.legacyBanked) {
+          this.state.legacyBanked = true;
+          earned = bankLegacy(this.state, false);
+        } else {
+          earned = Math.round(computeRunScore(this.state) / 10);
+        }
+        const legacy = getLegacy();
+        const y = rowY + scoreLines.length * rowH + 6;
+        const g = this.scene.add.graphics();
+        g.fillStyle(INK_UI.gold, 0.16);
+        g.fillRoundedRect(PANEL_X + 16, y, PANEL_W - 32, 56, 6);
+        g.lineStyle(1, INK_UI.gold, 0.5);
+        g.strokeRoundedRect(PANEL_X + 16, y, PANEL_W - 32, 56, 6);
+        items.push(g);
+        items.push(createLabel(this.scene, PANEL_X + 28, y + 8, t('empire.legacy.earned', { points: earned }), 'label', { fontSize: '14px', color: '#f3dd9a' }));
+        items.push(createLabel(this.scene, PANEL_X + 28, y + 30, t('empire.legacy.rank', { rank: rankForScore(legacy.bestScore), total: legacy.points }), 'caption', { fontSize: '11px', color: '#e8d89a' }));
+      }
     }
 
     items.push(createWoodButton(

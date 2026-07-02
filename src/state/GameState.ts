@@ -8,6 +8,8 @@ import { refreshAllLandOutputs } from '../systems/ResourceSystem';
 import { refreshPlayerVisibility } from '../systems/LandSystem';
 import { createInitialCourtState } from '../systems/CourtSystem';
 import { recomputeOpinion } from '../systems/DiplomacySystem';
+import { createInitialMandate } from '../systems/empire/MandateSystem';
+import { initDirectives } from '../systems/empire/DirectiveSystem';
 import type { Army, CampaignConfig, GameState, Kingdom, Land, LandTemplate, ResourceBag, TerrainSummary } from './types';
 import { landTypeLabel, t } from '../i18n';
 
@@ -596,10 +598,17 @@ export function createEmpireGameState(config: CampaignConfig): GameState {
     spyReports: [],
     scheduledCampaignEvents: [],
     invasions: [],
+    toasts: [],
+    mandate: createInitialMandate(),
+    greatInvasionEras: [],
+    threatBudget: 0,
+    invasionsRepelled: 0,
+    wondersBuilt: 0,
     isDefeated: false,
     defeatReason: undefined,
   };
 
+  initDirectives(state);
   refreshAllLandOutputs(state);
   refreshPlayerVisibility(state);
   return state;

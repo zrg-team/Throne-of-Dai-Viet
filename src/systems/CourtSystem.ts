@@ -2,6 +2,7 @@ import { PLAYER_KINGDOM_ID } from '../game/constants';
 import { heroTemplates } from '../data/heroes';
 import { politicsCardTemplates } from '../data/politicsCards';
 import { createHeroDraft } from './HeroSystem';
+import { eraSeatBonus } from './empire/MandateSystem';
 import type { CourtModifier, CourtPositionId, CourtState, GameState, Hero, HeroStats, ResourceBag } from '../state/types';
 import { heroName, t } from '../i18n';
 
@@ -278,9 +279,11 @@ function progressCourtModifiers(state: GameState): void {
 /** Recomputes which court seats are unlocked based on Communal Halls built on player lands. */
 export function refreshCourtSeats(state: GameState): void {
   const communalHallLevels = getCommunalHallLevels(state);
+  // Empire-mode eras grant seats on top of Communal Hall seats (see MandateSystem).
+  const eraSeats = eraSeatBonus(state);
 
   const bonusSeats = ALL_COURT_POSITIONS.filter((positionId) => !BASE_SEATS.includes(positionId));
-  state.court.unlockedSeats = [...BASE_SEATS, ...bonusSeats.slice(0, communalHallLevels)];
+  state.court.unlockedSeats = [...BASE_SEATS, ...bonusSeats.slice(0, communalHallLevels + eraSeats)];
 
   for (const positionId of Object.keys(state.court.seats) as CourtPositionId[]) {
     if (!state.court.unlockedSeats.includes(positionId)) {

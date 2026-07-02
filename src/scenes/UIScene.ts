@@ -27,6 +27,10 @@ import {
   proposePact,
 } from '../systems/DiplomacySystem';
 import { canTakeForeignChoice } from '../systems/ForeignEventSystem';
+import { directiveTitle } from '../systems/empire/DirectiveSystem';
+import { eraLabel, pointsToNextEra } from '../systems/empire/MandateSystem';
+import { allProjects, enactProject, isProjectEnacted, projectBlockedReason, projectDescription, projectTitle } from '../systems/empire/EdictSystem';
+import { bankLegacy, getLegacy, rankForScore } from '../state/legacy';
 import { MINIMAP_H, MINIMAP_W, renderMinimap, type MinimapWorldInfo } from '../ui/MinimapRenderer';
 import { renderHeroFace } from '../ui/FaceRenderer';
 import { COMPACT_CARD_Y, LandPanel } from '../ui/LandPanel';
@@ -81,7 +85,9 @@ type ModalScreen =
   | 'exit-menu'
   | 'campaign-defeat'
   | 'foreign-affairs'
-  | 'foreign-event';
+  | 'foreign-event'
+  | 'directives'
+  | 'edicts';
 
 const MESSAGE_STRIP_HEIGHT = 42;
 
@@ -103,6 +109,8 @@ export class UIScene extends Phaser.Scene {
   private lastSpyReportCount = 0;
   private affairsBadge: Phaser.GameObjects.GameObject[] = [];
   private empireBanners: Phaser.GameObjects.GameObject[] = [];
+  private toastObjects: Phaser.GameObjects.GameObject[] = [];
+  private telegraphObjects: Phaser.GameObjects.GameObject[] = [];
   private selectedAffairsKingdomId?: string;
   private affairsPactOpen = false;
   private affairsPactSweetener = 0;
@@ -403,6 +411,13 @@ export class UIScene extends Phaser.Scene {
       return;
     }
 
+    if (action === 'directives') {
+      if (this.state.gameMode === 'empire') {
+        this.openModal('directives');
+      }
+      return;
+    }
+
     if (action === 'pause') {
       this.state.isStrategyPause = !this.state.isStrategyPause;
       this.refresh();
@@ -487,6 +502,8 @@ export class UIScene extends Phaser.Scene {
     this.clearRequestBadge();
     this.clearAffairsBadge();
     this.clearEmpireBanners();
+    this.clearTelegraphBanner();
+    this.clearToastFeed();
     this.clearMapControls();
     this.clearGameMenuButton();
     this.clearCompactCard();
@@ -535,10 +552,12 @@ export class UIScene extends Phaser.Scene {
 
     if (this.state.gameMode === 'empire') {
       this.renderEmpireBanners();
+      this.renderTelegraphBanner();
+      this.renderToastFeed();
     }
 
     if (isCampaignMode(this.state.gameMode)) {
-      this.renderStabilityBar();
+      this.renderDynastyStability();
       const newReports = this.state.spyReports.length > this.lastSpyReportCount;
       if (newReports) {
         this.lastSpyReportCount = this.state.spyReports.length;
@@ -594,6 +613,10 @@ export class UIScene extends Phaser.Scene {
       this.showGameMenuScreen();
     } else if (this.modalScreen === 'exit-menu') {
       this.showExitMenuScreen();
+    } else if (this.modalScreen === 'directives') {
+      this.showDirectivesScreen();
+    } else if (this.modalScreen === 'edicts') {
+      this.showEdictsScreen();
     } else if (this.modalScreen === 'foreign-affairs') {
       this.showForeignAffairsScreen();
     } else if (this.modalScreen === 'foreign-event') {
@@ -1748,6 +1771,137 @@ export class UIScene extends Phaser.Scene {
     scroll.setContentHeight(rivals.length * rowH);
   }
 
+  private showDirectivesScreen(): void {
+    const mandate = this.state.mandate;
+    const era = mandate ? eraLabel(mandate.era) : '';
+    this.addModalBase(t('empire.directive.title'), t('empire.mandate.era', { era }));
+    const content = this.modalContentBounds;
+
+    // ── Mandate of Heaven header ──
+    let y = content.y;
+    const headerH = 58;
+    const header = this.add.graphics();
+    header.fillStyle(INK_UI.gold, 0.12);
+    header.fillRoundedRect(content.x, y, content.width, headerH, 6);
+    header.lineStyle(1, INK_UI.gold, 0.4);
+    header.strokeRoundedRect(content.x, y, content.width, headerH, 6);
+    this.modalLayer.add(header);
+    this.modalLayer.add(createLabel(this, content.x + 10, y + 8, t('empire.mandate.points', { points: Math.round(mandate?.points ?? 0) }), 'label', { fontSize: '14px', color: '#f3dd9a' }));
+    this.modalLayer.add(createLabel(this, content.x + content.width - 10, y + 8, t('empire.mandate.edictPoints', { points: mandate?.edictPoints ?? 0 }), 'caption', { fontSize: '11px', align: 'right' }).setOrigin(1, 0));
+    const toNext = pointsToNextEra(this.state);
+    const nextLabel = toNext > 0 ? t('empire.mandate.toNext', { points: Math.ceil(toNext) }) : t('empire.mandate.ascendReady');
+    this.modalLayer.add(createLabel(this, content.x + 10, y + 32, nextLabel, 'caption', { fontSize: '11px', color: '#e8d89a', wordWrap: { width: content.width - 130 } }));
+    // Jump to the Edicts & Wonders board.
+    this.modalLayer.add(this.ui.button({ x: content.x + content.width - 118, y: y + 28, width: 118, height: 24 }, t('empire.edict.open'), () => {
+      this.modalScreen = 'edicts';
+      this.refresh();
+    }, { variant: 'primary', fontSize: '10px' }));
+    y += headerH + 8;
+
+    // ── Directive list ──
+    const subtitle = createLabel(this, content.x + 10, y, t('empire.directive.subtitle'), 'caption', { fontSize: '10px', color: '#b89b5e' });
+    this.modalLayer.add(subtitle);
+    y += 20;
+
+    const listH = content.height - (y - content.y);
+    const scroll = this.ui.scrollArea({ x: content.x, y, width: content.width, height: listH });
+    scroll.addTo(this.modalLayer);
+    this.activeScrollAreas.push(scroll);
+
+    const directives = this.state.directives ?? [];
+    const rowH = 86;
+    let rowY = 0;
+    for (const d of directives) {
+      const tierColor = d.tier === 'epic' ? INK_UI.gold : d.tier === 'medium' ? INK_UI.jade : INK_UI.parchment;
+      const card = this.add.graphics();
+      card.fillStyle(INK_UI.parchment, 0.14);
+      card.fillRoundedRect(0, rowY, content.width, rowH - 8, 6);
+      card.fillStyle(tierColor, 0.9);
+      card.fillRoundedRect(0, rowY, 6, rowH - 8, { tl: 6, bl: 6, tr: 0, br: 0 });
+      scroll.content.add(card);
+      scroll.content.add(createLabel(this, 14, rowY + 8, directiveTitle(d), 'label', { fontSize: '12px', wordWrap: { width: content.width - 90 } }));
+      scroll.content.add(createLabel(this, content.width - 8, rowY + 8, t(`empire.directive.tier.${d.tier}` as Parameters<typeof t>[0]), 'caption', { fontSize: '9px', align: 'right', color: '#b89b5e' }).setOrigin(1, 0));
+      const barMax = Math.max(1, d.target - d.baseline);
+      const barVal = Phaser.Math.Clamp(d.current - d.baseline, 0, barMax);
+      const bar = this.ui.statBar({ x: 14, y: rowY + 42, width: content.width - 92, height: 10 }, barVal, barMax, tierColor);
+      scroll.content.add(bar);
+      scroll.content.add(createLabel(this, content.width - 8, rowY + 40, t('empire.directive.progress', { current: Math.round(d.current), target: Math.round(d.target) }), 'caption', { fontSize: '10px', align: 'right' }).setOrigin(1, 0));
+      scroll.content.add(createLabel(this, 14, rowY + 58, t('empire.directive.reward', { mandate: d.rewardMandate }), 'caption', { fontSize: '10px', color: '#5f8f4c' }));
+      if (d.deadline !== undefined) {
+        scroll.content.add(createLabel(this, content.width - 8, rowY + 58, t('empire.directive.deadline', { turn: d.deadline }), 'caption', { fontSize: '10px', align: 'right', color: '#c0392b' }).setOrigin(1, 0));
+      }
+      rowY += rowH;
+    }
+    scroll.setContentHeight(Math.max(listH, rowY));
+  }
+
+  private showEdictsScreen(): void {
+    const mandate = this.state.mandate;
+    this.addModalBase(t('empire.edict.title'), t('empire.mandate.edictPoints', { points: mandate?.edictPoints ?? 0 }));
+    const content = this.modalContentBounds;
+
+    // Back to the Agenda board.
+    this.modalLayer.add(this.ui.button({ x: content.x, y: content.y, width: 104, height: 26 }, t('empire.edict.back'), () => {
+      this.modalScreen = 'directives';
+      this.refresh();
+    }, { variant: 'secondary', fontSize: '10px' }));
+
+    const listTop = content.y + 34;
+    const listH = content.height - 34;
+    const scroll = this.ui.scrollArea({ x: content.x, y: listTop, width: content.width, height: listH });
+    scroll.addTo(this.modalLayer);
+    this.activeScrollAreas.push(scroll);
+
+    const projects = allProjects();
+    let rowY = 0;
+
+    const addSection = (labelKey: 'empire.edict.section.edicts' | 'empire.edict.section.wonders') => {
+      scroll.content.add(createLabel(this, 4, rowY, t(labelKey), 'caption', { fontSize: '11px', fontStyle: '700', color: '#f3dd9a' }));
+      rowY += 22;
+    };
+
+    const addRow = (project: ReturnType<typeof allProjects>[number]) => {
+      const enacted = isProjectEnacted(this.state, project.id);
+      const blocked = projectBlockedReason(this.state, project);
+      const rowH = 68;
+      const branchColor = project.branch === 'war' ? INK_UI.cinnabar : project.branch === 'economy' ? INK_UI.gold : INK_UI.jade;
+      const card = this.add.graphics();
+      card.fillStyle(INK_UI.parchment, enacted ? 0.08 : 0.14);
+      card.fillRoundedRect(0, rowY, content.width, rowH - 8, 6);
+      card.fillStyle(branchColor, 0.9);
+      card.fillRoundedRect(0, rowY, 6, rowH - 8, { tl: 6, bl: 6, tr: 0, br: 0 });
+      scroll.content.add(card);
+      scroll.content.add(createLabel(this, 14, rowY + 7, projectTitle(project), 'label', { fontSize: '12px', wordWrap: { width: content.width - 110 } }));
+      scroll.content.add(createLabel(this, 14, rowY + 26, projectDescription(project), 'caption', { fontSize: '10px', color: '#cbb885', wordWrap: { width: content.width - 110 } }));
+      const cost = project.kind === 'edict'
+        ? t('empire.edict.cost.points', { cost: project.edictCost ?? 0 })
+        : Object.entries(project.resourceCost ?? {}).map(([k, v]) => `${v}${k[0]}`).join(' ');
+      scroll.content.add(createLabel(this, 14, rowY + 46, cost, 'caption', { fontSize: '10px', color: '#e8d89a' }));
+
+      const btnW = 90;
+      const btnX = content.width - btnW - 4;
+      if (enacted) {
+        scroll.content.add(createLabel(this, btnX + btnW, rowY + 14, t('empire.edict.done'), 'caption', { fontSize: '10px', align: 'right', color: '#7fae63' }).setOrigin(1, 0));
+      } else if (blocked) {
+        scroll.content.add(createLabel(this, btnX + btnW, rowY + 14, blocked, 'caption', { fontSize: '9px', align: 'right', color: '#c0392b', wordWrap: { width: btnW } }).setOrigin(1, 0));
+      } else {
+        scroll.content.add(this.ui.button({ x: btnX, y: rowY + 16, width: btnW, height: 30 }, project.kind === 'wonder' ? t('empire.edict.build') : t('empire.edict.enact'), () => {
+          enactProject(this.state, project.id);
+          this.refresh();
+        }, { variant: 'primary', fontSize: '11px' }));
+      }
+      rowY += rowH;
+    };
+
+    addSection('empire.edict.section.edicts');
+    for (const p of projects.filter((p) => p.kind === 'edict')) addRow(p);
+    rowY += 8;
+    addSection('empire.edict.section.wonders');
+    for (const p of projects.filter((p) => p.kind === 'wonder')) addRow(p);
+
+    scroll.setContentHeight(Math.max(listH, rowY));
+  }
+
   private showForeignAffairsDetail(kingdom: GameState['kingdoms'][number]): void {
     const relations = Math.round(kingdom.relations ?? 50);
     this.addModalBase(kingdom.name, `${stanceLabel(relations)} · ${t('diplo.opinion')} ${relations}/100`);
@@ -1913,39 +2067,31 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
-  private renderStabilityBar(): void {
+  /**
+   * Dynasty Stability readout in the header's free top-centre space — a borderless,
+   * colour-coded label (reusing the resource-rate palette) that reads as a natural
+   * third header item beside the date and Menu, rather than a boxed widget. Shows the
+   * composite value driving the collapse-defeat check (stability, unrest, nobles); a
+   * small status dot gives an at-a-glance read.
+   */
+  private renderDynastyStability(): void {
     const ds = this.state.dynastyStatus;
     if (!ds) return;
 
-    const barY = HEADER_HEIGHT - 8;
-    const segW = Math.floor(GAME_WIDTH / 3);
-    const barH = 4;
-
-    const unrestRatio = 1 - ds.farmerUnrest / 100;
-    const nobleRatio = ds.nobleRelations / 100;
-    const stabilityRatio = Phaser.Math.Clamp(
-      (ds.farmerUnrest < 50 ? 1 : 0) + (ds.nobleRelations > 50 ? 1 : 0),
-      0,
-      1,
+    const value = Math.round(
+      this.state.court.stability * 0.4 + (100 - ds.farmerUnrest) * 0.35 + ds.nobleRelations * 0.25,
     );
+    // Same colour language as the resource rates (see ResourceBar.refresh).
+    const textColor = value >= 50 ? '#d9f0bd' : value >= 30 ? '#f3dd9a' : '#f0a09a';
+    const dotColor = value >= 50 ? INK_UI.jade : value >= 30 ? INK_UI.gold : INK_UI.cinnabar;
 
-    const segments: Array<{ ratio: number; goodColor: number; badColor: number }> = [
-      { ratio: unrestRatio, goodColor: INK_UI.jade, badColor: INK_UI.cinnabar },
-      { ratio: nobleRatio, goodColor: INK_UI.gold, badColor: INK_UI.cinnabar },
-      { ratio: stabilityRatio, goodColor: INK_UI.jade, badColor: 0xc0392b },
-    ];
-
-    for (let i = 0; i < segments.length; i++) {
-      const { ratio, goodColor, badColor } = segments[i];
-      const x = i * segW;
-      const g = this.add.graphics().setDepth(109);
-      g.fillStyle(INK_UI.brush, 0.3);
-      g.fillRect(x, barY, segW - 1, barH);
-      const fillColor = ratio >= 0.5 ? goodColor : badColor;
-      g.fillStyle(fillColor, 0.82);
-      g.fillRect(x, barY, Math.round((segW - 1) * ratio), barH);
-      this.affairsBadge.push(g);
-    }
+    const text = this.ui.label(GAME_WIDTH / 2 + 5, 7, `${t('ui.dynastyStability')} ${value}%`, 'subtitle', {
+      color: textColor,
+      fontSize: '12px',
+      align: 'center',
+    }).setOrigin(0.5, 0).setDepth(110);
+    const dot = this.add.circle(GAME_WIDTH / 2 - text.width / 2, 13, 3, dotColor, 1).setDepth(110);
+    this.affairsBadge.push(text, dot);
   }
 
   private clearAffairsBadge(): void {
@@ -2028,11 +2174,106 @@ export class UIScene extends Phaser.Scene {
     this.empireBanners = [];
   }
 
+  /** A prominent top-centre banner counting down a telegraphed invasion. */
+  private renderTelegraphBanner(): void {
+    const u = this.state.pendingUltimatum;
+    if (!u || u.defused || this.state.selectedLandId || this.state.latestBattlePreview) {
+      return;
+    }
+    const kingdom = this.state.kingdoms.find((k) => k.id === u.kingdomId);
+    const turns = Math.max(0, u.dueTurn - this.state.turn);
+    const label = u.isGreatInvasion
+      ? t('empire.ultimatum.bannerGreat', { warlord: u.warlordName ?? '', turns })
+      : t('empire.ultimatum.banner', { kingdom: kingdom?.name ?? '', turns });
+    const accent = u.isGreatInvasion ? INK_UI.cinnabar : INK_UI.gold;
+
+    const w = 220;
+    const h = 26;
+    const x = (GAME_WIDTH - w) / 2;
+    const y = HEADER_HEIGHT + MESSAGE_STRIP_HEIGHT + 6;
+    const g = this.add.graphics().setDepth(432);
+    g.fillStyle(INK_UI.backgroundInk, 0.92);
+    g.fillRoundedRect(x, y, w, h, 6);
+    g.lineStyle(u.isGreatInvasion ? 2 : 1.5, accent, 0.95);
+    g.strokeRoundedRect(x, y, w, h, 6);
+    const text = this.ui.label(x + w / 2, y + h / 2, label, 'caption', {
+      color: u.isGreatInvasion ? '#e0857a' : '#f3dd9a',
+      fontSize: '11px',
+      align: 'center',
+    }).setOrigin(0.5).setDepth(433);
+    this.telegraphObjects.push(g, text);
+  }
+
+  private clearTelegraphBanner(): void {
+    for (const item of this.telegraphObjects) {
+      item.destroy();
+    }
+    this.telegraphObjects = [];
+  }
+
+  /** Transient stacked notifications above the action bar (recent toasts only). */
+  private renderToastFeed(): void {
+    const toasts = this.state.toasts ?? [];
+    const recent = toasts.filter((tst) => this.state.turn - tst.createdTurn <= 3).slice(-3);
+    const chipW = 260;
+    const chipH = 24;
+    const x = (GAME_WIDTH - chipW) / 2;
+    let y = GAME_HEIGHT - ACTION_BAR_HEIGHT - 10 - recent.length * (chipH + 4);
+
+    for (const toast of recent) {
+      const accent =
+        toast.kind === 'reward' ? INK_UI.jade
+          : toast.kind === 'threat' ? INK_UI.cinnabar
+            : toast.kind === 'milestone' ? INK_UI.gold
+              : INK_UI.parchment;
+      const g = this.add.graphics().setDepth(434);
+      g.fillStyle(INK_UI.backgroundInk, 0.94);
+      g.fillRoundedRect(x, y, chipW, chipH, 6);
+      g.fillStyle(accent, 0.95);
+      g.fillRoundedRect(x, y, 5, chipH, { tl: 6, bl: 6, tr: 0, br: 0 });
+      g.lineStyle(1, accent, 0.6);
+      g.strokeRoundedRect(x, y, chipW, chipH, 6);
+      const text = this.ui.label(x + 12, y + chipH / 2, toast.text, 'caption', {
+        color: '#f3e6b8',
+        fontSize: '10px',
+        wordWrap: { width: chipW - 18 },
+      }).setOrigin(0, 0.5).setDepth(435);
+      this.toastObjects.push(g, text);
+      y += chipH + 4;
+    }
+  }
+
+  private clearToastFeed(): void {
+    for (const item of this.toastObjects) {
+      item.destroy();
+    }
+    this.toastObjects = [];
+  }
+
   private showVictory(): void {
     this.modalScreen = 'none';
     this.state.isPaused = true;
     this.clearModalLayer();
     this.modalLayer.setVisible(false);
+
+    if (this.state.gameMode === 'empire') {
+      let earned = 0;
+      if (!this.state.legacyBanked) {
+        this.state.legacyBanked = true;
+        earned = bankLegacy(this.state, true);
+      }
+      const rank = rankForScore(getLegacy().bestScore);
+      this.bottomSheet.show([
+        this.ui.card({ x: 18, y: SHEET_TOP + 28, width: GAME_WIDTH - 36, height: 156 }, {
+          title: t('empire.ascend.title'),
+          body: t('empire.ascend.body', { points: earned, rank }),
+          border: INK_UI.gold,
+          status: t('empire.ascend.status'),
+        }),
+      ]);
+      return;
+    }
+
     this.bottomSheet.show([
       this.ui.card({ x: 18, y: SHEET_TOP + 28, width: GAME_WIDTH - 36, height: 132 }, {
         title: t('modal.victory.title'),

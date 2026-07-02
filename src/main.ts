@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { gameConfig } from './game/config';
-import { createInitialGameState } from './state/GameState';
+import { createInitialGameState, createCampaignGameState, createEmpireGameState } from './state/GameState';
+import { scheduleCampaignEvents } from './systems/CampaignEventSystem';
 import type { GameState } from './state/types';
 import { getLanguage, heroName, politicsTitle, seasonLabel, t } from './i18n';
 import { getMapTheme } from './ui/mapTheme';
@@ -13,7 +14,7 @@ declare global {
     __minimapInputBounds?: Array<{ x: number; y: number; width: number; height: number }>;
     render_game_to_text?: () => string;
     advanceTime?: (ms: number) => void;
-    __startBenchGame?: (seed?: number) => void;
+    __startBenchGame?: (seed?: number, mode?: 'rival' | 'campaign' | 'empire') => void;
   }
 }
 
@@ -105,7 +106,7 @@ window.advanceTime = (ms: number) => {
 // Deterministic benchmark bootstrap (tooling only). Seeds Math.random so the
 // generated map/state is identical across before/after performance runs, builds
 // a fresh game state, and jumps straight into MapScene (which launches UIScene).
-window.__startBenchGame = (seed = 1337) => {
+window.__startBenchGame = (seed = 1337, mode = 'rival') => {
   const originalRandom = Math.random;
   let s = (seed >>> 0) || 1;
   Math.random = () => {
@@ -118,7 +119,15 @@ window.__startBenchGame = (seed = 1337) => {
   };
   let state: GameState;
   try {
-    state = createInitialGameState();
+    if (mode === 'empire') {
+      state = createEmpireGameState({ seaSides: 1, difficulty: 'normal' });
+      scheduleCampaignEvents(state);
+    } else if (mode === 'campaign') {
+      state = createCampaignGameState({ seaSides: 1, difficulty: 'normal' });
+      scheduleCampaignEvents(state);
+    } else {
+      state = createInitialGameState();
+    }
   } finally {
     Math.random = originalRandom;
   }

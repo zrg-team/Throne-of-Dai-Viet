@@ -1,6 +1,6 @@
 import { applyResourceDelta, canSpend, progressBuildOrders, refreshAllLandOutputs } from './ResourceSystem';
 import { createHeroDraft } from './HeroSystem';
-import { MAX_BUILDING_LEVEL } from '../game/gameplayConfig';
+import { getBuildingLevelCap } from './empire/MandateSystem';
 import { PLAYER_KINGDOM_ID } from '../game/constants';
 import { addCourtModifier, getCourtBonuses } from './CourtSystem';
 import { addOpinionModifier } from './DiplomacySystem';
@@ -270,7 +270,7 @@ function grantFreeBuilding(state: GameState, type: LandBuildingType): void {
 
 function grantFreeUpgrade(state: GameState, type: LandBuildingType): void {
   for (const land of state.lands.filter((candidate) => candidate.ownerId === PLAYER_KINGDOM_ID)) {
-    const building = land.buildings.find((candidate) => candidate.type === type && candidate.level < MAX_BUILDING_LEVEL);
+    const building = land.buildings.find((candidate) => candidate.type === type && candidate.level < getBuildingLevelCap(state));
     if (building) {
       building.level += 1;
       if (type === 'wall') {

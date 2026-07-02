@@ -2,7 +2,6 @@ import { isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import { campaignEventTemplates } from '../data/campaignEvents';
 import { addCourtModifier } from './CourtSystem';
 import { applyResourceDelta } from './ResourceSystem';
-import { launchOffMapInvasion } from './empire/InvasionSystem';
 import type { Army, CampaignEvent, Difficulty, GameState } from '../state/types';
 import { t } from '../i18n';
 
@@ -161,9 +160,9 @@ function resolveCampaignEvent(state: GameState, event: CampaignEvent): void {
     }
 
     case 'dynasty-attack': {
-      if (state.gameMode === 'empire') {
-        launchOffMapInvasion(state, event.sourceKingdomId);
-      } else {
+      // Empire mode: the ThreatDirector owns invasion pacing (continuous, telegraphed),
+      // so these pre-scheduled attacks are inert there. Classic campaign still uses them.
+      if (state.gameMode !== 'empire') {
         launchDynastyAttack(state, event.sourceKingdomId);
       }
       break;

@@ -60,9 +60,13 @@ export function getSiegeOrder(state: GameState, landId: string) {
 }
 
 export function checkVictory(state: GameState): void {
-  // Empire mode is endless — survival/high-score, never an elimination win
-  // (there are no enemy castles on the map to clear).
+  // Empire mode is endless survival — the only win is prestige Ascension, reached
+  // by climbing to the Heavenly Mandate era and completing the Ascension directive.
   if (state.gameMode === 'empire') {
+    if (state.mandate?.ascended && !state.victory) {
+      state.victory = true;
+      state.message = t('empire.ascend.victory');
+    }
     return;
   }
 

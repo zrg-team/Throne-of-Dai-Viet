@@ -93,6 +93,8 @@ export interface InvasionRecord {
   pillaged?: boolean;
   /** Edge land a withdrawing raider heads back to before despawning. */
   exitLandId?: string;
+  /** Part of a telegraphed Great Invasion (boss coalition); yields larger spoils. */
+  great?: boolean;
 }
 
 export interface KingdomKing {
@@ -448,6 +450,76 @@ export interface CourtState {
   cardCooldown: number;
 }
 
+/** A transient on-screen notification pushed by gameplay systems (empire mode). */
+export interface Toast {
+  id: string;
+  text: string;
+  /** Visual accent: neutral info, a reward/gain, a warning/threat, or a milestone. */
+  kind: 'info' | 'reward' | 'threat' | 'milestone';
+  /** Economy tick the toast was created on; the UI expires it after a few ticks. */
+  createdTurn: number;
+}
+
+export type DirectiveTier = 'short' | 'medium' | 'epic';
+
+/**
+ * A live objective shown on the Directives board (empire mode). Its `metricKey`
+ * selects a pure evaluator over GameState; when `current` reaches `target` the
+ * directive completes and pays out Mandate + optional resources.
+ */
+export interface Directive {
+  id: string;
+  templateId: string;
+  tier: DirectiveTier;
+  metricKey: string;
+  target: number;
+  /** Metric value captured when the directive was issued (for delta-based goals). */
+  baseline: number;
+  current: number;
+  rewardMandate: number;
+  rewardResources?: Partial<ResourceBag>;
+  /** Turn by which a timed (prep) directive must complete, else it fails. */
+  deadline?: number;
+  complete: boolean;
+  failed?: boolean;
+}
+
+export type EraId = 'founding' | 'rivalry' | 'empires' | 'mandate';
+
+/** Kingdom-wide progression track (empire mode). Fills from directives + battles. */
+export interface MandateState {
+  points: number;
+  era: EraId;
+  /** Ids of edicts the player has enacted (permanent CourtModifiers). */
+  edicts: string[];
+  /** Unspent points available to enact edicts. */
+  edictPoints: number;
+  /** Era transitions already announced, so we only fire the toast/unlock once. */
+  reachedEras: EraId[];
+  /** Set true once the player has reached the final era (ascension unlocked). */
+  ascensionReady?: boolean;
+  /** Set true when the Ascension directive completes — triggers the prestige win. */
+  ascended?: boolean;
+  /** True once the ascension directive has been issued, so it is only issued once. */
+  ascensionIssued?: boolean;
+}
+
+/** A telegraphed major invasion the player can prepare for or defuse (empire mode). */
+export interface Ultimatum {
+  id: string;
+  kingdomId: string;
+  targetLandId?: string;
+  /** Economy turn the host will muster. */
+  dueTurn: number;
+  /** Total soldiers the announced host will field. */
+  hostSize: number;
+  /** True for a once-per-era named-warlord coalition. */
+  isGreatInvasion: boolean;
+  warlordName?: string;
+  /** Set when the player defuses it via pact/tribute before dueTurn. */
+  defused?: boolean;
+}
+
 export interface GameState {
   year: number;
   season: Season;
@@ -492,6 +564,26 @@ export interface GameState {
   scheduledCampaignEvents: CampaignEvent[];
   /** Active off-map invasions (empire mode only). */
   invasions?: InvasionRecord[];
+  /** Transient notification queue (empire mode). */
+  toasts?: Toast[];
+  /** Live objectives board (empire mode). */
+  directives?: Directive[];
+  /** Rotating cursor into the directive template deck, per tier. */
+  directiveDeckCursor?: Record<DirectiveTier, number>;
+  /** Progression track (empire mode). */
+  mandate?: MandateState;
+  /** A telegraphed major invasion awaiting its due turn (empire mode). */
+  pendingUltimatum?: Ultimatum;
+  /** Great Invasions already staged this run, keyed by era, so bosses fire once/era. */
+  greatInvasionEras?: EraId[];
+  /** Regenerating pressure budget the ThreatDirector spends to spawn invasions. */
+  threatBudget?: number;
+  /** Count of invasion hosts the player has repelled (drives some directives). */
+  invasionsRepelled?: number;
+  /** Number of Wonders completed (drives directives + capital art tier). */
+  wondersBuilt?: number;
+  /** Guards one-time Legacy banking at the terminal (victory/defeat) screen. */
+  legacyBanked?: boolean;
   /** Kingdom-wide diplomatic reputation 0-100; eases deals, raised/lowered by honoring/breaking treaties. */
   prestige?: number;
   /** A foreign-affairs dilemma awaiting the player's decision. */

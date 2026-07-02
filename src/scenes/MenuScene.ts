@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { createInitialGameState } from '../state/GameState';
 import { hasSnapshot, loadSnapshot, snapshotLabel } from '../state/save';
+import { getLegacy, rankForScore } from '../state/legacy';
 import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
@@ -512,6 +513,23 @@ export class MenuScene extends Phaser.Scene {
       wordWrap: { width: 250 },
     }).setOrigin(0.5);
     this.content.push(saveLabel);
+
+    // Lifetime standing across all Throne of Empires runs (hidden until earned).
+    const legacy = getLegacy();
+    if (legacy.points > 0 || legacy.bestScore > 0) {
+      const rankLabel = this.add.text(GAME_WIDTH / 2, 722, t('empire.legacy.rank', {
+        rank: rankForScore(legacy.bestScore),
+        total: legacy.points,
+      }), {
+        color: '#e8d89a',
+        fontFamily: UI_FONT,
+        fontSize: '11px',
+        align: 'center',
+        backgroundColor: 'rgba(32,38,31,0.42)',
+        padding: { x: 6, y: 3 },
+      }).setOrigin(0.5);
+      this.content.push(rankLabel);
+    }
   }
 
   private renderMapThemeSelector(): void {

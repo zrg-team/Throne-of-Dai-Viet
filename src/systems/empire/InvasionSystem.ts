@@ -2,6 +2,8 @@ import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { findLand, getAcquisitionTicksRequired } from '../LandSystem';
 import { createBattlePreview } from '../WarSystem';
 import { applyResourceDelta, refreshAllLandOutputs } from '../ResourceSystem';
+import { addMandate } from './MandateSystem';
+import { pushToast } from './notifications';
 import type { Army, Difficulty, GameState, InvasionRecord, Kingdom, Land } from '../../state/types';
 import { t } from '../../i18n';
 
@@ -94,6 +96,18 @@ function despawnInvasion(state: GameState, record: InvasionRecord): void {
   state.invasions = (state.invasions ?? []).filter((r) => r !== record);
 }
 
+/** Spoils for destroying an invading host: Mandate, loot gold, and freed prisoners. */
+function grantRepelSpoils(state: GameState, hostSize: number, record: InvasionRecord): void {
+  state.invasionsRepelled = (state.invasionsRepelled ?? 0) + 1;
+  const great = record.great === true;
+  const mandate = Math.max(4, Math.round(hostSize / 40)) * (great ? 3 : 1);
+  addMandate(state, mandate);
+  const lootGold = Math.round(hostSize / 12) * (great ? 2 : 1);
+  const prisoners = Math.round(hostSize / 8);
+  applyResourceDelta(state, { gold: lootGold, humans: prisoners });
+  pushToast(state, t('empire.spoils', { gold: lootGold, prisoners, mandate }), 'reward');
+}
+
 function recordArmyDefeated(state: GameState, total: number): void {
   if (!state.campaignScore) {
     return;
@@ -106,8 +120,20 @@ function recordArmyDefeated(state: GameState, total: number): void {
 // Spawning an invasion
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Options for a directed/telegraphed spawn (used by the ThreatDirector). */
+export interface InvasionSpawnOptions {
+  /** Force a specific number of hosts (a boss coalition), overriding the relations roll. */
+  forceCoalition?: number;
+  /** Multiplier on each host's size, for named Great Invasions. */
+  sizeMult?: number;
+  /** Names the hosts after a warlord (Great Invasion flavour). */
+  warlordName?: string;
+  /** Force conquest intent (a Great Invasion always marches on the capital). */
+  forceConquest?: boolean;
+}
+
 /** Replaces the on-map `launchDynastyAttack` for empire mode: spawns one or more off-map hosts at the frontier. */
-export function launchOffMapInvasion(state: GameState, kingdomId: string | undefined): void {
+export function launchOffMapInvasion(state: GameState, kingdomId: string | undefined, opts: InvasionSpawnOptions = {}): void {
   if (state.gameMode !== 'empire' || !kingdomId) {
     return;
   }
@@ -132,16 +158,19 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
   const relations = kingdom.relations ?? 50;
   const conquestChance =
     0.4 + (relations < 35 ? 0.3 : relations < 50 ? 0.1 : 0) + (personalityWeight(kingdom) > 1 ? 0.18 : 0);
-  const intent: InvasionRecord['intent'] = Math.random() < conquestChance ? 'conquest' : 'raid';
+  const intent: InvasionRecord['intent'] =
+    opts.forceConquest || Math.random() < conquestChance ? 'conquest' : 'raid';
 
   // Conquest with very cold relations can field a coalition of 2-3 hosts.
   let armyCount = 1;
-  if (intent === 'conquest') {
+  if (opts.forceCoalition) {
+    armyCount = opts.forceCoalition;
+  } else if (intent === 'conquest') {
     if (relations < 25 && Math.random() < 0.4) armyCount = 3;
     else if (relations < 40 && Math.random() < 0.5) armyCount = 2;
   }
 
-  const scale = difficultyArmyScale(state.campaignConfig?.difficulty) * personalityWeight(kingdom);
+  const scale = difficultyArmyScale(state.campaignConfig?.difficulty) * personalityWeight(kingdom) * (opts.sizeMult ?? 1);
   const growth = 1 + state.turn * 0.02; // later invasions hit harder
 
   state.invasions ??= [];
@@ -151,7 +180,9 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
     const army: Army = {
       id: `invasion-${kingdomId}-${state.turn}-${i}`,
       kingdomId,
-      name: `${kingdom.name} ${intent === 'conquest' ? 'War Host' : 'Raiders'}`,
+      name: opts.warlordName
+        ? `${opts.warlordName}'s Host`
+        : `${kingdom.name} ${intent === 'conquest' ? 'War Host' : 'Raiders'}`,
       landId: stage.id,
       units: {
         spearmen: Math.floor(size * 0.6),
@@ -167,10 +198,15 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
       experienceToNextLevel: 160,
     };
     state.armies.push(army);
-    state.invasions.push({ armyId: army.id, kingdomId, intent });
+    state.invasions.push({ armyId: army.id, kingdomId, intent, great: Boolean(opts.warlordName) });
   }
 
   state.message = t('empire.invade.muster', { kingdom: kingdom.name, armies: armyCount });
+  if (opts.warlordName) {
+    pushToast(state, t('empire.invade.greatMuster', { warlord: opts.warlordName, kingdom: kingdom.name }), 'threat');
+  } else {
+    pushToast(state, t('empire.invade.muster', { kingdom: kingdom.name, armies: armyCount }), 'threat');
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -272,6 +308,7 @@ function resolveInvaderBattle(state: GameState, army: Army, record: InvasionReco
 
     if (totalUnits(army) < 40) {
       recordArmyDefeated(state, preTotal);
+      grantRepelSpoils(state, preTotal, record);
       state.message = t('empire.invade.repelled', { kingdom: kingdomName(state, record.kingdomId), land: land.name });
       despawnInvasion(state, record);
       return;

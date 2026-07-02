@@ -1,5 +1,5 @@
 import { PLAYER_KINGDOM_ID } from '../game/constants';
-import { MAX_BUILDING_LEVEL } from '../game/gameplayConfig';
+import { getBuildingLevelCap } from './empire/MandateSystem';
 import { getCourtBonuses, getLandGovernorOutputMult } from './CourtSystem';
 import type { BuildOrder, GameState, Land, LandBuildingType, ResourceBag, ResourceKey, Season } from '../state/types';
 import { buildingLabel, buildBuildingLabel, formatResourceList, resourceLabel, t } from '../i18n';
@@ -502,9 +502,10 @@ export function getBuildOptions(state: GameState, land: Land): BuildOption[] {
 export function getUpgradeOptions(state: GameState, land: Land): UpgradeOption[] {
   const activeOrder = getBuildOrder(state, land.id);
 
+  const buildingCap = getBuildingLevelCap(state);
   return land.buildings.map((building, index) => {
     const spec = BUILDING_ECONOMY[building.type];
-    const atMaxLevel = building.level >= MAX_BUILDING_LEVEL;
+    const atMaxLevel = building.level >= buildingCap;
     const activeOrderReason = activeOrder
       ? t('reason.alreadyOrder', {
         kind: buildOrderKindLabel(activeOrder.kind),
@@ -516,13 +517,13 @@ export function getUpgradeOptions(state: GameState, land: Land): UpgradeOption[]
     const cost = scaleResourceBag(spec.baseCost, upgradeCostMultiplier(building.level) * getCourtBonuses(state).buildingCostMult);
     const costReason = !atMaxLevel && !canSpend(state, cost) ? formatCostBlocker(cost) : undefined;
     const reason = atMaxLevel ? t('reason.maxLevel') : (activeOrderReason ?? costReason);
-    const nextLevel = Math.min(MAX_BUILDING_LEVEL, building.level + 1);
+    const nextLevel = Math.min(buildingCap, building.level + 1);
 
     return {
       index,
       type: building.type,
       level: building.level,
-      maxLevel: MAX_BUILDING_LEVEL,
+      maxLevel: buildingCap,
       cost,
       labor: Math.ceil(spec.buildLabor * upkeepMultiplier(nextLevel)),
       ticks: Math.max(1, spec.buildTicks - getCourtBonuses(state).buildSpeedBonus - getCourtBonuses(state).upgradeSpeedBonus),

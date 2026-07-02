@@ -4,6 +4,7 @@ import type { GameState } from '../state/types';
 import { InkUI, INK_UI } from './InkUI';
 import { t } from '../i18n';
 
+const EMPIRE_KEYS = ['build', 'heroes', 'court', 'army', 'affairs', 'directives', 'pause'] as const;
 const CAMPAIGN_KEYS = ['build', 'heroes', 'court', 'army', 'affairs', 'pause'] as const;
 const RIVAL_KEYS = ['build', 'heroes', 'court', 'army', 'pause'] as const;
 
@@ -11,18 +12,22 @@ export const ACTION_BUTTON_HEIGHT = 36;
 export const ACTION_BUTTON_Y = GAME_HEIGHT - ACTION_BAR_HEIGHT / 2;
 
 export function getActionKeys(gameMode: string): readonly string[] {
+  if (gameMode === 'empire') return [...EMPIRE_KEYS];
   return isCampaignMode(gameMode) ? [...CAMPAIGN_KEYS] : [...RIVAL_KEYS];
 }
 
 function getButtonWidth(gameMode: string): number {
+  if (gameMode === 'empire') return 50;
   return isCampaignMode(gameMode) ? 60 : 72;
 }
 
 function getButtonGap(gameMode: string): number {
+  if (gameMode === 'empire') return 2;
   return isCampaignMode(gameMode) ? 3 : 4;
 }
 
 function getButtonMargin(gameMode: string): number {
+  if (gameMode === 'empire') return 6;
   return isCampaignMode(gameMode) ? 7 : 6;
 }
 
@@ -103,6 +108,9 @@ export class ActionBar extends Phaser.GameObjects.Container {
         variant = paused ? 'danger' : 'ghost';
       } else if (isAffairs) {
         label = t('action.affairs');
+        variant = 'secondary';
+      } else if (action === 'directives') {
+        label = t('empire.action.directives');
         variant = 'secondary';
       } else {
         label = t(`action.${action}` as Parameters<typeof t>[0]);
