@@ -1,0 +1,200 @@
+import { PLAYER_KINGDOM_ID } from '../../game/constants';
+import type { GameState, Kingdom, KingdomPersonality } from '../../state/types';
+import { addOpinionModifier, naturalBaseline, recomputeOpinion } from '../DiplomacySystem';
+import { pushToast } from './notifications';
+import { t } from '../../i18n';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Model
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Hard ceiling on an empire's power index, and the level past which overextension bites. */
+const POWER_CAP = 122;
+const OVEREXTEND_THRESHOLD = 88;
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+const moveToward = (v: number, target: number, step: number) =>
+  v < target ? Math.min(target, v + step) : Math.max(target, v - step);
+const rand = (n: number) => Math.floor(Math.random() * n);
+
+/** How aggressively an empire pursues war and expansion. */
+export function ambition(personality: KingdomPersonality): number {
+  switch (personality) {
+    case 'aggressive': return 1.5;
+    case 'expansionist': return 1.2;
+    case 'defensive': return 0.6;
+    case 'economic': return 0.7;
+    case 'diplomatic': return 0.5;
+    default: return 0.9;
+  }
+}
+
+function basePower(personality: KingdomPersonality): number {
+  switch (personality) {
+    case 'aggressive': return 56;
+    case 'expansionist': return 52;
+    case 'defensive': return 50;
+    case 'economic': return 46;
+    case 'diplomatic': return 44;
+    default: return 48;
+  }
+}
+
+function stabilityBaseline(personality: KingdomPersonality): number {
+  switch (personality) {
+    case 'economic': return 70;
+    case 'diplomatic': return 68;
+    case 'defensive': return 62;
+    case 'expansionist': return 54;
+    case 'aggressive': return 48;
+    default: return 58;
+  }
+}
+
+/** Seeds the sim stats for an empire that doesn't have them yet. */
+export function initEmpireSim(kingdom: Kingdom): void {
+  kingdom.power ??= basePower(kingdom.personality) + rand(12) - 4;
+  kingdom.stability ??= stabilityBaseline(kingdom.personality) + rand(16) - 8;
+  kingdom.age ??= rand(8);
+}
+
+// A pool of realm names a fallen empire can be reborn under.
+const EMPIRE_NAMES = [
+  'Đại Nam', 'Xích Quỷ', 'Văn Lang', 'Âu Lạc', 'Nam Việt', 'Vạn Xuân', 'Lâm Ấp',
+  'Chiêm Thành', 'Phù Nam', 'Chân Lạp', 'Đại Lý', 'Nam Chiếu', 'Cao Miên', 'Xiêm La',
+  'Ai Lao', 'Bồn Man', 'Thủy Xá', 'Hỏa Xá', 'Đại Cồ Việt',
+];
+const ROYAL_NAMES = [
+  'Lý Công Uẩn', 'Trần Hưng Đạo', 'Nguyễn Ánh', 'Lê Lợi', 'Đinh Tiên Hoàng',
+  'Trịnh Kiểm', 'Hồ Quý Ly', 'Mạc Đăng Dung', 'Lý Thường Kiệt', 'Trần Thủ Độ',
+];
+const PERSONALITIES: KingdomPersonality[] = ['aggressive', 'defensive', 'economic', 'diplomatic', 'expansionist'];
+
+function pickEmpireName(state: GameState): string {
+  const used = new Set(state.kingdoms.map((k) => k.name));
+  const free = EMPIRE_NAMES.filter((n) => !used.has(n));
+  return (free.length > 0 ? free : EMPIRE_NAMES)[rand((free.length > 0 ? free : EMPIRE_NAMES).length)];
+}
+
+/** A fallen empire is reborn as a new realm in the same slot — a "new empire rises". */
+function rebirthEmpire(state: GameState, kingdom: Kingdom): void {
+  const oldName = kingdom.name;
+  // Free any ambassador we had posted there.
+  if (kingdom.ambassadorHeroId) {
+    const hero = state.heroes.find((h) => h.id === kingdom.ambassadorHeroId);
+    if (hero && hero.assignedTo === `ambassador:${kingdom.id}`) hero.assignedTo = undefined;
+    kingdom.ambassadorHeroId = undefined;
+  }
+  const personality = PERSONALITIES[rand(PERSONALITIES.length)];
+  kingdom.name = pickEmpireName(state);
+  kingdom.personality = personality;
+  kingdom.king = { name: ROYAL_NAMES[rand(ROYAL_NAMES.length)], personality, age: 0 };
+  kingdom.power = 26 + rand(12);
+  kingdom.stability = 44 + rand(16);
+  kingdom.age = 0;
+  kingdom.warAppetite = 0;
+  kingdom.giftFatigue = 0;
+  kingdom.treaties = [];
+  kingdom.opinionModifiers = [];
+  recomputeOpinion(kingdom);
+  pushToast(state, t('empire.world.rebirth', { old: oldName, next: kingdom.name }), 'milestone');
+  state.message = t('empire.world.rebirth', { old: oldName, next: kingdom.name });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Yearly evolution — the world lives on its own
+// ─────────────────────────────────────────────────────────────────────────────
+
+function activeEmpires(state: GameState): Kingdom[] {
+  return state.kingdoms.filter((k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated);
+}
+
+/** Called once per in-game year (from the season/year rollover). */
+export function tickGreatPowersYear(state: GameState): void {
+  if (state.gameMode !== 'empire') return;
+
+  const empires = activeEmpires(state);
+  for (const k of empires) {
+    initEmpireSim(k);
+    k.age = (k.age ?? 0) + 1;
+
+    // Growth: ambitious, stable empires arm faster — a rich, stable empire becomes
+    // a real menace over time (the logic the player expects).
+    const amb = ambition(k.personality);
+    const growth = (1.1 + amb * 1.2) * (0.5 + (k.stability ?? 50) / 100);
+    k.power = clamp((k.power ?? 50) + growth - 0.8, 14, POWER_CAP);
+
+    // Stability drifts toward temperament baseline, buffeted by random fortune.
+    const shock = (Math.random() - 0.5) * 15;
+    let stab = moveToward(k.stability ?? 50, stabilityBaseline(k.personality), 3) + shock;
+    // Overextension: a bloated empire can't hold itself together — the bigger it grows
+    // past its means, the faster it destabilises, so no hegemon snowballs forever.
+    if ((k.power ?? 0) > OVEREXTEND_THRESHOLD) {
+      stab -= ((k.power ?? 0) - OVEREXTEND_THRESHOLD) * 0.4;
+    }
+    k.stability = clamp(stab, 0, 100);
+
+    // A posted ambassador steadily warms relations and cools war appetite.
+    if (k.ambassadorHeroId) {
+      const existing = (k.opinionModifiers ?? []).find((m) => m.id === `ambassador-${k.id}`);
+      const nextValue = Math.min(28, (existing?.value ?? 0) + 5);
+      addOpinionModifier(k, { id: `ambassador-${k.id}`, label: t('empire.world.mod.ambassador'), value: nextValue, source: 'treaty' });
+      k.warAppetite = Math.max(0, (k.warAppetite ?? 0) - 8);
+    }
+  }
+
+  // Collapse: a spent empire falls and a new realm rises in its place.
+  for (const k of empires) {
+    if ((k.stability ?? 50) <= 0 || (k.power ?? 50) < 12) {
+      rebirthEmpire(state, k);
+    }
+  }
+
+  // One inter-empire war per year, sometimes — the strong prey on the weak, and a
+  // conqueror can absorb its victim to become a terrifying hegemon.
+  const alive = activeEmpires(state);
+  if (alive.length >= 2 && Math.random() < 0.4) {
+    resolveInterEmpireWar(state, alive);
+  }
+}
+
+function resolveInterEmpireWar(state: GameState, alive: Kingdom[]): void {
+  // Aggressor = strongest × most ambitious; target = the weakest other empire.
+  const attacker = [...alive].sort((a, b) => (b.power ?? 0) * ambition(b.personality) - (a.power ?? 0) * ambition(a.personality))[0];
+  const others = alive.filter((k) => k.id !== attacker.id);
+  const defender = [...others].sort((a, b) => (a.power ?? 0) - (b.power ?? 0))[0];
+  if (!attacker || !defender || ambition(attacker.personality) < 0.7 || (attacker.power ?? 0) < 22) {
+    return;
+  }
+  resolveWar(state, attacker, defender);
+}
+
+/** Resolves a war between two empires: a decisive win can absorb the loser into a hegemon. */
+export function resolveWar(state: GameState, attacker: Kingdom, defender: Kingdom): void {
+  initEmpireSim(attacker);
+  initEmpireSim(defender);
+  const roll = (attacker.power ?? 0) * (0.8 + Math.random() * 0.5);
+  if (roll > (defender.power ?? 0)) {
+    const spoils = (defender.power ?? 0) * 0.4;
+    defender.power = clamp((defender.power ?? 0) - spoils, 0, POWER_CAP);
+    defender.stability = clamp((defender.stability ?? 50) - 28, 0, 100);
+    // War exhaustion + digesting conquests bites harder the bigger the victor already is.
+    attacker.power = clamp((attacker.power ?? 0) + spoils * 0.5, 14, POWER_CAP);
+    attacker.stability = clamp((attacker.stability ?? 50) - 10, 0, 100);
+
+    if ((defender.power ?? 0) < 14 || (defender.stability ?? 0) <= 0) {
+      attacker.power = clamp((attacker.power ?? 0) + (defender.power ?? 0) * 0.5, 14, POWER_CAP);
+      attacker.stability = clamp((attacker.stability ?? 50) - 8, 0, 100);
+      pushToast(state, t('empire.world.conquered', { attacker: attacker.name, defender: defender.name }), 'threat');
+      state.message = t('empire.world.conquered', { attacker: attacker.name, defender: defender.name });
+      rebirthEmpire(state, defender);
+    } else {
+      pushToast(state, t('empire.world.war', { attacker: attacker.name, defender: defender.name }), 'info');
+    }
+  } else {
+    attacker.power = clamp((attacker.power ?? 0) * 0.82, 14, 150);
+    attacker.stability = clamp((attacker.stability ?? 50) - 12, 0, 100);
+    defender.stability = clamp((defender.stability ?? 50) - 5, 0, 100);
+    pushToast(state, t('empire.world.repelled', { attacker: attacker.name, defender: defender.name }), 'info');
+  }
+}

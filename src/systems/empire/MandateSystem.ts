@@ -19,9 +19,9 @@ interface EraConfig {
 
 const ERA_CONFIG: Record<EraId, EraConfig> = {
   founding: { id: 'founding', threshold: 0, seatBonus: 0, buildingCap: MAX_BUILDING_LEVEL, edictGrant: 1 },
-  rivalry: { id: 'rivalry', threshold: 40, seatBonus: 1, buildingCap: MAX_BUILDING_LEVEL, edictGrant: 2 },
-  empires: { id: 'empires', threshold: 120, seatBonus: 2, buildingCap: MAX_BUILDING_LEVEL + 1, edictGrant: 3 },
-  mandate: { id: 'mandate', threshold: 260, seatBonus: 3, buildingCap: MAX_BUILDING_LEVEL + 2, edictGrant: 4 },
+  rivalry: { id: 'rivalry', threshold: 32, seatBonus: 1, buildingCap: MAX_BUILDING_LEVEL, edictGrant: 2 },
+  empires: { id: 'empires', threshold: 92, seatBonus: 2, buildingCap: MAX_BUILDING_LEVEL + 1, edictGrant: 3 },
+  mandate: { id: 'mandate', threshold: 190, seatBonus: 3, buildingCap: MAX_BUILDING_LEVEL + 2, edictGrant: 4 },
 };
 
 export function createInitialMandate(): MandateState {
@@ -64,6 +64,31 @@ export function eraSeatBonus(state: GameState): number {
 export function getBuildingLevelCap(state: GameState): number {
   const era = state.mandate?.era;
   return era ? ERA_CONFIG[era].buildingCap : MAX_BUILDING_LEVEL;
+}
+
+/** Progress within the current era, for the always-visible HUD Mandate bar. */
+export function eraProgress(state: GameState): {
+  era: EraId;
+  ratio: number;
+  points: number;
+  eraStart: number;
+  nextThreshold: number;
+  atMax: boolean;
+} {
+  const mandate = state.mandate;
+  if (!mandate) {
+    return { era: 'founding', ratio: 0, points: 0, eraStart: 0, nextThreshold: ERA_CONFIG.rivalry.threshold, atMax: false };
+  }
+  const idx = eraIndex(mandate.era);
+  const eraStart = ERA_CONFIG[mandate.era].threshold;
+  const next = ERA_ORDER[idx + 1];
+  if (!next) {
+    return { era: mandate.era, ratio: 1, points: mandate.points, eraStart, nextThreshold: eraStart, atMax: true };
+  }
+  const nextThreshold = ERA_CONFIG[next].threshold;
+  const span = Math.max(1, nextThreshold - eraStart);
+  const ratio = Math.min(1, Math.max(0, (mandate.points - eraStart) / span));
+  return { era: mandate.era, ratio, points: mandate.points, eraStart, nextThreshold, atMax: false };
 }
 
 /** Points remaining until the next era, or 0 if already at the final era. */

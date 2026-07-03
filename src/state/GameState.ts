@@ -10,6 +10,7 @@ import { createInitialCourtState } from '../systems/CourtSystem';
 import { recomputeOpinion } from '../systems/DiplomacySystem';
 import { createInitialMandate } from '../systems/empire/MandateSystem';
 import { initDirectives } from '../systems/empire/DirectiveSystem';
+import { initEmpireSim } from '../systems/empire/GreatPowersSystem';
 import type { Army, CampaignConfig, GameState, Kingdom, Land, LandTemplate, ResourceBag, TerrainSummary } from './types';
 import { landTypeLabel, t } from '../i18n';
 
@@ -552,6 +553,7 @@ export function createEmpireGameState(config: CampaignConfig): GameState {
       kingdom.opinionModifiers = [];
       kingdom.giftFatigue = 0;
       recomputeOpinion(kingdom);
+      initEmpireSim(kingdom);
     }
   }
 

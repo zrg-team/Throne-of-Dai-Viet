@@ -12,6 +12,9 @@ import { checkCampaignDefeat, tickDynastyStatus } from './DynastySystem';
 import { tickInvasions } from './empire/InvasionSystem';
 import { progressDirectives } from './empire/DirectiveSystem';
 import { tickThreatDirector } from './empire/ThreatDirector';
+import { tickGreatPowersYear } from './empire/GreatPowersSystem';
+import { tickCrises } from './empire/CrisisSystem';
+import { tickAbilities } from './empire/AbilitySystem';
 import { maybeDrawForeignCard } from './ForeignEventSystem';
 import { isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import type { GameState, Season } from '../state/types';
@@ -37,9 +40,11 @@ export function advanceRealtimeMonth(state: GameState): void {
   state.turn += 1;
   const nextSeasonIndex = seasons.indexOf(state.season) + 1;
 
+  let yearAdvanced = false;
   if (nextSeasonIndex >= seasons.length) {
     state.season = seasons[0];
     state.year += 1;
+    yearAdvanced = true;
   } else {
     state.season = seasons[nextSeasonIndex];
   }
@@ -56,7 +61,12 @@ export function advanceRealtimeMonth(state: GameState): void {
     tickSpySystem(state);
     tickInvasions(state);
     if (state.gameMode === 'empire') {
+      if (yearAdvanced) {
+        tickGreatPowersYear(state);
+      }
       tickThreatDirector(state);
+      tickCrises(state);
+      tickAbilities(state);
       progressDirectives(state);
     }
     tickDynastyStatus(state);

@@ -15,7 +15,8 @@ import { occupyEmptyLand } from './AcquisitionSystem';
 import { checkVictory, findLand, getAcquisitionTicksRequired, getSiegeOrder, isAdjacent, refreshPlayerVisibility } from './LandSystem';
 import { applyResourceDelta, canSpend, getArmyGoldUpkeep, getBarracksLevel, refreshAllLandOutputs } from './ResourceSystem';
 import { getCourtBonuses } from './CourtSystem';
-import type { Army, BattlePreview, GameState, Land, RecruitmentOrder, SiegeOrder } from '../state/types';
+import { eraIndex } from './empire/MandateSystem';
+import type { Army, ArmyComposition, BattlePreview, BattleStance, GameState, Land, RecruitmentOrder, SiegeOrder, UnitCounts } from '../state/types';
 import { t, tickLabel } from '../i18n';
 
 const MAX_ARMY_LEVEL = 5;
@@ -45,7 +46,76 @@ function armyPower(state: GameState, army: Army): number {
     army.units.heavyInfantry * 1.8;
   const powerMult = army.kingdomId === PLAYER_KINGDOM_ID ? getCourtBonuses(state).armyPowerMult : 1;
   const levelMult = 1 + Math.max(0, army.level - 1) * 0.08;
-  return unitPower * (army.morale / 100) * (army.supply / 100) * powerMult * levelMult;
+  // Elite armies (era/barracks-unlocked royal guard) fight above their weight.
+  const eliteMult = 1 + (army.elite ?? 0) * 0.18;
+  // A capable general lifts the whole host — keeping veteran commanders alive matters.
+  const general = army.generalHeroId ? state.heroes.find((h) => h.id === army.generalHeroId) : undefined;
+  const generalMult = general ? 1 + (general.stats.martial / 100) * 0.25 : 1;
+  return unitPower * (army.morale / 100) * (army.supply / 100) * powerMult * levelMult * eliteMult * generalMult;
+}
+
+/** Elite tier for a freshly-mustered army: rises with barracks and era (levy → trained → royal guard). */
+function computeEliteTier(state: GameState, barracksLevel: number): number {
+  const eraBonus = eraIndex(state.mandate?.era ?? 'founding') >= 2 ? 1 : 0;
+  return Math.min(2, (barracksLevel >= 2 ? 1 : 0) + eraBonus);
+}
+
+/**
+ * A victorious general grows in renown — martial skill climbs and, at milestones, they
+ * earn a trait. Makes commanders worth protecting and gives heroes a battle arc.
+ */
+export function grantGeneralExperience(state: GameState, army: Army, victory: boolean): void {
+  if (!victory || army.kingdomId !== PLAYER_KINGDOM_ID || !army.generalHeroId) return;
+  const general = state.heroes.find((h) => h.id === army.generalHeroId);
+  if (!general) return;
+  general.battlesWon = (general.battlesWon ?? 0) + 1;
+  if (general.battlesWon % 3 === 0 && general.stats.martial < 100) {
+    general.stats.martial = Math.min(100, general.stats.martial + 4);
+    general.traits ??= [];
+    if (general.battlesWon >= 9 && !general.traits.includes('conqueror')) general.traits.push('conqueror');
+    else if (!general.traits.includes('veteran')) general.traits.push('veteran');
+  }
+}
+
+/**
+ * Rock-paper-scissors between the three arms: spearmen rout heavy infantry (pikes vs
+ * armour), heavy infantry crush archers (close and break them), archers shred spearmen
+ * (outrange). Returns a ±multiplier on the attacker's power from how its composition
+ * matches the defender's — so scouting the enemy and building a counter-force pays off.
+ */
+function compositionMatchup(attacker: UnitCounts, defenderArmy?: Army): number {
+  if (!defenderArmy) return 1;
+  const frac = (u: UnitCounts) => {
+    const t = Math.max(1, u.spearmen + u.archers + u.heavyInfantry);
+    return { s: u.spearmen / t, a: u.archers / t, h: u.heavyInfantry / t };
+  };
+  const A = frac(attacker);
+  const D = frac(defenderArmy.units);
+  const advantage = A.s * D.h + A.h * D.a + A.a * D.s; // we counter them
+  const disadvantage = A.h * D.s + A.a * D.h + A.s * D.a; // they counter us
+  return 1 + (advantage - disadvantage) * 0.4;
+}
+
+/** Heavy/archer shares for a chosen army doctrine; the remainder is spearmen. */
+function compositionShares(comp: ArmyComposition, bonuses: ReturnType<typeof getCourtBonuses>): { heavyShare: number; archerShare: number } {
+  switch (comp) {
+    case 'spears': return { heavyShare: 0.1, archerShare: 0.2 };   // anti-cavalry wall (counters shock)
+    case 'archers': return { heavyShare: 0.15, archerShare: 0.55 }; // ranged host (counters spears)
+    case 'shock': return { heavyShare: 0.5, archerShare: 0.2 };    // heavy assault (counters archers)
+    default:
+      return {
+        heavyShare: Math.min(0.28, 0.1 + bonuses.nextArmyHeavyBonus),
+        archerShare: Math.min(0.45, 0.28 + bonuses.nextArmyArchersBonus),
+      };
+  }
+}
+
+/** Defensive terrain multiplier: mountains/hills/forests/rivers favour the defender, open plains don't. */
+function terrainDefenseMultiplier(land: Land): number {
+  const ts = land.terrainSummary;
+  const total = Math.max(1, ts.plains + ts.fields + ts.riceFields + ts.forest + ts.mountains + ts.hills + ts.water);
+  const rugged = (ts.mountains * 1.0 + ts.hills * 0.6 + ts.forest * 0.4 + ts.water * 0.7) / total;
+  return 1 + Math.min(0.35, rugged * 0.5);
 }
 
 function defenderPower(state: GameState, targetLand: Land): number {
@@ -53,7 +123,10 @@ function defenderPower(state: GameState, targetLand: Land): number {
     (army) => army.kingdomId === targetLand.ownerId && army.landId === targetLand.id,
   );
 
-  const garrison = targetLand.defense * 35;
+  // Walls + local militia hold a district against small raids, but a serious host can
+  // only be stopped by a standing field army — so keeping an army alive matters, and
+  // turtling behind walls is no longer a win button (see WarSystem rebalance).
+  const garrison = (targetLand.defense * 16 + targetLand.localSoldiers * 2.5) * terrainDefenseMultiplier(targetLand);
   return garrison + (defendingArmy ? armyPower(state, defendingArmy) : 0);
 }
 
@@ -69,7 +142,8 @@ export function createBattlePreview(
     return undefined;
   }
 
-  const attackerPower = armyPower(state, army);
+  const defArmy = state.armies.find((a) => a.kingdomId === land.ownerId && a.landId === land.id);
+  const attackerPower = armyPower(state, army) * compositionMatchup(army.units, defArmy);
   const targetPower = defenderPower(state, land);
   const winChance = Math.round((attackerPower / Math.max(1, attackerPower + targetPower)) * 100);
 
@@ -237,7 +311,7 @@ export function getRecruitmentOrder(state: GameState, landId: string) {
  * that gathers soldiers over several ticks. Barracks at the recruiting
  * district reduce the time required - see `progressRecruitmentOrders`.
  */
-export function queueRecruitment(state: GameState, heroId: string, soldiers: number, rations: number, provisions: number): boolean {
+export function queueRecruitment(state: GameState, heroId: string, soldiers: number, rations: number, provisions: number, composition: ArmyComposition = 'balanced'): boolean {
   const hero = state.heroes.find((candidate) => candidate.id === heroId);
   if (!hero || hero.assignedTo) {
     state.message = t('msg.chooseCommander');
@@ -293,6 +367,7 @@ export function queueRecruitment(state: GameState, heroId: string, soldiers: num
     provisions: provisionsCost,
     progress: 0,
     required,
+    composition,
   });
   hero.assignedTo = id;
   refreshAllLandOutputs(state);
@@ -325,8 +400,7 @@ export function progressRecruitmentOrders(state: GameState): boolean {
     const bonuses = getCourtBonuses(state);
     const barracksLevel = getBarracksLevel(land);
     const level = Math.min(getArmyLevelCap(state), Math.max(1, 1 + Math.floor(barracksLevel / 2) + bonuses.nextArmyLevelBonus));
-    const heavyShare = Math.min(0.28, 0.1 + bonuses.nextArmyHeavyBonus);
-    const archerShare = Math.min(0.45, 0.28 + bonuses.nextArmyArchersBonus);
+    const { heavyShare, archerShare } = compositionShares(order.composition ?? 'balanced', bonuses);
     const heavy = Math.floor(total * heavyShare);
     const archers = Math.floor(total * archerShare);
     const army: Army = {
@@ -348,6 +422,7 @@ export function progressRecruitmentOrders(state: GameState): boolean {
       experience: 0,
       experienceToNextLevel: getArmyExperienceToNext(level),
       unpaidTicks: 0,
+      elite: computeEliteTier(state, barracksLevel),
     };
 
     state.armies.push(army);
@@ -466,7 +541,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-export function attackLand(state: GameState, armyId: string, targetLandId: string): boolean {
+export function attackLand(state: GameState, armyId: string, targetLandId: string, stance: BattleStance = 'balanced'): boolean {
   const army = state.armies.find((candidate) => candidate.id === armyId);
   const targetLand = findLand(state, targetLandId);
   const preview = createBattlePreview(state, armyId, targetLandId);
@@ -480,8 +555,20 @@ export function attackLand(state: GameState, armyId: string, targetLandId: strin
     return false;
   }
 
-  const victory = preview.attackerPower >= preview.defenderPower * 0.72;
-  const lossRate = victory ? 0.16 : 0.32;
+  // Honest, probabilistic combat: the win chance shown is the actual chance. The
+  // chosen stance trades odds against casualties — Assault presses harder (better
+  // odds, bloodier), Cautious holds back (worse odds, fewer losses).
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  const stanceMod = stance === 'assault'
+    ? { pow: 1.18, loss: 1.4 }
+    : stance === 'cautious'
+      ? { pow: 0.85, loss: 0.6 }
+      : { pow: 1, loss: 1 };
+  const attAdj = preview.attackerPower * stanceMod.pow;
+  const effectiveChance = clamp(Math.round((attAdj / (attAdj + preview.defenderPower)) * 100), 10, 90);
+  const victory = Math.random() * 100 < effectiveChance;
+  const margin = Math.abs(effectiveChance - 50) / 50; // 0 = coin-flip, 1 = lopsided
+  const lossRate = clamp(((victory ? 0.14 : 0.34) + (1 - margin) * 0.1) * stanceMod.loss, 0.08, 0.6);
   const supplyCost = Math.max(2, Math.ceil((totalUnits(army) / 420) * getCourtBonuses(state).battleSupplyCostMult));
 
   army.units.spearmen = Math.max(0, Math.floor(army.units.spearmen * (1 - lossRate)));
@@ -492,6 +579,7 @@ export function attackLand(state: GameState, armyId: string, targetLandId: strin
   state.latestBattlePreview = undefined;
   applyResourceDelta(state, { supplies: -supplyCost });
   awardBattleExperience(state, army, preview.defenderPower, victory);
+  grantGeneralExperience(state, army, victory);
 
   if (victory) {
     const defeatedArmies = state.armies.filter(

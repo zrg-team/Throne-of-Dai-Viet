@@ -117,6 +117,7 @@ export const enEmpire = {
   "empire.mandate.edictPoints": "Edict points: {points}",
   "empire.mandate.era": "Era: {era}",
   "empire.mandate.ascendReady": "The Mandate of Heaven is within reach — complete the Ascension.",
+  "empire.mandate.barAscend": "Ascend ▸",
 
   // ── Revamp: Directives ──
   "empire.action.directives": "Agenda",
@@ -146,6 +147,7 @@ export const enEmpire = {
   "empire.directive.imperial-council": "Seat all {target} court positions",
   "empire.directive.great-realm": "Forge a great realm of {target} districts",
   "empire.directive.enact-reforms": "Enact {target} imperial edicts",
+  "empire.directive.enact-first": "Enact an edict from the Edicts board",
   "empire.directive.legend-of-arms": "Repel {target} invading hosts",
   "empire.directive.prep-defense": "Repel the coming host in time",
 
@@ -220,6 +222,82 @@ export const enEmpire = {
   "empire.rank.king": "King",
   "empire.rank.sonOfHeaven": "Son of Heaven",
   "empire.rank.emperor": "Emperor of All Under Heaven",
+
+  // ── Phase 2: army composition, battle stances, scouting ──
+  "comp.title": "Doctrine",
+  "comp.balanced": "Balanced",
+  "comp.spears": "Spear Wall",
+  "comp.archers": "Archer Host",
+  "comp.shock": "Shock",
+  "comp.hint.balanced": "A flexible mix.",
+  "comp.hint.spears": "Spears counter heavy shock troops.",
+  "comp.hint.archers": "Archers counter spear formations.",
+  "comp.hint.shock": "Heavy infantry counter archers.",
+  "battle.stance.title": "Battle plan",
+  "battle.stance.assault": "Assault",
+  "battle.stance.balanced": "Measured",
+  "battle.stance.cautious": "Cautious",
+  "battle.stance.assault.d": "+odds, heavier losses",
+  "battle.stance.cautious.d": "−odds, fewer losses",
+  "battle.matchup.favored": "Our formation counters theirs",
+  "battle.matchup.countered": "Their formation counters ours",
+  "scout.enemyComp": "Host: {spears}% spear · {archers}% bow · {heavy}% heavy",
+
+  // ── Phase 3: crises / secession ──
+  "empire.crisis.secede": "{land} rises in revolt and secedes from the realm!",
+
+  // ── Phase 4: royal commands (active abilities) ──
+  "empire.ability.title": "Royal Commands",
+  "empire.ability.cooldown": "{turns}t",
+  "empire.ability.cost": "can't afford",
+  "empire.ability.rally": "Rally",
+  "empire.ability.rally.d": "Restore army morale & supply.",
+  "empire.ability.rallyDone": "Your banners rally — morale surges across the host!",
+  "empire.ability.levy": "Levy",
+  "empire.ability.levy.d": "Conscript emergency militia at the capital.",
+  "empire.ability.levyName": "Peasant Levy",
+  "empire.ability.levyDone": "The peasantry is levied — militia muster at the capital.",
+  "empire.ability.decree": "Decree",
+  "empire.ability.decree.d": "Royal decree: quell unrest & lift loyalty.",
+  "empire.ability.decreeDone": "A royal decree steadies the realm — unrest fades.",
+
+  // ── Phase 5: coalitions & vassalage ──
+  "empire.coalition.form": "A GRAND COALITION forms against you — Warlord {warlord} leads them in {turns} seasons!",
+  "empire.vassal.title": "Demand of Submission",
+  "empire.vassal.desc": "{kingdom} towers over us and demands we bend the knee — become their vassal, or face their host.",
+  "empire.vassal.arrive": "{kingdom} demands our submission!",
+  "empire.vassal.submit": "Submit (90 gold)",
+  "empire.vassal.submit.d": "Pay tribute and bow — our prestige suffers, but war is averted.",
+  "empire.vassal.defy": "Defy them",
+  "empire.vassal.defy.d": "Stand proud — prestige rises, but they will march. Needs an army.",
+
+  // ── Living empires (Great Powers sim) ──
+  "empire.world.rebirth": "The empire of {old} has fallen — {next} rises in its place!",
+  "empire.world.conquered": "{attacker} has conquered {defender} — a hegemon rises!",
+  "empire.world.war": "{attacker} wages war on {defender}, seizing their strength.",
+  "empire.world.repelled": "{defender} repels the armies of {attacker}.",
+  "empire.world.mod.ambassador": "Our ambassador",
+  "empire.year.new": "Year {year}",
+  "empire.year.reign": "Year {year} of your reign",
+
+  // ── Empire stats + espionage actions ──
+  "empire.stat.power": "Power",
+  "empire.stat.stability": "Stability",
+  "empire.stat.hidden": "?? (post an ambassador)",
+  "empire.stat.king": "{name} · {trait}",
+  "empire.action.ambassador": "Post Envoy",
+  "empire.action.recall": "Recall Envoy",
+  "empire.action.sabotage": "Foment Unrest",
+  "empire.action.incite": "Incite War",
+  "empire.espionage.ambassadorSet": "{hero} is posted as our envoy to {kingdom}.",
+  "empire.espionage.ambassadorRecalled": "Our envoy returns from {kingdom}.",
+  "empire.espionage.needHero": "Need a free hero to send as envoy.",
+  "empire.espionage.sabotageNoInfluence": "Not enough influence to foment unrest (need {cost}).",
+  "empire.espionage.sabotageDone": "Agents stir unrest in {kingdom}. Their stability crumbles.",
+  "empire.espionage.sabotageDiscovered": "Our plot in {kingdom} is exposed! They are enraged.",
+  "empire.espionage.inciteNoInfluence": "Not enough influence to incite war (need {cost}).",
+  "empire.espionage.inciteNoTarget": "No rival empire to turn them against.",
+  "empire.espionage.inciteDone": "You turn {kingdom} against {other} — let them bleed each other.",
 };
 
 export const viEmpire: Record<keyof typeof enEmpire, string> = {
@@ -339,6 +417,7 @@ export const viEmpire: Record<keyof typeof enEmpire, string> = {
   "empire.mandate.edictPoints": "Điểm chiếu chỉ: {points}",
   "empire.mandate.era": "Kỷ nguyên: {era}",
   "empire.mandate.ascendReady": "Thiên Mệnh đã trong tầm tay — hoàn thành Đăng Cơ.",
+  "empire.mandate.barAscend": "Đăng cơ ▸",
 
   // ── Nghị trình ──
   "empire.action.directives": "Nghị Trình",
@@ -368,6 +447,7 @@ export const viEmpire: Record<keyof typeof enEmpire, string> = {
   "empire.directive.imperial-council": "Bổ nhiệm đủ {target} chức quan",
   "empire.directive.great-realm": "Dựng đại quốc {target} quận",
   "empire.directive.enact-reforms": "Ban hành {target} chiếu chỉ",
+  "empire.directive.enact-first": "Ban hành một chiếu chỉ từ bảng Chiếu Chỉ",
   "empire.directive.legend-of-arms": "Đẩy lui {target} đạo quân xâm lăng",
   "empire.directive.prep-defense": "Đẩy lui đạo quân sắp tới kịp thời",
 
@@ -442,4 +522,80 @@ export const viEmpire: Record<keyof typeof enEmpire, string> = {
   "empire.rank.king": "Quốc Vương",
   "empire.rank.sonOfHeaven": "Thiên Tử",
   "empire.rank.emperor": "Hoàng Đế Thiên Hạ",
+
+  // ── Phase 2: đội hình, thế trận, do thám ──
+  "comp.title": "Binh Chủng",
+  "comp.balanced": "Cân Bằng",
+  "comp.spears": "Trường Thương",
+  "comp.archers": "Cung Thủ",
+  "comp.shock": "Xung Kích",
+  "comp.hint.balanced": "Đội hình linh hoạt.",
+  "comp.hint.spears": "Thương khắc chế xung kích hạng nặng.",
+  "comp.hint.archers": "Cung khắc chế đội hình thương.",
+  "comp.hint.shock": "Bộ binh nặng khắc chế cung thủ.",
+  "battle.stance.title": "Kế sách",
+  "battle.stance.assault": "Cường Công",
+  "battle.stance.balanced": "Vững Chắc",
+  "battle.stance.cautious": "Thận Trọng",
+  "battle.stance.assault.d": "+thắng, tổn thất nặng",
+  "battle.stance.cautious.d": "−thắng, ít tổn thất",
+  "battle.matchup.favored": "Đội hình ta khắc chế địch",
+  "battle.matchup.countered": "Đội hình địch khắc chế ta",
+  "scout.enemyComp": "Đạo quân: {spears}% thương · {archers}% cung · {heavy}% nặng",
+
+  // ── Khủng hoảng / ly khai ──
+  "empire.crisis.secede": "{land} nổi loạn và ly khai khỏi vương quốc!",
+
+  // ── Vương lệnh (kỹ năng chủ động) ──
+  "empire.ability.title": "Vương Lệnh",
+  "empire.ability.cooldown": "{turns} lượt",
+  "empire.ability.cost": "không đủ",
+  "empire.ability.rally": "Chỉnh Đốn",
+  "empire.ability.rally.d": "Hồi phục sĩ khí & tiếp tế quân.",
+  "empire.ability.rallyDone": "Cờ xí phất lên — sĩ khí toàn quân dâng cao!",
+  "empire.ability.levy": "Trưng Binh",
+  "empire.ability.levy.d": "Chiêu mộ dân binh khẩn cấp tại kinh đô.",
+  "empire.ability.levyName": "Dân Binh",
+  "empire.ability.levyDone": "Dân chúng được trưng binh — dân binh tập kết tại kinh đô.",
+  "empire.ability.decree": "Chiếu Chỉ",
+  "empire.ability.decree.d": "Chiếu chỉ: dẹp loạn & nâng lòng trung.",
+  "empire.ability.decreeDone": "Một chiếu chỉ ổn định vương quốc — bất mãn tan biến.",
+
+  // ── Liên minh & chư hầu ──
+  "empire.coalition.form": "LIÊN MINH LỚN kết lại chống ngươi — Tướng {warlord} dẫn đầu sau {turns} mùa!",
+  "empire.vassal.title": "Yêu Sách Quy Phục",
+  "empire.vassal.desc": "{kingdom} vượt trội và buộc ta quỳ gối — làm chư hầu, hoặc đối mặt đại quân của họ.",
+  "empire.vassal.arrive": "{kingdom} yêu cầu ta quy phục!",
+  "empire.vassal.submit": "Quy phục (90 vàng)",
+  "empire.vassal.submit.d": "Cống nạp và cúi đầu — uy tín tổn hại, nhưng tránh được chiến tranh.",
+  "empire.vassal.defy": "Kháng cự",
+  "empire.vassal.defy.d": "Ngẩng cao đầu — uy tín tăng, nhưng họ sẽ tiến quân. Cần có quân.",
+
+  // ── Các đế quốc sống động ──
+  "empire.world.rebirth": "Đế quốc {old} đã sụp đổ — {next} trỗi dậy thay thế!",
+  "empire.world.conquered": "{attacker} đã chinh phục {defender} — một bá chủ trỗi dậy!",
+  "empire.world.war": "{attacker} gây chiến với {defender}, cướp lấy sức mạnh của họ.",
+  "empire.world.repelled": "{defender} đẩy lui quân của {attacker}.",
+  "empire.world.mod.ambassador": "Sứ thần của ta",
+  "empire.year.new": "Năm {year}",
+  "empire.year.reign": "Năm {year} triều đại của ngươi",
+
+  // ── Chỉ số đế quốc + hành động tình báo ──
+  "empire.stat.power": "Binh Lực",
+  "empire.stat.stability": "Ổn Định",
+  "empire.stat.hidden": "?? (cử sứ thần)",
+  "empire.stat.king": "{name} · {trait}",
+  "empire.action.ambassador": "Cử Sứ Thần",
+  "empire.action.recall": "Triệu Hồi",
+  "empire.action.sabotage": "Kích Động Loạn",
+  "empire.action.incite": "Xúi Giục Chiến",
+  "empire.espionage.ambassadorSet": "{hero} được cử làm sứ thần tới {kingdom}.",
+  "empire.espionage.ambassadorRecalled": "Sứ thần của ta trở về từ {kingdom}.",
+  "empire.espionage.needHero": "Cần một anh hùng rảnh rỗi để cử làm sứ thần.",
+  "empire.espionage.sabotageNoInfluence": "Không đủ ảnh hưởng để kích động loạn (cần {cost}).",
+  "empire.espionage.sabotageDone": "Mật vụ gây loạn tại {kingdom}. Sự ổn định của họ tan vỡ.",
+  "empire.espionage.sabotageDiscovered": "Âm mưu tại {kingdom} bị lộ! Họ giận dữ.",
+  "empire.espionage.inciteNoInfluence": "Không đủ ảnh hưởng để xúi giục chiến (cần {cost}).",
+  "empire.espionage.inciteNoTarget": "Không có đế quốc nào để xúi giục.",
+  "empire.espionage.inciteDone": "Ngươi khiến {kingdom} chống lại {other} — để chúng chém giết nhau.",
 };

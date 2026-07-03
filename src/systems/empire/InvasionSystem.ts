@@ -1,6 +1,6 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { findLand, getAcquisitionTicksRequired } from '../LandSystem';
-import { createBattlePreview } from '../WarSystem';
+import { createBattlePreview, grantGeneralExperience } from '../WarSystem';
 import { applyResourceDelta, refreshAllLandOutputs } from '../ResourceSystem';
 import { addMandate } from './MandateSystem';
 import { pushToast } from './notifications';
@@ -100,7 +100,7 @@ function despawnInvasion(state: GameState, record: InvasionRecord): void {
 function grantRepelSpoils(state: GameState, hostSize: number, record: InvasionRecord): void {
   state.invasionsRepelled = (state.invasionsRepelled ?? 0) + 1;
   const great = record.great === true;
-  const mandate = Math.max(4, Math.round(hostSize / 40)) * (great ? 3 : 1);
+  const mandate = Math.max(5, Math.round(hostSize / 32)) * (great ? 3 : 1);
   addMandate(state, mandate);
   const lootGold = Math.round(hostSize / 12) * (great ? 2 : 1);
   const prisoners = Math.round(hostSize / 8);
@@ -298,8 +298,12 @@ function resolveInvaderBattle(state: GameState, army: Army, record: InvasionReco
     return;
   }
   const preTotal = totalUnits(army);
-  // Walls give the defender a slight edge over a raw power comparison.
-  const victory = preview.attackerPower >= preview.defenderPower * 0.85;
+  // Walls give the defender a slight edge, but big/Great hosts bring siege and negate
+  // much of it — you must meet them in the field. A small ±10% fuzz lets close fights
+  // swing (drama) while a clearly stronger side still prevails (preparation over luck).
+  const fuzz = 0.9 + Math.random() * 0.2;
+  const siegeMult = record.great ? 0.72 : preTotal > 1000 ? 0.8 : 0.85;
+  const victory = preview.attackerPower >= preview.defenderPower * siegeMult * fuzz;
 
   if (!victory) {
     applyInvaderLosses(army, 0.4);
@@ -367,6 +371,7 @@ function awardDefenderXp(state: GameState, land: Land, defenderPower: number): v
     return;
   }
   defender.experience += Math.max(8, Math.round(defenderPower / 90));
+  grantGeneralExperience(state, defender, true);
   while (defender.level < 5 && defender.experience >= defender.experienceToNextLevel) {
     defender.experience -= defender.experienceToNextLevel;
     defender.level += 1;

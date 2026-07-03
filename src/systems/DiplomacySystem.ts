@@ -177,6 +177,12 @@ export function getEmpirePower(state: GameState, kingdom: Kingdom): number {
   if (onMap > 0) {
     return onMap;
   }
+  // Off-map empires: their strength is the evolving `power` index (see GreatPowersSystem),
+  // so a realm that grows powerful over the years is genuinely more dangerous. Falls back
+  // to a personality/turn estimate before the sim seeds the value.
+  if (typeof kingdom.power === 'number') {
+    return kingdom.power * 10 * militaryWeight(kingdom.personality) * difficultyScale(state.campaignConfig?.difficulty);
+  }
   return 460 * militaryWeight(kingdom.personality) * (1 + state.turn * 0.03) * difficultyScale(state.campaignConfig?.difficulty);
 }
 

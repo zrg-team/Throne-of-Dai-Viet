@@ -3,6 +3,8 @@ import type { Difficulty, EraId, GameState, Kingdom } from '../../state/types';
 import { launchOffMapInvasion } from './InvasionSystem';
 import { issuePrepDirective } from './DirectiveSystem';
 import { eraIndex } from './MandateSystem';
+import { ambition } from './GreatPowersSystem';
+import { getEmpirePower, getFear, getPlayerMilitary } from '../DiplomacySystem';
 import { pushToast } from './notifications';
 import { t } from '../../i18n';
 
@@ -48,11 +50,28 @@ function activeEmpires(state: GameState): Kingdom[] {
   return state.kingdoms.filter((k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated);
 }
 
-/** Picks the aggressor for the next wave — colder relations weigh heavier. */
+/**
+ * How threatening an empire is right now: strong + ambitious + hostile + confident
+ * empires weigh heaviest, while unstable or fearful ones can't project force. This is
+ * the "why does a strong stable empire come for me" logic the player expects.
+ */
+function threatWeight(state: GameState, k: Kingdom): number {
+  const power = k.power ?? 50;
+  const relations = k.relations ?? 50;
+  const warApp = k.warAppetite ?? 0;
+  const stability = k.stability ?? 50;
+  const hostility = Math.max(0, 60 - relations);
+  let w = power * 0.6 + warApp * 0.6 + hostility * ambition(k.personality);
+  w *= stability > 35 ? 1 : 0.4; // a realm in turmoil can't march
+  w *= 1 - Math.min(0.7, getFear(state, k) / 140); // fear of our might deters them
+  return Math.max(2, w);
+}
+
+/** Picks the aggressor for the next wave, weighted by live threat. */
 function pickAggressor(state: GameState): Kingdom | undefined {
   const empires = activeEmpires(state);
   if (empires.length === 0) return undefined;
-  const weighted = empires.map((k) => ({ k, w: Math.max(4, 100 - (k.relations ?? 50)) }));
+  const weighted = empires.map((k) => ({ k, w: threatWeight(state, k) }));
   const total = weighted.reduce((sum, e) => sum + e.w, 0);
   let roll = Math.random() * total;
   for (const entry of weighted) {
@@ -60,6 +79,11 @@ function pickAggressor(state: GameState): Kingdom | undefined {
     if (roll <= 0) return entry.k;
   }
   return empires[0];
+}
+
+/** Host-size multiplier from an empire's evolving power — strong realms field bigger armies. */
+function powerSizeMult(k: Kingdom): number {
+  return Math.min(2.4, Math.max(0.7, (k.power ?? 50) / 50));
 }
 
 function playerStrength(state: GameState): number {
@@ -85,11 +109,73 @@ function hasActivePact(kingdom: Kingdom | undefined, turn: number): boolean {
 // Main tick
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** 0..~2: how dominant the player has become — drives coalitions and vassalage demands. */
+function playerDominance(state: GameState): number {
+  const lands = state.lands.filter((l) => l.ownerId === PLAYER_KINGDOM_ID).length;
+  const emp = activeEmpires(state);
+  const avgFear = emp.length ? emp.reduce((s, k) => s + getFear(state, k), 0) / emp.length : 0;
+  return (lands / 14) * 0.7 + (avgFear / 100) * 0.7;
+}
+
+/** A dominant realm invites a Grand Coalition — the empires band together. Success breeds threat. */
+function maybeStageCoalition(state: GameState): boolean {
+  state.coalitionCooldown = Math.max(0, (state.coalitionCooldown ?? 0) - 1);
+  if (state.pendingUltimatum || state.coalitionCooldown > 0) return false;
+  if (playerDominance(state) < 1.0 || activeEmpires(state).length < 2) return false;
+  if (Math.random() > 0.5) return false;
+
+  const aggressor = pickAggressor(state);
+  if (!aggressor) return false;
+  state.coalitionCooldown = 18;
+  const warlord = WARLORD_NAMES[Math.floor(Math.random() * WARLORD_NAMES.length)];
+  const dueTurn = state.turn + GREAT_LEAD;
+  state.pendingUltimatum = {
+    id: `coalition-${state.turn}`,
+    kingdomId: aggressor.id,
+    dueTurn,
+    hostSize: 0,
+    isGreatInvasion: true,
+    warlordName: warlord,
+  };
+  issuePrepDirective(state, dueTurn, 40);
+  pushToast(state, t('empire.coalition.form', { warlord, turns: GREAT_LEAD }), 'threat');
+  return true;
+}
+
+/** When a hegemon dwarfs the player, it demands submission — vassalage or war. */
+function maybeIssueVassalage(state: GameState): void {
+  if (state.pendingForeignCard || state.pendingUltimatum || (state.invasions?.length ?? 0) > 0) return;
+  if (state.activePoliticsCard || state.pendingCourtRequest) return;
+  if (Math.random() > 0.05) return;
+  const strongest = [...activeEmpires(state)].sort((a, b) => getEmpirePower(state, b) - getEmpirePower(state, a))[0];
+  if (!strongest) return;
+  if (getEmpirePower(state, strongest) < getPlayerMilitary(state) * 1.8) return;
+  if ((strongest.relations ?? 50) >= 46) return;
+
+  state.pendingForeignCard = {
+    id: `vassalage-${state.turn}`,
+    kingdomId: strongest.id,
+    kingdomName: strongest.name,
+    title: t('empire.vassal.title'),
+    description: t('empire.vassal.desc', { kingdom: strongest.name }),
+    choices: [
+      { id: 'submit', label: t('empire.vassal.submit'), description: t('empire.vassal.submit.d'), delta: { gold: -90 }, prestigeDelta: -12, appease: true },
+      { id: 'defy', label: t('empire.vassal.defy'), description: t('empire.vassal.defy.d'), prestigeDelta: 14, provoke: 55, requiresArmy: true },
+    ],
+  };
+  state.isPaused = true;
+  state.message = t('empire.vassal.arrive', { kingdom: strongest.name });
+}
+
 export function tickThreatDirector(state: GameState): void {
   if (state.gameMode !== 'empire') return;
   state.threatBudget ??= 0;
   state.greatInvasionEras ??= [];
   const era: EraId = state.mandate?.era ?? 'founding';
+
+  // Success breeds threat: a dominant player faces coalitions and vassalage ultimatums.
+  if (maybeStageCoalition(state)) return;
+  maybeIssueVassalage(state);
 
   // 1) Resolve a telegraphed ultimatum in flight.
   if (state.pendingUltimatum) {
@@ -105,9 +191,10 @@ export function tickThreatDirector(state: GameState): void {
     }
 
     if (state.turn >= u.dueTurn) {
+      const sizeMult = (kingdom ? powerSizeMult(kingdom) : 1) * (u.isGreatInvasion ? 1.3 : 1);
       launchOffMapInvasion(state, u.kingdomId, {
         forceCoalition: u.isGreatInvasion ? Math.min(3, activeEmpires(state).length + 1) : undefined,
-        sizeMult: u.isGreatInvasion ? 1.25 : 1,
+        sizeMult,
         warlordName: u.isGreatInvasion ? u.warlordName : undefined,
         forceConquest: u.isGreatInvasion,
       });
@@ -140,7 +227,7 @@ export function tickThreatDirector(state: GameState): void {
     if (Math.random() < 0.5) {
       stageMinorUltimatum(state, aggressor);
     } else {
-      launchOffMapInvasion(state, aggressor.id);
+      launchOffMapInvasion(state, aggressor.id, { sizeMult: powerSizeMult(aggressor) });
     }
   }
 }

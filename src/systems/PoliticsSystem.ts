@@ -67,7 +67,7 @@ export function progressPoliticsCooldown(state: GameState): void {
 
   drawPoliticsCard(state);
   const bonuses = getCourtBonuses(state);
-  state.court.cardCooldown = Math.max(1, Math.round(5 / bonuses.cardFrequencyMult));
+  state.court.cardCooldown = Math.max(2, Math.round(7 / bonuses.cardFrequencyMult));
 }
 
 export function choosePoliticsCard(state: GameState, choiceId: string): boolean {

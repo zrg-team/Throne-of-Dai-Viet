@@ -36,27 +36,28 @@ export interface DirectiveTemplate {
 
 const round = (n: number, step: number) => Math.max(step, Math.round(n / step) * step);
 
+// Directives are deliberately ACTION goals — each is advanced by a decision the
+// player makes (expand, recruit, build, seat, defend, enact), never by idly
+// watching a resource number tick up. That keeps the board a to-do list, not a
+// set of timers.
 export const DIRECTIVE_TEMPLATES: DirectiveTemplate[] = [
   // ── Short ───────────────────────────────────────────────────────────────
+  { id: 'expand-realm', tier: 'short', metricKey: 'ownedLands', target: (_s, c) => c + 1, rewardMandate: 10, rewardResources: { gold: 20 } },
   { id: 'muster-guard', tier: 'short', metricKey: 'armySize', target: (_s, c) => round(c + 300, 50), rewardMandate: 8, rewardResources: { supplies: 20 } },
-  { id: 'fill-granary', tier: 'short', metricKey: 'foodReserve', target: (_s, c) => round(c + 120, 20), rewardMandate: 6, rewardResources: { gold: 20 } },
-  { id: 'war-chest', tier: 'short', metricKey: 'goldReserve', target: (_s, c) => round(c + 150, 25), rewardMandate: 6 },
-  { id: 'expand-realm', tier: 'short', metricKey: 'ownedLands', target: (_s, c) => c + 1, rewardMandate: 10 },
   { id: 'raise-hall', tier: 'short', metricKey: 'playerBuildings', target: (_s, c) => c + 2, rewardMandate: 8 },
   { id: 'recruit-talent', tier: 'short', metricKey: 'heroesRecruited', target: (_s, c) => c + 1, rewardMandate: 8 },
 
   // ── Medium ──────────────────────────────────────────────────────────────
+  { id: 'settle-frontier', tier: 'medium', metricKey: 'ownedLands', target: (_s, c) => c + 3, rewardMandate: 20, rewardResources: { gold: 40 } },
   { id: 'grand-host', tier: 'medium', metricKey: 'armySize', target: (_s, c) => round(Math.max(c + 500, 900), 100), rewardMandate: 18, rewardResources: { gold: 40 } },
   { id: 'seat-council', tier: 'medium', metricKey: 'seatedSeats', target: (_s, c) => Math.min(8, c + 2), rewardMandate: 16 },
-  { id: 'settle-frontier', tier: 'medium', metricKey: 'ownedLands', target: (_s, c) => c + 3, rewardMandate: 20 },
-  { id: 'prosper', tier: 'medium', metricKey: 'population', target: (_s, c) => round(c + 200, 50), rewardMandate: 16, rewardResources: { humans: 60 } },
   { id: 'hold-the-line', tier: 'medium', metricKey: 'invasionsRepelled', target: (_s, c) => c + 2, rewardMandate: 22, rewardResources: { supplies: 40 } },
-  { id: 'treasury', tier: 'medium', metricKey: 'goldReserve', target: (_s, c) => round(Math.max(c + 300, 500), 50), rewardMandate: 16 },
+  { id: 'enact-first', tier: 'medium', metricKey: 'edictsEnacted', target: (_s, c) => c + 1, rewardMandate: 16 },
 
   // ── Epic ────────────────────────────────────────────────────────────────
+  { id: 'great-realm', tier: 'epic', metricKey: 'ownedLands', target: (_s, c) => Math.max(c + 5, 12), rewardMandate: 44, rewardResources: { gold: 60 } },
   { id: 'wonder-of-realm', tier: 'epic', metricKey: 'wondersBuilt', target: (_s, c) => c + 1, rewardMandate: 40, rewardResources: { gold: 80 } },
   { id: 'imperial-council', tier: 'epic', metricKey: 'seatedSeats', target: () => 8, rewardMandate: 36 },
-  { id: 'great-realm', tier: 'epic', metricKey: 'ownedLands', target: (_s, c) => Math.max(c + 5, 12), rewardMandate: 44 },
   { id: 'enact-reforms', tier: 'epic', metricKey: 'edictsEnacted', target: (_s, c) => c + 3, rewardMandate: 30 },
   { id: 'legend-of-arms', tier: 'epic', metricKey: 'invasionsRepelled', target: (_s, c) => c + 5, rewardMandate: 50, rewardResources: { gold: 60 } },
 ];

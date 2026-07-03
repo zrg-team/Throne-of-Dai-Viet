@@ -272,16 +272,16 @@ export class MapScene extends Phaser.Scene {
       resolveForeignChoice(this.state, choiceId);
       this.refresh();
     });
-    ui.events.on('ui:attack-land', (armyId: string, landId: string) => {
-      attackLand(this.state, armyId, landId);
+    ui.events.on('ui:attack-land', (armyId: string, landId: string, stance: 'assault' | 'balanced' | 'cautious') => {
+      attackLand(this.state, armyId, landId, stance);
       this.refresh();
     });
     ui.events.on('ui:retreat-siege', (armyId: string, landId: string) => {
       cancelSiege(this.state, armyId, landId);
       this.refresh();
     });
-    ui.events.on('ui:create-army', (heroId: string, soldiers: number, food: number, supplies: number) => {
-      queueRecruitment(this.state, heroId, soldiers, food, supplies);
+    ui.events.on('ui:create-army', (heroId: string, soldiers: number, food: number, supplies: number, composition: 'balanced' | 'spears' | 'archers' | 'shock') => {
+      queueRecruitment(this.state, heroId, soldiers, food, supplies, composition);
       this.refresh();
     });
     ui.events.on('ui:disband-army', (armyId: string) => {

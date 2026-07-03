@@ -190,6 +190,14 @@ export interface Kingdom {
   treaties?: Treaty[];
   /** Escalation meter; rises with low opinion + low fear, triggers an invasion when it tops out. */
   warAppetite?: number;
+  /** Evolving military-strength index (empire sim, ~20-120). Drives invasion size/odds and inter-empire wars. */
+  power?: number;
+  /** Internal order 0-100 (empire sim). Low → less aggressive, vulnerable to conquest/collapse. */
+  stability?: number;
+  /** Hero id seated as the player's ambassador here (standing opinion gain + intel). */
+  ambassadorHeroId?: string;
+  /** Cumulative years this empire has existed under its current identity (reset on rebirth). */
+  age?: number;
 }
 
 /** One option on a foreign-affairs event card. */
@@ -250,6 +258,8 @@ export interface Army {
   experience: number;
   experienceToNextLevel: number;
   unpaidTicks?: number;
+  /** Elite tier (0 = levy, 1 = trained, 2 = royal guard); each tier adds battle power. */
+  elite?: number;
 }
 
 /** An in-progress march: an army advancing one land per leg toward `path`'s last entry. */
@@ -294,6 +304,10 @@ export interface Hero {
   signatureCardId?: string;
   assignedTo?: string;
   fatigue: number;
+  /** Battles won while commanding (empire mode); a veteran general grows in martial skill. */
+  battlesWon?: number;
+  /** Earned traits (e.g. "Veteran", "Conqueror") shown on the hero card. */
+  traits?: string[];
 }
 
 export interface CourtModifier {
@@ -412,6 +426,12 @@ export interface BuildOrder {
 }
 
 /** An in-progress training order: a new army being assembled at `landId` over several ticks. */
+/** Chosen army composition doctrine — shapes the spearmen/archer/heavy mix (unit counters). */
+export type ArmyComposition = 'balanced' | 'spears' | 'archers' | 'shock';
+
+/** Pre-battle tactical plan — trades win chance against casualties. */
+export type BattleStance = 'assault' | 'balanced' | 'cautious';
+
 export interface RecruitmentOrder {
   id: string;
   landId: string;
@@ -421,6 +441,7 @@ export interface RecruitmentOrder {
   provisions: number;
   progress: number;
   required: number;
+  composition?: ArmyComposition;
 }
 
 export type CourtPositionId =
@@ -578,12 +599,16 @@ export interface GameState {
   greatInvasionEras?: EraId[];
   /** Regenerating pressure budget the ThreatDirector spends to spawn invasions. */
   threatBudget?: number;
+  /** Cooldown before another Grand Coalition can form against a dominant player. */
+  coalitionCooldown?: number;
   /** Count of invasion hosts the player has repelled (drives some directives). */
   invasionsRepelled?: number;
   /** Number of Wonders completed (drives directives + capital art tier). */
   wondersBuilt?: number;
   /** Guards one-time Legacy banking at the terminal (victory/defeat) screen. */
   legacyBanked?: boolean;
+  /** Remaining cooldown ticks per royal ability (empire mode). */
+  abilityCooldowns?: Record<string, number>;
   /** Kingdom-wide diplomatic reputation 0-100; eases deals, raised/lowered by honoring/breaking treaties. */
   prestige?: number;
   /** A foreign-affairs dilemma awaiting the player's decision. */

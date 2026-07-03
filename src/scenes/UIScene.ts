@@ -15,6 +15,7 @@ import { BottomSheet, SHEET_TOP } from '../ui/BottomSheet';
 import { CampaignScorePanel } from '../ui/CampaignScorePanel';
 import { ForeignAffairsPanel, stanceLabel } from '../ui/ForeignAffairsPanel';
 import { demandTribute, proposeTrade, sendGift } from '../systems/ForeignAffairsSystem';
+import { ambassadorHero, fomentUnrest, inciteWar, postAmbassador, recallAmbassador } from '../systems/empire/EspionageSystem';
 import {
   evaluatePactOffer,
   getFear,
@@ -28,8 +29,9 @@ import {
 } from '../systems/DiplomacySystem';
 import { canTakeForeignChoice } from '../systems/ForeignEventSystem';
 import { directiveTitle } from '../systems/empire/DirectiveSystem';
-import { eraLabel, pointsToNextEra } from '../systems/empire/MandateSystem';
+import { eraLabel, eraProgress, pointsToNextEra } from '../systems/empire/MandateSystem';
 import { allProjects, enactProject, isProjectEnacted, projectBlockedReason, projectDescription, projectTitle } from '../systems/empire/EdictSystem';
+import { ABILITIES, abilityBlockedReason, abilityCooldown, abilityLabel, useAbility } from '../systems/empire/AbilitySystem';
 import { bankLegacy, getLegacy, rankForScore } from '../state/legacy';
 import { MINIMAP_H, MINIMAP_W, renderMinimap, type MinimapWorldInfo } from '../ui/MinimapRenderer';
 import { renderHeroFace } from '../ui/FaceRenderer';
@@ -90,6 +92,8 @@ type ModalScreen =
   | 'edicts';
 
 const MESSAGE_STRIP_HEIGHT = 42;
+/** Vertical band reserved for the always-visible empire-mode Mandate progress bar. */
+const MANDATE_BAR_BAND = 24;
 
 export class UIScene extends Phaser.Scene {
   private state!: GameState;
@@ -111,6 +115,8 @@ export class UIScene extends Phaser.Scene {
   private empireBanners: Phaser.GameObjects.GameObject[] = [];
   private toastObjects: Phaser.GameObjects.GameObject[] = [];
   private telegraphObjects: Phaser.GameObjects.GameObject[] = [];
+  private mandateBarObjects: Phaser.GameObjects.GameObject[] = [];
+  private lastYear?: number;
   private selectedAffairsKingdomId?: string;
   private affairsPactOpen = false;
   private affairsPactSweetener = 0;
@@ -121,6 +127,8 @@ export class UIScene extends Phaser.Scene {
   private armySoldiers = 400;
   private armyFood = ARMY_DEFAULT_RATIONS;
   private armySupplies = ARMY_DEFAULT_PROVISIONS;
+  private armyComposition: 'balanced' | 'spears' | 'archers' | 'shock' = 'balanced';
+  private battleStance: 'assault' | 'balanced' | 'cautious' = 'balanced';
   private courtTab: 'positions' | 'governors' = 'positions';
   private courtPicker?: CourtPicker;
   private lastCourtView?: string;
@@ -345,7 +353,7 @@ export class UIScene extends Phaser.Scene {
           this.refresh();
           return;
         }
-        this.events.emit('ui:create-army', this.selectedArmyLeaderId, this.armySoldiers, this.armyFood, this.armySupplies);
+        this.events.emit('ui:create-army', this.selectedArmyLeaderId, this.armySoldiers, this.armyFood, this.armySupplies, this.armyComposition);
         this.closeModal();
       }
       return;
@@ -504,6 +512,18 @@ export class UIScene extends Phaser.Scene {
     this.clearEmpireBanners();
     this.clearTelegraphBanner();
     this.clearToastFeed();
+    this.clearMandateBar();
+
+    // A brief cinematic when the year turns — the survival clock advancing is the
+    // heartbeat of the campaign, so make each new year land as a moment.
+    if (this.lastYear === undefined) {
+      this.lastYear = this.state.year;
+    } else if (this.state.year > this.lastYear) {
+      this.lastYear = this.state.year;
+      if (isCampaignMode(this.state.gameMode)) {
+        this.playYearTransition(this.state.year);
+      }
+    }
     this.clearMapControls();
     this.clearGameMenuButton();
     this.clearCompactCard();
@@ -551,6 +571,7 @@ export class UIScene extends Phaser.Scene {
     }
 
     if (this.state.gameMode === 'empire') {
+      this.renderMandateBar();
       this.renderEmpireBanners();
       this.renderTelegraphBanner();
       this.renderToastFeed();
@@ -570,8 +591,11 @@ export class UIScene extends Phaser.Scene {
     }
 
     if (this.state.latestBattlePreview) {
-      const panel = new BattlePreviewPanel(this, this.state, (armyId, landId) => {
-        this.events.emit('ui:attack-land', armyId, landId);
+      const panel = new BattlePreviewPanel(this, this.state, this.battleStance, (stance) => {
+        this.battleStance = stance;
+        this.refresh();
+      }, (armyId, landId, stance) => {
+        this.events.emit('ui:attack-land', armyId, landId, stance);
       });
       this.bottomSheet.show(panel.render(this.state.latestBattlePreview));
       return;
@@ -1027,6 +1051,24 @@ export class UIScene extends Phaser.Scene {
       this.refresh();
     });
 
+    // Composition doctrine — shapes the unit mix for the unit-counter system.
+    const comps: Array<{ id: 'balanced' | 'spears' | 'archers' | 'shock'; label: string }> = [
+      { id: 'balanced', label: t('comp.balanced') },
+      { id: 'spears', label: t('comp.spears') },
+      { id: 'archers', label: t('comp.archers') },
+      { id: 'shock', label: t('comp.shock') },
+    ];
+    const compY = this.modalFooterBounds.y - 34;
+    const cW = (GAME_WIDTH - 48) / comps.length;
+    this.modalLayer.add(createLabel(this, 24, compY - 16, t('comp.title'), 'caption', { fontSize: '10px', color: '#b89b5e' }));
+    comps.forEach((c, i) => {
+      const selected = this.armyComposition === c.id;
+      this.modalLayer.add(this.ui.button({ x: 24 + i * cW, y: compY, width: cW - 4, height: 28 }, c.label, () => {
+        this.armyComposition = c.id;
+        this.refresh();
+      }, { variant: selected ? 'primary' : 'secondary', fontSize: '10px' }));
+    });
+
     this.modalLayer.add(
       createWoodButton(this, GAME_WIDTH / 2, this.modalFooterBounds.y + 22, 196, 44, t('action.createArmy'), () => {
         if (!this.selectedArmyLeaderId) {
@@ -1034,7 +1076,7 @@ export class UIScene extends Phaser.Scene {
           this.refresh();
           return;
         }
-        this.events.emit('ui:create-army', this.selectedArmyLeaderId, this.armySoldiers, this.armyFood, this.armySupplies);
+        this.events.emit('ui:create-army', this.selectedArmyLeaderId, this.armySoldiers, this.armyFood, this.armySupplies, this.armyComposition);
         this.closeModal();
       }, { variant: 'highlight' }),
     );
@@ -1803,10 +1845,26 @@ export class UIScene extends Phaser.Scene {
     this.modalLayer.add(subtitle);
     y += 20;
 
-    const listH = content.height - (y - content.y);
+    // Reserve a bottom row for royal commands (active abilities).
+    const cmdRowH = 62;
+    const listH = content.height - (y - content.y) - cmdRowH;
     const scroll = this.ui.scrollArea({ x: content.x, y, width: content.width, height: listH });
     scroll.addTo(this.modalLayer);
     this.activeScrollAreas.push(scroll);
+
+    // ── Royal Commands (Rally / Levy / Decree) with cooldowns ──
+    const cmdY = content.y + content.height - cmdRowH + 4;
+    this.modalLayer.add(createLabel(this, content.x, cmdY - 2, t('empire.ability.title'), 'caption', { fontSize: '10px', color: '#b89b5e' }));
+    const abW = (content.width - 16) / ABILITIES.length;
+    ABILITIES.forEach((ab, i) => {
+      const cd = abilityCooldown(this.state, ab.id);
+      const blocked = abilityBlockedReason(this.state, ab);
+      const label = cd > 0 ? `${abilityLabel(ab.id)} (${cd})` : abilityLabel(ab.id);
+      this.modalLayer.add(this.ui.button({ x: content.x + i * (abW + 8), y: cmdY + 14, width: abW, height: 34 }, label, () => {
+        if (useAbility(this.state, ab.id)) this.refresh();
+        else this.refresh();
+      }, { variant: blocked ? 'disabled' : 'secondary', fontSize: '10px' }));
+    });
 
     const directives = this.state.directives ?? [];
     const rowH = 86;
@@ -1925,7 +1983,7 @@ export class UIScene extends Phaser.Scene {
 
     // Opinion breakdown (baseline + each modifier), scrollable
     const breakdownTop = content.y + 40;
-    const breakdownH = content.height - 40 - 196;
+    const breakdownH = content.height - 40 - 244;
     const scroll = this.ui.scrollArea({ x: content.x, y: breakdownTop, width: content.width, height: breakdownH });
     scroll.addTo(this.modalLayer);
     this.activeScrollAreas.push(scroll);
@@ -1954,12 +2012,28 @@ export class UIScene extends Phaser.Scene {
     }
     scroll.setContentHeight(rowY);
 
-    // Action buttons (2x2) anchored at the bottom
+    // ── Empire intel: their evolving Power (visible) and Stability (needs an envoy) ──
     const kingdomId = kingdom.id;
+    const envoy = ambassadorHero(this.state, kingdom);
+    const intelY = content.y + content.height - 244;
+    const power = Math.round(kingdom.power ?? 50);
+    const stabilityText = envoy ? String(Math.round(kingdom.stability ?? 50)) : '??';
+    this.modalLayer.add(createLabel(this, content.x, intelY,
+      `${t('empire.stat.power')} ${power}   ·   ${t('empire.stat.stability')} ${stabilityText}`,
+      'label', { fontSize: '12px', color: '#f3dd9a' }));
+    if (kingdom.king) {
+      this.modalLayer.add(createLabel(this, content.x + content.width, intelY, t('empire.stat.king', {
+        name: kingdom.king.name,
+        trait: kingdom.king.personality,
+      }), 'caption', { fontSize: '10px', align: 'right', color: '#cbb885' }).setOrigin(1, 0));
+    }
+
+    // ── Diplomatic actions (gift / trade / pact / tribute) ──
     const giftLabel = t('diplo.action.gift', { cost: giftCost(kingdom), gain: giftOpinionGain(kingdom) });
-    const btnY = content.y + content.height - 150;
+    const btnY = content.y + content.height - 218;
     const btnW = (content.width - 10) / 2;
-    const bh = 42;
+    const bh = 38;
+    const gap = 8;
     const act = (fn: () => void) => {
       fn();
       this.refresh();
@@ -1967,13 +2041,27 @@ export class UIScene extends Phaser.Scene {
     this.modalLayer.add(this.ui.button({ x: content.x, y: btnY, width: btnW, height: bh }, giftLabel, () => act(() => sendGift(this.state, kingdomId)), { variant: 'primary', fontSize: '11px' }));
     this.modalLayer.add(this.ui.button({ x: content.x + btnW + 10, y: btnY, width: btnW, height: bh }, t('diplo.action.trade'), () => act(() => proposeTrade(this.state, kingdomId)), { variant: 'secondary', fontSize: '11px' }));
     const pacted = hasPact(kingdom);
-    this.modalLayer.add(this.ui.button({ x: content.x, y: btnY + bh + 10, width: btnW, height: bh }, pacted ? t('diplo.action.pacted') : t('diplo.action.pact'), () => {
+    this.modalLayer.add(this.ui.button({ x: content.x, y: btnY + bh + gap, width: btnW, height: bh }, pacted ? t('diplo.action.pacted') : t('diplo.action.pact'), () => {
       if (pacted) return;
       this.affairsPactOpen = true;
       this.affairsPactSweetener = 0;
       this.refresh();
     }, { variant: pacted ? 'disabled' : 'secondary', fontSize: '11px' }));
-    this.modalLayer.add(this.ui.button({ x: content.x + btnW + 10, y: btnY + bh + 10, width: btnW, height: bh }, t('diplo.action.tribute'), () => act(() => demandTribute(this.state, kingdomId)), { variant: 'danger', fontSize: '11px' }));
+    this.modalLayer.add(this.ui.button({ x: content.x + btnW + 10, y: btnY + bh + gap, width: btnW, height: bh }, t('diplo.action.tribute'), () => act(() => demandTribute(this.state, kingdomId)), { variant: 'danger', fontSize: '11px' }));
+
+    // ── Statecraft/espionage row (empire mode): envoy, sabotage, incite ──
+    if (this.state.gameMode === 'empire') {
+      const rowY = btnY + 2 * (bh + gap);
+      const w3 = (content.width - 2 * gap) / 3;
+      this.modalLayer.add(this.ui.button({ x: content.x, y: rowY, width: w3, height: bh },
+        envoy ? t('empire.action.recall') : t('empire.action.ambassador'),
+        () => act(() => (envoy ? recallAmbassador(this.state, kingdomId) : postAmbassador(this.state, kingdomId))),
+        { variant: envoy ? 'secondary' : 'primary', fontSize: '10px' }));
+      this.modalLayer.add(this.ui.button({ x: content.x + w3 + gap, y: rowY, width: w3, height: bh },
+        t('empire.action.sabotage'), () => act(() => fomentUnrest(this.state, kingdomId)), { variant: 'danger', fontSize: '10px' }));
+      this.modalLayer.add(this.ui.button({ x: content.x + 2 * (w3 + gap), y: rowY, width: w3, height: bh },
+        t('empire.action.incite'), () => act(() => inciteWar(this.state, kingdomId)), { variant: 'danger', fontSize: '10px' }));
+    }
   }
 
   private showPactOffer(kingdom: GameState['kingdoms'][number]): void {
@@ -2115,7 +2203,7 @@ export class UIScene extends Phaser.Scene {
     const chipW = 108;
     const chipH = 34;
     const x = 6;
-    let y = HEADER_HEIGHT + MESSAGE_STRIP_HEIGHT + 8;
+    let y = HEADER_HEIGHT + MESSAGE_STRIP_HEIGHT + MANDATE_BAR_BAND + 8;
 
     for (const empire of empires) {
       const relations = empire.relations ?? 50;
@@ -2174,6 +2262,109 @@ export class UIScene extends Phaser.Scene {
     this.empireBanners = [];
   }
 
+  /**
+   * The always-visible "XP bar" of empire mode: the Mandate of Heaven progression
+   * strip pinned under the message strip. Shows the current era, a fill toward the
+   * next era, and points — so the player *feels* progress accruing every tick and
+   * sees exactly how close the next unlock (era) is. Tapping opens the Agenda.
+   */
+  private renderMandateBar(): void {
+    if (!this.state.mandate) return;
+    const prog = eraProgress(this.state);
+
+    const x = 6;
+    const w = GAME_WIDTH - 12;
+    const h = 20;
+    const y = HEADER_HEIGHT + MESSAGE_STRIP_HEIGHT + 2;
+    const labelZone = 116;
+    const valueZone = 68;
+
+    const g = this.add.graphics().setDepth(428);
+    g.fillStyle(INK_UI.backgroundInk, 0.94);
+    g.fillRoundedRect(x, y, w, h, 6);
+    g.lineStyle(1, INK_UI.gold, 0.7);
+    g.strokeRoundedRect(x, y, w, h, 6);
+    // Progress track (kept clear of the text zones so labels stay legible on dark).
+    const trackX = x + labelZone;
+    const trackW = w - labelZone - valueZone;
+    const trackY = y + 6;
+    const trackH = h - 12;
+    g.fillStyle(INK_UI.brush, 0.35);
+    g.fillRoundedRect(trackX, trackY, trackW, trackH, 3);
+    g.fillStyle(INK_UI.gold, prog.atMax ? 0.95 : 0.8);
+    const fillW = Math.round(trackW * prog.ratio);
+    if (fillW > 2) g.fillRoundedRect(trackX, trackY, fillW, trackH, 3);
+    this.mandateBarObjects.push(g);
+
+    this.mandateBarObjects.push(
+      this.ui.label(x + 8, y + h / 2, `☯ ${eraLabel(prog.era)}`, 'caption', {
+        color: '#f3dd9a',
+        fontSize: '11px',
+        fontStyle: '700',
+      }).setOrigin(0, 0.5).setDepth(429),
+    );
+    const valueText = prog.atMax ? t('empire.mandate.barAscend') : `${Math.round(prog.points)} / ${prog.nextThreshold}`;
+    this.mandateBarObjects.push(
+      this.ui.label(x + w - 8, y + h / 2, valueText, 'caption', {
+        color: prog.atMax ? '#d9f0bd' : '#e8d89a',
+        fontSize: '10px',
+        align: 'right',
+      }).setOrigin(1, 0.5).setDepth(429),
+    );
+
+    const hit = this.add.rectangle(x + w / 2, y + h / 2, w, h, 0xffffff, 0.001)
+      .setDepth(429)
+      .setInteractive({ useHandCursor: true });
+    hit.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      window.__suppressMapInputUntil = performance.now() + 400;
+    });
+    hit.on('pointerup', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      window.__suppressMapInputUntil = performance.now() + 400;
+      this.openModal('directives');
+    });
+    this.mandateBarObjects.push(hit);
+  }
+
+  private clearMandateBar(): void {
+    for (const item of this.mandateBarObjects) {
+      item.destroy();
+    }
+    this.mandateBarObjects = [];
+  }
+
+  /** A short centred "Year N" flourish that fades in and out when the year turns. */
+  private playYearTransition(year: number): void {
+    const container = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 60).setDepth(2000).setAlpha(0).setScale(0.86);
+
+    const g = this.add.graphics();
+    g.fillStyle(INK_UI.backgroundInk, 0.82);
+    g.fillRoundedRect(-136, -46, 272, 100, 10);
+    g.lineStyle(2, INK_UI.gold, 0.9);
+    g.strokeRoundedRect(-136, -46, 272, 100, 10);
+    g.lineBetween(-104, -20, 104, -20);
+    g.lineBetween(-104, 30, 104, 30);
+
+    const title = this.ui.label(0, 4, t('empire.year.new', { year }), 'title', {
+      color: '#f3dd9a', fontSize: '34px', align: 'center',
+    }).setOrigin(0.5);
+    const sub = this.ui.label(0, 40, t('empire.year.reign', { year }), 'caption', {
+      color: '#e8d89a', fontSize: '11px', align: 'center',
+    }).setOrigin(0.5);
+    container.add([g, title, sub]);
+
+    this.tweens.add({ targets: container, alpha: 1, scale: 1, duration: 300, ease: 'Back.Out' });
+    this.tweens.add({
+      targets: container,
+      alpha: 0,
+      delay: 1000,
+      duration: 420,
+      ease: 'Cubic.In',
+      onComplete: () => container.destroy(),
+    });
+  }
+
   /** A prominent top-centre banner counting down a telegraphed invasion. */
   private renderTelegraphBanner(): void {
     const u = this.state.pendingUltimatum;
@@ -2190,7 +2381,7 @@ export class UIScene extends Phaser.Scene {
     const w = 220;
     const h = 26;
     const x = (GAME_WIDTH - w) / 2;
-    const y = HEADER_HEIGHT + MESSAGE_STRIP_HEIGHT + 6;
+    const y = HEADER_HEIGHT + MESSAGE_STRIP_HEIGHT + MANDATE_BAR_BAND + 6;
     const g = this.add.graphics().setDepth(432);
     g.fillStyle(INK_UI.backgroundInk, 0.92);
     g.fillRoundedRect(x, y, w, h, 6);
