@@ -2,8 +2,20 @@ import { isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import { campaignEventTemplates } from '../data/campaignEvents';
 import { addCourtModifier } from './CourtSystem';
 import { applyResourceDelta } from './ResourceSystem';
-import type { Army, CampaignEvent, Difficulty, GameState } from '../state/types';
+import { logEvent } from './empire/notifications';
+import type { Army, CampaignEvent, Difficulty, GameState, NotificationKind } from '../state/types';
 import { t } from '../i18n';
+
+/** Accent for each campaign event in the notification log; positive events read as rewards. */
+const CAMPAIGN_EVENT_KIND: Record<CampaignEvent['type'], NotificationKind> = {
+  'bandit-raid': 'threat',
+  flood: 'threat',
+  drought: 'threat',
+  'noble-uprising': 'threat',
+  'merchant-bounty': 'reward',
+  plague: 'threat',
+  'dynasty-attack': 'threat',
+};
 
 function difficultyEventCount(difficulty: Difficulty): number {
   if (difficulty === 'easy') return 8;
@@ -91,6 +103,7 @@ export function tickCampaignEvents(state: GameState): void {
 }
 
 function resolveCampaignEvent(state: GameState, event: CampaignEvent): void {
+  const messageBefore = state.message;
   switch (event.type) {
     case 'bandit-raid': {
       const ownedLands = state.lands.filter((l) => l.ownerId === PLAYER_KINGDOM_ID);
@@ -168,6 +181,12 @@ function resolveCampaignEvent(state: GameState, event: CampaignEvent): void {
       break;
     }
   }
+
+  // Mirror the event's banner message into the unified notification log (skip the
+  // dynasty-attack path — launchDynastyAttack logs its own, richer message).
+  if (event.type !== 'dynasty-attack' && state.message !== messageBefore) {
+    logEvent(state, state.message, CAMPAIGN_EVENT_KIND[event.type]);
+  }
 }
 
 export function launchDynastyAttack(state: GameState, kingdomId: string | undefined): void {
@@ -205,4 +224,5 @@ export function launchDynastyAttack(state: GameState, kingdomId: string | undefi
   };
   state.armies.push(army);
   state.message = t('msg.campaignEvent.dynastyAttack', { kingdom: kingdom.name });
+  logEvent(state, state.message, 'threat');
 }

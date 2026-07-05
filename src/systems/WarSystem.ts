@@ -17,7 +17,7 @@ import { applyResourceDelta, canSpend, getArmyGoldUpkeep, getBarracksLevel, refr
 import { getCourtBonuses } from './CourtSystem';
 import { eraIndex } from './empire/MandateSystem';
 import type { Army, ArmyComposition, BattlePreview, BattleStance, GameState, Land, RecruitmentOrder, SiegeOrder, UnitCounts } from '../state/types';
-import { t, tickLabel } from '../i18n';
+import { heroName, t, tickLabel } from '../i18n';
 
 const MAX_ARMY_LEVEL = 5;
 
@@ -75,6 +75,31 @@ export function grantGeneralExperience(state: GameState, army: Army, victory: bo
     if (general.battlesWon >= 9 && !general.traits.includes('conqueror')) general.traits.push('conqueror');
     else if (!general.traits.includes('veteran')) general.traits.push('veteran');
   }
+}
+
+/**
+ * Battlefield stakes (empire mode): when a host led by a general is routed, the commander
+ * risks their life — mostly a grievous wound (a long recovery, via the Energy system), and
+ * rarely death, a permanent loss. The king is never at risk. Returns the fate for the
+ * result screen, and applies wounds/removal as a side effect.
+ */
+function resolveGeneralFate(state: GameState, army: Army): { fate?: 'wounded' | 'slain'; name?: string } {
+  if (state.gameMode !== 'empire' || army.kingdomId !== PLAYER_KINGDOM_ID || !army.generalHeroId) return {};
+  const general = state.heroes.find((h) => h.id === army.generalHeroId);
+  if (!general || general.id === 'king') return {};
+
+  const roll = Math.random();
+  if (roll < 0.06) {
+    army.generalHeroId = undefined;
+    state.heroes = state.heroes.filter((h) => h.id !== general.id);
+    state.heroMissions = (state.heroMissions ?? []).filter((m) => m.heroId !== general.id);
+    return { fate: 'slain', name: heroName(general) };
+  }
+  if (roll < 0.3) {
+    general.fatigue = Math.min(100, general.fatigue + 45);
+    return { fate: 'wounded', name: heroName(general) };
+  }
+  return {};
 }
 
 /**
@@ -613,6 +638,7 @@ export function attackLand(state: GameState, armyId: string, targetLandId: strin
     return true;
   }
 
+  const fate = resolveGeneralFate(state, army);
   state.message = t('msg.defeatAt', { land: targetLand.name });
   state.latestBattleResult = {
     attackerArmyId: armyId,
@@ -620,6 +646,8 @@ export function attackLand(state: GameState, armyId: string, targetLandId: strin
     victory: false,
     attackerPower: preview.attackerPower,
     defenderPower: preview.defenderPower,
+    generalFate: fate.fate,
+    generalName: fate.name,
   };
   return false;
 }

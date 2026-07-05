@@ -106,6 +106,8 @@ export interface KingdomKing {
 export interface CampaignConfig {
   seaSides: 0 | 1 | 2 | 3;
   difficulty: Difficulty;
+  /** Optional dynasty founder chosen at setup (empire mode) — a starting Legendary hero. */
+  founderId?: string;
 }
 
 export interface CampaignScore {
@@ -303,11 +305,39 @@ export interface Hero {
   /** While seated in court, adds this card template to the active politics deck. */
   signatureCardId?: string;
   assignedTo?: string;
+  /** 0 = fresh, 100 = exhausted. Reframed as "Energy" (100 - fatigue) in the hero hub;
+   *  active hero actions (missions/abilities) spend it, resting recovers it. */
   fatigue: number;
   /** Battles won while commanding (empire mode); a veteran general grows in martial skill. */
   battlesWon?: number;
+  /** Missions completed (empire mode); drives renown growth and earned traits. */
+  missionsDone?: number;
   /** Earned traits (e.g. "Veteran", "Conqueror") shown on the hero card. */
   traits?: string[];
+}
+
+/** The kind of active mission a hero can be dispatched on (empire mode). One per hero type. */
+export type HeroMissionKind = 'raid' | 'sabotage' | 'taxCircuit' | 'quellUnrest';
+
+/** An in-flight hero mission that resolves after a number of economy ticks (empire mode). */
+export interface HeroMission {
+  id: string;
+  heroId: string;
+  kind: HeroMissionKind;
+  /** Rival empire the mission acts against (raid/sabotage). */
+  targetKingdomId?: string;
+  ticksRemaining: number;
+  totalTicks: number;
+}
+
+/** A personal hero dilemma the roster raises for a decision (empire mode). */
+export type HeroEventKind = 'ambition' | 'exhaustion' | 'loyalty';
+
+/** A pending hero-authored decision card, resolved via a two-way choice. */
+export interface HeroEvent {
+  id: string;
+  heroId: string;
+  kind: HeroEventKind;
 }
 
 export interface CourtModifier {
@@ -387,6 +417,10 @@ export interface BattleResult {
   defenderPower: number;
   /** Ticks until the besieged district falls; only set when `victory` is true. */
   siegeTicks?: number;
+  /** Fate of the commanding general on a defeat (empire-mode battlefield stakes). */
+  generalFate?: 'wounded' | 'slain';
+  /** Name of the general whose fate is reported, for the result screen. */
+  generalName?: string;
 }
 
 /** An in-progress siege: a victorious army occupies the land while it slowly falls to the attacker. */
@@ -471,14 +505,32 @@ export interface CourtState {
   cardCooldown: number;
 }
 
+/** Visual accent shared by transient toasts and the persistent event log. */
+export type NotificationKind = 'info' | 'reward' | 'threat' | 'milestone';
+
 /** A transient on-screen notification pushed by gameplay systems (empire mode). */
 export interface Toast {
   id: string;
   text: string;
   /** Visual accent: neutral info, a reward/gain, a warning/threat, or a milestone. */
-  kind: 'info' | 'reward' | 'threat' | 'milestone';
+  kind: NotificationKind;
   /** Economy tick the toast was created on; the UI expires it after a few ticks. */
   createdTurn: number;
+}
+
+/**
+ * A persistent notification entry. Every gameplay notification (empire toasts and
+ * campaign event messages) is appended here so the player can open a paused log and
+ * read the full history — the single source of truth behind the notification bell.
+ */
+export interface GameEvent {
+  id: string;
+  text: string;
+  kind: NotificationKind;
+  /** Economy tick the event occurred on. */
+  turn: number;
+  /** False until the player opens the log; drives the unread badge count. */
+  read: boolean;
 }
 
 export type DirectiveTier = 'short' | 'medium' | 'epic';
@@ -587,6 +639,8 @@ export interface GameState {
   invasions?: InvasionRecord[];
   /** Transient notification queue (empire mode). */
   toasts?: Toast[];
+  /** Persistent notification history, read via the notification bell/log (all modes). */
+  eventLog?: GameEvent[];
   /** Live objectives board (empire mode). */
   directives?: Directive[];
   /** Rotating cursor into the directive template deck, per tier. */
@@ -609,6 +663,14 @@ export interface GameState {
   legacyBanked?: boolean;
   /** Remaining cooldown ticks per royal ability (empire mode). */
   abilityCooldowns?: Record<string, number>;
+  /** In-flight hero missions resolving on a tick timer (empire mode). */
+  heroMissions?: HeroMission[];
+  /** Remaining cooldown ticks per hero signature ability, keyed by heroId (empire mode). */
+  heroAbilityCooldowns?: Record<string, number>;
+  /** A personal hero dilemma awaiting the player's decision (empire mode). */
+  pendingHeroEvent?: HeroEvent;
+  /** Ticks until another hero event may surface. */
+  heroEventCooldown?: number;
   /** Kingdom-wide diplomatic reputation 0-100; eases deals, raised/lowered by honoring/breaking treaties. */
   prestige?: number;
   /** A foreign-affairs dilemma awaiting the player's decision. */

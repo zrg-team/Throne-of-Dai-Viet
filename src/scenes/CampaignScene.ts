@@ -6,7 +6,8 @@ import type { CampaignConfig, Difficulty, GameMode } from '../state/types';
 import { InkUI, INK_UI } from '../ui/InkUI';
 import { createLabel } from '../ui/theme';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
-import { t } from '../i18n';
+import { FOUNDER_IDS, heroTemplates } from '../data/heroes';
+import { heroEffect, heroName, heroTypeLabel, t } from '../i18n';
 
 type SeaSides = CampaignConfig['seaSides'];
 
@@ -28,6 +29,7 @@ export class CampaignScene extends Phaser.Scene {
   private content: Phaser.GameObjects.GameObject[] = [];
   private selectedSeaSides: SeaSides = 0;
   private selectedDifficulty: Difficulty = 'normal';
+  private selectedFounderId: string = FOUNDER_IDS[0];
   private mode: GameMode = 'campaign';
 
   constructor() {
@@ -84,13 +86,13 @@ export class CampaignScene extends Phaser.Scene {
     const mapOpts = this.mapTypeOptions();
     const diffOpts = this.difficultyOptions();
 
-    this.renderSectionLabel(130, t('campaign.mapType'));
+    this.renderSectionLabel(130, t('campaign.mapType'), '#e8d89a');
     this.renderOptionRow(mapOpts, 158, (idx) => {
       this.selectedSeaSides = mapOpts[idx].seaSides;
       this.render();
     }, (o) => o.seaSides === this.selectedSeaSides);
 
-    this.renderSectionLabel(222, t('campaign.difficulty'));
+    this.renderSectionLabel(222, t('campaign.difficulty'), '#e8d89a');
     this.renderOptionRow(diffOpts, 250, (idx) => {
       this.selectedDifficulty = diffOpts[idx].difficulty;
       this.render();
@@ -104,7 +106,11 @@ export class CampaignScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.content.push(descText);
 
-    this.renderInfoCard(334);
+    if (this.mode === 'empire') {
+      this.renderFounderCard(334);
+    } else {
+      this.renderInfoCard(334);
+    }
 
     const beginBtn = this.ui.button(
       { x: 54, y: 596, width: GAME_WIDTH - 108, height: 52 },
@@ -123,11 +129,12 @@ export class CampaignScene extends Phaser.Scene {
     this.content.push(backBtn);
   }
 
-  private renderSectionLabel(y: number, label: string): void {
+  private renderSectionLabel(y: number, label: string, color?: string): void {
     const text = createLabel(this, GAME_WIDTH / 2, y, label.toUpperCase(), 'caption', {
       fontSize: '11px',
       fontStyle: '700',
       align: 'center',
+      ...(color ? { color } : {}),
     }).setOrigin(0.5);
     this.content.push(text);
   }
@@ -137,9 +144,10 @@ export class CampaignScene extends Phaser.Scene {
     y: number,
     onSelect: (idx: number) => void,
     isSelected: (option: T) => boolean,
+    opts: { btnH?: number } = {},
   ): void {
     const btnW = Math.floor((GAME_WIDTH - 56) / options.length);
-    const btnH = 42;
+    const btnH = opts.btnH ?? 42;
     const startX = 28;
 
     for (let i = 0; i < options.length; i += 1) {
@@ -156,15 +164,62 @@ export class CampaignScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
       hit.on('pointerup', () => onSelect(i));
 
+      // Auto-fit: wrap within the tile and shrink the font a step for labels too
+      // long to sit on one line (e.g. full Vietnamese hero names), so text never
+      // spills past the tile edges.
+      const wrapWidth = btnW - 12;
+      const longLabel = option.label.length > 10;
       const labelText = createLabel(this, x + btnW / 2, y + btnH / 2, option.label, 'label', {
-        fontSize: '13px',
+        fontSize: longLabel ? '11px' : '13px',
         fontStyle: selected ? '700' : '400',
         color: selected ? '#211103' : '#3a2a14',
         align: 'center',
+        wordWrap: { width: wrapWidth },
       }).setOrigin(0.5);
 
       this.content.push(tile, hit, labelText);
     }
+  }
+
+  private founderOptions(): Array<{ id: string; label: string; desc: string }> {
+    return FOUNDER_IDS.map((id) => {
+      const hero = heroTemplates.find((h) => h.id === id);
+      if (!hero) {
+        return { id, label: id, desc: '' };
+      }
+      return {
+        id,
+        label: heroName(hero),
+        desc: `${heroTypeLabel(hero.type)} · ${heroEffect(hero)}`,
+      };
+    });
+  }
+
+  private renderFounderCard(cardY: number): void {
+    const cardH = 176;
+    const g = this.add.graphics();
+    g.fillStyle(0x1a1208, 0.65);
+    g.fillRoundedRect(28, cardY, GAME_WIDTH - 56, cardH, 8);
+    g.lineStyle(1.5, INK_UI.gold, 0.52);
+    g.strokeRoundedRect(28, cardY, GAME_WIDTH - 56, cardH, 8);
+    this.content.push(g);
+
+    this.renderSectionLabel(cardY + 16, t('campaign.founder'), '#e8d89a');
+
+    const opts = this.founderOptions();
+    this.renderOptionRow(opts, cardY + 38, (idx) => {
+      this.selectedFounderId = opts[idx].id;
+      this.render();
+    }, (o) => o.id === this.selectedFounderId, { btnH: 48 });
+
+    const selected = opts.find((o) => o.id === this.selectedFounderId);
+    const blurb = createLabel(this, GAME_WIDTH / 2, cardY + 100, selected?.desc ?? '', 'caption', {
+      fontSize: '12px',
+      color: '#e8d89a',
+      align: 'center',
+      wordWrap: { width: GAME_WIDTH - 96 },
+    }).setOrigin(0.5, 0);
+    this.content.push(blurb);
   }
 
   private renderInfoCard(cardY: number): void {
@@ -198,6 +253,7 @@ export class CampaignScene extends Phaser.Scene {
     const config: CampaignConfig = {
       seaSides: this.selectedSeaSides,
       difficulty: this.selectedDifficulty,
+      founderId: this.mode === 'empire' ? this.selectedFounderId : undefined,
     };
     const state = this.mode === 'empire'
       ? createEmpireGameState(config)

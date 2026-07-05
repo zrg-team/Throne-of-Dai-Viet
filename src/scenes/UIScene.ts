@@ -27,18 +27,30 @@ import {
   naturalBaseline,
   proposePact,
 } from '../systems/DiplomacySystem';
-import { canTakeForeignChoice } from '../systems/ForeignEventSystem';
+import { foreignChoiceEnabled } from '../systems/ForeignEventSystem';
 import { directiveTitle } from '../systems/empire/DirectiveSystem';
 import { eraLabel, eraProgress, pointsToNextEra } from '../systems/empire/MandateSystem';
 import { allProjects, enactProject, isProjectEnacted, projectBlockedReason, projectDescription, projectTitle } from '../systems/empire/EdictSystem';
 import { ABILITIES, abilityBlockedReason, abilityCooldown, abilityLabel, useAbility } from '../systems/empire/AbilitySystem';
+import {
+  activeHeroMission,
+  getHeroEnergy,
+  heroAbilityBlockedReason,
+  heroAbilityCooldown,
+  heroAbilityLabel,
+  heroMissionBlockedReason,
+  heroMissionDef,
+  heroMissionTargets,
+  missionLabel,
+} from '../systems/empire/HeroActionSystem';
+import { heroEventView } from '../systems/empire/HeroEventSystem';
 import { bankLegacy, getLegacy, rankForScore } from '../state/legacy';
 import { MINIMAP_H, MINIMAP_W, renderMinimap, type MinimapWorldInfo } from '../ui/MinimapRenderer';
 import { renderHeroFace } from '../ui/FaceRenderer';
 import { COMPACT_CARD_Y, LandPanel } from '../ui/LandPanel';
 import { ResourceBar } from '../ui/ResourceBar';
 import { createLabel, createPanel, createWoodButton, PARCHMENT } from '../ui/theme';
-import { InkScrollArea, InkUI, INK_UI, type UIBounds } from '../ui/InkUI';
+import { InkScrollArea, InkUI, INK_UI, type InkCardOptions, type UIBounds } from '../ui/InkUI';
 import { UI_FONT } from '../ui/fonts';
 import { makeSwipeableCard, popInModal, staggerIn } from '../ui/animations';
 import { formatEconomyLine, getArmyGoldUpkeep, getBuildOptions, getLaborStatus, getUpgradeOptions } from '../systems/ResourceSystem';
@@ -46,6 +58,8 @@ import {
   ALL_COURT_POSITIONS,
   assignHeroToLand,
   assignHeroToPosition,
+  formatCourtPositionEffect,
+  formatGovernorEffect,
   getCourtPositionLabel,
   removeHeroFromPosition,
 } from '../systems/CourtSystem';
@@ -88,8 +102,10 @@ type ModalScreen =
   | 'campaign-defeat'
   | 'foreign-affairs'
   | 'foreign-event'
+  | 'hero-event'
   | 'directives'
-  | 'edicts';
+  | 'edicts'
+  | 'event-log';
 
 const MESSAGE_STRIP_HEIGHT = 42;
 /** Vertical band reserved for the always-visible empire-mode Mandate progress bar. */
@@ -113,6 +129,7 @@ export class UIScene extends Phaser.Scene {
   private lastSpyReportCount = 0;
   private affairsBadge: Phaser.GameObjects.GameObject[] = [];
   private empireBanners: Phaser.GameObjects.GameObject[] = [];
+  private notifBell: Phaser.GameObjects.GameObject[] = [];
   private toastObjects: Phaser.GameObjects.GameObject[] = [];
   private telegraphObjects: Phaser.GameObjects.GameObject[] = [];
   private mandateBarObjects: Phaser.GameObjects.GameObject[] = [];
@@ -130,6 +147,10 @@ export class UIScene extends Phaser.Scene {
   private armyComposition: 'balanced' | 'spears' | 'archers' | 'shock' = 'balanced';
   private battleStance: 'assault' | 'balanced' | 'cautious' = 'balanced';
   private courtTab: 'positions' | 'governors' = 'positions';
+  /** When set, the Heroes modal shows the mission target picker for this hero id. */
+  private heroActionPicker?: string;
+  /** Which offered hero is currently selected in the recruitment draft. */
+  private selectedDraftId?: string;
   private courtPicker?: CourtPicker;
   private lastCourtView?: string;
   private modalContentBounds: UIBounds = { x: 28, y: 102, width: 334, height: 636 };
@@ -165,6 +186,7 @@ export class UIScene extends Phaser.Scene {
     this.requestBadge = [];
     this.affairsBadge = [];
     this.empireBanners = [];
+    this.notifBell = [];
     this.selectedAffairsKingdomId = undefined;
     this.affairsPactOpen = false;
     this.affairsPactSweetener = 0;
@@ -174,6 +196,8 @@ export class UIScene extends Phaser.Scene {
     this.armyFood = ARMY_DEFAULT_RATIONS;
     this.armySupplies = ARMY_DEFAULT_PROVISIONS;
     this.courtTab = 'positions';
+    this.heroActionPicker = undefined;
+    this.selectedDraftId = undefined;
     this.courtPicker = undefined;
     this.lastCourtView = undefined;
     this.activeScrollAreas = [];
@@ -210,7 +234,8 @@ export class UIScene extends Phaser.Scene {
       fontFamily: UI_FONT,
       fontSize: '12px',
       lineSpacing: 1,
-      wordWrap: { width: GAME_WIDTH - 28 },
+      // Reserve the right edge of the strip for the Chronicle (notification) bell.
+      wordWrap: { width: GAME_WIDTH - 110 },
     }).setDepth(110);
     this.messageText.setMaxLines(2);
 
@@ -286,21 +311,8 @@ export class UIScene extends Phaser.Scene {
       return;
     }
 
-    if (this.modalScreen === 'heroes') {
-      const front = this.state.activeHeroDraft?.[0];
-      if (x >= 16 && x <= 120 && y >= 727 && y <= 769) {
-        this.state.activeHeroDraft = undefined;
-        this.state.message = t('msg.visitingHeroesLeave');
-        this.closeModal();
-        this.refresh();
-        return;
-      }
-      if (front && x >= 207 && x <= 333 && y >= 727 && y <= 769) {
-        this.events.emit('ui:hero-pick', front.id);
-        this.closeModal();
-        return;
-      }
-    }
+    // The recruitment draft (Pass / Recruit + the selector tiles) is driven by its own
+    // interactive buttons and hit areas, so no coordinate handling is needed here.
 
     if (this.modalScreen === 'army') {
       const leaders = this.state.heroes.filter((hero) => !hero.assignedTo);
@@ -383,6 +395,7 @@ export class UIScene extends Phaser.Scene {
 
   private handleAction(action: string): void {
     if (action === 'heroes') {
+      this.heroActionPicker = undefined;
       this.openModal('heroes');
       return;
     }
@@ -497,6 +510,7 @@ export class UIScene extends Phaser.Scene {
     this.clearModalLayer();
     this.modalLayer.setVisible(false);
     this.modalBuildLandId = undefined;
+    this.heroActionPicker = undefined;
     this.selectedAffairsKingdomId = undefined;
     this.affairsPactOpen = false;
     this.affairsPactSweetener = 0;
@@ -512,6 +526,7 @@ export class UIScene extends Phaser.Scene {
     this.clearEmpireBanners();
     this.clearTelegraphBanner();
     this.clearToastFeed();
+    this.clearNotifBell();
     this.clearMandateBar();
 
     // A brief cinematic when the year turns — the survival clock advancing is the
@@ -554,6 +569,11 @@ export class UIScene extends Phaser.Scene {
       return;
     }
 
+    if (this.modalScreen === 'none' && this.state.pendingHeroEvent) {
+      this.openModal('hero-event');
+      return;
+    }
+
     if (this.modalScreen !== 'none') {
       this.bottomSheet.hide();
       this.renderModal();
@@ -563,6 +583,7 @@ export class UIScene extends Phaser.Scene {
     this.clearModalLayer();
     this.modalLayer.setVisible(false);
     this.renderGameMenuButton();
+    this.renderNotifBell();
     this.renderMapControls();
     this.renderMinimap();
 
@@ -574,7 +595,8 @@ export class UIScene extends Phaser.Scene {
       this.renderMandateBar();
       this.renderEmpireBanners();
       this.renderTelegraphBanner();
-      this.renderToastFeed();
+      // Toasts are surfaced in the header message strip (+ notification bell), not as a
+      // floating feed that overlaps on-map panels — one place for notifications.
     }
 
     if (isCampaignMode(this.state.gameMode)) {
@@ -641,10 +663,14 @@ export class UIScene extends Phaser.Scene {
       this.showDirectivesScreen();
     } else if (this.modalScreen === 'edicts') {
       this.showEdictsScreen();
+    } else if (this.modalScreen === 'event-log') {
+      this.showEventLogScreen();
     } else if (this.modalScreen === 'foreign-affairs') {
       this.showForeignAffairsScreen();
     } else if (this.modalScreen === 'foreign-event') {
       this.showForeignEventScreen();
+    } else if (this.modalScreen === 'hero-event') {
+      this.showHeroEventScreen();
     }
 
     if (this.modalJustOpened) {
@@ -673,6 +699,16 @@ export class UIScene extends Phaser.Scene {
     const content = this.modalContentBounds;
 
     if (!this.state.activeHeroDraft || this.state.activeHeroDraft.length === 0) {
+      // Empire mode: the roster is a live command hub — dispatch missions, fire signature
+      // abilities, watch Energy recover. Other modes keep the simple read-only roster.
+      if (this.state.gameMode === 'empire') {
+        if (this.heroActionPicker) {
+          this.showHeroMissionTargetPicker(this.heroActionPicker);
+        } else {
+          this.showHeroCommandHub();
+        }
+        return;
+      }
       const favor = this.state.court.favor;
       const threshold = this.state.court.favorThreshold;
       this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, content.y + 6, t('status.noHeroesWaiting'), 'label', {
@@ -713,49 +749,231 @@ export class UIScene extends Phaser.Scene {
       return;
     }
 
-    const [front, second, third] = this.state.activeHeroDraft;
-    const draftCards: Phaser.GameObjects.Container[] = [];
-    if (third) {
-      const card = this.drawHeroCard(third, GAME_WIDTH / 2 + 18, 394, 0.94, 0.08, false);
-      this.modalLayer.add(card);
-      draftCards.push(card);
-    }
-    if (second) {
-      const card = this.drawHeroCard(second, GAME_WIDTH / 2 - 16, 382, 0.97, -0.06, false);
-      this.modalLayer.add(card);
-      draftCards.push(card);
-    }
-    const frontCard = this.drawHeroCard(front, GAME_WIDTH / 2, 372, 1, 0, true);
-    this.modalLayer.add(frontCard);
-    draftCards.push(frontCard);
+    // A visiting party of heroes — the player picks ONE. A tappable portrait tile per
+    // offered hero drives the selection; the big card shows the selected hero's detail.
+    const draft = this.state.activeHeroDraft;
+    const selectedId = draft.some((h) => h.id === this.selectedDraftId) ? this.selectedDraftId! : draft[0].id;
+    const selected = draft.find((h) => h.id === selectedId) ?? draft[0];
 
-    if (this.modalJustOpened) {
-      staggerIn(this, draftCards, { staggerMs: 90, offsetY: -40, duration: 260 });
-    }
-
-    makeSwipeableCard(this, frontCard, 304, 500, {
-      onSwipeRight: () => {
-        this.events.emit('ui:hero-pick', front.id);
-        this.closeModal();
-      },
-      onSwipeLeft: () => {
-        this.state.activeHeroDraft = undefined;
-        this.state.message = t('msg.visitingHeroesLeave');
-        this.closeModal();
+    const tileW = Math.min(104, Math.floor((content.width - (draft.length - 1) * 8) / draft.length));
+    const tileGap = 8;
+    const totalW = draft.length * tileW + (draft.length - 1) * tileGap;
+    const selStartX = GAME_WIDTH / 2 - totalW / 2;
+    const selY = content.y;
+    const selectorTiles: Phaser.GameObjects.Container[] = [];
+    draft.forEach((hero, i) => {
+      const tx = selStartX + i * (tileW + tileGap);
+      const isSelected = hero.id === selectedId;
+      const tile = this.ui.card({ x: tx, y: selY, width: tileW, height: 92 }, {
+        border: isSelected ? INK_UI.gold : INK_UI.softBrush,
+        borderWidth: isSelected ? 3 : 1.5,
+      });
+      this.modalLayer.add(tile);
+      this.modalLayer.add(renderHeroFace(this, hero, tx + tileW / 2, selY + 30, 0.4));
+      this.modalLayer.add(createLabel(this, tx + tileW / 2, selY + 58, heroName(hero), 'caption', {
+        fontSize: '9px',
+        align: 'center',
+        color: isSelected ? '#f3dd9a' : '#c9bd94',
+        wordWrap: { width: tileW - 8 },
+      }).setOrigin(0.5, 0).setMaxLines(2));
+      const hit = this.add.rectangle(tx + tileW / 2, selY + 46, tileW, 92, 0xffffff, 0.001).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+        event.stopPropagation();
+        this.selectedDraftId = hero.id;
         this.refresh();
-      },
+      });
+      this.modalLayer.add(hit);
+      selectorTiles.push(tile);
     });
 
-    this.modalLayer.add(createWoodButton(this, 110, 748, 126, 42, t('action.pass'), () => {
-      this.state.activeHeroDraft = undefined;
-      this.state.message = t('msg.visitingHeroesLeave');
-      this.closeModal();
-      this.refresh();
-    }, { variant: 'dark' }));
+    const cardScale = 0.82;
+    const cardCy = selY + 92 + 14 + 250 * cardScale;
+    const bigCard = this.drawHeroCard(selected, GAME_WIDTH / 2, cardCy, cardScale, 0, true);
+    this.modalLayer.add(bigCard);
+
+    if (this.modalJustOpened) {
+      staggerIn(this, selectorTiles, { staggerMs: 70, offsetY: -20, duration: 220 });
+    }
+
+    makeSwipeableCard(this, bigCard, 304 * cardScale, 500 * cardScale, {
+      onSwipeRight: () => {
+        this.events.emit('ui:hero-pick', selected.id);
+        this.closeModal();
+      },
+      onSwipeLeft: () => this.passDraft(),
+    });
+
+    this.modalLayer.add(createWoodButton(this, 110, 748, 126, 42, t('action.pass'), () => this.passDraft(), { variant: 'dark' }));
     this.modalLayer.add(createWoodButton(this, 270, 748, 126, 42, t('action.recruit'), () => {
-      this.events.emit('ui:hero-pick', front.id);
+      this.events.emit('ui:hero-pick', selected.id);
       this.closeModal();
     }, { variant: 'highlight' }));
+  }
+
+  private passDraft(): void {
+    this.state.activeHeroDraft = undefined;
+    this.selectedDraftId = undefined;
+    this.state.message = t('msg.visitingHeroesLeave');
+    this.closeModal();
+    this.refresh();
+  }
+
+  private showHeroCommandHub(): void {
+    const content = this.modalContentBounds;
+    const favor = this.state.court.favor;
+    const threshold = this.state.court.favorThreshold;
+    this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, content.y, t('status.nextArrival', { favor: Math.round(favor), threshold }), 'caption', {
+      fontSize: '11px',
+      align: 'center',
+    }).setOrigin(0.5));
+
+    const listBounds = { x: content.x, y: content.y + 22, width: content.width, height: content.height - 22 };
+    const scroll = this.ui.scrollArea(listBounds);
+    scroll.addTo(this.modalLayer);
+    this.activeScrollAreas.push(scroll);
+
+    const rowH = 122;
+    const rows: Phaser.GameObjects.Container[] = [];
+    this.state.heroes.forEach((hero, index) => {
+      const row = this.buildHeroHubRow(hero, listBounds.width, index * rowH, rowH - 10);
+      scroll.content.add(row);
+      rows.push(row);
+    });
+    scroll.setContentHeight(this.state.heroes.length * rowH);
+    if (this.modalJustOpened) {
+      staggerIn(this, rows);
+    }
+  }
+
+  private buildHeroHubRow(hero: Hero, width: number, top: number, height: number): Phaser.GameObjects.Container {
+    const row = this.add.container(0, top);
+    row.add(this.ui.card({ x: 0, y: 0, width, height }));
+    row.add(renderHeroFace(this, hero, 30, 34, 0.32));
+
+    const textX = 60;
+    const energyLabelW = 62;
+    row.add(createLabel(this, textX, 8, heroName(hero), 'label', {
+      fontSize: '13px',
+      wordWrap: { width: width - textX - energyLabelW },
+    }).setMaxLines(1));
+    // Type + upkeep cost so the player can weigh each hero's payroll at a glance.
+    row.add(createLabel(this, textX, 26, `${heroTypeLabel(hero.type)} · ${t('hero.hub.upkeep', { gold: hero.upkeepGold })}`, 'caption', {
+      fontSize: '10px',
+      color: '#b89b5e',
+    }).setMaxLines(1));
+
+    // Energy meter — the spine that paces all hero action.
+    const energy = getHeroEnergy(hero);
+    row.add(createLabel(this, width - 10, 8, t('hero.hub.energy', { value: energy }), 'caption', { fontSize: '9px', align: 'right', color: '#b89b5e' }).setOrigin(1, 0));
+    row.add(this.ui.statBar({ x: textX, y: 44, width: width - textX - 10, height: 7 }, energy, 100, energy > 40 ? INK_UI.jade : INK_UI.cinnabar));
+
+    // Status line (friendly label; never wraps into the button row).
+    const mission = activeHeroMission(this.state, hero.id);
+    row.add(createLabel(this, textX, 56, this.heroStatusLabel(hero), 'caption', {
+      fontSize: '10px',
+      color: mission ? '#e8d89a' : '#9a8a5e',
+      wordWrap: { width: width - textX - 10 },
+    }).setMaxLines(1));
+
+    // Action buttons: Dispatch (mission) + signature Ability.
+    const btnY = height - 32;
+    const btnW = (width - 12) / 2;
+    const def = heroMissionDef(hero);
+    const missionBlocked = heroMissionBlockedReason(this.state, hero);
+    row.add(this.ui.button({ x: 4, y: btnY, width: btnW, height: 26 }, t('hero.hub.dispatch', { mission: missionLabel(def.kind) }), () => {
+      if (missionBlocked) {
+        this.state.message = missionBlocked;
+        this.refresh();
+        return;
+      }
+      if (def.needsTarget) {
+        this.heroActionPicker = hero.id;
+        this.refresh();
+      } else {
+        this.events.emit('ui:hero-mission', hero.id);
+      }
+    }, { variant: missionBlocked ? 'disabled' : 'primary', fontSize: '10px' }));
+
+    const abilityBlocked = heroAbilityBlockedReason(this.state, hero);
+    const cd = heroAbilityCooldown(this.state, hero.id);
+    const abilityText = cd > 0 ? `${heroAbilityLabel(hero)} (${cd})` : heroAbilityLabel(hero);
+    row.add(this.ui.button({ x: 8 + btnW, y: btnY, width: btnW, height: 26 }, abilityText, () => {
+      if (abilityBlocked) {
+        this.state.message = abilityBlocked;
+        this.refresh();
+        return;
+      }
+      this.events.emit('ui:hero-ability', hero.id);
+    }, { variant: abilityBlocked ? 'disabled' : 'secondary', fontSize: '10px' }));
+
+    return row;
+  }
+
+  /** A short, human-readable status for a hero (mission / posting / idle) — never a raw id. */
+  private heroStatusLabel(hero: Hero): string {
+    const mission = activeHeroMission(this.state, hero.id);
+    if (mission) {
+      return t('hero.hub.onMission', { mission: missionLabel(mission.kind), ticks: mission.ticksRemaining });
+    }
+    const assignment = hero.assignedTo;
+    if (!assignment) {
+      return t('status.idle');
+    }
+    if (assignment.startsWith('diplomacy:')) {
+      const land = this.state.lands.find((l) => l.id === assignment.slice('diplomacy:'.length));
+      return t('status.assigned', { assignment: land?.name ?? t('action.affairs') });
+    }
+    const land = this.state.lands.find((l) => l.id === assignment);
+    if (land) {
+      return t('status.assigned', { assignment: land.name });
+    }
+    const army = this.state.armies.find((ar) => ar.id === assignment);
+    if (army) {
+      return t('status.assigned', { assignment: army.name });
+    }
+    return t('status.assigned', { assignment });
+  }
+
+  private showHeroMissionTargetPicker(heroId: string): void {
+    const hero = this.state.heroes.find((h) => h.id === heroId);
+    const content = this.modalContentBounds;
+    this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, content.y, t('hero.hub.chooseTarget', { hero: hero ? heroName(hero) : '' }), 'label', {
+      fontSize: '15px',
+      align: 'center',
+      wordWrap: { width: 290 },
+    }).setOrigin(0.5));
+
+    const targets = heroMissionTargets(this.state);
+    const listBounds = { x: content.x, y: content.y + 34, width: content.width, height: content.height - 94 };
+    const scroll = this.ui.scrollArea(listBounds);
+    scroll.addTo(this.modalLayer);
+    this.activeScrollAreas.push(scroll);
+    const rows: Phaser.GameObjects.Container[] = [];
+    targets.forEach((kingdom, index) => {
+      const row = this.ui.card({ x: 0, y: index * 66, width: listBounds.width, height: 58 }, {
+        title: kingdom.name,
+        subtitle: t('hero.target.stats', { power: Math.round(kingdom.power ?? 0), stability: Math.round(kingdom.stability ?? 0) }),
+        action: {
+          label: t('hero.hub.strike'),
+          variant: 'primary',
+          onClick: () => {
+            this.heroActionPicker = undefined;
+            this.events.emit('ui:hero-mission', heroId, kingdom.id);
+          },
+        },
+      });
+      scroll.content.add(row);
+      rows.push(row);
+    });
+    scroll.setContentHeight(targets.length * 66);
+    if (this.modalJustOpened) {
+      staggerIn(this, rows);
+    }
+
+    this.modalLayer.add(createWoodButton(this, GAME_WIDTH / 2, this.modalFooterBounds.y + 20, 150, 40, t('action.cancel'), () => {
+      this.heroActionPicker = undefined;
+      this.refresh();
+    }, { variant: 'dark' }));
   }
 
   private showCourtScreen(): void {
@@ -808,15 +1026,18 @@ export class UIScene extends Phaser.Scene {
     scroll.addTo(this.modalLayer);
     this.activeScrollAreas.push(scroll);
     const rows: Phaser.GameObjects.Container[] = [];
-    ALL_COURT_POSITIONS.forEach((positionId, index) => {
-      const y = index * 62;
+    let rowY = 0;
+    ALL_COURT_POSITIONS.forEach((positionId) => {
       const unlocked = this.state.court.unlockedSeats.includes(positionId);
       const heroId = this.state.court.seats[positionId];
       const hero = heroId ? this.state.heroes.find((candidate) => candidate.id === heroId) : undefined;
       const status = !unlocked ? t('status.lockedPublic') : hero ? heroName(hero) : t('status.vacant');
-      const row = this.ui.card({ x: 0, y, width: bounds.width, height: 54 }, {
+      // A seated hero shows the concrete bonus they're providing right now.
+      const effect = hero ? (formatCourtPositionEffect(positionId, hero.stats) || t('court.fx.none')) : undefined;
+      const row = this.ui.card({ x: 0, y: rowY, width: bounds.width, height: 54 }, {
         title: getCourtPositionLabel(positionId),
         subtitle: status,
+        body: effect,
         muted: !unlocked,
         border: unlocked ? INK_UI.gold : INK_UI.softBrush,
         action: hero
@@ -843,8 +1064,9 @@ export class UIScene extends Phaser.Scene {
       });
       scroll.content.add(row);
       rows.push(row);
+      rowY += (row.getData('cardHeight') as number ?? 54) + 8;
     });
-    scroll.setContentHeight(ALL_COURT_POSITIONS.length * 62);
+    scroll.setContentHeight(Math.max(0, rowY - 8));
 
     if (animateRows) {
       staggerIn(this, rows);
@@ -867,12 +1089,13 @@ export class UIScene extends Phaser.Scene {
     scroll.addTo(this.modalLayer);
     this.activeScrollAreas.push(scroll);
     const rows: Phaser.GameObjects.Container[] = [];
-    lands.forEach((land, index) => {
-      const y = index * 62;
+    let rowY = 0;
+    lands.forEach((land) => {
       const governor = this.state.heroes.find((candidate) => candidate.assignedTo === land.id);
-      const row = this.ui.card({ x: 0, y, width: bounds.width, height: 54 }, {
+      const row = this.ui.card({ x: 0, y: rowY, width: bounds.width, height: 54 }, {
         title: land.name,
         subtitle: governor ? t('status.governor', { name: heroName(governor) }) : t('status.noGovernor'),
+        body: governor ? formatGovernorEffect(governor.stats) : undefined,
         action: {
           label: governor ? t('action.change') : t('action.assign'),
           variant: governor ? 'secondary' : 'primary',
@@ -884,8 +1107,9 @@ export class UIScene extends Phaser.Scene {
       });
       scroll.content.add(row);
       rows.push(row);
+      rowY += (row.getData('cardHeight') as number ?? 54) + 8;
     });
-    scroll.setContentHeight(lands.length * 62);
+    scroll.setContentHeight(Math.max(0, rowY - 8));
 
     if (animateRows) {
       staggerIn(this, rows);
@@ -941,10 +1165,18 @@ export class UIScene extends Phaser.Scene {
         },
       });
       row.add(renderHeroFace(this, hero, 29, 29, 0.34));
-      row.add(createLabel(this, 58, 12, heroName(hero), 'label', { fontSize: '13px', wordWrap: { width: 176 } }));
-      if (picker.kind === 'diplomacy') {
-        row.add(createLabel(this, 58, 34, t('status.administration', { value: hero.stats.administration }), 'caption', { fontSize: '11px' }));
-      }
+      row.add(createLabel(this, 58, 10, heroName(hero), 'label', { fontSize: '13px', wordWrap: { width: 176 } }).setMaxLines(1));
+      // Show what this hero would actually do in the seat — so each choice is informed.
+      const effectLine = picker.kind === 'position'
+        ? (formatCourtPositionEffect(picker.positionId, hero.stats) || t('court.fx.none'))
+        : picker.kind === 'land'
+          ? formatGovernorEffect(hero.stats)
+          : t('status.administration', { value: hero.stats.administration });
+      row.add(createLabel(this, 58, 32, effectLine, 'caption', {
+        fontSize: '10px',
+        color: '#7fa86a',
+        wordWrap: { width: 182 },
+      }).setMaxLines(1));
       scroll.content.add(row);
       rows.push(row);
     });
@@ -1147,14 +1379,25 @@ export class UIScene extends Phaser.Scene {
     this.activeScrollAreas.push(scroll);
     const buildRows: Phaser.GameObjects.Container[] = [];
 
-    upgradeOptions.forEach((option, index) => {
-      const y = index * 136;
+    // Cards auto-grow to fit their (variable-length) text, so lay them out with a
+    // running cursor and a fixed gap rather than a fixed stride — no overlap, no clip.
+    const rowGap = 10;
+    let rowY = 0;
+    const addRow = (cardOpts: InkCardOptions, minHeight: number): void => {
+      // The card grows to fit its measured text; read back its actual height to stride.
+      const row = this.ui.card({ x: 0, y: rowY, width: listBounds.width, height: minHeight }, cardOpts);
+      scroll.content.add(row);
+      buildRows.push(row);
+      rowY += (row.getData('cardHeight') as number ?? minHeight) + rowGap;
+    };
+
+    upgradeOptions.forEach((option) => {
       const cost = formatCost(option.cost);
       const label = `${buildingLabel(option.type)} - ${t('building.level', { level: `${option.level}/${option.maxLevel}` })}`;
       const atMax = option.level >= option.maxLevel;
       const costLine = atMax ? t('status.maximumLevel') : `${t('status.upgradeCost', { cost })} · ${option.ticks} ${tickLabel(option.ticks)}`;
       const detail = !atMax && !option.canUpgrade ? option.reason ?? t('status.unavailable') : '';
-      const row = this.ui.card({ x: 0, y, width: listBounds.width, height: 126 }, {
+      addRow({
         title: label,
         subtitle: costLine,
         body: detail || formatBuildDetails(option),
@@ -1174,16 +1417,12 @@ export class UIScene extends Phaser.Scene {
           this.refresh();
           },
         },
-      });
-      scroll.content.add(row);
-      buildRows.push(row);
+      }, 116);
     });
 
-    const destroyStartY = upgradeOptions.length * 136;
     land.buildings.forEach((building, index) => {
-      const y = destroyStartY + index * 84;
       const label = `${buildingLabel(building.type)} - ${t('building.level', { level: building.level })}`;
-      const row = this.ui.card({ x: 0, y, width: listBounds.width, height: 74 }, {
+      addRow({
         title: `${t('action.destroy')} ${label}`,
         body: t('status.noRefund'),
         border: INK_UI.cinnabar,
@@ -1196,16 +1435,13 @@ export class UIScene extends Phaser.Scene {
             this.refresh();
           },
         },
-      });
-      scroll.content.add(row);
-      buildRows.push(row);
+      }, 64);
     });
 
-    options.forEach((option, index) => {
-      const y = destroyStartY + land.buildings.length * 84 + index * 136;
+    options.forEach((option) => {
       const cost = formatCost(option.cost);
       const detail = option.canBuild ? `${buildDescription(option.type, land)}\n${formatBuildDetails(option)}` : option.reason ?? t('status.unavailable');
-      const row = this.ui.card({ x: 0, y, width: listBounds.width, height: 126 }, {
+      addRow({
         title: buildingLabel(option.type),
         subtitle: `${t('status.cost', { cost })} · ${option.ticks} ${tickLabel(option.ticks)}`,
         body: detail,
@@ -1224,13 +1460,10 @@ export class UIScene extends Phaser.Scene {
           this.refresh();
           },
         },
-      });
-      scroll.content.add(row);
-      buildRows.push(row);
+      }, 116);
     });
 
-    const contentHeight = upgradeOptions.length * 136 + land.buildings.length * 84 + options.length * 136;
-    scroll.setContentHeight(contentHeight > 0 ? contentHeight - 10 : 0);
+    scroll.setContentHeight(Math.max(0, rowY - rowGap));
 
     if (this.modalJustOpened) {
       staggerIn(this, buildRows);
@@ -1263,6 +1496,16 @@ export class UIScene extends Phaser.Scene {
         border: result.victory ? INK_UI.gold : INK_UI.cinnabar,
       }),
     );
+
+    if (result.generalFate && result.generalName) {
+      const fateText = result.generalFate === 'slain'
+        ? t('battle.generalSlain', { hero: result.generalName })
+        : t('battle.generalWounded', { hero: result.generalName });
+      this.modalLayer.add(this.ui.card({ x: content.x, y: content.y + 324, width: content.width, height: 66 }, {
+        body: fateText,
+        border: result.generalFate === 'slain' ? INK_UI.cinnabar : INK_UI.gold,
+      }));
+    }
 
     if (result.victory) {
       this.modalLayer.add(
@@ -1566,6 +1809,69 @@ export class UIScene extends Phaser.Scene {
       item.destroy();
     }
     this.gameMenuButton = [];
+  }
+
+  /**
+   * The Chronicle bell at the right edge of the message strip — the single entry point
+   * to the unified notification log. Shows an unread badge so new happenings (empire
+   * toasts, campaign events, spy reports) are noticed even after the transient feed fades.
+   */
+  private renderNotifBell(): void {
+    const log = this.state.eventLog ?? [];
+    const unread = log.reduce((n, e) => (e.read ? n : n + 1), 0);
+    const active = unread > 0;
+
+    const pillW = 90;
+    const pillH = 26;
+    const pillX = GAME_WIDTH - pillW - 8;
+    const pillY = HEADER_HEIGHT + (MESSAGE_STRIP_HEIGHT - pillH) / 2;
+    const accent = active ? INK_UI.gold : INK_UI.brush;
+
+    const g = this.add.graphics().setDepth(120);
+    g.fillStyle(INK_UI.backgroundInk, active ? 0.9 : 0.6);
+    g.fillRoundedRect(pillX, pillY, pillW, pillH, 6);
+    g.lineStyle(active ? 1.5 : 1, accent, active ? 0.95 : 0.55);
+    g.strokeRoundedRect(pillX, pillY, pillW, pillH, 6);
+
+    const label = this.ui.label(pillX + pillW / 2, pillY + pillH / 2, t('action.log'), 'button', {
+      color: active ? '#f3dd9a' : '#c9b884',
+      fontSize: '12px',
+      align: 'center',
+    }).setOrigin(0.5).setDepth(121);
+
+    const hit = this.add.rectangle(pillX + pillW / 2, pillY + pillH / 2, pillW, pillH, 0xffffff, 0.001)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(122);
+    hit.on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => event.stopPropagation());
+    hit.on('pointerup', (_p: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      this.openModal('event-log');
+    });
+
+    this.notifBell.push(g, label, hit);
+
+    if (active) {
+      const badgeX = pillX + pillW - 3;
+      const badgeY = pillY - 1;
+      const badge = this.add.graphics().setDepth(123);
+      badge.fillStyle(INK_UI.cinnabar, 0.98);
+      badge.fillCircle(badgeX, badgeY, 9);
+      badge.lineStyle(1, INK_UI.backgroundInk, 0.9);
+      badge.strokeCircle(badgeX, badgeY, 9);
+      const count = this.ui.label(badgeX, badgeY, unread > 9 ? '9+' : String(unread), 'button', {
+        color: '#fff4e0',
+        fontSize: '9px',
+        align: 'center',
+      }).setOrigin(0.5).setDepth(124);
+      this.notifBell.push(badge, count);
+    }
+  }
+
+  private clearNotifBell(): void {
+    for (const item of this.notifBell) {
+      item.destroy();
+    }
+    this.notifBell = [];
   }
 
   private renderMinimap(): void {
@@ -1893,6 +2199,70 @@ export class UIScene extends Phaser.Scene {
     scroll.setContentHeight(Math.max(listH, rowY));
   }
 
+  private showEventLogScreen(): void {
+    this.addModalBase(t('log.title'), t('log.subtitle'));
+    const content = this.modalContentBounds;
+
+    const log = this.state.eventLog ?? [];
+    // Opening the Chronicle acknowledges every entry; the bell badge clears on return.
+    for (const entry of log) {
+      entry.read = true;
+    }
+
+    if (log.length === 0) {
+      this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, content.y + 40, t('log.empty'), 'label', {
+        fontSize: '14px',
+        align: 'center',
+        color: '#b89b5e',
+        wordWrap: { width: content.width - 40 },
+      }).setOrigin(0.5));
+      return;
+    }
+
+    const scroll = this.ui.scrollArea({ x: content.x, y: content.y, width: content.width, height: content.height });
+    scroll.addTo(this.modalLayer);
+    this.activeScrollAreas.push(scroll);
+
+    // Newest first — the freshest happenings sit at the top of the list.
+    const entries = log.slice().reverse();
+    const gap = 6;
+    let rowY = 0;
+    for (const entry of entries) {
+      const accent =
+        entry.kind === 'reward' ? INK_UI.jade
+          : entry.kind === 'threat' ? INK_UI.cinnabar
+            : entry.kind === 'milestone' ? INK_UI.gold
+              : INK_UI.parchment;
+
+      const textLabel = createLabel(this, 40, 8, entry.text, 'label', {
+        fontSize: '12px',
+        color: '#efe3bb',
+        wordWrap: { width: content.width - 52 },
+      });
+      // Measure wrapped height so each card hugs its content regardless of text length.
+      const textH = textLabel.height;
+      const rowH = Math.max(46, textH + 26);
+
+      const card = this.add.graphics();
+      card.fillStyle(INK_UI.parchment, 0.12);
+      card.fillRoundedRect(0, rowY, content.width, rowH - gap, 6);
+      card.fillStyle(accent, 0.9);
+      card.fillRoundedRect(0, rowY, 5, rowH - gap, { tl: 6, bl: 6, tr: 0, br: 0 });
+      scroll.content.add(card);
+
+      textLabel.setY(rowY + 8);
+      scroll.content.add(textLabel);
+      scroll.content.add(createLabel(this, content.width - 8, rowY + rowH - gap - 16, t('log.turn', { turn: entry.turn }), 'caption', {
+        fontSize: '9px',
+        align: 'right',
+        color: '#b89b5e',
+      }).setOrigin(1, 0));
+
+      rowY += rowH;
+    }
+    scroll.setContentHeight(Math.max(content.height, rowY));
+  }
+
   private showEdictsScreen(): void {
     const mandate = this.state.mandate;
     this.addModalBase(t('empire.edict.title'), t('empire.mandate.edictPoints', { points: mandate?.edictPoints ?? 0 }));
@@ -2117,6 +2487,45 @@ export class UIScene extends Phaser.Scene {
     }, { variant: 'secondary', fontSize: '12px' }));
   }
 
+  private showHeroEventScreen(): void {
+    const view = heroEventView(this.state);
+    if (!view) {
+      this.closeModal();
+      return;
+    }
+    this.addModalBase(view.title, '');
+    const content = this.modalContentBounds;
+
+    if (view.hero) {
+      this.modalLayer.add(renderHeroFace(this, view.hero, GAME_WIDTH / 2, content.y + 44, 0.72));
+    }
+    this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, content.y + 96, view.description, 'label', {
+      fontSize: '13px',
+      align: 'center',
+      color: '#e8d89a',
+      wordWrap: { width: content.width - 20 },
+    }).setOrigin(0.5, 0));
+
+    let y = content.y + 196;
+    view.choices.forEach((choice, index) => {
+      this.modalLayer.add(this.ui.card({ x: content.x, y, width: content.width, height: 96 }, {
+        title: choice.label,
+        subtitle: choice.description,
+        border: index === 0 ? INK_UI.gold : INK_UI.softBrush,
+        actionPlacement: 'bottom',
+        action: {
+          label: t('action.choose'),
+          variant: index === 0 ? 'primary' : 'secondary',
+          onClick: () => {
+            this.events.emit('ui:hero-event-choice', choice.id);
+            this.closeModal();
+          },
+        },
+      }));
+      y += 108;
+    });
+  }
+
   private showForeignEventScreen(): void {
     const card = this.state.pendingForeignCard;
     if (!card) {
@@ -2133,7 +2542,7 @@ export class UIScene extends Phaser.Scene {
 
     let y = content.y + 166;
     for (const choice of card.choices) {
-      const enabled = canTakeForeignChoice(this.state, choice);
+      const enabled = foreignChoiceEnabled(this.state, card, choice);
       this.modalLayer.add(this.ui.card({ x: content.x, y, width: content.width, height: 84 }, {
         title: choice.label,
         subtitle: choice.description,
@@ -2400,38 +2809,6 @@ export class UIScene extends Phaser.Scene {
       item.destroy();
     }
     this.telegraphObjects = [];
-  }
-
-  /** Transient stacked notifications above the action bar (recent toasts only). */
-  private renderToastFeed(): void {
-    const toasts = this.state.toasts ?? [];
-    const recent = toasts.filter((tst) => this.state.turn - tst.createdTurn <= 3).slice(-3);
-    const chipW = 260;
-    const chipH = 24;
-    const x = (GAME_WIDTH - chipW) / 2;
-    let y = GAME_HEIGHT - ACTION_BAR_HEIGHT - 10 - recent.length * (chipH + 4);
-
-    for (const toast of recent) {
-      const accent =
-        toast.kind === 'reward' ? INK_UI.jade
-          : toast.kind === 'threat' ? INK_UI.cinnabar
-            : toast.kind === 'milestone' ? INK_UI.gold
-              : INK_UI.parchment;
-      const g = this.add.graphics().setDepth(434);
-      g.fillStyle(INK_UI.backgroundInk, 0.94);
-      g.fillRoundedRect(x, y, chipW, chipH, 6);
-      g.fillStyle(accent, 0.95);
-      g.fillRoundedRect(x, y, 5, chipH, { tl: 6, bl: 6, tr: 0, br: 0 });
-      g.lineStyle(1, accent, 0.6);
-      g.strokeRoundedRect(x, y, chipW, chipH, 6);
-      const text = this.ui.label(x + 12, y + chipH / 2, toast.text, 'caption', {
-        color: '#f3e6b8',
-        fontSize: '10px',
-        wordWrap: { width: chipW - 18 },
-      }).setOrigin(0, 0.5).setDepth(435);
-      this.toastObjects.push(g, text);
-      y += chipH + 4;
-    }
   }
 
   private clearToastFeed(): void {

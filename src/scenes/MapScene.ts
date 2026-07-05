@@ -15,6 +15,8 @@ import { computeTerrainRegions } from '../map/boundary';
 import { createRng } from '../map/random';
 import { getTerrainColor } from '../map/terrainTypes';
 import { recruitHero } from '../systems/HeroSystem';
+import { dispatchHeroMission, useHeroAbility } from '../systems/empire/HeroActionSystem';
+import { resolveHeroEvent } from '../systems/empire/HeroEventSystem';
 import { choosePoliticsCard } from '../systems/PoliticsSystem';
 import { resolveForeignChoice } from '../systems/ForeignEventSystem';
 import { SHEET_TOP } from '../ui/BottomSheet';
@@ -262,6 +264,18 @@ export class MapScene extends Phaser.Scene {
     });
     ui.events.on('ui:hero-pick', (heroId: string) => {
       recruitHero(this.state, heroId);
+      this.refresh();
+    });
+    ui.events.on('ui:hero-mission', (heroId: string, targetKingdomId?: string) => {
+      dispatchHeroMission(this.state, heroId, targetKingdomId);
+      this.refresh();
+    });
+    ui.events.on('ui:hero-ability', (heroId: string) => {
+      useHeroAbility(this.state, heroId);
+      this.refresh();
+    });
+    ui.events.on('ui:hero-event-choice', (choiceId: string) => {
+      resolveHeroEvent(this.state, choiceId);
       this.refresh();
     });
     ui.events.on('ui:politics-choice', (choiceId: string) => {

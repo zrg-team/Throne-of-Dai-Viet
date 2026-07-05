@@ -200,28 +200,11 @@ export class InkUI {
    * outline so the active choice pops on both the light atlas and dark ink themes.
    */
   crayonTile(bounds: UIBounds, opts: { selected?: boolean; fill?: number; accent?: number } = {}): Phaser.GameObjects.Graphics {
-    const { selected = false, accent = INK_UI.cinnabar } = opts;
-    const fill = opts.fill ?? (selected ? INK_UI.goldLight : INK_UI.parchment);
-    const radius = 6;
-    const seed = Math.round(bounds.x * 7 + bounds.y * 13 + bounds.width * 3);
+    const { selected = false } = opts;
+    // Segmented selectors reuse the exact button surface so tiles, buttons, and cards read
+    // as one visual family: selected = primary (gold), unselected = secondary (parchment).
     const g = this.scene.add.graphics({ x: bounds.x, y: bounds.y });
-
-    // Soft cast shadow so the tiles feel like paper cutouts.
-    g.fillStyle(INK_UI.brush, 0.1);
-    g.fillRoundedRect(1.5, 2.5, bounds.width, bounds.height, radius);
-
-    // Waxy fill with a few uneven crayon streaks for texture.
-    g.fillStyle(fill, selected ? 0.98 : 0.92);
-    g.fillRoundedRect(0, 0, bounds.width, bounds.height, radius);
-    const rnd = crayonRng(seed + 5);
-    g.fillStyle(INK_UI.parchmentShade, selected ? 0.1 : 0.18);
-    for (let i = 0; i < 3; i += 1) {
-      const streakY = 3 + rnd() * (bounds.height - 6);
-      g.fillRect(3, streakY, bounds.width - 6, 1.3);
-    }
-
-    // Wobbly hand-drawn double outline.
-    strokeCrayonRect(g, bounds.width, bounds.height, selected ? accent : INK_UI.brush, selected ? 0.95 : 0.72, seed);
+    drawButtonSurface(g, bounds.width, bounds.height, 6, selected ? 'primary' : 'secondary', false);
     return g;
   }
 
@@ -261,13 +244,71 @@ export class InkUI {
 
   card(bounds: UIBounds, opts: InkCardOptions = {}): Phaser.GameObjects.Container {
     const container = this.scene.add.container(bounds.x, bounds.y);
-    const background = this.panel({ x: 0, y: 0, width: bounds.width, height: bounds.height }, opts);
-    container.add(background);
-
     const padding = 10;
     const actionRightWidth = opts.action && opts.actionPlacement !== 'bottom' ? 82 : 0;
     const textWidth = bounds.width - padding * 2 - actionRightWidth;
+
+    // Build the text first and grow the box to its ACTUAL rendered height. Phaser computes
+    // each Text's wrapped height on creation, so reading `.height` — instead of estimating
+    // character counts — is what makes cards reliably contain text in any language (long
+    // Vietnamese lines wrap differently than a char estimate would predict). The requested
+    // height is only a minimum. After the last line is stacked, the box's final height is
+    // known and the background is inserted behind the text.
     let cursorY = 8;
+    const stack = (obj: Phaser.GameObjects.Text, gapBelow: number): void => {
+      container.add(obj);
+      cursorY += obj.height + gapBelow;
+    };
+
+    if (opts.title) {
+      stack(this.label(padding, cursorY, opts.title, 'label', {
+        fontSize: '15px',
+        wordWrap: { width: textWidth - (opts.status ? 58 : 0) },
+      }), 5);
+    }
+
+    if (opts.subtitle) {
+      stack(this.label(padding, cursorY, opts.subtitle, 'caption', {
+        wordWrap: { width: textWidth },
+      }), 4);
+    }
+
+    if (opts.rows) {
+      for (const row of opts.rows) {
+        const rowText = `${row.label}: ${row.value}`;
+        const longValue = rowText.length > Math.max(28, Math.floor(textWidth / 8));
+        if (longValue) {
+          stack(this.label(padding, cursorY, row.label, 'caption', { wordWrap: { width: textWidth } }), 2);
+          stack(this.label(padding, cursorY, row.value, 'body', {
+            fontSize: '12px',
+            lineSpacing: 3,
+            wordWrap: { width: textWidth },
+          }), 5);
+        } else {
+          stack(this.label(padding, cursorY, rowText, 'body', {
+            fontSize: '12px',
+            wordWrap: { width: textWidth },
+          }), 4);
+        }
+      }
+    }
+
+    if (opts.body) {
+      stack(this.label(padding, cursorY, opts.body, 'body', {
+        fontSize: '12px',
+        lineSpacing: 5,
+        wordWrap: { width: textWidth },
+      }), 0);
+    }
+
+    let contentBottom = cursorY + 10; // breathing room below the last line
+    if (opts.action && opts.actionPlacement === 'bottom') {
+      contentBottom += 34; // reserve the bottom button row
+    }
+    const height = Math.max(bounds.height, Math.round(contentBottom));
+
+    // Insert the background behind the already-stacked text.
+    container.addAt(this.panel({ x: 0, y: 0, width: bounds.width, height }, opts), 0);
 
     if (opts.status) {
       const status = this.scene.add.text(bounds.width - padding, 8, opts.status, {
@@ -279,60 +320,12 @@ export class InkUI {
       container.add(status);
     }
 
-    if (opts.title) {
-      container.add(this.label(padding, cursorY, opts.title, 'label', {
-        fontSize: '15px',
-        wordWrap: { width: textWidth - (opts.status ? 58 : 0) },
-      }));
-      cursorY += 20;
-    }
-
-    if (opts.subtitle) {
-      container.add(this.label(padding, cursorY, opts.subtitle, 'caption', {
-        wordWrap: { width: textWidth },
-      }));
-      cursorY += 17;
-    }
-
-    if (opts.rows) {
-      opts.rows.forEach((row) => {
-        const rowText = `${row.label}: ${row.value}`;
-        const longValue = rowText.length > Math.max(28, Math.floor(textWidth / 8));
-        if (longValue) {
-          container.add(this.label(padding, cursorY, row.label, 'caption', {
-            wordWrap: { width: textWidth },
-          }));
-          cursorY += 13;
-          container.add(this.label(padding, cursorY, row.value, 'body', {
-            fontSize: '12px',
-            lineSpacing: 3,
-            wordWrap: { width: textWidth },
-          }));
-          cursorY += estimateTextHeight(row.value, textWidth, 12, 3) + 5;
-        } else {
-          container.add(this.label(padding, cursorY, rowText, 'body', {
-            fontSize: '12px',
-            wordWrap: { width: textWidth },
-          }));
-          cursorY += 18;
-        }
-      });
-    }
-
-    if (opts.body) {
-      container.add(this.label(padding, cursorY, opts.body, 'body', {
-        fontSize: '12px',
-        lineSpacing: 5,
-        wordWrap: { width: textWidth },
-      }));
-    }
-
     if (opts.action) {
       if (opts.actionPlacement === 'bottom') {
         const actionWidth = Math.min(180, bounds.width - padding * 2);
         container.add(this.button({
           x: (bounds.width - actionWidth) / 2,
-          y: bounds.height - 38,
+          y: height - 38,
           width: actionWidth,
           height: 30,
         }, opts.action.label, opts.action.onClick, {
@@ -342,7 +335,7 @@ export class InkUI {
       } else {
         container.add(this.button({
           x: bounds.width - padding - 72,
-          y: (bounds.height - 30) / 2,
+          y: (height - 30) / 2,
           width: 72,
           height: 30,
         }, opts.action.label, opts.action.onClick, {
@@ -352,6 +345,7 @@ export class InkUI {
       }
     }
 
+    container.setData('cardHeight', height);
     return container;
   }
 
@@ -641,55 +635,3 @@ function colorToCss(color: number): string {
   return `#${color.toString(16).padStart(6, '0')}`;
 }
 
-function crayonRng(seed: number): () => number {
-  let value = (seed >>> 0) || 1;
-  return () => {
-    value = (value * 1664525 + 1013904223) >>> 0;
-    return value / 0x100000000;
-  };
-}
-
-/** Points sampled around a rectangle perimeter, used as the path for a jittered crayon outline. */
-function rectPerimeter(width: number, height: number, step: number): Array<{ x: number; y: number }> {
-  const points: Array<{ x: number; y: number }> = [];
-  const cols = Math.max(2, Math.round(width / step));
-  const rows = Math.max(2, Math.round(height / step));
-  for (let i = 0; i < cols; i += 1) points.push({ x: (width * i) / cols, y: 0 });
-  for (let i = 0; i < rows; i += 1) points.push({ x: width, y: (height * i) / rows });
-  for (let i = 0; i < cols; i += 1) points.push({ x: width - (width * i) / cols, y: height });
-  for (let i = 0; i < rows; i += 1) points.push({ x: 0, y: height - (height * i) / rows });
-  return points;
-}
-
-/** Two overlapping jittered passes around a rectangle for a waxy, hand-drawn crayon border. */
-function strokeCrayonRect(
-  g: Phaser.GameObjects.Graphics,
-  width: number,
-  height: number,
-  color: number,
-  alpha: number,
-  seed: number,
-): void {
-  const points = rectPerimeter(width, height, 9);
-  for (let pass = 0; pass < 2; pass += 1) {
-    const rnd = crayonRng(seed + pass * 131 + 17);
-    const jitter = pass === 0 ? 1.6 : 0.9;
-    g.lineStyle(pass === 0 ? 2.6 : 1.3, color, alpha * (pass === 0 ? 0.42 : 0.95));
-    g.beginPath();
-    points.forEach((point, index) => {
-      const x = point.x + (rnd() - 0.5) * jitter;
-      const y = point.y + (rnd() - 0.5) * jitter;
-      if (index === 0) g.moveTo(x, y);
-      else g.lineTo(x, y);
-    });
-    g.closePath();
-    g.strokePath();
-  }
-}
-
-function estimateTextHeight(text: string, width: number, fontSize: number, lineSpacing: number): number {
-  const averageCharWidth = fontSize * 0.62;
-  const charsPerLine = Math.max(1, Math.floor(width / averageCharWidth));
-  const lines = text.split('\n').reduce((sum, part) => sum + Math.max(1, Math.ceil(part.length / charsPerLine)), 0);
-  return lines * fontSize + Math.max(0, lines - 1) * lineSpacing;
-}

@@ -46,6 +46,12 @@ export function generateKingHero(): Hero {
   };
 }
 
+/**
+ * Dynasty founders offered at empire-mode setup — a starting Legendary drawn from the
+ * deck so the roster matters from turn 0. Each is a distinct archetype (war / court / envoy).
+ */
+export const FOUNDER_IDS = ['do-doc-bach-dang', 'thai-su-minh', 'cong-chua-hoa-than'] as const;
+
 export const heroTemplates: Hero[] = [
   {
     id: 'vo-tuong-nui',

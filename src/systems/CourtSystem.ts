@@ -121,6 +121,46 @@ export const COURT_POSITION_EFFECTS: Record<CourtPositionId, (stats: HeroStats) 
   }),
 };
 
+/** Human-readable label + formatting kind for each bonus a court position can grant. */
+const COURT_FX_META: Partial<Record<NumericCourtBonusKey, { key: Parameters<typeof t>[0]; kind: 'pct' | 'rate' | 'flat' }>> = {
+  armyPowerMult: { key: 'court.fx.armyPower', kind: 'pct' },
+  recruitSpeedMult: { key: 'court.fx.recruit', kind: 'pct' },
+  acquisitionSpeedMult: { key: 'court.fx.acquire', kind: 'pct' },
+  goldOutputMult: { key: 'court.fx.gold', kind: 'pct' },
+  foodOutputMult: { key: 'court.fx.food', kind: 'pct' },
+  suppliesOutputMult: { key: 'court.fx.supplies', kind: 'pct' },
+  buildingCostMult: { key: 'court.fx.buildCost', kind: 'pct' },
+  cardFrequencyMult: { key: 'court.fx.cards', kind: 'pct' },
+  buildSpeedBonus: { key: 'court.fx.buildSpeed', kind: 'flat' },
+  influenceRegen: { key: 'court.fx.influence', kind: 'rate' },
+  stabilityRegen: { key: 'court.fx.stability', kind: 'rate' },
+  favorPerTick: { key: 'court.fx.favor', kind: 'rate' },
+  armyMoraleRegen: { key: 'court.fx.morale', kind: 'rate' },
+};
+
+function formatCourtBonusDelta(delta: CourtBonusDelta): string {
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(delta) as Array<[NumericCourtBonusKey, number]>) {
+    const meta = COURT_FX_META[key];
+    if (!meta || !value) continue;
+    const num = meta.kind === 'pct' ? Math.round(value * 100) : meta.kind === 'rate' ? Math.round(value * 10) / 10 : value;
+    if (num === 0) continue;
+    parts.push(t(meta.key, { v: `${num > 0 ? '+' : ''}${num}` }));
+  }
+  return parts.join(' · ');
+}
+
+/** The concrete bonus a hero grants in a given court position (for the assign UI). */
+export function formatCourtPositionEffect(positionId: CourtPositionId, stats: HeroStats): string {
+  return formatCourtBonusDelta(COURT_POSITION_EFFECTS[positionId](stats));
+}
+
+/** The output boost a hero grants as a province governor (admin-driven). */
+export function formatGovernorEffect(stats: HeroStats): string {
+  const pct = Math.round(stats.administration * 0.004 * 100);
+  return t('court.fx.output', { v: `+${pct}` });
+}
+
 const ALL_SIGNATURE_CARD_IDS = new Set(
   heroTemplates.map((hero) => hero.signatureCardId).filter((id): id is string => Boolean(id)),
 );
