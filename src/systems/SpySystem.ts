@@ -1,8 +1,12 @@
 import { isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import type { GameState, SpyReport } from '../state/types';
+import { logEvent } from './empire/notifications';
 import { t } from '../i18n';
 
 function makeSpyReport(state: GameState, message: string): SpyReport {
+  // Every spy report is also a notification: mirror it into the unified event log so
+  // it surfaces in the notification bell alongside empire toasts.
+  logEvent(state, message, 'threat');
   return {
     id: `spy-${state.turn}-${Math.floor(Math.random() * 10000)}`,
     tick: state.turn,

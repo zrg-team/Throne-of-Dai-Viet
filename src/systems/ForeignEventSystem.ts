@@ -2,7 +2,7 @@ import { isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import { foreignCardTemplates } from '../data/foreignCards';
 import { addOpinionModifier, adjustPrestige } from './DiplomacySystem';
 import { applyResourceDelta } from './ResourceSystem';
-import type { ForeignChoice, GameState, ResourceBag } from '../state/types';
+import type { ForeignCard, ForeignChoice, GameState, ResourceBag } from '../state/types';
 import { t } from '../i18n';
 
 function randomInt(maxExclusive: number): number {
@@ -78,13 +78,25 @@ export function canTakeForeignChoice(state: GameState, choice: ForeignChoice): b
   return true;
 }
 
+/**
+ * Whether a choice can be picked in the UI. Normally the same as {@link canTakeForeignChoice},
+ * but with a dead-end guard: a forced card must never lock the player out, so if NO choice is
+ * normally takeable, any choice that doesn't strictly require an army is allowed as a last
+ * resort — you concede, paying whatever gold you have (see the clamp in resolveForeignChoice).
+ */
+export function foreignChoiceEnabled(state: GameState, card: ForeignCard, choice: ForeignChoice): boolean {
+  if (canTakeForeignChoice(state, choice)) return true;
+  const anyTakeable = card.choices.some((c) => canTakeForeignChoice(state, c));
+  return !anyTakeable && !choice.requiresArmy;
+}
+
 export function resolveForeignChoice(state: GameState, choiceId: string): void {
   const card = state.pendingForeignCard;
   if (!card) return;
   const choice = card.choices.find((c) => c.id === choiceId);
   if (!choice) return;
 
-  if (!canTakeForeignChoice(state, choice)) {
+  if (!foreignChoiceEnabled(state, card, choice)) {
     state.message = choice.requiresArmy ? t('fcard.needArmy') : t('fcard.cannotAfford');
     return;
   }
@@ -95,7 +107,12 @@ export function resolveForeignChoice(state: GameState, choiceId: string): void {
   if (!kingdom) return;
 
   if (choice.delta) {
-    applyResourceDelta(state, choice.delta);
+    // Pay what you can: never let a concession drive gold below zero (dead-end escape).
+    const delta = { ...choice.delta };
+    if (delta.gold && state.resources.gold + delta.gold < 0) {
+      delta.gold = -state.resources.gold;
+    }
+    applyResourceDelta(state, delta);
   }
   if (choice.opinionDelta) {
     addOpinionModifier(kingdom, {

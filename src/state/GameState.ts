@@ -515,6 +515,7 @@ export function createCampaignGameState(config: CampaignConfig): GameState {
     campaignScore: { turnsAlive: 0, armiesDefeated: 0, largestArmyDefeated: 0, peakLandsHeld: 1 },
     spyReports: [],
     scheduledCampaignEvents: [],
+    eventLog: [],
     isDefeated: false,
     defeatReason: undefined,
   };
@@ -599,6 +600,7 @@ export function createEmpireGameState(config: CampaignConfig): GameState {
     campaignScore: { turnsAlive: 0, armiesDefeated: 0, largestArmyDefeated: 0, peakLandsHeld: 1 },
     spyReports: [],
     scheduledCampaignEvents: [],
+    eventLog: [],
     invasions: [],
     toasts: [],
     mandate: createInitialMandate(),
@@ -610,10 +612,20 @@ export function createEmpireGameState(config: CampaignConfig): GameState {
     defeatReason: undefined,
   };
 
+  applyFounder(state, config.founderId);
   initDirectives(state);
   refreshAllLandOutputs(state);
   refreshPlayerVisibility(state);
   return state;
+}
+
+/** Move the chosen dynasty founder from the draft deck into the starting roster (empire mode). */
+function applyFounder(state: GameState, founderId: string | undefined): void {
+  if (!founderId) return;
+  const founder = state.heroDeck.find((hero) => hero.id === founderId);
+  if (!founder) return;
+  state.heroDeck = state.heroDeck.filter((hero) => hero.id !== founderId);
+  state.heroes.push(founder);
 }
 
 export function createInitialGameState(): GameState {
@@ -686,6 +698,7 @@ export function createInitialGameState(): GameState {
     campaignScore: undefined,
     spyReports: [],
     scheduledCampaignEvents: [],
+    eventLog: [],
     isDefeated: false,
     defeatReason: undefined,
   };

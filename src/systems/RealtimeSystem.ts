@@ -15,6 +15,8 @@ import { tickThreatDirector } from './empire/ThreatDirector';
 import { tickGreatPowersYear } from './empire/GreatPowersSystem';
 import { tickCrises } from './empire/CrisisSystem';
 import { tickAbilities } from './empire/AbilitySystem';
+import { tickHeroActions } from './empire/HeroActionSystem';
+import { maybeTriggerHeroEvent } from './empire/HeroEventSystem';
 import { maybeDrawForeignCard } from './ForeignEventSystem';
 import { isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import type { GameState, Season } from '../state/types';
@@ -67,6 +69,8 @@ export function advanceRealtimeMonth(state: GameState): void {
       tickThreatDirector(state);
       tickCrises(state);
       tickAbilities(state);
+      tickHeroActions(state);
+      maybeTriggerHeroEvent(state);
       progressDirectives(state);
     }
     tickDynastyStatus(state);

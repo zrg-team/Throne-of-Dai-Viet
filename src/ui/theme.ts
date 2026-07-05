@@ -122,8 +122,8 @@ function mapButtonVariant(variant: WoodButtonVariant | undefined): InkButtonVari
   if (variant === 'highlight') {
     return 'primary';
   }
-  if (variant === 'dark') {
-    return 'danger';
-  }
+  // 'dark' is a neutral/dismiss button (Pass, Cancel, unselected tab) — it must read as
+  // secondary, NOT as the red 'danger' style, which is reserved for destructive actions
+  // (Remove / Destroy / Disband). Keeps the whole button family consistent.
   return 'secondary';
 }
