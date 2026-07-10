@@ -482,7 +482,9 @@ export function progressCourt(state: GameState): void {
   const ungovernedPenalty = Math.max(0, playerLandCount - governedLandCount - 3) * 0.15;
   const marketPressure = getMarketStabilityPressure(state);
 
-  state.court.stability = clamp(state.court.stability + bonuses.stabilityRegen - ungovernedPenalty - marketPressure, 0, 100);
+  // Tax stance nudges stability each tick (heavier taxes breed unrest; a lenient hand soothes).
+  const taxStability = state.taxPolicy === 'harsh' ? -0.5 : state.taxPolicy === 'lenient' ? 0.35 : 0;
+  state.court.stability = clamp(state.court.stability + bonuses.stabilityRegen - ungovernedPenalty - marketPressure + taxStability, 0, 100);
   state.court.influence = clamp(state.court.influence + bonuses.influenceRegen, 0, 100);
 
   syncSignatureCards(state);

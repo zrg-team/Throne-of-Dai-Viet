@@ -4,7 +4,24 @@ export type ResourceKey = 'food' | 'supplies' | 'gold' | 'humans';
 
 export type LandType = 'castle' | 'farm' | 'market' | 'iron' | 'temple' | 'enemyCastle' | 'wilderness';
 
-export type LandBuildingType = 'farm' | 'mine' | 'market' | 'wall' | 'tower' | 'barracks' | 'communalHall';
+export type LandBuildingType =
+  | 'farm' | 'mine' | 'market' | 'wall' | 'tower' | 'barracks' | 'communalHall'
+  // Era-unlocked advanced districts (empire mode): new economic levers that only become
+  // available as the realm advances, so later eras genuinely expand what you can build.
+  | 'harbor' | 'workshop' | 'guild' | 'university';
+
+/**
+ * A province's economic focus. Chosen by the player to tilt a district hard toward one
+ * role (with a trade-off elsewhere), so each land becomes a live decision rather than a
+ * uniform build queue. `balanced` is the neutral default.
+ */
+export type LandSpecialization = 'balanced' | 'breadbasket' | 'mining' | 'trade' | 'populous' | 'fortress';
+
+/**
+ * Realm-wide tax stance — a live "guns vs. butter" lever. Heavier taxes fill the treasury
+ * but cost stability and slow population growth; a lenient hand does the reverse.
+ */
+export type TaxPolicy = 'lenient' | 'balanced' | 'harsh';
 
 /** A constructed building on a district: its type and current upgrade level. */
 export interface LandBuildingInstance {
@@ -73,6 +90,8 @@ export interface Land {
   hasVillage: boolean;
   /** Per-kingdom trust (0–100). Defaults to 40 when not set. */
   trust: Record<string, number>;
+  /** Player-chosen economic focus for this province. Absent = 'balanced'. */
+  specialization?: LandSpecialization;
 }
 
 /** Authored land data before hex-map generation fills in position/adjacency. */
@@ -647,6 +666,8 @@ export interface GameState {
   directiveDeckCursor?: Record<DirectiveTier, number>;
   /** Progression track (empire mode). */
   mandate?: MandateState;
+  /** Realm-wide tax stance (empire mode). Absent = 'balanced'. */
+  taxPolicy?: TaxPolicy;
   /** A telegraphed major invasion awaiting its due turn (empire mode). */
   pendingUltimatum?: Ultimatum;
   /** Great Invasions already staged this run, keyed by era, so bosses fire once/era. */

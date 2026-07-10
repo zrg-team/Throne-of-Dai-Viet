@@ -1,7 +1,7 @@
 import { DIRECTIVE_METRICS, DIRECTIVE_TEMPLATES, type DirectiveTemplate } from '../../data/directives';
 import type { Directive, DirectiveTier, GameState } from '../../state/types';
 import { applyResourceDelta } from '../ResourceSystem';
-import { addMandate } from './MandateSystem';
+import { addMandate, grantEdictPoints } from './MandateSystem';
 import { pushToast } from './notifications';
 import { t } from '../../i18n';
 
@@ -14,8 +14,8 @@ function metric(state: GameState, key: string): number {
   return fn ? fn(state) : 0;
 }
 
-function templatesForTier(tier: DirectiveTier): DirectiveTemplate[] {
-  return DIRECTIVE_TEMPLATES.filter((tmpl) => tmpl.tier === tier);
+function templatesForTier(state: GameState, tier: DirectiveTier): DirectiveTemplate[] {
+  return DIRECTIVE_TEMPLATES.filter((tmpl) => tmpl.tier === tier && (!tmpl.available || tmpl.available(state)));
 }
 
 /** Localised human-readable title, with the concrete target substituted in. */
@@ -43,7 +43,7 @@ function makeDirective(state: GameState, tmpl: DirectiveTemplate): Directive {
 /** Draws the next un-active template of a tier via a rotating cursor. */
 function issueDirective(state: GameState, tier: DirectiveTier): void {
   if (!state.directives || !state.directiveDeckCursor) return;
-  const pool = templatesForTier(tier);
+  const pool = templatesForTier(state, tier);
   if (pool.length === 0) return;
 
   const activeIds = new Set(state.directives.filter((d) => !d.complete && !d.failed).map((d) => d.templateId));
@@ -147,6 +147,8 @@ export function progressDirectives(state: GameState): void {
         pushToast(state, t('empire.ascend.done'), 'milestone');
       } else {
         pushToast(state, t('empire.directive.complete', { title: directiveTitle(directive), mandate: directive.rewardMandate }), 'reward');
+        // Epic directives also award an edict point — an ongoing way to earn "chiếu chỉ".
+        if (directive.tier === 'epic') grantEdictPoints(state, 1);
       }
       // Prep and ascension directives are one-time; don't refill their tier.
       if (directive.templateId !== 'prep-defense' && directive.templateId !== 'ascension') {

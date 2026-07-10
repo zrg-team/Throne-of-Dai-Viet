@@ -67,7 +67,7 @@ export function maybeDrawForeignCard(state: GameState): void {
     ...built,
   };
   state.isPaused = true;
-  state.foreignCardCooldown = 5 + randomInt(4);
+  state.foreignCardCooldown = 4 + randomInt(3);
   state.message = t('fcard.arrive', { kingdom: kingdom.name });
 }
 

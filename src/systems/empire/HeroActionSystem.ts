@@ -1,8 +1,18 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import type { GameState, Hero, HeroMission, HeroMissionKind, HeroStats, HeroType, Kingdom } from '../../state/types';
 import { applyResourceDelta, refreshAllLandOutputs } from '../ResourceSystem';
+import { eraIndex } from './MandateSystem';
 import { pushToast } from './notifications';
 import { heroName, t } from '../../i18n';
+
+/**
+ * Era potency (founding ≈1.0 → mandate ≈2.05): scales hero mission/ability payoffs so a
+ * general's raid or a governor's harvest keeps pace with the compounding late-game economy
+ * instead of dwindling into irrelevance.
+ */
+function eraPotency(state: GameState): number {
+  return 1 + eraIndex(state.mandate?.era ?? 'founding') * 0.35;
+}
 
 // ── Missions ──────────────────────────────────────────────────────────────────
 // One signature mission per hero type. Dispatch spends Energy (fatigue), resolves
@@ -140,7 +150,7 @@ function resolveMission(state: GameState, mission: HeroMission): void {
     return;
   }
 
-  const mult = outcome === 'crit' ? 2 : 1;
+  const mult = (outcome === 'crit' ? 2 : 1) * eraPotency(state);
   switch (mission.kind) {
     case 'raid': {
       const gold = Math.round((30 + hero.stats.martial * 0.4) * mult);
@@ -186,16 +196,24 @@ function resolveMission(state: GameState, mission: HeroMission): void {
     }
   }
 
-  // Progression: every successful mission builds renown; a run of them earns a trait.
+  // Progression: every successful mission builds renown; runs of them earn escalating traits.
   hero.missionsDone = (hero.missionsDone ?? 0) + 1;
   hero.stats.renown = Math.min(100, hero.stats.renown + (outcome === 'crit' ? 3 : 1));
-  if (hero.missionsDone === 3) {
+  const grantTrait = (milestone: number, traitKey: 'hero.trait.renowned' | 'hero.trait.veteran'): void => {
+    if (hero.missionsDone !== milestone) return;
     hero.traits ??= [];
-    if (!hero.traits.includes(t('hero.trait.renowned'))) {
-      hero.traits.push(t('hero.trait.renowned'));
-      pushToast(state, t('hero.trait.earned', { hero: heroLabel, trait: t('hero.trait.renowned') }), 'milestone');
+    const trait = t(traitKey);
+    if (!hero.traits.includes(trait)) {
+      hero.traits.push(trait);
+      // A veteran's experience permanently sharpens their signature stat.
+      if (traitKey === 'hero.trait.veteran') {
+        hero.stats[def.stat] = Math.min(100, hero.stats[def.stat] + 8);
+      }
+      pushToast(state, t('hero.trait.earned', { hero: heroLabel, trait }), 'milestone');
     }
-  }
+  };
+  grantTrait(3, 'hero.trait.renowned');
+  grantTrait(8, 'hero.trait.veteran');
 }
 
 function addSpyIntel(state: GameState, message: string): void {
@@ -254,7 +272,10 @@ export function useHeroAbility(state: GameState, heroId: string): boolean {
   const def = HERO_ABILITY_DEFS[hero.type];
   hero.fatigue = Math.min(100, hero.fatigue + def.energyCost);
   state.heroAbilityCooldowns ??= {};
-  state.heroAbilityCooldowns[heroId] = def.cooldown;
+  // Later eras drill the court: signature powers come off cooldown a little sooner, so
+  // heroes get tapped more often as the reign matures (more to do per minute).
+  state.heroAbilityCooldowns[heroId] = Math.max(2, def.cooldown - eraIndex(state.mandate?.era ?? 'founding'));
+  const potency = eraPotency(state);
   const heroLabel = heroName(hero);
 
   switch (hero.type) {
@@ -292,7 +313,7 @@ export function useHeroAbility(state: GameState, heroId: string): boolean {
     }
     case 'governor': {
       // Bountiful Harvest — the governor's granaries overflow into the treasury.
-      applyResourceDelta(state, { food: 30, supplies: 15 });
+      applyResourceDelta(state, { food: Math.round(30 * potency), supplies: Math.round(15 * potency), gold: Math.round(10 * potency) });
       refreshAllLandOutputs(state);
       break;
     }

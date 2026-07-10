@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { createInitialGameState } from '../state/GameState';
 import { hasSnapshot, loadSnapshot, snapshotLabel } from '../state/save';
-import { getLegacy, rankForScore } from '../state/legacy';
+import { getLegacy, LEGACY_PERKS, purchaseLegacyPerk, rankForScore } from '../state/legacy';
 import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
@@ -11,7 +11,7 @@ import { INK, brushStroke, inkOutline, shade, washFill, waveLine } from '../ui/i
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
 import { getMapTheme, MAP_THEME_OPTIONS, setMapTheme } from '../ui/mapTheme';
 
-type MenuMode = 'main' | 'confirm-new';
+type MenuMode = 'main' | 'confirm-new' | 'legacy';
 
 export class MenuScene extends Phaser.Scene {
   private ui!: InkUI;
@@ -448,6 +448,8 @@ export class MenuScene extends Phaser.Scene {
     this.renderLanguageSelector();
     if (this.mode === 'confirm-new') {
       this.renderConfirmNew();
+    } else if (this.mode === 'legacy') {
+      this.renderLegacyShop();
     } else {
       this.renderMain();
     }
@@ -515,6 +517,7 @@ export class MenuScene extends Phaser.Scene {
     this.content.push(saveLabel);
 
     // Lifetime standing across all Throne of Empires runs (hidden until earned).
+    // Tapping it opens the Ascension Legacy shop, where banked points buy permanent perks.
     const legacy = getLegacy();
     if (legacy.points > 0 || legacy.bestScore > 0) {
       const rankLabel = this.add.text(GAME_WIDTH / 2, 722, t('empire.legacy.rank', {
@@ -527,9 +530,52 @@ export class MenuScene extends Phaser.Scene {
         align: 'center',
         backgroundColor: 'rgba(32,38,31,0.42)',
         padding: { x: 6, y: 3 },
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      rankLabel.on('pointerup', () => { this.mode = 'legacy'; this.render(); });
       this.content.push(rankLabel);
+      this.content.push(this.ui.button({ x: 108, y: 744, width: 174, height: 30 }, t('empire.legacy.openShop'), () => {
+        this.mode = 'legacy';
+        this.render();
+      }, { variant: 'ghost', fontSize: '12px' }));
     }
+  }
+
+  private renderLegacyShop(): void {
+    const legacy = getLegacy();
+    this.content.push(this.add.text(GAME_WIDTH / 2, 236, t('empire.legacy.shopTitle'), {
+      color: '#f3dd9a', fontFamily: TITLE_FONT, fontSize: '20px', fontStyle: '700', align: 'center',
+    }).setOrigin(0.5));
+    this.content.push(this.add.text(GAME_WIDTH / 2, 262, t('empire.legacy.banked', { total: legacy.points }), {
+      color: '#e8d89a', fontFamily: UI_FONT, fontSize: '13px', align: 'center',
+    }).setOrigin(0.5));
+
+    let y = 290;
+    for (const perk of LEGACY_PERKS) {
+      const owned = legacy.perks.includes(perk.id);
+      const affordable = legacy.points >= perk.cost;
+      this.content.push(this.ui.card({ x: 28, y, width: GAME_WIDTH - 56, height: 74 }, {
+        title: t(`empire.legacy.perk.${perk.id}` as Parameters<typeof t>[0]),
+        subtitle: owned ? t('empire.legacy.owned') : t('empire.legacy.cost', { cost: perk.cost }),
+        body: t(`empire.legacy.perk.${perk.id}.d` as Parameters<typeof t>[0]),
+        border: owned ? INK_UI.jade : affordable ? INK_UI.gold : INK_UI.softBrush,
+        muted: !owned && !affordable,
+        actionPlacement: 'right',
+        action: {
+          label: owned ? t('empire.legacy.ownedShort') : t('empire.legacy.buy'),
+          variant: owned ? 'disabled' : affordable ? 'primary' : 'disabled',
+          disabled: owned || !affordable,
+          onClick: () => {
+            if (purchaseLegacyPerk(perk.id)) this.render();
+          },
+        },
+      }));
+      y += 82;
+    }
+
+    this.content.push(this.ui.button({ x: 54, y: Math.min(y + 6, 726), width: 282, height: 44 }, t('menu.back'), () => {
+      this.mode = 'main';
+      this.render();
+    }, { variant: 'secondary', fontSize: '14px' }));
   }
 
   private renderMapThemeSelector(): void {

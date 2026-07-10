@@ -17,11 +17,14 @@ interface EraConfig {
   edictGrant: number;
 }
 
+// The building cap is itself a progression gate: districts can only be pushed toward
+// their steep high levels as the empire advances through the eras, so upgrading always
+// has a "not yet — reach the next era" horizon rather than being maxable from turn one.
 const ERA_CONFIG: Record<EraId, EraConfig> = {
-  founding: { id: 'founding', threshold: 0, seatBonus: 0, buildingCap: MAX_BUILDING_LEVEL, edictGrant: 1 },
-  rivalry: { id: 'rivalry', threshold: 32, seatBonus: 1, buildingCap: MAX_BUILDING_LEVEL, edictGrant: 2 },
-  empires: { id: 'empires', threshold: 92, seatBonus: 2, buildingCap: MAX_BUILDING_LEVEL + 1, edictGrant: 3 },
-  mandate: { id: 'mandate', threshold: 190, seatBonus: 3, buildingCap: MAX_BUILDING_LEVEL + 2, edictGrant: 4 },
+  founding: { id: 'founding', threshold: 0, seatBonus: 0, buildingCap: MAX_BUILDING_LEVEL - 3, edictGrant: 1 },
+  rivalry: { id: 'rivalry', threshold: 32, seatBonus: 1, buildingCap: MAX_BUILDING_LEVEL - 2, edictGrant: 2 },
+  empires: { id: 'empires', threshold: 92, seatBonus: 2, buildingCap: MAX_BUILDING_LEVEL - 1, edictGrant: 3 },
+  mandate: { id: 'mandate', threshold: 190, seatBonus: 3, buildingCap: MAX_BUILDING_LEVEL, edictGrant: 4 },
 };
 
 export function createInitialMandate(): MandateState {
@@ -129,4 +132,16 @@ export function addMandate(state: GameState, amount: number): void {
   if (mandate.era === 'mandate') {
     mandate.ascensionReady = true;
   }
+}
+
+/**
+ * Grants edict points ("chiếu chỉ") outside of era jumps and announces it, so the
+ * authority currency is an ongoing, earned reward for good play — completing epic
+ * directives, raising Wonders — rather than a rare lump you get only at era changes.
+ */
+export function grantEdictPoints(state: GameState, amount: number): void {
+  const mandate = state.mandate;
+  if (!mandate || amount <= 0) return;
+  mandate.edictPoints += amount;
+  pushToast(state, t('empire.mandate.edictEarned', { points: amount }), 'reward');
 }

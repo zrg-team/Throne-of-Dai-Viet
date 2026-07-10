@@ -1,4 +1,5 @@
 import type { GameState } from './types';
+import { applyResourceDelta } from '../systems/ResourceSystem';
 import { t } from '../i18n';
 
 const LEGACY_KEY = 'mandate:legacy:v1';
@@ -7,6 +8,36 @@ interface LegacyStore {
   points: number;
   bestScore: number;
   ascensions: number;
+  /** Ids of permanently-purchased ascension perks (the meta-progression spend sink). */
+  perks: string[];
+}
+
+/**
+ * A permanent, cross-run upgrade bought with banked Legacy points. Each is a one-time
+ * unlock that seeds every future empire run a little stronger — the roguelite payoff the
+ * rank ladder always implied but that nothing previously spent points on.
+ */
+export interface LegacyPerk {
+  id: string;
+  cost: number;
+  /** Seeds applied to a fresh empire GameState at creation. */
+  startGold?: number;
+  startHumans?: number;
+  startFood?: number;
+  startSupplies?: number;
+  startEdictPoints?: number;
+}
+
+export const LEGACY_PERKS: LegacyPerk[] = [
+  { id: 'founders-purse', cost: 120, startGold: 220 },
+  { id: 'settlers', cost: 150, startHumans: 260 },
+  { id: 'full-granary', cost: 110, startFood: 130, startSupplies: 55 },
+  { id: 'mandate-of-birth', cost: 220, startEdictPoints: 2 },
+  { id: 'war-chest', cost: 300, startGold: 180, startSupplies: 90, startEdictPoints: 1 },
+];
+
+export function getLegacyPerk(id: string): LegacyPerk | undefined {
+  return LEGACY_PERKS.find((p) => p.id === id);
 }
 
 function canUseLocalStorage(): boolean {
@@ -14,24 +45,59 @@ function canUseLocalStorage(): boolean {
 }
 
 export function getLegacy(): LegacyStore {
-  if (!canUseLocalStorage()) return { points: 0, bestScore: 0, ascensions: 0 };
+  if (!canUseLocalStorage()) return { points: 0, bestScore: 0, ascensions: 0, perks: [] };
   try {
     const raw = localStorage.getItem(LEGACY_KEY);
-    if (!raw) return { points: 0, bestScore: 0, ascensions: 0 };
+    if (!raw) return { points: 0, bestScore: 0, ascensions: 0, perks: [] };
     const parsed = JSON.parse(raw) as Partial<LegacyStore>;
     return {
       points: Math.max(0, Math.floor(parsed.points ?? 0)),
       bestScore: Math.max(0, Math.floor(parsed.bestScore ?? 0)),
       ascensions: Math.max(0, Math.floor(parsed.ascensions ?? 0)),
+      perks: Array.isArray(parsed.perks) ? parsed.perks.filter((id) => typeof id === 'string') : [],
     };
   } catch {
-    return { points: 0, bestScore: 0, ascensions: 0 };
+    return { points: 0, bestScore: 0, ascensions: 0, perks: [] };
   }
 }
 
 function writeLegacy(store: LegacyStore): void {
   if (!canUseLocalStorage()) return;
   localStorage.setItem(LEGACY_KEY, JSON.stringify(store));
+}
+
+export function ownsPerk(id: string): boolean {
+  return getLegacy().perks.includes(id);
+}
+
+/** Attempts to buy a perk with banked points. Returns true if purchased. */
+export function purchaseLegacyPerk(id: string): boolean {
+  const perk = getLegacyPerk(id);
+  if (!perk) return false;
+  const store = getLegacy();
+  if (store.perks.includes(id) || store.points < perk.cost) return false;
+  store.points -= perk.cost;
+  store.perks.push(id);
+  writeLegacy(store);
+  return true;
+}
+
+/** Applies every owned perk to a freshly-created empire GameState. */
+export function applyLegacyPerks(state: GameState): void {
+  const owned = getLegacy().perks;
+  for (const id of owned) {
+    const perk = getLegacyPerk(id);
+    if (!perk) continue;
+    applyResourceDelta(state, {
+      gold: perk.startGold ?? 0,
+      humans: perk.startHumans ?? 0,
+      food: perk.startFood ?? 0,
+      supplies: perk.startSupplies ?? 0,
+    });
+    if (perk.startEdictPoints && state.mandate) {
+      state.mandate.edictPoints += perk.startEdictPoints;
+    }
+  }
 }
 
 /** Score for a finished empire run, from lands held, invasions repelled, and Mandate. */

@@ -95,4 +95,57 @@ export const foreignCardTemplates: ForeignCardTemplate[] = [
       ],
     }),
   },
+
+  // ── Opportunity events ────────────────────────────────────────────────────
+  // Low-stakes, mostly upside choices that fill the quiet stretches between threats
+  // with a small decision. They reuse the whole foreign-card pipeline (UI, resolve, bots).
+  {
+    id: 'caravan',
+    weight: 3,
+    build: (k) => ({
+      title: t('fcard.caravan.title'),
+      description: t('fcard.caravan.desc', { kingdom: k.name }),
+      choices: [
+        { id: 'trade', label: t('fcard.caravan.trade'), description: t('fcard.caravan.trade.d'), delta: { supplies: -25, gold: 55 }, opinionDelta: 6 },
+        { id: 'decline', label: t('fcard.caravan.decline'), description: t('fcard.caravan.decline.d'), opinionDelta: -2 },
+      ],
+    }),
+  },
+  {
+    id: 'scholars',
+    weight: 2,
+    build: (k) => ({
+      title: t('fcard.scholars.title'),
+      description: t('fcard.scholars.desc', { kingdom: k.name }),
+      choices: [
+        { id: 'fund', label: t('fcard.scholars.fund'), description: t('fcard.scholars.fund.d'), delta: { gold: -30 }, prestigeDelta: 8, opinionDelta: 8 },
+        { id: 'ignore', label: t('fcard.scholars.ignore'), description: t('fcard.scholars.ignore.d') },
+      ],
+    }),
+  },
+  {
+    id: 'festival',
+    weight: 2,
+    minOpinion: 40,
+    build: (k) => ({
+      title: t('fcard.festival.title'),
+      description: t('fcard.festival.desc', { kingdom: k.name }),
+      choices: [
+        { id: 'attend', label: t('fcard.festival.attend'), description: t('fcard.festival.attend.d'), delta: { gold: -20 }, opinionDelta: 12, trustDelta: 5 },
+        { id: 'skip', label: t('fcard.festival.skip'), description: t('fcard.festival.skip.d'), opinionDelta: -4 },
+      ],
+    }),
+  },
+  {
+    id: 'grainsale',
+    weight: 2,
+    build: (k) => ({
+      title: t('fcard.grainsale.title'),
+      description: t('fcard.grainsale.desc', { kingdom: k.name }),
+      choices: [
+        { id: 'sell', label: t('fcard.grainsale.sell'), description: t('fcard.grainsale.sell.d'), delta: { food: -40, gold: 65 }, opinionDelta: 8 },
+        { id: 'refuse', label: t('fcard.grainsale.refuse'), description: t('fcard.grainsale.refuse.d'), opinionDelta: -3 },
+      ],
+    }),
+  },
 ];

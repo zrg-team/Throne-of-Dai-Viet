@@ -6,9 +6,9 @@ import { saveSnapshot } from '../state/save';
 import { bribeLand, startDiplomaticClaim, startIntimidation, settleLand } from '../systems/AcquisitionSystem';
 import { findLand, isAdjacent } from '../systems/LandSystem';
 import { advanceRealtimeMonth } from '../systems/RealtimeSystem';
-import { buildDistrictBuilding, destroyDistrictBuilding, upgradeDistrictBuilding } from '../systems/ResourceSystem';
+import { buildDistrictBuilding, destroyDistrictBuilding, setLandSpecialization, upgradeDistrictBuilding } from '../systems/ResourceSystem';
 import { createBattlePreview, queueRecruitment, issueMoveOrder, attackLand, cancelSiege, disbandArmy } from '../systems/WarSystem';
-import type { GameState, Land, LandBuildingType } from '../state/types';
+import type { GameState, Land, LandBuildingType, LandSpecialization } from '../state/types';
 import type { HexTile } from '../map/hexMapGenerator';
 import { EDGE_DIRECTIONS, MAP_SCALE, axialToPixel, hexCorners, hexKey, pixelToAxial } from '../map/hex';
 import { computeTerrainRegions } from '../map/boundary';
@@ -495,6 +495,10 @@ export class MapScene extends Phaser.Scene {
 
     if (action.startsWith('destroy:')) {
       destroyDistrictBuilding(this.state, landId, Number(action.slice('destroy:'.length)));
+    }
+
+    if (action.startsWith('specialize:')) {
+      setLandSpecialization(this.state, landId, action.slice('specialize:'.length) as LandSpecialization);
     }
 
     if (action === 'preview') {

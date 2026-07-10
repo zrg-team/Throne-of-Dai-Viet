@@ -30,7 +30,7 @@ import {
 import { foreignChoiceEnabled } from '../systems/ForeignEventSystem';
 import { directiveTitle } from '../systems/empire/DirectiveSystem';
 import { eraLabel, eraProgress, pointsToNextEra } from '../systems/empire/MandateSystem';
-import { allProjects, enactProject, isProjectEnacted, projectBlockedReason, projectDescription, projectTitle } from '../systems/empire/EdictSystem';
+import { allProjects, enactProject, isProjectEnacted, projectBlockedReason, projectDescription, projectEffectSummary, projectTitle } from '../systems/empire/EdictSystem';
 import { ABILITIES, abilityBlockedReason, abilityCooldown, abilityLabel, useAbility } from '../systems/empire/AbilitySystem';
 import {
   activeHeroMission,
@@ -53,7 +53,7 @@ import { createLabel, createPanel, createWoodButton, PARCHMENT } from '../ui/the
 import { InkScrollArea, InkUI, INK_UI, type InkCardOptions, type UIBounds } from '../ui/InkUI';
 import { UI_FONT } from '../ui/fonts';
 import { makeSwipeableCard, popInModal, staggerIn } from '../ui/animations';
-import { formatEconomyLine, getArmyGoldUpkeep, getBuildOptions, getLaborStatus, getUpgradeOptions } from '../systems/ResourceSystem';
+import { formatEconomyLine, getArmyGoldUpkeep, getBuildOptions, getLaborStatus, getLandSpecialization, getTaxEffects, getUpgradeOptions, refreshAllLandOutputs, SPECIALIZATION_MULT } from '../systems/ResourceSystem';
 import {
   ALL_COURT_POSITIONS,
   assignHeroToLand,
@@ -64,7 +64,7 @@ import {
   removeHeroFromPosition,
 } from '../systems/CourtSystem';
 import { ARMY_DEFAULT_PROVISIONS, ARMY_DEFAULT_RATIONS, ARMY_LOGISTICS_STEP } from '../game/gameplayConfig';
-import type { CourtPositionId, GameState, Hero, Land, PoliticsCard } from '../state/types';
+import type { CourtPositionId, GameState, Hero, Land, PoliticsCard, TaxPolicy } from '../state/types';
 import {
   buildingLabel,
   formatResourceList,
@@ -77,6 +77,7 @@ import {
   politicsTitle,
   politicsTypeLabel,
   rarityLabel,
+  resourceLabel,
   seasonLabel,
   t,
   tickLabel,
@@ -1391,6 +1392,32 @@ export class UIScene extends Phaser.Scene {
       rowY += (row.getData('cardHeight') as number ?? minHeight) + rowGap;
     };
 
+    // Province focus selector — one tap cycles the economic specialization. Kept as a
+    // single compact card (tapping "Change focus" advances to the next option) so it sits
+    // at the top of the build list without crowding out the build/upgrade rows.
+    const focusOrder = Object.keys(SPECIALIZATION_MULT) as (keyof typeof SPECIALIZATION_MULT)[];
+    const currentFocus = getLandSpecialization(land);
+    const nextFocus = focusOrder[(focusOrder.indexOf(currentFocus) + 1) % focusOrder.length];
+    const focusMult = SPECIALIZATION_MULT[currentFocus];
+    const focusEffect = (['food', 'supplies', 'gold'] as const)
+      .map((k) => `${resourceLabel(k)} ×${focusMult[k].toFixed(2)}`)
+      .join('  ');
+    addRow({
+      title: t('focus.title', { focus: t(`focus.${currentFocus}` as Parameters<typeof t>[0]) }),
+      subtitle: focusEffect,
+      body: t('focus.hint'),
+      border: currentFocus === 'balanced' ? INK_UI.softBrush : INK_UI.gold,
+      actionPlacement: 'right',
+      action: {
+        label: t('focus.change'),
+        variant: 'secondary',
+        onClick: () => {
+          this.events.emit('ui:land-action', `specialize:${nextFocus}`, land.id);
+          this.refresh();
+        },
+      },
+    }, 92);
+
     upgradeOptions.forEach((option) => {
       const cost = formatCost(option.cost);
       const label = `${buildingLabel(option.type)} - ${t('building.level', { level: `${option.level}/${option.maxLevel}` })}`;
@@ -2146,6 +2173,20 @@ export class UIScene extends Phaser.Scene {
     }, { variant: 'primary', fontSize: '10px' }));
     y += headerH + 8;
 
+    // ── Tax stance (realm-wide guns-vs-butter lever) ──
+    const taxOrder: TaxPolicy[] = ['lenient', 'balanced', 'harsh'];
+    const curTax = this.state.taxPolicy ?? 'balanced';
+    const taxFx = getTaxEffects(this.state);
+    const nextTax = taxOrder[(taxOrder.indexOf(curTax) + 1) % taxOrder.length];
+    this.modalLayer.add(createLabel(this, content.x + 10, y + 2, t('tax.title', { policy: t(`tax.${curTax}` as Parameters<typeof t>[0]) }), 'label', { fontSize: '12px', color: '#f3dd9a' }));
+    this.modalLayer.add(createLabel(this, content.x + 10, y + 20, t('tax.effect', { gold: Math.round(taxFx.goldMult * 100), stab: taxFx.stabilityDelta > 0 ? `+${taxFx.stabilityDelta}` : `${taxFx.stabilityDelta}` }), 'caption', { fontSize: '10px', color: '#b89b5e' }));
+    this.modalLayer.add(this.ui.button({ x: content.x + content.width - 118, y: y + 4, width: 118, height: 28 }, t('tax.change'), () => {
+      this.state.taxPolicy = nextTax;
+      refreshAllLandOutputs(this.state);
+      this.refresh();
+    }, { variant: 'secondary', fontSize: '10px' }));
+    y += 40;
+
     // ── Directive list ──
     const subtitle = createLabel(this, content.x + 10, y, t('empire.directive.subtitle'), 'caption', { fontSize: '10px', color: '#b89b5e' });
     this.modalLayer.add(subtitle);
@@ -2274,8 +2315,15 @@ export class UIScene extends Phaser.Scene {
       this.refresh();
     }, { variant: 'secondary', fontSize: '10px' }));
 
-    const listTop = content.y + 34;
-    const listH = content.height - 34;
+    // Header: points on hand + how many decrees are already active, then a one-line primer
+    // so "chiếu chỉ" reads as a purposeful currency rather than an unexplained number.
+    const activeCount = mandate?.edicts.filter((id) => allProjects().some((p) => p.id === id && p.kind === 'edict')).length ?? 0;
+    this.modalLayer.add(createLabel(this, content.x + content.width, content.y + 2, t('empire.mandate.edictPoints', { points: mandate?.edictPoints ?? 0 }), 'label', { fontSize: '13px', align: 'right', color: '#f3dd9a' }).setOrigin(1, 0));
+    this.modalLayer.add(createLabel(this, content.x + content.width, content.y + 20, t('empire.edict.activeCount', { count: activeCount }), 'caption', { fontSize: '9px', align: 'right', color: '#9fbb7e' }).setOrigin(1, 0));
+    this.modalLayer.add(createLabel(this, content.x, content.y + 32, t('empire.edict.explain'), 'caption', { fontSize: '9px', color: '#cbb885', wordWrap: { width: content.width } }));
+
+    const listTop = content.y + 62;
+    const listH = content.height - 62;
     const scroll = this.ui.scrollArea({ x: content.x, y: listTop, width: content.width, height: listH });
     scroll.addTo(this.modalLayer);
     this.activeScrollAreas.push(scroll);
@@ -2291,7 +2339,7 @@ export class UIScene extends Phaser.Scene {
     const addRow = (project: ReturnType<typeof allProjects>[number]) => {
       const enacted = isProjectEnacted(this.state, project.id);
       const blocked = projectBlockedReason(this.state, project);
-      const rowH = 68;
+      const rowH = 84;
       const branchColor = project.branch === 'war' ? INK_UI.cinnabar : project.branch === 'economy' ? INK_UI.gold : INK_UI.jade;
       const card = this.add.graphics();
       card.fillStyle(INK_UI.parchment, enacted ? 0.08 : 0.14);
@@ -2300,11 +2348,16 @@ export class UIScene extends Phaser.Scene {
       card.fillRoundedRect(0, rowY, 6, rowH - 8, { tl: 6, bl: 6, tr: 0, br: 0 });
       scroll.content.add(card);
       scroll.content.add(createLabel(this, 14, rowY + 7, projectTitle(project), 'label', { fontSize: '12px', wordWrap: { width: content.width - 110 } }));
-      scroll.content.add(createLabel(this, 14, rowY + 26, projectDescription(project), 'caption', { fontSize: '10px', color: '#cbb885', wordWrap: { width: content.width - 110 } }));
+      scroll.content.add(createLabel(this, 14, rowY + 25, projectDescription(project), 'caption', { fontSize: '10px', color: '#cbb885', wordWrap: { width: content.width - 110 } }));
+      // Concrete, always-accurate effect line so the payoff of the edict is legible.
+      const effects = projectEffectSummary(project);
+      if (effects) {
+        scroll.content.add(createLabel(this, 14, rowY + 44, effects, 'caption', { fontSize: '10px', color: '#8fd07a', wordWrap: { width: content.width - 20 } }).setMaxLines(1));
+      }
       const cost = project.kind === 'edict'
         ? t('empire.edict.cost.points', { cost: project.edictCost ?? 0 })
         : Object.entries(project.resourceCost ?? {}).map(([k, v]) => `${v}${k[0]}`).join(' ');
-      scroll.content.add(createLabel(this, 14, rowY + 46, cost, 'caption', { fontSize: '10px', color: '#e8d89a' }));
+      scroll.content.add(createLabel(this, 14, rowY + 62, cost, 'caption', { fontSize: '10px', color: '#e8d89a' }));
 
       const btnW = 90;
       const btnX = content.width - btnW - 4;
@@ -2313,7 +2366,7 @@ export class UIScene extends Phaser.Scene {
       } else if (blocked) {
         scroll.content.add(createLabel(this, btnX + btnW, rowY + 14, blocked, 'caption', { fontSize: '9px', align: 'right', color: '#c0392b', wordWrap: { width: btnW } }).setOrigin(1, 0));
       } else {
-        scroll.content.add(this.ui.button({ x: btnX, y: rowY + 16, width: btnW, height: 30 }, project.kind === 'wonder' ? t('empire.edict.build') : t('empire.edict.enact'), () => {
+        scroll.content.add(this.ui.button({ x: btnX, y: rowY + 24, width: btnW, height: 30 }, project.kind === 'wonder' ? t('empire.edict.build') : t('empire.edict.enact'), () => {
           enactProject(this.state, project.id);
           this.refresh();
         }, { variant: 'primary', fontSize: '11px' }));
@@ -2905,6 +2958,18 @@ function buildDescription(type: string, land: Land): string {
   }
   if (type === 'communalHall') {
     return t('desc.communalHall');
+  }
+  if (type === 'harbor') {
+    return t('desc.harbor');
+  }
+  if (type === 'workshop') {
+    return t('desc.workshop');
+  }
+  if (type === 'guild') {
+    return t('desc.guild');
+  }
+  if (type === 'university') {
+    return t('desc.university');
   }
   return t('desc.market');
 }

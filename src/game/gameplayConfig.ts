@@ -43,7 +43,7 @@ export const MAP_VISUAL_CONFIG = {
 
 export const BUILD_TICKS_REQUIRED = 3;
 export const UPGRADE_TICKS_REQUIRED = 4;
-export const MAX_BUILDING_LEVEL = 3;
+export const MAX_BUILDING_LEVEL = 5;
 
 /** Soldiers gathered per tick during recruitment with no barracks. */
 export const RECRUIT_BASE_PER_TICK = 150;

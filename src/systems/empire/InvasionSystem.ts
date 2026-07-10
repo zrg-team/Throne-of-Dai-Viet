@@ -2,6 +2,7 @@ import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { findLand, getAcquisitionTicksRequired } from '../LandSystem';
 import { createBattlePreview, grantGeneralExperience } from '../WarSystem';
 import { applyResourceDelta, refreshAllLandOutputs } from '../ResourceSystem';
+import { getPlayerMilitary } from '../DiplomacySystem';
 import { addMandate } from './MandateSystem';
 import { pushToast } from './notifications';
 import type { Army, Difficulty, GameState, InvasionRecord, Kingdom, Land } from '../../state/types';
@@ -20,6 +21,19 @@ function difficultyArmyScale(difficulty: Difficulty | undefined): number {
   if (difficulty === 'hard') return 1.35;
   if (difficulty === 'ironman') return 1.7;
   return 1.0;
+}
+
+/**
+ * Ceiling on a wave's total size as a multiple of the player's defensible military
+ * (troops + garrison). This keeps a telegraphed host a beatable *wall* that tracks the
+ * player's power instead of an unwinnable spike — a prepared realm can repel it, an
+ * unprepared one loses ground rather than the whole realm to a 0-vs-thousands wipe.
+ */
+function defensibleCapRatio(difficulty: Difficulty | undefined): number {
+  if (difficulty === 'easy') return 1.25;
+  if (difficulty === 'hard') return 2.1;
+  if (difficulty === 'ironman') return 2.6;
+  return 1.7;
 }
 
 function personalityWeight(kingdom: Kingdom): number {
@@ -171,12 +185,20 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
   }
 
   const scale = difficultyArmyScale(state.campaignConfig?.difficulty) * personalityWeight(kingdom) * (opts.sizeMult ?? 1);
-  const growth = 1 + state.turn * 0.02; // later invasions hit harder
+  const growth = 1 + Math.min(1.4, state.turn * 0.02); // later invasions hit harder, but the ramp is bounded
+
+  // Pre-roll each host's raw size, then clamp the *total* to a defensible multiple of the
+  // player's military so even a 3-host coalition can't become an unwinnable wall of thousands.
+  const rawSizes = Array.from({ length: armyCount }, () => Math.round((180 + Math.floor(Math.random() * 140)) * scale * growth));
+  const rawTotal = rawSizes.reduce((sum, s) => sum + s, 0);
+  const capFloor = 260 * armyCount * difficultyArmyScale(state.campaignConfig?.difficulty);
+  const totalCap = Math.max(capFloor, getPlayerMilitary(state) * defensibleCapRatio(state.campaignConfig?.difficulty));
+  const clampFactor = rawTotal > totalCap ? totalCap / rawTotal : 1;
 
   state.invasions ??= [];
   for (let i = 0; i < armyCount; i += 1) {
     const stage = neutralEdges[i % neutralEdges.length];
-    const size = Math.round((180 + Math.floor(Math.random() * 140)) * scale * growth);
+    const size = Math.max(100, Math.round(rawSizes[i] * clampFactor));
     const army: Army = {
       id: `invasion-${kingdomId}-${state.turn}-${i}`,
       kingdomId,
