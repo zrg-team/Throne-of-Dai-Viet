@@ -49,14 +49,18 @@ const NECK_Y = CHIN_Y + 11;
 /**
  * Visual extent of a portrait at scale 1, relative to its container origin.
  *
- * Deliberately asymmetric: the frame is 132x148 centred on the origin, but the shirt is
- * drawn at `NECK_Y + 31` with a height of 42, so it reaches y=+90 — 16px *below* the frame.
- * Callers that size a portrait against a box must use these bounds rather than the frame,
- * or the shoulders spill out of the bottom of whatever contains them.
+ * Deliberately asymmetric, and larger than the frame on both ends:
+ *  - the frame is 132x148 centred on the origin (y −74 … +74)
+ *  - `drawShirt` puts the shoulders at `NECK_Y + 31` with height 42 → y **+90**
+ *  - the tallest hat (`scholar`) is a triangle at `HEAD_TOP - 14` whose apex is 16 above
+ *    its centre → y **−81** (`official` reaches −78, `flatCap` −68)
+ *
+ * Callers sizing a portrait against a box must use these bounds rather than the frame, or
+ * the shoulders spill out of the bottom and tall hats clip through the top.
  */
-export const HERO_FACE_EXTENT = { top: -74, bottom: 90, left: -66, right: 66 } as const;
+export const HERO_FACE_EXTENT = { top: -81, bottom: 90, left: -66, right: 66 } as const;
 export const HERO_FACE_W = HERO_FACE_EXTENT.right - HERO_FACE_EXTENT.left; // 132
-export const HERO_FACE_H = HERO_FACE_EXTENT.bottom - HERO_FACE_EXTENT.top; // 164
+export const HERO_FACE_H = HERO_FACE_EXTENT.bottom - HERO_FACE_EXTENT.top; // 171
 
 /**
  * Renders a portrait scaled and positioned to sit fully inside `box`, centred within it.
