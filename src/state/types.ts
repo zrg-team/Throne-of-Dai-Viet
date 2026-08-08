@@ -97,8 +97,34 @@ export interface Land {
 /** Authored land data before hex-map generation fills in position/adjacency. */
 export type LandTemplate = Omit<Land, 'x' | 'y' | 'neighbors' | 'buildingCapacity' | 'terrainSummary' | 'outputs' | 'isVisible' | 'isExplored' | 'population' | 'localSoldiers' | 'hasVillage' | 'trust'>;
 
-export type GameMode = 'rival' | 'campaign' | 'empire';
+export type GameMode = 'rival' | 'campaign' | 'empire' | 'ascent';
 export type Difficulty = 'easy' | 'normal' | 'hard' | 'ironman';
+
+/** A pausing intelligence alert — a spy/agent warns of an incoming attack so the player can act. */
+export interface ThreatAlert {
+  id: string;
+  kind: 'incoming' | 'coalition' | 'vassalage';
+  kingdomId: string;
+  kingdomName: string;
+  warlordName?: string;
+  /** Seasons of lead time before the host musters. */
+  turns: number;
+  /** How the host compares to the player's defensible strength: 'weaker' | 'even' | 'stronger'. */
+  strength: 'weaker' | 'even' | 'stronger';
+}
+
+/** A field engagement awaiting the player's tactical call. */
+export interface PendingBattle {
+  invaderArmyId: string;
+  landId: string;
+  landName: string;
+  kingdomId: string;
+  kingdomName: string;
+  isGreat: boolean;
+  /** Pre-computed odds so the decision screen can show the stakes. */
+  attackerPower: number;
+  defenderPower: number;
+}
 
 /** An off-map empire's army marching on the realm (empire mode). Keyed to an `Army.id`. */
 export interface InvasionRecord {
@@ -281,6 +307,12 @@ export interface Army {
   unpaidTicks?: number;
   /** Elite tier (0 = levy, 1 = trained, 2 = royal guard); each tier adds battle power. */
   elite?: number;
+  /**
+   * Full command delegated to this army's hero: the general autonomously marches to
+   * intercept the nearest incoming invasion, so the player can let a trusted hero run the
+   * frontier instead of micro-managing every march.
+   */
+  autoDefend?: boolean;
 }
 
 /** An in-progress march: an army advancing one land per leg toward `path`'s last entry. */
@@ -366,6 +398,8 @@ export interface CourtModifier {
   resourceRateModifier?: Partial<ResourceBag>;
   recruitSpeedModifier?: number;
   courtCardSpeedModifier?: number;
+  /** Additive share on army battle power (0.08 = +8%). Summed across modifiers into `armyPowerMult`. */
+  armyPowerModifier?: number;
   armyXpModifier?: number;
   buildingCostModifier?: number;
   buildSpeedBonus?: number;
@@ -612,6 +646,136 @@ export interface Ultimatum {
   defused?: boolean;
 }
 
+// ── Dragon Ascent (`gameMode: 'ascent'`) ────────────────────────────────────
+// An endless auto-conquest run: the empire plays itself and the player's whole
+// input is a stream of pausing card prompts. See systems/ascent/.
+
+/** Power Draft card rarity. Maps onto the Hero rarity ladder for summons. */
+export type AscentRarity = 'bronze' | 'silver' | 'gold' | 'jade';
+
+/** One stack level of a Power Draft card: what it applies, and the numbers printed on the card. */
+export interface PowerCardLevel {
+  /** Applied via `applyCourtEffect`. Use `permanent: true` for stacking cards. */
+  effect: CourtEffect;
+  /** Raw values the i18n card template interpolates (e.g. `{ pct: 8 }`). */
+  display: Record<string, number>;
+}
+
+export interface PowerCardDef {
+  id: string;
+  rarity: AscentRarity;
+  maxStacks: number;
+  /** `levels[n]` is the payload for taking the card the (n+1)-th time; the last entry repeats. */
+  levels: PowerCardLevel[];
+  /** Only offered when this holds (e.g. needs a standing army). */
+  requires?: (state: GameState) => boolean;
+  /** When this and `evolvesWith` are both maxed, both retire and `evolvesInto` is granted. */
+  evolvesWith?: string;
+  evolvesInto?: string;
+  /** Relative weight inside its rarity bucket. Defaults to 1. */
+  weight?: number;
+  /** Evolution results are granted, never rolled. */
+  evolutionOnly?: boolean;
+}
+
+/** One counter-play offered on the Empire Response prompt. */
+export interface EmpireResponseOption {
+  id: 'send-host' | 'fortify' | 'buy-off' | 'endure';
+  /** For `send-host`: the hero picked inline on the same modal. */
+  heroId?: string;
+  cost?: Partial<ResourceBag>;
+  /** Projected win chance 0-100, or the ticks of delay bought. */
+  winChance?: number;
+  delayTicks?: number;
+  momentum?: number;
+  affordable: boolean;
+}
+
+/** One province card on the March Order prompt. */
+export interface MarchTarget {
+  landId: string;
+  landName: string;
+  winChance: number;
+  garrison: number;
+  /** i18n key suffix for the province's draw (`gold` | `food` | `iron` | `shrine` | `plain`). */
+  rewardTag: string;
+}
+
+/** Every pausing decision Dragon Ascent can raise. Exactly one is live at a time. */
+export type AscentPrompt =
+  | { kind: 'founder'; options: string[] }
+  | { kind: 'power-draft'; cards: string[]; rerollCost: number; level: number }
+  | { kind: 'march-order'; targets: MarchTarget[] }
+  | { kind: 'hero-summon'; heroIds: string[]; pityUsed: boolean }
+  | {
+      kind: 'empire-response';
+      wave: number;
+      threat: number;
+      kingdomId: string;
+      kingdomName: string;
+      ticksToArrival: number;
+      options: EmpireResponseOption[];
+    }
+  | { kind: 'wave-result'; wave: number; survived: boolean; lines: string[] }
+  | { kind: 'run-over'; score: number; legacyEarned: number };
+
+export type AscentPromptKind = AscentPrompt['kind'];
+
+export interface AscentState {
+  /** Wave counter. Threat scales as BASE * GROWTH^wave; every 4th wave is a Great Invasion. */
+  wave: number;
+  ticksToWave: number;
+  bossTelegraphed: boolean;
+  /** True between a wave launching and the last of its hosts leaving the map. */
+  waveInFlight: boolean;
+  /** Whether the wave currently in flight is a Great Invasion. */
+  lastWaveBoss: boolean;
+  /** Invasion count at the end of the previous tick, to detect a wave finishing. */
+  invasionsLastTick: number;
+  /** Cached POWER and last tick's value, so the HUD can tween the delta ticker. */
+  power: number;
+  powerPrev: number;
+  peakPower: number;
+  /** The incoming wave's power, for the THREAT readout. Measured from live hosts when a
+   *  wave is on the map, projected from the curve between waves. */
+  threat: number;
+  /** What the realm can actually field against a wave: hosts + fortifications. THREAT is
+   *  coloured against this rather than against POWER, which includes the economy. */
+  defensePower: number;
+  level: number;
+  /** Momentum toward the next Power Draft. */
+  xp: number;
+  xpToNext: number;
+  /** Level-ups earned but not yet drafted — drafts stack rather than being dropped. */
+  pendingLevelUps: number;
+  /** How many times each Power Draft card has been taken. */
+  cardStacks: Record<string, number>;
+  /** Cards consumed by an evolution; never offered again. */
+  retiredCards: string[];
+  /** Per-rarity draft weights. Live on state so they can drift within a run. */
+  draftWeights: Record<AscentRarity, number>;
+  /** Summons since the last gold-or-better result (soft pity). */
+  summonPity: number;
+  summonsDone: number;
+  /** Gold cost of the next reroll in the open draft; doubles per use, resets on resolve. */
+  rerollCost: number;
+  /** The province the autopilot is marching on. */
+  frontLandId?: string;
+  /** The seat of the dynasty. Losing it for too long ends the run — see `checkAscentDefeat`. */
+  capitalLandId?: string;
+  /** Consecutive ticks the capital has been in enemy hands. Resets the moment it is retaken. */
+  capitalLostTicks: number;
+  /** True when the front is too strong to storm, so hosts are holding at the border. */
+  frontBlocked: boolean;
+  /** Ticks before another March Order may be raised, so holding does not re-prompt at once. */
+  marchCooldown: number;
+  promptQueue: AscentPrompt[];
+  /** Cumulative autopilot activity — drives the run summary and the verify script. */
+  autopilotStats: { builds: number; upgrades: number; recruits: number; marches: number };
+  wavesSurvived: number;
+  heroesSummoned: number;
+}
+
 export interface GameState {
   year: number;
   season: Season;
@@ -668,6 +832,12 @@ export interface GameState {
   mandate?: MandateState;
   /** Realm-wide tax stance (empire mode). Absent = 'balanced'. */
   taxPolicy?: TaxPolicy;
+  /** Accumulated resentment from sustained heavy taxation — compounds unrest until you ease off. */
+  taxFatigue?: number;
+  /** A pausing intelligence alert (spy report of an incoming attack) awaiting acknowledgement. */
+  pendingThreatAlert?: ThreatAlert;
+  /** A field battle awaiting the player's tactical decision (attack / delegate / retreat). */
+  pendingBattle?: PendingBattle;
   /** A telegraphed major invasion awaiting its due turn (empire mode). */
   pendingUltimatum?: Ultimatum;
   /** Great Invasions already staged this run, keyed by era, so bosses fire once/era. */
@@ -698,6 +868,10 @@ export interface GameState {
   pendingForeignCard?: ForeignCard;
   /** Ticks until another foreign event card may appear. */
   foreignCardCooldown?: number;
+  /** Dragon Ascent run state (ascent mode only). */
+  ascent?: AscentState;
+  /** The single live Dragon Ascent decision; set by `drainPromptQueue`, cleared by `resolveAscentPrompt`. */
+  pendingAscentPrompt?: AscentPrompt;
   isDefeated: boolean;
   defeatReason?: 'conquest' | 'collapse';
 }

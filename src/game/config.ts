@@ -3,6 +3,8 @@ import { GAME_HEIGHT, GAME_WIDTH } from './constants';
 import { BootScene } from '../scenes/BootScene';
 import { MenuScene } from '../scenes/MenuScene';
 import { CampaignScene } from '../scenes/CampaignScene';
+import { ConquestScene } from '../scenes/ConquestScene';
+import { ConquestUIScene } from '../scenes/ConquestUIScene';
 import { MapScene } from '../scenes/MapScene';
 import { PreloadScene } from '../scenes/PreloadScene';
 import { UIScene } from '../scenes/UIScene';
@@ -35,5 +37,6 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     powerPreference: 'high-performance',
     roundPixels: true,
   },
-  scene: [BootScene, PreloadScene, MenuScene, CampaignScene, MapScene, UIScene],
+  // Only index 0 auto-starts; the rest are registered-but-stopped until started by name.
+  scene: [BootScene, PreloadScene, MenuScene, CampaignScene, MapScene, UIScene, ConquestScene, ConquestUIScene],
 };

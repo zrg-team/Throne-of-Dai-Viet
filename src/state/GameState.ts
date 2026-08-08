@@ -10,6 +10,10 @@ import { createInitialCourtState } from '../systems/CourtSystem';
 import { recomputeOpinion } from '../systems/DiplomacySystem';
 import { createInitialMandate } from '../systems/empire/MandateSystem';
 import { initDirectives } from '../systems/empire/DirectiveSystem';
+import { createAscentState, enqueueAscentPrompt } from '../systems/ascent/AscentState';
+import { computeAscentPower, computeDefensivePower } from '../systems/ascent/PowerSystem';
+import { projectedWaveThreat } from '../systems/ascent/WaveDirector';
+import { getFounderPool } from './codex';
 import { applyLegacyPerks } from './legacy';
 import { initEmpireSim } from '../systems/empire/GreatPowersSystem';
 import type { Army, CampaignConfig, GameState, Kingdom, Land, LandTemplate, ResourceBag, TerrainSummary } from './types';
@@ -619,6 +623,129 @@ export function createEmpireGameState(config: CampaignConfig): GameState {
   refreshAllLandOutputs(state);
   refreshPlayerVisibility(state);
   return state;
+}
+
+/**
+ * "Dragon Ascent" mode. Same off-map-empires board as Throne of Empires — the player holds
+ * the centre among neutral districts, the rivals pressure from off the map — but the run
+ * plays itself: an autopilot files the build/recruit/march orders and the player's whole
+ * input is the pausing card prompts (see systems/ascent/). Endless with no win condition;
+ * the run ends when the capital falls and the score banks into Legacy.
+ *
+ * Directives are deliberately omitted: this mode's goals are the wave counter and the
+ * power curve, not an objectives board.
+ */
+export function createAscentGameState(config: CampaignConfig): GameState {
+  const state = createEmpireGameState(config);
+  state.gameMode = 'ascent';
+  state.ascent = createAscentState();
+  state.directives = undefined;
+  state.directiveDeckCursor = undefined;
+
+  seedAscentOpening(state);
+  offerFounderChoice(state);
+
+  state.message = t('ascent.msg.runStart');
+  return state;
+}
+
+/**
+ * The run's opening decision. Champions recorded in the Codex from previous runs are offered
+ * first — that is what the collection is *for* — topped up from the deck so a very first run
+ * still gets a real choice rather than a single forced option.
+ */
+function offerFounderChoice(state: GameState): void {
+  const unlocked = getFounderPool().filter((id) => state.heroDeck.some((hero) => hero.id === id));
+  const options = [...unlocked];
+
+  for (const hero of state.heroDeck) {
+    if (options.length >= 3) break;
+    if (!options.includes(hero.id)) options.push(hero.id);
+  }
+
+  if (options.length > 0) {
+    enqueueAscentPrompt(state, { kind: 'founder', options: options.slice(0, 3) });
+    state.isPaused = true;
+    state.pendingAscentPrompt = state.ascent?.promptQueue.shift();
+  }
+}
+
+/**
+ * Gives the run something to compound from.
+ *
+ * A lone capital cannot raise a host big enough to take even a neighbouring village — its
+ * manpower income is too small — so the realm sits at one province forever and the whole
+ * power curve has nothing to act on. Opening with a second district and a standing royal
+ * host puts the loop in motion from the first tick, the same way the games this borrows
+ * from hand you a weapon before the first wave.
+ */
+function seedAscentOpening(state: GameState): void {
+  const capital = state.lands.find(
+    (land) => land.ownerId === PLAYER_KINGDOM_ID && land.type === 'castle',
+  ) ?? state.lands.find((land) => land.ownerId === PLAYER_KINGDOM_ID);
+  if (!capital) return;
+
+  // Claim one quiet neighbour: ground the dynasty already holds in practice. Prefers
+  // unsettled land, but falls back to the least-defended neighbour — on maps where every
+  // neighbouring district is settled the realm would otherwise open on a single province,
+  // which cannot fund even one host and dead-ends the run before it starts.
+  const neighbours = capital.neighbors
+    .map((id) => state.lands.find((land) => land.id === id))
+    .filter((land): land is Land => Boolean(land) && land!.ownerId !== PLAYER_KINGDOM_ID)
+    .sort((a, b) => {
+      const settled = Number(a.hasVillage) - Number(b.hasVillage);
+      return settled !== 0 ? settled : a.defense + a.localSoldiers - (b.defense + b.localSoldiers);
+    });
+  if (neighbours[0]) {
+    neighbours[0].ownerId = PLAYER_KINGDOM_ID;
+  }
+
+  if (state.ascent) {
+    state.ascent.capitalLandId = capital.id;
+  }
+  // The seat of the dynasty starts genuinely fortified. Losing it is the run's ending, and
+  // an unwalled capital falls to an early conquest host before the power curve can answer.
+  capital.defense += 14;
+  capital.localSoldiers += 60;
+
+  const king = state.heroes[0];
+  const soldiers = 460;
+  state.armies.push({
+    id: 'ascent-royal-host',
+    kingdomId: PLAYER_KINGDOM_ID,
+    name: t('ascent.army.royalHost'),
+    landId: capital.id,
+    units: {
+      spearmen: Math.round(soldiers * 0.6),
+      archers: Math.round(soldiers * 0.28),
+      heavyInfantry: Math.round(soldiers * 0.12),
+    },
+    generalHeroId: king?.id,
+    morale: 92,
+    supply: 95,
+    rations: 120,
+    provisions: 80,
+    level: 1,
+    experience: 0,
+    experienceToNextLevel: 100,
+    autoDefend: true,
+  });
+  if (king) {
+    king.assignedTo = 'ascent-royal-host';
+  }
+
+  refreshAllLandOutputs(state);
+  refreshPlayerVisibility(state);
+
+  // Prime the HUD figures so the founder prompt opens over real numbers instead of a
+  // POWER of 0 and a THREAT bar that reads as "losing" before the run has even started.
+  if (state.ascent) {
+    state.ascent.power = computeAscentPower(state);
+    state.ascent.powerPrev = state.ascent.power;
+    state.ascent.peakPower = state.ascent.power;
+    state.ascent.defensePower = computeDefensivePower(state);
+    state.ascent.threat = projectedWaveThreat(1);
+  }
 }
 
 /** Move the chosen dynasty founder from the draft deck into the starting roster (empire mode). */

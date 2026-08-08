@@ -8,6 +8,7 @@ import type {
   ResourceKey,
   Season,
 } from '../state/types';
+import { enAscent, viAscent } from './catalogs/ascent';
 import { enCore, viCore } from './catalogs/core';
 import { enEmpire, viEmpire } from './catalogs/empire';
 import { enHeroes, viHeroes } from './catalogs/heroes';
@@ -25,6 +26,7 @@ const en = {
   ...enWorld,
   ...enHeroes,
   ...enEmpire,
+  ...enAscent,
 } as const;
 
 const vi = {
@@ -32,6 +34,7 @@ const vi = {
   ...viWorld,
   ...viHeroes,
   ...viEmpire,
+  ...viAscent,
 } satisfies Record<keyof typeof en, string>;
 
 export type TranslationKey = keyof typeof en;

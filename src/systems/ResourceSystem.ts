@@ -227,13 +227,15 @@ export function getLandSpecialization(land: Land): LandSpecialization {
   return land.specialization ?? 'balanced';
 }
 
-/** Live tax-stance effects: gold multiplier, per-tick stability drift, and growth delta. */
+/** Live tax-stance effects: gold multiplier, per-tick stability drift (incl. tax fatigue), and growth delta. */
 export function getTaxEffects(state: GameState): { goldMult: number; stabilityDelta: number; growthDelta: number } {
+  // Effective stability drift includes the compounding resentment from sustained heavy taxes.
+  const fatiguePenalty = (state.taxFatigue ?? 0) * 0.16;
   switch (state.taxPolicy ?? 'balanced') {
-    case 'lenient': return { goldMult: 0.82, stabilityDelta: 0.35, growthDelta: 2 };
-    case 'harsh': return { goldMult: 1.28, stabilityDelta: -0.5, growthDelta: -2 };
+    case 'lenient': return { goldMult: 0.82, stabilityDelta: Number((0.4 - fatiguePenalty).toFixed(1)), growthDelta: 2 };
+    case 'harsh': return { goldMult: 1.28, stabilityDelta: Number((-0.5 - fatiguePenalty).toFixed(1)), growthDelta: -2 };
     case 'balanced':
-    default: return { goldMult: 1, stabilityDelta: 0, growthDelta: 0 };
+    default: return { goldMult: 1, stabilityDelta: Number((-fatiguePenalty).toFixed(1)), growthDelta: 0 };
   }
 }
 

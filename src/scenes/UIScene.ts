@@ -97,6 +97,8 @@ type ModalScreen =
   | 'politics-result'
   | 'build'
   | 'battle-result'
+  | 'threat-alert'
+  | 'battle-decision'
   | 'land-detail'
   | 'game-menu'
   | 'exit-menu'
@@ -555,6 +557,17 @@ export class UIScene extends Phaser.Scene {
       return;
     }
 
+    // Urgent, pausing intel & tactical decisions preempt other modals.
+    if (this.modalScreen === 'none' && this.state.pendingBattle) {
+      this.openModal('battle-decision');
+      return;
+    }
+
+    if (this.modalScreen === 'none' && this.state.pendingThreatAlert) {
+      this.openModal('threat-alert');
+      return;
+    }
+
     if (this.modalScreen === 'none' && this.state.latestBattleResult) {
       this.openModal('battle-result');
       return;
@@ -652,6 +665,10 @@ export class UIScene extends Phaser.Scene {
       this.showPoliticsResultScreen();
     } else if (this.modalScreen === 'build') {
       this.showBuildScreen();
+    } else if (this.modalScreen === 'threat-alert') {
+      this.showThreatAlertScreen();
+    } else if (this.modalScreen === 'battle-decision') {
+      this.showBattleDecisionScreen();
     } else if (this.modalScreen === 'battle-result') {
       this.showBattleResultScreen();
     } else if (this.modalScreen === 'land-detail') {
@@ -765,19 +782,25 @@ export class UIScene extends Phaser.Scene {
     draft.forEach((hero, i) => {
       const tx = selStartX + i * (tileW + tileGap);
       const isSelected = hero.id === selectedId;
-      const tile = this.ui.card({ x: tx, y: selY, width: tileW, height: 92 }, {
+      const tileH = 100;
+      const tile = this.ui.card({ x: tx, y: selY, width: tileW, height: tileH }, {
         border: isSelected ? INK_UI.gold : INK_UI.softBrush,
         borderWidth: isSelected ? 3 : 1.5,
       });
       this.modalLayer.add(tile);
-      this.modalLayer.add(renderHeroFace(this, hero, tx + tileW / 2, selY + 30, 0.4));
-      this.modalLayer.add(createLabel(this, tx + tileW / 2, selY + 58, heroName(hero), 'caption', {
+      this.modalLayer.add(renderHeroFace(this, hero, tx + tileW / 2, selY + 26, 0.34));
+      // Name strip below the portrait with dark text — light-on-parchment was unreadable.
+      const nameStrip = this.add.graphics();
+      nameStrip.fillStyle(INK_UI.brush, isSelected ? 0.9 : 0.72);
+      nameStrip.fillRoundedRect(tx + 4, selY + 56, tileW - 8, 38, 4);
+      this.modalLayer.add(nameStrip);
+      this.modalLayer.add(createLabel(this, tx + tileW / 2, selY + 60, heroName(hero), 'caption', {
         fontSize: '9px',
         align: 'center',
-        color: isSelected ? '#f3dd9a' : '#c9bd94',
-        wordWrap: { width: tileW - 8 },
+        color: isSelected ? '#ffe9a8' : '#e8dcc0',
+        wordWrap: { width: tileW - 10 },
       }).setOrigin(0.5, 0).setMaxLines(2));
-      const hit = this.add.rectangle(tx + tileW / 2, selY + 46, tileW, 92, 0xffffff, 0.001).setInteractive({ useHandCursor: true });
+      const hit = this.add.rectangle(tx + tileW / 2, selY + tileH / 2, tileW, tileH, 0xffffff, 0.001).setInteractive({ useHandCursor: true });
       hit.on('pointerup', (_pointer: Phaser.Input.Pointer, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
         event.stopPropagation();
         this.selectedDraftId = hero.id;
@@ -788,7 +811,7 @@ export class UIScene extends Phaser.Scene {
     });
 
     const cardScale = 0.82;
-    const cardCy = selY + 92 + 14 + 250 * cardScale;
+    const cardCy = selY + 100 + 14 + 250 * cardScale;
     const bigCard = this.drawHeroCard(selected, GAME_WIDTH / 2, cardCy, cardScale, 0, true);
     this.modalLayer.add(bigCard);
 
@@ -1199,7 +1222,7 @@ export class UIScene extends Phaser.Scene {
     const leaders = this.state.heroes.filter((hero) => !hero.assignedTo);
     const selectedArmy = this.state.armies.find((army) => army.id === this.state.selectedArmyId && army.kingdomId === PLAYER_KINGDOM_ID)
       ?? this.state.armies.find((army) => army.kingdomId === PLAYER_KINGDOM_ID);
-    const armyBlockHeight = selectedArmy ? 128 : 0;
+    const armyBlockHeight = selectedArmy ? 152 : 0;
     const maxSoldiers = Math.max(100, this.state.resources.humans);
     this.armySoldiers = Phaser.Math.Clamp(this.armySoldiers, 100, maxSoldiers);
     this.armyFood = Phaser.Math.Clamp(this.armyFood, 0, Math.max(0, this.state.resources.food));
@@ -1226,6 +1249,14 @@ export class UIScene extends Phaser.Scene {
           },
         },
       }));
+      // Auto-command toggle: hand the general full permission to intercept invasions.
+      const auto = selectedArmy.autoDefend ?? false;
+      this.modalLayer.add(this.ui.button({ x: content.x, y: content.y + 120, width: content.width, height: 28 },
+        auto ? t('army.autoOn') : t('army.autoOff'), () => {
+          selectedArmy.autoDefend = !auto;
+          this.state.message = auto ? t('army.autoOffMsg', { army: selectedArmy.name }) : t('army.autoOnMsg', { army: selectedArmy.name });
+          this.refresh();
+        }, { variant: auto ? 'primary' : 'secondary', fontSize: '11px' }));
     }
 
     if (leaders.length === 0) {
@@ -2156,13 +2187,14 @@ export class UIScene extends Phaser.Scene {
     let y = content.y;
     const headerH = 58;
     const header = this.add.graphics();
-    header.fillStyle(INK_UI.gold, 0.12);
+    // Dark banner so the gold text reads clearly (light-on-light was unreadable on parchment).
+    header.fillStyle(INK_UI.backgroundInk, 0.9);
     header.fillRoundedRect(content.x, y, content.width, headerH, 6);
-    header.lineStyle(1, INK_UI.gold, 0.4);
+    header.lineStyle(1, INK_UI.gold, 0.55);
     header.strokeRoundedRect(content.x, y, content.width, headerH, 6);
     this.modalLayer.add(header);
     this.modalLayer.add(createLabel(this, content.x + 10, y + 8, t('empire.mandate.points', { points: Math.round(mandate?.points ?? 0) }), 'label', { fontSize: '14px', color: '#f3dd9a' }));
-    this.modalLayer.add(createLabel(this, content.x + content.width - 10, y + 8, t('empire.mandate.edictPoints', { points: mandate?.edictPoints ?? 0 }), 'caption', { fontSize: '11px', align: 'right' }).setOrigin(1, 0));
+    this.modalLayer.add(createLabel(this, content.x + content.width - 10, y + 8, t('empire.mandate.edictPoints', { points: mandate?.edictPoints ?? 0 }), 'caption', { fontSize: '11px', align: 'right', color: '#e8d89a' }).setOrigin(1, 0));
     const toNext = pointsToNextEra(this.state);
     const nextLabel = toNext > 0 ? t('empire.mandate.toNext', { points: Math.ceil(toNext) }) : t('empire.mandate.ascendReady');
     this.modalLayer.add(createLabel(this, content.x + 10, y + 32, nextLabel, 'caption', { fontSize: '11px', color: '#e8d89a', wordWrap: { width: content.width - 130 } }));
@@ -2178,8 +2210,8 @@ export class UIScene extends Phaser.Scene {
     const curTax = this.state.taxPolicy ?? 'balanced';
     const taxFx = getTaxEffects(this.state);
     const nextTax = taxOrder[(taxOrder.indexOf(curTax) + 1) % taxOrder.length];
-    this.modalLayer.add(createLabel(this, content.x + 10, y + 2, t('tax.title', { policy: t(`tax.${curTax}` as Parameters<typeof t>[0]) }), 'label', { fontSize: '12px', color: '#f3dd9a' }));
-    this.modalLayer.add(createLabel(this, content.x + 10, y + 20, t('tax.effect', { gold: Math.round(taxFx.goldMult * 100), stab: taxFx.stabilityDelta > 0 ? `+${taxFx.stabilityDelta}` : `${taxFx.stabilityDelta}` }), 'caption', { fontSize: '10px', color: '#b89b5e' }));
+    this.modalLayer.add(createLabel(this, content.x + 10, y + 2, t('tax.title', { policy: t(`tax.${curTax}` as Parameters<typeof t>[0]) }), 'label', { fontSize: '12px', color: '#3a2410' }));
+    this.modalLayer.add(createLabel(this, content.x + 10, y + 20, t('tax.effect', { gold: Math.round(taxFx.goldMult * 100), stab: taxFx.stabilityDelta > 0 ? `+${taxFx.stabilityDelta}` : `${taxFx.stabilityDelta}` }), 'caption', { fontSize: '10px', color: '#6b5230' }));
     this.modalLayer.add(this.ui.button({ x: content.x + content.width - 118, y: y + 4, width: 118, height: 28 }, t('tax.change'), () => {
       this.state.taxPolicy = nextTax;
       refreshAllLandOutputs(this.state);
@@ -2188,7 +2220,7 @@ export class UIScene extends Phaser.Scene {
     y += 40;
 
     // ── Directive list ──
-    const subtitle = createLabel(this, content.x + 10, y, t('empire.directive.subtitle'), 'caption', { fontSize: '10px', color: '#b89b5e' });
+    const subtitle = createLabel(this, content.x + 10, y, t('empire.directive.subtitle'), 'caption', { fontSize: '10px', color: '#6b5230' });
     this.modalLayer.add(subtitle);
     y += 20;
 
@@ -2201,7 +2233,7 @@ export class UIScene extends Phaser.Scene {
 
     // ── Royal Commands (Rally / Levy / Decree) with cooldowns ──
     const cmdY = content.y + content.height - cmdRowH + 4;
-    this.modalLayer.add(createLabel(this, content.x, cmdY - 2, t('empire.ability.title'), 'caption', { fontSize: '10px', color: '#b89b5e' }));
+    this.modalLayer.add(createLabel(this, content.x, cmdY - 2, t('empire.ability.title'), 'caption', { fontSize: '10px', color: '#6b5230' }));
     const abW = (content.width - 16) / ABILITIES.length;
     ABILITIES.forEach((ab, i) => {
       const cd = abilityCooldown(this.state, ab.id);
@@ -2225,7 +2257,7 @@ export class UIScene extends Phaser.Scene {
       card.fillRoundedRect(0, rowY, 6, rowH - 8, { tl: 6, bl: 6, tr: 0, br: 0 });
       scroll.content.add(card);
       scroll.content.add(createLabel(this, 14, rowY + 8, directiveTitle(d), 'label', { fontSize: '12px', wordWrap: { width: content.width - 90 } }));
-      scroll.content.add(createLabel(this, content.width - 8, rowY + 8, t(`empire.directive.tier.${d.tier}` as Parameters<typeof t>[0]), 'caption', { fontSize: '9px', align: 'right', color: '#b89b5e' }).setOrigin(1, 0));
+      scroll.content.add(createLabel(this, content.width - 8, rowY + 8, t(`empire.directive.tier.${d.tier}` as Parameters<typeof t>[0]), 'caption', { fontSize: '9px', align: 'right', color: '#8a6d2e' }).setOrigin(1, 0));
       const barMax = Math.max(1, d.target - d.baseline);
       const barVal = Phaser.Math.Clamp(d.current - d.baseline, 0, barMax);
       const bar = this.ui.statBar({ x: 14, y: rowY + 42, width: content.width - 92, height: 10 }, barVal, barMax, tierColor);
@@ -2318,9 +2350,9 @@ export class UIScene extends Phaser.Scene {
     // Header: points on hand + how many decrees are already active, then a one-line primer
     // so "chiếu chỉ" reads as a purposeful currency rather than an unexplained number.
     const activeCount = mandate?.edicts.filter((id) => allProjects().some((p) => p.id === id && p.kind === 'edict')).length ?? 0;
-    this.modalLayer.add(createLabel(this, content.x + content.width, content.y + 2, t('empire.mandate.edictPoints', { points: mandate?.edictPoints ?? 0 }), 'label', { fontSize: '13px', align: 'right', color: '#f3dd9a' }).setOrigin(1, 0));
-    this.modalLayer.add(createLabel(this, content.x + content.width, content.y + 20, t('empire.edict.activeCount', { count: activeCount }), 'caption', { fontSize: '9px', align: 'right', color: '#9fbb7e' }).setOrigin(1, 0));
-    this.modalLayer.add(createLabel(this, content.x, content.y + 32, t('empire.edict.explain'), 'caption', { fontSize: '9px', color: '#cbb885', wordWrap: { width: content.width } }));
+    this.modalLayer.add(createLabel(this, content.x + content.width, content.y + 2, t('empire.mandate.edictPoints', { points: mandate?.edictPoints ?? 0 }), 'label', { fontSize: '13px', align: 'right', color: '#7a4a12' }).setOrigin(1, 0));
+    this.modalLayer.add(createLabel(this, content.x + content.width, content.y + 20, t('empire.edict.activeCount', { count: activeCount }), 'caption', { fontSize: '9px', align: 'right', color: '#3f6b32' }).setOrigin(1, 0));
+    this.modalLayer.add(createLabel(this, content.x, content.y + 32, t('empire.edict.explain'), 'caption', { fontSize: '9px', color: '#6b5230', wordWrap: { width: content.width } }));
 
     const listTop = content.y + 62;
     const listH = content.height - 62;
@@ -2332,7 +2364,7 @@ export class UIScene extends Phaser.Scene {
     let rowY = 0;
 
     const addSection = (labelKey: 'empire.edict.section.edicts' | 'empire.edict.section.wonders') => {
-      scroll.content.add(createLabel(this, 4, rowY, t(labelKey), 'caption', { fontSize: '11px', fontStyle: '700', color: '#f3dd9a' }));
+      scroll.content.add(createLabel(this, 4, rowY, t(labelKey), 'caption', { fontSize: '11px', fontStyle: '700', color: '#7a4a12' }));
       rowY += 22;
     };
 
@@ -2347,24 +2379,24 @@ export class UIScene extends Phaser.Scene {
       card.fillStyle(branchColor, 0.9);
       card.fillRoundedRect(0, rowY, 6, rowH - 8, { tl: 6, bl: 6, tr: 0, br: 0 });
       scroll.content.add(card);
-      scroll.content.add(createLabel(this, 14, rowY + 7, projectTitle(project), 'label', { fontSize: '12px', wordWrap: { width: content.width - 110 } }));
-      scroll.content.add(createLabel(this, 14, rowY + 25, projectDescription(project), 'caption', { fontSize: '10px', color: '#cbb885', wordWrap: { width: content.width - 110 } }));
+      scroll.content.add(createLabel(this, 14, rowY + 7, projectTitle(project), 'label', { fontSize: '12px', color: '#2a1a06', wordWrap: { width: content.width - 110 } }).setMaxLines(1));
+      scroll.content.add(createLabel(this, 14, rowY + 25, projectDescription(project), 'caption', { fontSize: '10px', color: '#6b5230', wordWrap: { width: content.width - 24 } }).setMaxLines(1));
       // Concrete, always-accurate effect line so the payoff of the edict is legible.
       const effects = projectEffectSummary(project);
       if (effects) {
-        scroll.content.add(createLabel(this, 14, rowY + 44, effects, 'caption', { fontSize: '10px', color: '#8fd07a', wordWrap: { width: content.width - 20 } }).setMaxLines(1));
+        scroll.content.add(createLabel(this, 14, rowY + 44, effects, 'caption', { fontSize: '10px', color: '#3f6b32', wordWrap: { width: content.width - 20 } }).setMaxLines(1));
       }
       const cost = project.kind === 'edict'
         ? t('empire.edict.cost.points', { cost: project.edictCost ?? 0 })
         : Object.entries(project.resourceCost ?? {}).map(([k, v]) => `${v}${k[0]}`).join(' ');
-      scroll.content.add(createLabel(this, 14, rowY + 62, cost, 'caption', { fontSize: '10px', color: '#e8d89a' }));
+      scroll.content.add(createLabel(this, 14, rowY + 62, cost, 'caption', { fontSize: '10px', color: '#7a4a12' }));
 
       const btnW = 90;
       const btnX = content.width - btnW - 4;
       if (enacted) {
-        scroll.content.add(createLabel(this, btnX + btnW, rowY + 14, t('empire.edict.done'), 'caption', { fontSize: '10px', align: 'right', color: '#7fae63' }).setOrigin(1, 0));
+        scroll.content.add(createLabel(this, btnX + btnW, rowY + 14, t('empire.edict.done'), 'caption', { fontSize: '10px', align: 'right', color: '#3f6b32' }).setOrigin(1, 0));
       } else if (blocked) {
-        scroll.content.add(createLabel(this, btnX + btnW, rowY + 14, blocked, 'caption', { fontSize: '9px', align: 'right', color: '#c0392b', wordWrap: { width: btnW } }).setOrigin(1, 0));
+        scroll.content.add(createLabel(this, btnX + btnW, rowY + 14, blocked, 'caption', { fontSize: '9px', align: 'right', color: '#8f2114', wordWrap: { width: btnW } }).setOrigin(1, 0));
       } else {
         scroll.content.add(this.ui.button({ x: btnX, y: rowY + 24, width: btnW, height: 30 }, project.kind === 'wonder' ? t('empire.edict.build') : t('empire.edict.enact'), () => {
           enactProject(this.state, project.id);
@@ -2614,6 +2646,90 @@ export class UIScene extends Phaser.Scene {
         },
       }));
       y += 96;
+    }
+  }
+
+  /** Pausing intelligence alert — our agents warn of a coming host; the player must react. */
+  private showThreatAlertScreen(): void {
+    const alert = this.state.pendingThreatAlert;
+    if (!alert) { this.closeModal(); return; }
+    this.addModalBase(t('alert.title'), t('alert.subtitle'));
+    const content = this.modalContentBounds;
+
+    const strengthColor = alert.strength === 'stronger' ? INK_UI.cinnabar : alert.strength === 'even' ? INK_UI.gold : INK_UI.jade;
+    const who = alert.warlordName ? t('alert.warlord', { warlord: alert.warlordName, kingdom: alert.kingdomName }) : alert.kingdomName;
+    const bodyKey = alert.kind === 'coalition' ? 'alert.body.coalition' : 'alert.body.incoming';
+    this.modalLayer.add(this.ui.card({ x: content.x, y: content.y, width: content.width, height: 150 }, {
+      title: t('alert.spyHeader'),
+      body: t(bodyKey, { who, turns: alert.turns }),
+      border: INK_UI.cinnabar,
+    }));
+    this.modalLayer.add(this.ui.card({ x: content.x, y: content.y + 162, width: content.width, height: 74 }, {
+      title: t(`alert.strength.${alert.strength}` as Parameters<typeof t>[0]),
+      body: t('alert.advice'),
+      border: strengthColor,
+    }));
+
+    const footer = this.modalFooterBounds;
+    const btnW = (content.width - 12) / 2;
+    // Jump straight to mustering an army.
+    this.modalLayer.add(this.ui.button({ x: content.x, y: footer.y + 6, width: btnW, height: 44 }, t('alert.muster'), () => {
+      this.acknowledgeThreatAlert();
+      this.openModal('army');
+    }, { variant: 'primary', fontSize: '13px' }));
+    this.modalLayer.add(this.ui.button({ x: content.x + btnW + 12, y: footer.y + 6, width: btnW, height: 44 }, t('alert.understood'), () => {
+      this.acknowledgeThreatAlert();
+    }, { variant: 'secondary', fontSize: '13px' }));
+  }
+
+  private acknowledgeThreatAlert(): void {
+    this.state.pendingThreatAlert = undefined;
+    this.state.isPaused = false;
+    this.closeModal();
+    this.refresh();
+  }
+
+  /** Focused field-battle decision: commit, delegate to the general, or withdraw. */
+  private showBattleDecisionScreen(): void {
+    const battle = this.state.pendingBattle;
+    if (!battle) { this.closeModal(); return; }
+    this.addModalBase(t('battleDec.title'), t('battleDec.at', { land: battle.landName }));
+    const content = this.modalContentBounds;
+
+    const odds = battle.defenderPower > 0 ? battle.attackerPower / battle.defenderPower : 9;
+    const oddsLabel = odds >= 1.15 ? t('battleDec.odds.bad') : odds <= 0.85 ? t('battleDec.odds.good') : t('battleDec.odds.even');
+    const oddsColor = odds >= 1.15 ? INK_UI.cinnabar : odds <= 0.85 ? INK_UI.jade : INK_UI.gold;
+    this.modalLayer.add(this.ui.card({ x: content.x, y: content.y, width: content.width, height: 120 }, {
+      title: t('battleDec.enemy', { kingdom: battle.kingdomName }),
+      body: t('battleDec.forces', { atk: Math.round(battle.attackerPower), def: Math.round(battle.defenderPower), odds: oddsLabel }),
+      border: oddsColor,
+    }));
+
+    const opts: Array<{ id: 'attack' | 'delegate' | 'retreat'; variant: 'primary' | 'secondary' | 'danger' }> = [
+      { id: 'attack', variant: 'primary' },
+      { id: 'delegate', variant: 'secondary' },
+      { id: 'retreat', variant: 'danger' },
+    ];
+    let y = content.y + 134;
+    for (const opt of opts) {
+      this.modalLayer.add(this.ui.card({ x: content.x, y, width: content.width, height: 82 }, {
+        title: t(`battleDec.${opt.id}` as Parameters<typeof t>[0]),
+        subtitle: t(`battleDec.${opt.id}.d` as Parameters<typeof t>[0]),
+        border: opt.variant === 'danger' ? INK_UI.cinnabar : opt.variant === 'primary' ? INK_UI.gold : INK_UI.softBrush,
+        actionPlacement: 'right',
+        action: {
+          label: t(`battleDec.act.${opt.id}` as Parameters<typeof t>[0]),
+          variant: opt.variant,
+          onClick: () => {
+            this.events.emit('ui:battle-decision', opt.id);
+            this.state.pendingBattle = undefined;
+            this.state.isPaused = false;
+            this.closeModal();
+            this.refresh();
+          },
+        },
+      }));
+      y += 90;
     }
   }
 

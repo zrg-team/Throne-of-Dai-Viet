@@ -19,6 +19,7 @@ import { dispatchHeroMission, useHeroAbility } from '../systems/empire/HeroActio
 import { resolveHeroEvent } from '../systems/empire/HeroEventSystem';
 import { choosePoliticsCard } from '../systems/PoliticsSystem';
 import { resolveForeignChoice } from '../systems/ForeignEventSystem';
+import { resolvePendingBattle } from '../systems/empire/InvasionSystem';
 import { SHEET_TOP } from '../ui/BottomSheet';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
@@ -59,7 +60,7 @@ function pickBakeScale(): number {
 const BAKE_SCALE = pickBakeScale();
 
 export class MapScene extends Phaser.Scene {
-  private state!: GameState;
+  protected state!: GameState;
   private touch!: TouchController;
   private landNodes = new Map<string, Phaser.GameObjects.Container>();
   private flagMarkers = new Map<string, Phaser.GameObjects.Container>();
@@ -94,7 +95,7 @@ export class MapScene extends Phaser.Scene {
   private hexOffsetY = 0;
   private worldWidth = 0;
   private worldHeight = 0;
-  private realtimeAccumulator = 0;
+  protected realtimeAccumulator = 0;
   private isDraggingMap = false;
   private dragDistance = 0;
   private renderSignatures: { bake: string; node: string } = { bake: '', node: '' };
@@ -163,8 +164,18 @@ export class MapScene extends Phaser.Scene {
     this.domDown = undefined;
   }
 
-  constructor() {
-    super('MapScene');
+  /**
+   * `key` defaults to 'MapScene', so the Phaser config array (`new MapScene()`) is
+   * unchanged. The parameter exists so a mode can subclass the whole hex world — terrain
+   * bake, fog, camera, hit-testing — under its own scene key instead of duplicating it.
+   */
+  constructor(key = 'MapScene') {
+    super(key);
+  }
+
+  /** HUD scene launched alongside this one. Overridden by subclasses with their own HUD. */
+  protected uiSceneKey(): string {
+    return 'UIScene';
   }
 
   init(data?: { state?: GameState }): void {
@@ -225,8 +236,8 @@ export class MapScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.cleanup());
 
     this.drawMap();
-    this.scene.launch('UIScene', { state: this.state });
-    this.scene.bringToTop('UIScene');
+    this.scene.launch(this.uiSceneKey(), { state: this.state });
+    this.scene.bringToTop(this.uiSceneKey());
     this.registerUiEvents();
     this.events.emit('state-changed');
   }
@@ -257,8 +268,8 @@ export class MapScene extends Phaser.Scene {
     });
   };
 
-  private registerUiEvents(): void {
-    const ui = this.scene.get('UIScene');
+  protected registerUiEvents(): void {
+    const ui = this.scene.get(this.uiSceneKey());
     ui.events.on('ui:land-action', (action: string, landId: string, heroId?: string) => {
       this.handleLandAction(action, landId, heroId);
     });
@@ -286,6 +297,10 @@ export class MapScene extends Phaser.Scene {
       resolveForeignChoice(this.state, choiceId);
       this.refresh();
     });
+    ui.events.on('ui:battle-decision', (decision: 'attack' | 'delegate' | 'retreat') => {
+      resolvePendingBattle(this.state, decision);
+      this.refresh();
+    });
     ui.events.on('ui:attack-land', (armyId: string, landId: string, stance: 'assault' | 'balanced' | 'cautious') => {
       attackLand(this.state, armyId, landId, stance);
       this.refresh();
@@ -308,7 +323,7 @@ export class MapScene extends Phaser.Scene {
     ui.events.on('ui:toggle-render-mode', () => {
       this.state.mapRenderMode = this.state.mapRenderMode === 'terrain' ? 'control' : 'terrain';
       this.applyRenderMode();
-      this.scene.get('UIScene').events.emit('state-changed');
+      this.scene.get(this.uiSceneKey()).events.emit('state-changed');
     });
     ui.events.on('ui:save-snapshot', () => {
       const snapshot = saveSnapshot(this.state);
@@ -319,7 +334,7 @@ export class MapScene extends Phaser.Scene {
       if (saveFirst) {
         saveSnapshot(this.state);
       }
-      this.scene.stop('UIScene');
+      this.scene.stop(this.uiSceneKey());
       this.scene.start('MenuScene');
     });
     ui.events.on('ui:pan-camera', (worldX: number, worldY: number) => {
@@ -1015,7 +1030,7 @@ export class MapScene extends Phaser.Scene {
     return this.settlements.getCityCenter(this.state, land);
   }
 
-  private selectLand(landId: string): void {
+  protected selectLand(landId: string): void {
     if (this.isDraggingMap || this.state.isPaused) {
       return;
     }
@@ -1193,7 +1208,7 @@ export class MapScene extends Phaser.Scene {
     };
   }
 
-  private animateSoldierColumn(
+  protected animateSoldierColumn(
     fromX: number,
     fromY: number,
     toX: number,
@@ -1238,7 +1253,7 @@ export class MapScene extends Phaser.Scene {
     }
   }
 
-  private refresh(): void {
+  protected refresh(): void {
     // The baked terrain/control/coast/fog/zone layers depend only on ownership and
     // visibility, so a building-only change (common on economy ticks) skips the whole
     // expensive repaint+bake and just refreshes the live settlement nodes.
@@ -1277,7 +1292,7 @@ export class MapScene extends Phaser.Scene {
     this.drawSiegeMarkers();
     this.drawRecruitMarkers();
     this.events.emit('state-changed');
-    this.scene.get('UIScene').events.emit('state-changed');
+    this.scene.get(this.uiSceneKey()).events.emit('state-changed');
   }
 
   /** Updates one cached render signature and reports whether it changed. */
@@ -1364,11 +1379,11 @@ export class MapScene extends Phaser.Scene {
     };
   }
 
-  private wx(value: number): number {
+  protected wx(value: number): number {
     return (value - this.hexOffsetX) * MAP_SCALE;
   }
 
-  private wy(value: number): number {
+  protected wy(value: number): number {
     return (value - this.hexOffsetY) * MAP_SCALE;
   }
 
@@ -1376,7 +1391,7 @@ export class MapScene extends Phaser.Scene {
     return this.isScreenPointOverFixedUi(pointer.x, pointer.y);
   }
 
-  private isScreenPointOverFixedUi(x: number, y: number): boolean {
+  protected isScreenPointOverFixedUi(x: number, y: number): boolean {
     return (
       (this.state.isPaused && !this.state.isStrategyPause) ||
       performance.now() < (window.__suppressMapInputUntil ?? 0) ||
@@ -1423,7 +1438,7 @@ export class MapScene extends Phaser.Scene {
     };
   }
 
-  private findLandIdAt(worldX: number, worldY: number): string | undefined {
+  protected findLandIdAt(worldX: number, worldY: number): string | undefined {
     const hexSize = this.state.mapConfig.hexSize;
     const rawX = worldX / MAP_SCALE + this.hexOffsetX;
     const rawY = worldY / MAP_SCALE + this.hexOffsetY;
@@ -1445,10 +1460,10 @@ export class MapScene extends Phaser.Scene {
     camera.scrollX = Phaser.Math.Clamp(centerWorldX - GAME_WIDTH / (2 * nextZoom), 0, Math.max(0, this.worldWidth - GAME_WIDTH / nextZoom));
     camera.scrollY = Phaser.Math.Clamp(centerWorldY - GAME_HEIGHT / (2 * nextZoom), 0, Math.max(0, this.worldHeight - GAME_HEIGHT / nextZoom));
     this.state.message = `Map zoom ${Math.round(nextZoom * 100)}%.`;
-    this.scene.get('UIScene').events.emit('state-changed');
+    this.scene.get(this.uiSceneKey()).events.emit('state-changed');
   }
 
-  private centerCameraOnPlayerStart(): void {
+  protected centerCameraOnPlayerStart(): void {
     const camera = this.cameras.main;
     const startLand = this.state.lands.find((land) => land.ownerId === PLAYER_KINGDOM_ID);
     const targetX = startLand ? this.wx(startLand.x) : this.worldWidth / 2;

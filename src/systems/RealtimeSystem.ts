@@ -9,7 +9,7 @@ import { tickCampaignEvents } from './CampaignEventSystem';
 import { tickForeignAffairs } from './ForeignAffairsSystem';
 import { tickSpySystem } from './SpySystem';
 import { checkCampaignDefeat, tickDynastyStatus } from './DynastySystem';
-import { tickInvasions } from './empire/InvasionSystem';
+import { tickAutoDefend, tickInvasions } from './empire/InvasionSystem';
 import { progressDirectives } from './empire/DirectiveSystem';
 import { tickThreatDirector } from './empire/ThreatDirector';
 import { tickGreatPowersYear } from './empire/GreatPowersSystem';
@@ -61,6 +61,7 @@ export function advanceRealtimeMonth(state: GameState): void {
     tickForeignAffairs(state);
     maybeDrawForeignCard(state);
     tickSpySystem(state);
+    tickAutoDefend(state);
     tickInvasions(state);
     if (state.gameMode === 'empire') {
       if (yearAdvanced) {

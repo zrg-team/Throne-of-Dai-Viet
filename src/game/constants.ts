@@ -18,6 +18,16 @@ export function isCampaignMode(mode: string): boolean {
   return mode === 'campaign' || mode === 'empire';
 }
 
+/**
+ * Whether a mode is an endless survival run with no map-conquest win condition.
+ * True for 'empire' (win only via prestige Ascension) and 'ascent' (no win at all).
+ * These modes must never be scored by `checkVictory`'s enemy-castle sweep — they have
+ * no enemy castles on the map, so that check would declare victory on the first tick.
+ */
+export function isEndlessMode(mode: string): boolean {
+  return mode === 'empire' || mode === 'ascent';
+}
+
 /** Real-time interval, in ms, between economy ticks (acquisitions, builds, army marches). */
 export const REALTIME_TICK_MS = 5500;
 

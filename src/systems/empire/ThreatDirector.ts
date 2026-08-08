@@ -96,13 +96,38 @@ function playerStrength(state: GameState): number {
 
 function regenPerTick(state: GameState, era: EraId): number {
   const diff = difficultyMult(state.campaignConfig?.difficulty);
-  // Mild rubber-band: a larger realm invites larger threats.
+  // Rubber-band: a larger realm invites larger threats.
   const rubber = 1 + Math.min(0.6, playerStrength(state) * 0.02);
-  return BASE_REGEN * ERA_REGEN_MULT[era] * diff * rubber;
+  // Escalation-with-success: a wealthy treasury draws proportionally fiercer coalitions, so
+  // a snowballing empire keeps facing real pressure instead of coasting late-game.
+  const wealthPressure = 1 + Math.min(0.85, (state.resources.gold ?? 0) / 5000);
+  return BASE_REGEN * ERA_REGEN_MULT[era] * diff * rubber * wealthPressure;
 }
 
 function hasActivePact(kingdom: Kingdom | undefined, turn: number): boolean {
   return Boolean(kingdom?.treaties?.some((tr) => tr.type === 'non-aggression' && tr.expiresTurn > turn));
+}
+
+/**
+ * Raises a pausing intelligence alert (our agents warn of a coming host) and halts the
+ * game so the player reads it and prepares — musters an army, signs a pact, raises walls —
+ * instead of a big invasion sneaking up in a toast they might miss.
+ */
+function issueThreatAlert(state: GameState, kind: 'incoming' | 'coalition', kingdom: Kingdom, warlordName: string, turns: number): void {
+  if (state.pendingThreatAlert) return;
+  const mil = getPlayerMilitary(state);
+  const power = getEmpirePower(state, kingdom);
+  const strength: 'weaker' | 'even' | 'stronger' = power > mil * 1.25 ? 'stronger' : power < mil * 0.7 ? 'weaker' : 'even';
+  state.pendingThreatAlert = {
+    id: `alert-${state.turn}-${kingdom.id}`,
+    kind,
+    kingdomId: kingdom.id,
+    kingdomName: kingdom.name,
+    warlordName,
+    turns,
+    strength,
+  };
+  state.isPaused = true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -139,6 +164,7 @@ function maybeStageCoalition(state: GameState): boolean {
   };
   issuePrepDirective(state, dueTurn, 40);
   pushToast(state, t('empire.coalition.form', { warlord, turns: GREAT_LEAD }), 'threat');
+  issueThreatAlert(state, 'coalition', aggressor, warlord, GREAT_LEAD);
   return true;
 }
 
@@ -250,6 +276,7 @@ function stageGreatInvasion(state: GameState, era: EraId): void {
   // A guaranteed heavy reward for weathering it.
   issuePrepDirective(state, dueTurn, 30 + eraIndex(era) * 10);
   pushToast(state, t('empire.ultimatum.great', { warlord, kingdom: aggressor.name, turns: GREAT_LEAD }), 'threat');
+  issueThreatAlert(state, 'incoming', aggressor, warlord, GREAT_LEAD);
 }
 
 function stageMinorUltimatum(state: GameState, aggressor: Kingdom): void {

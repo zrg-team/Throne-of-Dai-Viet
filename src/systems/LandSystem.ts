@@ -1,4 +1,4 @@
-import { PLAYER_KINGDOM_ID } from '../game/constants';
+import { isEndlessMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import type { GameState, Land } from '../state/types';
 import { t } from '../i18n';
 
@@ -60,9 +60,10 @@ export function getSiegeOrder(state: GameState, landId: string) {
 }
 
 export function checkVictory(state: GameState): void {
-  // Empire mode is endless survival — the only win is prestige Ascension, reached
-  // by climbing to the Heavenly Mandate era and completing the Ascension directive.
-  if (state.gameMode === 'empire') {
+  // Endless modes have no map-conquest win. Empire mode's only win is prestige
+  // Ascension (climb to the Heavenly Mandate era and complete the Ascension directive);
+  // Dragon Ascent has none at all — it is a score chase that ends in defeat.
+  if (isEndlessMode(state.gameMode)) {
     if (state.mandate?.ascended && !state.victory) {
       state.victory = true;
       state.message = t('empire.ascend.victory');

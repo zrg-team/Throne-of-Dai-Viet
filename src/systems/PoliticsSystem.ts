@@ -103,7 +103,12 @@ export function choosePoliticsCard(state: GameState, choiceId: string): boolean 
   return true;
 }
 
-function applyCourtEffect(state: GameState, label: string, effect: CourtEffect): void {
+/**
+ * Applies a card choice's payload: resource deltas, a timed/permanent court modifier, and
+ * the one-shot grants. The universal effect pipeline — also used by Dragon Ascent's Power
+ * Draft, where each take pushes another stacking modifier under an `asc:<id>:<n>` label.
+ */
+export function applyCourtEffect(state: GameState, label: string, effect: CourtEffect): void {
   if (effect.resourceDelta) {
     applyResourceDelta(state, effect.resourceDelta);
   }
@@ -191,6 +196,7 @@ function createModifier(label: string, effect: CourtEffect) {
     'resourceRateModifier',
     'recruitSpeedModifier',
     'courtCardSpeedModifier',
+    'armyPowerModifier',
     'armyXpModifier',
     'buildingCostModifier',
     'buildSpeedBonus',
@@ -219,6 +225,7 @@ function createModifier(label: string, effect: CourtEffect) {
     resourceRateModifier: effect.resourceRateModifier,
     recruitSpeedModifier: effect.recruitSpeedModifier,
     courtCardSpeedModifier: effect.courtCardSpeedModifier,
+    armyPowerModifier: effect.armyPowerModifier,
     armyXpModifier: effect.armyXpModifier,
     buildingCostModifier: effect.buildingCostModifier,
     buildSpeedBonus: effect.buildSpeedBonus,
