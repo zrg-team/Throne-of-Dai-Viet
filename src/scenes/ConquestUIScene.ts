@@ -5,7 +5,7 @@ import { heroTemplates } from '../data/heroes';
 import { powerCardView, skipRefundAmount } from '../systems/ascent/PowerDraftSystem';
 import { tierForHero } from '../systems/ascent/SummonSystem';
 import { responseCommanderName } from '../systems/ascent/WaveDirector';
-import { renderHeroFace } from '../ui/FaceRenderer';
+import { renderHeroFaceInBox } from '../ui/FaceRenderer';
 import { INK_UI, INK_UI_HEX, InkUI, type InkScrollArea, type UIBounds } from '../ui/InkUI';
 import { ASCENT_HUD_HEIGHT, AscentHud } from '../ui/ascent/AscentHud';
 import { ResourceBar } from '../ui/ResourceBar';
@@ -13,6 +13,10 @@ import { staggerIn } from '../ui/animations';
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
 import { heroName, heroTypeLabel, rarityLabel, t } from '../i18n';
 import type { AscentPrompt, AscentRarity, GameState, Hero } from '../state/types';
+
+/** Portrait column on hero cards: below the rarity badge, inset from the right edge. */
+const PORTRAIT_W = 74;
+const PORTRAIT_TOP = 30;
 
 /** Rarity → frame colour. The one visual language shared by draft cards and summons. */
 const RARITY_COLOR: Record<AscentRarity, number> = {
@@ -179,6 +183,8 @@ export class ConquestUIScene extends Phaser.Scene {
       body: string;
       note?: string;
       noteColor?: string;
+      /** Width kept clear on the right (a portrait column), so text wraps before it. */
+      reserveRight?: number;
       accent: number;
       badge?: string;
       disabled?: boolean;
@@ -187,6 +193,7 @@ export class ConquestUIScene extends Phaser.Scene {
   ): Phaser.GameObjects.Container {
     const container = this.add.container(bounds.x, bounds.y);
     const alpha = opts.disabled ? 0.45 : 1;
+    const textWidth = bounds.width - 32 - (opts.reserveRight ?? 0);
 
     const surface = this.ui.panel(
       { x: 0, y: 0, width: bounds.width, height: bounds.height },
@@ -198,13 +205,13 @@ export class ConquestUIScene extends Phaser.Scene {
 
     container.add(this.ui.label(16, 10, opts.title, 'label', {
       fontSize: '14px',
-      wordWrap: { width: bounds.width - 32 },
+      wordWrap: { width: textWidth },
     }).setAlpha(alpha));
 
     container.add(this.ui.label(16, 32, opts.body, 'body', {
       fontSize: '11px',
       color: INK_UI_HEX.mutedText,
-      wordWrap: { width: bounds.width - 32 },
+      wordWrap: { width: textWidth },
     }).setAlpha(alpha));
 
     if (opts.note) {
@@ -355,6 +362,7 @@ export class ConquestUIScene extends Phaser.Scene {
           noteColor: isNew ? '#c98a2e' : undefined,
           badge: t(`ascent.rarity.${tier}` as Parameters<typeof t>[0]),
           accent: RARITY_COLOR[tier],
+          reserveRight: PORTRAIT_W + 14,
           onTap: () => this.choose(heroId),
         },
       );
@@ -376,9 +384,15 @@ export class ConquestUIScene extends Phaser.Scene {
       }
 
       // Procedural portrait, deterministic from the hero id — no art assets involved.
-      // Kept below the badge row: the card adds its badge before this, so a portrait
-      // placed level with it would draw straight over the rarity label.
-      const face = renderHeroFace(this, hero, content.width - 48, 86, 0.58);
+      // Sized to the card's right-hand column, below the badge row. The portrait's art is
+      // taller than its frame (the shoulders hang past it), so it must be fitted to a box
+      // rather than dropped at a centre point, or it spills out of the card.
+      const face = renderHeroFaceInBox(this, hero, {
+        x: content.width - PORTRAIT_W - 12,
+        y: PORTRAIT_TOP,
+        width: PORTRAIT_W,
+        height: cardHeight - PORTRAIT_TOP - 8,
+      });
       card.add(face);
       cards.push(card);
     });
@@ -488,10 +502,16 @@ export class ConquestUIScene extends Phaser.Scene {
           note: this.heroStatLine(hero),
           badge: t(`ascent.rarity.${tier}` as Parameters<typeof t>[0]),
           accent: RARITY_COLOR[tier],
+          reserveRight: PORTRAIT_W + 14,
           onTap: () => this.choose(heroId),
         },
       );
-      card.add(renderHeroFace(this, hero, content.width - 48, 78, 0.56));
+      card.add(renderHeroFaceInBox(this, hero, {
+        x: content.width - PORTRAIT_W - 12,
+        y: PORTRAIT_TOP,
+        width: PORTRAIT_W,
+        height: cardHeight - PORTRAIT_TOP - 8,
+      }));
       cards.push(card);
     });
     staggerIn(this, cards);

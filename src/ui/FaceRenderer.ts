@@ -46,6 +46,41 @@ const HEAD_TOP = FACE_Y - FACE_HEIGHT / 2;
 const CHIN_Y = FACE_Y + FACE_HEIGHT / 2;
 const NECK_Y = CHIN_Y + 11;
 
+/**
+ * Visual extent of a portrait at scale 1, relative to its container origin.
+ *
+ * Deliberately asymmetric: the frame is 132x148 centred on the origin, but the shirt is
+ * drawn at `NECK_Y + 31` with a height of 42, so it reaches y=+90 — 16px *below* the frame.
+ * Callers that size a portrait against a box must use these bounds rather than the frame,
+ * or the shoulders spill out of the bottom of whatever contains them.
+ */
+export const HERO_FACE_EXTENT = { top: -74, bottom: 90, left: -66, right: 66 } as const;
+export const HERO_FACE_W = HERO_FACE_EXTENT.right - HERO_FACE_EXTENT.left; // 132
+export const HERO_FACE_H = HERO_FACE_EXTENT.bottom - HERO_FACE_EXTENT.top; // 164
+
+/**
+ * Renders a portrait scaled and positioned to sit fully inside `box`, centred within it.
+ * Use this anywhere a portrait shares a card with text; `renderHeroFace` alone takes a raw
+ * centre point and will happily overflow its container.
+ */
+export function renderHeroFaceInBox(
+  scene: Phaser.Scene,
+  hero: Hero,
+  box: { x: number; y: number; width: number; height: number },
+  maxScale = 1,
+): Phaser.GameObjects.Container {
+  const scale = Math.min(box.width / HERO_FACE_W, box.height / HERO_FACE_H, maxScale);
+  // The origin is not the middle of the artwork, so offset by the extent's own centre.
+  const centreOffsetY = (HERO_FACE_EXTENT.top + HERO_FACE_EXTENT.bottom) / 2;
+  return renderHeroFace(
+    scene,
+    hero,
+    box.x + box.width / 2,
+    box.y + box.height / 2 - centreOffsetY * scale,
+    scale,
+  );
+}
+
 export function renderHeroFace(
   scene: Phaser.Scene,
   hero: Hero,
