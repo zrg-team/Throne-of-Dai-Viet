@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { gameConfig } from './game/config';
-import { createInitialGameState, createCampaignGameState, createEmpireGameState } from './state/GameState';
+import { createInitialGameState, createCampaignGameState, createEmpireGameState, createAscentGameState } from './state/GameState';
 import { scheduleCampaignEvents } from './systems/CampaignEventSystem';
 import type { GameState } from './state/types';
 import { getLanguage, heroName, politicsTitle, seasonLabel, t } from './i18n';
@@ -14,7 +14,7 @@ declare global {
     __minimapInputBounds?: Array<{ x: number; y: number; width: number; height: number }>;
     render_game_to_text?: () => string;
     advanceTime?: (ms: number) => void;
-    __startBenchGame?: (seed?: number, mode?: 'rival' | 'campaign' | 'empire') => void;
+    __startBenchGame?: (seed?: number, mode?: 'rival' | 'campaign' | 'empire' | 'ascent') => void;
   }
 }
 
@@ -92,9 +92,50 @@ window.render_game_to_text = () => {
       unlockedSeats: state.court.unlockedSeats,
       seats: state.court.seats,
     },
+    ascent: state.ascent
+      ? {
+          wave: state.ascent.wave,
+          ticksToWave: state.ascent.ticksToWave,
+          bossTelegraphed: state.ascent.bossTelegraphed,
+          wavesSurvived: state.ascent.wavesSurvived,
+          power: state.ascent.power,
+          powerDelta: state.ascent.power - state.ascent.powerPrev,
+          peakPower: state.ascent.peakPower,
+          defensePower: state.ascent.defensePower,
+          threat: state.ascent.threat,
+          level: state.ascent.level,
+          xp: state.ascent.xp,
+          xpToNext: state.ascent.xpToNext,
+          cardStacks: state.ascent.cardStacks,
+          retiredCards: state.ascent.retiredCards,
+          heroesSummoned: state.ascent.heroesSummoned,
+          frontLandId: state.ascent.frontLandId,
+          frontBlocked: state.ascent.frontBlocked,
+          autopilot: state.ascent.autopilotStats,
+          queuedPrompts: state.ascent.promptQueue.length,
+          prompt: state.pendingAscentPrompt
+            ? {
+                kind: state.pendingAscentPrompt.kind,
+                options: describeAscentPromptOptions(state.pendingAscentPrompt),
+              }
+            : null,
+        }
+      : undefined,
     message: state.message,
   });
 };
+
+/** Option ids of the open Dragon Ascent prompt, so a driver can answer it blind. */
+function describeAscentPromptOptions(prompt: NonNullable<GameState['pendingAscentPrompt']>): string[] {
+  switch (prompt.kind) {
+    case 'founder': return prompt.options;
+    case 'power-draft': return [...prompt.cards, 'skip'];
+    case 'march-order': return [...prompt.targets.map((target) => target.landId), 'hold'];
+    case 'hero-summon': return [...prompt.heroIds, 'pass'];
+    case 'empire-response': return prompt.options.map((option) => option.id);
+    default: return ['ok'];
+  }
+}
 
 window.advanceTime = (ms: number) => {
   const steps = Math.max(1, Math.round(ms / (1000 / 60)));
@@ -119,7 +160,9 @@ window.__startBenchGame = (seed = 1337, mode = 'rival') => {
   };
   let state: GameState;
   try {
-    if (mode === 'empire') {
+    if (mode === 'ascent') {
+      state = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
+    } else if (mode === 'empire') {
       state = createEmpireGameState({ seaSides: 1, difficulty: 'normal' });
       scheduleCampaignEvents(state);
     } else if (mode === 'campaign') {
@@ -135,8 +178,9 @@ window.__startBenchGame = (seed = 1337, mode = 'rival') => {
   // Mirror the real menu->game transition: stop the menu/campaign scenes so nothing
   // renders underneath MapScene (otherwise control-render-mode, which hides the opaque
   // paper background, would reveal them).
-  for (const key of ['MenuScene', 'CampaignScene']) {
-    if (game.scene.getScene(key)) game.scene.stop(key);
+  const worldScene = mode === 'ascent' ? 'ConquestScene' : 'MapScene';
+  for (const key of ['MenuScene', 'CampaignScene', 'MapScene', 'UIScene', 'ConquestScene', 'ConquestUIScene']) {
+    if (key !== worldScene && game.scene.getScene(key)) game.scene.stop(key);
   }
-  game.scene.start('MapScene', { state });
+  game.scene.start(worldScene, { state });
 };

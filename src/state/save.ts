@@ -100,6 +100,12 @@ function normalizeSnapshotState(state: GameState): GameState {
   }
   clone.isPaused = false;
   clone.latestBattleResult = undefined;
+  // A prompt was mid-decision when the run was saved; its options were priced against a
+  // state that no longer exists, so drop it rather than restore a stale choice.
+  clone.pendingAscentPrompt = undefined;
+  if (clone.ascent) {
+    clone.ascent.promptQueue = [];
+  }
   return clone;
 }
 

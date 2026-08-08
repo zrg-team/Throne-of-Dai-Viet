@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
-import { createInitialGameState } from '../state/GameState';
+import { createAscentGameState, createInitialGameState } from '../state/GameState';
 import { hasSnapshot, loadSnapshot, snapshotLabel } from '../state/save';
 import { getLegacy, LEGACY_PERKS, purchaseLegacyPerk, rankForScore } from '../state/legacy';
 import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
@@ -11,7 +11,7 @@ import { INK, brushStroke, inkOutline, shade, washFill, waveLine } from '../ui/i
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
 import { getMapTheme, MAP_THEME_OPTIONS, setMapTheme } from '../ui/mapTheme';
 
-type MenuMode = 'main' | 'confirm-new' | 'legacy';
+type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy';
 
 export class MenuScene extends Phaser.Scene {
   private ui!: InkUI;
@@ -450,6 +450,8 @@ export class MenuScene extends Phaser.Scene {
       this.renderConfirmNew();
     } else if (this.mode === 'legacy') {
       this.renderLegacyShop();
+    } else if (this.mode === 'classic') {
+      this.renderClassic();
     } else {
       this.renderMain();
     }
@@ -488,23 +490,34 @@ export class MenuScene extends Phaser.Scene {
 
   private renderMain(): void {
     const saved = hasSnapshot();
-    // Two game modes share the same width/edge for a clean column; Continue below.
-    this.content.push(this.ui.button({ x: 54, y: 512, width: 282, height: 54 }, t('empire.menu.title'), () => {
-      this.scene.start('CampaignScene', { mode: 'empire' });
-    }, { variant: 'primary', fontSize: '16px' }));
 
-    this.content.push(this.ui.button({ x: 54, y: 578, width: 282, height: 54 }, t('menu.startCampaign'), () => {
-      this.scene.start('CampaignScene', { mode: 'campaign' });
-    }, { variant: 'secondary', fontSize: '16px' }));
+    // The new mode leads; the two hand-played modes live one tap away on the Classic page,
+    // which also keeps the button column inside the space the menu art leaves free.
+    this.content.push(this.ui.button({ x: 54, y: 506, width: 282, height: 58 }, t('ascent.menu.title'), () => {
+      this.startAscentRun();
+    }, { variant: 'primary', fontSize: '17px' }));
 
-    this.content.push(this.ui.button({ x: 54, y: 644, width: 282, height: 46 }, t('menu.continue'), () => {
+    this.content.push(this.add.text(GAME_WIDTH / 2, 570, t('ascent.menu.tagline'), {
+      color: '#e8d89a',
+      fontFamily: UI_FONT,
+      fontSize: '11px',
+      align: 'center',
+      wordWrap: { width: 270 },
+    }).setOrigin(0.5, 0));
+
+    this.content.push(this.ui.button({ x: 54, y: 596, width: 282, height: 46 }, t('ascent.menu.classic'), () => {
+      this.mode = 'classic';
+      this.render();
+    }, { variant: 'secondary', fontSize: '15px' }));
+
+    this.content.push(this.ui.button({ x: 54, y: 650, width: 282, height: 42 }, t('menu.continue'), () => {
       const snapshot = loadSnapshot();
       if (snapshot) {
         this.startGame(snapshot.state);
       }
     }, { variant: saved ? 'ghost' : 'disabled', fontSize: '15px' }));
 
-    const saveLabel = this.add.text(GAME_WIDTH / 2, 694, snapshotLabel(), {
+    const saveLabel = this.add.text(GAME_WIDTH / 2, 698, snapshotLabel(), {
       color: saved ? '#f3dd9a' : '#d8c48e',
       fontFamily: UI_FONT,
       fontSize: '12px',
@@ -538,6 +551,59 @@ export class MenuScene extends Phaser.Scene {
         this.render();
       }, { variant: 'ghost', fontSize: '12px' }));
     }
+  }
+
+  /**
+   * The two hand-played modes, one tap from the main screen. Both fire exactly the same
+   * `CampaignScene` starts they did when they sat on the front page — CampaignScene itself
+   * is untouched by the new mode.
+   */
+  private renderClassic(): void {
+    this.content.push(this.add.text(GAME_WIDTH / 2, 250, t('ascent.menu.classicTitle'), {
+      color: '#f3dd9a',
+      fontFamily: TITLE_FONT,
+      fontSize: '20px',
+      fontStyle: '700',
+      align: 'center',
+    }).setOrigin(0.5));
+
+    this.content.push(this.ui.card({ x: 28, y: 300, width: GAME_WIDTH - 56, height: 88 }, {
+      title: t('empire.menu.title'),
+      body: t('ascent.menu.empireBlurb'),
+      border: INK_UI.gold,
+      actionPlacement: 'bottom',
+      action: {
+        label: t('ascent.menu.play'),
+        variant: 'primary',
+        onClick: () => this.scene.start('CampaignScene', { mode: 'empire' }),
+      },
+    }));
+
+    this.content.push(this.ui.card({ x: 28, y: 436, width: GAME_WIDTH - 56, height: 88 }, {
+      title: t('menu.startCampaign'),
+      body: t('ascent.menu.campaignBlurb'),
+      border: INK_UI.softBrush,
+      actionPlacement: 'bottom',
+      action: {
+        label: t('ascent.menu.play'),
+        variant: 'secondary',
+        onClick: () => this.scene.start('CampaignScene', { mode: 'campaign' }),
+      },
+    }));
+
+    this.content.push(this.ui.button({ x: 54, y: 620, width: 282, height: 44 }, t('ascent.menu.back'), () => {
+      this.mode = 'main';
+      this.render();
+    }, { variant: 'secondary', fontSize: '14px' }));
+  }
+
+  /**
+   * Dragon Ascent skips the setup screen entirely: the founder choice is the run's first
+   * in-game prompt, so starting a run is one tap and no menu.
+   */
+  private startAscentRun(): void {
+    const state = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
+    this.scene.start('ConquestScene', { state });
   }
 
   private renderLegacyShop(): void {
@@ -690,7 +756,9 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private startGame(state: ReturnType<typeof createInitialGameState>): void {
-    this.scene.start('MapScene', { state });
+    // One save slot is shared across modes, so resume into the world scene the run belongs
+    // to — an ascent save booted into MapScene would run the classic tick over ascent state.
+    this.scene.start(state.gameMode === 'ascent' ? 'ConquestScene' : 'MapScene', { state });
   }
 
   private clearContent(): void {

@@ -1,6 +1,6 @@
-import { PLAYER_KINGDOM_ID } from '../../game/constants';
+import { isEndlessMode, PLAYER_KINGDOM_ID } from '../../game/constants';
 import { findLand, getAcquisitionTicksRequired } from '../LandSystem';
-import { createBattlePreview, grantGeneralExperience } from '../WarSystem';
+import { createBattlePreview, grantGeneralExperience, issueMoveOrder } from '../WarSystem';
 import { applyResourceDelta, refreshAllLandOutputs } from '../ResourceSystem';
 import { getPlayerMilitary } from '../DiplomacySystem';
 import { addMandate } from './MandateSystem';
@@ -148,7 +148,7 @@ export interface InvasionSpawnOptions {
 
 /** Replaces the on-map `launchDynastyAttack` for empire mode: spawns one or more off-map hosts at the frontier. */
 export function launchOffMapInvasion(state: GameState, kingdomId: string | undefined, opts: InvasionSpawnOptions = {}): void {
-  if (state.gameMode !== 'empire' || !kingdomId) {
+  if (!isEndlessMode(state.gameMode) || !kingdomId) {
     return;
   }
   const kingdom = state.kingdoms.find((k) => k.id === kingdomId && !k.isDefeated && k.id !== PLAYER_KINGDOM_ID);
@@ -235,8 +235,44 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
 // Marching + resolving invasions each tick
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Auto-command: armies whose hero holds full command (`autoDefend`) march themselves to the
+ * owned district nearest the closest incoming host, to meet it there — so the player can hand
+ * frontier defence to a trusted general instead of micro-managing every march.
+ */
+export function tickAutoDefend(state: GameState): void {
+  if (!isEndlessMode(state.gameMode) || !state.invasions || state.invasions.length === 0) return;
+  const invaders = state.armies.filter((a) => a.kingdomId !== PLAYER_KINGDOM_ID && totalUnits(a) > 0 && state.invasions!.some((r) => r.armyId === a.id));
+  if (invaders.length === 0) return;
+  const owned = playerLands(state);
+  if (owned.length === 0) return;
+
+  for (const army of state.armies) {
+    if (army.kingdomId !== PLAYER_KINGDOM_ID || !army.autoDefend || totalUnits(army) <= 0) continue;
+    // Busy marching or besieging — leave the current order be.
+    if (state.movementOrders.some((o) => o.armyId === army.id)) continue;
+    if (state.siegeOrders.some((o) => o.armyId === army.id)) continue;
+    const here = findLand(state, army.landId);
+    if (!here) continue;
+    // Nearest incoming host, then the owned district closest to it (where it will strike).
+    let nearestInv: Army | undefined; let invDist = Infinity;
+    for (const inv of invaders) {
+      const il = findLand(state, inv.landId);
+      if (!il) continue;
+      const d = (il.x - here.x) ** 2 + (il.y - here.y) ** 2;
+      if (d < invDist) { invDist = d; nearestInv = inv; }
+    }
+    const invLand = nearestInv ? findLand(state, nearestInv.landId) : undefined;
+    if (!invLand) continue;
+    const threatened = nearestLand(invLand, owned);
+    if (threatened && threatened.id !== army.landId) {
+      issueMoveOrder(state, army.id, threatened.id);
+    }
+  }
+}
+
 export function tickInvasions(state: GameState): void {
-  if (state.gameMode !== 'empire' || !state.invasions || state.invasions.length === 0) {
+  if (!isEndlessMode(state.gameMode) || !state.invasions || state.invasions.length === 0) {
     return;
   }
 
@@ -284,6 +320,7 @@ export function tickInvasions(state: GameState): void {
     const adjacentToTarget = here?.neighbors.includes(target.id) ?? false;
 
     if (target.ownerId === PLAYER_KINGDOM_ID && adjacentToTarget) {
+      if (maybeRequestBattleDecision(state, army, record, target)) continue;
       resolveInvaderBattle(state, army, record, target);
       continue;
     }
@@ -295,6 +332,7 @@ export function tickInvasions(state: GameState): void {
     }
     const stepLand = findLand(state, step);
     if (stepLand?.ownerId === PLAYER_KINGDOM_ID) {
+      if (maybeRequestBattleDecision(state, army, record, stepLand)) continue;
       resolveInvaderBattle(state, army, record, stepLand);
     } else {
       army.landId = step;
@@ -314,7 +352,53 @@ function chooseTarget(state: GameState, army: Army, record: InvasionRecord): Lan
   return nearestLand(here, owned);
 }
 
-function resolveInvaderBattle(state: GameState, army: Army, record: InvasionRecord, land: Land): void {
+/**
+ * Requests the player's tactical decision when an invader reaches a district defended by a
+ * FIELD army (not just a garrison) — unless that army's hero holds full command (`autoDefend`),
+ * in which case the general decides and the fight auto-resolves. Returns true when it deferred
+ * the battle to the player (the caller must then skip auto-resolution this tick).
+ */
+function maybeRequestBattleDecision(state: GameState, army: Army, record: InvasionRecord, land: Land): boolean {
+  if (state.pendingBattle) return true;
+  const defender = state.armies.find((a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id && totalUnits(a) > 0);
+  if (!defender || defender.autoDefend) return false;
+  const preview = createBattlePreview(state, army.id, land.id);
+  if (!preview) return false;
+  state.pendingBattle = {
+    invaderArmyId: army.id,
+    landId: land.id,
+    landName: land.name,
+    kingdomId: record.kingdomId,
+    kingdomName: kingdomName(state, record.kingdomId),
+    isGreat: Boolean(record.great),
+    attackerPower: preview.attackerPower,
+    defenderPower: preview.defenderPower,
+  };
+  state.isPaused = true;
+  return true;
+}
+
+/** Resolves a battle the player was asked to decide. Attack = first-strike edge; retreat = save the host. */
+export function resolvePendingBattle(state: GameState, decision: 'attack' | 'delegate' | 'retreat'): void {
+  const pb = state.pendingBattle;
+  state.pendingBattle = undefined;
+  state.isPaused = false;
+  if (!pb) return;
+  const army = state.armies.find((a) => a.id === pb.invaderArmyId);
+  const land = findLand(state, pb.landId);
+  const record = state.invasions?.find((r) => r.armyId === pb.invaderArmyId);
+  if (!army || !land || !record) return;
+  if (decision === 'retreat') {
+    // Pull the field army to safety; the district falls to whatever garrison remains.
+    retreatDefenders(state, land);
+    resolveInvaderBattle(state, army, record, land, 1);
+    return;
+  }
+  // Attack: seize the initiative for a real defender edge. Delegate: a steady hero-led stand.
+  resolveInvaderBattle(state, army, record, land, decision === 'attack' ? 1.22 : 1.06);
+}
+
+function resolveInvaderBattle(state: GameState, army: Army, record: InvasionRecord, land: Land, defenderBonus = 1): void {
   const preview = createBattlePreview(state, army.id, land.id);
   if (!preview) {
     return;
@@ -325,7 +409,7 @@ function resolveInvaderBattle(state: GameState, army: Army, record: InvasionReco
   // swing (drama) while a clearly stronger side still prevails (preparation over luck).
   const fuzz = 0.9 + Math.random() * 0.2;
   const siegeMult = record.great ? 0.72 : preTotal > 1000 ? 0.8 : 0.85;
-  const victory = preview.attackerPower >= preview.defenderPower * siegeMult * fuzz;
+  const victory = preview.attackerPower >= preview.defenderPower * defenderBonus * siegeMult * fuzz;
 
   if (!victory) {
     applyInvaderLosses(army, 0.4);

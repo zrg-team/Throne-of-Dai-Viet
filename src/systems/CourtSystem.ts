@@ -249,7 +249,7 @@ export function getCourtBonuses(state: GameState): CourtBonuses {
     }
     delta.recruitSpeedMult += modifier.recruitSpeedModifier ?? 0;
     delta.cardFrequencyMult += modifier.courtCardSpeedModifier ?? 0;
-    delta.armyPowerMult += 0;
+    delta.armyPowerMult += modifier.armyPowerModifier ?? 0;
     delta.buildingCostMult += modifier.buildingCostModifier ?? 0;
     delta.buildSpeedBonus += modifier.buildSpeedBonus ?? 0;
     delta.upgradeSpeedBonus += modifier.upgradeSpeedBonus ?? 0;
@@ -305,7 +305,7 @@ export function addCourtModifier(state: GameState, modifier: CourtModifier): voi
   state.activeCourtModifiers.push(modifier);
 }
 
-function progressCourtModifiers(state: GameState): void {
+export function progressCourtModifiers(state: GameState): void {
   for (const modifier of state.activeCourtModifiers) {
     if (typeof modifier.remainingTicks === 'number') {
       modifier.remainingTicks -= 1;
@@ -479,11 +479,20 @@ export function progressCourt(state: GameState): void {
   }
 
   const playerLandCount = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length;
-  const ungovernedPenalty = Math.max(0, playerLandCount - governedLandCount - 3) * 0.15;
+  // Imperial overstretch: each ungoverned province past a small span drags on stability, so a
+  // sprawling realm must appoint governors (ongoing work) rather than expand for free.
+  const ungovernedPenalty = Math.max(0, playerLandCount - governedLandCount - 2) * 0.22;
   const marketPressure = getMarketStabilityPressure(state);
 
-  // Tax stance nudges stability each tick (heavier taxes breed unrest; a lenient hand soothes).
-  const taxStability = state.taxPolicy === 'harsh' ? -0.5 : state.taxPolicy === 'lenient' ? 0.35 : 0;
+  // Tax fatigue: sustained heavy taxes breed *compounding* resentment, so "harsh forever"
+  // steadily self-destructs and you must cycle the tax dial with the realm's mood; a lenient
+  // hand lets the fatigue heal. This is what makes tax an ongoing decision, not set-and-forget.
+  state.taxFatigue ??= 0;
+  if (state.taxPolicy === 'harsh') state.taxFatigue = Math.min(20, state.taxFatigue + 0.6);
+  else if (state.taxPolicy === 'lenient') state.taxFatigue = Math.max(0, state.taxFatigue - 0.8);
+  else state.taxFatigue = Math.max(0, state.taxFatigue - 0.3);
+  const taxBase = state.taxPolicy === 'harsh' ? -0.5 : state.taxPolicy === 'lenient' ? 0.4 : 0;
+  const taxStability = taxBase - state.taxFatigue * 0.16;
   state.court.stability = clamp(state.court.stability + bonuses.stabilityRegen - ungovernedPenalty - marketPressure + taxStability, 0, 100);
   state.court.influence = clamp(state.court.influence + bonuses.influenceRegen, 0, 100);
 

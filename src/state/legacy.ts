@@ -102,6 +102,21 @@ export function applyLegacyPerks(state: GameState): void {
 
 /** Score for a finished empire run, from lands held, invasions repelled, and Mandate. */
 export function computeRunScore(state: GameState): number {
+  // Dragon Ascent is scored on the things that run is actually about: how long you held
+  // the wave line, how high the power curve climbed, and how deep the build went.
+  if (state.gameMode === 'ascent' && state.ascent) {
+    const ascent = state.ascent;
+    const cardsTaken = Object.values(ascent.cardStacks).reduce((sum, stacks) => sum + stacks, 0);
+    const peakLands = state.campaignScore?.peakLandsHeld ?? 0;
+    return (
+      ascent.wavesSurvived * 120 +
+      Math.round(ascent.peakPower / 8) +
+      peakLands * 15 +
+      cardsTaken * 20 +
+      ascent.heroesSummoned * 40
+    );
+  }
+
   const score = state.campaignScore;
   const mandate = state.mandate;
   const turns = score?.turnsAlive ?? state.turn;

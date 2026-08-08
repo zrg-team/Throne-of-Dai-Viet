@@ -39,7 +39,7 @@ function getArmyLevelCap(state: GameState): number {
   return Math.min(MAX_ARMY_LEVEL, 1 + getOwnedBarracksLevel(state) + getCourtBonuses(state).armyLevelCapBonus);
 }
 
-function armyPower(state: GameState, army: Army): number {
+export function armyPower(state: GameState, army: Army): number {
   const unitPower =
     army.units.spearmen * 1 +
     army.units.archers * 1.25 +
@@ -136,7 +136,7 @@ function compositionShares(comp: ArmyComposition, bonuses: ReturnType<typeof get
 }
 
 /** Defensive terrain multiplier: mountains/hills/forests/rivers favour the defender, open plains don't. */
-function terrainDefenseMultiplier(land: Land): number {
+export function terrainDefenseMultiplier(land: Land): number {
   const ts = land.terrainSummary;
   const total = Math.max(1, ts.plains + ts.fields + ts.riceFields + ts.forest + ts.mountains + ts.hills + ts.water);
   const rugged = (ts.mountains * 1.0 + ts.hills * 0.6 + ts.forest * 0.4 + ts.water * 0.7) / total;
