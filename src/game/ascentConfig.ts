@@ -11,13 +11,17 @@ import type { AscentRarity } from '../state/types';
 export const ASCENT_TICK_MS = 3500;
 
 // ── Waves ───────────────────────────────────────────────────────────────────
-export const WAVE_INTERVAL_TICKS = 18;
+export const WAVE_INTERVAL_TICKS = 12;
 /**
  * Ticks of quiet before the first wave. The opening minute is for walking into empty
  * districts and raising a first host — a run that is under attack from tick one never gets
  * the compounding started, and the power curve has nothing to compound from.
+ *
+ * Trimmed from 16: with the old grace plus an 18-tick interval, a player two minutes into a
+ * run had faced one or two waves while their economy had compounded ten-fold. The opening
+ * needs to be a breather, not a holiday.
  */
-export const WAVE_GRACE_TICKS = 16;
+export const WAVE_GRACE_TICKS = 10;
 /** Every Nth wave is a named Great Invasion (the "boss"). */
 export const BOSS_EVERY_N_WAVES = 4;
 /** Ticks before a boss wave lands that the telegraph banner appears. */
@@ -36,6 +40,107 @@ export const BOSS_THREAT_MULT = 1.65;
 export function waveHostCount(wave: number, boss: boolean): number {
   return Math.min(4, 1 + Math.floor(wave / 6) + (boss ? 1 : 0));
 }
+
+// ── Wave pressure: sizing a wave against what actually defends ───────────────
+/**
+ * Battle power one invader soldier is worth, derived from the spawn profile in
+ * `launchOffMapInvasion` and the formula in `armyPower`:
+ *
+ *   unit mix 60/28/12  → 0.60×1 + 0.28×1.25 + 0.12×1.8 = 1.166
+ *   morale 85, supply 90                                → ×0.85 ×0.90
+ *   level 2, no elite tier, no general                  → ×1.08
+ *   ────────────────────────────────────────────────────────────────
+ *                                                         ≈ 0.963
+ *
+ * Used to convert a target *power* into a soldier budget. If either the spawn profile or
+ * `armyPower` changes, this must change with them — `verify-ascent.mjs` asserts the spawned
+ * power lands within a band of the target, which is what catches the drift.
+ */
+export const INVADER_POWER_PER_SOLDIER = 0.963;
+
+/**
+ * How many waves back the pressure curve reads the realm's defensive power.
+ *
+ * This lag *is* the difficulty design. Waves are sized from what the realm could field two
+ * waves ago, so a strong run of Power Draft picks genuinely buys two easy waves before
+ * pressure catches up — and coasting lets it close. Sizing against the live figure instead
+ * would be a pure treadmill where no pick ever changes the outcome.
+ */
+export const WAVE_LAG = 2;
+/** Share of current defence used before enough history exists to lag against. */
+export const WAVE_OPENING_SHARE = 0.55;
+
+/**
+ * Wave 1 pressure, as a fraction of the lagged defensive power. **The mode's main difficulty
+ * dial.** Measured against a naive auto-player that always takes the first option: 0.45 → it
+ * survives ~83 seasons, 0.55 → ~73, 0.62 → ~65. A thinking player fortifies, keeps a host
+ * home and buys off coalitions, so the real ceiling is well above this.
+ */
+export const WAVE_PRESSURE_BASE = 0.5;
+/** Added per wave, so late waves demand real compounding rather than a fixed tax. */
+export const WAVE_PRESSURE_STEP = 0.035;
+/**
+ * Ceiling on pressure. Above ~1.3 a wave beats a realm that did everything right, which turns
+ * the run into a coin flip rather than a test — the escalation past this point comes from host
+ * *count* (`waveHostCount`) and from Great Invasions instead.
+ */
+export const WAVE_PRESSURE_MAX = 1.3;
+/** A Great Invasion demands this much more than a regular wave of the same number. */
+export const BOSS_PRESSURE_MULT = 1.35;
+/** Floor so an early or freshly-crushed realm still faces something. */
+export const MIN_WAVE_SOLDIERS = 260;
+
+// ── Raids ───────────────────────────────────────────────────────────────────
+/**
+ * Ticks between border raids. Raids are the run's background pressure: a single host that
+ * pillages an outer district and withdraws, destroying a building as it goes. That permanent
+ * income loss is what makes leaving the frontier undefended cost something between waves.
+ */
+export const RAID_INTERVAL_TICKS = 10;
+/** Raids only begin once the realm is big enough to have a frontier worth raiding. */
+export const RAID_MIN_LANDS = 3;
+/** A raid host, as a share of the realm's field power. Background pressure, not a second wave. */
+export const RAID_POWER_SHARE = 0.18;
+/** Raids need their own floor; the wave floor is several times too large for a raiding party. */
+export const MIN_RAID_SOLDIERS = 110;
+/** Ticks before a wave in which no raid may be sent, so the two never stack on one province. */
+export const RAID_WAVE_CLEARANCE = 4;
+
+// ── Rival demands: the half of foreign affairs the player does not start ────
+/** Seasons of gold income a tribute demand asks for. The recurring drain on a fat treasury. */
+export const TRIBUTE_INCOME_MULT = 11;
+export const TRIBUTE_COOLDOWN_TICKS = 22;
+/** Seasons the next wave is pulled forward by refusing a demand — the refusal's teeth. */
+export const TRIBUTE_REFUSE_TICKS = 4;
+/** Dominance above which the world bands together against the leader. */
+export const COALITION_DOMINANCE = 0.95;
+export const COALITION_COOLDOWN_TICKS = 40;
+/** Seasons of warning before a coalition lands, so preparing for it is possible. */
+export const COALITION_LEAD_TICKS = 6;
+/**
+ * How strong a rival must be, relative to `getPlayerMilitary`, before demanding submission.
+ *
+ * Calibrated from measurement, not intuition. An off-map empire's strength is its `power`
+ * index (capped at 122) scaled by ×10, so the strongest rival runs at roughly **0.45–0.70×**
+ * the player's military across an entire run — it never dwarfs a realm that also counts every
+ * wall it owns. The obvious-looking "must be 1.8× stronger" made this an unreachable branch.
+ */
+export const VASSAL_POWER_RATIO = 0.66;
+/** Same scale: how strong a rival must be to think extortion is worth trying. */
+export const TRIBUTE_POWER_RATIO = 0.45;
+export const VASSAL_COOLDOWN_TICKS = 60;
+/** How much heavier an endured coalition's wave is than an ordinary one. */
+export const COALITION_WAVE_MULT = 1.5;
+/** Gold per season a vassal tithe drains, for as long as it stands. */
+export const VASSAL_TITHE_GOLD = 8;
+
+// ── Mercenaries: the treasury's way out ─────────────────────────────────────
+/** Floor price, before the income peg takes over in a wealthy realm. */
+export const MERCENARY_GOLD_BASE = 320;
+/** Seasons of gold income a company costs. The realm's main gold sink. */
+export const MERCENARY_INCOME_MULT = 9;
+/** Company size as a share of the realm's field power — a real answer, not a token. */
+export const MERCENARY_POWER_SHARE = 0.45;
 
 // ── Momentum (XP) ───────────────────────────────────────────────────────────
 /** Momentum needed to reach `level + 1`. Superlinear, so early drafts come fast. */

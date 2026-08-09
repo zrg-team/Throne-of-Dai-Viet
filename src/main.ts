@@ -177,6 +177,7 @@ function describeAscentPromptOptions(state: GameState, prompt: NonNullable<GameS
     case 'parliament':
       return state.politicsDeck.find((card) => card.id === prompt.cardId)?.choices.map((choice) => choice.id) ?? ['ok'];
     case 'envoy': return prompt.options.filter((option) => option.affordable).map((option) => option.id);
+    case 'rival-demand': return prompt.options.filter((option) => option.affordable).map((option) => option.id);
     case 'empire-response': return prompt.options.map((option) => option.id);
     default: return ['ok'];
   }

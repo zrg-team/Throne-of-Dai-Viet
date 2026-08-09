@@ -691,6 +691,8 @@ export interface AscentLaneStats {
   edictsEnacted: number;
   parliamentAnswered: number;
   envoyActions: Record<string, number>;
+  /** Demands answered — the counterpart to `envoyActions`, which the player initiates. */
+  rivalAnswers?: number;
 }
 
 /** One stack level of a Power Draft card: what it applies, and the numbers printed on the card. */
@@ -720,7 +722,7 @@ export interface PowerCardDef {
 
 /** One counter-play offered on the Empire Response prompt. */
 export interface EmpireResponseOption {
-  id: 'send-host' | 'fortify' | 'buy-off' | 'endure';
+  id: 'send-host' | 'hire-mercenaries' | 'fortify' | 'buy-off' | 'endure';
   /** For `send-host`: the hero picked inline on the same modal. */
   heroId?: string;
   cost?: Partial<ResourceBag>;
@@ -785,6 +787,13 @@ export interface AppointmentOption {
   detail?: string;
 }
 
+/** One answer to a rival's demand. */
+export interface RivalDemandOption {
+  id: 'pay' | 'refuse' | 'buy-off' | 'endure' | 'submit' | 'defy';
+  cost?: Partial<ResourceBag>;
+  affordable: boolean;
+}
+
 /** One action offered on the Envoy prompt. */
 export interface EnvoyOption {
   id: 'gift' | 'trade' | 'tribute' | 'ambassador' | 'ignore';
@@ -811,6 +820,17 @@ export type AscentPrompt =
   | { kind: 'law-choice'; projectIds: string[]; points: number; taxOptions: TaxPolicy[] }
   /** The court speaks: one card drawn from `state.politicsDeck`. */
   | { kind: 'parliament'; cardId: string }
+  /** A rival empire makes a demand of its own: tribute, coalition, or submission. */
+  | {
+      kind: 'rival-demand';
+      demand: 'tribute' | 'coalition' | 'vassalage';
+      kingdomId: string;
+      kingdomName: string;
+      gold?: number;
+      ticks?: number;
+      memberNames?: string[];
+      options: RivalDemandOption[];
+    }
   /** A rival empire, and what to do about it. */
   | { kind: 'envoy'; kingdomId: string; kingdomName: string; relations: number; power: number; options: EnvoyOption[] }
   | {
@@ -895,6 +915,20 @@ export interface AscentState {
   drawnCourtCards: string[];
   /** Ticks until the court may speak again; mirrors `court.cardCooldown` for this mode. */
   courtCardCooldown: number;
+  /**
+   * Defensive power recorded at each recent wave. The wave curve reads this `WAVE_LAG` waves
+   * back rather than the live figure, so a strong run of picks buys real breathing room
+   * instead of instantly inflating the next wave. Only the recent tail is kept.
+   */
+  defenceSamples: number[];
+  /** Ticks until the next border raid may be sent. */
+  raidCooldown: number;
+  /** Cooldowns on each rival-initiated demand, so they arrive as pressure not as spam. */
+  tributeCooldown: number;
+  coalitionCooldownTicks: number;
+  vassalCooldown: number;
+  /** Set when a coalition was endured: the next wave arrives as a multi-empire invasion. */
+  coalitionPending: boolean;
   /** Heroes the player chose to hold free; not re-prompted until postings change. */
   reservedHeroIds: string[];
   /** Seat count when the reserve list was last taken, so a new seat reopens the question. */

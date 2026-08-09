@@ -10,7 +10,7 @@ const errors = [];
 page.on('pageerror', (err) => errors.push(`PAGEERROR: ${err.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE: ${m.text()}`); });
 
-await page.goto('http://127.0.0.1:5173/?capture=1', { waitUntil: 'domcontentloaded' });
+await page.goto('http://localhost:5173/?capture=1', { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame && window.__phaserGame.scene.isActive('MenuScene'),
   null, { timeout: 30000 });
 
@@ -56,7 +56,13 @@ const result = await page.evaluate(async () => {
         return affordable ? affordable.id : 'decline';
       }
       case 'envoy': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
-      case 'empire-response': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
+      case 'rival-demand': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
+      case 'empire-response': {
+        // A rich realm buys soldiers — exercises the gold sink the run depends on.
+        const merc = p.options.find((o) => o.id === 'hire-mercenaries' && o.affordable);
+        if (merc && st.resources.gold > 2500) return merc.id;
+        return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
+      }
       default: return 'ok';
     }
   };
@@ -84,6 +90,11 @@ const result = await page.evaluate(async () => {
   let prevWave = 0;
   let pendingTelegraph = false;
 
+  // Waves must track the realm's lagged field power, not a fixed curve and not the raw
+  // headcount clamp that made every wave trivial.
+  const waveRatios = [];
+  let sawRaid = false;
+  let ratioWave = -1;
   let ownedPrev = new Set(st.lands.filter((l) => l.ownerId === 'dai-viet').map((l) => l.id));
   let gained = 0;
   let lost = 0;
@@ -97,6 +108,13 @@ const result = await page.evaluate(async () => {
     for (const id of ownedPrev) if (!ownedNow.has(id)) lost += 1;
     ownedPrev = ownedNow;
 
+    if ((st.invasions ?? []).some((r) => r.intent === 'raid')) sawRaid = true;
+    if (st.ascent.wave !== ratioWave && st.ascent.wave > 0) {
+      ratioWave = st.ascent.wave;
+      const def = st.ascent.defensePower;
+      const thr = st.ascent.threat;
+      if (def > 0 && thr > 0) waveRatios.push(thr / def);
+    }
     if (st.ascent.bossTelegraphed && !pendingTelegraph) { pendingTelegraph = true; telegraphedBosses += 1; }
     if (st.ascent.wave !== prevWave) {
       prevWave = st.ascent.wave;
@@ -173,6 +191,12 @@ const result = await page.evaluate(async () => {
   return {
     trace,
     promptCounts,
+    waveRatios,
+    sawRaid,
+    rivalAnswers: st.ascent.laneStats.rivalAnswers ?? 0,
+    endGold: Math.round(st.resources.gold),
+    endGoldRate: Math.max(1, Math.round(st.resourceRates.gold)),
+    landsLost: lost,
     backToBackPrompts,
     maxPromptsInOneTick,
     promptTickCount: promptTicks.length,
@@ -244,6 +268,51 @@ const defeat = await page.evaluate(async () => {
     banked: st.legacyBanked === true,
   };
 });
+// The normal-difficulty run is now short by design — it is a fight. The slow-burn systems
+// (era progression, edicts, the envoy card) need a run that lasts, so they are exercised on
+// easy, where `difficultyArmyScale` sizes waves down.
+const longRun = await page.evaluate(async () => {
+  const { createAscentGameState } = await import('/src/state/GameState.ts');
+  const { advanceAscentTick } = await import('/src/systems/ascent/AscentTick.ts');
+  const { resolveAscentPrompt } = await import('/src/systems/ascent/AscentResolver.ts');
+  let s = 4242 >>> 0;
+  Math.random = () => { s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const st = createAscentGameState({ seaSides: 1, difficulty: 'easy' });
+  const kinds = {};
+  const pick = (p) => {
+    switch (p.kind) {
+      case 'founder': return p.options[0];
+      case 'power-draft': return p.cards[0] ?? 'skip';
+      case 'conquer-target': return p.targets[0]?.landId ?? 'hold';
+      case 'conquer-method': { const o = p.target.methods.filter((m) => !m.blockedReason); return o.length ? o[0].method : 'back'; }
+      case 'hero-choice': return p.heroIds[0] ?? 'pass';
+      case 'court-appointment': return p.options[0].id;
+      case 'law-choice': return p.projectIds[0] ? `edict:${p.projectIds[0]}` : 'hold';
+      case 'parliament': { const c = st.politicsDeck.find((x) => x.id === p.cardId); return c ? c.choices[0].id : 'decline'; }
+      // Play to survive rather than to spend: this run is about reaching the late systems.
+      case 'empire-response': {
+        const f = p.options.find((o) => o.id === 'fortify' && o.affordable);
+        return (f ?? p.options.find((o) => o.affordable) ?? p.options[0]).id;
+      }
+      default: return (p.options?.find?.((o) => o.affordable) ?? p.options?.[0])?.id ?? 'ok';
+    }
+  };
+  for (let i = 0; i < 500 && !st.isDefeated; i += 1) {
+    advanceAscentTick(st);
+    let g = 0;
+    while (st.pendingAscentPrompt && g++ < 10) {
+      const p = st.pendingAscentPrompt;
+      kinds[p.kind] = (kinds[p.kind] ?? 0) + 1;
+      if (p.kind === 'rival-demand') kinds[`demand:${p.demand}`] = (kinds[`demand:${p.demand}`] ?? 0) + 1;
+      if (p.kind === 'run-over') break;
+      if (!resolveAscentPrompt(st, pick(p))) break;
+    }
+  }
+  return { kinds, turn: st.turn, era: st.mandate?.era, edicts: st.mandate?.edicts ?? [], lands: st.lands.filter((l) => l.ownerId === 'dai-viet').length };
+});
+console.log('=== LONG RUN (easy) ===');
+console.log(JSON.stringify(longRun));
+
 console.log('=== DEFEAT PATH ===');
 console.log(JSON.stringify(defeat));
 
@@ -285,11 +354,30 @@ const rivalMoved = result.rivalsAtEnd.some((end) => {
 const exclusiveGroups = { 'iron-discipline': 'war-rivalry', 'martial-drills': 'war-rivalry',
   'coin-reform': 'econ-rivalry', 'agrarian-focus': 'econ-rivalry',
   census: 'gov-rivalry', 'public-works': 'gov-rivalry' };
-const takenGroups = result.edicts.map((id) => exclusiveGroups[id]).filter(Boolean);
+const takenGroups = longRun.edicts.map((id) => exclusiveGroups[id]).filter(Boolean);
 const noDoubleGroup = new Set(takenGroups).size === takenGroups.length;
 
 const checks = {
   'never falsely won (B1 guard)': result.victoryEverTrue === false,
+
+  // ── the challenge contract ──
+  // Waves are sized from the realm's own lagged field power. A curve that ignored it would
+  // sit far below this band (the old headcount clamp) or far above it (a fixed curve).
+  'waves track the realm, not a fixed curve':
+    result.waveRatios.length >= 3 &&
+    result.waveRatios.filter((r) => r > 0.15 && r < 2.5).length >= Math.ceil(result.waveRatios.length * 0.6),
+  'border raids happen': result.sawRaid,
+  'rivals make their own demands': result.rivalAnswers > 0 || (kinds['rival-demand'] ?? 0) > 0,
+  // All three must be *reachable*. Vassalage originally could not fire at all: its gate asked
+  // for a rival 1.8x the player's military, but an off-map empire's strength tops out near
+  // 0.7x it, so the branch was dead. Assert each kind rather than the total.
+  'every rival demand kind is reachable (long run)':
+    ['tribute', 'coalition', 'vassalage'].every((d) => (longRun.kinds[`demand:${d}`] ?? 0) > 0),
+  'the realm is genuinely threatened': result.landsLost > 0 || result.defeated,
+  // The treasury has somewhere to go: mercenaries, tribute, buy-offs. Without sinks this ran
+  // to five figures while the player had nothing to spend it on.
+  'gold does not run away unspent': result.endGold < result.endGoldRate * 40,
+
   'power more than doubled': result.powerEnd > result.powerStart * 2 || result.peakPower > result.powerStart * 2,
 
   // ── the restored core systems ──
@@ -299,11 +387,12 @@ const checks = {
   'appointment card fired': (kinds['court-appointment'] ?? 0) > 0,
   'two or more court seats filled': result.seatsFilled >= 2,
   'law card fired': (kinds['law-choice'] ?? 0) > 0,
-  'two or more edicts enacted': result.edicts.length >= 2,
+  'two or more edicts enacted (long run)': longRun.edicts.length >= 2,
   'no two edicts from one exclusive group': noDoubleGroup,
+  'the long run reaches a later era': longRun.era !== 'founding',
   'parliament fired': (kinds['parliament'] ?? 0) > 0,
   'parliament deck drew without replacement': result.drawnTwice.length === 0,
-  'envoy card fired': (kinds['envoy'] ?? 0) > 0,
+  'envoy card fired (long run)': (longRun.kinds['envoy'] ?? 0) > 0,
   'rival empires evolved': rivalMoved,
 
   // ── pacing contract ──

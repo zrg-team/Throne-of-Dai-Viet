@@ -748,7 +748,7 @@ function seedAscentOpening(state: GameState): void {
     state.ascent.powerPrev = state.ascent.power;
     state.ascent.peakPower = state.ascent.power;
     state.ascent.defensePower = computeDefensivePower(state);
-    state.ascent.threat = projectedWaveThreat(1);
+    state.ascent.threat = projectedWaveThreat(state, 1);
   }
 }
 

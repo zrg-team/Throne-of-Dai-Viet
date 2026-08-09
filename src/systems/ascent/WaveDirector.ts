@@ -1,11 +1,25 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
-  BASE_THREAT,
   BOSS_EVERY_N_WAVES,
-  BOSS_THREAT_MULT,
+  BOSS_PRESSURE_MULT,
+  COALITION_WAVE_MULT,
   BOSS_TELEGRAPH_TICKS,
-  THREAT_GROWTH,
+  INVADER_POWER_PER_SOLDIER,
+  MIN_WAVE_SOLDIERS,
+  RAID_INTERVAL_TICKS,
+  MERCENARY_GOLD_BASE,
+  MERCENARY_INCOME_MULT,
+  MERCENARY_POWER_SHARE,
+  MIN_RAID_SOLDIERS,
+  RAID_MIN_LANDS,
+  RAID_POWER_SHARE,
+  RAID_WAVE_CLEARANCE,
   WAVE_INTERVAL_TICKS,
+  WAVE_LAG,
+  WAVE_OPENING_SHARE,
+  WAVE_PRESSURE_BASE,
+  WAVE_PRESSURE_MAX,
+  WAVE_PRESSURE_STEP,
   XP_PER_WAVE_SURVIVED,
 } from '../../game/ascentConfig';
 import { MIN_ARMY_SOLDIERS, recruitSoldiers, SUPPLY_TICKS_HELD, waveHostCount } from '../../game/ascentConfig';
@@ -15,7 +29,7 @@ import { applyResourceDelta, canSpend } from '../ResourceSystem';
 import { armyPower, queueRecruitment } from '../WarSystem';
 import { pushToast } from '../empire/notifications';
 import { enqueueAscentPrompt } from './AscentState';
-import { addAscentXp, computeDefensivePower } from './PowerSystem';
+import { addAscentXp, computeDefensivePower, computeFieldDefencePower, ownedLandCount } from './PowerSystem';
 import { findFreeCommander } from './AutopilotSystem';
 import { heroName, t } from '../../i18n';
 import type {
@@ -53,6 +67,23 @@ function fortifyCost(state: GameState, wave: number): number {
 function buyOffCost(state: GameState, wave: number): number {
   return Math.round(Math.max(BUYOFF_GOLD_BASE * (1 + wave * 0.32), state.resourceRates.gold * 14));
 }
+
+/**
+ * Price of a mercenary company, pegged to income like every other response.
+ *
+ * This is the mode's answer to a treasury that does nothing. Gold compounds hard — a realm
+ * ten minutes in banks tens of thousands with no way to convert any of it into survival —
+ * so the run needs one lever that turns coin directly into soldiers, now, with no muster
+ * timer, no free commander and no manpower cost.
+ */
+function mercenaryCost(state: GameState, wave: number): number {
+  return Math.round(Math.max(MERCENARY_GOLD_BASE * (1 + wave * 0.3), state.resourceRates.gold * MERCENARY_INCOME_MULT));
+}
+
+/** Soldiers a mercenary company brings: a real answer to the wave, not a token. */
+function mercenarySize(state: GameState): number {
+  return Math.max(MIN_ARMY_SOLDIERS, Math.round(laggedDefencePower(state) * MERCENARY_POWER_SHARE / INVADER_POWER_PER_SOLDIER));
+}
 /** Ceiling on hosts the emergency levy may add on top of whatever the autopilot keeps. */
 const MAX_STANDING_HOSTS = 5;
 const FORTIFY_DEFENSE = 10;
@@ -64,13 +95,88 @@ export function isBossWave(wave: number): boolean {
 }
 
 /**
- * The *projected* threat curve, used only before a wave exists to measure. Geometric, so a
- * player whose power grows linearly will eventually be overrun — compounding card picks is
- * the only way to keep pace. That tension is the run.
+ * Fraction of the realm's lagged defensive power the given wave is sized to bring.
+ *
+ * Rises with the wave number and jumps for a Great Invasion, capped so a realm that has done
+ * everything right is never simply overrun — past the cap, escalation comes from host count.
  */
-export function projectedWaveThreat(wave: number): number {
-  const base = BASE_THREAT * Math.pow(THREAT_GROWTH, Math.max(0, wave - 1));
-  return Math.round(base * (isBossWave(wave) ? BOSS_THREAT_MULT : 1));
+export function wavePressure(wave: number, boss: boolean): number {
+  const ramp = Math.min(WAVE_PRESSURE_MAX, WAVE_PRESSURE_BASE + Math.max(0, wave - 1) * WAVE_PRESSURE_STEP);
+  return ramp * (boss ? BOSS_PRESSURE_MULT : 1);
+}
+
+/**
+ * The realm's defensive power as the pressure curve sees it: what it could field `WAVE_LAG`
+ * waves ago, not what it can field now.
+ *
+ * The lag is the whole point. Sizing against the live figure makes every Power Draft pick
+ * instantly self-defeating — the wave grows with you and nothing you choose changes the
+ * outcome. Reading two waves back means outpacing the curve buys real breathing room, and
+ * letting your army rot lets the curve close on you. That is what makes the picks matter.
+ */
+export function laggedDefencePower(state: GameState): number {
+  const ascent = state.ascent;
+  const live = computeFieldDefencePower(state);
+  if (!ascent) return live * WAVE_OPENING_SHARE;
+
+  const samples = ascent.defenceSamples ?? [];
+  const lagged = samples[samples.length - WAVE_LAG];
+  // Early on there is no history to lag against, so quote a share of the live figure — the
+  // opening waves are meant to be winnable while the realm is still one province and one host.
+  if (lagged === undefined) return live * WAVE_OPENING_SHARE;
+
+  // Never *more* than the live figure: a realm that just lost its army should not keep facing
+  // waves sized for the army it no longer has, or a single bad battle ends the run outright.
+  return Math.min(lagged, live);
+}
+
+/**
+ * Soldier budget for a wave, from the lagged defence and the pressure curve.
+ *
+ * The pressure curve is a target for the *total* threat standing on the map, not for each
+ * spawn: a conquest host takes many seasons to march in and reduce a province, so at a 12-tick
+ * cadence the next wave lands while the last is still fighting. Budgeting per-spawn let them
+ * pile up until four hosts were live at once and no realm could hold — so whatever is already
+ * marching is deducted here.
+ */
+export function waveSoldierBudget(state: GameState, wave: number, boss: boolean): number {
+  const target = laggedDefencePower(state) * wavePressure(wave, boss);
+  const alreadyMarching = liveInvaderPower(state);
+  const remaining = Math.max(0, target - alreadyMarching);
+  return Math.max(MIN_WAVE_SOLDIERS, Math.round(remaining / INVADER_POWER_PER_SOLDIER));
+}
+
+/**
+ * Whether the map is already carrying its share of pressure. A wave that would add nothing is
+ * skipped entirely rather than spawning a token host on top of the fight in progress.
+ */
+export function waveBudgetSpent(state: GameState, wave: number, boss: boolean): boolean {
+  return liveInvaderPower(state) >= laggedDefencePower(state) * wavePressure(wave, boss);
+}
+
+/**
+ * The *projected* threat for the HUD, before a wave exists to measure.
+ *
+ * Quotes what the next wave will actually bring rather than an abstract geometric curve: the
+ * old projection was computed from `BASE_THREAT × GROWTH^wave` and had no relationship to the
+ * host that then spawned, so the readout told the player they were "behind" while a trivial
+ * wave landed — or the reverse.
+ */
+export function projectedWaveThreat(state: GameState, wave: number): number {
+  const boss = isBossWave(wave);
+  // `waveSoldierBudget` is the whole wave's budget, split across its hosts — not a per-host
+  // figure, so it must not be multiplied by the host count again.
+  return Math.round(waveSoldierBudget(state, wave, boss) * INVADER_POWER_PER_SOLDIER);
+}
+
+/** Records what the realm could field, for later waves to be sized against. */
+export function sampleDefencePower(state: GameState): void {
+  const ascent = state.ascent;
+  if (!ascent) return;
+  ascent.defenceSamples ??= [];
+  ascent.defenceSamples.push(computeFieldDefencePower(state));
+  // Only the recent tail is ever read; keeping the whole run would bloat every save.
+  if (ascent.defenceSamples.length > 12) ascent.defenceSamples.shift();
 }
 
 /**
@@ -206,6 +312,16 @@ export function buildResponseOptions(state: GameState, threat: number): EmpireRe
       affordable: canSpend(state, { gold: buyOff }),
     },
     {
+      id: 'hire-mercenaries',
+      cost: { gold: mercenaryCost(state, wave) },
+      winChance: projectedWinChance(state, threat, 0.3),
+      // No commander and no manpower needed — that is the point. Coin is the only thing it
+      // asks for, so a rich realm always has one more answer than a poor one.
+      affordable:
+        canSpend(state, { gold: mercenaryCost(state, wave) }) &&
+        state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID).length < MAX_STANDING_HOSTS,
+    },
+    {
       id: 'endure',
       momentum: ENDURE_MOMENTUM,
       winChance: projectedWinChance(state, threat),
@@ -213,6 +329,40 @@ export function buildResponseOptions(state: GameState, threat: number): EmpireRe
       affordable: true,
     },
   ];
+}
+
+/**
+ * Puts a bought company straight onto the capital under no commander.
+ *
+ * Deliberately bypasses `queueRecruitment`: that spends manpower, needs an unposted hero, and
+ * takes seasons to muster — none of which a realm facing a wave *this* season can supply. The
+ * whole value of the option is that gold buys time the normal levy cannot.
+ */
+function hireMercenaries(state: GameState, soldiers: number): void {
+  const home = playerCapital(state);
+  if (!home) return;
+
+  state.armies.push({
+    id: `mercenary-${state.turn}`,
+    kingdomId: PLAYER_KINGDOM_ID,
+    name: t('ascent.response.mercenaryHost'),
+    landId: home.id,
+    units: {
+      spearmen: Math.floor(soldiers * 0.55),
+      archers: Math.floor(soldiers * 0.25),
+      heavyInfantry: Math.floor(soldiers * 0.2),
+    },
+    // Paid soldiers, not levies: they fight well but will not hold a losing line for long.
+    morale: 80,
+    supply: 85,
+    rations: Math.ceil(soldiers / 100) * SUPPLY_TICKS_HELD,
+    provisions: Math.ceil(soldiers / 150) * SUPPLY_TICKS_HELD,
+    level: 2,
+    experience: 0,
+    experienceToNextLevel: 160,
+    autoDefend: true,
+  });
+  pushToast(state, t('ascent.response.mercenaryHired', { n: soldiers }), 'reward');
 }
 
 /**
@@ -260,6 +410,10 @@ function startWave(state: GameState): void {
     }
   }
 
+  // Recorded before the wave is sized, so this wave is measured against the realm as it
+  // stood when the *previous* wave landed — see `laggedDefencePower`.
+  sampleDefencePower(state);
+
   ascent.wave += 1;
   ascent.lastWaveBoss = isBossWave(ascent.wave);
   ascent.ticksToWave = WAVE_INTERVAL_TICKS;
@@ -269,7 +423,7 @@ function startWave(state: GameState): void {
   if (!aggressor) return;
 
   // Before the hosts exist there is nothing to measure, so the modal quotes the projection.
-  ascent.threat = projectedWaveThreat(ascent.wave);
+  ascent.threat = projectedWaveThreat(state, ascent.wave);
 
   enqueueAscentPrompt(state, {
     kind: 'empire-response',
@@ -288,10 +442,27 @@ function launchWave(state: GameState, kingdomId: string, warlordName?: string): 
   if (!ascent) return;
 
   const boss = ascent.lastWaveBoss;
+  // The map is already carrying this wave's worth of pressure — adding to it would stack
+  // hosts the realm has no way to answer. The wave counter still advanced, so the curve keeps
+  // rising; what is skipped is the spawn, not the escalation.
+  if (waveBudgetSpent(state, ascent.wave, boss)) {
+    ascent.waveInFlight = (state.invasions?.length ?? 0) > 0;
+    ascent.threat = liveInvaderPower(state);
+    return;
+  }
+
+  // A coalition the player chose to endure lands as the next wave: more hosts, conquest
+  // intent, and a heavier budget. Enduring has to be visibly worse than buying it off.
+  const coalition = ascent.coalitionPending;
+  ascent.coalitionPending = false;
+  const hosts = Math.min(4, waveHostCount(ascent.wave, boss) + (coalition ? 2 : 0));
   launchOffMapInvasion(state, kingdomId, {
-    forceCoalition: waveHostCount(ascent.wave, boss),
-    sizeMult: (boss ? 1.5 : 1) * (1 + ascent.wave * 0.06),
-    forceConquest: boss,
+    forceCoalition: hosts,
+    // An explicit budget, sized from the realm's lagged defensive power. Without it the
+    // spawn is clamped against `getPlayerMilitary` — a headcount blind to every multiplier
+    // the Power Draft stacks — and the wave arrives a fraction of the size it should be.
+    totalSoldiers: Math.round(waveSoldierBudget(state, ascent.wave, boss) * (coalition ? COALITION_WAVE_MULT : 1)),
+    forceConquest: boss || coalition,
     // A named warlord is what flags the record as `great`, which drives the harder siege
     // maths in resolveInvaderBattle and the Great Invasion presentation.
     warlordName: boss ? warlordName : undefined,
@@ -299,6 +470,46 @@ function launchWave(state: GameState, kingdomId: string, warlordName?: string): 
   ascent.waveInFlight = true;
   // Now that the hosts exist, replace the projection with what is actually marching.
   ascent.threat = liveInvaderPower(state);
+}
+
+/**
+ * Border raids: the run's background pressure between waves.
+ *
+ * One host, raid intent, sent at the frontier — `tickInvasions` already walks it in, calls
+ * `pillage` (which destroys a building) and withdraws it. The permanent income loss is what
+ * makes an undefended frontier cost something, and it gives the map activity in the long
+ * quiet stretches that made the mode feel abandoned by its enemies.
+ */
+export function tickRaids(state: GameState): void {
+  const ascent = state.ascent;
+  if (!ascent) return;
+
+  ascent.raidCooldown = Math.max(0, (ascent.raidCooldown ?? 0) - 1);
+  if (ascent.raidCooldown > 0) return;
+
+  // Not while a wave is on the map, and not on its doorstep: a raid still walking in when the
+  // wave lands stacks two hosts on one province, which reads as a difficulty spike rather than
+  // as background pressure — and was what made the first tuning pass unsurvivable.
+  if ((state.invasions?.length ?? 0) > 0) return;
+  if (ascent.ticksToWave <= RAID_WAVE_CLEARANCE) return;
+  if (ownedLandCount(state) < RAID_MIN_LANDS) return;
+  // Raids begin only once the realm has met its first wave and knows what a threat looks like.
+  if (ascent.wave < 1) return;
+
+  const raider = pickAggressor(state);
+  if (!raider) return;
+
+  ascent.raidCooldown = RAID_INTERVAL_TICKS;
+  // Sized off field power directly, with its own small floor. Reusing the wave budget (and
+  // its `MIN_WAVE_SOLDIERS` floor) made an early raid as large as the wave it was supposed to
+  // be a prelude to, and two of them stacked on the capital ended runs before wave three.
+  const budget = Math.round(laggedDefencePower(state) * RAID_POWER_SHARE / INVADER_POWER_PER_SOLDIER);
+  launchOffMapInvasion(state, raider.id, {
+    forceCoalition: 1,
+    forceRaid: true,
+    totalSoldiers: Math.max(MIN_RAID_SOLDIERS, budget),
+  });
+  pushToast(state, t('ascent.raid.incoming', { kingdom: raider.name }), 'threat');
 }
 
 /**
@@ -328,6 +539,12 @@ export function resolveEmpireResponse(state: GameState, prompt: AscentPrompt, op
           Math.ceil(soldiers / 150) * SUPPLY_TICKS_HELD,
         );
       }
+      break;
+    }
+    case 'hire-mercenaries': {
+      const cost = option.cost?.gold ?? mercenaryCost(state, prompt.wave);
+      applyResourceDelta(state, { gold: -cost });
+      hireMercenaries(state, mercenarySize(state));
       break;
     }
     case 'fortify': {
@@ -373,7 +590,7 @@ export function tickWaveDirector(state: GameState): void {
 
   // THREAT tracks the hosts on the map while a wave is live; between waves it shows what
   // the next one is projected to bring, so the readout is never blank or stale.
-  ascent.threat = liveInvasions > 0 ? liveInvaderPower(state) : projectedWaveThreat(ascent.wave + 1);
+  ascent.threat = liveInvasions > 0 ? liveInvaderPower(state) : projectedWaveThreat(state, ascent.wave + 1);
 
   ascent.ticksToWave -= 1;
 

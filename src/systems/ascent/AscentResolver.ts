@@ -9,6 +9,7 @@ import {
 } from './ConquestSystem';
 import { applyAppointment, offerAppointment, resolveLawChoice, resolveParliament } from './CourtLaneSystem';
 import { resolveEnvoy } from './EnvoySystem';
+import { resolveRivalDemand } from './RivalDirector';
 import { passHeroSummon, recruitSummonedHero } from './SummonSystem';
 import { resolveEmpireResponse } from './WaveDirector';
 import { startPromptCooldown } from './DecisionDirector';
@@ -105,6 +106,11 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
 
     case 'envoy': {
       handled = resolveEnvoy(state, prompt.kingdomId, choiceId);
+      break;
+    }
+
+    case 'rival-demand': {
+      handled = resolveRivalDemand(state, prompt.demand, prompt.kingdomId, choiceId);
       break;
     }
 
