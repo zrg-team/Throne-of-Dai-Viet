@@ -1,6 +1,7 @@
-// Verifies Dragon Ascent (gameMode 'ascent'): the autopilot files real orders, POWER
-// compounds, every prompt kind fires, waves escalate with telegraphed bosses, and the
-// run never trips the enemy-castle victory sweep. Run against a dev server on 5173.
+// Verifies Dragon Ascent (gameMode 'ascent'): the restored core systems actually run —
+// several acquisition methods, court appointments, edicts, the parliament deck and the rival
+// empires — alongside the autopilot, the power curve and the wave escalation. Also asserts the
+// pacing contract (never two prompts in consecutive ticks). Run against a dev server on 5173.
 import { chromium } from 'playwright';
 
 const browser = await chromium.launch();
@@ -17,7 +18,7 @@ const result = await page.evaluate(async () => {
   const { createAscentGameState } = await import('/src/state/GameState.ts');
   const { advanceAscentTick } = await import('/src/systems/ascent/AscentTick.ts');
   const { resolveAscentPrompt } = await import('/src/systems/ascent/AscentResolver.ts');
-  const { buildMarchTargets } = await import('/src/systems/ascent/MarchOrderSystem.ts');
+  const { buildConquestTargets } = await import('/src/systems/ascent/ConquestSystem.ts');
 
   // Deterministic RNG so the run is reproducible.
   let s = 20260808 >>> 0;
@@ -36,15 +37,44 @@ const result = await page.evaluate(async () => {
     switch (p.kind) {
       case 'founder': return p.options[0];
       case 'power-draft': return p.cards[0] ?? 'skip';
-      case 'march-order': return p.targets[0]?.landId ?? 'hold';
-      case 'hero-summon': return p.heroIds[0] ?? 'pass';
+      case 'conquer-target': return p.targets[0]?.landId ?? 'hold';
+      // Rotate through the legal methods rather than always taking the first, so the run
+      // exercises bribe / envoy / settle and not only whichever sorts to the top.
+      case 'conquer-method': {
+        const open = p.target.methods.filter((m) => !m.blockedReason);
+        return open.length > 0 ? open[methodCursor++ % open.length].method : 'back';
+      }
+      case 'hero-choice': return p.heroIds[0] ?? 'pass';
+      case 'court-appointment': return p.options[0].id;
+      case 'law-choice': return p.projectIds[0] ? `edict:${p.projectIds[0]}` : 'hold';
+      case 'parliament': {
+        const card = st.politicsDeck.find((c) => c.id === p.cardId);
+        if (!card) return 'decline';
+        // Mirror the modal, which greys out any choice the treasury cannot cover.
+        const affordable = card.choices.find((c) => Object.entries(c.effects.resourceDelta ?? {})
+          .every(([k, v]) => (v ?? 0) >= 0 || st.resources[k] >= Math.abs(v)));
+        return affordable ? affordable.id : 'decline';
+      }
+      case 'envoy': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
       case 'empire-response': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
       default: return 'ok';
     }
   };
+  let methodCursor = 0;
 
   const promptCounts = {};
   const trace = [];
+  // Pacing contract: a prompt raised on tick N must not be followed by one on tick N+1.
+  const promptTicks = [];
+  const countedPrompts = new WeakSet();
+  const stuckPrompts = [];
+  const backToBackKinds = [];
+  let backToBackPrompts = 0;
+  let maxPromptsInOneTick = 0;
+  const drawnTwice = [];
+  const rivalsAtStart = st.kingdoms
+    .filter((k) => k.id !== 'dai-viet')
+    .map((k) => ({ id: k.id, relations: Math.round(k.relations ?? 50), power: Math.round(k.power ?? 0) }));
   const powerSeries = [];
   const threatSeries = [];
   let victoryEverTrue = false;
@@ -77,14 +107,33 @@ const result = await page.evaluate(async () => {
       pendingTelegraph = false;
     }
 
-    // Drain the whole prompt chain, as the UI would.
+    // Drain the whole prompt chain, as the UI would. Count each prompt *object* once: a card
+    // left open because its choice was rejected must not be tallied again every tick.
     let guard = 0;
+    let raisedThisTick = 0;
+    let firstKindThisTick = null;
     while (st.pendingAscentPrompt && guard < 10) {
       guard += 1;
       const p = st.pendingAscentPrompt;
-      promptCounts[p.kind] = (promptCounts[p.kind] ?? 0) + 1;
+      if (!countedPrompts.has(p)) {
+        countedPrompts.add(p);
+        promptCounts[p.kind] = (promptCounts[p.kind] ?? 0) + 1;
+        raisedThisTick += 1;
+        if (firstKindThisTick === null) firstKindThisTick = p.kind;
+      }
       if (p.kind === 'run-over') break;
-      if (!resolveAscentPrompt(st, firstChoice(p))) break;
+      if (!resolveAscentPrompt(st, firstChoice(p))) { stuckPrompts.push(p.kind); break; }
+    }
+    if (raisedThisTick > 0) {
+      // Chained follow-ups (province -> method, champion -> appointment) are intentional and
+      // are counted as one interruption; what must never happen is a *fresh* prompt landing
+      // on the very next tick with no play in between.
+      if (promptTicks.length > 0 && promptTicks[promptTicks.length - 1] === i - 1) {
+        backToBackPrompts += 1;
+        backToBackKinds.push(firstKindThisTick);
+      }
+      promptTicks.push(i);
+      maxPromptsInOneTick = Math.max(maxPromptsInOneTick, raisedThisTick);
     }
 
     powerSeries.push(st.ascent.power);
@@ -106,7 +155,7 @@ const result = await page.evaluate(async () => {
         blocked: st.ascent.frontBlocked,
         gained,
         lost,
-        bestWin: Math.max(0, ...buildMarchTargets(st).map((x) => x.winChance)),
+        bestWin: Math.max(0, ...buildConquestTargets(st).map((x) => x.bestChance)),
         armySize: st.armies.filter((a) => a.kingdomId === 'dai-viet')
           .map((a) => a.units.spearmen + a.units.archers + a.units.heavyInfantry),
       });
@@ -114,9 +163,39 @@ const result = await page.evaluate(async () => {
     if (st.isDefeated) break;
   }
 
+  // The parliament deck must not repeat a card before it is exhausted and refilled.
+  const seenDraw = new Set();
+  for (const id of st.ascent.drawnCourtCards) {
+    if (seenDraw.has(id)) drawnTwice.push(id);
+    seenDraw.add(id);
+  }
+
   return {
     trace,
     promptCounts,
+    backToBackPrompts,
+    maxPromptsInOneTick,
+    promptTickCount: promptTicks.length,
+    stuckPrompts: [...new Set(stuckPrompts)],
+    backToBackKinds: [...new Set(backToBackKinds)],
+    methodsUsed: st.ascent.laneStats.conquestsByMethod,
+    distinctMethods: Object.values(st.ascent.laneStats.conquestsByMethod).filter((n) => n > 0).length,
+    appointments: st.ascent.laneStats.appointments,
+    edictsEnacted: st.ascent.laneStats.edictsEnacted,
+    parliamentAnswered: st.ascent.laneStats.parliamentAnswered,
+    envoyActions: st.ascent.laneStats.envoyActions,
+    edicts: st.mandate?.edicts ?? [],
+    seatsFilled: Object.values(st.court.seats).filter(Boolean).length,
+    unlockedSeats: st.court.unlockedSeats.length,
+    governors: st.lands.filter((l) => l.ownerId === 'dai-viet' && st.heroes.some((h) => h.assignedTo === l.id)).length,
+    stability: Math.round(st.court.stability),
+    taxPolicy: st.taxPolicy ?? 'balanced',
+    drawnCourtCards: st.ascent.drawnCourtCards.length,
+    drawnTwice,
+    rivalsAtStart,
+    rivalsAtEnd: st.kingdoms
+      .filter((k) => k.id !== 'dai-viet')
+      .map((k) => ({ id: k.id, relations: Math.round(k.relations ?? 50), power: Math.round(k.power ?? 0) })),
     victoryEverTrue,
     bossWaves,
     telegraphedBosses,
@@ -199,12 +278,44 @@ console.log('=== ERRORS ===');
 errors.forEach((e) => console.log(e));
 
 const kinds = result.promptCounts;
+const rivalMoved = result.rivalsAtEnd.some((end) => {
+  const start = result.rivalsAtStart.find((r) => r.id === end.id);
+  return start && (start.relations !== end.relations || start.power !== end.power);
+});
+const exclusiveGroups = { 'iron-discipline': 'war-rivalry', 'martial-drills': 'war-rivalry',
+  'coin-reform': 'econ-rivalry', 'agrarian-focus': 'econ-rivalry',
+  census: 'gov-rivalry', 'public-works': 'gov-rivalry' };
+const takenGroups = result.edicts.map((id) => exclusiveGroups[id]).filter(Boolean);
+const noDoubleGroup = new Set(takenGroups).size === takenGroups.length;
+
 const checks = {
   'never falsely won (B1 guard)': result.victoryEverTrue === false,
   'power more than doubled': result.powerEnd > result.powerStart * 2 || result.peakPower > result.powerStart * 2,
+
+  // ── the restored core systems ──
+  'conquer prompt fired': (kinds['conquer-target'] ?? 0) > 0,
+  'method sheet fired': (kinds['conquer-method'] ?? 0) > 0,
+  'three or more acquisition methods used': result.distinctMethods >= 3,
+  'appointment card fired': (kinds['court-appointment'] ?? 0) > 0,
+  'two or more court seats filled': result.seatsFilled >= 2,
+  'law card fired': (kinds['law-choice'] ?? 0) > 0,
+  'two or more edicts enacted': result.edicts.length >= 2,
+  'no two edicts from one exclusive group': noDoubleGroup,
+  'parliament fired': (kinds['parliament'] ?? 0) > 0,
+  'parliament deck drew without replacement': result.drawnTwice.length === 0,
+  'envoy card fired': (kinds['envoy'] ?? 0) > 0,
+  'rival empires evolved': rivalMoved,
+
+  // ── pacing contract ──
+  // The contract is about the *scheduled* cards. A wave landing or the run ending is
+  // time-critical and is allowed to interrupt whatever came before it.
+  'scheduled cards never land on consecutive ticks':
+    result.backToBackKinds.every((k) => ['empire-response', 'wave-result', 'run-over'].includes(k)),
+  'no prompt left unanswerable': result.stuckPrompts.length === 0,
+
+  // ── unchanged run shape ──
   'power-draft fired': (kinds['power-draft'] ?? 0) > 0,
-  'march-order fired': (kinds['march-order'] ?? 0) > 0,
-  'hero-summon fired': (kinds['hero-summon'] ?? 0) > 0,
+  'hero-choice fired': (kinds['hero-choice'] ?? 0) > 0,
   'empire-response fired': (kinds['empire-response'] ?? 0) > 0,
   'wave-result fired': (kinds['wave-result'] ?? 0) > 0,
   'autopilot built': result.autopilot.builds > 0,

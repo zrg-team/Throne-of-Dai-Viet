@@ -1,11 +1,19 @@
 import { bankLegacy, computeRunScore } from '../../state/legacy';
 import { unlockHero } from '../../state/codex';
-import { drainAscentPrompts } from './AscentState';
+import { drainAscentPrompts, enqueueAscentPrompt } from './AscentState';
 import { rerollPowerDraft, skipPowerDraft, takePowerCard } from './PowerDraftSystem';
-import { executeMarchOrder, holdMarchOrder } from './MarchOrderSystem';
+import {
+  buildConquestTarget,
+  executeConquestMethod,
+  holdConquest,
+} from './ConquestSystem';
+import { applyAppointment, offerAppointment, resolveLawChoice, resolveParliament } from './CourtLaneSystem';
+import { resolveEnvoy } from './EnvoySystem';
 import { passHeroSummon, recruitSummonedHero } from './SummonSystem';
 import { resolveEmpireResponse } from './WaveDirector';
-import type { GameState } from '../../state/types';
+import { startPromptCooldown } from './DecisionDirector';
+import { findLand } from '../LandSystem';
+import type { AscentConquestMethod, GameState } from '../../state/types';
 
 /**
  * The single entry point the UI calls to answer whatever prompt is open. One dispatcher
@@ -30,6 +38,9 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
         state.heroes.push(hero);
         unlockHero(hero.id);
         ascent.heroesSummoned += 1;
+        // The founder is the run's first appointment too — it teaches the role card before
+        // any of the systems that depend on understanding it come into play.
+        offerAppointment(state, hero.id);
       }
       handled = true;
       break;
@@ -40,23 +51,60 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
       break;
     }
 
-    case 'march-order': {
+    case 'conquer-target': {
       if (choiceId === 'hold') {
-        holdMarchOrder(state);
+        holdConquest(state);
         handled = true;
-      } else {
-        handled = executeMarchOrder(state, choiceId);
+        break;
+      }
+      // Choosing a province opens its method sheet rather than acting: *how* you take a
+      // province is the decision this lane exists for.
+      const land = findLand(state, choiceId);
+      if (land) {
+        enqueueAscentPrompt(state, { kind: 'conquer-method', target: buildConquestTarget(state, land) });
+        handled = true;
       }
       break;
     }
 
-    case 'hero-summon': {
-      if (choiceId === 'pass') {
-        passHeroSummon(state);
+    case 'conquer-method': {
+      if (choiceId === 'back') {
         handled = true;
-      } else {
-        handled = recruitSummonedHero(state, choiceId);
+        break;
       }
+      handled = executeConquestMethod(state, prompt.target.landId, choiceId as AscentConquestMethod);
+      break;
+    }
+
+    case 'hero-choice': {
+      if (choiceId === 'pass') {
+        passHeroSummon(state, prompt.source);
+        handled = true;
+        break;
+      }
+      handled = recruitSummonedHero(state, choiceId, prompt.source);
+      // Recruiting deliberately leaves the champion unposted; this is where they get a job.
+      if (handled) offerAppointment(state, choiceId);
+      break;
+    }
+
+    case 'court-appointment': {
+      handled = applyAppointment(state, prompt.heroId, choiceId);
+      break;
+    }
+
+    case 'law-choice': {
+      handled = resolveLawChoice(state, choiceId);
+      break;
+    }
+
+    case 'parliament': {
+      handled = resolveParliament(state, prompt.cardId, choiceId);
+      break;
+    }
+
+    case 'envoy': {
+      handled = resolveEnvoy(state, prompt.kingdomId, choiceId);
       break;
     }
 
@@ -79,6 +127,7 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
 
   if (!handled) return false;
 
+  startPromptCooldown(state, prompt.kind);
   state.pendingAscentPrompt = undefined;
   drainAscentPrompts(state);
   return true;

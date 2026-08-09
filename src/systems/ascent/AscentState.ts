@@ -1,5 +1,16 @@
 import { BASE_DRAFT_WEIGHTS, REROLL_BASE_COST, WAVE_GRACE_TICKS, xpToNextLevel } from '../../game/ascentConfig';
-import type { AscentPrompt, AscentPromptKind, AscentState, GameState } from '../../state/types';
+import type { AscentConquestMethod, AscentLaneStats, AscentPrompt, AscentPromptKind, AscentState, GameState } from '../../state/types';
+
+function createLaneStats(): AscentLaneStats {
+  const methods: AscentConquestMethod[] = ['bribe', 'diplomacy', 'intimidation', 'settle', 'occupy', 'siege'];
+  return {
+    conquestsByMethod: Object.fromEntries(methods.map((method) => [method, 0])) as Record<AscentConquestMethod, number>,
+    appointments: 0,
+    edictsEnacted: 0,
+    parliamentAnswered: 0,
+    envoyActions: {},
+  };
+}
 
 export function createAscentState(): AscentState {
   return {
@@ -30,8 +41,19 @@ export function createAscentState(): AscentState {
     marchCooldown: 0,
     promptQueue: [],
     autopilotStats: { builds: 0, upgrades: 0, recruits: 0, marches: 0 },
+    laneState: { conquer: 'ready', court: 'ready', world: 'ready', lastDecisionTurn: {} },
+    conquestPlans: [],
+    decisionPressure: 0,
+    idleTicks: 0,
+    laneStats: createLaneStats(),
     wavesSurvived: 0,
     heroesSummoned: 0,
+    promptCooldowns: {},
+    lastPromptTurn: 0,
+    drawnCourtCards: [],
+    courtCardCooldown: 3,
+    reservedHeroIds: [],
+    reserveSeatMark: 0,
   };
 }
 
@@ -39,22 +61,29 @@ export function createAscentState(): AscentState {
  * Prompt priority, highest first. A plain table rather than a chain of `if`s in the UI,
  * so the ordering is one place to read and retune.
  *
- * The reasoning: terminal states first; then setup; then closure on what just happened;
- * then the time-critical defence; then the choices that keep the conquest moving; and
- * rewards last, so a wave landing never gets buried behind a card draft.
+ * The reasoning: terminal states first; then setup; then closure on what just happened; then
+ * the time-critical defence; then the second half of a decision already begun (picking *how*
+ * to take a province, or where a champion serves — leaving either half-finished is the most
+ * confusing thing the queue can do); then the choices that keep the run moving; rewards last,
+ * so a wave landing never gets buried behind a card draft.
  */
 const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   'run-over': 0,
   founder: 1,
   'wave-result': 2,
   'empire-response': 3,
-  'march-order': 4,
-  'hero-summon': 5,
-  'power-draft': 6,
+  'conquer-method': 4,
+  'court-appointment': 5,
+  'conquer-target': 6,
+  'law-choice': 7,
+  parliament: 8,
+  envoy: 9,
+  'hero-choice': 10,
+  'power-draft': 11,
 };
 
 /**
- * Queues a decision. Only one prompt of a kind can be outstanding — a second march order
+ * Queues a decision. Only one prompt of a kind can be outstanding — a second conquest prompt
  * while one is already pending would be stale by the time it showed. Power drafts are the
  * exception: they stack as a counter so a level-up earned mid-prompt is never lost.
  */
@@ -97,4 +126,9 @@ export function drainAscentPrompts(state: GameState): void {
   ascent.promptQueue.sort((a, b) => PROMPT_PRIORITY[a.kind] - PROMPT_PRIORITY[b.kind]);
   state.pendingAscentPrompt = ascent.promptQueue.shift();
   state.isPaused = true;
+  // Stamped here rather than in the decision director, because this is the one place *every*
+  // prompt passes through. Stamping it only where the director raises one lets a wave response
+  // or a chained follow-up be immediately followed by a fresh card on the very next tick,
+  // which is precisely the slideshow the gap rule exists to prevent.
+  ascent.lastPromptTurn = state.turn;
 }

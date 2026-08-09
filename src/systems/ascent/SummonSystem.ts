@@ -5,14 +5,12 @@ import {
   PITY_JADE_STEP,
   SUMMON_CARD_COUNT,
 } from '../../game/ascentConfig';
-import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { weightedPickIndex } from '../../utils/math';
 import { unlockHero } from '../../state/codex';
-import { assignHeroToPosition, ALL_COURT_POSITIONS } from '../CourtSystem';
 import { pushToast } from '../empire/notifications';
 import { enqueueAscentPrompt } from './AscentState';
 import { heroName, t } from '../../i18n';
-import type { AscentRarity, CourtPositionId, GameState, Hero, HeroType } from '../../state/types';
+import type { AscentRarity, GameState, Hero } from '../../state/types';
 
 /**
  * Rarity is cosmetic everywhere else in the game — here it does real work: it drives both
@@ -93,55 +91,40 @@ export function rollSummonHeroes(state: GameState): { heroIds: string[]; pityUse
   return { heroIds, pityUsed: guaranteed };
 }
 
-export function offerHeroSummon(state: GameState): void {
-  const { heroIds, pityUsed } = rollSummonHeroes(state);
-  if (heroIds.length === 0) return;
-  enqueueAscentPrompt(state, { kind: 'hero-summon', heroIds, pityUsed });
-}
-
-/** Which court seat a hero type serves best — used so recruiting needs no follow-up menu. */
-const SEAT_FOR_TYPE: Record<HeroType, CourtPositionId[]> = {
-  general: ['marshal', 'masterOfHorse'],
-  governor: ['steward', 'treasurer'],
-  minister: ['treasurer', 'chancellor', 'steward'],
-  agent: ['spymaster', 'censor', 'chancellor'],
-};
-
 /**
- * Puts a new champion straight to work: commanding a leaderless host if they are a general,
- * otherwise taking the best empty seat their type suits. This is what keeps the gacha from
- * spawning a second management screen — the reward applies itself.
+ * Raises the champion card from whichever source is ready.
+ *
+ * Two feed it. The court's Favor meter pays out a `state.activeHeroDraft` on its own clock —
+ * that is the classic "heroes arrive over time" — and wave milestones roll the rarity-weighted
+ * gacha. Both land on the same card so the player only ever learns one screen.
  */
-function autoAssign(state: GameState, hero: Hero): void {
-  if (hero.type === 'general') {
-    const leaderless = state.armies.find(
-      (army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.generalHeroId,
-    );
-    if (leaderless) {
-      leaderless.generalHeroId = hero.id;
-      hero.assignedTo = leaderless.id;
-    }
-    // Otherwise leave them unposted on purpose: `queueRecruitment` needs an *unassigned*
-    // hero to command a new host, so parking generals in a court seat would quietly
-    // strangle the autopilot's ability to raise armies at all.
-    return;
+export function offerHeroSummon(state: GameState): boolean {
+  const draft = state.activeHeroDraft;
+  if (draft?.length) {
+    enqueueAscentPrompt(state, {
+      kind: 'hero-choice',
+      heroIds: draft.map((hero) => hero.id),
+      source: 'court',
+      pityUsed: false,
+    });
+    return true;
   }
 
-  const preferred = SEAT_FOR_TYPE[hero.type] ?? [];
-  const order = [...preferred, ...ALL_COURT_POSITIONS];
-  for (const seat of order) {
-    if (!state.court.unlockedSeats.includes(seat)) continue;
-    if (state.court.seats[seat]) continue;
-    if (assignHeroToPosition(state, hero.id, seat)) return;
-  }
-  // No seat and no host: they wait in the roster and the autopilot will hand them a command.
+  const { heroIds, pityUsed } = rollSummonHeroes(state);
+  if (heroIds.length === 0) return false;
+  enqueueAscentPrompt(state, { kind: 'hero-choice', heroIds, source: 'summon', pityUsed });
+  return true;
 }
 
 /**
  * Recruits the chosen champion, records them in the permanent Codex, and resets or advances
  * soft pity. The two passed-over cards are discarded with the prompt.
+ *
+ * The hero is deliberately left unposted: `resolveAscentPrompt` raises the Appointment card
+ * next, which is where the player decides what they actually do. An auto-assign here would
+ * make the appointment a correction rather than a choice.
  */
-export function recruitSummonedHero(state: GameState, heroId: string): boolean {
+export function recruitSummonedHero(state: GameState, heroId: string, source: 'summon' | 'court'): boolean {
   const ascent = state.ascent;
   if (!ascent) return false;
 
@@ -151,22 +134,30 @@ export function recruitSummonedHero(state: GameState, heroId: string): boolean {
   state.heroDeck = state.heroDeck.filter((candidate) => candidate.id !== heroId);
   state.heroes.push(hero);
   ascent.heroesSummoned += 1;
-  ascent.summonsDone += 1;
 
-  const tier = tierForHero(hero);
-  ascent.summonPity = tier === 'gold' || tier === 'jade' ? 0 : ascent.summonPity + 1;
+  if (source === 'court') {
+    // A Favor draft is not a summon: counting it would advance the wave-milestone ledger and
+    // silently swallow the next gacha the player earned.
+    state.activeHeroDraft = undefined;
+  } else {
+    ascent.summonsDone += 1;
+    const tier = tierForHero(hero);
+    ascent.summonPity = tier === 'gold' || tier === 'jade' ? 0 : ascent.summonPity + 1;
+  }
 
   const isNew = unlockHero(hero.id);
-  autoAssign(state, hero);
-
   pushToast(state, t('ascent.summon.joined', { hero: heroName(hero) }), isNew ? 'milestone' : 'reward');
   return true;
 }
 
 /** Declines all three. Pity still advances, so passing is never a pure loss. */
-export function passHeroSummon(state: GameState): void {
+export function passHeroSummon(state: GameState, source: 'summon' | 'court'): void {
   const ascent = state.ascent;
   if (!ascent) return;
+  if (source === 'court') {
+    state.activeHeroDraft = undefined;
+    return;
+  }
   ascent.summonsDone += 1;
   ascent.summonPity += 1;
 }

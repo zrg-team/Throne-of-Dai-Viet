@@ -1,4 +1,4 @@
-import { PLAYER_KINGDOM_ID } from '../../game/constants';
+import { isEndlessMode, PLAYER_KINGDOM_ID } from '../../game/constants';
 import type { GameState, Kingdom, KingdomPersonality } from '../../state/types';
 import { addOpinionModifier, naturalBaseline, recomputeOpinion } from '../DiplomacySystem';
 import { pushToast } from './notifications';
@@ -111,7 +111,7 @@ function activeEmpires(state: GameState): Kingdom[] {
 
 /** Called once per in-game year (from the season/year rollover). */
 export function tickGreatPowersYear(state: GameState): void {
-  if (state.gameMode !== 'empire') return;
+  if (!isEndlessMode(state.gameMode)) return;
 
   const empires = activeEmpires(state);
   for (const k of empires) {

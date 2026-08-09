@@ -1,4 +1,4 @@
-import { PLAYER_KINGDOM_ID } from '../../game/constants';
+import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   AUTOBUILD_GOLD_RESERVE,
   DEFENSIVE_POSTURE_RATIO,
@@ -23,7 +23,7 @@ import {
   type UpgradeOption,
 } from '../ResourceSystem';
 import { disbandArmy, getRecruitmentOrder, issueMoveOrder, queueRecruitment } from '../WarSystem';
-import { frontWinChance } from './MarchOrderSystem';
+import { frontWinChance } from './ConquestSystem';
 import type { GameState, Land, LandBuildingType } from '../../state/types';
 
 /**
@@ -163,6 +163,18 @@ function autoRecruit(state: GameState): boolean {
   // One muster at a time per land; bail early rather than spam a failing call.
   if (lands.some((land) => getRecruitmentOrder(state, land.id))) return false;
 
+  return raiseHostNow(state);
+}
+
+/**
+ * Musters one host from whatever the realm can spare, under its best free commander.
+ *
+ * Shared by the autopilot and by the Army screen's "Raise a host" button. Deliberately does
+ * *not* check the target host count: the autopilot applies that gate itself before calling in,
+ * while a player pressing the button has decided they want another host regardless — the whole
+ * point of having the screen is to be able to overrule the automation.
+ */
+export function raiseHostNow(state: GameState): boolean {
   const commanderId = findFreeCommander(state);
   if (!commanderId) return false;
 
@@ -181,8 +193,49 @@ function autoRecruit(state: GameState): boolean {
 }
 
 /**
- * Marches idle hosts at the designated front. `progressMovementOrders` runs the arrival
- * battle and pushes the siege by itself, so this is the whole of the offensive loop —
+ * Walks a spare host onto neighbouring empty wilderness.
+ *
+ * The boundary between what the autopilot may take and what it may not is deliberate: nobody
+ * lives here, nobody resists, and `progressMovementOrders` routes it to `occupyEmptyLand` with
+ * no battle at all — so claiming it is bookkeeping, not a decision. Villages and rival-held
+ * provinces are left alone entirely; those are the player's to take, and by which method.
+ *
+ * Without this the run stalls on empty ground it obviously wants; with it applied any wider,
+ * the Conquer lane's choices would be made for the player before they saw them.
+ */
+function autoClaimWilderness(state: GameState): boolean {
+  const ascent = state.ascent;
+  if (!ascent || ascent.frontLandId) return false;
+
+  const idle = state.armies.filter(
+    (army) =>
+      army.kingdomId === PLAYER_KINGDOM_ID &&
+      !state.movementOrders.some((order) => order.armyId === army.id) &&
+      !state.siegeOrders.some((order) => order.armyId === army.id),
+  );
+  // Never the last host: the capital falling ends the run.
+  if (idle.length < 2) return false;
+
+  const owned = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
+  const seen = new Set<string>();
+  for (const land of owned) {
+    for (const neighbourId of land.neighbors) {
+      if (seen.has(neighbourId)) continue;
+      seen.add(neighbourId);
+      const neighbour = state.lands.find((candidate) => candidate.id === neighbourId);
+      if (!neighbour) continue;
+      if (neighbour.ownerId !== NEUTRAL_OWNER_ID || neighbour.hasVillage) continue;
+      if (state.acquisitionOrders.some((order) => order.landId === neighbour.id)) continue;
+
+      if (issueMoveOrder(state, idle[0].id, neighbour.id)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Marches idle hosts at the front the *player* designated. `progressMovementOrders` runs the
+ * arrival battle and pushes the siege by itself, so this is the whole of the offensive loop —
  * there is no new combat code anywhere in this mode.
  */
 function autoMarch(state: GameState): boolean {
@@ -327,7 +380,8 @@ export function tickAscentAutopilot(state: GameState): void {
 
   autoResupply(state);
 
-  if (autoMarch(state)) {
+  // The player's standing order first; free ground only when there is no front to press.
+  if (autoMarch(state) || autoClaimWilderness(state)) {
     ascent.autopilotStats.marches += 1;
   }
 
