@@ -144,6 +144,20 @@ export interface InvasionSpawnOptions {
   warlordName?: string;
   /** Force conquest intent (a Great Invasion always marches on the capital). */
   forceConquest?: boolean;
+  /** Force raid intent: pillage a border district and withdraw, never march on the capital. */
+  forceRaid?: boolean;
+  /**
+   * Exact soldier budget to split across the hosts, bypassing the random roll *and* the
+   * defensible-total clamp.
+   *
+   * The clamp sizes a wave against `getPlayerMilitary` — a raw headcount that knows nothing
+   * about army level, elite tier, generals or the court's `armyPowerMult`. That is right for
+   * empire mode, where none of those stack far. Dragon Ascent multiplies all four through its
+   * Power Draft, so a clamped wave there is sized against a number several times smaller than
+   * what will actually defend, and every card the player takes widens the gap. When the caller
+   * has computed the budget from real defensive power, it must be honoured verbatim.
+   */
+  totalSoldiers?: number;
 }
 
 /** Replaces the on-map `launchDynastyAttack` for empire mode: spawns one or more off-map hosts at the frontier. */
@@ -172,8 +186,9 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
   const relations = kingdom.relations ?? 50;
   const conquestChance =
     0.4 + (relations < 35 ? 0.3 : relations < 50 ? 0.1 : 0) + (personalityWeight(kingdom) > 1 ? 0.18 : 0);
-  const intent: InvasionRecord['intent'] =
-    opts.forceConquest || Math.random() < conquestChance ? 'conquest' : 'raid';
+  const intent: InvasionRecord['intent'] = opts.forceRaid
+    ? 'raid'
+    : opts.forceConquest || Math.random() < conquestChance ? 'conquest' : 'raid';
 
   // Conquest with very cold relations can field a coalition of 2-3 hosts.
   let armyCount = 1;
@@ -191,9 +206,17 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
   // player's military so even a 3-host coalition can't become an unwinnable wall of thousands.
   const rawSizes = Array.from({ length: armyCount }, () => Math.round((180 + Math.floor(Math.random() * 140)) * scale * growth));
   const rawTotal = rawSizes.reduce((sum, s) => sum + s, 0);
-  const capFloor = 260 * armyCount * difficultyArmyScale(state.campaignConfig?.difficulty);
-  const totalCap = Math.max(capFloor, getPlayerMilitary(state) * defensibleCapRatio(state.campaignConfig?.difficulty));
-  const clampFactor = rawTotal > totalCap ? totalCap / rawTotal : 1;
+
+  // An explicit budget replaces both the roll and the clamp: the caller has already sized this
+  // wave against something more honest than a headcount (see `totalSoldiers`).
+  let clampFactor: number;
+  if (opts.totalSoldiers !== undefined) {
+    clampFactor = rawTotal > 0 ? opts.totalSoldiers / rawTotal : 1;
+  } else {
+    const capFloor = 260 * armyCount * difficultyArmyScale(state.campaignConfig?.difficulty);
+    const totalCap = Math.max(capFloor, getPlayerMilitary(state) * defensibleCapRatio(state.campaignConfig?.difficulty));
+    clampFactor = rawTotal > totalCap ? totalCap / rawTotal : 1;
+  }
 
   state.invasions ??= [];
   for (let i = 0; i < armyCount; i += 1) {

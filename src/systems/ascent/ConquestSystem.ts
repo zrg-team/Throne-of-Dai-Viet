@@ -48,6 +48,12 @@ export function ensureAscentLaneState(state: GameState): void {
   ascent.drawnCourtCards ??= [];
   ascent.lastPromptTurn ??= 0;
   ascent.courtCardCooldown ??= 3;
+  ascent.defenceSamples ??= [];
+  ascent.raidCooldown ??= 0;
+  ascent.tributeCooldown ??= 0;
+  ascent.coalitionCooldownTicks ??= 0;
+  ascent.vassalCooldown ??= 0;
+  ascent.coalitionPending ??= false;
   ascent.reservedHeroIds ??= [];
   ascent.reserveSeatMark ??= 0;
   ascent.laneStats ??= {

@@ -10,6 +10,7 @@ import {
   progressAscentCourtCooldown,
 } from './CourtLaneSystem';
 import { offerEnvoy, pickEnvoyTarget } from './EnvoySystem';
+import { offerRivalDemand, rivalDemandReady, tickRivalCooldowns } from './RivalDirector';
 import { offerHeroSummon } from './SummonSystem';
 import { offerPowerDraft } from './PowerDraftSystem';
 import type { AscentPromptKind, GameState } from '../../state/types';
@@ -47,6 +48,9 @@ const STARVATION_TICKS = 4;
  * landing must never be buried behind a card draft.
  */
 const CONSIDER_ORDER: AscentPromptKind[] = [
+  // Rivals speak first among the scheduled cards: a demand is time-critical in a way a
+  // card draft is not, and it is the pressure that was missing from the run entirely.
+  'rival-demand',
   'court-appointment',
   'conquer-target',
   'power-draft',
@@ -65,6 +69,7 @@ export function tickPromptCooldowns(state: GameState): void {
     else ascent.promptCooldowns[kind] = value - 1;
   }
   progressAscentCourtCooldown(state);
+  tickRivalCooldowns(state);
 }
 
 /** Starts a kind's quiet period. Called by the resolver when a prompt is answered. */
@@ -123,6 +128,9 @@ function isReady(state: GameState, kind: AscentPromptKind): boolean {
     case 'envoy':
       return Boolean(pickEnvoyTarget(state));
 
+    case 'rival-demand':
+      return rivalDemandReady(state);
+
     default:
       return false;
   }
@@ -148,6 +156,8 @@ function raise(state: GameState, kind: AscentPromptKind): boolean {
       return offerParliament(state);
     case 'envoy':
       return offerEnvoy(state);
+    case 'rival-demand':
+      return offerRivalDemand(state);
     default:
       return false;
   }

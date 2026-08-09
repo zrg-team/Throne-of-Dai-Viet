@@ -12,7 +12,7 @@ const errors = [];
 page.on('pageerror', (err) => errors.push(`PAGEERROR: ${err.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE: ${m.text()}`); });
 
-await page.goto('http://127.0.0.1:5173/?capture=1', { waitUntil: 'domcontentloaded' });
+await page.goto('http://localhost:5173/?capture=1', { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame && window.__phaserGame.scene.isActive('MenuScene'),
   null, { timeout: 30000 });
 
@@ -73,6 +73,24 @@ await shoot('06-parliament');
 
 await force('E.offerEnvoy(st);');
 await shoot('07-envoy');
+
+// A rival's own demand — the pressure that used to be absent entirely.
+await page.evaluate(async () => {
+  const st = window.__mandateState;
+  st.pendingAscentPrompt = undefined;
+  st.ascent.promptQueue = [];
+  const R = await import('/src/systems/ascent/RivalDirector.ts');
+  const S = await import('/src/systems/ascent/AscentState.ts');
+  const rival = st.kingdoms.find((k) => k.id !== 'dai-viet' && !k.isDefeated);
+  rival.relations = 30;
+  st.ascent.tributeCooldown = 0;
+  st.ascent.vassalCooldown = 999;
+  st.ascent.coalitionCooldownTicks = 999;
+  R.offerRivalDemand(st);
+  S.drainAscentPrompts(st);
+  window.__phaserGame.scene.getScene('ConquestUIScene').events.emit('state-changed');
+});
+await shoot('07b-rival-demand');
 
 // The standing bottom bar on the live map, with a province selected.
 await page.evaluate(() => {

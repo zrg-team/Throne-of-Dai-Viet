@@ -1,4 +1,13 @@
-import { BASE_DRAFT_WEIGHTS, REROLL_BASE_COST, WAVE_GRACE_TICKS, xpToNextLevel } from '../../game/ascentConfig';
+import {
+  BASE_DRAFT_WEIGHTS,
+  COALITION_COOLDOWN_TICKS,
+  RAID_INTERVAL_TICKS,
+  REROLL_BASE_COST,
+  TRIBUTE_COOLDOWN_TICKS,
+  VASSAL_COOLDOWN_TICKS,
+  WAVE_GRACE_TICKS,
+  xpToNextLevel,
+} from '../../game/ascentConfig';
 import type { AscentConquestMethod, AscentLaneStats, AscentPrompt, AscentPromptKind, AscentState, GameState } from '../../state/types';
 
 function createLaneStats(): AscentLaneStats {
@@ -9,6 +18,7 @@ function createLaneStats(): AscentLaneStats {
     edictsEnacted: 0,
     parliamentAnswered: 0,
     envoyActions: {},
+    rivalAnswers: 0,
   };
 }
 
@@ -52,6 +62,12 @@ export function createAscentState(): AscentState {
     lastPromptTurn: 0,
     drawnCourtCards: [],
     courtCardCooldown: 3,
+    defenceSamples: [],
+    raidCooldown: RAID_INTERVAL_TICKS,
+    tributeCooldown: TRIBUTE_COOLDOWN_TICKS,
+    coalitionCooldownTicks: COALITION_COOLDOWN_TICKS,
+    vassalCooldown: VASSAL_COOLDOWN_TICKS,
+    coalitionPending: false,
     reservedHeroIds: [],
     reserveSeatMark: 0,
   };
@@ -78,6 +94,7 @@ const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   'law-choice': 7,
   parliament: 8,
   envoy: 9,
+  'rival-demand': 3.5,
   'hero-choice': 10,
   'power-draft': 11,
 };

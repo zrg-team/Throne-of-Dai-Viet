@@ -8,6 +8,8 @@ import { responseCommanderName } from '../systems/ascent/WaveDirector';
 import { buildConquestTargets, refreshAscentLaneState } from '../systems/ascent/ConquestSystem';
 import { lawCardView, seatedEffectSummary } from '../systems/ascent/CourtLaneSystem';
 import { envoyOptionDetail } from '../systems/ascent/EnvoySystem';
+import { realmStanding } from '../systems/ascent/RivalDirector';
+import { TRIBUTE_REFUSE_TICKS } from '../game/ascentConfig';
 import { ALL_COURT_POSITIONS, getCourtPositionLabel } from '../systems/CourtSystem';
 import { buildDistrictBuilding, getBuildOptions, getUpgradeOptions, upgradeDistrictBuilding } from '../systems/ResourceSystem';
 import { findFreeCommander } from '../systems/ascent/AutopilotSystem';
@@ -165,6 +167,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'law-choice': return `${prompt.points}:${prompt.projectIds.join(',')}`;
       case 'parliament': return prompt.cardId;
       case 'envoy': return `${prompt.kingdomId}:${prompt.relations}`;
+      case 'rival-demand': return `${prompt.demand}:${prompt.kingdomId}`;
       case 'empire-response': return `${prompt.wave}`;
       case 'wave-result': return `${prompt.wave}`;
       case 'founder': return prompt.options.join(',');
@@ -183,6 +186,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'law-choice': this.showLawChoice(prompt); break;
       case 'parliament': this.showParliament(prompt); break;
       case 'envoy': this.showEnvoy(prompt); break;
+      case 'rival-demand': this.showRivalDemand(prompt); break;
       case 'empire-response': this.showEmpireResponse(prompt); break;
       case 'wave-result': this.showWaveResult(prompt); break;
       case 'run-over': this.showRunOver(prompt); break;
@@ -1256,6 +1260,68 @@ export class ConquestUIScene extends Phaser.Scene {
     staggerIn(this, cards);
   }
 
+  /**
+   * A rival's demand. The half of foreign affairs the player does not start — and the one
+   * place where refusing has to visibly cost something, or the card is flavour.
+   */
+  private showRivalDemand(prompt: Extract<AscentPrompt, { kind: 'rival-demand' }>): void {
+    const kingdom = this.state.kingdoms.find((candidate) => candidate.id === prompt.kingdomId);
+    const standing = kingdom ? realmStanding(this.state, kingdom) : 'even';
+
+    const title = prompt.demand === 'tribute'
+      ? t('ascent.rival.tributeTitle', { kingdom: prompt.kingdomName })
+      : prompt.demand === 'coalition'
+        ? t('ascent.rival.coalitionTitle')
+        : t('ascent.rival.vassalTitle', { kingdom: prompt.kingdomName });
+
+    const body = prompt.demand === 'tribute'
+      ? t('ascent.rival.tributeBody')
+      : prompt.demand === 'coalition'
+        ? t('ascent.rival.coalitionBody', {
+            members: (prompt.memberNames ?? []).join(', '),
+            ticks: prompt.ticks ?? 0,
+          })
+        : t('ascent.rival.vassalBody');
+
+    const content = this.promptFrame(
+      title,
+      `${body}
+${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
+    );
+
+    const rowHeight = 80;
+    const cards: Phaser.GameObjects.Container[] = [];
+    prompt.options.forEach((option, index) => {
+      const gold = option.cost?.gold ?? prompt.gold ?? 0;
+      const label = t(`ascent.rival.${option.id === 'buy-off' ? 'buyOff' : option.id}` as Parameters<typeof t>[0]);
+      const detail = t(
+        `ascent.rival.${option.id === 'buy-off' ? 'buyOff' : option.id}D` as Parameters<typeof t>[0],
+        { gold, ticks: prompt.ticks ?? TRIBUTE_REFUSE_TICKS },
+      );
+
+      cards.push(this.optionCard(
+        { x: content.x, y: content.y + index * (rowHeight + 10), width: content.width, height: rowHeight },
+        {
+          title: label,
+          body: detail,
+          note: option.cost?.gold
+            ? (option.affordable ? formatResourceList(option.cost) : t('ascent.response.cantAfford'))
+            : undefined,
+          noteColor: option.affordable ? undefined : '#e08a7c',
+          // Defiance is the red option: free now, paid for on the wave curve.
+          accent: !option.affordable
+            ? INK_UI.softBrush
+            : option.id === 'refuse' || option.id === 'defy' || option.id === 'endure'
+              ? INK_UI.cinnabar
+              : INK_UI.gold,
+          disabled: !option.affordable,
+          onTap: () => this.choose(option.id),
+        },
+      ));
+    });
+    staggerIn(this, cards);
+  }
+
   private showEmpireResponse(prompt: Extract<AscentPrompt, { kind: 'empire-response' }>): void {
     const content = this.promptFrame(
       t('ascent.response.title', { kingdom: prompt.kingdomName }),
@@ -1279,6 +1345,13 @@ export class ConquestUIScene extends Phaser.Scene {
             : t('ascent.response.sendHostNoHero');
           body = t('ascent.response.sendHostD', {
             supplies: option.cost?.supplies ?? 0,
+            pct: option.winChance ?? 0,
+          });
+          break;
+        case 'hire-mercenaries':
+          title = t('ascent.response.mercenaries');
+          body = t('ascent.response.mercenariesD', {
+            gold: option.cost?.gold ?? 0,
             pct: option.winChance ?? 0,
           });
           break;

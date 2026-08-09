@@ -18,7 +18,7 @@ import { tickGreatPowersYear } from '../empire/GreatPowersSystem';
 import { drainAscentPrompts } from './AscentState';
 import { tickAscentAutopilot } from './AutopilotSystem';
 import { tickAscentProgress } from './PowerSystem';
-import { tickWaveDirector } from './WaveDirector';
+import { tickRaids, tickWaveDirector } from './WaveDirector';
 import { detectConquests, ensureAscentLaneState, refreshAscentLaneState } from './ConquestSystem';
 import { tickDecisionDirector, tickPromptCooldowns } from './DecisionDirector';
 import { endAscentRun } from './AscentResolver';
@@ -143,6 +143,7 @@ export function advanceAscentTick(state: GameState): void {
   state.ascent.marchCooldown = Math.max(0, state.ascent.marchCooldown - 1);
   tickAscentAutopilot(state);
   tickWaveDirector(state);
+  tickRaids(state);
   tickAutoDefend(state);
   tickInvasions(state);
 

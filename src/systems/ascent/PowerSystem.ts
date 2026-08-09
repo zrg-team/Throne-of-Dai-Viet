@@ -65,6 +65,29 @@ export function computeDefensivePower(state: GameState): number {
   return Math.round(total);
 }
 
+/**
+ * What the realm can actually bring to bear where a wave lands: its field hosts, plus the
+ * capital's own garrison.
+ *
+ * Distinct from `computeDefensivePower`, which sums *every* province's walls. A wave arrives
+ * at one place, so total defence badly overstates what meets it — a realm holding a dozen
+ * lightly-walled districts has a large defensive total and almost nothing at the point of
+ * contact. Sizing waves against the total is what made the first tuning pass lethal: a wave
+ * budgeted at 70% of a 4,000 defensive total hit a province holding a few hundred.
+ */
+export function computeFieldDefencePower(state: GameState): number {
+  let total = 0;
+  for (const army of state.armies) {
+    if (army.kingdomId === PLAYER_KINGDOM_ID) total += armyPower(state, army);
+  }
+  const capitalId = state.ascent?.capitalLandId;
+  const capital = state.lands.find(
+    (land) => land.id === capitalId && land.ownerId === PLAYER_KINGDOM_ID,
+  );
+  if (capital) total += landGarrisonPower(capital);
+  return Math.round(total);
+}
+
 /** Provinces the player currently holds. */
 export function ownedLandCount(state: GameState): number {
   return state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length;
