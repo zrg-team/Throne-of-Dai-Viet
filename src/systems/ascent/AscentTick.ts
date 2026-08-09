@@ -9,17 +9,18 @@ import {
   progressRecruitmentOrders,
   progressSiegeOrders,
 } from '../WarSystem';
-import { progressCourtModifiers, refreshCourtSeats } from '../CourtSystem';
+import { progressCourt } from '../CourtSystem';
+import { tickDiplomacy } from '../DiplomacySystem';
 import { refreshPlayerVisibility } from '../LandSystem';
 import { tickAutoDefend, tickInvasions, resolvePendingBattle } from '../empire/InvasionSystem';
 import { addMandate } from '../empire/MandateSystem';
+import { tickGreatPowersYear } from '../empire/GreatPowersSystem';
 import { drainAscentPrompts } from './AscentState';
 import { tickAscentAutopilot } from './AutopilotSystem';
 import { tickAscentProgress } from './PowerSystem';
 import { tickWaveDirector } from './WaveDirector';
-import { detectConquests, offerMarchOrder } from './MarchOrderSystem';
-import { offerPowerDraft } from './PowerDraftSystem';
-import { offerHeroSummon } from './SummonSystem';
+import { detectConquests, ensureAscentLaneState, refreshAscentLaneState } from './ConquestSystem';
+import { tickDecisionDirector, tickPromptCooldowns } from './DecisionDirector';
 import { endAscentRun } from './AscentResolver';
 import { seasonLabel, t } from '../../i18n';
 import type { GameState, Season } from '../../state/types';
@@ -30,14 +31,15 @@ const SEASONS: Season[] = ['Spring', 'Summer', 'Autumn', 'Winter'];
  * The seasonal clock, matching `advanceRealtimeMonth`. Inlined rather than exported from
  * RealtimeSystem so that file — which every shipping mode runs through — stays untouched.
  */
-function advanceSeason(state: GameState): void {
+function advanceSeason(state: GameState): boolean {
   const nextIndex = SEASONS.indexOf(state.season) + 1;
   if (nextIndex >= SEASONS.length) {
     state.season = SEASONS[0];
     state.year += 1;
-  } else {
-    state.season = SEASONS[nextIndex];
+    return true;
   }
+  state.season = SEASONS[nextIndex];
+  return false;
 }
 
 function ownedLandIds(state: GameState): Set<string> {
@@ -94,67 +96,48 @@ function trackScore(state: GameState): void {
 }
 
 /**
- * Raises whatever prompts this tick has earned. Ordering here does not matter — the queue's
- * priority table decides what the player actually sees first.
- */
-function offerEarnedPrompts(state: GameState): void {
-  const ascent = state.ascent;
-  if (!ascent) return;
-
-  if (ascent.pendingLevelUps > 0) {
-    offerPowerDraft(state);
-  }
-
-  // A champion every few waves keeps the gacha beat regular without flooding the roster.
-  const summonsEarned = Math.floor(ascent.wavesSurvived / SUMMON_EVERY_N_WAVES);
-  if (summonsEarned > ascent.summonsDone) {
-    offerHeroSummon(state);
-  }
-
-  // Ask where to march the moment a host is actually standing ready — either because
-  // nowhere is marked, or because the standing front turned out to be too strong to storm
-  // and the player should get the chance to redirect rather than sit blocked forever.
-  const idleHost = state.armies.some(
-    (army) =>
-      army.kingdomId === PLAYER_KINGDOM_ID &&
-      !state.movementOrders.some((order) => order.armyId === army.id) &&
-      !state.siegeOrders.some((order) => order.armyId === army.id),
-  );
-  if (idleHost && (!ascent.frontLandId || ascent.frontBlocked)) {
-    offerMarchOrder(state);
-  }
-}
-
-/**
  * One Dragon Ascent economy tick.
  *
  * The first block mirrors `advanceRealtimeMonth` (RealtimeSystem) exactly for the
- * mode-agnostic half — income, orders, logistics, the seasonal clock — so this mode inherits
- * every future economy and combat change for free. It then diverges: no acquisitions, no
- * court cards, no bots, no foreign affairs, no directives. Just autopilot, waves, power.
+ * mode-agnostic half — income, orders, logistics, the court, the seasonal clock — so this mode
+ * inherits every future economy and combat change for free. It then diverges: the autopilot
+ * executes, the wave director escalates, and the decision director decides what to ask.
+ *
+ * Deliberately not called: `runBotTurns`, `tickCampaignEvents`, `tickForeignAffairs` (this mode
+ * drives rival aggression through its own wave director), `tickSpySystem`, `progressDirectives`,
+ * `checkVictory` — an endless run has no map-conquest win condition.
  */
 export function advanceAscentTick(state: GameState): void {
   if (state.isDefeated || !state.ascent) return;
+  ensureAscentLaneState(state);
 
   const ownedBefore = ownedLandIds(state);
   const wavesBefore = state.ascent.wavesSurvived;
 
   // ── Reused verbatim from the classic tick ────────────────────────────────
   collectPlayerIncome(state);
-  // Required, not optional: marching onto unsettled ground routes through
-  // `occupyEmptyLand`, which files an acquisition order rather than flipping the province
-  // on the spot. Without this the host walks into empty districts and simply stands there.
+  // Required, not optional: every peaceful claim — bribe, envoy, settle — and marching onto
+  // unsettled ground all file acquisition orders rather than flipping the province on the
+  // spot. Without this the Conquer lane's non-military methods never complete.
   progressAcquisitions(state);
   progressBuildOrders(state);
   progressSiegeOrders(state);
   progressMovementOrders(state);
   progressRecruitmentOrders(state);
   progressArmyLogistics(state);
-  progressCourtModifiers(state);
-  refreshCourtSeats(state);
+  // The full court, not just its modifiers: Favor accrues toward the next hero draft, seated
+  // governors raise their province's loyalty, ungoverned provinces drag on stability, and the
+  // tax dial's fatigue compounds. That pressure is what makes appointments matter.
+  progressCourt(state);
+  // Opinion modifiers decay and relations drift back toward each empire's baseline. Normally
+  // reached through the campaign-gated `tickForeignAffairs`; called directly here.
+  tickDiplomacy(state);
 
   state.turn += 1;
-  advanceSeason(state);
+  const yearTurned = advanceSeason(state);
+  // The rival empires live on their own: they arm, destabilise, war on each other, collapse
+  // and are reborn — so the world the player is fighting is not a static backdrop.
+  if (yearTurned) tickGreatPowersYear(state);
 
   // ── Dragon Ascent ────────────────────────────────────────────────────────
   state.ascent.marchCooldown = Math.max(0, state.ascent.marchCooldown - 1);
@@ -184,7 +167,9 @@ export function advanceAscentTick(state: GameState): void {
   trackScore(state);
   state.message = state.message || t('msg.economyTick', { year: state.year, season: seasonLabel(state.season) });
 
-  offerEarnedPrompts(state);
+  tickPromptCooldowns(state);
+  refreshAscentLaneState(state);
+  tickDecisionDirector(state);
   checkAscentDefeat(state);
   drainAscentPrompts(state);
 

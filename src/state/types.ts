@@ -653,6 +653,46 @@ export interface Ultimatum {
 /** Power Draft card rarity. Maps onto the Hero rarity ladder for summons. */
 export type AscentRarity = 'bronze' | 'silver' | 'gold' | 'jade';
 
+/**
+ * The screens the bottom action bar opens. Deliberately the classic modes' menu — Build /
+ * Heroes / Court / Army / Affairs — so this mode is navigated the same way the rest of the
+ * game already is. Conquest is not here: like the classic modes, it is reached by selecting
+ * a province on the map.
+ */
+export type AscentLane = 'build' | 'heroes' | 'court' | 'army' | 'affairs';
+
+export type AscentLaneStatus = 'ready' | 'busy' | 'alert' | 'blocked';
+
+export type AscentConquestMethod = 'bribe' | 'diplomacy' | 'intimidation' | 'settle' | 'occupy' | 'siege';
+
+/** Live pressure per system, used for the bar's status dots and the idle/starvation counters. */
+export interface AscentLaneState {
+  conquer: AscentLaneStatus;
+  court: AscentLaneStatus;
+  world: AscentLaneStatus;
+  lastDecisionTurn: Partial<Record<'conquer' | 'court' | 'world', number>>;
+}
+
+export interface AscentConquestPlan {
+  id: string;
+  landId: string;
+  method: AscentConquestMethod;
+  heroId?: string;
+  armyId?: string;
+  createdTurn: number;
+  status: 'queued' | 'executing' | 'blocked' | 'complete' | 'failed';
+  reason?: string;
+}
+
+/** Cumulative run activity — drives the run summary and the verify script. */
+export interface AscentLaneStats {
+  conquestsByMethod: Record<AscentConquestMethod, number>;
+  appointments: number;
+  edictsEnacted: number;
+  parliamentAnswered: number;
+  envoyActions: Record<string, number>;
+}
+
 /** One stack level of a Power Draft card: what it applies, and the numbers printed on the card. */
 export interface PowerCardLevel {
   /** Applied via `applyCourtEffect`. Use `permanent: true` for stacking cards. */
@@ -691,22 +731,88 @@ export interface EmpireResponseOption {
   affordable: boolean;
 }
 
-/** One province card on the March Order prompt. */
-export interface MarchTarget {
+/**
+ * One way to take a province. Every method a province admits is offered — the ones the realm
+ * cannot afford or staff right now come through greyed with a concrete `blockedReason`, because
+ * seeing the locked options is how the player learns the system.
+ */
+export interface ConquestMethodOption {
+  method: AscentConquestMethod;
+  /** Resources spent up front. `humans` for settle, `gold` for bribe, `supplies` for diplomacy. */
+  cost?: Partial<ResourceBag>;
+  /** Ticks until the province flips, once started. */
+  ticks: number;
+  /** Loyalty the province starts with under your banner. */
+  loyalty: number;
+  /** 0-100: success odds for bribe, battle odds for siege, 100 for the certain methods. */
+  chance: number;
+  /** The hero or host this method would commit, resolved for the card's detail line. */
+  heroId?: string;
+  armyId?: string;
+  /** Why it cannot be chosen right now; `undefined` means takeable. */
+  blockedReason?: string;
+}
+
+/** One province card on the Conquer prompt. */
+export interface ConquestTarget {
   landId: string;
   landName: string;
-  winChance: number;
+  landKind: 'wilderness' | 'village' | 'rival';
+  /** Name of the current holder, for rival-held provinces. */
+  ownerName?: string;
   garrison: number;
   /** i18n key suffix for the province's draw (`gold` | `food` | `iron` | `shrine` | `plain`). */
   rewardTag: string;
+  /** Best chance across every takeable method. Drives ordering, not the card's headline. */
+  bestChance: number;
+  /** True when at least one open method cannot fail — the province is takeable at no risk. */
+  hasCertainMethod: boolean;
+  methods: ConquestMethodOption[];
+  /** Set when a claim or siege is already running here. */
+  busyReason?: string;
+}
+
+/** One posting offered on the Appointment prompt. */
+export interface AppointmentOption {
+  /** `court:<positionId>` · `governor:<landId>` · `general:<armyId>`. */
+  id: string;
+  role: 'court' | 'governor' | 'general';
+  /** Resolved seat / province / host name. */
+  title: string;
+  /** The concrete bonus this hero's stats produce there, e.g. `+23% army power`. */
+  effect: string;
+  /** Who they would displace, if anyone. */
+  detail?: string;
+}
+
+/** One action offered on the Envoy prompt. */
+export interface EnvoyOption {
+  id: 'gift' | 'trade' | 'tribute' | 'ambassador' | 'ignore';
+  cost?: Partial<ResourceBag>;
+  influenceCost?: number;
+  /** For `ambassador`: the hero posted to that court. */
+  heroId?: string;
+  affordable: boolean;
 }
 
 /** Every pausing decision Dragon Ascent can raise. Exactly one is live at a time. */
 export type AscentPrompt =
   | { kind: 'founder'; options: string[] }
   | { kind: 'power-draft'; cards: string[]; rerollCost: number; level: number }
-  | { kind: 'march-order'; targets: MarchTarget[] }
-  | { kind: 'hero-summon'; heroIds: string[]; pityUsed: boolean }
+  /** Step one of a conquest: which province. */
+  | { kind: 'conquer-target'; targets: ConquestTarget[] }
+  /** Step two: how to take it. Raised by resolving `conquer-target`, or by tapping the map. */
+  | { kind: 'conquer-method'; target: ConquestTarget }
+  /** A champion arrives — from the gacha roll or from the court's Favor draft. */
+  | { kind: 'hero-choice'; heroIds: string[]; source: 'summon' | 'court'; pityUsed: boolean }
+  /** Where the new champion serves. Always follows a `hero-choice`. */
+  | { kind: 'court-appointment'; heroId: string; options: AppointmentOption[] }
+  /** A permanent law: an edict/wonder from REALM_PROJECTS, or the tax dial. */
+  | { kind: 'law-choice'; projectIds: string[]; points: number; taxOptions: TaxPolicy[] }
+  /** The court speaks: one card drawn from `state.politicsDeck`. */
+  | { kind: 'parliament'; cardId: string }
+  /** A rival empire, and what to do about it. */
+  | { kind: 'envoy'; kingdomId: string; kingdomName: string; relations: number; power: number; options: EnvoyOption[] }
   | {
       kind: 'empire-response';
       wave: number;
@@ -767,13 +873,32 @@ export interface AscentState {
   capitalLostTicks: number;
   /** True when the front is too strong to storm, so hosts are holding at the border. */
   frontBlocked: boolean;
-  /** Ticks before another March Order may be raised, so holding does not re-prompt at once. */
+  /** Ticks before another Conquer prompt may be raised, so holding does not re-prompt at once. */
   marchCooldown: number;
   promptQueue: AscentPrompt[];
   /** Cumulative autopilot activity — drives the run summary and the verify script. */
   autopilotStats: { builds: number; upgrades: number; recruits: number; marches: number };
+  laneState: AscentLaneState;
+  conquestPlans: AscentConquestPlan[];
+  decisionPressure: number;
+  idleTicks: number;
+  laneStats: AscentLaneStats;
   wavesSurvived: number;
   heroesSummoned: number;
+
+  // ── Decision scheduler (see systems/ascent/DecisionDirector.ts) ──
+  /** Ticks remaining before each prompt kind may be raised again. */
+  promptCooldowns: Partial<Record<AscentPromptKind, number>>;
+  /** The turn the last prompt was raised, enforcing a gap of real play between modals. */
+  lastPromptTurn: number;
+  /** Parliament cards already drawn this run — the deck draws without replacement. */
+  drawnCourtCards: string[];
+  /** Ticks until the court may speak again; mirrors `court.cardCooldown` for this mode. */
+  courtCardCooldown: number;
+  /** Heroes the player chose to hold free; not re-prompted until postings change. */
+  reservedHeroIds: string[];
+  /** Seat count when the reserve list was last taken, so a new seat reopens the question. */
+  reserveSeatMark: number;
 }
 
 export interface GameState {

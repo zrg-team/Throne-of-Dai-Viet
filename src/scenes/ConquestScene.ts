@@ -1,9 +1,15 @@
 import Phaser from 'phaser';
 import { ASCENT_TICK_MS } from '../game/ascentConfig';
 import { INK_UI } from '../ui/InkUI';
-import { PLAYER_KINGDOM_ID } from '../game/constants';
+import { ACTION_BAR_HEIGHT, GAME_HEIGHT, NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../game/constants';
+import { MAP_SCALE, axialToPixel, hexCorners } from '../map/hex';
 import { advanceAscentTick } from '../systems/ascent/AscentTick';
 import { rerollAscentDraft, resolveAscentPrompt } from '../systems/ascent/AscentResolver';
+import { drainAscentPrompts } from '../systems/ascent/AscentState';
+import { offerConquestMethods } from '../systems/ascent/ConquestSystem';
+import { offerEnvoyTo } from '../systems/ascent/EnvoySystem';
+import { offerAppointment, offerLawChoice } from '../systems/ascent/CourtLaneSystem';
+import { raiseHostNow } from '../systems/ascent/AutopilotSystem';
 import { MapScene } from './MapScene';
 
 /**
@@ -21,6 +27,9 @@ import { MapScene } from './MapScene';
 export class ConquestScene extends MapScene {
   private ascentAccumulator = 0;
   private frontMarker?: Phaser.GameObjects.Container;
+  private ownershipTint?: Phaser.GameObjects.Graphics;
+  /** Ownership map the tint was last painted for, so a tick with no flips repaints nothing. */
+  private ownershipSignature = '';
 
   constructor() {
     super('ConquestScene');
@@ -28,6 +37,14 @@ export class ConquestScene extends MapScene {
 
   protected uiSceneKey(): string {
     return 'ConquestUIScene';
+  }
+
+  create(): void {
+    super.create();
+    // `MapScene.create` does not call `refresh`, and `update` returns early while the run is
+    // paused — which it is for the whole opening prompt chain. Without this first paint the
+    // ownership wash would not appear until the player had already answered several cards.
+    this.repaintOwnershipTint();
   }
 
   update(_time: number, delta: number): void {
@@ -73,7 +90,83 @@ export class ConquestScene extends MapScene {
 
   protected refresh(): void {
     super.refresh();
+    this.repaintOwnershipTint();
     this.drawFrontMarker();
+  }
+
+  /**
+   * A translucent wash of the owner's colour over every claimed district.
+   *
+   * Terrain view draws ownership only as a thin coloured outline around each land, which is
+   * legible on the classic modes' small starting map but not here: an Ascent run opens
+   * surrounded by neutral districts that look exactly like the realm's own, so "which of this
+   * is mine" is unanswerable at a glance. Control view answers it but throws away the terrain.
+   * This fills the gap — terrain stays readable, ownership reads instantly.
+   *
+   * Drawn live above the static bake rather than baked into it: ownership changes several
+   * times a minute in this mode, and re-baking the whole map for each flip would stutter.
+   * Repainted only when the ownership map actually changes.
+   */
+  private repaintOwnershipTint(): void {
+    // Control view already paints every tile in its owner's colour at full strength.
+    if (this.state.mapRenderMode !== 'terrain') {
+      this.ownershipTint?.setVisible(false);
+      return;
+    }
+
+    const signature = this.state.lands
+      .filter((land) => land.isVisible)
+      .map((land) => `${land.id}:${land.ownerId}`)
+      .join(',');
+
+    if (!this.ownershipTint) {
+      this.ownershipTint = this.add.graphics();
+      // Between the baked static texture (1.9) and the per-land markers (2). Below 1.9 the
+      // bake simply covers it — the static layers are composited into one quad drawn on top.
+      this.ownershipTint.setDepth(1.95);
+    }
+    this.ownershipTint.setVisible(true);
+    if (signature === this.ownershipSignature) return;
+    this.ownershipSignature = signature;
+
+    this.ownershipTint.clear();
+    const hexSize = this.state.mapConfig.hexSize;
+
+    for (const tile of this.state.hexTiles) {
+      const land = tile.landId ? this.state.lands.find((candidate) => candidate.id === tile.landId) : undefined;
+      if (!land || !land.isVisible) continue;
+
+      const wash = this.ownershipWash(land.ownerId);
+      if (!wash) continue;
+
+      const pixel = axialToPixel(tile.coord, hexSize);
+      const corners = hexCorners({ x: this.wx(pixel.x), y: this.wy(pixel.y) }, hexSize * MAP_SCALE * 1.02)
+        .map(([x, y]) => ({ x, y }));
+
+      this.ownershipTint.fillStyle(wash.color, wash.alpha);
+      this.ownershipTint.fillPoints(corners, true);
+    }
+  }
+
+  /**
+   * Colour and strength of a district's wash.
+   *
+   * Tinting only *our* land does not work: the realm's colour is jade and the map is mostly
+   * green grass, so the wash disappears into the terrain it sits on. The readable version is
+   * the reverse — leave our ground untouched and bright, and mute everything we do not hold.
+   * Contrast, not colour, is what makes the border obvious at a glance.
+   */
+  private ownershipWash(ownerId: string): { color: number; alpha: number } | undefined {
+    if (ownerId === PLAYER_KINGDOM_ID) return undefined;
+    // Deep and cool rather than the palette's near-black olive, which sits so close to the
+    // grass and forest beneath it that even a heavy wash reads as "slightly dim", not "not
+    // yours". Pushing it blue separates foreign ground by hue as well as by value.
+    if (ownerId === NEUTRAL_OWNER_ID) return { color: 0x1b2436, alpha: 0.46 };
+
+    // A rival's ground is muted like any other foreign land, then washed in their own colour
+    // so "someone else's" and "*this* someone's" are two separate readings.
+    const color = this.state.kingdoms.find((kingdom) => kingdom.id === ownerId)?.color;
+    return { color: color ?? 0x1b2436, alpha: 0.5 };
   }
 
   /**
@@ -142,13 +235,63 @@ export class ConquestScene extends MapScene {
         ui.events.emit('state-changed');
       }
     });
+
+    // "Select a province, then choose how to take it" — reached directly from the map or the
+    // Conquer lane, rather than waiting for the scheduler to raise the prompt on its own.
+    ui.events.on('ui:ascent-conquer', (landId: string) => {
+      if (this.state.pendingAscentPrompt) return;
+      if (offerConquestMethods(this.state, landId)) {
+        drainAscentPrompts(this.state);
+        this.refresh();
+        ui.events.emit('state-changed');
+      }
+    });
+
+    ui.events.on('ui:ascent-envoy', (kingdomId: string) => {
+      if (this.state.pendingAscentPrompt) return;
+      if (offerEnvoyTo(this.state, kingdomId)) {
+        drainAscentPrompts(this.state);
+        this.refresh();
+        ui.events.emit('state-changed');
+      }
+    });
+
+    // Raised from the Court lane: post a champion, or spend the throne's authority — the same
+    // cards the decision director raises on its own clock, reached on demand instead.
+    ui.events.on('ui:ascent-appoint', (heroId: string) => {
+      if (this.state.pendingAscentPrompt) return;
+      if (offerAppointment(this.state, heroId)) {
+        drainAscentPrompts(this.state);
+        this.refresh();
+        ui.events.emit('state-changed');
+      }
+    });
+
+    // Raised from the Army screen: muster a host now rather than waiting for the autopilot's
+    // own recruit pass, which only fires when the realm is *below* its target host count.
+    ui.events.on('ui:ascent-raise-host', () => {
+      if (this.state.pendingAscentPrompt) return;
+      if (raiseHostNow(this.state)) {
+        this.refresh();
+        ui.events.emit('state-changed');
+      }
+    });
+
+    ui.events.on('ui:ascent-law', () => {
+      if (this.state.pendingAscentPrompt) return;
+      if (offerLawChoice(this.state)) {
+        drainAscentPrompts(this.state);
+        this.refresh();
+        ui.events.emit('state-changed');
+      }
+    });
   }
 
   /**
    * Read-only inspection. Deliberately does NOT call `super.selectLand`: the base
    * implementation doubles as the "tap army, then tap land" move command, and this mode has
-   * no manual marching — the autopilot marches, and targets are chosen on the March Order
-   * prompt. Tapping here just focuses a province so the HUD can describe it.
+   * no manual marching. Tapping focuses a province so the HUD can describe it — and, for
+   * ground the realm does not hold, offers the way into its acquisition methods.
    */
   protected selectLand(landId: string): void {
     this.state.selectedLandId = this.state.selectedLandId === landId ? undefined : landId;
@@ -166,12 +309,17 @@ export class ConquestScene extends MapScene {
     const suppressUntil = window.__suppressMapInputUntil ?? 0;
     if (Date.now() < suppressUntil) return true;
     if (y <= ASCENT_HUD_BOTTOM) return true;
+    // The action bar is always present, so its band is fixed UI whether or not a province
+    // is selected — otherwise a tap on "Court" also drags the map underneath it.
+    if (y >= ASCENT_ACTION_BAR_TOP) return true;
     if (y >= ASCENT_INSPECT_TOP && this.state.selectedLandId) return true;
     return false;
   }
 }
 
 /** Bottom edge of the HUD strip; taps above this belong to the HUD, not the map. */
-export const ASCENT_HUD_BOTTOM = 150;
+export const ASCENT_HUD_BOTTOM = 104;
 /** Top edge of the province inspect card, shown only while a province is selected. */
-export const ASCENT_INSPECT_TOP = 742;
+export const ASCENT_INSPECT_TOP = 654;
+/** Top edge of the standing action bar. Always fixed UI, selection or not. */
+export const ASCENT_ACTION_BAR_TOP = GAME_HEIGHT - ACTION_BAR_HEIGHT;

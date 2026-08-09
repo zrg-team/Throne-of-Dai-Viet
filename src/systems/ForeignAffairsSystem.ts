@@ -52,6 +52,16 @@ function scheduleDynastyAttack(state: GameState, kingdomId: string): void {
   state.message = t('msg.newKingAggressive', { kingdom: kingdom?.name ?? kingdomId });
 }
 
+/**
+ * Which modes let the player act on a foreign court. Dragon Ascent runs the same off-map
+ * empires as Throne of Empires and surfaces them through its Envoy card, so it is admitted
+ * here; `tickForeignAffairs` itself stays campaign-only because ascent drives succession and
+ * war appetite through its own wave director instead.
+ */
+function canConductForeignAffairs(mode: string): boolean {
+  return isCampaignMode(mode) || mode === 'ascent';
+}
+
 export function tickForeignAffairs(state: GameState): void {
   if (!isCampaignMode(state.gameMode)) return;
 
@@ -133,7 +143,7 @@ function escalateWarAppetite(state: GameState, kingdom: Kingdom): void {
 }
 
 export function sendGift(state: GameState, kingdomId: string): boolean {
-  if (!isCampaignMode(state.gameMode)) return false;
+  if (!canConductForeignAffairs(state.gameMode)) return false;
   const kingdom = state.kingdoms.find((k) => k.id === kingdomId);
   if (!kingdom || kingdom.isDefeated) return false;
 
@@ -157,7 +167,7 @@ export function sendGift(state: GameState, kingdomId: string): boolean {
 }
 
 export function proposeTrade(state: GameState, kingdomId: string): boolean {
-  if (!isCampaignMode(state.gameMode)) return false;
+  if (!canConductForeignAffairs(state.gameMode)) return false;
   const kingdom = state.kingdoms.find((k) => k.id === kingdomId);
   if (!kingdom || kingdom.isDefeated) return false;
   if (state.court.influence < 10) {
@@ -178,7 +188,7 @@ export function proposeTrade(state: GameState, kingdomId: string): boolean {
 }
 
 export function demandTribute(state: GameState, kingdomId: string): boolean {
-  if (!isCampaignMode(state.gameMode)) return false;
+  if (!canConductForeignAffairs(state.gameMode)) return false;
   const kingdom = state.kingdoms.find((k) => k.id === kingdomId);
   if (!kingdom || kingdom.isDefeated) return false;
 

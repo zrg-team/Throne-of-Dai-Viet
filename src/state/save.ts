@@ -1,5 +1,6 @@
 import type { GameState } from './types';
 import { t } from '../i18n';
+import { ensureAscentLaneState } from '../systems/ascent/ConquestSystem';
 
 export const SAVE_SNAPSHOT_VERSION = 1;
 export const SAVE_SNAPSHOT_KEY = 'mandate:snapshot:v1';
@@ -105,6 +106,7 @@ function normalizeSnapshotState(state: GameState): GameState {
   clone.pendingAscentPrompt = undefined;
   if (clone.ascent) {
     clone.ascent.promptQueue = [];
+    ensureAscentLaneState(clone);
   }
   return clone;
 }

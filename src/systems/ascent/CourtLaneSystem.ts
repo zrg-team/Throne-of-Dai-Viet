@@ -1,0 +1,438 @@
+import { PLAYER_KINGDOM_ID } from '../../game/constants';
+import { targetArmyCount } from '../../game/ascentConfig';
+import { getProject, REALM_PROJECTS } from '../../data/edicts';
+import {
+  ALL_COURT_POSITIONS,
+  assignHeroToLand,
+  assignHeroToPosition,
+  COURT_POSITION_EFFECTS,
+  formatCourtPositionEffect,
+  formatGovernorEffect,
+  getCourtBonuses,
+  getCourtPositionLabel,
+} from '../CourtSystem';
+import { applyCourtEffect, choosePoliticsCard } from '../PoliticsSystem';
+import { enactProject, projectBlockedReason, projectEffectSummary, projectTitle } from '../empire/EdictSystem';
+import { pushToast } from '../empire/notifications';
+import { enqueueAscentPrompt } from './AscentState';
+import { heroName, politicsTitle, t } from '../../i18n';
+import type {
+  AppointmentOption,
+  CourtPositionId,
+  GameState,
+  Hero,
+  HeroStats,
+  Land,
+  PoliticsCard,
+  TaxPolicy,
+} from '../../state/types';
+
+// ── Appointments ────────────────────────────────────────────────────────────
+
+/** The stat each seat actually converts into realm-wide bonuses (see COURT_POSITION_EFFECTS). */
+const SEAT_PRIMARY_STAT: Record<CourtPositionId, keyof HeroStats> = {
+  marshal: 'martial',
+  quartermaster: 'logistics',
+  treasurer: 'administration',
+  steward: 'administration',
+  chancellor: 'diplomacy',
+  spymaster: 'diplomacy',
+  censor: 'loyalty',
+  masterOfHorse: 'renown',
+};
+
+const MAX_APPOINTMENT_OPTIONS = 3;
+
+/**
+ * Ordering weights. These only decide which three postings are *offered* and in what order —
+ * the player still chooses. They are kept close together so no single role can run away with
+ * every appointment in a long run.
+ */
+const SEAT_VACANT_BONUS = 10;
+const GOVERNOR_NEED_CAP = 12;
+/** Beats any stat line: the realm cannot raise a host without a free hero. */
+const RESERVE_URGENT_SCORE = 200;
+/** Otherwise last, but always present — the player may always decline to post someone. */
+const RESERVE_IDLE_SCORE = -1;
+
+/**
+ * Where this champion could serve, best first, each printing the concrete bonus their own
+ * stats produce there — so the choice is read off numbers rather than guessed from a title.
+ *
+ * "Await a command" is always among them — see the note on its score below.
+ */
+export function buildAppointmentOptions(state: GameState, hero: Hero): AppointmentOption[] {
+  const scored: Array<{ option: AppointmentOption; score: number }> = [];
+
+  for (const seat of ALL_COURT_POSITIONS) {
+    if (!state.court.unlockedSeats.includes(seat)) continue;
+    const sittingId = state.court.seats[seat];
+    if (sittingId === hero.id) continue;
+
+    const sitting = state.heroes.find((candidate) => candidate.id === sittingId);
+    const stat = hero.stats[SEAT_PRIMARY_STAT[seat]];
+    // Only propose displacing someone who is clearly worse at the job — a shuffle that trades
+    // two points of martial costs 2 stability and gains nothing.
+    if (sitting && sitting.stats[SEAT_PRIMARY_STAT[seat]] >= stat - 8) continue;
+
+    scored.push({
+      option: {
+        id: `court:${seat}`,
+        role: 'court',
+        title: getCourtPositionLabel(seat),
+        effect: formatCourtPositionEffect(seat, hero.stats),
+        detail: sitting ? t('ascent.appoint.replaces', { hero: heroName(sitting) }) : undefined,
+      },
+      // A vacant ministry is a standing loss of realm-wide bonuses, so filling one outranks
+      // a marginally better fit somewhere already staffed.
+      score: stat + (sitting ? -12 : SEAT_VACANT_BONUS),
+    });
+  }
+
+  const leaderless = state.armies.find((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.generalHeroId);
+  if (leaderless) {
+    scored.push({
+      option: {
+        id: `general:${leaderless.id}`,
+        role: 'general',
+        title: t('ascent.appoint.general'),
+        effect: t('ascent.appoint.generalFx', { power: Math.round(hero.stats.martial * 0.4) }),
+        detail: leaderless.name,
+      },
+      // A host with no commander is a live handicap, so leading one outranks a desk.
+      score: hero.stats.martial + 14,
+    });
+  }
+
+  const province = bestUngovernedLand(state);
+  if (province) {
+    scored.push({
+      option: {
+        id: `governor:${province.id}`,
+        role: 'governor',
+        title: t('ascent.appoint.governor', { land: province.name }),
+        effect: formatGovernorEffect(hero.stats),
+        detail: t('ascent.appoint.governorDetail'),
+      },
+      // Bounded on purpose. Unbounded, a wide realm makes "governor" the top-scored posting
+      // forever and every champion is sent to a province while the ministries sit empty —
+      // which is exactly the opposite of what a sprawling realm needs.
+      score: hero.stats.administration + Math.min(GOVERNOR_NEED_CAP, ungovernedCount(state) * 2),
+    });
+  }
+
+  // "Await a command" is both scored *and* guaranteed a slot.
+  //
+  // `queueRecruitment` only accepts an *unposted* hero. A realm that seats every champion it
+  // draws therefore loses the ability to raise a host at all — the armies it has are the
+  // armies it will ever have, and the next wave ends the run. So it is never allowed to fall
+  // off the bottom of the list; when nobody else is spare it rises to the top instead.
+  const reserve: AppointmentOption = {
+    id: 'reserve',
+    role: 'general',
+    title: t('ascent.appoint.reserve'),
+    effect: t('ascent.appoint.reserveFx'),
+    detail: needsCommander(state, hero) ? t('ascent.appoint.reserveNeeded') : undefined,
+  };
+  const reserveScore = needsCommander(state, hero) ? RESERVE_URGENT_SCORE : RESERVE_IDLE_SCORE;
+
+  const postings = scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_APPOINTMENT_OPTIONS)
+    .map((entry) => entry.option);
+
+  // Urgent reserve leads; otherwise it closes the list.
+  return reserveScore > (scored[0]?.score ?? 0) ? [reserve, ...postings] : [...postings, reserve];
+}
+
+/** True when this hero is the realm's only candidate to raise the host it is missing. */
+function needsCommander(state: GameState, hero: Hero): boolean {
+  const owned = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length;
+  const hosts = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID).length;
+  if (hosts >= targetArmyCount(owned)) return false;
+  return !state.heroes.some((candidate) => candidate.id !== hero.id && !candidate.assignedTo);
+}
+
+/** The owned province that would gain most from a governor: none posted, biggest output. */
+function bestUngovernedLand(state: GameState): Land | undefined {
+  return state.lands
+    .filter((land) => land.ownerId === PLAYER_KINGDOM_ID)
+    .filter((land) => !state.heroes.some((hero) => hero.assignedTo === land.id))
+    .sort((a, b) => (b.outputs.gold + b.outputs.food + b.outputs.supplies) - (a.outputs.gold + a.outputs.food + a.outputs.supplies))[0];
+}
+
+function ungovernedCount(state: GameState): number {
+  const owned = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
+  const governed = owned.filter((land) => state.heroes.some((hero) => hero.assignedTo === land.id)).length;
+  return Math.max(0, owned.length - governed);
+}
+
+export function offerAppointment(state: GameState, heroId: string): boolean {
+  const hero = state.heroes.find((candidate) => candidate.id === heroId);
+  if (!hero) return false;
+  const options = buildAppointmentOptions(state, hero);
+  if (options.length === 0) return false;
+  enqueueAscentPrompt(state, { kind: 'court-appointment', heroId, options });
+  return true;
+}
+
+/** Applies a posting through the existing court APIs. `reserve` deliberately does nothing. */
+export function applyAppointment(state: GameState, heroId: string, optionId: string): boolean {
+  const ascent = state.ascent;
+  const hero = state.heroes.find((candidate) => candidate.id === heroId);
+  if (!hero) return false;
+
+  let ok = false;
+  if (optionId === 'reserve') {
+    if (ascent && !ascent.reservedHeroIds.includes(heroId)) {
+      ascent.reservedHeroIds.push(heroId);
+      ascent.reserveSeatMark = state.court.unlockedSeats.length;
+    }
+    ok = true;
+  } else if (optionId.startsWith('court:')) {
+    ok = assignHeroToPosition(state, heroId, optionId.slice('court:'.length) as CourtPositionId);
+  } else if (optionId.startsWith('governor:')) {
+    ok = assignHeroToLand(state, heroId, optionId.slice('governor:'.length));
+  } else if (optionId.startsWith('general:')) {
+    const army = state.armies.find((candidate) => candidate.id === optionId.slice('general:'.length));
+    if (army && army.kingdomId === PLAYER_KINGDOM_ID) {
+      const previous = state.heroes.find((candidate) => candidate.id === army.generalHeroId);
+      if (previous) previous.assignedTo = undefined;
+      army.generalHeroId = hero.id;
+      hero.assignedTo = army.id;
+      ok = true;
+    }
+  }
+
+  if (ok && ascent && optionId !== 'reserve') {
+    ascent.reservedHeroIds = ascent.reservedHeroIds.filter((id) => id !== heroId);
+    ascent.laneStats.appointments += 1;
+    ascent.laneState.lastDecisionTurn.court = state.turn;
+  }
+  return ok;
+}
+
+/**
+ * An unposted hero who has somewhere worth going — the readiness gate for the prompt.
+ *
+ * Heroes the player deliberately held in reserve are skipped, or the card would re-open on
+ * them every few seconds forever: "Await a command" leaves them unposted, which is exactly
+ * the condition that made them eligible. They come back into consideration the moment the
+ * realm's postings actually change — a new seat unlocks, or a host loses its commander.
+ */
+export function findHeroNeedingPosting(state: GameState): Hero | undefined {
+  const ascent = state.ascent;
+  if (!ascent) return undefined;
+
+  const leaderless = state.armies.some((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.generalHeroId);
+  if (leaderless || state.court.unlockedSeats.length > ascent.reserveSeatMark) {
+    ascent.reservedHeroIds = [];
+  }
+
+  return state.heroes
+    .filter((hero) => !hero.assignedTo && !ascent.reservedHeroIds.includes(hero.id))
+    .find((hero) => buildAppointmentOptions(state, hero).length > 1);
+}
+
+// ── Laws (edicts, wonders, and the tax dial) ────────────────────────────────
+
+const MAX_LAW_OPTIONS = 3;
+
+/**
+ * The projects the throne may enact right now. Ordered by era so the newest unlock leads,
+ * and capped at three because a scrollable law list is a menu, which is what this mode is
+ * built to avoid.
+ */
+export function buildLawOptions(state: GameState): string[] {
+  return REALM_PROJECTS
+    .filter((project) => !projectBlockedReason(state, project))
+    .sort((a, b) => (b.edictCost ?? 0) - (a.edictCost ?? 0))
+    .slice(0, MAX_LAW_OPTIONS)
+    .map((project) => project.id);
+}
+
+/** The tax settings other than the one in force. */
+export function buildTaxOptions(state: GameState): TaxPolicy[] {
+  const current = state.taxPolicy ?? 'balanced';
+  return (['lenient', 'balanced', 'harsh'] as TaxPolicy[]).filter((policy) => policy !== current);
+}
+
+export function offerLawChoice(state: GameState): boolean {
+  const projectIds = buildLawOptions(state);
+  if (projectIds.length === 0) return false;
+  enqueueAscentPrompt(state, {
+    kind: 'law-choice',
+    projectIds,
+    points: state.mandate?.edictPoints ?? 0,
+    taxOptions: buildTaxOptions(state),
+  });
+  return true;
+}
+
+/** `edict:<id>` enacts a project · `tax:<policy>` moves the dial · `hold` banks the point. */
+export function resolveLawChoice(state: GameState, choiceId: string): boolean {
+  const ascent = state.ascent;
+
+  if (choiceId === 'hold') return true;
+
+  if (choiceId.startsWith('tax:')) {
+    const policy = choiceId.slice('tax:'.length) as TaxPolicy;
+    if (!['lenient', 'balanced', 'harsh'].includes(policy)) return false;
+    state.taxPolicy = policy;
+    pushToast(state, t('ascent.law.taxSet', { policy: t(`ascent.tax.${policy}` as Parameters<typeof t>[0]) }), 'milestone');
+    if (ascent) ascent.laneState.lastDecisionTurn.court = state.turn;
+    return true;
+  }
+
+  const id = choiceId.startsWith('edict:') ? choiceId.slice('edict:'.length) : choiceId;
+  if (!getProject(id) || !enactProject(state, id)) return false;
+  if (ascent) {
+    ascent.laneStats.edictsEnacted += 1;
+    ascent.laneState.lastDecisionTurn.court = state.turn;
+  }
+  return true;
+}
+
+/** Card-ready copy for one project: its name and its effect in hard numbers. */
+export function lawCardView(state: GameState, projectId: string): { title: string; effect: string; cost: string; locks?: string } | undefined {
+  const project = getProject(projectId);
+  if (!project) return undefined;
+
+  // Naming the sibling an enactment kills is the point of an exclusive group: the player must
+  // see that this is a fork in the run, not just a bonus.
+  const sibling = project.exclusiveGroup
+    ? REALM_PROJECTS.find((other) => other.id !== project.id && other.exclusiveGroup === project.exclusiveGroup)
+    : undefined;
+
+  return {
+    title: projectTitle(project),
+    effect: projectEffectSummary(project),
+    cost: project.kind === 'wonder'
+      ? t('ascent.law.wonderCost')
+      : t('ascent.law.pointCost', { n: project.edictCost ?? 0 }),
+    locks: sibling ? t('ascent.law.locks', { title: projectTitle(sibling) }) : undefined,
+  };
+}
+
+// ── Parliament (the court card deck) ────────────────────────────────────────
+
+/**
+ * Counts the court's cooldown down. The formula is lifted from `progressPoliticsCooldown` so a
+ * seated Chancellor makes the court speak more often here too — which is the reason to seat one.
+ */
+export function progressAscentCourtCooldown(state: GameState): void {
+  const ascent = state.ascent;
+  if (!ascent) return;
+  ascent.courtCardCooldown = Math.max(0, ascent.courtCardCooldown - 1);
+}
+
+export function resetAscentCourtCooldown(state: GameState): void {
+  const ascent = state.ascent;
+  if (!ascent) return;
+  const bonuses = getCourtBonuses(state);
+  ascent.courtCardCooldown = Math.max(2, Math.round(7 / Math.max(0.2, bonuses.cardFrequencyMult)));
+}
+
+/** Cards not yet drawn this run. Refills once the deck is spent, so a long run never runs dry. */
+function availableCourtCards(state: GameState): PoliticsCard[] {
+  const ascent = state.ascent;
+  if (!ascent) return [];
+  const fresh = state.politicsDeck.filter((card) => !ascent.drawnCourtCards.includes(card.id));
+  if (fresh.length > 0) return fresh;
+  ascent.drawnCourtCards = [];
+  return [...state.politicsDeck];
+}
+
+/**
+ * Picks the next court card with the classic weighting — crises surge when the realm is
+ * unstable, seasonal cards favour their season, and a seated hero's bias pulls their own
+ * subject matter to the top — but draws without replacement so a run keeps showing new cards.
+ */
+export function drawAscentCourtCard(state: GameState): PoliticsCard | undefined {
+  const pool = availableCourtCards(state);
+  if (pool.length === 0) return undefined;
+
+  const weights = pool.map((card) => {
+    let weight = 1;
+    if (card.type === 'crisis' && state.court.stability < 35) weight *= 2.5;
+    if (card.seasons?.includes(state.season)) weight *= 2.25;
+    for (const heroId of Object.values(state.court.seats)) {
+      const hero = state.heroes.find((candidate) => candidate.id === heroId);
+      if (hero?.cardBias === card.type) weight *= 1.5;
+    }
+    return weight;
+  });
+
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  let roll = Math.random() * total;
+  let index = 0;
+  for (; index < weights.length - 1; index += 1) {
+    roll -= weights[index];
+    if (roll <= 0) break;
+  }
+  return pool[index];
+}
+
+export function offerParliament(state: GameState): boolean {
+  const ascent = state.ascent;
+  const card = drawAscentCourtCard(state);
+  if (!ascent || !card) return false;
+  ascent.drawnCourtCards.push(card.id);
+  enqueueAscentPrompt(state, { kind: 'parliament', cardId: card.id });
+  return true;
+}
+
+export function findCourtCard(state: GameState, cardId: string): PoliticsCard | undefined {
+  return state.politicsDeck.find((card) => card.id === cardId);
+}
+
+/**
+ * Answers the court through the classic `choosePoliticsCard` → `applyCourtEffect` pipeline.
+ *
+ * That function clears `isPaused` on its way out; `drainAscentPrompts` runs immediately after
+ * and re-pauses if another prompt is queued, so chaining still holds.
+ */
+export function resolveParliament(state: GameState, cardId: string, choiceId: string): boolean {
+  const ascent = state.ascent;
+  const card = findCourtCard(state, cardId);
+  if (!card) return false;
+
+  // Declining is always legal. Without it a card whose *both* choices cost more than the
+  // treasury holds would corner the player on a modal with no move — the one thing a
+  // pausing prompt must never do.
+  if (choiceId === 'decline') {
+    pushToast(state, t('ascent.parliament.declined', { title: politicsTitle(card) }), 'info');
+    resetAscentCourtCooldown(state);
+    if (ascent) ascent.laneState.lastDecisionTurn.court = state.turn;
+    return true;
+  }
+
+  state.activePoliticsCard = card;
+  const ok = choosePoliticsCard(state, choiceId);
+  if (!ok) {
+    // Unaffordable choice: leave the card open so the player picks the other one, or declines.
+    state.activePoliticsCard = undefined;
+    return false;
+  }
+
+  resetAscentCourtCooldown(state);
+  if (ascent) {
+    ascent.laneStats.parliamentAnswered += 1;
+    ascent.laneState.lastDecisionTurn.court = state.turn;
+  }
+  return true;
+}
+
+/**
+ * The bonus a seated hero contributes, summarised for the Court lane roster. Reuses the same
+ * effect table the appointment card prints from, so the two can never disagree.
+ */
+export function seatedEffectSummary(state: GameState, seat: CourtPositionId): string | undefined {
+  const heroId = state.court.seats[seat];
+  const hero = state.heroes.find((candidate) => candidate.id === heroId);
+  if (!hero) return undefined;
+  return formatCourtPositionEffect(seat, hero.stats);
+}
+
+/** Re-exported so callers do not need a second import just to read a seat's raw delta. */
+export { COURT_POSITION_EFFECTS, applyCourtEffect };

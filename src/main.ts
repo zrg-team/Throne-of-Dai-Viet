@@ -112,11 +112,43 @@ window.render_game_to_text = () => {
           frontLandId: state.ascent.frontLandId,
           frontBlocked: state.ascent.frontBlocked,
           autopilot: state.ascent.autopilotStats,
+          lanes: state.ascent.laneState,
+          conquestPlans: state.ascent.conquestPlans.slice(-5),
+          decisionPressure: state.ascent.decisionPressure,
+          idleTicks: state.ascent.idleTicks,
+          laneStats: state.ascent.laneStats,
+          promptCooldowns: state.ascent.promptCooldowns,
+          lastPromptTurn: state.ascent.lastPromptTurn,
+          courtCardCooldown: state.ascent.courtCardCooldown,
+          drawnCourtCards: state.ascent.drawnCourtCards,
+          // The restored core systems, so a driver can assert they are actually running.
+          era: state.mandate?.era,
+          edictPoints: state.mandate?.edictPoints,
+          edicts: state.mandate?.edicts ?? [],
+          taxPolicy: state.taxPolicy ?? 'balanced',
+          stability: Math.round(state.court.stability),
+          favor: Math.round(state.court.favor * 10) / 10,
+          courtSeats: state.court.seats,
+          unlockedSeats: state.court.unlockedSeats,
+          governors: state.lands
+            .filter((land) => land.ownerId === 'dai-viet')
+            .filter((land) => state.heroes.some((hero) => hero.assignedTo === land.id))
+            .map((land) => land.id),
+          rivals: state.kingdoms
+            .filter((kingdom) => kingdom.id !== 'dai-viet' && !kingdom.isDefeated)
+            .map((kingdom) => ({
+              id: kingdom.id,
+              name: kingdom.name,
+              relations: Math.round(kingdom.relations ?? 50),
+              power: Math.round(kingdom.power ?? 0),
+              warAppetite: Math.round(kingdom.warAppetite ?? 0),
+              ambassador: kingdom.ambassadorHeroId ?? null,
+            })),
           queuedPrompts: state.ascent.promptQueue.length,
           prompt: state.pendingAscentPrompt
             ? {
                 kind: state.pendingAscentPrompt.kind,
-                options: describeAscentPromptOptions(state.pendingAscentPrompt),
+                options: describeAscentPromptOptions(state, state.pendingAscentPrompt),
               }
             : null,
         }
@@ -126,12 +158,25 @@ window.render_game_to_text = () => {
 };
 
 /** Option ids of the open Dragon Ascent prompt, so a driver can answer it blind. */
-function describeAscentPromptOptions(prompt: NonNullable<GameState['pendingAscentPrompt']>): string[] {
+function describeAscentPromptOptions(state: GameState, prompt: NonNullable<GameState['pendingAscentPrompt']>): string[] {
   switch (prompt.kind) {
     case 'founder': return prompt.options;
     case 'power-draft': return [...prompt.cards, 'skip'];
-    case 'march-order': return [...prompt.targets.map((target) => target.landId), 'hold'];
-    case 'hero-summon': return [...prompt.heroIds, 'pass'];
+    case 'conquer-target': return [...prompt.targets.map((target) => target.landId), 'hold'];
+    // Blocked methods are omitted: a driver answering blind must not pick an illegal option.
+    case 'conquer-method':
+      return [...prompt.target.methods.filter((m) => !m.blockedReason).map((m) => m.method), 'back'];
+    case 'hero-choice': return [...prompt.heroIds, 'pass'];
+    case 'court-appointment': return prompt.options.map((option) => option.id);
+    case 'law-choice':
+      return [
+        ...prompt.projectIds.map((id) => `edict:${id}`),
+        ...prompt.taxOptions.map((policy) => `tax:${policy}`),
+        'hold',
+      ];
+    case 'parliament':
+      return state.politicsDeck.find((card) => card.id === prompt.cardId)?.choices.map((choice) => choice.id) ?? ['ok'];
+    case 'envoy': return prompt.options.filter((option) => option.affordable).map((option) => option.id);
     case 'empire-response': return prompt.options.map((option) => option.id);
     default: return ['ok'];
   }

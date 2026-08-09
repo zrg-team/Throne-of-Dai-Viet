@@ -5,8 +5,14 @@ import { TITLE_FONT, UI_FONT } from '../fonts';
 import { t } from '../../i18n';
 import type { AscentState } from '../../state/types';
 
-/** Bottom edge of the HUD band. Kept in sync with ConquestScene's input guard. */
-export const ASCENT_HUD_HEIGHT = 106;
+/**
+ * Bottom edge of the HUD band. Kept in sync with ConquestScene's input guard.
+ *
+ * Deliberately tight. With a 44px header above and a 50px action bar below, every pixel this
+ * band takes is a pixel of map the player cannot see — and the map is the game. The three
+ * numbers are laid out on two dense rows rather than three airy ones.
+ */
+export const ASCENT_HUD_HEIGHT = 60;
 
 const TOP = HEADER_HEIGHT;
 
@@ -61,15 +67,15 @@ export class AscentHud {
   }
 
   private renderPower(ascent: AscentState): void {
-    this.add(this.ui.label(14, TOP + 8, t('ascent.hud.power'), 'caption', {
+    this.add(this.ui.label(14, TOP + 4, t('ascent.hud.power'), 'caption', {
       color: INK_UI_HEX.lightText,
-      fontSize: '10px',
+      fontSize: '9px',
     }).setAlpha(0.7));
 
-    const value = this.scene.add.text(14, TOP + 22, formatNumber(this.shownPower), {
+    const value = this.scene.add.text(14, TOP + 14, formatNumber(this.shownPower), {
       color: '#f3dd9a',
       fontFamily: TITLE_FONT,
-      fontSize: '26px',
+      fontSize: '22px',
       fontStyle: '700',
     });
     this.add(value);
@@ -98,7 +104,7 @@ export class AscentHud {
       const rising = delta > 0;
       const ticker = this.scene.add.text(
         16 + value.width + 8,
-        TOP + 30,
+        TOP + 22,
         `${rising ? '▲' : '▼'}${formatNumber(Math.abs(delta))}`,
         {
           color: rising ? '#9ecb8c' : '#e08a7c',
@@ -110,7 +116,7 @@ export class AscentHud {
       this.add(ticker);
       this.scene.tweens.add({
         targets: ticker,
-        y: TOP + 22,
+        y: TOP + 14,
         alpha: 0,
         duration: 1400,
         ease: 'Cubic.easeOut',
@@ -121,9 +127,9 @@ export class AscentHud {
   private renderThreat(ascent: AscentState): void {
     const x = GAME_WIDTH - 14;
 
-    this.add(this.ui.label(x, TOP + 8, t('ascent.hud.threat'), 'caption', {
+    this.add(this.ui.label(x, TOP + 4, t('ascent.hud.threat'), 'caption', {
       color: INK_UI_HEX.lightText,
-      fontSize: '10px',
+      fontSize: '9px',
       align: 'right',
     }).setOrigin(1, 0).setAlpha(0.7));
 
@@ -136,15 +142,17 @@ export class AscentHud {
         ? { color: '#e8c56a', key: 'ascent.hud.even' as const }
         : { color: '#e08a7c', key: 'ascent.hud.behind' as const };
 
-    this.add(this.scene.add.text(x, TOP + 22, formatNumber(ascent.threat), {
+    const threatValue = this.scene.add.text(x, TOP + 14, formatNumber(ascent.threat), {
       color,
       fontFamily: TITLE_FONT,
-      fontSize: '22px',
+      fontSize: '20px',
       fontStyle: '700',
       align: 'right',
-    }).setOrigin(1, 0));
+    }).setOrigin(1, 0);
+    this.add(threatValue);
 
-    this.add(this.scene.add.text(x, TOP + 48, t(key), {
+    // Beside the figure, not beneath it: the verdict and the number are one thought.
+    this.add(this.scene.add.text(x - threatValue.width - 6, TOP + 20, t(key), {
       color,
       fontFamily: UI_FONT,
       fontSize: '10px',
@@ -155,7 +163,7 @@ export class AscentHud {
     const countdown = bossNext
       ? t('ascent.hud.bossIn', { ticks: Math.max(0, ascent.ticksToWave) })
       : t('ascent.hud.waveIn', { ticks: Math.max(0, ascent.ticksToWave) });
-    this.add(this.scene.add.text(x, TOP + 62, countdown, {
+    this.add(this.scene.add.text(x, TOP + 38, countdown, {
       color: bossNext ? '#e08a7c' : '#d8c48e',
       fontFamily: UI_FONT,
       fontSize: '10px',
@@ -165,25 +173,25 @@ export class AscentHud {
   }
 
   private renderMomentum(ascent: AscentState): void {
-    const y = TOP + 84;
+    const y = TOP + 44;
 
     this.add(this.scene.add.text(14, y - 2, t('ascent.hud.level', { level: ascent.level }), {
       color: '#f3dd9a',
       fontFamily: UI_FONT,
-      fontSize: '11px',
+      fontSize: '10px',
       fontStyle: '700',
     }));
 
-    this.add(this.scene.add.text(58, y - 2, t('ascent.hud.wave', { wave: ascent.wave }), {
+    this.add(this.scene.add.text(54, y - 2, t('ascent.hud.wave', { wave: ascent.wave }), {
       color: '#d8c48e',
       fontFamily: UI_FONT,
-      fontSize: '11px',
+      fontSize: '10px',
     }));
 
-    const barX = 118;
+    const barX = 110;
     const barWidth = GAME_WIDTH - barX - 14;
     const bar = this.ui.statBar(
-      { x: barX, y, width: barWidth, height: 9 },
+      { x: barX, y, width: barWidth, height: 7 },
       ascent.xp,
       Math.max(1, ascent.xpToNext),
       INK_UI.gold,

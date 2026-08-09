@@ -3,3 +3,6 @@ dist/
 output/
 .vite/
 *.log
+
+# Yarn writes this install cache on every install; it is not source.
+.yarn/install-state.gz

@@ -667,6 +667,10 @@ function offerFounderChoice(state: GameState): void {
     enqueueAscentPrompt(state, { kind: 'founder', options: options.slice(0, 3) });
     state.isPaused = true;
     state.pendingAscentPrompt = state.ascent?.promptQueue.shift();
+    // Promoted by hand rather than through `drainAscentPrompts`, so stamp the turn here too
+    // or the decision director treats the opening tick as having shown nothing and fires a
+    // second card immediately behind the founder pick.
+    if (state.ascent) state.ascent.lastPromptTurn = state.turn;
   }
 }
 
