@@ -348,6 +348,14 @@ export const BATTLE_RALLY_BASE = 10;
  */
 export const BATTLE_RALLY_DESPERATION = 1.5;
 /**
+ * Damage multipliers when the line concentrates on one enemy host rather than spreading.
+ * Focusing more than doubles what lands on the chosen column while the rest get a fraction —
+ * so it is how you break a host outright, and how you let the others hurt you doing it.
+ */
+export const BATTLE_FOCUS_MULT = 2.2;
+export const BATTLE_SPREAD_MULT = 0.35;
+
+/**
  * Extra share of a host cut down while routing. Being broken has to cost more than choosing to
  * withdraw, or the retreat order has no purpose and the rout no weight.
  */

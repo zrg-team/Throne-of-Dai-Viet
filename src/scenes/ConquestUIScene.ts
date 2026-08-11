@@ -10,7 +10,7 @@ import { buildConquestTargets, refreshAscentLaneState } from '../systems/ascent/
 import { lawCardView, seatedEffectSummary } from '../systems/ascent/CourtLaneSystem';
 import { envoyOptionDetail } from '../systems/ascent/EnvoySystem';
 import { realmStanding } from '../systems/ascent/RivalDirector';
-import { fightRound } from '../systems/ascent/BattleSystem';
+import { ourHosts, theirHosts } from '../systems/ascent/BattleSystem';
 import { BATTLE_ROUT_MORALE, BATTLE_TICK_MS, TRIBUTE_REFUSE_TICKS } from '../game/ascentConfig';
 import { ALL_COURT_POSITIONS, getCourtPositionLabel } from '../systems/CourtSystem';
 import { ascentArmyUpkeep, buildDistrictBuilding, getBuildOptions, getPlayerTroops, getUpgradeOptions, upgradeDistrictBuilding } from '../systems/ResourceSystem';
@@ -1463,24 +1463,59 @@ export class ConquestUIScene extends Phaser.Scene {
     this.modalLayer.add(this.battleCamp(leftX, groundY + 16, INK_UI.jade));
     this.modalLayer.add(this.battleCamp(rightX, groundY + 16, rivalColor));
 
-    // The two lines, placed by how far each has left its own camp.
-    const span = rightX - leftX - 60;
-    const ourLine = this.battleItems.createArmyMarker(battle.ourNow, true);
-    const theirLine = this.battleItems.createArmyMarker(battle.theirNow, false, rivalColor);
+    // Every host on the field gets its own marker, stacked vertically.
+    //
+    // The maths has summed across hosts since relief arrived, but the field drew one formation a
+    // side — so a two-column defence looked exactly like a one-column defence with a bigger
+    // number on it. Drawing them separately is what makes "their vanguard is wavering" something
+    // you can see, and it is what gives Focus something to point at.
+    //
     // Full span, not half: the two meet when `ourAdvance + theirAdvance` reaches 1, so the
-    // drawing has to use the same scale or the lines would visually stop at midfield while the
-    // system considered them in contact — the picture and the fight disagreeing about where
+    // drawing has to use the same scale or the picture and the fight would disagree about where
     // everyone is standing.
-    ourLine.setPosition(leftX + 30 + span * battle.ourAdvance, groundY);
-    theirLine.setPosition(rightX - 30 - span * battle.theirAdvance, groundY);
-    this.modalLayer.add(ourLine);
-    this.modalLayer.add(theirLine);
-    this.battleOurLine = ourLine;
-    this.battleTheirLine = theirLine;
+    const span = rightX - leftX - 60;
+    const ours = ourHosts(this.state, battle.landId);
+    const theirs = theirHosts(this.state, battle.landId, battle.kingdomId);
+    const lane = (index: number, count: number): number => groundY + (index - (count - 1) / 2) * 32;
+
+    ours.forEach((host, index) => {
+      const size = host.units.spearmen + host.units.archers + host.units.heavyInfantry;
+      const marker = this.battleItems!.createArmyMarker(size, true);
+      marker.setPosition(leftX + 30 + span * battle.ourAdvance, lane(index, ours.length));
+      this.modalLayer.add(marker);
+      if (index === 0) this.battleOurLine = marker;
+    });
+
+    theirs.forEach((host, index) => {
+      const size = host.units.spearmen + host.units.archers + host.units.heavyInfantry;
+      const marker = this.battleItems!.createArmyMarker(size, false, rivalColor);
+      marker.setPosition(rightX - 30 - span * battle.theirAdvance, lane(index, theirs.length));
+      this.modalLayer.add(marker);
+      if (index === 0) this.battleTheirLine = marker;
+
+      // Tapping an enemy column concentrates the line on it; a ring marks the current target, so
+      // the order lives on the field rather than only in a list.
+      if (battle.focusHostId === host.id) {
+        this.modalLayer.add(
+          this.add.circle(marker.x, marker.y - 18, 26).setStrokeStyle(2.5, INK_UI.cinnabar, 0.95),
+        );
+      }
+      const hit = this.add.circle(marker.x, marker.y - 18, 28, 0xffffff, 0.001)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => this.events.emit(
+        'ui:battle-focus', battle.focusHostId === host.id ? undefined : host.id,
+      ));
+      this.modalLayer.add(hit);
+    });
 
     // Clash mark, only once they have actually met.
     if (battle.ourAdvance + battle.theirAdvance >= 1) {
-      const clash = this.ui.label((ourLine.x + theirLine.x) / 2, groundY - 44, t('ascent.battle.clash'), 'label', {
+      // Midway between the two lines, computed from the advances rather than from marker
+      // objects — with several hosts a side there is no single 'the line' to read a
+      // position off any more.
+      const clashX = leftX + 30 + span * battle.ourAdvance
+        + ((rightX - 30 - span * battle.theirAdvance) - (leftX + 30 + span * battle.ourAdvance)) / 2;
+      const clash = this.ui.label(clashX, groundY - 44, t('ascent.battle.clash'), 'label', {
         fontSize: '22px', align: 'center',
       }).setOrigin(0.5);
       this.modalLayer.add(clash);
@@ -1537,6 +1572,22 @@ export class ConquestUIScene extends Phaser.Scene {
       ));
       optY += rowH + 8;
     };
+
+    // Focus is discoverable from a row as well as from the field: a tap target with no label is
+    // a secret, and the two together teach each other.
+    const focused = theirHosts(this.state, battle.landId, battle.kingdomId)
+      .find((host) => host.id === battle.focusHostId);
+    this.modalLayer.add(this.optionCard(
+      { x: content.x, y: optY, width: content.width, height: rowH },
+      {
+        icon: focused ? 'blade' : 'banner',
+        title: focused ? t('ascent.battle.focusOn', { name: focused.name }) : t('ascent.battle.spread'),
+        body: focused ? t('ascent.battle.focusD') : t('ascent.battle.spreadD'),
+        accent: focused ? INK_UI.cinnabar : INK_UI.softBrush,
+        onTap: () => this.events.emit('ui:battle-focus', undefined),
+      },
+    ));
+    optY += rowH + 8;
 
     const pressing = battle.posture === 'press';
     control('press', pressing ? INK_UI.gold : INK_UI.softBrush, pressing ? t('ascent.battle.current') : undefined);

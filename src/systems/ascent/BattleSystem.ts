@@ -6,6 +6,7 @@ import {
   BATTLE_CHARGE_COVER,
   BATTLE_CHARGE_MORALE,
   BATTLE_CHARGE_TRADE,
+  BATTLE_FOCUS_MULT,
   BATTLE_HOLD_TRADE,
   BATTLE_MAX_ROUNDS,
   BATTLE_MORALE_PER_LOSS,
@@ -16,6 +17,7 @@ import {
   BATTLE_RALLY_DESPERATION,
   BATTLE_ROUT_LOSS_SHARE,
   BATTLE_ROUT_MORALE,
+  BATTLE_SPREAD_MULT,
   BATTLE_VOLLEY_BITE,
 } from '../../game/ascentConfig';
 import { resolvePendingBattle } from '../empire/InvasionSystem';
@@ -62,14 +64,18 @@ function totalUnits(army: Army): number {
  * The same is true of the enemy: a second invader reaching the province joins theirs.
  */
 export function ourHosts(state: GameState, landId: string): Army[] {
+  const broken = state.ascent?.activeBattle?.brokenHostIds ?? [];
   return state.armies.filter(
-    (army) => army.kingdomId === PLAYER_KINGDOM_ID && army.landId === landId && totalUnits(army) > 0,
+    (army) => army.kingdomId === PLAYER_KINGDOM_ID && army.landId === landId && totalUnits(army) > 0
+      && !broken.includes(army.id),
   );
 }
 
 export function theirHosts(state: GameState, landId: string, kingdomId: string): Army[] {
+  const broken = state.ascent?.activeBattle?.brokenHostIds ?? [];
   return state.armies.filter(
     (army) => army.kingdomId !== PLAYER_KINGDOM_ID && army.landId === landId && totalUnits(army) > 0
+      && !broken.includes(army.id)
       && (army.kingdomId === kingdomId || (state.invasions ?? []).some((r) => r.armyId === army.id)),
   );
 }
@@ -138,6 +144,8 @@ export function beginBattle(state: GameState): boolean {
     totalRounds,
     posture: 'hold',
     theirPosture: 'press',
+    brokenHostIds: [],
+    focusHostId: undefined,
     ourStartMorale: defender.morale,
     ourAdvance: 0,
     theirAdvance: 0,
@@ -331,15 +339,40 @@ export function fightRound(state: GameState): void {
 
   // Losses land across every host present, so relief shares the burden rather than watching.
   const ourLoss = ours.reduce((total, host) => total + bleed(host, Math.min(0.9, ourShare)), 0);
-  const theirLoss = theirs.reduce((total, host) => total + bleed(host, Math.min(0.9, theirShare)), 0);
+
+  // Focus concentrates everything we have on one of their hosts. Breaking a column outright
+  // removes its share of their power for the rest of the fight, so concentrating is how you win
+  // a battle you are losing on total numbers — at the cost of letting the others work freely.
+  const focused = battle.focusHostId
+    ? theirs.find((host) => host.id === battle.focusHostId)
+    : undefined;
+  const theirLoss = focused
+    ? bleed(focused, Math.min(0.9, theirShare * BATTLE_FOCUS_MULT))
+      + theirs.filter((h) => h !== focused)
+        .reduce((total, host) => total + bleed(host, Math.min(0.9, theirShare * BATTLE_SPREAD_MULT)), 0)
+    : theirs.reduce((total, host) => total + bleed(host, Math.min(0.9, theirShare)), 0);
 
   // Morale follows the exchange: bleeding costs heart, and winning the exchange restores a
   // little of it. Because `armyPower` reads morale, the side that starts losing keeps losing.
   const ourDrop = (ourLoss / Math.max(1, battle.ourStart)) * BATTLE_MORALE_PER_LOSS;
   const theirDrop = (theirLoss / Math.max(1, battle.theirStart)) * BATTLE_MORALE_PER_LOSS;
   const wonExchange = theirLoss > ourLoss;
-  battle.ourMorale = setMorale(defender, battle.ourMorale - ourDrop + (wonExchange ? BATTLE_MORALE_WIN_GAIN : 0));
-  battle.theirMorale = setMorale(invader, battle.theirMorale - theirDrop + (wonExchange ? 0 : BATTLE_MORALE_WIN_GAIN));
+  // Applied to *every* host on the side, not just the one the maths treats as the line, so a
+  // battered relief column carries its own heart rather than borrowing the vanguard's.
+  for (const host of ours) setMorale(host, host.morale - ourDrop + (wonExchange ? BATTLE_MORALE_WIN_GAIN : 0));
+  for (const host of theirs) setMorale(host, host.morale - theirDrop + (wonExchange ? 0 : BATTLE_MORALE_WIN_GAIN));
+  battle.ourMorale = defender.morale;
+  battle.theirMorale = invader.morale;
+
+  // Hosts break one at a time. Losing a host is a setback, not the battle — which is what makes
+  // bringing a second column worth the march, and what stops one bad exchange ending everything.
+  for (const host of [...ours, ...theirs]) {
+    if (host.morale > BATTLE_ROUT_MORALE) continue;
+    battle.brokenHostIds.push(host.id);
+    battle.log.push(t('ascent.battle.hostBreaks', { name: host.name }));
+    // A host that runs is cut down as it goes, exactly as a whole side is.
+    bleed(host, BATTLE_ROUT_LOSS_SHARE);
+  }
 
   battle.round += 1;
   battle.ourNow = ours.reduce((total, host) => total + totalUnits(host), 0);
@@ -347,13 +380,14 @@ export function fightRound(state: GameState): void {
   battle.log.push(t('ascent.battle.exchange', { round: battle.round, ours: ourLoss, theirs: theirLoss }));
 
   // ── Does anyone break? ───────────────────────────────────────────────────
-  if (battle.theirMorale <= BATTLE_ROUT_MORALE) {
+  // A side is beaten when it has no host left in the line, not when its strongest wavers.
+  if (theirHosts(state, battle.landId, battle.kingdomId).length === 0) {
     battle.outcome = 'they-rout';
     battle.log.push(t('ascent.battle.theyBreak', { kingdom: battle.kingdomName }));
     battle.over = true;
     return;
   }
-  if (battle.ourMorale <= BATTLE_ROUT_MORALE) {
+  if (ourHosts(state, battle.landId).length === 0) {
     battle.outcome = 'we-rout';
     battle.log.push(t('ascent.battle.weBreak'));
     battle.over = true;
@@ -461,6 +495,12 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
 
   ascent.activeBattle = undefined;
   resolvePendingBattle(state, resolved);
+}
+
+/** Concentrates the line on one of their hosts, or spreads it again when cleared. */
+export function setBattleFocus(state: GameState, hostId?: string): void {
+  const battle = state.ascent?.activeBattle;
+  if (battle && !battle.over) battle.focusHostId = hostId;
 }
 
 /** Switches standing orders between beats. */
