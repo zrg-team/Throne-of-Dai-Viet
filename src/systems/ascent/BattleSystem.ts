@@ -153,10 +153,13 @@ export function beginBattle(state: GameState): boolean {
     theirMorale: invader.morale,
     ourHostCount: ourHosts(state, pending.landId).length,
     theirHostCount: theirHosts(state, pending.landId, pending.kingdomId).length,
-    ourStart: totalUnits(defender) + reserve.spearmen + reserve.archers + reserve.heavyInfantry,
-    theirStart: totalUnits(invader),
-    ourNow: totalUnits(defender),
-    theirNow: totalUnits(invader),
+    // Summed across every host present, not just the strongest. Reading these off one army made
+    // a two-column defence open showing only its vanguard's numbers.
+    ourStart: ourHosts(state, pending.landId).reduce((n, h) => n + totalUnits(h), 0)
+      + reserve.spearmen + reserve.archers + reserve.heavyInfantry,
+    theirStart: theirHosts(state, pending.landId, pending.kingdomId).reduce((n, h) => n + totalUnits(h), 0),
+    ourNow: ourHosts(state, pending.landId).reduce((n, h) => n + totalUnits(h), 0),
+    theirNow: theirHosts(state, pending.landId, pending.kingdomId).reduce((n, h) => n + totalUnits(h), 0),
     reserve,
     reserveSpent: false,
     // Rally is the general's, so a host with nobody at its head simply does not get one.

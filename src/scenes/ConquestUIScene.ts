@@ -508,7 +508,12 @@ export class ConquestUIScene extends Phaser.Scene {
     if (this.state.pendingAscentPrompt) return;
 
     this.lanePauseBeforeOpen = this.state.isStrategyPause;
-    this.state.isStrategyPause = true;
+    // Every lane freezes the world so the player can read it — except the battle, which *is* the
+    // world happening. Pausing here stopped the economy tick, which stopped `advanceBattle`,
+    // which froze the siege at beat 0 for as long as anyone watched it: the exact freeze this
+    // whole design removed, reintroduced through the lane mechanism. Only caught by finally
+    // opening the screen and waiting sixteen seconds.
+    this.state.isStrategyPause = lane === 'battle' ? this.lanePauseBeforeOpen : true;
     this.openPromptKey = `lane:${lane}`;
     for (const scroll of this.activeScrollAreas) scroll.destroy();
     this.activeScrollAreas = [];
