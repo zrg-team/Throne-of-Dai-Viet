@@ -294,15 +294,43 @@ export const BATTLE_ADVANCE_PER_TICK = 0.115;
  * scale it. Tuned so a matched fight leaves both sides bloodied but standing after three
  * rounds, which is what makes retreating between them a real decision rather than a formality.
  */
-export const BATTLE_ROUND_BITE = 0.035;
+export const BATTLE_ROUND_BITE = 0.022;
 /** Fraction of its starting strength at which a host breaks and the engagement ends early. */
 export const BATTLE_BREAK_SHARE = 0.35;
 /**
- * What each posture trades. Pressing deals more and takes more; holding the line does the
- * reverse. Neither is strictly better, which is the point of offering the choice at all.
+ * What each order trades in the melee.
+ *
+ * The old pair was a designed-in dominated option: press dealt 1.35 and took 1.30 (ratio 1.038)
+ * against hold's 0.80/0.72 (ratio 1.111), so holding traded 7% better *and* lost fewer men, with
+ * the only counterweight an end-of-fight bonus the player never saw. Charging now trades almost
+ * level with holding in the melee, and earns its keep in the archery phase instead — it closes
+ * faster, so it eats far less incoming fire (`BATTLE_CHARGE_COVER`), and it lifts morale on
+ * contact. Hold's case is the better trade *if* you out-shoot them or are waiting on the reserve.
  */
-export const BATTLE_PRESS_TRADE = { dealt: 1.35, taken: 1.3 };
-export const BATTLE_HOLD_TRADE = { dealt: 0.8, taken: 0.72 };
+export const BATTLE_CHARGE_TRADE = { dealt: 1.2, taken: 1.1 };
+export const BATTLE_HOLD_TRADE = { dealt: 0.85, taken: 0.78 };
+/** Share of incoming arrows a charging host avoids by closing the distance quickly. */
+export const BATTLE_CHARGE_COVER = 0.4;
+/** Morale a charge, or fresh troops arriving, puts into the line. */
+export const BATTLE_CHARGE_MORALE = 9;
+
+// ── Morale: the battle's real currency ──────────────────────────────────────
+/**
+ * Morale lost per beat, as a multiple of the share of the host that fell in it. `armyPower`
+ * multiplies by `morale / 100`, so this is what turns a bad exchange into a collapse rather
+ * than a slow, even grind.
+ */
+export const BATTLE_MORALE_PER_LOSS = 105;
+/** Morale recovered by the side that won an exchange. */
+export const BATTLE_MORALE_WIN_GAIN = 0.7;
+/** Below this a host breaks and the engagement ends in a rout. */
+export const BATTLE_ROUT_MORALE = 32;
+/** Men each archer accounts for per beat of the approach. */
+export const BATTLE_VOLLEY_BITE = 0.03;
+/** Share of the host held at camp, committable once mid-fight. */
+export const BATTLE_RESERVE_SHARE = 0.28;
+/** Morale a rally restores, before the general's martial is added on top. */
+export const BATTLE_RALLY_BASE = 10;
 
 // ── Momentum (XP) ───────────────────────────────────────────────────────────
 /**

@@ -10,7 +10,7 @@ import {
 import { applyAppointment, offerAppointment, resolveLawChoice, resolveParliament } from './CourtLaneSystem';
 import { resolveEnvoy } from './EnvoySystem';
 import { resolveFamine } from './FamineSystem';
-import { fightRound, finishBattle, setBattlePosture } from './BattleSystem';
+import { commitReserve, fightRound, finishBattle, rally, setBattlePosture } from './BattleSystem';
 import { resolveRivalDemand } from './RivalDirector';
 import { passHeroSummon, recruitSummonedHero } from './SummonSystem';
 import { resolveEmpireResponse } from './WaveDirector';
@@ -141,9 +141,17 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
         handled = true;
         break;
       }
-      if (choiceId === 'press' || choiceId === 'hold') {
-        setBattlePosture(state, choiceId);
-      }
+      // Spend the one-shots, then fall through: *every* answer advances the fight by one beat.
+      //
+      // Making order changes and one-shots free (re-queue without advancing) reads well in the
+      // UI, where the clock is what moves the fight — but it means any driver without that
+      // clock answers "hold" forever and the run stalls on a prompt it can never clear. The
+      // verification harness did exactly that and stranded ten downstream assertions. A beat
+      // per answer costs the live fight nothing, since the clock is beating anyway, and it
+      // keeps the prompt honest: answering it always progresses something.
+      if (choiceId === 'rally') rally(state);
+      if (choiceId === 'reserve') commitReserve(state);
+      if (choiceId === 'press' || choiceId === 'hold') setBattlePosture(state, choiceId);
       // One exchange per answer. The prompt re-queues itself until a side breaks or the
       // rounds run out, so the engagement unfolds a round at a time under the player's hand.
       fightRound(state);

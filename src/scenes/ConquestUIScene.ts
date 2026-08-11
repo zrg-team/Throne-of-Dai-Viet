@@ -11,7 +11,7 @@ import { lawCardView, seatedEffectSummary } from '../systems/ascent/CourtLaneSys
 import { envoyOptionDetail } from '../systems/ascent/EnvoySystem';
 import { realmStanding } from '../systems/ascent/RivalDirector';
 import { fightRound } from '../systems/ascent/BattleSystem';
-import { BATTLE_TICK_MS, TRIBUTE_REFUSE_TICKS } from '../game/ascentConfig';
+import { BATTLE_ROUT_MORALE, BATTLE_TICK_MS, TRIBUTE_REFUSE_TICKS } from '../game/ascentConfig';
 import { ALL_COURT_POSITIONS, getCourtPositionLabel } from '../systems/CourtSystem';
 import { ascentArmyUpkeep, buildDistrictBuilding, getBuildOptions, getPlayerTroops, getUpgradeOptions, upgradeDistrictBuilding } from '../systems/ResourceSystem';
 import { findFreeCommander } from '../systems/ascent/AutopilotSystem';
@@ -1493,7 +1493,7 @@ export class ConquestUIScene extends Phaser.Scene {
 
     // ── Readout ───────────────────────────────────────────────────────────
     const readoutY = fieldY + fieldH + 8;
-    const readoutH = 56;
+    const readoutH = 62;
     this.modalLayer.add(this.ui.panel(
       { x: content.x, y: readoutY, width: content.width, height: readoutH },
       { border: INK_UI.softBrush },
@@ -1509,6 +1509,17 @@ export class ConquestUIScene extends Phaser.Scene {
     };
     bar(content.x + 12, battle.ourNow, battle.ourStart, INK_UI.jade, t('ascent.battle.ours'));
     bar(content.x + barW + 24, battle.theirNow, battle.theirStart, rivalColor, battle.kingdomName);
+
+    // Morale under strength: this is the bar that actually decides the fight, since `armyPower`
+    // multiplies by it and a host below the rout threshold breaks outright.
+    const heart = (x: number, value: number): void => {
+      this.modalLayer.add(this.ui.statBar(
+        { x, y: readoutY + 44, width: barW, height: 5 }, value, 100,
+        value <= BATTLE_ROUT_MORALE + 10 ? INK_UI.cinnabar : INK_UI.gold,
+      ));
+    };
+    heart(content.x + 12, battle.ourMorale);
+    heart(content.x + barW + 24, battle.theirMorale);
 
     // ── Standing orders ───────────────────────────────────────────────────
     const rowH = 54;
@@ -1531,6 +1542,41 @@ export class ConquestUIScene extends Phaser.Scene {
     const pressing = battle.posture === 'press';
     control('press', pressing ? INK_UI.gold : INK_UI.softBrush, pressing ? t('ascent.battle.current') : undefined);
     control('hold', !pressing ? INK_UI.gold : INK_UI.softBrush, !pressing ? t('ascent.battle.current') : undefined);
+
+    // The two one-shots. Shown spent rather than hidden, so the player can see what they still
+    // hold — waiting for the right moment only works if you know you still have the card.
+    const reserveMen = battle.reserve.spearmen + battle.reserve.archers + battle.reserve.heavyInfantry;
+    if (reserveMen > 0) {
+      this.modalLayer.add(this.optionCard(
+        { x: content.x, y: optY, width: content.width, height: rowH },
+        {
+          icon: 'banner',
+          title: t('ascent.battle.reserve'),
+          body: t('ascent.battle.reserveD', { n: reserveMen }),
+          badge: battle.reserveSpent ? t('ascent.battle.spent') : undefined,
+          accent: battle.reserveSpent ? INK_UI.softBrush : INK_UI.jade,
+          disabled: battle.reserveSpent,
+          onTap: () => { if (!battle.reserveSpent) this.choose('reserve'); },
+        },
+      ));
+      optY += rowH + 8;
+    }
+    if (battle.rallyPower > 0) {
+      this.modalLayer.add(this.optionCard(
+        { x: content.x, y: optY, width: content.width, height: rowH },
+        {
+          icon: 'crown',
+          title: t('ascent.battle.rally'),
+          body: t('ascent.battle.rallyD'),
+          badge: battle.rallySpent ? t('ascent.battle.spent') : undefined,
+          accent: battle.rallySpent ? INK_UI.softBrush : INK_UI.gold,
+          disabled: battle.rallySpent,
+          onTap: () => { if (!battle.rallySpent) this.choose('rally'); },
+        },
+      ));
+      optY += rowH + 8;
+    }
+
     control('retreat', INK_UI.cinnabar);
     control('auto', INK_UI.softBrush);
 

@@ -2,31 +2,47 @@ import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   BATTLE_ADVANCE_PER_TICK,
   BATTLE_BASE_ROUNDS,
-  BATTLE_BREAK_SHARE,
+  BATTLE_CHARGE_COVER,
+  BATTLE_CHARGE_MORALE,
+  BATTLE_CHARGE_TRADE,
   BATTLE_HOLD_TRADE,
   BATTLE_MAX_ROUNDS,
-  BATTLE_PRESS_TRADE,
+  BATTLE_MORALE_PER_LOSS,
+  BATTLE_MORALE_WIN_GAIN,
+  BATTLE_RALLY_BASE,
+  BATTLE_RESERVE_SHARE,
   BATTLE_ROUND_BITE,
+  BATTLE_ROUT_MORALE,
+  BATTLE_VOLLEY_BITE,
 } from '../../game/ascentConfig';
 import { resolvePendingBattle } from '../empire/InvasionSystem';
-import { armyPower } from '../WarSystem';
+import { armyPower, terrainDefenseMultiplier } from '../WarSystem';
+import { findLand } from '../LandSystem';
 import { enqueueAscentPrompt } from './AscentState';
 import { t } from '../../i18n';
 import type { Army, AscentBattle, BattlePosture, GameState } from '../../state/types';
 
 /**
- * The fight you can actually watch.
+ * The fight you can actually watch — and, more to the point, one worth watching.
  *
- * Every battle in this mode used to resolve invisibly: `maybeRequestBattleDecision` raised a
- * `pendingBattle`, and the tick threw it away with `resolvePendingBattle(state, 'delegate')`
- * before anything could render it. A player spent ten minutes building an army and never once
- * saw it fight.
+ * The first version of this was a metronome. `bleed` scaled every unit type equally so
+ * composition never shifted, `armyPower` stayed linear in headcount, and the power ratio barely
+ * moved — which meant losses per beat were near-constant and nothing surprising could happen.
+ * Worse, of the two postures one was strictly better: holding traded 7% more efficiently *and*
+ * lost fewer men, with the only counterweight an end-of-fight bonus the player never saw. With
+ * no tipping point and no real choice, "leave it to my generals" was the correct answer, and a
+ * screen whose skip button is right has failed.
  *
- * This runs the engagement as a handful of exchanges the player can intervene in, then hands
- * the decisive blow back to the shared `resolvePendingBattle`. That hand-off is deliberate and
- * load-bearing: province capture, siege orders, pillage, despawn and spoils all stay in the
- * tested empire-mode path, and `resolveInvaderBattle` reads live army state — so the outcome
- * follows from the exchange the player just watched rather than being computed twice.
+ * Three things fix that, and all three reuse machinery that was already sitting here:
+ *
+ *  - **Morale is the currency.** `armyPower` already multiplies by `army.morale / 100`, and no
+ *    battle code ever touched it. Writing morale down as casualties mount makes a sagging line
+ *    compound into collapse on its own — the tipping point, for free.
+ *  - **The approach is the archery phase.** `army.units.archers` already exists. Arrows fly
+ *    while the lines close, so bringing bowmen pays off visibly and four dead seconds become
+ *    the opening.
+ *  - **Charging buys cover.** Closing fast means eating less of their fire. That is what finally
+ *    gives charge a case against hold's better melee trade.
  */
 
 function totalUnits(army: Army): number {
@@ -43,32 +59,29 @@ export function battleDefender(state: GameState, landId: string): Army | undefin
 /**
  * Whether this fight is worth stopping the game for.
  *
- * Without a filter, every collision between a marching host and an intercepting one opens the
- * modal: measured, 48 engagements in a 196-season run, which pushed a run's total decisions
- * from ~66 to 141 and re-created exactly the modal spam an earlier pass had to rescue this mode
- * from. Most of those were two tired hosts brushing past each other on a border province.
- *
- * So the game stops for the fights whose outcome the player would actually want to change: the
- * seat of the dynasty, a Great Invasion, or any battle the odds say is going badly. Everything
- * else is what generals are for, and resolves the way it always did.
+ * Deliberately just these two, and not "any fight we are losing". That odds clause was tried
+ * and barely filtered anything: a single intercepting host is almost always weaker than a wave
+ * sized against the realm's whole contested defence, so "not clearly winning" described 47 of
+ * 48 engagements. A rule that admits everything is not a rule.
  */
 function worthWatching(state: GameState, landId: string, isGreat: boolean): boolean {
-  // Deliberately just these two, and not "any fight we are losing".
-  //
-  // That odds clause was tried and barely filtered anything: a single intercepting host is
-  // almost always weaker than a wave sized against the realm's whole contested defence, so
-  // "not clearly winning" described 47 of 48 engagements. A rule that admits everything is not
-  // a rule. The seat of the dynasty and a named Great Invasion are the fights whose outcome is
-  // worth a player's whole attention; the rest is what generals are for.
   return isGreat || state.ascent?.capitalLandId === landId;
 }
 
-/**
- * Opens the engagement from whatever `maybeRequestBattleDecision` staged, and queues the prompt.
- *
- * Returns false when there is nothing to watch — no invader, or no host of ours present — so
- * the caller can fall back to letting the shared code resolve it silently.
- */
+/** Share of a host's strength held back at camp, available to commit mid-fight. */
+function splitReserve(army: Army): { spearmen: number; archers: number; heavyInfantry: number } {
+  const take = (n: number): number => Math.floor(n * BATTLE_RESERVE_SHARE);
+  const reserve = {
+    spearmen: take(army.units.spearmen),
+    archers: take(army.units.archers),
+    heavyInfantry: take(army.units.heavyInfantry),
+  };
+  army.units.spearmen -= reserve.spearmen;
+  army.units.archers -= reserve.archers;
+  army.units.heavyInfantry -= reserve.heavyInfantry;
+  return reserve;
+}
+
 export function beginBattle(state: GameState): boolean {
   const ascent = state.ascent;
   const pending = state.pendingBattle;
@@ -79,19 +92,17 @@ export function beginBattle(state: GameState): boolean {
   if (!invader || !defender) return false;
   if (!worthWatching(state, pending.landId, pending.isGreat)) return false;
 
-  // At most one watched engagement per wave.
-  //
-  // `maybeRequestBattleDecision` fires on every tick an invader stands on a contested province,
-  // not once per battle — so a single siege of the capital raised the modal again and again.
-  // Measured, that was 48-67 "engagements" a run even after narrowing to capital-and-boss
-  // fights, and it tripled a run's decisions. One per wave makes each one an event.
+  // At most one watched engagement per wave: `maybeRequestBattleDecision` fires on every tick an
+  // invader stands on a contested province, not once per battle, so a single siege of the capital
+  // raised the modal again and again.
   if (ascent.lastWatchedWave === ascent.wave) return false;
   ascent.lastWatchedWave = ascent.wave;
 
-  // Bigger engagements last longer, so a decisive clash between small hosts does not drag and
-  // a great invasion is not over in one exchange.
+  const reserve = splitReserve(defender);
   const scale = Math.min(1, (totalUnits(invader) + totalUnits(defender)) / 2400);
   const totalRounds = Math.round(BATTLE_BASE_ROUNDS + (BATTLE_MAX_ROUNDS - BATTLE_BASE_ROUNDS) * scale);
+  const land = findLand(state, pending.landId);
+  const general = state.heroes.find((hero) => hero.id === defender.generalHeroId);
 
   ascent.activeBattle = {
     landId: pending.landId,
@@ -105,10 +116,21 @@ export function beginBattle(state: GameState): boolean {
     posture: 'hold',
     ourAdvance: 0,
     theirAdvance: 0,
-    ourStart: totalUnits(defender),
+    ourMorale: defender.morale,
+    theirMorale: invader.morale,
+    ourStart: totalUnits(defender) + reserve.spearmen + reserve.archers + reserve.heavyInfantry,
     theirStart: totalUnits(invader),
     ourNow: totalUnits(defender),
     theirNow: totalUnits(invader),
+    reserve,
+    reserveSpent: false,
+    // Rally is the general's, so a host with nobody at its head simply does not get one.
+    rallySpent: !general,
+    rallyPower: general ? Math.round(BATTLE_RALLY_BASE + general.stats.martial * 0.25) : 0,
+    // The ground the defender is standing on. Already used by `defenderPower`; stated on the
+    // screen here so intercepting on high ground becomes a decision back on the map.
+    terrainEdge: land ? terrainDefenseMultiplier(land) : 1,
+    outcome: 'fighting',
     log: [],
     over: false,
   };
@@ -127,23 +149,32 @@ function bleed(army: Army, share: number): number {
   return before - totalUnits(army);
 }
 
+/** Kills a flat number of men, taken from the front ranks first. */
+function bleedCount(army: Army, count: number): number {
+  const before = totalUnits(army);
+  let left = Math.max(0, Math.round(count));
+  for (const key of ['spearmen', 'heavyInfantry', 'archers'] as const) {
+    const take = Math.min(army.units[key], left);
+    army.units[key] -= take;
+    left -= take;
+    if (left <= 0) break;
+  }
+  return before - totalUnits(army);
+}
+
 /**
- * One beat of the fight — several per second, driven by the view's own clock rather than by
- * the player tapping.
+ * Morale is written straight onto the army, not held beside it.
  *
- * The first version advanced one exchange per tap, which made a live battle feel like filling
- * in a form: the armies nudged a few pixels closer on each press and nothing happened in
- * between. Now the engagement runs on its own and the controls are *standing orders* the
- * player changes while it runs, which is what "watch a fight" has to mean.
- *
- * Casualties stay proportional to the *other* side's battle power, so the same `armyPower` that
- * decides the real outcome drives what the player watches — and the ±10% roll is the same
- * `Uniform(0.9, 1.1)` shape `resolveInvaderBattle` uses, so the odds quoted on the response
- * card stay honest against what happens here.
- *
- * Posture is a genuine trade rather than a strictly-better button: pressing the attack hurts
- * them more and costs you more, holding the line does the reverse.
+ * `armyPower` reads `army.morale`, so this is what makes a failing line get weaker as it fails —
+ * the compounding collapse that gives the fight a shape. It also means the state of a host
+ * coming out of a battle is carried by the same field every other system already reads.
  */
+function setMorale(army: Army, value: number): number {
+  const next = Math.max(0, Math.min(100, value));
+  army.morale = next;
+  return next;
+}
+
 export function fightRound(state: GameState): void {
   const ascent = state.ascent;
   const battle = ascent?.activeBattle;
@@ -153,61 +184,144 @@ export function fightRound(state: GameState): void {
   const defender = battleDefender(state, battle.landId);
   if (!invader || !defender) {
     battle.over = true;
+    battle.outcome = 'fighting';
     return;
   }
 
-  // The invader is always coming; we advance only when told to. That difference is the whole
-  // reason the two postures look different on screen rather than only reading differently.
+  const charging = battle.posture === 'press';
+
+  // The invader is always coming; we advance only when told to. Charging also closes faster,
+  // which is half of why it is worth doing.
   battle.theirAdvance = Math.min(1, battle.theirAdvance + BATTLE_ADVANCE_PER_TICK);
-  battle.ourAdvance = battle.posture === 'press'
-    ? Math.min(1, battle.ourAdvance + BATTLE_ADVANCE_PER_TICK)
+  battle.ourAdvance = charging
+    ? Math.min(1, battle.ourAdvance + BATTLE_ADVANCE_PER_TICK * 1.5)
     : Math.max(0, battle.ourAdvance - BATTLE_ADVANCE_PER_TICK * 0.5);
 
-  // Lines that have not met yet are still marching. No blood until they close — and crucially
-  // the approach does *not* spend the round budget, or a fight would be over at the moment the
-  // two sides finally touched, which is the one moment it should be starting.
-  if (battle.ourAdvance + battle.theirAdvance < 1) return;
+  const met = battle.ourAdvance + battle.theirAdvance >= 1;
 
-  const ourPower = Math.max(1, armyPower(state, defender));
+  if (!met) {
+    // ── Archery: the approach is a phase, not dead time ────────────────────
+    //
+    // Arrows are the one exchange where numbers do not answer numbers: a host with bowmen hurts
+    // one without, and the side that closes faster eats less of it. That asymmetry is what gives
+    // both orders a real case, and it makes composition legible without any new data.
+    const ourVolley = defender.units.archers * BATTLE_VOLLEY_BITE * (battle.ourMorale / 100);
+    const theirVolley = invader.units.archers * BATTLE_VOLLEY_BITE * (battle.theirMorale / 100);
+    const cover = charging ? BATTLE_CHARGE_COVER : 1;
+
+    const ourLoss = bleedCount(defender, theirVolley * cover);
+    const theirLoss = bleedCount(invader, ourVolley);
+
+    battle.ourNow = totalUnits(defender);
+    battle.theirNow = totalUnits(invader);
+    if (ourLoss > 0 || theirLoss > 0) {
+      battle.log.push(t('ascent.battle.volley', { ours: ourLoss, theirs: theirLoss }));
+    }
+    // Deliberately does not spend the round budget: the approach is the opening, not the fight.
+    return;
+  }
+
+  // ── First contact ────────────────────────────────────────────────────────
+  if (battle.round === 0 && charging) {
+    battle.ourMorale = setMorale(defender, battle.ourMorale + BATTLE_CHARGE_MORALE);
+    battle.log.push(t('ascent.battle.charged'));
+  }
+
+  const ourPower = Math.max(1, armyPower(state, defender) * battle.terrainEdge);
   const theirPower = Math.max(1, armyPower(state, invader));
-  const trade = battle.posture === 'press' ? BATTLE_PRESS_TRADE : BATTLE_HOLD_TRADE;
+  const trade = charging ? BATTLE_CHARGE_TRADE : BATTLE_HOLD_TRADE;
   const fuzz = (): number => 0.9 + Math.random() * 0.2;
 
-  // Each side's losses scale with how outmatched it is, so a mismatch shows in the bars
-  // immediately rather than only in the verdict.
   const ourShare = BATTLE_ROUND_BITE * (theirPower / (ourPower + theirPower)) * 2 * trade.taken * fuzz();
   const theirShare = BATTLE_ROUND_BITE * (ourPower / (ourPower + theirPower)) * 2 * trade.dealt * fuzz();
 
   const ourLoss = bleed(defender, Math.min(0.9, ourShare));
   const theirLoss = bleed(invader, Math.min(0.9, theirShare));
 
+  // Morale follows the exchange: bleeding costs heart, and winning the exchange restores a
+  // little of it. Because `armyPower` reads morale, the side that starts losing keeps losing.
+  const ourDrop = (ourLoss / Math.max(1, battle.ourStart)) * BATTLE_MORALE_PER_LOSS;
+  const theirDrop = (theirLoss / Math.max(1, battle.theirStart)) * BATTLE_MORALE_PER_LOSS;
+  const wonExchange = theirLoss > ourLoss;
+  battle.ourMorale = setMorale(defender, battle.ourMorale - ourDrop + (wonExchange ? BATTLE_MORALE_WIN_GAIN : 0));
+  battle.theirMorale = setMorale(invader, battle.theirMorale - theirDrop + (wonExchange ? 0 : BATTLE_MORALE_WIN_GAIN));
+
   battle.round += 1;
   battle.ourNow = totalUnits(defender);
   battle.theirNow = totalUnits(invader);
-  battle.log.push(t('ascent.battle.exchange', {
-    round: battle.round,
-    ours: ourLoss,
-    theirs: theirLoss,
-  }));
+  battle.log.push(t('ascent.battle.exchange', { round: battle.round, ours: ourLoss, theirs: theirLoss }));
 
-  // A host that has lost most of its strength breaks before the last scheduled exchange.
-  const ourBroken = battle.ourNow <= battle.ourStart * BATTLE_BREAK_SHARE;
-  const theirBroken = battle.theirNow <= battle.theirStart * BATTLE_BREAK_SHARE;
-  if (battle.round >= battle.totalRounds || ourBroken || theirBroken) {
+  // ── Does anyone break? ───────────────────────────────────────────────────
+  if (battle.theirMorale <= BATTLE_ROUT_MORALE) {
+    battle.outcome = 'they-rout';
+    battle.log.push(t('ascent.battle.theyBreak', { kingdom: battle.kingdomName }));
+    battle.over = true;
+    return;
+  }
+  if (battle.ourMorale <= BATTLE_ROUT_MORALE) {
+    battle.outcome = 'we-rout';
+    battle.log.push(t('ascent.battle.weBreak'));
+    battle.over = true;
+    return;
+  }
+  if (battle.round >= battle.totalRounds) {
+    battle.outcome = 'spent';
     battle.over = true;
   }
+}
+
+/** Commits the host held back at camp. One-shot, and the reason to keep watching. */
+export function commitReserve(state: GameState): boolean {
+  const battle = state.ascent?.activeBattle;
+  if (!battle || battle.reserveSpent || battle.over) return false;
+  const defender = battleDefender(state, battle.landId);
+  if (!defender) return false;
+
+  defender.units.spearmen += battle.reserve.spearmen;
+  defender.units.archers += battle.reserve.archers;
+  defender.units.heavyInfantry += battle.reserve.heavyInfantry;
+  battle.reserveSpent = true;
+  battle.ourNow = totalUnits(defender);
+  // Fresh troops steady the line as well as thicken it.
+  battle.ourMorale = setMorale(defender, battle.ourMorale + BATTLE_CHARGE_MORALE);
+  battle.log.push(t('ascent.battle.reserveIn', {
+    n: battle.reserve.spearmen + battle.reserve.archers + battle.reserve.heavyInfantry,
+  }));
+  return true;
+}
+
+/** The general steadies the host. One-shot, scaled by their martial — see `rallyPower`. */
+export function rally(state: GameState): boolean {
+  const battle = state.ascent?.activeBattle;
+  if (!battle || battle.rallySpent || battle.over) return false;
+  const defender = battleDefender(state, battle.landId);
+  if (!defender) return false;
+
+  battle.rallySpent = true;
+  battle.ourMorale = setMorale(defender, battle.ourMorale + battle.rallyPower);
+  battle.log.push(t('ascent.battle.rallied', { n: battle.rallyPower }));
+  return true;
 }
 
 /**
  * Ends the engagement and lets the shared invasion code decide what it meant.
  *
- * `press` and `hold` map onto the existing defender bonuses; `retreat` onto the existing
- * withdrawal branch, which already pulls the field army clear and leaves the province to
- * whatever garrison remains.
+ * The reserve is returned first whatever happens — men held at camp were never in the fight and
+ * must not be quietly deleted by a retreat or a rout.
  */
 export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'retreat'): void {
   const ascent = state.ascent;
+  const battle = ascent?.activeBattle;
   if (!ascent) return;
+
+  if (battle && !battle.reserveSpent) {
+    const defender = battleDefender(state, battle.landId);
+    if (defender) {
+      defender.units.spearmen += battle.reserve.spearmen;
+      defender.units.archers += battle.reserve.archers;
+      defender.units.heavyInfantry += battle.reserve.heavyInfantry;
+    }
+  }
 
   ascent.activeBattle = undefined;
   resolvePendingBattle(
@@ -216,7 +330,7 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
   );
 }
 
-/** Switches posture between exchanges. */
+/** Switches standing orders between beats. */
 export function setBattlePosture(state: GameState, posture: BattlePosture): void {
   const battle = state.ascent?.activeBattle;
   if (battle && !battle.over) battle.posture = posture;

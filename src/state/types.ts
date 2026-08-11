@@ -901,6 +901,21 @@ export interface AscentBattle {
    */
   ourAdvance: number;
   theirAdvance: number;
+  /**
+   * Battle morale, mirrored onto `army.morale` every beat. `armyPower` multiplies by it, so a
+   * line that starts failing keeps failing — this is the fight's tipping point.
+   */
+  ourMorale: number;
+  theirMorale: number;
+  /** Men held at camp at the outset, committed once mid-fight. */
+  reserve: { spearmen: number; archers: number; heavyInfantry: number };
+  reserveSpent: boolean;
+  /** The general's one steadying moment. Absent entirely when nobody leads the host. */
+  rallySpent: boolean;
+  rallyPower: number;
+  /** Defensive multiplier of the ground being fought over (`terrainDefenseMultiplier`). */
+  terrainEdge: number;
+  outcome: 'fighting' | 'they-rout' | 'we-rout' | 'spent';
   /** Headcounts at the outset, so the strength bars have a denominator. */
   ourStart: number;
   theirStart: number;
