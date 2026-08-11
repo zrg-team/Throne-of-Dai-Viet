@@ -56,6 +56,25 @@ function eligibleCards(state: GameState, ascent: AscentState): PowerCardDef[] {
  * province nudges them up). Cards already in progress get a small bonus so the run tends to
  * deepen a build rather than scattering one-offs across everything.
  */
+/**
+ * How much more likely a card is to be offered again, given how deep the player is already in it.
+ *
+ * A flat 2.2× for anything with at least one stack was applied *forever*, so the first few cards
+ * a run happened to take crowded out the rest of the pool for the remainder of it: measured, a
+ * full run built a deck of only five distinct powers however many drafts it saw. The pull toward
+ * a coherent build is right — scattering one-offs across everything is worse — but it has to
+ * taper, or the deck stops being a choice after the third draft.
+ *
+ * Peaks at the second copy, where committing actually matters, then falls away; a card already
+ * three deep is nearly maxed and is pushed *down* so something new can appear beside it.
+ */
+function focusBonus(stacks: number): number {
+  if (stacks <= 0) return 1;
+  if (stacks === 1) return 2.2;
+  if (stacks === 2) return 1.3;
+  return 0.6;
+}
+
 export function rollPowerDraftCards(state: GameState): string[] {
   const ascent = state.ascent;
   if (!ascent) return [];
@@ -75,8 +94,7 @@ export function rollPowerDraftCards(state: GameState): string[] {
     const index = weightedPickIndex(
       candidates.map((card) => {
         const rarityWeight = ascent.draftWeights[card.rarity] ?? 1;
-        const focusBonus = cardStack(ascent, card.id) > 0 ? 2.2 : 1;
-        return rarityWeight * (card.weight ?? 1) * focusBonus;
+        return rarityWeight * (card.weight ?? 1) * focusBonus(cardStack(ascent, card.id));
       }),
     );
     if (index < 0) break;

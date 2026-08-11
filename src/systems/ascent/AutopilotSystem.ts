@@ -334,7 +334,21 @@ function autoClaimWilderness(state: GameState): boolean {
 function autoPurchaseVillage(state: GameState): boolean {
   // Never while the realm is fighting for its life: coin belongs to the war then.
   if (underPressure(state)) return false;
-  if (state.turn % AUTO_CLAIM_INTERVAL_TICKS !== 0) return false;
+
+  // A realm sitting on coin it has no use for buys land faster and pays more for it.
+  //
+  // The response card used to be the treasury's main outlet, but it now only appears for waves
+  // that are genuinely in doubt — most are met and reported without asking — so on a strong run
+  // the gold stopped going anywhere and banked to sixty-plus seasons of income again. Tying the
+  // pace of routine expansion to the glut gives surplus somewhere to go without touching the
+  // prices of anything the player chooses deliberately, and it switches itself off the moment
+  // the treasury is no longer embarrassing.
+  const rates = state.resourceRates;
+  const glutted = rates.gold > 0 && state.resources.gold > rates.gold * GOLD_GLUT_SEASONS;
+  const interval = glutted ? Math.max(2, Math.round(AUTO_CLAIM_INTERVAL_TICKS / 2)) : AUTO_CLAIM_INTERVAL_TICKS;
+  const share = glutted ? AUTO_CLAIM_TREASURY_SHARE * 2 : AUTO_CLAIM_TREASURY_SHARE;
+
+  if (state.turn % interval !== 0) return false;
   if (state.acquisitionOrders.length >= AUTO_CLAIM_MAX_ORDERS) return false;
 
   const owned = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
@@ -357,7 +371,7 @@ function autoPurchaseVillage(state: GameState): boolean {
   candidates.sort((a, b) => getGoldBribeCost(state, a) - getGoldBribeCost(state, b));
   for (const land of candidates) {
     const cost = getGoldBribeCost(state, land);
-    if (cost > state.resources.gold * AUTO_CLAIM_TREASURY_SHARE) continue;
+    if (cost > state.resources.gold * share) continue;
     if (getBribeSuccessChance(land) < AUTO_CLAIM_MIN_CHANCE) continue;
     if (bribeLand(state, land.id)) return true;
   }

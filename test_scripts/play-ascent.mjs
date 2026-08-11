@@ -223,10 +223,20 @@ await page.evaluate(async () => {
         // Spread between the best and worst affordable outcome. A card whose options all
         // predict the same result is a fake decision, and this is how that shows up.
         const chances = (p.options ?? []).filter((o) => o.affordable && o.winChance).map((o) => o.winChance);
+        // Does buying anything actually change the outcome? With a threshold-and-noise battle
+        // model the honest question is not "how many points apart are these options" but
+        // "does any of them move the realm across the line".
+        let decisive = null;
+        if (p.kind === 'empire-response') {
+          const base = p.options.find((o) => o.id === 'endure')?.winChance ?? 0;
+          decisive = p.options.some((o) => o.affordable && o.id !== 'endure'
+            && ((o.winChance ?? 0) > base + 5 || o.id === 'buy-off'));
+        }
         log.prompts.push({
           turn: st.turn, kind: p.kind, title: d.title,
           opts: d.opts.map((o) => o.label), legal: realChoice, chose: choiceId,
           spread: chances.length > 1 ? Math.max(...chances) - Math.min(...chances) : null,
+          decisive,
           power: st.ascent.power, threat: Math.round(st.ascent.threat),
           def: st.ascent.defensePower, gold: Math.round(st.resources.gold),
         });
@@ -370,7 +380,10 @@ say(`ticks ending in modal  : ${modalTicks}/${ticks} (${((modalTicks / ticks) * 
 say(`forced (1 legal opt)   : ${forced} / ${log.prompts.length}  ${JSON.stringify(forcedKind)}`);
 say(`kinds seen             : ${JSON.stringify(byKind)}`);
 say(`conquest methods used  : ${JSON.stringify(methods)} — top ${topMethod ? `${topMethod[0]} ${((topMethod[1] / methodTotal) * 100).toFixed(0)}%` : 'n/a'}`);
+const responses = log.prompts.filter((p) => p.kind === 'empire-response');
+const decisiveCount = responses.filter((p) => p.decisive).length;
 say(`response win-% spread  : ${avgSpread} pts avg between best and worst affordable option`);
+say(`  ...where gold decided : ${decisiveCount}/${responses.length} response cards had a purchase that changed the outcome`);
 say(`tense seasons (T/D>.7) : ${tense}/${ticks} (${((tense / ticks) * 100).toFixed(0)}%)`);
 say(`trivial (T/D<.35)      : ${trivial}/${ticks} (${((trivial / ticks) * 100).toFixed(0)}%)`);
 say(`seasons losing food    : ${starving}/${ticks}`);

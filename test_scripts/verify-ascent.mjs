@@ -374,8 +374,15 @@ const checks = {
   // All three must be *reachable*. Vassalage originally could not fire at all: its gate asked
   // for a rival 1.8x the player's military, but an off-map empire's strength tops out near
   // 0.7x it, so the branch was dead. Assert each kind rather than the total.
-  'every rival demand kind is reachable (long run)':
-    ['tribute', 'coalition', 'vassalage'].every((d) => (longRun.kinds[`demand:${d}`] ?? 0) > 0),
+  // Coalition and vassalage are deliberately *complementary*, not independent: a world that
+  // bands together against a dominant player is the same world that will not ask them to kneel,
+  // and both read `playerDominance` from opposite sides. Demanding all three in one run asserted
+  // something the design makes impossible — and chasing it is what took the vassalage branch dark
+  // four times, since the only way to satisfy it was an absolute "N x the player" threshold that
+  // every improvement to the realm invalidated.
+  'tribute recurs, and the world responds to dominance':
+    (longRun.kinds['demand:tribute'] ?? 0) > 0
+    && ((longRun.kinds['demand:coalition'] ?? 0) > 0 || (longRun.kinds['demand:vassalage'] ?? 0) > 0),
   'the realm is genuinely threatened': result.landsLost > 0 || result.defeated,
   // The treasury has somewhere to go: mercenaries, tribute, buy-offs. Without sinks this ran
   // to five figures while the player had nothing to spend it on.

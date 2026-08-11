@@ -334,7 +334,7 @@ export function refreshAllLandOutputs(state: GameState): void {
     }
 
     const governorMult = getLandGovernorOutputMult(state, land.id);
-    const outputs = calculateLandOutputs(state, land, labor.efficiency * governorMult);
+    const outputs = calculateLandOutputs(state, land, labor.efficiency * governorMult * settledMult(state, land));
     outputs.gold = Math.round(outputs.gold * courtBonuses.goldOutputMult);
     outputs.food = Math.round(outputs.food * courtBonuses.foodOutputMult);
     outputs.supplies = Math.round(outputs.supplies * courtBonuses.suppliesOutputMult);
@@ -354,6 +354,40 @@ function getTradeNetworkMult(state: GameState): number {
   const ownedLandCount = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length;
   return 1 + Math.min(1.6, Math.max(0, ownedLandCount - 1) * 0.09);
 }
+
+/**
+ * How much of its output a province actually delivers while it is still settling in.
+ *
+ * Dragon Ascent only. `AcquisitionSystem` already stamps a different starting loyalty per
+ * method — intimidation 50, occupation 55, settlement 65, a bribe 68, an envoy 85 — and in this
+ * mode that number did *nothing at all*: `tickCrises` is never called here and loyalty has never
+ * touched output anywhere. So the one axis that distinguished the six ways of taking a province
+ * was inert, every method collapsed to "cheapest and fastest", and the method sheet was two taps
+ * for a foregone answer.
+ *
+ * Giving it teeth makes the choice real in both directions: a bribe hands you the ground now and
+ * a sullen province for a while, an envoy takes seasons and arrives productive. Loyalty drifts up
+ * over time (see `settleOwnedLands`), so it is a delay rather than a permanent tax — and a seated
+ * governor, who already raises loyalty every tick, speeds the recovery.
+ *
+ * Guarded on the mode so the classic modes' economies are untouched, byte for byte.
+ */
+function settledMult(state: GameState, land: Land): number {
+  if (state.gameMode !== 'ascent') return 1;
+  const loyalty = Math.max(0, Math.min(100, land.loyalty));
+  return UNSETTLED_OUTPUT_FLOOR + (1 - UNSETTLED_OUTPUT_FLOOR) * (loyalty / 100);
+}
+
+/**
+ * Share of its output a wholly disloyal province still delivers.
+ *
+ * 0.75 rather than 0.6: at the harsher floor the drag on a realm that is *expanding* — which is
+ * every realm, most of the time — slowed the whole economy enough to cost drafts and levels, and
+ * a mechanic meant to differentiate six acquisition methods should not quietly retune the run's
+ * tempo. The gap between an envoy's province and an intimidated one is still a tenth of its
+ * output for a few dozen seasons, which is plenty to choose on.
+ */
+const UNSETTLED_OUTPUT_FLOOR = 0.75;
 
 export function calculateLandOutputs(state: GameState, land: Land, efficiency = 1): ResourceBag {
   const outputs = emptyResourceBag();

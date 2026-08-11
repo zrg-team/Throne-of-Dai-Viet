@@ -1002,6 +1002,12 @@ export class ConquestUIScene extends Phaser.Scene {
           // Description in the wrapping body slot, numbers on the single-line note slot —
           // the reverse clipped the second line of every two-line description.
           body: t(`ascent.method.${option.method}.d` as Parameters<typeof t>[0]),
+          // How productive the province is on the day it changes hands. This is the axis the
+          // six methods actually differ on, and until loyalty was given teeth it was invisible
+          // *and* inert — so the sheet read as six prices for one outcome.
+          badge: blocked ? undefined : t('ascent.conquer.settleBadge', {
+            pct: Math.round((0.6 + 0.4 * (option.loyalty / 100)) * 100),
+          }),
           note: option.blockedReason ?? this.methodPriceTag(option),
           noteColor: blocked ? '#a8adb4' : undefined,
           accent: blocked ? INK_UI.softBrush : option.chance >= 60 ? INK_UI.jade : INK_UI.gold,
@@ -1403,6 +1409,22 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
       endure: t('ascent.response.axisNow'),
     };
 
+    /**
+     * How the odds read on a row.
+     *
+     * `resolveInvaderBattle` is a threshold with a ±10% roll, not a coin flip, so its honest
+     * answer is usually a certainty. Printing "100% to hold" and "0% to hold" is technically
+     * right and reads like a bug; saying it plainly is both truer to the model and a far
+     * clearer instruction — the whole question on this card is which side of the line the
+     * realm ends up on, and which purchase moves it there.
+     */
+    const oddsLabel = (pct: number | undefined): string => {
+      if (pct === undefined) return '';
+      if (pct >= 100) return t('ascent.response.willHold');
+      if (pct <= 0) return t('ascent.response.willFall');
+      return t('ascent.response.oddsPct', { pct });
+    };
+
     prompt.options.forEach((option, index) => {
       const commander = responseCommanderName(this.state, option.heroId);
       let title: string;
@@ -1424,7 +1446,7 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
           title = t('ascent.response.mercenaries');
           body = t('ascent.response.mercenariesD', {
             gold: option.cost?.gold ?? 0,
-            pct: option.winChance ?? 0,
+            odds: oddsLabel(option.winChance),
           });
           break;
         case 'fortify':
@@ -1432,7 +1454,7 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
           body = t('ascent.response.fortifyD', {
             gold: option.cost?.gold ?? 0,
             def: option.defence ?? 0,
-            pct: option.winChance ?? 0,
+            odds: oddsLabel(option.winChance),
           });
           break;
         case 'buy-off':
@@ -1441,7 +1463,7 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
           break;
         default:
           title = t('ascent.response.endure');
-          body = t('ascent.response.endureD', { xp: option.momentum ?? 0, pct: option.winChance ?? 0 });
+          body = t('ascent.response.endureD', { xp: option.momentum ?? 0, odds: oddsLabel(option.winChance) });
           break;
       }
 

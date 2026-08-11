@@ -10,7 +10,6 @@ import {
   TRIBUTE_TREASURY_CAP,
   VASSAL_COOLDOWN_TICKS,
   VASSAL_HEGEMON_MULT,
-  VASSAL_POWER_RATIO,
   VASSAL_TITHE_GOLD,
 } from '../../game/ascentConfig';
 import { addOpinionModifier, getEmpirePower, getFear, hasPact } from '../DiplomacySystem';
@@ -82,8 +81,23 @@ function demandsSubmission(state: GameState, kingdom: Kingdom): boolean {
   const meanPeer = others.reduce((sum, peer) => sum + getEmpirePower(state, peer), 0) / others.length;
   const power = getEmpirePower(state, kingdom);
 
-  return power >= meanPeer * VASSAL_HEGEMON_MULT
-    && power > contestedDefencePower(state) * VASSAL_POWER_RATIO;
+  // Strictly the strongest, not merely one of several that clear the bar. Tribute deliberately
+  // excludes anyone who would demand submission instead, so when a weak realm let two or three
+  // rivals qualify at once, every candidate for extortion was filtered away and tribute stopped
+  // firing entirely. There is only ever one hegemon.
+  const strongest = others.every((peer) => getEmpirePower(state, peer) < power);
+
+  // No absolute "N× the player" floor. That clause is what took this branch dark four separate
+  // times — every improvement to the realm raised the denominator past whatever number was
+  // current, and I re-tuned the constant three times before admitting the shape was wrong.
+  //
+  // The complement of a coalition is the honest condition: when the player dominates the world,
+  // the world bands together (see `offerCoalition`); when they do not, the strongest empire in
+  // it demands their submission. Both read the same `playerDominance`, so the two can never
+  // both be live and neither can silently stop firing.
+  return strongest
+    && power >= meanPeer * VASSAL_HEGEMON_MULT
+    && playerDominance(state) < COALITION_DOMINANCE;
 }
 
 // ── Tribute ─────────────────────────────────────────────────────────────────

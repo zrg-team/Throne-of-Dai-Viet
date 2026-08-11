@@ -103,6 +103,16 @@ const MAX_STANDING_HOSTS = 5;
 function fortifyDefenceGain(state: GameState): number {
   return Math.max(FORTIFY_DEFENSE_MIN, Math.round((contestedDefencePower(state) * FORTIFY_DEFENCE_SHARE) / 16));
 }
+/**
+ * The bounds of the ±10% swing `resolveInvaderBattle` rolls on every fight. Mirrored here so the
+ * odds the player is shown come from the same distribution that decides the outcome; if that
+ * fuzz ever changes, these must change with it.
+ */
+const FUZZ_MIN = 0.9;
+const FUZZ_MAX = 1.1;
+/** Invader power above which the attacker counts as a large host and brings heavier siege. */
+const LARGE_HOST_POWER = 1000 * INVADER_POWER_PER_SOLDIER;
+
 const BUYOFF_DELAY_TICKS = 6;
 const ENDURE_MOMENTUM = 60;
 
@@ -235,17 +245,41 @@ function playerCapital(state: GameState): Land | undefined {
 }
 
 /**
- * Rough odds of holding, shown on every response so the choice is informed, not blind.
+ * Odds of holding, computed from the model that actually decides the battle.
  *
- * Measured against `contestedDefencePower` — the same figure the wave was *sized* from. When
- * this read `computeDefensivePower` instead, the two disagreed by a factor that grew with the
- * realm (6.3× by turn 320), so every option on the card quoted 96–98% and the whole response
- * screen degenerated into "you will win, spend gold anyway?".
+ * `resolveInvaderBattle` is not a ratio — it is a threshold with noise:
+ *
+ *     victory(attacker) ⟺ attackerPower ≥ defenderPower × siegeMult × fuzz,
+ *     fuzz ~ Uniform(0.9, 1.1)
+ *
+ * so with `r = attackerPower / (defenderPower × siegeMult)` the defender holds with probability
+ * `P(fuzz > r)`, which is **1 below r = 0.9, 0 above r = 1.1, and linear between**. A sharp
+ * band, not a gentle curve.
+ *
+ * The `power / (power + threat)` shape this replaces was an invented figure that never touched
+ * the real maths, and it was wrong in both directions at once: at four thousand defence against
+ * two thousand threat it advertised 67% when the true answer was a certainty, and because it can
+ * reach neither 0 nor 100 it compressed every option on the card into a five-point huddle. The
+ * card differentiated on *axis* while its numbers said nothing.
+ *
+ * Quoting the real model means an option that pushes the realm across the band swings the number
+ * hard — which is exactly when the player most needs to be told that their gold changes the
+ * outcome — and a wave that is simply unwinnable, or simply won, now says so.
  */
 function projectedWinChance(state: GameState, threat: number, bonus = 0): number {
   const power = contestedDefencePower(state) * (1 + bonus);
   if (power <= 0) return 0;
-  return Math.max(1, Math.min(99, Math.round((power / (power + Math.max(1, threat))) * 100)));
+
+  // Great hosts bring siege engines and negate more of the walls; `resolveInvaderBattle` picks
+  // the same three tiers off host size and `great`, so the projection has to as well or it will
+  // be systematically optimistic about exactly the waves that matter most.
+  const boss = state.ascent?.lastWaveBoss ?? false;
+  const siegeMult = boss ? 0.72 : threat > LARGE_HOST_POWER ? 0.8 : 0.85;
+
+  const ratio = threat / Math.max(1, power * siegeMult);
+  if (ratio <= FUZZ_MIN) return 100;
+  if (ratio >= FUZZ_MAX) return 0;
+  return Math.round(((FUZZ_MAX - ratio) / (FUZZ_MAX - FUZZ_MIN)) * 100);
 }
 
 /**
