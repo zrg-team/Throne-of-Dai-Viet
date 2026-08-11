@@ -27,7 +27,8 @@ export interface MapItemRenderer {
   createBuildingGlyph(building: LandBuildingType, x: number, y: number): Phaser.GameObjects.GameObject[];
   createTraveler(): Phaser.GameObjects.Container;
   createCart(): Phaser.GameObjects.Container;
-  createArmyMarker(total: number, isPlayer: boolean): Phaser.GameObjects.Container;
+  /** `kingdomColor` distinguishes one rival empire's host from another's. */
+  createArmyMarker(total: number, isPlayer: boolean, kingdomColor?: number): Phaser.GameObjects.Container;
   createSelectionFlag(): Phaser.GameObjects.Container;
   createPlayerLandFlag(isCapital?: boolean, styleSeed?: number): Phaser.GameObjects.Container;
   createCapitalHighlight(): Phaser.GameObjects.Graphics;
@@ -143,11 +144,31 @@ export class InkMapItemRenderer implements MapItemRenderer {
   }
 
   /** Red ink seal-stamp army marker with a troop-count glyph and a small marching soldier formation. */
-  createArmyMarker(total: number, isPlayer: boolean): Phaser.GameObjects.Container {
+  /**
+   * A host's marker: troop count on a seal, over a small formation of soldiers.
+   *
+   * Two things have to be readable at a glance on a crowded map, and neither was. Whose army is
+   * this — mine or theirs? And if theirs, *whose*? Every rival wore the same flat ink seal, so
+   * four empires converging on the realm were visually one indistinguishable mass, and the
+   * player's own red seal was barely brighter than any of them.
+   *
+   * So: rivals wear their own kingdom colour, and the player's host gets a bright ring no rival
+   * ever has. Colour tells you which empire; the ring tells you it is yours, without relying on
+   * the player having memorised a palette.
+   */
+  createArmyMarker(total: number, isPlayer: boolean, kingdomColor?: number): Phaser.GameObjects.Container {
     const container = this.scene.add.container(0, 0);
-    const sealColor = isPlayer ? INK.sealRed : INK.ink;
+    const sealColor = isPlayer ? INK.sealRed : (kingdomColor ?? INK.ink);
 
-    const seal = this.scene.add.rectangle(0, -18, 42, 26, sealColor, 0.92).setStrokeStyle(2, INK.inkSoft, 0.9);
+    if (isPlayer) {
+      // Drawn first so it reads as a halo behind the seal rather than a box around it.
+      container.add(
+        this.scene.add.rectangle(0, -18, 50, 34, COLORS.selected, 0.22).setStrokeStyle(2.5, COLORS.selected, 0.95),
+      );
+    }
+
+    const seal = this.scene.add.rectangle(0, -18, 42, 26, sealColor, 0.92)
+      .setStrokeStyle(2, isPlayer ? INK.inkSoft : 0x1b1712, 0.9);
     const text = this.scene.add.text(0, -18, compactNumber(total), {
       color: '#f3ede0',
       fontFamily: UI_FONT,

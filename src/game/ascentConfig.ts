@@ -247,6 +247,34 @@ export const MERCENARY_POWER_SHARE = 0.45;
  */
 export const LOYALTY_SETTLE_PER_TICK = 1.2;
 
+// ── Administrative drag on a sprawling treasury ─────────────────────────────
+/**
+ * Gold income per season above which returns diminish, and how sharply. See the note in
+ * `calculatePlayerResourceRates`.
+ *
+ * At an exponent of 0.85 an unchecked income of ~9,500 a season becomes ~2,700 — still an order
+ * of magnitude above the opening realm's, so growth is emphatically still rewarded, but no
+ * longer at a rate that outruns every price in the mode within ten minutes.
+ */
+export const GOLD_SOFTCAP_FROM = 500;
+export const GOLD_SOFTCAP_EXPONENT = 0.85;
+
+// ── Standing armies cost what they are worth ────────────────────────────────
+/**
+ * Gold and food each soldier draws per season, on top of the shared upkeep. See
+ * `ascentArmyUpkeep`: the bill is multiplied by `1 + troops / ARMY_UPKEEP_SCALE`, so it grows
+ * faster than the army does and a huge host is a genuine strategic burden rather than a free
+ * win condition.
+ *
+ * Food is charged far more gently than gold. Granaries are small next to treasuries in this
+ * economy — a food rate that reads +85 sits beside a gold rate in the thousands — so pricing
+ * the two alike would starve a realm the moment it fielded anything.
+ */
+export const ARMY_GOLD_PER_SOLDIER = 0.02;
+export const ARMY_FOOD_PER_SOLDIER = 0.005;
+/** Troop count at which the upkeep multiplier reaches 2x. */
+export const ARMY_UPKEEP_SCALE = 5000;
+
 // ── Momentum (XP) ───────────────────────────────────────────────────────────
 /**
  * Momentum needed to reach `level + 1`. Superlinear, so early drafts come fast.

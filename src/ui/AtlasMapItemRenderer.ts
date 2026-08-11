@@ -121,10 +121,20 @@ export class AtlasMapItemRenderer implements MapItemRenderer {
   }
 
   /** Banner plaque with troop count above a small marching formation, so armies read as a host on the move. */
-  createArmyMarker(total: number, isPlayer: boolean): Phaser.GameObjects.Container {
+  createArmyMarker(total: number, isPlayer: boolean, kingdomColor?: number): Phaser.GameObjects.Container {
     const container = this.scene.add.container(0, 0);
-    const bannerColor = isPlayer ? this.colors.mapObjects.player : this.colors.mapObjects.rival;
+    // Rivals fly their own colours so two empires on the map are told apart at a glance; the
+    // player keeps the theme's player hue plus the ring added below.
+    const bannerColor = isPlayer
+      ? this.colors.mapObjects.player
+      : (kingdomColor ?? this.colors.mapObjects.rival);
     const graphics = this.scene.add.graphics();
+    if (isPlayer) {
+      graphics.fillStyle(this.colors.mapObjects.selected, 0.2);
+      graphics.fillRoundedRect(-23, -34, 46, 22, 3);
+      graphics.lineStyle(2, this.colors.mapObjects.selected, 0.95);
+      graphics.strokeRoundedRect(-23, -34, 46, 22, 3);
+    }
     graphics.fillStyle(this.colors.paperLight, 0.96);
     graphics.fillRoundedRect(-20, -31, 40, 16, 2);
     graphics.lineStyle(1.4, this.colors.ink, 0.9);

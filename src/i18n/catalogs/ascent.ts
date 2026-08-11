@@ -65,6 +65,10 @@ export const enAscent = {
   "ascent.screen.raiseHostBody": "Muster {n} soldiers under a free commander",
   "ascent.screen.raiseNoPeople": "Not enough people to muster a host",
   "ascent.screen.armyRow": "{land}  ·  {general}  ·  morale {morale}  ·  supply {supply}",
+  "ascent.army.detailBody": "At {land} · {general} · morale {morale} · supply {supply}",
+  "ascent.army.disband": "Send them home",
+  "ascent.army.disbandBody": "{n} soldiers return to the fields · saves about {gold} gold and {food} food each season",
+  "ascent.army.disbandBadge": "Frees the general",
   "ascent.screen.noGeneral": "no commander",
 
   // ── Conquer: provinces and the ways in ───────────────────────────────────
@@ -435,6 +439,10 @@ export const viAscent = {
   "ascent.screen.raiseHostBody": "Tuyển {n} binh sĩ dưới quyền một tướng đang rảnh",
   "ascent.screen.raiseNoPeople": "Chưa đủ dân để mộ quân",
   "ascent.screen.armyRow": "{land}  ·  {general}  ·  sĩ khí {morale}  ·  quân nhu {supply}",
+  "ascent.army.detailBody": "Ở {land} · {general} · sĩ khí {morale} · quân nhu {supply}",
+  "ascent.army.disband": "Cho giải ngũ",
+  "ascent.army.disbandBody": "{n} quân về với ruộng đồng · tiết kiệm khoảng {gold} vàng và {food} lương mỗi mùa",
+  "ascent.army.disbandBadge": "Tướng được rảnh tay",
   "ascent.screen.noGeneral": "chưa có tướng",
 
   // ── Conquer: provinces and the ways in ───────────────────────────────────
