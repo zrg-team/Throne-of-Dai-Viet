@@ -1,4 +1,11 @@
 import { PLAYER_KINGDOM_ID } from '../game/constants';
+import {
+  ARMY_FOOD_PER_SOLDIER,
+  ARMY_GOLD_PER_SOLDIER,
+  ARMY_UPKEEP_SCALE,
+  GOLD_SOFTCAP_EXPONENT,
+  GOLD_SOFTCAP_FROM,
+} from '../game/ascentConfig';
 import { eraIndex, eraLabel, getBuildingLevelCap } from './empire/MandateSystem';
 import { getCourtBonuses, getLandGovernorOutputMult } from './CourtSystem';
 import type { BuildOrder, EraId, GameState, Land, LandBuildingType, LandSpecialization, ResourceBag, ResourceKey, Season } from '../state/types';
@@ -469,7 +476,7 @@ function getConstructionLaborRequired(state: GameState): number {
   }, 0);
 }
 
-function getPlayerTroops(state: GameState): number {
+export function getPlayerTroops(state: GameState): number {
   return state.armies
     .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)
     .reduce((sum, army) => sum + army.units.spearmen + army.units.archers + army.units.heavyInfantry, 0);
@@ -484,6 +491,27 @@ function getTotalArmyGoldUpkeep(state: GameState): number {
   return state.armies
     .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)
     .reduce((sum, army) => sum + getArmyGoldUpkeep(army), 0);
+}
+
+/**
+ * The extra, size-scaled cost of a standing army in Dragon Ascent — zero in every other mode.
+ *
+ * Returns whole numbers so the header strip's rate readout stays legible, and reads the same
+ * troop total the shared upkeep does, so the two are additive rather than double-counting the
+ * same soldiers on different scales.
+ */
+export function ascentArmyUpkeep(state: GameState): { gold: number; food: number } {
+  if (state.gameMode !== 'ascent') return { gold: 0, food: 0 };
+
+  const troops = getPlayerTroops(state);
+  if (troops <= 0) return { gold: 0, food: 0 };
+
+  // 1 + troops/scale: the superlinear term. At the scale figure the bill has doubled.
+  const burden = 1 + troops / ARMY_UPKEEP_SCALE;
+  return {
+    gold: Math.ceil(troops * ARMY_GOLD_PER_SOLDIER * burden),
+    food: Math.ceil(troops * ARMY_FOOD_PER_SOLDIER * burden),
+  };
 }
 
 export function getLaborStatus(state: GameState): LaborStatus {
@@ -582,9 +610,20 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
   const suppliesUpkeep = Math.ceil(playerTroops / 650);
   const armyGoldUpkeep = Math.ceil(getTotalArmyGoldUpkeep(state) * courtBonuses.armyGoldUpkeepMult);
 
-  rates.food -= populationFoodUpkeep + armyRealmFoodPressure;
+  // Dragon Ascent charges armies what they are actually worth to keep.
+  //
+  // The shared figures above are nominal: `getArmyGoldUpkeep` is `ceil(soldiers / 250) + level`,
+  // so a two-thousand-strong host costs eleven gold a season against an income in the thousands.
+  // A standing army was therefore free, which removes the oldest strategic tension there is —
+  // every realm in history has had to choose between the field and the treasury.
+  //
+  // Charged superlinearly on purpose: a bigger host needs disproportionately more baggage,
+  // administration and coin, so doubling the army more than doubles its bill. Guarded on the
+  // mode, so the classic economies keep their exact numbers.
+  const ascentArmy = ascentArmyUpkeep(state);
+  rates.food -= populationFoodUpkeep + armyRealmFoodPressure + ascentArmy.food;
   rates.supplies -= suppliesUpkeep;
-  rates.gold -= heroUpkeep + armyGoldUpkeep;
+  rates.gold -= heroUpkeep + armyGoldUpkeep + ascentArmy.gold;
 
   const foodNetBeforeHumanGrowth = rates.food;
   const ownedLandCount = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length;
@@ -604,6 +643,23 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
     // Provinces set to a `populous` focus each add a steady trickle of extra settlers.
     const populousBonus = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID && getLandSpecialization(land) === 'populous').length * 2;
     rates.humans = Math.max(0, ownedLandCount + surplusGrowth + compoundGrowth + populousBonus + stabilityBonus + publicGrowthBonus + eventGrowthModifier + getTaxEffects(state).growthDelta);
+  }
+
+  // Dragon Ascent: a sprawling realm keeps less of what it earns.
+  //
+  // Gold income here compounds through the trade network (up to +160%), court multipliers,
+  // edicts and era unlocks all at once, and it reached nine thousand a season by the late game —
+  // by which point every price in the mode is a rounding error and the treasury banks eighty
+  // seasons of income it can never spend. Charging armies properly fixed the *rate* but not the
+  // curve, because the curve was the problem.
+  //
+  // Above the threshold each additional gold is worth progressively less, which is ordinary
+  // administrative drag: a bigger empire spends more of its own revenue simply existing. Every
+  // price that matters — mercenaries, tribute, buy-offs — is pegged to income, so they scale
+  // down with it and the *decisions* keep their shape while the numbers stay legible.
+  if (state.gameMode === 'ascent' && rates.gold > GOLD_SOFTCAP_FROM) {
+    const excess = rates.gold - GOLD_SOFTCAP_FROM;
+    rates.gold = Math.round(GOLD_SOFTCAP_FROM + Math.pow(excess, GOLD_SOFTCAP_EXPONENT));
   }
 
   return rates;

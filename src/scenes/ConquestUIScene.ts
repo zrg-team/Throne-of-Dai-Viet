@@ -12,7 +12,7 @@ import { envoyOptionDetail } from '../systems/ascent/EnvoySystem';
 import { realmStanding } from '../systems/ascent/RivalDirector';
 import { TRIBUTE_REFUSE_TICKS } from '../game/ascentConfig';
 import { ALL_COURT_POSITIONS, getCourtPositionLabel } from '../systems/CourtSystem';
-import { buildDistrictBuilding, getBuildOptions, getUpgradeOptions, upgradeDistrictBuilding } from '../systems/ResourceSystem';
+import { ascentArmyUpkeep, buildDistrictBuilding, getBuildOptions, getPlayerTroops, getUpgradeOptions, upgradeDistrictBuilding } from '../systems/ResourceSystem';
 import { findFreeCommander } from '../systems/ascent/AutopilotSystem';
 import { MIN_ARMY_SOLDIERS, RECRUIT_HUMAN_RESERVE, recruitSoldiers } from '../game/ascentConfig';
 import { eraLabel } from '../systems/empire/MandateSystem';
@@ -800,18 +800,79 @@ export class ConquestUIScene extends Phaser.Scene {
       const land = state.lands.find((candidate) => candidate.id === army.landId);
       const general = state.heroes.find((candidate) => candidate.id === army.generalHeroId);
       const size = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
-      addRow({
-        title: `${army.name}  ·  ${size}`,
-        subtitle: t('ascent.screen.armyRow', {
-          land: land?.name ?? '—',
-          general: general ? heroName(general) : t('ascent.screen.noGeneral'),
-          morale: Math.round(army.morale),
-          supply: Math.round(army.supply),
-        }),
-        border: army.morale < 40 || army.supply < 30 ? INK_UI.cinnabar : INK_UI.jade,
-      });
+      addRow(
+        {
+          title: `${army.name}  ·  ${size}`,
+          subtitle: t('ascent.screen.armyRow', {
+            land: land?.name ?? '—',
+            general: general ? heroName(general) : t('ascent.screen.noGeneral'),
+            morale: Math.round(army.morale),
+            supply: Math.round(army.supply),
+          }),
+          border: army.morale < 40 || army.supply < 30 ? INK_UI.cinnabar : INK_UI.jade,
+        },
+        () => this.showArmyDetail(army.id),
+      );
     }
     finish();
+  }
+
+  /**
+   * One host, and what can be done with it.
+   *
+   * Exists because a shattered army could not be sent home: `disbandArmy` has always worked and
+   * the autopilot uses it on remnants, but nothing in this mode's UI ever called it, so a host
+   * that had lost its war sat on the map drawing upkeep forever with no way to release it. That
+   * matters far more now that upkeep scales with size — a player has to be able to *choose* the
+   * treasury over the field, which is the whole point of charging for an army.
+   */
+  private showArmyDetail(armyId: string): void {
+    const army = this.state.armies.find((candidate) => candidate.id === armyId);
+    if (!army) return;
+
+    this.modalLayer.removeAll(true);
+    this.openPromptKey = `army-detail:${armyId}`;
+
+    const size = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
+    const general = this.state.heroes.find((candidate) => candidate.id === army.generalHeroId);
+    const land = this.state.lands.find((candidate) => candidate.id === army.landId);
+
+    const content = this.promptFrame(
+      army.name,
+      t('ascent.army.detailBody', {
+        land: land?.name ?? '—',
+        general: general ? heroName(general) : t('ascent.screen.noGeneral'),
+        morale: Math.round(army.morale),
+        supply: Math.round(army.supply),
+      }),
+    );
+
+    // What sending them home is actually worth, in the two currencies the player is watching.
+    const upkeep = ascentArmyUpkeep(this.state);
+    const troops = Math.max(1, getPlayerTroops(this.state));
+    const savedGold = Math.round(upkeep.gold * (size / troops));
+    const savedFood = Math.round(upkeep.food * (size / troops));
+
+    this.modalLayer.add(this.optionCard(
+      { x: content.x, y: content.y, width: content.width, height: 92 },
+      {
+        title: t('ascent.army.disband'),
+        body: t('ascent.army.disbandBody', { n: size, gold: savedGold, food: savedFood }),
+        badge: t('ascent.army.disbandBadge'),
+        accent: INK_UI.cinnabar,
+        onTap: () => {
+          this.closeLane();
+          this.events.emit('ui:ascent-disband-army', armyId);
+        },
+      },
+    ));
+
+    this.modalLayer.add(this.ui.button(
+      { x: content.x, y: content.y + 104, width: content.width, height: 42 },
+      t('ascent.conquer.back'),
+      () => this.showArmyScreen(),
+      { variant: 'ghost', fontSize: '13px' },
+    ));
   }
 
   /** The rival empires as they stand: power, opinion, pacts, and who has our ambassador. */

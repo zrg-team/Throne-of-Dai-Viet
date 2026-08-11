@@ -10,6 +10,7 @@ import { offerConquestMethods } from '../systems/ascent/ConquestSystem';
 import { offerEnvoyTo } from '../systems/ascent/EnvoySystem';
 import { offerAppointment, offerLawChoice } from '../systems/ascent/CourtLaneSystem';
 import { raiseHostNow } from '../systems/ascent/AutopilotSystem';
+import { disbandArmy } from '../systems/WarSystem';
 import { createAscentGameState } from '../state/GameState';
 import { MapScene } from './MapScene';
 
@@ -280,6 +281,13 @@ export class ConquestScene extends MapScene {
 
     // Raised from the Army screen: muster a host now rather than waiting for the autopilot's
     // own recruit pass, which only fires when the realm is *below* its target host count.
+    ui.events.on('ui:ascent-disband-army', (armyId: string) => {
+      if (this.state.pendingAscentPrompt) return;
+      if (disbandArmy(this.state, armyId)) {
+        this.refresh();
+        ui.events.emit('state-changed');
+      }
+    });
     ui.events.on('ui:ascent-raise-host', () => {
       if (this.state.pendingAscentPrompt) return;
       if (raiseHostNow(this.state)) {
