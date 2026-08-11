@@ -10,9 +10,21 @@ const RESOURCE_ORDER: ResourceKey[] = ['food', 'supplies', 'gold', 'humans'];
 const ICON_DISPLAY_SIZE = 15;
 const ROW_Y = 30;
 
+/**
+ * Stores whose exhaustion actively hurts — `collectPlayerIncome` docks army morale and supply
+ * every tick either of these hits zero, and food additionally puts population into decline.
+ * Gold and people running low are setbacks; these two are a countdown.
+ */
+const CRITICAL_RESOURCES: ResourceKey[] = ['food', 'supplies'];
+/** Seasons of buffer at the current burn below which the strip escalates. */
+const WARNING_SEASONS = 10;
+const CRISIS_SEASONS = 3;
+
 export class ResourceBar extends Phaser.GameObjects.Container {
   private seasonText: Phaser.GameObjects.Text;
   private resourceTexts: Record<ResourceKey, Phaser.GameObjects.Text>;
+  /** Filled plate behind a store that is running out, so the crisis reads at a glance. */
+  private alertChips: Record<ResourceKey, Phaser.GameObjects.Rectangle>;
 
   constructor(scene: Phaser.Scene, private readonly gameState: GameState) {
     super(scene, 0, 0);
@@ -27,8 +39,14 @@ export class ResourceBar extends Phaser.GameObjects.Container {
 
     const itemWidth = (GAME_WIDTH - 24) / RESOURCE_ORDER.length;
     this.resourceTexts = {} as Record<ResourceKey, Phaser.GameObjects.Text>;
+    this.alertChips = {} as Record<ResourceKey, Phaser.GameObjects.Rectangle>;
     RESOURCE_ORDER.forEach((resource, index) => {
       const x = 12 + index * itemWidth;
+      // Added before the icon and text so it always sits behind them.
+      const chip = scene.add
+        .rectangle(x - 4, ROW_Y, itemWidth - 6, 20, INK_UI.cinnabar, 0.9)
+        .setOrigin(0, 0.5)
+        .setVisible(false);
       const icon = scene.add
         .image(x, ROW_Y, RESOURCE_ICONS[resource].key)
         .setOrigin(0, 0.5)
@@ -37,11 +55,21 @@ export class ResourceBar extends Phaser.GameObjects.Container {
         fontSize: '12px',
       }).setOrigin(0, 0.5);
       this.resourceTexts[resource] = text;
-      this.add([icon, text]);
+      this.alertChips[resource] = chip;
+      this.add([chip, icon, text]);
     });
 
     scene.add.existing(this);
     this.refresh();
+  }
+
+  /**
+   * Seasons of buffer left at the current burn, or `Infinity` while a store is filling.
+   */
+  private runway(resource: ResourceKey): number {
+    const rate = this.gameState.resourceRates[resource];
+    if (rate >= 0) return Number.POSITIVE_INFINITY;
+    return Math.max(0, this.gameState.resources[resource]) / Math.max(1, -rate);
   }
 
   refresh(): void {
@@ -49,8 +77,28 @@ export class ResourceBar extends Phaser.GameObjects.Container {
     RESOURCE_ORDER.forEach((resource) => {
       const rate = this.gameState.resourceRates[resource];
       const signedRate = rate > 0 ? `+${compactNumber(rate)}` : compactNumber(rate);
-      this.resourceTexts[resource].setText(`${compactNumber(this.gameState.resources[resource])} (${signedRate})`);
-      this.resourceTexts[resource].setColor(rate < 0 ? '#f0a09a' : rate > 0 ? '#d9f0bd' : '#e9d6aa');
+      const text = this.resourceTexts[resource];
+      text.setText(`${compactNumber(this.gameState.resources[resource])} (${signedRate})`);
+
+      // A store that is merely shrinking gets the old pink; one that is about to run dry gets
+      // escalated, because the two are not remotely the same situation and used to look it.
+      //
+      // Measured across five runs, a realm could sit at zero food for hundreds of consecutive
+      // seasons — every host losing 4 morale and 6 supply a tick — while the strip rendered that
+      // in the same 12px as a healthy gold surplus beside it. Runs were being decided by a line
+      // of text no wider than a thumbnail.
+      const seasons = CRITICAL_RESOURCES.includes(resource) ? this.runway(resource) : Number.POSITIVE_INFINITY;
+      const crisis = seasons <= CRISIS_SEASONS;
+      const warning = !crisis && seasons <= WARNING_SEASONS;
+
+      this.alertChips[resource].setVisible(crisis);
+      text.setColor(
+        crisis ? '#fff1e6'
+          : warning ? '#f5c66b'
+            : rate < 0 ? '#f0a09a'
+              : rate > 0 ? '#d9f0bd' : '#e9d6aa',
+      );
+      text.setFontStyle(crisis || warning ? 'bold' : 'normal');
     });
   }
 }

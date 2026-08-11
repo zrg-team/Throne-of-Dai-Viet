@@ -45,6 +45,8 @@ export function ensureAscentLaneState(state: GameState): void {
   ascent.decisionPressure ??= 0;
   ascent.idleTicks ??= 0;
   ascent.promptCooldowns ??= {};
+  ascent.promptWaiting ??= {};
+  ascent.famineCooldown ??= 0;
   ascent.drawnCourtCards ??= [];
   ascent.lastPromptTurn ??= 0;
   ascent.courtCardCooldown ??= 3;
@@ -475,10 +477,26 @@ function bestAdjacentOwnedArmy(state: GameState, land: Land): Army | undefined {
 }
 
 /** An unposted hero, best at winning a province over by talking. */
+/**
+ * Who carries the realm's offer. An unposted champion first, then a minister pulled from their
+ * desk — sending an envoy is exactly the errand a chancellor runs.
+ *
+ * The fallback is what makes this method exist at all. With only unposted heroes eligible, the
+ * envoy row was blocked in *every single instance* logged across a full run, always with the
+ * same reason: the court and the army between them absorb every champion the realm draws, so
+ * "needs a hero with no posting" was a permanent state rather than a temporary one. A row that
+ * can never be chosen is not teaching the player the system, it is noise on the card.
+ *
+ * Deliberately not a hero already commanding a host: stripping a general to send them abroad
+ * leaves an army leaderless in the middle of a war.
+ */
 function bestDiplomat(state: GameState): Hero | undefined {
-  return state.heroes
-    .filter((hero) => !hero.assignedTo)
-    .sort((a, b) => (b.stats.diplomacy + b.stats.administration) - (a.stats.diplomacy + a.stats.administration))[0];
+  const rank = (hero: Hero): number => hero.stats.diplomacy + hero.stats.administration;
+  const byRank = (a: Hero, b: Hero): number => rank(b) - rank(a);
+
+  const unposted = state.heroes.filter((hero) => !hero.assignedTo).sort(byRank)[0];
+  if (unposted) return unposted;
+  return state.heroes.filter((hero) => hero.assignedTo?.startsWith('court:')).sort(byRank)[0];
 }
 
 /**

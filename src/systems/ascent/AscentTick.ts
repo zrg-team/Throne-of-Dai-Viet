@@ -60,6 +60,7 @@ function checkAscentDefeat(state: GameState): void {
 
   const owned = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
   if (owned.length === 0) {
+    if (state.ascent) state.ascent.endCause = 'annihilated';
     endAscentRun(state);
     return;
   }
@@ -81,6 +82,8 @@ function checkAscentDefeat(state: GameState): void {
   ascent.capitalLostTicks += 1;
   const remaining = CAPITAL_GRACE_TICKS - ascent.capitalLostTicks;
   if (remaining <= 0) {
+    ascent.endCause = 'capital';
+    ascent.endLandName = capital.name;
     endAscentRun(state);
     return;
   }

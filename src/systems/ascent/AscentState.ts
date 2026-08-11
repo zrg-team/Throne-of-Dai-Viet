@@ -59,6 +59,8 @@ export function createAscentState(): AscentState {
     wavesSurvived: 0,
     heroesSummoned: 0,
     promptCooldowns: {},
+    promptWaiting: {},
+    famineCooldown: 0,
     lastPromptTurn: 0,
     drawnCourtCards: [],
     courtCardCooldown: 3,
@@ -95,6 +97,9 @@ const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   parliament: 8,
   envoy: 9,
   'rival-demand': 3.5,
+  // Above the rival demands: an empty granary is already costing the realm morale and
+  // population every single tick it goes unanswered.
+  famine: 3.2,
   'hero-choice': 10,
   'power-draft': 11,
 };

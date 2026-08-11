@@ -56,6 +56,9 @@ const result = await page.evaluate(async () => {
         return affordable ? affordable.id : 'decline';
       }
       case 'envoy': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
+      // A rich realm buys its way out of a famine; a poor one endures. Either way the card
+      // must always resolve — a prompt this policy cannot answer stalls the whole run.
+      case 'famine': return (p.options.find((o) => o.affordable) ?? p.options[p.options.length - 1]).id;
       case 'rival-demand': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
       case 'empire-response': {
         // A rich realm buys soldiers — exercises the gold sink the run depends on.
@@ -406,7 +409,10 @@ const checks = {
   'power-draft fired': (kinds['power-draft'] ?? 0) > 0,
   'hero-choice fired': (kinds['hero-choice'] ?? 0) > 0,
   'empire-response fired': (kinds['empire-response'] ?? 0) > 0,
-  'wave-result fired': (kinds['wave-result'] ?? 0) > 0,
+  // Great Invasions are reported through the header strip rather than a modal whose only
+  // control was "Continue" — so what must still hold is that bosses happen and are
+  // survived, not that a one-button prompt appears.
+  'boss waves are survived and reported': result.bossWaves > 0 && (kinds['wave-result'] ?? 0) === 0,
   'autopilot built': result.autopilot.builds > 0,
   'autopilot recruited': result.autopilot.recruits > 0,
   'autopilot marched': result.autopilot.marches > 0,

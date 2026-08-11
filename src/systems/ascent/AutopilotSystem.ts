@@ -7,6 +7,16 @@ import {
   RECRUIT_HUMAN_RESERVE,
   REMNANT_SHARE,
   recruitSoldiers,
+  AUTO_CLAIM_INTERVAL_TICKS,
+  GOLD_GLUT_SEASONS,
+  SCARCITY_CRISIS_MULT,
+  SCARCITY_CRISIS_SEASONS,
+  SCARCITY_WARNING_MULT,
+  SCARCITY_WARNING_SEASONS,
+  AUTO_CLAIM_MAX_ORDERS,
+  AUTO_CLAIM_MIN_CHANCE,
+  AUTO_CLAIM_TREASURY_SHARE,
+  MIN_MUSTER_SUPPLY_SHARE,
   SUPPLY_FOOD_RESERVE,
   SUPPLY_STORE_RESERVE,
   SUPPLY_TICKS_HELD,
@@ -22,6 +32,7 @@ import {
   type BuildOption,
   type UpgradeOption,
 } from '../ResourceSystem';
+import { bribeLand, getBribeSuccessChance, getGoldBribeCost } from '../AcquisitionSystem';
 import { disbandArmy, getRecruitmentOrder, issueMoveOrder, queueRecruitment } from '../WarSystem';
 import { frontWinChance } from './ConquestSystem';
 import type { GameState, Land, LandBuildingType } from '../../state/types';
@@ -52,14 +63,67 @@ function underPressure(state: GameState): boolean {
 }
 
 /**
- * Net value of a building per season: what it produces, minus what it costs to keep,
- * weighted toward the resources that convert into military strength.
+ * What one unit per season of each resource is worth to the realm *right now*.
+ *
+ * The fixed weights this replaces were the single most damaging numbers in the mode. Gold
+ * scored 3 and food scored 1, so the autopilot built markets in preference to farms at every
+ * opportunity — and a realm that optimises for coin while its granary empties produces exactly
+ * what measurement found across every seed: food pinned at zero for hundreds of consecutive
+ * seasons, `collectPlayerIncome` docking every host 4 morale and 6 supply per tick, population
+ * shrinking, defence quietly collapsing, and a treasury of several hundred thousand gold with
+ * nothing to buy. The famine and the idle fortune were never two problems. They were one
+ * scoring line.
+ *
+ * Weighting by scarcity corrects both directions at once: whatever the realm is running out of
+ * becomes the most valuable thing it can build, and whatever it is drowning in stops dominating
+ * the choice. It also makes the economy self-correcting rather than one-way, which is what lets
+ * a realm recover from a bad stretch instead of spiralling.
  */
-function optionScore(option: BuildOption | UpgradeOption, defensive: boolean, isCapital: boolean): number {
+function outputWeights(state: GameState): Record<'gold' | 'food' | 'supplies' | 'humans', number> {
+  const rates = state.resourceRates;
+  const held = state.resources;
+
+  /** Seasons of buffer left at the current burn rate; Infinity while a resource is growing. */
+  const runway = (stock: number, rate: number): number =>
+    rate >= 0 ? Number.POSITIVE_INFINITY : Math.max(0, stock) / Math.max(1, -rate);
+
+  const byScarcity = (base: number, stock: number, rate: number): number => {
+    const seasons = runway(stock, rate);
+    if (seasons <= SCARCITY_CRISIS_SEASONS) return base * SCARCITY_CRISIS_MULT;
+    if (seasons <= SCARCITY_WARNING_SEASONS) return base * SCARCITY_WARNING_MULT;
+    return base;
+  };
+
+  // Coin the realm cannot spend is not worth building more of. Without this the treasury still
+  // runs away in the seeds where trade multipliers compound hardest.
+  const goldGlut = rates.gold > 0 && held.gold > rates.gold * GOLD_GLUT_SEASONS;
+
+  return {
+    gold: goldGlut ? 1 : 3,
+    food: byScarcity(1, held.food, rates.food),
+    supplies: byScarcity(2.5, held.supplies, rates.supplies),
+    humans: 0.4,
+  };
+}
+
+/**
+ * Net value of a building per season: what it produces, minus what it costs to keep, priced
+ * against what the realm is currently short of.
+ */
+function optionScore(
+  option: BuildOption | UpgradeOption,
+  defensive: boolean,
+  isCapital: boolean,
+  weight: Record<'gold' | 'food' | 'supplies' | 'humans', number>,
+): number {
   const out = option.output;
   const keep = option.upkeep;
-  const produced = (out.gold ?? 0) * 3 + (out.food ?? 0) + (out.supplies ?? 0) * 2.5 + (out.humans ?? 0) * 0.4;
-  const consumed = (keep.gold ?? 0) * 3 + (keep.supplies ?? 0) * 2.5 + (keep.food ?? 0);
+  const produced = (out.gold ?? 0) * weight.gold + (out.food ?? 0) * weight.food
+    + (out.supplies ?? 0) * weight.supplies + (out.humans ?? 0) * weight.humans;
+  // Upkeep is priced on the same scale, so a building whose *running cost* is the very thing
+  // the realm is short of stops looking like a bargain the moment the shortage begins.
+  const consumed = (keep.gold ?? 0) * weight.gold + (keep.supplies ?? 0) * weight.supplies
+    + (keep.food ?? 0) * weight.food;
   // Fortifications always carry weight, not only under pressure: home defence in this mode
   // is the walls' job, which is what frees the field host to stay on the offensive.
   //
@@ -75,6 +139,7 @@ function optionScore(option: BuildOption | UpgradeOption, defensive: boolean, is
 /** Files at most one build order: the best-scoring affordable building across the realm. */
 function autoBuild(state: GameState): boolean {
   const defensive = underPressure(state);
+  const weight = outputWeights(state);
   let best: { landId: string; type: LandBuildingType; score: number } | undefined;
 
   for (const land of playerLands(state)) {
@@ -82,7 +147,7 @@ function autoBuild(state: GameState): boolean {
     const isCapital = land.id === state.ascent?.capitalLandId;
     for (const option of getBuildOptions(state, land)) {
       if (!option.canBuild) continue;
-      const score = optionScore(option, defensive, isCapital);
+      const score = optionScore(option, defensive, isCapital, weight);
       if (!best || score > best.score) {
         best = { landId: land.id, type: option.type, score };
       }
@@ -96,6 +161,7 @@ function autoBuild(state: GameState): boolean {
 /** Files at most one upgrade order. Only runs when there was nothing new worth building. */
 function autoUpgrade(state: GameState): boolean {
   const defensive = underPressure(state);
+  const weight = outputWeights(state);
   let best: { landId: string; index: number; score: number } | undefined;
 
   for (const land of playerLands(state)) {
@@ -105,7 +171,7 @@ function autoUpgrade(state: GameState): boolean {
     for (let index = 0; index < options.length; index += 1) {
       const option = options[index];
       if (!option.canUpgrade) continue;
-      const score = optionScore(option, defensive, isCapital);
+      const score = optionScore(option, defensive, isCapital, weight);
       if (!best || score > best.score) {
         best = { landId: land.id, index, score };
       }
@@ -184,10 +250,27 @@ export function raiseHostNow(state: GameState): boolean {
   // Muster with as much of a baggage train as the realm can actually spare — demanding a
   // full one up front makes `queueRecruitment` fail outright in a poor realm, so no host
   // ever gets raised at all. `autoResupply` tops it up over the following seasons.
-  const soldiers = recruitSoldiers(affordable);
+  // Muster to what the granary can carry, not to what the muster rolls allow.
+  //
+  // A host mustered onto an empty granary is worse than no host at all. Measured over a full
+  // run: with the realm at zero food this raised a full levy carrying *nothing*,
+  // `progressArmyLogistics` starved it over the following seasons, the autopilot saw its
+  // numbers fall under `REMNANT_SHARE` and raised another — a sawtooth (1400 → 276 → 1596 →
+  // 365 …) that burned the population down and froze the realm at five provinces for a hundred
+  // and thirty seasons.
+  //
+  // Capping the size rather than refusing the muster matters: refusing outright dropped
+  // autopilot recruitment to *zero* for an entire run, which trades the sawtooth for a realm
+  // that never fields an army at all. A small, fed host beats both.
+  const spareFood = Math.max(0, Math.floor(state.resources.food - SUPPLY_FOOD_RESERVE));
+  const rationsPerSoldier = (SUPPLY_TICKS_HELD / 100) * MIN_MUSTER_SUPPLY_SHARE;
+  const soldiersTheFarmsCanFeed = Math.floor(spareFood / rationsPerSoldier);
+  const soldiers = Math.min(recruitSoldiers(affordable), soldiersTheFarmsCanFeed);
+  if (soldiers < MIN_ARMY_SOLDIERS) return false;
+
   const wantRations = Math.max(1, Math.ceil(soldiers / 100)) * SUPPLY_TICKS_HELD;
   const wantProvisions = Math.max(1, Math.ceil(soldiers / 150)) * SUPPLY_TICKS_HELD;
-  const rations = Math.min(wantRations, Math.max(0, Math.floor(state.resources.food - SUPPLY_FOOD_RESERVE)));
+  const rations = Math.min(wantRations, spareFood);
   const provisions = Math.min(wantProvisions, Math.max(0, Math.floor(state.resources.supplies - SUPPLY_STORE_RESERVE)));
   return queueRecruitment(state, commanderId, soldiers, rations, provisions);
 }
@@ -229,6 +312,54 @@ function autoClaimWilderness(state: GameState): boolean {
 
       if (issueMoveOrder(state, idle[0].id, neighbour.id)) return true;
     }
+  }
+  return false;
+}
+
+/**
+ * Buys the adjacent villages that are not decisions: certain to accept, and cheap enough
+ * against the treasury that no player would ever say no.
+ *
+ * This extends the same rule `autoClaimWilderness` is built on — "nobody resists, so claiming
+ * it is bookkeeping" — to the purchases that are equally foregone. It exists because the run's
+ * expansion rate had become welded to its *prompt* rate: the Conquer card is the only way a
+ * village is ever taken, so slowing prompts down for pacing (250 decisions a run was a
+ * slideshow) also cut the realm from ~30 provinces to 6, and a map that never grows is the
+ * clearest possible way to tell a player their choices are not adding up to anything.
+ *
+ * Both gates matter. `AUTO_CLAIM_MIN_CHANCE` keeps every risky claim on the player's card
+ * where it belongs, and `AUTO_CLAIM_TREASURY_SHARE` keeps this from ever spending money the
+ * player might need — which also, finally, gives a fat treasury somewhere to go.
+ */
+function autoPurchaseVillage(state: GameState): boolean {
+  // Never while the realm is fighting for its life: coin belongs to the war then.
+  if (underPressure(state)) return false;
+  if (state.turn % AUTO_CLAIM_INTERVAL_TICKS !== 0) return false;
+  if (state.acquisitionOrders.length >= AUTO_CLAIM_MAX_ORDERS) return false;
+
+  const owned = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
+  const ownedIds = new Set(owned.map((land) => land.id));
+  const seen = new Set<string>();
+  const candidates: Land[] = [];
+
+  for (const land of owned) {
+    for (const neighbourId of land.neighbors) {
+      if (seen.has(neighbourId) || ownedIds.has(neighbourId)) continue;
+      seen.add(neighbourId);
+      const neighbour = state.lands.find((candidate) => candidate.id === neighbourId);
+      if (!neighbour || neighbour.ownerId !== NEUTRAL_OWNER_ID || !neighbour.hasVillage) continue;
+      if (state.acquisitionOrders.some((order) => order.landId === neighbour.id)) continue;
+      candidates.push(neighbour);
+    }
+  }
+
+  // Cheapest first, so the treasury share buys as much ground as it can.
+  candidates.sort((a, b) => getGoldBribeCost(state, a) - getGoldBribeCost(state, b));
+  for (const land of candidates) {
+    const cost = getGoldBribeCost(state, land);
+    if (cost > state.resources.gold * AUTO_CLAIM_TREASURY_SHARE) continue;
+    if (getBribeSuccessChance(land) < AUTO_CLAIM_MIN_CHANCE) continue;
+    if (bribeLand(state, land.id)) return true;
   }
   return false;
 }
@@ -384,6 +515,9 @@ export function tickAscentAutopilot(state: GameState): void {
   if (autoMarch(state) || autoClaimWilderness(state)) {
     ascent.autopilotStats.marches += 1;
   }
+
+  // Routine purchases need no host, so they are not part of the march chain above.
+  autoPurchaseVillage(state);
 
   autoDefend(state);
 }

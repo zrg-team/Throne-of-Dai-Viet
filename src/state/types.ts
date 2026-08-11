@@ -726,10 +726,19 @@ export interface EmpireResponseOption {
   /** For `send-host`: the hero picked inline on the same modal. */
   heroId?: string;
   cost?: Partial<ResourceBag>;
-  /** Projected win chance 0-100, or the ticks of delay bought. */
+  /**
+   * Projected win chance 0-100 — present only on the options that actually change *this*
+   * battle. Absent on `send-host` (its levy is still mustering when the host lands) and on
+   * `buy-off` (there is no battle to win), because quoting odds there duplicated Endure's
+   * number and made five distinct answers read as one.
+   */
   winChance?: number;
   delayTicks?: number;
   momentum?: number;
+  /** For `send-host`: how large the levy being raised is. */
+  soldiers?: number;
+  /** For `fortify`: points of permanent provincial defence bought. */
+  defence?: number;
   affordable: boolean;
 }
 
@@ -772,6 +781,15 @@ export interface ConquestTarget {
   methods: ConquestMethodOption[];
   /** Set when a claim or siege is already running here. */
   busyReason?: string;
+}
+
+/** One answer to a famine. Each spends a different store, so the choice is a real trade. */
+export interface FamineOption {
+  id: 'buy-grain' | 'slaughter-herds' | 'requisition' | 'endure';
+  cost?: Partial<ResourceBag>;
+  /** Food this option puts back in the granary. */
+  food?: number;
+  affordable: boolean;
 }
 
 /** One posting offered on the Appointment prompt. */
@@ -820,6 +838,8 @@ export type AscentPrompt =
   | { kind: 'law-choice'; projectIds: string[]; points: number; taxOptions: TaxPolicy[] }
   /** The court speaks: one card drawn from `state.politicsDeck`. */
   | { kind: 'parliament'; cardId: string }
+  /** The granary is empty and still draining. What the realm does about it. */
+  | { kind: 'famine'; shortfall: number; options: FamineOption[] }
   /** A rival empire makes a demand of its own: tribute, coalition, or submission. */
   | {
       kind: 'rival-demand';
@@ -843,9 +863,23 @@ export type AscentPrompt =
       options: EmpireResponseOption[];
     }
   | { kind: 'wave-result'; wave: number; survived: boolean; lines: string[] }
-  | { kind: 'run-over'; score: number; legacyEarned: number };
+  | {
+      kind: 'run-over';
+      score: number;
+      legacyEarned: number;
+      /** How the dynasty actually fell, so the summary can say something specific. */
+      cause: AscentEndCause;
+      /** Name of the province whose loss ended it, when there was one. */
+      landName?: string;
+      /** Best single-run score before this one — the number the player is chasing. */
+      previousBest: number;
+      legacyTotal: number;
+    };
 
 export type AscentPromptKind = AscentPrompt['kind'];
+
+/** Why a Dragon Ascent run ended. Shown on the summary so a loss is legible. */
+export type AscentEndCause = 'capital' | 'annihilated';
 
 export interface AscentState {
   /** Wave counter. Threat scales as BASE * GROWTH^wave; every 4th wave is a Great Invasion. */
@@ -909,6 +943,14 @@ export interface AscentState {
   // ── Decision scheduler (see systems/ascent/DecisionDirector.ts) ──
   /** Ticks remaining before each prompt kind may be raised again. */
   promptCooldowns: Partial<Record<AscentPromptKind, number>>;
+  /** Ticks each kind has been ready to speak but was outranked. Drives starvation promotion. */
+  promptWaiting: Partial<Record<AscentPromptKind, number>>;
+  /** Seasons before the realm will raise the famine card again. */
+  famineCooldown: number;
+  /** Set when the run ends, so the summary can name the cause rather than shrug. */
+  endCause?: AscentEndCause;
+  /** Province whose fall ended the run. */
+  endLandName?: string;
   /** The turn the last prompt was raised, enforcing a gap of real play between modals. */
   lastPromptTurn: number;
   /** Parliament cards already drawn this run — the deck draws without replacement. */

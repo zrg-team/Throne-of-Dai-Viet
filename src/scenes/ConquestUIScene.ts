@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID } from '../game/constants';
 import { codexProgress, getCodex, isHeroUnlocked } from '../state/codex';
+import { LEGACY_PERKS, ownsPerk } from '../state/legacy';
 import { heroTemplates } from '../data/heroes';
 import { powerCardView, skipRefundAmount } from '../systems/ascent/PowerDraftSystem';
 import { tierForHero } from '../systems/ascent/SummonSystem';
@@ -167,6 +168,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'law-choice': return `${prompt.points}:${prompt.projectIds.join(',')}`;
       case 'parliament': return prompt.cardId;
       case 'envoy': return `${prompt.kingdomId}:${prompt.relations}`;
+      case 'famine': return `famine:${prompt.shortfall}`;
       case 'rival-demand': return `${prompt.demand}:${prompt.kingdomId}`;
       case 'empire-response': return `${prompt.wave}`;
       case 'wave-result': return `${prompt.wave}`;
@@ -186,6 +188,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'law-choice': this.showLawChoice(prompt); break;
       case 'parliament': this.showParliament(prompt); break;
       case 'envoy': this.showEnvoy(prompt); break;
+      case 'famine': this.showFamine(prompt); break;
       case 'rival-demand': this.showRivalDemand(prompt); break;
       case 'empire-response': this.showEmpireResponse(prompt); break;
       case 'wave-result': this.showWaveResult(prompt); break;
@@ -244,6 +247,9 @@ export class ConquestUIScene extends Phaser.Scene {
   }
 
   /** A tappable prompt option. Everything the player can do is one of these. */
+  /** Width kept clear on a badged card's title line, covering the longest badge label. */
+  private static readonly BADGE_CLEARANCE = 86;
+
   private optionCard(
     bounds: UIBounds,
     opts: {
@@ -272,12 +278,19 @@ export class ConquestUIScene extends Phaser.Scene {
 
     container.add(this.add.rectangle(0, 0, 5, bounds.height, opts.accent, alpha).setOrigin(0, 0));
 
-    container.add(this.ui.label(16, 10, opts.title, 'label', {
+    // The badge sits top-right on the title's own line, so the title has to wrap before it.
+    // Without this a longer title runs underneath and is clipped mid-word.
+    const titleWidth = textWidth - (opts.badge ? ConquestUIScene.BADGE_CLEARANCE : 0);
+    const titleText = this.ui.label(16, 10, opts.title, 'label', {
       fontSize: '14px',
-      wordWrap: { width: textWidth },
-    }).setAlpha(alpha));
+      wordWrap: { width: titleWidth },
+    }).setAlpha(alpha);
+    container.add(titleText);
 
-    container.add(this.ui.label(16, 32, opts.body, 'body', {
+    // Body follows the title's *measured* height rather than a fixed offset: reserving width
+    // for the badge means a long title can now wrap to two lines, and a hard-coded y drew the
+    // body straight through the second one.
+    container.add(this.ui.label(16, 10 + titleText.height + 4, opts.body, 'body', {
       fontSize: '11px',
       color: INK_UI_HEX.mutedText,
       wordWrap: { width: textWidth },
@@ -1264,6 +1277,50 @@ export class ConquestUIScene extends Phaser.Scene {
    * A rival's demand. The half of foreign affairs the player does not start — and the one
    * place where refusing has to visibly cost something, or the card is flavour.
    */
+  /**
+   * The famine card.
+   *
+   * Every option spends a *different* store — coin, herds, the army's own baggage, or nothing
+   * at all — so unlike the wave-response card these are genuinely different decisions rather
+   * than four prices for the same outcome. Buying grain is deliberately the strong answer when
+   * the treasury is deep: a realm that banked four hundred thousand gold with nothing to spend
+   * it on was the other half of this same complaint.
+   */
+  private showFamine(prompt: Extract<AscentPrompt, { kind: 'famine' }>): void {
+    const content = this.promptFrame(
+      t('ascent.famine.title'),
+      t('ascent.famine.body', { shortfall: Math.round(prompt.shortfall) }),
+    );
+
+    const rowHeight = 78;
+    prompt.options.forEach((option, index) => {
+      const label = t(`ascent.famine.${option.id}` as Parameters<typeof t>[0]);
+      const detail = t(`ascent.famine.${option.id}D` as Parameters<typeof t>[0], {
+        food: Math.round(option.food ?? 0),
+      });
+
+      this.modalLayer.add(this.optionCard(
+        { x: content.x, y: content.y + index * (rowHeight + 10), width: content.width, height: rowHeight },
+        {
+          title: label,
+          body: detail,
+          note: option.cost
+            ? (option.affordable ? formatResourceList(option.cost) : t('ascent.response.cantAfford'))
+            : undefined,
+          noteColor: option.affordable ? undefined : '#e08a7c',
+          // Enduring is the red option: free today, and the hunger keeps taking.
+          accent: !option.affordable
+            ? INK_UI.softBrush
+            : option.id === 'endure' || option.id === 'requisition'
+              ? INK_UI.cinnabar
+              : INK_UI.gold,
+          disabled: !option.affordable,
+          onTap: () => { if (option.affordable) this.choose(option.id); },
+        },
+      ));
+    });
+  }
+
   private showRivalDemand(prompt: Extract<AscentPrompt, { kind: 'rival-demand' }>): void {
     const kingdom = this.state.kingdoms.find((candidate) => candidate.id === prompt.kingdomId);
     const standing = kingdom ? realmStanding(this.state, kingdom) : 'even';
@@ -1328,8 +1385,23 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
       t('ascent.response.subtitle', { ticks: prompt.ticksToArrival, threat: Math.round(prompt.threat) }),
     );
 
-    const rowHeight = 86;
+    // Taller than the other prompts' rows: these titles name a commander and can wrap, and the
+    // body carries both a cost and an effect.
+    const rowHeight = 96;
     const cards: Phaser.GameObjects.Container[] = [];
+
+    // Each row carries the *axis* it acts on as a badge — this battle, every battle after it,
+    // the next one, or no battle at all. Five answers that differ in kind were reading as one
+    // because every row led with a win percentage, and those percentages sat within five points
+    // of each other. The badge is what makes the card scannable as a real choice; the odds now
+    // appear only on the two options that genuinely move this battle.
+    const AXIS: Record<string, string> = {
+      'send-host': t('ascent.response.axisNext'),
+      'hire-mercenaries': t('ascent.response.axisNow'),
+      fortify: t('ascent.response.axisPermanent'),
+      'buy-off': t('ascent.response.axisNoBattle'),
+      endure: t('ascent.response.axisNow'),
+    };
 
     prompt.options.forEach((option, index) => {
       const commander = responseCommanderName(this.state, option.heroId);
@@ -1345,7 +1417,7 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
             : t('ascent.response.sendHostNoHero');
           body = t('ascent.response.sendHostD', {
             supplies: option.cost?.supplies ?? 0,
-            pct: option.winChance ?? 0,
+            n: option.soldiers ?? 0,
           });
           break;
         case 'hire-mercenaries':
@@ -1357,7 +1429,11 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
           break;
         case 'fortify':
           title = t('ascent.response.fortify');
-          body = t('ascent.response.fortifyD', { gold: option.cost?.gold ?? 0, pct: option.winChance ?? 0 });
+          body = t('ascent.response.fortifyD', {
+            gold: option.cost?.gold ?? 0,
+            def: option.defence ?? 0,
+            pct: option.winChance ?? 0,
+          });
           break;
         case 'buy-off':
           title = t('ascent.response.buyOff');
@@ -1365,7 +1441,7 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
           break;
         default:
           title = t('ascent.response.endure');
-          body = t('ascent.response.endureD', { xp: option.momentum ?? 0 });
+          body = t('ascent.response.endureD', { xp: option.momentum ?? 0, pct: option.winChance ?? 0 });
           break;
       }
 
@@ -1374,8 +1450,17 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
         {
           title,
           body,
+          badge: AXIS[option.id],
           note: option.affordable ? undefined : t('ascent.response.cantAfford'),
-          accent: option.affordable ? INK_UI.gold : INK_UI.softBrush,
+          // Buying the wave away is the one row that ends the threat outright, so it reads as
+          // the safe choice; enduring takes the hit on purpose, so it reads as the risky one.
+          accent: !option.affordable
+            ? INK_UI.softBrush
+            : option.id === 'buy-off'
+              ? INK_UI.jade
+              : option.id === 'endure'
+                ? INK_UI.cinnabar
+                : INK_UI.gold,
           disabled: !option.affordable,
           onTap: () => this.choose(option.id),
         },
@@ -1434,33 +1519,104 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
     staggerIn(this, cards);
   }
 
+  /**
+   * The summary. This is the screen that has to sell the *next* run, and it was the least
+   * readable screen in the game: seven dim rows of brown-on-brown sitting directly on the
+   * dimmed map, ending in one button back to the menu. Nothing named what had killed you,
+   * nothing compared the run to your best, and nothing hinted that banked Legacy buys
+   * permanent upgrades — so a loss taught the player nothing and offered them nothing.
+   *
+   * Now: a panel so the text has its own ground, the cause of death in plain words, the score
+   * against the record you are chasing, what the run banked and what that is nearly enough to
+   * buy, and a one-tap way back in.
+   */
   private showRunOver(prompt: Extract<AscentPrompt, { kind: 'run-over' }>): void {
     const ascent = this.state.ascent;
+    const beatBest = prompt.score > prompt.previousBest;
+
     const content = this.promptFrame(
       t('ascent.over.title'),
-      t('ascent.over.subtitle', { waves: ascent?.wavesSurvived ?? 0 }),
+      prompt.cause === 'capital'
+        ? t('ascent.over.causeCapital', { land: prompt.landName ?? '', waves: ascent?.wavesSurvived ?? 0 })
+        : t('ascent.over.causeAnnihilated', { waves: ascent?.wavesSurvived ?? 0 }),
     );
 
+    // ── The headline: this run against the record ───────────────────────────
+    const headHeight = 78;
+    const head = this.ui.panel(
+      { x: content.x, y: content.y, width: content.width, height: headHeight },
+      { border: beatBest ? INK_UI.gold : INK_UI.softBrush, borderWidth: 2 },
+    );
+    this.modalLayer.add(head);
+    this.modalLayer.add(this.ui.label(content.x + 16, content.y + 12,
+      beatBest ? t('ascent.over.newBest') : t('ascent.over.scoreLabel'), 'caption', {}));
+    this.modalLayer.add(this.ui.label(content.x + 16, content.y + 30,
+      prompt.score.toLocaleString('en-US'), 'label', { fontSize: '30px' }));
+    this.modalLayer.add(this.ui.label(content.x + content.width - 16, content.y + 34,
+      t('ascent.over.best', { best: Math.max(prompt.previousBest, prompt.score).toLocaleString('en-US') }),
+      'caption', { align: 'right' }).setOrigin(1, 0));
+
+    // ── What the run was made of ────────────────────────────────────────────
     const rows: Array<[string, string]> = [
       [t('ascent.over.waves'), String(ascent?.wavesSurvived ?? 0)],
       [t('ascent.over.peakPower'), Math.round(ascent?.peakPower ?? 0).toLocaleString('en-US')],
       [t('ascent.over.lands'), String(this.state.campaignScore?.peakLandsHeld ?? 0)],
       [t('ascent.over.heroes'), String(ascent?.heroesSummoned ?? 0)],
       [t('ascent.over.cards'), String(Object.values(ascent?.cardStacks ?? {}).reduce((a, b) => a + b, 0))],
-      [t('ascent.over.score'), String(prompt.score)],
-      [t('ascent.over.legacy'), `+${prompt.legacyEarned}`],
     ];
-
+    const bodyY = content.y + headHeight + 10;
+    const bodyHeight = rows.length * 26 + 20;
+    this.modalLayer.add(this.ui.panel(
+      { x: content.x, y: bodyY, width: content.width, height: bodyHeight },
+      { border: INK_UI.softBrush },
+    ));
     rows.forEach(([label, value], index) => {
-      const y = content.y + index * 34;
-      this.modalLayer.add(this.ui.infoRow({ x: content.x + 8, y, width: content.width - 16, height: 24 }, label, value));
+      this.modalLayer.add(this.ui.infoRow(
+        { x: content.x + 14, y: bodyY + 12 + index * 26, width: content.width - 28, height: 22 },
+        label, value,
+      ));
     });
 
+    // ── Legacy: the reason to press the button ──────────────────────────────
+    const legacyY = bodyY + bodyHeight + 10;
+    const nextPerk = LEGACY_PERKS
+      .filter((perk) => !ownsPerk(perk.id))
+      .sort((a, b) => a.cost - b.cost)[0];
+    const legacyHeight = nextPerk ? 74 : 50;
+    this.modalLayer.add(this.ui.panel(
+      { x: content.x, y: legacyY, width: content.width, height: legacyHeight },
+      { border: INK_UI.gold, borderWidth: 2 },
+    ));
+    this.modalLayer.add(this.ui.label(content.x + 14, legacyY + 10,
+      t('ascent.over.legacyEarned', { earned: prompt.legacyEarned, total: prompt.legacyTotal }), 'label', {
+        fontSize: '13px', wordWrap: { width: content.width - 28 },
+      }));
+    if (nextPerk) {
+      const short = Math.max(0, nextPerk.cost - prompt.legacyTotal);
+      this.modalLayer.add(this.ui.label(content.x + 14, legacyY + 32,
+        short > 0
+          ? t('ascent.over.perkShort', { perk: t(`empire.legacy.perk.${nextPerk.id}` as Parameters<typeof t>[0]), short })
+          : t('ascent.over.perkReady', { perk: t(`empire.legacy.perk.${nextPerk.id}` as Parameters<typeof t>[0]) }),
+        'caption', { wordWrap: { width: content.width - 28 } }));
+      this.modalLayer.add(this.ui.statBar(
+        { x: content.x + 14, y: legacyY + legacyHeight - 14, width: content.width - 28, height: 6 },
+        Math.min(prompt.legacyTotal, nextPerk.cost), nextPerk.cost, INK_UI.gold,
+      ));
+    }
+
+    // ── Back in, or out to spend ────────────────────────────────────────────
+    const buttonY = legacyY + legacyHeight + 14;
     this.modalLayer.add(this.ui.button(
-      { x: content.x, y: content.y + rows.length * 34 + 24, width: content.width, height: 46 },
+      { x: content.x, y: buttonY, width: content.width, height: 46 },
+      t('ascent.over.again'),
+      () => this.events.emit('ui:restart-ascent'),
+      { variant: 'primary', fontSize: '15px' },
+    ));
+    this.modalLayer.add(this.ui.button(
+      { x: content.x, y: buttonY + 54, width: content.width, height: 40 },
       t('ascent.over.return'),
       () => this.events.emit('ui:exit-to-menu'),
-      { variant: 'primary', fontSize: '14px' },
+      { fontSize: '13px' },
     ));
   }
 
