@@ -231,6 +231,11 @@ line(R.adaptive.winRate >= bestTiming, 'no fixed one-shot timing beats adaptive 
 // Compared against `always-hold`, not `adaptive`: both mostly lose these fights, so this asks
 // the actual question — when the battle is going badly, does pulling out save men? Measuring it
 // against a policy that often wins outright compared a withdrawal to a victory.
+//
+// KNOWN LIMITATION: the lab never calls `finishBattle` (it would resolve invasions and province
+// captures), so it cannot see the straggler recovery an orderly withdrawal is granted there. It
+// therefore under-reports retreat, and this target should not be read as a verdict on the game
+// until the harness drives a real resolution.
 line(R['retreat-in-time'].survivors - R['always-hold'].survivors >= 0.06,
   'retreating in time saves men vs fighting on',
   `${pct(R['retreat-in-time'].survivors)} vs ${pct(R['always-hold'].survivors)}`);

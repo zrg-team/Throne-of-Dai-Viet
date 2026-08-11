@@ -356,6 +356,13 @@ export const BATTLE_FOCUS_MULT = 2.2;
 export const BATTLE_SPREAD_MULT = 0.35;
 
 /**
+ * Share of a battle's losses that rejoin a host which withdrew in good order — stragglers and
+ * the lightly wounded catching up over the following days. A routed host recovers none of it.
+ * This is the whole difference between choosing to pull out and being broken.
+ */
+export const BATTLE_WITHDRAW_RECOVERY = 0.45;
+
+/**
  * Extra share of a host cut down while routing. Being broken has to cost more than choosing to
  * withdraw, or the retreat order has no purpose and the rout no weight.
  */
