@@ -17,6 +17,7 @@ import { addMandate } from '../empire/MandateSystem';
 import { tickGreatPowersYear } from '../empire/GreatPowersSystem';
 import { drainAscentPrompts } from './AscentState';
 import { tickAscentAutopilot } from './AutopilotSystem';
+import { beginBattle } from './BattleSystem';
 import { tickAscentProgress } from './PowerSystem';
 import { tickRaids, tickWaveDirector } from './WaveDirector';
 import { detectConquests, ensureAscentLaneState, refreshAscentLaneState } from './ConquestSystem';
@@ -166,11 +167,16 @@ export function advanceAscentTick(state: GameState): void {
   tickAutoDefend(state);
   tickInvasions(state);
 
-  // Safety net: every player host is set to autoDefend, so InvasionSystem should never
-  // raise the empire-mode battle modal. If some path ever does, delegate it rather than
-  // leaving the run paused on a modal this mode does not render.
+  // A field battle is now something the player watches and steers.
+  //
+  // This used to discard it unconditionally with `resolvePendingBattle(state, 'delegate')`,
+  // which is why a host could fight for an entire run without ever being seen to. `beginBattle`
+  // opens the watchable engagement; it returns false when there is nothing to watch (no host of
+  // ours actually present), and the old silent delegation still covers that case and any run
+  // where the player has handed battles back to their generals.
   if (state.pendingBattle) {
-    resolvePendingBattle(state, 'delegate');
+    const watched = !state.ascent.autoResolveBattles && beginBattle(state);
+    if (!watched) resolvePendingBattle(state, 'delegate');
   }
 
   settleOwnedLands(state);

@@ -384,7 +384,13 @@ function chooseTarget(state: GameState, army: Army, record: InvasionRecord): Lan
 function maybeRequestBattleDecision(state: GameState, army: Army, record: InvasionRecord, land: Land): boolean {
   if (state.pendingBattle) return true;
   const defender = state.armies.find((a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id && totalUnits(a) > 0);
-  if (!defender || defender.autoDefend) return false;
+  if (!defender) return false;
+  // `autoDefend` means two different things: 'march home to intercept' (tickAutoDefend) and
+  // 'fight without asking' (here). Dragon Ascent needs the first and not the second, so it
+  // asks regardless unless the player has handed battles back to their generals. Inert in
+  // every other mode.
+  const ascentWatches = state.gameMode === 'ascent' && !state.ascent?.autoResolveBattles;
+  if (defender.autoDefend && !ascentWatches) return false;
   const preview = createBattlePreview(state, army.id, land.id);
   if (!preview) return false;
   state.pendingBattle = {

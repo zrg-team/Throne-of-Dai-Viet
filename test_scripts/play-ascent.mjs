@@ -98,6 +98,13 @@ await page.evaluate(async () => {
         title: `Envoy to ${p.kingdomName} (rel ${Math.round(p.relations)}, pow ${Math.round(p.power)})`,
         opts: p.options.map((o) => ({ id: o.id, label: `${o.id}${o.affordable === false ? ' (unaffordable)' : ''}`, ok: o.affordable !== false })),
       };
+      case 'battle': {
+        const b = st.ascent.activeBattle;
+        return {
+          title: `Battle at ${b?.landName} vs ${b?.kingdomName} — round ${b?.round}/${b?.totalRounds}`,
+          opts: ['press', 'hold', 'retreat', 'auto'].map((id) => ({ id, label: id, ok: true })),
+        };
+      }
       case 'famine': return {
         title: `Famine — short ${Math.round(p.shortfall)} food/season`,
         opts: p.options.map((o) => ({ id: o.id, label: `${o.id}${o.food ? ` +${Math.round(o.food)}f` : ''}${o.affordable ? '' : ' (unaffordable)'}`, ok: o.affordable })),
@@ -165,6 +172,16 @@ await page.evaluate(async () => {
       }
 
       case 'hero-choice': return p.heroIds[0];
+
+      case 'battle': {
+        // Press when winning, pull out when the host is being gutted — the read a player makes.
+        const b = st.ascent.activeBattle;
+        if (!b) return 'hold';
+        const oursLeft = b.ourNow / Math.max(1, b.ourStart);
+        const theirsLeft = b.theirNow / Math.max(1, b.theirStart);
+        if (oursLeft < 0.45 && oursLeft < theirsLeft) return 'retreat';
+        return oursLeft > theirsLeft ? 'press' : 'hold';
+      }
 
       case 'famine': {
         // Buy the way out when the treasury allows it; otherwise trade whatever store is
@@ -370,6 +387,9 @@ for (const p of log.prompts) if (p.kind === 'conquer-method') methods[p.chose] =
 const topMethod = Object.entries(methods).sort((a, b) => b[1] - a[1])[0];
 const methodTotal = Object.values(methods).reduce((a, b) => a + b, 0);
 const starving = log.seasons.filter((s) => s.foodRate < 0).length;
+const battlePrompts = log.prompts.filter((p) => p.kind === 'battle');
+const retreats = log.prompts.filter((p) => p.kind === 'battle' && p.chose === 'retreat').length;
+const engagements = new Set(battlePrompts.map((p) => p.title)).size;
 
 say('');
 say('── FUN METRICS ──');
@@ -387,6 +407,7 @@ say(`  ...where gold decided : ${decisiveCount}/${responses.length} response car
 say(`tense seasons (T/D>.7) : ${tense}/${ticks} (${((tense / ticks) * 100).toFixed(0)}%)`);
 say(`trivial (T/D<.35)      : ${trivial}/${ticks} (${((trivial / ticks) * 100).toFixed(0)}%)`);
 say(`seasons losing food    : ${starving}/${ticks}`);
+say(`field battles watched : ${engagements} engagements, ${battlePrompts.length} exchanges, ${retreats} ended in retreat`);
 const peakLands = Math.max(...log.seasons.map((s) => s.lands), 0);
 const peakTurn = (log.seasons.find((s) => s.lands === peakLands) ?? {}).turn;
 say(`provinces lost         : ${log.deaths.length}`);
