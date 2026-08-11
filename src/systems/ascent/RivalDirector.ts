@@ -7,16 +7,18 @@ import {
   TRIBUTE_INCOME_MULT,
   TRIBUTE_POWER_RATIO,
   TRIBUTE_REFUSE_TICKS,
+  TRIBUTE_TREASURY_CAP,
   VASSAL_COOLDOWN_TICKS,
+  VASSAL_HEGEMON_MULT,
   VASSAL_POWER_RATIO,
   VASSAL_TITHE_GOLD,
 } from '../../game/ascentConfig';
-import { addOpinionModifier, getEmpirePower, getFear, getPlayerMilitary, hasPact } from '../DiplomacySystem';
+import { addOpinionModifier, getEmpirePower, getFear, hasPact } from '../DiplomacySystem';
 import { addCourtModifier } from '../CourtSystem';
 import { applyResourceDelta, canSpend, refreshAllLandOutputs } from '../ResourceSystem';
 import { pushToast } from '../empire/notifications';
 import { enqueueAscentPrompt } from './AscentState';
-import { computeFieldDefencePower } from './PowerSystem';
+import { computeFieldDefencePower, contestedDefencePower } from './PowerSystem';
 import { t } from '../../i18n';
 import type { GameState, Kingdom, RivalDemandOption } from '../../state/types';
 
@@ -57,21 +59,84 @@ function cools(state: GameState, kingdom: Kingdom, amount: number, label: string
   });
 }
 
+/**
+ * Whether this rival is a hegemon: cold to you, and towering over *the other empires*.
+ *
+ * Defined against its peers rather than against the player, and that is the whole point. Every
+ * absolute "must be N× the player" threshold I tried went dark within a round or two, because
+ * each improvement to the realm — routine expansion, walls that finally scale — pushed the
+ * player past the bar and silently removed submission demands from the game. Three separate
+ * recalibrations, three relapses.
+ *
+ * A rival that has swallowed its neighbours and dwarfs the rest of the world is a hegemon
+ * whatever the player's own curve is doing, which is both self-calibrating and what the world
+ * already says out loud when it announces one rising. The floor against the player's own
+ * defence stays, at the same bar tribute uses, so a genuine giant is not asked to kneel to a
+ * big fish in a small pond.
+ */
+function demandsSubmission(state: GameState, kingdom: Kingdom): boolean {
+  if ((kingdom.relations ?? 50) >= 46) return false;
+
+  const others = rivals(state).filter((candidate) => candidate.id !== kingdom.id);
+  if (others.length === 0) return false;
+  const meanPeer = others.reduce((sum, peer) => sum + getEmpirePower(state, peer), 0) / others.length;
+  const power = getEmpirePower(state, kingdom);
+
+  return power >= meanPeer * VASSAL_HEGEMON_MULT
+    && power > contestedDefencePower(state) * VASSAL_POWER_RATIO;
+}
+
 // ── Tribute ─────────────────────────────────────────────────────────────────
 
-/** Gold a rival demands: pegged to income, so it stays a real cost at any wealth. */
+/**
+ * Gold a rival demands: pegged to income, so it stays a real cost at any wealth — but capped
+ * at a share of what the realm actually holds, so paying is always *possible*.
+ *
+ * Without the cap a demand priced at eleven seasons of income routinely exceeded the whole
+ * treasury, and the card arrived reading "Pay the tribute (you cannot) · Refuse them". Measured
+ * across four seeds, that was four to six of every run's decisions with exactly one legal
+ * answer. An extortion you are not rich enough to satisfy is not a decision, and the refusal's
+ * consequences land as an unavoidable punishment rather than a price you chose to pay.
+ */
 export function tributeDemandGold(state: GameState): number {
-  return Math.round(Math.max(120, state.resourceRates.gold * TRIBUTE_INCOME_MULT));
+  const asked = Math.max(120, state.resourceRates.gold * TRIBUTE_INCOME_MULT);
+  const affordableCeiling = state.resources.gold * TRIBUTE_TREASURY_CAP;
+  return Math.round(Math.max(120, Math.min(asked, affordableCeiling)));
+}
+
+/**
+ * What a coalition asks to disperse. Capped against the treasury for the same reason tribute
+ * is: a price the player cannot possibly meet turns the card into "Buy them off (you cannot) ·
+ * Endure", which is one legal answer wearing two.
+ *
+ * Shared by the card and the resolver deliberately. Capping it in only one of the two made the
+ * card advertise a price the resolver then refused to accept, so the prompt could never be
+ * answered and the run sat on a modal with no way out.
+ */
+export function coalitionBuyOffGold(state: GameState): number {
+  return Math.round(Math.max(
+    400,
+    Math.min(state.resourceRates.gold * 18, state.resources.gold * TRIBUTE_TREASURY_CAP),
+  ));
 }
 
 function offerTribute(state: GameState): boolean {
   const ascent = state.ascent;
   if (!ascent) return false;
 
-  // Only an empire that could actually make good on the threat bothers to make it.
+  // Only an empire that could actually make good on the threat bothers to make it — but not
+  // one strong enough to demand submission outright.
+  //
+  // The two gates overlap (tribute at 0.30× the realm's contested defence, vassalage at 0.45×),
+  // so without this exclusion they compete for the same rival and whichever is *tried* first
+  // silently starves the other: leading with vassalage gave a 306-tick run zero tributes,
+  // leading with tribute gave a 501-tick run zero vassalage demands. Separating them by who is
+  // eligible rather than by call order lets both appear in one run, and reads better besides —
+  // the hegemon wants your crown, the merely dangerous neighbour wants your coin.
   const bully = rivals(state)
     .filter((kingdom) => !hasPact(kingdom) && (kingdom.relations ?? 50) < 48)
-    .filter((kingdom) => getEmpirePower(state, kingdom) > getPlayerMilitary(state) * TRIBUTE_POWER_RATIO)
+    .filter((kingdom) => !demandsSubmission(state, kingdom))
+    .filter((kingdom) => getEmpirePower(state, kingdom) > contestedDefencePower(state) * TRIBUTE_POWER_RATIO)
     .sort((a, b) => getEmpirePower(state, b) - getEmpirePower(state, a))[0];
   if (!bully) return false;
 
@@ -103,7 +168,7 @@ function offerCoalition(state: GameState): boolean {
   if (members.length < 2) return false;
 
   const leader = [...members].sort((a, b) => getEmpirePower(state, b) - getEmpirePower(state, a))[0];
-  const buyOff = Math.round(Math.max(400, state.resourceRates.gold * 18));
+  const buyOff = coalitionBuyOffGold(state);
   const options: RivalDemandOption[] = [
     { id: 'buy-off', cost: { gold: buyOff }, affordable: canSpend(state, { gold: buyOff }) },
     { id: 'endure', affordable: true },
@@ -129,8 +194,7 @@ function offerVassalage(state: GameState): boolean {
   if (!ascent) return false;
 
   const hegemon = rivals(state)
-    .filter((kingdom) => (kingdom.relations ?? 50) < 46)
-    .filter((kingdom) => getEmpirePower(state, kingdom) > getPlayerMilitary(state) * VASSAL_POWER_RATIO)
+    .filter((kingdom) => demandsSubmission(state, kingdom))
     .sort((a, b) => getEmpirePower(state, b) - getEmpirePower(state, a))[0];
   if (!hegemon) return false;
 
@@ -164,10 +228,16 @@ export function offerRivalDemand(state: GameState): boolean {
   const ascent = state.ascent;
   if (!ascent) return false;
 
-  // Vassalage first: being dwarfed is the most urgent thing a rival can tell you.
+  // Tried shortest-cadence first, which is the opposite of "most dramatic first" and is
+  // deliberate. Tribute is the recurring drain (22-tick cooldown) where vassalage and
+  // coalition are rare events (60 and 40); trying the rare ones first meant that whenever
+  // either was off cooldown it took the slot, and tribute — the one that is *supposed* to keep
+  // coming back — fired zero times across a 306-tick run. Leading with it costs the rare
+  // demands nothing: tribute immediately puts itself on a 22-season cooldown, and they fire in
+  // those gaps.
+  if ((ascent.tributeCooldown ?? 0) <= 0 && offerTribute(state)) return true;
   if ((ascent.vassalCooldown ?? 0) <= 0 && offerVassalage(state)) return true;
   if ((ascent.coalitionCooldownTicks ?? 0) <= 0 && offerCoalition(state)) return true;
-  if ((ascent.tributeCooldown ?? 0) <= 0 && offerTribute(state)) return true;
   return false;
 }
 
@@ -220,7 +290,7 @@ export function resolveRivalDemand(
     }
 
     case 'buy-off': {
-      const gold = Math.round(Math.max(400, state.resourceRates.gold * 18));
+      const gold = coalitionBuyOffGold(state);
       if (!canSpend(state, { gold })) return false;
       applyResourceDelta(state, { gold: -gold });
       ascent.coalitionPending = false;

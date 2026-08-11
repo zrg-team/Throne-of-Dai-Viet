@@ -11,7 +11,7 @@ import { recomputeOpinion } from '../systems/DiplomacySystem';
 import { createInitialMandate } from '../systems/empire/MandateSystem';
 import { initDirectives } from '../systems/empire/DirectiveSystem';
 import { createAscentState, enqueueAscentPrompt } from '../systems/ascent/AscentState';
-import { computeAscentPower, computeDefensivePower } from '../systems/ascent/PowerSystem';
+import { computeAscentPower, contestedDefencePower } from '../systems/ascent/PowerSystem';
 import { projectedWaveThreat } from '../systems/ascent/WaveDirector';
 import { getFounderPool } from './codex';
 import { applyLegacyPerks } from './legacy';
@@ -747,7 +747,7 @@ function seedAscentOpening(state: GameState): void {
     state.ascent.power = computeAscentPower(state);
     state.ascent.powerPrev = state.ascent.power;
     state.ascent.peakPower = state.ascent.power;
-    state.ascent.defensePower = computeDefensivePower(state);
+    state.ascent.defensePower = contestedDefencePower(state);
     state.ascent.threat = projectedWaveThreat(state, 1);
   }
 }

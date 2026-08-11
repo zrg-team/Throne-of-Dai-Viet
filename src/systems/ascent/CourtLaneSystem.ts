@@ -48,7 +48,16 @@ const MAX_APPOINTMENT_OPTIONS = 3;
  * the player still chooses. They are kept close together so no single role can run away with
  * every appointment in a long run.
  */
-const SEAT_VACANT_BONUS = 10;
+/**
+ * A vacant ministry outranks a vacant province, and by more than the governor bonus can close.
+ *
+ * At 10 against a governor cap of 12, a wide realm always had enough ungoverned provinces to
+ * push "governor" above every court seat, so champions were posted to districts one after
+ * another and the ministries stayed empty for whole runs — taking the court's realm-wide
+ * multipliers, and much of the point of the law and parliament cards, out of the game. A seat
+ * is a permanent realm-wide effect; a governorship helps one province.
+ */
+const SEAT_VACANT_BONUS = 18;
 const GOVERNOR_NEED_CAP = 12;
 /** Beats any stat line: the realm cannot raise a host without a free hero. */
 const RESERVE_URGENT_SCORE = 200;
@@ -145,11 +154,20 @@ export function buildAppointmentOptions(state: GameState, hero: Hero): Appointme
   return reserveScore > (scored[0]?.score ?? 0) ? [reserve, ...postings] : [...postings, reserve];
 }
 
-/** True when this hero is the realm's only candidate to raise the host it is missing. */
+/**
+ * True when this hero is the realm's last chance to field an army at all.
+ *
+ * Deliberately "no hosts", not "fewer hosts than `targetArmyCount`". Being one host short of
+ * target is an ambition, not an emergency, and treating it as one has a compounding cost:
+ * `targetArmyCount` rises with province count, so once routine expansion started working the
+ * realm sat permanently below target, `RESERVE_URGENT_SCORE` outranked every seat on every
+ * appointment card, and a run staffed **zero** court positions — taking the court, its laws and
+ * its parliament dark for the whole game. Losing the treasurer to keep a spare general is only
+ * worth it when the alternative is no army whatsoever.
+ */
 function needsCommander(state: GameState, hero: Hero): boolean {
-  const owned = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length;
   const hosts = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID).length;
-  if (hosts >= targetArmyCount(owned)) return false;
+  if (hosts > 0) return false;
   return !state.heroes.some((candidate) => candidate.id !== hero.id && !candidate.assignedTo);
 }
 

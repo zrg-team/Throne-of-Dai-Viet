@@ -1,5 +1,5 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
-import { SUMMON_EVERY_N_WAVES } from '../../game/ascentConfig';
+import { FAMINE_MIN_GAP_TICKS, SUMMON_EVERY_N_WAVES } from '../../game/ascentConfig';
 import { buildConquestTargets, offerConquestPrompt } from './ConquestSystem';
 import {
   buildLawOptions,
@@ -10,6 +10,7 @@ import {
   progressAscentCourtCooldown,
 } from './CourtLaneSystem';
 import { offerEnvoy, pickEnvoyTarget } from './EnvoySystem';
+import { famineReady, offerFamine, tickFamineCooldown } from './FamineSystem';
 import { offerRivalDemand, rivalDemandReady, tickRivalCooldowns } from './RivalDirector';
 import { offerHeroSummon } from './SummonSystem';
 import { offerPowerDraft } from './PowerDraftSystem';
@@ -24,15 +25,34 @@ import type { AscentPromptKind, GameState } from '../../state/types';
  * across each system's tick.
  */
 
-/** Ticks of real play required between one prompt being raised and the next. */
-const MIN_GAP_TICKS = 2;
+/**
+ * Ticks of real play required between one prompt being raised and the next.
+ *
+ * Measured at 2, a full run raised ~250 prompts across 320 ticks — one decision every 1.3
+ * seasons, roughly every four seconds of wall clock. Half of all ticks ended with a modal
+ * open, so the map (the mode's entire art surface, and the thing the autopilot is doing all
+ * its work on) was never on screen. The fantasy is "watch your realm fight, step in at the
+ * moments that matter"; at a two-tick gap there are no moments that don't matter.
+ */
+const MIN_GAP_TICKS = 4;
 
-/** Ticks a kind stays quiet after being answered. Event-driven kinds are absent on purpose. */
+/**
+ * Ticks a kind stays quiet after being answered. Event-driven kinds are absent on purpose.
+ *
+ * `conquer-target` is deliberately the longest of the recurring three. It fires as a *pair*
+ * (province, then method), so at a 3-tick cooldown it alone accounted for ~46% of every
+ * decision in a run — and the answer was "bribe" 68–90% of the time. Making the same choice
+ * fifty times is not a decision, it is data entry.
+ *
+ * 6 rather than 9: at 9 the realm finished a run holding three to five provinces where it had
+ * held twenty-four to thirty-two, and a map that never visibly grows is its own kind of dead
+ * run. This is the dial that trades map growth against prompt fatigue.
+ */
 const PROMPT_COOLDOWN: Partial<Record<AscentPromptKind, number>> = {
-  'conquer-target': 3,
-  'court-appointment': 2,
-  'law-choice': 6,
-  envoy: 10,
+  'conquer-target': 6,
+  'court-appointment': 5,
+  'law-choice': 8,
+  envoy: 12,
 };
 
 /**
@@ -47,8 +67,30 @@ const STARVATION_TICKS = 4;
  * decision already begun, then the choices that move the run forward, then rewards — a wave
  * landing must never be buried behind a card draft.
  */
+/**
+ * Ticks a ready kind may sit outranked before it jumps the queue.
+ *
+ * A strict priority list starves its own tail. Measured after the gap between prompts was
+ * widened to 4: `hero-choice`, `law-choice`, `parliament` and `envoy` fired **zero** times in
+ * a 320-tick run at every seed — the first four kinds consumed every slot. Losing the champion
+ * summon in particular guts the mode, since the roster and the gacha are its identity.
+ *
+ * Ageing keeps the ordering meaningful for ordinary contention while guaranteeing that
+ * anything with something to say is eventually heard. Counted in real ticks — see the loop in
+ * `tickDecisionDirector`, which is why it sits above the gap gate rather than below it.
+ *
+ * Tuned rather than reasoned: promoting the summon by *reordering* the list instead simply
+ * inverted the problem — heroes and their postings took 35% of a run's decisions and the realm
+ * stopped expanding at four provinces. Ageing gives the tail a floor without giving it a
+ * monopoly.
+ */
+const KIND_STARVATION_TICKS = 18;
+
 const CONSIDER_ORDER: AscentPromptKind[] = [
-  // Rivals speak first among the scheduled cards: a demand is time-critical in a way a
+  // Famine leads. It is the only scheduled card whose subject is actively costing the realm
+  // something every tick it waits, and it was the undiagnosed cause of most lost runs.
+  'famine',
+  // Rivals speak next among the scheduled cards: a demand is time-critical in a way a
   // card draft is not, and it is the pressure that was missing from the run entirely.
   'rival-demand',
   'court-appointment',
@@ -69,6 +111,7 @@ export function tickPromptCooldowns(state: GameState): void {
     else ascent.promptCooldowns[kind] = value - 1;
   }
   progressAscentCourtCooldown(state);
+  tickFamineCooldown(state);
   tickRivalCooldowns(state);
 }
 
@@ -128,6 +171,9 @@ function isReady(state: GameState, kind: AscentPromptKind): boolean {
     case 'envoy':
       return Boolean(pickEnvoyTarget(state));
 
+    case 'famine':
+      return famineReady(state);
+
     case 'rival-demand':
       return rivalDemandReady(state);
 
@@ -156,6 +202,9 @@ function raise(state: GameState, kind: AscentPromptKind): boolean {
       return offerParliament(state);
     case 'envoy':
       return offerEnvoy(state);
+    case 'famine':
+      return offerFamine(state);
+
     case 'rival-demand':
       return offerRivalDemand(state);
     default:
@@ -175,16 +224,51 @@ export function tickDecisionDirector(state: GameState): void {
   const ascent = state.ascent;
   if (!ascent) return;
 
+  ascent.promptWaiting ??= {};
+  const ready = CONSIDER_ORDER.filter((kind) => isReady(state, kind));
+
+  // Age every kind that has something to say, on every tick.
+  //
+  // Deliberately above the gates below: counting only the ticks on which the director got as
+  // far as choosing meant a threshold of 14 was really 14 *raise opportunities*, roughly forty
+  // seasons, and the champion summon surfaced two or three times in an entire run. Ageing in
+  // real ticks is what makes the number below mean what it says.
+  for (const kind of CONSIDER_ORDER) {
+    if (ready.includes(kind)) ascent.promptWaiting[kind] = (ascent.promptWaiting[kind] ?? 0) + 1;
+    else delete ascent.promptWaiting[kind];
+  }
+
   // Something is already waiting: do not stack a second decision behind it.
   if (state.pendingAscentPrompt || ascent.promptQueue.length > 0) return;
+
+  // Famine bypasses the gap rule, like a wave landing does.
+  //
+  // It is the one scheduled kind whose readiness is both *transient* and *actively expensive*:
+  // the granary crosses into the danger band for a few scattered seasons at a time, and every
+  // one of those seasons is costing morale and population. Measured, the crisis was readable on
+  // 16 ticks of a 200-tick run and the gap rule swallowed all 16 — the card existed, was
+  // correctly wired, and never once appeared. A rule meant to stop modal spam should not be
+  // able to suppress the emergency it most needs to surface.
+  // Still never on the very next tick, though: the gap rule exists to stop modal chains, and
+  // an urgent card is allowed to jump the queue without being allowed to spam it.
+  const famineGapOk = state.turn - ascent.lastPromptTurn >= FAMINE_MIN_GAP_TICKS;
+  if (ready[0] === 'famine' && famineGapOk && raise(state, 'famine')) {
+    delete ascent.promptWaiting.famine;
+    ascent.idleTicks = 0;
+    return;
+  }
 
   const starving = ascent.idleTicks >= STARVATION_TICKS;
   if (!starving && state.turn - ascent.lastPromptTurn < MIN_GAP_TICKS) return;
 
-  for (const kind of CONSIDER_ORDER) {
-    if (!isReady(state, kind)) continue;
+  const overdue = ready
+    .filter((kind) => (ascent.promptWaiting?.[kind] ?? 0) >= KIND_STARVATION_TICKS)
+    .sort((a, b) => (ascent.promptWaiting?.[b] ?? 0) - (ascent.promptWaiting?.[a] ?? 0));
+
+  for (const kind of [...overdue, ...ready]) {
     if (!raise(state, kind)) continue;
     // `lastPromptTurn` is stamped by `drainAscentPrompts`, which every prompt passes through.
+    delete ascent.promptWaiting[kind];
     ascent.idleTicks = 0;
     return;
   }

@@ -71,12 +71,32 @@ export const WAVE_LAG = 2;
 export const WAVE_OPENING_SHARE = 0.55;
 
 /**
- * Wave 1 pressure, as a fraction of the lagged defensive power. **The mode's main difficulty
- * dial.** Measured against a naive auto-player that always takes the first option: 0.45 → it
- * survives ~83 seasons, 0.55 → ~73, 0.62 → ~65. A thinking player fortifies, keeps a host
- * home and buys off coalitions, so the real ceiling is well above this.
+ * How much of the realm *beyond* the point of contact counts toward the defence a wave is
+ * measured against. See `contestedDefencePower`.
+ *
+ * At 0 the curve reads only field hosts, which the autopilot caps at three — the wave budget
+ * then flatlines while the realm grows, and a thirty-province empire is safer than a
+ * five-province one. At 1 it reads every garrison the realm owns against a host that can only
+ * attack one province, which quoted 98% odds for the entire back half of a run.
+ *
+ * 0.20 measured across a four-value sweep: threat keeps pace with expansion without a wide
+ * realm being punished for simply existing. Second difficulty dial after `WAVE_PRESSURE_BASE`.
  */
-export const WAVE_PRESSURE_BASE = 0.5;
+export const REALM_DEFENCE_SHARE = 0.2;
+
+/**
+ * Wave 1 pressure, as a fraction of the lagged defensive power. **The mode's main difficulty
+ * dial.**
+ *
+ * Re-measured after the denominator moved to `contestedDefencePower`, which made every old
+ * reading obsolete. Against a competent player over five seeds: 0.40 → runs of 110-200 seasons,
+ * all five ending in defeat; 0.33 → 150-320, one seed running out the clock. 0.36 sits between
+ * them, which lands a run in the 10-18 minute band the mode is paced for while still finishing.
+ *
+ * A naive auto-player that always takes the first option survives roughly 350 seasons at this
+ * setting, so the gap between playing badly and playing well is real but not a cliff.
+ */
+export const WAVE_PRESSURE_BASE = 0.36;
 /** Added per wave, so late waves demand real compounding rather than a fixed tax. */
 export const WAVE_PRESSURE_STEP = 0.035;
 /**
@@ -89,6 +109,31 @@ export const WAVE_PRESSURE_MAX = 1.3;
 export const BOSS_PRESSURE_MULT = 1.35;
 /** Floor so an early or freshly-crushed realm still faces something. */
 export const MIN_WAVE_SOLDIERS = 260;
+/**
+ * Enemy hosts that may stand on the map at once, across every wave and raid.
+ *
+ * Waves are meant to arrive, be met, and leave — the gap between them is where the realm
+ * rebuilds, expands and enjoys the map. Without a ceiling the midgame settled at four or five
+ * concurrent invaders and simply never cleared, which is a siege, not a rhythm.
+ */
+export const MAX_LIVE_INVADER_HOSTS = 3;
+/**
+ * Best affordable odds at or above which an ordinary wave does not raise the response modal
+ * at all — the realm simply meets it and the header strip reports the result.
+ *
+ * The mode's fantasy is watching a realm you built fight for you and stepping in at the
+ * moments that decide things. A modal on every wave is the opposite of that, and measurement
+ * showed those modals were empty anyway: the options differed by ~5 percentage points.
+ */
+export const RESPONSE_ASK_BELOW_WIN = 78;
+/**
+ * Share of the realm's contested defence that one Fortify purchase buys, permanently.
+ * Large enough that the option is worth its price on any size of realm — see
+ * `fortifyDefenceGain`, which converts this into points of provincial defence.
+ */
+export const FORTIFY_DEFENCE_SHARE = 0.18;
+/** Floor for a tiny opening realm, where a share of very little is still nothing. */
+export const FORTIFY_DEFENSE_MIN = 10;
 
 // ── Raids ───────────────────────────────────────────────────────────────────
 /**
@@ -109,6 +154,11 @@ export const RAID_WAVE_CLEARANCE = 4;
 // ── Rival demands: the half of foreign affairs the player does not start ────
 /** Seasons of gold income a tribute demand asks for. The recurring drain on a fat treasury. */
 export const TRIBUTE_INCOME_MULT = 11;
+/**
+ * Ceiling on a tribute demand as a share of the treasury, so paying is always a choice the
+ * player *can* make. Hurts — most of the coffers — without ever being impossible.
+ */
+export const TRIBUTE_TREASURY_CAP = 0.7;
 export const TRIBUTE_COOLDOWN_TICKS = 22;
 /** Seasons the next wave is pulled forward by refusing a demand — the refusal's teeth. */
 export const TRIBUTE_REFUSE_TICKS = 4;
@@ -118,16 +168,32 @@ export const COALITION_COOLDOWN_TICKS = 40;
 /** Seasons of warning before a coalition lands, so preparing for it is possible. */
 export const COALITION_LEAD_TICKS = 6;
 /**
- * How strong a rival must be, relative to `getPlayerMilitary`, before demanding submission.
+ * How strong a rival must be, relative to `contestedDefencePower`, before demanding submission.
  *
- * Calibrated from measurement, not intuition. An off-map empire's strength is its `power`
- * index (capped at 122) scaled by ×10, so the strongest rival runs at roughly **0.45–0.70×**
- * the player's military across an entire run — it never dwarfs a realm that also counts every
- * wall it owns. The obvious-looking "must be 1.8× stronger" made this an unreachable branch.
+ * Calibrated from measurement, not intuition — twice now. An off-map empire's strength is its
+ * `power` index (capped at 122) scaled by ×10, so it never dwarfs a realm outright and the
+ * obvious-looking "must be 1.8× stronger" made this an unreachable branch.
+ *
+ * The denominator matters as much as the number. Measured against `getPlayerMilitary`, which
+ * counts `defense × 10` for *every* province, the strongest rival fell from 0.75× the player at
+ * four provinces to 0.24× at nineteen — so both branches went dark again the moment routine
+ * expansion started working. Against `contestedDefencePower` the same run holds a steady
+ * 0.25–0.49×, because that figure does not inflate with province count.
+ *
+ * Set to 0.38 rather than 0.45 after a third dark spell: 0.45 sat at the very top of that band,
+ * so once Fortify began buying defence worth its price the strongest rival stopped clearing it
+ * and submission demands vanished again. It must stay comfortably inside the band, and above
+ * `TRIBUTE_POWER_RATIO` so the two demands keep addressing different rivals.
  */
-export const VASSAL_POWER_RATIO = 0.66;
+export const VASSAL_POWER_RATIO = 0.3;
+/**
+ * How far a rival must tower over the *other* empires to count as a hegemon and demand
+ * submission. Measured against its peers, not against the player, so the branch cannot go dark
+ * again every time the realm gets stronger — see `demandsSubmission`.
+ */
+export const VASSAL_HEGEMON_MULT = 1.4;
 /** Same scale: how strong a rival must be to think extortion is worth trying. */
-export const TRIBUTE_POWER_RATIO = 0.45;
+export const TRIBUTE_POWER_RATIO = 0.3;
 export const VASSAL_COOLDOWN_TICKS = 60;
 /** How much heavier an endured coalition's wave is than an ordinary one. */
 export const COALITION_WAVE_MULT = 1.5;
@@ -143,11 +209,18 @@ export const MERCENARY_INCOME_MULT = 9;
 export const MERCENARY_POWER_SHARE = 0.45;
 
 // ── Momentum (XP) ───────────────────────────────────────────────────────────
-/** Momentum needed to reach `level + 1`. Superlinear, so early drafts come fast. */
+/**
+ * Momentum needed to reach `level + 1`. Superlinear, so early drafts come fast.
+ *
+ * Softened from `60 + 34 * level^1.35`. A full run was handing out only about ten Power Drafts,
+ * which is a thin build for a roguelite — not enough picks to both see a variety of cards and
+ * stack any of them into something that changes how the realm plays. The deck is the mode's
+ * progression fantasy; ten picks is a sketch of one.
+ */
 export function xpToNextLevel(level: number): number {
-  return Math.round(60 + 34 * Math.pow(Math.max(1, level), 1.35));
+  return Math.round(55 + 27 * Math.pow(Math.max(1, level), 1.3));
 }
-export const XP_PER_TICK_BASE = 10;
+export const XP_PER_TICK_BASE = 13;
 export const XP_PER_OWNED_LAND = 2;
 export const XP_PER_LAND_TAKEN = 30;
 export const XP_PER_BATTLE_WON = 15;
@@ -156,7 +229,12 @@ export const XP_PER_WAVE_SURVIVED = 45;
 export const XP_SKIP_REFUND_SHARE = 0.3;
 
 // ── Power Draft ─────────────────────────────────────────────────────────────
-export const DRAFT_CARD_COUNT = 3;
+/**
+ * Cards offered per draft. Four rather than three: a run lands roughly ten drafts, and at three
+ * cards the deck it built came out to only four or five distinct powers — enough to stack, not
+ * enough to feel like a build. Widening the table costs no extra interruptions.
+ */
+export const DRAFT_CARD_COUNT = 4;
 export const BASE_DRAFT_WEIGHTS: Record<AscentRarity, number> = {
   bronze: 62,
   silver: 26,
@@ -203,8 +281,93 @@ export const MIN_ARMY_SOLDIERS = 320;
 /** Below this share of a full host an army is a remnant: disbanded and recycled into manpower. */
 export const REMNANT_SHARE = 0.45;
 export const MAX_ARMY_SOLDIERS = 2200;
+// ── Famine ──────────────────────────────────────────────────────────────────
+/**
+ * The one gap rule famine *does* respect. It is exempt from `MIN_GAP_TICKS` because the crisis
+ * is transient and expensive, but it must never land on the tick straight after another card —
+ * that is the modal chaining the gap rule exists to prevent.
+ */
+export const FAMINE_MIN_GAP_TICKS = 2;
+/** Seasons before the famine card may be raised again, so a long shortage is not prompt spam. */
+export const FAMINE_COOLDOWN_TICKS = 14;
+/** Seasons of the current deficit one relief action covers. Enough to actually turn it around. */
+export const FAMINE_GRAIN_SEASONS = 18;
+/**
+ * Gold per unit of imported grain. Priced so that relieving a serious famine costs a serious
+ * amount of coin — this is the mode's one sink that scales with how badly things are going
+ * rather than with income, and a treasury that has outgrown every other price still feels it.
+ */
+export const FAMINE_GOLD_PER_FOOD = 14;
+/**
+ * Most of the treasury one grain shipment may cost. Keeps relief a serious expense without ever
+ * letting it empty the coffers the player also needs for walls, companies and tribute.
+ */
+export const FAMINE_TREASURY_CAP = 0.35;
+/** Supplies burned per unit of food when the herds are driven to slaughter. */
+export const FAMINE_HERD_SUPPLY_RATE = 0.8;
+/** Morale each host loses when the realm eats its baggage train. */
+export const FAMINE_REQUISITION_MORALE = 12;
+
+// ── Scarcity pricing: what the autopilot should build next ──────────────────
+/**
+ * Seasons of runway below which a resource is a crisis, and how much its build value is
+ * multiplied when it is. At crisis level food outscores gold by more than two to one, which is
+ * the whole point — see `outputWeights`.
+ */
+export const SCARCITY_CRISIS_SEASONS = 3;
+export const SCARCITY_CRISIS_MULT = 8;
+/** The softer band: running down, but not yet an emergency. */
+export const SCARCITY_WARNING_SEASONS = 10;
+export const SCARCITY_WARNING_MULT = 3;
+/**
+ * Seasons of income banked past which more gold is worth building less of. A treasury this
+ * deep has already outrun every sink the mode offers.
+ */
+export const GOLD_GLUT_SEASONS = 25;
+
 /** Humans kept in reserve so recruiting never starves the workforce. */
 export const RECRUIT_HUMAN_RESERVE = 80;
+/**
+ * Share of a host's intended baggage train the realm must actually be able to hand over
+ * before the autopilot will muster it at all. Below this the levy starves faster than it can
+ * fight — see the sawtooth described in `raiseHostNow`.
+ */
+export const MIN_MUSTER_SUPPLY_SHARE = 0.35;
+// ── Routine expansion: the claims that are not decisions ────────────────────
+/**
+ * Odds at or above which the autopilot will spend spare coin on an adjacent village.
+ *
+ * A 0-1 fraction matching `getBribeSuccessChance`. Set from measurement rather than intuition:
+ * the constant's own ceiling is 0.9, but observed chances across a full run run 0.43-0.66,
+ * because `getNoblePower` is high on nearly every settled province. A threshold above that band
+ * rejected 215 of 240 ticks and the feature never fired at all.
+ *
+ * So this is explicitly *not* "only automate the sure things" — no sure thing exists here. It
+ * is "only automate the cheap things": paired with `AUTO_CLAIM_TREASURY_SHARE`, a failed bribe
+ * costs coin the realm demonstrably did not need, and repeated attempts convert an idle
+ * treasury into ground. Provinces worth a real decision are still the player's, on their card.
+ */
+export const AUTO_CLAIM_MIN_CHANCE = 0.55;
+/**
+ * Most of the treasury a single routine purchase may spend. Keeps automatic expansion to money
+ * the realm plainly does not need, and never to coin the player may want for a wave.
+ */
+export const AUTO_CLAIM_TREASURY_SHARE = 0.22;
+/** Claims in flight at once, so the realm digests what it takes. */
+export const AUTO_CLAIM_MAX_ORDERS = 2;
+/**
+ * Seasons between routine purchases.
+ *
+ * The single most sensitive number in the mode, because every province the realm swallows also
+ * enlarges the wave sized against it (see `REALM_DEFENCE_SHARE`). Without any spacing the
+ * autopilot bought a village every tick it could afford one, reached fourteen provinces by
+ * season 24 and was flattened by season 62. Measured at 5 a naive run died at season 75; at 9
+ * it reached 399 but a competent run peaked at fourteen provinces and fell by 140; at 14 both
+ * survived comfortably but few runs ever concluded. 12 keeps expansion digestible while still
+ * letting most runs reach an ending.
+ */
+export const AUTO_CLAIM_INTERVAL_TICKS = 12;
+
 /** Gold kept back so a reroll is usually affordable. */
 export const AUTOBUILD_GOLD_RESERVE = 30;
 /** Seasons of rations and provisions the autopilot keeps in each host's baggage train. */

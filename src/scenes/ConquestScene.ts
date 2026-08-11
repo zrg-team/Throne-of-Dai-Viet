@@ -10,6 +10,7 @@ import { offerConquestMethods } from '../systems/ascent/ConquestSystem';
 import { offerEnvoyTo } from '../systems/ascent/EnvoySystem';
 import { offerAppointment, offerLawChoice } from '../systems/ascent/CourtLaneSystem';
 import { raiseHostNow } from '../systems/ascent/AutopilotSystem';
+import { createAscentGameState } from '../state/GameState';
 import { MapScene } from './MapScene';
 
 /**
@@ -45,6 +46,16 @@ export class ConquestScene extends MapScene {
     // paused — which it is for the whole opening prompt chain. Without this first paint the
     // ownership wash would not appear until the player had already answered several cards.
     this.repaintOwnershipTint();
+
+    // Straight from the summary back into a fresh run, without a round trip through the menu.
+    // A roguelite is judged on the run *after* the one you lost, and making the player walk
+    // back out to the title screen to take it is the cheapest possible way to lose them.
+    this.scene.get(this.uiSceneKey()).events.on('ui:restart-ascent', () => {
+      this.scene.stop(this.uiSceneKey());
+      this.scene.start('ConquestScene', {
+        state: createAscentGameState({ seaSides: 1, difficulty: 'normal' }),
+      });
+    });
   }
 
   update(_time: number, delta: number): void {

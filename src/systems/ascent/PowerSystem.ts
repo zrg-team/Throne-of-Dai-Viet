@@ -1,5 +1,5 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
-import { XP_PER_OWNED_LAND, XP_PER_TICK_BASE, xpToNextLevel } from '../../game/ascentConfig';
+import { REALM_DEFENCE_SHARE, XP_PER_OWNED_LAND, XP_PER_TICK_BASE, xpToNextLevel } from '../../game/ascentConfig';
 import { armyPower, terrainDefenseMultiplier } from '../WarSystem';
 import type { GameState, Land } from '../../state/types';
 
@@ -88,6 +88,29 @@ export function computeFieldDefencePower(state: GameState): number {
   return Math.round(total);
 }
 
+/**
+ * The denominator the whole difficulty curve hangs off: what a wave is sized against, and
+ * what the odds quoted on the response card are computed from. **Both must use this**, or the
+ * mode lies to the player about how dangerous a wave is.
+ *
+ * Neither of the two obvious figures works alone. `computeFieldDefencePower` excludes every
+ * province's walls, and the autopilot caps the realm at three hosts — so it is effectively
+ * flat for a whole run while the realm grows from five provinces to thirty-five. Sizing waves
+ * against it capped the threat curve and made a big realm *safer* than a small one, which is
+ * backwards. `computeDefensivePower` is the opposite error: it counts all thirty-five
+ * garrisons against a host that can only ever attack one of them, so it quoted 98% odds.
+ *
+ * The blend says: a wave meets your armies and the province it lands on in full, plus a
+ * fraction of the rest of the realm — reinforcements, walls it must pass, the depth a raider
+ * has to cut through. Measured: this takes the total/field gap from 6.3× at turn 320 down to
+ * a curve that keeps rising with the realm instead of flattening.
+ */
+export function contestedDefencePower(state: GameState): number {
+  const field = computeFieldDefencePower(state);
+  const total = computeDefensivePower(state);
+  return Math.round(field + (total - field) * REALM_DEFENCE_SHARE);
+}
+
 /** Provinces the player currently holds. */
 export function ownedLandCount(state: GameState): number {
   return state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length;
@@ -122,7 +145,11 @@ export function tickAscentProgress(state: GameState): void {
   ascent.powerPrev = ascent.power;
   ascent.power = computeAscentPower(state);
   ascent.peakPower = Math.max(ascent.peakPower, ascent.power);
-  ascent.defensePower = computeDefensivePower(state);
+  // The same figure waves are sized against and the response card quotes odds from. Publishing
+  // `computeDefensivePower` here instead made the HUD's THREAT gauge read "comfortable" for a
+  // whole run while the maths behind the wave used a number up to six times smaller — the
+  // gauge and the game disagreed about how much trouble the realm was in.
+  ascent.defensePower = contestedDefencePower(state);
 
   addAscentXp(state, XP_PER_TICK_BASE + ownedLandCount(state) * XP_PER_OWNED_LAND);
 }

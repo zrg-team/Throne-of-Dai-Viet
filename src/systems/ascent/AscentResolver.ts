@@ -1,4 +1,4 @@
-import { bankLegacy, computeRunScore } from '../../state/legacy';
+import { bankLegacy, computeRunScore, getLegacy } from '../../state/legacy';
 import { unlockHero } from '../../state/codex';
 import { drainAscentPrompts, enqueueAscentPrompt } from './AscentState';
 import { rerollPowerDraft, skipPowerDraft, takePowerCard } from './PowerDraftSystem';
@@ -9,6 +9,7 @@ import {
 } from './ConquestSystem';
 import { applyAppointment, offerAppointment, resolveLawChoice, resolveParliament } from './CourtLaneSystem';
 import { resolveEnvoy } from './EnvoySystem';
+import { resolveFamine } from './FamineSystem';
 import { resolveRivalDemand } from './RivalDirector';
 import { passHeroSummon, recruitSummonedHero } from './SummonSystem';
 import { resolveEmpireResponse } from './WaveDirector';
@@ -60,9 +61,23 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
       }
       // Choosing a province opens its method sheet rather than acting: *how* you take a
       // province is the decision this lane exists for.
+      //
+      // Unless there is only one way in. A sheet listing a single legal method and a Back button
+      // is a confirmation dialog wearing a decision's clothes — it costs the player a second tap
+      // to be told what was already settled. Those go straight through; every province that
+      // genuinely admits a choice still asks.
       const land = findLand(state, choiceId);
       if (land) {
-        enqueueAscentPrompt(state, { kind: 'conquer-method', target: buildConquestTarget(state, land) });
+        const target = buildConquestTarget(state, land);
+        const open = target.methods.filter((method) => !method.blockedReason);
+        // Falls through to the sheet if the direct attempt is refused, rather than reporting
+        // the prompt unhandled — an unhandled prompt is never cleared, so the run would sit on
+        // a modal the player cannot dismiss.
+        if (open.length === 1 && executeConquestMethod(state, target.landId, open[0].method)) {
+          handled = true;
+          break;
+        }
+        enqueueAscentPrompt(state, { kind: 'conquer-method', target });
         handled = true;
       }
       break;
@@ -106,6 +121,11 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
 
     case 'envoy': {
       handled = resolveEnvoy(state, prompt.kingdomId, choiceId);
+      break;
+    }
+
+    case 'famine': {
+      handled = resolveFamine(state, choiceId);
       break;
     }
 
@@ -157,8 +177,19 @@ export function endAscentRun(state: GameState): void {
   state.defeatReason = 'conquest';
 
   const score = computeRunScore(state);
+  // Read before banking: `bankLegacy` raises `bestScore` to this run's, so asking afterwards
+  // would always report the player as having tied their own record.
+  const previousBest = getLegacy().bestScore;
   const legacyEarned = bankLegacy(state, false);
 
-  state.pendingAscentPrompt = { kind: 'run-over', score, legacyEarned };
+  state.pendingAscentPrompt = {
+    kind: 'run-over',
+    score,
+    legacyEarned,
+    cause: ascent.endCause ?? 'annihilated',
+    landName: ascent.endLandName,
+    previousBest,
+    legacyTotal: getLegacy().points,
+  };
   state.isPaused = true;
 }

@@ -5,6 +5,7 @@ import {
   COALITION_WAVE_MULT,
   BOSS_TELEGRAPH_TICKS,
   INVADER_POWER_PER_SOLDIER,
+  MAX_LIVE_INVADER_HOSTS,
   MIN_WAVE_SOLDIERS,
   RAID_INTERVAL_TICKS,
   MERCENARY_GOLD_BASE,
@@ -13,6 +14,9 @@ import {
   MIN_RAID_SOLDIERS,
   RAID_MIN_LANDS,
   RAID_POWER_SHARE,
+  FORTIFY_DEFENCE_SHARE,
+  FORTIFY_DEFENSE_MIN,
+  RESPONSE_ASK_BELOW_WIN,
   RAID_WAVE_CLEARANCE,
   WAVE_INTERVAL_TICKS,
   WAVE_LAG,
@@ -29,7 +33,7 @@ import { applyResourceDelta, canSpend } from '../ResourceSystem';
 import { armyPower, queueRecruitment } from '../WarSystem';
 import { pushToast } from '../empire/notifications';
 import { enqueueAscentPrompt } from './AscentState';
-import { addAscentXp, computeDefensivePower, computeFieldDefencePower, ownedLandCount } from './PowerSystem';
+import { addAscentXp, contestedDefencePower, ownedLandCount } from './PowerSystem';
 import { findFreeCommander } from './AutopilotSystem';
 import { heroName, t } from '../../i18n';
 import type {
@@ -86,7 +90,19 @@ function mercenarySize(state: GameState): number {
 }
 /** Ceiling on hosts the emergency levy may add on top of whatever the autopilot keeps. */
 const MAX_STANDING_HOSTS = 5;
-const FORTIFY_DEFENSE = 10;
+
+/**
+ * Walls bought by the Fortify option, sized as a share of the realm's own defence.
+ *
+ * A flat +10 was the emptiest option on the card. `landGarrisonPower` values a point of defence
+ * at 16, so ten points added 160 power to a realm fielding four thousand — four tenths of one
+ * percent, for six seasons of gold income, and it moved the quoted odds by a single point.
+ * Scaling it keeps the purchase worth its price at every point on the curve, and makes Fortify
+ * the option it was always meant to be: the one whose value is that it is *permanent*.
+ */
+function fortifyDefenceGain(state: GameState): number {
+  return Math.max(FORTIFY_DEFENSE_MIN, Math.round((contestedDefencePower(state) * FORTIFY_DEFENCE_SHARE) / 16));
+}
 const BUYOFF_DELAY_TICKS = 6;
 const ENDURE_MOMENTUM = 60;
 
@@ -116,7 +132,7 @@ export function wavePressure(wave: number, boss: boolean): number {
  */
 export function laggedDefencePower(state: GameState): number {
   const ascent = state.ascent;
-  const live = computeFieldDefencePower(state);
+  const live = contestedDefencePower(state);
   if (!ascent) return live * WAVE_OPENING_SHARE;
 
   const samples = ascent.defenceSamples ?? [];
@@ -151,6 +167,11 @@ export function waveSoldierBudget(state: GameState, wave: number, boss: boolean)
  * skipped entirely rather than spawning a token host on top of the fight in progress.
  */
 export function waveBudgetSpent(state: GameState, wave: number, boss: boolean): boolean {
+  // A hard ceiling on hosts, not only on power. Power alone let the map accumulate five
+  // simultaneous invaders whenever the realm's defence was high enough to justify the budget —
+  // which reads as a permanent siege rather than a wave, gives the player no gap in which to
+  // retake anything, and made a whole run's midgame one continuous unwinnable fight.
+  if ((state.invasions?.length ?? 0) >= MAX_LIVE_INVADER_HOSTS) return true;
   return liveInvaderPower(state) >= laggedDefencePower(state) * wavePressure(wave, boss);
 }
 
@@ -174,7 +195,7 @@ export function sampleDefencePower(state: GameState): void {
   const ascent = state.ascent;
   if (!ascent) return;
   ascent.defenceSamples ??= [];
-  ascent.defenceSamples.push(computeFieldDefencePower(state));
+  ascent.defenceSamples.push(contestedDefencePower(state));
   // Only the recent tail is ever read; keeping the whole run would bloat every save.
   if (ascent.defenceSamples.length > 12) ascent.defenceSamples.shift();
 }
@@ -215,11 +236,14 @@ function playerCapital(state: GameState): Land | undefined {
 
 /**
  * Rough odds of holding, shown on every response so the choice is informed, not blind.
- * Uses defensive power (hosts + fortifications), not the headline POWER scalar — POWER
- * includes the economy, which does not fight.
+ *
+ * Measured against `contestedDefencePower` — the same figure the wave was *sized* from. When
+ * this read `computeDefensivePower` instead, the two disagreed by a factor that grew with the
+ * realm (6.3× by turn 320), so every option on the card quoted 96–98% and the whole response
+ * screen degenerated into "you will win, spend gold anyway?".
  */
 function projectedWinChance(state: GameState, threat: number, bonus = 0): number {
-  const power = computeDefensivePower(state) * (1 + bonus);
+  const power = contestedDefencePower(state) * (1 + bonus);
   if (power <= 0) return 0;
   return Math.max(1, Math.min(99, Math.round((power / (power + Math.max(1, threat))) * 100)));
 }
@@ -286,12 +310,33 @@ export function buildResponseOptions(state: GameState, threat: number): EmpireRe
   const fortify = fortifyCost(state, wave);
   const buyOff = buyOffCost(state, wave);
 
+  // Each option's odds are derived from what it actually adds to the defence *this* wave,
+  // rather than from a hand-picked percentage.
+  //
+  // The constants this replaces (+0.25 / +0.12 / +0.30) produced five options whose quoted
+  // outcomes sat within an average of five percentage points of each other across a whole run —
+  // "you will win with 82%, spend nine thousand gold to win with 84%" — so the screen read as a
+  // toll booth rather than a decision. Deriving them separates the options honestly: walls are
+  // a modest permanent gain, a bought company is a large immediate one, and an emergency levy
+  // is worth *nothing* against the host already on its way, because it is still mustering when
+  // that host arrives. It pays off from the next wave on, and the card now says so.
+  const defence = Math.max(1, contestedDefencePower(state));
+  const wallsGain = (fortifyDefenceGain(state) * 16) / defence;
+  const mercGain = (mercenarySize(state) * INVADER_POWER_PER_SOLDIER) / defence;
+
   return [
     {
       id: 'send-host',
       heroId: commanderId,
       cost: { supplies: SEND_HOST_SUPPLIES },
-      winChance: projectedWinChance(state, threat, 0.25),
+      // No odds at all, not merely no bonus.
+      //
+      // Quoting the base chance here made this a verbatim duplicate of Endure — two rows on the
+      // same card promising the identical outcome for different prices, which is worse than an
+      // option that is merely weak. The levy is still mustering when this host arrives, so its
+      // value is the wave *after* this one, and the card now says that instead of a number that
+      // would be true of doing nothing.
+      soldiers: emergencyLevySize(state),
       // Capped: without a ceiling the realm can answer every single wave with another
       // levy and end up fielding a dozen half-fed hosts it cannot supply or command.
       affordable:
@@ -302,7 +347,8 @@ export function buildResponseOptions(state: GameState, threat: number): EmpireRe
     {
       id: 'fortify',
       cost: { gold: fortify },
-      winChance: projectedWinChance(state, threat, 0.12),
+      winChance: projectedWinChance(state, threat, wallsGain),
+      defence: fortifyDefenceGain(state),
       affordable: canSpend(state, { gold: fortify }),
     },
     {
@@ -314,7 +360,7 @@ export function buildResponseOptions(state: GameState, threat: number): EmpireRe
     {
       id: 'hire-mercenaries',
       cost: { gold: mercenaryCost(state, wave) },
-      winChance: projectedWinChance(state, threat, 0.3),
+      winChance: projectedWinChance(state, threat, mercGain),
       // No commander and no manpower needed — that is the point. Coin is the only thing it
       // asks for, so a rich realm always has one more answer than a poor one.
       affordable:
@@ -388,17 +434,19 @@ function startWave(state: GameState): void {
     const heldCapital = !capital || capital.ownerId === PLAYER_KINGDOM_ID;
 
     if (ascent.lastWaveBoss) {
-      enqueueAscentPrompt(state, {
-        kind: 'wave-result',
-        wave: ascent.wave,
-        survived: heldCapital,
-        lines: [
-          heldCapital
-            ? t('ascent.wave.lineHeld', { land: capital?.name ?? '' })
-            : t('ascent.wave.lineLost', { land: capital?.name ?? '' }),
-          t('ascent.wave.lineMomentum', { xp: momentum }),
-        ],
-      });
+      // Reported, not modal.
+      //
+      // A Great Invasion surviving deserves acknowledgement, but this was a full-screen pause
+      // whose only control was "Continue" — it accounted for nearly every remaining prompt in a
+      // run that had exactly one legal answer, four to six times each time. Announcing it in the
+      // header strip marks the moment without stopping the game to collect a tap.
+      pushToast(
+        state,
+        heldCapital
+          ? t('ascent.wave.bossTitle', { wave: ascent.wave })
+          : t('ascent.wave.bossTitleLost'),
+        heldCapital ? 'reward' : 'threat',
+      );
     } else {
       pushToast(
         state,
@@ -424,6 +472,24 @@ function startWave(state: GameState): void {
 
   // Before the hosts exist there is nothing to measure, so the modal quotes the projection.
   ascent.threat = projectedWaveThreat(state, ascent.wave);
+  const options = buildResponseOptions(state, ascent.threat);
+
+  // Only interrupt when the answer could change the outcome.
+  //
+  // Asking about every wave made this a quarter of every decision in a run, and the options on
+  // it differed by an average of five percentage points — "you will win with 82%, spend nine
+  // thousand gold to win with 84%?" is not a decision, it is a toll booth. Waves the realm is
+  // plainly going to hold now resolve themselves and report through the header strip, which
+  // both returns the map to the screen and reserves the modal for the waves that are in doubt.
+  // Great Invasions and endured coalitions always ask, whatever the odds.
+  const best = Math.max(...options.filter((o) => o.affordable && o.winChance).map((o) => o.winChance ?? 0), 0);
+  const mustAsk = ascent.lastWaveBoss || ascent.coalitionPending;
+  if (!mustAsk && best >= RESPONSE_ASK_BELOW_WIN) {
+    addAscentXp(state, ENDURE_MOMENTUM);
+    pushToast(state, t('ascent.wave.metAlone', { kingdom: aggressor.name, chance: best }), 'info');
+    launchWave(state, aggressor.id, aggressor.king?.name ?? aggressor.name);
+    return;
+  }
 
   enqueueAscentPrompt(state, {
     kind: 'empire-response',
@@ -432,7 +498,7 @@ function startWave(state: GameState): void {
     kingdomId: aggressor.id,
     kingdomName: aggressor.name,
     ticksToArrival: 3,
-    options: buildResponseOptions(state, ascent.threat),
+    options,
   });
 }
 
@@ -550,7 +616,7 @@ export function resolveEmpireResponse(state: GameState, prompt: AscentPrompt, op
     case 'fortify': {
       applyResourceDelta(state, { gold: -(option.cost?.gold ?? fortifyCost(state, prompt.wave)) });
       const capital = playerCapital(state);
-      if (capital) capital.defense += FORTIFY_DEFENSE;
+      if (capital) capital.defense += fortifyDefenceGain(state);
       break;
     }
     case 'buy-off': {
