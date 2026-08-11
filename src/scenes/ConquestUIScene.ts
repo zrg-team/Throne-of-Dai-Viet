@@ -10,7 +10,8 @@ import { buildConquestTargets, refreshAscentLaneState } from '../systems/ascent/
 import { lawCardView, seatedEffectSummary } from '../systems/ascent/CourtLaneSystem';
 import { envoyOptionDetail } from '../systems/ascent/EnvoySystem';
 import { realmStanding } from '../systems/ascent/RivalDirector';
-import { TRIBUTE_REFUSE_TICKS } from '../game/ascentConfig';
+import { fightRound } from '../systems/ascent/BattleSystem';
+import { BATTLE_TICK_MS, TRIBUTE_REFUSE_TICKS } from '../game/ascentConfig';
 import { ALL_COURT_POSITIONS, getCourtPositionLabel } from '../systems/CourtSystem';
 import { ascentArmyUpkeep, buildDistrictBuilding, getBuildOptions, getPlayerTroops, getUpgradeOptions, upgradeDistrictBuilding } from '../systems/ResourceSystem';
 import { findFreeCommander } from '../systems/ascent/AutopilotSystem';
@@ -39,6 +40,7 @@ import {
   t,
 } from '../i18n';
 import type {
+  AscentBattle,
   AscentConquestMethod,
   AscentLane,
   AscentLaneStatus,
@@ -170,8 +172,10 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'law-choice': return `${prompt.points}:${prompt.projectIds.join(',')}`;
       case 'parliament': return prompt.cardId;
       case 'envoy': return `${prompt.kingdomId}:${prompt.relations}`;
-      // Re-renders on every exchange, which is what makes the fight read as animated.
-      case 'battle': return `battle:${this.state.ascent?.activeBattle?.round ?? 0}`;
+      // Constant on purpose: the battle view owns its own clock and updates itself in
+      // place. Keying this on the round rebuilt the whole screen every beat, which killed
+      // the tweens mid-flight and is why the armies only ever jumped a few pixels.
+      case 'battle': return 'battle';
       case 'famine': return `famine:${prompt.shortfall}`;
       case 'rival-demand': return `${prompt.demand}:${prompt.kingdomId}`;
       case 'empire-response': return `${prompt.wave}`;
@@ -254,6 +258,9 @@ export class ConquestUIScene extends Phaser.Scene {
   /** A tappable prompt option. Everything the player can do is one of these. */
   /** Draws the two hosts on the battle screen, reusing the map's own marker art. */
   private battleItems?: MapItemRenderer;
+  private battleClock?: Phaser.Time.TimerEvent;
+  private battleOurLine?: Phaser.GameObjects.Container;
+  private battleTheirLine?: Phaser.GameObjects.Container;
 
   /** Left gutter a card icon occupies, glyph plus breathing room. */
   private static readonly ICON_GUTTER = CARD_ICON_SIZE + 12;
@@ -1415,15 +1422,16 @@ export class ConquestUIScene extends Phaser.Scene {
   }
 
   /**
-   * The field battle, exchange by exchange.
+   * The field battle, live.
    *
-   * The one screen in the mode where the player watches rather than reads: two hosts facing
-   * each other, strength draining as the rounds land, and the choice of how to fight it kept
-   * live between exchanges. Every other prompt is a decision made once; this one is a decision
-   * you can change your mind about halfway through, which is the whole reason it pauses.
+   * Runs on its own clock rather than advancing one exchange per tap. The first version made a
+   * battle feel like filling in a form — each press nudged the armies a few pixels closer and
+   * nothing happened in between — so the controls are now *standing orders* the player changes
+   * while the fight runs, which is what watching a battle has to mean.
    *
-   * The rival's colours are the same ones its markers fly on the map, so the host you watched
-   * march in is visibly the host you are now fighting.
+   * Each side starts at its own camp. The invader always advances; the player's line advances
+   * only on `press` and falls back toward its tents on `hold`, so the posture is visible on the
+   * field rather than only readable in a description. Blood is only traded once the lines meet.
    */
   private showBattle(): void {
     const battle = this.state.ascent?.activeBattle;
@@ -1437,74 +1445,73 @@ export class ConquestUIScene extends Phaser.Scene {
       battle.isGreat
         ? t('ascent.battle.greatTitle', { land: battle.landName })
         : t('ascent.battle.title', { land: battle.landName }),
-      t('ascent.battle.subtitle', {
-        kingdom: battle.kingdomName,
-        round: Math.min(battle.round + 1, battle.totalRounds),
-        of: battle.totalRounds,
-      }),
+      t('ascent.battle.subtitle', { kingdom: battle.kingdomName }),
     );
 
     // ── The field ─────────────────────────────────────────────────────────
-    const fieldH = 150;
+    const fieldH = 168;
+    const fieldY = content.y;
     this.modalLayer.add(this.ui.panel(
-      { x: content.x, y: content.y, width: content.width, height: fieldH },
+      { x: content.x, y: fieldY, width: content.width, height: fieldH },
       { border: INK_UI.softBrush },
     ));
 
-    // Formations close on each other as the exchanges run, so progress is legible at a glance
-    // without reading a single number.
-    const closed = battle.totalRounds > 0 ? Math.min(1, battle.round / battle.totalRounds) : 0;
-    const midX = content.x + content.width / 2;
-    const gap = 92 - closed * 34;
+    const groundY = fieldY + 112;
+    const leftX = content.x + 44;
+    const rightX = content.x + content.width - 44;
 
-    const ours = this.battleItems.createArmyMarker(battle.ourNow, true);
-    ours.setPosition(midX - gap, content.y + 92);
-    this.modalLayer.add(ours);
+    // Camps: the ground each side is fighting from, and what "hold" means.
+    this.modalLayer.add(this.battleCamp(leftX, groundY + 16, INK_UI.jade));
+    this.modalLayer.add(this.battleCamp(rightX, groundY + 16, rivalColor));
 
-    const theirs = this.battleItems.createArmyMarker(battle.theirNow, false, rivalColor);
-    theirs.setPosition(midX + gap, content.y + 92);
-    this.modalLayer.add(theirs);
+    // The two lines, placed by how far each has left its own camp.
+    const span = rightX - leftX - 60;
+    const ourLine = this.battleItems.createArmyMarker(battle.ourNow, true);
+    const theirLine = this.battleItems.createArmyMarker(battle.theirNow, false, rivalColor);
+    // Full span, not half: the two meet when `ourAdvance + theirAdvance` reaches 1, so the
+    // drawing has to use the same scale or the lines would visually stop at midfield while the
+    // system considered them in contact — the picture and the fight disagreeing about where
+    // everyone is standing.
+    ourLine.setPosition(leftX + 30 + span * battle.ourAdvance, groundY);
+    theirLine.setPosition(rightX - 30 - span * battle.theirAdvance, groundY);
+    this.modalLayer.add(ourLine);
+    this.modalLayer.add(theirLine);
+    this.battleOurLine = ourLine;
+    this.battleTheirLine = theirLine;
 
-    // A clash mark between them once blows have actually been traded.
-    if (battle.round > 0) {
-      this.modalLayer.add(this.ui.label(midX, content.y + 52, t('ascent.battle.clash'), 'label', {
-        fontSize: '20px', align: 'center',
-      }).setOrigin(0.5));
+    // Clash mark, only once they have actually met.
+    if (battle.ourAdvance + battle.theirAdvance >= 1) {
+      const clash = this.ui.label((ourLine.x + theirLine.x) / 2, groundY - 44, t('ascent.battle.clash'), 'label', {
+        fontSize: '22px', align: 'center',
+      }).setOrigin(0.5);
+      this.modalLayer.add(clash);
+      this.tweens.add({
+        targets: clash, scale: { from: 0.7, to: 1.15 }, alpha: { from: 1, to: 0.35 },
+        duration: 380, yoyo: true, repeat: -1,
+      });
     }
 
-    // ── Strength bars ─────────────────────────────────────────────────────
-    // On their own ground: these sat directly on the dimmed map, where dark numbers on a dark
-    // scrim were the least readable thing on the screen.
-    const readoutY = content.y + fieldH + 8;
-    const logLines = Math.min(3, battle.log.length);
-    const readoutH = 44 + logLines * 18;
+    // ── Readout ───────────────────────────────────────────────────────────
+    const readoutY = fieldY + fieldH + 8;
+    const readoutH = 56;
     this.modalLayer.add(this.ui.panel(
       { x: content.x, y: readoutY, width: content.width, height: readoutH },
       { border: INK_UI.softBrush },
     ));
-
-    const barY = readoutY + 8;
     const barW = (content.width - 36) / 2;
     const bar = (x: number, now: number, start: number, color: number, label: string): void => {
-      this.modalLayer.add(this.ui.label(x, barY, label, 'caption', {}));
-      this.modalLayer.add(this.ui.label(x + barW, barY, `${now}`, 'label', { fontSize: '15px', align: 'right' })
+      this.modalLayer.add(this.ui.label(x, readoutY + 8, label, 'caption', {}));
+      this.modalLayer.add(this.ui.label(x + barW, readoutY + 8, `${now}`, 'label', { fontSize: '15px', align: 'right' })
         .setOrigin(1, 0));
-      this.modalLayer.add(this.ui.statBar({ x, y: barY + 22, width: barW, height: 8 }, now, Math.max(1, start), color));
+      this.modalLayer.add(this.ui.statBar(
+        { x, y: readoutY + 32, width: barW, height: 8 }, now, Math.max(1, start), color,
+      ));
     };
     bar(content.x + 12, battle.ourNow, battle.ourStart, INK_UI.jade, t('ascent.battle.ours'));
     bar(content.x + barW + 24, battle.theirNow, battle.theirStart, rivalColor, battle.kingdomName);
 
-    // ── The exchange log ──────────────────────────────────────────────────
-    let y = barY + 36;
-    for (const line of battle.log.slice(-3)) {
-      this.modalLayer.add(this.ui.label(content.x + 12, y, line, 'caption', {
-        wordWrap: { width: content.width - 24 },
-      }));
-      y += 18;
-    }
-
-    // ── Controls ──────────────────────────────────────────────────────────
-    const rowH = 56;
+    // ── Standing orders ───────────────────────────────────────────────────
+    const rowH = 54;
     let optY = readoutY + readoutH + 10;
     const control = (id: string, accent: number, badge?: string): void => {
       this.modalLayer.add(this.optionCard(
@@ -1526,6 +1533,80 @@ export class ConquestUIScene extends Phaser.Scene {
     control('hold', !pressing ? INK_UI.gold : INK_UI.softBrush, !pressing ? t('ascent.battle.current') : undefined);
     control('retreat', INK_UI.cinnabar);
     control('auto', INK_UI.softBrush);
+
+    this.startBattleClock();
+  }
+
+  /** A side's camp: a few tents on its own ground, so "hold the line" has somewhere to mean. */
+  private battleCamp(x: number, y: number, color: number): Phaser.GameObjects.Container {
+    const camp = this.add.container(x, y);
+    const g = this.add.graphics();
+    for (let i = -1; i <= 1; i += 1) {
+      const tx = i * 15;
+      const ty = Math.abs(i) * -3;
+      g.fillStyle(INK_UI.parchmentShade, 0.95);
+      g.fillTriangle(tx - 10, ty + 8, tx, ty - 9, tx + 10, ty + 8);
+      g.lineStyle(1.5, INK_UI.brush, 0.8);
+      g.strokeTriangle(tx - 10, ty + 8, tx, ty - 9, tx + 10, ty + 8);
+    }
+    // A standard over the camp, in the side's own colours.
+    g.lineStyle(2, INK_UI.brush, 0.9);
+    g.lineBetween(0, -12, 0, -30);
+    g.fillStyle(color, 0.95);
+    g.fillTriangle(0, -30, 14, -26, 0, -21);
+    camp.add(g);
+    return camp;
+  }
+
+  /**
+   * Drives the fight forward on a timer.
+   *
+   * The world is paused while this runs — `drainAscentPrompts` has already set `isPaused` — so
+   * this clock is the only thing moving, and stopping it is what hands control back.
+   */
+  private startBattleClock(): void {
+    this.stopBattleClock();
+    this.battleClock = this.time.addEvent({
+      delay: BATTLE_TICK_MS,
+      loop: true,
+      callback: () => {
+        const battle = this.state.ascent?.activeBattle;
+        if (!battle || battle.over) { this.stopBattleClock(); return; }
+
+        fightRound(this.state);
+        this.animateBattleStep(battle);
+
+        if (battle.over) {
+          this.stopBattleClock();
+          // A short beat on the final blow before the result lands, so the fight has an end
+          // rather than simply vanishing.
+          this.time.delayedCall(520, () => this.choose(battle.posture));
+        }
+      },
+    });
+  }
+
+  private stopBattleClock(): void {
+    this.battleClock?.remove();
+    this.battleClock = undefined;
+  }
+
+  /** Slides the two lines to their new positions and nudges them on contact. */
+  private animateBattleStep(battle: AscentBattle): void {
+    const ours = this.battleOurLine;
+    const theirs = this.battleTheirLine;
+    if (!ours || !theirs) return;
+
+    const meeting = battle.ourAdvance + battle.theirAdvance >= 1;
+    const shove = meeting ? 4 : 0;
+    this.tweens.add({
+      targets: ours, x: ours.x + shove, duration: BATTLE_TICK_MS * 0.45, yoyo: meeting, ease: 'Sine.easeOut',
+    });
+    this.tweens.add({
+      targets: theirs, x: theirs.x - shove, duration: BATTLE_TICK_MS * 0.45, yoyo: meeting, ease: 'Sine.easeOut',
+    });
+    // Redraw the numbers and bars without rebuilding the field.
+    this.events.emit('state-changed');
   }
 
   private showRivalDemand(prompt: Extract<AscentPrompt, { kind: 'rival-demand' }>): void {

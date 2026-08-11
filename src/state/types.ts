@@ -894,6 +894,13 @@ export interface AscentBattle {
   round: number;
   totalRounds: number;
   posture: BattlePosture;
+  /**
+   * How far each line has left its own camp, 0 (at the tents) to 1 (at the enemy's).
+   * Drives where the soldiers are drawn, and is what makes posture *visible*: pressing walks
+   * your line across the field, holding keeps it on its own ground.
+   */
+  ourAdvance: number;
+  theirAdvance: number;
   /** Headcounts at the outset, so the strength bars have a denominator. */
   ourStart: number;
   theirStart: number;
