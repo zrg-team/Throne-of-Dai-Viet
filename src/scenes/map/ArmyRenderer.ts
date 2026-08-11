@@ -7,6 +7,7 @@
 import Phaser from 'phaser';
 import { PLAYER_KINGDOM_ID, REALTIME_TICK_MS } from '../../game/constants';
 import { ASCENT_TICK_MS } from '../../game/ascentConfig';
+import { INK } from '../../ui/inkTheme';
 import { buildRoadCurve } from '../../map/roadCurve';
 import { findLand } from '../../systems/LandSystem';
 import type { GameState, Land } from '../../state/types';
@@ -19,13 +20,12 @@ type ArmyPointerHandler = (armyId: string, pointer: Phaser.Input.Pointer, event:
 const MARKER_OFFSET_X = 18;
 const MARKER_OFFSET_Y = -28;
 
-/** Vertical sway of a marching column, and how many strides it takes per leg. */
-const MARCH_BOB_PIXELS = 1.6;
-const MARCH_BOB_CYCLES = 26;
-/** Radians a column leans into its direction of travel. */
-const MARCH_LEAN = 0.05;
 /** How long a host takes to settle onto its destination once the leg resolves. */
 const ARRIVE_MS = 320;
+/** Milliseconds between dust puffs behind a marching column. */
+const DUST_INTERVAL_MS = 90;
+/** How long one puff lingers before it has faded entirely. */
+const DUST_LIFE_MS = 620;
 
 /** The economy clock the current mode runs on — marches are paced against it. */
 function tickMs(state: GameState): number {
@@ -40,6 +40,9 @@ export class ArmyRenderer {
    *  only rebuild the expensive seal+formation when it actually changes. */
   private contentSig = new Map<string, string>();
   private selectionFlags = new Map<string, Phaser.GameObjects.Container>();
+  /** Live dust puffs, so they can be cleared without leaking tweens. */
+  private dust: Phaser.GameObjects.Ellipse[] = [];
+  private lastDustAt = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -157,13 +160,17 @@ export class ArmyRenderer {
             ease: 'Sine.easeInOut',
             onUpdate: () => {
               const point = curve.getPoint(progress.t);
-              // Lean into the direction of travel, and bob with the pace of the march. Cheap,
-              // and it turns a sliding icon into something that reads as a column on the move.
-              const ahead = curve.getPoint(Math.min(1, progress.t + 0.02));
-              const heading = Math.atan2(ahead.y - point.y, ahead.x - point.x);
-              const stride = Math.sin(progress.t * MARCH_BOB_CYCLES) * MARCH_BOB_PIXELS;
-              activeMarker.setPosition(point.x + MARKER_OFFSET_X, point.y + MARKER_OFFSET_Y + stride);
-              activeMarker.setRotation(Math.cos(heading) < 0 ? -MARCH_LEAN : MARCH_LEAN);
+              activeMarker.setPosition(point.x + MARKER_OFFSET_X, point.y + MARKER_OFFSET_Y);
+              // Dust, rather than making the marker itself jiggle.
+              //
+              // A previous pass added a stride bob and a lean into the direction of travel to
+              // stop a marching host reading as a sliding icon. Both were a mistake: the marker
+              // already contains a twelve-soldier formation with its own looping bob, so tilting
+              // and bouncing the container on top made a dozen little figures wobble against
+              // each other — the "many circles moving" this replaces. The column now travels
+              // steadily and kicks up dust behind it, which reads as movement without
+              // animating the thing that was already animated.
+              this.spawnDust(point.x + MARKER_OFFSET_X, point.y + MARKER_OFFSET_Y);
             },
           });
         }
@@ -171,8 +178,32 @@ export class ArmyRenderer {
         const destLand = findLand(state, order.path[order.path.length - 1]);
         if (destLand) {
           const anchor = getAnchor(destLand);
+
+          // A dashed line from the column to where it is going, under the pennant.
+          //
+          // The pennant alone marks the destination but says nothing about *whose* march it
+          // belongs to — with two or three hosts moving at once you cannot tell which arrow is
+          // which. The line makes the association explicit.
+          const trail = this.scene.add.graphics();
+          trail.setDepth(68);
+          trail.lineStyle(2, INK.sealRed, 0.5);
+          const fromX = marker.x;
+          const fromY = marker.y + 6;
+          const toX = wx(anchor.x);
+          const toY = wy(anchor.y) - 12;
+          const segments = 9;
+          for (let i = 0; i < segments; i += 2) {
+            const a = i / segments;
+            const b = Math.min(1, (i + 1) / segments);
+            trail.lineBetween(
+              fromX + (toX - fromX) * a, fromY + (toY - fromY) * a,
+              fromX + (toX - fromX) * b, fromY + (toY - fromY) * b,
+            );
+          }
+          this.destinationMarkers.push(trail);
+
           const arrow = this.mapItems.createDestinationArrow();
-          arrow.setPosition(wx(anchor.x), wy(anchor.y) - 40);
+          arrow.setPosition(toX, wy(anchor.y) - 40);
           arrow.setDepth(71);
           this.destinationMarkers.push(arrow);
         }
@@ -198,7 +229,9 @@ export class ArmyRenderer {
             y: restY,
             rotation: 0,
             duration: ARRIVE_MS,
-            ease: 'Back.easeOut',
+            // Settles rather than springing. `Back.easeOut` overshoots and snaps back, which on
+            // a container full of individually-bobbing soldiers reads as a stumble on arrival.
+            ease: 'Sine.easeOut',
           });
         } else if (!far) {
           marker.setRotation(0);
@@ -220,6 +253,52 @@ export class ArmyRenderer {
         this.selectionFlags.delete(armyId);
       }
     }
+  }
+
+  /**
+   * A puff of road dust behind a marching column.
+   *
+   * Rate-limited rather than emitted per frame: `onUpdate` runs every tick of the tween, and one
+   * puff per frame is both a performance problem and a solid smear rather than a trail.
+   */
+  private spawnDust(x: number, y: number): void {
+    const now = this.scene.time.now;
+    if (now - this.lastDustAt < DUST_INTERVAL_MS) return;
+    this.lastDustAt = now;
+
+    const puff = this.scene.add.ellipse(
+      x - 10 + Math.random() * 6,
+      y + 20 + Math.random() * 4,
+      8 + Math.random() * 6,
+      4 + Math.random() * 3,
+      INK.mountain,
+      0.5,
+    );
+    puff.setDepth(69);
+    this.dust.push(puff);
+
+    this.scene.tweens.add({
+      targets: puff,
+      alpha: 0,
+      scaleX: 2.1,
+      scaleY: 1.7,
+      y: puff.y - 6,
+      duration: DUST_LIFE_MS,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.dust = this.dust.filter((item) => item !== puff);
+        puff.destroy();
+      },
+    });
+  }
+
+  /** Clears every live puff — used when the map is torn down or redrawn wholesale. */
+  clearDust(): void {
+    for (const puff of this.dust) {
+      this.scene.tweens.killTweensOf(puff);
+      puff.destroy();
+    }
+    this.dust = [];
   }
 
   /** Kills tweens on a container and every nested descendant (e.g. the formation's
