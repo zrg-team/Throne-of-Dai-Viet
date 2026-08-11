@@ -279,15 +279,22 @@ export const ARMY_FOOD_PER_SOLDIER = 0.005;
 export const ARMY_UPKEEP_SCALE = 5000;
 
 // ── Field battles you can watch ─────────────────────────────────────────────
-/** Exchanges a small engagement runs; a large one runs up to the maximum. */
-export const BATTLE_BASE_ROUNDS = 3;
-export const BATTLE_MAX_ROUNDS = 5;
+/**
+ * Beats a small engagement runs; a large one runs up to the maximum. These are now real-time
+ * beats a few per second, not turns — see `fightRound` and the view's clock.
+ */
+export const BATTLE_BASE_ROUNDS = 14;
+export const BATTLE_MAX_ROUNDS = 22;
+/** Milliseconds between beats. Fast enough to read as a fight, slow enough to react to. */
+export const BATTLE_TICK_MS = 420;
+/** How much of the field a line crosses per beat, so the two meet in the middle in good time. */
+export const BATTLE_ADVANCE_PER_TICK = 0.115;
 /**
  * Share of a host's strength at stake in one exchange, before the power ratio and posture
  * scale it. Tuned so a matched fight leaves both sides bloodied but standing after three
  * rounds, which is what makes retreating between them a real decision rather than a formality.
  */
-export const BATTLE_ROUND_BITE = 0.11;
+export const BATTLE_ROUND_BITE = 0.035;
 /** Fraction of its starting strength at which a host breaks and the engagement ends early. */
 export const BATTLE_BREAK_SHARE = 0.35;
 /**

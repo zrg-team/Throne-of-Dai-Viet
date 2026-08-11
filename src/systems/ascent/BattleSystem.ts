@@ -1,5 +1,6 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
+  BATTLE_ADVANCE_PER_TICK,
   BATTLE_BASE_ROUNDS,
   BATTLE_BREAK_SHARE,
   BATTLE_HOLD_TRADE,
@@ -102,6 +103,8 @@ export function beginBattle(state: GameState): boolean {
     round: 0,
     totalRounds,
     posture: 'hold',
+    ourAdvance: 0,
+    theirAdvance: 0,
     ourStart: totalUnits(defender),
     theirStart: totalUnits(invader),
     ourNow: totalUnits(defender),
@@ -125,9 +128,15 @@ function bleed(army: Army, share: number): number {
 }
 
 /**
- * One exchange.
+ * One beat of the fight — several per second, driven by the view's own clock rather than by
+ * the player tapping.
  *
- * Casualties are proportional to the *other* side's battle power, so the same `armyPower` that
+ * The first version advanced one exchange per tap, which made a live battle feel like filling
+ * in a form: the armies nudged a few pixels closer on each press and nothing happened in
+ * between. Now the engagement runs on its own and the controls are *standing orders* the
+ * player changes while it runs, which is what "watch a fight" has to mean.
+ *
+ * Casualties stay proportional to the *other* side's battle power, so the same `armyPower` that
  * decides the real outcome drives what the player watches — and the ±10% roll is the same
  * `Uniform(0.9, 1.1)` shape `resolveInvaderBattle` uses, so the odds quoted on the response
  * card stay honest against what happens here.
@@ -146,6 +155,18 @@ export function fightRound(state: GameState): void {
     battle.over = true;
     return;
   }
+
+  // The invader is always coming; we advance only when told to. That difference is the whole
+  // reason the two postures look different on screen rather than only reading differently.
+  battle.theirAdvance = Math.min(1, battle.theirAdvance + BATTLE_ADVANCE_PER_TICK);
+  battle.ourAdvance = battle.posture === 'press'
+    ? Math.min(1, battle.ourAdvance + BATTLE_ADVANCE_PER_TICK)
+    : Math.max(0, battle.ourAdvance - BATTLE_ADVANCE_PER_TICK * 0.5);
+
+  // Lines that have not met yet are still marching. No blood until they close — and crucially
+  // the approach does *not* spend the round budget, or a fight would be over at the moment the
+  // two sides finally touched, which is the one moment it should be starting.
+  if (battle.ourAdvance + battle.theirAdvance < 1) return;
 
   const ourPower = Math.max(1, armyPower(state, defender));
   const theirPower = Math.max(1, armyPower(state, invader));
