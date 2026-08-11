@@ -11,6 +11,7 @@ import { offerEnvoyTo } from '../systems/ascent/EnvoySystem';
 import { offerAppointment, offerLawChoice } from '../systems/ascent/CourtLaneSystem';
 import { raiseHostNow } from '../systems/ascent/AutopilotSystem';
 import { disbandArmy } from '../systems/WarSystem';
+import { commitReserve, finishBattle, rally, setBattlePosture } from '../systems/ascent/BattleSystem';
 import { createAscentGameState } from '../state/GameState';
 import { MapScene } from './MapScene';
 
@@ -281,6 +282,19 @@ export class ConquestScene extends MapScene {
 
     // Raised from the Army screen: muster a host now rather than waiting for the autopilot's
     // own recruit pass, which only fires when the realm is *below* its target host count.
+    // Battle orders act on the live siege rather than resolving a prompt: the fight is part of
+    // the world now, so an order is a standing instruction to it, not a turn taken in it.
+    ui.events.on('ui:battle-order', (order: string) => {
+      if (order === 'rally') rally(this.state);
+      else if (order === 'reserve') commitReserve(this.state);
+      else if (order === 'press' || order === 'hold') setBattlePosture(this.state, order);
+      else if (order === 'retreat') finishBattle(this.state, 'retreat');
+      else if (order === 'auto') {
+        if (this.state.ascent) this.state.ascent.autoResolveBattles = true;
+        finishBattle(this.state, 'hold');
+      }
+      ui.events.emit('state-changed');
+    });
     ui.events.on('ui:ascent-disband-army', (armyId: string) => {
       if (this.state.pendingAscentPrompt) return;
       if (disbandArmy(this.state, armyId)) {

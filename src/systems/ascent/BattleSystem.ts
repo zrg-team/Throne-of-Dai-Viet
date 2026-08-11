@@ -2,6 +2,7 @@ import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   BATTLE_ADVANCE_PER_TICK,
   BATTLE_BASE_ROUNDS,
+  BATTLE_BEATS_PER_TICK,
   BATTLE_CHARGE_COVER,
   BATTLE_CHARGE_MORALE,
   BATTLE_CHARGE_TRADE,
@@ -49,11 +50,31 @@ function totalUnits(army: Army): number {
   return army.units.spearmen + army.units.archers + army.units.heavyInfantry;
 }
 
-/** The defender the player actually has standing on the contested province. */
-export function battleDefender(state: GameState, landId: string): Army | undefined {
-  return state.armies.find(
+/**
+ * Every host of ours standing on the contested province — not just the one that started the
+ * fight.
+ *
+ * This *is* the reinforcement mechanic, and it needs no timers, no arrival events and no new
+ * bookkeeping. `progressMovementOrders` already walks armies to lands, so a host ordered to the
+ * battle simply appears here the beat it arrives, and the map's real distances become the clock.
+ * The same is true of the enemy: a second invader reaching the province joins theirs.
+ */
+export function ourHosts(state: GameState, landId: string): Army[] {
+  return state.armies.filter(
     (army) => army.kingdomId === PLAYER_KINGDOM_ID && army.landId === landId && totalUnits(army) > 0,
   );
+}
+
+export function theirHosts(state: GameState, landId: string, kingdomId: string): Army[] {
+  return state.armies.filter(
+    (army) => army.kingdomId !== PLAYER_KINGDOM_ID && army.landId === landId && totalUnits(army) > 0
+      && (army.kingdomId === kingdomId || (state.invasions ?? []).some((r) => r.armyId === army.id)),
+  );
+}
+
+/** The strongest host of ours present — the one the melee maths treats as the line. */
+export function battleDefender(state: GameState, landId: string): Army | undefined {
+  return ourHosts(state, landId).sort((a, b) => totalUnits(b) - totalUnits(a))[0];
 }
 
 /**
@@ -118,6 +139,8 @@ export function beginBattle(state: GameState): boolean {
     theirAdvance: 0,
     ourMorale: defender.morale,
     theirMorale: invader.morale,
+    ourHostCount: ourHosts(state, pending.landId).length,
+    theirHostCount: theirHosts(state, pending.landId, pending.kingdomId).length,
     ourStart: totalUnits(defender) + reserve.spearmen + reserve.archers + reserve.heavyInfantry,
     theirStart: totalUnits(invader),
     ourNow: totalUnits(defender),
@@ -135,7 +158,12 @@ export function beginBattle(state: GameState): boolean {
     over: false,
   };
 
-  enqueueAscentPrompt(state, { kind: 'battle' });
+  // Deliberately does *not* raise a prompt.
+  //
+  // A prompt goes through `drainAscentPrompts`, which sets `isPaused`, which stops
+  // `ConquestScene.update` — and a frozen world is incompatible with marching reinforcements to
+  // the fight. The battle is ordinary state now: the tick advances it, and the player opens the
+  // screen when they want to watch or intervene. The Pause button still stops everything.
   return true;
 }
 
@@ -180,13 +208,32 @@ export function fightRound(state: GameState): void {
   const battle = ascent?.activeBattle;
   if (!ascent || !battle || battle.over) return;
 
-  const invader = state.armies.find((army) => army.id === battle.invaderArmyId);
-  const defender = battleDefender(state, battle.landId);
+  // Read the field fresh each beat rather than holding references from when the fight opened.
+  // That single choice is what makes reinforcement work: a host that marched in since the last
+  // beat is simply in this list, and one that was destroyed is simply not.
+  const ours = ourHosts(state, battle.landId);
+  const theirs = theirHosts(state, battle.landId, battle.kingdomId);
+  const defender = ours[0];
+  const invader = theirs[0];
   if (!invader || !defender) {
     battle.over = true;
-    battle.outcome = 'fighting';
+    battle.outcome = ours.length > 0 ? 'they-rout' : 'we-rout';
     return;
   }
+
+  // Relief that arrived since the last beat is worth announcing — it is the payoff for having
+  // left the fight to go and fetch it.
+  const ourCount = ours.length;
+  const theirCount = theirs.length;
+  if (ourCount > battle.ourHostCount) {
+    battle.log.push(t('ascent.battle.reliefArrived', { n: ourCount - battle.ourHostCount }));
+    battle.ourMorale = setMorale(defender, battle.ourMorale + BATTLE_CHARGE_MORALE);
+  }
+  if (theirCount > battle.theirHostCount) {
+    battle.log.push(t('ascent.battle.enemyRelief', { n: theirCount - battle.theirHostCount }));
+  }
+  battle.ourHostCount = ourCount;
+  battle.theirHostCount = theirCount;
 
   const charging = battle.posture === 'press';
 
@@ -205,15 +252,17 @@ export function fightRound(state: GameState): void {
     // Arrows are the one exchange where numbers do not answer numbers: a host with bowmen hurts
     // one without, and the side that closes faster eats less of it. That asymmetry is what gives
     // both orders a real case, and it makes composition legible without any new data.
-    const ourVolley = defender.units.archers * BATTLE_VOLLEY_BITE * (battle.ourMorale / 100);
-    const theirVolley = invader.units.archers * BATTLE_VOLLEY_BITE * (battle.theirMorale / 100);
+    const bows = (hosts: Army[]): number => hosts.reduce((total, host) => total + host.units.archers, 0);
+    const ourVolley = bows(ours) * BATTLE_VOLLEY_BITE * (battle.ourMorale / 100);
+    const theirVolley = bows(theirs) * BATTLE_VOLLEY_BITE * (battle.theirMorale / 100);
     const cover = charging ? BATTLE_CHARGE_COVER : 1;
 
-    const ourLoss = bleedCount(defender, theirVolley * cover);
-    const theirLoss = bleedCount(invader, ourVolley);
+    // Spread across the hosts present, so arriving relief is shot at too.
+    const ourLoss = ours.reduce((total, host) => total + bleedCount(host, (theirVolley * cover) / ours.length), 0);
+    const theirLoss = theirs.reduce((total, host) => total + bleedCount(host, ourVolley / theirs.length), 0);
 
-    battle.ourNow = totalUnits(defender);
-    battle.theirNow = totalUnits(invader);
+    battle.ourNow = ours.reduce((total, host) => total + totalUnits(host), 0);
+    battle.theirNow = theirs.reduce((total, host) => total + totalUnits(host), 0);
     if (ourLoss > 0 || theirLoss > 0) {
       battle.log.push(t('ascent.battle.volley', { ours: ourLoss, theirs: theirLoss }));
     }
@@ -227,16 +276,18 @@ export function fightRound(state: GameState): void {
     battle.log.push(t('ascent.battle.charged'));
   }
 
-  const ourPower = Math.max(1, armyPower(state, defender) * battle.terrainEdge);
-  const theirPower = Math.max(1, armyPower(state, invader));
+  const sum = (hosts: Army[]): number => hosts.reduce((total, host) => total + armyPower(state, host), 0);
+  const ourPower = Math.max(1, sum(ours) * battle.terrainEdge);
+  const theirPower = Math.max(1, sum(theirs));
   const trade = charging ? BATTLE_CHARGE_TRADE : BATTLE_HOLD_TRADE;
   const fuzz = (): number => 0.9 + Math.random() * 0.2;
 
   const ourShare = BATTLE_ROUND_BITE * (theirPower / (ourPower + theirPower)) * 2 * trade.taken * fuzz();
   const theirShare = BATTLE_ROUND_BITE * (ourPower / (ourPower + theirPower)) * 2 * trade.dealt * fuzz();
 
-  const ourLoss = bleed(defender, Math.min(0.9, ourShare));
-  const theirLoss = bleed(invader, Math.min(0.9, theirShare));
+  // Losses land across every host present, so relief shares the burden rather than watching.
+  const ourLoss = ours.reduce((total, host) => total + bleed(host, Math.min(0.9, ourShare)), 0);
+  const theirLoss = theirs.reduce((total, host) => total + bleed(host, Math.min(0.9, theirShare)), 0);
 
   // Morale follows the exchange: bleeding costs heart, and winning the exchange restores a
   // little of it. Because `armyPower` reads morale, the side that starts losing keeps losing.
@@ -247,8 +298,8 @@ export function fightRound(state: GameState): void {
   battle.theirMorale = setMorale(invader, battle.theirMorale - theirDrop + (wonExchange ? 0 : BATTLE_MORALE_WIN_GAIN));
 
   battle.round += 1;
-  battle.ourNow = totalUnits(defender);
-  battle.theirNow = totalUnits(invader);
+  battle.ourNow = ours.reduce((total, host) => total + totalUnits(host), 0);
+  battle.theirNow = theirs.reduce((total, host) => total + totalUnits(host), 0);
   battle.log.push(t('ascent.battle.exchange', { round: battle.round, ours: ourLoss, theirs: theirLoss }));
 
   // ── Does anyone break? ───────────────────────────────────────────────────
@@ -268,6 +319,22 @@ export function fightRound(state: GameState): void {
     battle.outcome = 'spent';
     battle.over = true;
   }
+}
+
+/**
+ * Advances a live engagement by a tick's worth of beats, and closes it out when it ends.
+ *
+ * Called from the economy tick rather than from the view: the fight belongs to the world now,
+ * so it carries on whether or not anyone is looking at it. The view animates what this produces.
+ */
+export function advanceBattle(state: GameState): void {
+  const battle = state.ascent?.activeBattle;
+  if (!battle) return;
+
+  for (let beat = 0; beat < BATTLE_BEATS_PER_TICK && !battle.over; beat += 1) {
+    fightRound(state);
+  }
+  if (battle.over) finishBattle(state, battle.posture);
 }
 
 /** Commits the host held back at camp. One-shot, and the reason to keep watching. */

@@ -91,9 +91,6 @@ const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   'run-over': 0,
   founder: 1,
   'wave-result': 2,
-  // A fight already under way outranks everything but the run ending: the map is frozen
-  // mid-engagement and nothing else can sensibly be decided until it resolves.
-  battle: 2.5,
   'empire-response': 3,
   'conquer-method': 4,
   'court-appointment': 5,

@@ -172,10 +172,6 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'law-choice': return `${prompt.points}:${prompt.projectIds.join(',')}`;
       case 'parliament': return prompt.cardId;
       case 'envoy': return `${prompt.kingdomId}:${prompt.relations}`;
-      // Constant on purpose: the battle view owns its own clock and updates itself in
-      // place. Keying this on the round rebuilt the whole screen every beat, which killed
-      // the tweens mid-flight and is why the armies only ever jumped a few pixels.
-      case 'battle': return 'battle';
       case 'famine': return `famine:${prompt.shortfall}`;
       case 'rival-demand': return `${prompt.demand}:${prompt.kingdomId}`;
       case 'empire-response': return `${prompt.wave}`;
@@ -196,7 +192,6 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'law-choice': this.showLawChoice(prompt); break;
       case 'parliament': this.showParliament(prompt); break;
       case 'envoy': this.showEnvoy(prompt); break;
-      case 'battle': this.showBattle(); break;
       case 'famine': this.showFamine(prompt); break;
       case 'rival-demand': this.showRivalDemand(prompt); break;
       case 'empire-response': this.showEmpireResponse(prompt); break;
@@ -489,6 +484,9 @@ export class ConquestUIScene extends Phaser.Scene {
     if (!ascent) return undefined;
 
     switch (action) {
+      // A live siege is the loudest thing the bar can say.
+      case 'battle':
+        return ascent.activeBattle ? INK_UI.cinnabar : undefined;
       case 'heroes':
         return state.heroes.some((hero) => !hero.assignedTo) ? INK_UI.jade : undefined;
       case 'court':
@@ -522,6 +520,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'build': this.showBuildScreen(); break;
       case 'heroes': this.showHeroesScreen(); break;
       case 'court': this.showCourtScreen(); break;
+      case 'battle': this.showBattle(); break;
       case 'army': this.showArmyScreen(); break;
       case 'affairs': this.showAffairsScreen(); break;
     }
@@ -1533,7 +1532,7 @@ export class ConquestUIScene extends Phaser.Scene {
           body: t(`ascent.battle.${id}D` as Parameters<typeof t>[0]),
           badge,
           accent,
-          onTap: () => this.choose(id),
+          onTap: () => this.events.emit('ui:battle-order', id),
         },
       ));
       optY += rowH + 8;
@@ -1556,7 +1555,7 @@ export class ConquestUIScene extends Phaser.Scene {
           badge: battle.reserveSpent ? t('ascent.battle.spent') : undefined,
           accent: battle.reserveSpent ? INK_UI.softBrush : INK_UI.jade,
           disabled: battle.reserveSpent,
-          onTap: () => { if (!battle.reserveSpent) this.choose('reserve'); },
+          onTap: () => { if (!battle.reserveSpent) this.events.emit('ui:battle-order', 'reserve'); },
         },
       ));
       optY += rowH + 8;
@@ -1571,7 +1570,7 @@ export class ConquestUIScene extends Phaser.Scene {
           badge: battle.rallySpent ? t('ascent.battle.spent') : undefined,
           accent: battle.rallySpent ? INK_UI.softBrush : INK_UI.gold,
           disabled: battle.rallySpent,
-          onTap: () => { if (!battle.rallySpent) this.choose('rally'); },
+          onTap: () => { if (!battle.rallySpent) this.events.emit('ui:battle-order', 'rally'); },
         },
       ));
       optY += rowH + 8;
@@ -1617,17 +1616,11 @@ export class ConquestUIScene extends Phaser.Scene {
       loop: true,
       callback: () => {
         const battle = this.state.ascent?.activeBattle;
-        if (!battle || battle.over) { this.stopBattleClock(); return; }
-
-        fightRound(this.state);
+        // The fight belongs to the world now — `advanceBattle` runs it from the economy tick,
+        // whether or not anyone is watching. This clock only refreshes what is on screen, so
+        // leaving the screen no longer stops the siege and coming back shows where it got to.
+        if (!battle) { this.stopBattleClock(); this.closeLane(); return; }
         this.animateBattleStep(battle);
-
-        if (battle.over) {
-          this.stopBattleClock();
-          // A short beat on the final blow before the result lands, so the fight has an end
-          // rather than simply vanishing.
-          this.time.delayedCall(520, () => this.choose(battle.posture));
-        }
       },
     });
   }

@@ -285,8 +285,16 @@ export const ARMY_UPKEEP_SCALE = 5000;
  */
 export const BATTLE_BASE_ROUNDS = 14;
 export const BATTLE_MAX_ROUNDS = 22;
-/** Milliseconds between beats. Fast enough to read as a fight, slow enough to react to. */
+/** Milliseconds between beats while the player is watching. */
 export const BATTLE_TICK_MS = 420;
+/**
+ * Beats resolved per economy tick.
+ *
+ * The fight advances with the world rather than with the viewer, so this sets how many seasons
+ * a siege lasts: at 4 beats a tick and ~22 beats of melee, an engagement runs five or six turns
+ * — long enough to raise a host and march it in, short enough not to stall the run.
+ */
+export const BATTLE_BEATS_PER_TICK = 4;
 /** How much of the field a line crosses per beat, so the two meet in the middle in good time. */
 export const BATTLE_ADVANCE_PER_TICK = 0.115;
 /**

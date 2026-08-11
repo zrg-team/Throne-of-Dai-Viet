@@ -10,7 +10,6 @@ import {
 import { applyAppointment, offerAppointment, resolveLawChoice, resolveParliament } from './CourtLaneSystem';
 import { resolveEnvoy } from './EnvoySystem';
 import { resolveFamine } from './FamineSystem';
-import { commitReserve, fightRound, finishBattle, rally, setBattlePosture } from './BattleSystem';
 import { resolveRivalDemand } from './RivalDirector';
 import { passHeroSummon, recruitSummonedHero } from './SummonSystem';
 import { resolveEmpireResponse } from './WaveDirector';
@@ -122,49 +121,6 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
 
     case 'envoy': {
       handled = resolveEnvoy(state, prompt.kingdomId, choiceId);
-      break;
-    }
-
-    case 'battle': {
-      const battle = ascent.activeBattle;
-      if (!battle) { handled = true; break; }
-
-      if (choiceId === 'auto') {
-        // Hand the rest of the run's fighting to the generals, starting with this one.
-        ascent.autoResolveBattles = true;
-        finishBattle(state, 'hold');
-        handled = true;
-        break;
-      }
-      if (choiceId === 'retreat') {
-        finishBattle(state, 'retreat');
-        handled = true;
-        break;
-      }
-      // Spend the one-shots, then fall through: *every* answer advances the fight by one beat.
-      //
-      // Making order changes and one-shots free (re-queue without advancing) reads well in the
-      // UI, where the clock is what moves the fight — but it means any driver without that
-      // clock answers "hold" forever and the run stalls on a prompt it can never clear. The
-      // verification harness did exactly that and stranded ten downstream assertions. A beat
-      // per answer costs the live fight nothing, since the clock is beating anyway, and it
-      // keeps the prompt honest: answering it always progresses something.
-      if (choiceId === 'rally') rally(state);
-      if (choiceId === 'reserve') commitReserve(state);
-      if (choiceId === 'press' || choiceId === 'hold') setBattlePosture(state, choiceId);
-      // One exchange per answer. The prompt re-queues itself until a side breaks or the
-      // rounds run out, so the engagement unfolds a round at a time under the player's hand.
-      fightRound(state);
-      if (battle.over) {
-        finishBattle(state, battle.posture);
-      } else {
-        // Pushed straight onto the queue rather than through `enqueueAscentPrompt`, which
-        // refuses any kind already live — and during resolution *this* battle prompt still is.
-        // Routing through it silently dropped the re-queue, so every engagement ended after a
-        // single exchange and the multi-round fight never actually happened.
-        ascent.promptQueue.push({ kind: 'battle' });
-      }
-      handled = true;
       break;
     }
 
