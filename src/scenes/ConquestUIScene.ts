@@ -461,8 +461,7 @@ export class ConquestUIScene extends Phaser.Scene {
   /** The bottom bar's routing — the same screens the classic modes open, plus the Codex. */
   private handleBarAction(action: string): void {
     if (action === 'pause') {
-      this.state.isStrategyPause = !this.state.isStrategyPause;
-      this.refresh();
+      this.showPauseMenu();
       return;
     }
     if (action === 'codex') {
@@ -1852,6 +1851,46 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
   // corner. They now live on the shared `ActionBar` alongside the three system lanes, so
   // this mode has the same standing bottom bar as the classic ones — and, critically, the
   // player always has somewhere to *go* rather than only cards to answer.
+
+  /**
+   * Pause, save, and leave.
+   *
+   * This mode had none of it. The Pause button toggled `isStrategyPause` and nothing else, so a
+   * run could be halted but never *left* — there was no way to save and exit at all, and closing
+   * the tab lost the run outright. The classic modes have offered exactly these three choices
+   * from `UIScene` since the beginning; ascent simply never surfaced them, and `ui:exit-to-menu`
+   * (handled in `MapScene`, which `ConquestScene` extends) already does the work.
+   *
+   * `saveSnapshot` round-trips this mode: `MenuScene` boots a saved `gameMode === 'ascent'`
+   * straight back into `ConquestScene`.
+   */
+  private showPauseMenu(): void {
+    this.state.isStrategyPause = true;
+    this.modalLayer.removeAll(true);
+    this.openPromptKey = 'pause-menu';
+
+    const content = this.promptFrame(t('ascent.pause.title'), t('ascent.pause.body', {
+      year: this.state.year,
+      waves: this.state.ascent?.wavesSurvived ?? 0,
+    }));
+
+    const rowH = 52;
+    let y = content.y;
+    const item = (label: string, variant: 'primary' | 'secondary' | 'danger', onTap: () => void): void => {
+      this.modalLayer.add(this.ui.button(
+        { x: content.x, y, width: content.width, height: rowH },
+        label, onTap, { variant, fontSize: '14px' },
+      ));
+      y += rowH + 10;
+    };
+
+    item(t('ascent.pause.resume'), 'primary', () => {
+      this.state.isStrategyPause = false;
+      this.closeLane();
+    });
+    item(t('action.saveAndExit'), 'secondary', () => this.events.emit('ui:exit-to-menu', true));
+    item(t('action.exitWithoutSaving'), 'danger', () => this.events.emit('ui:exit-to-menu', false));
+  }
 
   /** The permanent collection — the reason summoning a new champion is worth something. */
   showCodex(): void {

@@ -370,6 +370,9 @@ export const enAscent = {
   "ascent.draft.evoReady": "★ EVOLUTION READY",
 
   // ── Run over ──────────────────────────────────────────────────────────────
+  "ascent.pause.title": "The realm holds its breath",
+  "ascent.pause.body": "Year {year} · {waves} waves held. Saving keeps this run for later.",
+  "ascent.pause.resume": "Resume the ascent",
   "ascent.over.title": "The Ascent Ends",
   "ascent.over.subtitle": "The capital has fallen after {waves} waves.",
   "ascent.over.waves": "Waves survived",
@@ -759,6 +762,9 @@ export const viAscent = {
   "ascent.draft.evoReady": "★ SẴN SÀNG TIẾN HÓA",
 
   // ── Run over ──────────────────────────────────────────────────────────────
+  "ascent.pause.title": "Giang sơn tạm lặng",
+  "ascent.pause.body": "Năm {year} · đã giữ {waves} đợt. Lưu lại để chơi tiếp sau.",
+  "ascent.pause.resume": "Tiếp tục",
   "ascent.over.title": "Cuộc Thăng Tiến Kết Thúc",
   "ascent.over.subtitle": "Kinh đô thất thủ sau {waves} đợt tấn công.",
   "ascent.over.waves": "Số đợt trụ được",
