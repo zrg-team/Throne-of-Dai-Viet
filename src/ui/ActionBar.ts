@@ -12,7 +12,9 @@ const RIVAL_KEYS = ['build', 'heroes', 'court', 'army', 'pause'] as const;
  * Army / Affairs screens the other modes have, plus this mode's Codex. Conquest is reached
  * the classic way too — by selecting a province on the map — so it needs no button here.
  */
-const ASCENT_KEYS = ['build', 'heroes', 'court', 'army', 'affairs', 'codex', 'pause'] as const;
+// `battle` sits first because while a siege is live it is the only thing that matters, and
+// it is the one button that appears and disappears with the state of the world.
+const ASCENT_KEYS = ['battle', 'build', 'heroes', 'court', 'army', 'affairs', 'codex', 'pause'] as const;
 
 export const ACTION_BUTTON_HEIGHT = 36;
 export const ACTION_BUTTON_Y = GAME_HEIGHT - ACTION_BAR_HEIGHT / 2;

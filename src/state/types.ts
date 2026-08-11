@@ -659,7 +659,7 @@ export type AscentRarity = 'bronze' | 'silver' | 'gold' | 'jade';
  * game already is. Conquest is not here: like the classic modes, it is reached by selecting
  * a province on the map.
  */
-export type AscentLane = 'build' | 'heroes' | 'court' | 'army' | 'affairs';
+export type AscentLane = 'build' | 'heroes' | 'court' | 'army' | 'affairs' | 'battle';
 
 export type AscentLaneStatus = 'ready' | 'busy' | 'alert' | 'blocked';
 
@@ -838,8 +838,6 @@ export type AscentPrompt =
   | { kind: 'law-choice'; projectIds: string[]; points: number; taxOptions: TaxPolicy[] }
   /** The court speaks: one card drawn from `state.politicsDeck`. */
   | { kind: 'parliament'; cardId: string }
-  /** A field engagement the player can watch and steer. Reads `ascent.activeBattle`. */
-  | { kind: 'battle' }
   /** The granary is empty and still draining. What the realm does about it. */
   | { kind: 'famine'; shortfall: number; options: FamineOption[] }
   /** A rival empire makes a demand of its own: tribute, coalition, or submission. */
@@ -907,6 +905,9 @@ export interface AscentBattle {
    */
   ourMorale: number;
   theirMorale: number;
+  /** Hosts present on each side last beat, so arriving relief can be announced. */
+  ourHostCount: number;
+  theirHostCount: number;
   /** Men held at camp at the outset, committed once mid-fight. */
   reserve: { spearmen: number; archers: number; heavyInfantry: number };
   reserveSpent: boolean;

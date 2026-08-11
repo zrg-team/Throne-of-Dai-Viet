@@ -17,7 +17,7 @@ import { addMandate } from '../empire/MandateSystem';
 import { tickGreatPowersYear } from '../empire/GreatPowersSystem';
 import { drainAscentPrompts } from './AscentState';
 import { tickAscentAutopilot } from './AutopilotSystem';
-import { beginBattle } from './BattleSystem';
+import { advanceBattle, beginBattle } from './BattleSystem';
 import { tickAscentProgress } from './PowerSystem';
 import { tickRaids, tickWaveDirector } from './WaveDirector';
 import { detectConquests, ensureAscentLaneState, refreshAscentLaneState } from './ConquestSystem';
@@ -178,6 +178,11 @@ export function advanceAscentTick(state: GameState): void {
     const watched = !state.ascent.autoResolveBattles && beginBattle(state);
     if (!watched) resolvePendingBattle(state, 'delegate');
   }
+
+  // A siege runs across seasons, not seconds. Several beats a tick keeps an engagement to a
+  // handful of turns while leaving the player time to raise a host and march it in — which is
+  // the whole point of the battle no longer freezing the world.
+  advanceBattle(state);
 
   settleOwnedLands(state);
   detectConquests(state, ownedBefore);
