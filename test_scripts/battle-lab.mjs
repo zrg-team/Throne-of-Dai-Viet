@@ -94,6 +94,20 @@ const out = await page.evaluate(async (fights) => {
     if (policy === 'always-charge') B.setBattlePosture(st, 'press');
     let guard = 0;
     while (!b.over && guard++ < 400) {
+      // Fixed one-shot timings, to prove no single moment is always right.
+      if (policy === 'reserve-at-contact') {
+        if (b.ourAdvance + b.theirAdvance >= 1 && !b.reserveSpent) B.commitReserve(st);
+        if (!b.rallySpent && b.ourAdvance + b.theirAdvance >= 1) B.rally(st);
+      }
+      if (policy === 'reserve-at-half') {
+        if (b.ourNow <= b.ourStart * 0.6 && !b.reserveSpent) B.commitReserve(st);
+        if (!b.rallySpent && b.ourMorale < 55) B.rally(st);
+      }
+      // Pull out before the line breaks, rather than being cut down running.
+      if (policy === 'retreat-in-time') {
+        if (!b.reserveSpent && b.ourAdvance + b.theirAdvance >= 1) B.commitReserve(st);
+        if (b.ourMorale <= CFG.BATTLE_ROUT_MORALE + 8) { b.over = true; b.outcome = 'withdrew'; break; }
+      }
       if (policy === 'adaptive') {
         const ours = st.armies.find((a) => a.id === 'lab-us');
         const theirs = st.armies.find((a) => a.id === 'lab-them');
@@ -113,8 +127,12 @@ const out = await page.evaluate(async (fights) => {
     const ours = st.armies.find((a) => a.id === 'lab-us');
     const theirs = st.armies.find((a) => a.id === 'lab-them');
     // Reserve never committed still counts — those men are alive.
-    const ourLeft = (ours ? ours.units.spearmen + ours.units.archers + ours.units.heavyInfantry : 0)
-      + (b.reserveSpent ? 0 : b.reserve.spearmen + b.reserve.archers + b.reserve.heavyInfantry);
+    // A broken host is cut down as it runs. `finishBattle` applies this in the game; the lab
+    // never calls it (it would resolve invasions and captures too), so the penalty is mirrored
+    // here — without it, retreating in time cannot show the benefit it actually has.
+    const routPenalty = b.outcome === 'we-rout' ? 1 - CFG.BATTLE_ROUT_LOSS_SHARE : 1;
+    const ourLeft = ((ours ? ours.units.spearmen + ours.units.archers + ours.units.heavyInfantry : 0)
+      + (b.reserveSpent ? 0 : b.reserve.spearmen + b.reserve.archers + b.reserve.heavyInfantry)) * routPenalty;
     const theirLeft = theirs ? theirs.units.spearmen + theirs.units.archers + theirs.units.heavyInfantry : 0;
     return {
       won: b.outcome === 'they-rout' || (b.outcome === 'spent' && ourLeft > theirLeft),
@@ -126,7 +144,8 @@ const out = await page.evaluate(async (fights) => {
     };
   };
 
-  const policies = ['auto', 'always-hold', 'always-charge', 'adaptive'];
+  const policies = ['auto', 'always-hold', 'always-charge',
+    'reserve-at-contact', 'reserve-at-half', 'retreat-in-time', 'adaptive'];
   const results = {};
   for (const policy of policies) {
     const rows = scenarios.map((sc) => run(sc, policy)).filter(Boolean);
@@ -158,8 +177,21 @@ const out = await page.evaluate(async (fights) => {
     return rows.reduce((sum, r) => sum + r.ourLeftShare, 0) / rows.length;
   };
 
+  // The same fight against different opponents. If these do not differ, the doctrine layer is
+  // decoration.
+  const kingdom = st.kingdoms.find((k) => k.id === 'northern-rival');
+  const original = kingdom.personality;
+  const byDoctrine = {};
+  for (const personality of ['aggressive', 'defensive', 'economic']) {
+    kingdom.personality = personality;
+    const rows = scenarios.slice(0, 100).map((sc) => run(sc, 'adaptive')).filter(Boolean);
+    byDoctrine[personality] = rows.filter((r) => r.won).length / rows.length;
+  }
+  kingdom.personality = original;
+
   return {
     results,
+    byDoctrine,
     archerHeavyWins: compo(0.5, 0.12),
     archerLightWins: compo(0.12, 0.5),
     tickMs: CFG.BATTLE_TICK_MS,
@@ -192,4 +224,19 @@ line(R.adaptive.routRate >= 0.25 && R.adaptive.routRate <= 0.5, 'routs in 25-50%
 line(seconds >= 8 && seconds <= 22, 'melee lasts 8-22s', `${seconds.toFixed(1)}s`);
 line(out.archerHeavyWins - out.archerLightWins >= 0.06, 'archers measurably pay off (survivors)',
   `${pct(out.archerHeavyWins)} vs ${pct(out.archerLightWins)}`);
+
+const bestTiming = Math.max(R['reserve-at-contact'].winRate, R['reserve-at-half'].winRate);
+line(R.adaptive.winRate >= bestTiming, 'no fixed one-shot timing beats adaptive timing',
+  `adaptive ${pct(R.adaptive.winRate)} vs best fixed ${pct(bestTiming)}`);
+// Compared against `always-hold`, not `adaptive`: both mostly lose these fights, so this asks
+// the actual question — when the battle is going badly, does pulling out save men? Measuring it
+// against a policy that often wins outright compared a withdrawal to a victory.
+line(R['retreat-in-time'].survivors - R['always-hold'].survivors >= 0.06,
+  'retreating in time saves men vs fighting on',
+  `${pct(R['retreat-in-time'].survivors)} vs ${pct(R['always-hold'].survivors)}`);
+const doct = Object.values(out.byDoctrine);
+line(Math.max(...doct) - Math.min(...doct) >= 0.10, 'enemy doctrines produce different fights',
+  Object.entries(out.byDoctrine).map(([k, v]) => `${k} ${pct(v)}`).join('  '));
+line(R.adaptive.winRate >= 0.35 && R.adaptive.winRate <= 0.60, 'player win rate in 35-60%',
+  pct(R.adaptive.winRate));
 console.log(`\nconsole errors: ${errors.length ? errors.slice(0, 3).join(' ; ') : 'none'}`);
