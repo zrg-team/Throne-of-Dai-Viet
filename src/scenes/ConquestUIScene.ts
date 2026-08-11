@@ -19,6 +19,7 @@ import { eraLabel } from '../systems/empire/MandateSystem';
 import { getEmpirePower, hasPact } from '../systems/DiplomacySystem';
 import { renderHeroFaceInBox } from '../ui/FaceRenderer';
 import { INK_UI, INK_UI_HEX, InkUI, type InkScrollArea, type UIBounds } from '../ui/InkUI';
+import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { ASCENT_HUD_HEIGHT, AscentHud } from '../ui/ascent/AscentHud';
 import { ActionBar } from '../ui/ActionBar';
 import { ResourceBar } from '../ui/ResourceBar';
@@ -168,6 +169,8 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'law-choice': return `${prompt.points}:${prompt.projectIds.join(',')}`;
       case 'parliament': return prompt.cardId;
       case 'envoy': return `${prompt.kingdomId}:${prompt.relations}`;
+      // Re-renders on every exchange, which is what makes the fight read as animated.
+      case 'battle': return `battle:${this.state.ascent?.activeBattle?.round ?? 0}`;
       case 'famine': return `famine:${prompt.shortfall}`;
       case 'rival-demand': return `${prompt.demand}:${prompt.kingdomId}`;
       case 'empire-response': return `${prompt.wave}`;
@@ -188,6 +191,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'law-choice': this.showLawChoice(prompt); break;
       case 'parliament': this.showParliament(prompt); break;
       case 'envoy': this.showEnvoy(prompt); break;
+      case 'battle': this.showBattle(); break;
       case 'famine': this.showFamine(prompt); break;
       case 'rival-demand': this.showRivalDemand(prompt); break;
       case 'empire-response': this.showEmpireResponse(prompt); break;
@@ -247,6 +251,9 @@ export class ConquestUIScene extends Phaser.Scene {
   }
 
   /** A tappable prompt option. Everything the player can do is one of these. */
+  /** Draws the two hosts on the battle screen, reusing the map's own marker art. */
+  private battleItems?: MapItemRenderer;
+
   /** Width kept clear on a badged card's title line, covering the longest badge label. */
   private static readonly BADGE_CLEARANCE = 86;
 
@@ -1386,6 +1393,119 @@ export class ConquestUIScene extends Phaser.Scene {
         },
       ));
     });
+  }
+
+  /**
+   * The field battle, exchange by exchange.
+   *
+   * The one screen in the mode where the player watches rather than reads: two hosts facing
+   * each other, strength draining as the rounds land, and the choice of how to fight it kept
+   * live between exchanges. Every other prompt is a decision made once; this one is a decision
+   * you can change your mind about halfway through, which is the whole reason it pauses.
+   *
+   * The rival's colours are the same ones its markers fly on the map, so the host you watched
+   * march in is visibly the host you are now fighting.
+   */
+  private showBattle(): void {
+    const battle = this.state.ascent?.activeBattle;
+    if (!battle) return;
+
+    this.battleItems ??= createMapItemRenderer(this);
+    const rival = this.state.kingdoms.find((k) => k.id === battle.kingdomId);
+    const rivalColor = rival?.color ?? INK_UI.cinnabar;
+
+    const content = this.promptFrame(
+      battle.isGreat
+        ? t('ascent.battle.greatTitle', { land: battle.landName })
+        : t('ascent.battle.title', { land: battle.landName }),
+      t('ascent.battle.subtitle', {
+        kingdom: battle.kingdomName,
+        round: Math.min(battle.round + 1, battle.totalRounds),
+        of: battle.totalRounds,
+      }),
+    );
+
+    // ── The field ─────────────────────────────────────────────────────────
+    const fieldH = 150;
+    this.modalLayer.add(this.ui.panel(
+      { x: content.x, y: content.y, width: content.width, height: fieldH },
+      { border: INK_UI.softBrush },
+    ));
+
+    // Formations close on each other as the exchanges run, so progress is legible at a glance
+    // without reading a single number.
+    const closed = battle.totalRounds > 0 ? Math.min(1, battle.round / battle.totalRounds) : 0;
+    const midX = content.x + content.width / 2;
+    const gap = 92 - closed * 34;
+
+    const ours = this.battleItems.createArmyMarker(battle.ourNow, true);
+    ours.setPosition(midX - gap, content.y + 92);
+    this.modalLayer.add(ours);
+
+    const theirs = this.battleItems.createArmyMarker(battle.theirNow, false, rivalColor);
+    theirs.setPosition(midX + gap, content.y + 92);
+    this.modalLayer.add(theirs);
+
+    // A clash mark between them once blows have actually been traded.
+    if (battle.round > 0) {
+      this.modalLayer.add(this.ui.label(midX, content.y + 52, t('ascent.battle.clash'), 'label', {
+        fontSize: '20px', align: 'center',
+      }).setOrigin(0.5));
+    }
+
+    // ── Strength bars ─────────────────────────────────────────────────────
+    // On their own ground: these sat directly on the dimmed map, where dark numbers on a dark
+    // scrim were the least readable thing on the screen.
+    const readoutY = content.y + fieldH + 8;
+    const logLines = Math.min(3, battle.log.length);
+    const readoutH = 44 + logLines * 18;
+    this.modalLayer.add(this.ui.panel(
+      { x: content.x, y: readoutY, width: content.width, height: readoutH },
+      { border: INK_UI.softBrush },
+    ));
+
+    const barY = readoutY + 8;
+    const barW = (content.width - 36) / 2;
+    const bar = (x: number, now: number, start: number, color: number, label: string): void => {
+      this.modalLayer.add(this.ui.label(x, barY, label, 'caption', {}));
+      this.modalLayer.add(this.ui.label(x + barW, barY, `${now}`, 'label', { fontSize: '15px', align: 'right' })
+        .setOrigin(1, 0));
+      this.modalLayer.add(this.ui.statBar({ x, y: barY + 22, width: barW, height: 8 }, now, Math.max(1, start), color));
+    };
+    bar(content.x + 12, battle.ourNow, battle.ourStart, INK_UI.jade, t('ascent.battle.ours'));
+    bar(content.x + barW + 24, battle.theirNow, battle.theirStart, rivalColor, battle.kingdomName);
+
+    // ── The exchange log ──────────────────────────────────────────────────
+    let y = barY + 36;
+    for (const line of battle.log.slice(-3)) {
+      this.modalLayer.add(this.ui.label(content.x + 12, y, line, 'caption', {
+        wordWrap: { width: content.width - 24 },
+      }));
+      y += 18;
+    }
+
+    // ── Controls ──────────────────────────────────────────────────────────
+    const rowH = 56;
+    let optY = readoutY + readoutH + 10;
+    const control = (id: string, accent: number, badge?: string): void => {
+      this.modalLayer.add(this.optionCard(
+        { x: content.x, y: optY, width: content.width, height: rowH },
+        {
+          title: t(`ascent.battle.${id}` as Parameters<typeof t>[0]),
+          body: t(`ascent.battle.${id}D` as Parameters<typeof t>[0]),
+          badge,
+          accent,
+          onTap: () => this.choose(id),
+        },
+      ));
+      optY += rowH + 8;
+    };
+
+    const pressing = battle.posture === 'press';
+    control('press', pressing ? INK_UI.gold : INK_UI.softBrush, pressing ? t('ascent.battle.current') : undefined);
+    control('hold', !pressing ? INK_UI.gold : INK_UI.softBrush, !pressing ? t('ascent.battle.current') : undefined);
+    control('retreat', INK_UI.cinnabar);
+    control('auto', INK_UI.softBrush);
   }
 
   private showRivalDemand(prompt: Extract<AscentPrompt, { kind: 'rival-demand' }>): void {

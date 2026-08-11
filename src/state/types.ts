@@ -838,6 +838,8 @@ export type AscentPrompt =
   | { kind: 'law-choice'; projectIds: string[]; points: number; taxOptions: TaxPolicy[] }
   /** The court speaks: one card drawn from `state.politicsDeck`. */
   | { kind: 'parliament'; cardId: string }
+  /** A field engagement the player can watch and steer. Reads `ascent.activeBattle`. */
+  | { kind: 'battle' }
   /** The granary is empty and still draining. What the realm does about it. */
   | { kind: 'famine'; shortfall: number; options: FamineOption[] }
   /** A rival empire makes a demand of its own: tribute, coalition, or submission. */
@@ -877,6 +879,31 @@ export type AscentPrompt =
     };
 
 export type AscentPromptKind = AscentPrompt['kind'];
+
+/** How a host is fighting this exchange. A trade, not a strictly-better setting. */
+export type BattlePosture = 'press' | 'hold';
+
+/** A field engagement in progress, exchange by exchange. */
+export interface AscentBattle {
+  landId: string;
+  landName: string;
+  invaderArmyId: string;
+  kingdomId: string;
+  kingdomName: string;
+  isGreat: boolean;
+  round: number;
+  totalRounds: number;
+  posture: BattlePosture;
+  /** Headcounts at the outset, so the strength bars have a denominator. */
+  ourStart: number;
+  theirStart: number;
+  ourNow: number;
+  theirNow: number;
+  /** One line per exchange, oldest first. */
+  log: string[];
+  /** Set once the last exchange has run or a host has broken. */
+  over: boolean;
+}
 
 /** Why a Dragon Ascent run ended. Shown on the summary so a loss is legible. */
 export type AscentEndCause = 'capital' | 'annihilated';
@@ -947,6 +974,12 @@ export interface AscentState {
   promptWaiting: Partial<Record<AscentPromptKind, number>>;
   /** Seasons before the realm will raise the famine card again. */
   famineCooldown: number;
+  /** The engagement currently being watched, if any. */
+  activeBattle?: AscentBattle;
+  /** Set once the player hands battles back to their generals for the rest of the run. */
+  autoResolveBattles: boolean;
+  /** Wave whose engagement has already been watched, so a siege asks once, not per tick. */
+  lastWatchedWave: number;
   /** Set when the run ends, so the summary can name the cause rather than shrug. */
   endCause?: AscentEndCause;
   /** Province whose fall ended the run. */

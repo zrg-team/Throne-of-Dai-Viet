@@ -47,6 +47,8 @@ export function ensureAscentLaneState(state: GameState): void {
   ascent.promptCooldowns ??= {};
   ascent.promptWaiting ??= {};
   ascent.famineCooldown ??= 0;
+  ascent.autoResolveBattles ??= false;
+  ascent.lastWatchedWave ??= -1;
   ascent.drawnCourtCards ??= [];
   ascent.lastPromptTurn ??= 0;
   ascent.courtCardCooldown ??= 3;

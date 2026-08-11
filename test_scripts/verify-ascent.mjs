@@ -58,6 +58,8 @@ const result = await page.evaluate(async () => {
       case 'envoy': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
       // A rich realm buys its way out of a famine; a poor one endures. Either way the card
       // must always resolve — a prompt this policy cannot answer stalls the whole run.
+      // Fight it out rather than retreating, so the assertions see engagements resolve.
+      case 'battle': return 'hold';
       case 'famine': return (p.options.find((o) => o.affordable) ?? p.options[p.options.length - 1]).id;
       case 'rival-demand': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
       case 'empire-response': {
@@ -409,7 +411,10 @@ const checks = {
   // The contract is about the *scheduled* cards. A wave landing or the run ending is
   // time-critical and is allowed to interrupt whatever came before it.
   'scheduled cards never land on consecutive ticks':
-    result.backToBackKinds.every((k) => ['empire-response', 'wave-result', 'run-over'].includes(k)),
+    // `battle` is exempt for the same reason `empire-response` is: it is not a scheduled
+    // card competing for the player's attention, it is one engagement unfolding a round at
+    // a time and deliberately re-queuing itself until a side breaks.
+    result.backToBackKinds.every((k) => ['empire-response', 'battle', 'wave-result', 'run-over'].includes(k)),
   'no prompt left unanswerable': result.stuckPrompts.length === 0,
 
   // ── unchanged run shape ──

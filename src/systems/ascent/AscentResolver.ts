@@ -10,6 +10,7 @@ import {
 import { applyAppointment, offerAppointment, resolveLawChoice, resolveParliament } from './CourtLaneSystem';
 import { resolveEnvoy } from './EnvoySystem';
 import { resolveFamine } from './FamineSystem';
+import { fightRound, finishBattle, setBattlePosture } from './BattleSystem';
 import { resolveRivalDemand } from './RivalDirector';
 import { passHeroSummon, recruitSummonedHero } from './SummonSystem';
 import { resolveEmpireResponse } from './WaveDirector';
@@ -121,6 +122,41 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
 
     case 'envoy': {
       handled = resolveEnvoy(state, prompt.kingdomId, choiceId);
+      break;
+    }
+
+    case 'battle': {
+      const battle = ascent.activeBattle;
+      if (!battle) { handled = true; break; }
+
+      if (choiceId === 'auto') {
+        // Hand the rest of the run's fighting to the generals, starting with this one.
+        ascent.autoResolveBattles = true;
+        finishBattle(state, 'hold');
+        handled = true;
+        break;
+      }
+      if (choiceId === 'retreat') {
+        finishBattle(state, 'retreat');
+        handled = true;
+        break;
+      }
+      if (choiceId === 'press' || choiceId === 'hold') {
+        setBattlePosture(state, choiceId);
+      }
+      // One exchange per answer. The prompt re-queues itself until a side breaks or the
+      // rounds run out, so the engagement unfolds a round at a time under the player's hand.
+      fightRound(state);
+      if (battle.over) {
+        finishBattle(state, battle.posture);
+      } else {
+        // Pushed straight onto the queue rather than through `enqueueAscentPrompt`, which
+        // refuses any kind already live — and during resolution *this* battle prompt still is.
+        // Routing through it silently dropped the re-queue, so every engagement ended after a
+        // single exchange and the multi-round fight never actually happened.
+        ascent.promptQueue.push({ kind: 'battle' });
+      }
+      handled = true;
       break;
     }
 

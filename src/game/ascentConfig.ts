@@ -252,12 +252,15 @@ export const LOYALTY_SETTLE_PER_TICK = 1.2;
  * Gold income per season above which returns diminish, and how sharply. See the note in
  * `calculatePlayerResourceRates`.
  *
- * At an exponent of 0.85 an unchecked income of ~9,500 a season becomes ~2,700 — still an order
- * of magnitude above the opening realm's, so growth is emphatically still rewarded, but no
- * longer at a rate that outruns every price in the mode within ten minutes.
+ * At 0.82 an unchecked income of ~9,500 a season becomes ~2,100 — still an order of magnitude
+ * above the opening realm's, so growth is emphatically still rewarded, but no longer at a
+ * rate that outruns every price in the mode within ten minutes.
+ *
+ * Trimmed from 0.85 once watchable battles began bleeding both sides properly: smaller
+ * surviving armies draw less upkeep, so the same drag left more coin banked than before.
  */
 export const GOLD_SOFTCAP_FROM = 500;
-export const GOLD_SOFTCAP_EXPONENT = 0.85;
+export const GOLD_SOFTCAP_EXPONENT = 0.82;
 
 // ── Standing armies cost what they are worth ────────────────────────────────
 /**
@@ -274,6 +277,25 @@ export const ARMY_GOLD_PER_SOLDIER = 0.02;
 export const ARMY_FOOD_PER_SOLDIER = 0.005;
 /** Troop count at which the upkeep multiplier reaches 2x. */
 export const ARMY_UPKEEP_SCALE = 5000;
+
+// ── Field battles you can watch ─────────────────────────────────────────────
+/** Exchanges a small engagement runs; a large one runs up to the maximum. */
+export const BATTLE_BASE_ROUNDS = 3;
+export const BATTLE_MAX_ROUNDS = 5;
+/**
+ * Share of a host's strength at stake in one exchange, before the power ratio and posture
+ * scale it. Tuned so a matched fight leaves both sides bloodied but standing after three
+ * rounds, which is what makes retreating between them a real decision rather than a formality.
+ */
+export const BATTLE_ROUND_BITE = 0.11;
+/** Fraction of its starting strength at which a host breaks and the engagement ends early. */
+export const BATTLE_BREAK_SHARE = 0.35;
+/**
+ * What each posture trades. Pressing deals more and takes more; holding the line does the
+ * reverse. Neither is strictly better, which is the point of offering the choice at all.
+ */
+export const BATTLE_PRESS_TRADE = { dealt: 1.35, taken: 1.3 };
+export const BATTLE_HOLD_TRADE = { dealt: 0.8, taken: 0.72 };
 
 // ── Momentum (XP) ───────────────────────────────────────────────────────────
 /**
