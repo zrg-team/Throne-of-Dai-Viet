@@ -894,6 +894,10 @@ export interface AscentBattle {
   posture: BattlePosture;
   /** What the invader is doing this beat, from its doctrine. */
   theirPosture: BattlePosture;
+  /** Hosts that have broken and left the line, either side. */
+  brokenHostIds: string[];
+  /** The enemy host the line is concentrating on, if any. */
+  focusHostId?: string;
   /** Morale we opened with, so a rally can be scaled by how far the line has sagged. */
   ourStartMorale: number;
   /**

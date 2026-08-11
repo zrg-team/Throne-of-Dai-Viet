@@ -11,7 +11,7 @@ import { offerEnvoyTo } from '../systems/ascent/EnvoySystem';
 import { offerAppointment, offerLawChoice } from '../systems/ascent/CourtLaneSystem';
 import { raiseHostNow } from '../systems/ascent/AutopilotSystem';
 import { disbandArmy } from '../systems/WarSystem';
-import { commitReserve, finishBattle, rally, setBattlePosture } from '../systems/ascent/BattleSystem';
+import { commitReserve, finishBattle, rally, setBattleFocus, setBattlePosture } from '../systems/ascent/BattleSystem';
 import { createAscentGameState } from '../state/GameState';
 import { MapScene } from './MapScene';
 
@@ -284,6 +284,10 @@ export class ConquestScene extends MapScene {
     // own recruit pass, which only fires when the realm is *below* its target host count.
     // Battle orders act on the live siege rather than resolving a prompt: the fight is part of
     // the world now, so an order is a standing instruction to it, not a turn taken in it.
+    ui.events.on('ui:battle-focus', (hostId?: string) => {
+      setBattleFocus(this.state, hostId);
+      ui.events.emit('state-changed');
+    });
     ui.events.on('ui:battle-order', (order: string) => {
       if (order === 'rally') rally(this.state);
       else if (order === 'reserve') commitReserve(this.state);
