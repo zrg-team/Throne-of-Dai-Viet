@@ -100,11 +100,22 @@ export const WAVE_PRESSURE_BASE = 0.36;
 /** Added per wave, so late waves demand real compounding rather than a fixed tax. */
 export const WAVE_PRESSURE_STEP = 0.035;
 /**
- * Ceiling on pressure. Above ~1.3 a wave beats a realm that did everything right, which turns
- * the run into a coin flip rather than a test — the escalation past this point comes from host
- * *count* (`waveHostCount`) and from Great Invasions instead.
+ * Ceiling on pressure, in units of the realm's lagged defence.
+ *
+ * Re-derived once the response card began quoting the *real* battle model. That model resolves
+ * on `attacker ≥ defender × siegeMult × Uniform(0.9, 1.1)`, so with an ordinary siege multiplier
+ * of 0.85 a wave is a guaranteed loss the moment pressure exceeds `1.1 × 0.85 ≈ 0.94`, and a
+ * guaranteed hold below `0.9 × 0.85 ≈ 0.77`.
+ *
+ * The old 1.3 sat far above that: it meant "auto-lose" for the whole late game. It survived
+ * because the odds shown were an invented `power / (power + threat)` ratio that could not reach
+ * zero and cheerfully reported ~30% for a fight the player could not win under any choice. Once
+ * the card started telling the truth, whole response screens read 0% on every row.
+ *
+ * 0.95 puts the top of the curve just past the band — late waves are genuinely marginal and the
+ * gold options decide them — rather than past the point of no return.
  */
-export const WAVE_PRESSURE_MAX = 1.3;
+export const WAVE_PRESSURE_MAX = 0.95;
 /** A Great Invasion demands this much more than a regular wave of the same number. */
 export const BOSS_PRESSURE_MULT = 1.35;
 /** Floor so an early or freshly-crushed realm still faces something. */
@@ -159,7 +170,12 @@ export const TRIBUTE_INCOME_MULT = 11;
  * player *can* make. Hurts — most of the coffers — without ever being impossible.
  */
 export const TRIBUTE_TREASURY_CAP = 0.7;
-export const TRIBUTE_COOLDOWN_TICKS = 22;
+/**
+ * Seasons between tribute demands. 14 rather than 22: this is described as the recurring drain
+ * on a fat treasury, and at the longer cooldown combined with a bar nobody could clear it fired
+ * once in a five-hundred-season run — which is not a drain, it is an anecdote.
+ */
+export const TRIBUTE_COOLDOWN_TICKS = 14;
 /** Seasons the next wave is pulled forward by refusing a demand — the refusal's teeth. */
 export const TRIBUTE_REFUSE_TICKS = 4;
 /** Dominance above which the world bands together against the leader. */
@@ -185,15 +201,30 @@ export const COALITION_LEAD_TICKS = 6;
  * and submission demands vanished again. It must stay comfortably inside the band, and above
  * `TRIBUTE_POWER_RATIO` so the two demands keep addressing different rivals.
  */
-export const VASSAL_POWER_RATIO = 0.3;
+export const VASSAL_POWER_RATIO = 0.22;
 /**
  * How far a rival must tower over the *other* empires to count as a hegemon and demand
  * submission. Measured against its peers, not against the player, so the branch cannot go dark
- * again every time the realm gets stronger — see `demandsSubmission`.
+ * every time the realm gets stronger — see `demandsSubmission`.
+ *
+ * 1.2 rather than 1.4: the world's empires stay broadly comparable for most of a run, and at
+ * 1.4 the top power was rarely far enough ahead of the pack for the branch to fire at all. It
+ * still means "clearly the strongest in the world", which is what a hegemon is.
  */
-export const VASSAL_HEGEMON_MULT = 1.4;
-/** Same scale: how strong a rival must be to think extortion is worth trying. */
-export const TRIBUTE_POWER_RATIO = 0.3;
+export const VASSAL_HEGEMON_MULT = 1.2;
+/**
+ * How strong a rival must be, against `contestedDefencePower`, to think extortion is worth
+ * trying. Deliberately far below the submission bar.
+ *
+ * Tribute asks a *second-tier* power for money — anyone strong enough to demand your crown is
+ * excluded and asks for that instead. Measured, the strongest rival runs 0.25-0.49× the realm
+ * and the next one down sits well beneath that, so a 0.30 bar meant nobody was ever eligible:
+ * tribute fired zero times across a full run, which cost the mode its single largest gold sink
+ * and left a naive realm banking sixty seasons of income with nothing to buy.
+ *
+ * A neighbour does not need to match you to extort you. It needs to be able to hurt you.
+ */
+export const TRIBUTE_POWER_RATIO = 0.18;
 export const VASSAL_COOLDOWN_TICKS = 60;
 /** How much heavier an endured coalition's wave is than an ordinary one. */
 export const COALITION_WAVE_MULT = 1.5;
@@ -207,6 +238,14 @@ export const MERCENARY_GOLD_BASE = 320;
 export const MERCENARY_INCOME_MULT = 9;
 /** Company size as a share of the realm's field power — a real answer, not a token. */
 export const MERCENARY_POWER_SHARE = 0.45;
+
+/**
+ * Loyalty a newly-taken province regains per season. At 1.2 a bribed province (68) reaches full
+ * output in roughly 27 seasons and an intimidated one (50) in 42, against an envoy's 85 arriving
+ * nearly settled — long enough that the method matters, short enough that it is a delay rather
+ * than a punishment.
+ */
+export const LOYALTY_SETTLE_PER_TICK = 1.2;
 
 // ── Momentum (XP) ───────────────────────────────────────────────────────────
 /**

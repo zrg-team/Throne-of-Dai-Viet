@@ -1,5 +1,5 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
-import { CAPITAL_GRACE_TICKS, SUMMON_EVERY_N_WAVES } from '../../game/ascentConfig';
+import { CAPITAL_GRACE_TICKS, LOYALTY_SETTLE_PER_TICK, SUMMON_EVERY_N_WAVES } from '../../game/ascentConfig';
 import { pushToast } from '../empire/notifications';
 import { progressAcquisitions } from '../AcquisitionSystem';
 import { collectPlayerIncome, progressBuildOrders } from '../ResourceSystem';
@@ -90,6 +90,22 @@ function checkAscentDefeat(state: GameState): void {
   pushToast(state, t('ascent.capital.lost', { land: capital.name, ticks: remaining }), 'threat');
 }
 
+/**
+ * Newly-taken provinces come round over time.
+ *
+ * Without this, the loyalty a method stamps on a province would be a permanent penalty and every
+ * player would simply always send the envoy. Drifting upward turns it into what it should be: a
+ * *delay* you can choose to pay in seasons or in gold. A seated governor adds to this through
+ * `progressCourt`, which is what makes a governorship worth more than a stat line.
+ */
+function settleOwnedLands(state: GameState): void {
+  for (const land of state.lands) {
+    if (land.ownerId !== PLAYER_KINGDOM_ID) continue;
+    if (land.loyalty >= 100) continue;
+    land.loyalty = Math.min(100, land.loyalty + LOYALTY_SETTLE_PER_TICK);
+  }
+}
+
 /** Keeps the peak-lands figure current; it feeds the run score. */
 function trackScore(state: GameState): void {
   if (!state.campaignScore) return;
@@ -157,6 +173,7 @@ export function advanceAscentTick(state: GameState): void {
     resolvePendingBattle(state, 'delegate');
   }
 
+  settleOwnedLands(state);
   detectConquests(state, ownedBefore);
   tickAscentProgress(state);
 
