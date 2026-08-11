@@ -19,6 +19,7 @@ import {
   BATTLE_ROUT_MORALE,
   BATTLE_SPREAD_MULT,
   BATTLE_VOLLEY_BITE,
+  BATTLE_WITHDRAW_RECOVERY,
 } from '../../game/ascentConfig';
 import { resolvePendingBattle } from '../empire/InvasionSystem';
 import { armyPower, terrainDefenseMultiplier } from '../WarSystem';
@@ -145,6 +146,7 @@ export function beginBattle(state: GameState): boolean {
     posture: 'hold',
     theirPosture: 'press',
     brokenHostIds: [],
+    ourLostTotal: 0,
     focusHostId: undefined,
     ourStartMorale: defender.morale,
     ourAdvance: 0,
@@ -377,6 +379,7 @@ export function fightRound(state: GameState): void {
     bleed(host, BATTLE_ROUT_LOSS_SHARE);
   }
 
+  battle.ourLostTotal += ourLoss;
   battle.round += 1;
   battle.ourNow = ours.reduce((total, host) => total + totalUnits(host), 0);
   battle.theirNow = theirs.reduce((total, host) => total + totalUnits(host), 0);
@@ -489,6 +492,27 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
   // button nobody presses.
   if (battle?.outcome === 'we-rout') {
     for (const host of ourHosts(state, battle.landId)) bleed(host, BATTLE_ROUT_LOSS_SHARE);
+  }
+
+  // A withdrawal ordered in time is an orderly one: the host keeps its formation, and the
+  // stragglers and lightly wounded rejoin it over the following days. A rout does not — men who
+  // run are ridden down, which is what `BATTLE_ROUT_LOSS_SHARE` above models.
+  //
+  // This is what finally makes pulling out a *tactical* skill and not only a strategic one.
+  // Deliberately done by recovering losses rather than by weakening `hold`: making the standing
+  // orders trade worse to justify retreat would have undone the dominated-option-free balance
+  // that took two passes to earn. Withdrawal now earns its keep on its own terms.
+  if (battle && decision === 'retreat' && battle.outcome !== 'we-rout') {
+    const hosts = ourHosts(state, battle.landId);
+    const recovered = Math.round(battle.ourLostTotal * BATTLE_WITHDRAW_RECOVERY);
+    if (hosts.length > 0 && recovered > 0) {
+      const each = Math.floor(recovered / hosts.length);
+      for (const host of hosts) {
+        host.units.spearmen += Math.round(each * 0.6);
+        host.units.archers += Math.round(each * 0.25);
+        host.units.heavyInfantry += Math.round(each * 0.15);
+      }
+    }
   }
   const resolved = battle?.outcome === 'they-rout'
     ? 'attack'

@@ -896,6 +896,8 @@ export interface AscentBattle {
   theirPosture: BattlePosture;
   /** Hosts that have broken and left the line, either side. */
   brokenHostIds: string[];
+  /** Men of ours lost so far, so an orderly withdrawal can recover its stragglers. */
+  ourLostTotal: number;
   /** The enemy host the line is concentrating on, if any. */
   focusHostId?: string;
   /** Morale we opened with, so a rally can be scaled by how far the line has sagged. */
