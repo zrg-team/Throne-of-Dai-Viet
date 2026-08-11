@@ -20,6 +20,7 @@ import { getEmpirePower, hasPact } from '../systems/DiplomacySystem';
 import { renderHeroFaceInBox } from '../ui/FaceRenderer';
 import { INK_UI, INK_UI_HEX, InkUI, type InkScrollArea, type UIBounds } from '../ui/InkUI';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
+import { CARD_ICON_SIZE, drawCardIcon, iconForOption, type CardIconId } from '../ui/CardIcons';
 import { ASCENT_HUD_HEIGHT, AscentHud } from '../ui/ascent/AscentHud';
 import { ActionBar } from '../ui/ActionBar';
 import { ResourceBar } from '../ui/ResourceBar';
@@ -254,6 +255,9 @@ export class ConquestUIScene extends Phaser.Scene {
   /** Draws the two hosts on the battle screen, reusing the map's own marker art. */
   private battleItems?: MapItemRenderer;
 
+  /** Left gutter a card icon occupies, glyph plus breathing room. */
+  private static readonly ICON_GUTTER = CARD_ICON_SIZE + 12;
+
   /** Width kept clear on a badged card's title line, covering the longest badge label. */
   private static readonly BADGE_CLEARANCE = 86;
 
@@ -266,6 +270,8 @@ export class ConquestUIScene extends Phaser.Scene {
       noteColor?: string;
       /** Width kept clear on the right (a portrait column), so text wraps before it. */
       reserveRight?: number;
+      /** Glyph drawn in a left gutter. Resolved from the option id by `iconForOption`. */
+      icon?: CardIconId;
       accent: number;
       badge?: string;
       disabled?: boolean;
@@ -275,7 +281,12 @@ export class ConquestUIScene extends Phaser.Scene {
   ): Phaser.GameObjects.Container {
     const container = this.add.container(bounds.x, bounds.y);
     const alpha = opts.disabled ? 0.45 : 1;
-    const textWidth = bounds.width - 32 - (opts.reserveRight ?? 0);
+    // A glyph shifts the whole text column right rather than overlapping it, so a card
+    // with an icon wraps exactly as one without it does — the auto-fit height logic below
+    // depends on the measured text being honest.
+    const gutter = opts.icon ? ConquestUIScene.ICON_GUTTER : 0;
+    const textX = 16 + gutter;
+    const textWidth = bounds.width - 32 - gutter - (opts.reserveRight ?? 0);
 
     const surface = this.ui.panel(
       { x: 0, y: 0, width: bounds.width, height: bounds.height },
@@ -287,8 +298,14 @@ export class ConquestUIScene extends Phaser.Scene {
 
     // The badge sits top-right on the title's own line, so the title has to wrap before it.
     // Without this a longer title runs underneath and is clipped mid-word.
+    if (opts.icon) {
+      const glyph = drawCardIcon(this, opts.icon, opts.accent);
+      glyph.setPosition(16 + CARD_ICON_SIZE / 2, bounds.height / 2).setAlpha(alpha);
+      container.add(glyph);
+    }
+
     const titleWidth = textWidth - (opts.badge ? ConquestUIScene.BADGE_CLEARANCE : 0);
-    const titleText = this.ui.label(16, 10, opts.title, 'label', {
+    const titleText = this.ui.label(textX, 10, opts.title, 'label', {
       fontSize: '14px',
       wordWrap: { width: titleWidth },
     }).setAlpha(alpha);
@@ -297,14 +314,14 @@ export class ConquestUIScene extends Phaser.Scene {
     // Body follows the title's *measured* height rather than a fixed offset: reserving width
     // for the badge means a long title can now wrap to two lines, and a hard-coded y drew the
     // body straight through the second one.
-    container.add(this.ui.label(16, 10 + titleText.height + 4, opts.body, 'body', {
+    container.add(this.ui.label(textX, 10 + titleText.height + 4, opts.body, 'body', {
       fontSize: '11px',
       color: INK_UI_HEX.mutedText,
       wordWrap: { width: textWidth },
     }).setAlpha(alpha));
 
     if (opts.note) {
-      container.add(this.add.text(16, bounds.height - 20, opts.note, {
+      container.add(this.add.text(textX, bounds.height - 20, opts.note, {
         color: opts.noteColor ?? '#4c6b3f',
         fontFamily: UI_FONT,
         fontSize: '11px',
@@ -863,6 +880,7 @@ export class ConquestUIScene extends Phaser.Scene {
     this.modalLayer.add(this.optionCard(
       { x: content.x, y: content.y, width: content.width, height: 92 },
       {
+        icon: 'retreat',
         title: t('ascent.army.disband'),
         body: t('ascent.army.disbandBody', { n: size, gold: savedGold, food: savedFood }),
         badge: t('ascent.army.disbandBadge'),
@@ -1066,6 +1084,7 @@ export class ConquestUIScene extends Phaser.Scene {
       cards.push(this.optionCard(
         { x: content.x, y: content.y + index * (rowHeight + 9), width: content.width, height: rowHeight },
         {
+          icon: iconForOption(option.method),
           title: t(`ascent.method.${option.method}` as Parameters<typeof t>[0]),
           // Description in the wrapping body slot, numbers on the single-line note slot —
           // the reverse clipped the second line of every two-line description.
@@ -1376,6 +1395,7 @@ export class ConquestUIScene extends Phaser.Scene {
       this.modalLayer.add(this.optionCard(
         { x: content.x, y: content.y + index * (rowHeight + 10), width: content.width, height: rowHeight },
         {
+          icon: iconForOption(option.id),
           title: label,
           body: detail,
           note: option.cost
@@ -1491,6 +1511,7 @@ export class ConquestUIScene extends Phaser.Scene {
       this.modalLayer.add(this.optionCard(
         { x: content.x, y: optY, width: content.width, height: rowH },
         {
+          icon: iconForOption(id),
           title: t(`ascent.battle.${id}` as Parameters<typeof t>[0]),
           body: t(`ascent.battle.${id}D` as Parameters<typeof t>[0]),
           badge,
@@ -1546,6 +1567,7 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
       cards.push(this.optionCard(
         { x: content.x, y: content.y + index * (rowHeight + 10), width: content.width, height: rowHeight },
         {
+          icon: iconForOption(option.id),
           title: label,
           body: detail,
           note: option.cost?.gold
@@ -1651,6 +1673,7 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
       cards.push(this.optionCard(
         { x: content.x, y: content.y + index * (rowHeight + 10), width: content.width, height: rowHeight },
         {
+          icon: iconForOption(option.id),
           title,
           body,
           badge: AXIS[option.id],
