@@ -298,11 +298,13 @@ export const BATTLE_BEATS_PER_TICK = 4;
 /** How much of the field a line crosses per beat, so the two meet in the middle in good time. */
 export const BATTLE_ADVANCE_PER_TICK = 0.115;
 /**
- * Share of a host's strength at stake in one exchange, before the power ratio and posture
- * scale it. Tuned so a matched fight leaves both sides bloodied but standing after three
+ * Share of a host's strength at stake in one exchange, before the power ratio and *both*
+ * postures scale it. Raised from 0.022 when the exchange became symmetric: each side's
+ * losses are now its own exposure times the other's aggression, and two sub-1 multipliers
+ * multiplied together bled far less than the single one they replaced — routs fell to zero. Tuned so a matched fight leaves both sides bloodied but standing after three
  * rounds, which is what makes retreating between them a real decision rather than a formality.
  */
-export const BATTLE_ROUND_BITE = 0.022;
+export const BATTLE_ROUND_BITE = 0.0272;
 /** Fraction of its starting strength at which a host breaks and the engagement ends early. */
 export const BATTLE_BREAK_SHARE = 0.35;
 /**
@@ -339,6 +341,17 @@ export const BATTLE_VOLLEY_BITE = 0.03;
 export const BATTLE_RESERVE_SHARE = 0.28;
 /** Morale a rally restores, before the general's martial is added on top. */
 export const BATTLE_RALLY_BASE = 10;
+/**
+ * How much a rally is amplified by the morale already lost. At 1.5 a rally on a line that has
+ * shed two thirds of its heart is worth twice one spent fresh — which is what makes *when* to
+ * spend it a decision rather than a reminder.
+ */
+export const BATTLE_RALLY_DESPERATION = 1.5;
+/**
+ * Extra share of a host cut down while routing. Being broken has to cost more than choosing to
+ * withdraw, or the retreat order has no purpose and the rout no weight.
+ */
+export const BATTLE_ROUT_LOSS_SHARE = 0.3;
 
 // ── Momentum (XP) ───────────────────────────────────────────────────────────
 /**

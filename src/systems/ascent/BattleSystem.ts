@@ -13,6 +13,8 @@ import {
   BATTLE_RALLY_BASE,
   BATTLE_RESERVE_SHARE,
   BATTLE_ROUND_BITE,
+  BATTLE_RALLY_DESPERATION,
+  BATTLE_ROUT_LOSS_SHARE,
   BATTLE_ROUT_MORALE,
   BATTLE_VOLLEY_BITE,
 } from '../../game/ascentConfig';
@@ -135,6 +137,8 @@ export function beginBattle(state: GameState): boolean {
     round: 0,
     totalRounds,
     posture: 'hold',
+    theirPosture: 'press',
+    ourStartMorale: defender.morale,
     ourAdvance: 0,
     theirAdvance: 0,
     ourMorale: defender.morale,
@@ -165,6 +169,40 @@ export function beginBattle(state: GameState): boolean {
   // the fight. The battle is ordinary state now: the tick advances it, and the player opens the
   // screen when they want to watch or intervene. The Pause button still stops everything.
   return true;
+}
+
+/**
+ * What the invader decides to do this beat.
+ *
+ * Until now the enemy had no posture at all: it advanced, it traded on fixed multipliers, and
+ * it never reacted to anything. Beating something that cannot respond is arithmetic rather than
+ * skill, and it was the single largest thing holding this screen at 7.
+ *
+ * Doctrine comes from `kingdom.personality`, which already exists with six values and an
+ * established weighting precedent (`personalityWeight`, InvasionSystem). On top of the
+ * personality sits a reactive layer both share — press a line that is wavering, steady your own
+ * when it is — so the player is reading an opponent rather than a script.
+ *
+ * The invader deliberately gets no reserve and no rally. That asymmetry is the player's edge,
+ * and it is what keeps a fair fight winnable.
+ */
+function enemyPosture(state: GameState, battle: AscentBattle): BattlePosture {
+  const kingdom = state.kingdoms.find((candidate) => candidate.id === battle.kingdomId);
+  const personality = kingdom?.personality ?? 'aggressive';
+  const theirEdge = battle.theirMorale - battle.ourMorale;
+
+  switch (personality) {
+    // Cautious powers spend other people's soldiers reluctantly: they hold unless clearly ahead.
+    case 'economic':
+    case 'diplomatic':
+      return theirEdge > 18 ? 'press' : 'hold';
+    // A defensive doctrine shoots first and only closes once it has the upper hand.
+    case 'defensive':
+      return theirEdge > 8 ? 'press' : 'hold';
+    // Aggressive and expansionist powers come on hard, and only steady up if badly beaten.
+    default:
+      return theirEdge < -20 ? 'hold' : 'press';
+  }
 }
 
 /** Strips a share of a host's strength, spread across its unit types. */
@@ -236,6 +274,7 @@ export function fightRound(state: GameState): void {
   battle.theirHostCount = theirCount;
 
   const charging = battle.posture === 'press';
+  battle.theirPosture = enemyPosture(state, battle);
 
   // The invader is always coming; we advance only when told to. Charging also closes faster,
   // which is half of why it is worth doing.
@@ -279,11 +318,16 @@ export function fightRound(state: GameState): void {
   const sum = (hosts: Army[]): number => hosts.reduce((total, host) => total + armyPower(state, host), 0);
   const ourPower = Math.max(1, sum(ours) * battle.terrainEdge);
   const theirPower = Math.max(1, sum(theirs));
-  const trade = charging ? BATTLE_CHARGE_TRADE : BATTLE_HOLD_TRADE;
+  // Each side's losses are its own exposure times the other's aggression, so a cautious enemy
+  // is genuinely a different fight from a reckless one rather than the same fight relabelled.
+  const ourTrade = charging ? BATTLE_CHARGE_TRADE : BATTLE_HOLD_TRADE;
+  const theirTrade = battle.theirPosture === 'press' ? BATTLE_CHARGE_TRADE : BATTLE_HOLD_TRADE;
   const fuzz = (): number => 0.9 + Math.random() * 0.2;
 
-  const ourShare = BATTLE_ROUND_BITE * (theirPower / (ourPower + theirPower)) * 2 * trade.taken * fuzz();
-  const theirShare = BATTLE_ROUND_BITE * (ourPower / (ourPower + theirPower)) * 2 * trade.dealt * fuzz();
+  const ourShare = BATTLE_ROUND_BITE * (theirPower / (ourPower + theirPower)) * 2
+    * ourTrade.taken * theirTrade.dealt * fuzz();
+  const theirShare = BATTLE_ROUND_BITE * (ourPower / (ourPower + theirPower)) * 2
+    * ourTrade.dealt * theirTrade.taken * fuzz();
 
   // Losses land across every host present, so relief shares the burden rather than watching.
   const ourLoss = ours.reduce((total, host) => total + bleed(host, Math.min(0.9, ourShare)), 0);
@@ -349,8 +393,11 @@ export function commitReserve(state: GameState): boolean {
   defender.units.heavyInfantry += battle.reserve.heavyInfantry;
   battle.reserveSpent = true;
   battle.ourNow = totalUnits(defender);
-  // Fresh troops steady the line as well as thicken it.
-  battle.ourMorale = setMorale(defender, battle.ourMorale + BATTLE_CHARGE_MORALE);
+  // Fresh troops steady the line as well as thicken it — and the more desperate the line, the
+  // more their arrival is worth. The counterweight is that a host which breaks before you commit
+  // takes the reserve down with it, so holding them back is a gamble in both directions.
+  const sag = Math.max(0, (battle.ourStartMorale - battle.ourMorale) / Math.max(1, battle.ourStartMorale));
+  battle.ourMorale = setMorale(defender, battle.ourMorale + BATTLE_CHARGE_MORALE * (1 + sag * 2));
   battle.log.push(t('ascent.battle.reserveIn', {
     n: battle.reserve.spearmen + battle.reserve.archers + battle.reserve.heavyInfantry,
   }));
@@ -364,9 +411,15 @@ export function rally(state: GameState): boolean {
   const defender = battleDefender(state, battle.landId);
   if (!defender) return false;
 
+  // Scaled by the ground already lost, so a rally spent on a fresh host is largely wasted and
+  // one spent on a wavering line is worth several times as much. That is what turns it from a
+  // reminder into a decision: waiting pays, right up until the line breaks and it never gets
+  // spent at all.
+  const sag = Math.max(0, (battle.ourStartMorale - battle.ourMorale) / Math.max(1, battle.ourStartMorale));
+  const gained = Math.round(battle.rallyPower * (1 + sag * BATTLE_RALLY_DESPERATION));
   battle.rallySpent = true;
-  battle.ourMorale = setMorale(defender, battle.ourMorale + battle.rallyPower);
-  battle.log.push(t('ascent.battle.rallied', { n: battle.rallyPower }));
+  battle.ourMorale = setMorale(defender, battle.ourMorale + gained);
+  battle.log.push(t('ascent.battle.rallied', { n: gained }));
   return true;
 }
 
@@ -390,11 +443,24 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
     }
   }
 
+  // `outcome` used to be computed and thrown away: routing them, being routed, and grinding to
+  // the round limit all resolved identically, so the most dramatic thing that can happen in the
+  // fight carried no consequence at all.
+  //
+  // Breaking them is a decisive win. Being broken is *worse than withdrawing* — a routing host
+  // is cut down as it runs — which is what makes pulling out in time a real skill rather than a
+  // button nobody presses.
+  if (battle?.outcome === 'we-rout') {
+    for (const host of ourHosts(state, battle.landId)) bleed(host, BATTLE_ROUT_LOSS_SHARE);
+  }
+  const resolved = battle?.outcome === 'they-rout'
+    ? 'attack'
+    : battle?.outcome === 'we-rout'
+      ? 'delegate'
+      : decision === 'retreat' ? 'retreat' : decision === 'press' ? 'attack' : 'delegate';
+
   ascent.activeBattle = undefined;
-  resolvePendingBattle(
-    state,
-    decision === 'retreat' ? 'retreat' : decision === 'press' ? 'attack' : 'delegate',
-  );
+  resolvePendingBattle(state, resolved);
 }
 
 /** Switches standing orders between beats. */

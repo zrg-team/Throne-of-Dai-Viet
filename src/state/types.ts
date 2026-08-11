@@ -892,6 +892,10 @@ export interface AscentBattle {
   round: number;
   totalRounds: number;
   posture: BattlePosture;
+  /** What the invader is doing this beat, from its doctrine. */
+  theirPosture: BattlePosture;
+  /** Morale we opened with, so a rally can be scaled by how far the line has sagged. */
+  ourStartMorale: number;
   /**
    * How far each line has left its own camp, 0 (at the tents) to 1 (at the enemy's).
    * Drives where the soldiers are drawn, and is what makes posture *visible*: pressing walks
