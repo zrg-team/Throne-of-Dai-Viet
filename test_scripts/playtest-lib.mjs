@@ -1,0 +1,113 @@
+/**
+ * Shared plumbing for the playtest harnesses.
+ *
+ * The three playtest scripts all need the same three things — a booted run, a way to read the
+ * open decision, and a way to answer it — and getting any of them subtly different would make
+ * their numbers incomparable. They live here so a change to how a prompt is read lands in the
+ * objective metrics, the watched session and the strategy driver at the same time.
+ */
+
+/** Dev server the harnesses drive. Override when the default port is taken. */
+export const BASE_URL = process.env.PLAYTEST_URL ?? 'http://localhost:5173';
+
+/**
+ * Real option ids for whatever prompt is open, keyed by kind.
+ *
+ * Deliberately not `render_game_to_text`'s `describeAscentPromptOptions`: that helper has no
+ * `famine` case and returns `['ok']`, an id nothing accepts — so a driver using it re-answers the
+ * same famine card forever (measured: 561 times in six minutes) and the famine system is never
+ * exercised at all. Keep this list in step with `AscentResolver.resolveAscentPrompt`.
+ */
+export const READ_OPTIONS = `
+window.__ptOptions = (forState) => {
+  // Headless sweeps hold their own state object; the watched session reads the live one.
+  const st = forState || window.__mandateState;
+  const p = st && st.pendingAscentPrompt;
+  if (!p) return null;
+  switch (p.kind) {
+    case 'founder': return p.options;
+    case 'power-draft': return [...p.cards, 'skip'];
+    case 'conquer-target': return [...p.targets.map((t) => t.landId), 'hold'];
+    case 'conquer-method': return [...p.target.methods.filter((m) => !m.blockedReason).map((m) => m.method), 'back'];
+    case 'hero-choice': return [...p.heroIds, 'pass'];
+    case 'court-appointment': return p.options.map((o) => o.id);
+    case 'law-choice': return [...p.projectIds.map((i) => 'edict:' + i), ...p.taxOptions.map((t) => 'tax:' + t), 'hold'];
+    case 'parliament': return (st.politicsDeck.find((c) => c.id === p.cardId)?.choices ?? []).map((c) => c.id);
+    case 'envoy': case 'famine': case 'rival-demand': return p.options.filter((o) => o.affordable).map((o) => o.id);
+    case 'empire-response': return p.options.map((o) => o.id);
+    default: return ['ok'];
+  }
+};
+`;
+
+/** The "decline this offer" id per prompt kind, where one exists. */
+export const DECLINE = {
+  'power-draft': 'skip',
+  'conquer-target': 'hold',
+  'conquer-method': 'back',
+  'hero-choice': 'pass',
+  'law-choice': 'hold',
+};
+
+/** Boots a headless Dragon Ascent run on a fixed seed, inside the page. */
+export const ENGINE_BOOT = `
+window.__ptBoot = async (seed) => {
+  const { createAscentGameState } = await import('/src/state/GameState.ts');
+  const original = Math.random;
+  let g = (seed >>> 0) || 1;
+  Math.random = () => {
+    g |= 0; g = (g + 0x6d2b79f5) | 0;
+    let t = Math.imul(g ^ (g >>> 15), 1 | g);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  try { return createAscentGameState({ seaSides: 1, difficulty: 'normal' }); }
+  finally { Math.random = original; }
+};
+`;
+
+/** Opens a page pointed at the dev server with the harness helpers installed. */
+export async function openGame(browser, { language = 'en', viewport = { width: 390, height: 844 } } = {}) {
+  const page = await browser.newPage({ viewport });
+  const errors = [];
+  page.on('pageerror', (err) => errors.push(`PAGEERROR ${err.message}`));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE ${m.text().slice(0, 200)}`); });
+  await page.addInitScript((lang) => localStorage.setItem('mandate:language:v1', lang), language);
+  await page.goto(`${BASE_URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(
+    () => typeof window.__startBenchGame === 'function' && window.__phaserGame.scene.isActive('MenuScene'),
+    null,
+    { timeout: 30000 },
+  );
+  await page.evaluate(READ_OPTIONS);
+  await page.evaluate(ENGINE_BOOT);
+  return { page, errors };
+}
+
+/** Starts a rendered run in the real scenes, so the UI is exercised too. */
+export async function startRenderedRun(page, seed) {
+  await page.evaluate((s) => window.__startBenchGame(s, 'ascent'), seed);
+  await page.waitForFunction(() => window.__phaserGame.scene.isActive('ConquestScene'), null, { timeout: 30000 });
+  await page.waitForTimeout(800);
+}
+
+/** Mean, and the spread around it, for a list of numbers. */
+export function summarise(values) {
+  if (!values.length) return { n: 0, mean: 0, min: 0, max: 0, cv: 0 };
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length;
+  return {
+    n: values.length,
+    mean: +mean.toFixed(2),
+    min: +Math.min(...values).toFixed(2),
+    max: +Math.max(...values).toFixed(2),
+    // Coefficient of variation: how much the numbers vary relative to their size. The pacing
+    // score reads this — a metronome scores ~0, a run with quiet and loud stretches scores high.
+    cv: mean === 0 ? 0 : +(Math.sqrt(variance) / mean).toFixed(3),
+  };
+}
+
+export function bar(value, max, width = 24) {
+  const filled = Math.max(0, Math.min(width, Math.round((value / max) * width)));
+  return '█'.repeat(filled) + '·'.repeat(width - filled);
+}
