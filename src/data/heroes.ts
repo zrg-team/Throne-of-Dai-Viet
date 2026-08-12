@@ -38,6 +38,8 @@ export function generateKingHero(): Hero {
     name,
     type: 'general',
     rarity: 'Legendary',
+    // Every name in KING_NAMES is a male emperor.
+    sex: 'man',
     upkeepGold: trait.upkeepGold,
     description: t('heroes.king.description'),
     effect: t(trait.effectKey),
@@ -55,6 +57,7 @@ export const FOUNDER_IDS = ['do-doc-bach-dang', 'thai-su-minh', 'cong-chua-hoa-t
 export const heroTemplates: Hero[] = [
   {
     id: 'vo-tuong-nui',
+    sex: 'man',
     name: 'Võ Tướng Núi',
     type: 'general',
     rarity: 'Rare',
@@ -66,6 +69,8 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'tran-cung-thu',
+    sex: 'man',
+    era: 'tran',
     name: 'Trần Cung Thủ',
     type: 'general',
     rarity: 'Common',
@@ -77,6 +82,8 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'le-thiet-giap',
+    sex: 'man',
+    era: 'le',
     name: 'Lê Thiết Giáp',
     type: 'general',
     rarity: 'Epic',
@@ -88,6 +95,7 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'quan-doc-luong',
+    sex: 'man',
     name: 'Quan Đốc Lương',
     type: 'governor',
     rarity: 'Rare',
@@ -99,6 +107,7 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'ba-quan-kho',
+    sex: 'woman',
     name: 'Bà Quản Kho',
     type: 'governor',
     rarity: 'Common',
@@ -110,6 +119,7 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'ong-do-dien',
+    sex: 'man',
     name: 'Ông Đốc Điền',
     type: 'governor',
     rarity: 'Epic',
@@ -121,6 +131,7 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'quan-thue-hoi-an',
+    sex: 'man',
     name: 'Quan Thuế Hội An',
     type: 'minister',
     rarity: 'Rare',
@@ -132,6 +143,7 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'su-gia',
+    sex: 'man',
     name: 'Sử Gia',
     type: 'minister',
     rarity: 'Common',
@@ -144,6 +156,8 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'thai-su-minh',
+    sex: 'man',
+    era: 'le',
     name: 'Thái Sư Minh',
     type: 'minister',
     rarity: 'Legendary',
@@ -156,6 +170,7 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'su-gia-mem-mong',
+    sex: 'man',
     name: 'Sứ Giả Mềm Mỏng',
     type: 'agent',
     rarity: 'Rare',
@@ -167,6 +182,7 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'mat-tham-bac',
+    sex: 'man',
     name: 'Mật Thám Bạc',
     type: 'agent',
     rarity: 'Common',
@@ -180,6 +196,7 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'hoang-yen',
+    sex: 'woman',
     name: 'Hoàng Yến',
     type: 'agent',
     rarity: 'Epic',
@@ -192,6 +209,8 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'do-doc-bach-dang',
+    sex: 'man',
+    era: 'tran',
     name: 'Đô Đốc Bạch Đằng',
     type: 'general',
     rarity: 'Legendary',
@@ -203,6 +222,8 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'tran-thuy-quan',
+    sex: 'man',
+    era: 'tran',
     name: 'Trần Thủy Quân',
     type: 'general',
     rarity: 'Rare',
@@ -214,6 +235,7 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'nu-tuong-rung',
+    sex: 'woman',
     name: 'Nữ Tướng Rừng',
     type: 'general',
     rarity: 'Epic',
@@ -225,6 +247,7 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'ky-binh-bien-ai',
+    sex: 'man',
     name: 'Kỵ Binh Biên Ải',
     type: 'general',
     rarity: 'Common',
@@ -236,6 +259,8 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'tuong-voi-tay-son',
+    sex: 'woman',
+    era: 'tayson',
     name: 'Tướng Voi Tây Sơn',
     type: 'general',
     rarity: 'Epic',
@@ -247,6 +272,7 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'quan-ha-de',
+    sex: 'man',
     name: 'Quan Hà Đê',
     type: 'governor',
     rarity: 'Rare',
@@ -258,6 +284,7 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'ba-lang-nuoc',
+    sex: 'woman',
     name: 'Bà Làng Nước',
     type: 'governor',
     rarity: 'Common',
@@ -269,6 +296,8 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'ly-truong-lam-son',
+    sex: 'man',
+    era: 'le',
     name: 'Lý Trưởng Lam Sơn',
     type: 'governor',
     rarity: 'Rare',
@@ -280,6 +309,7 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'thuong-nhan-van-don',
+    sex: 'man',
     name: 'Thương Nhân Vân Đồn',
     type: 'minister',
     rarity: 'Epic',
@@ -292,6 +322,9 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'thien-su-truc-lam',
+    sex: 'man',
+    monastic: true,
+    era: 'tran',
     name: 'Thiền Sư Trúc Lâm',
     type: 'minister',
     rarity: 'Rare',
@@ -304,6 +337,7 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'thai-uy-bien-cuong',
+    sex: 'man',
     name: 'Thái Úy Biên Cương',
     type: 'minister',
     rarity: 'Epic',
@@ -316,6 +350,7 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'ke-mo-duong',
+    sex: 'man',
     name: 'Kẻ Mở Đường',
     type: 'agent',
     rarity: 'Common',
@@ -327,6 +362,7 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'mat-tham-den',
+    sex: 'man',
     name: 'Mật Thám Đen',
     type: 'agent',
     rarity: 'Epic',
@@ -340,6 +376,8 @@ export const heroTemplates: Hero[] = [
   },
   {
     id: 'cong-chua-hoa-than',
+    sex: 'woman',
+    era: 'tran',
     name: 'Công Chúa Hòa Thân',
     type: 'agent',
     rarity: 'Legendary',

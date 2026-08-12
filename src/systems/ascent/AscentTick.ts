@@ -15,6 +15,7 @@ import { refreshPlayerVisibility } from '../LandSystem';
 import { tickAutoDefend, tickInvasions, resolvePendingBattle } from '../empire/InvasionSystem';
 import { addMandate } from '../empire/MandateSystem';
 import { tickGreatPowersYear } from '../empire/GreatPowersSystem';
+import { ensureHeroDeck } from '../../data/heroFactory';
 import { drainAscentPrompts } from './AscentState';
 import { tickAscentAutopilot } from './AutopilotSystem';
 import { advanceBattle, beginBattle } from './BattleSystem';
@@ -162,6 +163,10 @@ export function advanceAscentTick(state: GameState): void {
   // ── Dragon Ascent ────────────────────────────────────────────────────────
   state.ascent.marchCooldown = Math.max(0, state.ascent.marchCooldown - 1);
   tickAscentAutopilot(state);
+  // The authored roster is removed from the deck as it is recruited, so a long run empties it
+  // and the champion lane — half this mode's identity — quietly stops offering anything.
+  ensureHeroDeck(state);
+
   tickWaveDirector(state);
   tickRaids(state);
   tickAutoDefend(state);

@@ -365,7 +365,34 @@ export interface Hero {
   missionsDone?: number;
   /** Earned traits (e.g. "Veteran", "Conqueror") shown on the hero card. */
   traits?: string[];
+
+  // ── Portrait identity (see ui/faces/heroLook.ts) ──
+  /**
+   * Who this person is, for the portrait. **Not** a style axis: the wardrobe is chosen from
+   * this, and the seed only picks within what it allows.
+   *
+   * Required, because it is not a style axis and must never be left to a seed: before this
+   * existed, every one of the five heroes the game names as a woman rendered with facial
+   * hair. `resolveHeroLook` still reads the Vietnamese honorific out of the name (Bà, Nữ,
+   * Công Chúa, Ông) as a safety net for any hero reconstructed from an older save.
+   */
+  sex: 'man' | 'woman';
+  /** Monastics get a wardrobe of their own — shaven, kesa, and nothing else. */
+  monastic?: boolean;
+  /**
+   * Which century this hero dresses in. Đại Việt did not wear one costume for a thousand
+   * years, and the roster already spans the dynasties by name. Unset means "pick from the
+   * common eras by seed", which is what keeps a drafted roster visually varied.
+   */
+  era?: HeroEra;
 }
+
+/**
+ * The dress eras the portrait system knows. Each is a different wardrobe, not a palette swap:
+ * the Nguyễn reform of 1744 replaced the crossed lapel with a standing collar, so a Nguyễn
+ * official in áo giao lĩnh is simply the wrong century.
+ */
+export type HeroEra = 'dinh' | 'ly' | 'tran' | 'le' | 'tayson' | 'nguyen';
 
 /** The kind of active mission a hero can be dispatched on (empire mode). One per hero type. */
 export type HeroMissionKind = 'raid' | 'sabotage' | 'taxCircuit' | 'quellUnrest';
