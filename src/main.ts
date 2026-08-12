@@ -12,6 +12,13 @@ declare global {
     __phaserGame?: Phaser.Game;
     __suppressMapInputUntil?: number;
     __minimapInputBounds?: Array<{ x: number; y: number; width: number; height: number }>;
+    /**
+     * Screen areas Dragon Ascent's HUD scene has drawn over, which the world scene underneath
+     * must not treat as taps on the map: the floating zoom/mode stack, and the whole screen
+     * while a prompt or lane overlay owns it. Published rather than hardcoded because the
+     * control stack moves with the province inspect card and the overlays come and go.
+     */
+    __hudTapBounds?: Array<{ x: number; y: number; width: number; height: number }>;
     render_game_to_text?: () => string;
     advanceTime?: (ms: number) => void;
     __startBenchGame?: (seed?: number, mode?: 'rival' | 'campaign' | 'empire' | 'ascent') => void;

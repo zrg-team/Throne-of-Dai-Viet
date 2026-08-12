@@ -4,11 +4,7 @@ import {
   ACTION_BUTTON_HEIGHT,
   ACTION_BUTTON_Y,
   ActionBar,
-  actionButtonLeft,
-  getActionButtonGap,
-  getActionButtonMargin,
-  getActionButtonWidth,
-  getActionKeys,
+  actionSlotAt,
 } from '../ui/ActionBar';
 import { BattlePreviewPanel } from '../ui/BattlePreviewPanel';
 import { BottomSheet, SHEET_TOP } from '../ui/BottomSheet';
@@ -281,17 +277,11 @@ export class UIScene extends Phaser.Scene {
       return;
     }
 
-    const gm = this.state.gameMode;
-    const bw = getActionButtonWidth(gm);
-    const bg = getActionButtonGap(gm);
-    const bm = getActionButtonMargin(gm);
-    const keys = getActionKeys(gm);
-    const stride = bw + bg;
-    const index = Math.floor((pointer.x - bm) / stride);
-    const action = keys[index];
-    const left = actionButtonLeft(index, gm);
-    if (action && pointer.x >= left && pointer.x <= left + bw) {
-      this.handleAction(action);
+    // Asks the bar itself where its buttons are rather than re-deriving a stride, so a bar
+    // whose widths were clamped to fit the screen is still hit-tested where it was drawn.
+    const slot = actionSlotAt(this.state.gameMode, pointer.x);
+    if (slot) {
+      this.handleAction(slot.action);
     }
   }
 

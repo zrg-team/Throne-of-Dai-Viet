@@ -18,6 +18,7 @@ import { findFreeCommander } from '../systems/ascent/AutopilotSystem';
 import { MIN_ARMY_SOLDIERS, RECRUIT_HUMAN_RESERVE, recruitSoldiers } from '../game/ascentConfig';
 import { eraLabel } from '../systems/empire/MandateSystem';
 import { getEmpirePower, hasPact } from '../systems/DiplomacySystem';
+import { compactNumber } from '../utils/format';
 import { renderHeroFaceInBox } from '../ui/FaceRenderer';
 import { INK_UI, INK_UI_HEX, InkUI, type InkScrollArea, type UIBounds } from '../ui/InkUI';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
@@ -60,6 +61,28 @@ type MapControlIcon = 'zoom-in' | 'zoom-out' | 'mode';
 const PORTRAIT_W = 74;
 const PORTRAIT_TOP = 30;
 
+/** The battle screen's two fixed bands, above the standing orders. */
+const BATTLE_FIELD_HEIGHT = 168;
+const BATTLE_READOUT_HEIGHT = 62;
+
+/**
+ * One host's marker on the battle field, kept beside the id it belongs to.
+ *
+ * The strength stamped on a marker is set when it is drawn, and the field is only redrawn when
+ * the *set* of hosts changes — so without re-stamping, a column that had bled from 1,500 to
+ * 900 still wore "1.5k" while the bar beneath it said otherwise.
+ */
+interface BattleMarker {
+  hostId: string;
+  marker: Phaser.GameObjects.Container;
+  count?: Phaser.GameObjects.Text;
+}
+
+/** Men still standing in a host. */
+function hostSize(host: { units: { spearmen: number; archers: number; heavyInfantry: number } }): number {
+  return host.units.spearmen + host.units.archers + host.units.heavyInfantry;
+}
+
 /** Rarity → frame colour. The one visual language shared by draft cards and summons. */
 const RARITY_COLOR: Record<AscentRarity, number> = {
   bronze: 0x9c6b3f,
@@ -96,6 +119,8 @@ export class ConquestUIScene extends Phaser.Scene {
   private activeScrollAreas: InkScrollArea[] = [];
   private openPromptKey = '';
   private lanePauseBeforeOpen = false;
+  /** The "world is stopped" badge, rebuilt with the bar. */
+  private pausedBadge?: Phaser.GameObjects.Container;
 
   constructor() {
     super('ConquestUIScene');
@@ -108,6 +133,8 @@ export class ConquestUIScene extends Phaser.Scene {
     this.activeScrollAreas = [];
     this.openPromptKey = '';
     this.lanePauseBeforeOpen = false;
+    this.battleUi = undefined;
+    window.__hudTapBounds = [];
   }
 
   create(): void {
@@ -122,7 +149,15 @@ export class ConquestUIScene extends Phaser.Scene {
     // objects a second for a bar whose labels change only when the run's state does.
     this.actionBar = new ActionBar(this, this.state, (action) => this.handleBarAction(action));
     this.actionBar.statusColor = (action) => this.barStatusColor(action);
+    this.actionBar.context = () => ({ battleLive: Boolean(this.state.ascent?.activeBattle) });
     this.actionBar.refresh();
+
+    // The battle clock and the published control bounds both outlive a single render; neither
+    // may survive the scene that owns them.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.stopBattleClock();
+      window.__hudTapBounds = [];
+    });
 
     this.modalLayer = this.add.container(0, 0).setDepth(500);
 
@@ -139,18 +174,36 @@ export class ConquestUIScene extends Phaser.Scene {
     this.resourceBar.refresh();
     this.hud.render(this.state.ascent);
 
+    // A lane that renders nothing has stranded the player: the bar and the map controls are
+    // torn down before the screen is built, so an empty modal layer means no UI at all and no
+    // way back. Recovering here rather than only at each lane's own guard makes the whole class
+    // of bug survivable instead of fatal.
+    if (this.openPromptKey.startsWith('lane:') && this.modalLayer.length === 0) {
+      this.closeLane();
+      return;
+    }
+
+    // The battle lane is the one screen whose contents move on their own — the fight runs on
+    // the world's clock whether or not it is being watched — so it updates in place instead of
+    // being rebuilt. Rebuilding it would also make its standing-order cards untappable, since a
+    // card destroyed between press and release never fires.
+    if (this.openPromptKey === 'lane:battle') {
+      this.updateBattle();
+      // A fight that ended closes its own screen, which re-enters `refresh` — let that pass
+      // finish the frame rather than carrying on against a key that no longer applies.
+      if (this.openPromptKey !== 'lane:battle') return;
+    }
+
     const prompt = this.state.pendingAscentPrompt;
     const key = prompt ? `${prompt.kind}:${this.promptSignature(prompt)}` : '';
     // Chrome overlays own the modal layer until dismissed; don't let a tick tear them down.
     const overlayOpen = this.openPromptKey === 'codex'
       || this.openPromptKey === 'quit'
+      || this.openPromptKey === 'menu'
       || this.openPromptKey.startsWith('lane:');
 
     if (!overlayOpen && key !== this.openPromptKey) {
-      this.openPromptKey = key;
-      for (const scroll of this.activeScrollAreas) scroll.destroy();
-      this.activeScrollAreas = [];
-      this.modalLayer.removeAll(true);
+      this.beginOverlay(key);
       if (prompt) this.renderPrompt(prompt);
     }
 
@@ -254,8 +307,29 @@ export class ConquestUIScene extends Phaser.Scene {
   /** Draws the two hosts on the battle screen, reusing the map's own marker art. */
   private battleItems?: MapItemRenderer;
   private battleClock?: Phaser.Time.TimerEvent;
-  private battleOurLine?: Phaser.GameObjects.Container;
-  private battleTheirLine?: Phaser.GameObjects.Container;
+  /**
+   * The live battle screen's three layers, kept apart so each can be refreshed on its own
+   * schedule: the field only when the hosts on it change, the readout every beat, the standing
+   * orders only when what they offer changes. Rebuilding the lot every beat is what would make
+   * the orders untappable — a card destroyed between press and release never fires.
+   */
+  private battleUi?: {
+    content: UIBounds;
+    field: Phaser.GameObjects.Container;
+    readout: Phaser.GameObjects.Container;
+    /** Scroll holding the standing orders: seven rows do not fit a 390×844 screen. */
+    orderScroll: InkScrollArea;
+    orders: Phaser.GameObjects.Container;
+    rivalColor: number;
+    /** Identity of the hosts drawn on the field, so relief and routs trigger a redraw. */
+    fieldSignature: string;
+    /** Identity of what the order cards offer, so a spent one-shot greys out. */
+    orderSignature: string;
+    /** Marker plus the host it stands for, so its strength can be re-stamped as men fall. */
+    ourMarkers: BattleMarker[];
+    theirMarkers: BattleMarker[];
+    geometry: { leftX: number; rightX: number; span: number; groundY: number };
+  };
 
   /** Left gutter a card icon occupies, glyph plus breathing room. */
   private static readonly ICON_GUTTER = CARD_ICON_SIZE + 12;
@@ -367,6 +441,42 @@ export class ConquestUIScene extends Phaser.Scene {
     this.actionBar.setVisible(!hidden);
     if (!hidden) this.actionBar.refresh();
     this.renderMapControls(hidden);
+    this.renderPausedBadge(hidden);
+  }
+
+  /**
+   * A standing "the world is stopped" mark.
+   *
+   * Pause is now a real toggle rather than a door into the quit sheet, which means the player
+   * can leave the game stopped and walk away from the bar — so the state has to be visible from
+   * the map, not only from the shape of one 34px glyph. Deliberately not interactive: anything
+   * tappable floating over the map has to be excluded from the map's own tap handling, and an
+   * indicator that only reports does not earn that cost.
+   */
+  private renderPausedBadge(hidden: boolean): void {
+    this.pausedBadge?.destroy();
+    this.pausedBadge = undefined;
+    if (hidden || !this.state.isStrategyPause) return;
+
+    const width = 128;
+    const height = 24;
+    const x = (GAME_WIDTH - width) / 2;
+    const y = GAME_HEIGHT - ACTION_BAR_HEIGHT - height - 10;
+
+    const badge = this.add.container(0, 0).setDepth(430);
+    badge.add(this.ui.panel({ x, y, width, height }, {
+      fill: INK_UI.backgroundInk,
+      fillShade: INK_UI.brush,
+      border: INK_UI.gold,
+      radius: 12,
+    }));
+    badge.add(this.add.text(GAME_WIDTH / 2, y + height / 2, t('ascent.hud.paused'), {
+      color: '#f3dd9a',
+      fontFamily: UI_FONT,
+      fontSize: '11px',
+      fontStyle: '700',
+    }).setOrigin(0.5));
+    this.pausedBadge = badge;
   }
 
   /**
@@ -379,7 +489,15 @@ export class ConquestUIScene extends Phaser.Scene {
   private renderMapControls(hidden: boolean): void {
     for (const object of this.mapControlObjects) object.destroy();
     this.mapControlObjects = [];
-    if (hidden) return;
+    if (hidden) {
+      // A prompt or lane overlay covers the map, so nothing below it is a map tap. The world
+      // scene's canvas-level tap handler is not part of Phaser's input system and so is not
+      // stopped by the overlay's own hit areas — without this, pressing a button on a
+      // full-screen card also selected whatever province happened to be behind it.
+      window.__hudTapBounds = [{ x: 0, y: 0, width: GAME_WIDTH, height: GAME_HEIGHT }];
+      return;
+    }
+    window.__hudTapBounds = [];
 
     const x = GAME_WIDTH - 30;
     // The inspect card spans the full width, so when one is up the stack sits above it
@@ -398,9 +516,14 @@ export class ConquestUIScene extends Phaser.Scene {
     ];
 
     controls.forEach(([icon, onTap], index) => {
-      this.mapControlObjects.push(
-        this.createMapIconButton(x, bottom - (controls.length - 1 - index) * 42, icon, onTap),
-      );
+      const y = bottom - (controls.length - 1 - index) * 42;
+      this.mapControlObjects.push(this.createMapIconButton(x, y, icon, onTap));
+      // Published, not hardcoded: the stack shifts up when a province is selected, so a fixed
+      // band in the world scene would guard the wrong pixels half the time. Without this the
+      // canvas-level tap handler underneath treated a press on + / − as a tap on the province
+      // behind it, selected that land, and the re-render destroyed the button before Phaser
+      // could deliver the release — so the zoom controls never fired at all.
+      window.__hudTapBounds!.push({ x: x - 22, y: y - 22, width: 44, height: 44 });
     });
   }
 
@@ -463,7 +586,11 @@ export class ConquestUIScene extends Phaser.Scene {
   /** The bottom bar's routing — the same screens the classic modes open, plus the Codex. */
   private handleBarAction(action: string): void {
     if (action === 'pause') {
-      this.showPauseMenu();
+      this.togglePause();
+      return;
+    }
+    if (action === 'menu') {
+      this.showSystemMenu();
       return;
     }
     if (action === 'codex') {
@@ -471,6 +598,19 @@ export class ConquestUIScene extends Phaser.Scene {
       return;
     }
     this.openLane(action as AscentLane);
+  }
+
+  /**
+   * Stop and start the world's clock. Nothing else.
+   *
+   * This is the "let me think" pause, and it used to be impossible to reach: the button
+   * labelled Pause/Resume opened the save-and-quit sheet instead, so the only way to stop time
+   * was through a menu whose other two options left the run. Two different jobs now have two
+   * different buttons — this one, and the ☰ beside it.
+   */
+  private togglePause(): void {
+    this.state.isStrategyPause = !this.state.isStrategyPause;
+    this.refresh();
   }
 
   /**
@@ -506,6 +646,10 @@ export class ConquestUIScene extends Phaser.Scene {
 
   private openLane(lane: AscentLane): void {
     if (this.state.pendingAscentPrompt) return;
+    // The bar only offers Battle while a siege is live, but the siege can end between the bar
+    // being drawn and the button being released. Checking here as well means that race costs a
+    // wasted tap rather than the whole screen.
+    if (lane === 'battle' && !this.state.ascent?.activeBattle) return;
 
     this.lanePauseBeforeOpen = this.state.isStrategyPause;
     // Every lane freezes the world so the player can read it — except the battle, which *is* the
@@ -514,12 +658,7 @@ export class ConquestUIScene extends Phaser.Scene {
     // whole design removed, reintroduced through the lane mechanism. Only caught by finally
     // opening the screen and waiting sixteen seconds.
     this.state.isStrategyPause = lane === 'battle' ? this.lanePauseBeforeOpen : true;
-    this.openPromptKey = `lane:${lane}`;
-    for (const scroll of this.activeScrollAreas) scroll.destroy();
-    this.activeScrollAreas = [];
-    this.modalLayer.removeAll(true);
-    this.renderActionBar();
-    this.renderInspect();
+    this.beginOverlay(`lane:${lane}`);
 
     switch (lane) {
       case 'build': this.showBuildScreen(); break;
@@ -529,6 +668,10 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'army': this.showArmyScreen(); break;
       case 'affairs': this.showAffairsScreen(); break;
     }
+
+    // Checked here as well as in `refresh` so a lane that declines to draw costs the player a
+    // wasted tap rather than a blank screen until the next tick.
+    if (this.modalLayer.length === 0) this.closeLane();
   }
 
   /**
@@ -1436,6 +1579,12 @@ export class ConquestUIScene extends Phaser.Scene {
    * Each side starts at its own camp. The invader always advances; the player's line advances
    * only on `press` and falls back toward its tents on `hold`, so the posture is visible on the
    * field rather than only readable in a description. Blood is only traded once the lines meet.
+   *
+   * Built in three layers, each refreshed on its own terms by `updateBattle`. The screen used
+   * to be built once and never touched again — `refresh` skips the modal layer while a lane
+   * owns it — so the numbers, the bars and the two armies all held their opening values for as
+   * long as the player watched, while the real fight ran to its end underneath. A battle screen
+   * that cannot show the battle is the whole feature.
    */
   private showBattle(): void {
     const battle = this.state.ascent?.activeBattle;
@@ -1452,97 +1601,190 @@ export class ConquestUIScene extends Phaser.Scene {
       t('ascent.battle.subtitle', { kingdom: battle.kingdomName }),
     );
 
-    // ── The field ─────────────────────────────────────────────────────────
-    const fieldH = 168;
     const fieldY = content.y;
-    this.modalLayer.add(this.ui.panel(
-      { x: content.x, y: fieldY, width: content.width, height: fieldH },
-      { border: INK_UI.softBrush },
-    ));
-
     const groundY = fieldY + 112;
     const leftX = content.x + 44;
     const rightX = content.x + content.width - 44;
-
-    // Camps: the ground each side is fighting from, and what "hold" means.
-    this.modalLayer.add(this.battleCamp(leftX, groundY + 16, INK_UI.jade));
-    this.modalLayer.add(this.battleCamp(rightX, groundY + 16, rivalColor));
-
-    // Every host on the field gets its own marker, stacked vertically.
-    //
-    // The maths has summed across hosts since relief arrived, but the field drew one formation a
-    // side — so a two-column defence looked exactly like a one-column defence with a bigger
-    // number on it. Drawing them separately is what makes "their vanguard is wavering" something
-    // you can see, and it is what gives Focus something to point at.
-    //
     // Full span, not half: the two meet when `ourAdvance + theirAdvance` reaches 1, so the
     // drawing has to use the same scale or the picture and the fight would disagree about where
     // everyone is standing.
     const span = rightX - leftX - 60;
+
+    const field = this.add.container(0, 0);
+    const readout = this.add.container(0, 0);
+    this.modalLayer.add([field, readout]);
+
+    // The orders scroll: with relief, a reserve and a rally all in play there are seven of
+    // them, which is 426px of rows below a 240px field and readout. They ran off the bottom of
+    // the screen — and the last row off it was Retreat, the one way out of a losing fight.
+    const ordersTop = content.y + BATTLE_FIELD_HEIGHT + 8 + BATTLE_READOUT_HEIGHT + 10;
+    const orderScroll = this.ui.scrollArea({
+      x: content.x,
+      y: ordersTop,
+      width: content.width,
+      height: Math.max(120, GAME_HEIGHT - 76 - ordersTop),
+    });
+    orderScroll.addTo(this.modalLayer);
+    this.activeScrollAreas.push(orderScroll);
+
+    this.battleUi = {
+      content,
+      field,
+      readout,
+      orderScroll,
+      orders: orderScroll.content,
+      rivalColor,
+      fieldSignature: '',
+      orderSignature: '',
+      ourMarkers: [],
+      theirMarkers: [],
+      geometry: { leftX, rightX, span, groundY },
+    };
+
+    this.buildBattleField(battle);
+    this.buildBattleReadout(battle);
+    this.buildBattleOrders(battle);
+    // The screen had no way out at all: the only exits were Retreat and "leave it to my
+    // generals", both of which end the fight. Watching a siege you are winning meant being
+    // held there until it resolved.
+    this.laneCloseButton(content);
+
+    this.startBattleClock();
+  }
+
+  /** Pairs a drawn marker with its host, finding the strength label to keep current. */
+  private trackMarker(hostId: string, marker: Phaser.GameObjects.Container): BattleMarker {
+    const count = marker.list.find((child) => child.type === 'Text') as Phaser.GameObjects.Text | undefined;
+    return { hostId, marker, count };
+  }
+
+  /** Who is standing on the field, so relief arriving or a column breaking forces a redraw. */
+  private battleFieldSignature(battle: AscentBattle): string {
+    const ours = ourHosts(this.state, battle.landId).map((host) => host.id);
+    const theirs = theirHosts(this.state, battle.landId, battle.kingdomId).map((host) => host.id);
+    return `${ours.join(',')}|${theirs.join(',')}|${battle.focusHostId ?? ''}`;
+  }
+
+  /** What the order cards currently offer, so a spent one-shot or a new posture redraws them. */
+  private battleOrderSignature(battle: AscentBattle): string {
+    const reserveMen = battle.reserve.spearmen + battle.reserve.archers + battle.reserve.heavyInfantry;
+    return [
+      battle.posture,
+      battle.focusHostId ?? '',
+      battle.reserveSpent ? 'r1' : 'r0',
+      battle.rallySpent ? 'y1' : 'y0',
+      reserveMen > 0 ? 'has' : 'none',
+      battle.rallyPower > 0 ? 'rally' : 'norally',
+    ].join(':');
+  }
+
+  /**
+   * The two armies on their ground.
+   *
+   * Every host on the field gets its own marker, stacked vertically. The maths has summed
+   * across hosts since relief arrived, but the field drew one formation a side — so a
+   * two-column defence looked exactly like a one-column defence with a bigger number on it.
+   * Drawing them separately is what makes "their vanguard is wavering" something you can see,
+   * and it is what gives Focus something to point at.
+   */
+  private buildBattleField(battle: AscentBattle): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+    const { content, field, rivalColor } = ui;
+    const { leftX, rightX, span, groundY } = ui.geometry;
+
+    field.removeAll(true);
+    ui.ourMarkers = [];
+    ui.theirMarkers = [];
+    ui.fieldSignature = this.battleFieldSignature(battle);
+
+    field.add(this.ui.panel(
+      { x: content.x, y: content.y, width: content.width, height: BATTLE_FIELD_HEIGHT },
+      { border: INK_UI.softBrush },
+    ));
+
+    // Camps: the ground each side is fighting from, and what "hold" means.
+    field.add(this.battleCamp(leftX, groundY + 16, INK_UI.jade));
+    field.add(this.battleCamp(rightX, groundY + 16, rivalColor));
+
     const ours = ourHosts(this.state, battle.landId);
     const theirs = theirHosts(this.state, battle.landId, battle.kingdomId);
     const lane = (index: number, count: number): number => groundY + (index - (count - 1) / 2) * 32;
 
     ours.forEach((host, index) => {
-      const size = host.units.spearmen + host.units.archers + host.units.heavyInfantry;
-      const marker = this.battleItems!.createArmyMarker(size, true);
+      const marker = this.battleItems!.createArmyMarker(hostSize(host), true);
       marker.setPosition(leftX + 30 + span * battle.ourAdvance, lane(index, ours.length));
-      this.modalLayer.add(marker);
-      if (index === 0) this.battleOurLine = marker;
+      field.add(marker);
+      ui.ourMarkers.push(this.trackMarker(host.id, marker));
     });
 
     theirs.forEach((host, index) => {
-      const size = host.units.spearmen + host.units.archers + host.units.heavyInfantry;
-      const marker = this.battleItems!.createArmyMarker(size, false, rivalColor);
+      const marker = this.battleItems!.createArmyMarker(hostSize(host), false, rivalColor);
       marker.setPosition(rightX - 30 - span * battle.theirAdvance, lane(index, theirs.length));
-      this.modalLayer.add(marker);
-      if (index === 0) this.battleTheirLine = marker;
+      field.add(marker);
+      ui.theirMarkers.push(this.trackMarker(host.id, marker));
 
       // Tapping an enemy column concentrates the line on it; a ring marks the current target, so
       // the order lives on the field rather than only in a list.
       if (battle.focusHostId === host.id) {
-        this.modalLayer.add(
-          this.add.circle(marker.x, marker.y - 18, 26).setStrokeStyle(2.5, INK_UI.cinnabar, 0.95),
-        );
+        const ring = this.add.circle(0, -18, 26).setStrokeStyle(2.5, INK_UI.cinnabar, 0.95);
+        // Parented to the marker so it travels with the column it is marking, rather than
+        // staying behind at the spot the column stood in when the screen opened.
+        marker.add(ring);
       }
-      const hit = this.add.circle(marker.x, marker.y - 18, 28, 0xffffff, 0.001)
+      const hit = this.add.circle(0, -18, 28, 0xffffff, 0.001)
         .setInteractive({ useHandCursor: true });
       hit.on('pointerup', () => this.events.emit(
         'ui:battle-focus', battle.focusHostId === host.id ? undefined : host.id,
       ));
-      this.modalLayer.add(hit);
+      marker.add(hit);
     });
+  }
+
+  /**
+   * Strength, morale and the clash mark — everything that changes every beat.
+   *
+   * Cheap to rebuild and, crucially, carrying nothing tappable: the field's focus targets ride
+   * on the markers and the orders live in their own layer, so this can be thrown away and
+   * redrawn on the battle's clock without ever destroying a control mid-press.
+   */
+  private buildBattleReadout(battle: AscentBattle): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+    const { content, readout, rivalColor } = ui;
+    const { leftX, rightX, span, groundY } = ui.geometry;
+
+    readout.removeAll(true);
 
     // Clash mark, only once they have actually met.
     if (battle.ourAdvance + battle.theirAdvance >= 1) {
       // Midway between the two lines, computed from the advances rather than from marker
       // objects — with several hosts a side there is no single 'the line' to read a
       // position off any more.
-      const clashX = leftX + 30 + span * battle.ourAdvance
-        + ((rightX - 30 - span * battle.theirAdvance) - (leftX + 30 + span * battle.ourAdvance)) / 2;
-      const clash = this.ui.label(clashX, groundY - 44, t('ascent.battle.clash'), 'label', {
+      const ourLine = leftX + 30 + span * battle.ourAdvance;
+      const theirLine = rightX - 30 - span * battle.theirAdvance;
+      const clash = this.ui.label(ourLine + (theirLine - ourLine) / 2, groundY - 44, t('ascent.battle.clash'), 'label', {
         fontSize: '22px', align: 'center',
       }).setOrigin(0.5);
-      this.modalLayer.add(clash);
+      readout.add(clash);
       this.tweens.add({
         targets: clash, scale: { from: 0.7, to: 1.15 }, alpha: { from: 1, to: 0.35 },
         duration: 380, yoyo: true, repeat: -1,
       });
     }
 
-    // ── Readout ───────────────────────────────────────────────────────────
-    const readoutY = fieldY + fieldH + 8;
-    const readoutH = 62;
-    this.modalLayer.add(this.ui.panel(
-      { x: content.x, y: readoutY, width: content.width, height: readoutH },
+    const readoutY = content.y + BATTLE_FIELD_HEIGHT + 8;
+    readout.add(this.ui.panel(
+      { x: content.x, y: readoutY, width: content.width, height: BATTLE_READOUT_HEIGHT },
       { border: INK_UI.softBrush },
     ));
+
     const barW = (content.width - 36) / 2;
     const bar = (x: number, now: number, start: number, color: number, label: string): void => {
-      this.modalLayer.add(this.ui.label(x, readoutY + 8, label, 'caption', {}));
-      this.modalLayer.add(this.ui.label(x + barW, readoutY + 8, `${now}`, 'label', { fontSize: '15px', align: 'right' })
+      readout.add(this.ui.label(x, readoutY + 8, label, 'caption', {}));
+      readout.add(this.ui.label(x + barW, readoutY + 8, `${now}`, 'label', { fontSize: '15px', align: 'right' })
         .setOrigin(1, 0));
-      this.modalLayer.add(this.ui.statBar(
+      readout.add(this.ui.statBar(
         { x, y: readoutY + 32, width: barW, height: 8 }, now, Math.max(1, start), color,
       ));
     };
@@ -1552,29 +1794,41 @@ export class ConquestUIScene extends Phaser.Scene {
     // Morale under strength: this is the bar that actually decides the fight, since `armyPower`
     // multiplies by it and a host below the rout threshold breaks outright.
     const heart = (x: number, value: number): void => {
-      this.modalLayer.add(this.ui.statBar(
+      readout.add(this.ui.statBar(
         { x, y: readoutY + 44, width: barW, height: 5 }, value, 100,
         value <= BATTLE_ROUT_MORALE + 10 ? INK_UI.cinnabar : INK_UI.gold,
       ));
     };
     heart(content.x + 12, battle.ourMorale);
     heart(content.x + barW + 24, battle.theirMorale);
+  }
 
-    // ── Standing orders ───────────────────────────────────────────────────
+  /** The standing orders. Rebuilt only when what they offer changes, never on the beat. */
+  private buildBattleOrders(battle: AscentBattle): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+    const { content, orders } = ui;
+
+    orders.removeAll(true);
+    ui.orderSignature = this.battleOrderSignature(battle);
+
+    // Laid out inside the scroll's own space, so every row starts from its top edge.
+    const rowWidth = content.width - 6;
     const rowH = 54;
-    let optY = readoutY + readoutH + 10;
+    let optY = 0;
     const control = (id: string, accent: number, badge?: string): void => {
-      this.modalLayer.add(this.optionCard(
-        { x: content.x, y: optY, width: content.width, height: rowH },
+      this.optionCard(
+        { x: 0, y: optY, width: rowWidth, height: rowH },
         {
           icon: iconForOption(id),
           title: t(`ascent.battle.${id}` as Parameters<typeof t>[0]),
           body: t(`ascent.battle.${id}D` as Parameters<typeof t>[0]),
           badge,
           accent,
+          parent: orders,
           onTap: () => this.events.emit('ui:battle-order', id),
         },
-      ));
+      );
       optY += rowH + 8;
     };
 
@@ -1582,16 +1836,17 @@ export class ConquestUIScene extends Phaser.Scene {
     // a secret, and the two together teach each other.
     const focused = theirHosts(this.state, battle.landId, battle.kingdomId)
       .find((host) => host.id === battle.focusHostId);
-    this.modalLayer.add(this.optionCard(
-      { x: content.x, y: optY, width: content.width, height: rowH },
+    this.optionCard(
+      { x: 0, y: optY, width: rowWidth, height: rowH },
       {
         icon: focused ? 'blade' : 'banner',
         title: focused ? t('ascent.battle.focusOn', { name: focused.name }) : t('ascent.battle.spread'),
         body: focused ? t('ascent.battle.focusD') : t('ascent.battle.spreadD'),
         accent: focused ? INK_UI.cinnabar : INK_UI.softBrush,
+        parent: orders,
         onTap: () => this.events.emit('ui:battle-focus', undefined),
       },
-    ));
+    );
     optY += rowH + 8;
 
     const pressing = battle.posture === 'press';
@@ -1602,8 +1857,8 @@ export class ConquestUIScene extends Phaser.Scene {
     // hold — waiting for the right moment only works if you know you still have the card.
     const reserveMen = battle.reserve.spearmen + battle.reserve.archers + battle.reserve.heavyInfantry;
     if (reserveMen > 0) {
-      this.modalLayer.add(this.optionCard(
-        { x: content.x, y: optY, width: content.width, height: rowH },
+      this.optionCard(
+        { x: 0, y: optY, width: rowWidth, height: rowH },
         {
           icon: 'banner',
           title: t('ascent.battle.reserve'),
@@ -1611,14 +1866,15 @@ export class ConquestUIScene extends Phaser.Scene {
           badge: battle.reserveSpent ? t('ascent.battle.spent') : undefined,
           accent: battle.reserveSpent ? INK_UI.softBrush : INK_UI.jade,
           disabled: battle.reserveSpent,
+          parent: orders,
           onTap: () => { if (!battle.reserveSpent) this.events.emit('ui:battle-order', 'reserve'); },
         },
-      ));
+      );
       optY += rowH + 8;
     }
     if (battle.rallyPower > 0) {
-      this.modalLayer.add(this.optionCard(
-        { x: content.x, y: optY, width: content.width, height: rowH },
+      this.optionCard(
+        { x: 0, y: optY, width: rowWidth, height: rowH },
         {
           icon: 'crown',
           title: t('ascent.battle.rally'),
@@ -1626,16 +1882,86 @@ export class ConquestUIScene extends Phaser.Scene {
           badge: battle.rallySpent ? t('ascent.battle.spent') : undefined,
           accent: battle.rallySpent ? INK_UI.softBrush : INK_UI.gold,
           disabled: battle.rallySpent,
+          parent: orders,
           onTap: () => { if (!battle.rallySpent) this.events.emit('ui:battle-order', 'rally'); },
         },
-      ));
+      );
       optY += rowH + 8;
     }
 
     control('retreat', INK_UI.cinnabar);
     control('auto', INK_UI.softBrush);
 
-    this.startBattleClock();
+    ui.orderScroll.setContentHeight(optY);
+  }
+
+  /**
+   * Brings the open battle screen up to date with the fight underneath it.
+   *
+   * Called from `refresh`, so it runs on the battle's own clock *and* on any state change an
+   * order causes — a posture pressed redraws its badge immediately rather than up to a beat
+   * later. Each layer decides for itself whether it needs rebuilding; the markers are moved
+   * rather than replaced so their focus targets survive a press.
+   */
+  private updateBattle(): void {
+    const ui = this.battleUi;
+    const battle = this.state.ascent?.activeBattle;
+    if (!ui) return;
+    if (!battle) { this.closeLane(); return; }
+
+    if (this.battleFieldSignature(battle) !== ui.fieldSignature) {
+      this.buildBattleField(battle);
+    } else {
+      const { leftX, rightX, span } = ui.geometry;
+      // The shove is what contact looks like: once the lines meet they press into each other
+      // instead of gliding, so the picture reads as a fight rather than a chart.
+      const meeting = battle.ourAdvance + battle.theirAdvance >= 1;
+      const sizes = new Map(
+        [...ourHosts(this.state, battle.landId), ...theirHosts(this.state, battle.landId, battle.kingdomId)]
+          .map((host) => [host.id, hostSize(host)] as const),
+      );
+      this.slideMarkers(ui.ourMarkers, leftX + 30 + span * battle.ourAdvance, meeting ? 4 : 0, sizes);
+      this.slideMarkers(ui.theirMarkers, rightX - 30 - span * battle.theirAdvance, meeting ? -4 : 0, sizes);
+    }
+
+    this.buildBattleReadout(battle);
+
+    if (this.battleOrderSignature(battle) !== ui.orderSignature) {
+      this.buildBattleOrders(battle);
+    }
+  }
+
+  /**
+   * Walks a side's columns to where the fight says they now stand.
+   *
+   * Chained rather than yoyo'd: a yoyo returns the marker to where it *started*, so shoving on
+   * contact would have undone that beat's advance every time the lines touched. The last hop
+   * always lands on the true position, so the picture can never drift from the numbers.
+   */
+  private slideMarkers(
+    markers: BattleMarker[],
+    x: number,
+    shove: number,
+    sizes: Map<string, number>,
+  ): void {
+    for (const { hostId, marker, count } of markers) {
+      if (!marker.active) continue;
+      const size = sizes.get(hostId);
+      if (count?.active && size !== undefined) count.setText(compactNumber(size));
+      // Previous beat's tween is abandoned rather than left to fight this one for the same x.
+      this.tweens.killTweensOf(marker);
+      if (shove === 0) {
+        this.tweens.add({ targets: marker, x, duration: BATTLE_TICK_MS * 0.45, ease: 'Sine.easeOut' });
+        continue;
+      }
+      this.tweens.chain({
+        targets: marker,
+        tweens: [
+          { x: x + shove, duration: BATTLE_TICK_MS * 0.28, ease: 'Sine.easeOut' },
+          { x, duration: BATTLE_TICK_MS * 0.32, ease: 'Sine.easeIn' },
+        ],
+      });
+    }
   }
 
   /** A side's camp: a few tents on its own ground, so "hold the line" has somewhere to mean. */
@@ -1660,48 +1986,24 @@ export class ConquestUIScene extends Phaser.Scene {
   }
 
   /**
-   * Drives the fight forward on a timer.
+   * Beats the screen forward.
    *
-   * The world is paused while this runs — `drainAscentPrompts` has already set `isPaused` — so
-   * this clock is the only thing moving, and stopping it is what hands control back.
+   * The fight belongs to the world — `advanceBattle` runs it from the economy tick, whether or
+   * not anyone is watching — so this clock only asks the screen to catch up. Leaving the screen
+   * no longer stops the siege, and coming back shows where it got to.
    */
   private startBattleClock(): void {
     this.stopBattleClock();
     this.battleClock = this.time.addEvent({
       delay: BATTLE_TICK_MS,
       loop: true,
-      callback: () => {
-        const battle = this.state.ascent?.activeBattle;
-        // The fight belongs to the world now — `advanceBattle` runs it from the economy tick,
-        // whether or not anyone is watching. This clock only refreshes what is on screen, so
-        // leaving the screen no longer stops the siege and coming back shows where it got to.
-        if (!battle) { this.stopBattleClock(); this.closeLane(); return; }
-        this.animateBattleStep(battle);
-      },
+      callback: () => this.refresh(),
     });
   }
 
   private stopBattleClock(): void {
     this.battleClock?.remove();
     this.battleClock = undefined;
-  }
-
-  /** Slides the two lines to their new positions and nudges them on contact. */
-  private animateBattleStep(battle: AscentBattle): void {
-    const ours = this.battleOurLine;
-    const theirs = this.battleTheirLine;
-    if (!ours || !theirs) return;
-
-    const meeting = battle.ourAdvance + battle.theirAdvance >= 1;
-    const shove = meeting ? 4 : 0;
-    this.tweens.add({
-      targets: ours, x: ours.x + shove, duration: BATTLE_TICK_MS * 0.45, yoyo: meeting, ease: 'Sine.easeOut',
-    });
-    this.tweens.add({
-      targets: theirs, x: theirs.x - shove, duration: BATTLE_TICK_MS * 0.45, yoyo: meeting, ease: 'Sine.easeOut',
-    });
-    // Redraw the numbers and bars without rebuilding the field.
-    this.events.emit('state-changed');
   }
 
   private showRivalDemand(prompt: Extract<AscentPrompt, { kind: 'rival-demand' }>): void {
@@ -2029,7 +2331,7 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
   // player always has somewhere to *go* rather than only cards to answer.
 
   /**
-   * Pause, save, and leave.
+   * Save and leave, and nothing else.
    *
    * This mode had none of it. The Pause button toggled `isStrategyPause` and nothing else, so a
    * run could be halted but never *left* — there was no way to save and exit at all, and closing
@@ -2037,15 +2339,22 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
    * from `UIScene` since the beginning; ascent simply never surfaced them, and `ui:exit-to-menu`
    * (handled in `MapScene`, which `ConquestScene` extends) already does the work.
    *
+   * Then the fix overcorrected: those choices were put *behind* the Pause button, so the one
+   * control labelled Pause/Resume opened a sheet whose other two options ended the run, and
+   * stopping the clock to think meant staring at an exit menu. The two jobs are two buttons
+   * now — ❚❚ stops time, ☰ opens this — and this sheet's own first item only closes itself.
+   *
    * `saveSnapshot` round-trips this mode: `MenuScene` boots a saved `gameMode === 'ascent'`
    * straight back into `ConquestScene`.
    */
-  private showPauseMenu(): void {
+  private showSystemMenu(): void {
+    // Reading the world while it moves is not what a menu is for, so it holds the clock — and
+    // hands back whatever the player had set when it closes, rather than always resuming.
+    this.lanePauseBeforeOpen = this.state.isStrategyPause;
     this.state.isStrategyPause = true;
-    this.modalLayer.removeAll(true);
-    this.openPromptKey = 'pause-menu';
+    this.beginOverlay('menu');
 
-    const content = this.promptFrame(t('ascent.pause.title'), t('ascent.pause.body', {
+    const content = this.promptFrame(t('ascent.sys.title'), t('ascent.sys.body', {
       year: this.state.year,
       waves: this.state.ascent?.wavesSurvived ?? 0,
     }));
@@ -2060,18 +2369,14 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
       y += rowH + 10;
     };
 
-    item(t('ascent.pause.resume'), 'primary', () => {
-      this.state.isStrategyPause = false;
-      this.closeLane();
-    });
+    item(t('ascent.sys.back'), 'primary', () => this.closeLane());
     item(t('action.saveAndExit'), 'secondary', () => this.events.emit('ui:exit-to-menu', true));
     item(t('action.exitWithoutSaving'), 'danger', () => this.events.emit('ui:exit-to-menu', false));
   }
 
   /** The permanent collection — the reason summoning a new champion is worth something. */
   showCodex(): void {
-    this.modalLayer.removeAll(true);
-    this.openPromptKey = 'codex';
+    this.beginOverlay('codex');
 
     const progress = codexProgress();
     const content = this.promptFrame(
@@ -2114,8 +2419,7 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
 
   /** Leaving mid-run saves first, so Continue on the menu resumes exactly here. */
   private showQuitConfirm(): void {
-    this.modalLayer.removeAll(true);
-    this.openPromptKey = 'quit';
+    this.beginOverlay('quit');
 
     const content = this.promptFrame(t('ascent.menu.confirmQuit'), t('ascent.menu.confirmQuitBody'));
 
@@ -2133,11 +2437,34 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
     ));
   }
 
-  /** Closes a chrome overlay (Codex / quit) without touching the prompt queue. */
-  private closeOverlay(): void {
+  /**
+   * Claims the modal layer for a chrome overlay.
+   *
+   * Every screen that opens on top of the map goes through here so none of them can forget a
+   * piece of the teardown: scroll areas register a global wheel handler, and the battle clock
+   * keeps beating on a screen that is no longer there — both leaked when each screen cleared
+   * the modal layer its own way.
+   */
+  private beginOverlay(key: string): void {
+    this.releaseOverlay();
+    this.openPromptKey = key;
+    // Immediately, not on the next tick: an overlay opened while the world is held would
+    // otherwise leave the bar and the zoom stack floating over it until something else moved.
+    this.renderActionBar();
+    this.renderInspect();
+  }
+
+  private releaseOverlay(): void {
+    this.stopBattleClock();
+    this.battleUi = undefined;
     for (const scroll of this.activeScrollAreas) scroll.destroy();
     this.activeScrollAreas = [];
     this.modalLayer.removeAll(true);
+  }
+
+  /** Closes a chrome overlay (Codex / menu / quit) without touching the prompt queue. */
+  private closeOverlay(): void {
+    this.releaseOverlay();
     this.openPromptKey = '';
     this.refresh();
   }
