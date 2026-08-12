@@ -1,4 +1,4 @@
-import { GENERATED_ERAS, makeHeroName } from './heroNames';
+import { GENERATED_ERAS, REAL_FIGURES, makeHeroName, type RealFigure } from './heroNames';
 import { t } from '../i18n';
 import type { GameState, Hero, HeroEra, HeroStats, HeroType } from '../state/types';
 
@@ -53,6 +53,41 @@ const WOMAN_SHARE = 0.42;
 /** Monastics are a flavour, not a role — rare, and only ever ministers. */
 const MONASTIC_SHARE = 0.05;
 
+/**
+ * How often a top-rarity draw is a real person out of the record rather than a combined name.
+ *
+ * High at Legendary and modest at Epic, so recognising Lý Thường Kiệt or Bùi Thị Xuân is an
+ * event. Below Epic it never happens: a Common draw named Trần Hưng Đạo would cheapen the one
+ * thing this list is for.
+ */
+const REAL_AT_LEGENDARY = 0.72;
+const REAL_AT_EPIC = 0.3;
+
+/** Turns a name into a stable id, so the same figure can never enter a deck twice. */
+function figureId(name: string): string {
+  return 'real-' + name.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+/** Builds a champion from a real historical figure, keeping the office they actually held. */
+function fromRealFigure(figure: RealFigure, rarity: Hero['rarity'], next: () => number): Hero {
+  return {
+    id: figureId(figure.name),
+    name: figure.name,
+    type: figure.type,
+    rarity,
+    sex: figure.sex,
+    era: figure.era,
+    ...(figure.monastic ? { monastic: true } : {}),
+    upkeepGold: RARITY_UPKEEP[rarity],
+    description: t('heroes.gen.legend.description'),
+    effect: t(`heroes.gen.${figure.type}.effect` as Parameters<typeof t>[0]),
+    stats: scaleStats(PROFILE[figure.type], RARITY_SCALE[rarity] * 1.06, next),
+    fatigue: 0,
+  };
+}
+
 function seededRandom(seed: number): () => number {
   let state = seed >>> 0 || 1;
   return () => {
@@ -99,8 +134,17 @@ export interface GenerateHeroOptions {
  */
 export function generateHero(seed: number, options: GenerateHeroOptions = {}): Hero {
   const next = seededRandom(seed);
-  const type = options.type ?? TYPES[Math.floor(next() * TYPES.length) % TYPES.length];
   const rarity = options.rarity ?? pickWeighted<{ rarity: Hero['rarity'] }>(RARITY_TABLE, next).rarity;
+
+  // A real figure decides their own office, sex and century, so this is rolled before any of
+  // them rather than filtered afterwards.
+  const realChance = rarity === 'Legendary' ? REAL_AT_LEGENDARY : rarity === 'Epic' ? REAL_AT_EPIC : 0;
+  if (realChance > 0 && next() < realChance && !options.type && !options.sex) {
+    const pool = REAL_FIGURES.filter((f) => (rarity === 'Legendary' ? true : f.tier === 'Epic'));
+    if (pool.length) return fromRealFigure(pool[Math.floor(next() * pool.length) % pool.length], rarity, next);
+  }
+
+  const type = options.type ?? TYPES[Math.floor(next() * TYPES.length) % TYPES.length];
   const sex = options.sex ?? (next() < WOMAN_SHARE ? 'woman' : 'man');
   const era = options.era ?? GENERATED_ERAS[Math.floor(next() * GENERATED_ERAS.length) % GENERATED_ERAS.length];
   // Only a male minister may be a monastic: a Trúc Lâm master is a specific thing, and the

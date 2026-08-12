@@ -22,6 +22,7 @@ export const enHeroes = {
   // ── Generated champions (see data/heroFactory.ts) ─────────────────────────
   // Deliberately plainer than the authored roster: these are the supporting cast, and the
   // written characters should stay the memorable ones.
+  "heroes.gen.legend.description": "A name remembered in the annals of Đại Việt.",
   "heroes.gen.general.description": "A field commander raised from the provinces.",
   "heroes.gen.general.effect": "Leads a host; martial skill improves with every battle won.",
   "heroes.gen.governor.description": "An administrator who keeps a province fed and paying.",
@@ -117,6 +118,7 @@ export const viHeroes = {
   "heroes.ke-mo-duong.effect": "+15% cơ hội thu phục hòa bình cho vùng đất liền kề.",
   "heroes.ke-mo-duong.name": "Kẻ Mở Đường",
   // ── Generated champions ───────────────────────────────────────────────────
+  "heroes.gen.legend.description": "Một cái tên còn ghi trong sử sách Đại Việt.",
   "heroes.gen.general.description": "Một tướng lĩnh được cất nhắc từ các trấn.",
   "heroes.gen.general.effect": "Thống lĩnh một đạo quân; võ nghệ tăng theo mỗi trận thắng.",
   "heroes.gen.governor.description": "Một quan cai trị giữ cho trấn no đủ và nộp thuế đúng kỳ.",
