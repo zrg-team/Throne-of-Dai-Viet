@@ -35,6 +35,7 @@ import {
 import { bribeLand, getBribeSuccessChance, getGoldBribeCost } from '../AcquisitionSystem';
 import { disbandArmy, getRecruitmentOrder, issueMoveOrder, queueRecruitment } from '../WarSystem';
 import { frontWinChance } from './ConquestSystem';
+import { chargeAmbition } from './AmbitionSystem';
 import type { GameState, Land, LandBuildingType } from '../../state/types';
 
 /**
@@ -272,7 +273,12 @@ export function raiseHostNow(state: GameState): boolean {
   const wantProvisions = Math.max(1, Math.ceil(soldiers / 150)) * SUPPLY_TICKS_HELD;
   const rations = Math.min(wantRations, spareFood);
   const provisions = Math.min(wantProvisions, Math.max(0, Math.floor(state.resources.supplies - SUPPLY_STORE_RESERVE)));
-  return queueRecruitment(state, commanderId, soldiers, rations, provisions);
+  const mustered = queueRecruitment(state, commanderId, soldiers, rations, provisions);
+  // A realm putting men under arms is a realm its neighbours start watching. Charged only on a
+  // muster that actually went through, and cheaply — `targetArmyCount` bounds the realm's
+  // hosts, so this is a handful of points across a run rather than a second treadmill.
+  if (mustered) chargeAmbition(state, 'host');
+  return mustered;
 }
 
 /**

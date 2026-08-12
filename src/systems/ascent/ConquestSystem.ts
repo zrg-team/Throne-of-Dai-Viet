@@ -17,6 +17,7 @@ import {
 import { findLand, getAcquisitionOrder, getSiegeOrder } from '../LandSystem';
 import { armyPower, createBattlePreview, findLandPath, issueMoveOrder } from '../WarSystem';
 import { enqueueAscentPrompt } from './AscentState';
+import { chargeAmbition } from './AmbitionSystem';
 import { addAscentXp, landGarrisonPower } from './PowerSystem';
 import { heroName, t } from '../../i18n';
 import type {
@@ -432,14 +433,24 @@ export function detectConquests(state: GameState, ownedBefore: Set<string>): voi
   const ascent = state.ascent;
   if (!ascent) return;
 
+  let gained = 0;
   for (const land of state.lands) {
     if (land.ownerId !== PLAYER_KINGDOM_ID || ownedBefore.has(land.id)) continue;
+    gained += 1;
     addAscentXp(state, XP_PER_LAND_TAKEN);
     if (ascent.frontLandId === land.id) {
       ascent.frontLandId = undefined;
       ascent.frontBlocked = false;
     }
   }
+
+  // Ambition is charged here rather than at the order, and deliberately regardless of *who*
+  // gave it: this is the one place a province is known to have actually joined the realm.
+  // Charging at the order would bill the player for bribes that failed and sieges that broke,
+  // and exempting the autopilot's routine purchases would let a passive run accumulate a
+  // twenty-province empire for free — which is exactly how a declining player used to outlive
+  // an engaged one.
+  if (gained > 0) chargeAmbition(state, 'province', gained);
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

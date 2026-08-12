@@ -1,5 +1,12 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
-import { FAMINE_MIN_GAP_TICKS, SUMMON_EVERY_N_WAVES } from '../../game/ascentConfig';
+import {
+  AFTERMATH_TICKS,
+  COURT_GAP_TICKS,
+  FAMINE_MIN_GAP_TICKS,
+  MUSTER_TICKS,
+  SUMMON_EVERY_N_WAVES,
+  WAVE_INTERVAL_TICKS,
+} from '../../game/ascentConfig';
 import { buildConquestTargets, offerConquestPrompt } from './ConquestSystem';
 import {
   buildLawOptions,
@@ -14,7 +21,7 @@ import { famineReady, offerFamine, tickFamineCooldown } from './FamineSystem';
 import { offerRivalDemand, rivalDemandReady, tickRivalCooldowns } from './RivalDirector';
 import { offerHeroSummon } from './SummonSystem';
 import { offerPowerDraft } from './PowerDraftSystem';
-import type { AscentPromptKind, GameState } from '../../state/types';
+import type { AscentPhase, AscentPromptKind, GameState } from '../../state/types';
 
 /**
  * The pacing contract.
@@ -26,15 +33,18 @@ import type { AscentPromptKind, GameState } from '../../state/types';
  */
 
 /**
- * Ticks of real play required between one prompt being raised and the next.
+ * A flat `MIN_GAP_TICKS = 4` used to live here, applied identically from the first season to
+ * the last. Its history is worth keeping, because the phase gate below inherits its job:
  *
- * Measured at 2, a full run raised ~250 prompts across 320 ticks — one decision every 1.3
- * seasons, roughly every four seconds of wall clock. Half of all ticks ended with a modal
- * open, so the map (the mode's entire art surface, and the thing the autopilot is doing all
- * its work on) was never on screen. The fantasy is "watch your realm fight, step in at the
- * moments that matter"; at a two-tick gap there are no moments that don't matter.
+ * measured at a gap of 2, a full run raised ~250 prompts across 320 ticks — one decision every
+ * 1.3 seasons — and half of all ticks ended with a modal open, so the map (the mode's entire
+ * art surface, and the thing the autopilot does all its work on) was never on screen. Widening
+ * it to 4 fixed the density and created a new problem: a perfectly even one, cv 0.106, in which
+ * no stretch of a run felt different from any other.
+ *
+ * The gap is now a property of *where in the cycle you are* rather than a constant — see
+ * `ascentPhaseFor` and `COURT_GAP_TICKS`.
  */
-const MIN_GAP_TICKS = 4;
 
 /**
  * Ticks a kind stays quiet after being answered. Event-driven kinds are absent on purpose.
@@ -46,10 +56,17 @@ const MIN_GAP_TICKS = 4;
  *
  * 6 rather than 9: at 9 the realm finished a run holding three to five provinces where it had
  * held twenty-four to thirty-two, and a map that never visibly grows is its own kind of dead
- * run. This is the dial that trades map growth against prompt fatigue.
+ * run. This was the dial that traded map growth against prompt fatigue.
+ *
+ * Cut to 3 once the phase gate took over the fatigue half of that trade. A six-season quiet
+ * period is longer than a whole Court window, so a conquest answered in one cycle was not
+ * ready again until the cycle after next: measured, the gate alone cost an engaged realm two
+ * provinces and a third of its peak power, and dropped its advantage over a realm that
+ * declined everything from 1.39× back to 1.07×. Two rules each holding the same lane closed
+ * is one rule too many.
  */
 const PROMPT_COOLDOWN: Partial<Record<AscentPromptKind, number>> = {
-  'conquer-target': 6,
+  'conquer-target': 3,
   'court-appointment': 5,
   'law-choice': 8,
   envoy: 12,
@@ -101,6 +118,28 @@ const CONSIDER_ORDER: AscentPromptKind[] = [
   'parliament',
   'envoy',
 ];
+
+/**
+ * Which phase of the wave cycle a countdown reading falls in.
+ *
+ * A pure function of the clock rather than a stored field, so the HUD, the director and any
+ * later presentation of the cycle cannot drift apart — and so it stays correct across a save
+ * without needing migration.
+ *
+ * Deliberately *not* keyed off `waveInFlight`: hosts can stand on the map for many seasons
+ * while marching and besieging, so a phase that waited for the field to clear would swallow
+ * whole cycles and leave the player with nothing to do for minutes at a time.
+ */
+export function ascentPhaseFor(ticksToWave: number): AscentPhase {
+  if (ticksToWave <= MUSTER_TICKS) return 'muster';
+  if (ticksToWave > WAVE_INTERVAL_TICKS - AFTERMATH_TICKS) return 'aftermath';
+  return 'court';
+}
+
+/** The phase the run is in right now. */
+export function ascentPhase(state: GameState): AscentPhase {
+  return ascentPhaseFor(state.ascent?.ticksToWave ?? WAVE_INTERVAL_TICKS);
+}
 
 export function tickPromptCooldowns(state: GameState): void {
   const ascent = state.ascent;
@@ -258,8 +297,22 @@ export function tickDecisionDirector(state: GameState): void {
     return;
   }
 
+  // The realm's scheduled business is heard in Court and nowhere else.
+  //
+  // This is what gives a cycle a shape. Outside Court the player is either reading what the
+  // last wave cost them, watching the next one be named, or fighting it — and a card asking
+  // which minister to appoint, arriving in the middle of any of those, is what made a wave
+  // landing feel exactly like everything else. Nothing here suppresses a decision permanently:
+  // a kind that misses its window ages through `KIND_STARVATION_TICKS` and speaks in the next.
+  //
+  // Famine keeps its exemption above, for the reason given there.
+  if (ascentPhaseFor(ascent.ticksToWave) !== 'court') return;
+
+  // Inside Court the gap tightens. The pacing target is not "fewer decisions" but decisions
+  // that arrive together and then leave — a run measured at a flat 3.9 seasons between cards,
+  // cv 0.106, had no quiet stretches to make the busy ones mean anything.
   const starving = ascent.idleTicks >= STARVATION_TICKS;
-  if (!starving && state.turn - ascent.lastPromptTurn < MIN_GAP_TICKS) return;
+  if (!starving && state.turn - ascent.lastPromptTurn < COURT_GAP_TICKS) return;
 
   const overdue = ready
     .filter((kind) => (ascent.promptWaiting?.[kind] ?? 0) >= KIND_STARVATION_TICKS)
