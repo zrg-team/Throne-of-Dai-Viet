@@ -1,9 +1,11 @@
 import { PLAYER_KINGDOM_ID } from '../game/constants';
+import { ensureHeroDeck } from '../data/heroFactory';
 import { chooseByIndex } from '../utils/math';
 import type { GameState, Hero, HeroType } from '../state/types';
 import { heroName, t } from '../i18n';
 
 export function createHeroDraft(state: GameState, preferredType?: HeroType): void {
+  ensureHeroDeck(state);
   if (state.activeHeroDraft || state.heroDeck.length === 0) {
     return;
   }

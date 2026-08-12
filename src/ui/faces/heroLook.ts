@@ -1,3 +1,5 @@
+import { garmentsFor, headwearFor, rankWings, robeColour } from './wardrobe';
+import { HAIRS, ROBES, SKINS, shade, type FacePalette } from './palette';
 import type { Hero, HeroEra } from '../../state/types';
 import type { FaceTintSlot } from './parts.generated';
 
@@ -23,7 +25,7 @@ export interface HeroLookPart {
 
 export interface HeroLook {
   parts: HeroLookPart[];
-  palette: Record<Exclude<FaceTintSlot, 'none'>, number>;
+  palette: FacePalette;
   /** Resolved identity, exposed so the UI can label or debug a portrait. */
   sex: 'man' | 'woman';
   monastic: boolean;
@@ -31,30 +33,6 @@ export interface HeroLook {
   age: 'young' | 'prime' | 'elder';
   rank: number;
 }
-
-// ── palettes ────────────────────────────────────────────────────────────────
-/**
- * Warmer and slightly less saturated than the set this replaces, and wider at the dark end,
- * which is where the old ramp was thinnest.
- */
-const SKINS = [0xe8c39a, 0xdcb188, 0xcfa176, 0xbf8d63, 0xaa7852, 0x94643f];
-const HAIRS = [0x14100c, 0x1d160f, 0x2a1f14, 0x3a2c1c, 0x4d4238];
-
-/**
- * Court colours rather than an invented set. Vermilion and azure are what the Lê edicts
- * prescribed for the emperor and for high office; jade and gold are the game's own map and UI
- * tokens; nâu is the undyed brown of village dress; chàm the indigo of a field army. The
- * portraits used to carry a magenta, a cobalt and a violet that appeared nowhere else in the
- * product, which is why they read as stickers dropped onto the parchment.
- */
-const ROBES = {
-  vermilion: 0xaa3a2c,
-  azure: 0x2f5170,
-  jade: 0x6f8f64,
-  ochre: 0xb07a24,
-  nau: 0x6b4a2f,
-  cham: 0x26313c,
-} as const;
 
 const RARITY_RANK: Record<Hero['rarity'], number> = { Common: 0, Rare: 1, Epic: 2, Legendary: 3 };
 const PLATE = ['plate-common', 'plate-rare', 'plate-epic', 'plate-legendary'];
@@ -85,13 +63,6 @@ function pick<T>(items: readonly T[], next: () => number): T {
   return items[Math.floor(next() * items.length) % items.length];
 }
 
-function shade(color: number, amount: number): number {
-  const clamp = (value: number) => Math.min(255, Math.max(0, value));
-  return (clamp(((color >> 16) & 255) + amount) << 16)
-    + (clamp(((color >> 8) & 255) + amount) << 8)
-    + clamp((color & 255) + amount);
-}
-
 /**
  * Last-resort sex inference, for heroes created without the field.
  *
@@ -104,93 +75,6 @@ function inferSex(hero: Hero): 'man' | 'woman' {
   const name = hero.name.toLocaleLowerCase('vi');
   if (/(^|\s)(bà|nữ|công chúa|hoàng hậu|thái hậu|phu nhân|cô|chị|mẹ)(\s|$)/.test(name)) return 'woman';
   return 'man';
-}
-
-// ── wardrobes ───────────────────────────────────────────────────────────────
-/** Headwear each era actually offers, by role and sex. A monk's list has one entry. */
-function headwearFor(era: HeroEra, type: Hero['type'], woman: boolean, rank: number): string[] {
-  if (woman) {
-    if (era === 'nguyen') return rank >= 2 ? ['hat-crown-nhatbinh', 'hat-moqua'] : ['hat-moqua', 'hat-moqua'];
-    if (era === 'le' || era === 'tayson') return rank >= 2 ? ['hat-coronet', 'hat-moqua'] : ['hat-moqua', ''];
-    return rank >= 2 ? ['hat-coronet', ''] : ['', 'hat-band'];
-  }
-  if (era === 'dinh') return type === 'general' ? ['hat-helm', ''] : ['', 'hat-khanvan'];
-  if (era === 'ly') {
-    if (type === 'general') return ['hat-helm', 'hat-khanvan'];
-    if (type === 'minister') return ['hat-phocdau-short', 'hat-khanvan'];
-    return ['hat-khanvan', 'hat-non'];
-  }
-  if (era === 'tran') {
-    if (type === 'general') return ['hat-helm', ''];
-    if (type === 'minister') return ['hat-phocdau-short', ''];
-    return ['hat-khanvan', '', 'hat-non'];
-  }
-  if (era === 'le') {
-    if (type === 'general') return ['hat-helm', 'hat-khanvan'];
-    if (type === 'minister') return ['hat-phocdau-short', 'hat-phocdau-short'];
-    return ['hat-khanvan', 'hat-non'];
-  }
-  if (era === 'tayson') return type === 'general' ? ['hat-helm', 'hat-band'] : ['hat-band', 'hat-khanvan', 'hat-non'];
-  return type === 'minister' ? ['hat-phocdau-short', 'hat-khandong'] : ['hat-khandong', 'hat-non'];
-}
-
-/** Rank lengthens the dragonfly wings, as the 1499 court regulations did. */
-function rankWings(hat: string, rank: number): string {
-  if (!hat.startsWith('hat-phocdau')) return hat;
-  return rank >= 3 ? 'hat-phocdau-grand' : rank >= 2 ? 'hat-phocdau-long' : 'hat-phocdau-short';
-}
-
-/** The robe, its collar, and whatever fastens it — one coherent set per era and sex. */
-function garmentsFor(era: HeroEra, woman: boolean, monastic: boolean, type: Hero['type']): HeroLookPart[] {
-  if (monastic) {
-    return [{ key: 'robe-body', tint: 'robe' }, { key: 'kesa', tint: 'none' }];
-  }
-  if (woman) {
-    if (era === 'nguyen') {
-      return [
-        { key: 'robe-body', tint: 'robe' },
-        { key: 'robe-sheen', tint: 'robeLight' },
-        { key: 'collar-nhatbinh', tint: 'robeDark' },
-        { key: 'collar-nhatbinh-trim', tint: 'none' },
-      ];
-    }
-    const dress: HeroLookPart[] = [
-      { key: 'robe-body', tint: 'robe' },
-      { key: 'robe-sheen', tint: 'robeLight' },
-      { key: 'collar-yem-wrap', tint: 'robeLight' },
-      { key: 'yem', tint: 'none' },
-    ];
-    if (era === 'le' || era === 'tayson') dress.push({ key: 'sash-waist', tint: 'none' });
-    return dress;
-  }
-  const body: HeroLookPart[] = [
-    { key: type === 'general' ? 'robe-armour' : 'robe-body', tint: 'robe' },
-    { key: 'robe-sheen', tint: 'robeLight' },
-  ];
-  if (era === 'nguyen') {
-    // Áo ngũ thân: a standing collar closing to the right, five buttons for the Five Constants.
-    return [...body, { key: 'collar-nguthan-body', tint: 'robe' }, { key: 'collar-nguthan', tint: 'robeLight' }, { key: 'buttons-five', tint: 'none' }];
-  }
-  if (era === 'dinh') {
-    // The two-flap wrap the Đông Sơn drums show, closed with a sash.
-    return [...body, { key: 'collar-twoflap', tint: 'robeDark' }, { key: 'collar-twoflap-over', tint: 'robeLight' }, { key: 'sash-ochre', tint: 'none' }];
-  }
-  const giaoLinh: HeroLookPart[] = [
-    ...body,
-    { key: 'collar-giaolinh', tint: 'robeDark' },
-    { key: 'collar-giaolinh-over', tint: 'robeLight' },
-  ];
-  if (era === 'tayson') giaoLinh.push({ key: 'sash-baldric', tint: 'none' });
-  return giaoLinh;
-}
-
-function robeColour(type: Hero['type'], woman: boolean, monastic: boolean, era: HeroEra, rank: number): number {
-  if (monastic) return ROBES.ochre;
-  if (woman) return rank >= 3 ? ROBES.vermilion : rank >= 2 ? ROBES.azure : ROBES.nau;
-  if (type === 'minister') return rank >= 2 ? ROBES.azure : ROBES.jade;
-  if (type === 'general') return era === 'tayson' ? ROBES.vermilion : ROBES.cham;
-  if (type === 'governor') return ROBES.nau;
-  return rank >= 2 ? ROBES.jade : ROBES.nau;
 }
 
 // ── the resolver ────────────────────────────────────────────────────────────

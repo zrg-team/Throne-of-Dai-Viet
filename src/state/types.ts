@@ -371,11 +371,12 @@ export interface Hero {
    * Who this person is, for the portrait. **Not** a style axis: the wardrobe is chosen from
    * this, and the seed only picks within what it allows.
    *
-   * Left optional so any hero created without it still draws — `resolveHeroLook` falls back to
-   * reading the Vietnamese honorific out of the name (Bà, Nữ, Công Chúa, Ông). Set it
-   * explicitly on authored heroes; inference is a safety net, not the design.
+   * Required, because it is not a style axis and must never be left to a seed: before this
+   * existed, every one of the five heroes the game names as a woman rendered with facial
+   * hair. `resolveHeroLook` still reads the Vietnamese honorific out of the name (Bà, Nữ,
+   * Công Chúa, Ông) as a safety net for any hero reconstructed from an older save.
    */
-  sex?: 'man' | 'woman';
+  sex: 'man' | 'woman';
   /** Monastics get a wardrobe of their own — shaven, kesa, and nothing else. */
   monastic?: boolean;
   /**

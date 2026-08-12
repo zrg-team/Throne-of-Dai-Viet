@@ -19,6 +19,17 @@ export const enHeroes = {
   "heroes.ke-mo-duong.description": "A scout who marks hidden paths through passes and valleys.",
   "heroes.ke-mo-duong.effect": "+15% peaceful acquisition chance for adjacent lands.",
   "heroes.ke-mo-duong.name": "Pathbreaker",
+  // ── Generated champions (see data/heroFactory.ts) ─────────────────────────
+  // Deliberately plainer than the authored roster: these are the supporting cast, and the
+  // written characters should stay the memorable ones.
+  "heroes.gen.general.description": "A field commander raised from the provinces.",
+  "heroes.gen.general.effect": "Leads a host; martial skill improves with every battle won.",
+  "heroes.gen.governor.description": "An administrator who keeps a province fed and paying.",
+  "heroes.gen.governor.effect": "Raises the output of the province they hold.",
+  "heroes.gen.minister.description": "A scholar-official of the court.",
+  "heroes.gen.minister.effect": "Steadies the court and speeds the business of state.",
+  "heroes.gen.agent.description": "An envoy who works beyond the borders.",
+  "heroes.gen.agent.effect": "Improves dealings with rival courts.",
   "heroes.king.description": "The reigning king, leading the kingdom's armies from the front.",
   "heroes.king.name": "King",
   "heroes.king.trait_morale.effect": "+10% morale for all your armies.",
@@ -105,6 +116,15 @@ export const viHeroes = {
   "heroes.ke-mo-duong.description": "Một trinh sát chuyên đánh dấu lối mòn qua đèo và thung lũng.",
   "heroes.ke-mo-duong.effect": "+15% cơ hội thu phục hòa bình cho vùng đất liền kề.",
   "heroes.ke-mo-duong.name": "Kẻ Mở Đường",
+  // ── Generated champions ───────────────────────────────────────────────────
+  "heroes.gen.general.description": "Một tướng lĩnh được cất nhắc từ các trấn.",
+  "heroes.gen.general.effect": "Thống lĩnh một đạo quân; võ nghệ tăng theo mỗi trận thắng.",
+  "heroes.gen.governor.description": "Một quan cai trị giữ cho trấn no đủ và nộp thuế đúng kỳ.",
+  "heroes.gen.governor.effect": "Tăng sản lượng của trấn mà người ấy trấn giữ.",
+  "heroes.gen.minister.description": "Một nho thần trong triều.",
+  "heroes.gen.minister.effect": "Ổn định triều chính và đẩy nhanh việc nước.",
+  "heroes.gen.agent.description": "Một sứ thần hoạt động ngoài biên giới.",
+  "heroes.gen.agent.effect": "Cải thiện bang giao với các triều đình lân bang.",
   "heroes.king.description": "Vị vua đang trị vì, trực tiếp dẫn quân nơi tiền tuyến.",
   "heroes.king.name": "Quốc vương",
   "heroes.king.trait_morale.effect": "+10% sĩ khí cho tất cả quân đội của bạn.",
