@@ -343,14 +343,24 @@ export class ConquestScene extends MapScene {
    * action bar, minimap) which ConquestUIScene lays out differently.
    */
   protected isScreenPointOverFixedUi(x: number, y: number): boolean {
-    const suppressUntil = window.__suppressMapInputUntil ?? 0;
-    if (Date.now() < suppressUntil) return true;
+    // `performance.now`, matching what writes it. Compared against `Date.now` this was a
+    // thirteen-digit number against a five-digit one, so the suppression window never once
+    // applied and a tap that dismissed a marker also selected the land beneath it.
+    if (performance.now() < (window.__suppressMapInputUntil ?? 0)) return true;
     if (y <= ASCENT_HUD_BOTTOM) return true;
     // The action bar is always present, so its band is fixed UI whether or not a province
     // is selected — otherwise a tap on "Court" also drags the map underneath it.
     if (y >= ASCENT_ACTION_BAR_TOP) return true;
     if (y >= ASCENT_INSPECT_TOP && this.state.selectedLandId) return true;
-    return false;
+    // The zoom/mode stack floats over open map, and it moves: it sits above the inspect card
+    // when a province is selected and lower when none is. A fixed band would guard the wrong
+    // pixels half the time, so the HUD publishes where it actually drew them. Without this the
+    // tap-to-select handler here claimed the press, selected the province underneath, and the
+    // re-render destroyed the button before its release could fire — the buttons were visible,
+    // pressable, and inert.
+    return (window.__hudTapBounds ?? []).some((rect) => (
+      x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height
+    ));
   }
 }
 
