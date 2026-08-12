@@ -10,6 +10,7 @@ import { applyCourtEffect } from '../PoliticsSystem';
 import { applyResourceDelta, canSpend } from '../ResourceSystem';
 import { pushToast } from '../empire/notifications';
 import { addAscentXp, computeAscentPower } from './PowerSystem';
+import { chargeAmbition } from './AmbitionSystem';
 import { enqueueAscentPrompt } from './AscentState';
 import { t } from '../../i18n';
 import type { AscentState, CourtModifier, GameState, PowerCardDef } from '../../state/types';
@@ -198,6 +199,9 @@ export function takePowerCard(state: GameState, cardId: string): boolean {
   ascent.cardStacks[cardId] = stack + 1;
   ascent.pendingLevelUps = Math.max(0, ascent.pendingLevelUps - 1);
   ascent.rerollCost = rerollPriceFor(ascent.level);
+  // Power draws attention. Skipping the draft is now a real option rather than a strictly
+  // worse one — it refunds momentum *and* leaves the realm quieter for the next wave.
+  chargeAmbition(state, 'card');
 
   maybeEvolve(state, ascent, card);
   return true;

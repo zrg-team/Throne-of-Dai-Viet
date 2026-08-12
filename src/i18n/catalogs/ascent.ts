@@ -225,7 +225,21 @@ export const enAscent = {
   "ascent.card.rice-tribute": "Rice Tribute",
   "ascent.card.rice-tribute.d": "+{food} food and +{gold} gold each season",
   "ascent.card.salt-roads": "Salt Roads",
-  "ascent.card.salt-roads.d": "+{pct}% market gold",
+  "ascent.card.salt-roads.d": "Walls and sellswords cost {pct}% less",
+
+  // Rule cards. Each one has to be sayable as "now I can do X" — see DoctrineSystem.
+  "ascent.card.fire-arrows": "Fire Arrows",
+  "ascent.card.fire-arrows.d": "Your archers loose before the lines meet: every wave loses {pct}% on the approach, win or lose",
+  "ascent.card.bamboo-palisade": "Bamboo Palisade",
+  "ascent.card.bamboo-palisade.d": "A war host must break an outer province before it can reach your seat",
+  "ascent.card.twice-born": "Twice-Born",
+  "ascent.card.twice-born.d": "Once each wave, a host that gives ground reforms at your capital instead of scattering",
+  "ascent.card.feigned-retreat": "Feigned Retreat",
+  "ascent.card.feigned-retreat.d": "Give ground and the enemy pursues out of formation, losing a further {pct}%",
+  "ascent.card.mountain-pass": "The Mountain Pass",
+  "ascent.card.mountain-pass.d": "Waves arrive {ticks} season later — a whole Court phase you did not have",
+  "ascent.card.bronze-drum": "The Bronze Drum",
+  "ascent.card.bronze-drum.d": "When one of your hosts breaks, every other host steadies (+{morale} morale)",
   "ascent.card.village-muster": "Village Muster",
   "ascent.card.village-muster.d": "Recruiting is faster and costs {pct}% fewer supplies",
   "ascent.card.bronze-drums": "Bronze Drums",
@@ -305,6 +319,10 @@ export const enAscent = {
   "ascent.response.mercenaryHired": "{n} sellswords take the field.",
   "ascent.response.cantAfford": "Not enough",
   "ascent.response.pickHero": "Commander",
+
+  // ── Ambition ──────────────────────────────────────────────────────────────
+  "ascent.ambition.spoils": "The spoils of a bold season — {n} answer the muster.",
+  "ascent.hud.ambition": "×{mult} ambition",
 
   // ── Wave result ───────────────────────────────────────────────────────────
   "ascent.wave.title": "Wave {wave} broken",
@@ -633,7 +651,20 @@ export const viAscent = {
   "ascent.card.rice-tribute": "Cống Nạp Lúa Gạo",
   "ascent.card.rice-tribute.d": "+{food} lương và +{gold} vàng mỗi mùa",
   "ascent.card.salt-roads": "Đường Muối",
-  "ascent.card.salt-roads.d": "+{pct}% vàng từ chợ",
+  "ascent.card.salt-roads.d": "Thành lũy và lính đánh thuê rẻ hơn {pct}%",
+
+  "ascent.card.fire-arrows": "Hỏa Tiễn",
+  "ascent.card.fire-arrows.d": "Cung thủ bắn trước khi giáp trận: mỗi đợt mất {pct}% trên đường tiến, thắng hay thua cũng vậy",
+  "ascent.card.bamboo-palisade": "Lũy Tre",
+  "ascent.card.bamboo-palisade.d": "Đại quân phải phá một trấn ngoài trước khi tới được kinh đô",
+  "ascent.card.twice-born": "Tái Sinh",
+  "ascent.card.twice-born.d": "Mỗi đợt một lần, đạo quân lui binh sẽ tụ lại ở kinh đô thay vì tan rã",
+  "ascent.card.feigned-retreat": "Trá Bại",
+  "ascent.card.feigned-retreat.d": "Lui binh dụ địch đuổi theo mà vỡ trận, mất thêm {pct}%",
+  "ascent.card.mountain-pass": "Ải Núi",
+  "ascent.card.mountain-pass.d": "Các đợt tới chậm hơn {ticks} mùa — thêm trọn một phiên Triều nghị",
+  "ascent.card.bronze-drum": "Trống Đồng",
+  "ascent.card.bronze-drum.d": "Một đạo quân vỡ, các đạo còn lại vững lòng (+{morale} sĩ khí)",
   "ascent.card.village-muster": "Làng Xã Mộ Binh",
   "ascent.card.village-muster.d": "Tuyển quân nhanh hơn và tốn ít hơn {pct}% quân nhu",
   "ascent.card.bronze-drums": "Trống Đồng",
@@ -713,6 +744,10 @@ export const viAscent = {
   "ascent.response.mercenaryHired": "{n} sellswords take the field.",
   "ascent.response.cantAfford": "Không đủ",
   "ascent.response.pickHero": "Chủ tướng",
+
+  // ── Ambition ──────────────────────────────────────────────────────────────
+  "ascent.ambition.spoils": "Chiến lợi phẩm của một mùa đầy tham vọng — {n} người ứng mộ.",
+  "ascent.hud.ambition": "×{mult} tham vọng",
 
   // ── Wave result ───────────────────────────────────────────────────────────
   "ascent.wave.title": "Đã phá đợt {wave}",

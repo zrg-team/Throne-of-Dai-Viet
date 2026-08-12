@@ -36,11 +36,31 @@ export const POWER_CARDS: PowerCardDef[] = [
     evolvesInto: 'celestial-granary',
     levels: [{ effect: { permanent: true, resourceRateModifier: { food: 9, gold: 5 } }, display: { food: 9, gold: 5 } }],
   },
+  /**
+   * Rewritten from `marketGoldOutputModifier: 0.14`.
+   *
+   * "+14% market gold" was the clearest example of the pool's problem: a number attached to a
+   * system the player never touches, in a currency the mode oversupplies. It only became a real
+   * card once coin had something finite to buy — now that walls and companies escalate in price
+   * with every purchase, a discount on them is a decision about how long the treasury lasts.
+   */
   {
     id: 'salt-roads',
+    // Rule cards are weighted up: the pool's percentage cards outnumber them three to one, and
+    // a draft that offers three adjustments and one verb is still mostly adjustments.
+    weight: 2.4,
+    rarity: 'bronze',
+    maxStacks: 2,
+    levels: [{ effect: { permanent: true }, display: { pct: 22 } }],
+  },
+  {
+    id: 'feigned-retreat',
+    // Rule cards are weighted up: the pool's percentage cards outnumber them three to one, and
+    // a draft that offers three adjustments and one verb is still mostly adjustments.
+    weight: 2.4,
     rarity: 'bronze',
     maxStacks: 3,
-    levels: [{ effect: { permanent: true, marketGoldOutputModifier: 0.14 }, display: { pct: 14 } }],
+    levels: [{ effect: { permanent: true }, display: { pct: 7 } }],
   },
   {
     id: 'village-muster',
@@ -96,6 +116,35 @@ export const POWER_CARDS: PowerCardDef[] = [
     maxStacks: 3,
     levels: [{ effect: { defenseBoost: 8 }, display: { defense: 8 } }],
   },
+  {
+    id: 'bamboo-palisade',
+    // Rule cards are weighted up: the pool's percentage cards outnumber them three to one, and
+    // a draft that offers three adjustments and one verb is still mostly adjustments.
+    weight: 2.4,
+    rarity: 'silver',
+    maxStacks: 1,
+    levels: [{ effect: { permanent: true }, display: {} }],
+  },
+  {
+    id: 'mountain-pass',
+    // Rule cards are weighted up: the pool's percentage cards outnumber them three to one, and
+    // a draft that offers three adjustments and one verb is still mostly adjustments.
+    weight: 2.4,
+    rarity: 'silver',
+    maxStacks: 2,
+    levels: [{ effect: { permanent: true }, display: { ticks: 1 } }],
+  },
+  {
+    id: 'bronze-drum',
+    // Rule cards are weighted up: the pool's percentage cards outnumber them three to one, and
+    // a draft that offers three adjustments and one verb is still mostly adjustments.
+    weight: 2.4,
+    rarity: 'silver',
+    maxStacks: 2,
+    // Pointless with nothing else in the field to steady.
+    requires: (state) => state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID).length > 1,
+    levels: [{ effect: { permanent: true }, display: { morale: 7 } }],
+  },
 
   // ── Gold ──────────────────────────────────────────────────────────────────
   {
@@ -109,6 +158,25 @@ export const POWER_CARDS: PowerCardDef[] = [
     levels: [
       { effect: { permanent: true, armyPowerModifier: 0.09, armyLevelCapBonus: 1 }, display: { pct: 9, cap: 1 } },
     ],
+  },
+  {
+    id: 'fire-arrows',
+    // Rule cards are weighted up: the pool's percentage cards outnumber them three to one, and
+    // a draft that offers three adjustments and one verb is still mostly adjustments.
+    weight: 2.4,
+    rarity: 'gold',
+    maxStacks: 3,
+    levels: [{ effect: { permanent: true }, display: { pct: 9 } }],
+  },
+  {
+    id: 'twice-born',
+    // Rule cards are weighted up: the pool's percentage cards outnumber them three to one, and
+    // a draft that offers three adjustments and one verb is still mostly adjustments.
+    weight: 2.4,
+    rarity: 'gold',
+    maxStacks: 1,
+    requires: (state) => state.armies.some((army) => army.kingdomId === PLAYER_KINGDOM_ID),
+    levels: [{ effect: { permanent: true }, display: {} }],
   },
   {
     id: 'mandarin-academy',

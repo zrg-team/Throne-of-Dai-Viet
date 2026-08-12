@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, HEADER_HEIGHT } from '../../game/constants';
 import { INK_UI, INK_UI_HEX, InkUI } from '../InkUI';
 import { TITLE_FONT, UI_FONT } from '../fonts';
+import { heatFor } from '../../systems/ascent/AmbitionSystem';
 import { t } from '../../i18n';
 import type { AscentState } from '../../state/types';
 
@@ -181,6 +182,27 @@ export class AscentHud {
     }).setOrigin(1, 0);
     this.add(countdownText);
     this.countdownLeft = x - countdownText.width;
+
+    // The cause, printed beside its effect.
+    //
+    // The threat figure above already climbs as the player commits — it is quoted from live
+    // ambition — but a number that moves for reasons the player cannot see is the exact
+    // failure the ambition curve was built to end. This says *why* it moved, on the same
+    // right-hand column, and warms from jade through gold to cinnabar as the realm gets bolder.
+    const heat = heatFor(ascent.ambition);
+    if (heat > 1.001) {
+      const heatColor = heat < 1.4 ? '#9ecb8c' : heat < 2 ? '#e8c56a' : '#e08a7c';
+      const ambitionText = this.scene.add.text(
+        this.countdownLeft - 8,
+        TOP + 38,
+        t('ascent.hud.ambition', { mult: heat.toFixed(1) }),
+        { color: heatColor, fontFamily: UI_FONT, fontSize: '10px', fontStyle: '700', align: 'right' },
+      ).setOrigin(1, 0);
+      this.add(ambitionText);
+      // The XP bar is bounded by whatever now sits furthest left on this row, not by the
+      // countdown specifically — otherwise the gold fill runs straight under this label.
+      this.countdownLeft -= ambitionText.width + 8;
+    }
   }
 
   private renderMomentum(ascent: AscentState): void {

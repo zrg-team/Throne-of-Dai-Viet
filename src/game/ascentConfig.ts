@@ -41,6 +41,93 @@ export function waveHostCount(wave: number, boss: boolean): number {
   return Math.min(4, 1 + Math.floor(wave / 6) + (boss ? 1 : 0));
 }
 
+// ── The four phases of a wave cycle ─────────────────────────────────────────
+/**
+ * A run used to be a metronome: a card every 3.9 seasons, coefficient of variation 0.106,
+ * from the first minute to the last. A wave landing arrived through the same full-screen
+ * modal, at the same cadence, as a court appointment — so nothing in the run could feel like
+ * a peak because nothing was ever a trough.
+ *
+ * The cycle gives the same twelve seasons a shape: **Aftermath** (what you won), **Court**
+ * (the only window in which the realm's scheduled decisions may speak), **Muster** (the wave
+ * is named and nothing interrupts), then the field. Decisions cluster where the player is
+ * meant to be thinking and stop entirely where they are meant to be watching.
+ *
+ * Counted down from `WAVE_INTERVAL_TICKS`, so these are shares of one cycle, not absolutes.
+ */
+export const AFTERMATH_TICKS = 2;
+export const MUSTER_TICKS = 2;
+/**
+ * Gap between decisions *inside* Court. Deliberately shorter than `MIN_GAP_TICKS`: the point
+ * is not fewer decisions but decisions that arrive together and then leave the player alone,
+ * which is what a quiet stretch and a busy one actually are.
+ */
+export const COURT_GAP_TICKS = 2;
+
+// ── Ambition: the dial the player turns ─────────────────────────────────────
+/**
+ * **The mode's central mechanic.** A wave is sized from the baseline curve below, multiplied
+ * by how much the realm has recently *taken* — not by how much it currently *has*.
+ *
+ * The distinction is the whole design. Sizing a wave against `contestedDefencePower` (what
+ * this replaces) meant every point of defence the player bought summoned an equal point of
+ * threat, so growth was self-cancelling and the player was never told why. Measured over a
+ * full run, a realm that declined every offer plateaued at 3,000 defence against a threat
+ * that plateaued with it at 0.94× — a stalemate that ran out the clock — while a realm that
+ * engaged climbed to 8,088 defence with the threat right behind it at 0.95×, and died. Growth
+ * bought nothing but a bigger enemy.
+ *
+ * Against a counter the player spends, the trade inverts: taking a province costs a fixed,
+ * *decaying* burst of danger and pays a permanent gain. Ambition is therefore a price, not a
+ * treadmill, and the player can see the price before they pay it.
+ */
+export const AMBITION_PER_PROVINCE = 3;
+export const AMBITION_PER_POWER_CARD = 2;
+export const AMBITION_PER_HOST = 1;
+/**
+ * Share of standing ambition shed at each wave. At 0.45 a burst is mostly gone in three waves,
+ * so consolidating genuinely cools the realm down and a quiet stretch is a real strategy
+ * rather than a pause.
+ *
+ * Deliberately not zero-decay: without it, ambition is just a second, slower treadmill and the
+ * back half of a run is unplayable however carefully the front half was spent.
+ */
+export const AMBITION_DECAY_PER_WAVE = 0.45;
+/** How much one point of standing ambition adds to the next wave. 20 points doubles it. */
+export const AMBITION_PRESSURE_PER_POINT = 0.05;
+/**
+ * Ceiling on the multiplier, so a player who spends everything at once faces a monster rather
+ * than an instant loss — the run has to stay recoverable enough to be worth finishing.
+ */
+export const AMBITION_HEAT_MAX = 3.2;
+/**
+ * Seasons of the realm's own income paid as spoils on each wave survived, per point of heat
+ * above the floor. **The other arc of the dial** — the one that makes the price worth paying.
+ *
+ * Deliberately paid in manpower, grain and stores rather than gold. Those are what bound the
+ * size of a host, so an ambitious season converts directly into the thing that survives the
+ * next wave; gold is the one resource the mode already oversupplies by three orders of
+ * magnitude, and spoils paid in it would be a reward the player can feel nothing from.
+ *
+ * Measured: without this arc, engaging outlived declining by 1.26× — real, but short of the
+ * 1.5× that says a game rewards being played. Ambition was a price with a receipt attached
+ * rather than a purchase.
+ */
+export const AMBITION_SPOILS_SEASONS = 10;
+/**
+ * The wave curve's floor: what wave 1 brings against a realm that has done nothing at all.
+ *
+ * Anchored to the measured opening — the old formula quoted ~395 power at wave 1 — so the
+ * first minutes feel unchanged and only the *reason* the number moves is different.
+ */
+export const WAVE_BASELINE_POWER = 420;
+/**
+ * Per-wave growth of that floor. This is what makes passivity fatal: a realm that never takes
+ * anything holds a defence that plateaus near 3,000, and at 1.11 the floor passes it in the
+ * low twenties. Doing nothing is now a losing strategy that takes a while to lose.
+ */
+export const WAVE_BASELINE_GROWTH = 1.11;
+
 // ── Wave pressure: sizing a wave against what actually defends ───────────────
 /**
  * Battle power one invader soldier is worth, derived from the spawn profile in
@@ -80,42 +167,22 @@ export const WAVE_OPENING_SHARE = 0.55;
  * attack one province, which quoted 98% odds for the entire back half of a run.
  *
  * 0.20 measured across a four-value sweep: threat keeps pace with expansion without a wide
- * realm being punished for simply existing. Second difficulty dial after `WAVE_PRESSURE_BASE`.
+ * realm being punished for simply existing.
+ *
+ * Note this no longer sizes waves — those read ambition now — but it still decides what the
+ * response card quotes odds against, and what raids and mercenary companies are scaled to.
  */
 export const REALM_DEFENCE_SHARE = 0.2;
 
 /**
- * Wave 1 pressure, as a fraction of the lagged defensive power. **The mode's main difficulty
- * dial.**
+ * `WAVE_PRESSURE_BASE/STEP/MAX` used to live here: a wave was `laggedDefencePower × pressure`,
+ * with pressure ramping 0.36 → 0.95 across a run. They are gone rather than merely unused,
+ * because a retired difficulty dial left lying beside the live one is the sort of thing that
+ * gets retuned for an afternoon before anyone notices it is not wired to anything.
  *
- * Re-measured after the denominator moved to `contestedDefencePower`, which made every old
- * reading obsolete. Against a competent player over five seeds: 0.40 → runs of 110-200 seasons,
- * all five ending in defeat; 0.33 → 150-320, one seed running out the clock. 0.36 sits between
- * them, which lands a run in the 10-18 minute band the mode is paced for while still finishing.
- *
- * A naive auto-player that always takes the first option survives roughly 350 seasons at this
- * setting, so the gap between playing badly and playing well is real but not a cliff.
+ * The curve they described is now `WAVE_BASELINE_POWER × WAVE_BASELINE_GROWTH^wave × ambition`
+ * — see `waveTargetPower`.
  */
-export const WAVE_PRESSURE_BASE = 0.36;
-/** Added per wave, so late waves demand real compounding rather than a fixed tax. */
-export const WAVE_PRESSURE_STEP = 0.035;
-/**
- * Ceiling on pressure, in units of the realm's lagged defence.
- *
- * Re-derived once the response card began quoting the *real* battle model. That model resolves
- * on `attacker ≥ defender × siegeMult × Uniform(0.9, 1.1)`, so with an ordinary siege multiplier
- * of 0.85 a wave is a guaranteed loss the moment pressure exceeds `1.1 × 0.85 ≈ 0.94`, and a
- * guaranteed hold below `0.9 × 0.85 ≈ 0.77`.
- *
- * The old 1.3 sat far above that: it meant "auto-lose" for the whole late game. It survived
- * because the odds shown were an invented `power / (power + threat)` ratio that could not reach
- * zero and cheerfully reported ~30% for a fight the player could not win under any choice. Once
- * the card started telling the truth, whole response screens read 0% on every row.
- *
- * 0.95 puts the top of the curve just past the band — late waves are genuinely marginal and the
- * gold options decide them — rather than past the point of no return.
- */
-export const WAVE_PRESSURE_MAX = 0.95;
 /** A Great Invasion demands this much more than a regular wave of the same number. */
 export const BOSS_PRESSURE_MULT = 1.35;
 /** Floor so an early or freshly-crushed realm still faces something. */
@@ -138,9 +205,10 @@ export const MAX_LIVE_INVADER_HOSTS = 3;
  */
 export const RESPONSE_ASK_BELOW_WIN = 78;
 /**
- * Share of the realm's contested defence that one Fortify purchase buys, permanently.
- * Large enough that the option is worth its price on any size of realm — see
- * `fortifyDefenceGain`, which converts this into points of provincial defence.
+ * Share of the **incoming wave** that one Fortify purchase buys, permanently. Large enough
+ * that the option is worth its price at any point on the curve — see `fortifyDefenceGain`,
+ * which converts this into points of provincial defence, and which explains at length why this
+ * is a share of the threat rather than of the realm's own defence.
  */
 export const FORTIFY_DEFENCE_SHARE = 0.18;
 /** Floor for a tiny opening realm, where a share of very little is still nothing. */
@@ -238,6 +306,29 @@ export const MERCENARY_GOLD_BASE = 320;
 export const MERCENARY_INCOME_MULT = 9;
 /** Company size as a share of the realm's field power — a real answer, not a token. */
 export const MERCENARY_POWER_SHARE = 0.45;
+/**
+ * How much dearer each war purchase — walls or sellswords — is than the last, within one run.
+ * **The cap on what coin can buy.**
+ *
+ * Without it, gold is a win button rather than a resource. Measured with the strategy driver
+ * across twenty seeds: enduring every wave and buying nothing died 19 times out of 20 at wave
+ * 19.9; taking the emergency levy died 14 times at wave 30.1; simply buying walls every wave
+ * reached the tick limit at wave 49 and **died not once**. The treasury peaks near 150,000
+ * while a wall is priced at six seasons of income, so the realm could answer every wave
+ * forever by writing a cheque.
+ *
+ * Rebasing what a wall *grants* was tried first and was not enough: a purchase worth 18% of
+ * the incoming wave still wins, because the incoming waves are a geometric series and their
+ * running total is roughly nine times the latest one. Eighteen percent of that is 1.6× the
+ * wave the realm actually has to stop. The gain had to stop compounding *and* the count had to
+ * be bounded.
+ *
+ * Escalating rather than capping outright keeps the option honest at every point on the curve:
+ * the first purchase is a bargain, the fourth a serious commitment, the seventh something only
+ * a realm that hoarded for it can consider. Coin still buys survival — it stops buying an
+ * unbounded amount of it.
+ */
+export const WAR_PURCHASE_ESCALATION = 1.4;
 
 /**
  * Loyalty a newly-taken province regains per season. At 1.2 a bribed province (68) reaches full
@@ -422,10 +513,18 @@ export const SUMMON_EVERY_N_WAVES = 2;
  * winning one. A small realm concentrates everything into a single host.
  */
 export function targetArmyCount(ownedLands: number): number {
-  // Never many: splitting manpower yields several hosts that each lose their own battle.
-  // A small realm supports exactly one — two hosts on one province bankrupt its food and
+  // A small realm still supports exactly one — two hosts on one province bankrupt its food and
   // supply income within a couple of seasons and neither can then be replaced.
-  return Math.min(3, 1 + Math.floor(ownedLands / 3));
+  //
+  // The ceiling was 3 for as long as waves were sized against the realm's own defence: under
+  // that curve a fourth host summoned a proportionally larger wave, so the realm's strength was
+  // structurally capped and raising the cap changed nothing but the upkeep. Measured after the
+  // wave curve moved to ambition, that cap became the thing *blocking* the mode's central
+  // trade: a seventeen-province realm and a ten-province one both fielded three hosts and
+  // therefore had near-identical defence, so expanding bought a score and nothing else. At 6 a
+  // realm that takes ground can actually garrison it, which is what makes the ground worth its
+  // price in ambition.
+  return Math.min(6, 1 + Math.floor(ownedLands / 3));
 }
 /**
  * Host size scales with the manpower actually available.

@@ -941,6 +941,15 @@ export interface AscentBattle {
 /** Why a Dragon Ascent run ended. Shown on the summary so a loss is legible. */
 export type AscentEndCause = 'capital' | 'annihilated';
 
+/** The acts of growth that charge ambition. See `AMBITION_COSTS`. */
+export type AmbitionReason = 'province' | 'card' | 'host';
+
+/**
+ * Where in a wave cycle the run currently stands. Derived from the wave countdown rather than
+ * stored — see `ascentPhaseFor`.
+ */
+export type AscentPhase = 'aftermath' | 'court' | 'muster';
+
 export interface AscentState {
   /** Wave counter. Threat scales as BASE * GROWTH^wave; every 4th wave is a Great Invasion. */
   wave: number;
@@ -1029,6 +1038,38 @@ export interface AscentState {
    * instead of instantly inflating the next wave. Only the recent tail is kept.
    */
   defenceSamples: number[];
+
+  // ── Ambition (see systems/ascent/AmbitionSystem.ts) ──
+  /**
+   * Standing ambition: how much the realm has recently taken, and therefore how much larger
+   * the next wave will be. Charged by growth, shed at each wave. **This is what waves are
+   * sized against** — see `waveTargetPower`.
+   */
+  ambition: number;
+  /** Charged this cycle, so the Court phase can show the dial climbing as the player commits. */
+  ambitionThisWave: number;
+  /**
+   * The ambition multiplier locked in when the current wave was raised.
+   *
+   * Snapshotted rather than read live because the counter decays the moment the wave is
+   * named: without this the host that actually spawns would be smaller than the number the
+   * player was quoted while deciding, which is precisely the kind of quiet lie that makes a
+   * readout worthless.
+   */
+  waveHeat: number;
+  /** Every point ever charged, for the run summary. */
+  ambitionSpent: number;
+  /** The highest the counter reached — how far the player actually pushed it. */
+  ambitionPeak: number;
+  /**
+   * Walls and companies bought off the response card this run. Each one makes every later gold
+   * price dearer — see `warPurchaseMultiplier`. This is what bounds how much survival a
+   * treasury can simply buy.
+   */
+  warPurchases: number;
+  /** Wave in which Twice-Born last reformed a broken host, so it fires once per wave. */
+  twiceBornWave: number;
+
   /** Ticks until the next border raid may be sent. */
   raidCooldown: number;
   /** Cooldowns on each rival-initiated demand, so they arrive as pressure not as spam. */

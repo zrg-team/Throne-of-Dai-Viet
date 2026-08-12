@@ -11,6 +11,7 @@ import {
   MERCENARY_GOLD_BASE,
   MERCENARY_INCOME_MULT,
   MERCENARY_POWER_SHARE,
+  WAR_PURCHASE_ESCALATION,
   MIN_RAID_SOLDIERS,
   RAID_MIN_LANDS,
   RAID_POWER_SHARE,
@@ -18,12 +19,11 @@ import {
   FORTIFY_DEFENSE_MIN,
   RESPONSE_ASK_BELOW_WIN,
   RAID_WAVE_CLEARANCE,
+  WAVE_BASELINE_GROWTH,
+  WAVE_BASELINE_POWER,
   WAVE_INTERVAL_TICKS,
   WAVE_LAG,
   WAVE_OPENING_SHARE,
-  WAVE_PRESSURE_BASE,
-  WAVE_PRESSURE_MAX,
-  WAVE_PRESSURE_STEP,
   XP_PER_WAVE_SURVIVED,
 } from '../../game/ascentConfig';
 import { MIN_ARMY_SOLDIERS, recruitSoldiers, SUPPLY_TICKS_HELD, waveHostCount } from '../../game/ascentConfig';
@@ -33,6 +33,14 @@ import { applyResourceDelta, canSpend } from '../ResourceSystem';
 import { armyPower, queueRecruitment } from '../WarSystem';
 import { pushToast } from '../empire/notifications';
 import { enqueueAscentPrompt } from './AscentState';
+import {
+  ambitionHeat,
+  chargeAmbition,
+  decayAmbition,
+  payAmbitionSpoils,
+  recordAmbitionPeak,
+} from './AmbitionSystem';
+import { waveDelayTicks, warPurchaseDiscount } from './DoctrineSystem';
 import { addAscentXp, contestedDefencePower, ownedLandCount } from './PowerSystem';
 import { findFreeCommander } from './AutopilotSystem';
 import { heroName, t } from '../../i18n';
@@ -64,8 +72,22 @@ const SEND_HOST_SUPPLIES = 35;
  * fixed or merely wave-scaled price is a rounding error and every option reads "affordable"
  * forever. Pegging to income keeps the decision real however rich the realm gets.
  */
+/**
+ * Multiplier on every gold price on the response card, from how many the realm has already
+ * bought this run. One counter for walls and sellswords alike: they are the same purchase —
+ * coin turned into survival — and pricing them independently just moves the win button from
+ * one row of the card to the other.
+ */
+function warPurchaseMultiplier(state: GameState): number {
+  const escalation = Math.pow(WAR_PURCHASE_ESCALATION, state.ascent?.warPurchases ?? 0);
+  // Salt Roads is a discount on this, not on a market the player never visits — see the note
+  // on its rewrite in `ascentCards.ts`.
+  return escalation * (1 - warPurchaseDiscount(state));
+}
+
 function fortifyCost(state: GameState, wave: number): number {
-  return Math.round(Math.max(FORTIFY_GOLD_BASE * (1 + wave * 0.25), state.resourceRates.gold * 6));
+  const floor = Math.max(FORTIFY_GOLD_BASE * (1 + wave * 0.25), state.resourceRates.gold * 6);
+  return Math.round(floor * warPurchaseMultiplier(state));
 }
 
 function buyOffCost(state: GameState, wave: number): number {
@@ -81,7 +103,8 @@ function buyOffCost(state: GameState, wave: number): number {
  * timer, no free commander and no manpower cost.
  */
 function mercenaryCost(state: GameState, wave: number): number {
-  return Math.round(Math.max(MERCENARY_GOLD_BASE * (1 + wave * 0.3), state.resourceRates.gold * MERCENARY_INCOME_MULT));
+  const floor = Math.max(MERCENARY_GOLD_BASE * (1 + wave * 0.3), state.resourceRates.gold * MERCENARY_INCOME_MULT);
+  return Math.round(floor * warPurchaseMultiplier(state));
 }
 
 /** Soldiers a mercenary company brings: a real answer to the wave, not a token. */
@@ -92,16 +115,31 @@ function mercenarySize(state: GameState): number {
 const MAX_STANDING_HOSTS = 5;
 
 /**
- * Walls bought by the Fortify option, sized as a share of the realm's own defence.
+ * Walls bought by the Fortify option, sized as a share of **the wave they must stop**.
  *
- * A flat +10 was the emptiest option on the card. `landGarrisonPower` values a point of defence
+ * A flat +10 was the emptiest option on the card: `landGarrisonPower` values a point of defence
  * at 16, so ten points added 160 power to a realm fielding four thousand — four tenths of one
- * percent, for six seasons of gold income, and it moved the quoted odds by a single point.
- * Scaling it keeps the purchase worth its price at every point on the curve, and makes Fortify
- * the option it was always meant to be: the one whose value is that it is *permanent*.
+ * percent for six seasons of income. Scaling it fixed that and created something worse. Sized
+ * as a share of the realm's *own* defence, each purchase added 18% of the current total and the
+ * next purchase was 18% of that — a compounding engine growing at 1.18 per wave against a
+ * threat curve growing at 1.11. Measured with the strategy driver: a run that simply bought
+ * walls on every response survived all twenty seeds to the tick limit without dying once, both
+ * before and after mercenary prices were made to escalate. Walls, not sellswords, were the win
+ * button.
+ *
+ * Pricing them against the incoming wave keeps both properties and neither pathology. The
+ * purchase is always worth its price, because it is always a fixed share of exactly the problem
+ * in front of the player; and buying one does not make the next one bigger, so a run's total
+ * fortification *tracks* the curve instead of outrunning it.
  */
 function fortifyDefenceGain(state: GameState): number {
-  return Math.max(FORTIFY_DEFENSE_MIN, Math.round((contestedDefencePower(state) * FORTIFY_DEFENCE_SHARE) / 16));
+  const ascent = state.ascent;
+  const wave = ascent?.wave ?? 1;
+  const incoming = Math.max(
+    ascent?.threat ?? 0,
+    waveTargetPower(state, wave, ascent?.lastWaveBoss ?? false, liveWaveHeat(state)),
+  );
+  return Math.max(FORTIFY_DEFENSE_MIN, Math.round((incoming * FORTIFY_DEFENCE_SHARE) / 16));
 }
 /**
  * The bounds of the ±10% swing `resolveInvaderBattle` rolls on every fight. Mirrored here so the
@@ -121,24 +159,13 @@ export function isBossWave(wave: number): boolean {
 }
 
 /**
- * Fraction of the realm's lagged defensive power the given wave is sized to bring.
+ * The realm's defensive power as raids and mercenary companies see it: what it could field
+ * `WAVE_LAG` waves ago, not what it can field now.
  *
- * Rises with the wave number and jumps for a Great Invasion, capped so a realm that has done
- * everything right is never simply overrun — past the cap, escalation comes from host count.
- */
-export function wavePressure(wave: number, boss: boolean): number {
-  const ramp = Math.min(WAVE_PRESSURE_MAX, WAVE_PRESSURE_BASE + Math.max(0, wave - 1) * WAVE_PRESSURE_STEP);
-  return ramp * (boss ? BOSS_PRESSURE_MULT : 1);
-}
-
-/**
- * The realm's defensive power as the pressure curve sees it: what it could field `WAVE_LAG`
- * waves ago, not what it can field now.
- *
- * The lag is the whole point. Sizing against the live figure makes every Power Draft pick
- * instantly self-defeating — the wave grows with you and nothing you choose changes the
- * outcome. Reading two waves back means outpacing the curve buys real breathing room, and
- * letting your army rot lets the curve close on you. That is what makes the picks matter.
+ * Waves no longer read this — they are sized from ambition (see `waveTargetPower`) precisely
+ * because sizing them against the realm's own strength made every pick self-cancelling. The
+ * things that *should* scale with the player still do: a border raid is a neighbour testing
+ * whatever you have, and a mercenary company is priced as a real answer to it.
  */
 export function laggedDefencePower(state: GameState): number {
   const ascent = state.ascent;
@@ -157,16 +184,57 @@ export function laggedDefencePower(state: GameState): number {
 }
 
 /**
- * Soldier budget for a wave, from the lagged defence and the pressure curve.
+ * **How dangerous the next wave is, and why.** The one number this whole mode turns on.
  *
- * The pressure curve is a target for the *total* threat standing on the map, not for each
- * spawn: a conquest host takes many seasons to march in and reduce a province, so at a 12-tick
- * cadence the next wave lands while the last is still fighting. Budgeting per-spawn let them
- * pile up until four hosts were live at once and no realm could hold — so whatever is already
- * marching is deducted here.
+ * Two terms, and the split between them is the design:
+ *
+ *   - a **baseline** that climbs with the wave number alone, which the player cannot influence.
+ *     This is the world getting worse on its own schedule, and it is what makes doing nothing a
+ *     losing strategy rather than an unbeatable one.
+ *   - the **ambition** the player has standing, which multiplies it. This is the half they
+ *     chose, they watched themselves choose, and they can let cool.
+ *
+ * What it replaces — `laggedDefencePower × wavePressure` — read the realm's own defence, so
+ * every point of strength bought summoned a matching point of threat and no choice could ever
+ * change the outcome. Measured across a full run: a player who declined everything held a
+ * defence that plateaued at 3,000 against a threat pinned at 0.94× of it for thirty waves,
+ * while a player who engaged climbed to 8,088 with the threat tracking at 0.95× and died for
+ * it. That is a treadmill wearing a difficulty curve's clothes.
+ *
+ * The lag machinery (`laggedDefencePower`, `defenceSamples`) survives because raids and
+ * mercenary companies are still sized against what the realm can field — those *should* scale
+ * with the player. Only the wave stopped asking.
  */
-export function waveSoldierBudget(state: GameState, wave: number, boss: boolean): number {
-  const target = laggedDefencePower(state) * wavePressure(wave, boss);
+export function waveTargetPower(
+  state: GameState,
+  wave: number,
+  boss: boolean,
+  heat = ambitionHeat(state),
+): number {
+  const baseline = WAVE_BASELINE_POWER * Math.pow(WAVE_BASELINE_GROWTH, Math.max(0, wave - 1));
+  return baseline * heat * (boss ? BOSS_PRESSURE_MULT : 1);
+}
+
+/** The multiplier the wave on the map was sized with, for everything that must match its quote. */
+function liveWaveHeat(state: GameState): number {
+  return state.ascent?.waveHeat ?? 1;
+}
+
+/**
+ * Soldier budget for a wave, from the target above.
+ *
+ * The target is for the *total* threat standing on the map, not for each spawn: a conquest host
+ * takes many seasons to march in and reduce a province, so at a 12-tick cadence the next wave
+ * lands while the last is still fighting. Budgeting per-spawn let them pile up until four hosts
+ * were live at once and no realm could hold — so whatever is already marching is deducted here.
+ */
+export function waveSoldierBudget(
+  state: GameState,
+  wave: number,
+  boss: boolean,
+  heat = liveWaveHeat(state),
+): number {
+  const target = waveTargetPower(state, wave, boss, heat);
   const alreadyMarching = liveInvaderPower(state);
   const remaining = Math.max(0, target - alreadyMarching);
   return Math.max(MIN_WAVE_SOLDIERS, Math.round(remaining / INVADER_POWER_PER_SOLDIER));
@@ -182,7 +250,7 @@ export function waveBudgetSpent(state: GameState, wave: number, boss: boolean): 
   // which reads as a permanent siege rather than a wave, gives the player no gap in which to
   // retake anything, and made a whole run's midgame one continuous unwinnable fight.
   if ((state.invasions?.length ?? 0) >= MAX_LIVE_INVADER_HOSTS) return true;
-  return liveInvaderPower(state) >= laggedDefencePower(state) * wavePressure(wave, boss);
+  return liveInvaderPower(state) >= waveTargetPower(state, wave, boss, liveWaveHeat(state));
 }
 
 /**
@@ -192,12 +260,17 @@ export function waveBudgetSpent(state: GameState, wave: number, boss: boolean): 
  * old projection was computed from `BASE_THREAT × GROWTH^wave` and had no relationship to the
  * host that then spawned, so the readout told the player they were "behind" while a trivial
  * wave landed — or the reverse.
+ *
+ * Defaults to *live* ambition, not the wave-in-flight's snapshot, because its main job now is
+ * to price the next wave while the player is still deciding. That is the moment the whole
+ * mechanic exists for: the number on the HUD climbs as they commit, so the danger is something
+ * they watched themselves buy.
  */
-export function projectedWaveThreat(state: GameState, wave: number): number {
+export function projectedWaveThreat(state: GameState, wave: number, heat = ambitionHeat(state)): number {
   const boss = isBossWave(wave);
   // `waveSoldierBudget` is the whole wave's budget, split across its hosts — not a per-host
   // figure, so it must not be multiplied by the host count again.
-  return Math.round(waveSoldierBudget(state, wave, boss) * INVADER_POWER_PER_SOLDIER);
+  return Math.round(waveSoldierBudget(state, wave, boss, heat) * INVADER_POWER_PER_SOLDIER);
 }
 
 /** Records what the realm could field, for later waves to be sized against. */
@@ -458,8 +531,14 @@ function startWave(state: GameState): void {
   // rather than when the map clears keeps the count honest even when waves overlap.
   if (ascent.wave > 0) {
     ascent.wavesSurvived += 1;
-    const momentum = XP_PER_WAVE_SURVIVED + (ascent.lastWaveBoss ? XP_PER_WAVE_SURVIVED : 0);
+    // The other end of the dial: surviving a wave you made dangerous pays more than surviving
+    // one you hid from. Without this the counter is a pure tax and the correct play is always
+    // to take nothing — the reward has to ride the same number as the risk or the choice is
+    // not a choice.
+    const momentum = (XP_PER_WAVE_SURVIVED + (ascent.lastWaveBoss ? XP_PER_WAVE_SURVIVED : 0))
+      * liveWaveHeat(state);
     addAscentXp(state, momentum);
+    payAmbitionSpoils(state, liveWaveHeat(state));
 
     // Only Great Invasions get a result screen — stopping for a modal every forty seconds
     // would wreck the pacing. Ordinary waves report through the header strip instead, so
@@ -498,14 +577,23 @@ function startWave(state: GameState): void {
 
   ascent.wave += 1;
   ascent.lastWaveBoss = isBossWave(ascent.wave);
-  ascent.ticksToWave = WAVE_INTERVAL_TICKS;
+  // Mountain Pass buys seasons: waves from beyond the passes arrive late, and the extra Court
+  // phase it grants is the whole card.
+  ascent.ticksToWave = WAVE_INTERVAL_TICKS + waveDelayTicks(state);
   ascent.bossTelegraphed = false;
+
+  // The bill for the season the player just spent. Locked here and read by everything that
+  // sizes or quotes this wave, then shed — so the wave arrives at exactly the price shown
+  // while they were deciding, and the *next* one starts from a realm that has consolidated.
+  recordAmbitionPeak(state);
+  ascent.waveHeat = ambitionHeat(state);
+  decayAmbition(state);
 
   const aggressor = pickAggressor(state);
   if (!aggressor) return;
 
   // Before the hosts exist there is nothing to measure, so the modal quotes the projection.
-  ascent.threat = projectedWaveThreat(state, ascent.wave);
+  ascent.threat = projectedWaveThreat(state, ascent.wave, ascent.waveHeat);
   const options = buildResponseOptions(state, ascent.threat);
 
   // Only interrupt when the answer could change the outcome.
@@ -631,13 +719,13 @@ export function resolveEmpireResponse(state: GameState, prompt: AscentPrompt, op
         // their posting here — answering the wave is one decision, not two screens.
         releaseHero(state, option.heroId);
         const soldiers = emergencyLevySize(state);
-        queueRecruitment(
+        if (queueRecruitment(
           state,
           option.heroId,
           soldiers,
           Math.ceil(soldiers / 100) * SUPPLY_TICKS_HELD,
           Math.ceil(soldiers / 150) * SUPPLY_TICKS_HELD,
-        );
+        )) chargeAmbition(state, 'host');
       }
       break;
     }
@@ -645,12 +733,17 @@ export function resolveEmpireResponse(state: GameState, prompt: AscentPrompt, op
       const cost = option.cost?.gold ?? mercenaryCost(state, prompt.wave);
       applyResourceDelta(state, { gold: -cost });
       hireMercenaries(state, mercenarySize(state));
+      ascent.warPurchases = (ascent.warPurchases ?? 0) + 1;
+      // Bought soldiers count like raised ones. Charging only the levy would make coin the
+      // one way to grow that nobody notices, which is a loophole rather than a strategy.
+      chargeAmbition(state, 'host');
       break;
     }
     case 'fortify': {
       applyResourceDelta(state, { gold: -(option.cost?.gold ?? fortifyCost(state, prompt.wave)) });
       const capital = playerCapital(state);
       if (capital) capital.defense += fortifyDefenceGain(state);
+      ascent.warPurchases = (ascent.warPurchases ?? 0) + 1;
       break;
     }
     case 'buy-off': {

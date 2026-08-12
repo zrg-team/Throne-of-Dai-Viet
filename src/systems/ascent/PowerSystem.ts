@@ -1,6 +1,7 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { REALM_DEFENCE_SHARE, XP_PER_OWNED_LAND, XP_PER_TICK_BASE, xpToNextLevel } from '../../game/ascentConfig';
 import { armyPower, terrainDefenseMultiplier } from '../WarSystem';
+import { ambitionHeat } from './AmbitionSystem';
 import type { GameState, Land } from '../../state/types';
 
 /**
@@ -151,5 +152,11 @@ export function tickAscentProgress(state: GameState): void {
   // gauge and the game disagreed about how much trouble the realm was in.
   ascent.defensePower = contestedDefencePower(state);
 
-  addAscentXp(state, XP_PER_TICK_BASE + ownedLandCount(state) * XP_PER_OWNED_LAND);
+  // Momentum rides ambition. This is the loop that makes engaging worth its price: a realm
+  // that keeps taking ground levels faster, drafts more often and compounds, while a cautious
+  // one advances slowly and safely. Passive momentum is the bulk of a run's XP — a wave's
+  // survival bonus is under a tenth of it — so scaling only the wave bonus would have made
+  // the reward arc a rounding error against a danger arc that was very real indeed.
+  const base = XP_PER_TICK_BASE + ownedLandCount(state) * XP_PER_OWNED_LAND;
+  addAscentXp(state, base * ambitionHeat(state));
 }

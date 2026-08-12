@@ -59,7 +59,7 @@ const raw = await page.evaluate(async ({ seeds, ticks, decline }) => {
     const decisionTicks = [];
     const ratios = [];
     let tick = 0, answered = 0, battleTicks = 0, battleOpens = 0, inBattle = false, over = false;
-    let goldPeak = 0, deepest = 0;
+    let goldPeak = 0, deepest = 0, dearest = 0;
     const kinds = {};
 
     for (; tick < ticks; tick += 1) {
@@ -85,6 +85,15 @@ const raw = await page.evaluate(async ({ seeds, ticks, decline }) => {
       while (state.pendingAscentPrompt && guard < 40) {
         guard += 1;
         const prompt = state.pendingAscentPrompt;
+        // The dearest thing the run was ever actually offered, measured rather than assumed.
+        // This used to be a hardcoded 54 — the priciest *card* — while the real sinks (walls,
+        // sellswords, grain, tribute) are pegged to income and run into the thousands, so the
+        // oversupply ratio it produced was inflated by orders of magnitude.
+        for (const option of prompt.options ?? []) {
+          const gold = option?.cost?.gold ?? 0;
+          if (gold > dearest) dearest = gold;
+        }
+        if (prompt.kind === 'power-draft' && prompt.rerollCost > dearest) dearest = prompt.rerollCost;
         const options = window.__ptOptions(state);
         if (!options || !options.length) break;
         // `run-over` is terminal: the resolver hands it to the summary scene rather than
@@ -132,6 +141,7 @@ const raw = await page.evaluate(async ({ seeds, ticks, decline }) => {
       battleOpens,
       battleTicks,
       goldPeak: Math.round(goldPeak),
+      dearest: Math.round(dearest),
       goldEnd: Math.round(state.resources.gold),
       lands: state.lands.filter((l) => l.ownerId === 'dai-viet').length,
       peakPower: Math.round(state.ascent.peakPower),
@@ -163,8 +173,10 @@ const pacing = summarise(engaged.flatMap((r) => r.gaps));
 const dangerSpread = summarise(engaged.map((r) => r.deepestDanger));
 const battlesPerRun = mean(engaged, 'battleOpens');
 const goldPeakMean = mean(engaged, 'goldPeak');
-// Most expensive thing on offer anywhere in the mode today. Update if a real sink is added.
-const BIGGEST_PURCHASE = 54;
+// The dearest thing the run was actually offered, measured per run rather than hardcoded.
+// Floored at 54 (the priciest card) so a run that never sees a real sink still scores against
+// something, instead of dividing by zero and reporting a perfect economy.
+const BIGGEST_PURCHASE = Math.max(54, Math.round(mean(engaged, 'dearest')));
 const treasuryPressure = goldPeakMean / BIGGEST_PURCHASE;
 const deathRate = engaged.filter((r) => r.died).length / engaged.length;
 

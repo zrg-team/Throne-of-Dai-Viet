@@ -87,15 +87,25 @@ export function battleDefender(state: GameState, landId: string): Army | undefin
 }
 
 /**
- * Whether this fight is worth stopping the game for.
+ * Whether this fight is worth stopping the game for: **a wave that reached ground we hold.**
  *
- * Deliberately just these two, and not "any fight we are losing". That odds clause was tried
- * and barely filtered anything: a single intercepting host is almost always weaker than a wave
- * sized against the realm's whole contested defence, so "not clearly winning" described 47 of
- * 48 engagements. A rule that admits everything is not a rule.
+ * Not "any fight we are losing" — that odds clause was tried and barely filtered anything, since
+ * a single intercepting host is almost always weaker than a wave, so "not clearly winning"
+ * described 47 of 48 engagements. A rule that admits everything is not a rule.
+ *
+ * But the two-clause version that replaced it (a Great Invasion, or the capital) was far too
+ * narrow in the other direction: measured, the live battle — the best thing this mode has —
+ * opened **0.4 times per run**, so most players never saw it at all and auto-resolve became the
+ * sensible default by neglect.
+ *
+ * Whose ground it is turns out to be the honest filter. A host we sent to storm someone else's
+ * walls is a march, and the mode's fantasy is not marching; it is watching the realm you built
+ * hold the line. That distinction cuts the same 48 engagements down without an odds clause, and
+ * the once-per-wave cap in `beginBattle` does the rest.
  */
 function worthWatching(state: GameState, landId: string, isGreat: boolean): boolean {
-  return isGreat || state.ascent?.capitalLandId === landId;
+  if (isGreat || state.ascent?.capitalLandId === landId) return true;
+  return findLand(state, landId)?.ownerId === PLAYER_KINGDOM_ID;
 }
 
 /** Share of a host's strength held back at camp, available to commit mid-fight. */

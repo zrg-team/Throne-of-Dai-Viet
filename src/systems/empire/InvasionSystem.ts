@@ -4,6 +4,13 @@ import { createBattlePreview, grantGeneralExperience, issueMoveOrder } from '../
 import { applyResourceDelta, refreshAllLandOutputs } from '../ResourceSystem';
 import { getPlayerMilitary } from '../DiplomacySystem';
 import { addMandate } from './MandateSystem';
+import {
+  openingVolleyShare,
+  pursuitLossShare,
+  shieldsTheCapital,
+  soundTheBronzeDrum,
+  tryReformBrokenHost,
+} from '../ascent/DoctrineSystem';
 import { pushToast } from './notifications';
 import type { Army, Difficulty, GameState, InvasionRecord, Kingdom, Land } from '../../state/types';
 import { t } from '../../i18n';
@@ -370,6 +377,10 @@ function chooseTarget(state: GameState, army: Army, record: InvasionRecord): Lan
     return undefined;
   }
   if (record.intent === 'conquest') {
+    // Bamboo Palisade turns the realm's own width into depth: a war host can no longer march
+    // straight past the frontier at the dynasty's seat, and has to reduce whatever it meets
+    // first. Ascent-only — `shieldsTheCapital` returns false in every other mode.
+    if (shieldsTheCapital(state)) return nearestLand(here, owned);
     return playerCapital(state) ?? nearestLand(here, owned);
   }
   return nearestLand(here, owned);
@@ -428,6 +439,12 @@ export function resolvePendingBattle(state: GameState, decision: 'attack' | 'del
 }
 
 function resolveInvaderBattle(state: GameState, army: Army, record: InvasionRecord, land: Land, defenderBonus = 1): void {
+  // Fire Arrows: the volley lands before the lines meet, so it is spent on the approach whether
+  // the defence then holds or breaks. Applied ahead of the preview so the odds the battle
+  // resolves on are the odds after the arrows have fallen.
+  const volley = openingVolleyShare(state);
+  if (volley > 0) applyInvaderLosses(army, volley);
+
   const preview = createBattlePreview(state, army.id, land.id);
   if (!preview) {
     return;
@@ -462,6 +479,10 @@ function resolveInvaderBattle(state: GameState, army: Army, record: InvasionReco
 
   // Invader wins the field.
   applyInvaderLosses(army, 0.16);
+  // Feigned Retreat: a pursuit out of formation costs the attacker more than the ground was
+  // worth. This is the card that makes losing a province a move rather than only a loss.
+  const pursuit = pursuitLossShare(state);
+  if (pursuit > 0) applyInvaderLosses(army, pursuit);
   retreatDefenders(state, land);
 
   if (record.intent === 'raid') {
@@ -489,6 +510,15 @@ function resolveInvaderBattle(state: GameState, army: Army, record: InvasionReco
 function retreatDefenders(state: GameState, land: Land): void {
   const defenders = state.armies.filter((a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id);
   for (const defender of defenders) {
+    // The Bronze Drum steadies everyone still standing — ordinary on one front, and worth the
+    // slot the moment the realm is fighting on three.
+    soundTheBronzeDrum(state, defender.id);
+
+    // Twice-Born: once a wave, a broken host reforms at the seat instead of scattering. It keeps
+    // its men and finds its heart again, which is what makes it something to plan a defence
+    // around rather than a consolation.
+    if (tryReformBrokenHost(state, defender)) continue;
+
     const retreat = land.neighbors
       .map((id) => findLand(state, id))
       .find((l) => l?.ownerId === PLAYER_KINGDOM_ID);
