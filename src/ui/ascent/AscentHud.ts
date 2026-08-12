@@ -32,6 +32,15 @@ export class AscentHud {
   private objects: Phaser.GameObjects.GameObject[] = [];
   /** Tweened display value, so POWER counts up to its new figure instead of snapping. */
   private shownPower = 0;
+  /**
+   * Left edge of the wave countdown, measured once it is laid out.
+   *
+   * The countdown and the XP bar share the band's last rows, and the bar ran the full width
+   * beneath it — so the gold fill was drawn straight through "next wave in 10". Measuring is
+   * what makes the two coexist in every language: the row heights are close enough that no
+   * fixed vertical split survives a font whose glyphs sit a pixel lower.
+   */
+  private countdownLeft = GAME_WIDTH - 14;
 
   constructor(private readonly scene: Phaser.Scene) {
     this.ui = new InkUI(scene);
@@ -163,13 +172,15 @@ export class AscentHud {
     const countdown = bossNext
       ? t('ascent.hud.bossIn', { ticks: Math.max(0, ascent.ticksToWave) })
       : t('ascent.hud.waveIn', { ticks: Math.max(0, ascent.ticksToWave) });
-    this.add(this.scene.add.text(x, TOP + 38, countdown, {
+    const countdownText = this.scene.add.text(x, TOP + 38, countdown, {
       color: bossNext ? '#e08a7c' : '#d8c48e',
       fontFamily: UI_FONT,
       fontSize: '10px',
       fontStyle: bossNext ? '700' : 'normal',
       align: 'right',
-    }).setOrigin(1, 0));
+    }).setOrigin(1, 0);
+    this.add(countdownText);
+    this.countdownLeft = x - countdownText.width;
   }
 
   private renderMomentum(ascent: AscentState): void {
@@ -188,10 +199,12 @@ export class AscentHud {
       fontSize: '10px',
     }));
 
+    // Stops short of the countdown above it rather than running to the band's edge. `render`
+    // draws threat before momentum, so the measurement is always this frame's.
     const barX = 110;
-    const barWidth = GAME_WIDTH - barX - 14;
+    const barWidth = Math.max(60, this.countdownLeft - 10 - barX);
     const bar = this.ui.statBar(
-      { x: barX, y, width: barWidth, height: 7 },
+      { x: barX, y: y + 2, width: barWidth, height: 7 },
       ascent.xp,
       Math.max(1, ascent.xpToNext),
       INK_UI.gold,
