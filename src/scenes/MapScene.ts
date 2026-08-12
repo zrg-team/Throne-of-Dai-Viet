@@ -86,6 +86,8 @@ export class MapScene extends Phaser.Scene {
   private mapItems!: MapItemRenderer;
   private settlements!: SettlementRenderer;
   private traffic!: TrafficRenderer;
+  /** Last state the ambient map motion was set to, so the sync acts only on a change. */
+  private worldMotionHalted = false;
   private overlays!: OverlayRenderer;
   private armies!: ArmyRenderer;
   private hexTileMap = new Map<string, HexTile>();
@@ -357,8 +359,32 @@ export class MapScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Whether the world's clock is stopped, for any reason: won, held for a modal, or paused by
+   * the player. Named rather than inlined because the ambient map motion has to follow it too,
+   * and a mode with its own ending condition overrides just this.
+   */
+  protected isWorldHalted(): boolean {
+    return this.state.victory || this.state.isPaused || this.state.isStrategyPause;
+  }
+
+  /**
+   * Keeps the map's ambient life in step with the clock.
+   *
+   * The carts and travelers loop forever on their own tweens, which owe nothing to the economy
+   * tick — so pausing stopped the game while the roads carried on, and the pause read as
+   * broken. Called every frame; acts only on the change.
+   */
+  protected syncWorldMotion(): void {
+    const halted = this.isWorldHalted();
+    if (halted === this.worldMotionHalted) return;
+    this.worldMotionHalted = halted;
+    this.traffic.setPaused(halted);
+  }
+
   update(_time: number, delta: number): void {
-    if (this.state.victory || this.state.isPaused || this.state.isStrategyPause) {
+    this.syncWorldMotion();
+    if (this.isWorldHalted()) {
       return;
     }
 

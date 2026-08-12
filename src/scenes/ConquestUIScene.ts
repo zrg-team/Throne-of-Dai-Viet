@@ -61,6 +61,16 @@ type MapControlIcon = 'zoom-in' | 'zoom-out' | 'mode';
 const PORTRAIT_W = 74;
 const PORTRAIT_TOP = 30;
 
+/**
+ * The floating map controls: half their tap area, and the clearance kept below the lowest one.
+ * The buttons draw 36×36 but claim 42×42 of touch, and it is the touch area that has to stay
+ * off the action bar.
+ */
+const MAP_CONTROL_RADIUS = 21;
+const MAP_CONTROL_GAP = 12;
+/** Vertical pitch of the stack. */
+const MAP_CONTROL_PITCH = 42;
+
 /** The battle screen's two fixed bands, above the standing orders. */
 const BATTLE_FIELD_HEIGHT = 168;
 const BATTLE_READOUT_HEIGHT = 62;
@@ -502,10 +512,13 @@ export class ConquestUIScene extends Phaser.Scene {
     const x = GAME_WIDTH - 30;
     // The inspect card spans the full width, so when one is up the stack sits above it
     // rather than on top of it.
+    //
+    // Measured from the *edge* of the lowest button rather than its centre. Clearing the bar by
+    // 16px from the centre left only 16 − 21 = −5px between its tap area and the bar's, so the
+    // bottom control sat on the bar it was supposed to float above.
     const inspectTop = this.inspectCardTop();
-    const bottom = inspectTop !== undefined
-      ? inspectTop - 24
-      : GAME_HEIGHT - ACTION_BAR_HEIGHT - 16;
+    const floor = inspectTop ?? GAME_HEIGHT - ACTION_BAR_HEIGHT;
+    const bottom = floor - MAP_CONTROL_GAP - MAP_CONTROL_RADIUS;
     const controls: Array<[MapControlIcon, () => void]> = [
       ['zoom-in', () => this.events.emit('ui:zoom-map', 1)],
       ['zoom-out', () => this.events.emit('ui:zoom-map', -1)],
@@ -516,7 +529,7 @@ export class ConquestUIScene extends Phaser.Scene {
     ];
 
     controls.forEach(([icon, onTap], index) => {
-      const y = bottom - (controls.length - 1 - index) * 42;
+      const y = bottom - (controls.length - 1 - index) * MAP_CONTROL_PITCH;
       this.mapControlObjects.push(this.createMapIconButton(x, y, icon, onTap));
       // Published, not hardcoded: the stack shifts up when a province is selected, so a fixed
       // band in the world scene would guard the wrong pixels half the time. Without this the

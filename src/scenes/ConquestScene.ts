@@ -60,8 +60,16 @@ export class ConquestScene extends MapScene {
     });
   }
 
+  /** This mode ends in defeat rather than victory; otherwise the clock stops for the same reasons. */
+  protected isWorldHalted(): boolean {
+    return this.state.isDefeated || this.state.isPaused || this.state.isStrategyPause;
+  }
+
   update(_time: number, delta: number): void {
-    if (this.state.isDefeated || this.state.isPaused || this.state.isStrategyPause) {
+    // Deliberately not `super.update`: that drives the classic month tick, which this mode
+    // replaces outright. Only the ambient-motion sync is shared.
+    this.syncWorldMotion();
+    if (this.isWorldHalted()) {
       return;
     }
 

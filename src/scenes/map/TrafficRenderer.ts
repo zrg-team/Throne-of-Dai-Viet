@@ -12,15 +12,76 @@ import type { MapItemRenderer } from '../../ui/MapItemRenderer';
 type WorldTransform = (value: number) => number;
 type SettlementAnchor = (land: Land) => { x: number; y: number };
 
+/** A wanderer and the looping tween that walks it, so the loop can be stopped and restarted. */
+interface TrafficMover {
+  object: Phaser.GameObjects.GameObject & { setPosition(x: number, y: number): unknown };
+  tween: Phaser.Tweens.Tween;
+}
+
 export class TrafficRenderer {
-  private cartMarkers = new Map<string, Phaser.GameObjects.GameObject>();
-  private travelerMarkers = new Map<string, Phaser.GameObjects.GameObject[]>();
+  private cartMarkers = new Map<string, TrafficMover>();
+  private travelerMarkers = new Map<string, TrafficMover[]>();
+  /** Whether the world's clock is stopped. New movers are created to match. */
+  private paused = false;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly mapRenderer: MapRenderer,
     private readonly mapItems: MapItemRenderer,
   ) {}
+
+  /**
+   * Holds or releases every cart and traveler on the map.
+   *
+   * These loop on `repeat: -1` and so used to keep walking through a pause: the player stopped
+   * the clock and the realm's roads carried on regardless, which reads as the pause not having
+   * worked. A stopped clock now stops the world it is the clock for.
+   */
+  setPaused(paused: boolean): void {
+    if (paused === this.paused) return;
+    this.paused = paused;
+    for (const mover of this.movers()) {
+      if (paused) mover.tween.pause();
+      else mover.tween.resume();
+    }
+  }
+
+  private movers(): TrafficMover[] {
+    return [...this.cartMarkers.values(), ...[...this.travelerMarkers.values()].flat()];
+  }
+
+  /**
+   * Walks one mover back and forth along its road, forever.
+   *
+   * Created already held when the world is paused, so a settlement revealed while the clock is
+   * stopped does not arrive with its traffic already moving.
+   */
+  private walk(mover: Phaser.GameObjects.GameObject & { setPosition(x: number, y: number): unknown }, curve: Phaser.Curves.Spline, seed: number, duration: number): TrafficMover {
+    const progress = { t: (seed % 100) / 100 };
+    const step = () => {
+      if (!mover.active) return;
+      const point = curve.getPoint(progress.t);
+      mover.setPosition(point.x, point.y);
+    };
+    step();
+    const tween = this.scene.tweens.add({
+      targets: progress,
+      t: 1,
+      duration,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+      paused: this.paused,
+      onUpdate: step,
+    });
+    return { object: mover, tween };
+  }
+
+  /** Stops a mover's loop before destroying it, so its `onUpdate` cannot outlive its target. */
+  private retire(mover: TrafficMover): void {
+    mover.tween.remove();
+    mover.object.destroy();
+  }
 
   /** Draws dirt roads connecting each land's settlement (village/city/castle/mine) to its neighbors. */
   drawConnections(state: GameState, wx: WorldTransform, wy: WorldTransform, getAnchor: SettlementAnchor): Phaser.GameObjects.Graphics {
@@ -87,36 +148,20 @@ export class TrafficRenderer {
 
         const cart = this.mapItems.createCart();
         cart.setDepth(69);
-        this.cartMarkers.set(key, cart);
 
         const seed = hashString(`cart|${key}`);
-        const progress = { t: (seed % 100) / 100 };
-        const duration = 16000 + (seed % 11) * 1200;
-        const updateCart = () => {
-          const point = curve.getPoint(progress.t);
-          cart.setPosition(point.x, point.y);
-        };
-        updateCart();
-        this.scene.tweens.add({
-          targets: progress,
-          t: 1,
-          duration,
-          yoyo: true,
-          repeat: -1,
-          ease: 'Sine.easeInOut',
-          onUpdate: updateCart,
-        });
+        this.cartMarkers.set(key, this.walk(cart, curve, seed, 16000 + (seed % 11) * 1200));
       }
     }
 
     for (const [key, cart] of this.cartMarkers) {
       if (!activeKeys.has(key)) {
-        cart.destroy();
+        this.retire(cart);
         this.cartMarkers.delete(key);
       }
     }
 
-    return [...this.cartMarkers.values()];
+    return this.movers().map((mover) => mover.object);
   }
 
   /**
@@ -143,30 +188,13 @@ export class TrafficRenderer {
         const from = getAnchor(land);
         const to = getAnchor(neighbor);
         const curve = buildRoadCurve(state, from, to, key, wx, wy);
-        const travelers: Phaser.GameObjects.GameObject[] = [];
+        const travelers: TrafficMover[] = [];
 
         for (let index = 0; index < 2; index += 1) {
           const traveler = this.mapItems.createTraveler();
           traveler.setDepth(69);
-          travelers.push(traveler);
-
           const seed = hashString(`traveler|${key}|${index}`);
-          const progress = { t: (seed % 100) / 100 };
-          const duration = 20000 + (seed % 13) * 1500;
-          const updateTraveler = () => {
-            const point = curve.getPoint(progress.t);
-            traveler.setPosition(point.x, point.y);
-          };
-          updateTraveler();
-          this.scene.tweens.add({
-            targets: progress,
-            t: 1,
-            duration,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.easeInOut',
-            onUpdate: updateTraveler,
-          });
+          travelers.push(this.walk(traveler, curve, seed, 20000 + (seed % 13) * 1500));
         }
 
         this.travelerMarkers.set(key, travelers);
@@ -176,13 +204,13 @@ export class TrafficRenderer {
     for (const [key, travelers] of this.travelerMarkers) {
       if (!activeKeys.has(key)) {
         for (const traveler of travelers) {
-          traveler.destroy();
+          this.retire(traveler);
         }
         this.travelerMarkers.delete(key);
       }
     }
 
-    return [...this.travelerMarkers.values()].flat();
+    return [...this.travelerMarkers.values()].flat().map((mover) => mover.object);
   }
 
   /** Roads are wider where they meet a bigger settlement: castles widest, then cities/temples, then villages/mines. */
