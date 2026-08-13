@@ -3,6 +3,55 @@ import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { addPressFeedback } from './animations';
 import { UI_FONT } from './fonts';
 import { PIGMENT } from './ink/palette';
+import { inkPath, mulberry32, washFill, type Pt } from './ink/stroke';
+
+/**
+ * A printed surface: a sheet of paper with a hand-pulled contour round it.
+ *
+ * Every panel, card, button and tile in the game goes through this, which is why the interface
+ * stopped being a set of rounded rectangles with new colours in them and became the same printed
+ * object as the map. The rectangle's own corners are cut a little, the edge wobbles, and the fill
+ * is registered a hair off its outline the way a colour block is.
+ */
+function printedSurface(
+  g: Phaser.GameObjects.Graphics,
+  width: number,
+  height: number,
+  opts: {
+    fill?: number;
+    fillAlpha?: number;
+    border?: number;
+    borderAlpha?: number;
+    borderWidth?: number;
+    seed?: number;
+    /** Cut corners read as a torn sheet; 0 gives a plain rectangle. */
+    cut?: number;
+    shadow?: boolean;
+  } = {},
+): void {
+  const cut = opts.cut ?? Math.min(7, Math.min(width, height) * 0.16);
+  const seed = opts.seed ?? Math.round(width * 31 + height * 7);
+  const sheet: Pt[] = [
+    { x: cut, y: 0 }, { x: width - cut, y: 0 },
+    { x: width, y: cut }, { x: width, y: height - cut },
+    { x: width - cut, y: height }, { x: cut, y: height },
+    { x: 0, y: height - cut }, { x: 0, y: cut },
+  ];
+
+  if (opts.shadow !== false) {
+    g.fillStyle(PIGMENT.muc, 0.14);
+    g.fillPoints(sheet.map((p) => ({ x: p.x + 1.5, y: p.y + 2.5 })), true);
+  }
+  washFill(g, sheet, opts.fill ?? INK_UI.parchment, seed, opts.fillAlpha ?? 1, 1.1);
+  inkPath(g, sheet, seed + 1, {
+    width: opts.borderWidth ?? 1.5,
+    alpha: opts.borderAlpha ?? 0.72,
+    colour: opts.border ?? PIGMENT.muc,
+    wobble: 0.7,
+    step: 11,
+    closed: true,
+  });
+}
 
 export interface UIBounds {
   x: number;
@@ -233,17 +282,19 @@ export class InkUI {
 
     const g = this.scene.add.graphics({ x: bounds.x, y: bounds.y });
     const alpha = muted ? fillAlpha * 0.55 : fillAlpha;
+    void radius;
 
-    g.fillStyle(INK_UI.brush, 0.08 * alpha);
-    g.fillRoundedRect(1, 2, bounds.width, bounds.height, radius);
-    g.fillStyle(fill, alpha);
-    g.fillRoundedRect(0, 0, bounds.width, bounds.height, radius);
-
-    g.lineStyle(1, fillShade, muted ? 0.22 : 0.48);
-    g.strokeRoundedRect(3, 3, bounds.width - 6, bounds.height - 6, Math.max(0, radius - 3));
-
-    g.lineStyle(borderWidth, border, borderAlpha);
-    g.strokeRoundedRect(0, 0, bounds.width, bounds.height, radius);
+    printedSurface(g, bounds.width, bounds.height, {
+      fill, fillAlpha: alpha, border, borderAlpha: muted ? borderAlpha * 0.6 : borderAlpha,
+      borderWidth, seed: Math.round(bounds.x * 13 + bounds.y * 7 + bounds.width),
+    });
+    // A second rule just inside the edge, the way a printed plate is bordered twice.
+    inkPath(
+      g,
+      [{ x: 4, y: 4 }, { x: bounds.width - 4, y: 4 }, { x: bounds.width - 4, y: bounds.height - 4 }, { x: 4, y: bounds.height - 4 }],
+      Math.round(bounds.width * 3 + bounds.height),
+      { width: 0.8, alpha: muted ? 0.16 : 0.3, colour: fillShade, wobble: 0.6, step: 14, closed: true },
+    );
 
     if (ornaments) {
       this.drawCornerMarks(g, bounds.width, bounds.height, muted);
@@ -538,8 +589,20 @@ export class InkUI {
   statBar(bounds: UIBounds, value: number, max: number, color = INK_UI.jade): Phaser.GameObjects.Container {
     const container = this.scene.add.container(bounds.x, bounds.y);
     const ratio = max <= 0 ? 0 : Phaser.Math.Clamp(value / max, 0, 1);
-    container.add(this.scene.add.rectangle(0, 0, bounds.width, bounds.height, INK_UI.brush, 0.26).setOrigin(0, 0));
-    container.add(this.scene.add.rectangle(0, 0, bounds.width * ratio, bounds.height, color, 0.92).setOrigin(0, 0));
+    const g = this.scene.add.graphics();
+    const mid = bounds.height / 2;
+    const seed = Math.round(bounds.x * 7 + bounds.y * 3 + bounds.width);
+    // The track is a faint rule and the fill a heavier one drawn over it, so a bar reads as a
+    // measured length of ink rather than as two nested boxes.
+    inkPath(g, [{ x: 0, y: mid }, { x: bounds.width, y: mid }], seed, {
+      width: Math.max(1, bounds.height * 0.8), alpha: 0.2, colour: INK_UI.brush, wobble: 0.3, step: 14,
+    });
+    if (ratio > 0) {
+      inkPath(g, [{ x: 0, y: mid }, { x: Math.max(1.5, bounds.width * ratio), y: mid }], seed + 1, {
+        width: Math.max(1, bounds.height * 0.8), alpha: 0.88, colour: color, wobble: 0.45, step: 12,
+      });
+    }
+    container.add(g);
     return container;
   }
 
@@ -590,30 +653,44 @@ function drawButtonSurface(
   const alpha = disabled ? 0.55 : 1;
   const palette = buttonPalette(variant, pressed);
 
+  const drop = pressed ? 2 : 0;
+  const seed = Math.round(width * 17 + height * 5 + (pressed ? 1 : 0));
+  void radius;
+
   g.clear();
-  if (variant !== 'ghost') {
-    g.fillStyle(INK_UI.brush, 0.24 * alpha);
-    g.fillRoundedRect(3, pressed ? 5 : 5, width, height, radius);
-    g.fillStyle(pressed ? palette.bottom : palette.top, alpha);
-    g.fillRoundedRect(0, pressed ? 2 : 0, width, height, radius);
-    g.lineStyle(1, 0xfff0b8, disabled ? 0.12 : pressed ? 0.18 : 0.34);
-    g.lineBetween(10, (pressed ? 2 : 0) + 8, width - 10, (pressed ? 2 : 0) + 8);
-
-    if (width >= 220 && height >= 42) {
-      const y = (pressed ? 2 : 0) + height / 2;
-      const notchAlpha = disabled ? 0.18 : 0.44;
-      const notchColor = variant === 'danger' ? INK_UI.goldLight : INK_UI.gold;
-      g.fillStyle(notchColor, notchAlpha);
-      g.fillTriangle(14, y, 23, y - 5, 23, y + 5);
-      g.fillTriangle(width - 14, y, width - 23, y - 5, width - 23, y + 5);
-    }
+  g.translateCanvas(0, drop);
+  if (variant === 'ghost') {
+    printedSurface(g, width, height, {
+      fill: INK_UI.parchment, fillAlpha: pressed ? 0.2 : 0.14,
+      border: palette.border, borderAlpha: 0.5 * alpha, borderWidth: 1.2, seed, shadow: false,
+    });
   } else {
-    g.fillStyle(INK_UI.parchment, pressed ? 0.18 : 0.12);
-    g.fillRoundedRect(0, pressed ? 1 : 0, width, height, radius);
-  }
+    printedSurface(g, width, height, {
+      fill: pressed ? palette.bottom : palette.top, fillAlpha: alpha,
+      border: palette.border, borderAlpha: 0.85 * alpha, borderWidth: 1.6, seed,
+      shadow: !pressed,
+    });
+    // The catchlight a block leaves along its top edge. Wobbled, or it reads as a CSS gradient.
+    inkPath(g, [{ x: 9, y: 7 }, { x: width - 9, y: 7 }], seed + 3, {
+      width: 1, alpha: disabled ? 0.1 : pressed ? 0.14 : 0.26, colour: INK_UI.goldLight, wobble: 0.5, step: 12,
+    });
 
-  g.lineStyle(2, palette.border, 0.9 * alpha);
-  g.strokeRoundedRect(0, pressed ? 2 : 0, width, height, radius);
+    // A stamped seal at each end of a wide button, in place of the old arrow notches.
+    if (width >= 220 && height >= 42) {
+      const y = height / 2;
+      const mark = variant === 'danger' ? INK_UI.goldLight : INK_UI.cinnabar;
+      const rand = mulberry32(seed + 9);
+      for (const cx of [17, width - 17]) {
+        g.fillStyle(mark, disabled ? 0.2 : 0.5);
+        for (let ray = 0; ray < 8; ray += 1) {
+          const angle = (ray / 8) * Math.PI * 2 + rand() * 0.1;
+          g.fillRect(cx + Math.cos(angle) * 3.4 - 0.8, y + Math.sin(angle) * 3.4 - 0.8, 1.6, 1.6);
+        }
+        g.fillCircle(cx, y, 1.5);
+      }
+    }
+  }
+  g.translateCanvas(0, -drop);
 }
 
 function buttonPalette(variant: InkButtonVariant, pressed: boolean): { top: number; bottom: number; border: number } {

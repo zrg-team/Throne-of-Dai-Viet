@@ -1,5 +1,33 @@
+/**
+ * The design surface, in game units.
+ *
+ * Width is fixed: every bar, card and button in the game is laid out against 390, and letting it
+ * move would mean re-tuning a hundred call sites for nothing.
+ *
+ * Height is NOT fixed, and that is the whole point. Phaser's `Scale.FIT` fits the design box inside
+ * the visible viewport, so a design taller than the viewport gets scaled down by height and the
+ * spare width becomes letterbox. On an iPhone 13 in Safari the visible viewport is 390x664 once the
+ * toolbars are showing — against a fixed 390x844 design that is a scale of 0.787, with 83px of dead
+ * bars down each side and every label a fifth too small. An SE lands at 0.655.
+ *
+ * Taking the height from the device's own aspect ratio makes FIT scale by *width* instead, so the
+ * game fills the screen at 1:1 or better and the map area simply gets shorter or taller. The clamp
+ * keeps a very square or very long screen from squeezing the header and action bar into each other.
+ */
 export const GAME_WIDTH = 390;
-export const GAME_HEIGHT = 844;
+
+const MIN_DESIGN_HEIGHT = 620;
+const MAX_DESIGN_HEIGHT = 1040;
+
+function designHeight(): number {
+  if (typeof window === 'undefined' || !window.innerWidth || !window.innerHeight) {
+    return 844;
+  }
+  const ratio = window.innerHeight / window.innerWidth;
+  return Math.round(Math.max(MIN_DESIGN_HEIGHT, Math.min(MAX_DESIGN_HEIGHT, GAME_WIDTH * ratio)));
+}
+
+export const GAME_HEIGHT = designHeight();
 
 export const HEADER_HEIGHT = 44;
 export const ACTION_BAR_HEIGHT = 50;
