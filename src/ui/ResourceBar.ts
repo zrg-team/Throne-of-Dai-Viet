@@ -10,7 +10,27 @@ import { PIGMENT } from './ink/palette';
 
 const RESOURCE_ORDER: ResourceKey[] = ['food', 'supplies', 'gold', 'humans'];
 const ICON_DISPLAY_SIZE = 15;
-const ROW_Y = 30;
+
+/**
+ * The strip's vertical rhythm. The two răng cưa bands frame it, so the type has to clear them
+ * rather than share their rows — which is what it was doing in Vietnamese, where the title's
+ * diacritics sit higher than any Latin cap.
+ */
+const TOP_BAND_Y = 3;
+const BAND_HEIGHT = 4;
+const TITLE_Y = 10;
+/** Centre line of the resource row. */
+const ROW_Y = 36;
+const BOTTOM_BAND_Y = HEADER_HEIGHT - 7;
+
+/**
+ * Where the two friezes sit, exported so a driver can assert the type clears them. A band drawn
+ * into a `Graphics` has no bounds to read, and this is precisely the collision that shipped.
+ */
+export const HEADER_BANDS = {
+  top: { y: TOP_BAND_Y, height: BAND_HEIGHT },
+  bottom: { y: BOTTOM_BAND_Y, height: BAND_HEIGHT },
+};
 
 /**
  * Stores whose exhaustion actively hurts — `collectPlayerIncome` docks army morale and supply
@@ -42,13 +62,13 @@ export class ResourceBar extends Phaser.GameObjects.Container {
     // renders as the letter P repeated across the screen.
     const band = scene.add.graphics();
     band.setDefaultStyles({});
-    sawtoothBand(band, 8, 2, GAME_WIDTH - 16, 5, 0.45);
-    sawtoothBand(band, 8, HEADER_HEIGHT - 6, GAME_WIDTH - 16, 4, 0.4);
+    sawtoothBand(band, 8, TOP_BAND_Y, GAME_WIDTH - 16, BAND_HEIGHT, 0.45);
+    sawtoothBand(band, 8, BOTTOM_BAND_Y, GAME_WIDTH - 16, BAND_HEIGHT, 0.4);
     band.lineStyle(1, PIGMENT.mucSoft, 0.35);
     band.lineBetween(0, HEADER_HEIGHT - 0.5, GAME_WIDTH, HEADER_HEIGHT - 0.5);
     this.add(band);
 
-    this.seasonText = ui.label(12, 4, '', 'title', { color: INK_UI_HEX.inkText, fontSize: '15px' });
+    this.seasonText = ui.label(12, TITLE_Y, '', 'title', { color: INK_UI_HEX.inkText, fontSize: '15px' });
     this.add(this.seasonText);
 
     const itemWidth = (GAME_WIDTH - 24) / RESOURCE_ORDER.length;

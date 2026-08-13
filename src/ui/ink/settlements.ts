@@ -255,6 +255,82 @@ export interface FieldPlot {
   seed: number;
 }
 
+export interface PaddyLatticeOptions {
+  /** Region the lattice covers, in the caller's own coordinates. */
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+  /** Row height, and the unit plot widths are drawn from. */
+  cell: number;
+  seed: number;
+  /** Safety valve for a very large region. */
+  maxRows?: number;
+  /** Called with each candidate plot's centre; return false to leave that ground unfarmed. */
+  keep?: (x: number, y: number) => boolean;
+}
+
+/**
+ * One wandering lattice of paddy plots over a region.
+ *
+ * The bund lines run the full width and every plot in a row is cut from the strip between two of
+ * them, so **neighbouring plots share their bunds** and the field system ends raggedly at whatever
+ * boundary `keep` describes. This is the whole difference between a delta and a patchwork blanket:
+ * a set of independently-placed rectangles, each with its own outline and its own random size,
+ * reads as loose paper scraps thrown on the ground no matter how nicely each one is drawn.
+ *
+ * Lives here rather than in the map renderer because the menu's far bank is the same country.
+ */
+export function paddyLattice(options: PaddyLatticeOptions): FieldPlot[] {
+  const { x0, x1, y0, y1, cell, seed, maxRows = 400, keep } = options;
+  const rand = mulberry32(seed);
+  const rowCount = Math.min(maxRows, Math.ceil((y1 - y0) / cell) + 1);
+
+  const lines: Pt[][] = [];
+  for (let index = 0; index <= rowCount; index += 1) {
+    const yy = y0 + index * cell;
+    const line: Pt[] = [];
+    for (let node = 0; node <= 26; node += 1) {
+      line.push({
+        x: x0 + ((x1 - x0) * node) / 26,
+        y: yy + Math.sin(node * 0.62 + index * 1.21) * cell * 0.2 + (rand() - 0.5) * cell * 0.12,
+      });
+    }
+    lines.push(line);
+  }
+
+  const heightAt = (line: Pt[], x: number): number => {
+    const t = Math.max(0, Math.min(1, (x - line[0].x) / (line[26].x - line[0].x || 1)));
+    const index = Math.min(25, Math.floor(t * 26));
+    const fraction = t * 26 - index;
+    return line[index].y + (line[index + 1].y - line[index].y) * fraction;
+  };
+
+  const plots: FieldPlot[] = [];
+  for (let row = 0; row < rowCount; row += 1) {
+    let x = x0 + (rand() - 0.5) * cell;
+    while (x < x1) {
+      const width = cell * (0.8 + rand() * 1.0);
+      const mx = x + width / 2;
+      const my = (heightAt(lines[row], mx) + heightAt(lines[row + 1], mx)) / 2;
+      if (!keep || keep(mx, my)) {
+        plots.push({
+          points: [
+            { x: x + 1, y: heightAt(lines[row], x) + 1 },
+            { x: x + width - 1, y: heightAt(lines[row], x + width) + 1 },
+            { x: x + width - 1, y: heightAt(lines[row + 1], x + width) - 1 },
+            { x: x + 1, y: heightAt(lines[row + 1], x) - 1 },
+          ],
+          stage: rand(),
+          seed: Math.round(mx * 7 + my * 13),
+        });
+      }
+      x += width;
+    }
+  }
+  return plots;
+}
+
 /**
  * Ruộng — wet paddy.
  *
@@ -265,8 +341,20 @@ export interface FieldPlot {
  * The bund is drawn as **two lines**, because a raised path has two edges.
  */
 export function drawFieldPlot(g: G, plot: FieldPlot): void {
-  const fill = plot.stage < 0.32 ? PIGMENT.chamWash : plot.stage < 0.68 ? PIGMENT.giDongPale : PIGMENT.hoePale;
-  washFill(g, plot.points, fill, plot.seed, plot.stage < 0.32 ? 0.6 : 0.78);
+  // Five states, not three. A delta seen from above is a patchwork precisely because its plots are
+  // out of step with each other: one under water, one just turned and bare, one in ordered rows,
+  // one gold, one under a seedling nursery's fine lattice. Three states over a whole map still read
+  // as a repeating pattern, which is the failure the stages exist to avoid.
+  const flooded = plot.stage < 0.28;
+  const fallow = !flooded && plot.stage < 0.4;
+  const nursery = plot.stage > 0.9;
+  const ripe = !nursery && plot.stage > 0.68;
+
+  const fill = flooded ? PIGMENT.chamWash
+    : fallow ? PIGMENT.diepLo
+      : nursery ? PIGMENT.giDongPale
+        : ripe ? PIGMENT.hoePale : PIGMENT.giDongPale;
+  washFill(g, plot.points, fill, plot.seed, flooded ? 0.6 : fallow ? 0.5 : 0.78);
   inkPath(g, plot.points, plot.seed + 1, { width: 0.7, alpha: 0.52, wobble: 0.5, step: 12, closed: true });
 
   let minX = Infinity;
@@ -280,11 +368,42 @@ export function drawFieldPlot(g: G, plot: FieldPlot): void {
     maxY = Math.max(maxY, point.y);
   }
 
-  if (plot.stage < 0.32) {
+  if (flooded) {
     for (let line = 0; line < 2; line += 1) {
       const wy = minY + (maxY - minY) * (0.38 + line * 0.28);
       inkPath(g, [{ x: minX + 3, y: wy }, { x: minX + 3 + (maxX - minX) * 0.5, y: wy }], plot.seed + 2 + line, {
         width: 0.6, alpha: 0.42, colour: PIGMENT.cham, wobble: 0.2, step: 7,
+      });
+    }
+    return;
+  }
+
+  // Turned earth: a couple of plough lines and nothing growing.
+  if (fallow) {
+    for (let line = 0; line < 3; line += 1) {
+      const fy = minY + (maxY - minY) * (0.28 + line * 0.24);
+      inkPath(g, [{ x: minX + 2, y: fy }, { x: maxX - 2, y: fy - 0.6 }], plot.seed + 4 + line, {
+        width: 0.5, alpha: 0.3, colour: PIGMENT.nau, wobble: 0.25, step: 9,
+      });
+    }
+    return;
+  }
+
+  // A seedling bed: a fine lattice, which is the one field pattern that reads as *worked* rather
+  // than merely planted, and the thing the reference prints wherever a village keeps a nursery.
+  if (nursery) {
+    const cols = Math.max(3, Math.round((maxX - minX) / 4.5));
+    const rows = Math.max(2, Math.round((maxY - minY) / 4.5));
+    for (let column = 1; column < cols; column += 1) {
+      const px = minX + ((maxX - minX) / cols) * column;
+      inkPath(g, [{ x: px, y: minY + 1.5 }, { x: px, y: maxY - 1.5 }], plot.seed + 20 + column, {
+        width: 0.4, alpha: 0.34, colour: PIGMENT.giDong, wobble: 0.1, step: 6,
+      });
+    }
+    for (let row = 1; row < rows; row += 1) {
+      const py = minY + ((maxY - minY) / rows) * row;
+      inkPath(g, [{ x: minX + 1.5, y: py }, { x: maxX - 1.5, y: py }], plot.seed + 40 + row, {
+        width: 0.4, alpha: 0.34, colour: PIGMENT.giDong, wobble: 0.1, step: 6,
       });
     }
     return;
@@ -296,8 +415,8 @@ export function drawFieldPlot(g: G, plot: FieldPlot): void {
     for (let column = 0; column < columns; column += 1) {
       const px = minX + 3 + ((maxX - minX - 6) / Math.max(1, columns - 1)) * column;
       const py = minY + ((maxY - minY) / 4) * (row + 1);
-      inkPath(g, [{ x: px, y: py }, { x: px + 0.3, y: py - (plot.stage > 0.68 ? 2.8 : 2.1) }], plot.seed + column * 7 + row, {
-        width: 0.5, alpha: plot.stage > 0.68 ? 0.55 : 0.44, wobble: 0,
+      inkPath(g, [{ x: px, y: py }, { x: px + 0.3, y: py - (ripe ? 2.8 : 2.1) }], plot.seed + column * 7 + row, {
+        width: 0.5, alpha: ripe ? 0.55 : 0.44, wobble: 0,
       });
     }
   }

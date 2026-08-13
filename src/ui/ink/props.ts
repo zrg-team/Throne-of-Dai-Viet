@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PIGMENT } from './palette';
+import { PIGMENT, shadePigment } from './palette';
 import { inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './stroke';
 import { UNIT } from './proportion';
 
@@ -51,16 +51,47 @@ export function tree(g: G, x: number, y: number, scale: number, seed: number): v
     const rr = radius * (1 + 0.09 * Math.cos(t * Math.PI * 2 * lobes)) * (0.9 + rand() * 0.18);
     canopy.push({ x: x + Math.cos(angle) * rr * 1.06, y: y - radius * 1.15 + Math.sin(angle) * rr * 0.9 });
   }
-  printedShape(g, canopy, rand() > 0.62 ? PIGMENT.giDongPale : PIGMENT.giDong, seed + 1, {
+  const pale = rand() > 0.62;
+  printedShape(g, canopy, pale ? PIGMENT.giDongPale : PIGMENT.giDong, seed + 1, {
     width: 0.72 * s, alpha: 0.72, wobble: 0.16 * s, step: 4, fillAlpha: 0.85,
   });
+
+  // A shaded crescent along the lower-right of the crown, and a lit lobe up-left of the centre.
+  //
+  // A single scalloped ring reads as a flat green stamp however nicely its edge wobbles, which is
+  // what a whole hillside of these looked like. What the woodcut reference does — and what costs
+  // two shapes — is give the canopy a light side and a dark side, so the crown reads as a ball of
+  // leaves with the sun on one shoulder.
+  const crownY = y - radius * 1.15;
+  const shade: Pt[] = [];
+  for (let index = 0; index <= 9; index += 1) {
+    const angle = -0.35 + (index / 9) * 2.1;
+    shade.push({ x: x + Math.cos(angle) * radius * 1.0, y: crownY + Math.sin(angle) * radius * 0.86 });
+  }
+  for (let index = 9; index >= 0; index -= 1) {
+    const angle = -0.35 + (index / 9) * 2.1;
+    const lobe = 0.52 + 0.06 * Math.cos(index * 2.1);
+    shade.push({ x: x + Math.cos(angle) * radius * lobe, y: crownY + Math.sin(angle) * radius * lobe * 0.88 });
+  }
+  g.fillStyle(pale ? PIGMENT.giDong : shadePigment(PIGMENT.giDong, 0.78), 0.5);
+  g.fillPoints(shade, true);
+
+  const lit: Pt[] = [];
+  for (let index = 0; index <= 11; index += 1) {
+    const t = index / 11;
+    const angle = t * Math.PI * 2;
+    const rr = radius * 0.46 * (1 + 0.12 * Math.cos(t * Math.PI * 2 * 3));
+    lit.push({ x: x - radius * 0.3 + Math.cos(angle) * rr, y: crownY - radius * 0.26 + Math.sin(angle) * rr * 0.82 });
+  }
+  g.fillStyle(pale ? PIGMENT.diepHi : PIGMENT.giDongPale, 0.34);
+  g.fillPoints(lit, true);
 
   for (let pass = 0; pass < 2; pass += 1) {
     const start = 0.5 + pass * 1.7;
     const arc: Pt[] = [];
     for (let index = 0; index <= 7; index += 1) {
       const angle = start + (index / 7) * 1.5;
-      arc.push({ x: x + Math.cos(angle) * radius * 0.5, y: y - radius * 1.15 + Math.sin(angle) * radius * 0.45 });
+      arc.push({ x: x + Math.cos(angle) * radius * 0.5, y: crownY + Math.sin(angle) * radius * 0.45 });
     }
     inkPath(g, arc, seed + 5 + pass, { width: 0.55 * s, alpha: 0.3, wobble: 0.12 * s, step: 4 });
   }
@@ -396,14 +427,116 @@ export function hayStack(g: G, x: number, y: number, scale: number, seed: number
 /** A farmer under a nón lá — the fastest two strokes in the vocabulary. */
 export function farmer(g: G, x: number, y: number, scale: number, seed: number): void {
   const s = scale * UNIT.farmer;
-  inkPath(g, [{ x, y }, { x: x + 1 * s, y: y - 5 * s }, { x: x + 3 * s, y: y - 8 * s }], seed, {
-    width: 1 * s, alpha: 0.75, wobble: 0.2 * s, step: 4,
-  });
+  const rand = mulberry32(seed);
+  // Three things a person in a field is doing. Chosen by seed so a paddy holds a scene rather
+  // than the same silhouette repeated.
+  const pose: 'planting' | 'carrying' | 'standing' = rand() < 0.5 ? 'planting' : rand() < 0.6 ? 'carrying' : 'standing';
+  // Which way they face. A row of figures all facing the same way reads as printed wallpaper.
+  const dir = rand() < 0.5 ? 1 : -1;
+  // Áo nâu or indigo — working dress. The cloth has to be lighter than the limbs or the whole
+  // figure merges into one dark blob, which is what a single ink tone gave.
+  const cloth = rand() < 0.6 ? PIGMENT.nau : PIGMENT.cham;
+  const at = (dx: number, dy: number): Pt => ({ x: x + dx * dir * s, y: y + dy * s });
+
+  groundShadow(g, x + 0.4 * dir * s, y + 0.6 * s, 2.6 * s, 0.08);
+
+  const limb = (from: Pt, to: Pt, width: number, colour: number, alpha = 0.85): void => {
+    printedShape(g, thickPath([from, to], [width * s, width * 0.7 * s]), colour, seed + from.x + to.y, {
+      width: 0.45 * s, alpha, wobble: 0.05 * s, step: 3, fillAlpha: 0.9,
+    });
+  };
+
+  // Lean: bent double over the water when planting, upright otherwise.
+  const bend = pose === 'planting' ? 0.62 : 0;
+  const hipY = -6.4;
+  const shoulder = at(bend * 5.2, hipY - 4.6 + bend * 2.2);
+  const hip = at(0, hipY);
+
+  // Legs. The forward one is planted, the back one trails — a figure with both legs together
+  // reads as a post with a hat on it, which is what this was.
+  limb(hip, at(1.9, -0.3), 1.5, PIGMENT.muc, 0.85);
+  limb(hip, at(-1.7, -0.2), 1.3, PIGMENT.mucSoft, 0.75);
+
+  // Áo — the tunic, drawn as a body rather than a stroke, so the figure has shoulders.
   printedShape(
     g,
-    [{ x: x + 0.5 * s, y: y - 8 * s }, { x: x + 5.5 * s, y: y - 8 * s }, { x: x + 3 * s, y: y - 12 * s }],
-    PIGMENT.hoePale, seed + 1, { width: 0.75 * s, alpha: 0.8, wobble: 0.15 * s, step: 4, fillAlpha: 0.9 },
+    [
+      at(-1.7, hipY + 0.6), at(-2.1 + bend * 4.4, hipY - 4.4 + bend * 2.1),
+      at(2.1 + bend * 5.6, hipY - 4.8 + bend * 2.3), at(1.9, hipY + 0.4),
+    ],
+    cloth, seed + 3, { width: 0.5 * s, alpha: 0.8, wobble: 0.07 * s, step: 3, fillAlpha: 0.9 },
   );
+
+  if (pose === 'planting') {
+    // Both arms down into the water, and the seedling bundle in one hand.
+    limb(shoulder, at(bend * 5.2 + 2.6, -1.2), 1.1, PIGMENT.muc, 0.8);
+    limb(shoulder, at(bend * 5.2 + 1.2, -0.9), 1, PIGMENT.mucSoft, 0.65);
+    g.fillStyle(PIGMENT.giDong, 0.85);
+    for (let blade = 0; blade < 3; blade += 1) {
+      const tip = at(bend * 5.2 + 2.4 + blade * 0.5, -2.4 - blade * 0.4);
+      g.fillRect(tip.x, tip.y, 0.45 * s, 1.7 * s);
+    }
+  } else if (pose === 'carrying') {
+    // Đòn gánh — the shoulder pole, a basket swinging at each end. The pose that tells you the
+    // harvest is in.
+    const poleY = shoulder.y - 0.4 * s;
+    inkPath(g, [{ x: shoulder.x - 6 * s, y: poleY + 0.5 * s }, { x: shoulder.x + 6 * s, y: poleY - 0.5 * s }], seed + 5, {
+      width: 0.55 * s, alpha: 0.8, colour: PIGMENT.nau, wobble: 0.06 * s, step: 4,
+    });
+    for (const side of [-1, 1] as const) {
+      const bx = shoulder.x + side * 5.6 * s;
+      const by = poleY + side * -0.4 * s;
+      inkPath(g, [{ x: bx, y: by }, { x: bx, y: by + 2 * s }], seed + 6 + side, {
+        width: 0.4 * s, alpha: 0.6, colour: PIGMENT.nau, wobble: 0, step: 3,
+      });
+      printedShape(
+        g,
+        [
+          { x: bx - 1.6 * s, y: by + 2 * s }, { x: bx + 1.6 * s, y: by + 2 * s },
+          { x: bx + 1.1 * s, y: by + 3.9 * s }, { x: bx - 1.1 * s, y: by + 3.9 * s },
+        ],
+        PIGMENT.hoePale, seed + 8 + side, { width: 0.45 * s, alpha: 0.75, wobble: 0.06 * s, step: 3, fillAlpha: 0.9 },
+      );
+    }
+    limb(shoulder, at(bend * 5.2 + 1.4, hipY - 1.4), 1, PIGMENT.muc, 0.75);
+  } else {
+    // Standing, one hand resting on a hoe.
+    limb(shoulder, at(2.4, hipY - 0.4), 1, PIGMENT.muc, 0.75);
+    inkPath(g, [at(2.8, 0), at(3.2, -8.6)], seed + 9, {
+      width: 0.5 * s, alpha: 0.8, colour: PIGMENT.nau, wobble: 0.05 * s, step: 4,
+    });
+    printedShape(
+      g,
+      [at(2.4, -8.6), at(4.4, -8.4), at(4.2, -7.2), at(2.5, -7.4)],
+      PIGMENT.mucSoft, seed + 10, { width: 0.4 * s, alpha: 0.7, wobble: 0.05 * s, step: 3, fillAlpha: 0.85 },
+    );
+  }
+
+  // The head, and over it the nón lá — the one silhouette that says where this is. A shallow
+  // cone with a real brim, drawn as a filled shape rather than a bare triangle.
+  const headX = shoulder.x + (pose === 'planting' ? 1.4 * dir * s : 0);
+  const headY = shoulder.y - 1.5 * s;
+  g.fillStyle(PIGMENT.nauDark, 0.9);
+  g.fillCircle(headX, headY, 1.25 * s);
+
+  const brim = 2.9 * s;
+  printedShape(
+    g,
+    [
+      { x: headX - brim, y: headY + 0.5 * s },
+      { x: headX - brim * 0.55, y: headY - 1 * s },
+      { x: headX, y: headY - 2.5 * s },
+      { x: headX + brim * 0.55, y: headY - 1 * s },
+      { x: headX + brim, y: headY + 0.5 * s },
+      { x: headX + brim * 0.5, y: headY + 1.1 * s },
+      { x: headX - brim * 0.5, y: headY + 1.1 * s },
+    ],
+    PIGMENT.hoePale, seed + 12, { width: 0.5 * s, alpha: 0.85, wobble: 0.06 * s, step: 4, fillAlpha: 0.95 },
+  );
+  // One rib down the cone, which is what stops it reading as a mushroom.
+  inkPath(g, [{ x: headX, y: headY - 2.3 * s }, { x: headX + brim * 0.42, y: headY + 0.6 * s }], seed + 13, {
+    width: 0.35 * s, alpha: 0.4, colour: PIGMENT.nau, wobble: 0, step: 3,
+  });
 }
 
 // ── landform ──────────────────────────────────────────────────────────────────
