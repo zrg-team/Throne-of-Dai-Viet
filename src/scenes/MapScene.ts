@@ -1043,6 +1043,19 @@ export class MapScene extends Phaser.Scene {
     this.traffic.drawTravelers(this.state, (value) => this.wx(value), (value) => this.wy(value), (land) => this.getSettlementAnchor(land));
   }
 
+  /**
+   * How far a land's settlement sits from the centroid its node is anchored at.
+   *
+   * A settlement is drawn on the land's fortress hexes, which can be most of a province away from
+   * its centroid — so the name, the capital ring and the player's banner all pointed at bare
+   * ground beside the town they belonged to. `getSettlementAnchor` already knew where the town
+   * was; only the label and the capital were not asking it.
+   */
+  private settlementNodeOffset(land: Land): { x: number; y: number } {
+    const anchor = this.getSettlementAnchor(land);
+    return { x: this.wx(anchor.x) - this.wx(land.x), y: this.wy(anchor.y) - this.wy(land.y) };
+  }
+
   private createLandNode(land: Land): void {
     if (!land.isVisible) {
       return;
@@ -1058,6 +1071,8 @@ export class MapScene extends Phaser.Scene {
     if (isPlayerCapital) {
       const capitalHighlight = this.mapItems.createCapitalHighlight();
       capitalHighlight.setDepth(-1);
+      const ringAt = this.settlementNodeOffset(land);
+      capitalHighlight.setPosition(ringAt.x, ringAt.y);
       container.add(capitalHighlight);
     }
 
@@ -1083,8 +1098,12 @@ export class MapScene extends Phaser.Scene {
 
     const width = Math.max(44, Math.min(90, label.width + 12));
     const height = label.height + 6;
-    const labelY = isPlayerCapital ? 30 : 27;
-    const container = this.add.container(0, labelY);
+    // A walled seat is tall. At the village offset the name landed across its gate tower, which is
+    // the one building on the map worth looking at.
+    const isSeat = land.type === 'castle' || land.type === 'enemyCastle';
+    const labelY = isSeat ? 58 : 27;
+    const anchor = this.settlementNodeOffset(land);
+    const container = this.add.container(anchor.x, anchor.y + labelY);
     const backing = this.add.graphics();
 
     backing.fillStyle(0xf0dfae, 0.78);
@@ -1421,12 +1440,12 @@ export class MapScene extends Phaser.Scene {
       const isCapital = land.type === 'castle';
       const marker = this.mapItems.createPlayerLandFlag(isCapital, this.state.mapConfig.seed);
       marker.setDepth(76);
-      if (isCapital) {
-        marker.setPosition(this.wx(land.x), this.wy(land.y));
-      } else {
-        const anchor = this.getSettlementAnchor(land);
-        marker.setPosition(this.wx(anchor.x) + 26, this.wy(anchor.y) + 8);
-      }
+      const anchor = this.getSettlementAnchor(land);
+      // The capital used to pin to the land centroid while its walls stood on the fortress hexes,
+      // so the one banner on the map that matters flew over an empty field. Moved onto the seat it
+      // then stood ON the citadel, pole through the gate tower — the player's own capital was the
+      // one seat in the game you could not see. It flies beside the walls, as a standard does.
+      marker.setPosition(this.wx(anchor.x) + (isCapital ? 34 : 26), this.wy(anchor.y) + (isCapital ? 2 : 8));
       this.flagMarkers.set(land.id, marker);
     }
   }

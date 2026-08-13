@@ -22,6 +22,11 @@ export interface MapItemRenderer {
   addBuildingGroup(cluster: Phaser.GameObjects.Container, x: number, y: number, isShrine: boolean, houseCount: number): void;
   addCityCluster(cluster: Phaser.GameObjects.Container, centers: ReadonlyArray<{ x: number; y: number }>, isShrine: boolean, kind?: 'city' | 'market' | 'shrine'): void;
   drawCityWall(graphics: Phaser.GameObjects.Graphics, edges: Array<[number, number, number, number]>): void;
+  /**
+   * The lanes inside a walled town. Optional: a renderer that does not implement it gets the
+   * default brush track between every pair of adjacent seat hexes.
+   */
+  drawCityRoad?(graphics: Phaser.GameObjects.Graphics, segments: Array<[number, number, number, number]>): void;
   addCottage(cluster: Phaser.GameObjects.Container, x: number, y: number, scale: number): void;
   addCropPatch(cluster: Phaser.GameObjects.Container, x: number, y: number, scale: number): void;
   createFarmCluster(scale: number, upgradeLevel: number): Phaser.GameObjects.Container;

@@ -161,6 +161,7 @@ export class SettlementRenderer {
     const maxAdjacentDist = hexSize * MAP_SCALE * 2.1;
     const { cityRoad } = this.palette;
 
+    const segments: Array<[number, number, number, number]> = [];
     for (let i = 0; i < cityCoords.length; i += 1) {
       for (let j = i + 1; j < cityCoords.length; j += 1) {
         const pA = axialToPixel(cityCoords[i], hexSize);
@@ -170,7 +171,14 @@ export class SettlementRenderer {
         const bx = (pB.x - land.x) * MAP_SCALE;
         const by = (pB.y - land.y) * MAP_SCALE;
         if (Math.hypot(ax - bx, ay - by) > maxAdjacentDist) continue;
+        segments.push([ax, ay, bx, by]);
+      }
+    }
 
+    if (this.mapItems.drawCityRoad) {
+      this.mapItems.drawCityRoad(graphics, segments);
+    } else {
+      for (const [ax, ay, bx, by] of segments) {
         const seed = Math.round(ax + ay * 3 + bx * 7 + by * 11);
         brushStroke(graphics, [{ x: ax, y: ay }, { x: bx, y: by }], 5, cityRoad.bed, 0.55, seed);
         brushStroke(graphics, [{ x: ax, y: ay }, { x: bx, y: by }], 2.5, cityRoad.track, 0.5, seed + 53);
