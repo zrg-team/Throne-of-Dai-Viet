@@ -47,6 +47,14 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
       vScale: scene.vScale,
       sealScaleX: seal?.scaleX ?? null,
       sealScaleY: seal?.scaleY ?? null,
+      aspectSafe: (() => {
+        const art = scene.children.list.find((c) => c.type === 'Container' && c.depth === -8);
+        if (!art) return [];
+        return art.list.filter((c) => c.getData?.('menuAspectSafe')).map((c) => ({
+          worldX: c.scaleX * art.scaleX,
+          worldY: c.scaleY * art.scaleY,
+        }));
+      })(),
       tweens: scene.tweens.getTweens().filter((t) => t.isPlaying()).length,
       grazing: scene.children.list.filter((c) => c.getData?.('grazing')).length,
     };
@@ -55,6 +63,9 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
   // A circle drawn into a container squashed vertically is an ellipse. The seal must not be in one.
   check(`${label}: seal keeps its aspect`, menu.sealScaleX !== null && Math.abs(menu.sealScaleX - menu.sealScaleY) < 1e-6,
     `scale ${menu.sealScaleX}x${menu.sealScaleY}, sheet squash ${menu.vScale.toFixed(3)}`);
+  check(`${label}: recognizable scenery keeps its aspect`, menu.aspectSafe.length >= 12
+    && menu.aspectSafe.every((item) => Math.abs(item.worldX - item.worldY) < 1e-6),
+  `${menu.aspectSafe.length} objects, layout factor ${menu.vScale.toFixed(3)}`);
   check(`${label}: the picture moves`, menu.tweens >= 15, `${menu.tweens} tweens playing`);
   check(`${label}: the herd is out`, menu.grazing >= 2, `${menu.grazing} grazing animals`);
 

@@ -111,9 +111,9 @@ const BUFFALO_LOOKS = 4;
 export function bakedBuffalo(scene: Phaser.Scene, seed: number, rider: boolean): BakedProp {
   const look = Math.abs(Math.round(seed)) % BUFFALO_LOOKS;
   const key = `prop:buffalo:${look}:${rider ? 'r' : 'x'}`;
-  // The animal reaches about 24 units ahead of its anchor, 36 behind, and 34 above it — measured at
-  // the canonical scale the bake draws at, with a little slack for the horn and the rider's leaf.
-  const box: PropBox = { left: -38, right: 26, top: -38, bottom: 5 };
+  // Rider variants reach higher than the animal: keep the lotus canopy entirely inside the bake.
+  // Clipping this box used to shave the top from the leaf and make the rider harder to parse.
+  const box: PropBox = { left: -38, right: 26, top: rider ? -43 : -34, bottom: 5 };
   return bakeProp(scene, key, box, (g, x, y, raster) => buffalo(g, x, y, raster, look * 977 + 13, rider));
 }
 

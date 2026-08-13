@@ -95,16 +95,16 @@ export class MenuScene extends Phaser.Scene {
       // Exposed so a driver script can assert nothing is standing in the water; a host in the river
       // is exactly the kind of defect that is invisible until somebody looks at the right screen.
       (this as unknown as { __menuRiver: (y: number) => unknown }).__menuRiver = (y: number) => river.spanAt(y / this.vScale);
-      this.squashLayer(() => this.drawDongHoLandscape(river, hosts));
+      this.fitLandscapeLayer(() => this.drawDongHoLandscape(river, hosts));
       this.drawDongHoLife(hosts);
       this.drawDongHoWeather(river);
     } else if (menu === 'atlas') {
-      this.squashLayer(() => {
+      this.fitLandscapeLayer(() => {
         this.drawAtlasLandscape();
         this.drawArmies();
       });
     } else {
-      this.squashLayer(() => {
+      this.fitLandscapeLayer(() => {
         this.drawLandscape();
         this.drawArmies();
         this.drawFogBands();
@@ -118,19 +118,17 @@ export class MenuScene extends Phaser.Scene {
   }
 
   /**
-   * Runs `draw` and collects everything it created into one container squashed onto the device's
-   * sheet.
+   * Runs `draw` and collects everything it created into a landscape fitted onto the device's sheet.
    *
-   * The landscape is drawn in 844-tall design space. Rather than re-tune every polygon, the art is
-   * squashed vertically — a stylised landscape takes that without complaint, where being cut off
-   * halfway looks like a bug. The factor is the SAME one the content column uses, not
-   * `GAME_HEIGHT / 844`: two different vertical scales put the art and the buttons on separate
-   * tracks, and on a short sheet they met.
+   * Large ground washes and the river may compress vertically; they are the layout. Recognizable
+   * objects tagged `menuAspectSafe` counter-scale inside the container, so mountains, trees,
+   * houses and people keep their authored proportions while their anchor positions still fit the
+   * short sheet. This is the difference between moving a tree closer and flattening the tree.
    *
-   * Anything whose proportions carry meaning — the seal, a banner, an animal, a host — must be drawn
-   * outside this and positioned with `vy`.
+   * Live objects remain outside this container so they can move and use `vy` for the same fitted
+   * ground position.
    */
-  private squashLayer(draw: () => void): Phaser.GameObjects.Container {
+  private fitLandscapeLayer(draw: () => void): Phaser.GameObjects.Container {
     const before = new Set(this.children.list);
     draw();
     const art = this.add.container(0, 0).setDepth(-8);
@@ -139,7 +137,25 @@ export class MenuScene extends Phaser.Scene {
       art.add(child as Phaser.GameObjects.GameObject & { x: number; y: number });
     }
     art.setScale(1, this.vScale);
+    // A tagged object is drawn around its own local origin. Countering the parent's vertical scale
+    // restores a 1:1 world aspect without changing the fitted y position of that origin.
+    for (const child of art.list) {
+      const transform = child as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Transform & {
+        getData?: (key: string) => unknown;
+      };
+      if (transform.getData?.('menuAspectSafe')) {
+        transform.setScale(1, 1 / this.vScale);
+      }
+    }
     return art;
+  }
+
+  /** Draw one recognizable landscape object around its anchor, preserving its world aspect. */
+  private aspectProp(x: number, y: number, draw: (g: Phaser.GameObjects.Graphics) => void): Phaser.GameObjects.Graphics {
+    const graphics = this.add.graphics({ x, y });
+    draw(graphics);
+    graphics.setData('menuAspectSafe', true);
+    return graphics;
   }
 
   /**
@@ -158,10 +174,12 @@ export class MenuScene extends Phaser.Scene {
 
     // Limestone at the horizon with soft earth hills tucked in front of it. Two landforms, because
     // one of them used for both gives a row of teeth.
-    softRidge(g, -30, 236, HORIZON + 4, 30, 9021);
-    softRidge(g, 168, GAME_WIDTH + 30, HORIZON + 2, 25, 9022);
-    karstRange(g, -24, 196, HORIZON, 74, 4118);
-    karstRange(g, 214, GAME_WIDTH + 24, HORIZON - 4, 62, 4119);
+    this.aspectProp(0, HORIZON, (landforms) => {
+      softRidge(landforms, -30, 236, 4, 30, 9021);
+      softRidge(landforms, 168, GAME_WIDTH + 30, 2, 25, 9022);
+      karstRange(landforms, -24, 196, 0, 74, 4118);
+      karstRange(landforms, 214, GAME_WIDTH + 24, -4, 62, 4119);
+    });
 
     // Mist at the foot of the range. Towers are seated at varying depths, so their base fills stop
     // on a stepped line — invisible on the map, where ground tone covers it, and a row of pale
@@ -214,14 +232,14 @@ export class MenuScene extends Phaser.Scene {
     }
     // The far bank is a place, not a texture: the hamlet whose fields those are, the people working
     // them, and trees breaking the field system up so it reads as farmland rather than as tiling.
-    hamlet(g, 318, 366, 0.42, 4300, 3);
-    farmer(g, 288, 372, 0.7, 4310);
-    farmer(g, 356, 400, 0.62, 4311);
-    areca(g, 340, 352, 0.42, 4320);
-    treeProp(g, 246, 302, 0.5, 4321);
-    treeProp(g, 384, 372, 0.46, 4322);
-    treeProp(g, 300, 452, 0.44, 4323);
-    treeProp(g, 372, 300, 0.4, 4324);
+    this.aspectProp(318, 366, (prop) => hamlet(prop, 0, 0, 0.42, 4300, 3));
+    this.aspectProp(288, 372, (prop) => farmer(prop, 0, 0, 0.7, 4310));
+    this.aspectProp(356, 400, (prop) => farmer(prop, 0, 0, 0.62, 4311));
+    this.aspectProp(340, 352, (prop) => areca(prop, 0, 0, 0.42, 4320));
+    this.aspectProp(246, 302, (prop) => treeProp(prop, 0, 0, 0.5, 4321));
+    this.aspectProp(384, 372, (prop) => treeProp(prop, 0, 0, 0.46, 4322));
+    this.aspectProp(300, 452, (prop) => treeProp(prop, 0, 0, 0.44, 4323));
+    this.aspectProp(372, 300, (prop) => treeProp(prop, 0, 0, 0.4, 4324));
 
     // Ripples ride the surface rather than being scratched onto it at random. Level strokes only:
     // randomising both ends put crossed scratches on the water.
@@ -236,24 +254,24 @@ export class MenuScene extends Phaser.Scene {
 
     // The near bank: a village under its banyan. The herd is drawn in `drawDongHoLife`, because an
     // animal baked into this buffer can never take a step.
-    banyan(g, 52, 356, 0.75, 5001);
-    hamlet(g, 112, 366, 0.58, 5002, 5);
-    bamboo(g, 20, 392, 0.62, 5003);
-    areca(g, 158, 344, 0.5, 5004);
+    this.aspectProp(52, 356, (prop) => banyan(prop, 0, 0, 0.75, 5001));
+    this.aspectProp(112, 366, (prop) => hamlet(prop, 0, 0, 0.58, 5002, 5));
+    this.aspectProp(20, 392, (prop) => bamboo(prop, 0, 0, 0.62, 5003));
+    this.aspectProp(158, 344, (prop) => areca(prop, 0, 0, 0.5, 5004));
     for (let index = 0; index < 8; index += 1) {
       const x = 8 + rand() * 190;
       const y = 318 + rand() * 96;
       if (hosts.some((host) => host.covers(x, y, 12))) continue;
-      treeProp(g, x, y, 0.42 + rand() * 0.26, 5100 + index);
+      const scale = 0.42 + rand() * 0.26;
+      this.aspectProp(x, y, (prop) => treeProp(prop, 0, 0, scale, 5100 + index));
     }
   }
 
   /**
    * Everything on the menu that is alive: the two hosts with their standards, and the herd.
    *
-   * Drawn outside the squashed landscape layer. A host squashed to 69% is a host of flattened men,
-   * and a banner is the wrong shape at any factor but one — but the ground under them is squashed,
-   * so their positions go through `vy` to stay registered with it.
+   * Drawn outside the fitted landscape layer so each object can animate independently. Their
+   * positions go through `vy` to stay registered with the compressed ground.
    */
   private drawDongHoLife(hosts: MenuHost[]): void {
     for (const host of hosts) {
