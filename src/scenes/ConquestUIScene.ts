@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { applyPaperFX } from '../ui/ink/PaperFX';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID } from '../game/constants';
 import { codexProgress, getCodex, isHeroUnlocked } from '../state/codex';
 import { LEGACY_PERKS, ownsPerk } from '../state/legacy';
@@ -148,6 +149,8 @@ export class ConquestUIScene extends Phaser.Scene {
   }
 
   create(): void {
+    // The chrome is printed on the same sheet as the world, so it takes the same paper pass.
+    applyPaperFX(this);
     this.ui = new InkUI(this);
     this.resourceBar = new ResourceBar(this, this.state);
     this.add.existing(this.resourceBar);

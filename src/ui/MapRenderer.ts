@@ -10,7 +10,32 @@ import type { HexTerrainType } from '../map/terrainTypes';
 import { MAP_VISUAL_CONFIG } from '../game/gameplayConfig';
 import { INK, brushStroke, inkOutline, shade, washFill, waveLine, cloudMotif } from './inkTheme';
 import { AtlasMapRenderer } from './AtlasMapRenderer';
+import { DongHoMapRenderer } from './DongHoMapRenderer';
 import { getActiveMapTheme, type MapThemeDefinition, type MapThemePalette, type MapThemeRendererId } from './mapTheme';
+
+/** The one tile a landscape renderer is handed. Matches `HexTile` without importing the generator. */
+export interface LandscapeTile {
+  coord: { q: number; r: number };
+  terrain: HexTerrainType;
+  landId?: string;
+}
+
+/**
+ * Everything a whole-map renderer needs, so it never has to know about `MapScene`'s coordinate
+ * plumbing (hex size, MAP_SCALE, world padding) — it asks for a centre and gets one.
+ */
+export interface LandscapeContext {
+  /** The terrain layer, at depth 0. */
+  graphics: Phaser.GameObjects.Graphics;
+  /** The decoration layer, at depth 1, so props sit above coast and control washes. */
+  decoration: Phaser.GameObjects.Graphics;
+  tiles: LandscapeTile[];
+  /** World-space radius of one hex, already scaled. */
+  tileSize: number;
+  centreOf(tile: LandscapeTile): PixelPoint;
+  centreAt(q: number, r: number): PixelPoint;
+  isVisible(tile: LandscapeTile): boolean;
+}
 
 export interface MapRenderer {
   readonly theme: MapThemeDefinition;
@@ -21,6 +46,58 @@ export interface MapRenderer {
   drawCloud(graphics: Phaser.GameObjects.Graphics, x: number, y: number, baseRadius: number, seed: number, alpha?: number): void;
   drawZoneBorder(graphics: Phaser.GameObjects.Graphics, edges: Array<[number, number, number, number]>, color: number, alpha?: number): void;
   drawRoad(graphics: Phaser.GameObjects.Graphics, points: PixelPoint[], widthFrom: number, widthTo: number): void;
+
+  /**
+   * Draws the whole landscape in one pass instead of tile by tile.
+   *
+   * A renderer that implements this owns terrain entirely and `MapScene` skips its per-hex loop.
+   * The point is not efficiency — it is that a picture drawn cell by cell reads as a list of
+   * dioramas. Ranges, field systems and prop scatters have to cross cell boundaries to look like
+   * a country, and this is the only hook wide enough to let them.
+   */
+  drawLandscape?(context: LandscapeContext): void;
+
+  /**
+   * Paints a land's interior from its merged boundary loops.
+   *
+   * Offered so a theme can carry ownership on something other than a saturated fill — the Đông Hồ
+   * renderer hatches, with the angle standing for the faction.
+   */
+  drawZoneFill?(
+    graphics: Phaser.GameObjects.Graphics,
+    loops: Array<Array<{ x: number; y: number }>>,
+    isPlayer: boolean,
+    isNeutral: boolean,
+  ): void;
+
+  /**
+   * One land/water edge of the shoreline.
+   *
+   * Offered because the default coast is a thick ruled stroke laid along hex edges, which draws a
+   * perfectly visible staircase of hexagons around every island.
+   */
+  drawShoreEdge?(graphics: Phaser.GameObjects.Graphics, x1: number, y1: number, x2: number, y2: number): void;
+
+  /**
+   * One cell of unexplored ground.
+   *
+   * Offered because the default fills the hex flat, so the frontier between the drawn world and
+   * the undrawn one is a perfectly visible staircase of hexagons.
+   */
+  drawFogCell?(
+    graphics: Phaser.GameObjects.Graphics,
+    centre: { x: number; y: number },
+    corners: PixelPoint[],
+    radius: number,
+    explored: boolean,
+  ): void;
+
+  /** A whole unexplored region, given its merged boundary loops. Same reason as `drawFogCell`. */
+  drawFogRegion?(
+    graphics: Phaser.GameObjects.Graphics,
+    loops: Array<Array<{ x: number; y: number }>>,
+    explored: boolean,
+  ): void;
 }
 
 export function createMapRenderer(scene: Phaser.Scene): MapRenderer {
@@ -31,6 +108,7 @@ export function createMapRenderer(scene: Phaser.Scene): MapRenderer {
 const environmentRendererFactories: Record<MapThemeRendererId, (scene: Phaser.Scene, theme: MapThemeDefinition) => MapRenderer> = {
   atlas: (scene, theme) => new AtlasMapRenderer(scene, theme),
   ink: (scene, theme) => new InkMapRenderer(scene, theme),
+  dongho: (scene, theme) => new DongHoMapRenderer(scene, theme),
 };
 
 function randomIndex(rng: () => number, length: number): number {

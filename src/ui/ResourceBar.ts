@@ -5,6 +5,8 @@ import { compactNumber } from '../utils/format';
 import { seasonLabel, t } from '../i18n';
 import { InkUI, INK_UI } from './InkUI';
 import { RESOURCE_ICONS } from './theme';
+import { sawtoothBand } from './ink/devices';
+import { PIGMENT } from './ink/palette';
 
 const RESOURCE_ORDER: ResourceKey[] = ['food', 'supplies', 'gold', 'humans'];
 const ICON_DISPLAY_SIZE = 15;
@@ -33,6 +35,19 @@ export class ResourceBar extends Phaser.GameObjects.Container {
 
     const back = scene.add.rectangle(0, 0, GAME_WIDTH, HEADER_HEIGHT, INK_UI.backgroundInk, 0.96).setOrigin(0, 0);
     this.add(back);
+
+    // Đông Sơn bronze — the narrator's register, kept distinct from the world's. The răng cưa
+    // sawtooth is the drum band that still reads at seven pixels tall; a meander at this size
+    // renders as the letter P repeated across the screen.
+    const band = scene.add.graphics();
+    band.setDefaultStyles({});
+    const light = (g: Phaser.GameObjects.Graphics, y: number) => {
+      g.lineStyle(0.75, PIGMENT.diepLo, 0.3);
+      sawtoothBand(g, 8, y, GAME_WIDTH - 16, 5, 0.3);
+    };
+    light(band, 2);
+    light(band, HEADER_HEIGHT - 8);
+    this.add(band);
 
     this.seasonText = ui.label(12, 4, '', 'title', { color: '#fff6bd', fontSize: '15px' });
     this.add(this.seasonText);

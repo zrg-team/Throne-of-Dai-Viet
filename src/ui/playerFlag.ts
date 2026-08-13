@@ -5,6 +5,49 @@
  */
 import Phaser from 'phaser';
 import { INK } from './inkTheme';
+import { PIGMENT, mutePigment } from './ink/palette';
+
+/**
+ * The five standards keep their geometry — the waving cloth, the scalloped fringe, the nested
+ * squares, the pseudo-glyph device. Only the pigments change: an art direction that throws away a
+ * working system is a reskin, not a direction.
+ *
+ * Acid yellow becomes hoa hòe, sky blue becomes chàm, grass green becomes gỉ đồng; the red was
+ * already sỏi son. `muted` desaturates the lot for a rival, so the only saturated red anywhere on
+ * the map is still the player's own.
+ */
+interface FlagPigments {
+  gold: number;
+  goldBright: number;
+  red: number;
+  redBright: number;
+  cream: number;
+  blue: number;
+  green: number;
+  ink: number;
+}
+
+function flagPigments(muted: boolean): FlagPigments {
+  const base: FlagPigments = {
+    gold: PIGMENT.hoe,
+    goldBright: PIGMENT.hoePale,
+    red: PIGMENT.son,
+    redBright: PIGMENT.sonDeep,
+    cream: PIGMENT.diepHi,
+    blue: PIGMENT.cham,
+    green: PIGMENT.giDong,
+    ink: PIGMENT.muc,
+  };
+  if (!muted) {
+    return base;
+  }
+  return {
+    gold: mutePigment(base.gold), goldBright: mutePigment(base.goldBright),
+    red: mutePigment(base.red), redBright: mutePigment(base.redBright),
+    cream: mutePigment(base.cream, 0.4), blue: mutePigment(base.blue),
+    green: mutePigment(base.green), ink: base.ink,
+  };
+}
 
 export type PlayerFlagStyle =
   | 'yellow-seal'
@@ -22,7 +65,7 @@ export const PLAYER_FLAG_STYLES: PlayerFlagStyle[] = [
 ];
 
 /** Seeded dynastic standard marking land owned by the player. */
-export function createPlayerLandFlag(scene: Phaser.Scene, isCapital = false, styleSeed = 0): Phaser.GameObjects.Container {
+export function createPlayerLandFlag(scene: Phaser.Scene, isCapital = false, styleSeed = 0, muted = false): Phaser.GameObjects.Container {
   const container = scene.add.container(0, 0);
   const pole = scene.add.graphics();
   const cloth = scene.add.graphics();
@@ -39,7 +82,7 @@ export function createPlayerLandFlag(scene: Phaser.Scene, isCapital = false, sty
   pole.fillStyle(INK.ink, 0.24);
   pole.fillEllipse(poleX, poleBottom + 2 * scale, 12 * scale, 4 * scale);
 
-  drawPlayerFlagCloth(cloth, style, poleX, poleTop, flagW, flagH, scale, styleSeed);
+  drawPlayerFlagCloth(cloth, style, poleX, poleTop, flagW, flagH, scale, styleSeed, muted);
 
   scene.tweens.add({
     targets: cloth,
@@ -69,61 +112,64 @@ function drawPlayerFlagCloth(
   flagH: number,
   scale: number,
   seed: number,
+  muted = false,
 ): void {
+  const pig = flagPigments(muted);
+
   if (style === 'yellow-seal') {
-    drawWavingRect(graphics, poleX, poleTop, flagW, flagH, 0xf4cf27, 0.98, scale);
-    graphics.lineStyle(2.2 * scale, INK.ink, 0.62);
+    drawWavingRect(graphics, poleX, poleTop, flagW, flagH, pig.gold, 0.98, scale);
+    graphics.lineStyle(2.2 * scale, pig.ink, 0.62);
     graphics.strokePath();
-    graphics.fillStyle(INK.sealRed, 0.94);
+    graphics.fillStyle(pig.red, 0.94);
     graphics.fillCircle(poleX + flagW * 0.56, poleTop + flagH * 0.5, flagH * 0.32);
-    drawPseudoGlyph(graphics, poleX + flagW * 0.56, poleTop + flagH * 0.52, scale * 0.46, INK.ink, seed);
+    drawPseudoGlyph(graphics, poleX + flagW * 0.56, poleTop + flagH * 0.52, scale * 0.46, pig.ink, seed);
     return;
   }
 
   if (style === 'red-moon') {
-    drawWavingRect(graphics, poleX, poleTop, flagW, flagH, INK.sealRed, 0.98, scale);
-    graphics.lineStyle(2.4 * scale, 0xf4cf27, 0.98);
+    drawWavingRect(graphics, poleX, poleTop, flagW, flagH, pig.red, 0.98, scale);
+    graphics.lineStyle(2.4 * scale, pig.gold, 0.98);
     graphics.strokePath();
-    graphics.fillStyle(0xf8f2df, 0.96);
+    graphics.fillStyle(pig.cream, 0.96);
     graphics.fillCircle(poleX + flagW * 0.55, poleTop + flagH * 0.52, flagH * 0.36);
-    drawPseudoGlyph(graphics, poleX + flagW * 0.55, poleTop + flagH * 0.55, scale * 0.5, INK.ink, seed + 1);
+    drawPseudoGlyph(graphics, poleX + flagW * 0.55, poleTop + flagH * 0.55, scale * 0.5, pig.ink, seed + 1);
     return;
   }
 
   if (style === 'layered-square') {
-    drawScallopedFringe(graphics, poleX, poleTop, flagW, flagH, scale, INK.sealRed);
-    graphics.fillStyle(0x3c9ced, 0.96);
+    drawScallopedFringe(graphics, poleX, poleTop, flagW, flagH, scale, pig.red);
+    graphics.fillStyle(pig.blue, 0.96);
     graphics.fillRect(poleX + flagW * 0.08, poleTop + flagH * 0.12, flagW * 0.82, flagH * 0.76);
-    graphics.fillStyle(0xf4f327, 0.98);
+    graphics.fillStyle(pig.goldBright, 0.98);
     graphics.fillRect(poleX + flagW * 0.18, poleTop + flagH * 0.22, flagW * 0.62, flagH * 0.56);
-    graphics.fillStyle(0x0a6b2f, 0.98);
+    graphics.fillStyle(pig.green, 0.98);
     graphics.fillRect(poleX + flagW * 0.28, poleTop + flagH * 0.32, flagW * 0.42, flagH * 0.36);
-    graphics.fillStyle(INK.sealRed, 0.98);
+    graphics.fillStyle(pig.red, 0.98);
     graphics.fillRect(poleX + flagW * 0.37, poleTop + flagH * 0.4, flagW * 0.24, flagH * 0.2);
-    drawPseudoGlyph(graphics, poleX + flagW * 0.49, poleTop + flagH * 0.52, scale * 0.36, 0xf4f327, seed + 2);
+    drawPseudoGlyph(graphics, poleX + flagW * 0.49, poleTop + flagH * 0.52, scale * 0.36, pig.goldBright, seed + 2);
     return;
   }
 
   if (style === 'red-fringe-yellow') {
-    drawScallopedFringe(graphics, poleX, poleTop, flagW, flagH, scale, 0xd4142f);
-    graphics.fillStyle(0xf4c50f, 0.98);
+    drawScallopedFringe(graphics, poleX, poleTop, flagW, flagH, scale, pig.red);
+    graphics.fillStyle(pig.gold, 0.98);
     graphics.fillRect(poleX + flagW * 0.08, poleTop + flagH * 0.14, flagW * 0.76, flagH * 0.7);
     if (seed % 2 === 0) {
-      graphics.lineStyle(1.7 * scale, 0xd4142f, 0.94);
+      graphics.lineStyle(1.7 * scale, pig.red, 0.94);
       graphics.strokeCircle(poleX + flagW * 0.47, poleTop + flagH * 0.49, flagH * 0.28);
-      drawPseudoGlyph(graphics, poleX + flagW * 0.47, poleTop + flagH * 0.5, scale * 0.44, INK.ink, seed + 3);
+      drawPseudoGlyph(graphics, poleX + flagW * 0.47, poleTop + flagH * 0.5, scale * 0.44, pig.ink, seed + 3);
     } else {
-      drawPseudoGlyph(graphics, poleX + flagW * 0.48, poleTop + flagH * 0.52, scale * 0.5, 0xd4142f, seed + 4);
+      drawPseudoGlyph(graphics, poleX + flagW * 0.48, poleTop + flagH * 0.52, scale * 0.5, pig.red, seed + 4);
     }
     return;
   }
 
-  drawWavingRect(graphics, poleX, poleTop, flagW, flagH, 0xf4cf27, 0.98, scale);
-  graphics.lineStyle(2.2 * scale, INK.sealRed, 0.95);
+  drawWavingRect(graphics, poleX, poleTop, flagW, flagH, pig.gold, 0.98, scale);
+  graphics.lineStyle(2.2 * scale, pig.red, 0.95);
   graphics.strokePath();
-  graphics.fillStyle(INK.sealRed, 0.94);
+  graphics.fillStyle(pig.red, 0.94);
   graphics.fillCircle(poleX + flagW * 0.55, poleTop + flagH * 0.5, flagH * 0.34);
-  drawPseudoGlyph(graphics, poleX + flagW * 0.55, poleTop + flagH * 0.53, scale * 0.48, INK.ink, seed + 5);
+  drawPseudoGlyph(graphics, poleX + flagW * 0.55, poleTop + flagH * 0.53, scale * 0.48, pig.ink, seed + 5);
 }
 
 function drawWavingRect(

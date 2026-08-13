@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { addPressFeedback } from './animations';
 import { UI_FONT } from './fonts';
+import { PIGMENT } from './ink/palette';
 
 export interface UIBounds {
   x: number;
@@ -10,28 +11,37 @@ export interface UIBounds {
   height: number;
 }
 
+/**
+ * The interface palette, retuned to the Đông Hồ pigments.
+ *
+ * Every panel, modal, button and bar in the game reads from this table, so retuning it here is what
+ * makes the chrome agree with the map rather than sitting on top of it in a different world. The
+ * keys keep their old names — `parchment`, `cinnabar`, `gold` — because a hundred call sites use
+ * them and renaming would be churn for nothing; only the values move, each to the pigment nearest
+ * it: bamboo-soot black for the ground, điệp for the paper, sỏi son for the red, hoa hòe for gold.
+ */
 export const INK_UI = {
-  backgroundInk: 0x20261f,
-  overlay: 0x171b16,
-  parchment: 0xf3e6c4,
-  parchmentShade: 0xe4d2a2,
-  parchmentDark: 0xc4ae68,
-  inkText: '#211103',
-  mutedText: '#6b5230',
-  lightText: '#fff6bd',
-  brush: 0x2a1403,
-  softBrush: 0x47553f,
-  jade: 0x6f8f64,
-  cinnabar: 0xaa3a2c,
-  cinnabarDark: 0x7d2a20,
-  gold: 0xd9b35a,
-  goldLight: 0xf3dd9a,
+  backgroundInk: PIGMENT.muc,
+  overlay: 0x171308,
+  parchment: PIGMENT.diepHi,
+  parchmentShade: PIGMENT.diep,
+  parchmentDark: PIGMENT.diepLo,
+  inkText: '#2a2118',
+  mutedText: '#5a4c39',
+  lightText: '#f3ecd8',
+  brush: PIGMENT.muc,
+  softBrush: PIGMENT.mucSoft,
+  jade: PIGMENT.giDong,
+  cinnabar: PIGMENT.son,
+  cinnabarDark: PIGMENT.sonDeep,
+  gold: PIGMENT.hoe,
+  goldLight: PIGMENT.hoePale,
 };
 
 export const INK_UI_HEX = {
-  inkText: '#211103',
-  mutedText: '#6b5230',
-  lightText: '#fff6bd',
+  inkText: '#2a2118',
+  mutedText: '#5a4c39',
+  lightText: '#f3ecd8',
 };
 
 export type InkButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'disabled';

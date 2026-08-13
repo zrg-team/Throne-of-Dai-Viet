@@ -1,11 +1,41 @@
 import Phaser from 'phaser';
+import { TITLE_FONT, UI_FONT } from '../ui/fonts';
 
+/**
+ * First scene. Its one job beyond handing off to the preloader is to make sure the game's own
+ * typefaces are in the document before anything draws text.
+ *
+ * Phaser measures and rasterises text the moment a `Text` object is created and does not re-render
+ * it when a webfont finishes loading. Without this wait the menu — the very first thing anyone sees
+ * — renders in the fallback face and stays that way until something else forces a repaint.
+ */
 export class BootScene extends Phaser.Scene {
   constructor() {
     super('BootScene');
   }
 
   create(): void {
-    this.scene.start('PreloadScene');
+    void this.awaitFonts().then(() => this.scene.start('PreloadScene'));
+  }
+
+  private async awaitFonts(): Promise<void> {
+    const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+    if (!fonts?.load) {
+      return;
+    }
+    try {
+      // Naming the sizes and weights matters: `document.fonts.ready` alone resolves before a face
+      // that nothing has asked for yet is fetched.
+      await Promise.all([
+        fonts.load(`400 16px ${UI_FONT.split(',')[0]}`),
+        fonts.load(`600 16px ${UI_FONT.split(',')[0]}`),
+        fonts.load(`700 16px ${UI_FONT.split(',')[0]}`),
+        fonts.load(`700 22px ${TITLE_FONT.split(',')[0]}`),
+        fonts.ready,
+      ]);
+    } catch {
+      // A blocked or missing font file must not stop the game booting — the stacks in `fonts.ts`
+      // all end in a system face for exactly this case.
+    }
   }
 }

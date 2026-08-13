@@ -1,8 +1,9 @@
 import type { HexTerrainType } from '../map/terrainTypes';
 import { INK } from './inkTheme';
+import { PIGMENT } from './ink/palette';
 
-export type MapThemeId = 'illustrated-atlas' | 'ink-wash';
-export type MapThemeRendererId = 'atlas' | 'ink';
+export type MapThemeId = 'illustrated-atlas' | 'ink-wash' | 'dong-ho';
+export type MapThemeRendererId = 'atlas' | 'ink' | 'dongho';
 
 export interface MapThemePalette {
   paper: number;
@@ -38,7 +39,7 @@ export interface MapThemePalette {
 
 export interface MapThemeDefinition {
   id: MapThemeId;
-  labelKey: 'menu.mapTheme.atlas' | 'menu.mapTheme.ink';
+  labelKey: 'menu.mapTheme.atlas' | 'menu.mapTheme.ink' | 'menu.mapTheme.dongHo';
   renderers: { environment: MapThemeRendererId; items: MapThemeRendererId; menu: MapThemeRendererId };
   palette: MapThemePalette;
 }
@@ -119,18 +120,69 @@ export const INK_WASH_THEME: MapThemeDefinition = {
   },
 };
 
+/**
+ * Đông Hồ — the woodblock treatment.
+ *
+ * Every colour is a pigment a Đông Hồ printer actually ground rather than a screen value picked to
+ * look pleasant, and the terrain entries are deliberately close together: roughly two-thirds of the
+ * map is meant to be bare paper, with sỏi son reserved for the player alone. The saturated per-land
+ * ownership fills of the other two themes are replaced by hatching, whose *angle* carries the
+ * faction — a second channel, so the map still reads in greyscale.
+ */
+export const DONG_HO_THEME: MapThemeDefinition = {
+  id: 'dong-ho',
+  labelKey: 'menu.mapTheme.dongHo',
+  renderers: { environment: 'dongho', items: 'dongho', menu: 'dongho' },
+  palette: {
+    paper: PIGMENT.diep,
+    paperLight: PIGMENT.diepHi,
+    paperShade: PIGMENT.diepLo,
+    ink: PIGMENT.muc,
+    inkSoft: PIGMENT.mucSoft,
+    terrain: {
+      plains: PIGMENT.giDongPale,
+      fields: PIGMENT.hoePale,
+      riceFields: PIGMENT.giDongPale,
+      forest: PIGMENT.giDong,
+      mountains: PIGMENT.diepLo,
+      hills: PIGMENT.diepLo,
+      water: PIGMENT.chamWash,
+      fortress: PIGMENT.diepLo,
+      shrine: PIGMENT.diepHi,
+    },
+    water: PIGMENT.chamWash,
+    waterDeep: PIGMENT.cham,
+    waterHighlight: PIGMENT.chamPale,
+    shore: PIGMENT.diepDeep,
+    fog: PIGMENT.diepHi,
+    cityRoad: { bed: PIGMENT.diepHi, track: PIGMENT.nau },
+    borders: { neutralAlpha: 0.05, ownedAlpha: 0.55 },
+    minimap: {
+      background: PIGMENT.diep, border: PIGMENT.muc, player: PIGMENT.son, neutral: PIGMENT.mucFaint,
+      rival: PIGMENT.mucSoft, playerArmy: PIGMENT.son, rivalArmy: PIGMENT.muc, viewport: PIGMENT.muc,
+    },
+    mapObjects: {
+      player: PIGMENT.son, rival: PIGMENT.mucSoft, selected: PIGMENT.hoe, stone: PIGMENT.diepLo,
+      forest: PIGMENT.giDong, roof: PIGMENT.nau, pagodaRoof: PIGMENT.mucSoft, wall: PIGMENT.diepHi,
+      pagodaWall: PIGMENT.diepHi, timber: PIGMENT.nauDark, market: PIGMENT.hoe,
+      foliageHighlight: PIGMENT.giDongPale, trunk: PIGMENT.nau,
+    },
+  },
+};
+
 export const MAP_THEMES: Record<MapThemeId, MapThemeDefinition> = {
+  'dong-ho': DONG_HO_THEME,
   'illustrated-atlas': ILLUSTRATED_ATLAS_THEME,
   'ink-wash': INK_WASH_THEME,
 };
 
 export const MAP_THEME_OPTIONS = Object.values(MAP_THEMES);
 
-/** Ink-wash is the default for new devices; the chosen style is an application preference, not save data. */
+/** Đông Hồ is the default for new devices; the chosen style is an application preference, not save data. */
 export function getMapTheme(): MapThemeId {
-  if (typeof localStorage === 'undefined') return 'ink-wash';
+  if (typeof localStorage === 'undefined') return 'dong-ho';
   const stored = localStorage.getItem(MAP_THEME_STORAGE_KEY);
-  return stored === 'ink-wash' || stored === 'illustrated-atlas' ? stored : 'ink-wash';
+  return stored === 'ink-wash' || stored === 'illustrated-atlas' || stored === 'dong-ho' ? stored : 'dong-ho';
 }
 
 export function getActiveMapTheme(): MapThemeDefinition {
