@@ -492,7 +492,9 @@ export class InkUI {
 
   modal(opts: InkModalOptions): InkModalResult {
     const width = opts.width ?? 362;
-    const height = opts.height ?? 742;
+    // Never taller than the sheet. A fixed 742 on a 662-tall design box put the header above the
+    // screen and the footer below it, which is how a modal loses its own close button.
+    const height = Math.min(opts.height ?? 742, GAME_HEIGHT - 24);
     const x = (GAME_WIDTH - width) / 2;
     const y = (GAME_HEIGHT - height) / 2;
     const headerHeight = 104;

@@ -27,6 +27,32 @@ export class MenuScene extends Phaser.Scene {
     super('MenuScene');
   }
 
+  /**
+   * The menu was drawn against an 844-tall sheet, but the design height now follows the device, so
+   * on a phone with browser chrome it can be two hundred units shorter.
+   *
+   * Everything in the button column sits at a fixed y while the theme picker and language row are
+   * anchored to the bottom — so a shorter sheet slid the two into each other and the tagline came
+   * out underneath the theme tiles. These map the design's own coordinates into whatever vertical
+   * band is actually left above those bottom rows, which also relieves a collision the 844 layout
+   * already had whenever the legacy-shop button was showing.
+   */
+  private get vScale(): number {
+    const BOTTOM_ROWS = 118;   // theme heading, tiles, language row
+    const DESIGN_BOTTOM = 790; // lowest content y in the 844 design
+    return Math.max(0.62, Math.min(1, (GAME_HEIGHT - BOTTOM_ROWS) / DESIGN_BOTTOM));
+  }
+
+  /** A design-space y in the band the device actually leaves. */
+  private vy(y: number): number {
+    return Math.round(y * this.vScale);
+  }
+
+  /** A design-space height, scaled with its position so gaps stay proportional. */
+  private vh(height: number): number {
+    return Math.round(height * this.vScale);
+  }
+
   create(): void {
     // The chrome is printed on the same sheet as the world, so it takes the same paper pass.
     applyPaperFX(this);
@@ -41,7 +67,24 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private drawBackground(): void {
-    this.mapRenderer.drawBackground(GAME_WIDTH, GAME_HEIGHT);
+    this.mapRenderer.drawBackground(GAME_WIDTH, GAME_HEIGHT).setDepth(-10);
+    // The landscape is drawn in 844-tall design space. Rather than re-tune every polygon, the art
+    // is collected into one container and squashed onto whatever sheet the device gives — a
+    // stylised landscape takes a vertical squash without complaint, where being cut off in half
+    // looks like a bug.
+    const before = new Set(this.children.list);
+    this.drawBackgroundArt();
+    const art = this.add.container(0, 0).setDepth(-8);
+    for (const child of this.children.list.slice()) {
+      if (before.has(child) || child === art) continue;
+      art.add(child as Phaser.GameObjects.GameObject & { x: number; y: number });
+    }
+    // The SAME factor the content uses, not GAME_HEIGHT/844 — two different vertical scales put
+    // the lotus seal and the title on separate tracks, and on a short sheet they met.
+    art.setScale(1, this.vScale);
+  }
+
+  private drawBackgroundArt(): void {
     if (this.mapRenderer.theme.renderers.menu === 'atlas') {
       this.drawAtlasLandscape();
       this.drawArmies();
@@ -462,33 +505,33 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private renderTitle(): void {
-    const shadow = this.ui.label(GAME_WIDTH / 2 + 2, 130, 'MANDATE', 'title', {
+    const shadow = this.ui.label(GAME_WIDTH / 2 + 2, this.vy(130), 'MANDATE', 'title', {
       color: '#301509',
       fontFamily: TITLE_FONT,
-      fontSize: '36px',
+      fontSize: `${Math.round(36 * this.vScale)}px`,
       fontStyle: '700',
       align: 'center',
     }).setOrigin(0.5);
-    const title = this.ui.label(GAME_WIDTH / 2, 127, 'MANDATE', 'title', {
+    const title = this.ui.label(GAME_WIDTH / 2, this.vy(127), 'MANDATE', 'title', {
       color: '#2a2118',
       fontFamily: TITLE_FONT,
-      fontSize: '36px',
+      fontSize: `${Math.round(36 * this.vScale)}px`,
       fontStyle: '700',
       align: 'center',
     }).setOrigin(0.5);
-    const subtitleShadow = this.ui.label(GAME_WIDTH / 2 + 1, 161, 'OF ĐẠI VIỆT', 'title', {
+    const subtitleShadow = this.ui.label(GAME_WIDTH / 2 + 1, this.vy(161), 'OF ĐẠI VIỆT', 'title', {
       color: '#301509',
       fontFamily: TITLE_FONT,
-      fontSize: '19px',
+      fontSize: `${Math.round(19 * this.vScale)}px`,
       fontStyle: '700',
     }).setOrigin(0.5);
-    const subtitle = this.ui.label(GAME_WIDTH / 2, 159, 'OF ĐẠI VIỆT', 'title', {
+    const subtitle = this.ui.label(GAME_WIDTH / 2, this.vy(159), 'OF ĐẠI VIỆT', 'title', {
       color: '#2a2118',
       fontFamily: TITLE_FONT,
-      fontSize: '19px',
+      fontSize: `${Math.round(19 * this.vScale)}px`,
       fontStyle: '700',
     }).setOrigin(0.5);
-    const rule = this.add.rectangle(GAME_WIDTH / 2, 184, 210, 2, INK_UI.gold, 0.88);
+    const rule = this.add.rectangle(GAME_WIDTH / 2, this.vy(184), 210, 2, INK_UI.gold, 0.88);
     this.content.push(shadow, title, subtitleShadow, subtitle, rule);
   }
 
@@ -497,11 +540,11 @@ export class MenuScene extends Phaser.Scene {
 
     // The new mode leads; the two hand-played modes live one tap away on the Classic page,
     // which also keeps the button column inside the space the menu art leaves free.
-    this.content.push(this.ui.button({ x: 54, y: 506, width: 282, height: 58 }, t('ascent.menu.title'), () => {
+    this.content.push(this.ui.button({ x: 54, y: this.vy(506), width: 282, height: this.vh(58) }, t('ascent.menu.title'), () => {
       this.startAscentRun();
     }, { variant: 'primary', fontSize: '17px' }));
 
-    this.content.push(this.add.text(GAME_WIDTH / 2, 570, t('ascent.menu.tagline'), {
+    this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(570), t('ascent.menu.tagline'), {
       color: '#8a5f1c',
       fontFamily: UI_FONT,
       fontSize: '11px',
@@ -509,19 +552,19 @@ export class MenuScene extends Phaser.Scene {
       wordWrap: { width: 270 },
     }).setOrigin(0.5, 0));
 
-    this.content.push(this.ui.button({ x: 54, y: 596, width: 282, height: 46 }, t('ascent.menu.classic'), () => {
+    this.content.push(this.ui.button({ x: 54, y: this.vy(596), width: 282, height: this.vh(46) }, t('ascent.menu.classic'), () => {
       this.mode = 'classic';
       this.render();
     }, { variant: 'secondary', fontSize: '15px' }));
 
-    this.content.push(this.ui.button({ x: 54, y: 650, width: 282, height: 42 }, t('menu.continue'), () => {
+    this.content.push(this.ui.button({ x: 54, y: this.vy(650), width: 282, height: this.vh(42) }, t('menu.continue'), () => {
       const snapshot = loadSnapshot();
       if (snapshot) {
         this.startGame(snapshot.state);
       }
     }, { variant: saved ? 'ghost' : 'disabled', fontSize: '15px' }));
 
-    const saveLabel = this.add.text(GAME_WIDTH / 2, 698, snapshotLabel(), {
+    const saveLabel = this.add.text(GAME_WIDTH / 2, this.vy(698), snapshotLabel(), {
       color: saved ? '#2a2118' : '#5a4c39',
       fontFamily: UI_FONT,
       fontSize: '12px',
@@ -537,7 +580,7 @@ export class MenuScene extends Phaser.Scene {
     // Tapping it opens the Ascension Legacy shop, where banked points buy permanent perks.
     const legacy = getLegacy();
     if (legacy.points > 0 || legacy.bestScore > 0) {
-      const rankLabel = this.add.text(GAME_WIDTH / 2, 722, t('empire.legacy.rank', {
+      const rankLabel = this.add.text(GAME_WIDTH / 2, this.vy(722), t('empire.legacy.rank', {
         rank: rankForScore(legacy.bestScore),
         total: legacy.points,
       }), {
@@ -550,7 +593,7 @@ export class MenuScene extends Phaser.Scene {
       }).setOrigin(0.5).setInteractive({ useHandCursor: true });
       rankLabel.on('pointerup', () => { this.mode = 'legacy'; this.render(); });
       this.content.push(rankLabel);
-      this.content.push(this.ui.button({ x: 108, y: 744, width: 174, height: 30 }, t('empire.legacy.openShop'), () => {
+      this.content.push(this.ui.button({ x: 108, y: this.vy(744), width: 174, height: this.vh(30) }, t('empire.legacy.openShop'), () => {
         this.mode = 'legacy';
         this.render();
       }, { variant: 'ghost', fontSize: '12px' }));
@@ -563,7 +606,7 @@ export class MenuScene extends Phaser.Scene {
    * is untouched by the new mode.
    */
   private renderClassic(): void {
-    this.content.push(this.add.text(GAME_WIDTH / 2, 250, t('ascent.menu.classicTitle'), {
+    this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(250), t('ascent.menu.classicTitle'), {
       color: '#2a2118',
       fontFamily: TITLE_FONT,
       fontSize: '20px',
@@ -571,7 +614,7 @@ export class MenuScene extends Phaser.Scene {
       align: 'center',
     }).setOrigin(0.5));
 
-    this.content.push(this.ui.card({ x: 28, y: 300, width: GAME_WIDTH - 56, height: 88 }, {
+    this.content.push(this.ui.card({ x: 28, y: this.vy(300), width: GAME_WIDTH - 56, height: this.vh(88) }, {
       title: t('empire.menu.title'),
       body: t('ascent.menu.empireBlurb'),
       border: INK_UI.gold,
@@ -583,7 +626,7 @@ export class MenuScene extends Phaser.Scene {
       },
     }));
 
-    this.content.push(this.ui.card({ x: 28, y: 436, width: GAME_WIDTH - 56, height: 88 }, {
+    this.content.push(this.ui.card({ x: 28, y: this.vy(436), width: GAME_WIDTH - 56, height: this.vh(88) }, {
       title: t('menu.startCampaign'),
       body: t('ascent.menu.campaignBlurb'),
       border: INK_UI.softBrush,
@@ -595,7 +638,7 @@ export class MenuScene extends Phaser.Scene {
       },
     }));
 
-    this.content.push(this.ui.button({ x: 54, y: 620, width: 282, height: 44 }, t('ascent.menu.back'), () => {
+    this.content.push(this.ui.button({ x: 54, y: this.vy(620), width: 282, height: this.vh(44) }, t('ascent.menu.back'), () => {
       this.mode = 'main';
       this.render();
     }, { variant: 'secondary', fontSize: '14px' }));
@@ -612,10 +655,10 @@ export class MenuScene extends Phaser.Scene {
 
   private renderLegacyShop(): void {
     const legacy = getLegacy();
-    this.content.push(this.add.text(GAME_WIDTH / 2, 236, t('empire.legacy.shopTitle'), {
+    this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(236), t('empire.legacy.shopTitle'), {
       color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '20px', fontStyle: '700', align: 'center',
     }).setOrigin(0.5));
-    this.content.push(this.add.text(GAME_WIDTH / 2, 262, t('empire.legacy.banked', { total: legacy.points }), {
+    this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(262), t('empire.legacy.banked', { total: legacy.points }), {
       color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '13px', align: 'center',
     }).setOrigin(0.5));
 
@@ -642,7 +685,7 @@ export class MenuScene extends Phaser.Scene {
       y += 82;
     }
 
-    this.content.push(this.ui.button({ x: 54, y: Math.min(y + 6, 726), width: 282, height: 44 }, t('menu.back'), () => {
+    this.content.push(this.ui.button({ x: 54, y: Math.min(y + 6, this.vy(726)), width: 282, height: this.vh(44) }, t('menu.back'), () => {
       this.mode = 'main';
       this.render();
     }, { variant: 'secondary', fontSize: '14px' }));
@@ -681,7 +724,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private renderConfirmNew(): void {
-    const panel = this.ui.card({ x: 28, y: 528, width: GAME_WIDTH - 56, height: 178 }, {
+    const panel = this.ui.card({ x: 28, y: this.vy(528), width: GAME_WIDTH - 56, height: this.vh(178) }, {
       title: t('menu.startNewQuestion'),
       body: t('menu.savedSnapshotKept'),
       border: INK_UI.gold,
@@ -689,11 +732,11 @@ export class MenuScene extends Phaser.Scene {
     });
     this.content.push(panel);
 
-    this.content.push(this.ui.button({ x: 54, y: 632, width: 282, height: 46 }, t('menu.startNewCampaign'), () => {
+    this.content.push(this.ui.button({ x: 54, y: this.vy(632), width: 282, height: this.vh(46) }, t('menu.startNewCampaign'), () => {
       this.startGame(createInitialGameState());
       // Note: full campaign setup is via "Start Campaign" → CampaignScene
     }, { variant: 'danger', fontSize: '14px' }));
-    this.content.push(this.ui.button({ x: 54, y: 690, width: 282, height: 44 }, t('menu.back'), () => {
+    this.content.push(this.ui.button({ x: 54, y: this.vy(690), width: 282, height: this.vh(44) }, t('menu.back'), () => {
       this.mode = 'main';
       this.render();
     }, { variant: 'secondary', fontSize: '14px' }));
