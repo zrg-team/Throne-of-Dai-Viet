@@ -53,8 +53,8 @@ export type TextVariant =
 export const TEXT_STYLES: Record<TextVariant, Phaser.Types.GameObjects.Text.TextStyle> = {
   header: { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '15px', fontStyle: '700' },
   subheader: { color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '11px', fontStyle: '700' },
-  title: { color: INK_UI_HEX.lightText, fontFamily: UI_FONT, fontSize: '22px', fontStyle: '700' },
-  subtitle: { color: '#e9d6aa', fontFamily: UI_FONT, fontSize: '12px' },
+  title: { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '22px', fontStyle: '700' },
+  subtitle: { color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '12px' },
   body: { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '13px' },
   label: { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '15px', fontStyle: '700' },
   caption: { color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '11px' },

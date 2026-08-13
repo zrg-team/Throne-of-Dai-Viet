@@ -98,6 +98,19 @@ export interface MapRenderer {
     loops: Array<Array<{ x: number; y: number }>>,
     explored: boolean,
   ): void;
+
+  /**
+   * Land the player does not hold, in the modes that mute it.
+   *
+   * Offered because the default is a per-hex wash in a colour picked to separate by hue, which is
+   * both a visible honeycomb and a hue the palette does not contain.
+   */
+  drawForeignWash?(
+    graphics: Phaser.GameObjects.Graphics,
+    loops: Array<Array<{ x: number; y: number }>>,
+    isNeutral: boolean,
+    ownerColour: number,
+  ): void;
 }
 
 export function createMapRenderer(scene: Phaser.Scene): MapRenderer {

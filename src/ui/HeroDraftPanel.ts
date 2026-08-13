@@ -25,7 +25,7 @@ export class HeroDraftPanel {
         fontStyle: '700',
       }).setOrigin(0.5),
       this.scene.add.text(GAME_WIDTH / 2, SHEET_TOP + 40, t('modal.heroes.subtitle'), {
-        color: '#f5dfaa',
+        color: '#2a2118',
         fontFamily: UI_FONT,
         fontSize: '11px',
       }).setOrigin(0.5),

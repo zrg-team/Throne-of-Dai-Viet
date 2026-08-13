@@ -83,7 +83,7 @@ export class LandPanel {
     });
 
     const statusChip = this.scene.add.text(CARD_X + CARD_W - 38, y + 10, ownerLabel, {
-      color: '#fff6bd',
+      color: '#2a2118',
       fontFamily: UI_FONT,
       fontSize: '10px',
       fontStyle: '700',

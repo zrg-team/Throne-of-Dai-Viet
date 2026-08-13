@@ -3,7 +3,7 @@ import { GAME_WIDTH, HEADER_HEIGHT } from '../game/constants';
 import type { GameState, ResourceKey } from '../state/types';
 import { compactNumber } from '../utils/format';
 import { seasonLabel, t } from '../i18n';
-import { InkUI, INK_UI } from './InkUI';
+import { InkUI, INK_UI, INK_UI_HEX } from './InkUI';
 import { RESOURCE_ICONS } from './theme';
 import { sawtoothBand } from './ink/devices';
 import { PIGMENT } from './ink/palette';
@@ -33,7 +33,7 @@ export class ResourceBar extends Phaser.GameObjects.Container {
     this.setDepth(80);
     const ui = new InkUI(scene);
 
-    const back = scene.add.rectangle(0, 0, GAME_WIDTH, HEADER_HEIGHT, INK_UI.backgroundInk, 0.96).setOrigin(0, 0);
+    const back = scene.add.rectangle(0, 0, GAME_WIDTH, HEADER_HEIGHT, INK_UI.backgroundInk, 0.97).setOrigin(0, 0);
     this.add(back);
 
     // Đông Sơn bronze — the narrator's register, kept distinct from the world's. The răng cưa
@@ -41,15 +41,13 @@ export class ResourceBar extends Phaser.GameObjects.Container {
     // renders as the letter P repeated across the screen.
     const band = scene.add.graphics();
     band.setDefaultStyles({});
-    const light = (g: Phaser.GameObjects.Graphics, y: number) => {
-      g.lineStyle(0.75, PIGMENT.diepLo, 0.3);
-      sawtoothBand(g, 8, y, GAME_WIDTH - 16, 5, 0.3);
-    };
-    light(band, 2);
-    light(band, HEADER_HEIGHT - 8);
+    sawtoothBand(band, 8, 2, GAME_WIDTH - 16, 5, 0.45);
+    sawtoothBand(band, 8, HEADER_HEIGHT - 8, GAME_WIDTH - 16, 5, 0.45);
+    band.lineStyle(1, PIGMENT.mucSoft, 0.35);
+    band.lineBetween(0, HEADER_HEIGHT - 0.5, GAME_WIDTH, HEADER_HEIGHT - 0.5);
     this.add(band);
 
-    this.seasonText = ui.label(12, 4, '', 'title', { color: '#fff6bd', fontSize: '15px' });
+    this.seasonText = ui.label(12, 4, '', 'title', { color: INK_UI_HEX.inkText, fontSize: '15px' });
     this.add(this.seasonText);
 
     const itemWidth = (GAME_WIDTH - 24) / RESOURCE_ORDER.length;
@@ -107,11 +105,13 @@ export class ResourceBar extends Phaser.GameObjects.Container {
       const warning = !crisis && seasons <= WARNING_SEASONS;
 
       this.alertChips[resource].setVisible(crisis);
+      // Read on paper, not on the old near-black: ink for the ordinary case, sỏi son only when a
+      // store is actually running out.
       text.setColor(
-        crisis ? '#fff1e6'
-          : warning ? '#f5c66b'
-            : rate < 0 ? '#f0a09a'
-              : rate > 0 ? '#d9f0bd' : '#e9d6aa',
+        crisis ? '#8a2a1b'
+          : warning ? '#9a6b16'
+            : rate < 0 ? '#a4522f'
+              : rate > 0 ? '#4c6b46' : INK_UI_HEX.inkText,
       );
       text.setFontStyle(crisis || warning ? 'bold' : 'normal');
     });

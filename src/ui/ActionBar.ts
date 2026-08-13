@@ -163,10 +163,12 @@ export class ActionBar extends Phaser.GameObjects.Container {
     this.ui = new InkUI(scene);
 
     const top = GAME_HEIGHT - ACTION_BAR_HEIGHT;
-    this.add(scene.add.rectangle(0, top, GAME_WIDTH, ACTION_BAR_HEIGHT, INK_UI.backgroundInk, 0.96).setOrigin(0, 0));
+    this.add(scene.add.rectangle(0, top, GAME_WIDTH, ACTION_BAR_HEIGHT, INK_UI.backgroundInk, 0.97).setOrigin(0, 0));
     // The same drum band as the resource strip, so the two ends of the screen are one frame.
     const band = scene.add.graphics();
-    sawtoothBand(band, 10, top + 2, GAME_WIDTH - 20, 5, 0.3);
+    band.lineStyle(1, INK_UI.softBrush, 0.35);
+    band.lineBetween(0, top + 0.5, GAME_WIDTH, top + 0.5);
+    sawtoothBand(band, 10, top + 3, GAME_WIDTH - 20, 5, 0.45);
     this.add(band);
 
     scene.add.existing(this);

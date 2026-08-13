@@ -87,8 +87,8 @@ export class CampaignScorePanel {
         g.lineStyle(1, INK_UI.gold, 0.5);
         g.strokeRoundedRect(PANEL_X + 16, y, PANEL_W - 32, 56, 6);
         items.push(g);
-        items.push(createLabel(this.scene, PANEL_X + 28, y + 8, t('empire.legacy.earned', { points: earned }), 'label', { fontSize: '14px', color: '#f3dd9a' }));
-        items.push(createLabel(this.scene, PANEL_X + 28, y + 30, t('empire.legacy.rank', { rank: rankForScore(legacy.bestScore), total: legacy.points }), 'caption', { fontSize: '11px', color: '#e8d89a' }));
+        items.push(createLabel(this.scene, PANEL_X + 28, y + 8, t('empire.legacy.earned', { points: earned }), 'label', { fontSize: '14px', color: '#8a5f1c' }));
+        items.push(createLabel(this.scene, PANEL_X + 28, y + 30, t('empire.legacy.rank', { rank: rankForScore(legacy.bestScore), total: legacy.points }), 'caption', { fontSize: '11px', color: '#8a5f1c' }));
       }
     }
 

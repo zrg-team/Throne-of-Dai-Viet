@@ -80,12 +80,12 @@ export class AscentHud {
 
   private renderPower(ascent: AscentState): void {
     this.add(this.ui.label(14, TOP + 4, t('ascent.hud.power'), 'caption', {
-      color: INK_UI_HEX.lightText,
+      color: INK_UI_HEX.mutedText,
       fontSize: '9px',
     }).setAlpha(0.7));
 
     const value = this.scene.add.text(14, TOP + 14, formatNumber(this.shownPower), {
-      color: '#f3dd9a',
+      color: '#2a2118',
       fontFamily: TITLE_FONT,
       fontSize: '22px',
       fontStyle: '700',
@@ -119,7 +119,7 @@ export class AscentHud {
         TOP + 22,
         `${rising ? '▲' : '▼'}${formatNumber(Math.abs(delta))}`,
         {
-          color: rising ? '#9ecb8c' : '#e08a7c',
+          color: rising ? '#4c6b46' : '#a4402c',
           fontFamily: UI_FONT,
           fontSize: '12px',
           fontStyle: '700',
@@ -140,7 +140,7 @@ export class AscentHud {
     const x = GAME_WIDTH - 14;
 
     this.add(this.ui.label(x, TOP + 4, t('ascent.hud.threat'), 'caption', {
-      color: INK_UI_HEX.lightText,
+      color: INK_UI_HEX.mutedText,
       fontSize: '9px',
       align: 'right',
     }).setOrigin(1, 0).setAlpha(0.7));
@@ -149,10 +149,10 @@ export class AscentHud {
     // does not hold a wall, and colouring it against POWER would flatter the player.
     const ratio = ascent.defensePower > 0 ? ascent.threat / ascent.defensePower : 99;
     const { color, key } = ratio < 0.7
-      ? { color: '#9ecb8c', key: 'ascent.hud.ahead' as const }
+      ? { color: '#4c6b46', key: 'ascent.hud.ahead' as const }
       : ratio < 1.1
-        ? { color: '#e8c56a', key: 'ascent.hud.even' as const }
-        : { color: '#e08a7c', key: 'ascent.hud.behind' as const };
+        ? { color: '#9a6b16', key: 'ascent.hud.even' as const }
+        : { color: '#a4402c', key: 'ascent.hud.behind' as const };
 
     const threatValue = this.scene.add.text(x, TOP + 14, formatNumber(ascent.threat), {
       color,
@@ -176,7 +176,7 @@ export class AscentHud {
       ? t('ascent.hud.bossIn', { ticks: Math.max(0, ascent.ticksToWave) })
       : t('ascent.hud.waveIn', { ticks: Math.max(0, ascent.ticksToWave) });
     const countdownText = this.scene.add.text(x, TOP + 38, countdown, {
-      color: bossNext ? '#e08a7c' : '#d8c48e',
+      color: bossNext ? '#a4402c' : '#5a4c39',
       fontFamily: UI_FONT,
       fontSize: '10px',
       fontStyle: bossNext ? '700' : 'normal',
@@ -194,7 +194,7 @@ export class AscentHud {
     // right-hand column, and warms from jade through gold to cinnabar as the realm gets bolder.
     const heat = heatFor(ascent.ambition);
     if (heat > 1.001) {
-      const heatColor = heat < 1.4 ? '#9ecb8c' : heat < 2 ? '#e8c56a' : '#e08a7c';
+      const heatColor = heat < 1.4 ? '#4c6b46' : heat < 2 ? '#9a6b16' : '#a4402c';
       const ambitionText = this.scene.add.text(
         this.countdownLeft - 8,
         TOP + 38,
@@ -212,14 +212,14 @@ export class AscentHud {
     const y = TOP + 44;
 
     this.add(this.scene.add.text(14, y - 2, t('ascent.hud.level', { level: ascent.level }), {
-      color: '#f3dd9a',
+      color: '#2a2118',
       fontFamily: UI_FONT,
       fontSize: '10px',
       fontStyle: '700',
     }));
 
     this.add(this.scene.add.text(54, y - 2, t('ascent.hud.wave', { wave: ascent.wave }), {
-      color: '#d8c48e',
+      color: '#5a4c39',
       fontFamily: UI_FONT,
       fontSize: '10px',
     }));

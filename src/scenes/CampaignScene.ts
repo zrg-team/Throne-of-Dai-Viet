@@ -215,7 +215,7 @@ export class CampaignScene extends Phaser.Scene {
     const selected = opts.find((o) => o.id === this.selectedFounderId);
     const blurb = createLabel(this, GAME_WIDTH / 2, cardY + 100, selected?.desc ?? '', 'caption', {
       fontSize: '12px',
-      color: '#e8d89a',
+      color: '#8a5f1c',
       align: 'center',
       wordWrap: { width: GAME_WIDTH - 96 },
     }).setOrigin(0.5, 0);
@@ -242,7 +242,7 @@ export class CampaignScene extends Phaser.Scene {
     for (let i = 0; i < infoLines.length; i += 1) {
       const text = createLabel(this, 44, cardY + 14 + i * 30, infoLines[i], 'caption', {
         fontSize: '12px',
-        color: '#e8d89a',
+        color: '#8a5f1c',
         wordWrap: { width: GAME_WIDTH - 88 },
       });
       this.content.push(text);

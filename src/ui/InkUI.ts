@@ -3,6 +3,55 @@ import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { addPressFeedback } from './animations';
 import { UI_FONT } from './fonts';
 import { PIGMENT } from './ink/palette';
+import { inkPath, mulberry32, washFill, type Pt } from './ink/stroke';
+
+/**
+ * A printed surface: a sheet of paper with a hand-pulled contour round it.
+ *
+ * Every panel, card, button and tile in the game goes through this, which is why the interface
+ * stopped being a set of rounded rectangles with new colours in them and became the same printed
+ * object as the map. The rectangle's own corners are cut a little, the edge wobbles, and the fill
+ * is registered a hair off its outline the way a colour block is.
+ */
+function printedSurface(
+  g: Phaser.GameObjects.Graphics,
+  width: number,
+  height: number,
+  opts: {
+    fill?: number;
+    fillAlpha?: number;
+    border?: number;
+    borderAlpha?: number;
+    borderWidth?: number;
+    seed?: number;
+    /** Cut corners read as a torn sheet; 0 gives a plain rectangle. */
+    cut?: number;
+    shadow?: boolean;
+  } = {},
+): void {
+  const cut = opts.cut ?? Math.min(7, Math.min(width, height) * 0.16);
+  const seed = opts.seed ?? Math.round(width * 31 + height * 7);
+  const sheet: Pt[] = [
+    { x: cut, y: 0 }, { x: width - cut, y: 0 },
+    { x: width, y: cut }, { x: width, y: height - cut },
+    { x: width - cut, y: height }, { x: cut, y: height },
+    { x: 0, y: height - cut }, { x: 0, y: cut },
+  ];
+
+  if (opts.shadow !== false) {
+    g.fillStyle(PIGMENT.muc, 0.14);
+    g.fillPoints(sheet.map((p) => ({ x: p.x + 1.5, y: p.y + 2.5 })), true);
+  }
+  washFill(g, sheet, opts.fill ?? INK_UI.parchment, seed, opts.fillAlpha ?? 1, 1.1);
+  inkPath(g, sheet, seed + 1, {
+    width: opts.borderWidth ?? 1.5,
+    alpha: opts.borderAlpha ?? 0.72,
+    colour: opts.border ?? PIGMENT.muc,
+    wobble: 0.7,
+    step: 11,
+    closed: true,
+  });
+}
 
 export interface UIBounds {
   x: number;
@@ -21,14 +70,19 @@ export interface UIBounds {
  * it: bamboo-soot black for the ground, điệp for the paper, sỏi son for the red, hoa hòe for gold.
  */
 export const INK_UI = {
-  backgroundInk: PIGMENT.muc,
-  overlay: 0x171308,
+  // The chrome sits ON the paper, not on a slab of near-black floating over it. Every bar, header
+  // and modal ground in the game reads from these two, and flipping them here is what stops the
+  // interface looking like a different product bolted onto the map.
+  backgroundInk: PIGMENT.diepHi,
+  /** A sheet of paper laid over the world, not a blackout. The map stays faintly readable under it. */
+  overlay: PIGMENT.diep,
   parchment: PIGMENT.diepHi,
   parchmentShade: PIGMENT.diep,
   parchmentDark: PIGMENT.diepLo,
   inkText: '#2a2118',
   mutedText: '#5a4c39',
-  lightText: '#f3ecd8',
+  /** Text on a saturated ground — a sỏi son button, a stamped seal. Not for use on paper. */
+  lightText: '#fbf2df',
   brush: PIGMENT.muc,
   softBrush: PIGMENT.mucSoft,
   jade: PIGMENT.giDong,
@@ -41,7 +95,7 @@ export const INK_UI = {
 export const INK_UI_HEX = {
   inkText: '#2a2118',
   mutedText: '#5a4c39',
-  lightText: '#f3ecd8',
+  lightText: '#fbf2df',
 };
 
 export type InkButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'disabled';
@@ -233,17 +287,19 @@ export class InkUI {
 
     const g = this.scene.add.graphics({ x: bounds.x, y: bounds.y });
     const alpha = muted ? fillAlpha * 0.55 : fillAlpha;
+    void radius;
 
-    g.fillStyle(INK_UI.brush, 0.08 * alpha);
-    g.fillRoundedRect(1, 2, bounds.width, bounds.height, radius);
-    g.fillStyle(fill, alpha);
-    g.fillRoundedRect(0, 0, bounds.width, bounds.height, radius);
-
-    g.lineStyle(1, fillShade, muted ? 0.22 : 0.48);
-    g.strokeRoundedRect(3, 3, bounds.width - 6, bounds.height - 6, Math.max(0, radius - 3));
-
-    g.lineStyle(borderWidth, border, borderAlpha);
-    g.strokeRoundedRect(0, 0, bounds.width, bounds.height, radius);
+    printedSurface(g, bounds.width, bounds.height, {
+      fill, fillAlpha: alpha, border, borderAlpha: muted ? borderAlpha * 0.6 : borderAlpha,
+      borderWidth, seed: Math.round(bounds.x * 13 + bounds.y * 7 + bounds.width),
+    });
+    // A second rule just inside the edge, the way a printed plate is bordered twice.
+    inkPath(
+      g,
+      [{ x: 4, y: 4 }, { x: bounds.width - 4, y: 4 }, { x: bounds.width - 4, y: bounds.height - 4 }, { x: 4, y: bounds.height - 4 }],
+      Math.round(bounds.width * 3 + bounds.height),
+      { width: 0.8, alpha: muted ? 0.16 : 0.3, colour: fillShade, wobble: 0.6, step: 14, closed: true },
+    );
 
     if (ornaments) {
       this.drawCornerMarks(g, bounds.width, bounds.height, muted);
@@ -321,12 +377,15 @@ export class InkUI {
     container.addAt(this.panel({ x: 0, y: 0, width: bounds.width, height }, opts), 0);
 
     if (opts.status) {
-      const status = this.scene.add.text(bounds.width - padding, 8, opts.status, {
+      // A label, not a pill. On paper a filled chip reads as a sticker; letter-spaced small caps
+      // in muted ink says the same thing and stays part of the page.
+      const status = this.scene.add.text(bounds.width - padding, 9, opts.status.toLocaleUpperCase(), {
         ...textStyle('caption'),
-        color: INK_UI_HEX.lightText,
-        backgroundColor: colorToCss(opts.muted ? INK_UI.softBrush : INK_UI.cinnabar),
-        padding: { x: 5, y: 2 },
+        color: opts.muted ? INK_UI_HEX.mutedText : colorToCss(INK_UI.cinnabar),
+        fontSize: '9px',
+        fontStyle: '700',
       }).setOrigin(1, 0);
+      status.setLetterSpacing?.(1.2);
       container.add(status);
     }
 
@@ -368,7 +427,9 @@ export class InkUI {
     draw(false);
 
     const text = this.label(bounds.width / 2, bounds.height / 2, label, 'button', {
-      color: variant === 'danger' ? INK_UI_HEX.lightText : INK_UI_HEX.inkText,
+      color: variant === 'danger' ? INK_UI_HEX.lightText
+        : variant === 'primary' ? colorToCss(INK_UI.cinnabar)
+        : INK_UI_HEX.inkText,
       fontSize,
       align: 'center',
       wordWrap: { width: bounds.width - 10 },
@@ -452,20 +513,23 @@ export class InkUI {
     );
 
     const frame = this.panel({ x, y, width, height }, {
-      fill: INK_UI.parchmentDark,
-      fillShade: INK_UI.parchment,
+      fill: INK_UI.parchment,
+      fillShade: INK_UI.parchmentDark,
       border: INK_UI.brush,
       radius: 12,
       borderWidth: 3,
     });
     const header = this.scene.add.graphics({ x, y });
-    header.fillStyle(INK_UI.backgroundInk, 0.96);
+    header.fillStyle(INK_UI.parchment, 0.96);
     header.fillRoundedRect(0, 0, width, headerHeight, { tl: 12, tr: 12, bl: 0, br: 0 });
-    header.lineStyle(1, INK_UI.cinnabar, 0.65);
-    header.lineBetween(10, headerHeight - 2, width - 10, headerHeight - 2);
+    // Two rules under the title, the way a printed page separates its head from its body.
+    header.lineStyle(1.4, INK_UI.brush, 0.42);
+    header.lineBetween(10, headerHeight - 3, width - 10, headerHeight - 3);
+    header.lineStyle(0.8, INK_UI.cinnabar, 0.5);
+    header.lineBetween(10, headerHeight, width - 10, headerHeight);
 
     const title = this.label(x + width / 2, y + 18, opts.title, 'title', {
-      color: INK_UI_HEX.lightText,
+      color: INK_UI_HEX.inkText,
       align: 'center',
       wordWrap: { width: width - 80 },
     }).setOrigin(0.5, 0);
@@ -488,7 +552,7 @@ export class InkUI {
   closeIcon(bounds: UIBounds, onClick: () => void): Phaser.GameObjects.Container {
     const container = this.scene.add.container(bounds.x, bounds.y);
     const text = this.label(bounds.width / 2, bounds.height / 2 - 1, '×', 'button', {
-      color: INK_UI_HEX.lightText,
+      color: INK_UI_HEX.inkText,
       fontSize: '22px',
       fontStyle: '700',
     }).setOrigin(0.5);
@@ -538,8 +602,20 @@ export class InkUI {
   statBar(bounds: UIBounds, value: number, max: number, color = INK_UI.jade): Phaser.GameObjects.Container {
     const container = this.scene.add.container(bounds.x, bounds.y);
     const ratio = max <= 0 ? 0 : Phaser.Math.Clamp(value / max, 0, 1);
-    container.add(this.scene.add.rectangle(0, 0, bounds.width, bounds.height, INK_UI.brush, 0.26).setOrigin(0, 0));
-    container.add(this.scene.add.rectangle(0, 0, bounds.width * ratio, bounds.height, color, 0.92).setOrigin(0, 0));
+    const g = this.scene.add.graphics();
+    const mid = bounds.height / 2;
+    const seed = Math.round(bounds.x * 7 + bounds.y * 3 + bounds.width);
+    // The track is a faint rule and the fill a heavier one drawn over it, so a bar reads as a
+    // measured length of ink rather than as two nested boxes.
+    inkPath(g, [{ x: 0, y: mid }, { x: bounds.width, y: mid }], seed, {
+      width: Math.max(1, bounds.height * 0.8), alpha: 0.2, colour: INK_UI.brush, wobble: 0.3, step: 14,
+    });
+    if (ratio > 0) {
+      inkPath(g, [{ x: 0, y: mid }, { x: Math.max(1.5, bounds.width * ratio), y: mid }], seed + 1, {
+        width: Math.max(1, bounds.height * 0.8), alpha: 0.88, colour: color, wobble: 0.45, step: 12,
+      });
+    }
+    container.add(g);
     return container;
   }
 
@@ -566,7 +642,7 @@ function textStyle(variant: 'title' | 'subtitle' | 'body' | 'label' | 'caption' 
     case 'title':
       return { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '22px', fontStyle: '700' };
     case 'subtitle':
-      return { color: '#e9d6aa', fontFamily: UI_FONT, fontSize: '12px' };
+      return { color: '#5a4c39', fontFamily: UI_FONT, fontSize: '12px' };
     case 'label':
       return { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '15px', fontStyle: '700' };
     case 'caption':
@@ -590,37 +666,58 @@ function drawButtonSurface(
   const alpha = disabled ? 0.55 : 1;
   const palette = buttonPalette(variant, pressed);
 
+  const drop = pressed ? 2 : 0;
+  const seed = Math.round(width * 17 + height * 5 + (pressed ? 1 : 0));
+  void radius;
+
   g.clear();
-  if (variant !== 'ghost') {
-    g.fillStyle(INK_UI.brush, 0.24 * alpha);
-    g.fillRoundedRect(3, pressed ? 5 : 5, width, height, radius);
-    g.fillStyle(pressed ? palette.bottom : palette.top, alpha);
-    g.fillRoundedRect(0, pressed ? 2 : 0, width, height, radius);
-    g.lineStyle(1, 0xfff0b8, disabled ? 0.12 : pressed ? 0.18 : 0.34);
-    g.lineBetween(10, (pressed ? 2 : 0) + 8, width - 10, (pressed ? 2 : 0) + 8);
-
-    if (width >= 220 && height >= 42) {
-      const y = (pressed ? 2 : 0) + height / 2;
-      const notchAlpha = disabled ? 0.18 : 0.44;
-      const notchColor = variant === 'danger' ? INK_UI.goldLight : INK_UI.gold;
-      g.fillStyle(notchColor, notchAlpha);
-      g.fillTriangle(14, y, 23, y - 5, 23, y + 5);
-      g.fillTriangle(width - 14, y, width - 23, y - 5, width - 23, y + 5);
-    }
+  g.translateCanvas(0, drop);
+  if (variant === 'ghost') {
+    printedSurface(g, width, height, {
+      fill: INK_UI.parchment, fillAlpha: pressed ? 0.2 : 0.14,
+      border: palette.border, borderAlpha: 0.5 * alpha, borderWidth: 1.2, seed, shadow: false,
+    });
   } else {
-    g.fillStyle(INK_UI.parchment, pressed ? 0.18 : 0.12);
-    g.fillRoundedRect(0, pressed ? 1 : 0, width, height, radius);
-  }
+    printedSurface(g, width, height, {
+      fill: pressed ? palette.bottom : palette.top, fillAlpha: alpha,
+      border: palette.border, borderAlpha: 0.85 * alpha, borderWidth: 1.6, seed,
+      shadow: !pressed,
+    });
+    // The catchlight a block leaves along its top edge. Wobbled, or it reads as a CSS gradient.
+    inkPath(g, [{ x: 9, y: 7 }, { x: width - 9, y: 7 }], seed + 3, {
+      width: 1, alpha: disabled ? 0.1 : pressed ? 0.14 : 0.26, colour: INK_UI.goldLight, wobble: 0.5, step: 12,
+    });
 
-  g.lineStyle(2, palette.border, 0.9 * alpha);
-  g.strokeRoundedRect(0, pressed ? 2 : 0, width, height, radius);
+    // A stamped seal at each end of a wide button, in place of the old arrow notches.
+    if (width >= 220 && height >= 42) {
+      const y = height / 2;
+      const mark = variant === 'danger' ? INK_UI.goldLight : INK_UI.cinnabar;
+      const rand = mulberry32(seed + 9);
+      for (const cx of [17, width - 17]) {
+        g.fillStyle(mark, disabled ? 0.2 : 0.5);
+        for (let ray = 0; ray < 8; ray += 1) {
+          const angle = (ray / 8) * Math.PI * 2 + rand() * 0.1;
+          g.fillRect(cx + Math.cos(angle) * 3.4 - 0.8, y + Math.sin(angle) * 3.4 - 0.8, 1.6, 1.6);
+        }
+        g.fillCircle(cx, y, 1.5);
+      }
+    }
+  }
+  g.translateCanvas(0, -drop);
 }
 
 function buttonPalette(variant: InkButtonVariant, pressed: boolean): { top: number; bottom: number; border: number } {
   if (variant === 'primary') {
+    // Sỏi son as an OUTLINE, not a fill.
+    //
+    // The scarcity law says the saturated red belongs to the player alone — their banner, their
+    // seal, their losses. A list of six equal actions rendered as six red slabs spends it six
+    // times on one screen and the map stops having a focal point. An inked border and red
+    // lettering on paper still reads as "this is the action" while leaving the filled red to
+    // `danger`, which is genuinely rare.
     return {
-      top: pressed ? INK_UI.gold : INK_UI.goldLight,
-      bottom: pressed ? 0xb98a2c : INK_UI.gold,
+      top: pressed ? INK_UI.parchmentDark : INK_UI.parchment,
+      bottom: INK_UI.parchmentDark,
       border: INK_UI.cinnabar,
     };
   }

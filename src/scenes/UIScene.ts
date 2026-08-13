@@ -790,7 +790,7 @@ export class UIScene extends Phaser.Scene {
       this.modalLayer.add(createLabel(this, tx + tileW / 2, selY + 60, heroName(hero), 'caption', {
         fontSize: '9px',
         align: 'center',
-        color: isSelected ? '#ffe9a8' : '#e8dcc0',
+        color: isSelected ? '#2a2118' : '#6f6250',
         wordWrap: { width: tileW - 10 },
       }).setOrigin(0.5, 0).setMaxLines(2));
       const hit = this.add.rectangle(tx + tileW / 2, selY + tileH / 2, tileW, tileH, 0xffffff, 0.001).setInteractive({ useHandCursor: true });
@@ -876,19 +876,19 @@ export class UIScene extends Phaser.Scene {
     // Type + upkeep cost so the player can weigh each hero's payroll at a glance.
     row.add(createLabel(this, textX, 26, `${heroTypeLabel(hero.type)} · ${t('hero.hub.upkeep', { gold: hero.upkeepGold })}`, 'caption', {
       fontSize: '10px',
-      color: '#b89b5e',
+      color: '#6f6250',
     }).setMaxLines(1));
 
     // Energy meter — the spine that paces all hero action.
     const energy = getHeroEnergy(hero);
-    row.add(createLabel(this, width - 10, 8, t('hero.hub.energy', { value: energy }), 'caption', { fontSize: '9px', align: 'right', color: '#b89b5e' }).setOrigin(1, 0));
+    row.add(createLabel(this, width - 10, 8, t('hero.hub.energy', { value: energy }), 'caption', { fontSize: '9px', align: 'right', color: '#6f6250' }).setOrigin(1, 0));
     row.add(this.ui.statBar({ x: textX, y: 44, width: width - textX - 10, height: 7 }, energy, 100, energy > 40 ? INK_UI.jade : INK_UI.cinnabar));
 
     // Status line (friendly label; never wraps into the button row).
     const mission = activeHeroMission(this.state, hero.id);
     row.add(createLabel(this, textX, 56, this.heroStatusLabel(hero), 'caption', {
       fontSize: '10px',
-      color: mission ? '#e8d89a' : '#9a8a5e',
+      color: mission ? '#8a5f1c' : '#6f6250',
       wordWrap: { width: width - textX - 10 },
     }).setMaxLines(1));
 
@@ -1191,7 +1191,7 @@ export class UIScene extends Phaser.Scene {
           : t('status.administration', { value: hero.stats.administration });
       row.add(createLabel(this, 58, 32, effectLine, 'caption', {
         fontSize: '10px',
-        color: '#7fa86a',
+        color: '#4c6b46',
         wordWrap: { width: 182 },
       }).setMaxLines(1));
       scroll.content.add(row);
@@ -1317,7 +1317,7 @@ export class UIScene extends Phaser.Scene {
     ];
     const compY = this.modalFooterBounds.y - 34;
     const cW = (GAME_WIDTH - 48) / comps.length;
-    this.modalLayer.add(createLabel(this, 24, compY - 16, t('comp.title'), 'caption', { fontSize: '10px', color: '#b89b5e' }));
+    this.modalLayer.add(createLabel(this, 24, compY - 16, t('comp.title'), 'caption', { fontSize: '10px', color: '#6f6250' }));
     comps.forEach((c, i) => {
       const selected = this.armyComposition === c.id;
       this.modalLayer.add(this.ui.button({ x: 24 + i * cW, y: compY, width: cW - 4, height: 28 }, c.label, () => {
@@ -1848,7 +1848,7 @@ export class UIScene extends Phaser.Scene {
       },
     );
     const text = this.ui.label(GAME_WIDTH - 12, 5, t('action.menu'), 'button', {
-      color: '#fff6bd',
+      color: '#2a2118',
       fontSize: '12px',
       align: 'right',
     }).setOrigin(1, 0).setDepth(431);
@@ -1885,7 +1885,8 @@ export class UIScene extends Phaser.Scene {
     g.strokeRoundedRect(pillX, pillY, pillW, pillH, 6);
 
     const label = this.ui.label(pillX + pillW / 2, pillY + pillH / 2, t('action.log'), 'button', {
-      color: active ? '#f3dd9a' : '#c9b884',
+      // On paper the inactive state is quiet ink, not a pale gold that disappears into the sheet.
+      color: active ? '#2a2118' : '#6f6250',
       fontSize: '12px',
       align: 'center',
     }).setOrigin(0.5).setDepth(121);
@@ -1910,7 +1911,7 @@ export class UIScene extends Phaser.Scene {
       badge.lineStyle(1, INK_UI.backgroundInk, 0.9);
       badge.strokeCircle(badgeX, badgeY, 9);
       const count = this.ui.label(badgeX, badgeY, unread > 9 ? '9+' : String(unread), 'button', {
-        color: '#fff4e0',
+        color: '#2a2118',
         fontSize: '9px',
         align: 'center',
       }).setOrigin(0.5).setDepth(124);
@@ -2186,11 +2187,11 @@ export class UIScene extends Phaser.Scene {
     header.lineStyle(1, INK_UI.gold, 0.55);
     header.strokeRoundedRect(content.x, y, content.width, headerH, 6);
     this.modalLayer.add(header);
-    this.modalLayer.add(createLabel(this, content.x + 10, y + 8, t('empire.mandate.points', { points: Math.round(mandate?.points ?? 0) }), 'label', { fontSize: '14px', color: '#f3dd9a' }));
-    this.modalLayer.add(createLabel(this, content.x + content.width - 10, y + 8, t('empire.mandate.edictPoints', { points: mandate?.edictPoints ?? 0 }), 'caption', { fontSize: '11px', align: 'right', color: '#e8d89a' }).setOrigin(1, 0));
+    this.modalLayer.add(createLabel(this, content.x + 10, y + 8, t('empire.mandate.points', { points: Math.round(mandate?.points ?? 0) }), 'label', { fontSize: '14px', color: '#2a2118' }));
+    this.modalLayer.add(createLabel(this, content.x + content.width - 10, y + 8, t('empire.mandate.edictPoints', { points: mandate?.edictPoints ?? 0 }), 'caption', { fontSize: '11px', align: 'right', color: '#8a5f1c' }).setOrigin(1, 0));
     const toNext = pointsToNextEra(this.state);
     const nextLabel = toNext > 0 ? t('empire.mandate.toNext', { points: Math.ceil(toNext) }) : t('empire.mandate.ascendReady');
-    this.modalLayer.add(createLabel(this, content.x + 10, y + 32, nextLabel, 'caption', { fontSize: '11px', color: '#e8d89a', wordWrap: { width: content.width - 130 } }));
+    this.modalLayer.add(createLabel(this, content.x + 10, y + 32, nextLabel, 'caption', { fontSize: '11px', color: '#8a5f1c', wordWrap: { width: content.width - 130 } }));
     // Jump to the Edicts & Wonders board.
     this.modalLayer.add(this.ui.button({ x: content.x + content.width - 118, y: y + 28, width: 118, height: 24 }, t('empire.edict.open'), () => {
       this.modalScreen = 'edicts';
@@ -2256,7 +2257,7 @@ export class UIScene extends Phaser.Scene {
       const bar = this.ui.statBar({ x: 14, y: rowY + 42, width: content.width - 92, height: 10 }, barVal, barMax, tierColor);
       scroll.content.add(bar);
       scroll.content.add(createLabel(this, content.width - 8, rowY + 40, t('empire.directive.progress', { current: Math.round(d.current), target: Math.round(d.target) }), 'caption', { fontSize: '10px', align: 'right' }).setOrigin(1, 0));
-      scroll.content.add(createLabel(this, 14, rowY + 58, t('empire.directive.reward', { mandate: d.rewardMandate }), 'caption', { fontSize: '10px', color: '#5f8f4c' }));
+      scroll.content.add(createLabel(this, 14, rowY + 58, t('empire.directive.reward', { mandate: d.rewardMandate }), 'caption', { fontSize: '10px', color: '#4c6b46' }));
       if (d.deadline !== undefined) {
         scroll.content.add(createLabel(this, content.width - 8, rowY + 58, t('empire.directive.deadline', { turn: d.deadline }), 'caption', { fontSize: '10px', align: 'right', color: '#c0392b' }).setOrigin(1, 0));
       }
@@ -2279,7 +2280,7 @@ export class UIScene extends Phaser.Scene {
       this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, content.y + 40, t('log.empty'), 'label', {
         fontSize: '14px',
         align: 'center',
-        color: '#b89b5e',
+        color: '#6f6250',
         wordWrap: { width: content.width - 40 },
       }).setOrigin(0.5));
       return;
@@ -2302,7 +2303,7 @@ export class UIScene extends Phaser.Scene {
 
       const textLabel = createLabel(this, 40, 8, entry.text, 'label', {
         fontSize: '12px',
-        color: '#efe3bb',
+        color: '#5a4c39',
         wordWrap: { width: content.width - 52 },
       });
       // Measure wrapped height so each card hugs its content regardless of text length.
@@ -2321,7 +2322,7 @@ export class UIScene extends Phaser.Scene {
       scroll.content.add(createLabel(this, content.width - 8, rowY + rowH - gap - 16, t('log.turn', { turn: entry.turn }), 'caption', {
         fontSize: '9px',
         align: 'right',
-        color: '#b89b5e',
+        color: '#6f6250',
       }).setOrigin(1, 0));
 
       rowY += rowH;
@@ -2448,7 +2449,7 @@ export class UIScene extends Phaser.Scene {
       scroll.content.add(g);
       scroll.content.add(createLabel(this, 8, rowY + 6, row.label, 'caption', { fontSize: '11px', wordWrap: { width: content.width - 70 } }));
       const sign = row.value > 0 ? '+' : '';
-      const valColor = row.muted ? '#6b5230' : row.value >= 0 ? '#5f8f4c' : '#aa3a2c';
+      const valColor = row.muted ? '#6b5230' : row.value >= 0 ? '#4c6b46' : '#aa3a2c';
       scroll.content.add(createLabel(this, content.width - 8, rowY + 6, `${sign}${row.value}`, 'label', {
         fontSize: '12px', align: 'right', color: valColor,
       }).setOrigin(1, 0));
@@ -2468,12 +2469,12 @@ export class UIScene extends Phaser.Scene {
     const stabilityText = envoy ? String(Math.round(kingdom.stability ?? 50)) : '??';
     this.modalLayer.add(createLabel(this, content.x, intelY,
       `${t('empire.stat.power')} ${power}   ·   ${t('empire.stat.stability')} ${stabilityText}`,
-      'label', { fontSize: '12px', color: '#f3dd9a' }));
+      'label', { fontSize: '12px', color: '#2a2118' }));
     if (kingdom.king) {
       this.modalLayer.add(createLabel(this, content.x + content.width, intelY, t('empire.stat.king', {
         name: kingdom.king.name,
         trait: kingdom.king.personality,
-      }), 'caption', { fontSize: '10px', align: 'right', color: '#cbb885' }).setOrigin(1, 0));
+      }), 'caption', { fontSize: '10px', align: 'right', color: '#6f6250' }).setOrigin(1, 0));
     }
 
     // ── Diplomatic actions (gift / trade / pact / tribute) ──
@@ -2523,7 +2524,7 @@ export class UIScene extends Phaser.Scene {
       this.modalLayer.add(createLabel(this, content.x + 4, rowY, reason.label, 'caption', { fontSize: '11px', wordWrap: { width: content.width - 70 } }));
       const sign = reason.value > 0 ? '+' : '';
       this.modalLayer.add(createLabel(this, content.x + content.width - 4, rowY, `${sign}${reason.value}`, 'label', {
-        fontSize: '12px', align: 'right', color: reason.value >= 0 ? '#5f8f4c' : '#aa3a2c',
+        fontSize: '12px', align: 'right', color: reason.value >= 0 ? '#4c6b46' : '#aa3a2c',
       }).setOrigin(1, 0));
       rowY += 24;
     }
@@ -2531,7 +2532,7 @@ export class UIScene extends Phaser.Scene {
     rowY += 10;
     const verdict = evaluation.accepts ? t('diplo.pactOffer.accepts') : t('diplo.pactOffer.refuses');
     this.modalLayer.add(createLabel(this, content.x + content.width / 2, rowY, `${verdict}  (${evaluation.score >= 0 ? '+' : ''}${evaluation.score})`, 'label', {
-      fontSize: '15px', align: 'center', color: evaluation.accepts ? '#5f8f4c' : '#aa3a2c',
+      fontSize: '15px', align: 'center', color: evaluation.accepts ? '#4c6b46' : '#aa3a2c',
     }).setOrigin(0.5, 0));
     rowY += 36;
 
@@ -2580,7 +2581,7 @@ export class UIScene extends Phaser.Scene {
     this.modalLayer.add(createLabel(this, GAME_WIDTH / 2, content.y + 96, view.description, 'label', {
       fontSize: '13px',
       align: 'center',
-      color: '#e8d89a',
+      color: '#8a5f1c',
       wordWrap: { width: content.width - 20 },
     }).setOrigin(0.5, 0));
 
@@ -2741,7 +2742,7 @@ export class UIScene extends Phaser.Scene {
       this.state.court.stability * 0.4 + (100 - ds.farmerUnrest) * 0.35 + ds.nobleRelations * 0.25,
     );
     // Same colour language as the resource rates (see ResourceBar.refresh).
-    const textColor = value >= 50 ? '#d9f0bd' : value >= 30 ? '#f3dd9a' : '#f0a09a';
+    const textColor = value >= 50 ? '#4c6b46' : value >= 30 ? '#9a6b16' : '#8a2a1b';
     const dotColor = value >= 50 ? INK_UI.jade : value >= 30 ? INK_UI.gold : INK_UI.cinnabar;
 
     const text = this.ui.label(GAME_WIDTH / 2 + 5, 7, `${t('ui.dynastyStability')} ${value}%`, 'subtitle', {
@@ -2793,7 +2794,7 @@ export class UIScene extends Phaser.Scene {
       g.fillRect(x + 12, y + chipH - 6, (chipW - 18) * Phaser.Math.Clamp(relations / 100, 0, 1), 3);
 
       const name = this.ui.label(x + 12, y + 4, empire.name, 'caption', {
-        color: '#f3dd9a',
+        color: '#2a2118',
         fontSize: '9px',
         wordWrap: { width: chipW - 18 },
       }).setDepth(431);
@@ -2801,7 +2802,7 @@ export class UIScene extends Phaser.Scene {
       const items: Phaser.GameObjects.GameObject[] = [g, name];
       if (invading) {
         items.push(this.ui.label(x + chipW - 6, y + 3, '⚔', 'caption', {
-          color: '#e0857a',
+          color: '#a4402c',
           fontSize: '12px',
           align: 'right',
         }).setOrigin(1, 0).setDepth(431));
@@ -2869,7 +2870,7 @@ export class UIScene extends Phaser.Scene {
 
     this.mandateBarObjects.push(
       this.ui.label(x + 8, y + h / 2, `☯ ${eraLabel(prog.era)}`, 'caption', {
-        color: '#f3dd9a',
+        color: '#2a2118',
         fontSize: '11px',
         fontStyle: '700',
       }).setOrigin(0, 0.5).setDepth(429),
@@ -2877,7 +2878,7 @@ export class UIScene extends Phaser.Scene {
     const valueText = prog.atMax ? t('empire.mandate.barAscend') : `${Math.round(prog.points)} / ${prog.nextThreshold}`;
     this.mandateBarObjects.push(
       this.ui.label(x + w - 8, y + h / 2, valueText, 'caption', {
-        color: prog.atMax ? '#d9f0bd' : '#e8d89a',
+        color: prog.atMax ? '#4c6b46' : '#8a5f1c',
         fontSize: '10px',
         align: 'right',
       }).setOrigin(1, 0.5).setDepth(429),
@@ -2918,10 +2919,10 @@ export class UIScene extends Phaser.Scene {
     g.lineBetween(-104, 30, 104, 30);
 
     const title = this.ui.label(0, 4, t('empire.year.new', { year }), 'title', {
-      color: '#f3dd9a', fontSize: '34px', align: 'center',
+      color: '#2a2118', fontSize: '34px', align: 'center',
     }).setOrigin(0.5);
     const sub = this.ui.label(0, 40, t('empire.year.reign', { year }), 'caption', {
-      color: '#e8d89a', fontSize: '11px', align: 'center',
+      color: '#8a5f1c', fontSize: '11px', align: 'center',
     }).setOrigin(0.5);
     container.add([g, title, sub]);
 
@@ -2959,7 +2960,7 @@ export class UIScene extends Phaser.Scene {
     g.lineStyle(u.isGreatInvasion ? 2 : 1.5, accent, 0.95);
     g.strokeRoundedRect(x, y, w, h, 6);
     const text = this.ui.label(x + w / 2, y + h / 2, label, 'caption', {
-      color: u.isGreatInvasion ? '#e0857a' : '#f3dd9a',
+      color: u.isGreatInvasion ? '#a4402c' : '#2a2118',
       fontSize: '11px',
       align: 'center',
     }).setOrigin(0.5).setDepth(433);

@@ -1,6 +1,9 @@
 import Phaser from 'phaser';
 import { FACE_PART_DEFS, type FacePartDef } from './faces/parts.generated';
 import { resolveHeroLook } from './faces/heroLook';
+import { getActiveMapTheme } from './mapTheme';
+import { PIGMENT } from './ink/palette';
+import { hatchPoly, inkPath, washFill } from './ink/stroke';
 import type { Hero } from '../state/types';
 
 /**
@@ -70,6 +73,32 @@ export const HERO_FACE_W = HERO_FACE_EXTENT.right - HERO_FACE_EXTENT.left;
 export const HERO_FACE_H = HERO_FACE_EXTENT.bottom - HERO_FACE_EXTENT.top;
 
 /**
+ * The frame a printed portrait sits in: hatched paper with a hand-pulled contour, weighted by rank
+ * so a Legendary still announces itself without a slab of lacquer behind the face.
+ */
+function drawCartouche(scene: Phaser.Scene, rank: number): Phaser.GameObjects.Graphics {
+  const g = scene.add.graphics();
+  const left = HERO_FACE_EXTENT.left + 2;
+  const right = HERO_FACE_EXTENT.right - 2;
+  const top = HERO_FACE_EXTENT.top + 2;
+  const bottom = HERO_FACE_EXTENT.bottom - 2;
+  const box = [
+    { x: left, y: top }, { x: right, y: top }, { x: right, y: bottom }, { x: left, y: bottom },
+  ];
+  washFill(g, box, PIGMENT.diepLo, rank * 31 + 7, 0.55, 1.2);
+  hatchPoly(g, box, 0.8, 6, PIGMENT.mucSoft, 0.07, 0.7);
+  inkPath(g, box, rank * 17 + 3, {
+    width: 1 + rank * 0.35,
+    alpha: 0.5 + rank * 0.1,
+    colour: rank >= 3 ? PIGMENT.son : PIGMENT.muc,
+    wobble: 0.9,
+    step: 12,
+    closed: true,
+  });
+  return g;
+}
+
+/**
  * Queues every face part for loading. Call from a scene's `preload`.
  *
  * Safe to call more than once: Phaser skips a key that is already in the texture manager, so a
@@ -124,6 +153,16 @@ export function renderHeroFace(
 ): Phaser.GameObjects.Container {
   const root = scene.add.container(x, y).setScale(scale);
   const look = resolveHeroLook(hero);
+
+  // Under the woodblock treatment the rarity plate — a dark lacquered slab with a gold rim — is
+  // the one part of the portrait that fights the page it now sits on. The face itself is right;
+  // it just needs paper behind it instead of a colour swatch, so the plate is replaced with an
+  // inked cartouche and rank is carried by the border weight.
+  const printed = getActiveMapTheme().id === 'dong-ho';
+  if (printed) {
+    look.parts = look.parts.filter((part) => !/^plate-|^rank-/.test(part.key));
+    root.add(drawCartouche(scene, look.rank));
+  }
 
   // Paint order comes from the manifest, not from the order the wardrobe happened to push
   // parts in — the throat is layer 25 and a collar is 35, and the wardrobe builds the garment

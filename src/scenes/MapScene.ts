@@ -83,7 +83,8 @@ export class MapScene extends Phaser.Scene {
    *  once per static change so Phaser stops re-tessellating ~160k fill commands/frame. */
   private staticBakeRT?: Phaser.GameObjects.RenderTexture;
   private lastBakedRenderMode?: string;
-  private mapRenderer!: MapRenderer;
+  /** Protected so a subclass mode can offer the renderer its own layers. */
+  protected mapRenderer!: MapRenderer;
   private mapItems!: MapItemRenderer;
   private settlements!: SettlementRenderer;
   private traffic!: TrafficRenderer;
@@ -91,7 +92,8 @@ export class MapScene extends Phaser.Scene {
   private worldMotionHalted = false;
   private overlays!: OverlayRenderer;
   private armies!: ArmyRenderer;
-  private hexTileMap = new Map<string, HexTile>();
+  /** Protected so a subclass mode can trace its own land boundaries from the same grid. */
+  protected hexTileMap = new Map<string, HexTile>();
   private fillerTiles: HexTile[] = [];
   private fillerTileMap = new Map<string, HexTile>();
   private hexOffsetX = 0;

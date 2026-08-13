@@ -287,7 +287,7 @@ export class ConquestUIScene extends Phaser.Scene {
     let cursor = top + 14;
 
     const titleText = this.add.text(GAME_WIDTH / 2, cursor, title, {
-      color: '#f3dd9a',
+      color: '#2a2118',
       fontFamily: TITLE_FONT,
       fontSize: '20px',
       fontStyle: '700',
@@ -299,7 +299,7 @@ export class ConquestUIScene extends Phaser.Scene {
     cursor += titleText.height + 6;
 
     const subtitleText = this.add.text(GAME_WIDTH / 2, cursor, subtitle, {
-      color: '#d8c48e',
+      color: '#5a4c39',
       fontFamily: UI_FONT,
       fontSize: '12px',
       align: 'center',
@@ -377,13 +377,19 @@ export class ConquestUIScene extends Phaser.Scene {
     const textX = 16 + gutter;
     const textWidth = bounds.width - 32 - gutter - (opts.reserveRight ?? 0);
 
+    // A thin ink contour, the same weight as every other line on the page — the accent is spent
+    // on the rail down the left edge instead. A card outlined in its own accent reads as a
+    // coloured box; a card on paper with one stamped edge reads as a choice.
     const surface = this.ui.panel(
       { x: 0, y: 0, width: bounds.width, height: bounds.height },
-      { border: opts.accent, borderWidth: 2, muted: opts.disabled },
+      { border: INK_UI.brush, borderWidth: 1.2, borderAlpha: opts.disabled ? 0.3 : 0.52, muted: opts.disabled },
     );
     container.add(surface);
 
-    container.add(this.add.rectangle(0, 0, 5, bounds.height, opts.accent, alpha).setOrigin(0, 0));
+    const rail = this.add.graphics();
+    rail.fillStyle(opts.accent, alpha);
+    rail.fillRect(1, 5, 4.5, bounds.height - 10);
+    container.add(rail);
 
     // The badge sits top-right on the title's own line, so the title has to wrap before it.
     // Without this a longer title runs underneath and is clipped mid-word.
@@ -411,7 +417,7 @@ export class ConquestUIScene extends Phaser.Scene {
 
     if (opts.note) {
       container.add(this.add.text(textX, bounds.height - 20, opts.note, {
-        color: opts.noteColor ?? '#4c6b3f',
+        color: opts.noteColor ?? '#4c6b46',
         fontFamily: UI_FONT,
         fontSize: '11px',
         fontStyle: '700',
@@ -420,14 +426,15 @@ export class ConquestUIScene extends Phaser.Scene {
     }
 
     if (opts.badge) {
-      const badge = this.add.text(bounds.width - 12, 10, opts.badge, {
-        color: INK_UI_HEX.inkText,
+      // A letter-spaced small-caps label rather than a filled chip. On paper a coloured pill reads
+      // as a sticker pasted on the page; the accent survives as the ink colour instead.
+      const badge = this.add.text(bounds.width - 12, 11, opts.badge.toLocaleUpperCase(), {
+        color: `#${opts.accent.toString(16).padStart(6, '0')}`,
         fontFamily: UI_FONT,
-        fontSize: '10px',
+        fontSize: '9px',
         fontStyle: '700',
-        backgroundColor: `#${opts.accent.toString(16).padStart(6, '0')}`,
-        padding: { x: 6, y: 3 },
-      }).setOrigin(1, 0);
+      }).setOrigin(1, 0).setAlpha(0.85);
+      badge.setLetterSpacing?.(1.4);
       container.add(badge);
     }
 
@@ -484,7 +491,7 @@ export class ConquestUIScene extends Phaser.Scene {
       radius: 12,
     }));
     badge.add(this.add.text(GAME_WIDTH / 2, y + height / 2, t('ascent.hud.paused'), {
-      color: '#f3dd9a',
+      color: '#2a2118',
       fontFamily: UI_FONT,
       fontSize: '11px',
       fontStyle: '700',
@@ -1129,7 +1136,7 @@ export class ConquestUIScene extends Phaser.Scene {
           title: `${view.name}  ·  ${view.stackLabel}`,
           body: view.description,
           note,
-          noteColor: view.evolutionReady ? '#c98a2e' : undefined,
+          noteColor: view.evolutionReady ? '#8a5f1c' : undefined,
           badge: `${t(`ascent.rarity.${view.rarity}` as Parameters<typeof t>[0])}  ${view.stackCount}`,
           accent: view.evolutionReady ? INK_UI.gold : RARITY_COLOR[view.rarity],
           onTap: () => this.choose(cardId),
@@ -1265,7 +1272,7 @@ export class ConquestUIScene extends Phaser.Scene {
             pct: Math.round((0.6 + 0.4 * (option.loyalty / 100)) * 100),
           }),
           note: option.blockedReason ?? this.methodPriceTag(option),
-          noteColor: blocked ? '#a8adb4' : undefined,
+          noteColor: blocked ? '#6f6250' : undefined,
           accent: blocked ? INK_UI.softBrush : option.chance >= 60 ? INK_UI.jade : INK_UI.gold,
           disabled: blocked,
           onTap: () => this.choose(option.method),
@@ -1312,7 +1319,7 @@ export class ConquestUIScene extends Phaser.Scene {
           title: heroName(hero),
           body: `${heroTypeLabel(hero.type)}  ·  ${rarityLabel(hero.rarity)}`,
           note: isNew ? t('ascent.summon.newCodex') : this.heroStatLine(hero),
-          noteColor: isNew ? '#c98a2e' : undefined,
+          noteColor: isNew ? '#8a5f1c' : undefined,
           badge: t(`ascent.rarity.${tier}` as Parameters<typeof t>[0]),
           accent: RARITY_COLOR[tier],
           reserveRight: PORTRAIT_W + 14,
@@ -1389,7 +1396,7 @@ export class ConquestUIScene extends Phaser.Scene {
           title: option.title,
           body: option.effect,
           note: option.detail,
-          noteColor: option.detail && !reserve ? '#c98a2e' : undefined,
+          noteColor: option.detail && !reserve ? '#8a5f1c' : undefined,
           badge: t(`ascent.appoint.role.${option.role}` as Parameters<typeof t>[0]),
           accent: reserve ? INK_UI.softBrush : option.role === 'court' ? INK_UI.gold : INK_UI.jade,
           onTap: () => this.choose(option.id),
@@ -1425,7 +1432,7 @@ export class ConquestUIScene extends Phaser.Scene {
           title: view.title,
           body: view.effect,
           note: view.locks,
-          noteColor: '#c98a2e',
+          noteColor: '#8a5f1c',
           badge: view.cost,
           accent: INK_UI.gold,
           onTap: () => this.choose(`edict:${projectId}`),
@@ -1483,7 +1490,7 @@ export class ConquestUIScene extends Phaser.Scene {
           title: politicsChoiceLabel(choice),
           body: politicsChoiceDescription(choice),
           note: cost.length > 0 ? formatResourceList(costBag) : undefined,
-          noteColor: affordable ? undefined : '#e08a7c',
+          noteColor: affordable ? undefined : '#a4402c',
           accent: affordable ? INK_UI.jade : INK_UI.softBrush,
           disabled: !affordable,
           onTap: () => this.choose(choice.id),
@@ -1525,7 +1532,7 @@ export class ConquestUIScene extends Phaser.Scene {
           title: t(`ascent.envoy.${option.id}` as Parameters<typeof t>[0]),
           body: kingdom ? envoyOptionDetail(this.state, kingdom, option) : '',
           note: option.affordable ? price : t('ascent.response.cantAfford'),
-          noteColor: option.affordable ? undefined : '#e08a7c',
+          noteColor: option.affordable ? undefined : '#a4402c',
           accent: option.affordable ? (option.id === 'tribute' ? INK_UI.cinnabar : INK_UI.gold) : INK_UI.softBrush,
           disabled: !option.affordable,
           onTap: () => this.choose(option.id),
@@ -1570,7 +1577,7 @@ export class ConquestUIScene extends Phaser.Scene {
           note: option.cost
             ? (option.affordable ? formatResourceList(option.cost) : t('ascent.response.cantAfford'))
             : undefined,
-          noteColor: option.affordable ? undefined : '#e08a7c',
+          noteColor: option.affordable ? undefined : '#a4402c',
           // Enduring is the red option: free today, and the hunger keeps taking.
           accent: !option.affordable
             ? INK_UI.softBrush
@@ -2066,7 +2073,7 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
           note: option.cost?.gold
             ? (option.affordable ? formatResourceList(option.cost) : t('ascent.response.cantAfford'))
             : undefined,
-          noteColor: option.affordable ? undefined : '#e08a7c',
+          noteColor: option.affordable ? undefined : '#a4402c',
           // Defiance is the red option: free now, paid for on the wave curve.
           accent: !option.affordable
             ? INK_UI.softBrush

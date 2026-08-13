@@ -94,11 +94,11 @@ export class ForeignAffairsPanel {
       if (statusText) {
         items.push(createLabel(this.scene, x + width - 12, cardY + 10, statusText, 'caption', {
           fontSize: '10px', align: 'right',
-          color: invading ? '#c0392b' : '#7fae6a',
+          color: invading ? '#c0392b' : '#4c6b46',
         }).setOrigin(1, 0));
       }
       items.push(createLabel(this.scene, x + width - 12, barY + 12, t('campaign.affairs.details'), 'caption', {
-        fontSize: '10px', align: 'right', color: '#caa85e',
+        fontSize: '10px', align: 'right', color: '#8a5f1c',
       }).setOrigin(1, 0));
 
       const hit = this.scene.add.rectangle(x + width / 2, cardY + cardH / 2, width, cardH, 0xffffff, 0.001)

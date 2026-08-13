@@ -3,6 +3,7 @@ import { ASCENT_TICK_MS } from '../game/ascentConfig';
 import { INK_UI } from '../ui/InkUI';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../game/constants';
 import { MAP_SCALE, axialToPixel, hexCorners } from '../map/hex';
+import { traceLandBoundaryLoops } from '../map/boundary';
 import { advanceAscentTick } from '../systems/ascent/AscentTick';
 import { rerollAscentDraft, resolveAscentPrompt } from '../systems/ascent/AscentResolver';
 import { drainAscentPrompts } from '../systems/ascent/AscentState';
@@ -33,6 +34,8 @@ export class ConquestScene extends MapScene {
   private ownershipTint?: Phaser.GameObjects.Graphics;
   /** Ownership map the tint was last painted for, so a tick with no flips repaints nothing. */
   private ownershipSignature = '';
+  /** Merged outlines for the foreign-ground veil, rebuilt whenever ownership changes. */
+  private readonly foreignLoopCache = new Map<string, Array<Array<{ x: number; y: number }>>>();
 
   constructor() {
     super('ConquestScene');
@@ -152,6 +155,23 @@ export class ConquestScene extends MapScene {
 
     this.ownershipTint.clear();
     const hexSize = this.state.mapConfig.hexSize;
+
+    // A theme may prefer to mute foreign ground as a whole region rather than hex by hex — the
+    // per-hex wash below is a visible honeycomb, and its blue is a colour the Đông Hồ palette has
+    // no pigment for.
+    if (this.mapRenderer.drawForeignWash) {
+      this.foreignLoopCache.clear();
+      for (const land of this.state.lands) {
+        if (!land.isVisible || land.ownerId === PLAYER_KINGDOM_ID) continue;
+        const wash = this.ownershipWash(land.ownerId);
+        if (!wash) continue;
+        const loops = traceLandBoundaryLoops(
+          this.state, this.hexTileMap, (v: number) => this.wx(v), (v: number) => this.wy(v), this.foreignLoopCache, land.id,
+        );
+        this.mapRenderer.drawForeignWash(this.ownershipTint, loops, land.ownerId === NEUTRAL_OWNER_ID, wash.color);
+      }
+      return;
+    }
 
     for (const tile of this.state.hexTiles) {
       const land = tile.landId ? this.state.lands.find((candidate) => candidate.id === tile.landId) : undefined;

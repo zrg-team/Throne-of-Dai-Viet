@@ -153,8 +153,8 @@ export class MenuScene extends Phaser.Scene {
       { x: GAME_WIDTH + 20, y: GAME_HEIGHT + 20 },
       { x: -20, y: GAME_HEIGHT + 20 },
     ];
-    washFill(g, mainLand, INK.landFields, 0.88, () => rng());
-    inkOutline(g, mainLand.slice(0, 6), INK.inkSoft, 0.22, false, 31);
+    washFill(g, mainLand, PIGMENT.hoePale, 0.88, () => rng());
+    inkOutline(g, mainLand.slice(0, 6), PIGMENT.mucSoft, 0.22, false, 31);
 
     // Forest – organic shape that fills the entire left bank of the river.
     // Right edge follows the river control points with a small inset so the
@@ -172,7 +172,7 @@ export class MenuScene extends Phaser.Scene {
       { x: 14, y: 844 },
       { x: -20, y: 844 },
     ];
-    washFill(g, forestShape, INK.landForest, 0.80, () => rng());
+    washFill(g, forestShape, PIGMENT.giDong, 0.80, () => rng());
 
     // Tree silhouettes distributed across the full forest band
     this.mapRenderer.decorateTerrain(g, 'forest', [
@@ -198,11 +198,11 @@ export class MenuScene extends Phaser.Scene {
       { x: 234, y: 554 },
       { x: 200, y: 450 },
     ];
-    washFill(g, riceShape, INK.landRice, 0.74, () => rng());
+    washFill(g, riceShape, PIGMENT.giDongPale, 0.74, () => rng());
 
     const riceRng = createMenuRng(555);
     for (let y = 336; y <= 520; y += 30) {
-      waveLine(g, 222, y, GAME_WIDTH - 14, y - 7, 2.5, 8, INK.inkSoft, 0.28);
+      waveLine(g, 222, y, GAME_WIDTH - 14, y - 7, 2.5, 8, PIGMENT.mucSoft, 0.28);
     }
     this.mapRenderer.decorateTerrain(g, 'riceFields', [{ x: 306, y: 376 }, { x: 358, y: 442 }, { x: 300, y: 496 }], 52, riceRng);
 
@@ -213,10 +213,10 @@ export class MenuScene extends Phaser.Scene {
       { x: GAME_WIDTH + 20, y: GAME_HEIGHT + 20 },
       { x: -20, y: GAME_HEIGHT + 20 },
     ];
-    washFill(g, lowerPlains, shade(INK.landPlains, 0.96), 0.60, () => rng());
+    washFill(g, lowerPlains, shade(PIGMENT.giDongPale, 0.96), 0.60, () => rng());
 
     for (let y = 518; y < 780; y += 44) {
-      brushStroke(g, [{ x: 14, y }, { x: GAME_WIDTH - 14, y: y - 10 }], 0.9, INK.inkFaint, 0.14, y + 500);
+      brushStroke(g, [{ x: 14, y }, { x: GAME_WIDTH - 14, y: y - 10 }], 0.9, PIGMENT.mucFaint, 0.14, y + 500);
     }
 
     // River from mountain area, flowing through forest to the sea
@@ -246,10 +246,10 @@ export class MenuScene extends Phaser.Scene {
         { x: cx + halfW * 0.34,     y: baseY - h * 0.40 },
         { x: cx + halfW,            y: baseY },
       ];
-      washFill(g, pts, shade(INK.mountain, 1.10), 0.30);
-      inkOutline(g, pts, INK.inkFaint, 0.16, false, cx);
+      washFill(g, pts, shade(PIGMENT.diepLo, 1.10), 0.30);
+      inkOutline(g, pts, PIGMENT.mucFaint, 0.16, false, cx);
       // Mist streak across lower slopes
-      g.fillStyle(INK.mountainMist, 0.16);
+      g.fillStyle(PIGMENT.diepHi, 0.16);
       g.fillEllipse(cx, baseY - h * 0.30, halfW * 1.7, h * 0.22);
     }
 
@@ -271,8 +271,8 @@ export class MenuScene extends Phaser.Scene {
         { x: cx + halfW * 0.52,      y: baseY - h * 0.48 },
         { x: cx + halfW,             y: baseY },
       ];
-      washFill(g, pts, shade(INK.mountain, 0.86), 0.88);
-      inkOutline(g, pts, INK.ink, 0.60, false, cx);
+      washFill(g, pts, shade(PIGMENT.diepLo, 0.86), 0.88);
+      inkOutline(g, pts, PIGMENT.muc, 0.60, false, cx);
 
       // Fainter inner ridge for depth
       const innerPts = [
@@ -282,10 +282,10 @@ export class MenuScene extends Phaser.Scene {
         { x: cx + halfW * 0.26 + jx, y: baseY - h * 0.76 },
         { x: cx + halfW * 0.52,      y: baseY - 2 },
       ];
-      inkOutline(g, innerPts, INK.inkSoft, 0.26, false, cx + 11);
+      inkOutline(g, innerPts, PIGMENT.mucSoft, 0.26, false, cx + 11);
 
       // Snow cap at peak
-      g.fillStyle(INK.mountainMist, 0.84);
+      g.fillStyle(PIGMENT.diepHi, 0.84);
       g.fillTriangle(
         cx + jx,                     baseY - h,
         cx + jx - halfW * 0.22,      baseY - h * 0.72,
@@ -293,7 +293,7 @@ export class MenuScene extends Phaser.Scene {
       );
 
       // Mist band across mid-slopes
-      g.fillStyle(INK.cloud, 0.22);
+      g.fillStyle(PIGMENT.diepHi, 0.22);
       g.fillEllipse(cx, baseY - h * 0.40, halfW * 1.5, h * 0.20);
     }
   }
@@ -309,14 +309,14 @@ export class MenuScene extends Phaser.Scene {
       { x: 194, y: 318 },
       { x: 200, y: 226 },
     ];
-    brushStroke(river, riverPoints, 26, INK.seaDeep, 0.54, 87);
-    brushStroke(river, riverPoints, 18,  INK.waterLine, 0.46, 91);
+    brushStroke(river, riverPoints, 26, PIGMENT.cham, 0.54, 87);
+    brushStroke(river, riverPoints, 18,  PIGMENT.chamWash, 0.46, 91);
     const rng = createMenuRng(91);
     for (const point of riverPoints) {
       this.mapRenderer.decorateTerrain(river, 'water', [point], 44, rng);
     }
     for (let index = 0; index < 6; index += 1) {
-      waveLine(river, 26 + index * 28, 816 - index * 96, 72 + index * 26, 806 - index * 96, 3, 5, INK.waterLine, 0.20);
+      waveLine(river, 26 + index * 28, 816 - index * 96, 72 + index * 26, 806 - index * 96, 3, 5, PIGMENT.chamWash, 0.20);
     }
   }
 
@@ -402,12 +402,12 @@ export class MenuScene extends Phaser.Scene {
 
   private drawDaiVietLotusSeal(): void {
     const seal = this.add.graphics({ x: GAME_WIDTH / 2, y: 68 });
-    seal.fillStyle(INK.sealRedDark, 0.94);
+    seal.fillStyle(PIGMENT.sonDeep, 0.94);
     seal.fillCircle(0, 0, 48);
     seal.lineStyle(5, INK_UI.gold, 0.92);
     seal.strokeCircle(0, 0, 48);
 
-    seal.fillStyle(shade(INK.sealRedDark, 0.72), 0.34);
+    seal.fillStyle(shade(PIGMENT.sonDeep, 0.72), 0.34);
     seal.fillCircle(0, 0, 36);
     seal.lineStyle(1.4, INK_UI.goldLight, 0.48);
     seal.strokeCircle(0, 0, 34);
@@ -415,7 +415,7 @@ export class MenuScene extends Phaser.Scene {
     seal.lineStyle(2.2, INK_UI.gold, 0.78);
     seal.strokeRoundedRect(-25, -25, 50, 50, 8);
 
-    seal.lineStyle(3.4, 0x4d2c16, 0.30);
+    seal.lineStyle(3.4, PIGMENT.muc, 0.30);
     seal.lineBetween(0, 20, 0, 1);
     seal.lineStyle(2.1, INK_UI.goldLight, 0.94);
     seal.lineBetween(0, 20, 0, 1);
@@ -432,7 +432,7 @@ export class MenuScene extends Phaser.Scene {
     seal.fillEllipse(-14, 19, 22, 9);
     seal.fillEllipse(14, 19, 22, 9);
 
-    seal.lineStyle(1.2, 0x4d2c16, 0.45);
+    seal.lineStyle(1.2, PIGMENT.muc, 0.45);
     seal.lineBetween(0, -18, 0, 14);
     seal.lineBetween(-11, -11, -3, 14);
     seal.lineBetween(11, -11, 3, 14);
@@ -470,7 +470,7 @@ export class MenuScene extends Phaser.Scene {
       align: 'center',
     }).setOrigin(0.5);
     const title = this.ui.label(GAME_WIDTH / 2, 127, 'MANDATE', 'title', {
-      color: '#f3dd9a',
+      color: '#2a2118',
       fontFamily: TITLE_FONT,
       fontSize: '36px',
       fontStyle: '700',
@@ -483,7 +483,7 @@ export class MenuScene extends Phaser.Scene {
       fontStyle: '700',
     }).setOrigin(0.5);
     const subtitle = this.ui.label(GAME_WIDTH / 2, 159, 'OF ĐẠI VIỆT', 'title', {
-      color: '#fff6bd',
+      color: '#2a2118',
       fontFamily: TITLE_FONT,
       fontSize: '19px',
       fontStyle: '700',
@@ -502,7 +502,7 @@ export class MenuScene extends Phaser.Scene {
     }, { variant: 'primary', fontSize: '17px' }));
 
     this.content.push(this.add.text(GAME_WIDTH / 2, 570, t('ascent.menu.tagline'), {
-      color: '#e8d89a',
+      color: '#8a5f1c',
       fontFamily: UI_FONT,
       fontSize: '11px',
       align: 'center',
@@ -522,7 +522,7 @@ export class MenuScene extends Phaser.Scene {
     }, { variant: saved ? 'ghost' : 'disabled', fontSize: '15px' }));
 
     const saveLabel = this.add.text(GAME_WIDTH / 2, 698, snapshotLabel(), {
-      color: saved ? '#f3dd9a' : '#d8c48e',
+      color: saved ? '#2a2118' : '#5a4c39',
       fontFamily: UI_FONT,
       fontSize: '12px',
       fontStyle: '700',
@@ -541,7 +541,7 @@ export class MenuScene extends Phaser.Scene {
         rank: rankForScore(legacy.bestScore),
         total: legacy.points,
       }), {
-        color: '#e8d89a',
+        color: '#8a5f1c',
         fontFamily: UI_FONT,
         fontSize: '11px',
         align: 'center',
@@ -564,7 +564,7 @@ export class MenuScene extends Phaser.Scene {
    */
   private renderClassic(): void {
     this.content.push(this.add.text(GAME_WIDTH / 2, 250, t('ascent.menu.classicTitle'), {
-      color: '#f3dd9a',
+      color: '#2a2118',
       fontFamily: TITLE_FONT,
       fontSize: '20px',
       fontStyle: '700',
@@ -613,10 +613,10 @@ export class MenuScene extends Phaser.Scene {
   private renderLegacyShop(): void {
     const legacy = getLegacy();
     this.content.push(this.add.text(GAME_WIDTH / 2, 236, t('empire.legacy.shopTitle'), {
-      color: '#f3dd9a', fontFamily: TITLE_FONT, fontSize: '20px', fontStyle: '700', align: 'center',
+      color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '20px', fontStyle: '700', align: 'center',
     }).setOrigin(0.5));
     this.content.push(this.add.text(GAME_WIDTH / 2, 262, t('empire.legacy.banked', { total: legacy.points }), {
-      color: '#e8d89a', fontFamily: UI_FONT, fontSize: '13px', align: 'center',
+      color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '13px', align: 'center',
     }).setOrigin(0.5));
 
     let y = 290;
