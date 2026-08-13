@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { preloadHeroFaces } from '../ui/FaceRenderer';
 import { RESOURCE_ICONS, RESOURCE_ICON_SIZE } from '../ui/theme';
+import { applyRenderScale } from '../game/graphicsQuality';
 
 export class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -19,6 +20,7 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   create(): void {
+    applyRenderScale(this);
     this.scene.start('MenuScene');
   }
 }

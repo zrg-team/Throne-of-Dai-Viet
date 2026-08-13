@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH } from '../game/constants';
+import { designLength } from '../game/graphicsQuality';
 
 /**
  * Adds a quick press/release scale bounce to a container, driven by an
@@ -150,11 +151,11 @@ export function makeSwipeableCard(
   let dragOffsetX = 0;
 
   zone.on('dragstart', (pointer: Phaser.Input.Pointer) => {
-    dragOffsetX = card.x - pointer.x;
+    dragOffsetX = card.x - designLength(pointer.x);
   });
 
   zone.on('drag', (pointer: Phaser.Input.Pointer) => {
-    const x = pointer.x + dragOffsetX;
+    const x = designLength(pointer.x) + dragOffsetX;
     card.x = x;
     card.rotation = originRotation + Phaser.Math.Clamp((x - originX) / 400, -0.35, 0.35);
   });

@@ -8,6 +8,7 @@ import { createLabel } from '../ui/theme';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { FOUNDER_IDS, heroTemplates } from '../data/heroes';
 import { heroEffect, heroName, heroTypeLabel, t } from '../i18n';
+import { applyRenderScale } from '../game/graphicsQuality';
 
 type SeaSides = CampaignConfig['seaSides'];
 
@@ -41,6 +42,7 @@ export class CampaignScene extends Phaser.Scene {
   }
 
   create(): void {
+    applyRenderScale(this);
     this.ui = new InkUI(this);
     this.mapRenderer = createMapRenderer(this);
     this.mapRenderer.drawBackground(GAME_WIDTH, GAME_HEIGHT);

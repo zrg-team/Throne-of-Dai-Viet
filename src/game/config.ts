@@ -9,6 +9,7 @@ import { MapScene } from '../scenes/MapScene';
 import { PreloadScene } from '../scenes/PreloadScene';
 import { UIScene } from '../scenes/UIScene';
 import { PAPER_FX_KEY, PaperFX } from '../ui/ink/PaperFX';
+import { RENDER_SCALE } from './graphicsQuality';
 
 // Retaining the WebGL drawing buffer forces the browser to preserve the
 // framebuffer every frame — a real GPU-bandwidth/memory cost on mobile tiled
@@ -20,14 +21,19 @@ const needsCapture =
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'game-root',
-  width: GAME_WIDTH,
-  height: GAME_HEIGHT,
+  width: GAME_WIDTH * RENDER_SCALE,
+  height: GAME_HEIGHT * RENDER_SCALE,
   backgroundColor: '#e9dfc2',
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: GAME_WIDTH,
-    height: GAME_HEIGHT,
+    // The drawing buffer, in real pixels. Phaser's own `zoom` option cannot do this — it restyles
+    // the canvas and leaves the backing store alone — so the game is sized up here and every
+    // camera is zoomed by the same factor, which puts scenes back into 390-wide design units. The
+    // net effect is that a phone at pixel ratio 3 draws 1170x2532 real pixels instead of drawing
+    // 390x844 and letting the browser blow it up on the way to the glass.
+    width: GAME_WIDTH * RENDER_SCALE,
+    height: GAME_HEIGHT * RENDER_SCALE,
   },
   input: {
     activePointers: 3,

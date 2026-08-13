@@ -4,6 +4,7 @@ import { addPressFeedback } from './animations';
 import { UI_FONT } from './fonts';
 import { PIGMENT } from './ink/palette';
 import { inkPath, mulberry32, washFill, type Pt } from './ink/stroke';
+import { designLength, designPointer } from '../game/graphicsQuality';
 
 /**
  * A printed surface: a sheet of paper with a hand-pulled contour round it.
@@ -186,13 +187,13 @@ export class InkScrollArea {
     this.hitZone = scene.add.zone(bounds.x, bounds.y, bounds.width, bounds.height).setOrigin(0, 0).setInteractive();
     scene.input.setDraggable(this.hitZone);
     this.hitZone.on('dragstart', (pointer: Phaser.Input.Pointer) => {
-      this.dragStart = { pointerY: pointer.y, scrollY: this.scrollY };
+      this.dragStart = { pointerY: designLength(pointer.y), scrollY: this.scrollY };
     });
     this.hitZone.on('drag', (pointer: Phaser.Input.Pointer) => {
       if (!this.dragStart) {
         return;
       }
-      this.setScroll(this.dragStart.scrollY - (pointer.y - this.dragStart.pointerY));
+      this.setScroll(this.dragStart.scrollY - (designLength(pointer.y) - this.dragStart.pointerY));
     });
     this.hitZone.on('dragend', () => {
       this.dragStart = undefined;
@@ -203,11 +204,12 @@ export class InkScrollArea {
     this.content.setMask(this.maskShape.createGeometryMask());
 
     this.wheelHandler = (pointer, _objects, _dx, dy) => {
+      const at = designPointer(pointer);
       if (
-        pointer.x < bounds.x ||
-        pointer.x > bounds.x + bounds.width ||
-        pointer.y < bounds.y ||
-        pointer.y > bounds.y + bounds.height
+        at.x < bounds.x ||
+        at.x > bounds.x + bounds.width ||
+        at.y < bounds.y ||
+        at.y > bounds.y + bounds.height
       ) {
         return;
       }

@@ -61,6 +61,7 @@ import {
 } from '../systems/CourtSystem';
 import { ARMY_DEFAULT_PROVISIONS, ARMY_DEFAULT_RATIONS, ARMY_LOGISTICS_STEP } from '../game/gameplayConfig';
 import { applyPaperFX } from '../ui/ink/PaperFX';
+import { applyRenderScale, designPointer } from '../game/graphicsQuality';
 import type { CourtPositionId, GameState, Hero, Land, PoliticsCard, TaxPolicy } from '../state/types';
 import {
   buildingLabel,
@@ -209,6 +210,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   create(): void {
+    applyRenderScale(this);
     // The chrome is printed on the same sheet as the world, so it takes the same paper pass.
     applyPaperFX(this);
     this.input.setTopOnly(true);
@@ -258,7 +260,9 @@ export class UIScene extends Phaser.Scene {
     this.game.canvas.removeEventListener('mouseup', this.domMouseUp);
   }
 
-  private handlePointerUp(pointer: Phaser.Input.Pointer): void {
+  private handlePointerUp(rawPointer: Phaser.Input.Pointer): void {
+    // Every bound below is a design-surface number, so the pointer has to be one too.
+    const pointer = designPointer(rawPointer);
     if (this.modalScreen !== 'none') {
       this.handleModalTap(pointer.x, pointer.y);
       return;

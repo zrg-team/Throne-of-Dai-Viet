@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { wantsPaperFX } from '../../game/graphicsQuality';
 
 /**
  * The paper the whole game is printed on.
@@ -93,7 +94,7 @@ export function paperFxEnabled(): boolean {
   if (typeof window === 'undefined') {
     return false;
   }
-  return !/[?&]nofx=1\b/.test(window.location.search);
+  return wantsPaperFX() && !/[?&]nofx=1\b/.test(window.location.search);
 }
 
 /**

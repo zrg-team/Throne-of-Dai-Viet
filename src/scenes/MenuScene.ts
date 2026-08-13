@@ -12,6 +12,11 @@ import { INK, brushStroke, inkOutline, shade, washFill, waveLine } from '../ui/i
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
 import { getMapTheme, MAP_THEME_OPTIONS, setMapTheme } from '../ui/mapTheme';
 import { applyPaperFX } from '../ui/ink/PaperFX';
+import { inkPath, mulberry32, thickPath, washFill as washInk, type Pt } from '../ui/ink/stroke';
+import { areca, bamboo, banyan, buffalo, groundShadow, karstRange, softRidge, tree as treeProp } from '../ui/ink/props';
+import { drawFieldPlot, hamlet } from '../ui/ink/settlements';
+import { drawHost, hostShape } from '../ui/ink/devices';
+import { GRAPHICS_QUALITIES, applyRenderScale, getGraphicsQuality, setGraphicsQuality } from '../game/graphicsQuality';
 
 type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy';
 
@@ -54,6 +59,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create(): void {
+    applyRenderScale(this);
     // The chrome is printed on the same sheet as the world, so it takes the same paper pass.
     applyPaperFX(this);
     window.__mandateState = undefined;
@@ -91,10 +97,135 @@ export class MenuScene extends Phaser.Scene {
       this.drawDaiVietLotusSeal();
       return;
     }
+    if (this.mapRenderer.theme.renderers.menu === 'dongho') {
+      this.drawDongHoLandscape();
+      this.drawDongHoArmies();
+      this.drawDaiVietLotusSeal();
+      return;
+    }
     this.drawLandscape();
     this.drawArmies();
     this.drawFogBands();
     this.drawDaiVietLotusSeal();
+  }
+
+  /**
+   * The menu, drawn in the same hand as the map.
+   *
+   * The shared ink landscape here is flat vector: banded polygons, a ribbon river, grey triangles
+   * with snow on them. It is the first screen anybody sees, and under this theme it was announcing
+   * a different game from the one behind it. Same idea — two hosts facing across a river — drawn
+   * with the props the world uses, and kept inside a band that leaves the button column clear.
+   */
+  private drawDongHoLandscape(): void {
+    const g = this.add.graphics();
+    const rand = mulberry32(1307);
+    const HORIZON = 292;
+    const FLOOR = 556;
+
+    // Limestone at the horizon with soft earth hills tucked in front of it. Two landforms, because
+    // one of them used for both gives a row of teeth.
+    softRidge(g, -30, 236, HORIZON + 4, 30, 9021);
+    softRidge(g, 168, GAME_WIDTH + 30, HORIZON + 2, 25, 9022);
+    karstRange(g, -24, 196, HORIZON, 74, 4118);
+    karstRange(g, 214, GAME_WIDTH + 24, HORIZON - 4, 62, 4119);
+
+    // Mist at the foot of the range. Towers are seated at varying depths, so their base fills stop
+    // on a stepped line — invisible on the map, where ground tone covers it, and a row of pale
+    // blocks here on bare paper. A band of haze is both the fix and what the eye expects anyway.
+    const mist: Pt[] = [];
+    for (let step = 0; step <= 14; step += 1) {
+      mist.push({ x: -20 + (step / 14) * (GAME_WIDTH + 40), y: HORIZON - 12 + (rand() - 0.5) * 9 });
+    }
+    washInk(g, [...mist, { x: GAME_WIDTH + 20, y: HORIZON + 34 }, { x: -20, y: HORIZON + 34 }],
+      PIGMENT.diep, 4200, 0.72);
+
+    // The near ground, so the props stand on something rather than floating on bare paper.
+    for (let band = 0; band < 7; band += 1) {
+      const y = HORIZON + band * ((FLOOR - HORIZON) / 7);
+      g.fillStyle(band % 2 === 0 ? PIGMENT.diepLo : PIGMENT.hoePale, 0.1 - band * 0.008);
+      g.fillEllipse(GAME_WIDTH / 2 + (rand() - 0.5) * 90, y + 20, GAME_WIDTH * 1.5, 130);
+    }
+
+    // The river as a course rather than a stripe: a band that narrows upstream, with its own inked
+    // banks, running off the left edge before it reaches the buttons.
+    const course = [
+      { x: 246, y: HORIZON - 6 }, { x: 232, y: 340 }, { x: 208, y: 392 },
+      { x: 174, y: 444 }, { x: 128, y: 492 }, { x: 62, y: 530 }, { x: -24, y: 552 },
+    ];
+    const banks = thickPath(course, course.map((_, index) => 5 + index * 2.4));
+    washInk(g, banks, PIGMENT.chamWash, 3007, 0.55);
+    inkPath(g, banks, 3008, { width: 0.85, alpha: 0.36, colour: PIGMENT.cham, wobble: 1.2, step: 13 });
+    for (let ripple = 0; ripple < 10; ripple += 1) {
+      const point = course[1 + Math.floor(rand() * (course.length - 2))];
+      // Level strokes only. Randomising both ends put crossed scratches on the water.
+      const drift = (rand() - 0.5) * 30;
+      const along = point.y + (rand() - 0.5) * 30;
+      inkPath(g, [
+        { x: point.x + drift - 6, y: along },
+        { x: point.x + drift + 6, y: along + 1 },
+      ], 3100 + ripple, { width: 0.6, alpha: 0.26, colour: PIGMENT.cham, wobble: 0.4, step: 6 });
+    }
+
+    // Paddy on the far bank. Irregular on purpose: a lattice of equal rectangles is the exact thing
+    // that makes a drawn map read as a list of tiles instead of a country.
+    for (let plot = 0; plot < 16; plot += 1) {
+      const col = plot % 4;
+      const row = Math.floor(plot / 4);
+      const x = 258 + col * 36 + row * 7 + (rand() - 0.5) * 9;
+      const y = 306 + row * 30 + col * 4 + (rand() - 0.5) * 7;
+      if (x > GAME_WIDTH + 4 || y > 456) {
+        continue;
+      }
+      const w = 27 + rand() * 11;
+      const h = 17 + rand() * 6;
+      drawFieldPlot(g, {
+        points: [
+          { x, y: y + (rand() - 0.5) * 3 },
+          { x: x + w, y: y - 2 + rand() * 4 },
+          { x: x + w - 2 - rand() * 4, y: y + h },
+          { x: x - 1 + rand() * 3, y: y + h - 1 },
+        ],
+        stage: rand(),
+        seed: 4200 + plot,
+      });
+    }
+
+    // The near bank: a village under its banyan, with the herd out in front of it.
+    banyan(g, 52, 360, 0.75, 5001);
+    hamlet(g, 108, 372, 0.58, 5002, 5);
+    bamboo(g, 22, 398, 0.62, 5003);
+    areca(g, 158, 350, 0.5, 5004);
+    buffalo(g, 74, 424, 0.46, 5005, true);
+    buffalo(g, 150, 412, 0.36, 5006, false);
+    for (let index = 0; index < 8; index += 1) {
+      treeProp(g, 8 + rand() * 190, 318 + rand() * 96, 0.42 + rand() * 0.26, 5100 + index);
+    }
+  }
+
+  /**
+   * Two hosts across the water, sized by the men in them — the same rule the map uses, so the
+   * menu makes the game's own promise rather than decorating.
+   */
+  private drawDongHoArmies(): void {
+    const g = this.add.graphics();
+    for (const host of [
+      { x: 300, y: 486, men: 1900, player: true },
+      { x: 336, y: 524, men: 1100, player: true },
+      { x: 96, y: 486, men: 1500, player: false },
+      { x: 58, y: 522, men: 900, player: false },
+    ]) {
+      const shape = hostShape(host.men, 4.2, 3.6);
+      groundShadow(g, host.x, host.y + 3, shape.width * 0.5, 0.07);
+      drawHost(g, host.x - shape.width / 2, host.y - shape.height, host.men, host.men + 17,
+        host.player ? PIGMENT.muc : PIGMENT.mucSoft, 0.74, true);
+      const flag = this.mapItems.createPlayerLandFlag(
+        false,
+        host.player ? this.previewFlagSeed : this.previewFlagSeed + 777,
+      );
+      flag.setPosition(host.x + (host.player ? shape.width / 2 + 11 : -shape.width / 2 - 11), host.y + 3);
+      flag.setScale(0.78);
+    }
   }
 
   /** Illustrated parchment landscape matching the selectable atlas map style. */
@@ -490,6 +621,7 @@ export class MenuScene extends Phaser.Scene {
     this.clearContent();
     this.renderTitle();
     if (this.mode === 'main') {
+      this.renderGraphicsSelector();
       this.renderMapThemeSelector();
     }
     this.renderLanguageSelector();
@@ -691,36 +823,76 @@ export class MenuScene extends Phaser.Scene {
     }, { variant: 'secondary', fontSize: '14px' }));
   }
 
-  private renderMapThemeSelector(): void {
-    const current = getMapTheme();
-    const itemWidth = 105;
+  /**
+   * One row of mutually exclusive settings: a heading and a strip of tiles.
+   *
+   * Style, graphics and language were three copies of the same twenty lines, which is why they had
+   * drifted to three different tile heights.
+   */
+  private renderChoiceRow<T extends string>(
+    y: number,
+    heading: string,
+    options: ReadonlyArray<{ id: T; label: string }>,
+    current: T,
+    pick: (id: T) => void,
+  ): void {
+    const itemWidth = Math.min(112, (GAME_WIDTH - 24) / options.length);
     const itemHeight = 28;
-    const width = itemWidth * MAP_THEME_OPTIONS.length;
-    const x = GAME_WIDTH / 2 - width / 2;
-    const y = GAME_HEIGHT - 90;
+    const x = GAME_WIDTH / 2 - (itemWidth * options.length) / 2;
 
-    const heading = this.ui.label(GAME_WIDTH / 2, y - 16, t('menu.mapTheme'), 'caption', {
+    this.content.push(this.ui.label(GAME_WIDTH / 2, y - 15, heading, 'caption', {
       color: '#3a2a14', fontSize: '10px', fontStyle: '700', align: 'center',
       backgroundColor: 'rgba(243,230,196,0.55)', padding: { x: 5, y: 1 },
-    }).setOrigin(0.5, 0);
-    this.content.push(heading);
+    }).setOrigin(0.5, 0));
 
-    MAP_THEME_OPTIONS.forEach((option, index) => {
+    options.forEach((option, index) => {
       const selected = current === option.id;
-      const left = x + index * itemWidth;
-      const bounds = { x: left + 3, y, width: itemWidth - 6, height: itemHeight };
+      const bounds = { x: x + index * itemWidth + 3, y, width: itemWidth - 6, height: itemHeight };
       const tile = this.ui.crayonTile(bounds, { selected });
-      const label = this.ui.label(bounds.x + bounds.width / 2, y + itemHeight / 2, t(option.labelKey), 'button', {
+      const label = this.ui.label(bounds.x + bounds.width / 2, y + itemHeight / 2, option.label, 'button', {
         color: '#211103', fontSize: '11px', fontStyle: selected ? '700' : '400', align: 'center',
       }).setOrigin(0.5);
-      const hit = this.add.rectangle(bounds.x + bounds.width / 2, y + itemHeight / 2, bounds.width, itemHeight, 0xffffff, 0.001)
+      const hit = this.add
+        .rectangle(bounds.x + bounds.width / 2, y + itemHeight / 2, bounds.width, itemHeight, 0xffffff, 0.001)
         .setInteractive({ useHandCursor: true });
-      hit.on('pointerup', () => {
-        setMapTheme(option.id);
-        this.scene.restart();
-      });
+      hit.on('pointerup', () => pick(option.id));
       this.content.push(tile, label, hit);
     });
+  }
+
+  private renderMapThemeSelector(): void {
+    this.renderChoiceRow(
+      GAME_HEIGHT - 90,
+      t('menu.mapTheme'),
+      MAP_THEME_OPTIONS.map((option) => ({ id: option.id, label: t(option.labelKey) })),
+      getMapTheme(),
+      (id) => {
+        setMapTheme(id);
+        this.scene.restart();
+      },
+    );
+  }
+
+  /**
+   * How much resolution and detail to spend.
+   *
+   * Reloads rather than restarting the scene: the drawing buffer is sized once when the game is
+   * constructed, so a new render scale cannot take effect without building the game again.
+   */
+  private renderGraphicsSelector(): void {
+    this.renderChoiceRow(
+      GAME_HEIGHT - 140,
+      t('menu.graphics'),
+      GRAPHICS_QUALITIES.map((id) => ({ id, label: t(`menu.graphics.${id}` as 'menu.graphics.low') })),
+      getGraphicsQuality(),
+      (id) => {
+        if (id === getGraphicsQuality()) {
+          return;
+        }
+        setGraphicsQuality(id);
+        window.location.reload();
+      },
+    );
   }
 
   private renderConfirmNew(): void {
@@ -743,63 +915,16 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private renderLanguageSelector(): void {
-    const current = getLanguage();
-
-    const options: Array<{
-      code: LanguageCode;
-      label: string;
-      flag: string;
-    }> = [
-      {
-        code: 'en',
-        label: 'English',
-        flag: '',
-      },
-      {
-        code: 'vi',
-        label: 'Tiếng Việt',
-        flag: '',
-      },
-    ];
-
-    const itemWidth = 105;
-    const itemHeight = 30;
-    const width = itemWidth * options.length;
-
-    const x = GAME_WIDTH / 2 - width / 2;
-    const y = GAME_HEIGHT - 40;
-
-    options.forEach((option, index) => {
-      const selected = current === option.code;
-      const left = x + index * itemWidth;
-      const bounds = { x: left + 3, y, width: itemWidth - 6, height: itemHeight };
-
-      const tile = this.ui.crayonTile(bounds, { selected });
-      const label = this.ui
-        .label(
-          bounds.x + bounds.width / 2,
-          y + itemHeight / 2,
-          `${option.flag} ${option.label}`.trim(),
-          'button',
-          {
-            color: '#211103',
-            fontSize: '12px',
-            fontStyle: selected ? '700' : '400',
-            align: 'center',
-          },
-        )
-        .setOrigin(0.5);
-
-      const hit = this.add
-        .rectangle(bounds.x + bounds.width / 2, y + itemHeight / 2, bounds.width, itemHeight, 0xffffff, 0.001)
-        .setInteractive({ useHandCursor: true });
-      hit.on('pointerup', () => {
-        setLanguage(option.code);
+    this.renderChoiceRow(
+      GAME_HEIGHT - 40,
+      t('menu.language'),
+      [{ id: 'en' as LanguageCode, label: 'English' }, { id: 'vi' as LanguageCode, label: 'Tiếng Việt' }],
+      getLanguage(),
+      (code) => {
+        setLanguage(code);
         this.render();
-      });
-
-      this.content.push(tile, label, hit);
-    });
+      },
+    );
   }
 
   private startGame(state: ReturnType<typeof createInitialGameState>): void {
