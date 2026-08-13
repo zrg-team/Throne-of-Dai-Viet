@@ -31,6 +31,7 @@ import { TrafficRenderer } from './map/TrafficRenderer';
 import { UI_FONT } from '../ui/fonts';
 import { t } from '../i18n';
 import { MINIMAP_H, MINIMAP_W } from '../ui/MinimapRenderer';
+import { RENDER_SCALE, designPointer } from '../game/graphicsQuality';
 
 const MIN_CAMERA_ZOOM = 0.72;
 const MAX_CAMERA_ZOOM = 1.65;
@@ -160,8 +161,8 @@ export class MapScene extends Phaser.Scene {
     }
 
     const landId = this.findLandIdAt(
-      this.cameras.main.scrollX + point.x / this.cameras.main.zoom,
-      this.cameras.main.scrollY + point.y / this.cameras.main.zoom,
+      this.cameras.main.scrollX + point.x / this.mapZoom,
+      this.cameras.main.scrollY + point.y / this.mapZoom,
     );
     if (landId) {
       this.selectLand(landId);
@@ -215,7 +216,28 @@ export class MapScene extends Phaser.Scene {
     this.domDragDistance = 0;
   }
 
+  /**
+   * The map's own zoom, in design units.
+   *
+   * `camera.zoom` carries the render scale as well — the drawing buffer is that many times the
+   * 390-wide design surface — so reading it raw and dividing GAME_WIDTH by it silently answers a
+   * different question than the one every clamp in this file is asking.
+   */
+  protected get mapZoom(): number {
+    return this.cameras.main.zoom / RENDER_SCALE;
+  }
+
+  /** Sets the map's zoom in design units, leaving the render scale where it is. */
+  protected setMapZoom(value: number): void {
+    this.cameras.main.setZoom(value * RENDER_SCALE);
+  }
+
   create(): void {
+    // The map camera carries the render scale on top of the map's own zoom, so it starts at the
+    // scale rather than at 1 — without this the world draws at design size inside a buffer several
+    // times larger, which reads as the map having silently zoomed out.
+    this.cameras.main.setOrigin(0, 0);
+    this.setMapZoom(1);
     window.__mandateState = this.state;
     this.registry.set('gameState', this.state);
     this.mapRenderer = createMapRenderer(this);
@@ -346,15 +368,16 @@ export class MapScene extends Phaser.Scene {
     });
     ui.events.on('ui:pan-camera', (worldX: number, worldY: number) => {
       const cam = this.cameras.main;
+      const zoom = this.mapZoom;
       cam.scrollX = Phaser.Math.Clamp(
-        worldX - GAME_WIDTH / (2 * cam.zoom),
+        worldX - GAME_WIDTH / (2 * zoom),
         0,
-        Math.max(0, this.worldWidth - GAME_WIDTH / cam.zoom),
+        Math.max(0, this.worldWidth - GAME_WIDTH / zoom),
       );
       cam.scrollY = Phaser.Math.Clamp(
-        worldY - GAME_HEIGHT / (2 * cam.zoom),
+        worldY - GAME_HEIGHT / (2 * zoom),
         0,
-        Math.max(0, this.worldHeight - GAME_HEIGHT / cam.zoom),
+        Math.max(0, this.worldHeight - GAME_HEIGHT / zoom),
       );
     });
     ui.events.on('ui:clear-selection', () => {
@@ -435,6 +458,9 @@ export class MapScene extends Phaser.Scene {
         return;
       }
 
+      // Raw camera zoom on purpose. Phaser reports pointer coordinates in the drawing buffer's
+      // space, which already carries the render scale, so dividing by the full camera zoom lands
+      // in design units — the same place the clamps below are measured in.
       const deltaX = (pointer.x - pointer.prevPosition.x) / this.cameras.main.zoom;
       const deltaY = (pointer.y - pointer.prevPosition.y) / this.cameras.main.zoom;
       this.dragDistance += Math.abs(deltaX) + Math.abs(deltaY);
@@ -445,12 +471,12 @@ export class MapScene extends Phaser.Scene {
       this.cameras.main.scrollX = Phaser.Math.Clamp(
         this.cameras.main.scrollX - deltaX,
         0,
-        Math.max(0, this.worldWidth - GAME_WIDTH / this.cameras.main.zoom),
+        Math.max(0, this.worldWidth - GAME_WIDTH / this.mapZoom),
       );
       this.cameras.main.scrollY = Phaser.Math.Clamp(
         this.cameras.main.scrollY - deltaY,
         0,
-        Math.max(0, this.worldHeight - GAME_HEIGHT / this.cameras.main.zoom),
+        Math.max(0, this.worldHeight - GAME_HEIGHT / this.mapZoom),
       );
     });
 
@@ -1279,8 +1305,8 @@ export class MapScene extends Phaser.Scene {
       const pixel = axialToPixel(tile.coord, hexSize);
       const worldX = this.wx(pixel.x);
       const worldY = this.wy(pixel.y);
-      const screenX = (worldX - camera.scrollX) * camera.zoom;
-      const screenY = (worldY - camera.scrollY) * camera.zoom;
+      const screenX = (worldX - camera.scrollX) * this.mapZoom;
+      const screenY = (worldY - camera.scrollY) * this.mapZoom;
       if (screenX < 24 || screenX > GAME_WIDTH - 76 || screenY < HEADER_HEIGHT + 36 || screenY > maxScreenY) {
         continue;
       }
@@ -1292,11 +1318,11 @@ export class MapScene extends Phaser.Scene {
       return { x: sum.x / visibleCenters.length, y: sum.y / visibleCenters.length };
     }
 
-    const fallbackScreenX = Phaser.Math.Clamp((this.wx(land.x) - camera.scrollX) * camera.zoom, 34, GAME_WIDTH - 86);
-    const fallbackScreenY = Phaser.Math.Clamp((this.wy(land.y) - camera.scrollY) * camera.zoom, HEADER_HEIGHT + 46, maxScreenY);
+    const fallbackScreenX = Phaser.Math.Clamp((this.wx(land.x) - camera.scrollX) * this.mapZoom, 34, GAME_WIDTH - 86);
+    const fallbackScreenY = Phaser.Math.Clamp((this.wy(land.y) - camera.scrollY) * this.mapZoom, HEADER_HEIGHT + 46, maxScreenY);
     return {
-      x: camera.scrollX + fallbackScreenX / camera.zoom,
-      y: camera.scrollY + fallbackScreenY / camera.zoom,
+      x: camera.scrollX + fallbackScreenX / this.mapZoom,
+      y: camera.scrollY + fallbackScreenY / this.mapZoom,
     };
   }
 
@@ -1467,7 +1493,7 @@ export class MapScene extends Phaser.Scene {
       hexOffsetY: this.hexOffsetY,
       scrollX: cam.scrollX,
       scrollY: cam.scrollY,
-      zoom: cam.zoom,
+      zoom: this.mapZoom,
     };
   }
 
@@ -1480,7 +1506,8 @@ export class MapScene extends Phaser.Scene {
   }
 
   private isPointerOverFixedUi(pointer: Phaser.Input.Pointer): boolean {
-    return this.isScreenPointOverFixedUi(pointer.x, pointer.y);
+    const point = designPointer(pointer);
+    return this.isScreenPointOverFixedUi(point.x, point.y);
   }
 
   protected isScreenPointOverFixedUi(x: number, y: number): boolean {
@@ -1540,7 +1567,7 @@ export class MapScene extends Phaser.Scene {
 
   private zoomMap(direction: number): void {
     const camera = this.cameras.main;
-    const oldZoom = camera.zoom;
+    const oldZoom = this.mapZoom;
     const nextZoom = Phaser.Math.Clamp(oldZoom + direction * CAMERA_ZOOM_STEP, MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM);
     if (nextZoom === oldZoom) {
       return;
@@ -1548,7 +1575,7 @@ export class MapScene extends Phaser.Scene {
 
     const centerWorldX = camera.scrollX + GAME_WIDTH / (2 * oldZoom);
     const centerWorldY = camera.scrollY + GAME_HEIGHT / (2 * oldZoom);
-    camera.setZoom(nextZoom);
+    this.setMapZoom(nextZoom);
     camera.scrollX = Phaser.Math.Clamp(centerWorldX - GAME_WIDTH / (2 * nextZoom), 0, Math.max(0, this.worldWidth - GAME_WIDTH / nextZoom));
     camera.scrollY = Phaser.Math.Clamp(centerWorldY - GAME_HEIGHT / (2 * nextZoom), 0, Math.max(0, this.worldHeight - GAME_HEIGHT / nextZoom));
     this.state.message = `Map zoom ${Math.round(nextZoom * 100)}%.`;

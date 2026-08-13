@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
+import { applyRenderScale } from '../game/graphicsQuality';
 
 /**
  * First scene. Its one job beyond handing off to the preloader is to make sure the game's own
@@ -15,6 +16,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
+    applyRenderScale(this);
     void this.awaitFonts().then(() => this.scene.start('PreloadScene'));
   }
 

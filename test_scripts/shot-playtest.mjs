@@ -67,9 +67,11 @@ for (const entry of types) {
           y: px.reduce((a, p) => a + p.y, 0) / px.length,
         };
       }
-      const camera = scene.cameras.main;
-      camera.setZoom(z);
-      camera.centerOn(scene.wx(at.x), scene.wy(at.y));
+      // setMapZoom, not camera.setZoom: the camera also carries the render scale. And scroll
+      // directly rather than centerOn, which assumes a centred camera origin the game does not use.
+      scene.setMapZoom(z);
+      const cam = scene.cameras.main;
+      cam.setScroll(scene.wx(at.x) - 195 / z, scene.wy(at.y) - 422 / z);
     }, { id: entry.id, z: zoom });
     await page.waitForTimeout(900);
     await page.screenshot({ path: `${OUT}/land-${entry.type}-${zoom}x.png` });
@@ -84,8 +86,8 @@ await page.evaluate(() => {
   const army = state.armies?.[0];
   if (army) {
     const land = state.lands.find((l) => l.id === army.landId) ?? state.lands[0];
-    scene.cameras.main.setZoom(2.0);
-    scene.cameras.main.centerOn(scene.wx(land.x), scene.wy(land.y));
+    scene.setMapZoom(2.0);
+    scene.cameras.main.setScroll(scene.wx(land.x) - 97, scene.wy(land.y) - 211);
   }
 });
 await page.waitForTimeout(900);

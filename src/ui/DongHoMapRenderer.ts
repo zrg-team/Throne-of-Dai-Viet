@@ -7,6 +7,7 @@ import { PIGMENT } from './ink/palette';
 import { groundTone, hatchPoly, inkPath, mulberry32, printedShape, washFill, type Pt } from './ink/stroke';
 import { areca, bamboo, banana, banyan, farmer, grassTuft, karstRange, softRidge, tree } from './ink/props';
 import { drawFieldPlot, type FieldPlot } from './ink/settlements';
+import { scatterDensity } from '../game/graphicsQuality';
 
 /**
  * Đông Hồ landscape rendering — the whole map drawn in one pass instead of tile by tile.
@@ -346,6 +347,7 @@ export class DongHoMapRenderer implements MapRenderer {
     tileSize: number,
   ): void {
     const rand = mulberry32(2024);
+    const density = scatterDensity();
     const items: ScatterItem[] = [];
     for (const tile of tiles) {
       const spec = SCATTER[tile.terrain];
@@ -353,7 +355,11 @@ export class DongHoMapRenderer implements MapRenderer {
         continue;
       }
       const centre = ctx.centreOf(tile);
-      const count = spec.count[0] + Math.floor(rand() * (spec.count[1] - spec.count[0] + 1));
+      // Density follows the graphics setting: the scatter is the largest single cost in the
+      // landscape, and thinning it is what buys a playable frame on a weak device without taking
+      // the drawing apart.
+      const spread = spec.count[0] + Math.floor(rand() * (spec.count[1] - spec.count[0] + 1));
+      const count = Math.max(spec.count[0] > 0 ? 1 : 0, Math.round(spread * density));
       for (let index = 0; index < count; index += 1) {
         const angle = rand() * Math.PI * 2;
         const distance = Math.sqrt(rand()) * tileSize * 1.12;
