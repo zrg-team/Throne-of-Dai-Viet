@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { PIGMENT } from './palette';
 import { inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './stroke';
+import { UNIT } from './proportion';
 
 /**
  * The vocabulary — every silhouette that makes a landscape read as Đại Việt rather than as nowhere.
@@ -34,7 +35,8 @@ export function groundShadow(g: G, x: number, y: number, width: number, alpha = 
  * Cây — a bushy canopy: scalloped, sage, with a dark rim and one or two interior scallops for
  * volume. Scattered in drifts of varying size, never as one symbol repeated on a grid.
  */
-export function tree(g: G, x: number, y: number, s: number, seed: number): void {
+export function tree(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = scale * UNIT.tree;
   const rand = mulberry32(seed);
   const radius = 7 * s;
   inkPath(g, [{ x, y }, { x: x - 0.6 * s, y: y - radius }], seed, {
@@ -64,7 +66,8 @@ export function tree(g: G, x: number, y: number, s: number, seed: number): void 
   }
 }
 
-export function grassTuft(g: G, x: number, y: number, s: number, seed: number): void {
+export function grassTuft(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = scale * UNIT.grassTuft;
   const rand = mulberry32(seed);
   for (let blade = 0; blade < 3; blade += 1) {
     inkPath(
@@ -80,7 +83,8 @@ export function grassTuft(g: G, x: number, y: number, s: number, seed: number): 
 }
 
 /** Tre — bamboo. Tall arching culms from one clump; the village's own wall. */
-export function bamboo(g: G, x: number, y: number, s: number, seed: number): void {
+export function bamboo(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = scale * UNIT.bamboo;
   const rand = mulberry32(seed);
   const culms = 5 + Math.floor(rand() * 3);
   for (let index = 0; index < culms; index += 1) {
@@ -140,7 +144,8 @@ export function banana(g: G, x: number, y: number, s: number, seed: number): voi
 }
 
 /** Cau — areca palm. A very tall bare trunk with a small crown; lines a village yard. */
-export function areca(g: G, x: number, y: number, s: number, seed: number): void {
+export function areca(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = scale * UNIT.areca;
   const rand = mulberry32(seed);
   const height = (28 + rand() * 12) * s;
   inkPath(g, [{ x, y }, { x: x + 1.5 * s, y: y - height * 0.5 }, { x, y: y - height }], seed, {
@@ -166,7 +171,8 @@ export function areca(g: G, x: number, y: number, s: number, seed: number): void
 }
 
 /** Cây đa — the banyan at the village gate, with its hanging aerial roots. */
-export function banyan(g: G, x: number, y: number, s: number, seed: number): void {
+export function banyan(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = scale * UNIT.banyan;
   const rand = mulberry32(seed);
   const canopy: Pt[] = [];
   const lobes = 8;
@@ -198,7 +204,8 @@ export function banyan(g: G, x: number, y: number, s: number, seed: number): voi
  * Nhà ba gian hai chái — three bays and two lean-tos, earth walls packed over a bamboo lattice,
  * rice-straw thatch. Wide and low, and **the roof is most of it**.
  */
-export function house(g: G, x: number, y: number, s: number, seed: number, tiled = false): void {
+export function house(g: G, x: number, y: number, scale: number, seed: number, tiled = false): void {
+  const s = scale * UNIT.house;
   const w = 26 * s;
   const d = 13 * s;
   const wallH = 7 * s;
@@ -373,7 +380,8 @@ export function thap(g: G, x: number, y: number, s: number, seed: number, tiers 
 }
 
 /** Cây rơm — the straw stack built round a pole, in every yard after harvest. */
-export function hayStack(g: G, x: number, y: number, s: number, seed: number): void {
+export function hayStack(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = scale * UNIT.hayStack;
   const cone: Pt[] = [];
   for (let index = 0; index <= 18; index += 1) {
     const t = index / 18;
@@ -386,7 +394,8 @@ export function hayStack(g: G, x: number, y: number, s: number, seed: number): v
 }
 
 /** A farmer under a nón lá — the fastest two strokes in the vocabulary. */
-export function farmer(g: G, x: number, y: number, s: number, seed: number): void {
+export function farmer(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = scale * UNIT.farmer;
   inkPath(g, [{ x, y }, { x: x + 1 * s, y: y - 5 * s }, { x: x + 3 * s, y: y - 8 * s }], seed, {
     width: 1 * s, alpha: 0.75, wobble: 0.2 * s, step: 4,
   });
@@ -536,7 +545,8 @@ export function karstRange(g: G, x0: number, x1: number, baseY: number, height: 
  * shoulder hump and a dip behind it; the legs bend and have hooves and the animal is **walking**;
  * the hide is near-black so the cream horns and the green lotus leaf carry all the colour.
  */
-export function buffalo(g: G, x: number, y: number, s: number, seed: number, rider = false): void {
+export function buffalo(g: G, x: number, y: number, scale: number, seed: number, rider = false): void {
+  const s = scale * UNIT.buffalo;
   const rand = mulberry32(seed);
   const step = rand() > 0.5 ? 1 : -1;
 

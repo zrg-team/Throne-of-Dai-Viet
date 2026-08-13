@@ -7,6 +7,8 @@ import { WAVE_INTERVAL_TICKS } from '../../game/ascentConfig';
 import { heronMeter } from '../ink/devices';
 import { t } from '../../i18n';
 import type { AscentState } from '../../state/types';
+import { sawtoothBand } from '../ink/devices';
+import { PIGMENT } from '../ink/palette';
 
 /**
  * Bottom edge of the HUD band. Kept in sync with ConquestScene's input guard.
@@ -15,7 +17,7 @@ import type { AscentState } from '../../state/types';
  * band takes is a pixel of map the player cannot see — and the map is the game. The three
  * numbers are laid out on two dense rows rather than three airy ones.
  */
-export const ASCENT_HUD_HEIGHT = 60;
+export const ASCENT_HUD_HEIGHT = 66;
 
 const TOP = HEADER_HEIGHT;
 
@@ -57,10 +59,19 @@ export class AscentHud {
   render(ascent: AscentState): void {
     this.destroy();
 
-    const panel = this.ui.panel(
-      { x: 0, y: TOP, width: GAME_WIDTH, height: ASCENT_HUD_HEIGHT },
-      { fill: INK_UI.backgroundInk, fillShade: INK_UI.brush, border: INK_UI.gold, radius: 0 },
-    );
+    // One plate with the resource bar above, not a card floating under it.
+    //
+    // This was an InkUI panel: gold border, cut corners, a rule inside its own edge. Directly
+    // beneath a header that is a plain paper strip, that reads as a separate object bolted on —
+    // the same complaint the chrome work started from, one level down. It is the same paper now,
+    // drawn up over the header's closing hairline so the two are continuous, and closed at the
+    // bottom by the header's own treatment: a răng cưa band and a hairline.
+    const panel = this.scene.add.graphics();
+    panel.fillStyle(INK_UI.backgroundInk, 0.97);
+    panel.fillRect(0, TOP - 2, GAME_WIDTH, ASCENT_HUD_HEIGHT + 2);
+    sawtoothBand(panel, 8, TOP + ASCENT_HUD_HEIGHT - 8, GAME_WIDTH - 16, 5, 0.45);
+    panel.lineStyle(1, PIGMENT.mucSoft, 0.35);
+    panel.lineBetween(0, TOP + ASCENT_HUD_HEIGHT - 0.5, GAME_WIDTH, TOP + ASCENT_HUD_HEIGHT - 0.5);
     panel.setDepth(90);
     this.objects.push(panel);
 

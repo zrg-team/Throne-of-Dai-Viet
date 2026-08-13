@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { PIGMENT } from './palette';
 import { inkPath, mulberry32, printedShape, type Pt } from './stroke';
+import { UNIT } from './proportion';
 
 /**
  * Đông Sơn bronze — the narrator's register, kept deliberately distinct from the world's.
@@ -45,7 +46,8 @@ export function hostShape(men: number, markSpacing = 4.6, rankSpacing = 4): Host
 }
 
 /** One soldier: a stroke, a head, and sometimes a spear. Four pixels of information. */
-export function figure(g: G, x: number, y: number, s: number, colour: number, spear: boolean): void {
+export function figure(g: G, x: number, y: number, scale: number, colour: number, spear: boolean): void {
+  const s = scale * UNIT.figure;
   g.lineStyle(0.9 * s, colour, 0.85);
   g.lineBetween(x, y, x, y - 3.1 * s);
   g.fillStyle(colour, 0.85);

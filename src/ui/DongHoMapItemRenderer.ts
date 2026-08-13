@@ -118,7 +118,22 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     const scale = 0.82;
     const shape = hostShape(Math.max(1, total), 4.6 * scale, 4 * scale);
 
-    groundShadow(graphics, 0, 4, shape.width * 0.5, 0.08);
+    // The shadow is the ground the whole block stands on, not a blob under one point of it.
+    //
+    // `drawHost` lays its ranks from the top-left corner it is given and steps each one up and
+    // right, so the men occupy a sheared rectangle running from the back rank at y = -height to
+    // the front rank at y = 0. `groundShadow` draws a fixed-proportion ellipse — its height is
+    // tied to its width — so wherever it was placed it was either sitting below the front rank or
+    // floating inside the middle of the formation. Drawn directly, it can be the shape of the
+    // footprint: as wide as the ranks are, as deep as they are, leaning the same way they lean.
+    const shear = shape.rows * 1.2 * scale;
+    graphics.fillStyle(PIGMENT.muc, 0.07);
+    graphics.fillEllipse(
+      shear * 0.5,
+      -shape.height * 0.5 + 2,
+      shape.width + shear + 10 * scale,
+      shape.height + 10 * scale,
+    );
     drawHost(graphics, -shape.width / 2, -shape.height, Math.max(1, total), Math.round(total) + 17, colour, scale, true);
     container.add(graphics);
 
@@ -188,9 +203,9 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
 
     // The herd grazes at the edge of the settlement, where it actually lives — not scattered
     // through the paddy, and never far from the roofs.
-    buffalo(graphics, anchor.x - 34, anchor.y + 34, 0.42 * spread, seed + 700, rand() > 0.55);
+    buffalo(graphics, anchor.x - 34, anchor.y + 34, 1 * spread, seed + 700, rand() > 0.55);
     if (sorted.length > 3) {
-      buffalo(graphics, anchor.x + 30, anchor.y + 40, 0.36 * spread, seed + 720, false);
+      buffalo(graphics, anchor.x + 30, anchor.y + 40, 0.85 * spread, seed + 720, false);
     }
 
     for (const centre of sorted) {
@@ -363,7 +378,7 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
 
     hamlet(g, 4 * scale, -2 * scale, 0.6 * scale, seed, 3 + Math.min(3, upgradeLevel));
     hayStack(g, -26 * scale, 6 * scale, 0.5 * scale, seed + 200);
-    buffalo(g, -30 * scale, 20 * scale, 0.4 * scale, seed + 300, rand() > 0.5);
+    buffalo(g, -30 * scale, 20 * scale, 1 * scale, seed + 300, rand() > 0.5);
     farmer(g, 26 * scale, 16 * scale, 0.9 * scale, seed + 400);
     if (upgradeLevel > 0) {
       areca(g, 34 * scale, 6 * scale, 0.4 * scale, seed + 500);
@@ -526,18 +541,31 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     return container;
   }
 
-  /** A cart: two wheels, a bed, and the buffalo pulling it. */
+  /**
+   * A xe trâu: the animal, the shafts it is yoked into, and the cart behind it.
+   *
+   * Drawn facing left, because that is the direction the mover flips from. The buffalo was small
+   * enough to be a smudge and floated a body-length ahead of the shafts with nothing joining them;
+   * at this size the whole rig is about twelve pixels, so the one thing that has to read is that
+   * the animal is attached to the cart and pulling it.
+   */
   override createCart(): Phaser.GameObjects.Container {
     const scene = this.scene as Phaser.Scene;
     const container = scene.add.container(0, 0);
     const g = scene.add.graphics();
-    printedShape(g, [{ x: -1, y: -3 }, { x: 11, y: -3 }, { x: 11, y: 2 }, { x: -1, y: 2 }],
+    groundShadow(g, 2, 5, 11, 0.07);
+    printedShape(g, [{ x: 0, y: -4 }, { x: 12, y: -4 }, { x: 12, y: 2 }, { x: 0, y: 2 }],
       PIGMENT.nau, 88, { width: 0.7, alpha: 0.75, wobble: 0.15, step: 4, fillAlpha: 0.9 });
-    g.lineStyle(0.8, PIGMENT.muc, 0.7);
-    g.strokeCircle(1.5, 3, 2.4);
-    g.strokeCircle(8.5, 3, 2.4);
-    inkPath(g, [{ x: -1, y: -1 }, { x: -7, y: 0 }], 89, { width: 0.7, alpha: 0.6, colour: PIGMENT.nau, wobble: 0.1 });
-    buffalo(g, -16, 4, 0.28, 90, false);
+    g.lineStyle(0.9, PIGMENT.muc, 0.75);
+    g.strokeCircle(3, 3.4, 2.6);
+    g.strokeCircle(10, 3.4, 2.6);
+    // Two shafts running from the cart bed to the yoke on the animal's shoulders.
+    for (const dy of [-0.6, 1.2]) {
+      inkPath(g, [{ x: 0, y: -1 + dy }, { x: -9, y: -1.6 + dy }], 89 + dy * 10, {
+        width: 0.6, alpha: 0.6, colour: PIGMENT.nau, wobble: 0.1, step: 4,
+      });
+    }
+    buffalo(g, -14, 3.4, 0.95, 90, false);
     container.add(g);
     return container;
   }
