@@ -77,6 +77,27 @@ export interface MapRenderer {
    * perfectly visible staircase of hexagons around every island.
    */
   drawShoreEdge?(graphics: Phaser.GameObjects.Graphics, x1: number, y1: number, x2: number, y2: number): void;
+
+  /**
+   * One cell of unexplored ground.
+   *
+   * Offered because the default fills the hex flat, so the frontier between the drawn world and
+   * the undrawn one is a perfectly visible staircase of hexagons.
+   */
+  drawFogCell?(
+    graphics: Phaser.GameObjects.Graphics,
+    centre: { x: number; y: number },
+    corners: PixelPoint[],
+    radius: number,
+    explored: boolean,
+  ): void;
+
+  /** A whole unexplored region, given its merged boundary loops. Same reason as `drawFogCell`. */
+  drawFogRegion?(
+    graphics: Phaser.GameObjects.Graphics,
+    loops: Array<Array<{ x: number; y: number }>>,
+    explored: boolean,
+  ): void;
 }
 
 export function createMapRenderer(scene: Phaser.Scene): MapRenderer {

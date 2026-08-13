@@ -957,8 +957,14 @@ export class MapScene extends Phaser.Scene {
       const pixel = axialToPixel(tile.coord, hexSize);
       const center = { x: this.wx(pixel.x), y: this.wy(pixel.y) };
       const corners = hexCorners(center, hexSize * MAP_SCALE * 1.02).map(([x, y]) => ({ x, y }));
-      this.fillerFogGraphics.fillStyle(this.mapRenderer.palette.fog, sourceLand.isExplored ? 0.82 : 0.92);
-      this.fillerFogGraphics.fillPoints(corners, true);
+      if (this.mapRenderer.drawFogCell) {
+        // A theme may want the frontier between drawn and undrawn land to be torn rather than
+        // stepped; the flat hex fill below outlines every unexplored cell as a perfect hexagon.
+        this.mapRenderer.drawFogCell(this.fillerFogGraphics, center, corners, hexSize * MAP_SCALE, sourceLand.isExplored);
+      } else {
+        this.fillerFogGraphics.fillStyle(this.mapRenderer.palette.fog, sourceLand.isExplored ? 0.82 : 0.92);
+        this.fillerFogGraphics.fillPoints(corners, true);
+      }
 
       const group = hiddenGroups.get(sourceLand.id) ?? { land: sourceLand, centers: [] };
       group.centers.push(center);

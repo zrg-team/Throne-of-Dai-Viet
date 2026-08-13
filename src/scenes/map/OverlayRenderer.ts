@@ -186,9 +186,16 @@ export class OverlayRenderer {
         continue;
       }
 
-      this.fogGraphics.fillStyle(this.mapRenderer.palette.fog, land.isExplored ? 0.85 : 0.94);
-      for (const loop of traceLandBoundaryLoops(state, hexTileMap, wx, wy, this.landBoundaryLoops, land.id)) {
-        this.fogGraphics.fillPoints(loop, true);
+      const loops = traceLandBoundaryLoops(state, hexTileMap, wx, wy, this.landBoundaryLoops, land.id);
+      if (this.mapRenderer.drawFogRegion) {
+        // A flat fill of the merged loop still follows hex edges, so the frontier between the
+        // drawn world and the undrawn one reads as a honeycomb. A theme may tear it instead.
+        this.mapRenderer.drawFogRegion(this.fogGraphics, loops, land.isExplored);
+      } else {
+        this.fogGraphics.fillStyle(this.mapRenderer.palette.fog, land.isExplored ? 0.85 : 0.94);
+        for (const loop of loops) {
+          this.fogGraphics.fillPoints(loop, true);
+        }
       }
 
       activeIds.add(land.id);

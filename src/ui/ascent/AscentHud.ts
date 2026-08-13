@@ -3,6 +3,8 @@ import { GAME_WIDTH, HEADER_HEIGHT } from '../../game/constants';
 import { INK_UI, INK_UI_HEX, InkUI } from '../InkUI';
 import { TITLE_FONT, UI_FONT } from '../fonts';
 import { heatFor } from '../../systems/ascent/AmbitionSystem';
+import { WAVE_INTERVAL_TICKS } from '../../game/ascentConfig';
+import { heronMeter } from '../ink/devices';
 import { t } from '../../i18n';
 import type { AscentState } from '../../state/types';
 
@@ -183,6 +185,7 @@ export class AscentHud {
     this.add(countdownText);
     this.countdownLeft = x - countdownText.width;
 
+
     // The cause, printed beside its effect.
     //
     // The threat figure above already climbs as the player commits — it is quoted from live
@@ -225,8 +228,19 @@ export class AscentHud {
     // draws threat before momentum, so the measurement is always this frame's.
     const barX = 110;
     const barWidth = Math.max(60, this.countdownLeft - 10 - barX);
+
+    // The wave, as a Đông Sơn frieze: the Lạc birds of the Ngọc Lũ tympanum ink in as it closes.
+    // A bar chart from 500 BCE, and it earns the slot because the meter speaks in the narrator's
+    // register — bronze — while the world it is counting down over is dated to a dynasty.
+    const toWave = 1 - Math.max(0, Math.min(1, ascent.ticksToWave / Math.max(1, WAVE_INTERVAL_TICKS)));
+    const meter = this.scene.add.graphics();
+    heronMeter(meter, barX, y - 1, barWidth, 11, toWave, true);
+    this.add(meter);
+
+    // Level progress keeps its own thin rule beneath the frieze: two different quantities, and
+    // stacking them beat merging them into one ambiguous bar.
     const bar = this.ui.statBar(
-      { x: barX, y: y + 2, width: barWidth, height: 7 },
+      { x: barX, y: y + 11, width: barWidth, height: 3 },
       ascent.xp,
       Math.max(1, ascent.xpToNext),
       INK_UI.gold,

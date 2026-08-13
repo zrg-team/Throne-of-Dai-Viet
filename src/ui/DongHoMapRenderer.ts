@@ -86,9 +86,80 @@ export class DongHoMapRenderer implements MapRenderer {
     }
 
     this.paintGround(graphics, visible, ctx);
+    this.paintWater(graphics, visible, ctx);
     this.paintRanges(graphics, visible, ctx);
     this.paintFields(graphics, visible, ctx);
     this.paintScatter(decoration, visible, ctx, tileSize);
+  }
+
+  /**
+   * Water, as one body rather than as a hexagon of blue.
+   *
+   * Blended tone gives the sheet of water; the shoreline is then found by looking for cells whose
+   * neighbour is dry, and inked along those — so the coast is a drawn edge, not the boundary of a
+   * fill. Flow lines run inside, never across it.
+   */
+  private paintWater(graphics: Phaser.GameObjects.Graphics, tiles: LandscapeContext['tiles'], ctx: LandscapeContext): void {
+    const wet = new Set<string>();
+    for (const tile of tiles) {
+      if (tile.terrain === 'water') {
+        wet.add(`${tile.coord.q},${tile.coord.r}`);
+      }
+    }
+    if (wet.size === 0) {
+      return;
+    }
+
+    for (const tile of tiles) {
+      if (tile.terrain !== 'water') {
+        continue;
+      }
+      const centre = ctx.centreOf(tile);
+      groundTone(graphics, centre.x, centre.y, ctx.tileSize * 1.15, PIGMENT.chamWash, 0.5);
+    }
+
+    const rand = mulberry32(4400);
+    for (const tile of tiles) {
+      if (tile.terrain !== 'water') {
+        continue;
+      }
+      const centre = ctx.centreOf(tile);
+      const { q, r } = tile.coord;
+      // Only a cell with a dry neighbour is on the shore, so the ink follows the water's real edge.
+      const neighbours = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
+      for (const [dq, dr] of neighbours) {
+        if (wet.has(`${q + dq},${r + dr}`)) {
+          continue;
+        }
+        const away = ctx.centreAt(q + dq, r + dr);
+        const mx = (centre.x + away.x) / 2;
+        const my = (centre.y + away.y) / 2;
+        const nx = -(away.y - centre.y);
+        const ny = away.x - centre.x;
+        const length = Math.hypot(nx, ny) || 1;
+        const reach = ctx.tileSize * 0.55;
+        inkPath(
+          graphics,
+          [
+            { x: mx - (nx / length) * reach, y: my - (ny / length) * reach },
+            { x: mx + (nx / length) * reach, y: my + (ny / length) * reach },
+          ],
+          Math.round(mx + my * 3),
+          { width: 1.05, alpha: 0.5, colour: PIGMENT.cham, wobble: 3.2, step: 12 },
+        );
+      }
+      // Two flow lines per cell, well inside the edge, so the sheet reads as moving water.
+      for (let line = 0; line < 2; line += 1) {
+        const oy = centre.y + (rand() - 0.5) * ctx.tileSize * 0.7;
+        const half = ctx.tileSize * (0.2 + rand() * 0.28);
+        inkPath(
+          graphics,
+          [{ x: centre.x - half, y: oy }, { x: centre.x + half, y: oy }],
+          Math.round(centre.x + oy + line),
+          { width: 0.65, alpha: 0.3, colour: PIGMENT.cham, wobble: 1.6, step: 9 },
+        );
+      }
+    }
   }
 
   /**
@@ -401,7 +472,7 @@ export class DongHoMapRenderer implements MapRenderer {
       if (loop.length < 3) {
         continue;
       }
-      hatchPoly(graphics, loop, isPlayer ? -0.65 : 0.75, 11, isPlayer ? PIGMENT.son : PIGMENT.mucSoft, isPlayer ? 0.085 : 0.06, 0.8);
+      hatchPoly(graphics, loop, isPlayer ? -0.65 : 0.75, 10, isPlayer ? PIGMENT.son : PIGMENT.mucSoft, isPlayer ? 0.15 : 0.11, 0.9);
     }
   }
 
@@ -412,6 +483,68 @@ export class DongHoMapRenderer implements MapRenderer {
    * island in a perfect staircase of hexagons. Heavy wobble and a low alpha turn the same edges
    * into a beach.
    */
+  /**
+   * Unexplored ground is paper the chronicle has not reached yet — which is exactly right for this
+   * treatment, and would be perfect if the boundary were not a staircase of hexagons.
+   *
+   * Two passes fix that without a mask: a wobbled polygon so no two cells share a straight cut, and
+   * a soft radial halo that spills past the cell and blurs the frontier into the drawn land.
+   */
+  drawFogCell(
+    graphics: Phaser.GameObjects.Graphics,
+    centre: { x: number; y: number },
+    corners: PixelPoint[],
+    radius: number,
+    explored: boolean,
+  ): void {
+    const alpha = explored ? 0.8 : 0.9;
+    const rand = mulberry32(Math.round(centre.x * 3 + centre.y * 7));
+    const torn: Pt[] = [];
+    for (let index = 0; index < corners.length; index += 1) {
+      const a = corners[index];
+      const b = corners[(index + 1) % corners.length];
+      for (let step = 0; step < 3; step += 1) {
+        const t = step / 3;
+        const nx = -(b.y - a.y);
+        const ny = b.x - a.x;
+        const length = Math.hypot(nx, ny) || 1;
+        const push = (rand() - 0.35) * radius * 0.2;
+        torn.push({ x: a.x + (b.x - a.x) * t + (nx / length) * push, y: a.y + (b.y - a.y) * t + (ny / length) * push });
+      }
+    }
+    graphics.fillStyle(PIGMENT.diepHi, alpha);
+    graphics.fillPoints(torn, true);
+    // The halo is what actually kills the staircase: it reaches into the neighbours.
+    groundTone(graphics, centre.x, centre.y, radius * 1.5, PIGMENT.diepHi, alpha * 0.55);
+  }
+
+  /** The undrawn part of the chronicle, with a torn edge rather than a stepped one. */
+  drawFogRegion(
+    graphics: Phaser.GameObjects.Graphics,
+    loops: Array<Array<{ x: number; y: number }>>,
+    explored: boolean,
+  ): void {
+    const alpha = explored ? 0.86 : 0.95;
+    for (const loop of loops) {
+      if (loop.length < 3) {
+        continue;
+      }
+      const rand = mulberry32(Math.round(loop[0].x * 7 + loop[0].y * 3));
+      // Push each existing vertex a little along its own normal. Subdividing first, or pushing
+      // harder, makes the polygon self-intersect and the fill sprouts ribbons across the paper.
+      const torn: Pt[] = loop.map((point, index) => {
+        const next = loop[(index + 1) % loop.length];
+        const nx = -(next.y - point.y);
+        const ny = next.x - point.x;
+        const length = Math.hypot(nx, ny) || 1;
+        const push = (rand() - 0.4) * 3.5;
+        return { x: point.x + (nx / length) * push, y: point.y + (ny / length) * push };
+      });
+      graphics.fillStyle(PIGMENT.diepHi, alpha);
+      graphics.fillPoints(torn, true);
+    }
+  }
+
   drawShoreEdge(graphics: Phaser.GameObjects.Graphics, x1: number, y1: number, x2: number, y2: number): void {
     const seed = Math.round(x1 + y1 * 3 + x2 * 7);
     inkPath(graphics, [{ x: x1, y: y1 }, { x: x2, y: y2 }], seed, {

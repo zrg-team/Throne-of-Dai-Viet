@@ -266,8 +266,8 @@ export interface FieldPlot {
  */
 export function drawFieldPlot(g: G, plot: FieldPlot): void {
   const fill = plot.stage < 0.32 ? PIGMENT.chamWash : plot.stage < 0.68 ? PIGMENT.giDongPale : PIGMENT.hoePale;
-  washFill(g, plot.points, fill, plot.seed, plot.stage < 0.32 ? 0.4 : 0.55);
-  inkPath(g, plot.points, plot.seed + 1, { width: 0.65, alpha: 0.4, wobble: 0.5, step: 12, closed: true });
+  washFill(g, plot.points, fill, plot.seed, plot.stage < 0.32 ? 0.6 : 0.78);
+  inkPath(g, plot.points, plot.seed + 1, { width: 0.7, alpha: 0.52, wobble: 0.5, step: 12, closed: true });
 
   let minX = Infinity;
   let maxX = -Infinity;
@@ -284,7 +284,7 @@ export function drawFieldPlot(g: G, plot: FieldPlot): void {
     for (let line = 0; line < 2; line += 1) {
       const wy = minY + (maxY - minY) * (0.38 + line * 0.28);
       inkPath(g, [{ x: minX + 3, y: wy }, { x: minX + 3 + (maxX - minX) * 0.5, y: wy }], plot.seed + 2 + line, {
-        width: 0.55, alpha: 0.3, colour: PIGMENT.cham, wobble: 0.2, step: 7,
+        width: 0.6, alpha: 0.42, colour: PIGMENT.cham, wobble: 0.2, step: 7,
       });
     }
     return;
@@ -297,7 +297,7 @@ export function drawFieldPlot(g: G, plot: FieldPlot): void {
       const px = minX + 3 + ((maxX - minX - 6) / Math.max(1, columns - 1)) * column;
       const py = minY + ((maxY - minY) / 4) * (row + 1);
       inkPath(g, [{ x: px, y: py }, { x: px + 0.3, y: py - (plot.stage > 0.68 ? 2.8 : 2.1) }], plot.seed + column * 7 + row, {
-        width: 0.45, alpha: plot.stage > 0.68 ? 0.45 : 0.34, wobble: 0,
+        width: 0.5, alpha: plot.stage > 0.68 ? 0.55 : 0.44, wobble: 0,
       });
     }
   }

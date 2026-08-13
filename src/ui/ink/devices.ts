@@ -198,16 +198,34 @@ export function heron(g: G, x: number, y: number, s: number, filled: boolean, co
  * Many small birds, not few large ones — at frieze density the eye reads the rhythm and supplies
  * the bird, exactly as it does on the drum itself. The opposite instinct produces a row of blobs.
  */
-export function heronMeter(g: G, x: number, y: number, width: number, height: number, progress: number): void {
-  printedShape(
-    g,
-    [{ x, y }, { x: x + width, y }, { x: x + width, y: y + height }, { x, y: y + height }],
-    PIGMENT.diepLo, 904, { width: 0.8, alpha: 0.45, wobble: 0.3, step: 9, fillAlpha: 0.4 },
-  );
+export function heronMeter(
+  g: G,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  progress: number,
+  onDark = false,
+): void {
+  // On paper the birds are ink on a pale plate; on the dark chrome band the plate would read as a
+  // grey placeholder, so there the birds are light and the ground is left alone.
+  const flown = onDark ? PIGMENT.hoePale : PIGMENT.muc;
+  const waiting = onDark ? PIGMENT.mucFaint : PIGMENT.muc;
+  if (!onDark) {
+    printedShape(
+      g,
+      [{ x, y }, { x: x + width, y }, { x: x + width, y: y + height }, { x, y: y + height }],
+      PIGMENT.diepLo, 904, { width: 0.8, alpha: 0.45, wobble: 0.3, step: 9, fillAlpha: 0.4 },
+    );
+  } else {
+    g.lineStyle(0.8, PIGMENT.mucFaint, 0.35);
+    g.lineBetween(x, y + height, x + width, y + height);
+  }
   const count = Math.max(8, Math.round(width / (height * 1.05)));
   const gap = (width - height * 0.7) / count;
   for (let index = 0; index < count; index += 1) {
-    heron(g, x + height * 0.6 + index * gap, y + height * 0.5, height * 0.05, index / count < progress);
+    const done = index / count < progress;
+    heron(g, x + height * 0.6 + index * gap, y + height * 0.5, height * 0.05, done, done ? flown : waiting);
   }
 }
 

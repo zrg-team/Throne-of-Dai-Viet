@@ -63,6 +63,14 @@ export class SettlementRenderer {
     }
 
     if (cityCoords.length === 0) {
+      // A land the game calls a castle has to look like one even when the generator gave it no
+      // fortress terrain — which is how the player's own capital ended up rendering as a bare
+      // handful of huts while every rival seat had walls.
+      if (land.type === 'castle' || land.type === 'enemyCastle') {
+        this.mapItems.addCityCluster(cluster, [{ x: 0, y: 0 }], false, 'city');
+        this.addBuildingDecorations(cluster, land);
+        return cluster;
+      }
       this.addResourceCluster(cluster, land);
       return cluster;
     }

@@ -5,7 +5,7 @@ import { drawHost, hostShape, seal } from './ink/devices';
 import { drawFieldPlot } from './ink/settlements';
 import { citadel, hamlet, village } from './ink/settlements';
 import { inkPath, mulberry32 } from './ink/stroke';
-import { banyan, groundShadow, tree } from './ink/props';
+import { banyan, buffalo, groundShadow, tree } from './ink/props';
 import { createPlayerLandFlag } from './playerFlag';
 
 /**
@@ -66,8 +66,9 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
   }
 
   /**
-   * A settlement in oblique. Size decides the form: a knot of thatched roofs, then a village with
-   * its pond and bamboo hedge, then a walled seat.
+   * A settlement in oblique, its form decided by what the land IS rather than by how many hexes it
+   * happens to own. A castle is a walled seat at one hex or at nine; sizing that off the cluster
+   * count is what made the player's own capital read thinner than a rival's.
    */
   override addCityCluster(
     cluster: Phaser.GameObjects.Container,
@@ -85,26 +86,38 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
 
     const sorted = [...centers].sort((a, b) => a.y - b.y);
     const anchor = sorted[Math.floor(sorted.length / 2)];
+    // A bigger holding gets a bigger seat, but never below the size at which a wall reads.
+    const spread = Math.min(1.35, 0.8 + sorted.length * 0.06);
 
     if (isShrine || kind === 'shrine') {
-      banyan(graphics, anchor.x - 16, anchor.y + 4, 0.7, seed + 40);
-      village(graphics, anchor.x, anchor.y, 0.72, seed);
-    } else if (sorted.length >= 4 || kind === 'city') {
-      citadel(graphics, anchor.x - 30, anchor.y + 8, 0.62, 'le', seed);
+      banyan(graphics, anchor.x - 22, anchor.y + 2, 0.85 * spread, seed + 40);
+      village(graphics, anchor.x, anchor.y + 6, 0.8 * spread, seed);
+    } else if (kind === 'market') {
+      village(graphics, anchor.x, anchor.y + 4, 0.9 * spread, seed);
       for (const centre of sorted.slice(0, 2)) {
-        hamlet(graphics, centre.x + (rand() - 0.5) * 20, centre.y + 16, 0.5, seed + 100 + centre.x, 3);
+        hamlet(graphics, centre.x + (rand() - 0.5) * 26, centre.y + 20, 0.5 * spread, seed + 100 + centre.x, 3);
       }
-    } else if (sorted.length >= 2 || kind === 'market') {
-      village(graphics, anchor.x, anchor.y, 0.78, seed);
     } else {
-      hamlet(graphics, anchor.x, anchor.y, 0.8, seed, 5);
+      // Outlying hamlets first, so the seat stands in front of what it protects.
+      for (const centre of sorted.slice(0, Math.min(3, sorted.length - 1))) {
+        hamlet(graphics, centre.x + (rand() - 0.5) * 30, centre.y + 22, 0.46 * spread, seed + 100 + centre.x, 3);
+      }
+      const s = 0.78 * spread;
+      citadel(graphics, anchor.x - 38 * s, anchor.y + 12, s, 'le', seed);
+    }
+
+    // The herd grazes at the edge of the settlement, where it actually lives — not scattered
+    // through the paddy, and never far from the roofs.
+    buffalo(graphics, anchor.x - 34, anchor.y + 34, 0.42 * spread, seed + 700, rand() > 0.55);
+    if (sorted.length > 3) {
+      buffalo(graphics, anchor.x + 30, anchor.y + 40, 0.36 * spread, seed + 720, false);
     }
 
     for (const centre of sorted) {
-      if (centre === anchor || rand() > 0.5) {
+      if (centre === anchor || rand() > 0.45) {
         continue;
       }
-      tree(graphics, centre.x + (rand() - 0.5) * 30, centre.y + 14, 0.9, seed + 200 + centre.x);
+      tree(graphics, centre.x + (rand() - 0.5) * 34, centre.y + 16, 0.95, seed + 200 + centre.x);
     }
     cluster.add(graphics);
   }
@@ -176,5 +189,39 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
         width: 1.6, alpha: 0.5, colour: PIGMENT.mucSoft, wobble: 3.2, step: 18,
       });
     }
+  }
+
+  /** A farm is paddy and a hamlet, which is what a farm in the delta looks like. */
+  override createFarmCluster(scale: number, upgradeLevel: number): Phaser.GameObjects.Container {
+    const scene = this.scene as Phaser.Scene;
+    const container = scene.add.container(0, 0);
+    const graphics = scene.add.graphics();
+    const seed = Math.round(scale * 977 + upgradeLevel * 31);
+    const rand = mulberry32(seed);
+
+    const cols = 3;
+    const rows = 2 + Math.min(2, upgradeLevel);
+    const w = 24 * scale;
+    const h = 15 * scale;
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < cols; col += 1) {
+        const px = -w * 1.5 + col * w;
+        const py = -h * (rows / 2) + row * h;
+        drawFieldPlot(graphics, {
+          points: [
+            { x: px, y: py },
+            { x: px + w - 2, y: py - 1 + (rand() - 0.5) * 2 },
+            { x: px + w - 1, y: py + h - 3 },
+            { x: px + 1, y: py + h - 2 },
+          ],
+          stage: rand(),
+          seed: seed + row * 11 + col,
+        });
+      }
+    }
+    hamlet(graphics, w * 1.4, h * 0.4, 0.5 * scale, seed + 300, 2 + Math.min(3, upgradeLevel));
+    buffalo(graphics, -w * 1.4, h * (rows / 2) + 6, 0.4 * scale, seed + 400, rand() > 0.5);
+    container.add(graphics);
+    return container;
   }
 }
