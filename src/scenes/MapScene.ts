@@ -22,6 +22,7 @@ import { resolveForeignChoice } from '../systems/ForeignEventSystem';
 import { resolvePendingBattle } from '../systems/empire/InvasionSystem';
 import { SHEET_TOP } from '../ui/BottomSheet';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
+import { applyPaperFX } from '../ui/ink/PaperFX';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { ArmyRenderer } from './map/ArmyRenderer';
 import { OverlayRenderer } from './map/OverlayRenderer';
@@ -217,6 +218,8 @@ export class MapScene extends Phaser.Scene {
     this.registry.set('gameState', this.state);
     this.mapRenderer = createMapRenderer(this);
     this.mapItems = createMapItemRenderer(this);
+    // Ages the world camera — the HUD scene gets its own pass, so chrome and map share one sheet.
+    applyPaperFX(this);
     this.settlements = new SettlementRenderer(this, this.mapItems, this.mapRenderer.palette);
     this.traffic = new TrafficRenderer(this, this.mapRenderer, this.mapItems);
     this.overlays = new OverlayRenderer(this, this.mapRenderer);

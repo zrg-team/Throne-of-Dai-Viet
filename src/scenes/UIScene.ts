@@ -60,6 +60,7 @@ import {
   removeHeroFromPosition,
 } from '../systems/CourtSystem';
 import { ARMY_DEFAULT_PROVISIONS, ARMY_DEFAULT_RATIONS, ARMY_LOGISTICS_STEP } from '../game/gameplayConfig';
+import { applyPaperFX } from '../ui/ink/PaperFX';
 import type { CourtPositionId, GameState, Hero, Land, PoliticsCard, TaxPolicy } from '../state/types';
 import {
   buildingLabel,
@@ -208,6 +209,8 @@ export class UIScene extends Phaser.Scene {
   }
 
   create(): void {
+    // The chrome is printed on the same sheet as the world, so it takes the same paper pass.
+    applyPaperFX(this);
     this.input.setTopOnly(true);
     this.ui = new InkUI(this);
     this.resourceBar = new ResourceBar(this, this.state);

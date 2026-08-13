@@ -13,7 +13,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "faces": "node scripts/build-faces.mjs",
-    "faces:check": "node scripts/build-faces.mjs --check"
+    "faces:check": "node scripts/build-faces.mjs --check",
+    "fonts": "node scripts/fetch-fonts.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"

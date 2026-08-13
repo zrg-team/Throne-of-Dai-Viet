@@ -6,8 +6,15 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#173d2c" />
+    <meta name="theme-color" content="#2a2118" />
     <title>Mandate of Đại Việt</title>
+    <!-- Self-hosted so the game's Vietnamese renders the same on every device, and so an
+         offline load never falls back to whatever the phone happened to have. -->
+    <link rel="stylesheet" href="./fonts/fonts.css" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="./fonts/BeVietnamPro-400-vietnamese.woff2" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="./fonts/SourceSerif4-700-vietnamese.woff2" />
     <style>
       html,
       body,
@@ -16,11 +23,13 @@
         height: 100%;
         margin: 0;
         overflow: hidden;
-        background: #10271f;
+        background: #201a12;
         touch-action: none;
         overscroll-behavior: none;
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-          "Segoe UI", sans-serif;
+        font-family: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", Roboto,
+          sans-serif;
+        /* Vietnamese stacks two marks above the letter; anything tighter clips them. */
+        line-height: 1.45;
       }
 
       canvas {

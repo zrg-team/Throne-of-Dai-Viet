@@ -7,9 +7,11 @@ import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { InkUI, INK_UI } from '../ui/InkUI';
+import { PIGMENT } from '../ui/ink/palette';
 import { INK, brushStroke, inkOutline, shade, washFill, waveLine } from '../ui/inkTheme';
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
 import { getMapTheme, MAP_THEME_OPTIONS, setMapTheme } from '../ui/mapTheme';
+import { applyPaperFX } from '../ui/ink/PaperFX';
 
 type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy';
 
@@ -26,6 +28,8 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create(): void {
+    // The chrome is printed on the same sheet as the world, so it takes the same paper pass.
+    applyPaperFX(this);
     window.__mandateState = undefined;
     this.registry.remove('gameState');
     this.ui = new InkUI(this);
@@ -132,7 +136,7 @@ export class MenuScene extends Phaser.Scene {
     const rng = createMenuRng(1307);
 
     // Pale mist at the horizon – fades into the sea-teal background
-    g.fillGradientStyle(0xc4d8d4, 0xc4d8d4, INK.sea, INK.sea, 0.55);
+    g.fillGradientStyle(PIGMENT.diepHi, PIGMENT.diepHi, PIGMENT.diepLo, PIGMENT.diepLo, 0.55);
     g.fillRect(0, 0, GAME_WIDTH, 252);
 
     // Layered mountains drawn before the land polygon so they sit behind it
@@ -472,13 +476,13 @@ export class MenuScene extends Phaser.Scene {
       fontStyle: '700',
       align: 'center',
     }).setOrigin(0.5);
-    const subtitleShadow = this.ui.label(GAME_WIDTH / 2 + 1, 161, 'OF DAI VIET', 'title', {
+    const subtitleShadow = this.ui.label(GAME_WIDTH / 2 + 1, 161, 'OF ĐẠI VIỆT', 'title', {
       color: '#301509',
       fontFamily: TITLE_FONT,
       fontSize: '19px',
       fontStyle: '700',
     }).setOrigin(0.5);
-    const subtitle = this.ui.label(GAME_WIDTH / 2, 159, 'OF DAI VIET', 'title', {
+    const subtitle = this.ui.label(GAME_WIDTH / 2, 159, 'OF ĐẠI VIỆT', 'title', {
       color: '#fff6bd',
       fontFamily: TITLE_FONT,
       fontSize: '19px',

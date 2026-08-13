@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, isCampaignMode } from '../game/constants';
 import type { GameState } from '../state/types';
 import { InkUI, INK_UI } from './InkUI';
+import { sawtoothBand } from './ink/devices';
 import { t } from '../i18n';
 
 const EMPIRE_KEYS = ['build', 'heroes', 'court', 'army', 'affairs', 'directives', 'pause'] as const;
@@ -163,7 +164,10 @@ export class ActionBar extends Phaser.GameObjects.Container {
 
     const top = GAME_HEIGHT - ACTION_BAR_HEIGHT;
     this.add(scene.add.rectangle(0, top, GAME_WIDTH, ACTION_BAR_HEIGHT, INK_UI.backgroundInk, 0.96).setOrigin(0, 0));
-    this.add(scene.add.rectangle(14, top + 3, GAME_WIDTH - 28, 2, INK_UI.cinnabar, 0.78).setOrigin(0, 0));
+    // The same drum band as the resource strip, so the two ends of the screen are one frame.
+    const band = scene.add.graphics();
+    sawtoothBand(band, 10, top + 2, GAME_WIDTH - 20, 5, 0.3);
+    this.add(band);
 
     scene.add.existing(this);
     this.buildButtons();

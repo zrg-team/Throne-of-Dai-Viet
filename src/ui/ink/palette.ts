@@ -48,7 +48,9 @@ export const PIGMENT = {
   hide: 0x3e3226,
   hideLo: 0x584833,
   horn: 0xdccfae,
-} as const;
+  // Deliberately NOT `as const`: these values feed palettes whose entries are compared and
+  // reassigned, and literal types would make every one of those a type error.
+};
 
 export type PigmentKey = keyof typeof PIGMENT;
 
