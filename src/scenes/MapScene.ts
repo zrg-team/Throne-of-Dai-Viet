@@ -685,6 +685,38 @@ export class MapScene extends Phaser.Scene {
     const hexSize = this.state.mapConfig.hexSize;
     const rng = createRng(this.state.mapConfig.seed + 9001);
 
+    // A renderer that draws the whole landscape at once owns terrain entirely — ranges, field
+    // systems and prop scatters have to cross cell boundaries to look like a country, which the
+    // per-hex loop below structurally cannot do. It is wrapped because that renderer owns the
+    // layer wholesale: if it throws, the map would be blank rather than merely old-looking.
+    if (this.mapRenderer.drawLandscape) {
+      try {
+        this.mapRenderer.drawLandscape({
+          graphics,
+          decoration: decorationGraphics,
+          tiles: this.state.hexTiles,
+          tileSize: hexSize * MAP_SCALE,
+          centreOf: (tile) => {
+            const pixel = axialToPixel(tile.coord, hexSize);
+            return { x: this.wx(pixel.x), y: this.wy(pixel.y) };
+          },
+          centreAt: (q, r) => {
+            const pixel = axialToPixel({ q, r }, hexSize);
+            return { x: this.wx(pixel.x), y: this.wy(pixel.y) };
+          },
+          isVisible: (tile) => {
+            const land = tile.landId ? findLand(this.state, tile.landId) : undefined;
+            return !land || land.isVisible;
+          },
+        });
+        return;
+      } catch (error) {
+        console.warn('Landscape renderer failed; falling back to per-hex terrain:', error);
+        graphics.clear();
+        decorationGraphics.clear();
+      }
+    }
+
     for (const tile of this.state.hexTiles) {
       const land = tile.landId ? findLand(this.state, tile.landId) : undefined;
       if (land && !land.isVisible) {
@@ -763,6 +795,10 @@ export class MapScene extends Phaser.Scene {
 
         const [x1, y1] = corners[index];
         const [x2, y2] = corners[(index + 1) % corners.length];
+        if (this.mapRenderer.drawShoreEdge) {
+          this.mapRenderer.drawShoreEdge(this.coastGraphics!, x1, y1, x2, y2);
+          return;
+        }
         this.coastGraphics.lineStyle(18, sandLight, 0.56);
         this.coastGraphics.lineBetween(x1, y1, x2, y2);
         this.coastGraphics.lineStyle(9, sand, 0.74);

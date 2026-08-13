@@ -5,7 +5,7 @@
  * `src/map/boundary.ts` for the underlying region geometry.
  */
 import Phaser from 'phaser';
-import { COLORS, PLAYER_KINGDOM_ID } from '../../game/constants';
+import { COLORS, NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../../game/constants';
 import { traceLandBoundaryEdges, traceLandBoundaryLoops } from '../../map/boundary';
 import type { HexTile } from '../../map/hexMapGenerator';
 import { hashString } from '../../utils/math';
@@ -17,6 +17,8 @@ type OwnerColorLookup = (ownerId: string) => number;
 
 export class OverlayRenderer {
   private zoneGraphics = new Map<string, Phaser.GameObjects.Graphics>();
+  /** Merged-region outlines, per land. Rebuilt with the zone layers, so ownership flips pick up. */
+  private readonly boundaryLoopCache = new Map<string, Array<Array<{ x: number; y: number }>>>();
   private cloudGraphics = new Map<string, Phaser.GameObjects.Graphics>();
   private landBoundaryLoops = new Map<string, Array<Array<{ x: number; y: number }>>>();
   private armyHighlightLoops = new Map<string, Array<Array<{ x: number; y: number }>>>();
@@ -38,6 +40,7 @@ export class OverlayRenderer {
     wy: WorldTransform,
     getOwnerColor: OwnerColorLookup,
   ): void {
+    this.boundaryLoopCache.clear();
     for (const land of state.lands) {
       const graphics = this.scene.add.graphics();
       // Sit above the terrain fill but behind terrain decorations (mountains, forests,
@@ -85,6 +88,19 @@ export class OverlayRenderer {
     // dense grid of tiles; owned/claimed borders stay crisp as ownership signal.
     const { borders } = this.mapRenderer.palette;
     const alpha = color === COLORS.neutral ? borders.neutralAlpha : borders.ownedAlpha;
+
+    // A theme may prefer to carry ownership as something other than a saturated fill — the Đông Hồ
+    // renderer hatches the merged region, with the angle standing for the faction. Painted before
+    // the contour so the border still reads as the region's edge.
+    if (this.mapRenderer.drawZoneFill) {
+      const loops = traceLandBoundaryLoops(state, hexTileMap, wx, wy, this.boundaryLoopCache, land.id);
+      this.mapRenderer.drawZoneFill(
+        graphics,
+        loops,
+        land.ownerId === PLAYER_KINGDOM_ID,
+        land.ownerId === NEUTRAL_OWNER_ID || color === COLORS.neutral,
+      );
+    }
     this.mapRenderer.drawZoneBorder(graphics, edges, color, alpha);
   }
 
