@@ -155,7 +155,9 @@ export const DONG_HO_THEME: MapThemeDefinition = {
     waterHighlight: PIGMENT.chamPale,
     shore: PIGMENT.diepDeep,
     fog: PIGMENT.diepHi,
-    cityRoad: { bed: PIGMENT.diepHi, track: PIGMENT.nau },
+    // The bed must be DARKER than the paper it crosses. Near-white here drew a pale ribbon
+    // through every town that read as a highlight rather than as a beaten track.
+    cityRoad: { bed: PIGMENT.diepDeep, track: PIGMENT.nau },
     borders: { neutralAlpha: 0.05, ownedAlpha: 0.55 },
     minimap: {
       background: PIGMENT.diep, border: PIGMENT.muc, player: PIGMENT.son, neutral: PIGMENT.mucFaint,
