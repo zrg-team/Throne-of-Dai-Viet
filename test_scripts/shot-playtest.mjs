@@ -6,6 +6,9 @@
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 
+// Dev server port. Defaults to Vite's, overridable when 5173 is taken by something else.
+const BASE = process.env.DEV_URL ?? 'http://localhost:5173';
+
 const OUT = process.env.SHOT_OUT ?? 'output/playtest';
 mkdirSync(OUT, { recursive: true });
 
@@ -15,7 +18,7 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(`PAGEERROR ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE ${m.text()}`); });
 
-await page.goto('http://localhost:5199/?capture=1', { waitUntil: 'domcontentloaded' });
+await page.goto(`${BASE}/?capture=1`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
 await page.evaluate(() => localStorage.setItem('mandate:map-theme:v1', 'dong-ho'));
 await page.evaluate(() => window.__startBenchGame(1337, 'campaign'));

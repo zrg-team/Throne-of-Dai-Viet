@@ -1,7 +1,10 @@
 // Captures every screen the player can reach, so the Đông Hồ treatment can be checked past the
-// two or three screens a quick pass usually looks at. Run against a dev server on 5199.
+// two or three screens a quick pass usually looks at. Set DEV_URL if the dev server is not on 5173.
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
+
+// Dev server port. Defaults to Vite's, overridable when 5173 is taken by something else.
+const BASE = process.env.DEV_URL ?? 'http://localhost:5173';
 
 const OUT = process.env.SHOT_OUT ?? 'output/ui-sweep';
 mkdirSync(OUT, { recursive: true });
@@ -19,7 +22,7 @@ const shoot = async (name) => {
 };
 
 const boot = async (mode) => {
-  await page.goto('http://localhost:5199/?capture=1', { waitUntil: 'domcontentloaded' });
+  await page.goto(`${BASE}/?capture=1`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
   await page.evaluate(() => localStorage.setItem('mandate:map-theme:v1', 'dong-ho'));
   await page.evaluate((m) => window.__startBenchGame(1337, m), mode);
@@ -29,7 +32,7 @@ const boot = async (mode) => {
 };
 
 console.log('menu');
-await page.goto('http://localhost:5199/?capture=1', { waitUntil: 'domcontentloaded' });
+await page.goto(`${BASE}/?capture=1`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
 await page.waitForTimeout(1100);
 await shoot('00-menu');
