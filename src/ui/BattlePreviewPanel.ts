@@ -43,7 +43,7 @@ export class BattlePreviewPanel {
           spears: Math.round((u.spearmen / tot) * 100),
           archers: Math.round((u.archers / tot) * 100),
           heavy: Math.round((u.heavyInfantry / tot) * 100),
-        }), { color: '#cbb885', fontFamily: 'sans-serif', fontSize: '11px' }),
+        }), { color: '#6f6250', fontFamily: 'sans-serif', fontSize: '11px' }),
       );
     }
 

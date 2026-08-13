@@ -70,14 +70,19 @@ export interface UIBounds {
  * it: bamboo-soot black for the ground, điệp for the paper, sỏi son for the red, hoa hòe for gold.
  */
 export const INK_UI = {
-  backgroundInk: PIGMENT.muc,
-  overlay: 0x171308,
+  // The chrome sits ON the paper, not on a slab of near-black floating over it. Every bar, header
+  // and modal ground in the game reads from these two, and flipping them here is what stops the
+  // interface looking like a different product bolted onto the map.
+  backgroundInk: PIGMENT.diepHi,
+  /** A sheet of paper laid over the world, not a blackout. The map stays faintly readable under it. */
+  overlay: PIGMENT.diep,
   parchment: PIGMENT.diepHi,
   parchmentShade: PIGMENT.diep,
   parchmentDark: PIGMENT.diepLo,
   inkText: '#2a2118',
   mutedText: '#5a4c39',
-  lightText: '#f3ecd8',
+  /** Text on a saturated ground — a sỏi son button, a stamped seal. Not for use on paper. */
+  lightText: '#fbf2df',
   brush: PIGMENT.muc,
   softBrush: PIGMENT.mucSoft,
   jade: PIGMENT.giDong,
@@ -90,7 +95,7 @@ export const INK_UI = {
 export const INK_UI_HEX = {
   inkText: '#2a2118',
   mutedText: '#5a4c39',
-  lightText: '#f3ecd8',
+  lightText: '#fbf2df',
 };
 
 export type InkButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'disabled';
@@ -372,12 +377,15 @@ export class InkUI {
     container.addAt(this.panel({ x: 0, y: 0, width: bounds.width, height }, opts), 0);
 
     if (opts.status) {
-      const status = this.scene.add.text(bounds.width - padding, 8, opts.status, {
+      // A label, not a pill. On paper a filled chip reads as a sticker; letter-spaced small caps
+      // in muted ink says the same thing and stays part of the page.
+      const status = this.scene.add.text(bounds.width - padding, 9, opts.status.toLocaleUpperCase(), {
         ...textStyle('caption'),
-        color: INK_UI_HEX.lightText,
-        backgroundColor: colorToCss(opts.muted ? INK_UI.softBrush : INK_UI.cinnabar),
-        padding: { x: 5, y: 2 },
+        color: opts.muted ? INK_UI_HEX.mutedText : colorToCss(INK_UI.cinnabar),
+        fontSize: '9px',
+        fontStyle: '700',
       }).setOrigin(1, 0);
+      status.setLetterSpacing?.(1.2);
       container.add(status);
     }
 
@@ -419,7 +427,9 @@ export class InkUI {
     draw(false);
 
     const text = this.label(bounds.width / 2, bounds.height / 2, label, 'button', {
-      color: variant === 'danger' ? INK_UI_HEX.lightText : INK_UI_HEX.inkText,
+      color: variant === 'danger' ? INK_UI_HEX.lightText
+        : variant === 'primary' ? colorToCss(INK_UI.cinnabar)
+        : INK_UI_HEX.inkText,
       fontSize,
       align: 'center',
       wordWrap: { width: bounds.width - 10 },
@@ -503,20 +513,23 @@ export class InkUI {
     );
 
     const frame = this.panel({ x, y, width, height }, {
-      fill: INK_UI.parchmentDark,
-      fillShade: INK_UI.parchment,
+      fill: INK_UI.parchment,
+      fillShade: INK_UI.parchmentDark,
       border: INK_UI.brush,
       radius: 12,
       borderWidth: 3,
     });
     const header = this.scene.add.graphics({ x, y });
-    header.fillStyle(INK_UI.backgroundInk, 0.96);
+    header.fillStyle(INK_UI.parchment, 0.96);
     header.fillRoundedRect(0, 0, width, headerHeight, { tl: 12, tr: 12, bl: 0, br: 0 });
-    header.lineStyle(1, INK_UI.cinnabar, 0.65);
-    header.lineBetween(10, headerHeight - 2, width - 10, headerHeight - 2);
+    // Two rules under the title, the way a printed page separates its head from its body.
+    header.lineStyle(1.4, INK_UI.brush, 0.42);
+    header.lineBetween(10, headerHeight - 3, width - 10, headerHeight - 3);
+    header.lineStyle(0.8, INK_UI.cinnabar, 0.5);
+    header.lineBetween(10, headerHeight, width - 10, headerHeight);
 
     const title = this.label(x + width / 2, y + 18, opts.title, 'title', {
-      color: INK_UI_HEX.lightText,
+      color: INK_UI_HEX.inkText,
       align: 'center',
       wordWrap: { width: width - 80 },
     }).setOrigin(0.5, 0);
@@ -539,7 +552,7 @@ export class InkUI {
   closeIcon(bounds: UIBounds, onClick: () => void): Phaser.GameObjects.Container {
     const container = this.scene.add.container(bounds.x, bounds.y);
     const text = this.label(bounds.width / 2, bounds.height / 2 - 1, '×', 'button', {
-      color: INK_UI_HEX.lightText,
+      color: INK_UI_HEX.inkText,
       fontSize: '22px',
       fontStyle: '700',
     }).setOrigin(0.5);
@@ -629,7 +642,7 @@ function textStyle(variant: 'title' | 'subtitle' | 'body' | 'label' | 'caption' 
     case 'title':
       return { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '22px', fontStyle: '700' };
     case 'subtitle':
-      return { color: '#e9d6aa', fontFamily: UI_FONT, fontSize: '12px' };
+      return { color: '#5a4c39', fontFamily: UI_FONT, fontSize: '12px' };
     case 'label':
       return { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '15px', fontStyle: '700' };
     case 'caption':
@@ -695,9 +708,16 @@ function drawButtonSurface(
 
 function buttonPalette(variant: InkButtonVariant, pressed: boolean): { top: number; bottom: number; border: number } {
   if (variant === 'primary') {
+    // Sỏi son as an OUTLINE, not a fill.
+    //
+    // The scarcity law says the saturated red belongs to the player alone — their banner, their
+    // seal, their losses. A list of six equal actions rendered as six red slabs spends it six
+    // times on one screen and the map stops having a focal point. An inked border and red
+    // lettering on paper still reads as "this is the action" while leaving the filled red to
+    // `danger`, which is genuinely rare.
     return {
-      top: pressed ? INK_UI.gold : INK_UI.goldLight,
-      bottom: pressed ? 0xb98a2c : INK_UI.gold,
+      top: pressed ? INK_UI.parchmentDark : INK_UI.parchment,
+      bottom: INK_UI.parchmentDark,
       border: INK_UI.cinnabar,
     };
   }

@@ -470,7 +470,7 @@ export class MenuScene extends Phaser.Scene {
       align: 'center',
     }).setOrigin(0.5);
     const title = this.ui.label(GAME_WIDTH / 2, 127, 'MANDATE', 'title', {
-      color: '#f3dd9a',
+      color: '#2a2118',
       fontFamily: TITLE_FONT,
       fontSize: '36px',
       fontStyle: '700',
@@ -483,7 +483,7 @@ export class MenuScene extends Phaser.Scene {
       fontStyle: '700',
     }).setOrigin(0.5);
     const subtitle = this.ui.label(GAME_WIDTH / 2, 159, 'OF ĐẠI VIỆT', 'title', {
-      color: '#fff6bd',
+      color: '#2a2118',
       fontFamily: TITLE_FONT,
       fontSize: '19px',
       fontStyle: '700',
@@ -502,7 +502,7 @@ export class MenuScene extends Phaser.Scene {
     }, { variant: 'primary', fontSize: '17px' }));
 
     this.content.push(this.add.text(GAME_WIDTH / 2, 570, t('ascent.menu.tagline'), {
-      color: '#e8d89a',
+      color: '#8a5f1c',
       fontFamily: UI_FONT,
       fontSize: '11px',
       align: 'center',
@@ -522,7 +522,7 @@ export class MenuScene extends Phaser.Scene {
     }, { variant: saved ? 'ghost' : 'disabled', fontSize: '15px' }));
 
     const saveLabel = this.add.text(GAME_WIDTH / 2, 698, snapshotLabel(), {
-      color: saved ? '#f3dd9a' : '#d8c48e',
+      color: saved ? '#2a2118' : '#5a4c39',
       fontFamily: UI_FONT,
       fontSize: '12px',
       fontStyle: '700',
@@ -541,7 +541,7 @@ export class MenuScene extends Phaser.Scene {
         rank: rankForScore(legacy.bestScore),
         total: legacy.points,
       }), {
-        color: '#e8d89a',
+        color: '#8a5f1c',
         fontFamily: UI_FONT,
         fontSize: '11px',
         align: 'center',
@@ -564,7 +564,7 @@ export class MenuScene extends Phaser.Scene {
    */
   private renderClassic(): void {
     this.content.push(this.add.text(GAME_WIDTH / 2, 250, t('ascent.menu.classicTitle'), {
-      color: '#f3dd9a',
+      color: '#2a2118',
       fontFamily: TITLE_FONT,
       fontSize: '20px',
       fontStyle: '700',
@@ -613,10 +613,10 @@ export class MenuScene extends Phaser.Scene {
   private renderLegacyShop(): void {
     const legacy = getLegacy();
     this.content.push(this.add.text(GAME_WIDTH / 2, 236, t('empire.legacy.shopTitle'), {
-      color: '#f3dd9a', fontFamily: TITLE_FONT, fontSize: '20px', fontStyle: '700', align: 'center',
+      color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '20px', fontStyle: '700', align: 'center',
     }).setOrigin(0.5));
     this.content.push(this.add.text(GAME_WIDTH / 2, 262, t('empire.legacy.banked', { total: legacy.points }), {
-      color: '#e8d89a', fontFamily: UI_FONT, fontSize: '13px', align: 'center',
+      color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '13px', align: 'center',
     }).setOrigin(0.5));
 
     let y = 290;
