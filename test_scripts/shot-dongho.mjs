@@ -1,7 +1,10 @@
 // Captures the Đông Hồ art direction in the running game, so the screens can be held against the
-// mock-ups in docs/10-ink-and-shell.html. Run against a dev server on 5199.
+// mock-ups in docs/10-ink-and-shell.html. Set DEV_URL if the dev server is not on 5173.
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
+
+// Dev server port. Defaults to Vite's, overridable when 5173 is taken by something else.
+const BASE = process.env.DEV_URL ?? 'http://localhost:5173';
 
 const OUT = process.env.SHOT_OUT ?? 'output/dongho';
 mkdirSync(OUT, { recursive: true });
@@ -19,7 +22,7 @@ const shoot = async (name) => {
 };
 
 const boot = async (mode) => {
-  await page.goto('http://localhost:5199/?capture=1', { waitUntil: 'domcontentloaded' });
+  await page.goto(`${BASE}/?capture=1`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__phaserGame && window.__phaserGame.scene.isActive('MenuScene'), null, { timeout: 30000 });
   await page.evaluate((t) => localStorage.setItem('mandate:map-theme:v1', t), 'dong-ho');
   await page.evaluate((m) => window.__startBenchGame(1337, m), mode);
@@ -38,7 +41,7 @@ const zoomTo = async (sceneKey, zoom) => {
 };
 
 // ── the menu, where the theme is chosen ──────────────────────────────────────
-await page.goto('http://localhost:5199/?capture=1', { waitUntil: 'domcontentloaded' });
+await page.goto(`${BASE}/?capture=1`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame && window.__phaserGame.scene.isActive('MenuScene'), null, { timeout: 30000 });
 await page.waitForTimeout(1000);
 await shoot('00-menu');
