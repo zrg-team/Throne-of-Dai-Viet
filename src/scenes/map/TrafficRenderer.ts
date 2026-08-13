@@ -4,6 +4,7 @@
  */
 import Phaser from 'phaser';
 import { buildRoadCurve } from '../../map/roadCurve';
+import { faceTravel, type Walkable } from '../../ui/ink/life';
 import { hashString } from '../../utils/math';
 import type { GameState, Land } from '../../state/types';
 import type { MapRenderer } from '../../ui/MapRenderer';
@@ -74,12 +75,17 @@ export class TrafficRenderer {
       // travelling backwards down the same road — and a cart drawn with its ox in front becomes an
       // ox being pushed along behind it. Nothing else on the map moves, so it is the one thing on
       // screen the eye is already following.
+      //
+      // `faceTravel` multiplies the step's direction by the direction the glyph was *drawn* in.
+      // Flipping on travel alone assumes every glyph faces +x, and the Đông Hồ xe trâu is drawn
+      // facing left — so under that assumption it was pointed the wrong way on BOTH legs: mirrored
+      // when it went left, unmirrored when it went right.
       const heading = point.x - (mover as unknown as { x: number }).x;
       if (Math.abs(heading) > 0.05) {
         const next = heading < 0 ? -1 : 1;
         if (next !== facing) {
           facing = next;
-          mover.setScale?.(next, 1);
+          if (mover.setScale) faceTravel(mover as unknown as Walkable, next);
         }
       }
       mover.setPosition(point.x, point.y);

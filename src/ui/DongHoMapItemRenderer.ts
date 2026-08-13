@@ -4,11 +4,13 @@ import type { ProgressBadgeVariant } from './MapItemRenderer';
 import type { LandBuildingType } from '../state/types';
 import { UI_FONT } from './fonts';
 import { PIGMENT } from './ink/palette';
-import { drawHost, figure, hostShape, seal } from './ink/devices';
+import { drawHost, figure, hostFootprint, hostShape, marchInPlace, seal } from './ink/devices';
 import { drawFieldPlot } from './ink/settlements';
 import { citadel, hamlet, village } from './ink/settlements';
 import { hatchPoly, inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './ink/stroke';
 import { areca, bamboo, banyan, buffalo, farmer, groundShadow, hayStack, house, thap, tree } from './ink/props';
+import { grazeInSmallArea, livingSprite, setNativeFacing } from './ink/life';
+import { bakedBuffalo } from './ink/sprites';
 import { createPlayerLandFlag } from './playerFlag';
 
 /**
@@ -69,6 +71,18 @@ function chainEdges(edges: Array<[number, number, number, number]>): Pt[][] {
   return loops;
 }
 
+/**
+ * One thing standing on a settlement's ground, and the line it stands on.
+ *
+ * `draw` goes into a shared buffer; `object` is a live game object (an animal that walks). Both
+ * carry their ground `y` so `paintByGround` can put them in the order a human eye expects.
+ */
+interface GroundPart {
+  y: number;
+  draw?: (g: Phaser.GameObjects.Graphics) => void;
+  object?: () => Phaser.GameObjects.GameObject;
+}
+
 /** One Chaikin pass: cuts every corner, so a hexagon relaxes toward the bank of earth it stands for. */
 function smoothLoop(loop: Pt[]): Pt[] {
   if (loop.length < 3) {
@@ -118,24 +132,26 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     const scale = 0.82;
     const shape = hostShape(Math.max(1, total), 4.6 * scale, 4 * scale);
 
-    // The shadow is the ground the whole block stands on, not a blob under one point of it.
-    //
-    // `drawHost` lays its ranks from the top-left corner it is given and steps each one up and
-    // right, so the men occupy a sheared rectangle running from the back rank at y = -height to
-    // the front rank at y = 0. `groundShadow` draws a fixed-proportion ellipse — its height is
-    // tied to its width — so wherever it was placed it was either sitting below the front rank or
-    // floating inside the middle of the formation. Drawn directly, it can be the shape of the
-    // footprint: as wide as the ranks are, as deep as they are, leaning the same way they lean.
-    const shear = shape.rows * 1.2 * scale;
-    graphics.fillStyle(PIGMENT.muc, 0.07);
-    graphics.fillEllipse(
-      shear * 0.5,
-      -shape.height * 0.5 + 2,
-      shape.width + shear + 10 * scale,
-      shape.height + 10 * scale,
-    );
-    drawHost(graphics, -shape.width / 2, -shape.height, Math.max(1, total), Math.round(total) + 17, colour, scale, true);
+    // The shadow is the ground the whole block stands on, not a blob under one point of it. Same
+    // anchor as the `drawHost` call below, which is the only way the two stay registered.
+    hostFootprint(graphics, -shape.width / 2, -shape.height, shape, scale);
     container.add(graphics);
+
+    // Each rank on its own object so the block has a cadence. A host that never moves is the
+    // largest still object on a map where the roads, the herds and the water all move.
+    const ranks: Phaser.GameObjects.Graphics[] = [];
+    drawHost(
+      graphics, -shape.width / 2, -shape.height, Math.max(1, total), Math.round(total) + 17, colour, scale, true,
+      (rank) => {
+        while (ranks.length <= rank) {
+          const layer = scene.add.graphics();
+          ranks.push(layer);
+          container.add(layer);
+        }
+        return ranks[rank];
+      },
+    );
+    marchInPlace(scene, ranks, scale);
 
     // The standard rides with the host and multiplies with it, so size reads twice over.
     const standards = Math.max(1, Math.min(3, Math.round(total / 4000)));
@@ -174,8 +190,6 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     if (centers.length === 0) {
       return;
     }
-    const scene = this.scene as Phaser.Scene;
-    const graphics = scene.add.graphics();
     const seed = Math.round(centers[0].x * 13 + centers[0].y * 7);
     const rand = mulberry32(seed);
 
@@ -183,38 +197,102 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     const anchor = sorted[Math.floor(sorted.length / 2)];
     // A bigger holding gets a bigger seat, but never below the size at which a wall reads.
     const spread = Math.min(1.35, 0.8 + sorted.length * 0.06);
+    const parts: GroundPart[] = [];
 
     if (isShrine || kind === 'shrine') {
-      banyan(graphics, anchor.x - 22, anchor.y + 2, 0.85 * spread, seed + 40);
-      village(graphics, anchor.x, anchor.y + 6, 0.8 * spread, seed);
+      parts.push({ y: anchor.y + 2, draw: (g) => banyan(g, anchor.x - 22, anchor.y + 2, 0.85 * spread, seed + 40) });
+      parts.push({ y: anchor.y + 6, draw: (g) => village(g, anchor.x, anchor.y + 6, 0.8 * spread, seed) });
     } else if (kind === 'market') {
-      village(graphics, anchor.x, anchor.y + 4, 0.9 * spread, seed);
+      parts.push({ y: anchor.y + 4, draw: (g) => village(g, anchor.x, anchor.y + 4, 0.9 * spread, seed) });
       for (const centre of sorted.slice(0, 2)) {
-        hamlet(graphics, centre.x + (rand() - 0.5) * 26, centre.y + 20, 0.5 * spread, seed + 100 + centre.x, 3);
+        const hx = centre.x + (rand() - 0.5) * 26;
+        const hy = centre.y + 20;
+        parts.push({ y: hy, draw: (g) => hamlet(g, hx, hy, 0.5 * spread, seed + 100 + centre.x, 3) });
       }
     } else {
-      // Outlying hamlets first, so the seat stands in front of what it protects.
       for (const centre of sorted.slice(0, Math.min(3, sorted.length - 1))) {
-        hamlet(graphics, centre.x + (rand() - 0.5) * 30, centre.y + 22, 0.46 * spread, seed + 100 + centre.x, 3);
+        const hx = centre.x + (rand() - 0.5) * 30;
+        const hy = centre.y + 22;
+        parts.push({ y: hy, draw: (g) => hamlet(g, hx, hy, 0.46 * spread, seed + 100 + centre.x, 3) });
       }
       const s = 0.78 * spread;
-      citadel(graphics, anchor.x - 38 * s, anchor.y + 12, s, 'le', seed);
+      parts.push({ y: anchor.y + 12, draw: (g) => citadel(g, anchor.x - 38 * s, anchor.y + 12, s, 'le', seed) });
     }
 
     // The herd grazes at the edge of the settlement, where it actually lives — not scattered
-    // through the paddy, and never far from the roofs.
-    buffalo(graphics, anchor.x - 34, anchor.y + 34, 1 * spread, seed + 700, rand() > 0.55);
+    // through the paddy, and never far from the roofs. Each animal gets its own object rather than
+    // going into the settlement's buffer with the houses: a buffalo baked into the same graphics as
+    // the roofs behind it can never take a step, and a herd standing perfectly still is the one
+    // thing on a drawn map that reads as the picture having frozen.
+    parts.push({ y: anchor.y + 34, object: () => this.grazingBuffalo(anchor.x - 34, anchor.y + 34, 1 * spread, seed + 700, rand() > 0.55) });
     if (sorted.length > 3) {
-      buffalo(graphics, anchor.x + 30, anchor.y + 40, 0.85 * spread, seed + 720, false);
+      parts.push({ y: anchor.y + 40, object: () => this.grazingBuffalo(anchor.x + 30, anchor.y + 40, 0.85 * spread, seed + 720, false) });
     }
 
     for (const centre of sorted) {
       if (centre === anchor || rand() > 0.45) {
         continue;
       }
-      tree(graphics, centre.x + (rand() - 0.5) * 34, centre.y + 16, 0.95, seed + 200 + centre.x);
+      const tx = centre.x + (rand() - 0.5) * 34;
+      const ty = centre.y + 16;
+      parts.push({ y: ty, draw: (g) => tree(g, tx, ty, 0.95, seed + 200 + centre.x) });
     }
-    cluster.add(graphics);
+
+    this.paintByGround(cluster, parts);
+  }
+
+  /**
+   * Paints a settlement's parts back to front, by the ground each one stands on.
+   *
+   * A village used to be drawn in the order the code happened to mention things — hamlets, the
+   * seat, then every tree — so a tree standing in *front* of a roof was painted over it and the
+   * roof appeared to be behind a tree it was nearer than. The eye reads a scene bottom-up: what is
+   * lower on the sheet is nearer, and nearer things cover farther ones.
+   *
+   * The shared `Graphics` is split around any live object in the list, because a container renders
+   * its children in list order — so a buffalo added first is behind every roof no matter where it
+   * is standing. Splitting costs one extra buffer per animal and is what lets the herd walk in
+   * front of the houses it lives beside.
+   */
+  private paintByGround(cluster: Phaser.GameObjects.Container, parts: GroundPart[]): void {
+    const scene = this.scene as Phaser.Scene;
+    const ordered = [...parts].sort((a, b) => a.y - b.y);
+    let layer: Phaser.GameObjects.Graphics | undefined;
+
+    for (const part of ordered) {
+      if (part.draw) {
+        if (!layer) {
+          layer = scene.add.graphics();
+          cluster.add(layer);
+        }
+        part.draw(layer);
+      } else if (part.object) {
+        cluster.add(part.object());
+        // Anything nearer than this object has to go into a buffer drawn after it.
+        layer = undefined;
+      }
+    }
+  }
+
+  /**
+   * One water buffalo on its own object, wandering a small patch of its own field.
+   *
+   * Drawn from a **baked texture**, not a live `Graphics`. The animal is several hundred path
+   * segments and never changes shape, so as a `Graphics` every one of them was re-submitted sixty
+   * times a second, forty-odd animals at a time, to show a picture that was identical to the last
+   * frame. Baked once and stamped as images, the herd costs a texture and some transforms — and
+   * the variants are deliberately few so the copies batch into one draw call rather than flushing
+   * per object.
+   *
+   * `buffalo` is drawn facing left, so the wander is told that: an animal that walks right has to
+   * be mirrored, and one that mirrors on the wrong leg walks backwards.
+   */
+  private grazingBuffalo(x: number, y: number, scale: number, seed: number, rider: boolean): Phaser.GameObjects.Image {
+    const scene = this.scene as Phaser.Scene;
+    const animal = livingSprite(scene, bakedBuffalo(scene, seed, rider), x, y, scale);
+    // A ridden animal is being taken somewhere and keeps closer to its herder; a loose one drifts.
+    grazeInSmallArea(scene, animal, x, y, rider ? 9 : 14, seed, -1);
+    return animal;
   }
 
   /** A small holding: two or three roofs and a tree, at the same line weight as everything else. */
@@ -372,21 +450,26 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
   override createFarmCluster(scale: number, upgradeLevel: number): Phaser.GameObjects.Container {
     const scene = this.scene as Phaser.Scene;
     const container = scene.add.container(0, 0);
-    const g = scene.add.graphics();
     const seed = Math.round(scale * 977 + upgradeLevel * 31);
     const rand = mulberry32(seed);
 
-    hamlet(g, 4 * scale, -2 * scale, 0.6 * scale, seed, 3 + Math.min(3, upgradeLevel));
-    hayStack(g, -26 * scale, 6 * scale, 0.5 * scale, seed + 200);
-    buffalo(g, -30 * scale, 20 * scale, 1 * scale, seed + 300, rand() > 0.5);
-    farmer(g, 26 * scale, 16 * scale, 0.9 * scale, seed + 400);
+    // Ordered by the ground each stands on, not by the order they are listed: the areca beside the
+    // houses is behind them, the farmer out in front of them is in front.
+    const parts: GroundPart[] = [
+      { y: -2 * scale, draw: (g) => hamlet(g, 4 * scale, -2 * scale, 0.6 * scale, seed, 3 + Math.min(3, upgradeLevel)) },
+      { y: 6 * scale, draw: (g) => hayStack(g, -26 * scale, 6 * scale, 0.5 * scale, seed + 200) },
+      { y: 16 * scale, draw: (g) => farmer(g, 26 * scale, 16 * scale, 0.9 * scale, seed + 400) },
+      // The farm's own animal, working rather than posed.
+      { y: 20 * scale, object: () => this.grazingBuffalo(-30 * scale, 20 * scale, 1 * scale, seed + 300, rand() > 0.5) },
+    ];
     if (upgradeLevel > 0) {
-      areca(g, 34 * scale, 6 * scale, 0.4 * scale, seed + 500);
+      parts.push({ y: 6 * scale, draw: (g) => areca(g, 34 * scale, 6 * scale, 0.4 * scale, seed + 500) });
     }
     if (upgradeLevel > 1) {
-      bamboo(g, -34 * scale, -8 * scale, 0.45 * scale, seed + 600);
+      parts.push({ y: -8 * scale, draw: (g) => bamboo(g, -34 * scale, -8 * scale, 0.45 * scale, seed + 600) });
     }
-    container.add(g);
+
+    this.paintByGround(container, parts);
     return container;
   }
 
@@ -544,14 +627,19 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
   /**
    * A xe trâu: the animal, the shafts it is yoked into, and the cart behind it.
    *
-   * Drawn facing left, because that is the direction the mover flips from. The buffalo was small
-   * enough to be a smudge and floated a body-length ahead of the shafts with nothing joining them;
-   * at this size the whole rig is about twelve pixels, so the one thing that has to read is that
-   * the animal is attached to the cart and pulling it.
+   * Drawn facing left, which it now *declares* with `setNativeFacing`. It used to only say so in
+   * this comment, while `TrafficRenderer` flipped every mover as though it faced right — so the rig
+   * was pointed backwards on both legs of its round trip, pushing the cart on the way out and
+   * dragging it in reverse on the way home.
+   *
+   * The buffalo was small enough to be a smudge and floated a body-length ahead of the shafts with
+   * nothing joining them; at this size the whole rig is about twelve pixels, so the one thing that
+   * has to read is that the animal is attached to the cart and pulling it.
    */
   override createCart(): Phaser.GameObjects.Container {
     const scene = this.scene as Phaser.Scene;
     const container = scene.add.container(0, 0);
+    setNativeFacing(container, -1);
     const g = scene.add.graphics();
     groundShadow(g, 2, 5, 11, 0.07);
     printedShape(g, [{ x: 0, y: -4 }, { x: 12, y: -4 }, { x: 12, y: 2 }, { x: 0, y: 2 }],

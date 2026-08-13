@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { ASCENT_TICK_MS } from '../game/ascentConfig';
 import { INK_UI } from '../ui/InkUI';
-import { ACTION_BAR_HEIGHT, GAME_HEIGHT, NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../game/constants';
+import { ACTION_BAR_HEIGHT, GAME_HEIGHT, HEADER_HEIGHT, NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../game/constants';
 import { MAP_SCALE, axialToPixel, hexCorners } from '../map/hex';
 import { traceLandBoundaryLoops } from '../map/boundary';
 import { advanceAscentTick } from '../systems/ascent/AscentTick';
@@ -14,6 +14,7 @@ import { raiseHostNow } from '../systems/ascent/AutopilotSystem';
 import { disbandArmy } from '../systems/WarSystem';
 import { commitReserve, finishBattle, rally, setBattleFocus, setBattlePosture } from '../systems/ascent/BattleSystem';
 import { createAscentGameState } from '../state/GameState';
+import { ASCENT_HUD_HEIGHT } from '../ui/ascent/AscentHud';
 import { MapScene } from './MapScene';
 
 /**
@@ -392,8 +393,14 @@ export class ConquestScene extends MapScene {
   }
 }
 
-/** Bottom edge of the HUD strip; taps above this belong to the HUD, not the map. */
-export const ASCENT_HUD_BOTTOM = 104;
+/**
+ * Bottom edge of the HUD strip; taps above this belong to the HUD, not the map.
+ *
+ * Derived rather than typed: as a hand-kept 104 against a band that actually closed at 110, the
+ * bottom six pixels of the readout passed taps through to the map underneath it — and the number
+ * had to be remembered every time either band's height moved.
+ */
+export const ASCENT_HUD_BOTTOM = HEADER_HEIGHT + ASCENT_HUD_HEIGHT;
 /** Top edge of the province inspect card, shown only while a province is selected. */
 export const ASCENT_INSPECT_TOP = 654;
 /** Top edge of the standing action bar. Always fixed UI, selection or not. */

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PIGMENT } from './palette';
+import { PIGMENT, shadePigment } from './palette';
 import { inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './stroke';
 import { UNIT } from './proportion';
 
@@ -51,16 +51,47 @@ export function tree(g: G, x: number, y: number, scale: number, seed: number): v
     const rr = radius * (1 + 0.09 * Math.cos(t * Math.PI * 2 * lobes)) * (0.9 + rand() * 0.18);
     canopy.push({ x: x + Math.cos(angle) * rr * 1.06, y: y - radius * 1.15 + Math.sin(angle) * rr * 0.9 });
   }
-  printedShape(g, canopy, rand() > 0.62 ? PIGMENT.giDongPale : PIGMENT.giDong, seed + 1, {
+  const pale = rand() > 0.62;
+  printedShape(g, canopy, pale ? PIGMENT.giDongPale : PIGMENT.giDong, seed + 1, {
     width: 0.72 * s, alpha: 0.72, wobble: 0.16 * s, step: 4, fillAlpha: 0.85,
   });
+
+  // A shaded crescent along the lower-right of the crown, and a lit lobe up-left of the centre.
+  //
+  // A single scalloped ring reads as a flat green stamp however nicely its edge wobbles, which is
+  // what a whole hillside of these looked like. What the woodcut reference does — and what costs
+  // two shapes — is give the canopy a light side and a dark side, so the crown reads as a ball of
+  // leaves with the sun on one shoulder.
+  const crownY = y - radius * 1.15;
+  const shade: Pt[] = [];
+  for (let index = 0; index <= 9; index += 1) {
+    const angle = -0.35 + (index / 9) * 2.1;
+    shade.push({ x: x + Math.cos(angle) * radius * 1.0, y: crownY + Math.sin(angle) * radius * 0.86 });
+  }
+  for (let index = 9; index >= 0; index -= 1) {
+    const angle = -0.35 + (index / 9) * 2.1;
+    const lobe = 0.52 + 0.06 * Math.cos(index * 2.1);
+    shade.push({ x: x + Math.cos(angle) * radius * lobe, y: crownY + Math.sin(angle) * radius * lobe * 0.88 });
+  }
+  g.fillStyle(pale ? PIGMENT.giDong : shadePigment(PIGMENT.giDong, 0.78), 0.5);
+  g.fillPoints(shade, true);
+
+  const lit: Pt[] = [];
+  for (let index = 0; index <= 11; index += 1) {
+    const t = index / 11;
+    const angle = t * Math.PI * 2;
+    const rr = radius * 0.46 * (1 + 0.12 * Math.cos(t * Math.PI * 2 * 3));
+    lit.push({ x: x - radius * 0.3 + Math.cos(angle) * rr, y: crownY - radius * 0.26 + Math.sin(angle) * rr * 0.82 });
+  }
+  g.fillStyle(pale ? PIGMENT.diepHi : PIGMENT.giDongPale, 0.34);
+  g.fillPoints(lit, true);
 
   for (let pass = 0; pass < 2; pass += 1) {
     const start = 0.5 + pass * 1.7;
     const arc: Pt[] = [];
     for (let index = 0; index <= 7; index += 1) {
       const angle = start + (index / 7) * 1.5;
-      arc.push({ x: x + Math.cos(angle) * radius * 0.5, y: y - radius * 1.15 + Math.sin(angle) * radius * 0.45 });
+      arc.push({ x: x + Math.cos(angle) * radius * 0.5, y: crownY + Math.sin(angle) * radius * 0.45 });
     }
     inkPath(g, arc, seed + 5 + pass, { width: 0.55 * s, alpha: 0.3, wobble: 0.12 * s, step: 4 });
   }
@@ -393,17 +424,129 @@ export function hayStack(g: G, x: number, y: number, scale: number, seed: number
   inkPath(g, [{ x, y: y - 20 * s }, { x, y: y - 26 * s }], seed + 2, { width: 0.7 * s, alpha: 0.6, wobble: 0.2 * s, step: 4 });
 }
 
-/** A farmer under a nón lá — the fastest two strokes in the vocabulary. */
+/** A farmer under a nón lá, readable as one person even at the map's resting zoom. */
 export function farmer(g: G, x: number, y: number, scale: number, seed: number): void {
   const s = scale * UNIT.farmer;
-  inkPath(g, [{ x, y }, { x: x + 1 * s, y: y - 5 * s }, { x: x + 3 * s, y: y - 8 * s }], seed, {
-    width: 1 * s, alpha: 0.75, wobble: 0.2 * s, step: 4,
+  const rand = mulberry32(seed);
+  const poseRoll = rand();
+  const pose: 'planting' | 'carrying' | 'standing' = poseRoll < 0.34 ? 'planting' : poseRoll < 0.68 ? 'carrying' : 'standing';
+  // Which way they face. A row of figures all facing the same way reads as printed wallpaper.
+  const dir = rand() < 0.5 ? 1 : -1;
+  // Áo nâu or indigo — working dress, and the only colour on the figure.
+  const cloth = rand() < 0.6 ? PIGMENT.nau : PIGMENT.cham;
+  // Bent double over the water when planting; upright otherwise.
+  // Keep the planter's head above their hips. A deeper bow is anatomically possible, but at ten
+  // screen pixels it turns the person into two crossing strokes instead of a human silhouette.
+  const bend = pose === 'planting' ? 0.32 : 0;
+
+  const HIP = -5.2;
+  /**
+   * Design point to world. Everything above the hip leans forward by `bend`, so one set of
+   * coordinates serves the upright poses and the bent one.
+   */
+  const at = (dx: number, dy: number): Pt => {
+    const above = Math.max(0, HIP - dy);
+    return {
+      x: x + (dx + bend * above * 0.92) * dir * s,
+      y: y + (dy + bend * above * 0.3) * s,
+    };
+  };
+
+  groundShadow(g, x + 0.3 * dir * s, y + 0.5 * s, 2.4 * s, 0.09);
+
+  /**
+   * The body as ONE silhouette — head to hem to heels, with the gap between the legs cut out of
+   * it — and not as an assembly of parts.
+   *
+   * The previous figure drew a torso and four limbs as separate filled quads, each with its own
+   * dark outline. At the size the map actually draws a person that is five outlined boxes
+   * overlapping inside eight pixels: it read as scaffolding, and the bent pose read as a broken
+   * deck chair. A single closed outline can carry a pose at any size, which is exactly what the
+   * woodcut figures do.
+   */
+  const body: Pt[] = [
+    at(-1.15, -11.4), at(-2.15, -10.1), at(-1.6, -5.0), at(-1.95, 0),
+    at(-0.62, 0), at(-0.42, -4.3), at(0.42, -4.3), at(0.62, 0),
+    at(1.95, 0), at(1.6, -5.0), at(2.15, -10.1), at(1.15, -11.4),
+  ];
+  printedShape(g, body, PIGMENT.muc, seed + 1, {
+    width: 0.42 * s, alpha: 0.85, wobble: 0.05 * s, step: 4, fillAlpha: 0.9,
   });
-  printedShape(
-    g,
-    [{ x: x + 0.5 * s, y: y - 8 * s }, { x: x + 5.5 * s, y: y - 8 * s }, { x: x + 3 * s, y: y - 12 * s }],
-    PIGMENT.hoePale, seed + 1, { width: 0.75 * s, alpha: 0.8, wobble: 0.15 * s, step: 4, fillAlpha: 0.9 },
-  );
+
+  // The áo over the top half, inset so the silhouette shows as a rim rather than a second outline.
+  // Dark legs, coloured body, pale hat: three bands, which is what makes a six-pixel person read.
+  g.fillStyle(cloth, 0.95);
+  g.fillPoints([at(-1.75, -10.0), at(1.75, -10.0), at(1.4, -5.4), at(-1.4, -5.4)], true);
+
+  if (pose === 'planting') {
+    // One arm down into the water, and the seedlings in that hand.
+    inkPath(g, [at(1.4, -9.2), at(3.0, -3.4), at(3.2, -1.0)], seed + 4, {
+      width: 0.8 * s, alpha: 0.85, colour: PIGMENT.muc, wobble: 0.04 * s, step: 4,
+    });
+    g.fillStyle(PIGMENT.giDong, 0.9);
+    for (let blade = 0; blade < 3; blade += 1) {
+      const tip = at(2.5 + blade * 0.6, -1.4 - blade * 0.3);
+      g.fillRect(tip.x, tip.y - 1.8 * s, 0.5 * s, 1.8 * s);
+    }
+  } else if (pose === 'carrying') {
+    // Đòn gánh — the shoulder pole, a basket swinging at each end.
+    const left = at(-5.6, -10.6);
+    const right = at(5.6, -10.2);
+    inkPath(g, [left, right], seed + 5, {
+      width: 0.5 * s, alpha: 0.85, colour: PIGMENT.nau, wobble: 0.04 * s, step: 5,
+    });
+    for (const end of [left, right]) {
+      inkPath(g, [end, { x: end.x, y: end.y + 2.2 * s }], seed + 6 + end.x, {
+        width: 0.35 * s, alpha: 0.6, colour: PIGMENT.nau, wobble: 0, step: 3,
+      });
+      printedShape(
+        g,
+        [
+          { x: end.x - 1.5 * s, y: end.y + 2.2 * s }, { x: end.x + 1.5 * s, y: end.y + 2.2 * s },
+          { x: end.x + 1.0 * s, y: end.y + 4.1 * s }, { x: end.x - 1.0 * s, y: end.y + 4.1 * s },
+        ],
+        PIGMENT.hoePale, seed + 8 + end.x,
+        { width: 0.4 * s, alpha: 0.8, wobble: 0.04 * s, step: 3, fillAlpha: 0.92 },
+      );
+    }
+    // One arm hooks visibly over the pole; without it the baskets look suspended beside a post.
+    inkPath(g, [at(-1.5, -9.6), at(-2.7, -11.0), at(-3.5, -10.8)], seed + 11, {
+      width: 0.65 * s, alpha: 0.86, colour: PIGMENT.muc, wobble: 0.03 * s, step: 3,
+    });
+  } else {
+    // Standing, one hand on a hoe planted in the ground.
+    inkPath(g, [at(2.6, 0), at(3.0, -9.4)], seed + 9, {
+      width: 0.45 * s, alpha: 0.8, colour: PIGMENT.nau, wobble: 0.04 * s, step: 5,
+    });
+    g.fillStyle(PIGMENT.mucSoft, 0.9);
+    g.fillPoints([at(2.4, -9.4), at(4.6, -9.2), at(4.4, -7.9), at(2.5, -8.1)], true);
+    inkPath(g, [at(1.9, -9.0), at(2.9, -8.6)], seed + 10, {
+      width: 0.6 * s, alpha: 0.8, colour: PIGMENT.muc, wobble: 0, step: 3,
+    });
+  }
+
+  // Head, then the nón lá over it. The hat is the whole recognition at this size, so it is the one
+  // element that keeps a crisp rim — but it is barely wider than the shoulders, because a brim that
+  // overhangs the body detaches from it and the figure becomes a mushroom.
+  const head = at(0.2, -12.5);
+  g.fillStyle(PIGMENT.nauDark, 0.92);
+  g.fillCircle(head.x, head.y, 1.15 * s);
+
+  const brim = 2.7 * s;
+  const peak = at(0.2, -15.0);
+  const hat = [
+    { x: head.x - brim, y: head.y + 0.5 * s },
+    { x: head.x - brim * 0.5, y: head.y - 1.1 * s },
+    { x: peak.x, y: peak.y },
+    { x: head.x + brim * 0.5, y: head.y - 1.1 * s },
+    { x: head.x + brim, y: head.y + 0.5 * s },
+  ];
+  // Props normally carry a generous hand-registered colour offset. On a hat only five pixels
+  // wide that offset becomes a second hat, so retain a subtler woodblock registration here.
+  washFill(g, hat, PIGMENT.hoePale, seed + 12, 0.96, 0.45 * s);
+  inkPath(g, hat, seed + 13, {
+    width: 0.42 * s, alpha: 0.9, wobble: 0.04 * s, step: 4, closed: true,
+  });
 }
 
 // ── landform ──────────────────────────────────────────────────────────────────
@@ -572,24 +715,26 @@ export function buffalo(g: G, x: number, y: number, scale: number, seed: number,
     );
   };
 
-  leg(-9, -8, -9 - 2 * step, -4, -9 - 3 * step, -1.4, false);
-  leg(10, -8.5, 10 + 2 * step, -4.4, 10 + 3 * step, -1.4, false);
+  // Start the legs high inside the body and leave a long, clean section below the belly. The old
+  // geometry exposed only three design units between belly and hoof, so four legs became stubs.
+  leg(-9, -11, -9 - 2.2 * step, -5.1, -9 - 3.2 * step, -0.9, false);
+  leg(10, -11.2, 10 + 2.2 * step, -5.3, 10 + 3.2 * step, -0.9, false);
 
   printedShape(
     g,
     [
       { x: x - 16 * s, y: y - 12.5 * s }, { x: x - 14.5 * s, y: y - 17.5 * s }, { x: x - 11 * s, y: y - 19.6 * s },
       { x: x - 5 * s, y: y - 18.2 * s }, { x: x + 3 * s, y: y - 18.6 * s }, { x: x + 11 * s, y: y - 18 * s },
-      { x: x + 16 * s, y: y - 15 * s }, { x: x + 17.5 * s, y: y - 10 * s }, { x: x + 15 * s, y: y - 6 * s },
-      { x: x + 7 * s, y: y - 4.4 * s }, { x: x - 3 * s, y: y - 4.2 * s }, { x: x - 11 * s, y: y - 6 * s },
+      { x: x + 16 * s, y: y - 15 * s }, { x: x + 17.5 * s, y: y - 11 * s }, { x: x + 15 * s, y: y - 8.2 * s },
+      { x: x + 7 * s, y: y - 7 * s }, { x: x - 3 * s, y: y - 6.8 * s }, { x: x - 11 * s, y: y - 8.2 * s },
     ],
     PIGMENT.hide, seed, { width: 1.15 * s, alpha: 0.9, wobble: 0.14 * s, step: 5, fillAlpha: 0.95 },
   );
   washFill(
     g,
     [
-      { x: x - 10 * s, y: y - 6.4 * s }, { x: x - 2 * s, y: y - 5 * s }, { x: x + 8 * s, y: y - 5.2 * s },
-      { x: x + 13 * s, y: y - 7.4 * s }, { x: x + 7 * s, y: y - 8.6 * s }, { x: x - 4 * s, y: y - 8.4 * s },
+      { x: x - 10 * s, y: y - 8.5 * s }, { x: x - 2 * s, y: y - 7.3 * s }, { x: x + 8 * s, y: y - 7.4 * s },
+      { x: x + 13 * s, y: y - 9.1 * s }, { x: x + 7 * s, y: y - 10.1 * s }, { x: x - 4 * s, y: y - 10 * s },
     ],
     PIGMENT.hideLo, seed + 2, 0.42,
   );
@@ -611,9 +756,11 @@ export function buffalo(g: G, x: number, y: number, scale: number, seed: number,
 
   const hornArc = (lift: number, back: number, wide: number): Pt[] => {
     const points: Pt[] = [];
-    const p0 = { x: x - 22 * s, y: y - 22.4 * s - lift };
-    const p1 = { x: x - 19 * s + back, y: y - 30 * s - lift };
-    const p2 = { x: x - 8 * s + back, y: y - 28.5 * s - lift };
+    // One compact crescent from the crown to just over the shoulder. The previous endpoint was
+    // nearly a full body-third behind the head, which made the horn longer than the animal's legs.
+    const p0 = { x: x - 22 * s, y: y + (-22.4 - lift) * s };
+    const p1 = { x: x + (-19 + back) * s, y: y + (-27.2 - lift) * s };
+    const p2 = { x: x + (-13.2 + back) * s, y: y + (-26.4 - lift) * s };
     for (let index = 0; index <= 14; index += 1) {
       const t = index / 14;
       const u = 1 - t;
@@ -622,9 +769,9 @@ export function buffalo(g: G, x: number, y: number, scale: number, seed: number,
         y: u * u * p0.y + 2 * u * t * p1.y + t * t * p2.y,
       });
     }
-    return thickPath(points, points.map((_, index) => (2.7 - (index / 14) * 2.2) * s * wide));
+    return thickPath(points, points.map((_, index) => (2.25 - (index / 14) * 1.85) * s * wide));
   };
-  printedShape(g, hornArc(1.8 * s, 1.2 * s, 0.9), PIGMENT.hideLo, seed + 10, {
+  printedShape(g, hornArc(1.3, 0.8, 0.88), PIGMENT.hideLo, seed + 10, {
     width: 0.5 * s, alpha: 0.42, wobble: 0.05 * s, step: 4, fillAlpha: 0.9,
   });
 
@@ -661,8 +808,8 @@ export function buffalo(g: G, x: number, y: number, scale: number, seed: number,
     width: 0.5 * s, alpha: 0.72, wobble: 0.05 * s, step: 4, fillAlpha: 0.96,
   });
 
-  leg(-11, -7.5, -11 + 2 * step, -4, -11 + 3.4 * step, -1.4, true);
-  leg(12, -8, 12 - 2 * step, -4.4, 12 - 3.4 * step, -1.4, true);
+  leg(-11, -10.5, -11 + 2.3 * step, -4.8, -11 + 3.5 * step, -0.8, true);
+  leg(12, -10.8, 12 - 2.3 * step, -5.1, 12 - 3.5 * step, -0.8, true);
 
   inkPath(
     g,
@@ -689,56 +836,53 @@ export function buffalo(g: G, x: number, y: number, scale: number, seed: number,
   }
   printedShape(g, saddle, PIGMENT.giDong, seed + 30, { width: 0.6 * s, alpha: 0.6, wobble: 0.12 * s, step: 4, fillAlpha: 0.85 });
 
-  // the boy: legs over the near flank, torso, two arms up to the flute
-  const bx = x + 2 * s;
-  const by = y - 20 * s;
-  inkPath(g, [{ x: bx - 1 * s, y: by }, { x: bx - 3 * s, y: by + 5 * s }, { x: bx - 2 * s, y: by + 8 * s }], seed + 32, {
-    width: 1.5 * s, alpha: 0.8, colour: PIGMENT.muc, wobble: 0.08 * s, step: 4,
+  // The boy is one readable body with two straddling legs. The old rider was a red bar, one leg
+  // and a diamond around the head; at resting zoom those unrelated shapes did not resolve as a
+  // single person.
+  const bx = x + 1.5 * s;
+  const by = y - 19.2 * s;
+  inkPath(g, [{ x: bx + 1.2 * s, y: by }, { x: bx + 3.2 * s, y: by + 4.8 * s }, { x: bx + 3.5 * s, y: by + 7.2 * s }], seed + 31, {
+    width: 1.15 * s, alpha: 0.58, colour: PIGMENT.mucSoft, wobble: 0.06 * s, step: 4,
   });
-  printedShape(
-    g,
-    thickPath(
-      [{ x: bx, y: by - 0.5 * s }, { x: bx + 0.4 * s, y: by - 5 * s }, { x: bx + 0.2 * s, y: by - 8.5 * s }],
-      [3.4 * s, 3.0 * s, 2.2 * s],
-    ),
-    PIGMENT.son, seed + 33, { width: 0.65 * s, alpha: 0.8, wobble: 0.08 * s, step: 3, fillAlpha: 0.92 },
-  );
-  g.fillStyle(PIGMENT.hoePale, 0.96);
-  g.fillCircle(bx + 0.4 * s, by - 11 * s, 2.5 * s);
-  inkPath(
-    g,
-    [
-      { x: bx - 2.1 * s, y: by - 11 * s }, { x: bx + 0.4 * s, y: by - 13.5 * s },
-      { x: bx + 2.9 * s, y: by - 11 * s }, { x: bx + 0.4 * s, y: by - 8.5 * s },
-    ],
-    seed + 35, { width: 0.6 * s, alpha: 0.8, wobble: 0.06 * s, step: 3, closed: true },
-  );
-  g.fillStyle(PIGMENT.muc, 0.85);
-  g.fillCircle(bx + 0.9 * s, by - 13.4 * s, 1.4 * s);
-  g.fillEllipse(bx - 0.4 * s, by - 12.2 * s, 4.8 * s, 2.8 * s);
-  g.fillCircle(bx - 0.6 * s, by - 11.4 * s, 0.5 * s);
-  inkPath(g, [{ x: bx - 6 * s, y: by - 9.4 * s }, { x: bx + 4 * s, y: by - 10.6 * s }], seed + 36, {
+  inkPath(g, [{ x: bx - 1.2 * s, y: by }, { x: bx - 2.8 * s, y: by + 4.8 * s }, { x: bx - 2.1 * s, y: by + 7.4 * s }], seed + 32, {
+    width: 1.3 * s, alpha: 0.86, colour: PIGMENT.muc, wobble: 0.06 * s, step: 4,
+  });
+  printedShape(g, [
+    { x: bx - 2.4 * s, y: by - 0.2 * s }, { x: bx - 1.8 * s, y: by - 6.7 * s },
+    { x: bx + 1.8 * s, y: by - 6.7 * s }, { x: bx + 2.4 * s, y: by - 0.2 * s },
+  ], PIGMENT.son, seed + 33, {
+    width: 0.6 * s, alpha: 0.84, wobble: 0.05 * s, step: 3, fillAlpha: 0.95,
+  });
+  g.fillStyle(PIGMENT.hoePale, 0.98);
+  g.fillCircle(bx, by - 9.3 * s, 2.05 * s);
+  g.fillStyle(PIGMENT.muc, 0.9);
+  g.fillEllipse(bx - 0.25 * s, by - 10.5 * s, 4.1 * s, 1.7 * s);
+  g.fillCircle(bx + 0.65 * s, by - 11.7 * s, 0.75 * s);
+  g.fillCircle(bx - 1.4 * s, by - 9.2 * s, 0.38 * s);
+
+  // Flute crosses the mouth; each forearm visibly joins shoulder to instrument.
+  inkPath(g, [{ x: bx - 5.5 * s, y: by - 8.8 * s }, { x: bx + 4.2 * s, y: by - 9.7 * s }], seed + 36, {
     width: 0.85 * s, alpha: 0.9, colour: PIGMENT.nau, wobble: 0,
   });
-  inkPath(g, [{ x: bx - 1 * s, y: by - 5 * s }, { x: bx - 4.4 * s, y: by - 8.6 * s }], seed + 37, {
-    width: 0.8 * s, alpha: 0.85, colour: PIGMENT.son, wobble: 0.06 * s, step: 3,
+  inkPath(g, [{ x: bx - 1.5 * s, y: by - 5.8 * s }, { x: bx - 3.9 * s, y: by - 8.7 * s }], seed + 37, {
+    width: 0.75 * s, alpha: 0.88, colour: PIGMENT.nauDark, wobble: 0.04 * s, step: 3,
   });
-  inkPath(g, [{ x: bx + 1.4 * s, y: by - 5 * s }, { x: bx + 2.4 * s, y: by - 9.4 * s }], seed + 38, {
-    width: 0.8 * s, alpha: 0.85, colour: PIGMENT.son, wobble: 0.06 * s, step: 3,
+  inkPath(g, [{ x: bx + 1.5 * s, y: by - 5.8 * s }, { x: bx + 2.5 * s, y: by - 9.5 * s }], seed + 38, {
+    width: 0.75 * s, alpha: 0.88, colour: PIGMENT.nauDark, wobble: 0.04 * s, step: 3,
   });
 
   // and the lotus leaf held over him — the stem reaches his hand
   inkPath(
     g,
-    [{ x: bx + 2.4 * s, y: by - 9.4 * s }, { x: bx + 5 * s, y: by - 14 * s }, { x: bx + 5.6 * s, y: by - 18 * s }],
+    [{ x: bx + 2.5 * s, y: by - 9.5 * s }, { x: bx + 4.4 * s, y: by - 13.5 * s }, { x: bx + 4.8 * s, y: by - 17.2 * s }],
     seed + 39, { width: 0.7 * s, alpha: 0.8, colour: PIGMENT.giDong, wobble: 0.08 * s, step: 4 },
   );
   const shade: Pt[] = [];
   for (let index = 0; index <= 20; index += 1) {
     const t = index / 20;
     const angle = Math.PI + t * Math.PI;
-    const rr = 8.5 * s * (1 + 0.08 * Math.cos(t * Math.PI * 2 * 7));
-    shade.push({ x: bx + 5.6 * s + Math.cos(angle) * rr, y: by - 18.6 * s + Math.sin(angle) * rr * 0.4 });
+    const rr = 7.4 * s * (1 + 0.08 * Math.cos(t * Math.PI * 2 * 7));
+    shade.push({ x: bx + 4.8 * s + Math.cos(angle) * rr, y: by - 17.7 * s + Math.sin(angle) * rr * 0.4 });
   }
   printedShape(g, shade, PIGMENT.giDong, seed + 41, { width: 0.7 * s, alpha: 0.75, wobble: 0.1 * s, step: 4, fillAlpha: 0.88 });
   for (let vein = 0; vein < 5; vein += 1) {
@@ -746,8 +890,8 @@ export function buffalo(g: G, x: number, y: number, scale: number, seed: number,
     inkPath(
       g,
       [
-        { x: bx + 5.6 * s, y: by - 18.6 * s },
-        { x: bx + 5.6 * s + Math.cos(angle) * 7.6 * s, y: by - 18.6 * s + Math.sin(angle) * 3.2 * s },
+        { x: bx + 4.8 * s, y: by - 17.7 * s },
+        { x: bx + 4.8 * s + Math.cos(angle) * 6.6 * s, y: by - 17.7 * s + Math.sin(angle) * 2.8 * s },
       ],
       seed + 43 + vein, { width: 0.45 * s, alpha: 0.35, wobble: 0.06 * s, step: 3 },
     );

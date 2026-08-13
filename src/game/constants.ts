@@ -29,7 +29,17 @@ function designHeight(): number {
 
 export const GAME_HEIGHT = designHeight();
 
-export const HEADER_HEIGHT = 44;
+/**
+ * The resource strip at the top of the screen.
+ *
+ * 44 was too short to hold what is in it. The strip carries a răng cưa band at each edge, the
+ * year/season line, and the four stores — and in Vietnamese the title's own diacritics (the breve on
+ * "Năm", the circumflex on "Xuân") reached up into the top band, while the numbers' parentheses sat
+ * on the bottom one. The eight units this gains are taken back out of the Dragon Ascent HUD below
+ * it, which was spending them on a second decorative band directly under its progress bar, so that
+ * mode's chrome is exactly as tall as it was.
+ */
+export const HEADER_HEIGHT = 52;
 export const ACTION_BAR_HEIGHT = 50;
 
 export const PLAYER_KINGDOM_ID = 'dai-viet';

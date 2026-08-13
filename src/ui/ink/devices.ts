@@ -58,7 +58,13 @@ export function figure(g: G, x: number, y: number, scale: number, colour: number
   }
 }
 
-/** Draws a host sized by `men`, anchored at its top-left. Returns the block it filled. */
+/**
+ * Draws a host sized by `men`, anchored at its top-left. Returns the block it filled.
+ *
+ * `rankTarget` lets a caller collect each rank into its own object — which is what a host needs to
+ * be able to move at all, since one `Graphics` holding the whole block can only ever stand still.
+ * The figures, their jitter and their order are identical either way.
+ */
 export function drawHost(
   g: G,
   x: number,
@@ -68,14 +74,16 @@ export function drawHost(
   colour: number,
   s = 1,
   spear = true,
+  rankTarget?: (rank: number) => G,
 ): HostShape {
   const rand = mulberry32(seed);
   const shape = hostShape(men, 4.6 * s, 4 * s);
   let drawn = 0;
   for (let rank = 0; rank < shape.rows && drawn < shape.marks; rank += 1) {
+    const target = rankTarget?.(rank) ?? g;
     for (let file = 0; file < shape.cols && drawn < shape.marks; file += 1) {
       figure(
-        g,
+        target,
         x + file * 4.6 * s + (rand() - 0.5) * 1.5 + rank * 1.2 * s,
         y + rank * 4 * s + (rand() - 0.5) * 1.2,
         s,
@@ -86,6 +94,48 @@ export function drawHost(
     }
   }
   return shape;
+}
+
+/**
+ * The ground a host stands on. Takes the **same `x, y` and `s` as the `drawHost` call it belongs
+ * to** — one anchoring convention, because two is how the shadow drifted off the men twice.
+ *
+ * Computed from where the feet actually land, not from `shape.width/height`. Those are the block's
+ * *pitch* (`cols × spacing`), which overshoots the outermost figure by a full spacing in each axis,
+ * and `y` is the BACK rank — the front rank's feet are a spacing short of `y + height`. Sizing the
+ * ellipse off them put it a spacing low and, once an `x`-offset convention slipped, most of a block
+ * to the left as well: a puddle beside the men rather than the ground under them.
+ *
+ * A round `groundShadow` cannot do this job at all — its height is tied to its width, and these
+ * blocks are wide, shallow and sheared.
+ */
+export function hostFootprint(g: G, x: number, y: number, shape: HostShape, s = 1, alpha = 0.07): void {
+  // Feet occupy x ∈ [x, x + spanX] and y ∈ [y, y + spanY]; the rank shear widens the x span.
+  const spanX = (shape.cols - 1) * 4.6 * s + (shape.rows - 1) * 1.2 * s;
+  const spanY = (shape.rows - 1) * 4 * s;
+  g.fillStyle(PIGMENT.muc, alpha);
+  g.fillEllipse(x + spanX / 2, y + spanY / 2 + 1.1 * s, spanX + 9 * s, spanY + 6 * s);
+}
+
+/**
+ * The cadence of a standing host: each rank shifts on its own phase, front rank first, so the block
+ * breathes instead of sitting there as a printed stamp.
+ *
+ * Per *rank* rather than per figure on purpose. A busy map carries dozens of these markers, and four
+ * tweens per host instead of forty is the difference between free and a frame budget.
+ */
+export function marchInPlace(scene: Phaser.Scene, ranks: Phaser.GameObjects.Graphics[], s = 1): void {
+  ranks.forEach((rank, index) => {
+    scene.tweens.add({
+      targets: rank,
+      y: rank.y - 1.15 * s,
+      duration: 900 + index * 80,
+      delay: index * 200,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  });
 }
 
 // ── seals ─────────────────────────────────────────────────────────────────────

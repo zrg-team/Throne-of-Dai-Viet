@@ -6,7 +6,7 @@ import type { MapThemeDefinition, MapThemePalette } from './mapTheme';
 import { PIGMENT } from './ink/palette';
 import { groundTone, hatchPoly, inkPath, mulberry32, printedShape, washFill, type Pt } from './ink/stroke';
 import { areca, bamboo, banana, banyan, farmer, grassTuft, karstRange, softRidge, tree } from './ink/props';
-import { drawFieldPlot, type FieldPlot } from './ink/settlements';
+import { drawFieldPlot, paddyLattice } from './ink/settlements';
 import { scatterDensity } from '../game/graphicsQuality';
 
 /**
@@ -297,27 +297,6 @@ export class DongHoMapRenderer implements MapRenderer {
     const reach = ctx.tileSize * 0.94;
     minX -= reach; minY -= reach; maxX += reach; maxY += reach;
 
-    const rand = mulberry32(7777);
-    const cell = ctx.tileSize * 0.5;
-    const rowCount = Math.min(400, Math.ceil((maxY - minY) / cell) + 1);
-    const lines: Pt[][] = [];
-    for (let index = 0; index <= rowCount; index += 1) {
-      const yy = minY + index * cell;
-      const line: Pt[] = [];
-      for (let node = 0; node <= 26; node += 1) {
-        line.push({
-          x: minX + ((maxX - minX) * node) / 26,
-          y: yy + Math.sin(node * 0.62 + index * 1.21) * cell * 0.2 + (rand() - 0.5) * cell * 0.12,
-        });
-      }
-      lines.push(line);
-    }
-    const heightAt = (line: Pt[], x: number): number => {
-      const t = Math.max(0, Math.min(1, (x - line[0].x) / (line[26].x - line[0].x || 1)));
-      const index = Math.min(25, Math.floor(t * 26));
-      const fraction = t * 26 - index;
-      return line[index].y + (line[index + 1].y - line[index].y) * fraction;
-    };
     const nearPaddy = (x: number, y: number): boolean => {
       for (const centre of centres) {
         if ((centre.x - x) ** 2 + (centre.y - y) ** 2 < reach * reach) {
@@ -327,29 +306,10 @@ export class DongHoMapRenderer implements MapRenderer {
       return false;
     };
 
-    const plots: FieldPlot[] = [];
-    for (let row = 0; row < rowCount; row += 1) {
-      let x = minX + (rand() - 0.5) * cell;
-      while (x < maxX) {
-        const width = cell * (0.8 + rand() * 1.0);
-        const mx = x + width / 2;
-        const my = (heightAt(lines[row], mx) + heightAt(lines[row + 1], mx)) / 2;
-        if (nearPaddy(mx, my)) {
-          plots.push({
-            points: [
-              { x: x + 1, y: heightAt(lines[row], x) + 1 },
-              { x: x + width - 1, y: heightAt(lines[row], x + width) + 1 },
-              { x: x + width - 1, y: heightAt(lines[row + 1], x + width) - 1 },
-              { x: x + 1, y: heightAt(lines[row + 1], x) - 1 },
-            ],
-            stage: rand(),
-            seed: Math.round(mx * 7 + my * 13),
-          });
-        }
-        x += width;
-      }
-    }
-    for (const plot of plots) {
+    // The lattice itself is shared with the menu's far bank — same country, same hand.
+    for (const plot of paddyLattice({
+      x0: minX, x1: maxX, y0: minY, y1: maxY, cell: ctx.tileSize * 0.5, seed: 7777, keep: nearPaddy,
+    })) {
       drawFieldPlot(graphics, plot);
     }
   }

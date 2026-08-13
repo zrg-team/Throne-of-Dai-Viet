@@ -7,17 +7,21 @@ import { WAVE_INTERVAL_TICKS } from '../../game/ascentConfig';
 import { heronMeter } from '../ink/devices';
 import { t } from '../../i18n';
 import type { AscentState } from '../../state/types';
-import { sawtoothBand } from '../ink/devices';
 import { PIGMENT } from '../ink/palette';
 
 /**
  * Bottom edge of the HUD band. Kept in sync with ConquestScene's input guard.
  *
- * Deliberately tight. With a 44px header above and a 50px action bar below, every pixel this
- * band takes is a pixel of map the player cannot see — and the map is the game. The three
- * numbers are laid out on two dense rows rather than three airy ones.
+ * Deliberately tight. With the header above and a 50px action bar below, every pixel this band
+ * takes is a pixel of map the player cannot see — and the map is the game. The three numbers are
+ * laid out on two dense rows rather than three airy ones.
+ *
+ * Eight of these went to the header, which needed them: the band used to close itself with a răng
+ * cưa frieze sitting immediately under the level bar, so the bottom of the readout was a gold
+ * progress bar with a second, decorative bar of teeth directly beneath it and then a hairline
+ * closing the band anyway. Three horizontal rules in eight pixels, two of which say nothing.
  */
-export const ASCENT_HUD_HEIGHT = 66;
+export const ASCENT_HUD_HEIGHT = 58;
 
 const TOP = HEADER_HEIGHT;
 
@@ -65,11 +69,11 @@ export class AscentHud {
     // beneath a header that is a plain paper strip, that reads as a separate object bolted on —
     // the same complaint the chrome work started from, one level down. It is the same paper now,
     // drawn up over the header's closing hairline so the two are continuous, and closed at the
-    // bottom by the header's own treatment: a răng cưa band and a hairline.
+    // bottom by a single hairline. The header above wears the răng cưa frieze; repeating it here,
+    // one pixel under the level bar, only added a second bar for the eye to read as data.
     const panel = this.scene.add.graphics();
     panel.fillStyle(INK_UI.backgroundInk, 0.97);
     panel.fillRect(0, TOP - 2, GAME_WIDTH, ASCENT_HUD_HEIGHT + 2);
-    sawtoothBand(panel, 8, TOP + ASCENT_HUD_HEIGHT - 8, GAME_WIDTH - 16, 5, 0.45);
     panel.lineStyle(1, PIGMENT.mucSoft, 0.35);
     panel.lineBetween(0, TOP + ASCENT_HUD_HEIGHT - 0.5, GAME_WIDTH, TOP + ASCENT_HUD_HEIGHT - 0.5);
     panel.setDepth(90);
@@ -90,12 +94,12 @@ export class AscentHud {
   }
 
   private renderPower(ascent: AscentState): void {
-    this.add(this.ui.label(14, TOP + 4, t('ascent.hud.power'), 'caption', {
+    this.add(this.ui.label(14, TOP + 2, t('ascent.hud.power'), 'caption', {
       color: INK_UI_HEX.mutedText,
       fontSize: '9px',
     }).setAlpha(0.7));
 
-    const value = this.scene.add.text(14, TOP + 14, formatNumber(this.shownPower), {
+    const value = this.scene.add.text(14, TOP + 11, formatNumber(this.shownPower), {
       color: '#2a2118',
       fontFamily: TITLE_FONT,
       fontSize: '22px',
@@ -127,7 +131,7 @@ export class AscentHud {
       const rising = delta > 0;
       const ticker = this.scene.add.text(
         16 + value.width + 8,
-        TOP + 22,
+        TOP + 19,
         `${rising ? '▲' : '▼'}${formatNumber(Math.abs(delta))}`,
         {
           color: rising ? '#4c6b46' : '#a4402c',
@@ -139,7 +143,7 @@ export class AscentHud {
       this.add(ticker);
       this.scene.tweens.add({
         targets: ticker,
-        y: TOP + 14,
+        y: TOP + 11,
         alpha: 0,
         duration: 1400,
         ease: 'Cubic.easeOut',
@@ -150,7 +154,7 @@ export class AscentHud {
   private renderThreat(ascent: AscentState): void {
     const x = GAME_WIDTH - 14;
 
-    this.add(this.ui.label(x, TOP + 4, t('ascent.hud.threat'), 'caption', {
+    this.add(this.ui.label(x, TOP + 2, t('ascent.hud.threat'), 'caption', {
       color: INK_UI_HEX.mutedText,
       fontSize: '9px',
       align: 'right',
@@ -165,7 +169,7 @@ export class AscentHud {
         ? { color: '#9a6b16', key: 'ascent.hud.even' as const }
         : { color: '#a4402c', key: 'ascent.hud.behind' as const };
 
-    const threatValue = this.scene.add.text(x, TOP + 14, formatNumber(ascent.threat), {
+    const threatValue = this.scene.add.text(x, TOP + 11, formatNumber(ascent.threat), {
       color,
       fontFamily: TITLE_FONT,
       fontSize: '20px',
@@ -175,7 +179,7 @@ export class AscentHud {
     this.add(threatValue);
 
     // Beside the figure, not beneath it: the verdict and the number are one thought.
-    this.add(this.scene.add.text(x - threatValue.width - 6, TOP + 20, t(key), {
+    this.add(this.scene.add.text(x - threatValue.width - 6, TOP + 17, t(key), {
       color,
       fontFamily: UI_FONT,
       fontSize: '10px',
@@ -186,7 +190,7 @@ export class AscentHud {
     const countdown = bossNext
       ? t('ascent.hud.bossIn', { ticks: Math.max(0, ascent.ticksToWave) })
       : t('ascent.hud.waveIn', { ticks: Math.max(0, ascent.ticksToWave) });
-    const countdownText = this.scene.add.text(x, TOP + 38, countdown, {
+    const countdownText = this.scene.add.text(x, TOP + 34, countdown, {
       color: bossNext ? '#a4402c' : '#5a4c39',
       fontFamily: UI_FONT,
       fontSize: '10px',
@@ -208,7 +212,7 @@ export class AscentHud {
       const heatColor = heat < 1.4 ? '#4c6b46' : heat < 2 ? '#9a6b16' : '#a4402c';
       const ambitionText = this.scene.add.text(
         this.countdownLeft - 8,
-        TOP + 38,
+        TOP + 34,
         t('ascent.hud.ambition', { mult: heat.toFixed(1) }),
         { color: heatColor, fontFamily: UI_FONT, fontSize: '10px', fontStyle: '700', align: 'right' },
       ).setOrigin(1, 0);
@@ -220,7 +224,7 @@ export class AscentHud {
   }
 
   private renderMomentum(ascent: AscentState): void {
-    const y = TOP + 44;
+    const y = TOP + 41;
 
     this.add(this.scene.add.text(14, y - 2, t('ascent.hud.level', { level: ascent.level }), {
       color: '#2a2118',
