@@ -518,6 +518,40 @@ export class DongHoMapRenderer implements MapRenderer {
     groundTone(graphics, centre.x, centre.y, radius * 1.5, PIGMENT.diepHi, alpha * 0.55);
   }
 
+  /**
+   * Foreign ground: paper the chronicle has not been written on, not a blue slab.
+   *
+   * The default mutes a rival's land with a per-hex wash in a cool blue chosen to separate it by
+   * hue — which is a honeycomb of a colour no pigment in this palette can make. Veiling the merged
+   * region in paper says the same thing in the sheet's own terms: your land is the drawn part.
+   */
+  drawForeignWash(
+    graphics: Phaser.GameObjects.Graphics,
+    loops: Array<Array<{ x: number; y: number }>>,
+    isNeutral: boolean,
+    ownerColour: number,
+  ): void {
+    void ownerColour;
+    for (const loop of loops) {
+      if (loop.length < 3) {
+        continue;
+      }
+      const rand = mulberry32(Math.round(loop[0].x * 5 + loop[0].y * 11));
+      const veil: Pt[] = loop.map((point, index) => {
+        const next = loop[(index + 1) % loop.length];
+        const nx = -(next.y - point.y);
+        const ny = next.x - point.x;
+        const length = Math.hypot(nx, ny) || 1;
+        const push = (rand() - 0.4) * 3;
+        return { x: point.x + (nx / length) * push, y: point.y + (ny / length) * push };
+      });
+      graphics.fillStyle(PIGMENT.diep, isNeutral ? 0.62 : 0.5);
+      graphics.fillPoints(veil, true);
+      // A rival's ground still carries its own hatch angle, so two neighbours read apart.
+      hatchPoly(graphics, veil, isNeutral ? 1.35 : 0.75, 9, PIGMENT.mucSoft, isNeutral ? 0.07 : 0.13, 0.9);
+    }
+  }
+
   /** The undrawn part of the chronicle, with a torn edge rather than a stepped one. */
   drawFogRegion(
     graphics: Phaser.GameObjects.Graphics,
