@@ -56,11 +56,32 @@ export class TrafficRenderer {
    * Created already held when the world is paused, so a settlement revealed while the clock is
    * stopped does not arrive with its traffic already moving.
    */
-  private walk(mover: Phaser.GameObjects.GameObject & { setPosition(x: number, y: number): unknown }, curve: Phaser.Curves.Spline, seed: number, duration: number): TrafficMover {
+  private walk(
+    mover: Phaser.GameObjects.GameObject & {
+      setPosition(x: number, y: number): unknown;
+      setScale?(x: number, y: number): unknown;
+    },
+    curve: Phaser.Curves.Spline,
+    seed: number,
+    duration: number,
+  ): TrafficMover {
     const progress = { t: (seed % 100) / 100 };
+    let facing = 0;
     const step = () => {
       if (!mover.active) return;
       const point = curve.getPoint(progress.t);
+      // Face the way you are going. These tweens yoyo, so half of every round trip is spent
+      // travelling backwards down the same road — and a cart drawn with its ox in front becomes an
+      // ox being pushed along behind it. Nothing else on the map moves, so it is the one thing on
+      // screen the eye is already following.
+      const heading = point.x - (mover as unknown as { x: number }).x;
+      if (Math.abs(heading) > 0.05) {
+        const next = heading < 0 ? -1 : 1;
+        if (next !== facing) {
+          facing = next;
+          mover.setScale?.(next, 1);
+        }
+      }
       mover.setPosition(point.x, point.y);
     };
     step();

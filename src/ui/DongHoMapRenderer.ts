@@ -48,15 +48,33 @@ interface ScatterSpec {
 }
 
 /** How thickly each terrain is planted, and with what. Trees carry it; bamboo is an accent. */
+/**
+ * How thickly each kind of ground is planted.
+ *
+ * Cut back from what shipped, and the seat terrains cut to nothing. A tree is now drawn at its
+ * real size against the roofs — eight metres against a nine-metre house — so the counts that
+ * looked like scrub when trees were small turned the map into closed canopy the moment they
+ * weren't, and the two or three that landed on every fortress hex stood in the middle of the town
+ * they were meant to shelter. A settlement plants its own grove; the scatter stays out.
+ */
 const SCATTER: Partial<Record<HexTerrainType, ScatterSpec>> = {
-  plains: { count: [2, 5], kinds: ['tree', 'tree', 'tree', 'tuft'], scale: [0.55, 1.35] },
-  fields: { count: [1, 3], kinds: ['tree', 'tuft', 'farmer'], scale: [0.5, 1.0] },
-  riceFields: { count: [1, 2], kinds: ['tree', 'tuft'], scale: [0.6, 0.95] },
-  forest: { count: [7, 11], kinds: ['tree', 'tree', 'tree', 'tree', 'bamboo', 'banana'], scale: [0.7, 1.6] },
-  hills: { count: [3, 6], kinds: ['tree', 'tree', 'tree', 'tuft'], scale: [0.6, 1.25] },
-  mountains: { count: [1, 2], kinds: ['tree', 'tuft'], scale: [0.45, 0.8] },
-  fortress: { count: [2, 4], kinds: ['tree', 'banyan'], scale: [0.6, 1.05] },
-  shrine: { count: [2, 4], kinds: ['tree', 'banyan'], scale: [0.6, 1.05] },
+  plains: { count: [1, 3], kinds: ['tree', 'tree', 'tuft', 'tuft'], scale: [0.55, 1.2] },
+  fields: { count: [0, 2], kinds: ['tree', 'tuft', 'farmer'], scale: [0.5, 0.95] },
+  riceFields: { count: [0, 1], kinds: ['tree', 'tuft'], scale: [0.6, 0.9] },
+  forest: { count: [4, 7], kinds: ['tree', 'tree', 'tree', 'bamboo', 'banana'], scale: [0.7, 1.45] },
+  hills: { count: [2, 4], kinds: ['tree', 'tree', 'tuft'], scale: [0.6, 1.1] },
+  mountains: { count: [0, 1], kinds: ['tree', 'tuft'], scale: [0.45, 0.75] },
+};
+
+/** Roughly how much ground each scattered thing needs to itself, in units of the world scale. */
+const FOOTPRINT: Record<PropKind, number> = {
+  tree: 11,
+  banyan: 20,
+  bamboo: 9,
+  banana: 7,
+  areca: 6,
+  farmer: 4,
+  tuft: 3,
 };
 
 interface ScatterItem {
@@ -349,6 +367,23 @@ export class DongHoMapRenderer implements MapRenderer {
     const rand = mulberry32(2024);
     const density = scatterDensity();
     const items: ScatterItem[] = [];
+
+    // Ground the scatter must leave alone: the seats, which draw their own groves and roofs, and
+    // the limestone, whose faces are the drawing and not a place for trees to stand on.
+    const keepClear: Array<{ x: number; y: number; r: number }> = [];
+    for (const tile of tiles) {
+      if (tile.terrain === 'fortress' || tile.terrain === 'shrine') {
+        const centre = ctx.centreOf(tile);
+        keepClear.push({ x: centre.x, y: centre.y, r: tileSize * 1.5 });
+      } else if (tile.terrain === 'mountains') {
+        // The limestone is drawn as whole massifs spanning several cells, and a scatter point may
+        // drift a full tile past its own cell — so trees from the hills next door were standing
+        // halfway up a cliff face. The rock keeps its own ground.
+        const centre = ctx.centreOf(tile);
+        keepClear.push({ x: centre.x, y: centre.y, r: tileSize * 0.95 });
+      }
+    }
+
     for (const tile of tiles) {
       const spec = SCATTER[tile.terrain];
       if (!spec) {
@@ -372,9 +407,53 @@ export class DongHoMapRenderer implements MapRenderer {
         });
       }
     }
+
+    // Thin what remains so no two things stand in the same spot. Every point is placed inside its
+    // own cell with no idea what the neighbouring cell put down, and the result was trees growing
+    // through each other and through roofs. Bigger things claim their ground first.
+    const unit = tileSize / 24;
+    const claimed: ScatterItem[] = [];
+    const cell = tileSize;
+    const buckets = new Map<string, ScatterItem[]>();
+    const keyOf = (x: number, y: number): string => `${Math.floor(x / cell)}:${Math.floor(y / cell)}`;
+    const bySize = [...items].sort(
+      (a, b) => FOOTPRINT[b.kind] * b.scale - FOOTPRINT[a.kind] * a.scale,
+    );
+    for (const item of bySize) {
+      const reach = FOOTPRINT[item.kind] * item.scale * unit * 0.5;
+      if (keepClear.some((zone) => Math.hypot(item.x - zone.x, item.y - zone.y) < zone.r)) {
+        continue;
+      }
+      let blocked = false;
+      const cx = Math.floor(item.x / cell);
+      const cy = Math.floor(item.y / cell);
+      for (let ox = -1; ox <= 1 && !blocked; ox += 1) {
+        for (let oy = -1; oy <= 1 && !blocked; oy += 1) {
+          for (const other of buckets.get(`${cx + ox}:${cy + oy}`) ?? []) {
+            const gap = reach + FOOTPRINT[other.kind] * other.scale * unit * 0.5;
+            if (Math.hypot(item.x - other.x, item.y - other.y) < gap * 0.72) {
+              blocked = true;
+              break;
+            }
+          }
+        }
+      }
+      if (blocked) {
+        continue;
+      }
+      claimed.push(item);
+      const key = keyOf(item.x, item.y);
+      const bucket = buckets.get(key);
+      if (bucket) {
+        bucket.push(item);
+      } else {
+        buckets.set(key, [item]);
+      }
+    }
+    items.length = 0;
+    items.push(...claimed);
     items.sort((a, b) => a.y - b.y);
 
-    const unit = tileSize / 24;
     for (const item of items) {
       const s = item.scale * unit;
       switch (item.kind) {

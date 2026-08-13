@@ -22,11 +22,11 @@ export function hamlet(g: G, x: number, y: number, s: number, seed: number, coun
   const homes: Array<{ x: number; y: number; s: number; seed: number }> = [];
   for (let index = 0; index < count; index += 1) {
     const angle = rand() * Math.PI * 2;
-    const distance = Math.sqrt(rand()) * 26 * s;
+    const distance = Math.sqrt(rand()) * 44 * s;
     homes.push({
       x: x + Math.cos(angle) * distance * 1.4,
       y: y + Math.sin(angle) * distance * 0.55,
-      s: s * (0.42 + rand() * 0.2),
+      s: s * (0.92 + rand() * 0.2),
       seed: seed + index * 37,
     });
   }
@@ -36,9 +36,9 @@ export function hamlet(g: G, x: number, y: number, s: number, seed: number, coun
     house(g, home.x, home.y, home.s, home.seed);
   }
   for (let index = 0; index < 3; index += 1) {
-    tree(g, x + (rand() - 0.5) * 60 * s, y + (rand() - 0.5) * 22 * s, s * (0.5 + rand() * 0.3), seed + 500 + index);
+    tree(g, x + (rand() - 0.5) * 104 * s, y + (rand() - 0.5) * 38 * s, s * (0.85 + rand() * 0.35), seed + 500 + index);
   }
-  hayStack(g, x - 34 * s, y + 6 * s, s * 0.4, seed + 600);
+  hayStack(g, x - 58 * s, y + 10 * s, s * 0.9, seed + 600);
 }
 
 /**
@@ -48,11 +48,11 @@ export function hamlet(g: G, x: number, y: number, s: number, seed: number, coun
 export function village(g: G, x: number, y: number, s: number, seed: number): void {
   const rand = mulberry32(seed);
   for (let index = 0; index < 5; index += 1) {
-    bamboo(g, x - 30 * s + index * 15 * s, y - 14 * s + (index % 2) * 3 * s, 0.52 * s, seed + 20 + index);
+    bamboo(g, x - 62 * s + index * 31 * s, y - 26 * s + (index % 2) * 5 * s, 0.72 * s, seed + 20 + index);
   }
   const baseY = y + 7 * s;
   for (let index = 0; index < 3; index += 1) {
-    house(g, x - 19 * s + index * 19 * s, baseY + (index === 1 ? 2 * s : 0), 0.54 * s, seed + 10 + index);
+    house(g, x - 34 * s + index * 34 * s, baseY + (index === 1 ? 3 * s : 0), 1 * s, seed + 10 + index);
   }
   const yard: Pt[] = [
     { x: x - 27 * s, y: baseY + 3 * s }, { x: x + 27 * s, y: baseY + 2 * s },
@@ -73,11 +73,11 @@ export function village(g: G, x: number, y: number, s: number, seed: number): vo
     width: 0.75, alpha: 0.5, colour: PIGMENT.cham, wobble: 0.4, step: 7, fillAlpha: 0.62,
   });
   for (let index = 0; index < 3; index += 1) {
-    areca(g, x + 26 * s + index * 4 * s, y + 14 * s - index * 5 * s, 0.38 * s, seed + 30 + index);
+    areca(g, x + 46 * s + index * 7 * s, y + 24 * s - index * 9 * s, 0.72 * s, seed + 30 + index);
   }
-  hayStack(g, x - 28 * s, y + 14 * s, 0.42 * s, seed + 40);
+  hayStack(g, x - 50 * s, y + 24 * s, 0.9 * s, seed + 40);
   if (rand() > 0.5) {
-    banyan(g, x + 30 * s, y - 4 * s, 0.45 * s, seed + 50);
+    banyan(g, x + 54 * s, y - 7 * s, 0.85 * s, seed + 50);
   }
 }
 

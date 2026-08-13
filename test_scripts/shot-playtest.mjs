@@ -28,12 +28,22 @@ await page.waitForTimeout(2400);
 // Reveal the whole map, so every land type is actually on screen to be drawn.
 await page.evaluate(() => {
   const state = window.__mandateState;
+  // Hold the clock. The campaign keeps ticking while the camera flies around, and a tick can
+  // recompute visibility and fog the map back up between one screenshot and the next — which
+  // reads as the renderer having broken when it has not.
+  state.isPaused = true;
   for (const land of state.lands) { land.isVisible = true; land.isExplored = true; }
   const scene = window.__phaserGame.scene.getScene('MapScene');
   scene.scene.restart({ state });
 });
 await page.waitForFunction(() => window.__phaserGame.scene.isActive('MapScene'), null, { timeout: 30000 });
-await page.waitForTimeout(3000);
+await page.evaluate(() => {
+  const state = window.__mandateState;
+  state.isPaused = true;
+  for (const land of state.lands) { land.isVisible = true; land.isExplored = true; }
+  window.__phaserGame.scene.getScene('MapScene').refresh();
+});
+await page.waitForTimeout(2600);
 
 const types = await page.evaluate(() => {
   const state = window.__mandateState;

@@ -18,7 +18,15 @@ import { drawFieldPlot, hamlet } from '../ui/ink/settlements';
 import { drawHost, hostShape } from '../ui/ink/devices';
 import { GRAPHICS_QUALITIES, applyRenderScale, getGraphicsQuality, setGraphicsQuality } from '../game/graphicsQuality';
 
-type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy';
+type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy' | 'settings';
+
+/**
+ * Where the front page's button column has to stop.
+ *
+ * The three settings rows used to live here, on the home screen, taking a third of the sheet for
+ * choices a player makes once. They have their own page now; what is left is breathing room.
+ */
+const SETTINGS_TOP = GAME_HEIGHT - 58;
 
 export class MenuScene extends Phaser.Scene {
   private ui!: InkUI;
@@ -196,8 +204,8 @@ export class MenuScene extends Phaser.Scene {
     hamlet(g, 108, 372, 0.58, 5002, 5);
     bamboo(g, 22, 398, 0.62, 5003);
     areca(g, 158, 350, 0.5, 5004);
-    buffalo(g, 74, 424, 0.46, 5005, true);
-    buffalo(g, 150, 412, 0.36, 5006, false);
+    buffalo(g, 74, 424, 1.05, 5005, true);
+    buffalo(g, 150, 412, 0.85, 5006, false);
     for (let index = 0; index < 8; index += 1) {
       treeProp(g, 8 + rand() * 190, 318 + rand() * 96, 0.42 + rand() * 0.26, 5100 + index);
     }
@@ -620,11 +628,10 @@ export class MenuScene extends Phaser.Scene {
   private render(): void {
     this.clearContent();
     this.renderTitle();
-    if (this.mode === 'main') {
-      this.renderGraphicsSelector();
-      this.renderMapThemeSelector();
+    if (this.mode === 'settings') {
+      this.renderSettings();
+      return;
     }
-    this.renderLanguageSelector();
     if (this.mode === 'confirm-new') {
       this.renderConfirmNew();
     } else if (this.mode === 'legacy') {
@@ -667,65 +674,103 @@ export class MenuScene extends Phaser.Scene {
     this.content.push(shadow, title, subtitleShadow, subtitle, rule);
   }
 
+  /**
+   * The front page's button column, stacked by flow.
+   *
+   * Every row used to sit at a fixed y measured against an 844-tall sheet. The gaps between them
+   * scale with the sheet; the type inside them does not, and a tagline that is one line in English
+   * is two in Vietnamese. On a short viewport the tagline landed across the button under it and
+   * the save stamp across the one under that. Measuring each row and starting the next below it
+   * cannot produce that, in any language, at any height.
+   */
   private renderMain(): void {
     const saved = hasSnapshot();
 
-    // The new mode leads; the two hand-played modes live one tap away on the Classic page,
-    // which also keeps the button column inside the space the menu art leaves free.
-    this.content.push(this.ui.button({ x: 54, y: this.vy(506), width: 282, height: this.vh(58) }, t('ascent.menu.title'), () => {
-      this.startAscentRun();
-    }, { variant: 'primary', fontSize: '17px' }));
-
-    this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(570), t('ascent.menu.tagline'), {
+    // The settings block is pinned to the bottom of the sheet, so the column above it has a hard
+    // floor. Both texts are built first because only Phaser knows how many lines they wrap to, and
+    // then the gaps are shared out of whatever room is left — which is how the page fits at any
+    // height in any language instead of fitting at 844 in English.
+    const tagline = this.add.text(GAME_WIDTH / 2, 0, t('ascent.menu.tagline'), {
       color: '#8a5f1c',
       fontFamily: UI_FONT,
       fontSize: '11px',
       align: 'center',
       wordWrap: { width: 270 },
-    }).setOrigin(0.5, 0));
-
-    this.content.push(this.ui.button({ x: 54, y: this.vy(596), width: 282, height: this.vh(46) }, t('ascent.menu.classic'), () => {
-      this.mode = 'classic';
-      this.render();
-    }, { variant: 'secondary', fontSize: '15px' }));
-
-    this.content.push(this.ui.button({ x: 54, y: this.vy(650), width: 282, height: this.vh(42) }, t('menu.continue'), () => {
-      const snapshot = loadSnapshot();
-      if (snapshot) {
-        this.startGame(snapshot.state);
-      }
-    }, { variant: saved ? 'ghost' : 'disabled', fontSize: '15px' }));
-
-    const saveLabel = this.add.text(GAME_WIDTH / 2, this.vy(698), snapshotLabel(), {
+    }).setOrigin(0.5, 0);
+    const saveLabel = this.add.text(GAME_WIDTH / 2, 0, snapshotLabel(), {
       color: saved ? '#2a2118' : '#5a4c39',
       fontFamily: UI_FONT,
       fontSize: '12px',
       fontStyle: '700',
       align: 'center',
-      backgroundColor: 'rgba(32,38,31,0.42)',
+      backgroundColor: 'rgba(243,230,196,0.72)',
       padding: { x: 6, y: 3 },
       wordWrap: { width: 250 },
-    }).setOrigin(0.5);
+    }).setOrigin(0.5, 0);
+
+    // The column sits against the settings button rather than at a fixed height, so the art above
+    // it keeps whatever room is left over instead of the page ending in a hole.
+    const rows = this.vh(58) + this.vh(46) + this.vh(42) + tagline.height + saveLabel.height;
+    const floor = SETTINGS_TOP - 18;
+    const gap = Phaser.Math.Clamp(Math.round((floor - this.vy(470) - rows) / 4), 4, Math.round(16 * this.vScale));
+    let cursor = Math.max(this.vy(420), floor - rows - gap * 4);
+
+    this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: this.vh(58) }, t('ascent.menu.title'), () => {
+      this.startAscentRun();
+    }, { variant: 'primary', fontSize: '17px' }));
+    cursor += this.vh(58) + gap;
+
+    tagline.setY(cursor);
+    this.content.push(tagline);
+    cursor += tagline.height + gap;
+
+    this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: this.vh(46) }, t('ascent.menu.classic'), () => {
+      this.mode = 'classic';
+      this.render();
+    }, { variant: 'secondary', fontSize: '15px' }));
+    cursor += this.vh(46) + gap;
+
+    this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: this.vh(42) }, t('menu.continue'), () => {
+      const snapshot = loadSnapshot();
+      if (snapshot) {
+        this.startGame(snapshot.state);
+      }
+    }, { variant: saved ? 'ghost' : 'disabled', fontSize: '15px' }));
+    cursor += this.vh(42) + Math.round(gap * 0.6);
+
+    saveLabel.setY(cursor);
     this.content.push(saveLabel);
+    cursor += saveLabel.height + gap;
+
+    this.content.push(this.ui.button(
+      { x: 108, y: SETTINGS_TOP + 6, width: 174, height: this.vh(34) },
+      t('menu.settings'),
+      () => {
+        this.mode = 'settings';
+        this.render();
+      },
+      { variant: 'ghost', fontSize: '13px' },
+    ));
 
     // Lifetime standing across all Throne of Empires runs (hidden until earned).
     // Tapping it opens the Ascension Legacy shop, where banked points buy permanent perks.
     const legacy = getLegacy();
-    if (legacy.points > 0 || legacy.bestScore > 0) {
-      const rankLabel = this.add.text(GAME_WIDTH / 2, this.vy(722), t('empire.legacy.rank', {
+    if ((legacy.points > 0 || legacy.bestScore > 0) && cursor + this.vh(30) + 18 < SETTINGS_TOP) {
+      const rankLabel = this.add.text(GAME_WIDTH / 2, cursor, t('empire.legacy.rank', {
         rank: rankForScore(legacy.bestScore),
         total: legacy.points,
       }), {
-        color: '#8a5f1c',
+        color: '#2a2118',
         fontFamily: UI_FONT,
         fontSize: '11px',
         align: 'center',
-        backgroundColor: 'rgba(32,38,31,0.42)',
+        backgroundColor: 'rgba(243,230,196,0.72)',
         padding: { x: 6, y: 3 },
-      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
       rankLabel.on('pointerup', () => { this.mode = 'legacy'; this.render(); });
       this.content.push(rankLabel);
-      this.content.push(this.ui.button({ x: 108, y: this.vy(744), width: 174, height: this.vh(30) }, t('empire.legacy.openShop'), () => {
+      cursor += rankLabel.height + Math.round(gap * 0.5);
+      this.content.push(this.ui.button({ x: 108, y: cursor, width: 174, height: this.vh(30) }, t('empire.legacy.openShop'), () => {
         this.mode = 'legacy';
         this.render();
       }, { variant: 'ghost', fontSize: '12px' }));
@@ -733,44 +778,58 @@ export class MenuScene extends Phaser.Scene {
   }
 
   /**
-   * The two hand-played modes, one tap from the main screen. Both fire exactly the same
-   * `CampaignScene` starts they did when they sat on the front page — CampaignScene itself
-   * is untouched by the new mode.
+   * Both hand-played modes, stacked by flow rather than at fixed heights.
+   *
+   * `InkUI.card` grows to fit whatever its body wraps to and reports the result — the requested
+   * height is only a minimum — so a caller that puts the next card at a hardcoded y is asserting a
+   * height the card never promised. In Vietnamese the blurbs run a line longer and the two cards
+   * climbed on top of each other. Each one now starts below the last one actually ended.
    */
   private renderClassic(): void {
-    this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(250), t('ascent.menu.classicTitle'), {
+    let cursor = this.vy(250);
+    const title = this.add.text(GAME_WIDTH / 2, cursor, t('ascent.menu.classicTitle'), {
       color: '#2a2118',
       fontFamily: TITLE_FONT,
       fontSize: '20px',
       fontStyle: '700',
       align: 'center',
-    }).setOrigin(0.5));
+      wordWrap: { width: GAME_WIDTH - 56 },
+    }).setOrigin(0.5, 0);
+    this.content.push(title);
+    cursor += title.height + 16;
 
-    this.content.push(this.ui.card({ x: 28, y: this.vy(300), width: GAME_WIDTH - 56, height: this.vh(88) }, {
-      title: t('empire.menu.title'),
-      body: t('ascent.menu.empireBlurb'),
-      border: INK_UI.gold,
-      actionPlacement: 'bottom',
-      action: {
-        label: t('ascent.menu.play'),
-        variant: 'primary',
-        onClick: () => this.scene.start('CampaignScene', { mode: 'empire' }),
+    for (const mode of [
+      {
+        title: t('empire.menu.title'),
+        body: t('ascent.menu.empireBlurb'),
+        border: INK_UI.gold,
+        variant: 'primary' as const,
+        start: 'empire' as const,
       },
-    }));
-
-    this.content.push(this.ui.card({ x: 28, y: this.vy(436), width: GAME_WIDTH - 56, height: this.vh(88) }, {
-      title: t('menu.startCampaign'),
-      body: t('ascent.menu.campaignBlurb'),
-      border: INK_UI.softBrush,
-      actionPlacement: 'bottom',
-      action: {
-        label: t('ascent.menu.play'),
-        variant: 'secondary',
-        onClick: () => this.scene.start('CampaignScene', { mode: 'campaign' }),
+      {
+        title: t('menu.startCampaign'),
+        body: t('ascent.menu.campaignBlurb'),
+        border: INK_UI.softBrush,
+        variant: 'secondary' as const,
+        start: 'campaign' as const,
       },
-    }));
+    ]) {
+      const card = this.ui.card({ x: 28, y: cursor, width: GAME_WIDTH - 56, height: this.vh(88) }, {
+        title: mode.title,
+        body: mode.body,
+        border: mode.border,
+        actionPlacement: 'bottom',
+        action: {
+          label: t('ascent.menu.play'),
+          variant: mode.variant,
+          onClick: () => this.scene.start('CampaignScene', { mode: mode.start }),
+        },
+      });
+      this.content.push(card);
+      cursor += (card.getData('cardHeight') as number) + 14;
+    }
 
-    this.content.push(this.ui.button({ x: 54, y: this.vy(620), width: 282, height: this.vh(44) }, t('ascent.menu.back'), () => {
+    this.content.push(this.ui.button({ x: 54, y: cursor + 6, width: 282, height: this.vh(44) }, t('ascent.menu.back'), () => {
       this.mode = 'main';
       this.render();
     }, { variant: 'secondary', fontSize: '14px' }));
@@ -881,7 +940,7 @@ export class MenuScene extends Phaser.Scene {
    */
   private renderGraphicsSelector(): void {
     this.renderChoiceRow(
-      GAME_HEIGHT - 140,
+      SETTINGS_TOP,
       t('menu.graphics'),
       GRAPHICS_QUALITIES.map((id) => ({ id, label: t(`menu.graphics.${id}` as 'menu.graphics.low') })),
       getGraphicsQuality(),
@@ -893,6 +952,80 @@ export class MenuScene extends Phaser.Scene {
         window.location.reload();
       },
     );
+  }
+
+  /**
+   * Graphics, map style and language, on a page of their own.
+   *
+   * All three were on the home screen, stacked above each other in the bottom third — a wall of
+   * nine buttons in front of a player who wants to press Play. They are set once and then never
+   * again, which is exactly what a settings page is for.
+   */
+  private renderSettings(): void {
+    // A plate to read on. Three rows of small labels sitting straight on a landscape is the one
+    // place in the game where the art actively fights the text.
+    const rowGap = 62;
+    const plateTop = this.vy(232);
+    const plateHeight = Math.min(GAME_HEIGHT - plateTop - 24, 62 + rowGap * 3 + this.vh(44) + 40);
+    this.content.push(this.ui.panel(
+      { x: 16, y: plateTop, width: GAME_WIDTH - 32, height: plateHeight },
+      { fill: INK_UI.parchment, fillAlpha: 0.94 },
+    ));
+
+    let cursor = plateTop + 18;
+    const title = this.add.text(GAME_WIDTH / 2, cursor, t('menu.settingsTitle'), {
+      color: '#2a2118',
+      fontFamily: TITLE_FONT,
+      fontSize: '20px',
+      fontStyle: '700',
+      align: 'center',
+    }).setOrigin(0.5, 0);
+    this.content.push(title);
+    cursor += title.height + 26;
+
+    this.renderChoiceRow(
+      cursor,
+      t('menu.graphics'),
+      GRAPHICS_QUALITIES.map((id) => ({ id, label: t(`menu.graphics.${id}` as 'menu.graphics.low') })),
+      getGraphicsQuality(),
+      (id) => {
+        if (id === getGraphicsQuality()) {
+          return;
+        }
+        setGraphicsQuality(id);
+        window.location.reload();
+      },
+    );
+    cursor += rowGap;
+
+    this.renderChoiceRow(
+      cursor,
+      t('menu.mapTheme'),
+      MAP_THEME_OPTIONS.map((option) => ({ id: option.id, label: t(option.labelKey) })),
+      getMapTheme(),
+      (id) => {
+        setMapTheme(id);
+        this.scene.restart();
+      },
+    );
+    cursor += rowGap;
+
+    this.renderChoiceRow(
+      cursor,
+      t('menu.language'),
+      [{ id: 'en' as LanguageCode, label: 'English' }, { id: 'vi' as LanguageCode, label: 'Tiếng Việt' }],
+      getLanguage(),
+      (code) => {
+        setLanguage(code);
+        this.render();
+      },
+    );
+    cursor += rowGap + 8;
+
+    this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: this.vh(44) }, t('menu.back'), () => {
+      this.mode = 'main';
+      this.render();
+    }, { variant: 'secondary', fontSize: '14px' }));
   }
 
   private renderConfirmNew(): void {

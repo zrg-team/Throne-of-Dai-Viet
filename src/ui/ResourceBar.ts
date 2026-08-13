@@ -25,6 +25,7 @@ const CRISIS_SEASONS = 3;
 export class ResourceBar extends Phaser.GameObjects.Container {
   private seasonText: Phaser.GameObjects.Text;
   private resourceTexts: Record<ResourceKey, Phaser.GameObjects.Text>;
+  private resourceIcons!: Record<ResourceKey, Phaser.GameObjects.Image>;
   /** Filled plate behind a store that is running out, so the crisis reads at a glance. */
   private alertChips: Record<ResourceKey, Phaser.GameObjects.Rectangle>;
 
@@ -42,7 +43,7 @@ export class ResourceBar extends Phaser.GameObjects.Container {
     const band = scene.add.graphics();
     band.setDefaultStyles({});
     sawtoothBand(band, 8, 2, GAME_WIDTH - 16, 5, 0.45);
-    sawtoothBand(band, 8, HEADER_HEIGHT - 8, GAME_WIDTH - 16, 5, 0.45);
+    sawtoothBand(band, 8, HEADER_HEIGHT - 6, GAME_WIDTH - 16, 4, 0.4);
     band.lineStyle(1, PIGMENT.mucSoft, 0.35);
     band.lineBetween(0, HEADER_HEIGHT - 0.5, GAME_WIDTH, HEADER_HEIGHT - 0.5);
     this.add(band);
@@ -53,11 +54,12 @@ export class ResourceBar extends Phaser.GameObjects.Container {
     const itemWidth = (GAME_WIDTH - 24) / RESOURCE_ORDER.length;
     this.resourceTexts = {} as Record<ResourceKey, Phaser.GameObjects.Text>;
     this.alertChips = {} as Record<ResourceKey, Phaser.GameObjects.Rectangle>;
+    this.resourceIcons = {} as Record<ResourceKey, Phaser.GameObjects.Image>;
     RESOURCE_ORDER.forEach((resource, index) => {
       const x = 12 + index * itemWidth;
       // Added before the icon and text so it always sits behind them.
       const chip = scene.add
-        .rectangle(x - 4, ROW_Y, itemWidth - 6, 20, INK_UI.cinnabar, 0.9)
+        .rectangle(x - 4, ROW_Y, itemWidth - 6, 17, INK_UI.cinnabar, 0.9)
         .setOrigin(0, 0.5)
         .setVisible(false);
       const icon = scene.add
@@ -69,6 +71,7 @@ export class ResourceBar extends Phaser.GameObjects.Container {
       }).setOrigin(0, 0.5);
       this.resourceTexts[resource] = text;
       this.alertChips[resource] = chip;
+      this.resourceIcons[resource] = icon;
       this.add([chip, icon, text]);
     });
 
@@ -83,6 +86,43 @@ export class ResourceBar extends Phaser.GameObjects.Container {
     const rate = this.gameState.resourceRates[resource];
     if (rate >= 0) return Number.POSITIVE_INFINITY;
     return Math.max(0, this.gameState.resources[resource]) / Math.max(1, -rate);
+  }
+
+  /**
+   * Packs the four stores into the strip after their values are known.
+   *
+   * The slots used to be a quarter of the width each, decided before anybody knew what would go in
+   * them. A realm holding 29.1k gold writes "29.1k (+522)" and runs straight through the icon of
+   * the store beside it — the numbers collide exactly when the run is going well enough to care
+   * about them. Measuring first and packing by flow cannot collide; if the four still will not fit
+   * the type steps down until they do.
+   */
+  private reflow(): void {
+    const available = GAME_WIDTH - 24;
+    for (const size of ['12px', '11px', '10px', '9px']) {
+      let total = 0;
+      for (const resource of RESOURCE_ORDER) {
+        const text = this.resourceTexts[resource];
+        if (text.style.fontSize !== size) {
+          text.setFontSize(size);
+        }
+        total += ICON_DISPLAY_SIZE + 4 + text.width;
+      }
+      const gap = (available - total) / (RESOURCE_ORDER.length - 1);
+      if (gap < 6 && size !== '9px') {
+        continue;
+      }
+      let x = 12;
+      for (const resource of RESOURCE_ORDER) {
+        const text = this.resourceTexts[resource];
+        const width = ICON_DISPLAY_SIZE + 4 + text.width;
+        this.resourceIcons[resource].setPosition(x, ROW_Y);
+        text.setPosition(x + ICON_DISPLAY_SIZE + 4, ROW_Y);
+        this.alertChips[resource].setPosition(x - 4, ROW_Y).setSize(width + 6, 17);
+        x += width + Math.max(6, gap);
+      }
+      return;
+    }
   }
 
   refresh(): void {
@@ -115,5 +155,7 @@ export class ResourceBar extends Phaser.GameObjects.Container {
       );
       text.setFontStyle(crisis || warning ? 'bold' : 'normal');
     });
+
+    this.reflow();
   }
 }
