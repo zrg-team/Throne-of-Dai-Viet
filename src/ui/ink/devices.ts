@@ -25,6 +25,23 @@ export const MEN_PER_MARK = 55;
 /** Past this, density stops adding information and starts costing frames — ranks deepen instead. */
 export const HOST_MARK_CAP = 420;
 
+/**
+ * Ground between one man and the next, along the file and back through the ranks.
+ *
+ * **These carry `UNIT.figure`, and that is the whole point of them existing as named constants.**
+ * The living exaggeration was applied inside `figure()` and nowhere else, while the spacing stayed
+ * on the raw caller scale — so when people were made 1.8x life size the ranks did not open up to
+ * make room. Each man ended up 2.4 rank-pitches tall with a spear 2.9 files long, and a host read as
+ * a smudge of overlapping strokes rather than as a block of soldiers. That was the "army renders
+ * badly" complaint, in one missing multiplication.
+ *
+ * Files are wider than ranks are deep, so a host is wider than it is deep the way one on the march
+ * is. The rank shear is what stops the block reading as a grid.
+ */
+const FILE_PITCH = 4.6 * UNIT.figure;
+const RANK_PITCH = 4.0 * UNIT.figure;
+const RANK_SHEAR = 1.2 * UNIT.figure;
+
 export interface HostShape {
   marks: number;
   cols: number;
@@ -38,23 +55,77 @@ export interface HostShape {
  * a two-thousand-man one without anybody reading a label. Formation is wider than deep, the way a
  * host on the march actually is.
  */
-export function hostShape(men: number, markSpacing = 4.6, rankSpacing = 4): HostShape {
+export function hostShape(men: number, markSpacing = FILE_PITCH, rankSpacing = RANK_PITCH): HostShape {
   const marks = Math.max(4, Math.min(HOST_MARK_CAP, Math.round(men / MEN_PER_MARK)));
   const cols = Math.max(3, Math.round(Math.sqrt(marks * 2.6)));
   const rows = Math.ceil(marks / cols);
   return { marks, cols, rows, width: cols * markSpacing, height: rows * rankSpacing };
 }
 
-/** One soldier: a stroke, a head, and sometimes a spear. Four pixels of information. */
+/**
+ * The block a host of this many men fills at drawing scale `s` — the shape `drawHost` will produce.
+ *
+ * Callers want this rather than `hostShape` directly: it is the only place that knows the pitch is
+ * `FILE_PITCH`/`RANK_PITCH` and not some other pair of numbers. A caller that spells the
+ * multiplication out itself is a caller that will still be spelling out the old one after the
+ * spacing changes, which is precisely how the marker, its shadow and its standard came to disagree.
+ */
+export function hostShapeAt(men: number, s = 1): HostShape {
+  return hostShape(men, FILE_PITCH * s, RANK_PITCH * s);
+}
+
+/**
+ * One soldier: a body, a nón, and usually a spear. Five marks of information.
+ *
+ * Drawn through `inkPath` like every other living thing on the map. It used to be the sole
+ * exception — a ruled `lineBetween`, a `fillCircle` and a second ruled line — while the farmer
+ * standing forty pixels away went through the full two-pass soaked-underlay treatment. At a
+ * distance that difference reads exactly as the complaint it drew: the villagers look printed and
+ * the army looks like tally marks someone left on the paper.
+ *
+ * Kept to five strokes, because this runs up to `HOST_MARK_CAP` times per host and several hosts
+ * can be on screen. The cost is paid once when the marker is built, not per frame — each rank is
+ * its own `Graphics` that is tweened rather than redrawn.
+ */
 export function figure(g: G, x: number, y: number, scale: number, colour: number, spear: boolean): void {
   const s = scale * UNIT.figure;
-  g.lineStyle(0.9 * s, colour, 0.85);
-  g.lineBetween(x, y, x, y - 3.1 * s);
-  g.fillStyle(colour, 0.85);
-  g.fillCircle(x, y - 4.2 * s, 1.05 * s);
+  const seed = Math.round(x * 31 + y * 17);
+  const ink = { colour, wobble: 0.16 * s, step: 2.2 };
+
+  // Body: hem to shoulder. Slightly off vertical, so a rank is people standing rather than a comb.
+  const lean = ((seed % 7) - 3) * 0.055 * s;
+  inkPath(g, [{ x, y }, { x: x + lean, y: y - 3.0 * s }], seed, { width: 0.85 * s, alpha: 0.8, ...ink });
+  // Shoulders — the one mark that separates a man from a stick at this size.
+  inkPath(
+    g,
+    [{ x: x - 0.95 * s + lean, y: y - 2.85 * s }, { x: x + 0.95 * s + lean, y: y - 3.05 * s }],
+    seed + 1,
+    { width: 0.6 * s, alpha: 0.62, ...ink },
+  );
+
+  // Head, then the nón over it: a cone, not a disc. A filled circle at this size is a pinhead.
+  g.fillStyle(colour, 0.8);
+  g.fillCircle(x + lean, y - 3.65 * s, 0.62 * s);
+  inkPath(
+    g,
+    [
+      { x: x - 1.15 * s + lean, y: y - 3.75 * s },
+      { x: x + lean, y: y - 4.9 * s },
+      { x: x + 1.15 * s + lean, y: y - 3.75 * s },
+    ],
+    seed + 2,
+    { width: 0.55 * s, alpha: 0.72, ...ink },
+  );
+
   if (spear) {
-    g.lineStyle(0.6 * s, colour, 0.6);
-    g.lineBetween(x + 1.4 * s, y - 1 * s, x + 1.4 * s, y - 8.5 * s);
+    // Held upright and close in. The old spear ran 8.5 units — nearly three files — so every
+    // soldier's weapon crossed the men beside him.
+    inkPath(
+      g,
+      [{ x: x + 1.15 * s + lean, y: y - 0.7 * s }, { x: x + 1.3 * s + lean, y: y - 6.2 * s }],
+      seed + 3,
+      { width: 0.45 * s, alpha: 0.5, ...ink },
+    );
   }
 }
 
@@ -77,15 +148,18 @@ export function drawHost(
   rankTarget?: (rank: number) => G,
 ): HostShape {
   const rand = mulberry32(seed);
-  const shape = hostShape(men, 4.6 * s, 4 * s);
+  const shape = hostShapeAt(men, s);
   let drawn = 0;
   for (let rank = 0; rank < shape.rows && drawn < shape.marks; rank += 1) {
     const target = rankTarget?.(rank) ?? g;
     for (let file = 0; file < shape.cols && drawn < shape.marks; file += 1) {
       figure(
         target,
-        x + file * 4.6 * s + (rand() - 0.5) * 1.5 + rank * 1.2 * s,
-        y + rank * 4 * s + (rand() - 0.5) * 1.2,
+        // Jitter scaled by `s` like everything else. It used to be absolute, so at the marker's
+        // 0.82 it was a third of a file wide and at menu scale it was half of one — a formation
+        // whose raggedness changed with how far away you were standing.
+        x + file * FILE_PITCH * s + (rand() - 0.5) * 0.32 * FILE_PITCH * s + rank * RANK_SHEAR * s,
+        y + rank * RANK_PITCH * s + (rand() - 0.5) * 0.3 * RANK_PITCH * s,
         s,
         colour,
         spear && rand() > 0.25,
@@ -110,11 +184,27 @@ export function drawHost(
  * blocks are wide, shallow and sheared.
  */
 export function hostFootprint(g: G, x: number, y: number, shape: HostShape, s = 1, alpha = 0.07): void {
-  // Feet occupy x ∈ [x, x + spanX] and y ∈ [y, y + spanY]; the rank shear widens the x span.
-  const spanX = (shape.cols - 1) * 4.6 * s + (shape.rows - 1) * 1.2 * s;
-  const spanY = (shape.rows - 1) * 4 * s;
+  const { spanX, spanY } = hostSpan(shape, s);
   g.fillStyle(PIGMENT.muc, alpha);
   g.fillEllipse(x + spanX / 2, y + spanY / 2 + 1.1 * s, spanX + 9 * s, spanY + 6 * s);
+}
+
+/**
+ * The ground the men's feet actually cover, measured from the same anchor `drawHost` is given.
+ *
+ * Deliberately **not** `shape.width`/`shape.height`: those are the block's *pitch*, `cols × spacing`,
+ * which overshoots the outermost figure by a full spacing on each axis. Sizing anything off them
+ * puts it a spacing too low and too wide. The shadow learned this the hard way (see
+ * `hostFootprint`'s history); the standard then made the identical mistake independently, planting
+ * itself a constant ~9 px in front of the men and ~2 px outside the shadow's left edge, at every
+ * army size. Exported so there is exactly one answer to "where is this host standing".
+ */
+export function hostSpan(shape: HostShape, s = 1): { spanX: number; spanY: number } {
+  return {
+    // The rank shear pushes each rank right, so the feet span wider than the files alone.
+    spanX: (shape.cols - 1) * FILE_PITCH * s + (shape.rows - 1) * RANK_SHEAR * s,
+    spanY: (shape.rows - 1) * RANK_PITCH * s,
+  };
 }
 
 /**
@@ -128,7 +218,7 @@ export function marchInPlace(scene: Phaser.Scene, ranks: Phaser.GameObjects.Grap
   ranks.forEach((rank, index) => {
     scene.tweens.add({
       targets: rank,
-      y: rank.y - 1.15 * s,
+      y: rank.y - 0.29 * RANK_PITCH * s,
       duration: 900 + index * 80,
       delay: index * 200,
       yoyo: true,

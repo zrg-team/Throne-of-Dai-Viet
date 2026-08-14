@@ -188,7 +188,10 @@ export class ArmyRenderer {
           trail.setDepth(68);
           trail.lineStyle(2, INK.sealRed, 0.5);
           const fromX = marker.x;
-          const fromY = marker.y + 6;
+          // The marker's own origin is the block's ground line — `drawHost` anchors at `-height`
+          // so the feet land at y ≈ 0. The `+6` this used to carry started the trail below the men,
+          // the same off-by-a-foot-offset the standard had.
+          const fromY = marker.y;
           const toX = wx(anchor.x);
           const toY = wy(anchor.y) - 12;
           const segments = 9;
@@ -268,7 +271,9 @@ export class ArmyRenderer {
 
     const puff = this.scene.add.ellipse(
       x - 10 + Math.random() * 6,
-      y + 20 + Math.random() * 4,
+      // Kicked up at the men's heels, not twenty pixels in front of them. The marker's origin is
+      // already the ground the host stands on.
+      y + 2 + Math.random() * 4,
       8 + Math.random() * 6,
       4 + Math.random() * 3,
       INK.mountain,

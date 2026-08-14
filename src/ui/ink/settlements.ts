@@ -17,29 +17,69 @@ type G = Phaser.GameObjects.Graphics;
 
 export type Era = 'ly' | 'tran' | 'le' | 'nguyen';
 
-/** A knot of roofs at slightly different angles, packed the way houses that grew up together sit. */
+/**
+ * One thing standing on the ground, and the line it stands on.
+ *
+ * The eye reads a scene bottom-up: what is lower on the sheet is nearer, and nearer things cover
+ * farther ones. Every composite in this file collects its parts as these and paints them in `y`
+ * order, rather than in the order the code happens to mention them — which is how a banyan at
+ * `y − 7s` ended up drawn over houses a full 14·s in front of it.
+ *
+ * Ground itself — a swept yard, a pond, a field — is not standing and is painted before the lot.
+ */
+interface Standing {
+  y: number;
+  draw: () => void;
+}
+
+function paintStanding(parts: Standing[]): void {
+  parts.sort((a, b) => a.y - b.y);
+  for (const part of parts) {
+    part.draw();
+  }
+}
+
+/**
+ * A knot of roofs at slightly different angles, packed the way houses that grew up together sit.
+ *
+ * Everything standing here goes into **one** list sorted by the ground it stands on. The houses were
+ * already sorted among themselves; the three trees and the haystack were then painted over the lot
+ * with no comparison at all, and a tree's ground line can be 19·s *behind* the roofs. That is the
+ * single most visible ordering fault on the map — a tree drawn over the house it stands behind.
+ */
 export function hamlet(g: G, x: number, y: number, s: number, seed: number, count = 6): void {
   const rand = mulberry32(seed);
-  const homes: Array<{ x: number; y: number; s: number; seed: number }> = [];
+  const standing: Standing[] = [];
+
   for (let index = 0; index < count; index += 1) {
     const angle = rand() * Math.PI * 2;
     const distance = Math.sqrt(rand()) * 44 * s;
-    homes.push({
-      x: x + Math.cos(angle) * distance * 1.4,
-      y: y + Math.sin(angle) * distance * 0.55,
-      s: s * (0.92 + rand() * 0.2),
-      seed: seed + index * 37,
+    const hx = x + Math.cos(angle) * distance * 1.4;
+    const hy = y + Math.sin(angle) * distance * 0.55;
+    const hs = s * (0.92 + rand() * 0.2);
+    const hseed = seed + index * 37;
+    standing.push({
+      y: hy,
+      draw: () => {
+        groundShadow(g, hx + 13 * hs, hy + 1, 17 * hs, 0.08);
+        house(g, hx, hy, hs, hseed);
+      },
     });
   }
-  homes.sort((a, b) => a.y - b.y);
-  for (const home of homes) {
-    groundShadow(g, home.x + 13 * home.s, home.y + 1, 17 * home.s, 0.08);
-    house(g, home.x, home.y, home.s, home.seed);
-  }
+
+  // Same `rand()` draw order as before, so a hamlet keeps the layout its seed always gave it —
+  // only the painting order changes.
   for (let index = 0; index < 3; index += 1) {
-    tree(g, x + (rand() - 0.5) * 104 * s, y + (rand() - 0.5) * 38 * s, s * (0.85 + rand() * 0.35), seed + 500 + index);
+    const tx = x + (rand() - 0.5) * 104 * s;
+    const ty = y + (rand() - 0.5) * 38 * s;
+    const ts = s * (0.85 + rand() * 0.35);
+    standing.push({ y: ty, draw: () => tree(g, tx, ty, ts, seed + 500 + index) });
   }
-  hayStack(g, x - 58 * s, y + 10 * s, s * 0.9, seed + 600);
+
+  const stackY = y + 10 * s;
+  standing.push({ y: stackY, draw: () => hayStack(g, x - 58 * s, stackY, s * 0.9, seed + 600) });
+
+  paintStanding(standing);
 }
 
 /**
@@ -48,13 +88,10 @@ export function hamlet(g: G, x: number, y: number, s: number, seed: number, coun
  */
 export function village(g: G, x: number, y: number, s: number, seed: number): void {
   const rand = mulberry32(seed);
-  for (let index = 0; index < 5; index += 1) {
-    bamboo(g, x - 62 * s + index * 31 * s, y - 26 * s + (index % 2) * 5 * s, 0.72 * s, seed + 20 + index);
-  }
   const baseY = y + 7 * s;
-  for (let index = 0; index < 3; index += 1) {
-    house(g, x - 34 * s + index * 34 * s, baseY + (index === 1 ? 3 * s : 0), 1 * s, seed + 10 + index);
-  }
+
+  // ── ground first: a yard is swept earth and a pond is a hole in it, and nothing standing on
+  // either belongs underneath them.
   const yard: Pt[] = [
     { x: x - 27 * s, y: baseY + 3 * s }, { x: x + 27 * s, y: baseY + 2 * s },
     { x: x + 24 * s, y: baseY + 13 * s }, { x: x - 24 * s, y: baseY + 14 * s },
@@ -73,13 +110,37 @@ export function village(g: G, x: number, y: number, s: number, seed: number): vo
   printedShape(g, pond, PIGMENT.chamWash, seed + 4, {
     width: 0.75, alpha: 0.5, colour: PIGMENT.cham, wobble: 0.4, step: 7, fillAlpha: 0.62,
   });
+
+  // ── then everything standing on it, back to front. The lũy tre closes the back at −26·s, the
+  // cây đa stands at −7·s, the roofs at +7·s, the cau and the cây rơm at +24·s. Painted in the
+  // order they are mentioned — which is what this used to do — the hedge is correct by luck and
+  // the banyan, the largest prop on the map, covers three houses standing in front of it.
+  const standing: Standing[] = [];
+
+  for (let index = 0; index < 5; index += 1) {
+    const bx = x - 62 * s + index * 31 * s;
+    const by = y - 26 * s + (index % 2) * 5 * s;
+    standing.push({ y: by, draw: () => bamboo(g, bx, by, 0.72 * s, seed + 20 + index) });
+  }
   for (let index = 0; index < 3; index += 1) {
-    areca(g, x + 46 * s + index * 7 * s, y + 24 * s - index * 9 * s, 0.72 * s, seed + 30 + index);
+    const hx = x - 34 * s + index * 34 * s;
+    const hy = baseY + (index === 1 ? 3 * s : 0);
+    standing.push({ y: hy, draw: () => house(g, hx, hy, 1 * s, seed + 10 + index) });
   }
-  hayStack(g, x - 50 * s, y + 24 * s, 0.9 * s, seed + 40);
+  for (let index = 0; index < 3; index += 1) {
+    const ax = x + 46 * s + index * 7 * s;
+    const ay = y + 24 * s - index * 9 * s;
+    standing.push({ y: ay, draw: () => areca(g, ax, ay, 0.72 * s, seed + 30 + index) });
+  }
+  const stackY = y + 24 * s;
+  standing.push({ y: stackY, draw: () => hayStack(g, x - 50 * s, stackY, 0.9 * s, seed + 40) });
+  // Rolled here, after the pond's fifteen draws, so the seed still decides the same villages.
   if (rand() > 0.5) {
-    banyan(g, x + 54 * s, y - 7 * s, 0.85 * s, seed + 50);
+    const banyanY = y - 7 * s;
+    standing.push({ y: banyanY, draw: () => banyan(g, x + 54 * s, banyanY, 0.85 * s, seed + 50) });
   }
+
+  paintStanding(standing);
 }
 
 /**

@@ -29,7 +29,7 @@ import { OverlayRenderer } from './map/OverlayRenderer';
 import { SeasonRenderer, type SeasonScape } from './map/SeasonRenderer';
 import { SettlementRenderer } from './map/SettlementRenderer';
 import { TrafficRenderer } from './map/TrafficRenderer';
-import { BAKE_SEASON, seasonVisualsEnabled, setRenderSeason } from '../ui/ink/season';
+import { BAKE_SEASON, foliagePalette, seasonVisualsEnabled, setFoliageSeason, setRenderSeason } from '../ui/ink/season';
 import { UI_FONT } from '../ui/fonts';
 import { t } from '../i18n';
 import { MINIMAP_H, MINIMAP_W } from '../ui/MinimapRenderer';
@@ -759,11 +759,17 @@ export class MapScene extends Phaser.Scene {
     decorationGraphics.clear();
     const hexSize = this.state.mapConfig.hexSize;
     const rng = createRng(this.state.mapConfig.seed + 9001);
-    // Pinned to the bake season, not `state.season` — see `BAKE_SEASON`. This layer is far too
-    // expensive to redraw at the rate the calendar turns, so the season is painted live above it
-    // instead. Set explicitly rather than left to the module default because the menu diorama sets
-    // the real season on the way in, and that must not leak into the map's ground.
+    // Two seasons are in play here, deliberately.
+    //
+    // The GROUND is pinned to `BAKE_SEASON`: it is the expensive half of this pass, it only needs
+    // redrawing when a province changes hands, and soil that changed colour four times a year was
+    // indistinguishable from the full-screen filter this art direction dropped.
+    //
+    // What GROWS out of it follows the calendar, and is re-inked on its own by `rebakeScenery()`.
+    // Both are set explicitly rather than left to the module default, because the menu diorama sets
+    // the real season on its way in and that must not leak into the map.
     setRenderSeason(BAKE_SEASON);
+    setFoliageSeason(this.state.season);
 
     // A renderer that draws the whole landscape at once owns terrain entirely — ranges, field
     // systems and prop scatters have to cross cell boundaries to look like a country, which the
@@ -783,6 +789,7 @@ export class MapScene extends Phaser.Scene {
             return { x: this.wx(pixel.x), y: this.wy(pixel.y) };
           },
           isVisible: geometry.isVisible,
+          settlementAnchors: this.settlementAnchors(),
         });
         return;
       } catch (error) {
@@ -1121,6 +1128,24 @@ export class MapScene extends Phaser.Scene {
    * ground beside the town they belonged to. `getSettlementAnchor` already knew where the town
    * was; only the label and the capital were not asking it.
    */
+  /**
+   * World-space centre of every visible settlement, for the scatter to keep clear of.
+   *
+   * `getSettlementAnchor` is the same source the label, the capital ring and the player's banner
+   * already use, so the ground the scatter avoids is exactly the ground the town is drawn on.
+   */
+  private settlementAnchors(): Array<{ x: number; y: number }> {
+    const anchors: Array<{ x: number; y: number }> = [];
+    for (const land of this.state.lands) {
+      if (!land.isVisible || !land.hasVillage) {
+        continue;
+      }
+      const anchor = this.getSettlementAnchor(land);
+      anchors.push({ x: this.wx(anchor.x), y: this.wy(anchor.y) });
+    }
+    return anchors;
+  }
+
   private settlementNodeOffset(land: Land): { x: number; y: number } {
     const anchor = this.getSettlementAnchor(land);
     return { x: this.wx(anchor.x) - this.wx(land.x), y: this.wy(anchor.y) - this.wy(land.y) };
@@ -1135,7 +1160,20 @@ export class MapScene extends Phaser.Scene {
     // settlement cluster + label render live on top of the cached map. Kept live (not
     // baked) because there are only a handful of visible-land nodes and Phaser's
     // RenderTexture.draw does not reliably composite deeply-nested containers.
-    const container = this.add.container(this.wx(land.x), this.wy(land.y)).setDepth(2);
+    //
+    // Depth carries the node's position on the sheet, not a flat 2. Every node used to sit at
+    // exactly the same depth, so Phaser fell back to display-list insertion order — which is
+    // `state.lands` array order, i.e. the order the generator happened to emit provinces. Two
+    // neighbouring towns therefore overlapped by accident of an array index, and a town could cover
+    // one drawn well in front of it. The band is [2, 2.8), clear of the season wash at 3.
+    //
+    // NB this only works because land nodes are scene-level objects. **Phaser does not depth-sort
+    // Container children** (`ContainerWebGLRenderer` renders `container.list` as-is), so `setDepth`
+    // on anything *inside* one of these is silently a no-op — which is why every composite in
+    // `settlements.ts` orders itself by painting order instead.
+    const worldY = this.wy(land.y);
+    const container = this.add.container(this.wx(land.x), worldY)
+      .setDepth(2 + Phaser.Math.Clamp(worldY / Math.max(1, this.worldHeight), 0, 1) * 0.8);
     const isPlayerLand = land.ownerId === PLAYER_KINGDOM_ID;
     const isPlayerCapital = isPlayerLand && land.type === 'castle';
     if (isPlayerCapital) {
@@ -1156,7 +1194,11 @@ export class MapScene extends Phaser.Scene {
   private createLandLabel(land: Land, isPlayerCapital: boolean): Phaser.GameObjects.Container {
     const labelText = isPlayerCapital ? `${this.shortName(land)} ${t('common.capital')}` : this.shortName(land);
     const label = this.add.text(0, 0, labelText, {
-      color: '#241407',
+      // Lettered in the season now in play — `foliagePalette()` is the live half of the pair, the
+      // ground being pinned. These names are the only type standing in the world rather than in the
+      // chrome, so with the full-screen wash gone they are where the calendar can be read without
+      // looking at the HUD. Rewritten by `rebakeScenery()` -> `redrawLandNodes()` when it turns.
+      color: foliagePalette().labelInk,
       fontFamily: UI_FONT,
       fontSize: '10px',
       align: 'center',
@@ -1470,8 +1512,50 @@ export class MapScene extends Phaser.Scene {
       return;
     }
     this.renderedSeason = this.state.season;
+    this.rebakeScenery();
     this.seasons.setScape(this.landscapeGeometry());
     this.seasons.sync(this.state.season);
+  }
+
+  /**
+   * Turns the leaves. Re-inks every growing thing on the map in the season now current.
+   *
+   * This is the path that replaced the full-screen seasonal wash. Three of the four seasons no
+   * longer paint anything over the world at all — the year is read off the canopy, the grass and the
+   * name plates — so those things have to be genuinely redrawn, and the scatter is inside the static
+   * bake.
+   *
+   * Measured on the same 4x-throttled mid-tier profile that ruled seasonal baking out the first
+   * time (`test_scripts/measure-season-bake.mjs`, 1560 tiles, 42 lands): **110-220 ms across four
+   * runs, median ~170**, against 1200-1500 ms for the `refresh()` this replaces. Roughly 2% of a
+   * seven-second ascent season, once per season.
+   *
+   * The spread is real, not noise: the top of it is what `SCATTER.plains` carrying twice the tufts
+   * costs, since those are re-inked here. Budget for this path is 250 ms — if a future scatter
+   * change pushes it past that, thin the plan rather than going back to a full-screen wash.
+   *
+   * Three things buy the eleven-fold saving:
+   *
+   *  · the placement plan is reused, so no scatter generation and no spacing pass — see
+   *    `DongHoMapRenderer.repaintScatter`;
+   *  · the ground, water, ranges and paddy are not touched, because they are pinned to `BAKE_SEASON`;
+   *  · **no new RenderTexture.** The band layers are still resident `Graphics` after a bake, only
+   *    hidden, so `bakeStaticTerrain` re-composites them from what is already in memory. The map
+   *    already holds ~52 MB of textures; a second scenery buffer to cross-fade against was the one
+   *    design this could not afford, which is why the leaves turn in a single frame rather than
+   *    dissolving. A woodblock print does not dissolve either.
+   *
+   * `redrawLandNodes` is not incidental: a settlement's own grove and its banyan are live objects at
+   * depth 2, outside the bake, and would otherwise stand in last season's green inside a re-inked
+   * country. It also re-letters the name plates in `palette.labelInk`.
+   */
+  protected rebakeScenery(): void {
+    setFoliageSeason(this.state.season);
+    if (this.terrainDecorationGraphics && this.mapRenderer.repaintScatter) {
+      this.mapRenderer.repaintScatter(this.terrainDecorationGraphics);
+    }
+    this.redrawLandNodes();
+    this.bakeStaticTerrain();
   }
 
   /** Updates one cached render signature and reports whether it changed. */
@@ -1487,12 +1571,15 @@ export class MapScene extends Phaser.Scene {
   /** Signature of everything baked into the static terrain/fog textures: ownership and
    *  visibility per land. Deliberately excludes buildings, which only affect live nodes. */
   private getBakeSignature(): string {
-    // Deliberately NOT keyed on the season, even though the season changes the map's colour.
+    // Deliberately NOT keyed on the season, even though the season now redraws half the map.
     //
     // Measured on a 4x-throttled mid-tier profile (`test_scripts/measure-season-bake.mjs`, 1560
-    // tiles): a `refresh()` whose bake signature changed costs ~1550 ms. The season turns every
-    // 3.5-5.5 s, so keying this on it would spend six of every fourteen seconds of an ascent year
-    // frozen. Everything seasonal is therefore drawn live above the bake by `SeasonRenderer`.
+    // tiles): a `refresh()` whose bake signature changed costs ~1550 ms, because it repaints the
+    // ground, the water, the ranges, the paddy, the zones, the fog and the connections along with
+    // the scenery. None of those change with the calendar.
+    //
+    // A season change goes through `rebakeScenery()` instead, which repaints only the scatter — from
+    // a cached placement plan — and re-composites. Same texture, a fraction of the work.
     return `${this.state.mapConfig.seed}|${this.state.mapRenderMode}|${this.state.lands
       .map((land) => `${land.id}:${land.ownerId}:${land.isVisible ? 1 : 0}:${land.isExplored ? 1 : 0}`)
       .join('|')}`;

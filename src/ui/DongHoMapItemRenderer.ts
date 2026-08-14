@@ -4,7 +4,7 @@ import type { ProgressBadgeVariant } from './MapItemRenderer';
 import type { LandBuildingType } from '../state/types';
 import { UI_FONT } from './fonts';
 import { PIGMENT } from './ink/palette';
-import { drawHost, figure, hostFootprint, hostShape, marchInPlace, seal } from './ink/devices';
+import { drawHost, figure, hostFootprint, hostShapeAt, hostSpan, marchInPlace, seal } from './ink/devices';
 import { drawFieldPlot } from './ink/settlements';
 import { citadel, hamlet, village } from './ink/settlements';
 import { hatchPoly, inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './ink/stroke';
@@ -129,8 +129,12 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // drawn in ink. Ownership is carried by the standard riding with the host and by the hatch on
     // the ground under it, never by the men. The player's own host takes the fuller black.
     const colour = isPlayer ? PIGMENT.muc : PIGMENT.mucSoft;
-    const scale = 0.82;
-    const shape = hostShape(Math.max(1, total), 4.6 * scale, 4 * scale);
+    // Below a villager on purpose: the men in a block are seen from further off than the farmer in
+    // the paddy beside them, and a soldier drawn the same height as a villager made a host read as a
+    // crowd standing in the fields. `figure` carries the full living exaggeration internally, so
+    // this is the dial that puts a soldier at roughly three quarters of a farmer.
+    const scale = 0.6;
+    const shape = hostShapeAt(Math.max(1, total), scale);
 
     // The shadow is the ground the whole block stands on, not a blob under one point of it. Same
     // anchor as the `drawHost` call below, which is the only way the two stay registered.
@@ -154,13 +158,34 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     marchInPlace(scene, ranks, scale);
 
     // The standard rides with the host and multiplies with it, so size reads twice over.
+    //
+    // Planted on the men's own ground, derived from the same `shape` and `scale` the shadow uses
+    // rather than from a tuned offset. Every term matters:
+    //
+    //  · `hostSpan` gives where the FEET are. `shape.width/height` is the block's pitch and
+    //    overshoots the outermost figure by a full spacing — the mistake the shadow made once and
+    //    the flag then made again, independently.
+    //  · the anchor is `-height`, so the front rank stands at `-height + spanY`.
+    //  · `createPlayerLandFlag` carries its own foot offset — pole base at `+8`, ground ellipse at
+    //    `+10` — which nobody had subtracted. That alone put the standard a constant ~9 px in front
+    //    of the men it belongs to, at every army size, which is why it read as floating.
+    // Down from 0.72 with the men. A standard is carried by somebody, so it wants to read at three
+    // or four times a soldier's height, not six — at the old size the banner was the host and the
+    // block behind it was texture.
+    const FLAG_SCALE = 0.5;
+    const FLAG_FOOT = 10 * FLAG_SCALE;
+    // Wider than the cloth (25 * FLAG_SCALE), or three standards stack into one smear.
+    const FLAG_STEP = 14;
+    const span = hostSpan(shape, scale);
+    const frontRankY = -shape.height + span.spanY;
     const standards = Math.max(1, Math.min(3, Math.round(total / 4000)));
     for (let index = 0; index < standards; index += 1) {
       const flag = isPlayer
         ? createPlayerLandFlag(scene, false, Math.round(total) + index * 7)
         : createPlayerLandFlag(scene, false, index * 13, true);
-      flag.setPosition(-shape.width / 2 - 6 + index * 9, 2);
-      flag.setScale(0.72);
+      // Inside the block's left edge, stepping right so several standards read as several.
+      flag.setPosition(-shape.width / 2 + index * FLAG_STEP, frontRankY - FLAG_FOOT);
+      flag.setScale(FLAG_SCALE);
       container.add(flag);
     }
     return container;
@@ -195,8 +220,11 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
 
     const sorted = [...centers].sort((a, b) => a.y - b.y);
     const anchor = sorted[Math.floor(sorted.length / 2)];
-    // A bigger holding gets a bigger seat, but never below the size at which a wall reads.
-    const spread = Math.min(1.35, 0.8 + sorted.length * 0.06);
+    // A bigger holding gets a bigger seat, but never below the size at which a wall reads — and
+    // never far enough above it to break the world's scale. The cap also sizes the herd, so at 1.35
+    // a large province's buffalo were drawn a third larger than the farmers standing beside them,
+    // on top of the animal already being too big. The seat can afford less headroom than the herd.
+    const spread = Math.min(1.15, 0.8 + sorted.length * 0.06);
     const parts: GroundPart[] = [];
 
     if (isShrine || kind === 'shrine') {

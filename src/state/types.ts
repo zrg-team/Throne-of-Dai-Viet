@@ -1126,6 +1126,11 @@ export interface GameState {
   year: number;
   season: Season;
   turn: number;
+  /**
+   * Ticks the current season has been held, 0-based. Optional so old saves load: absent reads as 0,
+   * which costs a resumed run at most one short season. See `SEASON_TICKS`.
+   */
+  seasonTick?: number;
   realtimeSeconds: number;
   ordersRemaining: number;
   resources: ResourceBag;
