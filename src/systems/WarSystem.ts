@@ -473,7 +473,15 @@ export function progressArmyLogistics(state: GameState): boolean {
   const disbanded: Army[] = [];
   const unpaidDisbanded = new Set<string>();
   const moraleRegen = getCourtBonuses(state).armyMoraleRegen;
-  const treasuryCannotPay = state.resources.gold <= 0 && state.resourceRates.gold < 0;
+  // Wages bite when the treasury cannot cover the season's bill — not only once it hits zero.
+  //
+  // The gate was `gold <= 0 && goldRate < 0`, which requires a realm to be simultaneously broke
+  // and losing money. Nothing in a measured run ever satisfied it, so `unpaidTicks` never
+  // incremented and the entire wage mechanic below — morale loss, desertion, disbandment — was
+  // unreachable code. A standing army you cannot afford should be a problem before it is a
+  // catastrophe, so this now fires while the coffers can still be seen to be emptying.
+  const treasuryCannotPay = state.resourceRates.gold < 0
+    && state.resources.gold + state.resourceRates.gold <= 0;
 
   for (const army of state.armies) {
     if (army.kingdomId !== PLAYER_KINGDOM_ID) {

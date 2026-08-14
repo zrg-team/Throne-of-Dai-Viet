@@ -50,7 +50,18 @@ export const UNIT = {
   areca: 1.35,
   banyan: 1.94,
   hayStack: 0.55,
-  grassTuft: 0.31,
+  /**
+   * Grass, exaggerated — for the same reason people are, and more so.
+   *
+   * Real grass is ankle high, so at 3.1 px to the metre a true-scale tuft is about one design
+   * pixel: not grass, not even a speck. Drawn honestly it left `plains` — half the map — reading
+   * as bare paper next to the paddy, which is the whole complaint this correction answers.
+   *
+   * Grass is also the one entry here that is not really an object. It is a *texture* standing for
+   * open ground, the way a woodcut shows a meadow with a handful of marks rather than by drawing
+   * blades to scale, so it is the entry that can afford to lie about its size.
+   */
+  grassTuft: 1.6,
   // Living things, all carrying the same exaggeration.
   figure: LIVING,
   farmer: 0.44 * LIVING,

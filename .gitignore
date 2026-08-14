@@ -6,3 +6,6 @@ output/
 
 # Yarn writes this install cache on every install; it is not source.
 .yarn/install-state.gz
+
+# Screenshot output from the test_scripts/shot-*.mjs drivers.
+test_scripts/shots/

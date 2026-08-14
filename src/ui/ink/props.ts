@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { PIGMENT, shadePigment } from './palette';
 import { inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './stroke';
 import { UNIT } from './proportion';
+import { seasonPalette } from './season';
 
 /**
  * The vocabulary — every silhouette that makes a landscape read as Đại Việt rather than as nowhere.
@@ -39,9 +40,17 @@ export function tree(g: G, x: number, y: number, scale: number, seed: number): v
   const s = scale * UNIT.tree;
   const rand = mulberry32(seed);
   const radius = 7 * s;
+  const palette = seasonPalette();
   inkPath(g, [{ x, y }, { x: x - 0.6 * s, y: y - radius }], seed, {
     width: 1.2 * s, alpha: 0.55, colour: PIGMENT.nau, wobble: 0.12 * s, step: 4,
   });
+
+  // Winter is the one season that changes the tree's SHAPE rather than its colour, so it leaves the
+  // scalloped crown behind entirely: bare forking branches over the same trunk.
+  if (palette.bareCanopy) {
+    bareCrown(g, x, y - radius, s, radius, rand, seed);
+    return;
+  }
 
   const lobes = 6 + Math.floor(rand() * 4);
   const canopy: Pt[] = [];
@@ -52,7 +61,7 @@ export function tree(g: G, x: number, y: number, scale: number, seed: number): v
     canopy.push({ x: x + Math.cos(angle) * rr * 1.06, y: y - radius * 1.15 + Math.sin(angle) * rr * 0.9 });
   }
   const pale = rand() > 0.62;
-  printedShape(g, canopy, pale ? PIGMENT.giDongPale : PIGMENT.giDong, seed + 1, {
+  printedShape(g, canopy, pale ? palette.foliagePale : palette.foliage, seed + 1, {
     width: 0.72 * s, alpha: 0.72, wobble: 0.16 * s, step: 4, fillAlpha: 0.85,
   });
 
@@ -73,7 +82,7 @@ export function tree(g: G, x: number, y: number, scale: number, seed: number): v
     const lobe = 0.52 + 0.06 * Math.cos(index * 2.1);
     shade.push({ x: x + Math.cos(angle) * radius * lobe, y: crownY + Math.sin(angle) * radius * lobe * 0.88 });
   }
-  g.fillStyle(pale ? PIGMENT.giDong : shadePigment(PIGMENT.giDong, 0.78), 0.5);
+  g.fillStyle(pale ? palette.foliage : shadePigment(palette.foliage, 0.78), 0.5);
   g.fillPoints(shade, true);
 
   const lit: Pt[] = [];
@@ -83,7 +92,7 @@ export function tree(g: G, x: number, y: number, scale: number, seed: number): v
     const rr = radius * 0.46 * (1 + 0.12 * Math.cos(t * Math.PI * 2 * 3));
     lit.push({ x: x - radius * 0.3 + Math.cos(angle) * rr, y: crownY - radius * 0.26 + Math.sin(angle) * rr * 0.82 });
   }
-  g.fillStyle(pale ? PIGMENT.diepHi : PIGMENT.giDongPale, 0.34);
+  g.fillStyle(pale ? PIGMENT.diepHi : palette.foliagePale, 0.34);
   g.fillPoints(lit, true);
 
   for (let pass = 0; pass < 2; pass += 1) {
@@ -97,18 +106,59 @@ export function tree(g: G, x: number, y: number, scale: number, seed: number): v
   }
 }
 
+/**
+ * A winter crown: forking bare branches where the canopy would be.
+ *
+ * Drawn as ink only, with no colour block behind it — a leafless tree in the reference prints is a
+ * line drawing, and filling it would put a ghost of the summer canopy back on the paper.
+ */
+function bareCrown(g: G, x: number, topY: number, s: number, radius: number, rand: () => number, seed: number): void {
+  const limbs = 4 + Math.floor(rand() * 3);
+  for (let limb = 0; limb < limbs; limb += 1) {
+    const angle = -Math.PI + 0.35 + (limb / (limbs - 1)) * (Math.PI - 0.7) + (rand() - 0.5) * 0.22;
+    const reach = radius * (0.85 + rand() * 0.7);
+    const midX = x + Math.cos(angle) * reach * 0.55;
+    const midY = topY + Math.sin(angle) * reach * 0.55;
+    const tipX = x + Math.cos(angle) * reach;
+    const tipY = topY + Math.sin(angle) * reach;
+    inkPath(g, [{ x, y: topY + radius * 0.25 }, { x: midX, y: midY }, { x: tipX, y: tipY }], seed + limb * 13, {
+      width: 0.62 * s, alpha: 0.62, colour: PIGMENT.nauDark, wobble: 0.14 * s, step: 4,
+    });
+    // One twig off each limb, so the silhouette breaks up instead of reading as a bare fork.
+    const twigAngle = angle + (rand() - 0.5) * 0.9;
+    inkPath(
+      g,
+      [{ x: midX, y: midY }, { x: midX + Math.cos(twigAngle) * reach * 0.4, y: midY + Math.sin(twigAngle) * reach * 0.4 }],
+      seed + limb * 13 + 7,
+      { width: 0.4 * s, alpha: 0.44, colour: PIGMENT.nauDark, wobble: 0.12 * s, step: 3 },
+    );
+  }
+}
+
+/**
+ * Cỏ — a tuft of grass, in the season's own green.
+ *
+ * Drawn in ink at a third alpha this was a grey tick that read as hatching, which is why open
+ * ground looked like bare paper next to the paddy however many tufts were scattered on it. Grass is
+ * a growing thing, so it takes the foliage pigment like every other growing thing, and the blades
+ * fan rather than standing parallel.
+ */
 export function grassTuft(g: G, x: number, y: number, scale: number, seed: number): void {
   const s = scale * UNIT.grassTuft;
   const rand = mulberry32(seed);
-  for (let blade = 0; blade < 3; blade += 1) {
+  const colour = seasonPalette().foliage;
+  const blades = 4 + Math.floor(rand() * 2);
+  for (let blade = 0; blade < blades; blade += 1) {
+    // Splayed from a common root rather than offset sideways, so a tuft reads as one plant.
+    const lean = (blade / (blades - 1) - 0.5) * 2;
     inkPath(
       g,
       [
-        { x: x + blade * 1.6 * s, y },
-        { x: x + blade * 1.6 * s + (rand() - 0.5) * 2 * s, y: y - (3 + rand() * 2.5) * s },
+        { x: x + lean * 0.7 * s, y },
+        { x: x + lean * 3.2 * s, y: y - (3.4 + rand() * 2.6) * s },
       ],
       seed + blade,
-      { width: 0.5 * s, alpha: 0.35, wobble: 0.1 * s, step: 4 },
+      { width: 0.55 * s, alpha: 0.62, colour, wobble: 0.12 * s, step: 4 },
     );
   }
 }
@@ -141,7 +191,7 @@ export function bamboo(g: G, x: number, y: number, scale: number, seed: number):
           ],
           [1.4 * s, 1.0 * s, 0.2 * s],
         ),
-        PIGMENT.giDong,
+        seasonPalette().foliage,
         seed + index * 11 + leaf,
         { width: 0.5 * s, alpha: 0.5, wobble: 0.15 * s, step: 5, fillAlpha: 0.65 },
       );
@@ -164,7 +214,7 @@ export function banana(g: G, x: number, y: number, s: number, seed: number): voi
         [{ x, y: y - 7 * s }, { x: (x + bx) / 2, y: (y - 7 * s + by) / 2 - 1.5 * s }, { x: bx, y: by }],
         [1.2 * s, 4.0 * s, 0.6 * s],
       ),
-      PIGMENT.giDong,
+      seasonPalette().foliage,
       seed + 10 + blade,
       { width: 0.6 * s, alpha: 0.55, wobble: 0.3 * s, step: 5, fillAlpha: 0.7 },
     );
@@ -194,7 +244,7 @@ export function areca(g: G, x: number, y: number, scale: number, seed: number): 
         ],
         [1.3 * s, 1.4 * s, 0.2 * s],
       ),
-      PIGMENT.giDong,
+      seasonPalette().foliage,
       seed + 30 + frond,
       { width: 0.5 * s, alpha: 0.5, wobble: 0.2 * s, step: 4, fillAlpha: 0.65 },
     );
@@ -213,7 +263,7 @@ export function banyan(g: G, x: number, y: number, scale: number, seed: number):
     const rr = 15 * s * (1 + 0.15 * Math.cos(t * Math.PI * 2 * lobes)) * (0.9 + rand() * 0.16);
     canopy.push({ x: x + Math.cos(angle) * rr * 1.2, y: y - 16 * s + Math.sin(angle) * rr * 0.78 });
   }
-  printedShape(g, canopy, PIGMENT.giDong, seed, { width: 0.85 * s, alpha: 0.7, wobble: 0.22 * s, step: 5, fillAlpha: 0.85 });
+  printedShape(g, canopy, seasonPalette().foliage, seed, { width: 0.85 * s, alpha: 0.7, wobble: 0.22 * s, step: 5, fillAlpha: 0.85 });
   printedShape(
     g,
     thickPath([{ x, y }, { x: x - 1 * s, y: y - 7 * s }, { x, y: y - 12 * s }], [3.2 * s, 2.4 * s, 2.0 * s]),
@@ -612,7 +662,7 @@ export function karst(g: G, x: number, baseY: number, w: number, h: number, seed
       const angle = Math.PI + (index / 10) * Math.PI;
       tuft.push({ x: sx + Math.cos(angle) * 3.2, y: sy + Math.sin(angle) * 2.1 });
     }
-    printedShape(g, tuft, PIGMENT.giDong, seed + 40 + bush, { width: 0.5, alpha: 0.4, wobble: 0.2, step: 4, fillAlpha: 0.5 });
+    printedShape(g, tuft, seasonPalette().foliage, seed + 40 + bush, { width: 0.5, alpha: 0.4, wobble: 0.2, step: 4, fillAlpha: 0.5 });
   }
 }
 

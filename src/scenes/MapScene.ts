@@ -26,8 +26,10 @@ import { applyPaperFX } from '../ui/ink/PaperFX';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { ArmyRenderer } from './map/ArmyRenderer';
 import { OverlayRenderer } from './map/OverlayRenderer';
+import { SeasonRenderer, type SeasonScape } from './map/SeasonRenderer';
 import { SettlementRenderer } from './map/SettlementRenderer';
 import { TrafficRenderer } from './map/TrafficRenderer';
+import { BAKE_SEASON, seasonVisualsEnabled, setRenderSeason } from '../ui/ink/season';
 import { UI_FONT } from '../ui/fonts';
 import { t } from '../i18n';
 import { MINIMAP_H, MINIMAP_W } from '../ui/MinimapRenderer';
@@ -93,6 +95,11 @@ export class MapScene extends Phaser.Scene {
   private worldMotionHalted = false;
   private overlays!: OverlayRenderer;
   private armies!: ArmyRenderer;
+  /** The season's light, ground accents and weather — live layers above the bake.
+   *  Protected so a subclass mode driving its own tick can still drift the weather. */
+  protected seasons!: SeasonRenderer;
+  /** The season the live seasonal layers are currently showing, so the sync acts only on a change. */
+  private renderedSeason?: string;
   /** Protected so a subclass mode can trace its own land boundaries from the same grid. */
   protected hexTileMap = new Map<string, HexTile>();
   private fillerTiles: HexTile[] = [];
@@ -248,6 +255,7 @@ export class MapScene extends Phaser.Scene {
     this.traffic = new TrafficRenderer(this, this.mapRenderer, this.mapItems);
     this.overlays = new OverlayRenderer(this, this.mapRenderer);
     this.armies = new ArmyRenderer(this, this.mapItems);
+    this.seasons = new SeasonRenderer(this);
     this.computeWorldBounds();
     this.touch = new TouchController(this);
     this.touch.enableFullscreenKey();
@@ -283,6 +291,7 @@ export class MapScene extends Phaser.Scene {
     this.game.canvas.removeEventListener('mousemove', this.domMouseMove);
     this.game.canvas.removeEventListener('mouseup', this.domMouseUp);
     this.game.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
+    this.seasons?.destroy();
   }
 
   /** Re-bake the cached terrain + fog textures once a lost WebGL context is restored.
@@ -408,13 +417,16 @@ export class MapScene extends Phaser.Scene {
     if (halted === this.worldMotionHalted) return;
     this.worldMotionHalted = halted;
     this.traffic.setPaused(halted);
+    this.seasons.setPaused(halted);
   }
 
-  update(_time: number, delta: number): void {
+  update(time: number, delta: number): void {
     this.syncWorldMotion();
     if (this.isWorldHalted()) {
       return;
     }
+    // After the halt check, so a stopped clock stops the weather with the rest of the world.
+    this.seasons.update(time, delta);
 
     this.state.realtimeSeconds += delta / 1000;
     this.realtimeAccumulator += delta;
@@ -636,6 +648,14 @@ export class MapScene extends Phaser.Scene {
     this.drawSiegeMarkers();
     this.drawRecruitMarkers();
     this.bakeStaticTerrain();
+    // Created after the bake so the seasonal layers are added above it, and settled straight into
+    // the current season with no opening fade.
+    this.seasons.create(
+      this.state.season,
+      this.landscapeGeometry(),
+      this.mapRenderer.theme.id === 'dong-ho' && seasonVisualsEnabled(),
+    );
+    this.renderedSeason = this.state.season;
     this.renderSignatures = { bake: this.getBakeSignature(), node: this.getNodeSignature() };
   }
 
@@ -708,6 +728,30 @@ export class MapScene extends Phaser.Scene {
     this.repaintHexTerrain();
   }
 
+  /**
+   * The map's geometry, in the shape both the landscape renderer and the seasonal layers want.
+   *
+   * Shared so the season's accents land on exactly the cells the terrain pass drew, using one
+   * definition of "visible" rather than two that can drift apart.
+   */
+  private landscapeGeometry(): SeasonScape {
+    const hexSize = this.state.mapConfig.hexSize;
+    return {
+      tiles: this.state.hexTiles,
+      tileSize: hexSize * MAP_SCALE,
+      centreOf: (tile) => {
+        const pixel = axialToPixel(tile.coord, hexSize);
+        return { x: this.wx(pixel.x), y: this.wy(pixel.y) };
+      },
+      isVisible: (tile) => {
+        const land = tile.landId ? findLand(this.state, tile.landId) : undefined;
+        return !land || land.isVisible;
+      },
+      worldWidth: this.worldWidth,
+      worldHeight: this.worldHeight,
+    };
+  }
+
   private repaintHexTerrain(): void {
     const graphics = this.terrainGraphics;
     const decorationGraphics = this.terrainDecorationGraphics;
@@ -715,6 +759,11 @@ export class MapScene extends Phaser.Scene {
     decorationGraphics.clear();
     const hexSize = this.state.mapConfig.hexSize;
     const rng = createRng(this.state.mapConfig.seed + 9001);
+    // Pinned to the bake season, not `state.season` — see `BAKE_SEASON`. This layer is far too
+    // expensive to redraw at the rate the calendar turns, so the season is painted live above it
+    // instead. Set explicitly rather than left to the module default because the menu diorama sets
+    // the real season on the way in, and that must not leak into the map's ground.
+    setRenderSeason(BAKE_SEASON);
 
     // A renderer that draws the whole landscape at once owns terrain entirely — ranges, field
     // systems and prop scatters have to cross cell boundaries to look like a country, which the
@@ -722,23 +771,18 @@ export class MapScene extends Phaser.Scene {
     // layer wholesale: if it throws, the map would be blank rather than merely old-looking.
     if (this.mapRenderer.drawLandscape) {
       try {
+        const geometry = this.landscapeGeometry();
         this.mapRenderer.drawLandscape({
           graphics,
           decoration: decorationGraphics,
-          tiles: this.state.hexTiles,
-          tileSize: hexSize * MAP_SCALE,
-          centreOf: (tile) => {
-            const pixel = axialToPixel(tile.coord, hexSize);
-            return { x: this.wx(pixel.x), y: this.wy(pixel.y) };
-          },
+          tiles: geometry.tiles,
+          tileSize: geometry.tileSize,
+          centreOf: geometry.centreOf,
           centreAt: (q, r) => {
             const pixel = axialToPixel({ q, r }, hexSize);
             return { x: this.wx(pixel.x), y: this.wy(pixel.y) };
           },
-          isVisible: (tile) => {
-            const land = tile.landId ? findLand(this.state, tile.landId) : undefined;
-            return !land || land.isVisible;
-          },
+          isVisible: geometry.isVisible,
         });
         return;
       } catch (error) {
@@ -1401,6 +1445,7 @@ export class MapScene extends Phaser.Scene {
       this.bakeStaticTerrain();
     }
 
+    this.syncSeasonVisuals();
     this.applyRenderMode();
     this.updateSelectionOutline();
     this.drawArmies();
@@ -1411,6 +1456,22 @@ export class MapScene extends Phaser.Scene {
     this.drawRecruitMarkers();
     this.events.emit('state-changed');
     this.scene.get(this.uiSceneKey()).events.emit('state-changed');
+  }
+
+  /**
+   * Turns the world's look to the current season.
+   *
+   * Deliberately outside the `bakeChanged` branch above: the season changes on almost every tick
+   * while ownership rarely does, so this must run whether or not the expensive layers were redrawn.
+   * The renderer itself no-ops unless the season actually changed, so calling it every tick is free.
+   */
+  protected syncSeasonVisuals(): void {
+    if (this.renderedSeason === this.state.season) {
+      return;
+    }
+    this.renderedSeason = this.state.season;
+    this.seasons.setScape(this.landscapeGeometry());
+    this.seasons.sync(this.state.season);
   }
 
   /** Updates one cached render signature and reports whether it changed. */
@@ -1426,6 +1487,12 @@ export class MapScene extends Phaser.Scene {
   /** Signature of everything baked into the static terrain/fog textures: ownership and
    *  visibility per land. Deliberately excludes buildings, which only affect live nodes. */
   private getBakeSignature(): string {
+    // Deliberately NOT keyed on the season, even though the season changes the map's colour.
+    //
+    // Measured on a 4x-throttled mid-tier profile (`test_scripts/measure-season-bake.mjs`, 1560
+    // tiles): a `refresh()` whose bake signature changed costs ~1550 ms. The season turns every
+    // 3.5-5.5 s, so keying this on it would spend six of every fourteen seconds of an ascent year
+    // frozen. Everything seasonal is therefore drawn live above the bake by `SeasonRenderer`.
     return `${this.state.mapConfig.seed}|${this.state.mapRenderMode}|${this.state.lands
       .map((land) => `${land.id}:${land.ownerId}:${land.isVisible ? 1 : 0}:${land.isExplored ? 1 : 0}`)
       .join('|')}`;

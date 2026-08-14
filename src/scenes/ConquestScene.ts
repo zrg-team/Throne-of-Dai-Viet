@@ -69,13 +69,16 @@ export class ConquestScene extends MapScene {
     return this.state.isDefeated || this.state.isPaused || this.state.isStrategyPause;
   }
 
-  update(_time: number, delta: number): void {
+  update(time: number, delta: number): void {
     // Deliberately not `super.update`: that drives the classic month tick, which this mode
     // replaces outright. Only the ambient-motion sync is shared.
     this.syncWorldMotion();
     if (this.isWorldHalted()) {
       return;
     }
+    // Shared for the same reason: the seasonal weather drifts on the frame clock, not the tick,
+    // and this mode turns the year fastest of all — a season every 3.5 seconds.
+    this.seasons.update(time, delta);
 
     this.state.realtimeSeconds += delta / 1000;
     this.ascentAccumulator += delta;

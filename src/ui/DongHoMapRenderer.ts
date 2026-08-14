@@ -7,6 +7,7 @@ import { PIGMENT } from './ink/palette';
 import { groundTone, hatchPoly, inkPath, mulberry32, printedShape, washFill, type Pt } from './ink/stroke';
 import { areca, bamboo, banana, banyan, farmer, grassTuft, karstRange, softRidge, tree } from './ink/props';
 import { drawFieldPlot, paddyLattice } from './ink/settlements';
+import { mixPigment, seasonPalette } from './ink/season';
 import { scatterDensity } from '../game/graphicsQuality';
 
 /**
@@ -26,18 +27,38 @@ import { scatterDensity } from '../game/graphicsQuality';
  * largest change in this art direction.
  */
 
-/** Ground tone per terrain. `null` means bare paper — mountains carry their own fill. */
-const GROUND: Partial<Record<HexTerrainType, number | null>> = {
-  plains: PIGMENT.giDongPale,
-  fields: PIGMENT.giDongPale,
-  riceFields: PIGMENT.giDongPale,
-  forest: PIGMENT.giDong,
-  hills: PIGMENT.diepLo,
-  mountains: null,
-  water: null,
-  fortress: PIGMENT.diepLo,
-  shrine: PIGMENT.diepLo,
-};
+/**
+ * Ground tone per terrain, in the season currently being painted. `null` means bare paper —
+ * mountains carry their own fill.
+ *
+ * Resolved per call rather than held as a constant so the tone follows the season. On the map that
+ * is always `BAKE_SEASON` (the ground is baked and the live season is washed over it); on the menu
+ * diorama, drawn once per launch, it is the real one.
+ */
+function groundFor(terrain: HexTerrainType): number | null {
+  const palette = seasonPalette();
+  switch (terrain) {
+    // Open grass, and the greenest ground on the map. `plains` is already the grass tile — it is
+    // 44% of the world — but it used to take exactly the same tone as the paddy, so the map read
+    // as "paddy or bare paper" with nothing in between. Pulling it toward the foliage pigment
+    // gives the country a floor of its own for the field systems to sit *in*.
+    case 'plains':
+      return mixPigment(palette.ground, palette.foliage, 0.45);
+    // The paddy's colour comes from the lattice drawn on top of it, so its base stays quieter —
+    // otherwise the plot fills and the ground tone compound into the loudest thing on the sheet.
+    case 'fields':
+    case 'riceFields':
+      return palette.ground;
+    case 'forest':
+      return palette.foliage;
+    case 'hills':
+    case 'fortress':
+    case 'shrine':
+      return palette.groundRelief;
+    default:
+      return null;
+  }
+}
 
 type PropKind = 'tree' | 'tuft' | 'bamboo' | 'banana' | 'areca' | 'banyan' | 'farmer';
 
@@ -58,7 +79,11 @@ interface ScatterSpec {
  * they were meant to shelter. A settlement plants its own grove; the scatter stays out.
  */
 const SCATTER: Partial<Record<HexTerrainType, ScatterSpec>> = {
-  plains: { count: [1, 3], kinds: ['tree', 'tree', 'tuft', 'tuft'], scale: [0.55, 1.2] },
+  // Grass, with trees standing in it rather than the other way round. Tufts outnumber trees three
+  // to one and the count is up, because open ground carrying one or two props against the paddy's
+  // eight inked plots per hex is what made plains read as blank paper next to farmland. A tuft's
+  // FOOTPRINT is 3 against a tree's 11, so these pack in without the spacing pass thinning them.
+  plains: { count: [3, 6], kinds: ['tuft', 'tuft', 'tuft', 'tree'], scale: [0.55, 1.2] },
   fields: { count: [0, 2], kinds: ['tree', 'tuft', 'farmer'], scale: [0.5, 0.95] },
   riceFields: { count: [0, 1], kinds: ['tree', 'tuft'], scale: [0.6, 0.9] },
   forest: { count: [4, 7], kinds: ['tree', 'tree', 'tree', 'bamboo', 'banana'], scale: [0.7, 1.45] },
@@ -187,7 +212,7 @@ export class DongHoMapRenderer implements MapRenderer {
    */
   private paintGround(graphics: Phaser.GameObjects.Graphics, tiles: LandscapeContext['tiles'], ctx: LandscapeContext): void {
     for (const tile of tiles) {
-      const tone = GROUND[tile.terrain];
+      const tone = groundFor(tile.terrain);
       if (!tone) {
         continue;
       }
@@ -294,7 +319,14 @@ export class DongHoMapRenderer implements MapRenderer {
       maxX = Math.max(maxX, centre.x);
       maxY = Math.max(maxY, centre.y);
     }
-    const reach = ctx.tileSize * 0.94;
+    // How far past a paddy cell's own centre the field system is allowed to spread.
+    //
+    // A hexagon of circumradius `tileSize` has inradius `0.866 · tileSize`, so this is the *floor*
+    // for covering a cell fully — go under it and holes open in the middle of the paddy. It used to
+    // be 0.94, and a disc that wide has more area than the hexagon it stands for, so the painted
+    // paddy came to ~110% of the paddy tiles and filled the concave gaps between neighbouring
+    // cells as well. Just above the inradius keeps the cells covered and stops the spill.
+    const reach = ctx.tileSize * 0.88;
     minX -= reach; minY -= reach; maxX += reach; maxY += reach;
 
     const nearPaddy = (x: number, y: number): boolean => {
@@ -307,8 +339,12 @@ export class DongHoMapRenderer implements MapRenderer {
     };
 
     // The lattice itself is shared with the menu's far bank — same country, same hand.
+    //
+    // Plots a little larger than they were (0.5 -> 0.58 of a tile): the paddy's density of inked
+    // bunds is what made it the loudest thing on the sheet, and fewer, bigger plots quiet it
+    // without taking the field system apart.
     for (const plot of paddyLattice({
-      x0: minX, x1: maxX, y0: minY, y1: maxY, cell: ctx.tileSize * 0.5, seed: 7777, keep: nearPaddy,
+      x0: minX, x1: maxX, y0: minY, y1: maxY, cell: ctx.tileSize * 0.58, seed: 7777, keep: nearPaddy,
     })) {
       drawFieldPlot(graphics, plot);
     }

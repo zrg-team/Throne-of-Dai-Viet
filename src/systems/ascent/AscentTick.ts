@@ -12,7 +12,7 @@ import {
 import { progressCourt } from '../CourtSystem';
 import { tickDiplomacy } from '../DiplomacySystem';
 import { refreshPlayerVisibility } from '../LandSystem';
-import { tickAutoDefend, tickInvasions, resolvePendingBattle } from '../empire/InvasionSystem';
+import { dissolveGarrisonLevies, tickAutoDefend, tickInvasions, resolvePendingBattle } from '../empire/InvasionSystem';
 import { addMandate } from '../empire/MandateSystem';
 import { tickGreatPowersYear } from '../empire/GreatPowersSystem';
 import { ensureHeroDeck } from '../../data/heroFactory';
@@ -188,6 +188,12 @@ export function advanceAscentTick(state: GameState): void {
   // handful of turns while leaving the player time to raise a host and march it in — which is
   // the whole point of the battle no longer freezing the world.
   advanceBattle(state);
+
+  // Once nothing is being fought, any province that turned its garrison out takes it back in.
+  // A levy is a host for the length of one battle and no longer — see `raiseGarrisonLevy`.
+  if (!state.ascent.activeBattle && !state.pendingBattle) {
+    dissolveGarrisonLevies(state);
+  }
 
   settleOwnedLands(state);
   detectConquests(state, ownedBefore);

@@ -26,11 +26,14 @@ export const WAVE_GRACE_TICKS = 10;
 export const BOSS_EVERY_N_WAVES = 4;
 /** Ticks before a boss wave lands that the telegraph banner appears. */
 export const BOSS_TELEGRAPH_TICKS = 2;
-export const BASE_THREAT = 320;
-/** Threat multiplies by this per wave — deliberately steeper than linear growth. */
-export const THREAT_GROWTH = 1.14;
-/** A Great Invasion hits this much harder than a regular wave of the same number. */
-export const BOSS_THREAT_MULT = 1.65;
+// `BASE_THREAT`, `THREAT_GROWTH` and `BOSS_THREAT_MULT` were removed here.
+//
+// Nothing imported them: the live wave size comes from `waveTargetPower` in `WaveDirector`, built
+// from WAVE_BASELINE_POWER / WAVE_BASELINE_GROWTH / BOSS_PRESSURE_MULT below. They survived the
+// cleanup that deleted the other retired dials, and a plausible-looking threat curve that is wired
+// to nothing is worse than no curve at all — it is the first thing anyone would reach for to make
+// the game harder, and turning it would have done exactly nothing.
+
 /**
  * Hosts spawned per wave. `launchOffMapInvasion` clamps a wave's *total* size to a multiple
  * of the player's own military — a deliberate anti-snowball guard in empire mode, but it
@@ -193,8 +196,14 @@ export const MIN_WAVE_SOLDIERS = 260;
  * Waves are meant to arrive, be met, and leave — the gap between them is where the realm
  * rebuilds, expands and enjoys the map. Without a ceiling the midgame settled at four or five
  * concurrent invaders and simply never cleared, which is a siege, not a rhythm.
+ *
+ * Four rather than three, to match `waveHostCount`'s own maximum. A boss coalition spawns four
+ * hosts, which immediately put the map at or over a ceiling of three — so `waveBudgetSpent`
+ * skipped the *following* wave outright every time, spawning nothing while the counter and the
+ * difficulty curve both advanced. A ceiling below what the spawner can emit in one go silences
+ * the next wave by construction.
  */
-export const MAX_LIVE_INVADER_HOSTS = 3;
+export const MAX_LIVE_INVADER_HOSTS = 4;
 /**
  * Best affordable odds at or above which an ordinary wave does not raise the response modal
  * at all — the realm simply meets it and the header strip reports the result.
@@ -352,6 +361,22 @@ export const LOYALTY_SETTLE_PER_TICK = 1.2;
  */
 export const GOLD_SOFTCAP_FROM = 500;
 export const GOLD_SOFTCAP_EXPONENT = 0.82;
+
+/**
+ * Graft: what an idle hoard loses to its own officials each season, and the size it starts at.
+ *
+ * The soft cap above throttles the *rate* and left the *stock* untouched, so a measured run still
+ * ended holding 42,971 gold against an income of 422 — **102 seasons banked**, with every price in
+ * the mode a rounding error long before that. A treasury nobody can spend is not a reward, it is a
+ * scoreboard that has stopped counting.
+ *
+ * The drain is on the excess only, so an ordinary working balance is untouched and the player can
+ * still save for the things worth saving for — a buy-off runs to about six thousand, which is why
+ * the floor sits above it. Past that, hoarding costs, and the equilibrium lands near twenty-five
+ * seasons of income instead of a hundred: still rich, no longer meaningless.
+ */
+export const TREASURY_GRAFT_FROM = 4000;
+export const TREASURY_GRAFT_RATE = 0.06;
 
 // ── Standing armies cost what they are worth ────────────────────────────────
 /**

@@ -14,8 +14,9 @@ import { envoyOptionDetail } from '../systems/ascent/EnvoySystem';
 import { realmStanding } from '../systems/ascent/RivalDirector';
 import { ourHosts, theirHosts } from '../systems/ascent/BattleSystem';
 import { BATTLE_ROUT_MORALE, BATTLE_TICK_MS, TRIBUTE_REFUSE_TICKS } from '../game/ascentConfig';
-import { ALL_COURT_POSITIONS, getCourtPositionLabel } from '../systems/CourtSystem';
-import { ascentArmyUpkeep, buildDistrictBuilding, getBuildOptions, getPlayerTroops, getUpgradeOptions, upgradeDistrictBuilding } from '../systems/ResourceSystem';
+import { ALL_COURT_POSITIONS, assignHeroToLand, getCourtPositionLabel } from '../systems/CourtSystem';
+import { ascentArmyUpkeep, buildDistrictBuilding, getBuildOptions, getPlayerTroops, getUpgradeOptions, setLandSpecialization, upgradeDistrictBuilding } from '../systems/ResourceSystem';
+import { buildFocusRows } from '../ui/focusPanel';
 import { findFreeCommander } from '../systems/ascent/AutopilotSystem';
 import { MIN_ARMY_SOLDIERS, RECRUIT_HUMAN_RESERVE, recruitSoldiers } from '../game/ascentConfig';
 import { eraLabel } from '../systems/empire/MandateSystem';
@@ -76,6 +77,14 @@ const MAP_CONTROL_PITCH = 42;
 /** The battle screen's two fixed bands, above the standing orders. */
 const BATTLE_FIELD_HEIGHT = 168;
 const BATTLE_READOUT_HEIGHT = 62;
+
+/**
+ * Room kept clear at the foot of a scrolling prompt for its fixed buttons.
+ *
+ * One 40px button, plus breathing space above and below. Prompts that pin buttons below their list
+ * pass this to `promptScrollBody` and place them at `GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8`.
+ */
+const PROMPT_FOOTER_HEIGHT = 56;
 
 /**
  * One host's marker on the battle field, kept beside the id it belongs to.
@@ -379,28 +388,12 @@ export class ConquestUIScene extends Phaser.Scene {
     const textX = 16 + gutter;
     const textWidth = bounds.width - 32 - gutter - (opts.reserveRight ?? 0);
 
-    // A thin ink contour, the same weight as every other line on the page — the accent is spent
-    // on the rail down the left edge instead. A card outlined in its own accent reads as a
-    // coloured box; a card on paper with one stamped edge reads as a choice.
-    const surface = this.ui.panel(
-      { x: 0, y: 0, width: bounds.width, height: bounds.height },
-      { border: INK_UI.brush, borderWidth: 1.2, borderAlpha: opts.disabled ? 0.3 : 0.52, muted: opts.disabled },
-    );
-    container.add(surface);
-
-    const rail = this.add.graphics();
-    rail.fillStyle(opts.accent, alpha);
-    rail.fillRect(1, 5, 4.5, bounds.height - 10);
-    container.add(rail);
-
-    // The badge sits top-right on the title's own line, so the title has to wrap before it.
-    // Without this a longer title runs underneath and is clipped mid-word.
-    if (opts.icon) {
-      const glyph = drawCardIcon(this, opts.icon, opts.accent);
-      glyph.setPosition(16 + CARD_ICON_SIZE / 2, bounds.height / 2).setAlpha(alpha);
-      container.add(glyph);
-    }
-
+    // Text first, panel afterwards — the card grows to fit what it holds.
+    //
+    // `bounds.height` used to be final, and a long description was simply clipped by it (this
+    // comment used to admit as much). It is now a *minimum*: everything below measures Phaser's
+    // real laid-out text height, exactly as `InkUI.card` does, and publishes the result on
+    // `cardHeight` so a caller can stride by it instead of by a constant.
     const titleWidth = textWidth - (opts.badge ? ConquestUIScene.BADGE_CLEARANCE : 0);
     const titleText = this.ui.label(textX, 10, opts.title, 'label', {
       fontSize: '14px',
@@ -411,14 +404,21 @@ export class ConquestUIScene extends Phaser.Scene {
     // Body follows the title's *measured* height rather than a fixed offset: reserving width
     // for the badge means a long title can now wrap to two lines, and a hard-coded y drew the
     // body straight through the second one.
-    container.add(this.ui.label(textX, 10 + titleText.height + 4, opts.body, 'body', {
+    const bodyText = this.ui.label(textX, 10 + titleText.height + 4, opts.body, 'body', {
       fontSize: '11px',
       color: INK_UI_HEX.mutedText,
       wordWrap: { width: textWidth },
-    }).setAlpha(alpha));
+    }).setAlpha(alpha);
+    container.add(bodyText);
+
+    // The note is pinned to the card's foot, so its height has to be reserved before the card's
+    // own height is settled.
+    const noteHeight = opts.note ? 20 : 0;
+    const contentBottom = bodyText.y + bodyText.height + 10 + noteHeight;
+    const height = Math.max(bounds.height, contentBottom);
 
     if (opts.note) {
-      container.add(this.add.text(textX, bounds.height - 20, opts.note, {
+      container.add(this.add.text(textX, height - 20, opts.note, {
         color: opts.noteColor ?? '#4c6b46',
         fontFamily: UI_FONT,
         fontSize: '11px',
@@ -427,6 +427,30 @@ export class ConquestUIScene extends Phaser.Scene {
       }).setAlpha(alpha));
     }
 
+    // A thin ink contour, the same weight as every other line on the page — the accent is spent
+    // on the rail down the left edge instead. A card outlined in its own accent reads as a
+    // coloured box; a card on paper with one stamped edge reads as a choice.
+    //
+    // Inserted behind the text that has already been laid out, the same way `InkUI.card` does it.
+    const surface = this.ui.panel(
+      { x: 0, y: 0, width: bounds.width, height },
+      { border: INK_UI.brush, borderWidth: 1.2, borderAlpha: opts.disabled ? 0.3 : 0.52, muted: opts.disabled },
+    );
+    container.addAt(surface, 0);
+
+    const rail = this.add.graphics();
+    rail.fillStyle(opts.accent, alpha);
+    rail.fillRect(1, 5, 4.5, height - 10);
+    container.addAt(rail, 1);
+
+    if (opts.icon) {
+      const glyph = drawCardIcon(this, opts.icon, opts.accent);
+      glyph.setPosition(16 + CARD_ICON_SIZE / 2, height / 2).setAlpha(alpha);
+      container.addAt(glyph, 2);
+    }
+
+    // The badge sits top-right on the title's own line, so the title has to wrap before it.
+    // Without this a longer title runs underneath and is clipped mid-word.
     if (opts.badge) {
       // A letter-spaced small-caps label rather than a filled chip. On paper a coloured pill reads
       // as a sticker pasted on the page; the accent survives as the ink colour instead.
@@ -442,14 +466,55 @@ export class ConquestUIScene extends Phaser.Scene {
 
     if (!opts.disabled) {
       const hit = this.add
-        .rectangle(bounds.width / 2, bounds.height / 2, bounds.width, bounds.height, 0xffffff, 0.001)
+        .rectangle(bounds.width / 2, height / 2, bounds.width, height, 0xffffff, 0.001)
         .setInteractive({ useHandCursor: true });
       hit.on('pointerup', opts.onTap);
       container.add(hit);
     }
 
+    container.setData('cardHeight', height);
     (opts.parent ?? this.modalLayer).add(container);
     return container;
+  }
+
+  /**
+   * A prompt body that scrolls, with a fixed footer below it.
+   *
+   * The counterpart of `laneList` for the decision prompts. Every prompt renderer used to lay its
+   * cards out at a fixed stride straight into `modalLayer` and discard the `content.height` that
+   * `promptFrame` returns, so nothing ever compared what it was drawing against the room it had.
+   * `GAME_HEIGHT` is clamped to **620 on a desktop browser** (`constants.ts`), where a four-card
+   * draft plus its footer needs about 775px — the last card and both buttons were simply below the
+   * bottom edge, unreachable. It fits on a 390x844 phone, which is why it looked fine in testing.
+   *
+   * `footerHeight` is the room to keep clear at the foot for fixed buttons; pass 0 for none.
+   */
+  private promptScrollBody(
+    title: string,
+    subtitle: string,
+    footerHeight: number,
+  ): { content: UIBounds; body: Phaser.GameObjects.Container; bodyWidth: number; finish: (usedHeight: number) => void } {
+    const content = this.promptFrame(title, subtitle);
+    const scroll = this.ui.scrollArea({
+      x: content.x,
+      y: content.y,
+      width: content.width,
+      height: Math.max(80, content.height - footerHeight),
+    });
+    scroll.addTo(this.modalLayer);
+    // Required: `releaseOverlay` destroys these, and an InkScrollArea that is never destroyed
+    // leaves its global wheel handler hooked to a dead scene.
+    this.activeScrollAreas.push(scroll);
+
+    return {
+      content,
+      body: scroll.content,
+      // The scroll area's own width, less a little so a card's right edge never sits under the mask.
+      bodyWidth: content.width - 6,
+      finish: (usedHeight: number) => {
+        scroll.setContentHeight(Math.max(content.height - footerHeight, usedHeight));
+      },
+    };
   }
 
   // ── Three Lane Surface ───────────────────────────────────────────────────
@@ -823,6 +888,44 @@ export class ConquestUIScene extends Phaser.Scene {
       if (run()) this.closeLane();
     };
 
+    // Who holds the province, and what it is worked for. Neither was reachable in this mode at
+    // all: Dragon Ascent never imported the specialization API, so every province in a run stayed
+    // on `balanced` forever, and a champion could be summoned but never posted to a district.
+    const governor = state.heroes.find((candidate) => candidate.assignedTo === land.id);
+    const idleHeroes = state.heroes.filter(
+      (candidate) => !candidate.assignedTo && candidate.id !== governor?.id,
+    );
+    addRow(
+      {
+        title: governor ? t('focus.governor', { hero: heroName(governor) }) : t('focus.governorNone'),
+        subtitle: idleHeroes.length > 0 && !governor
+          ? t('focus.governorHint')
+          : governor
+            ? this.heroStatLine(governor)
+            : t('focus.governorHint'),
+        border: governor ? INK_UI.gold : INK_UI.softBrush,
+        muted: !governor && idleHeroes.length === 0,
+      },
+      idleHeroes.length > 0
+        ? () => act(() => assignHeroToLand(state, idleHeroes[0].id, land.id))
+        : undefined,
+    );
+
+    addRow({ title: t('focus.heading'), subtitle: t('focus.headingHint'), border: INK_UI.softBrush, muted: true });
+    for (const row of buildFocusRows(land)) {
+      addRow(
+        {
+          title: row.isBest ? `${row.title}  ·  ${t('focus.best')}` : row.title,
+          subtitle: `${row.effect}\n${row.suitLine}`,
+          border: row.isCurrent
+            ? INK_UI.gold
+            : row.suitability === 'high' ? INK_UI.jade : INK_UI.softBrush,
+          muted: row.suitability === 'low' && !row.isCurrent,
+        },
+        row.isCurrent ? undefined : () => act(() => setLandSpecialization(state, land.id, row.focus)),
+      );
+    }
+
     for (const option of getBuildOptions(state, land)) {
       addRow(
         {
@@ -1114,14 +1217,17 @@ export class ConquestUIScene extends Phaser.Scene {
   // ── Prompts ───────────────────────────────────────────────────────────────
 
   private showPowerDraft(prompt: Extract<AscentPrompt, { kind: 'power-draft' }>): void {
-    const content = this.promptFrame(
+    // The two footer buttons are pinned below a scrolling card list, so a reroll stays reachable
+    // however many cards the draft offers and however short the viewport is.
+    const { content, body, bodyWidth, finish } = this.promptScrollBody(
       t('ascent.draft.title', { level: prompt.level }),
       t('ascent.draft.subtitle'),
+      PROMPT_FOOTER_HEIGHT,
     );
 
     const cards: Phaser.GameObjects.Container[] = [];
-    const cardHeight = 118;
-    prompt.cards.forEach((cardId, index) => {
+    let used = 0;
+    prompt.cards.forEach((cardId) => {
       const view = powerCardView(this.state, cardId);
       if (!view) return;
       // The evolution call-out outranks the power preview: completing a pair is the
@@ -1132,8 +1238,8 @@ export class ConquestUIScene extends Phaser.Scene {
           ? t('ascent.draft.powerPreview', { pct: view.powerGainPct })
           : undefined;
 
-      cards.push(this.optionCard(
-        { x: content.x, y: content.y + index * (cardHeight + 12), width: content.width, height: cardHeight },
+      const card = this.optionCard(
+        { x: 0, y: used, width: bodyWidth, height: 118 },
         {
           title: `${view.name}  ·  ${view.stackLabel}`,
           body: view.description,
@@ -1141,13 +1247,17 @@ export class ConquestUIScene extends Phaser.Scene {
           noteColor: view.evolutionReady ? '#8a5f1c' : undefined,
           badge: `${t(`ascent.rarity.${view.rarity}` as Parameters<typeof t>[0])}  ${view.stackCount}`,
           accent: view.evolutionReady ? INK_UI.gold : RARITY_COLOR[view.rarity],
+          parent: body,
           onTap: () => this.choose(cardId),
         },
-      ));
+      );
+      cards.push(card);
+      used += ((card.getData('cardHeight') as number) ?? 118) + 12;
     });
     staggerIn(this, cards);
+    finish(used);
 
-    const footerY = content.y + prompt.cards.length * (cardHeight + 12) + 12;
+    const footerY = GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8;
     const affordable = this.state.resources.gold >= prompt.rerollCost;
     this.modalLayer.add(this.ui.button(
       { x: content.x, y: footerY, width: content.width / 2 - 6, height: 40 },
@@ -1166,7 +1276,12 @@ export class ConquestUIScene extends Phaser.Scene {
   }
 
   /** One province row, shared by the Conquer prompt and the Conquer lane browser. */
-  private provinceCard(bounds: UIBounds, target: ConquestTarget, onTap: () => void): Phaser.GameObjects.Container {
+  private provinceCard(
+    bounds: UIBounds,
+    target: ConquestTarget,
+    onTap: () => void,
+    parent?: Phaser.GameObjects.Container,
+  ): Phaser.GameObjects.Container {
     const open = target.methods.filter((method) => !method.blockedReason);
     // The headline is *how many ways in there are*, not the odds: a bare win percentage hides
     // every peaceful path, and "best odds" reads 100% on almost every province because most
@@ -1188,6 +1303,7 @@ export class ConquestUIScene extends Phaser.Scene {
         ? INK_UI.softBrush
         : target.hasCertainMethod ? INK_UI.jade : target.bestChance >= 45 ? INK_UI.gold : INK_UI.cinnabar,
       disabled: open.length === 0 && !target.busyReason,
+      parent,
       onTap,
     });
   }
@@ -1196,25 +1312,27 @@ export class ConquestUIScene extends Phaser.Scene {
     // `frontLandId` is cleared the moment a province falls, so it cannot distinguish these
     // cases — keying off how much ground the realm holds does.
     const held = this.state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length;
-    const content = this.promptFrame(
+    const { content, body, bodyWidth, finish } = this.promptScrollBody(
       t('ascent.conquer.title'),
       held <= 1 ? t('ascent.conquer.subtitleFirst') : t('ascent.conquer.subtitle', { held }),
+      PROMPT_FOOTER_HEIGHT,
     );
 
     const rowHeight = 92;
     const cards: Phaser.GameObjects.Container[] = [];
     prompt.targets.forEach((target, index) => {
       cards.push(this.provinceCard(
-        { x: content.x, y: content.y + index * (rowHeight + 10), width: content.width, height: rowHeight },
+        { x: 0, y: index * (rowHeight + 10), width: bodyWidth, height: rowHeight },
         target,
         () => this.choose(target.landId),
+        body,
       ));
     });
     staggerIn(this, cards);
+    finish(prompt.targets.length * (rowHeight + 10));
 
-    const footerY = content.y + prompt.targets.length * (rowHeight + 10) + 8;
     this.modalLayer.add(this.ui.button(
-      { x: content.x, y: footerY, width: content.width, height: 40 },
+      { x: content.x, y: GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8, width: content.width, height: 40 },
       t('ascent.march.hold'),
       () => this.choose('hold'),
       { variant: 'ghost', fontSize: '12px' },
@@ -1246,21 +1364,23 @@ export class ConquestUIScene extends Phaser.Scene {
    * treasury is *for* — a filtered list would just look like the game offering less.
    */
   private showConquerMethod(target: ConquestTarget): void {
-    const content = this.promptFrame(
+    const { content, body, bodyWidth, finish } = this.promptScrollBody(
       target.landName,
       t('ascent.conquer.methodSubtitle', {
         kind: t(`ascent.conquer.kind.${target.landKind}` as Parameters<typeof t>[0], { owner: target.ownerName ?? '' }),
         garrison: target.garrison,
       }),
+      PROMPT_FOOTER_HEIGHT,
     );
 
     const rowHeight = 82;
     const cards: Phaser.GameObjects.Container[] = [];
-    target.methods.forEach((option, index) => {
+    let used = 0;
+    target.methods.forEach((option) => {
       const blocked = Boolean(option.blockedReason);
 
-      cards.push(this.optionCard(
-        { x: content.x, y: content.y + index * (rowHeight + 9), width: content.width, height: rowHeight },
+      const card = this.optionCard(
+        { x: 0, y: used, width: bodyWidth, height: rowHeight },
         {
           icon: iconForOption(option.method),
           title: t(`ascent.method.${option.method}` as Parameters<typeof t>[0]),
@@ -1277,15 +1397,18 @@ export class ConquestUIScene extends Phaser.Scene {
           noteColor: blocked ? '#6f6250' : undefined,
           accent: blocked ? INK_UI.softBrush : option.chance >= 60 ? INK_UI.jade : INK_UI.gold,
           disabled: blocked,
+          parent: body,
           onTap: () => this.choose(option.method),
         },
-      ));
+      );
+      cards.push(card);
+      used += ((card.getData('cardHeight') as number) ?? rowHeight) + 9;
     });
     staggerIn(this, cards);
+    finish(used);
 
-    const footerY = content.y + target.methods.length * (rowHeight + 9) + 8;
     this.modalLayer.add(this.ui.button(
-      { x: content.x, y: footerY, width: content.width, height: 40 },
+      { x: content.x, y: GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8, width: content.width, height: 40 },
       t('ascent.conquer.back'),
       () => this.choose('back'),
       { variant: 'ghost', fontSize: '12px' },
@@ -1297,26 +1420,27 @@ export class ConquestUIScene extends Phaser.Scene {
    * gacha — because the player should only ever learn one "a hero arrived" interaction.
    */
   private showHeroChoice(prompt: Extract<AscentPrompt, { kind: 'hero-choice' }>): void {
-    const content = this.promptFrame(
+    const { content, body, bodyWidth, finish } = this.promptScrollBody(
       prompt.source === 'court' ? t('ascent.summon.courtTitle') : t('ascent.summon.title'),
       prompt.pityUsed
         ? t('ascent.summon.pity')
         : prompt.source === 'court' ? t('ascent.summon.courtSubtitle') : t('ascent.summon.subtitle'),
+      PROMPT_FOOTER_HEIGHT,
     );
 
     const cardHeight = 132;
     const cards: Phaser.GameObjects.Container[] = [];
+    let used = 0;
 
-    prompt.heroIds.forEach((heroId, index) => {
+    prompt.heroIds.forEach((heroId) => {
       const hero = this.state.heroDeck.find((candidate) => candidate.id === heroId);
       if (!hero) return;
       const tier = tierForHero(hero);
-      const y = content.y + index * (cardHeight + 10);
       // First-time pulls are the collection payoff — say so on the card.
       const isNew = !isHeroUnlocked(hero.id);
 
       const card = this.optionCard(
-        { x: content.x, y, width: content.width, height: cardHeight },
+        { x: 0, y: used, width: bodyWidth, height: cardHeight },
         {
           title: heroName(hero),
           body: `${heroTypeLabel(hero.type)}  ·  ${rarityLabel(hero.rarity)}`,
@@ -1325,15 +1449,19 @@ export class ConquestUIScene extends Phaser.Scene {
           badge: t(`ascent.rarity.${tier}` as Parameters<typeof t>[0]),
           accent: RARITY_COLOR[tier],
           reserveRight: PORTRAIT_W + 14,
+          parent: body,
           onTap: () => this.choose(heroId),
         },
       );
+      // The card may have grown past `cardHeight` to fit a long name; the glow and the portrait
+      // are sized to what it actually became, or they sit short of its lower edge.
+      const drawnHeight = (card.getData('cardHeight') as number) ?? cardHeight;
 
       // Gold and Jade pulls glow — the one moment the mode leans into the gacha reveal.
       if (tier === 'gold' || tier === 'jade') {
         const glow = this.add.graphics();
         glow.lineStyle(3, RARITY_COLOR[tier], 0.8);
-        glow.strokeRoundedRect(-2, -2, content.width + 4, cardHeight + 4, 10);
+        glow.strokeRoundedRect(-2, -2, bodyWidth + 4, drawnHeight + 4, 10);
         card.add(glow);
         this.tweens.add({
           targets: glow,
@@ -1350,19 +1478,20 @@ export class ConquestUIScene extends Phaser.Scene {
       // taller than its frame (the shoulders hang past it), so it must be fitted to a box
       // rather than dropped at a centre point, or it spills out of the card.
       const face = renderHeroFaceInBox(this, hero, {
-        x: content.width - PORTRAIT_W - 12,
+        x: bodyWidth - PORTRAIT_W - 12,
         y: PORTRAIT_TOP,
         width: PORTRAIT_W,
-        height: cardHeight - PORTRAIT_TOP - 8,
+        height: drawnHeight - PORTRAIT_TOP - 8,
       });
       card.add(face);
       cards.push(card);
+      used += drawnHeight + 10;
     });
     staggerIn(this, cards);
+    finish(used);
 
-    const footerY = content.y + prompt.heroIds.length * (cardHeight + 10) + 8;
     this.modalLayer.add(this.ui.button(
-      { x: content.x, y: footerY, width: content.width, height: 38 },
+      { x: content.x, y: GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8, width: content.width, height: 38 },
       t('ascent.summon.pass'),
       () => this.choose('pass'),
       { variant: 'ghost', fontSize: '12px' },
@@ -1383,17 +1512,19 @@ export class ConquestUIScene extends Phaser.Scene {
    */
   private showAppointment(prompt: Extract<AscentPrompt, { kind: 'court-appointment' }>): void {
     const hero = this.state.heroes.find((candidate) => candidate.id === prompt.heroId);
-    const content = this.promptFrame(
+    const { body, bodyWidth, finish } = this.promptScrollBody(
       t('ascent.appoint.title', { hero: hero ? heroName(hero) : '' }),
       hero ? `${heroTypeLabel(hero.type)}  ·  ${this.heroStatLine(hero)}` : '',
+      0,
     );
 
     const rowHeight = 74;
     const cards: Phaser.GameObjects.Container[] = [];
-    prompt.options.forEach((option, index) => {
+    let used = 0;
+    prompt.options.forEach((option) => {
       const reserve = option.id === 'reserve';
-      cards.push(this.optionCard(
-        { x: content.x, y: content.y + index * (rowHeight + 9), width: content.width, height: rowHeight },
+      const card = this.optionCard(
+        { x: 0, y: used, width: bodyWidth, height: rowHeight },
         {
           title: option.title,
           body: option.effect,
@@ -1401,11 +1532,15 @@ export class ConquestUIScene extends Phaser.Scene {
           noteColor: option.detail && !reserve ? '#8a5f1c' : undefined,
           badge: t(`ascent.appoint.role.${option.role}` as Parameters<typeof t>[0]),
           accent: reserve ? INK_UI.softBrush : option.role === 'court' ? INK_UI.gold : INK_UI.jade,
+          parent: body,
           onTap: () => this.choose(option.id),
         },
-      ));
+      );
+      cards.push(card);
+      used += ((card.getData('cardHeight') as number) ?? rowHeight) + 9;
     });
     staggerIn(this, cards);
+    finish(used);
   }
 
   /**
@@ -1413,23 +1548,26 @@ export class ConquestUIScene extends Phaser.Scene {
    * run, so the card names what it kills — that fork is the main reason two runs diverge.
    */
   private showLawChoice(prompt: Extract<AscentPrompt, { kind: 'law-choice' }>): void {
-    const content = this.promptFrame(
+    // The longest prompt in the mode: a variable list of laws *plus* the tax options *plus* a
+    // footer. It overflowed on every viewport height, not just the short one.
+    const { content, body, bodyWidth, finish } = this.promptScrollBody(
       t('ascent.law.title'),
       t('ascent.law.subtitle', {
         points: prompt.points,
         era: this.state.mandate ? eraLabel(this.state.mandate.era) : '—',
       }),
+      PROMPT_FOOTER_HEIGHT,
     );
 
     const rowHeight = 80;
     const cards: Phaser.GameObjects.Container[] = [];
-    let cursor = content.y;
+    let cursor = 0;
 
     prompt.projectIds.forEach((projectId) => {
       const view = lawCardView(this.state, projectId);
       if (!view) return;
-      cards.push(this.optionCard(
-        { x: content.x, y: cursor, width: content.width, height: rowHeight },
+      const card = this.optionCard(
+        { x: 0, y: cursor, width: bodyWidth, height: rowHeight },
         {
           title: view.title,
           body: view.effect,
@@ -1437,30 +1575,35 @@ export class ConquestUIScene extends Phaser.Scene {
           noteColor: '#8a5f1c',
           badge: view.cost,
           accent: INK_UI.gold,
+          parent: body,
           onTap: () => this.choose(`edict:${projectId}`),
         },
-      ));
-      cursor += rowHeight + 9;
+      );
+      cards.push(card);
+      cursor += ((card.getData('cardHeight') as number) ?? rowHeight) + 9;
     });
 
     // The tax dial rides on the same card: it is the other permanent lever on the realm, and
     // giving it its own prompt would be one more modal for one more binary choice.
     prompt.taxOptions.forEach((policy) => {
-      cards.push(this.optionCard(
-        { x: content.x, y: cursor, width: content.width, height: 58 },
+      const card = this.optionCard(
+        { x: 0, y: cursor, width: bodyWidth, height: 58 },
         {
           title: t('ascent.law.taxTitle', { policy: t(`ascent.tax.${policy}` as Parameters<typeof t>[0]) }),
           body: t(`ascent.tax.${policy}.d` as Parameters<typeof t>[0]),
           accent: INK_UI.softBrush,
+          parent: body,
           onTap: () => this.choose(`tax:${policy}`),
         },
-      ));
-      cursor += 58 + 9;
+      );
+      cards.push(card);
+      cursor += ((card.getData('cardHeight') as number) ?? 58) + 9;
     });
     staggerIn(this, cards);
+    finish(cursor);
 
     this.modalLayer.add(this.ui.button(
-      { x: content.x, y: cursor + 4, width: content.width, height: 40 },
+      { x: content.x, y: GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8, width: content.width, height: 40 },
       t('ascent.law.hold'),
       () => this.choose('hold'),
       { variant: 'ghost', fontSize: '12px' },
@@ -1475,19 +1618,24 @@ export class ConquestUIScene extends Phaser.Scene {
       return;
     }
 
-    const content = this.promptFrame(politicsTitle(card), politicsDescription(card));
+    const { content, body, bodyWidth, finish } = this.promptScrollBody(
+      politicsTitle(card),
+      politicsDescription(card),
+      PROMPT_FOOTER_HEIGHT,
+    );
 
     const rowHeight = 78;
     const cards: Phaser.GameObjects.Container[] = [];
-    card.choices.forEach((choice, index) => {
+    let used = 0;
+    card.choices.forEach((choice) => {
       const cost = Object.entries(choice.effects.resourceDelta ?? {})
         .filter(([, value]) => (value ?? 0) < 0)
         .map(([key, value]) => [key, Math.abs(value ?? 0)] as const);
       const costBag = Object.fromEntries(cost);
       const affordable = cost.every(([key, value]) => (this.state.resources[key as keyof typeof this.state.resources] ?? 0) >= value);
 
-      cards.push(this.optionCard(
-        { x: content.x, y: content.y + index * (rowHeight + 10), width: content.width, height: rowHeight },
+      const option = this.optionCard(
+        { x: 0, y: used, width: bodyWidth, height: rowHeight },
         {
           title: politicsChoiceLabel(choice),
           body: politicsChoiceDescription(choice),
@@ -1495,14 +1643,18 @@ export class ConquestUIScene extends Phaser.Scene {
           noteColor: affordable ? undefined : '#a4402c',
           accent: affordable ? INK_UI.jade : INK_UI.softBrush,
           disabled: !affordable,
+          parent: body,
           onTap: () => this.choose(choice.id),
         },
-      ));
+      );
+      cards.push(option);
+      used += ((option.getData('cardHeight') as number) ?? rowHeight) + 10;
     });
     staggerIn(this, cards);
+    finish(used);
 
     this.modalLayer.add(this.ui.button(
-      { x: content.x, y: content.y + card.choices.length * (rowHeight + 10) + 8, width: content.width, height: 40 },
+      { x: content.x, y: GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8, width: content.width, height: 40 },
       t('ascent.parliament.decline'),
       () => this.choose('decline'),
       { variant: 'ghost', fontSize: '12px' },
@@ -1512,24 +1664,26 @@ export class ConquestUIScene extends Phaser.Scene {
   /** One rival empire, and everything the realm can do about it. */
   private showEnvoy(prompt: Extract<AscentPrompt, { kind: 'envoy' }>): void {
     const kingdom = this.state.kingdoms.find((candidate) => candidate.id === prompt.kingdomId);
-    const content = this.promptFrame(
+    const { body, bodyWidth, finish } = this.promptScrollBody(
       t('ascent.envoy.title', { kingdom: prompt.kingdomName }),
       t('ascent.envoy.subtitle', { relations: prompt.relations, power: prompt.power }),
+      0,
     );
 
     // Tall enough for a two-line body: the ambassador option names the hero, which wraps for
     // most names and overlapped the price line at a shorter height.
     const rowHeight = 84;
     const cards: Phaser.GameObjects.Container[] = [];
-    prompt.options.forEach((option, index) => {
+    let used = 0;
+    prompt.options.forEach((option) => {
       const price = option.cost && Object.keys(option.cost).length > 0
         ? formatResourceList(option.cost)
         : option.influenceCost
           ? t('ascent.envoy.influence', { n: option.influenceCost })
           : t('ascent.conquer.free');
 
-      cards.push(this.optionCard(
-        { x: content.x, y: content.y + index * (rowHeight + 9), width: content.width, height: rowHeight },
+      const card = this.optionCard(
+        { x: 0, y: used, width: bodyWidth, height: rowHeight },
         {
           title: t(`ascent.envoy.${option.id}` as Parameters<typeof t>[0]),
           body: kingdom ? envoyOptionDetail(this.state, kingdom, option) : '',
@@ -1537,11 +1691,15 @@ export class ConquestUIScene extends Phaser.Scene {
           noteColor: option.affordable ? undefined : '#a4402c',
           accent: option.affordable ? (option.id === 'tribute' ? INK_UI.cinnabar : INK_UI.gold) : INK_UI.softBrush,
           disabled: !option.affordable,
+          parent: body,
           onTap: () => this.choose(option.id),
         },
-      ));
+      );
+      cards.push(card);
+      used += ((card.getData('cardHeight') as number) ?? rowHeight) + 9;
     });
     staggerIn(this, cards);
+    finish(used);
   }
 
   /**
@@ -1558,20 +1716,22 @@ export class ConquestUIScene extends Phaser.Scene {
    * it on was the other half of this same complaint.
    */
   private showFamine(prompt: Extract<AscentPrompt, { kind: 'famine' }>): void {
-    const content = this.promptFrame(
+    const { body, bodyWidth, finish } = this.promptScrollBody(
       t('ascent.famine.title'),
       t('ascent.famine.body', { shortfall: Math.round(prompt.shortfall) }),
+      0,
     );
 
     const rowHeight = 78;
-    prompt.options.forEach((option, index) => {
+    let used = 0;
+    prompt.options.forEach((option) => {
       const label = t(`ascent.famine.${option.id}` as Parameters<typeof t>[0]);
       const detail = t(`ascent.famine.${option.id}D` as Parameters<typeof t>[0], {
         food: Math.round(option.food ?? 0),
       });
 
-      this.modalLayer.add(this.optionCard(
-        { x: content.x, y: content.y + index * (rowHeight + 10), width: content.width, height: rowHeight },
+      const card = this.optionCard(
+        { x: 0, y: used, width: bodyWidth, height: rowHeight },
         {
           icon: iconForOption(option.id),
           title: label,
@@ -1587,10 +1747,13 @@ export class ConquestUIScene extends Phaser.Scene {
               ? INK_UI.cinnabar
               : INK_UI.gold,
           disabled: !option.affordable,
+          parent: body,
           onTap: () => { if (option.affordable) this.choose(option.id); },
         },
-      ));
+      );
+      used += ((card.getData('cardHeight') as number) ?? rowHeight) + 10;
     });
+    finish(used);
   }
 
   /**
@@ -2050,15 +2213,18 @@ export class ConquestUIScene extends Phaser.Scene {
           })
         : t('ascent.rival.vassalBody');
 
-    const content = this.promptFrame(
+    // Aliased: `body` is already the demand's description text in this scope.
+    const { body: scrollBody, bodyWidth, finish } = this.promptScrollBody(
       title,
       `${body}
 ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
+      0,
     );
 
     const rowHeight = 80;
     const cards: Phaser.GameObjects.Container[] = [];
-    prompt.options.forEach((option, index) => {
+    let used = 0;
+    prompt.options.forEach((option) => {
       const gold = option.cost?.gold ?? prompt.gold ?? 0;
       const label = t(`ascent.rival.${option.id === 'buy-off' ? 'buyOff' : option.id}` as Parameters<typeof t>[0]);
       const detail = t(
@@ -2066,8 +2232,8 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
         { gold, ticks: prompt.ticks ?? TRIBUTE_REFUSE_TICKS },
       );
 
-      cards.push(this.optionCard(
-        { x: content.x, y: content.y + index * (rowHeight + 10), width: content.width, height: rowHeight },
+      const card = this.optionCard(
+        { x: 0, y: used, width: bodyWidth, height: rowHeight },
         {
           icon: iconForOption(option.id),
           title: label,
@@ -2083,23 +2249,30 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
               ? INK_UI.cinnabar
               : INK_UI.gold,
           disabled: !option.affordable,
+          parent: scrollBody,
           onTap: () => this.choose(option.id),
         },
-      ));
+      );
+      cards.push(card);
+      used += ((card.getData('cardHeight') as number) ?? rowHeight) + 10;
     });
     staggerIn(this, cards);
+    finish(used);
   }
 
   private showEmpireResponse(prompt: Extract<AscentPrompt, { kind: 'empire-response' }>): void {
-    const content = this.promptFrame(
+    // Aliased: `body` is the per-option description string built inside the loop below.
+    const { body: scrollBody, bodyWidth, finish } = this.promptScrollBody(
       t('ascent.response.title', { kingdom: prompt.kingdomName }),
       t('ascent.response.subtitle', { ticks: prompt.ticksToArrival, threat: Math.round(prompt.threat) }),
+      0,
     );
 
     // Taller than the other prompts' rows: these titles name a commander and can wrap, and the
     // body carries both a cost and an effect.
     const rowHeight = 96;
     const cards: Phaser.GameObjects.Container[] = [];
+    let used = 0;
 
     // Each row carries the *axis* it acts on as a badge — this battle, every battle after it,
     // the next one, or no battle at all. Five answers that differ in kind were reading as one
@@ -2172,8 +2345,8 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
           break;
       }
 
-      cards.push(this.optionCard(
-        { x: content.x, y: content.y + index * (rowHeight + 10), width: content.width, height: rowHeight },
+      const card = this.optionCard(
+        { x: 0, y: used, width: bodyWidth, height: rowHeight },
         {
           icon: iconForOption(option.id),
           title,
@@ -2190,11 +2363,15 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
                 ? INK_UI.cinnabar
                 : INK_UI.gold,
           disabled: !option.affordable,
+          parent: scrollBody,
           onTap: () => this.choose(option.id),
         },
-      ));
+      );
+      cards.push(card);
+      used += ((card.getData('cardHeight') as number) ?? rowHeight) + 10;
     });
     staggerIn(this, cards);
+    finish(used);
   }
 
   private showWaveResult(prompt: Extract<AscentPrompt, { kind: 'wave-result' }>): void {
@@ -2213,19 +2390,21 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
 
   private showFounder(prompt: Extract<AscentPrompt, { kind: 'founder' }>): void {
     const codex = codexProgress();
-    const content = this.promptFrame(
+    const { body, bodyWidth, finish } = this.promptScrollBody(
       t('ascent.founder.title'),
       `${t('ascent.founder.subtitle')}\n${t('ascent.codex.subtitle', codex)}`,
+      0,
     );
 
     const cardHeight = 116;
     const cards: Phaser.GameObjects.Container[] = [];
-    prompt.options.forEach((heroId, index) => {
+    let used = 0;
+    prompt.options.forEach((heroId) => {
       const hero = this.state.heroDeck.find((candidate) => candidate.id === heroId);
       if (!hero) return;
       const tier = tierForHero(hero);
       const card = this.optionCard(
-        { x: content.x, y: content.y + index * (cardHeight + 10), width: content.width, height: cardHeight },
+        { x: 0, y: used, width: bodyWidth, height: cardHeight },
         {
           title: heroName(hero),
           body: `${heroTypeLabel(hero.type)}  ·  ${rarityLabel(hero.rarity)}`,
@@ -2233,18 +2412,22 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
           badge: t(`ascent.rarity.${tier}` as Parameters<typeof t>[0]),
           accent: RARITY_COLOR[tier],
           reserveRight: PORTRAIT_W + 14,
+          parent: body,
           onTap: () => this.choose(heroId),
         },
       );
+      const drawnHeight = (card.getData('cardHeight') as number) ?? cardHeight;
       card.add(renderHeroFaceInBox(this, hero, {
-        x: content.width - PORTRAIT_W - 12,
+        x: bodyWidth - PORTRAIT_W - 12,
         y: PORTRAIT_TOP,
         width: PORTRAIT_W,
-        height: cardHeight - PORTRAIT_TOP - 8,
+        height: drawnHeight - PORTRAIT_TOP - 8,
       }));
       cards.push(card);
+      used += drawnHeight + 10;
     });
     staggerIn(this, cards);
+    finish(used);
   }
 
   /**
@@ -2395,6 +2578,26 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
     };
 
     item(t('ascent.sys.back'), 'primary', () => this.closeLane());
+
+    // Battles: watched, or left to the generals.
+    //
+    // Choosing "leave it to my generals" on the battle screen used to be permanent — nothing
+    // anywhere set `autoResolveBattles` back to false, so one tap during one fight silently
+    // disabled the best screen in the mode for the rest of the run, with no way to tell that had
+    // happened or to undo it. A setting the player can see is also a setting they can reverse.
+    const auto = this.state.ascent?.autoResolveBattles ?? false;
+    item(
+      auto ? t('ascent.sys.battlesAuto') : t('ascent.sys.battlesWatched'),
+      'secondary',
+      () => {
+        if (this.state.ascent) this.state.ascent.autoResolveBattles = !auto;
+        // Redraw so the row states the new setting rather than the old one.
+        this.state.isStrategyPause = this.lanePauseBeforeOpen;
+        this.closeOverlay();
+        this.showSystemMenu();
+      },
+    );
+
     item(t('action.saveAndExit'), 'secondary', () => this.events.emit('ui:exit-to-menu', true));
     item(t('action.exitWithoutSaving'), 'danger', () => this.events.emit('ui:exit-to-menu', false));
   }

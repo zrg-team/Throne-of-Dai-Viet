@@ -49,7 +49,8 @@ import { createLabel, createPanel, createWoodButton, PARCHMENT } from '../ui/the
 import { InkScrollArea, InkUI, INK_UI, type InkCardOptions, type UIBounds } from '../ui/InkUI';
 import { UI_FONT } from '../ui/fonts';
 import { makeSwipeableCard, popInModal, staggerIn } from '../ui/animations';
-import { formatEconomyLine, getArmyGoldUpkeep, getBuildOptions, getLaborStatus, getLandSpecialization, getTaxEffects, getUpgradeOptions, refreshAllLandOutputs, SPECIALIZATION_MULT } from '../systems/ResourceSystem';
+import { formatEconomyLine, getArmyGoldUpkeep, getBuildOptions, getLaborStatus, getTaxEffects, getUpgradeOptions, refreshAllLandOutputs } from '../systems/ResourceSystem';
+import { buildFocusRows } from '../ui/focusPanel';
 import {
   ALL_COURT_POSITIONS,
   assignHeroToLand,
@@ -1420,31 +1421,13 @@ export class UIScene extends Phaser.Scene {
       rowY += (row.getData('cardHeight') as number ?? minHeight) + rowGap;
     };
 
-    // Province focus selector — one tap cycles the economic specialization. Kept as a
-    // single compact card (tapping "Change focus" advances to the next option) so it sits
-    // at the top of the build list without crowding out the build/upgrade rows.
-    const focusOrder = Object.keys(SPECIALIZATION_MULT) as (keyof typeof SPECIALIZATION_MULT)[];
-    const currentFocus = getLandSpecialization(land);
-    const nextFocus = focusOrder[(focusOrder.indexOf(currentFocus) + 1) % focusOrder.length];
-    const focusMult = SPECIALIZATION_MULT[currentFocus];
-    const focusEffect = (['food', 'supplies', 'gold'] as const)
-      .map((k) => `${resourceLabel(k)} ×${focusMult[k].toFixed(2)}`)
-      .join('  ');
-    addRow({
-      title: t('focus.title', { focus: t(`focus.${currentFocus}` as Parameters<typeof t>[0]) }),
-      subtitle: focusEffect,
-      body: t('focus.hint'),
-      border: currentFocus === 'balanced' ? INK_UI.softBrush : INK_UI.gold,
-      actionPlacement: 'right',
-      action: {
-        label: t('focus.change'),
-        variant: 'secondary',
-        onClick: () => {
-          this.events.emit('ui:land-action', `specialize:${nextFocus}`, land.id);
-          this.refresh();
-        },
-      },
-    }, 92);
+    // Province focus — one row per option, each priced against this province's own ground.
+    //
+    // This used to be a single card whose button cycled to the next focus. You could not see what
+    // the alternatives were, let alone which of them the land suited, so the "decision" was a
+    // six-state toggle pressed blind. Now every focus states its tilt and its aptitude here, and
+    // the one the terrain favours is marked — which is the whole point of `getLandAptitude`.
+    this.renderFocusRows(land, addRow);
 
     upgradeOptions.forEach((option) => {
       const cost = formatCost(option.cost);
@@ -1522,6 +1505,46 @@ export class UIScene extends Phaser.Scene {
 
     if (this.modalJustOpened) {
       staggerIn(this, buildRows);
+    }
+  }
+
+  /**
+   * The province-focus list: one row per focus, priced against this land's own ground.
+   *
+   * The copy and the aptitude reading live in `ui/focusPanel.ts` because Dragon Ascent shows the
+   * same list from a different scene; only the card drawing is here.
+   */
+  private renderFocusRows(land: Land, addRow: (opts: InkCardOptions, minHeight: number) => void): void {
+    addRow({
+      title: t('focus.heading'),
+      subtitle: t('focus.headingHint'),
+      border: INK_UI.softBrush,
+      muted: true,
+    }, 52);
+
+    for (const row of buildFocusRows(land)) {
+      const suitTone = row.suitability === 'high'
+        ? INK_UI.jade
+        : row.suitability === 'low' ? INK_UI.softBrush : INK_UI.gold;
+      addRow({
+        // The recommendation is stated on the row itself, so the list can stay in a fixed order
+        // and still tell the player where to look.
+        title: row.isBest ? `${row.title}  ·  ${t('focus.best')}` : row.title,
+        subtitle: row.effect,
+        body: row.suitLine,
+        border: row.isCurrent ? INK_UI.gold : suitTone,
+        muted: row.suitability === 'low' && !row.isCurrent,
+        actionPlacement: 'right',
+        action: {
+          label: row.isCurrent ? t('focus.current') : t('focus.set'),
+          variant: row.isCurrent ? 'disabled' : 'secondary',
+          onClick: () => {
+            if (row.isCurrent) return;
+            this.events.emit('ui:land-action', `specialize:${row.focus}`, land.id);
+            this.refresh();
+          },
+        },
+      }, 84);
     }
   }
 

@@ -313,6 +313,15 @@ export interface Army {
    * frontier instead of micro-managing every march.
    */
   autoDefend?: boolean;
+  /**
+   * A province's own garrison, turned out to fight as a host for the length of one battle.
+   *
+   * Raised by `raiseGarrisonLevy` and dissolved the moment the engagement ends — survivors go
+   * back into the province's `localSoldiers`. It exists because a watchable battle needs an
+   * `Army` on the defending tile, and without it every province the field hosts were not
+   * standing on resolved its defence as a silent dice roll.
+   */
+  isLevy?: boolean;
 }
 
 /** An in-progress march: an army advancing one land per leg toward `path`'s last entry. */
@@ -1045,10 +1054,12 @@ export interface AscentState {
   famineCooldown: number;
   /** The engagement currently being watched, if any. */
   activeBattle?: AscentBattle;
-  /** Set once the player hands battles back to their generals for the rest of the run. */
+  /** True while the player has handed battles back to their generals. Reversible from Settings. */
   autoResolveBattles: boolean;
-  /** Wave whose engagement has already been watched, so a siege asks once, not per tick. */
+  /** Wave whose engagement has already been watched. Kept for saves written before `lastWatchedKey`. */
   lastWatchedWave: number;
+  /** `wave:landId` of the engagement already watched, so a siege asks once per province, not per tick. */
+  lastWatchedKey?: string;
   /** Set when the run ends, so the summary can name the cause rather than shrug. */
   endCause?: AscentEndCause;
   /** Province whose fall ended the run. */

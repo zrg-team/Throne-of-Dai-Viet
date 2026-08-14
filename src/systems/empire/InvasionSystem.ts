@@ -23,7 +23,7 @@ function totalUnits(army: Army): number {
   return army.units.spearmen + army.units.archers + army.units.heavyInfantry;
 }
 
-function difficultyArmyScale(difficulty: Difficulty | undefined): number {
+export function difficultyArmyScale(difficulty: Difficulty | undefined): number {
   if (difficulty === 'easy') return 0.7;
   if (difficulty === 'hard') return 1.35;
   if (difficulty === 'ironman') return 1.7;
@@ -190,6 +190,15 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
     return;
   }
 
+  // Staging stays at the far edge, deliberately.
+  //
+  // Hosts walk one district per tick across a forty-two district map, so the far-edge muster is a
+  // large part of why contact is rare — and staging them nearer was tried here. Measured across
+  // three pinned-RNG seeds it collapsed two of the three runs to a single province: the approach
+  // march is not padding, it is the window the realm uses to raise and move a host. Shortening it
+  // needs the wave *budget* softened in the same change, which is a balance pass of its own.
+  const staging = neutralEdges;
+
   const relations = kingdom.relations ?? 50;
   const conquestChance =
     0.4 + (relations < 35 ? 0.3 : relations < 50 ? 0.1 : 0) + (personalityWeight(kingdom) > 1 ? 0.18 : 0);
@@ -227,7 +236,7 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
 
   state.invasions ??= [];
   for (let i = 0; i < armyCount; i += 1) {
-    const stage = neutralEdges[i % neutralEdges.length];
+    const stage = staging[i % staging.length];
     const size = Math.max(100, Math.round(rawSizes[i] * clampFactor));
     const army: Army = {
       id: `invasion-${kingdomId}-${state.turn}-${i}`,
@@ -387,6 +396,77 @@ function chooseTarget(state: GameState, army: Army, record: InvasionRecord): Lan
 }
 
 /**
+ * Turns a province's garrison out as a host, so a defence with no field army is still a battle.
+ *
+ * Ascent only, and only for the watchable path. `defenderPower` already counted the garrison when
+ * resolving a fight, so the *outcome* was never wrong — but `beginBattle` needs an `Army` standing
+ * on the tile, and the realm's hosts are usually somewhere else. The result was that the mode's
+ * best screen never opened: the wave arrived, a number was compared against another number, and
+ * the province changed hands with nothing to watch or steer.
+ *
+ * The levy is drawn from `localSoldiers` and dissolved by `dissolveGarrisonLevies` the moment the
+ * engagement ends, so it never shows up as a standing host, never draws upkeep across seasons, and
+ * cannot be marched. Survivors go home to the province they came from.
+ */
+export function raiseGarrisonLevy(state: GameState, land: Land): Army | undefined {
+  if (state.gameMode !== 'ascent' || state.ascent?.autoResolveBattles) return undefined;
+
+  // Drawn from the walls as well as the militia, because militia alone is almost always nothing.
+  //
+  // `localSoldiers` is seeded on the capital and on essentially nowhere else — measured, the
+  // *median* player province carries zero — so a levy mustered from it could never form on the
+  // provinces that actually need one. `defense` is the term every province has, and it is what
+  // `defenderPower` already values a garrison by (16 per point against 2.5 per militiaman), so
+  // sizing the turnout from both is also what keeps this levy worth the same as the garrison it
+  // replaces rather than inventing strength out of nothing.
+  const muster = Math.floor(land.localSoldiers + land.defense * 6);
+  // Below a company there is nothing to form a line with; the threshold roll covers those.
+  if (muster < 40) return undefined;
+
+  const levy: Army = {
+    id: `levy-${land.id}-${state.turn}`,
+    kingdomId: PLAYER_KINGDOM_ID,
+    name: t('battle.levyOf', { land: land.name }),
+    landId: land.id,
+    units: {
+      spearmen: Math.round(muster * 0.6),
+      archers: Math.round(muster * 0.25),
+      heavyInfantry: Math.round(muster * 0.15),
+    },
+    // Townsmen behind their own walls: they will hold, but they are not a royal host.
+    morale: 70,
+    supply: 70,
+    rations: 999,
+    provisions: 999,
+    level: 1,
+    experience: 0,
+    experienceToNextLevel: 120,
+    isLevy: true,
+  };
+  land.localSoldiers = 0;
+  state.armies.push(levy);
+  return levy;
+}
+
+/**
+ * Sends every surviving levy home. Called once no engagement is live, so a levy exists for exactly
+ * the battle it was raised for.
+ */
+export function dissolveGarrisonLevies(state: GameState): void {
+  const levies = state.armies.filter((army) => army.isLevy);
+  if (levies.length === 0) return;
+  for (const levy of levies) {
+    const land = findLand(state, levy.landId);
+    // Only what is left, and only if the province is still ours — a levy that lost its home has
+    // nowhere to go back to.
+    if (land && land.ownerId === PLAYER_KINGDOM_ID) {
+      land.localSoldiers += totalUnits(levy);
+    }
+  }
+  state.armies = state.armies.filter((army) => !army.isLevy);
+}
+
+/**
  * Requests the player's tactical decision when an invader reaches a district defended by a
  * FIELD army (not just a garrison) — unless that army's hero holds full command (`autoDefend`),
  * in which case the general decides and the fight auto-resolves. Returns true when it deferred
@@ -394,7 +474,14 @@ function chooseTarget(state: GameState, army: Army, record: InvasionRecord): Lan
  */
 function maybeRequestBattleDecision(state: GameState, army: Army, record: InvasionRecord, land: Land): boolean {
   if (state.pendingBattle) return true;
-  const defender = state.armies.find((a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id && totalUnits(a) > 0);
+  let defender = state.armies.find((a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id && totalUnits(a) > 0);
+  // Nobody in the field — so the province turns out its own garrison rather than surrendering
+  // the decision. See `raiseGarrisonLevy`: without this, every province the hosts happened not to
+  // be standing on resolved its defence as a silent dice roll, and a measured 320-tick run opened
+  // the battle screen exactly zero times.
+  if (!defender) {
+    defender = raiseGarrisonLevy(state, land);
+  }
   if (!defender) return false;
   // `autoDefend` means two different things: 'march home to intercept' (tickAutoDefend) and
   // 'fight without asking' (here). Dragon Ascent needs the first and not the second, so it
