@@ -36,6 +36,14 @@ export interface SeasonPalette {
   /**
    * The season's light, laid over the whole world as one low-alpha rectangle.
    *
+   * **Winter's alone.** The other three carry alpha 0 and paint nothing.
+   *
+   * A rectangle over the entire map is a photo filter, and a filter is what it looked like: the
+   * paper, the ink, the roofs and the water all shifted together, which is the one thing a woodblock
+   * print never does. Winter keeps it because winter genuinely is a change in the *light* — the sheet
+   * itself goes pale — and because it is the season carrying the snow, so a flat cast reads as
+   * weather rather than as a layer. Every other season now lives in the leaves and the name plates.
+   *
    * A wash rather than a tint because tinting can only multiply, and winter has to come out
    * *paler* than the paper it sits on.
    */
@@ -52,11 +60,19 @@ export interface SeasonPalette {
   paddy: number;
   paddyAlpha: number;
   /**
+   * The ink a settlement's name plate is lettered in, as `#rrggbb`.
+   *
+   * The names are the only type standing in the world rather than in the chrome, so they are the one
+   * place the calendar can be read without looking at the HUD. Kept close to the ink brown they were
+   * hardcoded at — this is the season leaning on the letters, not colouring them.
+   */
+  labelInk: string;
+  /**
    * Winter draws branches instead of crowns.
    *
-   * This is the only seasonal property that changes *shape*, so it is the only one that cannot be
-   * done outside the static terrain bake — which is why it, and not the season itself, is what the
-   * bake signature keys on.
+   * The only seasonal property that changes *shape* rather than colour, so it is the one that
+   * genuinely cannot be done above the bake. It works now because the scenery is re-baked when the
+   * season turns (`MapScene.rebakeScenery`); before that, winter trees kept their summer crowns.
    */
   bareCanopy: boolean;
 }
@@ -64,48 +80,62 @@ export interface SeasonPalette {
 /**
  * The four palettes.
  *
- * Pitched to be read at a glance rather than to be tasteful in isolation. The map's baked ground is
- * fixed at the Spring baseline, so every other season has to be carried entirely by the live layers
- * painted over it — a difference that is merely tasteful at this size disappears completely, which
- * is exactly what the first pass of these numbers did.
+ * Pitched to be read at a glance rather than to be tasteful in isolation. A difference that is
+ * merely tasteful at this size disappears completely, which is exactly what the first pass of these
+ * numbers did.
+ *
+ * The load-bearing fields are now `foliage`/`foliagePale`/`bareCanopy` and `labelInk`. `ground` and
+ * `groundRelief` are read only at `BAKE_SEASON`: the ground is pinned, on purpose. A country whose
+ * soil changes colour four times a year *is* the filter this pass removed — what actually turns with
+ * the calendar is what grows out of the soil, and the names written across it.
  */
 export const SEASON_PALETTES: Record<Season, SeasonPalette> = {
   /** Fresh growth on pale ground — the look the map shipped with, kept as the baseline. */
   Spring: {
-    wash: { colour: PIGMENT.diepHi, alpha: 0.06 },
+    wash: { colour: PIGMENT.diepHi, alpha: 0 },
     ground: PIGMENT.giDongPale,
     groundRelief: PIGMENT.diepLo,
     foliage: PIGMENT.giDong,
     foliagePale: PIGMENT.giDongPale,
     paddy: PIGMENT.giDongPale,
     paddyAlpha: 0.5,
+    labelInk: '#241407',
     bareCanopy: false,
   },
-  /** Full canopy and standing water: the country at its greenest, under a warm light. */
+  /** Full canopy and standing water: the country at its greenest. */
   Summer: {
-    // Verdigris rather than the warmer sophora, because the wash is what greens the open ground —
-    // the per-cell tone that used to do it was too expensive to keep. See `SeasonRenderer`.
-    wash: { colour: PIGMENT.giDong, alpha: 0.14 },
+    // Verdigris used to be spent on a wash here, because the wash was what greened the open ground.
+    // With the wash gone that job belongs to the grass and the canopy, which is why summer foliage
+    // is the deepest of the four and why `SCATTER.plains` carries twice the tufts it used to.
+    wash: { colour: PIGMENT.giDong, alpha: 0 },
     ground: mixPigment(PIGMENT.giDongPale, PIGMENT.giDong, 0.62),
     groundRelief: mixPigment(PIGMENT.diepLo, PIGMENT.giDong, 0.3),
-    foliage: shadePigment(PIGMENT.giDong, 0.86),
+    foliage: shadePigment(PIGMENT.giDong, 0.82),
     foliagePale: PIGMENT.giDongPale,
     paddy: PIGMENT.giDong,
     paddyAlpha: 0.62,
+    labelInk: '#1f2a16',
     bareCanopy: false,
   },
-  /** The harvest. Hoa hòe carries it — the paddy going gold is the clearest cue on the map. */
+  /**
+   * The harvest. Hoa hòe carries it — and with the wash gone, the canopy has to carry it alone, so
+   * the leaves go further into the gold than a blended half-and-half would.
+   */
   Autumn: {
-    wash: { colour: PIGMENT.hoe, alpha: 0.16 },
+    wash: { colour: PIGMENT.hoe, alpha: 0 },
     ground: PIGMENT.hoePale,
     groundRelief: mixPigment(PIGMENT.diepLo, PIGMENT.hoe, 0.4),
-    foliage: mixPigment(PIGMENT.giDong, PIGMENT.hoe, 0.6),
+    foliage: mixPigment(PIGMENT.giDong, PIGMENT.hoe, 0.78),
     foliagePale: PIGMENT.hoePale,
     paddy: PIGMENT.hoe,
     paddyAlpha: 0.7,
+    labelInk: '#5c3a10',
     bareCanopy: false,
   },
-  /** Bare and cold: colour pulled out of the land, fields left as mud, the sheet gone pale. */
+  /**
+   * Bare and cold. The one season that keeps its wash: winter is a change in the *light*, the sheet
+   * itself goes pale, and it is the season carrying the snow.
+   */
   Winter: {
     wash: { colour: PIGMENT.diepHi, alpha: 0.2 },
     ground: mixPigment(PIGMENT.diepLo, PIGMENT.mucFaint, 0.16),
@@ -114,6 +144,7 @@ export const SEASON_PALETTES: Record<Season, SeasonPalette> = {
     foliagePale: mutePigment(PIGMENT.giDongPale, 0.62),
     paddy: PIGMENT.diepDeep,
     paddyAlpha: 0.5,
+    labelInk: '#3d4348',
     bareCanopy: true,
   },
 };
@@ -133,7 +164,10 @@ export function lerpSeasonPalette(from: SeasonPalette, to: SeasonPalette, t: num
     foliagePale: mixPigment(from.foliagePale, to.foliagePale, clamped),
     paddy: mixPigment(from.paddy, to.paddy, clamped),
     paddyAlpha: blend(from.paddyAlpha, to.paddyAlpha),
-    // Shape cannot be half-drawn: it flips at the midpoint, hidden under the wash cross-fade.
+    // Neither of these is interpolated in practice: only the wash and the accents cross-fade, and
+    // both of these belong to layers that swap in one frame. Carried at the midpoint so the type is
+    // honest rather than half-populated.
+    labelInk: clamped < 0.5 ? from.labelInk : to.labelInk,
     bareCanopy: clamped < 0.5 ? from.bareCanopy : to.bareCanopy,
   };
 }
@@ -159,12 +193,14 @@ const SEASON_ORDER: Season[] = ['Spring', 'Summer', 'Autumn', 'Winter'];
 export const BAKE_SEASON: Season = 'Spring';
 
 let renderSeason: Season = BAKE_SEASON;
+let foliageSeason: Season = BAKE_SEASON;
 
 /**
- * Sets the season everything drawn from here on will be painted in.
+ * Sets the season the **ground** is painted in.
  *
  * Called at the top of a repaint, not per prop. Anything baked while this is set keeps that season
- * until the layer is redrawn.
+ * until the layer is redrawn — which for the ground means: until ownership changes. Hence
+ * `BAKE_SEASON`.
  */
 export function setRenderSeason(season: Season): void {
   renderSeason = season;
@@ -174,9 +210,30 @@ export function getRenderSeason(): Season {
   return renderSeason;
 }
 
-/** The palette every prop and ground tone reads. */
+/**
+ * Sets the season **growing things** are painted in.
+ *
+ * Split from `setRenderSeason` because the two layers turn at completely different rates. The ground
+ * is the expensive half of the bake and is pinned; the scatter is redrawn and re-composited every
+ * time the calendar moves (`MapScene.rebakeScenery`), which is what lets the leaves follow the year
+ * without the soil following it too.
+ */
+export function setFoliageSeason(season: Season): void {
+  foliageSeason = season;
+}
+
+export function getFoliageSeason(): Season {
+  return foliageSeason;
+}
+
+/** The palette the ground tones and the paddy read. Pinned — see `BAKE_SEASON`. */
 export function seasonPalette(): SeasonPalette {
   return SEASON_PALETTES[renderSeason];
+}
+
+/** The palette every growing thing reads: canopies, culms, fronds, blades. Follows the calendar. */
+export function foliagePalette(): SeasonPalette {
+  return SEASON_PALETTES[foliageSeason];
 }
 
 /**

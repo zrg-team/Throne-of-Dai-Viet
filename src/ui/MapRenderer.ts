@@ -35,6 +35,19 @@ export interface LandscapeContext {
   centreOf(tile: LandscapeTile): PixelPoint;
   centreAt(q: number, r: number): PixelPoint;
   isVisible(tile: LandscapeTile): boolean;
+  /**
+   * Where settlements stand, so the scatter can leave their ground alone.
+   *
+   * Needed because a settlement is drawn by a completely different pass, into live containers a
+   * whole depth band above the baked scatter — the two can never share a back-to-front sort, so
+   * every roof is unconditionally in front of every scattered tree, including trees standing in
+   * front of it. Not overlapping is the only way to make that unobservable.
+   *
+   * Cells of `fortress`/`shrine` terrain already protect themselves, which covers the walled seats.
+   * These are the ones that do not: farms, mines and plain villages, which render through
+   * `addResourceCluster` on ordinary ground and had trees planted straight through their roofs.
+   */
+  settlementAnchors: PixelPoint[];
 }
 
 export interface MapRenderer {
@@ -56,6 +69,16 @@ export interface MapRenderer {
    * a country, and this is the only hook wide enough to let them.
    */
   drawLandscape?(context: LandscapeContext): void;
+
+  /**
+   * Re-inks the scatter in the current season, without replanning where anything stands.
+   *
+   * Offered separately from `drawLandscape` because the two layers turn at completely different
+   * rates: the ground changes when a province changes hands, the leaves change every time the
+   * calendar moves. A renderer that has no seasonal treatment simply omits this and the scene
+   * leaves its scatter alone.
+   */
+  repaintScatter?(decoration: Phaser.GameObjects.Graphics): void;
 
   /**
    * Paints a land's interior from its merged boundary loops.

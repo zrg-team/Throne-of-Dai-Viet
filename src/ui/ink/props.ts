@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { PIGMENT, shadePigment } from './palette';
 import { inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './stroke';
 import { UNIT } from './proportion';
-import { seasonPalette } from './season';
+import { foliagePalette } from './season';
 
 /**
  * The vocabulary — every silhouette that makes a landscape read as Đại Việt rather than as nowhere.
@@ -40,7 +40,7 @@ export function tree(g: G, x: number, y: number, scale: number, seed: number): v
   const s = scale * UNIT.tree;
   const rand = mulberry32(seed);
   const radius = 7 * s;
-  const palette = seasonPalette();
+  const palette = foliagePalette();
   inkPath(g, [{ x, y }, { x: x - 0.6 * s, y: y - radius }], seed, {
     width: 1.2 * s, alpha: 0.55, colour: PIGMENT.nau, wobble: 0.12 * s, step: 4,
   });
@@ -146,7 +146,7 @@ function bareCrown(g: G, x: number, topY: number, s: number, radius: number, ran
 export function grassTuft(g: G, x: number, y: number, scale: number, seed: number): void {
   const s = scale * UNIT.grassTuft;
   const rand = mulberry32(seed);
-  const colour = seasonPalette().foliage;
+  const colour = foliagePalette().foliage;
   const blades = 4 + Math.floor(rand() * 2);
   for (let blade = 0; blade < blades; blade += 1) {
     // Splayed from a common root rather than offset sideways, so a tuft reads as one plant.
@@ -191,7 +191,7 @@ export function bamboo(g: G, x: number, y: number, scale: number, seed: number):
           ],
           [1.4 * s, 1.0 * s, 0.2 * s],
         ),
-        seasonPalette().foliage,
+        foliagePalette().foliage,
         seed + index * 11 + leaf,
         { width: 0.5 * s, alpha: 0.5, wobble: 0.15 * s, step: 5, fillAlpha: 0.65 },
       );
@@ -214,7 +214,7 @@ export function banana(g: G, x: number, y: number, s: number, seed: number): voi
         [{ x, y: y - 7 * s }, { x: (x + bx) / 2, y: (y - 7 * s + by) / 2 - 1.5 * s }, { x: bx, y: by }],
         [1.2 * s, 4.0 * s, 0.6 * s],
       ),
-      seasonPalette().foliage,
+      foliagePalette().foliage,
       seed + 10 + blade,
       { width: 0.6 * s, alpha: 0.55, wobble: 0.3 * s, step: 5, fillAlpha: 0.7 },
     );
@@ -244,7 +244,7 @@ export function areca(g: G, x: number, y: number, scale: number, seed: number): 
         ],
         [1.3 * s, 1.4 * s, 0.2 * s],
       ),
-      seasonPalette().foliage,
+      foliagePalette().foliage,
       seed + 30 + frond,
       { width: 0.5 * s, alpha: 0.5, wobble: 0.2 * s, step: 4, fillAlpha: 0.65 },
     );
@@ -263,7 +263,7 @@ export function banyan(g: G, x: number, y: number, scale: number, seed: number):
     const rr = 15 * s * (1 + 0.15 * Math.cos(t * Math.PI * 2 * lobes)) * (0.9 + rand() * 0.16);
     canopy.push({ x: x + Math.cos(angle) * rr * 1.2, y: y - 16 * s + Math.sin(angle) * rr * 0.78 });
   }
-  printedShape(g, canopy, seasonPalette().foliage, seed, { width: 0.85 * s, alpha: 0.7, wobble: 0.22 * s, step: 5, fillAlpha: 0.85 });
+  printedShape(g, canopy, foliagePalette().foliage, seed, { width: 0.85 * s, alpha: 0.7, wobble: 0.22 * s, step: 5, fillAlpha: 0.85 });
   printedShape(
     g,
     thickPath([{ x, y }, { x: x - 1 * s, y: y - 7 * s }, { x, y: y - 12 * s }], [3.2 * s, 2.4 * s, 2.0 * s]),
@@ -662,7 +662,7 @@ export function karst(g: G, x: number, baseY: number, w: number, h: number, seed
       const angle = Math.PI + (index / 10) * Math.PI;
       tuft.push({ x: sx + Math.cos(angle) * 3.2, y: sy + Math.sin(angle) * 2.1 });
     }
-    printedShape(g, tuft, seasonPalette().foliage, seed + 40 + bush, { width: 0.5, alpha: 0.4, wobble: 0.2, step: 4, fillAlpha: 0.5 });
+    printedShape(g, tuft, foliagePalette().foliage, seed + 40 + bush, { width: 0.5, alpha: 0.4, wobble: 0.2, step: 4, fillAlpha: 0.5 });
   }
 }
 

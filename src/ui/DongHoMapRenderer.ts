@@ -28,29 +28,34 @@ import { scatterDensity } from '../game/graphicsQuality';
  */
 
 /**
- * Ground tone per terrain, in the season currently being painted. `null` means bare paper —
- * mountains carry their own fill.
+ * Ground tone per terrain. `null` means bare paper — mountains carry their own fill.
  *
- * Resolved per call rather than held as a constant so the tone follows the season. On the map that
- * is always `BAKE_SEASON` (the ground is baked and the live season is washed over it); on the menu
- * diorama, drawn once per launch, it is the real one.
+ * Reads `seasonPalette()`, which on the map is **pinned to `BAKE_SEASON`**: soil does not change
+ * colour four times a year, and a version that did was indistinguishable from the full-screen filter
+ * this pass removed. The calendar lives in what grows out of the ground — see `foliagePalette()`.
+ *
+ * On the menu diorama, drawn once per launch and never re-baked, the pin is the real season, so the
+ * title screen still shows the ground the month deserves.
  */
 function groundFor(terrain: HexTerrainType): number | null {
   const palette = seasonPalette();
   switch (terrain) {
-    // Open grass, and the greenest ground on the map. `plains` is already the grass tile — it is
-    // 44% of the world — but it used to take exactly the same tone as the paddy, so the map read
-    // as "paddy or bare paper" with nothing in between. Pulling it toward the foliage pigment
-    // gives the country a floor of its own for the field systems to sit *in*.
+    // Open grass. `plains` is already the grass tile — 44% of the world — and it used to take the
+    // paddy's exact tone, so the map read as "paddy or bare paper" with nothing between. It still
+    // leans green, but only a quarter of the way: this tone is fixed while the tufts standing in it
+    // turn gold in autumn, and a hard spring green underneath them fought that. The coverage that
+    // used to come from the tone now comes from twice as many blades.
     case 'plains':
-      return mixPigment(palette.ground, palette.foliage, 0.45);
+      return mixPigment(palette.ground, palette.foliage, 0.25);
     // The paddy's colour comes from the lattice drawn on top of it, so its base stays quieter —
     // otherwise the plot fills and the ground tone compound into the loudest thing on the sheet.
     case 'fields':
     case 'riceFields':
       return palette.ground;
+    // Forest floor is earth under a canopy, not more canopy. It used to return the foliage pigment
+    // outright, which read as a green blanket the instant the canopy above it went gold.
     case 'forest':
-      return palette.foliage;
+      return mixPigment(palette.groundRelief, palette.foliage, 0.3);
     case 'hills':
     case 'fortress':
     case 'shrine':
@@ -80,10 +85,15 @@ interface ScatterSpec {
  */
 const SCATTER: Partial<Record<HexTerrainType, ScatterSpec>> = {
   // Grass, with trees standing in it rather than the other way round. Tufts outnumber trees three
-  // to one and the count is up, because open ground carrying one or two props against the paddy's
-  // eight inked plots per hex is what made plains read as blank paper next to farmland. A tuft's
-  // FOOTPRINT is 3 against a tree's 11, so these pack in without the spacing pass thinning them.
-  plains: { count: [3, 6], kinds: ['tuft', 'tuft', 'tuft', 'tree'], scale: [0.55, 1.2] },
+  // to one, because open ground carrying one or two props against the paddy's eight inked plots
+  // per hex is what made plains read as blank paper next to farmland.
+  //
+  // Roughly double the count it used to carry. That coverage was previously bought by drawing each
+  // tuft five times life size, which put grass at the same height as the farmers standing in it;
+  // `UNIT.grassTuft` has come back down and the density is what replaces it. This is the cheap
+  // half of the trade — a tuft is four inked blades and its FOOTPRINT is 3 against a tree's 11, so
+  // they pack in without the spacing pass thinning them out.
+  plains: { count: [6, 11], kinds: ['tuft', 'tuft', 'tuft', 'tree'], scale: [0.55, 1.2] },
   fields: { count: [0, 2], kinds: ['tree', 'tuft', 'farmer'], scale: [0.5, 0.95] },
   riceFields: { count: [0, 1], kinds: ['tree', 'tuft'], scale: [0.6, 0.9] },
   forest: { count: [4, 7], kinds: ['tree', 'tree', 'tree', 'bamboo', 'banana'], scale: [0.7, 1.45] },
@@ -111,6 +121,10 @@ interface ScatterItem {
 }
 
 export class DongHoMapRenderer implements MapRenderer {
+  /** Where every scattered prop stands, kept so a season change can repaint without replanting. */
+  private scatterPlan?: ScatterItem[];
+  private scatterTileSize = 0;
+
   constructor(
     private readonly scene: Phaser.Scene,
     readonly theme: MapThemeDefinition,
@@ -133,7 +147,30 @@ export class DongHoMapRenderer implements MapRenderer {
     this.paintWater(graphics, visible, ctx);
     this.paintRanges(graphics, visible, ctx);
     this.paintFields(graphics, visible, ctx);
-    this.paintScatter(decoration, visible, ctx, tileSize);
+    this.scatterPlan = this.planScatter(visible, ctx, tileSize);
+    this.scatterTileSize = tileSize;
+    this.drawScatter(decoration, this.scatterPlan, tileSize);
+  }
+
+  /**
+   * Redraws only the scatter, in whatever season `foliagePalette()` now names.
+   *
+   * The calendar turns every couple of economy ticks; the ground under it turns only when a province
+   * changes hands. Redrawing the whole landscape for a change of leaf colour was measured at ~1.5 s
+   * and is what kept the map's look pinned to one season for so long. This repaints the layer that
+   * actually differs and leaves the other four passes alone.
+   *
+   * The plan — where every prop stands, how big, which kind — is *not* recomputed. Positions must not
+   * move when the leaves turn, or autumn would replant the country; and the placement pass (scatter
+   * generation plus the spacing thin) is the expensive half. It is rebuilt by `drawLandscape` alone,
+   * which runs exactly when the positions are genuinely stale.
+   */
+  repaintScatter(decoration: Phaser.GameObjects.Graphics): void {
+    if (!this.scatterPlan) {
+      return;
+    }
+    decoration.clear();
+    this.drawScatter(decoration, this.scatterPlan, this.scatterTileSize);
   }
 
   /**
@@ -351,15 +388,17 @@ export class DongHoMapRenderer implements MapRenderer {
   }
 
   /**
-   * One scatter over the whole map. Points drift past their own cell on purpose, and the lot is
-   * sorted back-to-front so overlap reads as depth rather than as z-fighting.
+   * Decides where everything stands. One scatter over the whole map: points drift past their own
+   * cell on purpose, and the lot comes back sorted back-to-front so overlap reads as depth rather
+   * than as z-fighting.
+   *
+   * Separate from the drawing so a change of season can repaint the props without moving them.
    */
-  private paintScatter(
-    graphics: Phaser.GameObjects.Graphics,
+  private planScatter(
     tiles: LandscapeContext['tiles'],
     ctx: LandscapeContext,
     tileSize: number,
-  ): void {
+  ): ScatterItem[] {
     const rand = mulberry32(2024);
     const density = scatterDensity();
     const items: ScatterItem[] = [];
@@ -367,6 +406,16 @@ export class DongHoMapRenderer implements MapRenderer {
     // Ground the scatter must leave alone: the seats, which draw their own groves and roofs, and
     // the limestone, whose faces are the drawing and not a place for trees to stand on.
     const keepClear: Array<{ x: number; y: number; r: number }> = [];
+
+    // Every settlement, not just the ones the generator happened to give fortress terrain. A farm,
+    // a mine or a plain village renders through `addResourceCluster` on ordinary ground and was
+    // getting trees planted through its roofs — and because settlements are live objects a whole
+    // depth band above this baked layer, those trees can only ever draw *behind* the houses, even
+    // the ones standing in front. Two layers that cannot share a sort must not share ground.
+    for (const anchor of ctx.settlementAnchors) {
+      keepClear.push({ x: anchor.x, y: anchor.y, r: tileSize * 1.2 });
+    }
+
     for (const tile of tiles) {
       if (tile.terrain === 'fortress' || tile.terrain === 'shrine') {
         const centre = ctx.centreOf(tile);
@@ -446,10 +495,17 @@ export class DongHoMapRenderer implements MapRenderer {
         buckets.set(key, [item]);
       }
     }
-    items.length = 0;
-    items.push(...claimed);
-    items.sort((a, b) => a.y - b.y);
+    claimed.sort((a, b) => a.y - b.y);
+    return claimed;
+  }
 
+  /** Inks a plan. Called on every season change, so it does no placement work of its own. */
+  private drawScatter(
+    graphics: Phaser.GameObjects.Graphics,
+    items: ScatterItem[],
+    tileSize: number,
+  ): void {
+    const unit = tileSize / 24;
     for (const item of items) {
       const s = item.scale * unit;
       switch (item.kind) {

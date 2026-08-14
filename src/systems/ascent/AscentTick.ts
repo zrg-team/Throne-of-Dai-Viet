@@ -24,25 +24,9 @@ import { tickRaids, tickWaveDirector } from './WaveDirector';
 import { detectConquests, ensureAscentLaneState, refreshAscentLaneState } from './ConquestSystem';
 import { tickDecisionDirector, tickPromptCooldowns } from './DecisionDirector';
 import { endAscentRun } from './AscentResolver';
+import { advanceSeasonClock, greatPowersDue } from '../seasonClock';
 import { seasonLabel, t } from '../../i18n';
-import type { GameState, Season } from '../../state/types';
-
-const SEASONS: Season[] = ['Spring', 'Summer', 'Autumn', 'Winter'];
-
-/**
- * The seasonal clock, matching `advanceRealtimeMonth`. Inlined rather than exported from
- * RealtimeSystem so that file — which every shipping mode runs through — stays untouched.
- */
-function advanceSeason(state: GameState): boolean {
-  const nextIndex = SEASONS.indexOf(state.season) + 1;
-  if (nextIndex >= SEASONS.length) {
-    state.season = SEASONS[0];
-    state.year += 1;
-    return true;
-  }
-  state.season = SEASONS[nextIndex];
-  return false;
-}
+import type { GameState } from '../../state/types';
 
 function ownedLandIds(state: GameState): Set<string> {
   return new Set(
@@ -155,10 +139,11 @@ export function advanceAscentTick(state: GameState): void {
   tickDiplomacy(state);
 
   state.turn += 1;
-  const yearTurned = advanceSeason(state);
+  advanceSeasonClock(state);
   // The rival empires live on their own: they arm, destabilise, war on each other, collapse
-  // and are reborn — so the world the player is fighting is not a static backdrop.
-  if (yearTurned) tickGreatPowersYear(state);
+  // and are reborn — so the world the player is fighting is not a static backdrop. On their own
+  // tick count rather than on the year, so a longer season does not slow them down with it.
+  if (greatPowersDue(state)) tickGreatPowersYear(state);
 
   // ── Dragon Ascent ────────────────────────────────────────────────────────
   state.ascent.marchCooldown = Math.max(0, state.ascent.marchCooldown - 1);

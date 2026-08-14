@@ -131,10 +131,20 @@ export class SettlementRenderer {
   /**
    * Draws small satellite icons around a city/temple settlement for each constructed
    * farm/mine/market building, so completed builds become visible on the map.
+   *
+   * **The positions encode the draw order.** These are added after `addCityCluster` has already
+   * painted its parts back-to-front, so they land on top of everything regardless of where they sit
+   * — and the first row used to sit at `y = −6`, *behind* a citadel based at `y + 12`, which put a
+   * barracks glyph over the gate tower it belongs to. Rather than thread six icons through the
+   * cluster's sort (`addCityCluster` is shared by four renderers, only one of which sorts), they are
+   * placed where painting last is the correct answer: two columns down either flank, all of them in
+   * front of the seat. A satellite icon hidden behind a roof conveyed nothing anyway.
+   *
+   * `x = ±60` clears the name plate, which is at most 90 wide and centred.
    */
   private addBuildingDecorations(cluster: Phaser.GameObjects.Container, land: Land): void {
     const positions: Array<[number, number]> = [
-      [-48, -6], [48, -6], [-48, 24], [48, 24], [-48, 54], [48, 54],
+      [-60, 24], [60, 24], [-60, 48], [60, 48], [-60, 72], [60, 72],
     ];
     let posIndex = 0;
 

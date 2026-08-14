@@ -19,10 +19,10 @@ import { tickHeroActions } from './empire/HeroActionSystem';
 import { maybeTriggerHeroEvent } from './empire/HeroEventSystem';
 import { maybeDrawForeignCard } from './ForeignEventSystem';
 import { isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
-import type { GameState, Season } from '../state/types';
+import type { GameState } from '../state/types';
+import { advanceSeasonClock, greatPowersDue } from './seasonClock';
 import { seasonLabel, t } from '../i18n';
 
-const seasons: Season[] = ['Spring', 'Summer', 'Autumn', 'Winter'];
 
 export function advanceRealtimeMonth(state: GameState): void {
   if (state.victory || state.isDefeated) {
@@ -40,16 +40,7 @@ export function advanceRealtimeMonth(state: GameState): void {
   progressPoliticsCooldown(state);
 
   state.turn += 1;
-  const nextSeasonIndex = seasons.indexOf(state.season) + 1;
-
-  let yearAdvanced = false;
-  if (nextSeasonIndex >= seasons.length) {
-    state.season = seasons[0];
-    state.year += 1;
-    yearAdvanced = true;
-  } else {
-    state.season = seasons[nextSeasonIndex];
-  }
+  advanceSeasonClock(state);
 
   state.ordersRemaining = 3;
   if (!acquisitionCompleted && !buildCompleted) {
@@ -64,7 +55,7 @@ export function advanceRealtimeMonth(state: GameState): void {
     tickAutoDefend(state);
     tickInvasions(state);
     if (state.gameMode === 'empire') {
-      if (yearAdvanced) {
+      if (greatPowersDue(state)) {
         tickGreatPowersYear(state);
       }
       tickThreatDirector(state);

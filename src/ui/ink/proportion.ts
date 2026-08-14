@@ -13,7 +13,7 @@
  * | areca    | 34           | a palm, 15 m      | 2.3              |
  * | banyan   | 31           | a cây đa, 20 m    | 1.6              |
  * | hayStack | 22           | a cây rơm, 3 m    | 7.3              |
- * | farmer   | 12           | a man, 1.7 m      | 7.1              |
+ * | farmer   | 15.0         | a man, 1.7 m      | 8.8              |
  * | buffalo  | 20           | a trâu, 1.5 m     | 13.3             |
  *
  * So a farmer stood twice the height of a soldier and a buffalo four times, while houses came out
@@ -51,24 +51,34 @@ export const UNIT = {
   banyan: 1.94,
   hayStack: 0.55,
   /**
-   * Grass, exaggerated — for the same reason people are, and more so.
+   * Grass, exaggerated — for the same reason people are, but *less* than a person, not more.
    *
    * Real grass is ankle high, so at 3.1 px to the metre a true-scale tuft is about one design
-   * pixel: not grass, not even a speck. Drawn honestly it left `plains` — half the map — reading
-   * as bare paper next to the paddy, which is the whole complaint this correction answers.
+   * pixel: not grass, not even a speck. Drawn that honestly it left `plains` — 44% of the map —
+   * reading as bare paper next to the paddy. The correction that answered *that* went to 1.6 and
+   * overshot badly: a mean tuft came out 8.5 px against a mean farmer's 8.9, so the country was
+   * knee-deep in grass that stood as tall as the people walking through it, and the tallest tufts
+   * beat the tallest farmers outright.
    *
-   * Grass is also the one entry here that is not really an object. It is a *texture* standing for
-   * open ground, the way a woodcut shows a meadow with a handful of marks rather than by drawing
-   * blades to scale, so it is the entry that can afford to lie about its size.
+   * The lesson is that coverage is a question of **how many**, not how big. This is roughly waist
+   * height on the exaggerated scale — still a lie, deliberately, because grass is the one entry
+   * here that is not an object but a *texture* standing for open ground, the way a woodcut shows a
+   * meadow with a handful of marks. The blank paper it was raised to fix is now answered by
+   * `SCATTER.plains` carrying twice the tufts instead.
    */
-  grassTuft: 1.6,
+  grassTuft: 0.62,
   // Living things, all carrying the same exaggeration.
   figure: LIVING,
-  farmer: 0.44 * LIVING,
+  // Fitted to `farmer()`'s real drawn height. The old 0.44 was fitted to a measured 12, but the
+  // figure has since grown to 15.0 — so the farmer stood 13-26% taller than the soldier at the same
+  // caller scale, which is exactly what the header above promises never happens.
+  farmer: 0.35 * LIVING,
   // A buffalo takes a gentler exaggeration than a person. It is nearly three metres long, so at
   // the full living factor it reads as five, and a herd next to a nine-metre house looked like
-  // livestock drawn to a different map.
-  buffalo: 0.23 * 1.4,
+  // livestock drawn to a different map. Down a further fifth now that the farmer's own correction
+  // has been fixed: shrinking the person without shrinking the animal would have widened the very
+  // gap — a person dwarfed by a buffalo — that this number exists to close.
+  buffalo: 0.185 * 1.4,
 };
 
 /**

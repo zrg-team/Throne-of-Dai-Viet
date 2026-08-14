@@ -24,6 +24,7 @@
 import Phaser from 'phaser';
 import { RENDER_SCALE } from '../../game/graphicsQuality';
 import { buffalo } from './props';
+import { UNIT } from './proportion';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -108,12 +109,30 @@ const BUFFALO_LOOKS = 4;
  * atlas guidance warns about. Scaling a raster is free on the GPU, so four drawings and a rider
  * flag cover the whole herd in eight textures however many animals there are.
  */
+/**
+ * How far `buffalo()`'s own coordinates reach, **before** `UNIT.buffalo` is applied — read straight
+ * off the drawing: muzzle at −33.6, tail at +19.5, horn crest near −30, the rider's lotus higher
+ * still. A unit of margin all round covers stroke width and ink wobble.
+ */
+const BUFFALO_REACH = { left: -36, right: 22, top: -36, riderTop: -45, bottom: 6 };
+
 export function bakedBuffalo(scene: Phaser.Scene, seed: number, rider: boolean): BakedProp {
   const look = Math.abs(Math.round(seed)) % BUFFALO_LOOKS;
   const key = `prop:buffalo:${look}:${rider ? 'r' : 'x'}`;
+  // Derived from `UNIT.buffalo` rather than written out, because a `PropBox` is in **corrected**
+  // units — `bakeProp` hands the draw `RASTER` as its scale, and the prop applies its own unit
+  // inside. These numbers were previously the raw drawing extents copied in unchanged, so the
+  // texture was ~3x oversized on each axis, ~9x the pixels, across eight cached variants. Written
+  // this way the box tracks the constant instead of silently drifting the next time it moves.
+  //
   // Rider variants reach higher than the animal: keep the lotus canopy entirely inside the bake.
   // Clipping this box used to shave the top from the leaf and make the rider harder to parse.
-  const box: PropBox = { left: -38, right: 26, top: rider ? -43 : -34, bottom: 5 };
+  const box: PropBox = {
+    left: BUFFALO_REACH.left * UNIT.buffalo,
+    right: BUFFALO_REACH.right * UNIT.buffalo,
+    top: (rider ? BUFFALO_REACH.riderTop : BUFFALO_REACH.top) * UNIT.buffalo,
+    bottom: BUFFALO_REACH.bottom * UNIT.buffalo,
+  };
   return bakeProp(scene, key, box, (g, x, y, raster) => buffalo(g, x, y, raster, look * 977 + 13, rider));
 }
 
