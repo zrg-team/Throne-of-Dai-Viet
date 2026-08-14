@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { PIGMENT } from './palette';
 import { hatchPoly, inkPath, mulberry32, printedShape, washFill, type Pt } from './stroke';
 import { areca, bamboo, banyan, dinh, groundShadow, hayStack, house, thap, tree } from './props';
+import { seasonalStage } from './season';
 
 /**
  * Places people live, and the fields that feed them.
@@ -345,10 +346,15 @@ export function drawFieldPlot(g: G, plot: FieldPlot): void {
   // out of step with each other: one under water, one just turned and bare, one in ordered rows,
   // one gold, one under a seedling nursery's fine lattice. Three states over a whole map still read
   // as a repeating pattern, which is the failure the stages exist to avoid.
-  const flooded = plot.stage < 0.28;
-  const fallow = !flooded && plot.stage < 0.4;
-  const nursery = plot.stage > 0.9;
-  const ripe = !nursery && plot.stage > 0.68;
+  //
+  // The season shifts which of the five dominate without collapsing the patchwork — see
+  // `seasonalStage`. On the map this resolves to the fixed bake season; on the menu, to the month
+  // the player actually opened the game in.
+  const stage = seasonalStage(plot.stage);
+  const flooded = stage < 0.28;
+  const fallow = !flooded && stage < 0.4;
+  const nursery = stage > 0.9;
+  const ripe = !nursery && stage > 0.68;
 
   const fill = flooded ? PIGMENT.chamWash
     : fallow ? PIGMENT.diepLo

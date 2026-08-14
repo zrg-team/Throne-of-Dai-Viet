@@ -101,6 +101,9 @@ function normalizeSnapshotState(state: GameState): GameState {
   }
   clone.isPaused = false;
   clone.latestBattleResult = undefined;
+  // The map now paints itself from the season, so an absent one would leave the world with no
+  // palette at all rather than merely with a wrong HUD label.
+  clone.season ??= 'Spring';
   // A prompt was mid-decision when the run was saved; its options were priced against a
   // state that no longer exists, so drop it rather than restore a stale choice.
   clone.pendingAscentPrompt = undefined;

@@ -14,6 +14,7 @@ import { getMapTheme, MAP_THEME_OPTIONS, setMapTheme } from '../ui/mapTheme';
 import { applyPaperFX } from '../ui/ink/PaperFX';
 import { inkPath, mulberry32, thickPath, washFill as washInk, type Pt } from '../ui/ink/stroke';
 import { areca, bamboo, banyan, farmer, karstRange, softRidge, tree as treeProp } from '../ui/ink/props';
+import { seasonForDate, setRenderSeason } from '../ui/ink/season';
 import { grazeInSmallArea, livingSprite } from '../ui/ink/life';
 import { bakedBuffalo } from '../ui/ink/sprites';
 import { drawFieldPlot, hamlet, paddyLattice } from '../ui/ink/settlements';
@@ -87,6 +88,11 @@ export class MenuScene extends Phaser.Scene {
     const menu = this.mapRenderer.theme.renderers.menu;
 
     if (menu === 'dongho') {
+      // The title screen wears the player's own month. It is drawn once per launch and never
+      // re-baked, so unlike the map it can afford the full seasonal treatment of the props: bare
+      // branches in January, gold paddy in October. `MapScene` pins itself back to `BAKE_SEASON`
+      // on the way in, so this cannot leak into the world's ground.
+      setRenderSeason(seasonForDate());
       // The hosts are planned before the land is drawn, because the land has to leave their ground
       // clear: fields drawn first and men placed into them afterwards is how a host ends up
       // standing in a paddy, and the same reasoning put one of them in the river.

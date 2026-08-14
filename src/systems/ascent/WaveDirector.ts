@@ -28,7 +28,7 @@ import {
 } from '../../game/ascentConfig';
 import { MIN_ARMY_SOLDIERS, recruitSoldiers, SUPPLY_TICKS_HELD, waveHostCount } from '../../game/ascentConfig';
 import { weightedPick } from '../../utils/math';
-import { launchOffMapInvasion } from '../empire/InvasionSystem';
+import { difficultyArmyScale, launchOffMapInvasion } from '../empire/InvasionSystem';
 import { applyResourceDelta, canSpend } from '../ResourceSystem';
 import { armyPower, queueRecruitment } from '../WarSystem';
 import { pushToast } from '../empire/notifications';
@@ -644,12 +644,22 @@ function launchWave(state: GameState, kingdomId: string, warlordName?: string): 
   const coalition = ascent.coalitionPending;
   ascent.coalitionPending = false;
   const hosts = Math.min(4, waveHostCount(ascent.wave, boss) + (coalition ? 2 : 0));
+  // The one difficulty dial this mode actually honours.
+  //
+  // `difficultyArmyScale` exists and is applied inside `launchOffMapInvasion` — but only to the
+  // per-host `rawSizes`, which the `clampFactor = totalSoldiers / rawTotal` normalisation then
+  // divides straight back out. Passing an explicit `totalSoldiers`, as this call always does,
+  // therefore cancelled difficulty exactly: easy and ironman spawned identical waves. Scaling the
+  // budget itself is what makes the setting mean something.
+  const difficulty = difficultyArmyScale(state.campaignConfig?.difficulty);
   launchOffMapInvasion(state, kingdomId, {
     forceCoalition: hosts,
     // An explicit budget, sized from the realm's lagged defensive power. Without it the
     // spawn is clamped against `getPlayerMilitary` — a headcount blind to every multiplier
     // the Power Draft stacks — and the wave arrives a fraction of the size it should be.
-    totalSoldiers: Math.round(waveSoldierBudget(state, ascent.wave, boss) * (coalition ? COALITION_WAVE_MULT : 1)),
+    totalSoldiers: Math.round(
+      waveSoldierBudget(state, ascent.wave, boss) * (coalition ? COALITION_WAVE_MULT : 1) * difficulty,
+    ),
     forceConquest: boss || coalition,
     // A named warlord is what flags the record as `great`, which drives the harder siege
     // maths in resolveInvaderBattle and the Great Invasion presentation.

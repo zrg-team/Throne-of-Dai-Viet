@@ -132,10 +132,18 @@ export function beginBattle(state: GameState): boolean {
   if (!invader || !defender) return false;
   if (!worthWatching(state, pending.landId, pending.isGreat)) return false;
 
-  // At most one watched engagement per wave: `maybeRequestBattleDecision` fires on every tick an
-  // invader stands on a contested province, not once per battle, so a single siege of the capital
-  // raised the modal again and again.
-  if (ascent.lastWatchedWave === ascent.wave) return false;
+  // One watched engagement per province per wave.
+  //
+  // The cap exists because `maybeRequestBattleDecision` fires on every tick an invader stands on a
+  // contested province, not once per battle, so a single siege of the capital used to raise the
+  // modal again and again. But keying it on the wave alone meant a wave that struck three
+  // provinces was watchable at exactly one of them, and combined with the field-host requirement
+  // above, a measured run opened the battle screen **zero** times in 320 ticks. Keying it on the
+  // province keeps the repeat-suppression that motivated the cap and lets a wave that attacks on
+  // two fronts be fought on both.
+  const watchKey = `${ascent.wave}:${pending.landId}`;
+  if (ascent.lastWatchedKey === watchKey) return false;
+  ascent.lastWatchedKey = watchKey;
   ascent.lastWatchedWave = ascent.wave;
 
   const reserve = splitReserve(defender);

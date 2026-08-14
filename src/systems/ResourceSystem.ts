@@ -5,6 +5,8 @@ import {
   ARMY_UPKEEP_SCALE,
   GOLD_SOFTCAP_EXPONENT,
   GOLD_SOFTCAP_FROM,
+  TREASURY_GRAFT_FROM,
+  TREASURY_GRAFT_RATE,
 } from '../game/ascentConfig';
 import { eraIndex, eraLabel, getBuildingLevelCap } from './empire/MandateSystem';
 import { getCourtBonuses, getLandGovernorOutputMult } from './CourtSystem';
@@ -234,6 +236,113 @@ export function getLandSpecialization(land: Land): LandSpecialization {
   return land.specialization ?? 'balanced';
 }
 
+/**
+ * How well a province's ground suits each focus, from 0 (fights the land) to 1 (made for it).
+ *
+ * Before this, terrain was very nearly inert: `calculateLandOutputs` asked three *binary* questions
+ * — is there any water, any rice, more mountain than hill — each worth a flat +2, and ignored how
+ * much of anything a province actually had. So every land answered to every focus identically and
+ * "what should this province be?" had no right answer to find. Aptitude is what makes the map
+ * argue back: a delta wants to be a breadbasket, a limestone shelf wants to be a mine, and a
+ * crossroads wants to trade.
+ *
+ * Read off `land.terrainSummary` (counted once at world-gen, so this is O(1)) and
+ * `land.neighbors.length`, which is the province's road connectivity.
+ */
+export function getLandAptitude(land: Land): Record<LandSpecialization, number> {
+  const ts = land.terrainSummary;
+  const workable = Math.max(1, ts.plains + ts.fields + ts.riceFields + ts.forest + ts.mountains + ts.hills);
+  const share = (n: number): number => Math.min(1, n / workable);
+  // Connectivity saturates at six, the most neighbours a hex-built province can realistically hold.
+  const roads = Math.min(1, land.neighbors.length / 6);
+  const wet = Math.min(1, ts.water / 3);
+
+  // What the province is *for* counts as much as what it is made of.
+  //
+  // Terrain alone gave nonsense advice: a temple standing on open plains scored a perfect 1.0 for
+  // `populous`, but a temple earns gold, so the recommended focus multiplied a resource the land
+  // does not produce while paying the penalty on the one it does. A land's type is the single best
+  // predictor of which resource its buildings will actually pour into, so it belongs in the answer.
+  const KIND_BIAS: Record<LandSpecialization, number> = {
+    balanced: 0,
+    breadbasket: land.type === 'farm' ? 0.3 : 0,
+    mining: land.type === 'iron' ? 0.35 : 0,
+    trade: land.type === 'market' || land.type === 'temple' || land.type === 'castle' ? 0.32 : 0,
+    populous: land.type === 'farm' || land.type === 'castle' ? 0.18 : 0,
+    fortress: land.type === 'castle' ? 0.2 : 0,
+  };
+
+  return {
+    // A neutral focus is neutral everywhere: `balanced` must never be the terrain-optimal answer,
+    // or the whole choice collapses back into leaving it alone.
+    balanced: 0.5,
+    // Wet ground and land already under crop. Irrigation is what makes a delta.
+    breadbasket: clamp01(share(ts.riceFields + ts.fields) * 1.5 + wet * 0.35 + share(ts.plains) * 0.25 + KIND_BIAS.breadbasket),
+    // Rock. Hills count for less than mountains: the ore is in the massif.
+    mining: clamp01(share(ts.mountains) * 1.3 + share(ts.hills) * 0.6 + KIND_BIAS.mining),
+    // Roads first, then water — a river or a coast is a road that costs nothing to keep.
+    trade: clamp01(roads * 0.85 + wet * 0.45 + KIND_BIAS.trade),
+    // Room to settle: open ground and woodland to clear, and not a province of cliffs.
+    populous: clamp01(share(ts.plains) * 1.2 + share(ts.forest) * 0.5 - share(ts.mountains) * 0.4 + KIND_BIAS.populous),
+    // High ground, and few ways in. A province with one approach is worth holding.
+    fortress: clamp01(share(ts.mountains + ts.hills) * 0.9 + (1 - roads) * 0.5 + KIND_BIAS.fortress),
+  };
+}
+
+/** The resource each focus is chosen *for*. `balanced` favours none. */
+const FOCUS_RESOURCE: Record<LandSpecialization, keyof ResourceBag | undefined> = {
+  balanced: undefined,
+  breadbasket: 'food',
+  mining: 'supplies',
+  trade: 'gold',
+  populous: 'food',
+  fortress: 'supplies',
+};
+
+/**
+ * The yield a province draws from its own ground, once a focus is set to exploit it.
+ *
+ * Separate from the multiplicative tilt, and the reason a focus is worth setting at all. The tilt
+ * alone could only ever scale what the buildings already made, so on a young province — which is
+ * every province at the moment the player is asked to choose — every focus was a pure loss: the
+ * bonus multiplied a resource with nothing in it while the penalty came off one that was earning.
+ *
+ * This pays out on the land itself, in proportion to how well it suits the focus, so working a
+ * delta as a breadbasket is worth something the season you decide it.
+ */
+function focusTerrainDividend(land: Land): Partial<ResourceBag> {
+  const focus = getLandSpecialization(land);
+  const key = FOCUS_RESOURCE[focus];
+  if (!key) {
+    return {};
+  }
+  return { [key]: getLandAptitude(land)[focus] * 7 };
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+/**
+ * What a focus multiplies its province's output by, once the ground is taken into account.
+ *
+ * `SPECIALIZATION_MULT` is the *promise* a focus makes; this is what it delivers on this land.
+ * A perfectly-suited province gets a little more than the promise, an unsuited one clearly less,
+ * and the tilt away from the other two resources is paid in full either way — so a mine on a
+ * flood plain is a genuine mistake rather than a slightly weaker version of the same thing.
+ */
+export function getFocusOutputMult(land: Land): { food: number; supplies: number; gold: number } {
+  const focus = getLandSpecialization(land);
+  const base = SPECIALIZATION_MULT[focus];
+  if (focus === 'balanced') {
+    return base;
+  }
+  // 0 aptitude -> 0.7 of the promised gain, 1 aptitude -> 1.15 of it. The penalties are untouched.
+  const scale = 0.7 + getLandAptitude(land)[focus] * 0.45;
+  const apply = (value: number): number => (value > 1 ? 1 + (value - 1) * scale : value);
+  return { food: apply(base.food), supplies: apply(base.supplies), gold: apply(base.gold) };
+}
+
 /** Live tax-stance effects: gold multiplier, per-tick stability drift (incl. tax fatigue), and growth delta. */
 export function getTaxEffects(state: GameState): { goldMult: number; stabilityDelta: number; growthDelta: number } {
   // Effective stability drift includes the compounding resentment from sustained heavy taxes.
@@ -401,9 +510,16 @@ export function calculateLandOutputs(state: GameState, land: Land, efficiency = 
   const ownedNeighbors = land.neighbors.filter((neighborId) => state.lands.find((other) => other.id === neighborId)?.ownerId === PLAYER_KINGDOM_ID).length;
   const roads = Math.floor(land.neighbors.length / 3) + ownedNeighbors * 2;
   const tradeMult = land.ownerId === PLAYER_KINGDOM_ID ? getTradeNetworkMult(state) : 1;
-  const waterBonus = land.terrainSummary.water > 0 ? 2 : 0;
-  const riceBonus = land.terrainSummary.riceFields > 0 ? 2 : 0;
-  const mountainBonus = land.terrainSummary.mountains > land.terrainSummary.hills ? 2 : 0;
+  // Terrain bonuses scale with how much of it there is, rather than asking whether there is any.
+  //
+  // These were `water > 0 ? 2 : 0`, `riceFields > 0 ? 2 : 0` and `mountains > hills ? 2 : 0` —
+  // three yes/no questions that made a province with one water hex worth exactly as much as a
+  // river delta. Counting is what lets a good site actually be a good site, and it is the same
+  // reading `getLandAptitude` uses, so the number the focus selector shows matches what is paid.
+  const ts = land.terrainSummary;
+  const waterBonus = Math.min(4, ts.water * 1.2);
+  const riceBonus = Math.min(4, (ts.riceFields + ts.fields * 0.5) * 0.6);
+  const mountainBonus = Math.min(4, ts.mountains * 0.7 + ts.hills * 0.3);
 
   if (land.type === 'castle' || land.type === 'enemyCastle') {
     outputs.gold += (8 + roads) * tradeMult;
@@ -442,7 +558,13 @@ export function calculateLandOutputs(state: GameState, land: Land, efficiency = 
   }
 
   if (land.ownerId === PLAYER_KINGDOM_ID) {
-    const focus = SPECIALIZATION_MULT[getLandSpecialization(land)];
+    // The land's own dividend first, so the tilt below scales it too — a focus that suits the
+    // ground compounds with itself, which is what makes a correct reading of a province pay.
+    for (const [key, value] of Object.entries(focusTerrainDividend(land))) {
+      outputs[key as keyof ResourceBag] += value ?? 0;
+    }
+    // Then the tilt, scaled by how well the ground suits the focus — see `getFocusOutputMult`.
+    const focus = getFocusOutputMult(land);
     outputs.food *= focus.food;
     outputs.supplies *= focus.supplies;
     outputs.gold *= focus.gold;
@@ -605,7 +727,14 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
   const heroUpkeep = state.heroes.reduce((sum, hero) => sum + hero.upkeepGold, 0);
   // Gentler per-head food draw so a larger population isn't self-defeating: population is
   // the master resource (it is labor *and* soldiers), so growing it must stay affordable.
-  const populationFoodUpkeep = Math.ceil((state.resources.humans / 200) * getPopulationFoodMultiplier(state.season));
+  // Eased from /200 to /240 for this mode's sake.
+  //
+  // Once the realm stopped collapsing — it now ends a run holding seventeen provinces instead of
+  // three — the population it keeps alive rose with it, and food went from short in a fifth of all
+  // seasons to short in better than a third. Hunger is meant to be a pressure the player manages,
+  // not the default state of a successful realm.
+  const foodPerHead = state.gameMode === 'ascent' ? 240 : 200;
+  const populationFoodUpkeep = Math.ceil((state.resources.humans / foodPerHead) * getPopulationFoodMultiplier(state.season));
   const armyRealmFoodPressure = Math.ceil(playerTroops / 300);
   const suppliesUpkeep = Math.ceil(playerTroops / 650);
   const armyGoldUpkeep = Math.ceil(getTotalArmyGoldUpkeep(state) * courtBonuses.armyGoldUpkeepMult);
@@ -660,6 +789,16 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
   if (state.gameMode === 'ascent' && rates.gold > GOLD_SOFTCAP_FROM) {
     const excess = rates.gold - GOLD_SOFTCAP_FROM;
     rates.gold = Math.round(GOLD_SOFTCAP_FROM + Math.pow(excess, GOLD_SOFTCAP_EXPONENT));
+  }
+
+  // ...and a treasury that just sits there loses part of itself to the people counting it.
+  //
+  // The cap above works on income and so could never touch a hoard already banked, which is what
+  // a run actually ends with: a hundred seasons of it. Charged on the excess only, and folded into
+  // the displayed rate rather than taken quietly, so the header tells the player their gold is
+  // draining and gives them a reason to spend it. See `TREASURY_GRAFT_FROM`.
+  if (state.gameMode === 'ascent' && state.resources.gold > TREASURY_GRAFT_FROM) {
+    rates.gold -= Math.round((state.resources.gold - TREASURY_GRAFT_FROM) * TREASURY_GRAFT_RATE);
   }
 
   return rates;
