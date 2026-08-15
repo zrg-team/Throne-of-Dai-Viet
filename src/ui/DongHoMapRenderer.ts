@@ -7,6 +7,7 @@ import { PIGMENT } from './ink/palette';
 import { groundTone, hatchPoly, inkPath, mulberry32, printedShape, washFill, type Pt } from './ink/stroke';
 import { areca, bamboo, banana, banyan, farmer, grassTuft, karstRange, softRidge, tree } from './ink/props';
 import { drawFieldPlot, paddyLattice } from './ink/settlements';
+import { worldScale } from './ink/proportion';
 import { groundCast, mixPigment, seasonPalette } from './ink/season';
 import { scatterDensity } from '../game/graphicsQuality';
 
@@ -94,12 +95,19 @@ const SCATTER: Partial<Record<HexTerrainType, ScatterSpec>> = {
   // `UNIT.grassTuft` has come back down and the density is what replaces it. This is the cheap
   // half of the trade — a tuft is four inked blades and its FOOTPRINT is 3 against a tree's 11, so
   // they pack in without the spacing pass thinning them out.
-  plains: { count: [6, 11], kinds: ['tuft', 'tuft', 'tuft', 'tree'], scale: [0.55, 1.2] },
-  fields: { count: [0, 2], kinds: ['tree', 'tuft', 'farmer'], scale: [0.5, 0.95] },
-  riceFields: { count: [0, 1], kinds: ['tree', 'tuft'], scale: [0.6, 0.9] },
-  forest: { count: [4, 7], kinds: ['tree', 'tree', 'tree', 'bamboo', 'banana'], scale: [0.7, 1.45] },
-  hills: { count: [2, 4], kinds: ['tree', 'tree', 'tuft'], scale: [0.6, 1.1] },
-  mountains: { count: [0, 1], kinds: ['tree', 'tuft'], scale: [0.45, 0.75] },
+  //
+  // `scale` is **jitter around 1**, not a size. It multiplies `worldScale`, which is the one rate
+  // the whole map is drawn at, so a range centred on 1 means "this prop, at world scale, give or
+  // take". These used to be sizes in their own right — forest ran 0.7–1.45 on top of a separate
+  // `tileSize / 24`, which is how a wood ended up drawn at three times the scale of the same tree
+  // beside a village. Kept deliberately narrow: variety in a wood comes from *how many* and where,
+  // and a range wide enough to be a second scale is exactly the fault this is fixing.
+  plains: { count: [6, 11], kinds: ['tuft', 'tuft', 'tuft', 'tree'], scale: [0.85, 1.1] },
+  fields: { count: [0, 2], kinds: ['tree', 'tuft', 'farmer'], scale: [0.85, 1.05] },
+  riceFields: { count: [0, 1], kinds: ['tree', 'tuft'], scale: [0.9, 1.05] },
+  forest: { count: [4, 7], kinds: ['tree', 'tree', 'tree', 'bamboo', 'banana'], scale: [0.85, 1.2] },
+  hills: { count: [2, 4], kinds: ['tree', 'tree', 'tuft'], scale: [0.85, 1.1] },
+  mountains: { count: [0, 1], kinds: ['tree', 'tuft'], scale: [0.75, 0.95] },
 };
 
 /** Roughly how much ground each scattered thing needs to itself, in units of the world scale. */
@@ -545,7 +553,11 @@ export class DongHoMapRenderer implements MapRenderer {
     items: ScatterItem[],
     tileSize: number,
   ): void {
-    const unit = tileSize / 24;
+    // The one rate the whole map is drawn at — the same call the settlements, the herds and the
+    // hosts now make. The per-kind multipliers below are gone with it: each prop's real size is
+    // already carried by its own `UNIT` correction, so a second multiplier here was just a way of
+    // disagreeing with the table.
+    const unit = worldScale(tileSize);
     for (const item of items) {
       const s = item.scale * unit;
       switch (item.kind) {
@@ -555,11 +567,11 @@ export class DongHoMapRenderer implements MapRenderer {
           tree(graphics, item.x, item.y, s, item.seed);
           break;
         case 'tuft': grassTuft(graphics, item.x, item.y, s, item.seed); break;
-        case 'bamboo': bamboo(graphics, item.x, item.y, s * 0.5, item.seed); break;
-        case 'banana': banana(graphics, item.x, item.y, s * 0.75, item.seed); break;
-        case 'areca': areca(graphics, item.x, item.y, s * 0.6, item.seed); break;
-        case 'banyan': banyan(graphics, item.x, item.y, s * 0.6, item.seed); break;
-        case 'farmer': farmer(graphics, item.x, item.y, s * 0.8, item.seed); break;
+        case 'bamboo': bamboo(graphics, item.x, item.y, s, item.seed); break;
+        case 'banana': banana(graphics, item.x, item.y, s, item.seed); break;
+        case 'areca': areca(graphics, item.x, item.y, s, item.seed); break;
+        case 'banyan': banyan(graphics, item.x, item.y, s, item.seed); break;
+        case 'farmer': farmer(graphics, item.x, item.y, s, item.seed); break;
         default: break;
       }
     }

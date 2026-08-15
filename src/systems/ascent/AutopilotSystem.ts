@@ -32,7 +32,13 @@ import {
   type BuildOption,
   type UpgradeOption,
 } from '../ResourceSystem';
-import { bribeLand, getBribeSuccessChance, getGoldBribeCost } from '../AcquisitionSystem';
+import {
+  bribeLand,
+  canStartClaim,
+  getBribeSuccessChance,
+  getGoldBribeCost,
+  getPlayerClaimCount,
+} from '../AcquisitionSystem';
 import { disbandArmy, getRecruitmentOrder, issueMoveOrder, queueRecruitment } from '../WarSystem';
 import { frontWinChance } from './ConquestSystem';
 import { chargeAmbition } from './AmbitionSystem';
@@ -221,9 +227,16 @@ export function findFreeCommander(state: GameState): string | undefined {
 function autoRecruit(state: GameState): boolean {
   const lands = playerLands(state);
   const inFlight = state.recruitmentOrders.length;
-  // Only hosts that could actually fight count toward the target.
+  // Only hosts that could actually fight count toward the target — and a garrison levy is not one
+  // of them. A levy exists for the length of a single battle and is dissolved by
+  // `dissolveGarrisonLevies` the moment it ends, so counting it here tells the autopilot the realm
+  // has a standing host it is about to lose. Harmless while battles were rare; once they became
+  // frequent it suppressed recruitment for a whole run, and the realm quietly stopped replacing
+  // the armies it lost.
   const standing = state.armies.filter(
-    (army) => army.kingdomId === PLAYER_KINGDOM_ID && armySize(army) >= MIN_ARMY_SOLDIERS * REMNANT_SHARE,
+    (army) => army.kingdomId === PLAYER_KINGDOM_ID
+      && !army.isLevy
+      && armySize(army) >= MIN_ARMY_SOLDIERS * REMNANT_SHARE,
   ).length;
   if (standing + inFlight >= targetArmyCount(lands.length)) return false;
 
@@ -355,7 +368,18 @@ function autoPurchaseVillage(state: GameState): boolean {
   const share = glutted ? AUTO_CLAIM_TREASURY_SHARE * 2 : AUTO_CLAIM_TREASURY_SHARE;
 
   if (state.turn % interval !== 0) return false;
-  if (state.acquisitionOrders.length >= AUTO_CLAIM_MAX_ORDERS) return false;
+
+  // The autopilot yields its slot to the player.
+  //
+  // Claims are now capped — one at a time by default (`getClaimSlots`) — and the autopilot draws
+  // from the same pool. Left to race, it would take the realm's only claim party every twelve
+  // ticks and the player would find the Conquer lane permanently greyed out by their own
+  // administration. So it expands only into slack the player is not using: never while a claim of
+  // theirs is running, and never into the last free slot's worth of room.
+  if (getPlayerClaimCount(state) > 0) return false;
+  if (!canStartClaim(state)) return false;
+  // Its own ceiling still applies on top, so a widened cap does not hand the whole gain to the AI.
+  if (getPlayerClaimCount(state) >= AUTO_CLAIM_MAX_ORDERS) return false;
 
   const owned = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
   const ownedIds = new Set(owned.map((land) => land.id));

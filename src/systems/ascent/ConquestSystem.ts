@@ -2,6 +2,7 @@ import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../../game/constants';
 import { MARCH_HOLD_TICKS, MARCH_REPROMPT_TICKS, XP_PER_LAND_TAKEN } from '../../game/ascentConfig';
 import {
   bribeLand,
+  claimBlockedReason,
   getBribeSuccessChance,
   getDiplomacySuppliesCost,
   getDiplomacyThreshold,
@@ -176,7 +177,7 @@ export function buildConquestTarget(state: GameState, land: Land): ConquestTarge
     landName: land.name,
     landKind: land.ownerId !== NEUTRAL_OWNER_ID ? 'rival' : land.hasVillage ? 'village' : 'wilderness',
     ownerName: state.kingdoms.find((kingdom) => kingdom.id === land.ownerId)?.name,
-    garrison: Math.round(landGarrisonPower(land)),
+    garrison: Math.round(landGarrisonPower(state, land)),
     rewardTag: rewardTag(land),
     bestChance: open.reduce((best, method) => Math.max(best, method.chance), 0),
     hasCertainMethod: open.some((method) => method.chance >= 100),
@@ -222,8 +223,22 @@ export function buildMethodOptions(state: GameState, land: Land): ConquestMethod
   if (busy) {
     for (const option of options) option.blockedReason ??= busy;
   }
+
+  // Every method that files an acquisition order competes for the realm's claim parties. Siege and
+  // occupation do not: one is a host reducing a province, the other a host walking onto empty
+  // ground, and neither ties up an envoy. Shown greyed with the reason rather than hidden, which is
+  // this file's standing contract — see the note on `buildMethodOptions` above.
+  const claimBlocked = claimBlockedReason(state);
+  if (claimBlocked) {
+    for (const option of options) {
+      if (CLAIM_METHODS.has(option.method)) option.blockedReason ??= claimBlocked;
+    }
+  }
   return options;
 }
+
+/** The methods that occupy one of the realm's claim slots. */
+const CLAIM_METHODS: ReadonlySet<string> = new Set(['bribe', 'diplomacy', 'intimidation', 'settle']);
 
 function bribeOption(state: GameState, land: Land): ConquestMethodOption {
   const cost = getGoldBribeCost(state, land);
@@ -528,7 +543,7 @@ function bestBattle(state: GameState, land: Land): { chance: number; armyId?: st
       chance = preview.winChance;
     } else if (findLandPath(state, army.landId, land.id)) {
       const attack = armyPower(state, army);
-      chance = Math.round((attack / Math.max(1, attack + landGarrisonPower(land))) * 100);
+      chance = Math.round((attack / Math.max(1, attack + landGarrisonPower(state, land))) * 100);
     } else {
       continue; // unreachable: offering it would hand the player an order their host refuses
     }

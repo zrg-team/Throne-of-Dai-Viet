@@ -1,7 +1,13 @@
 import { isEndlessMode, PLAYER_KINGDOM_ID } from '../../game/constants';
+import { getLegTicks } from '../../game/movementConfig';
 import { findLand, getAcquisitionTicksRequired } from '../LandSystem';
 import { createBattlePreview, grantGeneralExperience, issueMoveOrder } from '../WarSystem';
-import { applyResourceDelta, refreshAllLandOutputs } from '../ResourceSystem';
+import {
+  applyResourceDelta,
+  getFocusDefenseMult,
+  getFocusGarrisonMult,
+  refreshAllLandOutputs,
+} from '../ResourceSystem';
 import { getPlayerMilitary } from '../DiplomacySystem';
 import { addMandate } from './MandateSystem';
 import {
@@ -342,7 +348,7 @@ export function tickInvasions(state: GameState): void {
       }
       const step = findInvasionStep(state, army.landId, exitId);
       if (step) {
-        army.landId = step;
+        advanceInvader(state, army, step);
       } else {
         despawnInvasion(state, record);
       }
@@ -359,6 +365,7 @@ export function tickInvasions(state: GameState): void {
     const adjacentToTarget = here?.neighbors.includes(target.id) ?? false;
 
     if (target.ownerId === PLAYER_KINGDOM_ID && adjacentToTarget) {
+      clearInvaderMarch(state, army.id);
       if (maybeRequestBattleDecision(state, army, record, target)) continue;
       resolveInvaderBattle(state, army, record, target);
       continue;
@@ -371,12 +378,59 @@ export function tickInvasions(state: GameState): void {
     }
     const stepLand = findLand(state, step);
     if (stepLand?.ownerId === PLAYER_KINGDOM_ID) {
+      clearInvaderMarch(state, army.id);
       if (maybeRequestBattleDecision(state, army, record, stepLand)) continue;
       resolveInvaderBattle(state, army, record, stepLand);
     } else {
-      army.landId = step;
+      advanceInvader(state, army, step);
     }
   }
+}
+
+/**
+ * Moves an invader one province along, as a march the player can watch.
+ *
+ * Empire keeps the original bare assignment. In Dragon Ascent the host is given a real
+ * `MovementOrder` instead, because `ArmyRenderer` gates the entire march presentation on one
+ * existing — the road curve, the leg tween timed by terrain, the dust, the marching column and the
+ * destination arrow are all inside `if (order && order.path.length > 0)`. Without an order a host
+ * hard-snaps between provinces, which is why invasions appeared rather than approached.
+ *
+ * The order is deliberately one leg long and re-issued each tick. Invader routing is decided a hop
+ * at a time by `findInvasionStep` against a target that the enemy director may re-point at any
+ * moment, so handing the movement system a long path would let a host keep walking a route its
+ * command has already abandoned.
+ */
+function advanceInvader(state: GameState, army: Army, step: string): void {
+  if (state.gameMode !== 'ascent') {
+    army.landId = step;
+    return;
+  }
+
+  const existing = state.movementOrders.find((order) => order.armyId === army.id);
+  if (existing && existing.path[0] === step) {
+    existing.progress += 1;
+    if (existing.progress < existing.legRequired) return;
+    // The leg is done: the host arrives, and the order is spent.
+    army.landId = step;
+    state.movementOrders = state.movementOrders.filter((order) => order !== existing);
+    return;
+  }
+
+  const stepLand = findLand(state, step);
+  const legRequired = stepLand ? getLegTicks(army, stepLand) : 1;
+  state.movementOrders = state.movementOrders.filter((order) => order.armyId !== army.id);
+  // A one-tick leg would mean the marker never renders mid-march, so the tween never plays.
+  if (legRequired <= 1) {
+    army.landId = step;
+    return;
+  }
+  state.movementOrders.push({ armyId: army.id, path: [step], progress: 1, legRequired });
+}
+
+/** Drops a host's march order — it has arrived, or is about to fight instead of walking. */
+function clearInvaderMarch(state: GameState, armyId: string): void {
+  state.movementOrders = state.movementOrders.filter((order) => order.armyId !== armyId);
 }
 
 function chooseTarget(state: GameState, army: Army, record: InvasionRecord): Land | undefined {
@@ -385,6 +439,16 @@ function chooseTarget(state: GameState, army: Army, record: InvasionRecord): Lan
   if (owned.length === 0 || !here) {
     return undefined;
   }
+
+  // In Ascent the enemy director assigns each host a province and a reason for wanting it — a
+  // spearhead goes for the prize, a flanker for weakly-held ground, and each flanker takes a
+  // different one so a coalition spreads. Honour that if the target is still the player's; if it
+  // has already fallen or been retaken, fall through to the original reading.
+  if (state.gameMode === 'ascent' && record.targetLandId) {
+    const assigned = owned.find((land) => land.id === record.targetLandId);
+    if (assigned) return assigned;
+  }
+
   if (record.intent === 'conquest') {
     // Bamboo Palisade turns the realm's own width into depth: a war host can no longer march
     // straight past the frontier at the dynasty's seat, and has to reduce whatever it meets
@@ -419,7 +483,14 @@ export function raiseGarrisonLevy(state: GameState, land: Land): Army | undefine
   // `defenderPower` already values a garrison by (16 per point against 2.5 per militiaman), so
   // sizing the turnout from both is also what keeps this levy worth the same as the garrison it
   // replaces rather than inventing strength out of nothing.
-  const muster = Math.floor(land.localSoldiers + land.defense * 6);
+  // A province set to raise soldiers turns out more of them; one set to defend turns out its walls.
+  // Both multipliers are 1 for every other focus, and outside Ascent this whole function returns
+  // early anyway.
+  const muster = Math.floor(
+    (land.localSoldiers + land.defense * 6)
+    * getFocusGarrisonMult(state, land)
+    * getFocusDefenseMult(state, land),
+  );
   // Below a company there is nothing to form a line with; the threshold roll covers those.
   if (muster < 40) return undefined;
 

@@ -230,7 +230,73 @@ export const SPECIALIZATION_MULT: Record<LandSpecialization, { food: number; sup
   trade: { food: 0.85, supplies: 0.9, gold: 1.6 },
   populous: { food: 1.35, supplies: 0.85, gold: 0.85 },
   fortress: { food: 0.9, supplies: 1.35, gold: 0.8 },
+  // Never reachable outside Dragon Ascent — `buildFocusRows` does not offer it, and nothing else
+  // writes `specialization`. Present because the record is exhaustive over the union.
+  garrison: { food: 0.9, supplies: 1.2, gold: 0.85 },
 };
+
+/**
+ * What the two martial focuses pay in Dragon Ascent, where they are not economic choices at all.
+ *
+ * `fortress` in the classic modes is a second mine wearing a shield — `supplies ×1.35`, which is
+ * `mining` with a worse name. In Ascent the player asked for a focus that actually *defends*, so
+ * here it buys defence and loyalty and pays for them with an output cut across all three
+ * resources; and `garrison` buys soldiers rather than goods. Neither can ride on the output table
+ * alone, so both also appear in `getFocusDefenseMult` / `getFocusGarrisonMult` below.
+ *
+ * Kept as a separate table, consulted only when `gameMode === 'ascent'`, for the same reason
+ * `settledMult` is mode-guarded: empire, campaign and rival must stay byte-identical.
+ */
+const ASCENT_FOCUS_MULT: Partial<Record<LandSpecialization, { food: number; supplies: number; gold: number }>> = {
+  // Defend: the province works for its own walls, not for the treasury.
+  fortress: { food: 0.82, supplies: 0.86, gold: 0.78 },
+  // Army: the fields feed soldiers instead of the realm, and the smiths arm them.
+  garrison: { food: 0.78, supplies: 1.15, gold: 0.8 },
+};
+
+/** The output tilt a focus promises on this land, in this mode. */
+function specializationMult(state: GameState, focus: LandSpecialization): { food: number; supplies: number; gold: number } {
+  if (state.gameMode === 'ascent') {
+    return ASCENT_FOCUS_MULT[focus] ?? SPECIALIZATION_MULT[focus];
+  }
+  return SPECIALIZATION_MULT[focus];
+}
+
+/**
+ * How much more a province defends itself for having been told to.
+ *
+ * Ascent only, and the whole point of the repointed `fortress`. Scaled by aptitude the same way
+ * output is, so high ground with one approach is genuinely worth fortifying and an open crossroads
+ * is not. Read wherever garrison strength is computed — `landDefencePower`, the siege garrison, and
+ * the levy muster — rather than written into `land.defense`, which would compound every tick.
+ */
+export function getFocusDefenseMult(state: GameState, land: Land): number {
+  if (state.gameMode !== 'ascent' || getLandSpecialization(land) !== 'fortress') {
+    return 1;
+  }
+  return 1 + 0.45 + getLandAptitude(land).fortress * 0.5;
+}
+
+/**
+ * How much more the province gives to the army for having been told to.
+ *
+ * Ascent only. Covers both halves of what "army" should mean: soldiers raised here come faster and
+ * in greater number, and a host standing here fights harder.
+ */
+export function getFocusGarrisonMult(state: GameState, land: Land): number {
+  if (state.gameMode !== 'ascent' || getLandSpecialization(land) !== 'garrison') {
+    return 1;
+  }
+  return 1 + 0.4 + getLandAptitude(land).garrison * 0.45;
+}
+
+/** Extra loyalty a province regains each tick for being held as a fortress. Ascent only. */
+export function getFocusLoyaltyBonus(state: GameState, land: Land): number {
+  if (state.gameMode !== 'ascent' || getLandSpecialization(land) !== 'fortress') {
+    return 0;
+  }
+  return 0.35 + getLandAptitude(land).fortress * 0.4;
+}
 
 export function getLandSpecialization(land: Land): LandSpecialization {
   return land.specialization ?? 'balanced';
@@ -270,6 +336,8 @@ export function getLandAptitude(land: Land): Record<LandSpecialization, number> 
     trade: land.type === 'market' || land.type === 'temple' || land.type === 'castle' ? 0.32 : 0,
     populous: land.type === 'farm' || land.type === 'castle' ? 0.18 : 0,
     fortress: land.type === 'castle' ? 0.2 : 0,
+    // Soldiers come from people and from somewhere to drill them.
+    garrison: land.type === 'castle' ? 0.28 : land.type === 'farm' ? 0.12 : 0,
   };
 
   return {
@@ -286,6 +354,9 @@ export function getLandAptitude(land: Land): Record<LandSpecialization, number> 
     populous: clamp01(share(ts.plains) * 1.2 + share(ts.forest) * 0.5 - share(ts.mountains) * 0.4 + KIND_BIAS.populous),
     // High ground, and few ways in. A province with one approach is worth holding.
     fortress: clamp01(share(ts.mountains + ts.hills) * 0.9 + (1 - roads) * 0.5 + KIND_BIAS.fortress),
+    // Men to raise and open ground to muster them on — the opposite reading of the same map that
+    // `fortress` wants. A mustering field is not a mountain redoubt.
+    garrison: clamp01(share(ts.plains + ts.fields) * 0.9 + share(ts.forest) * 0.3 + roads * 0.3 + KIND_BIAS.garrison),
   };
 }
 
@@ -297,7 +368,16 @@ const FOCUS_RESOURCE: Record<LandSpecialization, keyof ResourceBag | undefined> 
   trade: 'gold',
   populous: 'food',
   fortress: 'supplies',
+  garrison: 'supplies',
 };
+
+/**
+ * Focuses that draw no terrain dividend in Ascent, because what they pay is not a resource.
+ *
+ * A defended province that also out-mined a mine would be strictly better than one, which is the
+ * exact flaw the repoint exists to correct.
+ */
+const ASCENT_NO_DIVIDEND: ReadonlySet<LandSpecialization> = new Set<LandSpecialization>(['fortress']);
 
 /**
  * The yield a province draws from its own ground, once a focus is set to exploit it.
@@ -310,10 +390,10 @@ const FOCUS_RESOURCE: Record<LandSpecialization, keyof ResourceBag | undefined> 
  * This pays out on the land itself, in proportion to how well it suits the focus, so working a
  * delta as a breadbasket is worth something the season you decide it.
  */
-function focusTerrainDividend(land: Land): Partial<ResourceBag> {
+function focusTerrainDividend(state: GameState, land: Land): Partial<ResourceBag> {
   const focus = getLandSpecialization(land);
   const key = FOCUS_RESOURCE[focus];
-  if (!key) {
+  if (!key || (state.gameMode === 'ascent' && ASCENT_NO_DIVIDEND.has(focus))) {
     return {};
   }
   return { [key]: getLandAptitude(land)[focus] * 7 };
@@ -331,9 +411,9 @@ function clamp01(value: number): number {
  * and the tilt away from the other two resources is paid in full either way — so a mine on a
  * flood plain is a genuine mistake rather than a slightly weaker version of the same thing.
  */
-export function getFocusOutputMult(land: Land): { food: number; supplies: number; gold: number } {
+export function getFocusOutputMult(state: GameState, land: Land): { food: number; supplies: number; gold: number } {
   const focus = getLandSpecialization(land);
-  const base = SPECIALIZATION_MULT[focus];
+  const base = specializationMult(state, focus);
   if (focus === 'balanced') {
     return base;
   }
@@ -560,11 +640,11 @@ export function calculateLandOutputs(state: GameState, land: Land, efficiency = 
   if (land.ownerId === PLAYER_KINGDOM_ID) {
     // The land's own dividend first, so the tilt below scales it too — a focus that suits the
     // ground compounds with itself, which is what makes a correct reading of a province pay.
-    for (const [key, value] of Object.entries(focusTerrainDividend(land))) {
+    for (const [key, value] of Object.entries(focusTerrainDividend(state, land))) {
       outputs[key as keyof ResourceBag] += value ?? 0;
     }
     // Then the tilt, scaled by how well the ground suits the focus — see `getFocusOutputMult`.
-    const focus = getFocusOutputMult(land);
+    const focus = getFocusOutputMult(state, land);
     outputs.food *= focus.food;
     outputs.supplies *= focus.supplies;
     outputs.gold *= focus.gold;

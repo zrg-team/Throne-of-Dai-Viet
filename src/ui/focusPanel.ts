@@ -10,8 +10,16 @@
  * the player cannot see is a bonus they cannot play around. This is the screen that turns "what
  * should this province be?" into a question with a discoverable answer.
  */
-import type { Land, LandSpecialization } from '../state/types';
-import { SPECIALIZATION_MULT, getFocusOutputMult, getLandAptitude, getLandSpecialization } from '../systems/ResourceSystem';
+import type { GameState, Land, LandSpecialization } from '../state/types';
+import {
+  SPECIALIZATION_MULT,
+  getFocusDefenseMult,
+  getFocusGarrisonMult,
+  getFocusLoyaltyBonus,
+  getFocusOutputMult,
+  getLandAptitude,
+  getLandSpecialization,
+} from '../systems/ResourceSystem';
 import { t } from '../i18n';
 
 /** How well the ground takes to a focus, bucketed for display. */
@@ -23,6 +31,11 @@ export interface FocusRow {
   title: string;
   /** The tilt as it will actually be paid on this land, e.g. "Food x1.54  Supplies x0.85". */
   effect: string;
+  /**
+   * What the focus pays that is not a resource — the defence and loyalty of `fortress`, the
+   * soldiers of `garrison`. Empty for the economic focuses, whose whole effect is in `effect`.
+   */
+  extra: string;
   /** One line on how well the land suits it. */
   suitLine: string;
   suitability: FocusSuitability;
@@ -33,6 +46,31 @@ export interface FocusRow {
 }
 
 const ORDER: LandSpecialization[] = ['balanced', 'breadbasket', 'mining', 'trade', 'populous', 'fortress'];
+
+/**
+ * The order Dragon Ascent offers, which is the six the player asked for by name:
+ * defend · army · food · goods · gold · people. `garrison` exists only here — in the classic modes
+ * `fortress` is still an economic focus and there is no army focus at all.
+ */
+const ASCENT_ORDER: LandSpecialization[] = [
+  'balanced', 'fortress', 'garrison', 'breadbasket', 'mining', 'trade', 'populous',
+];
+
+function orderFor(state: GameState): LandSpecialization[] {
+  return state.gameMode === 'ascent' ? ASCENT_ORDER : ORDER;
+}
+
+/**
+ * What to call a focus in this mode.
+ *
+ * Ascent names them for what the province is *for* — Defend, Army, Food, Goods, Gold, People —
+ * and it must not inherit `focus.fortress`'s "War Economy", which describes a tilt that mode does
+ * not use.
+ */
+function titleOf(state: GameState, focus: LandSpecialization): string {
+  const key = state.gameMode === 'ascent' ? `focus.ascent.${focus}` : `focus.${focus}`;
+  return t(key as Parameters<typeof t>[0]);
+}
 
 function suitabilityOf(focus: LandSpecialization, aptitude: number): FocusSuitability {
   if (focus === 'balanced') return 'neutral';
@@ -48,22 +86,23 @@ function suitabilityOf(focus: LandSpecialization, aptitude: number): FocusSuitab
  * list whose rows move between provinces cannot be learned. The recommendation is carried by the
  * `isBest` flag instead.
  */
-export function buildFocusRows(land: Land): FocusRow[] {
+export function buildFocusRows(state: GameState, land: Land): FocusRow[] {
   const aptitude = getLandAptitude(land);
   const current = getLandSpecialization(land);
+  const order = orderFor(state);
 
-  let best: LandSpecialization = 'breadbasket';
-  for (const focus of ORDER) {
+  let best: LandSpecialization = order.find((focus) => focus !== 'balanced') ?? 'breadbasket';
+  for (const focus of order) {
     if (focus !== 'balanced' && aptitude[focus] > aptitude[best]) {
       best = focus;
     }
   }
 
-  return ORDER.map((focus) => {
+  return order.map((focus) => {
     // Shown as the land will actually pay it, not as the table promises — the whole reason the
     // aptitude scaling exists is that those two numbers differ.
     const probe = { ...land, specialization: focus } as Land;
-    const mult = focus === 'balanced' ? SPECIALIZATION_MULT.balanced : getFocusOutputMult(probe);
+    const mult = focus === 'balanced' ? SPECIALIZATION_MULT.balanced : getFocusOutputMult(state, probe);
     const effect = (['food', 'supplies', 'gold'] as const)
       .map((key) => `${t(`resource.${key}` as Parameters<typeof t>[0])} ×${mult[key].toFixed(2)}`)
       .join('  ');
@@ -78,10 +117,24 @@ export function buildFocusRows(land: Land): FocusRow[] {
           ? t('focus.suitMid', { pct })
           : t('focus.suitLow', { pct });
 
+    // Ascent's martial focuses pay outside the resource bag, so the tilt line alone would read as
+    // a pure loss — the same trap the terrain dividend was added to fix for the economic ones.
+    const extra = state.gameMode !== 'ascent'
+      ? ''
+      : focus === 'fortress'
+        ? t('focus.fx.defend', {
+          def: Math.round((getFocusDefenseMult(state, probe) - 1) * 100),
+          loy: getFocusLoyaltyBonus(state, probe).toFixed(1),
+        })
+        : focus === 'garrison'
+          ? t('focus.fx.army', { pct: Math.round((getFocusGarrisonMult(state, probe) - 1) * 100) })
+          : '';
+
     return {
       focus,
-      title: t(`focus.${focus}` as Parameters<typeof t>[0]),
+      title: titleOf(state, focus),
       effect,
+      extra,
       suitLine,
       suitability,
       aptitude: aptitude[focus],

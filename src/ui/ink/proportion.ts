@@ -49,7 +49,9 @@ export const UNIT = {
   bamboo: 1.19,
   areca: 1.35,
   banyan: 1.94,
-  hayStack: 0.55,
+  // A cây rơm is about three metres. This was 0.55 against a true correction of 0.42, which left
+  // haystacks the one object on the map standing a third over the rate everything else keeps.
+  hayStack: 0.42,
   /**
    * Grass, exaggerated — for the same reason people are, but *less* than a person, not more.
    *
@@ -75,19 +77,65 @@ export const UNIT = {
   farmer: 0.35 * LIVING,
   // A buffalo takes a gentler exaggeration than a person. It is nearly three metres long, so at
   // the full living factor it reads as five, and a herd next to a nine-metre house looked like
-  // livestock drawn to a different map. Down a further fifth now that the farmer's own correction
-  // has been fixed: shrinking the person without shrinking the animal would have widened the very
-  // gap — a person dwarfed by a buffalo — that this number exists to close.
-  buffalo: 0.185 * 1.4,
+  // livestock drawn to a different map.
+  //
+  // Raised from `0.185 * 1.4` once every call site was put on one scale. That value was tuned when
+  // the herd was drawn at a caller scale of 1.0–1.15 while the soldiers beside them were at 0.6 —
+  // it was carrying the correction for a gap that no longer exists, and at the shared rate it left
+  // a water buffalo standing half the height of the man leading it. A trâu is 1.5 m at the
+  // shoulder against a man's 1.7, so it belongs just under him and nowhere near over him.
+  buffalo: 0.298 * 1.4,
 };
 
 /**
- * The world scale a hex of the given size implies.
+ * The one caller scale every ground prop is drawn at.
  *
- * The landscape scatter has always derived its sizes from the tile, which is the one number that
- * says how much ground a screen pixel covers. Everything else on the map now asks the same
- * question the same way instead of carrying its own hand-tuned multiplier.
+ * `UNIT` above is defined as `PX_PER_M / (drawn height ÷ real height)`, which means the algebra
+ * collapses to something very simple:
+ *
+ *     px per metre = callerScale × PX_PER_M            (objects)
+ *     px per metre = callerScale × PX_PER_M × LIVING   (people and livestock)
+ *
+ * So **the corrections in `UNIT` only equalise the props if every call site passes the same
+ * caller scale.** They never did. Measured across the two renderers, the same table came out at
+ * anything from 1.4 to 5.8 px per metre — a four-fold disagreement — because each site had been
+ * tuned by eye against its own neighbours and nothing compared them:
+ *
+ * | call site               | caller scale | vs the soldier |
+ * |-------------------------|--------------|----------------|
+ * | scatter tree            | 0.90 – 1.87  | 1.5× – 3.1×    |
+ * | crop-patch farmer       | 0.85         | 1.4×           |
+ * | village buffalo         | 0.80 – 1.15  | 1.3× – 1.9×    |
+ * | village house           | 0.64 – 0.92  | 1.1× – 1.5×    |
+ * | hamlet house            | 0.47 – 0.63  | ≈ 1            |
+ * | host figure             | 0.60         | —              |
+ *
+ * Which is why a buffalo out-stood a soldier, a farmer out-stood both, and a forest tree stood
+ * three times what the same tree stood beside a village.
+ *
+ * The value is the median of what the map already drew, so this equalises the world without
+ * rescaling it wholesale: most props move a little, the outliers move a lot, and the country ends
+ * up at one rate. Per-instance jitter still varies a *little* around this — a wood of identical
+ * trees is its own kind of wrong — but the jitter is variety, not a second scale.
+ */
+export const GROUND_SCALE = 0.72;
+
+/**
+ * The tile size the world was tuned at: `hexSize` 18 × `MAP_SCALE` 1.72.
+ *
+ * `worldScale` is written against this so that a change to either one moves the whole map
+ * together rather than pulling the scatter away from everything else, which is the fault this
+ * file exists to prevent.
+ */
+const REFERENCE_TILE = 30.96;
+
+/**
+ * The caller scale a hex of the given size implies.
+ *
+ * Every ground prop in both renderers now asks this the same way, instead of the scatter deriving
+ * its own `tileSize / 24` while the settlements, the herds and the hosts carried hand-tuned
+ * constants that answered to nothing.
  */
 export function worldScale(tileSize: number): number {
-  return tileSize / 24;
+  return GROUND_SCALE * (tileSize / REFERENCE_TILE);
 }

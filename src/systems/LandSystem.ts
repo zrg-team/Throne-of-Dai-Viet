@@ -1,4 +1,5 @@
 import { isEndlessMode, PLAYER_KINGDOM_ID } from '../game/constants';
+import { ENEMY_SPOT_RADIUS } from '../game/ascentConfig';
 import type { GameState, Land } from '../state/types';
 import { t } from '../i18n';
 
@@ -45,9 +46,62 @@ export function refreshPlayerVisibility(state: GameState): void {
     }
   }
 
+  addHostileHostSightings(state, visibleLandIds);
+
   for (const land of state.lands) {
     land.isVisible = visibleLandIds.has(land.id);
     land.isExplored = land.isExplored || land.isVisible;
+  }
+}
+
+/**
+ * Lights the ground a hostile host is marching over, within scouting range of the realm.
+ *
+ * Dragon Ascent only, and the other half of making an invasion something the player watches
+ * approach. Even after invaders were given real marches, the approach happened entirely in the
+ * dark: visibility is owned-plus-neighbours, and `ArmyRenderer.drawArmies` skips any army on an
+ * invisible land — so a host became visible only on the tick it arrived beside the realm, having
+ * apparently materialised there.
+ *
+ * A scouting radius rather than a fog lift: only provinces carrying an enemy host are revealed,
+ * and only those within `ENEMY_SPOT_RADIUS` hops of ground the player holds. The rest of the map
+ * stays dark, so exploration still means something.
+ */
+function addHostileHostSightings(state: GameState, visibleLandIds: Set<string>): void {
+  if (state.gameMode !== 'ascent') {
+    return;
+  }
+
+  const hostileLandIds = new Set(
+    state.armies
+      .filter((army) => army.kingdomId !== PLAYER_KINGDOM_ID)
+      .map((army) => army.landId),
+  );
+  if (hostileLandIds.size === 0) {
+    return;
+  }
+
+  // Breadth-first out from owned ground, so "within N hops" counts hops rather than distance.
+  let frontier = state.lands
+    .filter((land) => land.ownerId === PLAYER_KINGDOM_ID)
+    .map((land) => land.id);
+  const seen = new Set(frontier);
+
+  for (let hop = 0; hop < ENEMY_SPOT_RADIUS && frontier.length > 0; hop += 1) {
+    const next: string[] = [];
+    for (const landId of frontier) {
+      const land = findLand(state, landId);
+      if (!land) continue;
+      for (const neighborId of land.neighbors) {
+        if (seen.has(neighborId)) continue;
+        seen.add(neighborId);
+        next.push(neighborId);
+        if (hostileLandIds.has(neighborId)) {
+          visibleLandIds.add(neighborId);
+        }
+      }
+    }
+    frontier = next;
   }
 }
 

@@ -1,6 +1,7 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { REALM_DEFENCE_SHARE, XP_PER_OWNED_LAND, XP_PER_TICK_BASE, xpToNextLevel } from '../../game/ascentConfig';
 import { armyPower, terrainDefenseMultiplier } from '../WarSystem';
+import { getFocusDefenseMult } from '../ResourceSystem';
 import { ambitionHeat } from './AmbitionSystem';
 import type { GameState, Land } from '../../state/types';
 
@@ -8,8 +9,10 @@ import type { GameState, Land } from '../../state/types';
  * The garrison half of `defenderPower` (WarSystem), reused so the HUD's "holding power"
  * matches what an attacker actually has to beat.
  */
-export function landGarrisonPower(land: Land): number {
-  return (land.defense * 16 + land.localSoldiers * 2.5) * terrainDefenseMultiplier(land);
+export function landGarrisonPower(state: GameState, land: Land): number {
+  return (land.defense * 16 + land.localSoldiers * 2.5)
+    * terrainDefenseMultiplier(land)
+    * getFocusDefenseMult(state, land);
 }
 
 /**
@@ -36,7 +39,7 @@ export function computeAscentPower(state: GameState): number {
   let hold = 0;
   for (const land of state.lands) {
     if (land.ownerId === PLAYER_KINGDOM_ID) {
-      hold += landGarrisonPower(land);
+      hold += landGarrisonPower(state, land);
     }
   }
 
@@ -61,7 +64,7 @@ export function computeDefensivePower(state: GameState): number {
     if (army.kingdomId === PLAYER_KINGDOM_ID) total += armyPower(state, army);
   }
   for (const land of state.lands) {
-    if (land.ownerId === PLAYER_KINGDOM_ID) total += landGarrisonPower(land);
+    if (land.ownerId === PLAYER_KINGDOM_ID) total += landGarrisonPower(state, land);
   }
   return Math.round(total);
 }
@@ -85,7 +88,7 @@ export function computeFieldDefencePower(state: GameState): number {
   const capital = state.lands.find(
     (land) => land.id === capitalId && land.ownerId === PLAYER_KINGDOM_ID,
   );
-  if (capital) total += landGarrisonPower(capital);
+  if (capital) total += landGarrisonPower(state, capital);
   return Math.round(total);
 }
 

@@ -135,6 +135,17 @@ export const POWER_CARDS: PowerCardDef[] = [
     levels: [{ effect: { permanent: true }, display: { ticks: 1 } }],
   },
   {
+    id: 'surveyors-corps',
+    // Rule cards are weighted up: the pool's percentage cards outnumber them three to one, and
+    // a draft that offers three adjustments and one verb is still mostly adjustments.
+    weight: 2.4,
+    rarity: 'silver',
+    // Two stacks takes the realm from one claim at a time to three, which is as far as the pacing
+    // this cap exists to create will stretch before expansion stops being a choice again.
+    maxStacks: 2,
+    levels: [{ effect: { permanent: true }, display: { slots: 1 } }],
+  },
+  {
     id: 'bronze-drum',
     // Rule cards are weighted up: the pool's percentage cards outnumber them three to one, and
     // a draft that offers three adjustments and one verb is still mostly adjustments.

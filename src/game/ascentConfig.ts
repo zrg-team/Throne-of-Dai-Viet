@@ -394,6 +394,101 @@ export const ARMY_FOOD_PER_SOLDIER = 0.005;
 /** Troop count at which the upkeep multiplier reaches 2x. */
 export const ARMY_UPKEEP_SCALE = 5000;
 
+// ── Improving a host you already have ───────────────────────────────────────
+/**
+ * What it costs to make a standing host better, along the three axes it has.
+ *
+ * Until this existed an Ascent host could only ever shrink: `computeEliteTier` was read once at
+ * muster and never again, levels came only from battles the autopilot mostly avoided, and nothing
+ * anywhere added a soldier to an existing army. The only way to field something stronger was to
+ * raise another host — which is why every run converged on many weak armies, and why upkeep
+ * scaling superlinearly punished the one strategy the game actually permitted.
+ *
+ * Prices escalate per tier so that the second step up is a real decision rather than a formality,
+ * and all three are quoted against the host's size so improving a large army is not free.
+ */
+export const ARMY_EQUIP_GOLD_BASE = 180;
+export const ARMY_EQUIP_SUPPLIES_BASE = 90;
+/** Multiplied per elite tier already held, so tier 2 costs this much more than tier 1. */
+export const ARMY_EQUIP_TIER_ESCALATION = 1.85;
+/** Gold and supplies per soldier in the host, so equipping a large host costs more. */
+export const ARMY_EQUIP_PER_SOLDIER = 0.06;
+
+/** Soldiers added by one reinforcement, before the humans available cap it. */
+export const ARMY_REINFORCE_SOLDIERS = 220;
+export const ARMY_REINFORCE_GOLD_PER_SOLDIER = 0.55;
+/** Supply and rations a reinforcement restores, in points toward the 100 ceiling. */
+export const ARMY_REINFORCE_SUPPLY_GAIN = 22;
+
+export const ARMY_DRILL_GOLD_BASE = 140;
+export const ARMY_DRILL_FOOD_BASE = 70;
+/** Multiplied per level already held. */
+export const ARMY_DRILL_LEVEL_ESCALATION = 1.6;
+/** Experience one drill grants, as a share of what the next level needs. */
+export const ARMY_DRILL_XP_SHARE = 0.55;
+
+// ── Rival empires that actually march ───────────────────────────────────────
+/**
+ * Divisor turning a rival's raw hostility score into a 0..1 pressure.
+ *
+ * The raw score sums `100 - relations`, war appetite, ambition and power at the weights the wave
+ * director already uses, so a maximally furious empire lands near 250. Dividing by rather more
+ * than that keeps even the angriest neighbour from attacking every other tick, while leaving a
+ * clear gradient between a friendly rival and a hostile one.
+ */
+export const ENEMY_PRESSURE_DIVISOR = 320;
+
+/**
+ * Per-rival, per-tick chance of an unscheduled march, scaled by that rival's pressure.
+ *
+ * Very small deliberately. The wave director already supplies the *volume* of hosts on its own
+ * schedule; what was missing was intelligence, visible approach, and a guarantee. So this director
+ * mostly reshapes hosts that already exist — giving them plans, letting them withdraw, making them
+ * march where they can be seen — and adds one of its own only occasionally.
+ *
+ * Measured: at 0.06 a run lost 31 provinces against a baseline of 13, with seven hosts in the
+ * field at once and no let-up. That is a different failure from "no battles ever", not a fix for
+ * it. The floor below is what actually guarantees contact; this only adds unpredictability.
+ */
+export const ENEMY_LAUNCH_DRAW = 0.004;
+
+
+/**
+ * Ticks without a hostile host reaching the player's ground before one is sent regardless.
+ *
+ * This is the floor under the randomised cadence, and it exists because the defect being fixed is
+ * literally "ten minutes of play produced no battle at all". At `ASCENT_TICK_MS` of 3500 this is
+ * a little over four minutes, so contact is guaranteed well inside the window the player noticed.
+ */
+export const ENEMY_CONTACT_FLOOR_TICKS = 72;
+
+/**
+ * How far below a province's defence a host must fall before it starts thinking about leaving.
+ *
+ * Deliberately low. A host that turns back whenever it is merely outgunned never fights at all,
+ * and the whole point of this work is that battles happen — so this is the threshold for a march
+ * that is *hopeless*, not one that is merely unfavourable. A host already adjacent to its target
+ * ignores it entirely and presses the attack (see `reconsider`).
+ */
+export const ENEMY_RETREAT_POWER_RATIO = 0.45;
+
+/**
+ * Consecutive ticks a host must want to withdraw before it does.
+ *
+ * Pure hysteresis. Without it a host hovering near the threshold flips between advancing and
+ * retreating every tick, which looks like a broken AI rather than a cautious one.
+ */
+export const ENEMY_RETREAT_HYSTERESIS_TICKS = 3;
+
+/**
+ * Hops from owned ground within which a marching hostile host is spotted.
+ *
+ * A scouting radius, not a fog lift: the rest of the map stays dark. Two hops gives the player a
+ * tick or two of warning — enough to march a host to meet it, which is the entire point of being
+ * able to see an invasion coming.
+ */
+export const ENEMY_SPOT_RADIUS = 2;
+
 // ── Field battles you can watch ─────────────────────────────────────────────
 /**
  * Beats a small engagement runs; a large one runs up to the maximum. These are now real-time

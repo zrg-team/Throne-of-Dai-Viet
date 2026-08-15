@@ -14,8 +14,13 @@ export type LandBuildingType =
  * A province's economic focus. Chosen by the player to tilt a district hard toward one
  * role (with a trade-off elsewhere), so each land becomes a live decision rather than a
  * uniform build queue. `balanced` is the neutral default.
+ *
+ * `garrison` is offered in Dragon Ascent only, and `fortress` means something different there:
+ * see `ASCENT_FOCUS_MULT` in `ResourceSystem`. The classic modes keep the original six and the
+ * original numbers.
  */
-export type LandSpecialization = 'balanced' | 'breadbasket' | 'mining' | 'trade' | 'populous' | 'fortress';
+export type LandSpecialization =
+  | 'balanced' | 'breadbasket' | 'mining' | 'trade' | 'populous' | 'fortress' | 'garrison';
 
 /**
  * Realm-wide tax stance — a live "guns vs. butter" lever. Heavier taxes fill the treasury
@@ -134,6 +139,20 @@ export interface InvasionRecord {
   intent: 'raid' | 'conquest';
   /** Land the host is currently marching toward. */
   targetLandId?: string;
+  /**
+   * What this host is trying to do, assigned when it spawns (Dragon Ascent).
+   *
+   * `spearhead` goes for the most valuable province, `flanker` for the weakest-held one — and each
+   * flanker picks a different target so a coalition genuinely spreads out rather than queueing
+   * down one road. `raider` pillages a border province and withdraws. `withdrawing` is the state a
+   * host enters when it decides it cannot win the fight in front of it.
+   *
+   * Optional so it round-trips through the save with no migration; hosts without one fall back to
+   * the original capital-or-nearest behaviour.
+   */
+  plan?: 'spearhead' | 'flanker' | 'raider' | 'withdrawing';
+  /** Ticks the host has wanted to withdraw. Hysteresis, so a host does not oscillate. */
+  retreatTicks?: number;
   /** Set once a raider has pillaged; it then turns for the map edge and despawns. */
   pillaged?: boolean;
   /** Edge land a withdrawing raider heads back to before despawning. */
@@ -333,6 +352,14 @@ export interface MovementOrder {
   progress: number;
   /** Ticks required to complete the current leg (path[0]). */
   legRequired: number;
+  /**
+   * The host being hunted, if this march is a pursuit.
+   *
+   * A pursuit differs from a march in that its destination moves: `progressMovementOrders`
+   * re-paths toward the quarry's current province whenever it has shifted, and drops the order
+   * when the quarry is gone. Optional, so it round-trips through the save with no migration.
+   */
+  pursueArmyId?: string;
 }
 
 /** Core hero stats (0-100). Drive court position bonuses and land assignment bonuses. */
@@ -451,6 +478,11 @@ export interface CourtModifier {
   nextArmyHeavyBonus?: number;
   battleSupplyCostModifier?: number;
   armyLevelCapBonus?: number;
+  /**
+   * Extra provinces the realm may court at once (Dragon Ascent). A plain count, not a share —
+   * it is summed, never folded into a multiplier. See `getClaimSlots`.
+   */
+  claimSlotBonus?: number;
 }
 
 export interface CourtEffect extends Partial<Omit<CourtModifier, 'id' | 'label' | 'remainingTicks'>> {
@@ -1107,6 +1139,21 @@ export interface AscentState {
   warPurchases: number;
   /** Wave in which Twice-Born last reformed a broken host, so it fires once per wave. */
   twiceBornWave: number;
+
+  /**
+   * Turn a hostile host was last on or beside the player's ground.
+   *
+   * The floor under `EnemyCommandDirector`'s randomised cadence measures from this, so a run of
+   * quiet rolls cannot reproduce the "ten minutes, no battle" defect. Optional: an in-flight save
+   * from before this existed reads as 0, which simply forces contact on the next tick.
+   */
+  lastContactTurn?: number;
+  /** Whether the "capital left ungarrisoned" strike has already fired for this exposure. */
+  capitalExposedFired?: boolean;
+  /** Live rival count last tick, so an empire collapsing is seen as a transition. */
+  lastRivalCount?: number;
+  /** Rivals whose ground the realm already borders, so a *new* frontier is what triggers a strike. */
+  borderedRivalIds?: string[];
 
   /** Ticks until the next border raid may be sent. */
   raidCooldown: number;

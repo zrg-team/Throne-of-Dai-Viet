@@ -120,7 +120,7 @@ export function buildAppointmentOptions(state: GameState, hero: Hero): Appointme
         id: `governor:${province.id}`,
         role: 'governor',
         title: t('ascent.appoint.governor', { land: province.name }),
-        effect: formatGovernorEffect(hero.stats),
+        effect: formatGovernorEffect(state, hero.stats, province),
         detail: t('ascent.appoint.governorDetail'),
       },
       // Bounded on purpose. Unbounded, a wide realm makes "governor" the top-scored posting

@@ -104,9 +104,55 @@ const result = await page.evaluate(async () => {
   let gained = 0;
   let lost = 0;
 
+  // The defect this whole pass exists to fix: ten minutes of play produced no battle at all.
+  // At ASCENT_TICK_MS = 3500 that window is ~170 ticks, so these are measured inside it.
+  //
+  // Counted off `ascent.lastWatchedKey`, which `beginBattle` stamps exactly once per engagement
+  // it opens. Counting `battle` *prompts* does not work — a battle is a lane the player opens from
+  // the action bar, not a prompt — and an engagement can open and resolve inside a single tick, so
+  // sampling `activeBattle` after the tick misses it. This is the only signal that sees every one.
+  const TEN_MINUTE_TICKS = 171;
+  let watchedBattles = 0;
+  let battlePromptsInWindow = 0;
+  let lastWatchKey = st.ascent.lastWatchedKey;
+  let firstBattleTick = -1;
+  let firstContactTick = -1;
+  let ticksWithInvaderOnOwnedGround = 0;
+  let sawInvaderMarchOrder = false;
+  let sawVisibleHostileHost = false;
+
   for (let i = 0; i < 400; i += 1) {
     advanceAscentTick(st);
     if (st.victory) victoryEverTrue = true;
+
+    if (st.ascent.lastWatchedKey !== lastWatchKey) {
+      lastWatchKey = st.ascent.lastWatchedKey;
+      watchedBattles += 1;
+      if (firstBattleTick < 0) firstBattleTick = i;
+      if (i < TEN_MINUTE_TICKS) battlePromptsInWindow += 1;
+    }
+
+    // Contact: a hostile host standing on, or next to, ground the player holds.
+    const ownedIds = new Set(st.lands.filter((l) => l.ownerId === 'dai-viet').map((l) => l.id));
+    const hostiles = st.armies.filter((a) => a.kingdomId !== 'dai-viet');
+    const inContact = hostiles.some((a) => {
+      if (ownedIds.has(a.landId)) return true;
+      const at = st.lands.find((l) => l.id === a.landId);
+      return Boolean(at?.neighbors.some((n) => ownedIds.has(n)));
+    });
+    if (inContact) {
+      ticksWithInvaderOnOwnedGround += 1;
+      if (firstContactTick < 0) firstContactTick = i;
+    }
+    // Invaders must march as real MovementOrders, or the renderer draws no approach at all.
+    if (st.movementOrders.some((o) => {
+      const a = st.armies.find((c) => c.id === o.armyId);
+      return a && a.kingdomId !== 'dai-viet';
+    })) sawInvaderMarchOrder = true;
+    // And they must be visible while doing it, or the march happens in the dark.
+    if (hostiles.some((a) => st.lands.find((l) => l.id === a.landId)?.isVisible)) {
+      sawVisibleHostileHost = true;
+    }
 
     const ownedNow = new Set(st.lands.filter((l) => l.ownerId === 'dai-viet').map((l) => l.id));
     for (const id of ownedNow) if (!ownedPrev.has(id)) gained += 1;
@@ -196,6 +242,17 @@ const result = await page.evaluate(async () => {
   return {
     trace,
     promptCounts,
+    battlePromptsInWindow,
+    watchedBattles,
+    endStandingHosts: st.armies.filter((a) => a.kingdomId === 'dai-viet' && !a.isLevy).length,
+    endLevies: st.armies.filter((a) => a.kingdomId === 'dai-viet' && a.isLevy).length,
+    endHumans: Math.round(st.resources.humans),
+    firstBattleTick,
+    firstContactTick,
+    ticksWithInvaderOnOwnedGround,
+    sawInvaderMarchOrder,
+    sawVisibleHostileHost,
+    tenMinuteTicks: TEN_MINUTE_TICKS,
     waveRatios,
     sawRaid,
     rivalAnswers: st.ascent.laneStats.rivalAnswers ?? 0,
@@ -347,6 +404,107 @@ const evolution = await page.evaluate(async () => {
 console.log('=== EVOLUTION PATH ===');
 console.log(JSON.stringify(evolution));
 
+// The four contracts added by the land-command / claims pass, proved directly.
+//
+// Same reasoning as the evolution block above: a naive auto-player will not reliably drive a claim
+// to its cap, cancel one, set a focus it does not need, or compare two governors — so asserting
+// these off a playthrough would be asserting on luck. Each is exercised against the systems.
+const command = await page.evaluate(async () => {
+  const { createAscentGameState } = await import('/src/state/GameState.ts');
+  const ACQ = await import('/src/systems/AcquisitionSystem.ts');
+  const RES = await import('/src/systems/ResourceSystem.ts');
+  const COURT = await import('/src/systems/CourtSystem.ts');
+  const { buildGovernorRows } = await import('/src/ui/governorPanel.ts');
+
+  const st = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
+  st.pendingAscentPrompt = undefined;
+  const owned = st.lands.filter((l) => l.ownerId === 'dai-viet');
+  const home = owned[0];
+
+  // ── The claim cap actually caps ──
+  const slots = ACQ.getClaimSlots(st);
+  // Fill every slot with a synthetic order, then confirm a further claim is refused.
+  const neighbours = st.lands.filter((l) => l.ownerId !== 'dai-viet').slice(0, slots + 1);
+  for (let i = 0; i < slots; i += 1) {
+    st.acquisitionOrders.push({
+      landId: neighbours[i].id, buyerId: 'dai-viet', progress: 0, required: 4, method: 'settle',
+    });
+  }
+  const cappedOut = !ACQ.canStartClaim(st);
+  const blockedReason = ACQ.claimBlockedReason(st);
+
+  // ── Cancelling releases the envoy, with no fatigue ──
+  const hero = st.heroes[0];
+  if (!hero) return { error: 'no heroes in a fresh run' };
+  const target = neighbours[0];
+  st.acquisitionOrders = [];
+  hero.assignedTo = ACQ.getDiplomacyAssignment(target.id);
+  hero.fatigue = 0;
+  st.acquisitionOrders.push({
+    landId: target.id, buyerId: 'dai-viet', progress: 1, required: 5,
+    method: 'diplomacy', heroId: hero.id,
+  });
+  const cancelled = ACQ.cancelAcquisition(st, target.id);
+  const heroFreed = !hero.assignedTo && hero.fatigue === 0;
+  const orderGone = !st.acquisitionOrders.some((o) => o.landId === target.id);
+
+  // ── A focus moves output in the promised direction ──
+  // The capital starts with no production building at all, so every focus reads 0 against 0.
+  // A focus multiplies what a province makes; it needs something to multiply.
+  home.buildings.push({ type: 'farm', level: 3 });
+  home.buildings.push({ type: 'mine', level: 2 });
+  RES.setLandSpecialization(st, home.id, 'balanced');
+  RES.refreshAllLandOutputs(st);
+  const baseFood = home.outputs.food;
+  RES.setLandSpecialization(st, home.id, 'breadbasket');
+  RES.refreshAllLandOutputs(st);
+  const foodFocused = home.outputs.food;
+  // And the martial focus pays outside the resource bag rather than inside it.
+  RES.setLandSpecialization(st, home.id, 'fortress');
+  RES.refreshAllLandOutputs(st);
+  const defendMult = RES.getFocusDefenseMult(st, home);
+  const defendFood = home.outputs.food;
+  RES.setLandSpecialization(st, home.id, 'garrison');
+  const garrisonMult = RES.getFocusGarrisonMult(st, home);
+
+  // ── A governor's fit changes the figure shown ──
+  RES.setLandSpecialization(st, home.id, 'fortress');
+  for (const h of st.heroes) h.assignedTo = undefined;
+  // A fresh run carries very few champions, so the two candidates are built rather than borrowed —
+  // the contract under test is how a posting is *scored*, not how many heroes a run starts with.
+  const template = st.heroes[0];
+  const clerk = { ...template, id: 'probe-clerk', assignedTo: undefined, stats: { ...template.stats, administration: 90, martial: 10 } };
+  const captain = { ...template, id: 'probe-captain', assignedTo: undefined, stats: { ...template.stats, administration: 10, martial: 90 } };
+  st.heroes = [clerk, captain];
+  const rows = buildGovernorRows(st, home);
+  const captainRow = rows.find((r) => r.hero.id === captain.id);
+  const clerkRow = rows.find((r) => r.hero.id === clerk.id);
+  // On ground held to defend, the soldier must out-score the administrator.
+  const fitFavoursCaptain = Boolean(captainRow && clerkRow && captainRow.score > clerkRow.score);
+  const captainEffect = COURT.getLandGovernorEffects(st, home, captain);
+  const clerkEffect = COURT.getLandGovernorEffects(st, home, clerk);
+  const defenceDiffers = captainEffect.defenseMult > clerkEffect.defenseMult;
+
+  return {
+    slots,
+    cappedOut,
+    hasBlockedReason: Boolean(blockedReason),
+    cancelled,
+    heroFreed,
+    orderGone,
+    baseFood,
+    foodFocused,
+    defendMult,
+    defendFood,
+    garrisonMult,
+    fitFavoursCaptain,
+    defenceDiffers,
+    rowCount: rows.length,
+  };
+});
+console.log('=== LAND COMMAND ===');
+console.log(JSON.stringify(command, null, 2));
+
 console.log(JSON.stringify(result, null, 2));
 console.log('=== ERRORS ===');
 errors.forEach((e) => console.log(e));
@@ -386,6 +544,26 @@ const checks = {
     (longRun.kinds['demand:tribute'] ?? 0) > 0
     && ((longRun.kinds['demand:coalition'] ?? 0) > 0 || (longRun.kinds['demand:vassalage'] ?? 0) > 0),
   'the realm is genuinely threatened': result.landsLost > 0 || result.defeated,
+
+  // The defect this pass exists to fix: ten minutes of play produced no battle at all. These four
+  // separate the ways that could regress, so a failure says which half broke.
+  'a battle is fought inside the first ten minutes': result.battlePromptsInWindow > 0,
+  'battles keep happening across the run': result.watchedBattles >= 3,
+  'an enemy host reaches the realm inside ten minutes':
+    result.firstContactTick >= 0 && result.firstContactTick < result.tenMinuteTicks,
+  'invaders march as real orders, so the approach is drawn': result.sawInvaderMarchOrder,
+  'a marching enemy host is visible before it arrives': result.sawVisibleHostileHost,
+
+  // ── Land command: claims, focus, governors ──
+  'claims start capped at one': command.slots === 1,
+  'the claim cap actually caps': command.cappedOut && command.hasBlockedReason,
+  'cancelling a claim releases its envoy unfatigued': command.cancelled && command.heroFreed && command.orderGone,
+  'a focus moves output in the promised direction': command.foodFocused > command.baseFood,
+  'the defend focus pays in defence, not in goods':
+    command.defendMult > 1 && command.defendFood < command.baseFood,
+  'the army focus raises what the province musters': command.garrisonMult > 1,
+  'a governor is scored against what the province is for': command.fitFavoursCaptain,
+  'a matched governor changes the figure shown': command.defenceDiffers,
   // The treasury has somewhere to go: mercenaries, tribute, buy-offs. Without sinks this ran
   // to five figures while the player had nothing to spend it on.
   'gold does not run away unspent': result.endGold < result.endGoldRate * 40,

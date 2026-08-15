@@ -11,6 +11,7 @@ import { hatchPoly, inkPath, mulberry32, printedShape, thickPath, washFill, type
 import { areca, bamboo, banyan, buffalo, farmer, groundShadow, hayStack, house, thap, tree } from './ink/props';
 import { grazeInSmallArea, livingSprite, setNativeFacing } from './ink/life';
 import { bakedBuffalo } from './ink/sprites';
+import { GROUND_SCALE } from './ink/proportion';
 import { createPlayerLandFlag } from './playerFlag';
 
 /**
@@ -129,11 +130,14 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // drawn in ink. Ownership is carried by the standard riding with the host and by the hatch on
     // the ground under it, never by the men. The player's own host takes the fuller black.
     const colour = isPlayer ? PIGMENT.muc : PIGMENT.mucSoft;
-    // Below a villager on purpose: the men in a block are seen from further off than the farmer in
-    // the paddy beside them, and a soldier drawn the same height as a villager made a host read as a
-    // crowd standing in the fields. `figure` carries the full living exaggeration internally, so
-    // this is the dial that puts a soldier at roughly three quarters of a farmer.
-    const scale = 0.6;
+    // The same rate as everything else standing on the ground.
+    //
+    // This used to be 0.6 against a farmer's 0.85, on the reasoning that a soldier in a block is
+    // seen from further off than a farmer in the paddy. That is not how a map works — both are on
+    // the same sheet, at the same distance — and the result was that a villager out-stood a
+    // soldier by half again, with the buffalo beside them larger than either. A host reads as a
+    // host because of its ranks and its standard, not because its men are drawn short.
+    const scale = GROUND_SCALE;
     const shape = hostShapeAt(Math.max(1, total), scale);
 
     // The shadow is the ground the whole block stands on, not a blob under one point of it. Same
@@ -220,31 +224,31 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
 
     const sorted = [...centers].sort((a, b) => a.y - b.y);
     const anchor = sorted[Math.floor(sorted.length / 2)];
-    // A bigger holding gets a bigger seat, but never below the size at which a wall reads — and
-    // never far enough above it to break the world's scale. The cap also sizes the herd, so at 1.35
-    // a large province's buffalo were drawn a third larger than the farmers standing beside them,
-    // on top of the animal already being too big. The seat can afford less headroom than the herd.
+    // How much more ground a bigger holding spreads over. **Not a size** — a settlement's props are
+    // drawn at `GROUND_SCALE` like everything else on the map, and this only says a large province
+    // sprawls a little wider than a small one. It used to multiply the scale, which is how a big
+    // province's buffalo came out larger than a small province's buffalo, and both larger than the
+    // soldiers standing beside them.
     const spread = Math.min(1.15, 0.8 + sorted.length * 0.06);
     const parts: GroundPart[] = [];
 
     if (isShrine || kind === 'shrine') {
-      parts.push({ y: anchor.y + 2, draw: (g) => banyan(g, anchor.x - 22, anchor.y + 2, 0.85 * spread, seed + 40) });
-      parts.push({ y: anchor.y + 6, draw: (g) => village(g, anchor.x, anchor.y + 6, 0.8 * spread, seed) });
+      parts.push({ y: anchor.y + 2, draw: (g) => banyan(g, anchor.x - 22, anchor.y + 2, GROUND_SCALE, seed + 40) });
+      parts.push({ y: anchor.y + 6, draw: (g) => village(g, anchor.x, anchor.y + 6, GROUND_SCALE, seed) });
     } else if (kind === 'market') {
-      parts.push({ y: anchor.y + 4, draw: (g) => village(g, anchor.x, anchor.y + 4, 0.9 * spread, seed) });
+      parts.push({ y: anchor.y + 4, draw: (g) => village(g, anchor.x, anchor.y + 4, GROUND_SCALE, seed) });
       for (const centre of sorted.slice(0, 2)) {
-        const hx = centre.x + (rand() - 0.5) * 26;
+        const hx = centre.x + (rand() - 0.5) * 26 * spread;
         const hy = centre.y + 20;
-        parts.push({ y: hy, draw: (g) => hamlet(g, hx, hy, 0.5 * spread, seed + 100 + centre.x, 3) });
+        parts.push({ y: hy, draw: (g) => hamlet(g, hx, hy, GROUND_SCALE, seed + 100 + centre.x, 3) });
       }
     } else {
       for (const centre of sorted.slice(0, Math.min(3, sorted.length - 1))) {
-        const hx = centre.x + (rand() - 0.5) * 30;
+        const hx = centre.x + (rand() - 0.5) * 30 * spread;
         const hy = centre.y + 22;
-        parts.push({ y: hy, draw: (g) => hamlet(g, hx, hy, 0.46 * spread, seed + 100 + centre.x, 3) });
+        parts.push({ y: hy, draw: (g) => hamlet(g, hx, hy, GROUND_SCALE, seed + 100 + centre.x, 3) });
       }
-      const s = 0.78 * spread;
-      parts.push({ y: anchor.y + 12, draw: (g) => citadel(g, anchor.x - 38 * s, anchor.y + 12, s, 'le', seed) });
+      parts.push({ y: anchor.y + 12, draw: (g) => citadel(g, anchor.x - 38 * GROUND_SCALE, anchor.y + 12, GROUND_SCALE, 'le', seed) });
     }
 
     // The herd grazes at the edge of the settlement, where it actually lives — not scattered
@@ -252,9 +256,9 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // going into the settlement's buffer with the houses: a buffalo baked into the same graphics as
     // the roofs behind it can never take a step, and a herd standing perfectly still is the one
     // thing on a drawn map that reads as the picture having frozen.
-    parts.push({ y: anchor.y + 34, object: () => this.grazingBuffalo(anchor.x - 34, anchor.y + 34, 1 * spread, seed + 700, rand() > 0.55) });
+    parts.push({ y: anchor.y + 34, object: () => this.grazingBuffalo(anchor.x - 34 * spread, anchor.y + 34, GROUND_SCALE, seed + 700, rand() > 0.55) });
     if (sorted.length > 3) {
-      parts.push({ y: anchor.y + 40, object: () => this.grazingBuffalo(anchor.x + 30, anchor.y + 40, 0.85 * spread, seed + 720, false) });
+      parts.push({ y: anchor.y + 40, object: () => this.grazingBuffalo(anchor.x + 30 * spread, anchor.y + 40, GROUND_SCALE, seed + 720, false) });
     }
 
     for (const centre of sorted) {
@@ -263,7 +267,7 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
       }
       const tx = centre.x + (rand() - 0.5) * 34;
       const ty = centre.y + 16;
-      parts.push({ y: ty, draw: (g) => tree(g, tx, ty, 0.95, seed + 200 + centre.x) });
+      parts.push({ y: ty, draw: (g) => tree(g, tx, ty, GROUND_SCALE, seed + 200 + centre.x) });
     }
 
     this.paintByGround(cluster, parts);
@@ -335,9 +339,9 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     const graphics = scene.add.graphics();
     const seed = Math.round(x * 11 + y * 5);
     if (isShrine) {
-      banyan(graphics, x - 10, y + 2, 0.55, seed);
+      banyan(graphics, x - 10, y + 2, GROUND_SCALE, seed);
     }
-    hamlet(graphics, x, y, 0.62, seed, Math.max(2, Math.min(6, houseCount)));
+    hamlet(graphics, x, y, GROUND_SCALE, seed, Math.max(2, Math.min(6, houseCount)));
     cluster.add(graphics);
   }
 
@@ -363,11 +367,14 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     const g = (this.scene as Phaser.Scene).add.graphics();
     const seed = Math.round(x * 3 + y * 11);
     const rand = mulberry32(seed);
-    farmer(g, x - 6 * scale, y, 0.85 * scale, seed);
+    // `scale` positions the patch, it does not size the people in it: a farmer stands the same
+    // height as a soldier wherever the patch happens to be, which is the promise `proportion.ts`
+    // makes and the one this call used to break by a factor of 1.4.
+    farmer(g, x - 6 * scale, y, GROUND_SCALE, seed);
     if (rand() > 0.45) {
-      farmer(g, x + 8 * scale, y + 5 * scale, 0.7 * scale, seed + 7);
+      farmer(g, x + 8 * scale, y + 5 * scale, GROUND_SCALE, seed + 7);
     } else {
-      hayStack(g, x + 10 * scale, y + 4 * scale, 0.38 * scale, seed + 9);
+      hayStack(g, x + 10 * scale, y + 4 * scale, GROUND_SCALE, seed + 9);
     }
     cluster.add(g);
   }

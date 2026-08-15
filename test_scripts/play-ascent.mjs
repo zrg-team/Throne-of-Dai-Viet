@@ -285,6 +285,10 @@ await page.evaluate(async () => {
         food: Math.round(st.resources.food), foodRate: Math.round(st.resourceRates.food),
         invasions: st.invasions?.length ?? 0,
         paused: Boolean(st.pendingAscentPrompt),
+        // `beginBattle` stamps this once per engagement it opens. Counting `battle` prompts does
+        // not work — a battle is a *lane* the player opens from the action bar, not a prompt — and
+        // an engagement can open and finish inside one tick, so sampling `activeBattle` misses it.
+        watchKey: st.ascent.lastWatchedKey ?? null,
       });
     }
     return promptsThisCall;
@@ -387,9 +391,21 @@ for (const p of log.prompts) if (p.kind === 'conquer-method') methods[p.chose] =
 const topMethod = Object.entries(methods).sort((a, b) => b[1] - a[1])[0];
 const methodTotal = Object.values(methods).reduce((a, b) => a + b, 0);
 const starving = log.seasons.filter((s) => s.foodRate < 0).length;
-const battlePrompts = log.prompts.filter((p) => p.kind === 'battle');
-const retreats = log.prompts.filter((p) => p.kind === 'battle' && p.chose === 'retreat').length;
-const engagements = new Set(battlePrompts.map((p) => p.title)).size;
+// Engagements are counted off the watch key changing, not off prompts. There is no `battle`
+// prompt kind — the battle is a lane — so the old reading reported 0 engagements for every run
+// including ones that fought dozens, which is exactly the number this harness exists to report.
+let engagements = 0;
+let prevWatchKey = null;
+let firstBattleTurn = null;
+for (const s of log.seasons) {
+  if (s.watchKey !== prevWatchKey) {
+    prevWatchKey = s.watchKey;
+    if (s.watchKey) {
+      engagements += 1;
+      if (firstBattleTurn === null) firstBattleTurn = s.turn;
+    }
+  }
+}
 
 say('');
 say('── FUN METRICS ──');
@@ -407,7 +423,7 @@ say(`  ...where gold decided : ${decisiveCount}/${responses.length} response car
 say(`tense seasons (T/D>.7) : ${tense}/${ticks} (${((tense / ticks) * 100).toFixed(0)}%)`);
 say(`trivial (T/D<.35)      : ${trivial}/${ticks} (${((trivial / ticks) * 100).toFixed(0)}%)`);
 say(`seasons losing food    : ${starving}/${ticks}`);
-say(`field battles watched : ${engagements} engagements, ${battlePrompts.length} exchanges, ${retreats} ended in retreat`);
+say(`field battles watched : ${engagements} engagements, first at turn ${firstBattleTurn ?? '—'}`);
 const peakLands = Math.max(...log.seasons.map((s) => s.lands), 0);
 const peakTurn = (log.seasons.find((s) => s.lands === peakLands) ?? {}).turn;
 say(`provinces lost         : ${log.deaths.length}`);
