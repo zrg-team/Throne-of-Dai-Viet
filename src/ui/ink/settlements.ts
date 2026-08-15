@@ -56,7 +56,7 @@ export function hamlet(g: G, x: number, y: number, s: number, seed: number, coun
     const distance = Math.sqrt(rand()) * 44 * s;
     const hx = x + Math.cos(angle) * distance * 1.4;
     const hy = y + Math.sin(angle) * distance * 0.55;
-    const hs = s * (0.92 + rand() * 0.2);
+    const hs = s * (0.95 + rand() * 0.1);
     const hseed = seed + index * 37;
     standing.push({
       y: hy,
@@ -72,12 +72,13 @@ export function hamlet(g: G, x: number, y: number, s: number, seed: number, coun
   for (let index = 0; index < 3; index += 1) {
     const tx = x + (rand() - 0.5) * 104 * s;
     const ty = y + (rand() - 0.5) * 38 * s;
-    const ts = s * (0.85 + rand() * 0.35);
+    // Jitter only — variety between the three trees, not a size of their own.
+    const ts = s * (0.9 + rand() * 0.2);
     standing.push({ y: ty, draw: () => tree(g, tx, ty, ts, seed + 500 + index) });
   }
 
   const stackY = y + 10 * s;
-  standing.push({ y: stackY, draw: () => hayStack(g, x - 58 * s, stackY, s * 0.9, seed + 600) });
+  standing.push({ y: stackY, draw: () => hayStack(g, x - 58 * s, stackY, s, seed + 600) });
 
   paintStanding(standing);
 }
@@ -117,27 +118,32 @@ export function village(g: G, x: number, y: number, s: number, seed: number): vo
   // the banyan, the largest prop on the map, covers three houses standing in front of it.
   const standing: Standing[] = [];
 
+  // Everything standing here is drawn at the settlement's own `s` and nothing else. The per-prop
+  // multipliers that used to sit here — bamboo 0.72, areca 0.72, banyan 0.85, cây rơm 0.9 — were
+  // each other's neighbours being talked down to fit, and they fought the corrections in `UNIT`
+  // that already carry how big these things really are. A lũy tre is twelve metres because bamboo
+  // is twelve metres, not because a village looks tidier that way.
   for (let index = 0; index < 5; index += 1) {
     const bx = x - 62 * s + index * 31 * s;
     const by = y - 26 * s + (index % 2) * 5 * s;
-    standing.push({ y: by, draw: () => bamboo(g, bx, by, 0.72 * s, seed + 20 + index) });
+    standing.push({ y: by, draw: () => bamboo(g, bx, by, s, seed + 20 + index) });
   }
   for (let index = 0; index < 3; index += 1) {
     const hx = x - 34 * s + index * 34 * s;
     const hy = baseY + (index === 1 ? 3 * s : 0);
-    standing.push({ y: hy, draw: () => house(g, hx, hy, 1 * s, seed + 10 + index) });
+    standing.push({ y: hy, draw: () => house(g, hx, hy, s, seed + 10 + index) });
   }
   for (let index = 0; index < 3; index += 1) {
     const ax = x + 46 * s + index * 7 * s;
     const ay = y + 24 * s - index * 9 * s;
-    standing.push({ y: ay, draw: () => areca(g, ax, ay, 0.72 * s, seed + 30 + index) });
+    standing.push({ y: ay, draw: () => areca(g, ax, ay, s, seed + 30 + index) });
   }
   const stackY = y + 24 * s;
-  standing.push({ y: stackY, draw: () => hayStack(g, x - 50 * s, stackY, 0.9 * s, seed + 40) });
+  standing.push({ y: stackY, draw: () => hayStack(g, x - 50 * s, stackY, s, seed + 40) });
   // Rolled here, after the pond's fifteen draws, so the seed still decides the same villages.
   if (rand() > 0.5) {
     const banyanY = y - 7 * s;
-    standing.push({ y: banyanY, draw: () => banyan(g, x + 54 * s, banyanY, 0.85 * s, seed + 50) });
+    standing.push({ y: banyanY, draw: () => banyan(g, x + 54 * s, banyanY, s, seed + 50) });
   }
 
   paintStanding(standing);

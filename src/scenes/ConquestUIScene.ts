@@ -9,21 +9,32 @@ import { powerCardView, skipRefundAmount } from '../systems/ascent/PowerDraftSys
 import { tierForHero } from '../systems/ascent/SummonSystem';
 import { responseCommanderName } from '../systems/ascent/WaveDirector';
 import { buildConquestTargets, refreshAscentLaneState } from '../systems/ascent/ConquestSystem';
+import { cancelAcquisition, getClaimRefund, getClaimSlots } from '../systems/AcquisitionSystem';
+import {
+  armyPower,
+  findLandPath,
+  getArmyUpgradeOptions,
+  issueHuntOrder,
+  issueMoveOrder,
+  upgradeArmy,
+} from '../systems/WarSystem';
+import { getCourtBonuses } from '../systems/CourtSystem';
 import { lawCardView, seatedEffectSummary } from '../systems/ascent/CourtLaneSystem';
 import { envoyOptionDetail } from '../systems/ascent/EnvoySystem';
 import { realmStanding } from '../systems/ascent/RivalDirector';
 import { ourHosts, theirHosts } from '../systems/ascent/BattleSystem';
 import { BATTLE_ROUT_MORALE, BATTLE_TICK_MS, TRIBUTE_REFUSE_TICKS } from '../game/ascentConfig';
 import { ALL_COURT_POSITIONS, assignHeroToLand, getCourtPositionLabel } from '../systems/CourtSystem';
-import { ascentArmyUpkeep, buildDistrictBuilding, getBuildOptions, getPlayerTroops, getUpgradeOptions, setLandSpecialization, upgradeDistrictBuilding } from '../systems/ResourceSystem';
+import { ascentArmyUpkeep, buildDistrictBuilding, getBuildOptions, getPlayerTroops, getUpgradeOptions, refreshAllLandOutputs, setLandSpecialization, upgradeDistrictBuilding } from '../systems/ResourceSystem';
 import { buildFocusRows } from '../ui/focusPanel';
+import { buildGovernorRows } from '../ui/governorPanel';
 import { findFreeCommander } from '../systems/ascent/AutopilotSystem';
 import { MIN_ARMY_SOLDIERS, RECRUIT_HUMAN_RESERVE, recruitSoldiers } from '../game/ascentConfig';
 import { eraLabel } from '../systems/empire/MandateSystem';
 import { getEmpirePower, hasPact } from '../systems/DiplomacySystem';
 import { compactNumber } from '../utils/format';
 import { renderHeroFaceInBox } from '../ui/FaceRenderer';
-import { INK_UI, INK_UI_HEX, InkUI, type InkScrollArea, type UIBounds } from '../ui/InkUI';
+import { INK_UI, INK_UI_HEX, InkUI, scrollGestureConsumedTap, type InkScrollArea, type UIBounds } from '../ui/InkUI';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { CARD_ICON_SIZE, drawCardIcon, iconForOption, type CardIconId } from '../ui/CardIcons';
 import { ASCENT_HUD_HEIGHT, AscentHud } from '../ui/ascent/AscentHud';
@@ -44,6 +55,7 @@ import {
   t,
 } from '../i18n';
 import type {
+  Army,
   AscentBattle,
   AscentConquestMethod,
   AscentLane,
@@ -55,7 +67,9 @@ import type {
   ConquestTarget,
   GameState,
   Hero,
+  Land,
 } from '../state/types';
+import { ARMY_RATION_USE_PER_100 } from '../game/gameplayConfig';
 
 /** The three map controls stacked at the right edge, matching the classic modes. */
 type MapControlIcon = 'zoom-in' | 'zoom-out' | 'mode';
@@ -85,6 +99,33 @@ const BATTLE_READOUT_HEIGHT = 62;
  * pass this to `promptScrollBody` and place them at `GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8`.
  */
 const PROMPT_FOOTER_HEIGHT = 56;
+
+/**
+ * Enemy hosts the player can actually see, and so can act on.
+ *
+ * Visibility is the honest gate here: offering a hunt against a host standing in the dark would
+ * hand the player information the map is deliberately withholding.
+ */
+function visibleHostileHosts(state: GameState): Army[] {
+  return state.armies.filter((army) => {
+    if (army.kingdomId === PLAYER_KINGDOM_ID) return false;
+    const at = state.lands.find((land) => land.id === army.landId);
+    return Boolean(at?.isVisible);
+  });
+}
+
+/** The lane browser's close button: how far its top sits above the foot of the screen, and its height. */
+const LANE_CLOSE_BUTTON_OFFSET = 66;
+const LANE_CLOSE_BUTTON_HEIGHT = 42;
+
+/**
+ * Room a lane browser keeps clear at its foot, derived from the button that sits there.
+ *
+ * The list used to reserve a hardcoded 58 while `laneCloseButton` placed itself against
+ * `GAME_HEIGHT` independently, so moving either one silently overlapped the other. The 8 is the
+ * breathing space between the last row and the button.
+ */
+const LANE_FOOTER_HEIGHT = LANE_CLOSE_BUTTON_OFFSET - 8;
 
 /**
  * One host's marker on the battle field, kept beside the id it belongs to.
@@ -468,7 +509,13 @@ export class ConquestUIScene extends Phaser.Scene {
       const hit = this.add
         .rectangle(bounds.width / 2, height / 2, bounds.width, height, 0xffffff, 0.001)
         .setInteractive({ useHandCursor: true });
-      hit.on('pointerup', opts.onTap);
+      // A drag that ends over this card scrolled the list; it did not choose it.
+      hit.on('pointerup', () => {
+        if (scrollGestureConsumedTap()) {
+          return;
+        }
+        opts.onTap();
+      });
       container.add(hit);
     }
 
@@ -495,11 +542,15 @@ export class ConquestUIScene extends Phaser.Scene {
     footerHeight: number,
   ): { content: UIBounds; body: Phaser.GameObjects.Container; bodyWidth: number; finish: (usedHeight: number) => void } {
     const content = this.promptFrame(title, subtitle);
+    // Measured once and used for both the mask and the content floor below. Deriving them separately
+    // let a very short sheet floor the viewport at 80 while the content height stayed under it, which
+    // pinned `maxScroll` to 0 and made the sheet unscrollable exactly when it needed to scroll most.
+    const viewportHeight = Math.max(80, content.height - footerHeight);
     const scroll = this.ui.scrollArea({
       x: content.x,
       y: content.y,
       width: content.width,
-      height: Math.max(80, content.height - footerHeight),
+      height: viewportHeight,
     });
     scroll.addTo(this.modalLayer);
     // Required: `releaseOverlay` destroys these, and an InkScrollArea that is never destroyed
@@ -512,7 +563,7 @@ export class ConquestUIScene extends Phaser.Scene {
       // The scroll area's own width, less a little so a card's right edge never sits under the mask.
       bodyWidth: content.width - 6,
       finish: (usedHeight: number) => {
-        scroll.setContentHeight(Math.max(content.height - footerHeight, usedHeight));
+        scroll.setContentHeight(Math.max(viewportHeight, usedHeight));
       },
     };
   }
@@ -781,7 +832,7 @@ export class ConquestUIScene extends Phaser.Scene {
       x: content.x,
       y: content.y,
       width: content.width,
-      height: content.height - 58,
+      height: content.height - LANE_FOOTER_HEIGHT,
     });
     scroll.addTo(this.modalLayer);
     this.activeScrollAreas.push(scroll);
@@ -799,7 +850,13 @@ export class ConquestUIScene extends Phaser.Scene {
         const hit = this.add
           .rectangle(rowWidth / 2, height / 2, rowWidth, height, 0xffffff, 0.001)
           .setInteractive({ useHandCursor: true });
-        hit.on('pointerup', onTap);
+        // A drag that ends over this row scrolled the list; it did not pick it.
+        hit.on('pointerup', () => {
+          if (scrollGestureConsumedTap()) {
+            return;
+          }
+          onTap();
+        });
         row.add(hit);
       }
       scroll.content.add(row);
@@ -807,7 +864,7 @@ export class ConquestUIScene extends Phaser.Scene {
     };
 
     const finish = () => {
-      scroll.setContentHeight(Math.max(content.height - 58, y));
+      scroll.setContentHeight(Math.max(content.height - LANE_FOOTER_HEIGHT, y));
       this.laneCloseButton(content);
     };
 
@@ -817,7 +874,12 @@ export class ConquestUIScene extends Phaser.Scene {
   /** Standard footer for a lane browser: one button back to the map. */
   private laneCloseButton(content: UIBounds): void {
     this.modalLayer.add(this.ui.button(
-      { x: content.x, y: GAME_HEIGHT - 66, width: content.width, height: 42 },
+      {
+        x: content.x,
+        y: GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET,
+        width: content.width,
+        height: LANE_CLOSE_BUTTON_HEIGHT,
+      },
       t('ascent.lane.close'),
       () => this.closeLane(),
       { variant: 'primary', fontSize: '13px' },
@@ -846,6 +908,50 @@ export class ConquestUIScene extends Phaser.Scene {
       t('ascent.screen.buildBody', { lands: lands.length }),
     );
 
+    // Claims live at the top of this screen because taking ground and developing it are the same
+    // decision — what the realm should spend its next season on. They were previously reachable
+    // only by tapping a province on the map and finding the inspect card's "Claim this" button,
+    // which meant the cap, the progress and the option to call one off had nowhere to live.
+    const claims = state.acquisitionOrders.filter((order) => order.buyerId === PLAYER_KINGDOM_ID);
+    const slots = getClaimSlots(state);
+    addRow(
+      {
+        title: t('ascent.claim.heading', { used: claims.length, cap: slots }),
+        subtitle: t('ascent.claim.headingHint'),
+        border: INK_UI.softBrush,
+        muted: true,
+      },
+    );
+
+    for (const order of claims) {
+      const target = state.lands.find((candidate) => candidate.id === order.landId);
+      addRow(
+        {
+          title: target?.name ?? order.landId,
+          subtitle: t('ascent.claim.row', {
+            method: t(`ascent.claim.method.${order.method}` as Parameters<typeof t>[0]),
+            progress: Math.round(order.progress),
+            required: Math.round(order.required),
+          }),
+          border: INK_UI.gold,
+        },
+        () => this.showClaimDetail(order.landId),
+      );
+    }
+
+    const targets = buildConquestTargets(state);
+    addRow(
+      {
+        title: t('ascent.claim.start'),
+        subtitle: targets.length > 0
+          ? t('ascent.claim.startHint', { n: targets.length })
+          : t('ascent.claim.startNone'),
+        border: targets.length > 0 ? INK_UI.jade : INK_UI.softBrush,
+        muted: targets.length === 0,
+      },
+      targets.length > 0 ? () => this.showClaimTargets() : undefined,
+    );
+
     for (const land of lands) {
       const order = state.buildOrders.find((candidate) => candidate.landId === land.id);
       addRow(
@@ -864,6 +970,87 @@ export class ConquestUIScene extends Phaser.Scene {
         order ? undefined : () => this.showBuildOptions(land.id),
       );
     }
+    finish();
+  }
+
+  /**
+   * The provinces within reach, as a lane browser.
+   *
+   * Tapping one emits `ui:ascent-conquer` — the same event the map's inspect card raises — so the
+   * method sheet behind it is the existing one rather than a second copy of it.
+   */
+  private showClaimTargets(): void {
+    const state = this.state;
+    for (const scroll of this.activeScrollAreas) scroll.destroy();
+    this.activeScrollAreas = [];
+    this.modalLayer.removeAll(true);
+
+    const targets = buildConquestTargets(state);
+    const { addRow, finish } = this.laneList(t('ascent.claim.start'), t('ascent.claim.headingHint'));
+
+    for (const target of targets) {
+      const open = target.methods.filter((method) => !method.blockedReason);
+      addRow(
+        {
+          title: target.landName,
+          subtitle: `${open.length > 0 ? t('ascent.conquer.ways', { n: open.length }) : target.busyReason ?? t('ascent.conquer.noWay')}  ·  ${t('ascent.march.garrison', { value: target.garrison })}`,
+          border: open.length > 0 ? INK_UI.jade : INK_UI.softBrush,
+          muted: open.length === 0,
+        },
+        () => {
+          this.closeLane();
+          this.events.emit('ui:ascent-conquer', target.landId);
+        },
+      );
+    }
+
+    finish();
+  }
+
+  /**
+   * One claim in progress, and the option to call it off.
+   *
+   * The refund is stated before the tap, not after, because it is usually nothing — a bribe's gold
+   * is already in the noble's hands and settlers have already left — and a player who is not told
+   * that will read a cancel button as a full undo.
+   */
+  private showClaimDetail(landId: string): void {
+    const state = this.state;
+    const order = state.acquisitionOrders.find(
+      (candidate) => candidate.landId === landId && candidate.buyerId === PLAYER_KINGDOM_ID,
+    );
+    const land = state.lands.find((candidate) => candidate.id === landId);
+    if (!order || !land) return;
+
+    for (const scroll of this.activeScrollAreas) scroll.destroy();
+    this.activeScrollAreas = [];
+    this.modalLayer.removeAll(true);
+
+    const { addRow, finish } = this.laneList(
+      land.name,
+      t('ascent.claim.row', {
+        method: t(`ascent.claim.method.${order.method}` as Parameters<typeof t>[0]),
+        progress: Math.round(order.progress),
+        required: Math.round(order.required),
+      }),
+    );
+
+    const refund = getClaimRefund(state, order);
+    const refundText = formatResourceList(refund);
+    addRow(
+      {
+        title: t('ascent.claim.cancel'),
+        subtitle: refundText
+          ? t('ascent.claim.cancelRefund', { refund: refundText })
+          : t('ascent.claim.cancelNothing'),
+        border: INK_UI.cinnabar,
+      },
+      () => {
+        cancelAcquisition(state, landId);
+        this.showBuildScreen();
+      },
+    );
+
     finish();
   }
 
@@ -891,32 +1078,29 @@ export class ConquestUIScene extends Phaser.Scene {
     // Who holds the province, and what it is worked for. Neither was reachable in this mode at
     // all: Dragon Ascent never imported the specialization API, so every province in a run stayed
     // on `balanced` forever, and a champion could be summoned but never posted to a district.
+    // The governor row opens a picker rather than posting anyone itself. It used to assign
+    // `idleHeroes[0]` — the first idle hero in state order — which is not a choice the player was
+    // making, and which meant the champion best suited to the ground was picked only by accident.
     const governor = state.heroes.find((candidate) => candidate.assignedTo === land.id);
-    const idleHeroes = state.heroes.filter(
-      (candidate) => !candidate.assignedTo && candidate.id !== governor?.id,
-    );
+    const candidates = buildGovernorRows(state, land);
     addRow(
       {
-        title: governor ? t('focus.governor', { hero: heroName(governor) }) : t('focus.governorNone'),
-        subtitle: idleHeroes.length > 0 && !governor
-          ? t('focus.governorHint')
-          : governor
-            ? this.heroStatLine(governor)
-            : t('focus.governorHint'),
+        title: governor ? t('focus.governor', { hero: heroName(governor) }) : t('gov.none'),
+        subtitle: governor ? this.heroStatLine(governor) : t('gov.noneHint'),
         border: governor ? INK_UI.gold : INK_UI.softBrush,
-        muted: !governor && idleHeroes.length === 0,
+        muted: !governor && candidates.length === 0,
       },
-      idleHeroes.length > 0
-        ? () => act(() => assignHeroToLand(state, idleHeroes[0].id, land.id))
-        : undefined,
+      candidates.length > 0 ? () => this.showGovernorPicker(land.id) : undefined,
     );
 
     addRow({ title: t('focus.heading'), subtitle: t('focus.headingHint'), border: INK_UI.softBrush, muted: true });
-    for (const row of buildFocusRows(land)) {
+    for (const row of buildFocusRows(state, land)) {
       addRow(
         {
           title: row.isBest ? `${row.title}  ·  ${t('focus.best')}` : row.title,
-          subtitle: `${row.effect}\n${row.suitLine}`,
+          // The martial focuses pay outside the resource bag, so their tilt line alone reads as a
+          // pure loss; `extra` is what they actually buy, and is empty for the economic focuses.
+          subtitle: `${row.effect}${row.extra ? `\n${row.extra}` : ''}\n${row.suitLine}`,
           border: row.isCurrent
             ? INK_UI.gold
             : row.suitability === 'high' ? INK_UI.jade : INK_UI.softBrush,
@@ -953,6 +1137,67 @@ export class ConquestUIScene extends Phaser.Scene {
         option.canUpgrade ? () => act(() => upgradeDistrictBuilding(state, land.id, option.index)) : undefined,
       );
     }
+    finish();
+  }
+
+  /**
+   * Who to post to one province, and why.
+   *
+   * Best-fit first, with the stat the province actually rewards named on every row — because the
+   * answer moves with the focus, and a recommendation the player cannot check is one they cannot
+   * learn from. Reuses `assignHeroToLand`, which already handles releasing a previous posting.
+   */
+  private showGovernorPicker(landId: string): void {
+    const state = this.state;
+    const land = state.lands.find((candidate) => candidate.id === landId);
+    if (!land) return;
+
+    for (const scroll of this.activeScrollAreas) scroll.destroy();
+    this.activeScrollAreas = [];
+    this.modalLayer.removeAll(true);
+
+    const rows = buildGovernorRows(state, land);
+    const { addRow, finish } = this.laneList(land.name, t('gov.headingHint'));
+
+    const back = () => this.showBuildOptions(landId);
+
+    if (rows.length === 0) {
+      addRow({ title: t('gov.noCandidates'), subtitle: '', border: INK_UI.softBrush, muted: true });
+    }
+
+    for (const row of rows) {
+      const tags = [
+        row.isCurrent ? t('gov.current') : '',
+        row.isBest && !row.isCurrent ? t('gov.best') : '',
+      ].filter(Boolean);
+      addRow(
+        {
+          title: tags.length > 0 ? `${row.title}  ·  ${tags.join('  ·  ')}` : row.title,
+          subtitle: `${row.effectLine}\n${row.fitLine}${row.flavour ? `\n${row.flavour}` : ''}`,
+          border: row.isCurrent ? INK_UI.gold : row.fit === 'high' ? INK_UI.jade : INK_UI.softBrush,
+          muted: row.fit === 'low' && !row.isCurrent,
+        },
+        row.isCurrent ? undefined : () => {
+          assignHeroToLand(state, row.hero.id, land.id);
+          back();
+        },
+      );
+    }
+
+    // Recalling the governor has to be reachable from the same screen that posted them, or a bad
+    // posting is permanent until another province is found to take them.
+    const governor = state.heroes.find((candidate) => candidate.assignedTo === land.id);
+    if (governor) {
+      addRow(
+        { title: t('gov.vacant'), subtitle: '', border: INK_UI.softBrush, muted: true },
+        () => {
+          governor.assignedTo = undefined;
+          refreshAllLandOutputs(state);
+          back();
+        },
+      );
+    }
+
     finish();
   }
 
@@ -1132,17 +1377,20 @@ export class ConquestUIScene extends Phaser.Scene {
    * treasury over the field, which is the whole point of charging for an army.
    */
   private showArmyDetail(armyId: string): void {
-    const army = this.state.armies.find((candidate) => candidate.id === armyId);
+    const state = this.state;
+    const army = state.armies.find((candidate) => candidate.id === armyId);
     if (!army) return;
 
+    for (const scroll of this.activeScrollAreas) scroll.destroy();
+    this.activeScrollAreas = [];
     this.modalLayer.removeAll(true);
     this.openPromptKey = `army-detail:${armyId}`;
 
     const size = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
-    const general = this.state.heroes.find((candidate) => candidate.id === army.generalHeroId);
-    const land = this.state.lands.find((candidate) => candidate.id === army.landId);
+    const general = state.heroes.find((candidate) => candidate.id === army.generalHeroId);
+    const land = state.lands.find((candidate) => candidate.id === army.landId);
 
-    const content = this.promptFrame(
+    const { addRow, finish } = this.laneList(
       army.name,
       t('ascent.army.detailBody', {
         land: land?.name ?? '—',
@@ -1152,33 +1400,192 @@ export class ConquestUIScene extends Phaser.Scene {
       }),
     );
 
-    // What sending them home is actually worth, in the two currencies the player is watching.
-    const upkeep = ascentArmyUpkeep(this.state);
-    const troops = Math.max(1, getPlayerTroops(this.state));
-    const savedGold = Math.round(upkeep.gold * (size / troops));
-    const savedFood = Math.round(upkeep.food * (size / troops));
+    // What the host costs, stated plainly.
+    //
+    // The screen already knew this — it computed the same figures to price the disband row — but
+    // only ever showed them as what you would save by giving up. The runway is the number that
+    // actually predicts trouble: a host out of rations bleeds morale, and until now the player
+    // only found that out after the morale had gone.
+    const upkeep = ascentArmyUpkeep(state);
+    const troops = Math.max(1, getPlayerTroops(state));
+    const shareGold = Math.round(upkeep.gold * (size / troops));
+    const shareFood = Math.round(upkeep.food * (size / troops));
+    const rationRunway = Math.floor((army.rations ?? 0) / Math.max(1, size / 100 * ARMY_RATION_USE_PER_100));
+    addRow({
+      title: t('ascent.army.upkeepHeading'),
+      subtitle: `${t('ascent.army.upkeepBody', { gold: shareGold, food: shareFood })}\n${
+        (army.rations ?? 0) <= 0
+          ? t('ascent.army.runwayOut')
+          : t('ascent.army.runway', { ticks: rationRunway })
+      }`,
+      border: (army.rations ?? 0) <= 0 ? INK_UI.cinnabar : INK_UI.softBrush,
+      muted: (army.rations ?? 0) > 0,
+    });
 
-    this.modalLayer.add(this.optionCard(
-      { x: content.x, y: content.y, width: content.width, height: 92 },
+    // Why the host is stronger than the men in it.
+    //
+    // `armyPower` multiplies unit count by morale, supply, level, elite tier, the general's
+    // martial skill and every Power Draft card the run has taken — so a host of 800 can be worth
+    // far more or far less than a host of 800, and none of that was visible anywhere. Showing the
+    // finished figure beside the headcount is what makes drafting a card feel like it reached the
+    // field, rather than a number that went up on the HUD.
+    const bonuses = getCourtBonuses(state);
+    const eliteTier = army.elite ?? 0;
+    const multipliers = [
+      t('ascent.army.mulLevel', { level: army.level, pct: Math.round(Math.max(0, army.level - 1) * 8) }),
+      eliteTier > 0 ? t('ascent.army.mulElite', { tier: eliteTier, pct: Math.round(eliteTier * 18) }) : '',
+      general ? t('ascent.army.mulGeneral', { pct: Math.round((general.stats.martial / 100) * 25) }) : '',
+      bonuses.armyPowerMult !== 1
+        ? t('ascent.army.mulDraft', { pct: Math.round((bonuses.armyPowerMult - 1) * 100) })
+        : '',
+    ].filter(Boolean);
+    addRow({
+      title: t('ascent.army.powerHeading', { power: Math.round(armyPower(state, army)), men: size }),
+      subtitle: multipliers.join('  ·  '),
+      border: INK_UI.gold,
+      muted: true,
+    });
+
+    // ── Orders ──
+    const owned = state.lands.filter(
+      (candidate) => candidate.ownerId === PLAYER_KINGDOM_ID && candidate.id !== army.landId,
+    );
+    addRow(
       {
-        icon: 'retreat',
-        title: t('ascent.army.disband'),
-        body: t('ascent.army.disbandBody', { n: size, gold: savedGold, food: savedFood }),
-        badge: t('ascent.army.disbandBadge'),
-        accent: INK_UI.cinnabar,
-        onTap: () => {
-          this.closeLane();
-          this.events.emit('ui:ascent-disband-army', armyId);
-        },
+        title: t('ascent.army.marchTo'),
+        subtitle: owned.length > 0 ? t('ascent.army.marchToBody') : t('ascent.army.noOwnedLand'),
+        border: owned.length > 0 ? INK_UI.jade : INK_UI.softBrush,
+        muted: owned.length === 0,
       },
-    ));
+      owned.length > 0 ? () => this.showMarchTargets(armyId) : undefined,
+    );
 
-    this.modalLayer.add(this.ui.button(
-      { x: content.x, y: content.y + 104, width: content.width, height: 42 },
-      t('ascent.conquer.back'),
-      () => this.showArmyScreen(),
-      { variant: 'ghost', fontSize: '13px' },
-    ));
+    const quarries = visibleHostileHosts(state);
+    addRow(
+      {
+        title: t('ascent.army.hunt'),
+        subtitle: quarries.length > 0
+          ? t('ascent.army.huntBody', { n: quarries.length })
+          : t('ascent.army.huntNone'),
+        border: quarries.length > 0 ? INK_UI.cinnabar : INK_UI.softBrush,
+        muted: quarries.length === 0,
+      },
+      quarries.length > 0 ? () => this.showHuntTargets(armyId) : undefined,
+    );
+
+    // ── Upgrades ──
+    for (const option of getArmyUpgradeOptions(state, armyId)) {
+      const label = t(`ascent.army.${option.kind}` as Parameters<typeof t>[0]);
+      const body = option.kind === 'equip'
+        ? t('ascent.army.equipBody', { tier: option.gain })
+        : option.kind === 'reinforce'
+          ? t('ascent.army.reinforceBody', { n: option.gain })
+          : t('ascent.army.drillBody', { level: option.gain });
+      addRow(
+        {
+          title: label,
+          subtitle: option.available
+            ? `${body}\n${formatResourceList(option.cost)}`
+            : option.reason ?? '',
+          border: option.available ? INK_UI.gold : INK_UI.softBrush,
+          muted: !option.available,
+        },
+        option.available
+          ? () => {
+              upgradeArmy(state, armyId, option.kind);
+              this.showArmyDetail(armyId);
+            }
+          : undefined,
+      );
+    }
+
+    addRow(
+      {
+        title: t('ascent.army.disband'),
+        subtitle: t('ascent.army.disbandBody', { n: size, gold: shareGold, food: shareFood }),
+        border: INK_UI.cinnabar,
+      },
+      () => {
+        this.closeLane();
+        this.events.emit('ui:ascent-disband-army', armyId);
+      },
+    );
+
+    finish();
+  }
+
+  /** Owned provinces this host can march to, with how far and what is threatening each. */
+  private showMarchTargets(armyId: string): void {
+    const state = this.state;
+    const army = state.armies.find((candidate) => candidate.id === armyId);
+    if (!army) return;
+
+    for (const scroll of this.activeScrollAreas) scroll.destroy();
+    this.activeScrollAreas = [];
+    this.modalLayer.removeAll(true);
+
+    const { addRow, finish } = this.laneList(t('ascent.army.marchTo'), t('ascent.army.marchToBody'));
+
+    const targets = state.lands
+      .filter((land) => land.ownerId === PLAYER_KINGDOM_ID && land.id !== army.landId)
+      .map((land) => ({ land, path: findLandPath(state, army.landId, land.id) }))
+      .filter((entry): entry is { land: Land; path: string[] } => Boolean(entry.path))
+      .sort((a, b) => a.path.length - b.path.length);
+
+    for (const { land, path } of targets) {
+      // "Under threat" means an enemy host is standing on it or next to it — the reason a player
+      // would send a host somewhere rather than leave it where it is.
+      const threatened = state.armies.some(
+        (other) => other.kingdomId !== PLAYER_KINGDOM_ID
+          && (other.landId === land.id || land.neighbors.includes(other.landId)),
+      );
+      addRow(
+        {
+          title: land.name,
+          subtitle: t('ascent.army.marchRow', {
+            legs: path.length,
+            threat: threatened ? t('ascent.army.marchThreat') : '',
+          }),
+          border: threatened ? INK_UI.cinnabar : INK_UI.jade,
+        },
+        () => {
+          issueMoveOrder(state, armyId, land.id);
+          this.closeLane();
+        },
+      );
+    }
+
+    finish();
+  }
+
+  /** Enemy hosts in sight, and the order to go after one. */
+  private showHuntTargets(armyId: string): void {
+    const state = this.state;
+    for (const scroll of this.activeScrollAreas) scroll.destroy();
+    this.activeScrollAreas = [];
+    this.modalLayer.removeAll(true);
+
+    const { addRow, finish } = this.laneList(t('ascent.army.hunt'), t('ascent.army.huntBody', {
+      n: visibleHostileHosts(state).length,
+    }));
+
+    for (const quarry of visibleHostileHosts(state)) {
+      const at = state.lands.find((candidate) => candidate.id === quarry.landId);
+      const size = quarry.units.spearmen + quarry.units.archers + quarry.units.heavyInfantry;
+      addRow(
+        {
+          title: quarry.name,
+          subtitle: t('ascent.army.huntRow', { size, land: at?.name ?? '—' }),
+          border: INK_UI.cinnabar,
+        },
+        () => {
+          issueHuntOrder(state, armyId, quarry.id);
+          this.closeLane();
+        },
+      );
+    }
+
+    finish();
   }
 
   /** The rival empires as they stand: power, opinion, pacts, and who has our ambassador. */
@@ -2617,7 +3024,7 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
       x: content.x,
       y: content.y,
       width: content.width,
-      height: content.height - 58,
+      height: content.height - LANE_FOOTER_HEIGHT,
     });
     scroll.addTo(this.modalLayer);
     this.activeScrollAreas.push(scroll);
@@ -2635,7 +3042,7 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
       scroll.content.add(row);
       y += (row.getData('cardHeight') as number ?? 54) + 8;
     }
-    scroll.setContentHeight(Math.max(content.height - 58, y));
+    scroll.setContentHeight(Math.max(content.height - LANE_FOOTER_HEIGHT, y));
 
     this.modalLayer.add(this.ui.button(
       { x: content.x, y: content.y + content.height - 46, width: content.width, height: 42 },

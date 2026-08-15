@@ -48,6 +48,9 @@ export const REALM_PROJECTS: RealmProject[] = [
   { id: 'census', kind: 'edict', branch: 'governance', era: 'rivalry', edictCost: 1, exclusiveGroup: 'gov-rivalry', modifier: { resourceRateModifier: { humans: 3 } } },
   { id: 'public-works', kind: 'edict', branch: 'governance', era: 'rivalry', edictCost: 1, exclusiveGroup: 'gov-rivalry', modifier: { buildingCostModifier: -0.2, buildSpeedBonus: 1, upgradeSpeedBonus: 1 } },
   { id: 'grand-secretariat', kind: 'edict', branch: 'governance', era: 'empires', edictCost: 2, modifier: { courtCardSpeedModifier: 0.4, acquisitionCostModifier: -0.2 } },
+  // The other way to widen the claim cap, for a player who did not draw the Surveyors' Corps.
+  // `claimSlotBonus` is inert outside Dragon Ascent, where claiming has never been capped.
+  { id: 'surveyors-charter', kind: 'edict', branch: 'governance', era: 'empires', edictCost: 2, modifier: { claimSlotBonus: 1 } },
   { id: 'great-code', kind: 'edict', branch: 'governance', era: 'mandate', edictCost: 3, modifier: { courtCardSpeedModifier: 0.5, resourceRateModifier: { humans: 4 }, buildingCostModifier: -0.1 } },
 
   // ── Wonders (resource-funded megaprojects) ──

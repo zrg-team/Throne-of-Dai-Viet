@@ -1117,7 +1117,7 @@ export class UIScene extends Phaser.Scene {
       const row = this.ui.card({ x: 0, y: rowY, width: bounds.width, height: 54 }, {
         title: land.name,
         subtitle: governor ? t('status.governor', { name: heroName(governor) }) : t('status.noGovernor'),
-        body: governor ? formatGovernorEffect(governor.stats) : undefined,
+        body: governor ? formatGovernorEffect(this.state, governor.stats, land) : undefined,
         action: {
           label: governor ? t('action.change') : t('action.assign'),
           variant: governor ? 'secondary' : 'primary',
@@ -1192,7 +1192,7 @@ export class UIScene extends Phaser.Scene {
       const effectLine = picker.kind === 'position'
         ? (formatCourtPositionEffect(picker.positionId, hero.stats) || t('court.fx.none'))
         : picker.kind === 'land'
-          ? formatGovernorEffect(hero.stats)
+          ? formatGovernorEffect(this.state, hero.stats, this.state.lands.find((l) => l.id === picker.landId))
           : t('status.administration', { value: hero.stats.administration });
       row.add(createLabel(this, 58, 32, effectLine, 'caption', {
         fontSize: '10px',
@@ -1522,7 +1522,7 @@ export class UIScene extends Phaser.Scene {
       muted: true,
     }, 52);
 
-    for (const row of buildFocusRows(land)) {
+    for (const row of buildFocusRows(this.state, land)) {
       const suitTone = row.suitability === 'high'
         ? INK_UI.jade
         : row.suitability === 'low' ? INK_UI.softBrush : INK_UI.gold;

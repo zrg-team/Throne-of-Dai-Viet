@@ -3,7 +3,18 @@ import { heroTemplates } from '../data/heroes';
 import { politicsCardTemplates } from '../data/politicsCards';
 import { createHeroDraft } from './HeroSystem';
 import { eraSeatBonus } from './empire/MandateSystem';
-import type { CourtModifier, CourtPositionId, CourtState, GameState, Hero, HeroStats, ResourceBag } from '../state/types';
+import type {
+  CourtModifier,
+  CourtPositionId,
+  CourtState,
+  GameState,
+  Hero,
+  HeroStats,
+  Land,
+  LandSpecialization,
+  ResourceBag,
+} from '../state/types';
+import { getLandSpecialization } from './ResourceSystem';
 import { heroName, t } from '../i18n';
 
 export const ALL_COURT_POSITIONS: CourtPositionId[] = [
@@ -74,6 +85,8 @@ export interface CourtBonuses {
   nextArmyArchersBonus: number;
   nextArmyHeavyBonus: number;
   armyLevelCapBonus: number;
+  /** Extra provinces the realm may court at once. A count, not a multiplier — see `getClaimSlots`. */
+  claimSlotBonus: number;
 }
 
 type NumericCourtBonusKey = Exclude<keyof CourtBonuses, 'resourceRateModifier'>;
@@ -155,10 +168,22 @@ export function formatCourtPositionEffect(positionId: CourtPositionId, stats: He
   return formatCourtBonusDelta(COURT_POSITION_EFFECTS[positionId](stats));
 }
 
-/** The output boost a hero grants as a province governor (admin-driven). */
-export function formatGovernorEffect(stats: HeroStats): string {
-  const pct = Math.round(stats.administration * 0.004 * 100);
-  return t('court.fx.output', { v: `+${pct}` });
+/**
+ * The output boost a hero grants as a province governor.
+ *
+ * Takes the land as well as the hero because in Ascent the figure depends on what the province is
+ * being worked for — see `getLandGovernorEffects`. Passing no land gives the plain admin-only
+ * reading, which is what the classic modes' court screens want.
+ */
+export function formatGovernorEffect(state: GameState, stats: HeroStats, land?: Land): string {
+  let pct = stats.administration * 0.004;
+  if (land && state.gameMode === 'ascent') {
+    const keyStat = governorKeyStat(land);
+    if (keyStat !== 'administration') {
+      pct += stats[keyStat] * 0.0022;
+    }
+  }
+  return t('court.fx.output', { v: `+${Math.round(pct * 100)}` });
 }
 
 const ALL_SIGNATURE_CARD_IDS = new Set(
@@ -223,6 +248,7 @@ export function getCourtBonuses(state: GameState): CourtBonuses {
     nextArmyArchersBonus: 0,
     nextArmyHeavyBonus: 0,
     armyLevelCapBonus: 0,
+    claimSlotBonus: 0,
   };
 
   for (const [positionId, heroId] of Object.entries(state.court.seats)) {
@@ -265,6 +291,7 @@ export function getCourtBonuses(state: GameState): CourtBonuses {
     delta.nextArmyArchersBonus += modifier.nextArmyArchersBonus ?? 0;
     delta.nextArmyHeavyBonus += modifier.nextArmyHeavyBonus ?? 0;
     delta.armyLevelCapBonus += modifier.armyLevelCapBonus ?? 0;
+    delta.claimSlotBonus += modifier.claimSlotBonus ?? 0;
   }
 
   const filledSeatCount = Object.values(state.court.seats).filter(Boolean).length;
@@ -298,6 +325,9 @@ export function getCourtBonuses(state: GameState): CourtBonuses {
     nextArmyArchersBonus: Math.max(0, delta.nextArmyArchersBonus),
     nextArmyHeavyBonus: Math.max(0, delta.nextArmyHeavyBonus),
     armyLevelCapBonus: Math.max(0, Math.round(delta.armyLevelCapBonus)),
+    // A count of parties, so it is summed plainly rather than clamped into a multiplier the way
+    // its neighbours are.
+    claimSlotBonus: Math.max(0, Math.round(delta.claimSlotBonus)),
   };
 }
 
@@ -417,10 +447,78 @@ export function assignHeroToLand(state: GameState, heroId: string, landId: strin
   return true;
 }
 
+/**
+ * What a hero actually does for a province, given what that province is being worked for.
+ *
+ * `administration` used to be the only stat that reached a land at all, which made every posting
+ * decision the same decision — post whoever has the highest admin — and left five of the six hero
+ * stats with nothing to say about the map. Matching the stat to the focus is what turns a posting
+ * into a reading of the province: a martial captain is worth more on ground held to defend than a
+ * clerk is, and worth less on a trade road.
+ *
+ * The admin term is unchanged and unconditional, so an unfocused province behaves exactly as it
+ * did. The focus term is additive on top, and only ever a bonus — a mismatched hero is never worse
+ * than no hero, or the screen would be teaching the player not to post anyone.
+ */
+export interface LandGovernorEffects {
+  /** Multiplier on the province's resource output. */
+  outputMult: number;
+  /** Extra defence multiplier, for a martial governor on ground held to defend. */
+  defenseMult: number;
+  /** Extra loyalty regained per tick, from the governor's loyalty stat. */
+  loyaltyPerTick: number;
+  /** The stat this posting is actually being judged on, for the UI to name. */
+  keyStat: keyof HeroStats;
+}
+
+/** The stat each focus rewards in a governor. `administration` is the fallback everywhere else. */
+const FOCUS_KEY_STAT: Record<LandSpecialization, keyof HeroStats> = {
+  balanced: 'administration',
+  breadbasket: 'administration',
+  mining: 'logistics',
+  trade: 'diplomacy',
+  populous: 'administration',
+  fortress: 'martial',
+  garrison: 'logistics',
+};
+
+/** Which stat a province rewards in whoever governs it. */
+export function governorKeyStat(land: Land): keyof HeroStats {
+  return FOCUS_KEY_STAT[getLandSpecialization(land)];
+}
+
+export function getLandGovernorEffects(state: GameState, land: Land, hero?: Hero): LandGovernorEffects {
+  const governor = hero ?? state.heroes.find((candidate) => candidate.assignedTo === land.id);
+  const keyStat = governorKeyStat(land);
+  if (!governor) {
+    return { outputMult: 1, defenseMult: 1, loyaltyPerTick: 0, keyStat };
+  }
+
+  const stats = governor.stats;
+  // The original, untouched: every governor's administration lifts output.
+  let outputMult = 1 + stats.administration * 0.004;
+  // And then the match, which only exists in Ascent — the classic modes' economies must not move.
+  if (state.gameMode === 'ascent' && keyStat !== 'administration') {
+    outputMult += stats[keyStat] * 0.0022;
+  }
+
+  return {
+    outputMult,
+    defenseMult: state.gameMode === 'ascent' && getLandSpecialization(land) === 'fortress'
+      ? 1 + stats.martial * 0.003
+      : 1,
+    loyaltyPerTick: stats.loyalty * 0.05,
+    keyStat,
+  };
+}
+
 /** Output multiplier a land receives from its assigned governor's administration stat. */
 export function getLandGovernorOutputMult(state: GameState, landId: string): number {
-  const governor = state.heroes.find((candidate) => candidate.assignedTo === landId);
-  return governor ? 1 + governor.stats.administration * 0.004 : 1;
+  const land = state.lands.find((candidate) => candidate.id === landId);
+  if (!land) {
+    return 1;
+  }
+  return getLandGovernorEffects(state, land).outputMult;
 }
 
 /** Adds or removes hero signature cards from the politics deck based on current court seating. */

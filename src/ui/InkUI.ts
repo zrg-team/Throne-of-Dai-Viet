@@ -159,6 +159,33 @@ export interface InkScrollAreaOptions {
   wheelStep?: number;
 }
 
+/**
+ * How far a finger may travel before the gesture stops being a tap and becomes a scroll.
+ *
+ * In design units, so it means the same thing at every render scale.
+ */
+const SCROLL_TAP_SLOP = 6;
+
+/**
+ * Set while a drag that passed `SCROLL_TAP_SLOP` is still resolving, and cleared on the next
+ * pointer-down.
+ *
+ * Cards inside a scroll area lay a full-bleed hit rectangle over the whole viewport and fire on
+ * `pointerup`, so without this every scroll would end by picking whatever card the finger happened to
+ * lift over. Module-level rather than per-area because the card doing the asking has no reference to
+ * the area it is sitting in — it only needs to know that *some* list just ate this gesture.
+ */
+let scrollGestureConsumed = false;
+
+/**
+ * Whether the gesture that just ended was a scroll, and so must not be read as a tap.
+ *
+ * Call it first thing in any `pointerup` handler that sits inside an `InkScrollArea`.
+ */
+export function scrollGestureConsumedTap(): boolean {
+  return scrollGestureConsumed;
+}
+
 export class InkScrollArea {
   readonly container: Phaser.GameObjects.Container;
   readonly content: Phaser.GameObjects.Container;
@@ -177,6 +204,9 @@ export class InkScrollArea {
     dx: number,
     dy: number,
   ) => void;
+  private readonly downHandler: (pointer: Phaser.Input.Pointer) => void;
+  private readonly moveHandler: (pointer: Phaser.Input.Pointer) => void;
+  private readonly upHandler: () => void;
 
   constructor(private readonly scene: Phaser.Scene, readonly bounds: UIBounds, opts: InkScrollAreaOptions = {}) {
     this.wheelStep = opts.wheelStep ?? 1;
@@ -184,38 +214,64 @@ export class InkScrollArea {
     this.content = scene.add.container(0, 0);
     this.container.add(this.content);
 
+    // The zone still earns its place: it swallows taps that fall through the gaps between cards, so
+    // the map underneath does not move while a list is open. It is no longer the scroll mechanism.
     this.hitZone = scene.add.zone(bounds.x, bounds.y, bounds.width, bounds.height).setOrigin(0, 0).setInteractive();
-    scene.input.setDraggable(this.hitZone);
-    this.hitZone.on('dragstart', (pointer: Phaser.Input.Pointer) => {
-      this.dragStart = { pointerY: designLength(pointer.y), scrollY: this.scrollY };
-    });
-    this.hitZone.on('drag', (pointer: Phaser.Input.Pointer) => {
-      if (!this.dragStart) {
+
+    // Scrolling is driven from the scene's own pointer stream rather than Phaser's drag system.
+    // Dragging a Zone cannot work here: `input.topOnly` is on, every card lays a full-bleed
+    // interactive rectangle across the whole viewport, and a Zone never joins the camera render list
+    // so `sortGameObjects` always sinks it to the bottom of the hit list. The zone was therefore
+    // never the drag candidate and `dragstart` never fired — leaving the wheel as the only way to
+    // scroll, which is no way at all on a phone. Filtering the scene stream by our own bounds is the
+    // same shape `wheelHandler` below already uses.
+    this.downHandler = (pointer: Phaser.Input.Pointer) => {
+      scrollGestureConsumed = false;
+      if (this.maxScroll <= 0 || !this.containsPointer(pointer)) {
         return;
       }
-      this.setScroll(this.dragStart.scrollY - (designLength(pointer.y) - this.dragStart.pointerY));
-    });
-    this.hitZone.on('dragend', () => {
+      this.dragStart = { pointerY: designLength(pointer.y), scrollY: this.scrollY };
+    };
+    this.moveHandler = (pointer: Phaser.Input.Pointer) => {
+      if (!this.dragStart || !pointer.isDown) {
+        return;
+      }
+      const travelled = designLength(pointer.y) - this.dragStart.pointerY;
+      if (Math.abs(travelled) >= SCROLL_TAP_SLOP) {
+        scrollGestureConsumed = true;
+      }
+      this.setScroll(this.dragStart.scrollY - travelled);
+    };
+    this.upHandler = () => {
       this.dragStart = undefined;
-    });
+    };
+    scene.input.on('pointerdown', this.downHandler);
+    scene.input.on('pointermove', this.moveHandler);
+    scene.input.on('pointerup', this.upHandler);
+    scene.input.on('pointerupoutside', this.upHandler);
 
     this.maskShape = scene.make.graphics({}, false);
     this.maskShape.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
     this.content.setMask(this.maskShape.createGeometryMask());
 
     this.wheelHandler = (pointer, _objects, _dx, dy) => {
-      const at = designPointer(pointer);
-      if (
-        at.x < bounds.x ||
-        at.x > bounds.x + bounds.width ||
-        at.y < bounds.y ||
-        at.y > bounds.y + bounds.height
-      ) {
+      if (!this.containsPointer(pointer)) {
         return;
       }
       this.setScroll(this.scrollY + dy * this.wheelStep);
     };
     scene.input.on('wheel', this.wheelHandler);
+  }
+
+  /** Whether a pointer is over this area, compared in design space. */
+  private containsPointer(pointer: { x: number; y: number }): boolean {
+    const at = designPointer(pointer);
+    return (
+      at.x >= this.bounds.x &&
+      at.x <= this.bounds.x + this.bounds.width &&
+      at.y >= this.bounds.y &&
+      at.y <= this.bounds.y + this.bounds.height
+    );
   }
 
   setContentHeight(height: number): void {
@@ -239,6 +295,10 @@ export class InkScrollArea {
     }
     this.disposed = true;
     this.scene.input.off('wheel', this.wheelHandler);
+    this.scene.input.off('pointerdown', this.downHandler);
+    this.scene.input.off('pointermove', this.moveHandler);
+    this.scene.input.off('pointerup', this.upHandler);
+    this.scene.input.off('pointerupoutside', this.upHandler);
     this.hitZone.destroy();
     this.container.destroy(true);
     this.maskShape.destroy();
@@ -474,10 +534,17 @@ export class InkUI {
       event: Phaser.Types.Input.EventData,
     ) => {
       stop(pointer, localX, localY, event);
-      if (!disabled) {
-        draw(false);
-        onClick();
+      if (disabled) {
+        return;
       }
+      draw(false);
+      // A button sitting inside a scrolling list must not fire because the finger happened to lift
+      // over it at the end of a drag. Buttons outside a list are unaffected: the flag is only ever
+      // set by a gesture that began inside a scroll area and travelled far enough to be a scroll.
+      if (scrollGestureConsumedTap()) {
+        return;
+      }
+      onClick();
     });
     hitArea.on('pointerout', () => {
       if (!disabled) {

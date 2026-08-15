@@ -13,10 +13,31 @@ import {
 } from '../game/gameplayConfig';
 import { occupyEmptyLand } from './AcquisitionSystem';
 import { checkVictory, findLand, getAcquisitionTicksRequired, getSiegeOrder, isAdjacent, refreshPlayerVisibility } from './LandSystem';
-import { applyResourceDelta, canSpend, getArmyGoldUpkeep, getBarracksLevel, refreshAllLandOutputs } from './ResourceSystem';
+import {
+  applyResourceDelta,
+  canSpend,
+  getArmyGoldUpkeep,
+  getBarracksLevel,
+  getFocusDefenseMult,
+  getFocusGarrisonMult,
+  refreshAllLandOutputs,
+} from './ResourceSystem';
 import { getCourtBonuses } from './CourtSystem';
 import { eraIndex } from './empire/MandateSystem';
-import type { Army, ArmyComposition, BattlePreview, BattleStance, GameState, Land, RecruitmentOrder, SiegeOrder, UnitCounts } from '../state/types';
+import {
+  ARMY_DRILL_FOOD_BASE,
+  ARMY_DRILL_GOLD_BASE,
+  ARMY_DRILL_LEVEL_ESCALATION,
+  ARMY_DRILL_XP_SHARE,
+  ARMY_EQUIP_GOLD_BASE,
+  ARMY_EQUIP_PER_SOLDIER,
+  ARMY_EQUIP_SUPPLIES_BASE,
+  ARMY_EQUIP_TIER_ESCALATION,
+  ARMY_REINFORCE_GOLD_PER_SOLDIER,
+  ARMY_REINFORCE_SOLDIERS,
+  ARMY_REINFORCE_SUPPLY_GAIN,
+} from '../game/ascentConfig';
+import type { Army, ArmyComposition, BattlePreview, BattleStance, GameState, Land, MovementOrder, RecruitmentOrder, ResourceBag, SiegeOrder, UnitCounts } from '../state/types';
 import { heroName, t, tickLabel } from '../i18n';
 
 const MAX_ARMY_LEVEL = 5;
@@ -54,10 +75,18 @@ export function armyPower(state: GameState, army: Army): number {
   return unitPower * (army.morale / 100) * (army.supply / 100) * powerMult * levelMult * eliteMult * generalMult;
 }
 
+/**
+ * The best elite tier any host can reach: levy → trained → royal guard.
+ *
+ * Shared by the muster (which sets the starting tier) and `upgradeArmy` (which buys the way up),
+ * so equipment cannot be bought past the ceiling the game is built around.
+ */
+export const MAX_ELITE_TIER = 2;
+
 /** Elite tier for a freshly-mustered army: rises with barracks and era (levy → trained → royal guard). */
 function computeEliteTier(state: GameState, barracksLevel: number): number {
   const eraBonus = eraIndex(state.mandate?.era ?? 'founding') >= 2 ? 1 : 0;
-  return Math.min(2, (barracksLevel >= 2 ? 1 : 0) + eraBonus);
+  return Math.min(MAX_ELITE_TIER, (barracksLevel >= 2 ? 1 : 0) + eraBonus);
 }
 
 /**
@@ -151,7 +180,11 @@ function defenderPower(state: GameState, targetLand: Land): number {
   // Walls + local militia hold a district against small raids, but a serious host can
   // only be stopped by a standing field army — so keeping an army alive matters, and
   // turtling behind walls is no longer a win button (see WarSystem rebalance).
-  const garrison = (targetLand.defense * 16 + targetLand.localSoldiers * 2.5) * terrainDefenseMultiplier(targetLand);
+  // A province set to defend holds harder than its wall count says — the whole point of that focus
+  // in Ascent. `getFocusDefenseMult` returns 1 in every other mode and for every other focus.
+  const garrison = (targetLand.defense * 16 + targetLand.localSoldiers * 2.5)
+    * terrainDefenseMultiplier(targetLand)
+    * getFocusDefenseMult(state, targetLand);
   return garrison + (defendingArmy ? armyPower(state, defendingArmy) : 0);
 }
 
@@ -181,15 +214,31 @@ export function createBattlePreview(
   };
 }
 
+/** Traversal rule for `findLandPath`: whether a march may pass *through* this province. */
+export type LandTraversalPredicate = (land: Land) => boolean;
+
+/** The default rule, unchanged: a player host marches only across its own ground. */
+const playerOwnedTraversal: LandTraversalPredicate = (land) => land.ownerId === PLAYER_KINGDOM_ID;
+
 /**
  * Shortest path of land ids from `fromLandId` to `toLandId`, excluding `fromLandId`
  * (so the last entry is always `toLandId`). Every land along the way except the
- * destination must belong to the player, since marching through hostile or
+ * destination must satisfy `canTraverse`, since marching through hostile or
  * unclaimed territory isn't allowed - the destination itself may be neutral or
  * enemy-owned and is resolved as a battle on arrival. Returns undefined if no
  * such route exists.
+ *
+ * `canTraverse` defaults to "the player owns it", which is what every pre-existing caller means
+ * and relies on. It is a parameter because two callers legitimately need other rules: a host
+ * hunting an enemy across ground nobody owns, and an invader marching on the player, neither of
+ * which is confined to the player's provinces.
  */
-export function findLandPath(state: GameState, fromLandId: string, toLandId: string): string[] | undefined {
+export function findLandPath(
+  state: GameState,
+  fromLandId: string,
+  toLandId: string,
+  canTraverse: LandTraversalPredicate = playerOwnedTraversal,
+): string[] | undefined {
   if (fromLandId === toLandId) {
     return undefined;
   }
@@ -223,7 +272,7 @@ export function findLandPath(state: GameState, fromLandId: string, toLandId: str
       }
 
       const neighborLand = findLand(state, neighborId);
-      if (neighborLand?.ownerId === PLAYER_KINGDOM_ID) {
+      if (neighborLand && canTraverse(neighborLand)) {
         queue.push(neighborId);
       }
     }
@@ -279,6 +328,220 @@ export function issueMoveOrder(state: GameState, armyId: string, targetLandId: s
   return true;
 }
 
+// ─── Improving a standing host ────────────────────────────────────────────────
+
+/** The three ways a host can be made better without raising a new one. */
+export type ArmyUpgradeKind = 'equip' | 'reinforce' | 'drill';
+
+export interface ArmyUpgradeOption {
+  kind: ArmyUpgradeKind;
+  cost: Partial<ResourceBag>;
+  /** What the player gets, already computed — e.g. soldiers added, tier reached. */
+  gain: number;
+  available: boolean;
+  /** Why not, when `available` is false. */
+  reason?: string;
+}
+
+/** Soldiers a reinforcement would actually add, capped by the people available. */
+function reinforcementSize(state: GameState): number {
+  return Math.max(0, Math.min(ARMY_REINFORCE_SOLDIERS, Math.floor(state.resources.humans)));
+}
+
+/**
+ * What each upgrade would cost this host, and whether it can be bought.
+ *
+ * Quoted rather than merely charged, because the detail screen shows all three side by side and
+ * the choice between "more men", "better kit" and "more drill" is only a choice if their prices
+ * are visible together.
+ */
+export function getArmyUpgradeOptions(state: GameState, armyId: string): ArmyUpgradeOption[] {
+  const army = state.armies.find((candidate) => candidate.id === armyId);
+  if (!army) return [];
+
+  const size = totalUnits(army);
+  const tier = army.elite ?? 0;
+  const equipCost: Partial<ResourceBag> = {
+    gold: Math.round((ARMY_EQUIP_GOLD_BASE + size * ARMY_EQUIP_PER_SOLDIER) * ARMY_EQUIP_TIER_ESCALATION ** tier),
+    supplies: Math.round((ARMY_EQUIP_SUPPLIES_BASE + size * ARMY_EQUIP_PER_SOLDIER) * ARMY_EQUIP_TIER_ESCALATION ** tier),
+  };
+
+  const recruits = reinforcementSize(state);
+  const reinforceCost: Partial<ResourceBag> = {
+    gold: Math.round(recruits * ARMY_REINFORCE_GOLD_PER_SOLDIER),
+    humans: recruits,
+  };
+
+  const levelCap = getArmyLevelCap(state);
+  const drillCost: Partial<ResourceBag> = {
+    gold: Math.round(ARMY_DRILL_GOLD_BASE * ARMY_DRILL_LEVEL_ESCALATION ** Math.max(0, army.level - 1)),
+    food: Math.round(ARMY_DRILL_FOOD_BASE * ARMY_DRILL_LEVEL_ESCALATION ** Math.max(0, army.level - 1)),
+  };
+
+  return [
+    {
+      kind: 'equip',
+      cost: equipCost,
+      gain: tier + 1,
+      available: tier < MAX_ELITE_TIER && canSpend(state, equipCost),
+      reason: tier >= MAX_ELITE_TIER
+        ? t('ascent.army.equipMaxed')
+        : !canSpend(state, equipCost) ? t('ascent.army.cannotAfford') : undefined,
+    },
+    {
+      kind: 'reinforce',
+      cost: reinforceCost,
+      gain: recruits,
+      available: recruits > 0 && canSpend(state, reinforceCost),
+      reason: recruits <= 0
+        ? t('ascent.army.noPeople')
+        : !canSpend(state, reinforceCost) ? t('ascent.army.cannotAfford') : undefined,
+    },
+    {
+      kind: 'drill',
+      cost: drillCost,
+      gain: army.level + 1,
+      available: army.level < levelCap && canSpend(state, drillCost),
+      // The barracks gate the ceiling, so drill cannot outrun the buildings that justify it.
+      reason: army.level >= levelCap
+        ? t('ascent.army.drillCapped', { cap: levelCap })
+        : !canSpend(state, drillCost) ? t('ascent.army.cannotAfford') : undefined,
+    },
+  ];
+}
+
+/**
+ * Spends resources to improve a host that already exists.
+ *
+ * One entry point for all three axes so the prices, the caps and the messages stay in one place.
+ * `reinforce` is the significant one: it is the first thing in the game that makes an army grow,
+ * and it is what makes "a few strong hosts" a real alternative to "many weak ones" rather than a
+ * strategy the rules quietly forbid.
+ */
+export function upgradeArmy(state: GameState, armyId: string, kind: ArmyUpgradeKind): boolean {
+  const army = state.armies.find((candidate) => candidate.id === armyId);
+  if (!army || army.kingdomId !== PLAYER_KINGDOM_ID) return false;
+
+  const option = getArmyUpgradeOptions(state, armyId).find((candidate) => candidate.kind === kind);
+  if (!option || !option.available) {
+    if (option?.reason) state.message = option.reason;
+    return false;
+  }
+
+  const spend: Partial<ResourceBag> = {};
+  for (const [key, value] of Object.entries(option.cost)) {
+    spend[key as keyof ResourceBag] = -(value ?? 0);
+  }
+  applyResourceDelta(state, spend);
+
+  if (kind === 'equip') {
+    army.elite = Math.min(MAX_ELITE_TIER, (army.elite ?? 0) + 1);
+    state.message = t('msg.armyEquipped', { army: army.name, tier: army.elite });
+    return true;
+  }
+
+  if (kind === 'reinforce') {
+    // Fresh men join in the host's own proportions, so a cavalry-heavy army stays one.
+    const added = option.gain;
+    const size = Math.max(1, totalUnits(army));
+    const archers = Math.round(added * (army.units.archers / size));
+    const heavy = Math.round(added * (army.units.heavyInfantry / size));
+    army.units.archers += archers;
+    army.units.heavyInfantry += heavy;
+    army.units.spearmen += Math.max(0, added - archers - heavy);
+    // They arrive with their own baggage, which lifts a starving host off the floor.
+    army.supply = Math.min(100, army.supply + ARMY_REINFORCE_SUPPLY_GAIN);
+    army.rations = Math.min(100, (army.rations ?? 0) + ARMY_REINFORCE_SUPPLY_GAIN);
+    state.message = t('msg.armyReinforced', { army: army.name, n: added });
+    return true;
+  }
+
+  army.experience += Math.round(army.experienceToNextLevel * ARMY_DRILL_XP_SHARE);
+  while (army.experience >= army.experienceToNextLevel && army.level < getArmyLevelCap(state)) {
+    army.experience -= army.experienceToNextLevel;
+    army.level += 1;
+    army.experienceToNextLevel = getArmyExperienceToNext(army.level);
+  }
+  state.message = t('msg.armyDrilled', { army: army.name, level: army.level });
+  return true;
+}
+
+/**
+ * Sends a host hunting an enemy army rather than a province.
+ *
+ * The difference from `issueMoveOrder` is that the destination is a host, not a place: the order
+ * carries `pursueArmyId` and re-paths each tick. Interception is the point — a raider crossing the
+ * realm could previously only be answered by guessing which province it would hit and standing
+ * there.
+ */
+export function issueHuntOrder(state: GameState, armyId: string, quarryArmyId: string): boolean {
+  const army = state.armies.find((candidate) => candidate.id === armyId);
+  const quarry = state.armies.find((candidate) => candidate.id === quarryArmyId);
+  if (!army || !quarry || army.id === quarry.id) {
+    return false;
+  }
+
+  const path = findLandPath(state, army.landId, quarry.landId, pursuitTraversal);
+  if (!path) {
+    state.message = t('msg.noRoute');
+    return false;
+  }
+
+  state.movementOrders = state.movementOrders.filter((order) => order.armyId !== armyId);
+  const firstLand = findLand(state, path[0]);
+  state.movementOrders.push({
+    armyId,
+    path,
+    progress: 0,
+    legRequired: firstLand ? getLegTicks(army, firstLand) : 1,
+    pursueArmyId: quarryArmyId,
+  });
+
+  state.selectedArmyId = undefined;
+  state.message = t('msg.hunts', { army: army.name, quarry: quarry.name });
+  return true;
+}
+
+/**
+ * Ground a hunting host may cross: anything but a province held by a rival that is not the quarry.
+ *
+ * A pursuit that could only cross the player's own provinces would be no pursuit at all — the
+ * quarry is, by definition, standing somewhere the player does not hold.
+ */
+const pursuitTraversal: LandTraversalPredicate = (land) => land.ownerId === PLAYER_KINGDOM_ID
+  || land.ownerId === 'neutral';
+
+/**
+ * Keeps a pursuit pointed at its quarry. Returns false when the hunt is over and the order should
+ * be dropped — the quarry is dead, or there is no longer a way to reach it.
+ */
+function repathPursuit(state: GameState, army: Army, order: MovementOrder): boolean {
+  const quarry = state.armies.find((candidate) => candidate.id === order.pursueArmyId);
+  if (!quarry) {
+    state.message = t('msg.pursuitLost', { army: army.name });
+    return false;
+  }
+
+  const destination = order.path[order.path.length - 1];
+  if (destination === quarry.landId) {
+    return true;
+  }
+
+  const path = findLandPath(state, army.landId, quarry.landId, pursuitTraversal);
+  if (!path) {
+    state.message = t('msg.pursuitLost', { army: army.name });
+    return false;
+  }
+
+  order.path = path;
+  const firstLand = findLand(state, path[0]);
+  // Re-pathing restarts the leg: the host turns rather than teleporting its accumulated progress
+  // onto a different road.
+  order.progress = 0;
+  order.legRequired = firstLand ? getLegTicks(army, firstLand) : 1;
+  return true;
+}
+
 /** Advances every in-progress march by one tick, moving armies and resolving arrivals/battles. */
 export function progressMovementOrders(state: GameState): boolean {
   let changed = false;
@@ -286,6 +549,22 @@ export function progressMovementOrders(state: GameState): boolean {
   for (const order of [...state.movementOrders]) {
     const army = state.armies.find((candidate) => candidate.id === order.armyId);
     if (!army) {
+      state.movementOrders = state.movementOrders.filter((candidate) => candidate !== order);
+      continue;
+    }
+
+    // Invader marches are owned by `tickInvasions`, which advances them a hop at a time against a
+    // target its own director may re-point. They carry a `MovementOrder` purely so the renderer
+    // draws them marching; advancing them here as well would move them twice a tick and resolve
+    // their arrivals with the player's rules.
+    if (army.kingdomId !== PLAYER_KINGDOM_ID) {
+      continue;
+    }
+
+    // A pursuit chases a moving target, so its route is only good for as long as the quarry stays
+    // put. Re-path before spending the tick, not after, or the host walks a leg toward where the
+    // enemy was.
+    if (order.pursueArmyId && !repathPursuit(state, army, order)) {
       state.movementOrders = state.movementOrders.filter((candidate) => candidate !== order);
       continue;
     }
@@ -421,7 +700,8 @@ export function progressRecruitmentOrders(state: GameState): boolean {
       continue;
     }
 
-    const total = order.totalSoldiers;
+    // A province set to raise soldiers musters a fuller host from the same order. 1 everywhere else.
+    const total = Math.round(order.totalSoldiers * getFocusGarrisonMult(state, land));
     const bonuses = getCourtBonuses(state);
     const barracksLevel = getBarracksLevel(land);
     const level = Math.min(getArmyLevelCap(state), Math.max(1, 1 + Math.floor(barracksLevel / 2) + bonuses.nextArmyLevelBonus));

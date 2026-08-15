@@ -57,6 +57,17 @@ export function waveDelayTicks(state: GameState): number {
   return doctrine(state, 'mountain-pass');
 }
 
+/**
+ * Surveyors' Corps — extra provinces the realm can be courting at once.
+ *
+ * Says "now I can open a second claim while the first is still running", which is the test every
+ * card in this file has to pass. Claiming is capped at one at a time precisely so that raising the
+ * cap is worth drafting for.
+ */
+export function extraClaimSlots(state: GameState): number {
+  return doctrine(state, 'surveyors-corps');
+}
+
 /** Salt Roads — share off every wall and company bought on the response card. */
 export function warPurchaseDiscount(state: GameState): number {
   return Math.min(0.6, doctrine(state, 'salt-roads') * 0.22);

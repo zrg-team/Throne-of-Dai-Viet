@@ -2,7 +2,7 @@ import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { CAPITAL_GRACE_TICKS, LOYALTY_SETTLE_PER_TICK, SUMMON_EVERY_N_WAVES } from '../../game/ascentConfig';
 import { pushToast } from '../empire/notifications';
 import { progressAcquisitions } from '../AcquisitionSystem';
-import { collectPlayerIncome, progressBuildOrders } from '../ResourceSystem';
+import { collectPlayerIncome, getFocusLoyaltyBonus, progressBuildOrders } from '../ResourceSystem';
 import {
   progressArmyLogistics,
   progressMovementOrders,
@@ -21,6 +21,7 @@ import { tickAscentAutopilot } from './AutopilotSystem';
 import { advanceBattle, beginBattle } from './BattleSystem';
 import { tickAscentProgress } from './PowerSystem';
 import { tickRaids, tickWaveDirector } from './WaveDirector';
+import { tickEnemyCommand } from './EnemyCommandDirector';
 import { detectConquests, ensureAscentLaneState, refreshAscentLaneState } from './ConquestSystem';
 import { tickDecisionDirector, tickPromptCooldowns } from './DecisionDirector';
 import { endAscentRun } from './AscentResolver';
@@ -88,7 +89,8 @@ function settleOwnedLands(state: GameState): void {
   for (const land of state.lands) {
     if (land.ownerId !== PLAYER_KINGDOM_ID) continue;
     if (land.loyalty >= 100) continue;
-    land.loyalty = Math.min(100, land.loyalty + LOYALTY_SETTLE_PER_TICK);
+    // A province held as a fortress settles faster — the garrison is the reassurance.
+    land.loyalty = Math.min(100, land.loyalty + LOYALTY_SETTLE_PER_TICK + getFocusLoyaltyBonus(state, land));
   }
 }
 
@@ -155,6 +157,9 @@ export function advanceAscentTick(state: GameState): void {
   tickWaveDirector(state);
   tickRaids(state);
   tickAutoDefend(state);
+  // Before `tickInvasions`, so a host spawned this tick marches on the tick it was given orders,
+  // and so a host that decided to withdraw does not spend one more tick advancing first.
+  tickEnemyCommand(state);
   tickInvasions(state);
 
   // A field battle is now something the player watches and steers.

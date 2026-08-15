@@ -18,6 +18,7 @@ import { applyResourceDelta, canSpend, refreshAllLandOutputs } from '../Resource
 import { pushToast } from '../empire/notifications';
 import { enqueueAscentPrompt } from './AscentState';
 import { computeFieldDefencePower, contestedDefencePower } from './PowerSystem';
+import { launchPunitiveHost } from './EnemyCommandDirector';
 import { t } from '../../i18n';
 import type { GameState, Kingdom, RivalDemandOption } from '../../state/types';
 
@@ -297,8 +298,16 @@ export function resolveRivalDemand(
 
     case 'refuse': {
       cools(state, kingdom, 20, 'defiance');
-      // The teeth: their host is already on the road.
-      ascent.ticksToWave = Math.max(1, ascent.ticksToWave - TRIBUTE_REFUSE_TICKS);
+      // The teeth: their host is already on the road — a real one.
+      //
+      // This used only to shorten `ticksToWave`, which meant refusing tribute brought forward a
+      // wave that was coming anyway, from whichever empire the wave director happened to pick.
+      // The consequence of defying *this* kingdom should be *this* kingdom's army, and it should
+      // be visible on the map rather than inferred from a countdown. Falls back to the old nudge
+      // when the map is already too crowded to add a host.
+      if (!launchPunitiveHost(state, kingdom.id)) {
+        ascent.ticksToWave = Math.max(1, ascent.ticksToWave - TRIBUTE_REFUSE_TICKS);
+      }
       pushToast(state, t('ascent.rival.tributeRefused', { kingdom: kingdom.name }), 'threat');
       break;
     }
@@ -344,7 +353,11 @@ export function resolveRivalDemand(
     case 'defy': {
       cools(state, kingdom, 34, 'defiance');
       kingdom.warAppetite = Math.min(100, (kingdom.warAppetite ?? 0) + 45);
-      ascent.ticksToWave = Math.max(1, ascent.ticksToWave - TRIBUTE_REFUSE_TICKS);
+      // Defying a demand for submission is the harder refusal, so it earns the heavier answer:
+      // a war host aimed at the seat rather than a raid on the border.
+      if (!launchPunitiveHost(state, kingdom.id, { conquest: true, sizeMult: 1.2 })) {
+        ascent.ticksToWave = Math.max(1, ascent.ticksToWave - TRIBUTE_REFUSE_TICKS);
+      }
       pushToast(state, t('ascent.rival.defied', { kingdom: kingdom.name }), 'threat');
       break;
     }

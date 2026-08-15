@@ -2,6 +2,7 @@ import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../game/constants';
 import { getAcquisitionOrder, findLand, isLandVisibleToPlayer, refreshPlayerVisibility } from './LandSystem';
 import { applyResourceDelta, canSpend, refreshAllLandOutputs } from './ResourceSystem';
 import { getCourtBonuses } from './CourtSystem';
+import { extraClaimSlots } from './ascent/DoctrineSystem';
 import type { AcquisitionMethod, AcquisitionOrder, Army, GameState, Hero, Land, ResourceBag } from '../state/types';
 import { formatResourceList, heroName, t } from '../i18n';
 
@@ -26,6 +27,110 @@ const BUILDING_ACQUISITION_BONUS: Partial<Record<string, Partial<ResourceBag>>> 
   mine: { supplies: 6 },
   market: { gold: 10 },
 };
+
+// ─── Claim Slots ──────────────────────────────────────────────────────────────
+
+/**
+ * How many provinces the realm can be courting at once.
+ *
+ * Claiming was previously unbounded: the only guard was one order per *land*, so a rich player
+ * could open a claim on every neutral province on their border in a single sitting and simply wait.
+ * That made expansion a question of treasury size rather than of choosing where to go next, and it
+ * is why "which province, and by what method?" never felt like a decision worth the two taps.
+ *
+ * One at a time by default, so the choice is forced. The ceiling is raised by things the player
+ * earns — the Surveyors' Corps power card and the Surveyors' Charter edict — which is what turns
+ * "I want to expand faster" into something to build toward rather than a slider.
+ *
+ * Ascent only: the classic modes have never had a cap and must keep behaving exactly as they did.
+ */
+export function getClaimSlots(state: GameState): number {
+  if (state.gameMode !== 'ascent') {
+    return Number.POSITIVE_INFINITY;
+  }
+  return 1 + extraClaimSlots(state) + getCourtBonuses(state).claimSlotBonus;
+}
+
+/** Claims the player currently has in flight. Bot-owned orders are not the player's problem. */
+export function getPlayerClaimCount(state: GameState): number {
+  return state.acquisitionOrders.filter((order) => order.buyerId === PLAYER_KINGDOM_ID).length;
+}
+
+/**
+ * Whether another claim can be opened right now.
+ *
+ * Shared by all four starters and by `buildMethodOptions`, so a method that cannot be afforded in
+ * *slots* is greyed out with a reason rather than silently failing on the tap — the same contract
+ * that file already keeps for gold, supplies and heroes.
+ */
+export function canStartClaim(state: GameState): boolean {
+  return getPlayerClaimCount(state) < getClaimSlots(state);
+}
+
+/** The reason a claim cannot start, or undefined if one can. */
+export function claimBlockedReason(state: GameState): string | undefined {
+  if (canStartClaim(state)) return undefined;
+  return t('ascent.claim.allCommitted', { used: getPlayerClaimCount(state), cap: getClaimSlots(state) });
+}
+
+/** Guard shared by the four starters. Sets `state.message` so a blocked tap explains itself. */
+function blockedByClaimSlots(state: GameState): boolean {
+  const reason = claimBlockedReason(state);
+  if (!reason) return false;
+  state.message = reason;
+  return true;
+}
+
+/**
+ * Calls off a claim in progress and hands back what can honestly be handed back.
+ *
+ * There was no way to do this at all: an order ended only when the world drifted out from under it
+ * — the diplomat was reassigned, or the intimidating host marched away — so a claim opened by
+ * mistake occupied its slot until it completed. With a cap in place that would be a trap rather
+ * than a constraint.
+ *
+ * Refunds are deliberately partial and deliberately explicit. A bribe's gold is in the noble's
+ * hands already (`bribeLand` spends it before the order exists) and the settlers of a settle order
+ * have physically left; only the diplomatic mission's supplies are still in the baggage train, and
+ * even those come back short. The UI states the figure before the player confirms.
+ */
+export function cancelAcquisition(state: GameState, landId: string): boolean {
+  const index = state.acquisitionOrders.findIndex(
+    (order) => order.landId === landId && order.buyerId === PLAYER_KINGDOM_ID,
+  );
+  if (index < 0) return false;
+
+  const order = state.acquisitionOrders[index];
+  const land = findLand(state, landId);
+
+  // No fatigue: the envoy was recalled, not worn out by a mission they completed.
+  releaseDiplomaticHero(state, order, false);
+
+  const refund = getClaimRefund(state, order);
+  if (Object.keys(refund).length > 0) {
+    applyResourceDelta(state, refund);
+  }
+
+  state.acquisitionOrders.splice(index, 1);
+  // The order was granting sight of the province; without this the map keeps showing it.
+  refreshPlayerVisibility(state);
+  state.message = t('ascent.claim.cancelled', { land: land?.name ?? '' });
+  return true;
+}
+
+/** What calling off a claim hands back. Exported so the confirm sheet can state it honestly. */
+export function getClaimRefund(state: GameState, order: AcquisitionOrder): Partial<ResourceBag> {
+  if (order.method !== 'diplomacy') {
+    // Bribe gold is spent, settlers have left, an intimidating host costs nothing to recall.
+    return {};
+  }
+  const land = findLand(state, order.landId);
+  if (!land) return {};
+  return { supplies: Math.round(getDiplomacySuppliesCost(state, land) * CLAIM_REFUND_SHARE) };
+}
+
+/** Share of a recallable claim's cost that comes back. The rest is the cost of changing your mind. */
+const CLAIM_REFUND_SHARE = 0.5;
 
 // ─── Derived Scores ───────────────────────────────────────────────────────────
 
@@ -157,6 +262,8 @@ export function bribeLand(state: GameState, landId: string): boolean {
     return false;
   }
 
+  if (blockedByClaimSlots(state)) return false;
+
   const hasOwnedNeighbor = land.neighbors.some((nId) => findLand(state, nId)?.ownerId === PLAYER_KINGDOM_ID);
   if (!hasOwnedNeighbor) {
     state.message = t('msg.neutralAdjacentOnly');
@@ -201,6 +308,8 @@ export function startDiplomaticClaim(state: GameState, landId: string, heroId?: 
     state.message = t('msg.acquisitionProgress', { land: land.name });
     return false;
   }
+
+  if (blockedByClaimSlots(state)) return false;
 
   const hasOwnedNeighbor = land.neighbors.some((nId) => findLand(state, nId)?.ownerId === PLAYER_KINGDOM_ID);
   if (!hasOwnedNeighbor) {
@@ -262,6 +371,8 @@ export function startIntimidation(state: GameState, landId: string, armyId: stri
     return false;
   }
 
+  if (blockedByClaimSlots(state)) return false;
+
   const army = state.armies.find((a) => a.id === armyId && a.kingdomId === PLAYER_KINGDOM_ID);
   if (!army) return false;
 
@@ -307,6 +418,8 @@ export function settleLand(state: GameState, landId: string): boolean {
     state.message = t('msg.acquisitionProgress', { land: land.name });
     return false;
   }
+
+  if (blockedByClaimSlots(state)) return false;
 
   const hasOwnedNeighbor = land.neighbors.some((nId) => findLand(state, nId)?.ownerId === PLAYER_KINGDOM_ID);
   if (!hasOwnedNeighbor) {
