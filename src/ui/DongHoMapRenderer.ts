@@ -7,7 +7,7 @@ import { PIGMENT } from './ink/palette';
 import { groundTone, hatchPoly, inkPath, mulberry32, printedShape, washFill, type Pt } from './ink/stroke';
 import { areca, bamboo, banana, banyan, farmer, grassTuft, karstRange, softRidge, tree } from './ink/props';
 import { drawFieldPlot, paddyLattice } from './ink/settlements';
-import { mixPigment, seasonPalette } from './ink/season';
+import { groundCast, mixPigment, seasonPalette } from './ink/season';
 import { scatterDensity } from '../game/graphicsQuality';
 
 /**
@@ -30,9 +30,10 @@ import { scatterDensity } from '../game/graphicsQuality';
 /**
  * Ground tone per terrain. `null` means bare paper — mountains carry their own fill.
  *
- * Reads `seasonPalette()`, which on the map is **pinned to `BAKE_SEASON`**: soil does not change
- * colour four times a year, and a version that did was indistinguishable from the full-screen filter
- * this pass removed. The calendar lives in what grows out of the ground — see `foliagePalette()`.
+ * Reads `seasonPalette()`, which on the map is **pinned to `BAKE_SEASON`**: this fill is the
+ * expensive half of the terrain pass and only needs redrawing when a province changes hands. What
+ * turns with the calendar is the softer `groundCast()` laid over this inside the *decoration* layer,
+ * which is re-inked in ~170 ms — see `ink/season.ts`.
  *
  * On the menu diorama, drawn once per launch and never re-baked, the pin is the real season, so the
  * title screen still shows the ground the month deserves.
@@ -120,9 +121,18 @@ interface ScatterItem {
   seed: number;
 }
 
+/** One visible cell, kept so the seasonal ground cast can be re-laid without re-walking the map. */
+interface GroundCell {
+  x: number;
+  y: number;
+  terrain: HexTerrainType;
+}
+
 export class DongHoMapRenderer implements MapRenderer {
   /** Where every scattered prop stands, kept so a season change can repaint without replanting. */
   private scatterPlan?: ScatterItem[];
+  /** The cells the cast is laid on, in draw order. Same lifetime as the plan. */
+  private groundPlan?: GroundCell[];
   private scatterTileSize = 0;
 
   constructor(
@@ -147,18 +157,20 @@ export class DongHoMapRenderer implements MapRenderer {
     this.paintWater(graphics, visible, ctx);
     this.paintRanges(graphics, visible, ctx);
     this.paintFields(graphics, visible, ctx);
+
     this.scatterPlan = this.planScatter(visible, ctx, tileSize);
+    this.groundPlan = visible.map((tile) => ({ ...ctx.centreOf(tile), terrain: tile.terrain }));
     this.scatterTileSize = tileSize;
-    this.drawScatter(decoration, this.scatterPlan, tileSize);
+    this.paintDecoration(decoration);
   }
 
   /**
-   * Redraws only the scatter, in whatever season `foliagePalette()` now names.
+   * Re-inks the seasonal half of the map, in whatever season `foliagePalette()` now names.
    *
-   * The calendar turns every couple of economy ticks; the ground under it turns only when a province
-   * changes hands. Redrawing the whole landscape for a change of leaf colour was measured at ~1.5 s
-   * and is what kept the map's look pinned to one season for so long. This repaints the layer that
-   * actually differs and leaves the other four passes alone.
+   * The calendar turns every couple of economy ticks; the ground fill under it turns only when a
+   * province changes hands. Redrawing the whole landscape for a change of leaf colour was measured
+   * at ~1.5 s and is what kept the map's look pinned to one season for so long. This repaints the
+   * one layer that actually differs and leaves the other four passes alone.
    *
    * The plan — where every prop stands, how big, which kind — is *not* recomputed. Positions must not
    * move when the leaves turn, or autumn would replant the country; and the placement pass (scatter
@@ -169,8 +181,36 @@ export class DongHoMapRenderer implements MapRenderer {
     if (!this.scatterPlan) {
       return;
     }
+    this.paintDecoration(decoration);
+  }
+
+  /**
+   * The decoration layer, whole: the season's tone on the ground, then everything standing in it.
+   *
+   * Both halves live here because both turn with the calendar and neither may be a live `Graphics`
+   * above the bake — a layer that re-submits a few hundred tessellated ground circles *per frame*
+   * was measured at three times the per-tick cost of the whole map (50 ms -> 161 ms). Drawn into the
+   * decoration layer instead, it is composited into the cached texture and costs nothing per frame;
+   * it also lands *under* the props and above the terrain fill, which is the only place a tone can
+   * sit without washing over the roofs and the water like the full-screen filter this replaced.
+   */
+  private paintDecoration(decoration: Phaser.GameObjects.Graphics): void {
     decoration.clear();
-    this.drawScatter(decoration, this.scatterPlan, this.scatterTileSize);
+    const size = this.scatterTileSize;
+    for (const cell of this.groundPlan ?? []) {
+      const cast = groundCast(cell.terrain);
+      if (!cast) {
+        continue;
+      }
+      // Wide and many-ringed on purpose. `groundTone` blends by overlapping its falloff with the
+      // neighbouring cells', and at the alpha this layer needs, a cell-sized radius over five rings
+      // left visible concentric bands and a hard inner disc — the hex grid leaking back into the
+      // picture, which is the one thing this renderer exists to avoid. Ten rings reaching well past
+      // the neighbours is a smooth gradient; it costs ~2400 fills over a visible map, paid once per
+      // season inside the bake and never per frame.
+      groundTone(decoration, cell.x, cell.y, size * 1.75, cast.colour, cast.alpha, 10);
+    }
+    this.drawScatter(decoration, this.scatterPlan ?? [], size);
   }
 
   /**

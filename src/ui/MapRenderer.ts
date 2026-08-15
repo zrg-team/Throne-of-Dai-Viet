@@ -71,12 +71,13 @@ export interface MapRenderer {
   drawLandscape?(context: LandscapeContext): void;
 
   /**
-   * Re-inks the scatter in the current season, without replanning where anything stands.
+   * Re-inks the seasonal layers — the prop scatter and the tone under it — without replanning where
+   * anything stands.
    *
-   * Offered separately from `drawLandscape` because the two layers turn at completely different
-   * rates: the ground changes when a province changes hands, the leaves change every time the
+   * Offered separately from `drawLandscape` because the two halves turn at completely different
+   * rates: the terrain fill changes when a province changes hands, the leaves change every time the
    * calendar moves. A renderer that has no seasonal treatment simply omits this and the scene
-   * leaves its scatter alone.
+   * leaves its decoration layer alone.
    */
   repaintScatter?(decoration: Phaser.GameObjects.Graphics): void;
 

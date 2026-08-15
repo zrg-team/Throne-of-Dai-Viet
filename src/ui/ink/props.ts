@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { PIGMENT, shadePigment } from './palette';
 import { inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './stroke';
 import { UNIT } from './proportion';
-import { foliagePalette } from './season';
+import { foliagePalette, type SeasonPalette } from './season';
 
 /**
  * The vocabulary — every silhouette that makes a landscape read as Đại Việt rather than as nowhere.
@@ -35,20 +35,40 @@ export function groundShadow(g: G, x: number, y: number, width: number, alpha = 
 /**
  * Cây — a bushy canopy: scalloped, sage, with a dark rim and one or two interior scallops for
  * volume. Scattered in drifts of varying size, never as one symbol repeated on a grid.
+ *
+ * **This is where the year is read.** The crown is drawn four different ways — in flower, in full
+ * leaf, gold with limbs showing through, and as bare branches under snow — because at map zoom four
+ * shades of the same scalloped stamp are four smudges, and the version of this that only changed hue
+ * had to be propped up by a full-screen colour filter to be legible at all. See `ink/season.ts`.
  */
 export function tree(g: G, x: number, y: number, scale: number, seed: number): void {
   const s = scale * UNIT.tree;
   const rand = mulberry32(seed);
   const radius = 7 * s;
   const palette = foliagePalette();
+  // The seasonal decisions draw from their OWN stream, so that turning the year does not shift the
+  // main sequence and replant the country: a tree keeps its lobes, its wobble and its size from
+  // spring to winter, and only its crown changes.
+  const seasonal = mulberry32(seed + 977);
+  const stripped = seasonal() < palette.bareChance;
+
   inkPath(g, [{ x, y }, { x: x - 0.6 * s, y: y - radius }], seed, {
     width: 1.2 * s, alpha: 0.55, colour: PIGMENT.nau, wobble: 0.12 * s, step: 4,
   });
 
-  // Winter is the one season that changes the tree's SHAPE rather than its colour, so it leaves the
-  // scalloped crown behind entirely: bare forking branches over the same trunk.
-  if (palette.bareCanopy) {
+  // The one seasonal change that is a change of SHAPE rather than colour, so the one that genuinely
+  // cannot be done above the bake: no crown at all, just forking branches over the same trunk.
+  // Winter takes it outright; autumn takes it for a third of the wood, which is what makes a hillside
+  // read as half-dropped rather than as a hillside someone tinted gold.
+  if (palette.canopy === 'bare' || stripped) {
     bareCrown(g, x, y - radius, s, radius, rand, seed);
+    if (palette.canopy === 'turning') {
+      clingingLeaves(g, x, y - radius, s, radius, palette, seasonal);
+      leafLitter(g, x, y, s, radius, palette, seasonal);
+    }
+    if (palette.snow) {
+      snowOnBranches(g, x, y, s, radius, seasonal);
+    }
     return;
   }
 
@@ -104,6 +124,121 @@ export function tree(g: G, x: number, y: number, scale: number, seed: number): v
     }
     inkPath(g, arc, seed + 5 + pass, { width: 0.55 * s, alpha: 0.3, wobble: 0.12 * s, step: 4 });
   }
+
+  // What the leafed crown wears on top of the green.
+  if (palette.canopy === 'blossom') {
+    blossomOnCrown(g, x, crownY, s, radius, palette, seasonal);
+  } else if (palette.canopy === 'turning') {
+    // A turning tree that kept its whole crown still has to say it is *dropping*: two bare limb tips
+    // pushing out past the gold, and the leaves it has already lost lying at its foot.
+    bareTips(g, x, crownY, s, radius, seed, seasonal);
+    leafLitter(g, x, y, s, radius, palette, seasonal);
+  }
+}
+
+/**
+ * Đào and mai in flower: flecks of blossom over the crown, and the first of them on the ground.
+ *
+ * Weighted to the outside of the crown — flowers sit at the ends of the twigs, and a disc of petals
+ * spread evenly over the middle reads as a diseased tree rather than a flowering one. Two tones,
+ * because one is a stamp and two is a tree.
+ */
+function blossomOnCrown(
+  g: G, x: number, crownY: number, s: number, radius: number, palette: SeasonPalette, rand: () => number,
+): void {
+  const flowers = 10 + Math.floor(rand() * 7);
+  for (let index = 0; index < flowers; index += 1) {
+    const angle = rand() * Math.PI * 2;
+    // sqrt-biased *outward*: 1 - (1-u)^2 crowds the samples toward the rim.
+    const reach = (1 - (1 - rand()) ** 2) * 0.98;
+    g.fillStyle(rand() > 0.42 ? palette.blossom : palette.blossomAlt, 0.85);
+    g.fillCircle(
+      x + Math.cos(angle) * radius * reach * 1.02,
+      crownY + Math.sin(angle) * radius * reach * 0.86,
+      s * (0.62 + rand() * 0.5),
+    );
+  }
+  // Petals down. Kept to the ground ellipse the scatter already draws under a tree, so they read as
+  // fallen rather than as flecks floating on the field.
+  for (let index = 0; index < 3; index += 1) {
+    g.fillStyle(palette.blossom, 0.4);
+    g.fillCircle(x + (rand() - 0.5) * radius * 1.7, crownY + radius * (1.15 + rand() * 0.35), s * 0.45);
+  }
+}
+
+/** Two bare limb tips pushing out through a crown that is still mostly gold. */
+function bareTips(g: G, x: number, crownY: number, s: number, radius: number, seed: number, rand: () => number): void {
+  for (let tip = 0; tip < 2; tip += 1) {
+    const angle = -Math.PI + 0.5 + rand() * (Math.PI - 1);
+    inkPath(
+      g,
+      [
+        { x: x + Math.cos(angle) * radius * 0.5, y: crownY + Math.sin(angle) * radius * 0.45 },
+        { x: x + Math.cos(angle) * radius * 1.35, y: crownY + Math.sin(angle) * radius * 1.15 },
+      ],
+      seed + 60 + tip,
+      { width: 0.5 * s, alpha: 0.5, colour: PIGMENT.nauDark, wobble: 0.14 * s, step: 3 },
+    );
+  }
+}
+
+/** The leaves a turning tree has already dropped, lying in its own shadow. */
+function leafLitter(
+  g: G, x: number, y: number, s: number, radius: number, palette: SeasonPalette, rand: () => number,
+): void {
+  const leaves = 5 + Math.floor(rand() * 5);
+  for (let index = 0; index < leaves; index += 1) {
+    const angle = rand() * Math.PI * 2;
+    const reach = Math.sqrt(rand()) * radius * 1.5;
+    g.fillStyle(rand() > 0.5 ? palette.litter : palette.foliagePale, 0.5 + rand() * 0.25);
+    g.fillEllipse(x + Math.cos(angle) * reach, y + Math.sin(angle) * reach * 0.35, s * 1.5, s * 0.7);
+  }
+}
+
+/**
+ * The leaves still hanging on a tree that has otherwise dropped.
+ *
+ * Generous, and deliberately so: a bare autumn tree with three flecks on it is indistinguishable
+ * from a dead one, which is exactly how the first pass of this read at zoom. Enough gold to fringe
+ * the limbs is what separates *dropping* from *dead*, and the season from winter.
+ */
+function clingingLeaves(
+  g: G, x: number, topY: number, s: number, radius: number, palette: SeasonPalette, rand: () => number,
+): void {
+  const left = 7 + Math.floor(rand() * 5);
+  for (let index = 0; index < left; index += 1) {
+    const angle = -Math.PI + 0.35 + rand() * (Math.PI - 0.7);
+    // Out along the limbs rather than in around the trunk — the last leaves to go are at the tips.
+    const reach = radius * (0.75 + rand() * 0.75);
+    g.fillStyle(rand() > 0.4 ? palette.foliage : palette.foliagePale, 0.8);
+    g.fillEllipse(x + Math.cos(angle) * reach, topY + Math.sin(angle) * reach, s * 2.1, s * 1.3);
+  }
+}
+
+/**
+ * Snow lying on a bare tree, and a drift at its foot.
+ *
+ * Winter's colour is a *muted* green — on its own it says "a bit tired", not "cold". The white is
+ * what actually carries the season down at prop scale, which is why it is drawn on the branches and
+ * not left to the weather overhead: falling motes are behind the camera half the time, and a tree
+ * with snow on it is not.
+ */
+function snowOnBranches(g: G, x: number, y: number, s: number, radius: number, rand: () => number): void {
+  const caps = 3 + Math.floor(rand() * 3);
+  for (let index = 0; index < caps; index += 1) {
+    const angle = -Math.PI + 0.45 + rand() * (Math.PI - 0.9);
+    const reach = radius * (0.55 + rand() * 0.75);
+    g.fillStyle(PIGMENT.diepHi, 0.9);
+    g.fillEllipse(
+      x + Math.cos(angle) * reach,
+      y - radius + Math.sin(angle) * reach - s * 0.3,
+      s * (1.6 + rand() * 1.1),
+      s * 0.75,
+    );
+  }
+  // The drift the tree stands in, wider than the trunk and flat to the ground plane.
+  g.fillStyle(PIGMENT.diepHi, 0.55);
+  g.fillEllipse(x, y, radius * 1.5, radius * 0.36);
 }
 
 /**
@@ -142,11 +277,14 @@ function bareCrown(g: G, x: number, topY: number, s: number, radius: number, ran
  * ground looked like bare paper next to the paddy however many tufts were scattered on it. Grass is
  * a growing thing, so it takes the foliage pigment like every other growing thing, and the blades
  * fan rather than standing parallel.
+ *
+ * Grass is also the most *numerous* thing on the map — plains carry twice the tufts they used to —
+ * so it is doing more of the work of stating the season than any single tree can.
  */
 export function grassTuft(g: G, x: number, y: number, scale: number, seed: number): void {
   const s = scale * UNIT.grassTuft;
   const rand = mulberry32(seed);
-  const colour = foliagePalette().foliage;
+  const palette = foliagePalette();
   const blades = 4 + Math.floor(rand() * 2);
   for (let blade = 0; blade < blades; blade += 1) {
     // Splayed from a common root rather than offset sideways, so a tuft reads as one plant.
@@ -155,11 +293,17 @@ export function grassTuft(g: G, x: number, y: number, scale: number, seed: numbe
       g,
       [
         { x: x + lean * 0.7 * s, y },
-        { x: x + lean * 3.2 * s, y: y - (3.4 + rand() * 2.6) * s },
+        // Winter grass is cut back to two thirds: dead grass lies down, and the shorter blade is
+        // what stops a snowed field reading as a green one someone put a pale rectangle over.
+        { x: x + lean * 3.2 * s, y: y - (3.4 + rand() * 2.6) * s * (palette.snow ? 0.66 : 1) },
       ],
       seed + blade,
-      { width: 0.55 * s, alpha: 0.62, colour, wobble: 0.12 * s, step: 4 },
+      { width: 0.55 * s, alpha: 0.62, colour: palette.foliage, wobble: 0.12 * s, step: 4 },
     );
+  }
+  if (palette.snow) {
+    g.fillStyle(PIGMENT.diepHi, 0.7);
+    g.fillEllipse(x, y - 0.4 * s, 4.4 * s, 1.5 * s);
   }
 }
 
@@ -191,7 +335,7 @@ export function bamboo(g: G, x: number, y: number, scale: number, seed: number):
           ],
           [1.4 * s, 1.0 * s, 0.2 * s],
         ),
-        foliagePalette().foliage,
+        foliagePalette().evergreen,
         seed + index * 11 + leaf,
         { width: 0.5 * s, alpha: 0.5, wobble: 0.15 * s, step: 5, fillAlpha: 0.65 },
       );
@@ -214,7 +358,7 @@ export function banana(g: G, x: number, y: number, s: number, seed: number): voi
         [{ x, y: y - 7 * s }, { x: (x + bx) / 2, y: (y - 7 * s + by) / 2 - 1.5 * s }, { x: bx, y: by }],
         [1.2 * s, 4.0 * s, 0.6 * s],
       ),
-      foliagePalette().foliage,
+      foliagePalette().evergreen,
       seed + 10 + blade,
       { width: 0.6 * s, alpha: 0.55, wobble: 0.3 * s, step: 5, fillAlpha: 0.7 },
     );
@@ -244,7 +388,7 @@ export function areca(g: G, x: number, y: number, scale: number, seed: number): 
         ],
         [1.3 * s, 1.4 * s, 0.2 * s],
       ),
-      foliagePalette().foliage,
+      foliagePalette().evergreen,
       seed + 30 + frond,
       { width: 0.5 * s, alpha: 0.5, wobble: 0.2 * s, step: 4, fillAlpha: 0.65 },
     );
@@ -263,7 +407,7 @@ export function banyan(g: G, x: number, y: number, scale: number, seed: number):
     const rr = 15 * s * (1 + 0.15 * Math.cos(t * Math.PI * 2 * lobes)) * (0.9 + rand() * 0.16);
     canopy.push({ x: x + Math.cos(angle) * rr * 1.2, y: y - 16 * s + Math.sin(angle) * rr * 0.78 });
   }
-  printedShape(g, canopy, foliagePalette().foliage, seed, { width: 0.85 * s, alpha: 0.7, wobble: 0.22 * s, step: 5, fillAlpha: 0.85 });
+  printedShape(g, canopy, foliagePalette().evergreen, seed, { width: 0.85 * s, alpha: 0.7, wobble: 0.22 * s, step: 5, fillAlpha: 0.85 });
   printedShape(
     g,
     thickPath([{ x, y }, { x: x - 1 * s, y: y - 7 * s }, { x, y: y - 12 * s }], [3.2 * s, 2.4 * s, 2.0 * s]),
@@ -276,6 +420,16 @@ export function banyan(g: G, x: number, y: number, scale: number, seed: number):
     inkPath(g, [{ x: rx, y: y - 13 * s }, { x: rx + (rand() - 0.5) * 2 * s, y: y - 2 * s - rand() * 4 * s }], seed + 10 + root, {
       width: 0.55 * s, alpha: 0.4, wobble: 0.25 * s, step: 6,
     });
+  }
+  // The banyan holds its leaves through the cold, so winter states itself on top of them instead:
+  // snow lying along the upper shoulder of the crown. It is the largest tree on the map and the one
+  // at every village gate — leaving it plain green was the loudest thing arguing against the season.
+  if (foliagePalette().snow) {
+    for (let cap = 0; cap < 3; cap += 1) {
+      const angle = -Math.PI + 0.6 + cap * 0.85;
+      g.fillStyle(PIGMENT.diepHi, 0.8);
+      g.fillEllipse(x + Math.cos(angle) * 13 * s, y - 16 * s + Math.sin(angle) * 10 * s, 9 * s, 3 * s);
+    }
   }
 }
 
@@ -662,7 +816,7 @@ export function karst(g: G, x: number, baseY: number, w: number, h: number, seed
       const angle = Math.PI + (index / 10) * Math.PI;
       tuft.push({ x: sx + Math.cos(angle) * 3.2, y: sy + Math.sin(angle) * 2.1 });
     }
-    printedShape(g, tuft, foliagePalette().foliage, seed + 40 + bush, { width: 0.5, alpha: 0.4, wobble: 0.2, step: 4, fillAlpha: 0.5 });
+    printedShape(g, tuft, foliagePalette().evergreen, seed + 40 + bush, { width: 0.5, alpha: 0.4, wobble: 0.2, step: 4, fillAlpha: 0.5 });
   }
 }
 

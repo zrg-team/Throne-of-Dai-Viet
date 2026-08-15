@@ -91,13 +91,15 @@ export class MenuScene extends Phaser.Scene {
       // The title screen wears the player's own month. It is drawn once per launch and never
       // re-baked, so unlike the map it can afford the full seasonal treatment of the props: bare
       // branches in January, gold paddy in October. `MapScene` pins itself back to `BAKE_SEASON`
-      // on the way in, so this cannot leak into the world's ground.
+      // on the way in, so this cannot leak into the world's terrain fill.
+      //
       // Both halves of the pair, or the diorama draws January ground under Spring canopy: the map
-      // splits these deliberately (pinned soil, live leaves) and the menu is the one place that
+      // splits these deliberately (pinned fill, live scenery) and the menu is the one place that
       // wants them together.
       const month = seasonForDate();
       setRenderSeason(month);
       setFoliageSeason(month);
+
       // The hosts are planned before the land is drawn, because the land has to leave their ground
       // clear: fields drawn first and men placed into them afterwards is how a host ends up
       // standing in a paddy, and the same reasoning put one of them in the river.

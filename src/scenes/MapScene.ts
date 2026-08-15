@@ -761,13 +761,14 @@ export class MapScene extends Phaser.Scene {
     const rng = createRng(this.state.mapConfig.seed + 9001);
     // Two seasons are in play here, deliberately.
     //
-    // The GROUND is pinned to `BAKE_SEASON`: it is the expensive half of this pass, it only needs
-    // redrawing when a province changes hands, and soil that changed colour four times a year was
-    // indistinguishable from the full-screen filter this art direction dropped.
+    // The terrain FILL is pinned to `BAKE_SEASON`: it is the expensive half of this pass, it only
+    // needs redrawing when a province changes hands, and repainting it every few seconds is what
+    // ruled a seasonal map out in the first place.
     //
-    // What GROWS out of it follows the calendar, and is re-inked on its own by `rebakeScenery()`.
-    // Both are set explicitly rather than left to the module default, because the menu diorama sets
-    // the real season on its way in and that must not leak into the map.
+    // The DECORATION layer above it — every growing thing, and the soft ground cast under them —
+    // follows the calendar, and is re-inked on its own by `rebakeScenery()`. Both are set
+    // explicitly rather than left to the module default, because the menu diorama sets the real
+    // season on its way in and that must not leak into the map.
     setRenderSeason(BAKE_SEASON);
     setFoliageSeason(this.state.season);
 
@@ -1195,9 +1196,9 @@ export class MapScene extends Phaser.Scene {
     const labelText = isPlayerCapital ? `${this.shortName(land)} ${t('common.capital')}` : this.shortName(land);
     const label = this.add.text(0, 0, labelText, {
       // Lettered in the season now in play — `foliagePalette()` is the live half of the pair, the
-      // ground being pinned. These names are the only type standing in the world rather than in the
-      // chrome, so with the full-screen wash gone they are where the calendar can be read without
-      // looking at the HUD. Rewritten by `rebakeScenery()` -> `redrawLandNodes()` when it turns.
+      // terrain fill being pinned. These names are the only type standing in the world rather than
+      // in the chrome, so with no full-screen wash outside winter they are one more place the
+      // calendar can be read. Rewritten by `rebakeScenery()` -> `redrawLandNodes()` when it turns.
       color: foliagePalette().labelInk,
       fontFamily: UI_FONT,
       fontSize: '10px',
@@ -1485,6 +1486,9 @@ export class MapScene extends Phaser.Scene {
 
     if (bakeChanged) {
       this.bakeStaticTerrain();
+      // The accents are drawn per visible tile, so land coming out of the fog has to be given its
+      // own — this layer is otherwise painted only when the season turns.
+      this.seasons.setScape(this.landscapeGeometry());
     }
 
     this.syncSeasonVisuals();
@@ -1503,9 +1507,9 @@ export class MapScene extends Phaser.Scene {
   /**
    * Turns the world's look to the current season.
    *
-   * Deliberately outside the `bakeChanged` branch above: the season changes on almost every tick
-   * while ownership rarely does, so this must run whether or not the expensive layers were redrawn.
-   * The renderer itself no-ops unless the season actually changed, so calling it every tick is free.
+   * Deliberately outside the `bakeChanged` branch above: the season changes far more often than
+   * ownership does, so this must run whether or not the expensive layers were redrawn. It returns
+   * immediately unless the season actually changed, so calling it every tick is free.
    */
   protected syncSeasonVisuals(): void {
     if (this.renderedSeason === this.state.season) {
@@ -1518,27 +1522,24 @@ export class MapScene extends Phaser.Scene {
   }
 
   /**
-   * Turns the leaves. Re-inks every growing thing on the map in the season now current.
+   * Turns the leaves. Re-inks every growing thing on the map, and the ground tone under it, in the
+   * season now current.
    *
-   * This is the path that replaced the full-screen seasonal wash. Three of the four seasons no
-   * longer paint anything over the world at all — the year is read off the canopy, the grass and the
-   * name plates — so those things have to be genuinely redrawn, and the scatter is inside the static
-   * bake.
+   * This is the path that replaced the full-screen seasonal wash. Only winter paints anything over
+   * the world at all now — the year is read off the canopy, the grass, the ground cast and the name
+   * plates — so those things have to be genuinely redrawn, and they live inside the static bake.
    *
-   * Measured on the same 4x-throttled mid-tier profile that ruled seasonal baking out the first
-   * time (`test_scripts/measure-season-bake.mjs`, 1560 tiles, 42 lands): **110-220 ms across four
-   * runs, median ~170**, against 1200-1500 ms for the `refresh()` this replaces. Roughly 2% of a
-   * seven-second ascent season, once per season.
-   *
-   * The spread is real, not noise: the top of it is what `SCATTER.plains` carrying twice the tufts
-   * costs, since those are re-inked here. Budget for this path is 250 ms — if a future scatter
-   * change pushes it past that, thin the plan rather than going back to a full-screen wash.
+   * Measured on a 4x-throttled mid-tier profile (`test_scripts/measure-bake.mjs`, 1560 tiles, 42
+   * lands): **110-220 ms across four runs, median ~170**, against 1200-1500 ms for the `refresh()`
+   * this replaces. Roughly 2% of a seven-second ascent season, once per season. Budget for this
+   * path is 250 ms — if a future scatter change pushes it past that, thin the plan rather than
+   * going back to a full-screen wash.
    *
    * Three things buy the eleven-fold saving:
    *
    *  · the placement plan is reused, so no scatter generation and no spacing pass — see
    *    `DongHoMapRenderer.repaintScatter`;
-   *  · the ground, water, ranges and paddy are not touched, because they are pinned to `BAKE_SEASON`;
+   *  · the terrain fill, water, ranges and paddy are not touched, being pinned to `BAKE_SEASON`;
    *  · **no new RenderTexture.** The band layers are still resident `Graphics` after a bake, only
    *    hidden, so `bakeStaticTerrain` re-composites them from what is already in memory. The map
    *    already holds ~52 MB of textures; a second scenery buffer to cross-fade against was the one
@@ -1573,13 +1574,13 @@ export class MapScene extends Phaser.Scene {
   private getBakeSignature(): string {
     // Deliberately NOT keyed on the season, even though the season now redraws half the map.
     //
-    // Measured on a 4x-throttled mid-tier profile (`test_scripts/measure-season-bake.mjs`, 1560
-    // tiles): a `refresh()` whose bake signature changed costs ~1550 ms, because it repaints the
-    // ground, the water, the ranges, the paddy, the zones, the fog and the connections along with
-    // the scenery. None of those change with the calendar.
+    // Measured on a 4x-throttled mid-tier profile (`test_scripts/measure-bake.mjs`, 1560 tiles): a
+    // `refresh()` whose bake signature changed costs ~1550 ms, because it repaints the ground, the
+    // water, the ranges, the paddy, the zones, the fog and the connections along with the scenery.
+    // None of those change with the calendar.
     //
-    // A season change goes through `rebakeScenery()` instead, which repaints only the scatter — from
-    // a cached placement plan — and re-composites. Same texture, a fraction of the work.
+    // A season change goes through `rebakeScenery()` instead, which repaints only the decoration
+    // layer — from a cached placement plan — and re-composites. Same texture, a fraction of the work.
     return `${this.state.mapConfig.seed}|${this.state.mapRenderMode}|${this.state.lands
       .map((land) => `${land.id}:${land.ownerId}:${land.isVisible ? 1 : 0}:${land.isExplored ? 1 : 0}`)
       .join('|')}`;
