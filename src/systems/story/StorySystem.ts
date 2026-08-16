@@ -297,6 +297,10 @@ function record(state: GameState, story: ActiveStory, fragment: StoryFragment): 
 /** Applies a fragment's own effect and books the consequences of having spoken. */
 function fire(state: GameState, story: ActiveStory, fragment: StoryFragment, ctx: StoryCtx): void {
   story.spoken.push(fragment.id);
+  // The dated record the story page reads back. `spoken` answers "has this been said";
+  // history answers "what happened, and when" — which is the difference between a flag
+  // check and a story.
+  story.history = [...(story.history ?? []), { fragmentId: fragment.id, turn: state.turn }];
   story.lastSpokeTurn = state.turn;
   if (fragment.heat) ctx.heat(fragment.heat);
   fragment.effect?.(ctx);
@@ -580,6 +584,45 @@ export function takeOpening(state: GameState, storyId: string, fragmentId: strin
   story.offerUntil = undefined;
   fire(state, story, fragment, ctx);
   return true;
+}
+
+// ── The story page's read model ─────────────────────────────────────────────
+
+/**
+ * Everything a story has said, oldest first, with the season each line landed.
+ *
+ * This is the "Đã xảy ra" column: the lines the player read one at a time across half an hour
+ * of header strip, finally sitting together where they add up. Saves from before `history`
+ * existed fall back to the undated `spoken` list rather than showing nothing.
+ */
+export function storySpokenHistory(
+  state: GameState,
+  story: ActiveStory,
+): { fragmentId: string; turn?: number }[] {
+  if (story.history?.length) return story.history;
+  return story.spoken.map((fragmentId) => ({ fragmentId }));
+}
+
+/** True when this story is holding an offer the player could act on right now. */
+export function storyNeedsPlayer(story: ActiveStory): boolean {
+  return Boolean(story.offer);
+}
+
+/** How many stories are holding an open door — the number on the Chronicle button. */
+export function countOpenDoors(state: GameState): number {
+  if (state.gameMode !== 'ascent') return 0;
+  return (state.stories ?? []).filter(storyNeedsPlayer).length;
+}
+
+/**
+ * The bound character's current regard for the player, as a resolved text-key suffix.
+ * Undefined when the template does not model it — the page simply omits the line.
+ */
+export function storyRegard(state: GameState, story: ActiveStory): string | undefined {
+  const template = storyTemplate(story.templateId);
+  if (!template?.regard) return undefined;
+  const ctx = makeCtx(state, story, worldDelta(state, state.storyWatch ?? snapshot(state)));
+  return template.regard(ctx);
 }
 
 // ── Marks ───────────────────────────────────────────────────────────────────

@@ -53,7 +53,79 @@ export const reedBanner: StoryTemplate = {
     return { heroId: hero.id, landId: home?.id };
   },
 
+  /**
+   * How the boy currently stands with the throne — the page's one-line relationship.
+   * Words, never a number, and it moves only when the player actually did something.
+   */
+  regard: (ctx) => {
+    if (ctx.recall('humiliated') >= 1) return 'humiliated';
+    if (ctx.recall('trusted') >= 1 || ctx.recall('gaveHost') >= 1) return 'trusted';
+    if (ctx.recall('coldness') >= 2) return 'cold';
+    if (ctx.recall('heHasAsked') >= 1) return 'waiting';
+    return 'hopeful';
+  },
+
   fragments: [
+    /**
+     * Act I, as a scene rather than a mood: the buffalo, the courtyard, the boy who does not
+     * kneel. The old opener ("a boy drills children with reed banners") was one line of
+     * atmosphere with no one in it — the exact defect the whole depth pass exists to fix. The
+     * whisper stays in the pool as a follow-up; this card is now the front door.
+     */
+    {
+      id: 'the-buffalo-feast',
+      volume: 'card',
+      band: 'field',
+      weight: 8,
+      quiet: 0,
+      salience: (ctx) => (ctx.age >= 1 ? 9 : -20),
+      options: [
+        {
+          id: 'take-him-in',
+          cost: { gold: 40 },
+          apply: (ctx) => {
+            ctx.remember('tookIn', 1);
+            ctx.remember('echoTurn', ctx.state.turn);
+            ctx.heat(-1);
+          },
+        },
+        {
+          id: 'send-with-rice',
+          cost: { food: 60 },
+          apply: (ctx) => {
+            ctx.remember('sentBack', 1);
+            const land = ctx.land();
+            if (land) land.loyalty = Math.min(100, land.loyalty + 4);
+          },
+        },
+        {
+          id: 'make-him-repay',
+          apply: (ctx) => {
+            ctx.remember('punished', 1);
+            const hero = ctx.hero();
+            if (hero) hero.stats.loyalty = Math.max(0, hero.stats.loyalty - 10);
+            ctx.heat(2);
+          },
+        },
+      ],
+    },
+
+    // The dyke: what he does with the years nobody is watching him. Pure characterisation,
+    // and the seed of the ending — the forty men are the garrison that opens the gates.
+    {
+      id: 'forty-men-mended-the-dyke',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.said('the-buffalo-feast'),
+      salience: (ctx) => (ctx.age >= 5 ? 4 : 0),
+      effect: (ctx) => {
+        ctx.remember('dykeMended', 1);
+        const land = ctx.land();
+        if (land) land.loyalty = Math.min(100, land.loyalty + 3);
+      },
+    },
+
     // ── The opening line every run gets ──────────────────────────────────────
     {
       id: 'reed-children',

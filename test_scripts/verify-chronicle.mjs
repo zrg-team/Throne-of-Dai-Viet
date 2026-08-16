@@ -34,6 +34,11 @@ const result = await page.evaluate(async () => {
   // Checked in *both* languages, and Vietnamese is the source, so a missing vi line is the real
   // failure — English falls back cleanly, Vietnamese has nothing behind it.
   for (const template of storyTemplates) {
+    // The story page's headers are content too: every story must say what its person wants
+    // and what a silent stretch is waiting for, or the page falls back to placeholders.
+    for (const pageKey of ['want', 'waiting']) {
+      if (!hasStoryText(`${template.id}.${pageKey}`)) out.coverage.missing.push(`${template.id}.${pageKey}`);
+    }
     for (const fragment of template.fragments) {
       const need = [`${template.id}.${fragment.id}.chronicle`];
       // An opening never renders as a card — it is a row in a sheet — so it needs the line and

@@ -32,6 +32,7 @@ import {
 } from '../../game/ascentConfig';
 import { launchOffMapInvasion } from '../empire/InvasionSystem';
 import { pushToast } from '../empire/notifications';
+import { getPlayerTroops } from '../ResourceSystem';
 import { armyPower } from '../WarSystem';
 import { ambitionHeat } from './AmbitionSystem';
 import { landGarrisonPower } from './PowerSystem';
@@ -403,6 +404,81 @@ function reconsider(state: GameState): void {
 /**
  * One tick of enemy high command. Ascent only — empire keeps its ThreatDirector and its metronome.
  */
+/**
+ * The map rivals live their own curve (Dragon Ascent).
+ *
+ * Measured at Year 10: the player's on-map strength was 9,680 against 259–780 for every rival,
+ * and every war appetite read exactly zero. Two causes, both structural. The rival kingdoms on
+ * the map were static scenery — `runBotTurns` is deliberately not called in this mode, so their
+ * lands never fortified and their hosts never grew, while the player compounded through the
+ * trade network. And nothing converted the player's dominance into danger: appetite rose only
+ * from low *opinion*, and a player who never touches anyone keeps everyone's opinion fine.
+ * Being enormous was not itself a provocation, and it must be — it is the one provocation a
+ * peaceful, successful run cannot avoid making.
+ *
+ * Three cheap mirrors of the player's own curve, run every fourth tick:
+ *  - **They fortify.** A rival's provinces raise their walls and militia over time, so the
+ *    "thực lực" the diplomacy screen shows actually climbs.
+ *  - **Dominance is a provocation.** Appetite gains a term for the player's power relative to
+ *    theirs, independent of opinion. Every court in the world discusses the realm that has
+ *    grown twelve times anyone's size, however politely it has behaved.
+ *  - **Fear becomes an army.** Appetite topping out launches a real punitive host, sized by
+ *    the gap — and stamps the coalition clock, because frightened courts talk to each other.
+ */
+function tickRivalRealms(state: GameState): void {
+  const ascent = state.ascent;
+  if (!ascent || state.turn % 4 !== 0) return;
+
+  const playerOnMap = getPlayerTroops(state)
+    + state.lands
+      .filter((land) => land.ownerId === PLAYER_KINGDOM_ID)
+      .reduce((sum, land) => sum + land.defense * 10, 0);
+
+  for (const rival of state.kingdoms) {
+    if (rival.id === PLAYER_KINGDOM_ID || rival.isDefeated) continue;
+    const holdings = state.lands.filter((land) => land.ownerId === rival.id);
+    if (holdings.length === 0) continue;
+
+    // Fortify: one province a pass raises its walls and drills its militia. Slow on purpose —
+    // this is a curve, not a jump — but it compounds, which is exactly what was missing.
+    const fortifying = holdings[state.turn % holdings.length];
+    fortifying.defense = Math.min(90, fortifying.defense + 1);
+    fortifying.localSoldiers = Math.min(1200, fortifying.localSoldiers + 12 + ascent.wavesSurvived * 2);
+
+    // Dominance. `getEmpirePower`-shaped units on both sides: troops plus walls-at-ten.
+    const rivalOnMap = state.armies
+      .filter((army) => army.kingdomId === rival.id)
+      .reduce((sum, army) => sum + army.units.spearmen + army.units.archers + army.units.heavyInfantry, 0)
+      + holdings.reduce((sum, land) => sum + land.defense * 10, 0);
+    const ratio = playerOnMap / Math.max(120, rivalOnMap);
+
+    if (ratio > 2) {
+      // The gain is capped per pass. Left open, a tall realm (one province, a great standing
+      // army) produced ratios in the hundreds — appetite filled in a single pass and every
+      // rival launched a punitive host every fourth tick, a permanent siege that ground the
+      // long run down to its capital. Capped, total dominance means a strike from *somewhere*
+      // every dozen ticks or so, which is a world answering — not a world devouring.
+      rival.warAppetite = Math.min(100, (rival.warAppetite ?? 0) + Math.min(4, (ratio - 2) * 1.2));
+    } else {
+      rival.warAppetite = Math.max(0, (rival.warAppetite ?? 0) - 0.5);
+    }
+
+    if ((rival.warAppetite ?? 0) >= 100) {
+      rival.warAppetite = 45;
+      const launched = launchPunitiveHost(state, rival.id, {
+        conquest: true,
+        sizeMult: Math.min(1.7, 0.9 + ratio * 0.1),
+      });
+      if (launched) {
+        pushToast(state, t('ascent.world.dominanceStrike', { kingdom: rival.name }), 'threat');
+        // Frightened courts talk to each other: dominance strikes pull the standing coalition
+        // machinery forward rather than duplicating it.
+        ascent.coalitionCooldownTicks = Math.max(0, ascent.coalitionCooldownTicks - 12);
+      }
+    }
+  }
+}
+
 export function tickEnemyCommand(state: GameState): void {
   if (state.gameMode !== 'ascent' || !state.ascent) return;
 
@@ -410,6 +486,7 @@ export function tickEnemyCommand(state: GameState): void {
     state.ascent.lastContactTurn = state.turn;
   }
 
+  tickRivalRealms(state);
   storyStrikes(state);
   maybeLaunch(state);
   assignPlans(state);

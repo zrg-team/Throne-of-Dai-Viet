@@ -1,14 +1,26 @@
 import { PLAYER_KINGDOM_ID } from '../game/constants';
 import {
+  ARMY_CAMPAIGN_FOOD_MULT,
   ARMY_FOOD_PER_SOLDIER,
   ARMY_GOLD_PER_SOLDIER,
   ARMY_UPKEEP_SCALE,
+  DEMAND_FOOD_PER_POP,
+  DEMAND_GOLD_BASE,
+  DEMAND_GOLD_GARRISON,
+  DEMAND_GOLD_OUTPUT_SHARE,
+  DEMAND_GOLD_PER_BUILDING,
+  DEMAND_RAMP_TICKS,
+  DEMAND_SUPPLIES_BASE,
+  DEMAND_SUPPLIES_PER_POP,
+  DEMAND_TOAST_COOLDOWN,
+  demandDifficultyScale,
   GOLD_SOFTCAP_EXPONENT,
   GOLD_SOFTCAP_FROM,
   TREASURY_GRAFT_FROM,
   TREASURY_GRAFT_RATE,
 } from '../game/ascentConfig';
 import { eraIndex, eraLabel, getBuildingLevelCap } from './empire/MandateSystem';
+import { pushToast } from './empire/notifications';
 import { getCourtBonuses, getLandGovernorOutputMult } from './CourtSystem';
 import type { BuildOrder, EraId, GameState, Land, LandBuildingType, LandSpecialization, ResourceBag, ResourceKey, Season } from '../state/types';
 import { buildingLabel, buildBuildingLabel, formatResourceList, resourceLabel, t } from '../i18n';
@@ -724,12 +736,90 @@ export function ascentArmyUpkeep(state: GameState): { gold: number; food: number
   const troops = getPlayerTroops(state);
   if (troops <= 0) return { gold: 0, food: 0 };
 
+  // A host that is marching, or standing on ground the realm does not own, eats harder than
+  // one in garrison — men who move eat more than men who do not, and it is the classic reason
+  // armies stop moving. Split per army so one host on campaign does not bill the whole muster.
+  let garrisonTroops = 0;
+  let campaignTroops = 0;
+  for (const army of state.armies) {
+    if (army.kingdomId !== PLAYER_KINGDOM_ID) continue;
+    const size = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
+    const marching = state.movementOrders.some((order) => order.armyId === army.id);
+    const abroad = state.lands.find((land) => land.id === army.landId)?.ownerId !== PLAYER_KINGDOM_ID;
+    if (marching || abroad) campaignTroops += size;
+    else garrisonTroops += size;
+  }
+
   // 1 + troops/scale: the superlinear term. At the scale figure the bill has doubled.
   const burden = 1 + troops / ARMY_UPKEEP_SCALE;
+  const foodDraw = garrisonTroops * ARMY_FOOD_PER_SOLDIER
+    + campaignTroops * ARMY_FOOD_PER_SOLDIER * ARMY_CAMPAIGN_FOOD_MULT;
   return {
     gold: Math.ceil(troops * ARMY_GOLD_PER_SOLDIER * burden),
-    food: Math.ceil(troops * ARMY_FOOD_PER_SOLDIER * burden),
+    food: Math.ceil(foodDraw * burden),
   };
+}
+
+/**
+ * What the realm's own provinces consume this season (Dragon Ascent only).
+ *
+ * The missing half of the economy. A province used to only produce — no bread, no wants, no
+ * wages — so holding land was pure profit forever and a Year-10 run banked eleven thousand
+ * gold with nothing to fear and nothing to buy. Now people eat, settled towns want goods, and
+ * officials and garrisons draw pay: growth writes its own bill, in the same resources the
+ * player is hoarding.
+ *
+ * Ramped in over the first `DEMAND_RAMP_TICKS` seasons so the opening minutes teach rather
+ * than execute. Per-land figures are kept because the ledger's whole job is to point at the
+ * *place* that is short, not at a total.
+ */
+export function ascentProvincialDemand(state: GameState): {
+  bag: { food: number; supplies: number; gold: number };
+  perLand: { landId: string; food: number; supplies: number; gold: number }[];
+} {
+  const empty = { bag: { food: 0, supplies: 0, gold: 0 }, perLand: [] as { landId: string; food: number; supplies: number; gold: number }[] };
+  if (state.gameMode !== 'ascent') return empty;
+
+  // Demand scales with difficulty the same way waves do — easy is easy because the world asks
+  // less of you on *both* fronts (see `demandDifficultyScale`).
+  const ramp = Math.min(1, state.turn / DEMAND_RAMP_TICKS) * demandDifficultyScale(state.campaignConfig?.difficulty);
+  if (ramp <= 0) return empty;
+
+  const garrisonedLandIds = new Set(
+    state.armies
+      .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)
+      .map((army) => army.landId),
+  );
+
+  const perLand: { landId: string; food: number; supplies: number; gold: number }[] = [];
+  const bag = { food: 0, supplies: 0, gold: 0 };
+  const unpaid = new Set(state.unpaidLandIds ?? []);
+  for (const land of state.lands) {
+    if (land.ownerId !== PLAYER_KINGDOM_ID) continue;
+    const food = Math.ceil((land.population / DEMAND_FOOD_PER_POP) * ramp);
+    const supplies = land.hasVillage
+      ? Math.ceil((DEMAND_SUPPLIES_BASE + Math.floor(land.population / DEMAND_SUPPLIES_PER_POP)) * ramp)
+      : 0;
+    // An unpaid province draws no pay — its officials have stopped collecting AND stopped
+    // billing. Without this the coin shortfall was a spiral with no exit: going unpaid
+    // withheld the province's gold while its wage bill kept running, so the deficit that
+    // caused the arrears could never close. Measured, one seeded run ended on 0 gold with
+    // the realm pinned at three provinces. Shortfall must sting, not strangle.
+    // Flat wages for the offices, plus administration's proportional cut of the province's
+    // own output — the term that keeps a compounding trade network from outrunning its costs
+    // (see `DEMAND_GOLD_OUTPUT_SHARE`).
+    const gold = unpaid.has(land.id) ? 0 : Math.ceil(
+      (DEMAND_GOLD_BASE
+        + land.buildings.length * DEMAND_GOLD_PER_BUILDING
+        + (garrisonedLandIds.has(land.id) ? DEMAND_GOLD_GARRISON : 0)
+        + Math.max(0, land.outputs.gold) * DEMAND_GOLD_OUTPUT_SHARE) * ramp,
+    );
+    perLand.push({ landId: land.id, food, supplies, gold });
+    bag.food += food;
+    bag.supplies += supplies;
+    bag.gold += gold;
+  }
+  return { bag, perLand };
 }
 
 export function getLaborStatus(state: GameState): LaborStatus {
@@ -795,13 +885,22 @@ function calculateBuildingUpkeep(state: GameState): ResourceBag {
 export function calculatePlayerResourceRates(state: GameState): ResourceBag {
   const rates = emptyResourceBag();
 
+  // An unpaid province (ascent) withholds its tax *here*, at the source, so what it keeps can
+  // never exceed what it actually contributed. The first version subtracted raw
+  // `land.outputs.gold` on the spending side — after the tax stance had already scaled the
+  // income — and the double-charge meant three unpaid provinces "withheld" more gold than the
+  // whole realm grossed (measured: 106 withheld against 98 gross), a hole no treasury could
+  // climb out of.
+  const withholding = state.gameMode === 'ascent' && state.unpaidLandIds?.length
+    ? new Set(state.unpaidLandIds)
+    : undefined;
   for (const land of state.lands) {
     if (land.ownerId !== PLAYER_KINGDOM_ID) {
       continue;
     }
     rates.food += land.outputs.food;
     rates.supplies += land.outputs.supplies;
-    rates.gold += land.outputs.gold;
+    if (!withholding?.has(land.id)) rates.gold += land.outputs.gold;
   }
 
   rates.food = Math.round(rates.food * getSeasonFarmMultiplier(state.season));
@@ -815,6 +914,11 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
       rates[key as ResourceKey] += value ?? 0;
     }
   }
+
+  // Everything above this line is the income side; everything below it spends. Snapshotted
+  // here so the ledger can show the player gross and demand separately — the two halves the
+  // one-figure header strip was hiding, and the reason nobody could learn why a number moved.
+  const grossSnapshot = { food: rates.food, supplies: rates.supplies, gold: rates.gold };
 
   const buildingUpkeep = calculateBuildingUpkeep(state);
   addBag(rates, buildingUpkeep, -1);
@@ -850,6 +954,17 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
   rates.supplies -= suppliesUpkeep;
   rates.gold -= heroUpkeep + armyGoldUpkeep + ascentArmy.gold;
 
+  // The provinces themselves eat, want goods, and draw pay (ascent only). Unpaid provinces
+  // are already handled on the income side: they withhold their tax at the source and bill
+  // no wages (see `ascentProvincialDemand`), so the shortfall is a *place* the ledger can
+  // point at without also being a spiral the treasury cannot exit.
+  if (state.gameMode === 'ascent') {
+    const demand = ascentProvincialDemand(state);
+    rates.food -= demand.bag.food;
+    rates.supplies -= demand.bag.supplies;
+    rates.gold -= demand.bag.gold;
+  }
+
   const foodNetBeforeHumanGrowth = rates.food;
   const ownedLandCount = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length;
   const stabilityBonus = state.court.stability >= 70 ? 1 : state.court.stability < 40 ? -1 : 0;
@@ -868,6 +983,16 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
     // Provinces set to a `populous` focus each add a steady trickle of extra settlers.
     const populousBonus = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID && getLandSpecialization(land) === 'populous').length * 2;
     rates.humans = Math.max(0, ownedLandCount + surplusGrowth + compoundGrowth + populousBonus + stabilityBonus + publicGrowthBonus + eventGrowthModifier + getTaxEffects(state).growthDelta);
+  }
+
+  // Growth is civilian (ascent). Soldiers do not raise families on campaign, so a realm whose
+  // muster rivals its population grows at a fraction of the rate — which is what stops the
+  // hole an army makes from quietly refilling itself and the cost from evaporating. Measured
+  // before this: 2,171 soldiers standing over 860 civilians, and the economy never noticed.
+  if (state.gameMode === 'ascent' && rates.humans > 0) {
+    const troops = getPlayerTroops(state);
+    const civShare = state.resources.humans / Math.max(1, state.resources.humans + troops);
+    rates.humans = Math.round(rates.humans * Math.min(1, Math.max(0.3, civShare)));
   }
 
   // Dragon Ascent: a sprawling realm keeps less of what it earns.
@@ -897,6 +1022,23 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
     rates.gold -= Math.round((state.resources.gold - TREASURY_GRAFT_FROM) * TREASURY_GRAFT_RATE);
   }
 
+  // The books, kept current every tick. Gross is the income side snapshotted above; demand is
+  // simply gross minus net, which the ledger presents without needing to itemise every term.
+  // Shortfalls are managed by `collectPlayerIncome` as events happen, so the list survives.
+  if (state.gameMode === 'ascent') {
+    const line = (key: 'food' | 'supplies' | 'gold') => ({
+      gross: grossSnapshot[key],
+      demand: grossSnapshot[key] - rates[key],
+      net: rates[key],
+    });
+    state.ascentLedger = {
+      food: line('food'),
+      supplies: line('supplies'),
+      gold: line('gold'),
+      shortfalls: state.ascentLedger?.shortfalls ?? [],
+    };
+  }
+
   return rates;
 }
 
@@ -922,6 +1064,115 @@ export function collectPlayerIncome(state: GameState): void {
       army.supply = Math.max(15, army.supply - 5);
     }
     state.message = t('msg.suppliesEmpty');
+  }
+
+  ascentShortfallEvents(state, hadFoodShortage, hadSuppliesShortage);
+}
+
+/**
+ * Unmet demand as *events*, not numbers (Dragon Ascent).
+ *
+ * The critical part of the demand system, and where a lazy version would have died: if a
+ * shortfall only reduces a figure, nobody notices and nothing has been added. Each want that
+ * goes unmet lands in the header as a named place — a market with no rice, a workshop with no
+ * iron, a province that quietly stops sending tax — and in the ledger's "going without" list,
+ * where tapping the row opens the province that needs the answer.
+ *
+ * The coin line is deliberately the same sentence the Reed Banner speaks when a province
+ * declares for the herdsman's son. From the throne, a rebellion and an unpaid clerk look
+ * identical until you go and find out — which is the economy and the Chronicle finally
+ * speaking one language.
+ */
+function ascentShortfallEvents(state: GameState, foodShort: boolean, suppliesShort: boolean): void {
+  if (state.gameMode !== 'ascent' || !state.ascent) return;
+
+  const ledger = state.ascentLedger;
+  const marks = (state.shortfallToastTurns ??= {});
+  const quiet = (kind: 'food' | 'supplies' | 'gold') =>
+    state.turn - (marks[kind] ?? -DEMAND_TOAST_COOLDOWN) < DEMAND_TOAST_COOLDOWN;
+  const owned = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
+  const recordShortfall = (landId: string, kind: 'food' | 'supplies' | 'gold') => {
+    if (!ledger) return;
+    if (ledger.shortfalls.some((entry) => entry.landId === landId && entry.kind === kind)) return;
+    ledger.shortfalls.push({ landId, kind, sinceTurn: state.turn });
+    if (ledger.shortfalls.length > 6) ledger.shortfalls.shift();
+  };
+  const clearShortfall = (kind: 'food' | 'supplies' | 'gold') => {
+    if (!ledger) return;
+    ledger.shortfalls = ledger.shortfalls.filter((entry) => entry.kind !== kind);
+  };
+
+  // Bread. The market with the least loyal, hungriest crowd goes without first, and the
+  // famine card — already written, already good — inherits a realm that has seen it coming.
+  if (foodShort) {
+    const hungriest = owned
+      .filter((land) => land.hasVillage && land.population > 50)
+      .sort((a, b) => a.loyalty - b.loyalty)[0];
+    if (hungriest) {
+      hungriest.population = Math.max(20, Math.floor(hungriest.population * 0.985));
+      hungriest.loyalty = Math.max(0, hungriest.loyalty - 2);
+      recordShortfall(hungriest.id, 'food');
+      if (!quiet('food')) {
+        marks.food = state.turn;
+        pushToast(state, t('ascent.demand.bread', { land: hungriest.name }), 'threat');
+      }
+    }
+  } else {
+    clearShortfall('food');
+  }
+
+  // Cloth and iron. Settled provinces slide; the yards slow (see `progressBuildOrders`).
+  if (suppliesShort) {
+    const wanting = owned.filter((land) => land.hasVillage).sort((a, b) => b.population - a.population)[0];
+    if (wanting) {
+      wanting.loyalty = Math.max(0, wanting.loyalty - 1);
+      recordShortfall(wanting.id, 'supplies');
+      if (!quiet('supplies')) {
+        marks.supplies = state.turn;
+        pushToast(state, t('ascent.demand.cloth', { land: wanting.name }), 'threat');
+      }
+    }
+  } else {
+    clearShortfall('supplies');
+  }
+
+  // Coin. An empty treasury stops paying somebody — a named somebody. Their province withholds
+  // its gold (see `calculatePlayerResourceRates`) and the garrison's arrears start counting.
+  const goldShort = state.resources.gold <= 0 && state.resourceRates.gold < 0;
+  const unpaid = (state.unpaidLandIds ??= []);
+  if (goldShort) {
+    for (const army of state.armies) {
+      if (army.kingdomId === PLAYER_KINGDOM_ID) army.unpaidTicks = (army.unpaidTicks ?? 0) + 1;
+    }
+    // Poorest province first. The clerks at the edge of the realm are the first the treasury
+    // stops paying and the last to be missed — the capital's counting-house goes dark last.
+    // The first version unpaid the *richest* three, which amputated the realm's whole gold
+    // engine on the first bad season and turned a warning sign into a death blow.
+    const next = owned
+      .filter((land) => !unpaid.includes(land.id) && land.outputs.gold > 0)
+      .sort((a, b) => a.outputs.gold - b.outputs.gold)[0];
+    // One province per *sustained* stretch of arrears — the toast cooldown is the cadence —
+    // not one per tick. Clerks live with a late wage for a season or two before they stop
+    // collecting; the tick-cadence version walked out all three provinces inside three ticks
+    // of the first bad season, before any recovery could exist.
+    if (next && unpaid.length < 3 && !quiet('gold')) {
+      unpaid.push(next.id);
+      recordShortfall(next.id, 'gold');
+      marks.gold = state.turn;
+      pushToast(state, t('ascent.demand.coin', { land: next.name }), 'threat');
+    }
+  } else if (unpaid.length > 0 && (state.resources.gold > 60 || state.resourceRates.gold > 4)) {
+    // Reachable by flow as well as by stock: with withholding applied at the source, a realm
+    // whose *paying* provinces cover the bills again is solvent even before the treasury
+    // refills, and the officials drift back one province a season.
+    // Recovery is gradual and says so: one province at a time comes back on the books.
+    const restored = unpaid.shift();
+    const land = state.lands.find((candidate) => candidate.id === restored);
+    ledger?.shortfalls.splice(
+      ledger.shortfalls.findIndex((entry) => entry.kind === 'gold' && entry.landId === restored),
+      1,
+    );
+    if (land) pushToast(state, t('ascent.demand.coinRecover', { land: land.name }), 'info');
   }
 }
 
@@ -1101,6 +1352,12 @@ export function destroyDistrictBuilding(state: GameState, landId: string, buildi
 }
 
 export function progressBuildOrders(state: GameState): boolean {
+  // No iron, no pace (ascent): while the supply stores are empty the yards work every other
+  // season. The goods pile finally has a reason to exist beyond its own number.
+  if (state.gameMode === 'ascent' && state.resources.supplies <= 0 && state.turn % 2 === 1) {
+    return false;
+  }
+
   const completed: BuildOrder[] = [];
 
   for (const order of state.buildOrders) {

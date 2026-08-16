@@ -552,6 +552,10 @@ const checks = {
   // separate the ways that could regress, so a failure says which half broke.
   'a battle is fought inside the first ten minutes': result.battlePromptsInWindow > 0,
   'battles keep happening across the run': result.watchedBattles >= 3,
+  // Felt-time, not tick-time: a session that pauses on every prompt reaches maybe 40-60 ticks.
+  // The old 72-tick contact floor never fired inside a real sitting, which is how a whole
+  // battle screen shipped unseen. First contact must now land inside one.
+  'the first battle lands inside one sitting': result.firstBattleTick >= 0 && result.firstBattleTick <= 60,
   'an enemy host reaches the realm inside ten minutes':
     result.firstContactTick >= 0 && result.firstContactTick < result.tenMinuteTicks,
   'invaders march as real orders, so the approach is drawn': result.sawInvaderMarchOrder,

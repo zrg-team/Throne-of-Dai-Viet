@@ -290,18 +290,20 @@ export const VASSAL_POWER_RATIO = 0.22;
  */
 export const VASSAL_HEGEMON_MULT = 1.2;
 /**
- * How strong a rival must be, against `contestedDefencePower`, to think extortion is worth
- * trying. Deliberately far below the submission bar.
+ * The absolute power a rival needs before extortion is worth trying — a *means* floor, not a
+ * measuring tape against the player.
  *
- * Tribute asks a *second-tier* power for money — anyone strong enough to demand your crown is
- * excluded and asks for that instead. Measured, the strongest rival runs 0.25-0.49× the realm
- * and the next one down sits well beneath that, so a 0.30 bar meant nobody was ever eligible:
- * tribute fired zero times across a full run, which cost the mode its single largest gold sink
- * and left a naive realm banking sixty seasons of income with nothing to buy.
+ * This was `contestedDefencePower × ratio` through two recalibrations (0.30, then 0.18), and
+ * both went dark the same way every player-relative bar in this file has: the realm's defence
+ * compounds (walls, garrisons, drafted hosts) while a rival's on-map power is a handful of
+ * holdings, so the bar ran from ~600 to ~80,000 across a measured long run while the rivals sat
+ * between 250 and 2,600. Tribute — the mode's single largest gold sink — fired zero times.
  *
- * A neighbour does not need to match you to extort you. It needs to be able to hurt you.
+ * A neighbour does not need to match you to extort you. It needs enough of a host to burn your
+ * border, and it needs you to not already dominate the world (that case belongs to the
+ * coalition — see `offerTribute`, which reads the same `playerDominance` the other demands do).
  */
-export const TRIBUTE_POWER_RATIO = 0.18;
+export const TRIBUTE_MEANS_FLOOR = 320;
 export const VASSAL_COOLDOWN_TICKS = 60;
 /** How much heavier an endured coalition's wave is than an ordinary one. */
 export const COALITION_WAVE_MULT = 1.5;
@@ -385,14 +387,78 @@ export const TREASURY_GRAFT_RATE = 0.06;
  * faster than the army does and a huge host is a genuine strategic burden rather than a free
  * win condition.
  *
- * Food is charged far more gently than gold. Granaries are small next to treasuries in this
- * economy — a food rate that reads +85 sits beside a gold rate in the thousands — so pricing
- * the two alike would starve a realm the moment it fielded anything.
+ * Food used to be charged at a quarter of this, on the theory that granaries are small next
+ * to treasuries. Then a measured Year-7 run fielded 2,171 soldiers in a realm of 860 people:
+ * under provincial demand a civilian at home eats ~1/70 ≈ 0.014 food a season, and a soldier
+ * on campaign was eating 0.005 — **a third of a peasant's ration**. That is not a tuning gap,
+ * it is backwards, and it is why an army was the one thing in the realm that cost nothing to
+ * keep. A soldier now eats at least what he ate before he enlisted.
  */
 export const ARMY_GOLD_PER_SOLDIER = 0.02;
-export const ARMY_FOOD_PER_SOLDIER = 0.005;
-/** Troop count at which the upkeep multiplier reaches 2x. */
-export const ARMY_UPKEEP_SCALE = 5000;
+export const ARMY_FOOD_PER_SOLDIER = 0.02;
+/** A host that is marching, or standing on ground the realm does not own, eats harder. */
+export const ARMY_CAMPAIGN_FOOD_MULT = 1.5;
+/**
+ * Troop count at which the upkeep multiplier reaches 2x.
+ *
+ * Down from 5,000 — a figure no real run's army ever approached, which made the superlinear
+ * term a straight line with extra arithmetic. At 1,200 the curve bends inside the range the
+ * game actually produces, so "few strong hosts or many weak" is priced again.
+ */
+export const ARMY_UPKEEP_SCALE = 1200;
+
+// ── Provinces eat ───────────────────────────────────────────────────────────
+/**
+ * The demand side of the economy: a province consumes, not only produces.
+ *
+ * Before this existed a province was pure profit forever — no bread, no wants, no wages — so
+ * taking land was never a decision, merely arithmetic with one sign, and a measured Year-10
+ * run banked 11k gold at +262 a season with nothing to spend it on. Growth now writes its own
+ * bill, in the same resources the player is hoarding.
+ *
+ * Coin scales on *development* rather than population, deliberately: if all three demands
+ * keyed on population they would be one demand wearing three hats. This way a tall province
+ * and a wide realm cost differently, and "build up Trường Yên" versus "take one more
+ * province" become different economic decisions rather than two spellings of growth.
+ */
+export const DEMAND_FOOD_PER_POP = 70;
+export const DEMAND_SUPPLIES_BASE = 2;
+export const DEMAND_SUPPLIES_PER_POP = 260;
+export const DEMAND_GOLD_BASE = 3;
+export const DEMAND_GOLD_PER_BUILDING = 2;
+export const DEMAND_GOLD_GARRISON = 6;
+/**
+ * Administration's cut of each province's own gold output — the counting-house pays its
+ * clerks out of what crosses its tables.
+ *
+ * This is the term that keeps wealth honest at scale, and it must be proportional. The flat
+ * per-building wages above grow linearly while the trade network compounds multiplicatively,
+ * so by the mid-game they were a rounding error: a measured 400-tick run grossed ~3,000 a
+ * season against ~130 of provincial wages and banked eighteen thousand gold with nothing to
+ * care about — the exact complaint this system exists to fix. A share of output scales with
+ * the same engine that makes the money, so a richer realm is always a more expensive one.
+ */
+export const DEMAND_GOLD_OUTPUT_SHARE = 0.15;
+/**
+ * Demand's difficulty weight — deliberately the same numbers as `difficultyArmyScale`
+ * (InvasionSystem), which cannot be imported here without a cycle. Easy is easy because the
+ * world asks less on *both* fronts: an easy long run died at turn 365 when waves were sized
+ * down but the wage bill was not — a naive fortify-everything player (exactly who picks easy)
+ * bled out on administration alone.
+ */
+export function demandDifficultyScale(difficulty: string | undefined): number {
+  if (difficulty === 'easy') return 0.7;
+  if (difficulty === 'hard') return 1.35;
+  if (difficulty === 'ironman') return 1.7;
+  return 1.0;
+}
+/**
+ * Seasons over which demand ramps from zero to full weight. A roguelite whose first two
+ * minutes are a knife-edge teaches nothing; the realm learns to feed itself while small.
+ */
+export const DEMAND_RAMP_TICKS = 15;
+/** Seasons between repeats of any one shortfall announcement, so the header does not nag. */
+export const DEMAND_TOAST_COOLDOWN = 8;
 
 // ── Improving a host you already have ───────────────────────────────────────
 /**
@@ -457,10 +523,15 @@ export const ENEMY_LAUNCH_DRAW = 0.004;
  * Ticks without a hostile host reaching the player's ground before one is sent regardless.
  *
  * This is the floor under the randomised cadence, and it exists because the defect being fixed is
- * literally "ten minutes of play produced no battle at all". At `ASCENT_TICK_MS` of 3500 this is
- * a little over four minutes, so contact is guaranteed well inside the window the player noticed.
+ * literally "ten minutes of play produced no battle at all".
+ *
+ * Down from 72, which was tuned in tick-time and failed in felt-time: 72 ticks is eighteen
+ * played years, and a real session — where every prompt pauses the clock — reached Year 10
+ * without the floor ever firing. The player's "ten minutes" is maybe forty ticks of world
+ * time. Thirty guarantees first contact inside a single sitting, which is the only place a
+ * guarantee is worth anything.
  */
-export const ENEMY_CONTACT_FLOOR_TICKS = 72;
+export const ENEMY_CONTACT_FLOOR_TICKS = 30;
 
 /**
  * How far below a province's defence a host must fall before it starts thinking about leaving.

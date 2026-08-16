@@ -138,6 +138,15 @@ export interface StoryTemplate {
   id: string;
   /** Bind subjects from the world, or return undefined to decline seeding now. */
   seed: (state: GameState) => StoryCast | undefined;
+  /**
+   * What the bound character currently thinks of the player, as a text-key suffix
+   * (`<templateId>.regard.<suffix>`), derived from the story's own memory.
+   *
+   * Words, never a number: "grateful", "waiting", "cold". This is the relationship the page
+   * shows, and it moves only when the player actually does something — which is what makes a
+   * salience pool legible as *reacting to you* rather than as weather.
+   */
+  regard?: (ctx: StoryCtx) => string | undefined;
   /** Relative chance of being the one considered on a seeding tick. */
   seedWeight: number;
   /** Earliest turn this may seed. */

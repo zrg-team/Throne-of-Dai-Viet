@@ -5,7 +5,7 @@ import {
   COALITION_LEAD_TICKS,
   TRIBUTE_COOLDOWN_TICKS,
   TRIBUTE_INCOME_MULT,
-  TRIBUTE_POWER_RATIO,
+  TRIBUTE_MEANS_FLOOR,
   TRIBUTE_REFUSE_TICKS,
   TRIBUTE_TREASURY_CAP,
   VASSAL_COOLDOWN_TICKS,
@@ -139,19 +139,24 @@ function offerTribute(state: GameState): boolean {
   const ascent = state.ascent;
   if (!ascent) return false;
 
-  // Only an empire that could actually make good on the threat bothers to make it — but not
-  // one strong enough to demand submission outright.
-  //
-  // The two gates overlap (tribute at 0.30× the realm's contested defence, vassalage at 0.45×),
-  // so without this exclusion they compete for the same rival and whichever is *tried* first
-  // silently starves the other: leading with vassalage gave a 306-tick run zero tributes,
-  // leading with tribute gave a 501-tick run zero vassalage demands. Separating them by who is
-  // eligible rather than by call order lets both appear in one run, and reads better besides —
-  // the hegemon wants your crown, the merely dangerous neighbour wants your coin.
+  // A realm that dominates the world is not shaken down by a neighbour — that case belongs to
+  // the coalition, and both branches reading the same `playerDominance` is what keeps the
+  // seesaw honest: while the realm is small the world squeezes it one court at a time, and the
+  // moment it towers, they band together instead. The old gate here was a player-relative
+  // power bar (`contestedDefence × ratio`) and it went dark exactly the way `demandsSubmission`
+  // documents — the realm's defence compounds, a rival's holdings do not, and the bar ran to
+  // 30× the strongest rival in a measured long run. Tribute fired zero times.
+  if (playerDominance(state) >= COALITION_DOMINANCE) return false;
+
+  // Only an empire with the means to make good on the threat bothers to make it — but not
+  // one strong enough to demand submission outright: the hegemon wants your crown, the merely
+  // dangerous neighbour wants your coin. Without that exclusion the two demands compete for
+  // the same rival and whichever is *tried* first silently starves the other (measured both
+  // ways: 306 ticks with zero tributes, 501 with zero vassalage demands).
   const bully = rivals(state)
     .filter((kingdom) => !hasPact(kingdom) && (kingdom.relations ?? 50) < 48)
     .filter((kingdom) => !demandsSubmission(state, kingdom))
-    .filter((kingdom) => getEmpirePower(state, kingdom) > contestedDefencePower(state) * TRIBUTE_POWER_RATIO)
+    .filter((kingdom) => getEmpirePower(state, kingdom) > TRIBUTE_MEANS_FLOOR)
     .sort((a, b) => getEmpirePower(state, b) - getEmpirePower(state, a))[0];
   if (!bully) return false;
 
