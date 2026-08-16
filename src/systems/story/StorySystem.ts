@@ -35,11 +35,18 @@ import type { StoryCtx, StoryFragment, StoryTemplate, StoryWorldDelta } from './
  * `verify-modes-regression` byte-identical.
  */
 
-/** Stories running at once. Beyond this, seeding waits — the world should not feel crowded. */
-const MAX_ACTIVE_STORIES = 4;
+/**
+ * Stories running at once.
+ *
+ * Five rather than four: with a catalogue this size, four concurrent slots and one seed attempt
+ * every few seasons meant a run only ever met a third of it. The ceiling is on *pausing* volume,
+ * which the prompt budget already holds independently — most of what these five say is whispers,
+ * which cost nothing.
+ */
+const MAX_ACTIVE_STORIES = 5;
 
 /** Seasons between seeding attempts. Stories arrive quietly and rarely. */
-const SEED_INTERVAL = 7;
+const SEED_INTERVAL = 6;
 
 /** A story says nothing for at least this many seasons after speaking. */
 const MIN_QUIET = 3;
@@ -164,11 +171,26 @@ function trySeed(state: GameState): void {
   }
   if (eligible.length === 0) return;
 
-  const total = eligible.reduce((sum, template) => sum + template.seedWeight, 0);
+  /**
+   * A template the run has not touched yet is favoured heavily over one it has.
+   *
+   * Without this the catalogue is a lottery re-rolled every seed tick, and a run samples the same
+   * handful of favourites: measured across three runs with nineteen templates, two of them —
+   * including the one that only exists when the player has been *efficient* — never seeded once.
+   * A large catalogue is only large if a run actually walks around it.
+   */
+  const seen = new Set([
+    ...(state.storiesEnded ?? []),
+    ...stories.map((story) => story.templateId),
+  ]);
+  const weightOf = (template: StoryTemplate) =>
+    template.seedWeight * (seen.has(template.id) ? 1 : 3.5);
+
+  const total = eligible.reduce((sum, template) => sum + weightOf(template), 0);
   let roll = Math.random() * total;
   let chosen = eligible[eligible.length - 1];
   for (const template of eligible) {
-    roll -= template.seedWeight;
+    roll -= weightOf(template);
     if (roll <= 0) { chosen = template; break; }
   }
 
@@ -192,10 +214,18 @@ function trySeed(state: GameState): void {
 
 // ── Choosing what to say ────────────────────────────────────────────────────
 
+/** Default ceiling on a repeatable fragment. Three of anything is already a lot to hear. */
+const DEFAULT_MAX_TIMES = 3;
+
+function timesSaid(ctx: StoryCtx, fragmentId: string): number {
+  return ctx.story.spoken.filter((id) => id === fragmentId).length;
+}
+
 function candidates(template: StoryTemplate, ctx: StoryCtx, whispersOnly: boolean): StoryFragment[] {
   return template.fragments.filter((fragment) => {
     if (whispersOnly && (fragment.volume !== 'whisper' || fragment.opening)) return false;
     if (!fragment.repeatable && ctx.said(fragment.id)) return false;
+    if (fragment.repeatable && timesSaid(ctx, fragment.id) >= (fragment.maxTimes ?? DEFAULT_MAX_TIMES)) return false;
     // Already on the table; picking it again would replace the offer with itself.
     if (ctx.story.offer === fragment.id) return false;
     if (fragment.quiet !== undefined && ctx.quietFor < fragment.quiet) return false;
@@ -232,7 +262,11 @@ const VOLUME_BIAS: Record<StoryVolume, number> = {
 function pickFragment(template: StoryTemplate, ctx: StoryCtx, whispersOnly = false): StoryFragment | undefined {
   const scored = candidates(template, ctx, whispersOnly).map((fragment) => ({
     fragment,
-    score: ((fragment.weight ?? 1) + (fragment.salience?.(ctx) ?? 0)) * VOLUME_BIAS[fragment.volume],
+    // Each retelling is worth less than the last, so a repeatable line fades out rather than
+    // stopping abruptly at its ceiling.
+    score: ((fragment.weight ?? 1) + (fragment.salience?.(ctx) ?? 0))
+      * VOLUME_BIAS[fragment.volume]
+      / (1 + timesSaid(ctx, fragment.id)),
   })).filter((entry) => entry.score > 0);
   if (scored.length === 0) return undefined;
 

@@ -173,8 +173,14 @@ const result = await page.evaluate(async () => {
     // this model is most exposed to, so it is checked at the source.
     run.dupes = [];
     for (const story of st.stories ?? []) {
-      for (const id of story.spoken) {
-        if (story.spoken.filter((other) => other === id).length > 1) run.dupes.push(`${story.templateId}/${id}`);
+      const tmpl = storyTemplates.find((tm) => tm.id === story.templateId);
+      for (const id of new Set(story.spoken)) {
+        const frag = tmpl?.fragments.find((f) => f.id === id);
+        const times = story.spoken.filter((other) => other === id).length;
+        // `repeatable` is an authored property meaning "this may recur" — but it is capped, and
+        // exceeding the cap is a real failure.
+        const allowed = frag?.repeatable ? (frag.maxTimes ?? 3) : 1;
+        if (times > allowed) run.dupes.push(`${story.templateId}/${id} ×${times}`);
       }
     }
     run.spokenTotal = (st.stories ?? []).reduce((sum, story) => sum + story.spoken.length, 0);

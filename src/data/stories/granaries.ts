@@ -43,7 +43,7 @@ export const granaries: StoryTemplate = {
           apply: (ctx) => {
             ctx.bump('reforms');
             // Genuinely good. That is why it is taken, and why the story works.
-            applyResourceDelta(ctx.state, { gold: 180 });
+            applyResourceDelta(ctx.state, { gold: 90 });
             for (const land of playerLands(ctx.state)) {
               land.loyalty = Math.max(0, land.loyalty - 4);
             }
@@ -73,7 +73,7 @@ export const granaries: StoryTemplate = {
           id: 'enact',
           apply: (ctx) => {
             ctx.bump('reforms');
-            applyResourceDelta(ctx.state, { gold: 240, supplies: 60 });
+            applyResourceDelta(ctx.state, { gold: 110, supplies: 60 });
             for (const land of playerLands(ctx.state)) {
               land.loyalty = Math.max(0, land.loyalty - 7);
             }
@@ -206,7 +206,7 @@ export const granaries: StoryTemplate = {
         && ctx.age >= 30,
       salience: () => 6,
       effect: (ctx) => {
-        applyResourceDelta(ctx.state, { gold: 160 });
+        applyResourceDelta(ctx.state, { supplies: 90 });
         const hero = ctx.hero();
         if (hero) hero.stats.administration = Math.min(100, hero.stats.administration + 8);
       },

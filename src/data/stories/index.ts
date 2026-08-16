@@ -1,5 +1,30 @@
 import { countingHouse } from './countingHouse';
+import {
+  borrowedSword,
+  chamEngineer,
+  eatTogether,
+  noHeir,
+  riceRiot,
+  rideTheWind,
+  sixtyFiveCitadels,
+  slanderedGeneral,
+  theAssembly,
+  theSubstitution,
+  trustedSubordinate,
+  unpaidHost,
+} from './histories';
 import { dienHong } from './dienHong';
+import {
+  fiveDays,
+  ghostInTheSouth,
+  mountainAndWater,
+  saltRoad,
+  thanhGiong,
+  theDelayer,
+  theSickness,
+  thirteenthWarlord,
+  withoutSlaughter,
+} from './legends';
 import { gooseFeathers } from './gooseFeathers';
 import { granaries } from './granaries';
 import { reedBanner } from './reedBanner';
@@ -27,6 +52,35 @@ export const storyTemplates: StoryTemplate[] = [
   countingHouse,
   dienHong,
   theBoyWithTheOrange,
+
+  // The second wave, each built around a different corner of the outcome vocabulary rather than
+  // a different anecdote — rules taken and given, hosts that defect, heroes you choose to lose,
+  // a rival that comes apart, a capital that turns on you for being rich.
+  sixtyFiveCitadels,
+  rideTheWind,
+  theSubstitution,
+  borrowedSword,
+  slanderedGeneral,
+  trustedSubordinate,
+  chamEngineer,
+  theAssembly,
+  riceRiot,
+  noHeir,
+  eatTogether,
+  unpaidHost,
+
+  // The third wave: the legends, and the parts of the world that had no story attached to them
+  // yet — plague, flood, a road nobody is watching, a hero taken alive. Written whisper-heavy on
+  // purpose; ambient lines are what make a realm feel inhabited between the decisions.
+  fiveDays,
+  ghostInTheSouth,
+  withoutSlaughter,
+  theDelayer,
+  theSickness,
+  mountainAndWater,
+  thanhGiong,
+  saltRoad,
+  thirteenthWarlord,
 ];
 
 const byId = new Map(storyTemplates.map((template) => [template.id, template]));

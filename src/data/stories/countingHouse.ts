@@ -93,7 +93,7 @@ export const countingHouse: StoryTemplate = {
       when: (ctx) => ctx.recall('sheltered') > 0 && ctx.age >= 26,
       salience: () => 6,
       effect: (ctx) => {
-        applyResourceDelta(ctx.state, { gold: ctx.recall('sheltered') + 90 });
+        applyResourceDelta(ctx.state, { gold: ctx.recall('sheltered') });
       },
     },
 
