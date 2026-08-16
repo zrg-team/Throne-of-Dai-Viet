@@ -510,8 +510,8 @@ export class ConquestUIScene extends Phaser.Scene {
         .rectangle(bounds.width / 2, height / 2, bounds.width, height, 0xffffff, 0.001)
         .setInteractive({ useHandCursor: true });
       // A drag that ends over this card scrolled the list; it did not choose it.
-      hit.on('pointerup', () => {
-        if (scrollGestureConsumedTap()) {
+      hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        if (scrollGestureConsumedTap(pointer)) {
           return;
         }
         opts.onTap();
@@ -851,8 +851,8 @@ export class ConquestUIScene extends Phaser.Scene {
           .rectangle(rowWidth / 2, height / 2, rowWidth, height, 0xffffff, 0.001)
           .setInteractive({ useHandCursor: true });
         // A drag that ends over this row scrolled the list; it did not pick it.
-        hit.on('pointerup', () => {
-          if (scrollGestureConsumedTap()) {
+        hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+          if (scrollGestureConsumedTap(pointer)) {
             return;
           }
           onTap();
