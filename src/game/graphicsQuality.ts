@@ -28,15 +28,31 @@ interface QualityProfile {
   readonly paperFX: boolean;
   /** Multiplier on how many trees, tufts and figures the landscape scatters. */
   readonly scatter: number;
+  /**
+   * Resolution of the cached map textures, as a fraction of world size.
+   *
+   * The map holds two of these — the static terrain composite and the fog tint — and at full scale
+   * over a 2244x3030 world they are about 27 MB each. Halving the scale quarters that. It used to be
+   * picked by a device sniff of its own inside `MapScene`, with different thresholds from this file's,
+   * so a player who chose Low still paid for a full-resolution map. One tier system, one answer.
+   */
+  readonly bakeScale: number;
+  /**
+   * Below this map zoom, the small live detail is dropped: name plates, ox-carts and travellers,
+   * weather motes. `undefined` means never — a device with the fill rate to spare keeps everything.
+   */
+  readonly lodZoomBelow?: number;
+  /** Whether the province name plates are among the things a zoomed-out view drops. */
+  readonly lodDropsLabels: boolean;
 }
 
 const PROFILES: Record<GraphicsQuality, QualityProfile> = {
   // 1:1 with the design surface — what the game did before this existed.
-  low: { renderScale: 1, paperFX: false, scatter: 0.6 },
-  medium: { renderScale: 2, paperFX: true, scatter: 1 },
+  low: { renderScale: 1, paperFX: false, scatter: 0.6, bakeScale: 0.5, lodZoomBelow: 0.85, lodDropsLabels: true },
+  medium: { renderScale: 2, paperFX: true, scatter: 1, bakeScale: 0.75, lodZoomBelow: 0.85, lodDropsLabels: false },
   // 3 is not a typo: it is the ratio of every current flagship phone, and anything above it is
   // spending fill rate on detail the panel cannot resolve.
-  high: { renderScale: 3, paperFX: true, scatter: 1.25 },
+  high: { renderScale: 3, paperFX: true, scatter: 1.25, bakeScale: 1, lodDropsLabels: false },
 };
 
 function devicePixelRatioSafe(): number {
@@ -102,6 +118,51 @@ export function wantsPaperFX(): boolean {
 /** Multiplier on landscape scatter counts. */
 export function scatterDensity(): number {
   return profile().scatter;
+}
+
+/**
+ * Resolution of the cached map textures, as a fraction of world size.
+ *
+ * `?bakescale=N` still overrides it, because A/B-ing the map's memory against its sharpness is a
+ * thing worth being able to do without changing a setting and reloading.
+ */
+export function bakeScale(): number {
+  if (typeof window !== 'undefined') {
+    const override = /[?&]bakescale=([0-9.]+)/.exec(window.location.search);
+    if (override) {
+      return Math.min(1, Math.max(0.25, parseFloat(override[1])));
+    }
+  }
+  const chosen = profile().bakeScale;
+
+  // An explicit choice is honoured as given: a player who picked Low asked for the cheap map and
+  // should get the memory back.
+  const explicit = typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEY) !== null;
+  if (explicit) {
+    return chosen;
+  }
+
+  // Auto-tiering is a different question, and reading the tier straight would answer it wrongly.
+  // `defaultGraphicsQuality` returns 'low' whenever the pixel ratio is <= 1.25 — which is every
+  // ordinary desktop monitor — and that is a statement about resolution, not about memory. Half
+  // scale is visibly soft, so nothing is blurred on a guess unless the device says it is short of
+  // memory, which is the signal this scale actually trades against.
+  const nav = typeof navigator === 'undefined' ? undefined : (navigator as Navigator & { deviceMemory?: number });
+  const memoryGb = nav?.deviceMemory; // Chromium only; undefined on Safari/Firefox
+  if (memoryGb !== undefined && memoryGb <= 2) {
+    return 0.5;
+  }
+  return Math.max(chosen, 0.75);
+}
+
+/** The map zoom below which small live detail is dropped, or `undefined` if this tier keeps it all. */
+export function lodZoomThreshold(): number | undefined {
+  return profile().lodZoomBelow;
+}
+
+/** Whether a zoomed-out view on this tier also drops the province name plates. */
+export function lodDropsLabels(): boolean {
+  return profile().lodDropsLabels;
 }
 
 /**

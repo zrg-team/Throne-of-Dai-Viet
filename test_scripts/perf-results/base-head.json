@@ -1,0 +1,19 @@
+{
+  "label": "base-head",
+  "timestamp": "2026-08-16T10:18:44.798Z",
+  "config": {
+    "seed": 1337,
+    "ticks": 80,
+    "repeats": 3,
+    "cpuThrottle": 4
+  },
+  "errors": [],
+  "medianTickMs": 3119.7,
+  "perTickMs": 39,
+  "objectCount": 240,
+  "heapMB": 43.48,
+  "actualFps": 35.1,
+  "frameP50": 50,
+  "frameP95": 66.7,
+  "frameP99": 66.7
+}

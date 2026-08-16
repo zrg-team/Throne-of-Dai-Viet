@@ -29,11 +29,33 @@ import { OverlayRenderer } from './map/OverlayRenderer';
 import { SeasonRenderer, type SeasonScape } from './map/SeasonRenderer';
 import { SettlementRenderer } from './map/SettlementRenderer';
 import { TrafficRenderer } from './map/TrafficRenderer';
+import { ViewIndex, type CullKind } from './map/ViewIndex';
 import { BAKE_SEASON, foliagePalette, seasonVisualsEnabled, setFoliageSeason, setRenderSeason } from '../ui/ink/season';
 import { UI_FONT } from '../ui/fonts';
 import { t } from '../i18n';
 import { MINIMAP_H, MINIMAP_W } from '../ui/MinimapRenderer';
-import { RENDER_SCALE, designPointer } from '../game/graphicsQuality';
+import { RENDER_SCALE, bakeScale, designPointer, lodDropsLabels, lodZoomThreshold } from '../game/graphicsQuality';
+
+/**
+ * How far past the camera's edge an object still counts as visible.
+ *
+ * Enough that a settlement is already drawn by the time its ground scrolls in — culling exactly at
+ * the edge makes towns pop into existence at the side of the screen, which is far more noticeable
+ * than the handful of extra objects this keeps.
+ */
+const CULL_MARGIN = 110;
+
+/**
+ * The independently-invalidated bands of the map.
+ *
+ * These used to be one `bake` signature keyed on ownership, visibility and explored-ness together,
+ * so any of the three repainted all of them — and `isExplored` changes nothing but a fog alpha
+ * while costing the full repaint. Split, each band is repainted by the thing it actually depends on.
+ */
+type RenderLayer = 'terrain' | 'control' | 'fog' | 'roads' | 'node' | 'badge';
+const RENDER_LAYERS: RenderLayer[] = ['terrain', 'control', 'fog', 'roads', 'node', 'badge'];
+/** `?nocull=1` — diagnostic, to A/B the view culling the way `?nobake=1` A/Bs the bake. */
+const CULLING_DISABLED = typeof window !== 'undefined' && /[?&]nocull=1\b/.test(window.location.search);
 
 const MIN_CAMERA_ZOOM = 0.72;
 const MAX_CAMERA_ZOOM = 1.65;
@@ -42,31 +64,20 @@ const WORLD_PADDING = 300;
 
 /**
  * Resolution the static map layers are baked at (then displayed scaled back up).
- * Chosen per device: high-end renders full-detail (crisp terrain, ~52 MB of RTs),
- * low-end drops to half-res to save GPU memory (~13 MB) at the cost of some softness.
- * Override for testing with `?bakescale=0.75`.
+ *
+ * Now the player's own Graphics setting rather than a second device sniff living down here with
+ * different thresholds from the one in `graphicsQuality.ts` — a player who picked Low was still
+ * paying for a full-resolution map, which was the opposite of what they asked for. `?bakescale=N`
+ * still overrides. Read once: the setting reloads the page when it changes.
  */
-function pickBakeScale(): number {
-  if (typeof window !== 'undefined') {
-    const override = /[?&]bakescale=([0-9.]+)/.exec(window.location.search);
-    if (override) return Math.min(1, Math.max(0.25, parseFloat(override[1])));
-  }
-  const nav = (typeof navigator !== 'undefined' ? navigator : undefined) as
-    | (Navigator & { deviceMemory?: number })
-    | undefined;
-  const memoryGb = nav?.deviceMemory; // Chromium only; undefined on Safari/Firefox/desktop
-  const cores = nav?.hardwareConcurrency ?? 4;
-  if (memoryGb !== undefined && memoryGb <= 2) return 0.5; // clearly low-end -> save memory
-  if ((memoryGb ?? 8) >= 8 && cores >= 8) return 1; // high-end -> full detail, no softening
-  return 0.75; // mid / unknown -> lightly downscaled, visually near-lossless
-}
-
-const BAKE_SCALE = pickBakeScale();
+const BAKE_SCALE = bakeScale();
 
 export class MapScene extends Phaser.Scene {
   protected state!: GameState;
   private touch!: TouchController;
   private landNodes = new Map<string, Phaser.GameObjects.Container>();
+  /** Each node's name plate, held separately so the zoom LOD can drop type without dropping towns. */
+  private landLabels = new Map<string, Phaser.GameObjects.Container>();
   private flagMarkers = new Map<string, Phaser.GameObjects.Container>();
   private acquisitionMarkers: Phaser.GameObjects.GameObject[] = [];
   private buildMarkers: Phaser.GameObjects.GameObject[] = [];
@@ -102,6 +113,15 @@ export class MapScene extends Phaser.Scene {
   private renderedSeason?: string;
   /** Protected so a subclass mode can trace its own land boundaries from the same grid. */
   protected hexTileMap = new Map<string, HexTile>();
+  /**
+   * Land lookup for the render loops only.
+   *
+   * `findLand` is a linear `Array.find` over 42 lands, and the per-tile passes below call it once
+   * per hex — the terrain, filler, coast, control and fog loops together run it ~5000 times per
+   * repaint, which is ~200k comparisons for a table that never changes shape. Gameplay keeps using
+   * `findLand`: this is a render-side index, so no system's behaviour can shift with it.
+   */
+  private landById = new Map<string, Land>();
   private fillerTiles: HexTile[] = [];
   private fillerTileMap = new Map<string, HexTile>();
   private hexOffsetX = 0;
@@ -111,7 +131,20 @@ export class MapScene extends Phaser.Scene {
   protected realtimeAccumulator = 0;
   private isDraggingMap = false;
   private dragDistance = 0;
-  private renderSignatures: { bake: string; node: string } = { bake: '', node: '' };
+  /** Which live objects the camera can reach. See `ViewIndex` for why this is a grid. */
+  private viewIndex = new ViewIndex();
+  /** The camera pose the culling was last computed for, so a still camera costs one comparison. */
+  private lastCullPose = '';
+  private renderSignatures: Record<RenderLayer, string> = {
+    terrain: '',
+    control: '',
+    fog: '',
+    roads: '',
+    node: '',
+    badge: '',
+  };
+  /** Per-land signature of the live settlement node, so only the lands that changed are rebuilt. */
+  private nodeSignatures = new Map<string, string>();
   private suppressNextMapTap = false;
   private domDown?: { x: number; y: number };
   private domDragDistance = 0;
@@ -198,6 +231,7 @@ export class MapScene extends Phaser.Scene {
 
   private resetRuntimeState(): void {
     this.landNodes = new Map<string, Phaser.GameObjects.Container>();
+    this.landLabels = new Map<string, Phaser.GameObjects.Container>();
     this.flagMarkers = new Map<string, Phaser.GameObjects.Container>();
     this.acquisitionMarkers = [];
     this.buildMarkers = [];
@@ -208,6 +242,10 @@ export class MapScene extends Phaser.Scene {
     this.fillerFogGraphics = undefined;
     this.connectionGraphics = undefined;
     this.hexTileMap = new Map<string, HexTile>();
+    this.landById = new Map<string, Land>();
+    this.nodeSignatures = new Map<string, string>();
+    this.viewIndex = new ViewIndex();
+    this.lastCullPose = '';
     this.fillerTiles = [];
     this.fillerTileMap = new Map<string, HexTile>();
     this.hexOffsetX = 0;
@@ -217,7 +255,7 @@ export class MapScene extends Phaser.Scene {
     this.realtimeAccumulator = 0;
     this.isDraggingMap = false;
     this.dragDistance = 0;
-    this.renderSignatures = { bake: '', node: '' };
+    this.renderSignatures = { terrain: '', control: '', fog: '', roads: '', node: '', badge: '' };
     this.suppressNextMapTap = false;
     this.domDown = undefined;
     this.domDragDistance = 0;
@@ -420,8 +458,150 @@ export class MapScene extends Phaser.Scene {
     this.seasons.setPaused(halted);
   }
 
+  /**
+   * Registers every live map object with the view index.
+   *
+   * Re-run after each `refresh()`, because the objects themselves are rebuilt there — a settlement
+   * node is destroyed and recreated when its buildings change, an army marker when its host does.
+   * Ids are stable across those rebuilds, which is what lets `ViewIndex.set` hand a replacement the
+   * cull state its predecessor had.
+   */
+  private syncCullables(): void {
+    const live = new Set<string>();
+
+    for (const [landId, node] of this.landNodes) {
+      const id = `land::${landId}`;
+      live.add(id);
+      // A settlement reaches well below its land centre — walls, the grove, and the name plate
+      // sitting 58px under a walled seat — so the reach is generous rather than tight.
+      this.viewIndex.set(id, {
+        kind: 'node',
+        x: node.x,
+        y: node.y,
+        radius: 140,
+        setCulled: (culled) => node.setVisible(!culled),
+      });
+    }
+
+    for (const [landId, label] of this.landLabels) {
+      const id = `label::${landId}`;
+      live.add(id);
+      this.viewIndex.set(id, {
+        kind: 'label',
+        x: label.x + (this.landNodes.get(landId)?.x ?? 0),
+        y: label.y + (this.landNodes.get(landId)?.y ?? 0),
+        radius: 80,
+        setCulled: (culled) => label.setVisible(!culled),
+      });
+    }
+
+    for (const [landId, flag] of this.flagMarkers) {
+      const id = `flag::${landId}`;
+      live.add(id);
+      this.viewIndex.set(id, {
+        kind: 'flag',
+        x: flag.x,
+        y: flag.y,
+        radius: 60,
+        setCulled: (culled) => flag.setVisible(!culled),
+      });
+    }
+
+    for (const { id: armyId, object } of this.armies.cullTargets()) {
+      const id = `army::${armyId}`;
+      live.add(id);
+      // Wider than the marker: between refreshes it tweens along a whole leg of its march, and
+      // re-indexing it every frame would cost more than the one object it saves.
+      this.viewIndex.set(id, {
+        kind: 'army',
+        x: object.x,
+        y: object.y,
+        radius: 200,
+        setCulled: (culled) => object.setVisible(!culled),
+      });
+    }
+
+    for (const target of this.traffic.cullTargets()) {
+      live.add(target.id);
+      this.viewIndex.set(target.id, {
+        kind: 'traffic',
+        x: target.x,
+        y: target.y,
+        radius: target.radius,
+        setCulled: (culled) => this.traffic.setCulled(target.id, culled),
+      });
+    }
+
+    for (const target of this.overlays.cloudTargets()) {
+      live.add(target.id);
+      this.viewIndex.set(target.id, {
+        kind: 'cloud',
+        x: target.x,
+        y: target.y,
+        radius: target.radius,
+        setCulled: (culled) => this.overlays.setCloudCulled(target.id, culled),
+      });
+    }
+
+    this.viewIndex.retainOnly(live);
+    // The roster just changed, so the pose cache cannot vouch for the new entries.
+    this.syncViewCulling(true);
+  }
+
+  /**
+   * The detail this device drops at this zoom.
+   *
+   * Zoomed out, the small live things stop being read and start being texture: an ox-cart is three
+   * pixels, and a name plate is type too small to spell a province. Which of them go is the player's
+   * Graphics setting rather than one rule for every phone — a device with fill rate to spare has no
+   * reason to lose anything, and the tier is already the honest answer to what a device can afford.
+   */
+  private suppressedDetail(): CullKind[] {
+    const threshold = lodZoomThreshold();
+    if (threshold === undefined || this.mapZoom >= threshold) {
+      return [];
+    }
+    return lodDropsLabels() ? ['traffic', 'label'] : ['traffic'];
+  }
+
+  /**
+   * Hides what the camera cannot reach, and stops what animates out there.
+   *
+   * The map is 2244x3030 and the camera sees between 1.8% and 9.3% of it, so this is the difference
+   * between drawing the country and drawing the province the player is looking at. Gated on the
+   * camera pose: a still camera costs one string compare, and the work only happens while panning.
+   */
+  protected syncViewCulling(force = false): void {
+    if (CULLING_DISABLED) {
+      return;
+    }
+    const camera = this.cameras.main;
+    const pose = `${Math.round(camera.scrollX)}|${Math.round(camera.scrollY)}|${camera.zoom.toFixed(3)}`;
+    const lodChanged = this.viewIndex.setSuppressed(this.suppressedDetail());
+    if (!force && !lodChanged && pose === this.lastCullPose) {
+      return;
+    }
+    this.lastCullPose = pose;
+
+    // Built from scroll and zoom rather than read off `camera.worldView`, which Phaser only
+    // recomputes in preRender. The first cull runs at the end of `drawMap`, before any frame has
+    // been rendered, where `worldView` is still empty — and because scroll and zoom are already
+    // final by then, the pose cache would have locked that answer in and culled the whole map,
+    // player's capital included. The camera's origin is (0,0), so scroll is the top-left corner.
+    const view = new Phaser.Geom.Rectangle(
+      camera.scrollX,
+      camera.scrollY,
+      camera.width / camera.zoom,
+      camera.height / camera.zoom,
+    );
+    this.viewIndex.apply(view, CULL_MARGIN);
+  }
+
   update(time: number, delta: number): void {
     this.syncWorldMotion();
+    // Before the halt check: a paused map can still be panned, and the player scrolling a stopped
+    // world is exactly when they are looking hardest at what is on it.
+    this.syncViewCulling();
     if (this.isWorldHalted()) {
       return;
     }
@@ -597,6 +777,22 @@ export class MapScene extends Phaser.Scene {
     this.refresh();
   }
 
+  /**
+   * The render-side land lookup, rebuilt when the roster changes shape.
+   *
+   * Lands are fixed at generation today, so this is built once — but a mode that ever adds one
+   * would otherwise get a silently stale index, and the size check costs a property read.
+   */
+  private landAt(landId: string): Land | undefined {
+    if (this.landById.size !== this.state.lands.length) {
+      this.landById.clear();
+      for (const land of this.state.lands) {
+        this.landById.set(land.id, land);
+      }
+    }
+    return this.landById.get(landId);
+  }
+
   /** Pixel bounds (pre-MAP_SCALE) of the generated hex grid, used to offset world coordinates. */
   private computeWorldBounds(): void {
     const hexSize = this.state.mapConfig.hexSize;
@@ -633,9 +829,7 @@ export class MapScene extends Phaser.Scene {
     this.drawCarts();
     this.drawTravelers();
 
-    for (const land of this.state.lands) {
-      this.createLandNode(land);
-    }
+    this.redrawLandNodes();
     this.drawFlagMarkers();
 
     this.drawArmies();
@@ -656,7 +850,12 @@ export class MapScene extends Phaser.Scene {
       this.mapRenderer.theme.id === 'dong-ho' && seasonVisualsEnabled(),
     );
     this.renderedSeason = this.state.season;
-    this.renderSignatures = { bake: this.getBakeSignature(), node: this.getNodeSignature() };
+    for (const layer of RENDER_LAYERS) {
+      this.renderSignatures[layer] = this.getSignature(layer);
+    }
+    // `create()` draws the map and then waits for the first economy tick, several seconds away, so
+    // without this the opening view is the one part of the game that renders entirely unculled.
+    this.syncCullables();
   }
 
   private drawPaperBackground(): void {
@@ -683,7 +882,7 @@ export class MapScene extends Phaser.Scene {
         const coord = { q, r };
         const sourceTile = this.getFillerSourceTile(coord);
         const terrainKey = sourceTile?.terrain ?? 'plains';
-        const sourceLand = sourceTile?.landId ? findLand(this.state, sourceTile.landId) : undefined;
+        const sourceLand = sourceTile?.landId ? this.landAt(sourceTile.landId) : undefined;
         const pixel = axialToPixel(coord, hexSize);
         const center = { x: this.wx(pixel.x), y: this.wy(pixel.y) };
         const fillerTile = { coord, terrain: terrainKey, landId: sourceTile?.landId };
@@ -711,7 +910,7 @@ export class MapScene extends Phaser.Scene {
     const rng = createRng(this.state.mapConfig.seed + 1777);
 
     for (const tile of fillerTiles) {
-      const sourceLand = tile.landId ? findLand(this.state, tile.landId) : undefined;
+      const sourceLand = tile.landId ? this.landAt(tile.landId) : undefined;
       if (sourceLand && !sourceLand.isVisible) {
         continue;
       }
@@ -744,7 +943,7 @@ export class MapScene extends Phaser.Scene {
         return { x: this.wx(pixel.x), y: this.wy(pixel.y) };
       },
       isVisible: (tile) => {
-        const land = tile.landId ? findLand(this.state, tile.landId) : undefined;
+        const land = tile.landId ? this.landAt(tile.landId) : undefined;
         return !land || land.isVisible;
       },
       worldWidth: this.worldWidth,
@@ -801,7 +1000,7 @@ export class MapScene extends Phaser.Scene {
     }
 
     for (const tile of this.state.hexTiles) {
-      const land = tile.landId ? findLand(this.state, tile.landId) : undefined;
+      const land = tile.landId ? this.landAt(tile.landId) : undefined;
       if (land && !land.isVisible) {
         continue;
       }
@@ -818,7 +1017,7 @@ export class MapScene extends Phaser.Scene {
     for (const group of computeTerrainRegions(this.state, this.hexTileMap)) {
       const centers = group
         .filter((tile) => {
-          const land = tile.landId ? findLand(this.state, tile.landId) : undefined;
+          const land = tile.landId ? this.landAt(tile.landId) : undefined;
           return !land || land.isVisible;
         })
         .map((tile) => {
@@ -860,7 +1059,7 @@ export class MapScene extends Phaser.Scene {
         continue;
       }
 
-      const land = tile.landId ? findLand(this.state, tile.landId) : undefined;
+      const land = tile.landId ? this.landAt(tile.landId) : undefined;
       if (!land?.isVisible) {
         continue;
       }
@@ -898,7 +1097,7 @@ export class MapScene extends Phaser.Scene {
     this.controlGraphics.clear();
     const hexSize = this.state.mapConfig.hexSize;
     for (const tile of this.state.hexTiles) {
-      const land = tile.landId ? findLand(this.state, tile.landId) : undefined;
+      const land = tile.landId ? this.landAt(tile.landId) : undefined;
       if (land && !land.isVisible) {
         continue;
       }
@@ -995,7 +1194,13 @@ export class MapScene extends Phaser.Scene {
   }
 
   private drawFogOfWar(): void {
-    this.overlays.createFogLayer(this.state, this.hexTileMap, (value) => this.wx(value), (value) => this.wy(value));
+    this.overlays.createFogLayer(
+      this.state,
+      this.hexTileMap,
+      (value) => this.wx(value),
+      (value) => this.wy(value),
+      this.fogFrontier(),
+    );
   }
 
   private drawFillerFogOfWar(): void {
@@ -1015,8 +1220,39 @@ export class MapScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * The hidden ground the realm actually touches: the one province deep band of fog.
+   *
+   * Everything past it is left as bare paper — the chronicle simply has not reached it. That is the
+   * fix for a cost curve that ran backwards: fog was painted over every hidden province, so the
+   * opening position (three lands visible, thirty-nine fogged) was the most expensive the map ever
+   * got, and it grew *cheaper* as the player explored. The fog layer was 364k fill commands at a
+   * point when almost nothing had been discovered.
+   */
+  private fogFrontier(): ReadonlySet<string> {
+    const frontier = new Set<string>();
+    for (const land of this.state.lands) {
+      if (land.isVisible) {
+        continue;
+      }
+      for (const neighborId of land.neighbors) {
+        if (this.landAt(neighborId)?.isVisible) {
+          frontier.add(land.id);
+          break;
+        }
+      }
+    }
+    return frontier;
+  }
+
   private repaintFogOfWar(): void {
-    this.overlays.repaintFogOfWar(this.state, this.hexTileMap, (value) => this.wx(value), (value) => this.wy(value));
+    this.overlays.repaintFogOfWar(
+      this.state,
+      this.hexTileMap,
+      (value) => this.wx(value),
+      (value) => this.wy(value),
+      this.fogFrontier(),
+    );
   }
 
   private repaintFillerFogOfWar(): void {
@@ -1026,11 +1262,12 @@ export class MapScene extends Phaser.Scene {
 
     this.fillerFogGraphics.clear();
     const hexSize = this.state.mapConfig.hexSize;
+    const frontier = this.fogFrontier();
     const hiddenGroups = new Map<string, { land: Land; centers: Array<{ x: number; y: number }> }>();
 
     for (const tile of this.fillerTiles) {
-      const sourceLand = tile.landId ? findLand(this.state, tile.landId) : undefined;
-      if (!sourceLand || sourceLand.isVisible) {
+      const sourceLand = tile.landId ? this.landAt(tile.landId) : undefined;
+      if (!sourceLand || sourceLand.isVisible || !frontier.has(sourceLand.id)) {
         continue;
       }
 
@@ -1188,7 +1425,11 @@ export class MapScene extends Phaser.Scene {
     const settlement = this.settlements.createSettlementCluster(this.state, land);
     container.add(settlement);
 
-    container.add(this.createLandLabel(land, isPlayerCapital));
+    const label = this.createLandLabel(land, isPlayerCapital);
+    container.add(label);
+    // Kept by hand as well as in the container, because the zoom LOD drops the name plates on the
+    // lowest tier without dropping the town under them — each is a `Text` carrying its own canvas.
+    this.landLabels.set(land.id, label);
     this.landNodes.set(land.id, container);
   }
 
@@ -1296,6 +1537,28 @@ export class MapScene extends Phaser.Scene {
     } else {
       this.overlays.clearArmyHighlight();
     }
+  }
+
+  /**
+   * Whether the four progress-badge layers need rebuilding.
+   *
+   * They are destroyed and recreated wholesale on every `refresh()`, which on a quiet tick throws
+   * away and rebuilds badges identical to the ones just discarded. The camera is part of the
+   * signature because `getVisibleLandMarkerPoint` clamps a badge to stay on screen, so a pan moves
+   * it even when no order changed — quantised to 8 units so a drag does not rebuild every frame.
+   */
+  private getBadgeSignature(): string {
+    const camera = this.cameras.main;
+    const orders = [
+      this.state.acquisitionOrders,
+      this.state.buildOrders,
+      this.state.siegeOrders,
+      this.state.recruitmentOrders,
+    ]
+      .map((list) => list.map((order) => `${order.landId}:${order.progress}/${order.required}`).join(','))
+      .join('|');
+    const view = `${Math.round(camera.scrollX / 8)}:${Math.round(camera.scrollY / 8)}:${camera.zoom.toFixed(2)}`;
+    return `${orders}|${view}|${this.state.selectedLandId ?? ''}`;
   }
 
   private drawAcquisitionMarkers(): void {
@@ -1462,30 +1725,49 @@ export class MapScene extends Phaser.Scene {
     // The baked terrain/control/coast/fog/zone layers depend only on ownership and
     // visibility, so a building-only change (common on economy ticks) skips the whole
     // expensive repaint+bake and just refreshes the live settlement nodes.
-    const bakeChanged = this.updateSignature('bake');
+    const terrainChanged = this.updateSignature('terrain');
+    const controlChanged = this.updateSignature('control');
+    const fogChanged = this.updateSignature('fog');
+    const roadsChanged = this.updateSignature('roads');
     const nodeChanged = this.updateSignature('node');
 
-    if (bakeChanged) {
+    if (terrainChanged) {
       this.drawBackgroundFillerTiles();
       this.repaintHexTerrain();
-      this.repaintControlMap();
       this.repaintCoastBuffer();
+    }
+
+    if (controlChanged) {
+      this.repaintControlMap();
+      this.repaintAllZones();
+      this.drawFlagMarkers();
+    }
+
+    if (fogChanged) {
       this.repaintFogOfWar();
       this.repaintFillerFogOfWar();
       this.bakeFog();
-      this.repaintAllZones();
-      this.drawFlagMarkers();
+    }
+
+    if (roadsChanged) {
       this.drawConnections();
       this.drawCarts();
       this.drawTravelers();
     }
 
-    if (bakeChanged || nodeChanged) {
+    // The node signature already carries ownership and visibility along with buildings, so this
+    // needs no help from the bands above.
+    if (nodeChanged) {
       this.redrawLandNodes();
     }
 
-    if (bakeChanged) {
+    // The fog keeps its own texture, so it is deliberately absent here: re-inking the fog must not
+    // drag the ground, the ranges and the roads through a re-composite with it.
+    if (terrainChanged || controlChanged || roadsChanged) {
       this.bakeStaticTerrain();
+    }
+
+    if (terrainChanged) {
       // The accents are drawn per visible tile, so land coming out of the fog has to be given its
       // own — this layer is otherwise painted only when the season turns.
       this.seasons.setScape(this.landscapeGeometry());
@@ -1496,10 +1778,13 @@ export class MapScene extends Phaser.Scene {
     this.updateSelectionOutline();
     this.drawArmies();
     this.updateArmyHighlight();
-    this.drawAcquisitionMarkers();
-    this.drawBuildMarkers();
-    this.drawSiegeMarkers();
-    this.drawRecruitMarkers();
+    if (this.updateSignature('badge')) {
+      this.drawAcquisitionMarkers();
+      this.drawBuildMarkers();
+      this.drawSiegeMarkers();
+      this.drawRecruitMarkers();
+    }
+    this.syncCullables();
     this.events.emit('state-changed');
     this.scene.get(this.uiSceneKey()).events.emit('state-changed');
   }
@@ -1560,8 +1845,8 @@ export class MapScene extends Phaser.Scene {
   }
 
   /** Updates one cached render signature and reports whether it changed. */
-  private updateSignature(kind: 'bake' | 'node'): boolean {
-    const next = kind === 'bake' ? this.getBakeSignature() : this.getNodeSignature();
+  private updateSignature(kind: RenderLayer): boolean {
+    const next = this.getSignature(kind);
     if (next === this.renderSignatures[kind]) {
       return false;
     }
@@ -1569,40 +1854,82 @@ export class MapScene extends Phaser.Scene {
     return true;
   }
 
-  /** Signature of everything baked into the static terrain/fog textures: ownership and
-   *  visibility per land. Deliberately excludes buildings, which only affect live nodes. */
-  private getBakeSignature(): string {
-    // Deliberately NOT keyed on the season, even though the season now redraws half the map.
-    //
-    // Measured on a 4x-throttled mid-tier profile (`test_scripts/measure-bake.mjs`, 1560 tiles): a
-    // `refresh()` whose bake signature changed costs ~1550 ms, because it repaints the ground, the
-    // water, the ranges, the paddy, the zones, the fog and the connections along with the scenery.
-    // None of those change with the calendar.
-    //
-    // A season change goes through `rebakeScenery()` instead, which repaints only the decoration
-    // layer — from a cached placement plan — and re-composites. Same texture, a fraction of the work.
-    return `${this.state.mapConfig.seed}|${this.state.mapRenderMode}|${this.state.lands
-      .map((land) => `${land.id}:${land.ownerId}:${land.isVisible ? 1 : 0}:${land.isExplored ? 1 : 0}`)
-      .join('|')}`;
-  }
-
-  /** Signature of the live settlement nodes: visibility, ownership, and buildings. */
-  private getNodeSignature(): string {
-    return this.state.lands
-      .map((land) => {
-        const buildings = land.buildings.map((building) => `${building.type}${building.level}`).join(',');
-        return `${land.id}:${land.ownerId}:${land.isVisible ? 1 : 0}:${buildings}`;
-      })
-      .join('|');
-  }
-
-  private redrawLandNodes(): void {
-    for (const node of this.landNodes.values()) {
-      node.destroy(true);
+  /**
+   * What each band of the map actually depends on.
+   *
+   * Keeping these apart is the whole point: a province changing hands does not move a hill, and a
+   * province being *remembered* rather than seen changes only how heavily its fog is inked. Bundled
+   * together, as they were, either of those repainted the ground, the water, the ranges, the paddy,
+   * the fog and the roads alike.
+   */
+  private getSignature(kind: RenderLayer): string {
+    switch (kind) {
+      case 'terrain':
+        return `${this.state.mapConfig.seed}|${this.state.lands.map((l) => (l.isVisible ? 1 : 0)).join('')}`;
+      case 'control':
+        return `${this.state.mapRenderMode}|${this.state.lands
+          .map((l) => `${l.ownerId}${l.isVisible ? 1 : 0}`)
+          .join('|')}`;
+      case 'fog':
+        // The frontier is a function of visibility, so visibility is enough to key it — but
+        // `isExplored` genuinely belongs here, and only here: it sets the fog's alpha and nothing else.
+        return this.state.lands.map((l) => `${l.isVisible ? 1 : 0}${l.isExplored ? 1 : 0}`).join('');
+      case 'roads':
+        // Roads, carts and travellers run between visible settlements, and `hasVillage` is exactly
+        // the test `TrafficRenderer` applies. Deliberately not keyed on buildings: a granary going
+        // up must not rebuild the country's roads, which is what `diag-build.mjs` guards.
+        return this.state.lands.map((l) => `${l.isVisible ? 1 : 0}${l.hasVillage ? 1 : 0}`).join('');
+      case 'node':
+        return this.getNodeSignature();
+      default:
+        return this.getBadgeSignature();
     }
-    this.landNodes.clear();
+  }
 
+  /**
+   * Signature of one land's live settlement node.
+   *
+   * The season is in here for a reason that is easy to lose: a node carries seasonal ink. Its name
+   * plate is lettered in `foliagePalette().labelInk` and its grove and banyan are drawn in the
+   * current foliage, and both are live objects at depth 2, outside the bake. `rebakeScenery()`
+   * calls `redrawLandNodes()` for exactly that re-inking — so without the season here, the leaves
+   * would turn across the country while every town stood in last season's green.
+   */
+  private landNodeSignature(land: Land): string {
+    const buildings = land.buildings.map((building) => `${building.type}${building.level}`).join(',');
+    return `${land.ownerId}:${land.isVisible ? 1 : 0}:${buildings}:${this.state.season}`;
+  }
+
+  /** Signature of the live settlement nodes: visibility, ownership, buildings and season. */
+  private getNodeSignature(): string {
+    return this.state.lands.map((land) => `${land.id}:${this.landNodeSignature(land)}`).join('|');
+  }
+
+  /**
+   * Rebuilds only the settlement nodes that actually changed.
+   *
+   * This used to destroy all 42 nodes and recreate them — each one a whole city/wall/road/building
+   * composite plus a `Text` name plate with its own canvas texture — whenever *any* building
+   * anywhere finished. The stored signature is the authority: a land whose signature is unchanged
+   * is skipped whether or not it currently has a node, which is what keeps fogged lands (where
+   * `createLandNode` returns early) from rebuilding on every pass.
+   */
+  private redrawLandNodes(): void {
     for (const land of this.state.lands) {
+      const signature = this.landNodeSignature(land);
+      if (this.nodeSignatures.get(land.id) === signature) {
+        continue;
+      }
+      this.nodeSignatures.set(land.id, signature);
+
+      const existing = this.landNodes.get(land.id);
+      if (existing) {
+        existing.destroy(true);
+        this.landNodes.delete(land.id);
+        // The plate is a child of the node and dies with it; the separate handle must go too, or
+        // the LOD would keep toggling a destroyed object.
+        this.landLabels.delete(land.id);
+      }
       this.createLandNode(land);
     }
   }

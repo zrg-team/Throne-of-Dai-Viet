@@ -34,9 +34,21 @@ const out = await page.evaluate(() => {
   return {
     ...time('bakeOnlyMs', () => scene.bakeStaticTerrain(), 8),
     ...time('repaintPlusBakeMs', () => { scene.repaintHexTerrain(); scene.bakeStaticTerrain(); }, 6),
-    // What `refresh()` does when the bake signature changes — a province taken, or the fog lifting.
+    // What `refresh()` does when everything the map is keyed on changes at once — a province taken
+    // and the fog lifting off its neighbours, which is the worst case and the one the player feels.
     ...time('fullRefreshMs', () => {
-      scene.renderSignatures.bake = '';
+      for (const band of ['terrain', 'control', 'fog', 'roads', 'node']) scene.renderSignatures[band] = '';
+      scene.refresh();
+    }, 5),
+    // The two cases the bands were split apart for. Ownership moving does not move a hill, and a
+    // province being remembered rather than seen changes only how heavily its fog is inked — both
+    // used to cost the full repaint above.
+    ...time('ownershipOnlyMs', () => {
+      scene.renderSignatures.control = '';
+      scene.refresh();
+    }, 5),
+    ...time('fogOnlyMs', () => {
+      scene.renderSignatures.fog = '';
       scene.refresh();
     }, 5),
     // The calendar's own path: repaint the scatter and the ground cast from the cached plan, redraw
@@ -52,6 +64,8 @@ console.log(`tiles=${out.tiles} lands=${out.lands}  (4x CPU throttle, mid-tier A
 console.log(`  bake only:            ${out.bakeOnlyMs} ms  (${(out.bakeOnlyMs / budget).toFixed(1)} frames)`);
 console.log(`  repaint + bake:       ${out.repaintPlusBakeMs} ms  (${(out.repaintPlusBakeMs / budget).toFixed(1)} frames)`);
 console.log(`  full refresh + bake:  ${out.fullRefreshMs} ms  (${(out.fullRefreshMs / budget).toFixed(1)} frames)`);
+console.log(`  ownership only:       ${out.ownershipOnlyMs} ms  (${(out.ownershipOnlyMs / budget).toFixed(1)} frames)`);
+console.log(`  fog/explored only:    ${out.fogOnlyMs} ms  (${(out.fogOnlyMs / budget).toFixed(1)} frames)`);
 console.log(`  season turn:          ${out.seasonTurnMs} ms  (${(out.seasonTurnMs / budget).toFixed(1)} frames)`);
 console.log('');
 // Run-to-run spread on a throttled browser is wide, so treat one green run as weak evidence and
