@@ -1420,7 +1420,7 @@ export class ConquestUIScene extends Phaser.Scene {
   private showCourtScreen(): void {
     const state = this.state;
     const mandate = state.mandate;
-    const { addRow, finish } = this.laneList(
+    const { addRow, addHeading, finish } = this.laneList(
       t('action.court'),
       t('ascent.lane.courtBody', {
         era: mandate ? eraLabel(mandate.era) : '—',
@@ -1429,6 +1429,33 @@ export class ConquestUIScene extends Phaser.Scene {
       }),
     );
 
+    const seated = ALL_COURT_POSITIONS.filter((seat) => state.court.seats[seat]).length;
+    const unlockedCount = state.court.unlockedSeats.length;
+
+    // ── The court as it stands ──
+    //
+    // The same reasoning as the province sheet: the screen opened straight onto a list of seats
+    // without saying what state the court was in. Stability and its drift are the two numbers the
+    // whole screen is about — an empty seat costs stability every tick — and neither was anywhere
+    // except as a bare figure in the subtitle, with no sign of which way it was moving.
+    addHeading(t('court.section.state'));
+    const regen = getCourtBonuses(state).stabilityRegen;
+    addRow({
+      title: t('court.status.stability', {
+        stability: Math.round(state.court.stability),
+        drift: `${regen >= 0 ? '+' : ''}${(Math.round(regen * 10) / 10).toFixed(1)}`,
+      }),
+      subtitle: `${t('court.status.seats', { seated, total: unlockedCount })}\n${t('court.status.favor', {
+        favor: Math.round(state.court.favor),
+        threshold: Math.round(state.court.favorThreshold),
+      })}`,
+      border: state.court.stability < 35 ? INK_UI.cinnabar : INK_UI.jade,
+    });
+
+    // ── Decrees ──
+    if ((mandate?.edictPoints ?? 0) > 0 || (mandate?.edicts.length ?? 0) > 0) {
+      addHeading(t('court.section.decrees'));
+    }
     if ((mandate?.edictPoints ?? 0) > 0) {
       addRow(
         {
@@ -1442,8 +1469,28 @@ export class ConquestUIScene extends Phaser.Scene {
         },
       );
     }
+    for (const edictId of mandate?.edicts ?? []) {
+      const view = lawCardView(state, edictId);
+      if (!view) continue;
+      addRow({ title: view.title, subtitle: view.effect, border: INK_UI.gold, muted: true });
+    }
 
-    for (const seat of ALL_COURT_POSITIONS) {
+    // ── Seats, ordered by what wants attention ──
+    //
+    // Fixed order previously, so a locked seat — nothing to be done about it for another era — sat
+    // between two vacancies the player could fill today. Vacant-and-open first, then the seats
+    // already working, then the ones still shut: the list now reads top-down as "do this, this is
+    // fine, this is later".
+    addHeading(t('court.section.seats'));
+    const seats = [...ALL_COURT_POSITIONS].sort((a, b) => {
+      const rank = (seat: CourtPositionId) => {
+        if (!state.court.unlockedSeats.includes(seat)) return 2;
+        return state.court.seats[seat] ? 1 : 0;
+      };
+      return rank(a) - rank(b);
+    });
+
+    for (const seat of seats) {
       const unlocked = state.court.unlockedSeats.includes(seat);
       const hero = state.heroes.find((candidate) => candidate.id === state.court.seats[seat]);
       addRow(
@@ -1455,21 +1502,19 @@ export class ConquestUIScene extends Phaser.Scene {
           border: hero ? INK_UI.jade : unlocked ? INK_UI.gold : INK_UI.softBrush,
           muted: !unlocked,
         },
-        // A seated minister can be moved; an empty seat is filled from the Heroes screen.
+        // A seated minister can be moved. An empty seat used to be a dead row that told the player
+        // to go to the Heroes screen without taking them there — it now does.
         hero
           ? () => {
               this.closeLane();
               this.events.emit('ui:ascent-appoint', hero.id);
             }
-          : undefined,
+          : unlocked
+            ? () => this.showHeroesScreen()
+            : undefined,
       );
     }
 
-    for (const edictId of mandate?.edicts ?? []) {
-      const view = lawCardView(state, edictId);
-      if (!view) continue;
-      addRow({ title: view.title, subtitle: view.effect, border: INK_UI.gold });
-    }
     finish();
   }
 
@@ -1478,7 +1523,7 @@ export class ConquestUIScene extends Phaser.Scene {
     const state = this.state;
     const ascent = state.ascent;
     const mine = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID);
-    const { addRow, finish } = this.laneList(
+    const { addRow, addHeading, finish } = this.laneList(
       t('action.army'),
       t('ascent.screen.armyBody', {
         defense: Math.round(ascent?.defensePower ?? 0),
@@ -1486,6 +1531,22 @@ export class ConquestUIScene extends Phaser.Scene {
       }),
     );
 
+    // What the realm can bring against what is coming — the comparison the whole screen exists to
+    // inform, and previously a subtitle the eye skips on the way to the rows.
+    const defence = Math.round(ascent?.defensePower ?? 0);
+    const threat = Math.round(ascent?.threat ?? 0);
+    const troops = mine.reduce(
+      (sum, army) => sum + army.units.spearmen + army.units.archers + army.units.heavyInfantry,
+      0,
+    );
+    addHeading(t('army.section.state'));
+    addRow({
+      title: t('army.status.strength', { defence, threat }),
+      subtitle: t('army.status.hosts', { hosts: mine.length, troops }),
+      border: threat > defence ? INK_UI.cinnabar : INK_UI.jade,
+    });
+
+    addHeading(t('army.section.muster'));
     const commanderId = findFreeCommander(state);
     const spare = state.resources.humans - RECRUIT_HUMAN_RESERVE;
     const canRaise = Boolean(commanderId) && spare >= MIN_ARMY_SOLDIERS;
@@ -1508,6 +1569,9 @@ export class ConquestUIScene extends Phaser.Scene {
         : undefined,
     );
 
+    if (mine.length > 0) {
+      addHeading(t('army.section.hosts'));
+    }
     for (const army of mine) {
       const land = state.lands.find((candidate) => candidate.id === army.landId);
       const general = state.heroes.find((candidate) => candidate.id === army.generalHeroId);
