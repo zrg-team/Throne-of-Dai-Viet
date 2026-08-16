@@ -727,7 +727,109 @@ export type AscentRarity = 'bronze' | 'silver' | 'gold' | 'jade';
  * game already is. Conquest is not here: like the classic modes, it is reached by selecting
  * a province on the map.
  */
-export type AscentLane = 'build' | 'heroes' | 'court' | 'army' | 'affairs' | 'battle';
+export type AscentLane = 'build' | 'heroes' | 'court' | 'army' | 'affairs' | 'battle' | 'chronicle';
+
+// ── The Chronicle (Sử Ký) ───────────────────────────────────────────────────
+//
+// Stories are not quests. A story is a persistent object with a cast it has taken an
+// interest in, a bag of numbers recording what has happened, and a pool of fragments it
+// picks from by *salience* rather than in order. It has no length, so nothing here counts
+// beats or reports progress — see `systems/story/StorySystem.ts`.
+
+/**
+ * How loudly a fragment speaks.
+ *
+ * `whisper` is the bulk of every pool and costs nothing: one line in the header strip, no
+ * pause, no prompt-queue slot. `card` pauses and asks. `blow` pauses and *tells* — no
+ * options, something has happened. A story that only ever asks is a story the player
+ * controls, and control is the opposite of drama.
+ */
+export type StoryVolume = 'whisper' | 'card' | 'blow';
+
+/**
+ * The generic woodblock band behind a card. Chosen by tag, never by story.
+ *
+ * Deliberately not per-story art: a template binds a random hero and a random province, so a
+ * picture specific to one instance is a lie on every other map. The same band appearing
+ * across many stories is correct rather than a compromise.
+ */
+export type StoryBand =
+  | 'court' | 'river' | 'field' | 'coast' | 'mountain' | 'march'
+  | 'fire' | 'granary' | 'night' | 'crowd' | 'shrine' | 'border';
+
+/** The subjects a story has bound. Any of them may be absent. */
+export interface StoryCast {
+  heroId?: string;
+  otherHeroId?: string;
+  landId?: string;
+  kingdomId?: string;
+}
+
+/** A story instance living in the save. */
+export interface ActiveStory {
+  id: string;
+  templateId: string;
+  cast: StoryCast;
+  /** Flat bag of numbers. Story progress is just another number — no special machinery. */
+  memory: Record<string, number>;
+  /** Hidden closeness-to-acting. Never shown; the only tell is how often it whispers. */
+  temperature: number;
+  seededTurn: number;
+  lastSpokeTurn: number;
+  /** Fragment ids already fired. Ids are an append-only compatibility contract. */
+  spoken: string[];
+  /** Set when a card/blow is waiting for the decision director to raise it. */
+  waiting?: string;
+  /**
+   * An offer currently hanging on one of this story's subjects.
+   *
+   * Deliberately *not* `waiting`. An opening must not silence the story that made it — a player
+   * who ignores an offer would otherwise mute that story for the rest of the run, which is the
+   * opposite of "ignoring it is free and is also an answer".
+   */
+  offer?: string;
+  /** Season the offer stops being available. It goes without announcing that it has. */
+  offerUntil?: number;
+}
+
+/**
+ * A line in the Chronicle. Stored as key + params rather than resolved text, so the record
+ * re-translates when the player changes language.
+ */
+export interface ChronicleEntry {
+  id: string;
+  templateId: string;
+  fragmentId: string;
+  turn: number;
+  params: Record<string, string | number>;
+  /** Ended well, ended badly, or simply stopped. Drives the entry's accent only. */
+  tone: NotificationKind;
+}
+
+/**
+ * What the world looked like last tick, so stories can notice what changed without every
+ * other system having to push events at them.
+ */
+export interface StoryWatch {
+  lands: number;
+  heroes: number;
+  gold: number;
+  food: number;
+  battlesWon: number;
+  wavesSurvived: number;
+  courtSeatsFilled: number;
+}
+
+/** An optional offer a story hangs on a subject the player already visits. Never an order. */
+export interface StoryOpening {
+  storyId: string;
+  fragmentId: string;
+  /** Resolved text key for the line shown in the sheet. */
+  textKey: string;
+  params: Record<string, string | number>;
+  /** Label on the tappable row. */
+  actionKey: string;
+}
 
 export type AscentLaneStatus = 'ready' | 'busy' | 'alert' | 'blocked';
 
@@ -896,8 +998,15 @@ export type AscentPrompt =
   | { kind: 'power-draft'; cards: string[]; rerollCost: number; level: number }
   /** Step one of a conquest: which province. */
   | { kind: 'conquer-target'; targets: ConquestTarget[] }
-  /** Step two: how to take it. Raised by resolving `conquer-target`, or by tapping the map. */
-  | { kind: 'conquer-method'; target: ConquestTarget }
+  /**
+   * Step two: how to take it. Raised by resolving `conquer-target`, or by tapping the map.
+   *
+   * `notice` carries the outcome of the attempt the player just made here, when that attempt
+   * was made and refused — a bribe the nobles pocketed, a march no host was free to take. The
+   * sheet re-opens with it stated, because a refusal that closes the sheet silently is
+   * indistinguishable from a tap that never registered.
+   */
+  | { kind: 'conquer-method'; target: ConquestTarget; notice?: string }
   /** A champion arrives — from the gacha roll or from the court's Favor draft. */
   | { kind: 'hero-choice'; heroIds: string[]; source: 'summon' | 'court'; pityUsed: boolean }
   /** Where the new champion serves. Always follows a `hero-choice`. */
@@ -942,7 +1051,39 @@ export type AscentPrompt =
       /** Best single-run score before this one — the number the player is chasing. */
       previousBest: number;
       legacyTotal: number;
+    }
+  /**
+   * One fragment of a running story, speaking loudly enough to stop the world.
+   *
+   * Carries no beat number and no total, on purpose: the player must not be able to tell
+   * whether this is the second thing this story has said or the ninth. `options` is empty
+   * for a `blow`, which tells rather than asks.
+   */
+  | {
+      kind: 'story-beat';
+      storyId: string;
+      templateId: string;
+      fragmentId: string;
+      volume: StoryVolume;
+      band?: StoryBand;
+      /** Portrait shown beside the band, when a person is speaking. */
+      speakerHeroId?: string;
+      /** Interpolation for the title/body/option text keys. */
+      params: Record<string, string | number>;
+      options: StoryPromptOption[];
+      /** One line from a seated hero. Not neutral — see `advisorFor`. */
+      advisorHeroId?: string;
+      advisorKey?: string;
     };
+
+/** A card's option, resolved for display. */
+export interface StoryPromptOption {
+  id: string;
+  cost?: Partial<ResourceBag>;
+  affordable: boolean;
+  /** Text key suffix for a reason the option is closed, when it is. */
+  blockedKey?: string;
+}
 
 export type AscentPromptKind = AscentPrompt['kind'];
 
@@ -1270,6 +1411,25 @@ export interface GameState {
   ascent?: AscentState;
   /** The single live Dragon Ascent decision; set by `drainPromptQueue`, cleared by `resolveAscentPrompt`. */
   pendingAscentPrompt?: AscentPrompt;
+
+  // ── The Chronicle (ascent only; optional so older saves load unchanged) ──
+  /** Stories currently running. Most are latent — seeded with no announcement at all. */
+  stories?: ActiveStory[];
+  /** What has already happened, in past tense. Never a task list. */
+  chronicle?: ChronicleEntry[];
+  /** Last tick's world snapshot, so a story can notice what changed. */
+  storyWatch?: StoryWatch;
+  /** Story cards raised so far, against total prompts — holds the ~15% budget. */
+  storyPromptsRaised?: number;
+  /**
+   * Templates that have already run their course this run.
+   *
+   * A finished story must not seed again: six stories told once each is the design, and a
+   * template re-seeding mid-run puts the same opening line in the Chronicle twice, which is
+   * precisely the visible repetition a salience pool is most exposed to.
+   */
+  storiesEnded?: string[];
+
   isDefeated: boolean;
   defeatReason?: 'conquest' | 'collapse';
 }

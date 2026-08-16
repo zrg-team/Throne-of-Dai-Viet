@@ -62,6 +62,9 @@ const result = await page.evaluate(async () => {
       case 'battle': return 'hold';
       case 'famine': return (p.options.find((o) => o.affordable) ?? p.options[p.options.length - 1]).id;
       case 'rival-demand': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
+      // The Chronicle. A blow carries no options at all — acknowledging it is the only move.
+      case 'story-beat':
+        return p.options.length ? (p.options.find((o) => o.affordable) ?? p.options[0]).id : 'ok';
       case 'empire-response': {
         // A rich realm buys soldiers — exercises the gold sink the run depends on.
         const merc = p.options.find((o) => o.id === 'hire-mercenaries' && o.affordable);

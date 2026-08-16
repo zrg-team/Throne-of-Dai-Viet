@@ -25,7 +25,15 @@ const RIVAL_KEYS = ['build', 'heroes', 'court', 'army', 'pause'] as const;
  * It is still reachable at the end of a run, which is the moment the collection changes and the
  * only moment a player has any reason to look at it. See `showRunOver`.
  */
-const ASCENT_KEYS = ['build', 'heroes', 'court', 'army', 'affairs'] as const;
+/**
+ * The Codex's slot now carries the Chronicle.
+ *
+ * The Codex could not keep the bar's standing promise that something behind a button is worth
+ * doing *now* — it is a cross-run collection, mostly rows reading "???", and nothing in it can be
+ * acted on mid-run. A Chronicle can: it is what has happened to this realm, this run, and the one
+ * screen a player reaches for while playing.
+ */
+const ASCENT_KEYS = ['build', 'heroes', 'court', 'army', 'affairs', 'chronicle'] as const;
 
 /**
  * Dragon Ascent's two system controls, drawn as glyphs at the right edge rather than as
@@ -223,6 +231,9 @@ export class ActionBar extends Phaser.GameObjects.Container {
         variant = 'secondary';
       } else if (slot.action === 'directives') {
         label = t('empire.action.directives');
+        variant = 'secondary';
+      } else if (slot.action === 'chronicle') {
+        label = t('action.chronicle');
         variant = 'secondary';
       } else if (slot.action === 'battle') {
         // The siege is the loudest thing on the bar while it lasts.

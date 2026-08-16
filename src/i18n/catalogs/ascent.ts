@@ -2,6 +2,16 @@
 // Every key here must have a Vietnamese twin below or validateCatalogs() throws at import.
 
 export const enAscent = {
+  // ── The Chronicle (Sử Ký) ────────────────────────────────────────────────
+  "ascent.chronicle.title": "The Chronicle",
+  "ascent.chronicle.body": "Year {year} of the dynasty.",
+  "ascent.chronicle.running": "Being spoken of",
+  "ascent.chronicle.recorded": "Recorded",
+  "ascent.chronicle.notYetSpoken": "Nothing has been said yet.",
+  "ascent.chronicle.emptyTitle": "The pages are empty",
+  "ascent.chronicle.emptyBody": "Nothing has happened to this realm worth writing down. It will.",
+  "land.section.spokenOf": "Spoken of",
+
   // ── Menu ──────────────────────────────────────────────────────────────────
   "ascent.menu.title": "Dragon Ascent",
   "ascent.menu.tagline": "The realm marches itself. You choose its power.",
@@ -153,6 +163,9 @@ export const enAscent = {
   "ascent.conquer.needHost": "Needs a host that can reach it",
   "ascent.conquer.needBorderHost": "Needs a host on a bordering province",
   "ascent.conquer.hostTooWeak": "Your host is not fearsome enough",
+  "ascent.conquer.noHostFree": "Every host is already under orders elsewhere.",
+  "ascent.conquer.cameToNothing": "The attempt came to nothing.",
+  "ascent.conquer.refused": "It did not take",
 
   // ── The six ways to take a province ──────────────────────────────────────
   "ascent.method.bribe": "Bribe the nobles",
@@ -488,6 +501,16 @@ export const enAscent = {
 } as const;
 
 export const viAscent = {
+  // ── Sử Ký ────────────────────────────────────────────────────────────────
+  "ascent.chronicle.title": "Sử Ký",
+  "ascent.chronicle.body": "Năm thứ {year} của triều đại.",
+  "ascent.chronicle.running": "Đang được bàn tán",
+  "ascent.chronicle.recorded": "Đã chép",
+  "ascent.chronicle.notYetSpoken": "Chưa ai nói gì cả.",
+  "ascent.chronicle.emptyTitle": "Trang sử còn trắng",
+  "ascent.chronicle.emptyBody": "Chưa có gì xảy ra với nước này đáng để chép lại. Rồi sẽ có.",
+  "land.section.spokenOf": "Người ta đang bàn",
+
   // ── Menu ──────────────────────────────────────────────────────────────────
   "ascent.menu.title": "Rồng Thăng Long",
   "ascent.menu.tagline": "Giang sơn tự vận hành. Ngươi chọn sức mạnh cho nó.",
@@ -638,6 +661,9 @@ export const viAscent = {
   "ascent.conquer.needHost": "Cần một đạo quân tới được nơi đó",
   "ascent.conquer.needBorderHost": "Cần một đạo quân đóng ở trấn giáp ranh",
   "ascent.conquer.hostTooWeak": "Đạo quân của ngài chưa đủ uy",
+  "ascent.conquer.noHostFree": "Đạo quân nào cũng đang bận việc khác.",
+  "ascent.conquer.cameToNothing": "Việc ấy không thành.",
+  "ascent.conquer.refused": "Việc không thành",
 
   // ── The six ways to take a province ──────────────────────────────────────
   "ascent.method.bribe": "Mua chuộc hào tộc",
