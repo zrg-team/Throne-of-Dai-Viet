@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { INK_WEIGHT } from '../../game/graphicsQuality';
 import { PIGMENT } from './palette';
 
 /**
@@ -85,7 +86,12 @@ export function inkPath(
   if (points.length < 2) {
     return;
   }
-  const width = options.width ?? 1.4;
+  // `INK_WEIGHT` is the whole game's contour weight in one place — see `graphicsQuality`. Every
+  // line in this file was tuned against a 390-wide buffer stretched to the panel, which fattens a
+  // stroke considerably; drawn into a full-resolution buffer the same number arrives thin, and the
+  // higher quality settings looked *worse* because the outlines went away. Applied here rather than
+  // at the call sites so the map, the props and the chrome all keep step with each other.
+  const width = (options.width ?? 1.4) * INK_WEIGHT;
   const alpha = options.alpha ?? 0.92;
   const colour = options.colour ?? PIGMENT.muc;
   const zoom = options.zoom ?? 1;

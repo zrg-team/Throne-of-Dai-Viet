@@ -178,3 +178,22 @@ export function designPointer(pointer: { x: number; y: number }): { x: number; y
 export function designLength(value: number): number {
   return value / RENDER_SCALE;
 }
+
+/**
+ * Correction on hand-drawn contour widths, so a line carries the same weight at every quality.
+ *
+ * At `low` the game draws into a 390-wide buffer and the browser stretches it to the panel — so a
+ * 1.2-unit contour is rasterised across a pixel or two and then blown up three times, arriving as a
+ * soft band far heavier than 1.2 units of ink. At `high` the buffer is the size of the panel and
+ * the same contour lands crisp and exactly as wide as it says.
+ *
+ * Every ink weight in this game was tuned by eye against the blurred version, because that is what
+ * the art was drawn on. Rendering it honestly therefore made the game look *worse* the moment the
+ * quality went up: the cards lost their outline, and what was reported as "high quality loses the
+ * borders" was the borders finally being drawn at the width they had always claimed.
+ *
+ * Two ways out, and only one of them is honest. Thinning `low` would match them by making the
+ * cheap setting worse. This widens the crisp one instead, so the contour arrives at the eye at the
+ * weight the drawing was composed for — the blur is the artefact, and the weight is the intent.
+ */
+export const INK_WEIGHT = RENDER_SCALE <= 1 ? 1 : 1.55;
