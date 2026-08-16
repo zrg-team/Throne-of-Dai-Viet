@@ -190,11 +190,8 @@ export class MenuScene extends Phaser.Scene {
     this.aspectProp(0, HORIZON, (landforms) => {
       softRidge(landforms, -30, 236, 4, 30, 9021);
       softRidge(landforms, 168, GAME_WIDTH + 30, 2, 25, 9022);
-      // Butted, not overlapped. Each range now stands three ranks deep, so two of them sharing a
-      // stretch of horizon lay six ranks of wash over the same paper and the shared stretch comes
-      // out as a dark column.
-      karstRange(landforms, -24, 200, 0, 74, 4118);
-      karstRange(landforms, 200, GAME_WIDTH + 24, -4, 62, 4119);
+      karstRange(landforms, -24, 196, 0, 74, 4118);
+      karstRange(landforms, 214, GAME_WIDTH + 24, -4, 62, 4119);
     });
 
     // Mist at the foot of the range. Towers are seated at varying depths, so their base fills stop

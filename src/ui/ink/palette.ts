@@ -54,23 +54,6 @@ export const PIGMENT = {
 
 export type PigmentKey = keyof typeof PIGMENT;
 
-/**
- * Grinds two pigments together, `amount` of `b` into `a`.
- *
- * Distance on a woodblock is not a lighter version of the near tone, it is the near tone carried
- * toward the indigo the far hills are printed in. That is a mix, not a shade, and every recession
- * in the landscape is built from it.
- */
-export function mixPigment(a: number, b: number, amount: number): number {
-  const t = Math.max(0, Math.min(1, amount));
-  const channel = (shift: number) => {
-    const from = (a >> shift) & 0xff;
-    const to = (b >> shift) & 0xff;
-    return Math.round(from + (to - from) * t);
-  };
-  return (channel(16) << 16) | (channel(8) << 8) | channel(0);
-}
-
 /** Darkens (factor < 1) or lightens (factor > 1) a 0xRRGGBB pigment. */
 export function shadePigment(colour: number, factor: number): number {
   const r = Math.max(0, Math.min(255, Math.round(((colour >> 16) & 0xff) * factor)));

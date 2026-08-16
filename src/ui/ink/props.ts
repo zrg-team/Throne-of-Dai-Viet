@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PIGMENT, mixPigment, shadePigment } from './palette';
+import { PIGMENT, shadePigment } from './palette';
 import { inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './stroke';
 import { unitScale } from './proportion';
 import { foliagePalette, type SeasonPalette } from './season';
@@ -762,564 +762,60 @@ export function farmer(g: G, x: number, y: number, scale: number, seed: number):
  * Núi đá vôi — karst. Vietnam's mountains are limestone towers with near-vertical flanks and
  * rounded, broken tops rising straight out of flat paddy: Ninh Bình, Tam Cốc, Hạ Long.
  *
- * Three things make a field of them read as karst, and only the third is about a single tower:
- *
- *  1. **Depth is value, not overlap.** A karst basin is layers of silhouette at receding tones —
- *     the far rank a flat pale wash with no contour at all, the front rank warm and fully inked.
- *     Drawn at one value they interlock into a tangle of outlines whatever each one looks like,
- *     which is what a row of forty identically-toned towers had become.
- *  2. **The towers differ in KIND, not in scale.** One profile function scaled up and down is one
- *     object repeated, and repetition at this density reads as teeth. There are five forms here —
- *     loaf, fang, saddle, cliff-and-ramp, anvil — with their own aspect ratios and their own
- *     skylines, and the flanks of every one are two independent curves rather than a mirror.
- *  3. **Texture belongs to the form.** Every bed, flute and clump is placed through `at(t, u)`,
- *     which is the silhouette's own parametrisation, so nothing can be drawn outside the rock. The
- *     version this replaces computed a stroke's width at one height and drew it at another, and
- *     hung its flutes in mid-air; its scrub was placed across 1.4× the tower's half-width and so
- *     stood off the wall as floating caps.
+ * Drawn as smooth domes they become sand dunes; drawn with a jagged crown they become teeth. What
+ * they actually are is a thumb of rock — a wall that turns over at the top.
  */
-
-/** Half-width at height `t` up a tower, as a fraction of its nominal half-width. */
-type Flank = (t: number) => number;
-
-/** A flank sampled as keyframes: `[t, half-width fraction]`, smoothed between. */
-type Keys = ReadonlyArray<readonly [number, number]>;
-
-/** One rounded knuckle of a summit: where across the crown, how high, how wide. */
-interface Knuckle {
-  readonly at: number;
-  readonly amp: number;
-  readonly width: number;
-}
-
-interface KarstForm {
-  readonly left: Keys;
-  readonly right: Keys;
-  /** Height of the crown above the walls, as a fraction of the tower. */
-  readonly rise: number;
-  readonly caps: ReadonlyArray<Knuckle>;
-  /** Height ÷ width this form wants. A fang rolled at a loaf's aspect is just a loaf. */
-  readonly aspect: readonly [number, number];
-}
-
-/**
- * The five towers.
- *
- * Every one is undercut at the foot — the first keyframe is always below the second — because
- * standing water eats limestone at the waterline, and that overhang is the single most recognisable
- * thing about the Ninh Bình and Hạ Long towers this map is set among.
- */
-const KARST_FORMS: Record<string, KarstForm> = {
-  /** Thumb of rock: broad, near-vertical, one summit and a lower shoulder off it. */
-  loaf: {
-    // The wall holds its width to five-sixths of the way up and the CROWN does all the turning.
-    // Tapered from halfway and capped with a shallow arc it is an egg, which is what a rank of
-    // these came out as: a tháp is a wall with a cap on it, and the break between the two is the
-    // whole silhouette.
-    left: [[0, 0.87], [0.10, 1.00], [0.62, 1.02], [0.86, 0.96], [1, 0.68]],
-    right: [[0, 0.84], [0.11, 0.99], [0.64, 1.03], [0.88, 0.94], [1, 0.62]],
-    rise: 0.13,
-    caps: [{ at: 0.38, amp: 1, width: 0.72 }, { at: 0.84, amp: 0.55, width: 0.40 }],
-    aspect: [2.00, 3.00],
-  },
-  /** Needle: the one that carries the skyline, and the reason a range has a top edge worth reading. */
-  fang: {
-    left: [[0, 0.91], [0.08, 1.00], [0.32, 0.95], [0.66, 0.64], [1, 0.17]],
-    right: [[0, 0.89], [0.09, 1.00], [0.36, 0.97], [0.69, 0.60], [1, 0.15]],
-    rise: 0.15,
-    caps: [{ at: 0.46, amp: 1, width: 0.95 }],
-    aspect: [2.90, 4.00],
-  },
-  /** Twin summits over one massif, with a real col between them rather than a nick. */
-  saddle: {
-    left: [[0, 0.88], [0.10, 1.00], [0.52, 1.02], [0.84, 0.97], [1, 0.88]],
-    right: [[0, 0.86], [0.11, 0.99], [0.55, 1.03], [0.86, 0.95], [1, 0.84]],
-    rise: 0.22,
-    caps: [{ at: 0.26, amp: 1, width: 0.40 }, { at: 0.74, amp: 0.74, width: 0.38 }],
-    aspect: [1.45, 2.05],
-  },
-  /**
-   * Sheer on the left, a long talus ramp falling away right. The most photographic of the five and
-   * the only one whose summit is not near its own centre.
-   */
-  cliff: {
-    left: [[0, 0.93], [0.06, 1.00], [0.78, 1.02], [0.92, 0.92], [1, 0.34]],
-    right: [[0, 0.88], [0.10, 1.00], [0.38, 0.74], [0.72, 0.44], [1, 0.18]],
-    rise: 0.14,
-    caps: [{ at: 0.18, amp: 1, width: 0.46 }, { at: 0.66, amp: 0.32, width: 0.42 }],
-    aspect: [2.00, 3.00],
-  },
-  /** Pinched at the waist and overhanging at the shoulder — Hạ Long's wave-cut form. */
-  anvil: {
-    left: [[0, 0.85], [0.11, 0.97], [0.46, 0.81], [0.82, 1.07], [1, 0.60]],
-    right: [[0, 0.83], [0.12, 0.96], [0.49, 0.83], [0.84, 1.08], [1, 0.55]],
-    rise: 0.15,
-    caps: [{ at: 0.58, amp: 1, width: 0.64 }, { at: 0.17, amp: 0.46, width: 0.36 }],
-    aspect: [1.90, 2.70],
-  },
-};
-
-export type KarstKind = keyof typeof KARST_FORMS;
-
-/** How far back a tower stands. Depth in this landscape is carried by tone, so it is a draw mode. */
-export type KarstPlane = 'haze' | 'mid' | 'near';
-
-/** Smoothstep between keyframes, so a wall never shows the corner between two of them. */
-function keyedFlank(keys: Keys, jitter: number): Flank {
-  return (t) => {
-    let index = 0;
-    while (index < keys.length - 2 && t > keys[index + 1][0]) {
-      index += 1;
-    }
-    const [t0, w0] = keys[index];
-    const [t1, w1] = keys[index + 1];
-    const span = t1 - t0;
-    const u = span <= 0 ? 0 : Math.max(0, Math.min(1, (t - t0) / span));
-    return Math.max(0.03, (w0 + (w1 - w0) * (u * u * (3 - 2 * u))) * jitter);
-  };
-}
-
-/**
- * Height of the summit at `u` across the crown, in [0, 1].
- *
- * The knuckles are combined with `max` rather than summed: overlapping caps merge into one worn
- * cap, distant ones leave a real col between them, and either way the curve returns to zero where
- * it meets the wall, so the crown never joins the flank at a corner.
- */
-function crownAt(caps: ReadonlyArray<Knuckle>, u: number): number {
-  // A shallow dome under everything, so that where two knuckles fall apart the crown drops to a col
-  // and not to the wall top. Without it the gap between two caps cuts the full depth of the crown
-  // and a twin summit comes out as a hard V — a pair of wings rather than a saddle.
-  let top = Math.pow(Math.sin(u * Math.PI), 0.75) * 0.19;
-  for (const cap of caps) {
-    const d = Math.abs(u - cap.at) / cap.width;
-    if (d >= 1) {
-      continue;
-    }
-    // Flattened toward the apex rather than a pure cosine: rock worn round, not struck with a
-    // compass.
-    top = Math.max(top, cap.amp * Math.pow(Math.cos((d * Math.PI) / 2), 1.55));
-  }
-  return top;
-}
-
-/** A lobed, bottom-flattened blob — the shape all rock vegetation on this map is drawn from. */
-function scrubBlob(cx: number, cy: number, rx: number, ry: number, seed: number): Pt[] {
+export function karst(g: G, x: number, baseY: number, w: number, h: number, seed: number, far = false): void {
   const rand = mulberry32(seed);
-  const lobes = 3 + Math.floor(rand() * 3);
-  const phase = rand() * Math.PI * 2;
-  const points: Pt[] = [];
-  const STEPS = 16;
-  for (let step = 0; step <= STEPS; step += 1) {
-    const angle = Math.PI + (step / STEPS) * Math.PI * 2;
-    const bump = 1 + Math.sin(angle * lobes + phase) * 0.17 + (rand() - 0.5) * 0.08;
-    points.push({
-      x: cx + Math.cos(angle) * rx * bump,
-      // Squashed under the horizontal, so the clump sits on what it grows out of instead of
-      // hovering as a disc.
-      y: cy + Math.sin(angle) * ry * bump * (Math.sin(angle) > 0 ? 0.45 : 1),
-    });
-  }
-  return points;
-}
-
-export interface KarstOptions {
-  plane?: KarstPlane;
-  kind?: KarstKind;
-  /**
-   * How far forward inside its own rank this tower stands, 0 to 1.
-   *
-   * Contour weight and shadow strength ride on it. A rank whose towers all carry the same contour
-   * is twelve equally loud outlines and no hierarchy — a colouring book — which is the single thing
-   * that kept the front rank reading as cut paper after its silhouettes were already right.
-   */
-  front?: number;
-}
-
-export function karst(
-  g: G,
-  x: number,
-  baseY: number,
-  w: number,
-  h: number,
-  seed: number,
-  options: KarstOptions = {},
-): void {
-  const plane = options.plane ?? 'near';
-  const kind = options.kind ?? 'loaf';
-  const front = options.front ?? 1;
-  const rand = mulberry32(seed);
-  const form = KARST_FORMS[kind] ?? KARST_FORMS.loaf;
-  const mirrored = rand() > 0.5;
+  const lean = (rand() - 0.5) * 0.22;
   const half = w / 2;
-  const lean = (rand() - 0.5) * 0.14;
-  const wallTop = h * (1 - form.rise);
+  const outline: Pt[] = [{ x: x - half, y: baseY }];
 
-  // Each flank carries its own ±5%, so two towers of the same form are never the same tower, and
-  // no tower is symmetrical about its own spine.
-  const leftKeys = mirrored ? form.right : form.left;
-  const rightKeys = mirrored ? form.left : form.right;
-  const leftCurve = keyedFlank(leftKeys, 0.95 + rand() * 0.1);
-  const rightCurve = keyedFlank(rightKeys, 0.95 + rand() * 0.1);
-
-  /**
-   * Facets: the wall stepped into flat faces instead of run as one curve.
-   *
-   * A dissolved limestone wall is not smooth. It is a stack of flat faces meeting at breaks, and a
-   * silhouette without a single straight run in it anywhere is the reason the towers kept coming
-   * back as loaves however their proportions were tuned. Held constant across a band of height and
-   * then stepped, the profile picks up those breaks for the cost of an array lookup.
-   */
-  const faceted = (curve: Flank, offset: number): Flank => {
-    const roll = mulberry32(seed + offset);
-    const BANDS = 5;
-    const steps = Array.from({ length: BANDS }, () => 1 + (roll() - 0.5) * 0.07);
-    return (t) => curve(t) * steps[Math.max(0, Math.min(BANDS - 1, Math.floor(t * BANDS)))];
-  };
-  const left = faceted(leftCurve, 131);
-  const right = faceted(rightCurve, 577);
-
-  /**
-   * The silhouette's own coordinates: `t` up the wall, `u` across it from -1 (lit edge) to +1
-   * (shaded edge).
-   *
-   * Every mark below is placed through this, which is why none of them can escape the rock. It is
-   * the single structural fix in this rewrite.
-   */
-  const at = (t: number, u: number): Pt => {
-    const drift = lean * h * t;
-    const l = x - half * left(t) + drift;
-    const r = x + half * right(t) + drift;
-    return { x: (l + r) / 2 + ((r - l) / 2) * u, y: baseY - wallTop * t };
-  };
-
-  const RIB = plane === 'near' ? 11 : 7;
-  const leftWall: Pt[] = [];
-  const rightWall: Pt[] = [];
-  for (let rib = 0; rib <= RIB; rib += 1) {
-    const t = rib / RIB;
-    leftWall.push(at(t, -1));
-    rightWall.push(at(t, 1));
+  for (let step = 1; step <= 7; step += 1) {
+    const t = step / 7;
+    const inset = half * (0.18 + 0.16 * t) * Math.pow(t, 0.55);
+    outline.push({ x: x - half + inset + lean * h * t, y: baseY - h * 0.86 * t });
   }
-
-  // The crown, sampled across the gap the walls leave at the top.
-  const crown: Pt[] = [];
-  const capLeft = leftWall[RIB];
-  const capRight = rightWall[RIB];
-  const span = capRight.x - capLeft.x;
-  const CROWN_STEPS = plane === 'near' ? 15 : 9;
-  const caps = mirrored
-    ? form.caps.map((cap) => ({ ...cap, at: 1 - cap.at }))
-    : form.caps;
-  /**
-   * The cap is set a little wider than the wall it stands on, and its corners hang a little below
-   * the wall top.
-   *
-   * That overhanging brow is what makes a summit turn over. Sprung exactly off the wall tops the
-   * crown continues the taper it inherits and the tower comes out as a bowling pin — a shape that
-   * has no break in it anywhere, which is the one thing a dissolved rock is never short of.
-   */
-  const brow = span * 0.035;
-  for (let step = 0; step <= CROWN_STEPS; step += 1) {
-    const u = step / CROWN_STEPS;
-    const shoulder = Math.min(1, Math.sin(u * Math.PI) * 5);
-    crown.push({
-      x: capLeft.x - brow + (span + brow * 2) * u,
-      // A hair of roughness on the skyline, which is where a clean curve is most obviously a curve.
-      y: capLeft.y + h * 0.008 * (1 - shoulder)
-        - h * form.rise * crownAt(caps, u) * shoulder
-        + (rand() - 0.5) * h * 0.010,
+  for (let step = 0; step <= 5; step += 1) {
+    const t = step / 5;
+    const angle = Math.PI - t * Math.PI;
+    const notch = step > 0 && step < 5 && rand() > 0.55 ? h * 0.055 : 0;
+    outline.push({
+      x: x + Math.cos(angle) * half * 0.5 + lean * h,
+      y: baseY - h * (0.86 + Math.sin(angle) * 0.14) + notch,
     });
   }
-
-  const outline: Pt[] = [
-    { x: leftWall[0].x, y: baseY },
-    ...leftWall,
-    ...crown,
-    ...[...rightWall].reverse(),
-    { x: rightWall[0].x, y: baseY },
-  ];
-  const skirted: Pt[] = [
-    ...outline,
-    { x: rightWall[0].x, y: baseY + 1.5 },
-    { x: leftWall[0].x, y: baseY + 1.5 },
-  ];
-
-  // ── The colour block, and the plane it stands on ──
-  //
-  // The far rank is a flat wash carried toward indigo and given no contour at all. A pale tower
-  // with a black outline does not read as distant however pale it is — the outline is the thing the
-  // eye measures distance by, and dropping it is what turns a silhouette into haze.
-  if (plane === 'haze') {
-    // Carried toward indigo but kept in the shell tone's own family. Mixed from the paper white
-    // instead, the far rank came out a cold neutral grey and read as somebody else's mountains
-    // printed behind these ones.
-    washFill(g, skirted, mixPigment(PIGMENT.diepDeep, PIGMENT.cham, 0.40), seed, 0.44, 0.4);
-    return;
+  for (let step = 7; step >= 1; step -= 1) {
+    const t = step / 7;
+    const inset = half * (0.18 + 0.16 * t) * Math.pow(t, 0.55);
+    outline.push({ x: x + half - inset + lean * h * t, y: baseY - h * 0.86 * t });
   }
+  outline.push({ x: x + half, y: baseY });
 
-  if (plane === 'mid') {
-    washFill(g, skirted, mixPigment(PIGMENT.diepLo, PIGMENT.chamPale, 0.30), seed, 0.92, 0.7);
-    // Contoured in a grey carried most of the way to indigo, never in the ink itself. A middle
-    // distance drawn with the same black as the front rank is tracing paper: the contour is the one
-    // mark the eye measures distance by, and at full strength it drags the whole rank forward.
-    inkPath(g, outline, seed + 3, {
-      colour: mixPigment(PIGMENT.mucSoft, PIGMENT.cham, 0.45), width: 0.55, alpha: 0.34, wobble: 0.4, step: 11,
-    });
-    // One soft turn of shade, so the middle rank has volume without competing with the front for
-    // contrast.
-    const midShade: Pt[] = [];
-    for (let rib = RIB; rib >= 0; rib -= 1) {
-      midShade.push(rightWall[rib]);
-    }
-    for (let rib = 0; rib <= RIB; rib += 1) {
-      midShade.push(at(rib / RIB, 0.34));
-    }
-    washFill(g, midShade, mixPigment(PIGMENT.diepDeep, PIGMENT.cham, 0.30), seed + 7, 0.28, 0);
-    karstGreen(g, crown, at, h, seed, rand, 'mid');
-    return;
+  if (!far) {
+    washFill(g, [...outline, { x: x + half, y: baseY + 5 }, { x: x - half, y: baseY + 5 }], PIGMENT.diepLo, seed, 1);
   }
-
-  // ── The front rank, and the value it is owed ──
-  //
-  // In an ink landscape the nearest rock is the DARKEST and most worked thing in the picture, and
-  // the distance behind it is what stays pale. Filled in the paper's own light shell tone and then
-  // ringed in black, this rank came out the palest thing on the sheet with the loudest contour on
-  // it — inverted, which is a cutout of a mountain rather than a mountain. So the block is laid in
-  // the deep shell tone and the LIT face is lifted off it, instead of the other way round.
-  //
-  // Each tower also takes its own place on that mix. A rank cut from one flat tan is a rank of
-  // paper dolls however well each one is modelled; limestone weathers at its own rate and no two
-  // towers in a basin are the same colour.
-  washFill(
-    g,
-    skirted,
-    mixPigment(PIGMENT.diepLo, PIGMENT.diepDeep, Math.min(1, 0.45 + front * 0.35 + rand() * 0.3)),
-    seed,
-    1,
-    0.9,
-  );
-
-  // Below roughly a finger's width on screen — map zoom, where a range is a few tiles wide — the
-  // texture below stops being texture and becomes dirt. Everything after this is rationed by it.
-  const detail = Math.max(0, Math.min(1, (h - 16) / 34));
-
-  // ── The turn of the light ──
-  //
-  // Light from the upper left. Three bands each way from a terminator that slides inward as the
-  // tower rises, so the flank narrows with the shoulder rather than cutting a translucent rectangle
-  // down the middle of the rock — which is exactly what one pass at a fixed offset read as.
-  // Registration is zero throughout: these are faces *of* the tower, and letting them take the
-  // print's usual hand offset pushed them out past the silhouette as a grey fringe.
-  // Kept deliberately low. Lifted hard enough to read as a light source, the lit half bleaches out
-  // to bare paper and the tower turns into a candle — the same flatness as before, arrived at from
-  // the other end. The turn wants to be felt, not seen.
-  // Several thin passes rather than two fat ones: each polygon has a hard edge at its terminator,
-  // and too few of them leaves those steps legible as pale vertical seams down the rock.
-  //
-  // Sampled at BAND ribs rather than the silhouette's own. These are soft washes with no contour on
-  // them, so the extra vertices buy nothing visible and every one of them is paid twice — once in
-  // the polygon and once in the triangulation, on a prop the map draws a few hundred of.
-  const BAND = 6;
-  const bandOf = (edge: Pt[], terminator: (t: number) => number): Pt[] => {
-    const band: Pt[] = [];
-    for (let rib = 0; rib <= BAND; rib += 1) {
-      band.push(edge[Math.round((rib / BAND) * RIB)]);
-    }
-    for (let rib = BAND; rib >= 0; rib -= 1) {
-      const t = rib / BAND;
-      band.push(at(t, terminator(t)));
-    }
-    return band;
-  };
-
-  const lit = mixPigment(PIGMENT.diepHi, PIGMENT.diepLo, 0.35);
-  for (const [to, alpha] of [[0.30, 0.11], [-0.02, 0.10], [-0.34, 0.09], [-0.66, 0.08]] as const) {
-    washFill(g, bandOf(leftWall, (t) => Math.max(-0.98, to - t * 0.16)), lit, seed + 5, alpha, 0);
-  }
-
-  const shadeTone = mixPigment(PIGMENT.diepDeep, PIGMENT.muc, 0.26);
-  for (const [from, alpha] of [[0.14, 0.13 + front * 0.09], [0.40, 0.12], [0.64, 0.11], [0.86, 0.10]] as const) {
-    washFill(g, bandOf(rightWall, (t) => Math.min(0.98, from + t * 0.18)), shadeTone, seed + 7, alpha, 0);
-  }
-
-  // ── The arête ──
-  //
-  // The interior edge where the lit face and the turned-away face meet. One drawn line down from
-  // the summit is the single mark that converts a flat silhouette into a solid — everything before
-  // it describes the tower's outline, and an outline with nothing inside it is a shape. Strongest
-  // under the crown where the break is sharpest, fading out before it reaches the foot, because a
-  // ridge carried all the way down splits the tower into two towers.
-  if (detail > 0.4) {
-    inkPath(g, [at(0.97, 0.30), at(0.82, 0.24), at(0.66, 0.19)], seed + 91,
-      { width: 0.7, alpha: 0.24 * front, wobble: 0.35, step: 7 });
-    inkPath(g, [at(0.66, 0.19), at(0.50, 0.16), at(0.36, 0.14)], seed + 92,
-      { width: 0.55, alpha: 0.11 * front, wobble: 0.4, step: 8 });
-  }
-
-  // The contour last, so it sits over its own colour blocks, and at a weight that falls off with
-  // depth inside the rank.
-  // Wobble kept low: a limestone wall is straight, and a contour that wanders reads as cloth. The
-  // hand belongs in the line's weight and its ends, not in its course.
-  inkPath(g, outline, seed + 3, {
-    width: 0.72 + front * 0.5, alpha: 0.40 + front * 0.30, wobble: 0.26, step: 9,
+  inkPath(g, far ? outline.slice(1, outline.length - 1) : outline, seed + 3, {
+    width: far ? 0.8 : 1.35, alpha: far ? 0.3 : 0.86, wobble: far ? 0.3 : 0.5, step: far ? 12 : 8,
   });
-
-  // ── Bedding ──
-  //
-  // Limestone is laid down in beds and the strata run across the tower, but a bed drawn from edge
-  // to edge on every tower in a crowded range lines up with its neighbours' into one continuous
-  // rule across the whole picture — graph paper, which is what the range had become. So: one or
-  // two, short, and always ending inside the rock.
-  // Bedding lives on the LIT flank and the runnels below live on the shaded one, and neither ever
-  // enters the other's half. Sharing the wall, a horizontal tick and a vertical tick cross into a
-  // small plus sign — a mark the eye reads as a symbol rather than as rock, and there were dozens
-  // of them.
-  const beds = Math.round((0.6 + rand() * 1.2) * detail * front);
-  for (let bed = 0; bed < beds; bed += 1) {
-    const t = 0.30 + rand() * 0.40;
-    const u0 = -0.88 + rand() * 0.20;
-    const u1 = u0 + 0.40 + rand() * 0.30;
-    const a = at(t, u0);
-    const b = at(t + 0.012, (u0 + u1) / 2);
-    const c = at(t + 0.03, Math.min(-0.06, u1));
-    inkPath(g, [a, b, c], seed + 80 + bed, { width: 0.5, alpha: 0.12, wobble: 0.45, step: 9 });
-  }
-
-  // ── Flutes ──
-  //
-  // Rain dissolves limestone into vertical runnels. They live on the turned-away flank — the lit
-  // wall is described by its edge and by the light on it, never by lines — and they hang from under
-  // the shoulder rather than floating at an arbitrary height, which is what the fall of water down a
-  // wall actually does.
-  //
-  // One to three, at a twelfth of the contour's weight. Four or five of them at a quarter of it is
-  // not texture, it is a row of parallel pencil scratches, which is the corduroy this whole prop has
-  // been talked out of twice already.
-  const flutes = Math.round((0.8 + rand() * 1.9) * detail * front);
-  for (let flute = 0; flute < flutes; flute += 1) {
-    const u = 0.34 + rand() * 0.48;
-    const top = 0.56 + rand() * 0.26;
-    const drop = 0.12 + rand() * 0.20;
-    const a = at(top, u);
-    const b = at(Math.max(0.04, top - drop * 0.55), u + 0.03);
-    const c = at(Math.max(0.02, top - drop), u + 0.05);
-    inkPath(g, [a, b, c], seed + 20 + flute, { width: 0.5, alpha: 0.15, wobble: 0.3, step: 8 });
-  }
-
-  // ── The cave mouth ──
-  //
-  // Tam Cốc is named for three of them and Trang An is a boat ride through them. A dark arch bitten
-  // out of the foot is the cheapest mark on this whole tower and the one that says limestone
-  // loudest — no other rock in the country is hollow at the waterline.
-  if (detail > 0.55 && rand() < 0.42) {
-    const u = -0.55 + rand() * 0.55;
-    const mouthW = 0.20 + rand() * 0.12;
-    const mouthH = 0.07 + rand() * 0.05;
-    const mouth: Pt[] = [];
-    for (let step = 0; step <= 9; step += 1) {
-      const angle = Math.PI + (step / 9) * Math.PI;
-      mouth.push({
-        x: at(0.02, u + Math.cos(angle) * mouthW).x,
-        y: baseY + Math.sin(angle) * h * mouthH,
-      });
-    }
-    washFill(g, mouth, PIGMENT.muc, seed + 61, 0.42, 0);
-    inkPath(g, mouth, seed + 62, { width: 0.5, alpha: 0.3, wobble: 0.25, step: 5 });
-  }
-
-  // Rubble at the foot, as a few strokes rather than a filled skirt. Filled, it read as a pale box
-  // under every tower — a flat trapezoid is a plinth, and a plinth is the one thing a karst tower
-  // must not appear to stand on.
-  const screes = Math.round(2 * detail);
-  for (let scree = 0; scree < screes; scree += 1) {
-    const side = scree % 2 === 0 ? -1 : 1;
-    const foot = at(0.01, side).x;
-    const reach = half * (0.16 + rand() * 0.2);
-    inkPath(
-      g,
-      [
-        { x: foot - side * reach * 0.2, y: baseY - h * (0.02 + rand() * 0.03) },
-        { x: foot + side * reach * 0.6, y: baseY - h * 0.008 },
-        { x: foot + side * reach, y: baseY + 0.6 },
-      ],
-      seed + 71 + scree,
-      { width: 0.55, alpha: 0.22, wobble: 0.35, step: 6 },
-    );
-  }
-
-  karstGreen(g, crown, at, h, seed, rand, detail > 0.55 ? 'near' : 'mid');
-}
-
-/**
- * What grows on a tower.
- *
- * On limestone this is not scattered bushes on the wall — the wall is bare rock and nothing holds
- * on it. Growth sits in exactly three places: as a fur along the skyline where soil catches in the
- * broken cap, as clumps hanging off the *edge* of a ledge, and as a skirt of jungle drowning the
- * foot. Drawn anywhere else it reads as what it read as before: floating caps.
- */
-function karstGreen(
-  g: G,
-  crown: Pt[],
-  at: (t: number, u: number) => Pt,
-  h: number,
-  seed: number,
-  rand: () => number,
-  mode: 'mid' | 'near',
-): void {
-  const green = foliagePalette().evergreen;
-
-  // ── Fur along the crown ──
-  //
-  // Two or three runs of it, never the whole skyline: an unbroken fringe turns the summit into
-  // moss, and bare rock between the runs is what makes the runs read as growth.
-  const runs = mode === 'near' ? 2 + Math.floor(rand() * 2) : 1;
-  for (let run = 0; run < runs; run += 1) {
-    const from = Math.floor(rand() * (crown.length - 4));
-    const to = Math.min(crown.length - 1, from + 3 + Math.floor(rand() * 5));
-    if (to - from < 2) {
-      continue;
-    }
-    const segment = crown.slice(from, to + 1);
-    const fur: Pt[] = segment.map((point, index) => {
-      const edge = Math.sin((index / (segment.length - 1)) * Math.PI);
-      return { x: point.x, y: point.y - h * (0.008 + 0.018 * edge) * (0.7 + rand() * 0.6) };
-    });
-    // Thin and translucent. Given real thickness and a contour of its own it stops being growth on
-    // a skyline and becomes a dark green eyebrow laid across the summit.
-    washFill(g, [...fur, ...[...segment].reverse()], green, seed + 300 + run, 0.34, 0.25);
-    inkPath(g, fur, seed + 320 + run, { width: 0.35, alpha: 0.16, wobble: 0.5, step: 3 });
-  }
-
-  if (mode !== 'near') {
+  if (far) {
     return;
   }
 
-  // ── Nothing on the wall ──
-  //
-  // There is no third place. Clumps hung on the flank — even anchored exactly on the silhouette, at
-  // the shoulder, at half the size — came out as green pills stuck to the rock, because at this
-  // scale a blob on a vertical face has no way to say which way it is growing. A tháp karst is bare
-  // rock between its green top and its green foot, and drawing it that way is both truer and the
-  // only version that has ever read.
-
-  // ── The skirt at the foot ──
-  //
-  // Jungle drowns the bottom of every one of these towers, and it is also what stops the base
-  // reading as a cut: a tower that ends on a ruled line ends like a stamp, and a tower that ends in
-  // scrub ends like rock going into ground.
-  const foot: Pt[] = [];
-  const backing: Pt[] = [];
-  const SKIRT = 7;
-  for (let step = 0; step <= SKIRT; step += 1) {
-    const u = -1.05 + (step / SKIRT) * 2.1;
-    const point = at(0.01, Math.max(-1, Math.min(1, u)));
-    foot.push({ x: point.x, y: point.y - h * (0.02 + Math.abs(Math.sin(step * 2.1)) * 0.035) });
-    backing.push({ x: point.x, y: point.y + 1.5 });
+  // Vertical fissures down the rock face.
+  for (let fissure = 0; fissure < 4; fissure += 1) {
+    const t = 0.2 + fissure * 0.2;
+    const sx = x - half * 0.62 + w * 0.55 * t;
+    const top = baseY - h * (0.68 + rand() * 0.2);
+    inkPath(g, [{ x: sx, y: top }, { x: sx + (rand() - 0.5) * 2.5, y: top + h * (0.34 + rand() * 0.3) }], seed + 20 + fissure, {
+      width: 0.6, alpha: 0.26, wobble: 0.3, step: 9,
+    });
   }
-  washFill(g, [...foot, ...backing.reverse()], green, seed + 500, 0.34, 0.3);
+  // No scrub on the crown. The three tufts that used to sit up there read as a pair of
+  // green spectacles on every summit, and forty of them across the horizon is the first
+  // thing the eye finds. The rock carries itself.
 }
+
 
 /**
  * Đồi — low earth hills. Rounded, overlapping, with a ridgeline falling off each summit.
@@ -1423,112 +919,25 @@ const KARST_RANKS: ReadonlyArray<{
   { plane: 'near', lift: -0.04, height: [0.28, 1.15], bias: 1.35, gap: [0.54, 0.96], overhang: 0.05 },
 ];
 
-/**
- * A range: three ranks of towers standing at receding tones, the near one overlapping the far.
- *
- * `flat` collapses it to a single inked rank — for callers that already own the depth around it and
- * only want the rock.
- */
-export function karstRange(
-  g: G,
-  x0: number,
-  x1: number,
-  baseY: number,
-  height: number,
-  seed: number,
-  flat = false,
-): void {
-  const ranks = flat ? KARST_RANKS.slice(2) : KARST_RANKS;
-
-  for (const [rankIndex, rank] of ranks.entries()) {
-    // Each rank draws from its own stream, so tuning one does not replant the others.
-    const rand = mulberry32(seed + rankIndex * 7919);
-    const rankBase = baseY - height * rank.lift;
-    // A rank that begins and ends where its neighbours do puts three towers on the same vertical
-    // and stacks the range into a column. Each is spread a little wider than the last and started
-    // off-phase.
-    //
-    // The spill is small on purpose. Run out four times as far, two ranges laid side by side — which
-    // the menu does, and the map does for two massifs in adjacent rows — overlapped across a third
-    // of their width, and every wash in the overlap was laid twice: a tall grey column with vertical
-    // edges standing in the middle of the range.
-    const from = x0 - height * rank.overhang - rand() * height * 0.12;
-    const to = x1 + height * rank.overhang;
-
-    const towers: Array<{ x: number; w: number; h: number; drop: number; kind: KarstKind }> = [];
-    let x = from;
-    while (x < to) {
-      // Height first, then a width the FORM asks for. Rolling both freely is what produced towers
-      // wider than they were tall, and a squat karst is a boulder.
-      const kind = rollKarstKind(rand());
-      const [aspectLo, aspectHi] = KARST_FORMS[kind].aspect;
-      const h = height * (rank.height[0] + Math.pow(rand(), rank.bias) * (rank.height[1] - rank.height[0]));
-      const w = h / (aspectLo + rand() * (aspectHi - aspectLo));
-      towers.push({
-        x: x + w * 0.5,
-        w,
-        h,
-        // Only the front rank staggers its feet; the ranks behind stand on their own haze line, and
-        // a stepped base back there just reads as a broken horizon.
-        drop: rank.plane === 'near' ? Math.pow(rand(), 0.8) * height * 0.30 : rand() * height * 0.05,
-        kind,
-      });
-      // Overlapping on purpose: a karst field is towers standing in front of towers, and a row of
-      // separated ones reads as a fence however well each one is drawn.
-      x += w * (rank.gap[0] + rand() * (rank.gap[1] - rank.gap[0]));
-    }
-
-    // **Sorted by where the foot stands, not by height.** Height is not depth: sorting by it drew
-    // every tall thin tower first and then buried it under the loaves in front, so each fang came
-    // out as a black wire between two slabs. Which tower is nearer is decided by whose base is
-    // lower down the sheet, which is also the cue the eye is already reading.
-    towers.sort((a, b) => (a.drop - b.drop) || (b.h - a.h));
-    const deepest = towers[towers.length - 1]?.drop ?? 1;
-    towers.forEach((tower, index) => {
-      karst(g, tower.x, rankBase + tower.drop, tower.w, tower.h, seed + rankIndex * 977 + index * 37, {
-        plane: rank.plane,
-        kind: tower.kind,
-        // Within the rank too, contour and shadow fall off with distance. Without this the front
-        // rank is a dozen outlines of identical weight and the eye has nothing to order them by.
-        front: deepest <= 0 ? 1 : 0.35 + 0.65 * (tower.drop / deepest),
-      });
+/** A range: karst towers clustered, taller ones behind, bases staggered so it is not a fence. */
+export function karstRange(g: G, x0: number, x1: number, baseY: number, height: number, seed: number, far = false): void {
+  const rand = mulberry32(seed);
+  const towers: Array<{ x: number; w: number; h: number; drop: number }> = [];
+  let x = x0;
+  while (x < x1) {
+    const w = height * (far ? 1.5 + rand() * 0.9 : 0.55 + rand() * 0.75);
+    towers.push({
+      x: x + w * 0.5,
+      w,
+      h: height * (far ? 0.5 + rand() * 0.4 : 0.34 + Math.pow(rand(), 0.7) * 1.15),
+      drop: far ? 0 : rand() * height * 0.34,
     });
-
-    // ── The haze the next rank stands in front of ──
-    //
-    // Karst basins are read through standing morning mist, and drawing it is not decoration: it is
-    // what dissolves the feet of the rank behind so the rank in front can stand clear of them.
-    // Without it every tower in the picture ends on the same ruled line and the whole range flattens
-    // into one plane again.
-    if (rank.plane !== 'near') {
-      // A lozenge, not a band. Drawn as a rectangle the veil ends on two hard vertical edges, and
-      // where a caller lays two ranges side by side — which the menu does, and the map does for
-      // every row of a massif — those edges land next to each other as a visible seam of paper
-      // straight down the picture. Tapering the top edge into the bottom one at both ends means the
-      // veil has no edge to see.
-      const veil: Pt[] = [];
-      const back: Pt[] = [];
-      const STEPS = 16;
-      const floor = rankBase + height * 0.3;
-      for (let step = 0; step <= STEPS; step += 1) {
-        const u = step / STEPS;
-        const taper = Math.min(1, Math.sin(u * Math.PI) * 3.2);
-        veil.push({
-          x: from + (to - from) * u,
-          y: floor - (floor - (rankBase - height * (0.16 + Math.sin(u * 5.4 + rankIndex) * 0.05))) * taper,
-        });
-        back.push({ x: from + (to - from) * u, y: floor });
-      }
-      washFill(
-        g,
-        [...veil, ...back.reverse()],
-        PIGMENT.diep,
-        seed + 4400 + rankIndex,
-        rank.plane === 'haze' ? 0.58 : 0.42,
-        0.5,
-      );
-    }
+    x += w * (far ? 0.8 : 0.5 + rand() * 0.4);
   }
+  towers.sort((a, b) => b.h - a.h);
+  towers.forEach((tower, index) => {
+    karst(g, tower.x, baseY + tower.drop, tower.w, tower.h, seed + index * 37, far);
+  });
 }
 
 // ── the buffalo ───────────────────────────────────────────────────────────────

@@ -9,3 +9,6 @@ output/
 
 # Screenshot output from the test_scripts/shot-*.mjs drivers.
 test_scripts/shots/
+
+# Screenshot dropped by check-console.mjs
+tmp-verify.png
