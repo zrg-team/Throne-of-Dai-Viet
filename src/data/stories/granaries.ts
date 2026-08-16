@@ -18,6 +18,12 @@ import type { StoryTemplate } from '../../systems/story/types';
  */
 export const granaries: StoryTemplate = {
   id: 'granaries',
+  regard: (ctx) => {
+    if (ctx.recall('dismissed') === 1) return 'dismissed';
+    if (ctx.recall('stoodBy') === 1) return 'trusted';
+    if (ctx.recall('reforms') >= 2) return 'reforming';
+    return undefined;
+  },
   seedWeight: 2,
   minTurn: 10,
   seed: (state) => {

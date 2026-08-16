@@ -18,6 +18,12 @@ import type { StoryTemplate } from '../../systems/story/types';
  */
 export const theBoyWithTheOrange: StoryTemplate = {
   id: 'orange',
+  regard: (ctx) => {
+    if (ctx.recall('banner') === 1) return 'risen';
+    if (ctx.recall('admitted') === 1) return 'seated';
+    if (ctx.recall('refused') === 1) return 'dismissed';
+    return undefined;
+  },
   seedWeight: 2,
   minTurn: 18,
   seed: (state) => {

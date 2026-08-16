@@ -58,6 +58,11 @@ import type { StoryTemplate } from '../../systems/story/types';
  */
 export const fiveDays: StoryTemplate = {
   id: 'five-days',
+  regard: (ctx) => {
+    if (ctx.recall('marching') === 1) return 'sworn';
+    if (ctx.recall('waited') === 1) return 'rested';
+    return undefined;
+  },
   seedWeight: 2,
   minTurn: 30,
   seed: (state) => {
@@ -183,6 +188,13 @@ export const fiveDays: StoryTemplate = {
  */
 export const ghostInTheSouth: StoryTemplate = {
   id: 'ghost-south',
+  regard: (ctx) => {
+    if (ctx.recall('left') === 1) return 'gone';
+    if (ctx.recall('rescued') === 1) return 'rescued';
+    if (ctx.recall('ransomed') === 1) return 'ransomed';
+    if (ctx.recall('taken') === 1) return 'captive';
+    return undefined;
+  },
   seedWeight: 3,
   minTurn: 20,
   seed: (state) => {
@@ -313,6 +325,11 @@ export const ghostInTheSouth: StoryTemplate = {
  */
 export const withoutSlaughter: StoryTemplate = {
   id: 'without-slaughter',
+  regard: (ctx) => {
+    if (ctx.recall('spared') === 1) return 'right';
+    if (ctx.recall('stormed') === 1) return 'silent';
+    return 'writing';
+  },
   seedWeight: 3,
   minTurn: 18,
   seed: (state) => {
@@ -429,6 +446,12 @@ export const withoutSlaughter: StoryTemplate = {
  */
 export const theDelayer: StoryTemplate = {
   id: 'delayer',
+  regard: (ctx) => {
+    if (ctx.said('the-delayer-was-right')) return 'vindicated';
+    if (ctx.recall('gaveBattle') === 1) return 'overruled';
+    if (ctx.recall('delaying') === 1) return 'mocked';
+    return undefined;
+  },
   seedWeight: 2,
   minTurn: 26,
   seed: (state) => {
@@ -739,6 +762,12 @@ export const mountainAndWater: StoryTemplate = {
  */
 export const thanhGiong: StoryTemplate = {
   id: 'thanh-giong',
+  regard: (ctx) => {
+    if (ctx.recall('refused') === 1) return 'unanswered';
+    if (ctx.recall('grown') >= 1) return 'rising';
+    if (ctx.recall('forged') === 1) return 'fed';
+    return undefined;
+  },
   seedWeight: 2,
   minTurn: 24,
   seed: (state) => {

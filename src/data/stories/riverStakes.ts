@@ -32,6 +32,12 @@ function hostileNear(state: GameState, landId?: string): number {
 
 export const riverStakes: StoryTemplate = {
   id: 'river-stakes',
+  regard: (ctx) => {
+    if (ctx.recall('walkedAway') === 1) return 'insulted';
+    if (ctx.recall('stakes') === 1) return 'ready';
+    if (ctx.recall('surveyed') === 1) return 'measuring';
+    return undefined;
+  },
   seedWeight: 2,
   minTurn: 12,
   seed: (state) => {

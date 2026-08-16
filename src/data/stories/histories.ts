@@ -57,6 +57,11 @@ import type { StoryTemplate } from '../../systems/story/types';
  */
 export const sixtyFiveCitadels: StoryTemplate = {
   id: 'sixty-five-citadels',
+  regard: (ctx) => {
+    if (ctx.recall('refused') === 1) return 'alone';
+    if (ctx.recall('named') === 1) return 'named';
+    return 'watching';
+  },
   seedWeight: 2,
   minTurn: 20,
   seed: (state) => {
@@ -316,6 +321,11 @@ export const rideTheWind: StoryTemplate = {
  */
 export const theSubstitution: StoryTemplate = {
   id: 'substitution',
+  regard: (ctx) => {
+    if (ctx.recall('substituted') === 1) return 'remembered';
+    if (ctx.recall('refusedToChoose') === 1) return 'unasked';
+    return undefined;
+  },
   seedWeight: 2,
   minTurn: 24,
   seed: (state) => {
@@ -416,6 +426,12 @@ export const theSubstitution: StoryTemplate = {
  */
 export const borrowedSword: StoryTemplate = {
   id: 'borrowed-sword',
+  regard: (ctx) => {
+    if (ctx.recall('kept') === 1) return 'kept';
+    if (ctx.recall('returned') === 1) return 'lightened';
+    if (ctx.recall('held') === 1) return 'armed';
+    return undefined;
+  },
   seedWeight: 2,
   minTurn: 26,
   seed: (state) => {
@@ -815,6 +831,7 @@ export const trustedSubordinate: StoryTemplate = {
  */
 export const chamEngineer: StoryTemplate = {
   id: 'cham-engineer',
+  regard: (ctx) => (ctx.recall('freed') === 1 ? 'gone' : 'drawing'),
   seedWeight: 3,
   minTurn: 16,
   seed: (state) => {
@@ -1121,6 +1138,11 @@ export const riceRiot: StoryTemplate = {
  */
 export const noHeir: StoryTemplate = {
   id: 'no-heir',
+  regard: (ctx) => {
+    if (ctx.recall('backed') === 1) return 'yours';
+    if (ctx.recall('opportunist') === 1) return 'wary';
+    return undefined;
+  },
   seedWeight: 2,
   minTurn: 32,
   seed: (state) => {
@@ -1218,6 +1240,11 @@ export const noHeir: StoryTemplate = {
  */
 export const eatTogether: StoryTemplate = {
   id: 'eat-together',
+  regard: (ctx) => {
+    if (ctx.said('one-of-them-is-gone')) return 'alone';
+    if (ctx.recall('seasonsTogether') >= 4) return 'inseparable';
+    return undefined;
+  },
   seedWeight: 3,
   minTurn: 14,
   seed: (state) => {
@@ -1309,6 +1336,7 @@ export const eatTogether: StoryTemplate = {
  */
 export const unpaidHost: StoryTemplate = {
   id: 'unpaid',
+  regard: (ctx) => (ctx.recall('paid') === 1 ? 'squared' : 'patient'),
   seedWeight: 3,
   minTurn: 18,
   seed: (state) => {
