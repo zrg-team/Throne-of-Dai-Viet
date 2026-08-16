@@ -896,8 +896,15 @@ export type AscentPrompt =
   | { kind: 'power-draft'; cards: string[]; rerollCost: number; level: number }
   /** Step one of a conquest: which province. */
   | { kind: 'conquer-target'; targets: ConquestTarget[] }
-  /** Step two: how to take it. Raised by resolving `conquer-target`, or by tapping the map. */
-  | { kind: 'conquer-method'; target: ConquestTarget }
+  /**
+   * Step two: how to take it. Raised by resolving `conquer-target`, or by tapping the map.
+   *
+   * `notice` carries the outcome of the attempt the player just made here, when that attempt
+   * was made and refused — a bribe the nobles pocketed, a march no host was free to take. The
+   * sheet re-opens with it stated, because a refusal that closes the sheet silently is
+   * indistinguishable from a tap that never registered.
+   */
+  | { kind: 'conquer-method'; target: ConquestTarget; notice?: string }
   /** A champion arrives — from the gacha roll or from the court's Favor draft. */
   | { kind: 'hero-choice'; heroIds: string[]; source: 'summon' | 'court'; pityUsed: boolean }
   /** Where the new champion serves. Always follows a `hero-choice`. */

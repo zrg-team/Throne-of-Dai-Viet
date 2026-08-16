@@ -298,7 +298,9 @@ export class ConquestUIScene extends Phaser.Scene {
     switch (prompt.kind) {
       case 'power-draft': return `${prompt.level}:${prompt.cards.join(',')}:${prompt.rerollCost}`;
       case 'conquer-target': return prompt.targets.map((target) => target.landId).join(',');
-      case 'conquer-method': return `${prompt.target.landId}:${prompt.target.methods.map((m) => m.method).join(',')}`;
+      // The notice is part of the identity: re-opening this sheet against the same province with
+      // a refusal to report is a different screen from the one the player just tapped through.
+      case 'conquer-method': return `${prompt.target.landId}:${prompt.target.methods.map((m) => m.method).join(',')}:${prompt.notice ?? ''}`;
       case 'hero-choice': return `${prompt.source}:${prompt.heroIds.join(',')}`;
       case 'court-appointment': return `${prompt.heroId}:${prompt.options.map((option) => option.id).join(',')}`;
       case 'law-choice': return `${prompt.points}:${prompt.projectIds.join(',')}`;
@@ -318,7 +320,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'founder': this.showFounder(prompt); break;
       case 'power-draft': this.showPowerDraft(prompt); break;
       case 'conquer-target': this.showConquerTarget(prompt); break;
-      case 'conquer-method': this.showConquerMethod(prompt.target); break;
+      case 'conquer-method': this.showConquerMethod(prompt.target, prompt.notice); break;
       case 'hero-choice': this.showHeroChoice(prompt); break;
       case 'court-appointment': this.showAppointment(prompt); break;
       case 'law-choice': this.showLawChoice(prompt); break;
@@ -1993,7 +1995,7 @@ export class ConquestUIScene extends Phaser.Scene {
    * Seeing that a bribe needs 74 gold when you hold 51 is how the player learns what the
    * treasury is *for* — a filtered list would just look like the game offering less.
    */
-  private showConquerMethod(target: ConquestTarget): void {
+  private showConquerMethod(target: ConquestTarget, notice?: string): void {
     const { content, body, bodyWidth, finish } = this.promptScrollBody(
       target.landName,
       t('ascent.conquer.methodSubtitle', {
@@ -2006,6 +2008,18 @@ export class ConquestUIScene extends Phaser.Scene {
     const rowHeight = 82;
     const cards: Phaser.GameObjects.Container[] = [];
     let used = 0;
+
+    // What the last attempt on this province came to, above the ways still open. Cinnabar and
+    // sitting first, because it is news the player did not ask for and must not scroll past.
+    if (notice) {
+      const banner = this.ui.card(
+        { x: 0, y: 0, width: bodyWidth, height: 54 },
+        { title: t('ascent.conquer.refused'), subtitle: notice, border: INK_UI.cinnabar },
+      );
+      body.add(banner);
+      used += ((banner.getData('cardHeight') as number) ?? 54) + 12;
+    }
+
     target.methods.forEach((option) => {
       const blocked = Boolean(option.blockedReason);
 

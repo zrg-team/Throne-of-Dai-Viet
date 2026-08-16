@@ -153,6 +153,9 @@ export const enAscent = {
   "ascent.conquer.needHost": "Needs a host that can reach it",
   "ascent.conquer.needBorderHost": "Needs a host on a bordering province",
   "ascent.conquer.hostTooWeak": "Your host is not fearsome enough",
+  "ascent.conquer.noHostFree": "Every host is already under orders elsewhere.",
+  "ascent.conquer.cameToNothing": "The attempt came to nothing.",
+  "ascent.conquer.refused": "It did not take",
 
   // ── The six ways to take a province ──────────────────────────────────────
   "ascent.method.bribe": "Bribe the nobles",
@@ -638,6 +641,9 @@ export const viAscent = {
   "ascent.conquer.needHost": "Cần một đạo quân tới được nơi đó",
   "ascent.conquer.needBorderHost": "Cần một đạo quân đóng ở trấn giáp ranh",
   "ascent.conquer.hostTooWeak": "Đạo quân của ngài chưa đủ uy",
+  "ascent.conquer.noHostFree": "Đạo quân nào cũng đang bận việc khác.",
+  "ascent.conquer.cameToNothing": "Việc ấy không thành.",
+  "ascent.conquer.refused": "Việc không thành",
 
   // ── The six ways to take a province ──────────────────────────────────────
   "ascent.method.bribe": "Mua chuộc hào tộc",
