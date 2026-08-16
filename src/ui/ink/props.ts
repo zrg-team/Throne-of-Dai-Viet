@@ -818,19 +818,48 @@ export function karst(g: G, x: number, baseY: number, w: number, h: number, seed
 
 
 /**
+ * Where a landform stands, resolved but not yet inked.
+ *
+ * Landforms are planned before they are drawn for one reason: **the rock has to take its turn in
+ * the same back-to-front order as everything else on the ground.** A massif used to be inked into
+ * the terrain layer, two whole layers below the trees, so it could never cover anything — every
+ * tree behind it was painted straight over the cliff, and a wood a screen away read as growing out
+ * of the summit. Sorting rock and trees together needs the rock's foot line up front, before a
+ * single stroke is committed.
+ *
+ * `footY` is that line: where the landform meets the ground, which is what decides whether a thing
+ * is in front of it or behind it.
+ */
+export interface ReliefPlan {
+  footY: number;
+  /** The box the landform actually inks into, for callers that need to know what it covers. */
+  bounds: { x0: number; x1: number; topY: number; footY: number };
+  /**
+   * True when this point is under the painted rock — inside the silhouette, above the foot.
+   *
+   * For anything drawn in the baked layers the sort in `drawStanding` settles this. Live objects
+   * cannot join that sort — a cart, a traveller or a host is a scene object above the whole cached
+   * map image — so they ask instead, and stop drawing themselves while the rock is between them
+   * and the viewer. Same rule, arrived at from the other side.
+   */
+  occludes(x: number, y: number): boolean;
+  draw(g: G): void;
+}
+
+/**
  * Đồi — low earth hills. Rounded, overlapping, with a ridgeline falling off each summit.
  * Karst is a mountain form; using it for hills gives a row of teeth.
  */
-export function softRidge(g: G, x0: number, x1: number, baseY: number, height: number, seed: number): void {
+export function planSoftRidge(x0: number, x1: number, baseY: number, height: number, seed: number): ReliefPlan {
   const rand = mulberry32(seed);
   const outline: Pt[] = [{ x: x0, y: baseY }];
-  const peaks: Array<{ x: number; y: number; h: number; w: number }> = [];
+  const peaks: Array<{ x: number; y: number; h: number; w: number; ridge: [number, number] }> = [];
   let x = x0;
   while (x < x1) {
     const w = height * (2.0 + rand() * 1.4);
     const h = height * (0.6 + rand() * 0.7);
     const apex = x + w * (0.4 + rand() * 0.2);
-    peaks.push({ x: apex, y: baseY - h, h, w });
+    peaks.push({ x: apex, y: baseY - h, h, w, ridge: [0, 0] });
     for (let step = 1; step <= 12; step += 1) {
       const t = step / 12;
       outline.push({ x: x + (apex - x) * t, y: baseY - h * Math.pow(Math.sin(t * Math.PI / 2), 1.35) + (rand() - 0.5) });
@@ -842,6 +871,49 @@ export function softRidge(g: G, x0: number, x1: number, baseY: number, height: n
     x += w * (0.72 + rand() * 0.2);
   }
   outline.push({ x: x1, y: baseY });
+  // The two jitters on each summit's ridgeline, drawn from the same stream at the same point it
+  // was always drawn from. Rolled here rather than at ink time only because the drawing has moved
+  // out of this function — the numbers, and therefore the hills, are identical.
+  for (const peak of peaks) {
+    peak.ridge = [rand() * 4, rand() * 6];
+  }
+  const topY = outline.reduce((high, point) => Math.min(high, point.y), baseY);
+  return {
+    footY: baseY,
+    bounds: { x0, x1, topY, footY: baseY + 6 },
+    // Against the drawn skyline itself, so the saddle between two mounds is open ground and a
+    // traveller walking through it stays visible.
+    occludes: (x: number, y: number) => {
+      if (x < x0 || x > x1 || y > baseY || y < topY) {
+        return false;
+      }
+      for (let index = 0; index < outline.length - 1; index += 1) {
+        const a = outline[index];
+        const b = outline[index + 1];
+        if (x < Math.min(a.x, b.x) || x > Math.max(a.x, b.x)) {
+          continue;
+        }
+        const span = b.x - a.x;
+        const crest = Math.abs(span) < 0.001 ? Math.min(a.y, b.y) : a.y + (b.y - a.y) * ((x - a.x) / span);
+        if (y >= crest) {
+          return true;
+        }
+      }
+      return false;
+    },
+    draw: (g: G) => drawSoftRidge(g, x0, x1, baseY, seed, outline, peaks),
+  };
+}
+
+function drawSoftRidge(
+  g: G,
+  x0: number,
+  x1: number,
+  baseY: number,
+  seed: number,
+  outline: Pt[],
+  peaks: Array<{ x: number; y: number; h: number; w: number; ridge: [number, number] }>,
+): void {
   washFill(g, [...outline, { x: x1, y: baseY + 6 }, { x: x0, y: baseY + 6 }], PIGMENT.diepLo, seed, 1);
   inkPath(g, outline, seed + 3, { width: 1.2, alpha: 0.8, wobble: 0.55, step: 10 });
 
@@ -869,12 +941,17 @@ export function softRidge(g: G, x0: number, x1: number, baseY: number, height: n
       g,
       [
         { x: peak.x, y: peak.y + 2 },
-        { x: peak.x - peak.w * 0.1 - rand() * 4, y: peak.y + peak.h * 0.45 },
-        { x: peak.x - peak.w * 0.15 - rand() * 6, y: peak.y + peak.h * 0.8 },
+        { x: peak.x - peak.w * 0.1 - peak.ridge[0], y: peak.y + peak.h * 0.45 },
+        { x: peak.x - peak.w * 0.15 - peak.ridge[1], y: peak.y + peak.h * 0.8 },
       ],
       seed + Math.round(peak.x), { width: 0.7, alpha: 0.4, wobble: 0.4, step: 8 },
     );
   }
+}
+
+/** Plans and inks in one go, for callers with no use for the order — the menu's horizon. */
+export function softRidge(g: G, x0: number, x1: number, baseY: number, height: number, seed: number): void {
+  planSoftRidge(x0, x1, baseY, height, seed).draw(g);
 }
 
 /**
@@ -884,8 +961,7 @@ export function softRidge(g: G, x0: number, x1: number, baseY: number, height: n
  * of rock, which is right on the map — a massif has to fill the tiles it occupies. The menu wants
  * open country between the towers, so it asks for more.
  */
-export function karstRange(
-  g: G,
+export function planKarstRange(
   x0: number,
   x1: number,
   baseY: number,
@@ -893,7 +969,7 @@ export function karstRange(
   seed: number,
   far = false,
   spread = 1,
-): void {
+): ReliefPlan {
   const rand = mulberry32(seed);
   const towers: Array<{ x: number; w: number; h: number; drop: number }> = [];
   let x = x0;
@@ -915,9 +991,43 @@ export function karstRange(
     x += w * (far ? 0.8 : 0.5 + rand() * 0.4) * spread;
   }
   towers.sort((a, b) => b.h - a.h);
-  towers.forEach((tower, index) => {
-    karst(g, tower.x, baseY + tower.drop, tower.w, tower.h, seed + index * 37, far);
-  });
+  // The whole range takes ONE place in the sort, at the foot of its deepest-set tower. Sorting the
+  // towers individually would break the massif apart and let trees stand between them, which is
+  // not what a body of rock does; and taking the deepest foot means anything the range could
+  // possibly stand in front of is behind the range as a whole.
+  const footY = towers.reduce((low, tower) => Math.max(low, baseY + tower.drop), baseY);
+  const topY = towers.reduce((high, tower) => Math.min(high, baseY + tower.drop - tower.h), baseY);
+  return {
+    footY,
+    bounds: { x0, x1, topY, footY: footY + 5 },
+    // A tower is a column of rock with near-vertical flanks, so its own span is its silhouette.
+    // The gaps BETWEEN towers are what matter here: a road threading a pass has to keep its
+    // traffic visible, and a rectangle over the whole range would swallow it.
+    occludes: (x: number, y: number) => towers.some((tower) => {
+      const half = tower.w * 0.5;
+      const foot = baseY + tower.drop;
+      return x >= tower.x - half && x <= tower.x + half && y <= foot && y >= foot - tower.h;
+    }),
+    draw: (g: G) => {
+      towers.forEach((tower, index) => {
+        karst(g, tower.x, baseY + tower.drop, tower.w, tower.h, seed + index * 37, far);
+      });
+    },
+  };
+}
+
+/** Plans and inks in one go, for callers with no use for the order — the menu's horizon. */
+export function karstRange(
+  g: G,
+  x0: number,
+  x1: number,
+  baseY: number,
+  height: number,
+  seed: number,
+  far = false,
+  spread = 1,
+): void {
+  planKarstRange(x0, x1, baseY, height, seed, far, spread).draw(g);
 }
 
 // ── the buffalo ───────────────────────────────────────────────────────────────
