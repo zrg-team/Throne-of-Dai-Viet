@@ -133,6 +133,33 @@ export function applyRenderScale(scene: Phaser.Scene): void {
   // scroll clamp in MapScene was already written against.
   camera.setOrigin(0, 0);
   camera.setZoom(RENDER_SCALE);
+  makeTextCrisp(scene);
+}
+
+/**
+ * Rasterises every label at the resolution it will actually be shown at.
+ *
+ * Phaser draws a `Text` by rendering the string into its own canvas texture at the font's size in
+ * **design** units, and the camera above then magnifies that texture by `RENDER_SCALE`. So the one
+ * setting that exists to make the game sharper was making the interface blurrier: at `low` the
+ * camera is 1:1 and every label is pixel-crisp, while at `high` each one is a 1× bitmap blown up
+ * three times. Text was the only thing on screen that got *worse* as quality went up — vectors,
+ * being redrawn per frame, were unaffected, which is why it read as "the buttons look bad" rather
+ * than as a resolution problem.
+ *
+ * `resolution` is per-`Text` and has to be set at construction — changing it afterwards re-renders
+ * at the old size — so the factory is wrapped once per scene rather than the two hundred call sites
+ * being edited, which is also the only way a call site added later cannot forget.
+ */
+function makeTextCrisp(scene: Phaser.Scene): void {
+  const factory = scene.add as Phaser.GameObjects.GameObjectFactory & { __crispText?: boolean };
+  if (factory.__crispText) {
+    return;
+  }
+  factory.__crispText = true;
+
+  const originalText = factory.text.bind(factory);
+  factory.text = (x, y, text, style) => originalText(x, y, text, { resolution: RENDER_SCALE, ...style });
 }
 
 /**

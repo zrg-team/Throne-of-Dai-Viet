@@ -175,33 +175,49 @@ check('scrolling to the end still chose nothing', atBottom.promptKind === before
 // release. The first version of this guard called anything past six design units a scroll, so on a
 // phone almost every tap was swallowed — the lists scrolled perfectly and nothing in them could be
 // opened. Tapping a province on the Build page did nothing at all.
-const wobbleAt = toPage(found.bounds.x + found.bounds.width / 2, found.bounds.y + 40);
-await page.mouse.move(wobbleAt.x, wobbleAt.y);
+// A brush of the finger must NOT spend the choice. Prompt cards are held, not tapped — see
+// `CARD_HOLD_MS`: these are the irreversible decisions of a run, sitting in a list that scrolls.
+const cardAt = toPage(found.bounds.x + found.bounds.width / 2, found.bounds.y + 40);
+await page.mouse.move(cardAt.x, cardAt.y);
+await page.mouse.down();
+await page.waitForTimeout(60);
+await page.mouse.up();
+await page.waitForTimeout(260);
+
+const afterBrush = await readState();
+check(
+  'a brush of the finger does not spend the choice',
+  afterBrush.promptKind === atBottom.promptKind,
+  `prompt ${atBottom.promptKind} -> ${afterBrush.promptKind}`,
+);
+
+// And the press a player means — held, and rolling a little as a finger does — must choose.
+await page.mouse.move(cardAt.x, cardAt.y);
 await page.mouse.down();
 const wobblePx = (8 / box.dh) * box.h;
-await page.mouse.move(wobbleAt.x + wobblePx * 0.4, wobbleAt.y + wobblePx);
-await page.waitForTimeout(30);
+await page.mouse.move(cardAt.x + wobblePx * 0.4, cardAt.y + wobblePx);
+await page.waitForTimeout(420);
 await page.mouse.up();
 await page.waitForTimeout(320);
 
 const afterWobble = await readState();
 check(
-  'a tap that wobbles like a finger still chooses',
+  'a held press that wobbles like a finger chooses',
   afterWobble.promptKind !== atBottom.promptKind,
   `prompt ${atBottom.promptKind} -> ${afterWobble.promptKind}`,
 );
 
-// And a clean tap — no travel at all — must still choose, on whatever screen the wobble landed on.
+// And a clean, still press — held, no travel — must choose on whatever screen the last one landed.
 const tap = toPage(found.bounds.x + found.bounds.width / 2, found.bounds.y + 40);
 await page.mouse.move(tap.x, tap.y);
 await page.mouse.down();
-await page.waitForTimeout(40);
+await page.waitForTimeout(420);
 await page.mouse.up();
 await page.waitForTimeout(300);
 
 const afterTap = await readState();
 check(
-  'a clean tap still chooses',
+  'a still, held press chooses',
   afterTap.promptKind !== afterWobble.promptKind,
   `prompt ${afterWobble.promptKind} -> ${afterTap.promptKind}`,
 );

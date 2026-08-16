@@ -770,25 +770,36 @@ export function karst(g: G, x: number, baseY: number, w: number, h: number, seed
   const lean = (rand() - 0.5) * 0.22;
   const half = w / 2;
   const outline: Pt[] = [{ x: x - half, y: baseY }];
+  // Kept as we go, because the shaded face below has to follow the silhouette exactly. Recomputing
+  // it from the same formula is what let the two drift apart when either was touched.
+  const leftFlank: Pt[] = [];
+  const rightFlank: Pt[] = [];
 
   for (let step = 1; step <= 7; step += 1) {
     const t = step / 7;
     const inset = half * (0.18 + 0.16 * t) * Math.pow(t, 0.55);
-    outline.push({ x: x - half + inset + lean * h * t, y: baseY - h * 0.86 * t });
+    const point = { x: x - half + inset + lean * h * t, y: baseY - h * 0.86 * t };
+    outline.push(point);
+    leftFlank.push(point);
   }
+  const crown: Pt[] = [];
   for (let step = 0; step <= 5; step += 1) {
     const t = step / 5;
     const angle = Math.PI - t * Math.PI;
     const notch = step > 0 && step < 5 && rand() > 0.55 ? h * 0.055 : 0;
-    outline.push({
+    const point = {
       x: x + Math.cos(angle) * half * 0.5 + lean * h,
       y: baseY - h * (0.86 + Math.sin(angle) * 0.14) + notch,
-    });
+    };
+    outline.push(point);
+    crown.push(point);
   }
   for (let step = 7; step >= 1; step -= 1) {
     const t = step / 7;
     const inset = half * (0.18 + 0.16 * t) * Math.pow(t, 0.55);
-    outline.push({ x: x + half - inset + lean * h * t, y: baseY - h * 0.86 * t });
+    const point = { x: x + half - inset + lean * h * t, y: baseY - h * 0.86 * t };
+    outline.push(point);
+    rightFlank.push(point);
   }
   outline.push({ x: x + half, y: baseY });
 
@@ -802,15 +813,80 @@ export function karst(g: G, x: number, baseY: number, w: number, h: number, seed
     return;
   }
 
-  // Vertical fissures down the rock face, then scrub clinging to the crown.
-  for (let fissure = 0; fissure < 4; fissure += 1) {
-    const t = 0.2 + fissure * 0.2;
-    const sx = x - half * 0.62 + w * 0.55 * t;
-    const top = baseY - h * (0.68 + rand() * 0.2);
-    inkPath(g, [{ x: sx, y: top }, { x: sx + (rand() - 0.5) * 2.5, y: top + h * (0.34 + rand() * 0.3) }], seed + 20 + fissure, {
-      width: 0.6, alpha: 0.26, wobble: 0.3, step: 9,
-    });
+  // ── The shaded face ──
+  //
+  // This is what the tower was missing. Outline plus one flat wash plus a few faint scratches is a
+  // silhouette, and a silhouette of a rounded form reads as a dune or a blob however carefully the
+  // profile is drawn — there is nothing in it to say which way the rock turns. A limestone tower is
+  // the most three-dimensional thing on this map: near-vertical walls with a hard-lit face and a
+  // wall in shadow, which is exactly how they are printed and painted.
+  //
+  // The light comes from the upper left, so the right wall is in shade. Built by walking the right
+  // flank down and back up an inset line, so the band hugs the silhouette instead of being a
+  // rectangle laid over it.
+  const shadeDepth = w * 0.34;
+  const shade: Pt[] = [...crown.slice(Math.floor(crown.length / 2)), ...rightFlank];
+  const shadeBack: Pt[] = [];
+  for (let index = shade.length - 1; index >= 0; index -= 1) {
+    const point = shade[index];
+    const fall = (baseY - point.y) / Math.max(1, h);
+    shadeBack.push({ x: point.x - shadeDepth * (0.35 + fall * 0.65), y: point.y });
   }
+  washFill(g, [...shade, ...shadeBack], PIGMENT.diepDeep, seed + 7, 0.5);
+
+  // ── Fall lines ──
+  //
+  // Limestone weathers in vertical flutes, and they are the texture that says "rock" rather than
+  // "hill". Drawn along the fall of the wall and concentrated on the shaded side, at an ink weight
+  // that actually reads — the previous pass drew four at alpha 0.26, which on paper is nothing.
+  const flutes = 7;
+  for (let flute = 0; flute < flutes; flute += 1) {
+    const t = (flute + 0.5) / flutes;
+    // Biased right, where the shade is: the lit wall is described by its edge, the dark one by
+    // its texture.
+    const bias = Math.pow(t, 0.75);
+    const sx = x - half * 0.72 + w * 0.82 * bias + lean * h * 0.4;
+    const top = baseY - h * (0.62 + rand() * 0.26);
+    const drop = h * (0.3 + rand() * 0.34);
+    const shaded = bias > 0.45;
+    inkPath(
+      g,
+      [
+        { x: sx, y: top },
+        { x: sx + lean * drop * 0.5 + (rand() - 0.5) * 1.6, y: top + drop * 0.55 },
+        { x: sx + lean * drop + (rand() - 0.5) * 2.4, y: top + drop },
+      ],
+      seed + 20 + flute,
+      { width: shaded ? 0.75 : 0.55, alpha: shaded ? 0.42 : 0.24, wobble: 0.35, step: 7 },
+    );
+  }
+
+  // A hard line where the lit wall turns into the shaded one. One stroke, and it is what makes the
+  // tower read as having two faces rather than one curved surface.
+  const ridgeTop = crown[Math.max(0, Math.floor(crown.length / 2) - 1)];
+  if (ridgeTop) {
+    inkPath(
+      g,
+      [
+        { x: ridgeTop.x, y: ridgeTop.y + h * 0.02 },
+        { x: ridgeTop.x + lean * h * 0.4 - w * 0.04, y: baseY - h * 0.42 },
+        { x: ridgeTop.x + lean * h * 0.7 - w * 0.02, y: baseY - h * 0.06 },
+      ],
+      seed + 61,
+      { width: 0.9, alpha: 0.4, wobble: 0.4, step: 8 },
+    );
+  }
+
+  // Talus: the rubble skirt every limestone tower stands in. Without it the wall meets the ground
+  // at a clean line and the rock looks pasted onto the paper.
+  washFill(g, [
+    { x: x - half * 1.16, y: baseY + 1.5 },
+    { x: x - half * 0.5, y: baseY - h * 0.1 },
+    { x: x + half * 0.55, y: baseY - h * 0.08 },
+    { x: x + half * 1.18, y: baseY + 1.5 },
+  ], PIGMENT.diepDeep, seed + 71, 0.28);
+
+  // Scrub clinging to the crown, brighter than before so the rock has something living on it.
   for (let bush = 0; bush < 3; bush += 1) {
     const sx = x - half * 0.42 + rand() * w * 0.42;
     const sy = baseY - h * (0.82 + rand() * 0.14);
@@ -819,7 +895,7 @@ export function karst(g: G, x: number, baseY: number, w: number, h: number, seed
       const angle = Math.PI + (index / 10) * Math.PI;
       tuft.push({ x: sx + Math.cos(angle) * 3.2, y: sy + Math.sin(angle) * 2.1 });
     }
-    printedShape(g, tuft, foliagePalette().evergreen, seed + 40 + bush, { width: 0.5, alpha: 0.4, wobble: 0.2, step: 4, fillAlpha: 0.5 });
+    printedShape(g, tuft, foliagePalette().evergreen, seed + 40 + bush, { width: 0.5, alpha: 0.5, wobble: 0.2, step: 4, fillAlpha: 0.6 });
   }
 }
 
@@ -850,7 +926,27 @@ export function softRidge(g: G, x0: number, x1: number, baseY: number, height: n
   outline.push({ x: x1, y: baseY });
   washFill(g, [...outline, { x: x1, y: baseY + 6 }, { x: x0, y: baseY + 6 }], PIGMENT.diepLo, seed, 1);
   inkPath(g, outline, seed + 3, { width: 1.2, alpha: 0.8, wobble: 0.55, step: 10 });
+
   for (const peak of peaks) {
+    // The shaded flank, on the same upper-left light as the karst towers. A hill described only by
+    // its outline is a bump; the thing that makes it ground you could walk over is that one side of
+    // it is turned away from the sun.
+    const shade: Pt[] = [];
+    for (let step = 0; step <= 8; step += 1) {
+      const t = step / 8;
+      shade.push({
+        x: peak.x + (peak.w * 0.5) * t,
+        y: peak.y + peak.h * Math.pow(t, 1.35),
+      });
+    }
+    const shadeBack: Pt[] = [];
+    for (let index = shade.length - 1; index >= 0; index -= 1) {
+      const point = shade[index];
+      shadeBack.push({ x: point.x - peak.w * 0.16, y: Math.min(baseY, point.y + peak.h * 0.06) });
+    }
+    washFill(g, [...shade, ...shadeBack], PIGMENT.diepDeep, seed + Math.round(peak.x) + 5, 0.34);
+
+    // The ridgeline falling off the summit, at a weight that reads.
     inkPath(
       g,
       [
@@ -858,7 +954,7 @@ export function softRidge(g: G, x0: number, x1: number, baseY: number, height: n
         { x: peak.x - peak.w * 0.1 - rand() * 4, y: peak.y + peak.h * 0.45 },
         { x: peak.x - peak.w * 0.15 - rand() * 6, y: peak.y + peak.h * 0.8 },
       ],
-      seed + Math.round(peak.x), { width: 0.65, alpha: 0.28, wobble: 0.4, step: 8 },
+      seed + Math.round(peak.x), { width: 0.7, alpha: 0.4, wobble: 0.4, step: 8 },
     );
   }
 }
