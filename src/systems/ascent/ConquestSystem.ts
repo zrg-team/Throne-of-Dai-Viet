@@ -339,28 +339,53 @@ function siegeOption(state: GameState, land: Land): ConquestMethodOption {
 
 // ── Execution ───────────────────────────────────────────────────────────────
 
+/** What came of one attempt: whether it was made, whether it took, and why it did not. */
+export interface ConquestAttempt {
+  /** The attempt was made. The prompt is answered either way — see the note on failure below. */
+  attempted: boolean;
+  /** It took. When false the province is no closer to being yours, and may have cost you. */
+  ok: boolean;
+  /** Why it did not take, phrased for the player. Only set when the attempt fell short. */
+  reason?: string;
+}
+
 /**
  * Commits to one method against one province, through the same public APIs the classic
  * modes use. Every branch is an existing function — this mode adds no conquest maths.
  *
- * Returns whether the attempt was *made*, which is not the same as whether it worked. A
- * refused bribe has already spent the gold (`bribeLand` pays before it rolls), so reporting
- * that as "not handled" would leave the card open and hand the player unlimited free retries
- * on a purchase they already made. The outcome is reported through `state.message` and the
- * conquest plan's status instead.
+ * Whether the attempt was *made* is not the same as whether it worked. A refused bribe has
+ * already spent the gold (`bribeLand` pays before it rolls), so reporting that as "not handled"
+ * would leave the card open and hand the player unlimited free retries on a purchase they
+ * already made.
+ *
+ * But the two used to collapse into one `true` on the way out, and the caller had no way to
+ * tell them apart. The outcome went to `state.message` and to the conquest plan's `status`,
+ * and this mode reads neither — so a bribe the nobles refused looked exactly like a tap that
+ * did not register: the sheet closed, the gold was gone, and nothing was underway. The reason
+ * is returned now, so the caller can put it in front of the player.
  */
-export function executeConquestMethod(state: GameState, landId: string, method: AscentConquestMethod): boolean {
+export function executeConquestMethod(
+  state: GameState,
+  landId: string,
+  method: AscentConquestMethod,
+): ConquestAttempt {
   const ascent = state.ascent;
   const land = findLand(state, landId);
-  if (!ascent || !land) return false;
+  if (!ascent || !land) return { attempted: false, ok: false };
   ensureAscentLaneState(state);
 
   // The method sheet only ever offers methods this province admits, so an attempt that gets
   // this far is legitimate even when the dice go against it.
-  const attemptable = buildMethodOptions(state, land)
-    .some((option) => option.method === method && !option.blockedReason);
-  if (!attemptable) return false;
+  const option = buildMethodOptions(state, land).find((candidate) => candidate.method === method);
+  if (!option || option.blockedReason) {
+    return { attempted: false, ok: false, reason: option?.blockedReason };
+  }
 
+  // `state.message` is the only channel the acquisition systems report a refusal through, and
+  // it is a single slot that nothing clears. Remembering what was in it lets a refusal that
+  // wrote nothing — a march with no host free to take the order writes nothing — be told apart
+  // from one that did, instead of serving last season's news as this attempt's reason.
+  const messageBefore = state.message;
   let ok = false;
   switch (method) {
     case 'bribe':
@@ -382,8 +407,18 @@ export function executeConquestMethod(state: GameState, landId: string, method: 
     case 'occupy':
     case 'siege':
       ok = marchBestHostToTarget(state, landId);
+      // The sheet offered this because *some* host could reach the province; the march declines
+      // when every one of them is already committed elsewhere. Two different questions, so the
+      // option's own `blockedReason` cannot answer this one.
+      if (!ok) state.message = t('ascent.conquer.noHostFree');
       break;
   }
+
+  const reason = ok
+    ? undefined
+    : state.message && state.message !== messageBefore
+      ? state.message
+      : t('ascent.conquer.cameToNothing');
 
   ascent.conquestPlans.push({
     id: `asc-conquest-${state.turn}-${landId}-${method}`,
@@ -391,7 +426,7 @@ export function executeConquestMethod(state: GameState, landId: string, method: 
     method,
     createdTurn: state.turn,
     status: ok ? 'executing' : 'blocked',
-    reason: ok ? undefined : state.message,
+    reason,
   });
   ascent.laneState.lastDecisionTurn.conquer = state.turn;
 
@@ -406,7 +441,7 @@ export function executeConquestMethod(state: GameState, landId: string, method: 
   }
   // Quiet period either way — a refused bribe should not re-open the same card next tick.
   ascent.marchCooldown = MARCH_REPROMPT_TICKS;
-  return true;
+  return { attempted: true, ok, reason };
 }
 
 /** Declines to advance; the autopilot consolidates instead, and stays quiet for a while. */
