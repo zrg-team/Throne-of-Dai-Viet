@@ -98,9 +98,16 @@ export function inkPath(
   const path = options.closed ? [...points, points[0]] : points;
   const drawn = wobblePath(path, seed, options.wobble ?? 0.75, options.step ?? 9);
 
-  graphics.lineStyle((width * 2) / zoom, colour, alpha * 0.26);
+  // The soaked underlay, wider and much fainter than the block on top. Widened and lightened
+  // together: at 2x/0.26 it read as a second hard line just outside the first, which is what made a
+  // crisp contour look harsh rather than printed. Ink soaking into paper spreads *further* and
+  // *weaker* than this pass used to, and the softness is most of what the low-resolution blur was
+  // supplying for free.
+  graphics.lineStyle((width * 2.6) / zoom, colour, alpha * 0.14);
   graphics.strokePoints(drawn, false, false);
-  graphics.lineStyle(width / zoom, colour, alpha);
+  graphics.lineStyle((width * 1.5) / zoom, colour, alpha * 0.2);
+  graphics.strokePoints(drawn, false, false);
+  graphics.lineStyle(width / zoom, colour, alpha * 0.88);
   graphics.strokePoints(drawn, false, false);
 }
 
