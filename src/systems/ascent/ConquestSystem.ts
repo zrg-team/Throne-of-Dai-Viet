@@ -345,7 +345,7 @@ export interface ConquestAttempt {
   attempted: boolean;
   /** It took. When false the province is no closer to being yours, and may have cost you. */
   ok: boolean;
-  /** Why it did not take, phrased for the player. Only set when `attempted && !ok`. */
+  /** Why it did not take, phrased for the player. Only set when the attempt fell short. */
   reason?: string;
 }
 

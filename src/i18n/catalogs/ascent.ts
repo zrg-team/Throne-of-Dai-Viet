@@ -136,6 +136,7 @@ export const enAscent = {
   "ascent.claim.start": "Claim a province",
   "ascent.claim.startHint": "{n} within reach",
   "ascent.claim.startNone": "Nothing adjacent to claim",
+  "ascent.claim.forceOnly": "No claim party free — only force is left",
   "ascent.claim.allCommitted": "All claim parties are committed ({used}/{cap})",
   "ascent.claim.cancel": "Call off this claim",
   "ascent.claim.cancelRefund": "Recovers {refund}",
@@ -163,6 +164,9 @@ export const enAscent = {
   "ascent.conquer.needHost": "Needs a host that can reach it",
   "ascent.conquer.needBorderHost": "Needs a host on a bordering province",
   "ascent.conquer.hostTooWeak": "Your host is not fearsome enough",
+  "ascent.conquer.noHostFree": "Every host is already under orders elsewhere.",
+  "ascent.conquer.cameToNothing": "The attempt came to nothing.",
+  "ascent.conquer.refused": "It did not take",
 
   // ── The six ways to take a province ──────────────────────────────────────
   "ascent.method.bribe": "Bribe the nobles",
@@ -631,6 +635,7 @@ export const viAscent = {
   "ascent.claim.start": "Thu phục một tỉnh",
   "ascent.claim.startHint": "{n} tỉnh trong tầm với",
   "ascent.claim.startNone": "Không có tỉnh liền kề để thu phục",
+  "ascent.claim.forceOnly": "Hết sứ đoàn — chỉ còn đường binh đao",
   "ascent.claim.allCommitted": "Mọi sứ đoàn đều đang bận ({used}/{cap})",
   "ascent.claim.cancel": "Huỷ cuộc thu phục này",
   "ascent.claim.cancelRefund": "Thu lại {refund}",
@@ -658,6 +663,9 @@ export const viAscent = {
   "ascent.conquer.needHost": "Cần một đạo quân tới được nơi đó",
   "ascent.conquer.needBorderHost": "Cần một đạo quân đóng ở trấn giáp ranh",
   "ascent.conquer.hostTooWeak": "Đạo quân của ngài chưa đủ uy",
+  "ascent.conquer.noHostFree": "Đạo quân nào cũng đang bận việc khác.",
+  "ascent.conquer.cameToNothing": "Việc ấy không thành.",
+  "ascent.conquer.refused": "Việc không thành",
 
   // ── The six ways to take a province ──────────────────────────────────────
   "ascent.method.bribe": "Mua chuộc hào tộc",
