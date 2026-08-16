@@ -197,12 +197,35 @@ export class MenuScene extends Phaser.Scene {
     // Mist at the foot of the range. Towers are seated at varying depths, so their base fills stop
     // on a stepped line — invisible on the map, where ground tone covers it, and a row of pale
     // blocks here on bare paper. A band of haze is both the fix and what the eye expects anyway.
+    // Laid as a GRADED stack rather than one flat block. A single polygon of paper tone ends
+    // on a ruled horizontal edge, and because it is paper-on-paper everywhere except over the
+    // towers, the only place that edge shows is across the rock — which is why the foot of the
+    // range came out as a row of pale rectangles with a hard line under them. Ten thin slices
+    // of falling opacity have no edge to find, and the rock fades into the ground instead of
+    // stopping on it.
     const mist: Pt[] = [];
     for (let step = 0; step <= 14; step += 1) {
-      mist.push({ x: -20 + (step / 14) * (GAME_WIDTH + 40), y: HORIZON - 12 + (rand() - 0.5) * 9 });
+      mist.push({ x: -20 + (step / 14) * (GAME_WIDTH + 40), y: HORIZON - 14 + (rand() - 0.5) * 9 });
     }
-    washInk(g, [...mist, { x: GAME_WIDTH + 20, y: HORIZON + 34 }, { x: -20, y: HORIZON + 34 }],
-      PIGMENT.diep, 4200, 0.72);
+    const HAZE_SLICES = 10;
+    const HAZE_DEPTH = 58;
+    for (let slice = 0; slice < HAZE_SLICES; slice += 1) {
+      const t = slice / HAZE_SLICES;
+      const drop = t * HAZE_DEPTH;
+      const foot = HORIZON - 14 + ((slice + 1) / HAZE_SLICES) * HAZE_DEPTH;
+      washInk(
+        g,
+        [
+          ...mist.map((point) => ({ x: point.x, y: point.y + drop })),
+          { x: GAME_WIDTH + 20, y: foot },
+          { x: -20, y: foot },
+        ],
+        PIGMENT.diep,
+        4200 + slice,
+        // Strong where it meets the rock, gone by the time it reaches the fields.
+        0.82 * Math.pow(1 - t, 1.6),
+      );
+    }
 
     // The near ground, so the props stand on something rather than floating on bare paper.
     for (let band = 0; band < 7; band += 1) {
@@ -232,7 +255,10 @@ export class MenuScene extends Phaser.Scene {
     for (const plot of paddyLattice({
       // Matched to the plot size the map draws at, so the two read as the same country. Bigger and
       // the bunds start to look like mortar courses.
-      x0: 214, x1: GAME_WIDTH + 16, y0: HORIZON + 6, y1: 480, cell: 11, seed: 4200,
+      // Started BELOW the haze band, not six pixels under the horizon. The towers are seated
+      // at varying depths and their feet run as much as a third of the range height below
+      // `HORIZON`, so a lattice beginning at +6 lays paddy over the bottom of the mountains.
+      x0: 214, x1: GAME_WIDTH + 16, y0: HORIZON + 40, y1: 480, cell: 11, seed: 4200,
       keep: (x, y) => {
         const span = river.spanAt(y);
         // Dry ground only: never over the water, never under a host's feet.
@@ -249,10 +275,12 @@ export class MenuScene extends Phaser.Scene {
     this.aspectProp(288, 372, (prop) => farmer(prop, 0, 0, 0.7, 4310));
     this.aspectProp(356, 400, (prop) => farmer(prop, 0, 0, 0.62, 4311));
     this.aspectProp(340, 352, (prop) => areca(prop, 0, 0, 0.42, 4320));
-    this.aspectProp(246, 302, (prop) => treeProp(prop, 0, 0, 0.5, 4321));
+    // Nothing stands above `HORIZON + 40`. A tree planted at 300 is eight pixels under the
+    // horizon and lands halfway up a tower — it reads as growing out of the rock face.
+    this.aspectProp(246, 344, (prop) => treeProp(prop, 0, 0, 0.5, 4321));
     this.aspectProp(384, 372, (prop) => treeProp(prop, 0, 0, 0.46, 4322));
     this.aspectProp(300, 452, (prop) => treeProp(prop, 0, 0, 0.44, 4323));
-    this.aspectProp(372, 300, (prop) => treeProp(prop, 0, 0, 0.4, 4324));
+    this.aspectProp(372, 338, (prop) => treeProp(prop, 0, 0, 0.4, 4324));
 
     // Ripples ride the surface rather than being scratched onto it at random. Level strokes only:
     // randomising both ends put crossed scratches on the water.
@@ -273,7 +301,7 @@ export class MenuScene extends Phaser.Scene {
     this.aspectProp(158, 344, (prop) => areca(prop, 0, 0, 0.5, 5004));
     for (let index = 0; index < 8; index += 1) {
       const x = 8 + rand() * 190;
-      const y = 318 + rand() * 96;
+      const y = 334 + rand() * 84;
       if (hosts.some((host) => host.covers(x, y, 12))) continue;
       const scale = 0.42 + rand() * 0.26;
       this.aspectProp(x, y, (prop) => treeProp(prop, 0, 0, scale, 5100 + index));

@@ -200,8 +200,8 @@ check(
   const landText = await modalText();
 
   check(
-    'the command screen shows the focus heading',
-    landText.some((t) => /Province focus|Trọng tâm tỉnh/i.test(t)),
+    'the command screen opens on the province',
+    landText.some((t) => /This province|Tỉnh này/i.test(t)),
     landText.slice(0, 3).join(' / '),
   );
   check(
@@ -253,6 +253,64 @@ check(
     'the picker says which stat the province rewards',
     govText.some((t) => /Martial|Administration|Logistics|Võ lược|Quản trị|Hậu cần/i.test(t)),
     govText.filter((t) => /Suited|Adequate|Poorly/i.test(t))[0] ?? '',
+  );
+}
+
+// ── Every screen that covers the map holds the clock, and hands it back ──
+//
+// Reading the world while it moves is not what a menu is for. The lanes did this already; the
+// Codex did not, because it is opened outside `openLane` — so the one screen a player might sit
+// on longest was the one that let the run carry on behind it.
+const pausing = await page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  const st = gameState();
+  const out = [];
+  for (const lane of ['build', 'heroes', 'court', 'army', 'affairs']) {
+    st.isStrategyPause = false;
+    ui.openLane(lane);
+    const held = st.isStrategyPause === true;
+    ui.closeLane();
+    out.push({ screen: lane, held, released: st.isStrategyPause === false });
+  }
+  st.isStrategyPause = false;
+  ui.showCodex();
+  const codexHeld = st.isStrategyPause === true;
+  ui.closeLane();
+  out.push({ screen: 'codex', held: codexHeld, released: st.isStrategyPause === false });
+  return out;
+});
+check(
+  'every bottom-bar screen pauses the world',
+  pausing.every((p) => p.held),
+  pausing.filter((p) => !p.held).map((p) => p.screen).join(', ') || 'all held',
+);
+check(
+  'and hands the clock back on close',
+  pausing.every((p) => p.released),
+  pausing.filter((p) => !p.released).map((p) => p.screen).join(', ') || 'all released',
+);
+
+// The province sheet says what the place *is* before asking what to do with it.
+{
+  await page.evaluate(() => {
+    const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+    const st = gameState();
+    const land = st.lands.find((l) => l.ownerId === 'dai-viet');
+    ui.showBuildOptions(land.id);
+  });
+  await page.waitForTimeout(300);
+  const sheet = await modalText();
+  check(
+    'the sheet is divided into named sections',
+    ['This province', 'Governor', 'Focus', 'Build and upgrade']
+      .every((s) => sheet.some((line) => line.includes(s))),
+    sheet.filter((l) => /This province|Governor|Focus|Build and upgrade/.test(l)).join(' / '),
+  );
+  check(
+    'the status block shows people, growth and yield',
+    sheet.some((l) => /people\s+·\s+\+\d+\/season/.test(l))
+      && sheet.some((l) => /Food \d+\s+·\s+Goods \d+\s+·\s+Gold \d+/.test(l)),
+    sheet.filter((l) => /people|Food \d/.test(l)).slice(0, 2).join(' / '),
   );
 }
 
