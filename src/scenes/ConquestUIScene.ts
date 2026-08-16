@@ -1018,7 +1018,7 @@ export class ConquestUIScene extends Phaser.Scene {
   private showBuildScreen(): void {
     const state = this.state;
     const lands = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
-    const { addRow, finish } = this.laneList(
+    const { addRow, addHeading, finish } = this.laneList(
       t('action.build'),
       t('ascent.screen.buildBody', { lands: lands.length }),
     );
@@ -1029,13 +1029,9 @@ export class ConquestUIScene extends Phaser.Scene {
     // which meant the cap, the progress and the option to call one off had nowhere to live.
     const claims = state.acquisitionOrders.filter((order) => order.buyerId === PLAYER_KINGDOM_ID);
     const slots = getClaimSlots(state);
-    addRow(
-      {
-        title: t('ascent.claim.heading', { used: claims.length, cap: slots }),
-        subtitle: t('ascent.claim.headingHint'),
-        border: INK_UI.softBrush,
-        muted: true,
-      },
+    addHeading(
+      t('ascent.claim.heading', { used: claims.length, cap: slots }),
+      t('ascent.claim.headingHint'),
     );
 
     for (const order of claims) {
@@ -1079,6 +1075,7 @@ export class ConquestUIScene extends Phaser.Scene {
     // were disabled rather than the game broken.
     //
     // The order is worth showing, so it stays in the subtitle. It is not worth locking the door.
+    addHeading(t('land.section.holdings'));
     for (const land of lands) {
       const order = state.buildOrders.find((candidate) => candidate.landId === land.id);
       addRow(
