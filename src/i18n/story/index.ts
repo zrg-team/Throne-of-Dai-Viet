@@ -14,6 +14,20 @@ import {
   riverStakesEn,
   riverStakesVi,
 } from './rest';
+import {
+  assemblyEn, assemblyVi,
+  borrowedSwordEn, borrowedSwordVi,
+  chamEngineerEn, chamEngineerVi,
+  eatTogetherEn, eatTogetherVi,
+  noHeirEn, noHeirVi,
+  riceRiotEn, riceRiotVi,
+  rideTheWindEn, rideTheWindVi,
+  sixtyFiveCitadelsEn, sixtyFiveCitadelsVi,
+  slanderedEn, slanderedVi,
+  substitutionEn, substitutionVi,
+  trustedEn, trustedVi,
+  unpaidEn, unpaidVi,
+} from './histories';
 import type { StoryCatalog } from './types';
 
 /**
@@ -41,6 +55,19 @@ const CATALOGS: Record<string, StoryPair> = {
   'counting-house': { en: countingHouseEn, vi: countingHouseVi },
   'dien-hong': { en: dienHongEn, vi: dienHongVi },
   orange: { en: orangeEn, vi: orangeVi },
+
+  'sixty-five-citadels': { en: sixtyFiveCitadelsEn, vi: sixtyFiveCitadelsVi },
+  'ride-the-wind': { en: rideTheWindEn, vi: rideTheWindVi },
+  substitution: { en: substitutionEn, vi: substitutionVi },
+  'borrowed-sword': { en: borrowedSwordEn, vi: borrowedSwordVi },
+  slandered: { en: slanderedEn, vi: slanderedVi },
+  trusted: { en: trustedEn, vi: trustedVi },
+  'cham-engineer': { en: chamEngineerEn, vi: chamEngineerVi },
+  assembly: { en: assemblyEn, vi: assemblyVi },
+  'rice-riot': { en: riceRiotEn, vi: riceRiotVi },
+  'no-heir': { en: noHeirEn, vi: noHeirVi },
+  'eat-together': { en: eatTogetherEn, vi: eatTogetherVi },
+  unpaid: { en: unpaidEn, vi: unpaidVi },
 };
 
 /**
