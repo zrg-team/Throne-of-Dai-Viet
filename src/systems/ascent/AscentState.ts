@@ -111,6 +111,10 @@ const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   famine: 3.2,
   'hero-choice': 10,
   'power-draft': 11,
+  // Below every decision that moves the run and above the reward draft. A blow that has already
+  // been telegraphed by two whispers should not jump ahead of a wave landing, but it must not sit
+  // behind a card draft either — the world has already changed by the time it speaks.
+  'story-beat': 9.5,
 };
 
 /**

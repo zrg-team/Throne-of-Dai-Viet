@@ -11,6 +11,7 @@ import { applyAppointment, offerAppointment, resolveLawChoice, resolveParliament
 import { resolveEnvoy } from './EnvoySystem';
 import { resolveFamine } from './FamineSystem';
 import { resolveRivalDemand } from './RivalDirector';
+import { resolveStoryBeat } from '../story/StorySystem';
 import { passHeroSummon, recruitSummonedHero } from './SummonSystem';
 import { resolveEmpireResponse } from './WaveDirector';
 import { startPromptCooldown } from './DecisionDirector';
@@ -73,9 +74,22 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
         // Falls through to the sheet if the direct attempt is refused, rather than reporting
         // the prompt unhandled — an unhandled prompt is never cleared, so the run would sit on
         // a modal the player cannot dismiss.
-        if (open.length === 1 && executeConquestMethod(state, target.landId, open[0].method)) {
-          handled = true;
-          break;
+        if (open.length === 1) {
+          const attempt = executeConquestMethod(state, target.landId, open[0].method);
+          if (attempt.attempted) {
+            // Refused, so the sheet the fast path skipped is exactly where the player needs to
+            // be: it says what happened and offers the other ways in. Rebuilt from the world as
+            // it stands *after* the attempt — the gold is spent, so the options have changed.
+            if (!attempt.ok) {
+              enqueueAscentPrompt(state, {
+                kind: 'conquer-method',
+                target: buildConquestTarget(state, land),
+                notice: attempt.reason,
+              });
+            }
+            handled = true;
+            break;
+          }
         }
         enqueueAscentPrompt(state, { kind: 'conquer-method', target });
         handled = true;
@@ -88,7 +102,25 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
         handled = true;
         break;
       }
-      handled = executeConquestMethod(state, prompt.target.landId, choiceId as AscentConquestMethod);
+      const attempt = executeConquestMethod(
+        state,
+        prompt.target.landId,
+        choiceId as AscentConquestMethod,
+      );
+      handled = attempt.attempted;
+      // An attempt that was made and refused still answers the prompt — the gold is gone either
+      // way — but it must not vanish. Re-raise the sheet against the world as it now stands,
+      // carrying the reason, so the player learns what their tap bought them.
+      if (attempt.attempted && !attempt.ok) {
+        const land = findLand(state, prompt.target.landId);
+        if (land) {
+          enqueueAscentPrompt(state, {
+            kind: 'conquer-method',
+            target: buildConquestTarget(state, land),
+            notice: attempt.reason,
+          });
+        }
+      }
       break;
     }
 
@@ -131,6 +163,11 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
 
     case 'rival-demand': {
       handled = resolveRivalDemand(state, prompt.demand, prompt.kingdomId, choiceId);
+      break;
+    }
+
+    case 'story-beat': {
+      handled = resolveStoryBeat(state, prompt.storyId, prompt.fragmentId, choiceId);
       break;
     }
 

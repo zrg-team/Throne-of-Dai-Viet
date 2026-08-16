@@ -2,6 +2,16 @@
 // Every key here must have a Vietnamese twin below or validateCatalogs() throws at import.
 
 export const enAscent = {
+  // ── The Chronicle (Sử Ký) ────────────────────────────────────────────────
+  "ascent.chronicle.title": "The Chronicle",
+  "ascent.chronicle.body": "Year {year} of the dynasty.",
+  "ascent.chronicle.running": "Being spoken of",
+  "ascent.chronicle.recorded": "Recorded",
+  "ascent.chronicle.notYetSpoken": "Nothing has been said yet.",
+  "ascent.chronicle.emptyTitle": "The pages are empty",
+  "ascent.chronicle.emptyBody": "Nothing has happened to this realm worth writing down. It will.",
+  "land.section.spokenOf": "Spoken of",
+
   // ── Menu ──────────────────────────────────────────────────────────────────
   "ascent.menu.title": "Dragon Ascent",
   "ascent.menu.tagline": "The realm marches itself. You choose its power.",
@@ -488,6 +498,16 @@ export const enAscent = {
 } as const;
 
 export const viAscent = {
+  // ── Sử Ký ────────────────────────────────────────────────────────────────
+  "ascent.chronicle.title": "Sử Ký",
+  "ascent.chronicle.body": "Năm thứ {year} của triều đại.",
+  "ascent.chronicle.running": "Đang được bàn tán",
+  "ascent.chronicle.recorded": "Đã chép",
+  "ascent.chronicle.notYetSpoken": "Chưa ai nói gì cả.",
+  "ascent.chronicle.emptyTitle": "Trang sử còn trắng",
+  "ascent.chronicle.emptyBody": "Chưa có gì xảy ra với nước này đáng để chép lại. Rồi sẽ có.",
+  "land.section.spokenOf": "Người ta đang bàn",
+
   // ── Menu ──────────────────────────────────────────────────────────────────
   "ascent.menu.title": "Rồng Thăng Long",
   "ascent.menu.tagline": "Giang sơn tự vận hành. Ngươi chọn sức mạnh cho nó.",
