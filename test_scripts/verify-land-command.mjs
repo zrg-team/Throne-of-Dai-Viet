@@ -147,6 +147,44 @@ check('the Build lane lists provinces', buildText.some((t) => /built|Claims|Thu 
 const buildRows = await rows();
 check('the Build lane offers tappable rows', buildRows.length > 0, `${buildRows.length} rows`);
 
+// **Every province must be tappable, including the ones already building.**
+//
+// This is the failure that made the whole page look dead: the row passed no handler while a
+// building was going up, on the reasoning that there is nothing to build while something is being
+// built. But the sheet behind it is also where the focus is set and the governor posted. A realm
+// whose provinces are all under construction — the normal state of a working realm, and guaranteed
+// early on once the autopilot has filed an order on each — found nothing on the page would open,
+// with no way to tell a disabled row from a broken game.
+const tappability = await page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  const st = gameState();
+  const owned = st.lands.filter((l) => l.ownerId === 'dai-viet');
+  // Put every province under construction, then redraw the lane.
+  st.buildOrders = owned.map((land) => ({
+    landId: land.id, kind: 'build', type: 'farm', progress: 1, required: 5,
+  }));
+  ui.showBuildScreen();
+  const withHandlers = [];
+  const walk = (obj, ox, oy) => {
+    if (!obj) return;
+    const x = ox + (obj.x ?? 0);
+    const y = oy + (obj.y ?? 0);
+    if (obj.input?.enabled && obj.type === 'Rectangle') withHandlers.push({ x, y });
+    if (obj.list) for (const c of obj.list) walk(c, x, y);
+  };
+  walk(ui.modalLayer, 0, 0);
+  // Cleared again: these are hand-built stubs rather than real orders, and leaving them in state
+  // makes the economy walk them on the next refresh.
+  st.buildOrders = [];
+  return { provinces: owned.length, tappable: withHandlers.length };
+});
+check(
+  'a province under construction still opens',
+  // Claims heading is not tappable; the "Claim a province" row plus one row per province are.
+  tappability.tappable >= tappability.provinces + 1,
+  `${tappability.provinces} provinces all building, ${tappability.tappable} tappable rows`,
+);
+
 {
   // Open a province the same way its row does.
   const landId = await page.evaluate(() => {

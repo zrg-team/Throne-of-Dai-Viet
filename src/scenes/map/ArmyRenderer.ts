@@ -50,6 +50,17 @@ export class ArmyRenderer {
   ) {}
 
   /**
+   * The army markers, for the view index.
+   *
+   * Re-read on every `drawArmies`, because a host moves. Between refreshes a marker tweens along
+   * its leg, so the caller gives it a generous reach rather than re-indexing it every frame — a
+   * marker is one object, and chasing it across cells would cost more than drawing it.
+   */
+  cullTargets(): Array<{ id: string; object: Phaser.GameObjects.Container }> {
+    return [...this.markers.entries()].map(([id, object]) => ({ id, object }));
+  }
+
+  /**
    * Draws every visible army's marker. Static markers sit at their land's settlement
    * anchor; armies with an active movement order instead get a tween that slides their
    * marker along the road curve to the next land, restarted only when the leg changes

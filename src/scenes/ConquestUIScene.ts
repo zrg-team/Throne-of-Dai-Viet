@@ -1021,6 +1021,18 @@ export class ConquestUIScene extends Phaser.Scene {
       targets.length > 0 ? () => this.showClaimTargets() : undefined,
     );
 
+    // **Every province opens, always.**
+    //
+    // This row used to pass no handler at all while a building was going up — `order ? undefined :
+    // …` — on the reasoning that there is nothing to build while something is already being built.
+    // That reasoning is about one third of the screen behind it. The province sheet is also where
+    // the focus is set and where a governor is posted, and neither of those has anything to do with
+    // the build queue. A realm whose provinces happened to be under construction — which is the
+    // normal state of a working realm, and is *guaranteed* early on when the autopilot has just
+    // filed an order on each — found the entire Build page inert, with no way to tell that the rows
+    // were disabled rather than the game broken.
+    //
+    // The order is worth showing, so it stays in the subtitle. It is not worth locking the door.
     for (const land of lands) {
       const order = state.buildOrders.find((candidate) => candidate.landId === land.id);
       addRow(
@@ -1034,9 +1046,8 @@ export class ConquestUIScene extends Phaser.Scene {
                 defense: land.defense,
               }),
           border: order ? INK_UI.gold : INK_UI.jade,
-          muted: Boolean(order),
         },
-        order ? undefined : () => this.showBuildOptions(land.id),
+        () => this.showBuildOptions(land.id),
       );
     }
     finish();
@@ -1143,6 +1154,18 @@ export class ConquestUIScene extends Phaser.Scene {
     const act = (run: () => boolean) => {
       if (run()) this.closeLane();
     };
+
+    // What the province is already doing, if anything. Shown first so a player arriving at a
+    // province mid-build is told why the build rows below are greyed, rather than left to guess.
+    const buildOrder = state.buildOrders.find((candidate) => candidate.landId === land.id);
+    if (buildOrder) {
+      addRow({
+        title: t('ascent.screen.building', { n: Math.max(0, buildOrder.required - buildOrder.progress) }),
+        subtitle: t('ascent.screen.buildingHint'),
+        border: INK_UI.gold,
+        muted: true,
+      });
+    }
 
     // Who holds the province, and what it is worked for. Neither was reachable in this mode at
     // all: Dragon Ascent never imported the specialization API, so every province in a run stayed

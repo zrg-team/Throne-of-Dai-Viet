@@ -20,6 +20,10 @@ export class OverlayRenderer {
   /** Merged-region outlines, per land. Rebuilt with the zone layers, so ownership flips pick up. */
   private readonly boundaryLoopCache = new Map<string, Array<Array<{ x: number; y: number }>>>();
   private cloudGraphics = new Map<string, Phaser.GameObjects.Graphics>();
+  /** Each cloud's drift loop, kept so the view index can stop one that has left the screen. */
+  private cloudTweens = new Map<string, Phaser.Tweens.Tween>();
+  /** Where each cloud sits and how far it paints, for the view index. */
+  private cloudAnchors = new Map<string, { x: number; y: number; radius: number }>();
   private landBoundaryLoops = new Map<string, Array<Array<{ x: number; y: number }>>>();
   private armyHighlightLoops = new Map<string, Array<Array<{ x: number; y: number }>>>();
   private selectionGraphics!: Phaser.GameObjects.Graphics;
@@ -128,14 +132,20 @@ export class OverlayRenderer {
     }
   }
 
-  createFogLayer(state: GameState, hexTileMap: Map<string, HexTile>, wx: WorldTransform, wy: WorldTransform): void {
+  createFogLayer(
+    state: GameState,
+    hexTileMap: Map<string, HexTile>,
+    wx: WorldTransform,
+    wy: WorldTransform,
+    frontier?: ReadonlySet<string>,
+  ): void {
     this.fogGraphics = this.scene.add.graphics();
     // Just below the drifting cloud puffs (depth 78) but still above all unit/marker
     // layers. The static tint is the single heaviest Graphics on the map (tens of
     // thousands of fill commands re-tessellated every frame), so it is baked to a
     // texture via `bakeFog` and this live Graphics is only used as the bake source.
     this.fogGraphics.setDepth(77.5);
-    this.repaintFogOfWar(state, hexTileMap, wx, wy);
+    this.repaintFogOfWar(state, hexTileMap, wx, wy, frontier);
   }
 
   /**
@@ -174,7 +184,13 @@ export class OverlayRenderer {
     for (const source of sources) { source.setVisible(false); source.setScale(1); }
   }
 
-  repaintFogOfWar(state: GameState, hexTileMap: Map<string, HexTile>, wx: WorldTransform, wy: WorldTransform): void {
+  repaintFogOfWar(
+    state: GameState,
+    hexTileMap: Map<string, HexTile>,
+    wx: WorldTransform,
+    wy: WorldTransform,
+    frontier?: ReadonlySet<string>,
+  ): void {
     if (!this.fogGraphics) {
       return;
     }
@@ -183,6 +199,14 @@ export class OverlayRenderer {
     const activeIds = new Set<string>();
     for (const land of state.lands) {
       if (land.isVisible) {
+        continue;
+      }
+      // Only the band of hidden ground the realm actually touches is drawn. Fog used to be painted
+      // over every hidden province, which made the *early* game the expensive one — 39 fogged lands
+      // at three visible, and the fog layer the second-heaviest on the map at 364k fill commands.
+      // Beyond this band the sheet is simply paper the chronicle has not reached yet, which is both
+      // free and what this theme already says unexplored ground should look like.
+      if (frontier && !frontier.has(land.id)) {
         continue;
       }
 
@@ -204,6 +228,10 @@ export class OverlayRenderer {
 
     for (const [landId, graphics] of this.cloudGraphics) {
       if (!activeIds.has(landId)) {
+        // Remove the drift loop before the target dies, or it keeps ticking against a dead object.
+        this.cloudTweens.get(landId)?.remove();
+        this.cloudTweens.delete(landId);
+        this.cloudAnchors.delete(landId);
         graphics.destroy();
         this.cloudGraphics.delete(landId);
       }
@@ -233,19 +261,45 @@ export class OverlayRenderer {
       const driftX = 5 + (seed % 5);
       const driftY = 3 + ((seed >> 3) % 4);
       const duration = 14000 + (seed % 9) * 1300;
-      this.scene.tweens.add({
-        targets: graphics,
-        x: baseX + driftX,
-        y: baseY + driftY,
-        duration,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
-      });
+      this.cloudTweens.set(
+        land.id,
+        this.scene.tweens.add({
+          targets: graphics,
+          x: baseX + driftX,
+          y: baseY + driftY,
+          duration,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        }),
+      );
     }
 
+    this.cloudAnchors.set(land.id, { x: baseX, y: baseY, radius: baseRadius + 24 });
     graphics.clear();
     this.mapRenderer.drawCloud(graphics, 0, 0, baseRadius, seed, alpha);
+  }
+
+  /** Every fog cloud with where it sits, for the view index. */
+  cloudTargets(): Array<{ id: string; x: number; y: number; radius: number }> {
+    return [...this.cloudAnchors.entries()]
+      .filter(([landId]) => this.cloudGraphics.has(landId))
+      .map(([landId, anchor]) => ({ id: `cloud::${landId}`, ...anchor }));
+  }
+
+  /** Hides one fog cloud and stops it drifting while it is off-screen. */
+  setCloudCulled(id: string, culled: boolean): void {
+    const landId = id.slice('cloud::'.length);
+    this.cloudGraphics.get(landId)?.setVisible(!culled);
+    const tween = this.cloudTweens.get(landId);
+    if (!tween) {
+      return;
+    }
+    if (culled) {
+      tween.pause();
+    } else {
+      tween.resume();
+    }
   }
 
   /**

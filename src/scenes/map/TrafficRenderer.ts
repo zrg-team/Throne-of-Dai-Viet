@@ -22,8 +22,12 @@ interface TrafficMover {
 export class TrafficRenderer {
   private cartMarkers = new Map<string, TrafficMover>();
   private travelerMarkers = new Map<string, TrafficMover[]>();
+  /** The world-space span of each road, so the view index can place its movers without chasing them. */
+  private moverSpans = new Map<string, { x1: number; y1: number; x2: number; y2: number }>();
   /** Whether the world's clock is stopped. New movers are created to match. */
   private paused = false;
+  /** Movers held back by the view index because their road is off-screen. */
+  private culled = new Set<string>();
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -41,14 +45,82 @@ export class TrafficRenderer {
   setPaused(paused: boolean): void {
     if (paused === this.paused) return;
     this.paused = paused;
-    for (const mover of this.movers()) {
-      if (paused) mover.tween.pause();
-      else mover.tween.resume();
+    if (paused) {
+      for (const mover of this.movers()) {
+        mover.tween.pause();
+      }
+      return;
+    }
+    // Releasing the clock must not release the movers the camera has culled — they are still
+    // off-screen, and resuming them here would quietly undo the view culling on every unpause.
+    for (const target of this.cullTargets()) {
+      if (this.culled.has(target.id)) {
+        continue;
+      }
+      this.moverById(target.id)?.tween.resume();
     }
   }
 
   private movers(): TrafficMover[] {
     return [...this.cartMarkers.values(), ...[...this.travelerMarkers.values()].flat()];
+  }
+
+  /**
+   * Every mover with the road it walks, for the view index.
+   *
+   * Indexed by the road's midpoint and half its length rather than by where the mover happens to
+   * be, so a cart never has to be re-indexed as it walks. Culling these is the largest single
+   * saving on the map: each one runs an `onUpdate` every frame that evaluates a spline, for every
+   * road pair in the country, whether or not the camera is anywhere near it.
+   */
+  cullTargets(): Array<{ id: string; x: number; y: number; radius: number }> {
+    const out: Array<{ id: string; x: number; y: number; radius: number }> = [];
+    for (const [key, span] of this.moverSpans) {
+      const x = (span.x1 + span.x2) / 2;
+      const y = (span.y1 + span.y2) / 2;
+      const radius = Math.hypot(span.x2 - span.x1, span.y2 - span.y1) / 2 + 40;
+      // `::` because a road key is itself `landA|landB` — splitting these on `|` is ambiguous.
+      if (this.cartMarkers.has(key)) {
+        out.push({ id: `cart::${key}`, x, y, radius });
+      }
+      const walkers = this.travelerMarkers.get(key) ?? [];
+      for (let index = 0; index < walkers.length; index += 1) {
+        out.push({ id: `walk::${key}::${index}`, x, y, radius });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Holds or releases one mover because the camera has left or reached its road.
+   *
+   * Deliberately does not fight `setPaused`: releasing a mover while the world's clock is stopped
+   * only makes it visible again, it does not start it walking. The two reasons a cart can be still
+   * are independent, and the clock outranks the camera.
+   */
+  setCulled(id: string, culled: boolean): void {
+    const mover = this.moverById(id);
+    if (!mover) {
+      return;
+    }
+    if (culled) {
+      this.culled.add(id);
+      mover.tween.pause();
+    } else {
+      this.culled.delete(id);
+      if (!this.paused) {
+        mover.tween.resume();
+      }
+    }
+    (mover.object as unknown as { setVisible(v: boolean): unknown }).setVisible(!culled);
+  }
+
+  private moverById(id: string): TrafficMover | undefined {
+    const parts = id.split('::');
+    if (parts[0] === 'cart') {
+      return this.cartMarkers.get(parts[1]);
+    }
+    return this.travelerMarkers.get(parts[1])?.[Number(parts[2])];
   }
 
   /**
@@ -108,6 +180,29 @@ export class TrafficRenderer {
   private retire(mover: TrafficMover): void {
     mover.tween.remove();
     mover.object.destroy();
+  }
+
+  /**
+   * Drops a road's span once nothing walks it any more.
+   *
+   * Carts and travellers are retired independently, so the span survives until both are gone —
+   * otherwise retiring a cart would strand its road's travellers outside the view index, and they
+   * would never be culled again.
+   */
+  private forgetSpan(key: string, ...culledIds: string[]): void {
+    for (const id of culledIds) {
+      this.culled.delete(id);
+    }
+    if (!this.cartMarkers.has(key) && !this.travelerMarkers.has(key)) {
+      this.moverSpans.delete(key);
+    }
+  }
+
+  /** Remembers where a road runs, so its movers can be indexed once instead of tracked. */
+  private recordSpan(key: string, curve: Phaser.Curves.Spline): void {
+    const start = curve.getStartPoint();
+    const end = curve.getEndPoint();
+    this.moverSpans.set(key, { x1: start.x, y1: start.y, x2: end.x, y2: end.y });
   }
 
   /** Draws dirt roads connecting each land's settlement (village/city/castle/mine) to its neighbors. */
@@ -172,6 +267,7 @@ export class TrafficRenderer {
         const from = getAnchor(land);
         const to = getAnchor(neighbor);
         const curve = buildRoadCurve(state, from, to, key, wx, wy);
+        this.recordSpan(key, curve);
 
         const cart = this.mapItems.createCart();
         cart.setDepth(69);
@@ -185,6 +281,7 @@ export class TrafficRenderer {
       if (!activeKeys.has(key)) {
         this.retire(cart);
         this.cartMarkers.delete(key);
+        this.forgetSpan(key, `cart::${key}`);
       }
     }
 
@@ -215,6 +312,7 @@ export class TrafficRenderer {
         const from = getAnchor(land);
         const to = getAnchor(neighbor);
         const curve = buildRoadCurve(state, from, to, key, wx, wy);
+        this.recordSpan(key, curve);
         const travelers: TrafficMover[] = [];
 
         for (let index = 0; index < 2; index += 1) {
@@ -230,10 +328,12 @@ export class TrafficRenderer {
 
     for (const [key, travelers] of this.travelerMarkers) {
       if (!activeKeys.has(key)) {
-        for (const traveler of travelers) {
+        travelers.forEach((traveler, index) => {
           this.retire(traveler);
-        }
+          this.culled.delete(`walk::${key}::${index}`);
+        });
         this.travelerMarkers.delete(key);
+        this.forgetSpan(key);
       }
     }
 
