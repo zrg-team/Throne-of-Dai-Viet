@@ -105,6 +105,14 @@ export interface StoryFragment {
   quiet?: number;
   /** May fire more than once. Default is once per story. */
   repeatable?: boolean;
+  /**
+   * Hard ceiling on a repeatable fragment, and it is deliberately low.
+   *
+   * "Repeatable" must not mean "unlimited": measured, one ambient line fired six times in a
+   * single run, which is precisely the visible repetition a salience pool is most exposed to and
+   * worse than a chain, since a chain at least does not repeat itself.
+   */
+  maxTimes?: number;
   /** Ends the story. The Chronicle records it. */
   terminal?: boolean;
   /** Accent for the Chronicle entry. */

@@ -78,8 +78,11 @@ export const sixtyFiveCitadels: StoryTemplate = {
         {
           id: 'lead-it',
           apply: (ctx) => {
+            // Two, not five. Measured at five, a run ended holding eighteen provinces against a
+            // baseline of eleven and the treasury ran to three times what the sinks could absorb —
+            // the largest gain in the game turned out to be a different game.
             let taken = 0;
-            for (let i = 0; i < 5; i += 1) {
+            for (let i = 0; i < 2; i += 1) {
               if (joinBloodlessly(ctx)) taken += 1;
             }
             ctx.remember('citadels', taken);
@@ -149,7 +152,7 @@ export const sixtyFiveCitadels: StoryTemplate = {
       terminal: true,
       tone: 'reward',
       when: (ctx) => ctx.recall('quiet') === 1 && ctx.age >= 30,
-      effect: (ctx) => { windfall(ctx, { gold: 120 }); },
+      effect: (ctx) => { loyaltyFloor(ctx, 64); },
     },
     {
       id: 'they-remember-who-did-not-come',

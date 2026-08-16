@@ -14,6 +14,17 @@ import {
   unpaidHost,
 } from './histories';
 import { dienHong } from './dienHong';
+import {
+  fiveDays,
+  ghostInTheSouth,
+  mountainAndWater,
+  saltRoad,
+  thanhGiong,
+  theDelayer,
+  theSickness,
+  thirteenthWarlord,
+  withoutSlaughter,
+} from './legends';
 import { gooseFeathers } from './gooseFeathers';
 import { granaries } from './granaries';
 import { reedBanner } from './reedBanner';
@@ -57,6 +68,19 @@ export const storyTemplates: StoryTemplate[] = [
   noHeir,
   eatTogether,
   unpaidHost,
+
+  // The third wave: the legends, and the parts of the world that had no story attached to them
+  // yet — plague, flood, a road nobody is watching, a hero taken alive. Written whisper-heavy on
+  // purpose; ambient lines are what make a realm feel inhabited between the decisions.
+  fiveDays,
+  ghostInTheSouth,
+  withoutSlaughter,
+  theDelayer,
+  theSickness,
+  mountainAndWater,
+  thanhGiong,
+  saltRoad,
+  thirteenthWarlord,
 ];
 
 const byId = new Map(storyTemplates.map((template) => [template.id, template]));

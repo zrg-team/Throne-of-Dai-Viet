@@ -171,7 +171,7 @@ export const riverStakes: StoryTemplate = {
             const rival = ctx.rival();
             if (rival) rival.power = Math.max(10, (rival.power ?? 60) - 18);
             pushToast(ctx.state, storyText('river-stakes.the-ebb.toast', { count: drowned }), 'reward');
-            applyResourceDelta(ctx.state, { gold: 120 });
+
           },
         },
         {

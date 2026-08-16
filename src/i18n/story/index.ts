@@ -28,6 +28,17 @@ import {
   trustedEn, trustedVi,
   unpaidEn, unpaidVi,
 } from './histories';
+import {
+  delayerEn, delayerVi,
+  fiveDaysEn, fiveDaysVi,
+  ghostSouthEn, ghostSouthVi,
+  mountainWaterEn, mountainWaterVi,
+  saltRoadEn, saltRoadVi,
+  sicknessEn, sicknessVi,
+  thanhGiongEn, thanhGiongVi,
+  thirteenthEn, thirteenthVi,
+  withoutSlaughterEn, withoutSlaughterVi,
+} from './legends';
 import type { StoryCatalog } from './types';
 
 /**
@@ -68,6 +79,16 @@ const CATALOGS: Record<string, StoryPair> = {
   'no-heir': { en: noHeirEn, vi: noHeirVi },
   'eat-together': { en: eatTogetherEn, vi: eatTogetherVi },
   unpaid: { en: unpaidEn, vi: unpaidVi },
+
+  'five-days': { en: fiveDaysEn, vi: fiveDaysVi },
+  'ghost-south': { en: ghostSouthEn, vi: ghostSouthVi },
+  'without-slaughter': { en: withoutSlaughterEn, vi: withoutSlaughterVi },
+  delayer: { en: delayerEn, vi: delayerVi },
+  sickness: { en: sicknessEn, vi: sicknessVi },
+  'mountain-water': { en: mountainWaterEn, vi: mountainWaterVi },
+  'thanh-giong': { en: thanhGiongEn, vi: thanhGiongVi },
+  'salt-road': { en: saltRoadEn, vi: saltRoadVi },
+  thirteenth: { en: thirteenthEn, vi: thirteenthVi },
 };
 
 /**
