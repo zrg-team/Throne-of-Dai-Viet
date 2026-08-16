@@ -9,7 +9,7 @@ import { powerCardView, skipRefundAmount } from '../systems/ascent/PowerDraftSys
 import { tierForHero } from '../systems/ascent/SummonSystem';
 import { responseCommanderName } from '../systems/ascent/WaveDirector';
 import { buildConquestTargets, refreshAscentLaneState } from '../systems/ascent/ConquestSystem';
-import { cancelAcquisition, getClaimRefund, getClaimSlots } from '../systems/AcquisitionSystem';
+import { cancelAcquisition, claimBlockedReason, getClaimRefund, getClaimSlots } from '../systems/AcquisitionSystem';
 import {
   armyPower,
   findLandPath,
@@ -1052,17 +1052,32 @@ export class ConquestUIScene extends Phaser.Scene {
       );
     }
 
+    // Whether a province is *within reach* and whether there is any way into it are two different
+    // questions, and this row only ever asked the first. At the claim cap every claim method is
+    // blocked — see `claimBlockedReason` — so with the heading reading a plain `1/1` the row still
+    // came through jade and tappable, and led to a browser of provinces whose every method was
+    // greyed. The cap was stated and then contradicted by the control directly beneath it.
+    //
+    // Siege and occupation do not spend a claim slot, so a full cap does not necessarily shut this
+    // door: with a host free, force is still a way in and the row stays live. What changes is what
+    // it promises — it stops offering an envoy the realm has none of.
     const targets = buildConquestTargets(state);
+    const openTargets = targets.filter(
+      (target) => target.methods.some((method) => !method.blockedReason),
+    );
+    const claimBlocked = claimBlockedReason(state);
     addRow(
       {
         title: t('ascent.claim.start'),
-        subtitle: targets.length > 0
-          ? t('ascent.claim.startHint', { n: targets.length })
-          : t('ascent.claim.startNone'),
-        border: targets.length > 0 ? INK_UI.jade : INK_UI.softBrush,
-        muted: targets.length === 0,
+        subtitle: openTargets.length === 0
+          ? claimBlocked ?? t('ascent.claim.startNone')
+          : claimBlocked
+            ? t('ascent.claim.forceOnly')
+            : t('ascent.claim.startHint', { n: openTargets.length }),
+        border: openTargets.length > 0 ? INK_UI.jade : INK_UI.softBrush,
+        muted: openTargets.length === 0,
       },
-      targets.length > 0 ? () => this.showClaimTargets() : undefined,
+      openTargets.length > 0 ? () => this.showClaimTargets() : undefined,
     );
 
     // **Every province opens, always.**
