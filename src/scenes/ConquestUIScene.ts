@@ -104,11 +104,15 @@ const PROMPT_FOOTER_HEIGHT = 56;
  * How long a prompt card must be held before it counts as chosen.
  *
  * Long enough that a brush of the finger does not spend a draft, short enough that a deliberate
- * press never feels like waiting — a quarter of a second is about the gap between "I touched it"
- * and "I meant it". The card draws the hold filling along its foot, so the requirement is visible
- * rather than a button that mysteriously ignored you.
+ * press never feels like waiting. The card draws the hold filling along its foot, so the
+ * requirement is visible rather than a button that mysteriously ignored you.
+ *
+ * Down from 260, which was past the point where a guard stops feeling like protection and starts
+ * feeling like lag — the press was finished before the game agreed it had happened. 140 ms is
+ * still roughly twice a brush and comfortably inside the time a finger rests on something it means
+ * to press.
  */
-const CARD_HOLD_MS = 260;
+const CARD_HOLD_MS = 140;
 
 /**
  * Enemy hosts the player can actually see, and so can act on.

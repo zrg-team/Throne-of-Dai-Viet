@@ -195,5 +195,10 @@ export function designLength(value: number): number {
  * Two ways out, and only one of them is honest. Thinning `low` would match them by making the
  * cheap setting worse. This widens the crisp one instead, so the contour arrives at the eye at the
  * weight the drawing was composed for — the blur is the artefact, and the weight is the intent.
+ *
+ * Tuned down from 1.55, which over-corrected: matching the *mass* of the blurred line made the
+ * crisp one hard and heavy, because a smear and a solid stroke of the same area do not read alike.
+ * A little over life is enough to carry the weight; the rest was the blur's softness, which is not
+ * something a wider line can supply.
  */
-export const INK_WEIGHT = RENDER_SCALE <= 1 ? 1 : 1.55;
+export const INK_WEIGHT = RENDER_SCALE <= 1 ? 1 : 1.22;
