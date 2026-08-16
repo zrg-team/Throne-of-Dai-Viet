@@ -1337,9 +1337,15 @@ export class MapScene extends Phaser.Scene {
     this.connectionGraphics = this.traffic.drawConnections(this.state, (value) => this.wx(value), (value) => this.wy(value), (land) => this.getSettlementAnchor(land));
   }
 
-  /** Pixel position of a land's settlement (its city/shrine cluster, or its centroid for villages/mines). */
+  /**
+   * Pixel position of a land's settlement: its city/shrine cluster, or — for a village or mine with
+   * no seat terrain — the nearest ground in the province a town could actually be built on.
+   *
+   * That last part used to be the province centroid, full stop, which put a handful of provinces'
+   * houses on a limestone face every map. See `SettlementRenderer.getSeatCentre`.
+   */
   private getSettlementAnchor(land: Land): { x: number; y: number } {
-    return this.getCityCenter(land) ?? { x: land.x, y: land.y };
+    return this.settlements.getSeatCentre(this.state, land);
   }
 
   /** Animated ox-carts shuttling along roads between farms and the cities they're connected to. */

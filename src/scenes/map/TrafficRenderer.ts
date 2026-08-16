@@ -161,6 +161,19 @@ export class TrafficRenderer {
         }
       }
       mover.setPosition(point.x, point.y);
+      // Step behind a massif and you are behind it.
+      //
+      // Everything drawn into the map's cached image takes its turn in one back-to-front order, so
+      // rock covers what stands behind it. A cart cannot join that order — it is a live object
+      // above the whole cached image, which is exactly why it was last seen strolling up a
+      // limestone cliff — so it asks the same question directly and stops drawing itself while the
+      // rock is in the way. It keeps walking; the road still runs where it ran. You just cannot see
+      // through a mountain.
+      const shown = !(this.mapRenderer.isBehindRelief?.(point.x, point.y) ?? false);
+      const view = mover as unknown as { visible: boolean; setVisible(value: boolean): unknown };
+      if (view.visible !== shown) {
+        view.setVisible(shown);
+      }
     };
     step();
     const tween = this.scene.tweens.add({

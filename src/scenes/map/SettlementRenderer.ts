@@ -12,6 +12,10 @@ import { brushStroke } from '../../ui/inkTheme';
 import type { MapThemePalette } from '../../ui/mapTheme';
 
 export class SettlementRenderer {
+  /** Buildable seat per province. The hexes never move, so this is resolved once per map. */
+  private readonly seatCache = new Map<string, { x: number; y: number }>();
+  private seatCacheSeed?: number;
+
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly mapItems: MapItemRenderer,
@@ -39,6 +43,53 @@ export class SettlementRenderer {
   }
 
   /**
+   * Where a province's houses actually stand.
+   *
+   * A province with walled or holy ground stands on it. A province with neither used to fall back
+   * to its **centroid** — and a centroid is an average, so the average of a province made mostly of
+   * limestone is a point on the limestone. That is how villages came to be drawn halfway up a
+   * cliff: not a depth fault, just a town built somewhere no town can be built.
+   *
+   * So the centroid is snapped to the nearest hex of the same province that a village could stand
+   * on. Every part of the settlement reads from this — the houses, the name plate, the roads, the
+   * carts — so they all move together and stay on the same ground.
+   */
+  getSeatCentre(state: GameState, land: Land): { x: number; y: number } {
+    const city = this.getCityCenter(state, land);
+    if (city) {
+      return city;
+    }
+    if (this.seatCacheSeed !== state.mapConfig.seed) {
+      this.seatCache.clear();
+      this.seatCacheSeed = state.mapConfig.seed;
+    }
+    const cached = this.seatCache.get(land.id);
+    if (cached) {
+      return cached;
+    }
+
+    const hexSize = state.mapConfig.hexSize;
+    let best: { x: number; y: number } | undefined;
+    let bestDistance = Infinity;
+    for (const tile of state.hexTiles) {
+      if (tile.landId !== land.id || tile.terrain === 'mountains' || tile.terrain === 'water') {
+        continue;
+      }
+      const pixel = axialToPixel(tile.coord, hexSize);
+      const distance = (pixel.x - land.x) ** 2 + (pixel.y - land.y) ** 2;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = pixel;
+      }
+    }
+    // A province that really is nothing but rock and water keeps its centroid; there is nowhere
+    // better to put it, and pretending otherwise would move the town off its own ground.
+    const seat = best ?? { x: land.x, y: land.y };
+    this.seatCache.set(land.id, seat);
+    return seat;
+  }
+
+  /**
    * Cities/temples render one building cluster per "fortress"/"shrine" hex tile they own.
    * Castles get a surrounding wall; markets/temples don't. Built improvements grow density.
    */
@@ -63,15 +114,20 @@ export class SettlementRenderer {
     }
 
     if (cityCoords.length === 0) {
+      // Offset onto ground a town can be built on — see `getSeatCentre`. The container is placed at
+      // the province centroid, so everything drawn here is relative to it, and the seat is drawn at
+      // the same point the name plate, the roads and the carts already use.
+      const seat = this.getSeatCentre(state, land);
+      const at = { x: (seat.x - land.x) * MAP_SCALE, y: (seat.y - land.y) * MAP_SCALE };
       // A land the game calls a castle has to look like one even when the generator gave it no
       // fortress terrain — which is how the player's own capital ended up rendering as a bare
       // handful of huts while every rival seat had walls.
       if (land.type === 'castle' || land.type === 'enemyCastle') {
-        this.mapItems.addCityCluster(cluster, [{ x: 0, y: 0 }], false, 'city');
+        this.mapItems.addCityCluster(cluster, [at], false, 'city');
         this.addBuildingDecorations(cluster, land);
         return cluster;
       }
-      this.addResourceCluster(cluster, land);
+      this.addResourceCluster(cluster, land, at);
       return cluster;
     }
 
@@ -199,16 +255,20 @@ export class SettlementRenderer {
   }
 
   /** Lands without a fortress/shrine hex cluster (farms, iron mines) get a small themed village instead. */
-  private addResourceCluster(cluster: Phaser.GameObjects.Container, land: Land): void {
+  private addResourceCluster(
+    cluster: Phaser.GameObjects.Container,
+    land: Land,
+    at: { x: number; y: number },
+  ): void {
     const developmentLevel = land.buildings.length;
     const scale = 1 + developmentLevel * 0.15;
 
     if (land.type === 'farm') {
-      cluster.add(this.mapItems.createFarmCluster(scale, developmentLevel));
+      cluster.add(this.mapItems.createFarmCluster(scale, developmentLevel).setPosition(at.x, at.y));
     } else if (land.type === 'iron') {
-      cluster.add(this.mapItems.createMineCluster(scale, developmentLevel));
+      cluster.add(this.mapItems.createMineCluster(scale, developmentLevel).setPosition(at.x, at.y));
     } else {
-      this.mapItems.addBuildingGroup(cluster, 0, 0, false, Math.min(6, 2 + developmentLevel));
+      this.mapItems.addBuildingGroup(cluster, at.x, at.y, false, Math.min(6, 2 + developmentLevel));
     }
   }
 }

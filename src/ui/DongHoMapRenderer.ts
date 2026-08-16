@@ -5,7 +5,10 @@ import type { LandscapeContext, MapRenderer } from './MapRenderer';
 import type { MapThemeDefinition, MapThemePalette } from './mapTheme';
 import { PIGMENT } from './ink/palette';
 import { groundTone, hatchPoly, inkPath, mulberry32, printedShape, washFill, type Pt } from './ink/stroke';
-import { areca, bamboo, banana, banyan, farmer, grassTuft, karstRange, softRidge, tree } from './ink/props';
+import {
+  areca, bamboo, banana, banyan, farmer, grassTuft, planKarstRange, planSoftRidge, tree,
+  type ReliefPlan,
+} from './ink/props';
 import { drawFieldPlot, paddyLattice } from './ink/settlements';
 import { worldScale } from './ink/proportion';
 import { groundCast, mixPigment, seasonPalette } from './ink/season';
@@ -129,6 +132,9 @@ interface ScatterItem {
   seed: number;
 }
 
+/** Width of one relief lookup bucket, in world pixels. About two tiles. */
+const RELIEF_BUCKET = 64;
+
 /** One visible cell, kept so the seasonal ground cast can be re-laid without re-walking the map. */
 interface GroundCell {
   x: number;
@@ -139,6 +145,10 @@ interface GroundCell {
 export class DongHoMapRenderer implements MapRenderer {
   /** Where every scattered prop stands, kept so a season change can repaint without replanting. */
   private scatterPlan?: ScatterItem[];
+  /** Where every massif and ridge stands. Sorted in with the props, not under them. */
+  private reliefPlan?: ReliefPlan[];
+  /** The same ranges bucketed by x, for the occlusion question live objects have to ask. */
+  private readonly reliefIndex = new Map<number, ReliefPlan[]>();
   /** The cells the cast is laid on, in draw order. Same lifetime as the plan. */
   private groundPlan?: GroundCell[];
   private scatterTileSize = 0;
@@ -161,11 +171,17 @@ export class DongHoMapRenderer implements MapRenderer {
       return;
     }
 
+    // Flat ground only, in the terrain layer: tone, water, and the paddy, which IS the ground.
+    //
+    // The relief is no longer painted here. A massif inked into this layer sits below every tree
+    // and every field on the map, so it can only ever be painted over — which is precisely how a
+    // wood ends up growing out of a cliff face and a rice terrace ends up halfway up one. It is
+    // planned here and drawn with the props, in one back-to-front order.
     this.paintGround(graphics, visible, ctx);
     this.paintWater(graphics, visible, ctx);
-    this.paintRanges(graphics, visible, ctx);
     this.paintFields(graphics, visible, ctx);
 
+    this.reliefPlan = this.planRanges(visible, ctx);
     this.scatterPlan = this.planScatter(visible, ctx, tileSize);
     this.groundPlan = visible.map((tile) => ({ ...ctx.centreOf(tile), terrain: tile.terrain }));
     this.scatterTileSize = tileSize;
@@ -218,7 +234,40 @@ export class DongHoMapRenderer implements MapRenderer {
       // season inside the bake and never per frame.
       groundTone(decoration, cell.x, cell.y, size * 1.75, cast.colour, cast.alpha, 10);
     }
-    this.drawScatter(decoration, this.scatterPlan ?? [], size);
+    this.drawStanding(decoration, size);
+  }
+
+  /**
+   * Everything that stands up off the ground, drawn far to near — rock and trees in one order.
+   *
+   * This is the whole of the view logic. A thing is in front of another thing when its feet are
+   * lower down the sheet, and the thing in front is drawn last. So a wood standing north of a
+   * massif goes down first and the limestone is laid over the top of it: hidden, because that is
+   * what standing behind a mountain looks like. A wood standing south of it is drawn after the
+   * rock and covers its foot: visible, because that is what standing in front of one looks like.
+   *
+   * What was here before was not a sort at all. Relief went into the terrain layer, props went
+   * into this one, and layers do not care where anything stands — so every tree on the map was in
+   * front of every mountain on the map, including the ones a mile behind it. That is the defect,
+   * and no amount of moving trees around fixes it, because the trees were never in the wrong place;
+   * the order was.
+   */
+  private drawStanding(decoration: Phaser.GameObjects.Graphics, size: number): void {
+    const unit = worldScale(size);
+    const relief = this.reliefPlan ?? [];
+    const props = this.scatterPlan ?? [];
+    // Both lists arrive already sorted by their own foot line, so this is a merge, not a sort.
+    let next = 0;
+    for (const plan of relief) {
+      while (next < props.length && props[next].y <= plan.footY) {
+        this.drawProp(decoration, props[next], unit);
+        next += 1;
+      }
+      plan.draw(decoration);
+    }
+    for (; next < props.length; next += 1) {
+      this.drawProp(decoration, props[next], unit);
+    }
   }
 
   /**
@@ -310,8 +359,12 @@ export class DongHoMapRenderer implements MapRenderer {
   /**
    * A run of mountain or hill cells becomes ONE range spanning the whole run, bleeding past its
    * cells. Never a peak per tile — that is what produced a picket fence of identical summits.
+   *
+   * Resolves geometry only, and hands back the ranges sorted by their foot line, so they can be
+   * merged into the same far-to-near order as the props — see `drawStanding`.
    */
-  private paintRanges(graphics: Phaser.GameObjects.Graphics, tiles: LandscapeContext['tiles'], ctx: LandscapeContext): void {
+  private planRanges(tiles: LandscapeContext['tiles'], ctx: LandscapeContext): ReliefPlan[] {
+    const plans: ReliefPlan[] = [];
     const relief = new Map<string, HexTerrainType>();
     for (const tile of tiles) {
       if (tile.terrain === 'mountains' || tile.terrain === 'hills') {
@@ -365,19 +418,60 @@ export class DongHoMapRenderer implements MapRenderer {
         // A deeper massif stands taller, so a range reads as a body of rock rather than a wall.
         const depth = depthBehind(row[index].q, r);
         if (terrain === 'mountains') {
-          karstRange(
-            graphics, from.x - ctx.tileSize * 1.1, to.x + ctx.tileSize * 1.1,
+          plans.push(planKarstRange(
+            from.x - ctx.tileSize * 1.1, to.x + ctx.tileSize * 1.1,
             from.y + ctx.tileSize * 0.8, ctx.tileSize * (0.8 + depth * 0.34), seed,
-          );
+          ));
         } else {
-          softRidge(
-            graphics, from.x - ctx.tileSize * 1.1, to.x + ctx.tileSize * 1.1,
+          plans.push(planSoftRidge(
+            from.x - ctx.tileSize * 1.1, to.x + ctx.tileSize * 1.1,
             from.y + ctx.tileSize * 0.7, ctx.tileSize * (0.26 + depth * 0.1), seed,
-          );
+          ));
         }
         index = end + 1;
       }
     }
+    // Far to near. `byRow` is keyed by hex row but iterates in insertion order, which is tile
+    // order and guarantees nothing about which range is in front of which.
+    plans.sort((a, b) => a.footY - b.footY);
+    this.indexRelief(plans);
+    return plans;
+  }
+
+  /**
+   * Buckets the relief by x so `isBehindRelief` is a couple of box tests rather than a walk of
+   * every massif on the map. Asked once per moving thing per frame, so it has to be cheap.
+   */
+  private indexRelief(plans: ReliefPlan[]): void {
+    this.reliefIndex.clear();
+    for (const plan of plans) {
+      const first = Math.floor(plan.bounds.x0 / RELIEF_BUCKET);
+      const last = Math.floor(plan.bounds.x1 / RELIEF_BUCKET);
+      for (let bucket = first; bucket <= last; bucket += 1) {
+        const list = this.reliefIndex.get(bucket);
+        if (list) {
+          list.push(plan);
+        } else {
+          this.reliefIndex.set(bucket, [plan]);
+        }
+      }
+    }
+  }
+
+  /**
+   * Is the rock between this point and the viewer?
+   *
+   * The baked layers settle this by draw order — see `drawStanding`. Carts, travellers and hosts
+   * are scene objects living above the whole cached map image and can never join that order, so
+   * they ask this instead and hide while they are behind a massif. Walking up a cliff face was the
+   * same fault as a tree growing out of one; it just could not be fixed the same way.
+   */
+  isBehindRelief(x: number, y: number): boolean {
+    const plans = this.reliefIndex.get(Math.floor(x / RELIEF_BUCKET));
+    if (!plans) {
+      return false;
+    }
+    return plans.some((plan) => plan.occludes(x, y));
   }
 
   /**
@@ -547,33 +641,28 @@ export class DongHoMapRenderer implements MapRenderer {
     return claimed;
   }
 
-  /** Inks a plan. Called on every season change, so it does no placement work of its own. */
-  private drawScatter(
-    graphics: Phaser.GameObjects.Graphics,
-    items: ScatterItem[],
-    tileSize: number,
-  ): void {
-    // The one rate the whole map is drawn at — the same call the settlements, the herds and the
-    // hosts now make. The per-kind multipliers below are gone with it: each prop's real size is
-    // already carried by its own `UNIT` correction, so a second multiplier here was just a way of
-    // disagreeing with the table.
-    const unit = worldScale(tileSize);
-    for (const item of items) {
-      const s = item.scale * unit;
-      switch (item.kind) {
-        case 'tree':
-          graphics.fillStyle(PIGMENT.muc, 0.07);
-          graphics.fillEllipse(item.x, item.y, 14 * s, 4.2 * s);
-          tree(graphics, item.x, item.y, s, item.seed);
-          break;
-        case 'tuft': grassTuft(graphics, item.x, item.y, s, item.seed); break;
-        case 'bamboo': bamboo(graphics, item.x, item.y, s, item.seed); break;
-        case 'banana': banana(graphics, item.x, item.y, s, item.seed); break;
-        case 'areca': areca(graphics, item.x, item.y, s, item.seed); break;
-        case 'banyan': banyan(graphics, item.x, item.y, s, item.seed); break;
-        case 'farmer': farmer(graphics, item.x, item.y, s, item.seed); break;
-        default: break;
-      }
+  /**
+   * Inks one planted thing. Called on every season change, so it does no placement work of its own.
+   *
+   * `unit` — the one rate the whole map is drawn at, the same call the settlements, the herds and
+   * the hosts make — is passed in rather than derived here, because the caller is now walking rock
+   * and plants together and must not recompute it per prop.
+   */
+  private drawProp(graphics: Phaser.GameObjects.Graphics, item: ScatterItem, unit: number): void {
+    const s = item.scale * unit;
+    switch (item.kind) {
+      case 'tree':
+        graphics.fillStyle(PIGMENT.muc, 0.07);
+        graphics.fillEllipse(item.x, item.y, 14 * s, 4.2 * s);
+        tree(graphics, item.x, item.y, s, item.seed);
+        break;
+      case 'tuft': grassTuft(graphics, item.x, item.y, s, item.seed); break;
+      case 'bamboo': bamboo(graphics, item.x, item.y, s, item.seed); break;
+      case 'banana': banana(graphics, item.x, item.y, s, item.seed); break;
+      case 'areca': areca(graphics, item.x, item.y, s, item.seed); break;
+      case 'banyan': banyan(graphics, item.x, item.y, s, item.seed); break;
+      case 'farmer': farmer(graphics, item.x, item.y, s, item.seed); break;
+      default: break;
     }
   }
 

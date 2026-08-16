@@ -82,6 +82,16 @@ export interface MapRenderer {
   repaintScatter?(decoration: Phaser.GameObjects.Graphics): void;
 
   /**
+   * True when the rock stands between this world point and the viewer.
+   *
+   * Offered for the things that cannot be sorted: carts, travellers and hosts are live scene
+   * objects above the cached map image, so no draw order can put a baked mountain in front of one.
+   * A renderer with relief answers this and they hide themselves; a renderer without simply omits
+   * it and nothing changes.
+   */
+  isBehindRelief?(x: number, y: number): boolean;
+
+  /**
    * Paints a land's interior from its merged boundary loops.
    *
    * Offered so a theme can carry ownership on something other than a saturated fill — the Đông Hồ
