@@ -25,7 +25,7 @@ import { realmStanding } from '../systems/ascent/RivalDirector';
 import { ourHosts, theirHosts } from '../systems/ascent/BattleSystem';
 import { BATTLE_ROUT_MORALE, BATTLE_TICK_MS, TRIBUTE_REFUSE_TICKS } from '../game/ascentConfig';
 import { ALL_COURT_POSITIONS, assignHeroToLand, getCourtPositionLabel } from '../systems/CourtSystem';
-import { ascentArmyUpkeep, buildDistrictBuilding, getBuildOptions, getPlayerTroops, getUpgradeOptions, refreshAllLandOutputs, setLandSpecialization, upgradeDistrictBuilding } from '../systems/ResourceSystem';
+import { ascentArmyUpkeep, buildDistrictBuilding, getBuildOptions, getLandPopulationGrowth, getPlayerTroops, getUpgradeOptions, refreshAllLandOutputs, setLandSpecialization, upgradeDistrictBuilding } from '../systems/ResourceSystem';
 import { buildFocusRows } from '../ui/focusPanel';
 import { buildGovernorRows } from '../ui/governorPanel';
 import { findFreeCommander } from '../systems/ascent/AutopilotSystem';
@@ -1155,7 +1155,39 @@ export class ConquestUIScene extends Phaser.Scene {
       if (run()) this.closeLane();
     };
 
-    // What the province is already doing, if anything. Shown first so a player arriving at a
+    // The sheet is four questions in a row — what this place *is*, who runs it, what it is worked
+    // for, and what can be put on it — so it is divided into four, with a heading on each. Read as
+    // one undifferentiated column it was impossible to tell where the focus rows ended and the
+    // build options began, and the two look alike.
+    const heading = (title: string, hint?: string) => addRow({
+      title,
+      subtitle: hint ?? '',
+      border: INK_UI.brush,
+      muted: true,
+    });
+
+    // ── Status: what the province is worth, before anything is decided about it ──
+    //
+    // The sheet opened straight onto controls and never said what the place *was*. A player asked
+    // to choose a focus for a province could not see what that province currently produced, which
+    // is the one number the choice is made against.
+    heading(t('land.section.status'));
+    const outputs = land.outputs;
+    const growth = getLandPopulationGrowth(state, land);
+    addRow({
+      title: t('land.status.people', { people: Math.round(land.population), growth }),
+      subtitle: `${t('land.status.yield', {
+        food: Math.round(outputs?.food ?? 0),
+        supplies: Math.round(outputs?.supplies ?? 0),
+        gold: Math.round(outputs?.gold ?? 0),
+      })}\n${t('land.status.hold', {
+        defense: Math.round(land.defense),
+        loyalty: Math.round(land.loyalty),
+      })}`,
+      border: INK_UI.jade,
+    });
+
+    // What the province is already doing, if anything. Shown here so a player arriving at a
     // province mid-build is told why the build rows below are greyed, rather than left to guess.
     const buildOrder = state.buildOrders.find((candidate) => candidate.landId === land.id);
     if (buildOrder) {
@@ -1167,12 +1199,14 @@ export class ConquestUIScene extends Phaser.Scene {
       });
     }
 
-    // Who holds the province, and what it is worked for. Neither was reachable in this mode at
-    // all: Dragon Ascent never imported the specialization API, so every province in a run stayed
-    // on `balanced` forever, and a champion could be summoned but never posted to a district.
-    // The governor row opens a picker rather than posting anyone itself. It used to assign
-    // `idleHeroes[0]` — the first idle hero in state order — which is not a choice the player was
-    // making, and which meant the champion best suited to the ground was picked only by accident.
+    // ── Assignment ──
+    //
+    // Who holds the province. Neither this nor the focus below was reachable in this mode at all:
+    // Dragon Ascent never imported the specialization API, so every province in a run stayed on
+    // `balanced` forever, and a champion could be summoned but never posted to a district. The row
+    // opens a picker rather than posting anyone itself — it used to assign `idleHeroes[0]`, the
+    // first idle hero in state order, which is not a choice the player was making.
+    heading(t('land.section.assignment'));
     const governor = state.heroes.find((candidate) => candidate.assignedTo === land.id);
     const candidates = buildGovernorRows(state, land);
     addRow(
@@ -1185,7 +1219,7 @@ export class ConquestUIScene extends Phaser.Scene {
       candidates.length > 0 ? () => this.showGovernorPicker(land.id) : undefined,
     );
 
-    addRow({ title: t('focus.heading'), subtitle: t('focus.headingHint'), border: INK_UI.softBrush, muted: true });
+    heading(t('land.section.focus'), t('focus.headingHint'));
     for (const row of buildFocusRows(state, land)) {
       addRow(
         {
@@ -1202,6 +1236,7 @@ export class ConquestUIScene extends Phaser.Scene {
       );
     }
 
+    heading(t('land.section.build'));
     for (const option of getBuildOptions(state, land)) {
       addRow(
         {
@@ -3022,8 +3057,18 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
       () => this.events.emit('ui:restart-ascent'),
       { variant: 'primary', fontSize: '15px' },
     ));
+    // The Codex belongs here and nowhere else in a run: this is the moment the collection actually
+    // changed, and the only moment a player has a reason to look at what they have recorded. On the
+    // action bar it was a button promising something to do about a list of "???" rows.
+    const codex = codexProgress();
     this.modalLayer.add(this.ui.button(
-      { x: content.x, y: buttonY + 54, width: content.width, height: 40 },
+      { x: content.x, y: buttonY + 54, width: content.width / 2 - 5, height: 40 },
+      t('ascent.codex.button', codex),
+      () => this.showCodex(),
+      { fontSize: '12px' },
+    ));
+    this.modalLayer.add(this.ui.button(
+      { x: content.x + content.width / 2 + 5, y: buttonY + 54, width: content.width / 2 - 5, height: 40 },
       t('ascent.over.return'),
       () => this.events.emit('ui:exit-to-menu'),
       { fontSize: '13px' },
@@ -3103,6 +3148,11 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
 
   /** The permanent collection — the reason summoning a new champion is worth something. */
   showCodex(): void {
+    // Holds the clock like every other screen that covers the map. It was the one that did not,
+    // because it is opened outside `openLane` — so the world kept turning behind a full-screen
+    // overlay the player was reading.
+    this.lanePauseBeforeOpen = this.state.isStrategyPause;
+    this.state.isStrategyPause = true;
     this.beginOverlay('codex');
 
     const progress = codexProgress();
@@ -3139,7 +3189,7 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
     this.modalLayer.add(this.ui.button(
       { x: content.x, y: content.y + content.height - 46, width: content.width, height: 42 },
       t('ascent.codex.close'),
-      () => this.closeOverlay(),
+      () => this.closeLane(),
       { variant: 'primary', fontSize: '13px' },
     ));
   }

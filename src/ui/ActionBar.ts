@@ -13,7 +13,19 @@ const RIVAL_KEYS = ['build', 'heroes', 'court', 'army', 'pause'] as const;
  * Army / Affairs screens the other modes have, plus this mode's Codex. Conquest is reached
  * the classic way too — by selecting a province on the map — so it needs no button here.
  */
-const ASCENT_KEYS = ['build', 'heroes', 'court', 'army', 'affairs', 'codex'] as const;
+/**
+ * The Codex is deliberately **not** here.
+ *
+ * It is the permanent collection across runs — mostly rows reading "???" for champions not yet
+ * summoned — and mid-run there is nothing to be done about any of it. A button on the action bar
+ * is a standing promise that something behind it is worth doing now, and this one could not keep
+ * it. The number that *does* matter in a run, how much of the roster has been recorded, already
+ * appears on the founder card where it frames the choice being made.
+ *
+ * It is still reachable at the end of a run, which is the moment the collection changes and the
+ * only moment a player has any reason to look at it. See `showRunOver`.
+ */
+const ASCENT_KEYS = ['build', 'heroes', 'court', 'army', 'affairs'] as const;
 
 /**
  * Dragon Ascent's two system controls, drawn as glyphs at the right edge rather than as

@@ -290,6 +290,22 @@ export function getFocusGarrisonMult(state: GameState, land: Land): number {
   return 1 + 0.4 + getLandAptitude(land).garrison * 0.45;
 }
 
+/**
+ * What one province contributes to the realm's population growth each tick.
+ *
+ * The realm's figure is a single sum in `calculatePlayerResourceRates` — one settler per owned
+ * province, two more for each set to `populous`, plus realm-wide terms for surplus food, stability
+ * and public buildings that belong to no province in particular. This pulls out the part a
+ * *province* is responsible for, so the land screen can answer "what is this place giving me?"
+ * without inventing a number or claiming credit for the realm's.
+ */
+export function getLandPopulationGrowth(state: GameState, land: Land): number {
+  if (land.ownerId !== PLAYER_KINGDOM_ID) {
+    return 0;
+  }
+  return 1 + (getLandSpecialization(land) === 'populous' ? 2 : 0);
+}
+
 /** Extra loyalty a province regains each tick for being held as a fortress. Ascent only. */
 export function getFocusLoyaltyBonus(state: GameState, land: Land): number {
   if (state.gameMode !== 'ascent' || getLandSpecialization(land) !== 'fortress') {

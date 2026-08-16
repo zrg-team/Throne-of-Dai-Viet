@@ -877,59 +877,24 @@ export function softRidge(g: G, x0: number, x1: number, baseY: number, height: n
   }
 }
 
-/** How often each form is rolled. Loaf and cliff are the body of a range; a fang is the accent. */
-const KARST_MIX: ReadonlyArray<readonly [KarstKind, number]> = [
-  ['cliff', 3.0], ['loaf', 2.2], ['anvil', 1.9], ['saddle', 1.7], ['fang', 1.6],
-];
-
-function rollKarstKind(roll: number): KarstKind {
-  const total = KARST_MIX.reduce((sum, [, weight]) => sum + weight, 0);
-  let cursor = roll * total;
-  for (const [kind, weight] of KARST_MIX) {
-    cursor -= weight;
-    if (cursor <= 0) {
-      return kind;
-    }
-  }
-  return 'loaf';
-}
-
-/**
- * What each rank of the range is: how far behind the front it stands, how tall, how far apart.
- *
- * The baseline climbs as the rank recedes, which is the whole of perspective on a flat sheet, and
- * the far rank is deliberately *taller* and thinner — distance in an ink landscape is drawn as
- * higher, paler and steeper, never as smaller.
- */
-const KARST_RANKS: ReadonlyArray<{
-  plane: KarstPlane;
-  lift: number;
-  height: readonly [number, number];
-  /**
-   * Exponent on the height roll. Above 1 the rank runs mostly short with the odd tall one, which is
-   * what a karst field does and what stops a rank topping out along one line — the picket the front
-   * rank kept coming back to even after its silhouettes were right.
-   */
-  bias: number;
-  gap: readonly [number, number];
-  overhang: number;
-}> = [
-  { plane: 'haze', lift: 0.42, height: [0.62, 1.30], bias: 0.80, gap: [0.82, 1.20], overhang: 0.16 },
-  { plane: 'mid', lift: 0.20, height: [0.50, 1.05], bias: 0.95, gap: [0.70, 1.10], overhang: 0.09 },
-  { plane: 'near', lift: -0.04, height: [0.28, 1.15], bias: 1.35, gap: [0.54, 0.96], overhang: 0.05 },
-];
-
 /** A range: karst towers clustered, taller ones behind, bases staggered so it is not a fence. */
 export function karstRange(g: G, x0: number, x1: number, baseY: number, height: number, seed: number, far = false): void {
   const rand = mulberry32(seed);
   const towers: Array<{ x: number; w: number; h: number; drop: number }> = [];
   let x = x0;
   while (x < x1) {
-    const w = height * (far ? 1.5 + rand() * 0.9 : 0.55 + rand() * 0.75);
+    // Height first, then a width derived FROM IT. Rolling both off `height`
+    // independently is what made the range squat: a tower could come out wider than it
+    // was tall, and a rank of those hugs the horizon in a low band instead of standing
+    // up in it. A tháp is one and a half to three times its own width.
+    // The ceiling is deliberate: the menu hangs its title over this band, and towers rolled
+    // to 1.7x the nominal height grow straight through the lettering.
+    const h = height * (far ? 0.5 + rand() * 0.4 : 0.48 + Math.pow(rand(), 0.75) * 0.86);
+    const w = far ? height * (1.5 + rand() * 0.9) : h / (1.4 + rand() * 1.25);
     towers.push({
       x: x + w * 0.5,
       w,
-      h: height * (far ? 0.5 + rand() * 0.4 : 0.34 + Math.pow(rand(), 0.7) * 1.15),
+      h,
       drop: far ? 0 : rand() * height * 0.34,
     });
     x += w * (far ? 0.8 : 0.5 + rand() * 0.4);
