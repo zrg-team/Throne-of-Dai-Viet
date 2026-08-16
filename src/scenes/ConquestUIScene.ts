@@ -1064,32 +1064,33 @@ export class ConquestUIScene extends Phaser.Scene {
       );
     }
 
-    // Whether a province is *within reach* and whether there is any way into it are two different
-    // questions, and this row only ever asked the first. At the claim cap every claim method is
-    // blocked — see `claimBlockedReason` — so with the heading reading a plain `1/1` the row still
-    // came through jade and tappable, and led to a browser of provinces whose every method was
-    // greyed. The cap was stated and then contradicted by the control directly beneath it.
+    // The cap on the heading is the whole answer for this row. `1/1` means no claim can be opened,
+    // so the control that opens one is shut — greyed, no handler, and carrying the reason.
     //
-    // Siege and occupation do not spend a claim slot, so a full cap does not necessarily shut this
-    // door: with a host free, force is still a way in and the row stays live. What changes is what
-    // it promises — it stops offering an envoy the realm has none of.
+    // It asked whether any province was within reach, which is a different question and left the
+    // row jade and tappable at the cap, leading to a browser of provinces whose every method was
+    // greyed. Then it asked whether *any* method was open, which is closer but still not this
+    // question: siege and occupation spend no claim slot, so force kept the row alive at `1/1` and
+    // the screen went on offering an envoy under a heading that said there were none. A limit the
+    // player can tap straight through is not a limit. Force is still reachable the classic way, by
+    // selecting the province on the map — the inspect card raises the same sheet.
     const targets = buildConquestTargets(state);
     const openTargets = targets.filter(
       (target) => target.methods.some((method) => !method.blockedReason),
     );
     const claimBlocked = claimBlockedReason(state);
+    const canClaim = !claimBlocked && openTargets.length > 0;
     addRow(
       {
         title: t('ascent.claim.start'),
-        subtitle: openTargets.length === 0
-          ? claimBlocked ?? t('ascent.claim.startNone')
-          : claimBlocked
-            ? t('ascent.claim.forceOnly')
-            : t('ascent.claim.startHint', { n: openTargets.length }),
-        border: openTargets.length > 0 ? INK_UI.jade : INK_UI.softBrush,
-        muted: openTargets.length === 0,
+        subtitle: claimBlocked
+          ?? (openTargets.length > 0
+            ? t('ascent.claim.startHint', { n: openTargets.length })
+            : t('ascent.claim.startNone')),
+        border: canClaim ? INK_UI.jade : INK_UI.softBrush,
+        muted: !canClaim,
       },
-      openTargets.length > 0 ? () => this.showClaimTargets() : undefined,
+      canClaim ? () => this.showClaimTargets() : undefined,
     );
 
     // **Every province opens, always.**
