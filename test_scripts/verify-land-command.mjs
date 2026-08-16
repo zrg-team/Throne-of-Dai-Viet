@@ -300,11 +300,12 @@ check(
   });
   await page.waitForTimeout(300);
   const sheet = await modalText();
+  // Headings are set as small caps, so matched case-insensitively.
   check(
     'the sheet is divided into named sections',
-    ['This province', 'Governor', 'Focus', 'Build and upgrade']
-      .every((s) => sheet.some((line) => line.includes(s))),
-    sheet.filter((l) => /This province|Governor|Focus|Build and upgrade/.test(l)).join(' / '),
+    ['this province', 'governor', 'focus', 'build and upgrade']
+      .every((s) => sheet.some((line) => line.toLowerCase().includes(s))),
+    sheet.filter((l) => /this province|governor|focus|build and upgrade/i.test(l)).join(' / '),
   );
   check(
     'the status block shows people, growth and yield',

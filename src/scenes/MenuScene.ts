@@ -190,8 +190,10 @@ export class MenuScene extends Phaser.Scene {
     this.aspectProp(0, HORIZON, (landforms) => {
       softRidge(landforms, -30, 236, 4, 30, 9021);
       softRidge(landforms, 168, GAME_WIDTH + 30, 2, 25, 9022);
-      karstRange(landforms, -24, 196, 0, 74, 4118);
-      karstRange(landforms, 214, GAME_WIDTH + 24, -4, 62, 4119);
+      // The last argument thins the range out. On the map a massif has to fill its tiles, but
+      // the menu wants open country between the towers rather than a solid wall of rock.
+      karstRange(landforms, -24, 196, 0, 74, 4118, false, 1.85);
+      karstRange(landforms, 214, GAME_WIDTH + 24, -4, 62, 4119, false, 1.85);
     });
 
     // Mist at the foot of the range. Towers are seated at varying depths, so their base fills stop
@@ -207,23 +209,35 @@ export class MenuScene extends Phaser.Scene {
     for (let step = 0; step <= 14; step += 1) {
       mist.push({ x: -20 + (step / 14) * (GAME_WIDTH + 40), y: HORIZON - 14 + (rand() - 0.5) * 9 });
     }
-    const HAZE_SLICES = 10;
-    const HAZE_DEPTH = 58;
+    // Its OWN graphics, created after the landforms. `g` is made before them, and Phaser orders
+    // by creation rather than by draw call — so every slice of this laid on `g` went UNDER the
+    // range and showed only in the gaps between towers, as pale blocks with the rock stepping
+    // over them. The haze has to be able to cover the feet it is there to hide.
+    const haze = this.add.graphics();
+    // A BAND centred on the feet, not a curtain hung from the horizon. Stacked as overlapping
+    // sheets that each ran from the skyline downward, the opacity accumulated and swallowed the
+    // range whole; and because each sheet took the print's hand registration, the fourteen of
+    // them slipped apart into fourteen horizontal streaks. So: thin non-overlapping slices,
+    // opacity rising from nothing at the skyline to full across the zone where the tower bases
+    // stop, then back to nothing before the fields — and zero registration, because this is
+    // atmosphere rather than a colour block.
+    const HAZE_SLICES = 16;
+    const HAZE_DEPTH = 54;
     for (let slice = 0; slice < HAZE_SLICES; slice += 1) {
-      const t = slice / HAZE_SLICES;
-      const drop = t * HAZE_DEPTH;
-      const foot = HORIZON - 14 + ((slice + 1) / HAZE_SLICES) * HAZE_DEPTH;
+      const t0 = slice / HAZE_SLICES;
+      const t1 = (slice + 1) / HAZE_SLICES;
+      const mid = (t0 + t1) / 2;
+      const strength = Math.min(1, mid / 0.26, (1 - mid) / 0.34);
       washInk(
-        g,
+        haze,
         [
-          ...mist.map((point) => ({ x: point.x, y: point.y + drop })),
-          { x: GAME_WIDTH + 20, y: foot },
-          { x: -20, y: foot },
+          ...mist.map((point) => ({ x: point.x, y: point.y + t0 * HAZE_DEPTH })),
+          ...[...mist].reverse().map((point) => ({ x: point.x, y: point.y + t1 * HAZE_DEPTH })),
         ],
         PIGMENT.diep,
         4200 + slice,
-        // Strong where it meets the rock, gone by the time it reaches the fields.
-        0.82 * Math.pow(1 - t, 1.6),
+        0.62 * Math.max(0, strength),
+        0,
       );
     }
 

@@ -894,6 +894,7 @@ export class ConquestUIScene extends Phaser.Scene {
       opts: { title: string; subtitle: string; border: number; muted?: boolean },
       onTap?: () => void,
     ) => void;
+    addHeading: (title: string, hint?: string) => void;
     finish: () => void;
   } {
     const content = this.promptFrame(title, subtitle);
@@ -932,12 +933,57 @@ export class ConquestUIScene extends Phaser.Scene {
       y += height + 8;
     };
 
+    /**
+     * A divider between groups of rows — **not a row**.
+     *
+     * Written first as `addRow` with a muted border, which is the obvious thing and is wrong: a
+     * card is a card, so the headings arrived as five more boxes in a column of boxes and the
+     * screen read as a longer list rather than a divided one. A heading has to be a different
+     * *kind* of mark, so it is set as small letter-spaced caps against the paper with a hairline
+     * rule beside it, and no surface at all.
+     */
+    const addHeading = (headingTitle: string, hint?: string) => {
+      // Air above the heading, but never above the first one — a gap at the top of the list reads
+      // as the frame being misaligned.
+      if (y > 0) {
+        y += 14;
+      }
+      const label = this.add.text(2, y, headingTitle.toLocaleUpperCase(), {
+        color: INK_UI_HEX.mutedText,
+        fontFamily: UI_FONT,
+        fontSize: '10px',
+        fontStyle: '700',
+      }).setOrigin(0, 0);
+      label.setLetterSpacing?.(1.6);
+      scroll.content.add(label);
+
+      // The rule runs from the end of the label to the far edge, so the heading sits *in* the line
+      // rather than above it.
+      const rule = this.add.graphics();
+      rule.lineStyle(1, INK_UI.brush, 0.22);
+      rule.lineBetween(label.width + 10, y + 6, rowWidth, y + 6);
+      scroll.content.add(rule);
+      y += 16;
+
+      if (hint) {
+        const note = this.add.text(2, y, hint, {
+          color: INK_UI_HEX.mutedText,
+          fontFamily: UI_FONT,
+          fontSize: '10px',
+          wordWrap: { width: rowWidth - 4 },
+        }).setOrigin(0, 0).setAlpha(0.85);
+        scroll.content.add(note);
+        y += note.height + 4;
+      }
+      y += 4;
+    };
+
     const finish = () => {
       scroll.setContentHeight(Math.max(content.height - LANE_FOOTER_HEIGHT, y));
       this.laneCloseButton(content);
     };
 
-    return { content, addRow, finish };
+    return { content, addRow, addHeading, finish };
   }
 
   /** Standard footer for a lane browser: one button back to the map. */
@@ -1144,7 +1190,7 @@ export class ConquestUIScene extends Phaser.Scene {
     this.activeScrollAreas = [];
     this.modalLayer.removeAll(true);
 
-    const { addRow, finish } = this.laneList(
+    const { addRow, addHeading, finish } = this.laneList(
       land.name,
       t('ascent.screen.slots', { used: land.buildings.length, cap: land.buildingCapacity, defense: land.defense }),
     );
@@ -1155,23 +1201,12 @@ export class ConquestUIScene extends Phaser.Scene {
       if (run()) this.closeLane();
     };
 
-    // The sheet is four questions in a row — what this place *is*, who runs it, what it is worked
-    // for, and what can be put on it — so it is divided into four, with a heading on each. Read as
-    // one undifferentiated column it was impossible to tell where the focus rows ended and the
-    // build options began, and the two look alike.
-    const heading = (title: string, hint?: string) => addRow({
-      title,
-      subtitle: hint ?? '',
-      border: INK_UI.brush,
-      muted: true,
-    });
-
     // ── Status: what the province is worth, before anything is decided about it ──
     //
     // The sheet opened straight onto controls and never said what the place *was*. A player asked
     // to choose a focus for a province could not see what that province currently produced, which
     // is the one number the choice is made against.
-    heading(t('land.section.status'));
+    addHeading(t('land.section.status'));
     const outputs = land.outputs;
     const growth = getLandPopulationGrowth(state, land);
     addRow({
@@ -1206,7 +1241,7 @@ export class ConquestUIScene extends Phaser.Scene {
     // `balanced` forever, and a champion could be summoned but never posted to a district. The row
     // opens a picker rather than posting anyone itself — it used to assign `idleHeroes[0]`, the
     // first idle hero in state order, which is not a choice the player was making.
-    heading(t('land.section.assignment'));
+    addHeading(t('land.section.assignment'));
     const governor = state.heroes.find((candidate) => candidate.assignedTo === land.id);
     const candidates = buildGovernorRows(state, land);
     addRow(
@@ -1219,7 +1254,7 @@ export class ConquestUIScene extends Phaser.Scene {
       candidates.length > 0 ? () => this.showGovernorPicker(land.id) : undefined,
     );
 
-    heading(t('land.section.focus'), t('focus.headingHint'));
+    addHeading(t('land.section.focus'), t('focus.headingHint'));
     for (const row of buildFocusRows(state, land)) {
       addRow(
         {
@@ -1236,7 +1271,7 @@ export class ConquestUIScene extends Phaser.Scene {
       );
     }
 
-    heading(t('land.section.build'));
+    addHeading(t('land.section.build'));
     for (const option of getBuildOptions(state, land)) {
       addRow(
         {
