@@ -877,8 +877,23 @@ export function softRidge(g: G, x0: number, x1: number, baseY: number, height: n
   }
 }
 
-/** A range: karst towers clustered, taller ones behind, bases staggered so it is not a fence. */
-export function karstRange(g: G, x0: number, x1: number, baseY: number, height: number, seed: number, far = false): void {
+/**
+ * A range: karst towers clustered, taller ones behind, bases staggered so it is not a fence.
+ *
+ * `spread` thins the range out. At 1 the towers overlap heavily and the horizon is a solid wall
+ * of rock, which is right on the map — a massif has to fill the tiles it occupies. The menu wants
+ * open country between the towers, so it asks for more.
+ */
+export function karstRange(
+  g: G,
+  x0: number,
+  x1: number,
+  baseY: number,
+  height: number,
+  seed: number,
+  far = false,
+  spread = 1,
+): void {
   const rand = mulberry32(seed);
   const towers: Array<{ x: number; w: number; h: number; drop: number }> = [];
   let x = x0;
@@ -897,7 +912,7 @@ export function karstRange(g: G, x0: number, x1: number, baseY: number, height: 
       h,
       drop: far ? 0 : rand() * height * 0.34,
     });
-    x += w * (far ? 0.8 : 0.5 + rand() * 0.4);
+    x += w * (far ? 0.8 : 0.5 + rand() * 0.4) * spread;
   }
   towers.sort((a, b) => b.h - a.h);
   towers.forEach((tower, index) => {
