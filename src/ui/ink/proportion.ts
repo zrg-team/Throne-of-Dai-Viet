@@ -1,28 +1,47 @@
 /**
  * One scale for everything drawn on the ground.
  *
- * Each prop in this folder was drawn on its own, to look right on its own, and nothing ever
- * compared them. Measured at `s = 1` they came out like this:
+ * ## The table
  *
- * | prop     | drawn height | what it is        | pixels per metre |
- * |----------|--------------|-------------------|------------------|
- * | figure   | 5.3          | a man, 1.7 m      | 3.1              |
- * | house    | 15.5         | a ridge, 5 m      | 3.1              |
- * | tree     | 20           | a tree, 8 m       | 2.5              |
- * | bamboo   | 31           | a clump, 12 m     | 2.6              |
- * | areca    | 34           | a palm, 15 m      | 2.3              |
- * | banyan   | 31           | a cây đa, 20 m    | 1.6              |
- * | hayStack | 22           | a cây rơm, 3 m    | 7.3              |
- * | farmer   | 15.0         | a man, 1.7 m      | 8.8              |
- * | buffalo  | 20           | a trâu, 1.5 m     | 13.3             |
+ * Every prop was drawn on its own, to look right on its own, and nothing compared them. This is
+ * the whole cast, **measured** rather than estimated — `DRAWN` comes from running each prop at
+ * `s = 1` and recording the extent of every coordinate it emits, and `metres` is what the thing
+ * actually is. The correction each one carries is simply `PX_PER_M × metres ÷ drawn`.
  *
- * So a farmer stood twice the height of a soldier and a buffalo four times, while houses came out
- * at half the scale of the people walking past them. On the map that reads as a toy set rather
- * than a country: nothing tells you how big anything is, because nothing agrees.
+ * | prop      | drawn | is                        | m  | UNIT  | at GROUND_SCALE |
+ * |-----------|-------|---------------------------|----|-------|-----------------|
+ * | grassTuft |   6.0 | a tuft of grass           |0.9 | 0.465 |   2.0 px        |
+ * | buffalo   |  28.6 | a trâu at the shoulder    |1.5 | 0.293 |   6.0 px        |
+ * | figure    |   6.2 | a soldier                 |1.7 | 0.850 |   6.8 px        |
+ * | farmer    |  15.3 | a farmer                  |1.7 | 0.344 |   6.8 px        |
+ * | hayStack  |  26.0 | a cây rơm                 |3   | 0.358 |   6.7 px        |
+ * | banana    |  18.6 | a chuối                   |4   | 0.667 |   8.9 px        |
+ * | house     |  18.4 | a nhà tranh ridge         |5   | 0.842 |  11.2 px        |
+ * | tree      |  17.3 | a village tree            |8   | 1.434 |  17.9 px        |
+ * | bamboo    |  44.6 | a lũy tre hedge           |8   | 0.556 |  17.9 px        |
+ * | dinh      |  29.7 | an đình                   |8   | 0.835 |  17.9 px        |
+ * | areca     |  34.1 | a cau                     |10  | 0.909 |  22.3 px        |
+ * | banyan    |  30.1 | a cây đa                  |14  | 1.442 |  31.2 px        |
+ * | thap      |  49.4 | a tháp                    |16  | 1.004 |  35.7 px        |
  *
- * The soldier and the house already agreed, at 3.1, so that is the rate the world keeps. Every
- * other prop takes a correction to meet it, applied inside the prop itself so that a caller's `s`
- * means the same thing everywhere: **`s = 1` draws a thing at its real size, 3.1 px to the metre.**
+ * ## Why it kept going wrong
+ *
+ * Three separate faults, each of which hid the others:
+ *
+ * 1. **The drawn heights were guessed, not measured.** The previous table claimed bamboo was 31
+ *    when it is 44.6, buffalo 20 when it is 28.6, house 15.5 when it is 18.4. Every correction
+ *    built on those numbers was wrong by the same margin — which is why a lũy tre came out half
+ *    again the height of the tree beside it and read as three times.
+ * 2. **The real heights were specimen heights.** Bamboo at 12 m, cau at 15 m, cây đa at 20 m are
+ *    true of a mature grove in the wild and false of what stands in a village. A hedge is kept at
+ *    about the height of the trees it grows beside, and it now is.
+ * 3. **Three props had no correction at all** — `banana`, `dinh` and `thap` were drawn at raw size
+ *    and nobody noticed, because nothing measured them.
+ *
+ * `s = 1` draws a thing at its real size, `PX_PER_M` to the metre. `GROUND_SCALE` is the one
+ * caller scale the map is drawn at, and `verify-ground-scale.mjs` measures a real map and fails if
+ * anything disagrees — including if two plants drift apart from each other, which is the check the
+ * numbers above would have needed to be caught by eye.
  */
 
 /** Design pixels to the metre at world scale 1. Set by the soldier and the roof, which agreed. */
@@ -44,47 +63,35 @@ const LIVING = 1.8;
  * A prop multiplies its incoming `s` by its own entry. Callers never touch these.
  */
 export const UNIT = {
-  house: 1,
-  tree: 1.24,
-  bamboo: 1.19,
-  areca: 1.35,
-  banyan: 1.94,
-  // A cây rơm is about three metres. This was 0.55 against a true correction of 0.42, which left
-  // haystacks the one object on the map standing a third over the rate everything else keeps.
-  hayStack: 0.42,
+  // ── Buildings ──
+  house: 0.842,
+  dinh: 0.835,
+  thap: 1.004,
+  hayStack: 0.358,
+  // ── Plants ──
+  tree: 1.434,
+  bamboo: 0.556,
+  banana: 0.667,
+  areca: 0.909,
+  banyan: 1.442,
   /**
-   * Grass, exaggerated — for the same reason people are, but *less* than a person, not more.
+   * Grass keeps a nominal 0.9 m and takes **no** exaggeration.
    *
-   * Real grass is ankle high, so at 3.1 px to the metre a true-scale tuft is about one design
-   * pixel: not grass, not even a speck. Drawn that honestly it left `plains` — 44% of the map —
-   * reading as bare paper next to the paddy. The correction that answered *that* went to 1.6 and
-   * overshot badly: a mean tuft came out 8.5 px against a mean farmer's 8.9, so the country was
-   * knee-deep in grass that stood as tall as the people walking through it, and the tallest tufts
-   * beat the tallest farmers outright.
-   *
-   * The lesson is that coverage is a question of **how many**, not how big. This is roughly waist
-   * height on the exaggerated scale — still a lie, deliberately, because grass is the one entry
-   * here that is not an object but a *texture* standing for open ground, the way a woodcut shows a
-   * meadow with a handful of marks. The blank paper it was raised to fix is now answered by
-   * `SCATTER.plains` carrying twice the tufts instead.
+   * It is the one entry here that is not an object but a *texture* standing for open ground, the
+   * way a woodcut shows a meadow with a handful of marks — so its metre figure is a judgement, not
+   * a measurement. Twice now it has been raised to fix "plains read as bare paper" and twice that
+   * put the country knee-deep in grass standing as tall as the people walking through it. Coverage
+   * is a question of **how many**, not how big; `SCATTER.plains` carries the count instead.
    */
-  grassTuft: 0.62,
-  // Living things, all carrying the same exaggeration.
-  figure: LIVING,
-  // Fitted to `farmer()`'s real drawn height. The old 0.44 was fitted to a measured 12, but the
-  // figure has since grown to 15.0 — so the farmer stood 13-26% taller than the soldier at the same
-  // caller scale, which is exactly what the header above promises never happens.
-  farmer: 0.35 * LIVING,
-  // A buffalo takes a gentler exaggeration than a person. It is nearly three metres long, so at
-  // the full living factor it reads as five, and a herd next to a nine-metre house looked like
-  // livestock drawn to a different map.
-  //
-  // Raised from `0.185 * 1.4` once every call site was put on one scale. That value was tuned when
-  // the herd was drawn at a caller scale of 1.0–1.15 while the soldiers beside them were at 0.6 —
-  // it was carrying the correction for a gap that no longer exists, and at the shared rate it left
-  // a water buffalo standing half the height of the man leading it. A trâu is 1.5 m at the
-  // shoulder against a man's 1.7, so it belongs just under him and nowhere near over him.
-  buffalo: 0.298 * 1.4,
+  grassTuft: 0.465,
+  // ── Living things ──
+  // People carry one exaggeration between them, so the farmer in the paddy and the soldier in the
+  // rank are the same height, and both stand lower than a roof.
+  figure: 0.85 * LIVING,
+  farmer: 0.344 * LIVING,
+  // A trâu is 1.5 m at the shoulder against a man's 1.7, so at the same exaggeration it lands just
+  // under him — which is where it belongs, and nowhere near over him.
+  buffalo: 0.163 * LIVING,
 };
 
 /**
@@ -138,4 +145,108 @@ const REFERENCE_TILE = 30.96;
  */
 export function worldScale(tileSize: number): number {
   return GROUND_SCALE * (tileSize / REFERENCE_TILE);
+}
+
+/** What a probe is told about one prop being drawn. */
+export interface PropScaleSample {
+  prop: keyof typeof UNIT;
+  /** The scale the call site passed. This is the number that has to agree everywhere. */
+  caller: number;
+  /** Metres of real-world height the prop stands, from the table at the top of this file. */
+  metres: number;
+  /** Drawn pixel height, and the rate it works out to. */
+  px: number;
+  pxPerMetre: number;
+  /**
+   * True when this draw was rasterising a texture rather than placing something on the map.
+   *
+   * A baked prop is drawn once at a canonical size into a texture, and every copy is then sized by
+   * `propImage`'s own scale — so the caller scale here is the texture's, not any animal's, and
+   * measuring it as a placement reports a herd that disagrees with itself when it does not.
+   */
+  raster: boolean;
+}
+
+/** Real height of each prop, so a sample can be expressed as a rate rather than a raw size. */
+const METRES: Record<keyof typeof UNIT, number> = {
+  house: 5, dinh: 8, thap: 16, hayStack: 3,
+  tree: 8, bamboo: 8, banana: 4, areca: 10, banyan: 14,
+  grassTuft: 0.9, figure: 1.7, farmer: 1.7, buffalo: 1.5,
+};
+
+/** Drawn height at `s = 1`, measured off each prop by `_measure-props.mjs`, not estimated. */
+const DRAWN: Record<keyof typeof UNIT, number> = {
+  house: 18.4, dinh: 29.7, thap: 49.4, hayStack: 26,
+  tree: 17.3, bamboo: 44.6, banana: 18.6, areca: 34.1, banyan: 30.1,
+  grassTuft: 6, figure: 6.2, farmer: 15.3, buffalo: 28.6,
+};
+
+/**
+ * The probe lives on `globalThis`, not in a module variable, and that is not incidental.
+ *
+ * Under Vite's dev server an edited module is re-served at a versioned URL, so a test that imports
+ * `proportion.ts` by plain path can get a *different instance* from the one `props.ts` is holding —
+ * it installs its probe on one copy while every prop on the map reports to the other, and the
+ * harness reports an empty map with no error. Anchoring the hook to the global makes module
+ * identity irrelevant.
+ */
+const PROBE_KEY = '__propScaleProbe';
+const PROBE_HOST = globalThis as Record<string, unknown>;
+
+let rasterFactor = 1;
+
+/**
+ * Runs `draw` while telling the probe that its geometry is being rasterised, not displayed.
+ *
+ * `bakeProp` draws a prop several times life size into a texture and then stamps that texture back
+ * at `1 / RASTER`, so the scale it passes is not the size anything ends up. Without this the probe
+ * reports a baked buffalo at 2.0 and calls the herd inconsistent when it is the only part of the
+ * map that was right.
+ */
+export function whileRasterising<T>(factor: number, draw: () => T): T {
+  const previous = rasterFactor;
+  rasterFactor = factor;
+  try {
+    return draw();
+  } finally {
+    rasterFactor = previous;
+  }
+}
+
+/**
+ * Watches every prop drawn anywhere on the map.
+ *
+ * This exists because the fault this file describes came back twice, and both times it came back
+ * through a call site nobody had found — a cart on a road, a glyph on a building, a traveller.
+ * Grepping for the fault does not work: there are forty-odd call sites across four files and any
+ * one of them can quietly disagree. So the map is measured instead of read, by
+ * `verify-ground-scale.mjs`, which installs a probe here and fails if anything on the ground is
+ * drawn outside the agreed band.
+ *
+ * Costs one undefined check per prop when no probe is installed, which is every real run.
+ */
+export function setPropScaleProbe(fn: ((sample: PropScaleSample) => void) | undefined): void {
+  PROBE_HOST[PROBE_KEY] = fn;
+}
+
+/**
+ * Applies a prop's own correction to the scale its caller asked for.
+ *
+ * Every prop goes through this rather than writing `scale * UNIT.x` inline, so that there is one
+ * place where the correction is applied and one place the probe can watch.
+ */
+export function unitScale(prop: keyof typeof UNIT, scale: number): number {
+  const s = scale * UNIT[prop];
+  const probe = PROBE_HOST[PROBE_KEY] as ((sample: PropScaleSample) => void) | undefined;
+  if (probe) {
+    // Reported as it will be *seen*, so a prop baked at 2× and stamped back at ½ counts once, at
+    // the size it ends up.
+    const shown = scale / rasterFactor;
+    const px = shown * UNIT[prop] * DRAWN[prop];
+    probe({
+      prop, caller: shown, metres: METRES[prop], px,
+      pxPerMetre: px / METRES[prop], raster: rasterFactor !== 1,
+    });
+  }
+  return s;
 }

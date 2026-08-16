@@ -490,18 +490,20 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
 
     // Ordered by the ground each stands on, not by the order they are listed: the areca beside the
     // houses is behind them, the farmer out in front of them is in front.
+    // `scale` lays the cluster out; it does not size what stands in it. Every prop here is drawn at
+    // `GROUND_SCALE`, like the same prop anywhere else on the map.
     const parts: GroundPart[] = [
-      { y: -2 * scale, draw: (g) => hamlet(g, 4 * scale, -2 * scale, 0.6 * scale, seed, 3 + Math.min(3, upgradeLevel)) },
-      { y: 6 * scale, draw: (g) => hayStack(g, -26 * scale, 6 * scale, 0.5 * scale, seed + 200) },
-      { y: 16 * scale, draw: (g) => farmer(g, 26 * scale, 16 * scale, 0.9 * scale, seed + 400) },
+      { y: -2 * scale, draw: (g) => hamlet(g, 4 * scale, -2 * scale, GROUND_SCALE, seed, 3 + Math.min(3, upgradeLevel)) },
+      { y: 6 * scale, draw: (g) => hayStack(g, -26 * scale, 6 * scale, GROUND_SCALE, seed + 200) },
+      { y: 16 * scale, draw: (g) => farmer(g, 26 * scale, 16 * scale, GROUND_SCALE, seed + 400) },
       // The farm's own animal, working rather than posed.
-      { y: 20 * scale, object: () => this.grazingBuffalo(-30 * scale, 20 * scale, 1 * scale, seed + 300, rand() > 0.5) },
+      { y: 20 * scale, object: () => this.grazingBuffalo(-30 * scale, 20 * scale, GROUND_SCALE, seed + 300, rand() > 0.5) },
     ];
     if (upgradeLevel > 0) {
-      parts.push({ y: 6 * scale, draw: (g) => areca(g, 34 * scale, 6 * scale, 0.4 * scale, seed + 500) });
+      parts.push({ y: 6 * scale, draw: (g) => areca(g, 34 * scale, 6 * scale, GROUND_SCALE, seed + 500) });
     }
     if (upgradeLevel > 1) {
-      parts.push({ y: -8 * scale, draw: (g) => bamboo(g, -34 * scale, -8 * scale, 0.45 * scale, seed + 600) });
+      parts.push({ y: -8 * scale, draw: (g) => bamboo(g, -34 * scale, -8 * scale, GROUND_SCALE, seed + 600) });
     }
 
     this.paintByGround(container, parts);
@@ -583,12 +585,12 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
         { x: (bx + 1.6) * s, y: 8 * s }, { x: (bx - 1.6) * s, y: 8 * s },
       ], PIGMENT.nau, seed + 60 + bx, { width: 0.5 * s, alpha: 0.6, wobble: 0.15 * s, step: 4, fillAlpha: 0.55 });
     }
-    figure(g, -21 * s, 9 * s, 1 * s, PIGMENT.muc, false);
-    figure(g, 6 * s, 8 * s, 0.9 * s, PIGMENT.muc, false);
+    figure(g, -21 * s, 9 * s, GROUND_SCALE, PIGMENT.muc, false);
+    figure(g, 6 * s, 8 * s, GROUND_SCALE, PIGMENT.muc, false);
     container.add(g);
     // the hands that work it live beside it
     const homes = scene.add.graphics();
-    hamlet(homes, 26 * s, 14 * s, 0.42 * s, seed + 100, 2 + Math.min(3, upgradeLevel));
+    hamlet(homes, 26 * s, 14 * s, GROUND_SCALE, seed + 100, 2 + Math.min(3, upgradeLevel));
     container.add(homes);
     return container;
   }
@@ -596,8 +598,8 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
   /** A cottage is a nhà tranh, at the same line weight as every other roof on the map. */
   override addCottage(cluster: Phaser.GameObjects.Container, x: number, y: number, scale: number): void {
     const g = (this.scene as Phaser.Scene).add.graphics();
-    groundShadow(g, x + 13 * scale * 0.5, y + 1, 17 * scale * 0.5, 0.08);
-    house(g, x - 13 * scale * 0.5, y, scale * 0.5, Math.round(x * 7 + y * 3));
+    groundShadow(g, x + 13 * GROUND_SCALE, y + 1, 17 * GROUND_SCALE, 0.08);
+    house(g, x - 13 * GROUND_SCALE, y, GROUND_SCALE, Math.round(x * 7 + y * 3));
     cluster.add(g);
   }
 
@@ -612,23 +614,23 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
       case 'communalHall':
       case 'university':
         // The two that are civic rather than productive get the tiered tower.
-        thap(g, x, y, 0.34, seed, 4);
+        thap(g, x, y, GROUND_SCALE, seed, 4);
         break;
       case 'market':
       case 'guild':
       case 'harbor':
-        house(g, x - 8, y, 0.44, seed, true);
-        hayStack(g, x + 12, y, 0.3, seed + 5);
+        house(g, x - 8, y, GROUND_SCALE, seed, true);
+        hayStack(g, x + 12, y, GROUND_SCALE, seed + 5);
         break;
       case 'barracks':
       case 'wall':
       case 'tower':
-        house(g, x - 8, y, 0.46, seed, true);
-        figure(g, x + 12, y, 1, PIGMENT.muc, true);
+        house(g, x - 8, y, GROUND_SCALE, seed, true);
+        figure(g, x + 12, y, GROUND_SCALE, PIGMENT.muc, true);
         break;
       case 'farm':
-        hayStack(g, x, y, 0.42, seed);
-        farmer(g, x + 10, y, 0.8, seed + 3);
+        hayStack(g, x, y, GROUND_SCALE, seed);
+        farmer(g, x + 10, y, GROUND_SCALE, seed + 3);
         break;
       case 'mine':
         printedShape(
@@ -643,7 +645,7 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
         );
         break;
       default:
-        house(g, x - 8, y, 0.44, seed);
+        house(g, x - 8, y, GROUND_SCALE, seed);
         break;
     }
     return [g];
@@ -654,7 +656,7 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     const scene = this.scene as Phaser.Scene;
     const container = scene.add.container(0, 0);
     const g = scene.add.graphics();
-    farmer(g, -2, 4, 0.85, 4711);
+    farmer(g, -2, 4, GROUND_SCALE, 4711);
     container.add(g);
     return container;
   }
@@ -670,25 +672,33 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
    * The buffalo was small enough to be a smudge and floated a body-length ahead of the shafts with
    * nothing joining them; at this size the whole rig is about twelve pixels, so the one thing that
    * has to read is that the animal is attached to the cart and pulling it.
+   *
+   * Every dimension here is now in units of `GROUND_SCALE` rather than in raw pixels. The cart body
+   * was written as bare numbers — a 12-pixel bed, 2.6-pixel wheels — so it stayed exactly the same
+   * size no matter what the rest of the world was drawn at, and its buffalo was pulling at 0.95
+   * while the herd two provinces away grazed at 0.72. A xe trâu is about two and a half metres of
+   * cart behind an animal a metre and a half at the shoulder, and it now says so.
    */
   override createCart(): Phaser.GameObjects.Container {
     const scene = this.scene as Phaser.Scene;
     const container = scene.add.container(0, 0);
     setNativeFacing(container, -1);
     const g = scene.add.graphics();
-    groundShadow(g, 2, 5, 11, 0.07);
-    printedShape(g, [{ x: 0, y: -4 }, { x: 12, y: -4 }, { x: 12, y: 2 }, { x: 0, y: 2 }],
-      PIGMENT.nau, 88, { width: 0.7, alpha: 0.75, wobble: 0.15, step: 4, fillAlpha: 0.9 });
-    g.lineStyle(0.9, PIGMENT.muc, 0.75);
-    g.strokeCircle(3, 3.4, 2.6);
-    g.strokeCircle(10, 3.4, 2.6);
+    const s = GROUND_SCALE;
+    groundShadow(g, 2 * s, 5 * s, 11 * s, 0.07);
+    printedShape(g, [
+      { x: 0, y: -4 * s }, { x: 12 * s, y: -4 * s }, { x: 12 * s, y: 2 * s }, { x: 0, y: 2 * s },
+    ], PIGMENT.nau, 88, { width: 0.7 * s, alpha: 0.75, wobble: 0.15 * s, step: 4, fillAlpha: 0.9 });
+    g.lineStyle(0.9 * s, PIGMENT.muc, 0.75);
+    g.strokeCircle(3 * s, 3.4 * s, 2.6 * s);
+    g.strokeCircle(10 * s, 3.4 * s, 2.6 * s);
     // Two shafts running from the cart bed to the yoke on the animal's shoulders.
     for (const dy of [-0.6, 1.2]) {
-      inkPath(g, [{ x: 0, y: -1 + dy }, { x: -9, y: -1.6 + dy }], 89 + dy * 10, {
-        width: 0.6, alpha: 0.6, colour: PIGMENT.nau, wobble: 0.1, step: 4,
+      inkPath(g, [{ x: 0, y: (-1 + dy) * s }, { x: -9 * s, y: (-1.6 + dy) * s }], 89 + dy * 10, {
+        width: 0.6 * s, alpha: 0.6, colour: PIGMENT.nau, wobble: 0.1 * s, step: 4,
       });
     }
-    buffalo(g, -14, 3.4, 0.95, 90, false);
+    buffalo(g, -14 * s, 3.4 * s, s, 90, false);
     container.add(g);
     return container;
   }

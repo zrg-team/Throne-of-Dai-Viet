@@ -173,14 +173,17 @@ export function citadel(g: G, x: number, y: number, s: number, era: Era, seed: n
   groundShadow(g, x + w * 0.5, y + 3 * s, w * 0.62, 0.09);
 
   // what stands inside, drawn first so the rampart is in front of it
+  // What stands inside is drawn at the citadel's own `s`, like every other roof on the map. The
+  // halved scales that used to sit here were the buildings being talked down to fit inside the
+  // rampart, which made a seat's houses smaller than the hamlet's outside its gate.
   if (era === 'ly') {
-    thap(g, x + w * 0.5, y + dy * 0.4 - wallH * 0.1, s * 1.15, seed + 300, 7);
+    thap(g, x + w * 0.5, y + dy * 0.4 - wallH * 0.1, s, seed + 300, 7);
   } else if (era === 'nguyen') {
-    dinh(g, x + w * 0.16, y + dy * 0.55 - wallH * 0.3, s * 0.52, seed + 300);
-    house(g, x + w * 0.62, y + dy * 0.5 - wallH * 0.3, s * 0.5, seed + 310, true);
+    dinh(g, x + w * 0.16, y + dy * 0.55 - wallH * 0.3, s, seed + 300);
+    house(g, x + w * 0.62, y + dy * 0.5 - wallH * 0.3, s, seed + 310, true);
   } else {
-    dinh(g, x + w * 0.2, y + dy * 0.55 - wallH * 0.4, s * 0.6, seed + 300);
-    house(g, x + w * 0.66, y + dy * 0.5 - wallH * 0.4, s * 0.44, seed + 310, true);
+    dinh(g, x + w * 0.2, y + dy * 0.55 - wallH * 0.4, s, seed + 300);
+    house(g, x + w * 0.66, y + dy * 0.5 - wallH * 0.4, s, seed + 310, true);
   }
 
   const side: Pt[] = [

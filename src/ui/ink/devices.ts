@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { PIGMENT } from './palette';
 import { inkPath, mulberry32, printedShape, type Pt } from './stroke';
-import { UNIT } from './proportion';
+import { UNIT, unitScale } from './proportion';
 
 /**
  * Đông Sơn bronze — the narrator's register, kept deliberately distinct from the world's.
@@ -88,7 +88,7 @@ export function hostShapeAt(men: number, s = 1): HostShape {
  * its own `Graphics` that is tweened rather than redrawn.
  */
 export function figure(g: G, x: number, y: number, scale: number, colour: number, spear: boolean): void {
-  const s = scale * UNIT.figure;
+  const s = unitScale('figure', scale);
   const seed = Math.round(x * 31 + y * 17);
   const ink = { colour, wobble: 0.16 * s, step: 2.2 };
 

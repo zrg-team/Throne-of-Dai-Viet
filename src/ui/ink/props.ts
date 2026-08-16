@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { PIGMENT, shadePigment } from './palette';
 import { inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './stroke';
-import { UNIT } from './proportion';
+import { unitScale } from './proportion';
 import { foliagePalette, type SeasonPalette } from './season';
 
 /**
@@ -42,7 +42,7 @@ export function groundShadow(g: G, x: number, y: number, width: number, alpha = 
  * had to be propped up by a full-screen colour filter to be legible at all. See `ink/season.ts`.
  */
 export function tree(g: G, x: number, y: number, scale: number, seed: number): void {
-  const s = scale * UNIT.tree;
+  const s = unitScale('tree', scale);
   const rand = mulberry32(seed);
   const radius = 7 * s;
   const palette = foliagePalette();
@@ -282,7 +282,7 @@ function bareCrown(g: G, x: number, topY: number, s: number, radius: number, ran
  * so it is doing more of the work of stating the season than any single tree can.
  */
 export function grassTuft(g: G, x: number, y: number, scale: number, seed: number): void {
-  const s = scale * UNIT.grassTuft;
+  const s = unitScale('grassTuft', scale);
   const rand = mulberry32(seed);
   const palette = foliagePalette();
   const blades = 4 + Math.floor(rand() * 2);
@@ -309,7 +309,7 @@ export function grassTuft(g: G, x: number, y: number, scale: number, seed: numbe
 
 /** Tre — bamboo. Tall arching culms from one clump; the village's own wall. */
 export function bamboo(g: G, x: number, y: number, scale: number, seed: number): void {
-  const s = scale * UNIT.bamboo;
+  const s = unitScale('bamboo', scale);
   const rand = mulberry32(seed);
   const culms = 5 + Math.floor(rand() * 3);
   for (let index = 0; index < culms; index += 1) {
@@ -345,6 +345,7 @@ export function bamboo(g: G, x: number, y: number, scale: number, seed: number):
 
 /** Chuối — banana. Big torn paddle leaves off a short trunk. */
 export function banana(g: G, x: number, y: number, s: number, seed: number): void {
+  s = unitScale('banana', s);
   const rand = mulberry32(seed);
   inkPath(g, [{ x, y }, { x, y: y - 7 * s }], seed, { width: 2.2 * s, alpha: 0.6, wobble: 0.2 * s, step: 4 });
   for (let blade = 0; blade < 5; blade += 1) {
@@ -370,7 +371,7 @@ export function banana(g: G, x: number, y: number, s: number, seed: number): voi
 
 /** Cau — areca palm. A very tall bare trunk with a small crown; lines a village yard. */
 export function areca(g: G, x: number, y: number, scale: number, seed: number): void {
-  const s = scale * UNIT.areca;
+  const s = unitScale('areca', scale);
   const rand = mulberry32(seed);
   const height = (28 + rand() * 12) * s;
   inkPath(g, [{ x, y }, { x: x + 1.5 * s, y: y - height * 0.5 }, { x, y: y - height }], seed, {
@@ -397,7 +398,7 @@ export function areca(g: G, x: number, y: number, scale: number, seed: number): 
 
 /** Cây đa — the banyan at the village gate, with its hanging aerial roots. */
 export function banyan(g: G, x: number, y: number, scale: number, seed: number): void {
-  const s = scale * UNIT.banyan;
+  const s = unitScale('banyan', scale);
   const rand = mulberry32(seed);
   const canopy: Pt[] = [];
   const lobes = 8;
@@ -440,7 +441,7 @@ export function banyan(g: G, x: number, y: number, scale: number, seed: number):
  * rice-straw thatch. Wide and low, and **the roof is most of it**.
  */
 export function house(g: G, x: number, y: number, scale: number, seed: number, tiled = false): void {
-  const s = scale * UNIT.house;
+  const s = unitScale('house', scale);
   const w = 26 * s;
   const d = 13 * s;
   const wallH = 7 * s;
@@ -504,6 +505,7 @@ export function house(g: G, x: number, y: number, scale: number, seed: number, t
  * đầu đao spurs at the corners. The roof is the building.
  */
 export function dinh(g: G, x: number, y: number, s: number, seed: number): void {
+  s = unitScale('dinh', s);
   const w = 44 * s;
   const d = 20 * s;
   const wallH = 9 * s;
@@ -582,6 +584,7 @@ export function dinh(g: G, x: number, y: number, s: number, seed: number): void 
 
 /** Tháp — the Lý brick tower, tiers shrinking as they rise, in the same oblique. */
 export function thap(g: G, x: number, y: number, s: number, seed: number, tiers = 6): void {
+  s = unitScale('thap', s);
   let w = 20 * s;
   let d = 9 * s;
   let yy = y;
@@ -616,7 +619,7 @@ export function thap(g: G, x: number, y: number, s: number, seed: number, tiers 
 
 /** Cây rơm — the straw stack built round a pole, in every yard after harvest. */
 export function hayStack(g: G, x: number, y: number, scale: number, seed: number): void {
-  const s = scale * UNIT.hayStack;
+  const s = unitScale('hayStack', scale);
   const cone: Pt[] = [];
   for (let index = 0; index <= 18; index += 1) {
     const t = index / 18;
@@ -630,7 +633,7 @@ export function hayStack(g: G, x: number, y: number, scale: number, seed: number
 
 /** A farmer under a nón lá, readable as one person even at the map's resting zoom. */
 export function farmer(g: G, x: number, y: number, scale: number, seed: number): void {
-  const s = scale * UNIT.farmer;
+  const s = unitScale('farmer', scale);
   const rand = mulberry32(seed);
   const poseRoll = rand();
   const pose: 'planting' | 'carrying' | 'standing' = poseRoll < 0.34 ? 'planting' : poseRoll < 0.68 ? 'carrying' : 'standing';
@@ -893,7 +896,7 @@ export function karstRange(g: G, x0: number, x1: number, baseY: number, height: 
  * the hide is near-black so the cream horns and the green lotus leaf carry all the colour.
  */
 export function buffalo(g: G, x: number, y: number, scale: number, seed: number, rider = false): void {
-  const s = scale * UNIT.buffalo;
+  const s = unitScale('buffalo', scale);
   const rand = mulberry32(seed);
   const step = rand() > 0.5 ? 1 : -1;
 

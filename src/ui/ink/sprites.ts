@@ -24,7 +24,7 @@
 import Phaser from 'phaser';
 import { RENDER_SCALE } from '../../game/graphicsQuality';
 import { buffalo } from './props';
-import { UNIT } from './proportion';
+import { UNIT, whileRasterising } from './proportion';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -84,7 +84,7 @@ export function bakeProp(
   const graphics = scene.make.graphics({ x: 0, y: 0 }, false);
   // Drawn at the anchor's offset inside the box, so the texture holds the whole prop with no
   // clipping and the origin above puts it back where the caller asked for it.
-  draw(graphics, -box.left * RASTER, -box.top * RASTER, RASTER);
+  whileRasterising(RASTER, () => draw(graphics, -box.left * RASTER, -box.top * RASTER, RASTER));
   graphics.generateTexture(key, Math.ceil(width * RASTER), Math.ceil(height * RASTER));
   graphics.destroy();
   return baked;
