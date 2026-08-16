@@ -10,7 +10,43 @@ export const enAscent = {
   "ascent.chronicle.notYetSpoken": "Nothing has been said yet.",
   "ascent.chronicle.emptyTitle": "The pages are empty",
   "ascent.chronicle.emptyBody": "Nothing has happened to this realm worth writing down. It will.",
+  "ascent.chronicle.need": "Needs you",
+  "ascent.chronicle.waitingHdr": "Waiting",
+  "ascent.chronicle.needCount": "{n} things need you.",
+  "ascent.story.wants": "Wants: {want}",
+  "ascent.story.doorsOpen": "◈ A door stands open",
+  "ascent.story.happened": "What has happened",
+  "ascent.story.season": "S{n}",
+  "ascent.story.stake": "At stake",
+  "ascent.story.doors": "What could be done",
+  "ascent.story.doNothing": "Do nothing",
+  "ascent.story.doNothingHint": "Also an answer. Close the page and keep ruling.",
+  "ascent.story.waitingFor": "Waiting on",
+  "ascent.story.waitingDefault": "The story is watching, and has not said for what.",
+  "ascent.story.back": "‹ The Chronicle",
   "land.section.spokenOf": "Spoken of",
+
+  // ── The ledger (Sổ Thu Chi) ──────────────────────────────────────────────
+  "ascent.ledger.title": "The Realm's Books",
+  "ascent.ledger.body": "{lands} provinces · {people} people. Tap a shortfall to answer it.",
+  "ascent.ledger.notYet": "The clerks have not finished the first count.",
+  "ascent.ledger.line": "In {gross}  ·  out {demand}",
+  "ascent.ledger.net": "Keeps {net} a season",
+  "ascent.ledger.shortfalls": "Going without",
+  "ascent.ledger.short.food": "no rice",
+  "ascent.ledger.short.supplies": "no iron or cloth",
+  "ascent.ledger.short.gold": "unpaid",
+  "ascent.ledger.since": "For {n} seasons now.",
+
+  // ── Demand made audible ──────────────────────────────────────────────────
+  "ascent.demand.bread": "There is no rice in the market at {land} today.",
+  "ascent.demand.cloth": "The workshops at {land} stand idle — no iron has come.",
+  "ascent.demand.coin": "{land} has paid no tax this season. No one will say why.",
+  "ascent.demand.coinRecover": "The arrears are cleared. {land} collects again.",
+
+  // ── A world that pushes back ─────────────────────────────────────────────
+  "ascent.world.dominanceStrike": "{kingdom} marches — not from hatred, but from fear of what you are becoming.",
+  "ascent.battle.relief": "{name} turns for {land} to relieve the defence.",
 
   // ── Menu ──────────────────────────────────────────────────────────────────
   "ascent.menu.title": "Dragon Ascent",
@@ -509,7 +545,43 @@ export const viAscent = {
   "ascent.chronicle.notYetSpoken": "Chưa ai nói gì cả.",
   "ascent.chronicle.emptyTitle": "Trang sử còn trắng",
   "ascent.chronicle.emptyBody": "Chưa có gì xảy ra với nước này đáng để chép lại. Rồi sẽ có.",
+  "ascent.chronicle.need": "Cần ngươi",
+  "ascent.chronicle.waitingHdr": "Đang chờ",
+  "ascent.chronicle.needCount": "{n} việc cần ngươi.",
+  "ascent.story.wants": "Muốn: {want}",
+  "ascent.story.doorsOpen": "◈ Có việc có thể làm",
+  "ascent.story.happened": "Đã xảy ra",
+  "ascent.story.season": "M{n}",
+  "ascent.story.stake": "Đang treo",
+  "ascent.story.doors": "Có thể làm",
+  "ascent.story.doNothing": "Không làm gì",
+  "ascent.story.doNothingHint": "Cũng là một câu trả lời. Đóng trang này và trị nước tiếp.",
+  "ascent.story.waitingFor": "Đang chờ",
+  "ascent.story.waitingDefault": "Truyện đang nhìn, và chưa nói là nhìn cái gì.",
+  "ascent.story.back": "‹ Sử Ký",
   "land.section.spokenOf": "Người ta đang bàn",
+
+  // ── Sổ Thu Chi ───────────────────────────────────────────────────────────
+  "ascent.ledger.title": "Sổ Thu Chi",
+  "ascent.ledger.body": "{lands} trấn · {people} dân. Chạm chỗ thiếu để lo cho nó.",
+  "ascent.ledger.notYet": "Thư lại chưa đếm xong lượt đầu.",
+  "ascent.ledger.line": "Thu {gross}  ·  chi {demand}",
+  "ascent.ledger.net": "Còn {net} mỗi mùa",
+  "ascent.ledger.shortfalls": "Thiếu ở đâu",
+  "ascent.ledger.short.food": "thiếu gạo",
+  "ascent.ledger.short.supplies": "thiếu sắt và vải",
+  "ascent.ledger.short.gold": "chưa trả lương",
+  "ascent.ledger.since": "Đã {n} mùa rồi.",
+
+  // ── Nhu cầu lên tiếng ────────────────────────────────────────────────────
+  "ascent.demand.bread": "Chợ {land} hôm nay không có gạo.",
+  "ascent.demand.cloth": "Xưởng ở {land} nghỉ việc — sắt không về.",
+  "ascent.demand.coin": "{land} mùa này không nộp thuế. Không ai nói vì sao.",
+  "ascent.demand.coinRecover": "Nợ lương đã trả. {land} lại thu thuế.",
+
+  // ── Thế giới biết đáp trả ────────────────────────────────────────────────
+  "ascent.world.dominanceStrike": "{kingdom} động binh — không phải vì thù, mà vì sợ ngươi đang thành cái gì.",
+  "ascent.battle.relief": "{name} kéo về {land} ứng cứu.",
 
   // ── Menu ──────────────────────────────────────────────────────────────────
   "ascent.menu.title": "Rồng Thăng Long",

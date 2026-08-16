@@ -161,5 +161,38 @@ await page.waitForTimeout(1400);
 await page.screenshot({ path: 'test_scripts/shots/chronicle-lane.png' });
 console.log(`wrote test_scripts/shots/chronicle-lane.png (button at x=${Math.round(slot.x)})`);
 
+// The story page: one story, whole — its people, what has happened, what hangs, what can be
+// done. Driven through the scene's own entry point; the tap path from the lane list is already
+// exercised by verify-chronicle.
+const storyShot = await page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  const st = window.__laneState;
+  const withHistory = (st.stories ?? []).filter((s) => s.spoken.length > 0)
+    .sort((a, b) => b.spoken.length - a.spoken.length)[0];
+  if (!withHistory) return null;
+  ui.showStoryPage(withHistory.id);
+  return { id: withHistory.id, spoken: withHistory.spoken.length };
+});
+await page.waitForTimeout(900);
+if (storyShot) {
+  await page.screenshot({ path: 'test_scripts/shots/story-page.png' });
+  console.log(`wrote test_scripts/shots/story-page.png (${storyShot.id}, ${storyShot.spoken} beats)`);
+} else {
+  console.log('no spoken story to shoot — story-page.png NOT written');
+}
+
+// The ledger: gross, demand, net, and where it is short. Through the real lane opener — the
+// scene guards the header tap against an open overlay, so calling the drawer directly would
+// stack it over the story page, which no player can do.
+await page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  ui.closeOverlay?.() ?? (ui.openPromptKey = '');
+  ui.modalLayer.removeAll(true);
+  ui.openLane('ledger');
+});
+await page.waitForTimeout(900);
+await page.screenshot({ path: 'test_scripts/shots/ledger.png' });
+console.log('wrote test_scripts/shots/ledger.png');
+
 if (errors.length) console.log('ERRORS:', errors.slice(0, 4).join(' | '));
 await browser.close();

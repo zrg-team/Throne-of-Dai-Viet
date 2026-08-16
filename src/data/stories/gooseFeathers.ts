@@ -31,6 +31,13 @@ export const gooseFeathers: StoryTemplate = {
     return { kingdomId: rival.id, landId: land.id };
   },
 
+  regard: (ctx) => {
+    if (ctx.recall('arrested') === 1 || ctx.recall('counterspy') === 1) return 'watched';
+    if (ctx.recall('posted') === 1 && ctx.age >= 16) return 'athome';
+    if (ctx.recall('poison') === 1) return 'correct';
+    return undefined;
+  },
+
   fragments: [
     {
       id: 'a-marriage-offered',
@@ -127,6 +134,19 @@ export const gooseFeathers: StoryTemplate = {
       when: (ctx) => ctx.recall('posted') === 1,
       quiet: 6,
       tone: 'reward',
+    },
+
+    // The gown, thinning. The tell before the tell: pure dread, no mechanics, and the reason
+    // the feathers land as confirmation rather than as news.
+    {
+      id: 'the-gown-grows-thin',
+      volume: 'whisper',
+      weight: 3,
+      quiet: 8,
+      tone: 'threat',
+      when: (ctx) => ctx.recall('posted') === 1 && ctx.age >= 18,
+      salience: () => 4,
+      heat: 1,
     },
 
     // The turn.

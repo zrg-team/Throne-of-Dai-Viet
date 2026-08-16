@@ -43,6 +43,17 @@ export const dienHong: StoryTemplate = {
   },
 
   fragments: [
+    // The scene before the question: patched coats, bare feet, three days on the road. The
+    // shipped version opened cold on the card, which wasted the best image the story has.
+    {
+      id: 'the-elders-arrive',
+      volume: 'whisper',
+      weight: 6,
+      quiet: 1,
+      when: (ctx) => (ctx.state.ascent?.threat ?? 0) > (ctx.state.ascent?.defensePower ?? 0) * 0.6,
+      salience: () => 7,
+    },
+
     {
       id: 'the-elders-are-summoned',
       volume: 'card',

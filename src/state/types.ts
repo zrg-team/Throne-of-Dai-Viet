@@ -727,7 +727,7 @@ export type AscentRarity = 'bronze' | 'silver' | 'gold' | 'jade';
  * game already is. Conquest is not here: like the classic modes, it is reached by selecting
  * a province on the map.
  */
-export type AscentLane = 'build' | 'heroes' | 'court' | 'army' | 'affairs' | 'battle' | 'chronicle';
+export type AscentLane = 'build' | 'heroes' | 'court' | 'army' | 'affairs' | 'battle' | 'chronicle' | 'ledger';
 
 // ── The Chronicle (Sử Ký) ───────────────────────────────────────────────────
 //
@@ -772,6 +772,15 @@ export interface ActiveStory {
   cast: StoryCast;
   /** Flat bag of numbers. Story progress is just another number — no special machinery. */
   memory: Record<string, number>;
+  /**
+   * Every fragment this story has spoken, in order, with the season it fired.
+   *
+   * `spoken` already holds the ids, but ids without seasons cannot be read back as a story —
+   * and reading the story back is the whole point of the story page. The screen renders this
+   * as "Đã xảy ra": the case the story has been building, finally on one screen. Optional so
+   * saves from before the page load cleanly; those fall back to `spoken` without dates.
+   */
+  history?: { fragmentId: string; turn: number }[];
   /** Hidden closeness-to-acting. Never shown; the only tell is how often it whispers. */
   temperature: number;
   seededTurn: number;
@@ -818,6 +827,35 @@ export interface StoryWatch {
   battlesWon: number;
   wavesSurvived: number;
   courtSeatsFilled: number;
+}
+
+/**
+ * One resource's row in the ledger: what came in, what went out, what was left.
+ *
+ * The header strip has only ever shown the net figure, which is why the player could watch
+ * every number rise for ten years and still not know why — a net with no breakdown teaches
+ * nothing. Gross and demand are the two halves the strip was hiding.
+ */
+export interface AscentLedgerLine {
+  gross: number;
+  demand: number;
+  net: number;
+}
+
+/** A place that is currently going without, and what kind of want it is. */
+export interface AscentShortfall {
+  landId: string;
+  kind: 'food' | 'supplies' | 'gold';
+  /** Season it was first noticed, so the ledger can say how long it has stood. */
+  sinceTurn: number;
+}
+
+/** The realm's books, recomputed every economy tick (ascent only). */
+export interface AscentLedger {
+  food: AscentLedgerLine;
+  supplies: AscentLedgerLine;
+  gold: AscentLedgerLine;
+  shortfalls: AscentShortfall[];
 }
 
 /** An optional offer a story hangs on a subject the player already visits. Never an order. */
@@ -1421,6 +1459,19 @@ export interface GameState {
   storyWatch?: StoryWatch;
   /** Story cards raised so far, against total prompts — holds the ~15% budget. */
   storyPromptsRaised?: number;
+  /** The realm's books: gross, demand and net per resource, plus who is going without. */
+  ascentLedger?: AscentLedger;
+  /**
+   * Provinces whose officials have stopped collecting because they have not been paid.
+   *
+   * An unpaid province's gold output is withheld until the treasury recovers — the coin
+   * shortfall made visible as a *place*, not a subtraction. The line the player sees is the
+   * same one the Reed Banner uses ("X paid no tax this season"), on purpose: from the throne,
+   * a rebellion and an unpaid clerk look identical until you go and find out.
+   */
+  unpaidLandIds?: string[];
+  /** Last season each shortfall kind was announced, so the header does not nag every tick. */
+  shortfallToastTurns?: Partial<Record<'food' | 'supplies' | 'gold', number>>;
   /**
    * Templates that have already run their course this run.
    *

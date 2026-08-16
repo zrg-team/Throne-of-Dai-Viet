@@ -182,6 +182,11 @@ export const rideTheWind: StoryTemplate = {
   id: 'ride-the-wind',
   seedWeight: 3,
   minTurn: 10,
+  regard: (ctx) => {
+    if (ctx.recall('victories') >= 2) return 'risen';
+    if (ctx.recall('refusedHer') === 1) return 'burning';
+    return undefined;
+  },
   seed: (state) => {
     const hero = pick(state.heroes.filter(
       (candidate) => candidate.id !== 'king' && candidate.stats.martial >= 45,
@@ -551,6 +556,11 @@ export const slanderedGeneral: StoryTemplate = {
   id: 'slandered',
   seedWeight: 2,
   minTurn: 22,
+  regard: (ctx) => {
+    if (ctx.recall('catastrophe') === 1) return 'spared';
+    if (ctx.recall('imprisoned') === 1) return 'silent';
+    return undefined;
+  },
   seed: (state) => {
     const best = state.heroes
       .filter((hero) => hero.id !== 'king')
@@ -695,6 +705,10 @@ export const trustedSubordinate: StoryTemplate = {
   id: 'trusted',
   seedWeight: 2,
   minTurn: 30,
+  regard: (ctx) => {
+    if (ctx.recall('divided') === 1) return 'passedover';
+    return 'diligent';
+  },
   seed: (state) => {
     // Whoever holds the most. If nobody has been given much, there is no story here.
     const weight = (heroId: string) =>

@@ -22,7 +22,8 @@ import {
   BATTLE_WITHDRAW_RECOVERY,
 } from '../../game/ascentConfig';
 import { resolvePendingBattle } from '../empire/InvasionSystem';
-import { armyPower, terrainDefenseMultiplier } from '../WarSystem';
+import { pushToast } from '../empire/notifications';
+import { armyPower, issueMoveOrder, terrainDefenseMultiplier } from '../WarSystem';
 import { findLand } from '../LandSystem';
 import { enqueueAscentPrompt } from './AscentState';
 import { t } from '../../i18n';
@@ -199,7 +200,34 @@ export function beginBattle(state: GameState): boolean {
   // `ConquestScene.update` — and a frozen world is incompatible with marching reinforcements to
   // the fight. The battle is ordinary state now: the tick advances it, and the player opens the
   // screen when they want to watch or intervene. The Pause button still stops everything.
+
+  // Relief marches itself. Requiring the player's host to be standing on the exact contested
+  // province was one of the four gates that multiplied into a screen seen 0.8 times per run —
+  // one army on a map of ten provinces is almost never on the right one. A host one province
+  // away now turns for the fight on its own; `ourHosts` picks it up the beat it arrives, so
+  // the map's real distances stay the clock and nothing teleports.
+  summonAdjacentRelief(state, pending.landId);
   return true;
+}
+
+/** Orders idle player hosts on neighbouring provinces to march to the contested one. */
+function summonAdjacentRelief(state: GameState, landId: string): void {
+  const land = findLand(state, landId);
+  if (!land) return;
+  const neighbours = new Set(land.neighbors);
+  const candidates = state.armies.filter(
+    (army) => army.kingdomId === PLAYER_KINGDOM_ID
+      && !army.isLevy
+      && neighbours.has(army.landId)
+      && totalUnits(army) > 0
+      && !state.movementOrders.some((order) => order.armyId === army.id)
+      && !state.siegeOrders.some((order) => order.armyId === army.id),
+  );
+  for (const army of candidates.slice(0, 2)) {
+    if (issueMoveOrder(state, army.id, landId)) {
+      pushToast(state, t('ascent.battle.relief', { name: army.name, land: land.name }), 'info');
+    }
+  }
 }
 
 /**

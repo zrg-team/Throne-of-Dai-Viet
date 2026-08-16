@@ -225,6 +225,25 @@ export function findFreeCommander(state: GameState): string | undefined {
  * land choice, the cost, and the muster timer; we only decide *whether* and *how big*.
  */
 function autoRecruit(state: GameState): boolean {
+  // A realm that cannot feed the men it has does not raise more. Soldiers now eat a full
+  // ration and armies drag on growth, so recruiting into a deficit is how the autopilot
+  // would starve the realm on the player's behalf — the one failure it must never commit.
+  //
+  // Both resources are judged by *runway*, not by the instantaneous rate. Provincial demand
+  // deliberately steers a well-run realm toward break-even — the autopilot's own output
+  // weights push surplus food back into growth — so "rate must be positive" gates are
+  // permanently false in exactly the realms they were meant to protect. Measured twice: a
+  // gold-rate gate froze recruiting for a whole run (realm dead at three provinces, no host
+  // ever raised), then a food-rate gate did the same (zero recruits across 500 ticks). The
+  // honest question is whether the granary and treasury can carry the current deficit long
+  // enough for the next harvest to answer — about twenty seasons.
+  const foodRate = state.resourceRates.food;
+  const goldRate = state.resourceRates.gold;
+  const foodRunwayOk = foodRate > 1
+    || state.resources.food > Math.abs(Math.min(0, foodRate)) * 20 + 60;
+  const goldRunwayOk = goldRate >= 0 || state.resources.gold > Math.abs(goldRate) * 20;
+  if (!foodRunwayOk || !goldRunwayOk) return false;
+
   const lands = playerLands(state);
   const inFlight = state.recruitmentOrders.length;
   // Only hosts that could actually fight count toward the target — and a garrison levy is not one

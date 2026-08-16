@@ -39,6 +39,7 @@ import {
   thirteenthEn, thirteenthVi,
   withoutSlaughterEn, withoutSlaughterVi,
 } from './legends';
+import { depthEn, depthVi } from './depth';
 import type { StoryCatalog } from './types';
 
 /**
@@ -90,6 +91,14 @@ const CATALOGS: Record<string, StoryPair> = {
   'salt-road': { en: saltRoadEn, vi: saltRoadVi },
   thirteenth: { en: thirteenthEn, vi: thirteenthVi },
 };
+
+// The depth pass overlays the base catalogs: `want`/`waiting`/`stake`/`regard.*` for every
+// story, and prose rewrites for the flagships. Assigned OVER the originals so a rewrite lands
+// without touching the base files and fragment ids never move.
+for (const [templateId, pair] of Object.entries(CATALOGS)) {
+  if (depthVi[templateId]) Object.assign(pair.vi, depthVi[templateId]);
+  if (depthEn[templateId]) Object.assign(pair.en, depthEn[templateId]);
+}
 
 /**
  * Resolves `<templateId>.<rest>`; falls back to English, then to the key itself.

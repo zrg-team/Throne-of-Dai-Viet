@@ -35,7 +35,7 @@ import { getEmpirePower, hasPact } from '../systems/DiplomacySystem';
 import { compactNumber } from '../utils/format';
 import { renderHeroFaceInBox } from '../ui/FaceRenderer';
 import { drawStoryBand } from '../ui/ink/storyBand';
-import { isMarked, openingFor, storyParams, takeOpening } from '../systems/story/StorySystem';
+import { countOpenDoors, isMarked, openingFor, storyNeedsPlayer, storyParams, storyRegard, storySpokenHistory, takeOpening } from '../systems/story/StorySystem';
 import { storyText, storyTitle } from '../i18n/story';
 import { INK_UI, INK_UI_HEX, InkUI, scrollGestureConsumedTap, type InkScrollArea, type UIBounds } from '../ui/InkUI';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
@@ -55,11 +55,14 @@ import {
   politicsDescription,
   politicsTitle,
   rarityLabel,
+  resourceLabel,
   t,
 } from '../i18n';
 import type {
+  ActiveStory,
   Army,
   AscentBattle,
+  AscentLedgerLine,
   AscentConquestMethod,
   AscentLane,
   AscentLaneStatus,
@@ -71,6 +74,7 @@ import type {
   GameState,
   Hero,
   Land,
+  StoryOpening,
 } from '../state/types';
 import { ARMY_RATION_USE_PER_100 } from '../game/gameplayConfig';
 
@@ -224,6 +228,18 @@ export class ConquestUIScene extends Phaser.Scene {
     this.resourceBar = new ResourceBar(this, this.state);
     this.add.existing(this.resourceBar);
     this.resourceBar.setDepth(80);
+
+    // The resource strip is the door to the ledger. A player wondering about a number taps
+    // the number — no new bar button, and the books open exactly where the question arose.
+    const ledgerHit = this.add
+      .rectangle(0, 0, GAME_WIDTH, HEADER_HEIGHT, 0xffffff, 0.001)
+      .setOrigin(0, 0)
+      .setDepth(81)
+      .setInteractive();
+    ledgerHit.on('pointerup', () => {
+      if (this.state.pendingAscentPrompt || this.openPromptKey !== '') return;
+      this.openLane('ledger');
+    });
 
     this.hud = new AscentHud(this);
 
@@ -858,10 +874,14 @@ export class ConquestUIScene extends Phaser.Scene {
         return state.buildOrders.length === 0 && state.resources.gold > 60 ? INK_UI.gold : undefined;
       // Lit while any story has said something within living memory. Not a badge for its own
       // sake: an unlit Chronicle button means nothing has happened worth reading.
-      case 'chronicle':
+      case 'chronicle': {
+        // Red means a door is open — never lit for atmosphere. A lit button that leads to
+        // nothing is how the Codex lost this slot.
+        if (countOpenDoors(state) > 0) return INK_UI.cinnabar;
         return (state.stories ?? []).some((story) => state.turn - story.lastSpokeTurn <= 6)
           ? INK_UI.jade
           : undefined;
+      }
       default:
         return undefined;
     }
@@ -891,6 +911,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'army': this.showArmyScreen(); break;
       case 'affairs': this.showAffairsScreen(); break;
       case 'chronicle': this.showChronicleScreen(); break;
+      case 'ledger': this.showLedgerScreen(); break;
     }
 
     // Checked here as well as in `refresh` so a lane that declines to draw costs the player a
@@ -2577,14 +2598,35 @@ export class ConquestUIScene extends Phaser.Scene {
    * subjects it has marked — that it is being spoken of, and what was last said. Never how far
    * along it is, because it is not along anything.
    */
+  /**
+   * Sử Ký, sorted by whose turn it is.
+   *
+   * Every story is always in exactly one of three states, and the screen says which without
+   * being asked: CẦN NGƯƠI — an offer is open and there is something the player could do;
+   * ĐANG CHỜ — it is waiting on the world, and says what it is watching for; ĐÃ CHÉP — over.
+   * The shipped version showed none of these, which is why every row looked equally inert
+   * and two of three rows read "nobody has said anything yet."
+   *
+   * Two rules from that failure: a story that has said nothing is *invisible* — a listed
+   * promise the screen cannot keep is worse than absence — and rows are people, not titles:
+   * name, want, and the most recent line, so a scan of the list is a scan of situations.
+   */
   private showChronicleScreen(): void {
     const state = this.state;
-    const running = state.stories ?? [];
+    // A latent story does not exist yet as far as the player is concerned.
+    const running = (state.stories ?? []).filter((story) => story.spoken.length > 0);
     const recorded = [...(state.chronicle ?? [])].reverse();
+
+    const need = running.filter((story) => storyNeedsPlayer(story));
+    const waiting = running
+      .filter((story) => !storyNeedsPlayer(story))
+      .sort((a, b) => b.lastSpokeTurn - a.lastSpokeTurn);
 
     const { addRow, addHeading, finish } = this.laneList(
       t('ascent.chronicle.title'),
-      t('ascent.chronicle.body', { year: state.year }),
+      need.length > 0
+        ? t('ascent.chronicle.needCount', { n: need.length })
+        : t('ascent.chronicle.body', { year: state.year }),
     );
 
     if (running.length === 0 && recorded.length === 0) {
@@ -2598,27 +2640,38 @@ export class ConquestUIScene extends Phaser.Scene {
       return;
     }
 
-    if (running.length > 0) {
-      addHeading(t('ascent.chronicle.running'));
-      for (const story of running) {
-        // The last thing this story said — not its position in anything.
-        const lastId = story.spoken[story.spoken.length - 1];
-        const params = storyParams(state, story);
-        const line = lastId
-          ? storyText(`${story.templateId}.${lastId}.chronicle`, params)
-          : t('ascent.chronicle.notYetSpoken');
-        const marks = [
-          state.heroes.find((hero) => hero.id === story.cast.heroId)?.name,
-          state.lands.find((land) => land.id === story.cast.landId)?.name,
-          state.kingdoms.find((kingdom) => kingdom.id === story.cast.kingdomId)?.name,
-        ].filter(Boolean).map((name) => `◈ ${name}`).join(' · ');
+    /** One story as one person: name · want, then the latest line, then the state. */
+    const storyRow = (story: ActiveStory, needsYou: boolean) => {
+      const params = storyParams(state, story);
+      const lastId = story.spoken[story.spoken.length - 1];
+      const line = storyText(`${story.templateId}.${lastId}.chronicle`, params);
+      const hero = state.heroes.find((candidate) => candidate.id === story.cast.heroId);
+      const want = storyText(`${story.templateId}.want`, params);
+      const wantLine = want !== `${story.templateId}.want`
+        ? t('ascent.story.wants', { want })
+        : undefined;
+      const status = needsYou
+        ? t('ascent.story.doorsOpen')
+        : storyText(`${story.templateId}.waiting`, params);
 
-        addRow({
-          title: storyTitle(story.templateId),
-          subtitle: marks ? `${line}\n${marks}` : line,
-          border: INK_UI.jade,
-        });
-      }
+      addRow(
+        {
+          title: hero ? `${storyTitle(story.templateId)} · ${heroName(hero)}` : storyTitle(story.templateId),
+          subtitle: [wantLine, line, status].filter(Boolean).join('\n'),
+          border: needsYou ? INK_UI.cinnabar : INK_UI.jade,
+        },
+        () => this.showStoryPage(story.id),
+      );
+    };
+
+    if (need.length > 0) {
+      addHeading(t('ascent.chronicle.need'));
+      for (const story of need) storyRow(story, true);
+    }
+
+    if (waiting.length > 0) {
+      addHeading(t('ascent.chronicle.waitingHdr'));
+      for (const story of waiting) storyRow(story, false);
     }
 
     if (recorded.length > 0) {
@@ -2632,6 +2685,249 @@ export class ConquestUIScene extends Phaser.Scene {
             : entry.tone === 'reward' ? INK_UI.jade : INK_UI.softBrush,
           muted: true,
         });
+      }
+    }
+
+    finish();
+  }
+
+  /**
+   * One story, as the player lives it: the person, everything that has happened in order,
+   * what hangs on it, and the doors that stand open.
+   *
+   * This screen renders data the game already stores and used to throw away — the fix for
+   * "cannot see detail of story" is mostly `story.history`, finally drawn. Three deliberate
+   * absences: no beat counter, no progress, no reward preview. The season markers are memory
+   * aids ("when"), never fractions ("how far").
+   */
+  private showStoryPage(storyId: string): void {
+    const state = this.state;
+    const story = (state.stories ?? []).find((candidate) => candidate.id === storyId);
+    if (!story) {
+      this.showChronicleScreen();
+      return;
+    }
+
+    for (const scroll of this.activeScrollAreas) scroll.destroy();
+    this.activeScrollAreas = [];
+    this.modalLayer.removeAll(true);
+
+    const params = storyParams(state, story);
+    const hero = state.heroes.find((candidate) => candidate.id === story.cast.heroId);
+    const want = storyText(`${story.templateId}.want`, params);
+    const { body, bodyWidth, finish } = this.promptScrollBody(
+      storyTitle(story.templateId),
+      want !== `${story.templateId}.want` ? t('ascent.story.wants', { want }) : '',
+      LANE_FOOTER_HEIGHT,
+    );
+
+    let used = 0;
+
+    // The person, face first. A story with nobody in it skips straight to the record.
+    if (hero) {
+      const faceSize = 56;
+      const holder = this.add.container(0, used);
+      holder.add(renderHeroFaceInBox(this, hero, { x: 0, y: 0, width: faceSize, height: faceSize }));
+      const frame = this.add.graphics();
+      frame.lineStyle(1.2, INK_UI.brush, 0.5);
+      frame.strokeRect(0, 0, faceSize, faceSize);
+      holder.add(frame);
+      holder.add(this.ui.label(faceSize + 12, 6, heroName(hero), 'label', { fontSize: '15px' }));
+      const regard = storyRegard(state, story);
+      const regardText = regard ? storyText(`${story.templateId}.regard.${regard}`, params) : undefined;
+      if (regardText && regardText !== `${story.templateId}.regard.${regard}`) {
+        holder.add(this.ui.label(faceSize + 12, 30, regardText, 'body', {
+          fontSize: '11px',
+          color: INK_UI_HEX.mutedText,
+          fontStyle: 'italic',
+          wordWrap: { width: bodyWidth - faceSize - 16 },
+        }));
+      }
+      body.add(holder);
+      used += faceSize + 14;
+    }
+
+    // ── Đã xảy ra: the case this story has been building, in order, dated ──
+    const heading = (label: string) => {
+      const text = this.add.text(2, used, label.toLocaleUpperCase(), {
+        color: INK_UI_HEX.mutedText,
+        fontFamily: UI_FONT,
+        fontSize: '10px',
+        fontStyle: '700',
+      });
+      text.setLetterSpacing?.(1.6);
+      body.add(text);
+      used += 18;
+    };
+
+    heading(t('ascent.story.happened'));
+    const beats = storySpokenHistory(state, story);
+    beats.forEach((beat, index) => {
+      const line = storyText(`${story.templateId}.${beat.fragmentId}.chronicle`, params);
+      const isLatest = index === beats.length - 1;
+      const marker = beat.turn !== undefined ? t('ascent.story.season', { n: beat.turn }) : '·';
+      const markerText = this.add.text(2, used, marker, {
+        color: INK_UI_HEX.mutedText,
+        fontFamily: UI_FONT,
+        fontSize: '10px',
+      });
+      body.add(markerText);
+      // Built without `undefined` values: `InkUI.label` spreads overrides over the variant
+      // style, so an explicit `color: undefined` erases the ink and Phaser falls back to
+      // white — invisible on parchment. The latest beat was rendering as a blank line.
+      const beatText = this.ui.label(40, used, line, 'body', {
+        fontSize: isLatest ? '12px' : '11px',
+        wordWrap: { width: bodyWidth - 44 },
+        ...(isLatest ? { fontStyle: '700' } : { color: INK_UI_HEX.mutedText }),
+      });
+      body.add(beatText);
+      used += Math.max(18, beatText.height + 7);
+    });
+    used += 8;
+
+    // ── Đang treo: the stake, named. Only when the template declares one. ──
+    const stake = storyText(`${story.templateId}.stake`, params);
+    if (stake !== `${story.templateId}.stake`) {
+      heading(t('ascent.story.stake'));
+      const card = this.ui.card(
+        { x: 0, y: used, width: bodyWidth, height: 46 },
+        { title: '', subtitle: stake, border: INK_UI.gold },
+      );
+      body.add(card);
+      used += ((card.getData('cardHeight') as number) ?? 46) + 10;
+    }
+
+    // ── Có thể làm / Đang chờ: exactly one of the two, never neither ──
+    const opening = story.offer ? this.openingForStory(story) : undefined;
+    if (opening) {
+      heading(t('ascent.story.doors'));
+      const door = this.optionCard(
+        { x: 0, y: used, width: bodyWidth, height: 64 },
+        {
+          title: storyText(opening.actionKey, opening.params),
+          body: storyText(opening.textKey, opening.params),
+          accent: INK_UI.gold,
+          parent: body,
+          onTap: () => {
+            if (takeOpening(state, opening.storyId, opening.fragmentId)) this.showStoryPage(storyId);
+          },
+        },
+      );
+      used += ((door.getData('cardHeight') as number) ?? 64) + 8;
+
+      // Refusal is a real option and is listed as one — with no button, because the way to
+      // take it is to close the page and keep playing. The hint says exactly that.
+      const noThing = this.ui.card(
+        { x: 0, y: used, width: bodyWidth, height: 44 },
+        {
+          title: t('ascent.story.doNothing'),
+          subtitle: t('ascent.story.doNothingHint'),
+          border: INK_UI.softBrush,
+          muted: true,
+        },
+      );
+      body.add(noThing);
+      used += ((noThing.getData('cardHeight') as number) ?? 44) + 10;
+    } else {
+      heading(t('ascent.story.waitingFor'));
+      const watching = storyText(`${story.templateId}.waiting`, params);
+      const card = this.ui.card(
+        { x: 0, y: used, width: bodyWidth, height: 44 },
+        {
+          title: '',
+          subtitle: watching !== `${story.templateId}.waiting` ? watching : t('ascent.story.waitingDefault'),
+          border: INK_UI.softBrush,
+          muted: true,
+        },
+      );
+      body.add(card);
+      used += ((card.getData('cardHeight') as number) ?? 44) + 10;
+    }
+
+    finish(used);
+
+    // Back to the list, in the lane's standard footer slot.
+    this.modalLayer.add(this.ui.button(
+      {
+        x: 20,
+        y: GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET,
+        width: GAME_WIDTH - 40,
+        height: LANE_CLOSE_BUTTON_HEIGHT,
+      },
+      t('ascent.story.back'),
+      () => this.showChronicleScreen(),
+      { variant: 'primary', fontSize: '13px' },
+    ));
+  }
+
+  /** The open door on this story, whichever surface it is hanging on. */
+  private openingForStory(story: ActiveStory): StoryOpening | undefined {
+    for (const on of ['land', 'hero', 'army', 'rival', 'treasury'] as const) {
+      const found = openingFor(this.state, on);
+      if (found?.storyId === story.id) return found;
+    }
+    return undefined;
+  }
+
+  /**
+   * Sổ Thu Chi — the realm's books: gross, demand and net for every resource, then the
+   * provinces currently going without.
+   *
+   * This screen is what turns demand from a tax into a game. The header has only ever shown
+   * one net figure per resource, so a player had no way to learn *why* it moved — and a
+   * pressure the player cannot read is a pressure they cannot manage. Reached by tapping the
+   * resource strip: the place a player already looks when they want to know about resources.
+   */
+  private showLedgerScreen(): void {
+    const state = this.state;
+    const ledger = state.ascentLedger;
+    const { addRow, addHeading, finish } = this.laneList(
+      t('ascent.ledger.title'),
+      t('ascent.ledger.body', {
+        lands: state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length,
+        people: compactNumber(Math.round(state.resources.humans)),
+      }),
+    );
+
+    if (!ledger) {
+      addRow({ title: t('ascent.ledger.notYet'), subtitle: '', border: INK_UI.softBrush, muted: true });
+      finish();
+      return;
+    }
+
+    const section = (key: 'food' | 'supplies' | 'gold', line: AscentLedgerLine) => {
+      addHeading(resourceLabel(key));
+      // Signs are formatted here, not in the template: gross can itself go negative (three
+      // withholding provinces can outweigh the paying ones), and a hardcoded '+' printed
+      // the nonsense "In +-8".
+      const gross = Math.round(line.gross);
+      const demand = Math.round(line.demand);
+      addRow({
+        title: t('ascent.ledger.line', {
+          gross: gross >= 0 ? `+${gross}` : `${gross}`,
+          demand: `−${Math.abs(demand)}`,
+        }),
+        subtitle: t('ascent.ledger.net', { net: Math.round(line.net) }),
+        border: line.net >= 0 ? INK_UI.jade : INK_UI.cinnabar,
+      });
+    };
+    section('food', ledger.food);
+    section('supplies', ledger.supplies);
+    section('gold', ledger.gold);
+
+    if (ledger.shortfalls.length > 0) {
+      addHeading(t('ascent.ledger.shortfalls'));
+      for (const shortfall of ledger.shortfalls) {
+        const land = state.lands.find((candidate) => candidate.id === shortfall.landId);
+        if (!land) continue;
+        addRow(
+          {
+            title: `${land.name} · ${t(`ascent.ledger.short.${shortfall.kind}` as Parameters<typeof t>[0])}`,
+            subtitle: t('ascent.ledger.since', { n: Math.max(1, state.turn - shortfall.sinceTurn) }),
+            border: INK_UI.cinnabar,
+          },
+          () => this.showBuildOptions(land.id),
+        );
       }
     }
 
