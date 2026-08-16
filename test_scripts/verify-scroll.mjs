@@ -148,17 +148,19 @@ check(
   `prompt ${before.promptKind} -> ${afterDrag.promptKind}`,
 );
 
-// Drag to the very bottom and confirm the end of the list is reachable.
-for (let pass = 0; pass < 6; pass += 1) {
-  await page.mouse.move(start.x, start.y);
-  await page.mouse.down();
-  for (let i = 1; i <= 6; i += 1) {
-    await page.mouse.move(start.x, start.y - (dragDistancePx * i) / 6);
-    await page.waitForTimeout(12);
-  }
-  await page.mouse.up();
-  await page.waitForTimeout(40);
+// Drag to the very bottom in one long pull, and confirm the end of the list is reachable. One pull
+// rather than several short ones because the prompt repaints as the game ticks, and a fresh scroll
+// area starts back at the top — so a test that needed six passes was really testing the repaint.
+await page.mouse.move(start.x, start.y);
+await page.mouse.down();
+const longPull = ((found.maxScroll + 80) / box.dh) * box.h;
+for (let i = 1; i <= 12; i += 1) {
+  await page.mouse.move(start.x, start.y - (longPull * i) / 12);
+  await page.waitForTimeout(12);
 }
+await page.mouse.up();
+await page.waitForTimeout(80);
+
 const atBottom = await readState();
 check(
   'the last card is reachable',
@@ -167,9 +169,30 @@ check(
 );
 check('scrolling to the end still chose nothing', atBottom.promptKind === before.promptKind);
 
-// And a clean tap — no travel — must still choose. Fixing the drag must not break the tap.
-const tapDesign = { x: found.bounds.x + found.bounds.width / 2, y: found.bounds.y + 40 };
-const tap = toPage(tapDesign.x, tapDesign.y);
+// The tap a finger actually makes, before anything consumes the prompt.
+//
+// A real tap is not a perfectly still one: a finger on glass rolls several pixels between touch and
+// release. The first version of this guard called anything past six design units a scroll, so on a
+// phone almost every tap was swallowed — the lists scrolled perfectly and nothing in them could be
+// opened. Tapping a province on the Build page did nothing at all.
+const wobbleAt = toPage(found.bounds.x + found.bounds.width / 2, found.bounds.y + 40);
+await page.mouse.move(wobbleAt.x, wobbleAt.y);
+await page.mouse.down();
+const wobblePx = (8 / box.dh) * box.h;
+await page.mouse.move(wobbleAt.x + wobblePx * 0.4, wobbleAt.y + wobblePx);
+await page.waitForTimeout(30);
+await page.mouse.up();
+await page.waitForTimeout(320);
+
+const afterWobble = await readState();
+check(
+  'a tap that wobbles like a finger still chooses',
+  afterWobble.promptKind !== atBottom.promptKind,
+  `prompt ${atBottom.promptKind} -> ${afterWobble.promptKind}`,
+);
+
+// And a clean tap — no travel at all — must still choose, on whatever screen the wobble landed on.
+const tap = toPage(found.bounds.x + found.bounds.width / 2, found.bounds.y + 40);
 await page.mouse.move(tap.x, tap.y);
 await page.mouse.down();
 await page.waitForTimeout(40);
@@ -179,8 +202,8 @@ await page.waitForTimeout(300);
 const afterTap = await readState();
 check(
   'a clean tap still chooses',
-  afterTap.promptKind !== before.promptKind,
-  `prompt ${before.promptKind} -> ${afterTap.promptKind}`,
+  afterTap.promptKind !== afterWobble.promptKind,
+  `prompt ${afterWobble.promptKind} -> ${afterTap.promptKind}`,
 );
 
 check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));

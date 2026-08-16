@@ -163,27 +163,45 @@ export interface InkScrollAreaOptions {
  * How far a finger may travel before the gesture stops being a tap and becomes a scroll.
  *
  * In design units, so it means the same thing at every render scale.
+ *
+ * **This was 6, and 6 is a mouse number.** A finger on glass rolls further than that on a perfectly
+ * ordinary tap — so on a phone almost every tap crossed the threshold, was classified as a scroll,
+ * and was swallowed. The list scrolled beautifully and nothing in it could be opened: tapping a
+ * province on the Build page did nothing at all. Twenty units is about a fingertip's width and
+ * still far short of a deliberate drag.
  */
-const SCROLL_TAP_SLOP = 6;
+const SCROLL_TAP_SLOP = 20;
 
 /**
- * Set while a drag that passed `SCROLL_TAP_SLOP` is still resolving, and cleared on the next
- * pointer-down.
+ * The gesture a list has already claimed as a scroll, identified rather than merely flagged.
  *
  * Cards inside a scroll area lay a full-bleed hit rectangle over the whole viewport and fire on
- * `pointerup`, so without this every scroll would end by picking whatever card the finger happened to
- * lift over. Module-level rather than per-area because the card doing the asking has no reference to
- * the area it is sitting in — it only needs to know that *some* list just ate this gesture.
+ * `pointerup`, so without this every scroll would end by picking whatever card the finger happened
+ * to lift over.
+ *
+ * It records **which** gesture scrolled, not that one did. As a bare boolean it could go stale and
+ * stay set: the flag was cleared by an area's own `pointerdown` handler, so once the last scroll
+ * area was destroyed there was nothing left to clear it, and every later tap anywhere in the game
+ * was read as the tail of a scroll that had ended long ago. Matching on the pointer means a stale
+ * value can never match a fresh gesture, so it cannot deaden the interface.
  */
-let scrollGestureConsumed = false;
+let consumedGesture: { id: number; downTime: number } | undefined;
 
 /**
- * Whether the gesture that just ended was a scroll, and so must not be read as a tap.
+ * Whether *this* gesture was a scroll, and so must not also be read as a tap.
  *
- * Call it first thing in any `pointerup` handler that sits inside an `InkScrollArea`.
+ * Call it first thing in any `pointerup` handler that sits inside an `InkScrollArea`, passing the
+ * pointer the handler was given.
  */
-export function scrollGestureConsumedTap(): boolean {
-  return scrollGestureConsumed;
+export function scrollGestureConsumedTap(pointer?: { id: number; downTime: number }): boolean {
+  if (!consumedGesture) {
+    return false;
+  }
+  // Without a pointer to compare, fall back to the old behaviour for that one call.
+  if (!pointer) {
+    return true;
+  }
+  return pointer.id === consumedGesture.id && pointer.downTime === consumedGesture.downTime;
 }
 
 export class InkScrollArea {
@@ -226,7 +244,6 @@ export class InkScrollArea {
     // scroll, which is no way at all on a phone. Filtering the scene stream by our own bounds is the
     // same shape `wheelHandler` below already uses.
     this.downHandler = (pointer: Phaser.Input.Pointer) => {
-      scrollGestureConsumed = false;
       if (this.maxScroll <= 0 || !this.containsPointer(pointer)) {
         return;
       }
@@ -237,10 +254,17 @@ export class InkScrollArea {
         return;
       }
       const travelled = designLength(pointer.y) - this.dragStart.pointerY;
-      if (Math.abs(travelled) >= SCROLL_TAP_SLOP) {
-        scrollGestureConsumed = true;
-      }
       this.setScroll(this.dragStart.scrollY - travelled);
+      // Claimed on travel alone, deliberately — not on whether the list moved.
+      //
+      // Requiring actual movement looks tempting and is wrong: a list already at its end does not
+      // move however far the finger pulls, so the pull was not claimed and the release was read as
+      // a tap. Dragging at the bottom of a list picked whatever row was under the finger. A list
+      // that cannot scroll at all never gets here, because `downHandler` refuses to start a drag
+      // when `maxScroll` is zero.
+      if (Math.abs(travelled) >= SCROLL_TAP_SLOP) {
+        consumedGesture = { id: pointer.id, downTime: pointer.downTime };
+      }
     };
     this.upHandler = () => {
       this.dragStart = undefined;
@@ -539,9 +563,9 @@ export class InkUI {
       }
       draw(false);
       // A button sitting inside a scrolling list must not fire because the finger happened to lift
-      // over it at the end of a drag. Buttons outside a list are unaffected: the flag is only ever
-      // set by a gesture that began inside a scroll area and travelled far enough to be a scroll.
-      if (scrollGestureConsumedTap()) {
+      // over it at the end of a drag. Buttons outside a list are unaffected: only the gesture that
+      // actually scrolled a list is ever claimed.
+      if (scrollGestureConsumedTap(pointer)) {
         return;
       }
       onClick();
