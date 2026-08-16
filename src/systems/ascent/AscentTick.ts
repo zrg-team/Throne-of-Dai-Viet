@@ -24,6 +24,7 @@ import { tickRaids, tickWaveDirector } from './WaveDirector';
 import { tickEnemyCommand } from './EnemyCommandDirector';
 import { detectConquests, ensureAscentLaneState, refreshAscentLaneState } from './ConquestSystem';
 import { tickDecisionDirector, tickPromptCooldowns } from './DecisionDirector';
+import { tickStories } from '../story/StorySystem';
 import { endAscentRun } from './AscentResolver';
 import { advanceSeasonClock, greatPowersDue } from '../seasonClock';
 import { seasonLabel, t } from '../../i18n';
@@ -202,6 +203,10 @@ export function advanceAscentTick(state: GameState): void {
 
   tickPromptCooldowns(state);
   refreshAscentLaneState(state);
+  // Before the director: stories notice what changed this tick, let at most one whisper through
+  // (which costs no prompt budget at all), and mark anything louder for the director to weigh
+  // against everything else competing for the player's attention.
+  tickStories(state);
   tickDecisionDirector(state);
   checkAscentDefeat(state);
   drainAscentPrompts(state);

@@ -34,6 +34,9 @@ import { eraLabel } from '../systems/empire/MandateSystem';
 import { getEmpirePower, hasPact } from '../systems/DiplomacySystem';
 import { compactNumber } from '../utils/format';
 import { renderHeroFaceInBox } from '../ui/FaceRenderer';
+import { drawStoryBand } from '../ui/ink/storyBand';
+import { isMarked, openingFor, storyParams, takeOpening } from '../systems/story/StorySystem';
+import { storyText, storyTitle } from '../i18n/story';
 import { INK_UI, INK_UI_HEX, InkUI, scrollGestureConsumedTap, type InkScrollArea, type UIBounds } from '../ui/InkUI';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { CARD_ICON_SIZE, drawCardIcon, iconForOption, type CardIconId } from '../ui/CardIcons';
@@ -310,6 +313,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'rival-demand': return `${prompt.demand}:${prompt.kingdomId}`;
       case 'empire-response': return `${prompt.wave}`;
       case 'wave-result': return `${prompt.wave}`;
+      case 'story-beat': return `${prompt.storyId}:${prompt.fragmentId}`;
       case 'founder': return prompt.options.join(',');
       case 'run-over': return `${prompt.score}`;
     }
@@ -328,6 +332,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'envoy': this.showEnvoy(prompt); break;
       case 'famine': this.showFamine(prompt); break;
       case 'rival-demand': this.showRivalDemand(prompt); break;
+      case 'story-beat': this.showStoryBeat(prompt); break;
       case 'empire-response': this.showEmpireResponse(prompt); break;
       case 'wave-result': this.showWaveResult(prompt); break;
       case 'run-over': this.showRunOver(prompt); break;
@@ -851,6 +856,12 @@ export class ConquestUIScene extends Phaser.Scene {
         return ascent.laneState.world === 'alert' ? INK_UI.cinnabar : undefined;
       case 'build':
         return state.buildOrders.length === 0 && state.resources.gold > 60 ? INK_UI.gold : undefined;
+      // Lit while any story has said something within living memory. Not a badge for its own
+      // sake: an unlit Chronicle button means nothing has happened worth reading.
+      case 'chronicle':
+        return (state.stories ?? []).some((story) => state.turn - story.lastSpokeTurn <= 6)
+          ? INK_UI.jade
+          : undefined;
       default:
         return undefined;
     }
@@ -879,6 +890,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'battle': this.showBattle(); break;
       case 'army': this.showArmyScreen(); break;
       case 'affairs': this.showAffairsScreen(); break;
+      case 'chronicle': this.showChronicleScreen(); break;
     }
 
     // Checked here as well as in `refresh` so a lane that declines to draw costs the player a
@@ -1205,7 +1217,9 @@ export class ConquestUIScene extends Phaser.Scene {
     this.modalLayer.removeAll(true);
 
     const { addRow, addHeading, finish } = this.laneList(
-      land.name,
+      // The mark. One glyph, and the only signal a story ever gives about a subject: something
+      // has taken an interest here. It says nothing at all about what that something wants.
+      isMarked(state, 'land', land.id) ? `${land.name} ◈` : land.name,
       t('ascent.screen.slots', { used: land.buildings.length, cap: land.buildingCapacity, defense: land.defense }),
     );
 
@@ -1313,6 +1327,27 @@ export class ConquestUIScene extends Phaser.Scene {
         option.canUpgrade ? () => act(() => upgradeDistrictBuilding(state, land.id, option.index)) : undefined,
       );
     }
+
+    // ── The offer, if a story has one to make here ──
+    //
+    // Not a task, not a deadline, not a reward preview. It is the last row of a sheet the player
+    // was already looking at, and ignoring it costs nothing and is *also an answer* — in more
+    // than one story it is the answer that eventually matters.
+    const opening = openingFor(state, 'land', land.id);
+    if (opening) {
+      addHeading(t('land.section.spokenOf'));
+      addRow(
+        {
+          title: storyText(opening.actionKey, opening.params),
+          subtitle: storyText(opening.textKey, opening.params),
+          border: INK_UI.gold,
+        },
+        () => {
+          if (takeOpening(state, opening.storyId, opening.fragmentId)) this.closeLane();
+        },
+      );
+    }
+
     finish();
   }
 
@@ -2413,6 +2448,193 @@ export class ConquestUIScene extends Phaser.Scene {
       used += ((card.getData('cardHeight') as number) ?? rowHeight) + 10;
     });
     finish(used);
+  }
+
+  /**
+   * One fragment of a running story, loud enough to stop the world.
+   *
+   * **There is no beat counter and no total**, and that absence is the whole design. The header
+   * carries the story's name and nothing else, so the player cannot tell whether this is the
+   * second thing this story has said or the ninth — and with no fraction to be part of, there is
+   * nothing to complete. A quest has a completion state; a story does not.
+   *
+   * A `blow` has no options. It pauses and tells you, and the only control is an acknowledgement.
+   * That is what keeps the Chronicle from reading as a menu: a story the player always answers is
+   * a story they control, and control is the opposite of drama.
+   */
+  private showStoryBeat(prompt: Extract<AscentPrompt, { kind: 'story-beat' }>): void {
+    const key = (suffix: string) => `${prompt.templateId}.${prompt.fragmentId}.${suffix}`;
+    const { body, bodyWidth, finish } = this.promptScrollBody(
+      storyText(key('title'), prompt.params),
+      storyText(key('body'), prompt.params),
+      0,
+    );
+
+    let used = 0;
+
+    // The band: a generic woodblock impression chosen by tag, with the speaker's own portrait
+    // beside it when a person is talking. No story owns an illustration — a template binds a
+    // random hero and a random province, so a specific picture would be a lie on most maps.
+    if (prompt.band) {
+      const bandHeight = 62;
+      const faceWidth = prompt.speakerHeroId ? bandHeight : 0;
+      const holder = this.add.container(0, used);
+
+      if (prompt.speakerHeroId) {
+        const speaker = this.state.heroes.find((hero) => hero.id === prompt.speakerHeroId);
+        if (speaker) {
+          holder.add(renderHeroFaceInBox(this, speaker, { x: 0, y: 0, width: faceWidth, height: bandHeight }));
+        }
+      }
+
+      const band = drawStoryBand(
+        this,
+        prompt.band,
+        `${prompt.storyId}:${prompt.fragmentId}`,
+        bodyWidth - faceWidth,
+        bandHeight,
+      );
+      band.setPosition(faceWidth, 0);
+      holder.add(band);
+
+      const frame = this.add.graphics();
+      frame.lineStyle(1.2, INK_UI.brush, 0.5);
+      frame.strokeRect(0, 0, bodyWidth, bandHeight);
+      if (faceWidth > 0) frame.lineBetween(faceWidth, 0, faceWidth, bandHeight);
+      holder.add(frame);
+
+      body.add(holder);
+      used += bandHeight + 12;
+    }
+
+    if (prompt.options.length === 0) {
+      // A blow. One way out, and it is not a choice.
+      const card = this.optionCard(
+        { x: 0, y: used, width: bodyWidth, height: 52 },
+        {
+          title: storyText(key('ok'), prompt.params),
+          body: '',
+          accent: INK_UI.cinnabar,
+          parent: body,
+          onTap: () => this.choose('ok'),
+        },
+      );
+      used += ((card.getData('cardHeight') as number) ?? 52) + 10;
+    }
+
+    for (const option of prompt.options) {
+      const card = this.optionCard(
+        { x: 0, y: used, width: bodyWidth, height: 68 },
+        {
+          icon: iconForOption(option.id),
+          title: storyText(key(option.id), prompt.params),
+          body: storyText(key(`${option.id}.d`), prompt.params),
+          note: option.cost
+            ? (option.affordable ? formatResourceList(option.cost) : t('ascent.response.cantAfford'))
+            : (!option.affordable && option.blockedKey
+              ? storyText(key(option.blockedKey), prompt.params)
+              : undefined),
+          noteColor: option.affordable ? undefined : '#a4402c',
+          accent: option.affordable ? INK_UI.gold : INK_UI.softBrush,
+          disabled: !option.affordable,
+          parent: body,
+          onTap: () => { if (option.affordable) this.choose(option.id); },
+        },
+      );
+      used += ((card.getData('cardHeight') as number) ?? 68) + 10;
+    }
+
+    // The advisor. Whoever holds the relevant seat, and **not** a neutral narrator: a hero with
+    // low loyalty or high renown gives advice that serves themselves, and nothing marks it.
+    if (prompt.advisorKey && prompt.advisorHeroId) {
+      const advisor = this.state.heroes.find((hero) => hero.id === prompt.advisorHeroId);
+      const line = storyText(prompt.advisorKey, prompt.params);
+      if (advisor && line !== prompt.advisorKey) {
+        const quote = this.add.text(2, used + 4, `${heroName(advisor)} — "${line}"`, {
+          color: INK_UI_HEX.mutedText,
+          fontFamily: UI_FONT,
+          fontSize: '11px',
+          fontStyle: 'italic',
+          wordWrap: { width: bodyWidth - 8 },
+        });
+        body.add(quote);
+        used += quote.height + 14;
+      }
+    }
+
+    finish(used);
+  }
+
+  /**
+   * Sử Ký — what has already happened, in past tense.
+   *
+   * Takes the slot the Codex vacated, which is the right home for it: the Codex was a permanent
+   * cross-run collection with nothing to be done about it mid-run, and this is the one screen a
+   * player actually wants to open while playing.
+   *
+   * **No progress, no pips, no counts.** A running story shows its most recent line and the
+   * subjects it has marked — that it is being spoken of, and what was last said. Never how far
+   * along it is, because it is not along anything.
+   */
+  private showChronicleScreen(): void {
+    const state = this.state;
+    const running = state.stories ?? [];
+    const recorded = [...(state.chronicle ?? [])].reverse();
+
+    const { addRow, addHeading, finish } = this.laneList(
+      t('ascent.chronicle.title'),
+      t('ascent.chronicle.body', { year: state.year }),
+    );
+
+    if (running.length === 0 && recorded.length === 0) {
+      addRow({
+        title: t('ascent.chronicle.emptyTitle'),
+        subtitle: t('ascent.chronicle.emptyBody'),
+        border: INK_UI.softBrush,
+        muted: true,
+      });
+      finish();
+      return;
+    }
+
+    if (running.length > 0) {
+      addHeading(t('ascent.chronicle.running'));
+      for (const story of running) {
+        // The last thing this story said — not its position in anything.
+        const lastId = story.spoken[story.spoken.length - 1];
+        const params = storyParams(state, story);
+        const line = lastId
+          ? storyText(`${story.templateId}.${lastId}.chronicle`, params)
+          : t('ascent.chronicle.notYetSpoken');
+        const marks = [
+          state.heroes.find((hero) => hero.id === story.cast.heroId)?.name,
+          state.lands.find((land) => land.id === story.cast.landId)?.name,
+          state.kingdoms.find((kingdom) => kingdom.id === story.cast.kingdomId)?.name,
+        ].filter(Boolean).map((name) => `◈ ${name}`).join(' · ');
+
+        addRow({
+          title: storyTitle(story.templateId),
+          subtitle: marks ? `${line}\n${marks}` : line,
+          border: INK_UI.jade,
+        });
+      }
+    }
+
+    if (recorded.length > 0) {
+      addHeading(t('ascent.chronicle.recorded'));
+      for (const entry of recorded) {
+        addRow({
+          title: storyTitle(entry.templateId),
+          subtitle: storyText(`${entry.templateId}.${entry.fragmentId}.chronicle`, entry.params),
+          border: entry.tone === 'threat'
+            ? INK_UI.cinnabar
+            : entry.tone === 'reward' ? INK_UI.jade : INK_UI.softBrush,
+          muted: true,
+        });
+      }
+    }
+
+    finish();
   }
 
   /**

@@ -21,6 +21,7 @@ import { famineReady, offerFamine, tickFamineCooldown } from './FamineSystem';
 import { offerRivalDemand, rivalDemandReady, tickRivalCooldowns } from './RivalDirector';
 import { offerHeroSummon } from './SummonSystem';
 import { offerPowerDraft } from './PowerDraftSystem';
+import { offerStoryBeat, storyBeatReady } from '../story/StorySystem';
 import type { AscentPhase, AscentPromptKind, GameState } from '../../state/types';
 
 /**
@@ -67,6 +68,9 @@ import type { AscentPhase, AscentPromptKind, GameState } from '../../state/types
  */
 const PROMPT_COOLDOWN: Partial<Record<AscentPromptKind, number>> = {
   'conquer-target': 3,
+  // The Chronicle speaks mostly in whispers, which cost nothing. The few fragments loud enough
+  // to stop the world are rationed here so a story can never turn the run into a reading task.
+  'story-beat': 4,
   'court-appointment': 5,
   'law-choice': 8,
   envoy: 12,
@@ -117,7 +121,22 @@ const CONSIDER_ORDER: AscentPromptKind[] = [
   'law-choice',
   'parliament',
   'envoy',
+  // Last of the scheduled kinds on purpose. A story is the least time-critical thing the
+  // director can raise — it has waited seasons already and can wait one more — and putting it
+  // ahead of the realm's actual business is how a narrative feature starts feeling like homework.
+  // Ageing through KIND_STARVATION_TICKS still guarantees it is eventually heard.
+  'story-beat',
 ];
+
+/**
+ * Share of a run's prompts the Chronicle may take.
+ *
+ * The DecisionDirector's own history is the argument for this number: nine kinds already compete
+ * for the queue, four of them were measured firing *zero* times in a 320-tick run before ageing
+ * was added, and a tenth kind with saga-length ambitions would starve the champion summon — which
+ * is half this mode's identity. Whispers are exempt because they never pause anything.
+ */
+const STORY_PROMPT_SHARE = 0.15;
 
 /**
  * Which phase of the wave cycle a countdown reading falls in.
@@ -216,6 +235,16 @@ function isReady(state: GameState, kind: AscentPromptKind): boolean {
     case 'rival-demand':
       return rivalDemandReady(state);
 
+    case 'story-beat': {
+      if (!storyBeatReady(state)) return false;
+      // Budget measured against prompts actually raised, not against ticks: a quiet run raises
+      // few prompts of any kind, and the Chronicle should stay the same fraction of a busy run
+      // and a slow one.
+      const raised = state.storyPromptsRaised ?? 0;
+      const totalish = Math.max(6, state.turn / 4);
+      return raised / totalish < STORY_PROMPT_SHARE;
+    }
+
     default:
       return false;
   }
@@ -243,6 +272,8 @@ function raise(state: GameState, kind: AscentPromptKind): boolean {
       return offerEnvoy(state);
     case 'famine':
       return offerFamine(state);
+    case 'story-beat':
+      return offerStoryBeat(state);
 
     case 'rival-demand':
       return offerRivalDemand(state);
