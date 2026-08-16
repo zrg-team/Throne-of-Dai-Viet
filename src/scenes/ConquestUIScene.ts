@@ -101,6 +101,16 @@ const BATTLE_READOUT_HEIGHT = 62;
 const PROMPT_FOOTER_HEIGHT = 56;
 
 /**
+ * How long a prompt card must be held before it counts as chosen.
+ *
+ * Long enough that a brush of the finger does not spend a draft, short enough that a deliberate
+ * press never feels like waiting — a quarter of a second is about the gap between "I touched it"
+ * and "I meant it". The card draws the hold filling along its foot, so the requirement is visible
+ * rather than a button that mysteriously ignored you.
+ */
+const CARD_HOLD_MS = 260;
+
+/**
  * Enemy hosts the player can actually see, and so can act on.
  *
  * Visibility is the honest gate here: offering a hunt against a host standing in the dark would
@@ -509,9 +519,64 @@ export class ConquestUIScene extends Phaser.Scene {
       const hit = this.add
         .rectangle(bounds.width / 2, height / 2, bounds.width, height, 0xffffff, 0.001)
         .setInteractive({ useHandCursor: true });
-      // A drag that ends over this card scrolled the list; it did not choose it.
+
+      // A prompt card has to be *held*, not tapped.
+      //
+      // These are the irreversible choices in the run — the power you draft, the champion you keep,
+      // the province you commit to — and they sit under the finger in a list that scrolls. A stray
+      // tap while reading spends a decision that cannot be taken back, and the scroll guard only
+      // catches gestures that travelled; a clean accidental tap is indistinguishable from a
+      // deliberate one *unless the interface asks for more*.
+      //
+      // Deliberately not applied to `laneList` rows: those are navigation, they can be undone by
+      // going back, and making the player hold to open a screen would be tiresome. The rule is that
+      // a hold guards a commitment, never a look.
+      const fill = this.add.graphics();
+      container.add(fill);
+      let armedAt = 0;
+      let timer: Phaser.Time.TimerEvent | undefined;
+
+      const clearArm = () => {
+        timer?.remove();
+        timer = undefined;
+        armedAt = 0;
+        fill.clear();
+      };
+      const paintArm = (progress: number) => {
+        fill.clear();
+        if (progress <= 0) return;
+        // A line growing along the foot of the card. It reads as the choice being made rather than
+        // as a loading bar, and it tells the player the hold is the point.
+        fill.fillStyle(opts.accent, 0.55);
+        fill.fillRect(1, height - 3.5, (bounds.width - 2) * Math.min(1, progress), 2.5);
+      };
+
+      hit.on('pointerdown', () => {
+        armedAt = this.time.now;
+        timer = this.time.addEvent({
+          delay: 16,
+          loop: true,
+          callback: () => {
+            // Ends itself when the finger lifts anywhere, rather than on `pointerout`. Clearing on
+            // `pointerout` looked equivalent and was not: holding still scrolls the list a little,
+            // the card moves under the stationary finger, Phaser reports the pointer as having left
+            // it, and a press the player was still making was cancelled underneath them.
+            if (!this.input.activePointer.isDown) {
+              clearArm();
+              return;
+            }
+            paintArm((this.time.now - armedAt) / CARD_HOLD_MS);
+          },
+        });
+      });
       hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        const held = armedAt > 0 ? this.time.now - armedAt : 0;
+        clearArm();
+        // A drag that ends over this card scrolled the list; it did not choose it.
         if (scrollGestureConsumedTap(pointer)) {
+          return;
+        }
+        if (held < CARD_HOLD_MS) {
           return;
         }
         opts.onTap();

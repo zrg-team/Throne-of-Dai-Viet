@@ -685,20 +685,66 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     setNativeFacing(container, -1);
     const g = scene.add.graphics();
     const s = GROUND_SCALE;
-    groundShadow(g, 2 * s, 5 * s, 11 * s, 0.07);
+
+    // Where the animal stands, and where its body ends.
+    //
+    // `BUFFALO_REACH` says the drawing runs from −36 to +22 about its anchor before `UNIT.buffalo`
+    // is applied, so at this scale its tail sits `6.4·s` behind the anchor. Placing the anchor so
+    // that the tail lands just in front of the cart bed is what actually joins the two: the old
+    // arrangement stood the animal at −14·s, which left its tail `7·s` clear of a bed starting at
+    // 0, and then ran shafts nine units long across the gap. Drawn at map size that read as a
+    // buffalo and a cart travelling together rather than one pulling the other.
+    const oxAnchor = -8 * s;
+    const oxTail = oxAnchor + 6.4 * s;
+
+    groundShadow(g, 3 * s, 5 * s, 12 * s, 0.07);
+
+    // The bed: a plank floor with a low rail down the side, rather than a filled block.
     printedShape(g, [
-      { x: 0, y: -4 * s }, { x: 12 * s, y: -4 * s }, { x: 12 * s, y: 2 * s }, { x: 0, y: 2 * s },
-    ], PIGMENT.nau, 88, { width: 0.7 * s, alpha: 0.75, wobble: 0.15 * s, step: 4, fillAlpha: 0.9 });
-    g.lineStyle(0.9 * s, PIGMENT.muc, 0.75);
-    g.strokeCircle(3 * s, 3.4 * s, 2.6 * s);
-    g.strokeCircle(10 * s, 3.4 * s, 2.6 * s);
-    // Two shafts running from the cart bed to the yoke on the animal's shoulders.
-    for (const dy of [-0.6, 1.2]) {
-      inkPath(g, [{ x: 0, y: (-1 + dy) * s }, { x: -9 * s, y: (-1.6 + dy) * s }], 89 + dy * 10, {
-        width: 0.6 * s, alpha: 0.6, colour: PIGMENT.nau, wobble: 0.1 * s, step: 4,
+      { x: 0, y: -1.6 * s }, { x: 11 * s, y: -1.6 * s }, { x: 11 * s, y: 2 * s }, { x: 0, y: 2 * s },
+    ], PIGMENT.nau, 88, { width: 0.7 * s, alpha: 0.8, wobble: 0.15 * s, step: 4, fillAlpha: 0.85 });
+    // Side rail — three uprights and a top rail, which is what makes it a cart and not a crate.
+    inkPath(g, [{ x: 0.6 * s, y: -1.6 * s }, { x: 10.4 * s, y: -1.6 * s }], 91, {
+      width: 0.5 * s, alpha: 0.7, colour: PIGMENT.muc, wobble: 0.12 * s, step: 4,
+    });
+    for (const ux of [1.2, 5.5, 9.8]) {
+      inkPath(g, [{ x: ux * s, y: -1.6 * s }, { x: ux * s, y: -4.2 * s }], 92 + ux, {
+        width: 0.45 * s, alpha: 0.6, colour: PIGMENT.nau, wobble: 0.1 * s, step: 3,
       });
     }
-    buffalo(g, -14 * s, 3.4 * s, s, 90, false);
+    inkPath(g, [{ x: 1.2 * s, y: -4.2 * s }, { x: 9.8 * s, y: -4.2 * s }], 95, {
+      width: 0.5 * s, alpha: 0.65, colour: PIGMENT.nau, wobble: 0.12 * s, step: 4,
+    });
+
+    // One wheel, not two. A xe trâu seen from the side shows the near wheel; drawing both put a
+    // second rim floating behind the bed with nothing to attach it to.
+    const wheelX = 6.5 * s;
+    const wheelY = 3 * s;
+    const wheelR = 2.8 * s;
+    g.lineStyle(0.9 * s, PIGMENT.muc, 0.8);
+    g.strokeCircle(wheelX, wheelY, wheelR);
+    g.lineStyle(0.5 * s, PIGMENT.muc, 0.55);
+    for (let spoke = 0; spoke < 4; spoke += 1) {
+      const angle = (spoke / 4) * Math.PI;
+      g.lineBetween(
+        wheelX - Math.cos(angle) * wheelR, wheelY - Math.sin(angle) * wheelR,
+        wheelX + Math.cos(angle) * wheelR, wheelY + Math.sin(angle) * wheelR,
+      );
+    }
+
+    // The shafts run from the bed to the animal's flank and stop there — they are the join, so they
+    // must land on the buffalo rather than reaching past it.
+    for (const dy of [-0.4, 1.1]) {
+      inkPath(g, [{ x: 0.4 * s, y: (-0.6 + dy) * s }, { x: oxTail - 0.5 * s, y: (-1.2 + dy) * s }], 96 + dy * 10, {
+        width: 0.6 * s, alpha: 0.7, colour: PIGMENT.nau, wobble: 0.08 * s, step: 3,
+      });
+    }
+    // The yoke across the shoulders, which is the piece that says "pulling".
+    inkPath(g, [{ x: oxTail - 0.6 * s, y: -2.4 * s }, { x: oxTail - 0.6 * s, y: 1.2 * s }], 99, {
+      width: 0.7 * s, alpha: 0.75, colour: PIGMENT.nau, wobble: 0.08 * s, step: 3,
+    });
+
+    buffalo(g, oxAnchor, 3.4 * s, s, 90, false);
     container.add(g);
     return container;
   }
