@@ -1,4 +1,18 @@
 import { countingHouse } from './countingHouse';
+import {
+  borrowedSword,
+  chamEngineer,
+  eatTogether,
+  noHeir,
+  riceRiot,
+  rideTheWind,
+  sixtyFiveCitadels,
+  slanderedGeneral,
+  theAssembly,
+  theSubstitution,
+  trustedSubordinate,
+  unpaidHost,
+} from './histories';
 import { dienHong } from './dienHong';
 import { gooseFeathers } from './gooseFeathers';
 import { granaries } from './granaries';
@@ -27,6 +41,22 @@ export const storyTemplates: StoryTemplate[] = [
   countingHouse,
   dienHong,
   theBoyWithTheOrange,
+
+  // The second wave, each built around a different corner of the outcome vocabulary rather than
+  // a different anecdote — rules taken and given, hosts that defect, heroes you choose to lose,
+  // a rival that comes apart, a capital that turns on you for being rich.
+  sixtyFiveCitadels,
+  rideTheWind,
+  theSubstitution,
+  borrowedSword,
+  slanderedGeneral,
+  trustedSubordinate,
+  chamEngineer,
+  theAssembly,
+  riceRiot,
+  noHeir,
+  eatTogether,
+  unpaidHost,
 ];
 
 const byId = new Map(storyTemplates.map((template) => [template.id, template]));

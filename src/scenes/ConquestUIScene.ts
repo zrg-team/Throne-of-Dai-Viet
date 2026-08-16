@@ -867,6 +867,35 @@ export class ConquestUIScene extends Phaser.Scene {
     }
   }
 
+
+  /**
+   * The offer a story is currently making on this surface, if any.
+   *
+   * Not a task, not a deadline, not a reward preview: it is one extra row at the foot of a screen
+   * the player already had open. Ignoring it costs nothing and *is also an answer* — in more than
+   * one story it is the answer that eventually matters.
+   */
+  private addStoryOpening(
+    on: 'land' | 'hero' | 'army' | 'rival' | 'treasury',
+    subjectId: string | undefined,
+    addHeading: (title: string, hint?: string) => void,
+    addRow: (opts: { title: string; subtitle: string; border: number; muted?: boolean }, onTap?: () => void) => void,
+  ): void {
+    const opening = openingFor(this.state, on, subjectId);
+    if (!opening) return;
+    addHeading(t('land.section.spokenOf'));
+    addRow(
+      {
+        title: storyText(opening.actionKey, opening.params),
+        subtitle: storyText(opening.textKey, opening.params),
+        border: INK_UI.gold,
+      },
+      () => {
+        if (takeOpening(this.state, opening.storyId, opening.fragmentId)) this.closeLane();
+      },
+    );
+  }
+
   private openLane(lane: AscentLane): void {
     if (this.state.pendingAscentPrompt) return;
     // The bar only offers Battle while a siege is live, but the siege can end between the bar
@@ -1123,7 +1152,7 @@ export class ConquestUIScene extends Phaser.Scene {
     this.modalLayer.removeAll(true);
 
     const targets = buildConquestTargets(state);
-    const { addRow, finish } = this.laneList(t('ascent.claim.start'), t('ascent.claim.headingHint'));
+    const { addRow, addHeading, finish } = this.laneList(t('ascent.claim.start'), t('ascent.claim.headingHint'));
 
     for (const target of targets) {
       const open = target.methods.filter((method) => !method.blockedReason);
@@ -1163,7 +1192,7 @@ export class ConquestUIScene extends Phaser.Scene {
     this.activeScrollAreas = [];
     this.modalLayer.removeAll(true);
 
-    const { addRow, finish } = this.laneList(
+    const { addRow, addHeading, finish } = this.laneList(
       land.name,
       t('ascent.claim.row', {
         method: t(`ascent.claim.method.${order.method}` as Parameters<typeof t>[0]),
@@ -1313,25 +1342,7 @@ export class ConquestUIScene extends Phaser.Scene {
       );
     }
 
-    // ── The offer, if a story has one to make here ──
-    //
-    // Not a task, not a deadline, not a reward preview. It is the last row of a sheet the player
-    // was already looking at, and ignoring it costs nothing and is *also an answer* — in more
-    // than one story it is the answer that eventually matters.
-    const opening = openingFor(state, 'land', land.id);
-    if (opening) {
-      addHeading(t('land.section.spokenOf'));
-      addRow(
-        {
-          title: storyText(opening.actionKey, opening.params),
-          subtitle: storyText(opening.textKey, opening.params),
-          border: INK_UI.gold,
-        },
-        () => {
-          if (takeOpening(state, opening.storyId, opening.fragmentId)) this.closeLane();
-        },
-      );
-    }
+    this.addStoryOpening('land', land.id, addHeading, addRow);
 
     finish();
   }
@@ -1353,7 +1364,7 @@ export class ConquestUIScene extends Phaser.Scene {
     this.modalLayer.removeAll(true);
 
     const rows = buildGovernorRows(state, land);
-    const { addRow, finish } = this.laneList(land.name, t('gov.headingHint'));
+    const { addRow, addHeading, finish } = this.laneList(land.name, t('gov.headingHint'));
 
     const back = () => this.showBuildOptions(landId);
 
@@ -1403,7 +1414,7 @@ export class ConquestUIScene extends Phaser.Scene {
    */
   private showHeroesScreen(): void {
     const state = this.state;
-    const { addRow, finish } = this.laneList(
+    const { addRow, addHeading, finish } = this.laneList(
       t('action.heroes'),
       t('ascent.screen.heroesBody', { n: state.heroes.length }),
     );
@@ -1425,6 +1436,8 @@ export class ConquestUIScene extends Phaser.Scene {
         },
       );
     }
+    this.addStoryOpening('hero', undefined, addHeading, addRow);
+
     finish();
   }
 
@@ -1549,6 +1562,8 @@ export class ConquestUIScene extends Phaser.Scene {
       );
     }
 
+    this.addStoryOpening('treasury', undefined, addHeading, addRow);
+
     finish();
   }
 
@@ -1624,6 +1639,8 @@ export class ConquestUIScene extends Phaser.Scene {
         () => this.showArmyDetail(army.id),
       );
     }
+    this.addStoryOpening('army', undefined, addHeading, addRow);
+
     finish();
   }
 
@@ -1650,7 +1667,7 @@ export class ConquestUIScene extends Phaser.Scene {
     const general = state.heroes.find((candidate) => candidate.id === army.generalHeroId);
     const land = state.lands.find((candidate) => candidate.id === army.landId);
 
-    const { addRow, finish } = this.laneList(
+    const { addRow, addHeading, finish } = this.laneList(
       army.name,
       t('ascent.army.detailBody', {
         land: land?.name ?? '—',
@@ -1784,7 +1801,7 @@ export class ConquestUIScene extends Phaser.Scene {
     this.activeScrollAreas = [];
     this.modalLayer.removeAll(true);
 
-    const { addRow, finish } = this.laneList(t('ascent.army.marchTo'), t('ascent.army.marchToBody'));
+    const { addRow, addHeading, finish } = this.laneList(t('ascent.army.marchTo'), t('ascent.army.marchToBody'));
 
     const targets = state.lands
       .filter((land) => land.ownerId === PLAYER_KINGDOM_ID && land.id !== army.landId)
@@ -1825,7 +1842,7 @@ export class ConquestUIScene extends Phaser.Scene {
     this.activeScrollAreas = [];
     this.modalLayer.removeAll(true);
 
-    const { addRow, finish } = this.laneList(t('ascent.army.hunt'), t('ascent.army.huntBody', {
+    const { addRow, addHeading, finish } = this.laneList(t('ascent.army.hunt'), t('ascent.army.huntBody', {
       n: visibleHostileHosts(state).length,
     }));
 
@@ -1854,7 +1871,7 @@ export class ConquestUIScene extends Phaser.Scene {
     const rivals = state.kingdoms.filter(
       (kingdom) => kingdom.id !== PLAYER_KINGDOM_ID && !kingdom.isDefeated,
     );
-    const { addRow, finish } = this.laneList(t('action.affairs'), t('ascent.lane.worldBody'));
+    const { addRow, addHeading, finish } = this.laneList(t('action.affairs'), t('ascent.lane.worldBody'));
 
     for (const kingdom of rivals) {
       const relations = Math.round(kingdom.relations ?? 50);
@@ -1878,6 +1895,8 @@ export class ConquestUIScene extends Phaser.Scene {
         },
       );
     }
+    this.addStoryOpening('rival', undefined, addHeading, addRow);
+
     finish();
   }
 
