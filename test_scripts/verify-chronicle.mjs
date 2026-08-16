@@ -34,9 +34,10 @@ const result = await page.evaluate(async () => {
   // Checked in *both* languages, and Vietnamese is the source, so a missing vi line is the real
   // failure — English falls back cleanly, Vietnamese has nothing behind it.
   for (const template of storyTemplates) {
-    // The story page's headers are content too: every story must say what its person wants
-    // and what a silent stretch is waiting for, or the page falls back to placeholders.
-    for (const pageKey of ['want', 'waiting']) {
+    // The story page's headers are content too: every story must say what its person wants,
+    // what a silent stretch is waiting for, and what hangs on it — or the page falls back to
+    // placeholders. `stake` became mandatory when the depth pass reached all templates.
+    for (const pageKey of ['want', 'waiting', 'stake']) {
       if (!hasStoryText(`${template.id}.${pageKey}`)) out.coverage.missing.push(`${template.id}.${pageKey}`);
     }
     for (const fragment of template.fragments) {
