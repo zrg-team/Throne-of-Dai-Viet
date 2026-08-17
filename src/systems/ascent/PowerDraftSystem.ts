@@ -11,6 +11,7 @@ import { applyResourceDelta, canSpend } from '../ResourceSystem';
 import { pushToast } from '../empire/notifications';
 import { addAscentXp, computeAscentPower, engineTerm } from './PowerSystem';
 import { chargeAmbition } from './AmbitionSystem';
+import { doctrineDraftBonus } from './RealmDoctrineSystem';
 import { enqueueAscentPrompt } from './AscentState';
 import { t } from '../../i18n';
 import type { AscentState, CourtModifier, GameState, PowerCardDef } from '../../state/types';
@@ -95,7 +96,14 @@ export function rollPowerDraftCards(state: GameState): string[] {
     const index = weightedPickIndex(
       candidates.map((card) => {
         const rarityWeight = ascent.draftWeights[card.rarity] ?? 1;
-        return rarityWeight * (card.weight ?? 1) * focusBonus(cardStack(ascent, card.id));
+        // The standing doctrine leans the table toward its own rarity — a lean, never a lock, so
+        // a realm at arms sees more jade without ever ceasing to see bronze. Half of what makes
+        // two runs feel different is the deck, and a doctrine that moved only the economy would
+        // have left every build identical.
+        return rarityWeight
+          * (card.weight ?? 1)
+          * focusBonus(cardStack(ascent, card.id))
+          * doctrineDraftBonus(state, card.rarity);
       }),
     );
     if (index < 0) break;

@@ -9,6 +9,7 @@ import {
   methodHasActor,
 } from './ConquestSystem';
 import { applyAppointment, offerAppointment, resolveLawChoice, resolveParliament } from './CourtLaneSystem';
+import { resolveDoctrine } from './RealmDoctrineSystem';
 import { resolveEnvoy } from './EnvoySystem';
 import { resolveFamine } from './FamineSystem';
 import { resolveRivalDemand } from './RivalDirector';
@@ -150,6 +151,11 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
 
     case 'law-choice': {
       handled = resolveLawChoice(state, choiceId);
+      break;
+    }
+
+    case 'doctrine': {
+      handled = resolveDoctrine(state, choiceId);
       break;
     }
 

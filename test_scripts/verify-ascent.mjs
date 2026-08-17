@@ -47,6 +47,9 @@ const result = await page.evaluate(async () => {
       case 'hero-choice': return p.heroIds[0] ?? 'pass';
       case 'court-appointment': return p.options[0].id;
       case 'law-choice': return p.projectIds[0] ? `edict:${p.projectIds[0]}` : 'hold';
+      // Rotate the doctrines so a verification run exercises all four rather than pinning the
+      // realm to whichever sorts first — the whole point of the card is that they build differently.
+      case 'doctrine': return p.options[doctrineCursor++ % p.options.length];
       case 'parliament': {
         const card = st.politicsDeck.find((c) => c.id === p.cardId);
         if (!card) return 'decline';
@@ -75,6 +78,7 @@ const result = await page.evaluate(async () => {
     }
   };
   let methodCursor = 0;
+  let doctrineCursor = 0;
 
   const promptCounts = {};
   const trace = [];
@@ -367,6 +371,7 @@ const longRun = await page.evaluate(async () => {
   Math.random = () => { s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   const st = createAscentGameState({ seaSides: 1, difficulty: 'easy' });
   const kinds = {};
+  let doctrineCursor = 0;
   const pick = (p) => {
     switch (p.kind) {
       case 'founder': return p.options[0];
@@ -376,6 +381,9 @@ const longRun = await page.evaluate(async () => {
       case 'hero-choice': return p.heroIds[0] ?? 'pass';
       case 'court-appointment': return p.options[0].id;
       case 'law-choice': return p.projectIds[0] ? `edict:${p.projectIds[0]}` : 'hold';
+      // Rotate the doctrines so a verification run exercises all four rather than pinning the
+      // realm to whichever sorts first — the whole point of the card is that they build differently.
+      case 'doctrine': return p.options[doctrineCursor++ % p.options.length];
       case 'parliament': { const c = st.politicsDeck.find((x) => x.id === p.cardId); return c ? c.choices[0].id : 'decline'; }
       // Play to survive rather than to spend: this run is about reaching the late systems.
       case 'empire-response': {

@@ -103,6 +103,9 @@ const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   'court-appointment': 5,
   'conquer-target': 6,
   'law-choice': 7,
+  // Just above the laws it will shape. Four cards in a whole run, each governing the era that
+  // follows it, so it should not queue behind an edict it is about to change the value of.
+  doctrine: 6.5,
   parliament: 8,
   envoy: 9,
   'rival-demand': 3.5,

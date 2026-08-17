@@ -96,8 +96,19 @@ export const AMBITION_PER_HOST = 1;
  * back half of a run is unplayable however carefully the front half was spent.
  */
 export const AMBITION_DECAY_PER_WAVE = 0.45;
-/** How much one point of standing ambition adds to the next wave. 20 points doubles it. */
-export const AMBITION_PRESSURE_PER_POINT = 0.05;
+/**
+ * How much one point of standing ambition adds to the next wave.
+ *
+ * **Cut from 0.05 to 0.03.** When this was probed in isolation it looked innocent: heat separated
+ * an engaged run from a declining one by only 1.16×, worth about 1.7 waves, and zeroing it moved
+ * the survival ratio from 1.18 to only 1.27. That measurement was taken on a realm that could not
+ * grow — 1.2 hosts, 3 provinces, 542 soldiers — so there was very little growth for the counter to
+ * charge for. Once provincial militia and a frontier that absorbs conquest hosts let an engaged
+ * realm reach 3.2× the power of a passive one, the same coefficient started billing for all of it,
+ * and the ratio fell rather than rose. Ambition is a price on growth; it has to be re-priced when
+ * the amount of growth available changes.
+ */
+export const AMBITION_PRESSURE_PER_POINT = 0.03;
 /**
  * Ceiling on the multiplier, so a player who spends everything at once faces a monster rather
  * than an instant loss — the run has to stay recoverable enough to be worth finishing.
@@ -174,8 +185,15 @@ export const WAVE_OPENING_SHARE = 0.55;
  *
  * Note this no longer sizes waves — those read ambition now — but it still decides what the
  * response card quotes odds against, and what raids and mercenary companies are scaled to.
+ *
+ * **Raised to 0.35.** At 0.20 the odds this figure quotes were systematically pessimistic about a
+ * wide realm: measured, POWER separated an engaged run from a declining one by 1.77× while this
+ * figure moved only 1.42×, so the card told a player their twelve provinces were worth almost
+ * nothing to a defence that, with provincial militia and a frontier that now absorbs conquest
+ * hosts, they demonstrably are. The number has to track what the map actually does or the response
+ * card lies — and it was lying in the direction that made expanding look pointless.
  */
-export const REALM_DEFENCE_SHARE = 0.2;
+export const REALM_DEFENCE_SHARE = 0.35;
 
 /**
  * `WAVE_PRESSURE_BASE/STEP/MAX` used to live here: a wave was `laggedDefencePower × pressure`,
@@ -232,8 +250,14 @@ export const FORTIFY_DEFENSE_MIN = 10;
 export const RAID_INTERVAL_TICKS = 10;
 /** Raids only begin once the realm is big enough to have a frontier worth raiding. */
 export const RAID_MIN_LANDS = 3;
-/** A raid host, as a share of the realm's field power. Background pressure, not a second wave. */
-export const RAID_POWER_SHARE = 0.18;
+/**
+ * A raid host, as a share of the realm's field power. Background pressure, not a second wave.
+ *
+ * Trimmed from 0.18 when `REALM_DEFENCE_SHARE` rose to 0.35: raids are sized off
+ * `laggedDefencePower`, which reads that share, so leaving this alone would have quietly made
+ * every raid half again as large as a side effect of a change about something else.
+ */
+export const RAID_POWER_SHARE = 0.13;
 /** Raids need their own floor; the wave floor is several times too large for a raiding party. */
 export const MIN_RAID_SOLDIERS = 110;
 /** Ticks before a wave in which no raid may be sent, so the two never stack on one province. */
@@ -649,7 +673,13 @@ export const BATTLE_ADVANCE_PER_TICK = 0.115;
  * multiplied together bled far less than the single one they replaced — routs fell to zero. Tuned so a matched fight leaves both sides bloodied but standing after three
  * rounds, which is what makes retreating between them a real decision rather than a formality.
  */
-export const BATTLE_ROUND_BITE = 0.0272;
+/**
+ * Raised from 0.0272. Measured across 8 seeds, 68% of engagements ended at the round limit with
+ * neither side broken — the morale spiral that gives a fight its shape is built to produce
+ * collapses, and it was running out of rounds before it could. A heavier exchange lets the fight
+ * conclude on the field, which is what `finishBattle` now scores it on.
+ */
+export const BATTLE_ROUND_BITE = 0.0345;
 /** Fraction of its starting strength at which a host breaks and the engagement ends early. */
 export const BATTLE_BREAK_SHARE = 0.35;
 /**

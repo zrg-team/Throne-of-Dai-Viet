@@ -808,6 +808,61 @@ export interface StoryCast {
 }
 
 /** A story instance living in the save. */
+/**
+ * One condition a charge is judged on. Every kind is a predicate over state the engine already
+ * keeps — see `systems/story/charges.ts`, which is the only thing that reads these.
+ */
+export interface StoryGoal {
+  kind:
+    | 'build' | 'relations' | 'relationsAny' | 'lands' | 'wave' | 'host' | 'hold'
+    | 'treasury' | 'seat' | 'battle'
+    // Added for the annals: a realm at peace with everyone, a realm that has built widely, and a
+    // realm that has not lost a province in a while. All three are things a player might set out
+    // to do anyway, which is the test every goal kind has to pass.
+    | 'peace' | 'buildings' | 'noLandLost';
+  building?: LandBuildingType;
+  landId?: string;
+  kingdomId?: string;
+  /** Relations at or above / at or below. Both may be set to describe a band. */
+  atLeast?: number;
+  atMost?: number;
+  /** Provinces, waves, hosts, empires, victories — whichever the kind counts. */
+  count?: number;
+  /** `host`: men in one host. */
+  soldiers?: number;
+  /** `host`: each qualifying host must have a general. */
+  generaled?: boolean;
+  /** `hold`: consecutive seasons the province must stay ours. */
+  seasons?: number;
+  /** `treasury`: gold on hand. */
+  gold?: number;
+  /** `seat`: which chair, and how good the hero in it must be. */
+  position?: CourtPositionId;
+  rarity?: Hero['rarity'];
+  /** `battle`: only count fights defending our own ground. */
+  great?: boolean;
+}
+
+/**
+ * An undertaking the player has accepted from a story, still outstanding.
+ *
+ * Holds no callbacks by design: keeping or breaking one writes a flag into the story's memory and
+ * heats it, and the story's own fragments say what that meant. See `systems/story/charges.ts`.
+ */
+export interface StoryCharge {
+  id: string;
+  storyId: string;
+  templateId: string;
+  /** Text-key suffix: `<templateId>.charge.<key>.{sworn,kept,broken,watching}`. */
+  key: string;
+  goals: StoryGoal[];
+  acceptedTurn: number;
+  /** Absolute turn the oath lapses. Absent means it stands until kept. */
+  dueTurn?: number;
+  /** Counters for the goals that measure duration rather than a state. */
+  progress: Record<string, number>;
+}
+
 export interface ActiveStory {
   id: string;
   templateId: string;
@@ -973,6 +1028,13 @@ export interface PowerCardDef {
   weight?: number;
   /** Evolution results are granted, never rolled. */
   evolutionOnly?: boolean;
+  /**
+   * Granted only by seeing a story through, never rolled in a draft.
+   *
+   * These are the Chronicle's strongest reward and the reason to keep an oath: a card that exists
+   * nowhere else in the game, named for the thing that actually happened in Vietnamese history.
+   */
+  storyOnly?: boolean;
 }
 
 /** One counter-play offered on the Empire Response prompt. */
@@ -1098,6 +1160,11 @@ export type AscentPrompt =
   | { kind: 'court-appointment'; heroId: string; options: AppointmentOption[] }
   /** A permanent law: an edict/wonder from REALM_PROJECTS, or the tax dial. */
   | { kind: 'law-choice'; projectIds: string[]; points: number; taxOptions: TaxPolicy[] }
+  /**
+   * What kind of realm this is going to be. Offered once per era, and the only thing in the mode
+   * that changes how the autopilot plays rather than what the player does themselves.
+   */
+  | { kind: 'doctrine'; options: AscentDoctrine[]; era: EraId }
   /** The court speaks: one card drawn from `state.politicsDeck`. */
   | { kind: 'parliament'; cardId: string }
   /** The granary is empty and still draining. What the realm does about it. */
@@ -1169,6 +1236,17 @@ export interface StoryPromptOption {
   /** Text key suffix for a reason the option is closed, when it is. */
   blockedKey?: string;
 }
+
+/**
+ * The four ways a realm can be told to grow.
+ *
+ * This is the player briefing the autopilot rather than overruling it: the pick moves the weights
+ * `autoBuild` scores against, the number of hosts the realm keeps, how eagerly it buys land, and
+ * which rarities the Power Draft favours. It never takes an order away from the automation, which
+ * is the whole point on a phone — measured, four completely different play policies finished
+ * within 16% of each other because the autopilot built the same realm every time regardless.
+ */
+export type AscentDoctrine = 'fortify' | 'expand' | 'enrich' | 'arm';
 
 export type AscentPromptKind = AscentPrompt['kind'];
 
@@ -1446,6 +1524,10 @@ export interface AscentState {
   reserveSeatMark: number;
   /** Play-earned edicts already announced, so each "within reach" toast fires exactly once. */
   knownEdictIds?: string[];
+  /** What kind of realm the player has told the autopilot to build. Unset until the first choice. */
+  doctrine?: AscentDoctrine;
+  /** Eras whose doctrine card has already been offered, so each era asks exactly once. */
+  doctrineErasAsked?: EraId[];
 }
 
 export interface GameState {
@@ -1555,6 +1637,8 @@ export interface GameState {
   // ── The Chronicle (ascent only; optional so older saves load unchanged) ──
   /** Stories currently running. Most are latent — seeded with no announcement at all. */
   stories?: ActiveStory[];
+  /** Undertakings the player has sworn to a story and not yet kept. */
+  storyCharges?: StoryCharge[];
   /** What has already happened, in past tense. Never a task list. */
   chronicle?: ChronicleEntry[];
   /** Last tick's world snapshot, so a story can notice what changed. */

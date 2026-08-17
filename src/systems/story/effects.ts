@@ -568,3 +568,164 @@ export function leaveEcho(ctx: StoryCtx, name: string): void {
 export function announce(ctx: StoryCtx, text: string, kind: 'info' | 'reward' | 'threat' = 'info'): void {
   pushToast(ctx.state, text, kind);
 }
+
+// ── The annals layer ────────────────────────────────────────────────────────
+//
+// Nine verbs added for the middle-length histories in `data/stories/annals.ts`. Each exists
+// because a specific thing happened in Vietnamese history that the vocabulary above could not
+// say — a diver who sank a fleet, a wall that stopped a civil war for fifty years, a paper
+// currency that failed, a captive who would not change sides. A verb that only restates an
+// existing one in different words is not here.
+
+/**
+ * A truce a rival will actually keep.
+ *
+ * Khúc Thừa Dụ took autonomy in 905 without fighting for it, and it held because the other side
+ * decided it was not worth the campaign. Warms opinion far enough that `pickAggressor` — which
+ * weights by `100 - relations` — stops choosing them, and states the term openly so the player
+ * can plan around a quiet border rather than merely hope for one.
+ */
+export function truce(ctx: StoryCtx, kingdomId: string | undefined, warmth = 45): boolean {
+  const kingdom = ctx.state.kingdoms.find((candidate) => candidate.id === kingdomId);
+  if (!kingdom) return false;
+  kingdom.relations = Math.min(100, (kingdom.relations ?? 50) + warmth);
+  kingdom.warAppetite = Math.max(0, (kingdom.warAppetite ?? 0) - 60);
+  return true;
+}
+
+/**
+ * Men taken straight out of the fields and put under arms.
+ *
+ * The corvée, and the thing every dynasty reached for when the dykes broke or the border did.
+ * Deliberately *not* routed through `queueRecruitment`: there is no muster timer, no commander
+ * required and no supply train — which is exactly why it is a bad idea, and why the population
+ * does not come back.
+ */
+export function conscript(ctx: StoryCtx, soldiers: number, at?: Land): Army | undefined {
+  const available = Math.max(0, Math.floor(ctx.state.resources.humans - 40));
+  const taken = Math.min(soldiers, available);
+  if (taken < 60) return undefined;
+  applyResourceDelta(ctx.state, { humans: -taken });
+  return grantHost(ctx, taken, at);
+}
+
+/**
+ * A fleet sunk at anchor, or a siege train burned before it arrives.
+ *
+ * Yết Kiêu is supposed to have swum out at night and holed Mongol ships below the waterline, one
+ * at a time, for long enough that the fleet stopped being a fleet. Unlike `disperseIncoming`,
+ * which removes hosts outright, this *thins* every one of them — the army still lands, and it
+ * lands hurt, which is the more interesting shape.
+ */
+export function sabotageIncoming(ctx: StoryCtx, share = 0.3): number {
+  let lost = 0;
+  for (const army of theirHosts(ctx)) {
+    const before = headcount(army);
+    scaleUnits(army, 1 - share);
+    army.supply = Math.max(10, army.supply - 25);
+    lost += before - headcount(army);
+  }
+  return lost;
+}
+
+/**
+ * The enemy's supply fleet taken rather than sunk.
+ *
+ * Trần Khánh Dư let the Mongol war fleet pass at Vân Đồn in 1288 and then took the grain fleet
+ * behind it, which is the reason the campaign collapsed. So this both starves the invasion and
+ * fills our own stores — the only verb here that moves the same resource in both directions.
+ */
+export function plunderSupply(ctx: StoryCtx): number {
+  let food = 0;
+  for (const army of theirHosts(ctx)) {
+    food += Math.max(0, Math.floor(army.rations * 0.7));
+    army.rations = Math.floor(army.rations * 0.3);
+    army.supply = Math.max(5, army.supply - 35);
+    army.morale = Math.max(15, army.morale - 18);
+  }
+  if (food > 0) applyResourceDelta(ctx.state, { food, supplies: Math.floor(food * 0.4) });
+  return food;
+}
+
+/**
+ * A work that outlives the reign that built it.
+ *
+ * The Lũy Thầy held a border for a century and a half; the Temple of Literature is still standing.
+ * A monument is permanent provincial defence plus realm stability — the one effect here that
+ * cannot be undone by anything, which is what makes it worth a whole story.
+ */
+export function monument(ctx: StoryCtx, opts: { defense: number; stability: number }, at?: Land): Land | undefined {
+  const land = at ?? ctx.land() ?? ourLands(ctx)[0];
+  if (!land) return undefined;
+  land.defense += opts.defense;
+  ctx.state.court.stability = Math.min(100, ctx.state.court.stability + opts.stability);
+  return land;
+}
+
+/**
+ * A hero sent away, and the court steadier for it.
+ *
+ * Trần Thủ Độ's method. Distinct from `heroLeaves` (which is the hero's own decision) and from
+ * `killHero` (which is louder and makes martyrs): an exile is the throne choosing order over a
+ * person, and the stability it buys is real.
+ */
+export function exileHero(ctx: StoryCtx, hero?: Hero, stability = 12): Hero | undefined {
+  const target = hero ?? ctx.hero();
+  if (!target) return undefined;
+  unseat(ctx, target);
+  ctx.state.heroes = ctx.state.heroes.filter((candidate) => candidate.id !== target.id);
+  ctx.state.court.stability = Math.min(100, ctx.state.court.stability + stability);
+  return target;
+}
+
+/**
+ * Arrears forgiven and grievances dropped, at a price.
+ *
+ * Lê Thánh Tông's registries and amnesties did this on a schedule. Raises loyalty everywhere at
+ * once, which is the only way to lift a realm that has gone sullen across many provinces —
+ * `loyaltyFloor` sets a floor, this pays for a lift.
+ */
+export function amnesty(ctx: StoryCtx, by = 18): void {
+  for (const land of ourLands(ctx)) {
+    land.loyalty = Math.min(100, land.loyalty + by);
+  }
+  ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 6);
+}
+
+/**
+ * A school that keeps producing people.
+ *
+ * The examinations from 1075 onward are the reason a Vietnamese dynasty could staff itself without
+ * asking the aristocracy's permission. Modelled as what it actually was: not one hero, but a
+ * standing supply of them, which is why this returns a modifier rather than a person.
+ */
+export function academy(ctx: StoryCtx, seasons: number, label: string): void {
+  addCourtModifier(ctx.state, {
+    id: `academy-${ctx.story.id}-${ctx.state.turn}`,
+    label,
+    remainingTicks: seasons,
+    // The court speaks more often while the schools are running, which is what actually produces
+    // people: `courtCardSpeedModifier` shortens the cooldown that gates appointments and drafts,
+    // so an academy is a faster supply of trained officials rather than a stat bonus in a gown.
+    courtCardSpeedModifier: 0.4,
+    resourceRateModifier: { gold: 4 },
+  });
+}
+
+/**
+ * A currency nobody trusts.
+ *
+ * Hồ Quý Ly issued paper money in 1400 and made holding bronze a crime. It raised a great deal at
+ * once and then stopped working, which is the shape here: a windfall now, a rate penalty after,
+ * and — the part that actually hurts — a card struck out of the draft while the experiment runs.
+ */
+export function debaseCurrency(ctx: StoryCtx, gain: number, seasons: number, label: string): void {
+  applyResourceDelta(ctx.state, { gold: gain });
+  addCourtModifier(ctx.state, {
+    id: `debase-${ctx.story.id}-${ctx.state.turn}`,
+    label,
+    remainingTicks: seasons,
+    resourceRateModifier: { gold: -Math.ceil(gain / seasons) },
+    marketGoldOutputModifier: -0.25,
+  });
+}

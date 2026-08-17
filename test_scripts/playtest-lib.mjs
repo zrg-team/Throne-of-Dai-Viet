@@ -32,6 +32,7 @@ window.__ptOptions = (forState) => {
     case 'hero-choice': return [...p.heroIds, 'pass'];
     case 'court-appointment': return p.options.map((o) => o.id);
     case 'law-choice': return [...p.projectIds.map((i) => 'edict:' + i), ...p.taxOptions.map((t) => 'tax:' + t), 'hold'];
+    case 'doctrine': return [...p.options, 'hold'];
     case 'parliament': return (st.politicsDeck.find((c) => c.id === p.cardId)?.choices ?? []).map((c) => c.id);
     case 'envoy': case 'famine': case 'rival-demand': return p.options.filter((o) => o.affordable).map((o) => o.id);
     case 'empire-response': return p.options.map((o) => o.id);
@@ -42,6 +43,7 @@ window.__ptOptions = (forState) => {
 
 /** The "decline this offer" id per prompt kind, where one exists. */
 export const DECLINE = {
+  doctrine: 'hold',
   'power-draft': 'skip',
   'conquer-target': 'hold',
   'conquer-method': 'back',

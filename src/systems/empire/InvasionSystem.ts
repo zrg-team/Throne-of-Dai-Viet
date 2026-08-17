@@ -14,7 +14,6 @@ import { addMandate } from './MandateSystem';
 import {
   openingVolleyShare,
   pursuitLossShare,
-  shieldsTheCapital,
   soundTheBronzeDrum,
   tryReformBrokenHost,
 } from '../ascent/DoctrineSystem';
@@ -459,10 +458,19 @@ function chooseTarget(state: GameState, army: Army, record: InvasionRecord): Lan
   }
 
   if (record.intent === 'conquest') {
-    // Bamboo Palisade turns the realm's own width into depth: a war host can no longer march
-    // straight past the frontier at the dynasty's seat, and has to reduce whatever it meets
-    // first. Ascent-only — `shieldsTheCapital` returns false in every other mode.
-    if (shieldsTheCapital(state)) return nearestLand(here, owned);
+    // The frontier absorbs the wave. A war host cannot march straight past the border at the
+    // dynasty's seat; it has to reduce whatever it meets first.
+    //
+    // This was Bamboo Palisade's effect, gated behind a silver card that a run drew perhaps once.
+    // It is the default rule of the map now, because it is what makes width into depth — and
+    // width buying nothing was half the reason expanding was survival-neutral. Measured before
+    // this: a realm peaked at 6.8 provinces and ended holding 3.1, because a conquest host walked
+    // through all of them to the capital. The card now buys militia instead (see
+    // `palisadeMilitiaBonus`), which is the same fantasy priced as an upgrade rather than a gate.
+    // Ascent only, deliberately. Empire mode shares this spawner but not this design: its threat
+    // curve, its province count and its whole difficulty budget were tuned against war hosts that
+    // march at the seat, and `verify-modes-regression` holds that behaviour byte-identical.
+    if (state.gameMode === 'ascent') return nearestLand(here, owned);
     return playerCapital(state) ?? nearestLand(here, owned);
   }
   return nearestLand(here, owned);
