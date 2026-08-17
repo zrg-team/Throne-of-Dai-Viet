@@ -1,4 +1,5 @@
-import { getProject, REALM_PROJECTS, type RealmProject } from '../../data/edicts';
+import { getProject, REALM_PROJECTS, type ProjectUnlock, type RealmProject } from '../../data/edicts';
+import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import type { GameState, ResourceKey } from '../../state/types';
 import { addCourtModifier } from '../CourtSystem';
 import { applyResourceDelta, canSpend, refreshAllLandOutputs } from '../ResourceSystem';
@@ -50,11 +51,43 @@ export function isProjectEnacted(state: GameState, id: string): boolean {
   return Boolean(state.mandate?.edicts.includes(id));
 }
 
+/** True once the run has produced what this unlock asks for. Non-ascent saves never satisfy one. */
+export function isUnlockMet(state: GameState, unlock: ProjectUnlock): boolean {
+  const ascent = state.ascent;
+  if (!ascent) return false;
+  switch (unlock.kind) {
+    case 'level': return ascent.level >= unlock.level;
+    case 'lands': return state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length >= unlock.count;
+    case 'waves': return ascent.wavesSurvived >= unlock.count;
+    case 'chronicle': return (state.storiesEnded?.length ?? 0) >= unlock.count;
+    case 'seat': {
+      const wanted: Array<GameState['heroes'][number]['rarity']> = unlock.rarity === 'Epic' ? ['Epic', 'Legendary'] : ['Legendary'];
+      return state.heroes.some((hero) => hero.assignedTo?.startsWith('court:') && wanted.includes(hero.rarity));
+    }
+  }
+}
+
+/** The unmet unlock as a sentence — what play still has to produce before this project exists. */
+function unlockBlockedReason(state: GameState, unlock: ProjectUnlock): string | undefined {
+  if (isUnlockMet(state, unlock)) return undefined;
+  switch (unlock.kind) {
+    case 'level': return t('empire.edict.blocked.level', { n: unlock.level });
+    case 'lands': return t('empire.edict.blocked.lands', { n: unlock.count });
+    case 'waves': return t('empire.edict.blocked.waves', { n: unlock.count });
+    case 'chronicle': return t('empire.edict.blocked.chronicle', { n: unlock.count });
+    case 'seat': return t('empire.edict.blocked.seat', { rarity: t(`rarity.${unlock.rarity}` as Parameters<typeof t>[0]) });
+  }
+}
+
 /** Reason a project can't be enacted right now, or undefined if it can. */
 export function projectBlockedReason(state: GameState, project: RealmProject): string | undefined {
   const mandate = state.mandate;
   if (!mandate) return t('empire.edict.blocked.mode');
   if (mandate.edicts.includes(project.id)) return t('empire.edict.blocked.done');
+  if (project.unlock) {
+    const reason = unlockBlockedReason(state, project.unlock);
+    if (reason) return reason;
+  }
   // A mutually-exclusive sibling was already chosen — this path is locked for the run.
   if (project.exclusiveGroup && mandate.edicts.some((id) => {
     const other = getProject(id);
@@ -108,6 +141,12 @@ export function enactProject(state: GameState, id: string): boolean {
   return true;
 }
 
-export function allProjects(): RealmProject[] {
+/**
+ * The projects this save can ever see. Play-unlocked edicts exist only in Dragon Ascent —
+ * empire mode has no waves, levels or chronicle, so listing them there would be a column of
+ * rows whose requirement can never come true.
+ */
+export function allProjects(state?: GameState): RealmProject[] {
+  if (state && !state.ascent) return REALM_PROJECTS.filter((project) => !project.unlock);
   return REALM_PROJECTS;
 }

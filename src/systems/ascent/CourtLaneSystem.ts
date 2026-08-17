@@ -10,9 +10,12 @@ import {
   formatGovernorEffect,
   getCourtBonuses,
   getCourtPositionLabel,
+  releaseHeroAssignment,
 } from '../CourtSystem';
+import { refreshAllLandOutputs } from '../ResourceSystem';
 import { applyCourtEffect, choosePoliticsCard } from '../PoliticsSystem';
-import { enactProject, projectBlockedReason, projectEffectSummary, projectTitle } from '../empire/EdictSystem';
+import { enactProject, isUnlockMet, projectBlockedReason, projectEffectSummary, projectTitle } from '../empire/EdictSystem';
+import { eraIndex } from '../empire/MandateSystem';
 import { pushToast } from '../empire/notifications';
 import { enqueueAscentPrompt } from './AscentState';
 import { heroName, politicsTitle, t } from '../../i18n';
@@ -194,7 +197,7 @@ export function offerAppointment(state: GameState, heroId: string): boolean {
   return true;
 }
 
-/** Applies a posting through the existing court APIs. `reserve` deliberately does nothing. */
+/** Applies a posting through the existing court APIs. `reserve` releases whatever duty the hero holds. */
 export function applyAppointment(state: GameState, heroId: string, optionId: string): boolean {
   const ascent = state.ascent;
   const hero = state.heroes.find((candidate) => candidate.id === heroId);
@@ -202,6 +205,13 @@ export function applyAppointment(state: GameState, heroId: string, optionId: str
 
   let ok = false;
   if (optionId === 'reserve') {
+    // "Await a command" has to actually free the hero, or its own promise — "stays free to
+    // raise a new host or ride as an envoy" — is a lie: a seated minister stayed seated, kept
+    // counting toward court bonuses, and was still invisible to findFreeCommander. This was
+    // also the mode's only way to vacate a court seat or an army command at all.
+    const wasGovernor = Boolean(hero.assignedTo && state.lands.some((land) => land.id === hero.assignedTo));
+    releaseHeroAssignment(state, hero);
+    if (wasGovernor) refreshAllLandOutputs(state);
     if (ascent && !ascent.reservedHeroIds.includes(heroId)) {
       ascent.reservedHeroIds.push(heroId);
       ascent.reserveSeatMark = state.court.unlockedSeats.length;
@@ -254,25 +264,50 @@ export function findHeroNeedingPosting(state: GameState): Hero | undefined {
 
 // ── Laws (edicts, wonders, and the tax dial) ────────────────────────────────
 
-const MAX_LAW_OPTIONS = 3;
+const MAX_LAW_OPTIONS = 4;
 
 /**
- * The projects the throne may enact right now. Ordered by era so the newest unlock leads,
- * and capped at three because a scrollable law list is a menu, which is what this mode is
- * built to avoid.
+ * The projects the throne may enact right now, the run's own achievements first.
+ *
+ * A play-earned edict (see `RealmProject.unlock`) leads the card whenever one is open: the
+ * throne should offer the decree the realm just earned by surviving, conquering or seating
+ * someone, not the same three most-expensive rows every time. Era-track projects follow,
+ * newest era first. Capped because a scrollable law list is a menu, which is what this mode
+ * is built to avoid.
  */
 export function buildLawOptions(state: GameState): string[] {
+  const score = (project: (typeof REALM_PROJECTS)[number]): number =>
+    (project.unlock ? 100 : 0) + eraIndex(project.era) * 10 + (project.edictCost ?? 0);
   return REALM_PROJECTS
     .filter((project) => !projectBlockedReason(state, project))
-    .sort((a, b) => (b.edictCost ?? 0) - (a.edictCost ?? 0))
+    .sort((a, b) => score(b) - score(a))
     .slice(0, MAX_LAW_OPTIONS)
     .map((project) => project.id);
 }
 
-/** The tax settings other than the one in force. */
-export function buildTaxOptions(state: GameState): TaxPolicy[] {
-  const current = state.taxPolicy ?? 'balanced';
-  return (['lenient', 'balanced', 'harsh'] as TaxPolicy[]).filter((policy) => policy !== current);
+/**
+ * Toasts each edict the run's play has just brought into reach — once, when it happens.
+ *
+ * This is the loop's feedback beat: without it, an edict unlocked by the fourth survived wave
+ * sits silently in a prompt the player may not open for a year, and the growth the system is
+ * built around goes unnoticed.
+ */
+export function tickEdictDiscovery(state: GameState): void {
+  const ascent = state.ascent;
+  const mandate = state.mandate;
+  if (!ascent || !mandate) return;
+  ascent.knownEdictIds ??= [];
+  for (const project of REALM_PROJECTS) {
+    if (!project.unlock || ascent.knownEdictIds.includes(project.id)) continue;
+    if (mandate.edicts.includes(project.id)) {
+      ascent.knownEdictIds.push(project.id);
+      continue;
+    }
+    if (!isUnlockMet(state, project.unlock)) continue;
+    if (eraIndex(mandate.era) < eraIndex(project.era)) continue;
+    ascent.knownEdictIds.push(project.id);
+    pushToast(state, t('ascent.law.newEdict', { title: projectTitle(project) }), 'milestone');
+  }
 }
 
 export function offerLawChoice(state: GameState): boolean {
@@ -282,7 +317,9 @@ export function offerLawChoice(state: GameState): boolean {
     kind: 'law-choice',
     projectIds,
     points: state.mandate?.edictPoints ?? 0,
-    taxOptions: buildTaxOptions(state),
+    // Tax left this prompt: a standing policy offered as an event card could only be set when
+    // the card happened to come up. It is now the dial on the court screen (see TaxSystem).
+    taxOptions: [],
   });
   return true;
 }
@@ -297,6 +334,9 @@ export function resolveLawChoice(state: GameState, choiceId: string): boolean {
     const policy = choiceId.slice('tax:'.length) as TaxPolicy;
     if (!['lenient', 'balanced', 'harsh'].includes(policy)) return false;
     state.taxPolicy = policy;
+    // Keep the dial in step: a stance card from a prompt queued before the slider existed
+    // must not leave `taxRate` pointing somewhere else.
+    state.taxRate = policy === 'lenient' ? 0.2 : policy === 'harsh' ? 0.8 : 0.5;
     pushToast(state, t('ascent.law.taxSet', { policy: t(`ascent.tax.${policy}` as Parameters<typeof t>[0]) }), 'milestone');
     if (ascent) ascent.laneState.lastDecisionTurn.court = state.turn;
     return true;

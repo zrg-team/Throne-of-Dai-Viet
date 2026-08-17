@@ -1346,6 +1346,8 @@ export interface AscentState {
   reservedHeroIds: string[];
   /** Seat count when the reserve list was last taken, so a new seat reopens the question. */
   reserveSeatMark: number;
+  /** Play-earned edicts already announced, so each "within reach" toast fires exactly once. */
+  knownEdictIds?: string[];
 }
 
 export interface GameState {
@@ -1409,6 +1411,8 @@ export interface GameState {
   mandate?: MandateState;
   /** Realm-wide tax stance (empire mode). Absent = 'balanced'. */
   taxPolicy?: TaxPolicy;
+  /** The tax dial as a continuous 0..1 rate (Dragon Ascent's slider). Absent = read `taxPolicy`. */
+  taxRate?: number;
   /** Accumulated resentment from sustained heavy taxation — compounds unrest until you ease off. */
   taxFatigue?: number;
   /** A pausing intelligence alert (spy report of an incoming attack) awaiting acknowledgement. */

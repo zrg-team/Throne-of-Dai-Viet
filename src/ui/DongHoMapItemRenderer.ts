@@ -469,8 +469,10 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
         { x: mx + (nx / length) * bow, y: my + (ny / length) * bow },
         { x: bx, y: by },
       ];
-      inkPath(graphics, lane, seed, { width: 2.6, alpha: 0.2, colour: PIGMENT.nauDark, wobble: 0.8, step: 12 });
-      inkPath(graphics, lane, seed + 53, { width: 0.85, alpha: 0.34, colour: PIGMENT.nauDark, wobble: 1.4, step: 10 });
+      // Same pigment and weight as the open road (DongHoMapRenderer.drawRoad): a town lane is
+      // the same rutted earth as the track that leads to it, not a darker second material.
+      // The old two-pass nauDark stroke read as charcoal against the roads it joined.
+      inkPath(graphics, lane, seed, { width: 2, alpha: 0.24, colour: PIGMENT.nau, wobble: 1.4, step: 14 });
     }
   }
 

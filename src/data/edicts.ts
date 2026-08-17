@@ -3,6 +3,20 @@ import type { CourtModifier, EraId, ResourceBag } from '../state/types';
 export type EdictBranch = 'war' | 'economy' | 'governance';
 
 /**
+ * What play must have produced before the throne can even consider a project (Dragon Ascent).
+ *
+ * This is what turns the edict list from a fixed menu into something the run *grows*: capture
+ * land and the registry edicts appear, seat a legendary and the imperial ones do, see a story
+ * to its end and the court starts quoting it. Era remains a second gate on top.
+ */
+export type ProjectUnlock =
+  | { kind: 'level'; level: number }
+  | { kind: 'lands'; count: number }
+  | { kind: 'seat'; rarity: 'Epic' | 'Legendary' }
+  | { kind: 'chronicle'; count: number }
+  | { kind: 'waves'; count: number };
+
+/**
  * A permanent realm upgrade. Edicts are bought with Mandate edict-points; Wonders
  * are bought with resources. Both apply a permanent CourtModifier (aggregated by
  * computeCourtBonuses) and are gated behind an era.
@@ -21,6 +35,8 @@ export interface RealmProject {
    * others, so an era's edict is a real branching decision that differentiates runs.
    */
   exclusiveGroup?: string;
+  /** Achievement gate on top of the era gate. Projects carrying one exist only in Dragon Ascent. */
+  unlock?: ProjectUnlock;
   /** The permanent bonus applied when enacted (CourtModifier payload sans id/label). */
   modifier: Omit<CourtModifier, 'id' | 'label' | 'remainingTicks'>;
 }
@@ -52,6 +68,31 @@ export const REALM_PROJECTS: RealmProject[] = [
   // `claimSlotBonus` is inert outside Dragon Ascent, where claiming has never been capped.
   { id: 'surveyors-charter', kind: 'edict', branch: 'governance', era: 'empires', edictCost: 2, modifier: { claimSlotBonus: 1 } },
   { id: 'great-code', kind: 'edict', branch: 'governance', era: 'mandate', edictCost: 3, modifier: { courtCardSpeedModifier: 0.5, resourceRateModifier: { humans: 4 }, buildingCostModifier: -0.1 } },
+
+  // ── Edicts earned by play (Dragon Ascent) ──
+  //
+  // None of these are reachable from the era track alone: each appears the moment the run
+  // produces the thing it is written about. Conquest feeds the registry line, waves feed the
+  // veteran line, champions at court feed the imperial line, and finished chronicle stories
+  // feed the scholarly line.
+
+  // War — survival and champions.
+  { id: 'veterans-of-the-waves', kind: 'edict', branch: 'war', era: 'founding', edictCost: 2, unlock: { kind: 'waves', count: 4 }, modifier: { armyPowerModifier: 0.08 } },
+  { id: 'iron-quenching', kind: 'edict', branch: 'war', era: 'rivalry', edictCost: 3, unlock: { kind: 'waves', count: 8 }, modifier: { armyLevelCapBonus: 1, armyPowerModifier: 0.05 } },
+  { id: 'hero-banner', kind: 'edict', branch: 'war', era: 'rivalry', edictCost: 3, unlock: { kind: 'seat', rarity: 'Legendary' }, modifier: { armyPowerModifier: 0.1 } },
+  { id: 'proving-grounds', kind: 'edict', branch: 'war', era: 'founding', edictCost: 1, unlock: { kind: 'level', level: 4 }, modifier: { armyXpModifier: 0.3 } },
+
+  // Economy — conquest and growth.
+  { id: 'spoils-doctrine', kind: 'edict', branch: 'economy', era: 'founding', edictCost: 1, unlock: { kind: 'lands', count: 4 }, modifier: { resourceRateModifier: { gold: 2, supplies: 2 } } },
+  { id: 'frontier-markets', kind: 'edict', branch: 'economy', era: 'rivalry', edictCost: 2, unlock: { kind: 'lands', count: 8 }, modifier: { marketGoldOutputModifier: 0.25, acquisitionCostModifier: -0.15 } },
+  { id: 'granary-network', kind: 'edict', branch: 'economy', era: 'founding', edictCost: 2, unlock: { kind: 'level', level: 6 }, modifier: { resourceRateModifier: { food: 4 } } },
+  { id: 'scholars-of-the-chronicle', kind: 'edict', branch: 'economy', era: 'rivalry', edictCost: 2, unlock: { kind: 'chronicle', count: 2 }, modifier: { courtCardSpeedModifier: 0.25, resourceRateModifier: { gold: 2 } } },
+
+  // Governance — stories, ministers, and the widening registry.
+  { id: 'oral-histories', kind: 'edict', branch: 'governance', era: 'founding', edictCost: 1, unlock: { kind: 'chronicle', count: 1 }, modifier: { courtCardSpeedModifier: 0.2, resourceRateModifier: { humans: 2 } } },
+  { id: 'ministers-council', kind: 'edict', branch: 'governance', era: 'rivalry', edictCost: 2, unlock: { kind: 'seat', rarity: 'Epic' }, modifier: { courtCardSpeedModifier: 0.3 } },
+  { id: 'wide-registry', kind: 'edict', branch: 'governance', era: 'empires', edictCost: 3, unlock: { kind: 'lands', count: 10 }, modifier: { claimSlotBonus: 1, acquisitionCostModifier: -0.1 } },
+  { id: 'mandarin-exams', kind: 'edict', branch: 'governance', era: 'rivalry', edictCost: 2, unlock: { kind: 'level', level: 8 }, modifier: { buildingCostModifier: -0.15, resourceRateModifier: { humans: 3 } } },
 
   // ── Wonders (resource-funded megaprojects) ──
   { id: 'grand-canal', kind: 'wonder', branch: 'economy', era: 'rivalry', resourceCost: { gold: 240, supplies: 120 }, modifier: { resourceRateModifier: { food: 5, gold: 3 } } },
