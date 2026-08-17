@@ -418,9 +418,12 @@ export class DongHoMapRenderer implements MapRenderer {
         // A deeper massif stands taller, so a range reads as a body of rock rather than a wall.
         const depth = depthBehind(row[index].q, r);
         if (terrain === 'mountains') {
+          // 1.0 nominal, not 0.8: landforms sit outside the prop proportion system, and at 0.8
+          // a front-row tower came out barely taller than the 18 px trees beside it — limestone
+          // reading as shrubbery was the other half of "the mountains look unreal".
           plans.push(planKarstRange(
             from.x - ctx.tileSize * 1.1, to.x + ctx.tileSize * 1.1,
-            from.y + ctx.tileSize * 0.8, ctx.tileSize * (0.8 + depth * 0.34), seed,
+            from.y + ctx.tileSize * 0.8, ctx.tileSize * (1.0 + depth * 0.38), seed,
           ));
         } else {
           plans.push(planSoftRidge(

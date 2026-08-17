@@ -795,20 +795,51 @@ export function karst(g: G, x: number, baseY: number, w: number, h: number, seed
   if (!far) {
     washFill(g, [...outline, { x: x + half, y: baseY + 5 }, { x: x - half, y: baseY + 5 }], PIGMENT.diepLo, seed, 1);
   }
+  // The same contour weight as the hills' ridge (1.2 / 0.8). The old 1.35 @ 0.86 was the
+  // heaviest line on the map short of the city wall, and a horizon of towers each carrying it
+  // read as a row of stamped-on cut-outs rather than rock standing in light.
   inkPath(g, far ? outline.slice(1, outline.length - 1) : outline, seed + 3, {
-    width: far ? 0.8 : 1.35, alpha: far ? 0.3 : 0.86, wobble: far ? 0.3 : 0.5, step: far ? 12 : 8,
+    width: far ? 0.8 : 1.2, alpha: far ? 0.3 : 0.8, wobble: far ? 0.3 : 0.5, step: far ? 12 : 8,
   });
   if (far) {
     return;
   }
 
-  // Vertical fissures down the rock face.
-  for (let fissure = 0; fissure < 4; fissure += 1) {
-    const t = 0.2 + fissure * 0.2;
-    const sx = x - half * 0.62 + w * 0.55 * t;
-    const top = baseY - h * (0.68 + rand() * 0.2);
-    inkPath(g, [{ x: sx, y: top }, { x: sx + (rand() - 0.5) * 2.5, y: top + h * (0.34 + rand() * 0.3) }], seed + 20 + fissure, {
-      width: 0.6, alpha: 0.26, wobble: 0.3, step: 9,
+  // The shaded flank, on the same upper-left light as the hills. This is the pass the towers
+  // never had: outline-plus-fissures with zero tonal separation is a paper cut-out, and a
+  // whole range of them is what made the mountains read as unreal. One wash turned away from
+  // the light makes the thumb of rock a body instead of a shape.
+  const shade: Pt[] = [];
+  for (let step = 0; step <= 3; step += 1) {
+    const angle = Math.PI / 2 - (step / 3) * (Math.PI / 2);
+    shade.push({
+      x: x + Math.cos(angle) * half * 0.5 + lean * h,
+      y: baseY - h * (0.86 + Math.sin(angle) * 0.14),
+    });
+  }
+  for (let step = 7; step >= 0; step -= 1) {
+    const s = step / 7;
+    const inset = half * (0.18 + 0.16 * s) * Math.pow(s, 0.55);
+    shade.push({ x: x + half - inset + lean * h * s, y: baseY - h * 0.86 * s });
+  }
+  shade.push({ x: x + half * 0.08, y: baseY });
+  shade.push({ x: x + lean * h * 0.9, y: baseY - h * 0.82 });
+  washFill(g, shade, PIGMENT.diepDeep, seed + 7, 0.3);
+
+  // Fissures follow the rock's own lean and land anywhere on the face — the old four sat in a
+  // fixed vertical rank on the left half of every tower, which is half of why the flanks read
+  // as ribbed rather than cracked. Small towers go without; at that size a crack is noise.
+  const fissures = h < 14 ? 0 : 2 + Math.floor(rand() * 2);
+  for (let fissure = 0; fissure < fissures; fissure += 1) {
+    const fx = x + (rand() - 0.5) * half * 1.1 + lean * h * 0.5;
+    const top = baseY - h * (0.55 + rand() * 0.28);
+    const len = h * (0.3 + rand() * 0.3);
+    inkPath(g, [
+      { x: fx, y: top },
+      { x: fx + lean * len * 0.8 + (rand() - 0.5) * 2, y: top + len * 0.55 },
+      { x: fx + lean * len * 1.2 + (rand() - 0.5) * 2.5, y: top + len },
+    ], seed + 20 + fissure, {
+      width: 0.55, alpha: 0.22, wobble: 0.3, step: 9,
     });
   }
   // No scrub on the crown. The three tufts that used to sit up there read as a pair of
@@ -977,18 +1008,24 @@ export function planKarstRange(
     // Height first, then a width derived FROM IT. Rolling both off `height`
     // independently is what made the range squat: a tower could come out wider than it
     // was tall, and a rank of those hugs the horizon in a low band instead of standing
-    // up in it. A tháp is one and a half to three times its own width.
+    // up in it.
     // The ceiling is deliberate: the menu hangs its title over this band, and towers rolled
     // to 1.7x the nominal height grow straight through the lettering.
-    const h = height * (far ? 0.5 + rand() * 0.4 : 0.48 + Math.pow(rand(), 0.75) * 0.86);
-    const w = far ? height * (1.5 + rand() * 0.9) : h / (1.4 + rand() * 1.25);
+    //
+    // Aspect 1.0–1.7 and an advance of most of a tower's own width. The old numbers —
+    // aspect up to 2.65, advance half a width — packed eight to ten overlapping chimneys
+    // into a single hex, and a horizon of identical thumbs at 50% overlap is exactly the
+    // saw-tooth wall the mountains were hated for. Fewer, broader towers, standing mostly
+    // beside one another with the drop stagger doing the clustering, read as a massif.
+    const h = height * (far ? 0.5 + rand() * 0.4 : 0.55 + Math.pow(rand(), 0.75) * 0.79);
+    const w = far ? height * (1.5 + rand() * 0.9) : h / (1.0 + rand() * 0.7);
     towers.push({
       x: x + w * 0.5,
       w,
       h,
       drop: far ? 0 : rand() * height * 0.34,
     });
-    x += w * (far ? 0.8 : 0.5 + rand() * 0.4) * spread;
+    x += w * (far ? 0.8 : 0.8 + rand() * 0.45) * spread;
   }
   towers.sort((a, b) => b.h - a.h);
   // The whole range takes ONE place in the sort, at the foot of its deepest-set tower. Sorting the
