@@ -128,7 +128,24 @@ const run = await page.evaluate(async () => {
   const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : -1);
 
   // ── Stress: an empty granary must become a named event, not a silent subtraction ──
+  // Real scarcity, not a clamped number: `collectPlayerIncome` recomputes the rates from the
+  // land itself (refreshAllLandOutputs), so a forced negative rate does not survive into the
+  // apply — a prosperous end-of-run realm simply out-harvested the old fake famine. A host too
+  // large to feed makes the shortage true no matter how rich the fields are.
   const { calculatePlayerResourceRates, collectPlayerIncome } = await import('/src/systems/ResourceSystem.ts');
+  // The run may well have no standing host by now, and only army rations can drive the food
+  // rate below zero (civilian demand withholds at source and floors at nothing). Conjure one.
+  const feedMe = st.armies.find((a) => a.kingdomId === 'dai-viet')
+    ?? (() => {
+      const proto = JSON.parse(JSON.stringify(st.armies[0]));
+      proto.id = 'stress-host';
+      proto.kingdomId = 'dai-viet';
+      proto.landId = st.lands.find((l) => l.ownerId === 'dai-viet').id;
+      proto.generalHeroId = undefined;
+      st.armies.push(proto);
+      return proto;
+    })();
+  feedMe.units.spearmen += 50000;
   st.resources.food = 0;
   const popBefore = st.lands.filter((l) => l.ownerId === 'dai-viet').reduce((n, l) => n + l.population, 0);
   for (let i = 0; i < 6; i += 1) {
