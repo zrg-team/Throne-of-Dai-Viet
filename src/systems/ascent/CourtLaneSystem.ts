@@ -10,7 +10,9 @@ import {
   formatGovernorEffect,
   getCourtBonuses,
   getCourtPositionLabel,
+  releaseHeroAssignment,
 } from '../CourtSystem';
+import { refreshAllLandOutputs } from '../ResourceSystem';
 import { applyCourtEffect, choosePoliticsCard } from '../PoliticsSystem';
 import { enactProject, projectBlockedReason, projectEffectSummary, projectTitle } from '../empire/EdictSystem';
 import { pushToast } from '../empire/notifications';
@@ -194,7 +196,7 @@ export function offerAppointment(state: GameState, heroId: string): boolean {
   return true;
 }
 
-/** Applies a posting through the existing court APIs. `reserve` deliberately does nothing. */
+/** Applies a posting through the existing court APIs. `reserve` releases whatever duty the hero holds. */
 export function applyAppointment(state: GameState, heroId: string, optionId: string): boolean {
   const ascent = state.ascent;
   const hero = state.heroes.find((candidate) => candidate.id === heroId);
@@ -202,6 +204,13 @@ export function applyAppointment(state: GameState, heroId: string, optionId: str
 
   let ok = false;
   if (optionId === 'reserve') {
+    // "Await a command" has to actually free the hero, or its own promise — "stays free to
+    // raise a new host or ride as an envoy" — is a lie: a seated minister stayed seated, kept
+    // counting toward court bonuses, and was still invisible to findFreeCommander. This was
+    // also the mode's only way to vacate a court seat or an army command at all.
+    const wasGovernor = Boolean(hero.assignedTo && state.lands.some((land) => land.id === hero.assignedTo));
+    releaseHeroAssignment(state, hero);
+    if (wasGovernor) refreshAllLandOutputs(state);
     if (ascent && !ascent.reservedHeroIds.includes(heroId)) {
       ascent.reservedHeroIds.push(heroId);
       ascent.reserveSeatMark = state.court.unlockedSeats.length;

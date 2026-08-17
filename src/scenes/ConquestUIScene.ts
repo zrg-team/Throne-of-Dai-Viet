@@ -7,8 +7,9 @@ import { LEGACY_PERKS, ownsPerk } from '../state/legacy';
 import { heroTemplates } from '../data/heroes';
 import { powerCardView, skipRefundAmount } from '../systems/ascent/PowerDraftSystem';
 import { tierForHero } from '../systems/ascent/SummonSystem';
-import { responseCommanderName } from '../systems/ascent/WaveDirector';
-import { buildConquestTargets, refreshAscentLaneState } from '../systems/ascent/ConquestSystem';
+import { isBossWave, responseCommanderName } from '../systems/ascent/WaveDirector';
+import { buildConquestTargets, frontWinChance, refreshAscentLaneState } from '../systems/ascent/ConquestSystem';
+import { landGarrisonPower } from '../systems/ascent/PowerSystem';
 import { cancelAcquisition, claimBlockedReason, getClaimRefund, getClaimSlots } from '../systems/AcquisitionSystem';
 import {
   armyPower,
@@ -35,7 +36,7 @@ import { getEmpirePower, hasPact } from '../systems/DiplomacySystem';
 import { compactNumber } from '../utils/format';
 import { renderHeroFaceInBox } from '../ui/FaceRenderer';
 import { drawStoryBand } from '../ui/ink/storyBand';
-import { countOpenDoors, isMarked, openingFor, storyNeedsPlayer, storyParams, storyRegard, storySpokenHistory, takeOpening } from '../systems/story/StorySystem';
+import { countOpenDoors, isMarked, openingFor, openingView, storyNeedsPlayer, storyOpening, storyParams, storyRegard, storySpokenHistory, takeOpening } from '../systems/story/StorySystem';
 import { storyText, storyTitle } from '../i18n/story';
 import { INK_UI, INK_UI_HEX, InkUI, scrollGestureConsumedTap, type InkScrollArea, type UIBounds } from '../ui/InkUI';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
@@ -73,6 +74,7 @@ import type {
   ConquestTarget,
   GameState,
   Hero,
+  InvasionRecord,
   Land,
   StoryOpening,
 } from '../state/types';
@@ -604,6 +606,19 @@ export class ConquestUIScene extends Phaser.Scene {
           return;
         }
         if (held < CARD_HOLD_MS) {
+          // A press released early used to die without a trace, and a card that swallows taps
+          // reads as broken. Leave the partial hold-line on screen for a beat so the player
+          // sees the card responding — and sees that it wants to be held, not tapped.
+          paintArm(held / CARD_HOLD_MS);
+          this.tweens.add({
+            targets: fill,
+            alpha: 0,
+            duration: 300,
+            onComplete: () => {
+              fill.clear();
+              fill.setAlpha(1);
+            },
+          });
           return;
         }
         opts.onTap();
@@ -1617,6 +1632,120 @@ export class ConquestUIScene extends Phaser.Scene {
       border: threat > defence ? INK_UI.cinnabar : INK_UI.jade,
     });
 
+    // The war as it stands. The header strip says how much danger is coming; this section says
+    // where it already is: the live battle, each invader the realm can see and what it is
+    // marching on, our own sieges, and the front the autopilot is pressing.
+    addHeading(t('army.section.war'));
+    const battle = ascent?.activeBattle;
+    if (battle && !battle.over) {
+      addRow(
+        {
+          title: t('ascent.war.battleRow', {
+            land: battle.landName,
+            round: battle.round,
+            total: battle.totalRounds,
+          }),
+          subtitle: t('ascent.war.battleBody', {
+            ours: Math.round(battle.ourNow),
+            theirs: Math.round(battle.theirNow),
+          }),
+          border: INK_UI.cinnabar,
+        },
+        () => this.showBattle(),
+      );
+    }
+
+    const nextWave = (ascent?.wave ?? 0) + 1;
+    const waveTicks = Math.max(0, ascent?.ticksToWave ?? 0);
+    addRow({
+      title: isBossWave(nextWave)
+        ? t('ascent.war.nextWaveBoss', { ticks: waveTicks })
+        : t('ascent.war.nextWave', { wave: nextWave, ticks: waveTicks }),
+      subtitle: ascent?.coalitionPending ? t('ascent.war.coalition') : '',
+      border: isBossWave(nextWave) || ascent?.coalitionPending ? INK_UI.cinnabar : INK_UI.softBrush,
+      muted: !isBossWave(nextWave) && !ascent?.coalitionPending,
+    });
+
+    const planLabel: Record<NonNullable<InvasionRecord['plan']>, string> = {
+      spearhead: t('ascent.war.planSpearhead'),
+      flanker: t('ascent.war.planFlanker'),
+      raider: t('ascent.war.planRaider'),
+      withdrawing: t('ascent.war.planWithdrawing'),
+    };
+    let unseen = 0;
+    let seen = 0;
+    for (const record of state.invasions ?? []) {
+      const invader = state.armies.find((candidate) => candidate.id === record.armyId);
+      if (!invader) continue;
+      const at = state.lands.find((candidate) => candidate.id === invader.landId);
+      // Same honesty gate as the hunt list: a host standing in the dark stays a rumour.
+      if (!at?.isVisible) {
+        unseen += 1;
+        continue;
+      }
+      seen += 1;
+      const kingdom = state.kingdoms.find((candidate) => candidate.id === record.kingdomId);
+      const target = state.lands.find((candidate) => candidate.id === record.targetLandId);
+      const size = invader.units.spearmen + invader.units.archers + invader.units.heavyInfantry;
+      const attack = Math.round(armyPower(state, invader));
+      const holding = target
+        ? Math.round(
+            landGarrisonPower(state, target) +
+              mine
+                .filter((army) => army.landId === target.id)
+                .reduce((sum, army) => sum + armyPower(state, army), 0),
+          )
+        : 0;
+      const withdrawing = record.plan === 'withdrawing';
+      addRow({
+        title:
+          (record.great ? t('ascent.war.great') : '') +
+          t('ascent.war.invaderRow', { kingdom: kingdom?.name ?? '—', size }),
+        subtitle: t('ascent.war.invaderBody', {
+          plan: planLabel[record.plan ?? 'spearhead'],
+          target: target?.name ?? at.name,
+          attack,
+          defence: holding,
+        }),
+        border: withdrawing ? INK_UI.softBrush : INK_UI.cinnabar,
+        muted: withdrawing,
+      });
+    }
+    if (unseen > 0) {
+      addRow({
+        title: t('ascent.war.unseenCount', { n: unseen }),
+        subtitle: '',
+        border: INK_UI.softBrush,
+        muted: true,
+      });
+    }
+
+    for (const order of state.siegeOrders.filter((candidate) => candidate.attackerKingdomId === PLAYER_KINGDOM_ID)) {
+      const land = state.lands.find((candidate) => candidate.id === order.landId);
+      const besieger = state.armies.find((candidate) => candidate.id === order.armyId);
+      addRow({
+        title: t('ascent.war.siegeRow', {
+          land: land?.name ?? '—',
+          pct: Math.round((order.progress / Math.max(1, order.required)) * 100),
+        }),
+        subtitle: besieger ? t('ascent.war.siegeBody', { army: besieger.name }) : '',
+        border: INK_UI.gold,
+      });
+    }
+
+    const front = state.lands.find((candidate) => candidate.id === ascent?.frontLandId);
+    if (front) {
+      addRow({
+        title: t('ascent.war.frontRow', { land: front.name }),
+        subtitle: t('ascent.war.frontBody', { pct: Math.round(frontWinChance(state) * 100) }),
+        border: INK_UI.jade,
+      });
+    }
+
+    if (!battle && seen === 0 && unseen === 0) {
+      addRow({ title: t('ascent.war.quiet'), subtitle: '', border: INK_UI.softBrush, muted: true });
+    }
+
     addHeading(t('army.section.muster'));
     const commanderId = findFreeCommander(state);
     const spare = state.resources.humans - RECRUIT_HUMAN_RESERVE;
@@ -2613,8 +2742,11 @@ export class ConquestUIScene extends Phaser.Scene {
    */
   private showChronicleScreen(): void {
     const state = this.state;
-    // A latent story does not exist yet as far as the player is concerned.
-    const running = (state.stories ?? []).filter((story) => story.spoken.length > 0);
+    // A latent story does not exist yet as far as the player is concerned — unless it is
+    // holding an open door. An opening is deliberately not "spoken" (an offer is not a line),
+    // so filtering on spoken alone hid exactly the stories whose *first* move is the offer:
+    // the button glowed red over a list that did not contain the reason.
+    const running = (state.stories ?? []).filter((story) => story.spoken.length > 0 || storyNeedsPlayer(story));
     const recorded = [...(state.chronicle ?? [])].reverse();
 
     const need = running.filter((story) => storyNeedsPlayer(story));
@@ -2644,7 +2776,8 @@ export class ConquestUIScene extends Phaser.Scene {
     const storyRow = (story: ActiveStory, needsYou: boolean) => {
       const params = storyParams(state, story);
       const lastId = story.spoken[story.spoken.length - 1];
-      const line = storyText(`${story.templateId}.${lastId}.chronicle`, params);
+      // A story surfaced by its opening alone has said nothing yet — there is no last line.
+      const line = lastId ? storyText(`${story.templateId}.${lastId}.chronicle`, params) : undefined;
       const hero = state.heroes.find((candidate) => candidate.id === story.cast.heroId);
       const want = storyText(`${story.templateId}.want`, params);
       const wantLine = want !== `${story.templateId}.want`
@@ -2798,15 +2931,22 @@ export class ConquestUIScene extends Phaser.Scene {
     }
 
     // ── Có thể làm / Đang chờ: exactly one of the two, never neither ──
-    const opening = story.offer ? this.openingForStory(story) : undefined;
+    const opening = storyOpening(state, story);
     if (opening) {
       heading(t('ascent.story.doors'));
+      // The door prints its price and greys out when the treasury cannot cover it. It used to
+      // draw live and gold regardless, and an unaffordable press died inside `takeOpening`
+      // with no feedback at all — the page read as broken, not as expensive.
+      const view = openingView(state, opening);
       const door = this.optionCard(
         { x: 0, y: used, width: bodyWidth, height: 64 },
         {
           title: storyText(opening.actionKey, opening.params),
           body: storyText(opening.textKey, opening.params),
+          note: view.cost ? formatResourceList(view.cost) : undefined,
+          noteColor: view.affordable ? undefined : `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`,
           accent: INK_UI.gold,
+          disabled: !view.affordable,
           parent: body,
           onTap: () => {
             if (takeOpening(state, opening.storyId, opening.fragmentId)) this.showStoryPage(storyId);
@@ -2858,15 +2998,6 @@ export class ConquestUIScene extends Phaser.Scene {
       () => this.showChronicleScreen(),
       { variant: 'primary', fontSize: '13px' },
     ));
-  }
-
-  /** The open door on this story, whichever surface it is hanging on. */
-  private openingForStory(story: ActiveStory): StoryOpening | undefined {
-    for (const on of ['land', 'hero', 'army', 'rival', 'treasury'] as const) {
-      const found = openingFor(this.state, on);
-      if (found?.storyId === story.id) return found;
-    }
-    return undefined;
   }
 
   /**

@@ -363,7 +363,7 @@ export function refreshCourtSeats(state: GameState): void {
 }
 
 /** Clears whatever duty (army command, court seat, governorship) a hero currently holds. */
-function releaseHeroAssignment(state: GameState, hero: Hero): void {
+export function releaseHeroAssignment(state: GameState, hero: Hero): void {
   if (!hero.assignedTo) {
     return;
   }

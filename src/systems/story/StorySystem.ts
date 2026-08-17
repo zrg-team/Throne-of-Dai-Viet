@@ -12,6 +12,7 @@ import type {
   Hero,
   Kingdom,
   Land,
+  ResourceBag,
   StoryOpening,
   StoryVolume,
   StoryWatch,
@@ -548,16 +549,48 @@ export function openingFor(state: GameState, on: 'land' | 'hero' | 'army' | 'riv
     if (on === 'hero' && subjectId && story.cast.heroId !== subjectId) continue;
     if (on === 'rival' && subjectId && story.cast.kingdomId !== subjectId) continue;
 
-    return {
-      storyId: story.id,
-      fragmentId: fragment.id,
-      textKey: `${story.templateId}.${fragment.id}.line`,
-      params: storyParams(state, story),
-      // Fully qualified here so callers never have to know a story's key layout.
-      actionKey: `${story.templateId}.${fragment.id}.${fragment.opening.actionKey}`,
-    };
+    return storyOpening(state, story);
   }
   return undefined;
+}
+
+/**
+ * The opening one specific story is holding, regardless of what any other story offers.
+ *
+ * The story page must use this rather than probing `openingFor` surface by surface: with five
+ * stories live, two of them can hold offers on the *same* surface, and the surface probe only
+ * ever returns the first — the second story's page then claimed "a door stands open" in the
+ * list while showing nothing to take.
+ */
+export function storyOpening(state: GameState, story: ActiveStory): StoryOpening | undefined {
+  if (!story.offer) return undefined;
+  const template = storyTemplate(story.templateId);
+  const fragment = template?.fragments.find((candidate) => candidate.id === story.offer);
+  if (!fragment?.opening) return undefined;
+  return {
+    storyId: story.id,
+    fragmentId: fragment.id,
+    textKey: `${story.templateId}.${fragment.id}.line`,
+    params: storyParams(state, story),
+    // Fully qualified here so callers never have to know a story's key layout.
+    actionKey: `${story.templateId}.${fragment.id}.${fragment.opening.actionKey}`,
+  };
+}
+
+/**
+ * What taking an opening would spend, and whether the treasury covers it right now.
+ *
+ * Exists so the door card can print its price and grey out honestly. Before this the card
+ * always drew live and gold, and an unaffordable door swallowed the press without a word —
+ * `takeOpening` returned `false` and the page did not so much as blink.
+ */
+export function openingView(state: GameState, opening: StoryOpening): { cost?: Partial<ResourceBag>; affordable: boolean } {
+  const story = (state.stories ?? []).find((candidate) => candidate.id === opening.storyId);
+  const template = story && storyTemplate(story.templateId);
+  const fragment = template?.fragments.find((candidate) => candidate.id === opening.fragmentId);
+  const option = fragment?.options?.[0];
+  if (!option) return { affordable: true };
+  return { cost: option.cost, affordable: !option.cost || canSpend(state, option.cost) };
 }
 
 /** Takes an opening. The story reads it and moves on; nothing confirms anything. */
