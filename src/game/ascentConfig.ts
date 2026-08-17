@@ -689,6 +689,20 @@ export const REROLL_COST_MULT = 2;
 
 // ── Hero summon ─────────────────────────────────────────────────────────────
 export const SUMMON_CARD_COUNT = 3;
+/**
+ * The summon's own table — deliberately meaner than the Power Draft's.
+ *
+ * It used to reuse BASE_DRAFT_WEIGHTS (62/26/10/2), which across three cards put a gold-or-better
+ * in roughly every third summon before pity even started helping — every draw felt blessed and so
+ * none did. At 70/23/6/1 a jade is a ~3%-per-summon event and a gold roughly one summon in six,
+ * with the pity ramp below still guaranteeing the cold streak corrects itself.
+ */
+export const SUMMON_WEIGHTS: Record<AscentRarity, number> = {
+  bronze: 70,
+  silver: 23,
+  gold: 6,
+  jade: 1,
+};
 /** Every summon without a gold-or-better shifts weight toward the top rarities (soft pity). */
 export const PITY_GOLD_STEP = 6;
 export const PITY_JADE_STEP = 1.5;

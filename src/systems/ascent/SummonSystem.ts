@@ -1,10 +1,11 @@
 import {
-  BASE_DRAFT_WEIGHTS,
   PITY_GOLD_STEP,
   PITY_HARD_CAP,
   PITY_JADE_STEP,
   SUMMON_CARD_COUNT,
+  SUMMON_WEIGHTS,
 } from '../../game/ascentConfig';
+import { generateHero } from '../../data/heroFactory';
 import { weightedPickIndex } from '../../utils/math';
 import { unlockHero } from '../../state/codex';
 import { pushToast } from '../empire/notifications';
@@ -36,10 +37,10 @@ export function tierForHero(hero: Hero): AscentRarity {
  */
 function summonWeights(pity: number): Record<AscentRarity, number> {
   return {
-    bronze: Math.max(4, BASE_DRAFT_WEIGHTS.bronze - pity * (PITY_GOLD_STEP * 0.8)),
-    silver: BASE_DRAFT_WEIGHTS.silver,
-    gold: BASE_DRAFT_WEIGHTS.gold + pity * PITY_GOLD_STEP,
-    jade: BASE_DRAFT_WEIGHTS.jade + pity * PITY_JADE_STEP,
+    bronze: Math.max(4, SUMMON_WEIGHTS.bronze - pity * (PITY_GOLD_STEP * 0.8)),
+    silver: SUMMON_WEIGHTS.silver,
+    gold: SUMMON_WEIGHTS.gold + pity * PITY_GOLD_STEP,
+    jade: SUMMON_WEIGHTS.jade + pity * PITY_JADE_STEP,
   };
 }
 
@@ -47,6 +48,19 @@ function pickHeroOfTier(pool: Hero[], tier: AscentRarity): Hero | undefined {
   const matching = pool.filter((hero) => hero.rarity === RARITY_BY_TIER[tier]);
   if (matching.length === 0) return undefined;
   return matching[Math.floor(Math.random() * matching.length)];
+}
+
+/** Generates a champion of exactly the rolled tier straight into the deck, ids kept unique. */
+function mintHeroOfTier(state: GameState, tier: AscentRarity, slot: number): Hero | undefined {
+  const taken = new Set([...state.heroDeck.map((hero) => hero.id), ...state.heroes.map((hero) => hero.id)]);
+  for (let salt = 0; salt < 40; salt += 1) {
+    const seed = (state.turn + 1) * 7919 + slot * 104729 + salt * 2654435761;
+    const hero = generateHero(seed, { rarity: RARITY_BY_TIER[tier] });
+    if (taken.has(hero.id)) continue;
+    state.heroDeck.push(hero);
+    return hero;
+  }
+  return undefined;
 }
 
 /**
@@ -75,12 +89,18 @@ export function rollSummonHeroes(state: GameState): { heroIds: string[]; pityUse
     }
 
     let hero = pickHeroOfTier(remaining, tier);
-    // Walk down the ladder, then up, rather than showing an empty slot.
+    // Walk down the ladder when the deck has run dry of the rolled tier — never up. The old
+    // upward walk meant a *bronze* roll silently became silver, gold, then jade the moment the
+    // deck's Commons were spent, which mid-run they always were: the 62% of rolls that were
+    // supposed to be ordinary quietly upgraded themselves, and rarity stopped meaning anything.
     for (let step = TIER_ORDER.indexOf(tier) - 1; !hero && step >= 0; step -= 1) {
       hero = pickHeroOfTier(remaining, TIER_ORDER[step]);
     }
-    for (let step = TIER_ORDER.indexOf(tier) + 1; !hero && step < TIER_ORDER.length; step += 1) {
-      hero = pickHeroOfTier(remaining, TIER_ORDER[step]);
+    // Nothing at or below the rolled tier: mint a champion *of the rolled tier* instead of
+    // handing over whatever high card is left in the deck.
+    if (!hero) {
+      hero = mintHeroOfTier(state, tier, slot);
+      if (hero) remaining.push(hero);
     }
     if (!hero) break;
 

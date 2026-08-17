@@ -178,6 +178,18 @@ const RARITY_COLOR: Record<AscentRarity, number> = {
 };
 
 /**
+ * Rarity → paper wash. Bronze stays bare paper — the ordinary pull must *look* ordinary, or
+ * the coloured ones stop meaning anything. The wash climbs with the tier so a jade card reads
+ * as a different object across the room, not a footnote in its corner.
+ */
+const RARITY_WASH: Record<AscentRarity, number> = {
+  bronze: 0,
+  silver: 0.05,
+  gold: 0.11,
+  jade: 0.15,
+};
+
+/**
  * Dragon Ascent's HUD scene.
  *
  * Written fresh rather than extending `UIScene`: that scene is 3,000 lines built around
@@ -454,6 +466,12 @@ export class ConquestUIScene extends Phaser.Scene {
       /** Glyph drawn in a left gutter. Resolved from the option id by `iconForOption`. */
       icon?: CardIconId;
       accent: number;
+      /**
+       * Tints the whole card face with the accent at this alpha. Rarity's second voice: the
+       * rail and badge said "jade" only to a player who already knew the code; a card whose
+       * paper itself is washed green or gold reads at a glance, which is the point of rarity.
+       */
+      washAlpha?: number;
       badge?: string;
       disabled?: boolean;
       parent?: Phaser.GameObjects.Container;
@@ -523,6 +541,14 @@ export class ConquestUIScene extends Phaser.Scene {
     rail.fillStyle(opts.accent, alpha);
     rail.fillRect(1, 5, 4.5, height - 10);
     container.addAt(rail, 1);
+
+    if (opts.washAlpha) {
+      const wash = this.add.graphics();
+      wash.fillStyle(opts.accent, opts.washAlpha * (opts.disabled ? 0.5 : 1));
+      wash.fillRect(2, 2, bounds.width - 4, height - 4);
+      // Above the paper, below the rail and everything written on the card.
+      container.addAt(wash, 1);
+    }
 
     if (opts.icon) {
       const glyph = drawCardIcon(this, opts.icon, opts.accent);
@@ -2351,6 +2377,7 @@ export class ConquestUIScene extends Phaser.Scene {
           noteColor: isNew ? '#8a5f1c' : undefined,
           badge: t(`ascent.rarity.${tier}` as Parameters<typeof t>[0]),
           accent: RARITY_COLOR[tier],
+          washAlpha: RARITY_WASH[tier],
           reserveRight: PORTRAIT_W + 14,
           parent: body,
           onTap: () => this.choose(heroId),
@@ -3778,6 +3805,7 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
           note: this.heroStatLine(hero),
           badge: t(`ascent.rarity.${tier}` as Parameters<typeof t>[0]),
           accent: RARITY_COLOR[tier],
+          washAlpha: RARITY_WASH[tier],
           reserveRight: PORTRAIT_W + 14,
           parent: body,
           onTap: () => this.choose(heroId),
