@@ -47,10 +47,14 @@ export function computeAscentPower(state: GameState): number {
   // enough to dominate the total, which made POWER climb steadily while the realm's actual
   // ability to take ground flatlined — the number went up and nothing happened, which is
   // exactly the failure this mode exists to avoid.
-  const rates = state.resourceRates;
-  const engine = Math.max(0, rates.gold * 3 + rates.food * 1.5 + rates.supplies * 3) * 1.5;
+  const engine = engineTerm(state.resourceRates);
 
   return Math.round(field * 1.5 + hold * 0.6 + engine);
+}
+
+/** The economy's share of POWER. Floored at zero: a deficit is not negative strength. */
+export function engineTerm(rates: { gold: number; food: number; supplies: number }): number {
+  return Math.max(0, rates.gold * 3 + rates.food * 1.5 + rates.supplies * 3) * 1.5;
 }
 
 /**

@@ -120,6 +120,14 @@ export interface ThreatAlert {
 
 /** A field engagement awaiting the player's tactical call. */
 export interface PendingBattle {
+  /**
+   * Which side of the field is ours (Dragon Ascent). Absent means a defence — the original and
+   * only shape: an invader striking ground we hold. `offence` is a host of ours storming
+   * someone else's province, staged by `stageWatchedAssault`; `invaderArmyId` is then empty and
+   * `attackerArmyIds` names our hosts.
+   */
+  role?: 'defence' | 'offence';
+  attackerArmyIds?: string[];
   invaderArmyId: string;
   landId: string;
   landName: string;
@@ -341,7 +349,39 @@ export interface Army {
    * standing on resolved its defence as a silent dice roll.
    */
   isLevy?: boolean;
+  /**
+   * Militia a garrison levy actually drew from its province, so dissolving it returns at most
+   * what it took — the walls' share of the turnout must not become standing militia.
+   */
+  levyDrawn?: number;
+  /**
+   * The host's standing order (Dragon Ascent). Absent means `auto`: the autopilot may march it,
+   * send it home, or leave it — the original behaviour, kept for old saves, the royal host and
+   * every host raised by the autopilot itself. Any other order takes the host out of the
+   * autopilot's hands: it is moved only by the order, and never dissolved as a remnant.
+   */
+  orders?: ArmyOrders;
 }
+
+/**
+ * What a host of the player's is doing until told otherwise (Dragon Ascent).
+ *
+ *  - `auto`   — the autopilot commands it (march on the front, intercept, go home).
+ *  - `defend` — hold `landId`; walk back if displaced and the road is open, otherwise hold here.
+ *  - `attack` — reach and storm `landId`; falls back to `defend` where it stands once the land is
+ *               taken or the assault is thrown back. `force` storms below the odds gate.
+ *  - `follow` — keep station with another host of ours, on its province or the nearest owned one.
+ *  - `hunt`   — pursue an enemy host until it is caught or gone (`issueHuntOrder`, re-issued).
+ *
+ * `holding` / `struck` are the order's own memory, so a change of state is announced once and
+ * the tick never spins on an unreachable target.
+ */
+export type ArmyOrders =
+  | { kind: 'auto' }
+  | { kind: 'defend'; landId: string; holding?: boolean }
+  | { kind: 'attack'; landId: string; struck?: boolean; holding?: boolean; force?: boolean }
+  | { kind: 'follow'; armyId: string; holding?: boolean }
+  | { kind: 'hunt'; armyId: string };
 
 /** An in-progress march: an army advancing one land per leg toward `path`'s last entry. */
 export interface MovementOrder {
@@ -588,6 +628,8 @@ export type ArmyComposition = 'balanced' | 'spears' | 'archers' | 'shock';
 export type BattleStance = 'assault' | 'balanced' | 'cautious';
 
 export interface RecruitmentOrder {
+  /** Standing order stamped on the host the moment it musters (Dragon Ascent). */
+  orders?: ArmyOrders;
   id: string;
   landId: string;
   heroId: string;
@@ -856,6 +898,11 @@ export interface AscentLedger {
   supplies: AscentLedgerLine;
   gold: AscentLedgerLine;
   shortfalls: AscentShortfall[];
+  /**
+   * Where the season's gold goes, so the books can name what eats the treasury: hero payroll,
+   * hosts, the provinces' wages, building upkeep, graft, and the tax an unpaid province keeps.
+   */
+  goldParts?: { payroll: number; hosts: number; wages: number; buildings: number; graft: number; softcap: number; withheld: number };
 }
 
 /** An optional offer a story hangs on a subject the player already visits. Never an order. */
@@ -1002,9 +1049,9 @@ export interface FamineOption {
 
 /** One posting offered on the Appointment prompt. */
 export interface AppointmentOption {
-  /** `court:<positionId>` · `governor:<landId>` · `general:<armyId>`. */
+  /** `court:<positionId>` · `governor:<landId>` · `general:<armyId>` · `reserve` · `dismiss`. */
   id: string;
-  role: 'court' | 'governor' | 'general';
+  role: 'court' | 'governor' | 'general' | 'dismiss';
   /** Resolved seat / province / host name. */
   title: string;
   /** The concrete bonus this hero's stats produce there, e.g. `+23% army power`. */
@@ -1183,6 +1230,45 @@ export interface AscentBattle {
   log: string[];
   /** Set once the last exchange has run or a host has broken. */
   over: boolean;
+  /**
+   * Which side of the field is ours. `defence` is an invader striking ground we hold — the
+   * original engagement; `offence` is a host of ours storming someone else's province. Absent
+   * on saves written before assaults were watchable, and read as `defence`.
+   */
+  role?: 'defence' | 'offence';
+  /** Identity of the engagement, so the screen opens itself once per fight and not per beat. */
+  key?: string;
+  /**
+   * The hosts on each side, by id. Membership is explicit rather than "whoever stands on the
+   * province": the invader that opens a defence is standing on the *adjacent* land when contact
+   * is made, and an assault's own hosts stand on their origin. Enrolment happens per beat (see
+   * `enrolArrivals`), so relief still simply appears the beat it arrives.
+   */
+  ourArmyIds?: string[];
+  theirArmyIds?: string[];
+  /** Beats spent closing on an assault, so a defender that never advances cannot stall the fight. */
+  approachBeats?: number;
+  /** The host the reserve was held back from, so committing it (or returning it) refills that host. */
+  reserveHostId?: string;
+}
+
+/** One finished engagement, kept so the run can be read back — and measured. */
+export interface AscentBattleRecord {
+  turn: number;
+  key: string;
+  landId: string;
+  landName: string;
+  role: 'defence' | 'offence';
+  outcome: 'they-rout' | 'we-rout' | 'spent' | 'retreat';
+  rounds: number;
+  ourStart: number;
+  theirStart: number;
+  ourEnd: number;
+  theirEnd: number;
+  theirHosts: number;
+  ourHosts: number;
+  /** True when a garrison levy stood in the line (no field host of ours, or not only one). */
+  levyFought: boolean;
 }
 
 /** Why a Dragon Ascent run ended. Shown on the summary so a loss is legible. */
@@ -1271,6 +1357,12 @@ export interface AscentState {
   lastWatchedWave: number;
   /** `wave:landId` of the engagement already watched, so a siege asks once per province, not per tick. */
   lastWatchedKey?: string;
+  /** The last few engagements, newest last. Optional so old saves need no migration. */
+  battleHistory?: AscentBattleRecord[];
+  /** Key of the last assault of ours that was watched, so a run can be measured for it. */
+  lastAssaultKey?: string;
+  /** Commanded hosts already warned about being a remnant, so the toast fires once per host. */
+  remnantWarnedIds?: string[];
   /** Set when the run ends, so the summary can name the cause rather than shrug. */
   endCause?: AscentEndCause;
   /** Province whose fall ended the run. */
@@ -1344,6 +1436,12 @@ export interface AscentState {
   coalitionPending: boolean;
   /** Heroes the player chose to hold free; not re-prompted until postings change. */
   reservedHeroIds: string[];
+  /** The founder chosen at the run's start: never dismissed. */
+  founderHeroId?: string;
+  /** Consecutive seasons the treasury has sat at nothing while losing money (autopilot hygiene). */
+  brokeTicks?: number;
+  /** The last season the autopilot let a champion go, so it never does so twice in a row. */
+  lastPayrollTrimTurn?: number;
   /** Seat count when the reserve list was last taken, so a new seat reopens the question. */
   reserveSeatMark: number;
   /** Play-earned edicts already announced, so each "within reach" toast fires exactly once. */
@@ -1474,8 +1572,10 @@ export interface GameState {
    * a rebellion and an unpaid clerk look identical until you go and find out.
    */
   unpaidLandIds?: string[];
+  /** The season each unpaid province's arrears began, so a write-off can find them (ascent). */
+  unpaidSince?: Record<string, number>;
   /** Last season each shortfall kind was announced, so the header does not nag every tick. */
-  shortfallToastTurns?: Partial<Record<'food' | 'supplies' | 'gold', number>>;
+  shortfallToastTurns?: Partial<Record<'food' | 'supplies' | 'gold' | 'goldRatchet', number>>;
   /**
    * Templates that have already run their course this run.
    *

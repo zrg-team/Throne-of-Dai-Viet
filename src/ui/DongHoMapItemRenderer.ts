@@ -121,7 +121,7 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
    * on the march is. Nobody counts the figures; the eye compares two blocks and gets the ratio
    * right, which is the whole point.
    */
-  override createArmyMarker(total: number, isPlayer: boolean, _kingdomColor?: number): Phaser.GameObjects.Container {
+  override createArmyMarker(total: number, isPlayer: boolean, _kingdomColor?: number, flagSeed?: number): Phaser.GameObjects.Container {
     const scene = this.scene as Phaser.Scene;
     const container = scene.add.container(0, 0);
     const graphics = scene.add.graphics();
@@ -183,10 +183,14 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     const span = hostSpan(shape, scale);
     const frontRankY = -shape.height + span.spanY;
     const standards = Math.max(1, Math.min(3, Math.round(total / 4000)));
+    // The realm's own standard, the one its provinces fly — not a style rolled from the headcount,
+    // which changed as the host bled and let two realms' hosts share a design. Every standard a
+    // large host carries is the same standard: several of one banner reads as one realm.
+    const seed = flagSeed ?? Math.round(total);
     for (let index = 0; index < standards; index += 1) {
       const flag = isPlayer
-        ? createPlayerLandFlag(scene, false, Math.round(total) + index * 7)
-        : createPlayerLandFlag(scene, false, index * 13, true);
+        ? createPlayerLandFlag(scene, false, seed)
+        : createPlayerLandFlag(scene, false, seed, true);
       // Inside the block's left edge, stepping right so several standards read as several.
       flag.setPosition(-shape.width / 2 + index * FLAG_STEP, frontRankY - FLAG_FOOT);
       flag.setScale(FLAG_SCALE);

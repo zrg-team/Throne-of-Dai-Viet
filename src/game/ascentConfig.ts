@@ -405,7 +405,7 @@ export const ARMY_CAMPAIGN_FOOD_MULT = 1.5;
  * term a straight line with extra arithmetic. At 1,200 the curve bends inside the range the
  * game actually produces, so "few strong hosts or many weak" is priced again.
  */
-export const ARMY_UPKEEP_SCALE = 1200;
+export const ARMY_UPKEEP_SCALE = 2000;
 
 // ── Provinces eat ───────────────────────────────────────────────────────────
 /**
@@ -426,7 +426,7 @@ export const DEMAND_SUPPLIES_BASE = 2;
 export const DEMAND_SUPPLIES_PER_POP = 260;
 export const DEMAND_GOLD_BASE = 3;
 export const DEMAND_GOLD_PER_BUILDING = 2;
-export const DEMAND_GOLD_GARRISON = 6;
+export const DEMAND_GOLD_GARRISON = 4;
 /**
  * Administration's cut of each province's own gold output — the counting-house pays its
  * clerks out of what crosses its tables.
@@ -456,9 +456,48 @@ export function demandDifficultyScale(difficulty: string | undefined): number {
  * Seasons over which demand ramps from zero to full weight. A roguelite whose first two
  * minutes are a knife-edge teaches nothing; the realm learns to feed itself while small.
  */
-export const DEMAND_RAMP_TICKS = 15;
+export const DEMAND_RAMP_TICKS = 24;
 /** Seasons between repeats of any one shortfall announcement, so the header does not nag. */
 export const DEMAND_TOAST_COOLDOWN = 8;
+
+// ── An empty treasury: pressure, not a trapdoor ─────────────────────────────
+/**
+ * Share of its gold output an unpaid province still sends on. It used to withhold *all* of it,
+ * and since a province's wage (~9) is smaller than its output (~13), every province the ratchet
+ * stopped paying made the deficit *worse* — the mechanism meant to relieve an empty treasury
+ * deepened it, and the recovery gate could then never be reached: a run measured 200 seasons
+ * with every province unpaid, gross −8, net −89. Half kept, half withheld makes stopping a
+ * wage a real relief again while still costing the realm something it can see.
+ */
+export const UNPAID_WITHHOLD_SHARE = 0.5;
+/** Seasons of sustained arrears before the next province is stopped. */
+export const UNPAID_RATCHET_TICKS = 10;
+/** Loyalty an unpaid province sheds each season, and the floor it stops at. */
+export const UNPAID_LOYALTY_PER_TICK = 1;
+export const UNPAID_LOYALTY_FLOOR = 15;
+/** Treasury above which the clerks come back on the books, one province a season. */
+export const UNPAID_RECOVER_TREASURY = 60;
+/**
+ * Seasons after which an unpaid province's arrears are written off and it returns regardless.
+ * The one-way ratchet is what turned a bad season into a permanent state; a write-off makes it
+ * a pulse — the pressure recurs if the books stay bad, but it can no longer become the run.
+ */
+export const UNPAID_WRITEOFF_TICKS = 24;
+/**
+ * A hero with no posting draws half pay; a bench of champions is a cost, not a payroll. And the
+ * throne funds itself: the king's own upkeep is halved, because a run that opened at −13 gold a
+ * season before its first decision was paying most of that to its own founder.
+ */
+export const HERO_RESERVE_UPKEEP_SHARE = 0.5;
+export const ASCENT_KING_UPKEEP_MULT = 0.5;
+/**
+ * When the autopilot lets a champion go (`autoTrimPayroll`): the treasury pinned at nothing for
+ * this many seasons, the roster drawing at least this share of gross, and no more than one
+ * dismissal per gap.
+ */
+export const AUTOTRIM_BROKE_TICKS = 10;
+export const AUTOTRIM_PAYROLL_SHARE = 0.5;
+export const AUTOTRIM_GAP_TICKS = 12;
 
 // ── Improving a host you already have ───────────────────────────────────────
 /**
@@ -573,10 +612,34 @@ export const BATTLE_TICK_MS = 420;
  * Beats resolved per economy tick.
  *
  * The fight advances with the world rather than with the viewer, so this sets how many seasons
- * a siege lasts: at 4 beats a tick and ~22 beats of melee, an engagement runs five or six turns
- * — long enough to raise a host and march it in, short enough not to stall the run.
+ * a siege lasts: at 6 beats a tick and ~22 beats of melee, an engagement runs four or five turns
+ * — long enough to raise a host and march it in, short enough not to stall the run. Measured at
+ * 4 with fights that finally outlived their opening tick, a battle was live on more than half of
+ * all ticks and the wave cycle was mostly siege.
  */
-export const BATTLE_BEATS_PER_TICK = 4;
+export const BATTLE_BEATS_PER_TICK = 6;
+/**
+ * The smallest company a province turns out when contact is made and no field host is present.
+ *
+ * `raiseGarrisonLevy` sizes the turnout from militia and walls, and used to give up under 40 —
+ * which handed every thinly-held province's defence to a hidden roll. Whose ground it is is the
+ * honest test of what is worth watching, so a thin garrison now musters a token company instead;
+ * `Army.levyDrawn` keeps the conjured share from ever becoming standing militia.
+ */
+export const GARRISON_LEVY_FLOOR = 40;
+/**
+ * Battle power of one levy man: the levy's unit mix (0.6 spear / 0.25 bow / 0.15 heavy → 1.18)
+ * at its morale and supply of 80 each. A garrison levy is sized by dividing the province's
+ * `defenderPower` garrison term by this, so a fought battle and the odds roll agree on what the
+ * walls are worth.
+ */
+export const LEVY_POWER_PER_MAN = 0.755;
+/**
+ * Beats an assault may spend closing before contact is forced. An attacker always advances, so
+ * this is a safety net rather than a pace: a defender that never leaves its walls cannot stall
+ * the fight at the approach.
+ */
+export const BATTLE_APPROACH_MAX_BEATS = 12;
 /** How much of the field a line crosses per beat, so the two meet in the middle in good time. */
 export const BATTLE_ADVANCE_PER_TICK = 0.115;
 /**

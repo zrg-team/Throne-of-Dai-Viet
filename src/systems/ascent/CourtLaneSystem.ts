@@ -45,6 +45,13 @@ const SEAT_PRIMARY_STAT: Record<CourtPositionId, keyof HeroStats> = {
 };
 
 const MAX_APPOINTMENT_OPTIONS = 3;
+/** Stability the court loses when a champion is let go. */
+const DISMISS_STABILITY_COST = 2;
+
+/** The stat a seat is scored on — shared with the hero picker so both rank candidates alike. */
+export function seatPrimaryStat(seat: CourtPositionId): keyof HeroStats {
+  return SEAT_PRIMARY_STAT[seat];
+}
 
 /**
  * Ordering weights. These only decide which three postings are *offered* and in what order —
@@ -101,7 +108,9 @@ export function buildAppointmentOptions(state: GameState, hero: Hero): Appointme
     });
   }
 
-  const leaderless = state.armies.find((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.generalHeroId);
+  // A garrison levy has no general and takes none: it is the province's walls turned out for
+  // one battle, not a host to be given a commander.
+  const leaderless = state.armies.find((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && !army.generalHeroId);
   if (leaderless) {
     scored.push({
       option: {
@@ -153,8 +162,50 @@ export function buildAppointmentOptions(state: GameState, hero: Hero): Appointme
     .slice(0, MAX_APPOINTMENT_OPTIONS)
     .map((entry) => entry.option);
 
-  // Urgent reserve leads; otherwise it closes the list.
-  return reserveScore > (scored[0]?.score ?? 0) ? [reserve, ...postings] : [...postings, reserve];
+  // Urgent reserve leads; otherwise it closes the list — and after it, for anyone the realm may
+  // let go, the one lever payroll ever had. Payroll was the largest gold drain in every measured
+  // run and the roster only ever grew: a hero, once summoned, drew pay until the run ended.
+  const ordered = reserveScore > (scored[0]?.score ?? 0) ? [reserve, ...postings] : [...postings, reserve];
+  if (canDismissHero(state, hero)) {
+    ordered.push({
+      id: 'dismiss',
+      role: 'dismiss',
+      title: t('ascent.appoint.dismiss'),
+      effect: t('ascent.appoint.dismissFx', { gold: hero.upkeepGold }),
+      detail: t('ascent.appoint.dismissNote'),
+    });
+  }
+  return ordered;
+}
+
+/** Whether the realm may let this hero go: not the king, not the founder, not one away on a mission. */
+export function canDismissHero(state: GameState, hero: Hero): boolean {
+  if (hero.id === 'king') return false;
+  if (state.ascent?.founderHeroId === hero.id) return false;
+  const at = hero.assignedTo;
+  if (at && (at.startsWith('ambassador:') || at.startsWith('diplomacy-'))) return false;
+  if (at && state.recruitmentOrders.some((order) => order.id === at)) return false;
+  return true;
+}
+
+/**
+ * Lets a hero go. Their posting is vacated, they leave the roster and return to the deck — the
+ * summon may find them again — and the court takes the small stability knock a dismissal costs.
+ */
+export function dismissHero(state: GameState, heroId: string): boolean {
+  const hero = state.heroes.find((candidate) => candidate.id === heroId);
+  if (!hero || !canDismissHero(state, hero)) return false;
+  const wasGovernor = Boolean(hero.assignedTo && state.lands.some((land) => land.id === hero.assignedTo));
+  releaseHeroAssignment(state, hero);
+  if (wasGovernor) refreshAllLandOutputs(state);
+  state.heroes = state.heroes.filter((candidate) => candidate.id !== heroId);
+  if (!state.heroDeck.some((candidate) => candidate.id === heroId)) state.heroDeck.push(hero);
+  state.court.stability = Math.max(0, state.court.stability - DISMISS_STABILITY_COST);
+  if (state.ascent) {
+    state.ascent.reservedHeroIds = state.ascent.reservedHeroIds.filter((id) => id !== heroId);
+  }
+  pushToast(state, t('ascent.appoint.dismissed', { hero: heroName(hero), gold: hero.upkeepGold }), 'info');
+  return true;
 }
 
 /**
@@ -169,7 +220,7 @@ export function buildAppointmentOptions(state: GameState, hero: Hero): Appointme
  * worth it when the alternative is no army whatsoever.
  */
 function needsCommander(state: GameState, hero: Hero): boolean {
-  const hosts = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID).length;
+  const hosts = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy).length;
   if (hosts > 0) return false;
   return !state.heroes.some((candidate) => candidate.id !== hero.id && !candidate.assignedTo);
 }
@@ -204,6 +255,10 @@ export function applyAppointment(state: GameState, heroId: string, optionId: str
   if (!hero) return false;
 
   let ok = false;
+  if (optionId === 'dismiss') {
+    ok = dismissHero(state, heroId);
+    return ok;
+  }
   if (optionId === 'reserve') {
     // "Await a command" has to actually free the hero, or its own promise — "stays free to
     // raise a new host or ride as an envoy" — is a lie: a seated minister stayed seated, kept
@@ -223,9 +278,14 @@ export function applyAppointment(state: GameState, heroId: string, optionId: str
     ok = assignHeroToLand(state, heroId, optionId.slice('governor:'.length));
   } else if (optionId.startsWith('general:')) {
     const army = state.armies.find((candidate) => candidate.id === optionId.slice('general:'.length));
-    if (army && army.kingdomId === PLAYER_KINGDOM_ID) {
+    if (army && army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy) {
+      // Out of the old posting first: a minister given a host used to keep the seat's name on
+      // the map while `assignedTo` said "army", and the seat's bonuses with it.
+      const wasGovernor = Boolean(hero.assignedTo && state.lands.some((land) => land.id === hero.assignedTo));
+      releaseHeroAssignment(state, hero);
+      if (wasGovernor) refreshAllLandOutputs(state);
       const previous = state.heroes.find((candidate) => candidate.id === army.generalHeroId);
-      if (previous) previous.assignedTo = undefined;
+      if (previous && previous.id !== hero.id) previous.assignedTo = undefined;
       army.generalHeroId = hero.id;
       hero.assignedTo = army.id;
       ok = true;
@@ -259,7 +319,8 @@ export function findHeroNeedingPosting(state: GameState): Hero | undefined {
 
   return state.heroes
     .filter((hero) => !hero.assignedTo && !ascent.reservedHeroIds.includes(hero.id))
-    .find((hero) => buildAppointmentOptions(state, hero).length > 1);
+    // A real posting on offer, not only the bench and the door.
+    .find((hero) => buildAppointmentOptions(state, hero).some((option) => option.id !== 'reserve' && option.role !== 'dismiss'));
 }
 
 // ── Laws (edicts, wonders, and the tax dial) ────────────────────────────────

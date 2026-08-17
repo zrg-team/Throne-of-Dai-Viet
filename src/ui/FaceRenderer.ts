@@ -121,6 +121,39 @@ export function heroFacesReady(scene: Phaser.Scene): boolean {
   return scene.textures.exists(TEXTURE_PREFIX + FACE_PART_DEFS[0].key);
 }
 
+const BADGE_TEXTURE_PREFIX = 'hero-face:';
+const BADGE_RASTER = 2;
+/** Render textures kept alive for as long as their saved texture is: destroying one destroys the other. */
+const badgeTextures = new Map<string, Phaser.GameObjects.RenderTexture>();
+
+/**
+ * A hero's portrait as a single texture, baked once and reused — for the map, where a face
+ * beside every standing host would otherwise be fifteen tinted images each.
+ *
+ * Returns the texture key, or nothing when the parts are not loaded yet or the GL context is
+ * lost (drawing into a render texture then dereferences a null binding, exactly as the map's
+ * own bake guards against). Callers fall back to `renderHeroFaceInBox` or draw nothing.
+ */
+export function heroFaceTextureKey(scene: Phaser.Scene, hero: Hero): string | undefined {
+  const key = BADGE_TEXTURE_PREFIX + hero.id;
+  if (scene.textures.exists(key)) return key;
+  if (!heroFacesReady(scene)) return undefined;
+  const renderer = scene.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
+  if (renderer?.contextLost) return undefined;
+
+  const width = Math.ceil(HERO_FACE_W * BADGE_RASTER);
+  const height = Math.ceil(HERO_FACE_H * BADGE_RASTER);
+  const target = scene.make.renderTexture({ width, height }, false);
+  // The face is drawn about its own origin, with parts reaching left of and above it; shift so
+  // the whole extent lands inside the texture.
+  const face = renderHeroFace(scene, hero, -HERO_FACE_EXTENT.left * BADGE_RASTER, -HERO_FACE_EXTENT.top * BADGE_RASTER, BADGE_RASTER);
+  target.draw(face);
+  face.destroy(true);
+  target.saveTexture(key);
+  badgeTextures.set(key, target);
+  return key;
+}
+
 /**
  * Renders a portrait scaled and positioned to sit fully inside `box`, centred within it.
  * Use this anywhere a portrait shares a card with text; `renderHeroFace` alone takes a raw

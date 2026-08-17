@@ -121,7 +121,7 @@ export class AtlasMapItemRenderer implements MapItemRenderer {
   }
 
   /** Banner plaque with troop count above a small marching formation, so armies read as a host on the move. */
-  createArmyMarker(total: number, isPlayer: boolean, kingdomColor?: number): Phaser.GameObjects.Container {
+  createArmyMarker(total: number, isPlayer: boolean, kingdomColor?: number, _flagSeed?: number): Phaser.GameObjects.Container {
     const container = this.scene.add.container(0, 0);
     // Rivals fly their own colours so two empires on the map are told apart at a glance; the
     // player keeps the theme's player hue plus the ring added below.

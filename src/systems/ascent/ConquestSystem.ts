@@ -19,6 +19,10 @@ import { findLand, getAcquisitionOrder, getSiegeOrder } from '../LandSystem';
 import { armyPower, createBattlePreview, findLandPath, issueMoveOrder } from '../WarSystem';
 import { enqueueAscentPrompt } from './AscentState';
 import { chargeAmbition } from './AmbitionSystem';
+import { isAutoHost } from './armyOrders';
+import { setArmyOrders } from './StandingOrders';
+import { releaseHeroAssignment } from '../CourtSystem';
+import { refreshAllLandOutputs } from '../ResourceSystem';
 import { addAscentXp, landGarrisonPower } from './PowerSystem';
 import { heroName, t } from '../../i18n';
 import type {
@@ -139,6 +143,16 @@ export function refreshAscentLaneState(state: GameState): AscentLaneState | unde
  * unreachable fortress would read as "there is nothing to do here".
  */
 export function buildConquestTargets(state: GameState): ConquestTarget[] {
+  return buildAllConquestTargets(state).slice(0, MAX_CONQUEST_TARGETS);
+}
+
+/**
+ * Every province on the realm's border — each neighbour of owned ground that is not ours —
+ * takeable first, then by odds. The card prompt shows the top few (`buildConquestTargets`);
+ * the claim list on the Build lane shows all of them, because a border a player is scrolling
+ * is a map, not a hand of cards, and a province left off it simply did not exist to them.
+ */
+export function buildAllConquestTargets(state: GameState): ConquestTarget[] {
   const owned = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
   const seen = new Set<string>();
   const targets: ConquestTarget[] = [];
@@ -148,18 +162,16 @@ export function buildConquestTargets(state: GameState): ConquestTarget[] {
       if (seen.has(neighborId)) continue;
       seen.add(neighborId);
       const candidate = state.lands.find((item) => item.id === neighborId);
-      if (!candidate || candidate.ownerId === PLAYER_KINGDOM_ID || !candidate.isVisible) continue;
+      if (!candidate || candidate.ownerId === PLAYER_KINGDOM_ID) continue;
       targets.push(buildConquestTarget(state, candidate));
     }
   }
 
-  return targets
-    .sort((a, b) => {
-      const aOpen = a.methods.some((method) => !method.blockedReason) ? 0 : 1;
-      const bOpen = b.methods.some((method) => !method.blockedReason) ? 0 : 1;
-      return aOpen - bOpen || b.bestChance - a.bestChance || a.garrison - b.garrison;
-    })
-    .slice(0, MAX_CONQUEST_TARGETS);
+  return targets.sort((a, b) => {
+    const aOpen = a.methods.some((method) => !method.blockedReason) ? 0 : 1;
+    const bOpen = b.methods.some((method) => !method.blockedReason) ? 0 : 1;
+    return aOpen - bOpen || b.bestChance - a.bestChance || a.garrison - b.garrison;
+  });
 }
 
 /** The full menu for one province, whether or not it is currently on the prompt. */
@@ -364,10 +376,19 @@ export interface ConquestAttempt {
  * did not register: the sheet closed, the gold was gone, and nothing was underway. The reason
  * is returned now, so the caller can put it in front of the player.
  */
+/** Who a method should commit, when the player has chosen rather than left it to the sheet. */
+export interface ConquestActor {
+  heroId?: string;
+  armyId?: string;
+  /** Storm below the odds gate the autopilot keeps. */
+  force?: boolean;
+}
+
 export function executeConquestMethod(
   state: GameState,
   landId: string,
   method: AscentConquestMethod,
+  actor?: ConquestActor,
 ): ConquestAttempt {
   const ascent = state.ascent;
   const land = findLand(state, landId);
@@ -392,12 +413,22 @@ export function executeConquestMethod(
       ok = bribeLand(state, landId);
       break;
     case 'diplomacy': {
-      const hero = bestDiplomat(state);
+      const hero = (actor?.heroId ? state.heroes.find((candidate) => candidate.id === actor.heroId) : undefined)
+        ?? bestDiplomat(state);
+      // A seated minister may ride as envoy, but the claim refuses anyone still posted — so the
+      // seat is vacated first. (`bestDiplomat` has offered ministers for as long as it has
+      // existed, and every one of those attempts came to nothing for exactly this reason.)
+      if (hero && hero.assignedTo && !state.armies.some((army) => army.id === hero.assignedTo)) {
+        const wasGovernor = state.lands.some((candidate) => candidate.id === hero.assignedTo);
+        releaseHeroAssignment(state, hero);
+        if (wasGovernor) refreshAllLandOutputs(state);
+      }
       ok = Boolean(hero && startDiplomaticClaim(state, landId, hero.id));
       break;
     }
     case 'intimidation': {
-      const army = bestAdjacentOwnedArmy(state, land);
+      const army = (actor?.armyId ? state.armies.find((candidate) => candidate.id === actor.armyId) : undefined)
+        ?? bestAdjacentOwnedArmy(state, land);
       ok = Boolean(army && startIntimidation(state, landId, army.id));
       break;
     }
@@ -406,7 +437,13 @@ export function executeConquestMethod(
       break;
     case 'occupy':
     case 'siege':
-      ok = marchBestHostToTarget(state, landId);
+      if (actor?.armyId) {
+        // The player named the host: it takes the standing order to attack, which marches it
+        // (through owned ground) and storms once the odds clear — or at once, when forced.
+        ok = setArmyOrders(state, actor.armyId, { kind: 'attack', landId, force: actor.force });
+      } else {
+        ok = marchBestHostToTarget(state, landId);
+      }
       // The sheet offered this because *some* host could reach the province; the march declines
       // when every one of them is already committed elsewhere. Two different questions, so the
       // option's own `blockedReason` cannot answer this one.
@@ -506,8 +543,10 @@ export function detectConquests(state: GameState, ownedBefore: Set<string>): voi
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function marchBestHostToTarget(state: GameState, landId: string): boolean {
+  // Only the hosts left to the autopilot: a host under the player's own standing order goes
+  // where that order says (see `StandingOrders`), and a garrison levy goes nowhere.
   const candidates = state.armies
-    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && isAutoHost(army))
     .filter((army) => !state.siegeOrders.some((order) => order.armyId === army.id))
     .filter((army) => Boolean(findLandPath(state, army.landId, landId)))
     .sort((a, b) => armyPower(state, b) - armyPower(state, a));
@@ -525,13 +564,13 @@ function marchBestHostToTarget(state: GameState, landId: string): boolean {
 
 function bestReachableArmy(state: GameState, land: Land): Army | undefined {
   return state.armies
-    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && Boolean(findLandPath(state, army.landId, land.id)))
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && Boolean(findLandPath(state, army.landId, land.id)))
     .sort((a, b) => armyPower(state, b) - armyPower(state, a))[0];
 }
 
 function bestAdjacentOwnedArmy(state: GameState, land: Land): Army | undefined {
   return state.armies
-    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy)
     .filter((army) => {
       const armyLand = findLand(state, army.landId);
       return Boolean(armyLand && armyLand.ownerId === PLAYER_KINGDOM_ID && armyLand.neighbors.includes(land.id));
@@ -571,7 +610,7 @@ function bestBattle(state: GameState, land: Land): { chance: number; armyId?: st
   let best = 0;
   let armyId: string | undefined;
 
-  for (const army of state.armies.filter((candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID)) {
+  for (const army of state.armies.filter((candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID && !candidate.isLevy)) {
     const preview = createBattlePreview(state, army.id, land.id);
     let chance: number;
     if (preview) {
@@ -606,4 +645,25 @@ function rewardTag(land: Land): string {
 export function methodHeroName(state: GameState, heroId: string | undefined): string | undefined {
   const hero = state.heroes.find((candidate) => candidate.id === heroId);
   return hero ? heroName(hero) : undefined;
+}
+
+/** True when the sheet lets the player choose who carries this method out. */
+export function methodHasActor(method: AscentConquestMethod): boolean {
+  return method === 'diplomacy' || method === 'intimidation' || method === 'occupy' || method === 'siege';
+}
+
+/** "Envoy: X — tap to choose" / "Host: Y — tap to choose", for the method card's body. */
+export function methodActorLine(state: GameState, option: ConquestMethodOption): string | undefined {
+  if (option.method === 'diplomacy') {
+    const name = methodHeroName(state, option.heroId);
+    return t('ascent.conquer.actorEnvoy', { hero: name ?? t('ascent.conquer.actorNone') });
+  }
+  if (option.method === 'intimidation' || option.method === 'occupy' || option.method === 'siege') {
+    const army = state.armies.find((candidate) => candidate.id === option.armyId);
+    return t('ascent.conquer.actorHost', {
+      army: army?.name ?? t('ascent.conquer.actorNone'),
+      power: army ? Math.round(armyPower(state, army)) : 0,
+    });
+  }
+  return undefined;
 }

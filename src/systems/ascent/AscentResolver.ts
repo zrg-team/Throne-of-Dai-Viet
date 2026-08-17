@@ -6,6 +6,7 @@ import {
   buildConquestTarget,
   executeConquestMethod,
   holdConquest,
+  methodHasActor,
 } from './ConquestSystem';
 import { applyAppointment, offerAppointment, resolveLawChoice, resolveParliament } from './CourtLaneSystem';
 import { resolveEnvoy } from './EnvoySystem';
@@ -41,6 +42,7 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
         state.heroes.push(hero);
         unlockHero(hero.id);
         ascent.heroesSummoned += 1;
+        ascent.founderHeroId = hero.id;
         // The founder is the run's first appointment too — it teaches the role card before
         // any of the systems that depend on understanding it come into play.
         offerAppointment(state, hero.id);
@@ -74,7 +76,7 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
         // Falls through to the sheet if the direct attempt is refused, rather than reporting
         // the prompt unhandled — an unhandled prompt is never cleared, so the run would sit on
         // a modal the player cannot dismiss.
-        if (open.length === 1) {
+        if (open.length === 1 && !methodHasActor(open[0].method)) {
           const attempt = executeConquestMethod(state, target.landId, open[0].method);
           if (attempt.attempted) {
             // Refused, so the sheet the fast path skipped is exactly where the player needs to
@@ -102,11 +104,16 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
         handled = true;
         break;
       }
-      const attempt = executeConquestMethod(
-        state,
-        prompt.target.landId,
-        choiceId as AscentConquestMethod,
-      );
+      // "method", or "method:actorId", or "method:actorId:force" — the sheet's picker names who
+      // carries the method out; a bare method (the harness, the fast path) leaves it to the sheet.
+      const [methodId, actorId, flag] = choiceId.split(':');
+      const method = methodId as AscentConquestMethod;
+      const actor = actorId
+        ? method === 'diplomacy'
+          ? { heroId: actorId, force: flag === 'force' }
+          : { armyId: actorId, force: flag === 'force' }
+        : undefined;
+      const attempt = executeConquestMethod(state, prompt.target.landId, method, actor);
       handled = attempt.attempted;
       // An attempt that was made and refused still answers the prompt — the gold is gone either
       // way — but it must not vanish. Re-raise the sheet against the world as it now stands,

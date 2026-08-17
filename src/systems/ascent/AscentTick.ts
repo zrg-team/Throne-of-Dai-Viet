@@ -18,6 +18,7 @@ import { tickGreatPowersYear } from '../empire/GreatPowersSystem';
 import { ensureHeroDeck } from '../../data/heroFactory';
 import { drainAscentPrompts } from './AscentState';
 import { tickAscentAutopilot } from './AutopilotSystem';
+import { tickStandingOrders } from './StandingOrders';
 import { advanceBattle, beginBattle } from './BattleSystem';
 import { tickAscentProgress } from './PowerSystem';
 import { tickRaids, tickWaveDirector } from './WaveDirector';
@@ -152,6 +153,10 @@ export function advanceAscentTick(state: GameState): void {
   // ── Dragon Ascent ────────────────────────────────────────────────────────
   state.ascent.marchCooldown = Math.max(0, state.ascent.marchCooldown - 1);
   tickAscentAutopilot(state);
+  // The player's own standing orders, after the autopilot has had its say and touched only the
+  // hosts left to it. A commanded host walks back to its post, storms its target, keeps station
+  // with its leader — and is never marched by anything else.
+  tickStandingOrders(state);
   // The authored roster is removed from the deck as it is recruited, so a long run empties it
   // and the champion lane — half this mode's identity — quietly stops offering anything.
   ensureHeroDeck(state);
@@ -171,15 +176,24 @@ export function advanceAscentTick(state: GameState): void {
   // opens the watchable engagement; it returns false when there is nothing to watch (no host of
   // ours actually present), and the old silent delegation still covers that case and any run
   // where the player has handed battles back to their generals.
-  if (state.pendingBattle) {
+  //
+  // Only when nothing is already being fought: a second contact made while a battle is live is
+  // left waiting on the state (its invader stands still — see `maybeRequestBattleDecision`) and
+  // is taken up the tick after the current fight ends. `beginBattle` takes the record off the
+  // state itself, so the fight it opens is never resolved a second time underneath it.
+  let openedThisTick = false;
+  if (state.pendingBattle && !state.ascent.activeBattle) {
     const watched = !state.ascent.autoResolveBattles && beginBattle(state);
     if (!watched) resolvePendingBattle(state, 'delegate');
+    openedThisTick = watched;
   }
 
   // A siege runs across seasons, not seconds. Several beats a tick keeps an engagement to a
   // handful of turns while leaving the player time to raise a host and march it in — which is
-  // the whole point of the battle no longer freezing the world.
-  advanceBattle(state);
+  // the whole point of the battle no longer freezing the world. A fight that opened this very
+  // tick is left at its first beat, so the screen opens on two lines facing each other rather
+  // than a round in.
+  if (!openedThisTick) advanceBattle(state);
 
   // Once nothing is being fought, any province that turned its garrison out takes it back in.
   // A levy is a host for the length of one battle and no longer — see `raiseGarrisonLevy`.
