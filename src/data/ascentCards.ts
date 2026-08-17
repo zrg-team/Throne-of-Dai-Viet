@@ -245,6 +245,187 @@ export const POWER_CARDS: PowerCardDef[] = [
     ],
   },
 
+  // ── Story-only (granted by the Chronicle, never rolled) ───────────────────
+  //
+  // Each is the payout of a charge kept — see `data/stories/charges.ts`. They are deliberately at
+  // or above the power of the jade evolutions, because they cost something the draft never asks
+  // for: thirty seasons of the run bent toward somebody else's oath.
+  {
+    // 1428. Nguyễn Trãi writes for Lê Lợi after ten years of uprising: the Ming are expelled and
+    // Đại Việt declares itself. "Việc nhân nghĩa cốt ở yên dân" — benevolence lies in bringing
+    // peace to the people. So it pays in the people: loyalty, stability, and a world that stops
+    // treating the realm as prey.
+    id: 'dai-cao',
+    rarity: 'jade',
+    maxStacks: 1,
+    storyOnly: true,
+    levels: [
+      {
+        effect: {
+          permanent: true,
+          resourceRateModifier: { gold: 12, food: 12 },
+          stabilityDelta: 25,
+          relationsAllDelta: 18,
+          armyPowerModifier: 0.12,
+        },
+        display: { pct: 12, all: 12 },
+      },
+    ],
+  },
+  {
+    // 1077. On the Như Nguyệt river a poem is read aloud at night from a shrine, and the Song
+    // army hears its own defeat foretold. Held to be the first declaration of independence — so
+    // it works on the enemy's heart rather than on our walls.
+    id: 'tho-than',
+    rarity: 'gold',
+    maxStacks: 1,
+    storyOnly: true,
+    levels: [{ effect: { permanent: true, armyPowerModifier: 0.14 }, display: { pct: 14 } }],
+  },
+  {
+    // ~1284. Trần Hưng Đạo writes to his commanders before the second Mongol invasion, shaming
+    // and steeling them by turns. The realm's hosts fight above themselves and recover faster.
+    id: 'hich-van',
+    rarity: 'gold',
+    maxStacks: 1,
+    storyOnly: true,
+    levels: [
+      { effect: { permanent: true, armyPowerModifier: 0.1, armyXpModifier: 0.5 }, display: { pct: 10, xp: 50 } },
+    ],
+  },
+  {
+    // Tết, 1789. Quang Trung marches an army north at impossible speed and breaks the Qing at
+    // Ngọc Hồi–Đống Đa during the new-year festival.
+    id: 'than-toc',
+    rarity: 'jade',
+    maxStacks: 1,
+    storyOnly: true,
+    levels: [
+      {
+        effect: { permanent: true, recruitSpeedModifier: 1.6, recruitmentSupplyCostModifier: -0.3, armyPowerModifier: 0.08 },
+        display: { pct: 8 },
+      },
+    ],
+  },
+  {
+    // 1010. Lý Công Uẩn moves the seat from the cramped valley of Hoa Lư to Đại La and renames it
+    // Thăng Long — the ascending dragon. The mode is named after this edict.
+    id: 'chieu-doi-do',
+    rarity: 'jade',
+    maxStacks: 1,
+    storyOnly: true,
+    levels: [
+      {
+        effect: {
+          permanent: true,
+          resourceRateModifier: { gold: 18, supplies: 10 },
+          claimSlotBonus: 1,
+          buildSpeedBonus: 1,
+          buildingCostModifier: -0.15,
+        },
+        display: { gold: 18, supplies: 10, slots: 1 },
+      },
+    ],
+  },
+  {
+    // 1427. A Ming relief column is drawn into the narrow pass at Chi Lăng; its commander Liễu
+    // Thăng is killed and the siege he was marching to relieve collapses behind him.
+    id: 'chi-lang',
+    rarity: 'gold',
+    maxStacks: 1,
+    storyOnly: true,
+    levels: [{ effect: { permanent: true, defenseBoost: 26, armyPowerModifier: 0.06 }, display: { defense: 26, pct: 6 } }],
+  },
+  {
+    // 1075. Lý Thường Kiệt does not wait to be invaded: he crosses the border first and burns the
+    // staging depots at Ung Châu. The doctrine is in the name — strike first, master the enemy.
+    id: 'tien-phat',
+    rarity: 'gold',
+    maxStacks: 1,
+    storyOnly: true,
+    levels: [
+      { effect: { permanent: true, armyPowerModifier: 0.16, battleSupplyCostModifier: -0.2 }, display: { pct: 16 } },
+    ],
+  },
+  {
+    // 40 AD. Trưng Trắc and Trưng Nhị raise the districts against Han rule and hold the country
+    // for three years. Sixty-five citadels answer them — so the card pays in what answered.
+    id: 'hai-ba',
+    rarity: 'jade',
+    maxStacks: 1,
+    storyOnly: true,
+    levels: [
+      {
+        effect: { permanent: true, resourceRateModifier: { humans: 6 }, defenseBoost: 18, stabilityDelta: 15, armyPowerModifier: 0.1 },
+        display: { pct: 10, defense: 18 },
+      },
+    ],
+  },
+
+  // ── The annals' cards (story-only) ────────────────────────────────────────
+  // Paid by the middle-length histories in `data/stories/annals.ts`. Pitched below the eight
+  // charge-epic cards on purpose: these are five-beat stories, not thirty-season undertakings.
+  {
+    // 1428. The sword Thuận Thiên, given for a war and asked back once the war was over.
+    id: 'thuan-thien',
+    rarity: 'gold', maxStacks: 1, storyOnly: true,
+    levels: [{ effect: { permanent: true, armyPowerModifier: 0.11, stabilityDelta: 12 }, display: { pct: 11 } }],
+  },
+  {
+    // ~208 BC. The crossbow of Cổ Loa, kept because the marriage was refused.
+    id: 'no-than',
+    rarity: 'gold', maxStacks: 1, storyOnly: true,
+    levels: [{ effect: { permanent: true, defenseBoost: 22, nextArmyArchersBonus: 60 }, display: { defense: 22 } }],
+  },
+  {
+    // 1288. The grain fleet taken at Vân Đồn while the war fleet sailed past.
+    id: 'van-don',
+    rarity: 'gold', maxStacks: 1, storyOnly: true,
+    levels: [{ effect: { permanent: true, resourceRateModifier: { food: 14, supplies: 8 }, battleSupplyCostModifier: -0.2 }, display: { food: 14, supplies: 8 } }],
+  },
+  {
+    // 17th c. Đào Duy Từ's wall, which held a border for a century and a half.
+    id: 'luy-thay',
+    rarity: 'jade', maxStacks: 1, storyOnly: true,
+    levels: [{ effect: { permanent: true, defenseBoost: 30, buildingCostModifier: -0.15 }, display: { defense: 30 } }],
+  },
+  {
+    // 1070. The Temple of Literature, and the examinations that staffed a dynasty.
+    id: 'van-mieu',
+    rarity: 'gold', maxStacks: 1, storyOnly: true,
+    levels: [{ effect: { permanent: true, courtCardSpeedModifier: 0.5, resourceRateModifier: { gold: 10 }, stabilityDelta: 10 }, display: { gold: 10 } }],
+  },
+  {
+    // 13th c. Trần Thủ Độ. Order, at a price somebody else paid.
+    id: 'thu-do',
+    rarity: 'gold', maxStacks: 1, storyOnly: true,
+    levels: [{ effect: { permanent: true, stabilityDelta: 20, armyPowerModifier: 0.08, armyGoldUpkeepModifier: -0.15 }, display: { pct: 8 } }],
+  },
+  {
+    // 1285. "Rather a ghost in the South than a king in the North."
+    id: 'binh-trong',
+    rarity: 'jade', maxStacks: 1, storyOnly: true,
+    levels: [{ effect: { permanent: true, armyPowerModifier: 0.18, armyXpModifier: 0.35 }, display: { pct: 18, xp: 35 } }],
+  },
+  {
+    // 905. Autonomy taken by simply governing, and nobody arriving to stop it.
+    id: 'khuc-thua-du',
+    rarity: 'gold', maxStacks: 1, storyOnly: true,
+    levels: [{ effect: { permanent: true, resourceRateModifier: { gold: 12, supplies: 6 }, claimSlotBonus: 1 }, display: { gold: 12, slots: 1 } }],
+  },
+  {
+    // The dykes. A thousand years of carrying earth in baskets, every single year.
+    id: 'de-dieu',
+    rarity: 'gold', maxStacks: 1, storyOnly: true,
+    levels: [{ effect: { permanent: true, resourceRateModifier: { food: 16 }, buildSpeedBonus: 1 }, display: { food: 16 } }],
+  },
+  {
+    // 14th c. Chế Bồng Nga, who sacked the capital three times and was killed for a bribe.
+    id: 'che-bong-nga',
+    rarity: 'jade', maxStacks: 1, storyOnly: true,
+    levels: [{ effect: { permanent: true, armyPowerModifier: 0.14, relationsAllDelta: 10, defenseBoost: 14 }, display: { pct: 14 } }],
+  },
+
   // ── Evolutions (granted, never rolled) ────────────────────────────────────
   {
     id: 'bach-dang-stakes',
@@ -296,4 +477,6 @@ export function findPowerCard(id: string): PowerCardDef | undefined {
 }
 
 /** Cards eligible to be rolled in a draft (evolution results are granted, not offered). */
-export const ROLLABLE_POWER_CARDS = POWER_CARDS.filter((card) => !card.evolutionOnly);
+export const ROLLABLE_POWER_CARDS = POWER_CARDS.filter(
+  (card) => !card.evolutionOnly && !card.storyOnly,
+);
