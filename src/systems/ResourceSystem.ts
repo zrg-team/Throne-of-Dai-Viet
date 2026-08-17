@@ -942,6 +942,15 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
 
   const buildingUpkeep = calculateBuildingUpkeep(state);
   addBag(rates, buildingUpkeep, -1);
+  // The gold an unpaid province keeps, for the ledger's "withheld" line.
+  let withheldGold = 0;
+  if (withholding) {
+    for (const land of state.lands) {
+      if (land.ownerId === PLAYER_KINGDOM_ID && withholding.has(land.id)) {
+        withheldGold += land.outputs.gold * (1 - UNPAID_WITHHOLD_SHARE);
+      }
+    }
+  }
 
   const playerTroops = getPlayerTroops(state);
   const heroUpkeep = heroPayroll(state);
@@ -978,11 +987,13 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
   // are already handled on the income side: they withhold their tax at the source and bill
   // no wages (see `ascentProvincialDemand`), so the shortfall is a *place* the ledger can
   // point at without also being a spiral the treasury cannot exit.
+  let provincialGold = 0;
   if (state.gameMode === 'ascent') {
     const demand = ascentProvincialDemand(state);
     rates.food -= demand.bag.food;
     rates.supplies -= demand.bag.supplies;
     rates.gold -= demand.bag.gold;
+    provincialGold = demand.bag.gold;
   }
 
   const foodNetBeforeHumanGrowth = rates.food;
@@ -1027,9 +1038,12 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
   // administrative drag: a bigger empire spends more of its own revenue simply existing. Every
   // price that matters — mercenaries, tribute, buy-offs — is pegged to income, so they scale
   // down with it and the *decisions* keep their shape while the numbers stay legible.
+  let softcapGold = 0;
   if (state.gameMode === 'ascent' && rates.gold > GOLD_SOFTCAP_FROM) {
     const excess = rates.gold - GOLD_SOFTCAP_FROM;
-    rates.gold = Math.round(GOLD_SOFTCAP_FROM + Math.pow(excess, GOLD_SOFTCAP_EXPONENT));
+    const capped = Math.round(GOLD_SOFTCAP_FROM + Math.pow(excess, GOLD_SOFTCAP_EXPONENT));
+    softcapGold = rates.gold - capped;
+    rates.gold = capped;
   }
 
   // ...and a treasury that just sits there loses part of itself to the people counting it.
@@ -1038,8 +1052,10 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
   // a run actually ends with: a hundred seasons of it. Charged on the excess only, and folded into
   // the displayed rate rather than taken quietly, so the header tells the player their gold is
   // draining and gives them a reason to spend it. See `TREASURY_GRAFT_FROM`.
+  let graftGold = 0;
   if (state.gameMode === 'ascent' && state.resources.gold > TREASURY_GRAFT_FROM) {
-    rates.gold -= Math.round((state.resources.gold - TREASURY_GRAFT_FROM) * TREASURY_GRAFT_RATE);
+    graftGold = Math.round((state.resources.gold - TREASURY_GRAFT_FROM) * TREASURY_GRAFT_RATE);
+    rates.gold -= graftGold;
   }
 
   // The books, kept current every tick. Gross is the income side snapshotted above; demand is
@@ -1056,6 +1072,16 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
       supplies: line('supplies'),
       gold: line('gold'),
       shortfalls: state.ascentLedger?.shortfalls ?? [],
+      // Named, so the books can say what eats the treasury rather than one figure for "out".
+      goldParts: {
+        payroll: heroUpkeep,
+        hosts: armyGoldUpkeep + ascentArmy.gold,
+        wages: provincialGold,
+        buildings: buildingUpkeep.gold ?? 0,
+        graft: graftGold,
+        softcap: softcapGold,
+        withheld: Math.round(withheldGold),
+      },
     };
   }
 
@@ -1175,13 +1201,18 @@ function ascentShortfallEvents(state: GameState, foodShort: boolean, suppliesSho
   // A write-off, whatever the books say: an arrear this old is settled and the clerks return.
   // The one-way ratchet is what turned one bad season into a permanent state — measured, 200
   // seasons with every province unpaid — and a pulse is the honest shape of the pressure.
-  const overdue = unpaid.find((id) => {
-    const since = ledger?.shortfalls.find((entry) => entry.kind === 'gold' && entry.landId === id)?.sinceTurn;
-    return since !== undefined && state.turn - since >= UNPAID_WRITEOFF_TICKS;
-  });
+  // Kept on the state itself, not read back off the ledger's capped shortfall list: an entry
+  // that had scrolled off the list made its province un-writable-off, and the ratchet locked.
+  const since = (state.unpaidSince ??= {});
+  for (const id of unpaid) since[id] ??= state.turn;
+  const overdue = unpaid.find((id) => state.turn - (since[id] ?? state.turn) >= UNPAID_WRITEOFF_TICKS);
   if (overdue) {
     unpaid.splice(unpaid.indexOf(overdue), 1);
+    delete since[overdue];
     restore(overdue, 'ascent.demand.coinWriteOff');
+    // A written-off province gets a full cadence of pay before the ratchet may reach for it
+    // again — otherwise the same clerks were stopped again in the same season they came back.
+    marks.goldRatchet = state.turn;
   }
   if (goldShort) {
     // The garrison's arrears are counted by `progressArmyLogistics`, once per tick, with the
@@ -1203,6 +1234,7 @@ function ascentShortfallEvents(state: GameState, foodShort: boolean, suppliesSho
     const ratchetDue = state.turn - (marks.goldRatchet ?? -UNPAID_RATCHET_TICKS) >= UNPAID_RATCHET_TICKS;
     if (next && unpaid.length < 3 && ratchetDue) {
       unpaid.push(next.id);
+      since[next.id] = state.turn;
       recordShortfall(next.id, 'gold');
       marks.goldRatchet = state.turn;
       if (!quiet('gold')) {
@@ -1216,7 +1248,9 @@ function ascentShortfallEvents(state: GameState, foodShort: boolean, suppliesSho
     // whose *paying* provinces cover the bills again is solvent even before the treasury
     // refills, and the officials drift back one province a season.
     // Recovery is gradual and says so: one province at a time comes back on the books.
-    restore(unpaid.shift(), 'ascent.demand.coinRecover');
+    const back = unpaid.shift();
+    if (back) delete since[back];
+    restore(back, 'ascent.demand.coinRecover');
   }
 }
 

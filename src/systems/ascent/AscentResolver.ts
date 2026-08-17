@@ -42,6 +42,7 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
         state.heroes.push(hero);
         unlockHero(hero.id);
         ascent.heroesSummoned += 1;
+        ascent.founderHeroId = hero.id;
         // The founder is the run's first appointment too — it teaches the role card before
         // any of the systems that depend on understanding it come into play.
         offerAppointment(state, hero.id);

@@ -490,6 +490,14 @@ export const UNPAID_WRITEOFF_TICKS = 24;
  */
 export const HERO_RESERVE_UPKEEP_SHARE = 0.5;
 export const ASCENT_KING_UPKEEP_MULT = 0.5;
+/**
+ * When the autopilot lets a champion go (`autoTrimPayroll`): the treasury pinned at nothing for
+ * this many seasons, the roster drawing at least this share of gross, and no more than one
+ * dismissal per gap.
+ */
+export const AUTOTRIM_BROKE_TICKS = 10;
+export const AUTOTRIM_PAYROLL_SHARE = 0.5;
+export const AUTOTRIM_GAP_TICKS = 12;
 
 // ── Improving a host you already have ───────────────────────────────────────
 /**

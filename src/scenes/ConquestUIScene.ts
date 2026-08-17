@@ -29,7 +29,18 @@ import { realmStanding } from '../systems/ascent/RivalDirector';
 import { ourHosts, theirHosts } from '../systems/ascent/BattleSystem';
 import { BATTLE_ROUT_MORALE, BATTLE_TICK_MS, TRIBUTE_REFUSE_TICKS } from '../game/ascentConfig';
 import { ALL_COURT_POSITIONS, assignHeroToLand, getCourtPositionLabel } from '../systems/CourtSystem';
-import { ascentArmyUpkeep, buildDistrictBuilding, getBuildOptions, getLandPopulationGrowth, getPlayerTroops, getUpgradeOptions, refreshAllLandOutputs, setLandSpecialization, upgradeDistrictBuilding } from '../systems/ResourceSystem';
+import {
+  ascentArmyUpkeep,
+  buildDistrictBuilding,
+  getBuildOptions,
+  getLandPopulationGrowth,
+  getPlayerTroops,
+  getUpgradeOptions,
+  heroPayroll,
+  refreshAllLandOutputs,
+  setLandSpecialization,
+  upgradeDistrictBuilding,
+} from '../systems/ResourceSystem';
 import { buildFocusRows } from '../ui/focusPanel';
 import { buildGovernorRows } from '../ui/governorPanel';
 import { findFreeCommander } from '../systems/ascent/AutopilotSystem';
@@ -1631,7 +1642,8 @@ export class ConquestUIScene extends Phaser.Scene {
     const state = this.state;
     const { addRow, finish } = this.laneList(
       t('action.heroes'),
-      t('ascent.screen.heroesBody', { n: state.heroes.length }),
+      `${t('ascent.screen.heroesBody', { n: state.heroes.length })}
+${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     );
 
     // Unposted first: the most common reason to open this screen.
@@ -3166,11 +3178,18 @@ export class ConquestUIScene extends Phaser.Scene {
    * gacha — because the player should only ever learn one "a hero arrived" interaction.
    */
   private showHeroChoice(prompt: Extract<AscentPrompt, { kind: 'hero-choice' }>): void {
+    // What the roster already costs, when it costs a lot: a champion is another wage, and the
+    // card that offers one is where that is worth knowing.
+    const gross = Math.max(1, this.state.ascentLedger?.gold.gross ?? 0);
+    const payroll = heroPayroll(this.state);
+    const payrollShare = Math.round((payroll / gross) * 100);
+    const subtitle = prompt.pityUsed
+      ? t('ascent.summon.pity')
+      : prompt.source === 'court' ? t('ascent.summon.courtSubtitle') : t('ascent.summon.subtitle');
     const { content, body, bodyWidth, finish } = this.promptScrollBody(
       prompt.source === 'court' ? t('ascent.summon.courtTitle') : t('ascent.summon.title'),
-      prompt.pityUsed
-        ? t('ascent.summon.pity')
-        : prompt.source === 'court' ? t('ascent.summon.courtSubtitle') : t('ascent.summon.subtitle'),
+      payrollShare > 55 ? `${subtitle}
+${t('ascent.summon.payrollWarn', { pct: payrollShare })}` : subtitle,
       PROMPT_FOOTER_HEIGHT,
     );
 
@@ -3270,17 +3289,31 @@ export class ConquestUIScene extends Phaser.Scene {
     let used = 0;
     prompt.options.forEach((option) => {
       const reserve = option.id === 'reserve';
+      const dismiss = option.role === 'dismiss';
       const card = this.optionCard(
         { x: 0, y: used, width: bodyWidth, height: rowHeight },
         {
           title: option.title,
           body: option.effect,
           note: option.detail,
-          noteColor: option.detail && !reserve ? '#8a5f1c' : undefined,
+          noteColor: option.detail && !reserve && !dismiss ? '#8a5f1c' : undefined,
           badge: t(`ascent.appoint.role.${option.role}` as Parameters<typeof t>[0]),
-          accent: reserve ? INK_UI.softBrush : option.role === 'court' ? INK_UI.gold : INK_UI.jade,
+          accent: dismiss ? INK_UI.cinnabar : reserve ? INK_UI.softBrush : option.role === 'court' ? INK_UI.gold : INK_UI.jade,
           parent: body,
-          onTap: () => this.choose(option.id),
+          // Letting a champion go is the one destructive choice on the card, so it asks once
+          // more; every posting is reversible from the same card and goes straight through.
+          onTap: dismiss && hero
+            ? () => this.showConfirmPage({
+                title: t('ascent.appoint.dismissConfirm', { hero: heroName(hero) }),
+                subtitle: heroTitleLine(hero),
+                portrait: hero,
+                lines: [option.effect, option.detail ?? ''],
+                confirmLabel: t('ascent.appoint.dismiss'),
+                danger: true,
+                onConfirm: () => this.choose('dismiss'),
+                onBack: () => this.replaceLanePage(() => this.showAppointment(prompt)),
+              })
+            : () => this.choose(option.id),
         },
       );
       cards.push(card);
@@ -3947,6 +3980,35 @@ export class ConquestUIScene extends Phaser.Scene {
     section('food', ledger.food);
     section('supplies', ledger.supplies);
     section('gold', ledger.gold);
+
+    // Where the gold goes, by name. One figure for "out" told nobody why the treasury moved; the
+    // categories say what is eating it and open the screen where it can be answered.
+    const parts = ledger.goldParts;
+    if (parts) {
+      addHeading(t('ascent.ledger.where'));
+      const troops = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy)
+        .reduce((n, army) => n + army.units.spearmen + army.units.archers + army.units.heavyInfantry, 0);
+      const lands = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length;
+      const rows: Array<{ title: string; subtitle: string; lane?: AscentLane; n: number }> = [
+        { title: t('ascent.ledger.cat.payroll', { n: parts.payroll }), subtitle: t('ascent.ledger.cat.payrollBody', { heroes: state.heroes.length }), lane: 'heroes', n: parts.payroll },
+        { title: t('ascent.ledger.cat.hosts', { n: parts.hosts }), subtitle: t('ascent.ledger.cat.hostsBody', { troops }), lane: 'army', n: parts.hosts },
+        { title: t('ascent.ledger.cat.wages', { n: parts.wages }), subtitle: t('ascent.ledger.cat.wagesBody', { lands }), lane: 'build', n: parts.wages },
+        { title: t('ascent.ledger.cat.buildings', { n: parts.buildings }), subtitle: '', lane: 'build', n: parts.buildings },
+        { title: t('ascent.ledger.cat.graft', { n: parts.graft }), subtitle: '', n: parts.graft },
+        { title: t('ascent.ledger.cat.softcap', { n: parts.softcap }), subtitle: '', n: parts.softcap },
+      ];
+      const biggest = Math.max(...rows.map((row) => row.n));
+      for (const row of rows) {
+        if (row.n <= 0) continue;
+        addRow(
+          { title: row.title, subtitle: row.subtitle, border: row.n === biggest ? INK_UI.cinnabar : INK_UI.softBrush },
+          row.lane ? () => { const lane = row.lane!; this.closeLane(); this.openLane(lane); } : undefined,
+        );
+      }
+      if (parts.withheld > 0) {
+        addRow({ title: t('ascent.ledger.withheld', { n: parts.withheld }), subtitle: '', border: INK_UI.softBrush, muted: true });
+      }
+    }
 
     if (ledger.shortfalls.length > 0) {
       addHeading(t('ascent.ledger.shortfalls'));

@@ -890,6 +890,11 @@ export interface AscentLedger {
   supplies: AscentLedgerLine;
   gold: AscentLedgerLine;
   shortfalls: AscentShortfall[];
+  /**
+   * Where the season's gold goes, so the books can name what eats the treasury: hero payroll,
+   * hosts, the provinces' wages, building upkeep, graft, and the tax an unpaid province keeps.
+   */
+  goldParts?: { payroll: number; hosts: number; wages: number; buildings: number; graft: number; softcap: number; withheld: number };
 }
 
 /** An optional offer a story hangs on a subject the player already visits. Never an order. */
@@ -1036,9 +1041,9 @@ export interface FamineOption {
 
 /** One posting offered on the Appointment prompt. */
 export interface AppointmentOption {
-  /** `court:<positionId>` · `governor:<landId>` · `general:<armyId>`. */
+  /** `court:<positionId>` · `governor:<landId>` · `general:<armyId>` · `reserve` · `dismiss`. */
   id: string;
-  role: 'court' | 'governor' | 'general';
+  role: 'court' | 'governor' | 'general' | 'dismiss';
   /** Resolved seat / province / host name. */
   title: string;
   /** The concrete bonus this hero's stats produce there, e.g. `+23% army power`. */
@@ -1421,6 +1426,12 @@ export interface AscentState {
   coalitionPending: boolean;
   /** Heroes the player chose to hold free; not re-prompted until postings change. */
   reservedHeroIds: string[];
+  /** The founder chosen at the run's start: never dismissed. */
+  founderHeroId?: string;
+  /** Consecutive seasons the treasury has sat at nothing while losing money (autopilot hygiene). */
+  brokeTicks?: number;
+  /** The last season the autopilot let a champion go, so it never does so twice in a row. */
+  lastPayrollTrimTurn?: number;
   /** Seat count when the reserve list was last taken, so a new seat reopens the question. */
   reserveSeatMark: number;
   /** Play-earned edicts already announced, so each "within reach" toast fires exactly once. */
@@ -1551,6 +1562,8 @@ export interface GameState {
    * a rebellion and an unpaid clerk look identical until you go and find out.
    */
   unpaidLandIds?: string[];
+  /** The season each unpaid province's arrears began, so a write-off can find them (ascent). */
+  unpaidSince?: Record<string, number>;
   /** Last season each shortfall kind was announced, so the header does not nag every tick. */
   shortfallToastTurns?: Partial<Record<'food' | 'supplies' | 'gold' | 'goldRatchet', number>>;
   /**

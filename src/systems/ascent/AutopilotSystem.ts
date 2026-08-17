@@ -1,25 +1,28 @@
 import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   AUTOBUILD_GOLD_RESERVE,
+  AUTOTRIM_BROKE_TICKS,
+  AUTOTRIM_GAP_TICKS,
+  AUTOTRIM_PAYROLL_SHARE,
+  AUTO_CLAIM_INTERVAL_TICKS,
+  AUTO_CLAIM_MAX_ORDERS,
+  AUTO_CLAIM_MIN_CHANCE,
+  AUTO_CLAIM_TREASURY_SHARE,
   DEFENSIVE_POSTURE_RATIO,
+  GOLD_GLUT_SEASONS,
   MARCH_MIN_WIN_CHANCE,
   MIN_ARMY_SOLDIERS,
+  MIN_MUSTER_SUPPLY_SHARE,
   RECRUIT_HUMAN_RESERVE,
   REMNANT_SHARE,
-  recruitSoldiers,
-  AUTO_CLAIM_INTERVAL_TICKS,
-  GOLD_GLUT_SEASONS,
   SCARCITY_CRISIS_MULT,
   SCARCITY_CRISIS_SEASONS,
   SCARCITY_WARNING_MULT,
   SCARCITY_WARNING_SEASONS,
-  AUTO_CLAIM_MAX_ORDERS,
-  AUTO_CLAIM_MIN_CHANCE,
-  AUTO_CLAIM_TREASURY_SHARE,
-  MIN_MUSTER_SUPPLY_SHARE,
   SUPPLY_FOOD_RESERVE,
   SUPPLY_STORE_RESERVE,
   SUPPLY_TICKS_HELD,
+  recruitSoldiers,
   targetArmyCount,
 } from '../../game/ascentConfig';
 import {
@@ -46,6 +49,7 @@ import { disbandArmy, getRecruitmentOrder, issueMoveOrder, queueRecruitment } fr
 import { frontWinChance } from './ConquestSystem';
 import { chargeAmbition } from './AmbitionSystem';
 import { isAutoHost, isPinnedByClaim } from './armyOrders';
+import { canDismissHero, dismissHero } from './CourtLaneSystem';
 import { pushToast } from '../empire/notifications';
 import { t } from '../../i18n';
 import type { GameState, Land, LandBuildingType } from '../../state/types';
@@ -235,6 +239,33 @@ function autoDisbandRemnants(state: GameState): void {
     }
     disbandArmy(state, army.id);
   }
+}
+
+/**
+ * Lets a champion go when the treasury has been empty a while and the roster is what empties it.
+ *
+ * The bench is the one gold drain the autopilot never touched: a naive run took every summon it
+ * was offered and, once its provinces were lost, sat for two hundred seasons paying twelve heroes
+ * out of a one-province gross. A steward would let somebody go. This does what a steward would —
+ * the least useful unposted champion, never the king or the founder, one every dozen seasons,
+ * announced — and only while the coffers are pinned at nothing with the roster over half the take.
+ */
+function autoTrimPayroll(state: GameState): void {
+  const ascent = state.ascent;
+  if (!ascent) return;
+  const gross = Math.max(1, state.ascentLedger?.gold.gross ?? 1);
+  const payroll = state.ascentLedger?.goldParts?.payroll ?? heroPayroll(state);
+  const pinned = state.resources.gold <= 0 && state.resourceRates.gold < 0;
+  ascent.brokeTicks = pinned ? (ascent.brokeTicks ?? 0) + 1 : 0;
+  if (ascent.brokeTicks < AUTOTRIM_BROKE_TICKS) return;
+  if (payroll < gross * AUTOTRIM_PAYROLL_SHARE) return;
+  if (state.turn - (ascent.lastPayrollTrimTurn ?? -AUTOTRIM_GAP_TICKS) < AUTOTRIM_GAP_TICKS) return;
+
+  const candidate = state.heroes
+    .filter((hero) => !hero.assignedTo && canDismissHero(state, hero))
+    .sort((a, b) => Math.max(...Object.values(a.stats)) - Math.max(...Object.values(b.stats)))[0];
+  if (!candidate) return;
+  if (dismissHero(state, candidate.id)) ascent.lastPayrollTrimTurn = state.turn;
 }
 
 /** The shared per-host wage, summed — the private `getTotalArmyGoldUpkeep` is not exported. */
@@ -613,6 +644,7 @@ export function tickAscentAutopilot(state: GameState): void {
   if (!ascent) return;
 
   autoDisbandRemnants(state);
+  autoTrimPayroll(state);
 
   if (autoRecruit(state)) {
     ascent.autopilotStats.recruits += 1;

@@ -46,6 +46,7 @@ for (const seed of SEEDS) {
     const owned = () => st.lands.filter((l) => l.ownerId === 'dai-viet').length;
     let prev = new Set(st.lands.filter((l) => l.ownerId === 'dai-viet').map((l) => l.id));
     let gained = 0, lost = 0, battleTicks = 0, keys = new Set(), died = -1, negGold = 0, unpaidTicks = 0;
+    let zeroStreak = 0, longestZero = 0, allUnpaidStreak = 0, longestAllUnpaid = 0, nonNegAfter30 = 0, ticksAfter30 = 0;
     const landsAt = {};
     for (let i = 0; i < ticks; i += 1) {
       advanceAscentTick(st);
@@ -56,6 +57,10 @@ for (const seed of SEEDS) {
       prev = now;
       if (st.resourceRates.gold < 0) negGold += 1;
       if ((st.unpaidLandIds ?? []).length > 0) unpaidTicks += 1;
+      if (i >= 30) { ticksAfter30 += 1; if (st.resourceRates.gold >= 0) nonNegAfter30 += 1; }
+      zeroStreak = st.resources.gold <= 0 ? zeroStreak + 1 : 0; longestZero = Math.max(longestZero, zeroStreak);
+      const allUnpaid = owned() > 0 && (st.unpaidLandIds ?? []).length >= owned();
+      allUnpaidStreak = allUnpaid ? allUnpaidStreak + 1 : 0; longestAllUnpaid = Math.max(longestAllUnpaid, allUnpaidStreak);
       if (i % 50 === 49) landsAt[i + 1] = owned();
       let guard = 0;
       while (st.pendingAscentPrompt && guard++ < 10) { const p = st.pendingAscentPrompt; if (p.kind === 'run-over') break; if (!resolveAscentPrompt(st, firstChoice(p))) break; }
@@ -65,11 +70,13 @@ for (const seed of SEEDS) {
     const outcomes = {};
     for (const b of hist) { const k = `${b.outcome}${b.levyFought ? '(levy)' : ''}`; outcomes[k] = (outcomes[k] ?? 0) + 1; }
     const battlesDetail = hist.map((b) => `${b.turn}:${b.landName.slice(0, 6)} ${b.ourStart}v${b.theirStart}(${b.theirHosts}h) r${b.rounds} ${b.outcome}${b.levyFought ? 'L' : ''}`);
-    return { seed, died, lands: owned(), gained, lost, battleTicks, battles: keys.size, negGold, unpaidTicks, outcomes, battlesDetail, gold: Math.round(st.resources.gold), rate: Math.round(st.resourceRates.gold), heroes: st.heroes.length, troops: st.armies.filter((a) => a.kingdomId === 'dai-viet' && !a.isLevy).reduce((n, a) => n + a.units.spearmen + a.units.archers + a.units.heavyInfantry, 0), landsAt, wave: st.ascent.wave };
+    const gross = Math.max(1, st.ascentLedger?.gold.gross ?? 1);
+    return { seed, died, lands: owned(), gained, lost, battleTicks, battles: keys.size, negGold, unpaidTicks, longestZero, longestAllUnpaid, nonNegShare: ticksAfter30 ? Math.round((nonNegAfter30 / ticksAfter30) * 100) : null, payrollShare: Math.round(((st.ascentLedger?.goldParts?.payroll ?? 0) / gross) * 100), outcomes, battlesDetail, gold: Math.round(st.resources.gold), rate: Math.round(st.resourceRates.gold), heroes: st.heroes.length, troops: st.armies.filter((a) => a.kingdomId === 'dai-viet' && !a.isLevy).reduce((n, a) => n + a.units.spearmen + a.units.archers + a.units.heavyInfantry, 0), landsAt, wave: st.ascent.wave };
   }, { seed, ticks: TICKS, autoResolve: process.env.AUTO === '1' });
   rows.push(r);
   console.log(JSON.stringify(r));
 }
 const alive = rows.filter((r) => r.died < 0).length;
-console.log(`SUMMARY alive=${alive}/${rows.length} meanLands=${(rows.reduce((n, r) => n + r.lands, 0) / rows.length).toFixed(1)} meanLost=${(rows.reduce((n, r) => n + r.lost, 0) / rows.length).toFixed(1)} meanBattleTicks=${(rows.reduce((n, r) => n + r.battleTicks, 0) / rows.length).toFixed(0)} meanNegGold=${(rows.reduce((n, r) => n + r.negGold, 0) / rows.length).toFixed(0)}`);
+const mean = (f) => (rows.reduce((n, r) => n + (f(r) ?? 0), 0) / rows.length).toFixed(1);
+console.log(`SUMMARY alive=${alive}/${rows.length} meanLands=${mean((r) => r.lands)} meanLost=${mean((r) => r.lost)} meanBattleTicks=${mean((r) => r.battleTicks)} meanNegGold=${mean((r) => r.negGold)} meanNonNegShare=${mean((r) => r.nonNegShare)}% maxZeroStreak=${Math.max(...rows.map((r) => r.longestZero))} maxAllUnpaid=${Math.max(...rows.map((r) => r.longestAllUnpaid))} meanPayrollShare=${mean((r) => r.payrollShare)}%`);
 await browser.close();

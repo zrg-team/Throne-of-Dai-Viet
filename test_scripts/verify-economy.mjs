@@ -193,6 +193,15 @@ const run = await page.evaluate(async () => {
     civilianDampingSeen,
     rivalPowerStart,
     rivalPowerEnd: rivalPower(),
+    // The named parts of the gold outgo must add up to the demand line they explain. Read off
+    // the living realm the stress ran on, so a dead run does not read as a broken ledger.
+    partsBalance: (() => {
+      const l = stress.ascentLedger;
+      const p = l?.goldParts;
+      if (!l || !p) return false;
+      const sum = p.payroll + p.hosts + p.wages + p.buildings + p.graft + p.softcap;
+      return Math.abs(l.gold.demand - sum) < 1.5;
+    })(),
     ledger: st.ascentLedger ? {
       gold: st.ascentLedger.gold,
       food: st.ascentLedger.food,
@@ -220,6 +229,7 @@ console.log('rations', JSON.stringify(rations));
 
 const checks = {
   'the run survives long enough to measure': run.turn >= 250,
+  'the gold parts add up to the demand line': run.partsBalance,
   'the ledger exists and its three lines balance': Boolean(run.ledger?.coherent),
 
   // The headline: provinces cost something at every size. Printed above for tuning; the
