@@ -11,13 +11,13 @@ permissions:
   pages: write
   id-token: write
 
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Superseded builds are worth cancelling — only the newest commit needs publishing.
+    concurrency:
+      group: pages-build
+      cancel-in-progress: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,10 +53,45 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
+    # A deployment in flight is never cancelled: killing actions/deploy-pages between
+    # "deployment created" and "deployment reported live" is its own source of failures.
+    concurrency:
+      group: pages-deploy
+      cancel-in-progress: false
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deploy_1.outputs.page_url || steps.deploy_2.outputs.page_url || steps.deploy_3.outputs.page_url }}
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
+      # actions/deploy-pages issues a single un-retried POST /pages/deployments and throws on
+      # any 5xx, so one transient Pages 503 fails the whole run. Its `error_count` input does
+      # not help: that budget only covers errors while polling deployment status afterwards,
+      # never the create call itself. So retry the step here, backing off between attempts.
+      # Only the last attempt is allowed to fail the job, so a real Pages outage still shows up
+      # as a red run rather than being swallowed.
+      - name: Deploy to GitHub Pages (attempt 1 of 3)
+        id: deploy_1
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Back off before attempt 2
+        if: steps.deploy_1.outcome == 'failure'
+        run: |
+          echo "Attempt 1 failed (likely a transient Pages API error). Retrying in 30s."
+          sleep 30
+
+      - name: Deploy to GitHub Pages (attempt 2 of 3)
+        id: deploy_2
+        if: steps.deploy_1.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Back off before attempt 3
+        if: steps.deploy_1.outcome == 'failure' && steps.deploy_2.outcome == 'failure'
+        run: |
+          echo "Attempt 2 failed. Retrying in 90s."
+          sleep 90
+
+      - name: Deploy to GitHub Pages (attempt 3 of 3)
+        id: deploy_3
+        if: steps.deploy_1.outcome == 'failure' && steps.deploy_2.outcome == 'failure'
         uses: actions/deploy-pages@v4
