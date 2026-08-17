@@ -1821,7 +1821,8 @@ export class ConquestUIScene extends Phaser.Scene {
     if (front) {
       addRow({
         title: t('ascent.war.frontRow', { land: front.name }),
-        subtitle: t('ascent.war.frontBody', { pct: Math.round(frontWinChance(state) * 100) }),
+        // frontWinChance is already a 0–100 percentage (see bestBattle).
+        subtitle: t('ascent.war.frontBody', { pct: Math.round(frontWinChance(state)) }),
         border: INK_UI.jade,
       });
     }

@@ -372,6 +372,13 @@ export function releaseHeroAssignment(state: GameState, hero: Hero): void {
   if (hero.assignedTo.startsWith('court:')) {
     const positionId = hero.assignedTo.slice('court:'.length) as CourtPositionId;
     delete state.court.seats[positionId];
+  } else if (hero.assignedTo.startsWith('ambassador:')) {
+    // Ambassadors are tracked on both sides; clearing only the hero left the kingdom
+    // holding a stale `ambassadorHeroId` for a champion who had long since gone home.
+    const kingdom = state.kingdoms.find((candidate) => candidate.id === hero.assignedTo!.slice('ambassador:'.length));
+    if (kingdom?.ambassadorHeroId === hero.id) {
+      kingdom.ambassadorHeroId = undefined;
+    }
   } else {
     const army = state.armies.find((candidate) => candidate.generalHeroId === hero.id);
     if (army) {
