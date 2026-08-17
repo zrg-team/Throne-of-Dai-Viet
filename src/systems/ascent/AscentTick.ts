@@ -25,6 +25,7 @@ import { tickEnemyCommand } from './EnemyCommandDirector';
 import { detectConquests, ensureAscentLaneState, refreshAscentLaneState } from './ConquestSystem';
 import { tickDecisionDirector, tickPromptCooldowns } from './DecisionDirector';
 import { tickStories } from '../story/StorySystem';
+import { tickEdictDiscovery } from './CourtLaneSystem';
 import { endAscentRun } from './AscentResolver';
 import { advanceSeasonClock, greatPowersDue } from '../seasonClock';
 import { seasonLabel, t } from '../../i18n';
@@ -197,6 +198,10 @@ export function advanceAscentTick(state: GameState): void {
     (land) => land.ownerId === PLAYER_KINGDOM_ID && !ownedBefore.has(land.id),
   ).length;
   addMandate(state, 0.35 + wavesGained * 4 + landsGained * 2);
+
+  // After mandate and conquest have settled, so an edict unlocked by this very tick's wave or
+  // captured province is announced on the tick it happened.
+  tickEdictDiscovery(state);
 
   trackScore(state);
   state.message = state.message || t('msg.economyTick', { year: state.year, season: seasonLabel(state.season) });

@@ -1346,6 +1346,8 @@ export interface AscentState {
   reservedHeroIds: string[];
   /** Seat count when the reserve list was last taken, so a new seat reopens the question. */
   reserveSeatMark: number;
+  /** Play-earned edicts already announced, so each "within reach" toast fires exactly once. */
+  knownEdictIds?: string[];
 }
 
 export interface GameState {

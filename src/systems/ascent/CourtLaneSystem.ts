@@ -14,7 +14,8 @@ import {
 } from '../CourtSystem';
 import { refreshAllLandOutputs } from '../ResourceSystem';
 import { applyCourtEffect, choosePoliticsCard } from '../PoliticsSystem';
-import { enactProject, projectBlockedReason, projectEffectSummary, projectTitle } from '../empire/EdictSystem';
+import { enactProject, isUnlockMet, projectBlockedReason, projectEffectSummary, projectTitle } from '../empire/EdictSystem';
+import { eraIndex } from '../empire/MandateSystem';
 import { pushToast } from '../empire/notifications';
 import { enqueueAscentPrompt } from './AscentState';
 import { heroName, politicsTitle, t } from '../../i18n';
@@ -263,19 +264,50 @@ export function findHeroNeedingPosting(state: GameState): Hero | undefined {
 
 // ── Laws (edicts, wonders, and the tax dial) ────────────────────────────────
 
-const MAX_LAW_OPTIONS = 3;
+const MAX_LAW_OPTIONS = 4;
 
 /**
- * The projects the throne may enact right now. Ordered by era so the newest unlock leads,
- * and capped at three because a scrollable law list is a menu, which is what this mode is
- * built to avoid.
+ * The projects the throne may enact right now, the run's own achievements first.
+ *
+ * A play-earned edict (see `RealmProject.unlock`) leads the card whenever one is open: the
+ * throne should offer the decree the realm just earned by surviving, conquering or seating
+ * someone, not the same three most-expensive rows every time. Era-track projects follow,
+ * newest era first. Capped because a scrollable law list is a menu, which is what this mode
+ * is built to avoid.
  */
 export function buildLawOptions(state: GameState): string[] {
+  const score = (project: (typeof REALM_PROJECTS)[number]): number =>
+    (project.unlock ? 100 : 0) + eraIndex(project.era) * 10 + (project.edictCost ?? 0);
   return REALM_PROJECTS
     .filter((project) => !projectBlockedReason(state, project))
-    .sort((a, b) => (b.edictCost ?? 0) - (a.edictCost ?? 0))
+    .sort((a, b) => score(b) - score(a))
     .slice(0, MAX_LAW_OPTIONS)
     .map((project) => project.id);
+}
+
+/**
+ * Toasts each edict the run's play has just brought into reach — once, when it happens.
+ *
+ * This is the loop's feedback beat: without it, an edict unlocked by the fourth survived wave
+ * sits silently in a prompt the player may not open for a year, and the growth the system is
+ * built around goes unnoticed.
+ */
+export function tickEdictDiscovery(state: GameState): void {
+  const ascent = state.ascent;
+  const mandate = state.mandate;
+  if (!ascent || !mandate) return;
+  ascent.knownEdictIds ??= [];
+  for (const project of REALM_PROJECTS) {
+    if (!project.unlock || ascent.knownEdictIds.includes(project.id)) continue;
+    if (mandate.edicts.includes(project.id)) {
+      ascent.knownEdictIds.push(project.id);
+      continue;
+    }
+    if (!isUnlockMet(state, project.unlock)) continue;
+    if (eraIndex(mandate.era) < eraIndex(project.era)) continue;
+    ascent.knownEdictIds.push(project.id);
+    pushToast(state, t('ascent.law.newEdict', { title: projectTitle(project) }), 'milestone');
+  }
 }
 
 export function offerLawChoice(state: GameState): boolean {

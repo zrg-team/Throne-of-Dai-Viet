@@ -2370,7 +2370,7 @@ export class UIScene extends Phaser.Scene {
 
     // Header: points on hand + how many decrees are already active, then a one-line primer
     // so "chiếu chỉ" reads as a purposeful currency rather than an unexplained number.
-    const activeCount = mandate?.edicts.filter((id) => allProjects().some((p) => p.id === id && p.kind === 'edict')).length ?? 0;
+    const activeCount = mandate?.edicts.filter((id) => allProjects(this.state).some((p) => p.id === id && p.kind === 'edict')).length ?? 0;
     this.modalLayer.add(createLabel(this, content.x + content.width, content.y + 2, t('empire.mandate.edictPoints', { points: mandate?.edictPoints ?? 0 }), 'label', { fontSize: '13px', align: 'right', color: '#7a4a12' }).setOrigin(1, 0));
     this.modalLayer.add(createLabel(this, content.x + content.width, content.y + 20, t('empire.edict.activeCount', { count: activeCount }), 'caption', { fontSize: '9px', align: 'right', color: '#3f6b32' }).setOrigin(1, 0));
     this.modalLayer.add(createLabel(this, content.x, content.y + 32, t('empire.edict.explain'), 'caption', { fontSize: '9px', color: '#6b5230', wordWrap: { width: content.width } }));
@@ -2381,7 +2381,7 @@ export class UIScene extends Phaser.Scene {
     scroll.addTo(this.modalLayer);
     this.activeScrollAreas.push(scroll);
 
-    const projects = allProjects();
+    const projects = allProjects(this.state);
     let rowY = 0;
 
     const addSection = (labelKey: 'empire.edict.section.edicts' | 'empire.edict.section.wonders') => {
