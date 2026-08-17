@@ -8,8 +8,6 @@ jobs:
   # so the outcome-guard conditions and the `||` output chain are exercised for real.
   check:
     runs-on: ubuntu-latest
-    env:
-      CHAIN: ${{ steps.deploy_1.outputs.page_url || steps.deploy_2.outputs.page_url || steps.deploy_3.outputs.page_url }}
     steps:
       - name: Attempt 1 of 3 (forced failure)
         id: deploy_1
