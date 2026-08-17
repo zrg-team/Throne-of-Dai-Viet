@@ -4,6 +4,7 @@ import {
   ARMY_FOOD_PER_SOLDIER,
   ARMY_GOLD_PER_SOLDIER,
   ARMY_UPKEEP_SCALE,
+  ASCENT_KING_UPKEEP_MULT,
   DEMAND_FOOD_PER_POP,
   DEMAND_GOLD_BASE,
   DEMAND_GOLD_GARRISON,
@@ -13,11 +14,18 @@ import {
   DEMAND_SUPPLIES_BASE,
   DEMAND_SUPPLIES_PER_POP,
   DEMAND_TOAST_COOLDOWN,
-  demandDifficultyScale,
   GOLD_SOFTCAP_EXPONENT,
   GOLD_SOFTCAP_FROM,
+  HERO_RESERVE_UPKEEP_SHARE,
   TREASURY_GRAFT_FROM,
   TREASURY_GRAFT_RATE,
+  UNPAID_LOYALTY_FLOOR,
+  UNPAID_LOYALTY_PER_TICK,
+  UNPAID_RATCHET_TICKS,
+  UNPAID_RECOVER_TREASURY,
+  UNPAID_WITHHOLD_SHARE,
+  UNPAID_WRITEOFF_TICKS,
+  demandDifficultyScale,
 } from '../game/ascentConfig';
 import { eraIndex, eraLabel, getBuildingLevelCap } from './empire/MandateSystem';
 import { pushToast } from './empire/notifications';
@@ -709,9 +717,14 @@ function getConstructionLaborRequired(state: GameState): number {
   }, 0);
 }
 
+/**
+ * Soldiers under the player's banner. A garrison levy is left out: it is the province's own
+ * walls turned out for one battle (see `raiseGarrisonLevy`), draws no pay and eats no ration,
+ * and counting it here inflated every host's wage bill for the length of a fight.
+ */
 export function getPlayerTroops(state: GameState): number {
   return state.armies
-    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy)
     .reduce((sum, army) => sum + army.units.spearmen + army.units.archers + army.units.heavyInfantry, 0);
 }
 
@@ -722,7 +735,7 @@ export function getArmyGoldUpkeep(army: { units: { spearmen: number; archers: nu
 
 function getTotalArmyGoldUpkeep(state: GameState): number {
   return state.armies
-    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy)
     .reduce((sum, army) => sum + getArmyGoldUpkeep(army), 0);
 }
 
@@ -745,7 +758,7 @@ export function ascentArmyUpkeep(state: GameState): { gold: number; food: number
   let garrisonTroops = 0;
   let campaignTroops = 0;
   for (const army of state.armies) {
-    if (army.kingdomId !== PLAYER_KINGDOM_ID) continue;
+    if (army.kingdomId !== PLAYER_KINGDOM_ID || army.isLevy) continue;
     const size = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
     const marching = state.movementOrders.some((order) => order.armyId === army.id);
     const abroad = state.lands.find((land) => land.id === army.landId)?.ownerId !== PLAYER_KINGDOM_ID;
@@ -903,7 +916,11 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
     }
     rates.food += land.outputs.food;
     rates.supplies += land.outputs.supplies;
-    if (!withholding?.has(land.id)) rates.gold += land.outputs.gold;
+    // Half, not all: see `UNPAID_WITHHOLD_SHARE`. Withholding everything made the ratchet
+    // deepen the very deficit it exists to relieve.
+    rates.gold += withholding?.has(land.id)
+      ? land.outputs.gold * UNPAID_WITHHOLD_SHARE
+      : land.outputs.gold;
   }
 
   rates.food = Math.round(rates.food * getSeasonFarmMultiplier(state.season));
@@ -927,7 +944,7 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
   addBag(rates, buildingUpkeep, -1);
 
   const playerTroops = getPlayerTroops(state);
-  const heroUpkeep = state.heroes.reduce((sum, hero) => sum + hero.upkeepGold, 0);
+  const heroUpkeep = heroPayroll(state);
   // Gentler per-head food draw so a larger population isn't self-defeating: population is
   // the master resource (it is labor *and* soldiers), so growing it must stay affordable.
   // Eased from /200 to /240 for this mode's sake.
@@ -1143,10 +1160,35 @@ function ascentShortfallEvents(state: GameState, foodShort: boolean, suppliesSho
   // its gold (see `calculatePlayerResourceRates`) and the garrison's arrears start counting.
   const goldShort = state.resources.gold <= 0 && state.resourceRates.gold < 0;
   const unpaid = (state.unpaidLandIds ??= []);
+  const restore = (restored: string | undefined, key: 'ascent.demand.coinRecover' | 'ascent.demand.coinWriteOff') => {
+    if (!restored) return;
+    const land = state.lands.find((candidate) => candidate.id === restored);
+    const at = ledger?.shortfalls.findIndex((entry) => entry.kind === 'gold' && entry.landId === restored) ?? -1;
+    if (ledger && at >= 0) ledger.shortfalls.splice(at, 1);
+    if (land) pushToast(state, t(key, { land: land.name }), 'info');
+  };
+  // Arrears wear on the provinces that carry them: loyalty slides while the wage is late.
+  for (const id of unpaid) {
+    const land = state.lands.find((candidate) => candidate.id === id);
+    if (land) land.loyalty = Math.max(UNPAID_LOYALTY_FLOOR, land.loyalty - UNPAID_LOYALTY_PER_TICK);
+  }
+  // A write-off, whatever the books say: an arrear this old is settled and the clerks return.
+  // The one-way ratchet is what turned one bad season into a permanent state — measured, 200
+  // seasons with every province unpaid — and a pulse is the honest shape of the pressure.
+  const overdue = unpaid.find((id) => {
+    const since = ledger?.shortfalls.find((entry) => entry.kind === 'gold' && entry.landId === id)?.sinceTurn;
+    return since !== undefined && state.turn - since >= UNPAID_WRITEOFF_TICKS;
+  });
+  if (overdue) {
+    unpaid.splice(unpaid.indexOf(overdue), 1);
+    restore(overdue, 'ascent.demand.coinWriteOff');
+  }
   if (goldShort) {
-    for (const army of state.armies) {
-      if (army.kingdomId === PLAYER_KINGDOM_ID) army.unpaidTicks = (army.unpaidTicks ?? 0) + 1;
-    }
+    // The garrison's arrears are counted by `progressArmyLogistics`, once per tick, with the
+    // desertion step at three and the disbandment at five. This used to count them *again*
+    // here, so a treasury three seasons empty dissolved every host the realm had — the royal
+    // host at turn five, before the first wave had even marched — and read as "my army just
+    // vanished". One clerk keeps the book.
     // Poorest province first. The clerks at the edge of the realm are the first the treasury
     // stops paying and the last to be missed — the capital's counting-house goes dark last.
     // The first version unpaid the *richest* three, which amputated the realm's whole gold
@@ -1154,29 +1196,48 @@ function ascentShortfallEvents(state: GameState, foodShort: boolean, suppliesSho
     const next = owned
       .filter((land) => !unpaid.includes(land.id) && land.outputs.gold > 0)
       .sort((a, b) => a.outputs.gold - b.outputs.gold)[0];
-    // One province per *sustained* stretch of arrears — the toast cooldown is the cadence —
-    // not one per tick. Clerks live with a late wage for a season or two before they stop
-    // collecting; the tick-cadence version walked out all three provinces inside three ticks
-    // of the first bad season, before any recovery could exist.
-    if (next && unpaid.length < 3 && !quiet('gold')) {
+    // One province per *sustained* stretch of arrears, on its own cadence — not one per tick.
+    // Clerks live with a late wage for a season or two before they stop collecting; the
+    // tick-cadence version walked out all three provinces inside three ticks of the first bad
+    // season, before any recovery could exist.
+    const ratchetDue = state.turn - (marks.goldRatchet ?? -UNPAID_RATCHET_TICKS) >= UNPAID_RATCHET_TICKS;
+    if (next && unpaid.length < 3 && ratchetDue) {
       unpaid.push(next.id);
       recordShortfall(next.id, 'gold');
-      marks.gold = state.turn;
-      pushToast(state, t('ascent.demand.coin', { land: next.name }), 'threat');
+      marks.goldRatchet = state.turn;
+      if (!quiet('gold')) {
+        marks.gold = state.turn;
+        pushToast(state, t('ascent.demand.coin', { land: next.name }), 'threat');
+      }
     }
-  } else if (unpaid.length > 0 && (state.resources.gold > 60 || state.resourceRates.gold > 4)) {
+  } else if (unpaid.length > 0
+    && (state.resources.gold > UNPAID_RECOVER_TREASURY || state.resourceRates.gold >= 0)) {
     // Reachable by flow as well as by stock: with withholding applied at the source, a realm
     // whose *paying* provinces cover the bills again is solvent even before the treasury
     // refills, and the officials drift back one province a season.
     // Recovery is gradual and says so: one province at a time comes back on the books.
-    const restored = unpaid.shift();
-    const land = state.lands.find((candidate) => candidate.id === restored);
-    ledger?.shortfalls.splice(
-      ledger.shortfalls.findIndex((entry) => entry.kind === 'gold' && entry.landId === restored),
-      1,
-    );
-    if (land) pushToast(state, t('ascent.demand.coinRecover', { land: land.name }), 'info');
+    restore(unpaid.shift(), 'ascent.demand.coinRecover');
   }
+}
+
+/**
+ * What the roster costs this season.
+ *
+ * Every mode but Dragon Ascent pays every hero in full, as it always has. Ascent halves the pay
+ * of a hero with no posting — a bench of champions is a cost, not a payroll — and halves the
+ * king's, so a run does not open in deficit on its own founder's wage. Payroll was the largest
+ * gold drain in every measured run, and the one the player had no lever on.
+ */
+export function heroPayroll(state: GameState): number {
+  if (state.gameMode !== 'ascent') {
+    return state.heroes.reduce((sum, hero) => sum + hero.upkeepGold, 0);
+  }
+  const total = state.heroes.reduce((sum, hero) => {
+    const kingMult = hero.id === 'king' ? ASCENT_KING_UPKEEP_MULT : 1;
+    const postingMult = hero.assignedTo ? 1 : HERO_RESERVE_UPKEEP_SHARE;
+    return sum + hero.upkeepGold * kingMult * postingMult;
+  }, 0);
+  return Math.round(total);
 }
 
 export function getBuildOrder(state: GameState, landId: string): BuildOrder | undefined {

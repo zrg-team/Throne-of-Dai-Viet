@@ -9,7 +9,7 @@ import { weightedPickIndex } from '../../utils/math';
 import { applyCourtEffect } from '../PoliticsSystem';
 import { applyResourceDelta, canSpend } from '../ResourceSystem';
 import { pushToast } from '../empire/notifications';
-import { addAscentXp, computeAscentPower } from './PowerSystem';
+import { addAscentXp, computeAscentPower, engineTerm } from './PowerSystem';
 import { chargeAmbition } from './AmbitionSystem';
 import { enqueueAscentPrompt } from './AscentState';
 import { t } from '../../i18n';
@@ -246,9 +246,16 @@ export function estimatePowerGainPct(state: GameState, card: PowerCardDef, stack
   // Income modifiers only reach `resourceRates` after a real apply refreshes land outputs,
   // and `defenseBoost` is a one-shot grant rather than a modifier, so both are folded in by
   // hand using the same weights `computeAscentPower` uses.
+  // Through the same clamp `computeAscentPower` applies, so a gold card offered to a realm in
+  // deficit does not promise POWER the engine term (floored at zero) can never deliver.
   const rates = level.effect.resourceRateModifier;
   if (rates) {
-    after += ((rates.gold ?? 0) * 3 + (rates.food ?? 0) * 1.5 + (rates.supplies ?? 0) * 3) * 1.5;
+    const now = state.resourceRates;
+    after += engineTerm({
+      gold: now.gold + (rates.gold ?? 0),
+      food: now.food + (rates.food ?? 0),
+      supplies: now.supplies + (rates.supplies ?? 0),
+    }) - engineTerm(now);
   }
   if (level.effect.defenseBoost) {
     after += level.effect.defenseBoost * 16 * 0.6;

@@ -77,6 +77,8 @@ const out = await page.evaluate(async (fights) => {
     st.armies.push(ours, theirs);
     st.ascent.activeBattle = undefined;
     st.ascent.lastWatchedWave = -1;
+    // Once per province per wave: the lab fights the same province over and over.
+    st.ascent.lastWatchedKey = undefined;
     st.pendingBattle = {
       invaderArmyId: 'lab-them', landId: land.id, landName: land.name,
       kingdomId: 'northern-rival', kingdomName: 'Lab', isGreat: true,

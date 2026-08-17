@@ -325,10 +325,10 @@ export class ConquestScene extends MapScene {
       else if (order === 'reserve') commitReserve(this.state);
       else if (order === 'press' || order === 'hold') setBattlePosture(this.state, order);
       else if (order === 'retreat') finishBattle(this.state, 'retreat');
-      else if (order === 'auto') {
-        if (this.state.ascent) this.state.ascent.autoResolveBattles = true;
-        finishBattle(this.state, 'hold');
-      }
+      // "Leave it to my generals" hands back *this* fight. It used to flip the run-wide
+      // `autoResolveBattles` as well, so one tap on the way out of a lost cause silently
+      // disabled the mode's best screen for the rest of the run; Settings still offers that.
+      else if (order === 'auto') finishBattle(this.state, 'hold');
       ui.events.emit('state-changed');
     });
     ui.events.on('ui:ascent-disband-army', (armyId: string) => {

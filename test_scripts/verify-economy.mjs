@@ -37,6 +37,10 @@ const run = await page.evaluate(async () => {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
   const st = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
+  // The economy's contract is measured with battles handed to the generals: a fought engagement
+  // is decided by orders this naive policy never gives, and its casualties would confound every
+  // demand and shortfall figure below with battle policy.
+  st.ascent.autoResolveBattles = true;
 
   let methodCursor = 0;
   const firstChoice = (p) => {
@@ -133,29 +137,47 @@ const run = await page.evaluate(async () => {
   // apply — a prosperous end-of-run realm simply out-harvested the old fake famine. A host too
   // large to feed makes the shortage true no matter how rich the fields are.
   const { calculatePlayerResourceRates, collectPlayerIncome } = await import('/src/systems/ResourceSystem.ts');
+  // Measured on a living realm. A long run can end annihilated — a roguelite is allowed to
+  // lose — and a realm with no provinces has nobody to starve, so the stress falls back to a
+  // fresh realm advanced sixty seasons rather than reading nothing off a dead one.
+  let stress = st;
+  if (st.isDefeated || !st.lands.some((l) => l.ownerId === 'dai-viet')) {
+    stress = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
+    stress.ascent.autoResolveBattles = true;
+    for (let i = 0; i < 60 && !stress.isDefeated; i += 1) {
+      advanceAscentTick(stress);
+      let guard = 0;
+      while (stress.pendingAscentPrompt && guard++ < 10) {
+        const p = stress.pendingAscentPrompt;
+        if (p.kind === 'run-over') break;
+        if (!resolveAscentPrompt(stress, firstChoice(p))) break;
+      }
+    }
+  }
   // The run may well have no standing host by now, and only army rations can drive the food
   // rate below zero (civilian demand withholds at source and floors at nothing). Conjure one.
-  const feedMe = st.armies.find((a) => a.kingdomId === 'dai-viet')
+  const feedMe = stress.armies.find((a) => a.kingdomId === 'dai-viet' && !a.isLevy)
     ?? (() => {
-      const proto = JSON.parse(JSON.stringify(st.armies[0]));
+      const proto = JSON.parse(JSON.stringify(stress.armies[0]));
       proto.id = 'stress-host';
       proto.kingdomId = 'dai-viet';
-      proto.landId = st.lands.find((l) => l.ownerId === 'dai-viet').id;
+      proto.landId = (stress.lands.find((l) => l.ownerId === 'dai-viet') ?? stress.lands[0]).id;
       proto.generalHeroId = undefined;
-      st.armies.push(proto);
+      proto.isLevy = undefined;
+      stress.armies.push(proto);
       return proto;
     })();
   feedMe.units.spearmen += 50000;
-  st.resources.food = 0;
-  const popBefore = st.lands.filter((l) => l.ownerId === 'dai-viet').reduce((n, l) => n + l.population, 0);
+  stress.resources.food = 0;
+  const popBefore = stress.lands.filter((l) => l.ownerId === 'dai-viet').reduce((n, l) => n + l.population, 0);
   for (let i = 0; i < 6; i += 1) {
-    st.resources.food = 0; // hold the famine open regardless of what the tick harvests
-    st.resourceRates = calculatePlayerResourceRates(st);
-    st.resourceRates.food = Math.min(st.resourceRates.food, -20);
-    collectPlayerIncome(st);
+    stress.resources.food = 0; // hold the famine open regardless of what the tick harvests
+    stress.resourceRates = calculatePlayerResourceRates(stress);
+    stress.resourceRates.food = Math.min(stress.resourceRates.food, -20);
+    collectPlayerIncome(stress);
   }
-  const popAfter = st.lands.filter((l) => l.ownerId === 'dai-viet').reduce((n, l) => n + l.population, 0);
-  const famineShortfall = (st.ascentLedger?.shortfalls ?? []).some((e) => e.kind === 'food');
+  const popAfter = stress.lands.filter((l) => l.ownerId === 'dai-viet').reduce((n, l) => n + l.population, 0);
+  const famineShortfall = (stress.ascentLedger?.shortfalls ?? []).some((e) => e.kind === 'food');
 
   return {
     turn: st.turn,

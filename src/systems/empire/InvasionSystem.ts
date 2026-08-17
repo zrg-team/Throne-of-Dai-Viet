@@ -1,5 +1,6 @@
 import { isEndlessMode, PLAYER_KINGDOM_ID } from '../../game/constants';
 import { getLegTicks } from '../../game/movementConfig';
+import { GARRISON_LEVY_FLOOR, LEVY_POWER_PER_MAN } from '../../game/ascentConfig';
 import { findLand, getAcquisitionTicksRequired } from '../LandSystem';
 import { createBattlePreview, grantGeneralExperience, issueMoveOrder } from '../WarSystem';
 import {
@@ -18,7 +19,7 @@ import {
   tryReformBrokenHost,
 } from '../ascent/DoctrineSystem';
 import { pushToast } from './notifications';
-import type { Army, Difficulty, GameState, InvasionRecord, Kingdom, Land } from '../../state/types';
+import type { Army, Difficulty, GameState, InvasionRecord, Kingdom, Land, PendingBattle } from '../../state/types';
 import { t } from '../../i18n';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -338,6 +339,14 @@ export function tickInvasions(state: GameState): void {
       continue;
     }
 
+    // A host already in the line of a watched engagement is fought there, on the battle's own
+    // beats. Contacting it again here would resolve the same fight a second time underneath the
+    // one being watched. (Read off the state directly: this file must not import the battle.)
+    const live = state.ascent?.activeBattle;
+    if (live && !live.over && (live.theirArmyIds ?? []).includes(army.id)) {
+      continue;
+    }
+
     // A raider that has done its damage marches back to the frontier and vanishes.
     if (record.pillaged) {
       const exitId = record.exitLandId;
@@ -480,19 +489,27 @@ export function raiseGarrisonLevy(state: GameState, land: Land): Army | undefine
   // `localSoldiers` is seeded on the capital and on essentially nowhere else — measured, the
   // *median* player province carries zero — so a levy mustered from it could never form on the
   // provinces that actually need one. `defense` is the term every province has, and it is what
-  // `defenderPower` already values a garrison by (16 per point against 2.5 per militiaman), so
-  // sizing the turnout from both is also what keeps this levy worth the same as the garrison it
-  // replaces rather than inventing strength out of nothing.
+  // `defenderPower` already values a garrison by (16 per point against 2.5 per militiaman).
+  //
+  // Sized in *battle power*, not in bodies. The turnout used to be `militia + defense × 6` men,
+  // which reads as the same strength but is not: a levy man is worth ~0.58 power in the field
+  // (`armyPower` at the levy's morale and supply), so the walls came out at a fifth of what the
+  // odds roll gives them, and every province a wave reached fell in the field where the roll had
+  // held it. Dividing the garrison's power by the levy's power-per-man keeps the watched fight
+  // and the hidden roll worth the same; `levyDrawn` keeps the walls' share out of the militia.
   // A province set to raise soldiers turns out more of them; one set to defend turns out its walls.
   // Both multipliers are 1 for every other focus, and outside Ascent this whole function returns
   // early anyway.
-  const muster = Math.floor(
-    (land.localSoldiers + land.defense * 6)
+  const drawn = Math.floor(
+    ((land.localSoldiers * 2.5 + land.defense * 16) / LEVY_POWER_PER_MAN)
     * getFocusGarrisonMult(state, land)
     * getFocusDefenseMult(state, land),
   );
-  // Below a company there is nothing to form a line with; the threshold roll covers those.
-  if (muster < 40) return undefined;
+  // Below a company there is nothing to form a line with — but the province is still ours, and
+  // whose ground it is turns out to be the honest test of what is worth watching. A thin
+  // garrison turns out a token company rather than surrendering the fight to a hidden roll;
+  // `levyDrawn` remembers what it really took, so the conjured share never becomes militia.
+  const muster = Math.max(GARRISON_LEVY_FLOOR, drawn);
 
   const levy: Army = {
     id: `levy-${land.id}-${state.turn}`,
@@ -504,15 +521,18 @@ export function raiseGarrisonLevy(state: GameState, land: Land): Army | undefine
       archers: Math.round(muster * 0.25),
       heavyInfantry: Math.round(muster * 0.15),
     },
-    // Townsmen behind their own walls: they will hold, but they are not a royal host.
-    morale: 70,
-    supply: 70,
+    // Townsmen behind their own walls. Steadier than the first version's 70: sized to the same
+    // power as the walls (see above), a levy that opened fifteen heart below the invader broke
+    // first in every even exchange, and lost in the field the fights the odds roll had it winning.
+    morale: 80,
+    supply: 80,
     rations: 999,
     provisions: 999,
     level: 1,
     experience: 0,
     experienceToNextLevel: 120,
     isLevy: true,
+    levyDrawn: land.localSoldiers,
   };
   land.localSoldiers = 0;
   state.armies.push(levy);
@@ -531,7 +551,8 @@ export function dissolveGarrisonLevies(state: GameState): void {
     // Only what is left, and only if the province is still ours — a levy that lost its home has
     // nowhere to go back to.
     if (land && land.ownerId === PLAYER_KINGDOM_ID) {
-      land.localSoldiers += totalUnits(levy);
+      // At most what the province gave: the walls' share of the turnout goes back to the walls.
+      land.localSoldiers += Math.min(totalUnits(levy), levy.levyDrawn ?? totalUnits(levy));
     }
   }
   state.armies = state.armies.filter((army) => !army.isLevy);
@@ -545,21 +566,25 @@ export function dissolveGarrisonLevies(state: GameState): void {
  */
 function maybeRequestBattleDecision(state: GameState, army: Army, record: InvasionRecord, land: Land): boolean {
   if (state.pendingBattle) return true;
-  let defender = state.armies.find((a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id && totalUnits(a) > 0);
-  // Nobody in the field — so the province turns out its own garrison rather than surrendering
-  // the decision. See `raiseGarrisonLevy`: without this, every province the hosts happened not to
-  // be standing on resolved its defence as a silent dice roll, and a measured 320-tick run opened
-  // the battle screen exactly zero times.
-  if (!defender) {
-    defender = raiseGarrisonLevy(state, land);
-  }
-  if (!defender) return false;
+  // One watched engagement at a time. A contact made elsewhere while a fight is live is settled
+  // the old way, by the odds roll, rather than queued: queuing froze the second invader for the
+  // length of the first fight, and a three-host wave took three fights' worth of seasons to
+  // land — battles filled seven ticks in ten and the next wave arrived on top of the last.
+  const live = state.ascent?.activeBattle;
+  if (live && !live.over) return false;
+  const defender = state.armies.find((a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id && totalUnits(a) > 0);
   // `autoDefend` means two different things: 'march home to intercept' (tickAutoDefend) and
   // 'fight without asking' (here). Dragon Ascent needs the first and not the second, so it
   // asks regardless unless the player has handed battles back to their generals. Inert in
   // every other mode.
   const ascentWatches = state.gameMode === 'ascent' && !state.ascent?.autoResolveBattles;
-  if (defender.autoDefend && !ascentWatches) return false;
+  // Nobody in the field. In Dragon Ascent the province turns out its own garrison — see
+  // `raiseGarrisonLevy`, mustered by `beginBattle` once every other gate has passed, so a fight
+  // that is not opened after all is still rolled against the walls counted once. Without a levy,
+  // every province the hosts happened not to be standing on resolved its defence as a silent
+  // dice roll, and a measured 320-tick run opened the battle screen exactly zero times.
+  if (!defender && !ascentWatches) return false;
+  if (defender?.autoDefend && !ascentWatches) return false;
   const preview = createBattlePreview(state, army.id, land.id);
   if (!preview) return false;
   state.pendingBattle = {
@@ -582,6 +607,22 @@ export function resolvePendingBattle(state: GameState, decision: 'attack' | 'del
   state.pendingBattle = undefined;
   state.isPaused = false;
   if (!pb) return;
+  resolveBattleRecord(state, pb, decision);
+}
+
+/**
+ * Settles one invader's contact with a province.
+ *
+ * Split from `resolvePendingBattle` so a watched engagement, which owns its record itself, can
+ * hand the outcome back without a `pendingBattle` on the state. `forced` states what the field
+ * already decided — a side that broke has lost, and is not asked to roll again.
+ */
+export function resolveBattleRecord(
+  state: GameState,
+  pb: PendingBattle,
+  decision: 'attack' | 'delegate' | 'retreat',
+  forced?: 'defence' | 'invader',
+): void {
   const army = state.armies.find((a) => a.id === pb.invaderArmyId);
   const land = findLand(state, pb.landId);
   const record = state.invasions?.find((r) => r.armyId === pb.invaderArmyId);
@@ -589,14 +630,21 @@ export function resolvePendingBattle(state: GameState, decision: 'attack' | 'del
   if (decision === 'retreat') {
     // Pull the field army to safety; the district falls to whatever garrison remains.
     retreatDefenders(state, land);
-    resolveInvaderBattle(state, army, record, land, 1);
+    resolveInvaderBattle(state, army, record, land, 1, forced);
     return;
   }
   // Attack: seize the initiative for a real defender edge. Delegate: a steady hero-led stand.
-  resolveInvaderBattle(state, army, record, land, decision === 'attack' ? 1.22 : 1.06);
+  resolveInvaderBattle(state, army, record, land, decision === 'attack' ? 1.22 : 1.06, forced);
 }
 
-function resolveInvaderBattle(state: GameState, army: Army, record: InvasionRecord, land: Land, defenderBonus = 1): void {
+function resolveInvaderBattle(
+  state: GameState,
+  army: Army,
+  record: InvasionRecord,
+  land: Land,
+  defenderBonus = 1,
+  forced?: 'defence' | 'invader',
+): void {
   // Fire Arrows: the volley lands before the lines meet, so it is spent on the approach whether
   // the defence then holds or breaks. Applied ahead of the preview so the odds the battle
   // resolves on are the odds after the arrows have fallen.
@@ -613,7 +661,9 @@ function resolveInvaderBattle(state: GameState, army: Army, record: InvasionReco
   // swing (drama) while a clearly stronger side still prevails (preparation over luck).
   const fuzz = 0.9 + Math.random() * 0.2;
   const siegeMult = record.great ? 0.72 : preTotal > 1000 ? 0.8 : 0.85;
-  const victory = preview.attackerPower >= preview.defenderPower * defenderBonus * siegeMult * fuzz;
+  const victory = forced
+    ? forced === 'invader'
+    : preview.attackerPower >= preview.defenderPower * defenderBonus * siegeMult * fuzz;
 
   if (!victory) {
     applyInvaderLosses(army, 0.4);
@@ -627,10 +677,28 @@ function resolveInvaderBattle(state: GameState, army: Army, record: InvasionReco
       despawnInvasion(state, record);
       return;
     }
-    // A bloodied raider gives up and withdraws; a war host keeps grinding.
-    if (record.intent === 'raid') {
+    // A bloodied raider gives up and withdraws; a war host keeps grinding — unless it was
+    // broken in the field, in which case it has been seen to run and does not get to try the
+    // same gate again next tick. A host that runs leaves its dead, its baggage and its
+    // stragglers behind: the spoils of a rout are the spoils of the fight, scaled to what it
+    // lost, not withheld until the last man is hunted down.
+    if (record.intent === 'raid' || forced === 'defence') {
       record.pillaged = true;
+      record.plan = 'withdrawing';
       record.exitLandId = farthestNeutralFromCapital(state)?.id;
+      if (forced === 'defence') {
+        recordArmyDefeated(state, preTotal);
+        grantRepelSpoils(state, Math.max(40, preTotal - totalUnits(army)), record);
+        state.message = t('empire.invade.repelled', { kingdom: kingdomName(state, record.kingdomId), land: land.name });
+      }
+      // A besieger that broke leaves the walls it was sitting under: the siege is lifted and
+      // the host falls back to the ground it came from. Left in place, a broken host's siege
+      // ran on and captured the province it had just been beaten in front of.
+      const siege = state.siegeOrders.find((order) => order.armyId === army.id);
+      if (siege) {
+        state.siegeOrders = state.siegeOrders.filter((order) => order !== siege);
+        army.landId = siege.fromLandId;
+      }
     }
     return;
   }
@@ -666,7 +734,9 @@ function resolveInvaderBattle(state: GameState, army: Army, record: InvasionReco
 }
 
 function retreatDefenders(state: GameState, land: Land): void {
-  const defenders = state.armies.filter((a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id);
+  // The walls do not retreat: a garrison levy stays where it was raised and is dissolved back
+  // into its province by `dissolveGarrisonLevies` once the fighting stops.
+  const defenders = state.armies.filter((a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id && !a.isLevy);
   for (const defender of defenders) {
     // The Bronze Drum steadies everyone still standing — ordinary on one front, and worth the
     // slot the moment the realm is fighting on three.

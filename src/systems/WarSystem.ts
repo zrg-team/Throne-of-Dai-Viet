@@ -173,8 +173,10 @@ export function terrainDefenseMultiplier(land: Land): number {
 }
 
 function defenderPower(state: GameState, targetLand: Land): number {
+  // A garrison levy *is* the walls turned out (Dragon Ascent); the walls are counted below, so
+  // the levy is not counted again as an army. Inert elsewhere: no other mode raises one.
   const defendingArmy = state.armies.find(
-    (army) => army.kingdomId === targetLand.ownerId && army.landId === targetLand.id,
+    (army) => army.kingdomId === targetLand.ownerId && army.landId === targetLand.id && !army.isLevy,
   );
 
   // Walls + local militia hold a district against small raids, but a serious host can
@@ -200,7 +202,7 @@ export function createBattlePreview(
     return undefined;
   }
 
-  const defArmy = state.armies.find((a) => a.kingdomId === land.ownerId && a.landId === land.id);
+  const defArmy = state.armies.find((a) => a.kingdomId === land.ownerId && a.landId === land.id && !a.isLevy);
   const attackerPower = armyPower(state, army) * compositionMatchup(army.units, defArmy);
   const targetPower = defenderPower(state, land);
   const winChance = Math.round((attackerPower / Math.max(1, attackerPower + targetPower)) * 100);
@@ -298,6 +300,19 @@ function getTotalPathTicks(state: GameState, army: Army, path: string[]): number
 export function issueMoveOrder(state: GameState, armyId: string, targetLandId: string): boolean {
   const army = state.armies.find((candidate) => candidate.id === armyId);
   if (!army) {
+    return false;
+  }
+  // A garrison levy is its province's own walls turned out; it exists for one battle and cannot
+  // be marched (see `raiseGarrisonLevy`). And a host in the line of a watched engagement stays in
+  // it — the fight is left through the battle's own orders, never by walking off the field
+  // mid-exchange, which is what the autopilot did to the capital's levy the first time a fight
+  // outlived its opening tick. Both are Ascent-only states; the read is inert elsewhere.
+  if (army.isLevy) {
+    return false;
+  }
+  const live = state.ascent?.activeBattle;
+  if (live && !live.over
+    && ((live.ourArmyIds ?? []).includes(armyId) || (live.theirArmyIds ?? []).includes(armyId))) {
     return false;
   }
 
@@ -767,6 +782,13 @@ export function progressArmyLogistics(state: GameState): boolean {
     if (army.kingdomId !== PLAYER_KINGDOM_ID) {
       continue;
     }
+    // A garrison levy exists for one battle: it is fed and paid by the province it came from,
+    // and it goes home the moment the fight ends. Wages and rations do not apply — counting
+    // them disbanded the capital's own turnout for arrears in the middle of the siege it was
+    // raised to fight.
+    if (army.isLevy) {
+      continue;
+    }
 
     const total = totalUnits(army);
     if (total <= 0) {
@@ -905,7 +927,14 @@ export function attackLand(state: GameState, armyId: string, targetLandId: strin
 
     const fromLandId = army.landId;
     army.landId = targetLand.id;
-    const siegeTicks = getAcquisitionTicksRequired(targetLand);
+    // Retaking the dynasty's own seat (Dragon Ascent) is a liberation, not a siege: the walls
+    // and the people are the realm's, so the gates open the season the field is won. The
+    // grace clock the capital's fall starts is shorter than a full siege would take, and a
+    // realm that won the battle to get back in should not lose the run to the arithmetic.
+    const liberatingSeat = state.gameMode === 'ascent'
+      && army.kingdomId === PLAYER_KINGDOM_ID
+      && state.ascent?.capitalLandId === targetLand.id;
+    const siegeTicks = liberatingSeat ? 1 : getAcquisitionTicksRequired(targetLand);
     state.siegeOrders.push({
       landId: targetLand.id,
       armyId: army.id,
@@ -989,7 +1018,15 @@ export function cancelSiege(state: GameState, armyId: string, landId: string): b
 export function progressSiegeOrders(state: GameState): boolean {
   const completed: SiegeOrder[] = [];
 
+  // A siege does not advance while its besieger is fighting for the ground it is besieging: a
+  // watched engagement on the province (Dragon Ascent) contests it. Measured before this, the
+  // capital was captured mid-battle by a host that was itself in the line, three beats before
+  // the defenders routed it. Inert elsewhere — no other mode has a live battle.
+  const live = state.ascent?.activeBattle;
+  const engaged = new Set(live && !live.over ? [...(live.ourArmyIds ?? []), ...(live.theirArmyIds ?? [])] : []);
+
   for (const order of state.siegeOrders) {
+    if (engaged.has(order.armyId) && live?.landId === order.landId) continue;
     order.progress += 1;
     if (order.progress >= order.required) {
       completed.push(order);

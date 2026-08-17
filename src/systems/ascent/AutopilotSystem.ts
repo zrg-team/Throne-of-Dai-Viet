@@ -106,7 +106,9 @@ function outputWeights(state: GameState): Record<'gold' | 'food' | 'supplies' | 
   const goldGlut = rates.gold > 0 && held.gold > rates.gold * GOLD_GLUT_SEASONS;
 
   return {
-    gold: goldGlut ? 1 : 3,
+    // A broke realm builds markets: gold used to be the one resource with no scarcity term, so a
+    // treasury pinned at zero never changed what the autopilot chose to build.
+    gold: goldGlut ? 1 : byScarcity(3, held.gold, rates.gold),
     food: byScarcity(1, held.food, rates.food),
     supplies: byScarcity(2.5, held.supplies, rates.supplies),
     humans: 0.4,
@@ -202,9 +204,16 @@ function armySize(army: { units: { spearmen: number; archers: number; heavyInfan
  * levy going home is also how manpower gets recycled into the next real host.
  */
 function autoDisbandRemnants(state: GameState): void {
+  const live = state.ascent?.activeBattle;
+  const engaged = new Set(live && !live.over ? [...(live.ourArmyIds ?? []), ...(live.theirArmyIds ?? [])] : []);
   const remnants = state.armies.filter(
     (army) =>
       army.kingdomId === PLAYER_KINGDOM_ID &&
+      // A garrison levy is not a host, and a host in the line is not sent home mid-fight —
+      // both used to be dissolved here at the top of the tick, and the field they were
+      // standing on read as broken before a blow was struck.
+      !army.isLevy &&
+      !engaged.has(army.id) &&
       armySize(army) < MIN_ARMY_SOLDIERS * REMNANT_SHARE &&
       !state.siegeOrders.some((order) => order.armyId === army.id),
   );
@@ -331,6 +340,7 @@ function autoClaimWilderness(state: GameState): boolean {
   const idle = state.armies.filter(
     (army) =>
       army.kingdomId === PLAYER_KINGDOM_ID &&
+      !army.isLevy &&
       !state.movementOrders.some((order) => order.armyId === army.id) &&
       !state.siegeOrders.some((order) => order.armyId === army.id),
   );
@@ -436,6 +446,15 @@ function autoMarch(state: GameState): boolean {
   const ascent = state.ascent;
   if (!ascent) return false;
   ascent.frontBlocked = false;
+
+  // The seat of the dynasty comes before any front. Losing it starts a short clock
+  // (`CAPITAL_GRACE_TICKS`); a realm holding twenty provinces and ten thousand gold used to
+  // sit out that clock with every host idle, because nothing told the autopilot to go back.
+  const capital = state.lands.find((land) => land.id === ascent.capitalLandId);
+  const capitalLost = Boolean(capital && capital.ownerId !== PLAYER_KINGDOM_ID);
+  if (capitalLost && capital) {
+    ascent.frontLandId = capital.id;
+  }
   if (!ascent.frontLandId) return false;
 
   const front = state.lands.find((land) => land.id === ascent.frontLandId);
@@ -447,7 +466,8 @@ function autoMarch(state: GameState): boolean {
 
   // A general will not throw the host at walls it cannot break. Holding here is what makes
   // the power curve the thing that opens the map: keep compounding and the odds come to you.
-  if (frontWinChance(state) < MARCH_MIN_WIN_CHANCE) {
+  // Not for the seat itself: with the dynasty's clock running, the host goes whatever the odds.
+  if (!capitalLost && frontWinChance(state) < MARCH_MIN_WIN_CHANCE) {
     ascent.frontBlocked = true;
     return false;
   }
@@ -455,14 +475,16 @@ function autoMarch(state: GameState): boolean {
   const idle = state.armies.filter(
     (army) =>
       army.kingdomId === PLAYER_KINGDOM_ID &&
+      !army.isLevy &&
       !state.movementOrders.some((order) => order.armyId === army.id) &&
       !state.siegeOrders.some((order) => order.armyId === army.id),
   );
   if (idle.length === 0) return false;
 
   // Always leave one host at home once there are two to split. The capital falling ends
-  // the run, so committing the last defender to an offensive is never worth the ground.
-  const garrisonKeep = idle.length > 1 ? 1 : 0;
+  // the run, so committing the last defender to an offensive is never worth the ground —
+  // unless the capital *is* the front, when everything marches.
+  const garrisonKeep = idle.length > 1 && !capitalLost ? 1 : 0;
   const marchers = idle.slice(0, Math.max(1, idle.length - garrisonKeep));
 
   let marched = false;
@@ -534,7 +556,8 @@ function autoResupply(state: GameState): void {
  * otherwise raise an empire-mode modal this mode does not render.
  */
 function autoDefend(state: GameState): void {
-  const mine = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID);
+  // A garrison levy is not a host: it fights the one battle it was raised for and goes home.
+  const mine = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy);
 
   // While a front is set, the strongest host stays committed to it even between orders.
   // Deciding purely from live orders leaves it briefly idle on arrival, which is all
@@ -563,8 +586,10 @@ export function tickAscentAutopilot(state: GameState): void {
     ascent.autopilotStats.recruits += 1;
   }
 
-  // Building spends gold that a reroll might want, so leave a small float.
-  if (state.resources.gold > AUTOBUILD_GOLD_RESERVE) {
+  // Building spends gold that a reroll might want, so leave a small float — and while the
+  // books run red, enough of one to keep the garrison paid for a few seasons first.
+  const buildReserve = Math.max(AUTOBUILD_GOLD_RESERVE, -state.resourceRates.gold * 8);
+  if (state.resources.gold > buildReserve) {
     if (autoBuild(state)) {
       ascent.autopilotStats.builds += 1;
     } else if (autoUpgrade(state)) {

@@ -219,6 +219,16 @@ export class ConquestUIScene extends Phaser.Scene {
   private lanePauseBeforeOpen = false;
   /** The "world is stopped" badge, rebuilt with the bar. */
   private pausedBadge?: Phaser.GameObjects.Container;
+  /**
+   * The engagement the screen last opened itself for. A battle opens the lane exactly once —
+   * closing it is a decision, and the fight carries on underneath — so this is keyed on the
+   * battle's identity rather than on "is one live".
+   */
+  private lastAutoOpenedBattleKey = '';
+  /** True from the screen opening itself until the first order: the world is held meanwhile. */
+  private battleAwaitingOrder = false;
+  /** A prompt interrupted the battle screen; reopen it once the prompt is answered. */
+  private reopenBattleAfterPrompt = false;
 
   constructor() {
     super('ConquestUIScene');
@@ -232,6 +242,9 @@ export class ConquestUIScene extends Phaser.Scene {
     this.openPromptKey = '';
     this.lanePauseBeforeOpen = false;
     this.battleUi = undefined;
+    this.lastAutoOpenedBattleKey = '';
+    this.battleAwaitingOrder = false;
+    this.reopenBattleAfterPrompt = false;
     window.__hudTapBounds = [];
   }
 
@@ -301,6 +314,13 @@ export class ConquestUIScene extends Phaser.Scene {
     // being rebuilt. Rebuilding it would also make its standing-order cards untappable, since a
     // card destroyed between press and release never fires.
     if (this.openPromptKey === 'lane:battle') {
+      if (this.state.pendingAscentPrompt) {
+        // A card has arrived over the fight. The prompt owns the screen while it is up — the
+        // world is paused with it, so the siege waits — and the battle comes straight back after.
+        this.reopenBattleAfterPrompt = true;
+        this.closeLane();
+        return;
+      }
       this.updateBattle();
       // A fight that ended closes its own screen, which re-enters `refresh` — let that pass
       // finish the frame rather than carrying on against a key that no longer applies.
@@ -320,11 +340,56 @@ export class ConquestUIScene extends Phaser.Scene {
       if (prompt) this.renderPrompt(prompt);
     }
 
+    // A fight that has just begun brings its own screen up. After the prompt key is reconciled,
+    // so a card that arrived on the same tick is answered first and the battle follows it.
+    if (this.maybeAutoOpenBattle()) return;
+
     // After the prompt key is reconciled, never before: both of these decide whether to show
     // themselves from it, and reading last tick's value left the bar hidden for a whole frame
     // after the final card of a chain was answered.
     this.renderActionBar();
     this.renderInspect();
+  }
+
+  /**
+   * Opens the battle screen the moment an engagement starts, and holds the world until the
+   * player has given a first order.
+   *
+   * The screen used to wait to be found: `beginBattle` raised no prompt and no toast, the bar
+   * grew a small Battle button, and the fight — four to six ticks long — was over before most
+   * players noticed it. Now the fight announces itself. The hold is a *strategy* pause, released
+   * by the first order (or by closing the screen), so reinforcements can still be marched in
+   * once the fight is under way — the battle lane must never keep the world stopped.
+   *
+   * Returns true when it opened the lane, so the caller lets `openLane`'s own bar render stand.
+   */
+  private maybeAutoOpenBattle(): boolean {
+    const battle = this.state.ascent?.activeBattle;
+    if (!battle || battle.over) {
+      this.reopenBattleAfterPrompt = false;
+      return false;
+    }
+    if (this.state.pendingAscentPrompt || this.openPromptKey !== '') return false;
+    const key = battle.key ?? `${battle.landId}:${battle.invaderArmyId}`;
+    const fresh = key !== this.lastAutoOpenedBattleKey;
+    if (!fresh && !this.reopenBattleAfterPrompt) return false;
+    this.reopenBattleAfterPrompt = false;
+    this.lastAutoOpenedBattleKey = key;
+    this.openLane('battle');
+    // `openLane` bails on a race (the fight ended between the tick and this frame).
+    if ((this.openPromptKey as string) !== 'lane:battle') return false;
+    if (fresh) {
+      this.battleAwaitingOrder = true;
+      this.state.isStrategyPause = true;
+    }
+    return true;
+  }
+
+  /** The first order lets the fight run: the opening hold ends and the world resumes. */
+  private releaseBattleHold(): void {
+    if (!this.battleAwaitingOrder) return;
+    this.battleAwaitingOrder = false;
+    this.state.isStrategyPause = this.lanePauseBeforeOpen;
   }
 
   /** Identity of a prompt's *content*, so a reroll re-renders but a tick does not. */
@@ -1089,6 +1154,9 @@ export class ConquestUIScene extends Phaser.Scene {
 
   /** Leaves a lane browser, restoring whatever pause state the player had before opening it. */
   private closeLane(): void {
+    // Leaving the battle screen unanswered is an answer: the generals fight on and the world
+    // moves. The hold only ever lasts as long as the screen that asked for it.
+    this.battleAwaitingOrder = false;
     this.state.isStrategyPause = this.lanePauseBeforeOpen;
     this.closeOverlay();
   }
@@ -1735,7 +1803,9 @@ export class ConquestUIScene extends Phaser.Scene {
           }),
           border: INK_UI.cinnabar,
         },
-        () => this.showBattle(),
+        // Through the lane, not `showBattle` directly: the lane key is what makes `refresh`
+        // beat the screen forward, so a battle opened here used to sit frozen at its first frame.
+        () => { this.closeLane(); this.openLane('battle'); },
       );
     }
 
@@ -3242,8 +3312,8 @@ export class ConquestUIScene extends Phaser.Scene {
 
   /** Who is standing on the field, so relief arriving or a column breaking forces a redraw. */
   private battleFieldSignature(battle: AscentBattle): string {
-    const ours = ourHosts(this.state, battle.landId).map((host) => host.id);
-    const theirs = theirHosts(this.state, battle.landId, battle.kingdomId).map((host) => host.id);
+    const ours = ourHosts(this.state, battle).map((host) => host.id);
+    const theirs = theirHosts(this.state, battle).map((host) => host.id);
     return `${ours.join(',')}|${theirs.join(',')}|${battle.focusHostId ?? ''}`;
   }
 
@@ -3289,8 +3359,8 @@ export class ConquestUIScene extends Phaser.Scene {
     field.add(this.battleCamp(leftX, groundY + 16, INK_UI.jade));
     field.add(this.battleCamp(rightX, groundY + 16, rivalColor));
 
-    const ours = ourHosts(this.state, battle.landId);
-    const theirs = theirHosts(this.state, battle.landId, battle.kingdomId);
+    const ours = ourHosts(this.state, battle);
+    const theirs = theirHosts(this.state, battle);
     const lane = (index: number, count: number): number => groundY + (index - (count - 1) / 2) * 32;
 
     ours.forEach((host, index) => {
@@ -3316,9 +3386,10 @@ export class ConquestUIScene extends Phaser.Scene {
       }
       const hit = this.add.circle(0, -18, 28, 0xffffff, 0.001)
         .setInteractive({ useHandCursor: true });
-      hit.on('pointerup', () => this.events.emit(
-        'ui:battle-focus', battle.focusHostId === host.id ? undefined : host.id,
-      ));
+      hit.on('pointerup', () => {
+        this.releaseBattleHold();
+        this.events.emit('ui:battle-focus', battle.focusHostId === host.id ? undefined : host.id);
+      });
       marker.add(hit);
     });
   }
@@ -3383,6 +3454,16 @@ export class ConquestUIScene extends Phaser.Scene {
     };
     heart(content.x + 12, battle.ourMorale);
     heart(content.x + barW + 24, battle.theirMorale);
+
+    // The opening hold, said out loud: the world is stopped for the first order, and the caption
+    // goes with the first tap. Lives in the readout because that layer is redrawn every beat.
+    if (this.battleAwaitingOrder) {
+      readout.add(this.ui.label(content.x + content.width / 2, content.y + 12, t('ascent.battle.holdNote'), 'caption', {
+        align: 'center',
+        wordWrap: { width: content.width - 40 },
+        color: `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`,
+      }).setOrigin(0.5, 0));
+    }
   }
 
   /** The standing orders. Rebuilt only when what they offer changes, never on the beat. */
@@ -3408,7 +3489,7 @@ export class ConquestUIScene extends Phaser.Scene {
           badge,
           accent,
           parent: orders,
-          onTap: () => this.events.emit('ui:battle-order', id),
+          onTap: () => { this.releaseBattleHold(); this.events.emit('ui:battle-order', id); },
         },
       );
       optY += rowH + 8;
@@ -3416,7 +3497,7 @@ export class ConquestUIScene extends Phaser.Scene {
 
     // Focus is discoverable from a row as well as from the field: a tap target with no label is
     // a secret, and the two together teach each other.
-    const focused = theirHosts(this.state, battle.landId, battle.kingdomId)
+    const focused = theirHosts(this.state, battle)
       .find((host) => host.id === battle.focusHostId);
     this.optionCard(
       { x: 0, y: optY, width: rowWidth, height: rowH },
@@ -3426,7 +3507,7 @@ export class ConquestUIScene extends Phaser.Scene {
         body: focused ? t('ascent.battle.focusD') : t('ascent.battle.spreadD'),
         accent: focused ? INK_UI.cinnabar : INK_UI.softBrush,
         parent: orders,
-        onTap: () => this.events.emit('ui:battle-focus', undefined),
+        onTap: () => { this.releaseBattleHold(); this.events.emit('ui:battle-focus', undefined); },
       },
     );
     optY += rowH + 8;
@@ -3449,7 +3530,7 @@ export class ConquestUIScene extends Phaser.Scene {
           accent: battle.reserveSpent ? INK_UI.softBrush : INK_UI.jade,
           disabled: battle.reserveSpent,
           parent: orders,
-          onTap: () => { if (!battle.reserveSpent) this.events.emit('ui:battle-order', 'reserve'); },
+          onTap: () => { if (!battle.reserveSpent) { this.releaseBattleHold(); this.events.emit('ui:battle-order', 'reserve'); } },
         },
       );
       optY += rowH + 8;
@@ -3465,7 +3546,7 @@ export class ConquestUIScene extends Phaser.Scene {
           accent: battle.rallySpent ? INK_UI.softBrush : INK_UI.gold,
           disabled: battle.rallySpent,
           parent: orders,
-          onTap: () => { if (!battle.rallySpent) this.events.emit('ui:battle-order', 'rally'); },
+          onTap: () => { if (!battle.rallySpent) { this.releaseBattleHold(); this.events.emit('ui:battle-order', 'rally'); } },
         },
       );
       optY += rowH + 8;
@@ -3499,7 +3580,7 @@ export class ConquestUIScene extends Phaser.Scene {
       // instead of gliding, so the picture reads as a fight rather than a chart.
       const meeting = battle.ourAdvance + battle.theirAdvance >= 1;
       const sizes = new Map(
-        [...ourHosts(this.state, battle.landId), ...theirHosts(this.state, battle.landId, battle.kingdomId)]
+        [...ourHosts(this.state, battle), ...theirHosts(this.state, battle)]
           .map((host) => [host.id, hostSize(host)] as const),
       );
       this.slideMarkers(ui.ourMarkers, leftX + 30 + span * battle.ourAdvance, meeting ? 4 : 0, sizes);

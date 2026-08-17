@@ -43,6 +43,7 @@ export const enAscent = {
   "ascent.demand.cloth": "The workshops at {land} stand idle — no iron has come.",
   "ascent.demand.coin": "{land} has paid no tax this season. No one will say why.",
   "ascent.demand.coinRecover": "The arrears are cleared. {land} collects again.",
+  "ascent.demand.coinWriteOff": "The old arrears at {land} are written off — the clerks are back at their tables.",
 
   // ── A world that pushes back ─────────────────────────────────────────────
   "ascent.world.dominanceStrike": "{kingdom} marches — not from hatred, but from fear of what you are becoming.",
@@ -497,8 +498,10 @@ export const enAscent = {
   "ascent.battle.holdD": "Trade cautiously. Fewer of ours fall, and fewer of theirs.",
   "ascent.battle.retreat": "Sound the retreat",
   "ascent.battle.retreatD": "The host escapes intact. The province is left to its walls.",
-  "ascent.battle.auto": "Leave it to my generals",
-  "ascent.battle.autoD": "This fight and every one after it resolves without you.",
+  "ascent.battle.auto": "Leave this one to my generals",
+  "ascent.battle.autoD": "This fight resolves without you. Settings can hand them all back.",
+  "ascent.battle.begins": "Battle joined at {land} — {kingdom} is at the gates. Take command.",
+  "ascent.battle.holdNote": "The realm holds its breath. Give the first order to let the fight begin.",
   "ascent.famine.title": "The granary stands empty",
   "ascent.famine.body": "Short {shortfall} food each season. Every host is losing heart and the people are leaving.",
   "ascent.famine.buy-grain": "Buy grain from abroad",
@@ -605,6 +608,7 @@ export const viAscent = {
   "ascent.demand.cloth": "Xưởng ở {land} nghỉ việc — sắt không về.",
   "ascent.demand.coin": "{land} mùa này không nộp thuế. Không ai nói vì sao.",
   "ascent.demand.coinRecover": "Nợ lương đã trả. {land} lại thu thuế.",
+  "ascent.demand.coinWriteOff": "Nợ lương cũ ở {land} được xóa — thư lại trở lại bàn giấy.",
 
   // ── Thế giới biết đáp trả ────────────────────────────────────────────────
   "ascent.world.dominanceStrike": "{kingdom} động binh — không phải vì thù, mà vì sợ ngươi đang thành cái gì.",
@@ -1057,8 +1061,10 @@ export const viAscent = {
   "ascent.battle.holdD": "Đánh cầm chừng. Ta hao ít, địch cũng hao ít.",
   "ascent.battle.retreat": "Thu quân",
   "ascent.battle.retreatD": "Giữ được quân. Tỉnh này phó mặc cho thành lũy.",
-  "ascent.battle.auto": "Giao cho các tướng",
-  "ascent.battle.autoD": "Trận này và mọi trận sau tự quyết, không hỏi vua.",
+  "ascent.battle.auto": "Giao trận này cho các tướng",
+  "ascent.battle.autoD": "Trận này tự quyết, không hỏi vua. Vào Cài đặt để giao hết mọi trận.",
+  "ascent.battle.begins": "Giao chiến tại {land} — {kingdom} đã đến cửa thành. Xin bệ hạ cầm quân.",
+  "ascent.battle.holdNote": "Cả cõi nín thở. Hạ lệnh đầu tiên để trận đánh bắt đầu.",
   "ascent.famine.title": "Kho lẫm đã cạn",
   "ascent.famine.body": "Thiếu {shortfall} lương mỗi mùa. Quân sĩ rã lòng, dân chúng bỏ đi.",
   "ascent.famine.buy-grain": "Mua lương từ ngoại quốc",

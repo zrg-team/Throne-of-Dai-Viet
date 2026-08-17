@@ -21,13 +21,16 @@ import {
   BATTLE_VOLLEY_BITE,
   BATTLE_WITHDRAW_RECOVERY,
 } from '../../game/ascentConfig';
-import { resolvePendingBattle } from '../empire/InvasionSystem';
+import { raiseGarrisonLevy, resolveBattleRecord } from '../empire/InvasionSystem';
 import { pushToast } from '../empire/notifications';
 import { armyPower, issueMoveOrder, terrainDefenseMultiplier } from '../WarSystem';
 import { findLand } from '../LandSystem';
-import { enqueueAscentPrompt } from './AscentState';
+import { battleLine, enrolArrivals, hostHeadcount, ourHosts, theirHosts } from './battleMembership';
 import { t } from '../../i18n';
-import type { Army, AscentBattle, BattlePosture, GameState } from '../../state/types';
+import type { Army, AscentBattle, BattlePosture, GameState, PendingBattle } from '../../state/types';
+
+// Re-exported so the screen and the harness keep one import for the fight's vocabulary.
+export { battleLine, isEngaged, ourHosts, theirHosts } from './battleMembership';
 
 /**
  * The fight you can actually watch — and, more to the point, one worth watching.
@@ -52,40 +55,7 @@ import type { Army, AscentBattle, BattlePosture, GameState } from '../../state/t
  *    gives charge a case against hold's better melee trade.
  */
 
-function totalUnits(army: Army): number {
-  return army.units.spearmen + army.units.archers + army.units.heavyInfantry;
-}
-
-/**
- * Every host of ours standing on the contested province — not just the one that started the
- * fight.
- *
- * This *is* the reinforcement mechanic, and it needs no timers, no arrival events and no new
- * bookkeeping. `progressMovementOrders` already walks armies to lands, so a host ordered to the
- * battle simply appears here the beat it arrives, and the map's real distances become the clock.
- * The same is true of the enemy: a second invader reaching the province joins theirs.
- */
-export function ourHosts(state: GameState, landId: string): Army[] {
-  const broken = state.ascent?.activeBattle?.brokenHostIds ?? [];
-  return state.armies.filter(
-    (army) => army.kingdomId === PLAYER_KINGDOM_ID && army.landId === landId && totalUnits(army) > 0
-      && !broken.includes(army.id),
-  );
-}
-
-export function theirHosts(state: GameState, landId: string, kingdomId: string): Army[] {
-  const broken = state.ascent?.activeBattle?.brokenHostIds ?? [];
-  return state.armies.filter(
-    (army) => army.kingdomId !== PLAYER_KINGDOM_ID && army.landId === landId && totalUnits(army) > 0
-      && !broken.includes(army.id)
-      && (army.kingdomId === kingdomId || (state.invasions ?? []).some((r) => r.armyId === army.id)),
-  );
-}
-
-/** The strongest host of ours present — the one the melee maths treats as the line. */
-export function battleDefender(state: GameState, landId: string): Army | undefined {
-  return ourHosts(state, landId).sort((a, b) => totalUnits(b) - totalUnits(a))[0];
-}
+const totalUnits = hostHeadcount;
 
 /**
  * Whether this fight is worth stopping the game for: **a wave that reached ground we hold.**
@@ -129,8 +99,7 @@ export function beginBattle(state: GameState): boolean {
   if (!ascent || !pending || ascent.activeBattle) return false;
 
   const invader = state.armies.find((army) => army.id === pending.invaderArmyId);
-  const defender = battleDefender(state, pending.landId);
-  if (!invader || !defender) return false;
+  if (!invader) return false;
   if (!worthWatching(state, pending.landId, pending.isGreat)) return false;
 
   // One watched engagement per province per wave.
@@ -144,16 +113,99 @@ export function beginBattle(state: GameState): boolean {
   // two fronts be fought on both.
   const watchKey = `${ascent.wave}:${pending.landId}`;
   if (ascent.lastWatchedKey === watchKey) return false;
+
+  // Who is actually on the field. Rolled explicitly, because the invader that made contact is
+  // standing on the *adjacent* province — keyed on the ground itself, every watched defence used
+  // to open against nobody and end, as a hidden roll, inside the tick that opened it.
+  const draft: AscentBattle = {
+    ...emptyBattle(pending),
+    role: 'defence',
+    key: watchKey,
+  };
+  enrolArrivals(state, draft);
+  if (theirHosts(state, draft).length === 0) return false;
+
+  // The province's own walls turn out beside whatever host stands there — not only when nobody
+  // does. Measured, a 333-man host standing in the capital *replaced* seventeen hundred men of
+  // walls, because the levy was raised only for an empty province; the odds roll had always
+  // counted both. Raised here, after every gate, so a fight that is not opened after all is
+  // still rolled against walls counted once.
+  const land = findLand(state, pending.landId);
+  if (land && !state.armies.some((army) => army.isLevy && army.landId === land.id)) {
+    raiseGarrisonLevy(state, land);
+    enrolArrivals(state, draft);
+  }
+  const ours = ourHosts(state, draft);
+  const defender = battleLine(state, draft);
+  if (!defender) return false;
+
   ascent.lastWatchedKey = watchKey;
   ascent.lastWatchedWave = ascent.wave;
 
-  const reserve = splitReserve(defender);
-  const scale = Math.min(1, (totalUnits(invader) + totalUnits(defender)) / 2400);
+  // The reserve is held back from a field host when there is one — men at camp, not walls —
+  // and the rally is whichever general is on the field, not whichever host happens to be largest.
+  const fieldHosts = ours.filter((host) => !host.isLevy).sort((a, b) => totalUnits(b) - totalUnits(a));
+  const reserveHost = fieldHosts[0] ?? defender;
+  const reserve = splitReserve(reserveHost);
+  const theirs = theirHosts(state, draft);
+  const oursTotal = ours.reduce((n, h) => n + totalUnits(h), 0);
+  const theirsTotal = theirs.reduce((n, h) => n + totalUnits(h), 0);
+  const scale = Math.min(1, (theirsTotal + oursTotal) / 2400);
   const totalRounds = Math.round(BATTLE_BASE_ROUNDS + (BATTLE_MAX_ROUNDS - BATTLE_BASE_ROUNDS) * scale);
-  const land = findLand(state, pending.landId);
-  const general = state.heroes.find((hero) => hero.id === defender.generalHeroId);
+  const generalId = fieldHosts.find((host) => host.generalHeroId)?.generalHeroId;
+  const general = state.heroes.find((hero) => hero.id === generalId);
 
   ascent.activeBattle = {
+    ...draft,
+    reserveHostId: reserveHost.id,
+    totalRounds,
+    ourStartMorale: defender.morale,
+    ourMorale: defender.morale,
+    theirMorale: invader.morale,
+    ourHostCount: ours.length,
+    theirHostCount: theirs.length,
+    // Summed across every host present, not just the strongest. Reading these off one army made
+    // a two-column defence open showing only its vanguard's numbers.
+    ourStart: oursTotal + reserve.spearmen + reserve.archers + reserve.heavyInfantry,
+    theirStart: theirsTotal,
+    ourNow: oursTotal,
+    theirNow: theirsTotal,
+    reserve,
+    // Rally is the general's, so a host with nobody at its head simply does not get one.
+    rallySpent: !general,
+    rallyPower: general ? Math.round(BATTLE_RALLY_BASE + general.stats.martial * 0.25) : 0,
+    // The ground the defender is standing on. Already used by `defenderPower`; stated on the
+    // screen here so intercepting on high ground becomes a decision back on the map.
+    terrainEdge: land ? terrainDefenseMultiplier(land) : 1,
+  };
+
+  // The engagement now owns its own record: `finishBattle` rebuilds what the invasion code needs
+  // from the battle itself. Leaving the pending record in place let the next tick "resolve" the
+  // same fight a second time, underneath the one being watched.
+  state.pendingBattle = undefined;
+  state.isPaused = false;
+
+  // Deliberately does *not* raise a prompt.
+  //
+  // A prompt goes through `drainAscentPrompts`, which sets `isPaused`, which stops
+  // `ConquestScene.update` — and a frozen world is incompatible with marching reinforcements to
+  // the fight. The battle is ordinary state now: the tick advances it, and the screen opens
+  // itself when it starts (see `ConquestUIScene.maybeAutoOpenBattle`) and holds the world only
+  // until the first order is given.
+  pushToast(state, t('ascent.battle.begins', { land: pending.landName, kingdom: pending.kingdomName }), 'threat');
+
+  // Relief marches itself. Requiring the player's host to be standing on the exact contested
+  // province was one of the four gates that multiplied into a screen seen 0.8 times per run —
+  // one army on a map of ten provinces is almost never on the right one. A host one province
+  // away now turns for the fight on its own; `enrolArrivals` picks it up the beat it arrives, so
+  // the map's real distances stay the clock and nothing teleports.
+  summonAdjacentRelief(state, pending.landId);
+  return true;
+}
+
+/** A battle at its opening beat, before anyone has been counted. */
+function emptyBattle(pending: PendingBattle): AscentBattle {
+  return {
     landId: pending.landId,
     landName: pending.landName,
     invaderArmyId: pending.invaderArmyId,
@@ -161,53 +213,48 @@ export function beginBattle(state: GameState): boolean {
     kingdomName: pending.kingdomName,
     isGreat: pending.isGreat,
     round: 0,
-    totalRounds,
+    totalRounds: BATTLE_BASE_ROUNDS,
     posture: 'hold',
     theirPosture: 'press',
     brokenHostIds: [],
     ourLostTotal: 0,
     focusHostId: undefined,
-    ourStartMorale: defender.morale,
+    ourStartMorale: 0,
     ourAdvance: 0,
     theirAdvance: 0,
-    ourMorale: defender.morale,
-    theirMorale: invader.morale,
-    ourHostCount: ourHosts(state, pending.landId).length,
-    theirHostCount: theirHosts(state, pending.landId, pending.kingdomId).length,
-    // Summed across every host present, not just the strongest. Reading these off one army made
-    // a two-column defence open showing only its vanguard's numbers.
-    ourStart: ourHosts(state, pending.landId).reduce((n, h) => n + totalUnits(h), 0)
-      + reserve.spearmen + reserve.archers + reserve.heavyInfantry,
-    theirStart: theirHosts(state, pending.landId, pending.kingdomId).reduce((n, h) => n + totalUnits(h), 0),
-    ourNow: ourHosts(state, pending.landId).reduce((n, h) => n + totalUnits(h), 0),
-    theirNow: theirHosts(state, pending.landId, pending.kingdomId).reduce((n, h) => n + totalUnits(h), 0),
-    reserve,
+    ourMorale: 0,
+    theirMorale: 0,
+    ourHostCount: 0,
+    theirHostCount: 0,
+    ourStart: 0,
+    theirStart: 0,
+    ourNow: 0,
+    theirNow: 0,
+    reserve: { spearmen: 0, archers: 0, heavyInfantry: 0 },
     reserveSpent: false,
-    // Rally is the general's, so a host with nobody at its head simply does not get one.
-    rallySpent: !general,
-    rallyPower: general ? Math.round(BATTLE_RALLY_BASE + general.stats.martial * 0.25) : 0,
-    // The ground the defender is standing on. Already used by `defenderPower`; stated on the
-    // screen here so intercepting on high ground becomes a decision back on the map.
-    terrainEdge: land ? terrainDefenseMultiplier(land) : 1,
+    rallySpent: true,
+    rallyPower: 0,
+    terrainEdge: 1,
     outcome: 'fighting',
     log: [],
     over: false,
+    ourArmyIds: [],
+    theirArmyIds: [],
   };
+}
 
-  // Deliberately does *not* raise a prompt.
-  //
-  // A prompt goes through `drainAscentPrompts`, which sets `isPaused`, which stops
-  // `ConquestScene.update` — and a frozen world is incompatible with marching reinforcements to
-  // the fight. The battle is ordinary state now: the tick advances it, and the player opens the
-  // screen when they want to watch or intervene. The Pause button still stops everything.
-
-  // Relief marches itself. Requiring the player's host to be standing on the exact contested
-  // province was one of the four gates that multiplied into a screen seen 0.8 times per run —
-  // one army on a map of ten provinces is almost never on the right one. A host one province
-  // away now turns for the fight on its own; `ourHosts` picks it up the beat it arrives, so
-  // the map's real distances stay the clock and nothing teleports.
-  summonAdjacentRelief(state, pending.landId);
-  return true;
+/** The invasion record a finished fight hands back to the shared invasion code. */
+function battleRecord(battle: AscentBattle, invaderArmyId = battle.invaderArmyId): PendingBattle {
+  return {
+    invaderArmyId,
+    landId: battle.landId,
+    landName: battle.landName,
+    kingdomId: battle.kingdomId,
+    kingdomName: battle.kingdomName,
+    isGreat: battle.isGreat,
+    attackerPower: 0,
+    defenderPower: 0,
+  };
 }
 
 /** Orders idle player hosts on neighbouring provinces to march to the contested one. */
@@ -215,10 +262,14 @@ function summonAdjacentRelief(state: GameState, landId: string): void {
   const land = findLand(state, landId);
   if (!land) return;
   const neighbours = new Set(land.neighbors);
+  const capitalId = state.ascent?.capitalLandId;
   const candidates = state.armies.filter(
     (army) => army.kingdomId === PLAYER_KINGDOM_ID
       && !army.isLevy
       && neighbours.has(army.landId)
+      // The seat keeps its garrison. Relief drawn from the capital left it to a roll it lost,
+      // and the run ended while its hosts were winning the fight next door.
+      && army.landId !== capitalId
       && totalUnits(army) > 0
       && !state.movementOrders.some((order) => order.armyId === army.id)
       && !state.siegeOrders.some((order) => order.armyId === army.id),
@@ -307,9 +358,10 @@ export function fightRound(state: GameState): void {
 
   // Read the field fresh each beat rather than holding references from when the fight opened.
   // That single choice is what makes reinforcement work: a host that marched in since the last
-  // beat is simply in this list, and one that was destroyed is simply not.
-  const ours = ourHosts(state, battle.landId);
-  const theirs = theirHosts(state, battle.landId, battle.kingdomId);
+  // beat is simply enrolled, and one that was destroyed is simply no longer alive.
+  enrolArrivals(state, battle);
+  const ours = ourHosts(state, battle);
+  const theirs = theirHosts(state, battle);
   const defender = ours[0];
   const invader = theirs[0];
   if (!invader || !defender) {
@@ -331,6 +383,9 @@ export function fightRound(state: GameState): void {
   }
   battle.ourHostCount = ourCount;
   battle.theirHostCount = theirCount;
+  // Relief widens the denominator too, so the strength bars never read past full.
+  battle.ourStart = Math.max(battle.ourStart, ours.reduce((total, host) => total + totalUnits(host), 0));
+  battle.theirStart = Math.max(battle.theirStart, theirs.reduce((total, host) => total + totalUnits(host), 0));
 
   const charging = battle.posture === 'press';
   battle.theirPosture = enemyPosture(state, battle);
@@ -433,13 +488,13 @@ export function fightRound(state: GameState): void {
 
   // ── Does anyone break? ───────────────────────────────────────────────────
   // A side is beaten when it has no host left in the line, not when its strongest wavers.
-  if (theirHosts(state, battle.landId, battle.kingdomId).length === 0) {
+  if (theirHosts(state, battle).length === 0) {
     battle.outcome = 'they-rout';
     battle.log.push(t('ascent.battle.theyBreak', { kingdom: battle.kingdomName }));
     battle.over = true;
     return;
   }
-  if (ourHosts(state, battle.landId).length === 0) {
+  if (ourHosts(state, battle).length === 0) {
     battle.outcome = 'we-rout';
     battle.log.push(t('ascent.battle.weBreak'));
     battle.over = true;
@@ -468,10 +523,16 @@ export function advanceBattle(state: GameState): void {
 }
 
 /** Commits the host held back at camp. One-shot, and the reason to keep watching. */
+/** The host the reserve belongs to — the one it was drawn from, or the line if that host is gone. */
+function reserveHostOf(state: GameState, battle: AscentBattle): Army | undefined {
+  const own = state.armies.find((army) => army.id === battle.reserveHostId && totalUnits(army) > 0);
+  return own ?? battleLine(state, battle);
+}
+
 export function commitReserve(state: GameState): boolean {
   const battle = state.ascent?.activeBattle;
   if (!battle || battle.reserveSpent || battle.over) return false;
-  const defender = battleDefender(state, battle.landId);
+  const defender = reserveHostOf(state, battle);
   if (!defender) return false;
 
   defender.units.spearmen += battle.reserve.spearmen;
@@ -494,7 +555,7 @@ export function commitReserve(state: GameState): boolean {
 export function rally(state: GameState): boolean {
   const battle = state.ascent?.activeBattle;
   if (!battle || battle.rallySpent || battle.over) return false;
-  const defender = battleDefender(state, battle.landId);
+  const defender = battleLine(state, battle);
   if (!defender) return false;
 
   // Scaled by the ground already lost, so a rally spent on a fresh host is largely wasted and
@@ -519,9 +580,14 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
   const ascent = state.ascent;
   const battle = ascent?.activeBattle;
   if (!ascent) return;
+  if (!battle) {
+    // Nothing being watched: the shared code still owns whatever record is waiting.
+    if (state.pendingBattle) resolveBattleRecord(state, takePending(state), decision === 'press' ? 'attack' : decision === 'retreat' ? 'retreat' : 'delegate');
+    return;
+  }
 
-  if (battle && !battle.reserveSpent) {
-    const defender = battleDefender(state, battle.landId);
+  if (!battle.reserveSpent) {
+    const defender = reserveHostOf(state, battle);
     if (defender) {
       defender.units.spearmen += battle.reserve.spearmen;
       defender.units.archers += battle.reserve.archers;
@@ -536,8 +602,8 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
   // Breaking them is a decisive win. Being broken is *worse than withdrawing* — a routing host
   // is cut down as it runs — which is what makes pulling out in time a real skill rather than a
   // button nobody presses.
-  if (battle?.outcome === 'we-rout') {
-    for (const host of ourHosts(state, battle.landId)) bleed(host, BATTLE_ROUT_LOSS_SHARE);
+  if (battle.outcome === 'we-rout') {
+    for (const host of ourHosts(state, battle)) bleed(host, BATTLE_ROUT_LOSS_SHARE);
   }
 
   // A withdrawal ordered in time is an orderly one: the host keeps its formation, and the
@@ -548,8 +614,12 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
   // Deliberately done by recovering losses rather than by weakening `hold`: making the standing
   // orders trade worse to justify retreat would have undone the dominated-option-free balance
   // that took two passes to earn. Withdrawal now earns its keep on its own terms.
-  if (battle && decision === 'retreat' && battle.outcome !== 'we-rout') {
-    const hosts = ourHosts(state, battle.landId);
+  // A field held is a field the wounded can be carried off: a share of a winning side's losses
+  // rejoin the host over the following days, exactly as they do after an orderly withdrawal.
+  // Without this every won battle still cost a fifth of the host, and a realm that fought and
+  // won each wave shrank as surely as one that lost — the roll it replaced never bled a winner.
+  if (decision === 'retreat' && battle.outcome !== 'we-rout' || battle.outcome === 'they-rout') {
+    const hosts = ourHosts(state, battle);
     const recovered = Math.round(battle.ourLostTotal * BATTLE_WITHDRAW_RECOVERY);
     if (hosts.length > 0 && recovered > 0) {
       const each = Math.floor(recovered / hosts.length);
@@ -560,14 +630,54 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
       }
     }
   }
-  const resolved = battle?.outcome === 'they-rout'
+
+  // The field decides. A side that broke has lost — the shared code is told so outright rather
+  // than being asked to roll again over a fight the player just watched end. Only a fight that
+  // ran to its round limit, or one the player left, is still settled by the old odds roll.
+  const resolved = battle.outcome === 'they-rout'
     ? 'attack'
-    : battle?.outcome === 'we-rout'
+    : battle.outcome === 'we-rout'
       ? 'delegate'
       : decision === 'retreat' ? 'retreat' : decision === 'press' ? 'attack' : 'delegate';
+  const forced = battle.outcome === 'they-rout' ? 'defence' : battle.outcome === 'we-rout' ? 'invader' : undefined;
+  const invaderIds = (battle.theirArmyIds ?? []).filter((id) => id !== battle.invaderArmyId);
+
+  // Written down before the shared code moves anyone: the chronicle and the harness both read it.
+  const ourIds = battle.ourArmyIds ?? [];
+  const history = (ascent.battleHistory ??= []);
+  history.push({
+    turn: state.turn,
+    key: battle.key ?? `${battle.landId}`,
+    landId: battle.landId,
+    landName: battle.landName,
+    role: battle.role ?? 'defence',
+    outcome: battle.outcome === 'fighting' ? (decision === 'retreat' ? 'retreat' : 'spent') : battle.outcome,
+    rounds: battle.round,
+    ourStart: battle.ourStart,
+    theirStart: battle.theirStart,
+    ourEnd: battle.ourNow,
+    theirEnd: battle.theirNow,
+    theirHosts: (battle.theirArmyIds ?? []).length,
+    ourHosts: ourIds.length,
+    levyFought: state.armies.some((army) => army.isLevy && ourIds.includes(army.id)),
+  });
+  if (history.length > 24) history.splice(0, history.length - 24);
 
   ascent.activeBattle = undefined;
-  resolvePendingBattle(state, resolved);
+  resolveBattleRecord(state, battleRecord(battle), resolved, forced);
+  // A rout breaks *every* host that came to the field, not only the one that made contact:
+  // a coalition that ran does not get to try the same gate again next tick, one column at a time.
+  if (forced === 'defence') {
+    for (const id of invaderIds) resolveBattleRecord(state, battleRecord(battle, id), 'delegate', 'defence');
+  }
+}
+
+/** Takes the waiting record off the state, un-pausing the world it paused. */
+function takePending(state: GameState): PendingBattle {
+  const pending = state.pendingBattle as PendingBattle;
+  state.pendingBattle = undefined;
+  state.isPaused = false;
+  return pending;
 }
 
 /** Concentrates the line on one of their hosts, or spreads it again when cleared. */

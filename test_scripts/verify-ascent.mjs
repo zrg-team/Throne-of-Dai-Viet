@@ -123,10 +123,26 @@ const result = await page.evaluate(async () => {
   let ticksWithInvaderOnOwnedGround = 0;
   let sawInvaderMarchOrder = false;
   let sawVisibleHostileHost = false;
+  // A watched engagement must outlive the tick that opened it. Keyed on `activeBattle` *after*
+  // the tick: the fight used to open against an invader standing on the adjacent province,
+  // find nobody across the field, and resolve as a hidden roll before this line ever ran.
+  let battleLiveTicks = 0;
+  let battleStreak = 0;
+  let longestBattleStreak = 0;
+  const battleKeysSeen = new Set();
 
   for (let i = 0; i < 400; i += 1) {
     advanceAscentTick(st);
     if (st.victory) victoryEverTrue = true;
+
+    if (st.ascent.activeBattle) {
+      battleLiveTicks += 1;
+      battleStreak += 1;
+      longestBattleStreak = Math.max(longestBattleStreak, battleStreak);
+      battleKeysSeen.add(st.ascent.activeBattle.key ?? st.ascent.activeBattle.landId);
+    } else {
+      battleStreak = 0;
+    }
 
     if (st.ascent.lastWatchedKey !== lastWatchKey) {
       lastWatchKey = st.ascent.lastWatchedKey;
@@ -262,6 +278,10 @@ const result = await page.evaluate(async () => {
     endGold: Math.round(st.resources.gold),
     endGoldRate: Math.max(1, Math.round(st.resourceRates.gold)),
     landsLost: lost,
+    battleLiveTicks,
+    longestBattleStreak,
+    battlesSeenLive: battleKeysSeen.size,
+    ticksRun: st.turn,
     backToBackPrompts,
     maxPromptsInOneTick,
     promptTickCount: promptTicks.length,
@@ -560,6 +580,14 @@ const checks = {
     result.firstContactTick >= 0 && result.firstContactTick < result.tenMinuteTicks,
   'invaders march as real orders, so the approach is drawn': result.sawInvaderMarchOrder,
   'a marching enemy host is visible before it arrives': result.sawVisibleHostileHost,
+  // The screen has to be *reachable*: a fight that opens and resolves inside one tick was never
+  // there for anyone to open. Sampled after each tick, so this is the player's own view of it.
+  'a watched defence outlives the tick that opened it': result.longestBattleStreak >= 2,
+  'a live battle was there to be seen': result.battlesSeenLive >= 1,
+  // Roughly half the ticks: waves land every twelve seasons and a fought engagement runs four
+  // or five of them, so a run under steady attack is a run half at war. More than that and the
+  // fights have started stacking.
+  'battles do not swallow the run': result.battleLiveTicks <= Math.max(1, result.ticksRun) * 0.6,
 
   // ── Land command: claims, focus, governors ──
   'claims start capped at one': command.slots === 1,
@@ -573,7 +601,9 @@ const checks = {
   'a matched governor changes the figure shown': command.defenceDiffers,
   // The treasury has somewhere to go: mercenaries, tribute, buy-offs. Without sinks this ran
   // to five figures while the player had nothing to spend it on.
-  'gold does not run away unspent': result.endGold < result.endGoldRate * 40,
+  // A collapsing realm can end holding a stash it no longer has provinces to spend on, so the
+  // rate-relative bound is floored: the failure this guards against is five figures, not four.
+  'gold does not run away unspent': result.endGold < Math.max(3000, result.endGoldRate * 40),
 
   'power more than doubled': result.powerEnd > result.powerStart * 2 || result.peakPower > result.powerStart * 2,
 
