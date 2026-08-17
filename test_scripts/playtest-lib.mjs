@@ -47,6 +47,10 @@ export const DECLINE = {
   'conquer-method': 'back',
   'hero-choice': 'pass',
   'law-choice': 'hold',
+  // "Await a command" is the appointment card's decline. Without this the declining policy took
+  // the card's *last* option, which is now "let them go" — dismissing every champion it drew and
+  // measuring a payroll-free realm against an engaged one.
+  'court-appointment': 'reserve',
 };
 
 /** Boots a headless Dragon Ascent run on a fixed seed, inside the page. */
