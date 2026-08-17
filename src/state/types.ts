@@ -120,6 +120,14 @@ export interface ThreatAlert {
 
 /** A field engagement awaiting the player's tactical call. */
 export interface PendingBattle {
+  /**
+   * Which side of the field is ours (Dragon Ascent). Absent means a defence — the original and
+   * only shape: an invader striking ground we hold. `offence` is a host of ours storming
+   * someone else's province, staged by `stageWatchedAssault`; `invaderArmyId` is then empty and
+   * `attackerArmyIds` names our hosts.
+   */
+  role?: 'defence' | 'offence';
+  attackerArmyIds?: string[];
   invaderArmyId: string;
   landId: string;
   landName: string;
@@ -1351,6 +1359,8 @@ export interface AscentState {
   lastWatchedKey?: string;
   /** The last few engagements, newest last. Optional so old saves need no migration. */
   battleHistory?: AscentBattleRecord[];
+  /** Key of the last assault of ours that was watched, so a run can be measured for it. */
+  lastAssaultKey?: string;
   /** Commanded hosts already warned about being a remnant, so the toast fires once per host. */
   remnantWarnedIds?: string[];
   /** Set when the run ends, so the summary can name the cause rather than shrug. */

@@ -613,10 +613,24 @@ export function progressMovementOrders(state: GameState): boolean {
     }
 
     if (nextLand.ownerId !== PLAYER_KINGDOM_ID) {
-      if (nextLand.ownerId === 'neutral' && !nextLand.hasVillage) {
-        occupyEmptyLand(state, army.id, nextLandId);
-      } else {
-        attackLand(state, army.id, nextLandId);
+      // Empty wilderness with nobody on it is walked into. Anything else — a village, a rival's
+      // province, or wilderness with a hostile host camped on it — is a fight, and in Dragon
+      // Ascent a fight the player's own host picks is one the player is asked to command.
+      const hostilesHere = state.armies.some((candidate) => candidate.kingdomId !== PLAYER_KINGDOM_ID && candidate.landId === nextLandId);
+      const walkIn = nextLand.ownerId === 'neutral' && !nextLand.hasVillage && !hostilesHere;
+      const staged = walkIn ? 'no' : stageWatchedAssault(state, army, nextLand);
+      if (staged === 'wait') {
+        // Hold at the border this season; the leg completes again next tick.
+        order.path.unshift(nextLandId);
+        order.progress = Math.max(0, order.legRequired - 1);
+        continue;
+      }
+      if (staged === 'no') {
+        if (walkIn) {
+          occupyEmptyLand(state, army.id, nextLandId);
+        } else {
+          attackLand(state, army.id, nextLandId);
+        }
       }
       state.movementOrders = state.movementOrders.filter((candidate) => candidate !== order);
       continue;
@@ -985,6 +999,27 @@ export function attackLand(state: GameState, armyId: string, targetLandId: strin
   army.supply = Math.max(25, army.supply - 10);
   state.latestBattlePreview = undefined;
   applyResourceDelta(state, { supplies: -supplyCost });
+  return applyAttackOutcome(state, army, targetLand, preview, victory);
+}
+
+/**
+ * What winning or losing the field in front of `targetLand` means, once the fight is decided.
+ *
+ * Split from `attackLand` so the odds roll (every classic mode, and any host the autopilot
+ * throws) and a fought assault (Dragon Ascent, `finishBattle`) share one consequence: the
+ * defenders bounced, the host onto the ground and a siege begun, the general's fate on a
+ * defeat. Casualties are not applied here — the roll takes them beforehand and the field takes
+ * them beat by beat.
+ */
+export function applyAttackOutcome(
+  state: GameState,
+  army: Army,
+  targetLand: Land,
+  preview: { attackerPower: number; defenderPower: number },
+  victory: boolean,
+): boolean {
+  const armyId = army.id;
+  const targetLandId = targetLand.id;
   awardBattleExperience(state, army, preview.defenderPower, victory);
   grantGeneralExperience(state, army, victory);
 
@@ -1039,6 +1074,54 @@ export function attackLand(state: GameState, armyId: string, targetLandId: strin
     generalName: fate.name,
   };
   return false;
+}
+
+/**
+ * Turns a host's arrival on hostile ground into a battle the player watches (Dragon Ascent).
+ *
+ * `'staged'`: a pending offence battle now waits for the tick to open it. `'joined'`: an assault
+ * on this very province is already live and the host has been enrolled. `'wait'`: another fight
+ * is live or waiting; the host holds at the border and tries again next season. `'no'`: this host
+ * takes the odds roll as it always did — every classic mode, a host under the autopilot's own
+ * orders, or a run that has handed battles back to the generals.
+ */
+export function stageWatchedAssault(state: GameState, army: Army, land: Land): 'staged' | 'joined' | 'wait' | 'no' {
+  const ascent = state.ascent;
+  if (state.gameMode !== 'ascent' || !ascent || ascent.autoResolveBattles) return 'no';
+  if (army.kingdomId !== PLAYER_KINGDOM_ID || army.isLevy) return 'no';
+  if (getSiegeOrder(state, land.id)) return 'no';
+  const preview = createBattlePreview(state, army.id, land.id);
+  if (!preview) return 'no';
+
+  // Any host of ours reaching a province already being stormed joins the assault — including
+  // one the autopilot sent — rather than rolling its own fight beside the watched one.
+  const live = ascent.activeBattle;
+  if (live && !live.over && live.role === 'offence' && live.landId === land.id) {
+    if (!(live.ourArmyIds ?? []).includes(army.id)) {
+      live.ourArmyIds = [...(live.ourArmyIds ?? []), army.id];
+    }
+    return 'joined';
+  }
+  // A host the autopilot is commanding fights the autopilot's way; only a host under the
+  // player's own standing order stages a fight the player is asked to command.
+  if (!army.orders || army.orders.kind === 'auto') return 'no';
+  if (live && !live.over) return 'wait';
+  if (state.pendingBattle) return 'wait';
+
+  const owner = state.kingdoms.find((kingdom) => kingdom.id === land.ownerId);
+  state.pendingBattle = {
+    role: 'offence',
+    attackerArmyIds: [army.id],
+    invaderArmyId: '',
+    landId: land.id,
+    landName: land.name,
+    kingdomId: land.ownerId,
+    kingdomName: owner?.name ?? land.name,
+    isGreat: false,
+    attackerPower: preview.attackerPower,
+    defenderPower: preview.defenderPower,
+  };
+  return 'staged';
 }
 
 export function disbandArmy(state: GameState, armyId: string): boolean {

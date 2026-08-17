@@ -606,6 +606,25 @@ const orders = await page.evaluate(async () => {
     attackTook = wild.ownerId === 'dai-viet' && royal.orders?.kind === 'defend';
   }
 
+  // 4b. An attack order on a walled village opens an assault the player watches.
+  const village = st.lands.find((l) => l.ownerId !== 'dai-viet' && l.hasVillage && owned().some((o) => o.neighbors.includes(l.id)));
+  let assaultWatched = !village;
+  if (village) {
+    st.ascent.autoResolveBattles = false;
+    royal.landId = owned().find((o) => o.neighbors.includes(village.id)).id;
+    royal.units.spearmen += 800;
+    st.movementOrders = st.movementOrders.filter((o) => o.armyId !== royal.id);
+    SO.setArmyOrders(st, royal.id, { kind: 'attack', landId: village.id, force: true });
+    for (let i = 0; i < 12 && !st.ascent.lastAssaultKey; i += 1) { advanceAscentTick(st); settle(); }
+    assaultWatched = Boolean(st.ascent.lastAssaultKey) && (st.ascent.battleHistory ?? []).some((b) => b.role === 'offence') || Boolean(st.ascent.activeBattle?.role === 'offence');
+    // Let it play out, then quiet the world again for the tests below.
+    for (let i = 0; i < 12 && st.ascent.activeBattle; i += 1) { advanceAscentTick(st); settle(); }
+    st.ascent.autoResolveBattles = true;
+    st.siegeOrders = st.siegeOrders.filter((o) => o.armyId !== royal.id);
+    royal.landId = home.id;
+    royal.orders = undefined;
+  }
+
   // 5. Recall breaks a siege and walks home.
   const rivalLand = st.lands.find((l) => l.ownerId !== 'dai-viet' && l.ownerId !== 'neutral' && owned().some((o) => o.neighbors.includes(l.id)));
   let recallOk = !rivalLand;
@@ -648,12 +667,13 @@ const orders = await page.evaluate(async () => {
   st.recruitmentOrders = [];
   const queued = W.queueRecruitment(st, cmd.id, 400, 100, 60, 'spears', { kind: 'defend', landId: home.id });
   const orderCarried = queued && st.recruitmentOrders[0]?.orders?.kind === 'defend';
+  const musterId = st.recruitmentOrders[0]?.id;
   let musteredHost;
-  for (let i = 0; i < 40 && !musteredHost; i += 1) { advanceAscentTick(st); settle(); musteredHost = st.armies.find((a) => a.generalHeroId === cmd.id); }
+  for (let i = 0; i < 40 && !musteredHost; i += 1) { advanceAscentTick(st); settle(); musteredHost = st.armies.find((a) => a.id === musterId); }
   const hostHasOrder = Boolean(musteredHost && musteredHost.orders?.kind === 'defend');
   const label = musteredHost ? AO.hostOrderLabel(st, musteredHost) : '';
 
-  return { defendHeld, keptRemnant, autoRemnantGone, listIsBorder, promptCapped, borderSize: border.size, listSize: all.length, attackTook, recallOk, autoLeftItHungry, resupplyDipped, reliefRespects, orderCarried, hostHasOrder, label };
+  return { defendHeld, keptRemnant, autoRemnantGone, listIsBorder, promptCapped, borderSize: border.size, listSize: all.length, attackTook, assaultWatched, recallOk, autoLeftItHungry, resupplyDipped, reliefRespects, orderCarried, hostHasOrder, label };
 });
 console.log('=== STANDING ORDERS ===');
 console.log(JSON.stringify(orders));
@@ -727,6 +747,7 @@ const checks = {
   'a commanded remnant is kept, an auto remnant is dissolved': orders.keptRemnant && orders.autoRemnantGone,
   'the claim list is the whole border, the prompt stays short': orders.listIsBorder && orders.promptCapped,
   'an attack order takes empty ground and settles into defend': orders.attackTook,
+  'an attack on walls opens an assault the player watches': orders.assaultWatched,
   'recall breaks a siege and walks home': orders.recallOk,
   'resupply reaches below the autopilot reserve': orders.autoLeftItHungry && orders.resupplyDipped,
   'relief never pulls a commanded host': orders.reliefRespects,

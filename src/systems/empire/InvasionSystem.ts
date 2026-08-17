@@ -2,7 +2,7 @@ import { isEndlessMode, PLAYER_KINGDOM_ID } from '../../game/constants';
 import { getLegTicks } from '../../game/movementConfig';
 import { GARRISON_LEVY_FLOOR, LEVY_POWER_PER_MAN } from '../../game/ascentConfig';
 import { findLand, getAcquisitionTicksRequired } from '../LandSystem';
-import { createBattlePreview, grantGeneralExperience, issueMoveOrder } from '../WarSystem';
+import { attackLand, createBattlePreview, grantGeneralExperience, issueMoveOrder } from '../WarSystem';
 import {
   applyResourceDelta,
   getFocusDefenseMult,
@@ -540,6 +540,40 @@ export function raiseGarrisonLevy(state: GameState, land: Land): Army | undefine
 }
 
 /**
+ * The walls of a province the player is storming, turned out as a host so the assault has
+ * something to fight (Dragon Ascent). Sized like the player's own levy — the garrison term of
+ * `defenderPower` divided by a levy man's battle power — so the fought assault and the odds roll
+ * agree on what those walls are worth. Nothing is drawn from the province's militia: the levy is
+ * a picture of its defence, and is dropped by `dissolveGarrisonLevies` when the fight ends.
+ */
+export function raiseEnemyGarrisonLevy(state: GameState, land: Land): Army | undefined {
+  if (state.gameMode !== 'ascent') return undefined;
+  const men = Math.max(GARRISON_LEVY_FLOOR, Math.floor((land.localSoldiers * 2.5 + land.defense * 16) / LEVY_POWER_PER_MAN));
+  const levy: Army = {
+    id: `garrison-${land.id}-${state.turn}`,
+    kingdomId: land.ownerId,
+    name: t('ascent.battle.garrisonOf', { land: land.name }),
+    landId: land.id,
+    units: {
+      spearmen: Math.round(men * 0.6),
+      archers: Math.round(men * 0.25),
+      heavyInfantry: Math.round(men * 0.15),
+    },
+    morale: 80,
+    supply: 80,
+    rations: 999,
+    provisions: 999,
+    level: 1,
+    experience: 0,
+    experienceToNextLevel: 120,
+    isLevy: true,
+    levyDrawn: 0,
+  };
+  state.armies.push(levy);
+  return levy;
+}
+
+/**
  * Sends every surviving levy home. Called once no engagement is live, so a levy exists for exactly
  * the battle it was raised for.
  */
@@ -607,6 +641,12 @@ export function resolvePendingBattle(state: GameState, decision: 'attack' | 'del
   state.pendingBattle = undefined;
   state.isPaused = false;
   if (!pb) return;
+  // An assault of ours that will not be watched after all takes the roll it always took.
+  if (pb.role === 'offence') {
+    const attacker = pb.attackerArmyIds?.[0];
+    if (attacker) attackLand(state, attacker, pb.landId);
+    return;
+  }
   resolveBattleRecord(state, pb, decision);
 }
 

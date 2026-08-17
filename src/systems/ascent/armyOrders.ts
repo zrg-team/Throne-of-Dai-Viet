@@ -22,8 +22,12 @@ export function isPinnedByClaim(state: GameState, army: Army): boolean {
   return state.acquisitionOrders.some((order) => order.armyId === army.id);
 }
 
-/** True when this host is in the line of the live engagement, on either side. */
+/**
+ * True when this host is in the line of the live engagement, on either side — or staged for an
+ * assault the tick has yet to open, which for every order's purpose is the same thing.
+ */
 export function isEngagedHost(state: GameState, armyId: string): boolean {
+  if (state.pendingBattle?.attackerArmyIds?.includes(armyId)) return true;
   const live = state.ascent?.activeBattle;
   if (!live || live.over) return false;
   return (live.ourArmyIds ?? []).includes(armyId) || (live.theirArmyIds ?? []).includes(armyId);

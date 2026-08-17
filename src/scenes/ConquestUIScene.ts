@@ -4055,11 +4055,16 @@ ${t('ascent.summon.payrollWarn', { pct: payrollShare })}` : subtitle,
     const rival = this.state.kingdoms.find((k) => k.id === battle.kingdomId);
     const rivalColor = rival?.color ?? INK_UI.cinnabar;
 
+    const offence = battle.role === 'offence';
     const content = this.promptFrame(
-      battle.isGreat
-        ? t('ascent.battle.greatTitle', { land: battle.landName })
-        : t('ascent.battle.title', { land: battle.landName }),
-      t('ascent.battle.subtitle', { kingdom: battle.kingdomName }),
+      offence
+        ? t('ascent.battle.assaultTitle', { land: battle.landName })
+        : battle.isGreat
+          ? t('ascent.battle.greatTitle', { land: battle.landName })
+          : t('ascent.battle.title', { land: battle.landName }),
+      offence
+        ? t('ascent.battle.assaultSubtitle', { kingdom: battle.kingdomName })
+        : t('ascent.battle.subtitle', { kingdom: battle.kingdomName }),
     );
 
     const fieldY = content.y;
@@ -4290,13 +4295,16 @@ ${t('ascent.summon.payrollWarn', { pct: payrollShare })}` : subtitle,
     const rowWidth = content.width - 6;
     const rowH = 54;
     let optY = 0;
+    // The same three orders read differently when we are the ones at the walls.
+    const offence = battle.role === 'offence';
     const control = (id: string, accent: number, badge?: string): void => {
+      const labelKey = offence && (id === 'press' || id === 'hold' || id === 'retreat') ? `${id}Off` : id;
       this.optionCard(
         { x: 0, y: optY, width: rowWidth, height: rowH },
         {
           icon: iconForOption(id),
-          title: t(`ascent.battle.${id}` as Parameters<typeof t>[0]),
-          body: t(`ascent.battle.${id}D` as Parameters<typeof t>[0]),
+          title: t(`ascent.battle.${labelKey}` as Parameters<typeof t>[0]),
+          body: t(`ascent.battle.${labelKey}D` as Parameters<typeof t>[0]),
           badge,
           accent,
           parent: orders,
