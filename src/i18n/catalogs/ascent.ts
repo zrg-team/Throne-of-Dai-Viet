@@ -146,6 +146,12 @@ export const enAscent = {
   "ascent.army.runwayOut": "Out of rations — morale is bleeding",
   "ascent.army.noOwnedLand": "Nowhere else to march",
 
+  // ── The tax dial ──────────────────────────────────────────────────────────
+  "court.section.tax": "Taxation",
+  "ascent.tax.effects": "gold ×{mult}  ·  stability {drift}/season  ·  growth {growth}",
+  "ascent.tax.light": "light hand",
+  "ascent.tax.heavy": "heavy hand",
+
   // ── The war underway (the army screen's fight list) ───────────────────────
   "army.section.war": "The war underway",
   "ascent.war.nextWave": "Wave {wave} — {ticks} more seasons",
@@ -700,6 +706,12 @@ export const viAscent = {
   "ascent.army.runway": "Lương ăn được khoảng {ticks} mùa",
   "ascent.army.runwayOut": "Hết lương — sĩ khí đang tụt",
   "ascent.army.noOwnedLand": "Không còn nơi nào để hành quân tới",
+
+  // ── Thuế khóa ─────────────────────────────────────────────────────────────
+  "court.section.tax": "Thuế khóa",
+  "ascent.tax.effects": "vàng ×{mult}  ·  ổn định {drift}/mùa  ·  dân số {growth}",
+  "ascent.tax.light": "khoan thư",
+  "ascent.tax.heavy": "hà khắc",
 
   // ── Chiến sự (danh sách trận đánh trong màn quân đội) ─────────────────────
   "army.section.war": "Chiến sự",

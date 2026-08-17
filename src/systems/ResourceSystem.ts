@@ -22,6 +22,7 @@ import {
 import { eraIndex, eraLabel, getBuildingLevelCap } from './empire/MandateSystem';
 import { pushToast } from './empire/notifications';
 import { getCourtBonuses, getLandGovernorOutputMult } from './CourtSystem';
+import { currentTaxRate, taxGoldMult, taxGrowthDelta, taxStabilityBase } from './TaxSystem';
 import type { BuildOrder, EraId, GameState, Land, LandBuildingType, LandSpecialization, ResourceBag, ResourceKey, Season } from '../state/types';
 import { buildingLabel, buildBuildingLabel, formatResourceList, resourceLabel, t } from '../i18n';
 
@@ -451,16 +452,18 @@ export function getFocusOutputMult(state: GameState, land: Land): { food: number
   return { food: apply(base.food), supplies: apply(base.supplies), gold: apply(base.gold) };
 }
 
-/** Live tax-stance effects: gold multiplier, per-tick stability drift (incl. tax fatigue), and growth delta. */
+/** Live tax-dial effects: gold multiplier, per-tick stability drift (incl. tax fatigue), and growth delta. */
 export function getTaxEffects(state: GameState): { goldMult: number; stabilityDelta: number; growthDelta: number } {
+  // One continuous dial (see TaxSystem). The classic three stances sit on the exact points of
+  // these curves that reproduce their old numbers, so saves and empire mode are unchanged.
+  const rate = currentTaxRate(state);
   // Effective stability drift includes the compounding resentment from sustained heavy taxes.
   const fatiguePenalty = (state.taxFatigue ?? 0) * 0.16;
-  switch (state.taxPolicy ?? 'balanced') {
-    case 'lenient': return { goldMult: 0.82, stabilityDelta: Number((0.4 - fatiguePenalty).toFixed(1)), growthDelta: 2 };
-    case 'harsh': return { goldMult: 1.28, stabilityDelta: Number((-0.5 - fatiguePenalty).toFixed(1)), growthDelta: -2 };
-    case 'balanced':
-    default: return { goldMult: 1, stabilityDelta: Number((-fatiguePenalty).toFixed(1)), growthDelta: 0 };
-  }
+  return {
+    goldMult: taxGoldMult(rate),
+    stabilityDelta: Number((taxStabilityBase(rate) - fatiguePenalty).toFixed(1)),
+    growthDelta: taxGrowthDelta(rate),
+  };
 }
 
 /** Assign a province's economic focus. Player-owned lands only; refreshes outputs. */

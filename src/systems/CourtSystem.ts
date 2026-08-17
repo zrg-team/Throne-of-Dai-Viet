@@ -15,6 +15,7 @@ import type {
   ResourceBag,
 } from '../state/types';
 import { getLandSpecialization } from './ResourceSystem';
+import { currentTaxRate, taxFatigueDrift, taxStabilityBase } from './TaxSystem';
 import { heroName, t } from '../i18n';
 
 export const ALL_COURT_POSITIONS: CourtPositionId[] = [
@@ -586,11 +587,9 @@ export function progressCourt(state: GameState): void {
   // steadily self-destructs and you must cycle the tax dial with the realm's mood; a lenient
   // hand lets the fatigue heal. This is what makes tax an ongoing decision, not set-and-forget.
   state.taxFatigue ??= 0;
-  if (state.taxPolicy === 'harsh') state.taxFatigue = Math.min(20, state.taxFatigue + 0.6);
-  else if (state.taxPolicy === 'lenient') state.taxFatigue = Math.max(0, state.taxFatigue - 0.8);
-  else state.taxFatigue = Math.max(0, state.taxFatigue - 0.3);
-  const taxBase = state.taxPolicy === 'harsh' ? -0.5 : state.taxPolicy === 'lenient' ? 0.4 : 0;
-  const taxStability = taxBase - state.taxFatigue * 0.16;
+  const taxRate = currentTaxRate(state);
+  state.taxFatigue = clamp(state.taxFatigue + taxFatigueDrift(taxRate), 0, 20);
+  const taxStability = taxStabilityBase(taxRate) - state.taxFatigue * 0.16;
   state.court.stability = clamp(state.court.stability + bonuses.stabilityRegen - ungovernedPenalty - marketPressure + taxStability, 0, 100);
   state.court.influence = clamp(state.court.influence + bonuses.influenceRegen, 0, 100);
 

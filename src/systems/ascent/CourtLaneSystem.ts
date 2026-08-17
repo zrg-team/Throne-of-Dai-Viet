@@ -278,12 +278,6 @@ export function buildLawOptions(state: GameState): string[] {
     .map((project) => project.id);
 }
 
-/** The tax settings other than the one in force. */
-export function buildTaxOptions(state: GameState): TaxPolicy[] {
-  const current = state.taxPolicy ?? 'balanced';
-  return (['lenient', 'balanced', 'harsh'] as TaxPolicy[]).filter((policy) => policy !== current);
-}
-
 export function offerLawChoice(state: GameState): boolean {
   const projectIds = buildLawOptions(state);
   if (projectIds.length === 0) return false;
@@ -291,7 +285,9 @@ export function offerLawChoice(state: GameState): boolean {
     kind: 'law-choice',
     projectIds,
     points: state.mandate?.edictPoints ?? 0,
-    taxOptions: buildTaxOptions(state),
+    // Tax left this prompt: a standing policy offered as an event card could only be set when
+    // the card happened to come up. It is now the dial on the court screen (see TaxSystem).
+    taxOptions: [],
   });
   return true;
 }
@@ -306,6 +302,9 @@ export function resolveLawChoice(state: GameState, choiceId: string): boolean {
     const policy = choiceId.slice('tax:'.length) as TaxPolicy;
     if (!['lenient', 'balanced', 'harsh'].includes(policy)) return false;
     state.taxPolicy = policy;
+    // Keep the dial in step: a stance card from a prompt queued before the slider existed
+    // must not leave `taxRate` pointing somewhere else.
+    state.taxRate = policy === 'lenient' ? 0.2 : policy === 'harsh' ? 0.8 : 0.5;
     pushToast(state, t('ascent.law.taxSet', { policy: t(`ascent.tax.${policy}` as Parameters<typeof t>[0]) }), 'milestone');
     if (ascent) ascent.laneState.lastDecisionTurn.court = state.turn;
     return true;

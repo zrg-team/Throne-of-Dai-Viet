@@ -20,6 +20,7 @@ import {
   upgradeArmy,
 } from '../systems/WarSystem';
 import { getCourtBonuses } from '../systems/CourtSystem';
+import { currentTaxRate, setTaxRate, taxGoldMult, taxGrowthDelta, taxStabilityBase } from '../systems/TaxSystem';
 import { lawCardView, seatedEffectSummary } from '../systems/ascent/CourtLaneSystem';
 import { envoyOptionDetail } from '../systems/ascent/EnvoySystem';
 import { realmStanding } from '../systems/ascent/RivalDirector';
@@ -945,6 +946,7 @@ export class ConquestUIScene extends Phaser.Scene {
       onTap?: () => void,
     ) => void;
     addHeading: (title: string, hint?: string) => void;
+    addWidget: (height: number, build: (parent: Phaser.GameObjects.Container, width: number) => void) => void;
     finish: () => void;
   } {
     const content = this.promptFrame(title, subtitle);
@@ -1028,12 +1030,20 @@ export class ConquestUIScene extends Phaser.Scene {
       y += 4;
     };
 
+    /** A custom widget (a slider, a chart) slotted into the list's flow at the cursor. */
+    const addWidget = (height: number, build: (parent: Phaser.GameObjects.Container, width: number) => void) => {
+      const holder = this.add.container(0, y);
+      build(holder, rowWidth);
+      scroll.content.add(holder);
+      y += height + 8;
+    };
+
     const finish = () => {
       scroll.setContentHeight(Math.max(content.height - LANE_FOOTER_HEIGHT, y));
       this.laneCloseButton(content);
     };
 
-    return { content, addRow, addHeading, finish };
+    return { content, addRow, addHeading, addWidget, finish };
   }
 
   /** Standard footer for a lane browser: one button back to the map. */
@@ -1506,7 +1516,7 @@ export class ConquestUIScene extends Phaser.Scene {
   private showCourtScreen(): void {
     const state = this.state;
     const mandate = state.mandate;
-    const { addRow, addHeading, finish } = this.laneList(
+    const { addRow, addHeading, addWidget, finish } = this.laneList(
       t('action.court'),
       t('ascent.lane.courtBody', {
         era: mandate ? eraLabel(mandate.era) : '—',
@@ -1560,6 +1570,54 @@ export class ConquestUIScene extends Phaser.Scene {
       if (!view) continue;
       addRow({ title: view.title, subtitle: view.effect, border: INK_UI.gold, muted: true });
     }
+
+    // ── The tax dial, always directly under the decrees ──
+    //
+    // Tax used to be reachable only as cards inside the Chiếu Chỉ prompt, which made a standing
+    // policy feel like a random event: you set it when the prompt happened to come up, and could
+    // not find it again when you wanted it. A dial the player owns lives on the court screen.
+    addHeading(t('court.section.tax'));
+    addWidget(72, (holder, width) => {
+      const panel = this.ui.panel(
+        { x: 0, y: 0, width, height: 72 },
+        { border: INK_UI.brush, borderWidth: 1.2, borderAlpha: 0.52 },
+      );
+      holder.add(panel);
+
+      const effectLine = (rate: number): string => {
+        const fatiguePenalty = (state.taxFatigue ?? 0) * 0.16;
+        const drift = Number((taxStabilityBase(rate) - fatiguePenalty).toFixed(1));
+        return t('ascent.tax.effects', {
+          mult: taxGoldMult(rate).toFixed(2),
+          drift: `${drift >= 0 ? '+' : ''}${drift.toFixed(1)}`,
+          growth: `${taxGrowthDelta(rate) >= 0 ? '+' : ''}${taxGrowthDelta(rate).toFixed(1)}`,
+        });
+      };
+      const detail = this.ui.label(14, 10, effectLine(currentTaxRate(state)), 'caption', {
+        fontSize: '11px',
+      });
+      holder.add(detail);
+
+      holder.add(this.ui.label(14, 52, t('ascent.tax.light'), 'caption', { fontSize: '10px' }));
+      holder.add(
+        this.ui.label(width - 14, 52, t('ascent.tax.heavy'), 'caption', { fontSize: '10px' }).setOrigin(1, 0),
+      );
+
+      holder.add(
+        this.ui.slider(
+          { x: 10, y: 24, width: width - 20, height: 22 },
+          {
+            value: currentTaxRate(state),
+            onPreview: (rate) => detail.setText(effectLine(rate)),
+            onChange: (rate) => {
+              setTaxRate(state, rate);
+              refreshAllLandOutputs(state);
+              detail.setText(effectLine(rate));
+            },
+          },
+        ),
+      );
+    });
 
     // ── Seats, ordered by what wants attention ──
     //

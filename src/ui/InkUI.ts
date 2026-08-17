@@ -714,6 +714,82 @@ export class InkUI {
     return container;
   }
 
+  /**
+   * A draggable dial: `statBar`'s measured line of ink, with a seal-red thumb the finger owns.
+   *
+   * Drag anywhere on the bounds; the value moves *relatively* from where it stood, like a real
+   * fader under a finger, so grabbing the middle of the track does not snap the thumb there.
+   * `onPreview` fires on every movement for live labels; `onChange` once, on release — callers
+   * that recompute the world should do it there.
+   *
+   * The zone sits above the scroll area's hit zone, so dragging the slider never scrolls the
+   * list underneath it (input.topOnly is on).
+   */
+  slider(
+    bounds: UIBounds,
+    opts: {
+      value: number;
+      onChange: (value: number) => void;
+      onPreview?: (value: number) => void;
+      color?: number;
+    },
+  ): Phaser.GameObjects.Container {
+    const container = this.scene.add.container(bounds.x, bounds.y);
+    const thumbR = 9;
+    const trackX = thumbR + 2;
+    const trackWidth = bounds.width - (thumbR + 2) * 2;
+    const mid = bounds.height / 2;
+    const color = opts.color ?? INK_UI.cinnabar;
+    const seed = Math.round(bounds.x * 7 + bounds.y * 3 + bounds.width);
+
+    let value = Phaser.Math.Clamp(opts.value, 0, 1);
+    const g = this.scene.add.graphics();
+    container.add(g);
+
+    const paint = () => {
+      g.clear();
+      inkPath(g, [{ x: trackX, y: mid }, { x: trackX + trackWidth, y: mid }], seed, {
+        width: 3, alpha: 0.2, colour: INK_UI.brush, wobble: 0.3, step: 14,
+      });
+      const tip = trackX + trackWidth * value;
+      if (value > 0.01) {
+        inkPath(g, [{ x: trackX, y: mid }, { x: tip, y: mid }], seed + 1, {
+          width: 3, alpha: 0.8, colour: color, wobble: 0.45, step: 12,
+        });
+      }
+      // The thumb is a seal pressed on the line: a solid disc with the paper showing as a ring.
+      g.fillStyle(INK_UI.parchment, 1);
+      g.fillCircle(tip, mid, thumbR - 1.5);
+      g.fillStyle(color, 0.92);
+      g.fillCircle(tip, mid, thumbR - 4);
+      g.lineStyle(1.4, INK_UI.brush, 0.6);
+      g.strokeCircle(tip, mid, thumbR - 1.5);
+    };
+    paint();
+
+    const zone = this.scene.add
+      .zone(bounds.width / 2, mid, bounds.width, Math.max(bounds.height, thumbR * 2 + 14))
+      .setInteractive({ draggable: true, useHandCursor: true });
+    container.add(zone);
+
+    let startValue = value;
+    let startX = 0;
+    zone.on('dragstart', (pointer: Phaser.Input.Pointer) => {
+      startValue = value;
+      startX = designLength(pointer.x);
+    });
+    zone.on('drag', (pointer: Phaser.Input.Pointer) => {
+      value = Phaser.Math.Clamp(startValue + (designLength(pointer.x) - startX) / trackWidth, 0, 1);
+      paint();
+      opts.onPreview?.(value);
+    });
+    zone.on('dragend', () => {
+      opts.onChange(value);
+    });
+
+    return container;
+  }
+
   private drawCornerMarks(g: Phaser.GameObjects.Graphics, width: number, height: number, muted: boolean): void {
     const alpha = muted ? 0.32 : 0.72;
     const size = 5;
