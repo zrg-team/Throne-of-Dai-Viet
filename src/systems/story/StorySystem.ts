@@ -44,10 +44,23 @@ import type { StoryCtx, StoryFragment, StoryTemplate, StoryWorldDelta } from './
  * which the prompt budget already holds independently — most of what these five say is whispers,
  * which cost nothing.
  */
-const MAX_ACTIVE_STORIES = 5;
+/**
+ * Raised from five. The catalogue is 29 templates and roughly 270 fragments, and a measured run
+ * met about five of them — **17% of the writing, seen once.** The ceiling that matters is on
+ * *pausing* volume, and the prompt budget below holds that independently; most of what these
+ * stories say is whispers, which cost nothing and are the thing that makes a realm feel inhabited.
+ */
+const MAX_ACTIVE_STORIES = 8;
 
-/** Seasons between seeding attempts. Stories arrive quietly and rarely. */
-const SEED_INTERVAL = 6;
+/**
+ * Seasons between seeding attempts. Stories arrive quietly and rarely.
+ *
+ * Shortened from 6 for the same reason: with five slots and a six-season cadence a run simply ran
+ * out of time to meet its own catalogue. Note the other half of the fix is not here at all — a
+ * longer run meets more stories for free, so levers 01 and 02 raise this exposure without touching
+ * a constant.
+ */
+const SEED_INTERVAL = 4;
 
 /** A story says nothing for at least this many seasons after speaking. */
 const MIN_QUIET = 3;

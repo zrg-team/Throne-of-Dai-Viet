@@ -39,6 +39,30 @@ import {
   thirteenthEn, thirteenthVi,
   withoutSlaughterEn, withoutSlaughterVi,
 } from './legends';
+import {
+  binhTrongEn as annalBinhTrongEn, binhTrongVi as annalBinhTrongVi,
+  cheEn, cheVi,
+  dykesEn, dykesVi,
+  hoGuomEn, hoGuomVi,
+  khucEn, khucVi,
+  luyThayEn, luyThayVi,
+  noThanEn, noThanVi,
+  paperMoneyEn, paperMoneyVi,
+  thuDoEn, thuDoVi,
+  vanDonEn, vanDonVi,
+  vanMieuEn, vanMieuVi,
+  yetKieuEn, yetKieuVi,
+} from './annals';
+import {
+  chiLangEn, chiLangVi,
+  chieuDoiDoEn, chieuDoiDoVi,
+  daiCaoEn, daiCaoVi,
+  haiBaEn, haiBaVi,
+  hichEn, hichVi,
+  namQuocEn, namQuocVi,
+  thanTocEn, thanTocVi,
+  tienPhatEn, tienPhatVi,
+} from './charges';
 import { depthEn, depthVi } from './depth';
 import { depth2En, depth2Vi } from './depth2';
 import type { StoryCatalog } from './types';
@@ -91,6 +115,28 @@ const CATALOGS: Record<string, StoryPair> = {
   'thanh-giong': { en: thanhGiongEn, vi: thanhGiongVi },
   'salt-road': { en: saltRoadEn, vi: saltRoadVi },
   thirteenth: { en: thirteenthEn, vi: thirteenthVi },
+  // The eight that ask. Each id matches a template in `data/stories/charges.ts`.
+  'dai-cao': { en: daiCaoEn, vi: daiCaoVi },
+  'chieu-doi-do': { en: chieuDoiDoEn, vi: chieuDoiDoVi },
+  'nam-quoc': { en: namQuocEn, vi: namQuocVi },
+  'hich-tuong-si': { en: hichEn, vi: hichVi },
+  'chi-lang': { en: chiLangEn, vi: chiLangVi },
+  'than-toc': { en: thanTocEn, vi: thanTocVi },
+  'tien-phat': { en: tienPhatEn, vi: tienPhatVi },
+  'hai-ba-trung': { en: haiBaEn, vi: haiBaVi },
+  // The annals. Ids match `data/stories/annals.ts`.
+  'ho-guom': { en: hoGuomEn, vi: hoGuomVi },
+  'no-than': { en: noThanEn, vi: noThanVi },
+  'yet-kieu': { en: yetKieuEn, vi: yetKieuVi },
+  'van-don': { en: vanDonEn, vi: vanDonVi },
+  'paper-money': { en: paperMoneyEn, vi: paperMoneyVi },
+  'luy-thay': { en: luyThayEn, vi: luyThayVi },
+  'van-mieu': { en: vanMieuEn, vi: vanMieuVi },
+  'thu-do': { en: thuDoEn, vi: thuDoVi },
+  'binh-trong': { en: annalBinhTrongEn, vi: annalBinhTrongVi },
+  'khuc-thua-du': { en: khucEn, vi: khucVi },
+  'the-dykes': { en: dykesEn, vi: dykesVi },
+  'che-bong-nga': { en: cheEn, vi: cheVi },
 };
 
 // The depth passes overlay the base catalogs: `want`/`waiting`/`stake`/`regard.*` for every

@@ -1,3 +1,5 @@
+import { ANNAL_STORIES } from './annals';
+import { CHARGE_STORIES } from './charges';
 import { countingHouse } from './countingHouse';
 import {
   borrowedSword,
@@ -81,6 +83,17 @@ export const storyTemplates: StoryTemplate[] = [
   thanhGiong,
   saltRoad,
   thirteenthWarlord,
+
+  // The fourth wave: the eight that *ask*. Each carries a charge the player accepts or declines,
+  // and pays in a card that exists nowhere else — see `data/stories/charges.ts` for why they are
+  // deliberately a minority of the catalogue rather than the new default shape.
+  ...CHARGE_STORIES,
+
+  // The fifth wave: the annals. Twelve middle-length histories, each built around a *verb* the
+  // vocabulary did not have — a diver, a grain fleet, a paper currency, a wall, the examinations,
+  // an exile, an amnesty, a captive, a stolen crossbow, a returned sword. Five or six beats each:
+  // long enough to have a middle, short enough that a run meets several.
+  ...ANNAL_STORIES,
 ];
 
 const byId = new Map(storyTemplates.map((template) => [template.id, template]));
