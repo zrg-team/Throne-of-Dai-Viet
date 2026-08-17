@@ -9,9 +9,10 @@ import { rerollAscentDraft, resolveAscentPrompt } from '../systems/ascent/Ascent
 import { drainAscentPrompts } from '../systems/ascent/AscentState';
 import { offerConquestMethods } from '../systems/ascent/ConquestSystem';
 import { offerEnvoyTo } from '../systems/ascent/EnvoySystem';
-import { offerAppointment, offerLawChoice } from '../systems/ascent/CourtLaneSystem';
+import { applyAppointment, offerAppointment, offerLawChoice } from '../systems/ascent/CourtLaneSystem';
 import { raiseHostNow } from '../systems/ascent/AutopilotSystem';
 import { recallHost, resupplyHost, setArmyOrders } from '../systems/ascent/StandingOrders';
+import { raiseHostWithPlan, type MusterPlan } from '../systems/ascent/MusterSystem';
 import { pushToast } from '../systems/empire/notifications';
 import { disbandArmy } from '../systems/WarSystem';
 import { commitReserve, finishBattle, rally, setBattleFocus, setBattlePosture } from '../systems/ascent/BattleSystem';
@@ -364,12 +365,23 @@ export class ConquestScene extends MapScene {
         ui.events.emit('state-changed');
       }
     });
-    ui.events.on('ui:ascent-raise-host', () => {
+    ui.events.on('ui:ascent-raise-host', (plan?: MusterPlan) => {
       if (this.state.pendingAscentPrompt) return;
-      if (raiseHostNow(this.state)) {
-        this.refresh();
-        ui.events.emit('state-changed');
-      }
+      // With a plan the form's figures are mustered as given; without one (the old one-tap
+      // path) the autopilot's own sizing applies.
+      const result = plan ? raiseHostWithPlan(this.state, plan) : { ok: raiseHostNow(this.state) };
+      if (!result.ok && result.reason) pushToast(this.state, result.reason, 'threat');
+      this.refresh();
+      ui.events.emit('state-changed');
+    });
+
+    // A posting chosen on the hero picker: a seat, a province, the command of a host, or the
+    // bench. The same `applyAppointment` the appointment card resolves through.
+    ui.events.on('ui:ascent-assign', (payload: { heroId: string; optionId: string }) => {
+      if (this.state.pendingAscentPrompt) return;
+      applyAppointment(this.state, payload.heroId, payload.optionId);
+      this.refresh();
+      ui.events.emit('state-changed');
     });
 
     ui.events.on('ui:ascent-law', () => {

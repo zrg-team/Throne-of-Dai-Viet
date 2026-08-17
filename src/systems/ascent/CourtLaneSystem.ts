@@ -46,6 +46,11 @@ const SEAT_PRIMARY_STAT: Record<CourtPositionId, keyof HeroStats> = {
 
 const MAX_APPOINTMENT_OPTIONS = 3;
 
+/** The stat a seat is scored on — shared with the hero picker so both rank candidates alike. */
+export function seatPrimaryStat(seat: CourtPositionId): keyof HeroStats {
+  return SEAT_PRIMARY_STAT[seat];
+}
+
 /**
  * Ordering weights. These only decide which three postings are *offered* and in what order —
  * the player still chooses. They are kept close together so no single role can run away with
@@ -101,7 +106,9 @@ export function buildAppointmentOptions(state: GameState, hero: Hero): Appointme
     });
   }
 
-  const leaderless = state.armies.find((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.generalHeroId);
+  // A garrison levy has no general and takes none: it is the province's walls turned out for
+  // one battle, not a host to be given a commander.
+  const leaderless = state.armies.find((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && !army.generalHeroId);
   if (leaderless) {
     scored.push({
       option: {
@@ -169,7 +176,7 @@ export function buildAppointmentOptions(state: GameState, hero: Hero): Appointme
  * worth it when the alternative is no army whatsoever.
  */
 function needsCommander(state: GameState, hero: Hero): boolean {
-  const hosts = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID).length;
+  const hosts = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy).length;
   if (hosts > 0) return false;
   return !state.heroes.some((candidate) => candidate.id !== hero.id && !candidate.assignedTo);
 }
@@ -223,9 +230,14 @@ export function applyAppointment(state: GameState, heroId: string, optionId: str
     ok = assignHeroToLand(state, heroId, optionId.slice('governor:'.length));
   } else if (optionId.startsWith('general:')) {
     const army = state.armies.find((candidate) => candidate.id === optionId.slice('general:'.length));
-    if (army && army.kingdomId === PLAYER_KINGDOM_ID) {
+    if (army && army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy) {
+      // Out of the old posting first: a minister given a host used to keep the seat's name on
+      // the map while `assignedTo` said "army", and the seat's bonuses with it.
+      const wasGovernor = Boolean(hero.assignedTo && state.lands.some((land) => land.id === hero.assignedTo));
+      releaseHeroAssignment(state, hero);
+      if (wasGovernor) refreshAllLandOutputs(state);
       const previous = state.heroes.find((candidate) => candidate.id === army.generalHeroId);
-      if (previous) previous.assignedTo = undefined;
+      if (previous && previous.id !== hero.id) previous.assignedTo = undefined;
       army.generalHeroId = hero.id;
       hero.assignedTo = army.id;
       ok = true;

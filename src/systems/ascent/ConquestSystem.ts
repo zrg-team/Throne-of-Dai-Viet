@@ -20,6 +20,9 @@ import { armyPower, createBattlePreview, findLandPath, issueMoveOrder } from '..
 import { enqueueAscentPrompt } from './AscentState';
 import { chargeAmbition } from './AmbitionSystem';
 import { isAutoHost } from './armyOrders';
+import { setArmyOrders } from './StandingOrders';
+import { releaseHeroAssignment } from '../CourtSystem';
+import { refreshAllLandOutputs } from '../ResourceSystem';
 import { addAscentXp, landGarrisonPower } from './PowerSystem';
 import { heroName, t } from '../../i18n';
 import type {
@@ -373,10 +376,19 @@ export interface ConquestAttempt {
  * did not register: the sheet closed, the gold was gone, and nothing was underway. The reason
  * is returned now, so the caller can put it in front of the player.
  */
+/** Who a method should commit, when the player has chosen rather than left it to the sheet. */
+export interface ConquestActor {
+  heroId?: string;
+  armyId?: string;
+  /** Storm below the odds gate the autopilot keeps. */
+  force?: boolean;
+}
+
 export function executeConquestMethod(
   state: GameState,
   landId: string,
   method: AscentConquestMethod,
+  actor?: ConquestActor,
 ): ConquestAttempt {
   const ascent = state.ascent;
   const land = findLand(state, landId);
@@ -401,12 +413,22 @@ export function executeConquestMethod(
       ok = bribeLand(state, landId);
       break;
     case 'diplomacy': {
-      const hero = bestDiplomat(state);
+      const hero = (actor?.heroId ? state.heroes.find((candidate) => candidate.id === actor.heroId) : undefined)
+        ?? bestDiplomat(state);
+      // A seated minister may ride as envoy, but the claim refuses anyone still posted — so the
+      // seat is vacated first. (`bestDiplomat` has offered ministers for as long as it has
+      // existed, and every one of those attempts came to nothing for exactly this reason.)
+      if (hero && hero.assignedTo && !state.armies.some((army) => army.id === hero.assignedTo)) {
+        const wasGovernor = state.lands.some((candidate) => candidate.id === hero.assignedTo);
+        releaseHeroAssignment(state, hero);
+        if (wasGovernor) refreshAllLandOutputs(state);
+      }
       ok = Boolean(hero && startDiplomaticClaim(state, landId, hero.id));
       break;
     }
     case 'intimidation': {
-      const army = bestAdjacentOwnedArmy(state, land);
+      const army = (actor?.armyId ? state.armies.find((candidate) => candidate.id === actor.armyId) : undefined)
+        ?? bestAdjacentOwnedArmy(state, land);
       ok = Boolean(army && startIntimidation(state, landId, army.id));
       break;
     }
@@ -415,7 +437,13 @@ export function executeConquestMethod(
       break;
     case 'occupy':
     case 'siege':
-      ok = marchBestHostToTarget(state, landId);
+      if (actor?.armyId) {
+        // The player named the host: it takes the standing order to attack, which marches it
+        // (through owned ground) and storms once the odds clear — or at once, when forced.
+        ok = setArmyOrders(state, actor.armyId, { kind: 'attack', landId, force: actor.force });
+      } else {
+        ok = marchBestHostToTarget(state, landId);
+      }
       // The sheet offered this because *some* host could reach the province; the march declines
       // when every one of them is already committed elsewhere. Two different questions, so the
       // option's own `blockedReason` cannot answer this one.
@@ -617,4 +645,25 @@ function rewardTag(land: Land): string {
 export function methodHeroName(state: GameState, heroId: string | undefined): string | undefined {
   const hero = state.heroes.find((candidate) => candidate.id === heroId);
   return hero ? heroName(hero) : undefined;
+}
+
+/** True when the sheet lets the player choose who carries this method out. */
+export function methodHasActor(method: AscentConquestMethod): boolean {
+  return method === 'diplomacy' || method === 'intimidation' || method === 'occupy' || method === 'siege';
+}
+
+/** "Envoy: X — tap to choose" / "Host: Y — tap to choose", for the method card's body. */
+export function methodActorLine(state: GameState, option: ConquestMethodOption): string | undefined {
+  if (option.method === 'diplomacy') {
+    const name = methodHeroName(state, option.heroId);
+    return t('ascent.conquer.actorEnvoy', { hero: name ?? t('ascent.conquer.actorNone') });
+  }
+  if (option.method === 'intimidation' || option.method === 'occupy' || option.method === 'siege') {
+    const army = state.armies.find((candidate) => candidate.id === option.armyId);
+    return t('ascent.conquer.actorHost', {
+      army: army?.name ?? t('ascent.conquer.actorNone'),
+      power: army ? Math.round(armyPower(state, army)) : 0,
+    });
+  }
+  return undefined;
 }
