@@ -27,6 +27,8 @@ import {
   UNPAID_WRITEOFF_TICKS,
   demandDifficultyScale,
 } from '../game/ascentConfig';
+import { palisadeMilitiaBonus } from './ascent/DoctrineSystem';
+import { doctrineMilitiaMult } from './ascent/RealmDoctrineSystem';
 import { eraIndex, eraLabel, getBuildingLevelCap } from './empire/MandateSystem';
 import { pushToast } from './empire/notifications';
 import { getCourtBonuses, getLandGovernorOutputMult } from './CourtSystem';
@@ -309,6 +311,58 @@ export function getFocusGarrisonMult(state: GameState, land: Land): number {
     return 1;
   }
   return 1 + 0.4 + getLandAptitude(land).garrison * 0.45;
+}
+
+/**
+ * The militia a province can turn out from its own people — the ceiling it grows toward.
+ *
+ * **Drawn from the province, never from `state.resources.humans`.** That distinction is the whole
+ * point. A field host costs the national pool one person per soldier and then throttles the growth
+ * that would replace it (see the `civShare` term in `calculatePlayerResourceRates`), which measured
+ * out at one army per hundred seasons: a realm could take ground and never hold it, peaking at 6.8
+ * provinces and ending with 3.1. Militia breaks that deadlock without touching the throttle —
+ * ground defends itself, and the national pool is left for the armies that march.
+ *
+ * Keyed on what the province *is* rather than on its walls alone, so developing a district and
+ * holding it are both worth something, and a disloyal province turns out fewer men — which gives
+ * the loyalty a conquest method stamps on a province a second, military consequence.
+ */
+export function militiaCapacity(state: GameState, land: Land): number {
+  const built = land.buildings.reduce((sum, building) => sum + 1 + building.level * 0.5, 0);
+  const base = land.defense * 2.2 + built * 16 + land.population * 0.12;
+  return Math.floor(
+    base
+    * (0.4 + (land.loyalty / 100) * 0.6)
+    * getFocusGarrisonMult(state, land)
+    * (1 + palisadeMilitiaBonus(state))
+    * doctrineMilitiaMult(state),
+  );
+}
+
+/** Seasons a province takes to raise its militia from nothing to full. */
+const MILITIA_SEASONS_TO_FULL = 22;
+
+/**
+ * Grows every owned province's militia toward what it can support, and lets an over-strength
+ * one settle back down.
+ *
+ * Called once per Ascent tick. Growth is deliberately slow enough that a freshly-taken province is
+ * not a fortress next season — the militia arriving *is* the province becoming yours — and fast
+ * enough that a garrison spent holding a wave is back before the wave after next.
+ */
+export function growProvincialMilitia(state: GameState): void {
+  if (state.gameMode !== 'ascent') return;
+  for (const land of state.lands) {
+    if (land.ownerId !== PLAYER_KINGDOM_ID) continue;
+    const cap = militiaCapacity(state, land);
+    if (land.localSoldiers >= cap) {
+      // Over capacity only happens when a province is lost and retaken, or its loyalty falls.
+      land.localSoldiers = Math.max(cap, land.localSoldiers - 2);
+      continue;
+    }
+    const step = Math.max(2, Math.ceil(cap / MILITIA_SEASONS_TO_FULL));
+    land.localSoldiers = Math.min(cap, land.localSoldiers + step);
+  }
 }
 
 /**

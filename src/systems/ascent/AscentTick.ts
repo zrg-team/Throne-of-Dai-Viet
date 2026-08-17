@@ -2,7 +2,12 @@ import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { CAPITAL_GRACE_TICKS, LOYALTY_SETTLE_PER_TICK, SUMMON_EVERY_N_WAVES } from '../../game/ascentConfig';
 import { pushToast } from '../empire/notifications';
 import { progressAcquisitions } from '../AcquisitionSystem';
-import { collectPlayerIncome, getFocusLoyaltyBonus, progressBuildOrders } from '../ResourceSystem';
+import {
+  collectPlayerIncome,
+  getFocusLoyaltyBonus,
+  growProvincialMilitia,
+  progressBuildOrders,
+} from '../ResourceSystem';
 import {
   progressArmyLogistics,
   progressMovementOrders,
@@ -26,6 +31,7 @@ import { tickEnemyCommand } from './EnemyCommandDirector';
 import { detectConquests, ensureAscentLaneState, refreshAscentLaneState } from './ConquestSystem';
 import { tickDecisionDirector, tickPromptCooldowns } from './DecisionDirector';
 import { tickStories } from '../story/StorySystem';
+import { tickStoryCharges } from '../story/charges';
 import { tickEdictDiscovery } from './CourtLaneSystem';
 import { endAscentRun } from './AscentResolver';
 import { advanceSeasonClock, greatPowersDue } from '../seasonClock';
@@ -202,6 +208,10 @@ export function advanceAscentTick(state: GameState): void {
   }
 
   settleOwnedLands(state);
+  // Ground that defends itself. Militia is raised from each province's own people rather than
+  // from the national pool, so holding territory no longer competes with fielding an army — see
+  // `growProvincialMilitia`. After `settleOwnedLands`, because the ceiling reads loyalty.
+  growProvincialMilitia(state);
   detectConquests(state, ownedBefore);
   tickAscentProgress(state);
 
@@ -225,6 +235,9 @@ export function advanceAscentTick(state: GameState): void {
   // Before the director: stories notice what changed this tick, let at most one whisper through
   // (which costs no prompt budget at all), and mark anything louder for the director to weigh
   // against everything else competing for the player's attention.
+  // Oaths are judged before the stories speak, so a charge kept this season is a thing the
+  // Chronicle can talk about this season rather than next.
+  tickStoryCharges(state);
   tickStories(state);
   tickDecisionDirector(state);
   checkAscentDefeat(state);

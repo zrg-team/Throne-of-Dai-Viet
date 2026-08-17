@@ -43,13 +43,21 @@ export function pursuitLossShare(state: GameState): number {
 }
 
 /**
- * Bamboo Palisade — whether a conquest host must reduce an outer province before the capital.
+ * Bamboo Palisade — how much more militia every province turns out.
  *
- * This is the card that turns the map itself into a defence: with it, a wide realm is a deep
- * one, and the province you took last season is the province that buys you a Court phase.
+ * This card used to *grant* the frontier-first rule: a conquest host had to reduce an outer
+ * province before it could reach the seat. That rule is now the map's default (see the note in
+ * `pickInvasionTarget`), because a realm's width buying nothing was half the reason expanding was
+ * survival-neutral — and a silver card drawn maybe once a run is no place for a rule the whole
+ * mode depends on.
+ *
+ * So the card keeps the fantasy and changes its price: a palisade is what lets a district turn
+ * more of its own people out behind it. Read by `militiaCapacity`, which is drawn from the
+ * province rather than from the national pool, so this compounds with holding ground instead of
+ * competing with fielding an army.
  */
-export function shieldsTheCapital(state: GameState): boolean {
-  return doctrine(state, 'bamboo-palisade') > 0;
+export function palisadeMilitiaBonus(state: GameState): number {
+  return doctrine(state, 'bamboo-palisade') * 0.35;
 }
 
 /** Mountain Pass — seasons of warning the realm gets before each wave. */
