@@ -19,6 +19,7 @@ import { findLand, getAcquisitionOrder, getSiegeOrder } from '../LandSystem';
 import { armyPower, createBattlePreview, findLandPath, issueMoveOrder } from '../WarSystem';
 import { enqueueAscentPrompt } from './AscentState';
 import { chargeAmbition } from './AmbitionSystem';
+import { isAutoHost } from './armyOrders';
 import { addAscentXp, landGarrisonPower } from './PowerSystem';
 import { heroName, t } from '../../i18n';
 import type {
@@ -139,6 +140,16 @@ export function refreshAscentLaneState(state: GameState): AscentLaneState | unde
  * unreachable fortress would read as "there is nothing to do here".
  */
 export function buildConquestTargets(state: GameState): ConquestTarget[] {
+  return buildAllConquestTargets(state).slice(0, MAX_CONQUEST_TARGETS);
+}
+
+/**
+ * Every province on the realm's border — each neighbour of owned ground that is not ours —
+ * takeable first, then by odds. The card prompt shows the top few (`buildConquestTargets`);
+ * the claim list on the Build lane shows all of them, because a border a player is scrolling
+ * is a map, not a hand of cards, and a province left off it simply did not exist to them.
+ */
+export function buildAllConquestTargets(state: GameState): ConquestTarget[] {
   const owned = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
   const seen = new Set<string>();
   const targets: ConquestTarget[] = [];
@@ -148,18 +159,16 @@ export function buildConquestTargets(state: GameState): ConquestTarget[] {
       if (seen.has(neighborId)) continue;
       seen.add(neighborId);
       const candidate = state.lands.find((item) => item.id === neighborId);
-      if (!candidate || candidate.ownerId === PLAYER_KINGDOM_ID || !candidate.isVisible) continue;
+      if (!candidate || candidate.ownerId === PLAYER_KINGDOM_ID) continue;
       targets.push(buildConquestTarget(state, candidate));
     }
   }
 
-  return targets
-    .sort((a, b) => {
-      const aOpen = a.methods.some((method) => !method.blockedReason) ? 0 : 1;
-      const bOpen = b.methods.some((method) => !method.blockedReason) ? 0 : 1;
-      return aOpen - bOpen || b.bestChance - a.bestChance || a.garrison - b.garrison;
-    })
-    .slice(0, MAX_CONQUEST_TARGETS);
+  return targets.sort((a, b) => {
+    const aOpen = a.methods.some((method) => !method.blockedReason) ? 0 : 1;
+    const bOpen = b.methods.some((method) => !method.blockedReason) ? 0 : 1;
+    return aOpen - bOpen || b.bestChance - a.bestChance || a.garrison - b.garrison;
+  });
 }
 
 /** The full menu for one province, whether or not it is currently on the prompt. */
@@ -506,8 +515,10 @@ export function detectConquests(state: GameState, ownedBefore: Set<string>): voi
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function marchBestHostToTarget(state: GameState, landId: string): boolean {
+  // Only the hosts left to the autopilot: a host under the player's own standing order goes
+  // where that order says (see `StandingOrders`), and a garrison levy goes nowhere.
   const candidates = state.armies
-    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && isAutoHost(army))
     .filter((army) => !state.siegeOrders.some((order) => order.armyId === army.id))
     .filter((army) => Boolean(findLandPath(state, army.landId, landId)))
     .sort((a, b) => armyPower(state, b) - armyPower(state, a));
@@ -525,13 +536,13 @@ function marchBestHostToTarget(state: GameState, landId: string): boolean {
 
 function bestReachableArmy(state: GameState, land: Land): Army | undefined {
   return state.armies
-    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && Boolean(findLandPath(state, army.landId, land.id)))
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && Boolean(findLandPath(state, army.landId, land.id)))
     .sort((a, b) => armyPower(state, b) - armyPower(state, a))[0];
 }
 
 function bestAdjacentOwnedArmy(state: GameState, land: Land): Army | undefined {
   return state.armies
-    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy)
     .filter((army) => {
       const armyLand = findLand(state, army.landId);
       return Boolean(armyLand && armyLand.ownerId === PLAYER_KINGDOM_ID && armyLand.neighbors.includes(land.id));
@@ -571,7 +582,7 @@ function bestBattle(state: GameState, land: Land): { chance: number; armyId?: st
   let best = 0;
   let armyId: string | undefined;
 
-  for (const army of state.armies.filter((candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID)) {
+  for (const army of state.armies.filter((candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID && !candidate.isLevy)) {
     const preview = createBattlePreview(state, army.id, land.id);
     let chance: number;
     if (preview) {

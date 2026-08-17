@@ -346,7 +346,34 @@ export interface Army {
    * what it took — the walls' share of the turnout must not become standing militia.
    */
   levyDrawn?: number;
+  /**
+   * The host's standing order (Dragon Ascent). Absent means `auto`: the autopilot may march it,
+   * send it home, or leave it — the original behaviour, kept for old saves, the royal host and
+   * every host raised by the autopilot itself. Any other order takes the host out of the
+   * autopilot's hands: it is moved only by the order, and never dissolved as a remnant.
+   */
+  orders?: ArmyOrders;
 }
+
+/**
+ * What a host of the player's is doing until told otherwise (Dragon Ascent).
+ *
+ *  - `auto`   — the autopilot commands it (march on the front, intercept, go home).
+ *  - `defend` — hold `landId`; walk back if displaced and the road is open, otherwise hold here.
+ *  - `attack` — reach and storm `landId`; falls back to `defend` where it stands once the land is
+ *               taken or the assault is thrown back. `force` storms below the odds gate.
+ *  - `follow` — keep station with another host of ours, on its province or the nearest owned one.
+ *  - `hunt`   — pursue an enemy host until it is caught or gone (`issueHuntOrder`, re-issued).
+ *
+ * `holding` / `struck` are the order's own memory, so a change of state is announced once and
+ * the tick never spins on an unreachable target.
+ */
+export type ArmyOrders =
+  | { kind: 'auto' }
+  | { kind: 'defend'; landId: string; holding?: boolean }
+  | { kind: 'attack'; landId: string; struck?: boolean; holding?: boolean; force?: boolean }
+  | { kind: 'follow'; armyId: string; holding?: boolean }
+  | { kind: 'hunt'; armyId: string };
 
 /** An in-progress march: an army advancing one land per leg toward `path`'s last entry. */
 export interface MovementOrder {
@@ -593,6 +620,8 @@ export type ArmyComposition = 'balanced' | 'spears' | 'archers' | 'shock';
 export type BattleStance = 'assault' | 'balanced' | 'cautious';
 
 export interface RecruitmentOrder {
+  /** Standing order stamped on the host the moment it musters (Dragon Ascent). */
+  orders?: ArmyOrders;
   id: string;
   landId: string;
   heroId: string;
@@ -1317,6 +1346,8 @@ export interface AscentState {
   lastWatchedKey?: string;
   /** The last few engagements, newest last. Optional so old saves need no migration. */
   battleHistory?: AscentBattleRecord[];
+  /** Commanded hosts already warned about being a remnant, so the toast fires once per host. */
+  remnantWarnedIds?: string[];
   /** Set when the run ends, so the summary can name the cause rather than shrug. */
   endCause?: AscentEndCause;
   /** Province whose fall ended the run. */

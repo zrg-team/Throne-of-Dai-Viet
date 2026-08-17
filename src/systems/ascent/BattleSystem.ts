@@ -26,6 +26,7 @@ import { pushToast } from '../empire/notifications';
 import { armyPower, issueMoveOrder, terrainDefenseMultiplier } from '../WarSystem';
 import { findLand } from '../LandSystem';
 import { battleLine, enrolArrivals, hostHeadcount, ourHosts, theirHosts } from './battleMembership';
+import { isAutoHost } from './armyOrders';
 import { t } from '../../i18n';
 import type { Army, AscentBattle, BattlePosture, GameState, PendingBattle } from '../../state/types';
 
@@ -258,7 +259,7 @@ function battleRecord(battle: AscentBattle, invaderArmyId = battle.invaderArmyId
 }
 
 /** Orders idle player hosts on neighbouring provinces to march to the contested one. */
-function summonAdjacentRelief(state: GameState, landId: string): void {
+export function summonAdjacentRelief(state: GameState, landId: string): void {
   const land = findLand(state, landId);
   if (!land) return;
   const neighbours = new Set(land.neighbors);
@@ -270,6 +271,9 @@ function summonAdjacentRelief(state: GameState, landId: string): void {
       // The seat keeps its garrison. Relief drawn from the capital left it to a roll it lost,
       // and the run ended while its hosts were winning the fight next door.
       && army.landId !== capitalId
+      // Only hosts the autopilot may move, or one whose own standing order is to defend this very
+      // province: a host told to hold its ground, or to go somewhere else, is not pulled off it.
+      && (isAutoHost(army) || (army.orders?.kind === 'defend' && army.orders.landId === landId))
       && totalUnits(army) > 0
       && !state.movementOrders.some((order) => order.armyId === army.id)
       && !state.siegeOrders.some((order) => order.armyId === army.id),

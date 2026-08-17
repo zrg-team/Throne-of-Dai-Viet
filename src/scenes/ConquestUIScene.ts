@@ -8,7 +8,7 @@ import { heroTemplates } from '../data/heroes';
 import { powerCardView, skipRefundAmount } from '../systems/ascent/PowerDraftSystem';
 import { tierForHero } from '../systems/ascent/SummonSystem';
 import { isBossWave, responseCommanderName } from '../systems/ascent/WaveDirector';
-import { buildConquestTargets, frontWinChance, refreshAscentLaneState } from '../systems/ascent/ConquestSystem';
+import { buildAllConquestTargets, buildConquestTargets, frontWinChance, refreshAscentLaneState } from '../systems/ascent/ConquestSystem';
 import { landGarrisonPower } from '../systems/ascent/PowerSystem';
 import { cancelAcquisition, claimBlockedReason, getClaimRefund, getClaimSlots } from '../systems/AcquisitionSystem';
 import {
@@ -31,7 +31,9 @@ import { ascentArmyUpkeep, buildDistrictBuilding, getBuildOptions, getLandPopula
 import { buildFocusRows } from '../ui/focusPanel';
 import { buildGovernorRows } from '../ui/governorPanel';
 import { findFreeCommander } from '../systems/ascent/AutopilotSystem';
-import { MIN_ARMY_SOLDIERS, RECRUIT_HUMAN_RESERVE, recruitSoldiers } from '../game/ascentConfig';
+import { armyOrders, hostOrderLabel, isAutoHost } from '../systems/ascent/armyOrders';
+import { hostOddsAgainst, resupplyPreview } from '../systems/ascent/StandingOrders';
+import { MARCH_MIN_WIN_CHANCE, MIN_ARMY_SOLDIERS, RECRUIT_HUMAN_RESERVE, REMNANT_SHARE, recruitSoldiers } from '../game/ascentConfig';
 import { eraLabel } from '../systems/empire/MandateSystem';
 import { getEmpirePower, hasPact } from '../systems/DiplomacySystem';
 import { compactNumber } from '../utils/format';
@@ -63,16 +65,17 @@ import {
 import type {
   ActiveStory,
   Army,
+  ArmyOrders,
   AscentBattle,
-  AscentLedgerLine,
   AscentConquestMethod,
   AscentLane,
   AscentLaneStatus,
+  AscentLedgerLine,
   AscentPrompt,
   AscentRarity,
-  CourtPositionId,
   ConquestMethodOption,
   ConquestTarget,
+  CourtPositionId,
   GameState,
   Hero,
   InvasionRecord,
@@ -1930,21 +1933,74 @@ export class ConquestUIScene extends Phaser.Scene {
       const land = state.lands.find((candidate) => candidate.id === army.landId);
       const general = state.heroes.find((candidate) => candidate.id === army.generalHeroId);
       const size = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
+      const remnant = !isAutoHost(army) && size < MIN_ARMY_SOLDIERS * REMNANT_SHARE;
       addRow(
         {
           title: `${army.name}  ·  ${size}`,
-          subtitle: t('ascent.screen.armyRow', {
+          subtitle: `${t('ascent.screen.armyRow', {
             land: land?.name ?? '—',
             general: general ? heroName(general) : t('ascent.screen.noGeneral'),
             morale: Math.round(army.morale),
             supply: Math.round(army.supply),
-          }),
-          border: army.morale < 40 || army.supply < 30 ? INK_UI.cinnabar : INK_UI.jade,
+          })}\n${remnant ? t('ascent.orders.remnantRow', { n: size }) : hostOrderLabel(state, army)}`,
+          border: remnant || army.morale < 40 || army.supply < 30 ? INK_UI.cinnabar : INK_UI.jade,
         },
         () => this.showArmyDetail(army.id),
       );
     }
     finish();
+  }
+
+  /** Replaces the current lane page with another, keeping the lane (and its pause) open. */
+  private replaceLanePage(build: () => void): void {
+    for (const scroll of this.activeScrollAreas) scroll.destroy();
+    this.activeScrollAreas = [];
+    this.modalLayer.removeAll(true);
+    build();
+  }
+
+  /**
+   * A yes-or-back page for anything worth a second look: a hero taken from a seat, a host
+   * recalled off a siege. One card with the consequences, one primary button, one way back.
+   */
+  private showConfirmPage(opts: {
+    title: string;
+    subtitle?: string;
+    portrait?: Hero;
+    lines: string[];
+    confirmLabel: string;
+    danger?: boolean;
+    onConfirm: () => void;
+    onBack: () => void;
+  }): void {
+    this.replaceLanePage(() => {
+      const content = this.promptFrame(opts.title, opts.subtitle ?? '');
+      let y = content.y;
+      if (opts.portrait) {
+        const box = { x: content.x + content.width / 2 - 64, y, width: 128, height: 118 };
+        this.modalLayer.add(renderHeroFaceInBox(this, opts.portrait, box));
+        y += 126;
+      }
+      const [first, ...rest] = opts.lines.filter(Boolean);
+      const card = this.ui.card(
+        { x: content.x, y, width: content.width, height: 60 },
+        { title: first ?? '', subtitle: rest.join('\n'), border: opts.danger ? INK_UI.cinnabar : INK_UI.gold },
+      );
+      this.modalLayer.add(card);
+      y += ((card.getData('cardHeight') as number) ?? 60) + 14;
+      this.modalLayer.add(this.ui.button(
+        { x: content.x, y, width: content.width, height: 46 },
+        opts.confirmLabel,
+        opts.onConfirm,
+        { variant: opts.danger ? 'danger' : 'primary', fontSize: '14px' },
+      ));
+      this.modalLayer.add(this.ui.button(
+        { x: content.x, y: y + 58, width: content.width, height: 44 },
+        t('ascent.pick.back'),
+        opts.onBack,
+        { variant: 'ghost', fontSize: '13px' },
+      ));
+    });
   }
 
   /**
@@ -1961,16 +2017,17 @@ export class ConquestUIScene extends Phaser.Scene {
     const army = state.armies.find((candidate) => candidate.id === armyId);
     if (!army) return;
 
+    // The lane key stays `lane:army`: giving this page its own key made every `state-changed`
+    // (which each order raises) read as "no overlay open" and tear the page down under the tap.
     for (const scroll of this.activeScrollAreas) scroll.destroy();
     this.activeScrollAreas = [];
     this.modalLayer.removeAll(true);
-    this.openPromptKey = `army-detail:${armyId}`;
 
     const size = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
     const general = state.heroes.find((candidate) => candidate.id === army.generalHeroId);
     const land = state.lands.find((candidate) => candidate.id === army.landId);
 
-    const { addRow, finish } = this.laneList(
+    const { addRow, addHeading, finish } = this.laneList(
       army.name,
       t('ascent.army.detailBody', {
         land: land?.name ?? '—',
@@ -2026,7 +2083,33 @@ export class ConquestUIScene extends Phaser.Scene {
       muted: true,
     });
 
-    // ── Orders ──
+    // ── Standing orders ──
+    //
+    // What the host is doing until told otherwise, and every way to tell it otherwise. The
+    // autopilot used to move and dissolve every host on its own judgement; a host under any
+    // order but `auto` is now moved by that order alone (see `StandingOrders`).
+    addHeading(t('ascent.orders.heading'));
+    const orders = armyOrders(army);
+    addRow({
+      title: t('ascent.orders.current', { order: hostOrderLabel(state, army) }),
+      subtitle: '',
+      border: INK_UI.gold,
+      muted: true,
+    });
+    const command = (next: ArmyOrders): void => {
+      this.events.emit('ui:ascent-army-orders', { armyId, orders: next });
+      this.showArmyDetail(armyId);
+    };
+    const defendingHere = orders.kind === 'defend' && orders.landId === army.landId;
+    addRow(
+      {
+        title: t('ascent.orders.defendHere'),
+        subtitle: t('ascent.orders.defendHereBody', { land: land?.name ?? '—' }),
+        border: defendingHere ? INK_UI.gold : INK_UI.jade,
+        muted: defendingHere,
+      },
+      defendingHere ? undefined : () => command({ kind: 'defend', landId: army.landId }),
+    );
     const owned = state.lands.filter(
       (candidate) => candidate.ownerId === PLAYER_KINGDOM_ID && candidate.id !== army.landId,
     );
@@ -2038,6 +2121,28 @@ export class ConquestUIScene extends Phaser.Scene {
         muted: owned.length === 0,
       },
       owned.length > 0 ? () => this.showMarchTargets(armyId) : undefined,
+    );
+    const attackable = buildAllConquestTargets(state);
+    addRow(
+      {
+        title: t('ascent.orders.attackPick'),
+        subtitle: attackable.length > 0 ? t('ascent.orders.attackPickBody') : t('ascent.army.noOwnedLand'),
+        border: attackable.length > 0 ? INK_UI.cinnabar : INK_UI.softBrush,
+        muted: attackable.length === 0,
+      },
+      attackable.length > 0 ? () => this.showAttackTargets(armyId) : undefined,
+    );
+    const others = state.armies.filter(
+      (candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID && !candidate.isLevy && candidate.id !== army.id,
+    );
+    addRow(
+      {
+        title: t('ascent.orders.followPick'),
+        subtitle: t('ascent.orders.followPickBody'),
+        border: others.length > 0 ? INK_UI.jade : INK_UI.softBrush,
+        muted: others.length === 0,
+      },
+      others.length > 0 ? () => this.showFollowTargets(armyId) : undefined,
     );
 
     const quarries = visibleHostileHosts(state);
@@ -2051,6 +2156,70 @@ export class ConquestUIScene extends Phaser.Scene {
         muted: quarries.length === 0,
       },
       quarries.length > 0 ? () => this.showHuntTargets(armyId) : undefined,
+    );
+    addRow(
+      {
+        title: t('ascent.orders.autoRow'),
+        subtitle: t('ascent.orders.autoBody'),
+        border: isAutoHost(army) ? INK_UI.gold : INK_UI.softBrush,
+        muted: isAutoHost(army),
+      },
+      isAutoHost(army) ? undefined : () => command({ kind: 'auto' }),
+    );
+
+    // Recall: out of the fight, off the siege, home. Confirmed, because it can abandon both.
+    const siege = state.siegeOrders.find((order) => order.armyId === army.id);
+    const engaged = Boolean(state.ascent?.activeBattle && !state.ascent.activeBattle.over
+      && (state.ascent.activeBattle.ourArmyIds ?? []).includes(army.id));
+    addRow(
+      {
+        title: t('ascent.orders.recall'),
+        subtitle: t('ascent.orders.recallBody'),
+        border: INK_UI.gold,
+      },
+      () => {
+        const consequences = [
+          siege ? t('ascent.orders.recallSiege', { land: state.lands.find((l) => l.id === siege.landId)?.name ?? '' }) : '',
+          engaged ? t('ascent.orders.recallBattle', { land: state.ascent?.activeBattle?.landName ?? '' }) : '',
+        ].filter(Boolean);
+        this.showConfirmPage({
+          title: t('ascent.orders.recall'),
+          subtitle: army.name,
+          lines: [t('ascent.orders.recallBody'), ...consequences],
+          confirmLabel: t('ascent.orders.recall'),
+          danger: consequences.length > 0,
+          onConfirm: () => {
+            this.events.emit('ui:ascent-army-recall', armyId);
+            this.showArmyDetail(armyId);
+          },
+          onBack: () => this.showArmyDetail(armyId),
+        });
+      },
+    );
+
+    // Resupply: baggage topped up from the stores, the one thing the autopilot will not do
+    // below its own reserve.
+    const supply = resupplyPreview(state, armyId);
+    addRow(
+      {
+        title: t('ascent.orders.resupply'),
+        subtitle: supply.blocked ?? t('ascent.orders.resupplyBody', {
+          r: Math.round(army.rations),
+          wantR: supply.wantRations,
+          p: Math.round(army.provisions),
+          wantP: supply.wantProvisions,
+          food: supply.food,
+          supplies: supply.supplies,
+        }),
+        border: supply.blocked ? INK_UI.softBrush : INK_UI.jade,
+        muted: Boolean(supply.blocked),
+      },
+      supply.blocked
+        ? undefined
+        : () => {
+            this.events.emit('ui:ascent-army-resupply', armyId);
+            this.showArmyDetail(armyId);
+          },
     );
 
     // ── Upgrades ──
@@ -2129,13 +2298,79 @@ export class ConquestUIScene extends Phaser.Scene {
           border: threatened ? INK_UI.cinnabar : INK_UI.jade,
         },
         () => {
-          issueMoveOrder(state, armyId, land.id);
+          this.events.emit('ui:ascent-army-orders', { armyId, orders: { kind: 'defend', landId: land.id } });
           this.closeLane();
         },
       );
     }
 
     finish();
+  }
+
+  /** Provinces on the border this host could be sent to storm, with the odds it would carry. */
+  private showAttackTargets(armyId: string): void {
+    const state = this.state;
+    const army = state.armies.find((candidate) => candidate.id === armyId);
+    if (!army) return;
+    this.replaceLanePage(() => {
+      const { addRow, finish } = this.laneList(t('ascent.orders.attackPick'), t('ascent.orders.targetHint'));
+      const targets = buildAllConquestTargets(state)
+        .map((target) => {
+          const land = state.lands.find((candidate) => candidate.id === target.landId);
+          const border = land?.neighbors.filter((id) => state.lands.find((l) => l.id === id)?.ownerId === PLAYER_KINGDOM_ID) ?? [];
+          const legs = border.includes(army.landId)
+            ? 1
+            : Math.min(...border.map((id) => (findLandPath(state, army.landId, id)?.length ?? Number.POSITIVE_INFINITY) + 1));
+          return { target, land, legs, pct: hostOddsAgainst(state, army, target.landId) };
+        })
+        .filter((entry) => entry.land && Number.isFinite(entry.legs))
+        .sort((a, b) => b.pct - a.pct || a.legs - b.legs);
+      for (const { target, legs, pct } of targets) {
+        const thin = pct < MARCH_MIN_WIN_CHANCE;
+        addRow(
+          {
+            title: `${target.landName}${thin ? `  ·  ${t('ascent.orders.attackAnyway')}` : ''}`,
+            subtitle: t('ascent.orders.targetRow', { garrison: target.garrison, pct, legs }),
+            border: thin ? INK_UI.softBrush : INK_UI.cinnabar,
+          },
+          () => {
+            this.events.emit('ui:ascent-army-orders', {
+              armyId,
+              orders: { kind: 'attack', landId: target.landId, force: thin },
+            });
+            this.closeLane();
+          },
+        );
+      }
+      finish();
+    });
+  }
+
+  /** Other hosts of ours this one could keep station with. */
+  private showFollowTargets(armyId: string): void {
+    const state = this.state;
+    this.replaceLanePage(() => {
+      const { addRow, finish } = this.laneList(t('ascent.orders.followPick'), t('ascent.orders.followHint'));
+      const others = state.armies.filter(
+        (candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID && !candidate.isLevy && candidate.id !== armyId,
+      );
+      for (const other of others) {
+        const at = state.lands.find((candidate) => candidate.id === other.landId);
+        const men = other.units.spearmen + other.units.archers + other.units.heavyInfantry;
+        addRow(
+          {
+            title: other.name,
+            subtitle: t('ascent.orders.followRow', { men, land: at?.name ?? '—', order: hostOrderLabel(state, other) }),
+            border: INK_UI.jade,
+          },
+          () => {
+            this.events.emit('ui:ascent-army-orders', { armyId, orders: { kind: 'follow', armyId: other.id } });
+            this.closeLane();
+          },
+        );
+      }
+      finish();
+    });
   }
 
   /** Enemy hosts in sight, and the order to go after one. */
@@ -2159,7 +2394,7 @@ export class ConquestUIScene extends Phaser.Scene {
           border: INK_UI.cinnabar,
         },
         () => {
-          issueHuntOrder(state, armyId, quarry.id);
+          this.events.emit('ui:ascent-army-orders', { armyId, orders: { kind: 'hunt', armyId: quarry.id } });
           this.closeLane();
         },
       );

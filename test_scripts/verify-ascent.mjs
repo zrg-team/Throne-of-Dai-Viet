@@ -130,11 +130,13 @@ const result = await page.evaluate(async () => {
   let battleStreak = 0;
   let longestBattleStreak = 0;
   const battleKeysSeen = new Set();
+  let peakLands = 0;
 
   for (let i = 0; i < 400; i += 1) {
     advanceAscentTick(st);
     if (st.victory) victoryEverTrue = true;
 
+    peakLands = Math.max(peakLands, st.lands.filter((l) => l.ownerId === 'dai-viet').length);
     if (st.ascent.activeBattle) {
       battleLiveTicks += 1;
       battleStreak += 1;
@@ -282,6 +284,7 @@ const result = await page.evaluate(async () => {
     longestBattleStreak,
     battlesSeenLive: battleKeysSeen.size,
     ticksRun: st.turn,
+    peakLands,
     backToBackPrompts,
     maxPromptsInOneTick,
     promptTickCount: promptTicks.length,
@@ -525,6 +528,136 @@ const command = await page.evaluate(async () => {
     rowCount: rows.length,
   };
 });
+
+// ── Standing orders: a commanded host is moved by its order and by nothing else ──
+const orders = await page.evaluate(async () => {
+  const { createAscentGameState } = await import('/src/state/GameState.ts');
+  const { advanceAscentTick } = await import('/src/systems/ascent/AscentTick.ts');
+  const { resolveAscentPrompt } = await import('/src/systems/ascent/AscentResolver.ts');
+  const SO = await import('/src/systems/ascent/StandingOrders.ts');
+  const AO = await import('/src/systems/ascent/armyOrders.ts');
+  const CQ = await import('/src/systems/ascent/ConquestSystem.ts');
+  const AP = await import('/src/systems/ascent/AutopilotSystem.ts');
+  const B = await import('/src/systems/ascent/BattleSystem.ts');
+  const W = await import('/src/systems/WarSystem.ts');
+
+  let s = 777 >>> 0;
+  Math.random = () => { s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const st = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
+  st.pendingAscentPrompt = undefined;
+  st.ascent.promptQueue = [];
+  // Quiet world: no waves, no raids, so a march is the order's and nothing else's — and a full
+  // treasury, so no host is dissolved for arrears under the test.
+  st.ascent.autoResolveBattles = true;
+  st.resources.gold = 5000;
+  // A quiet world: no wave lands and no raider crosses, so every march below is the order's own.
+  const quiet = () => {
+    st.ascent.ticksToWave = 999;
+    st.ascent.bossTelegraphed = false;
+    st.armies = st.armies.filter((a) => a.kingdomId === 'dai-viet');
+    st.invasions = [];
+    st.siegeOrders = st.siegeOrders.filter((o) => o.attackerKingdomId === 'dai-viet');
+  };
+  const settle = () => { quiet(); let g = 0; while (st.pendingAscentPrompt && g++ < 10) { const p = st.pendingAscentPrompt; if (p.kind === 'run-over') break; if (!resolveAscentPrompt(st, p.kind === 'founder' ? p.options[0] : p.kind === 'court-appointment' ? p.options[0].id : p.kind === 'power-draft' ? (p.cards[0] ?? 'skip') : p.kind === 'conquer-target' ? 'hold' : p.kind === 'conquer-method' ? 'back' : p.kind === 'hero-choice' ? 'pass' : p.kind === 'law-choice' ? 'hold' : p.kind === 'parliament' ? 'decline' : p.kind === 'famine' ? 'endure' : (p.options?.[0]?.id ?? 'ok'))) break; } };
+  const size = (a) => a.units.spearmen + a.units.archers + a.units.heavyInfantry;
+  const owned = () => st.lands.filter((l) => l.ownerId === 'dai-viet');
+  const royal = st.armies.find((a) => a.kingdomId === 'dai-viet');
+  const capital = st.lands.find((l) => l.id === st.ascent.capitalLandId);
+  const home = capital ?? owned()[0];
+
+  // 1. A defend host is never moved by the autopilot.
+  royal.landId = home.id;
+  SO.setArmyOrders(st, royal.id, { kind: 'defend', landId: home.id });
+  st.ascent.frontLandId = st.lands.find((l) => l.ownerId !== 'dai-viet' && home.neighbors.includes(l.id))?.id;
+  let movedOffPost = false;
+  quiet();
+  for (let i = 0; i < 40; i += 1) {
+    advanceAscentTick(st); settle();
+    if (!st.armies.some((a) => a.id === royal.id)) break;
+    const order = st.movementOrders.find((o) => o.armyId === royal.id);
+    if (order && order.path[order.path.length - 1] !== home.id) movedOffPost = true;
+    if (royal.landId !== home.id && !order) movedOffPost = true;
+    // The world does keep raising fronts of its own; the defend host must ignore every one.
+    if (!st.ascent.frontLandId) st.ascent.frontLandId = st.lands.find((l) => l.ownerId !== 'dai-viet' && home.neighbors.includes(l.id))?.id;
+  }
+  const defendHeld = st.armies.some((a) => a.id === royal.id) && !movedOffPost && royal.landId === home.id;
+
+  // 2. A commanded remnant is kept; an auto remnant of the same size is dissolved.
+  const mk = (id, ordersKind) => ({ id, kingdomId: 'dai-viet', name: id, landId: home.id, units: { spearmen: 40, archers: 0, heavyInfantry: 0 }, morale: 80, supply: 80, rations: 500, provisions: 500, level: 1, experience: 0, experienceToNextLevel: 100, ...(ordersKind ? { orders: { kind: 'defend', landId: home.id } } : {}) });
+  st.armies.push(mk('remnant-kept', true), mk('remnant-auto', false));
+  advanceAscentTick(st); settle();
+  const keptRemnant = st.armies.some((a) => a.id === 'remnant-kept');
+  const autoRemnantGone = !st.armies.some((a) => a.id === 'remnant-auto');
+  st.armies = st.armies.filter((a) => a.id !== 'remnant-kept');
+
+  // 3. The claim list is the whole border; the prompt keeps its short hand.
+  const border = new Set();
+  for (const l of owned()) for (const n of l.neighbors) { const c = st.lands.find((x) => x.id === n); if (c && c.ownerId !== 'dai-viet') border.add(n); }
+  const all = CQ.buildAllConquestTargets(st);
+  const listIsBorder = all.length === border.size && all.every((t) => border.has(t.landId));
+  const promptCapped = CQ.buildConquestTargets(st).length <= 4;
+
+  // 4. An attack order on empty wilderness takes it and settles into defend.
+  const wild = st.lands.find((l) => l.ownerId === 'neutral' && !l.hasVillage && home.neighbors.includes(l.id));
+  let attackTook = !wild; // vacuous if this seed has no adjacent wilderness
+  if (wild) {
+    SO.setArmyOrders(st, royal.id, { kind: 'attack', landId: wild.id });
+    for (let i = 0; i < 12 && !(wild.ownerId === 'dai-viet' && royal.orders?.kind === 'defend'); i += 1) { advanceAscentTick(st); settle(); }
+    attackTook = wild.ownerId === 'dai-viet' && royal.orders?.kind === 'defend';
+  }
+
+  // 5. Recall breaks a siege and walks home.
+  const rivalLand = st.lands.find((l) => l.ownerId !== 'dai-viet' && l.ownerId !== 'neutral' && owned().some((o) => o.neighbors.includes(l.id)));
+  let recallOk = !rivalLand;
+  if (rivalLand) {
+    const from = owned().find((o) => o.neighbors.includes(rivalLand.id));
+    royal.landId = rivalLand.id;
+    st.siegeOrders.push({ landId: rivalLand.id, armyId: royal.id, attackerKingdomId: 'dai-viet', fromLandId: from.id, progress: 0, required: 6 });
+    const r = SO.recallHost(st, royal.id);
+    recallOk = r.ok && !st.siegeOrders.some((o) => o.armyId === royal.id) && royal.landId === from.id && royal.orders?.kind === 'defend';
+  }
+
+  // 6. Resupply reaches below the autopilot's reserve.
+  st.resources.food = 30; st.resources.supplies = 30;
+  royal.rations = 0; royal.provisions = 0;
+  AP.tickAscentAutopilot(st);
+  const autoLeftItHungry = royal.rations === 0;
+  const rs = SO.resupplyHost(st, royal.id);
+  const resupplyDipped = rs.ok && rs.food > 0 && royal.rations > 0;
+
+  // 7. Relief never pulls a commanded host off another province.
+  const nb = home.neighbors.map((id) => st.lands.find((l) => l.id === id)).find((l) => l && l.ownerId === 'dai-viet' && l.id !== home.id);
+  let reliefRespects = !nb;
+  if (nb) {
+    st.armies.push(mk('held', true), { ...mk('free', false), id: 'free', name: 'free' });
+    for (const a of st.armies) if (a.id === 'held' || a.id === 'free') { a.landId = nb.id; a.units.spearmen = 400; }
+    st.armies.find((a) => a.id === 'held').orders = { kind: 'defend', landId: nb.id };
+    st.movementOrders = st.movementOrders.filter((o) => o.armyId !== 'held' && o.armyId !== 'free');
+    B.summonAdjacentRelief(st, home.id);
+    const heldMoved = st.movementOrders.some((o) => o.armyId === 'held');
+    const freeMoved = st.movementOrders.some((o) => o.armyId === 'free');
+    reliefRespects = !heldMoved && freeMoved;
+    st.armies = st.armies.filter((a) => a.id !== 'held' && a.id !== 'free');
+    st.movementOrders = st.movementOrders.filter((o) => o.armyId !== 'held' && o.armyId !== 'free');
+  }
+
+  // 8. A muster carries its order and commander through to the host.
+  const cmd = st.heroes.find((h) => !h.assignedTo) ?? st.heroes[0];
+  if (cmd) { cmd.assignedTo = undefined; }
+  st.resources.humans = 2000; st.resources.food = 2000; st.resources.supplies = 2000;
+  st.recruitmentOrders = [];
+  const queued = W.queueRecruitment(st, cmd.id, 400, 100, 60, 'spears', { kind: 'defend', landId: home.id });
+  const orderCarried = queued && st.recruitmentOrders[0]?.orders?.kind === 'defend';
+  let musteredHost;
+  for (let i = 0; i < 40 && !musteredHost; i += 1) { advanceAscentTick(st); settle(); musteredHost = st.armies.find((a) => a.generalHeroId === cmd.id); }
+  const hostHasOrder = Boolean(musteredHost && musteredHost.orders?.kind === 'defend');
+  const label = musteredHost ? AO.hostOrderLabel(st, musteredHost) : '';
+
+  return { defendHeld, keptRemnant, autoRemnantGone, listIsBorder, promptCapped, borderSize: border.size, listSize: all.length, attackTook, recallOk, autoLeftItHungry, resupplyDipped, reliefRespects, orderCarried, hostHasOrder, label };
+});
+console.log('=== STANDING ORDERS ===');
+console.log(JSON.stringify(orders));
+
 console.log('=== LAND COMMAND ===');
 console.log(JSON.stringify(command, null, 2));
 
@@ -589,6 +722,16 @@ const checks = {
   // fights have started stacking.
   'battles do not swallow the run': result.battleLiveTicks <= Math.max(1, result.ticksRun) * 0.6,
 
+  // ── Standing orders: the player's hosts do what they were told ──
+  'a defend host is never moved by the autopilot': orders.defendHeld,
+  'a commanded remnant is kept, an auto remnant is dissolved': orders.keptRemnant && orders.autoRemnantGone,
+  'the claim list is the whole border, the prompt stays short': orders.listIsBorder && orders.promptCapped,
+  'an attack order takes empty ground and settles into defend': orders.attackTook,
+  'recall breaks a siege and walks home': orders.recallOk,
+  'resupply reaches below the autopilot reserve': orders.autoLeftItHungry && orders.resupplyDipped,
+  'relief never pulls a commanded host': orders.reliefRespects,
+  'a muster carries its standing order to the host': orders.orderCarried && orders.hostHasOrder,
+
   // ── Land command: claims, focus, governors ──
   'claims start capped at one': command.slots === 1,
   'the claim cap actually caps': command.cappedOut && command.hasBlockedReason,
@@ -645,7 +788,8 @@ const checks = {
   'autopilot marched': result.autopilot.marches > 0,
   'at least 2 boss waves': result.bossWaves >= 2,
   'bosses telegraphed': result.sawTelegraphBeforeBoss >= result.bossWaves,
-  'expanded beyond capital': result.lands > 1,
+  // Held at any point, not at the end: with fought battles a run can end small, or end.
+  'expanded beyond capital': result.peakLands > 2,
   'built a varied deck': result.distinctCards >= 6,
   'stacked a card': result.maxStack >= 2,
   'codex recorded': Boolean(result.codex && result.codex.unlocked.length > 0),

@@ -18,6 +18,7 @@ import { tickGreatPowersYear } from '../empire/GreatPowersSystem';
 import { ensureHeroDeck } from '../../data/heroFactory';
 import { drainAscentPrompts } from './AscentState';
 import { tickAscentAutopilot } from './AutopilotSystem';
+import { tickStandingOrders } from './StandingOrders';
 import { advanceBattle, beginBattle } from './BattleSystem';
 import { tickAscentProgress } from './PowerSystem';
 import { tickRaids, tickWaveDirector } from './WaveDirector';
@@ -152,6 +153,10 @@ export function advanceAscentTick(state: GameState): void {
   // ── Dragon Ascent ────────────────────────────────────────────────────────
   state.ascent.marchCooldown = Math.max(0, state.ascent.marchCooldown - 1);
   tickAscentAutopilot(state);
+  // The player's own standing orders, after the autopilot has had its say and touched only the
+  // hosts left to it. A commanded host walks back to its post, storms its target, keeps station
+  // with its leader — and is never marched by anything else.
+  tickStandingOrders(state);
   // The authored roster is removed from the deck as it is recruited, so a long run empties it
   // and the champion lane — half this mode's identity — quietly stops offering anything.
   ensureHeroDeck(state);

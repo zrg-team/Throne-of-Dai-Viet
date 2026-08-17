@@ -37,8 +37,22 @@ import {
   ARMY_REINFORCE_SOLDIERS,
   ARMY_REINFORCE_SUPPLY_GAIN,
 } from '../game/ascentConfig';
-import type { Army, ArmyComposition, BattlePreview, BattleStance, GameState, Land, MovementOrder, RecruitmentOrder, ResourceBag, SiegeOrder, UnitCounts } from '../state/types';
+import type {
+  Army,
+  ArmyComposition,
+  ArmyOrders,
+  BattlePreview,
+  BattleStance,
+  GameState,
+  Land,
+  MovementOrder,
+  RecruitmentOrder,
+  ResourceBag,
+  SiegeOrder,
+  UnitCounts,
+} from '../state/types';
 import { heroName, t, tickLabel } from '../i18n';
+import { pushToast } from './empire/notifications';
 
 const MAX_ARMY_LEVEL = 5;
 
@@ -630,7 +644,15 @@ export function getRecruitmentOrder(state: GameState, landId: string) {
  * that gathers soldiers over several ticks. Barracks at the recruiting
  * district reduce the time required - see `progressRecruitmentOrders`.
  */
-export function queueRecruitment(state: GameState, heroId: string, soldiers: number, rations: number, provisions: number, composition: ArmyComposition = 'balanced'): boolean {
+export function queueRecruitment(
+  state: GameState,
+  heroId: string,
+  soldiers: number,
+  rations: number,
+  provisions: number,
+  composition: ArmyComposition = 'balanced',
+  orders?: ArmyOrders,
+): boolean {
   const hero = state.heroes.find((candidate) => candidate.id === heroId);
   if (!hero || hero.assignedTo) {
     state.message = t('msg.chooseCommander');
@@ -687,11 +709,53 @@ export function queueRecruitment(state: GameState, heroId: string, soldiers: num
     progress: 0,
     required,
     composition,
+    // Stamped onto the host the moment it musters (Dragon Ascent standing orders). Absent for
+    // every other caller, so nothing changes for the classic modes.
+    ...(orders ? { orders } : {}),
   });
   hero.assignedTo = id;
   refreshAllLandOutputs(state);
   state.message = t('msg.recruitingArmy', { total, land: capital.name, ticks: required, tickLabel: tickLabel(required) });
   return true;
+}
+
+/** The province a new host would muster at — the same choice `queueRecruitment` makes. */
+export function getRecruitmentLand(state: GameState): Land | undefined {
+  return findRecruitmentLand(state);
+}
+
+/**
+ * How long a muster of `soldiers` would take and what it costs to arm, before anything is spent.
+ * The same arithmetic `queueRecruitment` runs, exposed so a form can quote it honestly.
+ */
+export function getMusterEstimate(state: GameState, soldiers: number): {
+  land?: Land;
+  ticks: number;
+  suppliesCost: number;
+  alreadyTraining: boolean;
+  trainingTicksLeft: number;
+} {
+  const land = findRecruitmentLand(state);
+  const courtBonuses = getCourtBonuses(state);
+  const total = Math.max(100, Math.floor(soldiers));
+  const suppliesCost = Math.max(5, Math.ceil((total / 130) * courtBonuses.recruitmentSupplyCostMult));
+  const barracksLevel = land ? getBarracksLevel(land) : 0;
+  const perTick = RECRUIT_BASE_PER_TICK * (1 + barracksLevel * RECRUIT_BARRACKS_BONUS) * courtBonuses.recruitSpeedMult;
+  const ticks = Math.max(1, Math.ceil(total / perTick));
+  const training = land ? getRecruitmentOrder(state, land.id) : undefined;
+  return {
+    land,
+    ticks,
+    suppliesCost,
+    alreadyTraining: Boolean(training),
+    trainingTicksLeft: training ? Math.max(0, training.required - training.progress) : 0,
+  };
+}
+
+/** The unit split a doctrine musters under the current court, as shares of one. */
+export function getCompositionShares(state: GameState, composition: ArmyComposition): { spearmen: number; archers: number; heavyInfantry: number } {
+  const { heavyShare, archerShare } = compositionShares(composition, getCourtBonuses(state));
+  return { spearmen: Math.max(0, 1 - heavyShare - archerShare), archers: archerShare, heavyInfantry: heavyShare };
 }
 
 /** Advances every in-progress recruitment by one tick, mustering the army once `required` ticks pass. */
@@ -744,6 +808,9 @@ export function progressRecruitmentOrders(state: GameState): boolean {
       unpaidTicks: 0,
       elite: computeEliteTier(state, barracksLevel),
     };
+
+    // The standing order the muster was given (Dragon Ascent). Only ever present there.
+    if (order.orders) army.orders = order.orders;
 
     state.armies.push(army);
     consumeNextArmyModifiers(state);
@@ -818,6 +885,11 @@ export function progressArmyLogistics(state: GameState): boolean {
     if (treasuryCannotPay && getArmyGoldUpkeep(army) > 0) {
       army.unpaidTicks = (army.unpaidTicks ?? 0) + 1;
       army.morale -= 8;
+      // Said out loud (Dragon Ascent): a host that dissolves for arrears used to be a host that
+      // simply vanished, and "why did my army disappear" was the question every run raised.
+      if (state.gameMode === 'ascent' && (army.unpaidTicks === 1 || army.unpaidTicks === 3)) {
+        pushToast(state, t('ascent.army.arrears', { army: army.name, ticks: 5 - army.unpaidTicks }), 'threat');
+      }
       if (army.unpaidTicks === 3) {
         army.units.spearmen = Math.floor(army.units.spearmen * 0.85);
         army.units.archers = Math.floor(army.units.archers * 0.85);

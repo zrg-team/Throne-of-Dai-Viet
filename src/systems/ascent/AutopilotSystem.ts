@@ -23,14 +23,17 @@ import {
   targetArmyCount,
 } from '../../game/ascentConfig';
 import {
+  applyResourceDelta,
+  ascentArmyUpkeep,
   buildDistrictBuilding,
+  getArmyGoldUpkeep,
   getBuildOptions,
   getBuildOrder,
   getUpgradeOptions,
-  upgradeDistrictBuilding,
-  applyResourceDelta,
+  heroPayroll,
   type BuildOption,
   type UpgradeOption,
+  upgradeDistrictBuilding,
 } from '../ResourceSystem';
 import {
   bribeLand,
@@ -42,6 +45,9 @@ import {
 import { disbandArmy, getRecruitmentOrder, issueMoveOrder, queueRecruitment } from '../WarSystem';
 import { frontWinChance } from './ConquestSystem';
 import { chargeAmbition } from './AmbitionSystem';
+import { isAutoHost, isPinnedByClaim } from './armyOrders';
+import { pushToast } from '../empire/notifications';
+import { t } from '../../i18n';
 import type { GameState, Land, LandBuildingType } from '../../state/types';
 
 /**
@@ -206,7 +212,7 @@ function armySize(army: { units: { spearmen: number; archers: number; heavyInfan
 function autoDisbandRemnants(state: GameState): void {
   const live = state.ascent?.activeBattle;
   const engaged = new Set(live && !live.over ? [...(live.ourArmyIds ?? []), ...(live.theirArmyIds ?? [])] : []);
-  const remnants = state.armies.filter(
+  const small = state.armies.filter(
     (army) =>
       army.kingdomId === PLAYER_KINGDOM_ID &&
       // A garrison levy is not a host, and a host in the line is not sent home mid-fight —
@@ -217,9 +223,25 @@ function autoDisbandRemnants(state: GameState): void {
       armySize(army) < MIN_ARMY_SOLDIERS * REMNANT_SHARE &&
       !state.siegeOrders.some((order) => order.armyId === army.id),
   );
-  for (const army of remnants) {
+  for (const army of small) {
+    // A host under the player's own orders is theirs to keep, however small. Say so once.
+    if (!isAutoHost(army)) {
+      const warned = (state.ascent!.remnantWarnedIds ??= []);
+      if (!warned.includes(army.id)) {
+        warned.push(army.id);
+        pushToast(state, t('ascent.orders.remnant', { army: army.name, n: armySize(army) }), 'info');
+      }
+      continue;
+    }
     disbandArmy(state, army.id);
   }
+}
+
+/** The shared per-host wage, summed — the private `getTotalArmyGoldUpkeep` is not exported. */
+function getTotalArmyGoldUpkeepAscent(state: GameState): number {
+  return state.armies
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy)
+    .reduce((sum, army) => sum + getArmyGoldUpkeep(army), 0);
 }
 
 /** A hero with no posting, best martial first — the natural commander for a new host. */
@@ -341,11 +363,15 @@ function autoClaimWilderness(state: GameState): boolean {
     (army) =>
       army.kingdomId === PLAYER_KINGDOM_ID &&
       !army.isLevy &&
+      isAutoHost(army) &&
+      !isPinnedByClaim(state, army) &&
       !state.movementOrders.some((order) => order.armyId === army.id) &&
       !state.siegeOrders.some((order) => order.armyId === army.id),
   );
-  // Never the last host: the capital falling ends the run.
-  if (idle.length < 2) return false;
+  // Never the last host: the capital falling ends the run. A host under the player's own
+  // orders counts as a host at home even though the autopilot may not send it.
+  const hosts = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy).length;
+  if (idle.length === 0 || hosts < 2) return false;
 
   const owned = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
   const seen = new Set<string>();
@@ -476,6 +502,10 @@ function autoMarch(state: GameState): boolean {
     (army) =>
       army.kingdomId === PLAYER_KINGDOM_ID &&
       !army.isLevy &&
+      // Only the hosts left to the autopilot: a host under the player's own standing order is
+      // moved by that order and nothing else (see `StandingOrders`).
+      isAutoHost(army) &&
+      !isPinnedByClaim(state, army) &&
       !state.movementOrders.some((order) => order.armyId === army.id) &&
       !state.siegeOrders.some((order) => order.armyId === army.id),
   );
@@ -557,7 +587,9 @@ function autoResupply(state: GameState): void {
  */
 function autoDefend(state: GameState): void {
   // A garrison levy is not a host: it fights the one battle it was raised for and goes home.
-  const mine = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy);
+  // And a commanded host is not the autopilot's to intercept with: `setArmyOrders` clears its
+  // flag once and it is left alone here.
+  const mine = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && isAutoHost(army));
 
   // While a front is set, the strongest host stays committed to it even between orders.
   // Deciding purely from live orders leaves it briefly idle on arrival, which is all
@@ -586,9 +618,12 @@ export function tickAscentAutopilot(state: GameState): void {
     ascent.autopilotStats.recruits += 1;
   }
 
-  // Building spends gold that a reroll might want, so leave a small float — and while the
-  // books run red, enough of one to keep the garrison paid for a few seasons first.
-  const buildReserve = Math.max(AUTOBUILD_GOLD_RESERVE, -state.resourceRates.gold * 8);
+  // Building spends gold that a reroll might want, so leave a small float — and never the
+  // wages: while the books run red the reserve covers eight seasons of the deficit, and at any
+  // time four seasons of the roster's and the hosts' pay. Measured before this, the autopilot
+  // spent the treasury on mines while the royal host went unpaid and dissolved at turn twenty.
+  const wageBill = heroPayroll(state) + ascentArmyUpkeep(state).gold + getTotalArmyGoldUpkeepAscent(state);
+  const buildReserve = Math.max(AUTOBUILD_GOLD_RESERVE, -state.resourceRates.gold * 8, wageBill * 4);
   if (state.resources.gold > buildReserve) {
     if (autoBuild(state)) {
       ascent.autopilotStats.builds += 1;

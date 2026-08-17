@@ -11,11 +11,14 @@ import { offerConquestMethods } from '../systems/ascent/ConquestSystem';
 import { offerEnvoyTo } from '../systems/ascent/EnvoySystem';
 import { offerAppointment, offerLawChoice } from '../systems/ascent/CourtLaneSystem';
 import { raiseHostNow } from '../systems/ascent/AutopilotSystem';
+import { recallHost, resupplyHost, setArmyOrders } from '../systems/ascent/StandingOrders';
+import { pushToast } from '../systems/empire/notifications';
 import { disbandArmy } from '../systems/WarSystem';
 import { commitReserve, finishBattle, rally, setBattleFocus, setBattlePosture } from '../systems/ascent/BattleSystem';
 import { createAscentGameState } from '../state/GameState';
 import { ASCENT_HUD_HEIGHT } from '../ui/ascent/AscentHud';
 import { MapScene } from './MapScene';
+import type { ArmyOrders } from '../state/types';
 
 /**
  * Dragon Ascent's world scene.
@@ -329,6 +332,29 @@ export class ConquestScene extends MapScene {
       // `autoResolveBattles` as well, so one tap on the way out of a lost cause silently
       // disabled the mode's best screen for the rest of the run; Settings still offers that.
       else if (order === 'auto') finishBattle(this.state, 'hold');
+      ui.events.emit('state-changed');
+    });
+    // Standing orders, recall and resupply act on one host and refresh at once — an order given
+    // is a march started, not a wish recorded for the next tick.
+    ui.events.on('ui:ascent-army-orders', (payload: { armyId: string; orders: ArmyOrders }) => {
+      if (this.state.pendingAscentPrompt) return;
+      if (setArmyOrders(this.state, payload.armyId, payload.orders)) {
+        this.refresh();
+        ui.events.emit('state-changed');
+      }
+    });
+    ui.events.on('ui:ascent-army-recall', (armyId: string) => {
+      if (this.state.pendingAscentPrompt) return;
+      const result = recallHost(this.state, armyId);
+      if (!result.ok && result.reason) pushToast(this.state, result.reason, 'threat');
+      this.refresh();
+      ui.events.emit('state-changed');
+    });
+    ui.events.on('ui:ascent-army-resupply', (armyId: string) => {
+      if (this.state.pendingAscentPrompt) return;
+      const result = resupplyHost(this.state, armyId);
+      if (!result.ok && result.reason) pushToast(this.state, result.reason, 'threat');
+      this.refresh();
       ui.events.emit('state-changed');
     });
     ui.events.on('ui:ascent-disband-army', (armyId: string) => {
