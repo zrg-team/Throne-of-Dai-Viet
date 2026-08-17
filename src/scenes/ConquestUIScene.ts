@@ -4111,14 +4111,16 @@ export class ConquestUIScene extends Phaser.Scene {
     const lane = (index: number, count: number): number => groundY + (index - (count - 1) / 2) * 32;
 
     ours.forEach((host, index) => {
-      const marker = this.battleItems!.createArmyMarker(hostSize(host), true);
+      const marker = this.battleItems!.createArmyMarker(hostSize(host), true, undefined, this.state.mapConfig.seed);
       marker.setPosition(leftX + 30 + span * battle.ourAdvance, lane(index, ours.length));
       field.add(marker);
       ui.ourMarkers.push(this.trackMarker(host.id, marker));
     });
 
     theirs.forEach((host, index) => {
-      const marker = this.battleItems!.createArmyMarker(hostSize(host), false, rivalColor);
+      const marker = this.battleItems!.createArmyMarker(
+        hostSize(host), false, rivalColor, Math.max(0, this.state.kingdoms.findIndex((k) => k.id === battle.kingdomId)),
+      );
       marker.setPosition(rightX - 30 - span * battle.theirAdvance, lane(index, theirs.length));
       field.add(marker);
       ui.theirMarkers.push(this.trackMarker(host.id, marker));

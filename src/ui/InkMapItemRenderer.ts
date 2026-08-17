@@ -127,7 +127,7 @@ export class InkMapItemRenderer implements MapItemRenderer {
    * ever has. Colour tells you which empire; the ring tells you it is yours, without relying on
    * the player having memorised a palette.
    */
-  createArmyMarker(total: number, isPlayer: boolean, kingdomColor?: number): Phaser.GameObjects.Container {
+  createArmyMarker(total: number, isPlayer: boolean, kingdomColor?: number, _flagSeed?: number): Phaser.GameObjects.Container {
     const container = this.scene.add.container(0, 0);
     const sealColor = isPlayer ? INK.sealRed : (kingdomColor ?? INK.ink);
 

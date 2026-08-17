@@ -10,6 +10,7 @@ import { ASCENT_TICK_MS } from '../../game/ascentConfig';
 import { INK } from '../../ui/inkTheme';
 import { buildRoadCurve } from '../../map/roadCurve';
 import { findLand } from '../../systems/LandSystem';
+import { heroFaceTextureKey } from '../../ui/FaceRenderer';
 import type { GameState, Land } from '../../state/types';
 import type { MapItemRenderer } from '../../ui/MapItemRenderer';
 
@@ -19,6 +20,10 @@ type ArmyPointerHandler = (armyId: string, pointer: Phaser.Input.Pointer, event:
 
 const MARKER_OFFSET_X = 18;
 const MARKER_OFFSET_Y = -28;
+/** Where the general's face sits beside a standing host, relative to the marker's ground line. */
+const FACE_BADGE_X = 26;
+const FACE_BADGE_Y = -34;
+const FACE_BADGE_SIZE = 26;
 
 /** How long a host takes to settle onto its destination once the leg resolves. */
 const ARRIVE_MS = 320;
@@ -40,6 +45,8 @@ export class ArmyRenderer {
    *  only rebuild the expensive seal+formation when it actually changes. */
   private contentSig = new Map<string, string>();
   private selectionFlags = new Map<string, Phaser.GameObjects.Container>();
+  /** The general's face beside a standing host, keyed by army; absent while it marches. */
+  private faceBadges = new Map<string, { heroId: string; badge: Phaser.GameObjects.GameObject }>();
   /** Live dust puffs, so they can be cleared without leaking tweens. */
   private dust: Phaser.GameObjects.Ellipse[] = [];
   private lastDustAt = 0;
@@ -90,6 +97,11 @@ export class ArmyRenderer {
       const total = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
       const isPlayer = army.kingdomId === PLAYER_KINGDOM_ID;
       const kingdomColor = state.kingdoms.find((k) => k.id === army.kingdomId)?.color;
+      // The player's host flies the realm's own standard — the seed its provinces are flagged
+      // with (`MapScene.drawLandFlags`) — and a rival's a stable style of its own.
+      const flagSeed = isPlayer
+        ? state.mapConfig.seed
+        : Math.max(0, state.kingdoms.findIndex((k) => k.id === army.kingdomId));
 
       let marker = this.markers.get(army.id);
       if (!marker) {
@@ -114,15 +126,40 @@ export class ArmyRenderer {
       // Only rebuild the seal + 12-soldier formation (~40 objects + a looping bob
       // tween) when the troop count or owner actually changes. On a normal tick
       // these are unchanged, so we skip the destroy/recreate churn entirely.
-      const sig = `${total}|${isPlayer ? 1 : 0}|${kingdomColor ?? 0}`;
+      const sig = `${total}|${isPlayer ? 1 : 0}|${kingdomColor ?? 0}|${flagSeed}`;
       if (this.contentSig.get(army.id) !== sig) {
         // Kill the old formation's looping tween before destroying its container,
         // otherwise it keeps ticking against a dead object (CPU leak).
         this.killTweensDeep(marker);
         marker.removeAll(true);
         this.selectionFlags.delete(army.id);
-        marker.add(this.mapItems.createArmyMarker(total, isPlayer, kingdomColor));
+        this.faceBadges.delete(army.id);
+        marker.add(this.mapItems.createArmyMarker(total, isPlayer, kingdomColor, flagSeed));
         this.contentSig.set(army.id, sig);
+      }
+
+      // The general's face beside a standing host, so "who is where" reads off the map. Only
+      // while the host stands — a marching column carries its standard, not a portrait — and
+      // only for the player's own hosts, whose generals are the ones with faces.
+      const marching = state.movementOrders.some((candidate) => candidate.armyId === army.id);
+      const general = isPlayer && !marching && !army.isLevy
+        ? state.heroes.find((hero) => hero.id === army.generalHeroId)
+        : undefined;
+      const existing = this.faceBadges.get(army.id);
+      if (existing && (!general || existing.heroId !== general.id)) {
+        existing.badge.destroy();
+        this.faceBadges.delete(army.id);
+      }
+      if (general && !this.faceBadges.has(army.id)) {
+        const key = heroFaceTextureKey(this.scene, general);
+        if (key) {
+          const badge = this.scene.add.image(FACE_BADGE_X, FACE_BADGE_Y, key);
+          const frame = this.scene.textures.getFrame(key);
+          const scale = FACE_BADGE_SIZE / Math.max(1, Math.max(frame.width, frame.height));
+          badge.setScale(scale);
+          marker.add(badge);
+          this.faceBadges.set(army.id, { heroId: general.id, badge });
+        }
       }
 
       const selected = state.selectedArmyId === army.id;
@@ -265,6 +302,7 @@ export class ArmyRenderer {
         this.moveLegs.delete(armyId);
         this.contentSig.delete(armyId);
         this.selectionFlags.delete(armyId);
+        this.faceBadges.delete(armyId);
       }
     }
   }

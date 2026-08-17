@@ -35,7 +35,12 @@ export interface MapItemRenderer {
   createTraveler(): Phaser.GameObjects.Container;
   createCart(): Phaser.GameObjects.Container;
   /** `kingdomColor` distinguishes one rival empire's host from another's. */
-  createArmyMarker(total: number, isPlayer: boolean, kingdomColor?: number): Phaser.GameObjects.Container;
+  /**
+   * A host on the map. `flagSeed` picks the standard the host carries: the player's realm seed
+   * (the same standard its provinces fly) or a stable per-kingdom seed for a rival — a host used
+   * to be seeded by its own headcount, so its banner changed style as it took casualties.
+   */
+  createArmyMarker(total: number, isPlayer: boolean, kingdomColor?: number, flagSeed?: number): Phaser.GameObjects.Container;
   createSelectionFlag(): Phaser.GameObjects.Container;
   createPlayerLandFlag(isCapital?: boolean, styleSeed?: number): Phaser.GameObjects.Container;
   createCapitalHighlight(): Phaser.GameObjects.Graphics;
