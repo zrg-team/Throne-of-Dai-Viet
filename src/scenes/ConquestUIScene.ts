@@ -4,6 +4,7 @@ import { applyRenderScale } from '../game/graphicsQuality';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID } from '../game/constants';
 import { codexProgress, getCodex, isHeroUnlocked } from '../state/codex';
 import { LEGACY_PERKS, ownsPerk } from '../state/legacy';
+import { doctrineBlurb, doctrineName } from '../systems/ascent/RealmDoctrineSystem';
 import { heroTemplates } from '../data/heroes';
 import { powerCardView, skipRefundAmount } from '../systems/ascent/PowerDraftSystem';
 import { tierForHero } from '../systems/ascent/SummonSystem';
@@ -442,6 +443,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'hero-choice': return `${prompt.source}:${prompt.heroIds.join(',')}`;
       case 'court-appointment': return `${prompt.heroId}:${prompt.options.map((option) => option.id).join(',')}`;
       case 'law-choice': return `${prompt.points}:${prompt.projectIds.join(',')}`;
+      case 'doctrine': return `doctrine:${prompt.era}`;
       case 'parliament': return prompt.cardId;
       case 'envoy': return `${prompt.kingdomId}:${prompt.relations}`;
       case 'famine': return `famine:${prompt.shortfall}`;
@@ -463,6 +465,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'hero-choice': this.showHeroChoice(prompt); break;
       case 'court-appointment': this.showAppointment(prompt); break;
       case 'law-choice': this.showLawChoice(prompt); break;
+      case 'doctrine': this.showDoctrine(prompt); break;
       case 'parliament': this.showParliament(prompt); break;
       case 'envoy': this.showEnvoy(prompt); break;
       case 'famine': this.showFamine(prompt); break;
@@ -3385,6 +3388,54 @@ ${t('ascent.summon.payrollWarn', { pct: payrollShare })}` : subtitle,
     this.modalLayer.add(this.ui.button(
       { x: content.x, y: GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8, width: content.width, height: 40 },
       t('ascent.law.hold'),
+      () => this.choose('hold'),
+      { variant: 'ghost', fontSize: '12px' },
+    ));
+  }
+
+  /**
+   * What kind of realm this is going to be. Four times a run, at each era change.
+   *
+   * Deliberately built from the same `optionCard` rows as the law card rather than given a screen
+   * of its own: this is the most consequential decision in the mode, and it must still read as one
+   * more card in a stack the player already knows how to answer.
+   */
+  private showDoctrine(prompt: Extract<AscentPrompt, { kind: 'doctrine' }>): void {
+    const { content, body, bodyWidth, finish } = this.promptScrollBody(
+      t('ascent.doctrine.title'),
+      t('ascent.doctrine.subtitle', { era: eraLabel(prompt.era) }),
+      PROMPT_FOOTER_HEIGHT,
+    );
+
+    const standing = this.state.ascent?.doctrine;
+    const cards: Phaser.GameObjects.Container[] = [];
+    let cursor = 0;
+
+    prompt.options.forEach((doctrine) => {
+      const card = this.optionCard(
+        { x: 0, y: cursor, width: bodyWidth, height: 74 },
+        {
+          title: doctrineName(doctrine),
+          body: doctrineBlurb(doctrine),
+          // The realm's current course is named on its own row rather than hidden, so switching
+          // is visibly a change of direction and not just another pick.
+          note: standing === doctrine ? t('ascent.doctrine.standing') : undefined,
+          noteColor: '#1c6b58',
+          accent: INK_UI.gold,
+          parent: body,
+          onTap: () => this.choose(doctrine),
+        },
+      );
+      cards.push(card);
+      cursor += ((card.getData('cardHeight') as number) ?? 74) + 9;
+    });
+
+    staggerIn(this, cards);
+    finish(cursor);
+
+    this.modalLayer.add(this.ui.button(
+      { x: content.x, y: GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8, width: content.width, height: 40 },
+      standing ? t('ascent.doctrine.keep') : t('ascent.doctrine.none'),
       () => this.choose('hold'),
       { variant: 'ghost', fontSize: '12px' },
     ));

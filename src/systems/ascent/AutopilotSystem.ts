@@ -50,6 +50,12 @@ import { frontWinChance } from './ConquestSystem';
 import { chargeAmbition } from './AmbitionSystem';
 import { isAutoHost, isPinnedByClaim } from './armyOrders';
 import { canDismissHero, dismissHero } from './CourtLaneSystem';
+import {
+  doctrineClaimIntervalMult,
+  doctrineDefenceMult,
+  doctrineHostBonus,
+  doctrineOutputMult,
+} from './RealmDoctrineSystem';
 import { pushToast } from '../empire/notifications';
 import { t } from '../../i18n';
 import type { GameState, Land, LandBuildingType } from '../../state/types';
@@ -115,12 +121,15 @@ function outputWeights(state: GameState): Record<'gold' | 'food' | 'supplies' | 
   // runs away in the seeds where trade multipliers compound hardest.
   const goldGlut = rates.gold > 0 && held.gold > rates.gold * GOLD_GLUT_SEASONS;
 
+  // The player's standing doctrine rides on top of scarcity rather than replacing it: a realm
+  // told to enrich still builds farms when the granary is emptying, because a starved realm is
+  // nobody's plan. Scarcity is the floor; doctrine decides what to do with the surplus.
   return {
     // A broke realm builds markets: gold used to be the one resource with no scarcity term, so a
     // treasury pinned at zero never changed what the autopilot chose to build.
-    gold: goldGlut ? 1 : byScarcity(3, held.gold, rates.gold),
-    food: byScarcity(1, held.food, rates.food),
-    supplies: byScarcity(2.5, held.supplies, rates.supplies),
+    gold: (goldGlut ? 1 : byScarcity(3, held.gold, rates.gold)) * doctrineOutputMult(state, 'gold'),
+    food: byScarcity(1, held.food, rates.food) * doctrineOutputMult(state, 'food'),
+    supplies: byScarcity(2.5, held.supplies, rates.supplies) * doctrineOutputMult(state, 'supplies'),
     humans: 0.4,
   };
 }
@@ -134,6 +143,7 @@ function optionScore(
   defensive: boolean,
   isCapital: boolean,
   weight: Record<'gold' | 'food' | 'supplies' | 'humans', number>,
+  doctrineMult: number,
 ): number {
   const out = option.output;
   const keep = option.upkeep;
@@ -150,7 +160,7 @@ function optionScore(
   // losing any other province is a setback. Invaders with conquest intent march straight at
   // it, and an unwalled seat falls to the fourth wave no matter how much ground was taken.
   const base = DEFENSIVE_BUILDINGS.includes(option.type) ? (defensive ? 18 : 7) : 0;
-  const defenceBonus = isCapital ? base * 3 : base;
+  const defenceBonus = (isCapital ? base * 3 : base) * doctrineMult;
   // Cheaper and faster options win ties, so early ticks are never idle.
   return produced - consumed + defenceBonus - option.ticks * 0.5;
 }
@@ -159,6 +169,7 @@ function optionScore(
 function autoBuild(state: GameState): boolean {
   const defensive = underPressure(state);
   const weight = outputWeights(state);
+  const doctrineMult = doctrineDefenceMult(state);
   let best: { landId: string; type: LandBuildingType; score: number } | undefined;
 
   for (const land of playerLands(state)) {
@@ -166,7 +177,7 @@ function autoBuild(state: GameState): boolean {
     const isCapital = land.id === state.ascent?.capitalLandId;
     for (const option of getBuildOptions(state, land)) {
       if (!option.canBuild) continue;
-      const score = optionScore(option, defensive, isCapital, weight);
+      const score = optionScore(option, defensive, isCapital, weight, doctrineMult);
       if (!best || score > best.score) {
         best = { landId: land.id, type: option.type, score };
       }
@@ -181,6 +192,7 @@ function autoBuild(state: GameState): boolean {
 function autoUpgrade(state: GameState): boolean {
   const defensive = underPressure(state);
   const weight = outputWeights(state);
+  const doctrineMult = doctrineDefenceMult(state);
   let best: { landId: string; index: number; score: number } | undefined;
 
   for (const land of playerLands(state)) {
@@ -190,7 +202,7 @@ function autoUpgrade(state: GameState): boolean {
     for (let index = 0; index < options.length; index += 1) {
       const option = options[index];
       if (!option.canUpgrade) continue;
-      const score = optionScore(option, defensive, isCapital, weight);
+      const score = optionScore(option, defensive, isCapital, weight, doctrineMult);
       if (!best || score > best.score) {
         best = { landId: land.id, index, score };
       }
@@ -319,7 +331,11 @@ function autoRecruit(state: GameState): boolean {
       && !army.isLevy
       && armySize(army) >= MIN_ARMY_SOLDIERS * REMNANT_SHARE,
   ).length;
-  if (standing + inFlight >= targetArmyCount(lands.length)) return false;
+  // The doctrine the player set moves the target: a realm at arms keeps more hosts standing, a
+  // counting house keeps fewer and spends the manpower on itself. Never below one — a realm with
+  // no host at all cannot answer anything.
+  const target = Math.max(1, targetArmyCount(lands.length) + doctrineHostBonus(state));
+  if (standing + inFlight >= target) return false;
 
   // One muster at a time per land; bail early rather than spam a failing call.
   if (lands.some((land) => getRecruitmentOrder(state, land.id))) return false;
@@ -399,10 +415,18 @@ function autoClaimWilderness(state: GameState): boolean {
       !state.movementOrders.some((order) => order.armyId === army.id) &&
       !state.siegeOrders.some((order) => order.armyId === army.id),
   );
-  // Never the last host: the capital falling ends the run. A host under the player's own
-  // orders counts as a host at home even though the autopilot may not send it.
+  // Never the last host *while anything is on the map*: the capital falling ends the run. But a
+  // realm with no invader in sight may walk its only host onto adjacent empty ground and back —
+  // `tickAutoDefend` retargets it the moment a threat appears.
+  //
+  // The second clause exists because conquest hosts now strike the frontier rather than marching
+  // to the seat, which keeps every host permanently busy defending: measured, `verify-ascent`'s
+  // "autopilot marched" check went from passing to zero marches in a whole run. A realm that never
+  // walks onto the empty ground beside it stops growing on the map, which is the most visible
+  // thing the automation does.
   const hosts = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy).length;
-  if (idle.length === 0 || hosts < 2) return false;
+  const invadersLive = (state.invasions?.length ?? 0) > 0;
+  if (idle.length === 0 || (hosts < 2 && invadersLive)) return false;
 
   const owned = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
   const seen = new Set<string>();
@@ -450,7 +474,10 @@ function autoPurchaseVillage(state: GameState): boolean {
   // the treasury is no longer embarrassing.
   const rates = state.resourceRates;
   const glutted = rates.gold > 0 && state.resources.gold > rates.gold * GOLD_GLUT_SEASONS;
-  const interval = glutted ? Math.max(2, Math.round(AUTO_CLAIM_INTERVAL_TICKS / 2)) : AUTO_CLAIM_INTERVAL_TICKS;
+  const interval = Math.max(2, Math.round(
+    (glutted ? Math.max(2, AUTO_CLAIM_INTERVAL_TICKS / 2) : AUTO_CLAIM_INTERVAL_TICKS)
+    * doctrineClaimIntervalMult(state),
+  ));
   const share = glutted ? AUTO_CLAIM_TREASURY_SHARE * 2 : AUTO_CLAIM_TREASURY_SHARE;
 
   if (state.turn % interval !== 0) return false;

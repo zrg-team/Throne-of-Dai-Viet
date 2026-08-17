@@ -21,6 +21,7 @@ import { famineReady, offerFamine, tickFamineCooldown } from './FamineSystem';
 import { offerRivalDemand, rivalDemandReady, tickRivalCooldowns } from './RivalDirector';
 import { offerHeroSummon } from './SummonSystem';
 import { offerPowerDraft } from './PowerDraftSystem';
+import { doctrineReady, offerDoctrine } from './RealmDoctrineSystem';
 import { offerStoryBeat, storyBeatReady } from '../story/StorySystem';
 import type { AscentPhase, AscentPromptKind, GameState } from '../../state/types';
 
@@ -108,6 +109,10 @@ const STARVATION_TICKS = 4;
 const KIND_STARVATION_TICKS = 18;
 
 const CONSIDER_ORDER: AscentPromptKind[] = [
+  // First among the scheduled kinds. It fires four times in a whole run — once per era — and it
+  // sets what the autopilot does with every season after it, so making it wait behind a card
+  // draft would spend a third of the era it is meant to govern.
+  'doctrine',
   // Famine leads. It is the only scheduled card whose subject is actively costing the realm
   // something every tick it waits, and it was the undiagnosed cause of most lost runs.
   'famine',
@@ -210,6 +215,9 @@ function isReady(state: GameState, kind: AscentPromptKind): boolean {
         target.methods.some((method) => !method.blockedReason && method.method !== 'siege' && method.method !== 'occupy'));
     }
 
+    case 'doctrine':
+      return doctrineReady(state);
+
     case 'power-draft':
       return ascent.pendingLevelUps > 0;
 
@@ -259,6 +267,8 @@ function raise(state: GameState, kind: AscentPromptKind): boolean {
     }
     case 'conquer-target':
       return offerConquestPrompt(state);
+    case 'doctrine':
+      return offerDoctrine(state);
     case 'power-draft':
       offerPowerDraft(state);
       return true;
