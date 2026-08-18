@@ -1,3 +1,4 @@
+import { tickVassals } from './VassalSystem';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { CAPITAL_GRACE_TICKS, LOYALTY_SETTLE_PER_TICK, SUMMON_EVERY_N_WAVES } from '../../game/ascentConfig';
 import { pushToast } from '../empire/notifications';
@@ -148,6 +149,7 @@ export function advanceAscentTick(state: GameState): void {
   // Opinion modifiers decay and relations drift back toward each empire's baseline. Normally
   // reached through the campaign-gated `tickForeignAffairs`; called directly here.
   tickDiplomacy(state);
+  tickVassals(state);
 
   state.turn += 1;
   advanceSeasonClock(state);

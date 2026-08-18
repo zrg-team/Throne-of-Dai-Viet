@@ -21,6 +21,7 @@
  * Runs before `tickInvasions` each tick so a host spawned this tick marches on the same tick it
  * was given its orders.
  */
+import { isVassal } from './VassalSystem';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   ENEMY_CONTACT_FLOOR_TICKS,
@@ -85,15 +86,16 @@ function newlyContestedRival(state: GameState): Kingdom | undefined {
   for (const kingdomId of touching) {
     if (known.has(kingdomId)) continue;
     const kingdom = state.kingdoms.find((k) => k.id === kingdomId && !k.isDefeated);
-    if (kingdom) return kingdom;
+    if (kingdom && !isVassal(kingdom)) return kingdom;
   }
   return undefined;
 }
 
 /** Rivals that could plausibly march. */
 function aggressors(state: GameState): Kingdom[] {
+  // Vassals excluded: an oath that does not stop the marching is not an oath.
   return state.kingdoms.filter(
-    (kingdom) => kingdom.id !== PLAYER_KINGDOM_ID && !kingdom.isDefeated,
+    (kingdom) => kingdom.id !== PLAYER_KINGDOM_ID && !kingdom.isDefeated && !isVassal(kingdom),
   );
 }
 
@@ -435,6 +437,8 @@ function tickRivalRealms(state: GameState): void {
       .reduce((sum, land) => sum + land.defense * 10, 0);
 
   for (const rival of state.kingdoms) {
+    // A sworn crown keeps building its own provinces, but it stops wanting a war with you.
+    if (isVassal(rival)) { rival.warAppetite = 0; continue; }
     if (rival.id === PLAYER_KINGDOM_ID || rival.isDefeated) continue;
     const holdings = state.lands.filter((land) => land.ownerId === rival.id);
     if (holdings.length === 0) continue;

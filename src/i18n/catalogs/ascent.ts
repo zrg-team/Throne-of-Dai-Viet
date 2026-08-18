@@ -831,7 +831,35 @@ export const enAscent = {
   "ascent.card.chieu-hien.d": "Word goes out for men of worth. Court business moves {pct}% faster, and a champion is already on the road.",
   "ascent.mandate.title": "You become King of {realm}",
   "ascent.mandate.subtitle": "The throne is yours. Choose what it already holds.",
-  "ascent.founder.confirm": "Choose this champion"
+  "ascent.founder.confirm": "Choose this champion",
+  // ── vassalage ──
+  "ascent.vassal.tribute": "Tribute from {name}",
+  "ascent.vassal.oath": "Oath of vassalage",
+  "ascent.vassal.sworn": "{name} bends the knee and swears tribute.",
+  "ascent.vassal.revolt": "{name} tears up the oath and marches.",
+  "ascent.vassal.released": "{name} is released from the oath.",
+  "ascent.vassal.already": "Already sworn to you",
+  "ascent.vassal.capped": "No more than {n} crowns may be held",
+  "ascent.vassal.lastRival": "The last free crown cannot be taken",
+  "ascent.vassal.unafraid": "They do not fear you enough",
+  "ascent.vassal.cold": "They will not hear an envoy",
+  "ascent.vassal.badge": "VASSAL",
+  "ascent.over.vassals": "Crowns sworn",
+  // ── what a ruler brings ──
+  "ascent.arrival.toast": "{name} joins — and does not come empty-handed.",
+  "ascent.arrival.hostName": "{name}'s Host",
+  "ascent.arrival.host": "Arrives with a host already raised",
+  "ascent.arrival.land": "A province joins the realm outright",
+  "ascent.arrival.vassal": "A rival crown bends the knee",
+  "ascent.arrival.truce": "The angriest rival stands down",
+  "ascent.arrival.card": "A power enters the realm, and a draft with it",
+  "ascent.arrival.treasury": "The treasury opens",
+  "ascent.arrival.walls": "Every province is walled",
+  "ascent.arrival.levy": "Every host is reinforced and tempered",
+  "ascent.envoy.vassalize": "Demand their submission",
+  "ascent.envoy.vassalizeFx": "They swear tribute and never march on you — while they still fear you.",
+  "ascent.envoy.release": "Release them from the oath",
+  "ascent.envoy.releaseFx": "The tribute ends, and they remember it kindly."
 } as const;
 
 export const viAscent = {
@@ -1662,5 +1690,33 @@ export const viAscent = {
   "ascent.card.chieu-hien.d": "Chiếu cầu hiền đã ban. Việc triều chính nhanh hơn {pct}%, và một danh tướng đang trên đường tới.",
   "ascent.mandate.title": "Bạn lên ngôi vua {realm}",
   "ascent.mandate.subtitle": "Ngai vàng đã thuộc về bạn. Hãy chọn thứ triều đình sẵn có.",
-  "ascent.founder.confirm": "Chọn người này"
+  "ascent.founder.confirm": "Chọn người này",
+  // ── vassalage ──
+  "ascent.vassal.tribute": "Cống nạp từ {name}",
+  "ascent.vassal.oath": "Lời thề thần phục",
+  "ascent.vassal.sworn": "{name} quy phục và xin nộp cống.",
+  "ascent.vassal.revolt": "{name} xé bỏ lời thề và cất quân.",
+  "ascent.vassal.released": "{name} được giải trừ lời thề.",
+  "ascent.vassal.already": "Đã thần phục bạn",
+  "ascent.vassal.capped": "Không thể giữ quá {n} vương triều",
+  "ascent.vassal.lastRival": "Không thể thu phục vương triều tự chủ cuối cùng",
+  "ascent.vassal.unafraid": "Họ chưa đủ sợ bạn",
+  "ascent.vassal.cold": "Họ không chịu tiếp sứ",
+  "ascent.vassal.badge": "THẦN PHỤC",
+  "ascent.over.vassals": "Vương triều thần phục",
+  // ── what a ruler brings ──
+  "ascent.arrival.toast": "{name} về dưới trướng — và không đến tay không.",
+  "ascent.arrival.hostName": "Đạo quân của {name}",
+  "ascent.arrival.host": "Đến cùng một đạo quân đã sẵn",
+  "ascent.arrival.land": "Một trấn quy thuận ngay lập tức",
+  "ascent.arrival.vassal": "Một vương triều đối địch quy phục",
+  "ascent.arrival.truce": "Kẻ địch hung hãn nhất lui binh",
+  "ascent.arrival.card": "Một quyền năng nhập vào quốc pháp, kèm lượt rút bài",
+  "ascent.arrival.treasury": "Ngân khố mở ra",
+  "ascent.arrival.walls": "Mọi trấn đều được đắp thành",
+  "ascent.arrival.levy": "Mọi đạo quân được bổ sung và tôi luyện",
+  "ascent.envoy.vassalize": "Buộc họ thần phục",
+  "ascent.envoy.vassalizeFx": "Họ nộp cống và không bao giờ cất quân — chừng nào còn sợ bạn.",
+  "ascent.envoy.release": "Giải trừ lời thề",
+  "ascent.envoy.releaseFx": "Cống nạp chấm dứt, và họ ghi nhớ điều đó."
 } satisfies Record<keyof typeof enAscent, string>;

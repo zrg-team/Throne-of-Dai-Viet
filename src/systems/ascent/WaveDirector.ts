@@ -1,3 +1,4 @@
+import { isVassal } from './VassalSystem';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   BOSS_EVERY_N_WAVES,
@@ -303,8 +304,11 @@ export function liveInvaderPower(state: GameState): number {
 
 /** Picks the aggressor: the angriest and strongest surviving empire, with some spread. */
 function pickAggressor(state: GameState): Kingdom | undefined {
+  // A crown sworn to you does not march on you. Note `tickWaveDirector` counts the wave up and
+  // *then* bails when this returns nothing, so an empty pool is a run that cannot be lost —
+  // `canVassalize` refuses the last sovereign for exactly that reason.
   const candidates = state.kingdoms.filter(
-    (kingdom) => kingdom.id !== PLAYER_KINGDOM_ID && !kingdom.isDefeated,
+    (kingdom) => kingdom.id !== PLAYER_KINGDOM_ID && !kingdom.isDefeated && !isVassal(kingdom),
   );
   return weightedPick(candidates, (kingdom) => {
     const hostility = 100 - (kingdom.relations ?? 50);

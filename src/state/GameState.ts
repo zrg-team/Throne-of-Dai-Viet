@@ -730,8 +730,13 @@ function pickFounderOptions(candidates: Hero[]): string[] {
  */
 function offerFounderChoice(state: GameState): void {
   const recorded = new Set(getFounderPool());
-  const known = shuffled(state.heroDeck.filter((hero) => recorded.has(hero.id)));
-  const fresh = state.heroDeck.filter((hero) => !recorded.has(hero.id));
+  // Rulers are not founders. They carry an `arrival` — a host, a province, a crown bending the
+  // knee — and handing one of those out on turn one would decide the run before it started.
+  // Promoting twenty-four of them took the deck to 35 Legendaries in 127, so without this filter
+  // roughly a third of every founding card would have been one.
+  const pool = state.heroDeck.filter((hero) => !hero.arrival);
+  const known = shuffled(pool.filter((hero) => recorded.has(hero.id)));
+  const fresh = pool.filter((hero) => !recorded.has(hero.id));
   const candidates = fresh.length > 0
     ? [...known.slice(0, FOUNDER_RECORDED_CAP), ...shuffled([...known.slice(FOUNDER_RECORDED_CAP), ...fresh])]
     : known;

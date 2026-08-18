@@ -175,6 +175,9 @@ export interface InvasionSpawnOptions {
 
 /** Replaces the on-map `launchDynastyAttack` for empire mode: spawns one or more off-map hosts at the frontier. */
 export function launchOffMapInvasion(state: GameState, kingdomId: string | undefined, opts: InvasionSpawnOptions = {}): void {
+  // Belt and braces over the aggressor filters: a crown sworn to the player never lands a
+  // host on them, whatever future caller asks for it.
+  if (state.kingdoms.find((k) => k.id === kingdomId)?.vassalage) return;
   if (!isEndlessMode(state.gameMode) || !kingdomId) {
     return;
   }

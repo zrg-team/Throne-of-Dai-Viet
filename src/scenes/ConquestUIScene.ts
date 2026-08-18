@@ -74,6 +74,8 @@ import { countOpenDoors, isMarked, openingFor, openingView, storyNeedsPlayer, st
 import { storyText, storyTitle } from '../i18n/story';
 import { INK_UI, INK_UI_HEX, InkUI, scrollGestureConsumedTap, type InkScrollArea, type UIBounds } from '../ui/InkUI';
 import { heroTemplates } from '../data/heroes';
+import { arrivalPreview } from '../data/heroArrivals';
+import { isVassal } from '../systems/ascent/VassalSystem';
 import { designLength } from '../game/graphicsQuality';
 import { createPlayerLandFlag } from '../ui/playerFlag';
 import { sawtoothBand } from '../ui/ink/devices';
@@ -3158,10 +3160,12 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
           t('ascent.world.power', { value: Math.round(getEmpirePower(state, kingdom)) }),
           t('ascent.world.appetite', { value: Math.round(kingdom.warAppetite ?? 0) }),
           hasPact(kingdom) ? t('ascent.world.pact') : undefined,
+        isVassal(kingdom) ? t('ascent.vassal.badge') : undefined,
           kingdom.ambassadorHeroId ? t('ascent.world.ambassador') : undefined,
         ].filter(Boolean).join('  ·  '),
         // Green when content, red once cold enough to march.
-        border: relations >= 55 ? INK_UI.jade : relations >= 35 ? INK_UI.gold : INK_UI.cinnabar,
+        border: isVassal(kingdom) ? INK_UI.jade
+          : relations >= 55 ? INK_UI.jade : relations >= 35 ? INK_UI.gold : INK_UI.cinnabar,
         onTap: () => {
           this.closeLane();
           this.events.emit('ui:ascent-envoy', kingdom.id);
@@ -3457,8 +3461,8 @@ ${t('ascent.summon.payrollWarn', { pct: payrollShare })}` : subtitle,
         {
           title: heroName(hero),
           body: `${heroTypeLabel(hero.type)}  ·  ${rarityLabel(hero.rarity)}\n${heroBio(hero)}`,
-          note: isNew ? t('ascent.summon.newCodex') : this.heroStatLine(hero),
-          noteColor: isNew ? '#8a5f1c' : undefined,
+          note: arrivalPreview(hero) ?? (isNew ? t('ascent.summon.newCodex') : this.heroStatLine(hero)),
+          noteColor: arrivalPreview(hero) || isNew ? '#8a5f1c' : undefined,
           badge: t(`ascent.rarity.${tier}` as Parameters<typeof t>[0]),
           accent: RARITY_COLOR[tier],
           washAlpha: RARITY_WASH[tier],
@@ -5216,7 +5220,7 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
     // What the founding actually changes on the board. Without this the card is three
     // biographies and no decision.
     const gift = this.add.text(textLeft, bio.y + bio.height + 5,
-      t(`ascent.founder.gift.${hero.type}` as Parameters<typeof t>[0]), {
+      arrivalPreview(hero) ?? t(`ascent.founder.gift.${hero.type}` as Parameters<typeof t>[0]), {
         color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '10.5px', fontStyle: '700',
         wordWrap: { width: textWidth },
       });

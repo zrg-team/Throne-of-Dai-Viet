@@ -36,7 +36,7 @@ import type { GameState, Kingdom, RivalDemandOption } from '../../state/types';
  */
 
 function rivals(state: GameState): Kingdom[] {
-  return state.kingdoms.filter((kingdom) => kingdom.id !== PLAYER_KINGDOM_ID && !kingdom.isDefeated);
+  return state.kingdoms.filter((kingdom) => kingdom.id !== PLAYER_KINGDOM_ID && !kingdom.isDefeated && !kingdom.vassalage);
 }
 
 /** 0..~2: how far the realm has outgrown the world. Mirrors `ThreatDirector.playerDominance`. */

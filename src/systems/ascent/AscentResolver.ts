@@ -1,6 +1,7 @@
 import { bankLegacy, computeRunScore, getLegacy } from '../../state/legacy';
 import { findPowerCard } from '../../data/ascentCards';
 import { applyCourtEffect } from '../PoliticsSystem';
+import { fireHeroArrival } from './ArrivalSystem';
 import { unlockHero } from '../../state/codex';
 import { drainAscentPrompts, enqueueAscentPrompt } from './AscentState';
 import { rerollPowerDraft, skipPowerDraft, takePowerCard } from './PowerDraftSystem';
@@ -56,6 +57,7 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
       if (hero) {
         state.heroDeck = state.heroDeck.filter((candidate) => candidate.id !== hero.id);
         state.heroes.push(hero);
+        fireHeroArrival(state, hero);
         unlockHero(hero.id);
         ascent.heroesSummoned += 1;
         ascent.founderHeroId = hero.id;

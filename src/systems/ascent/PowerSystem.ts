@@ -1,3 +1,4 @@
+import { vassalPowerTerm } from './VassalSystem';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { REALM_DEFENCE_SHARE, XP_PER_OWNED_LAND, XP_PER_TICK_BASE, xpToNextLevel } from '../../game/ascentConfig';
 import { armyPower, terrainDefenseMultiplier } from '../WarSystem';
@@ -49,7 +50,11 @@ export function computeAscentPower(state: GameState): number {
   // exactly the failure this mode exists to avoid.
   const engine = engineTerm(state.resourceRates);
 
-  return Math.round(field * 1.5 + hold * 0.6 + engine);
+  // Oaths sworn to the realm count here — the HUD figure and the run score — and pointedly
+  // nowhere else. See `vassalPowerTerm`: a vassal is off the map and brings no host to the point
+  // of contact, so `contestedDefencePower` must stay blind to it or the raids it sizes and the
+  // odds it quotes both start lying.
+  return Math.round(field * 1.5 + hold * 0.6 + engine + vassalPowerTerm(state));
 }
 
 /** The economy's share of POWER. Floored at zero: a deficit is not negative strength. */
