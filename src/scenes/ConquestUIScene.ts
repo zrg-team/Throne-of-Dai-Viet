@@ -78,7 +78,8 @@ import { arrivalPreview } from '../data/heroArrivals';
 import { isVassal } from '../systems/ascent/VassalSystem';
 import { designLength } from '../game/graphicsQuality';
 import { createPlayerLandFlag } from '../ui/playerFlag';
-import { sawtoothBand } from '../ui/ink/devices';
+import { sawtoothBand, seal } from '../ui/ink/devices';
+import { playArrivalFanfare } from '../ui/ascent/arrivalFanfare';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { CARD_ICON_SIZE, drawCardIcon, iconForOption, type CardIconId } from '../ui/CardIcons';
 import { ASCENT_HUD_HEIGHT, AscentHud } from '../ui/ascent/AscentHud';
@@ -536,6 +537,13 @@ export class ConquestUIScene extends Phaser.Scene {
   }
 
   private choose(choiceId: string): void {
+    // A ruler joining is the one draw in a run that changes the board, so it gets the one
+    // celebration the mode has. Fired from the tap rather than from the system, because the
+    // systems are Phaser-free by design and a tween cannot live there.
+    const joining = this.state.heroDeck.find((hero) => hero.id === choiceId);
+    if (joining?.arrival) {
+      playArrivalFanfare(this, GAME_WIDTH / 2, GAME_HEIGHT / 2);
+    }
     this.events.emit('ui:ascent-choice', choiceId);
   }
 
@@ -3474,6 +3482,19 @@ ${t('ascent.summon.payrollWarn', { pct: payrollShare })}` : subtitle,
       // The card may have grown past `cardHeight` to fit a long name; the glow and the portrait
       // are sized to what it actually became, or they sit short of its lower edge.
       const drawnHeight = (card.getData('cardHeight') as number) ?? cardHeight;
+
+      // A ruler's card is the only one in the mode that gets a ground of its own: the corner
+      // marks `InkUI` reserves for exactly this, a heavier wash than jade's 0.15, and a chop in
+      // the corner. Below that, rarity is still carried by rail and stroke alone.
+      if (hero.arrival) {
+        const ground = this.add.graphics();
+        ground.fillStyle(INK_UI.gold, 0.1);
+        ground.fillRoundedRect(2, 2, bodyWidth - 4, drawnHeight - 4, 8);
+        card.addAt(ground, 1);
+        const chop = this.add.graphics();
+        seal(chop, 30, drawnHeight - 22, 22, 'lotus');
+        card.add(chop);
+      }
 
       // Gold and Jade pulls glow — the one moment the mode leans into the gacha reveal.
       if (tier === 'gold' || tier === 'jade') {
