@@ -217,12 +217,33 @@ await toMenu(page);
 await page.waitForTimeout(600);
 const menuPng = await shot(page);   // only used in the banner — the front page needs no page of its own
 
-// The coffee modal, for the Support section: the Wise tab with its drawn code.
-await page.evaluate(() => window.__phaserGame.scene.getScene('MenuScene').renderSupportModal('wise'));
-await page.waitForTimeout(500);
-const coffeePng = await shot(page);
-await save('coffee', [coffeePng]);
-await page.evaluate(() => window.__phaserGame.scene.getScene('MenuScene').closeModal());
+// The Support section shows the Wise code on its own — the same code the game draws, rendered by
+// the game's own encoder so the README can never disagree with the modal. PNG, not WebP: a code
+// is flat black on white and lossless is both smaller and safer for a scanner.
+const wiseQr = await page.evaluate(async () => {
+  const [{ encodeQr }, { SUPPORT }] = await Promise.all([import('/src/utils/qr.ts'), import('/src/data/support.ts')]);
+  const link = SUPPORT.channels.find((c) => c.id === 'wise')?.link;
+  if (!link) return null;
+  const matrix = encodeQr(link, 'M');
+  const scale = 10;
+  const quiet = 4;
+  const px = (matrix.size + quiet * 2) * scale;
+  const canvas = document.createElement('canvas');
+  canvas.width = px;
+  canvas.height = px;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, px, px);
+  ctx.fillStyle = '#2a2118';
+  for (let y = 0; y < matrix.size; y += 1) for (let x = 0; x < matrix.size; x += 1) if (matrix.modules[y][x]) ctx.fillRect((x + quiet) * scale, (y + quiet) * scale, scale, scale);
+  return { link, dataUrl: canvas.toDataURL('image/png') };
+});
+if (wiseQr) {
+  const path = `${OUT}/qr-wise.png`;
+  writeFileSync(path, Buffer.from(wiseQr.dataUrl.split(',')[1], 'base64'));
+  written.push({ path, kb: Math.round(statSync(path).size / 1024) });
+  console.log(`   ${path}  ${written.at(-1).kb} KB  (${wiseQr.link})`);
+}
 
 // ── 2 · Dragon Ascent: the map after a while, then the cards ────────────────────────────────────
 console.log('dragon ascent');

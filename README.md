@@ -176,24 +176,24 @@ Before opening a pull request: `yarn build` must pass, and `node test_scripts/sm
 
 ## ☕ Support
 
-The game is free and stays free. If it gave you an evening, the front page has a **Buy me a coffee** button — Wise for the world, MoMo for Việt Nam — and a **Help improve the game** button that comes back here. Starring the repository helps just as much: it is how the next person finds it.
+The game is free and stays free. If it gave you an evening — scan with your phone, or tap the link.
 
 <table>
   <tr>
-    <td width="36%"><img src="docs/readme/coffee.webp" alt="The coffee modal: Wise and MoMo tabs, a link, and a QR code drawn by the game" width="100%"></td>
-    <td valign="top">
-
-**On a phone**, tap *Open* and the app takes over. **On a computer**, point your phone at the code on the screen — the game draws it from the link itself, so it works offline and needs no image service.
-
-[![Wise · @tand99](https://img.shields.io/badge/Wise-%40tand99-9fe870?style=for-the-badge&logo=wise&logoColor=163300)](https://wise.com/pay/me/tand99)
-&nbsp;
-[![MoMo · Việt Nam](https://img.shields.io/badge/MoMo-Vi%E1%BB%87t%20Nam-a50064?style=for-the-badge)](https://me.momo.vn/6OfbtWIOTeIJi5Tw)
-
-The MoMo tab shows MoMo's own VietQR card, so any Vietnamese bank app reads it directly. The channels live in one file, [`src/data/support.ts`](src/data/support.ts); `node scripts/crop-support-qr.mjs <screenshot>` cuts a fresh card out of the app's share sheet and checks that it still decodes before writing it.
-
-</td>
+    <td align="center" width="50%">
+      <img src="docs/readme/qr-wise.png" alt="Wise QR code" width="220"><br><br>
+      <a href="https://wise.com/pay/me/tand99"><b>Wise · international</b></a><br>
+      <sub>wise.com/pay/me/tand99 · @tand99</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="public/support/momo-qr.webp" alt="MoMo VietQR code" width="220"><br><br>
+      <a href="https://me.momo.vn/6OfbtWIOTeIJi5Tw"><b>MoMo · Việt Nam</b></a><br>
+      <sub>me.momo.vn · any bank app can scan it</sub>
+    </td>
   </tr>
 </table>
+
+Or star the repository — it is how the next person finds the game.
 
 ## 🙏 Credits
 
