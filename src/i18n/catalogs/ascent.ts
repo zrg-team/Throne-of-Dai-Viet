@@ -811,7 +811,7 @@ export const enAscent = {
   "ascent.founder.gift.general": "Brings the men who follow him — half again the royal host",
   "ascent.founder.gift.minister": "Brings the treasury he has been keeping",
   "ascent.founder.gift.agent": "Brings the country's goodwill, and the people who trust the name",
-  "ascent.screen.throne": "You reign as {king}. {n} champion(s) serve.",
+  "ascent.screen.throne": "You reign as {king} — {posting}. {n} champion(s) serve you.",
   // ── founding advantages ──
   "ascent.card.cam-quan": "Cấm Quân — the Imperial Guard",
   "ascent.card.cam-quan.d": "The household troops answer to the throne alone. +{pct}% army power, for the whole run.",
@@ -1670,7 +1670,7 @@ export const viAscent = {
   "ascent.founder.gift.general": "Mang theo những người theo ông — cấm quân đông thêm một nửa",
   "ascent.founder.gift.minister": "Mang theo ngân khố mà ông vẫn giữ",
   "ascent.founder.gift.agent": "Mang theo lòng dân và những người tin vào cái tên ấy",
-  "ascent.screen.throne": "Bạn trị vì với hiệu {king}. {n} danh tướng phò tá.",
+  "ascent.screen.throne": "Bạn trị vì với hiệu {king} — {posting}. {n} danh tướng phò tá.",
   // ── founding advantages ──
   "ascent.card.cam-quan": "Cấm Quân",
   "ascent.card.cam-quan.d": "Quân túc vệ chỉ nghe lệnh nhà vua. +{pct}% sức mạnh quân đội, suốt cả cuộc chinh phạt.",
