@@ -1865,17 +1865,27 @@ export class ConquestUIScene extends Phaser.Scene {
    */
   private showHeroesScreen(): void {
     const state = this.state;
+    // The throne is not one of the champions serving it.
+    //
+    // The king is a Hero because half the game looks him up as one, but he is the *player* —
+    // listing him beside the champions made a founding that gives you a ruler and one champion
+    // read as handing you two heroes, and offered you a card to repost yourself. He is named in
+    // the header instead, with where he stands, so nothing about him is hidden — only the row
+    // that invited you to reassign yourself is gone.
+    const king = state.heroes.find((hero) => hero.id === 'king');
+    const champions = state.heroes.filter((hero) => hero.id !== 'king');
     const { addRow, finish } = this.laneList(
       t('action.heroes'),
       `${t('ascent.screen.throne', {
-        king: heroName(state.heroes.find((hero) => hero.id === 'king') ?? state.heroes[0]),
-        n: state.heroes.filter((hero) => hero.id !== 'king').length,
+        king: king ? heroName(king) : '—',
+        posting: king ? this.heroPosting(king) : '—',
+        n: champions.length,
       })}
 ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     );
 
     // Unposted first: the most common reason to open this screen.
-    const ordered = [...state.heroes].sort(
+    const ordered = [...champions].sort(
       (a, b) => Number(Boolean(a.assignedTo)) - Number(Boolean(b.assignedTo)),
     );
     for (const hero of ordered) {
