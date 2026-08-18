@@ -963,19 +963,27 @@ export class MenuScene extends Phaser.Scene {
     // The gaps are also counted here EXACTLY as they are spent below, or the slack piles up in
     // whichever one the arithmetic forgot.
     const rows = this.vh(58) + this.vh(46) + this.vh(42) + tagline.height + saveLabel.height;
-    // THREE gaps for the break, not two, and the column is allowed to start higher to pay for
-    // them. Measured on the sheet, two gaps put 26 design units above the settings button against
-    // 9 below it — a ratio of three that reads as "about the same" once the ghost button's own
-    // near-invisible box is what one of them is measured from. The break has to be unmissable, so
-    // it is now about eight times the gap under it.
-    const GAPS = 3 + 0.6 + 3;
+    // TWICE the gap for the break, not three times it. Three left an obvious hole between the save
+    // label and Settings while the art above the column was being crowded — the page had its slack
+    // in the one place nothing needed it. Doubling is still an unmissable break (the gaps inside
+    // the group are 12 design units at 844 against 24 here) and it hands the difference back to
+    // the column, which now sits that much lower down the sheet.
+    const GAPS = 3 + 0.6 + 2;
+    // The floor the column may not climb above: the rear host's feet stand at 488 in the design,
+    // and the pair of them are the busiest thing on the page. At 844 the bottom-anchored column
+    // landed at 463 and cleared them by luck; on a 620 sheet everything above the footer is
+    // squeezed, the same arithmetic put the first button at 303 against feet at 302, and the
+    // primary button was printed straight over the marching men and a standard. Anchoring to the
+    // art rather than to a number the art has since moved past is what keeps them apart, and the
+    // gaps pay for it — which also tightens a column that was the loosest thing on the screen.
+    const ART_FLOOR = this.vy(520);
     const gap = Phaser.Math.Clamp(
-      Math.round((SETTINGS_TOP - this.vy(440) - rows) / GAPS),
+      Math.round((SETTINGS_TOP - ART_FLOOR - rows) / GAPS),
       4,
-      Math.round(16 * this.vScale),
+      Math.round(14 * this.vScale),
     );
-    const gapsBelow = gap * 3 + Math.round(gap * 0.6) + gap * 3;
-    let cursor = Math.max(this.vy(420), SETTINGS_TOP - rows - gapsBelow);
+    const gapsBelow = gap * 3 + Math.round(gap * 0.6) + gap * 2;
+    let cursor = Math.max(ART_FLOOR, SETTINGS_TOP - rows - gapsBelow);
 
     this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: this.vh(58) }, t('ascent.menu.title'), () => {
       this.startAscentRun();
@@ -1004,7 +1012,7 @@ export class MenuScene extends Phaser.Scene {
     this.content.push(saveLabel);
     // The group break, and the reason Settings reads as a different kind of thing from the two
     // buttons above it.
-    cursor += saveLabel.height + gap * 3;
+    cursor += saveLabel.height + gap * 2;
 
     this.renderLanguageSwitch();
 
