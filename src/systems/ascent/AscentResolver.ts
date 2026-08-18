@@ -1,4 +1,5 @@
 import { bankLegacy, computeRunScore, getLegacy } from '../../state/legacy';
+import { generateKingHero } from '../../data/heroes';
 import { unlockHero } from '../../state/codex';
 import { drainAscentPrompts, enqueueAscentPrompt } from './AscentState';
 import { rerollPowerDraft, skipPowerDraft, takePowerCard } from './PowerDraftSystem';
@@ -17,6 +18,7 @@ import { resolveStoryBeat } from '../story/StorySystem';
 import { passHeroSummon, recruitSummonedHero } from './SummonSystem';
 import { resolveEmpireResponse } from './WaveDirector';
 import { startPromptCooldown } from './DecisionDirector';
+import { applyFoundingGift } from '../../state/GameState';
 import { findLand } from '../LandSystem';
 import type { AscentConquestMethod, GameState } from '../../state/types';
 
@@ -37,13 +39,25 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
 
   switch (prompt.kind) {
     case 'founder': {
-      const hero = state.heroDeck.find((candidate) => candidate.id === choiceId);
+      // One choice, two people: `"<kingSlug>:<traitIndex>:<heroId>"`.
+      const [kingSlug, traitIndex, heroChoice] = choiceId.split(':');
+      // The throne's hero is replaced rather than mutated — `generateKingHero` also rolls the
+      // temperament and the stat emphasis, and both come off the ruler's own profile.
+      const seat = state.heroes.findIndex((candidate) => candidate.id === 'king');
+      if (seat >= 0 && kingSlug) {
+        const crowned = generateKingHero(kingSlug, Number(traitIndex));
+        crowned.assignedTo = state.heroes[seat].assignedTo;
+        state.heroes[seat] = crowned;
+      }
+      const hero = state.heroDeck.find((candidate) => candidate.id === heroChoice);
       if (hero) {
-        state.heroDeck = state.heroDeck.filter((candidate) => candidate.id !== choiceId);
+        state.heroDeck = state.heroDeck.filter((candidate) => candidate.id !== hero.id);
         state.heroes.push(hero);
         unlockHero(hero.id);
         ascent.heroesSummoned += 1;
         ascent.founderHeroId = hero.id;
+        // What they bring: a district, a host, a treasury or the country's goodwill, by office.
+        applyFoundingGift(state, hero);
         // The founder is the run's first appointment too — it teaches the role card before
         // any of the systems that depend on understanding it come into play.
         offerAppointment(state, hero.id);

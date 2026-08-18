@@ -220,6 +220,21 @@ export const enAscent = {
   "ascent.army.runway": "Rations last about {ticks} seasons",
   "ascent.army.runwayOut": "Out of rations — morale is bleeding",
   "ascent.army.noOwnedLand": "Nowhere else to march",
+  "ascent.army.groupHost": "The host",
+  "ascent.army.groupSupply": "Reinforcement",
+  "ascent.army.statPower": "Field power",
+  "ascent.army.statMen": "Men",
+  "ascent.army.statMorale": "Morale",
+  "ascent.army.statSupply": "Supply",
+  "ascent.army.upkeepLine": "{gold} gold · {food} food each season",
+  "ascent.army.runwayShort": "rations {ticks} seasons",
+  "ascent.army.commanderChange": "Change",
+  "ascent.army.noCommander": "No commander",
+  "ascent.battle.whoCommands": "Who fights its battles",
+  "ascent.battle.commandMine": "I take the field",
+  "ascent.battle.commandGeneral": "Its general",
+  "ascent.battle.commandMineBody": "Its battles open for you to watch and steer.",
+  "ascent.battle.commandGeneralBody": "Its general fights them. You are told the result.",
 
   // ── The tax dial ──────────────────────────────────────────────────────────
   "court.section.tax": "Taxation",
@@ -741,7 +756,7 @@ export const enAscent = {
 
   // ── Founder ───────────────────────────────────────────────────────────────
   "ascent.founder.title": "Found your dynasty",
-  "ascent.founder.subtitle": "Your first champion shapes the whole run.",
+  "ascent.founder.subtitle": "A ruler rises, and one champion rises with them.",
 
   // ── Codex ─────────────────────────────────────────────────────────────────
   "ascent.codex.title": "Hero Codex",
@@ -782,6 +797,21 @@ export const enAscent = {
   "ascent.over.legacyEarned": "Legacy banked +{earned}  ·  {total} in the vault",
   "ascent.over.perkShort": "{short} more buys {perk}",
   "ascent.over.perkReady": "{perk} is yours to claim in the menu",
+  // ── the throne ──
+  "ascent.ruler.title": "Take the throne",
+  "ascent.ruler.subtitle": "Choose the ruler this dynasty answers to.",
+  "ascent.ruler.era.dinh": "ruler  ·  Đinh · Tiền Lê",
+  "ascent.ruler.era.ly": "ruler  ·  Lý dynasty",
+  "ascent.ruler.era.tran": "ruler  ·  Trần dynasty",
+  "ascent.ruler.era.le": "ruler  ·  Lê dynasty",
+  "ascent.ruler.era.tayson": "ruler  ·  Tây Sơn",
+  "ascent.ruler.era.nguyen": "ruler  ·  Nguyễn dynasty",
+  "ascent.founder.standard": "The standard your provinces will fly",
+  "ascent.founder.gift.governor": "Brings a neighbouring district, already his to administer",
+  "ascent.founder.gift.general": "Brings the men who follow him — half again the royal host",
+  "ascent.founder.gift.minister": "Brings the treasury he has been keeping",
+  "ascent.founder.gift.agent": "Brings the country's goodwill, and the people who trust the name",
+  "ascent.screen.throne": "You reign as {king}. {n} champion(s) serve."
 } as const;
 
 export const viAscent = {
@@ -1002,6 +1032,21 @@ export const viAscent = {
   "ascent.army.runway": "Lương ăn được khoảng {ticks} mùa",
   "ascent.army.runwayOut": "Hết lương — sĩ khí đang tụt",
   "ascent.army.noOwnedLand": "Không còn nơi nào để hành quân tới",
+  "ascent.army.groupHost": "Đạo quân",
+  "ascent.army.groupSupply": "Tiếp viện",
+  "ascent.army.statPower": "Sức chiến",
+  "ascent.army.statMen": "Quân",
+  "ascent.army.statMorale": "Sĩ khí",
+  "ascent.army.statSupply": "Quân nhu",
+  "ascent.army.upkeepLine": "{gold} vàng · {food} lương mỗi mùa",
+  "ascent.army.runwayShort": "lương ăn {ticks} mùa",
+  "ascent.army.commanderChange": "Đổi",
+  "ascent.army.noCommander": "Chưa có chủ tướng",
+  "ascent.battle.whoCommands": "Ai chỉ huy trận đánh",
+  "ascent.battle.commandMine": "Ta cầm quân",
+  "ascent.battle.commandGeneral": "Chủ tướng",
+  "ascent.battle.commandMineBody": "Trận của đạo quân này sẽ mở ra cho ngươi xem và điều khiển.",
+  "ascent.battle.commandGeneralBody": "Chủ tướng tự đánh. Ngươi chỉ nhận kết quả.",
 
   // ── Thuế khóa ─────────────────────────────────────────────────────────────
   "court.section.tax": "Thuế khóa",
@@ -1522,7 +1567,7 @@ export const viAscent = {
 
   // ── Founder ───────────────────────────────────────────────────────────────
   "ascent.founder.title": "Lập nghiệp vương triều",
-  "ascent.founder.subtitle": "Danh tướng đầu tiên định hình cả cuộc chinh phạt.",
+  "ascent.founder.subtitle": "Một quân vương lên ngôi, và một danh tướng theo phò.",
 
   // ── Codex ─────────────────────────────────────────────────────────────────
   "ascent.codex.title": "Danh Lục Anh Hùng",
@@ -1563,4 +1608,19 @@ export const viAscent = {
   "ascent.over.legacyEarned": "Di sản thu được +{earned}  ·  {total} trong kho",
   "ascent.over.perkShort": "Thêm {short} nữa là mua được {perk}",
   "ascent.over.perkReady": "{perk} đã có thể nhận ở màn hình chính",
+  // ── the throne ──
+  "ascent.ruler.title": "Lên ngôi",
+  "ascent.ruler.subtitle": "Chọn vị quân vương mà vương triều này phụng sự.",
+  "ascent.ruler.era.dinh": "quân vương  ·  Đinh · Tiền Lê",
+  "ascent.ruler.era.ly": "quân vương  ·  Nhà Lý",
+  "ascent.ruler.era.tran": "quân vương  ·  Nhà Trần",
+  "ascent.ruler.era.le": "quân vương  ·  Nhà Lê",
+  "ascent.ruler.era.tayson": "quân vương  ·  Tây Sơn",
+  "ascent.ruler.era.nguyen": "quân vương  ·  Nhà Nguyễn",
+  "ascent.founder.standard": "Cờ hiệu mà các trấn của bạn sẽ treo",
+  "ascent.founder.gift.governor": "Mang theo một trấn liền kề, vốn đã do ông cai quản",
+  "ascent.founder.gift.general": "Mang theo những người theo ông — cấm quân đông thêm một nửa",
+  "ascent.founder.gift.minister": "Mang theo ngân khố mà ông vẫn giữ",
+  "ascent.founder.gift.agent": "Mang theo lòng dân và những người tin vào cái tên ấy",
+  "ascent.screen.throne": "Bạn trị vì với hiệu {king}. {n} danh tướng phò tá."
 } satisfies Record<keyof typeof enAscent, string>;

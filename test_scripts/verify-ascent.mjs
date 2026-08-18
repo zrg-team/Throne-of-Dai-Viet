@@ -10,7 +10,7 @@ const errors = [];
 page.on('pageerror', (err) => errors.push(`PAGEERROR: ${err.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE: ${m.text()}`); });
 
-await page.goto('http://localhost:5173/?capture=1', { waitUntil: 'domcontentloaded' });
+await page.goto((process.env.DEV_URL ?? 'http://127.0.0.1:5173') + '/?capture=1', { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame && window.__phaserGame.scene.isActive('MenuScene'),
   null, { timeout: 30000 });
 
@@ -552,6 +552,12 @@ const orders = await page.evaluate(async () => {
   let s = 777 >>> 0;
   Math.random = () => { s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   const st = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
+  // Answer the founding rather than discarding it. The opening gift — a district, a bigger
+  // host, a treasury — now arrives with the champion who founds the dynasty, so a scenario that
+  // throws the card away starts on a single province with nothing to give an order to.
+  if (st.pendingAscentPrompt?.kind === 'founder') {
+    resolveAscentPrompt(st, st.pendingAscentPrompt.options[0]);
+  }
   st.pendingAscentPrompt = undefined;
   st.ascent.promptQueue = [];
   // Quiet world: no waves, no raids, so a march is the order's and nothing else's — and a full

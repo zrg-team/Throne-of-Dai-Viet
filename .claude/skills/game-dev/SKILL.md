@@ -16,6 +16,7 @@ Load the skill that matches the work:
 | Colors, paper/ink look, renderers, portraits, icons, quality tiers | [game-art-theme](../game-art-theme/SKILL.md) |
 | Hexes, terrain, map generation, lands, culling, fog, minimap | [game-map](../game-map/SKILL.md) |
 | Modes, tick loop, resources, combat, cards, stories, balance | [game-mechanics](../game-mechanics/SKILL.md) |
+| Champions: the roster, bios, the throne's rulers, hero portraits | [game-heroes](../game-heroes/SKILL.md) |
 | Writing or running a verification script | [game-harness](../game-harness/SKILL.md) |
 
 ## The gates

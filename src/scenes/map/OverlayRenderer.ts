@@ -28,6 +28,8 @@ export class OverlayRenderer {
   private armyHighlightLoops = new Map<string, Array<Array<{ x: number; y: number }>>>();
   private selectionGraphics!: Phaser.GameObjects.Graphics;
   private fogGraphics!: Phaser.GameObjects.Graphics;
+  /** The lighter veil over ground the realm can see but does not hold. See `repaintForeignHaze`. */
+  private foreignHazeGraphics!: Phaser.GameObjects.Graphics;
   private fogBakeRT?: Phaser.GameObjects.RenderTexture;
   private armyHighlightGraphics?: Phaser.GameObjects.Graphics;
 
@@ -182,6 +184,69 @@ export class OverlayRenderer {
       return;
     }
     for (const source of sources) { source.setVisible(false); source.setScale(1); }
+  }
+
+  /**
+   * Ground the realm can SEE but does not hold — hazed, so that what is yours reads as yours.
+   *
+   * Visibility here is owned-plus-neighbours, so a province you have never set foot in arrives on
+   * the sheet drawn exactly as crisply as your own capital: its houses, its farmers, its herds and
+   * its name plate, all at full strength. There was no filter on it of any kind — fog is painted
+   * only over ground that is *hidden*, and the moment a province stops being hidden it becomes
+   * indistinguishable from the realm.
+   *
+   * Two things lift the haze, which is precisely the pair a player would name: **you hold it**, or
+   * **one of your hosts is standing on it**. A province you have marched into is a province you
+   * have looked at.
+   *
+   * Half the weight of the frontier fog and none of its texture: this is not the chronicle failing
+   * to reach the ground, it is the ground belonging to somebody else. It sits just under the fog so
+   * hidden ground still reads as hidden, and above every marker and settlement node so the veil
+   * covers what stands on the land and not merely the land.
+   */
+  createForeignHazeLayer(
+    state: GameState,
+    hexTileMap: Map<string, HexTile>,
+    wx: WorldTransform,
+    wy: WorldTransform,
+  ): Phaser.GameObjects.Graphics {
+    this.foreignHazeGraphics = this.scene.add.graphics();
+    this.foreignHazeGraphics.setDepth(77.4);
+    this.repaintForeignHaze(state, hexTileMap, wx, wy);
+    return this.foreignHazeGraphics;
+  }
+
+  /** Whether the realm has actually been on this ground — held it, or has a host standing there. */
+  static isHeldOrOccupied(state: GameState, land: Land): boolean {
+    if (land.ownerId === PLAYER_KINGDOM_ID) {
+      return true;
+    }
+    return state.armies.some((army) => army.kingdomId === PLAYER_KINGDOM_ID && army.landId === land.id);
+  }
+
+  repaintForeignHaze(
+    state: GameState,
+    hexTileMap: Map<string, HexTile>,
+    wx: WorldTransform,
+    wy: WorldTransform,
+  ): void {
+    if (!this.foreignHazeGraphics) {
+      return;
+    }
+    this.foreignHazeGraphics.clear();
+    for (const land of state.lands) {
+      // Hidden ground is the fog's business, and drawing both over it doubles the veil.
+      if (!land.isVisible || OverlayRenderer.isHeldOrOccupied(state, land)) {
+        continue;
+      }
+      const loops = traceLandBoundaryLoops(state, hexTileMap, wx, wy, this.landBoundaryLoops, land.id);
+      this.foreignHazeGraphics.fillStyle(this.mapRenderer.palette.fog, 0.42);
+      for (const loop of loops) {
+        if (loop.length >= 3) {
+          this.foreignHazeGraphics.fillPoints(loop, true);
+        }
+      }
+    }
   }
 
   repaintFogOfWar(

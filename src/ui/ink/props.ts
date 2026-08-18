@@ -759,89 +759,152 @@ export function farmer(g: G, x: number, y: number, scale: number, seed: number):
 // ── landform ──────────────────────────────────────────────────────────────────
 
 /**
- * Núi đá vôi — karst. Vietnam's mountains are limestone towers with near-vertical flanks and
- * rounded, broken tops rising straight out of flat paddy: Ninh Bình, Tam Cốc, Hạ Long.
+ * Núi — a mountain as Vietnamese painting draws one.
  *
- * Drawn as smooth domes they become sand dunes; drawn with a jagged crown they become teeth. What
- * they actually are is a thumb of rock — a wall that turns over at the top.
+ * Drawn from the reference rather than from an idea of limestone, after two passes that were built
+ * on the idea and came out as a row of pillars. What the paintings actually do — the lacquer and
+ * silk landscapes, and the rock the folk prints put their tigers on — is a **cone**: a broad skirt,
+ * flanks that run nearly straight and steep, and a narrow rounded crown. Wider at the foot than it
+ * is tall. Never a vertical wall, never a shaft with a dome on it.
+ *
+ * It is also what the country actually looks like where this game is set. Ninh Bình and Tam Cốc are
+ * cone karst — forested cones standing out of the paddy — not the bare sea-cliffs of Hạ Long, and
+ * a horizon of tall narrow towers is neither the landform nor the way anyone here has ever painted
+ * it.
+ *
+ * The other half is in `planKarstRange`: cones are drawn in interlocking RANKS, so the skyline is a
+ * chain of V-notches rather than separate shapes with sky standing between them. One cone alone is
+ * not the unit of this landscape; the chain is.
+ *
+ * `depth` is which rank this one stands in, 0 at the back and 1 at the front, and it drives
+ * everything that says distance: contour weight and darkness, how much shading the face carries,
+ * whether the interior is drawn at all, and a wash of paper over the far ones. The back rank in
+ * every one of these paintings is nearly flat colour; the front rank carries all the drawing.
  */
-export function karst(g: G, x: number, baseY: number, w: number, h: number, seed: number, far = false): void {
+export function karst(
+  g: G,
+  x: number,
+  baseY: number,
+  w: number,
+  h: number,
+  seed: number,
+  far = false,
+  depth = 0.5,
+): void {
   const rand = mulberry32(seed);
-  const lean = (rand() - 0.5) * 0.22;
   const half = w / 2;
-  const outline: Pt[] = [{ x: x - half, y: baseY }];
+  // The crown sits near the middle — a cone is not a tilted wedge — but never dead centre.
+  const apexX = x + (rand() - 0.5) * w * 0.26;
+  const jitter = (amount: number): number => (rand() - 0.5) * amount;
 
-  for (let step = 1; step <= 7; step += 1) {
-    const t = step / 7;
-    const inset = half * (0.18 + 0.16 * t) * Math.pow(t, 0.55);
-    outline.push({ x: x - half + inset + lean * h * t, y: baseY - h * 0.86 * t });
-  }
-  for (let step = 0; step <= 5; step += 1) {
+  /**
+   * One flank, foot to crown.
+   *
+   * The exponent is what makes it a cone rather than a pyramid: above 1 the edge holds its width
+   * as it climbs and gives up the last of it near the top, which is the full-skirted, slightly
+   * convex flank these paintings draw. At 1 it is a triangle — an Alp — and below 1 it pinches
+   * into a spike. The band is narrow on purpose; there is not much room between a mountain and a
+   * tent.
+   */
+  const belly = 1.22 + rand() * 0.26;
+  const CROWN = 0.82;
+  const flank = (side: number): Pt[] => {
+    const footX = x + side * half;
+    const points: Pt[] = [];
+    const STEPS = 4;
+    for (let step = 0; step <= STEPS; step += 1) {
+      const t = (step / STEPS) * CROWN;
+      const last = step === STEPS;
+      points.push({
+        x: footX + (apexX - footX) * Math.pow(t, belly) + (last || step === 0 ? 0 : jitter(w * 0.035)),
+        y: baseY - h * t + (last || step === 0 ? 0 : jitter(h * 0.03)),
+      });
+    }
+    return points;
+  };
+
+  const left = flank(-1);
+  const right = flank(1);
+  const leftCrown = left[left.length - 1];
+  const rightCrown = right[right.length - 1];
+
+  // The crown: a short arc over the last of the climb. Sharp enough to be a peak, blunt enough to
+  // be rock — the paintings round it just off the point.
+  const crown: Pt[] = [];
+  const rise = h * (1 - CROWN) * (0.5 + rand() * 0.34);
+  for (let step = 1; step <= 4; step += 1) {
     const t = step / 5;
-    const angle = Math.PI - t * Math.PI;
-    const notch = step > 0 && step < 5 && rand() > 0.55 ? h * 0.055 : 0;
-    outline.push({
-      x: x + Math.cos(angle) * half * 0.5 + lean * h,
-      y: baseY - h * (0.86 + Math.sin(angle) * 0.14) + notch,
+    crown.push({
+      x: leftCrown.x + (rightCrown.x - leftCrown.x) * t,
+      y: leftCrown.y + (rightCrown.y - leftCrown.y) * t - Math.sin(t * Math.PI) * rise,
     });
   }
-  for (let step = 7; step >= 1; step -= 1) {
-    const t = step / 7;
-    const inset = half * (0.18 + 0.16 * t) * Math.pow(t, 0.55);
-    outline.push({ x: x + half - inset + lean * h * t, y: baseY - h * 0.86 * t });
-  }
-  outline.push({ x: x + half, y: baseY });
+
+  const outline: Pt[] = [...left, ...crown, ...[...right].reverse()];
+  const apex = crown[1] ?? leftCrown;
 
   if (!far) {
-    washFill(g, [...outline, { x: x + half, y: baseY + 5 }, { x: x - half, y: baseY + 5 }], PIGMENT.diepLo, seed, 1);
+    // The far rank is laid in the paper's own tone and the near one in the deeper pigment. Note it
+    // is a *choice of pigment*, not a wash of white over the rock: washing the back rank toward
+    // `diepHi` made it BRIGHTER than the ground it stands on, and a mountain lighter than the sky
+    // does not recede — it cuts out of the sheet and jumps forward, which is what the last pass
+    // did. Distance here is less contrast with the paper, in both directions.
+    //
+    // The far rank's skirt also runs well below its foot. Its feet are raised, and a flat fill
+    // edge hanging in the air is a torn strip of paper; buried under the near rank and the mist,
+    // it is a mountain standing behind something.
+    const skirt = baseY + (depth < 0.45 ? h * 0.34 : 5);
+    washFill(g, [...outline, { x: x + half, y: skirt }, { x: x - half, y: skirt }], PIGMENT.diepLo, seed, 1);
+    // One body for every rank, and distance taken off the top of it — never a lighter pigment than
+    // the paper. Filling the back rank toward `diepHi` made it BRIGHTER than the sheet it stands
+    // on, and a mountain lighter than the sky does not recede: it cuts out and jumps forward,
+    // which is what the pale cones in the last pass were doing.
+    washFill(g, outline, PIGMENT.diepHi, seed + 61, 0.3 * (1 - depth), 0);
+    if (depth > 0.3) {
+      washFill(g, outline, PIGMENT.diepDeep, seed + 62, 0.32 * depth, 0);
+    }
   }
-  // The same contour weight as the hills' ridge (1.2 / 0.8). The old 1.35 @ 0.86 was the
-  // heaviest line on the map short of the city wall, and a horizon of towers each carrying it
-  // read as a row of stamped-on cut-outs rather than rock standing in light.
+  // Contour weight and darkness follow the rank forward, across a wide range. The old range carried
+  // a single line — 1.2 at 0.8 — on every mass at every distance, which is exactly what read as
+  // stamped cut-outs, and what turned a low mass standing inside a tall one into an archway cut
+  // clean through the rock.
   inkPath(g, far ? outline.slice(1, outline.length - 1) : outline, seed + 3, {
-    width: far ? 0.8 : 1.2, alpha: far ? 0.3 : 0.8, wobble: far ? 0.3 : 0.5, step: far ? 12 : 8,
+    width: far ? 0.8 : 0.55 + depth * 0.7,
+    alpha: far ? 0.3 : 0.12 + depth * 0.62,
+    wobble: far ? 0.3 : 0.55,
+    step: far ? 12 : 9,
   });
-  if (far) {
+  if (far || h < 14 || depth < 0.4) {
     return;
   }
 
-  // The shaded flank, on the same upper-left light as the hills. This is the pass the towers
-  // never had: outline-plus-fissures with zero tonal separation is a paper cut-out, and a
-  // whole range of them is what made the mountains read as unreal. One wash turned away from
-  // the light makes the thumb of rock a body instead of a shape.
-  const shade: Pt[] = [];
-  for (let step = 0; step <= 3; step += 1) {
-    const angle = Math.PI / 2 - (step / 3) * (Math.PI / 2);
-    shade.push({
-      x: x + Math.cos(angle) * half * 0.5 + lean * h,
-      y: baseY - h * (0.86 + Math.sin(angle) * 0.14),
+  // The fold that runs from the crown down the face, dividing the lit side from the shaded one.
+  // It is the single stroke that turns a silhouette into a body of rock, and the one every one of
+  // these paintings puts in first after the outline.
+  const shadedRight = rand() > 0.45;
+  const drift = (shadedRight ? 1 : -1) * half * (0.2 + rand() * 0.22);
+  const spine: Pt[] = [{ x: apex.x, y: apex.y + h * 0.06 }];
+  for (let node = 1; node <= 3; node += 1) {
+    const k = node / 3;
+    spine.push({
+      x: apex.x + drift * Math.pow(k, 1.3) + (node < 3 ? jitter(w * 0.03) : 0),
+      y: apex.y + h * 0.06 + (baseY - apex.y - h * 0.06) * Math.pow(k, 0.95),
     });
   }
-  for (let step = 7; step >= 0; step -= 1) {
-    const s = step / 7;
-    const inset = half * (0.18 + 0.16 * s) * Math.pow(s, 0.55);
-    shade.push({ x: x + half - inset + lean * h * s, y: baseY - h * 0.86 * s });
-  }
-  shade.push({ x: x + half * 0.08, y: baseY });
-  shade.push({ x: x + lean * h * 0.9, y: baseY - h * 0.82 });
-  washFill(g, shade, PIGMENT.diepDeep, seed + 7, 0.3);
+  const shadedFlank = shadedRight ? right : left;
+  washFill(
+    g,
+    [...spine, { x: shadedFlank[0].x, y: baseY }, ...shadedFlank],
+    PIGMENT.diepDeep,
+    seed + 7,
+    0.1 + depth * 0.24,
+  );
+  inkPath(g, spine, seed + 9, { width: 0.4 + depth * 0.2, alpha: 0.06 + depth * 0.1, wobble: 0.4, step: 10 });
 
-  // Fissures follow the rock's own lean and land anywhere on the face — the old four sat in a
-  // fixed vertical rank on the left half of every tower, which is half of why the flanks read
-  // as ribbed rather than cracked. Small towers go without; at that size a crack is noise.
-  const fissures = h < 14 ? 0 : 2 + Math.floor(rand() * 2);
-  for (let fissure = 0; fissure < fissures; fissure += 1) {
-    const fx = x + (rand() - 0.5) * half * 1.1 + lean * h * 0.5;
-    const top = baseY - h * (0.55 + rand() * 0.28);
-    const len = h * (0.3 + rand() * 0.3);
-    inkPath(g, [
-      { x: fx, y: top },
-      { x: fx + lean * len * 0.8 + (rand() - 0.5) * 2, y: top + len * 0.55 },
-      { x: fx + lean * len * 1.2 + (rand() - 0.5) * 2.5, y: top + len },
-    ], seed + 20 + fissure, {
-      width: 0.55, alpha: 0.22, wobble: 0.3, step: 9,
-    });
-  }
+  // No folds, no fissures, no cracks. Three passes have now tried linework on the face — ribbed
+  // flanks, scattered fissures, folds off the spine — and every one of them read as scratches on
+  // the paper rather than as rock. The paintings do not draw the face at all: they TONE it, and
+  // leave the drawing to the silhouette. So does this.
   // No scrub on the crown. The three tufts that used to sit up there read as a pair of
   // green spectacles on every summit, and forty of them across the horizon is the first
   // thing the eye finds. The rock carries itself.
@@ -986,11 +1049,22 @@ export function softRidge(g: G, x0: number, x1: number, baseY: number, height: n
 }
 
 /**
- * A range: karst towers clustered, taller ones behind, bases staggered so it is not a fence.
+ * A range: cones in interlocking ranks, back to front.
  *
- * `spread` thins the range out. At 1 the towers overlap heavily and the horizon is a solid wall
- * of rock, which is right on the map — a massif has to fill the tiles it occupies. The menu wants
- * open country between the towers, so it asks for more.
+ * The unit of this landscape is the chain, not the cone. Every Vietnamese landscape that has
+ * mountains in it builds them the same way — a serrated back rank of small pale cones running the
+ * whole width, then fewer, larger, darker ones standing into it, their skirts crossing so the
+ * skyline between two peaks is a V and not a gap of sky. Masses placed one at a time along a line,
+ * as this did twice, cannot produce that: they come out as separate objects standing on a shelf,
+ * which is what a fence is.
+ *
+ * So the ranks are laid separately and each carries its own distance. The back one is nearly flat
+ * colour; the front one takes the drawing, the shading and the drop that puts its feet on nearer
+ * ground.
+ *
+ * `spread` opens the chain out. At 1 the cones overlap the way a massif does, which is right on the
+ * map — a body of rock has to fill the tiles it occupies. Above it the chain loosens toward
+ * separate hills.
  */
 export function planKarstRange(
   x0: number,
@@ -1002,34 +1076,49 @@ export function planKarstRange(
   spread = 1,
 ): ReliefPlan {
   const rand = mulberry32(seed);
-  const towers: Array<{ x: number; w: number; h: number; drop: number }> = [];
-  let x = x0;
-  while (x < x1) {
-    // Height first, then a width derived FROM IT. Rolling both off `height`
-    // independently is what made the range squat: a tower could come out wider than it
-    // was tall, and a rank of those hugs the horizon in a low band instead of standing
-    // up in it.
-    // The ceiling is deliberate: the menu hangs its title over this band, and towers rolled
-    // to 1.7x the nominal height grow straight through the lettering.
-    //
-    // Aspect 1.0–1.7 and an advance of most of a tower's own width. The old numbers —
-    // aspect up to 2.65, advance half a width — packed eight to ten overlapping chimneys
-    // into a single hex, and a horizon of identical thumbs at 50% overlap is exactly the
-    // saw-tooth wall the mountains were hated for. Fewer, broader towers, standing mostly
-    // beside one another with the drop stagger doing the clustering, read as a massif.
-    const h = height * (far ? 0.5 + rand() * 0.4 : 0.55 + Math.pow(rand(), 0.75) * 0.79);
-    const w = far ? height * (1.5 + rand() * 0.9) : h / (1.0 + rand() * 0.7);
-    towers.push({
-      x: x + w * 0.5,
-      w,
-      h,
-      drop: far ? 0 : rand() * height * 0.34,
-    });
-    x += w * (far ? 0.8 : 0.8 + rand() * 0.45) * spread;
+  const towers: Array<{ x: number; w: number; h: number; drop: number; depth: number }> = [];
+
+  const rank = (back: boolean): void => {
+    // The back rank starts off the left edge so its chain has no visible beginning.
+    let x = x0 - (back ? rand() * height * 0.4 : 0);
+    while (x < x1) {
+      const h = height * (back ? 0.44 + rand() * 0.3 : 0.66 + Math.pow(rand(), 0.8) * 0.68);
+      // WIDER than tall, always. This one number is what decided whether these read as mountains:
+      // rolled the other way up — an aspect of 1.0 to 1.7 in HEIGHT — every mass came out a
+      // column, and no amount of work on the profile rescues a rank of columns.
+      const w = h * (back ? 1.45 + rand() * 0.8 : 1.3 + rand() * 0.7);
+      towers.push({
+        x: x + w * 0.5,
+        w,
+        h,
+        // Distance puts a foot HIGHER on the paper, not lower, which is what lets the back rank
+        // show over the skirts of the front one instead of hiding behind them — the layering every
+        // one of these paintings is built on.
+        drop: back ? -height * (0.04 + rand() * 0.08) : height * (0.06 + rand() * 0.12),
+        depth: far ? 0 : back ? 0.16 + rand() * 0.16 : 0.58 + rand() * 0.42,
+      });
+      // Skirts crossing, not shapes side by side: the advance is well under a full width, which is
+      // what leaves a V between two crowns instead of a shelf of sky.
+      x += w * (back ? 0.4 + rand() * 0.2 : 0.44 + rand() * 0.26) * spread;
+    }
+  };
+
+  if (far) {
+    // A far range is one flat rank — it is the air at the back of the map, not a subject.
+    let x = x0;
+    while (x < x1) {
+      const h = height * (0.5 + rand() * 0.4);
+      const w = height * (1.5 + rand() * 0.9);
+      towers.push({ x: x + w * 0.5, w, h, drop: 0, depth: 0 });
+      x += w * 0.8 * spread;
+    }
+  } else {
+    rank(true);
+    rank(false);
   }
-  towers.sort((a, b) => b.h - a.h);
-  // The whole range takes ONE place in the sort, at the foot of its deepest-set tower. Sorting the
-  // towers individually would break the massif apart and let trees stand between them, which is
+
+  // The whole range takes ONE place in the sort, at the foot of its deepest-set cone. Sorting the
+  // masses individually would break the massif apart and let trees stand between them, which is
   // not what a body of rock does; and taking the deepest foot means anything the range could
   // possibly stand in front of is behind the range as a whole.
   const footY = towers.reduce((low, tower) => Math.max(low, baseY + tower.drop), baseY);
@@ -1037,17 +1126,21 @@ export function planKarstRange(
   return {
     footY,
     bounds: { x0, x1, topY, footY: footY + 5 },
-    // A tower is a column of rock with near-vertical flanks, so its own span is its silhouette.
-    // The gaps BETWEEN towers are what matter here: a road threading a pass has to keep its
-    // traffic visible, and a rectangle over the whole range would swallow it.
+    // The cone's own profile, not its box: the gaps between crowns are what matter here, because a
+    // road threading a pass has to keep its traffic visible and a rectangle over the whole range
+    // would swallow it.
     occludes: (x: number, y: number) => towers.some((tower) => {
-      const half = tower.w * 0.5;
       const foot = baseY + tower.drop;
-      return x >= tower.x - half && x <= tower.x + half && y <= foot && y >= foot - tower.h;
+      if (y > foot || y < foot - tower.h) {
+        return false;
+      }
+      const climbed = (foot - y) / tower.h;
+      const halfHere = tower.w * 0.5 * Math.max(0, 1 - Math.pow(climbed, 0.92));
+      return Math.abs(x - tower.x) <= halfHere;
     }),
     draw: (g: G) => {
       towers.forEach((tower, index) => {
-        karst(g, tower.x, baseY + tower.drop, tower.w, tower.h, seed + index * 37, far);
+        karst(g, tower.x, baseY + tower.drop, tower.w, tower.h, seed + index * 37, far, tower.depth);
       });
     },
   };

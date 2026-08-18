@@ -47,37 +47,99 @@ function paintStanding(parts: Standing[]): void {
  * with no comparison at all, and a tree's ground line can be 19·s *behind* the roofs. That is the
  * single most visible ordering fault on the map — a tree drawn over the house it stands behind.
  */
+/**
+ * Keeps standing props off each other's ground.
+ *
+ * A settlement's props were each placed by one roll of the dice and drawn wherever it landed, so
+ * two roofs could be dealt the same patch of earth and a tree could be dealt a roof — which is
+ * what the villages kept coming out as: a house behind a house behind a canopy, none of them
+ * whole. Painting order fixed which one was in front; it could not stop them being on top of each
+ * other in the first place.
+ *
+ * The footprints are ELLIPSES, not circles, and much wider than they are tall, because everything
+ * here is drawn in oblique: two roofs a roof's width apart read as two houses, and two roofs the
+ * same distance apart *vertically* read as one house behind another. Circles would space the
+ * village out along a dimension it is not seen in.
+ */
+export class GroundSpacer {
+  private readonly taken: Array<{ x: number; y: number; rx: number; ry: number }> = [];
+
+  /** Whether this footprint clears everything already standing. */
+  free(x: number, y: number, rx: number, ry: number): boolean {
+    return !this.taken.some((other) => {
+      const dx = (x - other.x) / (rx + other.rx);
+      const dy = (y - other.y) / (ry + other.ry);
+      return dx * dx + dy * dy < 1;
+    });
+  }
+
+  claim(x: number, y: number, rx: number, ry: number): void {
+    this.taken.push({ x, y, rx, ry });
+  }
+
+  /**
+   * The first candidate position that clears the ground, claimed. `undefined` when the village is
+   * full — and the caller is expected to DROP that prop rather than force it in. A hamlet of four
+   * houses that all read is worth more than one of six where two are a smear.
+   */
+  fit(next: () => { x: number; y: number }, rx: number, ry: number, tries = 14): { x: number; y: number } | undefined {
+    for (let attempt = 0; attempt < tries; attempt += 1) {
+      const at = next();
+      if (this.free(at.x, at.y, rx, ry)) {
+        this.claim(at.x, at.y, rx, ry);
+        return at;
+      }
+    }
+    return undefined;
+  }
+}
+
 export function hamlet(g: G, x: number, y: number, s: number, seed: number, count = 6): void {
   const rand = mulberry32(seed);
   const standing: Standing[] = [];
+  // Every prop here asks the ground for room before it takes it, and gives up its place rather
+  // than stand on somebody. The disc is wider than it was — houses that have to clear each other
+  // need somewhere to go, and a hamlet crowded into the old radius simply lost half its roofs.
+  const spacer = new GroundSpacer();
 
   for (let index = 0; index < count; index += 1) {
-    const angle = rand() * Math.PI * 2;
-    const distance = Math.sqrt(rand()) * 44 * s;
-    const hx = x + Math.cos(angle) * distance * 1.4;
-    const hy = y + Math.sin(angle) * distance * 0.55;
+    const at = spacer.fit(() => {
+      const angle = rand() * Math.PI * 2;
+      const distance = Math.sqrt(rand()) * 56 * s;
+      return { x: x + Math.cos(angle) * distance * 1.4, y: y + Math.sin(angle) * distance * 0.55 };
+    }, 15 * s, 5.5 * s);
+    if (!at) {
+      continue;
+    }
     const hs = s * (0.95 + rand() * 0.1);
     const hseed = seed + index * 37;
     standing.push({
-      y: hy,
+      y: at.y,
       draw: () => {
-        groundShadow(g, hx + 13 * hs, hy + 1, 17 * hs, 0.08);
-        house(g, hx, hy, hs, hseed);
+        groundShadow(g, at.x + 13 * hs, at.y + 1, 17 * hs, 0.08);
+        house(g, at.x, at.y, hs, hseed);
       },
     });
   }
 
-  // Same `rand()` draw order as before, so a hamlet keeps the layout its seed always gave it —
-  // only the painting order changes.
+  // A tree standing ON a roof was the other half of it — and the canopy is the biggest thing in a
+  // hamlet, so it took the whole house with it. Trees claim more ground than a house does.
   for (let index = 0; index < 3; index += 1) {
-    const tx = x + (rand() - 0.5) * 104 * s;
-    const ty = y + (rand() - 0.5) * 38 * s;
+    const at = spacer.fit(
+      () => ({ x: x + (rand() - 0.5) * 116 * s, y: y + (rand() - 0.5) * 42 * s }),
+      17 * s,
+      7 * s,
+    );
+    if (!at) {
+      continue;
+    }
     // Jitter only — variety between the three trees, not a size of their own.
     const ts = s * (0.9 + rand() * 0.2);
-    standing.push({ y: ty, draw: () => tree(g, tx, ty, ts, seed + 500 + index) });
+    standing.push({ y: at.y, draw: () => tree(g, at.x, at.y, ts, seed + 500 + index) });
   }
 
   const stackY = y + 10 * s;
+  spacer.claim(x - 58 * s, stackY, 11 * s, 5 * s);
   standing.push({ y: stackY, draw: () => hayStack(g, x - 58 * s, stackY, s, seed + 600) });
 
   paintStanding(standing);
@@ -133,18 +195,28 @@ export function village(g: G, x: number, y: number, s: number, seed: number): vo
     const hy = baseY + (index === 1 ? 3 * s : 0);
     standing.push({ y: hy, draw: () => house(g, hx, hy, s, seed + 10 + index) });
   }
-  for (let index = 0; index < 3; index += 1) {
-    const ax = x + 46 * s + index * 7 * s;
-    const ay = y + 24 * s - index * 9 * s;
-    standing.push({ y: ay, draw: () => areca(g, ax, ay, s, seed + 30 + index) });
+  // The stand at the village's edge: a cây đa OR a clump of cau, never both. They were drawn at
+  // +46 and +54 — inside the last roof at +34 and on top of each other — so a village came out
+  // with palms growing through its houses and the banyan growing through the palms. One tall thing
+  // at the edge, and it starts clear of the last house rather than in it.
+  // +76, not +62: the lũy tre's last clump stands at +62, so the edge tree was being planted in
+  // the hedge as well as in the houses.
+  const edgeX = x + 76 * s;
+  // Rolled where the banyan used to be, after the pond's fifteen draws, so the seed still decides
+  // the same villages.
+  const hasBanyan = rand() > 0.5;
+  if (hasBanyan) {
+    const banyanY = y - 7 * s;
+    standing.push({ y: banyanY, draw: () => banyan(g, edgeX, banyanY, s, seed + 50) });
+  } else {
+    for (let index = 0; index < 3; index += 1) {
+      const ax = edgeX + index * 8 * s;
+      const ay = y + 24 * s - index * 9 * s;
+      standing.push({ y: ay, draw: () => areca(g, ax, ay, s, seed + 30 + index) });
+    }
   }
   const stackY = y + 24 * s;
   standing.push({ y: stackY, draw: () => hayStack(g, x - 50 * s, stackY, s, seed + 40) });
-  // Rolled here, after the pond's fifteen draws, so the seed still decides the same villages.
-  if (rand() > 0.5) {
-    const banyanY = y - 7 * s;
-    standing.push({ y: banyanY, draw: () => banyan(g, x + 54 * s, banyanY, s, seed + 50) });
-  }
 
   paintStanding(standing);
 }

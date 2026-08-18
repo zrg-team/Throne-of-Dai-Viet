@@ -1089,6 +1089,8 @@ export function stageWatchedAssault(state: GameState, army: Army, land: Land): '
   const ascent = state.ascent;
   if (state.gameMode !== 'ascent' || !ascent || ascent.autoResolveBattles) return 'no';
   if (army.kingdomId !== PLAYER_KINGDOM_ID || army.isLevy) return 'no';
+  // This host's own answer to "who fights its battles". The run-wide switch above still wins.
+  if (army.autoResolve) return 'no';
   if (getSiegeOrder(state, land.id)) return 'no';
   const preview = createBattlePreview(state, army.id, land.id);
   if (!preview) return 'no';

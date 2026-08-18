@@ -20,7 +20,7 @@ export type CardIconId =
   | 'coin' | 'purse' | 'scroll' | 'blade' | 'shield' | 'banner'
   | 'hut' | 'ladder' | 'crown' | 'scales' | 'person' | 'grain'
   | 'herd' | 'cart' | 'branch' | 'retreat' | 'spark' | 'wall'
-  | 'hourglass' | 'skull' | 'cup' | 'brush';
+  | 'hourglass' | 'skull' | 'cup' | 'hammer';
 
 /** Side of the square a glyph is drawn into, centred on the container's origin. */
 export const CARD_ICON_SIZE = 26;
@@ -225,7 +225,8 @@ export function drawCardIcon(
       break;
 
     // The two footer links. Not option glyphs — they carry the support row, where a phrase with a
-    // mark beside it has to read as pressable without a button drawn around it.
+    // mark beside it has to read as pressable without a button drawn around it, and at 18px on a
+    // phone the mark gets one shape to say what it is with.
     case 'cup':
       // Steam first, then the cup, then the saucer: the bare trapezoid read as a bucket, and the
       // two curls are the whole difference between a drink and a pot.
@@ -242,12 +243,19 @@ export function drawCardIcon(
       line(2); g.lineBetween(-10, 11, 10, 11);
       break;
 
-    case 'brush':
-      // A writing brush, held at the angle a hand holds one: shaft, the band that grips the hairs,
-      // then the tapered head. The game is drawn in ink, so contributing to it is picking one up.
-      line(2.2); g.lineBetween(7, -10, -1, 2);
-      line(2.4); g.lineBetween(-3.5, 0.4, 1.5, 3.6);
-      fill(); g.fillTriangle(-3.5, 0.4, 1.5, 3.6, -7.5, 10.5);
+    case 'hammer':
+      // The vồ a block-cutter holds — which is the tool this game is made with, and the only shape
+      // in the kit that survives being asked to mean "build" at 18px. A brush was drawn here
+      // first: at that size a shaft with a tapered head is a diagonal stroke and nothing else,
+      // and it read as a slash across the sentence it was meant to mark.
+      //
+      // Head canted and the handle hung off its underside, because square-on and centred it is a
+      // signpost. Solid rather than outlined: an outlined head this small fills in with its own
+      // contour.
+      fill();
+      g.fillTriangle(-10, -8.6, 8, -11, 9, -5.2);
+      g.fillTriangle(-10, -8.6, -9.4, -2.6, 9, -5.2);
+      line(2.6); g.lineBetween(-0.6, -3.6, 2.4, 12);
       break;
 
     case 'skull':

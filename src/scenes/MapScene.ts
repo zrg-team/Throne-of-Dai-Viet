@@ -23,11 +23,12 @@ import { resolvePendingBattle } from '../systems/empire/InvasionSystem';
 import { SHEET_TOP } from '../ui/BottomSheet';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { applyPaperFX } from '../ui/ink/PaperFX';
-import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
+import { createMapItemRenderer, LABEL_KEEP_OUT, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { ArmyRenderer } from './map/ArmyRenderer';
 import { OverlayRenderer } from './map/OverlayRenderer';
 import { SeasonRenderer, type SeasonScape } from './map/SeasonRenderer';
 import { SettlementRenderer } from './map/SettlementRenderer';
+import { BirdRenderer } from './map/BirdRenderer';
 import { TrafficRenderer } from './map/TrafficRenderer';
 import { ViewIndex, type CullKind } from './map/ViewIndex';
 import { BAKE_SEASON, foliagePalette, seasonVisualsEnabled, setFoliageSeason, setRenderSeason } from '../ui/ink/season';
@@ -76,6 +77,8 @@ export class MapScene extends Phaser.Scene {
   protected state!: GameState;
   private touch!: TouchController;
   private landNodes = new Map<string, Phaser.GameObjects.Container>();
+  /** The veil over ground the realm sees but does not hold. Baked with the fog. */
+  private foreignHazeGraphics?: Phaser.GameObjects.Graphics;
   /** Each node's name plate, held separately so the zoom LOD can drop type without dropping towns. */
   private landLabels = new Map<string, Phaser.GameObjects.Container>();
   private flagMarkers = new Map<string, Phaser.GameObjects.Container>();
@@ -102,6 +105,7 @@ export class MapScene extends Phaser.Scene {
   private mapItems!: MapItemRenderer;
   private settlements!: SettlementRenderer;
   private traffic!: TrafficRenderer;
+  private birds!: BirdRenderer;
   /** Last state the ambient map motion was set to, so the sync acts only on a change. */
   private worldMotionHalted = false;
   private overlays!: OverlayRenderer;
@@ -291,6 +295,7 @@ export class MapScene extends Phaser.Scene {
     applyPaperFX(this);
     this.settlements = new SettlementRenderer(this, this.mapItems, this.mapRenderer.palette);
     this.traffic = new TrafficRenderer(this, this.mapRenderer, this.mapItems);
+    this.birds = new BirdRenderer(this);
     this.overlays = new OverlayRenderer(this, this.mapRenderer);
     this.armies = new ArmyRenderer(this, this.mapItems);
     this.seasons = new SeasonRenderer(this);
@@ -335,6 +340,7 @@ export class MapScene extends Phaser.Scene {
     this.game.canvas.removeEventListener('mouseup', this.domMouseUp);
     this.game.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
     this.seasons?.destroy();
+    this.birds?.destroy();
   }
 
   /** Re-bake the cached terrain + fog textures once a lost WebGL context is restored.
@@ -460,6 +466,7 @@ export class MapScene extends Phaser.Scene {
     if (halted === this.worldMotionHalted) return;
     this.worldMotionHalted = halted;
     this.traffic.setPaused(halted);
+    this.birds.setPaused(halted);
     this.seasons.setPaused(halted);
   }
 
@@ -841,7 +848,9 @@ export class MapScene extends Phaser.Scene {
     this.updateArmyHighlight();
     this.drawFogOfWar();
     this.drawFillerFogOfWar();
+    this.drawForeignHaze();
     this.bakeFog();
+    this.birds.create(this.worldWidth, this.worldHeight, this.state.mapConfig.seed);
     this.drawAcquisitionMarkers();
     this.drawBuildMarkers();
     this.drawSiegeMarkers();
@@ -1214,6 +1223,24 @@ export class MapScene extends Phaser.Scene {
     this.repaintFillerFogOfWar();
   }
 
+  private drawForeignHaze(): void {
+    this.foreignHazeGraphics = this.overlays.createForeignHazeLayer(
+      this.state,
+      this.hexTileMap,
+      (value) => this.wx(value),
+      (value) => this.wy(value),
+    );
+  }
+
+  private repaintForeignHaze(): void {
+    this.overlays.repaintForeignHaze(
+      this.state,
+      this.hexTileMap,
+      (value) => this.wx(value),
+      (value) => this.wy(value),
+    );
+  }
+
   /** Bakes the static fog tint (main + filler) into a cached texture. Must run after
    *  both fog layers have been repainted for the current visibility state. */
   private bakeFog(): void {
@@ -1221,7 +1248,11 @@ export class MapScene extends Phaser.Scene {
       return; // diagnostic: leave live fog Graphics visible to compare against the bake
     }
     if (this.fillerFogGraphics) {
-      this.overlays.bakeFog(this.worldWidth, this.worldHeight, [this.fillerFogGraphics], BAKE_SCALE);
+      const extra = [this.fillerFogGraphics];
+      if (this.foreignHazeGraphics) {
+        extra.push(this.foreignHazeGraphics);
+      }
+      this.overlays.bakeFog(this.worldWidth, this.worldHeight, extra, BAKE_SCALE);
     }
   }
 
@@ -1465,8 +1496,13 @@ export class MapScene extends Phaser.Scene {
     const height = label.height + 6;
     // A walled seat is tall. At the village offset the name landed across its gate tower, which is
     // the one building on the map worth looking at.
+    //
+    // 48, not 27, for a village: a settlement's props run from the seat down past its herd at +40,
+    // so the old offset put the name plate in the middle of the village it names — over a roof
+    // about as often as not. Below the herd it labels the settlement instead of sitting in it, and
+    // `LABEL_KEEP_OUT` in the item renderer keeps the cluster's own props off the same strip.
     const isSeat = land.type === 'castle' || land.type === 'enemyCastle';
-    const labelY = isSeat ? 58 : 27;
+    const labelY = isSeat ? 58 : LABEL_KEEP_OUT.y;
     const anchor = this.settlementNodeOffset(land);
     const container = this.add.container(anchor.x, anchor.y + labelY);
     const backing = this.add.graphics();
@@ -1757,6 +1793,7 @@ export class MapScene extends Phaser.Scene {
     if (fogChanged) {
       this.repaintFogOfWar();
       this.repaintFillerFogOfWar();
+      this.repaintForeignHaze();
       this.bakeFog();
     }
 
@@ -1881,10 +1918,22 @@ export class MapScene extends Phaser.Scene {
         return `${this.state.mapRenderMode}|${this.state.lands
           .map((l) => `${l.ownerId}${l.isVisible ? 1 : 0}`)
           .join('|')}`;
-      case 'fog':
+      case 'fog': {
         // The frontier is a function of visibility, so visibility is enough to key it — but
         // `isExplored` genuinely belongs here, and only here: it sets the fog's alpha and nothing else.
-        return this.state.lands.map((l) => `${l.isVisible ? 1 : 0}${l.isExplored ? 1 : 0}`).join('');
+        //
+        // The foreign haze is baked into the same texture, so what lifts it belongs here too:
+        // which provinces are held, and which ones a host is standing on. Marching into a
+        // province has to take the veil off it on the tick the host arrives.
+        const occupied = new Set(
+          this.state.armies
+            .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)
+            .map((army) => army.landId),
+        );
+        return this.state.lands
+          .map((l) => `${l.isVisible ? 1 : 0}${l.isExplored ? 1 : 0}${l.ownerId === PLAYER_KINGDOM_ID ? 1 : 0}${occupied.has(l.id) ? 1 : 0}`)
+          .join('');
+      }
       case 'roads':
         // Roads, carts and travellers run between visible settlements, and `hasVillage` is exactly
         // the test `TrafficRenderer` applies. Deliberately not keyed on buildings: a granary going

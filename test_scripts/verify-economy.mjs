@@ -19,7 +19,7 @@ import { chromium } from 'playwright';
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 700 } });
 page.on('pageerror', (e) => console.log('PAGEERROR', e.message));
-await page.goto('http://localhost:5173/?seed=1337', { waitUntil: 'networkidle' });
+await page.goto((process.env.DEV_URL ?? 'http://127.0.0.1:5173') + '/?seed=1337', { waitUntil: 'networkidle' });
 
 // ── One seeded autopilot run, sampled at a small and a grown realm ───────────
 const run = await page.evaluate(async () => {

@@ -1,12 +1,13 @@
 import { GENERATED_ERAS, REAL_FIGURES, makeHeroName, type RealFigure } from './heroNames';
+import { heroTemplates } from './heroes';
 import { t } from '../i18n';
 import type { GameState, Hero, HeroEra, HeroStats, HeroType } from '../state/types';
 
 /**
  * Champions the game did not have to write down.
  *
- * The authored roster is twenty-six templates that are *removed from the deck as they are
- * recruited* — so a long run empties it, `offerHeroSummon` starts returning nothing, and the
+ * The authored roster is a hundred and four templates that are *removed from the deck as they
+ * are recruited* — so a long run empties it, `offerHeroSummon` starts returning nothing, and the
  * champion lane, which is half the mode's identity, quietly stops existing. This is the tap
  * that keeps it running: a generated champion is a real Hero with a Vietnamese name, an
  * office, a rarity, a sex and an era, and the portrait system draws it exactly as it draws an
@@ -62,6 +63,20 @@ const MONASTIC_SHARE = 0.05;
  */
 const REAL_AT_LEGENDARY = 0.72;
 const REAL_AT_EPIC = 0.3;
+
+/**
+ * Real figures the authored roster has *not* already written down.
+ *
+ * Twenty-five of these people are templates in `heroes.ts` with effects of their own, and a
+ * generated copy would put two Trần Hưng Đạos on the same board with different stats. Matching
+ * on the name rather than on the id is deliberate: `figureId` slugs the full honorific — "Nguyên
+ * phi Ỷ Lan" becomes `real-nguyen-phi-y-lan` — while the authored entry may be filed under a
+ * shorter id, so ids agree only by accident and names agree by construction.
+ */
+const AUTHORED_NAMES = new Set(heroTemplates.map((hero) => hero.name));
+const GENERATABLE_FIGURES: readonly RealFigure[] = REAL_FIGURES.filter(
+  (figure) => !AUTHORED_NAMES.has(figure.name),
+);
 
 /** Turns a name into a stable id, so the same figure can never enter a deck twice. */
 function figureId(name: string): string {
@@ -140,7 +155,7 @@ export function generateHero(seed: number, options: GenerateHeroOptions = {}): H
   // them rather than filtered afterwards.
   const realChance = rarity === 'Legendary' ? REAL_AT_LEGENDARY : rarity === 'Epic' ? REAL_AT_EPIC : 0;
   if (realChance > 0 && next() < realChance && !options.type && !options.sex) {
-    const pool = REAL_FIGURES.filter((f) => (rarity === 'Legendary' ? true : f.tier === 'Epic'));
+    const pool = GENERATABLE_FIGURES.filter((f) => (rarity === 'Legendary' ? true : f.tier === 'Epic'));
     if (pool.length) return fromRealFigure(pool[Math.floor(next() * pool.length) % pool.length], rarity, next);
   }
 
