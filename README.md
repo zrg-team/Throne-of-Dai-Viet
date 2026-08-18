@@ -189,7 +189,7 @@ The game is free and stays free. If it gave you an evening, the front page has a
 &nbsp;
 [![MoMo · Việt Nam](https://img.shields.io/badge/MoMo-Vi%E1%BB%87t%20Nam-a50064?style=for-the-badge)](https://me.momo.vn/6OfbtWIOTeIJi5Tw)
 
-The channels live in one file, [`src/data/support.ts`](src/data/support.ts); an official MoMo VietQR image can be dropped in with `node scripts/crop-support-qr.mjs <screenshot>` and bank apps will read it directly.
+The MoMo tab shows MoMo's own VietQR card, so any Vietnamese bank app reads it directly. The channels live in one file, [`src/data/support.ts`](src/data/support.ts); `node scripts/crop-support-qr.mjs <screenshot>` cuts a fresh card out of the app's share sheet and checks that it still decodes before writing it.
 
 </td>
   </tr>

@@ -196,6 +196,13 @@ baseline data**. Always `mkdirSync(dir, { recursive: true })` first.
    green run near the line is weak evidence, repeat it.
 10. **Port pinning.** `verify-hero-actions.mjs` and `verify-hero-events.mjs` default to `:5175`,
     not 5173.
+11. **In-page `import('/src/x.ts')` can hand you a second copy of a module the game already has.**
+    Once a file has been edited while the dev server is up, Vite serves it to the page as
+    `/src/x.ts?t=<hmr-timestamp>`; a plain import from the harness resolves to a *different*
+    instance, so mutating its exports (a config object, a registry) silently changes nothing the
+    game reads. Read the URL the page actually loaded from
+    `performance.getEntriesByType('resource')` and import that — see `__liveSupport` in
+    `shot-support.mjs`. Building fresh state through imported factories is unaffected.
 
 ## Perf method
 
