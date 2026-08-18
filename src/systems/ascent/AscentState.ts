@@ -96,6 +96,7 @@ export function createAscentState(): AscentState {
  */
 const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   'run-over': 0,
+  mandate: 0.5,
   founder: 1,
   'wave-result': 2,
   'empire-response': 3,

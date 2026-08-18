@@ -1,5 +1,5 @@
 import type { Hero, HeroEra, HeroStats } from '../state/types';
-import { t, type TranslationKey } from '../i18n';
+import { t } from '../i18n';
 
 /**
  * The rulers a run may open under.
@@ -48,18 +48,6 @@ export const KINGS: readonly KingProfile[] = [
   { slug: 'minh-mang', name: 'Minh Mạng', sex: 'man', era: 'nguyen', emphasis: 'administration' },
 ];
 
-/** How many temperaments a ruler may have; the founding option carries the index it drew. */
-export const KING_TRAIT_COUNT = 6;
-
-const KING_TRAITS: Array<{ effectKey: TranslationKey; upkeepGold: number }> = [
-  { effectKey: 'heroes.king.trait_morale.effect', upkeepGold: 12 },
-  { effectKey: 'heroes.king.trait_power.effect', upkeepGold: 14 },
-  { effectKey: 'heroes.king.trait_rations.effect', upkeepGold: 10 },
-  { effectKey: 'heroes.king.trait_levy.effect', upkeepGold: 11 },
-  { effectKey: 'heroes.king.trait_treasury.effect', upkeepGold: 13 },
-  { effectKey: 'heroes.king.trait_mandate.effect', upkeepGold: 12 },
-];
-
 const KING_STATS: HeroStats = {
   martial: 78,
   logistics: 50,
@@ -70,39 +58,33 @@ const KING_STATS: HeroStats = {
 };
 
 /**
- * The player's starting commander — a ruler out of the record, not part of the hero draft deck.
- * `slug` names one and `traitIndex` names their temperament; without either the throne is drawn
- * at random, which is what every mode but Dragon Ascent still does.
+ * The player. Not a person out of the record — *you*.
  *
- * The temperament has to be nameable, not rolled at each call. The founding card renders a
- * ruler to show what choosing them would give, and the resolver builds the same ruler again to
- * seat them — two rolls, two different traits, and the card was advertising an effect the
- * player would not receive.
+ * This briefly drew a named emperor from `KINGS` and a "temperament" from a table, and the
+ * player's answer to that was flat: **"I'm the king. Not Nguyễn Hoàng."** They were right, and
+ * the mistake is worth leaving written down, because the road to it looked reasonable at every
+ * step: the throne shipped with six emperor names, one kept repeating, and growing the pool to
+ * twenty-four and then making it a *choice* only made the game better at asking the wrong
+ * question. Whose dynasty this is was never the question. It is yours.
  *
- * The hero keeps the fixed id `king` because half the game looks them up by it; the *name* is
- * what varies, which is why `heroBio` and `resolveHeroLook` both key the king off the name
- * rather than the id. Seeding a portrait on a constant id gave every run the same face.
+ * The six temperaments went with it. They were display-only — the string on the card was never
+ * read by anything — so the opening advantage is a real card now (see the `openingOnly` entries
+ * in `data/ascentCards.ts`) rather than a promise nothing kept.
+ *
+ * `KINGS` survives as data, but as *champions*: the twenty-four rulers are Legendary heroes who
+ * serve the throne rather than sit on it.
  */
-export function generateKingHero(slug?: string, traitIndex?: number): Hero {
-  const profile = (slug ? KINGS.find((candidate) => candidate.slug === slug) : undefined)
-    ?? KINGS[Math.floor(Math.random() * KINGS.length)];
-  const trait = KING_TRAITS[traitIndex !== undefined
-    ? ((traitIndex % KING_TRAITS.length) + KING_TRAITS.length) % KING_TRAITS.length
-    : Math.floor(Math.random() * KING_TRAITS.length)];
-  const stats: HeroStats = { ...KING_STATS };
-  stats[profile.emphasis] = Math.min(96, stats[profile.emphasis] + 14);
-
+export function generateKingHero(): Hero {
   return {
     id: 'king',
-    name: profile.name,
+    name: t('heroes.king.name'),
     type: 'general',
     rarity: 'Legendary',
-    sex: profile.sex,
-    era: profile.era,
-    upkeepGold: trait.upkeepGold,
+    sex: 'man',
+    upkeepGold: 12,
     description: t('heroes.king.description'),
-    effect: t(trait.effectKey),
-    stats,
+    effect: t('heroes.king.effect'),
+    stats: { ...KING_STATS },
     fatigue: 0,
   };
 }

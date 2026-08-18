@@ -11,7 +11,6 @@ import type {
 import { enAscent, viAscent } from './catalogs/ascent';
 import { enCore, viCore } from './catalogs/core';
 import { enEmpire, viEmpire } from './catalogs/empire';
-import { KINGS } from '../data/heroes';
 import { enHeroBios, viHeroBios } from './catalogs/heroBios';
 import { enHeroes, viHeroes } from './catalogs/heroes';
 import { viPolitics } from './catalogs/politics';
@@ -135,10 +134,6 @@ export function heroDescription(hero: Hero): string {
 }
 
 export function heroEffect(hero: Hero): string {
-  if (hero.id === 'king') {
-    const traitKey = findKingTraitKey(hero.effect);
-    return traitKey ? translateKey(traitKey, hero.effect) : hero.effect;
-  }
   return translateKey(heroKey(hero.id, 'effect'), hero.effect);
 }
 
@@ -182,11 +177,6 @@ const BIOS_PER_ROLE = 25;
  */
 export function heroBio(hero: Hero): string {
   const catalog = en as Record<string, string>;
-  // The throne's hero always has the id `king`; who is sitting on it is carried by the name.
-  if (hero.id === 'king') {
-    const profile = KINGS.find((candidate) => candidate.name === hero.name);
-    if (profile) return translateKey(`heroes.king.${profile.slug}.bio`);
-  }
   const dedicated = heroKey(hero.id, 'bio');
   if (catalog[dedicated]) return translateKey(dedicated);
 
@@ -196,15 +186,6 @@ export function heroBio(hero: Hero): string {
     hash = Math.imul(hash, 16777619);
   }
   return translateKey(`heroes.bio.${hero.type}.${(hash >>> 0) % BIOS_PER_ROLE}`);
-}
-
-function findKingTraitKey(effect: string): string | undefined {
-  for (const key of ['heroes.king.trait_morale.effect', 'heroes.king.trait_power.effect', 'heroes.king.trait_rations.effect']) {
-    if (effect === en[key as TranslationKey] || effect === vi[key as TranslationKey]) {
-      return key;
-    }
-  }
-  return undefined;
 }
 
 function findPoliticsChoice(choiceId: string): { label: string; description: string } | undefined {

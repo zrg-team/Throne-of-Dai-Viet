@@ -1040,6 +1040,14 @@ export interface PowerCardDef {
   /** Evolution results are granted, never rolled. */
   evolutionOnly?: boolean;
   /**
+   * Offered only on the founding screen, never in a mid-run draft.
+   *
+   * The opening advantage is a real card rather than a bespoke system precisely so it costs
+   * nothing: `applyCourtEffect` applies it, the `ascent.card.<id>` strings render it, and
+   * `powerCardView` reads it. The only thing it must not do is turn up again at level three.
+   */
+  openingOnly?: boolean;
+  /**
    * Granted only by seeing a story through, never rolled in a draft.
    *
    * These are the Chronicle's strongest reward and the reason to keep an oath: a card that exists
@@ -1153,13 +1161,17 @@ export interface EnvoyOption {
 /** Every pausing decision Dragon Ascent can raise. Exactly one is live at a time. */
 export type AscentPrompt =
   /**
-   * The founding: a ruler out of the record and the champion who rises with him.
+   * The first card of a run: which advantage the reign opens with.
    *
-   * Each option is `"<kingSlug>:<heroId>"` — one string, so every consumer that answers a prompt
-   * with `options[0]` keeps working. Both halves are drawn at random. The ruler used to be
-   * assigned silently behind the champion card, which made the opening read as fixed even after
-   * the pool grew to twenty-four: a player who is handed a king cannot tell that a different one
-   * was ever possible.
+   * You are not choosing who you are — you are the king, and that was never in question. You are
+   * choosing what the throne already holds when the first season turns. Options are ids of
+   * `openingOnly` cards in `data/ascentCards.ts`.
+   */
+  | { kind: 'mandate'; options: string[] }
+  /**
+   * The founding: the champion who raises the dynasty.
+   *
+   * One champion recorded in the Codex leads the card; the rest is drawn from the whole deck.
    */
   | { kind: 'founder'; options: string[] }
   | { kind: 'power-draft'; cards: string[]; rerollCost: number; level: number }

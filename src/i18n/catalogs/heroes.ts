@@ -32,10 +32,8 @@ export const enHeroes = {
   "heroes.gen.agent.description": "An envoy who works beyond the borders.",
   "heroes.gen.agent.effect": "Improves dealings with rival courts.",
   "heroes.king.description": "The reigning king, leading the kingdom's armies from the front.",
-  "heroes.king.name": "King",
-  "heroes.king.trait_morale.effect": "+10% morale for all your armies.",
-  "heroes.king.trait_power.effect": "+8% army power in battle.",
-  "heroes.king.trait_rations.effect": "+5% max rations capacity for armies.",
+  "heroes.king.name": "The King",
+  "heroes.king.effect": "Commands the royal host in person; the realm answers to you.",
   "heroes.ky-binh-bien-ai.description": "A fast border cavalry captain used to sudden raids.",
   "heroes.ky-binh-bien-ai.effect": "+10% army power when attacking from road, gate, or border lands.",
   "heroes.ky-binh-bien-ai.name": "Chu Vĩnh Cường",
@@ -332,9 +330,6 @@ export const enHeroes = {
   "heroes.nu-diep-vien-pho-hien.effect": "+30 influence from political opportunities and +25% sabotage success.",
   "heroes.nu-diep-vien-pho-hien.name": "Tống Bích Liễu",
   // ── the throne ───────────────────────────────────────────────────────────
-  "heroes.king.trait_levy.effect": "+10% recruitment speed in every province.",
-  "heroes.king.trait_treasury.effect": "+8% gold output across the realm.",
-  "heroes.king.trait_mandate.effect": "+6 loyalty in every land the dynasty holds."
 } as const;
 
 export const viHeroes = {
@@ -368,9 +363,7 @@ export const viHeroes = {
   "heroes.gen.agent.effect": "Cải thiện bang giao với các triều đình lân bang.",
   "heroes.king.description": "Vị vua đang trị vì, trực tiếp dẫn quân nơi tiền tuyến.",
   "heroes.king.name": "Quốc vương",
-  "heroes.king.trait_morale.effect": "+10% sĩ khí cho tất cả quân đội của bạn.",
-  "heroes.king.trait_power.effect": "+8% sức mạnh quân đội trong chiến đấu.",
-  "heroes.king.trait_rations.effect": "+5% sức chứa quân lương tối đa cho quân đội.",
+  "heroes.king.effect": "Đích thân thống lĩnh cấm quân; giang sơn nằm trong tay bạn.",
   "heroes.ky-binh-bien-ai.description": "Một đội trưởng kỵ binh biên ải, quen với những cuộc tập kích bất ngờ.",
   "heroes.ky-binh-bien-ai.effect": "+10% sức mạnh quân đội khi tấn công từ đường lớn, cửa ải hoặc vùng biên.",
   "heroes.ky-binh-bien-ai.name": "Chu Vĩnh Cường",
@@ -667,7 +660,4 @@ export const viHeroes = {
   "heroes.nu-diep-vien-pho-hien.effect": "+30 ảnh hưởng từ cơ hội chính trị và +25% phá hoại thành công.",
   "heroes.nu-diep-vien-pho-hien.name": "Tống Bích Liễu",
   // ── the throne ───────────────────────────────────────────────────────────
-  "heroes.king.trait_levy.effect": "+10% tốc độ chiêu binh ở mọi trấn.",
-  "heroes.king.trait_treasury.effect": "+8% sản lượng vàng trên toàn cõi.",
-  "heroes.king.trait_mandate.effect": "+6 trung thành ở mọi vùng đất vương triều nắm giữ."
 } as const;

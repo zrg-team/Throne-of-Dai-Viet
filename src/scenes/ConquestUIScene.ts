@@ -5,8 +5,6 @@ import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGD
 import { codexProgress, getCodex, isHeroUnlocked } from '../state/codex';
 import { LEGACY_PERKS, ownsPerk } from '../state/legacy';
 import { doctrineBlurb, doctrineName } from '../systems/ascent/RealmDoctrineSystem';
-import { KINGS, generateKingHero, heroTemplates } from '../data/heroes';
-import type { KingProfile } from '../data/heroes';
 import { powerCardView, skipRefundAmount } from '../systems/ascent/PowerDraftSystem';
 import { tierForHero } from '../systems/ascent/SummonSystem';
 import { isBossWave, responseCommanderName } from '../systems/ascent/WaveDirector';
@@ -75,6 +73,8 @@ import { drawStoryBand } from '../ui/ink/storyBand';
 import { countOpenDoors, isMarked, openingFor, openingView, storyNeedsPlayer, storyOpening, storyParams, storyRegard, storySpokenHistory, takeOpening } from '../systems/story/StorySystem';
 import { storyText, storyTitle } from '../i18n/story';
 import { INK_UI, INK_UI_HEX, InkUI, scrollGestureConsumedTap, type InkScrollArea, type UIBounds } from '../ui/InkUI';
+import { heroTemplates } from '../data/heroes';
+import { designLength } from '../game/graphicsQuality';
 import { createPlayerLandFlag } from '../ui/playerFlag';
 import { sawtoothBand } from '../ui/ink/devices';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
@@ -459,6 +459,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'empire-response': return `${prompt.wave}`;
       case 'wave-result': return `${prompt.wave}`;
       case 'story-beat': return `${prompt.storyId}:${prompt.fragmentId}`;
+      case 'mandate': return `mandate:${prompt.options.join(',')}`;
       case 'founder': return prompt.options.join(',');
       case 'run-over': return `${prompt.score}`;
     }
@@ -466,6 +467,7 @@ export class ConquestUIScene extends Phaser.Scene {
 
   private renderPrompt(prompt: AscentPrompt): void {
     switch (prompt.kind) {
+      case 'mandate': this.showMandate(prompt); break;
       case 'founder': this.showFounder(prompt); break;
       case 'power-draft': this.showPowerDraft(prompt); break;
       case 'conquer-target': this.showConquerTarget(prompt); break;
@@ -4998,25 +5000,88 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
     const { body, bodyWidth, finish } = this.promptScrollBody(
       t('ascent.founder.title'),
       `${t('ascent.founder.subtitle')}\n${t('ascent.codex.subtitle', codex)}`,
-      0,
+      PROMPT_FOOTER_HEIGHT,
     );
 
-    let used = this.addDynastyStandard(body, bodyWidth);
-    const cards: Phaser.GameObjects.Container[] = [];
-    prompt.options.forEach((option) => {
-      const [kingSlug, traitIndex, heroId] = option.split(':');
-      const king = KINGS.find((candidate) => candidate.slug === kingSlug);
-      const hero = this.state.heroDeck.find((candidate) => candidate.id === heroId);
-      if (!king || !hero) return;
-      const card = this.foundingCard(
-        { x: 0, y: used, width: bodyWidth }, king, Number(traitIndex), hero, () => this.choose(option),
-      );
-      body.add(card);
-      cards.push(card);
-      used += (card.getData('cardHeight') as number) + 12;
+    const heroes = prompt.options
+      .map((id) => this.state.heroDeck.find((candidate) => candidate.id === id))
+      .filter((hero): hero is Hero => Boolean(hero));
+    if (heroes.length === 0) { finish(0); return; }
+
+    // One card at a time, full width, dragged between — the player asked to see a whole champion
+    // rather than three slivers, and at 390 wide a three-across hero card cannot carry a bio.
+    // `makeSwipeableCard` is the wrong shape here: it flies a card *off* screen and fires a
+    // handler. This borrows its drag maths and snaps instead.
+    const DOT_Y = 6;
+    const trackTop = DOT_Y + 16;
+    const track = this.add.container(0, trackTop);
+    body.add(track);
+
+    let tallest = 0;
+    heroes.forEach((hero, index) => {
+      const card = this.foundingCard({ x: index * (bodyWidth + 24), y: 0, width: bodyWidth }, hero, () => undefined);
+      tallest = Math.max(tallest, (card.getData('cardHeight') as number) ?? 0);
+      track.add(card);
     });
-    staggerIn(this, cards);
-    finish(used);
+
+    // Dots, so the player knows there are three of these before they touch anything.
+    const dots = this.add.graphics();
+    body.add(dots);
+    let index = 0;
+    const paintDots = (): void => {
+      dots.clear();
+      const span = heroes.length * 14;
+      heroes.forEach((_, i) => {
+        dots.fillStyle(i === index ? INK_UI.cinnabar : INK_UI.softBrush, i === index ? 1 : 0.35);
+        dots.fillCircle(bodyWidth / 2 - span / 2 + 7 + i * 14, DOT_Y, i === index ? 4 : 3);
+      });
+    };
+
+    const snapTo = (next: number): void => {
+      index = Phaser.Math.Clamp(next, 0, heroes.length - 1);
+      this.tweens.add({
+        targets: track, x: -index * (bodyWidth + 24), duration: 220, ease: 'Cubic.easeOut',
+      });
+      paintDots();
+    };
+    paintDots();
+
+    // Drag the track. The scroll area below is vertical-only and this content fits its viewport,
+    // so the two gestures never contend.
+    const drag = this.add.zone(0, trackTop, bodyWidth, tallest).setOrigin(0, 0)
+      .setInteractive({ draggable: true, useHandCursor: true });
+    let grabbed = 0;
+    drag.on('dragstart', (pointer: Phaser.Input.Pointer) => { grabbed = track.x - designLength(pointer.x); });
+    drag.on('drag', (pointer: Phaser.Input.Pointer) => {
+      const limit = -(heroes.length - 1) * (bodyWidth + 24);
+      track.x = Phaser.Math.Clamp(designLength(pointer.x) + grabbed, limit - 40, 40);
+    });
+    drag.on('dragend', () => snapTo(Math.round(-track.x / (bodyWidth + 24))));
+    body.add(drag);
+
+    // Arrows, because a carousel with no affordance is a card the player never swipes.
+    const arrow = (x: number, label: string, step: number): void => {
+      const hit = this.add.text(x, trackTop + tallest / 2, label, {
+        color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '22px',
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        if (scrollGestureConsumedTap(pointer)) return;
+        snapTo(index + step);
+      });
+      body.add(hit);
+    };
+    arrow(10, '\u25C0', -1);
+    arrow(bodyWidth - 10, '\u25B6', 1);
+
+    finish(trackTop + tallest + 12);
+
+    const footerY = GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8;
+    this.modalLayer.add(this.ui.button(
+      { x: 20, y: footerY, width: GAME_WIDTH - 40, height: 40 },
+      t('ascent.founder.confirm'),
+      () => this.choose(heroes[index].id),
+      { variant: 'primary', fontSize: '14px' },
+    ));
   }
 
   /**
@@ -5047,77 +5112,117 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
     return FOOT_Y + 20 + caption.height + 10;
   }
 
-  /** One founding: the ruler above, a bronze rule, the champion below. */
+  /**
+   * The reign's first card: you take the throne, and choose what it already holds.
+   *
+   * Three across rather than stacked, because these are three *different first moves* and the
+   * player should see all three at once to compare them. At 390 wide that is ~109px a column,
+   * which fits a glyph, a name and one line and nothing else — no rarity badge in particular,
+   * since `BADGE_CLEARANCE` (86) would drive the title width negative.
+   *
+   * Built the way `actionTiles` builds a row: every text object first, one `Math.max` over their
+   * heights, *then* the surfaces. Letting each card size itself independently gives a ragged row.
+   */
+  private showMandate(prompt: Extract<AscentPrompt, { kind: 'mandate' }>): void {
+    const realm = this.state.kingdoms.find((k) => k.id === PLAYER_KINGDOM_ID)?.name ?? '';
+    const { body, bodyWidth, finish } = this.promptScrollBody(
+      t('ascent.mandate.title', { realm }),
+      t('ascent.mandate.subtitle'),
+      0,
+    );
+
+    const top = this.addDynastyStandard(body, bodyWidth);
+    const GAP = 8;
+    const column = Math.floor((bodyWidth - GAP * 2) / 3);
+
+    // Pass one: build the text, keep it, and remember the tallest.
+    const built = prompt.options.map((cardId, index) => {
+      const view = powerCardView(this.state, cardId);
+      const x = index * (column + GAP);
+      const title = this.ui.label(x + 10, 44, view?.name ?? cardId, 'label', {
+        fontSize: '11.5px', align: 'center', wordWrap: { width: column - 20 },
+      }).setFixedSize(column - 20, 0);
+      const desc = this.add.text(x + 10, 0, view?.description ?? '', {
+        color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '10px', align: 'center',
+        wordWrap: { width: column - 20 },
+      }).setFixedSize(column - 20, 0);
+      return { cardId, x, title, desc };
+    });
+    const headHeight = 44 + Math.max(...built.map((b) => b.title.height)) + 6;
+    const height = headHeight + Math.max(...built.map((b) => b.desc.height)) + 12;
+
+    // Pass two: surfaces behind the measured text, every column the same height.
+    const cards = built.map(({ cardId, x, title, desc }) => {
+      const card = this.add.container(x, top);
+      title.setPosition(10, 44);
+      desc.setPosition(10, headHeight);
+      const surface = this.ui.panel({ x: 0, y: 0, width: column, height },
+        { border: INK_UI.brush, borderWidth: 1.2, borderAlpha: 0.52 });
+      card.add(surface);
+      const wash = this.add.graphics();
+      wash.fillStyle(INK_UI.gold, 0.09);
+      wash.fillRoundedRect(2, 2, column - 4, height - 4, 8);
+      card.add(wash);
+      const glyph = drawCardIcon(this, iconForOption(cardId) ?? 'crown', INK_UI.gold);
+      glyph.setPosition(column / 2, 26);
+      card.add(glyph);
+      card.add(title);
+      card.add(desc);
+      const zone = this.add.zone(0, 0, column, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      zone.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        if (scrollGestureConsumedTap(pointer)) return;
+        this.choose(cardId);
+      });
+      card.add(zone);
+      body.add(card);
+      return card;
+    });
+    staggerIn(this, cards);
+    finish(top + height + 16);
+  }
+
+  /**
+   * One founding: the champion who raises the dynasty *you* rule.
+   *
+   * Drawn by hand rather than through `optionCard`, which lays out one text column and pins a
+   * single-line note to the foot — a portrait, a bio and a wrapped gift line all overran it.
+   */
   private foundingCard(
     bounds: { x: number; y: number; width: number },
-    king: KingProfile,
-    traitIndex: number,
     hero: Hero,
     onTap: () => void,
   ): Phaser.GameObjects.Container {
     const container = this.add.container(bounds.x, bounds.y);
     const tier = tierForHero(hero);
     const PAD = 12;
-    const KING_W = 74;
-    const HERO_W = 52;
-    const textLeft = PAD + KING_W + 12;
+    const FACE_W = 74;
+    const textLeft = PAD + FACE_W + 12;
     const textWidth = bounds.width - textLeft - PAD;
-    const crowned = { ...generateKingHero(king.slug, traitIndex), name: king.name };
 
-    // ── the ruler ──
-    const kingName = this.ui.label(textLeft, 12, heroName(crowned), 'label', {
-      fontSize: '15px', wordWrap: { width: textWidth - 46 },
+    const name = this.ui.label(textLeft, 12, `${heroName(hero)}  ·  ${rarityLabel(hero.rarity)}`, 'label', {
+      fontSize: '14px', wordWrap: { width: textWidth },
     });
-    container.add(kingName);
-    const kingLine = this.ui.label(textLeft, 12 + kingName.height + 2,
-      t(`ascent.ruler.era.${king.era}` as Parameters<typeof t>[0]), 'body', {
+    container.add(name);
+    const line = this.ui.label(textLeft, 12 + name.height + 2,
+      `${heroTypeLabel(hero.type)}  ·  ${this.heroStatLine(hero)}`, 'body', {
         fontSize: '10px', color: INK_UI_HEX.mutedText, wordWrap: { width: textWidth },
       });
-    container.add(kingLine);
-    const kingBio = this.ui.label(textLeft, kingLine.y + kingLine.height + 3, heroBio(crowned), 'body', {
+    container.add(line);
+    const bio = this.ui.label(textLeft, line.y + line.height + 3, heroBio(hero), 'body', {
       fontSize: '10.5px', color: INK_UI_HEX.mutedText, wordWrap: { width: textWidth },
     });
-    container.add(kingBio);
-    const kingFx = this.add.text(textLeft, kingBio.y + kingBio.height + 4, heroEffect(crowned), {
-      color: '#4c6b46', fontFamily: UI_FONT, fontSize: '10.5px', fontStyle: '700',
-      wordWrap: { width: textWidth },
-    });
-    container.add(kingFx);
-
-    // The rule sits below whichever column is taller — the portrait is 96 tall at this width.
-    const ruleY = Math.max(kingFx.y + kingFx.height + 10, 12 + 96 + 8);
-    const rule = this.add.graphics();
-    sawtoothBand(rule, PAD, ruleY, bounds.width - PAD * 2, 5, 0.34);
-    container.add(rule);
-
-    // ── the champion who rises with him ──
-    const heroTop = ruleY + 12;
-    const heroTextLeft = PAD + HERO_W + 12;
-    const heroTextWidth = bounds.width - heroTextLeft - PAD;
-    const heroName2 = this.ui.label(heroTextLeft, heroTop, `${heroName(hero)}  ·  ${rarityLabel(hero.rarity)}`, 'label', {
-      fontSize: '12.5px', wordWrap: { width: heroTextWidth },
-    });
-    container.add(heroName2);
-    const heroLine = this.ui.label(heroTextLeft, heroTop + heroName2.height + 2,
-      `${heroTypeLabel(hero.type)}  ·  ${this.heroStatLine(hero)}`, 'body', {
-        fontSize: '10px', color: INK_UI_HEX.mutedText, wordWrap: { width: heroTextWidth },
-      });
-    container.add(heroLine);
-    const heroBioText = this.ui.label(heroTextLeft, heroLine.y + heroLine.height + 3, heroBio(hero), 'body', {
-      fontSize: '10.5px', color: INK_UI_HEX.mutedText, wordWrap: { width: heroTextWidth },
-    });
-    container.add(heroBioText);
+    container.add(bio);
 
     // What the founding actually changes on the board. Without this the card is three
     // biographies and no decision.
-    const gift = this.add.text(heroTextLeft, heroBioText.y + heroBioText.height + 5,
+    const gift = this.add.text(textLeft, bio.y + bio.height + 5,
       t(`ascent.founder.gift.${hero.type}` as Parameters<typeof t>[0]), {
         color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '10.5px', fontStyle: '700',
-        wordWrap: { width: heroTextWidth },
+        wordWrap: { width: textWidth },
       });
     container.add(gift);
 
-    const height = Math.max(gift.y + gift.height + 12, heroTop + 68 + 12);
+    const height = Math.max(gift.y + gift.height + 12, 12 + 96 + 12);
 
     // Paper, rail and wash behind everything already laid out, as `optionCard` does it.
     const surface = this.ui.panel(
@@ -5134,8 +5239,7 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
     wash.fillRoundedRect(2, 2, bounds.width - 4, height - 4, 8);
     container.addAt(wash, 2);
 
-    container.add(renderHeroFaceInBox(this, crowned, { x: PAD, y: 12, width: KING_W, height: 96 }));
-    container.add(renderHeroFaceInBox(this, hero, { x: PAD + 8, y: heroTop, width: HERO_W, height: 68 }));
+    container.add(renderHeroFaceInBox(this, hero, { x: PAD, y: 12, width: FACE_W, height: 96 }));
 
     const zone = this.add.zone(0, 0, bounds.width, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
     zone.on('pointerup', (pointer: Phaser.Input.Pointer) => {

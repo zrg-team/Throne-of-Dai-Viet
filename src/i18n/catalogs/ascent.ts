@@ -756,7 +756,7 @@ export const enAscent = {
 
   // ── Founder ───────────────────────────────────────────────────────────────
   "ascent.founder.title": "Found your dynasty",
-  "ascent.founder.subtitle": "A ruler rises, and one champion rises with them.",
+  "ascent.founder.subtitle": "One champion raises the dynasty with you.",
 
   // ── Codex ─────────────────────────────────────────────────────────────────
   "ascent.codex.title": "Hero Codex",
@@ -811,7 +811,27 @@ export const enAscent = {
   "ascent.founder.gift.general": "Brings the men who follow him — half again the royal host",
   "ascent.founder.gift.minister": "Brings the treasury he has been keeping",
   "ascent.founder.gift.agent": "Brings the country's goodwill, and the people who trust the name",
-  "ascent.screen.throne": "You reign as {king}. {n} champion(s) serve."
+  "ascent.screen.throne": "You reign as {king}. {n} champion(s) serve.",
+  // ── founding advantages ──
+  "ascent.card.cam-quan": "Cấm Quân — the Imperial Guard",
+  "ascent.card.cam-quan.d": "The household troops answer to the throne alone. +{pct}% army power, for the whole run.",
+  "ascent.card.kho-lam": "Kho Lẫm — the Granaries",
+  "ascent.card.kho-lam.d": "Full stores and a farm already standing. +{food} food and +{supplies} supplies a season.",
+  "ascent.card.duc-tien": "Đúc Tiền — the Mint",
+  "ascent.card.duc-tien.d": "Coin struck in your own name. +{pct}% market gold, and {gold} in the treasury today.",
+  "ascent.card.long-dan": "Lòng Dân — the People",
+  "ascent.card.long-dan.d": "They came because of the name. +{humans} people a season and +{influence} standing.",
+  "ascent.card.tho-ca": "Thợ Cả — the Master Builders",
+  "ascent.card.tho-ca.d": "Guilds that owe you. Every work finishes a season sooner and costs {pct}% less.",
+  "ascent.card.cua-ai": "Cửa Ải — the Passes",
+  "ascent.card.cua-ai.d": "The gates are already walled. +{defense} defence at the seat, and one more province may be courted at a time.",
+  "ascent.card.quan-so": "Quân Số — the Muster Rolls",
+  "ascent.card.quan-so.d": "Every village knows who owes service. +{pct}% recruitment, at a lower cost in supplies.",
+  "ascent.card.chieu-hien": "Chiêu Hiền — the Summons",
+  "ascent.card.chieu-hien.d": "Word goes out for men of worth. Court business moves {pct}% faster, and a champion is already on the road.",
+  "ascent.mandate.title": "You become King of {realm}",
+  "ascent.mandate.subtitle": "The throne is yours. Choose what it already holds.",
+  "ascent.founder.confirm": "Choose this champion"
 } as const;
 
 export const viAscent = {
@@ -1567,7 +1587,7 @@ export const viAscent = {
 
   // ── Founder ───────────────────────────────────────────────────────────────
   "ascent.founder.title": "Lập nghiệp vương triều",
-  "ascent.founder.subtitle": "Một quân vương lên ngôi, và một danh tướng theo phò.",
+  "ascent.founder.subtitle": "Một danh tướng cùng bạn dựng nên vương triều.",
 
   // ── Codex ─────────────────────────────────────────────────────────────────
   "ascent.codex.title": "Danh Lục Anh Hùng",
@@ -1622,5 +1642,25 @@ export const viAscent = {
   "ascent.founder.gift.general": "Mang theo những người theo ông — cấm quân đông thêm một nửa",
   "ascent.founder.gift.minister": "Mang theo ngân khố mà ông vẫn giữ",
   "ascent.founder.gift.agent": "Mang theo lòng dân và những người tin vào cái tên ấy",
-  "ascent.screen.throne": "Bạn trị vì với hiệu {king}. {n} danh tướng phò tá."
+  "ascent.screen.throne": "Bạn trị vì với hiệu {king}. {n} danh tướng phò tá.",
+  // ── founding advantages ──
+  "ascent.card.cam-quan": "Cấm Quân",
+  "ascent.card.cam-quan.d": "Quân túc vệ chỉ nghe lệnh nhà vua. +{pct}% sức mạnh quân đội, suốt cả cuộc chinh phạt.",
+  "ascent.card.kho-lam": "Kho Lẫm",
+  "ascent.card.kho-lam.d": "Kho đầy và một trang trại đã dựng sẵn. +{food} lương thực và +{supplies} quân nhu mỗi mùa.",
+  "ascent.card.duc-tien": "Đúc Tiền",
+  "ascent.card.duc-tien.d": "Tiền đúc mang niên hiệu của bạn. +{pct}% thương thu, và {gold} vàng vào ngân khố ngay hôm nay.",
+  "ascent.card.long-dan": "Lòng Dân",
+  "ascent.card.long-dan.d": "Họ đến vì cái tên ấy. +{humans} nhân khẩu mỗi mùa và +{influence} uy tín.",
+  "ascent.card.tho-ca": "Thợ Cả",
+  "ascent.card.tho-ca.d": "Phường thợ mang ơn bạn. Mọi công trình xong sớm một mùa và rẻ hơn {pct}%.",
+  "ascent.card.cua-ai": "Cửa Ải",
+  "ascent.card.cua-ai.d": "Các cửa ải đã đắp thành. +{defense} phòng thủ ở kinh đô, và có thể chiêu phục thêm một trấn cùng lúc.",
+  "ascent.card.quan-so": "Quân Số",
+  "ascent.card.quan-so.d": "Làng nào cũng biết ai đến lượt đi lính. +{pct}% chiêu binh, tốn ít quân nhu hơn.",
+  "ascent.card.chieu-hien": "Chiêu Hiền",
+  "ascent.card.chieu-hien.d": "Chiếu cầu hiền đã ban. Việc triều chính nhanh hơn {pct}%, và một danh tướng đang trên đường tới.",
+  "ascent.mandate.title": "Bạn lên ngôi vua {realm}",
+  "ascent.mandate.subtitle": "Ngai vàng đã thuộc về bạn. Hãy chọn thứ triều đình sẵn có.",
+  "ascent.founder.confirm": "Chọn người này"
 } satisfies Record<keyof typeof enAscent, string>;

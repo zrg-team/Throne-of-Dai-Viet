@@ -468,6 +468,87 @@ export const POWER_CARDS: PowerCardDef[] = [
       },
     ],
   },
+
+  // ── Founding advantages (openingOnly) ─────────────────────────────────────
+  // Offered on the founding screen only. Each is a different *first move*, not a different
+  // size of the same one: an army, a granary, a treasury, a claim, a wall, a people.
+  {
+    id: 'cam-quan',
+    rarity: 'silver',
+    maxStacks: 1,
+    openingOnly: true,
+    levels: [{ effect: { permanent: true, armyPowerModifier: 0.14 }, display: { pct: 14 } }],
+  },
+  {
+    id: 'kho-lam',
+    rarity: 'silver',
+    maxStacks: 1,
+    openingOnly: true,
+    levels: [{
+      effect: { permanent: true, resourceRateModifier: { food: 11, supplies: 5 }, freeBuilding: 'farm' },
+      display: { food: 11, supplies: 5 },
+    }],
+  },
+  {
+    id: 'duc-tien',
+    rarity: 'silver',
+    maxStacks: 1,
+    openingOnly: true,
+    levels: [{
+      effect: { permanent: true, marketGoldOutputModifier: 0.35, resourceDelta: { gold: 260 } },
+      display: { pct: 35, gold: 260 },
+    }],
+  },
+  {
+    id: 'long-dan',
+    rarity: 'silver',
+    maxStacks: 1,
+    openingOnly: true,
+    levels: [{
+      effect: { permanent: true, resourceRateModifier: { humans: 4 }, influenceDelta: 30, stabilityDelta: 12 },
+      display: { humans: 4, influence: 30 },
+    }],
+  },
+  {
+    id: 'tho-ca',
+    rarity: 'silver',
+    maxStacks: 1,
+    openingOnly: true,
+    levels: [{
+      effect: { permanent: true, buildSpeedBonus: 1, upgradeSpeedBonus: 1, buildingCostModifier: -0.18 },
+      display: { pct: 18 },
+    }],
+  },
+  {
+    id: 'cua-ai',
+    rarity: 'silver',
+    maxStacks: 1,
+    openingOnly: true,
+    levels: [{
+      effect: { permanent: true, defenseBoost: 22, claimSlotBonus: 1 },
+      display: { defense: 22 },
+    }],
+  },
+  {
+    id: 'quan-so',
+    rarity: 'silver',
+    maxStacks: 1,
+    openingOnly: true,
+    levels: [{
+      effect: { permanent: true, recruitSpeedModifier: 0.3, recruitmentSupplyCostModifier: -0.2 },
+      display: { pct: 30 },
+    }],
+  },
+  {
+    id: 'chieu-hien',
+    rarity: 'silver',
+    maxStacks: 1,
+    openingOnly: true,
+    levels: [{
+      effect: { permanent: true, courtCardSpeedModifier: 0.25, favorDelta: 40, freeHeroDraft: true },
+      display: { pct: 25 },
+    }],
+  },
 ];
 
 const BY_ID = new Map(POWER_CARDS.map((card) => [card.id, card]));
@@ -478,5 +559,18 @@ export function findPowerCard(id: string): PowerCardDef | undefined {
 
 /** Cards eligible to be rolled in a draft (evolution results are granted, not offered). */
 export const ROLLABLE_POWER_CARDS = POWER_CARDS.filter(
-  (card) => !card.evolutionOnly && !card.storyOnly,
+  (card) => !card.evolutionOnly && !card.storyOnly && !card.openingOnly,
 );
+
+/**
+ * The founding advantages — the card the run opens on, before a single season has run.
+ *
+ * These replace the throne's six "temperaments", which were display-only: `generateKingHero`
+ * wrote the trait's text onto the hero and *nothing ever read it*, so the +10% recruitment the
+ * opening promised did nothing at all. A real card costs no new machinery — this is an ordinary
+ * `CourtEffect`, applied by the ordinary pipeline — and it actually happens.
+ *
+ * Sized deliberately above a bronze draft card and below a silver one: this is the only one the
+ * player gets for free, and it has the whole run to compound.
+ */
+export const OPENING_BOONS = POWER_CARDS.filter((card) => card.openingOnly);
