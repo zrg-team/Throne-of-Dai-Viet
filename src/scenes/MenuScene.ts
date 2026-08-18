@@ -20,22 +20,31 @@ import { bakedBuffalo } from '../ui/ink/sprites';
 import { drawFieldPlot, hamlet, paddyLattice } from '../ui/ink/settlements';
 import { drawHost, hostFootprint, hostShape, marchInPlace, type HostShape } from '../ui/ink/devices';
 import { GRAPHICS_QUALITIES, applyRenderScale, getGraphicsQuality, setGraphicsQuality } from '../game/graphicsQuality';
+import { SUPPORT, configuredSupportChannels, supportQrTextureKey, type SupportChannel } from '../data/support';
+import { copyToClipboard, openExternalLink } from '../utils/browser';
+import { encodeQr, type QrMatrix } from '../utils/qr';
 
 type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy' | 'settings';
 
 /**
- * Where the front page's button column has to stop.
+ * The front page's footer, measured up from the bottom edge.
  *
- * The three settings rows used to live here, on the home screen, taking a third of the sheet for
- * choices a player makes once. They have their own page now; what is left is breathing room.
+ * The support row — a coffee and a pull request, side by side — sits on the sheet's edge, and the
+ * settings button just above it. The button column stops at `SETTINGS_TOP`; the three settings
+ * rows that used to live there have their own page now, and what is left above the footer is
+ * breathing room for the art.
  */
-const SETTINGS_TOP = GAME_HEIGHT - 58;
+const SUPPORT_ROW_HEIGHT = 32;
+const SUPPORT_TOP = GAME_HEIGHT - 14 - SUPPORT_ROW_HEIGHT;
+const SETTINGS_TOP = SUPPORT_TOP - 8 - 34 - 6;
 
 export class MenuScene extends Phaser.Scene {
   private ui!: InkUI;
   private mapRenderer!: MapRenderer;
   private mapItems!: MapItemRenderer;
   private content: Phaser.GameObjects.GameObject[] = [];
+  /** The coffee modal, when open. Kept apart from `content` so a re-render underneath cannot orphan it. */
+  private modalObjects: Phaser.GameObjects.GameObject[] = [];
   private mode: MenuMode = 'main';
   private previewFlagSeed = 0;
 
@@ -54,7 +63,7 @@ export class MenuScene extends Phaser.Scene {
    * already had whenever the legacy-shop button was showing.
    */
   private get vScale(): number {
-    const BOTTOM_ROWS = 118;   // theme heading, tiles, language row
+    const BOTTOM_ROWS = 118;   // the footer: settings button and the support row beneath it
     const DESIGN_BOTTOM = 790; // lowest content y in the 844 design
     return Math.max(0.62, Math.min(1, (GAME_HEIGHT - BOTTOM_ROWS) / DESIGN_BOTTOM));
   }
@@ -962,6 +971,8 @@ export class MenuScene extends Phaser.Scene {
       { variant: 'ghost', fontSize: '13px' },
     ));
 
+    this.renderSupportRow();
+
     // Lifetime standing across all Throne of Empires runs (hidden until earned).
     // Tapping it opens the Ascension Legacy shop, where banked points buy permanent perks.
     const legacy = getLegacy();
@@ -1257,6 +1268,219 @@ export class MenuScene extends Phaser.Scene {
     }, { variant: 'secondary', fontSize: '14px' }));
   }
 
+  /**
+   * The two doors at the foot of the front page: one for a coffee, one for a pull request.
+   *
+   * Ghost buttons on purpose. They are the least important thing on the sheet and must read that
+   * way — a filled button here would compete with "Dragon Ascent" for the eye. Both are the same
+   * width so neither looks like the one you are supposed to press.
+   */
+  private renderSupportRow(): void {
+    // 150 each, not the column's 141: "Help improve the game" measures 138 at 12px and 127 at
+    // 11px, and a button wraps at its width minus 10, so the column width put both languages
+    // onto two lines. The row is allowed to run 14 wider than the column on each side — it is
+    // the footer, and the tagline above already does.
+    const gap = 10;
+    const width = 150;
+    const left = (GAME_WIDTH - width * 2 - gap) / 2;
+    const bounds = { y: SUPPORT_TOP, width, height: SUPPORT_ROW_HEIGHT };
+
+    this.content.push(this.ui.button(
+      { x: left, ...bounds },
+      t('menu.support.coffee'),
+      () => this.renderSupportModal(),
+      { variant: 'ghost', fontSize: '11px' },
+    ));
+    this.content.push(this.ui.button(
+      { x: left + width + gap, ...bounds },
+      t('menu.support.improve'),
+      () => openExternalLink(SUPPORT.github),
+      { variant: 'ghost', fontSize: '11px' },
+    ));
+  }
+
+  /**
+   * The coffee modal.
+   *
+   * One channel at a time, chosen by a pair of tabs, because the thing that has to be big is the
+   * code: a player on a laptop pays by pointing a phone at the screen, and a code squeezed under
+   * two stacked cards is not scannable from arm's length. Under the tabs: what the channel is, the
+   * detail a sender would type by hand, Open (the phone path) and Copy link, then the code (the
+   * desktop path) — MoMo's own VietQR image when it has been dropped in, otherwise one drawn from
+   * the link itself, which any phone camera reads.
+   *
+   * Everything is measured as it is placed, so a Vietnamese hint that runs a line longer only
+   * moves what is under it and the code takes whatever room is left. Nothing sits at a hard y.
+   */
+  private renderSupportModal(activeId?: SupportChannel['id']): void {
+    this.closeModal();
+    const channels = configuredSupportChannels();
+    const active = channels.find((c) => c.id === activeId) ?? channels[0];
+
+    const HEADER = 104;
+    const FOOTER = 66;
+    const QR_MAX = 200;
+    // Ask for the height the content wants; `modal` caps it at the sheet and the code shrinks to
+    // what is left. The empty state has no thanks line and gives the footer band back.
+    const wanted = HEADER + FOOTER + 20 + (active ? 214 + QR_MAX + 16 : 124 - FOOTER);
+
+    const modal = this.ui.modal({
+      title: t('menu.support.title'),
+      subtitle: t('menu.support.subtitle'),
+      onClose: () => this.closeModal(),
+      height: wanted,
+    });
+    this.modalObjects.push(...modal.objects);
+    const { contentBounds, footerBounds } = modal;
+    const centreX = contentBounds.x + contentBounds.width / 2;
+    let cursor = contentBounds.y;
+
+    if (!active) {
+      const body = this.add.text(centreX, cursor + 6, t('menu.support.none'), {
+        color: '#2a2118', fontFamily: UI_FONT, fontSize: '13px', align: 'center', lineSpacing: 3,
+        wordWrap: { width: contentBounds.width - 24 },
+      }).setOrigin(0.5, 0);
+      this.modalObjects.push(body);
+      cursor += body.height + 18;
+      this.modalObjects.push(this.ui.button(
+        { x: centreX - 100, y: cursor, width: 200, height: 40 },
+        t('menu.support.github'),
+        () => openExternalLink(SUPPORT.github),
+        { variant: 'primary', fontSize: '14px' },
+      ));
+      return;
+    }
+
+    // Tabs — only when there is a choice to make.
+    if (channels.length > 1) {
+      const tabHeight = 30;
+      const tabWidth = Math.floor((contentBounds.width - 8 * (channels.length - 1)) / channels.length);
+      channels.forEach((channel, index) => {
+        const selected = channel.id === active.id;
+        const bounds = { x: contentBounds.x + index * (tabWidth + 8), y: cursor, width: tabWidth, height: tabHeight };
+        const tile = this.ui.crayonTile(bounds, { selected, accent: channel.id === 'momo' ? INK_UI.cinnabar : INK_UI.jade });
+        const label = this.ui.label(bounds.x + bounds.width / 2, cursor + tabHeight / 2, t(`menu.support.${channel.id}.title`), 'button', {
+          color: '#211103', fontSize: '12px', fontStyle: selected ? '700' : '400', align: 'center',
+        }).setOrigin(0.5);
+        const hit = this.add.rectangle(bounds.x + bounds.width / 2, cursor + tabHeight / 2, bounds.width, tabHeight, 0xffffff, 0.001)
+          .setInteractive(selected ? undefined : { useHandCursor: true });
+        hit.on('pointerup', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+          event.stopPropagation();
+          if (!selected) {
+            this.renderSupportModal(channel.id);
+          }
+        });
+        this.modalObjects.push(tile, label, hit);
+      });
+      cursor += tabHeight + 14;
+    }
+
+    const hint = this.add.text(contentBounds.x + 6, cursor, t(`menu.support.${active.id}.hint`), {
+      color: '#5a4c39', fontFamily: UI_FONT, fontSize: '11px', lineSpacing: 2,
+      wordWrap: { width: contentBounds.width - 12 },
+    }).setOrigin(0, 0);
+    this.modalObjects.push(hint);
+    cursor += hint.height + 10;
+
+    // What a sender types by hand — the tag — with Open and Copy link on the same row, right-
+    // aligned. A channel with no tag shows the link's host instead: `me.momo.vn` says what it is,
+    // and the full address is one tap away on either button, so nobody has to read the token.
+    const link = active.link.trim();
+    const shownHandle = active.handle.trim() || linkHost(link);
+    const rowHeight = 30;
+    let bx = contentBounds.x + contentBounds.width - 4;
+    const copyWidth = 96;
+    bx -= copyWidth;
+    const copyX = bx;
+    this.modalObjects.push(this.ui.button({ x: copyX, y: cursor, width: copyWidth, height: rowHeight }, t('menu.support.copy'), () => {
+      void copyToClipboard(link || shownHandle).then((ok) => {
+        if (ok) {
+          this.flashCopied(copyX + copyWidth / 2, cursor - 6);
+        }
+      });
+    }, { variant: 'secondary', fontSize: '12px' }));
+    if (link) {
+      const openWidth = 64;
+      bx -= openWidth + 8;
+      this.modalObjects.push(this.ui.button({ x: bx, y: cursor, width: openWidth, height: rowHeight }, t('menu.support.open'), () => {
+        openExternalLink(link);
+      }, { variant: 'primary', fontSize: '12px' }));
+    }
+    const handle = this.add.text(contentBounds.x + 6, cursor + rowHeight / 2, shownHandle, {
+      color: '#2a2118', fontFamily: UI_FONT, fontSize: '14px', fontStyle: '700',
+      backgroundColor: 'rgba(243,230,196,0.9)', padding: { x: 7, y: 4 },
+      wordWrap: { width: Math.max(60, bx - 10 - (contentBounds.x + 6)), useAdvancedWrap: true },
+    }).setOrigin(0, 0.5);
+    this.modalObjects.push(handle);
+    cursor += Math.max(rowHeight, handle.height) + 14;
+
+    // The code: the official image when it is there, else one drawn from the link.
+    const qrKey = supportQrTextureKey(active);
+    const hasImage = Boolean(active.qrImage && this.textures.exists(qrKey));
+    const drawn = !hasImage && link ? encodeQr(link, 'M') : null;
+
+    // Two captions sit under the code; whatever height is left after them is the code's.
+    const how = this.add.text(centreX, 0, t('menu.support.how'), {
+      color: '#5a4c39', fontFamily: UI_FONT, fontSize: '10.5px', align: 'center', lineSpacing: 2,
+      wordWrap: { width: contentBounds.width - 24 },
+    }).setOrigin(0.5, 0);
+    const scanLabel = this.add.text(centreX, 0, hasImage ? t('menu.support.qrHint') : t('menu.support.qrPhone'), {
+      color: '#5a4c39', fontFamily: UI_FONT, fontSize: '10px', align: 'center',
+    }).setOrigin(0.5, 0);
+    this.modalObjects.push(how, scanLabel);
+
+    const contentBottom = contentBounds.y + contentBounds.height;
+    const captions = scanLabel.height + 6 + how.height + 6;
+    const plate = 8; // white margin around the code — the quiet zone a reader needs
+    const qrSize = Math.max(96, Math.min(QR_MAX, contentBottom - cursor - captions - plate * 2));
+
+    if (hasImage || drawn) {
+      const g = this.add.graphics();
+      const left = centreX - qrSize / 2;
+      g.fillStyle(0xffffff, 1);
+      g.fillRect(left - plate, cursor - plate, qrSize + plate * 2, qrSize + plate * 2);
+      g.lineStyle(1.2, INK_UI.brush, 0.6);
+      g.strokeRect(left - plate, cursor - plate, qrSize + plate * 2, qrSize + plate * 2);
+      this.modalObjects.push(g);
+      if (hasImage) {
+        const source = this.textures.get(qrKey).getSourceImage() as { width: number; height: number };
+        const fit = Math.min(qrSize / source.width, qrSize / source.height);
+        this.modalObjects.push(this.add.image(centreX, cursor + qrSize / 2, qrKey).setDisplaySize(source.width * fit, source.height * fit));
+      } else if (drawn) {
+        drawQrCode(g, drawn, left, cursor, qrSize);
+      }
+      cursor += qrSize + plate + 6;
+    }
+    scanLabel.setY(cursor);
+    cursor += scanLabel.height + 6;
+    how.setY(cursor);
+
+    this.modalObjects.push(this.add.text(footerBounds.x + footerBounds.width / 2, footerBounds.y + footerBounds.height / 2, t('menu.support.thanks'), {
+      color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '11px', align: 'center', fontStyle: 'italic',
+      wordWrap: { width: footerBounds.width - 16 },
+    }).setOrigin(0.5));
+  }
+
+  /** A small "Copied ✓" that rises off the button and fades. */
+  private flashCopied(x: number, y: number): void {
+    const note = this.add.text(x, y, t('menu.support.copied'), {
+      color: '#fbf2df', fontFamily: UI_FONT, fontSize: '11px', fontStyle: '700',
+      backgroundColor: 'rgba(42,33,24,0.92)', padding: { x: 7, y: 3 },
+    }).setOrigin(0.5, 1);
+    this.modalObjects.push(note);
+    this.tweens.add({
+      targets: note, y: y - 14, alpha: { from: 1, to: 0 }, duration: 1300, ease: 'Sine.easeOut',
+      onComplete: () => note.destroy(),
+    });
+  }
+
+  private closeModal(): void {
+    for (const item of this.modalObjects) {
+      item.destroy();
+    }
+    this.modalObjects = [];
+  }
+
   private renderLanguageSelector(): void {
     this.renderChoiceRow(
       GAME_HEIGHT - 40,
@@ -1277,10 +1501,46 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private clearContent(): void {
+    // A re-render underneath an open modal would put fresh buttons on top of its blocker.
+    this.closeModal();
     for (const item of this.content) {
       item.destroy();
     }
     this.content = [];
+  }
+}
+
+/**
+ * Draws a QR matrix into `size` design units at (x, y), dark modules in soot on whatever the
+ * caller painted underneath (a white plate, with the quiet zone the reader needs).
+ *
+ * Dark runs are merged along each row and every rectangle is drawn a hair taller than its cell:
+ * fractional module widths at RENDER_SCALE 2 otherwise leave antialiased hairline seams between
+ * neighbouring modules, and a reader looking for solid finder squares does not care for those.
+ */
+function drawQrCode(g: Phaser.GameObjects.Graphics, matrix: QrMatrix, x: number, y: number, size: number): void {
+  const cell = size / matrix.size;
+  g.fillStyle(PIGMENT.muc, 1);
+  for (let row = 0; row < matrix.size; row += 1) {
+    let start = -1;
+    for (let col = 0; col <= matrix.size; col += 1) {
+      const dark = col < matrix.size && matrix.modules[row][col];
+      if (dark && start < 0) {
+        start = col;
+      } else if (!dark && start >= 0) {
+        g.fillRect(x + start * cell, y + row * cell, (col - start) * cell + 0.2, cell + 0.35);
+        start = -1;
+      }
+    }
+  }
+}
+
+/** `https://me.momo.vn/6Ofbt…` → `me.momo.vn`; falls back to the bare link if it does not parse. */
+function linkHost(link: string): string {
+  try {
+    return new URL(link).host;
+  } catch {
+    return link.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
   }
 }
 
