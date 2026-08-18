@@ -20,7 +20,7 @@ export type CardIconId =
   | 'coin' | 'purse' | 'scroll' | 'blade' | 'shield' | 'banner'
   | 'hut' | 'ladder' | 'crown' | 'scales' | 'person' | 'grain'
   | 'herd' | 'cart' | 'branch' | 'retreat' | 'spark' | 'wall'
-  | 'hourglass' | 'skull';
+  | 'hourglass' | 'skull' | 'cup' | 'brush';
 
 /** Side of the square a glyph is drawn into, centred on the container's origin. */
 export const CARD_ICON_SIZE = 26;
@@ -222,6 +222,32 @@ export function drawCardIcon(
       line(2);
       g.lineBetween(-8, -10, 8, -10); g.lineBetween(-8, 10, 8, 10);
       g.lineBetween(-8, -10, 8, 10); g.lineBetween(8, -10, -8, 10);
+      break;
+
+    // The two footer links. Not option glyphs — they carry the support row, where a phrase with a
+    // mark beside it has to read as pressable without a button drawn around it.
+    case 'cup':
+      // Steam first, then the cup, then the saucer: the bare trapezoid read as a bucket, and the
+      // two curls are the whole difference between a drink and a pot.
+      line(1.3);
+      for (const sx of [-3.5, 3.5]) {
+        g.beginPath(); g.arc(sx, -10, 2.2, Math.PI * 0.5, Math.PI * 1.5); g.strokePath();
+        g.beginPath(); g.arc(sx, -6.2, 2.2, Math.PI * 1.5, Math.PI * 0.5); g.strokePath();
+      }
+      line(2);
+      g.beginPath();
+      g.moveTo(-8, -2); g.lineTo(8, -2); g.lineTo(6, 8); g.lineTo(-6, 8);
+      g.closePath(); g.strokePath();
+      line(1.8); g.beginPath(); g.arc(9, 1.5, 3.6, Math.PI * 1.5, Math.PI * 0.5); g.strokePath();
+      line(2); g.lineBetween(-10, 11, 10, 11);
+      break;
+
+    case 'brush':
+      // A writing brush, held at the angle a hand holds one: shaft, the band that grips the hairs,
+      // then the tapered head. The game is drawn in ink, so contributing to it is picking one up.
+      line(2.2); g.lineBetween(7, -10, -1, 2);
+      line(2.4); g.lineBetween(-3.5, 0.4, 1.5, 3.6);
+      fill(); g.fillTriangle(-3.5, 0.4, 1.5, 3.6, -7.5, 10.5);
       break;
 
     case 'skull':

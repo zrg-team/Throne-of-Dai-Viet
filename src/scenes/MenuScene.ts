@@ -6,7 +6,7 @@ import { getLegacy, LEGACY_PERKS, purchaseLegacyPerk, rankForScore } from '../st
 import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
-import { InkUI, INK_UI } from '../ui/InkUI';
+import { InkUI, INK_UI, INK_UI_HEX } from '../ui/InkUI';
 import { PIGMENT } from '../ui/ink/palette';
 import { INK, brushStroke, inkOutline, shade, washFill, waveLine } from '../ui/inkTheme';
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
@@ -29,10 +29,12 @@ type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy' | 'settings';
 /**
  * The front page's footer, measured up from the bottom edge.
  *
- * The support row — a coffee and a pull request, side by side — sits on the sheet's edge, and the
- * settings button just above it. The button column stops at `SETTINGS_TOP`; the three settings
- * rows that used to live there have their own page now, and what is left above the footer is
- * breathing room for the art.
+ * The support row — one sentence offering a coffee and a pull request — sits on the sheet's edge,
+ * and the settings button just above it. The row holds pressable phrases rather than buttons, so
+ * its height is the band they are centred in, not the height of anything drawn.
+ *
+ * The button column stops at `SETTINGS_TOP`; the three settings rows that used to live there have
+ * their own page now, and what is left above the footer is breathing room for the art.
  */
 const SUPPORT_ROW_HEIGHT = 32;
 const SUPPORT_TOP = GAME_HEIGHT - 14 - SUPPORT_ROW_HEIGHT;
@@ -1269,34 +1271,53 @@ export class MenuScene extends Phaser.Scene {
   }
 
   /**
-   * The two doors at the foot of the front page: one for a coffee, one for a pull request.
+   * The line at the foot of the front page: a coffee, and — better — a hand with the game.
    *
-   * Ghost buttons on purpose. They are the least important thing on the sheet and must read that
-   * way — a filled button here would compete with "Dragon Ascent" for the eye. Both are the same
-   * width so neither looks like the one you are supposed to press.
+   * One sentence, not two controls. They were a pair of ghost buttons, and a button is the game
+   * asking you to press it; these are asides, and drawn as chrome they competed with "Dragon
+   * Ascent" for the eye while saying nothing about what they lead to. Written out with the words
+   * that join them — "Buy me a coffee — or even better, help build the game" — the sentence itself
+   * does the persuading, and the two phrases inside it are simply the parts you can press: marked
+   * with a glyph, ruled underneath, and cinnabar under the finger.
+   *
+   * That is also why the second phrase is lowercase in both catalogues. It is the back half of a
+   * sentence, not a label, and a capital there gives the game away as two buttons wearing prose.
+   *
+   * The parts are measured and then centred as one line, so the connective always sits between
+   * them whatever it says. Vietnamese runs longer than English here; if the line ever outgrows the
+   * sheet it shrinks to fit rather than wrapping under itself, since there is exactly one line of
+   * room above the bottom edge.
    */
   private renderSupportRow(): void {
-    // 150 each, not the column's 141: "Help improve the game" measures 138 at 12px and 127 at
-    // 11px, and a button wraps at its width minus 10, so the column width put both languages
-    // onto two lines. The row is allowed to run 14 wider than the column on each side — it is
-    // the footer, and the tagline above already does.
-    const gap = 10;
-    const width = 150;
-    const left = (GAME_WIDTH - width * 2 - gap) / 2;
-    const bounds = { y: SUPPORT_TOP, width, height: SUPPORT_ROW_HEIGHT };
+    const row = this.add.container(GAME_WIDTH / 2, SUPPORT_TOP + SUPPORT_ROW_HEIGHT / 2);
 
-    this.content.push(this.ui.button(
-      { x: left, ...bounds },
-      t('menu.support.coffee'),
-      () => this.renderSupportModal(),
-      { variant: 'ghost', fontSize: '11px' },
-    ));
-    this.content.push(this.ui.button(
-      { x: left + width + gap, ...bounds },
-      t('menu.support.improve'),
-      () => openExternalLink(SUPPORT.github),
-      { variant: 'ghost', fontSize: '11px' },
-    ));
+    const coffee = this.ui.textLink(0, 0, t('menu.support.coffee'), () => this.renderSupportModal(), { icon: 'cup' });
+    const improve = this.ui.textLink(0, 0, t('menu.support.improve'), () => openExternalLink(SUPPORT.github), { icon: 'brush' });
+    // Quieter than either phrase, and deliberately not pressable: it is the sentence's connective
+    // tissue, and a player hunting for what is clickable must never land on it.
+    const connective = this.ui.label(0, 0, t('menu.support.or'), 'caption', {
+      color: INK_UI_HEX.mutedText,
+      fontSize: '11px',
+    }).setOrigin(0, 0.5);
+
+    const gap = 6;
+    const coffeeWidth = coffee.getData('linkWidth') as number;
+    const improveWidth = improve.getData('linkWidth') as number;
+    const total = coffeeWidth + gap + connective.width + gap + improveWidth;
+
+    let cursor = -total / 2;
+    coffee.x = cursor;
+    cursor += coffeeWidth + gap;
+    connective.x = cursor;
+    cursor += connective.width + gap;
+    improve.x = cursor;
+
+    row.add([coffee, connective, improve]);
+    const maxWidth = GAME_WIDTH - 20;
+    if (total > maxWidth) {
+      row.setScale(maxWidth / total);
+    }
+    this.content.push(row);
   }
 
   /**

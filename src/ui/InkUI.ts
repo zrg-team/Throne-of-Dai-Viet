@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { addPressFeedback } from './animations';
+import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from './CardIcons';
 import { UI_FONT } from './fonts';
 import { PIGMENT } from './ink/palette';
 import { inkPath, mulberry32, washFill, type Pt } from './ink/stroke';
@@ -106,6 +107,16 @@ export interface InkButtonOptions {
   fontSize?: string;
   radius?: number;
   extraHitPadding?: number;
+}
+
+export interface InkTextLinkOptions {
+  fontSize?: string;
+  /** The glyph inked to the left of the phrase. Without one the phrase stands alone. */
+  icon?: CardIconId;
+  /** The phrase at rest. */
+  color?: number;
+  /** The glyph, the rule, and what the phrase turns into under the finger. */
+  accent?: number;
 }
 
 export interface InkSurfaceOptions {
@@ -580,6 +591,98 @@ export class InkUI {
     if (!disabled) {
       addPressFeedback(this.scene, container, hitArea, { width: bounds.width, height: bounds.height });
     }
+    return container;
+  }
+
+  /**
+   * A phrase you can press: ink, a mark beside it, a hand-ruled underline — and no button.
+   *
+   * For the places where a filled or ghosted button would overstate the case. The support row is
+   * the reason it exists: two footer offers drawn as buttons read as things the game is asking you
+   * to do, when they are asides the player may notice or ignore. Stripped to a marked, underlined
+   * phrase they read as what they are — writing on the page you happen to be able to press.
+   *
+   * The rule is drawn, not a font underline, so it wobbles like everything else here; the glyph and
+   * the rule carry the accent at rest and the phrase joins them under the finger, which is the
+   * whole hover state. The hit box is padded out to a thumb whatever the type size.
+   *
+   * Laid out rightward from `x` and centred vertically on `y` — a caller centring a row of these
+   * has to measure them first, so the width lands on `getData('linkWidth')`.
+   */
+  textLink(
+    x: number,
+    y: number,
+    label: string,
+    onClick: () => void,
+    opts: InkTextLinkOptions = {},
+  ): Phaser.GameObjects.Container {
+    const { fontSize = '12px', icon, color = INK_UI.brush, accent = INK_UI.cinnabar } = opts;
+    const container = this.scene.add.container(x, y);
+
+    const iconSize = 18;
+    const textX = icon ? iconSize + 6 : 0;
+    const text = this.label(textX, 0, label, 'button', { color: colorToCss(color), fontSize }).setOrigin(0, 0.5);
+    const width = textX + text.width;
+
+    const rule = this.scene.add.graphics();
+    const ruleY = Math.round(text.height / 2);
+    const drawRule = (hot: boolean): void => {
+      rule.clear();
+      inkPath(
+        rule,
+        [{ x: textX, y: ruleY }, { x: textX + text.width, y: ruleY }],
+        Math.round(width * 7 + label.length * 3),
+        { width: hot ? 1.5 : 1.1, alpha: hot ? 0.95 : 0.5, colour: accent, wobble: 0.7, step: 9 },
+      );
+    };
+    drawRule(false);
+    container.add([rule, text]);
+
+    if (icon) {
+      const glyph = drawCardIcon(this.scene, icon, accent);
+      glyph.setPosition(iconSize / 2, 0).setScale(iconSize / CARD_ICON_SIZE);
+      container.add(glyph);
+    }
+
+    const hitHeight = Math.max(30, text.height + 12);
+    const hitArea = this.scene.add
+      .rectangle(width / 2, 0, width + 14, hitHeight, 0xffffff, 0.001)
+      .setInteractive({ useHandCursor: true });
+
+    const setHot = (hot: boolean): void => {
+      text.setColor(colorToCss(hot ? accent : color));
+      drawRule(hot);
+    };
+
+    hitArea.on('pointerover', () => setHot(true));
+    hitArea.on('pointerout', () => setHot(false));
+    hitArea.on('pointerdown', (
+      _pointer: Phaser.Input.Pointer,
+      _localX: number,
+      _localY: number,
+      event: Phaser.Types.Input.EventData,
+    ) => {
+      event.stopPropagation();
+      setHot(true);
+    });
+    hitArea.on('pointerup', (
+      pointer: Phaser.Input.Pointer,
+      _localX: number,
+      _localY: number,
+      event: Phaser.Types.Input.EventData,
+    ) => {
+      event.stopPropagation();
+      setHot(false);
+      // Same guard every button here carries: a finger that lifts on a link at the end of a drag
+      // was scrolling, not pressing.
+      if (scrollGestureConsumedTap(pointer)) {
+        return;
+      }
+      onClick();
+    });
+
+    container.add(hitArea);
+    container.setData('linkWidth', width);
     return container;
   }
 
