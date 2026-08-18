@@ -2,7 +2,7 @@
  * The front page's support row and the coffee modal, in every state it can be in — and, the part
  * that matters, whether the codes it draws actually scan.
  *
- * Drives the real buttons with real taps: an unclickable "Buy me a coffee" is the one thing this
+ * Drives the real footer links with real taps: an unclickable "Buy me a coffee" is the one thing this
  * feature must not ship with. The QR under each tab is read back off the live canvas with an
  * independent decoder (jsQR) and must decode to the configured link — a code that is one module
  * off looks identical to a human and pays nobody. The empty state and the official-image state are
@@ -173,11 +173,17 @@ page = await openMenu('en');
 await page.screenshot({ path: `${OUT}/01-menu-en.png` });
 
 const coffee = await findLabel(page, 'Buy me a coffee');
-check('the coffee button is on the front page', Boolean(coffee), coffee ? `at ${Math.round(coffee.x)},${Math.round(coffee.y)}` : '');
-const improve = await findLabel(page, 'Help improve the game');
-check('the improve button is on the front page', Boolean(improve));
-check('the two buttons sit side by side', Boolean(coffee && improve) && Math.abs(coffee.y - improve.y) < 2 && improve.x > coffee.x,
+check('the coffee link is on the front page', Boolean(coffee), coffee ? `at ${Math.round(coffee.x)},${Math.round(coffee.y)}` : '');
+const improve = await findLabel(page, 'help build the game');
+check('the improve link is on the front page', Boolean(improve));
+check('the two links sit side by side', Boolean(coffee && improve) && Math.abs(coffee.y - improve.y) < 2 && improve.x > coffee.x,
   coffee && improve ? `y ${Math.round(coffee.y)} / ${Math.round(improve.y)}` : '');
+// The words that make the row a sentence, and not a third thing to press: on the same line, and
+// between the two phrases.
+const connective = await findLabel(page, '— or even better,');
+check('the connective joins them into one sentence', Boolean(connective)
+  && Math.abs(connective.y - coffee.y) < 3 && connective.x > coffee.x && connective.x < improve.x,
+  connective ? `x ${Math.round(connective.x)} between ${Math.round(coffee.x)} and ${Math.round(improve.x)}` : 'missing');
 const settings = await findLabel(page, 'Settings');
 check('settings sits above the support row', Boolean(settings && coffee) && settings.y < coffee.y - 20);
 
@@ -261,8 +267,8 @@ await page.close();
 console.log('=== VIETNAMESE ===');
 page = await openMenu('vi');
 await page.screenshot({ path: `${OUT}/07-menu-vi.png` });
-const coffeeVi = await findLabel(page, 'Mời tác giả cà phê');
-check('the Vietnamese coffee button is on the front page', Boolean(coffeeVi));
+const coffeeVi = await findLabel(page, 'Mời mình ly cà phê');
+check('the Vietnamese coffee link is on the front page', Boolean(coffeeVi));
 if (coffeeVi) await tapDesign(page, coffeeVi);
 texts = await modalTexts(page);
 check('the Vietnamese modal opens on the Wise tab', texts.includes(wise.handle) && texts.some((s) => /Chép liên kết/.test(s)));
