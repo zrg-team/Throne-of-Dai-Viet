@@ -77,9 +77,10 @@ import { heroTemplates } from '../data/heroes';
 import { arrivalPreview } from '../data/heroArrivals';
 import { isVassal } from '../systems/ascent/VassalSystem';
 import { designLength } from '../game/graphicsQuality';
-import { createPlayerLandFlag } from '../ui/playerFlag';
 import { sawtoothBand, seal } from '../ui/ink/devices';
 import { playArrivalFanfare } from '../ui/ascent/arrivalFanfare';
+import { THRONE_HALL_HEIGHT, throneHallDiorama } from '../ui/ascent/throneHall';
+import { CARD_STACK_PEEK, CardStack } from '../ui/ascent/CardStack';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { CARD_ICON_SIZE, drawCardIcon, iconForOption, type CardIconId } from '../ui/CardIcons';
 import { ASCENT_HUD_HEIGHT, AscentHud } from '../ui/ascent/AscentHud';
@@ -3456,95 +3457,34 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const subtitle = prompt.pityUsed
       ? t('ascent.summon.pity')
       : prompt.source === 'court' ? t('ascent.summon.courtSubtitle') : t('ascent.summon.subtitle');
-    const { content, body, bodyWidth, finish } = this.promptScrollBody(
-      prompt.source === 'court' ? t('ascent.summon.courtTitle') : t('ascent.summon.title'),
-      payrollShare > 55 ? `${subtitle}
-${t('ascent.summon.payrollWarn', { pct: payrollShare })}` : subtitle,
-      PROMPT_FOOTER_HEIGHT,
-    );
+    const title = prompt.source === 'court' ? t('ascent.summon.courtTitle') : t('ascent.summon.title');
 
-    const cardHeight = 132;
-    const cards: Phaser.GameObjects.Container[] = [];
-    let used = 0;
+    const heroes = prompt.heroIds
+      .map((heroId) => this.state.heroDeck.find((candidate) => candidate.id === heroId))
+      .filter((hero): hero is Hero => Boolean(hero));
+    if (heroes.length === 0) {
+      this.promptFrame(title, subtitle);
+      return;
+    }
 
-    prompt.heroIds.forEach((heroId) => {
-      const hero = this.state.heroDeck.find((candidate) => candidate.id === heroId);
-      if (!hero) return;
-      const tier = tierForHero(hero);
+    this.heroDeckPrompt({
+      title,
+      subtitle: payrollShare > 55
+        ? `${subtitle}\n${t('ascent.summon.payrollWarn', { pct: payrollShare })}`
+        : subtitle,
+      heroes,
       // First-time pulls are the collection payoff — say so on the card.
-      const isNew = !isHeroUnlocked(hero.id);
-
-      const card = this.optionCard(
-        { x: 0, y: used, width: bodyWidth, height: cardHeight },
-        {
-          title: heroName(hero),
-          body: `${heroTypeLabel(hero.type)}  ·  ${rarityLabel(hero.rarity)}\n${heroBio(hero)}`,
-          note: arrivalPreview(hero) ?? (isNew ? t('ascent.summon.newCodex') : this.heroStatLine(hero)),
-          noteColor: arrivalPreview(hero) || isNew ? '#8a5f1c' : undefined,
-          badge: t(`ascent.rarity.${tier}` as Parameters<typeof t>[0]),
-          accent: RARITY_COLOR[tier],
-          washAlpha: RARITY_WASH[tier],
-          reserveRight: PORTRAIT_W + 14,
-          parent: body,
-          onTap: () => this.choose(heroId),
-        },
-      );
-      // The card may have grown past `cardHeight` to fit a long name; the glow and the portrait
-      // are sized to what it actually became, or they sit short of its lower edge.
-      const drawnHeight = (card.getData('cardHeight') as number) ?? cardHeight;
-
-      // A ruler's card is the only one in the mode that gets a ground of its own: the corner
-      // marks `InkUI` reserves for exactly this, a heavier wash than jade's 0.15, and a chop in
-      // the corner. Below that, rarity is still carried by rail and stroke alone.
-      if (hero.arrival) {
-        const ground = this.add.graphics();
-        ground.fillStyle(INK_UI.gold, 0.1);
-        ground.fillRoundedRect(2, 2, bodyWidth - 4, drawnHeight - 4, 8);
-        card.addAt(ground, 1);
-        const chop = this.add.graphics();
-        seal(chop, 30, drawnHeight - 22, 22, 'lotus');
-        card.add(chop);
-      }
-
-      // Gold and Jade pulls glow — the one moment the mode leans into the gacha reveal.
-      if (tier === 'gold' || tier === 'jade') {
-        const glow = this.add.graphics();
-        glow.lineStyle(3, RARITY_COLOR[tier], 0.8);
-        glow.strokeRoundedRect(-2, -2, bodyWidth + 4, drawnHeight + 4, 10);
-        card.add(glow);
-        this.tweens.add({
-          targets: glow,
-          alpha: { from: 0.25, to: 1 },
-          duration: 900,
-          yoyo: true,
-          repeat: -1,
-          ease: 'Sine.easeInOut',
-        });
-      }
-
-      // Procedural portrait, deterministic from the hero id — no art assets involved.
-      // Sized to the card's right-hand column, below the badge row. The portrait's art is
-      // taller than its frame (the shoulders hang past it), so it must be fitted to a box
-      // rather than dropped at a centre point, or it spills out of the card.
-      const face = renderHeroFaceInBox(this, hero, {
-        x: bodyWidth - PORTRAIT_W - 12,
-        y: PORTRAIT_TOP,
-        width: PORTRAIT_W,
-        height: drawnHeight - PORTRAIT_TOP - 8,
-      });
-      card.add(face);
-      cards.push(card);
-      used += drawnHeight + 10;
+      badgeFor: (hero) => (isHeroUnlocked(hero.id) ? undefined : t('ascent.summon.newCodex')),
+      // A champion nobody can afford is the trap this screen sets, so a card with no arrival to
+      // announce prints its wage instead of leaving the foot of the paper blank.
+      noteFor: (hero) => arrivalPreview(hero) ?? t('ascent.summon.upkeep', { gold: hero.upkeepGold }),
+      confirmLabel: t('ascent.summon.recruit'),
+      // The draw can be turned down whole — the one screen in the deck family that needs a way
+      // out, since a champion nobody wants is still a wage every season.
+      ignoreLabel: t('ascent.summon.pass'),
+      onSelect: (hero) => this.choose(hero.id),
+      onIgnore: () => this.choose('pass'),
     });
-    staggerIn(this, cards);
-    finish(used);
-
-    this.modalLayer.add(this.ui.button(
-      { x: content.x, y: GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8, width: content.width, height: 38 },
-      t('ascent.summon.pass'),
-      () => this.choose('pass'),
-      { variant: 'ghost', fontSize: '12px' },
-    ));
   }
 
   private heroStatLine(hero: Hero): string {
@@ -5022,129 +4962,65 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
   }
 
   /**
-   * The founding: a ruler out of the record and the champion who rises with him.
+   * The founding: the champion who raises the dynasty you rule, dealt as a hand you hold.
    *
-   * Drawn by hand rather than through `optionCard`, which lays out one text column and pins a
-   * single-line note to the foot — two portraits side by side and a wrapped effect line both
-   * overran it. The layout here is a court audience read top to bottom: the dynasty's own
-   * standard above the cards so a player learns their colours before anything else, then the
-   * ruler with his reign, then a bronze rule, then the champion who follows him.
+   * Three heroes, one 390-wide screen. Three columns cannot carry a bio, and three full cards
+   * do not fit down the page, so the older layout was a carousel with two arrows nobody pressed.
+   * A deck fixes the same problem with the gesture a phone already teaches: the front card is
+   * whole, the ones behind it are visibly still there, and the thumb decides.
    */
   private showFounder(prompt: Extract<AscentPrompt, { kind: 'founder' }>): void {
     const codex = codexProgress();
-    const { body, bodyWidth, finish } = this.promptScrollBody(
-      t('ascent.founder.title'),
-      `${t('ascent.founder.subtitle')}\n${t('ascent.codex.subtitle', codex)}`,
-      PROMPT_FOOTER_HEIGHT,
-    );
-
     const heroes = prompt.options
       .map((id) => this.state.heroDeck.find((candidate) => candidate.id === id))
       .filter((hero): hero is Hero => Boolean(hero));
-    if (heroes.length === 0) { finish(0); return; }
+    if (heroes.length === 0) {
+      this.promptFrame(t('ascent.founder.title'), t('ascent.founder.subtitle'));
+      return;
+    }
 
-    // One card at a time, full width, dragged between — the player asked to see a whole champion
-    // rather than three slivers, and at 390 wide a three-across hero card cannot carry a bio.
-    // `makeSwipeableCard` is the wrong shape here: it flies a card *off* screen and fires a
-    // handler. This borrows its drag maths and snaps instead.
-    const DOT_Y = 6;
-    const trackTop = DOT_Y + 16;
-    const track = this.add.container(0, trackTop);
-    body.add(track);
-
-    let tallest = 0;
-    heroes.forEach((hero, index) => {
-      const card = this.foundingCard({ x: index * (bodyWidth + 24), y: 0, width: bodyWidth }, hero, () => undefined);
-      tallest = Math.max(tallest, (card.getData('cardHeight') as number) ?? 0);
-      track.add(card);
+    this.heroDeckPrompt({
+      title: t('ascent.founder.title'),
+      subtitle: `${t('ascent.founder.subtitle')}
+${t('ascent.codex.subtitle', codex)}`,
+      heroes,
+      noteFor: (hero) => arrivalPreview(hero) ?? t(`ascent.founder.gift.${hero.type}` as Parameters<typeof t>[0]),
+      confirmLabel: t('ascent.founder.confirm'),
+      onSelect: (hero) => this.choose(hero.id),
     });
-
-    // Dots, so the player knows there are three of these before they touch anything.
-    const dots = this.add.graphics();
-    body.add(dots);
-    let index = 0;
-    const paintDots = (): void => {
-      dots.clear();
-      const span = heroes.length * 14;
-      heroes.forEach((_, i) => {
-        dots.fillStyle(i === index ? INK_UI.cinnabar : INK_UI.softBrush, i === index ? 1 : 0.35);
-        dots.fillCircle(bodyWidth / 2 - span / 2 + 7 + i * 14, DOT_Y, i === index ? 4 : 3);
-      });
-    };
-
-    const snapTo = (next: number): void => {
-      index = Phaser.Math.Clamp(next, 0, heroes.length - 1);
-      this.tweens.add({
-        targets: track, x: -index * (bodyWidth + 24), duration: 220, ease: 'Cubic.easeOut',
-      });
-      paintDots();
-    };
-    paintDots();
-
-    // Drag the track. The scroll area below is vertical-only and this content fits its viewport,
-    // so the two gestures never contend.
-    const drag = this.add.zone(0, trackTop, bodyWidth, tallest).setOrigin(0, 0)
-      .setInteractive({ draggable: true, useHandCursor: true });
-    let grabbed = 0;
-    drag.on('dragstart', (pointer: Phaser.Input.Pointer) => { grabbed = track.x - designLength(pointer.x); });
-    drag.on('drag', (pointer: Phaser.Input.Pointer) => {
-      const limit = -(heroes.length - 1) * (bodyWidth + 24);
-      track.x = Phaser.Math.Clamp(designLength(pointer.x) + grabbed, limit - 40, 40);
-    });
-    drag.on('dragend', () => snapTo(Math.round(-track.x / (bodyWidth + 24))));
-    body.add(drag);
-
-    // Arrows, because a carousel with no affordance is a card the player never swipes.
-    const arrow = (x: number, label: string, step: number): void => {
-      const hit = this.add.text(x, trackTop + tallest / 2, label, {
-        color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '22px',
-      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-      hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-        if (scrollGestureConsumedTap(pointer)) return;
-        snapTo(index + step);
-      });
-      body.add(hit);
-    };
-    arrow(10, '\u25C0', -1);
-    arrow(bodyWidth - 10, '\u25B6', 1);
-
-    finish(trackTop + tallest + 12);
-
-    const footerY = GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8;
-    this.modalLayer.add(this.ui.button(
-      { x: 20, y: footerY, width: GAME_WIDTH - 40, height: 40 },
-      t('ascent.founder.confirm'),
-      () => this.choose(heroes[index].id),
-      { variant: 'primary', fontSize: '14px' },
-    ));
   }
 
   /**
-   * The realm's standard, over a Đông Sơn bronze rule.
+   * The court on the morning it changes hands: the hall, the empty seat, and your two standards.
    *
-   * Every province the player takes will fly this, and until now the first sight of it was on
-   * the map with no explanation. Naming it on the founding screen is the cheapest way to teach
-   * a colour the whole rest of the run depends on reading quickly.
+   * This was a single flag on bare paper, which said "here is a colour" and nothing else. The
+   * screen it sits on is the one that announces a reign, so it now draws the place the reign
+   * happens — roof, colonnade, steps, bronze urns, and nobody in the courtyard, because the
+   * court has not been called yet. The flags stay, one at each side and named underneath: every
+   * province the player takes will fly them, and this is still the cheapest place to teach a
+   * colour the rest of the run depends on reading quickly.
    */
-  private addDynastyStandard(parent: Phaser.GameObjects.Container, width: number): number {
-    // The standard is drawn about its *footing*: the mast runs to −56 and the cloth hangs off
-    // its head, so anchoring it near the top of the scroll body put the whole banner above the
-    // mask and left a bare pole on screen.
-    const FOOT_Y = 72;
-    const flag = createPlayerLandFlag(this, true, this.state.mapConfig.seed);
-    flag.setScale(0.98).setPosition(width / 2 - 14, FOOT_Y);
-    parent.add(flag);
+  private addThroneHall(parent: Phaser.GameObjects.Container, width: number): number {
+    // On a short surface — `GAME_HEIGHT` clamps to 620 in a desktop browser — the court plus the
+    // three advantages overruns the sheet by about a dozen pixels, and the whole screen starts
+    // scrolling for no gain. The diorama is the part that can afford to give: it is a picture,
+    // not information.
+    const scale = GAME_HEIGHT < 700 ? 0.84 : 1;
+    const drawn = Math.round(THRONE_HALL_HEIGHT * scale);
+    const hall = throneHallDiorama(this, width, this.state.mapConfig.seed);
+    hall.setScale(scale).setPosition((width * (1 - scale)) / 2, 0);
+    parent.add(hall);
 
     const band = this.add.graphics();
-    sawtoothBand(band, 0, FOOT_Y + 8, width, 7, 0.5);
+    sawtoothBand(band, 0, drawn + 4, width, 7, 0.5);
     parent.add(band);
 
-    const caption = this.add.text(0, FOOT_Y + 20, t('ascent.founder.standard'), {
+    const caption = this.add.text(0, drawn + 16, t('ascent.founder.standard'), {
       color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '10px', align: 'center',
       wordWrap: { width },
     }).setFixedSize(width, 0);
     parent.add(caption);
-    return FOOT_Y + 20 + caption.height + 10;
+    return drawn + 16 + caption.height + 10;
   }
 
   /**
@@ -5159,14 +5035,13 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
    * heights, *then* the surfaces. Letting each card size itself independently gives a ragged row.
    */
   private showMandate(prompt: Extract<AscentPrompt, { kind: 'mandate' }>): void {
-    const realm = this.state.kingdoms.find((k) => k.id === PLAYER_KINGDOM_ID)?.name ?? '';
     const { body, bodyWidth, finish } = this.promptScrollBody(
-      t('ascent.mandate.title', { realm }),
+      t('ascent.mandate.title'),
       t('ascent.mandate.subtitle'),
       0,
     );
 
-    const top = this.addDynastyStandard(body, bodyWidth);
+    const top = this.addThroneHall(body, bodyWidth);
     const GAP = 8;
     const column = Math.floor((bodyWidth - GAP * 2) / 3);
 
@@ -5217,73 +5092,242 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
   }
 
   /**
-   * One founding: the champion who raises the dynasty *you* rule.
+   * One champion, drawn as a card you would hold: portrait first, then who they are, then the
+   * one line that says what taking them changes on the board.
    *
-   * Drawn by hand rather than through `optionCard`, which lays out one text column and pins a
-   * single-line note to the foot — a portrait, a bio and a wrapped gift line all overran it.
+   * Fixed height on purpose — every card in a stack has to be the same size, or the ones peeking
+   * out behind the front one stick out at different distances and the deck reads as a mess. The
+   * height comes from the room the screen actually has, so the only thing that gives is the bio:
+   * `maxLines` is computed from what is left after the note is placed, rather than letting a long
+   * life story push the gift line off the bottom edge.
    */
-  private foundingCard(
-    bounds: { x: number; y: number; width: number },
+  private heroDeckCard(
     hero: Hero,
-    onTap: () => void,
+    width: number,
+    height: number,
+    opts: { badge?: string; note?: string },
   ): Phaser.GameObjects.Container {
-    const container = this.add.container(bounds.x, bounds.y);
+    const container = this.add.container(0, 0);
     const tier = tierForHero(hero);
     const PAD = 12;
-    const FACE_W = 74;
-    const textLeft = PAD + FACE_W + 12;
-    const textWidth = bounds.width - textLeft - PAD;
+    const textWidth = width - PAD * 2;
 
-    const name = this.ui.label(textLeft, 12, `${heroName(hero)}  ·  ${rarityLabel(hero.rarity)}`, 'label', {
-      fontSize: '14px', wordWrap: { width: textWidth },
-    });
-    container.add(name);
-    const line = this.ui.label(textLeft, 12 + name.height + 2,
-      `${heroTypeLabel(hero.type)}  ·  ${this.heroStatLine(hero)}`, 'body', {
-        fontSize: '10px', color: INK_UI_HEX.mutedText, wordWrap: { width: textWidth },
-      });
-    container.add(line);
-    const bio = this.ui.label(textLeft, line.y + line.height + 3, heroBio(hero), 'body', {
-      fontSize: '10.5px', color: INK_UI_HEX.mutedText, wordWrap: { width: textWidth },
-    });
-    container.add(bio);
-
-    // What the founding actually changes on the board. Without this the card is three
-    // biographies and no decision.
-    const gift = this.add.text(textLeft, bio.y + bio.height + 5,
-      arrivalPreview(hero) ?? t(`ascent.founder.gift.${hero.type}` as Parameters<typeof t>[0]), {
-        color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '10.5px', fontStyle: '700',
-        wordWrap: { width: textWidth },
-      });
-    container.add(gift);
-
-    const height = Math.max(gift.y + gift.height + 12, 12 + 96 + 12);
-
-    // Paper, rail and wash behind everything already laid out, as `optionCard` does it.
-    const surface = this.ui.panel(
-      { x: 0, y: 0, width: bounds.width, height },
-      { border: INK_UI.brush, borderWidth: 1.2, borderAlpha: 0.52 },
-    );
-    container.addAt(surface, 0);
-    const rail = this.add.graphics();
-    rail.fillStyle(RARITY_COLOR[tier], 1);
-    rail.fillRect(1, 5, 4.5, height - 10);
-    container.addAt(rail, 1);
+    // Paper, wash and the rarity rail first: everything else is read off them.
+    container.add(this.ui.panel({ x: 0, y: 0, width, height }, {
+      border: INK_UI.brush, borderWidth: 1.2, borderAlpha: 0.52,
+    }));
     const wash = this.add.graphics();
     wash.fillStyle(RARITY_COLOR[tier], RARITY_WASH[tier]);
-    wash.fillRoundedRect(2, 2, bounds.width - 4, height - 4, 8);
-    container.addAt(wash, 2);
+    wash.fillRoundedRect(2, 2, width - 4, height - 4, 8);
+    container.add(wash);
+    // A ruler's card is the only one in the mode that gets a ground of its own, and a chop.
+    if (hero.arrival) {
+      const ground = this.add.graphics();
+      ground.fillStyle(INK_UI.gold, 0.1);
+      ground.fillRoundedRect(2, 2, width - 4, height - 4, 8);
+      container.add(ground);
+    }
+    const rail = this.add.graphics();
+    rail.fillStyle(RARITY_COLOR[tier], 1);
+    rail.fillRect(1, 6, 4.5, height - 12);
+    container.add(rail);
 
-    container.add(renderHeroFaceInBox(this, hero, { x: PAD, y: 12, width: FACE_W, height: 96 }));
+    // Rarity on the left, whatever the screen wants to shout on the right.
+    container.add(this.add.text(PAD, 10, rarityLabel(hero.rarity), {
+      color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '10px', fontStyle: '700',
+    }));
+    if (opts.badge) {
+      container.add(this.add.text(width - PAD, 10, opts.badge, {
+        color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '10px', fontStyle: '700',
+      }).setOrigin(1, 0));
+    }
 
-    const zone = this.add.zone(0, 0, bounds.width, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-    zone.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-      if (scrollGestureConsumedTap(pointer)) return;
-      onTap();
-    });
-    container.add(zone);
-    container.setData('cardHeight', height);
+    const faceHeight = Phaser.Math.Clamp(Math.round(height * 0.42), 88, 142);
+    const faceWidth = Math.round(faceHeight * 0.78);
+    container.add(renderHeroFaceInBox(this, hero, {
+      x: (width - faceWidth) / 2, y: 26, width: faceWidth, height: faceHeight,
+    }));
+
+    let cursor = 26 + faceHeight + 6;
+    const name = this.add.text(width / 2, cursor, heroName(hero), {
+      color: INK_UI_HEX.inkText, fontFamily: TITLE_FONT, fontSize: '17px', fontStyle: '700',
+      align: 'center', wordWrap: { width: textWidth },
+    }).setOrigin(0.5, 0);
+    container.add(name);
+    cursor += name.height + 2;
+
+    const line = this.add.text(width / 2, cursor,
+      `${heroTypeLabel(hero.type)}   ·   ${this.heroStatLine(hero)}`, {
+        color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '10.5px', align: 'center',
+      }).setOrigin(0.5, 0);
+    container.add(line);
+    cursor += line.height + 6;
+
+    const rule = this.add.graphics();
+    sawtoothBand(rule, PAD + 12, cursor, textWidth - 24, 5, 0.4);
+    container.add(rule);
+    cursor += 12;
+
+    // The note is pinned to the foot, so the bio is given exactly the gap that is left.
+    let noteTop = height - PAD;
+    if (opts.note) {
+      const note = this.add.text(width / 2, 0, opts.note, {
+        color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '10.5px', fontStyle: '700',
+        align: 'center', wordWrap: { width: textWidth },
+      }).setOrigin(0.5, 0);
+      noteTop = height - PAD - note.height;
+      note.setY(noteTop);
+      container.add(note);
+    }
+
+    const BIO_LINE = 15;
+    const bioRoom = noteTop - 6 - cursor;
+    const bioLines = Math.max(1, Math.floor(bioRoom / BIO_LINE));
+    const bio = this.add.text(width / 2, cursor, heroBio(hero), {
+      color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '10.5px', align: 'center',
+      lineSpacing: 2, wordWrap: { width: textWidth }, maxLines: bioLines,
+    }).setOrigin(0.5, 0);
+    // `maxLines` alone cuts the last line dead, mid-word, with nothing to say it was cut — the
+    // life stories in this game run long enough that a card regularly ended on "Trước khi".
+    // Re-set it to the lines that fit, ending on a whole word and an ellipsis.
+    const wrapped = bio.getWrappedText();
+    if (wrapped.length > bioLines) {
+      bio.setText(`${wrapped.slice(0, bioLines).join(' ').replace(/[\s,;:.—–-]+$/u, '')}…`);
+    }
+    // A two-line life against a card sized for six leaves a hole in the middle of the paper, so
+    // the bio floats in the gap it was given rather than clinging to the rule above it.
+    bio.setY(cursor + Math.max(0, Math.round((bioRoom - bio.height) / 2)));
+    container.add(bio);
+
+    if (hero.arrival) {
+      const chop = this.add.graphics();
+      seal(chop, width - 28, height - 26, 22, 'lotus');
+      container.add(chop);
+    }
+
+    // Gold and Jade pulls glow — the one moment the mode leans into the gacha reveal.
+    if (tier === 'gold' || tier === 'jade') {
+      const glow = this.add.graphics();
+      glow.lineStyle(3, RARITY_COLOR[tier], 0.8);
+      glow.strokeRoundedRect(-2, -2, width + 4, height + 4, 10);
+      container.add(glow);
+      this.tweens.add({
+        targets: glow, alpha: { from: 0.25, to: 1 }, duration: 900, yoyo: true, repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
+
     return container;
+  }
+
+  /**
+   * Every "choose a champion out of a draw" screen in the mode: the founding, the summon, and
+   * the court's presentation.
+   *
+   * One deck, flicked through with the thumb, plus buttons that do exactly what the gestures do —
+   * the gestures are the fast path, never the only path, because a mouse has no thumb and a
+   * player who has not read the hint still has to be able to finish the screen. Deliberately not
+   * built on `promptScrollBody`: an `InkScrollArea` drives itself off the scene's pointer stream,
+   * so a vertical flick would scroll the sheet *and* take the card.
+   */
+  private heroDeckPrompt(opts: {
+    title: string;
+    subtitle: string;
+    heroes: Hero[];
+    badgeFor?: (hero: Hero) => string | undefined;
+    noteFor?: (hero: Hero) => string | undefined;
+    confirmLabel: string;
+    ignoreLabel?: string;
+    onSelect: (hero: Hero) => void;
+    onIgnore?: () => void;
+  }): void {
+    const content = this.promptFrame(opts.title, opts.subtitle);
+
+    // Room for the footer buttons, the dots-and-hint strip, and the two cards fanned below.
+    const HINT_STRIP = 38;
+    const available = content.height - PROMPT_FOOTER_HEIGHT - HINT_STRIP - CARD_STACK_PEEK;
+    const cardHeight = Phaser.Math.Clamp(available, 200, 340);
+    // The fanned cards rotate a little, so the deck is inset from the content edges or their
+    // corners clip through the screen's margin.
+    const cardWidth = content.width - 12;
+    const cardX = content.x + 6;
+    const cardY = content.y + Math.max(0, Math.round((available - cardHeight) / 2));
+
+    const cards = opts.heroes.map((hero) => this.heroDeckCard(hero, cardWidth, cardHeight, {
+      badge: opts.badgeFor?.(hero),
+      note: opts.noteFor?.(hero),
+    }));
+
+    const stripY = cardY + cardHeight + CARD_STACK_PEEK + 8;
+
+    // Which of them you are holding. Three cards deep, the fan alone does not say "of three".
+    const dots = this.add.graphics();
+    this.modalLayer.add(dots);
+    const paintDots = (index: number): void => {
+      dots.clear();
+      const span = opts.heroes.length * 14;
+      opts.heroes.forEach((_, i) => {
+        dots.fillStyle(i === index ? INK_UI.cinnabar : INK_UI.softBrush, i === index ? 1 : 0.35);
+        dots.fillCircle(GAME_WIDTH / 2 - span / 2 + 7 + i * 14, stripY + 4, i === index ? 4 : 3);
+      });
+    };
+
+    const stack = new CardStack(this, {
+      x: cardX,
+      y: cardY,
+      width: cardWidth,
+      height: cardHeight,
+      cards,
+      onSelect: (index) => opts.onSelect(opts.heroes[index]),
+      onBrowse: paintDots,
+    });
+    this.modalLayer.add(stack.view);
+    paintDots(0);
+
+    // How the deck works, said once, under it. A gesture nobody is told about is a gesture nobody
+    // makes — the carousel this replaced had exactly that problem and answered it with arrows.
+    this.modalLayer.add(this.add.text(GAME_WIDTH / 2, stripY + 14, t('ascent.pick.hint'), {
+      color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '10px', align: 'center',
+      wordWrap: { width: content.width - 60 },
+    }).setOrigin(0.5, 0));
+
+    // The arrows stay, for the mouse and for the player who has not tried the flick yet.
+    if (opts.heroes.length > 1) {
+      const arrow = (x: number, glyph: string, step: number): void => {
+        const hit = this.add.text(x, stripY + 12, glyph, {
+          color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '20px',
+        }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+        hit.on('pointerup', () => stack.browse(step));
+        this.modalLayer.add(hit);
+      };
+      arrow(content.x + 10, '◀', -1);
+      arrow(content.x + content.width - 10, '▶', 1);
+    }
+
+    const footerY = GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8;
+    if (opts.ignoreLabel && opts.onIgnore) {
+      const gap = 10;
+      const half = Math.floor((content.width - gap) / 2);
+      this.modalLayer.add(this.ui.button(
+        { x: content.x, y: footerY, width: half, height: 40 },
+        opts.ignoreLabel,
+        opts.onIgnore,
+        { variant: 'ghost', fontSize: '13px' },
+      ));
+      this.modalLayer.add(this.ui.button(
+        { x: content.x + half + gap, y: footerY, width: content.width - half - gap, height: 40 },
+        opts.confirmLabel,
+        () => stack.select(),
+        { variant: 'primary', fontSize: '13px' },
+      ));
+      return;
+    }
+    this.modalLayer.add(this.ui.button(
+      { x: content.x, y: footerY, width: content.width, height: 40 },
+      opts.confirmLabel,
+      () => stack.select(),
+      { variant: 'primary', fontSize: '14px' },
+    ));
   }
 
   /**

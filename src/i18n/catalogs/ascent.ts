@@ -511,6 +511,7 @@ export const enAscent = {
   "ascent.summon.pity": "The heavens owe you — fortune favours this summon.",
   "ascent.summon.joined": "{hero} joins your dynasty.",
   "ascent.summon.newCodex": "NEW — recorded in the Codex",
+  "ascent.summon.upkeep": "{gold} gold a season in wages",
 
   // ── Parliament ────────────────────────────────────────────────────────────
   "ascent.parliament.title": "The Court Petitions",
@@ -829,9 +830,11 @@ export const enAscent = {
   "ascent.card.quan-so.d": "Every village knows who owes service. +{pct}% recruitment, at a lower cost in supplies.",
   "ascent.card.chieu-hien": "Chiêu Hiền — the Summons",
   "ascent.card.chieu-hien.d": "Word goes out for men of worth. Court business moves {pct}% faster, and a champion is already on the road.",
-  "ascent.mandate.title": "You become King of {realm}",
+  "ascent.mandate.title": "A new sovereign ascends",
   "ascent.mandate.subtitle": "The throne is yours. Choose what it already holds.",
   "ascent.founder.confirm": "Choose this champion",
+  // The deck of champions: how it is worked, said under it every time it opens.
+  "ascent.pick.hint": "Swipe ◀ ▶ to see another  ·  swipe ▲ to choose this one",
   // ── vassalage ──
   "ascent.vassal.tribute": "Tribute from {name}",
   "ascent.vassal.oath": "Oath of vassalage",
@@ -1370,6 +1373,7 @@ export const viAscent = {
   "ascent.summon.pity": "Trời cao đãi ngươi — lần triệu hồi này ắt có quý nhân.",
   "ascent.summon.joined": "{hero} gia nhập vương triều.",
   "ascent.summon.newCodex": "MỚI — đã ghi vào Danh Lục",
+  "ascent.summon.upkeep": "{gold} vàng bổng lộc mỗi mùa",
 
   // ── Parliament ────────────────────────────────────────────────────────────
   "ascent.parliament.title": "Triều Thần Dâng Sớ",
@@ -1688,9 +1692,10 @@ export const viAscent = {
   "ascent.card.quan-so.d": "Làng nào cũng biết ai đến lượt đi lính. +{pct}% chiêu binh, tốn ít quân nhu hơn.",
   "ascent.card.chieu-hien": "Chiêu Hiền",
   "ascent.card.chieu-hien.d": "Chiếu cầu hiền đã ban. Việc triều chính nhanh hơn {pct}%, và một danh tướng đang trên đường tới.",
-  "ascent.mandate.title": "Bạn lên ngôi vua {realm}",
+  "ascent.mandate.title": "Tân vương đăng cơ",
   "ascent.mandate.subtitle": "Ngai vàng đã thuộc về bạn. Hãy chọn thứ triều đình sẵn có.",
   "ascent.founder.confirm": "Chọn người này",
+  "ascent.pick.hint": "Vuốt ◀ ▶ để xem người khác  ·  vuốt ▲ để chọn người này",
   // ── vassalage ──
   "ascent.vassal.tribute": "Cống nạp từ {name}",
   "ascent.vassal.oath": "Lời thề thần phục",
