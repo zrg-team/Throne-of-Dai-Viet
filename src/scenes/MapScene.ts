@@ -297,7 +297,12 @@ export class MapScene extends Phaser.Scene {
     this.computeWorldBounds();
     this.touch = new TouchController(this);
     this.touch.enableFullscreenKey();
-    this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
+    // Deliberately no `setBounds`. Phaser's clamp assumes a camera that zooms about its centre and
+    // corrects the scroll by (height − height/zoom)/2 — right for the default origin, wrong for
+    // this one at (0,0). With the render scale folded into the zoom that error is 422 design
+    // units tall on a phone: the opening frame put the capital under the action bar and the
+    // southern band of the map could never be scrolled to. Every place this scene moves the
+    // camera clamps to the world itself, in the units the camera actually uses.
     this.centerCameraOnPlayerStart();
     this.enableMapDrag();
     this.enableArmyDrag();
@@ -2070,15 +2075,23 @@ export class MapScene extends Phaser.Scene {
     this.scene.get(this.uiSceneKey()).events.emit('state-changed');
   }
 
+  /**
+   * Opens on the player's citadel — the settlement itself, not the province's centroid. The town
+   * is drawn on the fortress hexes, which can be most of a province away from the centroid, and
+   * a first frame that centres bare ground beside the capital reads as the map having lost it.
+   */
   protected centerCameraOnPlayerStart(): void {
     const camera = this.cameras.main;
-    const startLand = this.state.lands.find((land) => land.ownerId === PLAYER_KINGDOM_ID);
-    const targetX = startLand ? this.wx(startLand.x) : this.worldWidth / 2;
-    const targetY = startLand ? this.wy(startLand.y) : this.worldHeight / 2;
+    const zoom = this.mapZoom;
+    const startLand = this.state.lands.find((land) => land.ownerId === PLAYER_KINGDOM_ID && land.type === 'castle')
+      ?? this.state.lands.find((land) => land.ownerId === PLAYER_KINGDOM_ID);
+    const anchor = startLand ? this.getSettlementAnchor(startLand) : undefined;
+    const targetX = anchor ? this.wx(anchor.x) : this.worldWidth / 2;
+    const targetY = anchor ? this.wy(anchor.y) : this.worldHeight / 2;
 
     camera.setScroll(
-      Phaser.Math.Clamp(targetX - GAME_WIDTH / 2, 0, Math.max(0, this.worldWidth - GAME_WIDTH)),
-      Phaser.Math.Clamp(targetY - GAME_HEIGHT / 2, 0, Math.max(0, this.worldHeight - GAME_HEIGHT)),
+      Phaser.Math.Clamp(targetX - GAME_WIDTH / (2 * zoom), 0, Math.max(0, this.worldWidth - GAME_WIDTH / zoom)),
+      Phaser.Math.Clamp(targetY - GAME_HEIGHT / (2 * zoom), 0, Math.max(0, this.worldHeight - GAME_HEIGHT / zoom)),
     );
   }
 

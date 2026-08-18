@@ -241,15 +241,26 @@ const shadow = await page.evaluate(async () => {
 
   // A recorder standing in for a Graphics, so the production geometry can be compared directly:
   // where the ellipse landed against where the feet landed.
+  //
+  // `figure` used to rule its body with `lineBetween`; since the cast went through `inkPath` it
+  // is a `strokePoints` like everything else, so the recorder listens for that. The lowest point
+  // of each stroke is kept: for the body that is the foot; for the shoulders, nón and spear it is
+  // a point a fraction of a figure above and beside it, which moves the measured centre by well
+  // under a per cent of a host's width and leaves the front rank exactly where the feet are.
   const record = () => {
     const feet = [];
     let ellipse = null;
     return {
       feet,
       get ellipse() { return ellipse; },
-      lineStyle() {}, fillStyle() {}, fillCircle() {}, fillTriangle() {}, strokePoints() {}, fillPoints() {},
+      lineStyle() {}, fillStyle() {}, fillCircle() {}, fillTriangle() {}, fillPoints() {},
       beginPath() {}, strokePath() {}, fillPath() {}, moveTo() {}, lineTo() {}, arc() {}, closePath() {},
-      // `figure` draws the body from the feet upward, so the start of the stroke is the foot.
+      strokePoints(points) {
+        if (!points?.length) return;
+        let low = points[0];
+        for (const p of points) if (p.y > low.y) low = p;
+        feet.push({ x: low.x, y: low.y });
+      },
       lineBetween(x1, y1, x2, y2) { if (y1 > y2) feet.push({ x: x1, y: y1 }); },
       fillEllipse(x, y, w, h) { ellipse = { x, y, w, h }; },
     };
