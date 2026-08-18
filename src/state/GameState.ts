@@ -1,8 +1,9 @@
 import { ORDERS_PER_SEASON, PLAYER_KINGDOM_ID } from '../game/constants';
 import { GAMEPLAY_MAP_CONFIG } from '../game/gameplayConfig';
-import { KINGS, KING_TRAIT_COUNT, generateKingHero, heroTemplates } from '../data/heroes';
+import { generateKingHero, heroTemplates } from '../data/heroes';
 import { kingdomTemplates } from '../data/kingdoms';
 import { politicsCardTemplates } from '../data/politicsCards';
+import { OPENING_BOONS } from '../data/ascentCards';
 import { computeCentroid, computeNeighbors, generateHexMap, type MapGenConfig } from '../map/hexMapGenerator';
 import { refreshAllLandOutputs } from '../systems/ResourceSystem';
 import { refreshPlayerVisibility } from '../systems/LandSystem';
@@ -644,14 +645,29 @@ export function createAscentGameState(config: CampaignConfig): GameState {
   state.directiveDeckCursor = undefined;
 
   seedAscentOpening(state);
+  offerMandateChoice(state);
   offerFounderChoice(state);
 
   state.message = t('ascent.msg.runStart');
   return state;
 }
 
-/** Pairs offered on the opening card. */
+/** Champions offered on the founding card, and advantages on the card before it. */
 const FOUNDER_OPTION_COUNT = 3;
+const MANDATE_OPTION_COUNT = 3;
+
+/**
+ * The reign's opening advantage — the run's first card, ahead of the founding.
+ *
+ * This is what the throne's six "temperaments" should always have been. Those were written onto
+ * the king as a *string* and never read by anything, so the opening advertised an effect it did
+ * not grant; these are ordinary Power cards, applied by the ordinary pipeline, and they happen.
+ */
+function offerMandateChoice(state: GameState): void {
+  const options = shuffled([...OPENING_BOONS]).slice(0, MANDATE_OPTION_COUNT).map((card) => card.id);
+  if (options.length === 0) return;
+  enqueueAscentPrompt(state, { kind: 'mandate', options });
+}
 
 /**
  * How many of the three champions may come out of the Codex.
@@ -702,12 +718,11 @@ function pickFounderOptions(candidates: Hero[]): string[] {
 }
 
 /**
- * The run's opening decision: a ruler, and the champion who rises with him.
+ * The run's opening decision: which champion founds the dynasty *you* rule.
  *
  * One champion recorded in the Codex from previous runs leads the card — that is what the
  * collection is *for* — and the rest is drawn from the whole deck, so a very first run still
- * gets a real choice and a hundredth run still gets a new face. The rulers are drawn from
- * `KINGS` independently, so the two halves vary against each other rather than in lockstep.
+ * gets a real choice and a hundredth run still gets a new face.
  *
  * Every pool here is shuffled. Walking the deck in template order instead meant every run
  * opened on the same three champions in the same three slots, so the card that is meant to
@@ -715,20 +730,17 @@ function pickFounderOptions(candidates: Hero[]): string[] {
  */
 function offerFounderChoice(state: GameState): void {
   const recorded = new Set(getFounderPool());
-  const known = shuffled(state.heroDeck.filter((hero) => recorded.has(hero.id)));
-  const fresh = state.heroDeck.filter((hero) => !recorded.has(hero.id));
+  // Rulers are not founders. They carry an `arrival` — a host, a province, a crown bending the
+  // knee — and handing one of those out on turn one would decide the run before it started.
+  // Promoting twenty-four of them took the deck to 35 Legendaries in 127, so without this filter
+  // roughly a third of every founding card would have been one.
+  const pool = state.heroDeck.filter((hero) => !hero.arrival);
+  const known = shuffled(pool.filter((hero) => recorded.has(hero.id)));
+  const fresh = pool.filter((hero) => !recorded.has(hero.id));
   const candidates = fresh.length > 0
     ? [...known.slice(0, FOUNDER_RECORDED_CAP), ...shuffled([...known.slice(FOUNDER_RECORDED_CAP), ...fresh])]
     : known;
-  const heroIds = pickFounderOptions(candidates);
-  const rulers = shuffled([...KINGS]).slice(0, heroIds.length);
-  // `<kingSlug>:<traitIndex>:<heroId>` — the temperament is drawn here, once, so the card and
-  // the throne agree. Rolling it at render time meant the effect on the card was not the effect
-  // the player got.
-  const options = heroIds.map((heroId, index) => {
-    const ruler = rulers[index % rulers.length];
-    return `${ruler.slug}:${Math.floor(Math.random() * KING_TRAIT_COUNT)}:${heroId}`;
-  });
+  const options = pickFounderOptions(candidates);
 
   if (options.length > 0) {
     enqueueAscentPrompt(state, { kind: 'founder', options });

@@ -95,6 +95,7 @@ function rebirthEmpire(state: GameState, kingdom: Kingdom): void {
   kingdom.warAppetite = 0;
   kingdom.giftFatigue = 0;
   kingdom.treaties = [];
+  kingdom.vassalage = undefined;
   kingdom.opinionModifiers = [];
   recomputeOpinion(kingdom);
   pushToast(state, t('empire.world.rebirth', { old: oldName, next: kingdom.name }), 'milestone');

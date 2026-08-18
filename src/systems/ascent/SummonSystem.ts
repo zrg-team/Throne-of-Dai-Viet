@@ -6,6 +6,7 @@ import {
   SUMMON_WEIGHTS,
 } from '../../game/ascentConfig';
 import { generateHero } from '../../data/heroFactory';
+import { fireHeroArrival } from './ArrivalSystem';
 import { weightedPickIndex } from '../../utils/math';
 import { unlockHero } from '../../state/codex';
 import { pushToast } from '../empire/notifications';
@@ -153,6 +154,7 @@ export function recruitSummonedHero(state: GameState, heroId: string, source: 's
 
   state.heroDeck = state.heroDeck.filter((candidate) => candidate.id !== heroId);
   state.heroes.push(hero);
+  fireHeroArrival(state, hero);
   ascent.heroesSummoned += 1;
 
   if (source === 'court') {

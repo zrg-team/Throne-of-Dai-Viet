@@ -952,3 +952,42 @@ export const CAPITAL_GRACE_TICKS = 6;
 export const MARCH_REPROMPT_TICKS = 4;
 /** Longer quiet period after choosing to hold, so declining is respected. */
 export const MARCH_HOLD_TICKS = 8;
+
+// ── Vassalage and arrivals ──────────────────────────────────────────────────
+/**
+ * A rival crown sworn to the player.
+ *
+ * Capped at two, and never the last sovereign. `tickWaveDirector` increments the wave counter
+ * and *then* bails when `pickAggressor` finds nobody, so vassalising the whole world would leave
+ * a run that cannot be lost and keeps scoring — the cap is what keeps a world that wants you dead.
+ */
+export const VASSAL_MAX = 2;
+/** Tribute as a share of the vassal's own strength, so a broken vassal pays less. */
+export const VASSAL_TRIBUTE_SHARE = 0.02;
+export const VASSAL_TRIBUTE_MIN = 10;
+export const VASSAL_TRIBUTE_MAX = 46;
+/** They must genuinely fear you before an oath is even offered. */
+export const VASSAL_FEAR_FLOOR = 62;
+export const VASSAL_RELATIONS_FLOOR = 40;
+/** Loyalty drifts toward fear at this rate; below the break point they revolt. */
+export const VASSAL_LOYALTY_DRIFT = 0.35;
+export const VASSAL_BREAK_LOYALTY = 30;
+/**
+ * What a vassal adds to POWER, scaled by loyalty.
+ *
+ * POWER is the HUD figure and the run score. It is deliberately *not* added to
+ * `contestedDefencePower`: a vassal is off the map and brings no host to your capital, so
+ * counting it there would inflate raid budgets and make `projectedWinChance` quote odds
+ * `resolveInvaderBattle` will not honour.
+ */
+export const VASSAL_POWER_SHARE = 0.35;
+/** Provinces-worth of ambition charged when a crown bends the knee. Durable growth costs heat. */
+export const VASSAL_AMBITION_PROVINCES = 2;
+
+/** A champion's arrival host, as a share of what is currently coming at the realm. */
+export const ARRIVAL_HOST_SHARE = 0.55;
+export const ARRIVAL_HOST_MIN = 220;
+/** Seasons of income an arriving treasury is worth. */
+export const ARRIVAL_TREASURY_SEASONS = 14;
+export const ARRIVAL_WALL_DEFENCE = 26;
+export const ARRIVAL_TRUCE_SEASONS = 6;

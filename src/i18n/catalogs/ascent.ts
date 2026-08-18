@@ -756,7 +756,7 @@ export const enAscent = {
 
   // ── Founder ───────────────────────────────────────────────────────────────
   "ascent.founder.title": "Found your dynasty",
-  "ascent.founder.subtitle": "A ruler rises, and one champion rises with them.",
+  "ascent.founder.subtitle": "One champion raises the dynasty with you.",
 
   // ── Codex ─────────────────────────────────────────────────────────────────
   "ascent.codex.title": "Hero Codex",
@@ -811,7 +811,55 @@ export const enAscent = {
   "ascent.founder.gift.general": "Brings the men who follow him — half again the royal host",
   "ascent.founder.gift.minister": "Brings the treasury he has been keeping",
   "ascent.founder.gift.agent": "Brings the country's goodwill, and the people who trust the name",
-  "ascent.screen.throne": "You reign as {king} — {posting}. {n} champion(s) serve you."
+  "ascent.screen.throne": "You reign as {king} — {posting}. {n} champion(s) serve you.",
+  // ── founding advantages ──
+  "ascent.card.cam-quan": "Cấm Quân — the Imperial Guard",
+  "ascent.card.cam-quan.d": "The household troops answer to the throne alone. +{pct}% army power, for the whole run.",
+  "ascent.card.kho-lam": "Kho Lẫm — the Granaries",
+  "ascent.card.kho-lam.d": "Full stores and a farm already standing. +{food} food and +{supplies} supplies a season.",
+  "ascent.card.duc-tien": "Đúc Tiền — the Mint",
+  "ascent.card.duc-tien.d": "Coin struck in your own name. +{pct}% market gold, and {gold} in the treasury today.",
+  "ascent.card.long-dan": "Lòng Dân — the People",
+  "ascent.card.long-dan.d": "They came because of the name. +{humans} people a season and +{influence} standing.",
+  "ascent.card.tho-ca": "Thợ Cả — the Master Builders",
+  "ascent.card.tho-ca.d": "Guilds that owe you. Every work finishes a season sooner and costs {pct}% less.",
+  "ascent.card.cua-ai": "Cửa Ải — the Passes",
+  "ascent.card.cua-ai.d": "The gates are already walled. +{defense} defence at the seat, and one more province may be courted at a time.",
+  "ascent.card.quan-so": "Quân Số — the Muster Rolls",
+  "ascent.card.quan-so.d": "Every village knows who owes service. +{pct}% recruitment, at a lower cost in supplies.",
+  "ascent.card.chieu-hien": "Chiêu Hiền — the Summons",
+  "ascent.card.chieu-hien.d": "Word goes out for men of worth. Court business moves {pct}% faster, and a champion is already on the road.",
+  "ascent.mandate.title": "You become King of {realm}",
+  "ascent.mandate.subtitle": "The throne is yours. Choose what it already holds.",
+  "ascent.founder.confirm": "Choose this champion",
+  // ── vassalage ──
+  "ascent.vassal.tribute": "Tribute from {name}",
+  "ascent.vassal.oath": "Oath of vassalage",
+  "ascent.vassal.sworn": "{name} bends the knee and swears tribute.",
+  "ascent.vassal.revolt": "{name} tears up the oath and marches.",
+  "ascent.vassal.released": "{name} is released from the oath.",
+  "ascent.vassal.already": "Already sworn to you",
+  "ascent.vassal.capped": "No more than {n} crowns may be held",
+  "ascent.vassal.lastRival": "The last free crown cannot be taken",
+  "ascent.vassal.unafraid": "They do not fear you enough",
+  "ascent.vassal.cold": "They will not hear an envoy",
+  "ascent.vassal.badge": "VASSAL",
+  "ascent.over.vassals": "Crowns sworn",
+  // ── what a ruler brings ──
+  "ascent.arrival.toast": "{name} joins — and does not come empty-handed.",
+  "ascent.arrival.hostName": "{name}'s Host",
+  "ascent.arrival.host": "Arrives with a host already raised",
+  "ascent.arrival.land": "A province joins the realm outright",
+  "ascent.arrival.vassal": "A rival crown bends the knee",
+  "ascent.arrival.truce": "The angriest rival stands down",
+  "ascent.arrival.card": "A power enters the realm, and a draft with it",
+  "ascent.arrival.treasury": "The treasury opens",
+  "ascent.arrival.walls": "Every province is walled",
+  "ascent.arrival.levy": "Every host is reinforced and tempered",
+  "ascent.envoy.vassalize": "Demand their submission",
+  "ascent.envoy.vassalizeFx": "They swear tribute and never march on you — while they still fear you.",
+  "ascent.envoy.release": "Release them from the oath",
+  "ascent.envoy.releaseFx": "The tribute ends, and they remember it kindly."
 } as const;
 
 export const viAscent = {
@@ -1567,7 +1615,7 @@ export const viAscent = {
 
   // ── Founder ───────────────────────────────────────────────────────────────
   "ascent.founder.title": "Lập nghiệp vương triều",
-  "ascent.founder.subtitle": "Một quân vương lên ngôi, và một danh tướng theo phò.",
+  "ascent.founder.subtitle": "Một danh tướng cùng bạn dựng nên vương triều.",
 
   // ── Codex ─────────────────────────────────────────────────────────────────
   "ascent.codex.title": "Danh Lục Anh Hùng",
@@ -1622,5 +1670,53 @@ export const viAscent = {
   "ascent.founder.gift.general": "Mang theo những người theo ông — cấm quân đông thêm một nửa",
   "ascent.founder.gift.minister": "Mang theo ngân khố mà ông vẫn giữ",
   "ascent.founder.gift.agent": "Mang theo lòng dân và những người tin vào cái tên ấy",
-  "ascent.screen.throne": "Bạn trị vì với hiệu {king} — {posting}. {n} danh tướng phò tá."
+  "ascent.screen.throne": "Bạn trị vì với hiệu {king} — {posting}. {n} danh tướng phò tá.",
+  // ── founding advantages ──
+  "ascent.card.cam-quan": "Cấm Quân",
+  "ascent.card.cam-quan.d": "Quân túc vệ chỉ nghe lệnh nhà vua. +{pct}% sức mạnh quân đội, suốt cả cuộc chinh phạt.",
+  "ascent.card.kho-lam": "Kho Lẫm",
+  "ascent.card.kho-lam.d": "Kho đầy và một trang trại đã dựng sẵn. +{food} lương thực và +{supplies} quân nhu mỗi mùa.",
+  "ascent.card.duc-tien": "Đúc Tiền",
+  "ascent.card.duc-tien.d": "Tiền đúc mang niên hiệu của bạn. +{pct}% thương thu, và {gold} vàng vào ngân khố ngay hôm nay.",
+  "ascent.card.long-dan": "Lòng Dân",
+  "ascent.card.long-dan.d": "Họ đến vì cái tên ấy. +{humans} nhân khẩu mỗi mùa và +{influence} uy tín.",
+  "ascent.card.tho-ca": "Thợ Cả",
+  "ascent.card.tho-ca.d": "Phường thợ mang ơn bạn. Mọi công trình xong sớm một mùa và rẻ hơn {pct}%.",
+  "ascent.card.cua-ai": "Cửa Ải",
+  "ascent.card.cua-ai.d": "Các cửa ải đã đắp thành. +{defense} phòng thủ ở kinh đô, và có thể chiêu phục thêm một trấn cùng lúc.",
+  "ascent.card.quan-so": "Quân Số",
+  "ascent.card.quan-so.d": "Làng nào cũng biết ai đến lượt đi lính. +{pct}% chiêu binh, tốn ít quân nhu hơn.",
+  "ascent.card.chieu-hien": "Chiêu Hiền",
+  "ascent.card.chieu-hien.d": "Chiếu cầu hiền đã ban. Việc triều chính nhanh hơn {pct}%, và một danh tướng đang trên đường tới.",
+  "ascent.mandate.title": "Bạn lên ngôi vua {realm}",
+  "ascent.mandate.subtitle": "Ngai vàng đã thuộc về bạn. Hãy chọn thứ triều đình sẵn có.",
+  "ascent.founder.confirm": "Chọn người này",
+  // ── vassalage ──
+  "ascent.vassal.tribute": "Cống nạp từ {name}",
+  "ascent.vassal.oath": "Lời thề thần phục",
+  "ascent.vassal.sworn": "{name} quy phục và xin nộp cống.",
+  "ascent.vassal.revolt": "{name} xé bỏ lời thề và cất quân.",
+  "ascent.vassal.released": "{name} được giải trừ lời thề.",
+  "ascent.vassal.already": "Đã thần phục bạn",
+  "ascent.vassal.capped": "Không thể giữ quá {n} vương triều",
+  "ascent.vassal.lastRival": "Không thể thu phục vương triều tự chủ cuối cùng",
+  "ascent.vassal.unafraid": "Họ chưa đủ sợ bạn",
+  "ascent.vassal.cold": "Họ không chịu tiếp sứ",
+  "ascent.vassal.badge": "THẦN PHỤC",
+  "ascent.over.vassals": "Vương triều thần phục",
+  // ── what a ruler brings ──
+  "ascent.arrival.toast": "{name} về dưới trướng — và không đến tay không.",
+  "ascent.arrival.hostName": "Đạo quân của {name}",
+  "ascent.arrival.host": "Đến cùng một đạo quân đã sẵn",
+  "ascent.arrival.land": "Một trấn quy thuận ngay lập tức",
+  "ascent.arrival.vassal": "Một vương triều đối địch quy phục",
+  "ascent.arrival.truce": "Kẻ địch hung hãn nhất lui binh",
+  "ascent.arrival.card": "Một quyền năng nhập vào quốc pháp, kèm lượt rút bài",
+  "ascent.arrival.treasury": "Ngân khố mở ra",
+  "ascent.arrival.walls": "Mọi trấn đều được đắp thành",
+  "ascent.arrival.levy": "Mọi đạo quân được bổ sung và tôi luyện",
+  "ascent.envoy.vassalize": "Buộc họ thần phục",
+  "ascent.envoy.vassalizeFx": "Họ nộp cống và không bao giờ cất quân — chừng nào còn sợ bạn.",
+  "ascent.envoy.release": "Giải trừ lời thề",
+  "ascent.envoy.releaseFx": "Cống nạp chấm dứt, và họ ghi nhớ điều đó."
 } satisfies Record<keyof typeof enAscent, string>;

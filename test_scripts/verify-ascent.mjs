@@ -552,11 +552,14 @@ const orders = await page.evaluate(async () => {
   let s = 777 >>> 0;
   Math.random = () => { s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   const st = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
-  // Answer the founding rather than discarding it. The opening gift — a district, a bigger
-  // host, a treasury — now arrives with the champion who founds the dynasty, so a scenario that
-  // throws the card away starts on a single province with nothing to give an order to.
-  if (st.pendingAscentPrompt?.kind === 'founder') {
-    resolveAscentPrompt(st, st.pendingAscentPrompt.options[0]);
+  // Answer the opening rather than discarding it. The run now opens on two cards — the reign's
+  // advantage, then the founding — and the founding gift (a district, a bigger host, a treasury)
+  // arrives with the champion. A scenario that throws them away starts on a single province with
+  // nothing to give an order to.
+  for (let guard = 0; guard < 4 && st.pendingAscentPrompt; guard += 1) {
+    const open = st.pendingAscentPrompt;
+    if (open.kind !== 'mandate' && open.kind !== 'founder') break;
+    resolveAscentPrompt(st, open.options[0]);
   }
   st.pendingAscentPrompt = undefined;
   st.ascent.promptQueue = [];

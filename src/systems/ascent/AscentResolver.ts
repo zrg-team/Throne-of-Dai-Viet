@@ -1,5 +1,7 @@
 import { bankLegacy, computeRunScore, getLegacy } from '../../state/legacy';
-import { generateKingHero } from '../../data/heroes';
+import { findPowerCard } from '../../data/ascentCards';
+import { applyCourtEffect } from '../PoliticsSystem';
+import { fireHeroArrival } from './ArrivalSystem';
 import { unlockHero } from '../../state/codex';
 import { drainAscentPrompts, enqueueAscentPrompt } from './AscentState';
 import { rerollPowerDraft, skipPowerDraft, takePowerCard } from './PowerDraftSystem';
@@ -38,21 +40,24 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
   let handled = false;
 
   switch (prompt.kind) {
-    case 'founder': {
-      // One choice, two people: `"<kingSlug>:<traitIndex>:<heroId>"`.
-      const [kingSlug, traitIndex, heroChoice] = choiceId.split(':');
-      // The throne's hero is replaced rather than mutated — `generateKingHero` also rolls the
-      // temperament and the stat emphasis, and both come off the ruler's own profile.
-      const seat = state.heroes.findIndex((candidate) => candidate.id === 'king');
-      if (seat >= 0 && kingSlug) {
-        const crowned = generateKingHero(kingSlug, Number(traitIndex));
-        crowned.assignedTo = state.heroes[seat].assignedTo;
-        state.heroes[seat] = crowned;
+    case 'mandate': {
+      // The same call `takePowerCard` makes. No `pendingLevelUps` to spend and no ambition to
+      // charge: this one is the reign's dowry, not a reward the run had to earn.
+      const card = findPowerCard(choiceId);
+      if (card) {
+        applyCourtEffect(state, `boon:${card.id}:1`, card.levels[0].effect);
+        ascent.cardStacks[card.id] = (ascent.cardStacks[card.id] ?? 0) + 1;
       }
-      const hero = state.heroDeck.find((candidate) => candidate.id === heroChoice);
+      handled = true;
+      break;
+    }
+
+    case 'founder': {
+      const hero = state.heroDeck.find((candidate) => candidate.id === choiceId);
       if (hero) {
         state.heroDeck = state.heroDeck.filter((candidate) => candidate.id !== hero.id);
         state.heroes.push(hero);
+        fireHeroArrival(state, hero);
         unlockHero(hero.id);
         ascent.heroesSummoned += 1;
         ascent.founderHeroId = hero.id;

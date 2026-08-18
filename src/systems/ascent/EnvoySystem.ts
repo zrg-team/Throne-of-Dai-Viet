@@ -4,7 +4,20 @@ import { demandTribute, proposeTrade, sendGift } from '../ForeignAffairsSystem';
 import { pushToast } from '../empire/notifications';
 import { enqueueAscentPrompt } from './AscentState';
 import { heroName, t } from '../../i18n';
+import { breakVassalage, canVassalize, grantVassalage } from './VassalSystem';
 import type { EnvoyOption, GameState, Hero, Kingdom } from '../../state/types';
+
+/**
+ * What an oath costs.
+ *
+ * Priced off the realm's own income and capped against the treasury, the same shape
+ * `tributeDemandGold` uses — never advertise a price the player cannot pay.
+ */
+export function vassalOathGold(state: GameState, kingdom: Kingdom): number {
+  const byIncome = Math.max(0, state.resourceRates.gold) * 40;
+  const byStanding = 400 + (kingdom.power ?? 40) * 8;
+  return Math.round(Math.max(600, Math.min(byIncome + byStanding, state.resources.gold * 0.8 || byStanding)));
+}
 
 const TRADE_INFLUENCE_COST = 10;
 
@@ -74,6 +87,17 @@ export function buildEnvoyOptions(state: GameState, kingdom: Kingdom): EnvoyOpti
       heroId: ambassador?.id,
       affordable: Boolean(ambassador) && !alreadyPosted,
     },
+    // Demanding a crown, or letting one go. Offered on the card the player already reaches from
+    // the World lane rather than as a prompt kind of its own — the prompt budget is contended
+    // enough that four kinds already fire zero times in a normal run.
+    ...(kingdom.vassalage
+      ? [{ id: 'release' as const, affordable: true }]
+      : [{
+        id: 'vassalize' as const,
+        cost: { gold: vassalOathGold(state, kingdom) },
+        affordable: canVassalize(state, kingdom).ok
+          && state.resources.gold >= vassalOathGold(state, kingdom),
+      }]),
     {
       id: 'tribute',
       // Extortion is always *possible*; whether it pays depends on how weak they are, which
@@ -127,6 +151,18 @@ export function resolveEnvoy(state: GameState, kingdomId: string, optionId: stri
       break;
     case 'tribute':
       ok = demandTribute(state, kingdomId);
+      break;
+    case 'vassalize': {
+      const price = vassalOathGold(state, kingdom);
+      if (canVassalize(state, kingdom).ok && state.resources.gold >= price) {
+        state.resources.gold -= price;
+        ok = grantVassalage(state, kingdom, 'envoy');
+      }
+      break;
+    }
+    case 'release':
+      breakVassalage(state, kingdom, 'released');
+      ok = true;
       break;
     case 'ambassador': {
       const hero = bestAmbassador(state);

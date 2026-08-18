@@ -16,13 +16,14 @@ await page.waitForFunction(() => typeof window.__startBenchGame === 'function' &
 
 const r = await page.evaluate(async () => {
   const { heroTemplates, generateKingHero, KINGS, FOUNDER_IDS } = await import('/src/data/heroes.ts');
+  const { heroEffect } = await import('/src/i18n/index.ts');
   const { generateHero } = await import('/src/data/heroFactory.ts');
   const { REAL_FIGURES } = await import('/src/data/heroNames.ts');
   const { createAscentGameState } = await import('/src/state/GameState.ts');
   const { resolveAscentPrompt } = await import('/src/systems/ascent/AscentResolver.ts');
   const { resolveHeroLook } = await import('/src/ui/faces/heroLook.ts');
   const { FACE_PART_DEFS } = await import('/src/ui/faces/parts.generated.ts');
-  const { heroBio, heroName, heroEffect, heroDescription } = await import('/src/i18n/index.ts');
+  const { heroBio, heroName, heroDescription } = await import('/src/i18n/index.ts');
 
   const known = new Set(FACE_PART_DEFS.map((p) => p.key));
   const out = { deck: heroTemplates.length, parts: known.size, kings: KINGS.length };
@@ -39,15 +40,12 @@ const r = await page.evaluate(async () => {
   out.distinctLooks = stacks.size;
   out.sampleSize = sample.length;
 
-  // ── the throne: names, faces and lives must all vary with who is sitting on it ──
-  const kingNames = new Set(), kingLooks = new Set(), kingBios = new Set();
-  for (let i = 0; i < 400; i += 1) {
-    const k = generateKingHero();
-    kingNames.add(k.name);
-    kingLooks.add(resolveHeroLook(k).parts.map((p) => p.key).join(','));
-    kingBios.add(heroBio(k));
-  }
-  out.kingNames = kingNames.size; out.kingLooks = kingLooks.size; out.kingBios = kingBios.size;
+  // ── the throne is the player: never a person out of the record ──
+  const king = generateKingHero();
+  const historical = new Set([...REAL_FIGURES.map((f) => f.name), ...KINGS.map((k) => k.name)]);
+  out.kingName = king.name;
+  out.kingIsAnonymous = !historical.has(king.name) && king.id === 'king';
+  out.kingEffectTranslates = !heroEffect(king).startsWith('heroes.');
 
   // ── every champion has a name, an effect, a description and a bio in the active language ──
   const blank = heroTemplates.filter((h) =>
@@ -69,24 +67,17 @@ const r = await page.evaluate(async () => {
   for (let i = 0; i < 60; i += 1) {
     const st = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
     const first = st.pendingAscentPrompt;
-    if (first?.kind === 'founder') opensOnRuler += 1;
-    const pairs = first?.options ?? [];
-    rulerSets.add(pairs.map((o) => o.split(':')[0]).join('|'));
-    // Every option must name a ruler and a champion, and choosing one must seat both.
-    if (pairs.every((o) => o.split(':').length === 3)) chainsToFounder += 1;
-    const probe = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
-    const pick = probe.pendingAscentPrompt.options[pairs.length - 1] ?? probe.pendingAscentPrompt.options[0];
-    resolveAscentPrompt(probe, pick);
-    const [wantKing, wantTrait, wantHero] = pick.split(':');
-    const king = probe.heroes.find((h) => h.id === 'king');
-    const profile = KINGS.find((k) => k.slug === wantKing);
-    // The card renders the ruler from the same slug and trait index; if the seated effect
-    // differs from the rendered one, the card advertised something the player did not get.
-    const advertised = generateKingHero(wantKing, Number(wantTrait));
-    if (king && profile && king.name === profile.name
-      && king.effect === advertised.effect && king.upkeepGold === advertised.upkeepGold
-      && probe.heroes.some((h) => h.id === wantHero)) seated += 1;
-    const ids = pairs.map((o) => o.split(':')[2]);
+    if (first?.kind === 'mandate') opensOnRuler += 1;
+    rulerSets.add((first?.options ?? []).join('|'));
+    // Answering the mandate must bring the founding up behind it, and the boon must land.
+    const before = { ...st.resourceRates };
+    resolveAscentPrompt(st, first.options[0]);
+    const moved = Object.keys(before).some((k) => st.resourceRates[k] !== before[k])
+      || Object.keys(st.ascent.cardStacks).length > 0;
+    if (st.pendingAscentPrompt?.kind === 'founder' && moved) chainsToFounder += 1;
+    const ids = st.pendingAscentPrompt?.options ?? [];
+    // Rulers carry an arrival and must never be offered as founders.
+    if (ids.every((id) => !st.heroDeck.find((h) => h.id === id)?.arrival)) seated += 1;
     trios.add(ids.join('|'));
     const roles = new Set(), ranks = new Set();
     for (const id of ids) {
@@ -116,8 +107,11 @@ const r = await page.evaluate(async () => {
       gold: st.resources.gold, humans: st.resources.humans, influence: st.court.influence,
       host: Object.values(st.armies.find((a) => a.id === 'ascent-royal-host')?.units ?? {}).reduce((a, b) => a + b, 0) };
     out.startingLands = before.lands;
-    const opt = st.pendingAscentPrompt.options[i % st.pendingAscentPrompt.options.length];
-    const champion = st.heroDeck.find((h) => h.id === opt.split(':')[2]);
+    // The mandate comes first now; answer it to reach the founding.
+    resolveAscentPrompt(st, st.pendingAscentPrompt.options[0]);
+    const opts = st.pendingAscentPrompt.options;
+    const opt = opts[i % opts.length];
+    const champion = st.heroDeck.find((h) => h.id === opt);
     resolveAscentPrompt(st, opt);
     const after = { lands: st.lands.filter((l) => l.ownerId === 'dai-viet').length,
       gold: st.resources.gold, humans: st.resources.humans, influence: st.court.influence,
@@ -138,15 +132,14 @@ const checks = {
   'the deck is a hundred champions deep': r.deck >= 100,
   'the wardrobe ships every part it asks for': r.missingParts.length === 0,
   'portraits are not one face in many hats': r.distinctLooks > r.sampleSize * 0.9,
-  'the throne draws from more than a handful of rulers': r.kingNames === r.kings && r.kings >= 20,
-  'a new ruler is a new face': r.kingLooks >= r.kings,
-  'a new ruler is a new life': r.kingBios >= r.kings,
+  'the king is the player, never a historical person': r.kingIsAnonymous,
+  "the king's line is a real string, not a key": r.kingEffectTranslates,
   'every champion has name, effect, description and bio': r.blankText.length === 0,
   'names read as names, not as job titles': r.officeNamed.length === 0,
-  'the run opens on the founding card': r.opensOnRuler === 60,
-  'every option names a ruler and a champion': r.chainsToFounder === 60,
-  'the rulers offered are not a fixed script': r.distinctRulerSets >= 50,
-  'the founding seats the ruler, the trait shown, and the champion': r.rulerSeated === 60,
+  'the run opens on the mandate card': r.opensOnRuler === 60,
+  'the mandate lands, then the founding follows': r.chainsToFounder === 60,
+  'the advantages offered are not a fixed script': r.distinctRulerSets >= 20,
+  'no ruler is ever offered as a founder': r.rulerSeated === 60,
   'the founder card is not a fixed script': r.distinctTrios >= 50,
   'the founder card offers three distinct roles': r.dupRole === 0,
   'the founder card offers three distinct ranks': r.dupRank === 0,

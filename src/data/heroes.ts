@@ -1,5 +1,5 @@
 import type { Hero, HeroEra, HeroStats } from '../state/types';
-import { t, type TranslationKey } from '../i18n';
+import { t } from '../i18n';
 
 /**
  * The rulers a run may open under.
@@ -48,18 +48,6 @@ export const KINGS: readonly KingProfile[] = [
   { slug: 'minh-mang', name: 'Minh Mạng', sex: 'man', era: 'nguyen', emphasis: 'administration' },
 ];
 
-/** How many temperaments a ruler may have; the founding option carries the index it drew. */
-export const KING_TRAIT_COUNT = 6;
-
-const KING_TRAITS: Array<{ effectKey: TranslationKey; upkeepGold: number }> = [
-  { effectKey: 'heroes.king.trait_morale.effect', upkeepGold: 12 },
-  { effectKey: 'heroes.king.trait_power.effect', upkeepGold: 14 },
-  { effectKey: 'heroes.king.trait_rations.effect', upkeepGold: 10 },
-  { effectKey: 'heroes.king.trait_levy.effect', upkeepGold: 11 },
-  { effectKey: 'heroes.king.trait_treasury.effect', upkeepGold: 13 },
-  { effectKey: 'heroes.king.trait_mandate.effect', upkeepGold: 12 },
-];
-
 const KING_STATS: HeroStats = {
   martial: 78,
   logistics: 50,
@@ -70,39 +58,33 @@ const KING_STATS: HeroStats = {
 };
 
 /**
- * The player's starting commander — a ruler out of the record, not part of the hero draft deck.
- * `slug` names one and `traitIndex` names their temperament; without either the throne is drawn
- * at random, which is what every mode but Dragon Ascent still does.
+ * The player. Not a person out of the record — *you*.
  *
- * The temperament has to be nameable, not rolled at each call. The founding card renders a
- * ruler to show what choosing them would give, and the resolver builds the same ruler again to
- * seat them — two rolls, two different traits, and the card was advertising an effect the
- * player would not receive.
+ * This briefly drew a named emperor from `KINGS` and a "temperament" from a table, and the
+ * player's answer to that was flat: **"I'm the king. Not Nguyễn Hoàng."** They were right, and
+ * the mistake is worth leaving written down, because the road to it looked reasonable at every
+ * step: the throne shipped with six emperor names, one kept repeating, and growing the pool to
+ * twenty-four and then making it a *choice* only made the game better at asking the wrong
+ * question. Whose dynasty this is was never the question. It is yours.
  *
- * The hero keeps the fixed id `king` because half the game looks them up by it; the *name* is
- * what varies, which is why `heroBio` and `resolveHeroLook` both key the king off the name
- * rather than the id. Seeding a portrait on a constant id gave every run the same face.
+ * The six temperaments went with it. They were display-only — the string on the card was never
+ * read by anything — so the opening advantage is a real card now (see the `openingOnly` entries
+ * in `data/ascentCards.ts`) rather than a promise nothing kept.
+ *
+ * `KINGS` survives as data, but as *champions*: the twenty-four rulers are Legendary heroes who
+ * serve the throne rather than sit on it.
  */
-export function generateKingHero(slug?: string, traitIndex?: number): Hero {
-  const profile = (slug ? KINGS.find((candidate) => candidate.slug === slug) : undefined)
-    ?? KINGS[Math.floor(Math.random() * KINGS.length)];
-  const trait = KING_TRAITS[traitIndex !== undefined
-    ? ((traitIndex % KING_TRAITS.length) + KING_TRAITS.length) % KING_TRAITS.length
-    : Math.floor(Math.random() * KING_TRAITS.length)];
-  const stats: HeroStats = { ...KING_STATS };
-  stats[profile.emphasis] = Math.min(96, stats[profile.emphasis] + 14);
-
+export function generateKingHero(): Hero {
   return {
     id: 'king',
-    name: profile.name,
+    name: t('heroes.king.name'),
     type: 'general',
     rarity: 'Legendary',
-    sex: profile.sex,
-    era: profile.era,
-    upkeepGold: trait.upkeepGold,
+    sex: 'man',
+    upkeepGold: 12,
     description: t('heroes.king.description'),
-    effect: t(trait.effectKey),
-    stats,
+    effect: t('heroes.king.effect'),
+    stats: { ...KING_STATS },
     fatigue: 0,
   };
 }
@@ -279,6 +261,7 @@ export const heroTemplates: Hero[] = [
     description: t('heroes.real-ngo-quyen.description'),
     effect: t('heroes.real-ngo-quyen.effect'),
     stats: { martial: 72, logistics: 55, administration: 20, diplomacy: 22, loyalty: 45, renown: 68 },
+    arrival: 'host',
     fatigue: 0,
   },
   {
@@ -1494,6 +1477,332 @@ export const heroTemplates: Hero[] = [
     cardBias: 'crisis',
     signatureCardId: 'spy-candidate',
     stats: { martial: 24, logistics: 40, administration: 44, diplomacy: 72, loyalty: 44, renown: 56 },
+    fatigue: 0,
+  },
+  // ── The rulers ────────────────────────────────────────────────────────────
+  // Twenty-four sovereigns out of the record, and every one of them is a *champion* — they
+  // serve the throne, they do not sit on it. That seat is the player's. Each carries an
+  // : the one-off their reign is remembered for, fired the moment they join.
+  {
+    id: 'real-trung-vuong',
+    sex: 'woman',
+    era: 'dinh',
+    name: 'Trưng Nữ Vương',
+    type: 'general',
+    rarity: 'Legendary',
+    arrival: 'levy',
+    upkeepGold: 16,
+    description: t('heroes.real-trung-vuong.description'),
+    effect: t('heroes.real-trung-vuong.effect'),
+    stats: { martial: 96, logistics: 62, administration: 40, diplomacy: 42, loyalty: 74, renown: 88 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-ly-nam-de',
+    sex: 'man',
+    era: 'dinh',
+    name: 'Lý Nam Đế',
+    type: 'general',
+    rarity: 'Legendary',
+    arrival: 'land',
+    upkeepGold: 16,
+    description: t('heroes.real-ly-nam-de.description'),
+    effect: t('heroes.real-ly-nam-de.effect'),
+    stats: { martial: 90, logistics: 62, administration: 40, diplomacy: 42, loyalty: 74, renown: 94 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-mai-hac-de',
+    sex: 'man',
+    era: 'dinh',
+    name: 'Mai Hắc Đế',
+    type: 'general',
+    rarity: 'Legendary',
+    arrival: 'host',
+    upkeepGold: 16,
+    description: t('heroes.real-mai-hac-de.description'),
+    effect: t('heroes.real-mai-hac-de.effect'),
+    stats: { martial: 96, logistics: 62, administration: 40, diplomacy: 42, loyalty: 74, renown: 88 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-phung-hung',
+    sex: 'man',
+    era: 'dinh',
+    name: 'Bố Cái Đại Vương',
+    type: 'governor',
+    rarity: 'Legendary',
+    arrival: 'land',
+    upkeepGold: 16,
+    description: t('heroes.real-phung-hung.description'),
+    effect: t('heroes.real-phung-hung.effect'),
+    stats: { martial: 40, logistics: 72, administration: 86, diplomacy: 52, loyalty: 78, renown: 84 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-dinh-bo-linh',
+    sex: 'man',
+    era: 'dinh',
+    name: 'Đinh Bộ Lĩnh',
+    type: 'general',
+    rarity: 'Legendary',
+    arrival: 'vassal',
+    upkeepGold: 16,
+    description: t('heroes.real-dinh-bo-linh.description'),
+    effect: t('heroes.real-dinh-bo-linh.effect'),
+    stats: { martial: 96, logistics: 62, administration: 40, diplomacy: 42, loyalty: 74, renown: 88 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-le-dai-hanh',
+    sex: 'man',
+    era: 'dinh',
+    name: 'Lê Đại Hành',
+    type: 'general',
+    rarity: 'Legendary',
+    arrival: 'host',
+    upkeepGold: 16,
+    description: t('heroes.real-le-dai-hanh.description'),
+    effect: t('heroes.real-le-dai-hanh.effect'),
+    stats: { martial: 96, logistics: 62, administration: 40, diplomacy: 42, loyalty: 74, renown: 88 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-ly-thai-to',
+    sex: 'man',
+    era: 'ly',
+    name: 'Lý Thái Tổ',
+    type: 'minister',
+    rarity: 'Legendary',
+    arrival: 'treasury',
+    upkeepGold: 16,
+    description: t('heroes.real-ly-thai-to.description'),
+    effect: t('heroes.real-ly-thai-to.effect'),
+    stats: { martial: 26, logistics: 54, administration: 96, diplomacy: 74, loyalty: 74, renown: 86 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-ly-thai-tong',
+    sex: 'man',
+    era: 'ly',
+    name: 'Lý Thái Tông',
+    type: 'minister',
+    rarity: 'Legendary',
+    arrival: 'card',
+    upkeepGold: 16,
+    description: t('heroes.real-ly-thai-tong.description'),
+    effect: t('heroes.real-ly-thai-tong.effect'),
+    stats: { martial: 26, logistics: 54, administration: 96, diplomacy: 74, loyalty: 74, renown: 86 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-ly-thanh-tong',
+    sex: 'man',
+    era: 'ly',
+    name: 'Lý Thánh Tông',
+    type: 'minister',
+    rarity: 'Legendary',
+    arrival: 'walls',
+    upkeepGold: 16,
+    description: t('heroes.real-ly-thanh-tong.description'),
+    effect: t('heroes.real-ly-thanh-tong.effect'),
+    stats: { martial: 26, logistics: 54, administration: 96, diplomacy: 74, loyalty: 74, renown: 86 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-ly-nhan-tong',
+    sex: 'man',
+    era: 'ly',
+    name: 'Lý Nhân Tông',
+    type: 'minister',
+    rarity: 'Legendary',
+    arrival: 'card',
+    upkeepGold: 16,
+    description: t('heroes.real-ly-nhan-tong.description'),
+    effect: t('heroes.real-ly-nhan-tong.effect'),
+    stats: { martial: 26, logistics: 54, administration: 90, diplomacy: 74, loyalty: 74, renown: 92 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-ly-chieu-hoang',
+    sex: 'woman',
+    era: 'ly',
+    name: 'Lý Chiêu Hoàng',
+    type: 'minister',
+    rarity: 'Legendary',
+    arrival: 'truce',
+    upkeepGold: 16,
+    description: t('heroes.real-ly-chieu-hoang.description'),
+    effect: t('heroes.real-ly-chieu-hoang.effect'),
+    stats: { martial: 26, logistics: 54, administration: 90, diplomacy: 80, loyalty: 74, renown: 86 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-tran-thai-tong',
+    sex: 'man',
+    era: 'tran',
+    name: 'Trần Thái Tông',
+    type: 'general',
+    rarity: 'Legendary',
+    arrival: 'walls',
+    upkeepGold: 16,
+    description: t('heroes.real-tran-thai-tong.description'),
+    effect: t('heroes.real-tran-thai-tong.effect'),
+    stats: { martial: 90, logistics: 62, administration: 40, diplomacy: 42, loyalty: 80, renown: 88 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-tran-thanh-tong',
+    sex: 'man',
+    era: 'tran',
+    name: 'Trần Thánh Tông',
+    type: 'minister',
+    rarity: 'Legendary',
+    arrival: 'truce',
+    upkeepGold: 16,
+    description: t('heroes.real-tran-thanh-tong.description'),
+    effect: t('heroes.real-tran-thanh-tong.effect'),
+    stats: { martial: 26, logistics: 54, administration: 90, diplomacy: 80, loyalty: 74, renown: 86 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-tran-nhan-tong',
+    sex: 'man',
+    era: 'tran',
+    name: 'Trần Nhân Tông',
+    type: 'minister',
+    rarity: 'Legendary',
+    arrival: 'truce',
+    upkeepGold: 16,
+    description: t('heroes.real-tran-nhan-tong.description'),
+    effect: t('heroes.real-tran-nhan-tong.effect'),
+    stats: { martial: 26, logistics: 54, administration: 90, diplomacy: 74, loyalty: 80, renown: 86 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-tran-minh-tong',
+    sex: 'man',
+    era: 'tran',
+    name: 'Trần Minh Tông',
+    type: 'governor',
+    rarity: 'Legendary',
+    arrival: 'treasury',
+    upkeepGold: 16,
+    description: t('heroes.real-tran-minh-tong.description'),
+    effect: t('heroes.real-tran-minh-tong.effect'),
+    stats: { martial: 40, logistics: 72, administration: 92, diplomacy: 52, loyalty: 72, renown: 84 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-le-thai-to',
+    sex: 'man',
+    era: 'le',
+    name: 'Lê Thái Tổ',
+    type: 'general',
+    rarity: 'Legendary',
+    arrival: 'levy',
+    upkeepGold: 16,
+    description: t('heroes.real-le-thai-to.description'),
+    effect: t('heroes.real-le-thai-to.effect'),
+    stats: { martial: 96, logistics: 62, administration: 40, diplomacy: 42, loyalty: 74, renown: 88 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-le-thanh-tong',
+    sex: 'man',
+    era: 'le',
+    name: 'Lê Thánh Tông',
+    type: 'minister',
+    rarity: 'Legendary',
+    arrival: 'card',
+    upkeepGold: 16,
+    description: t('heroes.real-le-thanh-tong.description'),
+    effect: t('heroes.real-le-thanh-tong.effect'),
+    stats: { martial: 26, logistics: 54, administration: 96, diplomacy: 74, loyalty: 74, renown: 86 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-mac-dang-dung',
+    sex: 'man',
+    era: 'le',
+    name: 'Mạc Đăng Dung',
+    type: 'general',
+    rarity: 'Legendary',
+    arrival: 'host',
+    upkeepGold: 16,
+    description: t('heroes.real-mac-dang-dung.description'),
+    effect: t('heroes.real-mac-dang-dung.effect'),
+    stats: { martial: 96, logistics: 62, administration: 40, diplomacy: 42, loyalty: 74, renown: 88 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-trinh-kiem',
+    sex: 'man',
+    era: 'le',
+    name: 'Trịnh Kiểm',
+    type: 'governor',
+    rarity: 'Legendary',
+    arrival: 'treasury',
+    upkeepGold: 16,
+    description: t('heroes.real-trinh-kiem.description'),
+    effect: t('heroes.real-trinh-kiem.effect'),
+    stats: { martial: 40, logistics: 78, administration: 86, diplomacy: 52, loyalty: 72, renown: 84 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-nguyen-hoang',
+    sex: 'man',
+    era: 'le',
+    name: 'Nguyễn Hoàng',
+    type: 'governor',
+    rarity: 'Legendary',
+    arrival: 'land',
+    upkeepGold: 16,
+    description: t('heroes.real-nguyen-hoang.description'),
+    effect: t('heroes.real-nguyen-hoang.effect'),
+    stats: { martial: 40, logistics: 78, administration: 86, diplomacy: 52, loyalty: 72, renown: 84 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-quang-trung',
+    sex: 'man',
+    era: 'tayson',
+    name: 'Quang Trung',
+    type: 'general',
+    rarity: 'Legendary',
+    arrival: 'host',
+    upkeepGold: 16,
+    description: t('heroes.real-quang-trung.description'),
+    effect: t('heroes.real-quang-trung.effect'),
+    stats: { martial: 96, logistics: 62, administration: 40, diplomacy: 42, loyalty: 74, renown: 88 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-gia-long',
+    sex: 'man',
+    era: 'nguyen',
+    name: 'Gia Long',
+    type: 'general',
+    rarity: 'Legendary',
+    arrival: 'vassal',
+    upkeepGold: 16,
+    description: t('heroes.real-gia-long.description'),
+    effect: t('heroes.real-gia-long.effect'),
+    stats: { martial: 90, logistics: 68, administration: 40, diplomacy: 42, loyalty: 74, renown: 88 },
+    fatigue: 0,
+  },
+  {
+    id: 'real-minh-mang',
+    sex: 'man',
+    era: 'nguyen',
+    name: 'Minh Mạng',
+    type: 'minister',
+    rarity: 'Legendary',
+    arrival: 'card',
+    upkeepGold: 16,
+    description: t('heroes.real-minh-mang.description'),
+    effect: t('heroes.real-minh-mang.effect'),
+    stats: { martial: 26, logistics: 54, administration: 96, diplomacy: 74, loyalty: 74, renown: 86 },
     fatigue: 0,
   },
 ];

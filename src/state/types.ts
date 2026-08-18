@@ -238,6 +238,27 @@ export interface OpinionModifier {
 }
 
 /** A binding agreement between an empire and the player. */
+/**
+ * A rival crown that has sworn to the player (Dragon Ascent). Absent means sovereign.
+ *
+ * Lives on the `Kingdom` rather than in a table on `AscentState` because every consumer already
+ * holds a `Kingdom` and never the ascent state — `pickAggressor`, `aggressors`, `rivals`,
+ * `tickRivalRealms`, `launchOffMapInvasion`, the affairs screen. Three of those are shared with
+ * empire mode and have no business reaching into `state.ascent`. It also means `rebirthEmpire`,
+ * which already clears `treaties` and `warAppetite` on the kingdom, clears this in the same
+ * place: a new realm in the same seat owes you nothing.
+ */
+export interface Vassalage {
+  /** Turn the oath was sworn. */
+  sinceTurn: number;
+  /** 0-100, drifting toward how much they fear you. Below the break point they tear it up. */
+  loyalty: number;
+  /** Gold a season currently flowing, recomputed as their strength moves. */
+  tributeGold: number;
+  /** How they were brought to it. */
+  source: 'envoy' | 'arrival';
+}
+
 export interface Treaty {
   type: 'non-aggression';
   /** Turn the treaty lapses. */
@@ -270,6 +291,8 @@ export interface Kingdom {
   stability?: number;
   /** Hero id seated as the player's ambassador here (standing opinion gain + intel). */
   ambassadorHeroId?: string;
+  /** Sworn to the player. See `systems/ascent/VassalSystem`. */
+  vassalage?: Vassalage;
   /** Cumulative years this empire has existed under its current identity (reset on rebirth). */
   age?: number;
 }
@@ -467,12 +490,30 @@ export interface Hero {
   /** Monastics get a wardrobe of their own — shaven, kesa, and nothing else. */
   monastic?: boolean;
   /**
+   * A one-off that fires when this champion joins the roster. Rulers only — see `heroArrivals`.
+   */
+  arrival?: HeroArrivalId;
+  /**
    * Which century this hero dresses in. Đại Việt did not wear one costume for a thousand
    * years, and the roster already spans the dynasties by name. Unset means "pick from the
    * common eras by seed", which is what keeps a drafted roster visually varied.
    */
   era?: HeroEra;
 }
+
+/**
+ * What a champion brings the moment they join — the one-off that makes a Legendary land.
+ *
+ * A string id into `data/heroArrivals.ts`, not a payload object and certainly not a function.
+ * A function throws `DataCloneError`: `heroDeck` is `structuredClone(heroTemplates)` and the
+ * whole state is cloned again on save, so it would fail on the *save* path, which is the worst
+ * place to find out. A payload object survives the clone but bakes balance numbers into save
+ * data, so a save from before a tuning pass keeps the old numbers forever. A string resolves
+ * through a registry at fire time, keeps the numbers in `ascentConfig`, and an unknown id is a
+ * lookup miss rather than a crash.
+ */
+export type HeroArrivalId =
+  | 'host' | 'land' | 'vassal' | 'truce' | 'card' | 'treasury' | 'walls' | 'levy';
 
 /**
  * The dress eras the portrait system knows. Each is a different wardrobe, not a palette swap:
@@ -1040,6 +1081,14 @@ export interface PowerCardDef {
   /** Evolution results are granted, never rolled. */
   evolutionOnly?: boolean;
   /**
+   * Offered only on the founding screen, never in a mid-run draft.
+   *
+   * The opening advantage is a real card rather than a bespoke system precisely so it costs
+   * nothing: `applyCourtEffect` applies it, the `ascent.card.<id>` strings render it, and
+   * `powerCardView` reads it. The only thing it must not do is turn up again at level three.
+   */
+  openingOnly?: boolean;
+  /**
    * Granted only by seeing a story through, never rolled in a draft.
    *
    * These are the Chronicle's strongest reward and the reason to keep an oath: a card that exists
@@ -1142,7 +1191,7 @@ export interface RivalDemandOption {
 
 /** One action offered on the Envoy prompt. */
 export interface EnvoyOption {
-  id: 'gift' | 'trade' | 'tribute' | 'ambassador' | 'ignore';
+  id: 'gift' | 'trade' | 'tribute' | 'ambassador' | 'vassalize' | 'release' | 'ignore';
   cost?: Partial<ResourceBag>;
   influenceCost?: number;
   /** For `ambassador`: the hero posted to that court. */
@@ -1153,13 +1202,17 @@ export interface EnvoyOption {
 /** Every pausing decision Dragon Ascent can raise. Exactly one is live at a time. */
 export type AscentPrompt =
   /**
-   * The founding: a ruler out of the record and the champion who rises with him.
+   * The first card of a run: which advantage the reign opens with.
    *
-   * Each option is `"<kingSlug>:<heroId>"` — one string, so every consumer that answers a prompt
-   * with `options[0]` keeps working. Both halves are drawn at random. The ruler used to be
-   * assigned silently behind the champion card, which made the opening read as fixed even after
-   * the pool grew to twenty-four: a player who is handed a king cannot tell that a different one
-   * was ever possible.
+   * You are not choosing who you are — you are the king, and that was never in question. You are
+   * choosing what the throne already holds when the first season turns. Options are ids of
+   * `openingOnly` cards in `data/ascentCards.ts`.
+   */
+  | { kind: 'mandate'; options: string[] }
+  /**
+   * The founding: the champion who raises the dynasty.
+   *
+   * One champion recorded in the Codex leads the card; the rest is drawn from the whole deck.
    */
   | { kind: 'founder'; options: string[] }
   | { kind: 'power-draft'; cards: string[]; rerollCost: number; level: number }
@@ -1548,6 +1601,11 @@ export interface AscentState {
   doctrine?: AscentDoctrine;
   /** Eras whose doctrine card has already been offered, so each era asks exactly once. */
   doctrineErasAsked?: EraId[];
+  /** Champions whose `arrival` has already fired, by hero id. Not a flag on the Hero: a hero
+   *  re-cloned out of the deck would lose it, and this is also what the run summary counts. */
+  arrivalsFired?: string[];
+  /** Rival crowns taken this run, for the summary. */
+  vassalsTaken?: number;
 }
 
 export interface GameState {

@@ -26,6 +26,7 @@ for (const seed of SEEDS) {
     let methodCursor = 0;
     const firstChoice = (p) => {
       switch (p.kind) {
+        case 'mandate': return p.options[0];
         case 'founder': return p.options[0];
         case 'power-draft': return p.cards[0] ?? 'skip';
         case 'conquer-target': return p.targets[0]?.landId ?? 'hold';

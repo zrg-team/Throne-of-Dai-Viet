@@ -30,6 +30,17 @@ export const CARD_ICON_SIZE = 26;
  * so a new option renders without one rather than crashing or drawing something misleading.
  */
 const BY_OPTION: Record<string, CardIconId> = {
+  // Founding advantages — the reign's opening card. Each is a different first move, so each
+  // needs a different glyph; without these they all fell through to the same crown.
+  'cam-quan': 'blade',
+  'kho-lam': 'grain',
+  'duc-tien': 'coin',
+  'long-dan': 'person',
+  'tho-ca': 'hammer',
+  'cua-ai': 'wall',
+  'quan-so': 'banner',
+  'chieu-hien': 'scroll',
+
   // Conquest methods
   bribe: 'coin',
   diplomacy: 'scroll',
