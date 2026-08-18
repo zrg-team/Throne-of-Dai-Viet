@@ -11,7 +11,7 @@
  *   Wise  → Payments › Payment tools › Wisetag › "Copy link"
  *   MoMo  → Yêu cầu chuyển tiền › Link nhận tiền của tôi › "Sao chép"
  *           (the QR image: Nhận tiền › Chia sẻ QR nhận tiền › Chia sẻ ảnh mã QR, cropped by
- *           `scripts/crop-support-qr.mjs` into `public/support/momo-qr.png`)
+ *           `scripts/crop-support-qr.mjs` into `public/support/momo-qr.webp`)
  *
  * A channel with neither a handle nor a link is left out of the modal; with every channel empty
  * the modal falls back to pointing at GitHub.
@@ -34,9 +34,9 @@ export const SUPPORT = {
 
   channels: [
     { id: 'wise', handle: '@tand99', link: 'https://wise.com/pay/me/tand99' },
-    // `qrImage` is set by `node scripts/crop-support-qr.mjs <screenshot>` once the PNG exists — a
-    // path to a file that is not there would 404 in the console on every launch.
-    { id: 'momo', handle: '', link: 'https://me.momo.vn/6OfbtWIOTeIJi5Tw', qrImage: '' },
+    // `qrImage` is written by `node scripts/crop-support-qr.mjs <screenshot>` once the file exists —
+    // a path to a file that is not there would 404 in the console on every launch.
+    { id: 'momo', handle: '', link: 'https://me.momo.vn/6OfbtWIOTeIJi5Tw', qrImage: 'support/momo-qr.webp' },
   ] as SupportChannel[],
 };
 

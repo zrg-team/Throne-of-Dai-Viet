@@ -58,6 +58,7 @@ async function openMenu(language, viewport) {
   await p.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
   await p.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
   await p.addScriptTag({ path: JSQR_PATH });
+  await p.evaluate(LIVE_SUPPORT);
   await p.waitForTimeout(900);
   return p;
 }
@@ -109,8 +110,23 @@ const decodeCanvas = (p) => p.evaluate(() => {
   return res ? res.data : null;
 });
 
+/**
+ * The game's own instance of the config module, not a second copy.
+ *
+ * Once a file has been edited while the dev server is up, Vite serves it to the page as
+ * `/src/data/support.ts?t=<timestamp>`, and a plain `import('/src/data/support.ts')` from the
+ * harness resolves to a *different* module instance — one the game never reads, so every mutation
+ * made through it silently does nothing. Importing the URL the page actually loaded, timestamp and
+ * all, lands on the shared instance whatever the server's history.
+ */
+const LIVE_SUPPORT = `
+window.__liveSupport = async () => {
+  const loaded = performance.getEntriesByType('resource').map((e) => e.name).find((n) => /\\/src\\/data\\/support\\.ts/.test(n));
+  return import(loaded ?? '/src/data/support.ts');
+};`;
+
 const setChannels = (p, patch) => p.evaluate(async (patch) => {
-  const { SUPPORT } = await import('/src/data/support.ts');
+  const { SUPPORT } = await window.__liveSupport();
   for (const [id, values] of Object.entries(patch)) {
     const channel = SUPPORT.channels.find((c) => c.id === id);
     Object.assign(channel, values);
@@ -141,7 +157,9 @@ const mockMomoImage = (p) => p.evaluate(() => {
 const configured = await (async () => {
   const p = await context.newPage();
   await p.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
-  const cfg = await p.evaluate(async () => (await import('/src/data/support.ts')).SUPPORT);
+  await p.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
+  await p.evaluate(LIVE_SUPPORT);
+  const cfg = await p.evaluate(async () => (await window.__liveSupport()).SUPPORT);
   await p.close();
   return cfg;
 })();
@@ -183,29 +201,44 @@ let popup = null;
 if (openLabel) { const seen = popups.length; await tapDesign(page, openLabel); popup = await nextPopup(seen); }
 check('Open opens the Wise link in a new tab', Boolean(popup) && popup.url().startsWith(wise.link), popup ? popup.url() : 'no popup');
 
-// The MoMo tab: shortened link shown, drawn code decodes to the MoMo link.
+// The MoMo tab: the host shown; the code is the official VietQR card when one is configured (it
+// reads as an EMVCo payload — `000201…` — which is what a bank app wants), else one drawn from
+// the link.
 const momoTab = await findLabel(page, 'MoMo · Việt Nam');
 if (momoTab) await tapDesign(page, momoTab);
 texts = await modalTexts(page);
 check('tapping the MoMo tab switches the body', texts.some((s) => /me\.momo\.vn/.test(s)), texts.slice(0, 8).join(' | '));
 decoded = await decodeCanvas(page);
-check('the drawn MoMo code decodes to the MoMo link', decoded === momo.link, `decoded ${JSON.stringify(decoded)}`);
+const imageOnMomoTab = await page.evaluate(() => window.__phaserGame.scene.getScene('MenuScene').modalObjects.some((o) => o.type === 'Image'));
+if (momo.qrImage) {
+  check('the MoMo tab shows the official VietQR card', imageOnMomoTab && texts.some((s) => /bank app/.test(s)));
+  check('the official card decodes as a VietQR (EMVCo) payload off the live canvas', typeof decoded === 'string' && decoded.startsWith('000201'),
+    `decoded ${JSON.stringify(decoded?.slice(0, 32))}…`);
+} else {
+  check('the drawn MoMo code decodes to the MoMo link', decoded === momo.link, `decoded ${JSON.stringify(decoded)}`);
+}
 await page.screenshot({ path: `${OUT}/04-modal-momo-en.png` });
 openLabel = await findLabel(page, 'Open');
 popup = null;
 if (openLabel) { const seen = popups.length; await tapDesign(page, openLabel); popup = await nextPopup(seen); }
 check('Open opens the MoMo link in a new tab', Boolean(popup) && popup.url().startsWith(momo.link), popup ? popup.url() : 'no popup');
 
-// With the official image dropped in, the MoMo tab shows the image and says so.
+// Both paths must work whatever the config: with the image away, the drawn code carries the link;
+// with an image present, it replaces the drawn code and the caption says a bank app can read it.
+await setChannels(page, { momo: { qrImage: '' } });
+await page.evaluate(() => window.__phaserGame.scene.getScene('MenuScene').renderSupportModal('momo'));
+await page.waitForTimeout(400);
+decoded = await decodeCanvas(page);
+check('without an image the MoMo tab draws a code that decodes to the link', decoded === momo.link, `decoded ${JSON.stringify(decoded)}`);
+await page.screenshot({ path: `${OUT}/05-modal-momo-drawn-en.png` });
 await mockMomoImage(page);
-await setChannels(page, { momo: { qrImage: 'support/momo-qr.png' } });
+await setChannels(page, { momo: { qrImage: 'support/momo-qr.webp' } });
 await page.evaluate(() => window.__phaserGame.scene.getScene('MenuScene').renderSupportModal('momo'));
 await page.waitForTimeout(400);
 const imageShown = await page.evaluate(() => window.__phaserGame.scene.getScene('MenuScene').modalObjects.some((o) => o.type === 'Image'));
 texts = await modalTexts(page);
-check('the official MoMo image replaces the drawn code when present', imageShown && texts.some((s) => /bank app/.test(s)));
-await page.screenshot({ path: `${OUT}/05-modal-momo-image-en.png` });
-await setChannels(page, { momo: { qrImage: '' } });
+check('with an image present it replaces the drawn code and says so', imageShown && texts.some((s) => /bank app/.test(s)));
+await setChannels(page, { momo: { qrImage: momo.qrImage } });
 
 // The close glyph must actually close it.
 const closeGlyph = await findLabel(page, '×');
