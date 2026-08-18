@@ -88,9 +88,9 @@ const result = await page.evaluate(async () => {
   out.kingBlocked = Boolean(ha.heroMissionBlockedReason(st, king));
 
   // ── Founder pick flows from setup config ──
-  const founded = gs.createEmpireGameState({ seaSides: 0, difficulty: 'normal', founderId: 'do-doc-bach-dang' });
-  out.founderInRoster = founded.heroes.some((h) => h.id === 'do-doc-bach-dang');
-  out.founderRemovedFromDeck = !founded.heroDeck.some((h) => h.id === 'do-doc-bach-dang');
+  const founded = gs.createEmpireGameState({ seaSides: 0, difficulty: 'normal', founderId: 'real-ngo-quyen' });
+  out.founderInRoster = founded.heroes.some((h) => h.id === 'real-ngo-quyen');
+  out.founderRemovedFromDeck = !founded.heroDeck.some((h) => h.id === 'real-ngo-quyen');
 
   return out;
 });

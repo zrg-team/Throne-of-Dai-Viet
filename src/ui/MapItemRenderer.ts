@@ -17,6 +17,17 @@ import { InkMapItemRenderer } from './InkMapItemRenderer';
 import { createPlayerLandFlag } from './playerFlag';
 import { getActiveMapTheme, type MapThemeDefinition, type MapThemeRendererId } from './mapTheme';
 
+/**
+ * The strip under a settlement that its name plate occupies, in node-local units.
+ *
+ * Shared because both halves of the collision need it: `MapScene` places the plate here, and the
+ * item renderer claims the same ground so no roof, tree or buffalo is dealt it. A name plate
+ * printed across the village it names was the most common overlap on the map, and neither side
+ * could fix it alone.
+ */
+export const LABEL_KEEP_OUT = { y: 48, rx: 52, ry: 11 };
+
+
 export type ProgressBadgeVariant = 'acquisition' | 'build' | 'siege' | 'recruit';
 export interface MapItemRenderer {
   addBuildingGroup(cluster: Phaser.GameObjects.Container, x: number, y: number, isShrine: boolean, houseCount: number): void;

@@ -77,11 +77,7 @@ export function createPlayerLandFlag(scene: Phaser.Scene, isCapital = false, sty
   const flagW = (style === 'layered-square' ? 28 : style === 'red-fringe-yellow' ? 29 : 25) * scale;
   const flagH = (style === 'layered-square' ? 22 : style === 'red-fringe-yellow' ? 18 : 17) * scale;
 
-  pole.lineStyle(2.2 * scale, INK.ink, 0.85);
-  pole.lineBetween(poleX, poleBottom, poleX, poleTop);
-  pole.fillStyle(INK.ink, 0.24);
-  pole.fillEllipse(poleX, poleBottom + 2 * scale, 12 * scale, 4 * scale);
-
+  drawStandardMast(pole, poleX, poleTop, poleBottom, scale, isCapital, muted);
   drawPlayerFlagCloth(cloth, style, poleX, poleTop, flagW, flagH, scale, styleSeed, muted);
 
   scene.tweens.add({
@@ -96,6 +92,102 @@ export function createPlayerLandFlag(scene: Phaser.Scene, isCapital = false, sty
 
   container.add([pole, cloth]);
   return container;
+}
+
+/**
+ * The pole the standard flies from — a mast, a finial and a footing, not a line.
+ *
+ * It was `lineBetween` at 2.2px with a soft ellipse under it, which is what a flag is pinned to in
+ * a diagram. On the one province that matters most — the seat of the dynasty, the thing a player
+ * looks for first — the realm's own standard was flying from a stick, and the stick had no top, no
+ * bottom, and no thickness that changed anywhere along it.
+ *
+ * Three things fix that and cost almost nothing:
+ *
+ *  · a **tapered** mast in wood rather than ink, thicker at the foot, so it reads as a raised spar
+ *  · a **finial** — the gilt lotus bud that tops a standard at a Vietnamese seat — which gives the
+ *    pole an end instead of stopping in mid-air, and a binding where the cloth is lashed on
+ *  · a **footing**: a stepped stone socket the mast stands in, so it is planted in the ground
+ *    rather than hovering over a smudge
+ *
+ * The capital takes one thing more: a tassel on a cord under the finial. It is the difference
+ * between a flag and a standard, and it is only ever drawn on the seat.
+ */
+function drawStandardMast(
+  g: Phaser.GameObjects.Graphics,
+  x: number,
+  top: number,
+  bottom: number,
+  scale: number,
+  isCapital: boolean,
+  muted: boolean,
+): void {
+  const pig = flagPigments(muted);
+  const wood = muted ? mutePigment(PIGMENT.nau) : PIGMENT.nau;
+
+  // The ground it stands on, first: a soft shadow, then the socket, so the stone sits in the shade.
+  g.fillStyle(pig.ink, 0.2);
+  g.fillEllipse(x, bottom + 2.4 * scale, 13 * scale, 4.2 * scale);
+  g.fillStyle(muted ? mutePigment(PIGMENT.diepLo) : PIGMENT.diepLo, 0.95);
+  g.fillPoints([
+    { x: x - 4.6 * scale, y: bottom + 2 * scale },
+    { x: x + 4.6 * scale, y: bottom + 2 * scale },
+    { x: x + 3.2 * scale, y: bottom - 3.4 * scale },
+    { x: x - 3.2 * scale, y: bottom - 3.4 * scale },
+  ], true);
+  g.lineStyle(1 * scale, pig.ink, 0.6);
+  g.strokePoints([
+    { x: x - 4.6 * scale, y: bottom + 2 * scale },
+    { x: x + 4.6 * scale, y: bottom + 2 * scale },
+    { x: x + 3.2 * scale, y: bottom - 3.4 * scale },
+    { x: x - 3.2 * scale, y: bottom - 3.4 * scale },
+  ], true, true);
+
+  // The mast: wider at the foot than at the head, which is the whole reason it reads as timber.
+  const headY = top - 2.4 * scale;
+  g.fillStyle(wood, 0.96);
+  g.fillPoints([
+    { x: x - 1.25 * scale, y: bottom },
+    { x: x + 1.25 * scale, y: bottom },
+    { x: x + 0.7 * scale, y: headY },
+    { x: x - 0.7 * scale, y: headY },
+  ], true);
+  // A single lit edge down the left of the spar. Two-tone timber at this size is mud; one line is
+  // enough to say the thing is round.
+  g.lineStyle(0.6 * scale, pig.cream, 0.38);
+  g.lineBetween(x - 0.7 * scale, bottom - 2 * scale, x - 0.35 * scale, headY + 2 * scale);
+  g.lineStyle(0.8 * scale, pig.ink, 0.5);
+  g.lineBetween(x + 1.25 * scale, bottom, x + 0.7 * scale, headY);
+  g.lineStyle(0.6 * scale, pig.ink, 0.32);
+  g.lineBetween(x - 1.25 * scale, bottom, x - 0.7 * scale, headY);
+
+  // The binding where the cloth is lashed on.
+  g.fillStyle(pig.ink, 0.7);
+  g.fillRect(x - 1.7 * scale, top - 0.6 * scale, 3.4 * scale, 1.5 * scale);
+
+  // The finial: a gilt bud on a collar. Slim — a wide diamond up here reads as a kite flying off
+  // the top of the pole, which is what the first one did.
+  g.fillStyle(pig.gold, 0.98);
+  g.fillRect(x - 1.5 * scale, headY - 1.1 * scale, 3 * scale, 1.4 * scale);
+  g.fillTriangle(x, headY - 5.4 * scale, x - 1.4 * scale, headY - 1.1 * scale, x + 1.4 * scale, headY - 1.1 * scale);
+  g.fillTriangle(x, headY + 0.4 * scale, x - 1.4 * scale, headY - 1.1 * scale, x + 1.4 * scale, headY - 1.1 * scale);
+  g.lineStyle(0.7 * scale, pig.ink, 0.6);
+  g.strokeTriangle(x, headY - 5.4 * scale, x - 1.4 * scale, headY - 1.1 * scale, x + 1.4 * scale, headY - 1.1 * scale);
+
+  if (!isCapital) {
+    return;
+  }
+  // The seat's tassel, hung ON the mast and falling straight. Swung out on a long cord it read as
+  // a spider on a thread beside the pole rather than a cord tied to it.
+  const knotY = headY + 2.6 * scale;
+  g.lineStyle(0.8 * scale, pig.red, 0.9);
+  g.lineBetween(x - 0.4 * scale, headY + 0.6 * scale, x - 1.7 * scale, knotY);
+  g.fillStyle(pig.red, 0.95);
+  g.fillCircle(x - 1.9 * scale, knotY + 0.9 * scale, 1.3 * scale);
+  g.lineStyle(0.6 * scale, pig.red, 0.85);
+  for (const strand of [-0.7, 0.4]) {
+    g.lineBetween(x - 1.9 * scale, knotY + 1.9 * scale, x - 1.9 * scale + strand * scale, knotY + 5.4 * scale);
+  }
 }
 
 export function pickFlagStyle(seed: number): PlayerFlagStyle {

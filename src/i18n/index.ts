@@ -11,6 +11,8 @@ import type {
 import { enAscent, viAscent } from './catalogs/ascent';
 import { enCore, viCore } from './catalogs/core';
 import { enEmpire, viEmpire } from './catalogs/empire';
+import { KINGS } from '../data/heroes';
+import { enHeroBios, viHeroBios } from './catalogs/heroBios';
 import { enHeroes, viHeroes } from './catalogs/heroes';
 import { viPolitics } from './catalogs/politics';
 import { enWorld, viWorld } from './catalogs/world';
@@ -25,6 +27,7 @@ const en = {
   ...enCore,
   ...enWorld,
   ...enHeroes,
+  ...enHeroBios,
   ...enEmpire,
   ...enAscent,
 } as const;
@@ -33,6 +36,7 @@ const vi = {
   ...viCore,
   ...viWorld,
   ...viHeroes,
+  ...viHeroBios,
   ...viEmpire,
   ...viAscent,
 } satisfies Record<keyof typeof en, string>;
@@ -162,8 +166,36 @@ function translateKey(key: string, fallback?: string, params: TranslationParams 
   return interpolate(template, params);
 }
 
-function heroKey(heroId: string, field: 'name' | 'description' | 'effect'): string {
+function heroKey(heroId: string, field: 'name' | 'description' | 'effect' | 'bio'): string {
   return `heroes.${heroId}.${field}`;
+}
+
+/** How many pooled bios each office has. Must match `catalogs/heroBios.ts`. */
+const BIOS_PER_ROLE = 25;
+
+/**
+ * The champion's life story.
+ *
+ * People out of the record carry their own; everyone else draws one from their office's pool
+ * by a hash of the id, which keeps a champion's past identical in every run — the Codex is a
+ * collection, and a collection whose entries rewrite themselves is not one.
+ */
+export function heroBio(hero: Hero): string {
+  const catalog = en as Record<string, string>;
+  // The throne's hero always has the id `king`; who is sitting on it is carried by the name.
+  if (hero.id === 'king') {
+    const profile = KINGS.find((candidate) => candidate.name === hero.name);
+    if (profile) return translateKey(`heroes.king.${profile.slug}.bio`);
+  }
+  const dedicated = heroKey(hero.id, 'bio');
+  if (catalog[dedicated]) return translateKey(dedicated);
+
+  let hash = 2166136261;
+  for (let index = 0; index < hero.id.length; index += 1) {
+    hash ^= hero.id.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return translateKey(`heroes.bio.${hero.type}.${(hash >>> 0) % BIOS_PER_ROLE}`);
 }
 
 function findKingTraitKey(effect: string): string | undefined {

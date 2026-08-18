@@ -34,6 +34,7 @@
 import type { Season } from '../../state/types';
 import type { HexTerrainType } from '../../map/terrainTypes';
 import { PIGMENT, mutePigment, shadePigment } from './palette';
+import { seasonsEnabled } from '../../game/lifeSettings';
 
 /** Blends two 0xRRGGBB pigments. `t = 0` is all `from`, `t = 1` is all `to`. */
 export function mixPigment(from: number, to: number, t: number): number {
@@ -329,6 +330,13 @@ export function groundCast(terrain: HexTerrainType): { colour: number; alpha: nu
  * difference to it rather than to six weeks of unrelated change.
  */
 export function seasonVisualsEnabled(): boolean {
+  // The player's own answer first — a map whose year is not allowed to turn costs no cross-fade,
+  // no weather pool and no accent layer, which on a modest phone is the cheapest thing here to
+  // give up. The query flag stays for the capture scripts, which need a fixed season to diff
+  // screenshots against.
+  if (!seasonsEnabled()) {
+    return false;
+  }
   if (typeof window === 'undefined') {
     return true;
   }

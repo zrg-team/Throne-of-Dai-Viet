@@ -6,12 +6,13 @@ import { UI_FONT } from './fonts';
 import { PIGMENT } from './ink/palette';
 import { drawHost, figure, hostFootprint, hostShapeAt, hostSpan, marchInPlace, seal } from './ink/devices';
 import { drawFieldPlot } from './ink/settlements';
-import { citadel, hamlet, village } from './ink/settlements';
+import { citadel, GroundSpacer, hamlet, village } from './ink/settlements';
 import { hatchPoly, inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './ink/stroke';
 import { areca, bamboo, banyan, buffalo, farmer, groundShadow, hayStack, house, thap, tree } from './ink/props';
 import { grazeInSmallArea, livingSprite, setNativeFacing } from './ink/life';
 import { bakedBuffalo } from './ink/sprites';
 import { GROUND_SCALE } from './ink/proportion';
+import { LABEL_KEEP_OUT } from './MapItemRenderer';
 import { createPlayerLandFlag } from './playerFlag';
 
 /**
@@ -235,22 +236,41 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // soldiers standing beside them.
     const spread = Math.min(1.15, 0.8 + sorted.length * 0.06);
     const parts: GroundPart[] = [];
+    // The same ground rule the hamlet itself follows, one level up: an outlying hamlet must not be
+    // dealt the seat's ground, and a tree must not be dealt a hamlet's. Each composite claims the
+    // room it actually paints into — the seat first, because it is the thing the province is.
+    const spacer = new GroundSpacer();
+    // The name plate's strip, claimed before anything is placed. A village printed its own name
+    // across a roof about as often as not, and no amount of painting order fixes a plate and a
+    // house dealt the same ground.
+    spacer.claim(anchor.x, anchor.y + LABEL_KEEP_OUT.y, LABEL_KEEP_OUT.rx, LABEL_KEEP_OUT.ry);
+    /** A hamlet where there is room for one, or nowhere. */
+    const outlier = (centre: { x: number; y: number }, jitter: number, dy: number): void => {
+      const at = spacer.fit(
+        () => ({ x: centre.x + (rand() - 0.5) * jitter * spread, y: centre.y + dy }),
+        58 * GROUND_SCALE,
+        22 * GROUND_SCALE,
+      );
+      if (at) {
+        parts.push({ y: at.y, draw: (g) => hamlet(g, at.x, at.y, GROUND_SCALE, seed + 100 + centre.x, 3) });
+      }
+    };
 
     if (isShrine || kind === 'shrine') {
+      spacer.claim(anchor.x, anchor.y + 6, 70 * GROUND_SCALE, 26 * GROUND_SCALE);
+      spacer.claim(anchor.x - 22, anchor.y + 2, 20 * GROUND_SCALE, 9 * GROUND_SCALE);
       parts.push({ y: anchor.y + 2, draw: (g) => banyan(g, anchor.x - 22, anchor.y + 2, GROUND_SCALE, seed + 40) });
       parts.push({ y: anchor.y + 6, draw: (g) => village(g, anchor.x, anchor.y + 6, GROUND_SCALE, seed) });
     } else if (kind === 'market') {
+      spacer.claim(anchor.x, anchor.y + 4, 70 * GROUND_SCALE, 26 * GROUND_SCALE);
       parts.push({ y: anchor.y + 4, draw: (g) => village(g, anchor.x, anchor.y + 4, GROUND_SCALE, seed) });
       for (const centre of sorted.slice(0, 2)) {
-        const hx = centre.x + (rand() - 0.5) * 26 * spread;
-        const hy = centre.y + 20;
-        parts.push({ y: hy, draw: (g) => hamlet(g, hx, hy, GROUND_SCALE, seed + 100 + centre.x, 3) });
+        outlier(centre, 26, 20);
       }
     } else {
+      spacer.claim(anchor.x - 38 * GROUND_SCALE, anchor.y + 12, 62 * GROUND_SCALE, 24 * GROUND_SCALE);
       for (const centre of sorted.slice(0, Math.min(3, sorted.length - 1))) {
-        const hx = centre.x + (rand() - 0.5) * 30 * spread;
-        const hy = centre.y + 22;
-        parts.push({ y: hy, draw: (g) => hamlet(g, hx, hy, GROUND_SCALE, seed + 100 + centre.x, 3) });
+        outlier(centre, 30, 22);
       }
       parts.push({ y: anchor.y + 12, draw: (g) => citadel(g, anchor.x - 38 * GROUND_SCALE, anchor.y + 12, GROUND_SCALE, 'le', seed) });
     }
@@ -260,8 +280,10 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // going into the settlement's buffer with the houses: a buffalo baked into the same graphics as
     // the roofs behind it can never take a step, and a herd standing perfectly still is the one
     // thing on a drawn map that reads as the picture having frozen.
+    spacer.claim(anchor.x - 34 * spread, anchor.y + 34, 16 * GROUND_SCALE, 7 * GROUND_SCALE);
     parts.push({ y: anchor.y + 34, object: () => this.grazingBuffalo(anchor.x - 34 * spread, anchor.y + 34, GROUND_SCALE, seed + 700, rand() > 0.55) });
     if (sorted.length > 3) {
+      spacer.claim(anchor.x + 30 * spread, anchor.y + 40, 16 * GROUND_SCALE, 7 * GROUND_SCALE);
       parts.push({ y: anchor.y + 40, object: () => this.grazingBuffalo(anchor.x + 30 * spread, anchor.y + 40, GROUND_SCALE, seed + 720, false) });
     }
 
@@ -269,9 +291,14 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
       if (centre === anchor || rand() > 0.45) {
         continue;
       }
-      const tx = centre.x + (rand() - 0.5) * 34;
-      const ty = centre.y + 16;
-      parts.push({ y: ty, draw: (g) => tree(g, tx, ty, GROUND_SCALE, seed + 200 + centre.x) });
+      const at = spacer.fit(
+        () => ({ x: centre.x + (rand() - 0.5) * 40, y: centre.y + 16 }),
+        20 * GROUND_SCALE,
+        9 * GROUND_SCALE,
+      );
+      if (at) {
+        parts.push({ y: at.y, draw: (g) => tree(g, at.x, at.y, GROUND_SCALE, seed + 200 + centre.x) });
+      }
     }
 
     this.paintByGround(cluster, parts);

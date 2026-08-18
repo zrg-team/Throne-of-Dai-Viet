@@ -20,6 +20,7 @@ import { bakedBuffalo } from '../ui/ink/sprites';
 import { drawFieldPlot, hamlet, paddyLattice } from '../ui/ink/settlements';
 import { drawHost, hostFootprint, hostShape, marchInPlace, type HostShape } from '../ui/ink/devices';
 import { GRAPHICS_QUALITIES, applyRenderScale, getGraphicsQuality, setGraphicsQuality } from '../game/graphicsQuality';
+import { TRAFFIC_DENSITIES, getLifeSettings, setLifeSettings } from '../game/lifeSettings';
 import { SUPPORT, configuredSupportChannels, supportQrTextureKey, type SupportChannel } from '../data/support';
 import { copyToClipboard, openExternalLink } from '../utils/browser';
 import { encodeQr, type QrMatrix } from '../utils/qr';
@@ -38,7 +39,20 @@ type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy' | 'settings';
  */
 const SUPPORT_ROW_HEIGHT = 32;
 const SUPPORT_TOP = GAME_HEIGHT - 14 - SUPPORT_ROW_HEIGHT;
-const SETTINGS_TOP = SUPPORT_TOP - 8 - 34 - 6;
+/** The language line under the settings button: two words and the space to tap one. */
+const LANGUAGE_ROW_HEIGHT = 20;
+/**
+ * Settings and the language line are ONE block, and they are spaced like one.
+ *
+ * Distance is what says which things belong together — before colour, before a border, before a
+ * heading. The footer had a single gap size for the whole column, so Continue sat as near to
+ * Settings as it did to Classic Modes, and Settings sat as far from the language line as it did
+ * from a game mode: the two settings read as strangers and a setting read as a game mode. Four
+ * pixels here and a double gap above the block (see `renderMain`) is the whole of the fix.
+ */
+const SETTINGS_BLOCK_GAP = 0;
+const SETTINGS_TOP = SUPPORT_TOP - 14 - LANGUAGE_ROW_HEIGHT - SETTINGS_BLOCK_GAP - 34;
+const LANGUAGE_TOP = SETTINGS_TOP + 34 + SETTINGS_BLOCK_GAP;
 
 export class MenuScene extends Phaser.Scene {
   private ui!: InkUI;
@@ -65,7 +79,7 @@ export class MenuScene extends Phaser.Scene {
    * already had whenever the legacy-shop button was showing.
    */
   private get vScale(): number {
-    const BOTTOM_ROWS = 118;   // the footer: settings button and the support row beneath it
+    const BOTTOM_ROWS = 148;   // the footer: settings, the language line, and the support row
     const DESIGN_BOTTOM = 790; // lowest content y in the 844 design
     return Math.max(0.62, Math.min(1, (GAME_HEIGHT - BOTTOM_ROWS) / DESIGN_BOTTOM));
   }
@@ -201,10 +215,13 @@ export class MenuScene extends Phaser.Scene {
     this.aspectProp(0, HORIZON, (landforms) => {
       softRidge(landforms, -30, 236, 4, 30, 9021);
       softRidge(landforms, 168, GAME_WIDTH + 30, 2, 25, 9022);
-      // The last argument thins the range out. On the map a massif has to fill its tiles, but
-      // the menu wants open country between the towers rather than a solid wall of rock.
-      karstRange(landforms, -24, 196, 0, 74, 4118, false, 1.85);
-      karstRange(landforms, 214, GAME_WIDTH + 24, -4, 62, 4119, false, 1.85);
+      // The last argument thins the range out. On the map a massif has to fill its tiles; the
+      // menu wants a horizon rather than a wall — but not the wide-apart fence posts it asked for
+      // at 1.85, drawn back when every tower carried the same contour and overlapping them was
+      // the only way they could hide each other. The towers are told their own distance now, so
+      // they can stand close and the tone does the separating.
+      karstRange(landforms, -24, 200, 0, 88, 4118, false, 1.0);
+      karstRange(landforms, 186, GAME_WIDTH + 24, -4, 78, 4119, false, 1.0);
     });
 
     // Mist at the foot of the range. Towers are seated at varying depths, so their base fills stop
@@ -931,10 +948,34 @@ export class MenuScene extends Phaser.Scene {
 
     // The column sits against the settings button rather than at a fixed height, so the art above
     // it keeps whatever room is left over instead of the page ending in a hole.
+    //
+    // Spacing is grouping, so there are two sizes of it and not one.
+    //
+    //   · `gap` runs between the things you came here to press — the two modes, the tagline under
+    //     the one it belongs to, the save label tucked under Continue at 0.6 of it.
+    //   · TWICE that runs between the last of them and Settings, because Settings is not one of
+    //     them. It and the language line under it are the other block on this page.
+    //
+    // The column carried one gap size for all of it, which reads exactly backwards: Continue as
+    // near to Settings as to Classic Modes, and Settings as far from its own language row as from
+    // a game mode. Even spacing is not neutral — it says everything belongs to everything.
+    //
+    // The gaps are also counted here EXACTLY as they are spent below, or the slack piles up in
+    // whichever one the arithmetic forgot.
     const rows = this.vh(58) + this.vh(46) + this.vh(42) + tagline.height + saveLabel.height;
-    const floor = SETTINGS_TOP - 18;
-    const gap = Phaser.Math.Clamp(Math.round((floor - this.vy(470) - rows) / 4), 4, Math.round(16 * this.vScale));
-    let cursor = Math.max(this.vy(420), floor - rows - gap * 4);
+    // THREE gaps for the break, not two, and the column is allowed to start higher to pay for
+    // them. Measured on the sheet, two gaps put 26 design units above the settings button against
+    // 9 below it — a ratio of three that reads as "about the same" once the ghost button's own
+    // near-invisible box is what one of them is measured from. The break has to be unmissable, so
+    // it is now about eight times the gap under it.
+    const GAPS = 3 + 0.6 + 3;
+    const gap = Phaser.Math.Clamp(
+      Math.round((SETTINGS_TOP - this.vy(440) - rows) / GAPS),
+      4,
+      Math.round(16 * this.vScale),
+    );
+    const gapsBelow = gap * 3 + Math.round(gap * 0.6) + gap * 3;
+    let cursor = Math.max(this.vy(420), SETTINGS_TOP - rows - gapsBelow);
 
     this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: this.vh(58) }, t('ascent.menu.title'), () => {
       this.startAscentRun();
@@ -961,10 +1002,14 @@ export class MenuScene extends Phaser.Scene {
 
     saveLabel.setY(cursor);
     this.content.push(saveLabel);
-    cursor += saveLabel.height + gap;
+    // The group break, and the reason Settings reads as a different kind of thing from the two
+    // buttons above it.
+    cursor += saveLabel.height + gap * 3;
+
+    this.renderLanguageSwitch();
 
     this.content.push(this.ui.button(
-      { x: 108, y: SETTINGS_TOP + 6, width: 174, height: this.vh(34) },
+      { x: 108, y: SETTINGS_TOP, width: 174, height: this.vh(34) },
       t('menu.settings'),
       () => {
         this.mode = 'settings';
@@ -1111,144 +1156,287 @@ export class MenuScene extends Phaser.Scene {
    * Style, graphics and language were three copies of the same twenty lines, which is why they had
    * drifted to three different tile heights.
    */
-  private renderChoiceRow<T extends string>(
-    y: number,
-    heading: string,
+  /**
+   * The language switch: two words under the settings button, the one you are not using tappable.
+   *
+   * On the front page at all because it was three taps in — main, settings, then the row — and that
+   * is three taps too many for the one control a player needs *before* they can read the rest of
+   * the menu: somebody who cannot read "Settings" cannot find the setting that fixes it.
+   *
+   * It spent one pass beside Settings, where it read as a pair of buttons offering two comparable
+   * things (they are not — one opens a page, the other changes the language of every page), and one
+   * pass as a pill in the top-right corner, which is worse: on a phone that corner is under the
+   * status bar and nowhere near a thumb. Under the settings button it is where the eye already is
+   * when it is looking for settings, inside the column, and the last thing above the footer.
+   *
+   * BOTH languages are shown, with the current one inked and the other in muted type. A single
+   * button naming only the other language has to be understood before it can be used; a pair says
+   * "these are the two, this is the one you are on" at a glance, and the tap target is unambiguous.
+   */
+  private renderLanguageSwitch(): void {
+    const current = getLanguage();
+    const options: Array<{ id: LanguageCode; label: string }> = [
+      { id: 'en', label: 'English' },
+      { id: 'vi', label: 'Tiếng Việt' },
+    ];
+    // Sat on the top of its row rather than centred in it: the row's own height was adding a
+    // third of the gap this block is trying not to have.
+    const y = LANGUAGE_TOP + 8;
+
+    const labels = options.map((option) => this.ui.label(0, y, option.label, 'button', {
+      color: option.id === current ? '#3a2a14' : INK_UI_HEX.mutedText,
+      fontSize: '11px',
+      fontStyle: option.id === current ? '700' : '400',
+    }).setOrigin(0, 0.5));
+    const dot = this.ui.label(0, y, '·', 'caption', {
+      color: INK_UI_HEX.mutedText,
+      fontSize: '12px',
+    }).setOrigin(0, 0.5);
+
+    const GAP = 7;
+    const total = labels[0].width + GAP + dot.width + GAP + labels[1].width;
+    let cursor = (GAME_WIDTH - total) / 2;
+    labels[0].setX(cursor);
+    cursor += labels[0].width + GAP;
+    dot.setX(cursor);
+    cursor += dot.width + GAP;
+    labels[1].setX(cursor);
+
+    this.content.push(labels[0], dot, labels[1]);
+
+    labels.forEach((label, index) => {
+      const option = options[index];
+      if (option.id === current) {
+        return;
+      }
+      // Padded well past the type: eleven-pixel words are a tap target only if the box around them
+      // is not.
+      const hit = this.add
+        .rectangle(label.x + label.width / 2, y, label.width + 20, LANGUAGE_ROW_HEIGHT + 14, 0xffffff, 0.001)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => {
+        setLanguage(option.id);
+        this.render();
+      });
+      this.content.push(hit);
+    });
+  }
+
+
+  /**
+   * One setting: its name on the left, its choices on the right.
+   *
+   * Written first as a centred caption with the tiles centred under it, which is how a settings
+   * page turns into a poster: five headings floating over five bands of buttons, each pair a
+   * separate island, nothing lining up with anything, and the tiles wider than the plate they sit
+   * on so the outer ones were cut off by its own border. A settings page is a LIST — one line per
+   * setting, names in a column you can run your eye down, controls in a column beside it.
+   *
+   * The selected tile is the FILLED one. `crayonTile` marks its selection with a cinnabar edge on
+   * paper and leaves the unselected ones filled gold, which is the game's action-versus-quiet
+   * convention and reads backwards here: every screenshot of this page showed the two unchosen
+   * qualities looking chosen and the chosen one looking empty.
+   */
+  private renderSettingRow<T extends string>(
+    box: { x: number; y: number; width: number; height: number },
+    name: string,
     options: ReadonlyArray<{ id: T; label: string }>,
     current: T,
     pick: (id: T) => void,
   ): void {
-    const itemWidth = Math.min(112, (GAME_WIDTH - 24) / options.length);
-    const itemHeight = 28;
-    const x = GAME_WIDTH / 2 - (itemWidth * options.length) / 2;
+    const LABEL_WIDTH = 96;
+    const GAP = 5;
+    const label = this.ui.label(box.x, box.y + box.height / 2, name, 'caption', {
+      color: INK_UI_HEX.mutedText,
+      fontSize: '10px',
+      fontStyle: '700',
+      wordWrap: { width: LABEL_WIDTH },
+    }).setOrigin(0, 0.5);
+    label.setLetterSpacing?.(0.8);
+    this.content.push(label);
 
-    this.content.push(this.ui.label(GAME_WIDTH / 2, y - 15, heading, 'caption', {
-      color: '#3a2a14', fontSize: '10px', fontStyle: '700', align: 'center',
-      backgroundColor: 'rgba(243,230,196,0.55)', padding: { x: 5, y: 1 },
-    }).setOrigin(0.5, 0));
+    const trackX = box.x + LABEL_WIDTH + 8;
+    const trackWidth = box.width - LABEL_WIDTH - 8;
+    const tileWidth = (trackWidth - GAP * (options.length - 1)) / options.length;
 
     options.forEach((option, index) => {
       const selected = current === option.id;
-      const bounds = { x: x + index * itemWidth + 3, y, width: itemWidth - 6, height: itemHeight };
-      const tile = this.ui.crayonTile(bounds, { selected });
-      const label = this.ui.label(bounds.x + bounds.width / 2, y + itemHeight / 2, option.label, 'button', {
-        color: '#211103', fontSize: '11px', fontStyle: selected ? '700' : '400', align: 'center',
-      }).setOrigin(0.5);
+      const x = trackX + index * (tileWidth + GAP);
+      this.content.push(this.ui.panel({ x, y: box.y, width: tileWidth, height: box.height }, selected
+        ? { fill: INK_UI.goldLight, fillShade: INK_UI.gold, border: INK_UI.cinnabar, borderWidth: 2 }
+        : { fill: INK_UI.parchment, fillAlpha: 0.5, border: INK_UI.softBrush, borderWidth: 1.2, muted: true }));
+      this.content.push(this.ui.label(x + tileWidth / 2, box.y + box.height / 2, option.label, 'button', {
+        color: selected ? '#8a2a1b' : INK_UI_HEX.mutedText,
+        fontSize: options.length > 3 ? '10px' : '11px',
+        fontStyle: selected ? '700' : '400',
+        align: 'center',
+        wordWrap: { width: tileWidth - 6 },
+      }).setOrigin(0.5));
       const hit = this.add
-        .rectangle(bounds.x + bounds.width / 2, y + itemHeight / 2, bounds.width, itemHeight, 0xffffff, 0.001)
+        .rectangle(x + tileWidth / 2, box.y + box.height / 2, tileWidth, box.height + 6, 0xffffff, 0.001)
         .setInteractive({ useHandCursor: true });
       hit.on('pointerup', () => pick(option.id));
-      this.content.push(tile, label, hit);
+      this.content.push(hit);
     });
   }
 
-  private renderMapThemeSelector(): void {
-    this.renderChoiceRow(
-      GAME_HEIGHT - 90,
-      t('menu.mapTheme'),
-      MAP_THEME_OPTIONS.map((option) => ({ id: option.id, label: t(option.labelKey) })),
-      getMapTheme(),
-      (id) => {
-        setMapTheme(id);
-        this.scene.restart();
-      },
-    );
-  }
-
-  /**
-   * How much resolution and detail to spend.
-   *
-   * Reloads rather than restarting the scene: the drawing buffer is sized once when the game is
-   * constructed, so a new render scale cannot take effect without building the game again.
-   */
-  private renderGraphicsSelector(): void {
-    this.renderChoiceRow(
-      SETTINGS_TOP,
-      t('menu.graphics'),
-      GRAPHICS_QUALITIES.map((id) => ({ id, label: t(`menu.graphics.${id}` as 'menu.graphics.low') })),
-      getGraphicsQuality(),
-      (id) => {
-        if (id === getGraphicsQuality()) {
-          return;
-        }
-        setGraphicsQuality(id);
-        window.location.reload();
-      },
-    );
-  }
-
-  /**
-   * Graphics, map style and language, on a page of their own.
-   *
-   * All three were on the home screen, stacked above each other in the bottom third — a wall of
-   * nine buttons in front of a player who wants to press Play. They are set once and then never
-   * again, which is exactly what a settings page is for.
-   */
   private renderSettings(): void {
-    // A plate to read on. Three rows of small labels sitting straight on a landscape is the one
-    // place in the game where the art actively fights the text.
-    const rowGap = 62;
-    const plateTop = this.vy(232);
-    const plateHeight = Math.min(GAME_HEIGHT - plateTop - 24, 62 + rowGap * 3 + this.vh(44) + 40);
-    this.content.push(this.ui.panel(
-      { x: 16, y: plateTop, width: GAME_WIDTH - 32, height: plateHeight },
-      { fill: INK_UI.parchment, fillAlpha: 0.94 },
-    ));
+    // A plate to read on. Small labels sitting straight on a landscape is the one place in the game
+    // where the art actively fights the text.
+    //
+    // Laid out as a LIST: one line per setting, names down the left, controls down the right, and
+    // the whole thing measured from the rows rather than from a guess — the plate used to be sized
+    // by a formula that did not know how many rows it held, so the last one hung out of the bottom
+    // and the widest ones were cut off by its own border.
+    const ROW_HEIGHT = 30;
+    const ROW_GAP = 12;
+    const PAD = 18;
+    const life = getLifeSettings();
+    const onOff = [
+      { id: 'on' as const, label: t('menu.toggle.on') },
+      { id: 'off' as const, label: t('menu.toggle.off') },
+    ];
 
-    let cursor = plateTop + 18;
-    const title = this.add.text(GAME_WIDTH / 2, cursor, t('menu.settingsTitle'), {
+    const plateX = 16;
+    const plateWidth = GAME_WIDTH - 32;
+    const contentX = plateX + PAD;
+    const contentWidth = plateWidth - PAD * 2;
+    const settings: Array<{ name: string; build: (y: number) => void }> = [
+      {
+        name: t('menu.graphics'),
+        build: (y) => this.renderSettingRow(
+          { x: contentX, y, width: contentWidth, height: ROW_HEIGHT },
+          t('menu.graphics'),
+          GRAPHICS_QUALITIES.map((id) => ({ id, label: t(`menu.graphics.${id}` as 'menu.graphics.low') })),
+          getGraphicsQuality(),
+          (id) => {
+            if (id === getGraphicsQuality()) {
+              return;
+            }
+            setGraphicsQuality(id);
+            window.location.reload();
+          },
+        ),
+      },
+      {
+        name: t('menu.mapTheme'),
+        build: (y) => this.renderSettingRow(
+          { x: contentX, y, width: contentWidth, height: ROW_HEIGHT },
+          t('menu.mapTheme'),
+          MAP_THEME_OPTIONS.map((option) => ({ id: option.id, label: t(option.labelKey) })),
+          getMapTheme(),
+          (id) => {
+            setMapTheme(id);
+            this.scene.restart();
+          },
+        ),
+      },
+      // ── What the map is allowed to be doing ──
+      //
+      // Not the same question as graphics quality, which buys pixels. These buy *movement*: every
+      // bird, cart and traveller is a live object with a tween on it, and a busy map is a hundred
+      // of them ticking at once — a cost a resolution slider cannot answer. They are taste
+      // settings too: a player who finds the sky distracting should be able to still it without
+      // dropping to a 1x buffer.
+      {
+        name: t('menu.traffic'),
+        build: (y) => this.renderSettingRow(
+          { x: contentX, y, width: contentWidth, height: ROW_HEIGHT },
+          t('menu.traffic'),
+          TRAFFIC_DENSITIES.map((id) => ({ id, label: t(`menu.traffic.${id}` as 'menu.traffic.none') })),
+          life.traffic,
+          (id) => {
+            setLifeSettings({ traffic: id });
+            this.render();
+          },
+        ),
+      },
+      {
+        name: t('menu.birds'),
+        build: (y) => this.renderSettingRow(
+          { x: contentX, y, width: contentWidth, height: ROW_HEIGHT },
+          t('menu.birds'),
+          onOff,
+          life.birds ? 'on' : 'off',
+          (id) => {
+            setLifeSettings({ birds: id === 'on' });
+            this.render();
+          },
+        ),
+      },
+      {
+        name: t('menu.seasons'),
+        build: (y) => this.renderSettingRow(
+          { x: contentX, y, width: contentWidth, height: ROW_HEIGHT },
+          t('menu.seasons'),
+          onOff,
+          life.seasons ? 'on' : 'off',
+          (id) => {
+            setLifeSettings({ seasons: id === 'on' });
+            this.render();
+          },
+        ),
+      },
+      // Last, and still here even though the front page carries a switch of its own: this is where
+      // a player goes looking for it, and a settings page that does not list the language is a
+      // settings page with a hole in it.
+      {
+        name: t('menu.language'),
+        build: (y) => this.renderSettingRow(
+          { x: contentX, y, width: contentWidth, height: ROW_HEIGHT },
+          t('menu.language'),
+          [{ id: 'en' as LanguageCode, label: 'English' }, { id: 'vi' as LanguageCode, label: 'Tiếng Việt' }],
+          getLanguage(),
+          (code) => {
+            setLanguage(code);
+            this.render();
+          },
+        ),
+      },
+    ];
+
+    const title = this.add.text(GAME_WIDTH / 2, 0, t('menu.settingsTitle'), {
       color: '#2a2118',
       fontFamily: TITLE_FONT,
       fontSize: '20px',
       fontStyle: '700',
       align: 'center',
     }).setOrigin(0.5, 0);
+
+    const backHeight = this.vh(40);
+    const plateHeight = PAD + title.height + 20
+      + settings.length * ROW_HEIGHT + (settings.length - 1) * ROW_GAP
+      + 22 + backHeight + PAD;
+    const plateTop = Math.max(this.vy(150), Math.min(this.vy(232), GAME_HEIGHT - 24 - plateHeight));
+
+    this.content.push(this.ui.panel(
+      { x: plateX, y: plateTop, width: plateWidth, height: plateHeight },
+      { fill: INK_UI.parchment, fillAlpha: 0.94 },
+    ));
+
+    let cursor = plateTop + PAD;
+    title.setY(cursor);
+    // Built before the plate, because the plate is sized from its height — and Phaser draws in
+    // creation order, so without this the page's own title is behind the page.
+    this.children.bringToTop(title);
     this.content.push(title);
-    cursor += title.height + 26;
+    cursor += title.height + 20;
 
-    this.renderChoiceRow(
-      cursor,
-      t('menu.graphics'),
-      GRAPHICS_QUALITIES.map((id) => ({ id, label: t(`menu.graphics.${id}` as 'menu.graphics.low') })),
-      getGraphicsQuality(),
-      (id) => {
-        if (id === getGraphicsQuality()) {
-          return;
-        }
-        setGraphicsQuality(id);
-        window.location.reload();
-      },
-    );
-    cursor += rowGap;
+    for (const setting of settings) {
+      setting.build(cursor);
+      cursor += ROW_HEIGHT + ROW_GAP;
+    }
+    cursor += 22 - ROW_GAP;
 
-    this.renderChoiceRow(
-      cursor,
-      t('menu.mapTheme'),
-      MAP_THEME_OPTIONS.map((option) => ({ id: option.id, label: t(option.labelKey) })),
-      getMapTheme(),
-      (id) => {
-        setMapTheme(id);
-        this.scene.restart();
-      },
-    );
-    cursor += rowGap;
-
-    this.renderChoiceRow(
-      cursor,
-      t('menu.language'),
-      [{ id: 'en' as LanguageCode, label: 'English' }, { id: 'vi' as LanguageCode, label: 'Tiếng Việt' }],
-      getLanguage(),
-      (code) => {
-        setLanguage(code);
+    this.content.push(this.ui.button(
+      { x: contentX, y: cursor, width: contentWidth, height: backHeight },
+      t('menu.back'),
+      () => {
+        this.mode = 'main';
         this.render();
       },
-    );
-    cursor += rowGap + 8;
-
-    this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: this.vh(44) }, t('menu.back'), () => {
-      this.mode = 'main';
-      this.render();
-    }, { variant: 'secondary', fontSize: '14px' }));
+      { variant: 'secondary', fontSize: '14px' },
+    ));
   }
 
   private renderConfirmNew(): void {
@@ -1292,7 +1480,7 @@ export class MenuScene extends Phaser.Scene {
     const row = this.add.container(GAME_WIDTH / 2, SUPPORT_TOP + SUPPORT_ROW_HEIGHT / 2);
 
     const coffee = this.ui.textLink(0, 0, t('menu.support.coffee'), () => this.renderSupportModal(), { icon: 'cup' });
-    const improve = this.ui.textLink(0, 0, t('menu.support.improve'), () => openExternalLink(SUPPORT.github), { icon: 'brush' });
+    const improve = this.ui.textLink(0, 0, t('menu.support.improve'), () => openExternalLink(SUPPORT.github), { icon: 'hammer' });
     // Quieter than either phrase, and deliberately not pressable: it is the sentence's connective
     // tissue, and a player hunting for what is clickable must never land on it.
     const connective = this.ui.label(0, 0, t('menu.support.or'), 'caption', {
@@ -1502,18 +1690,6 @@ export class MenuScene extends Phaser.Scene {
     this.modalObjects = [];
   }
 
-  private renderLanguageSelector(): void {
-    this.renderChoiceRow(
-      GAME_HEIGHT - 40,
-      t('menu.language'),
-      [{ id: 'en' as LanguageCode, label: 'English' }, { id: 'vi' as LanguageCode, label: 'Tiếng Việt' }],
-      getLanguage(),
-      (code) => {
-        setLanguage(code);
-        this.render();
-      },
-    );
-  }
 
   private startGame(state: ReturnType<typeof createInitialGameState>): void {
     // One save slot is shared across modes, so resume into the world scene the run belongs

@@ -14,33 +14,81 @@ import { ROBES } from './palette';
  * era first: Nguyễn Phúc Khoát's 1744 reform replaced the crossed lapel of the áo giao lĩnh
  * with the standing collar of the áo ngũ thân, so an official of the wrong century is as
  * plainly wrong as an office in the wrong hat.
+ *
+ * Every list here is a *pool* the seed then picks from, never a single answer. That is the
+ * difference between a roster of two hundred and the same six portraits repeated: the
+ * constraint is historical, the choice inside it is not.
  */
 
-/** Headwear each era actually offers, by role and sex. A monk's list has one entry. */
+type Pick = <T>(items: readonly T[]) => T;
+
+/**
+ * Headwear each era actually offers, by role and sex. A monk's list has one entry.
+ *
+ * The pools are deliberately uneven. A Lê general has five war helms to choose from because
+ * the sources describe that many; a Đinh one has two, because the tenth century did not have a
+ * court to regulate the rest.
+ */
 export function headwearFor(era: HeroEra, type: Hero['type'], woman: boolean, rank: number): string[] {
-  if (woman) {
-    if (era === 'nguyen') return rank >= 2 ? ['hat-crown-nhatbinh', 'hat-moqua'] : ['hat-moqua', 'hat-moqua'];
-    if (era === 'le' || era === 'tayson') return rank >= 2 ? ['hat-coronet', 'hat-moqua'] : ['hat-moqua', ''];
-    return rank >= 2 ? ['hat-coronet', ''] : ['', 'hat-band'];
+  if (woman) return womenHeadwear(era, rank);
+  if (era === 'dinh') {
+    if (type === 'general') return ['hat-helm', 'hat-helm-leather', 'hat-band-warrior', ''];
+    return ['', 'hat-khanvan-low', 'hat-khanvuong', 'hat-band-cloth'];
   }
-  if (era === 'dinh') return type === 'general' ? ['hat-helm', ''] : ['', 'hat-khanvan'];
   if (era === 'ly') {
-    if (type === 'general') return ['hat-helm', 'hat-khanvan'];
-    if (type === 'minister') return ['hat-phocdau-short', 'hat-khanvan'];
-    return ['hat-khanvan', 'hat-non'];
+    if (type === 'general') return ['hat-helm', 'hat-helm-plume', 'hat-helm-daumau', 'hat-khanvan', 'hat-band-warrior'];
+    if (type === 'minister') return ['hat-phocdau-short', 'hat-khanvan', 'hat-duongcan', 'hat-osa', rank >= 3 ? 'hat-xungthien' : 'hat-binhdinh'];
+    if (type === 'governor') return ['hat-khanvan', 'hat-osa', 'hat-khanvuong', 'hat-non'];
+    return ['hat-khanvan', 'hat-non', 'hat-khanvuong', 'hat-non-chop'];
   }
   if (era === 'tran') {
-    if (type === 'general') return ['hat-helm', ''];
-    if (type === 'minister') return ['hat-phocdau-short', ''];
-    return ['hat-khanvan', '', 'hat-non'];
+    if (type === 'general') return ['hat-helm', 'hat-helm-lamellar', 'hat-helm-cheeks', 'hat-helm-daumau', ''];
+    if (type === 'minister') return ['hat-phocdau-short', 'hat-duongcan', 'hat-osa', 'hat-tamson', ''];
+    if (type === 'governor') return ['hat-khanvan', 'hat-osa', '', 'hat-non-chop'];
+    return ['hat-khanvan-low', '', 'hat-non', 'hat-non-dau'];
   }
   if (era === 'le') {
-    if (type === 'general') return ['hat-helm', 'hat-khanvan'];
-    if (type === 'minister') return ['hat-phocdau-short', 'hat-phocdau-short'];
-    return ['hat-khanvan', 'hat-non'];
+    if (type === 'general') return ['hat-helm', 'hat-helm-crest', 'hat-helm-horned', 'hat-helm-lamellar', 'hat-khanvan'];
+    // 1499: the court wrote wing length into the regulations, so a Lê minister wears the
+    // dragonfly cap more often than anything else and the wings say how senior he is.
+    if (type === 'minister') return ['hat-phocdau-short', 'hat-phocdau-short', 'hat-osa', 'hat-binhdinh', 'hat-tamson'];
+    if (type === 'governor') return ['hat-khanvan', 'hat-osa', 'hat-khanvuong', 'hat-non', 'hat-binhdinh'];
+    return ['hat-khanvan', 'hat-non', 'hat-khanvuong', 'hat-non-dau', 'hat-band-cloth'];
   }
-  if (era === 'tayson') return type === 'general' ? ['hat-helm', 'hat-band'] : ['hat-band', 'hat-khanvan', 'hat-non'];
-  return type === 'minister' ? ['hat-phocdau-short', 'hat-khandong'] : ['hat-khandong', 'hat-non'];
+  if (era === 'tayson') {
+    if (type === 'general') return ['hat-helm-crest', 'hat-helm-plume', 'hat-band-warrior', 'hat-helm-leather', 'hat-band'];
+    if (type === 'minister') return ['hat-khanvan', 'hat-duongcan', 'hat-osa', 'hat-band'];
+    return ['hat-band', 'hat-khanvan', 'hat-non', 'hat-non-dau', 'hat-band-cloth'];
+  }
+  // Nguyễn: the khăn đóng is the everyday form and the folded khăn xếp the formal one; the
+  // dragonfly cap survives only at court.
+  if (type === 'general') return ['hat-helm-daumau', 'hat-helm', 'hat-khandong', 'hat-band-warrior', 'hat-helm-leather'];
+  if (type === 'minister') return ['hat-phocdau-short', 'hat-khanxep', 'hat-khandong', 'hat-osa', 'hat-binhdinh'];
+  if (type === 'governor') return ['hat-khandong', 'hat-khanxep', 'hat-khandong-jewel', 'hat-osa', 'hat-non'];
+  return ['hat-khandong', 'hat-non', 'hat-khanxep', 'hat-non-chop', 'hat-khanvuong'];
+}
+
+/**
+ * A woman's headwear, which tracks region and occasion more than office.
+ *
+ * The khăn mỏ quạ is the northern delta's, the nón quai thao is what a woman wore to a
+ * festival, and the khăn vành dây — the great coiled wrap — belongs to the Nguyễn court and
+ * nowhere else.
+ */
+function womenHeadwear(era: HeroEra, rank: number): string[] {
+  if (era === 'nguyen') {
+    return rank >= 2
+      ? ['hat-vanhday', 'hat-crown-nhatbinh', 'hat-crown-phoenix', 'hat-vanhday', 'hat-moqua']
+      : ['hat-moqua', 'hat-moqua-tied', 'hat-khanxep', 'hat-non', 'hat-moqua-brown'];
+  }
+  if (era === 'le' || era === 'tayson') {
+    return rank >= 2
+      ? ['hat-coronet', 'hat-crown-phoenix', 'hat-coronet-jade', 'hat-non-quaithao', 'hat-moqua']
+      : ['hat-moqua', 'hat-non-quaithao', 'hat-moqua-brown', 'hat-non-batam', ''];
+  }
+  return rank >= 2
+    ? ['hat-coronet', 'hat-coronet-jade', 'hat-crown-seven', '', 'hat-band-gold']
+    : ['', 'hat-band', 'hat-moqua-brown', 'hat-non', 'hat-band-cloth'];
 }
 
 /** Rank lengthens the dragonfly wings, as the 1499 court regulations did. */
@@ -49,48 +97,178 @@ export function rankWings(hat: string, rank: number): string {
   return rank >= 3 ? 'hat-phocdau-grand' : rank >= 2 ? 'hat-phocdau-long' : 'hat-phocdau-short';
 }
 
+/** Hair a man of this era may wear under (or instead of) a hat. */
+export function manHairFor(era: HeroEra, age: 'young' | 'prime' | 'elder'): string[] {
+  if (age === 'elder') return ['hair-receding', 'hair-high', 'hair-crown', 'hair-parted'];
+  // Trần fashion cropped the hair short — Chinese envoys remarked on it, and it is the
+  // cheapest way to make a Trần portrait unmistakable beside a Lê one.
+  if (era === 'tran') return ['hair-cropped', 'hair-cropped', 'hair-high', 'hair-crown'];
+  return ['hair-crown', 'hair-parted', 'hair-thick', 'hair-peak', 'hair-swept', 'hair-low'];
+}
+
+/** A man's knot, worn under a wound turban or on its own. */
+export function manKnotFor(era: HeroEra): string[] {
+  if (era === 'dinh') return ['topknot-tall', 'topknot-wrapped', 'topknot'];
+  return ['topknot', 'topknot-small', 'topknot-wrapped', 'topknot-side'];
+}
+
+/** A woman's hair. Under a covering hat only the crown shows, so the caller narrows this. */
+export function womanHairFor(era: HeroEra, covered: boolean): string[] {
+  if (covered) return ['hair-crown', 'hair-low', 'hair-parted', 'hair-thick'];
+  if (era === 'nguyen') return ['hair-long', 'hair-long-full', 'hair-braid', 'hair-tail', 'hair-wavy'];
+  return ['hair-long', 'hair-long-short', 'hair-braid', 'hair-long-full', 'hair-tail'];
+}
+
+/** A woman's knot. The coil and the wrapped knot are the delta forms; twin buns read young. */
+export function womanKnotFor(age: 'young' | 'prime' | 'elder'): string[] {
+  if (age === 'young') return ['bun-high', 'bun-double', 'bun-low', 'bun-coil'];
+  if (age === 'elder') return ['bun-low', 'bun-wrapped', 'bun-wide', 'bun-coil'];
+  return ['bun-high', 'bun-low', 'bun-coil', 'bun-wrapped', 'bun-wide'];
+}
+
+/** What may be pinned into it. An empty entry means nothing at all, which is most people. */
+export function hairOrnamentFor(rank: number): string[] {
+  if (rank >= 3) return ['hairpin-jade', 'hairpin-long', 'hair-comb', 'hair-flower'];
+  if (rank >= 1) return ['hairpin', 'hairpin-jade', 'hair-ribbon', '', 'hair-cord'];
+  return ['', '', 'hairpin', 'hair-cord', 'hair-ribbon'];
+}
+
 /** The robe, its collar, and whatever fastens it — one coherent set per era and sex. */
-export function garmentsFor(era: HeroEra, woman: boolean, monastic: boolean, type: Hero['type']): HeroLookPart[] {
+export function garmentsFor(
+  era: HeroEra,
+  woman: boolean,
+  monastic: boolean,
+  type: Hero['type'],
+  rank: number,
+  pick: Pick,
+): HeroLookPart[] {
   if (monastic) {
-    return [{ key: 'robe-body', tint: 'robe' }, { key: 'kesa', tint: 'none' }];
-  }
-  if (woman) {
-    if (era === 'nguyen') {
-      return [
-        { key: 'robe-body', tint: 'robe' },
-        { key: 'robe-sheen', tint: 'robeLight' },
-        { key: 'collar-nhatbinh', tint: 'robeDark' },
-        { key: 'collar-nhatbinh-trim', tint: 'none' },
-      ];
-    }
-    const dress: HeroLookPart[] = [
-      { key: 'robe-body', tint: 'robe' },
-      { key: 'robe-sheen', tint: 'robeLight' },
-      { key: 'collar-yem-wrap', tint: 'robeLight' },
-      { key: 'yem', tint: 'none' },
+    return [
+      { key: 'robe-sloped', tint: 'robe' },
+      { key: pick(['kesa', 'kesa', 'kesa-red', 'kesa-grey']), tint: 'none' },
+      ...(pick([true, false, false]) ? [{ key: 'kesa-patches', tint: 'none' } as HeroLookPart] : []),
     ];
-    if (era === 'le' || era === 'tayson') dress.push({ key: 'sash-waist', tint: 'none' });
-    return dress;
   }
+  if (woman) return womenGarments(era, rank, pick);
+
+  const shape = type === 'general'
+    ? pick(['robe-armour', 'robe-armour-lamellar', 'robe-armour-scale', 'robe-armour-brigandine', 'robe-armour-leather'])
+    : pick(['robe-body', 'robe-body', 'robe-slim', 'robe-sloped', 'robe-broad']);
   const body: HeroLookPart[] = [
-    { key: type === 'general' ? 'robe-armour' : 'robe-body', tint: 'robe' },
-    { key: 'robe-sheen', tint: 'robeLight' },
+    { key: shape, tint: 'robe' },
+    { key: pick(['robe-sheen', 'robe-sheen-soft']), tint: 'robeLight' },
   ];
+  // A field harness gets its flared pauldrons, gilded when the man commands armies rather
+  // than companies.
+  if (type === 'general' && rank >= 1 && pick([true, true, false])) {
+    body.push({ key: 'guard-shoulder', tint: 'robeDark' });
+    if (rank >= 2) body.push({ key: 'guard-shoulder-gilt', tint: 'none' });
+  }
+
   if (era === 'nguyen') {
     // Áo ngũ thân: a standing collar closing to the right, five buttons for the Five Constants.
-    return [...body, { key: 'collar-nguthan-body', tint: 'robe' }, { key: 'collar-nguthan', tint: 'robeLight' }, { key: 'buttons-five', tint: 'none' }];
+    return [
+      ...body,
+      { key: 'collar-nguthan-body', tint: 'robe' },
+      { key: pick(['collar-nguthan', 'collar-nguthan-tall']), tint: 'robeLight' },
+      { key: pick(['buttons-five', 'buttons-jade', 'buttons-knot']), tint: 'none' },
+      ...beltFor(rank, era, pick),
+    ];
   }
   if (era === 'dinh') {
     // The two-flap wrap the Đông Sơn drums show, closed with a sash.
-    return [...body, { key: 'collar-twoflap', tint: 'robeDark' }, { key: 'collar-twoflap-over', tint: 'robeLight' }, { key: 'sash-ochre', tint: 'none' }];
+    return [
+      ...body,
+      { key: 'collar-twoflap', tint: 'robeDark' },
+      { key: 'collar-twoflap-over', tint: 'robeLight' },
+      { key: pick(['sash-ochre', 'sash-cord', 'sash-silk']), tint: 'none' },
+    ];
   }
-  const giaoLinh: HeroLookPart[] = [
-    ...body,
-    { key: 'collar-giaolinh', tint: 'robeDark' },
-    { key: 'collar-giaolinh-over', tint: 'robeLight' },
-  ];
-  if (era === 'tayson') giaoLinh.push({ key: 'sash-baldric', tint: 'none' });
+
+  // Lý · Trần · Lê · Tây Sơn. A court officer of standing wears the round-collar áo viên lĩnh
+  // — which is what leaves the chest clear for the bổ tử — and everyone else the crossed lapel.
+  const courtly = (type === 'minister' || type === 'governor') && rank >= 1 && era !== 'tayson';
+  if (courtly && pick([true, true, false])) {
+    return [
+      ...body,
+      { key: 'collar-vienlinh', tint: 'robeDark' },
+      { key: 'collar-vienlinh-trim', tint: 'none' },
+      ...(rank >= 1 ? [{ key: badgeFor(type, rank, pick), tint: 'none' } as HeroLookPart] : []),
+      ...beltFor(rank, era, pick),
+    ];
+  }
+  const giaoLinh: HeroLookPart[] = pick([true, true, true, false])
+    ? [...body, { key: 'collar-giaolinh', tint: 'robeDark' }, { key: 'collar-giaolinh-over', tint: 'robeLight' }]
+    : [...body, { key: 'collar-giaolinh-wide', tint: 'robeDark' }, { key: 'collar-giaolinh-wide-over', tint: 'robeLight' }];
+  if (rank >= 2) giaoLinh.push({ key: 'collar-giaolinh-trim', tint: 'none' });
+  if (era === 'tayson') giaoLinh.push({ key: pick(['sash-baldric', 'sash-baldric-red', 'sash-cord']), tint: 'none' });
+  else giaoLinh.push(...beltFor(rank, era, pick));
   return giaoLinh;
+}
+
+/**
+ * A woman's dress. The áo yếm is the constant underneath; what goes over it is what changes —
+ * the four-panel áo tứ thân in the Lê delta, the áo nhật bình at the Nguyễn court.
+ */
+function womenGarments(era: HeroEra, rank: number, pick: Pick): HeroLookPart[] {
+  const body: HeroLookPart[] = [
+    { key: pick(['robe-body', 'robe-slim', 'robe-sloped']), tint: 'robe' },
+    { key: pick(['robe-sheen', 'robe-sheen-soft']), tint: 'robeLight' },
+  ];
+  if (era === 'nguyen' && rank >= 1) {
+    return [
+      ...body,
+      { key: 'collar-nhatbinh', tint: 'robeDark' },
+      { key: 'collar-nhatbinh-trim', tint: 'none' },
+      ...(rank >= 2 ? [{ key: 'collar-nhatbinh-phoenix', tint: 'none' } as HeroLookPart] : []),
+    ];
+  }
+  if (era === 'nguyen') {
+    return [
+      ...body,
+      { key: 'collar-nguthan-body', tint: 'robe' },
+      { key: 'collar-nguthan', tint: 'robeLight' },
+      { key: pick(['buttons-knot', 'buttons-jade']), tint: 'none' },
+    ];
+  }
+  const yem = pick(['yem', 'yem', 'yem-cream', 'yem-indigo', 'yem-jade']);
+  if ((era === 'le' || era === 'tayson') && pick([true, true, false])) {
+    // Áo tứ thân: two front panels knotted at the waist, the yếm showing between them.
+    return [
+      ...body,
+      { key: 'collar-tuthan', tint: 'robeDark' },
+      { key: 'collar-tuthan-over', tint: 'robeLight' },
+      { key: yem, tint: 'none' },
+      { key: 'collar-tuthan-knot', tint: 'none' },
+      { key: pick(['sash-waist', 'sash-waist-red', 'sash-silk']), tint: 'none' },
+    ];
+  }
+  const dress: HeroLookPart[] = [
+    ...body,
+    { key: 'collar-yem-wrap', tint: 'robeLight' },
+    { key: yem, tint: 'none' },
+  ];
+  if (era === 'le' || era === 'tayson') dress.push({ key: pick(['sash-waist', 'sash-waist-red']), tint: 'none' });
+  else if (rank >= 1) dress.push({ key: pick(['sash-silk', 'sash-cord']), tint: 'none' });
+  return dress;
+}
+
+/** Đai — the plaque belt. Only high office wore one, and jade outranked gold at some courts. */
+function beltFor(rank: number, era: HeroEra, pick: Pick): HeroLookPart[] {
+  if (rank < 2 || era === 'dinh') return [];
+  return pick([true, false]) ? [{ key: pick(['belt-jade', 'belt-gold']), tint: 'none' }] : [];
+}
+
+/**
+ * Bổ tử — the rank badge. Civil offices wore birds and military ones beasts, which is a real
+ * distinction and the fastest way to read an office off a portrait.
+ */
+function badgeFor(type: Hero['type'], rank: number, pick: Pick): string {
+  if (type === 'general') {
+    return rank >= 3 ? 'badge-lion' : pick(['badge-tiger', 'badge-bear', 'badge-rhino']);
+  }
+  if (rank >= 3) return pick(['badge-crane', 'badge-dragon']);
+  return pick(['badge-pheasant', 'badge-peacock', 'badge-crane']);
 }
 
 export function robeColour(type: Hero['type'], woman: boolean, monastic: boolean, era: HeroEra, rank: number): number {
@@ -101,4 +279,3 @@ export function robeColour(type: Hero['type'], woman: boolean, monastic: boolean
   if (type === 'governor') return ROBES.nau;
   return rank >= 2 ? ROBES.jade : ROBES.nau;
 }
-

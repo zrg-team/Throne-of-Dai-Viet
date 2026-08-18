@@ -361,6 +361,17 @@ export interface Army {
    * autopilot's hands: it is moved only by the order, and never dissolved as a remnant.
    */
   orders?: ArmyOrders;
+  /**
+   * Whether this host's battles are fought by its general rather than watched and steered by the
+   * player (Dragon Ascent). Absent means the player takes the field.
+   *
+   * `ascent.autoResolveBattles` already said this for the WHOLE run, and only from Settings —
+   * all fights or none. A realm with six hosts does not want that answer: the border garrison
+   * skirmishing every other season is exactly what you want handled for you, and the royal host
+   * storming a capital is exactly what you do not. So the question is asked per host, on the host's
+   * own sheet, and the run-wide switch still overrides it.
+   */
+  autoResolve?: boolean;
 }
 
 /**
@@ -1141,6 +1152,15 @@ export interface EnvoyOption {
 
 /** Every pausing decision Dragon Ascent can raise. Exactly one is live at a time. */
 export type AscentPrompt =
+  /**
+   * The founding: a ruler out of the record and the champion who rises with him.
+   *
+   * Each option is `"<kingSlug>:<heroId>"` — one string, so every consumer that answers a prompt
+   * with `options[0]` keeps working. Both halves are drawn at random. The ruler used to be
+   * assigned silently behind the champion card, which made the opening read as fixed even after
+   * the pool grew to twenty-four: a player who is handed a king cannot tell that a different one
+   * was ever possible.
+   */
   | { kind: 'founder'; options: string[] }
   | { kind: 'power-draft'; cards: string[]; rerollCost: number; level: number }
   /** Step one of a conquest: which province. */

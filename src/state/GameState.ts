@@ -1,6 +1,6 @@
 import { ORDERS_PER_SEASON, PLAYER_KINGDOM_ID } from '../game/constants';
 import { GAMEPLAY_MAP_CONFIG } from '../game/gameplayConfig';
-import { generateKingHero, heroTemplates } from '../data/heroes';
+import { KINGS, KING_TRAIT_COUNT, generateKingHero, heroTemplates } from '../data/heroes';
 import { kingdomTemplates } from '../data/kingdoms';
 import { politicsCardTemplates } from '../data/politicsCards';
 import { computeCentroid, computeNeighbors, generateHexMap, type MapGenConfig } from '../map/hexMapGenerator';
@@ -16,8 +16,9 @@ import { projectedWaveThreat } from '../systems/ascent/WaveDirector';
 import { getFounderPool } from './codex';
 import { applyLegacyPerks } from './legacy';
 import { initEmpireSim } from '../systems/empire/GreatPowersSystem';
-import type { Army, CampaignConfig, GameState, Kingdom, Land, LandTemplate, ResourceBag, TerrainSummary } from './types';
+import type { Army, CampaignConfig, GameState, Hero, Kingdom, Land, LandTemplate, ResourceBag, TerrainSummary } from './types';
 import { landTypeLabel, t } from '../i18n';
+import { shuffled } from '../utils/math';
 
 const EMPTY_RESOURCE_BAG: ResourceBag = {
   food: 0,
@@ -649,22 +650,88 @@ export function createAscentGameState(config: CampaignConfig): GameState {
   return state;
 }
 
-/**
- * The run's opening decision. Champions recorded in the Codex from previous runs are offered
- * first — that is what the collection is *for* — topped up from the deck so a very first run
- * still gets a real choice rather than a single forced option.
- */
-function offerFounderChoice(state: GameState): void {
-  const unlocked = getFounderPool().filter((id) => state.heroDeck.some((hero) => hero.id === id));
-  const options = [...unlocked];
+/** Pairs offered on the opening card. */
+const FOUNDER_OPTION_COUNT = 3;
 
-  for (const hero of state.heroDeck) {
-    if (options.length >= 3) break;
-    if (!options.includes(hero.id)) options.push(hero.id);
+/**
+ * How many of the three champions may come out of the Codex.
+ *
+ * One, not three. Offering every recorded champion first sounds like the right reward, but it
+ * means the opening card stops changing the moment a player has collected three — the run that
+ * is supposed to open on a decision opens on the decision it opened on last time. Leading with
+ * one recorded name keeps the collection's promise and leaves two slots for the other hundred
+ * champions to walk through.
+ */
+const FOUNDER_RECORDED_CAP = 1;
+
+/**
+ * Takes the founding champions off an already-ordered candidate list.
+ *
+ * Two passes with a widening filter. The first insists on a champion who is both a new *role*
+ * and a new *rank* — that is the card at its best, three genuinely different bets — and the
+ * second drops the rank condition, because with a hundred-odd champions in the deck the roles
+ * are what the player is actually choosing between. Thirty-two of them are generals, so an
+ * unfiltered draw serves three interchangeable ones often enough to matter.
+ */
+function pickFounderOptions(candidates: Hero[]): string[] {
+  const picked: Hero[] = [];
+  const roles = new Set<Hero['type']>();
+  const ranks = new Set<Hero['rarity']>();
+
+  const take = (hero: Hero): void => {
+    picked.push(hero);
+    roles.add(hero.type);
+    ranks.add(hero.rarity);
+  };
+  for (const hero of candidates) {
+    if (picked.length >= FOUNDER_OPTION_COUNT) break;
+    if (roles.has(hero.type) || ranks.has(hero.rarity)) continue;
+    take(hero);
+  }
+  for (const hero of candidates) {
+    if (picked.length >= FOUNDER_OPTION_COUNT) break;
+    if (picked.includes(hero) || roles.has(hero.type)) continue;
+    take(hero);
+  }
+  for (const hero of candidates) {
+    if (picked.length >= FOUNDER_OPTION_COUNT) break;
+    if (!picked.includes(hero)) take(hero);
   }
 
+  return picked.map((hero) => hero.id);
+}
+
+/**
+ * The run's opening decision: a ruler, and the champion who rises with him.
+ *
+ * One champion recorded in the Codex from previous runs leads the card — that is what the
+ * collection is *for* — and the rest is drawn from the whole deck, so a very first run still
+ * gets a real choice and a hundredth run still gets a new face. The rulers are drawn from
+ * `KINGS` independently, so the two halves vary against each other rather than in lockstep.
+ *
+ * Every pool here is shuffled. Walking the deck in template order instead meant every run
+ * opened on the same three champions in the same three slots, so the card that is meant to
+ * shape the whole run read as a fixed script.
+ */
+function offerFounderChoice(state: GameState): void {
+  const recorded = new Set(getFounderPool());
+  const known = shuffled(state.heroDeck.filter((hero) => recorded.has(hero.id)));
+  const fresh = state.heroDeck.filter((hero) => !recorded.has(hero.id));
+  const candidates = fresh.length > 0
+    ? [...known.slice(0, FOUNDER_RECORDED_CAP), ...shuffled([...known.slice(FOUNDER_RECORDED_CAP), ...fresh])]
+    : known;
+  const heroIds = pickFounderOptions(candidates);
+  const rulers = shuffled([...KINGS]).slice(0, heroIds.length);
+  // `<kingSlug>:<traitIndex>:<heroId>` — the temperament is drawn here, once, so the card and
+  // the throne agree. Rolling it at render time meant the effect on the card was not the effect
+  // the player got.
+  const options = heroIds.map((heroId, index) => {
+    const ruler = rulers[index % rulers.length];
+    return `${ruler.slug}:${Math.floor(Math.random() * KING_TRAIT_COUNT)}:${heroId}`;
+  });
+
   if (options.length > 0) {
-    enqueueAscentPrompt(state, { kind: 'founder', options: options.slice(0, 3) });
+    enqueueAscentPrompt(state, { kind: 'founder', options });
     state.isPaused = true;
     state.pendingAscentPrompt = state.ascent?.promptQueue.shift();
     // Promoted by hand rather than through `drainAscentPrompts`, so stamp the turn here too
@@ -672,6 +739,75 @@ function offerFounderChoice(state: GameState): void {
     // second card immediately behind the founder pick.
     if (state.ascent) state.ascent.lastPromptTurn = state.turn;
   }
+}
+
+/**
+ * What the founding champion brings with them.
+ *
+ * The opening used to hand every run the same second district. That is a constant dressed as a
+ * gift: it never varies, so it never reads as anything, and the one decision the player had just
+ * made — which champion founds the dynasty — changed nothing about the board in front of them.
+ *
+ * Each office now brings what that office would actually bring. A governor arrives already
+ * administering a district; a general arrives with the men who follow him; a minister arrives
+ * with the treasury he has been keeping; an envoy arrives knowing the country and owed favours
+ * by it. All four are worth roughly the same at turn zero and compound differently, which is
+ * what makes the founding a decision rather than a flavour.
+ *
+ * Called from the resolver, not from `seedAscentOpening` — at world-creation time nobody has
+ * chosen a founder yet.
+ */
+export function applyFoundingGift(state: GameState, hero: Hero): void {
+  const capital = state.lands.find((land) => land.id === state.ascent?.capitalLandId)
+    ?? state.lands.find((land) => land.ownerId === PLAYER_KINGDOM_ID);
+  if (!capital) return;
+
+  switch (hero.type) {
+    case 'governor': {
+      // The district he already administers. Prefers unsettled ground, and falls back to the
+      // least-defended neighbour — on maps where every neighbour is settled, refusing to fall
+      // back would silently make this the one gift that gives nothing.
+      const neighbour = capital.neighbors
+        .map((id) => state.lands.find((land) => land.id === id))
+        .filter((land): land is Land => land !== undefined && land.ownerId !== PLAYER_KINGDOM_ID)
+        .sort((a, b) => {
+          const settled = Number(a.hasVillage) - Number(b.hasVillage);
+          return settled !== 0 ? settled : a.defense + a.localSoldiers - (b.defense + b.localSoldiers);
+        })[0];
+      if (neighbour) neighbour.ownerId = PLAYER_KINGDOM_ID;
+      break;
+    }
+    case 'general': {
+      // The men who follow him. Half again the royal host, and a capital already walled.
+      const host = state.armies.find((army) => army.id === 'ascent-royal-host');
+      if (host) {
+        for (const key of Object.keys(host.units) as Array<keyof typeof host.units>) {
+          host.units[key] = Math.round((host.units[key] ?? 0) * 1.55);
+        }
+        host.morale = Math.min(100, host.morale + 5);
+      }
+      capital.defense += 10;
+      capital.localSoldiers += 40;
+      break;
+    }
+    case 'minister': {
+      // The treasury he has been keeping, and the stores that go with it.
+      state.resources.gold += 420;
+      state.resources.supplies += 90;
+      state.resources.food += 120;
+      break;
+    }
+    default: {
+      // The envoy: the country's goodwill, and the people who follow a name they trust.
+      state.court.influence = Math.min(100, state.court.influence + 32);
+      state.resources.humans += 260;
+      state.resources.gold += 140;
+      break;
+    }
+  }
+
+  refreshAllLandOutputs(state);
+  refreshPlayerVisibility(state);
 }
 
 /**
@@ -689,20 +825,11 @@ function seedAscentOpening(state: GameState): void {
   ) ?? state.lands.find((land) => land.ownerId === PLAYER_KINGDOM_ID);
   if (!capital) return;
 
-  // Claim one quiet neighbour: ground the dynasty already holds in practice. Prefers
-  // unsettled land, but falls back to the least-defended neighbour — on maps where every
-  // neighbouring district is settled the realm would otherwise open on a single province,
-  // which cannot fund even one host and dead-ends the run before it starts.
-  const neighbours = capital.neighbors
-    .map((id) => state.lands.find((land) => land.id === id))
-    .filter((land): land is Land => Boolean(land) && land!.ownerId !== PLAYER_KINGDOM_ID)
-    .sort((a, b) => {
-      const settled = Number(a.hasVillage) - Number(b.hasVillage);
-      return settled !== 0 ? settled : a.defense + a.localSoldiers - (b.defense + b.localSoldiers);
-    });
-  if (neighbours[0]) {
-    neighbours[0].ownerId = PLAYER_KINGDOM_ID;
-  }
+  // The realm opens on its capital and nothing else. A second district used to be handed over
+  // here unconditionally, because a lone capital cannot fund a host big enough to take even a
+  // neighbouring village and the run dead-ends before it starts — but a gift every run receives
+  // is not an opening, it is a constant. It is now one of four things the *founding champion*
+  // brings, in `applyFoundingGift`, so what the dynasty starts with varies with who founded it.
 
   if (state.ascent) {
     state.ascent.capitalLandId = capital.id;
@@ -711,6 +838,22 @@ function seedAscentOpening(state: GameState): void {
   // an unwalled capital falls to an early conquest host before the power curve can answer.
   capital.defense += 14;
   capital.localSoldiers += 60;
+  // And it has to be worth a realm, because it is now the whole realm. Measured against the
+  // committed build, the capital-plus-claimed-neighbour opening carried ~300 people and nine
+  // building slots between them and ran at +5..+9 gold a tick; the capital alone at its own
+  // figures ran −2 and could never fund a host, which is exactly what the neighbour was there
+  // to prevent. This is that province's economy folded into the seat rather than handed out
+  // as a free district — the district is now one of four things a founder may bring.
+  capital.population = Math.max(capital.population, 300);
+  capital.buildingCapacity = Math.max(capital.buildingCapacity, 9);
+  // A market and a farm at level one are what one *district* gets. A dynastic seat that is the
+  // whole realm carries the works the lost neighbour used to supply, and the raised levels are
+  // where its +5..+9 gold a tick comes back from — population alone did not move the figure at
+  // all, because output is a function of what is built, not of who lives there.
+  capital.buildings = [
+    { type: 'market', level: 2 },
+    { type: 'farm', level: 2 },
+  ];
 
   const king = state.heroes[0];
   const soldiers = 460;
@@ -725,6 +868,15 @@ function seedAscentOpening(state: GameState): void {
       heavyInfantry: Math.round(soldiers * 0.12),
     },
     generalHeroId: king?.id,
+    // Told to hold, rather than left on `auto`.
+    //
+    // A host with no standing order falls to the autopilot, which may march it, commit it, or
+    // dissolve it as a remnant — and `StandingOrders` exists because "why did my army move" was the
+    // most common question this mode raised. Every OTHER host can be left to the realm; this one is
+    // the king's, it is the first thing a player ever sees move, and it should not walk off the
+    // capital before they have learned that hosts take orders at all. Handing it back to the
+    // autopilot is one tap in the army sheet.
+    orders: { kind: 'defend', landId: capital.id },
     morale: 92,
     supply: 95,
     rations: 120,

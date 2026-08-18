@@ -65,13 +65,103 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 58
   },
   {
+    "key": "robe-broad",
+    "layer": 20,
+    "tint": "robe",
+    "cx": 0,
+    "cy": 66,
+    "w": 108,
+    "h": 58
+  },
+  {
+    "key": "robe-slim",
+    "layer": 20,
+    "tint": "robe",
+    "cx": 0,
+    "cy": 66,
+    "w": 84,
+    "h": 58
+  },
+  {
+    "key": "robe-sloped",
+    "layer": 20,
+    "tint": "robe",
+    "cx": 0,
+    "cy": 66,
+    "w": 92,
+    "h": 58
+  },
+  {
+    "key": "robe-square",
+    "layer": 20,
+    "tint": "robe",
+    "cx": 0,
+    "cy": 66,
+    "w": 104,
+    "h": 58
+  },
+  {
     "key": "robe-armour",
     "layer": 20,
     "tint": "robe",
     "cx": 0,
     "cy": 66,
-    "w": 96,
+    "w": 104,
     "h": 58
+  },
+  {
+    "key": "robe-armour-lamellar",
+    "layer": 20,
+    "tint": "robe",
+    "cx": 0,
+    "cy": 66,
+    "w": 104,
+    "h": 58
+  },
+  {
+    "key": "robe-armour-scale",
+    "layer": 20,
+    "tint": "robe",
+    "cx": 0,
+    "cy": 66,
+    "w": 104,
+    "h": 58
+  },
+  {
+    "key": "robe-armour-brigandine",
+    "layer": 20,
+    "tint": "robe",
+    "cx": 0,
+    "cy": 66,
+    "w": 104,
+    "h": 58
+  },
+  {
+    "key": "robe-armour-leather",
+    "layer": 20,
+    "tint": "robe",
+    "cx": 0,
+    "cy": 66,
+    "w": 104,
+    "h": 58
+  },
+  {
+    "key": "robe-hem-gold",
+    "layer": 21,
+    "tint": "none",
+    "cx": 0,
+    "cy": 89,
+    "w": 100,
+    "h": 8
+  },
+  {
+    "key": "robe-hem-dark",
+    "layer": 21,
+    "tint": "robeDark",
+    "cx": 0,
+    "cy": 89.5,
+    "w": 100,
+    "h": 9
   },
   {
     "key": "robe-sheen",
@@ -83,6 +173,33 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 58
   },
   {
+    "key": "robe-sheen-soft",
+    "layer": 22,
+    "tint": "robeLight",
+    "cx": 26,
+    "cy": 68,
+    "w": 36,
+    "h": 54
+  },
+  {
+    "key": "guard-shoulder",
+    "layer": 24,
+    "tint": "robeDark",
+    "cx": 0,
+    "cy": 73,
+    "w": 104,
+    "h": 32
+  },
+  {
+    "key": "guard-shoulder-gilt",
+    "layer": 24,
+    "tint": "none",
+    "cx": 0,
+    "cy": 70,
+    "w": 104,
+    "h": 26
+  },
+  {
     "key": "neck",
     "layer": 25,
     "tint": "skinShadow",
@@ -90,6 +207,42 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cy": 36,
     "w": 22,
     "h": 26
+  },
+  {
+    "key": "neck-slim",
+    "layer": 25,
+    "tint": "skinShadow",
+    "cx": -0.5,
+    "cy": 36,
+    "w": 19,
+    "h": 26
+  },
+  {
+    "key": "ears",
+    "layer": 28,
+    "tint": "skinShadow",
+    "cx": -0.5,
+    "cy": -10,
+    "w": 75,
+    "h": 26
+  },
+  {
+    "key": "ears-small",
+    "layer": 28,
+    "tint": "skinShadow",
+    "cx": -0.5,
+    "cy": -10.5,
+    "w": 73,
+    "h": 21
+  },
+  {
+    "key": "ears-long",
+    "layer": 28,
+    "tint": "skinShadow",
+    "cx": 0,
+    "cy": -8,
+    "w": 76,
+    "h": 34
   },
   {
     "key": "head-oval",
@@ -106,7 +259,7 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "tint": "skin",
     "cx": 0,
     "cy": -12,
-    "w": 58,
+    "w": 56,
     "h": 86
   },
   {
@@ -122,9 +275,9 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "key": "head-square",
     "layer": 30,
     "tint": "skin",
-    "cx": -0.5,
+    "cx": 0,
     "cy": -12,
-    "w": 65,
+    "w": 68,
     "h": 82
   },
   {
@@ -137,13 +290,103 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 80
   },
   {
-    "key": "ears",
-    "layer": 28,
-    "tint": "skinShadow",
+    "key": "head-round",
+    "layer": 30,
+    "tint": "skin",
+    "cx": 0,
+    "cy": -12.5,
+    "w": 68,
+    "h": 75
+  },
+  {
+    "key": "head-long",
+    "layer": 30,
+    "tint": "skin",
+    "cx": 0,
+    "cy": -12,
+    "w": 58,
+    "h": 90
+  },
+  {
+    "key": "head-heart",
+    "layer": 30,
+    "tint": "skin",
     "cx": -0.5,
-    "cy": -10,
+    "cy": -12.5,
+    "w": 69,
+    "h": 83
+  },
+  {
+    "key": "head-angular",
+    "layer": 30,
+    "tint": "skin",
+    "cx": 0,
+    "cy": -12.5,
+    "w": 62,
+    "h": 85
+  },
+  {
+    "key": "head-wide",
+    "layer": 30,
+    "tint": "skin",
+    "cx": -0.5,
+    "cy": -12,
+    "w": 73,
+    "h": 80
+  },
+  {
+    "key": "head-slim",
+    "layer": 30,
+    "tint": "skin",
+    "cx": 0,
+    "cy": -12.5,
+    "w": 52,
+    "h": 85
+  },
+  {
+    "key": "head-full",
+    "layer": 30,
+    "tint": "skin",
+    "cx": -0.5,
+    "cy": -12.5,
     "w": 75,
-    "h": 26
+    "h": 83
+  },
+  {
+    "key": "head-tapered",
+    "layer": 30,
+    "tint": "skin",
+    "cx": 0,
+    "cy": -12.5,
+    "w": 64,
+    "h": 87
+  },
+  {
+    "key": "head-blunt",
+    "layer": 30,
+    "tint": "skin",
+    "cx": -0.5,
+    "cy": -12,
+    "w": 73,
+    "h": 78
+  },
+  {
+    "key": "head-fine",
+    "layer": 30,
+    "tint": "skin",
+    "cx": 0,
+    "cy": -12,
+    "w": 52,
+    "h": 82
+  },
+  {
+    "key": "head-stern",
+    "layer": 30,
+    "tint": "skin",
+    "cx": 0,
+    "cy": -12,
+    "w": 62,
+    "h": 86
   },
   {
     "key": "collar-giaolinh",
@@ -161,6 +404,33 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cx": 16,
     "cy": 55,
     "w": 40,
+    "h": 48
+  },
+  {
+    "key": "collar-giaolinh-wide",
+    "layer": 35,
+    "tint": "robeDark",
+    "cx": -20,
+    "cy": 57,
+    "w": 48,
+    "h": 52
+  },
+  {
+    "key": "collar-giaolinh-wide-over",
+    "layer": 36,
+    "tint": "robeLight",
+    "cx": 20,
+    "cy": 57,
+    "w": 48,
+    "h": 52
+  },
+  {
+    "key": "collar-giaolinh-trim",
+    "layer": 37,
+    "tint": "none",
+    "cx": 12,
+    "cy": 55,
+    "w": 32,
     "h": 48
   },
   {
@@ -182,6 +452,87 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 42
   },
   {
+    "key": "collar-vienlinh",
+    "layer": 35,
+    "tint": "robeDark",
+    "cx": 0,
+    "cy": 41,
+    "w": 42,
+    "h": 24
+  },
+  {
+    "key": "collar-vienlinh-trim",
+    "layer": 36,
+    "tint": "none",
+    "cx": 0,
+    "cy": 38,
+    "w": 42,
+    "h": 18
+  },
+  {
+    "key": "collar-doikham",
+    "layer": 35,
+    "tint": "robeDark",
+    "cx": -11,
+    "cy": 55,
+    "w": 16,
+    "h": 52
+  },
+  {
+    "key": "collar-doikham-over",
+    "layer": 36,
+    "tint": "robeLight",
+    "cx": 11,
+    "cy": 55,
+    "w": 16,
+    "h": 52
+  },
+  {
+    "key": "collar-tuthan",
+    "layer": 35,
+    "tint": "robeDark",
+    "cx": -16,
+    "cy": 56,
+    "w": 24,
+    "h": 50
+  },
+  {
+    "key": "collar-tuthan-over",
+    "layer": 36,
+    "tint": "robeLight",
+    "cx": 16,
+    "cy": 56,
+    "w": 24,
+    "h": 50
+  },
+  {
+    "key": "collar-tuthan-knot",
+    "layer": 37,
+    "tint": "none",
+    "cx": 0,
+    "cy": 71.5,
+    "w": 18,
+    "h": 11
+  },
+  {
+    "key": "collar-baba",
+    "layer": 35,
+    "tint": "robeLight",
+    "cx": 0,
+    "cy": 35.5,
+    "w": 32,
+    "h": 11
+  },
+  {
+    "key": "collar-baba-front",
+    "layer": 36,
+    "tint": "robeDark",
+    "cx": -0.5,
+    "cy": 59,
+    "w": 9,
+    "h": 44
+  },
+  {
     "key": "sash-ochre",
     "layer": 37,
     "tint": "none",
@@ -198,6 +549,69 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cy": 65,
     "w": 72,
     "h": 16
+  },
+  {
+    "key": "sash-baldric-red",
+    "layer": 37,
+    "tint": "none",
+    "cx": 0,
+    "cy": 65,
+    "w": 72,
+    "h": 16
+  },
+  {
+    "key": "sash-silk",
+    "layer": 37,
+    "tint": "none",
+    "cx": 0,
+    "cy": 64,
+    "w": 64,
+    "h": 10
+  },
+  {
+    "key": "sash-cord",
+    "layer": 37,
+    "tint": "none",
+    "cx": 0,
+    "cy": 66,
+    "w": 44,
+    "h": 22
+  },
+  {
+    "key": "sash-waist",
+    "layer": 37,
+    "tint": "none",
+    "cx": 0,
+    "cy": 71.5,
+    "w": 48,
+    "h": 9
+  },
+  {
+    "key": "sash-waist-red",
+    "layer": 37,
+    "tint": "none",
+    "cx": 0,
+    "cy": 71.5,
+    "w": 48,
+    "h": 9
+  },
+  {
+    "key": "belt-jade",
+    "layer": 38,
+    "tint": "none",
+    "cx": 0,
+    "cy": 85,
+    "w": 72,
+    "h": 12
+  },
+  {
+    "key": "belt-gold",
+    "layer": 38,
+    "tint": "none",
+    "cx": 0,
+    "cy": 85,
+    "w": 72,
+    "h": 12
   },
   {
     "key": "collar-nguthan",
@@ -218,13 +632,40 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 42
   },
   {
+    "key": "collar-nguthan-tall",
+    "layer": 35,
+    "tint": "robeLight",
+    "cx": 0,
+    "cy": 33.5,
+    "w": 34,
+    "h": 19
+  },
+  {
     "key": "buttons-five",
-    "layer": 37,
+    "layer": 39,
     "tint": "none",
     "cx": 19,
     "cy": 59,
     "w": 8,
     "h": 36
+  },
+  {
+    "key": "buttons-jade",
+    "layer": 39,
+    "tint": "none",
+    "cx": 19,
+    "cy": 59,
+    "w": 8,
+    "h": 36
+  },
+  {
+    "key": "buttons-knot",
+    "layer": 39,
+    "tint": "none",
+    "cx": 20,
+    "cy": 59,
+    "w": 10,
+    "h": 32
   },
   {
     "key": "collar-yem-wrap",
@@ -245,13 +686,31 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 34
   },
   {
-    "key": "sash-waist",
-    "layer": 37,
+    "key": "yem-cream",
+    "layer": 36,
     "tint": "none",
     "cx": 0,
-    "cy": 71.5,
-    "w": 48,
-    "h": 9
+    "cy": 54,
+    "w": 44,
+    "h": 34
+  },
+  {
+    "key": "yem-indigo",
+    "layer": 36,
+    "tint": "none",
+    "cx": 0,
+    "cy": 54,
+    "w": 44,
+    "h": 34
+  },
+  {
+    "key": "yem-jade",
+    "layer": 36,
+    "tint": "none",
+    "cx": 0,
+    "cy": 54,
+    "w": 44,
+    "h": 34
   },
   {
     "key": "collar-nhatbinh",
@@ -272,6 +731,15 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 36
   },
   {
+    "key": "collar-nhatbinh-phoenix",
+    "layer": 37,
+    "tint": "none",
+    "cx": 0,
+    "cy": 69,
+    "w": 16,
+    "h": 16
+  },
+  {
     "key": "kesa",
     "layer": 35,
     "tint": "none",
@@ -279,6 +747,105 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cy": 60,
     "w": 72,
     "h": 42
+  },
+  {
+    "key": "kesa-red",
+    "layer": 35,
+    "tint": "none",
+    "cx": 0,
+    "cy": 60,
+    "w": 72,
+    "h": 42
+  },
+  {
+    "key": "kesa-grey",
+    "layer": 35,
+    "tint": "none",
+    "cx": 0,
+    "cy": 60,
+    "w": 72,
+    "h": 42
+  },
+  {
+    "key": "kesa-patches",
+    "layer": 36,
+    "tint": "none",
+    "cx": -2,
+    "cy": 60,
+    "w": 40,
+    "h": 26
+  },
+  {
+    "key": "badge-crane",
+    "layer": 38,
+    "tint": "none",
+    "cx": 0,
+    "cy": 61.5,
+    "w": 26,
+    "h": 27
+  },
+  {
+    "key": "badge-pheasant",
+    "layer": 38,
+    "tint": "none",
+    "cx": 0,
+    "cy": 62,
+    "w": 26,
+    "h": 26
+  },
+  {
+    "key": "badge-peacock",
+    "layer": 38,
+    "tint": "none",
+    "cx": 0,
+    "cy": 61.5,
+    "w": 26,
+    "h": 27
+  },
+  {
+    "key": "badge-dragon",
+    "layer": 38,
+    "tint": "none",
+    "cx": 0,
+    "cy": 62,
+    "w": 26,
+    "h": 26
+  },
+  {
+    "key": "badge-tiger",
+    "layer": 38,
+    "tint": "none",
+    "cx": 0,
+    "cy": 62,
+    "w": 26,
+    "h": 26
+  },
+  {
+    "key": "badge-lion",
+    "layer": 38,
+    "tint": "none",
+    "cx": -1,
+    "cy": 62,
+    "w": 28,
+    "h": 26
+  },
+  {
+    "key": "badge-bear",
+    "layer": 38,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": 62,
+    "w": 27,
+    "h": 26
+  },
+  {
+    "key": "badge-rhino",
+    "layer": 38,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": 62,
+    "w": 27,
+    "h": 26
   },
   {
     "key": "hair-crown",
@@ -299,6 +866,78 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 22
   },
   {
+    "key": "hair-low",
+    "layer": 40,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -37,
+    "w": 65,
+    "h": 28
+  },
+  {
+    "key": "hair-high",
+    "layer": 40,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -43.5,
+    "w": 65,
+    "h": 19
+  },
+  {
+    "key": "hair-peak",
+    "layer": 40,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -38,
+    "w": 65,
+    "h": 26
+  },
+  {
+    "key": "hair-swept",
+    "layer": 40,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -40,
+    "w": 65,
+    "h": 24
+  },
+  {
+    "key": "hair-receding",
+    "layer": 40,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -45,
+    "w": 65,
+    "h": 18
+  },
+  {
+    "key": "hair-thick",
+    "layer": 40,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -36,
+    "w": 65,
+    "h": 28
+  },
+  {
+    "key": "hair-parted",
+    "layer": 40,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -39.5,
+    "w": 65,
+    "h": 25
+  },
+  {
+    "key": "hair-wavy",
+    "layer": 40,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -38.5,
+    "w": 65,
+    "h": 25
+  },
+  {
     "key": "hair-long",
     "layer": 40,
     "tint": "hair",
@@ -306,6 +945,42 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cy": -9.5,
     "w": 70,
     "h": 81
+  },
+  {
+    "key": "hair-long-full",
+    "layer": 40,
+    "tint": "hair",
+    "cx": 0,
+    "cy": -5,
+    "w": 74,
+    "h": 88
+  },
+  {
+    "key": "hair-long-short",
+    "layer": 40,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -14.5,
+    "w": 67,
+    "h": 71
+  },
+  {
+    "key": "hair-braid",
+    "layer": 40,
+    "tint": "hair",
+    "cx": 0.5,
+    "cy": -5.5,
+    "w": 67,
+    "h": 89
+  },
+  {
+    "key": "hair-tail",
+    "layer": 40,
+    "tint": "hair",
+    "cx": 1,
+    "cy": -27,
+    "w": 68,
+    "h": 48
   },
   {
     "key": "topknot",
@@ -326,6 +1001,33 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 24
   },
   {
+    "key": "topknot-small",
+    "layer": 41,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -55,
+    "w": 19,
+    "h": 16
+  },
+  {
+    "key": "topknot-side",
+    "layer": 41,
+    "tint": "hair",
+    "cx": -11,
+    "cy": -54,
+    "w": 26,
+    "h": 24
+  },
+  {
+    "key": "topknot-wrapped",
+    "layer": 41,
+    "tint": "hair",
+    "cx": 0,
+    "cy": -58,
+    "w": 26,
+    "h": 22
+  },
+  {
     "key": "bun-high",
     "layer": 41,
     "tint": "hair",
@@ -344,6 +1046,42 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 22
   },
   {
+    "key": "bun-double",
+    "layer": 41,
+    "tint": "hair",
+    "cx": 0,
+    "cy": -55,
+    "w": 48,
+    "h": 20
+  },
+  {
+    "key": "bun-coil",
+    "layer": 41,
+    "tint": "hair",
+    "cx": 0,
+    "cy": -57,
+    "w": 32,
+    "h": 22
+  },
+  {
+    "key": "bun-wide",
+    "layer": 41,
+    "tint": "hair",
+    "cx": 0,
+    "cy": -56,
+    "w": 40,
+    "h": 20
+  },
+  {
+    "key": "bun-wrapped",
+    "layer": 41,
+    "tint": "hair",
+    "cx": 0,
+    "cy": -57,
+    "w": 34,
+    "h": 24
+  },
+  {
     "key": "hairpin",
     "layer": 42,
     "tint": "none",
@@ -353,7 +1091,97 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 16
   },
   {
+    "key": "hairpin-jade",
+    "layer": 42,
+    "tint": "none",
+    "cx": 0,
+    "cy": -67,
+    "w": 10,
+    "h": 20
+  },
+  {
+    "key": "hairpin-long",
+    "layer": 42,
+    "tint": "none",
+    "cx": -1.5,
+    "cy": -61.5,
+    "w": 39,
+    "h": 13
+  },
+  {
+    "key": "hair-comb",
+    "layer": 42,
+    "tint": "none",
+    "cx": 0,
+    "cy": -61.5,
+    "w": 24,
+    "h": 15
+  },
+  {
+    "key": "hair-flower",
+    "layer": 42,
+    "tint": "none",
+    "cx": 14.5,
+    "cy": -57,
+    "w": 15,
+    "h": 16
+  },
+  {
+    "key": "hair-ribbon",
+    "layer": 42,
+    "tint": "none",
+    "cx": 1.5,
+    "cy": -42.5,
+    "w": 43,
+    "h": 21
+  },
+  {
+    "key": "hair-cord",
+    "layer": 42,
+    "tint": "none",
+    "cx": 0,
+    "cy": -54.5,
+    "w": 36,
+    "h": 7
+  },
+  {
     "key": "hat-khanvan",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -46.5,
+    "w": 68,
+    "h": 27
+  },
+  {
+    "key": "hat-khanvan-tall",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -52.5,
+    "w": 68,
+    "h": 39
+  },
+  {
+    "key": "hat-khanvan-low",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -44,
+    "w": 68,
+    "h": 22
+  },
+  {
+    "key": "hat-khanvan-brown",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -46.5,
+    "w": 68,
+    "h": 27
+  },
+  {
+    "key": "hat-khanvan-indigo",
     "layer": 50,
     "tint": "none",
     "cx": 0,
@@ -369,6 +1197,42 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cy": -47,
     "w": 70,
     "h": 24
+  },
+  {
+    "key": "hat-khandong-jewel",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -47,
+    "w": 70,
+    "h": 24
+  },
+  {
+    "key": "hat-khandong-gold",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -47,
+    "w": 70,
+    "h": 24
+  },
+  {
+    "key": "hat-khanxep",
+    "layer": 50,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": -47.5,
+    "w": 71,
+    "h": 25
+  },
+  {
+    "key": "hat-khanvuong",
+    "layer": 50,
+    "tint": "none",
+    "cx": 1,
+    "cy": -36.5,
+    "w": 70,
+    "h": 31
   },
   {
     "key": "hat-phocdau-short",
@@ -398,6 +1262,60 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 36
   },
   {
+    "key": "hat-xungthien",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -54,
+    "w": 66,
+    "h": 38
+  },
+  {
+    "key": "hat-osa",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -51,
+    "w": 52,
+    "h": 32
+  },
+  {
+    "key": "hat-binhdinh",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -51.5,
+    "w": 50,
+    "h": 29
+  },
+  {
+    "key": "hat-tamson",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -52.5,
+    "w": 58,
+    "h": 35
+  },
+  {
+    "key": "hat-duongcan",
+    "layer": 50,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": -47.5,
+    "w": 43,
+    "h": 21
+  },
+  {
+    "key": "hat-muni",
+    "layer": 50,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": -42.5,
+    "w": 67,
+    "h": 27
+  },
+  {
     "key": "hat-helm",
     "layer": 50,
     "tint": "none",
@@ -405,6 +1323,69 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cy": -59,
     "w": 68,
     "h": 50
+  },
+  {
+    "key": "hat-helm-plume",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -60.5,
+    "w": 68,
+    "h": 53
+  },
+  {
+    "key": "hat-helm-horned",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -46.5,
+    "w": 96,
+    "h": 31
+  },
+  {
+    "key": "hat-helm-lamellar",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -54.5,
+    "w": 68,
+    "h": 41
+  },
+  {
+    "key": "hat-helm-daumau",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -59.5,
+    "w": 62,
+    "h": 51
+  },
+  {
+    "key": "hat-helm-leather",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -48,
+    "w": 68,
+    "h": 28
+  },
+  {
+    "key": "hat-helm-cheeks",
+    "layer": 50,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": -37.5,
+    "w": 69,
+    "h": 49
+  },
+  {
+    "key": "hat-helm-crest",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -58.5,
+    "w": 68,
+    "h": 49
   },
   {
     "key": "hat-non",
@@ -416,6 +1397,51 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 33
   },
   {
+    "key": "hat-non-chop",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -56.5,
+    "w": 84,
+    "h": 39
+  },
+  {
+    "key": "hat-non-dau",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -49.5,
+    "w": 64,
+    "h": 27
+  },
+  {
+    "key": "hat-non-quaithao",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -38,
+    "w": 108,
+    "h": 46
+  },
+  {
+    "key": "hat-non-batam",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -46.5,
+    "w": 104,
+    "h": 19
+  },
+  {
+    "key": "hat-non-worker",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -50.5,
+    "w": 88,
+    "h": 31
+  },
+  {
     "key": "hat-moqua",
     "layer": 50,
     "tint": "none",
@@ -425,7 +1451,43 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 36
   },
   {
+    "key": "hat-moqua-brown",
+    "layer": 50,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": -33,
+    "w": 71,
+    "h": 36
+  },
+  {
+    "key": "hat-moqua-tied",
+    "layer": 50,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": -32.5,
+    "w": 71,
+    "h": 37
+  },
+  {
+    "key": "hat-vanhday",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -51,
+    "w": 72,
+    "h": 42
+  },
+  {
     "key": "hat-coronet",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -54,
+    "w": 48,
+    "h": 26
+  },
+  {
+    "key": "hat-coronet-jade",
     "layer": 50,
     "tint": "none",
     "cx": 0,
@@ -443,6 +1505,33 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 28
   },
   {
+    "key": "hat-crown-phoenix",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -60,
+    "w": 54,
+    "h": 34
+  },
+  {
+    "key": "hat-crown-seven",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -53.5,
+    "w": 54,
+    "h": 21
+  },
+  {
+    "key": "hat-veil",
+    "layer": 50,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": -42,
+    "w": 73,
+    "h": 34
+  },
+  {
     "key": "hat-band",
     "layer": 50,
     "tint": "none",
@@ -450,6 +1539,42 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cy": -32,
     "w": 71,
     "h": 38
+  },
+  {
+    "key": "hat-band-cloth",
+    "layer": 50,
+    "tint": "none",
+    "cx": -2.5,
+    "cy": -33,
+    "w": 73,
+    "h": 32
+  },
+  {
+    "key": "hat-band-warrior",
+    "layer": 50,
+    "tint": "none",
+    "cx": 2,
+    "cy": -32.5,
+    "w": 74,
+    "h": 39
+  },
+  {
+    "key": "hat-band-gold",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -43.5,
+    "w": 68,
+    "h": 13
+  },
+  {
+    "key": "hat-fur",
+    "layer": 50,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": -45.5,
+    "w": 75,
+    "h": 25
   },
   {
     "key": "scalp-shaven",
@@ -468,6 +1593,51 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cy": -43,
     "w": 24,
     "h": 8
+  },
+  {
+    "key": "scalp-dots-nine",
+    "layer": 51,
+    "tint": "skinShadow",
+    "cx": 0,
+    "cy": -41,
+    "w": 24,
+    "h": 20
+  },
+  {
+    "key": "earring-jade",
+    "layer": 52,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": -0.5,
+    "w": 69,
+    "h": 9
+  },
+  {
+    "key": "earring-gold",
+    "layer": 52,
+    "tint": "none",
+    "cx": 0,
+    "cy": 0,
+    "w": 70,
+    "h": 10
+  },
+  {
+    "key": "earring-drop",
+    "layer": 52,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": 3,
+    "w": 69,
+    "h": 14
+  },
+  {
+    "key": "earring-pearl",
+    "layer": 52,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": 0.5,
+    "w": 69,
+    "h": 9
   },
   {
     "key": "brow-flat",
@@ -497,6 +1667,105 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 7
   },
   {
+    "key": "brow-thick",
+    "layer": 60,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -27,
+    "w": 49,
+    "h": 8
+  },
+  {
+    "key": "brow-thin",
+    "layer": 60,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -26,
+    "w": 49,
+    "h": 8
+  },
+  {
+    "key": "brow-straight",
+    "layer": 60,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -26,
+    "w": 49,
+    "h": 6
+  },
+  {
+    "key": "brow-bushy",
+    "layer": 60,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -29,
+    "w": 49,
+    "h": 8
+  },
+  {
+    "key": "brow-sparse",
+    "layer": 60,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -25.5,
+    "w": 49,
+    "h": 7
+  },
+  {
+    "key": "brow-raised",
+    "layer": 60,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -30.5,
+    "w": 49,
+    "h": 9
+  },
+  {
+    "key": "brow-low",
+    "layer": 60,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -24.5,
+    "w": 49,
+    "h": 7
+  },
+  {
+    "key": "brow-sharp",
+    "layer": 60,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -29,
+    "w": 49,
+    "h": 6
+  },
+  {
+    "key": "brow-soft",
+    "layer": 60,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -27.5,
+    "w": 49,
+    "h": 9
+  },
+  {
+    "key": "brow-heavy",
+    "layer": 60,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -25.5,
+    "w": 49,
+    "h": 7
+  },
+  {
+    "key": "brow-short",
+    "layer": 60,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -27,
+    "w": 49,
+    "h": 8
+  },
+  {
     "key": "eyes-almond",
     "layer": 62,
     "tint": "none",
@@ -519,7 +1788,106 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "layer": 62,
     "tint": "none",
     "cx": 0,
+    "cy": -18.5,
+    "w": 46,
+    "h": 11
+  },
+  {
+    "key": "eyes-hooded",
+    "layer": 62,
+    "tint": "none",
+    "cx": 0,
+    "cy": -18.5,
+    "w": 46,
+    "h": 11
+  },
+  {
+    "key": "eyes-round",
+    "layer": 62,
+    "tint": "none",
+    "cx": 0,
+    "cy": -20,
+    "w": 46,
+    "h": 10
+  },
+  {
+    "key": "eyes-upturned",
+    "layer": 62,
+    "tint": "none",
+    "cx": 0,
     "cy": -19.5,
+    "w": 46,
+    "h": 11
+  },
+  {
+    "key": "eyes-downturned",
+    "layer": 62,
+    "tint": "none",
+    "cx": 0,
+    "cy": -18.5,
+    "w": 46,
+    "h": 11
+  },
+  {
+    "key": "eyes-sharp",
+    "layer": 62,
+    "tint": "none",
+    "cx": 0,
+    "cy": -19.5,
+    "w": 46,
+    "h": 11
+  },
+  {
+    "key": "eyes-gentle",
+    "layer": 62,
+    "tint": "none",
+    "cx": 0,
+    "cy": -18.5,
+    "w": 46,
+    "h": 11
+  },
+  {
+    "key": "eyes-deepset",
+    "layer": 62,
+    "tint": "none",
+    "cx": 0,
+    "cy": -18.5,
+    "w": 46,
+    "h": 11
+  },
+  {
+    "key": "eyes-bright",
+    "layer": 62,
+    "tint": "none",
+    "cx": 0,
+    "cy": -19.5,
+    "w": 46,
+    "h": 11
+  },
+  {
+    "key": "eyes-crescent",
+    "layer": 62,
+    "tint": "none",
+    "cx": 0,
+    "cy": -18.5,
+    "w": 46,
+    "h": 11
+  },
+  {
+    "key": "eyes-keen",
+    "layer": 62,
+    "tint": "none",
+    "cx": 0,
+    "cy": -18.5,
+    "w": 46,
+    "h": 11
+  },
+  {
+    "key": "eyes-tired",
+    "layer": 62,
+    "tint": "none",
+    "cx": 0,
+    "cy": -18.5,
     "w": 46,
     "h": 11
   },
@@ -551,6 +1919,87 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 12
   },
   {
+    "key": "nose-broad",
+    "layer": 64,
+    "tint": "skinShadow",
+    "cx": 1.5,
+    "cy": -8,
+    "w": 11,
+    "h": 14
+  },
+  {
+    "key": "nose-snub",
+    "layer": 64,
+    "tint": "skinShadow",
+    "cx": 1,
+    "cy": -9.5,
+    "w": 10,
+    "h": 11
+  },
+  {
+    "key": "nose-aquiline",
+    "layer": 64,
+    "tint": "skinShadow",
+    "cx": 0.5,
+    "cy": -6,
+    "w": 9,
+    "h": 18
+  },
+  {
+    "key": "nose-narrow",
+    "layer": 64,
+    "tint": "skinShadow",
+    "cx": 0.5,
+    "cy": -7.5,
+    "w": 9,
+    "h": 15
+  },
+  {
+    "key": "nose-flat",
+    "layer": 64,
+    "tint": "skinShadow",
+    "cx": 1,
+    "cy": -9,
+    "w": 10,
+    "h": 12
+  },
+  {
+    "key": "nose-round",
+    "layer": 64,
+    "tint": "skinShadow",
+    "cx": 1,
+    "cy": -8.5,
+    "w": 10,
+    "h": 13
+  },
+  {
+    "key": "nose-fine",
+    "layer": 64,
+    "tint": "skinShadow",
+    "cx": 0.5,
+    "cy": -7,
+    "w": 9,
+    "h": 16
+  },
+  {
+    "key": "nose-strong",
+    "layer": 64,
+    "tint": "skinShadow",
+    "cx": 1,
+    "cy": -7,
+    "w": 10,
+    "h": 16
+  },
+  {
+    "key": "nose-short",
+    "layer": 64,
+    "tint": "skinShadow",
+    "cx": 0.5,
+    "cy": -9.5,
+    "w": 9,
+    "h": 11
+  },
+  {
     "key": "mouth-neutral",
     "layer": 66,
     "tint": "none",
@@ -578,12 +2027,120 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 5
   },
   {
+    "key": "mouth-wide",
+    "layer": 66,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": 16,
+    "w": 21,
+    "h": 6
+  },
+  {
+    "key": "mouth-small",
+    "layer": 66,
+    "tint": "none",
+    "cx": 0,
+    "cy": 15.5,
+    "w": 12,
+    "h": 5
+  },
+  {
+    "key": "mouth-downturned",
+    "layer": 66,
+    "tint": "none",
+    "cx": 0,
+    "cy": 14,
+    "w": 16,
+    "h": 6
+  },
+  {
+    "key": "mouth-pursed",
+    "layer": 66,
+    "tint": "none",
+    "cx": 0,
+    "cy": 16,
+    "w": 12,
+    "h": 6
+  },
+  {
+    "key": "mouth-thin",
+    "layer": 66,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": 15.5,
+    "w": 17,
+    "h": 5
+  },
+  {
+    "key": "mouth-full",
+    "layer": 66,
+    "tint": "none",
+    "cx": 0,
+    "cy": 16,
+    "w": 16,
+    "h": 6
+  },
+  {
+    "key": "mouth-grim",
+    "layer": 66,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": 14.5,
+    "w": 19,
+    "h": 5
+  },
+  {
+    "key": "mouth-soft",
+    "layer": 66,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": 16,
+    "w": 15,
+    "h": 6
+  },
+  {
+    "key": "mouth-broad-smile",
+    "layer": 66,
+    "tint": "none",
+    "cx": 0,
+    "cy": 16.5,
+    "w": 22,
+    "h": 7
+  },
+  {
     "key": "mouth-lacquered",
     "layer": 66,
     "tint": "none",
     "cx": 0,
     "cy": 14.5,
     "w": 20,
+    "h": 7
+  },
+  {
+    "key": "mouth-lacquered-smile",
+    "layer": 66,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": 15,
+    "w": 23,
+    "h": 8
+  },
+  {
+    "key": "mouth-lacquered-firm",
+    "layer": 66,
+    "tint": "none",
+    "cx": 0,
+    "cy": 14,
+    "w": 22,
+    "h": 6
+  },
+  {
+    "key": "mouth-betel",
+    "layer": 66,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": 15.5,
+    "w": 17,
     "h": 7
   },
   {
@@ -596,6 +2153,24 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 9
   },
   {
+    "key": "beard-moustache-thin",
+    "layer": 70,
+    "tint": "hair",
+    "cx": 0,
+    "cy": 10,
+    "w": 24,
+    "h": 8
+  },
+  {
+    "key": "beard-moustache-wide",
+    "layer": 70,
+    "tint": "hair",
+    "cx": 0,
+    "cy": 9,
+    "w": 34,
+    "h": 10
+  },
+  {
     "key": "beard-goatee",
     "layer": 70,
     "tint": "hair",
@@ -603,6 +2178,15 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cy": 21.5,
     "w": 18,
     "h": 11
+  },
+  {
+    "key": "beard-goatee-long",
+    "layer": 70,
+    "tint": "hair",
+    "cx": 0,
+    "cy": 24.5,
+    "w": 16,
+    "h": 17
   },
   {
     "key": "beard-long",
@@ -623,6 +2207,69 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 25
   },
   {
+    "key": "beard-full-short",
+    "layer": 70,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": 17,
+    "w": 35,
+    "h": 18
+  },
+  {
+    "key": "beard-threepart",
+    "layer": 70,
+    "tint": "hair",
+    "cx": 0,
+    "cy": 19.5,
+    "w": 34,
+    "h": 27
+  },
+  {
+    "key": "beard-forked",
+    "layer": 70,
+    "tint": "hair",
+    "cx": 0,
+    "cy": 26.5,
+    "w": 26,
+    "h": 41
+  },
+  {
+    "key": "beard-wispy",
+    "layer": 70,
+    "tint": "hair",
+    "cx": 0,
+    "cy": 30.5,
+    "w": 20,
+    "h": 29
+  },
+  {
+    "key": "beard-chinstrap",
+    "layer": 70,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": 16,
+    "w": 43,
+    "h": 22
+  },
+  {
+    "key": "beard-stubble",
+    "layer": 70,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": 18,
+    "w": 37,
+    "h": 18
+  },
+  {
+    "key": "beard-patriarch",
+    "layer": 70,
+    "tint": "hair",
+    "cx": 0,
+    "cy": 23.5,
+    "w": 30,
+    "h": 39
+  },
+  {
     "key": "mark-age",
     "layer": 72,
     "tint": "skinShadow",
@@ -632,6 +2279,15 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 23
   },
   {
+    "key": "mark-age-deep",
+    "layer": 72,
+    "tint": "skinShadow",
+    "cx": 0,
+    "cy": -12.5,
+    "w": 48,
+    "h": 29
+  },
+  {
     "key": "mark-scar",
     "layer": 72,
     "tint": "skinShadow",
@@ -639,6 +2295,60 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cy": -22,
     "w": 7,
     "h": 20
+  },
+  {
+    "key": "mark-scar-cheek",
+    "layer": 72,
+    "tint": "skinShadow",
+    "cx": 18,
+    "cy": -6,
+    "w": 8,
+    "h": 16
+  },
+  {
+    "key": "mark-scar-brow",
+    "layer": 72,
+    "tint": "skinShadow",
+    "cx": 16.5,
+    "cy": -29.5,
+    "w": 11,
+    "h": 9
+  },
+  {
+    "key": "mark-mole",
+    "layer": 72,
+    "tint": "skinShadow",
+    "cx": -15.5,
+    "cy": 8.5,
+    "w": 7,
+    "h": 7
+  },
+  {
+    "key": "mark-freckles",
+    "layer": 72,
+    "tint": "skinShadow",
+    "cx": 0.5,
+    "cy": -8.5,
+    "w": 31,
+    "h": 13
+  },
+  {
+    "key": "mark-dimples",
+    "layer": 72,
+    "tint": "skinShadow",
+    "cx": -0.5,
+    "cy": 16.5,
+    "w": 33,
+    "h": 9
+  },
+  {
+    "key": "mark-brand",
+    "layer": 72,
+    "tint": "skinShadow",
+    "cx": -18,
+    "cy": -2,
+    "w": 10,
+    "h": 10
   },
   {
     "key": "mark-tattoo",
@@ -657,6 +2367,33 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cy": -21.5,
     "w": 9,
     "h": 9
+  },
+  {
+    "key": "mark-tattoo-drum",
+    "layer": 74,
+    "tint": "none",
+    "cx": -20.5,
+    "cy": -21.5,
+    "w": 11,
+    "h": 11
+  },
+  {
+    "key": "mark-tattoo-wave",
+    "layer": 74,
+    "tint": "none",
+    "cx": 3.5,
+    "cy": 34,
+    "w": 7,
+    "h": 16
+  },
+  {
+    "key": "mark-warpaint",
+    "layer": 73,
+    "tint": "none",
+    "cx": -0.5,
+    "cy": -21,
+    "w": 47,
+    "h": 4
   },
   {
     "key": "rank-rare",

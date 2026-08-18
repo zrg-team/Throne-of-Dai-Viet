@@ -6,6 +6,7 @@ import Phaser from 'phaser';
 import { buildRoadCurve } from '../../map/roadCurve';
 import { faceTravel, type Walkable } from '../../ui/ink/life';
 import { hashString } from '../../utils/math';
+import { trafficPerRoad } from '../../game/lifeSettings';
 import type { GameState, Land } from '../../state/types';
 import type { MapRenderer } from '../../ui/MapRenderer';
 import type { MapItemRenderer } from '../../ui/MapItemRenderer';
@@ -259,9 +260,12 @@ export class TrafficRenderer {
     getCityCenter: (land: Land) => { x: number; y: number } | undefined,
   ): Phaser.GameObjects.GameObject[] {
     const activeKeys = new Set<string>();
+    // `none` and `few` put no carts on the roads at all. The loop still runs so an existing cart
+    // is retired when the setting drops — the sweep at the bottom keys off `activeKeys`.
+    const wanted = trafficPerRoad().carts;
 
     for (const land of state.lands) {
-      if (land.type !== 'farm' || !land.isVisible || !this.hasSettlement(land)) {
+      if (wanted < 1 || land.type !== 'farm' || !land.isVisible || !this.hasSettlement(land)) {
         continue;
       }
 
@@ -328,7 +332,7 @@ export class TrafficRenderer {
         this.recordSpan(key, curve);
         const travelers: TrafficMover[] = [];
 
-        for (let index = 0; index < 2; index += 1) {
+        for (let index = 0; index < trafficPerRoad().travellers; index += 1) {
           const traveler = this.mapItems.createTraveler();
           traveler.setDepth(69);
           const seed = hashString(`traveler|${key}|${index}`);

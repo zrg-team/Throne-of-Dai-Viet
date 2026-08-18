@@ -5,7 +5,8 @@ import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGD
 import { codexProgress, getCodex, isHeroUnlocked } from '../state/codex';
 import { LEGACY_PERKS, ownsPerk } from '../state/legacy';
 import { doctrineBlurb, doctrineName } from '../systems/ascent/RealmDoctrineSystem';
-import { heroTemplates } from '../data/heroes';
+import { KINGS, generateKingHero, heroTemplates } from '../data/heroes';
+import type { KingProfile } from '../data/heroes';
 import { powerCardView, skipRefundAmount } from '../systems/ascent/PowerDraftSystem';
 import { tierForHero } from '../systems/ascent/SummonSystem';
 import { isBossWave, responseCommanderName } from '../systems/ascent/WaveDirector';
@@ -74,6 +75,8 @@ import { drawStoryBand } from '../ui/ink/storyBand';
 import { countOpenDoors, isMarked, openingFor, openingView, storyNeedsPlayer, storyOpening, storyParams, storyRegard, storySpokenHistory, takeOpening } from '../systems/story/StorySystem';
 import { storyText, storyTitle } from '../i18n/story';
 import { INK_UI, INK_UI_HEX, InkUI, scrollGestureConsumedTap, type InkScrollArea, type UIBounds } from '../ui/InkUI';
+import { createPlayerLandFlag } from '../ui/playerFlag';
+import { sawtoothBand } from '../ui/ink/devices';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { CARD_ICON_SIZE, drawCardIcon, iconForOption, type CardIconId } from '../ui/CardIcons';
 import { ASCENT_HUD_HEIGHT, AscentHud } from '../ui/ascent/AscentHud';
@@ -84,6 +87,8 @@ import { TITLE_FONT, UI_FONT } from '../ui/fonts';
 import {
   buildingLabel,
   formatResourceList,
+  heroBio,
+  heroEffect,
   heroName,
   heroTypeLabel,
   politicsChoiceDescription,
@@ -190,6 +195,9 @@ const LANE_FOOTER_HEIGHT = LANE_CLOSE_BUTTON_OFFSET - 8;
 const LANE_BACK_BUTTON_HEIGHT = 34;
 /** Width of the portrait column beside a hero row. */
 const LANE_PORTRAIT_COLUMN = 62;
+
+/** A pigment as CSS, for the few places a Phaser `Text` needs one of the palette's own numbers. */
+const cssHex = (colour: number): string => `#${colour.toString(16).padStart(6, '0')}`;
 
 /**
  * One host's marker on the battle field, kept beside the id it belongs to.
@@ -618,19 +626,28 @@ export class ConquestUIScene extends Phaser.Scene {
     container.add(bodyText);
 
     // The note is pinned to the card's foot, so its height has to be reserved before the card's
-    // own height is settled.
-    const noteHeight = opts.note ? 20 : 0;
-    const contentBottom = bodyText.y + bodyText.height + 10 + noteHeight;
-    const height = Math.max(bounds.height, contentBottom);
-
-    if (opts.note) {
-      container.add(this.add.text(textX, height - 20, opts.note, {
+    // own height is settled — and *measured*, not assumed.
+    //
+    // This reserved a flat 20px and drew the note at `height - 20`. One line fits in 20px and a
+    // wrapped one does not, so any note long enough to wrap — which in Vietnamese is most of the
+    // longer ones, the language running wider than the English it was laid out against — spilled
+    // through the card's own border and over the card below it. Two separate screens reported it.
+    const noteText = opts.note
+      ? this.add.text(textX, 0, opts.note, {
         color: opts.noteColor ?? '#4c6b46',
         fontFamily: UI_FONT,
         fontSize: '11px',
         fontStyle: '700',
-        wordWrap: { width: bounds.width - 32 },
-      }).setAlpha(alpha));
+        wordWrap: { width: bounds.width - 32 - textX + 16 },
+      }).setAlpha(alpha)
+      : undefined;
+    const noteHeight = noteText ? noteText.height + 8 : 0;
+    const contentBottom = bodyText.y + bodyText.height + 10 + noteHeight;
+    const height = Math.max(bounds.height, contentBottom);
+
+    if (noteText) {
+      noteText.setY(height - noteHeight);
+      container.add(noteText);
     }
 
     // A thin ink contour, the same weight as every other line on the page — the accent is spent
@@ -1088,7 +1105,11 @@ export class ConquestUIScene extends Phaser.Scene {
       onTap?: () => void,
     ) => void;
     addHeading: (title: string, hint?: string) => void;
-    addWidget: (height: number, build: (parent: Phaser.GameObjects.Container, width: number) => void) => void;
+    addNote: (text: string, tone?: number) => void;
+    addWidget: (
+      height: number,
+      build: (parent: Phaser.GameObjects.Container, width: number) => number | void,
+    ) => void;
     finish: () => void;
   } {
     const content = this.promptFrame(title, subtitle);
@@ -1184,12 +1205,42 @@ export class ConquestUIScene extends Phaser.Scene {
       y += 4;
     };
 
-    /** A custom widget (a slider, a chart) slotted into the list's flow at the cursor. */
-    const addWidget = (height: number, build: (parent: Phaser.GameObjects.Container, width: number) => void) => {
+    /**
+     * A statement in the list's flow: text on the paper, with no surface at all.
+     *
+     * Half of what these screens say is not a control — "no enemy host stands inside the realm's
+     * sight", "the next wave lands in ten seasons", "the realm can court only so many provinces at
+     * once". Given a card each, as they were, they read as things to press, and each one costs the
+     * room of a thing you can press. A statement should take the room a sentence takes.
+     */
+    const addNote = (text: string, tone?: number) => {
+      const note = this.add.text(2, y, text, {
+        color: tone ? cssHex(tone) : INK_UI_HEX.mutedText,
+        fontFamily: UI_FONT,
+        fontSize: '11px',
+        lineSpacing: 1,
+        wordWrap: { width: rowWidth - 4 },
+      }).setOrigin(0, 0);
+      scroll.content.add(note);
+      y += note.height + 8;
+    };
+
+    /**
+     * A custom widget (a slider, a chart, a grid of tiles) slotted into the list's flow.
+     *
+     * The builder may RETURN its height, for anything whose size is only known once its text has
+     * been measured — a two-column grid of tiles cannot be told how tall it is in advance, and
+     * guessing leaves either a gap under it or the next block written over it. `height` stays as
+     * the answer for widgets that do know.
+     */
+    const addWidget = (
+      height: number,
+      build: (parent: Phaser.GameObjects.Container, width: number) => number | void,
+    ) => {
       const holder = this.add.container(0, y);
-      build(holder, rowWidth);
+      const measured = build(holder, rowWidth);
       scroll.content.add(holder);
-      y += height + 8;
+      y += (typeof measured === 'number' ? measured : height) + 8;
     };
 
     const finish = () => {
@@ -1225,7 +1276,177 @@ export class ConquestUIScene extends Phaser.Scene {
       }
     };
 
-    return { content, addRow, addHeading, addWidget, finish };
+    return { content, addRow, addHeading, addNote, addWidget, finish };
+  }
+
+  /**
+   * Compact pieces for a sheet that is a *screen* rather than a column of cards.
+   *
+   * The host sheet was thirteen full-width cards in one scroll: every figure, every order, every
+   * upgrade and the commander, each in its own box, each the same size and weight as the next. A
+   * card says "one thing, and it is as important as every other thing" — so a page made entirely
+   * of them has no shape, no reading order and no bottom, and the player scrolls past what they
+   * came for. These three give the page its levels: figures are read across, choices are read as a
+   * grid, and a question with two answers is a switch and not two cards.
+   */
+
+  /** The host's figures, read across one surface. */
+  private statPanel(
+    parent: Phaser.GameObjects.Container,
+    width: number,
+    cells: Array<{ label: string; value: string; accent?: string }>,
+  ): number {
+    const height = 44;
+    parent.add(this.ui.panel({ x: 0, y: 0, width, height }, {
+      border: INK_UI.softBrush,
+      borderAlpha: 0.45,
+      fillAlpha: 0.5,
+    }));
+    const cellWidth = width / cells.length;
+    cells.forEach((cell, index) => {
+      const centre = cellWidth * (index + 0.5);
+      if (index > 0) {
+        const rule = this.add.graphics();
+        rule.lineStyle(1, INK_UI.brush, 0.14);
+        rule.lineBetween(cellWidth * index, 8, cellWidth * index, height - 8);
+        parent.add(rule);
+      }
+      const label = this.add.text(centre, 7, cell.label.toLocaleUpperCase(), {
+        color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '8px', fontStyle: '700',
+      }).setOrigin(0.5, 0);
+      label.setLetterSpacing?.(1.1);
+      parent.add(label);
+      parent.add(this.add.text(centre, 18, cell.value, {
+        color: cell.accent ?? INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '17px', fontStyle: '700',
+      }).setOrigin(0.5, 0));
+    });
+    return height;
+  }
+
+  /**
+   * Choices as a grid of small tiles, two across.
+   *
+   * Seven orders as seven full-width cards is a page you scroll; seven as a grid is a page you
+   * look at. The tiles share one height per row so the grid reads as a grid, which means the text
+   * is measured before any surface is drawn.
+   */
+  private actionTiles(
+    parent: Phaser.GameObjects.Container,
+    width: number,
+    tiles: Array<{ title: string; note?: string; border: number; muted?: boolean; onTap?: () => void }>,
+  ): number {
+    const GAP = 6;
+    const COLUMNS = 2;
+    const tileWidth = (width - GAP * (COLUMNS - 1)) / COLUMNS;
+    const inner = tileWidth - 18;
+    let y = 0;
+
+    for (let index = 0; index < tiles.length; index += COLUMNS) {
+      const row = tiles.slice(index, index + COLUMNS);
+      const built = row.map((tile) => {
+        const title = this.add.text(0, 0, tile.title, {
+          color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '12px', fontStyle: '700',
+          wordWrap: { width: inner }, lineSpacing: -1,
+        });
+        const note = tile.note
+          ? this.add.text(0, 0, tile.note, {
+              color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '9px',
+              wordWrap: { width: inner }, lineSpacing: -1,
+            })
+          : undefined;
+        return { tile, title, note };
+      });
+      const height = Math.max(42, ...built.map(({ title, note }) => 9 + title.height + (note ? note.height + 3 : 0) + 9));
+
+      built.forEach(({ tile, title, note }, column) => {
+        const holder = this.add.container(column * (tileWidth + GAP), y);
+        holder.add(this.ui.panel({ x: 0, y: 0, width: tileWidth, height }, {
+          border: tile.border,
+          borderWidth: 1.5,
+          muted: tile.muted,
+        }));
+        title.setPosition(9, 9).setAlpha(tile.muted ? 0.55 : 1);
+        holder.add(title);
+        if (note) {
+          note.setPosition(9, 9 + title.height + 3).setAlpha(tile.muted ? 0.5 : 0.9);
+          holder.add(note);
+        }
+        if (tile.onTap) {
+          const hit = this.add
+            .rectangle(tileWidth / 2, height / 2, tileWidth, height, 0xffffff, 0.001)
+            .setInteractive({ useHandCursor: true });
+          hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+            if (scrollGestureConsumedTap(pointer)) return;
+            tile.onTap?.();
+          });
+          holder.add(hit);
+        }
+        parent.add(holder);
+      });
+      y += height + GAP;
+    }
+    return Math.max(0, y - GAP);
+  }
+
+  /**
+   * A question with two answers, as one switch.
+   *
+   * Two cards would ask it twice and answer it never — the selected state of a card is a border
+   * colour, which is not what a player reads a card for. A segmented pair reads as one control
+   * with one answer showing, and the note under it belongs to whichever side is chosen.
+   */
+  private segmentedRow(
+    parent: Phaser.GameObjects.Container,
+    width: number,
+    opts: { label: string; options: string[]; note: string; selected: number; onPick: (index: number) => void },
+  ): number {
+    const heading = this.add.text(2, 0, opts.label.toLocaleUpperCase(), {
+      color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '9px', fontStyle: '700',
+    }).setOrigin(0, 0);
+    heading.setLetterSpacing?.(1.2);
+    parent.add(heading);
+
+    const top = heading.height + 5;
+    const GAP = 5;
+    const tileHeight = 30;
+    const tileWidth = (width - GAP * (opts.options.length - 1)) / opts.options.length;
+    opts.options.forEach((option, index) => {
+      const selected = index === opts.selected;
+      const x = index * (tileWidth + GAP);
+      // Deliberately NOT `crayonTile`. Its "selected" surface is paper with a cinnabar edge and its
+      // unselected one is filled gold — which is the game's convention for *action* versus *quiet*,
+      // and on a two-way switch it reads exactly backwards: the loud gold half looks like the
+      // answer that is chosen. Here the chosen half is filled and edged in red, and the other is
+      // flat paper.
+      parent.add(this.ui.panel({ x, y: top, width: tileWidth, height: tileHeight }, selected
+        ? { fill: INK_UI.goldLight, fillShade: INK_UI.gold, border: INK_UI.cinnabar, borderWidth: 2 }
+        : { fill: INK_UI.parchment, fillAlpha: 0.45, border: INK_UI.softBrush, borderWidth: 1.2, muted: true }));
+      const label = this.add.text(x + tileWidth / 2, top + tileHeight / 2, option, {
+        color: selected ? cssHex(INK_UI.cinnabarDark) : INK_UI_HEX.mutedText,
+        fontFamily: UI_FONT,
+        fontSize: '11px',
+        fontStyle: '700',
+        align: 'center',
+        wordWrap: { width: tileWidth - 8 },
+      }).setOrigin(0.5);
+      parent.add(label);
+      if (!selected) {
+        const hit = this.add
+          .rectangle(x + tileWidth / 2, top + tileHeight / 2, tileWidth, tileHeight, 0xffffff, 0.001)
+          .setInteractive({ useHandCursor: true });
+        hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+          if (scrollGestureConsumedTap(pointer)) return;
+          opts.onPick(index);
+        });
+        parent.add(hit);
+      }
+    });
+
+    const note = this.add.text(2, top + tileHeight + 5, opts.note, {
+      color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '9px', wordWrap: { width: width - 4 },
+    }).setOrigin(0, 0);
+    parent.add(note);
+    return top + tileHeight + 5 + note.height;
   }
 
   /** Standard footer for a lane browser: one button back to the map. */
@@ -1263,7 +1484,7 @@ export class ConquestUIScene extends Phaser.Scene {
   private showBuildScreen(): void {
     const state = this.state;
     const lands = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
-    const { addRow, addHeading, finish } = this.laneList(
+    const { addRow, addHeading, addWidget, finish } = this.laneList(
       t('action.build'),
       t('ascent.screen.buildBody', { lands: lands.length }),
     );
@@ -1337,23 +1558,24 @@ export class ConquestUIScene extends Phaser.Scene {
     //
     // The order is worth showing, so it stays in the subtitle. It is not worth locking the door.
     addHeading(t('land.section.holdings'));
-    for (const land of lands) {
+    // A province is a name and one line of state — two of them fit across the sheet, and a realm of
+    // eight provinces is a page you look at instead of a page you scroll. Full-width cards spent
+    // the whole width on a four-word name.
+    addWidget(0, (parent, width) => this.actionTiles(parent, width, lands.map((land) => {
       const order = state.buildOrders.find((candidate) => candidate.landId === land.id);
-      addRow(
-        {
-          title: land.name,
-          subtitle: order
-            ? t('ascent.screen.building', { n: Math.max(0, order.required - order.progress) })
-            : t('ascent.screen.slots', {
-                used: land.buildings.length,
-                cap: land.buildingCapacity,
-                defense: land.defense,
-              }),
-          border: order ? INK_UI.gold : INK_UI.jade,
-        },
-        () => this.showBuildOptions(land.id),
-      );
-    }
+      return {
+        title: land.name,
+        note: order
+          ? t('ascent.screen.building', { n: Math.max(0, order.required - order.progress) })
+          : t('ascent.screen.slots', {
+              used: land.buildings.length,
+              cap: land.buildingCapacity,
+              defense: land.defense,
+            }),
+        border: order ? INK_UI.gold : INK_UI.jade,
+        onTap: () => this.showBuildOptions(land.id),
+      };
+    })));
     finish();
   }
 
@@ -1645,7 +1867,10 @@ export class ConquestUIScene extends Phaser.Scene {
     const state = this.state;
     const { addRow, finish } = this.laneList(
       t('action.heroes'),
-      `${t('ascent.screen.heroesBody', { n: state.heroes.length })}
+      `${t('ascent.screen.throne', {
+        king: heroName(state.heroes.find((hero) => hero.id === 'king') ?? state.heroes[0]),
+        n: state.heroes.filter((hero) => hero.id !== 'king').length,
+      })}
 ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     );
 
@@ -1657,7 +1882,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       addRow(
         {
           title: `${heroName(hero)}  ·  ${rarityLabel(hero.rarity)}`,
-          subtitle: `${this.heroPosting(hero)} — ${this.heroStatLine(hero)}`,
+          subtitle: `${this.heroPosting(hero)} — ${this.heroStatLine(hero)}\n${heroBio(hero)}`,
           border: hero.assignedTo ? INK_UI.jade : INK_UI.cinnabar,
           portrait: hero,
         },
@@ -1699,17 +1924,20 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // except as a bare figure in the subtitle, with no sign of which way it was moving.
     addHeading(t('court.section.state'));
     const regen = getCourtBonuses(state).stabilityRegen;
-    addRow({
-      title: t('court.status.stability', {
-        stability: Math.round(state.court.stability),
-        drift: `${regen >= 0 ? '+' : ''}${(Math.round(regen * 10) / 10).toFixed(1)}`,
-      }),
-      subtitle: `${t('court.status.seats', { seated, total: unlockedCount })}\n${t('court.status.favor', {
-        favor: Math.round(state.court.favor),
-        threshold: Math.round(state.court.favorThreshold),
-      })}`,
-      border: state.court.stability < 35 ? INK_UI.cinnabar : INK_UI.jade,
-    });
+    const drift = `${regen >= 0 ? '+' : ''}${(Math.round(regen * 10) / 10).toFixed(1)}`;
+    addWidget(0, (parent, width) => this.statPanel(parent, width, [
+      {
+        label: t('court.stat.stability'),
+        value: `${Math.round(state.court.stability)}%`,
+        accent: state.court.stability < 35 ? cssHex(INK_UI.cinnabar) : undefined,
+      },
+      { label: t('court.stat.drift'), value: drift },
+      { label: t('court.stat.seats'), value: `${seated}/${unlockedCount}` },
+      {
+        label: t('court.stat.favour'),
+        value: `${Math.round(state.court.favor)}/${Math.round(state.court.favorThreshold)}`,
+      },
+    ]));
 
     // ── Decrees ──
     if ((mandate?.edictPoints ?? 0) > 0 || (mandate?.edicts.length ?? 0) > 0) {
@@ -1797,24 +2025,22 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       return rank(a) - rank(b);
     });
 
-    for (const seat of seats) {
+    // Four seats, each a title and who holds it — a grid, not four full-width cards. The order
+    // above still decides which corner a seat sits in, so "do this, this is fine, this is later"
+    // still reads top-left to bottom-right.
+    addWidget(0, (parent, width) => this.actionTiles(parent, width, seats.map((seat) => {
       const unlocked = state.court.unlockedSeats.includes(seat);
       const hero = state.heroes.find((candidate) => candidate.id === state.court.seats[seat]);
-      addRow(
-        {
-          title: getCourtPositionLabel(seat),
-          subtitle: hero
-            ? `${heroName(hero)} — ${seatedEffectSummary(state, seat) ?? ''}`
-            : unlocked ? t('ascent.lane.seatEmpty') : t('ascent.lane.seatLocked'),
-          border: hero ? INK_UI.jade : unlocked ? INK_UI.gold : INK_UI.softBrush,
-          muted: !unlocked,
-        },
-        // Seated or empty, the row opens the seat's own picker: who could sit here, what each
-        // would do for the realm, and what taking them costs. It used to send an empty seat to
-        // the generic roster and a seated one to the minister's card — role→hero was never asked.
-        unlocked ? () => this.showSeatPicker(seat) : undefined,
-      );
-    }
+      return {
+        title: getCourtPositionLabel(seat),
+        note: hero
+          ? `${heroName(hero)} — ${seatedEffectSummary(state, seat) ?? ''}`
+          : unlocked ? t('ascent.lane.seatEmpty') : t('ascent.lane.seatLocked'),
+        border: hero ? INK_UI.jade : unlocked ? INK_UI.gold : INK_UI.softBrush,
+        muted: !unlocked,
+        onTap: () => this.showSeatPicker(seat),
+      };
+    })));
 
     finish();
   }
@@ -1858,7 +2084,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const state = this.state;
     const ascent = state.ascent;
     const mine = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID);
-    const { addRow, addHeading, finish } = this.laneList(
+    const { addRow, addHeading, addNote, addWidget, finish } = this.laneList(
       t('action.army'),
       t('ascent.screen.armyBody', {
         defense: Math.round(ascent?.defensePower ?? 0),
@@ -1875,11 +2101,16 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       0,
     );
     addHeading(t('army.section.state'));
-    addRow({
-      title: t('army.status.strength', { defence, threat }),
-      subtitle: t('army.status.hosts', { hosts: mine.length, troops }),
-      border: threat > defence ? INK_UI.cinnabar : INK_UI.jade,
-    });
+    addWidget(0, (parent, width) => this.statPanel(parent, width, [
+      {
+        label: t('army.stat.defence'),
+        value: String(defence),
+        accent: threat > defence ? cssHex(INK_UI.cinnabar) : undefined,
+      },
+      { label: t('army.stat.threat'), value: String(threat) },
+      { label: t('army.stat.hosts'), value: String(mine.length) },
+      { label: t('army.stat.soldiers'), value: String(troops) },
+    ]));
 
     // The war as it stands. The header strip says how much danger is coming; this section says
     // where it already is: the live battle, each invader the realm can see and what it is
@@ -1908,14 +2139,16 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
 
     const nextWave = (ascent?.wave ?? 0) + 1;
     const waveTicks = Math.max(0, ascent?.ticksToWave ?? 0);
-    addRow({
-      title: isBossWave(nextWave)
-        ? t('ascent.war.nextWaveBoss', { ticks: waveTicks })
-        : t('ascent.war.nextWave', { wave: nextWave, ticks: waveTicks }),
-      subtitle: ascent?.coalitionPending ? t('ascent.war.coalition') : '',
-      border: isBossWave(nextWave) || ascent?.coalitionPending ? INK_UI.cinnabar : INK_UI.softBrush,
-      muted: !isBossWave(nextWave) && !ascent?.coalitionPending,
-    });
+    const loud = isBossWave(nextWave) || Boolean(ascent?.coalitionPending);
+    addNote(
+      [
+        isBossWave(nextWave)
+          ? t('ascent.war.nextWaveBoss', { ticks: waveTicks })
+          : t('ascent.war.nextWave', { wave: nextWave, ticks: waveTicks }),
+        ascent?.coalitionPending ? t('ascent.war.coalition') : '',
+      ].filter(Boolean).join('  ·  '),
+      loud ? INK_UI.cinnabar : undefined,
+    );
 
     const planLabel: Record<NonNullable<InvasionRecord['plan']>, string> = {
       spearhead: t('ascent.war.planSpearhead'),
@@ -1963,12 +2196,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       });
     }
     if (unseen > 0) {
-      addRow({
-        title: t('ascent.war.unseenCount', { n: unseen }),
-        subtitle: '',
-        border: INK_UI.softBrush,
-        muted: true,
-      });
+      addNote(t('ascent.war.unseenCount', { n: unseen }));
     }
 
     for (const order of state.siegeOrders.filter((candidate) => candidate.attackerKingdomId === PLAYER_KINGDOM_ID)) {
@@ -1994,7 +2222,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     }
 
     if (!battle && seen === 0 && unseen === 0) {
-      addRow({ title: t('ascent.war.quiet'), subtitle: '', border: INK_UI.softBrush, muted: true });
+      addNote(t('ascent.war.quiet'));
     }
 
     addHeading(t('army.section.muster'));
@@ -2026,19 +2254,19 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const commanderId = findFreeCommander(state);
     const spare = state.resources.humans - RECRUIT_HUMAN_RESERVE;
     const canRaise = state.heroes.length > 0;
-    addRow(
+    addWidget(0, (parent, width) => this.actionTiles(parent, width, [
       {
         title: t('ascent.screen.raiseHost'),
-        subtitle: commanderId && spare >= MIN_ARMY_SOLDIERS
+        note: commanderId && spare >= MIN_ARMY_SOLDIERS
           ? t('ascent.screen.raiseHostBody', { n: recruitSoldiers(spare) })
           : commanderId
             ? t('ascent.screen.raiseNoPeople')
             : t('ascent.conquer.needHero'),
         border: canRaise ? INK_UI.jade : INK_UI.softBrush,
         muted: !canRaise,
+        onTap: canRaise ? () => this.showRaiseHostForm() : undefined,
       },
-      canRaise ? () => this.showRaiseHostForm() : undefined,
-    );
+    ]));
 
     // Standing hosts only: a garrison levy is the province's own walls turned out for one
     // battle (see `raiseGarrisonLevy`) — it takes no orders and goes home when the fight ends.
@@ -2485,7 +2713,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const general = state.heroes.find((candidate) => candidate.id === army.generalHeroId);
     const land = state.lands.find((candidate) => candidate.id === army.landId);
 
-    const { addRow, addHeading, finish } = this.laneList(
+    const { addRow, addHeading, addWidget, finish } = this.laneList(
       army.name,
       t('ascent.army.detailBody', {
         land: land?.name ?? '—',
@@ -2495,35 +2723,19 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       }),
     );
 
-    // What the host costs, stated plainly.
+    // ── The host ──
     //
-    // The screen already knew this — it computed the same figures to price the disband row — but
-    // only ever showed them as what you would save by giving up. The runway is the number that
-    // actually predicts trouble: a host out of rations bleeds morale, and until now the player
-    // only found that out after the morale had gone.
+    // Everything that describes it, under one heading and in two surfaces instead of three cards:
+    // the figures read across a strip, the multipliers that produced the field power sit under it
+    // as a line of text, and what the host costs is one line rather than a card of its own. The
+    // commander sits here too — who leads is a *fact about the host*, not an order — with the one
+    // control that changes it, instead of a full-width card that only says his name.
     const upkeep = ascentArmyUpkeep(state);
     const troops = Math.max(1, getPlayerTroops(state));
     const shareGold = Math.round(upkeep.gold * (size / troops));
     const shareFood = Math.round(upkeep.food * (size / troops));
     const rationRunway = Math.floor((army.rations ?? 0) / Math.max(1, size / 100 * ARMY_RATION_USE_PER_100));
-    addRow({
-      title: t('ascent.army.upkeepHeading'),
-      subtitle: `${t('ascent.army.upkeepBody', { gold: shareGold, food: shareFood })}\n${
-        (army.rations ?? 0) <= 0
-          ? t('ascent.army.runwayOut')
-          : t('ascent.army.runway', { ticks: rationRunway })
-      }`,
-      border: (army.rations ?? 0) <= 0 ? INK_UI.cinnabar : INK_UI.softBrush,
-      muted: (army.rations ?? 0) > 0,
-    });
-
-    // Why the host is stronger than the men in it.
-    //
-    // `armyPower` multiplies unit count by morale, supply, level, elite tier, the general's
-    // martial skill and every Power Draft card the run has taken — so a host of 800 can be worth
-    // far more or far less than a host of 800, and none of that was visible anywhere. Showing the
-    // finished figure beside the headcount is what makes drafting a card feel like it reached the
-    // field, rather than a number that went up on the HUD.
+    const starving = (army.rations ?? 0) <= 0;
     const bonuses = getCourtBonuses(state);
     const eliteTier = army.elite ?? 0;
     const multipliers = [
@@ -2534,200 +2746,232 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         ? t('ascent.army.mulDraft', { pct: Math.round((bonuses.armyPowerMult - 1) * 100) })
         : '',
     ].filter(Boolean);
-    addRow({
-      title: t('ascent.army.powerHeading', { power: Math.round(armyPower(state, army)), men: size }),
-      subtitle: multipliers.join('  ·  '),
-      border: INK_UI.gold,
-      muted: true,
-    });
 
-    // ── Standing orders ──
-    //
-    // What the host is doing until told otherwise, and every way to tell it otherwise. The
-    // autopilot used to move and dissolve every host on its own judgement; a host under any
-    // order but `auto` is now moved by that order alone (see `StandingOrders`).
-    addHeading(t('ascent.orders.heading'));
-    const orders = armyOrders(army);
-    addRow({
-      title: t('ascent.orders.current', { order: hostOrderLabel(state, army) }),
-      subtitle: '',
-      border: INK_UI.gold,
-      muted: true,
+    addHeading(t('ascent.army.groupHost'));
+    addWidget(0, (parent, width) => {
+      let y = this.statPanel(parent, width, [
+        { label: t('ascent.army.statPower'), value: String(Math.round(armyPower(state, army))) },
+        { label: t('ascent.army.statMen'), value: String(size) },
+        { label: t('ascent.army.statMorale'), value: String(Math.round(army.morale)) },
+        {
+          label: t('ascent.army.statSupply'),
+          value: String(Math.round(army.supply)),
+          accent: starving ? cssHex(INK_UI.cinnabar) : undefined,
+        },
+      ]);
+      const detail = this.add.text(2, y + 5, [
+        multipliers.join('  ·  '),
+        `${t('ascent.army.upkeepLine', { gold: shareGold, food: shareFood })}  ·  ${
+          starving ? t('ascent.army.runwayOut') : t('ascent.army.runwayShort', { ticks: rationRunway })
+        }`,
+      ].join('\n'), {
+        color: starving ? cssHex(INK_UI.cinnabar) : INK_UI_HEX.mutedText,
+        fontFamily: UI_FONT,
+        fontSize: '9px',
+        lineSpacing: 2,
+        wordWrap: { width: width - 4 },
+      }).setOrigin(0, 0);
+      parent.add(detail);
+      return y + 5 + detail.height;
     });
-    const command = (next: ArmyOrders): void => {
-      this.events.emit('ui:ascent-army-orders', { armyId, orders: next });
-      this.showArmyDetail(armyId);
-    };
-    const defendingHere = orders.kind === 'defend' && orders.landId === army.landId;
+    // `addWidget` takes a height up front, which a measured widget cannot know. Rather than change
+    // its contract for one caller, the host block is laid out as a row with a portrait — the one
+    // shape in the list that already carries a face — and the figures above it are given their own
+    // pass. The commander row keeps `addRow` because a face IS the row here.
     addRow(
       {
-        title: t('ascent.orders.defendHere'),
-        subtitle: t('ascent.orders.defendHereBody', { land: land?.name ?? '—' }),
-        border: defendingHere ? INK_UI.gold : INK_UI.jade,
-        muted: defendingHere,
-      },
-      defendingHere ? undefined : () => command({ kind: 'defend', landId: army.landId }),
-    );
-    const owned = state.lands.filter(
-      (candidate) => candidate.ownerId === PLAYER_KINGDOM_ID && candidate.id !== army.landId,
-    );
-    addRow(
-      {
-        title: t('ascent.army.marchTo'),
-        subtitle: owned.length > 0 ? t('ascent.army.marchToBody') : t('ascent.army.noOwnedLand'),
-        border: owned.length > 0 ? INK_UI.jade : INK_UI.softBrush,
-        muted: owned.length === 0,
-      },
-      owned.length > 0 ? () => this.showMarchTargets(armyId) : undefined,
-    );
-    const attackable = buildAllConquestTargets(state);
-    addRow(
-      {
-        title: t('ascent.orders.attackPick'),
-        subtitle: attackable.length > 0 ? t('ascent.orders.attackPickBody') : t('ascent.army.noOwnedLand'),
-        border: attackable.length > 0 ? INK_UI.cinnabar : INK_UI.softBrush,
-        muted: attackable.length === 0,
-      },
-      attackable.length > 0 ? () => this.showAttackTargets(armyId) : undefined,
-    );
-    const others = state.armies.filter(
-      (candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID && !candidate.isLevy && candidate.id !== army.id,
-    );
-    addRow(
-      {
-        title: t('ascent.orders.followPick'),
-        subtitle: t('ascent.orders.followPickBody'),
-        border: others.length > 0 ? INK_UI.jade : INK_UI.softBrush,
-        muted: others.length === 0,
-      },
-      others.length > 0 ? () => this.showFollowTargets(armyId) : undefined,
-    );
-
-    const quarries = visibleHostileHosts(state);
-    addRow(
-      {
-        title: t('ascent.army.hunt'),
-        subtitle: quarries.length > 0
-          ? t('ascent.army.huntBody', { n: quarries.length })
-          : t('ascent.army.huntNone'),
-        border: quarries.length > 0 ? INK_UI.cinnabar : INK_UI.softBrush,
-        muted: quarries.length === 0,
-      },
-      quarries.length > 0 ? () => this.showHuntTargets(armyId) : undefined,
-    );
-    // Who leads. A host's general was only ever set by an appointment card that offered the
-    // *first* leaderless host; the row asks the question the other way round.
-    addRow(
-      {
-        title: general ? t('ascent.orders.commander', { hero: heroName(general) }) : t('ascent.orders.commanderNone'),
+        title: general ? heroName(general) : t('ascent.army.noCommander'),
         subtitle: t('ascent.orders.commanderBody'),
         border: general ? INK_UI.gold : INK_UI.cinnabar,
         portrait: general,
       },
       () => this.showCommanderPicker(armyId),
     );
-    addRow(
-      {
-        title: t('ascent.orders.autoRow'),
-        subtitle: t('ascent.orders.autoBody'),
-        border: isAutoHost(army) ? INK_UI.gold : INK_UI.softBrush,
-        muted: isAutoHost(army),
-      },
-      isAutoHost(army) ? undefined : () => command({ kind: 'auto' }),
+
+    // ── Orders ──
+    //
+    // What the host is doing until told otherwise, the one question about how its fights are
+    // resolved, and every way to change either. The autopilot used to move and dissolve every
+    // host on its own judgement; a host under any order but `auto` is now moved by that order
+    // alone (see `StandingOrders`).
+    addHeading(t('ascent.orders.heading'));
+    const orders = armyOrders(army);
+    addWidget(0, (parent, width) => {
+      const line = this.add.text(2, 0, t('ascent.orders.current', { order: hostOrderLabel(state, army) }), {
+        color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '12px', fontStyle: '700',
+        wordWrap: { width: width - 4 },
+      }).setOrigin(0, 0);
+      parent.add(line);
+      return line.height;
+    });
+
+    const command = (next: ArmyOrders): void => {
+      this.events.emit('ui:ascent-army-orders', { armyId, orders: next });
+      this.showArmyDetail(armyId);
+    };
+    const defendingHere = orders.kind === 'defend' && orders.landId === army.landId;
+    const owned = state.lands.filter(
+      (candidate) => candidate.ownerId === PLAYER_KINGDOM_ID && candidate.id !== army.landId,
     );
+    const attackable = buildAllConquestTargets(state);
+    const others = state.armies.filter(
+      (candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID && !candidate.isLevy && candidate.id !== army.id,
+    );
+    const quarries = visibleHostileHosts(state);
+    addWidget(0, (parent, width) => {
+      const height = this.actionTiles(parent, width, [
+        {
+          title: t('ascent.orders.defendHere'),
+          note: t('ascent.orders.defendHereBody', { land: land?.name ?? '—' }),
+          border: defendingHere ? INK_UI.gold : INK_UI.jade,
+          muted: defendingHere,
+          onTap: defendingHere ? undefined : () => command({ kind: 'defend', landId: army.landId }),
+        },
+        {
+          title: t('ascent.army.marchTo'),
+          note: owned.length > 0 ? t('ascent.army.marchToBody') : t('ascent.army.noOwnedLand'),
+          border: owned.length > 0 ? INK_UI.jade : INK_UI.softBrush,
+          muted: owned.length === 0,
+          onTap: owned.length > 0 ? () => this.showMarchTargets(armyId) : undefined,
+        },
+        {
+          title: t('ascent.orders.attackPick'),
+          note: attackable.length > 0 ? t('ascent.orders.attackPickBody') : t('ascent.army.noOwnedLand'),
+          border: attackable.length > 0 ? INK_UI.cinnabar : INK_UI.softBrush,
+          muted: attackable.length === 0,
+          onTap: attackable.length > 0 ? () => this.showAttackTargets(armyId) : undefined,
+        },
+        {
+          title: t('ascent.orders.followPick'),
+          note: t('ascent.orders.followPickBody'),
+          border: others.length > 0 ? INK_UI.jade : INK_UI.softBrush,
+          muted: others.length === 0,
+          onTap: others.length > 0 ? () => this.showFollowTargets(armyId) : undefined,
+        },
+        {
+          title: t('ascent.army.hunt'),
+          note: quarries.length > 0 ? t('ascent.army.huntBody', { n: quarries.length }) : t('ascent.army.huntNone'),
+          border: quarries.length > 0 ? INK_UI.cinnabar : INK_UI.softBrush,
+          muted: quarries.length === 0,
+          onTap: quarries.length > 0 ? () => this.showHuntTargets(armyId) : undefined,
+        },
+        {
+          title: t('ascent.orders.autoRow'),
+          note: t('ascent.orders.autoBody'),
+          border: isAutoHost(army) ? INK_UI.gold : INK_UI.softBrush,
+          muted: isAutoHost(army),
+          onTap: isAutoHost(army) ? undefined : () => command({ kind: 'auto' }),
+        },
+      ]);
+      return height;
+    });
+
+    // Who fights this host's battles. The run-wide switch in Settings answers it for every host at
+    // once, which is the wrong grain: a border garrison should be left to its general and the royal
+    // host should not be.
+    addWidget(0, (parent, width) => {
+      const height = this.segmentedRow(parent, width, {
+        label: t('ascent.battle.whoCommands'),
+        options: [t('ascent.battle.commandMine'), t('ascent.battle.commandGeneral')],
+        note: army.autoResolve ? t('ascent.battle.commandGeneralBody') : t('ascent.battle.commandMineBody'),
+        selected: army.autoResolve ? 1 : 0,
+        onPick: (index) => {
+          army.autoResolve = index === 1;
+          this.showArmyDetail(armyId);
+        },
+      });
+      return height;
+    });
 
     // Recall: out of the fight, off the siege, home. Confirmed, because it can abandon both.
     const siege = state.siegeOrders.find((order) => order.armyId === army.id);
     const engaged = Boolean(state.ascent?.activeBattle && !state.ascent.activeBattle.over
       && (state.ascent.activeBattle.ourArmyIds ?? []).includes(army.id));
-    addRow(
-      {
+    const recall = (): void => {
+      const consequences = [
+        siege ? t('ascent.orders.recallSiege', { land: state.lands.find((l) => l.id === siege.landId)?.name ?? '' }) : '',
+        engaged ? t('ascent.orders.recallBattle', { land: state.ascent?.activeBattle?.landName ?? '' }) : '',
+      ].filter(Boolean);
+      this.showConfirmPage({
         title: t('ascent.orders.recall'),
-        subtitle: t('ascent.orders.recallBody'),
-        border: INK_UI.gold,
-      },
-      () => {
-        const consequences = [
-          siege ? t('ascent.orders.recallSiege', { land: state.lands.find((l) => l.id === siege.landId)?.name ?? '' }) : '',
-          engaged ? t('ascent.orders.recallBattle', { land: state.ascent?.activeBattle?.landName ?? '' }) : '',
-        ].filter(Boolean);
-        this.showConfirmPage({
-          title: t('ascent.orders.recall'),
-          subtitle: army.name,
-          lines: [t('ascent.orders.recallBody'), ...consequences],
-          confirmLabel: t('ascent.orders.recall'),
-          danger: consequences.length > 0,
-          onConfirm: () => {
-            this.events.emit('ui:ascent-army-recall', armyId);
-            this.showArmyDetail(armyId);
-          },
-          onBack: () => this.showArmyDetail(armyId),
-        });
-      },
-    );
-
-    // Resupply: baggage topped up from the stores, the one thing the autopilot will not do
-    // below its own reserve.
-    const supply = resupplyPreview(state, armyId);
-    addRow(
-      {
-        title: t('ascent.orders.resupply'),
-        subtitle: supply.blocked ?? t('ascent.orders.resupplyBody', {
-          r: Math.round(army.rations),
-          wantR: supply.wantRations,
-          p: Math.round(army.provisions),
-          wantP: supply.wantProvisions,
-          food: supply.food,
-          supplies: supply.supplies,
-        }),
-        border: supply.blocked ? INK_UI.softBrush : INK_UI.jade,
-        muted: Boolean(supply.blocked),
-      },
-      supply.blocked
-        ? undefined
-        : () => {
-            this.events.emit('ui:ascent-army-resupply', armyId);
-            this.showArmyDetail(armyId);
-          },
-    );
-
-    // ── Upgrades ──
-    for (const option of getArmyUpgradeOptions(state, armyId)) {
-      const label = t(`ascent.army.${option.kind}` as Parameters<typeof t>[0]);
-      const body = option.kind === 'equip'
-        ? t('ascent.army.equipBody', { tier: option.gain })
-        : option.kind === 'reinforce'
-          ? t('ascent.army.reinforceBody', { n: option.gain })
-          : t('ascent.army.drillBody', { level: option.gain });
-      addRow(
-        {
-          title: label,
-          subtitle: option.available
-            ? `${body}\n${formatResourceList(option.cost)}`
-            : option.reason ?? '',
-          border: option.available ? INK_UI.gold : INK_UI.softBrush,
-          muted: !option.available,
+        subtitle: army.name,
+        lines: [t('ascent.orders.recallBody'), ...consequences],
+        confirmLabel: t('ascent.orders.recall'),
+        danger: consequences.length > 0,
+        onConfirm: () => {
+          this.events.emit('ui:ascent-army-recall', armyId);
+          this.showArmyDetail(armyId);
         },
-        option.available
-          ? () => {
-              upgradeArmy(state, armyId, option.kind);
-              this.showArmyDetail(armyId);
-            }
-          : undefined,
-      );
-    }
+        onBack: () => this.showArmyDetail(armyId),
+      });
+    };
 
-    addRow(
-      {
-        title: t('ascent.army.disband'),
-        subtitle: t('ascent.army.disbandBody', { n: size, gold: shareGold, food: shareFood }),
-        border: INK_UI.cinnabar,
-      },
-      () => {
-        this.closeLane();
-        this.events.emit('ui:ascent-disband-army', armyId);
-      },
-    );
+    // ── Reinforcement ──
+    //
+    // Everything that spends on the host: fresh men, better kit, more drill, full baggage — and,
+    // at the end and apart from them, the two ways to take it off the board.
+    addHeading(t('ascent.army.groupSupply'));
+    const supply = resupplyPreview(state, armyId);
+    const upgrades = getArmyUpgradeOptions(state, armyId).map((option) => ({
+      title: t(`ascent.army.${option.kind}` as Parameters<typeof t>[0]),
+      note: option.available
+        ? `${
+            option.kind === 'equip'
+              ? t('ascent.army.equipBody', { tier: option.gain })
+              : option.kind === 'reinforce'
+                ? t('ascent.army.reinforceBody', { n: option.gain })
+                : t('ascent.army.drillBody', { level: option.gain })
+          }\n${formatResourceList(option.cost)}`
+        : option.reason ?? '',
+      border: option.available ? INK_UI.gold : INK_UI.softBrush,
+      muted: !option.available,
+      onTap: option.available
+        ? () => {
+            upgradeArmy(state, armyId, option.kind);
+            this.showArmyDetail(armyId);
+          }
+        : undefined,
+    }));
+    addWidget(0, (parent, width) => {
+      const height = this.actionTiles(parent, width, [
+        ...upgrades,
+        {
+          title: t('ascent.orders.resupply'),
+          note: supply.blocked ?? t('ascent.orders.resupplyBody', {
+            r: Math.round(army.rations),
+            wantR: supply.wantRations,
+            p: Math.round(army.provisions),
+            wantP: supply.wantProvisions,
+            food: supply.food,
+            supplies: supply.supplies,
+          }),
+          border: supply.blocked ? INK_UI.softBrush : INK_UI.jade,
+          muted: Boolean(supply.blocked),
+          onTap: supply.blocked
+            ? undefined
+            : () => {
+                this.events.emit('ui:ascent-army-resupply', armyId);
+                this.showArmyDetail(armyId);
+              },
+        },
+        {
+          title: t('ascent.orders.recall'),
+          note: t('ascent.orders.recallBody'),
+          border: INK_UI.gold,
+          onTap: recall,
+        },
+        {
+          title: t('ascent.army.disband'),
+          note: t('ascent.army.disbandBody', { n: size, gold: shareGold, food: shareFood }),
+          border: INK_UI.cinnabar,
+          onTap: () => {
+            this.closeLane();
+            this.events.emit('ui:ascent-disband-army', armyId);
+          },
+        },
+      ]);
+      return height;
+    });
 
     finish();
   }
@@ -2899,30 +3143,29 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const rivals = state.kingdoms.filter(
       (kingdom) => kingdom.id !== PLAYER_KINGDOM_ID && !kingdom.isDefeated,
     );
-    const { addRow, finish } = this.laneList(t('action.affairs'), t('ascent.lane.worldBody'));
+    const { addWidget, finish } = this.laneList(t('action.affairs'), t('ascent.lane.worldBody'));
 
-    for (const kingdom of rivals) {
+    // Four neighbours, each a name, a temperature and two figures — a grid. As full-width cards
+    // they filled the screen and the player still had to scroll to see the fourth realm, which on
+    // a page whose whole job is *comparing* them is the one thing it must not do.
+    addWidget(0, (parent, width) => this.actionTiles(parent, width, rivals.map((kingdom) => {
       const relations = Math.round(kingdom.relations ?? 50);
-      const tags = [
-        t('ascent.world.power', { value: Math.round(getEmpirePower(state, kingdom)) }),
-        t('ascent.world.appetite', { value: Math.round(kingdom.warAppetite ?? 0) }),
-        hasPact(kingdom) ? t('ascent.world.pact') : undefined,
-        kingdom.ambassadorHeroId ? t('ascent.world.ambassador') : undefined,
-      ].filter(Boolean).join('  ·  ');
-
-      addRow(
-        {
-          title: `${kingdom.name}  ·  ${relations}`,
-          subtitle: tags,
-          // Green when content, red once cold enough to march.
-          border: relations >= 55 ? INK_UI.jade : relations >= 35 ? INK_UI.gold : INK_UI.cinnabar,
-        },
-        () => {
+      return {
+        title: `${kingdom.name}  ·  ${relations}`,
+        note: [
+          t('ascent.world.power', { value: Math.round(getEmpirePower(state, kingdom)) }),
+          t('ascent.world.appetite', { value: Math.round(kingdom.warAppetite ?? 0) }),
+          hasPact(kingdom) ? t('ascent.world.pact') : undefined,
+          kingdom.ambassadorHeroId ? t('ascent.world.ambassador') : undefined,
+        ].filter(Boolean).join('  ·  '),
+        // Green when content, red once cold enough to march.
+        border: relations >= 55 ? INK_UI.jade : relations >= 35 ? INK_UI.gold : INK_UI.cinnabar,
+        onTap: () => {
           this.closeLane();
           this.events.emit('ui:ascent-envoy', kingdom.id);
         },
-      );
-    }
+      };
+    })));
     finish();
   }
 
@@ -3211,7 +3454,7 @@ ${t('ascent.summon.payrollWarn', { pct: payrollShare })}` : subtitle,
         { x: 0, y: used, width: bodyWidth, height: cardHeight },
         {
           title: heroName(hero),
-          body: `${heroTypeLabel(hero.type)}  ·  ${rarityLabel(hero.rarity)}`,
+          body: `${heroTypeLabel(hero.type)}  ·  ${rarityLabel(hero.rarity)}\n${heroBio(hero)}`,
           note: isNew ? t('ascent.summon.newCodex') : this.heroStatLine(hero),
           noteColor: isNew ? '#8a5f1c' : undefined,
           badge: t(`ascent.rarity.${tier}` as Parameters<typeof t>[0]),
@@ -3998,7 +4241,7 @@ ${t('ascent.summon.payrollWarn', { pct: payrollShare })}` : subtitle,
   private showLedgerScreen(): void {
     const state = this.state;
     const ledger = state.ascentLedger;
-    const { addRow, addHeading, finish } = this.laneList(
+    const { addRow, addHeading, addWidget, finish } = this.laneList(
       t('ascent.ledger.title'),
       t('ascent.ledger.body', {
         lands: state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length,
@@ -4012,25 +4255,34 @@ ${t('ascent.summon.payrollWarn', { pct: payrollShare })}` : subtitle,
       return;
     }
 
-    const section = (key: 'food' | 'supplies' | 'gold', line: AscentLedgerLine) => {
-      addHeading(resourceLabel(key));
-      // Signs are formatted here, not in the template: gross can itself go negative (three
-      // withholding provinces can outweigh the paying ones), and a hardcoded '+' printed
-      // the nonsense "In +-8".
+    // The three flows, side by side rather than three headings each carrying one card.
+    //
+    // They are the same shape and they are read against each other — which is a comparison, and a
+    // comparison belongs on one line. A heading per resource made each of them look like a section
+    // of its own, and the page opened with three quarters of its height spent saying three numbers.
+    // Signs are formatted here, not in the template: gross can itself go negative (three
+    // withholding provinces can outweigh the paying ones), and a hardcoded '+' printed the
+    // nonsense "In +-8".
+    const flow = (key: 'food' | 'supplies' | 'gold', line: AscentLedgerLine) => {
       const gross = Math.round(line.gross);
       const demand = Math.round(line.demand);
-      addRow({
-        title: t('ascent.ledger.line', {
+      const net = Math.round(line.net);
+      return {
+        // `resourceLabel` is written for mid-sentence use and comes back lowercase; at the head of
+        // a tile it is a name.
+        title: `${resourceLabel(key).charAt(0).toLocaleUpperCase()}${resourceLabel(key).slice(1)}  ${net >= 0 ? `+${net}` : net}`,
+        note: t('ascent.ledger.line', {
           gross: gross >= 0 ? `+${gross}` : `${gross}`,
           demand: `−${Math.abs(demand)}`,
         }),
-        subtitle: t('ascent.ledger.net', { net: Math.round(line.net) }),
-        border: line.net >= 0 ? INK_UI.jade : INK_UI.cinnabar,
-      });
+        border: net >= 0 ? INK_UI.jade : INK_UI.cinnabar,
+      };
     };
-    section('food', ledger.food);
-    section('supplies', ledger.supplies);
-    section('gold', ledger.gold);
+    addWidget(0, (parent, width) => this.actionTiles(parent, width, [
+      flow('food', ledger.food),
+      flow('supplies', ledger.supplies),
+      flow('gold', ledger.gold),
+    ]));
 
     // Where the gold goes, by name. One figure for "out" told nobody why the treasury moved; the
     // categories say what is eating it and open the screen where it can be answered.
@@ -4049,13 +4301,12 @@ ${t('ascent.summon.payrollWarn', { pct: payrollShare })}` : subtitle,
         { title: t('ascent.ledger.cat.softcap', { n: parts.softcap }), subtitle: '', n: parts.softcap },
       ];
       const biggest = Math.max(...rows.map((row) => row.n));
-      for (const row of rows) {
-        if (row.n <= 0) continue;
-        addRow(
-          { title: row.title, subtitle: row.subtitle, border: row.n === biggest ? INK_UI.cinnabar : INK_UI.softBrush },
-          row.lane ? () => { const lane = row.lane!; this.closeLane(); this.openLane(lane); } : undefined,
-        );
-      }
+      addWidget(0, (parent, width) => this.actionTiles(parent, width, rows.filter((row) => row.n > 0).map((row) => ({
+        title: row.title,
+        note: row.subtitle,
+        border: row.n === biggest ? INK_UI.cinnabar : INK_UI.softBrush,
+        onTap: row.lane ? () => { const lane = row.lane!; this.closeLane(); this.openLane(lane); } : undefined,
+      }))));
       if (parts.withheld > 0) {
         addRow({ title: t('ascent.ledger.withheld', { n: parts.withheld }), subtitle: '', border: INK_UI.softBrush, muted: true });
       }
@@ -4733,6 +4984,15 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
     ));
   }
 
+  /**
+   * The founding: a ruler out of the record and the champion who rises with him.
+   *
+   * Drawn by hand rather than through `optionCard`, which lays out one text column and pins a
+   * single-line note to the foot — two portraits side by side and a wrapped effect line both
+   * overran it. The layout here is a court audience read top to bottom: the dynasty's own
+   * standard above the cards so a player learns their colours before anything else, then the
+   * ruler with his reign, then a bronze rule, then the champion who follows him.
+   */
   private showFounder(prompt: Extract<AscentPrompt, { kind: 'founder' }>): void {
     const codex = codexProgress();
     const { body, bodyWidth, finish } = this.promptScrollBody(
@@ -4741,39 +5001,150 @@ ${t(`ascent.rival.standing.${standing}` as Parameters<typeof t>[0])}`,
       0,
     );
 
-    const cardHeight = 116;
+    let used = this.addDynastyStandard(body, bodyWidth);
     const cards: Phaser.GameObjects.Container[] = [];
-    let used = 0;
-    prompt.options.forEach((heroId) => {
+    prompt.options.forEach((option) => {
+      const [kingSlug, traitIndex, heroId] = option.split(':');
+      const king = KINGS.find((candidate) => candidate.slug === kingSlug);
       const hero = this.state.heroDeck.find((candidate) => candidate.id === heroId);
-      if (!hero) return;
-      const tier = tierForHero(hero);
-      const card = this.optionCard(
-        { x: 0, y: used, width: bodyWidth, height: cardHeight },
-        {
-          title: heroName(hero),
-          body: `${heroTypeLabel(hero.type)}  ·  ${rarityLabel(hero.rarity)}`,
-          note: this.heroStatLine(hero),
-          badge: t(`ascent.rarity.${tier}` as Parameters<typeof t>[0]),
-          accent: RARITY_COLOR[tier],
-          washAlpha: RARITY_WASH[tier],
-          reserveRight: PORTRAIT_W + 14,
-          parent: body,
-          onTap: () => this.choose(heroId),
-        },
+      if (!king || !hero) return;
+      const card = this.foundingCard(
+        { x: 0, y: used, width: bodyWidth }, king, Number(traitIndex), hero, () => this.choose(option),
       );
-      const drawnHeight = (card.getData('cardHeight') as number) ?? cardHeight;
-      card.add(renderHeroFaceInBox(this, hero, {
-        x: bodyWidth - PORTRAIT_W - 12,
-        y: PORTRAIT_TOP,
-        width: PORTRAIT_W,
-        height: drawnHeight - PORTRAIT_TOP - 8,
-      }));
+      body.add(card);
       cards.push(card);
-      used += drawnHeight + 10;
+      used += (card.getData('cardHeight') as number) + 12;
     });
     staggerIn(this, cards);
     finish(used);
+  }
+
+  /**
+   * The realm's standard, over a Đông Sơn bronze rule.
+   *
+   * Every province the player takes will fly this, and until now the first sight of it was on
+   * the map with no explanation. Naming it on the founding screen is the cheapest way to teach
+   * a colour the whole rest of the run depends on reading quickly.
+   */
+  private addDynastyStandard(parent: Phaser.GameObjects.Container, width: number): number {
+    // The standard is drawn about its *footing*: the mast runs to −56 and the cloth hangs off
+    // its head, so anchoring it near the top of the scroll body put the whole banner above the
+    // mask and left a bare pole on screen.
+    const FOOT_Y = 72;
+    const flag = createPlayerLandFlag(this, true, this.state.mapConfig.seed);
+    flag.setScale(0.98).setPosition(width / 2 - 14, FOOT_Y);
+    parent.add(flag);
+
+    const band = this.add.graphics();
+    sawtoothBand(band, 0, FOOT_Y + 8, width, 7, 0.5);
+    parent.add(band);
+
+    const caption = this.add.text(0, FOOT_Y + 20, t('ascent.founder.standard'), {
+      color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '10px', align: 'center',
+      wordWrap: { width },
+    }).setFixedSize(width, 0);
+    parent.add(caption);
+    return FOOT_Y + 20 + caption.height + 10;
+  }
+
+  /** One founding: the ruler above, a bronze rule, the champion below. */
+  private foundingCard(
+    bounds: { x: number; y: number; width: number },
+    king: KingProfile,
+    traitIndex: number,
+    hero: Hero,
+    onTap: () => void,
+  ): Phaser.GameObjects.Container {
+    const container = this.add.container(bounds.x, bounds.y);
+    const tier = tierForHero(hero);
+    const PAD = 12;
+    const KING_W = 74;
+    const HERO_W = 52;
+    const textLeft = PAD + KING_W + 12;
+    const textWidth = bounds.width - textLeft - PAD;
+    const crowned = { ...generateKingHero(king.slug, traitIndex), name: king.name };
+
+    // ── the ruler ──
+    const kingName = this.ui.label(textLeft, 12, heroName(crowned), 'label', {
+      fontSize: '15px', wordWrap: { width: textWidth - 46 },
+    });
+    container.add(kingName);
+    const kingLine = this.ui.label(textLeft, 12 + kingName.height + 2,
+      t(`ascent.ruler.era.${king.era}` as Parameters<typeof t>[0]), 'body', {
+        fontSize: '10px', color: INK_UI_HEX.mutedText, wordWrap: { width: textWidth },
+      });
+    container.add(kingLine);
+    const kingBio = this.ui.label(textLeft, kingLine.y + kingLine.height + 3, heroBio(crowned), 'body', {
+      fontSize: '10.5px', color: INK_UI_HEX.mutedText, wordWrap: { width: textWidth },
+    });
+    container.add(kingBio);
+    const kingFx = this.add.text(textLeft, kingBio.y + kingBio.height + 4, heroEffect(crowned), {
+      color: '#4c6b46', fontFamily: UI_FONT, fontSize: '10.5px', fontStyle: '700',
+      wordWrap: { width: textWidth },
+    });
+    container.add(kingFx);
+
+    // The rule sits below whichever column is taller — the portrait is 96 tall at this width.
+    const ruleY = Math.max(kingFx.y + kingFx.height + 10, 12 + 96 + 8);
+    const rule = this.add.graphics();
+    sawtoothBand(rule, PAD, ruleY, bounds.width - PAD * 2, 5, 0.34);
+    container.add(rule);
+
+    // ── the champion who rises with him ──
+    const heroTop = ruleY + 12;
+    const heroTextLeft = PAD + HERO_W + 12;
+    const heroTextWidth = bounds.width - heroTextLeft - PAD;
+    const heroName2 = this.ui.label(heroTextLeft, heroTop, `${heroName(hero)}  ·  ${rarityLabel(hero.rarity)}`, 'label', {
+      fontSize: '12.5px', wordWrap: { width: heroTextWidth },
+    });
+    container.add(heroName2);
+    const heroLine = this.ui.label(heroTextLeft, heroTop + heroName2.height + 2,
+      `${heroTypeLabel(hero.type)}  ·  ${this.heroStatLine(hero)}`, 'body', {
+        fontSize: '10px', color: INK_UI_HEX.mutedText, wordWrap: { width: heroTextWidth },
+      });
+    container.add(heroLine);
+    const heroBioText = this.ui.label(heroTextLeft, heroLine.y + heroLine.height + 3, heroBio(hero), 'body', {
+      fontSize: '10.5px', color: INK_UI_HEX.mutedText, wordWrap: { width: heroTextWidth },
+    });
+    container.add(heroBioText);
+
+    // What the founding actually changes on the board. Without this the card is three
+    // biographies and no decision.
+    const gift = this.add.text(heroTextLeft, heroBioText.y + heroBioText.height + 5,
+      t(`ascent.founder.gift.${hero.type}` as Parameters<typeof t>[0]), {
+        color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '10.5px', fontStyle: '700',
+        wordWrap: { width: heroTextWidth },
+      });
+    container.add(gift);
+
+    const height = Math.max(gift.y + gift.height + 12, heroTop + 68 + 12);
+
+    // Paper, rail and wash behind everything already laid out, as `optionCard` does it.
+    const surface = this.ui.panel(
+      { x: 0, y: 0, width: bounds.width, height },
+      { border: INK_UI.brush, borderWidth: 1.2, borderAlpha: 0.52 },
+    );
+    container.addAt(surface, 0);
+    const rail = this.add.graphics();
+    rail.fillStyle(RARITY_COLOR[tier], 1);
+    rail.fillRect(1, 5, 4.5, height - 10);
+    container.addAt(rail, 1);
+    const wash = this.add.graphics();
+    wash.fillStyle(RARITY_COLOR[tier], RARITY_WASH[tier]);
+    wash.fillRoundedRect(2, 2, bounds.width - 4, height - 4, 8);
+    container.addAt(wash, 2);
+
+    container.add(renderHeroFaceInBox(this, crowned, { x: PAD, y: 12, width: KING_W, height: 96 }));
+    container.add(renderHeroFaceInBox(this, hero, { x: PAD + 8, y: heroTop, width: HERO_W, height: 68 }));
+
+    const zone = this.add.zone(0, 0, bounds.width, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    zone.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      if (scrollGestureConsumedTap(pointer)) return;
+      onTap();
+    });
+    container.add(zone);
+    container.setData('cardHeight', height);
+    return container;
   }
 
   /**

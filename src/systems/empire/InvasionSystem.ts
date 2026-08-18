@@ -627,6 +627,9 @@ function maybeRequestBattleDecision(state: GameState, army: Army, record: Invasi
   // dice roll, and a measured 320-tick run opened the battle screen exactly zero times.
   if (!defender && !ascentWatches) return false;
   if (defender?.autoDefend && !ascentWatches) return false;
+  // The host standing here was told its general fights its own battles. Same question the sheet
+  // asks, answered per host rather than per run.
+  if (defender?.autoResolve) return false;
   const preview = createBattlePreview(state, army.id, land.id);
   if (!preview) return false;
   state.pendingBattle = {
