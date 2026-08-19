@@ -339,6 +339,12 @@ export class ConquestScene extends MapScene {
     });
     // A Moment is answered on its own channel: it is not a standing order, it is one decision
     // taken once, and it must not be confused with the stance the host is holding.
+    // Leaving an arena fight goes back to the setup rather than to the map behind it.
+    ui.events.on('ui:arena-leave', () => {
+      const history = this.state.ascent?.battleHistory ?? [];
+      this.scene.stop(this.uiSceneKey());
+      this.scene.start('BattleArenaScene', { result: history[history.length - 1] });
+    });
     ui.events.on('ui:battle-moment', (answer: 'commit' | 'steady') => {
       answerBattleMoment(this.state, answer);
       ui.events.emit('state-changed');
