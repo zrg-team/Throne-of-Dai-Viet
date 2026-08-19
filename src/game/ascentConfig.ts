@@ -628,8 +628,8 @@ export const ENEMY_SPOT_RADIUS = 2;
  * Beats a small engagement runs; a large one runs up to the maximum. These are now real-time
  * beats a few per second, not turns — see `fightRound` and the view's clock.
  */
-export const BATTLE_BASE_ROUNDS = 16;
-export const BATTLE_MAX_ROUNDS = 26;
+export const BATTLE_BASE_ROUNDS = 14;
+export const BATTLE_MAX_ROUNDS = 22;
 /**
  * Milliseconds a single beat is held on screen.
  *
