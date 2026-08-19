@@ -7,12 +7,17 @@ import {
   BATTLE_CHARGE_COVER,
   BATTLE_CHARGE_MORALE,
   BATTLE_CHARGE_TRADE,
+  BATTLE_COUNTER_MORALE,
   BATTLE_FOCUS_MULT,
   BATTLE_HOLD_TRADE,
+  BATTLE_LOOSE_TRADE,
+  BATTLE_LOOSE_VOLLEY,
+  BATTLE_POSTURE_COUNTER,
   BATTLE_MAX_ROUNDS,
   BATTLE_MORALE_PER_LOSS,
   BATTLE_MORALE_WIN_GAIN,
   BATTLE_RALLY_BASE,
+  BATTLE_REFORM_COST,
   BATTLE_RESERVE_SHARE,
   BATTLE_ROUND_BITE,
   BATTLE_RALLY_DESPERATION,
@@ -24,7 +29,9 @@ import {
 } from '../../game/ascentConfig';
 import { raiseEnemyGarrisonLevy, raiseGarrisonLevy, resolveBattleRecord } from '../empire/InvasionSystem';
 import { pushToast } from '../empire/notifications';
-import { applyAttackOutcome, armyPower, issueMoveOrder, terrainDefenseMultiplier } from '../WarSystem';
+import {
+  applyAttackOutcome, armyPower, compositionMatchup, issueMoveOrder, terrainDefenseMultiplier,
+} from '../WarSystem';
 import { occupyEmptyLand } from '../AcquisitionSystem';
 import { findLand } from '../LandSystem';
 import { landGarrisonPower } from './PowerSystem';
@@ -485,18 +492,108 @@ function enemyPosture(state: GameState, battle: AscentBattle): BattlePosture {
   const personality = kingdom?.personality ?? 'aggressive';
   const theirEdge = battle.theirMorale - battle.ourMorale;
 
+  // Every branch is deterministic on state the player can see. That is what keeps the ring a read
+  // rather than a guessing game: `battleTelegraph` shows this same value before the beat resolves,
+  // and it must be the stance actually taken or the whole thing collapses into a coin flip.
+  const bows = theirBowShare(state, battle);
   switch (personality) {
-    // Cautious powers spend other people's soldiers reluctantly: they hold unless clearly ahead.
+    // Cautious powers spend other people's soldiers reluctantly: they stand off and shoot while
+    // they have the archers for it, and only close when clearly ahead.
     case 'economic':
     case 'diplomatic':
-      return theirEdge > 18 ? 'press' : 'hold';
+      if (theirEdge > 18) return 'press';
+      return bows > 0.3 ? 'loose' : 'hold';
     // A defensive doctrine shoots first and only closes once it has the upper hand.
     case 'defensive':
-      return theirEdge > 8 ? 'press' : 'hold';
+      if (theirEdge > 8) return 'press';
+      return bows > 0.22 ? 'loose' : 'hold';
     // Aggressive and expansionist powers come on hard, and only steady up if badly beaten.
     default:
       return theirEdge < -20 ? 'hold' : 'press';
   }
+}
+
+/**
+ * How one side's arms meet the other's, summed across every host on the field.
+ *
+ * `compositionMatchup` compares two hosts; a field can hold several a side, so the two sides are
+ * pooled into one notional force each. Pooling rather than averaging per-pair, because a wing of
+ * archers behind a wall of spears is one army's composition, not two armies' worth of separate
+ * matchups.
+ */
+function matchupAcross(mine: Army[], theirs: Army[]): number {
+  const pool = (hosts: Army[]): { spearmen: number; archers: number; heavyInfantry: number } => hosts.reduce(
+    (total, host) => ({
+      spearmen: total.spearmen + host.units.spearmen,
+      archers: total.archers + host.units.archers,
+      heavyInfantry: total.heavyInfantry + host.units.heavyInfantry,
+    }),
+    { spearmen: 0, archers: 0, heavyInfantry: 0 },
+  );
+  const foe = pool(theirs);
+  if (foe.spearmen + foe.archers + foe.heavyInfantry <= 0) return 1;
+  return compositionMatchup(pool(mine), { units: foe } as Army);
+}
+
+/**
+ * The stance cycle: charge > loose > brace > charge.
+ *
+ * Charge closes before the volleys tell; loose shoots a line that is standing still; a braced
+ * line breaks a rush. Returns what `attacker` gets for meeting `defender` with this stance.
+ */
+export function posturesCounter(attacker: BattlePosture, defender: BattlePosture): boolean {
+  return (attacker === 'press' && defender === 'loose')
+    || (attacker === 'loose' && defender === 'hold')
+    || (attacker === 'hold' && defender === 'press');
+}
+
+/** The trade a stance makes before the counter is applied. */
+function tradeFor(posture: BattlePosture): { dealt: number; taken: number } {
+  if (posture === 'press') return BATTLE_CHARGE_TRADE;
+  if (posture === 'loose') return BATTLE_LOOSE_TRADE;
+  return BATTLE_HOLD_TRADE;
+}
+
+/**
+ * A stance's trade with the ring folded in.
+ *
+ * Countering deals harder and takes less; being countered is the mirror. Applied to the trade
+ * rather than to the final loss so that it composes with everything else the exchange already
+ * multiplies by, instead of becoming a special case bolted onto the end.
+ */
+function tradeAgainst(mine: BattlePosture, theirs: BattlePosture): { dealt: number; taken: number } {
+  const base = tradeFor(mine);
+  if (posturesCounter(mine, theirs)) {
+    return { dealt: base.dealt * BATTLE_POSTURE_COUNTER.dealt, taken: base.taken * BATTLE_POSTURE_COUNTER.taken };
+  }
+  if (posturesCounter(theirs, mine)) {
+    return { dealt: base.dealt * BATTLE_POSTURE_COUNTER.taken, taken: base.taken * BATTLE_POSTURE_COUNTER.dealt };
+  }
+  return base;
+}
+
+/** What share of the invader's strength is bowmen — the thing that decides whether they stand off. */
+function theirBowShare(state: GameState, battle: AscentBattle): number {
+  const hosts = theirHosts(state, battle);
+  const men = hosts.reduce((total, host) => total + totalUnits(host), 0);
+  if (men <= 0) return 0;
+  return hosts.reduce((total, host) => total + host.units.archers, 0) / men;
+}
+
+/**
+ * The stance the invader will take on the next beat, for the screen to print.
+ *
+ * Resolved from the same function the fight uses and nothing else. A telegraph that could differ
+ * from what happens is worse than none: it would teach the player a rule the game does not keep.
+ */
+export function battleTelegraph(state: GameState): BattlePosture | undefined {
+  const battle = state.ascent?.activeBattle;
+  if (!battle || battle.over) return undefined;
+  const offence = battle.role === 'offence';
+  const theirs = theirHosts(state, battle);
+  if (theirs.length === 0) return undefined;
+  if (offence && theirs.every((host) => host.isLevy)) return 'hold';
+  return enemyPosture(state, battle);
 }
 
 /** Strips a share of a host's strength, spread across its unit types. */
@@ -572,6 +669,7 @@ export function fightRound(state: GameState): void {
   battle.theirStart = Math.max(battle.theirStart, theirs.reduce((total, host) => total + totalUnits(host), 0));
 
   const charging = battle.posture === 'press';
+  const loosing = battle.posture === 'loose';
   const offence = battle.role === 'offence';
   // Walls do not sally: a garrison-only defence holds its ground and shoots.
   battle.theirPosture = offence && theirs.every((host) => host.isLevy) ? 'hold' : enemyPosture(state, battle);
@@ -587,9 +685,11 @@ export function fightRound(state: GameState): void {
     // The invader is always coming; we advance only when told to. Charging also closes faster,
     // which is half of why it is worth doing.
     battle.theirAdvance = Math.min(1, battle.theirAdvance + BATTLE_ADVANCE_PER_TICK);
+    // Loosing opens the range rather than merely refusing to close: a host that means to shoot
+    // wants the ground between it and them, which is what makes it lose to a charge.
     battle.ourAdvance = charging
       ? Math.min(1, battle.ourAdvance + BATTLE_ADVANCE_PER_TICK * 1.5)
-      : Math.max(0, battle.ourAdvance - BATTLE_ADVANCE_PER_TICK * 0.5);
+      : Math.max(0, battle.ourAdvance - BATTLE_ADVANCE_PER_TICK * (loosing ? 0.6 : 0.5));
   }
 
   const met = battle.ourAdvance + battle.theirAdvance >= 1;
@@ -601,8 +701,11 @@ export function fightRound(state: GameState): void {
     // one without, and the side that closes faster eats less of it. That asymmetry is what gives
     // both orders a real case, and it makes composition legible without any new data.
     const bows = (hosts: Army[]): number => hosts.reduce((total, host) => total + host.units.archers, 0);
-    const ourVolley = bows(ours) * BATTLE_VOLLEY_BITE * (battle.ourMorale / 100);
-    const theirVolley = bows(theirs) * BATTLE_VOLLEY_BITE * (battle.theirMorale / 100);
+    // A host that has chosen to shoot, shoots harder — this is the whole of what `loose` buys on
+    // the approach, and it is why an arrow-heavy host wants the lines apart.
+    const ourVolley = bows(ours) * BATTLE_VOLLEY_BITE * (battle.ourMorale / 100) * (loosing ? BATTLE_LOOSE_VOLLEY : 1);
+    const theirVolley = bows(theirs) * BATTLE_VOLLEY_BITE * (battle.theirMorale / 100)
+      * (battle.theirPosture === 'loose' ? BATTLE_LOOSE_VOLLEY : 1);
     const cover = charging ? BATTLE_CHARGE_COVER : 1;
 
     // Spread across the hosts present, so arriving relief is shot at too.
@@ -629,18 +732,36 @@ export function fightRound(state: GameState): void {
 
   const sum = (hosts: Army[]): number => hosts.reduce((total, host) => total + armyPower(state, host), 0);
   // The ground's edge goes to whoever is defending it.
-  const ourPower = Math.max(1, sum(ours) * (offence ? 1 : battle.terrainEdge));
-  const theirPower = Math.max(1, sum(theirs) * (offence ? battle.terrainEdge : 1));
+  // Composition, at last, in the one place that shows the player both sides of it.
+  //
+  // `compositionMatchup` — spearmen rout heavy, heavy crush archers, archers shred spears — has
+  // been written, commented and correct in `WarSystem` since the classic odds roll, with exactly
+  // one call site. The watched fight never used it, so the screen that draws both armies' arms
+  // was the only place in the game where they did not matter.
+  const ourArms = matchupAcross(ours, theirs);
+  const theirArms = matchupAcross(theirs, ours);
+  const ourPower = Math.max(1, sum(ours) * (offence ? 1 : battle.terrainEdge) * ourArms);
+  const theirPower = Math.max(1, sum(theirs) * (offence ? battle.terrainEdge : 1) * theirArms);
+  battle.ourMatchup = ourArms;
+  battle.theirMatchup = theirArms;
   // Each side's losses are its own exposure times the other's aggression, so a cautious enemy
   // is genuinely a different fight from a reckless one rather than the same fight relabelled.
-  const ourTrade = charging ? BATTLE_CHARGE_TRADE : BATTLE_HOLD_TRADE;
-  const theirTrade = battle.theirPosture === 'press' ? BATTLE_CHARGE_TRADE : BATTLE_HOLD_TRADE;
+  const ourTrade = tradeAgainst(battle.posture, battle.theirPosture);
+  const theirTrade = tradeAgainst(battle.theirPosture, battle.posture);
+  // A line that changed its footing this beat is still finding it. Applied to both sides from the
+  // same rule, so an enemy that flip-flops pays exactly what the player would.
+  const ourReform = battle.lastPosture !== undefined && battle.lastPosture !== battle.posture
+    ? BATTLE_REFORM_COST : 1;
+  const theirReform = battle.lastTheirPosture !== undefined && battle.lastTheirPosture !== battle.theirPosture
+    ? BATTLE_REFORM_COST : 1;
+  battle.lastPosture = battle.posture;
+  battle.lastTheirPosture = battle.theirPosture;
   const fuzz = (): number => 0.9 + Math.random() * 0.2;
 
   const ourShare = BATTLE_ROUND_BITE * (theirPower / (ourPower + theirPower)) * 2
-    * ourTrade.taken * theirTrade.dealt * fuzz();
+    * ourTrade.taken * theirTrade.dealt * theirReform * fuzz();
   const theirShare = BATTLE_ROUND_BITE * (ourPower / (ourPower + theirPower)) * 2
-    * ourTrade.dealt * theirTrade.taken * fuzz();
+    * ourTrade.dealt * theirTrade.taken * ourReform * fuzz();
 
   // Losses land across every host present, so relief shares the burden rather than watching.
   const ourLoss = ours.reduce((total, host) => total + bleed(host, Math.min(0.9, ourShare)), 0);
@@ -664,8 +785,16 @@ export function fightRound(state: GameState): void {
   const wonExchange = theirLoss > ourLoss;
   // Applied to *every* host on the side, not just the one the maths treats as the line, so a
   // battered relief column carries its own heart rather than borrowing the vanguard's.
-  for (const host of ours) setMorale(host, host.morale - ourDrop + (wonExchange ? BATTLE_MORALE_WIN_GAIN : 0));
-  for (const host of theirs) setMorale(host, host.morale - theirDrop + (wonExchange ? 0 : BATTLE_MORALE_WIN_GAIN));
+  // Being countered costs heart as well as men — see `BATTLE_COUNTER_MORALE`. This is what lets
+  // a stance win a fight rather than merely trade well through one.
+  const ourCountered = posturesCounter(battle.theirPosture, battle.posture) ? BATTLE_COUNTER_MORALE : 0;
+  const theirCountered = posturesCounter(battle.posture, battle.theirPosture) ? BATTLE_COUNTER_MORALE : 0;
+  for (const host of ours) {
+    setMorale(host, host.morale - ourDrop - ourCountered + (wonExchange ? BATTLE_MORALE_WIN_GAIN : 0));
+  }
+  for (const host of theirs) {
+    setMorale(host, host.morale - theirDrop - theirCountered + (wonExchange ? 0 : BATTLE_MORALE_WIN_GAIN));
+  }
   battle.ourMorale = defender.morale;
   battle.theirMorale = invader.morale;
 
@@ -722,7 +851,9 @@ export function advanceBattle(state: GameState): void {
   for (let beat = 0; beat < BATTLE_BEATS_PER_TICK && !battle.over; beat += 1) {
     fightRound(state);
   }
-  if (battle.over) finishBattle(state, battle.posture);
+  // `finishBattle` asks what the host was *told*, not which of three stances it was in when the
+  // last beat landed. Loosing is a way of holding the ground, so it resolves as holding.
+  if (battle.over) finishBattle(state, battle.posture === 'press' ? 'press' : 'hold');
 }
 
 /** Commits the host held back at camp. One-shot, and the reason to keep watching. */

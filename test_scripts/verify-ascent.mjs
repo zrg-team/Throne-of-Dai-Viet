@@ -551,6 +551,19 @@ const orders = await page.evaluate(async () => {
 
   let s = 777 >>> 0;
   Math.random = () => { s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  /**
+   * Restart the seeded stream before each numbered check.
+   *
+   * These checks share one state and run in order, so every one of them inherits whatever
+   * `Math.random` consumption happened earlier — and a battle consumes a call per beat. Any
+   * combat change that makes fights longer or shorter therefore shifts the stream under every
+   * check that follows it, and they fail for reasons that have nothing to do with what they
+   * assert. Four of them broke on a posture rebalance that `quiet()` guarantees they never saw.
+   *
+   * Reseeding makes each check independent of the ones before it, which is what they were always
+   * meant to be.
+   */
+  const reseed = (n) => { s = (n >>> 0); };
   const st = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
   // Answer the opening rather than discarding it. The run now opens on two cards — the reign's
   // advantage, then the founding — and the founding gift (a district, a bigger host, a treasury)
@@ -582,6 +595,7 @@ const orders = await page.evaluate(async () => {
   const capital = st.lands.find((l) => l.id === st.ascent.capitalLandId);
   const home = capital ?? owned()[0];
 
+  reseed(1001);
   // 1. A defend host is never moved by the autopilot.
   royal.landId = home.id;
   SO.setArmyOrders(st, royal.id, { kind: 'defend', landId: home.id });
@@ -599,6 +613,7 @@ const orders = await page.evaluate(async () => {
   }
   const defendHeld = st.armies.some((a) => a.id === royal.id) && !movedOffPost && royal.landId === home.id;
 
+  reseed(1002);
   // 2. A commanded remnant is kept; an auto remnant of the same size is dissolved.
   const mk = (id, ordersKind) => ({ id, kingdomId: 'dai-viet', name: id, landId: home.id, units: { spearmen: 40, archers: 0, heavyInfantry: 0 }, morale: 80, supply: 80, rations: 500, provisions: 500, level: 1, experience: 0, experienceToNextLevel: 100, ...(ordersKind ? { orders: { kind: 'defend', landId: home.id } } : {}) });
   st.armies.push(mk('remnant-kept', true), mk('remnant-auto', false));
@@ -607,6 +622,7 @@ const orders = await page.evaluate(async () => {
   const autoRemnantGone = !st.armies.some((a) => a.id === 'remnant-auto');
   st.armies = st.armies.filter((a) => a.id !== 'remnant-kept');
 
+  reseed(1003);
   // 3. The claim list is the whole border; the prompt keeps its short hand.
   const border = new Set();
   for (const l of owned()) for (const n of l.neighbors) { const c = st.lands.find((x) => x.id === n); if (c && c.ownerId !== 'dai-viet') border.add(n); }
@@ -614,6 +630,7 @@ const orders = await page.evaluate(async () => {
   const listIsBorder = all.length === border.size && all.every((t) => border.has(t.landId));
   const promptCapped = CQ.buildConquestTargets(st).length <= 4;
 
+  reseed(1004);
   // 4. An attack order on empty wilderness takes it and settles into defend.
   const wild = st.lands.find((l) => l.ownerId === 'neutral' && !l.hasVillage && home.neighbors.includes(l.id));
   let attackTook = !wild; // vacuous if this seed has no adjacent wilderness
@@ -623,6 +640,7 @@ const orders = await page.evaluate(async () => {
     attackTook = wild.ownerId === 'dai-viet' && royal.orders?.kind === 'defend';
   }
 
+  reseed(1005);
   // 4b. An attack order on a walled village opens an assault the player watches.
   const village = st.lands.find((l) => l.ownerId !== 'dai-viet' && l.hasVillage && owned().some((o) => o.neighbors.includes(l.id)));
   let assaultWatched = !village;
@@ -642,6 +660,7 @@ const orders = await page.evaluate(async () => {
     royal.orders = undefined;
   }
 
+  reseed(1006);
   // 5. Recall breaks a siege and walks home.
   const rivalLand = st.lands.find((l) => l.ownerId !== 'dai-viet' && l.ownerId !== 'neutral' && owned().some((o) => o.neighbors.includes(l.id)));
   let recallOk = !rivalLand;
@@ -653,6 +672,7 @@ const orders = await page.evaluate(async () => {
     recallOk = r.ok && !st.siegeOrders.some((o) => o.armyId === royal.id) && royal.landId === from.id && royal.orders?.kind === 'defend';
   }
 
+  reseed(1007);
   // 6. Resupply reaches below the autopilot's reserve.
   st.resources.food = 30; st.resources.supplies = 30;
   royal.rations = 0; royal.provisions = 0;
@@ -661,6 +681,7 @@ const orders = await page.evaluate(async () => {
   const rs = SO.resupplyHost(st, royal.id);
   const resupplyDipped = rs.ok && rs.food > 0 && royal.rations > 0;
 
+  reseed(1008);
   // 7. Relief never pulls a commanded host off another province.
   const nb = home.neighbors.map((id) => st.lands.find((l) => l.id === id)).find((l) => l && l.ownerId === 'dai-viet' && l.id !== home.id);
   let reliefRespects = !nb;
@@ -677,6 +698,7 @@ const orders = await page.evaluate(async () => {
     st.movementOrders = st.movementOrders.filter((o) => o.armyId !== 'held' && o.armyId !== 'free');
   }
 
+  reseed(1009);
   // 8. A muster carries its order and commander through to the host.
   const cmd = st.heroes.find((h) => !h.assignedTo) ?? st.heroes[0];
   if (cmd) { cmd.assignedTo = undefined; }

@@ -704,10 +704,59 @@ export const BATTLE_BREAK_SHARE = 0.35;
  * faster, so it eats far less incoming fire (`BATTLE_CHARGE_COVER`), and it lifts morale on
  * contact. Hold's case is the better trade *if* you out-shoot them or are waiting on the reserve.
  */
-export const BATTLE_CHARGE_TRADE = { dealt: 1.2, taken: 1.1 };
-export const BATTLE_HOLD_TRADE = { dealt: 0.85, taken: 0.78 };
+export const BATTLE_CHARGE_TRADE = { dealt: 1.12, taken: 1.42 };
+export const BATTLE_HOLD_TRADE = { dealt: 0.78, taken: 0.58 };
+/**
+ * Loosing: keep the range open and shoot instead of closing.
+ *
+ * The archery phase promoted from an opening into a stance you can hold. Its melee trade is the
+ * worst of the three because a host still shooting when the lines meet is a host that has not set
+ * itself — it pays for the volleys it got in on the way.
+ */
+export const BATTLE_LOOSE_TRADE = { dealt: 0.82, taken: 0.86 };
+/**
+ * What countering is worth.
+ *
+ * Charge beats loose (it closes before the volleys tell), loose beats brace (a wall that stands
+ * still is shot to pieces), brace beats charge (braced spears break a rush).
+ *
+ * A lever, not a verdict. Naive rock-paper-scissors against a reactive opponent degenerates into
+ * a coin flip — you guess, they guess, and skill goes to zero. Three things keep this a read:
+ * `enemyPosture` is deterministic and telegraphed, personality is stable across a run and so
+ * learnable, and the multiplier is small enough that being wrong is a setback rather than the
+ * end of the fight.
+ */
+export const BATTLE_POSTURE_COUNTER = { dealt: 1.16, taken: 0.92 };
+/**
+ * Heart a countered host loses each beat, on top of the trade.
+ *
+ * Without this the ring could not decide a fight. Measured with the trade multiplier alone,
+ * charge beat every doctrine — 76.7% / 71.1% / 53.3% against bracing's 34.4% / 5.6% / 4.4% —
+ * because a fight is won by *breaking* the enemy inside the round budget, and charging is the
+ * only stance fast enough to do it. Trading more efficiently just ran out the clock.
+ *
+ * Countering therefore has to cost the other side their nerve, not only their men. It is also
+ * the truer reading: a charge stopped dead by braced spears does not lose a careful exchange,
+ * it recoils.
+ */
+export const BATTLE_COUNTER_MORALE = 0.7;
+/**
+ * What a host gives up on the beat it changes stance.
+ *
+ * Without this the ring is not a decision, it is arithmetic. `enemyPosture` is deterministic and
+ * `battleTelegraph` shows it honestly, so a player who simply answers the telegraph every beat
+ * counters every single exchange — measured, that won 100% of fights, which is not a game.
+ *
+ * Re-forming a line costs something. Braced spears cannot become a charge without first standing
+ * up, and a host in the middle of loosing cannot brace on the same breath. So switching is worth
+ * doing when the read is worth it, and holding a stance through a bad beat is sometimes the
+ * better answer — which is the whole difference between reading a fight and reacting to it.
+ */
+export const BATTLE_REFORM_COST = 0.62;
+/** How much a loosing host multiplies its volley by, against a host that is closing. */
+export const BATTLE_LOOSE_VOLLEY = 1.6;
 /** Share of incoming arrows a charging host avoids by closing the distance quickly. */
-export const BATTLE_CHARGE_COVER = 0.4;
+export const BATTLE_CHARGE_COVER = 0.6;
 /** Morale a charge, or fresh troops arriving, puts into the line. */
 export const BATTLE_CHARGE_MORALE = 9;
 
@@ -717,7 +766,7 @@ export const BATTLE_CHARGE_MORALE = 9;
  * multiplies by `morale / 100`, so this is what turns a bad exchange into a collapse rather
  * than a slow, even grind.
  */
-export const BATTLE_MORALE_PER_LOSS = 105;
+export const BATTLE_MORALE_PER_LOSS = 74;
 /** Morale recovered by the side that won an exchange. */
 export const BATTLE_MORALE_WIN_GAIN = 0.7;
 /** Below this a host breaks and the engagement ends in a rout. */

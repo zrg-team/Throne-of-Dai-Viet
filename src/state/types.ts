@@ -1324,7 +1324,19 @@ export type AscentDoctrine = 'fortify' | 'expand' | 'enrich' | 'arm';
 export type AscentPromptKind = AscentPrompt['kind'];
 
 /** How a host is fighting this exchange. A trade, not a strictly-better setting. */
-export type BattlePosture = 'press' | 'hold';
+/**
+ * The three stances, as a cycle rather than a scale.
+ *
+ * Two options could never be a real choice: `press` and `hold` had the same exchange ratio to
+ * three decimals (1.20/1.10 against 0.85/0.78), so pressing was simply the same trade delivered
+ * faster — measured, it won 60% of contested fights against holding's 10%.
+ *
+ * Three can be, and structurally rather than by tuning: charge closes before the volleys tell,
+ * loose shoots a line that stands still, and a braced line breaks a charge. A three-cycle cannot
+ * have a dominant option, so the constants decide how much the counter is *worth* rather than
+ * whether a choice exists at all.
+ */
+export type BattlePosture = 'press' | 'hold' | 'loose';
 
 /** A field engagement in progress, exchange by exchange. */
 export interface AscentBattle {
@@ -1339,6 +1351,12 @@ export interface AscentBattle {
   posture: BattlePosture;
   /** What the invader is doing this beat, from its doctrine. */
   theirPosture: BattlePosture;
+  /**
+   * What each side was doing on the previous beat, so a change of footing can be charged for.
+   * See `BATTLE_REFORM_COST` — without it, answering the telegraph every beat wins every fight.
+   */
+  lastPosture?: BattlePosture;
+  lastTheirPosture?: BattlePosture;
   /** Hosts that have broken and left the line, either side. */
   brokenHostIds: string[];
   /** Men of ours lost so far, so an orderly withdrawal can recover its stragglers. */
@@ -1371,6 +1389,12 @@ export interface AscentBattle {
   rallyPower: number;
   /** Defensive multiplier of the ground being fought over (`terrainDefenseMultiplier`). */
   terrainEdge: number;
+  /**
+   * How each side's arms meet the other's, from `compositionMatchup`. Written every beat so the
+   * screen can state it in words rather than leaving the player to infer it from two bar charts.
+   */
+  ourMatchup?: number;
+  theirMatchup?: number;
   outcome: 'fighting' | 'they-rout' | 'we-rout' | 'spent';
   /** Headcounts at the outset, so the strength bars have a denominator. */
   ourStart: number;

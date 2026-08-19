@@ -115,6 +115,10 @@ const out = await page.evaluate(async (fights) => {
     const generalMartial = policy.startsWith('general-') ? Number(policy.slice(8)) : 0;
 
     if (policy === 'always-charge') B.setBattlePosture(st, 'press');
+    if (policy === 'always-loose') B.setBattlePosture(st, 'loose');
+    // Reads the enemy's telegraphed stance and answers with the one that beats it. If this does
+    // not beat every fixed stance, the ring is decoration.
+    const counterOf = { press: 'hold', hold: 'loose', loose: 'press' };
     let guard = 0;
     while (!b.over && guard++ < 400) {
       // Fixed one-shot timings, to prove no single moment is always right.
@@ -141,27 +145,36 @@ const out = await page.evaluate(async (fights) => {
         const theirs = st.armies.find((a) => a.id === 'lab-them');
         const met = b.ourAdvance + b.theirAdvance >= 1;
         if (readsIt(generalMartial, guard, sc)) {
-          if (!met) B.setBattlePosture(st, theirs.units.archers > ours.units.archers ? 'press' : 'hold');
-          else {
+          const next = B.battleTelegraph(st);
+          if (next) B.setBattlePosture(st, counterOf[next]);
+          if (met) {
             if (!b.reserveSpent) B.commitReserve(st);
             else if (!b.rallySpent && b.ourMorale < CFG.BATTLE_ROUT_MORALE + 12) B.rally(st);
-            B.setBattlePosture(st, b.ourMorale > b.theirMorale ? 'press' : 'hold');
           }
         } else {
           B.setBattlePosture(st, 'hold');
+        }
+      }
+      if (policy === 'counter-ring') {
+        const next = B.battleTelegraph(st);
+        if (next) B.setBattlePosture(st, counterOf[next]);
+        if (b.ourAdvance + b.theirAdvance >= 1) {
+          if (!b.reserveSpent) B.commitReserve(st);
+          else if (!b.rallySpent && b.ourMorale < CFG.BATTLE_ROUT_MORALE + 12) B.rally(st);
         }
       }
       if (policy === 'adaptive') {
         const ours = st.armies.find((a) => a.id === 'lab-us');
         const theirs = st.armies.find((a) => a.id === 'lab-them');
         const met = b.ourAdvance + b.theirAdvance >= 1;
-        // Out-shot on the approach? Close the distance. Otherwise stand and shoot.
-        if (!met) B.setBattlePosture(st, theirs.units.archers > ours.units.archers ? 'press' : 'hold');
-        else {
-          // Commit at contact, and rally when the line is about to go.
+        // Playing well now means reading the ring: answer the stance they have telegraphed, and
+        // spend the one-shots at contact. A two-stance heuristic cannot represent good play any more.
+        const next = B.battleTelegraph(st);
+        if (next) B.setBattlePosture(st, counterOf[next]);
+        else if (!met) B.setBattlePosture(st, theirs.units.archers > ours.units.archers ? 'press' : 'loose');
+        if (met) {
           if (!b.reserveSpent) B.commitReserve(st);
           else if (!b.rallySpent && b.ourMorale < CFG.BATTLE_ROUT_MORALE + 12) B.rally(st);
-          B.setBattlePosture(st, b.ourMorale > b.theirMorale ? 'press' : 'hold');
         }
       }
       B.fightRound(st);
@@ -197,12 +210,12 @@ const out = await page.evaluate(async (fights) => {
     };
   };
 
-  const policies = ['auto', 'always-hold', 'always-charge',
+  const policies = ['auto', 'always-hold', 'always-loose', 'always-charge',
     'reserve-at-contact', 'reserve-at-half', 'retreat-in-time', 'adaptive',
     // Handing the fight to the host's general. Delegation must be viable and worse: if a great
     // commander is as good as playing, the screen has no reason to exist; if he is hopeless,
     // the appointment system has none.
-    'general-30', 'general-60', 'general-90'];
+    'counter-ring', 'general-30', 'general-60', 'general-90'];
   const results = {};
   for (const policy of policies) {
     const rows = scenarios.map((sc) => run(sc, policy)).filter(Boolean);
@@ -234,6 +247,25 @@ const out = await page.evaluate(async (fights) => {
     return rows.reduce((sum, r) => sum + r.ourLeftShare, 0) / rows.length;
   };
 
+  // Each fixed stance against each doctrine.
+  //
+  // "No stance dominates" cannot be measured against a single opponent: the lab's default enemy
+  // is aggressive and therefore always charges, so loosing is always countered and scores zero
+  // no matter how it is tuned. A ring is non-dominant when each stance is the best answer to
+  // *something* — which is a grid, not a number.
+  const kingdomForGrid = st.kingdoms.find((k) => k.id === 'northern-rival');
+  const originalForGrid = kingdomForGrid.personality;
+  const grid = {};
+  for (const personality of ['aggressive', 'defensive', 'economic']) {
+    kingdomForGrid.personality = personality;
+    grid[personality] = {};
+    for (const stance of ['always-hold', 'always-loose', 'always-charge']) {
+      const rows = scenarios.slice(0, 90).map((sc) => run(sc, stance)).filter(Boolean);
+      grid[personality][stance] = rows.filter((r) => r.won).length / rows.length;
+    }
+  }
+  kingdomForGrid.personality = originalForGrid;
+
   // The same fight against different opponents. If these do not differ, the doctrine layer is
   // decoration.
   const kingdom = st.kingdoms.find((k) => k.id === 'northern-rival');
@@ -248,6 +280,7 @@ const out = await page.evaluate(async (fights) => {
 
   return {
     results,
+    grid,
     byDoctrine,
     archerHeavyWins: compo(0.5, 0.12),
     archerLightWins: compo(0.12, 0.5),
@@ -272,7 +305,8 @@ for (const [name, r] of Object.entries(R)) {
 }
 
 const edge = R.adaptive.winRate - R.auto.winRate;
-const bestFixed = Math.max(R['always-hold'].winRate, R['always-charge'].winRate);
+const bestFixed = Math.max(R['always-hold'].winRate, R['always-loose'].winRate, R['always-charge'].winRate);
+const worstFixed = Math.min(R['always-hold'].winRate, R['always-loose'].winRate, R['always-charge'].winRate);
 // How long a fight actually takes, and how much of it anyone can see.
 //
 // This used to be `beats x BATTLE_TICK_MS`, which is the screen's *poll* rate — a clock nothing
@@ -288,8 +322,24 @@ console.log('\n── TARGETS ──');
 const line = (ok, label, detail) => console.log(`${ok ? 'PASS' : 'FAIL'}  ${label.padEnd(46)} ${detail}`);
 line(edge >= 0.15, 'playing beats skipping (adaptive - auto >= 15pt)', `${(edge * 100).toFixed(1)} pts`);
 line(R.adaptive.winRate >= bestFixed, 'no single order beats playing well', `adaptive ${pct(R.adaptive.winRate)} vs best fixed ${pct(bestFixed)}`);
-line(Math.abs(R['always-hold'].winRate - R['always-charge'].winRate) <= 0.2,
-  'neither order dominates the other', `hold ${pct(R['always-hold'].winRate)} / charge ${pct(R['always-charge'].winRate)}`);
+console.log('\n-- THE RING, against each doctrine --');
+console.log('doctrine        brace    loose   charge   best');
+const stanceNames = { 'always-hold': 'brace', 'always-loose': 'loose', 'always-charge': 'charge' };
+const winners = [];
+for (const [personality, row] of Object.entries(out.grid)) {
+  const best = Object.entries(row).sort((x, y) => y[1] - x[1])[0];
+  winners.push(stanceNames[best[0]]);
+  console.log(
+    `${personality.padEnd(14)} ${pct(row['always-hold']).padStart(6)} ${pct(row['always-loose']).padStart(8)} `
+    + `${pct(row['always-charge']).padStart(8)}   ${stanceNames[best[0]]}`);
+}
+const distinctWinners = new Set(winners).size;
+line(distinctWinners >= 2, 'no one stance is the answer to every doctrine',
+  `${winners.join(', ')} — ${distinctWinners} distinct`);
+line(bestFixed - worstFixed <= 0.45, 'every stance is worth taking somewhere',
+  `brace ${pct(R['always-hold'].winRate)} / loose ${pct(R['always-loose'].winRate)} / charge ${pct(R['always-charge'].winRate)}`);
+line(R['counter-ring'].winRate - bestFixed >= 0.12, 'reading them beats any fixed stance by 12pts+',
+  `${((R['counter-ring'].winRate - bestFixed) * 100).toFixed(1)} pts over best fixed`);
 line(R.adaptive.routRate >= 0.25 && R.adaptive.routRate <= 0.5, 'routs in 25-50% of fights', pct(R.adaptive.routRate));
 line(seconds >= 18 && seconds <= 32, 'a fight lasts 18-32s', `${seconds.toFixed(1)}s`);
 line(stepsBuffered >= 28 && stepsBuffered <= 45, 'the beat buffer would show 28-45 steps',

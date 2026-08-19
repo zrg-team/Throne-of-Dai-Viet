@@ -28,6 +28,7 @@ import { envoyOptionDetail } from '../systems/ascent/EnvoySystem';
 import { realmStanding } from '../systems/ascent/RivalDirector';
 import { ourHosts, theirHosts } from '../systems/ascent/BattleSystem';
 import { BATTLE_BEATS_PER_TICK, BATTLE_ROUT_MORALE, BATTLE_TICK_MS, TRIBUTE_REFUSE_TICKS } from '../game/ascentConfig';
+import { battleTelegraph, posturesCounter } from '../systems/ascent/BattleSystem';
 import { ALL_COURT_POSITIONS, assignHeroToLand, getCourtPositionLabel } from '../systems/CourtSystem';
 import {
   ascentArmyUpkeep,
@@ -116,6 +117,7 @@ import type {
   AscentPrompt,
   AscentRarity,
   BattleBeat,
+  BattlePosture,
   ConquestMethodOption,
   ConquestTarget,
   CourtPositionId,
@@ -4603,6 +4605,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const reserveMen = battle.reserve.spearmen + battle.reserve.archers + battle.reserve.heavyInfantry;
     return [
       battle.posture,
+      // The ring's labels change when the enemy's next stance does, so the dock has to be
+      // rebuilt for it — otherwise "counters them" stays printed under a stance that no longer does.
+      battleTelegraph(this.state) ?? '',
       battle.focusHostId ?? '',
       battle.reserveSpent ? 'r1' : 'r0',
       battle.rallySpent ? 'y1' : 'y0',
@@ -4747,11 +4752,35 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     heart(content.x + 12, frame.ourMorale);
     heart(content.x + barW + 24, frame.theirMorale);
 
+    // What they are about to do, and how the two hosts' arms meet. Both are read off the same
+    // functions the fight uses, so neither can tell the player something the beat then contradicts.
+    const telegraph = battleTelegraph(this.state);
+    const notes: Array<{ text: string; colour: string }> = [];
+    if (telegraph) {
+      notes.push({
+        text: t(`ascent.battle.theyWill.${telegraph}` as Parameters<typeof t>[0], { kingdom: battle.kingdomName }),
+        colour: '#8a2a1b',
+      });
+    }
+    const arms = battle.ourMatchup ?? 1;
+    if (Math.abs(arms - 1) > 0.03) {
+      notes.push({
+        text: arms > 1 ? t('ascent.battle.armsGood') : t('ascent.battle.armsBad'),
+        colour: arms > 1 ? '#4c5f45' : '#8a2a1b',
+      });
+    }
+    notes.forEach((note, index) => {
+      readout.add(this.ui.label(
+        content.x + content.width / 2, readoutY + BATTLE_RAILS_HEIGHT + 2 + index * 13, note.text, 'caption',
+        { fontSize: '10px', align: 'center', color: note.colour, wordWrap: { width: content.width - 20 } },
+      ).setOrigin(0.5, 0));
+    });
+
     // The ground's edge, computed since the day the screen shipped and printed nowhere. A player
     // deciding whether to intercept on high ground could not see what it bought them.
     if (battle.terrainEdge > 1.01) {
       readout.add(this.ui.label(
-        content.x + content.width / 2, readoutY + BATTLE_RAILS_HEIGHT + 2,
+        content.x + content.width / 2, readoutY + BATTLE_RAILS_HEIGHT + 2 + notes.length * 13,
         t('ascent.battle.terrain', { mult: battle.terrainEdge.toFixed(2) }), 'caption',
         { fontSize: '10px', align: 'center' },
       ).setOrigin(0.5, 0));
@@ -4791,26 +4820,39 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
 
     const dockY = content.y + BATTLE_PIPS_HEIGHT + ui.fieldHeight + 8 + BATTLE_RAILS_HEIGHT + 16;
     const offence = battle.role === 'offence';
-    const pressing = battle.posture === 'press';
 
-    // ── the posture row ──────────────────────────────────────────────────
-    // A segmented pair rather than two cards: they are one decision with two answers, and
-    // stacking them as separate rows made them read as two unrelated things to press.
-    const segW = (content.width - 8) / 2;
-    const segH = 46;
-    const stance = (index: number, id: 'press' | 'hold', selected: boolean): void => {
-      const x = content.x + index * (segW + 8);
+    // ── the stance ring ──────────────────────────────────────────────────
+    //
+    // Three, because two could never be a real choice: press and hold had the same exchange
+    // ratio to three decimals, so pressing was the same trade delivered faster. Charge beats
+    // loose, loose beats brace, brace beats charge — a cycle cannot have a dominant option.
+    //
+    // The one the enemy is about to take is marked, and the one that counters it is marked
+    // differently. That is the whole game of the ring: read them, then answer.
+    const telegraph = battleTelegraph(this.state);
+    const segW = (content.width - 12) / 3;
+    const segH = 50;
+    const stance = (index: number, id: BattlePosture, selected: boolean): void => {
+      const x = content.x + index * (segW + 6);
       const bounds = { x, y: dockY, width: segW, height: segH };
       const tile = this.ui.crayonTile(bounds, { selected });
       orders.add(tile);
-      const key = offence ? `${id}Off` : id;
+      const key = offence && id !== 'loose' ? `${id}Off` : id;
       const cinnabar = `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`;
-      orders.add(this.ui.label(x + segW / 2, dockY + 8, t(`ascent.battle.${key}` as Parameters<typeof t>[0]), 'label', {
-        fontSize: '13px', align: 'center',
+      orders.add(this.ui.label(x + segW / 2, dockY + 7, t(`ascent.battle.${key}` as Parameters<typeof t>[0]), 'label', {
+        fontSize: '12px', align: 'center', wordWrap: { width: segW - 6 },
         color: selected ? cinnabar : INK_UI_HEX.inkText,
       }).setOrigin(0.5, 0));
-      orders.add(this.ui.label(x + segW / 2, dockY + 26, t(`ascent.battle.${key}Short` as Parameters<typeof t>[0]), 'caption', {
-        fontSize: '10px', align: 'center', color: INK_UI_HEX.mutedText,
+      // Beats what they are about to do, or loses to it. Stated rather than left to be inferred
+      // from a diagram the player has never seen.
+      const beatsThem = telegraph !== undefined && posturesCounter(id, telegraph);
+      const losesToThem = telegraph !== undefined && posturesCounter(telegraph, id);
+      const verdict = beatsThem ? t('ascent.battle.counters')
+        : losesToThem ? t('ascent.battle.countered')
+          : t(`ascent.battle.${key}Short` as Parameters<typeof t>[0]);
+      orders.add(this.ui.label(x + segW / 2, dockY + 28, verdict, 'caption', {
+        fontSize: '9.5px', align: 'center', wordWrap: { width: segW - 6 },
+        color: beatsThem ? '#4c5f45' : losesToThem ? '#8a2a1b' : INK_UI_HEX.mutedText,
       }).setOrigin(0.5, 0));
       const hit = this.add.zone(x, dockY, segW, segH).setOrigin(0, 0).setInteractive({ useHandCursor: true });
       hit.on('pointerup', () => {
@@ -4820,8 +4862,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       });
       orders.add(hit);
     };
-    stance(0, 'hold', !pressing);
-    stance(1, 'press', pressing);
+    stance(0, 'hold', battle.posture === 'hold');
+    stance(1, 'loose', battle.posture === 'loose');
+    stance(2, 'press', battle.posture === 'press');
 
     // ── the four buttons ─────────────────────────────────────────────────
     const rowY = dockY + segH + 8;
