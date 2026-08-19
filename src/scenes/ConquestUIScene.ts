@@ -28,7 +28,8 @@ import { envoyOptionDetail } from '../systems/ascent/EnvoySystem';
 import { realmStanding } from '../systems/ascent/RivalDirector';
 import { ourHosts, theirHosts } from '../systems/ascent/BattleSystem';
 import {
-  ASCENT_TICK_MS, BATTLE_BEATS_PER_TICK, BATTLE_ROUT_MORALE, BATTLE_TICK_MS, TRIBUTE_REFUSE_TICKS,
+  ASCENT_TICK_MS, BATTLE_BEATS_PER_TICK, BATTLE_HIT_STOP_MS, BATTLE_ROUT_MORALE, BATTLE_TICK_MS,
+  TRIBUTE_REFUSE_TICKS,
 } from '../game/ascentConfig';
 import { battleTelegraph, posturesCounter } from '../systems/ascent/BattleSystem';
 import { ALL_COURT_POSITIONS, assignHeroToLand, getCourtPositionLabel } from '../systems/CourtSystem';
@@ -81,6 +82,7 @@ import { arrivalPreview } from '../data/heroArrivals';
 import { isVassal } from '../systems/ascent/VassalSystem';
 import { designLength } from '../game/graphicsQuality';
 import { sawtoothBand, seal } from '../ui/ink/devices';
+import { faceTravel } from '../ui/ink/life';
 import { playArrivalFanfare } from '../ui/ascent/arrivalFanfare';
 import { THRONE_HALL_HEIGHT, throneHallDiorama } from '../ui/ascent/throneHall';
 import { CARD_STACK_PEEK, CardStack } from '../ui/ascent/CardStack';
@@ -267,6 +269,8 @@ interface BattleMarker {
   hostId: string;
   marker: Phaser.GameObjects.Container;
   count?: Phaser.GameObjects.Text;
+  /** The host broke and is running. It has left the line and the line stops moving it. */
+  routed?: boolean;
   /**
    * Figures the block was last drawn with — `men / MEN_PER_MARK`.
    *
@@ -672,6 +676,8 @@ export class ConquestUIScene extends Phaser.Scene {
     fieldSignature: string;
     /** Identity of what the order cards offer, so a spent one-shot greys out. */
     orderSignature: string;
+    /** Whether the lines have met yet, so the hit-stop fires on the first contact only. */
+    hadContact?: boolean;
     /** Marker plus the host it stands for, so its strength can be re-stamped as men fall. */
     ourMarkers: BattleMarker[];
     theirMarkers: BattleMarker[];
@@ -5636,7 +5642,83 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     if (ui.shown) {
       this.spawnBattleFloaters(ui.shown);
       this.layFallen(ui.shown);
+      this.reactToBeat(ui.shown);
     }
+  }
+
+  /**
+   * The two moments in a fight that are worth interrupting the rhythm for.
+   *
+   * `BattleBeat.broke` has been recorded since the buffer was written — its own doc comment calls
+   * it "the moment worth a shake" — and nothing has ever read it. Contact was the same: the beat
+   * where two lines meet arrived at exactly the cadence of the beat before it and the one after,
+   * so the most violent thing on the screen was also the least remarkable.
+   *
+   * A hit-stop is the cheapest way to say *that mattered*: the clock holds for a fraction of a beat
+   * and the picture sits still. It reads as weight rather than as a stutter because it happens only
+   * on contact and on a break — measured across a fight, three or four times, never twice in a row.
+   */
+  private reactToBeat(beat: BattleBeat): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+
+    const met = beat.ourAdvance + beat.theirAdvance >= 1;
+    const firstContact = met && !ui.hadContact;
+    if (firstContact) ui.hadContact = true;
+
+    const broke = beat.broke ?? [];
+    if (broke.length > 0) {
+      // A line breaking shakes the field, not the whole screen: the rails and the dock have to stay
+      // readable, and a player reaching for Rally at exactly this moment should not have the button
+      // move under their thumb.
+      this.tweens.add({
+        targets: [ui.field, ui.floaters],
+        x: { from: -3, to: 0 },
+        duration: 220,
+        ease: 'Elastic.easeOut',
+      });
+      // And the hosts that broke turn away and run off their own edge.
+      for (const id of broke) this.routMarker(id);
+    }
+
+    if (firstContact || broke.length > 0) this.holdBattleClock(BATTLE_HIT_STOP_MS);
+  }
+
+  /** Holds the beat clock for a moment without losing its cadence afterwards. */
+  private holdBattleClock(ms: number): void {
+    const clock = this.battleClock;
+    if (!clock || clock.paused) return;
+    clock.paused = true;
+    this.time.delayedCall(ms, () => {
+      if (this.battleClock === clock) clock.paused = false;
+    });
+  }
+
+  /**
+   * A host that broke turns and runs off its own side of the field.
+   *
+   * Never `setScale(-1, 1)`: these markers are baked props with a declared native facing, and
+   * flipping one directly mirrors whatever it was drawn from. `faceTravel` asks the object which
+   * way it was drawn and works out the sign from that.
+   */
+  private routMarker(hostId: string): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+    const ours = ui.ourMarkers.find((m) => m.hostId === hostId);
+    const marker = ours ?? ui.theirMarkers.find((m) => m.hostId === hostId);
+    if (!marker?.marker?.active) return;
+    // Ours run left, theirs run right: each side flees the way it came.
+    const direction: -1 | 1 = ours ? -1 : 1;
+    marker.routed = true;
+    this.tweens.killTweensOf(marker.marker);
+    faceTravel(marker.marker, direction);
+    this.tweens.add({
+      targets: marker.marker,
+      x: marker.marker.x + direction * (ui.geometry.span * 0.6 + 60),
+      alpha: { from: 1, to: 0 },
+      duration: BATTLE_TICK_MS * 2,
+      ease: 'Quad.easeIn',
+    });
   }
 
   /**
@@ -5655,6 +5737,11 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     for (const entry of markers) {
       const { hostId, marker, count } = entry;
       if (!marker.active) continue;
+      // A host that broke is no longer part of the line. Without this, `slideMarkers` dragged it
+      // back into formation every beat and killed the tween carrying it off the field — measured,
+      // the runner got forty pixels and never faded, because the rout and the formation were both
+      // writing the same `x` and the formation won.
+      if (entry.routed) continue;
       const size = sizes.get(hostId);
       if (count?.active && size !== undefined) count.setText(compactNumber(size));
       // The ranks thin. One figure stands for `MEN_PER_MARK` men, so this fires about once per

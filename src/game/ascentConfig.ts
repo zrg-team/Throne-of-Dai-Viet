@@ -774,6 +774,13 @@ export const BATTLE_MOMENT_BONUS_BEATS = 4;
 export const BATTLE_LOOSE_VOLLEY = 1.6;
 /** Share of incoming arrows a charging host avoids by closing the distance quickly. */
 export const BATTLE_CHARGE_COVER = 0.6;
+/**
+ * How long the beat clock holds on contact and on a host breaking.
+ *
+ * Long enough to feel as weight, short enough that it never reads as a dropped frame — and it only
+ * fires three or four times in a whole fight, so it cannot become the rhythm itself.
+ */
+export const BATTLE_HIT_STOP_MS = 110;
 /** Morale a charge, or fresh troops arriving, puts into the line. */
 export const BATTLE_CHARGE_MORALE = 9;
 
