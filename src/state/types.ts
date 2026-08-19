@@ -1401,6 +1401,56 @@ export interface AscentBattle {
   approachBeats?: number;
   /** The host the reserve was held back from, so committing it (or returning it) refills that host. */
   reserveHostId?: string;
+  /**
+   * The fight as a queue of moments, oldest first — see `BattleBeat`.
+   *
+   * The simulation still runs `BATTLE_BEATS_PER_TICK` beats in one burst on the economy tick, and
+   * must keep doing so: it is deterministic, it is what every harness drives, and re-timing it
+   * would move the `Math.random` call order for every mode. What was missing is that the *screen*
+   * had no way to show a burst as anything but a jump, so an entire engagement arrived in four or
+   * five frozen steps with three and a half seconds of nothing between them.
+   *
+   * So the beats are recorded rather than re-timed. The view drains one per `BATTLE_TICK_MS` and
+   * animates between them; a headless run simply never drains, and nothing about the fight changes.
+   */
+  beats?: BattleBeat[];
+}
+
+/**
+ * One beat of a fight, as the screen needs to replay it.
+ *
+ * Deliberately a flat snapshot rather than a diff: the view can be opened, closed and reopened
+ * mid-engagement, and a queue of diffs would be meaningless to a screen that missed the first ten.
+ * Per-host figures are carried because the block is redrawn from them — a host's mark count comes
+ * from its own headcount, which is what makes the ranks thin as men fall.
+ */
+export interface BattleBeat {
+  /** Arrows still flying, or the lines already met. */
+  phase: 'approach' | 'clash';
+  /** Exchange number after this beat; the approach does not spend the round budget. */
+  round: number;
+  ourNow: number;
+  theirNow: number;
+  ourAdvance: number;
+  theirAdvance: number;
+  ourMorale: number;
+  theirMorale: number;
+  /** Men lost this beat, each side — the floaters, and the only per-beat delta the view needs. */
+  ourLoss: number;
+  theirLoss: number;
+  /** Every host on the field this beat, so the view can size and shade each column on its own. */
+  ourHosts: BattleBeatHost[];
+  theirHosts: BattleBeatHost[];
+  /** The line this beat added to `log`, if any. */
+  line?: string;
+  /** Hosts that broke on this beat, either side — the moment worth a shake. */
+  broke?: string[];
+}
+
+export interface BattleBeatHost {
+  id: string;
+  men: number;
+  morale: number;
 }
 
 /** One finished engagement, kept so the run can be read back — and measured. */

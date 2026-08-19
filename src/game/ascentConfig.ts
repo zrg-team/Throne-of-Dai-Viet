@@ -628,10 +628,22 @@ export const ENEMY_SPOT_RADIUS = 2;
  * Beats a small engagement runs; a large one runs up to the maximum. These are now real-time
  * beats a few per second, not turns — see `fightRound` and the view's clock.
  */
-export const BATTLE_BASE_ROUNDS = 14;
-export const BATTLE_MAX_ROUNDS = 22;
-/** Milliseconds between beats while the player is watching. */
-export const BATTLE_TICK_MS = 420;
+export const BATTLE_BASE_ROUNDS = 16;
+export const BATTLE_MAX_ROUNDS = 26;
+/**
+ * Milliseconds a single beat is held on screen.
+ *
+ * This is the *replay* clock, and until the beat buffer existed it was not a clock at all — it
+ * was a poll rate. `advanceBattle` resolves `BATTLE_BEATS_PER_TICK` beats in one burst on the
+ * economy tick, so the screen used to refresh six times against state that changed once, then
+ * sit on an unchanged picture for the rest of the 3.5s tick. A whole engagement arrived in four
+ * or five frozen steps.
+ *
+ * `fightRound` now records each beat (see `AscentBattle.beats`) and the view drains one per
+ * interval. Sized so a tick's worth plays out just inside the tick that produced it —
+ * 6 x 560 = 3.36s against ASCENT_TICK_MS of 3500 — leaving headroom rather than falling behind.
+ */
+export const BATTLE_TICK_MS = 560;
 /**
  * Beats resolved per economy tick.
  *

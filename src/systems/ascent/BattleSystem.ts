@@ -31,7 +31,9 @@ import { landGarrisonPower } from './PowerSystem';
 import { battleLine, enrolArrivals, hostHeadcount, ourHosts, theirHosts } from './battleMembership';
 import { isAutoHost } from './armyOrders';
 import { t } from '../../i18n';
-import type { Army, AscentBattle, BattlePosture, GameState, PendingBattle } from '../../state/types';
+import type {
+  Army, AscentBattle, BattleBeatHost, BattlePosture, GameState, PendingBattle,
+} from '../../state/types';
 
 // Re-exported so the screen and the harness keep one import for the fight's vocabulary.
 export { battleLine, isEngaged, ourHosts, theirHosts } from './battleMembership';
@@ -60,6 +62,57 @@ export { battleLine, isEngaged, ourHosts, theirHosts } from './battleMembership'
  */
 
 const totalUnits = hostHeadcount;
+
+/**
+ * How many beats the queue keeps before the oldest are dropped.
+ *
+ * A screen that is open drains this every `BATTLE_TICK_MS`, so it never fills. A headless run
+ * never drains at all, and a long engagement would otherwise grow an entry per beat forever —
+ * `verify-ascent` fights hundreds of them in one run.
+ */
+const BEAT_QUEUE_CAP = 64;
+
+/** A side's columns as the view needs them: who is standing, how many, and how steady. */
+function beatHosts(hosts: Army[]): BattleBeatHost[] {
+  return hosts.map((host) => ({ id: host.id, men: totalUnits(host), morale: Math.round(host.morale) }));
+}
+
+/**
+ * Writes down what this beat looked like, for a screen that will replay it later.
+ *
+ * Called at the end of every beat and nowhere else. It reads state and pushes an object — it
+ * never calls `Math.random`, so the simulation's RNG order is untouched and every mode's
+ * regression fingerprint holds.
+ */
+function recordBeat(
+  battle: AscentBattle,
+  phase: 'approach' | 'clash',
+  ours: Army[],
+  theirs: Army[],
+  ourLoss: number,
+  theirLoss: number,
+  line?: string,
+  broke?: string[],
+): void {
+  const beats = (battle.beats ??= []);
+  beats.push({
+    phase,
+    round: battle.round,
+    ourNow: battle.ourNow,
+    theirNow: battle.theirNow,
+    ourAdvance: battle.ourAdvance,
+    theirAdvance: battle.theirAdvance,
+    ourMorale: battle.ourMorale,
+    theirMorale: battle.theirMorale,
+    ourLoss: Math.round(ourLoss),
+    theirLoss: Math.round(theirLoss),
+    ourHosts: beatHosts(ours),
+    theirHosts: beatHosts(theirs),
+    line,
+    broke: broke && broke.length > 0 ? broke : undefined,
+  });
+  if (beats.length > BEAT_QUEUE_CAP) beats.splice(0, beats.length - BEAT_QUEUE_CAP);
+}
 
 /**
  * Whether this fight is worth stopping the game for: **a wave that reached ground we hold.**
@@ -555,9 +608,12 @@ export function fightRound(state: GameState): void {
 
     battle.ourNow = ours.reduce((total, host) => total + totalUnits(host), 0);
     battle.theirNow = theirs.reduce((total, host) => total + totalUnits(host), 0);
+    let volleyLine: string | undefined;
     if (ourLoss > 0 || theirLoss > 0) {
-      battle.log.push(t('ascent.battle.volley', { ours: ourLoss, theirs: theirLoss }));
+      volleyLine = t('ascent.battle.volley', { ours: ourLoss, theirs: theirLoss });
+      battle.log.push(volleyLine);
     }
+    recordBeat(battle, 'approach', ours, theirs, ourLoss, theirLoss, volleyLine);
     // Deliberately does not spend the round budget: the approach is the opening, not the fight.
     return;
   }
@@ -612,9 +668,11 @@ export function fightRound(state: GameState): void {
 
   // Hosts break one at a time. Losing a host is a setback, not the battle — which is what makes
   // bringing a second column worth the march, and what stops one bad exchange ending everything.
+  const brokeThisBeat: string[] = [];
   for (const host of [...ours, ...theirs]) {
     if (host.morale > BATTLE_ROUT_MORALE) continue;
     battle.brokenHostIds.push(host.id);
+    brokeThisBeat.push(host.id);
     battle.log.push(t('ascent.battle.hostBreaks', { name: host.name }));
     // A host that runs is cut down as it goes, exactly as a whole side is.
     bleed(host, BATTLE_ROUT_LOSS_SHARE);
@@ -624,7 +682,9 @@ export function fightRound(state: GameState): void {
   battle.round += 1;
   battle.ourNow = ours.reduce((total, host) => total + totalUnits(host), 0);
   battle.theirNow = theirs.reduce((total, host) => total + totalUnits(host), 0);
-  battle.log.push(t('ascent.battle.exchange', { round: battle.round, ours: ourLoss, theirs: theirLoss }));
+  const exchangeLine = t('ascent.battle.exchange', { round: battle.round, ours: ourLoss, theirs: theirLoss });
+  battle.log.push(exchangeLine);
+  recordBeat(battle, 'clash', ours, theirs, ourLoss, theirLoss, exchangeLine, brokeThisBeat);
 
   // ── Does anyone break? ───────────────────────────────────────────────────
   // A side is beaten when it has no host left in the line, not when its strongest wavers.
