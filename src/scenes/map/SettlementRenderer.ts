@@ -9,6 +9,8 @@ import type { HexCoord } from '../../map/hex';
 import type { GameState, Land } from '../../state/types';
 import type { MapItemRenderer } from '../../ui/MapItemRenderer';
 import { brushStroke } from '../../ui/inkTheme';
+import { figureEraFor } from '../../ui/ink/devices';
+import { setDrawnEra } from '../../ui/ink/settlements';
 import type { MapThemePalette } from '../../ui/mapTheme';
 
 export class SettlementRenderer {
@@ -94,6 +96,12 @@ export class SettlementRenderer {
    * Castles get a surrounding wall; markets/temples don't. Built improvements grow density.
    */
   createSettlementCluster(state: GameState, land: Land): Phaser.GameObjects.Container {
+    // The seat is built in the century the run has reached. `DongHoMapItemRenderer` passed the
+    // literal `'le'` to `citadel`, so the walls have been fifteenth-century in every mode since it
+    // was written while the host standing outside them advanced through four dynasties. This is the
+    // one place that holds both the state and the drawing, so this is where the era is set.
+    setDrawnEra(figureEraFor(state));
+
     const cluster = this.scene.add.container(0, 0);
     if (!land.hasVillage) {
       return cluster;

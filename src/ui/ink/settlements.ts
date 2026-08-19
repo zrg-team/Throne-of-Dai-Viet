@@ -18,6 +18,22 @@ type G = Phaser.GameObjects.Graphics;
 export type Era = 'ly' | 'tran' | 'le' | 'nguyen';
 
 /**
+ * The century the map is being drawn in.
+ *
+ * `citadel` has taken an era since it was written and the Đông Hồ renderer passed the literal
+ * `'le'` to it, so every seat in every mode has been stuck in the fifteenth century — the host
+ * outside the walls advanced through four dynasties while the walls themselves never moved.
+ *
+ * Held here rather than threaded through `addCityCluster`, which is four signatures deep in an
+ * interface three renderers implement and carries no state at all. `getActiveMapTheme()` is the
+ * same shape and the same reason. `SettlementRenderer` sets it from the run's own mandate as it
+ * builds each cluster, which is the one place that has both the state and the drawing.
+ */
+let drawnEraValue: Era = 'le';
+export function setDrawnEra(era: Era): void { drawnEraValue = era; }
+export function drawnEra(): Era { return drawnEraValue; }
+
+/**
  * One thing standing on the ground, and the line it stands on.
  *
  * The eye reads a scene bottom-up: what is lower on the sheet is nearer, and nearer things cover

@@ -8,7 +8,7 @@ import {
   drawHost, figure, hostFootprint, hostShapeAt, hostSpan, marchInPlace, seal, type HostKit,
 } from './ink/devices';
 import { drawFieldPlot } from './ink/settlements';
-import { citadel, GroundSpacer, hamlet, village } from './ink/settlements';
+import { citadel, drawnEra, GroundSpacer, hamlet, village } from './ink/settlements';
 import { hatchPoly, inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './ink/stroke';
 import { areca, bamboo, banyan, buffalo, farmer, groundShadow, hayStack, house, thap, tree } from './ink/props';
 import { grazeInSmallArea, livingSprite, setNativeFacing } from './ink/life';
@@ -277,7 +277,7 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
       for (const centre of sorted.slice(0, Math.min(3, sorted.length - 1))) {
         outlier(centre, 30, 22);
       }
-      parts.push({ y: anchor.y + 12, draw: (g) => citadel(g, anchor.x - 38 * GROUND_SCALE, anchor.y + 12, GROUND_SCALE, 'le', seed) });
+      parts.push({ y: anchor.y + 12, draw: (g) => citadel(g, anchor.x - 38 * GROUND_SCALE, anchor.y + 12, GROUND_SCALE, drawnEra(), seed) });
     }
 
     // The herd grazes at the edge of the settlement, where it actually lives — not scattered
