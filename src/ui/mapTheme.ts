@@ -140,10 +140,10 @@ export const DONG_HO_THEME: MapThemeDefinition = {
     ink: PIGMENT.muc,
     inkSoft: PIGMENT.mucSoft,
     terrain: {
-      plains: PIGMENT.giDongPale,
+      plains: PIGMENT.tramPale,
       fields: PIGMENT.hoePale,
-      riceFields: PIGMENT.giDongPale,
-      forest: PIGMENT.giDong,
+      riceFields: PIGMENT.tramPale,
+      forest: PIGMENT.tram,
       mountains: PIGMENT.diepLo,
       hills: PIGMENT.diepLo,
       water: PIGMENT.chamWash,
@@ -165,9 +165,9 @@ export const DONG_HO_THEME: MapThemeDefinition = {
     },
     mapObjects: {
       player: PIGMENT.son, rival: PIGMENT.mucSoft, selected: PIGMENT.hoe, stone: PIGMENT.diepLo,
-      forest: PIGMENT.giDong, roof: PIGMENT.nau, pagodaRoof: PIGMENT.mucSoft, wall: PIGMENT.diepHi,
+      forest: PIGMENT.tram, roof: PIGMENT.nau, pagodaRoof: PIGMENT.mucSoft, wall: PIGMENT.diepHi,
       pagodaWall: PIGMENT.diepHi, timber: PIGMENT.nauDark, market: PIGMENT.hoe,
-      foliageHighlight: PIGMENT.giDongPale, trunk: PIGMENT.nau,
+      foliageHighlight: PIGMENT.tramPale, trunk: PIGMENT.nau,
     },
   },
 };

@@ -35,7 +35,9 @@ function flagPigments(muted: boolean): FlagPigments {
     redBright: PIGMENT.sonDeep,
     cream: PIGMENT.diepHi,
     blue: PIGMENT.cham,
-    green: PIGMENT.giDong,
+    // Mộc, the wood element on the ngũ sắc, and the foliage on everything else. A leaf, not
+    // a patina.
+    green: PIGMENT.tram,
     ink: PIGMENT.muc,
   };
   if (!muted) {

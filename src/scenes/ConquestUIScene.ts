@@ -4916,7 +4916,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       const tx = skyX0 + (skyX1 - skyX0) * t;
       const ty = baseY + Math.sin(t * Math.PI * 1.7 + seed) * 2.5 + 1;
       const th = 3.5 + rand() * 5;
-      ground.fillStyle(PIGMENT.giDong, 0.16 + rand() * 0.14);
+      ground.fillStyle(PIGMENT.tram, 0.16 + rand() * 0.14);
       ground.fillEllipse(tx, ty - th * 0.55, 3.4 + rand() * 3.4, th);
     }
 

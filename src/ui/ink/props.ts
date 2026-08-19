@@ -902,7 +902,7 @@ export function farmer(g: G, x: number, y: number, scale: number, seed: number):
     inkPath(g, [at(1.4, -9.2), at(3.0, -3.4), at(3.2, -1.0)], seed + 4, {
       width: 0.8 * s, alpha: 0.85, colour: PIGMENT.muc, wobble: 0.04 * s, step: 4,
     });
-    g.fillStyle(PIGMENT.giDong, 0.9);
+    g.fillStyle(PIGMENT.tram, 0.9);
     for (let blade = 0; blade < 3; blade += 1) {
       const tip = at(2.5 + blade * 0.6, -1.4 - blade * 0.3);
       g.fillRect(tip.x, tip.y - 1.8 * s, 0.5 * s, 1.8 * s);
@@ -1529,7 +1529,7 @@ export function buffalo(g: G, x: number, y: number, scale: number, seed: number,
     const rr = 8.5 * s * (1 + 0.07 * Math.cos(t * Math.PI * 2 * 6));
     saddle.push({ x: x + 2 * s + Math.cos(angle) * rr, y: y - 19 * s + Math.sin(angle) * rr * 0.34 });
   }
-  printedShape(g, saddle, PIGMENT.giDong, seed + 30, { width: 0.6 * s, alpha: 0.6, wobble: 0.12 * s, step: 4, fillAlpha: 0.85 });
+  printedShape(g, saddle, PIGMENT.tram, seed + 30, { width: 0.6 * s, alpha: 0.6, wobble: 0.12 * s, step: 4, fillAlpha: 0.85 });
 
   // The boy is one readable body with two straddling legs. The old rider was a red bar, one leg
   // and a diamond around the head; at resting zoom those unrelated shapes did not resolve as a
@@ -1570,7 +1570,7 @@ export function buffalo(g: G, x: number, y: number, scale: number, seed: number,
   inkPath(
     g,
     [{ x: bx + 2.5 * s, y: by - 9.5 * s }, { x: bx + 4.4 * s, y: by - 13.5 * s }, { x: bx + 4.8 * s, y: by - 17.2 * s }],
-    seed + 39, { width: 0.7 * s, alpha: 0.8, colour: PIGMENT.giDong, wobble: 0.08 * s, step: 4 },
+    seed + 39, { width: 0.7 * s, alpha: 0.8, colour: PIGMENT.tram, wobble: 0.08 * s, step: 4 },
   );
   const shade: Pt[] = [];
   for (let index = 0; index <= 20; index += 1) {
@@ -1579,7 +1579,7 @@ export function buffalo(g: G, x: number, y: number, scale: number, seed: number,
     const rr = 7.4 * s * (1 + 0.08 * Math.cos(t * Math.PI * 2 * 7));
     shade.push({ x: bx + 4.8 * s + Math.cos(angle) * rr, y: by - 17.7 * s + Math.sin(angle) * rr * 0.4 });
   }
-  printedShape(g, shade, PIGMENT.giDong, seed + 41, { width: 0.7 * s, alpha: 0.75, wobble: 0.1 * s, step: 4, fillAlpha: 0.88 });
+  printedShape(g, shade, PIGMENT.tram, seed + 41, { width: 0.7 * s, alpha: 0.75, wobble: 0.1 * s, step: 4, fillAlpha: 0.88 });
   for (let vein = 0; vein < 5; vein += 1) {
     const angle = 3.36 + vein * 0.61;
     inkPath(

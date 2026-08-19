@@ -44,7 +44,7 @@ const HORIZON: Record<StoryBand, number> = {
  * rule the art direction hangs on is that sỏi son is spent on the player alone.
  */
 const WASH: Record<StoryBand, number> = {
-  court: PIGMENT.hoe, river: PIGMENT.cham, field: PIGMENT.giDong, coast: PIGMENT.cham,
+  court: PIGMENT.hoe, river: PIGMENT.cham, field: PIGMENT.tram, coast: PIGMENT.cham,
   mountain: PIGMENT.diepDeep, march: PIGMENT.nau, fire: PIGMENT.hoe,
   granary: PIGMENT.hoe, night: PIGMENT.cham, crowd: PIGMENT.hoePale,
   shrine: PIGMENT.giDong, border: PIGMENT.diepDeep,

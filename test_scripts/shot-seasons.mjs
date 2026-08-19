@@ -17,7 +17,9 @@ const OUT = 'test_scripts/shots';
 mkdirSync(OUT, { recursive: true });
 
 const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
-const URL = 'http://127.0.0.1:5173/?capture=1';
+// Port 5173 is regularly taken by another project on this machine, which is why every other
+// harness here reads DEV_URL. This one had it hardcoded and simply refused to connect.
+const URL = `${process.env.DEV_URL ?? 'http://127.0.0.1:5173'}/?capture=1`;
 
 const browser = await chromium.launch();
 

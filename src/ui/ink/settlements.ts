@@ -516,8 +516,8 @@ export function drawFieldPlot(g: G, plot: FieldPlot): void {
 
   const fill = flooded ? PIGMENT.chamWash
     : fallow ? PIGMENT.diepLo
-      : nursery ? PIGMENT.giDongPale
-        : ripe ? PIGMENT.hoePale : PIGMENT.giDongPale;
+      : nursery ? PIGMENT.tramPale
+        : ripe ? PIGMENT.hoePale : PIGMENT.tramPale;
   washFill(g, plot.points, fill, plot.seed, flooded ? 0.6 : fallow ? 0.5 : 0.78);
   inkPath(g, plot.points, plot.seed + 1, { width: 0.7, alpha: 0.52, wobble: 0.5, step: 12, closed: true });
 
@@ -561,13 +561,13 @@ export function drawFieldPlot(g: G, plot: FieldPlot): void {
     for (let column = 1; column < cols; column += 1) {
       const px = minX + ((maxX - minX) / cols) * column;
       inkPath(g, [{ x: px, y: minY + 1.5 }, { x: px, y: maxY - 1.5 }], plot.seed + 20 + column, {
-        width: 0.4, alpha: 0.34, colour: PIGMENT.giDong, wobble: 0.1, step: 6,
+        width: 0.4, alpha: 0.34, colour: PIGMENT.tram, wobble: 0.1, step: 6,
       });
     }
     for (let row = 1; row < rows; row += 1) {
       const py = minY + ((maxY - minY) / rows) * row;
       inkPath(g, [{ x: minX + 1.5, y: py }, { x: maxX - 1.5, y: py }], plot.seed + 40 + row, {
-        width: 0.4, alpha: 0.34, colour: PIGMENT.giDong, wobble: 0.1, step: 6,
+        width: 0.4, alpha: 0.34, colour: PIGMENT.tram, wobble: 0.1, step: 6,
       });
     }
     return;
