@@ -12,6 +12,7 @@ import { buildRoadCurve } from '../../map/roadCurve';
 import { findLand } from '../../systems/LandSystem';
 import { heroFaceTextureKey } from '../../ui/FaceRenderer';
 import type { GameState, Land } from '../../state/types';
+import { hostKitFor } from '../../ui/ink/devices';
 import type { MapItemRenderer } from '../../ui/MapItemRenderer';
 
 type WorldTransform = (value: number) => number;
@@ -126,7 +127,13 @@ export class ArmyRenderer {
       // Only rebuild the seal + 12-soldier formation (~40 objects + a looping bob
       // tween) when the troop count or owner actually changes. On a normal tick
       // these are unchanged, so we skip the destroy/recreate churn entirely.
-      const sig = `${total}|${isPlayer ? 1 : 0}|${kingdomColor ?? 0}|${flagSeed}`;
+      const kit = hostKitFor(state, army);
+      // The kit is part of what the marker *is*, so it belongs in the signature that decides
+      // whether to redraw one. Without it an era turning, or a host being re-equipped, would
+      // leave the old wardrobe on the map until the headcount happened to change.
+      const sig = `${total}|${isPlayer ? 1 : 0}|${kingdomColor ?? 0}|${flagSeed}`
+        + `|${kit.era}|${kit.tier}|${Math.round((kit.units?.archers ?? 0) / Math.max(1, total) * 8)}`
+        + `|${Math.round((kit.units?.heavyInfantry ?? 0) / Math.max(1, total) * 8)}`;
       if (this.contentSig.get(army.id) !== sig) {
         // Kill the old formation's looping tween before destroying its container,
         // otherwise it keeps ticking against a dead object (CPU leak).
@@ -134,7 +141,9 @@ export class ArmyRenderer {
         marker.removeAll(true);
         this.selectionFlags.delete(army.id);
         this.faceBadges.delete(army.id);
-        marker.add(this.mapItems.createArmyMarker(total, isPlayer, kingdomColor, flagSeed));
+        marker.add(this.mapItems.createArmyMarker(
+          total, isPlayer, kingdomColor, flagSeed, kit,
+        ));
         this.contentSig.set(army.id, sig);
       }
 

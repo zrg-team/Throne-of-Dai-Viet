@@ -85,6 +85,7 @@ import { playArrivalFanfare } from '../ui/ascent/arrivalFanfare';
 import { THRONE_HALL_HEIGHT, throneHallDiorama } from '../ui/ascent/throneHall';
 import { CARD_STACK_PEEK, CardStack } from '../ui/ascent/CardStack';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
+import { hostKitFor, hostShapeAt } from '../ui/ink/devices';
 import { CARD_ICON_SIZE, drawCardIcon, iconForOption, type CardIconId } from '../ui/CardIcons';
 import { ASCENT_HUD_HEIGHT, AscentHud } from '../ui/ascent/AscentHud';
 import { ActionBar } from '../ui/ActionBar';
@@ -245,6 +246,15 @@ interface BattleMarker {
   hostId: string;
   marker: Phaser.GameObjects.Container;
   count?: Phaser.GameObjects.Text;
+  /**
+   * Figures the block was last drawn with — `men / MEN_PER_MARK`.
+   *
+   * The block is redrawn when this changes and only then. `hostShapeAt` already sizes a host by
+   * its headcount, so the picture of an army shrinking was one recompute away and never made:
+   * `slideMarkers` re-stamped the number over the men and moved on, and a host ground down from
+   * 1,180 to 300 spent the whole fight drawing twenty-one ranks of men who were already dead.
+   */
+  marks?: number;
 }
 
 /** Men still standing in a host. */
@@ -4660,7 +4670,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const lane = (index: number, count: number): number => groundY + (index - (count - 1) / 2) * 32;
 
     ours.forEach((host, index) => {
-      const marker = this.battleItems!.createArmyMarker(hostSize(host), true, undefined, this.state.mapConfig.seed);
+      const marker = this.battleItems!.createArmyMarker(
+        hostSize(host), true, undefined, this.state.mapConfig.seed, hostKitFor(this.state, host),
+      );
       marker.setPosition(leftX + 30 + span * battle.ourAdvance, lane(index, ours.length));
       field.add(marker);
       ui.ourMarkers.push(this.trackMarker(host.id, marker));
@@ -4668,7 +4680,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
 
     theirs.forEach((host, index) => {
       const marker = this.battleItems!.createArmyMarker(
-        hostSize(host), false, rivalColor, Math.max(0, this.state.kingdoms.findIndex((k) => k.id === battle.kingdomId)),
+        hostSize(host), false, rivalColor,
+        Math.max(0, this.state.kingdoms.findIndex((k) => k.id === battle.kingdomId)),
+        hostKitFor(this.state, host),
       );
       marker.setPosition(rightX - 30 - span * battle.theirAdvance, lane(index, theirs.length));
       field.add(marker);
@@ -5139,10 +5153,20 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     shove: number,
     sizes: Map<string, number>,
   ): void {
-    for (const { hostId, marker, count } of markers) {
+    for (const entry of markers) {
+      const { hostId, marker, count } = entry;
       if (!marker.active) continue;
       const size = sizes.get(hostId);
       if (count?.active && size !== undefined) count.setText(compactNumber(size));
+      // The ranks thin. One figure stands for `MEN_PER_MARK` men, so this fires about once per
+      // fifty-five lost — twenty-odd redraws across a whole engagement, at ~21 `figure()` calls
+      // each. Cheap, exact, and it makes attrition the most legible thing on the screen without
+      // a single number being read.
+      if (size !== undefined) {
+        const marks = hostShapeAt(Math.max(1, size), 1).marks;
+        if (entry.marks !== undefined && marks !== entry.marks) this.redrawHostBlock(entry, size);
+        entry.marks = marks;
+      }
       // Previous beat's tween is abandoned rather than left to fight this one for the same x.
       this.tweens.killTweensOf(marker);
       if (shove === 0) {
@@ -5156,6 +5180,58 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
           { x, duration: BATTLE_TICK_MS * 0.32, ease: 'Sine.easeIn' },
         ],
       });
+    }
+  }
+
+  /**
+   * Redraws one host's block at the strength it is now.
+   *
+   * Rebuilt in place rather than through `buildBattleField`, because the whole field carries the
+   * focus rings and the tap targets — throwing it away to shrink one column would drop the order
+   * the player is in the middle of giving.
+   */
+  private redrawHostBlock(entry: BattleMarker, men: number): void {
+    const ui = this.battleUi;
+    if (!ui || !this.battleItems) return;
+    const battle = this.state.ascent?.activeBattle;
+    if (!battle) return;
+    const host = this.state.armies.find((army) => army.id === entry.hostId);
+    if (!host) return;
+
+    const ours = (battle.ourArmyIds ?? []).includes(entry.hostId);
+    const { x, y } = entry.marker;
+    const rebuilt = this.battleItems.createArmyMarker(
+      Math.max(1, men),
+      ours,
+      ours ? undefined : ui.rivalColor,
+      ours
+        ? this.state.mapConfig.seed
+        : Math.max(0, this.state.kingdoms.findIndex((k) => k.id === battle.kingdomId)),
+      hostKitFor(this.state, host),
+    );
+    rebuilt.setPosition(x, y);
+
+    // Whatever was riding on the old block — the focus ring, the tap target — is rebuilt with it
+    // by `buildBattleField`'s own rules, so only the drawing is replaced here.
+    const parent = entry.marker.parentContainer;
+    this.tweens.killTweensOf(entry.marker);
+    entry.marker.destroy();
+    entry.marker = rebuilt;
+    entry.count = rebuilt.list.find((child) => child.type === 'Text') as Phaser.GameObjects.Text | undefined;
+    if (parent) parent.add(rebuilt);
+    else ui.field.add(rebuilt);
+
+    if (!ours) {
+      if (battle.focusHostId === entry.hostId) {
+        const ring = this.add.circle(0, -18, 26).setStrokeStyle(2.5, INK_UI.cinnabar, 0.95);
+        rebuilt.add(ring);
+      }
+      const hit = this.add.circle(0, -18, 28, 0xffffff, 0.001).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => {
+        this.releaseBattleHold();
+        this.events.emit('ui:battle-focus', battle.focusHostId === entry.hostId ? undefined : entry.hostId);
+      });
+      rebuilt.add(hit);
     }
   }
 
