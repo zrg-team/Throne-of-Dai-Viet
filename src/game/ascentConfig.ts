@@ -753,6 +753,23 @@ export const BATTLE_COUNTER_MORALE = 0.7;
  * better answer — which is the whole difference between reading a fight and reacting to it.
  */
 export const BATTLE_REFORM_COST = 0.62;
+/**
+ * How many economy ticks a Moment holds the fight open for.
+ *
+ * Measured in ticks, and the fight *waits* — that is the whole mechanic. Counted in beats it was
+ * unanswerable: `advanceBattle` resolves `BATTLE_BEATS_PER_TICK` beats in one burst, so a
+ * three-beat window opened and was answered by the general inside a single 3.5s tick, before the
+ * screen had drawn it. A question nobody can answer is not a decision, it is a caption.
+ *
+ * One tick is about three and a half seconds to read two options and press one.
+ */
+export const BATTLE_MOMENT_TICKS = 1;
+/** At most this many in one engagement. Above it the fight becomes whack-a-mole. */
+export const BATTLE_MOMENTS_PER_FIGHT = 3;
+/** Beats before the first one may be raised, so a fight never opens on a decision. */
+export const BATTLE_MOMENT_EARLIEST = 4;
+/** Beats a Moment's bonus lasts once taken. */
+export const BATTLE_MOMENT_BONUS_BEATS = 4;
 /** How much a loosing host multiplies its volley by, against a host that is closing. */
 export const BATTLE_LOOSE_VOLLEY = 1.6;
 /** Share of incoming arrows a charging host avoids by closing the distance quickly. */

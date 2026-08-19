@@ -1426,6 +1426,19 @@ export interface AscentBattle {
   /** The host the reserve was held back from, so committing it (or returning it) refills that host. */
   reserveHostId?: string;
   /**
+   * The decision on the table right now, if any — see `BattleMoment`.
+   *
+   * Set by `fightRound` when the fight produces one, cleared when it is answered or when it
+   * lapses. At most `BATTLE_MOMENTS_PER_FIGHT` in an engagement.
+   */
+  moment?: BattleMoment;
+  /** How many Moments this fight has already raised, so it cannot become whack-a-mole. */
+  momentsRaised?: number;
+  /** Kinds already raised, so one trigger cannot take the whole budget. */
+  momentKinds?: Array<BattleMoment['kind']>;
+  /** Beats left on a bonus a Moment bought, and what it is worth while it lasts. */
+  momentBonus?: { beats: number; dealt: number; morale: number };
+  /**
    * The fight as a queue of moments, oldest first — see `BattleBeat`.
    *
    * The simulation still runs `BATTLE_BEATS_PER_TICK` beats in one burst on the economy tick, and
@@ -1476,6 +1489,37 @@ export interface BattleBeatHost {
   men: number;
   morale: number;
 }
+
+/**
+ * A decision with a deadline, raised by the fight itself.
+ *
+ * Deliberately **not** a reflex test. The mode's whole language is standing orders, and Dragon
+ * Ascent already offers to fight without you — per host and per run — so punishing a player for
+ * looking away would contradict a feature that is already shipped. What a timer is good for here
+ * is forcing a *judgement* while the fight is still moving.
+ *
+ * Which is why letting it lapse is not a failure state: whoever holds the field answers it, using
+ * the doctrine they would have used anyway. Missing a Moment costs you the edge, never the fight.
+ * That makes delegation the substrate of the mechanic rather than an escape from it.
+ */
+export interface BattleMoment {
+  /** What produced it. Each kind has its own pair of answers and its own default. */
+  kind: 'wavering' | 'charge-coming' | 'relief' | 'last-rounds';
+  /** Beat it was raised on, so the view can run the timer against the same clock the fight does. */
+  raisedAtBeat: number;
+  /** Ticks of the world it stays open for, during which the fight does not advance. */
+  ticksLeft: number;
+  /** The enemy column this is about, when it is about one. */
+  hostId?: string;
+  /** The name to put in the question — a host, a column, a commander. */
+  subject?: string;
+  /** Who answers if it lapses, and whose judgement decides how well. */
+  generalName?: string;
+  generalMartial?: number;
+}
+
+/** What a Moment can be answered with. Two per kind, and neither is safe. */
+export type BattleMomentAnswer = 'commit' | 'steady';
 
 /** One finished engagement, kept so the run can be read back — and measured. */
 export interface AscentBattleRecord {

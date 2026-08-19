@@ -15,7 +15,7 @@ import { recallHost, resupplyHost, setArmyOrders } from '../systems/ascent/Stand
 import { raiseHostWithPlan, type MusterPlan } from '../systems/ascent/MusterSystem';
 import { pushToast } from '../systems/empire/notifications';
 import { disbandArmy } from '../systems/WarSystem';
-import { commitReserve, finishBattle, rally, setBattleFocus, setBattlePosture } from '../systems/ascent/BattleSystem';
+import { answerBattleMoment, commitReserve, finishBattle, rally, setBattleFocus, setBattlePosture } from '../systems/ascent/BattleSystem';
 import { createAscentGameState } from '../state/GameState';
 import { ASCENT_HUD_HEIGHT } from '../ui/ascent/AscentHud';
 import { MapScene } from './MapScene';
@@ -335,6 +335,12 @@ export class ConquestScene extends MapScene {
     // the world now, so an order is a standing instruction to it, not a turn taken in it.
     ui.events.on('ui:battle-focus', (hostId?: string) => {
       setBattleFocus(this.state, hostId);
+      ui.events.emit('state-changed');
+    });
+    // A Moment is answered on its own channel: it is not a standing order, it is one decision
+    // taken once, and it must not be confused with the stance the host is holding.
+    ui.events.on('ui:battle-moment', (answer: 'commit' | 'steady') => {
+      answerBattleMoment(this.state, answer);
       ui.events.emit('state-changed');
     });
     ui.events.on('ui:battle-order', (order: string) => {

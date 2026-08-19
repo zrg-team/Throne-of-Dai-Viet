@@ -14,6 +14,10 @@ import {
   BATTLE_LOOSE_VOLLEY,
   BATTLE_POSTURE_COUNTER,
   BATTLE_MAX_ROUNDS,
+  BATTLE_MOMENT_TICKS,
+  BATTLE_MOMENT_BONUS_BEATS,
+  BATTLE_MOMENT_EARLIEST,
+  BATTLE_MOMENTS_PER_FIGHT,
   BATTLE_MORALE_PER_LOSS,
   BATTLE_MORALE_WIN_GAIN,
   BATTLE_RALLY_BASE,
@@ -39,7 +43,8 @@ import { battleLine, enrolArrivals, hostHeadcount, ourHosts, theirHosts } from '
 import { isAutoHost } from './armyOrders';
 import { t } from '../../i18n';
 import type {
-  Army, AscentBattle, BattleBeatHost, BattlePosture, GameState, PendingBattle,
+  Army, AscentBattle, BattleBeatHost, BattleMoment, BattleMomentAnswer, BattlePosture,
+  GameState, PendingBattle,
 } from '../../state/types';
 
 // Re-exported so the screen and the harness keep one import for the fight's vocabulary.
@@ -632,6 +637,119 @@ function setMorale(army: Army, value: number): number {
   return next;
 }
 
+// ── Moments: a decision with a deadline ─────────────────────────────────────
+
+/**
+ * Does the fight have a question worth asking right now?
+ *
+ * Every trigger reads state `fightRound` already computes — a column crossing the rout line, the
+ * enemy committing to a charge, relief arriving, the round budget running out. No new events, no
+ * new bookkeeping: the fight was always producing these moments and nothing was listening.
+ */
+function raiseMoment(state: GameState, battle: AscentBattle, ours: Army[], theirs: Army[]): void {
+  if (battle.moment || battle.over) return;
+  if ((battle.momentsRaised ?? 0) >= BATTLE_MOMENTS_PER_FIGHT) return;
+  // Never on the opening beats: a fight that begins with a decision has not earned one yet.
+  if (battle.round < BATTLE_MOMENT_EARLIEST) return;
+
+  const general = state.heroes.find((hero) => hero.id === ours.find((host) => host.generalHeroId)?.generalHeroId);
+  const base = {
+    raisedAtBeat: battle.round,
+    ticksLeft: BATTLE_MOMENT_TICKS,
+    generalName: general ? general.name : undefined,
+    generalMartial: general ? general.stats.martial : 0,
+  };
+
+  // One of each, at most. The cap is three and there are three kinds, so without this the first
+  // trigger to become true simply takes the whole budget — measured, `last-rounds` fired all 80
+  // Moments across 40 fights because the other two conditions were far too narrow to reach.
+  const already = battle.momentKinds ?? [];
+  const fresh = (kind: BattleMoment['kind']): boolean => !already.includes(kind);
+
+  // Their line is about to go. The most valuable question in the fight, and the most dangerous.
+  //
+  // The band has to be wide: a host breaks at `BATTLE_ROUT_MORALE` and one bad exchange can carry
+  // it from fifty to thirty in a single beat, so a narrow window is simply stepped over.
+  const wavering = theirs.find((host) => host.morale <= BATTLE_ROUT_MORALE + 18);
+  if (wavering && fresh('wavering')) {
+    setMoment(battle, { ...base, kind: 'wavering', hostId: wavering.id, subject: wavering.name });
+    return;
+  }
+  // They are coming and we are not set for it. Asking only on the beat they *switch* into a
+  // charge never fires against an aggressive power, which charges from the first exchange and
+  // never changes its mind — the question is whether we are braced, not whether they just decided.
+  if (battle.theirPosture === 'press' && !posturesCounter(battle.posture, 'press') && fresh('charge-coming')) {
+    setMoment(battle, { ...base, kind: 'charge-coming', subject: battle.kingdomName });
+    return;
+  }
+  // The clock is nearly out and the field is still contested.
+  const left = battle.totalRounds - battle.round;
+  if (left <= 4 && left > 0 && fresh('last-rounds')) {
+    setMoment(battle, { ...base, kind: 'last-rounds', subject: battle.landName });
+  }
+}
+
+function setMoment(battle: AscentBattle, moment: BattleMoment): void {
+  battle.moment = moment;
+  battle.momentsRaised = (battle.momentsRaised ?? 0) + 1;
+  (battle.momentKinds ??= []).push(moment.kind);
+}
+
+/**
+ * Answers the open Moment, and hands the player something for it.
+ *
+ * `commit` spends: it buys a sharp, short bonus and takes a risk. `steady` conserves: it buys
+ * heart instead of edge. Both are scaled by the general's martial, which is what makes appointing
+ * a good one to a host worth doing — the same number decides how well they answer for you when
+ * the timer runs out.
+ */
+export function answerBattleMoment(state: GameState, answer: BattleMomentAnswer, byGeneral = false): boolean {
+  const battle = state.ascent?.activeBattle;
+  const moment = battle?.moment;
+  if (!battle || !moment || battle.over) return false;
+
+  // A commander's judgement is worth something, but never as much as being there. Answering
+  // yourself is the full effect; a general answering for you is scaled by what they are.
+  const skill = 0.55 + (moment.generalMartial ?? 0) / 100 * 0.4;
+  const weight = byGeneral ? skill : 1;
+
+  if (answer === 'commit') {
+    if (moment.kind === 'wavering' && moment.hostId) battle.focusHostId = moment.hostId;
+    if (moment.kind === 'charge-coming') battle.posture = 'press';
+    battle.momentBonus = { beats: BATTLE_MOMENT_BONUS_BEATS, dealt: 1 + 0.35 * weight, morale: 0 };
+    battle.log.push(t(`ascent.moment.${moment.kind}.tookCommit` as Parameters<typeof t>[0]));
+  } else {
+    if (moment.kind === 'wavering') battle.focusHostId = undefined;
+    if (moment.kind === 'charge-coming') battle.posture = 'hold';
+    battle.momentBonus = { beats: BATTLE_MOMENT_BONUS_BEATS, dealt: 1, morale: 3.5 * weight };
+    battle.log.push(t(`ascent.moment.${moment.kind}.tookSteady` as Parameters<typeof t>[0]));
+  }
+  battle.moment = undefined;
+  return true;
+}
+
+/**
+ * Ages the open Moment by one tick of the world, and lets the general answer it when it runs out.
+ *
+ * The lapse is the delegation, which is the point: a player who looked away, or who handed this
+ * host to its general on purpose, gets a decent answer rather than a penalty. What they lose is
+ * the difference between a good commander's judgement and their own.
+ *
+ * Returns true while the Moment still stands — `advanceBattle` reads that and holds the fight,
+ * which is what gives the player a window at all.
+ */
+function ageMoment(state: GameState, battle: AscentBattle): boolean {
+  const moment = battle.moment;
+  if (!moment) return false;
+  moment.ticksLeft -= 1;
+  if (moment.ticksLeft > 0) return true;
+  // A cautious commander steadies the line; a bold one commits. Their martial decides which they
+  // are as well as how well it goes, so a host's commander is a real appointment.
+  const bold = (moment.generalMartial ?? 0) >= 60;
+  answerBattleMoment(state, bold ? 'commit' : 'steady', true);
+  return false;
+}
+
 export function fightRound(state: GameState): void {
   const ascent = state.ascent;
   const battle = ascent?.activeBattle;
@@ -760,8 +878,10 @@ export function fightRound(state: GameState): void {
 
   const ourShare = BATTLE_ROUND_BITE * (theirPower / (ourPower + theirPower)) * 2
     * ourTrade.taken * theirTrade.dealt * theirReform * fuzz();
+  // What a Moment bought, while it lasts.
+  const momentDealt = battle.momentBonus?.dealt ?? 1;
   const theirShare = BATTLE_ROUND_BITE * (ourPower / (ourPower + theirPower)) * 2
-    * ourTrade.dealt * theirTrade.taken * ourReform * fuzz();
+    * ourTrade.dealt * theirTrade.taken * ourReform * momentDealt * fuzz();
 
   // Losses land across every host present, so relief shares the burden rather than watching.
   const ourLoss = ours.reduce((total, host) => total + bleed(host, Math.min(0.9, ourShare)), 0);
@@ -789,8 +909,9 @@ export function fightRound(state: GameState): void {
   // a stance win a fight rather than merely trade well through one.
   const ourCountered = posturesCounter(battle.theirPosture, battle.posture) ? BATTLE_COUNTER_MORALE : 0;
   const theirCountered = posturesCounter(battle.posture, battle.theirPosture) ? BATTLE_COUNTER_MORALE : 0;
+  const momentMorale = battle.momentBonus?.morale ?? 0;
   for (const host of ours) {
-    setMorale(host, host.morale - ourDrop - ourCountered + (wonExchange ? BATTLE_MORALE_WIN_GAIN : 0));
+    setMorale(host, host.morale - ourDrop - ourCountered + momentMorale + (wonExchange ? BATTLE_MORALE_WIN_GAIN : 0));
   }
   for (const host of theirs) {
     setMorale(host, host.morale - theirDrop - theirCountered + (wonExchange ? 0 : BATTLE_MORALE_WIN_GAIN));
@@ -814,6 +935,13 @@ export function fightRound(state: GameState): void {
   battle.round += 1;
   battle.ourNow = ours.reduce((total, host) => total + totalUnits(host), 0);
   battle.theirNow = theirs.reduce((total, host) => total + totalUnits(host), 0);
+  // A question the fight has just produced. `advanceBattle` stops here until it is answered.
+  raiseMoment(state, battle, ours, theirs);
+  if (battle.momentBonus) {
+    battle.momentBonus.beats -= 1;
+    if (battle.momentBonus.beats <= 0) battle.momentBonus = undefined;
+  }
+
   const exchangeLine = t('ascent.battle.exchange', { round: battle.round, ours: ourLoss, theirs: theirLoss });
   battle.log.push(exchangeLine);
   recordBeat(battle, 'clash', ours, theirs, ourLoss, theirLoss, exchangeLine, brokeThisBeat);
@@ -848,8 +976,17 @@ export function advanceBattle(state: GameState): void {
   const battle = state.ascent?.activeBattle;
   if (!battle) return;
 
+  // A Moment holds the fight. Without this the window is consumed inside the same burst that
+  // opened it and the player never sees the question, let alone answers it.
+  if (battle.moment) {
+    if (ageMoment(state, battle)) return;
+  }
+
   for (let beat = 0; beat < BATTLE_BEATS_PER_TICK && !battle.over; beat += 1) {
     fightRound(state);
+    // Stop the burst the instant one is raised, so the question reaches the screen with the rest
+    // of the tick still ahead of it rather than already spent.
+    if (battle.moment) break;
   }
   // `finishBattle` asks what the host was *told*, not which of three stances it was in when the
   // last beat landed. Loosing is a way of holding the ground, so it resolves as holding.

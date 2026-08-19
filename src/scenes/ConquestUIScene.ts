@@ -27,7 +27,9 @@ import { lawCardView, seatedEffectSummary } from '../systems/ascent/CourtLaneSys
 import { envoyOptionDetail } from '../systems/ascent/EnvoySystem';
 import { realmStanding } from '../systems/ascent/RivalDirector';
 import { ourHosts, theirHosts } from '../systems/ascent/BattleSystem';
-import { BATTLE_BEATS_PER_TICK, BATTLE_ROUT_MORALE, BATTLE_TICK_MS, TRIBUTE_REFUSE_TICKS } from '../game/ascentConfig';
+import {
+  ASCENT_TICK_MS, BATTLE_BEATS_PER_TICK, BATTLE_ROUT_MORALE, BATTLE_TICK_MS, TRIBUTE_REFUSE_TICKS,
+} from '../game/ascentConfig';
 import { battleTelegraph, posturesCounter } from '../systems/ascent/BattleSystem';
 import { ALL_COURT_POSITIONS, assignHeroToLand, getCourtPositionLabel } from '../systems/CourtSystem';
 import {
@@ -598,6 +600,10 @@ export class ConquestUIScene extends Phaser.Scene {
     ribbon: Phaser.GameObjects.Container;
     /** Per-beat casualty numbers, rising and fading. Owns nothing tappable. */
     floaters: Phaser.GameObjects.Container;
+    /** The open Moment, over the field. Rebuilt only when the question changes. */
+    moment: Phaser.GameObjects.Container;
+    /** Which Moment is drawn, so the card is not rebuilt under the player's finger every beat. */
+    momentKey: string;
     /** The standing orders, fixed. They used to scroll, and Retreat sat below the fold. */
     orders: Phaser.GameObjects.Container;
     rivalColor: number;
@@ -4409,7 +4415,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const pips = this.add.container(0, 0);
     const readout = this.add.container(0, 0);
     const orders = this.add.container(0, 0);
-    this.modalLayer.add([field, floaters, ribbon, pips, readout, orders]);
+    const moment = this.add.container(0, 0);
+    this.modalLayer.add([field, floaters, ribbon, pips, readout, orders, moment]);
 
     this.battleUi = {
       content,
@@ -4420,6 +4427,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       ribbon,
       floaters,
       orders,
+      moment,
+      momentKey: '',
       rivalColor,
       fieldSignature: '',
       orderSignature: '',
@@ -4438,6 +4447,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     this.buildBattleReadout(battle);
     this.buildBattlePips(battle);
     this.buildBattleOrders(battle);
+    this.buildBattleMoment(battle);
     // The screen had no way out at all: the only exits were Retreat and "leave it to my
     // generals", both of which end the fight. Watching a siege you are winning meant being
     // held there until it resolved.
@@ -4933,6 +4943,102 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     });
   }
   /**
+   * The open Moment, over the field.
+   *
+   * A card rather than a modal, and the field stays visible behind it: the question is *about*
+   * what is on screen, so hiding the fight to ask it would be answering with less information
+   * than the player already had.
+   *
+   * The timer is honest about what happens at zero — it names the commander who will answer, so
+   * letting it run out is a choice with a known outcome rather than a punishment for hesitating.
+   */
+  private buildBattleMoment(battle: AscentBattle): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+    const { content, moment: layer } = ui;
+    layer.removeAll(true);
+
+    const moment = battle.moment;
+    ui.momentKey = moment ? `${moment.kind}:${moment.raisedAtBeat}` : '';
+    if (!moment) return;
+
+    const height = 132;
+    const y = content.y + BATTLE_PIPS_HEIGHT + ui.fieldHeight - height - 6;
+
+    // A scrim over the field only, not the whole screen: the rails and the dock stay readable,
+    // because what they say is exactly what the question is about.
+    const scrim = this.add.graphics();
+    scrim.fillStyle(INK_UI.parchment, 0.9);
+    scrim.fillRect(content.x + 2, y, content.width - 4, height);
+    scrim.lineStyle(2, INK_UI.cinnabar, 0.95);
+    scrim.strokeRect(content.x + 2, y, content.width - 4, height);
+    layer.add(scrim);
+
+    layer.add(this.ui.label(content.x + 12, y + 7, t('ascent.moment.kicker'), 'caption', {
+      fontSize: '9px', color: `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`,
+    }));
+    layer.add(this.ui.label(
+      content.x + 12, y + 20,
+      t(`ascent.moment.${moment.kind}.title` as Parameters<typeof t>[0], { subject: moment.subject ?? '' }),
+      'label', { fontSize: '15px', wordWrap: { width: content.width - 28 } },
+    ));
+
+    const answer = (index: number, id: 'commit' | 'steady', accent: number): void => {
+      const rowY = y + 44 + index * 32;
+      const bounds = { x: content.x + 10, y: rowY, width: content.width - 20, height: 29 };
+      layer.add(this.ui.panel(bounds, { border: accent }));
+      layer.add(this.ui.label(
+        content.x + 18, rowY + 3,
+        t(`ascent.moment.${moment.kind}.${id}` as Parameters<typeof t>[0]), 'label', { fontSize: '12px' },
+      ));
+      layer.add(this.ui.label(
+        content.x + 18, rowY + 16,
+        t(`ascent.moment.${moment.kind}.${id}D` as Parameters<typeof t>[0]), 'caption',
+        { fontSize: '9.5px', wordWrap: { width: content.width - 40 } },
+      ));
+      const hit = this.add.zone(bounds.x, bounds.y, bounds.width, bounds.height)
+        .setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => {
+        if (scrollGestureConsumedTap()) return;
+        this.releaseBattleHold();
+        this.events.emit('ui:battle-moment', id);
+      });
+      layer.add(hit);
+    };
+    answer(0, 'commit', INK_UI.cinnabar);
+    answer(1, 'steady', INK_UI.jade);
+
+    // The clock, and who answers when it runs out.
+    //
+    // Drained by a tween rather than by the tick: the fight is *held* while this stands, so the
+    // only honest thing to draw against is real time. It runs for the window the world will
+    // actually wait — one economy tick per `ticksLeft`.
+    const barW = content.width - 20;
+    const bed = this.add.graphics();
+    bed.fillStyle(INK_UI.parchmentDark, 0.9);
+    bed.fillRect(content.x + 10, y + height - 20, barW, 4);
+    layer.add(bed);
+    const fill = this.add.graphics();
+    fill.fillStyle(INK_UI.cinnabar, 0.95);
+    fill.fillRect(0, 0, barW, 4);
+    fill.setPosition(content.x + 10, y + height - 20);
+    layer.add(fill);
+    this.tweens.add({
+      targets: fill,
+      scaleX: { from: 1, to: 0 },
+      duration: ASCENT_TICK_MS * Math.max(1, moment.ticksLeft),
+      ease: 'Linear',
+    });
+    layer.add(this.ui.label(
+      content.x + content.width / 2, y + height - 14,
+      moment.generalName
+        ? t('ascent.moment.fallback', { name: moment.generalName, n: moment.ticksLeft })
+        : t('ascent.moment.fallbackNone', { n: moment.ticksLeft }),
+      'caption', { fontSize: '9px', align: 'center' },
+    ).setOrigin(0.5, 0));
+  }
+
+  /**
    * Brings the open battle screen up to date with the fight underneath it.
    *
    * Called from `refresh`, so it runs on the battle's own clock *and* on any state change an
@@ -4978,6 +5084,16 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
 
     if (this.battleOrderSignature(battle) !== ui.orderSignature) {
       this.buildBattleOrders(battle);
+    }
+
+    // Rebuilt only when the question or its clock changes — never every beat, because a card
+    // destroyed between press and release never fires.
+    const momentKey = battle.moment
+      ? `${battle.moment.kind}:${battle.moment.raisedAtBeat}:${battle.round}`
+      : '';
+    if (momentKey !== ui.momentKey) {
+      this.buildBattleMoment(battle);
+      ui.momentKey = momentKey;
     }
   }
 
