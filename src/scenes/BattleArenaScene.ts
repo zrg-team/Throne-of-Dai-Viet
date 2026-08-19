@@ -5,7 +5,7 @@ import { beginBattle } from '../systems/ascent/BattleSystem';
 import type {
   Army, AscentBattleRecord, GameState, KingdomPersonality, Land, TerrainSummary,
 } from '../state/types';
-import { InkUI, INK_UI } from '../ui/InkUI';
+import { InkUI, INK_UI, scrollGestureConsumedTap, type InkScrollArea } from '../ui/InkUI';
 import { createLabel } from '../ui/theme';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { t } from '../i18n';
@@ -42,7 +42,10 @@ type ArmSpread = { archers: number; heavy: number };
 export class BattleArenaScene extends Phaser.Scene {
   private ui!: InkUI;
   private mapRenderer!: MapRenderer;
+  /** Everything this screen drew, so a re-render can take it all down again. */
+  private layer!: Phaser.GameObjects.Container;
   private content: Phaser.GameObjects.GameObject[] = [];
+  private scroll?: InkScrollArea;
 
   private ourMen = 900;
   // Defaults must be steps the dials actually offer, or the row opens with nothing lit and the
@@ -69,6 +72,7 @@ export class BattleArenaScene extends Phaser.Scene {
     this.ui = new InkUI(this);
     this.mapRenderer = createMapRenderer(this);
     this.mapRenderer.drawBackground(GAME_WIDTH, GAME_HEIGHT);
+    this.layer = this.add.container(0, 0);
     this.render();
   }
 
@@ -128,105 +132,263 @@ export class BattleArenaScene extends Phaser.Scene {
 
   // ── layout ────────────────────────────────────────────────────────────────
 
+  /**
+   * Two armies facing each other, then three dials, then the order to fight.
+   *
+   * The first version was seven identical rows of pills stacked down the screen — a settings
+   * form, not a screen about a battle. It had no hierarchy, the thing you were actually building
+   * (the matchup) was a grey line of small text at the bottom, and on a short device the last row
+   * was sliced in half by the action button.
+   *
+   * So the two hosts are drawn side by side as opposed columns, which is what they are, with the
+   * headcount as the largest thing on the screen and the odds stated between them. The three
+   * settings that belong to the fight rather than to either side sit underneath. It fits without
+   * scrolling on a 620-high screen, and the scroll behind it is a safety net rather than the
+   * layout.
+   */
   private render(): void {
     this.clearContent();
-    let y = 26;
+    let y = 20;
 
     const title = createLabel(this, GAME_WIDTH / 2, y, t('arena.title'), 'title', {
       fontSize: '22px', align: 'center',
     }).setOrigin(0.5, 0);
-    this.content.push(title);
-    y += title.height + 4;
+    this.push(title);
+    y += title.height + 2;
 
     const blurb = createLabel(this, GAME_WIDTH / 2, y, t('arena.blurb'), 'caption', {
-      fontSize: '12px', align: 'center', wordWrap: { width: GAME_WIDTH - 56 },
+      fontSize: '11px', align: 'center', wordWrap: { width: GAME_WIDTH - 56 },
     }).setOrigin(0.5, 0);
-    this.content.push(blurb);
-    y += blurb.height + 14;
+    this.push(blurb);
+    y += blurb.height + 10;
 
-    y = this.row(y, t('arena.ourHost'), this.sizes(), (c) => c.value === this.ourMen,
-      (c) => { this.ourMen = c.value; this.render(); });
-    y = this.row(y, t('arena.ourArms'), this.arms(), (c) => c.label === this.armLabel(this.ourArms),
-      (c) => { this.ourArms = c.value; this.render(); });
-    y = this.row(y, t('arena.theirHost'), this.sizes(), (c) => c.value === this.theirMen,
-      (c) => { this.theirMen = c.value; this.render(); });
-    y = this.row(y, t('arena.theirArms'), this.arms(), (c) => c.label === this.armLabel(this.theirArms),
-      (c) => { this.theirArms = c.value; this.render(); });
-    y = this.row(y, t('arena.ground'), this.grounds(), (c) => c.value === this.ground,
+    // The buttons are placed first, so the body knows exactly how much room it is allowed.
+    const pinnedBackY = GAME_HEIGHT - 54;
+    const fightY = pinnedBackY - 60;
+
+    const body = this.add.container(0, 0);
+    let by = 0;
+
+    by = this.renderForces(body, by);
+    by = this.renderOdds(body, by);
+
+    by = this.row(body, by, t('arena.ground'), this.grounds(), (c) => c.value === this.ground,
       (c) => { this.ground = c.value; this.render(); });
-    y = this.row(y, t('arena.doctrine'), this.doctrines(), (c) => c.value === this.doctrine,
+    by = this.row(body, by, t('arena.doctrine'), this.doctrines(), (c) => c.value === this.doctrine,
       (c) => { this.doctrine = c.value; this.render(); });
-    y = this.row(y, t('arena.general'), this.generals(), (c) => c.value === this.martial,
+    by = this.row(body, by, t('arena.general'), this.generals(), (c) => c.value === this.martial,
       (c) => { this.martial = c.value; this.render(); });
 
-    // What you have just dialled in, said in one line. Not a prediction — the odds a fight opens
-    // on are the thing `probe-fights` measures, and seeing them here is how you set up a fight
-    // that is actually in doubt rather than one you have already won.
+    if (this.last) by = this.renderLastFight(body, by);
+
+    const room = Math.max(120, fightY - y - 10);
+    const used = Math.min(room, by + 6);
+    this.scroll = this.ui.scrollArea({ x: 20, y, width: GAME_WIDTH - 40, height: used });
+    this.scroll.content.add(body);
+    this.scroll.setContentHeight(by + 6);
+    this.scroll.addTo(this.layer);
+
+    // Just under the dials when they fit, pinned when they do not. Clamped rather than free: the
+    // body is clipped to `used`, so nothing can ever reach down and cover the button.
+    const actionY = Math.min(y + used + 14, fightY);
+    this.push(this.ui.button(
+      { x: 28, y: actionY, width: GAME_WIDTH - 56, height: 50 },
+      t('arena.fight'), () => this.startFight(), { variant: 'primary', fontSize: '17px' },
+    ));
+    // Follows the fight button up rather than staying pinned, or a screen whose dials fit leaves
+    // sixty pixels of nothing between the two things you can press.
+    this.push(this.ui.button(
+      { x: 28, y: Math.min(actionY + 60, pinnedBackY), width: GAME_WIDTH - 56, height: 40 },
+      t('menu.back'), () => this.scene.start('MenuScene'), { variant: 'secondary', fontSize: '14px' },
+    ));
+  }
+
+  /** The two hosts, side by side, as the thing the screen is actually about. */
+  private renderForces(parent: Phaser.GameObjects.Container, y: number): number {
+    const gap = 12;
+    const width = Math.floor((GAME_WIDTH - 56 - gap) / 2);
+    const left = this.forceColumn(parent, 8, y, width, true);
+    const right = this.forceColumn(parent, 8 + width + gap, y, width, false);
+
+    // On the heading line rather than beside the headcounts: down there it sits between a + and
+    // a − with four pixels either side, and reads as another control rather than as "against".
+    const cross = createLabel(this, 8 + width + gap / 2, y, '✕', 'caption', {
+      fontSize: '11px', align: 'center',
+    }).setOrigin(0.5, 0);
+    parent.add(cross);
+
+    return Math.max(left, right) + 10;
+  }
+
+  /** One side: who they are, how many, and what they are carrying. */
+  private forceColumn(
+    parent: Phaser.GameObjects.Container,
+    x: number,
+    y: number,
+    width: number,
+    ours: boolean,
+  ): number {
+    const heading = createLabel(this, x + width / 2, y, (ours ? t('arena.ourHost') : t('arena.theirHost')).toUpperCase(),
+      'caption', { fontSize: '10px', fontStyle: '700', align: 'center' }).setOrigin(0.5, 0);
+    parent.add(heading);
+    let cursor = y + heading.height + 4;
+
+    // ── headcount, with a stepper either side ──────────────────────────────
+    //
+    // Five pills for a number is five taps' worth of screen to say one thing. A stepper says it
+    // once, large, and leaves room for the arms underneath.
+    const stepW = 32;
+    const valueW = width - stepW * 2 - 8;
+    const rowH = 38;
+    const sizes = this.sizes();
+    const current = ours ? this.ourMen : this.theirMen;
+    const index = Math.max(0, sizes.findIndex((choice) => choice.value === current));
+
+    const step = (delta: number): void => {
+      const next = sizes[Math.min(sizes.length - 1, Math.max(0, index + delta))].value;
+      if (ours) this.ourMen = next; else this.theirMen = next;
+      this.render();
+    };
+
+    this.stepButton(parent, x, cursor, stepW, rowH, '−', index > 0, () => step(-1));
+    parent.add(this.ui.panel({ x: x + stepW + 4, y: cursor, width: valueW, height: rowH }, {
+      border: ours ? INK_UI.jade : INK_UI.softBrush,
+    }));
+    parent.add(createLabel(this, x + stepW + 4 + valueW / 2, cursor + 9, sizes[index].label, 'label', {
+      fontSize: '18px', align: 'center',
+    }).setOrigin(0.5, 0));
+    this.stepButton(parent, x + stepW + valueW + 8, cursor, stepW, rowH, '+', index < sizes.length - 1, () => step(1));
+    cursor += rowH + 6;
+
+    // ── arms, two by two ───────────────────────────────────────────────────
+    const arms = this.arms();
+    const cellW = Math.floor((width - 5) / 2);
+    const chosen = ours ? this.ourArms : this.theirArms;
+    const labels = arms.map((choice) => createLabel(this, 0, 0, choice.label, 'caption', {
+      fontSize: '11px', align: 'center', wordWrap: { width: cellW - 10 },
+    }).setOrigin(0.5, 0));
+    const textH = Math.max(...labels.map((entry) => entry.height));
+    const cellH = Math.max(28, textH + 12);
+
+    arms.forEach((choice, i) => {
+      const cx = x + (i % 2) * (cellW + 5);
+      const cy = cursor + Math.floor(i / 2) * (cellH + 5);
+      const selected = choice.value.archers === chosen.archers && choice.value.heavy === chosen.heavy;
+      parent.add(this.ui.crayonTile({ x: cx, y: cy, width: cellW, height: cellH }, { selected }));
+      const text = labels[i];
+      text.setPosition(cx + cellW / 2, cy + (cellH - textH) / 2);
+      text.setColor(selected ? '#b33a26' : '#2a2118');
+      text.setData('tileWidth', cellW);
+      parent.add(text);
+      const hit = this.add.zone(cx, cy, cellW, cellH).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        if (scrollGestureConsumedTap(pointer)) return;
+        if (ours) this.ourArms = choice.value; else this.theirArms = choice.value;
+        this.render();
+      });
+      parent.add(hit);
+    });
+
+    return cursor + cellH * 2 + 5;
+  }
+
+  /** A − or + beside the headcount. Greyed at the ends of the range rather than removed. */
+  private stepButton(
+    parent: Phaser.GameObjects.Container,
+    x: number, y: number, width: number, height: number,
+    glyph: string, enabled: boolean, onTap: () => void,
+  ): void {
+    parent.add(this.ui.crayonTile({ x, y, width, height }, { selected: false }));
+    parent.add(createLabel(this, x + width / 2, y + height / 2 - 9, glyph, 'label', {
+      fontSize: '17px', align: 'center', color: enabled ? '#2a2118' : '#a9a08c',
+    }).setOrigin(0.5, 0));
+    if (!enabled) return;
+    const hit = this.add.zone(x, y, width, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      if (scrollGestureConsumedTap(pointer)) return;
+      onTap();
+    });
+    parent.add(hit);
+  }
+
+  /** What the dials add up to, in one sentence, between the two hosts and the settings. */
+  private renderOdds(parent: Phaser.GameObjects.Container, y: number): number {
     const odds = this.theirMen / Math.max(1, this.ourMen);
-    // Weighed against the ground, because a defender on a mountain pass is not in the fight the
-    // raw headcounts describe — which is exactly the thing the dial is there to let you feel.
+    // Weighed against the ground, because a defender in a mountain pass is not in the fight the
+    // raw headcounts describe — which is exactly what the dial is there to let you feel.
     const weighted = odds / this.groundEdge();
     const verdict = weighted < 0.6 ? t('arena.odds.easy')
       : weighted > 1.8 ? t('arena.odds.hard') : t('arena.odds.close');
-    const oddsText = createLabel(this, GAME_WIDTH / 2, y + 2,
+    const colour = weighted < 0.6 ? '#4c5f45' : weighted > 1.8 ? '#8a2a1b' : '#7d5814';
+    const text = createLabel(this, (GAME_WIDTH - 40) / 2 - 12, y + 2,
       t('arena.oddsLine', { odds: odds.toFixed(2), verdict }), 'caption', {
-        fontSize: '12px', align: 'center',
+        fontSize: '12px', align: 'center', color: colour, wordWrap: { width: GAME_WIDTH - 76 },
       }).setOrigin(0.5, 0);
-    this.content.push(oddsText);
-    y += oddsText.height + 10;
-
-    if (this.last) y = this.renderLastFight(y);
-
-    const fight = this.ui.button(
-      { x: 54, y: Math.min(y + 4, GAME_HEIGHT - 116), width: GAME_WIDTH - 108, height: 50 },
-      t('arena.fight'), () => this.startFight(), { variant: 'primary', fontSize: '17px' },
-    );
-    this.content.push(fight);
-
-    const back = this.ui.button(
-      { x: 54, y: GAME_HEIGHT - 58, width: GAME_WIDTH - 108, height: 40 },
-      t('menu.back'), () => this.scene.start('MenuScene'), { variant: 'secondary', fontSize: '14px' },
-    );
-    this.content.push(back);
+    parent.add(text);
+    return y + text.height + 12;
   }
 
-  /** One labelled row of choices. Returns the y the next row starts at. */
+  /**
+   * One labelled row of choices, for the settings that belong to neither side.
+   *
+   * Every label is measured before anything is drawn and the tallest one sets the row's height,
+   * so a tile is never shorter than the words inside it. Vietnamese is what forces this: at a
+   * quarter of the width "Trường thương" does not fit on one line, and printing it anyway ran
+   * the text straight out through the tile's border.
+   */
   private row<T>(
+    parent: Phaser.GameObjects.Container,
     y: number,
     label: string,
     choices: Array<Choice<T>>,
     isSelected: (choice: Choice<T>) => boolean,
     onPick: (choice: Choice<T>) => void,
   ): number {
-    const heading = createLabel(this, 28, y, label.toUpperCase(), 'caption', {
+    const heading = createLabel(this, 8, y, label.toUpperCase(), 'caption', {
       fontSize: '10px', fontStyle: '700',
     });
-    this.content.push(heading);
-    const rowY = y + heading.height + 2;
+    parent.add(heading);
+    const rowY = y + heading.height + 3;
 
     const gap = 5;
     const width = Math.floor((GAME_WIDTH - 56 - gap * (choices.length - 1)) / choices.length);
-    const height = 32;
+
+    const labels = choices.map((choice) => createLabel(this, 0, 0, choice.label, 'caption', {
+      fontSize: '11px', align: 'center', wordWrap: { width: width - 10 },
+    }).setOrigin(0.5, 0));
+    const textH = Math.max(...labels.map((entry) => entry.height));
+    const height = Math.max(30, textH + 12);
+
     choices.forEach((choice, index) => {
-      const x = 28 + index * (width + gap);
+      const x = 8 + index * (width + gap);
       const selected = isSelected(choice);
-      this.content.push(this.ui.crayonTile({ x, y: rowY, width, height }, { selected }));
-      this.content.push(createLabel(this, x + width / 2, rowY + 9, choice.label, 'caption', {
-        fontSize: '11px', align: 'center',
-        color: selected ? '#b33a26' : '#2a2118',
-      }).setOrigin(0.5, 0));
+      parent.add(this.ui.crayonTile({ x, y: rowY, width, height }, { selected }));
+
+      const text = labels[index];
+      text.setPosition(x + width / 2, rowY + (height - textH) / 2);
+      text.setColor(selected ? '#b33a26' : '#2a2118');
+      // Marked so `verify-arena` can tell a tile's label from the page title and the buttons,
+      // which are centred text of similar size and would otherwise fail the width check.
+      text.setData('tileWidth', width);
+      parent.add(text);
+
       const hit = this.add.zone(x, rowY, width, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-      hit.on('pointerup', () => onPick(choice));
-      this.content.push(hit);
+      // Without this a drag that happens to end on a tile chooses it, so the list could not be
+      // scrolled past without changing the setup on the way through.
+      hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        if (scrollGestureConsumedTap(pointer)) return;
+        onPick(choice);
+      });
+      parent.add(hit);
     });
-    return rowY + height + 8;
+    return rowY + height + 9;
   }
 
-  private renderLastFight(y: number): number {
+  private renderLastFight(parent: Phaser.GameObjects.Container, y: number): number {
     const record = this.last;
     if (!record) return y;
     const outcome = t(`arena.outcome.${record.outcome}` as Parameters<typeof t>[0]);
-    const card = this.ui.card({ x: 28, y, width: GAME_WIDTH - 56, height: 74 }, {
+    const card = this.ui.card({ x: 8, y, width: GAME_WIDTH - 56, height: 70 }, {
       title: t('arena.lastFight', { outcome }),
       body: t('arena.lastFightBody', {
         rounds: record.rounds,
@@ -235,7 +397,7 @@ export class BattleArenaScene extends Phaser.Scene {
       }),
       border: record.outcome === 'they-rout' ? INK_UI.jade : INK_UI.cinnabar,
     });
-    this.content.push(card);
+    parent.add(card);
     return y + (card.getData('cardHeight') as number) + 10;
   }
 
@@ -243,6 +405,7 @@ export class BattleArenaScene extends Phaser.Scene {
     return this.arms().find((c) => c.value.archers === spread.archers && c.value.heavy === spread.heavy)?.label
       ?? this.arms()[1].label;
   }
+
 
   // ── building the fight ────────────────────────────────────────────────────
 
@@ -346,7 +509,14 @@ export class BattleArenaScene extends Phaser.Scene {
     this.scene.start('ConquestScene', { state: this.buildArenaState() });
   }
 
+  private push(item: Phaser.GameObjects.GameObject): void {
+    this.layer.add(item);
+    this.content.push(item);
+  }
+
   private clearContent(): void {
+    this.scroll?.destroy();
+    this.scroll = undefined;
     for (const item of this.content) item.destroy();
     this.content = [];
   }
