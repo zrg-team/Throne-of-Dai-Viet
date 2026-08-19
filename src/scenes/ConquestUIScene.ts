@@ -86,11 +86,9 @@ import { THRONE_HALL_HEIGHT, throneHallDiorama } from '../ui/ascent/throneHall';
 import { CARD_STACK_PEEK, CardStack } from '../ui/ascent/CardStack';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { figureEraFor, hostKitFor, hostShapeAt } from '../ui/ink/devices';
-import {
-  areca, bamboo, buffalo, grassTuft, hayStack, karstRange, softRidge, tree,
-} from '../ui/ink/props';
+import { areca, bamboo, buffalo, grassTuft, hayStack, softRidge, tree } from '../ui/ink/props';
 import { citadel, hamlet, village } from '../ui/ink/settlements';
-import { groundTone, mulberry32 } from '../ui/ink/stroke';
+import { groundTone, inkPath, mulberry32, printedShape } from '../ui/ink/stroke';
 import { GROUND_SCALE } from '../ui/ink/proportion';
 import { PIGMENT } from '../ui/ink/palette';
 import { findLand } from '../systems/LandSystem';
@@ -1586,6 +1584,14 @@ export class ConquestUIScene extends Phaser.Scene {
     // moves. The hold only ever lasts as long as the screen that asked for it.
     this.battleAwaitingOrder = false;
     this.state.isStrategyPause = this.lanePauseBeforeOpen;
+
+    // In the arena there is nothing behind this screen. Closing it dropped the player onto a map
+    // with one province, no economy and no way back — the fight *is* the session, so leaving it
+    // means leaving the fight, not stepping out of it onto a world that is not there.
+    if (this.state.ascent?.arena && this.openPromptKey === 'lane:battle') {
+      this.events.emit('ui:arena-leave');
+      return;
+    }
     this.closeOverlay();
   }
 
@@ -4597,7 +4603,13 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const { content, ribbon } = ui;
     ribbon.removeAll(true);
 
-    const lines = battle.log.slice(-2);
+    // Consecutive beats very often produce the identical sentence — two rounds of arrows for the
+    // same losses read the same way — and printing it above itself, faded, looks like the screen
+    // has stuttered rather than like the fight has. One line each, most recent last.
+    const lines: string[] = [];
+    for (let i = battle.log.length - 1; i >= 0 && lines.length < 2; i -= 1) {
+      if (battle.log[i] !== lines[0]) lines.unshift(battle.log[i]);
+    }
     if (lines.length === 0) return;
     const base = content.y + BATTLE_PIPS_HEIGHT + ui.fieldHeight - BATTLE_RIBBON_HEIGHT;
 
@@ -4687,28 +4699,117 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // three-hundred-pixel field reads as litter rather than as a place.
     const scale = GROUND_SCALE * 1.5;
 
-    // The dead, re-laid onto the rebuilt field. Added before the scenery graphics so they sit on
-    // the ground rather than over the village.
-    ui.fallen = this.add.graphics();
-    field.add(ui.fallen);
-    for (const pt of ui.fallenPts) this.inkFallen(pt.x, pt.y);
+    // Everything the land is made of is clipped to the frame.
+    //
+    // `planSoftRidge` places peaks along the span it is given and each peak is wider than its
+    // centre, so a range asked to end at the frame still puts a summit and its skirt out past the
+    // border — measured, a whole hill hung forty pixels off the right edge with the panel's own
+    // rule cut behind it. Narrowing the span only moves the overhang inward. A mask is the only
+    // thing that ends a shape exactly where the paper does.
+    const clip = this.add.graphics();
+    clip.fillStyle(0xffffff, 1);
+    clip.fillRect(content.x + 2, top + 2, content.width - 4, ui.fieldHeight - 4);
+    clip.setVisible(false);
+    field.add(clip);
+    const frameMask = clip.createGeometryMask();
 
+    // Three layers, in the order a print is built: distance, then the ground over its feet, then
+    // everything standing on the ground.
+    const far = this.add.graphics();
+    far.setAlpha(0.5);
+    field.add(far);
+    far.setMask(frameMask);
+    const ground = this.add.graphics();
+    field.add(ground);
+    ground.setMask(frameMask);
     const g = this.add.graphics();
     // The land is a backdrop, not a subject. Drawn at half strength as a whole, because at full
     // weight the scenery and the two armies carry the same emphasis and the fight — the thing the
     // screen exists to show — stops being the thing you look at.
     g.setAlpha(0.5);
     field.add(g);
+    g.setMask(frameMask);
 
     // ── 0. distance ────────────────────────────────────────────────────────
-    karstRange(g, x0 - 10, x1 + 10, horizon, ui.fieldHeight * 0.11, seed, true, 1.15);
-    // One relief line, not two: the ridge behind the karst drew a hard rule straight across the
-    // field, which is a horizon nobody stands on.
-    softRidge(g, x0 - 10, x1 + 10, horizon + 10, ui.fieldHeight * 0.04, seed + 41);
+    // Two soft ridges at different depths, and no karst.
+    //
+    // `karstRange` is drawn for a map, where a limestone tower is a few pixels and the range reads
+    // as a country's spine. Squeezed into a hundred-pixel band it repeats its arcs at even
+    // intervals and the horizon becomes a scalloped border — a caterpillar laid across the top of
+    // the field. Ridges have no repeating unit, so they thin out into distance instead.
+    //
+    // Both stand on nearly the same line, and both lines sit *above* where the near ground starts.
+    // A ridge's own base is a hard edge; the only thing that hides one is the ground in front of
+    // it, so anything the ground does not reach up to stays visible as a rule across the field.
+    // The first pass missed this one by eleven pixels and it was still perfectly obvious.
+    //
+    // Both on the same base. Two ridges at two heights meant two flat wash bottoms and two ruled
+    // lines across the field; standing them on one line leaves one seam, and one seam can be given
+    // a contour and a treeline and become the horizon. See the ground band below.
+    // Run past the frame on purpose: the mask ends them, so the range reads as continuing behind
+    // the border rather than as a row of hills that happens to stop at it.
+    softRidge(far, x0 - 20, x1 + 20, horizon + 8, ui.fieldHeight * 0.13, seed + 5);
+    softRidge(far, x0 - 20, x1 + 20, horizon + 8, ui.fieldHeight * 0.07, seed + 41);
 
     // ── 1. the ground ──────────────────────────────────────────────────────
+    //
+    // `softRidge` fills its slopes down to a flat `baseY`, and on this screen that showed: measured
+    // off a frame, 97–100% of sampled columns stepped at exactly the two base rows, a seven-per-
+    // channel difference holding dead straight for 670 px. On the map the same fill is invisible
+    // because terrain is already toned underneath it; here there was bare paper below.
+    //
+    // Two attempts at hiding it both failed and both are worth recording. A translucent wash over
+    // the top adds the same amount on either side of a step, so the step survives exactly as it
+    // was. An opaque block of `parchment` laid over the lower half does remove it — and reads as a
+    // sheet of white paper pasted across the picture, because flat parchment is brighter than the
+    // panel's own printed, textured, washed surface. There is nothing to paint the ground *with*
+    // that matches the paper, because the paper is not one colour.
+    //
+    // So the seam is not hidden. Both ridges are put on the same base line, which turns two seams
+    // into one, and that one is *drawn* — an inked ground line with a treeline standing on it.
+    // A landscape print has a horizon in it. An artefact that is given a contour stops being an
+    // artefact and becomes the thing it was accidentally imitating.
+    const baseY = horizon + 8;
+    const horizonPts: Array<{ x: number; y: number }> = [];
+    const skyX0 = content.x + 5;
+    const skyX1 = content.x + content.width - 5;
+    for (let i = 0; i <= 14; i += 1) {
+      const t = i / 14;
+      horizonPts.push({ x: skyX0 + (skyX1 - skyX0) * t, y: baseY + Math.sin(t * Math.PI * 1.7 + seed) * 2.5 });
+    }
+    inkPath(ground, horizonPts, seed + 71, { colour: PIGMENT.mucFaint, width: 0.8, alpha: 0.5, wobble: 0.8, step: 12 });
+
+    // A broken treeline on the line, at the far distance's weight. Something irregular growing out
+    // of a horizon is most of what stops it reading as a border.
+    for (let i = 0; i < 34; i += 1) {
+      const t = (i + rand() * 0.9) / 34;
+      const tx = skyX0 + (skyX1 - skyX0) * t;
+      const ty = baseY + Math.sin(t * Math.PI * 1.7 + seed) * 2.5 + 1;
+      const th = 3.5 + rand() * 5;
+      ground.fillStyle(PIGMENT.giDong, 0.16 + rand() * 0.14);
+      ground.fillEllipse(tx, ty - th * 0.55, 3.4 + rand() * 3.4, th);
+    }
+
+    // Tone on the near ground, so the field is a place and not bare paper — the complaint that
+    // started this was literally "no blank screen, make it look like a fight on a land".
+    //
+    // Every centre jittered and no two radii alike. `groundTone` is rings of hard circles, edgeless
+    // only because the map's cells never share a step; laid out as an even row at one height they
+    // draw a fresh ruled line straight back in, which is the same fault one layer up.
+    const plane = ui.fieldHeight;
+    for (let i = 0; i <= 10; i += 1) {
+      const px = x0 + ((x1 - x0) * i) / 10 + (rand() - 0.5) * 20;
+      groundTone(ground, px, baseY + 30 + (rand() - 0.5) * plane * 0.10,
+        plane * (0.16 + rand() * 0.09), PIGMENT.diepLo, 0.09, 6);
+    }
+
     // Barely there: a wash under the men's feet, not a pool of colour the eye lands in.
-    groundTone(g, (x0 + x1) / 2, groundY + 22, content.width * 0.42, PIGMENT.diepLo, 0.16, 3);
+    groundTone(ground, (x0 + x1) / 2, groundY + 22, content.width * 0.42, PIGMENT.diepDeep, 0.1, 6);
+
+    // The dead, re-laid onto the rebuilt field: on the ground, under everything that stands on it.
+    ui.fallen = this.add.graphics();
+    field.add(ui.fallen);
+    for (const pt of ui.fallenPts) this.inkFallen(pt.x, pt.y);
 
     // ── 2. the province being defended ─────────────────────────────────────
     //
@@ -4832,8 +4933,13 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // they cross the whole field to get to you — but drawn literally it puts the entire fight in
     // the left quarter with two thirds of the picture empty behind them. The meeting is pulled
     // back into the middle band so the thing worth looking at is where the eye already is.
+    // Held ground pushes the raw meeting point right up against our own camp, which is honest and
+    // unwatchable: measured, the contact landed at x=135 of a 390-wide screen with the whole right
+    // half of the field empty behind the enemy. Clamped to a band about the centre instead — the
+    // direction still reads, because within the band the seam still moves with who pushed whom.
     const raw = (ourX + theirX) / 2;
-    const seam = Math.min(Math.max(raw, leftX + span * 0.34), rightX - span * 0.22);
+    const mid = (leftX + rightX) / 2;
+    const seam = Math.min(Math.max(raw, mid - span * 0.16), mid + span * 0.16);
     return { ourX: seam - BATTLE_SEAM_GAP / 2, theirX: seam + BATTLE_SEAM_GAP / 2, seam };
   }
 
@@ -4895,7 +5001,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     this.buildBattleGround(battle);
 
     // Camps: the ground each side is fighting from, and what "hold" means.
-    field.add(this.battleCamp(rightX, groundY + 16, rivalColor));
+    field.add(this.battleCamp(rightX, groundY + 16, rivalColor, 23));
 
     const ours = ourHosts(this.state, battle);
     const theirs = theirHosts(this.state, battle);
@@ -4979,9 +5085,28 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const frame = this.battleFrame(battle);
     const barW = (content.width - 36) / 2;
     const bar = (x: number, now: number, start: number, color: number, label: string): void => {
-      readout.add(this.ui.label(x, readoutY + 6, label, 'caption', {}));
-      readout.add(this.ui.label(x + barW, readoutY + 6, `${now}`, 'label', { fontSize: '15px', align: 'right' })
-        .setOrigin(1, 0));
+      // The strength goes down first so the name can be cut to whatever is left.
+      //
+      // A rival is named by the generator and can be as long as "Lãnh Chúa Phương Bắc", which ran
+      // straight through its own four-digit strength and printed "Phương Bắ1493". Both halves of
+      // this rail are live text, so no fixed column can be right; the number is measured and the
+      // name is trimmed to fit beside it.
+      const strength = this.ui.label(x + barW, readoutY + 6, `${now}`, 'label', {
+        fontSize: '15px', align: 'right',
+      }).setOrigin(1, 0);
+      readout.add(strength);
+
+      const room = barW - strength.width - 6;
+      const name = this.ui.label(x, readoutY + 6, label, 'caption', {});
+      if (name.width > room) {
+        let cut = label;
+        while (cut.length > 1 && name.width > room) {
+          cut = cut.slice(0, -1);
+          name.setText(`${cut.trimEnd()}…`);
+        }
+      }
+      readout.add(name);
+
       readout.add(this.ui.statBar(
         { x, y: readoutY + 28, width: barW, height: 8 }, now, Math.max(1, start), color,
       ));
@@ -5477,22 +5602,117 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
   }
 
   /** A side's camp: a few tents on its own ground, so "hold the line" has somewhere to mean. */
-  private battleCamp(x: number, y: number, color: number): Phaser.GameObjects.Container {
+  /**
+   * A quân doanh: a fenced camp with a gate, a watchtower and tents behind the palisade.
+   *
+   * This was three free-standing triangles and a red pennant — a scout camp from anywhere, and
+   * wrong twice over.
+   *
+   * A Vietnamese field camp is described as a *fenced* thing: an outer barrier with the tents
+   * inside it, a camp gate (cổng trại), watchtowers (chòi canh), and stores and stabling behind.
+   * The fence is the whole point of it — an army that has stopped has dug in — and three tents on
+   * open grass says the opposite.
+   *
+   * The standard is worse than merely plain. A đại kỳ is recorded as a **yellow** rectangular
+   * cloth with a saw-toothed fringe on three sides and a dragon worked into the middle; the
+   * Nguyễn carried the cờ Long Tinh on a yellow ground. A red pennant is a European shape in the
+   * wrong colour. The dragon cannot survive at twenty pixels, so it is a seal device — the same
+   * choice the map's own flags make, and the same rule the seal already follows: a drawn device,
+   * never a written character.
+   */
+  private battleCamp(x: number, y: number, color: number, seed = 7): Phaser.GameObjects.Container {
     const camp = this.add.container(x, y);
     const g = this.add.graphics();
-    for (let i = -1; i <= 1; i += 1) {
-      const tx = i * 15;
-      const ty = Math.abs(i) * -3;
-      g.fillStyle(INK_UI.parchmentShade, 0.95);
-      g.fillTriangle(tx - 10, ty + 8, tx, ty - 9, tx + 10, ty + 8);
-      g.lineStyle(1.5, INK_UI.brush, 0.8);
-      g.strokeTriangle(tx - 10, ty + 8, tx, ty - 9, tx + 10, ty + 8);
+    const ink = { colour: INK_UI.brush, wobble: 0.45, step: 4 };
+
+    // ── the tents, behind the fence ────────────────────────────────────────
+    const tents = [
+      { tx: -14, ty: -4, w: 8.5, h: 12, s: seed + 3 },
+      { tx: 2, ty: -7, w: 10, h: 14, s: seed + 11 },
+      { tx: 17, ty: -3, w: 8, h: 11, s: seed + 19 },
+    ];
+    for (const tent of [...tents].sort((a, b) => a.ty - b.ty)) {
+      const foot = tent.ty + 6;
+      // A ridge tent, not a cone: two slopes off a ridgepole with the near end open.
+      printedShape(
+        g,
+        [
+          { x: tent.tx - tent.w, y: foot },
+          { x: tent.tx - tent.w * 0.25, y: foot - tent.h },
+          { x: tent.tx + tent.w * 0.55, y: foot - tent.h },
+          { x: tent.tx + tent.w, y: foot },
+        ],
+        INK_UI.parchmentShade,
+        tent.s,
+        { ...ink, width: 0.85, alpha: 0.78, fillAlpha: 0.92 },
+      );
+      // The ridgepole, poking out past the cloth at both ends.
+      inkPath(
+        g,
+        [{ x: tent.tx - tent.w * 0.5, y: foot - tent.h }, { x: tent.tx + tent.w * 0.8, y: foot - tent.h }],
+        tent.s + 1,
+        { ...ink, width: 0.6, alpha: 0.6 },
+      );
     }
-    // A standard over the camp, in the side's own colours.
-    g.lineStyle(2, INK_UI.brush, 0.9);
-    g.lineBetween(0, -12, 0, -30);
-    g.fillStyle(color, 0.95);
-    g.fillTriangle(0, -30, 14, -26, 0, -21);
+
+    // ── the palisade, its gate, and a watchtower ───────────────────────────
+    // Drawn in front of the tents, because that is where a fence is.
+    const fenceY = 9;
+    for (let i = -3; i <= 3; i += 1) {
+      if (i === 0) continue; // the gateway
+      const px = i * 8.5;
+      inkPath(g, [{ x: px, y: fenceY }, { x: px + 0.6, y: fenceY - 7.5 }], seed + 40 + i,
+        { ...ink, width: 0.75, alpha: 0.72, wobble: 0.3 });
+    }
+    // A rail tying the stakes together, and the gate posts either side of the opening.
+    inkPath(g, [{ x: -27, y: fenceY - 5 }, { x: 27, y: fenceY - 4.4 }], seed + 47,
+      { ...ink, width: 0.55, alpha: 0.5, step: 6 });
+    for (const gx of [-5, 5]) {
+      inkPath(g, [{ x: gx, y: fenceY + 1 }, { x: gx, y: fenceY - 11 }], seed + 51 + gx,
+        { ...ink, width: 0.9, alpha: 0.8, wobble: 0.25 });
+    }
+    // The gate lintel — one stroke, and the fence has a way in.
+    inkPath(g, [{ x: -6, y: fenceY - 10.5 }, { x: 6, y: fenceY - 11.2 }], seed + 59,
+      { ...ink, width: 0.8, alpha: 0.75, wobble: 0.3 });
+
+    // Chòi canh: a platform on four legs over the corner of the fence.
+    const towerX = -26;
+    for (const lx of [-3.5, 3.5]) {
+      inkPath(g, [{ x: towerX + lx, y: fenceY }, { x: towerX + lx * 0.55, y: fenceY - 15 }], seed + 61 + lx,
+        { ...ink, width: 0.7, alpha: 0.7, wobble: 0.25 });
+    }
+    printedShape(
+      g,
+      [{ x: towerX - 4.5, y: fenceY - 15 }, { x: towerX + 4.5, y: fenceY - 15 },
+        { x: towerX + 3.2, y: fenceY - 19 }, { x: towerX - 3.2, y: fenceY - 19 }],
+      INK_UI.parchmentShade, seed + 67, { ...ink, width: 0.7, alpha: 0.72, fillAlpha: 0.9 },
+    );
+
+    // ── the đại kỳ over the gate ───────────────────────────────────────────
+    // Yellow ground, saw-toothed on three sides, a device in the middle. The realm's own colour
+    // rides on the device rather than on the cloth, so sỏi son stays spent on the player alone.
+    inkPath(g, [{ x: 0, y: fenceY - 12 }, { x: 0, y: -40 }], seed + 71,
+      { ...ink, width: 1.1, alpha: 0.85, wobble: 0.3, step: 6 });
+
+    const fly = 15;
+    const topY = -39;
+    const botY = -25;
+    const teeth: Array<{ x: number; y: number }> = [{ x: 1, y: topY }];
+    // Saw teeth along the top, down the fly, and back along the bottom — three sides, as recorded.
+    for (let i = 0; i < 4; i += 1) {
+      const t = (i + 0.5) / 4;
+      teeth.push({ x: 1 + fly * t, y: topY - 2 }, { x: 1 + fly * ((i + 1) / 4), y: topY });
+    }
+    teeth.push({ x: 1 + fly + 2.4, y: (topY + botY) / 2 });
+    for (let i = 4; i > 0; i -= 1) {
+      const t = (i - 0.5) / 4;
+      teeth.push({ x: 1 + fly * t, y: botY + 2 }, { x: 1 + fly * ((i - 1) / 4), y: botY });
+    }
+    printedShape(g, teeth, PIGMENT.hoe, seed + 73, { ...ink, width: 0.7, alpha: 0.7, fillAlpha: 0.92 });
+    // The device, in the side's own colour.
+    g.fillStyle(color, 0.9);
+    g.fillCircle(1 + fly * 0.45, (topY + botY) / 2, 2.4);
+
     camp.add(g);
     return camp;
   }

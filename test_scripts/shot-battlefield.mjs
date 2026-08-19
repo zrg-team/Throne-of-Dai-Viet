@@ -56,6 +56,12 @@ const state = await page.evaluate(() => {
   };
 });
 await page.screenshot({ path: `output/web-game/battlefield${HEIGHT === 844 ? '' : `-${HEIGHT}`}.png` });
+// A crop of the field alone, at high magnification — the only way to see whether a mark holds up
+// as a drawing rather than as a shape that happens to be the right size.
+await page.screenshot({
+  path: 'output/web-game/battlefield-crop.png',
+  clip: { x: 20, y: Number(process.env.CROPY ?? 400), width: 350, height: 200 },
+});
 console.log(JSON.stringify(state));
 console.log('errors:', errors.length ? errors.slice(0, 3) : 'none');
 await browser.close();
