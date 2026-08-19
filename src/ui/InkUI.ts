@@ -107,6 +107,15 @@ export interface InkButtonOptions {
   fontSize?: string;
   radius?: number;
   extraHitPadding?: number;
+  /**
+   * A quieter second line printed under the label, inside the same button.
+   *
+   * For the note that only exists to qualify the button it sits under — "no saved campaign" beneath
+   * Continue. Drawn as its own row of text on the page, that note costs a gap above it, a gap below
+   * it and a line of its own on a sheet that may only be 620 tall; folded in here it costs the few
+   * units the button grows by, and it greys out with the button instead of contradicting it.
+   */
+  subLabel?: string;
 }
 
 export interface InkTextLinkOptions {
@@ -533,6 +542,23 @@ export class InkUI {
     }).setOrigin(0.5);
     text.setAlpha(disabled ? 0.55 : 1);
 
+    // The second line, if there is one. Both lines are re-centred as a block rather than the label
+    // staying put and the note hanging off the bottom — a button whose type sits high with a gap
+    // under it reads as a button with something clipped off it.
+    let sub: Phaser.GameObjects.Text | undefined;
+    if (opts.subLabel) {
+      sub = this.label(bounds.width / 2, 0, opts.subLabel, 'caption', {
+        color: variant === 'danger' ? INK_UI_HEX.lightText : INK_UI_HEX.mutedText,
+        fontSize: '10px',
+        align: 'center',
+        wordWrap: { width: bounds.width - 16 },
+      }).setOrigin(0.5);
+      sub.setAlpha(disabled ? 0.55 : 0.82);
+      const block = text.height + 1 + sub.height;
+      text.setY(bounds.height / 2 - block / 2 + text.height / 2);
+      sub.setY(bounds.height / 2 + block / 2 - sub.height / 2);
+    }
+
     const hitArea = this.scene.add
       .rectangle(
         bounds.width / 2,
@@ -587,7 +613,7 @@ export class InkUI {
       }
     });
 
-    container.add([graphics, text, hitArea]);
+    container.add(sub ? [graphics, text, sub, hitArea] : [graphics, text, hitArea]);
     if (!disabled) {
       addPressFeedback(this.scene, container, hitArea, { width: bounds.width, height: bounds.height });
     }
