@@ -5,7 +5,10 @@ import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 mkdirSync('output/web-game', { recursive: true });
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+// HEIGHT lets this be shot on the short screen the design clamps to. `GAME_HEIGHT` is derived
+// from the aspect ratio, and the battle field is what pays for a short one — so a layout that
+// only ever gets looked at on an 844 is a layout half the phones never see.
+const page = await browser.newPage({ viewport: { width: 390, height: Number(process.env.HEIGHT ?? 844) } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(`PAGEERROR ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE ${m.text()}`); });
@@ -59,6 +62,12 @@ const res = await page.evaluate(async () => {
   };
 });
 console.log(JSON.stringify(res));
-await page.screenshot({ path: 'output/web-game/battle-autoopen.png' });
+// Let a few frames land before the grab. `?capture=1` retains the drawing buffer, but a shot
+// taken in the same breath as the last `evaluate` occasionally catches the canvas between a
+// clear and a present and comes back as flat ink.
+await page.waitForTimeout(600);
+await page.evaluate(() => { for (let i = 0; i < 4; i += 1) window.__phaserGame.step(performance.now(), 16); });
+await page.waitForTimeout(200);
+await page.screenshot({ path: `output/web-game/battle-autoopen${process.env.HEIGHT ? `-${process.env.HEIGHT}` : ''}.png` });
 console.log('ERRORS', errors);
 await browser.close();

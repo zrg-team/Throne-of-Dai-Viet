@@ -11,6 +11,10 @@
  *
  * Usage:
  *   node test_scripts/perf-bench.mjs [--label baseline] [--cpu 4] [--url http://localhost:5173]
+ *                                    [--mode rival|campaign|empire|ascent]
+ *
+ * `--mode` matters: the four modes do not share a world scene, and a bench that only ever measured
+ * `rival` cannot answer "is Dragon Ascent slow", which is the question people actually ask.
  * Writes results to test_scripts/perf-results/<label>.json and prints a summary.
  */
 import { chromium } from 'playwright';
@@ -32,6 +36,8 @@ const CPU_THROTTLE = Number(arg('cpu', '4')); // mid-tier Android ~= 4x slowdown
 const SEED = Number(arg('seed', '1337'));
 const TICKS = Number(arg('ticks', '80'));
 const REPEATS = Number(arg('repeats', '3'));
+const MODE = arg('mode', 'rival');
+const WORLD_SCENE = MODE === 'ascent' ? 'ConquestScene' : 'MapScene';
 
 const browser = await chromium.launch({
   args: ['--enable-precise-memory-info', '--js-flags=--expose-gc'],
@@ -55,10 +61,10 @@ await page.waitForFunction(
 );
 
 // Jump into a deterministic game.
-await page.evaluate((seed) => window.__startBenchGame(seed), SEED);
+await page.evaluate(([seed, mode]) => window.__startBenchGame(seed, mode), [SEED, MODE]);
 await page.waitForFunction(
-  () => window.__phaserGame.scene.isActive('MapScene') && !!window.__mandateState,
-  null,
+  (scene) => window.__phaserGame.scene.isActive(scene) && !!window.__mandateState,
+  WORLD_SCENE,
   { timeout: 30000 },
 );
 await page.waitForTimeout(800); // let initial render settle
