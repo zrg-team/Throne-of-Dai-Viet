@@ -783,9 +783,23 @@ export const BATTLE_CHARGE_MORALE = 9;
  * multiplies by `morale / 100`, so this is what turns a bad exchange into a collapse rather
  * than a slow, even grind.
  */
-export const BATTLE_MORALE_PER_LOSS = 74;
-/** Morale recovered by the side that won an exchange. */
-export const BATTLE_MORALE_WIN_GAIN = 0.7;
+export const BATTLE_MORALE_PER_LOSS = 52;
+// Retuned from 74 when the drop stopped being diluted. It used to be divided by `ourStart`, which
+// counts the reserve standing at camp and grows again when relief arrives; it is now divided by
+// the line that is actually being shot at, so the same number bites far harder and compounds as a
+// host shrinks. Measured across the lab at 200 engagements a policy: at 62 good play breaks the
+// enemy in 85% of fights and wins 85% of them — a solved game — and at 80 the rout rate is 99.5%.
+// At 52 the adaptive player wins 52.5% and routs 52%, which is the fight this screen exists for.
+/**
+ * Morale recovered by the side that won an exchange.
+ *
+ * Halved from 0.7. Applied every beat to whichever side traded better, it was worth up to eleven
+ * points across a fight — a standing floor under the winner's heart that, together with the
+ * morale drop being diluted by the reserve, is why a defence measured across six seeded runs never
+ * fell below 68 on average. It exists so a side that is winning does not also crumble; it does not
+ * need to be large enough to cancel the cost of winning.
+ */
+export const BATTLE_MORALE_WIN_GAIN = 0.35;
 /** Below this a host breaks and the engagement ends in a rout. */
 export const BATTLE_ROUT_MORALE = 32;
 /** Men each archer accounts for per beat of the approach. */

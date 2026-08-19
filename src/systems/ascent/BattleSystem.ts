@@ -44,7 +44,7 @@ import { isAutoHost } from './armyOrders';
 import { t } from '../../i18n';
 import type {
   Army, AscentBattle, BattleBeatHost, BattleMoment, BattleMomentAnswer, BattlePosture,
-  GameState, PendingBattle,
+  GameState, Land, PendingBattle,
 } from '../../state/types';
 
 // Re-exported so the screen and the harness keep one import for the fight's vocabulary.
@@ -157,48 +157,110 @@ function recordBeat(
  * the run turns on, and a player who is about to lose their seat should never learn about it from
  * a strip of text.
  */
+/**
+ * The odds a defence would be fought at, as the selection gate reads them.
+ *
+ * Walls and field hosts on one side; everything standing on the province or one hop from it on the
+ * other, because the invader that made contact is stood on the *adjacent* land when this is asked.
+ */
+function watchOdds(state: GameState, land: Land): { defence: number; attack: number; columns: number } {
+  const defence = landGarrisonPower(state, land)
+    + state.armies
+      .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && army.landId === land.id)
+      .reduce((sum, army) => sum + armyPower(state, army), 0);
+  const near = state.armies.filter((army) => army.kingdomId !== PLAYER_KINGDOM_ID
+    && (army.landId === land.id || land.neighbors.includes(army.landId)));
+  return {
+    defence,
+    attack: near.reduce((sum, army) => sum + armyPower(state, army), 0),
+    columns: near.length,
+  };
+}
+
+/** How many enemy columns stand on a province or one hop from it. Used to break ties. */
+export function enemyColumnsAt(state: GameState, land: Land): number {
+  return watchOdds(state, land).columns;
+}
+
 function worthWatching(state: GameState, landId: string, isGreat: boolean): boolean {
   const ascent = state.ascent;
   // The arena exists to watch one specific matchup. Every clause below asks whether a fight is
   // worth interrupting a *run* for, which is not a question the arena is asking.
   if (ascent?.arena) return true;
-  if (isGreat || ascent?.capitalLandId === landId) return true;
-
   const land = findLand(state, landId);
   if (!land || land.ownerId !== PLAYER_KINGDOM_ID) return false;
 
-  // An ordinary defence is rationed, not merely filtered.
+  const { defence, attack } = watchOdds(state, land);
+  if (defence <= 0 || attack <= 0) return false;
+  const ratio = attack / defence;
+
+  // A Great Invasion is the wave the run turns on, and it has a floor but no ceiling.
   //
-  // The odds band below was tried on its own first and barely moved the count — 28.3 openings a
-  // run became 25.9 — because with provincial militia most defences *are* genuinely in doubt, so
-  // the band admits nearly all of them. Being worth watching and being worth *stopping the game
-  // for* are different questions, and only the second one is bounded. Great Invasions land every
-  // fourth wave and always open, so those alone supply the run's showpiece budget; this keeps the
-  // ordinary ones to an occasional extra rather than a second one every wave.
+  // It used to be unconditional on the grounds that a great wave is usually in band anyway. It is
+  // not: with the capital's exemption gone, **every single remaining walkover was a Great Invasion
+  // on the seat** — nine of ten, at 0.02 to 0.15, each running the full twenty-two rounds with the
+  // defence never dropping below 64% strength. A wave the realm has already beaten is not a
+  // turning point because it was labelled one.
+  //
+  // No ceiling, though. A great invasion the player is losing badly is exactly the fight they have
+  // to be in the room for, and the ordinary band's upper limit would hide it.
+  if (isGreat) return ratio >= GREAT_WATCH_MIN;
+
+  // The capital keeps its priority and loses its exemption.
+  //
+  // It used to open unconditionally, and that single clause is most of why the screen was boring.
+  // Measured over 44 watched fights across six seeded runs: **73% were on the seat**, and the seat
+  // turns out the realm's largest levy — 2,574 against 269, 4,237 against 66, 5,303 against 136.
+  // Median opening odds across everything watched were **0.20** and 64% were walkovers. The screen
+  // was mostly being used to show the player a garrison of four thousand stepping on a raid.
+  //
+  // A seat genuinely at risk still always opens: nobody should learn they are about to lose their
+  // capital from a strip of text, and neither should a player whose grace clock is already running.
+  // Below that mark the seat queues up with everywhere else.
+  const isCapital = ascent?.capitalLandId === landId;
+  if (isCapital && (ratio >= CAPITAL_AT_RISK_RATIO || (ascent?.capitalLostTicks ?? 0) > 0)) return true;
+
+  // A defence is rationed, not merely filtered.
+  //
+  // The odds band was tried on its own first and barely moved the count — 28.3 openings a run
+  // became 25.9 — because with provincial militia most defences *are* genuinely in doubt, so the
+  // band admits nearly all of them. Being worth watching and being worth *stopping the game for*
+  // are different questions, and only the second one is bounded.
   if (ascent && ascent.wave - (ascent.lastWatchedWave ?? -99) < ORDINARY_WATCH_WAVE_GAP) return false;
 
   // In doubt, measured the honest way: what is actually standing here against what actually
   // defends here. A raid the province will brush off, and an assault it cannot survive, are both
   // decided before the first exchange — neither is worth stopping the game for.
-  const defence = landGarrisonPower(state, land)
-    + state.armies
-      .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && army.landId === land.id)
-      .reduce((sum, army) => sum + armyPower(state, army), 0);
-  const attack = state.armies
-    .filter((army) => army.kingdomId !== PLAYER_KINGDOM_ID
-      && (army.landId === land.id || land.neighbors.includes(army.landId)))
-    .reduce((sum, army) => sum + armyPower(state, army), 0);
-  if (defence <= 0 || attack <= 0) return false;
-
-  const ratio = attack / defence;
   return ratio >= WATCH_ODDS_BAND_MIN && ratio <= WATCH_ODDS_BAND_MAX;
 }
 
-/** The band of attacker-to-defender power in which an ordinary defence is worth watching. */
-const WATCH_ODDS_BAND_MIN = 0.55;
-const WATCH_ODDS_BAND_MAX = 2.2;
-/** Waves of quiet before an ordinary defence may take the screen again. Great Invasions ignore it. */
-const ORDINARY_WATCH_WAVE_GAP = 2;
+/**
+ * The band of attacker-to-defender power in which a defence is worth watching.
+ *
+ * Narrowed from 0.55-2.20. The old floor admitted a fight the province wins by a factor of two,
+ * which is a result and not a battle; the old ceiling admitted one it loses by the same margin.
+ */
+const WATCH_ODDS_BAND_MIN = 0.65;
+const WATCH_ODDS_BAND_MAX = 1.8;
+/**
+ * What "the seat is genuinely at risk" means: the enemy brings at least this share of the line
+ * standing on the capital. Below it the capital is an ordinary defence and takes its turn.
+ */
+const CAPITAL_AT_RISK_RATIO = 0.6;
+/**
+ * The floor a Great Invasion must clear. Lower than the ordinary band's, because a great wave
+ * earns some benefit of the doubt; there is deliberately no matching ceiling.
+ */
+const GREAT_WATCH_MIN = 0.5;
+/**
+ * Waves of quiet before a defence may take the screen again. Great Invasions ignore it.
+ *
+ * Dropped from two to one when the capital and the great waves stopped being exempt: those two
+ * clauses had been supplying most of the run's fights, and with both rationed the screen opened
+ * 3.2 times a run against a design target of four to six. The gap exists to stop a second fight
+ * every wave, and at one wave of quiet it still does.
+ */
+const ORDINARY_WATCH_WAVE_GAP = 1;
 
 /** Share of a host's strength held back at camp, available to commit mid-fight. */
 function splitReserve(army: Army): { spearmen: number; archers: number; heavyInfantry: number } {
@@ -900,8 +962,22 @@ export function fightRound(state: GameState): void {
 
   // Morale follows the exchange: bleeding costs heart, and winning the exchange restores a
   // little of it. Because `armyPower` reads morale, the side that starts losing keeps losing.
-  const ourDrop = (ourLoss / Math.max(1, battle.ourStart)) * BATTLE_MORALE_PER_LOSS;
-  const theirDrop = (theirLoss / Math.max(1, battle.theirStart)) * BATTLE_MORALE_PER_LOSS;
+  //
+  // Measured against the *engaged* line, not against `ourStart`. `ourStart` counts everything the
+  // side brought — including the reserve, which by construction is standing at camp and not being
+  // shot at, and including relief that widened the denominator when it arrived. Traced through a
+  // real fight: a host of 351 with 134 in reserve took 28% casualties and lost **one point** of
+  // heart, because the men at camp were absorbing the shock of the line's losses on paper. The
+  // enemy, who had no reserve, fell from 85 to 46 over the same exchanges — the two sides were
+  // running different morale models without anyone deciding they should.
+  //
+  // Dividing by what is actually standing there also makes the drop compound: the smaller a host
+  // gets, the larger a share each further loss is, so a line that starts going breaks instead of
+  // grinding down at a constant rate. That is what the constant's own doc comment claims it does.
+  const ourEngaged = Math.max(1, ours.reduce((n, h) => n + totalUnits(h), 0) + ourLoss);
+  const theirEngaged = Math.max(1, theirs.reduce((n, h) => n + totalUnits(h), 0) + theirLoss);
+  const ourDrop = (ourLoss / ourEngaged) * BATTLE_MORALE_PER_LOSS;
+  const theirDrop = (theirLoss / theirEngaged) * BATTLE_MORALE_PER_LOSS;
   const wonExchange = theirLoss > ourLoss;
   // Applied to *every* host on the side, not just the one the maths treats as the line, so a
   // battered relief column carries its own heart rather than borrowing the vanguard's.
