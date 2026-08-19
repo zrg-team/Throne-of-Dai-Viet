@@ -13,7 +13,11 @@
 //        DEV_URL=http://127.0.0.1:5199 node test_scripts/verify-battle-pacing.mjs
 import { chromium } from 'playwright';
 
-const WATCH_MS = Number(process.argv[2] ?? 14) * 1000;
+const WATCH_MS = Number(process.argv[2] ?? 20) * 1000;
+// One beat, plus the deliberate hold on contact and on a host breaking, plus a frame of slack.
+// The hit-stop is the screen *choosing* to sit still for 110ms; scoring it as a stall would be
+// grading a feature as a fault. See `BATTLE_HIT_STOP_MS`.
+const GAP_BUDGET = 560 + 110 + 90;
 const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5173';
 
 const browser = await chromium.launch();
@@ -63,6 +67,10 @@ const opened = await page.evaluate(async () => {
     // Any engagement is not enough: a levy brushed aside in two beats gives nothing to time.
     // Pacing is measured on a fight with a fight in it, which is a harness choice, not a gate —
     // whether such fights are common at all is `probe-fights`' question, not this one.
+    // A fight that finished earlier leaves its Reckoning waiting, and the card holds the world
+    // when the screen opens it. A watching player reads it and taps on; a harness that does not is
+    // measuring its own inattention, exactly as it would by ignoring a prompt.
+    if (st.ascent.pendingAftermath) st.ascent.pendingAftermath = undefined;
     const b = st.ascent.activeBattle;
     if (b && b.ourStart >= 200 && b.theirStart >= 200) return true;
   }
@@ -105,6 +113,14 @@ await page.evaluate(async () => {
       // not a product one — the real UI emits this on every choice.
       ui.events.emit('state-changed');
     }
+    // Same during the watch: the fight can end and its card come up while the clock is running.
+    //
+    // Dismissed through the screen's own handler rather than by clearing the field. Clearing it
+    // leaves the lane holding the modal layer with `isStrategyPause` still set, and the harness
+    // then measures a world that is not running — measured, two distinct pictures in fourteen
+    // seconds with the fight reported as still live.
+    if (ui.openPromptKey === 'lane:aftermath') ui.dismissAftermath();
+    else if (st.ascent?.pendingAftermath) st.ascent.pendingAftermath = undefined;
     const battle = st.ascent?.activeBattle;
     const shown = ui.battleUi?.shown;
     // The frame identity: what a viewer could actually tell apart.
@@ -206,8 +222,8 @@ console.log('\n── TARGETS ──');
 const line = (ok, label, detail) => console.log(`${ok ? 'PASS' : 'FAIL'}  ${label.padEnd(46)} ${detail}`);
 // One long gap is a dropped frame in a headless browser, not a stall. A screen that genuinely
 // jumps shows *many* — before the beat buffer every gap was a full economy tick.
-const overBudget = gaps.filter((g) => g > 700).length;
-line(overBudget <= 1, 'at most one gap over 700ms', `${overBudget} of ${gaps.length}, longest ${longest.toFixed(0)}ms`);
+const overBudget = gaps.filter((g) => g > GAP_BUDGET).length;
+line(overBudget <= 1, `at most one gap over ${GAP_BUDGET}ms`, `${overBudget} of ${gaps.length}, longest ${longest.toFixed(0)}ms`);
 line(median < 700, 'median gap under one beat', `${median.toFixed(0)}ms`);
 line(gaps.length >= 4, 'enough un-starved intervals to judge', `${gaps.length} intervals`);
 line(out.maxQueued <= 12, 'the view keeps up with the simulation', `${out.maxQueued} beats deep`);

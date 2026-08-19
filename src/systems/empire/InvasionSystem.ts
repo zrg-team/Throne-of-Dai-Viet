@@ -11,6 +11,7 @@ import {
 } from '../ResourceSystem';
 import { getPlayerMilitary } from '../DiplomacySystem';
 import { addMandate } from './MandateSystem';
+import { enemyColumnsAt } from '../ascent/BattleSystem';
 import {
   openingVolleyShare,
   pursuitLossShare,
@@ -613,7 +614,20 @@ export function dissolveGarrisonLevies(state: GameState): void {
  * the battle to the player (the caller must then skip auto-resolution this tick).
  */
 function maybeRequestBattleDecision(state: GameState, army: Army, record: InvasionRecord, land: Land): boolean {
-  if (state.pendingBattle) return true;
+  // Two contacts in one tick: take the one with more enemy columns.
+  //
+  // The first contact the invader loop reached used to win by arriving first, which is arbitrary —
+  // and it matters, because Spread and Focus are inert against a single column and the probe
+  // measured a mean of 1.7 columns per watched fight. A choice of orders is only a choice when
+  // there is something to choose between, so a later contact this tick that brings more columns
+  // takes the screen instead. Either way the caller is told the battle was deferred, which is what
+  // stops this army resolving as a hidden roll behind the player's back.
+  if (state.pendingBattle) {
+    if (state.gameMode !== 'ascent' || state.pendingBattle.role === 'offence') return true;
+    const held = findLand(state, state.pendingBattle.landId);
+    if (!held || enemyColumnsAt(state, land) <= enemyColumnsAt(state, held)) return true;
+    state.pendingBattle = undefined;
+  }
   // One watched engagement at a time. A contact made elsewhere while a fight is live is settled
   // the old way, by the odds roll, rather than queued: queuing froze the second invader for the
   // length of the first fight, and a three-host wave took three fights' worth of seasons to

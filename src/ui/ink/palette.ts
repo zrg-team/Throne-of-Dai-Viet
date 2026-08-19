@@ -32,9 +32,23 @@ export const PIGMENT = {
   chamPale: 0x8fa5b2,
   chamWash: 0xafc0c7,
 
-  /** Gỉ đồng — copper verdigris. Every growing thing. */
-  giDong: 0x7b9271,
-  giDongPale: 0xa3b597,
+  /**
+   * Lá tràm — cajuput leaf. Every growing thing.
+   *
+   * Split out of `giDong`, which was doing two jobs that are not the same colour. The Đông Hồ
+   * greens come from cajuput leaves boiled down; copper verdigris is the *blue*-green the same
+   * accounts put beside indigo, and it belongs on bronze and on jade rather than on rice.
+   *
+   * Warmer and yellower than the green it replaces, which is the direction a leaf actually sits
+   * in — and only a little, so the map it repaints is the same country.
+   */
+  tram: 0x7d9160,
+  tramPale: 0xa7b98d,
+  tramDeep: 0x5b6d45,
+
+  /** Gỉ đồng — copper verdigris. Bronze, jade, and the patina on both. */
+  giDong: 0x5f8a82,
+  giDongPale: 0x94b2ab,
 
   /** Hoa hòe — sophora flower bud. Grain, gold, lamplight. */
   hoe: 0xc08a2e,

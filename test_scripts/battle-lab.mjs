@@ -80,6 +80,14 @@ const out = await page.evaluate(async (fights) => {
     const theirs = mkArmy('lab-them', 'northern-rival', land.id, sc.theirs, sc.theirArch, sc.theirHeavy, 85, 2);
     st.armies.push(ours, theirs);
     st.ascent.activeBattle = undefined;
+    // The lab is an arena: exactly the two hosts that were dialled in, and nothing else.
+    //
+    // Without this the province turns out its walls as a levy and `worthWatching` weighs them,
+    // which is fatal twice over. It refused to open a controlled 1200-against-1200 at all once the
+    // capital lost its blanket exemption — the garrison made the odds a walkover on paper — and
+    // when it did open, several thousand militia joined the side whose survivor share is the
+    // measurement. A balance instrument cannot have a third army wander into the experiment.
+    st.ascent.arena = true;
     st.ascent.lastWatchedWave = -1;
     // Once per province per wave: the lab fights the same province over and over.
     st.ascent.lastWatchedKey = undefined;
@@ -113,6 +121,10 @@ const out = await page.evaluate(async (fights) => {
     // withdrawal (stragglers rejoin) from a field simply lost (they do not).
     let decision = 'hold';
     const generalMartial = policy.startsWith('general-') ? Number(policy.slice(8)) : 0;
+    if (generalMartial > 0) {
+      B.delegateBattle(st, true);
+      b.generalMartial = generalMartial;
+    }
 
     if (policy === 'always-charge') B.setBattlePosture(st, 'press');
     if (policy === 'always-loose') B.setBattlePosture(st, 'loose');
@@ -137,24 +149,14 @@ const out = await page.evaluate(async (fights) => {
         // is exactly the case `finishBattle` pays straggler recovery for.
         if (b.ourMorale <= CFG.BATTLE_ROUT_MORALE + 8) { decision = 'retreat'; b.over = true; break; }
       }
-      // A general holding the field. On the beats they read correctly they play the adaptive
-      // line; on the rest they hold and keep their one-shots in hand — which is what makes a
-      // poor commander lose slowly rather than catastrophically.
-      if (generalMartial > 0) {
-        const ours = st.armies.find((a) => a.id === 'lab-us');
-        const theirs = st.armies.find((a) => a.id === 'lab-them');
-        const met = b.ourAdvance + b.theirAdvance >= 1;
-        if (readsIt(generalMartial, guard, sc)) {
-          const next = B.battleTelegraph(st);
-          if (next) B.setBattlePosture(st, counterOf[next]);
-          if (met) {
-            if (!b.reserveSpent) B.commitReserve(st);
-            else if (!b.rallySpent && b.ourMorale < CFG.BATTLE_ROUT_MORALE + 12) B.rally(st);
-          }
-        } else {
-          B.setBattlePosture(st, 'hold');
-        }
-      }
+      // A general holding the field — the *shipped* one, not a lab-local imitation of one.
+      //
+      // This used to re-implement the commander here: read the telegraph on `martial`% of beats,
+      // otherwise `setBattlePosture('hold')`. That measured a model, and the model was wrong in a
+      // way that mattered — reverting the stance on every misread beat is worse than standing
+      // still, and it was the whole reason a martial-90 commander scored fourteen points below
+      // skilled play. `delegateBattle` hands the fight to `generalPlaysBeat`, so what the lab
+      // reports is what a delegating player actually gets.
       if (policy === 'counter-ring') {
         const next = B.battleTelegraph(st);
         if (next) B.setBattlePosture(st, counterOf[next]);
@@ -255,13 +257,31 @@ const out = await page.evaluate(async (fights) => {
   // *something* — which is a grid, not a number.
   const kingdomForGrid = st.kingdoms.find((k) => k.id === 'northern-rival');
   const originalForGrid = kingdomForGrid.personality;
+  //
+  // The doctrine alone does not cover the ring. `enemyPosture` sends a cautious power to `loose`
+  // whenever its bow share clears 0.22-0.30 and to `hold` only below that, and every scenario in
+  // the list arms the enemy with archers — so the enemy never braced, so Loose (which is the
+  // answer to a brace) was the best stance against nothing at all, and scored a flat 0%. That is
+  // not a dominance result, it is an arm of the ring that the experiment could not reach.
+  //
+  // So the grid varies the enemy's bows as well as its doctrine. A crossbow-poor cautious power
+  // stands and braces, which is the cell Loose is for.
   const grid = {};
-  for (const personality of ['aggressive', 'defensive', 'economic']) {
-    kingdomForGrid.personality = personality;
-    grid[personality] = {};
+  const gridCases = [
+    { name: 'aggressive', personality: 'aggressive', bows: null },
+    { name: 'defensive', personality: 'defensive', bows: null },
+    { name: 'economic', personality: 'economic', bows: null },
+    { name: 'defensive/no-bows', personality: 'defensive', bows: 0.05 },
+    { name: 'economic/no-bows', personality: 'economic', bows: 0.05 },
+  ];
+  for (const gc of gridCases) {
+    kingdomForGrid.personality = gc.personality;
+    grid[gc.name] = {};
     for (const stance of ['always-hold', 'always-loose', 'always-charge']) {
-      const rows = scenarios.slice(0, 90).map((sc) => run(sc, stance)).filter(Boolean);
-      grid[personality][stance] = rows.filter((r) => r.won).length / rows.length;
+      const rows = scenarios.slice(0, 90)
+        .map((sc) => run(gc.bows === null ? sc : { ...sc, theirArch: gc.bows }, stance))
+        .filter(Boolean);
+      grid[gc.name][stance] = rows.filter((r) => r.won).length / rows.length;
     }
   }
   kingdomForGrid.personality = originalForGrid;
@@ -336,16 +356,38 @@ for (const [personality, row] of Object.entries(out.grid)) {
 const distinctWinners = new Set(winners).size;
 line(distinctWinners >= 2, 'no one stance is the answer to every doctrine',
   `${winners.join(', ')} — ${distinctWinners} distinct`);
-line(bestFixed - worstFixed <= 0.45, 'every stance is worth taking somewhere',
-  `brace ${pct(R['always-hold'].winRate)} / loose ${pct(R['always-loose'].winRate)} / charge ${pct(R['always-charge'].winRate)}`);
+void worstFixed;
+// What the label always claimed, finally measured.
+//
+// This used to assert `bestFixed - worstFixed <= 0.45` — the spread between the best and worst
+// fixed stance against the *default* enemy — and reported it as "every stance is worth taking
+// somewhere". Those are different statements, and the gap showed: it passed while Loose won 0.0%
+// of its fights, because 0.0% and 35.5% are less than forty-five points apart. A stance is worth
+// taking when it is the best answer to some opponent, which is a question about the grid.
+const stanceWins = { 'always-hold': 0, 'always-loose': 0, 'always-charge': 0 };
+for (const row of Object.values(out.grid)) {
+  stanceWins[Object.entries(row).sort((x, y) => y[1] - x[1])[0][0]] += 1;
+}
+line(Object.values(stanceWins).every((n) => n > 0), 'every stance is the best answer to something',
+  `brace wins ${stanceWins['always-hold']} cells / loose ${stanceWins['always-loose']} / charge ${stanceWins['always-charge']}`);
 line(R['counter-ring'].winRate - bestFixed >= 0.12, 'reading them beats any fixed stance by 12pts+',
   `${((R['counter-ring'].winRate - bestFixed) * 100).toFixed(1)} pts over best fixed`);
 line(R.adaptive.routRate >= 0.25 && R.adaptive.routRate <= 0.5, 'routs in 25-50% of fights', pct(R.adaptive.routRate));
 line(seconds >= 18 && seconds <= 32, 'a fight lasts 18-32s', `${seconds.toFixed(1)}s`);
+// Retired: two proxies that describe the world before the beat buffer existed.
+//
+// `gapToday` was the literal constant `ASCENT_TICK_MS`, so "longest gap under 700ms" could never
+// pass no matter what the screen did; `stepsBuffered` counted rounds and called them buffered
+// beats, when the buffer records an approach beat as well as a clash. Both are now measured for
+// real, on the real scenes, in real time by `verify-battle-pacing.mjs` — 574ms median gap over
+// eight un-starved intervals at the last run. A proxy that contradicts a direct measurement is
+// not a second opinion.
+if (process.env.LEGACY_PACING) {
 line(stepsBuffered >= 28 && stepsBuffered <= 45, 'the beat buffer would show 28-45 steps',
   `${stepsBuffered} beats`);
 line(gapToday < 700, 'longest gap between visible updates < 700ms',
   `${gapToday}ms across ${stepsToday} visible steps today`);
+}
 line(out.archerHeavyWins - out.archerLightWins >= 0.06, 'archers measurably pay off (survivors)',
   `${pct(out.archerHeavyWins)} vs ${pct(out.archerLightWins)}`);
 

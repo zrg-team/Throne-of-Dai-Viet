@@ -1,0 +1,87 @@
+// The Reckoning, on the real scenes.
+//
+// `shot-*` harnesses pass on a blank frame, so this one also reports what it found in the modal
+// layer — a screenshot nobody looks at is not a check.
+import { chromium } from 'playwright';
+import { mkdirSync } from 'node:fs';
+
+const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5173';
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 390, height: Number(process.env.HEIGHT ?? 844) } });
+const errors = [];
+page.on('pageerror', (e) => errors.push(String(e)));
+page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+
+await page.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
+await page.waitForFunction(() => typeof window.__startBenchGame === 'function', null, { timeout: 30000 });
+await page.evaluate(() => window.__startBenchGame(20260812, 'ascent'));
+await page.waitForFunction(() => window.__phaserGame.scene.isActive('ConquestScene'), null, { timeout: 30000 });
+await page.waitForTimeout(600);
+
+// Drive until a fight has been fought and its card is waiting.
+const found = await page.evaluate(async () => {
+  const st = window.__mandateState;
+  const { advanceAscentTick } = await import('/src/systems/ascent/AscentTick.ts');
+  const { resolveAscentPrompt } = await import('/src/systems/ascent/AscentResolver.ts');
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  const first = (p) => {
+    const o = p.options ?? [];
+    switch (p.kind) {
+      case 'founder': return p.options[0];
+      case 'power-draft': return p.cards?.[0] ?? 'skip';
+      case 'conquer-target': return p.targets?.[0]?.landId ?? 'hold';
+      case 'conquer-method': return p.target.methods.find((m) => !m.blockedReason)?.method ?? 'back';
+      case 'hero-choice': return p.heroIds?.[0] ?? 'pass';
+      case 'court-appointment': return p.options[0].id;
+      case 'law-choice': return p.projectIds?.[0] ? `edict:${p.projectIds[0]}` : 'hold';
+      case 'parliament': return 'decline';
+      default: return o.length ? (o.find((x) => x.affordable) ?? o[0]).id : 'ok';
+    }
+  };
+  for (let tick = 0; tick < 200; tick += 1) {
+    advanceAscentTick(st);
+    let g = 0;
+    while (st.pendingAscentPrompt && g++ < 12) resolveAscentPrompt(st, first(st.pendingAscentPrompt));
+    if (st.ascent.pendingAftermath) {
+      st.pendingAscentPrompt = undefined;
+      ui.events.emit('state-changed');
+      return true;
+    }
+  }
+  return false;
+});
+
+await page.waitForTimeout(900);
+const seen = await page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  const texts = [];
+  const walk = (o) => {
+    if (o.text) texts.push(o.text);
+    if (o.list) o.list.forEach(walk);
+  };
+  ui.modalLayer.list.forEach(walk);
+  return { lane: ui.openPromptKey, texts: texts.slice(0, 24) };
+});
+mkdirSync('output/web-game', { recursive: true });
+await page.screenshot({ path: 'output/web-game/aftermath.png' });
+await browser.close();
+
+console.log('═══ THE RECKONING ═══');
+console.log('on screen:');
+for (const t of seen.texts) console.log(`  ${t}`);
+
+const has = (re) => seen.texts.some((x) => re.test(x));
+const line = (ok, label, detail) => console.log(`${ok ? 'PASS' : 'FAIL'}  ${label.padEnd(46)} ${detail}`);
+console.log('');
+line(found, 'a fight finishes and leaves a card waiting', String(found));
+line(seen.lane === 'lane:aftermath', 'the card takes the screen', seen.lane);
+// The butcher's bill, what it bought, and the chronicle line — the three things the card exists
+// for. Matched on shape rather than on wording so a translation edit does not fail the gate.
+line(has(/\d+ of \d+ fell|\d+ trên \d+/), "the butcher's bill is on it",
+  seen.texts.find((x) => /fell|ngã xuống/.test(x)) ?? '-');
+line(has(/still standing|còn/), 'what it bought is on it',
+  seen.texts.find((x) => /still standing|còn/.test(x)) ?? '-');
+line(has(/^Year \d+:|^Năm \d+:/), 'one line of chronicle names the place and the enemy',
+  seen.texts.find((x) => /^Year \d+:|^Năm \d+:/.test(x)) ?? '-');
+line(seen.texts.length >= 8, 'the card is not blank', `${seen.texts.length} strings drawn`);
+line(errors.length === 0, 'no console errors', errors.length ? errors.slice(0, 2).join(' ; ') : 'none');

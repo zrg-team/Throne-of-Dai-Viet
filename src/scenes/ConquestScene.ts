@@ -15,7 +15,9 @@ import { recallHost, resupplyHost, setArmyOrders } from '../systems/ascent/Stand
 import { raiseHostWithPlan, type MusterPlan } from '../systems/ascent/MusterSystem';
 import { pushToast } from '../systems/empire/notifications';
 import { disbandArmy } from '../systems/WarSystem';
-import { answerBattleMoment, commitReserve, finishBattle, rally, setBattleFocus, setBattlePosture } from '../systems/ascent/BattleSystem';
+import {
+  answerBattleMoment, commitReserve, delegateBattle, finishBattle, rally, setBattleFocus, setBattlePosture,
+} from '../systems/ascent/BattleSystem';
 import { createAscentGameState } from '../state/GameState';
 import { ASCENT_HUD_HEIGHT } from '../ui/ascent/AscentHud';
 import { MapScene } from './MapScene';
@@ -357,7 +359,10 @@ export class ConquestScene extends MapScene {
       // "Leave it to my generals" hands back *this* fight. It used to flip the run-wide
       // `autoResolveBattles` as well, so one tap on the way out of a lost cause silently
       // disabled the mode's best screen for the rest of the run; Settings still offers that.
-      else if (order === 'auto') finishBattle(this.state, 'hold');
+      // Handing over is not conceding. `finishBattle` ended the engagement on the spot and threw
+      // away everything after it — the aftermath, the spoils, the chance to take the field back.
+      else if (order === 'auto') delegateBattle(this.state, true);
+      else if (order === 'take-field') delegateBattle(this.state, false);
       ui.events.emit('state-changed');
     });
     // Standing orders, recall and resupply act on one host and refresh at once — an order given

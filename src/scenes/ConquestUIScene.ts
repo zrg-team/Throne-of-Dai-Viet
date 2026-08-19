@@ -28,7 +28,8 @@ import { envoyOptionDetail } from '../systems/ascent/EnvoySystem';
 import { realmStanding } from '../systems/ascent/RivalDirector';
 import { ourHosts, theirHosts } from '../systems/ascent/BattleSystem';
 import {
-  ASCENT_TICK_MS, BATTLE_BEATS_PER_TICK, BATTLE_ROUT_MORALE, BATTLE_TICK_MS, TRIBUTE_REFUSE_TICKS,
+  ASCENT_TICK_MS, BATTLE_BEATS_PER_TICK, BATTLE_HIT_STOP_MS, BATTLE_ROUT_MORALE, BATTLE_TICK_MS,
+  TRIBUTE_REFUSE_TICKS,
 } from '../game/ascentConfig';
 import { battleTelegraph, posturesCounter } from '../systems/ascent/BattleSystem';
 import { ALL_COURT_POSITIONS, assignHeroToLand, getCourtPositionLabel } from '../systems/CourtSystem';
@@ -81,6 +82,7 @@ import { arrivalPreview } from '../data/heroArrivals';
 import { isVassal } from '../systems/ascent/VassalSystem';
 import { designLength } from '../game/graphicsQuality';
 import { sawtoothBand, seal } from '../ui/ink/devices';
+import { faceTravel } from '../ui/ink/life';
 import { playArrivalFanfare } from '../ui/ascent/arrivalFanfare';
 import { THRONE_HALL_HEIGHT, throneHallDiorama } from '../ui/ascent/throneHall';
 import { CARD_STACK_PEEK, CardStack } from '../ui/ascent/CardStack';
@@ -267,6 +269,8 @@ interface BattleMarker {
   hostId: string;
   marker: Phaser.GameObjects.Container;
   count?: Phaser.GameObjects.Text;
+  /** The host broke and is running. It has left the line and the line stops moving it. */
+  routed?: boolean;
   /**
    * Figures the block was last drawn with — `men / MEN_PER_MARK`.
    *
@@ -457,6 +461,18 @@ export class ConquestUIScene extends Phaser.Scene {
     // A fight that has just begun brings its own screen up. After the prompt key is reconciled,
     // so a card that arrived on the same tick is answered first and the battle follows it.
     if (this.maybeAutoOpenBattle()) return;
+
+    // A fight that has just ended brings its own screen up too. After the battle, obviously, and
+    // after any card that arrived with it — the world is held while it is read, exactly as every
+    // other lane holds it.
+    if (this.state.ascent?.pendingAftermath && !overlayOpen && !prompt) {
+      this.lanePauseBeforeOpen = this.state.isStrategyPause;
+      this.state.isStrategyPause = true;
+      this.beginOverlay('lane:aftermath');
+      this.showAftermathScreen();
+      if (this.modalLayer.length === 0) this.dismissAftermath();
+      return;
+    }
 
     // After the prompt key is reconciled, never before: both of these decide whether to show
     // themselves from it, and reading last tick's value left the bar hidden for a whole frame
@@ -660,6 +676,8 @@ export class ConquestUIScene extends Phaser.Scene {
     fieldSignature: string;
     /** Identity of what the order cards offer, so a spent one-shot greys out. */
     orderSignature: string;
+    /** Whether the lines have met yet, so the hit-stop fires on the first contact only. */
+    hadContact?: boolean;
     /** Marker plus the host it stands for, so its strength can be re-stamped as men fall. */
     ourMarkers: BattleMarker[];
     theirMarkers: BattleMarker[];
@@ -1588,6 +1606,10 @@ export class ConquestUIScene extends Phaser.Scene {
     // In the arena there is nothing behind this screen. Closing it dropped the player onto a map
     // with one province, no economy and no way back — the fight *is* the session, so leaving it
     // means leaving the fight, not stepping out of it onto a world that is not there.
+    if (this.openPromptKey === 'lane:aftermath') {
+      this.dismissAftermath();
+      return;
+    }
     if (this.state.ascent?.arena && this.openPromptKey === 'lane:battle') {
       this.events.emit('ui:arena-leave');
       return;
@@ -4055,6 +4077,114 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
    * promise the screen cannot keep is worse than absence — and rows are people, not titles:
    * name, want, and the most recent line, so a scan of the list is a scan of situations.
    */
+  /**
+   * The Reckoning: what the fight cost, what it bought, and who else was fighting.
+   *
+   * Every figure here was already being written down and then discarded. `battleHistory` carries
+   * the butcher's bill, `grantRepelSpoils` and `XP_PER_BATTLE_WON` carry what it paid for, and
+   * `levyFought` carries whether the province turned its own people out — and the screen closed on
+   * one line of message strip, so the most consequential thing in the mode ended by vanishing.
+   *
+   * The dispatch below it is the other half of making delegation legitimate. A run-wide switch
+   * that hands two thirds of the war to the generals is a way of playing; the same switch when it
+   * makes those fights silent is a way of turning the game off.
+   */
+  private showAftermathScreen(): void {
+    const pending = this.state.ascent?.pendingAftermath;
+    if (!pending) return;
+    const { record, alsoFought } = pending;
+    const ourLost = Math.max(0, record.ourStart - record.ourEnd);
+    const theirLost = Math.max(0, record.theirStart - record.theirEnd);
+    const held = record.outcome === 'they-rout'
+      || (record.outcome === 'spent' && record.ourEnd / Math.max(1, record.ourStart) >= record.theirEnd / Math.max(1, record.theirStart));
+
+    const titleKey = record.outcome === 'they-rout' ? 'broke'
+      : record.outcome === 'we-rout' ? 'broken'
+        : record.outcome === 'retreat' ? 'withdrew'
+          : held ? 'held' : 'lost';
+
+    const { addRow, addHeading, addNote, addWidget, finish } = this.laneList(
+      t(`ascent.aftermath.title.${titleKey}` as Parameters<typeof t>[0]),
+      t('ascent.aftermath.subtitle', { land: record.landName, rounds: record.rounds }),
+      { footer: { label: t('ascent.aftermath.continue'), onTap: () => this.dismissAftermath() } },
+    );
+
+    // The bill, as two bars against the same scale — the only honest way to show a trade.
+    const worst = Math.max(1, record.ourStart, record.theirStart);
+    addWidget(64, (parent, width) => {
+      const bar = (y: number, label: string, lost: number, of: number, colour: number): void => {
+        parent.add(this.ui.label(0, y, label, 'caption', {}));
+        parent.add(this.ui.label(width, y, t('ascent.aftermath.fell', { n: lost, of }), 'caption',
+          { align: 'right' }).setOrigin(1, 0));
+        parent.add(this.ui.statBar({ x: 0, y: y + 16, width, height: 7 }, lost, worst, colour));
+      };
+      bar(0, t('ascent.aftermath.ourDead'), ourLost, record.ourStart, INK_UI.cinnabar);
+      bar(32, t('ascent.aftermath.theirDead'), theirLost, record.theirStart, INK_UI.softBrush);
+    });
+
+    // Who held the field. A delegated fight names its commander, because an appointment the
+    // player made is the reason the fight went the way it did.
+    if (record.delegated) {
+      addRow({
+        title: record.generalName
+          ? t('ascent.aftermath.generalFought', { name: record.generalName })
+          : t('ascent.aftermath.officersFought'),
+        subtitle: t('ascent.aftermath.generalNote'),
+        border: INK_UI.gold,
+      });
+    }
+
+    // Historically literal under ngụ binh ư nông: the levy is farmers, and they go home to the
+    // fields rather than back to a wall they never lived on.
+    if (record.levyFought) addNote(t('ascent.aftermath.levyHome', { land: record.landName }));
+
+    addRow({
+      title: held ? t('ascent.aftermath.keptTitle', { land: record.landName })
+        : t('ascent.aftermath.lostTitle', { land: record.landName }),
+      subtitle: t('ascent.aftermath.keptNote', {
+        ours: record.ourEnd, theirs: record.theirEnd, hosts: record.theirHosts,
+      }),
+      border: held ? INK_UI.jade : INK_UI.cinnabar,
+    });
+
+    // One line of chronicle, in the voice the annals use: when, where, against whom, and what it
+    // cost. This is the sentence a player will remember a fight by long after the numbers above it
+    // have gone — and it is the same sentence the Đông Hồ prints of Hai Bà Trưng and Quang Trung
+    // are captioned with, which is the register this whole mode is written in.
+    addNote(t(`ascent.aftermath.chronicle.${held ? 'won' : 'lost'}` as Parameters<typeof t>[0], {
+      year: record.year ?? this.state.year,
+      land: record.landName,
+      kingdom: record.kingdomName ?? t('ascent.aftermath.theEnemy'),
+      dead: ourLost,
+      leader: record.generalName ?? t('ascent.aftermath.theHost'),
+    }), held ? INK_UI.jade : INK_UI.cinnabar);
+
+    if (alsoFought.length > 0) {
+      addHeading(t('ascent.aftermath.elsewhere'), t('ascent.aftermath.elsewhereHint'));
+      for (const other of alsoFought) {
+        const theirs = other.outcome === 'they-rout' || other.outcome === 'spent';
+        addRow({
+          title: other.landName,
+          subtitle: t(`ascent.aftermath.dispatch.${theirs ? 'won' : 'lost'}` as Parameters<typeof t>[0], {
+            name: other.generalName ?? t('ascent.aftermath.officers'),
+            ours: Math.max(0, other.ourStart - other.ourEnd),
+            theirs: Math.max(0, other.theirStart - other.theirEnd),
+          }),
+          border: theirs ? INK_UI.softBrush : INK_UI.cinnabar,
+          muted: true,
+        });
+      }
+    }
+
+    finish();
+  }
+
+  private dismissAftermath(): void {
+    if (this.state.ascent) this.state.ascent.pendingAftermath = undefined;
+    this.state.isStrategyPause = this.lanePauseBeforeOpen;
+    this.closeOverlay();
+  }
+
   private showChronicleScreen(): void {
     const state = this.state;
     // A latent story does not exist yet as far as the player is concerned — unless it is
@@ -4786,7 +4916,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       const tx = skyX0 + (skyX1 - skyX0) * t;
       const ty = baseY + Math.sin(t * Math.PI * 1.7 + seed) * 2.5 + 1;
       const th = 3.5 + rand() * 5;
-      ground.fillStyle(PIGMENT.giDong, 0.16 + rand() * 0.14);
+      ground.fillStyle(PIGMENT.tram, 0.16 + rand() * 0.14);
       ground.fillEllipse(tx, ty - th * 0.55, 3.4 + rand() * 3.4, th);
     }
 
@@ -4965,6 +5095,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       // rebuilt for it — otherwise "counters them" stays printed under a stance that no longer does.
       battleTelegraph(this.state) ?? '',
       battle.focusHostId ?? '',
+      // The hand-over chip is two chips wearing one slot, so the dock has to be rebuilt when the
+      // field changes hands or the button keeps offering the state it is already in.
+      battle.delegated ? 'd1' : 'd0',
       battle.reserveSpent ? 'r1' : 'r0',
       battle.rallySpent ? 'y1' : 'y0',
       reserveMen > 0 ? 'has' : 'none',
@@ -5290,11 +5423,17 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       accent: INK_UI.cinnabar,
       onTap: () => { this.releaseBattleHold(); this.events.emit('ui:battle-order', 'retreat'); },
     });
+    // One chip, two states, reversible mid-beat. Handing over is a way of playing rather than a
+    // way of skipping, so the way back has to be exactly as cheap as the way out.
+    const handedOver = Boolean(battle.delegated);
     buttons.push({
-      label: t('ascent.battle.autoShort'),
-      sub: t('ascent.battle.autoSub'),
-      accent: INK_UI.softBrush,
-      onTap: () => { this.releaseBattleHold(); this.events.emit('ui:battle-order', 'auto'); },
+      label: handedOver ? t('ascent.battle.takeField') : t('ascent.battle.autoShort'),
+      sub: handedOver ? t('ascent.battle.takeFieldNote') : t('ascent.battle.autoSub'),
+      accent: handedOver ? INK_UI.gold : INK_UI.softBrush,
+      onTap: () => {
+        this.releaseBattleHold();
+        this.events.emit('ui:battle-order', handedOver ? 'take-field' : 'auto');
+      },
     });
 
     const gap = 6;
@@ -5503,7 +5642,83 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     if (ui.shown) {
       this.spawnBattleFloaters(ui.shown);
       this.layFallen(ui.shown);
+      this.reactToBeat(ui.shown);
     }
+  }
+
+  /**
+   * The two moments in a fight that are worth interrupting the rhythm for.
+   *
+   * `BattleBeat.broke` has been recorded since the buffer was written — its own doc comment calls
+   * it "the moment worth a shake" — and nothing has ever read it. Contact was the same: the beat
+   * where two lines meet arrived at exactly the cadence of the beat before it and the one after,
+   * so the most violent thing on the screen was also the least remarkable.
+   *
+   * A hit-stop is the cheapest way to say *that mattered*: the clock holds for a fraction of a beat
+   * and the picture sits still. It reads as weight rather than as a stutter because it happens only
+   * on contact and on a break — measured across a fight, three or four times, never twice in a row.
+   */
+  private reactToBeat(beat: BattleBeat): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+
+    const met = beat.ourAdvance + beat.theirAdvance >= 1;
+    const firstContact = met && !ui.hadContact;
+    if (firstContact) ui.hadContact = true;
+
+    const broke = beat.broke ?? [];
+    if (broke.length > 0) {
+      // A line breaking shakes the field, not the whole screen: the rails and the dock have to stay
+      // readable, and a player reaching for Rally at exactly this moment should not have the button
+      // move under their thumb.
+      this.tweens.add({
+        targets: [ui.field, ui.floaters],
+        x: { from: -3, to: 0 },
+        duration: 220,
+        ease: 'Elastic.easeOut',
+      });
+      // And the hosts that broke turn away and run off their own edge.
+      for (const id of broke) this.routMarker(id);
+    }
+
+    if (firstContact || broke.length > 0) this.holdBattleClock(BATTLE_HIT_STOP_MS);
+  }
+
+  /** Holds the beat clock for a moment without losing its cadence afterwards. */
+  private holdBattleClock(ms: number): void {
+    const clock = this.battleClock;
+    if (!clock || clock.paused) return;
+    clock.paused = true;
+    this.time.delayedCall(ms, () => {
+      if (this.battleClock === clock) clock.paused = false;
+    });
+  }
+
+  /**
+   * A host that broke turns and runs off its own side of the field.
+   *
+   * Never `setScale(-1, 1)`: these markers are baked props with a declared native facing, and
+   * flipping one directly mirrors whatever it was drawn from. `faceTravel` asks the object which
+   * way it was drawn and works out the sign from that.
+   */
+  private routMarker(hostId: string): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+    const ours = ui.ourMarkers.find((m) => m.hostId === hostId);
+    const marker = ours ?? ui.theirMarkers.find((m) => m.hostId === hostId);
+    if (!marker?.marker?.active) return;
+    // Ours run left, theirs run right: each side flees the way it came.
+    const direction: -1 | 1 = ours ? -1 : 1;
+    marker.routed = true;
+    this.tweens.killTweensOf(marker.marker);
+    faceTravel(marker.marker, direction);
+    this.tweens.add({
+      targets: marker.marker,
+      x: marker.marker.x + direction * (ui.geometry.span * 0.6 + 60),
+      alpha: { from: 1, to: 0 },
+      duration: BATTLE_TICK_MS * 2,
+      ease: 'Quad.easeIn',
+    });
   }
 
   /**
@@ -5522,6 +5737,11 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     for (const entry of markers) {
       const { hostId, marker, count } = entry;
       if (!marker.active) continue;
+      // A host that broke is no longer part of the line. Without this, `slideMarkers` dragged it
+      // back into formation every beat and killed the tween carrying it off the field — measured,
+      // the runner got forty pixels and never faded, because the rout and the formation were both
+      // writing the same `x` and the formation won.
+      if (entry.routed) continue;
       const size = sizes.get(hostId);
       if (count?.active && size !== undefined) count.setText(compactNumber(size));
       // The ranks thin. One figure stands for `MEN_PER_MARK` men, so this fires about once per

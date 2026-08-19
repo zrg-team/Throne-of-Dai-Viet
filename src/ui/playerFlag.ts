@@ -35,7 +35,9 @@ function flagPigments(muted: boolean): FlagPigments {
     redBright: PIGMENT.sonDeep,
     cream: PIGMENT.diepHi,
     blue: PIGMENT.cham,
-    green: PIGMENT.giDong,
+    // Mộc, the wood element on the ngũ sắc, and the foliage on everything else. A leaf, not
+    // a patina.
+    green: PIGMENT.tram,
     ink: PIGMENT.muc,
   };
   if (!muted) {
@@ -54,7 +56,8 @@ export type PlayerFlagStyle =
   | 'red-moon'
   | 'layered-square'
   | 'red-fringe-yellow'
-  | 'yellow-red-medallion';
+  | 'yellow-red-medallion'
+  | 'ngu-sac';
 
 export const PLAYER_FLAG_STYLES: PlayerFlagStyle[] = [
   'yellow-seal',
@@ -62,6 +65,7 @@ export const PLAYER_FLAG_STYLES: PlayerFlagStyle[] = [
   'layered-square',
   'red-fringe-yellow',
   'yellow-red-medallion',
+  'ngu-sac',
 ];
 
 /** Seeded dynastic standard marking land owned by the player. */
@@ -74,8 +78,10 @@ export function createPlayerLandFlag(scene: Phaser.Scene, isCapital = false, sty
   const poleX = 0;
   const poleTop = -46 * scale;
   const poleBottom = 8 * scale;
-  const flagW = (style === 'layered-square' ? 28 : style === 'red-fringe-yellow' ? 29 : 25) * scale;
-  const flagH = (style === 'layered-square' ? 22 : style === 'red-fringe-yellow' ? 18 : 17) * scale;
+  // The ngũ sắc is a *square* cloth with a tail, not a pennant — the nested squares only read
+  // as nested squares if the cloth they are on is one.
+  const flagW = (style === 'layered-square' ? 28 : style === 'red-fringe-yellow' ? 29 : style === 'ngu-sac' ? 24 : 25) * scale;
+  const flagH = (style === 'layered-square' ? 22 : style === 'red-fringe-yellow' ? 18 : style === 'ngu-sac' ? 21 : 17) * scale;
 
   drawStandardMast(pole, poleX, poleTop, poleBottom, scale, isCapital, muted);
   drawPlayerFlagCloth(cloth, style, poleX, poleTop, flagW, flagH, scale, styleSeed, muted);
@@ -225,6 +231,45 @@ function drawPlayerFlagCloth(
     graphics.fillStyle(pig.cream, 0.96);
     graphics.fillCircle(poleX + flagW * 0.55, poleTop + flagH * 0.52, flagH * 0.36);
     drawPseudoGlyph(graphics, poleX + flagW * 0.55, poleTop + flagH * 0.55, scale * 0.5, pig.ink, seed + 1);
+    return;
+  }
+
+  if (style === 'ngu-sac') {
+    // Cờ ngũ sắc: five nested squares in the ngũ hành colours, and three ragged points at the fly.
+    //
+    // `layered-square` was the closest thing here and it is not this: four bands of blue, gold,
+    // green and red on a scalloped border, which is a decorative guess. The festival flag flown at
+    // every đình and every hội in the delta is a specific object — five colours for the five
+    // elements, nested from the outside in, with the earth's yellow at the centre because earth is
+    // the middle direction, and a tail of three points (đuôi nheo) at the fly.
+    //
+    // Wood green outside, then fire red, then metal white, then water black, then earth yellow at
+    // the heart. Five bands on a twenty-four-pixel cloth is close to the limit of what will read,
+    // so the inner two are deliberately small — at map scale the eye takes the green-red-white
+    // rhythm and the yellow centre, which is exactly what identifies it.
+    const bands: Array<[number, number]> = [
+      [pig.green, 0.0], [pig.red, 0.11], [pig.cream, 0.22], [pig.ink, 0.31], [pig.goldBright, 0.38],
+    ];
+    // The tail first, so the cloth is printed over its own roots.
+    const tailX = poleX + flagW;
+    for (let i = 0; i < 3; i += 1) {
+      const y0 = poleTop + flagH * (0.14 + i * 0.29);
+      graphics.fillStyle(i === 1 ? pig.red : pig.green, 0.94);
+      graphics.fillTriangle(
+        tailX - flagW * 0.04, y0,
+        tailX + flagW * 0.30, y0 + flagH * 0.07,
+        tailX - flagW * 0.04, y0 + flagH * 0.16,
+      );
+    }
+    for (const [colour, inset] of bands) {
+      graphics.fillStyle(colour, 0.97);
+      graphics.fillRect(
+        poleX + flagW * inset, poleTop + flagH * inset,
+        flagW * (1 - inset * 2), flagH * (1 - inset * 2),
+      );
+    }
+    graphics.lineStyle(1.1 * scale, pig.ink, 0.34);
+    graphics.strokeRect(poleX, poleTop, flagW, flagH);
     return;
   }
 

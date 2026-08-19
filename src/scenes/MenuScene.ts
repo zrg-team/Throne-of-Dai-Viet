@@ -566,7 +566,7 @@ export class MenuScene extends Phaser.Scene {
       { x: 14, y: 844 },
       { x: -20, y: 844 },
     ];
-    washFill(g, forestShape, PIGMENT.giDong, 0.80, () => rng());
+    washFill(g, forestShape, PIGMENT.tram, 0.80, () => rng());
 
     // Tree silhouettes distributed across the full forest band
     this.mapRenderer.decorateTerrain(g, 'forest', [
@@ -592,7 +592,7 @@ export class MenuScene extends Phaser.Scene {
       { x: 234, y: 554 },
       { x: 200, y: 450 },
     ];
-    washFill(g, riceShape, PIGMENT.giDongPale, 0.74, () => rng());
+    washFill(g, riceShape, PIGMENT.tramPale, 0.74, () => rng());
 
     const riceRng = createMenuRng(555);
     for (let y = 336; y <= 520; y += 30) {
@@ -607,7 +607,7 @@ export class MenuScene extends Phaser.Scene {
       { x: GAME_WIDTH + 20, y: GAME_HEIGHT + 20 },
       { x: -20, y: GAME_HEIGHT + 20 },
     ];
-    washFill(g, lowerPlains, shade(PIGMENT.giDongPale, 0.96), 0.60, () => rng());
+    washFill(g, lowerPlains, shade(PIGMENT.tramPale, 0.96), 0.60, () => rng());
 
     for (let y = 518; y < 780; y += 44) {
       brushStroke(g, [{ x: 14, y }, { x: GAME_WIDTH - 14, y: y - 10 }], 0.9, PIGMENT.mucFaint, 0.14, y + 500);

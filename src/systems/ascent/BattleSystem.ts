@@ -44,7 +44,7 @@ import { isAutoHost } from './armyOrders';
 import { t } from '../../i18n';
 import type {
   Army, AscentBattle, BattleBeatHost, BattleMoment, BattleMomentAnswer, BattlePosture,
-  GameState, PendingBattle,
+  GameState, Land, PendingBattle,
 } from '../../state/types';
 
 // Re-exported so the screen and the harness keep one import for the fight's vocabulary.
@@ -157,48 +157,110 @@ function recordBeat(
  * the run turns on, and a player who is about to lose their seat should never learn about it from
  * a strip of text.
  */
+/**
+ * The odds a defence would be fought at, as the selection gate reads them.
+ *
+ * Walls and field hosts on one side; everything standing on the province or one hop from it on the
+ * other, because the invader that made contact is stood on the *adjacent* land when this is asked.
+ */
+function watchOdds(state: GameState, land: Land): { defence: number; attack: number; columns: number } {
+  const defence = landGarrisonPower(state, land)
+    + state.armies
+      .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && army.landId === land.id)
+      .reduce((sum, army) => sum + armyPower(state, army), 0);
+  const near = state.armies.filter((army) => army.kingdomId !== PLAYER_KINGDOM_ID
+    && (army.landId === land.id || land.neighbors.includes(army.landId)));
+  return {
+    defence,
+    attack: near.reduce((sum, army) => sum + armyPower(state, army), 0),
+    columns: near.length,
+  };
+}
+
+/** How many enemy columns stand on a province or one hop from it. Used to break ties. */
+export function enemyColumnsAt(state: GameState, land: Land): number {
+  return watchOdds(state, land).columns;
+}
+
 function worthWatching(state: GameState, landId: string, isGreat: boolean): boolean {
   const ascent = state.ascent;
   // The arena exists to watch one specific matchup. Every clause below asks whether a fight is
   // worth interrupting a *run* for, which is not a question the arena is asking.
   if (ascent?.arena) return true;
-  if (isGreat || ascent?.capitalLandId === landId) return true;
-
   const land = findLand(state, landId);
   if (!land || land.ownerId !== PLAYER_KINGDOM_ID) return false;
 
-  // An ordinary defence is rationed, not merely filtered.
+  const { defence, attack } = watchOdds(state, land);
+  if (defence <= 0 || attack <= 0) return false;
+  const ratio = attack / defence;
+
+  // A Great Invasion is the wave the run turns on, and it has a floor but no ceiling.
   //
-  // The odds band below was tried on its own first and barely moved the count — 28.3 openings a
-  // run became 25.9 — because with provincial militia most defences *are* genuinely in doubt, so
-  // the band admits nearly all of them. Being worth watching and being worth *stopping the game
-  // for* are different questions, and only the second one is bounded. Great Invasions land every
-  // fourth wave and always open, so those alone supply the run's showpiece budget; this keeps the
-  // ordinary ones to an occasional extra rather than a second one every wave.
+  // It used to be unconditional on the grounds that a great wave is usually in band anyway. It is
+  // not: with the capital's exemption gone, **every single remaining walkover was a Great Invasion
+  // on the seat** — nine of ten, at 0.02 to 0.15, each running the full twenty-two rounds with the
+  // defence never dropping below 64% strength. A wave the realm has already beaten is not a
+  // turning point because it was labelled one.
+  //
+  // No ceiling, though. A great invasion the player is losing badly is exactly the fight they have
+  // to be in the room for, and the ordinary band's upper limit would hide it.
+  if (isGreat) return ratio >= GREAT_WATCH_MIN;
+
+  // The capital keeps its priority and loses its exemption.
+  //
+  // It used to open unconditionally, and that single clause is most of why the screen was boring.
+  // Measured over 44 watched fights across six seeded runs: **73% were on the seat**, and the seat
+  // turns out the realm's largest levy — 2,574 against 269, 4,237 against 66, 5,303 against 136.
+  // Median opening odds across everything watched were **0.20** and 64% were walkovers. The screen
+  // was mostly being used to show the player a garrison of four thousand stepping on a raid.
+  //
+  // A seat genuinely at risk still always opens: nobody should learn they are about to lose their
+  // capital from a strip of text, and neither should a player whose grace clock is already running.
+  // Below that mark the seat queues up with everywhere else.
+  const isCapital = ascent?.capitalLandId === landId;
+  if (isCapital && (ratio >= CAPITAL_AT_RISK_RATIO || (ascent?.capitalLostTicks ?? 0) > 0)) return true;
+
+  // A defence is rationed, not merely filtered.
+  //
+  // The odds band was tried on its own first and barely moved the count — 28.3 openings a run
+  // became 25.9 — because with provincial militia most defences *are* genuinely in doubt, so the
+  // band admits nearly all of them. Being worth watching and being worth *stopping the game for*
+  // are different questions, and only the second one is bounded.
   if (ascent && ascent.wave - (ascent.lastWatchedWave ?? -99) < ORDINARY_WATCH_WAVE_GAP) return false;
 
   // In doubt, measured the honest way: what is actually standing here against what actually
   // defends here. A raid the province will brush off, and an assault it cannot survive, are both
   // decided before the first exchange — neither is worth stopping the game for.
-  const defence = landGarrisonPower(state, land)
-    + state.armies
-      .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && army.landId === land.id)
-      .reduce((sum, army) => sum + armyPower(state, army), 0);
-  const attack = state.armies
-    .filter((army) => army.kingdomId !== PLAYER_KINGDOM_ID
-      && (army.landId === land.id || land.neighbors.includes(army.landId)))
-    .reduce((sum, army) => sum + armyPower(state, army), 0);
-  if (defence <= 0 || attack <= 0) return false;
-
-  const ratio = attack / defence;
   return ratio >= WATCH_ODDS_BAND_MIN && ratio <= WATCH_ODDS_BAND_MAX;
 }
 
-/** The band of attacker-to-defender power in which an ordinary defence is worth watching. */
-const WATCH_ODDS_BAND_MIN = 0.55;
-const WATCH_ODDS_BAND_MAX = 2.2;
-/** Waves of quiet before an ordinary defence may take the screen again. Great Invasions ignore it. */
-const ORDINARY_WATCH_WAVE_GAP = 2;
+/**
+ * The band of attacker-to-defender power in which a defence is worth watching.
+ *
+ * Narrowed from 0.55-2.20. The old floor admitted a fight the province wins by a factor of two,
+ * which is a result and not a battle; the old ceiling admitted one it loses by the same margin.
+ */
+const WATCH_ODDS_BAND_MIN = 0.65;
+const WATCH_ODDS_BAND_MAX = 1.8;
+/**
+ * What "the seat is genuinely at risk" means: the enemy brings at least this share of the line
+ * standing on the capital. Below it the capital is an ordinary defence and takes its turn.
+ */
+const CAPITAL_AT_RISK_RATIO = 0.6;
+/**
+ * The floor a Great Invasion must clear. Lower than the ordinary band's, because a great wave
+ * earns some benefit of the doubt; there is deliberately no matching ceiling.
+ */
+const GREAT_WATCH_MIN = 0.5;
+/**
+ * Waves of quiet before a defence may take the screen again. Great Invasions ignore it.
+ *
+ * Dropped from two to one when the capital and the great waves stopped being exempt: those two
+ * clauses had been supplying most of the run's fights, and with both rationed the screen opened
+ * 3.2 times a run against a design target of four to six. The gap exists to stop a second fight
+ * every wave, and at one wave of quiet it still does.
+ */
+const ORDINARY_WATCH_WAVE_GAP = 1;
 
 /** Share of a host's strength held back at camp, available to commit mid-fight. */
 function splitReserve(army: Army): { spearmen: number; archers: number; heavyInfantry: number } {
@@ -657,7 +719,7 @@ function raiseMoment(state: GameState, battle: AscentBattle, ours: Army[], their
     raisedAtBeat: battle.round,
     ticksLeft: BATTLE_MOMENT_TICKS,
     generalName: general ? general.name : undefined,
-    generalMartial: general ? general.stats.martial : 0,
+    generalMartial: general ? general.stats.martial : (battle.delegated ? battle.generalMartial ?? 45 : 0),
   };
 
   // One of each, at most. The cap is three and there are three kinds, so without this the first
@@ -754,6 +816,14 @@ export function fightRound(state: GameState): void {
   const ascent = state.ascent;
   const battle = ascent?.activeBattle;
   if (!ascent || !battle || battle.over) return;
+
+  // The commander gives their orders for this beat, if the field is theirs.
+  //
+  // Here rather than in `advanceBattle` because the beat is the unit a commander acts on, and
+  // because `advanceBattle` is not the only thing that runs a beat — `battle-lab` drives
+  // `fightRound` directly, so a general placed one level up simply never played and every martial
+  // value scored identically. A harness that cannot reach the code it is grading is not grading it.
+  if (battle.delegated) generalPlaysBeat(state, battle);
 
   // Read the field fresh each beat rather than holding references from when the fight opened.
   // That single choice is what makes reinforcement work: a host that marched in since the last
@@ -900,8 +970,22 @@ export function fightRound(state: GameState): void {
 
   // Morale follows the exchange: bleeding costs heart, and winning the exchange restores a
   // little of it. Because `armyPower` reads morale, the side that starts losing keeps losing.
-  const ourDrop = (ourLoss / Math.max(1, battle.ourStart)) * BATTLE_MORALE_PER_LOSS;
-  const theirDrop = (theirLoss / Math.max(1, battle.theirStart)) * BATTLE_MORALE_PER_LOSS;
+  //
+  // Measured against the *engaged* line, not against `ourStart`. `ourStart` counts everything the
+  // side brought — including the reserve, which by construction is standing at camp and not being
+  // shot at, and including relief that widened the denominator when it arrived. Traced through a
+  // real fight: a host of 351 with 134 in reserve took 28% casualties and lost **one point** of
+  // heart, because the men at camp were absorbing the shock of the line's losses on paper. The
+  // enemy, who had no reserve, fell from 85 to 46 over the same exchanges — the two sides were
+  // running different morale models without anyone deciding they should.
+  //
+  // Dividing by what is actually standing there also makes the drop compound: the smaller a host
+  // gets, the larger a share each further loss is, so a line that starts going breaks instead of
+  // grinding down at a constant rate. That is what the constant's own doc comment claims it does.
+  const ourEngaged = Math.max(1, ours.reduce((n, h) => n + totalUnits(h), 0) + ourLoss);
+  const theirEngaged = Math.max(1, theirs.reduce((n, h) => n + totalUnits(h), 0) + theirLoss);
+  const ourDrop = (ourLoss / ourEngaged) * BATTLE_MORALE_PER_LOSS;
+  const theirDrop = (theirLoss / theirEngaged) * BATTLE_MORALE_PER_LOSS;
   const wonExchange = theirLoss > ourLoss;
   // Applied to *every* host on the side, not just the one the maths treats as the line, so a
   // battered relief column carries its own heart rather than borrowing the vanguard's.
@@ -972,6 +1056,76 @@ export function fightRound(state: GameState): void {
  * Called from the economy tick rather than from the view: the fight belongs to the world now,
  * so it carries on whether or not anyone is looking at it. The view animates what this produces.
  */
+/** The stance that answers each stance, as the ring defines it. */
+const COUNTER_OF: Record<BattlePosture, BattlePosture> = { press: 'hold', hold: 'loose', loose: 'press' };
+
+/**
+ * Whether the commander reads this beat correctly.
+ *
+ * `martial` is the share of beats they get right; on the rest they fall back to their habit. This
+ * is deliberately a hash rather than `Math.random`: every harness in the repo drives the same
+ * systems, and drawing here would shift the RNG order for every mode's fingerprint. The same
+ * commander in the same fight also has to make the same decisions twice, or two runs of the lab at
+ * one martial value measure noise.
+ */
+function generalReadsBeat(battle: AscentBattle, martial: number): boolean {
+  const h = Math.imul(((battle.round + 1) * 2654435761) ^ Math.round(battle.ourStart), 2246822519) >>> 0;
+  return (h % 100) < martial;
+}
+
+/**
+ * The commander's beat, when the player has handed over the field.
+ *
+ * A great commander reads the enemy's stance and answers it; a poor one holds what they have and
+ * keeps their one-shots in hand, which is what makes a bad appointment lose slowly rather than
+ * catastrophically. The one-shots are doctrine rather than a read — any commander commits the
+ * reserve once the lines have met — so they are spent on the beats they get right *and* wrong,
+ * only later when the read fails.
+ */
+function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
+  const martial = battle.generalMartial ?? 0;
+  const met = battle.ourAdvance + battle.theirAdvance >= 1;
+  if (generalReadsBeat(battle, martial)) {
+    const next = battleTelegraph(state);
+    if (next) setBattlePosture(state, COUNTER_OF[next]);
+    if (met) {
+      if (!battle.reserveSpent) commitReserve(state);
+      else if (!battle.rallySpent && battle.ourMorale < BATTLE_ROUT_MORALE + 12) rally(state);
+    }
+    return;
+  }
+  // Their habit. Not a reset to `hold`: reverting the stance every beat they misread is worse than
+  // standing still, and measured it cost a martial-90 commander fourteen points against skilled
+  // play. They keep the line they are already in and spend the reserve late.
+  if (met && !battle.reserveSpent && battle.ourNow <= battle.ourStart * 0.55) commitReserve(state);
+  if (met && battle.reserveSpent && !battle.rallySpent && battle.ourMorale < BATTLE_ROUT_MORALE + 6) rally(state);
+}
+
+/**
+ * Hands the rest of the engagement to whoever holds the field, or takes it back.
+ *
+ * Reversible on purpose, and mid-beat. The plan's rule for this switch is two states and one tap:
+ * a player who hands over because they are bored of a fight they are winning must be able to take
+ * the field back the moment it turns.
+ */
+export function delegateBattle(state: GameState, delegated: boolean): void {
+  const battle = state.ascent?.activeBattle;
+  if (!battle || battle.over) return;
+  battle.delegated = delegated;
+  if (!delegated) {
+    battle.log.push(t('ascent.battle.tookBack'));
+    return;
+  }
+  const general = state.heroes.find(
+    (hero) => hero.id === ourHosts(state, battle).find((host) => host.generalHeroId)?.generalHeroId,
+  );
+  battle.generalName = general?.name;
+  battle.generalMartial = general ? general.stats.martial : 45;
+  battle.log.push(general
+    ? t('ascent.battle.handedTo', { name: general.name })
+    : t('ascent.battle.handedToOfficers'));
+}
+
 export function advanceBattle(state: GameState): void {
   const battle = state.ascent?.activeBattle;
   if (!battle) return;
@@ -979,6 +1133,9 @@ export function advanceBattle(state: GameState): void {
   // A Moment holds the fight. Without this the window is consumed inside the same burst that
   // opened it and the player never sees the question, let alone answers it.
   if (battle.moment) {
+    // A delegated fight does not hold the screen waiting for an answer nobody is going to give.
+    // The commander answers it now, at the quality their martial buys.
+    if (battle.delegated) battle.moment.ticksLeft = 0;
     if (ageMoment(state, battle)) return;
   }
 
@@ -1047,6 +1204,46 @@ export function rally(state: GameState): boolean {
  * The reserve is returned first whatever happens — men held at camp were never in the fight and
  * must not be quietly deleted by a retreat or a rout.
  */
+/**
+ * Puts the fight that just ended in front of the player.
+ *
+ * Everything this card shows was already being written down and then thrown away: the butcher's
+ * bill, what the field cost, whether the walls turned out, who held the line. The screen closed on
+ * a strip of message text, so the most consequential thing in the mode ended by simply vanishing.
+ *
+ * It also gathers the fights the generals settled alone since the last card. Delegation is meant to
+ * be a legitimate way to play, and a run-wide switch that makes two thirds of the war disappear
+ * into silence is not that — it is a way of turning the game off.
+ */
+function raiseAftermath(state: GameState): void {
+  const ascent = state.ascent;
+  const history = ascent?.battleHistory;
+  if (!ascent || !history?.length) return;
+  // The arena already returns to its own setup screen carrying the result. A card on top of that
+  // would be the same news twice.
+  if (ascent.arena) return;
+  const record = history[history.length - 1];
+
+  // A fight the generals fought alone does not stop the game to report itself.
+  //
+  // The first version raised a card for every finished fight and then tried to gather the
+  // delegated ones underneath it — which could never find any, because each of them had already
+  // raised and cleared its own card. Measured over a 260-tick run with two fights handed over,
+  // every dispatch section came back empty.
+  //
+  // So a delegated fight waits. A fight the player watched carries the whole backlog with it, and
+  // if the player is delegating everything the backlog still surfaces once a wave, which is what
+  // stops a run-wide hand-over from turning the war silent.
+  const from = Math.min(ascent.aftermathReported ?? 0, history.length);
+  const backlog = history.slice(from, history.length - 1).filter((r) => r.delegated);
+  if (record.delegated) {
+    if (ascent.lastDispatchWave === ascent.wave) return;
+    ascent.lastDispatchWave = ascent.wave;
+  }
+  ascent.pendingAftermath = { record, alsoFought: backlog };
+  ascent.aftermathReported = history.length;
+}
+
 export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'retreat'): void {
   const ascent = state.ascent;
   const battle = ascent?.activeBattle;
@@ -1157,7 +1354,14 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
     theirHosts: (battle.theirArmyIds ?? []).length,
     ourHosts: ourIds.length,
     levyFought: state.armies.some((army) => army.isLevy && ourIds.includes(army.id)),
+    generalName: battle.delegated ? battle.generalName : undefined,
+    kingdomName: battle.kingdomName,
+    year: state.year,
+    season: state.season,
+    delegated: battle.delegated,
+    wave: ascent.wave,
   });
+  raiseAftermath(state);
   if (history.length > 24) history.splice(0, history.length - 24);
 
   ascent.activeBattle = undefined;
@@ -1187,6 +1391,12 @@ function finishAssault(state: GameState, battle: AscentBattle, decision: 'press'
     key: battle.key ?? `${battle.landId}`,
     landId: battle.landId,
     landName: battle.landName,
+    generalName: battle.delegated ? battle.generalName : undefined,
+    kingdomName: battle.kingdomName,
+    year: state.year,
+    season: state.season,
+    delegated: battle.delegated,
+    wave: ascent.wave,
     role: 'offence',
     outcome: battle.outcome === 'fighting' ? (decision === 'retreat' ? 'retreat' : 'spent') : battle.outcome,
     rounds: battle.round,
@@ -1198,6 +1408,7 @@ function finishAssault(state: GameState, battle: AscentBattle, decision: 'press'
     ourHosts: (battle.ourArmyIds ?? []).length,
     levyFought: false,
   });
+  raiseAftermath(state);
   if (history.length > 24) history.splice(0, history.length - 24);
 
   // The walls are a picture of the province's defence, not a host: they go back into the walls.

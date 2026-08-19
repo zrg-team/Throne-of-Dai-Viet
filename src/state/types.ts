@@ -1439,6 +1439,18 @@ export interface AscentBattle {
   /** Beats left on a bonus a Moment bought, and what it is worth while it lasts. */
   momentBonus?: { beats: number; dealt: number; morale: number };
   /**
+   * The fight is being run by whoever holds the field, not by the player.
+   *
+   * Handing over used to call `finishBattle` — a one-way door that ended the engagement on the
+   * spot and threw away the rest of it. It hands over the *remainder* now: the battlefield keeps
+   * running, the general takes the orders beat by beat, and the player can take the field back at
+   * any point. Delegation has to be a way of playing, not a way of skipping.
+   */
+  delegated?: boolean;
+  /** The commander holding the field, and how well they read a beat. */
+  generalName?: string;
+  generalMartial?: number;
+  /**
    * The fight as a queue of moments, oldest first — see `BattleBeat`.
    *
    * The simulation still runs `BATTLE_BEATS_PER_TICK` beats in one burst on the economy tick, and
@@ -1538,6 +1550,29 @@ export interface AscentBattleRecord {
   ourHosts: number;
   /** True when a garrison levy stood in the line (no field host of ours, or not only one). */
   levyFought: boolean;
+  /** The commander who held the field, when the player handed it over. */
+  generalName?: string;
+  /** Who it was fought against, and when, so the chronicle line can name them. */
+  kingdomName?: string;
+  year?: number;
+  season?: string;
+  /** Whether the player watched it or a general fought it alone. Drives the per-wave dispatch. */
+  delegated?: boolean;
+  /** The wave it was fought in, so a dispatch can gather one wave's silent fights. */
+  wave?: number;
+}
+
+/**
+ * A finished fight waiting to be read.
+ *
+ * `finishBattle` used to write its record straight to the chronicle and let the lane close, so the
+ * most consequential thing in the mode ended with the screen simply vanishing. The record is the
+ * honest account of what happened; this is the account being *shown to somebody*.
+ */
+export interface AscentAftermath {
+  record: AscentBattleRecord;
+  /** Fights the generals settled alone since the last one the player watched. */
+  alsoFought: AscentBattleRecord[];
 }
 
 /** Why a Dragon Ascent run ended. Shown on the summary so a loss is legible. */
@@ -1636,6 +1671,18 @@ export interface AscentState {
   lastWatchedKey?: string;
   /** The last few engagements, newest last. Optional so old saves need no migration. */
   battleHistory?: AscentBattleRecord[];
+  /**
+   * The fight that just ended, waiting to be read.
+   *
+   * Set by `finishBattle` and cleared when the player dismisses the card. It is not the same as
+   * the last entry in `battleHistory`: the chronicle keeps every fight forever, and this is the
+   * one that has not been shown yet.
+   */
+  pendingAftermath?: AscentAftermath;
+  /** How far through `battleHistory` the aftermath cards have reported. */
+  aftermathReported?: number;
+  /** The last wave a dispatch was raised in, so delegated fights report at most once a wave. */
+  lastDispatchWave?: number;
   /** Key of the last assault of ours that was watched, so a run can be measured for it. */
   lastAssaultKey?: string;
   /** Commanded hosts already warned about being a remnant, so the toast fires once per host. */
