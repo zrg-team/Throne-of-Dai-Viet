@@ -151,7 +151,7 @@ function resolveGeneralFate(state: GameState, army: Army): { fate?: 'wounded' | 
  * (outrange). Returns a ±multiplier on the attacker's power from how its composition
  * matches the defender's — so scouting the enemy and building a counter-force pays off.
  */
-function compositionMatchup(attacker: UnitCounts, defenderArmy?: Army): number {
+export function compositionMatchup(attacker: UnitCounts, defenderArmy?: Army): number {
   if (!defenderArmy) return 1;
   const frac = (u: UnitCounts) => {
     const t = Math.max(1, u.spearmen + u.archers + u.heavyInfantry);

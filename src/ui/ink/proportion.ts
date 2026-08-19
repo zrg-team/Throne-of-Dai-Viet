@@ -12,7 +12,7 @@
  * |-----------|-------|---------------------------|----|-------|-----------------|
  * | grassTuft |   6.0 | a tuft of grass           |0.9 | 0.465 |   2.0 px        |
  * | buffalo   |  28.6 | a trâu at the shoulder    |1.5 | 0.293 |   6.0 px        |
- * | figure    |   6.2 | a soldier                 |1.7 | 0.850 |   6.8 px        |
+ * | figure    |   6.6 | a soldier                 |1.7 | 0.794 |   6.8 px        |
  * | farmer    |  15.3 | a farmer                  |1.7 | 0.344 |   6.8 px        |
  * | hayStack  |  26.0 | a cây rơm                 |3   | 0.358 |   6.7 px        |
  * | banana    |  18.6 | a chuối                   |4   | 0.667 |   8.9 px        |
@@ -21,7 +21,7 @@
  * | bamboo    |  44.6 | a lũy tre hedge           |8   | 0.556 |  17.9 px        |
  * | dinh      |  29.7 | an đình                   |8   | 0.835 |  17.9 px        |
  * | areca     |  34.1 | a cau                     |10  | 0.909 |  22.3 px        |
- * | banyan    |  30.1 | a cây đa                  |14  | 1.442 |  31.2 px        |
+ * | banyan    |  33.3 | a cây đa                  |14  | 1.303 |  31.2 px        |
  * | thap      |  49.4 | a tháp                    |16  | 1.004 |  35.7 px        |
  *
  * ## Why it kept going wrong
@@ -73,7 +73,11 @@ export const UNIT = {
   bamboo: 0.556,
   banana: 0.667,
   areca: 0.909,
-  banyan: 1.442,
+  // Re-measured with `_measure-props.mjs` when the đa was redrawn as an actual banyan: 33.3 at
+  // `s = 1` against the old stamp's 30.8, because it grew a bole, a fringe of aerial root and two
+  // pillars down to the ground. The correction comes down to match, so it still stands fourteen
+  // metres and still lands at 31.2 px beside everything else.
+  banyan: 1.303,
   /**
    * Grass keeps a nominal 0.9 m and takes **no** exaggeration.
    *
@@ -87,7 +91,11 @@ export const UNIT = {
   // ── Living things ──
   // People carry one exaggeration between them, so the farmer in the paddy and the soldier in the
   // rank are the same height, and both stand lower than a roof.
-  figure: 0.85 * LIVING,
+  // Re-measured after the wardrobe: the crowns and the spear both reach further than they did
+  // (6.2 -> 6.6 at s = 1, `_measure-figure.mjs`), so the correction comes down to keep a soldier
+  // standing 1.7 m. Measured, not estimated — the table's own header records what happened the
+  // last time these were guesses.
+  figure: 0.794 * LIVING,
   farmer: 0.344 * LIVING,
   // A trâu is 1.5 m at the shoulder against a man's 1.7, so at the same exaggeration it lands just
   // under him — which is where it belongs, and nowhere near over him.
@@ -177,8 +185,8 @@ const METRES: Record<keyof typeof UNIT, number> = {
 /** Drawn height at `s = 1`, measured off each prop by `_measure-props.mjs`, not estimated. */
 const DRAWN: Record<keyof typeof UNIT, number> = {
   house: 18.4, dinh: 29.7, thap: 49.4, hayStack: 26,
-  tree: 17.3, bamboo: 44.6, banana: 18.6, areca: 34.1, banyan: 30.1,
-  grassTuft: 6, figure: 6.2, farmer: 15.3, buffalo: 28.6,
+  tree: 17.3, bamboo: 44.6, banana: 18.6, areca: 34.1, banyan: 33.3,
+  grassTuft: 6, figure: 6.6, farmer: 15.3, buffalo: 28.6,
 };
 
 /**

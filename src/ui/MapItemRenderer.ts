@@ -9,6 +9,7 @@ import { INK, brushStroke } from './inkTheme';
 import { compactNumber } from '../utils/format';
 import { IsoBuildingRenderer } from './IsoBuildingRenderer';
 import { SoldierRenderer } from './SoldierRenderer';
+import type { HostKit } from './ink/devices';
 import type { LandBuildingType } from '../state/types';
 import { UI_FONT } from './fonts';
 import { AtlasMapItemRenderer } from './AtlasMapItemRenderer';
@@ -51,7 +52,13 @@ export interface MapItemRenderer {
    * (the same standard its provinces fly) or a stable per-kingdom seed for a rival — a host used
    * to be seeded by its own headcount, so its banner changed style as it took casualties.
    */
-  createArmyMarker(total: number, isPlayer: boolean, kingdomColor?: number, flagSeed?: number): Phaser.GameObjects.Container;
+  /**
+   * `kit` is what the host is wearing and carrying — its era, its elite tier and its real
+   * composition. Optional, so a renderer or caller that does not care still gets a soldier.
+   */
+  createArmyMarker(
+    total: number, isPlayer: boolean, kingdomColor?: number, flagSeed?: number, kit?: HostKit,
+  ): Phaser.GameObjects.Container;
   createSelectionFlag(): Phaser.GameObjects.Container;
   createPlayerLandFlag(isCapital?: boolean, styleSeed?: number): Phaser.GameObjects.Container;
   createCapitalHighlight(): Phaser.GameObjects.Graphics;

@@ -396,40 +396,252 @@ export function areca(g: G, x: number, y: number, scale: number, seed: number): 
   }
 }
 
-/** Cây đa — the banyan at the village gate, with its hanging aerial roots. */
+/**
+ * Cây đa — the banyan of the village gate, and the one tree on this map a Vietnamese player looks
+ * straight at. "Cây đa, giếng nước, sân đình" names the three things that make a place a village at
+ * all, and this is the first of them: the đa at the gate is where the market sits down, where the
+ * ferryman waits, where the tutelary spirit's little miếu stands in the roots.
+ *
+ * It was drawn, for a long time, as one scalloped green blob on a brown wedge with three straight
+ * scratches for roots — the same stamp as `tree` at a larger radius. That is a shade tree from
+ * anywhere. What makes a đa a đa, and what this now draws, is four things, none of them optional:
+ *
+ *  1. **The bole is a bundle, not a post.** A banyan's aerial roots reach the ground, thicken, and
+ *     fuse to the trunk, so an old đa stands on a braided column with pillars welded down its side
+ *     and surface roots crawling out over the ground. The old version's straight-sided wedge is the
+ *     single most un-banyan-like thing a tree can have.
+ *  2. **It spreads wider than it stands.** Measured at `s = 1`: 45.9 across against 33.3 high, where
+ *     the old stamp was 41.5 against 30.8 — a đa shades a whole courtyard, and that is *why* the
+ *     village sits under it rather than beside it.
+ *  3. **The crown is a raft of cushions, not a disc.** Five overlapping masses, the far ones caught
+ *     by the light and the near-low ones in shade, with the dark limbs crossing between them.
+ *  4. **Roots hang out of the air.** Curtains of rễ phụ off the long horizontal limbs — most ending
+ *     in nothing, two already down and thickening into the next generation of trunk. Nothing else
+ *     in the vocabulary does this, so it is what the eye names the tree by at map size.
+ *
+ * Drawn base-up: shadow, surface roots, bole, limbs, then the crown over the limbs, then the
+ * hanging roots over everything, because they fall in front of the leaves as well as below them.
+ */
 export function banyan(g: G, x: number, y: number, scale: number, seed: number): void {
   const s = unitScale('banyan', scale);
   const rand = mulberry32(seed);
-  const canopy: Pt[] = [];
-  const lobes = 8;
-  for (let index = 0; index <= lobes * 6; index += 1) {
-    const t = index / (lobes * 6);
-    const angle = t * Math.PI * 2 - Math.PI / 2;
-    const rr = 15 * s * (1 + 0.15 * Math.cos(t * Math.PI * 2 * lobes)) * (0.9 + rand() * 0.16);
-    canopy.push({ x: x + Math.cos(angle) * rr * 1.2, y: y - 16 * s + Math.sin(angle) * rr * 0.78 });
+  const palette = foliagePalette();
+  const leaf = palette.evergreen;
+  const bark = PIGMENT.nau;
+
+  groundShadow(g, x, y, 11 * s, 0.1);
+
+  // ── the surface roots, crawling out over the ground before anything stands on them ──
+  for (let root = 0; root < 5; root += 1) {
+    const side = root % 2 === 0 ? -1 : 1;
+    const reach = (5.5 + rand() * 5.5) * s * side;
+    printedShape(
+      g,
+      thickPath(
+        [
+          { x: x + side * 1.2 * s, y: y - 3.4 * s },
+          { x: x + reach * 0.55, y: y - 0.6 * s },
+          { x: x + reach, y: y + 0.9 * s },
+        ],
+        [2.3 * s, 1.0 * s, 0.3 * s],
+      ),
+      shadePigment(bark, 0.92),
+      seed + 60 + root,
+      { width: 0.5 * s, alpha: 0.42, wobble: 0.18 * s, step: 5, fillAlpha: 0.7 },
+    );
   }
-  printedShape(g, canopy, foliagePalette().evergreen, seed, { width: 0.85 * s, alpha: 0.7, wobble: 0.22 * s, step: 5, fillAlpha: 0.85 });
+
+  // ── the bole: one flared column, one pillar root already fused to its left side ──
+  const boleTop = y - 13 * s;
   printedShape(
     g,
-    thickPath([{ x, y }, { x: x - 1 * s, y: y - 7 * s }, { x, y: y - 12 * s }], [3.2 * s, 2.4 * s, 2.0 * s]),
-    PIGMENT.nau,
+    thickPath(
+      [
+        { x, y: y + 0.6 * s },
+        { x: x - 0.7 * s, y: y - 5 * s },
+        { x: x - 0.2 * s, y: y - 9.5 * s },
+        { x: x + 0.5 * s, y: boleTop },
+      ],
+      [4.6 * s, 3.1 * s, 2.7 * s, 2.4 * s],
+    ),
+    bark,
     seed + 2,
-    { width: 0.7 * s, alpha: 0.62, wobble: 0.16 * s, step: 5, fillAlpha: 0.75 },
+    { width: 0.7 * s, alpha: 0.62, wobble: 0.16 * s, step: 5, fillAlpha: 0.82 },
   );
-  for (let root = 0; root < 5; root += 1) {
-    const rx = x + (rand() - 0.5) * 24 * s;
-    inkPath(g, [{ x: rx, y: y - 13 * s }, { x: rx + (rand() - 0.5) * 2 * s, y: y - 2 * s - rand() * 4 * s }], seed + 10 + root, {
-      width: 0.55 * s, alpha: 0.4, wobble: 0.25 * s, step: 6,
+  printedShape(
+    g,
+    thickPath(
+      [
+        { x: x - 4.4 * s, y: y + 0.4 * s },
+        { x: x - 4.2 * s, y: y - 5.5 * s },
+        { x: x - 3.2 * s, y: y - 11 * s },
+      ],
+      [1.8 * s, 1.2 * s, 0.9 * s],
+    ),
+    shadePigment(bark, 0.84),
+    seed + 4,
+    { width: 0.55 * s, alpha: 0.5, wobble: 0.16 * s, step: 5, fillAlpha: 0.8 },
+  );
+  // The flutes between the fused roots. Two lines is all it takes for the column to stop being a
+  // post: a đa's bole is read by the grooves running down it.
+  for (let flute = 0; flute < 2; flute += 1) {
+    const fx = x + (flute === 0 ? -1.6 : 1.5) * s;
+    inkPath(g, [{ x: fx, y: y - 1 * s }, { x: fx + 0.4 * s, y: y - 10 * s }], seed + 6 + flute, {
+      width: 0.5 * s, alpha: 0.34, colour: PIGMENT.mucSoft, wobble: 0.2 * s, step: 5,
     });
   }
+
+  // ── the limbs, and the two long horizontals the roots will hang from ──
+  // Four, all of them leaning out rather than up, and every tip stopping *inside* the leaf. Six
+  // limbs with two of them climbing through the middle of the crown read as scaffolding under a
+  // parasol — the eye takes a vertical brown bar for a post whatever it is meant to be, and the
+  // only fix is to have no verticals up there but the bole itself.
+  const limbs: Array<{ to: Pt; bend: Pt; width: number }> = [
+    { to: { x: -13.5, y: -17.5 }, bend: { x: -7, y: -14.5 }, width: 1.5 },
+    { to: { x: 12.5, y: -17 }, bend: { x: 6.5, y: -14.5 }, width: 1.5 },
+    { to: { x: -9.5, y: -13.5 }, bend: { x: -5, y: -12.6 }, width: 1.1 },
+    { to: { x: 9, y: -13 }, bend: { x: 4.5, y: -12.3 }, width: 1.0 },
+  ];
+  limbs.forEach((limb, index) => {
+    printedShape(
+      g,
+      thickPath(
+        [
+          { x, y: y - 11 * s },
+          { x: x + limb.bend.x * s, y: y + limb.bend.y * s },
+          { x: x + limb.to.x * s, y: y + limb.to.y * s },
+        ],
+        [limb.width * s, limb.width * 0.6 * s, 0.32 * s],
+      ),
+      shadePigment(bark, 0.9),
+      seed + 14 + index,
+      { width: 0.5 * s, alpha: 0.5, wobble: 0.16 * s, step: 5, fillAlpha: 0.8 },
+    );
+  });
+
+  // ── the crown: five cushions, far ones lit, near-low ones in shade ──
+  // Painted top-of-screen first so the near masses close over the far ones, the same bottom-up
+  // reading `settlements.ts` sorts its whole village by.
+  // `ink` falls away toward the front because five cushions each carrying the full contour read as
+  // five stacked plates rather than one crown; the silhouette is the back mass's job and the near
+  // ones only have to say where they overlap. `fillAlpha` is nearly opaque for the same reason the
+  // limbs were cut back — at 0.88 the branches behind showed straight through the leaves.
+  const masses = [
+    { cx: -1, cy: -22.5, rx: 15, ry: 6.4, tone: 1.12, lobes: 7, ink: 0.6, cut: 0.11 },
+    { cx: -13, cy: -18.5, rx: 9.6, ry: 5.4, tone: 1.0, lobes: 6, ink: 0.5, cut: 0.14 },
+    { cx: 12.5, cy: -18.8, rx: 9.4, ry: 5.4, tone: 1.05, lobes: 6, ink: 0.5, cut: 0.14 },
+    { cx: -5.5, cy: -15.5, rx: 10.4, ry: 5.0, tone: 0.88, lobes: 7, ink: 0.38, cut: 0.2 },
+    { cx: 6.5, cy: -15, rx: 9.2, ry: 4.6, tone: 0.82, lobes: 6, ink: 0.34, cut: 0.22 },
+  ];
+  masses.forEach((mass, index) => {
+    const steps = mass.lobes * 5;
+    const shape: Pt[] = [];
+    for (let step = 0; step <= steps; step += 1) {
+      const t = step / steps;
+      const angle = t * Math.PI * 2 - Math.PI / 2;
+      const scallop = 1 + mass.cut * Math.cos(t * Math.PI * 2 * mass.lobes);
+      const jitter = 0.94 + rand() * 0.12;
+      shape.push({
+        x: x + mass.cx * s + Math.cos(angle) * mass.rx * s * scallop * jitter,
+        y: y + mass.cy * s + Math.sin(angle) * mass.ry * s * scallop * jitter,
+      });
+    }
+    printedShape(g, shape, shadePigment(leaf, mass.tone), seed + 30 + index, {
+      width: 0.68 * s, alpha: mass.ink, wobble: 0.2 * s, step: 5, fillAlpha: 0.97,
+    });
+  });
+
+  // The light on the far shoulder and the dark under the near edge — the pair that turns a raft of
+  // outlines back into one canopy with a sun on it.
+  const litShape: Pt[] = [];
+  for (let step = 0; step <= 11; step += 1) {
+    const t = step / 11;
+    const angle = t * Math.PI * 2;
+    const rr = 1 + 0.14 * Math.cos(t * Math.PI * 2 * 3);
+    litShape.push({ x: x - 5 * s + Math.cos(angle) * 6.4 * s * rr, y: y - 24 * s + Math.sin(angle) * 2.6 * s * rr });
+  }
+  g.fillStyle(shadePigment(leaf, 1.24), 0.3);
+  g.fillPoints(litShape, true);
+  for (let pass = 0; pass < 3; pass += 1) {
+    const under: Pt[] = [];
+    for (let step = 0; step <= 8; step += 1) {
+      const angle = 0.35 + (step / 8) * 2.4;
+      under.push({
+        x: x + (-6 + pass * 6) * s + Math.cos(angle) * 8 * s,
+        y: y + (-16.5 + pass * 0.4) * s + Math.sin(angle) * 4.2 * s,
+      });
+    }
+    inkPath(g, under, seed + 44 + pass, {
+      width: 0.6 * s, alpha: 0.3, colour: shadePigment(leaf, 0.62), wobble: 0.16 * s, step: 5,
+    });
+  }
+
+
+  // ── rễ phụ: the curtains of aerial root, in front of the leaves as well as under them ──
+  // Two of the eight are already down and thickening. That pair is the whole point of the tree —
+  // a đa is the only thing in this landscape that grows a new trunk out of a branch.
+  // They hang from the limbs, which means they hang **clear of the bole**: spaced evenly across the
+  // full width they read as a fringe hung off the front of the tree, and the ones landing over the
+  // trunk turn the whole middle into a bundle of poles again.
+  const hangAt = [-14.6, -12.2, -9.8, -7.4, 7.2, 9.6, 12.4, 14.8];
+  hangAt.forEach((offset, hang) => {
+    const from: Pt = { x: x + (offset + (rand() - 0.5) * 1.2) * s, y: y + (-16.8 + (rand() - 0.5) * 2.6) * s };
+    // The two that made it down are the inner pair, dropping off the low horizontal limbs. Rooted at
+    // the outer edge instead, they stand the tree on a pair of stilts with daylight under it.
+    const rooted = hang === 2 || hang === 5;
+    const bottom = rooted ? y - 0.2 * s : from.y + (4 + rand() * 6.5) * s;
+    // A free root reverses its sway once — a line that falls in a single arc is a wire, one that
+    // changes its mind twice is a root. A rooted one bows steadily outward instead, the way a
+    // pillar carrying a limb has to lean out from under it.
+    const sway = rooted
+      ? Math.sign(offset) * (1.1 + rand() * 1.1) * s
+      : (rand() - 0.5) * 1.8 * s;
+    const drop = bottom - from.y;
+    const path = rooted
+      ? [
+        from,
+        { x: from.x + sway * 0.22, y: from.y + drop * 0.34 },
+        { x: from.x + sway * 0.66, y: from.y + drop * 0.7 },
+        { x: from.x + sway, y: bottom },
+      ]
+      : [
+        from,
+        { x: from.x + sway * 0.75, y: from.y + drop * 0.34 },
+        { x: from.x + sway * 0.15, y: from.y + drop * 0.7 },
+        { x: from.x + sway, y: bottom },
+      ];
+    if (rooted) {
+      // Thin where it left the limb and thick where it has been feeding for fifty years: a pillar
+      // root of even width is a prop under a washing line, and the taper is the only thing saying
+      // this pole grew downwards.
+      printedShape(g, thickPath(path, [0.3 * s, 0.55 * s, 0.9 * s, 1.35 * s]), shadePigment(bark, 0.88), seed + 70 + hang, {
+        width: 0.45 * s, alpha: 0.46, wobble: 0.12 * s, step: 5, fillAlpha: 0.9,
+      });
+      // The foot it has spread into. Without it the pillar meets the ground at a point and reads as
+      // a plank propped under the branch — which is very nearly the opposite of what it is.
+      const foot = from.x + sway;
+      printedShape(
+        g,
+        thickPath([{ x: foot, y: y - 2.6 * s }, { x: foot + 0.3 * s, y: y + 0.7 * s }], [1.1 * s, 2.1 * s]),
+        shadePigment(bark, 0.86),
+        seed + 90 + hang,
+        { width: 0.45 * s, alpha: 0.4, wobble: 0.16 * s, step: 5, fillAlpha: 0.85 },
+      );
+      groundShadow(g, foot, y, 2.6 * s, 0.1);
+    } else {
+      inkPath(g, path, seed + 70 + hang, {
+        width: 0.4 * s, alpha: 0.38, colour: shadePigment(bark, 0.8), wobble: 0.24 * s, step: 4,
+      });
+    }
+  });
+
   // The banyan holds its leaves through the cold, so winter states itself on top of them instead:
   // snow lying along the upper shoulder of the crown. It is the largest tree on the map and the one
   // at every village gate — leaving it plain green was the loudest thing arguing against the season.
-  if (foliagePalette().snow) {
-    for (let cap = 0; cap < 3; cap += 1) {
-      const angle = -Math.PI + 0.6 + cap * 0.85;
+  if (palette.snow) {
+    for (let cap = 0; cap < 4; cap += 1) {
       g.fillStyle(PIGMENT.diepHi, 0.8);
-      g.fillEllipse(x + Math.cos(angle) * 13 * s, y - 16 * s + Math.sin(angle) * 10 * s, 9 * s, 3 * s);
+      g.fillEllipse(x + (-11 + cap * 7.5) * s, y - (26.5 - Math.abs(1.5 - cap) * 1.6) * s, 9 * s, 2.8 * s);
     }
   }
 }

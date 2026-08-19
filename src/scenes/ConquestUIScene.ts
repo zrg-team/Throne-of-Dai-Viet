@@ -27,7 +27,10 @@ import { lawCardView, seatedEffectSummary } from '../systems/ascent/CourtLaneSys
 import { envoyOptionDetail } from '../systems/ascent/EnvoySystem';
 import { realmStanding } from '../systems/ascent/RivalDirector';
 import { ourHosts, theirHosts } from '../systems/ascent/BattleSystem';
-import { BATTLE_ROUT_MORALE, BATTLE_TICK_MS, TRIBUTE_REFUSE_TICKS } from '../game/ascentConfig';
+import {
+  ASCENT_TICK_MS, BATTLE_BEATS_PER_TICK, BATTLE_ROUT_MORALE, BATTLE_TICK_MS, TRIBUTE_REFUSE_TICKS,
+} from '../game/ascentConfig';
+import { battleTelegraph, posturesCounter } from '../systems/ascent/BattleSystem';
 import { ALL_COURT_POSITIONS, assignHeroToLand, getCourtPositionLabel } from '../systems/CourtSystem';
 import {
   ascentArmyUpkeep,
@@ -82,6 +85,15 @@ import { playArrivalFanfare } from '../ui/ascent/arrivalFanfare';
 import { THRONE_HALL_HEIGHT, throneHallDiorama } from '../ui/ascent/throneHall';
 import { CARD_STACK_PEEK, CardStack } from '../ui/ascent/CardStack';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
+import { figureEraFor, hostKitFor, hostShapeAt } from '../ui/ink/devices';
+import {
+  areca, bamboo, buffalo, grassTuft, hayStack, karstRange, softRidge, tree,
+} from '../ui/ink/props';
+import { citadel, hamlet, village } from '../ui/ink/settlements';
+import { groundTone, mulberry32 } from '../ui/ink/stroke';
+import { GROUND_SCALE } from '../ui/ink/proportion';
+import { PIGMENT } from '../ui/ink/palette';
+import { findLand } from '../systems/LandSystem';
 import { CARD_ICON_SIZE, drawCardIcon, iconForOption, type CardIconId } from '../ui/CardIcons';
 import { ASCENT_HUD_HEIGHT, AscentHud } from '../ui/ascent/AscentHud';
 import { ActionBar } from '../ui/ActionBar';
@@ -115,6 +127,8 @@ import type {
   AscentLedgerLine,
   AscentPrompt,
   AscentRarity,
+  BattleBeat,
+  BattlePosture,
   ConquestMethodOption,
   ConquestTarget,
   CourtPositionId,
@@ -143,9 +157,50 @@ const MAP_CONTROL_GAP = 12;
 /** Vertical pitch of the stack. */
 const MAP_CONTROL_PITCH = 42;
 
-/** The battle screen's two fixed bands, above the standing orders. */
-const BATTLE_FIELD_HEIGHT = 168;
-const BATTLE_READOUT_HEIGHT = 62;
+/**
+ * The battle screen's bands.
+ *
+ * The field used to be a fixed 168px — a fifth of the screen, on which two blocks of figures
+ * stood on nothing. It is the thing the screen exists to show, so it now takes whatever is left
+ * once the parts that cannot shrink have been paid for.
+ *
+ * Sized as a band rather than a number because `GAME_HEIGHT` is derived from the device aspect
+ * and clamps as low as 620: a fixed height that fits a tall phone pushes the dock off an SE.
+ */
+const BATTLE_RAILS_HEIGHT = 56;
+/** Posture row plus the four one-shot buttons. Fixed: the orders must never scroll. */
+const BATTLE_DOCK_HEIGHT = 114;
+/** The two-line log ribbon along the foot of the field, inside it. */
+const BATTLE_RIBBON_HEIGHT = 34;
+/** The round pips above the field, and the count beside them. */
+const BATTLE_PIPS_HEIGHT = 24;
+/**
+ * Most bodies the killing floor will hold.
+ *
+ * Capped because they are never cleared — the point of them is that they accumulate — and an
+ * engagement can run forty beats. Forty marks is a covered field at this size; beyond that it is
+ * a texture, and the two armies stop reading against it.
+ */
+const BATTLE_FALLEN_CAP = 40;
+/**
+ * How far apart the two lines stand once they have met.
+ *
+ * Wide enough that both blocks are legible and the ground between them shows, narrow enough that
+ * they read as engaged rather than as two armies waiting for permission.
+ */
+const BATTLE_SEAM_GAP = 34;
+
+function battleFieldHeight(content: UIBounds): number {
+  // `content.height` runs to 20px off the bottom of the screen, but the lane's Close button is
+  // pinned inside that band — so the field must pay for it too. Measured on a 620-high screen,
+  // leaving it out put the button straight through the order row, which is the exact failure
+  // `verify-header-fit` and `verify-scroll` exist to catch and neither of them looks here.
+  const closeBand = LANE_CLOSE_BUTTON_OFFSET - 20 + 12;
+  const room = content.height
+    - BATTLE_PIPS_HEIGHT - BATTLE_RAILS_HEIGHT - BATTLE_DOCK_HEIGHT - closeBand - 24;
+  // A shade under square: wide enough for two camps and a killing ground between them.
+  return Math.round(Math.max(150, Math.min(content.width * 0.86, room)));
+}
 
 /**
  * Room kept clear at the foot of a scrolling prompt for its fixed buttons.
@@ -214,6 +269,15 @@ interface BattleMarker {
   hostId: string;
   marker: Phaser.GameObjects.Container;
   count?: Phaser.GameObjects.Text;
+  /**
+   * Figures the block was last drawn with — `men / MEN_PER_MARK`.
+   *
+   * The block is redrawn when this changes and only then. `hostShapeAt` already sizes a host by
+   * its headcount, so the picture of an army shrinking was one recompute away and never made:
+   * `slideMarkers` re-stamped the number over the men and moved on, and a host ground down from
+   * 1,180 to 300 spent the whole fight drawing twenty-one ranks of men who were already dead.
+   */
+  marks?: number;
 }
 
 /** Men still standing in a host. */
@@ -560,10 +624,38 @@ export class ConquestUIScene extends Phaser.Scene {
    */
   private battleUi?: {
     content: UIBounds;
+    fieldHeight: number;
     field: Phaser.GameObjects.Container;
     readout: Phaser.GameObjects.Container;
-    /** Scroll holding the standing orders: seven rows do not fit a 390×844 screen. */
-    orderScroll: InkScrollArea;
+    /** The round track above the field: the fight's clock, which nothing used to show. */
+    pips: Phaser.GameObjects.Container;
+    /** Two lines of `battle.log` at the foot of the field — 21 written a fight, 0 rendered. */
+    ribbon: Phaser.GameObjects.Container;
+    /** Per-beat casualty numbers, rising and fading. Owns nothing tappable. */
+    floaters: Phaser.GameObjects.Container;
+    /**
+     * The dead, drawn once each and never cleared until the field is rebuilt.
+     *
+     * The killing floor fills up as the fight runs, so the ground itself becomes a record of how
+     * hard it was — and it is still there at the end, under whoever is left standing.
+     */
+    fallen: Phaser.GameObjects.Graphics;
+    /**
+     * Where each one fell, kept apart from the graphics that draws them.
+     *
+     * `buildBattleField` clears the field container with `removeAll(true)` whenever the hosts on
+     * it change — relief arriving, a column breaking — which destroyed the layer the dead were
+     * drawn into. Measured, `fallen.active` was false while forty had supposedly been laid: they
+     * were being drawn onto an object that no longer existed. The positions survive now and the
+     * layer is redrawn from them.
+     */
+    fallenPts: Array<{ x: number; y: number }>;
+    fallenCount: number;
+    /** The open Moment, over the field. Rebuilt only when the question changes. */
+    moment: Phaser.GameObjects.Container;
+    /** Which Moment is drawn, so the card is not rebuilt under the player's finger every beat. */
+    momentKey: string;
+    /** The standing orders, fixed. They used to scroll, and Retreat sat below the fold. */
     orders: Phaser.GameObjects.Container;
     rivalColor: number;
     /** Identity of the hosts drawn on the field, so relief and routs trigger a redraw. */
@@ -574,6 +666,17 @@ export class ConquestUIScene extends Phaser.Scene {
     ourMarkers: BattleMarker[];
     theirMarkers: BattleMarker[];
     geometry: { leftX: number; rightX: number; span: number; groundY: number };
+    /**
+     * The beat currently on screen, drained from `battle.beats`.
+     *
+     * The view renders from this rather than from the live battle whenever it has one: the
+     * simulation runs six beats in a burst on the economy tick, and reading live state would
+     * show only the last of them. Undefined means the queue has run dry and the picture has
+     * caught up with the truth — which is exactly when it should show the truth.
+     */
+    shown?: BattleBeat;
+    /** The last log line put on the ribbon, so the same line is not re-inked every beat. */
+    lastLine?: string;
   };
 
   /** Left gutter a card icon occupies, glyph plus breathing room. */
@@ -4346,8 +4449,10 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         : t('ascent.battle.subtitle', { kingdom: battle.kingdomName }),
     );
 
-    const fieldY = content.y;
-    const groundY = fieldY + 112;
+    const fieldHeight = battleFieldHeight(content);
+    const fieldY = content.y + BATTLE_PIPS_HEIGHT;
+    // The men stand a little below centre, so the camps and the horizon have room above them.
+    const groundY = fieldY + Math.round(fieldHeight * 0.56);
     const leftX = content.x + 44;
     const rightX = content.x + content.width - 44;
     // Full span, not half: the two meet when `ourAdvance + theirAdvance` reaches 1, so the
@@ -4356,28 +4461,30 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const span = rightX - leftX - 60;
 
     const field = this.add.container(0, 0);
+    const floaters = this.add.container(0, 0);
+    const ribbon = this.add.container(0, 0);
+    const pips = this.add.container(0, 0);
     const readout = this.add.container(0, 0);
-    this.modalLayer.add([field, readout]);
-
-    // The orders scroll: with relief, a reserve and a rally all in play there are seven of
-    // them, which is 426px of rows below a 240px field and readout. They ran off the bottom of
-    // the screen — and the last row off it was Retreat, the one way out of a losing fight.
-    const ordersTop = content.y + BATTLE_FIELD_HEIGHT + 8 + BATTLE_READOUT_HEIGHT + 10;
-    const orderScroll = this.ui.scrollArea({
-      x: content.x,
-      y: ordersTop,
-      width: content.width,
-      height: Math.max(120, GAME_HEIGHT - 76 - ordersTop),
-    });
-    orderScroll.addTo(this.modalLayer);
-    this.activeScrollAreas.push(orderScroll);
+    const orders = this.add.container(0, 0);
+    const moment = this.add.container(0, 0);
+    const fallen = this.add.graphics();
+    field.add(fallen);
+    this.modalLayer.add([field, floaters, ribbon, pips, readout, orders, moment]);
 
     this.battleUi = {
       content,
+      fieldHeight,
       field,
       readout,
-      orderScroll,
-      orders: orderScroll.content,
+      pips,
+      ribbon,
+      floaters,
+      orders,
+      fallen,
+      fallenPts: [],
+      fallenCount: 0,
+      moment,
+      momentKey: '',
       rivalColor,
       fieldSignature: '',
       orderSignature: '',
@@ -4386,15 +4493,348 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       geometry: { leftX, rightX, span, groundY },
     };
 
+    // Come back to a siege already under way and the queue may hold half a minute of beats
+    // nobody watched. Replaying them would put the picture a tick behind the numbers, so all
+    // but the last are dropped and the screen opens on where the fight actually is.
+    const queued = battle.beats;
+    if (queued && queued.length > 2) queued.splice(0, queued.length - 2);
+
     this.buildBattleField(battle);
     this.buildBattleReadout(battle);
+    this.buildBattlePips(battle);
     this.buildBattleOrders(battle);
+    this.buildBattleMoment(battle);
     // The screen had no way out at all: the only exits were Retreat and "leave it to my
     // generals", both of which end the fight. Watching a siege you are winning meant being
     // held there until it resolved.
     this.laneCloseButton(content);
 
     this.startBattleClock();
+  }
+
+  /**
+   * The round track: `totalRounds` pips, filled as the fight spends them.
+   *
+   * The round limit has always existed and has never been shown, so an engagement that ground
+   * to `spent` looked like it simply stopped. A visible countdown is what turns attrition into
+   * a race — and it is what gives the last third of a fight any urgency at all.
+   */
+  private buildBattlePips(battle: AscentBattle): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+    const { content, pips } = ui;
+    pips.removeAll(true);
+
+    const total = Math.max(1, battle.totalRounds);
+    const gap = 2;
+    const width = (content.width - gap * (total - 1)) / total;
+    const g = this.add.graphics();
+    for (let i = 0; i < total; i += 1) {
+      const spent = i < battle.round;
+      const current = i === battle.round;
+      g.fillStyle(current ? INK_UI.cinnabar : spent ? INK_UI.gold : INK_UI.softBrush, spent || current ? 0.95 : 0.3);
+      g.fillRect(content.x + i * (width + gap), content.y + 2, Math.max(1, width), current ? 5 : 3.5);
+    }
+    pips.add(g);
+
+    const left = Math.max(0, battle.totalRounds - battle.round);
+    pips.add(this.ui.label(
+      content.x + content.width, content.y + 9, t('ascent.battle.roundsLeft', { n: left }), 'caption',
+      { fontSize: '10px', align: 'right' },
+    ).setOrigin(1, 0));
+  }
+
+  /**
+   * What the screen should be showing right now.
+   *
+   * The buffered beat when the queue has one, the live battle when it has run dry. *Every* piece
+   * of the picture reads through this, so it can never disagree with itself — drawing half the
+   * bars from a replayed beat and half from live state is how a screen ends up showing a host
+   * at two strengths at once.
+   */
+  private battleFrame(battle: AscentBattle): {
+    round: number;
+    ourNow: number; theirNow: number;
+    ourMorale: number; theirMorale: number;
+    ourAdvance: number; theirAdvance: number;
+    hostMen?: Map<string, number>;
+    hostMorale?: Map<string, number>;
+  } {
+    const beat = this.battleUi?.shown;
+    if (!beat) {
+      return {
+        round: battle.round,
+        ourNow: battle.ourNow, theirNow: battle.theirNow,
+        ourMorale: battle.ourMorale, theirMorale: battle.theirMorale,
+        ourAdvance: battle.ourAdvance, theirAdvance: battle.theirAdvance,
+      };
+    }
+    const men = new Map<string, number>();
+    const morale = new Map<string, number>();
+    for (const host of [...beat.ourHosts, ...beat.theirHosts]) {
+      men.set(host.id, host.men);
+      morale.set(host.id, host.morale);
+    }
+    return {
+      round: beat.round,
+      ourNow: beat.ourNow, theirNow: beat.theirNow,
+      ourMorale: beat.ourMorale, theirMorale: beat.theirMorale,
+      ourAdvance: beat.ourAdvance, theirAdvance: beat.theirAdvance,
+      hostMen: men, hostMorale: morale,
+    };
+  }
+
+  /**
+   * The last two lines of the fight, along the foot of the field.
+   *
+   * `battle.log` collects volleys, charges, relief and every exchange — measured, twenty-one
+   * lines a fight — and every one of them was thrown away. This is the cheapest content in the
+   * codebase: the strings exist and are already translated into both languages.
+   */
+  private buildBattleRibbon(battle: AscentBattle): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+    const { content, ribbon } = ui;
+    ribbon.removeAll(true);
+
+    const lines = battle.log.slice(-2);
+    if (lines.length === 0) return;
+    const base = content.y + BATTLE_PIPS_HEIGHT + ui.fieldHeight - BATTLE_RIBBON_HEIGHT;
+
+    // A plate under the type: the field has hatching and scenery on it, and text over hatching
+    // is the one thing the ink style cannot carry.
+    const plate = this.add.graphics();
+    plate.fillStyle(INK_UI.parchment, 0.82);
+    plate.fillRect(content.x + 1, base, content.width - 2, BATTLE_RIBBON_HEIGHT - 1);
+    ribbon.add(plate);
+
+    lines.forEach((line, index) => {
+      const newest = index === lines.length - 1;
+      ribbon.add(this.ui.label(
+        content.x + 10, base + 4 + index * 14, line, 'caption',
+        { fontSize: '10px', wordWrap: { width: content.width - 20 } },
+      ).setAlpha(newest ? 1 : 0.5));
+    });
+  }
+
+  /**
+   * Casualty numbers rising off the point of contact.
+   *
+   * Ours in sỏi son and theirs in ink, deliberately: the palette reserves that red for "your
+   * banner, your seal, *your losses*", so the one red thing on the field is what it cost us.
+   */
+  private spawnBattleFloaters(beat: BattleBeat): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+    const { groundY } = ui.geometry;
+    const { ourX: ourLine, theirX: theirLine } = this.battleLines(beat.ourAdvance, beat.theirAdvance);
+
+    const float = (x: number, value: number, dy: number, colour: string): void => {
+      if (value <= 0) return;
+      const label = this.ui.label(x, groundY - 44 + dy, `−${value}`, 'label', {
+        fontSize: '13px', align: 'center', color: colour,
+      }).setOrigin(0.5);
+      ui.floaters.add(label);
+      this.tweens.add({
+        targets: label,
+        y: groundY - 76 + dy,
+        alpha: { from: 1, to: 0 },
+        duration: BATTLE_TICK_MS * 1.4,
+        ease: 'Sine.easeOut',
+        onComplete: () => label.destroy(),
+      });
+    };
+    // Outside each block rather than between them: the seam is where the men are, and a number
+    // dropped into it lands on the fighting. Staggered too, so the two never collide.
+    float(ourLine - 30, beat.ourLoss, -6, `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`);
+    float(theirLine + 30, beat.theirLoss, 10, INK_UI_HEX.inkText);
+  }
+
+  /**
+   * The land the fight is happening on.
+   *
+   * The field was a cream rectangle with two clusters of tents on it — the thing the screen exists
+   * to show, drawn as nothing. None of this needs new art: the Đông Hồ renderers already draw
+   * villages, citadels, paddy, karst, bamboo and buffalo for the map, and the battle screen used
+   * exactly one of them.
+   *
+   * Five bands, painted far to near, because the eye reads a scene bottom-up and Phaser does not
+   * depth-sort a container's children:
+   *
+   *   0  distance — karst and a soft ridge along the horizon. Nothing here ever moves.
+   *   1  ground   — a tone under the whole killing floor.
+   *   2  ours     — the province being defended: its settlement, its paddy, its bamboo hedge.
+   *   3  theirs   — what came for it.
+   *   4  scatter  — trees and grass drawn from the province's *real* terrain.
+   *
+   * Static for the length of the fight, so it is drawn once per field rebuild rather than per beat.
+   */
+  private buildBattleGround(battle: AscentBattle): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+    const { content, field } = ui;
+    const { leftX, rightX, groundY } = ui.geometry;
+
+    const top = content.y + BATTLE_PIPS_HEIGHT;
+    const bottom = top + ui.fieldHeight;
+    const x0 = content.x + 4;
+    const x1 = content.x + content.width - 4;
+    const horizon = top + ui.fieldHeight * 0.30;
+    const land = findLand(this.state, battle.landId);
+    const seed = Math.round((battle.landId.length * 977) + battle.totalRounds * 31);
+    const rand = mulberry32(seed);
+    // Bigger than the map's own scale: this is a close-up, and scenery drawn at map size on a
+    // three-hundred-pixel field reads as litter rather than as a place.
+    const scale = GROUND_SCALE * 1.5;
+
+    // The dead, re-laid onto the rebuilt field. Added before the scenery graphics so they sit on
+    // the ground rather than over the village.
+    ui.fallen = this.add.graphics();
+    field.add(ui.fallen);
+    for (const pt of ui.fallenPts) this.inkFallen(pt.x, pt.y);
+
+    const g = this.add.graphics();
+    // The land is a backdrop, not a subject. Drawn at half strength as a whole, because at full
+    // weight the scenery and the two armies carry the same emphasis and the fight — the thing the
+    // screen exists to show — stops being the thing you look at.
+    g.setAlpha(0.5);
+    field.add(g);
+
+    // ── 0. distance ────────────────────────────────────────────────────────
+    karstRange(g, x0 - 10, x1 + 10, horizon, ui.fieldHeight * 0.11, seed, true, 1.15);
+    // One relief line, not two: the ridge behind the karst drew a hard rule straight across the
+    // field, which is a horizon nobody stands on.
+    softRidge(g, x0 - 10, x1 + 10, horizon + 10, ui.fieldHeight * 0.04, seed + 41);
+
+    // ── 1. the ground ──────────────────────────────────────────────────────
+    // Barely there: a wash under the men's feet, not a pool of colour the eye lands in.
+    groundTone(g, (x0 + x1) / 2, groundY + 22, content.width * 0.42, PIGMENT.diepLo, 0.16, 3);
+
+    // ── 2. the province being defended ─────────────────────────────────────
+    //
+    // Drawn from the province's own record: the seat gets its citadel, a settled district gets a
+    // village, and bare ground gets a hamlet. The stake of the fight, stated as a picture.
+    // Down in the near-left corner, not on the line.
+    //
+    // Drawn beside the camp it belongs to, the settlement sat exactly where our block stands and
+    // where an advancing enemy comes to meet it — so at contact the village, our host and theirs
+    // were one unreadable clump. The province being defended belongs *behind* the fight.
+    const era = figureEraFor(this.state);
+    const homeX = x0 + 26;
+    const homeY = bottom - 16;
+    if (land && this.state.ascent?.capitalLandId === land.id) citadel(g, homeX, homeY, scale * 0.72, era, seed + 3);
+    else if (land?.hasVillage) village(g, homeX, homeY, scale * 0.8, seed + 3);
+    else hamlet(g, homeX, homeY, scale * 0.8, seed + 3, 4);
+
+    // The bamboo hedge that is a delta village's real boundary — not the palisade this screen had
+    // no business drawing.
+    //
+    // No paddy: `drawFieldPlot` is drawn for map scale, where a plot is a few pixels of texture.
+    // Blown up to a close-up they are big pale rectangles that read as scraps of paper lying on
+    // the field, and a wrong mark is worse than a missing one.
+    for (let i = 0; i < 4; i += 1) {
+      bamboo(g, x0 + 4 + i * 8, bottom - 24 - (i % 2) * 4, scale * 0.6, seed + 11 + i);
+    }
+    buffalo(g, homeX + 40, bottom - 8, scale * 0.85, seed + 13, false);
+
+    // ── 3. what came for it ────────────────────────────────────────────────
+    //
+    // The tents themselves are `battleCamp`, which already stood here; this is the baggage behind
+    // them. Drawing a hamlet on top of the camp put two settlements in the same place.
+    hayStack(g, x1 - 30, bottom - 16, scale * 0.85, seed + 19);
+    hayStack(g, x1 - 54, bottom - 10, scale * 0.7, seed + 21);
+
+    // ── 4. the killing floor ───────────────────────────────────────────────
+    //
+    // Scatter chosen by what the province actually is. A fight on rice ground and a fight in the
+    // hills are the same two blocks of men on two different pieces of the country.
+    const ts = land?.terrainSummary;
+    const wooded = ts ? ts.forest + ts.mountains + ts.hills : 0;
+    const wet = ts ? ts.riceFields + ts.fields + ts.water : 0;
+    const midX = leftX + 40;
+    const midW = rightX - leftX - 70;
+    // Only at the edges of the killing floor. Anything in the middle stands between the player
+    // and the two lines meeting, which is the one thing on this screen that must stay legible.
+    for (let i = 0; i < 5; i += 1) {
+      const edge = i % 2 === 0 ? rand() * 0.22 : 0.78 + rand() * 0.22;
+      const px = midX + edge * midW;
+      const py = groundY + 14 + rand() * Math.max(10, bottom - groundY - 26);
+      if (wooded > wet && i < 2) tree(g, px, py, scale * 0.7, seed + 23 + i);
+      else if (wet > wooded && i === 0) areca(g, px, py, scale * 0.6, seed + 29);
+      else grassTuft(g, px, py, scale * 0.9, seed + 31 + i);
+    }
+  }
+
+  /**
+   * Lays out the men who fell this beat, where they fell.
+   *
+   * One mark per figure's worth of loss, capped — a beat that kills sixty men lays about one body
+   * down, so the floor fills at the same rate the ranks thin. Drawn into a graphics that is never
+   * cleared, because the dead do not get up: the field carries the whole fight's cost by the end,
+   * which is what makes a won battle look like it cost something.
+   */
+  private layFallen(beat: BattleBeat): void {
+    const ui = this.battleUi;
+    if (!ui || ui.fallenCount >= BATTLE_FALLEN_CAP) return;
+    const { groundY } = ui.geometry;
+    const { seam } = this.battleLines(beat.ourAdvance, beat.theirAdvance);
+
+    // One mark per twenty men, so an ordinary exchange — measured, eight to thirty a side — lays
+    // one or two down. At one per forty-five a whole fight passed without a single body, which is
+    // a threshold set from a guess about how hard fights hit rather than from watching one.
+    const lost = beat.ourLoss + beat.theirLoss;
+    const wanted = Math.min(3, Math.round(lost / 20));
+    if (wanted <= 0) return;
+
+    for (let i = 0; i < wanted && ui.fallenCount < BATTLE_FALLEN_CAP; i += 1) {
+      const rand = mulberry32(ui.fallenCount * 2654435761);
+      // Scattered along the seam rather than dropped on it: a line of bodies in a row reads as a
+      // fence. Spread wider across the line than through it, the way a front is shaped.
+      const fx = seam + (rand() - 0.5) * 58;
+      const fy = groundY + (rand() - 0.5) * 64;
+      ui.fallenPts.push({ x: fx, y: fy });
+      this.inkFallen(fx, fy);
+      ui.fallenCount += 1;
+    }
+  }
+
+  /** One body on the ground. Two marks: the man, and what he dropped. */
+  private inkFallen(x: number, y: number): void {
+    const g = this.battleUi?.fallen;
+    if (!g?.active) return;
+    g.fillStyle(PIGMENT.muc, 0.55);
+    g.fillEllipse(x, y, 8.5, 3);
+    g.lineStyle(1.1, PIGMENT.mucSoft, 0.5);
+    g.lineBetween(x - 5, y + 2, x + 4, y - 1.6);
+  }
+
+  /**
+   * Where the two lines stand this frame.
+   *
+   * The two advances are defined to sum to 1 at contact, and the drawing took that literally: at
+   * contact `leftX + 30 + span` and `rightX - 30 - span` are the *same point*, so one army was
+   * drawn exactly on top of the other. A fight at its most violent showed one clump — and the
+   * dead, which lie along the seam, were underneath it.
+   *
+   * So the lines close to a seam and no further. They interpenetrate by about a file, which reads
+   * as one contested mass with a join in it rather than as two rectangles that stopped politely
+   * short — and it leaves the ground between them visible, which is where the bodies are.
+   */
+  private battleLines(ourAdvance: number, theirAdvance: number): { ourX: number; theirX: number; seam: number } {
+    const ui = this.battleUi;
+    if (!ui) return { ourX: 0, theirX: 0, seam: 0 };
+    const { leftX, rightX, span } = ui.geometry;
+    let ourX = leftX + 30 + span * ourAdvance;
+    let theirX = rightX - 30 - span * theirAdvance;
+    if (theirX - ourX >= BATTLE_SEAM_GAP) return { ourX, theirX, seam: (ourX + theirX) / 2 };
+
+    // They have reached us. Where that happens is decided by who advanced — hold your ground and
+    // they cross the whole field to get to you — but drawn literally it puts the entire fight in
+    // the left quarter with two thirds of the picture empty behind them. The meeting is pulled
+    // back into the middle band so the thing worth looking at is where the eye already is.
+    const raw = (ourX + theirX) / 2;
+    const seam = Math.min(Math.max(raw, leftX + span * 0.34), rightX - span * 0.22);
+    return { ourX: seam - BATTLE_SEAM_GAP / 2, theirX: seam + BATTLE_SEAM_GAP / 2, seam };
   }
 
   /** Pairs a drawn marker with its host, finding the strength label to keep current. */
@@ -4415,6 +4855,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const reserveMen = battle.reserve.spearmen + battle.reserve.archers + battle.reserve.heavyInfantry;
     return [
       battle.posture,
+      // The ring's labels change when the enemy's next stance does, so the dock has to be
+      // rebuilt for it — otherwise "counters them" stays printed under a stance that no longer does.
+      battleTelegraph(this.state) ?? '',
       battle.focusHostId ?? '',
       battle.reserveSpent ? 'r1' : 'r0',
       battle.rallySpent ? 'y1' : 'y0',
@@ -4444,30 +4887,37 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     ui.fieldSignature = this.battleFieldSignature(battle);
 
     field.add(this.ui.panel(
-      { x: content.x, y: content.y, width: content.width, height: BATTLE_FIELD_HEIGHT },
+      { x: content.x, y: content.y + BATTLE_PIPS_HEIGHT, width: content.width, height: ui.fieldHeight },
       { border: INK_UI.softBrush },
     ));
 
+    // The ground itself, before anything stands on it.
+    this.buildBattleGround(battle);
+
     // Camps: the ground each side is fighting from, and what "hold" means.
-    field.add(this.battleCamp(leftX, groundY + 16, INK_UI.jade));
     field.add(this.battleCamp(rightX, groundY + 16, rivalColor));
 
     const ours = ourHosts(this.state, battle);
     const theirs = theirHosts(this.state, battle);
     const lane = (index: number, count: number): number => groundY + (index - (count - 1) / 2) * 32;
 
+    const lines = this.battleLines(battle.ourAdvance, battle.theirAdvance);
     ours.forEach((host, index) => {
-      const marker = this.battleItems!.createArmyMarker(hostSize(host), true, undefined, this.state.mapConfig.seed);
-      marker.setPosition(leftX + 30 + span * battle.ourAdvance, lane(index, ours.length));
+      const marker = this.battleItems!.createArmyMarker(
+        hostSize(host), true, undefined, this.state.mapConfig.seed, hostKitFor(this.state, host),
+      );
+      marker.setPosition(lines.ourX, lane(index, ours.length));
       field.add(marker);
       ui.ourMarkers.push(this.trackMarker(host.id, marker));
     });
 
     theirs.forEach((host, index) => {
       const marker = this.battleItems!.createArmyMarker(
-        hostSize(host), false, rivalColor, Math.max(0, this.state.kingdoms.findIndex((k) => k.id === battle.kingdomId)),
+        hostSize(host), false, rivalColor,
+        Math.max(0, this.state.kingdoms.findIndex((k) => k.id === battle.kingdomId)),
+        hostKitFor(this.state, host),
       );
-      marker.setPosition(rightX - 30 - span * battle.theirAdvance, lane(index, theirs.length));
+      marker.setPosition(lines.theirX, lane(index, theirs.length));
       field.add(marker);
       ui.theirMarkers.push(this.trackMarker(host.id, marker));
 
@@ -4509,9 +4959,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       // Midway between the two lines, computed from the advances rather than from marker
       // objects — with several hosts a side there is no single 'the line' to read a
       // position off any more.
-      const ourLine = leftX + 30 + span * battle.ourAdvance;
-      const theirLine = rightX - 30 - span * battle.theirAdvance;
-      const clash = this.ui.label(ourLine + (theirLine - ourLine) / 2, groundY - 44, t('ascent.battle.clash'), 'label', {
+      const { seam } = this.battleLines(battle.ourAdvance, battle.theirAdvance);
+      const clash = this.ui.label(seam, groundY - 44, t('ascent.battle.clash'), 'label', {
         fontSize: '22px', align: 'center',
       }).setOrigin(0.5);
       readout.add(clash);
@@ -4521,47 +4970,102 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       });
     }
 
-    const readoutY = content.y + BATTLE_FIELD_HEIGHT + 8;
+    const readoutY = content.y + BATTLE_PIPS_HEIGHT + ui.fieldHeight + 8;
     readout.add(this.ui.panel(
-      { x: content.x, y: readoutY, width: content.width, height: BATTLE_READOUT_HEIGHT },
+      { x: content.x, y: readoutY, width: content.width, height: BATTLE_RAILS_HEIGHT },
       { border: INK_UI.softBrush },
     ));
 
+    const frame = this.battleFrame(battle);
     const barW = (content.width - 36) / 2;
     const bar = (x: number, now: number, start: number, color: number, label: string): void => {
-      readout.add(this.ui.label(x, readoutY + 8, label, 'caption', {}));
-      readout.add(this.ui.label(x + barW, readoutY + 8, `${now}`, 'label', { fontSize: '15px', align: 'right' })
+      readout.add(this.ui.label(x, readoutY + 6, label, 'caption', {}));
+      readout.add(this.ui.label(x + barW, readoutY + 6, `${now}`, 'label', { fontSize: '15px', align: 'right' })
         .setOrigin(1, 0));
       readout.add(this.ui.statBar(
-        { x, y: readoutY + 32, width: barW, height: 8 }, now, Math.max(1, start), color,
+        { x, y: readoutY + 28, width: barW, height: 8 }, now, Math.max(1, start), color,
       ));
     };
-    bar(content.x + 12, battle.ourNow, battle.ourStart, INK_UI.jade, t('ascent.battle.ours'));
-    bar(content.x + barW + 24, battle.theirNow, battle.theirStart, rivalColor, battle.kingdomName);
+    bar(content.x + 12, Math.round(frame.ourNow), battle.ourStart, INK_UI.jade, t('ascent.battle.ours'));
+    bar(content.x + barW + 24, Math.round(frame.theirNow), battle.theirStart, rivalColor, battle.kingdomName);
 
     // Morale under strength: this is the bar that actually decides the fight, since `armyPower`
     // multiplies by it and a host below the rout threshold breaks outright.
+    //
+    // The threshold is drawn on the bar rather than left implicit. "Wavering" was a state the
+    // simulation knew about and the screen never showed, so a line one exchange from breaking
+    // looked exactly like one at half heart.
     const heart = (x: number, value: number): void => {
       readout.add(this.ui.statBar(
-        { x, y: readoutY + 44, width: barW, height: 5 }, value, 100,
+        { x, y: readoutY + 42, width: barW, height: 5 }, value, 100,
         value <= BATTLE_ROUT_MORALE + 10 ? INK_UI.cinnabar : INK_UI.gold,
       ));
+      const routMark = this.add.graphics();
+      routMark.fillStyle(INK_UI.cinnabarDark, 0.9);
+      routMark.fillRect(x + barW * (BATTLE_ROUT_MORALE / 100) - 1, readoutY + 40, 1.5, 9);
+      readout.add(routMark);
     };
-    heart(content.x + 12, battle.ourMorale);
-    heart(content.x + barW + 24, battle.theirMorale);
+    heart(content.x + 12, frame.ourMorale);
+    heart(content.x + barW + 24, frame.theirMorale);
+
+    // What they are about to do, and how the two hosts' arms meet. Both are read off the same
+    // functions the fight uses, so neither can tell the player something the beat then contradicts.
+    const telegraph = battleTelegraph(this.state);
+    const notes: Array<{ text: string; colour: string }> = [];
+    if (telegraph) {
+      notes.push({
+        text: t(`ascent.battle.theyWill.${telegraph}` as Parameters<typeof t>[0], { kingdom: battle.kingdomName }),
+        colour: '#8a2a1b',
+      });
+    }
+    const arms = battle.ourMatchup ?? 1;
+    if (Math.abs(arms - 1) > 0.03) {
+      notes.push({
+        text: arms > 1 ? t('ascent.battle.armsGood') : t('ascent.battle.armsBad'),
+        colour: arms > 1 ? '#4c5f45' : '#8a2a1b',
+      });
+    }
+    notes.forEach((note, index) => {
+      readout.add(this.ui.label(
+        content.x + content.width / 2, readoutY + BATTLE_RAILS_HEIGHT + 2 + index * 13, note.text, 'caption',
+        { fontSize: '10px', align: 'center', color: note.colour, wordWrap: { width: content.width - 20 } },
+      ).setOrigin(0.5, 0));
+    });
+
+    // The ground's edge, computed since the day the screen shipped and printed nowhere. A player
+    // deciding whether to intercept on high ground could not see what it bought them.
+    if (battle.terrainEdge > 1.01) {
+      readout.add(this.ui.label(
+        content.x + content.width / 2, readoutY + BATTLE_RAILS_HEIGHT + 2 + notes.length * 13,
+        t('ascent.battle.terrain', { mult: battle.terrainEdge.toFixed(2) }), 'caption',
+        { fontSize: '10px', align: 'center' },
+      ).setOrigin(0.5, 0));
+    }
 
     // The opening hold, said out loud: the world is stopped for the first order, and the caption
     // goes with the first tap. Lives in the readout because that layer is redrawn every beat.
     if (this.battleAwaitingOrder) {
-      readout.add(this.ui.label(content.x + content.width / 2, content.y + 12, t('ascent.battle.holdNote'), 'caption', {
+      readout.add(this.ui.label(
+        content.x + content.width / 2, content.y + BATTLE_PIPS_HEIGHT + 10, t('ascent.battle.holdNote'), 'caption', {
         align: 'center',
-        wordWrap: { width: content.width - 40 },
-        color: `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`,
-      }).setOrigin(0.5, 0));
+          wordWrap: { width: content.width - 40 },
+          color: `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`,
+        },
+      ).setOrigin(0.5, 0));
     }
   }
-
-  /** The standing orders. Rebuilt only when what they offer changes, never on the beat. */
+  /**
+   * The standing orders, as a fixed dock.
+   *
+   * They used to be seven cards in a scroll area. Seven rows of 54px is 426px of list under a
+   * real-time fight — the fight got a fifth of the screen and the form got two thirds — and the
+   * last row off the bottom was Retreat, the one way out of a losing fight. A player steering a
+   * battle cannot be asked to scroll to find the brake.
+   *
+   * So: one posture row, one row of four, nothing hidden and nothing that moves. Rebuilt only
+   * when what it offers changes, never on the beat — a card destroyed between press and release
+   * never fires.
+   */
   private buildBattleOrders(battle: AscentBattle): void {
     const ui = this.battleUi;
     if (!ui) return;
@@ -4570,90 +5074,220 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     orders.removeAll(true);
     ui.orderSignature = this.battleOrderSignature(battle);
 
-    // Laid out inside the scroll's own space, so every row starts from its top edge.
-    const rowWidth = content.width - 6;
-    const rowH = 54;
-    let optY = 0;
-    // The same three orders read differently when we are the ones at the walls.
+    const dockY = content.y + BATTLE_PIPS_HEIGHT + ui.fieldHeight + 8 + BATTLE_RAILS_HEIGHT + 16;
     const offence = battle.role === 'offence';
-    const control = (id: string, accent: number, badge?: string): void => {
-      const labelKey = offence && (id === 'press' || id === 'hold' || id === 'retreat') ? `${id}Off` : id;
-      this.optionCard(
-        { x: 0, y: optY, width: rowWidth, height: rowH },
-        {
-          icon: iconForOption(id),
-          title: t(`ascent.battle.${labelKey}` as Parameters<typeof t>[0]),
-          body: t(`ascent.battle.${labelKey}D` as Parameters<typeof t>[0]),
-          badge,
-          accent,
-          parent: orders,
-          onTap: () => { this.releaseBattleHold(); this.events.emit('ui:battle-order', id); },
-        },
-      );
-      optY += rowH + 8;
+
+    // ── the stance ring ──────────────────────────────────────────────────
+    //
+    // Three, because two could never be a real choice: press and hold had the same exchange
+    // ratio to three decimals, so pressing was the same trade delivered faster. Charge beats
+    // loose, loose beats brace, brace beats charge — a cycle cannot have a dominant option.
+    //
+    // The one the enemy is about to take is marked, and the one that counters it is marked
+    // differently. That is the whole game of the ring: read them, then answer.
+    const telegraph = battleTelegraph(this.state);
+    const segW = (content.width - 12) / 3;
+    // Room for a title that wraps to two lines and still has its note under it. An assault's
+    // labels are the long ones, and they are what set this.
+    const segH = 56;
+    const stance = (index: number, id: BattlePosture, selected: boolean): void => {
+      const x = content.x + index * (segW + 6);
+      const bounds = { x, y: dockY, width: segW, height: segH };
+      const tile = this.ui.crayonTile(bounds, { selected });
+      orders.add(tile);
+      const key = offence && id !== 'loose' ? `${id}Off` : id;
+      const cinnabar = `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`;
+      // Measured, then the note is placed under whatever it turned out to be. An assault's labels
+      // are longer than a defence's — "Close under shields" against "Hold the line" — so a note at
+      // a fixed offset printed straight through the second line of the title.
+      const title = this.ui.label(x + segW / 2, dockY + 6, t(`ascent.battle.${key}` as Parameters<typeof t>[0]), 'label', {
+        fontSize: '11.5px', align: 'center', wordWrap: { width: segW - 8 },
+        color: selected ? cinnabar : INK_UI_HEX.inkText,
+      }).setOrigin(0.5, 0);
+      orders.add(title);
+      // Beats what they are about to do, or loses to it. Stated rather than left to be inferred
+      // from a diagram the player has never seen.
+      const beatsThem = telegraph !== undefined && posturesCounter(id, telegraph);
+      const losesToThem = telegraph !== undefined && posturesCounter(telegraph, id);
+      const verdict = beatsThem ? t('ascent.battle.counters')
+        : losesToThem ? t('ascent.battle.countered')
+          : t(`ascent.battle.${key}Short` as Parameters<typeof t>[0]);
+      orders.add(this.ui.label(x + segW / 2, dockY + 6 + title.height + 1, verdict, 'caption', {
+        fontSize: '9px', align: 'center', wordWrap: { width: segW - 8 },
+        color: beatsThem ? '#4c5f45' : losesToThem ? '#8a2a1b' : INK_UI_HEX.mutedText,
+      }).setOrigin(0.5, 0));
+      const hit = this.add.zone(x, dockY, segW, segH).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => {
+        if (scrollGestureConsumedTap()) return;
+        this.releaseBattleHold();
+        this.events.emit('ui:battle-order', id);
+      });
+      orders.add(hit);
     };
+    stance(0, 'hold', battle.posture === 'hold');
+    stance(1, 'loose', battle.posture === 'loose');
+    stance(2, 'press', battle.posture === 'press');
 
-    // Focus is discoverable from a row as well as from the field: a tap target with no label is
-    // a secret, and the two together teach each other.
-    const focused = theirHosts(this.state, battle)
-      .find((host) => host.id === battle.focusHostId);
-    this.optionCard(
-      { x: 0, y: optY, width: rowWidth, height: rowH },
-      {
-        icon: focused ? 'blade' : 'banner',
-        title: focused ? t('ascent.battle.focusOn', { name: focused.name }) : t('ascent.battle.spread'),
-        body: focused ? t('ascent.battle.focusD') : t('ascent.battle.spreadD'),
-        accent: focused ? INK_UI.cinnabar : INK_UI.softBrush,
-        parent: orders,
-        onTap: () => { this.releaseBattleHold(); this.events.emit('ui:battle-focus', undefined); },
-      },
-    );
-    optY += rowH + 8;
-
-    const pressing = battle.posture === 'press';
-    control('press', pressing ? INK_UI.gold : INK_UI.softBrush, pressing ? t('ascent.battle.current') : undefined);
-    control('hold', !pressing ? INK_UI.gold : INK_UI.softBrush, !pressing ? t('ascent.battle.current') : undefined);
-
-    // The two one-shots. Shown spent rather than hidden, so the player can see what they still
-    // hold — waiting for the right moment only works if you know you still have the card.
+    // ── the four buttons ─────────────────────────────────────────────────
+    const rowY = dockY + segH + 6;
+    const btnH = 44;
     const reserveMen = battle.reserve.spearmen + battle.reserve.archers + battle.reserve.heavyInfantry;
+    const focused = theirHosts(this.state, battle).find((host) => host.id === battle.focusHostId);
+
+    const buttons: Array<{ label: string; sub: string; accent: number; disabled?: boolean; onTap: () => void }> = [];
+    buttons.push({
+      label: focused ? t('ascent.battle.focusShort') : t('ascent.battle.spreadShort'),
+      sub: focused ? focused.name : t('ascent.battle.spreadSub'),
+      accent: focused ? INK_UI.cinnabar : INK_UI.softBrush,
+      onTap: () => { this.releaseBattleHold(); this.events.emit('ui:battle-focus', undefined); },
+    });
     if (reserveMen > 0) {
-      this.optionCard(
-        { x: 0, y: optY, width: rowWidth, height: rowH },
-        {
-          icon: 'banner',
-          title: t('ascent.battle.reserve'),
-          body: t('ascent.battle.reserveD', { n: reserveMen }),
-          badge: battle.reserveSpent ? t('ascent.battle.spent') : undefined,
-          accent: battle.reserveSpent ? INK_UI.softBrush : INK_UI.jade,
-          disabled: battle.reserveSpent,
-          parent: orders,
-          onTap: () => { if (!battle.reserveSpent) { this.releaseBattleHold(); this.events.emit('ui:battle-order', 'reserve'); } },
-        },
-      );
-      optY += rowH + 8;
+      buttons.push({
+        label: t('ascent.battle.reserveShort'),
+        sub: battle.reserveSpent ? t('ascent.battle.spent') : `${reserveMen}`,
+        accent: battle.reserveSpent ? INK_UI.softBrush : INK_UI.jade,
+        disabled: battle.reserveSpent,
+        onTap: () => { this.releaseBattleHold(); this.events.emit('ui:battle-order', 'reserve'); },
+      });
     }
     if (battle.rallyPower > 0) {
-      this.optionCard(
-        { x: 0, y: optY, width: rowWidth, height: rowH },
-        {
-          icon: 'crown',
-          title: t('ascent.battle.rally'),
-          body: t('ascent.battle.rallyD'),
-          badge: battle.rallySpent ? t('ascent.battle.spent') : undefined,
-          accent: battle.rallySpent ? INK_UI.softBrush : INK_UI.gold,
-          disabled: battle.rallySpent,
-          parent: orders,
-          onTap: () => { if (!battle.rallySpent) { this.releaseBattleHold(); this.events.emit('ui:battle-order', 'rally'); } },
-        },
-      );
-      optY += rowH + 8;
+      buttons.push({
+        label: t('ascent.battle.rallyShort'),
+        sub: battle.rallySpent ? t('ascent.battle.spent') : `+${battle.rallyPower}`,
+        accent: battle.rallySpent ? INK_UI.softBrush : INK_UI.gold,
+        disabled: battle.rallySpent,
+        onTap: () => { this.releaseBattleHold(); this.events.emit('ui:battle-order', 'rally'); },
+      });
     }
+    buttons.push({
+      label: t('ascent.battle.retreatShort'),
+      sub: t('ascent.battle.retreatSub'),
+      accent: INK_UI.cinnabar,
+      onTap: () => { this.releaseBattleHold(); this.events.emit('ui:battle-order', 'retreat'); },
+    });
+    buttons.push({
+      label: t('ascent.battle.autoShort'),
+      sub: t('ascent.battle.autoSub'),
+      accent: INK_UI.softBrush,
+      onTap: () => { this.releaseBattleHold(); this.events.emit('ui:battle-order', 'auto'); },
+    });
 
-    control('retreat', INK_UI.cinnabar);
-    control('auto', INK_UI.softBrush);
+    const gap = 6;
+    const btnW = (content.width - gap * (buttons.length - 1)) / buttons.length;
+    buttons.forEach((spec, index) => {
+      const x = content.x + index * (btnW + gap);
+      const bounds = { x, y: rowY, width: btnW, height: btnH };
+      orders.add(this.ui.panel(bounds, { border: spec.accent, fillAlpha: spec.disabled ? 0.5 : 1 }));
+      orders.add(this.ui.label(x + btnW / 2, rowY + 7, spec.label, 'label', {
+        fontSize: '11px', align: 'center',
+        color: spec.disabled ? INK_UI_HEX.mutedText : INK_UI_HEX.inkText,
+      }).setOrigin(0.5, 0));
+      orders.add(this.ui.label(x + btnW / 2, rowY + 24, spec.sub, 'caption', {
+        fontSize: '9px', align: 'center', wordWrap: { width: btnW - 6 },
+      }).setOrigin(0.5, 0));
+      if (spec.disabled) return;
+      const hit = this.add.zone(x, rowY, btnW, btnH).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => {
+        if (scrollGestureConsumedTap()) return;
+        spec.onTap();
+      });
+      orders.add(hit);
+    });
+  }
+  /**
+   * The open Moment, over the field.
+   *
+   * A card rather than a modal, and the field stays visible behind it: the question is *about*
+   * what is on screen, so hiding the fight to ask it would be answering with less information
+   * than the player already had.
+   *
+   * The timer is honest about what happens at zero — it names the commander who will answer, so
+   * letting it run out is a choice with a known outcome rather than a punishment for hesitating.
+   */
+  private buildBattleMoment(battle: AscentBattle): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+    const { content, moment: layer } = ui;
+    layer.removeAll(true);
 
-    ui.orderScroll.setContentHeight(optY);
+    const moment = battle.moment;
+    ui.momentKey = moment ? `${moment.kind}:${moment.raisedAtBeat}` : '';
+    if (!moment) return;
+
+    const height = 132;
+    const y = content.y + BATTLE_PIPS_HEIGHT + ui.fieldHeight - height - 6;
+
+    // A scrim over the field only, not the whole screen: the rails and the dock stay readable,
+    // because what they say is exactly what the question is about.
+    const scrim = this.add.graphics();
+    scrim.fillStyle(INK_UI.parchment, 0.9);
+    scrim.fillRect(content.x + 2, y, content.width - 4, height);
+    scrim.lineStyle(2, INK_UI.cinnabar, 0.95);
+    scrim.strokeRect(content.x + 2, y, content.width - 4, height);
+    layer.add(scrim);
+
+    layer.add(this.ui.label(content.x + 12, y + 7, t('ascent.moment.kicker'), 'caption', {
+      fontSize: '9px', color: `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`,
+    }));
+    layer.add(this.ui.label(
+      content.x + 12, y + 20,
+      t(`ascent.moment.${moment.kind}.title` as Parameters<typeof t>[0], { subject: moment.subject ?? '' }),
+      'label', { fontSize: '15px', wordWrap: { width: content.width - 28 } },
+    ));
+
+    const answer = (index: number, id: 'commit' | 'steady', accent: number): void => {
+      const rowY = y + 44 + index * 32;
+      const bounds = { x: content.x + 10, y: rowY, width: content.width - 20, height: 29 };
+      layer.add(this.ui.panel(bounds, { border: accent }));
+      layer.add(this.ui.label(
+        content.x + 18, rowY + 3,
+        t(`ascent.moment.${moment.kind}.${id}` as Parameters<typeof t>[0]), 'label', { fontSize: '12px' },
+      ));
+      layer.add(this.ui.label(
+        content.x + 18, rowY + 16,
+        t(`ascent.moment.${moment.kind}.${id}D` as Parameters<typeof t>[0]), 'caption',
+        { fontSize: '9.5px', wordWrap: { width: content.width - 40 } },
+      ));
+      const hit = this.add.zone(bounds.x, bounds.y, bounds.width, bounds.height)
+        .setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => {
+        if (scrollGestureConsumedTap()) return;
+        this.releaseBattleHold();
+        this.events.emit('ui:battle-moment', id);
+      });
+      layer.add(hit);
+    };
+    answer(0, 'commit', INK_UI.cinnabar);
+    answer(1, 'steady', INK_UI.jade);
+
+    // The clock, and who answers when it runs out.
+    //
+    // Drained by a tween rather than by the tick: the fight is *held* while this stands, so the
+    // only honest thing to draw against is real time. It runs for the window the world will
+    // actually wait — one economy tick per `ticksLeft`.
+    const barW = content.width - 20;
+    const bed = this.add.graphics();
+    bed.fillStyle(INK_UI.parchmentDark, 0.9);
+    bed.fillRect(content.x + 10, y + height - 20, barW, 4);
+    layer.add(bed);
+    const fill = this.add.graphics();
+    fill.fillStyle(INK_UI.cinnabar, 0.95);
+    fill.fillRect(0, 0, barW, 4);
+    fill.setPosition(content.x + 10, y + height - 20);
+    layer.add(fill);
+    this.tweens.add({
+      targets: fill,
+      scaleX: { from: 1, to: 0 },
+      duration: ASCENT_TICK_MS * Math.max(1, moment.ticksLeft),
+      ease: 'Linear',
+    });
+    layer.add(this.ui.label(
+      content.x + content.width / 2, y + height - 14,
+      moment.generalName
+        ? t('ascent.moment.fallback', { name: moment.generalName, n: moment.ticksLeft })
+        : t('ascent.moment.fallbackNone', { n: moment.ticksLeft }),
+      'caption', { fontSize: '9px', align: 'center' },
+    ).setOrigin(0.5, 0));
   }
 
   /**
@@ -4670,25 +5304,80 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     if (!ui) return;
     if (!battle) { this.closeLane(); return; }
 
+    const frame = this.battleFrame(battle);
+
     if (this.battleFieldSignature(battle) !== ui.fieldSignature) {
       this.buildBattleField(battle);
     } else {
-      const { leftX, rightX, span } = ui.geometry;
       // The shove is what contact looks like: once the lines meet they press into each other
       // instead of gliding, so the picture reads as a fight rather than a chart.
-      const meeting = battle.ourAdvance + battle.theirAdvance >= 1;
-      const sizes = new Map(
+      const meeting = frame.ourAdvance + frame.theirAdvance >= 1;
+      const lines = this.battleLines(frame.ourAdvance, frame.theirAdvance);
+      // Headcounts come off the beat being shown when there is one, so the strength stamped on a
+      // column belongs to the same moment as the position it is standing in.
+      const sizes = frame.hostMen ?? new Map(
         [...ourHosts(this.state, battle), ...theirHosts(this.state, battle)]
           .map((host) => [host.id, hostSize(host)] as const),
       );
-      this.slideMarkers(ui.ourMarkers, leftX + 30 + span * battle.ourAdvance, meeting ? 4 : 0, sizes);
-      this.slideMarkers(ui.theirMarkers, rightX - 30 - span * battle.theirAdvance, meeting ? -4 : 0, sizes);
+      this.slideMarkers(ui.ourMarkers, lines.ourX, meeting ? 4 : 0, sizes);
+      this.slideMarkers(ui.theirMarkers, lines.theirX, meeting ? -4 : 0, sizes);
     }
 
     this.buildBattleReadout(battle);
+    this.buildBattlePips(battle);
+
+    // Only when the line actually changes: re-inking the same two lines every beat makes the
+    // ribbon flicker, and the newest line needs to hold long enough to be read.
+    const newest = battle.log[battle.log.length - 1];
+    if (newest !== ui.lastLine) {
+      ui.lastLine = newest;
+      this.buildBattleRibbon(battle);
+    }
 
     if (this.battleOrderSignature(battle) !== ui.orderSignature) {
       this.buildBattleOrders(battle);
+    }
+
+    // Rebuilt only when the question or its clock changes — never every beat, because a card
+    // destroyed between press and release never fires.
+    const momentKey = battle.moment
+      ? `${battle.moment.kind}:${battle.moment.raisedAtBeat}:${battle.round}`
+      : '';
+    if (momentKey !== ui.momentKey) {
+      this.buildBattleMoment(battle);
+      ui.momentKey = momentKey;
+    }
+  }
+
+  /**
+   * Takes one beat off the queue and shows it.
+   *
+   * This is the whole of the fix for a fight that used to arrive in four frozen jumps. The
+   * simulation still resolves `BATTLE_BEATS_PER_TICK` beats in a burst on the economy tick — it
+   * has to, or every mode's regression fingerprint moves — but the screen no longer *reads* the
+   * burst. It reads the record of it, one moment per interval.
+   *
+   * When the queue is empty the view falls back to live state, which is the right answer: it
+   * means the picture has caught up with the truth.
+   */
+  private drainBattleBeat(): void {
+    const ui = this.battleUi;
+    const battle = this.state.ascent?.activeBattle;
+    if (!ui || !battle) return;
+    const queue = battle.beats;
+    if (!queue || queue.length === 0) {
+      ui.shown = undefined;
+      return;
+    }
+    // Falling behind is worse than skipping: a queue that keeps growing puts the picture further
+    // from the numbers every tick. Above a tick's worth in hand, take two.
+    const take = queue.length > BATTLE_BEATS_PER_TICK ? 2 : 1;
+    for (let i = 0; i < take && queue.length > 0; i += 1) {
+      ui.shown = queue.shift();
+    }
+    if (ui.shown) {
+      this.spawnBattleFloaters(ui.shown);
+      this.layFallen(ui.shown);
     }
   }
 
@@ -4705,10 +5394,20 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     shove: number,
     sizes: Map<string, number>,
   ): void {
-    for (const { hostId, marker, count } of markers) {
+    for (const entry of markers) {
+      const { hostId, marker, count } = entry;
       if (!marker.active) continue;
       const size = sizes.get(hostId);
       if (count?.active && size !== undefined) count.setText(compactNumber(size));
+      // The ranks thin. One figure stands for `MEN_PER_MARK` men, so this fires about once per
+      // fifty-five lost — twenty-odd redraws across a whole engagement, at ~21 `figure()` calls
+      // each. Cheap, exact, and it makes attrition the most legible thing on the screen without
+      // a single number being read.
+      if (size !== undefined) {
+        const marks = hostShapeAt(Math.max(1, size), 1).marks;
+        if (entry.marks !== undefined && marks !== entry.marks) this.redrawHostBlock(entry, size);
+        entry.marks = marks;
+      }
       // Previous beat's tween is abandoned rather than left to fight this one for the same x.
       this.tweens.killTweensOf(marker);
       if (shove === 0) {
@@ -4722,6 +5421,58 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
           { x, duration: BATTLE_TICK_MS * 0.32, ease: 'Sine.easeIn' },
         ],
       });
+    }
+  }
+
+  /**
+   * Redraws one host's block at the strength it is now.
+   *
+   * Rebuilt in place rather than through `buildBattleField`, because the whole field carries the
+   * focus rings and the tap targets — throwing it away to shrink one column would drop the order
+   * the player is in the middle of giving.
+   */
+  private redrawHostBlock(entry: BattleMarker, men: number): void {
+    const ui = this.battleUi;
+    if (!ui || !this.battleItems) return;
+    const battle = this.state.ascent?.activeBattle;
+    if (!battle) return;
+    const host = this.state.armies.find((army) => army.id === entry.hostId);
+    if (!host) return;
+
+    const ours = (battle.ourArmyIds ?? []).includes(entry.hostId);
+    const { x, y } = entry.marker;
+    const rebuilt = this.battleItems.createArmyMarker(
+      Math.max(1, men),
+      ours,
+      ours ? undefined : ui.rivalColor,
+      ours
+        ? this.state.mapConfig.seed
+        : Math.max(0, this.state.kingdoms.findIndex((k) => k.id === battle.kingdomId)),
+      hostKitFor(this.state, host),
+    );
+    rebuilt.setPosition(x, y);
+
+    // Whatever was riding on the old block — the focus ring, the tap target — is rebuilt with it
+    // by `buildBattleField`'s own rules, so only the drawing is replaced here.
+    const parent = entry.marker.parentContainer;
+    this.tweens.killTweensOf(entry.marker);
+    entry.marker.destroy();
+    entry.marker = rebuilt;
+    entry.count = rebuilt.list.find((child) => child.type === 'Text') as Phaser.GameObjects.Text | undefined;
+    if (parent) parent.add(rebuilt);
+    else ui.field.add(rebuilt);
+
+    if (!ours) {
+      if (battle.focusHostId === entry.hostId) {
+        const ring = this.add.circle(0, -18, 26).setStrokeStyle(2.5, INK_UI.cinnabar, 0.95);
+        rebuilt.add(ring);
+      }
+      const hit = this.add.circle(0, -18, 28, 0xffffff, 0.001).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => {
+        this.releaseBattleHold();
+        this.events.emit('ui:battle-focus', battle.focusHostId === entry.hostId ? undefined : entry.hostId);
+      });
+      rebuilt.add(hit);
     }
   }
 
@@ -4758,7 +5509,11 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     this.battleClock = this.time.addEvent({
       delay: BATTLE_TICK_MS,
       loop: true,
-      callback: () => this.refresh(),
+      callback: () => {
+        // Beat first, then draw: the frame the rest of the refresh reads is the one just taken.
+        this.drainBattleBeat();
+        this.refresh();
+      },
     });
   }
 

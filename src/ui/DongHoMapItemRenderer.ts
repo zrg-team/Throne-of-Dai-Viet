@@ -4,7 +4,9 @@ import type { ProgressBadgeVariant } from './MapItemRenderer';
 import type { LandBuildingType } from '../state/types';
 import { UI_FONT } from './fonts';
 import { PIGMENT } from './ink/palette';
-import { drawHost, figure, hostFootprint, hostShapeAt, hostSpan, marchInPlace, seal } from './ink/devices';
+import {
+  drawHost, figure, hostFootprint, hostShapeAt, hostSpan, marchInPlace, seal, type HostKit,
+} from './ink/devices';
 import { drawFieldPlot } from './ink/settlements';
 import { citadel, GroundSpacer, hamlet, village } from './ink/settlements';
 import { hatchPoly, inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './ink/stroke';
@@ -122,7 +124,9 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
    * on the march is. Nobody counts the figures; the eye compares two blocks and gets the ratio
    * right, which is the whole point.
    */
-  override createArmyMarker(total: number, isPlayer: boolean, _kingdomColor?: number, flagSeed?: number): Phaser.GameObjects.Container {
+  override createArmyMarker(
+    total: number, isPlayer: boolean, _kingdomColor?: number, flagSeed?: number, kit?: HostKit,
+  ): Phaser.GameObjects.Container {
     const scene = this.scene as Phaser.Scene;
     const container = scene.add.container(0, 0);
     const graphics = scene.add.graphics();
@@ -150,7 +154,8 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // largest still object on a map where the roads, the herds and the water all move.
     const ranks: Phaser.GameObjects.Graphics[] = [];
     drawHost(
-      graphics, -shape.width / 2, -shape.height, Math.max(1, total), Math.round(total) + 17, colour, scale, true,
+      graphics, -shape.width / 2, -shape.height, Math.max(1, total), Math.round(total) + 17, colour, scale,
+      { ...kit, spear: true },
       (rank) => {
         while (ranks.length <= rank) {
           const layer = scene.add.graphics();

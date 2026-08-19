@@ -7,12 +7,21 @@ import {
   BATTLE_CHARGE_COVER,
   BATTLE_CHARGE_MORALE,
   BATTLE_CHARGE_TRADE,
+  BATTLE_COUNTER_MORALE,
   BATTLE_FOCUS_MULT,
   BATTLE_HOLD_TRADE,
+  BATTLE_LOOSE_TRADE,
+  BATTLE_LOOSE_VOLLEY,
+  BATTLE_POSTURE_COUNTER,
   BATTLE_MAX_ROUNDS,
+  BATTLE_MOMENT_TICKS,
+  BATTLE_MOMENT_BONUS_BEATS,
+  BATTLE_MOMENT_EARLIEST,
+  BATTLE_MOMENTS_PER_FIGHT,
   BATTLE_MORALE_PER_LOSS,
   BATTLE_MORALE_WIN_GAIN,
   BATTLE_RALLY_BASE,
+  BATTLE_REFORM_COST,
   BATTLE_RESERVE_SHARE,
   BATTLE_ROUND_BITE,
   BATTLE_RALLY_DESPERATION,
@@ -24,14 +33,19 @@ import {
 } from '../../game/ascentConfig';
 import { raiseEnemyGarrisonLevy, raiseGarrisonLevy, resolveBattleRecord } from '../empire/InvasionSystem';
 import { pushToast } from '../empire/notifications';
-import { applyAttackOutcome, armyPower, issueMoveOrder, terrainDefenseMultiplier } from '../WarSystem';
+import {
+  applyAttackOutcome, armyPower, compositionMatchup, issueMoveOrder, terrainDefenseMultiplier,
+} from '../WarSystem';
 import { occupyEmptyLand } from '../AcquisitionSystem';
 import { findLand } from '../LandSystem';
 import { landGarrisonPower } from './PowerSystem';
 import { battleLine, enrolArrivals, hostHeadcount, ourHosts, theirHosts } from './battleMembership';
 import { isAutoHost } from './armyOrders';
 import { t } from '../../i18n';
-import type { Army, AscentBattle, BattlePosture, GameState, PendingBattle } from '../../state/types';
+import type {
+  Army, AscentBattle, BattleBeatHost, BattleMoment, BattleMomentAnswer, BattlePosture,
+  GameState, PendingBattle,
+} from '../../state/types';
 
 // Re-exported so the screen and the harness keep one import for the fight's vocabulary.
 export { battleLine, isEngaged, ourHosts, theirHosts } from './battleMembership';
@@ -60,6 +74,57 @@ export { battleLine, isEngaged, ourHosts, theirHosts } from './battleMembership'
  */
 
 const totalUnits = hostHeadcount;
+
+/**
+ * How many beats the queue keeps before the oldest are dropped.
+ *
+ * A screen that is open drains this every `BATTLE_TICK_MS`, so it never fills. A headless run
+ * never drains at all, and a long engagement would otherwise grow an entry per beat forever —
+ * `verify-ascent` fights hundreds of them in one run.
+ */
+const BEAT_QUEUE_CAP = 64;
+
+/** A side's columns as the view needs them: who is standing, how many, and how steady. */
+function beatHosts(hosts: Army[]): BattleBeatHost[] {
+  return hosts.map((host) => ({ id: host.id, men: totalUnits(host), morale: Math.round(host.morale) }));
+}
+
+/**
+ * Writes down what this beat looked like, for a screen that will replay it later.
+ *
+ * Called at the end of every beat and nowhere else. It reads state and pushes an object — it
+ * never calls `Math.random`, so the simulation's RNG order is untouched and every mode's
+ * regression fingerprint holds.
+ */
+function recordBeat(
+  battle: AscentBattle,
+  phase: 'approach' | 'clash',
+  ours: Army[],
+  theirs: Army[],
+  ourLoss: number,
+  theirLoss: number,
+  line?: string,
+  broke?: string[],
+): void {
+  const beats = (battle.beats ??= []);
+  beats.push({
+    phase,
+    round: battle.round,
+    ourNow: battle.ourNow,
+    theirNow: battle.theirNow,
+    ourAdvance: battle.ourAdvance,
+    theirAdvance: battle.theirAdvance,
+    ourMorale: battle.ourMorale,
+    theirMorale: battle.theirMorale,
+    ourLoss: Math.round(ourLoss),
+    theirLoss: Math.round(theirLoss),
+    ourHosts: beatHosts(ours),
+    theirHosts: beatHosts(theirs),
+    line,
+    broke: broke && broke.length > 0 ? broke : undefined,
+  });
+  if (beats.length > BEAT_QUEUE_CAP) beats.splice(0, beats.length - BEAT_QUEUE_CAP);
+}
 
 /**
  * Whether this fight is worth stopping the game for: **a wave that reached ground we hold.**
@@ -94,6 +159,9 @@ const totalUnits = hostHeadcount;
  */
 function worthWatching(state: GameState, landId: string, isGreat: boolean): boolean {
   const ascent = state.ascent;
+  // The arena exists to watch one specific matchup. Every clause below asks whether a fight is
+  // worth interrupting a *run* for, which is not a question the arena is asking.
+  if (ascent?.arena) return true;
   if (isGreat || ascent?.capitalLandId === landId) return true;
 
   const land = findLand(state, landId);
@@ -429,18 +497,108 @@ function enemyPosture(state: GameState, battle: AscentBattle): BattlePosture {
   const personality = kingdom?.personality ?? 'aggressive';
   const theirEdge = battle.theirMorale - battle.ourMorale;
 
+  // Every branch is deterministic on state the player can see. That is what keeps the ring a read
+  // rather than a guessing game: `battleTelegraph` shows this same value before the beat resolves,
+  // and it must be the stance actually taken or the whole thing collapses into a coin flip.
+  const bows = theirBowShare(state, battle);
   switch (personality) {
-    // Cautious powers spend other people's soldiers reluctantly: they hold unless clearly ahead.
+    // Cautious powers spend other people's soldiers reluctantly: they stand off and shoot while
+    // they have the archers for it, and only close when clearly ahead.
     case 'economic':
     case 'diplomatic':
-      return theirEdge > 18 ? 'press' : 'hold';
+      if (theirEdge > 18) return 'press';
+      return bows > 0.3 ? 'loose' : 'hold';
     // A defensive doctrine shoots first and only closes once it has the upper hand.
     case 'defensive':
-      return theirEdge > 8 ? 'press' : 'hold';
+      if (theirEdge > 8) return 'press';
+      return bows > 0.22 ? 'loose' : 'hold';
     // Aggressive and expansionist powers come on hard, and only steady up if badly beaten.
     default:
       return theirEdge < -20 ? 'hold' : 'press';
   }
+}
+
+/**
+ * How one side's arms meet the other's, summed across every host on the field.
+ *
+ * `compositionMatchup` compares two hosts; a field can hold several a side, so the two sides are
+ * pooled into one notional force each. Pooling rather than averaging per-pair, because a wing of
+ * archers behind a wall of spears is one army's composition, not two armies' worth of separate
+ * matchups.
+ */
+function matchupAcross(mine: Army[], theirs: Army[]): number {
+  const pool = (hosts: Army[]): { spearmen: number; archers: number; heavyInfantry: number } => hosts.reduce(
+    (total, host) => ({
+      spearmen: total.spearmen + host.units.spearmen,
+      archers: total.archers + host.units.archers,
+      heavyInfantry: total.heavyInfantry + host.units.heavyInfantry,
+    }),
+    { spearmen: 0, archers: 0, heavyInfantry: 0 },
+  );
+  const foe = pool(theirs);
+  if (foe.spearmen + foe.archers + foe.heavyInfantry <= 0) return 1;
+  return compositionMatchup(pool(mine), { units: foe } as Army);
+}
+
+/**
+ * The stance cycle: charge > loose > brace > charge.
+ *
+ * Charge closes before the volleys tell; loose shoots a line that is standing still; a braced
+ * line breaks a rush. Returns what `attacker` gets for meeting `defender` with this stance.
+ */
+export function posturesCounter(attacker: BattlePosture, defender: BattlePosture): boolean {
+  return (attacker === 'press' && defender === 'loose')
+    || (attacker === 'loose' && defender === 'hold')
+    || (attacker === 'hold' && defender === 'press');
+}
+
+/** The trade a stance makes before the counter is applied. */
+function tradeFor(posture: BattlePosture): { dealt: number; taken: number } {
+  if (posture === 'press') return BATTLE_CHARGE_TRADE;
+  if (posture === 'loose') return BATTLE_LOOSE_TRADE;
+  return BATTLE_HOLD_TRADE;
+}
+
+/**
+ * A stance's trade with the ring folded in.
+ *
+ * Countering deals harder and takes less; being countered is the mirror. Applied to the trade
+ * rather than to the final loss so that it composes with everything else the exchange already
+ * multiplies by, instead of becoming a special case bolted onto the end.
+ */
+function tradeAgainst(mine: BattlePosture, theirs: BattlePosture): { dealt: number; taken: number } {
+  const base = tradeFor(mine);
+  if (posturesCounter(mine, theirs)) {
+    return { dealt: base.dealt * BATTLE_POSTURE_COUNTER.dealt, taken: base.taken * BATTLE_POSTURE_COUNTER.taken };
+  }
+  if (posturesCounter(theirs, mine)) {
+    return { dealt: base.dealt * BATTLE_POSTURE_COUNTER.taken, taken: base.taken * BATTLE_POSTURE_COUNTER.dealt };
+  }
+  return base;
+}
+
+/** What share of the invader's strength is bowmen — the thing that decides whether they stand off. */
+function theirBowShare(state: GameState, battle: AscentBattle): number {
+  const hosts = theirHosts(state, battle);
+  const men = hosts.reduce((total, host) => total + totalUnits(host), 0);
+  if (men <= 0) return 0;
+  return hosts.reduce((total, host) => total + host.units.archers, 0) / men;
+}
+
+/**
+ * The stance the invader will take on the next beat, for the screen to print.
+ *
+ * Resolved from the same function the fight uses and nothing else. A telegraph that could differ
+ * from what happens is worse than none: it would teach the player a rule the game does not keep.
+ */
+export function battleTelegraph(state: GameState): BattlePosture | undefined {
+  const battle = state.ascent?.activeBattle;
+  if (!battle || battle.over) return undefined;
+  const offence = battle.role === 'offence';
+  const theirs = theirHosts(state, battle);
+  if (theirs.length === 0) return undefined;
+  if (offence && theirs.every((host) => host.isLevy)) return 'hold';
+  return enemyPosture(state, battle);
 }
 
 /** Strips a share of a host's strength, spread across its unit types. */
@@ -477,6 +635,119 @@ function setMorale(army: Army, value: number): number {
   const next = Math.max(0, Math.min(100, value));
   army.morale = next;
   return next;
+}
+
+// ── Moments: a decision with a deadline ─────────────────────────────────────
+
+/**
+ * Does the fight have a question worth asking right now?
+ *
+ * Every trigger reads state `fightRound` already computes — a column crossing the rout line, the
+ * enemy committing to a charge, relief arriving, the round budget running out. No new events, no
+ * new bookkeeping: the fight was always producing these moments and nothing was listening.
+ */
+function raiseMoment(state: GameState, battle: AscentBattle, ours: Army[], theirs: Army[]): void {
+  if (battle.moment || battle.over) return;
+  if ((battle.momentsRaised ?? 0) >= BATTLE_MOMENTS_PER_FIGHT) return;
+  // Never on the opening beats: a fight that begins with a decision has not earned one yet.
+  if (battle.round < BATTLE_MOMENT_EARLIEST) return;
+
+  const general = state.heroes.find((hero) => hero.id === ours.find((host) => host.generalHeroId)?.generalHeroId);
+  const base = {
+    raisedAtBeat: battle.round,
+    ticksLeft: BATTLE_MOMENT_TICKS,
+    generalName: general ? general.name : undefined,
+    generalMartial: general ? general.stats.martial : 0,
+  };
+
+  // One of each, at most. The cap is three and there are three kinds, so without this the first
+  // trigger to become true simply takes the whole budget — measured, `last-rounds` fired all 80
+  // Moments across 40 fights because the other two conditions were far too narrow to reach.
+  const already = battle.momentKinds ?? [];
+  const fresh = (kind: BattleMoment['kind']): boolean => !already.includes(kind);
+
+  // Their line is about to go. The most valuable question in the fight, and the most dangerous.
+  //
+  // The band has to be wide: a host breaks at `BATTLE_ROUT_MORALE` and one bad exchange can carry
+  // it from fifty to thirty in a single beat, so a narrow window is simply stepped over.
+  const wavering = theirs.find((host) => host.morale <= BATTLE_ROUT_MORALE + 18);
+  if (wavering && fresh('wavering')) {
+    setMoment(battle, { ...base, kind: 'wavering', hostId: wavering.id, subject: wavering.name });
+    return;
+  }
+  // They are coming and we are not set for it. Asking only on the beat they *switch* into a
+  // charge never fires against an aggressive power, which charges from the first exchange and
+  // never changes its mind — the question is whether we are braced, not whether they just decided.
+  if (battle.theirPosture === 'press' && !posturesCounter(battle.posture, 'press') && fresh('charge-coming')) {
+    setMoment(battle, { ...base, kind: 'charge-coming', subject: battle.kingdomName });
+    return;
+  }
+  // The clock is nearly out and the field is still contested.
+  const left = battle.totalRounds - battle.round;
+  if (left <= 4 && left > 0 && fresh('last-rounds')) {
+    setMoment(battle, { ...base, kind: 'last-rounds', subject: battle.landName });
+  }
+}
+
+function setMoment(battle: AscentBattle, moment: BattleMoment): void {
+  battle.moment = moment;
+  battle.momentsRaised = (battle.momentsRaised ?? 0) + 1;
+  (battle.momentKinds ??= []).push(moment.kind);
+}
+
+/**
+ * Answers the open Moment, and hands the player something for it.
+ *
+ * `commit` spends: it buys a sharp, short bonus and takes a risk. `steady` conserves: it buys
+ * heart instead of edge. Both are scaled by the general's martial, which is what makes appointing
+ * a good one to a host worth doing — the same number decides how well they answer for you when
+ * the timer runs out.
+ */
+export function answerBattleMoment(state: GameState, answer: BattleMomentAnswer, byGeneral = false): boolean {
+  const battle = state.ascent?.activeBattle;
+  const moment = battle?.moment;
+  if (!battle || !moment || battle.over) return false;
+
+  // A commander's judgement is worth something, but never as much as being there. Answering
+  // yourself is the full effect; a general answering for you is scaled by what they are.
+  const skill = 0.55 + (moment.generalMartial ?? 0) / 100 * 0.4;
+  const weight = byGeneral ? skill : 1;
+
+  if (answer === 'commit') {
+    if (moment.kind === 'wavering' && moment.hostId) battle.focusHostId = moment.hostId;
+    if (moment.kind === 'charge-coming') battle.posture = 'press';
+    battle.momentBonus = { beats: BATTLE_MOMENT_BONUS_BEATS, dealt: 1 + 0.35 * weight, morale: 0 };
+    battle.log.push(t(`ascent.moment.${moment.kind}.tookCommit` as Parameters<typeof t>[0]));
+  } else {
+    if (moment.kind === 'wavering') battle.focusHostId = undefined;
+    if (moment.kind === 'charge-coming') battle.posture = 'hold';
+    battle.momentBonus = { beats: BATTLE_MOMENT_BONUS_BEATS, dealt: 1, morale: 3.5 * weight };
+    battle.log.push(t(`ascent.moment.${moment.kind}.tookSteady` as Parameters<typeof t>[0]));
+  }
+  battle.moment = undefined;
+  return true;
+}
+
+/**
+ * Ages the open Moment by one tick of the world, and lets the general answer it when it runs out.
+ *
+ * The lapse is the delegation, which is the point: a player who looked away, or who handed this
+ * host to its general on purpose, gets a decent answer rather than a penalty. What they lose is
+ * the difference between a good commander's judgement and their own.
+ *
+ * Returns true while the Moment still stands — `advanceBattle` reads that and holds the fight,
+ * which is what gives the player a window at all.
+ */
+function ageMoment(state: GameState, battle: AscentBattle): boolean {
+  const moment = battle.moment;
+  if (!moment) return false;
+  moment.ticksLeft -= 1;
+  if (moment.ticksLeft > 0) return true;
+  // A cautious commander steadies the line; a bold one commits. Their martial decides which they
+  // are as well as how well it goes, so a host's commander is a real appointment.
+  const bold = (moment.generalMartial ?? 0) >= 60;
+  answerBattleMoment(state, bold ? 'commit' : 'steady', true);
+  return false;
 }
 
 export function fightRound(state: GameState): void {
@@ -516,6 +787,7 @@ export function fightRound(state: GameState): void {
   battle.theirStart = Math.max(battle.theirStart, theirs.reduce((total, host) => total + totalUnits(host), 0));
 
   const charging = battle.posture === 'press';
+  const loosing = battle.posture === 'loose';
   const offence = battle.role === 'offence';
   // Walls do not sally: a garrison-only defence holds its ground and shoots.
   battle.theirPosture = offence && theirs.every((host) => host.isLevy) ? 'hold' : enemyPosture(state, battle);
@@ -531,9 +803,11 @@ export function fightRound(state: GameState): void {
     // The invader is always coming; we advance only when told to. Charging also closes faster,
     // which is half of why it is worth doing.
     battle.theirAdvance = Math.min(1, battle.theirAdvance + BATTLE_ADVANCE_PER_TICK);
+    // Loosing opens the range rather than merely refusing to close: a host that means to shoot
+    // wants the ground between it and them, which is what makes it lose to a charge.
     battle.ourAdvance = charging
       ? Math.min(1, battle.ourAdvance + BATTLE_ADVANCE_PER_TICK * 1.5)
-      : Math.max(0, battle.ourAdvance - BATTLE_ADVANCE_PER_TICK * 0.5);
+      : Math.max(0, battle.ourAdvance - BATTLE_ADVANCE_PER_TICK * (loosing ? 0.6 : 0.5));
   }
 
   const met = battle.ourAdvance + battle.theirAdvance >= 1;
@@ -545,8 +819,11 @@ export function fightRound(state: GameState): void {
     // one without, and the side that closes faster eats less of it. That asymmetry is what gives
     // both orders a real case, and it makes composition legible without any new data.
     const bows = (hosts: Army[]): number => hosts.reduce((total, host) => total + host.units.archers, 0);
-    const ourVolley = bows(ours) * BATTLE_VOLLEY_BITE * (battle.ourMorale / 100);
-    const theirVolley = bows(theirs) * BATTLE_VOLLEY_BITE * (battle.theirMorale / 100);
+    // A host that has chosen to shoot, shoots harder — this is the whole of what `loose` buys on
+    // the approach, and it is why an arrow-heavy host wants the lines apart.
+    const ourVolley = bows(ours) * BATTLE_VOLLEY_BITE * (battle.ourMorale / 100) * (loosing ? BATTLE_LOOSE_VOLLEY : 1);
+    const theirVolley = bows(theirs) * BATTLE_VOLLEY_BITE * (battle.theirMorale / 100)
+      * (battle.theirPosture === 'loose' ? BATTLE_LOOSE_VOLLEY : 1);
     const cover = charging ? BATTLE_CHARGE_COVER : 1;
 
     // Spread across the hosts present, so arriving relief is shot at too.
@@ -555,9 +832,12 @@ export function fightRound(state: GameState): void {
 
     battle.ourNow = ours.reduce((total, host) => total + totalUnits(host), 0);
     battle.theirNow = theirs.reduce((total, host) => total + totalUnits(host), 0);
+    let volleyLine: string | undefined;
     if (ourLoss > 0 || theirLoss > 0) {
-      battle.log.push(t('ascent.battle.volley', { ours: ourLoss, theirs: theirLoss }));
+      volleyLine = t('ascent.battle.volley', { ours: ourLoss, theirs: theirLoss });
+      battle.log.push(volleyLine);
     }
+    recordBeat(battle, 'approach', ours, theirs, ourLoss, theirLoss, volleyLine);
     // Deliberately does not spend the round budget: the approach is the opening, not the fight.
     return;
   }
@@ -570,18 +850,38 @@ export function fightRound(state: GameState): void {
 
   const sum = (hosts: Army[]): number => hosts.reduce((total, host) => total + armyPower(state, host), 0);
   // The ground's edge goes to whoever is defending it.
-  const ourPower = Math.max(1, sum(ours) * (offence ? 1 : battle.terrainEdge));
-  const theirPower = Math.max(1, sum(theirs) * (offence ? battle.terrainEdge : 1));
+  // Composition, at last, in the one place that shows the player both sides of it.
+  //
+  // `compositionMatchup` — spearmen rout heavy, heavy crush archers, archers shred spears — has
+  // been written, commented and correct in `WarSystem` since the classic odds roll, with exactly
+  // one call site. The watched fight never used it, so the screen that draws both armies' arms
+  // was the only place in the game where they did not matter.
+  const ourArms = matchupAcross(ours, theirs);
+  const theirArms = matchupAcross(theirs, ours);
+  const ourPower = Math.max(1, sum(ours) * (offence ? 1 : battle.terrainEdge) * ourArms);
+  const theirPower = Math.max(1, sum(theirs) * (offence ? battle.terrainEdge : 1) * theirArms);
+  battle.ourMatchup = ourArms;
+  battle.theirMatchup = theirArms;
   // Each side's losses are its own exposure times the other's aggression, so a cautious enemy
   // is genuinely a different fight from a reckless one rather than the same fight relabelled.
-  const ourTrade = charging ? BATTLE_CHARGE_TRADE : BATTLE_HOLD_TRADE;
-  const theirTrade = battle.theirPosture === 'press' ? BATTLE_CHARGE_TRADE : BATTLE_HOLD_TRADE;
+  const ourTrade = tradeAgainst(battle.posture, battle.theirPosture);
+  const theirTrade = tradeAgainst(battle.theirPosture, battle.posture);
+  // A line that changed its footing this beat is still finding it. Applied to both sides from the
+  // same rule, so an enemy that flip-flops pays exactly what the player would.
+  const ourReform = battle.lastPosture !== undefined && battle.lastPosture !== battle.posture
+    ? BATTLE_REFORM_COST : 1;
+  const theirReform = battle.lastTheirPosture !== undefined && battle.lastTheirPosture !== battle.theirPosture
+    ? BATTLE_REFORM_COST : 1;
+  battle.lastPosture = battle.posture;
+  battle.lastTheirPosture = battle.theirPosture;
   const fuzz = (): number => 0.9 + Math.random() * 0.2;
 
   const ourShare = BATTLE_ROUND_BITE * (theirPower / (ourPower + theirPower)) * 2
-    * ourTrade.taken * theirTrade.dealt * fuzz();
+    * ourTrade.taken * theirTrade.dealt * theirReform * fuzz();
+  // What a Moment bought, while it lasts.
+  const momentDealt = battle.momentBonus?.dealt ?? 1;
   const theirShare = BATTLE_ROUND_BITE * (ourPower / (ourPower + theirPower)) * 2
-    * ourTrade.dealt * theirTrade.taken * fuzz();
+    * ourTrade.dealt * theirTrade.taken * ourReform * momentDealt * fuzz();
 
   // Losses land across every host present, so relief shares the burden rather than watching.
   const ourLoss = ours.reduce((total, host) => total + bleed(host, Math.min(0.9, ourShare)), 0);
@@ -605,16 +905,27 @@ export function fightRound(state: GameState): void {
   const wonExchange = theirLoss > ourLoss;
   // Applied to *every* host on the side, not just the one the maths treats as the line, so a
   // battered relief column carries its own heart rather than borrowing the vanguard's.
-  for (const host of ours) setMorale(host, host.morale - ourDrop + (wonExchange ? BATTLE_MORALE_WIN_GAIN : 0));
-  for (const host of theirs) setMorale(host, host.morale - theirDrop + (wonExchange ? 0 : BATTLE_MORALE_WIN_GAIN));
+  // Being countered costs heart as well as men — see `BATTLE_COUNTER_MORALE`. This is what lets
+  // a stance win a fight rather than merely trade well through one.
+  const ourCountered = posturesCounter(battle.theirPosture, battle.posture) ? BATTLE_COUNTER_MORALE : 0;
+  const theirCountered = posturesCounter(battle.posture, battle.theirPosture) ? BATTLE_COUNTER_MORALE : 0;
+  const momentMorale = battle.momentBonus?.morale ?? 0;
+  for (const host of ours) {
+    setMorale(host, host.morale - ourDrop - ourCountered + momentMorale + (wonExchange ? BATTLE_MORALE_WIN_GAIN : 0));
+  }
+  for (const host of theirs) {
+    setMorale(host, host.morale - theirDrop - theirCountered + (wonExchange ? 0 : BATTLE_MORALE_WIN_GAIN));
+  }
   battle.ourMorale = defender.morale;
   battle.theirMorale = invader.morale;
 
   // Hosts break one at a time. Losing a host is a setback, not the battle — which is what makes
   // bringing a second column worth the march, and what stops one bad exchange ending everything.
+  const brokeThisBeat: string[] = [];
   for (const host of [...ours, ...theirs]) {
     if (host.morale > BATTLE_ROUT_MORALE) continue;
     battle.brokenHostIds.push(host.id);
+    brokeThisBeat.push(host.id);
     battle.log.push(t('ascent.battle.hostBreaks', { name: host.name }));
     // A host that runs is cut down as it goes, exactly as a whole side is.
     bleed(host, BATTLE_ROUT_LOSS_SHARE);
@@ -624,7 +935,16 @@ export function fightRound(state: GameState): void {
   battle.round += 1;
   battle.ourNow = ours.reduce((total, host) => total + totalUnits(host), 0);
   battle.theirNow = theirs.reduce((total, host) => total + totalUnits(host), 0);
-  battle.log.push(t('ascent.battle.exchange', { round: battle.round, ours: ourLoss, theirs: theirLoss }));
+  // A question the fight has just produced. `advanceBattle` stops here until it is answered.
+  raiseMoment(state, battle, ours, theirs);
+  if (battle.momentBonus) {
+    battle.momentBonus.beats -= 1;
+    if (battle.momentBonus.beats <= 0) battle.momentBonus = undefined;
+  }
+
+  const exchangeLine = t('ascent.battle.exchange', { round: battle.round, ours: ourLoss, theirs: theirLoss });
+  battle.log.push(exchangeLine);
+  recordBeat(battle, 'clash', ours, theirs, ourLoss, theirLoss, exchangeLine, brokeThisBeat);
 
   // ── Does anyone break? ───────────────────────────────────────────────────
   // A side is beaten when it has no host left in the line, not when its strongest wavers.
@@ -656,10 +976,21 @@ export function advanceBattle(state: GameState): void {
   const battle = state.ascent?.activeBattle;
   if (!battle) return;
 
+  // A Moment holds the fight. Without this the window is consumed inside the same burst that
+  // opened it and the player never sees the question, let alone answers it.
+  if (battle.moment) {
+    if (ageMoment(state, battle)) return;
+  }
+
   for (let beat = 0; beat < BATTLE_BEATS_PER_TICK && !battle.over; beat += 1) {
     fightRound(state);
+    // Stop the burst the instant one is raised, so the question reaches the screen with the rest
+    // of the tick still ahead of it rather than already spent.
+    if (battle.moment) break;
   }
-  if (battle.over) finishBattle(state, battle.posture);
+  // `finishBattle` asks what the host was *told*, not which of three stances it was in when the
+  // last beat landed. Loosing is a way of holding the ground, so it resolves as holding.
+  if (battle.over) finishBattle(state, battle.posture === 'press' ? 'press' : 'hold');
 }
 
 /** Commits the host held back at camp. One-shot, and the reason to keep watching. */

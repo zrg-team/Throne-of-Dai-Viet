@@ -6,6 +6,7 @@ import type { MapThemeDefinition, MapThemePalette } from './mapTheme';
 import { IsoBuildingRenderer } from './IsoBuildingRenderer';
 import { SoldierRenderer } from './SoldierRenderer';
 import { createPlayerLandFlag } from './playerFlag';
+import type { HostKit } from './ink/devices';
 
 /**
  * Map glyphs for the illustrated atlas. Settlements reuse the shared isometric
@@ -121,7 +122,9 @@ export class AtlasMapItemRenderer implements MapItemRenderer {
   }
 
   /** Banner plaque with troop count above a small marching formation, so armies read as a host on the move. */
-  createArmyMarker(total: number, isPlayer: boolean, kingdomColor?: number, _flagSeed?: number): Phaser.GameObjects.Container {
+  createArmyMarker(
+    total: number, isPlayer: boolean, kingdomColor?: number, _flagSeed?: number, _kit?: HostKit,
+  ): Phaser.GameObjects.Container {
     const container = this.scene.add.container(0, 0);
     // Rivals fly their own colours so two empires on the map are told apart at a glance; the
     // player keeps the theme's player hue plus the ring added below.

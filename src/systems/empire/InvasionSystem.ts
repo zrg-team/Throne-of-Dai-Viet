@@ -494,6 +494,9 @@ function chooseTarget(state: GameState, army: Army, record: InvasionRecord): Lan
  */
 export function raiseGarrisonLevy(state: GameState, land: Land): Army | undefined {
   if (state.gameMode !== 'ascent' || state.ascent?.autoResolveBattles) return undefined;
+  // In the arena the two hosts are exactly what the player dialled in. A province turning out
+  // several thousand militia on top of them would answer a different question entirely.
+  if (state.ascent?.arena) return undefined;
 
   // Drawn from the walls as well as the militia, because militia alone is almost always nothing.
   //

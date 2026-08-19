@@ -1324,7 +1324,19 @@ export type AscentDoctrine = 'fortify' | 'expand' | 'enrich' | 'arm';
 export type AscentPromptKind = AscentPrompt['kind'];
 
 /** How a host is fighting this exchange. A trade, not a strictly-better setting. */
-export type BattlePosture = 'press' | 'hold';
+/**
+ * The three stances, as a cycle rather than a scale.
+ *
+ * Two options could never be a real choice: `press` and `hold` had the same exchange ratio to
+ * three decimals (1.20/1.10 against 0.85/0.78), so pressing was simply the same trade delivered
+ * faster — measured, it won 60% of contested fights against holding's 10%.
+ *
+ * Three can be, and structurally rather than by tuning: charge closes before the volleys tell,
+ * loose shoots a line that stands still, and a braced line breaks a charge. A three-cycle cannot
+ * have a dominant option, so the constants decide how much the counter is *worth* rather than
+ * whether a choice exists at all.
+ */
+export type BattlePosture = 'press' | 'hold' | 'loose';
 
 /** A field engagement in progress, exchange by exchange. */
 export interface AscentBattle {
@@ -1339,6 +1351,12 @@ export interface AscentBattle {
   posture: BattlePosture;
   /** What the invader is doing this beat, from its doctrine. */
   theirPosture: BattlePosture;
+  /**
+   * What each side was doing on the previous beat, so a change of footing can be charged for.
+   * See `BATTLE_REFORM_COST` — without it, answering the telegraph every beat wins every fight.
+   */
+  lastPosture?: BattlePosture;
+  lastTheirPosture?: BattlePosture;
   /** Hosts that have broken and left the line, either side. */
   brokenHostIds: string[];
   /** Men of ours lost so far, so an orderly withdrawal can recover its stragglers. */
@@ -1371,6 +1389,12 @@ export interface AscentBattle {
   rallyPower: number;
   /** Defensive multiplier of the ground being fought over (`terrainDefenseMultiplier`). */
   terrainEdge: number;
+  /**
+   * How each side's arms meet the other's, from `compositionMatchup`. Written every beat so the
+   * screen can state it in words rather than leaving the player to infer it from two bar charts.
+   */
+  ourMatchup?: number;
+  theirMatchup?: number;
   outcome: 'fighting' | 'they-rout' | 'we-rout' | 'spent';
   /** Headcounts at the outset, so the strength bars have a denominator. */
   ourStart: number;
@@ -1401,7 +1425,101 @@ export interface AscentBattle {
   approachBeats?: number;
   /** The host the reserve was held back from, so committing it (or returning it) refills that host. */
   reserveHostId?: string;
+  /**
+   * The decision on the table right now, if any — see `BattleMoment`.
+   *
+   * Set by `fightRound` when the fight produces one, cleared when it is answered or when it
+   * lapses. At most `BATTLE_MOMENTS_PER_FIGHT` in an engagement.
+   */
+  moment?: BattleMoment;
+  /** How many Moments this fight has already raised, so it cannot become whack-a-mole. */
+  momentsRaised?: number;
+  /** Kinds already raised, so one trigger cannot take the whole budget. */
+  momentKinds?: Array<BattleMoment['kind']>;
+  /** Beats left on a bonus a Moment bought, and what it is worth while it lasts. */
+  momentBonus?: { beats: number; dealt: number; morale: number };
+  /**
+   * The fight as a queue of moments, oldest first — see `BattleBeat`.
+   *
+   * The simulation still runs `BATTLE_BEATS_PER_TICK` beats in one burst on the economy tick, and
+   * must keep doing so: it is deterministic, it is what every harness drives, and re-timing it
+   * would move the `Math.random` call order for every mode. What was missing is that the *screen*
+   * had no way to show a burst as anything but a jump, so an entire engagement arrived in four or
+   * five frozen steps with three and a half seconds of nothing between them.
+   *
+   * So the beats are recorded rather than re-timed. The view drains one per `BATTLE_TICK_MS` and
+   * animates between them; a headless run simply never drains, and nothing about the fight changes.
+   */
+  beats?: BattleBeat[];
 }
+
+/**
+ * One beat of a fight, as the screen needs to replay it.
+ *
+ * Deliberately a flat snapshot rather than a diff: the view can be opened, closed and reopened
+ * mid-engagement, and a queue of diffs would be meaningless to a screen that missed the first ten.
+ * Per-host figures are carried because the block is redrawn from them — a host's mark count comes
+ * from its own headcount, which is what makes the ranks thin as men fall.
+ */
+export interface BattleBeat {
+  /** Arrows still flying, or the lines already met. */
+  phase: 'approach' | 'clash';
+  /** Exchange number after this beat; the approach does not spend the round budget. */
+  round: number;
+  ourNow: number;
+  theirNow: number;
+  ourAdvance: number;
+  theirAdvance: number;
+  ourMorale: number;
+  theirMorale: number;
+  /** Men lost this beat, each side — the floaters, and the only per-beat delta the view needs. */
+  ourLoss: number;
+  theirLoss: number;
+  /** Every host on the field this beat, so the view can size and shade each column on its own. */
+  ourHosts: BattleBeatHost[];
+  theirHosts: BattleBeatHost[];
+  /** The line this beat added to `log`, if any. */
+  line?: string;
+  /** Hosts that broke on this beat, either side — the moment worth a shake. */
+  broke?: string[];
+}
+
+export interface BattleBeatHost {
+  id: string;
+  men: number;
+  morale: number;
+}
+
+/**
+ * A decision with a deadline, raised by the fight itself.
+ *
+ * Deliberately **not** a reflex test. The mode's whole language is standing orders, and Dragon
+ * Ascent already offers to fight without you — per host and per run — so punishing a player for
+ * looking away would contradict a feature that is already shipped. What a timer is good for here
+ * is forcing a *judgement* while the fight is still moving.
+ *
+ * Which is why letting it lapse is not a failure state: whoever holds the field answers it, using
+ * the doctrine they would have used anyway. Missing a Moment costs you the edge, never the fight.
+ * That makes delegation the substrate of the mechanic rather than an escape from it.
+ */
+export interface BattleMoment {
+  /** What produced it. Each kind has its own pair of answers and its own default. */
+  kind: 'wavering' | 'charge-coming' | 'relief' | 'last-rounds';
+  /** Beat it was raised on, so the view can run the timer against the same clock the fight does. */
+  raisedAtBeat: number;
+  /** Ticks of the world it stays open for, during which the fight does not advance. */
+  ticksLeft: number;
+  /** The enemy column this is about, when it is about one. */
+  hostId?: string;
+  /** The name to put in the question — a host, a column, a commander. */
+  subject?: string;
+  /** Who answers if it lapses, and whose judgement decides how well. */
+  generalName?: string;
+  generalMartial?: number;
+}
+
+/** What a Moment can be answered with. Two per kind, and neither is safe. */
+export type BattleMomentAnswer = 'commit' | 'steady';
 
 /** One finished engagement, kept so the run can be read back — and measured. */
 export interface AscentBattleRecord {
@@ -1504,6 +1622,14 @@ export interface AscentState {
   activeBattle?: AscentBattle;
   /** True while the player has handed battles back to their generals. Reversible from Settings. */
   autoResolveBattles: boolean;
+  /**
+   * This state exists to fight one battle and nothing else — see `BattleArenaScene`.
+   *
+   * `advanceAscentTick` runs only the fight when it is set, so a matchup can be watched without
+   * a wave landing on top of it or a card taking the screen. Never set on a real run, and never
+   * written to a save: the arena builds its state fresh every time it is entered.
+   */
+  arena?: boolean;
   /** Wave whose engagement has already been watched. Kept for saves written before `lastWatchedKey`. */
   lastWatchedWave: number;
   /** `wave:landId` of the engagement already watched, so a siege asks once per province, not per tick. */
