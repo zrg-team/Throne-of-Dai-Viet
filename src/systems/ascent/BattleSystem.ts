@@ -1204,6 +1204,46 @@ export function rally(state: GameState): boolean {
  * The reserve is returned first whatever happens — men held at camp were never in the fight and
  * must not be quietly deleted by a retreat or a rout.
  */
+/**
+ * Puts the fight that just ended in front of the player.
+ *
+ * Everything this card shows was already being written down and then thrown away: the butcher's
+ * bill, what the field cost, whether the walls turned out, who held the line. The screen closed on
+ * a strip of message text, so the most consequential thing in the mode ended by simply vanishing.
+ *
+ * It also gathers the fights the generals settled alone since the last card. Delegation is meant to
+ * be a legitimate way to play, and a run-wide switch that makes two thirds of the war disappear
+ * into silence is not that — it is a way of turning the game off.
+ */
+function raiseAftermath(state: GameState): void {
+  const ascent = state.ascent;
+  const history = ascent?.battleHistory;
+  if (!ascent || !history?.length) return;
+  // The arena already returns to its own setup screen carrying the result. A card on top of that
+  // would be the same news twice.
+  if (ascent.arena) return;
+  const record = history[history.length - 1];
+
+  // A fight the generals fought alone does not stop the game to report itself.
+  //
+  // The first version raised a card for every finished fight and then tried to gather the
+  // delegated ones underneath it — which could never find any, because each of them had already
+  // raised and cleared its own card. Measured over a 260-tick run with two fights handed over,
+  // every dispatch section came back empty.
+  //
+  // So a delegated fight waits. A fight the player watched carries the whole backlog with it, and
+  // if the player is delegating everything the backlog still surfaces once a wave, which is what
+  // stops a run-wide hand-over from turning the war silent.
+  const from = Math.min(ascent.aftermathReported ?? 0, history.length);
+  const backlog = history.slice(from, history.length - 1).filter((r) => r.delegated);
+  if (record.delegated) {
+    if (ascent.lastDispatchWave === ascent.wave) return;
+    ascent.lastDispatchWave = ascent.wave;
+  }
+  ascent.pendingAftermath = { record, alsoFought: backlog };
+  ascent.aftermathReported = history.length;
+}
+
 export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'retreat'): void {
   const ascent = state.ascent;
   const battle = ascent?.activeBattle;
@@ -1314,7 +1354,14 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
     theirHosts: (battle.theirArmyIds ?? []).length,
     ourHosts: ourIds.length,
     levyFought: state.armies.some((army) => army.isLevy && ourIds.includes(army.id)),
+    generalName: battle.delegated ? battle.generalName : undefined,
+    kingdomName: battle.kingdomName,
+    year: state.year,
+    season: state.season,
+    delegated: battle.delegated,
+    wave: ascent.wave,
   });
+  raiseAftermath(state);
   if (history.length > 24) history.splice(0, history.length - 24);
 
   ascent.activeBattle = undefined;
@@ -1344,6 +1391,12 @@ function finishAssault(state: GameState, battle: AscentBattle, decision: 'press'
     key: battle.key ?? `${battle.landId}`,
     landId: battle.landId,
     landName: battle.landName,
+    generalName: battle.delegated ? battle.generalName : undefined,
+    kingdomName: battle.kingdomName,
+    year: state.year,
+    season: state.season,
+    delegated: battle.delegated,
+    wave: ascent.wave,
     role: 'offence',
     outcome: battle.outcome === 'fighting' ? (decision === 'retreat' ? 'retreat' : 'spent') : battle.outcome,
     rounds: battle.round,
@@ -1355,6 +1408,7 @@ function finishAssault(state: GameState, battle: AscentBattle, decision: 'press'
     ourHosts: (battle.ourArmyIds ?? []).length,
     levyFought: false,
   });
+  raiseAftermath(state);
   if (history.length > 24) history.splice(0, history.length - 24);
 
   // The walls are a picture of the province's defence, not a host: they go back into the walls.

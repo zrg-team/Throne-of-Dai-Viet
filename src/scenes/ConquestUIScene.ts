@@ -458,6 +458,18 @@ export class ConquestUIScene extends Phaser.Scene {
     // so a card that arrived on the same tick is answered first and the battle follows it.
     if (this.maybeAutoOpenBattle()) return;
 
+    // A fight that has just ended brings its own screen up too. After the battle, obviously, and
+    // after any card that arrived with it — the world is held while it is read, exactly as every
+    // other lane holds it.
+    if (this.state.ascent?.pendingAftermath && !overlayOpen && !prompt) {
+      this.lanePauseBeforeOpen = this.state.isStrategyPause;
+      this.state.isStrategyPause = true;
+      this.beginOverlay('lane:aftermath');
+      this.showAftermathScreen();
+      if (this.modalLayer.length === 0) this.dismissAftermath();
+      return;
+    }
+
     // After the prompt key is reconciled, never before: both of these decide whether to show
     // themselves from it, and reading last tick's value left the bar hidden for a whole frame
     // after the final card of a chain was answered.
@@ -1588,6 +1600,10 @@ export class ConquestUIScene extends Phaser.Scene {
     // In the arena there is nothing behind this screen. Closing it dropped the player onto a map
     // with one province, no economy and no way back — the fight *is* the session, so leaving it
     // means leaving the fight, not stepping out of it onto a world that is not there.
+    if (this.openPromptKey === 'lane:aftermath') {
+      this.dismissAftermath();
+      return;
+    }
     if (this.state.ascent?.arena && this.openPromptKey === 'lane:battle') {
       this.events.emit('ui:arena-leave');
       return;
@@ -4055,6 +4071,114 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
    * promise the screen cannot keep is worse than absence — and rows are people, not titles:
    * name, want, and the most recent line, so a scan of the list is a scan of situations.
    */
+  /**
+   * The Reckoning: what the fight cost, what it bought, and who else was fighting.
+   *
+   * Every figure here was already being written down and then discarded. `battleHistory` carries
+   * the butcher's bill, `grantRepelSpoils` and `XP_PER_BATTLE_WON` carry what it paid for, and
+   * `levyFought` carries whether the province turned its own people out — and the screen closed on
+   * one line of message strip, so the most consequential thing in the mode ended by vanishing.
+   *
+   * The dispatch below it is the other half of making delegation legitimate. A run-wide switch
+   * that hands two thirds of the war to the generals is a way of playing; the same switch when it
+   * makes those fights silent is a way of turning the game off.
+   */
+  private showAftermathScreen(): void {
+    const pending = this.state.ascent?.pendingAftermath;
+    if (!pending) return;
+    const { record, alsoFought } = pending;
+    const ourLost = Math.max(0, record.ourStart - record.ourEnd);
+    const theirLost = Math.max(0, record.theirStart - record.theirEnd);
+    const held = record.outcome === 'they-rout'
+      || (record.outcome === 'spent' && record.ourEnd / Math.max(1, record.ourStart) >= record.theirEnd / Math.max(1, record.theirStart));
+
+    const titleKey = record.outcome === 'they-rout' ? 'broke'
+      : record.outcome === 'we-rout' ? 'broken'
+        : record.outcome === 'retreat' ? 'withdrew'
+          : held ? 'held' : 'lost';
+
+    const { addRow, addHeading, addNote, addWidget, finish } = this.laneList(
+      t(`ascent.aftermath.title.${titleKey}` as Parameters<typeof t>[0]),
+      t('ascent.aftermath.subtitle', { land: record.landName, rounds: record.rounds }),
+      { footer: { label: t('ascent.aftermath.continue'), onTap: () => this.dismissAftermath() } },
+    );
+
+    // The bill, as two bars against the same scale — the only honest way to show a trade.
+    const worst = Math.max(1, record.ourStart, record.theirStart);
+    addWidget(64, (parent, width) => {
+      const bar = (y: number, label: string, lost: number, of: number, colour: number): void => {
+        parent.add(this.ui.label(0, y, label, 'caption', {}));
+        parent.add(this.ui.label(width, y, t('ascent.aftermath.fell', { n: lost, of }), 'caption',
+          { align: 'right' }).setOrigin(1, 0));
+        parent.add(this.ui.statBar({ x: 0, y: y + 16, width, height: 7 }, lost, worst, colour));
+      };
+      bar(0, t('ascent.aftermath.ourDead'), ourLost, record.ourStart, INK_UI.cinnabar);
+      bar(32, t('ascent.aftermath.theirDead'), theirLost, record.theirStart, INK_UI.softBrush);
+    });
+
+    // Who held the field. A delegated fight names its commander, because an appointment the
+    // player made is the reason the fight went the way it did.
+    if (record.delegated) {
+      addRow({
+        title: record.generalName
+          ? t('ascent.aftermath.generalFought', { name: record.generalName })
+          : t('ascent.aftermath.officersFought'),
+        subtitle: t('ascent.aftermath.generalNote'),
+        border: INK_UI.gold,
+      });
+    }
+
+    // Historically literal under ngụ binh ư nông: the levy is farmers, and they go home to the
+    // fields rather than back to a wall they never lived on.
+    if (record.levyFought) addNote(t('ascent.aftermath.levyHome', { land: record.landName }));
+
+    addRow({
+      title: held ? t('ascent.aftermath.keptTitle', { land: record.landName })
+        : t('ascent.aftermath.lostTitle', { land: record.landName }),
+      subtitle: t('ascent.aftermath.keptNote', {
+        ours: record.ourEnd, theirs: record.theirEnd, hosts: record.theirHosts,
+      }),
+      border: held ? INK_UI.jade : INK_UI.cinnabar,
+    });
+
+    // One line of chronicle, in the voice the annals use: when, where, against whom, and what it
+    // cost. This is the sentence a player will remember a fight by long after the numbers above it
+    // have gone — and it is the same sentence the Đông Hồ prints of Hai Bà Trưng and Quang Trung
+    // are captioned with, which is the register this whole mode is written in.
+    addNote(t(`ascent.aftermath.chronicle.${held ? 'won' : 'lost'}` as Parameters<typeof t>[0], {
+      year: record.year ?? this.state.year,
+      land: record.landName,
+      kingdom: record.kingdomName ?? t('ascent.aftermath.theEnemy'),
+      dead: ourLost,
+      leader: record.generalName ?? t('ascent.aftermath.theHost'),
+    }), held ? INK_UI.jade : INK_UI.cinnabar);
+
+    if (alsoFought.length > 0) {
+      addHeading(t('ascent.aftermath.elsewhere'), t('ascent.aftermath.elsewhereHint'));
+      for (const other of alsoFought) {
+        const theirs = other.outcome === 'they-rout' || other.outcome === 'spent';
+        addRow({
+          title: other.landName,
+          subtitle: t(`ascent.aftermath.dispatch.${theirs ? 'won' : 'lost'}` as Parameters<typeof t>[0], {
+            name: other.generalName ?? t('ascent.aftermath.officers'),
+            ours: Math.max(0, other.ourStart - other.ourEnd),
+            theirs: Math.max(0, other.theirStart - other.theirEnd),
+          }),
+          border: theirs ? INK_UI.softBrush : INK_UI.cinnabar,
+          muted: true,
+        });
+      }
+    }
+
+    finish();
+  }
+
+  private dismissAftermath(): void {
+    if (this.state.ascent) this.state.ascent.pendingAftermath = undefined;
+    this.state.isStrategyPause = this.lanePauseBeforeOpen;
+    this.closeOverlay();
+  }
+
   private showChronicleScreen(): void {
     const state = this.state;
     // A latent story does not exist yet as far as the player is concerned — unless it is

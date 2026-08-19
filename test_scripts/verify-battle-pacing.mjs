@@ -63,6 +63,10 @@ const opened = await page.evaluate(async () => {
     // Any engagement is not enough: a levy brushed aside in two beats gives nothing to time.
     // Pacing is measured on a fight with a fight in it, which is a harness choice, not a gate —
     // whether such fights are common at all is `probe-fights`' question, not this one.
+    // A fight that finished earlier leaves its Reckoning waiting, and the card holds the world
+    // when the screen opens it. A watching player reads it and taps on; a harness that does not is
+    // measuring its own inattention, exactly as it would by ignoring a prompt.
+    if (st.ascent.pendingAftermath) st.ascent.pendingAftermath = undefined;
     const b = st.ascent.activeBattle;
     if (b && b.ourStart >= 200 && b.theirStart >= 200) return true;
   }
@@ -103,6 +107,12 @@ await page.evaluate(async () => {
       // The battle lane is closed while a card is up and reopened by `refresh`. Answering the
       // prompt without this leaves the lane shut and its clock dead, which is a harness bug and
       // not a product one — the real UI emits this on every choice.
+      ui.events.emit('state-changed');
+    }
+    // Same during the watch: the fight can end and its card come up while the clock is running.
+    if (st.ascent?.pendingAftermath) {
+      st.ascent.pendingAftermath = undefined;
+      st.isStrategyPause = false;
       ui.events.emit('state-changed');
     }
     const battle = st.ascent?.activeBattle;
