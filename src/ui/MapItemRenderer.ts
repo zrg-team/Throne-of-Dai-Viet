@@ -56,8 +56,17 @@ export interface MapItemRenderer {
    * `kit` is what the host is wearing and carrying — its era, its elite tier and its real
    * composition. Optional, so a renderer or caller that does not care still gets a soldier.
    */
+  /**
+   * `drawScale` overrides the one scale the map draws everything at.
+   *
+   * The battle screen is not the map. It is a set piece two hundred and sixty units wide with
+   * nothing else in it, and drawing its hosts at the map's `GROUND_SCALE` put six-pixel soldiers
+   * in the middle of it — which is why the field read as empty paper with two smudges on it. The
+   * default is still the map's scale, so every other call site is unchanged.
+   */
   createArmyMarker(
     total: number, isPlayer: boolean, kingdomColor?: number, flagSeed?: number, kit?: HostKit,
+    drawScale?: number,
   ): Phaser.GameObjects.Container;
   createSelectionFlag(): Phaser.GameObjects.Container;
   createPlayerLandFlag(isCapital?: boolean, styleSeed?: number): Phaser.GameObjects.Container;

@@ -1434,10 +1434,18 @@ export interface AscentBattle {
   moment?: BattleMoment;
   /** How many Moments this fight has already raised, so it cannot become whack-a-mole. */
   momentsRaised?: number;
-  /** Kinds already raised, so one trigger cannot take the whole budget. */
-  momentKinds?: Array<BattleMoment['kind']>;
+  /** Questions already asked this fight, so none is asked twice. */
+  momentIds?: string[];
+  /** Beat the last question was asked on, so they are spread across the fight rather than bunched. */
+  momentLastBeat?: number;
   /** Beats left on a bonus a Moment bought, and what it is worth while it lasts. */
-  momentBonus?: { beats: number; dealt: number; morale: number };
+  momentBonus?: {
+    beats: number;
+    dealt: number;
+    morale: number;
+    /** Multiplier on what the line *takes* while the bonus lasts. Below 1 is protection. */
+    taken?: number;
+  };
   /**
    * The fight is being run by whoever holds the field, not by the player.
    *
@@ -1515,8 +1523,14 @@ export interface BattleBeatHost {
  * That makes delegation the substrate of the mechanic rather than an escape from it.
  */
 export interface BattleMoment {
-  /** What produced it. Each kind has its own pair of answers and its own default. */
-  kind: 'wavering' | 'charge-coming' | 'relief' | 'last-rounds';
+  /**
+   * Which question this is — the id of a `BattleMomentDef`, and the stem of its i18n keys.
+   *
+   * Was a union of four literals, three of which were ever raised, so every fight in a run asked
+   * the same three questions in the same order. The deck lives in `data/ascent/battleMoments.ts`
+   * now and has thirty entries; this is a plain string because the *content* is data.
+   */
+  id: string;
   /** Beat it was raised on, so the view can run the timer against the same clock the fight does. */
   raisedAtBeat: number;
   /** Ticks of the world it stays open for, during which the fight does not advance. */

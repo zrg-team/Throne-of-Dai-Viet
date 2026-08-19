@@ -654,6 +654,44 @@ export const BATTLE_TICK_MS = 560;
  * all ticks and the wave cycle was mostly siege.
  */
 export const BATTLE_BEATS_PER_TICK = 6;
+
+/**
+ * How large the hosts are drawn on the battle screen, against the map's `GROUND_SCALE` of 0.72.
+ *
+ * The battle screen borrowed the map's one ground scale, and it is not a map. A soldier is drawn
+ * at 1.7 m and lands at 6.8 px on a map where a whole province is forty pixels across — which is
+ * right there and absurd here, on a field 262 units wide with nothing else in it. Measured off a
+ * real fight, a 367-man host filled a block 19 px wide and 12 px deep in the middle of a
+ * 262 x 301 field: the complaint that the battlefield looks empty is mostly this one number.
+ *
+ * 1.45 puts a soldier at 13.7 px and roughly doubles the block. Deliberately not larger: the
+ * blocks have to fit two or three deep a side with the standards beside them, and a host that
+ * fills its half of the field leaves the ground with nothing to say.
+ */
+export const BATTLE_HOST_SCALE = 1.45;
+
+/**
+ * How far winning the exchanges can walk the contact line, as a fraction of the field.
+ *
+ * The advances stop changing the moment the two lines meet, so after contact the drawn fight was
+ * two blocks standing still with a 4 px jitter for twenty beats. This is the view reading the
+ * losses back out and pushing the seam toward whoever is losing. Modest on purpose — the seam is
+ * clamped to a band around the middle either way, and a line that slides the whole field reads as
+ * a rout rather than as pressure.
+ */
+export const BATTLE_PRESS_TRAVEL = 0.09;
+
+/**
+ * How much smaller a thing standing on the horizon is drawn than one on the line of battle.
+ *
+ * The battle screen is a picture with a middle distance in it, so a treeline along the foot of the
+ * hills cannot be drawn at the size of the tree in the near corner. This is the *only* thing
+ * allowed to change the scale of anything on that field — see `ConquestUIScene.battleScaleAt`.
+ * A woodcut flattens depth rather than obeying it, so the falloff is gentler than perspective.
+ */
+export const BATTLE_DEPTH_FAR = 0.45;
+/** And how much larger at the near edge, so the foreground frames the picture. */
+export const BATTLE_DEPTH_NEAR = 1.12;
 /**
  * The smallest company a province turns out when contact is made and no field host is present.
  *
@@ -768,6 +806,22 @@ export const BATTLE_MOMENT_TICKS = 1;
 export const BATTLE_MOMENTS_PER_FIGHT = 3;
 /** Beats before the first one may be raised, so a fight never opens on a decision. */
 export const BATTLE_MOMENT_EARLIEST = 4;
+/**
+ * Beats that must pass between one question and the next.
+ *
+ * Without it the three a fight is allowed were raised on three consecutive beats, as soon as the
+ * earliest gate opened — so every question whose trigger belongs to the *end* of a fight was
+ * unreachable in practice. Measured across sixty engagements: `last-rounds`, `night-falls`,
+ * `they-offer-terms` and `their-line-thins` fired exactly zero times between them, because the
+ * budget was always spent by beat six.
+ *
+ * Eight rather than five, measured again: an engagement runs about twenty-five beats, of which the
+ * first nine are the approach, and at a gap of five the three questions landed on beats 4, 9 and
+ * 14 — which is exchange five of sixteen. Every question about the *end* of a fight (the clock
+ * running out, the light going, terms offered) was still unreachable, one layer further in. At
+ * eight they land near beats 4, 12 and 20, which is the opening, the middle and the last third.
+ */
+export const BATTLE_MOMENT_GAP = 8;
 /** Beats a Moment's bonus lasts once taken. */
 export const BATTLE_MOMENT_BONUS_BEATS = 4;
 /** How much a loosing host multiplies its volley by, against a host that is closing. */

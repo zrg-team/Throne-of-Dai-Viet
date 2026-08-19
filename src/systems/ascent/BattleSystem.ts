@@ -17,6 +17,7 @@ import {
   BATTLE_MOMENT_TICKS,
   BATTLE_MOMENT_BONUS_BEATS,
   BATTLE_MOMENT_EARLIEST,
+  BATTLE_MOMENT_GAP,
   BATTLE_MOMENTS_PER_FIGHT,
   BATTLE_MORALE_PER_LOSS,
   BATTLE_MORALE_WIN_GAIN,
@@ -42,6 +43,8 @@ import { landGarrisonPower } from './PowerSystem';
 import { battleLine, enrolArrivals, hostHeadcount, ourHosts, theirHosts } from './battleMembership';
 import { isAutoHost } from './armyOrders';
 import { t } from '../../i18n';
+import { BATTLE_MOMENTS, eligibleMoments } from '../../data/ascent/battleMoments';
+import type { BattleMomentDef, MomentContext, MomentEffect } from '../../data/ascent/battleMoments';
 import type {
   Army, AscentBattle, BattleBeatHost, BattleMoment, BattleMomentAnswer, BattlePosture,
   GameState, Land, PendingBattle,
@@ -702,60 +705,196 @@ function setMorale(army: Army, value: number): number {
 // ── Moments: a decision with a deadline ─────────────────────────────────────
 
 /**
- * Does the fight have a question worth asking right now?
+ * Does the fight have a question worth asking right now, and which one?
  *
- * Every trigger reads state `fightRound` already computes — a column crossing the rout line, the
- * enemy committing to a charge, relief arriving, the round budget running out. No new events, no
- * new bookkeeping: the fight was always producing these moments and nothing was listening.
+ * Every trigger reads state `fightRound` already computes. What changed is the size of the deck:
+ * there were three questions, each fired once, so a player two fights into a run had already read
+ * every card the mode would ever show them. Thirty now, in `data/ascent/battleMoments.ts`, drawn at
+ * random from whichever are true — see the note there.
+ *
+ * The draw is seeded off the fight rather than off `Math.random`. Not for reproducibility's own
+ * sake: the simulation's random call order is a fixture that every mode's regression fingerprint
+ * depends on, and adding a roll here would move all four of them for a feature that only exists in
+ * one. This costs nothing — the seed already varies per fight, per beat and per question asked.
  */
 function raiseMoment(state: GameState, battle: AscentBattle, ours: Army[], theirs: Army[]): void {
   if (battle.moment || battle.over) return;
   if ((battle.momentsRaised ?? 0) >= BATTLE_MOMENTS_PER_FIGHT) return;
   // Never on the opening beats: a fight that begins with a decision has not earned one yet.
-  if (battle.round < BATTLE_MOMENT_EARLIEST) return;
+  //
+  // Measured against the *whole* fight rather than against `battle.round`, which does not count
+  // the approach — the fight's own comment says so: "the approach does not spend the round
+  // budget". So every question about the approach (the volleys, the crossing, catching them
+  // striking camp) was gated behind a counter that is still zero while the approach is happening.
+  // Five of the thirty were unreachable for that reason alone.
+  const beat = (battle.approachBeats ?? 0) + battle.round;
+  if (beat < BATTLE_MOMENT_EARLIEST) return;
+  // And spaced, so the budget is not spent in the first six beats of a twenty-six beat fight.
+  if (battle.momentLastBeat !== undefined && beat - battle.momentLastBeat < BATTLE_MOMENT_GAP) return;
 
+  const asked = battle.momentIds ?? [];
+  const context = momentContext(state, battle, ours, theirs);
+  let pool = eligibleMoments(context, asked);
+  // One question about the approach per fight, at most — see `BattleMomentDef.opening`.
+  if (asked.some((id) => BATTLE_MOMENTS.find((def) => def.id === id)?.opening)) {
+    pool = pool.filter((def) => !def.opening);
+  }
+  if (pool.length === 0) return;
+
+  const chosen = pickMoment(pool, momentSeed(battle));
   const general = state.heroes.find((hero) => hero.id === ours.find((host) => host.generalHeroId)?.generalHeroId);
-  const base = {
+
+  setMoment(battle, {
+    id: chosen.id,
     raisedAtBeat: battle.round,
     ticksLeft: BATTLE_MOMENT_TICKS,
     generalName: general ? general.name : undefined,
     generalMartial: general ? general.stats.martial : (battle.delegated ? battle.generalMartial ?? 45 : 0),
+    hostId: chosen.hostId?.(context),
+    subject: chosen.subject?.(context),
+  });
+  battle.momentLastBeat = beat;
+}
+
+/** Everything the deck's triggers are allowed to read, gathered once. */
+function momentContext(
+  state: GameState, battle: AscentBattle, ours: Army[], theirs: Army[],
+): MomentContext {
+  const land = state.lands.find((candidate) => candidate.id === battle.landId);
+  const terrain = land?.terrainSummary;
+  const wet = terrain ? terrain.riceFields + terrain.water + terrain.fields : 0;
+  const broken = terrain ? terrain.forest + terrain.hills + terrain.mountains : 0;
+  const ourNow = ours.reduce((n, host) => n + totalUnits(host), 0);
+  const theirNow = theirs.reduce((n, host) => n + totalUnits(host), 0);
+  return {
+    battle,
+    ours,
+    theirs,
+    round: battle.round,
+    // The whole fight's clock, approach included — `round` stays at zero until the lines meet.
+    beat: (battle.approachBeats ?? 0) + battle.round,
+    left: battle.totalRounds - battle.round,
+    phase: battle.ourAdvance + battle.theirAdvance >= 1 ? 'clash' : 'approach',
+    ourMorale: battle.ourMorale,
+    theirMorale: battle.theirMorale,
+    ourNow,
+    theirNow,
+    odds: theirNow / Math.max(1, ourNow),
+    ourSpent: 1 - ourNow / Math.max(1, battle.ourStart),
+    theirSpent: 1 - theirNow / Math.max(1, battle.theirStart),
+    reserveMen: battle.reserve.spearmen + battle.reserve.archers + battle.reserve.heavyInfantry,
+    // The band has to be wide: a host breaks at `BATTLE_ROUT_MORALE` and one bad exchange can
+    // carry it from fifty to thirty in a single beat, so a narrow window is simply stepped over.
+    wavering: theirs.find((host) => host.morale <= BATTLE_ROUT_MORALE + 18),
+    failing: ours.find((host) => host.morale <= BATTLE_ROUT_MORALE + 18),
+    terrainEdge: battle.terrainEdge,
+    wetGround: wet > broken,
+    brokenGround: broken >= wet,
+    isGreat: Boolean(battle.isGreat),
+    role: battle.role ?? 'defence',
+    arms: battle.ourMatchup ?? 1,
   };
+}
 
-  // One of each, at most. The cap is three and there are three kinds, so without this the first
-  // trigger to become true simply takes the whole budget — measured, `last-rounds` fired all 80
-  // Moments across 40 fights because the other two conditions were far too narrow to reach.
-  const already = battle.momentKinds ?? [];
-  const fresh = (kind: BattleMoment['kind']): boolean => !already.includes(kind);
+/**
+ * A weighted draw with no `Math.random` in it.
+ *
+ * mulberry32, inline, because `src/systems` imports nothing from the UI and this is four lines.
+ */
+function pickMoment(pool: BattleMomentDef[], seed: number): BattleMomentDef {
+  let s = (seed >>> 0) || 1;
+  s = (s + 0x6d2b79f5) | 0;
+  let t = Math.imul(s ^ (s >>> 15), 1 | s);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  const roll = ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 
-  // Their line is about to go. The most valuable question in the fight, and the most dangerous.
-  //
-  // The band has to be wide: a host breaks at `BATTLE_ROUT_MORALE` and one bad exchange can carry
-  // it from fifty to thirty in a single beat, so a narrow window is simply stepped over.
-  const wavering = theirs.find((host) => host.morale <= BATTLE_ROUT_MORALE + 18);
-  if (wavering && fresh('wavering')) {
-    setMoment(battle, { ...base, kind: 'wavering', hostId: wavering.id, subject: wavering.name });
-    return;
+  const total = pool.reduce((sum, def) => sum + (def.weight ?? 1), 0);
+  let cursor = roll * total;
+  for (const def of pool) {
+    cursor -= def.weight ?? 1;
+    if (cursor <= 0) return def;
   }
-  // They are coming and we are not set for it. Asking only on the beat they *switch* into a
-  // charge never fires against an aggressive power, which charges from the first exchange and
-  // never changes its mind — the question is whether we are braced, not whether they just decided.
-  if (battle.theirPosture === 'press' && !posturesCounter(battle.posture, 'press') && fresh('charge-coming')) {
-    setMoment(battle, { ...base, kind: 'charge-coming', subject: battle.kingdomName });
-    return;
+  return pool[pool.length - 1];
+}
+
+/** Varies per fight, per beat and per question already asked, so a run never repeats a draw. */
+function momentSeed(battle: AscentBattle): number {
+  let hash = 2166136261;
+  for (const ch of `${battle.key ?? battle.landId}:${battle.round}:${battle.momentsRaised ?? 0}`) {
+    hash = Math.imul(hash ^ ch.charCodeAt(0), 16777619);
   }
-  // The clock is nearly out and the field is still contested.
-  const left = battle.totalRounds - battle.round;
-  if (left <= 4 && left > 0 && fresh('last-rounds')) {
-    setMoment(battle, { ...base, kind: 'last-rounds', subject: battle.landName });
-  }
+  return hash >>> 0;
 }
 
 function setMoment(battle: AscentBattle, moment: BattleMoment): void {
   battle.moment = moment;
   battle.momentsRaised = (battle.momentsRaised ?? 0) + 1;
-  (battle.momentKinds ??= []).push(moment.kind);
+  (battle.momentIds ??= []).push(moment.id);
 }
+
+/**
+ * Applies one answer's effects to the fight.
+ *
+ * The vocabulary is small and every entry in it is a lever the fight already has — see
+ * `MomentEffect`. Scaled by `weight`, which is 1 when the player answered and the general's skill
+ * when the general did: a commander's judgement is worth something, but never as much as being
+ * there. Costs are *not* scaled — a decision that spends men spends them whoever made it.
+ */
+function applyMomentEffect(
+  state: GameState, battle: AscentBattle, effect: MomentEffect, moment: BattleMoment, weight: number,
+): void {
+  const gain = (value: number, base: number): number => base + (value - base) * weight;
+
+  battle.momentBonus = {
+    beats: BATTLE_MOMENT_BONUS_BEATS,
+    dealt: gain(effect.dealt ?? 1, 1),
+    // `fightRound` reads `momentBonus.morale` as heart added per beat; the instant heart below is
+    // separate and is written straight onto the line.
+    morale: 0,
+    taken: gain(effect.taken ?? 1, 1),
+  };
+
+  if (effect.posture) battle.posture = effect.posture;
+  if (effect.focus === 'subject' && moment.hostId) battle.focusHostId = moment.hostId;
+  if (effect.focus === 'clear') battle.focusHostId = undefined;
+
+  if (effect.morale) {
+    battle.ourMorale = clampMorale(battle.ourMorale + gain(effect.morale, 0));
+    for (const host of ourHosts(state, battle)) setMorale(host, host.morale + gain(effect.morale, 0));
+  }
+  if (effect.theirMorale) {
+    battle.theirMorale = clampMorale(battle.theirMorale + gain(effect.theirMorale, 0));
+    for (const host of theirHosts(state, battle)) setMorale(host, host.morale + gain(effect.theirMorale, 0));
+  }
+
+  if (effect.advance) {
+    battle.ourAdvance = Math.max(0, Math.min(1, battle.ourAdvance + effect.advance));
+  }
+  if (effect.rounds) {
+    battle.totalRounds = Math.max(battle.round + 1, battle.totalRounds + effect.rounds);
+  }
+  if (effect.loss) applyMomentLosses(ourHosts(state, battle), effect.loss);
+  if (effect.theirLoss) applyMomentLosses(theirHosts(state, battle), effect.theirLoss * weight);
+
+  if (effect.reserve && !battle.reserveSpent) commitReserve(state);
+  if (effect.rally && !battle.rallySpent) rally(state);
+}
+
+/** Men taken off a line at once, spread across its hosts in proportion to their size. */
+function applyMomentLosses(hosts: Army[], share: number): void {
+  const cut = Math.max(0, Math.min(0.5, share));
+  if (cut <= 0) return;
+  for (const host of hosts) {
+    host.units.spearmen = Math.max(0, Math.round(host.units.spearmen * (1 - cut)));
+    host.units.archers = Math.max(0, Math.round(host.units.archers * (1 - cut)));
+    host.units.heavyInfantry = Math.max(0, Math.round(host.units.heavyInfantry * (1 - cut)));
+  }
+}
+
+function clampMorale(value: number): number {
+  return Math.max(0, Math.min(100, value));
+}
+
 
 /**
  * Answers the open Moment, and hands the player something for it.
@@ -772,20 +911,23 @@ export function answerBattleMoment(state: GameState, answer: BattleMomentAnswer,
 
   // A commander's judgement is worth something, but never as much as being there. Answering
   // yourself is the full effect; a general answering for you is scaled by what they are.
-  const skill = 0.55 + (moment.generalMartial ?? 0) / 100 * 0.4;
+  // Steeper than the 0.55 + 0.4x it was: 0.68 at martial 60 against 0.85 at 90, so the appointment
+  // is worth making. Measured, it moves the delegation gap much less than it looks like it should
+  // — 5.5 points below skilled play before, 6.0 after, against a gate of 8 to 15 — because most of
+  // what a delegated fight decides is `generalPlaysBeat`'s stance each beat, not the two or three
+  // Moments. The gate is still unmet and the lever that would meet it is that one, not this.
+  const skill = 0.35 + (moment.generalMartial ?? 0) / 100 * 0.55;
   const weight = byGeneral ? skill : 1;
 
-  if (answer === 'commit') {
-    if (moment.kind === 'wavering' && moment.hostId) battle.focusHostId = moment.hostId;
-    if (moment.kind === 'charge-coming') battle.posture = 'press';
-    battle.momentBonus = { beats: BATTLE_MOMENT_BONUS_BEATS, dealt: 1 + 0.35 * weight, morale: 0 };
-    battle.log.push(t(`ascent.moment.${moment.kind}.tookCommit` as Parameters<typeof t>[0]));
-  } else {
-    if (moment.kind === 'wavering') battle.focusHostId = undefined;
-    if (moment.kind === 'charge-coming') battle.posture = 'hold';
-    battle.momentBonus = { beats: BATTLE_MOMENT_BONUS_BEATS, dealt: 1, morale: 3.5 * weight };
-    battle.log.push(t(`ascent.moment.${moment.kind}.tookSteady` as Parameters<typeof t>[0]));
-  }
+  const def = BATTLE_MOMENTS.find((candidate) => candidate.id === moment.id);
+  if (!def) { battle.moment = undefined; return false; }
+  const effect = answer === 'commit' ? def.commit : def.steady;
+
+  applyMomentEffect(state, battle, effect, moment, weight);
+  battle.log.push(t(`ascent.moment.said.${effect.says}` as Parameters<typeof t>[0], {
+    subject: moment.subject ?? battle.kingdomName,
+  }));
+
   battle.moment = undefined;
   return true;
 }
@@ -859,6 +1001,12 @@ export function fightRound(state: GameState): void {
   const charging = battle.posture === 'press';
   const loosing = battle.posture === 'loose';
   const offence = battle.role === 'offence';
+  // How the two sides' arms meet, written before the branch rather than inside the melee.
+  // It is true of the hosts, not of the phase — a spear wall is wrong against heavy infantry
+  // while they are still a bowshot apart — and leaving it until after contact meant the screen
+  // could not state it during the approach and the deck could not ask about it.
+  battle.ourMatchup = matchupAcross(ours, theirs);
+  battle.theirMatchup = matchupAcross(theirs, ours);
   // Walls do not sally: a garrison-only defence holds its ground and shoots.
   battle.theirPosture = offence && theirs.every((host) => host.isLevy) ? 'hold' : enemyPosture(state, battle);
 
@@ -872,6 +1020,12 @@ export function fightRound(state: GameState): void {
   } else {
     // The invader is always coming; we advance only when told to. Charging also closes faster,
     // which is half of why it is worth doing.
+    //
+    // Counted here too. `approachBeats` was incremented only on the assault path, where it caps
+    // the approach — but it is also the only clock a defence has before contact, since
+    // `battle.round` deliberately does not move until the lines meet. Without it every question
+    // about a defensive approach sat behind a counter that was permanently zero.
+    battle.approachBeats = (battle.approachBeats ?? 0) + 1;
     battle.theirAdvance = Math.min(1, battle.theirAdvance + BATTLE_ADVANCE_PER_TICK);
     // Loosing opens the range rather than merely refusing to close: a host that means to shoot
     // wants the ground between it and them, which is what makes it lose to a charge.
@@ -907,6 +1061,13 @@ export function fightRound(state: GameState): void {
       volleyLine = t('ascent.battle.volley', { ours: ourLoss, theirs: theirLoss });
       battle.log.push(volleyLine);
     }
+    // The approach can ask a question too, and until now it could not.
+    //
+    // `raiseMoment` was called once, at the foot of the melee path, past this early return — so
+    // every question about closing the ground (the volleys, the crossing, catching them still
+    // striking camp) was unreachable no matter what its trigger said. Measured across sixty
+    // engagements, five of the thirty fired zero times for this reason alone.
+    raiseMoment(state, battle, ours, theirs);
     recordBeat(battle, 'approach', ours, theirs, ourLoss, theirLoss, volleyLine);
     // Deliberately does not spend the round budget: the approach is the opening, not the fight.
     return;
@@ -926,12 +1087,10 @@ export function fightRound(state: GameState): void {
   // been written, commented and correct in `WarSystem` since the classic odds roll, with exactly
   // one call site. The watched fight never used it, so the screen that draws both armies' arms
   // was the only place in the game where they did not matter.
-  const ourArms = matchupAcross(ours, theirs);
-  const theirArms = matchupAcross(theirs, ours);
+  const ourArms = battle.ourMatchup ?? 1;
+  const theirArms = battle.theirMatchup ?? 1;
   const ourPower = Math.max(1, sum(ours) * (offence ? 1 : battle.terrainEdge) * ourArms);
   const theirPower = Math.max(1, sum(theirs) * (offence ? battle.terrainEdge : 1) * theirArms);
-  battle.ourMatchup = ourArms;
-  battle.theirMatchup = theirArms;
   // Each side's losses are its own exposure times the other's aggression, so a cautious enemy
   // is genuinely a different fight from a reckless one rather than the same fight relabelled.
   const ourTrade = tradeAgainst(battle.posture, battle.theirPosture);
@@ -946,10 +1105,13 @@ export function fightRound(state: GameState): void {
   battle.lastTheirPosture = battle.theirPosture;
   const fuzz = (): number => 0.9 + Math.random() * 0.2;
 
-  const ourShare = BATTLE_ROUND_BITE * (theirPower / (ourPower + theirPower)) * 2
-    * ourTrade.taken * theirTrade.dealt * theirReform * fuzz();
-  // What a Moment bought, while it lasts.
+  // What a Moment bought, while it lasts. Half the deck answers a question by *protecting* the
+  // line rather than by sharpening it — bracing, giving ground, plugging a pass — and without
+  // this term every one of those answers would have been a placebo.
+  const momentTaken = battle.momentBonus?.taken ?? 1;
   const momentDealt = battle.momentBonus?.dealt ?? 1;
+  const ourShare = BATTLE_ROUND_BITE * (theirPower / (ourPower + theirPower)) * 2
+    * ourTrade.taken * theirTrade.dealt * theirReform * momentTaken * fuzz();
   const theirShare = BATTLE_ROUND_BITE * (ourPower / (ourPower + theirPower)) * 2
     * ourTrade.dealt * theirTrade.taken * ourReform * momentDealt * fuzz();
 
@@ -1141,9 +1303,22 @@ export function advanceBattle(state: GameState): void {
 
   for (let beat = 0; beat < BATTLE_BEATS_PER_TICK && !battle.over; beat += 1) {
     fightRound(state);
+    if (!battle.moment) continue;
+    // A commander does not stop the war to think.
+    //
+    // Breaking the burst is right when a player is going to be asked: the question reaches the
+    // screen with the rest of the tick still ahead of it. It is wrong when the field has been
+    // handed over, because the answer is already decided — and holding the burst for it cost the
+    // general five of every six beats. Measured on a delegated fight: four beats in nine seconds,
+    // against the eighteen a watched fight resolves in the same time.
+    if (battle.delegated) {
+      battle.moment.ticksLeft = 0;
+      ageMoment(state, battle);
+      continue;
+    }
     // Stop the burst the instant one is raised, so the question reaches the screen with the rest
     // of the tick still ahead of it rather than already spent.
-    if (battle.moment) break;
+    break;
   }
   // `finishBattle` asks what the host was *told*, not which of three stances it was in when the
   // last beat landed. Loosing is a way of holding the ground, so it resolves as holding.
