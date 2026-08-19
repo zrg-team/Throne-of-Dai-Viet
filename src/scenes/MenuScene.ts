@@ -1089,6 +1089,15 @@ export class MenuScene extends Phaser.Scene {
         variant: 'secondary' as const,
         start: 'campaign' as const,
       },
+      // The fight on its own. Not a mode with a map and an economy — one matchup, dialled in and
+      // fought, so the battle can be judged without playing a run to reach one.
+      {
+        title: t('arena.title'),
+        body: t('arena.menuBlurb'),
+        border: INK_UI.cinnabar,
+        variant: 'secondary' as const,
+        start: 'arena' as const,
+      },
     ]) {
       const card = this.ui.card({ x: 28, y: cursor, width: GAME_WIDTH - 56, height: this.vh(88) }, {
         title: mode.title,
@@ -1098,7 +1107,9 @@ export class MenuScene extends Phaser.Scene {
         action: {
           label: t('ascent.menu.play'),
           variant: mode.variant,
-          onClick: () => this.scene.start('CampaignScene', { mode: mode.start }),
+          onClick: () => (mode.start === 'arena'
+            ? this.scene.start('BattleArenaScene')
+            : this.scene.start('CampaignScene', { mode: mode.start })),
         },
       });
       this.content.push(card);

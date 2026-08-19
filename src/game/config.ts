@@ -3,6 +3,7 @@ import { GAME_HEIGHT, GAME_WIDTH } from './constants';
 import { BootScene } from '../scenes/BootScene';
 import { MenuScene } from '../scenes/MenuScene';
 import { CampaignScene } from '../scenes/CampaignScene';
+import { BattleArenaScene } from '../scenes/BattleArenaScene';
 import { ConquestScene } from '../scenes/ConquestScene';
 import { ConquestUIScene } from '../scenes/ConquestUIScene';
 import { MapScene } from '../scenes/MapScene';
@@ -48,5 +49,5 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   // the same sheet of paper. Registered here and attached per scene by `applyPaperFX`.
   pipeline: { [PAPER_FX_KEY]: PaperFX } as unknown as Phaser.Types.Core.PipelineConfig,
   // Only index 0 auto-starts; the rest are registered-but-stopped until started by name.
-  scene: [BootScene, PreloadScene, MenuScene, CampaignScene, MapScene, UIScene, ConquestScene, ConquestUIScene],
+  scene: [BootScene, PreloadScene, MenuScene, CampaignScene, BattleArenaScene, MapScene, UIScene, ConquestScene, ConquestUIScene],
 };

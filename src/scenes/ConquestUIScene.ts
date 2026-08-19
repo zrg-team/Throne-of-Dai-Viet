@@ -4760,11 +4760,13 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // The opening hold, said out loud: the world is stopped for the first order, and the caption
     // goes with the first tap. Lives in the readout because that layer is redrawn every beat.
     if (this.battleAwaitingOrder) {
-      readout.add(this.ui.label(content.x + content.width / 2, content.y + 12, t('ascent.battle.holdNote'), 'caption', {
+      readout.add(this.ui.label(
+        content.x + content.width / 2, content.y + BATTLE_PIPS_HEIGHT + 10, t('ascent.battle.holdNote'), 'caption', {
         align: 'center',
-        wordWrap: { width: content.width - 40 },
-        color: `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`,
-      }).setOrigin(0.5, 0));
+          wordWrap: { width: content.width - 40 },
+          color: `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`,
+        },
+      ).setOrigin(0.5, 0));
     }
   }
   /**

@@ -117,6 +117,19 @@ export class ConquestScene extends MapScene {
       );
     }
 
+    // An arena fight is the whole session: once it resolves, hand the result back to the setup
+    // screen rather than leaving the player on a map with one province and nothing to do. The
+    // record `finishBattle` wrote is the honest account of what happened, so it is what travels.
+    if (this.state.ascent?.arena && !this.state.ascent.activeBattle && !this.state.pendingBattle) {
+      const history = this.state.ascent.battleHistory ?? [];
+      const result = history[history.length - 1];
+      if (result) {
+        this.scene.stop(this.uiSceneKey());
+        this.scene.start('BattleArenaScene', { result });
+        return;
+      }
+    }
+
     this.refresh();
   }
 

@@ -147,6 +147,9 @@ function recordBeat(
  */
 function worthWatching(state: GameState, landId: string, isGreat: boolean): boolean {
   const ascent = state.ascent;
+  // The arena exists to watch one specific matchup. Every clause below asks whether a fight is
+  // worth interrupting a *run* for, which is not a question the arena is asking.
+  if (ascent?.arena) return true;
   if (isGreat || ascent?.capitalLandId === landId) return true;
 
   const land = findLand(state, landId);

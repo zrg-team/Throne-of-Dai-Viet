@@ -126,6 +126,22 @@ function trackScore(state: GameState): void {
  */
 export function advanceAscentTick(state: GameState): void {
   if (state.isDefeated || !state.ascent) return;
+
+  // The arena runs the fight and nothing else.
+  //
+  // `BattleArenaScene` exists to answer one question — is the fight any good — and the rest of
+  // the tick is noise against it: waves arriving mid-bout, cards interrupting, the economy
+  // draining, stories firing. All of that would make two runs of the same matchup differ for
+  // reasons that have nothing to do with the battle.
+  //
+  // Deliberately the *same* `beginBattle` and `advanceBattle` the real mode uses, on the same
+  // clock. An arena that ran its own copy of the fight would verify a copy.
+  if (state.ascent.arena) {
+    if (state.pendingBattle && !state.ascent.activeBattle) beginBattle(state);
+    else advanceBattle(state);
+    return;
+  }
+
   ensureAscentLaneState(state);
 
   const ownedBefore = ownedLandIds(state);

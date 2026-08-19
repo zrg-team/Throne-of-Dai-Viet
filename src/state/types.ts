@@ -1554,6 +1554,14 @@ export interface AscentState {
   activeBattle?: AscentBattle;
   /** True while the player has handed battles back to their generals. Reversible from Settings. */
   autoResolveBattles: boolean;
+  /**
+   * This state exists to fight one battle and nothing else — see `BattleArenaScene`.
+   *
+   * `advanceAscentTick` runs only the fight when it is set, so a matchup can be watched without
+   * a wave landing on top of it or a card taking the screen. Never set on a real run, and never
+   * written to a save: the arena builds its state fresh every time it is entered.
+   */
+  arena?: boolean;
   /** Wave whose engagement has already been watched. Kept for saves written before `lastWatchedKey`. */
   lastWatchedWave: number;
   /** `wave:landId` of the engagement already watched, so a siege asks once per province, not per tick. */
