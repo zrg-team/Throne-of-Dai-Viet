@@ -85,7 +85,15 @@ import { playArrivalFanfare } from '../ui/ascent/arrivalFanfare';
 import { THRONE_HALL_HEIGHT, throneHallDiorama } from '../ui/ascent/throneHall';
 import { CARD_STACK_PEEK, CardStack } from '../ui/ascent/CardStack';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
-import { hostKitFor, hostShapeAt } from '../ui/ink/devices';
+import { figureEraFor, hostKitFor, hostShapeAt } from '../ui/ink/devices';
+import {
+  areca, bamboo, buffalo, grassTuft, hayStack, karstRange, softRidge, tree,
+} from '../ui/ink/props';
+import { citadel, hamlet, village } from '../ui/ink/settlements';
+import { groundTone, mulberry32 } from '../ui/ink/stroke';
+import { GROUND_SCALE } from '../ui/ink/proportion';
+import { PIGMENT } from '../ui/ink/palette';
+import { findLand } from '../systems/LandSystem';
 import { CARD_ICON_SIZE, drawCardIcon, iconForOption, type CardIconId } from '../ui/CardIcons';
 import { ASCENT_HUD_HEIGHT, AscentHud } from '../ui/ascent/AscentHud';
 import { ActionBar } from '../ui/ActionBar';
@@ -161,11 +169,26 @@ const MAP_CONTROL_PITCH = 42;
  */
 const BATTLE_RAILS_HEIGHT = 56;
 /** Posture row plus the four one-shot buttons. Fixed: the orders must never scroll. */
-const BATTLE_DOCK_HEIGHT = 108;
+const BATTLE_DOCK_HEIGHT = 114;
 /** The two-line log ribbon along the foot of the field, inside it. */
 const BATTLE_RIBBON_HEIGHT = 34;
 /** The round pips above the field, and the count beside them. */
 const BATTLE_PIPS_HEIGHT = 24;
+/**
+ * Most bodies the killing floor will hold.
+ *
+ * Capped because they are never cleared — the point of them is that they accumulate — and an
+ * engagement can run forty beats. Forty marks is a covered field at this size; beyond that it is
+ * a texture, and the two armies stop reading against it.
+ */
+const BATTLE_FALLEN_CAP = 40;
+/**
+ * How far apart the two lines stand once they have met.
+ *
+ * Wide enough that both blocks are legible and the ground between them shows, narrow enough that
+ * they read as engaged rather than as two armies waiting for permission.
+ */
+const BATTLE_SEAM_GAP = 34;
 
 function battleFieldHeight(content: UIBounds): number {
   // `content.height` runs to 20px off the bottom of the screen, but the lane's Close button is
@@ -610,6 +633,24 @@ export class ConquestUIScene extends Phaser.Scene {
     ribbon: Phaser.GameObjects.Container;
     /** Per-beat casualty numbers, rising and fading. Owns nothing tappable. */
     floaters: Phaser.GameObjects.Container;
+    /**
+     * The dead, drawn once each and never cleared until the field is rebuilt.
+     *
+     * The killing floor fills up as the fight runs, so the ground itself becomes a record of how
+     * hard it was — and it is still there at the end, under whoever is left standing.
+     */
+    fallen: Phaser.GameObjects.Graphics;
+    /**
+     * Where each one fell, kept apart from the graphics that draws them.
+     *
+     * `buildBattleField` clears the field container with `removeAll(true)` whenever the hosts on
+     * it change — relief arriving, a column breaking — which destroyed the layer the dead were
+     * drawn into. Measured, `fallen.active` was false while forty had supposedly been laid: they
+     * were being drawn onto an object that no longer existed. The positions survive now and the
+     * layer is redrawn from them.
+     */
+    fallenPts: Array<{ x: number; y: number }>;
+    fallenCount: number;
     /** The open Moment, over the field. Rebuilt only when the question changes. */
     moment: Phaser.GameObjects.Container;
     /** Which Moment is drawn, so the card is not rebuilt under the player's finger every beat. */
@@ -4426,6 +4467,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const readout = this.add.container(0, 0);
     const orders = this.add.container(0, 0);
     const moment = this.add.container(0, 0);
+    const fallen = this.add.graphics();
+    field.add(fallen);
     this.modalLayer.add([field, floaters, ribbon, pips, readout, orders, moment]);
 
     this.battleUi = {
@@ -4437,6 +4480,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       ribbon,
       floaters,
       orders,
+      fallen,
+      fallenPts: [],
+      fallenCount: 0,
       moment,
       momentKey: '',
       rivalColor,
@@ -4580,9 +4626,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
   private spawnBattleFloaters(beat: BattleBeat): void {
     const ui = this.battleUi;
     if (!ui) return;
-    const { leftX, rightX, span, groundY } = ui.geometry;
-    const ourLine = leftX + 30 + span * beat.ourAdvance;
-    const theirLine = rightX - 30 - span * beat.theirAdvance;
+    const { groundY } = ui.geometry;
+    const { ourX: ourLine, theirX: theirLine } = this.battleLines(beat.ourAdvance, beat.theirAdvance);
 
     const float = (x: number, value: number, dy: number, colour: string): void => {
       if (value <= 0) return;
@@ -4599,12 +4644,197 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         onComplete: () => label.destroy(),
       });
     };
-    // Pushed well apart and staggered: once the lines meet, `ourLine` and `theirLine` are the
-    // same place, and two numbers spawned sixteen pixels either side of it land on top of each
-    // other and on the men.
-    float(Math.min(ourLine - 34, ui.geometry.leftX + span * 0.5), beat.ourLoss, -6,
-      `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`);
-    float(Math.max(theirLine + 34, ui.geometry.rightX - span * 0.5), beat.theirLoss, 10, INK_UI_HEX.inkText);
+    // Outside each block rather than between them: the seam is where the men are, and a number
+    // dropped into it lands on the fighting. Staggered too, so the two never collide.
+    float(ourLine - 30, beat.ourLoss, -6, `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`);
+    float(theirLine + 30, beat.theirLoss, 10, INK_UI_HEX.inkText);
+  }
+
+  /**
+   * The land the fight is happening on.
+   *
+   * The field was a cream rectangle with two clusters of tents on it — the thing the screen exists
+   * to show, drawn as nothing. None of this needs new art: the Đông Hồ renderers already draw
+   * villages, citadels, paddy, karst, bamboo and buffalo for the map, and the battle screen used
+   * exactly one of them.
+   *
+   * Five bands, painted far to near, because the eye reads a scene bottom-up and Phaser does not
+   * depth-sort a container's children:
+   *
+   *   0  distance — karst and a soft ridge along the horizon. Nothing here ever moves.
+   *   1  ground   — a tone under the whole killing floor.
+   *   2  ours     — the province being defended: its settlement, its paddy, its bamboo hedge.
+   *   3  theirs   — what came for it.
+   *   4  scatter  — trees and grass drawn from the province's *real* terrain.
+   *
+   * Static for the length of the fight, so it is drawn once per field rebuild rather than per beat.
+   */
+  private buildBattleGround(battle: AscentBattle): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+    const { content, field } = ui;
+    const { leftX, rightX, groundY } = ui.geometry;
+
+    const top = content.y + BATTLE_PIPS_HEIGHT;
+    const bottom = top + ui.fieldHeight;
+    const x0 = content.x + 4;
+    const x1 = content.x + content.width - 4;
+    const horizon = top + ui.fieldHeight * 0.30;
+    const land = findLand(this.state, battle.landId);
+    const seed = Math.round((battle.landId.length * 977) + battle.totalRounds * 31);
+    const rand = mulberry32(seed);
+    // Bigger than the map's own scale: this is a close-up, and scenery drawn at map size on a
+    // three-hundred-pixel field reads as litter rather than as a place.
+    const scale = GROUND_SCALE * 1.5;
+
+    // The dead, re-laid onto the rebuilt field. Added before the scenery graphics so they sit on
+    // the ground rather than over the village.
+    ui.fallen = this.add.graphics();
+    field.add(ui.fallen);
+    for (const pt of ui.fallenPts) this.inkFallen(pt.x, pt.y);
+
+    const g = this.add.graphics();
+    // The land is a backdrop, not a subject. Drawn at half strength as a whole, because at full
+    // weight the scenery and the two armies carry the same emphasis and the fight — the thing the
+    // screen exists to show — stops being the thing you look at.
+    g.setAlpha(0.5);
+    field.add(g);
+
+    // ── 0. distance ────────────────────────────────────────────────────────
+    karstRange(g, x0 - 10, x1 + 10, horizon, ui.fieldHeight * 0.11, seed, true, 1.15);
+    // One relief line, not two: the ridge behind the karst drew a hard rule straight across the
+    // field, which is a horizon nobody stands on.
+    softRidge(g, x0 - 10, x1 + 10, horizon + 10, ui.fieldHeight * 0.04, seed + 41);
+
+    // ── 1. the ground ──────────────────────────────────────────────────────
+    // Barely there: a wash under the men's feet, not a pool of colour the eye lands in.
+    groundTone(g, (x0 + x1) / 2, groundY + 22, content.width * 0.42, PIGMENT.diepLo, 0.16, 3);
+
+    // ── 2. the province being defended ─────────────────────────────────────
+    //
+    // Drawn from the province's own record: the seat gets its citadel, a settled district gets a
+    // village, and bare ground gets a hamlet. The stake of the fight, stated as a picture.
+    // Down in the near-left corner, not on the line.
+    //
+    // Drawn beside the camp it belongs to, the settlement sat exactly where our block stands and
+    // where an advancing enemy comes to meet it — so at contact the village, our host and theirs
+    // were one unreadable clump. The province being defended belongs *behind* the fight.
+    const era = figureEraFor(this.state);
+    const homeX = x0 + 26;
+    const homeY = bottom - 16;
+    if (land && this.state.ascent?.capitalLandId === land.id) citadel(g, homeX, homeY, scale * 0.72, era, seed + 3);
+    else if (land?.hasVillage) village(g, homeX, homeY, scale * 0.8, seed + 3);
+    else hamlet(g, homeX, homeY, scale * 0.8, seed + 3, 4);
+
+    // The bamboo hedge that is a delta village's real boundary — not the palisade this screen had
+    // no business drawing.
+    //
+    // No paddy: `drawFieldPlot` is drawn for map scale, where a plot is a few pixels of texture.
+    // Blown up to a close-up they are big pale rectangles that read as scraps of paper lying on
+    // the field, and a wrong mark is worse than a missing one.
+    for (let i = 0; i < 4; i += 1) {
+      bamboo(g, x0 + 4 + i * 8, bottom - 24 - (i % 2) * 4, scale * 0.6, seed + 11 + i);
+    }
+    buffalo(g, homeX + 40, bottom - 8, scale * 0.85, seed + 13, false);
+
+    // ── 3. what came for it ────────────────────────────────────────────────
+    //
+    // The tents themselves are `battleCamp`, which already stood here; this is the baggage behind
+    // them. Drawing a hamlet on top of the camp put two settlements in the same place.
+    hayStack(g, x1 - 30, bottom - 16, scale * 0.85, seed + 19);
+    hayStack(g, x1 - 54, bottom - 10, scale * 0.7, seed + 21);
+
+    // ── 4. the killing floor ───────────────────────────────────────────────
+    //
+    // Scatter chosen by what the province actually is. A fight on rice ground and a fight in the
+    // hills are the same two blocks of men on two different pieces of the country.
+    const ts = land?.terrainSummary;
+    const wooded = ts ? ts.forest + ts.mountains + ts.hills : 0;
+    const wet = ts ? ts.riceFields + ts.fields + ts.water : 0;
+    const midX = leftX + 40;
+    const midW = rightX - leftX - 70;
+    // Only at the edges of the killing floor. Anything in the middle stands between the player
+    // and the two lines meeting, which is the one thing on this screen that must stay legible.
+    for (let i = 0; i < 5; i += 1) {
+      const edge = i % 2 === 0 ? rand() * 0.22 : 0.78 + rand() * 0.22;
+      const px = midX + edge * midW;
+      const py = groundY + 14 + rand() * Math.max(10, bottom - groundY - 26);
+      if (wooded > wet && i < 2) tree(g, px, py, scale * 0.7, seed + 23 + i);
+      else if (wet > wooded && i === 0) areca(g, px, py, scale * 0.6, seed + 29);
+      else grassTuft(g, px, py, scale * 0.9, seed + 31 + i);
+    }
+  }
+
+  /**
+   * Lays out the men who fell this beat, where they fell.
+   *
+   * One mark per figure's worth of loss, capped — a beat that kills sixty men lays about one body
+   * down, so the floor fills at the same rate the ranks thin. Drawn into a graphics that is never
+   * cleared, because the dead do not get up: the field carries the whole fight's cost by the end,
+   * which is what makes a won battle look like it cost something.
+   */
+  private layFallen(beat: BattleBeat): void {
+    const ui = this.battleUi;
+    if (!ui || ui.fallenCount >= BATTLE_FALLEN_CAP) return;
+    const { groundY } = ui.geometry;
+    const { seam } = this.battleLines(beat.ourAdvance, beat.theirAdvance);
+
+    // One mark per twenty men, so an ordinary exchange — measured, eight to thirty a side — lays
+    // one or two down. At one per forty-five a whole fight passed without a single body, which is
+    // a threshold set from a guess about how hard fights hit rather than from watching one.
+    const lost = beat.ourLoss + beat.theirLoss;
+    const wanted = Math.min(3, Math.round(lost / 20));
+    if (wanted <= 0) return;
+
+    for (let i = 0; i < wanted && ui.fallenCount < BATTLE_FALLEN_CAP; i += 1) {
+      const rand = mulberry32(ui.fallenCount * 2654435761);
+      // Scattered along the seam rather than dropped on it: a line of bodies in a row reads as a
+      // fence. Spread wider across the line than through it, the way a front is shaped.
+      const fx = seam + (rand() - 0.5) * 58;
+      const fy = groundY + (rand() - 0.5) * 64;
+      ui.fallenPts.push({ x: fx, y: fy });
+      this.inkFallen(fx, fy);
+      ui.fallenCount += 1;
+    }
+  }
+
+  /** One body on the ground. Two marks: the man, and what he dropped. */
+  private inkFallen(x: number, y: number): void {
+    const g = this.battleUi?.fallen;
+    if (!g?.active) return;
+    g.fillStyle(PIGMENT.muc, 0.55);
+    g.fillEllipse(x, y, 8.5, 3);
+    g.lineStyle(1.1, PIGMENT.mucSoft, 0.5);
+    g.lineBetween(x - 5, y + 2, x + 4, y - 1.6);
+  }
+
+  /**
+   * Where the two lines stand this frame.
+   *
+   * The two advances are defined to sum to 1 at contact, and the drawing took that literally: at
+   * contact `leftX + 30 + span` and `rightX - 30 - span` are the *same point*, so one army was
+   * drawn exactly on top of the other. A fight at its most violent showed one clump — and the
+   * dead, which lie along the seam, were underneath it.
+   *
+   * So the lines close to a seam and no further. They interpenetrate by about a file, which reads
+   * as one contested mass with a join in it rather than as two rectangles that stopped politely
+   * short — and it leaves the ground between them visible, which is where the bodies are.
+   */
+  private battleLines(ourAdvance: number, theirAdvance: number): { ourX: number; theirX: number; seam: number } {
+    const ui = this.battleUi;
+    if (!ui) return { ourX: 0, theirX: 0, seam: 0 };
+    const { leftX, rightX, span } = ui.geometry;
+    let ourX = leftX + 30 + span * ourAdvance;
+    let theirX = rightX - 30 - span * theirAdvance;
+    if (theirX - ourX >= BATTLE_SEAM_GAP) return { ourX, theirX, seam: (ourX + theirX) / 2 };
+
+    // They have reached us. Where that happens is decided by who advanced — hold your ground and
+    // they cross the whole field to get to you — but drawn literally it puts the entire fight in
+    // the left quarter with two thirds of the picture empty behind them. The meeting is pulled
+    // back into the middle band so the thing worth looking at is where the eye already is.
+    const raw = (ourX + theirX) / 2;
+    const seam = Math.min(Math.max(raw, leftX + span * 0.34), rightX - span * 0.22);
+    return { ourX: seam - BATTLE_SEAM_GAP / 2, theirX: seam + BATTLE_SEAM_GAP / 2, seam };
   }
 
   /** Pairs a drawn marker with its host, finding the strength label to keep current. */
@@ -4661,19 +4891,22 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       { border: INK_UI.softBrush },
     ));
 
+    // The ground itself, before anything stands on it.
+    this.buildBattleGround(battle);
+
     // Camps: the ground each side is fighting from, and what "hold" means.
-    field.add(this.battleCamp(leftX, groundY + 16, INK_UI.jade));
     field.add(this.battleCamp(rightX, groundY + 16, rivalColor));
 
     const ours = ourHosts(this.state, battle);
     const theirs = theirHosts(this.state, battle);
     const lane = (index: number, count: number): number => groundY + (index - (count - 1) / 2) * 32;
 
+    const lines = this.battleLines(battle.ourAdvance, battle.theirAdvance);
     ours.forEach((host, index) => {
       const marker = this.battleItems!.createArmyMarker(
         hostSize(host), true, undefined, this.state.mapConfig.seed, hostKitFor(this.state, host),
       );
-      marker.setPosition(leftX + 30 + span * battle.ourAdvance, lane(index, ours.length));
+      marker.setPosition(lines.ourX, lane(index, ours.length));
       field.add(marker);
       ui.ourMarkers.push(this.trackMarker(host.id, marker));
     });
@@ -4684,7 +4917,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         Math.max(0, this.state.kingdoms.findIndex((k) => k.id === battle.kingdomId)),
         hostKitFor(this.state, host),
       );
-      marker.setPosition(rightX - 30 - span * battle.theirAdvance, lane(index, theirs.length));
+      marker.setPosition(lines.theirX, lane(index, theirs.length));
       field.add(marker);
       ui.theirMarkers.push(this.trackMarker(host.id, marker));
 
@@ -4726,9 +4959,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       // Midway between the two lines, computed from the advances rather than from marker
       // objects — with several hosts a side there is no single 'the line' to read a
       // position off any more.
-      const ourLine = leftX + 30 + span * battle.ourAdvance;
-      const theirLine = rightX - 30 - span * battle.theirAdvance;
-      const clash = this.ui.label(ourLine + (theirLine - ourLine) / 2, groundY - 44, t('ascent.battle.clash'), 'label', {
+      const { seam } = this.battleLines(battle.ourAdvance, battle.theirAdvance);
+      const clash = this.ui.label(seam, groundY - 44, t('ascent.battle.clash'), 'label', {
         fontSize: '22px', align: 'center',
       }).setOrigin(0.5);
       readout.add(clash);
@@ -4855,7 +5087,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // differently. That is the whole game of the ring: read them, then answer.
     const telegraph = battleTelegraph(this.state);
     const segW = (content.width - 12) / 3;
-    const segH = 50;
+    // Room for a title that wraps to two lines and still has its note under it. An assault's
+    // labels are the long ones, and they are what set this.
+    const segH = 56;
     const stance = (index: number, id: BattlePosture, selected: boolean): void => {
       const x = content.x + index * (segW + 6);
       const bounds = { x, y: dockY, width: segW, height: segH };
@@ -4863,10 +5097,14 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       orders.add(tile);
       const key = offence && id !== 'loose' ? `${id}Off` : id;
       const cinnabar = `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`;
-      orders.add(this.ui.label(x + segW / 2, dockY + 7, t(`ascent.battle.${key}` as Parameters<typeof t>[0]), 'label', {
-        fontSize: '12px', align: 'center', wordWrap: { width: segW - 6 },
+      // Measured, then the note is placed under whatever it turned out to be. An assault's labels
+      // are longer than a defence's — "Close under shields" against "Hold the line" — so a note at
+      // a fixed offset printed straight through the second line of the title.
+      const title = this.ui.label(x + segW / 2, dockY + 6, t(`ascent.battle.${key}` as Parameters<typeof t>[0]), 'label', {
+        fontSize: '11.5px', align: 'center', wordWrap: { width: segW - 8 },
         color: selected ? cinnabar : INK_UI_HEX.inkText,
-      }).setOrigin(0.5, 0));
+      }).setOrigin(0.5, 0);
+      orders.add(title);
       // Beats what they are about to do, or loses to it. Stated rather than left to be inferred
       // from a diagram the player has never seen.
       const beatsThem = telegraph !== undefined && posturesCounter(id, telegraph);
@@ -4874,8 +5112,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       const verdict = beatsThem ? t('ascent.battle.counters')
         : losesToThem ? t('ascent.battle.countered')
           : t(`ascent.battle.${key}Short` as Parameters<typeof t>[0]);
-      orders.add(this.ui.label(x + segW / 2, dockY + 28, verdict, 'caption', {
-        fontSize: '9.5px', align: 'center', wordWrap: { width: segW - 6 },
+      orders.add(this.ui.label(x + segW / 2, dockY + 6 + title.height + 1, verdict, 'caption', {
+        fontSize: '9px', align: 'center', wordWrap: { width: segW - 8 },
         color: beatsThem ? '#4c5f45' : losesToThem ? '#8a2a1b' : INK_UI_HEX.mutedText,
       }).setOrigin(0.5, 0));
       const hit = this.add.zone(x, dockY, segW, segH).setOrigin(0, 0).setInteractive({ useHandCursor: true });
@@ -4891,7 +5129,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     stance(2, 'press', battle.posture === 'press');
 
     // ── the four buttons ─────────────────────────────────────────────────
-    const rowY = dockY + segH + 8;
+    const rowY = dockY + segH + 6;
     const btnH = 44;
     const reserveMen = battle.reserve.spearmen + battle.reserve.archers + battle.reserve.heavyInfantry;
     const focused = theirHosts(this.state, battle).find((host) => host.id === battle.focusHostId);
@@ -5071,18 +5309,18 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     if (this.battleFieldSignature(battle) !== ui.fieldSignature) {
       this.buildBattleField(battle);
     } else {
-      const { leftX, rightX, span } = ui.geometry;
       // The shove is what contact looks like: once the lines meet they press into each other
       // instead of gliding, so the picture reads as a fight rather than a chart.
       const meeting = frame.ourAdvance + frame.theirAdvance >= 1;
+      const lines = this.battleLines(frame.ourAdvance, frame.theirAdvance);
       // Headcounts come off the beat being shown when there is one, so the strength stamped on a
       // column belongs to the same moment as the position it is standing in.
       const sizes = frame.hostMen ?? new Map(
         [...ourHosts(this.state, battle), ...theirHosts(this.state, battle)]
           .map((host) => [host.id, hostSize(host)] as const),
       );
-      this.slideMarkers(ui.ourMarkers, leftX + 30 + span * frame.ourAdvance, meeting ? 4 : 0, sizes);
-      this.slideMarkers(ui.theirMarkers, rightX - 30 - span * frame.theirAdvance, meeting ? -4 : 0, sizes);
+      this.slideMarkers(ui.ourMarkers, lines.ourX, meeting ? 4 : 0, sizes);
+      this.slideMarkers(ui.theirMarkers, lines.theirX, meeting ? -4 : 0, sizes);
     }
 
     this.buildBattleReadout(battle);
@@ -5137,7 +5375,10 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     for (let i = 0; i < take && queue.length > 0; i += 1) {
       ui.shown = queue.shift();
     }
-    if (ui.shown) this.spawnBattleFloaters(ui.shown);
+    if (ui.shown) {
+      this.spawnBattleFloaters(ui.shown);
+      this.layFallen(ui.shown);
+    }
   }
 
   /**
