@@ -4965,6 +4965,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       // rebuilt for it — otherwise "counters them" stays printed under a stance that no longer does.
       battleTelegraph(this.state) ?? '',
       battle.focusHostId ?? '',
+      // The hand-over chip is two chips wearing one slot, so the dock has to be rebuilt when the
+      // field changes hands or the button keeps offering the state it is already in.
+      battle.delegated ? 'd1' : 'd0',
       battle.reserveSpent ? 'r1' : 'r0',
       battle.rallySpent ? 'y1' : 'y0',
       reserveMen > 0 ? 'has' : 'none',
@@ -5290,11 +5293,17 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       accent: INK_UI.cinnabar,
       onTap: () => { this.releaseBattleHold(); this.events.emit('ui:battle-order', 'retreat'); },
     });
+    // One chip, two states, reversible mid-beat. Handing over is a way of playing rather than a
+    // way of skipping, so the way back has to be exactly as cheap as the way out.
+    const handedOver = Boolean(battle.delegated);
     buttons.push({
-      label: t('ascent.battle.autoShort'),
-      sub: t('ascent.battle.autoSub'),
-      accent: INK_UI.softBrush,
-      onTap: () => { this.releaseBattleHold(); this.events.emit('ui:battle-order', 'auto'); },
+      label: handedOver ? t('ascent.battle.takeField') : t('ascent.battle.autoShort'),
+      sub: handedOver ? t('ascent.battle.takeFieldNote') : t('ascent.battle.autoSub'),
+      accent: handedOver ? INK_UI.gold : INK_UI.softBrush,
+      onTap: () => {
+        this.releaseBattleHold();
+        this.events.emit('ui:battle-order', handedOver ? 'take-field' : 'auto');
+      },
     });
 
     const gap = 6;

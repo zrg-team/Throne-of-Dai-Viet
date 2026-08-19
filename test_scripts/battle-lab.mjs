@@ -121,6 +121,10 @@ const out = await page.evaluate(async (fights) => {
     // withdrawal (stragglers rejoin) from a field simply lost (they do not).
     let decision = 'hold';
     const generalMartial = policy.startsWith('general-') ? Number(policy.slice(8)) : 0;
+    if (generalMartial > 0) {
+      B.delegateBattle(st, true);
+      b.generalMartial = generalMartial;
+    }
 
     if (policy === 'always-charge') B.setBattlePosture(st, 'press');
     if (policy === 'always-loose') B.setBattlePosture(st, 'loose');
@@ -145,24 +149,14 @@ const out = await page.evaluate(async (fights) => {
         // is exactly the case `finishBattle` pays straggler recovery for.
         if (b.ourMorale <= CFG.BATTLE_ROUT_MORALE + 8) { decision = 'retreat'; b.over = true; break; }
       }
-      // A general holding the field. On the beats they read correctly they play the adaptive
-      // line; on the rest they hold and keep their one-shots in hand — which is what makes a
-      // poor commander lose slowly rather than catastrophically.
-      if (generalMartial > 0) {
-        const ours = st.armies.find((a) => a.id === 'lab-us');
-        const theirs = st.armies.find((a) => a.id === 'lab-them');
-        const met = b.ourAdvance + b.theirAdvance >= 1;
-        if (readsIt(generalMartial, guard, sc)) {
-          const next = B.battleTelegraph(st);
-          if (next) B.setBattlePosture(st, counterOf[next]);
-          if (met) {
-            if (!b.reserveSpent) B.commitReserve(st);
-            else if (!b.rallySpent && b.ourMorale < CFG.BATTLE_ROUT_MORALE + 12) B.rally(st);
-          }
-        } else {
-          B.setBattlePosture(st, 'hold');
-        }
-      }
+      // A general holding the field — the *shipped* one, not a lab-local imitation of one.
+      //
+      // This used to re-implement the commander here: read the telegraph on `martial`% of beats,
+      // otherwise `setBattlePosture('hold')`. That measured a model, and the model was wrong in a
+      // way that mattered — reverting the stance on every misread beat is worse than standing
+      // still, and it was the whole reason a martial-90 commander scored fourteen points below
+      // skilled play. `delegateBattle` hands the fight to `generalPlaysBeat`, so what the lab
+      // reports is what a delegating player actually gets.
       if (policy === 'counter-ring') {
         const next = B.battleTelegraph(st);
         if (next) B.setBattlePosture(st, counterOf[next]);

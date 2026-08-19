@@ -719,7 +719,7 @@ function raiseMoment(state: GameState, battle: AscentBattle, ours: Army[], their
     raisedAtBeat: battle.round,
     ticksLeft: BATTLE_MOMENT_TICKS,
     generalName: general ? general.name : undefined,
-    generalMartial: general ? general.stats.martial : 0,
+    generalMartial: general ? general.stats.martial : (battle.delegated ? battle.generalMartial ?? 45 : 0),
   };
 
   // One of each, at most. The cap is three and there are three kinds, so without this the first
@@ -816,6 +816,14 @@ export function fightRound(state: GameState): void {
   const ascent = state.ascent;
   const battle = ascent?.activeBattle;
   if (!ascent || !battle || battle.over) return;
+
+  // The commander gives their orders for this beat, if the field is theirs.
+  //
+  // Here rather than in `advanceBattle` because the beat is the unit a commander acts on, and
+  // because `advanceBattle` is not the only thing that runs a beat — `battle-lab` drives
+  // `fightRound` directly, so a general placed one level up simply never played and every martial
+  // value scored identically. A harness that cannot reach the code it is grading is not grading it.
+  if (battle.delegated) generalPlaysBeat(state, battle);
 
   // Read the field fresh each beat rather than holding references from when the fight opened.
   // That single choice is what makes reinforcement work: a host that marched in since the last
@@ -1048,6 +1056,76 @@ export function fightRound(state: GameState): void {
  * Called from the economy tick rather than from the view: the fight belongs to the world now,
  * so it carries on whether or not anyone is looking at it. The view animates what this produces.
  */
+/** The stance that answers each stance, as the ring defines it. */
+const COUNTER_OF: Record<BattlePosture, BattlePosture> = { press: 'hold', hold: 'loose', loose: 'press' };
+
+/**
+ * Whether the commander reads this beat correctly.
+ *
+ * `martial` is the share of beats they get right; on the rest they fall back to their habit. This
+ * is deliberately a hash rather than `Math.random`: every harness in the repo drives the same
+ * systems, and drawing here would shift the RNG order for every mode's fingerprint. The same
+ * commander in the same fight also has to make the same decisions twice, or two runs of the lab at
+ * one martial value measure noise.
+ */
+function generalReadsBeat(battle: AscentBattle, martial: number): boolean {
+  const h = Math.imul(((battle.round + 1) * 2654435761) ^ Math.round(battle.ourStart), 2246822519) >>> 0;
+  return (h % 100) < martial;
+}
+
+/**
+ * The commander's beat, when the player has handed over the field.
+ *
+ * A great commander reads the enemy's stance and answers it; a poor one holds what they have and
+ * keeps their one-shots in hand, which is what makes a bad appointment lose slowly rather than
+ * catastrophically. The one-shots are doctrine rather than a read — any commander commits the
+ * reserve once the lines have met — so they are spent on the beats they get right *and* wrong,
+ * only later when the read fails.
+ */
+function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
+  const martial = battle.generalMartial ?? 0;
+  const met = battle.ourAdvance + battle.theirAdvance >= 1;
+  if (generalReadsBeat(battle, martial)) {
+    const next = battleTelegraph(state);
+    if (next) setBattlePosture(state, COUNTER_OF[next]);
+    if (met) {
+      if (!battle.reserveSpent) commitReserve(state);
+      else if (!battle.rallySpent && battle.ourMorale < BATTLE_ROUT_MORALE + 12) rally(state);
+    }
+    return;
+  }
+  // Their habit. Not a reset to `hold`: reverting the stance every beat they misread is worse than
+  // standing still, and measured it cost a martial-90 commander fourteen points against skilled
+  // play. They keep the line they are already in and spend the reserve late.
+  if (met && !battle.reserveSpent && battle.ourNow <= battle.ourStart * 0.55) commitReserve(state);
+  if (met && battle.reserveSpent && !battle.rallySpent && battle.ourMorale < BATTLE_ROUT_MORALE + 6) rally(state);
+}
+
+/**
+ * Hands the rest of the engagement to whoever holds the field, or takes it back.
+ *
+ * Reversible on purpose, and mid-beat. The plan's rule for this switch is two states and one tap:
+ * a player who hands over because they are bored of a fight they are winning must be able to take
+ * the field back the moment it turns.
+ */
+export function delegateBattle(state: GameState, delegated: boolean): void {
+  const battle = state.ascent?.activeBattle;
+  if (!battle || battle.over) return;
+  battle.delegated = delegated;
+  if (!delegated) {
+    battle.log.push(t('ascent.battle.tookBack'));
+    return;
+  }
+  const general = state.heroes.find(
+    (hero) => hero.id === ourHosts(state, battle).find((host) => host.generalHeroId)?.generalHeroId,
+  );
+  battle.generalName = general?.name;
+  battle.generalMartial = general ? general.stats.martial : 45;
+  battle.log.push(general
+    ? t('ascent.battle.handedTo', { name: general.name })
+    : t('ascent.battle.handedToOfficers'));
+}
+
 export function advanceBattle(state: GameState): void {
   const battle = state.ascent?.activeBattle;
   if (!battle) return;
@@ -1055,6 +1133,9 @@ export function advanceBattle(state: GameState): void {
   // A Moment holds the fight. Without this the window is consumed inside the same burst that
   // opened it and the player never sees the question, let alone answers it.
   if (battle.moment) {
+    // A delegated fight does not hold the screen waiting for an answer nobody is going to give.
+    // The commander answers it now, at the quality their martial buys.
+    if (battle.delegated) battle.moment.ticksLeft = 0;
     if (ageMoment(state, battle)) return;
   }
 

@@ -1439,6 +1439,18 @@ export interface AscentBattle {
   /** Beats left on a bonus a Moment bought, and what it is worth while it lasts. */
   momentBonus?: { beats: number; dealt: number; morale: number };
   /**
+   * The fight is being run by whoever holds the field, not by the player.
+   *
+   * Handing over used to call `finishBattle` — a one-way door that ended the engagement on the
+   * spot and threw away the rest of it. It hands over the *remainder* now: the battlefield keeps
+   * running, the general takes the orders beat by beat, and the player can take the field back at
+   * any point. Delegation has to be a way of playing, not a way of skipping.
+   */
+  delegated?: boolean;
+  /** The commander holding the field, and how well they read a beat. */
+  generalName?: string;
+  generalMartial?: number;
+  /**
    * The fight as a queue of moments, oldest first — see `BattleBeat`.
    *
    * The simulation still runs `BATTLE_BEATS_PER_TICK` beats in one burst on the economy tick, and
