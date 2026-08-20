@@ -144,7 +144,13 @@ for (const [lang, h] of [['en', 844], ['vi', 844], ['vi', 620]]) {
   await page.mouse.click(390 - 6 - (34 * 2 + 2) + 17, h - 25);
   await page.waitForTimeout(600);
   await page.screenshot({ path: `test_scripts/shots/bar-paused-${lang}-${h}.png`, clip: { x: 0, y: h - 56, width: 390, height: 56 } });
-  const paused = await page.evaluate(() => Boolean(window.__mandateState?.isStrategyPause));
+  // Read off the scene, not off `window.__mandateState`. The bench bootstrap stops MenuScene and
+  // MenuScene clears that global on the way past, so under this harness it is reliably undefined
+  // while a run is quite happily running underneath — an assertion against it fails whatever the
+  // button did.
+  const paused = await page.evaluate(() => Boolean(
+    window.__phaserGame.scene.getScene('ConquestUIScene').state?.isStrategyPause,
+  ));
   if (!paused) fail(`${lang} h=${h}: pressing the bare pause mark did not stop the clock`);
 
   if (errors.length) fail(`${lang} h=${h}: console — ${errors.slice(0, 3).join(' | ')}`);

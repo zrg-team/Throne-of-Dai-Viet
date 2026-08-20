@@ -46,8 +46,31 @@ const ASCENT_KEYS = ['build', 'heroes', 'court', 'army', 'affairs', 'chronicle']
  */
 const ASCENT_SYSTEM_KEYS = ['pause', 'menu'] as const;
 
+/**
+ * The răng cưa band across the bar's top edge: where it starts, and how tall it is.
+ *
+ * Named rather than typed inline because the buttons are placed *from* it. It lost a unit of
+ * height when they were — 5 to 4 — which is the difference between the bar having six units of
+ * slack to spend on margins and having eight. At this size the tooth is two pixels either way and
+ * nothing about the drum reads differently; the four units of air it bought are visible.
+ */
+const BAND_TOP = 2;
+const BAND_HEIGHT = 4;
+/** Air between the band and the buttons, and between the buttons and the foot of the screen. */
+const BUTTON_CLEAR = 4;
+
 export const ACTION_BUTTON_HEIGHT = 36;
-export const ACTION_BUTTON_Y = GAME_HEIGHT - ACTION_BAR_HEIGHT / 2;
+/**
+ * The buttons' centre line — measured down from the band, not taken as the middle of the bar.
+ *
+ * `GAME_HEIGHT - ACTION_BAR_HEIGHT / 2` is what this was, and centring is exactly what went wrong:
+ * the bar is not symmetrical. It carries a hairline and a drum band across its top eight units and
+ * nothing at all across its bottom, so a 36-unit button centred in 50 units of bar starts at seven
+ * — one unit INSIDE the band — and the sawtooth ran through the top edge of every label. Placed
+ * from the band instead, the arithmetic has to add up and says so: 6 of band + 4 + 36 + 4 = 50.
+ */
+export const ACTION_BUTTON_Y = GAME_HEIGHT - ACTION_BAR_HEIGHT
+  + BAND_TOP + BAND_HEIGHT + BUTTON_CLEAR + ACTION_BUTTON_HEIGHT / 2;
 
 /**
  * Width of an icon-only system control, and the gap separating that cluster from the lanes.
@@ -198,7 +221,7 @@ export class ActionBar extends Phaser.GameObjects.Container {
     const band = scene.add.graphics();
     band.lineStyle(1, INK_UI.softBrush, 0.35);
     band.lineBetween(0, top + 0.5, GAME_WIDTH, top + 0.5);
-    sawtoothBand(band, 10, top + 3, GAME_WIDTH - 20, 5, 0.45);
+    sawtoothBand(band, 10, top + BAND_TOP, GAME_WIDTH - 20, BAND_HEIGHT, 0.45);
     this.add(band);
 
     scene.add.existing(this);
