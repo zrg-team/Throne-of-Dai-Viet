@@ -366,9 +366,12 @@ export class DongHoMapRenderer implements MapRenderer {
   private planRanges(tiles: LandscapeContext['tiles'], ctx: LandscapeContext): ReliefPlan[] {
     const plans: ReliefPlan[] = [];
     const relief = new Map<string, HexTerrainType>();
+    const wet = new Set<string>();
     for (const tile of tiles) {
       if (tile.terrain === 'mountains' || tile.terrain === 'hills') {
         relief.set(`${tile.coord.q},${tile.coord.r}`, tile.terrain);
+      } else if (tile.terrain === 'water') {
+        wet.add(`${tile.coord.q},${tile.coord.r}`);
       }
     }
     // A hex row below this one, in the pointy-top axial layout used by the map.
@@ -417,18 +420,34 @@ export class DongHoMapRenderer implements MapRenderer {
         const seed = Math.round(from.x * 3 + from.y);
         // A deeper massif stands taller, so a range reads as a body of rock rather than a wall.
         const depth = depthBehind(row[index].q, r);
+
+        // A range deliberately bleeds past the cells it was built from, which is what stops it
+        // reading as one peak per tile. Against water that bleed put whole massifs lying across
+        // the channel, so each end is pulled back in when the cell beyond it is wet, and the
+        // massif is kept short when the rows it would rise over are water.
+        const bleedLeft = wet.has(`${row[index].q - 1},${r}`) ? 0.12 : 1.1;
+        const bleedRight = wet.has(`${row[end].q + 1},${r}`) ? 0.12 : 1.1;
+        let risesOverWater = false;
+        for (let q = row[index].q; q <= row[end].q && !risesOverWater; q += 1) {
+          // The two cells a pointy-top hex sits under, one row back.
+          if (wet.has(`${q},${r - 1}`) || wet.has(`${q + 1},${r - 1}`)) {
+            risesOverWater = true;
+          }
+        }
+        const headroom = risesOverWater ? 0.45 : 1;
+
         if (terrain === 'mountains') {
           // 1.0 nominal, not 0.8: landforms sit outside the prop proportion system, and at 0.8
           // a front-row tower came out barely taller than the 18 px trees beside it — limestone
           // reading as shrubbery was the other half of "the mountains look unreal".
           plans.push(planKarstRange(
-            from.x - ctx.tileSize * 1.1, to.x + ctx.tileSize * 1.1,
-            from.y + ctx.tileSize * 0.8, ctx.tileSize * (1.0 + depth * 0.38), seed,
+            from.x - ctx.tileSize * bleedLeft, to.x + ctx.tileSize * bleedRight,
+            from.y + ctx.tileSize * 0.8, ctx.tileSize * (1.0 + depth * 0.38) * headroom, seed,
           ));
         } else {
           plans.push(planSoftRidge(
-            from.x - ctx.tileSize * 1.1, to.x + ctx.tileSize * 1.1,
-            from.y + ctx.tileSize * 0.7, ctx.tileSize * (0.26 + depth * 0.1), seed,
+            from.x - ctx.tileSize * bleedLeft, to.x + ctx.tileSize * bleedRight,
+            from.y + ctx.tileSize * 0.7, ctx.tileSize * (0.26 + depth * 0.1) * headroom, seed,
           ));
         }
         index = end + 1;
@@ -520,13 +539,37 @@ export class DongHoMapRenderer implements MapRenderer {
       return false;
     };
 
+    // The lattice is kept wherever paddy is *near*, which on a bank means the plots carry on over
+    // the channel — a paddy cell one hex inland is still within reach of open water. Nobody floods
+    // a bunded field on top of a river, so the water vetoes the plot the way the paddy grants it.
+    const wetCentres: Array<{ x: number; y: number }> = [];
+    for (const tile of tiles) {
+      if (tile.terrain === 'water') {
+        wetCentres.push(ctx.centreOf(tile));
+      }
+    }
+    // Vetoed on the plot's *body*, not its centre. `keep` is asked about a point, but a plot is
+    // drawn `tileSize · 0.58` across, so testing the centre against the bank left half a paddy
+    // lying in the channel — the same anchor-versus-body mistake the prop scatter made. Half a
+    // plot's width past the water's own reach is what actually keeps the fields on land.
+    const wetReach = reach + ctx.tileSize * 0.29;
+    const overWater = (x: number, y: number): boolean => {
+      for (const centre of wetCentres) {
+        if ((centre.x - x) ** 2 + (centre.y - y) ** 2 < wetReach * wetReach) {
+          return true;
+        }
+      }
+      return false;
+    };
+    const keepPlot = (x: number, y: number): boolean => nearPaddy(x, y) && !overWater(x, y);
+
     // The lattice itself is shared with the menu's far bank — same country, same hand.
     //
     // Plots a little larger than they were (0.5 -> 0.58 of a tile): the paddy's density of inked
     // bunds is what made it the loudest thing on the sheet, and fewer, bigger plots quiet it
     // without taking the field system apart.
     for (const plot of paddyLattice({
-      x0: minX, x1: maxX, y0: minY, y1: maxY, cell: ctx.tileSize * 0.58, seed: 7777, keep: nearPaddy,
+      x0: minX, x1: maxX, y0: minY, y1: maxY, cell: ctx.tileSize * 0.58, seed: 7777, keep: keepPlot,
     })) {
       drawFieldPlot(graphics, plot);
     }
@@ -550,7 +593,7 @@ export class DongHoMapRenderer implements MapRenderer {
 
     // Ground the scatter must leave alone: the seats, which draw their own groves and roofs, and
     // the limestone, whose faces are the drawing and not a place for trees to stand on.
-    const keepClear: Array<{ x: number; y: number; r: number }> = [];
+    const keepClear: Array<{ x: number; y: number; r: number; padByItem?: boolean }> = [];
 
     // Every settlement, not just the ones the generator happened to give fortress terrain. A farm,
     // a mine or a plain village renders through `addResourceCluster` on ordinary ground and was
@@ -571,6 +614,18 @@ export class DongHoMapRenderer implements MapRenderer {
         // halfway up a cliff face. The rock keeps its own ground.
         const centre = ctx.centreOf(tile);
         keepClear.push({ x: centre.x, y: centre.y, r: tileSize * 0.95 });
+      } else if (tile.terrain === 'water') {
+        // Water keeps its own surface, for exactly the reason the rock does. A scatter point is
+        // thrown up to 1.12 tile radii from its own centre against an inradius of 0.87, so about
+        // two points in five land outside the cell that spawned them — and the bank is where the
+        // trees are. Without this, a river through wooded country grows a wood in midstream.
+        //
+        // `padByItem` is what makes it actually work. Clearing the anchor alone still left canopies
+        // hanging over the channel: a tree whose trunk sits 2 units outside the bank is drawn many
+        // times wider than that. Water is the one surface where the overhang reads as wrong, so
+        // here the test is against the prop's own reach rather than its centre.
+        const centre = ctx.centreOf(tile);
+        keepClear.push({ x: centre.x, y: centre.y, r: tileSize * 0.95, padByItem: true });
       }
     }
 
@@ -611,7 +666,7 @@ export class DongHoMapRenderer implements MapRenderer {
     );
     for (const item of bySize) {
       const reach = FOOTPRINT[item.kind] * item.scale * unit * 0.5;
-      if (keepClear.some((zone) => Math.hypot(item.x - zone.x, item.y - zone.y) < zone.r)) {
+      if (keepClear.some((zone) => Math.hypot(item.x - zone.x, item.y - zone.y) < zone.r + (zone.padByItem ? reach : 0))) {
         continue;
       }
       let blocked = false;
@@ -878,6 +933,75 @@ export class DongHoMapRenderer implements MapRenderer {
     inkPath(graphics, points as Pt[], Math.round(points[0].x + points[0].y), {
       width: Math.max(1, widthFrom * 0.5), alpha: 0.24, colour: PIGMENT.nau, wobble: 1.4, step: 14,
     });
+  }
+
+  /**
+   * A timber footbridge — deck, two rails and its posts in the water.
+   *
+   * Drawn in nâu, the iron-brown of Trần ware that every other piece of timber on this map is
+   * drawn in, so a bridge reads as the same material as the houses it connects. Slightly bowed:
+   * a flat deck at this size reads as a plank dropped on the river rather than a thing built.
+   */
+  drawBridge(
+    graphics: Phaser.GameObjects.Graphics,
+    at: PixelPoint,
+    angle: number,
+    span: number,
+    roadWidth: number,
+  ): void {
+    const half = Math.max(6, span * 0.5 + 3);
+    const deckHalf = Math.max(2.4, roadWidth * 0.85);
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    // Along the bridge, then across it.
+    const along = (t: number): Pt => ({ x: at.x + cos * t, y: at.y + sin * t });
+    const across = (p: Pt, d: number): Pt => ({ x: p.x - sin * d, y: p.y + cos * d });
+    // The bow, lifted against the road's own direction of travel.
+    const rise = (t: number): number => -Math.cos((t / half) * (Math.PI / 2)) * half * 0.16;
+    const seed = Math.round(at.x + at.y * 3);
+
+    const railPoints = (side: number): Pt[] => {
+      const out: Pt[] = [];
+      for (let step = -3; step <= 3; step += 1) {
+        const t = (step / 3) * half;
+        const base = across(along(t), side * deckHalf);
+        out.push({ x: base.x, y: base.y + rise(t) });
+      }
+      return out;
+    };
+
+    // Posts first, so the deck sits on top of them.
+    for (const t of [-half * 0.55, 0, half * 0.55]) {
+      const foot = along(t);
+      const head = { x: foot.x, y: foot.y + rise(t) - deckHalf * 0.15 };
+      inkPath(graphics, [{ x: foot.x, y: foot.y + deckHalf * 1.1 }, head], seed + Math.round(t),
+        { width: 0.9, alpha: 0.4, colour: PIGMENT.nauDark, wobble: 0.8, step: 6 });
+    }
+
+    // The deck: a filled span between the two rail lines, so the water does not show through it.
+    const left = railPoints(-1);
+    const right = railPoints(1);
+    graphics.fillStyle(PIGMENT.nau, 0.5);
+    graphics.beginPath();
+    graphics.moveTo(left[0].x, left[0].y);
+    for (const p of left.slice(1)) graphics.lineTo(p.x, p.y);
+    for (const p of [...right].reverse()) graphics.lineTo(p.x, p.y);
+    graphics.closePath();
+    graphics.fillPath();
+
+    // Planking, then the two rails over it.
+    for (let step = -2; step <= 2; step += 1) {
+      const t = (step / 2.4) * half;
+      const p = along(t);
+      const lift = rise(t);
+      inkPath(graphics,
+        [across({ x: p.x, y: p.y + lift }, -deckHalf), across({ x: p.x, y: p.y + lift }, deckHalf)],
+        seed + step * 7, { width: 0.6, alpha: 0.3, colour: PIGMENT.nauDark, wobble: 0.5, step: 5 });
+    }
+    for (const rail of [left, right]) {
+      inkPath(graphics, rail, seed + Math.round(rail[0].x),
+        { width: 1.05, alpha: 0.55, colour: PIGMENT.nauDark, wobble: 0.9, step: 8 });
+    }
   }
 }
 

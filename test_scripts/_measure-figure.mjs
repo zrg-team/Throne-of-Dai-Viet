@@ -51,16 +51,18 @@ const rows = await page.evaluate(async () => {
   // Drawn at 1 / UNIT.figure so the prop's internal `s` lands on exactly 1.
   const at = 1 / UNIT.figure;
   const out = [];
-  for (const era of ['ly', 'tran', 'le', 'nguyen']) {
+  const THEMES = ['ly', 'tran', 'le', 'trinh', 'nguyenLord', 'tayson', 'nguyen',
+    'song', 'yuan', 'ming', 'qing', 'champa'];
+  for (const theme of THEMES) {
     for (const tier of [0, 1, 2]) {
-      for (const arm of ['spear', 'bow', 'heavy']) {
+      for (const arm of ['spear', 'sword', 'skirmish', 'bow', 'mounted']) {
         const g = make();
-        devices.figure(g, 0, 0, at, 0x2a2118, { era, tier, arm, accent: 0xb33a26 });
+        devices.figure(g, 0, 0, at, 0x2a2118, { theme, tier, arm, accent: 0xb33a26 });
         if (!g.pts.length) continue;
         const xs = g.pts.map((p) => p[0]);
         const ys = g.pts.map((p) => p[1]);
         out.push({
-          era, tier, arm,
+          era: theme, tier, arm,
           h: Math.max(...ys) - Math.min(...ys),
           w: Math.max(...xs) - Math.min(...xs),
         });
@@ -72,11 +74,15 @@ const rows = await page.evaluate(async () => {
 
 await browser.close();
 
-const tallest = rows.out.reduce((m, r) => (r.h > m.h ? r : m), rows.out[0]);
-const widest = rows.out.reduce((m, r) => (r.w > m.w ? r : m), rows.out[0]);
+const foot = rows.out.filter((r) => r.arm !== 'mounted');
+const horse = rows.out.filter((r) => r.arm === 'mounted');
+const tallest = foot.reduce((m, r) => (r.h > m.h ? r : m), foot[0]);
+const widest = foot.reduce((m, r) => (r.w > m.w ? r : m), foot[0]);
+const tallestRider = horse.reduce((m, r) => (r.h > m.h ? r : m), horse[0]);
+const widestRider = horse.reduce((m, r) => (r.w > m.w ? r : m), horse[0]);
 
 console.log('═══ figure(), measured at s = 1 ═══\n');
-console.log('era     tier arm      drawn h   drawn w');
+console.log('theme       tier arm        drawn h   drawn w');
 for (const r of rows.out) {
   console.log(`${r.era.padEnd(8)}${String(r.tier).padStart(2)}  ${r.arm.padEnd(7)}${r.h.toFixed(2).padStart(9)}${r.w.toFixed(2).padStart(10)}`);
 }

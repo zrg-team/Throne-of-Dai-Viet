@@ -12,7 +12,7 @@
  * |-----------|-------|---------------------------|----|-------|-----------------|
  * | grassTuft |   6.0 | a tuft of grass           |0.9 | 0.465 |   2.0 px        |
  * | buffalo   |  28.6 | a trâu at the shoulder    |1.5 | 0.293 |   6.0 px        |
- * | figure    |   6.6 | a soldier                 |1.7 | 0.794 |   6.8 px        |
+ * | figure    |   6.7 | a soldier                 |1.7 | 0.786 |   6.8 px        |
  * | farmer    |  15.3 | a farmer                  |1.7 | 0.344 |   6.8 px        |
  * | hayStack  |  26.0 | a cây rơm                 |3   | 0.358 |   6.7 px        |
  * | banana    |  18.6 | a chuối                   |4   | 0.667 |   8.9 px        |
@@ -91,11 +91,17 @@ export const UNIT = {
   // ── Living things ──
   // People carry one exaggeration between them, so the farmer in the paddy and the soldier in the
   // rank are the same height, and both stand lower than a roof.
-  // Re-measured after the wardrobe: the crowns and the spear both reach further than they did
-  // (6.2 -> 6.6 at s = 1, `_measure-figure.mjs`), so the correction comes down to keep a soldier
-  // standing 1.7 m. Measured, not estimated — the table's own header records what happened the
-  // last time these were guesses.
-  figure: 0.794 * LIVING,
+  // Re-measured twice, both times with `_measure-figure.mjs` and never by eye — the table's own
+  // header records what happened the last time these were guessed. The wardrobe's crowns took it
+  // from 6.2 to 6.6; rebuilding the figure to the document's geometry took it to 6.7, the tallest
+  // being a Lý royal guard with a levy's billhook.
+  //
+  // A **mounted** figure is deliberately not in this table. It measures 7.48 tall and 4.91 wide
+  // against a swordsman's 5.92 and 3.17 — a ratio of 1.26, which is exactly a rider at 2.4 m
+  // against a man at 1.9 m with his blade up. The pony is drawn inside `figure()`'s own coordinate
+  // system, so it inherits this correction and comes out at the right height by construction;
+  // giving it a row of its own would apply the correction twice.
+  figure: 0.786 * LIVING,
   farmer: 0.344 * LIVING,
   // A trâu is 1.5 m at the shoulder against a man's 1.7, so at the same exaggeration it lands just
   // under him — which is where it belongs, and nowhere near over him.
@@ -186,7 +192,7 @@ const METRES: Record<keyof typeof UNIT, number> = {
 const DRAWN: Record<keyof typeof UNIT, number> = {
   house: 18.4, dinh: 29.7, thap: 49.4, hayStack: 26,
   tree: 17.3, bamboo: 44.6, banana: 18.6, areca: 34.1, banyan: 33.3,
-  grassTuft: 6, figure: 6.6, farmer: 15.3, buffalo: 28.6,
+  grassTuft: 6, figure: 6.7, farmer: 15.3, buffalo: 28.6,
 };
 
 /**

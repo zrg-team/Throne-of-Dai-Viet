@@ -1,87 +1,115 @@
-// The wardrobe, all of it, on one sheet.
+// The wardrobe and the formation, drawn by the game itself.
 //
-// Four dynasties down, three tiers across, drawn at the scale a battlefield uses — and then the
-// same host at each era so the progression can be seen rather than described. A grid of soldiers
-// is the only honest way to check a figure: the numbers in `proportion.ts` say it is the right
-// size, and nothing but looking says it is the right *soldier*.
+// `docs/12-armies-of-dai-viet.html` draws every combination from a slot table; this draws the same
+// grids through the real `figure()` and `drawArmy()`, so the two can be put side by side and any
+// disagreement is visible rather than argued about. A grid of soldiers is the only honest way to
+// check a figure: `proportion.ts` says it is the right size, and nothing but looking says it is
+// the right *soldier*.
 //
-// Usage: DEV_URL=http://127.0.0.1:5199 node test_scripts/shot-wardrobe.mjs
+//   node test_scripts/shot-wardrobe.mjs             twelve themes x five arms
+//   node test_scripts/shot-wardrobe.mjs tiers       one theme, three tiers, five arms
+//   node test_scripts/shot-wardrobe.mjs hosts       one army in each of the five doctrines
+//   node test_scripts/shot-wardrobe.mjs dynasties   the same host as the dynasty changes
 import { chromium } from 'playwright';
-import { mkdirSync } from 'node:fs';
+import fs from 'node:fs';
 
-const BASE = process.env.DEV_URL ?? 'http://127.0.0.1:5173';
-mkdirSync('output/web-game', { recursive: true });
+const URL = process.env.PLAYTEST_URL || process.env.DEV_URL || 'http://localhost:5173';
+const MODE = process.argv[2] ?? 'themes';
+const OUT = 'test_scripts/shots';
 
 const browser = await chromium.launch();
-// The game lays out in 390 design units and `applyRenderScale` zooms the camera to match, so a
-// wider viewport simply falls outside it. High DPI instead: small figures, photographed large.
-const page = await browser.newPage({ viewport: { width: 390, height: 720 }, deviceScaleFactor: 3 });
+const page = await browser.newPage({ viewport: { width: 520, height: 1400 }, deviceScaleFactor: 2 });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-await page.goto(`${BASE}/?capture=1`, { waitUntil: 'domcontentloaded' });
-await page.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
-await page.waitForTimeout(800);
 
-await page.evaluate(async () => {
+await page.goto(`${URL}/?capture=1`, { waitUntil: 'networkidle' });
+await page.waitForFunction(
+  () => typeof window.__startBenchGame === 'function' && window.__phaserGame?.scene.isActive('MenuScene'),
+  null, { timeout: 30000 },
+);
+
+const drew = await page.evaluate(async (mode) => {
   const devices = await import('/src/ui/ink/devices.ts');
   const { PIGMENT } = await import('/src/ui/ink/palette.ts');
-  const scene = window.__phaserGame.scene.getScene('MenuScene');
+  const game = window.__phaserGame;
+  const scene = game.scene.getScene('MenuScene');
+  const W = game.scale.width, H = game.scale.height;
 
-  const layer = scene.add.container(0, 0).setDepth(9999);
-  const bg = scene.add.graphics();
-  bg.fillStyle(PIGMENT.diepHi, 1);
-  bg.fillRect(0, 0, 390, 760);
-  layer.add(bg);
+  // A clean sheet over whatever the menu is showing, so the plate is the only thing in frame.
+  const sheet = scene.add.graphics().setDepth(99998).setScrollFactor(0);
+  sheet.fillStyle(PIGMENT.diepHi, 1);
+  sheet.fillRect(0, 0, W, H);
+  const g = scene.add.graphics().setDepth(99999).setScrollFactor(0);
+  const label = (text, x, y, size = 10) => scene.add.text(x, y, text, {
+    fontFamily: 'serif', fontSize: `${size}px`, color: '#2a2118',
+  }).setDepth(100000).setScrollFactor(0);
 
-  const label = (x, y, text, size = 12) => {
-    const t = scene.add.text(x, y, text, {
-      color: '#2a2118', fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: `${size}px`,
-    });
-    layer.add(t);
-    return t;
-  };
+  const ARMS = ['spear', 'sword', 'skirmish', 'bow', 'mounted'];
+  const THEMES = ['ly', 'tran', 'le', 'trinh', 'nguyenLord', 'tayson', 'nguyen',
+    'song', 'yuan', 'ming', 'qing', 'champa'];
+  const DOCTRINES = ['balanced', 'spears', 'archers', 'shock', 'horse'];
+  let n = 0;
 
-  label(12, 10, 'THE WARDROBE', 13);
-  label(12, 26, 'four dynasties down, three tiers across', 9);
-
-  const eras = [['ly', 'Lý  · founding'], ['tran', 'Trần · rivalry'],
-    ['le', 'Later Lê · empires'], ['nguyen', 'Nguyễn · mandate']];
-  const tiers = [[0, 'levy'], [1, 'trained'], [2, 'royal guard']];
-  const arms = ['spear', 'bow', 'heavy'];
-
-  tiers.forEach(([, name], ti) => label(96 + ti * 100, 44, name.toUpperCase(), 8));
-
-  eras.forEach(([era, eraName], ei) => {
-    const y = 96 + ei * 74;
-    label(10, y - 30, eraName, 10);
-    tiers.forEach(([tier], ti) => {
-      arms.forEach((arm, ai) => {
-        const g = scene.add.graphics();
-        // 9x life size: a battlefield close-up, where every one of these marks is meant to read.
-        // Drawn at the scale a battlefield close-up uses. Larger than this and the ink
-        // strokes — which are a fixed share of the figure's height — merge into a blob.
-        devices.figure(g, 96 + ti * 100 + ai * 28, y, 3.4, PIGMENT.muc, {
-          era, tier, arm, accent: PIGMENT.son,
-        });
-        layer.add(g);
+  if (mode === 'tiers') {
+    ARMS.forEach((arm, r) => {
+      const y = 120 + r * 130;
+      label(arm, 6, y - 54, 11);
+      [0, 1, 2].forEach((tier, c) => {
+        const x = 110 + c * 92;
+        if (r === 0) label(['levy', 'trained', 'guard'][c], x - 20, 34, 11);
+        devices.figure(g, x, y, 7, PIGMENT.muc, { theme: 'tran', tier, arm, accent: PIGMENT.son });
+        n += 1;
       });
     });
-  });
-
-  // The same host, five hundred men, at each era — the progression, as a block.
-  label(10, 410, 'THE SAME HOST, AS THE DYNASTY CLIMBS', 9);
-  eras.forEach(([era], ei) => {
-    const g = scene.add.graphics();
-    devices.drawHost(g, 14 + ei * 94, 500, 500, 17, PIGMENT.muc, 1.5, {
-      era, tier: ei === 0 ? 0 : ei === 3 ? 2 : 1, accent: PIGMENT.son,
-      units: { spearmen: 300, archers: 140, heavyInfantry: 60 },
+  } else if (mode === 'hosts') {
+    // One army, five ways. The point is that the doctrine changes the formation's *shape*, so
+    // read the blocks and the ground between them, not the men.
+    DOCTRINES.forEach((composition, i) => {
+      const y = 130 + i * 196;
+      const shape = devices.armyShape(2420, composition, 2.0);
+      label(`${composition} — ${shape.marks} marks, ${shape.blocks.length} blocks`, 8, y - 106, 11);
+      devices.drawArmy(g, 150, y, 2420, 41, PIGMENT.muc, 2.0, {
+        theme: 'nguyen', tier: 1, accent: PIGMENT.son, composition,
+      });
+      shape.blocks.forEach((b) => {
+        label(`${b.key} ${b.marks}`, 190 + b.x, y + b.feet + 6, 7);
+      });
+      n += shape.marks;
     });
-    layer.add(g);
-  });
-});
+  } else if (mode === 'dynasties') {
+    // The same host as the dynasty changes: the progression, as a block.
+    ['ly', 'tran', 'le', 'nguyen', 'song', 'qing', 'champa'].forEach((theme, i) => {
+      const y = 150 + i * 178;
+      label(theme, 8, y - 84, 11);
+      devices.drawArmy(g, 150, y, 1600, 17, PIGMENT.muc, 1.7, {
+        theme, tier: i === 0 ? 0 : 1, accent: PIGMENT.son, composition: 'balanced',
+      });
+      n += 1;
+    });
+  } else {
+    THEMES.forEach((theme, r) => {
+      const y = 96 + r * 76;
+      label(theme, 4, y - 40, 10);
+      ARMS.forEach((arm, c) => {
+        const x = 92 + c * 62;
+        if (r === 0) label(arm, x - 20, 26, 9);
+        devices.figure(g, x, y, 4.6, PIGMENT.muc, { theme, tier: 1, arm, accent: PIGMENT.son });
+        n += 1;
+      });
+    });
+  }
+  scene.cameras.main.setScroll(0, 0);
+  game.step(0, 16);
+  return n;
+}, MODE);
 
-await page.waitForTimeout(700);
-await page.screenshot({ path: 'output/web-game/wardrobe.png' });
-console.log('wardrobe sheet written; errors:', errors.length ? errors.slice(0, 3) : 'none');
+await page.waitForTimeout(400);
+fs.mkdirSync(OUT, { recursive: true });
+const file = `${OUT}/wardrobe-${MODE}.png`;
+await page.locator('canvas').screenshot({ path: file });
+
+console.log(`drew ${drew} -> ${file}`);
+console.log('errors:', errors.length ? errors : 'none');
 await browser.close();
+process.exit(errors.length ? 1 : 0);
