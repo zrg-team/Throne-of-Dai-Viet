@@ -6,7 +6,7 @@ import { politicsCardTemplates } from '../data/politicsCards';
 import { OPENING_BOONS } from '../data/ascentCards';
 import { computeCentroid, computeNeighbors, generateHexMap, type HexTile, type MapGenConfig } from '../map/hexMapGenerator';
 import { hexKey, hexNeighbors } from '../map/hex';
-import { refreshAllLandOutputs } from '../systems/ResourceSystem';
+import { irrigationOf, refreshAllLandOutputs } from '../systems/ResourceSystem';
 import { refreshPlayerVisibility } from '../systems/LandSystem';
 import { createInitialCourtState } from '../systems/CourtSystem';
 import { recomputeOpinion } from '../systems/DiplomacySystem';
@@ -238,7 +238,14 @@ function createLands(mapConfig: MapGenConfig): { lands: Land[]; hexTiles: GameSt
     const hasVillage = !isWilderness && (summary.fortress > 0 || summary.shrine > 0 || buildingCapacity >= 2 || template.defense > 12);
     const grassTiles = summary.plains + summary.fields + summary.riceFields + summary.forest;
     const cityTiles = summary.fortress + summary.shrine;
-    const population = isWilderness ? 0 : Math.max(0, grassTiles * 7 + cityTiles * 15 + randomInt(20) - 5);
+    // Wet ground carries people. Irrigated paddy feeds more of them per hectare than any other
+    // pre-modern agriculture, which is why the Red River delta is one of the densest rural regions
+    // on earth — so the water a province holds decides how many households start on it, and that
+    // flows on into the humans it yields, its militia, and the noble power measured against it.
+    // This is the only place the game models population at all, so it is where the chain belongs.
+    const entry = water.get(template.id);
+    const peopleMult = 1 + 0.6 * irrigationOf(entry?.waterKinds ?? { river: 0, stream: 0, lake: 0 }, entry?.coastHexes ?? 0);
+    const population = isWilderness ? 0 : Math.max(0, Math.round((grassTiles * 7 + cityTiles * 15 + randomInt(20) - 5) * peopleMult));
     const localSoldiers = isWilderness ? 0 : Math.max(0, Math.floor(template.defense * 0.7) + randomInt(6));
     return {
       ...template,
@@ -392,7 +399,14 @@ function createCampaignLands(
     const hasVillage = !isWilderness && (summary.fortress > 0 || summary.shrine > 0 || buildingCapacity >= 2 || template.defense > 12);
     const grassTiles = summary.plains + summary.fields + summary.riceFields + summary.forest;
     const cityTiles = summary.fortress + summary.shrine;
-    const population = isWilderness ? 0 : Math.max(0, grassTiles * 7 + cityTiles * 15 + randomInt(20) - 5);
+    // Wet ground carries people. Irrigated paddy feeds more of them per hectare than any other
+    // pre-modern agriculture, which is why the Red River delta is one of the densest rural regions
+    // on earth — so the water a province holds decides how many households start on it, and that
+    // flows on into the humans it yields, its militia, and the noble power measured against it.
+    // This is the only place the game models population at all, so it is where the chain belongs.
+    const entry = water.get(template.id);
+    const peopleMult = 1 + 0.6 * irrigationOf(entry?.waterKinds ?? { river: 0, stream: 0, lake: 0 }, entry?.coastHexes ?? 0);
+    const population = isWilderness ? 0 : Math.max(0, Math.round((grassTiles * 7 + cityTiles * 15 + randomInt(20) - 5) * peopleMult));
     const localSoldiers = isWilderness ? 0 : Math.max(0, Math.floor(template.defense * 0.7) + randomInt(6));
     return {
       ...template,

@@ -1,0 +1,31 @@
+import { chromium } from 'playwright';
+import { mkdirSync } from 'node:fs';
+const BASE = process.env.DEV_URL ?? 'http://localhost:5179';
+const OUT = 'output/water-probe/doc'; mkdirSync(OUT, { recursive: true });
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+const boot = async (theme) => {
+  await page.goto(`${BASE}/?capture=1`, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
+  await page.evaluate((t) => localStorage.setItem('mandate:map-theme:v1', t), theme);
+  await page.evaluate(() => window.__startBenchGame(1337, 'campaign'));
+  await page.waitForFunction(() => window.__phaserGame.scene.isActive('MapScene'), null, { timeout: 30000 });
+  await page.waitForTimeout(2400);
+};
+const centreOnWater = async () => page.evaluate(() => {
+  const sc = window.__phaserGame.scene.getScene('MapScene'); const s = window.__mandateState;
+  const wet = s.hexTiles.filter(t=>t.terrain==='water'&&t.coord.r>8&&t.coord.r<44);
+  const t = wet[Math.floor(wet.length/2)]; if (!t) return;
+  const size = s.mapConfig.hexSize;
+  sc.cameras.main.centerOn(size*Math.sqrt(3)*(t.coord.q+t.coord.r/2)*1.72, size*1.5*t.coord.r*1.72);
+});
+const shoot = async (n) => { await page.waitForTimeout(700); await page.screenshot({ path: `${OUT}/${n}.png`, clip: { x: 0, y: 190, width: 390, height: 560 } }); console.log('shot', n); };
+const zoom = async (z) => { await page.evaluate((z)=>window.__phaserGame.scene.getScene('MapScene').cameras.main.setZoom(z), z); await page.waitForTimeout(900); };
+await boot('dong-ho'); await centreOnWater();
+await zoom(1.1); await shoot('a-river-mid');
+await zoom(2.2); await shoot('b-river-near');
+await page.evaluate(() => { const sc=window.__phaserGame.scene.getScene('MapScene'); const s=window.__mandateState;
+  const cap=s.lands.find(l=>l.ownerId==='player'||/player/i.test(l.ownerId??''))??s.lands[0];
+  sc.cameras.main.centerOn(cap.x*1.72, cap.y*1.72); });
+await zoom(1.3); await shoot('c-settled-ground');
+await browser.close();

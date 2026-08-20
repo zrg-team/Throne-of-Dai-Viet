@@ -8,7 +8,10 @@ export type LandBuildingType =
   | 'farm' | 'mine' | 'market' | 'wall' | 'tower' | 'barracks' | 'communalHall'
   // Era-unlocked advanced districts (empire mode): new economic levers that only become
   // available as the realm advances, so later eras genuinely expand what you can build.
-  | 'harbor' | 'workshop' | 'guild' | 'university';
+  | 'harbor' | 'workshop' | 'guild' | 'university'
+  // Đê điều. Flood control was a function of the throne, not a village project, and it was paid
+  // for in conscripted labour — which is why this one costs people to keep rather than only gold.
+  | 'dike';
 
 /**
  * A province's economic focus. Chosen by the player to tilt a district hard toward one
@@ -113,6 +116,17 @@ export interface Land {
   trust: Record<string, number>;
   /** Player-chosen economic focus for this province. Absent = 'balanced'. */
   specialization?: LandSpecialization;
+  /**
+   * The year this province stops paying for its last flood. Absent = it has not flooded.
+   *
+   * Held as a deadline rather than applied as a one-off delta so the loss shows in the province's
+   * standing output all year — a hit the player can read off the panel beats one they cannot trace.
+   */
+  floodedUntilYear?: number;
+  /** Economy tick the dry season stops biting. Absent = no drought. */
+  droughtUntilTurn?: number;
+  /** Fertility left behind by past floods, and lost to a dike. See `HydrologySystem`. */
+  silt?: number;
   /**
    * How far this province actually obeys the throne's standing law, 0–100 (empire/ascent only).
    *

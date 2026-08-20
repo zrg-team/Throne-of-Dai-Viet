@@ -21,6 +21,7 @@ import { maybeDrawForeignCard } from './ForeignEventSystem';
 import { isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import type { GameState } from '../state/types';
 import { advanceSeasonClock, greatPowersDue } from './seasonClock';
+import { tickHydrology } from './HydrologySystem';
 import { seasonLabel, t } from '../i18n';
 
 
@@ -40,7 +41,11 @@ export function advanceRealtimeMonth(state: GameState): void {
   progressPoliticsCooldown(state);
 
   state.turn += 1;
-  advanceSeasonClock(state);
+  const calendar = advanceSeasonClock(state);
+  // The monsoon only turns when the season does: floods in summer, drought in winter.
+  if (calendar.seasonTurned) {
+    tickHydrology(state);
+  }
 
   state.ordersRemaining = 3;
   if (!acquisitionCompleted && !buildCompleted) {

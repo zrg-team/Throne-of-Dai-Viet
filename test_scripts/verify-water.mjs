@@ -116,6 +116,61 @@ for (const seed of SEEDS) {
   check(`${tag}: permeable growth leaves the realm in one piece`, r.components === 1, `${r.components} components`);
 }
 
+// ── the economy ──────────────────────────────────────────────────────────
+await boot(1337, 'empire');
+const econ = await page.evaluate(async () => {
+  const s = window.__mandateState;
+  if (s.mandate) s.mandate.era = 'mandate';
+  const RS = await import('/src/systems/ResourceSystem.ts');
+  const H = await import('/src/systems/HydrologySystem.ts');
+
+  const rows = s.lands.map((l) => {
+    const w = RS.getWaterProfile(l);
+    const opts = RS.getBuildOptions(s, l) ?? [];
+    const find = (type) => opts.find((o) => o.type === type);
+    return {
+      name: l.name,
+      river: l.waterKinds.river, stream: l.waterKinds.stream, lake: l.waterKinds.lake,
+      coast: l.coastHexes, navigable: l.navigable,
+      irrigation: +w.irrigation.toFixed(2), seated: w.seated,
+      mult: +RS.getIrrigationMult(l).toFixed(3),
+      flood: +H.floodRisk(l).toFixed(2),
+      drought: H.droughtRisk(l),
+      dike: find('dike')?.canBuild ?? false,
+      harbour: find('harbor')?.canBuild ?? false,
+    };
+  });
+  return {
+    dry: rows.filter((r) => r.river + r.stream + r.lake === 0 && r.coast === 0),
+    riverLands: rows.filter((r) => r.river > 0),
+    seated: rows.filter((r) => r.seated),
+    unseated: rows.filter((r) => !r.seated && r.river > 0),
+    dikeable: rows.filter((r) => r.dike),
+    dikeOnDry: rows.filter((r) => r.dike && r.river === 0),
+    harbourable: rows.filter((r) => r.harbour),
+    floodExposed: rows.filter((r) => r.flood > 0),
+    droughtExposed: rows.filter((r) => r.drought),
+  };
+});
+
+console.log('');
+console.log('-- the water economy --');
+check('dry ground gets no irrigation at all', econ.dry.every((r) => r.mult === 1), econ.dry.length + ' dry provinces');
+check('every river province is worth more than dry ground', econ.riverLands.every((r) => r.mult > 1.2), econ.riverLands.length + ' river provinces');
+check('some ground is exposed to flooding', econ.floodExposed.length > 0, econ.floodExposed.length + ' provinces at risk');
+check('a dike needs a river to hold back', econ.dikeOnDry.length === 0, econ.dikeOnDry.length + ' dry provinces offered one');
+check('a dike can be built where there is a river', econ.dikeable.length > 0, econ.dikeable.length + ' provinces');
+check('a harbour can be built', econ.harbourable.length > 0, econ.harbourable.length + ' provinces');
+check('drought threatens ground with no reservoir', econ.droughtExposed.length > 0, econ.droughtExposed.length + ' provinces');
+// The port-or-paddy trade: a town on the water keeps less of it for the fields.
+if (econ.seated.length > 0 && econ.unseated.length > 0) {
+  const seatedAvg = econ.seated.reduce((a, r) => a + r.irrigation, 0) / econ.seated.length;
+  const freeAvg = econ.unseated.reduce((a, r) => a + r.irrigation, 0) / econ.unseated.length;
+  const seatedMult = econ.seated.reduce((a, r) => a + r.mult, 0) / econ.seated.length;
+  console.log('   seated ' + econ.seated.length + ' (irrigation ' + seatedAvg.toFixed(2) + ', mult ' + seatedMult.toFixed(3) + ')' +
+    ', unseated river ' + econ.unseated.length + ' (irrigation ' + freeAvg.toFixed(2) + ')');
+}
+
 console.log(errors.length ? `\n${errors.slice(0, 6).join('\n')}` : '\nno console errors');
 if (errors.length) failures += 1;
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);

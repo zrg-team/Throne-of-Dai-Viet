@@ -53,6 +53,7 @@ import {
 import { currentTaxRate, taxGoldMult, taxGrowthDelta, taxStabilityBase } from './TaxSystem';
 import type { BuildOrder, EraId, GameState, Land, LandBuildingType, LandSpecialization, ResourceBag, ResourceKey, Season } from '../state/types';
 import { buildingLabel, buildBuildingLabel, formatResourceList, resourceLabel, t } from '../i18n';
+import { siltBonus, weatherFoodMult } from './HydrologySystem';
 
 export type BuildingCategory = 'production' | 'military' | 'public';
 
@@ -111,6 +112,7 @@ export interface PublicBuildingEffects {
 }
 
 export const BUILDING_LABELS: Record<LandBuildingType, string> = {
+  dike: 'Build Dike',
   farm: 'Build Farm',
   mine: 'Build Mine',
   market: 'Build Market',
@@ -125,7 +127,7 @@ export const BUILDING_LABELS: Record<LandBuildingType, string> = {
 };
 
 const RESOURCE_KEYS: ResourceKey[] = ['food', 'supplies', 'gold', 'humans'];
-const BUILDING_ORDER: LandBuildingType[] = ['farm', 'mine', 'market', 'harbor', 'workshop', 'guild', 'university', 'wall', 'tower', 'barracks', 'communalHall'];
+const BUILDING_ORDER: LandBuildingType[] = ['farm', 'mine', 'market', 'harbor', 'workshop', 'guild', 'university', 'dike', 'wall', 'tower', 'barracks', 'communalHall'];
 const PRODUCTION_BUILDINGS = new Set<LandBuildingType>(['farm', 'mine', 'market', 'harbor', 'workshop', 'guild']);
 
 // Levels 1..5. Output climbs steeply so a developed district is a real investment,
@@ -239,6 +241,18 @@ export const BUILDING_ECONOMY: Record<LandBuildingType, BuildingEconomySpec> = {
     output: { gold: 15, supplies: 2 },
     upkeep: { gold: 2, food: 1 },
   },
+  dike: {
+    type: 'dike',
+    category: 'public',
+    baseCost: { gold: 70, supplies: 18 },
+    buildLabor: 4,
+    buildTicks: 4,
+    laborPerLevel: 0,
+    output: {},
+    // Corvée. The dikes stood because the state conscripted the labour to keep them standing, and
+    // that is the real price of safety here — a standing draw on people, not a one-off in gold.
+    upkeep: { humans: 1 },
+  },
   university: {
     type: 'university',
     category: 'public',
@@ -255,6 +269,7 @@ export const BUILDING_ECONOMY: Record<LandBuildingType, BuildingEconomySpec> = {
 export const BUILDING_ERA_REQUIREMENT: Partial<Record<LandBuildingType, EraId>> = {
   harbor: 'rivalry',
   workshop: 'rivalry',
+  dike: 'rivalry',
   guild: 'empires',
   university: 'mandate',
 };
@@ -780,7 +795,14 @@ export function calculateLandOutputs(state: GameState, land: Land, efficiency = 
   // river delta. Counting is what lets a good site actually be a good site, and it is the same
   // reading `getLandAptitude` uses, so the number the focus selector shows matches what is paid.
   const ts = land.terrainSummary;
-  const waterBonus = Math.min(4, ts.water * 1.2);
+  // Water used to be three yes/no questions worth a flat +2 each, then a pair of capped adds. Both
+  // shapes made a province with one wet hex worth as much as a delta. It is a multiplier now — see
+  // `getWaterProfile` — so how much water a province has, and who has taken its bank, both matter.
+  const water = getWaterProfile(land);
+  // Silt is the flood's compensation, and a dike takes it away along with the flood — the trade the
+  // whole mechanic exists for, and what actually happened to the Red River's diked plain.
+  const irrigationMult = getIrrigationMult(land) + siltBonus(land);
+  const weatherMult = weatherFoodMult(state, land);
   const riceBonus = Math.min(4, (ts.riceFields + ts.fields * 0.5) * 0.6);
   const mountainBonus = Math.min(4, ts.mountains * 0.7 + ts.hills * 0.3);
 
@@ -802,19 +824,26 @@ export function calculateLandOutputs(state: GameState, land: Land, efficiency = 
 
     const multiplier = outputMultiplier(building.level) * efficiency;
     if (building.type === 'farm') {
-      outputs.food += (spec.output.food ?? 0) * multiplier + (waterBonus + riceBonus) * multiplier;
+      outputs.food += ((spec.output.food ?? 0) * irrigationMult + riceBonus) * multiplier * weatherMult;
     } else if (building.type === 'mine') {
       outputs.supplies += ((spec.output.supplies ?? 0) + mountainBonus) * multiplier;
       outputs.gold += (spec.output.gold ?? 0) * multiplier;
     } else if (building.type === 'market') {
       const marketMult = land.ownerId === PLAYER_KINGDOM_ID ? getCourtBonuses(state).marketGoldOutputMult : 1;
-      outputs.gold += ((spec.output.gold ?? 0) + roads * 2) * multiplier * marketMult * tradeMult;
+      // The waterfront, if the town has taken one. A landing that reaches the sea is worth far more
+      // than a ferry across the local channel, and an empty bank earns nothing at all.
+      const wharf = water.seated ? (water.navigable ? 1.35 : 1.1) : 1;
+      outputs.gold += ((spec.output.gold ?? 0) + roads * 2) * multiplier * marketMult * tradeMult * wharf;
       outputs.supplies += ((spec.output.supplies ?? 0) + Math.floor(roads / 2)) * multiplier;
     } else {
-      // Advanced production districts (harbor / workshop / guild): gold flows through the
-      // trade network, other yields scale with level. Harbor also rides the local water bonus.
-      const harborWater = building.type === 'harbor' ? waterBonus * multiplier : 0;
-      outputs.gold += (spec.output.gold ?? 0) * multiplier * tradeMult;
+      // Advanced production districts (harbor / workshop / guild): gold flows through the trade
+      // network, other yields scale with level. A harbour rides its own water: freight down the
+      // river, and a hull that can reach the mouth can reach any coast.
+      const harborWater = building.type === 'harbor'
+        ? (Math.min(4, water.riverHexes * 0.5) + land.coastHexes * 0.4) * multiplier
+        : 0;
+      const seaTrade = building.type === 'harbor' && water.navigable ? 1.35 : 1;
+      outputs.gold += (spec.output.gold ?? 0) * multiplier * tradeMult * seaTrade;
       outputs.supplies += ((spec.output.supplies ?? 0) * multiplier) + harborWater;
       outputs.food += (spec.output.food ?? 0) * multiplier;
     }
@@ -839,6 +868,94 @@ export function calculateLandOutputs(state: GameState, land: Land, efficiency = 
 
   return outputs;
 }
+
+/**
+ * What a province's water is worth to it, and in which currency.
+ *
+ * In a wet-rice civilisation water is not a bonus, it is the limiting factor of food, and food is
+ * the limiting factor of everything else. The chain that actually ran Dai Viet is short and it is
+ * not about coin: water -> rice -> people -> soldiers. Irrigated paddy feeds more people per
+ * hectare than any other pre-modern agriculture, which is why the Red River delta became one of
+ * the densest rural regions on earth and why a dynasty counted its power in registered households.
+ *
+ * So this is a multiplier on ground that is already under crop, not a flat addition — and the
+ * payoff depends on what stands beside the water, because a province can only take one of the two:
+ *
+ *   a town on navigable water  ->  a landing. Gold and freight, and the only ground a harbour can
+ *                                  stand on. The waterfront is spoken for.
+ *   a town on water that goes nowhere -> a ferry, a mill, a fishing landing. Real, local, small.
+ *   water with no town on it   ->  nobody has taken the bank, so all of it goes to the fields.
+ *
+ * You cannot have the port and the full paddy from the same stretch of river. That is the point.
+ */
+export interface WaterProfile {
+  /** 0 = dry, 1 = as wet as ground gets. Scales the crop, the people, and nothing else directly. */
+  irrigation: number;
+  /** Has a settlement taken the waterfront? Trades grain for coin. */
+  seated: boolean;
+  /** Can a hull reach the sea from here? A stream never can, at any length. */
+  navigable: boolean;
+  /** River hexes, for freight and for flood risk. */
+  riverHexes: number;
+}
+
+/**
+ * The irrigation term alone, from the raw counts.
+ *
+ * Split out from `getWaterProfile` because world-gen needs it before a `Land` exists: how wet a
+ * province is decides how many people it starts with, and that is the whole water -> rice -> people
+ * chain expressed in the one place this game actually models population.
+ */
+export function irrigationOf(waterKinds: Land['waterKinds'], coastHexes: number): number {
+  const { river, stream, lake } = waterKinds;
+
+  // A delta is a river that has arrived: river water AND a coast in the same province.
+  let irrigation = 0;
+  if (river > 0) {
+    irrigation = coastHexes > 0 ? 0.9 : 0.7;
+  } else if (stream > 0) {
+    irrigation = 0.35;
+  }
+  // A lake is a reservoir; it holds water through the dry months when a channel will not.
+  if (lake > 0) {
+    irrigation += 0.2;
+  }
+  // Salt intrusion. A coast with no river behind it is poorer paddy ground, not richer — which is
+  // why the coastline alone was never the prize.
+  if (river === 0 && coastHexes > 0) {
+    irrigation -= 0.25;
+  }
+  return Math.max(0, Math.min(1, irrigation));
+}
+
+export function getWaterProfile(land: Land): WaterProfile {
+  const { river, stream, lake } = land.waterKinds;
+  return {
+    irrigation: irrigationOf(land.waterKinds, land.coastHexes),
+    seated: land.hasVillage && river + stream + lake > 0,
+    navigable: land.navigable,
+    riverHexes: river,
+  };
+}
+
+/**
+ * The multiplier a farm's food output rides.
+ *
+ * Deliberately *not* scaled by how much of the province is already paddy. An earlier version
+ * multiplied by that share as well, on the theory that irrigation only pays where something grows —
+ * but `spec.output.food` is the yield of a farm you have chosen to build, and a farm is crop by
+ * definition. Scaling by the province's paddy share on top of it counts the same fact twice and
+ * left a river worth about 7% on average, which is not worth crossing a map for. The province's
+ * paddy-richness is already priced separately, in `riceBonus`.
+ *
+ * `seated` costs the province 40% of its irrigation: the town has taken the bank, the boats and
+ * the warehouses, and the fields get what is left. That is the whole port-or-paddy trade.
+ */
+export function getIrrigationMult(land: Land): number {
+  const water = getWaterProfile(land);
+  return 1 + water.irrigation * (water.seated ? 0.6 : 1);
+}
+
 
 function getBuildingLaborRequired(state: GameState): number {
   let required = 0;
@@ -1484,7 +1601,7 @@ export function getBuildOptions(state: GameState, land: Land): BuildOption[] {
     const spec = BUILDING_ECONOMY[type];
     const terrainReason = getBuildingTerrainBlocker(land, type);
     const capacityReason = land.buildings.length >= land.buildingCapacity ? t('reason.noCapacity') : undefined;
-    const singletonTypes: LandBuildingType[] = ['wall', 'tower', 'barracks', 'communalHall', 'harbor', 'workshop', 'guild', 'university'];
+    const singletonTypes: LandBuildingType[] = ['wall', 'tower', 'barracks', 'communalHall', 'harbor', 'workshop', 'guild', 'university', 'dike'];
     const duplicateReason = type === 'market' && land.buildings.filter((building) => building.type === 'market').length >= getMarketLimit(land)
       ? t('reason.marketLimit')
       : singletonTypes.includes(type) && land.buildings.some((building) => building.type === type)
@@ -1721,6 +1838,10 @@ function getBuildingTerrainBlocker(land: Land, building: LandBuildingType): stri
     const oreTiles = land.terrainSummary.mountains + land.terrainSummary.hills;
     const existingMines = land.buildings.filter((candidate) => candidate.type === 'mine').length;
     return oreTiles >= (existingMines + 1) * 3 ? undefined : t('reason.needOre');
+  }
+
+  if (building === 'dike') {
+    return land.waterKinds.river > 0 ? undefined : t('reason.needRiver');
   }
 
   if (building === 'harbor') {
