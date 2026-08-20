@@ -4,6 +4,7 @@
  */
 import Phaser from 'phaser';
 import { buildRoadCurve } from '../../map/roadCurve';
+import { axialToPixel } from '../../map/hex';
 import { faceTravel, type Walkable } from '../../ui/ink/life';
 import { hashString } from '../../utils/math';
 import { trafficPerRoad } from '../../game/lifeSettings';
@@ -219,9 +220,139 @@ export class TrafficRenderer {
     this.moverSpans.set(key, { x1: start.x, y1: start.y, x2: end.x, y2: end.y });
   }
 
+  /**
+   * Every water hex's world centre, bucketed by a tile-sized grid.
+   *
+   * Roads are splines between settlement anchors and have no idea what they pass over, so asking
+   * "is this point on water" has to be answered geometrically. A bucket keeps it to nine lookups
+   * instead of a walk of every wet cell on the map, which matters because a redraw asks it a few
+   * thousand times.
+   */
+  private waterIndex(state: GameState, wx: WorldTransform, wy: WorldTransform): {
+    cell: number;
+    at(x: number, y: number): boolean;
+  } {
+    const hexSize = state.mapConfig.hexSize;
+    const cell = Math.max(1, hexSize * 1.72);
+    const buckets = new Map<string, Array<{ x: number; y: number }>>();
+    for (const tile of state.hexTiles) {
+      if (tile.terrain !== 'water') {
+        continue;
+      }
+      const pixel = axialToPixel(tile.coord, hexSize);
+      const point = { x: wx(pixel.x), y: wy(pixel.y) };
+      const key = `${Math.floor(point.x / cell)}:${Math.floor(point.y / cell)}`;
+      const list = buckets.get(key);
+      if (list) {
+        list.push(point);
+      } else {
+        buckets.set(key, [point]);
+      }
+    }
+    // The hex inradius. This was half of it, which made every wet run measure short and left the
+    // bridges as planks in midstream instead of crossings that reach both banks.
+    const reach = cell * (Math.sqrt(3) / 2);
+    return {
+      cell,
+      at: (x, y) => {
+        const bx = Math.floor(x / cell);
+        const by = Math.floor(y / cell);
+        for (let ox = -1; ox <= 1; ox += 1) {
+          for (let oy = -1; oy <= 1; oy += 1) {
+            for (const point of buckets.get(`${bx + ox}:${by + oy}`) ?? []) {
+              if (Math.hypot(x - point.x, y - point.y) <= reach) {
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      },
+    };
+  }
+
+  /**
+   * Puts a crossing wherever a road runs over water.
+   *
+   * Samples the road, finds each unbroken run of wet samples, and hands the theme the middle of
+   * that run with the road's bearing through it. A road that only clips a corner of one cell is
+   * left alone — a bridge for two sample points is a plank in a puddle.
+   */
+  private drawCrossings(
+    graphics: Phaser.GameObjects.Graphics,
+    curve: Phaser.Curves.Spline,
+    water: { cell: number; at(x: number, y: number): boolean },
+    roadWidth: number,
+  ): void {
+    if (!this.mapRenderer.drawBridge) {
+      return;
+    }
+    const points = curve.getSpacedPoints(64);
+    let runStart = -1;
+    const spans: Array<{ from: number; to: number }> = [];
+    for (let index = 0; index < points.length; index += 1) {
+      const wet = water.at(points[index].x, points[index].y);
+      if (wet && runStart < 0) {
+        runStart = index;
+      } else if (!wet && runStart >= 0) {
+        spans.push({ from: runStart, to: index - 1 });
+        runStart = -1;
+      }
+    }
+    if (runStart >= 0) {
+      spans.push({ from: runStart, to: points.length - 1 });
+    }
+
+    // One crossing per road, and it has to reach both banks.
+    //
+    // The deck is measured from the last dry sample BEFORE the water to the first dry sample
+    // AFTER it, not across the wet run — a deck sized to the water alone stops at the waterline
+    // and reads as a raft moored midstream. Bank to bank is what makes it a bridge.
+    //
+    // Three things disqualify a span. A road running *along* a bank is wet for its whole length
+    // and is not a crossing (`maxSpan`). A road meeting a wide channel at a shallow angle dips in
+    // and out repeatedly, so only the longest span on a road is built — otherwise the decks chain
+    // into what looks like a plank laid down the valley. And water narrow enough to step over gets
+    // nothing at all: a cart fords a stream, and a bridge over two metres of water looks absurd.
+    const maxSpan = water.cell * 6;
+    const minSpan = water.cell * 0.9;
+
+    let best: { from: number; to: number; length: number } | undefined;
+    for (const span of spans) {
+      const length = Math.hypot(
+        points[span.to].x - points[span.from].x,
+        points[span.to].y - points[span.from].y,
+      );
+      if (length < minSpan || length > maxSpan) {
+        continue;
+      }
+      if (!best || length > best.length) {
+        best = { from: span.from, to: span.to, length };
+      }
+    }
+    if (!best) {
+      return;
+    }
+
+    // Step back to dry ground on each side. Clamped to the ends of the road, so a crossing right
+    // at a settlement still gets a deck rather than running off the end of the curve.
+    const landward = Math.max(0, best.from - 1);
+    const seaward = Math.min(points.length - 1, best.to + 1);
+    const a = points[landward];
+    const b = points[seaward];
+    const midIndex = Math.round((landward + seaward) / 2);
+    const mid = points[midIndex];
+    const ahead = points[Math.min(points.length - 1, midIndex + 1)];
+    const behind = points[Math.max(0, midIndex - 1)];
+    const angle = Math.atan2(ahead.y - behind.y, ahead.x - behind.x);
+    this.mapRenderer.drawBridge(graphics, mid, angle, Math.hypot(b.x - a.x, b.y - a.y), roadWidth);
+  }
+
   /** Draws dirt roads connecting each land's settlement (village/city/castle/mine) to its neighbors. */
   drawConnections(state: GameState, wx: WorldTransform, wy: WorldTransform, getAnchor: SettlementAnchor): Phaser.GameObjects.Graphics {
     const graphics = this.scene.add.graphics();
+    const water = this.waterIndex(state, wx, wy);
+    const crossings: Array<{ curve: Phaser.Curves.Spline; width: number }> = [];
 
     for (const land of state.lands) {
       for (const neighborId of land.neighbors) {
@@ -241,7 +372,13 @@ export class TrafficRenderer {
         const to = getAnchor(neighbor);
         const curve = buildRoadCurve(state, from, to, `${land.id}|${neighbor.id}`, wx, wy);
         this.drawRoad(graphics, curve, this.roadWidth(land), this.roadWidth(neighbor));
+        crossings.push({ curve, width: Math.max(this.roadWidth(land), this.roadWidth(neighbor)) });
       }
+    }
+
+    // Every bridge after every road, so a crossing is never buried under the next road drawn.
+    for (const crossing of crossings) {
+      this.drawCrossings(graphics, crossing.curve, water, crossing.width);
     }
 
     return graphics;

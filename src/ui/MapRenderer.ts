@@ -61,6 +61,22 @@ export interface MapRenderer {
   drawRoad(graphics: Phaser.GameObjects.Graphics, points: PixelPoint[], widthFrom: number, widthTo: number): void;
 
   /**
+   * A crossing where a road meets water.
+   *
+   * Roads are drawn between settlement anchors and have never known what they pass over, so a
+   * road that met a river simply ran into it and out the other side. `TrafficRenderer` now finds
+   * those spans and asks the theme to put something there. `at` is the middle of the wet run,
+   * `angle` the road's bearing through it, `span` how much water it covers.
+   */
+  drawBridge?(
+    graphics: Phaser.GameObjects.Graphics,
+    at: PixelPoint,
+    angle: number,
+    span: number,
+    roadWidth: number,
+  ): void;
+
+  /**
    * Draws the whole landscape in one pass instead of tile by tile.
    *
    * A renderer that implements this owns terrain entirely and `MapScene` skips its per-hex loop.
