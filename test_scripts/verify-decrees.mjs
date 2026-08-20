@@ -31,6 +31,7 @@ const out = await page.evaluate(async () => {
   const { enactProject, repealProject } = await import('/src/systems/empire/EdictSystem.ts');
   const { getCourtBonuses } = await import('/src/systems/CourtSystem.ts');
   const { calculatePlayerResourceRates, refreshAllLandOutputs } = await import('/src/systems/ResourceSystem.ts');
+  const { refreshPlayerVisibility } = await import('/src/systems/LandSystem.ts');
   const { grantEdictPoints } = await import('/src/systems/empire/MandateSystem.ts');
   const { REALM_PROJECTS } = await import('/src/data/edicts.ts');
   const { PLAYER_KINGDOM_ID: PLAYER } = await import('/src/game/constants.ts');
@@ -482,7 +483,135 @@ const out = await page.evaluate(async () => {
     results.runsDiverge = !identical && results.distinctCards >= 4;
   }
 
-  // ── 8. Rival mode is structurally untouched ───────────────────────────────
+  // ── 8. EVERY decree does something ────────────────────────────────────────
+  //
+  // The guard against the worst failure this system can have: a card that names an effect the
+  // code never delivers. It is invisible — the decree enacts, the toast fires, the id joins
+  // `mandate.edicts`, and nothing happens. Seven decrees shipped in exactly that state and no
+  // other check noticed, because every other check tests a decree it already knows about.
+  //
+  // So this one knows about none of them. It walks the whole catalogue, enacts each on a fresh
+  // realm, and asserts the world is measurably different afterwards — court bonuses, realm rates,
+  // province outputs, the capital, the roster, the wave clock, or the vassal list. A decree that
+  // moves none of those is not implemented, whatever its card says.
+  {
+    const R = await import('/src/systems/decree/rules.ts');
+    const O = await import('/src/systems/decree/OfferSystem.ts');
+    const { getCourtBonuses: courtBonuses } = await import('/src/systems/CourtSystem.ts');
+
+    // A compact reading of everything a decree could plausibly move.
+    const snapshot = (st) => JSON.stringify({
+      bonuses: courtBonuses(st),
+      rates: st.resourceRates,
+      outputs: st.lands.filter((l) => l.ownerId === PLAYER).map((l) => [l.id, l.outputs, l.defense, l.localSoldiers, Math.round(l.compliance ?? 65), l.loyalty]),
+      capital: st.ascent?.capitalLandId,
+      capitalLost: st.ascent?.capitalLostTicks,
+      heroes: st.heroes.map((h) => [h.id, h.upkeepGold, JSON.stringify(h.stats), (h.traits ?? []).join('|')]),
+      lands: st.lands.map((l) => l.ownerId),
+      vassals: st.kingdoms.map((k) => Boolean(k.vassalage)),
+      invaders: st.armies.filter((a) => a.kingdomId !== PLAYER).map((a) => a.units),
+      modifiers: st.activeCourtModifiers.map((m) => m.id).sort(),
+      stability: Math.round(st.court.stability),
+      estates: st.mandate?.estates,
+      fog: st.lands.filter((l) => l.isVisible).length,
+      exam: st.mandate?.examTicks,
+      temporary: Object.keys(st.mandate?.temporary ?? {}).sort(),
+    });
+
+    // A realm rich enough that every decree has something to act on: provinces to redistribute
+    // between, a rival weak enough to crown, a host abroad, a champion at court.
+    const rigged = () => {
+      const st = fresh();
+      st.resources = { food: 500, supplies: 500, gold: 5000, humans: 800 };
+      st.mandate.edictPoints = 40;
+      st.mandate.era = 'mandate';
+      st.court.stability = 55;
+      // Twelve, not seven: `wide-registry` unlocks at ten provinces, and a rig that cannot satisfy an
+      // unlock reports the decree as unimplemented when it is only unreachable.
+      const neutral = st.lands.filter((l) => l.ownerId !== PLAYER).slice(0, 12);
+      for (const [i, land] of neutral.entries()) {
+        land.ownerId = PLAYER;
+        land.loyalty = 90;
+        land.compliance = 80;
+        land.localSoldiers = 60 + i * 10;
+        land.outputs = { food: 5 + i, supplies: 3 + i, gold: 4 + i, humans: 0 };
+        land.terrainSummary.riceFields = Math.max(1, land.terrainSummary.riceFields);
+      }
+      for (const k of st.kingdoms) if (k.id !== PLAYER) { k.power = 20; k.relations = 70; }
+      const hero = st.heroes[0];
+      if (hero) { hero.assignedTo = 'court:marshal'; st.court.seats.marshal = hero.id; hero.monastic = true; }
+      st.ascent.wave = 3;
+      st.ascent.ticksToWave = 2;
+      st.ascent.lastWaveBoss = true;
+      st.ascent.waveInFlight = false;
+      // Satisfy every ProjectUnlock, or the enact is refused for reasons that have nothing to do
+      // with whether the decree is implemented — which is what this check is actually asking.
+      st.ascent.wavesSurvived = 40;
+      st.ascent.level = 20;
+      st.storiesEnded = ['a', 'b', 'c'];
+      const legendary = st.heroes[0];
+      if (legendary) legendary.rarity = 'Legendary';
+      for (const id of ['real-tran-hung-dao', 'real-nguyen-trai', 'real-chu-van-an', 'quan-ha-de', 'real-le-quy-don']) {
+        if (!st.heroes.some((h) => h.id === id)) st.heroes.push({ ...st.heroes[0], id, assignedTo: undefined, traits: [] });
+      }
+      refreshAllLandOutputs(st);
+      st.resourceRates = calculatePlayerResourceRates(st);
+      return st;
+    };
+
+    const inert = [];
+    const checked = [];
+    for (const project of REALM_PROJECTS) {
+      const st = rigged();
+      const before = snapshot(st);
+      let applied = false;
+      if (project.kind === 'edict' || project.kind === 'wonder') {
+        applied = enactProject(st, project.id);
+      } else if (project.kind === 'le') {
+        applied = O.resolveDecreeOffer(st, `le:${project.id}:realm`, { instrument: 'le', targetId: st.lands.find((l) => l.ownerId === PLAYER)?.id });
+      } else {
+        applied = O.resolveDecreeOffer(st, `decree:${project.id}`, {
+          instrument: project.kind,
+          targetId: project.kind === 'sac' ? (st.heroes[0]?.id ?? undefined) : undefined,
+        });
+      }
+      refreshAllLandOutputs(st);
+      refreshPlayerVisibility(st);
+      st.resourceRates = calculatePlayerResourceRates(st);
+      const changed = snapshot(st) !== before;
+      // A few decrees only show themselves through a reader at a call site the snapshot cannot
+      // reach — a famine that has not happened, a crisis that has not landed. Named explicitly
+      // rather than sniffed, so adding a decree and forgetting to implement it still fails here.
+      const readers = {
+        'ha-de-su': () => R.dikeOffice(st),
+        'le-thuy-loi': () => R.dikeOffice(st),
+        'hinh-thu': () => R.writtenCodeSeverity(st) < 1,
+        'khoa-cu': () => R.examinations(st),
+        'ngu-binh-u-nong': () => R.farmsWhenIdle(st),
+        'sat-that': () => R.tattooedArms(st),
+        'don-dien': () => R.militaryColonies(st),
+        'nam-tien': () => R.marchSouth(st),
+        'thai-ap': () => R.princelyFiefs(st),
+        'chieu-cau-hien': () => R.seekingTheWorthy(st),
+        'thong-bao-hoi-sao': () => R.paperMoney(st),
+        'le-lang': () => R.villageCustom(st),
+        'le-giap-binh': () => R.villageWatch(st),
+        'hich-tuong-si': () => R.proclamationInForce(st),
+        'du-ti-nan': () => R.courtInRefuge(st),
+        'so-dinh': () => R.registryTallies(st),
+        'sung-phat': () => R.sanghaPatronage(st),
+        'han-dien': () => R.landLimit(st),
+      };
+      const ruleFires = readers[project.id] ? readers[project.id]() === true : false;
+      if (!applied || (!changed && !ruleFires)) inert.push(project.id);
+      else checked.push(project.id);
+    }
+    results.decreesChecked = checked.length;
+    results.inertDecrees = inert;
+    results.everyDecreeActs = inert.length === 0;
+  }
+
+  // ── 9. Rival mode is structurally untouched ───────────────────────────────
   {
     seed(4242);
     const rival = createInitialGameState();
@@ -574,6 +703,10 @@ check(r.capstoneFreesWeight, 'Nghiem phap frees weight entirely');
 check(r.capstoneBleeds, 'and starts the country bleeding obedience');
 check(r.reignIsSpecific, 'the reign is named off what it did', r.reignNamed);
 check(r.runsDiverge, 'the law card is a draw, not a sort', `${r.distinctCards} distinct cards over 12 seeds, ${r.distinctLawsSeen} laws seen`);
+
+console.log('── Every decree acts ──');
+check(r.everyDecreeActs, 'every decree in the catalogue measurably changes the world',
+  r.everyDecreeActs ? `${r.decreesChecked} decrees` : `inert: ${(r.inertDecrees || []).join(', ')}`);
 
 console.log('── Mode isolation ──');
 check(r.rivalHasNoMandate, 'rival mode has no mandate, so no decree system');

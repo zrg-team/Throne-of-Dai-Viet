@@ -1,5 +1,5 @@
 import { hasCapstone } from '../decree/SchoolSystem';
-import { tattooedArms, SAT_THAT_ROUT_FLOOR } from '../decree/rules';
+import { proclamationInForce, tattooedArms, SAT_THAT_ROUT_FLOOR } from '../decree/rules';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   BATTLE_ADVANCE_PER_TICK,
@@ -1180,7 +1180,8 @@ export function fightRound(state: GameState): void {
   // honest starting figure either side has.
 // Sát Thát vĩnh cửu, the militarist capstone, goes further than the oath it is named for: the
   // floor drops to zero, so our hosts fight until they are destroyed and never break at all.
-  const eternal = hasCapstone(state, 'binh');
+  // The proclamation holds the line exactly as the capstone does, for one wave instead of forever.
+  const eternal = hasCapstone(state, 'binh') || proclamationInForce(state);
   const swornFloor = eternal ? 0 : tattooedArms(state) ? battle.ourStart * (SAT_THAT_ROUT_FLOOR / 100) : -1;
   for (const host of [...ours, ...theirs]) {
     if (swornFloor >= 0 && ours.includes(host) && battle.ourNow > swornFloor) continue;

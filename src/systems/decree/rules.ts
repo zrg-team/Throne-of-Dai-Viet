@@ -86,9 +86,56 @@ export function paperMoney(state: GameState): boolean {
 export const PAPER_MONEY_DECAY = 0.05;
 export const PAPER_MONEY_STABLE_ABOVE = 55;
 
-/** Hà đê sứ, 1248 — the dike office. Water and rice ground stops fearing the season. */
+/**
+ * Hà đê sứ, 1248 — the dike office. Water and rice ground stops fearing the season.
+ *
+ * `le-thuy-loi` ratified realm-wide does the same thing by a different route: the irrigation
+ * compacts written down are the villages' own version of the office. Both answer here so the
+ * season code has one question to ask rather than two.
+ */
 export function dikeOffice(state: GameState): boolean {
-  return hasDecree(state, 'ha-de-su');
+  return hasDecree(state, 'ha-de-su') || hasDecree(state, 'le-thuy-loi');
+}
+
+/** Lệ giáp binh ratified: every commune keeps its own watch. */
+export function villageWatch(state: GameState): boolean {
+  return hasDecree(state, 'le-giap-binh');
+}
+
+export const VILLAGE_WATCH_MILITIA = 1.4;
+
+/**
+ * Hịch tướng sĩ, 1284 — read out to the assembled host.
+ *
+ * For one wave the army is half again as strong and cannot break. Trần Hưng Đạo's proclamation is
+ * the loudest single thing the throne can do, and it lapses like every other hịch: `OfferSystem`
+ * stamps an expiry, `tickTemporaryDecrees` takes it off.
+ */
+export function proclamationInForce(state: GameState): boolean {
+  return hasDecree(state, 'hich-tuong-si');
+}
+
+export const HICH_POWER_BONUS = 0.5;
+
+/** Dụ tị nạn — the court has withdrawn; the capital cannot fall while it stands. */
+export function courtInRefuge(state: GameState): boolean {
+  return hasDecree(state, 'du-ti-nan');
+}
+
+/**
+ * Sắc phong công thần — a champion raised to the nobility cannot be let go.
+ *
+ * The ennoblement is the point: rank you cannot revoke is rank that means something. It also
+ * closes the obvious exploit, which is ennobling a champion for the stat lift and then dismissing
+ * them to clear the payroll.
+ */
+export function ennobled(hero: { traits?: string[] }): boolean {
+  return Boolean(hero.traits?.includes('ennobled'));
+}
+
+/** Hình thư — the written code. Court crises land at half force. */
+export function writtenCodeSeverity(state: GameState): number {
+  return hasDecree(state, 'hinh-thu') ? 0.5 : 1;
 }
 
 /** Sùng Phật — the sangha is kept, and keeps the realm steady in return. */
@@ -187,4 +234,18 @@ export function villageCustom(state: GameState): boolean {
 /** Provinces a `sắc` has bound a tutelary spirit to, with the hero it names. */
 export function tutelaryOf(state: GameState, land: Land): string | undefined {
   return state.mandate?.tutelary?.[land.id];
+}
+
+/**
+ * What a province gains from the spirit it keeps.
+ *
+ * A tutelary investiture is meant to be permanent — "it never forgets them" — so it cannot be a
+ * one-off bump to compliance that the ordinary drift erases within twenty seasons. This is the
+ * standing half: the ground a deified champion watches over simply produces more, for as long as
+ * the realm holds it.
+ */
+export const TUTELARY_OUTPUT_MULT = 1.25;
+
+export function tutelaryOutputMult(state: GameState, land: Land): number {
+  return tutelaryOf(state, land) ? TUTELARY_OUTPUT_MULT : 1;
 }

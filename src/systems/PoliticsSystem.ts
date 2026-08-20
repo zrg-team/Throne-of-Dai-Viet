@@ -1,3 +1,4 @@
+import { writtenCodeSeverity } from './decree/rules';
 import { applyResourceDelta, canSpend, progressBuildOrders, refreshAllLandOutputs } from './ResourceSystem';
 import { createHeroDraft } from './HeroSystem';
 import { getBuildingLevelCap } from './empire/MandateSystem';
@@ -149,7 +150,11 @@ export function applyCourtEffect(state: GameState, label: string, effect: CourtE
     state.court.favor = Math.max(0, state.court.favor + effect.favorDelta);
   }
   if (effect.stabilityDelta) {
-    state.court.stability = clamp(state.court.stability + effect.stabilityDelta, 0, 100);
+    // Hình thư, 1042 — law written down. A court crisis lands at half force, because a realm with
+    // a code has a procedure for the thing rather than an argument about it. Only the harm is
+    // halved: a decree that also blunted good news would just be a tax with a nice name.
+    const severity = effect.stabilityDelta < 0 ? writtenCodeSeverity(state) : 1;
+    state.court.stability = clamp(state.court.stability + effect.stabilityDelta * severity, 0, 100);
   }
   if (effect.influenceDelta) {
     state.court.influence = clamp(state.court.influence + effect.influenceDelta, 0, 100);

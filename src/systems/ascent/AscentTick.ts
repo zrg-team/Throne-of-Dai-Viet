@@ -34,7 +34,7 @@ import { tickDecisionDirector, tickPromptCooldowns } from './DecisionDirector';
 import { tickStories } from '../story/StorySystem';
 import { tickStoryCharges } from '../story/charges';
 import { tickDecreeEffects } from '../decree/DecreeTick';
-import { militaryColonies } from '../decree/rules';
+import { courtInRefuge, militaryColonies } from '../decree/rules';
 import { tickEdictDiscovery } from './CourtLaneSystem';
 import { endAscentRun } from './AscentResolver';
 import { advanceSeasonClock, greatPowersDue } from '../seasonClock';
@@ -75,6 +75,13 @@ function checkAscentDefeat(state: GameState): void {
       ascent.capitalLostTicks = 0;
       pushToast(state, t('ascent.capital.retaken', { land: capital?.name ?? '' }), 'reward');
     }
+    return;
+  }
+
+  // Dụ tị nạn — the court has withdrawn, so there is no seat to lose. The Trần did this twice
+  // and won both times. The grace clock simply does not advance while the admonition stands.
+  if (courtInRefuge(state)) {
+    ascent.capitalLostTicks = 0;
     return;
   }
 

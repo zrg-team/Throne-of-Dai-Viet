@@ -16,7 +16,13 @@ import type {
 } from '../state/types';
 import { getLandSpecialization } from './ResourceSystem';
 import { estateMult, realisedFactor, tickDecrees } from './DecreeSystem';
-import { princelyFiefs, SAT_THAT_RECRUIT_MULT, tattooedArms } from './decree/rules';
+import {
+  HICH_POWER_BONUS,
+  princelyFiefs,
+  proclamationInForce,
+  SAT_THAT_RECRUIT_MULT,
+  tattooedArms,
+} from './decree/rules';
 import { currentTaxRate, taxFatigueDrift, taxStabilityBase } from './TaxSystem';
 import { heroName, t } from '../i18n';
 
@@ -334,6 +340,11 @@ export function getCourtBonuses(state: GameState): CourtBonuses {
     // Sát Thát's price. A host sworn never to break is a host of veterans, and veterans are not
     // something you can raise more of on demand — the muster slows for as long as the oath stands.
     if (tattooedArms(state)) delta.recruitSpeedMult -= (1 - SAT_THAT_RECRUIT_MULT);
+
+    // Hịch tướng sĩ, read out to the assembled host. Half again as strong for the one wave it
+    // stands — applied after the estate scaling so a proclamation is worth its full stated value
+    // even to a realm whose soldiers are otherwise ill-used. It is a speech, not a subsidy.
+    if (proclamationInForce(state)) delta.armyPowerMult += HICH_POWER_BONUS;
 
     // Flat resource grants ride the estate that grows the thing, not the one that spends it.
     const rateEstate: Partial<Record<keyof ResourceBag, number>> = {
