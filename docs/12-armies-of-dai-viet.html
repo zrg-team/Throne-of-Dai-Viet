@@ -1,0 +1,1849 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>:root{color-scheme:light}html,body{margin:0;padding:0}img{max-width:100%}</style>
+</head>
+<body>
+<title>Twelve Armies, Four Arms</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;0,6..72,700;1,6..72,400&family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Sơn mài again — black lacquer table, woodblock plates laid on it.
+   Same identity as "Three Breaths of Battle", because this is its
+   companion sheet. One committed theme; every colour painted.
+   ───────────────────────────────────────────────────────────── */
+:root {
+  --lacquer:      #14100b;
+  --lacquer-up:   #1d1811;
+  --lacquer-deep: #0d0a07;
+  --hairline:     #33291c;
+  --gold:         #c9973b;
+  --gold-dim:     rgba(201,151,59,.30);
+  --ivory:        #ece2cc;
+  --muted:        #a2907a;
+  --cinnabar:     #c8503a;
+  --jade:         #8fae81;
+  /* the two factions that are not us — indigo for the north, sandstone for Champa */
+  --indigo:       #7d9ab0;
+  --sandstone:    #c08a5e;
+
+  /* the game's own pigments — used inside the plates only */
+  --parch:        #f3ecd8;
+  --parch-shade:  #e9dfc2;
+  --parch-dark:   #d8c9a4;
+  --ink:          #2a2118;
+  --ink-soft:     #5a4c39;
+  --g-son:        #b33a26;
+  --g-tram:       #7b9271;
+  --g-hoe:        #c08a2e;
+  --g-cham:       #42596b;
+
+  --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --body: "Be Vietnam Pro", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --col: 820px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--lacquer);
+  background-image:
+    radial-gradient(120% 80% at 50% -10%, rgba(201,151,59,.07), transparent 60%),
+    radial-gradient(90% 60% at 90% 110%, rgba(200,80,58,.05), transparent 60%);
+  background-attachment: fixed;
+  color: var(--ivory);
+  font-family: var(--body);
+  font-size: 16.5px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: var(--col); margin: 0 auto; padding: 0 24px 120px; }
+
+h1, h2, h3, h4 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.8rem, 8vw, 4.4rem); line-height: .98; letter-spacing: -.02em; }
+h2 { font-size: clamp(1.7rem, 4vw, 2.2rem); line-height: 1.12; letter-spacing: -.015em; }
+h3 { font-size: 1.26rem; line-height: 1.25; }
+h4 { font-size: 1.02rem; font-family: var(--body); font-weight: 600; letter-spacing: .01em; }
+p { margin: 0; max-width: 66ch; }
+a { color: var(--gold); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+
+.eyebrow { font-size: .69rem; font-weight: 600; letter-spacing: .19em; text-transform: uppercase; color: var(--gold); }
+.lede { font-size: 1.18rem; color: #d9cdb4; max-width: 60ch; }
+.small { font-size: .87rem; color: var(--muted); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+code { font-family: var(--mono); font-size: .84em; background: rgba(201,151,59,.1); padding: 1px 5px; border-radius: 2px; color: #e2cfa4; }
+
+section { display: flex; flex-direction: column; gap: 20px; padding: 60px 0; border-top: 1px solid var(--hairline); }
+section:first-of-type { border-top: 0; }
+.stack { display: flex; flex-direction: column; gap: 13px; }
+
+header.mast { padding: 84px 0 44px; display: flex; flex-direction: column; gap: 22px; }
+.mast-rule { height: 1px; background: linear-gradient(90deg, var(--gold), rgba(201,151,59,0)); }
+.mast-meta { display: flex; flex-wrap: wrap; gap: 8px 26px; font-size: .8rem; color: var(--muted); }
+.mast-meta b { color: var(--ivory); font-weight: 600; }
+
+/* ── the plates: parchment sheets on the lacquer ─────────── */
+.plate {
+  background: var(--parch); color: var(--ink);
+  border: 1px solid var(--parch-dark);
+  box-shadow: 0 22px 52px rgba(0,0,0,.55);
+  padding: 18px 18px 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  overflow-x: auto;
+}
+.plate-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.plate-head b { font-family: var(--display); font-size: 1.14rem; font-weight: 600; }
+.plate-head span { font-family: var(--mono); font-size: .72rem; color: var(--ink-soft); }
+.plate svg { display: block; margin: 0 auto; }
+.plate-note { font-size: .82rem; color: var(--ink-soft); line-height: 1.5; max-width: 70ch; }
+.plate-note b { color: var(--ink); font-weight: 600; }
+.caption { font-size: .84rem; color: var(--muted); line-height: 1.55; }
+.caption b { color: var(--ivory); font-weight: 600; }
+
+/* ── tables ──────────────────────────────────────────────── */
+.tablewrap { overflow-x: auto; }
+table.data { border-collapse: collapse; font-size: .84rem; width: 100%; min-width: 540px; }
+table.data th { text-align: left; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: .09em; font-size: .66rem; padding: 0 14px 8px 0; border-bottom: 1px solid var(--hairline); white-space: nowrap; }
+table.data td { padding: 9px 14px 9px 0; border-bottom: 1px solid var(--hairline); vertical-align: top; color: #cdc0a6; line-height: 1.5; }
+table.data td b { color: var(--ivory); font-weight: 600; }
+table.data tr:last-child td { border-bottom: 0; }
+table.data td.mono { font-family: var(--mono); font-size: .78rem; color: var(--jade); }
+
+.tag { display: inline-block; padding: 1px 7px; border-radius: 2px; font-size: .66rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.tag.take { background: rgba(143,174,129,.18); color: var(--jade); }
+.tag.leave { background: rgba(200,80,58,.15); color: var(--cinnabar); }
+.tag.later { background: rgba(201,151,59,.15); color: var(--gold); }
+
+/* ── slot list ───────────────────────────────────────────── */
+.slots { display: flex; flex-direction: column; gap: 1px; background: var(--hairline); border: 1px solid var(--hairline); }
+.slot { background: var(--lacquer-up); display: grid; grid-template-columns: 92px 1fr 190px; align-items: start; }
+.slot .n { font-family: var(--mono); font-size: .74rem; font-weight: 700; color: var(--gold); padding: 14px 0 14px 16px; }
+.slot .w { padding: 13px 16px 14px 4px; display: flex; flex-direction: column; gap: 4px; }
+.slot .w b { font-family: var(--display); font-size: 1.04rem; font-weight: 600; }
+.slot .w p { font-size: .85rem; line-height: 1.5; color: #cdc0a6; }
+.slot .k { padding: 13px 16px; border-left: 1px solid var(--hairline); font-family: var(--mono); font-size: .72rem; line-height: 1.7; color: var(--jade); background: var(--lacquer-deep); }
+@media (max-width: 780px) {
+  .slot { grid-template-columns: 74px 1fr; }
+  .slot .k { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--hairline); }
+}
+
+/* ── the dressing bench (interactive) ────────────────────── */
+.bench { display: grid; grid-template-columns: 1fr 260px; gap: 1px; background: var(--hairline); border: 1px solid var(--hairline); }
+.bench-stage { background: var(--parch); display: flex; align-items: center; justify-content: center; padding: 18px 10px; min-height: 320px; }
+.bench-side { background: var(--lacquer-up); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.chipset { display: flex; flex-direction: column; gap: 6px; }
+.chipset > label { font-size: .64rem; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chips button {
+  font-family: var(--body); font-size: .74rem; font-weight: 500; color: #cdc0a6;
+  background: var(--lacquer-deep); border: 1px solid var(--hairline);
+  padding: 4px 9px; border-radius: 2px; cursor: pointer; line-height: 1.4;
+}
+.chips button:hover { border-color: var(--gold-dim); color: var(--ivory); }
+.chips button[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: #14100b; font-weight: 600; }
+.emit { font-family: var(--mono); font-size: .7rem; line-height: 1.65; color: #e2cfa4; background: var(--lacquer-deep); border: 1px solid var(--hairline); padding: 9px 11px; overflow-x: auto; white-space: pre; }
+.bench-read { font-size: .8rem; color: var(--muted); line-height: 1.5; }
+.bench-read b { color: var(--ivory); font-weight: 600; }
+@media (max-width: 720px) { .bench { grid-template-columns: 1fr; } }
+
+/* ── ring ────────────────────────────────────────────────── */
+.ringbox { border: 1px solid var(--hairline); background: var(--lacquer-deep); padding: 16px; }
+.ringbox svg { display: block; width: 100%; height: auto; }
+
+/* ── build order ─────────────────────────────────────────── */
+.pr { display: grid; grid-template-columns: 56px 1fr; border: 1px solid var(--hairline); background: var(--lacquer-up); }
+.pr + .pr { border-top: 0; }
+.pr .no { font-family: var(--mono); font-weight: 700; font-size: 1.06rem; color: var(--gold); display: flex; align-items: center; justify-content: center; border-right: 1px solid var(--hairline); background: var(--lacquer-deep); }
+.pr .in { padding: 15px 18px; display: flex; flex-direction: column; gap: 7px; }
+.pr .in h4 { font-size: 1.02rem; }
+.pr .in p { font-size: .87rem; color: #cdc0a6; line-height: 1.55; }
+.pr .files { font-family: var(--mono); font-size: .73rem; color: var(--muted); line-height: 1.75; }
+
+.traps { display: flex; flex-direction: column; gap: 16px; }
+.trap { border-left: 2px solid var(--cinnabar); padding: 2px 0 2px 16px; display: flex; flex-direction: column; gap: 5px; }
+.trap h4 { font-size: .98rem; }
+.trap p { font-size: .87rem; color: #cdc0a6; line-height: 1.55; }
+
+.pullquote { font-family: var(--display); font-size: clamp(1.3rem, 3.2vw, 1.8rem); line-height: 1.3; color: var(--ivory); border-left: 2px solid var(--cinnabar); padding: 6px 0 6px 22px; max-width: 46ch; text-wrap: balance; }
+
+/* ── composition and motion stages ───────────────────────── */
+.stage {
+  background: var(--parch); color: var(--ink);
+  border: 1px solid var(--parch-dark);
+  box-shadow: 0 22px 52px rgba(0,0,0,.55);
+  padding: 16px 16px 14px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.stage-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.stage-head b { font-family: var(--display); font-size: 1.14rem; font-weight: 600; }
+.stage-head span { font-family: var(--mono); font-size: .72rem; color: var(--ink-soft); }
+.stage svg { display: block; margin: 0 auto; }
+.stage-note { font-size: .84rem; color: var(--ink-soft); line-height: 1.55; min-height: 4.4em; }
+.stage-note b { color: var(--ink); font-weight: 600; }
+.picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.picker button {
+  font-family: var(--body); font-size: .76rem; font-weight: 500; color: var(--ink-soft);
+  background: var(--parch-shade); border: 1px solid var(--parch-dark);
+  padding: 5px 10px; border-radius: 2px; cursor: pointer; line-height: 1.4;
+}
+.picker button:hover { border-color: var(--ink-soft); color: var(--ink); }
+.picker button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--parch); font-weight: 600; }
+
+/* Each rank is its own group — which is exactly why the game gives each
+   rank its own Graphics: a block held in one object can only stand still. */
+@keyframes rankBob { 0%, 100% { transform: translate(0,0); } 25% { transform: translate(.34px,-.72px); } 50% { transform: translate(0,-1.25px); } 75% { transform: translate(-.34px,-.66px); } }
+
+.motion .rank { animation: rankBob calc(640ms + var(--i) * 55ms) ease-in-out infinite; animation-delay: calc(var(--i) * -130ms); }
+/* No transition on the hosts: their position is recomputed every frame by
+   the beat player. A CSS transition on the same property would lag a frame
+   behind and fight it — and easing to a per-beat target is precisely the
+   walk-stop-walk this was written to get rid of. */
+.floater { animation: floatUp 1s ease-out forwards; font-family: "JetBrains Mono", ui-monospace, monospace; font-weight: 700; }
+@keyframes floatUp { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-17px); opacity: 0; } }
+@keyframes fieldShake { 0%,100% { transform: translate(0,0); } 22% { transform: translate(1.4px,-.9px); } 48% { transform: translate(-1.2px,.7px); } 74% { transform: translate(.7px,.9px); } }
+.motion.shake { animation: fieldShake 170ms ease-in-out 1; }
+.phase-chip { font-family: var(--mono); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: var(--g-son); }
+@media (prefers-reduced-motion: reduce) {
+  .motion .rank, .motion .host, .motion .dust, .floater, .motion.shake { animation: none !important; transition: none !important; }
+}
+
+footer { border-top: 1px solid var(--hairline); padding: 32px 0 0; font-size: .8rem; color: var(--muted); display: flex; flex-direction: column; gap: 10px; }
+footer a { color: var(--gold); }
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="eyebrow">Mandate of Đại Việt · figure() · wardrobe extension</div>
+  <h1>Twelve Armies,<br>Four Arms</h1>
+  <div class="mast-rule"></div>
+  <p class="lede">The soldier on the field already has five slots and knows four Vietnamese dynasties. This sheet adds the three things the picture is still missing — <b>who is coming for you</b>, <b>what each man is actually carrying</b>, and <b>how an army stands</b> — and draws every combination it proposes, so the plates below are the specification rather than an illustration of one.</p>
+  <div class="mast-meta">
+    <span><b>Extends</b> <code>src/ui/ink/devices.ts</code> · <code>figure()</code>, <code>drawHost()</code></span>
+    <span><b>Reference</b> Đạt H. Võ, <i>Timeline of Vietnamese army costume</i></span>
+    <span><b>Status</b> proposal — no code written</span>
+  </div>
+</header>
+
+<!-- ══════════════════ WHAT EXISTS ══════════════════ -->
+<section>
+  <div class="stack">
+    <div class="eyebrow">Where this starts</div>
+    <h2>Five slots, one nationality, three weapons</h2>
+    <p>The wardrobe that shipped keys off <code>mandate.era</code> and <code>army.elite</code>: a crown carries the century, a chest plate carries the rank, one sash carries the realm, an arm carries the weapon, and boots separate a guard from a farmer. It works — cover everything below the neck of the plates further down and the periods are still separable.</p>
+    <p>What it cannot do is show you an <em>enemy</em>. Every host on the field is drawn in the player's own dynasty and told apart by a muted sash, so a Ming column and a Chăm raid and a rival Việt lord are the same twelve men in three shades of brown. And the arm slot knows <code>spear | bow | heavy</code>, which is the shape of the old three-way matchup and not the shape of an army.</p>
+  </div>
+  <div class="tablewrap">
+    <table class="data">
+      <tr><th>Axis</th><th>Today</th><th>Proposed</th><th>Comes from</th></tr>
+      <tr><td><b>Faction</b></td><td class="mono">—</td><td class="mono">viet · han · champa</td><td>a lookup on <code>army.kingdomId</code></td></tr>
+      <tr><td><b>Theme</b></td><td class="mono">4 (ly tran le nguyen)</td><td class="mono">12</td><td><code>mandate.era</code> for us; the era's historical opponent for them</td></tr>
+      <tr><td><b>Arm</b></td><td class="mono">spear · bow · heavy</td><td class="mono">sword · skirmish · bow · mounted</td><td><code>army.units</code>, already real</td></tr>
+      <tr><td><b>Tier</b></td><td class="mono">0 · 1 · 2</td><td class="mono">unchanged</td><td><code>army.isLevy</code>, <code>army.elite</code></td></tr>
+      <tr><td><b>Formation</b></td><td class="mono">one mixed block</td><td class="mono">screen · line · bows · wing</td><td>the same <code>army.units</code>, deployed instead of stirred</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ══════════════════ THE REFERENCE ══════════════════ -->
+<section>
+  <div class="stack">
+    <div class="eyebrow">The reference, read honestly</div>
+    <h2>Eight periods on the sheet, seven of them ours</h2>
+    <p>The costume timeline separates eight periods with no text on the figures at all, and the way it does that is the whole design here: <b>headwear carries most of the identification, the chest carries the rank, one accent carries the period.</b> Here is what each period contributes, and what is deliberately left on the sheet.</p>
+  </div>
+  <div class="tablewrap">
+    <table class="data">
+      <tr><th>Period</th><th>The mark that identifies it</th><th></th><th>Used as</th></tr>
+      <tr><td><b>Lý</b> 1010–1225</td><td>Domed helm with a long crest swept back off it; round shield; bare feet on the levy</td><td><span class="tag take">take</span></td><td>era <code>founding</code></td></tr>
+      <tr><td><b>Trần</b> 1225–1400</td><td>Crested helm with cheek flaps; a round mirror disc on the chest; layered lamellar on officers</td><td><span class="tag take">take</span></td><td>era <code>rivalry</code></td></tr>
+      <tr><td><b>Later Lê</b> 1427–1527</td><td>Brimmed dome; patterned robe-armour; the first hand-guns in the row</td><td><span class="tag take">take</span></td><td>era <code>empires</code></td></tr>
+      <tr><td><b>Trịnh lords</b> 1545–1787</td><td>Tall dark fur cap; red coat; the only mounted figure on the whole sheet</td><td><span class="tag take">take</span></td><td>Việt rival, north</td></tr>
+      <tr><td><b>Nguyễn lords</b> 1545–1778</td><td>Bare-headed, hair in a bun; plain green tunic; musket and a sword at the hip</td><td><span class="tag take">take</span></td><td>Việt rival, south</td></tr>
+      <tr><td><b>Tây Sơn</b> 1778–1802</td><td>Soft wrapped turban or a wide nón, red tunic — and the war elephant with a howdah</td><td><span class="tag take">take</span></td><td>Việt rival, late</td></tr>
+      <tr><td><b>Nguyễn dynasty</b> 1802–1945</td><td>Nón dấu — shallow cone with a spike; long coat over plate</td><td><span class="tag take">take</span></td><td>era <code>mandate</code></td></tr>
+      <tr><td><b>Việt Nam</b> 1945–2020</td><td>Pith helmet, webbing, rifles</td><td><span class="tag leave">leave</span></td><td>outside the game's timeline</td></tr>
+    </table>
+  </div>
+  <p class="small">The three lord periods overlap in time rather than following one another, which is exactly why they are useful: they are not rungs on the Mandate ladder, they are <em>the other Vietnamese army on the map</em>. A rival Việt kingdom stops being your own silhouette in a duller brown and becomes a Trịnh column with fur caps, or Tây Sơn in turbans with an elephant behind the line.</p>
+</section>
+
+<!-- ══════════════════ PLATE 1 · THE LINE OF BATTLE ══════════════════ -->
+<section>
+  <div class="stack">
+    <div class="eyebrow">Plate one</div>
+    <h2>Your line of battle</h2>
+    <p>Four eras down, four arms across, all at the trained tier with the player's sash. Every figure here is generated from the slot table by the same code that would run in the game — nothing is hand-drawn per cell, which is the point: twelve themes × four arms × three tiers is 144 soldiers, and none of them is a sprite.</p>
+  </div>
+  <div class="plate">
+    <div class="plate-head"><b>Đại Việt — era × arm</b><span>tier 1 · trained · sash sỏi son</span></div>
+    <div id="plate-viet"></div>
+  </div>
+  <p class="caption"><b>Read it across.</b> The arm changes the silhouette's outline — a shield on the left, a low thrown shaft, a bow's curve out from the ribs, or the whole man raised two feet onto a pony. <b>Read it down.</b> Only the head changes, and the head is enough.</p>
+  <p class="caption"><b>One line, not a stack of parts.</b> Three rules do the joining, and the first draft broke all three. The skull is an <em>outline</em>, never a filled disc, so the paper shows through as a face. The crown's brim sits at <code>-39</code>, which is <em>inside</em> the head circle — a hat lifted clear of the skull reads as a lid resting above a ball, and the overlap is the entire difference. And every weapon is held by an arm that starts at the shoulder: one extra stroke, and a man carrying a spear stops being a spear floating beside a man.</p>
+</section>
+
+<!-- ══════════════════ PLATE 2 · THE LORDS ══════════════════ -->
+<section>
+  <div class="stack">
+    <div class="eyebrow">Plate two</div>
+    <h2>The other Vietnamese armies</h2>
+    <p>Three wardrobes that never enter the Mandate ladder, because they are what a rival Việt kingdom wears. Their sash is nâu, not son — the scarcity law reserves sỏi son for your banner, your seal and your losses, and it outranks the reference.</p>
+  </div>
+  <div class="plate">
+    <div class="plate-head"><b>Trịnh · Nguyễn lords · Tây Sơn</b><span>tier 1 · sash nâu</span></div>
+    <div id="plate-lords"></div>
+  </div>
+  <p class="caption">The Nguyễn lords are the sheet's only bare-headed trained soldiers, which makes them the hardest of the twelve to read at distance — so their tunic hem runs longer and their musket sits lower than anyone else's. When a theme cannot win on the crown it has to win somewhere.</p>
+</section>
+
+<!-- ══════════════════ PLATE 3 · THE ENEMY ══════════════════ -->
+<section>
+  <div class="stack">
+    <div class="eyebrow">Plate three</div>
+    <h2>Who comes for you</h2>
+    <p>The northern empire is not one army over four hundred years, and pairing it with the era you are living in is free: each of the four Vietnamese eras already <em>has</em> a historical opponent, so the enemy re-equips as you climb without a single new state field.</p>
+  </div>
+  <div class="tablewrap">
+    <table class="data">
+      <tr><th>Your era</th><th>Comes north</th><th>The mark</th><th>Body silhouette</th></tr>
+      <tr><td><b>founding</b> · Lý</td><td><b>Tống</b> (Song)</td><td>Wide upturned brim over a bowl, a plume at the crown</td><td rowspan="4">A straight coat, longer than a Việt robe, with a centre placket — different at the hem even when the head is gone</td></tr>
+      <tr><td><b>rivalry</b> · Trần</td><td><b>Nguyên</b> (Yuan)</td><td>Conical helm, fur neck lappets, and a bow in most hands</td></tr>
+      <tr><td><b>empires</b> · Lê</td><td><b>Minh</b> (Ming)</td><td>Wide flat rattan hat; studded brigandine instead of a plate</td></tr>
+      <tr><td><b>mandate</b> · Nguyễn</td><td><b>Thanh</b> (Qing)</td><td>Tall spiked helm with a tassel; the queue hangs behind</td></tr>
+    </table>
+  </div>
+  <div class="plate">
+    <div class="plate-head"><b>The northern empire — dynasty × arm</b><span>tier 1 · sash chàm</span></div>
+    <div id="plate-han"></div>
+  </div>
+  <p class="caption"><b>Colour is the second carrier, never the first.</b> The palette is a scarcity system with nine pigments in it; if the north were told apart by being blue, a Ming column on a wet-season map would vanish. It is told apart by a longer coat and a wider hat, and chàm only confirms what the shape already said.</p>
+
+  <div class="plate">
+    <div class="plate-head"><b>Chiêm Thành — Champa</b><span>tier 0 · 1 · 2, and the mounted arm</span></div>
+    <div id="plate-champa"></div>
+  </div>
+  <p class="caption">Champa is the one faction whose <em>body</em> does the identifying: a bare torso above a sarong, so the robe trapezoid every other figure shares is replaced by a short flared hem. Tall pointed crown from the Trà Kiệu and Đồng Dương reliefs, a straight sword and a round shield, elephants where a Việt host would have put a levy. One theme, not four — Champa ends in 1471 and the game's late eras never meet it.</p>
+</section>
+
+<!-- ══════════════════ THE FOUR ARMS ══════════════════ -->
+<section>
+  <div class="stack">
+    <div class="eyebrow">The arm slot</div>
+    <h2>Four weapons, four outlines</h2>
+    <p>The test an arm has to pass is not "does it look like the weapon" — at a mark's real size on the field nothing looks like anything. It is <b>does the block's outline change</b>. Four arms, chosen so that no two disturb the silhouette in the same place.</p>
+  </div>
+  <div class="plate">
+    <div class="plate-head"><b>The four arms, one theme</b><span>Later Lê · tier 1 · at plate scale and at field scale</span></div>
+    <div id="plate-arms"></div>
+  </div>
+  <div class="tablewrap">
+    <table class="data">
+      <tr><th>Arm</th><th>Vietnamese</th><th>Drawn as</th><th>Disturbs</th><th>Maps from</th></tr>
+      <tr><td><b>sword</b></td><td>đao thủ</td><td>Lacquered round khiên on the left, blade up on the right</td><td>the left flank of the block</td><td class="mono">heavyInfantry, royalGuard</td></tr>
+      <tr><td><b>skirmish</b></td><td>quân khinh</td><td>A javelin held low and cocked — or a matchlock from the Lê on</td><td>the waist line, diagonally</td><td class="mono">militia, riverMarines</td></tr>
+      <tr><td><b>bow</b></td><td>cung / nỏ thủ</td><td>The bow held out from the ribs, arrow across</td><td>the right flank, mid-height</td><td class="mono">archers, crossbowmen</td></tr>
+      <tr><td><b>mounted</b></td><td>kỵ binh</td><td>Rider on a pony, sabre raised</td><td>everything — it is half a metre taller</td><td class="mono">lightCavalry</td></tr>
+    </table>
+  </div>
+  <p class="small"><code>spear</code> does not disappear. It stays as what it always was: the thing a levy is holding, a billhook off a farm, and the default when a host has no composition to read. The four above are what <em>trained</em> men carry.</p>
+</section>
+
+<!-- ══════════════════ THE PONY ══════════════════ -->
+<section>
+  <div class="stack">
+    <div class="eyebrow">The one that breaks the table</div>
+    <h2>It is a pony, and it is 1.25 metres</h2>
+    <p>Every prop in this game passes through <code>proportion.ts</code>, whose whole premise is that the corrections in <code>UNIT</code> only equalise props <em>if every call site passes the same caller scale</em>. A soldier is a measured <code>drawn 6.6</code> at <code>s = 1</code>. A mounted figure is not a soldier with a decoration — it is a new prop with a new extent, and the last time this contract was broken the field came out with sixteen scales on it.</p>
+    <p>The horse also has to be the right horse. The Vietnamese cavalry mount is a small southern pony, about <b>1.25 m at the withers</b> against a European destrier's 1.6. Drawn at destrier size, a mounted mark is nearly twice a footman and a cavalry wing reads as giants; drawn correctly, the rider's head sits about <b>2.35 m</b> up — a head and shoulders above the line, which is exactly how cavalry reads on a real field.</p>
+  </div>
+  <div class="plate">
+    <div class="plate-head"><b>Standing measure</b><span>at the drawn rate, 24.7 units per metre</span></div>
+    <div id="plate-scale"></div>
+  </div>
+  <p class="caption"><b>The hats break the rule, and they are allowed to.</b> A nón dấu drawn at its true 0.2 m is four pixels of nothing on the field. Measured against the rule above it runs about half a metre, which is the same deliberate exaggeration <code>proportion.ts</code> already applies to every living thing through <code>LIVING = 1.8</code> — and it is the entire reason the crown is slot one. The <em>body</em> stays honest; the crown is the one thing permitted to lie, because the crown is the thing being read.</p>
+  <p class="caption">The elephant is the same argument at four times the price. Tây Sơn and Champa both want one, it is 2.7 m at the shoulder, and it costs about forty marks against a footman's eight — so it is not a figure at all. It is <b>a prop drawn once per host</b>, behind the block, like a standard.</p>
+</section>
+
+<!-- ══════════════════ THE BENCH ══════════════════ -->
+<section>
+  <div class="stack">
+    <div class="eyebrow">Try the combinations</div>
+    <h2>The dressing bench</h2>
+    <p>Every one of the 144 combinations, drawn on demand from the same slot table. The code underneath is the call the renderer would make.</p>
+  </div>
+  <div class="bench">
+    <div class="bench-stage"><div id="bench-stage"></div></div>
+    <div class="bench-side">
+      <div class="chipset"><label>Theme</label><div class="chips" id="pick-theme"></div></div>
+      <div class="chipset"><label>Arm</label><div class="chips" id="pick-arm"></div></div>
+      <div class="chipset"><label>Tier</label><div class="chips" id="pick-tier"></div></div>
+      <div class="emit" id="bench-emit"></div>
+      <div class="bench-read" id="bench-read"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════ THE SLOTS ══════════════════ -->
+<section>
+  <div class="stack">
+    <div class="eyebrow">The specification</div>
+    <h2>Six slots, and what each one costs</h2>
+    <p>The budget is the constraint that shapes all of this: <code>figure()</code> runs up to <code>HOST_MARK_CAP</code> times per host, several hosts can be on screen, and each mark is an <code>inkPath</code> with a soaked underlay. The wardrobe that shipped went from five marks to eight. Faction and mount are the two additions, and only one of them is cheap.</p>
+  </div>
+  <div class="slots">
+    <div class="slot"><div class="n">1 · crown</div><div class="w"><b>The theme</b><p>The most identifying mark on the figure, so it is the one that never drops at any zoom. Twelve variants; at six pixels it is the only slot still drawing. Its brim overlaps the skull — that overlap is what makes it a hat rather than a lid.</p></div><div class="k">1–3 marks<br><em>keys on</em> theme</div></div>
+    <div class="slot"><div class="n">2 · body</div><div class="w"><b>The faction</b><p>New. Việt robe trapezoid, Hán straight coat with a placket and a lower hem, Chăm bare torso over a flared sarong. The slot that keeps a faction legible after the head is lost.</p></div><div class="k">0 marks<br><em>reshapes</em> an existing path</div></div>
+    <div class="slot"><div class="n">3 · chest</div><div class="w"><b>The tier</b><p>Nothing, a mirror plate, or a plate with shoulder pieces. Trần take a round disc, Ming take studs, Chăm take a collar band instead — the tier ladder is the same three rungs whatever the theme.</p></div><div class="k">0–3 marks<br><em>keys on</em> tier</div></div>
+    <div class="slot"><div class="n">4 · sash</div><div class="w"><b>The realm</b><p>One diagonal stroke, and the only place on a soldier the scarcity law touches: sỏi son for the player, muted for everyone else.</p></div><div class="k">1 mark<br><em>keys on</em> kingdomId</div></div>
+    <div class="slot"><div class="n">5 · arm</div><div class="w"><b>The unit type — and the block</b><p>Four now instead of three, and the fourth one moves the whole figure. It does a second job too: the arm decides <em>which block of the formation a man stands in</em>, so <code>army.units</code> stops being a texture and becomes a deployment.</p></div><div class="k">1–4 marks<br><em>keys on</em> units</div></div>
+    <div class="slot"><div class="n">6 · mount</div><div class="w"><b>The horse</b><p>New, and the expensive one: a pony is nine marks under a rider who is another eight. Capped — see the traps below — because a block of forty cavalry is a block nobody's phone will draw.</p></div><div class="k">9 marks<br><em>keys on</em> arm</div></div>
+  </div>
+</section>
+
+<!-- ══════════════════ THE RING ══════════════════ -->
+<section>
+  <div class="stack">
+    <div class="eyebrow">Gameplay — deliberately later</div>
+    <h2>The ring the four arms imply</h2>
+    <p>This is a sketch, not a commitment. It is here because drawing four arms is only worth doing if they will eventually mean four different things, and because the shape of the ring decides which arm gets which silhouette.</p>
+  </div>
+  <div class="ringbox"><div id="ring"></div></div>
+  <div class="stack">
+    <p class="small">A pure four-cycle gives every arm exactly one win, one loss and one neutral pairing, so cost can express role instead of compensating for a lopsided ring. It also lands the Vietnamese answer to northern cavalry in the right place: <b>loose order and broken ground stop horses</b> — bamboo, paddy bunds, and men who do not stand still to be charged.</p>
+    <p class="small">What it costs: <code>compositionMatchup()</code> in <code>WarSystem.ts</code> is a real documented three-way today — spears rout heavy, heavy crush archers, archers shred spears, ±0.4 — and the cycle above <b>changes one of its three edges</b>. That is a balance decision with a lab gate behind it, which is why it is not in this proposal. Drawing the arms does not require it; the arms are drawn from <code>army.units</code>, which is already real.</p>
+  </div>
+</section>
+
+<!-- ══════════════════ ON THE FIELD ══════════════════ -->
+<section>
+  <div class="stack">
+    <div class="eyebrow">The only test that counts</div>
+    <h2>Two blocks, forty metres apart</h2>
+    <p>None of the above matters at plate scale. It matters at <code>BATTLE_HOST_SCALE</code>, in a block of marks one per fifty-five men, on a 390-wide phone. Here is the same code at the size it will actually run.</p>
+  </div>
+  <div class="plate">
+    <div class="plate-head"><b>Đại Việt, era mandate · against a Thanh column</b><span>390 × 250 — the real surface · one mark per 55 men</span></div>
+    <div id="plate-field"></div>
+  </div>
+  <p class="caption">Nón dấu against spiked helms; a Việt robe against a long coat; sỏi son sashes against chàm. No label is read, and the picture already says which of those armies is yours. The Thanh column is drawn <em>facing</em> you — mirrored here for the picture, but in the game that has to be a redraw and not a negative scale, because the props are baked.</p>
+  <p class="caption">Both sides are <b>formations, not blocks</b>: screen, line, bows, wing. And the northern host is not your army in another colour — it brings a heavier line, a thinner screen and its own horse, which is a second thing the picture says before any label is read.</p>
+</section>
+
+<!-- ══════════════════ COMPOSITION ══════════════════ -->
+<section>
+  <div class="stack">
+    <div class="eyebrow">What a host is made of</div>
+    <h2>An army is not a block. It is four of them.</h2>
+    <p>One block with the weapon types sprinkled through it is a lie about how an army stood, and it throws away the only thing the arm slot is good for. Armies deployed <em>by arm</em>: a loose screen of skirmishers out in front to take the first volley and fall back through the line, the shield wall as the main body, the bows behind it shooting over, and the horse as a wing off the flank waiting for something to open.</p>
+    <p>So a host is drawn as several blocks, one per arm, each standing where that arm actually stood. It costs nothing extra to draw — the same marks, arranged — and it buys three things a mixed block cannot: you can see the <b>doctrine</b> at a glance, you can see <b>which part of the army is dying</b>, and the shape of the formation tells you what it is <em>for</em>.</p>
+    <p>Switch the doctrine and watch the formation change shape, not its texture.</p>
+  </div>
+  <div class="stage">
+    <div class="stage-head"><b>The muster</b><span id="muster-count">—</span></div>
+    <div class="picker" id="pick-compo"></div>
+    <div id="compo-stage"></div>
+    <div class="stage-note" id="compo-note"></div>
+    <div class="picker" id="pick-compo-theme"></div>
+  </div>
+  <p class="caption">This is the whole argument for driving the arm off <code>army.units</code> instead of a die roll. <code>drawHost</code> used to pick <code>spear &amp;&amp; rand() &gt; 0.25</code>, so three quarters of every host carried a spear whatever it was made of — a bow-heavy host and a wall of shields drew <em>identically</em>, and the one decision the player makes at muster was the one thing the picture would not show.</p>
+  <p class="caption"><b>The blocks are placed from their centres, not their edges.</b> Two passes got this wrong and both are worth recording: offsets of thirty units drew all four blocks on top of one another, because the line alone is seven files at a pitch of sixteen and so is ninety-six wide before anything else is placed; and offsets to a block's <em>left edge</em> then meant the archer host's nine-file bow block grew rightwards straight through the line it was supposed to be standing behind. Anchored at its centre, a block that gets wider gets wider in both directions and the formation still holds.</p>
+</section>
+
+<!-- ══════════════════ MOTION ══════════════════ -->
+<section>
+  <div class="stack">
+    <div class="eyebrow">Motion</div>
+    <h2>What a host looks like when it moves</h2>
+    <p>This one runs. Not three canned poses but the real clock: a beat every 520 ms, six of them inside an economy tick, and each beat trades men. Everything else on the field is downstream of that single number — the seam shoves toward whoever lost the exchange, numbers rise off the contact, dust builds with the beats fought, and the frame holds for 110 ms on the first clash and on the break.</p>
+    <p><b>Watch which block is dying.</b> One mark is fifty-five men, so a rank loses a figure every time the butcher’s bill crosses fifty-five — and because an army is four blocks rather than one, the losses land somewhere meaningful. The screen goes first and is gone inside four beats. Then the line grinds down. When the <em>bows</em> start disappearing, the front has collapsed, and the picture has said so without a word of text. The horse is still standing at the end of every fight, which is exactly the complaint a player should have about their own cavalry.</p>
+    <p>A mixed block cannot do any of that: it loses a mark at random and nothing is learned. The ranks bob out of phase throughout — that is <code>marchInPlace</code>, and it is the reason every rank is its own <code>Graphics</code> object.</p>
+  </div>
+  <div class="stage">
+    <div class="stage-head"><b>The field</b><span>390 × 264 · one mark per 55 men · <span class="phase-chip" id="motion-phase">closing</span></span></div>
+    <div class="picker" id="pick-motion"></div>
+    <div id="motion-stage"></div>
+    <div class="stage-note" id="motion-note"></div>
+  </div>
+  <div class="tablewrap">
+    <table class="data">
+      <tr><th>Phase</th><th>What is being drawn</th><th>Already in state</th></tr>
+      <tr><td><b>Approach</b></td><td>Both blocks close on the seam over the beat, ranks bobbing out of phase. The advance is a tween per beat, and the last beat of every drain snaps to real state.</td><td class="mono">ourAdvance, theirAdvance</td></tr>
+      <tr><td><b>Contact</b></td><td>The screens meet first and are spent; the lines behind them keep coming, so the armies close a little further every beat until the shield walls are the thing touching. The seam shoves toward whoever is losing, and a hit-stop holds the frame for 110 ms on first contact and on any break.</td><td class="mono">beat.ourLoss, beat.theirLoss, BATTLE_HIT_STOP_MS</td></tr>
+      <tr><td><b>Attrition</b></td><td>Casualties are spent in formation order — the screen first, then the line, then the bows, and the horse last. Within a block the rear rank empties first, so the fighting line stays where it is and the block gets shallower.</td><td class="mono">army.units, MEN_PER_MARK</td></tr>
+      <tr><td><b>Rout</b></td><td>The broken host turns and runs off its own edge over two beats, thinning as it goes, and the dead stay where they fell.</td><td class="mono">battle.log break events</td></tr>
+    </table>
+  </div>
+  <p class="caption"><b>Two clocks, not one.</b> The beat decides <em>what happened</em> — who lost men, what the ranks look like now, what the ribbon says. A separate frame loop decides <em>where everything is</em>, and it recomputes that sixty times a second: the seam eases toward the beat’s new target and never quite arrives, a slow grind runs under it so the two lines are always leaning on each other, and each beat adds a kick that decays over about 210 ms. The first version set one transform per beat and let CSS ease the gap, which is a block that walks, stops, walks, stops — the exact fault the real screen had.</p>
+  <p class="caption">Measured the way <code>verify-battle-motion.mjs</code> measures the real thing, over a ten-second run: <b>95.8% of frames move</b>, the longest still stretch is <b>116 ms</b> — which is the hit-stop, the only freeze that is supposed to be there — and the largest single step is <b>0.70 units per 16 ms</b>. Nothing teleports.</p>
+  <p class="caption"><b>The one thing this mockup does that the game must not.</b> The rout here flips the block with a negative horizontal scale. A baked prop flipped that way comes back soft and mirrors its own lighting, so the renderer has to turn a host by <em>drawing</em> it turned — which is what <code>faceTravel</code> is for, and why it exists.</p>
+</section>
+
+<!-- ══════════════════ IMPLEMENTATION ══════════════════ -->
+<section>
+  <div class="stack">
+    <div class="eyebrow">Implementation</div>
+    <h2>Four commits, in this order</h2>
+  </div>
+  <div>
+    <div class="pr"><div class="no">1</div><div class="in">
+      <h4>Faction and body</h4>
+      <p><code>FigureFaction = 'viet' | 'han' | 'champa'</code> added to <code>FigureKit</code>, defaulting to <code>viet</code> so all forty-odd call sites stay valid. <code>factionFor(kingdomId)</code> and <code>themeFor(state, army)</code> join <code>figureEraFor</code> as the single place the mapping is written down. The body path becomes a three-way switch. Nothing else moves.</p>
+      <p class="files"><span>src/ui/ink/devices.ts</span> · <span>src/data/kingdoms.ts</span></p>
+    </div></div>
+    <div class="pr"><div class="no">2</div><div class="in">
+      <h4>Eight new crowns</h4>
+      <p>Trịnh, Nguyễn lords, Tây Sơn, Tống, Nguyên, Minh, Thanh, Chăm — each one to three <code>inkPath</code> calls, plus the tier-0 head marks (topknot, bun, cloth cap, queue). This is the whole visible payload and it is pure drawing: no state, no balance, no new strings.</p>
+      <p class="files"><span>src/ui/ink/devices.ts</span></p>
+    </div></div>
+    <div class="pr"><div class="no">3</div><div class="in">
+      <h4>The arm slot, widened</h4>
+      <p><code>FigureArm</code> gains <code>sword</code> and <code>mounted</code>; <code>heavy</code> becomes <code>sword</code>; the era-dependent skirmish swap (javelin before the Lê, matchlock after) lives in the arm, not the caller. <code>drawHost</code>'s <code>armFor</code> reads the widened <code>army.units</code>. The mounted cap lands here.</p>
+      <p class="files"><span>src/ui/ink/devices.ts</span> · <span>src/state/types.ts</span></p>
+    </div></div>
+    <div class="pr"><div class="no">4</div><div class="in">
+      <h4>The formation</h4>
+      <p><code>drawHost</code> becomes <code>drawArmy</code>: it splits <code>army.units</code> into one block per arm and places them from their centres at fixed offsets — screen forward, line at the anchor, bows behind, horse on the near flank. It returns the blocks rather than one shape, because <code>slideMarkers</code>, the ground shadow and the standard all need to know where each one is. Casualties are then spent in formation order, which is the whole payoff: <code>hostShapeAt</code> is already recomputed per mark, so the block that thins is the block that is fighting.</p>
+      <p class="files"><span>src/ui/ink/devices.ts</span> · <span>src/scenes/ConquestUIScene.ts</span></p>
+    </div></div>
+    <div class="pr"><div class="no">5</div><div class="in">
+      <h4>The measure, re-taken</h4>
+      <p>New <code>UNIT</code> / <code>METRES</code> / <code>DRAWN</code> rows for <code>rider</code> and <code>elephant</code>, measured at <code>s = 1</code> rather than guessed, and the doc table at the top of <code>proportion.ts</code> updated in the same edit. Then the elephant as a per-host prop for Tây Sơn and Chăm.</p>
+      <p class="files"><span>src/ui/ink/proportion.ts</span> · <span>src/ui/ink/devices.ts</span> · <span>test_scripts/_measure-figure.mjs</span></p>
+    </div></div>
+  </div>
+</section>
+
+<section>
+  <div class="stack">
+    <div class="eyebrow">What will go wrong</div>
+    <h2>Four traps, all of them previously sprung</h2>
+  </div>
+  <div class="traps">
+    <div class="trap"><h4>The mark budget, and a block of cavalry</h4><p>A pony plus rider is roughly seventeen marks against a footman's eight. A forty-mark host of pure cavalry is a 680-mark draw on a phone, per host, several hosts on screen. The formation fixes this by construction rather than by a cap: horse is one block of the four and its size is bounded by the doctrine, so a cavalry <em>wing</em> — which is what a real one looked like — falls out of the drawing rather than being imposed on it. The <b>Cavalry wing</b> doctrine above is deliberately the expensive case: eighteen marks of horse, and the picture shows you it was paid for out of the line.</p></div>
+    <div class="trap"><h4>The proportion contract</h4><p><code>verify-ground-scale.mjs</code> exists because this fault has now returned three times. Every prop's first line is <code>unitScale('&lt;key&gt;', scale)</code> and the <code>DRAWN</code> values are measured, never guessed. A rider added without its own row inherits <code>figure</code>'s correction and comes out at a footman's height on a horse.</p></div>
+    <div class="trap"><h4>The regression fingerprints</h4><p><code>verify-modes-regression.mjs</code> pins a 60-tick fingerprint per mode. Nothing in this proposal touches the simulation — no new <code>Math.random</code> call, no changed call order — so those fingerprints must come back <b>unchanged</b>, and if they move, something in the drawing has reached into state.</p></div>
+    <div class="trap"><h4>The scarcity law</h4><p>Sỏi son is the player's banner, the player's seal, the player's losses. The Song plume is red in every source and it is drawn here in nâu, because a red plume on eleven enemy soldiers would spend the one colour the whole palette is built around reserving.</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="stack">
+    <div class="eyebrow">Gates</div>
+    <h2>How this gets graded</h2>
+    <p class="small"><code>npm run build</code> clean · <code>smoke.mjs</code> 15/15 · <code>verify-ground-scale.mjs</code> 10/10 with new rows for rider and elephant · <code>verify-battle-scale.mjs</code> 6/6 at 3.4–5.0 px per metre across the field · <code>verify-modes-regression.mjs</code> unchanged · <code>measure-render.mjs</code> before and after, on a block of cavalry specifically · and <code>shot-battle-open.mjs</code> at era 1 and era 4, <b>looked at</b>, not merely generated.</p>
+  </div>
+  <div class="pullquote">The test is whether you can name the enemy before you read the label. If you can't, the crown is wrong and no amount of colour will save it.</div>
+</section>
+
+<footer>
+  <p>Companion to <i>Three Breaths of Battle</i> — the fight screen rebuild. Figures on this page are generated at load from the proposed slot table; nothing is a stored image.</p>
+  <p>Reference: Đạt H. Võ, <i>Timeline of Vietnamese army costume</i> (<code>docs/resources/army/</code>). Champa marks from Trà Kiệu and Đồng Dương relief conventions. Song, Yuan, Ming and Qing helmet forms are stylised to the game's eight-mark budget, not reconstructed.</p>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── the game's pigments, as they appear in src/ui/ink/palette.ts ────────
+  var P = {
+    paper: '#f3ecd8', shade: '#e9dfc2', dark: '#d8c9a4',
+    ink: '#2a2118', inkSoft: '#5a4c39',
+    son: '#b33a26', tram: '#7b9271', tramPale: '#a7b98d',
+    hoe: '#c08a2e', hoePale: '#dcbe7e',
+    nau: '#7a5636', nauDark: '#5c3f26',
+    horn: '#dccfae', cham: '#42596b', chamPale: '#8fa5b2', hide: '#3e3226'
+  };
+
+  // ── the slot table ─────────────────────────────────────────────────────
+  // Each theme is: which faction's body, what the robe is dyed, what the
+  // crown is dyed, and which of the two skirmish weapons the century has.
+  var THEMES = {
+    ly:        { label: 'Lý',           years: '1010–1225', faction: 'viet',   robe: P.tram,  crown: P.hoePale, gun: false, group: 'core' },
+    tran:      { label: 'Trần',         years: '1225–1400', faction: 'viet',   robe: P.nau,   crown: P.hoe,     gun: false, group: 'core' },
+    le:        { label: 'Later Lê',     years: '1427–1527', faction: 'viet',   robe: P.tram,  crown: P.son,     gun: true,  group: 'core' },
+    nguyen:    { label: 'Nguyễn',       years: '1802–1945', faction: 'viet',   robe: P.hoe,   crown: P.nau,     gun: true,  group: 'core' },
+    trinh:     { label: 'Trịnh',        years: '1545–1787', faction: 'viet',   robe: P.nau,   crown: P.hide,    gun: true,  group: 'lord' },
+    nguyenLord:{ label: 'Nguyễn lords', years: '1545–1778', faction: 'viet',   robe: P.tram,  crown: P.ink,     gun: true,  group: 'lord' },
+    tayson:    { label: 'Tây Sơn',      years: '1778–1802', faction: 'viet',   robe: P.nau,   crown: P.cham,    gun: true,  group: 'lord' },
+    song:      { label: 'Tống',         years: 'Song',      faction: 'han',    robe: P.chamPale, crown: P.cham, gun: false, group: 'han' },
+    yuan:      { label: 'Nguyên',       years: 'Yuan',      faction: 'han',    robe: P.nauDark,  crown: P.hide, gun: false, group: 'han' },
+    ming:      { label: 'Minh',         years: 'Ming',      faction: 'han',    robe: P.cham,     crown: P.nau,  gun: true,  group: 'han' },
+    qing:      { label: 'Thanh',        years: 'Qing',      faction: 'han',    robe: P.hide,     crown: P.cham, gun: true,  group: 'han' },
+    champa:    { label: 'Chăm',         years: 'to 1471',   faction: 'champa', robe: P.hoe,      crown: P.nau,  gun: false, group: 'champa' }
+  };
+  var THEME_ORDER = ['ly','tran','le','nguyen','trinh','nguyenLord','tayson','song','yuan','ming','qing','champa'];
+  var ARMS = ['sword','skirmish','bow','mounted'];
+  var ARM_LABEL = { sword: 'Swordman', skirmish: 'Skirmisher', bow: 'Archer', mounted: 'Mounted' };
+  var TIER_LABEL = ['Levy', 'Trained', 'Royal guard'];
+  var ACCENT = { viet: P.son, han: P.cham, champa: P.hoe };
+
+  // Body geometry per faction. hem = where the robe stops, top = where it
+  // starts, hw/sw = half-widths. Shoulders sit at -30.5 for everyone,
+  // because shoulders are anatomy and not costume.
+  var GEO = {
+    viet:   { hem: -12, top: -30, hw: 7,   sw: 6,   leg: -12 },
+    han:    { hem: -9,  top: -30, hw: 7.6, sw: 6.6, leg: -9  },
+    champa: { hem: -12, top: -23, hw: 9.4, sw: 5.6, leg: -12 }
+  };
+
+  // ── tiny SVG builders ──────────────────────────────────────────────────
+  function path(d, o) {
+    o = o || {};
+    return '<path d="' + d + '" fill="' + (o.fill || 'none') + '" stroke="' + (o.stroke || 'none') +
+      '" stroke-width="' + (o.w || 1.6) + '" stroke-linecap="round" stroke-linejoin="round"' +
+      (o.opacity ? ' opacity="' + o.opacity + '"' : '') + '/>';
+  }
+  function line(x1, y1, x2, y2, o) {
+    o = o || {};
+    return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 +
+      '" stroke="' + (o.stroke || P.ink) + '" stroke-width="' + (o.w || 1.6) + '" stroke-linecap="round"/>';
+  }
+  function circle(cx, cy, r, o) {
+    o = o || {};
+    return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + (o.fill || 'none') +
+      '" stroke="' + (o.stroke || 'none') + '" stroke-width="' + (o.w || 1.6) + '"/>';
+  }
+  function rect(x, y, w, h, o) {
+    o = o || {};
+    return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="' + (o.fill || 'none') +
+      '" stroke="' + (o.stroke || 'none') + '" stroke-width="' + (o.w || 1.2) + '"/>';
+  }
+  function text(x, y, s, o) {
+    o = o || {};
+    return '<text x="' + x + '" y="' + y + '" font-family="' + (o.family || 'Be Vietnam Pro, sans-serif') +
+      '" font-size="' + (o.size || 9.5) + '" fill="' + (o.fill || P.inkSoft) + '"' +
+      (o.weight ? ' font-weight="' + o.weight + '"' : '') +
+      (o.anchor ? ' text-anchor="' + o.anchor + '"' : '') +
+      (o.spacing ? ' letter-spacing="' + o.spacing + '"' : '') + '>' + s + '</text>';
+  }
+
+  // ── how a figure is put together ───────────────────────────────────────
+  //
+  // One continuous ink line, the way every living thing on this map is
+  // drawn. Three passes, in this order:
+  //
+  //   wash — offset colour blocks, the printed underlay
+  //   ink  — a single stroked group at one weight, fill:none
+  //   over — the few filled marks that sit on top: hair, a spearhead, boots
+  //
+  // The rule that makes it read as a person rather than parts: **the skull
+  // is an outline and the crown laps over it.** A filled head with a hat
+  // floating clear above is two objects stacked; a hat whose brim cuts
+  // across the top of an open circle is a man wearing something.
+  var INK_OPEN = '<g fill="none" stroke="' + P.ink +
+    '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">';
+
+  function d(spec, attrs) { return '<path d="' + spec + '"' + (attrs ? ' ' + attrs : '') + '/>'; }
+  function ln(x1, y1, x2, y2, attrs) {
+    return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '"' +
+      (attrs ? ' ' + attrs : '') + '/>';
+  }
+  function ci(cx, cy, r, attrs) {
+    return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '"' + (attrs ? ' ' + attrs : '') + '/>';
+  }
+
+  // ── slot 1 · the crown ─────────────────────────────────────────────────
+  // The brow sits at -39, which is *inside* the head circle (centre -36,
+  // r 6). That overlap is the whole point — it is what joins the hat to
+  // the man. Returns wash / ink / over.
+  function crown(id, tier) {
+    var T = THEMES[id], w = [], k = [], o = [];
+    var C = T.crown;
+    // Hair, drawn as a filled cap over the top of the skull. Every
+    // bare-headed figure gets it; under a helm it would not be seen.
+    var hair = d('M-6,-38.6 q6,-5.4 12,0 Z', 'fill="' + P.ink + '" stroke="none"');
+
+    if (tier === 0) {
+      // What a man pulled off his fields is wearing.
+      if (id === 'nguyen' || id === 'nguyenLord' || id === 'tayson') {
+        o.push(hair);
+        o.push(ci(0, -43.8, 3, 'fill="' + P.ink + '" stroke="none"'));          // búi tó, the bun
+      } else if (id === 'yuan' || id === 'qing') {
+        o.push(hair);
+        k.push(d('M-5.2,-38.6 q-6.6,5 -5,12.6', 'stroke-width="1.4"'));         // the queue
+      } else if (id === 'song' || id === 'ming') {
+        w.push(d('M-6,-39 q6,-5.6 12,0 Z', 'fill="' + C + '"'));
+        k.push(d('M-6,-39 q6,-5.6 12,0 Z', 'stroke-width="1.5"'));              // cloth cap
+      } else if (id === 'champa') {
+        o.push(hair);
+        k.push(ln(-6.2, -39.4, 6.2, -39.4, 'stroke-width="1.4"'));              // headband
+      } else {
+        o.push(hair);
+        o.push(ci(0, -43.6, 2.5, 'fill="' + P.ink + '" stroke="none"'));        // búi tóc, the topknot
+      }
+      return { wash: w.join(''), ink: k.join(''), over: o.join('') };
+    }
+
+    switch (id) {
+      case 'ly': // dome, and a crest swept back and up off it
+        w.push(d('M-7,-39 A7,8 0 0 1 7,-39 Z', 'fill="' + C + '"'));
+        k.push(d('M-7,-39 A7,8 0 0 1 7,-39 Z'));
+        k.push(d('M4.2,-45.4 q8,-2 11.4,-8.6', 'stroke-width="2.1"'));
+        break;
+      case 'tran': // dome with a finial, and cheek flaps hanging past the jaw
+        w.push(d('M-7,-39 A7,8.5 0 0 1 7,-39 Z', 'fill="' + C + '"'));
+        k.push(d('M-7,-39 A7,8.5 0 0 1 7,-39 Z'));
+        k.push(ci(0, -49.2, 1.9, 'fill="' + P.ink + '"'));
+        k.push(d('M-6.9,-39 q-1.4,3.4 -0.9,6.6', 'stroke-width="1.3"'));
+        k.push(d('M6.9,-39 q1.4,3.4 0.9,6.6', 'stroke-width="1.3"'));
+        break;
+      case 'le': // a brimmed dome — the helm gains a brim under the Later Lê
+        w.push(d('M-6,-39.4 A6,7.5 0 0 1 6,-39.4 Z', 'fill="' + C + '"'));
+        k.push(d('M-6,-39.4 A6,7.5 0 0 1 6,-39.4 Z'));
+        k.push(ln(-10.6, -39.4, 10.6, -39.4, 'stroke-width="1.4"'));
+        break;
+      case 'nguyen': // nón dấu — shallow wide cone, spike at the crown
+        w.push(d('M-9.4,-38.4 L0,-51.4 L9.4,-38.4 Z', 'fill="' + C + '"'));
+        k.push(d('M-9.4,-38.4 L0,-51.4 L9.4,-38.4 Z'));
+        k.push(ln(0, -51.4, 0, -55.4, 'stroke-width="1.3"'));
+        break;
+      case 'trinh': // tall dark fur cap
+        w.push(d('M-6,-39 L-6.6,-49.6 q6.6,-3.6 13.2,0 L6.6,-39 Z', 'fill="' + C + '"'));
+        k.push(d('M-6,-39 L-6.6,-49.6 q6.6,-3.6 13.2,0 L6.6,-39 Z'));
+        k.push(ln(-6.3, -44.2, 6.4, -44.2, 'stroke-width="1" stroke="' + P.inkSoft + '"'));
+        break;
+      case 'nguyenLord': // bare-headed even when trained — hair, and the bun
+        o.push(hair);
+        o.push(ci(0, -44, 3.1, 'fill="' + P.ink + '" stroke="none"'));
+        k.push(ln(-5.9, -38.4, 5.9, -38.8, 'stroke-width="1.1"'));
+        break;
+      case 'tayson': // khăn đóng — a soft wrapped turban, knot at the side
+        w.push(d('M-7.4,-39 q7.4,-9 14.8,0 Z', 'fill="' + C + '"'));
+        k.push(d('M-7.4,-39 q7.4,-9 14.8,0 Z'));
+        k.push(d('M-6.3,-42.2 q6.3,-3.2 12.6,0', 'stroke-width="1"'));
+        k.push(ci(8, -42.8, 1.7, 'fill="' + P.ink + '"'));
+        break;
+      case 'song': // a bowl under a wide upturned brim, plume at the crown
+        w.push(d('M-6,-39 A6,7 0 0 1 6,-39 Z', 'fill="' + C + '"'));
+        k.push(d('M-6,-39 A6,7 0 0 1 6,-39 Z'));
+        k.push(d('M-11.6,-37.6 Q0,-43 11.6,-37.6', 'stroke-width="1.5"'));
+        k.push(d('M0,-46 q3,-4.4 -0.4,-8', 'stroke-width="2" stroke="' + P.nau + '"'));
+        break;
+      case 'yuan': // conical helm, finial, fur neck lappets
+        w.push(d('M-6,-39 L0,-51.6 L6,-39 Z', 'fill="' + C + '"'));
+        k.push(d('M-6,-39 L0,-51.6 L6,-39 Z'));
+        k.push(ci(0, -52.6, 1.6, 'fill="' + P.ink + '"'));
+        k.push(d('M-6,-39 q-3.2,3.6 -2.4,8.2', 'stroke-width="2"'));
+        k.push(d('M6,-39 q3.2,3.6 2.4,8.2', 'stroke-width="2"'));
+        break;
+      case 'ming': // the wide flat rattan hat, small spike
+        w.push(d('M-12.6,-38.6 L0,-46.8 L12.6,-38.6 Z', 'fill="' + C + '"'));
+        k.push(d('M-12.6,-38.6 L0,-46.8 L12.6,-38.6 Z'));
+        k.push(ln(0, -46.8, 0, -49.8, 'stroke-width="1.3"'));
+        break;
+      case 'qing': // tall spiked helm with a tassel, and the queue behind
+        w.push(d('M-5.6,-39.2 A5.6,6.6 0 0 1 5.6,-39.2 Z', 'fill="' + C + '"'));
+        k.push(d('M-5.6,-39.2 A5.6,6.6 0 0 1 5.6,-39.2 Z'));
+        k.push(ln(0, -45.4, 0, -56.4, 'stroke-width="1.3"'));
+        k.push(d('M0,-56.4 q3.2,2.8 1.5,6', 'stroke-width="1.6" stroke="' + P.nau + '"'));
+        k.push(d('M-5.4,-37.4 q-6.6,5 -5,12', 'stroke-width="1.4"'));
+        break;
+      case 'champa': // the tall pointed crown of the reliefs, and ear discs
+        w.push(d('M-6,-39 L-4.6,-47.6 L0,-55 L4.6,-47.6 L6,-39 Z', 'fill="' + C + '"'));
+        k.push(d('M-6,-39 L-4.6,-47.6 L0,-55 L4.6,-47.6 L6,-39 Z'));
+        k.push(ci(-6.7, -35.4, 1.3, 'fill="' + P.ink + '"'));
+        k.push(ci(6.7, -35.4, 1.3, 'fill="' + P.ink + '"'));
+        break;
+    }
+    return { wash: w.join(''), ink: k.join(''), over: o.join('') };
+  }
+
+  // ── slot 3 · the chest ─────────────────────────────────────────────────
+  function chest(id, tier) {
+    if (tier < 1) return '';
+    var k = [], horn = 'fill="' + P.horn + '" stroke-width="1.2"';
+    if (id === 'tran') {
+      k.push(ci(0, -24, 4.6, horn));
+      if (tier > 1) k.push(ci(0, -24, 1.5, 'fill="' + P.ink + '"'));
+    } else if (id === 'ming') {
+      // brigandine: the studs are the armour, and they are the mark
+      k.push('<rect x="-4.8" y="-28" width="9.6" height="8" ' + horn + '/>');
+      k.push(ci(-2.4, -25.8, 0.8, 'fill="' + P.ink + '" stroke="none"'));
+      k.push(ci(0, -25.8, 0.8, 'fill="' + P.ink + '" stroke="none"'));
+      k.push(ci(2.4, -25.8, 0.8, 'fill="' + P.ink + '" stroke="none"'));
+    } else if (id === 'champa') {
+      k.push(d('M-5.2,-27.4 q5.2,3.2 10.4,0', 'stroke-width="1.4"'));   // a collar, no plate
+      if (tier > 1) k.push(ci(0, -25.2, 1.4, 'fill="' + P.hoe + '" stroke="none"'));
+    } else if (THEMES[id].faction === 'han') {
+      k.push(ln(-5.2, -27, 5.2, -27, 'stroke-width="1.1"'));            // lamellar courses
+      k.push(ln(-5.2, -23.6, 5.2, -23.6, 'stroke-width="1.1"'));
+      k.push('<rect x="-2.6" y="-26.6" width="5.2" height="4.6" ' + horn + '/>');
+    } else {
+      // hộ tâm kính, the mirror plate — the commonest armour the record knows
+      k.push('<rect x="-4.5" y="-28" width="9" height="7.6" ' + horn + '/>');
+    }
+    if (tier > 1) {
+      k.push(d('M-6.5,-29.4 q-3.4,2 -2.8,5.4'));                        // shoulder pieces
+      k.push(d('M6.5,-29.4 q3.4,2 2.8,5.4'));
+    }
+    return k.join('');
+  }
+
+  // ── slot 5 · the arm ───────────────────────────────────────────────────
+  // Every weapon is held by an arm that starts at the shoulder. That is the
+  // difference between a man carrying a spear and a spear floating beside
+  // a man, and it costs one stroke.
+  function armMarks(id, arm, tier) {
+    var T = THEMES[id], w = [], k = [], o = [];
+    var shoulder = T.faction === 'champa' ? -29.4 : -30;
+
+    if (arm === 'sword' || arm === 'mounted') {
+      var hand = arm === 'mounted' ? -20 : -16.5;
+      k.push(ln(5.6, shoulder + 1.4, 8.4, hand + 1.5, 'stroke-width="1.5"'));      // the arm
+      k.push(d('M8.4,' + hand + ' Q11.4,' + (hand - 10) + ' 11.8,' + (hand - 19)));  // đao
+      k.push(ln(6.6, hand - 1.2, 10.2, hand + 0.2, 'stroke-width="1.3"'));         // the guard
+      if (arm === 'sword') {
+        // cái khiên: wood with a rattan-bound edge, and a boss at the centre
+        var face = T.faction === 'han' ? P.chamPale : (T.faction === 'champa' ? P.hoePale : P.tramPale);
+        w.push(ci(-11.2, -22, 5.2, 'fill="' + face + '"'));
+        k.push(ln(-5.8, shoulder + 1.4, -8.6, -23.6, 'stroke-width="1.5"'));       // the shield arm
+        k.push(ci(-11.2, -22, 5.2));
+        o.push(ci(-11.2, -22, 1.4, 'fill="' + P.ink + '" stroke="none"'));         // the umbo
+      }
+    } else if (arm === 'skirmish') {
+      if (T.gun) {
+        // súng hỏa mai — the matchlock, brought across the body
+        k.push(ln(5.6, shoulder + 1.6, 3.4, -24.6, 'stroke-width="1.5"'));
+        k.push(ln(-7.4, -18.2, 12.6, -30, 'stroke-width="1.9"'));
+        k.push(ln(-7.4, -18.2, -11, -16, 'stroke-width="2.6"'));                   // the stock
+        o.push(ci(1.6, -24.6, 1, 'fill="' + P.ink + '" stroke="none"'));           // the match
+      } else {
+        // lao — the javelin, cocked to throw, and a spare at the belt
+        k.push(ln(5.6, shoulder + 1.4, 8.6, -31, 'stroke-width="1.5"'));
+        k.push(ln(-8.6, -26.2, 12.4, -32.2, 'stroke-width="1.5"'));
+        o.push(d('M12.4,-32.2 L16.8,-33.8 L13.2,-29.8 Z', 'fill="' + P.ink + '" stroke="none"'));
+        k.push(ln(-8.2, -14, -4.6, -21.2, 'stroke-width="1.1"'));
+      }
+    } else if (arm === 'bow') {
+      k.push(ln(5.6, shoulder + 1.4, 8.8, -24, 'stroke-width="1.5"'));             // the bow arm
+      k.push(d('M9,-32.6 Q15.4,-23 9,-13.4'));
+      k.push(ln(9, -32.6, 9, -13.4, 'stroke-width="0.7"'));                        // the string
+      k.push(ln(3.2, -23, 13.8, -23, 'stroke-width="0.8"'));                       // the arrow
+      if (tier > 0) k.push(d('M-9.2,-24 q-2.6,4 -1.4,7.8', 'stroke-width="1.6"')); // the quiver
+    }
+    return { wash: w.join(''), ink: k.join(''), over: o.join('') };
+  }
+
+  // ── the soldier ────────────────────────────────────────────────────────
+  function soldier(id, arm, tier, opts) {
+    opts = opts || {};
+    var T = THEMES[id], G = GEO[T.faction];
+    var accent = opts.accent === null ? null : (opts.accent || ACCENT[T.faction]);
+    var seated = arm === 'mounted';
+    var wash = [], k = [], over = [];
+
+    var bodyPath = 'M' + (-G.hw) + ',' + G.hem + ' L' + G.hw + ',' + G.hem +
+      ' L' + G.sw + ',' + G.top + ' L' + (-G.sw) + ',' + G.top + ' Z';
+    wash.push(d(bodyPath, 'fill="' + T.robe + '"'));
+
+    var c = crown(id, tier);
+    var a = armMarks(id, arm, tier);
+    wash.push(c.wash, a.wash);
+
+    // legs — or one leg bent over the flank, if this man is on a horse
+    if (seated) k.push(d('M-0.4,-13 L6.6,-15 L7.8,-5.6', 'stroke-width="1.7"'));
+    else { k.push(ln(-4, 0, -3, G.leg)); k.push(ln(4, 0, 3, G.leg)); }
+
+    k.push(d(bodyPath));
+    if (T.faction === 'han') k.push(ln(0, G.hem + 1.6, 0, G.top + 1.2, 'stroke-width="0.9" stroke="' + P.inkSoft + '"'));
+    if (T.faction === 'champa') {
+      // A bare torso: two flanks and a shoulder line, so the man above the
+      // sarong is drawn rather than implied.
+      k.push(d('M-5.6,' + G.top + ' L-5.4,-29.4'));
+      k.push(d('M5.6,' + G.top + ' L5.4,-29.4'));
+      k.push(ln(-5.4, -29.4, 5.4, -29.4));
+    }
+    k.push(chest(id, tier));
+    k.push(ci(0, -36, 6));                                    // the skull — an outline, never a fill
+    k.push(c.ink, a.ink);
+    over.push(c.over, a.over);
+
+    if (accent) {
+      var sy = T.faction === 'champa' ? -17.5 : -16;
+      over.push(ln(-6.4, sy, 6.4, sy - 6, 'stroke="' + accent + '" stroke-width="2.2" stroke-linecap="round"'));
+    }
+    // bare feet leave no mark; a guard's boots do
+    if (tier > 1 && !seated) {
+      over.push('<rect x="-5.5" y="-2" width="4.4" height="3" fill="' + P.ink + '"/>');
+      over.push('<rect x="1.1" y="-2" width="4.4" height="3" fill="' + P.ink + '"/>');
+    }
+    // the guard's rank mark: a drum band, never a written character
+    if (tier > 1) {
+      var rk = T.faction === 'viet' ? P.son : P.nau;
+      over.push(ln(8.4, -25.4, 11.2, -22.6, 'stroke="' + rk + '" stroke-width="1.3" stroke-linecap="round"'));
+      over.push(ln(10.4, -27.4, 13.2, -24.6, 'stroke="' + rk + '" stroke-width="1.3" stroke-linecap="round"'));
+    }
+
+    return '<g transform="translate(-1.5,1.4)">' + wash.join('') + '</g>' +
+      INK_OPEN + k.join('') + '</g>' + over.join('');
+  }
+
+  // ── slot 6 · the mount ─────────────────────────────────────────────────
+  // A southern pony: 1.25 m at the withers, which at the drawn rate of
+  // 24.7 units per metre puts its back at y = -31. Outlined like everything
+  // else — a horse drawn as filled masses is a shadow, not an animal.
+  function pony(coat) {
+    // Built off one measurement, the way a horse actually is: withers height
+    // H = 31 units. Body length point-of-shoulder to point-of-buttock is
+    // also H; barrel depth is 0.45 H; the head is 0.4 H long. Guess those
+    // three and you get a donkey, which is what the first two passes were.
+    // Open too, and for the same reason: the barrel's outline stops at the
+    // withers behind and the point of the shoulder in front, and the neck's
+    // outline picks it up from there. Together they are one closed line
+    // around the whole animal, with no seam drawn across the shoulder.
+    var bodyLine = 'M5.4,-31 Q-6,-31.8 -13.2,-29.6 Q-16.2,-28.4 -16.6,-25.6 ' +
+      'Q-18.2,-21.6 -15.2,-19.2 Q-12.8,-17.6 -9.8,-18.2 L-2,-18 ' +
+      'Q5,-17.6 9.4,-19.2 Q13,-21.2 13.2,-25.6';
+    var body = bodyLine + ' Q12.4,-30 5.4,-31 Z';
+    // Neck and head, one tapering outline: up the crest to the poll, over it,
+    // down the face to the muzzle, back along the jaw and down the throat.
+    // Drawn as two boxes it reads as a hammer; drawn too narrow it reads as
+    // a giraffe. It is nine units deep at the middle.
+    // Open, not closed. A closed neck leaves its base edge drawn across the
+    // shoulder, which reads as a collar strap; the wash needs a closed shape,
+    // so the fill and the outline are two different paths here.
+    var neckLine = 'M5.6,-30.6 Q9.4,-36.4 14.2,-39.2 Q16.6,-40.6 18.8,-39.6 ' +
+      'Q21.4,-38.2 23.4,-35 L25.6,-31.6 Q26.2,-29.6 24,-29.8 L20.6,-30.8 ' +
+      'Q17,-31.8 14.6,-29 Q12.6,-26.8 12.8,-25.4';
+    var neck = neckLine + ' Z';
+    var w = [], k = [], o = [];
+    o.push('<ellipse cx="-1" cy="-1" rx="18" ry="2.6" fill="' + P.dark + '" opacity="0.5"/>');
+    w.push(d(neck, 'fill="' + coat + '"'));
+    w.push(d(body, 'fill="' + coat + '"'));
+    // Legs, drawn with their joints. A horse's hind leg bends backwards at
+    // the hock, and putting that one bend in is most of what separates a
+    // pony from a table.
+    k.push(d('M-12.4,-18.6 Q-14.6,-12.4 -11.4,-8.2 L-12.4,-1.2', 'stroke-width="1.8"'));
+    k.push(d('M-9.2,-18.6 Q-11.2,-12.6 -8.2,-8.6 L-9,-1.2', 'stroke-width="1.5"'));
+    k.push(d('M9.2,-19 Q10.2,-10.4 10.8,-1.2', 'stroke-width="1.8"'));
+    k.push(d('M12,-19.6 Q13.2,-10.6 13.8,-1.2', 'stroke-width="1.5"'));
+    k.push(d(bodyLine));
+    k.push(d(neckLine));
+    k.push(d('M8.4,-31.6 q2.2,-3.4 4.2,-5.4', 'stroke-width="1.2"'));          // the mane
+    k.push(d('M12,-35 q2,-2.6 3.6,-3.8', 'stroke-width="1"'));
+    k.push(d('M15.6,-37.6 q1.8,-1.8 3,-2.4', 'stroke-width="1"'));
+    k.push(d('M-16.8,-26.4 q-4.2,5.4 -3.4,12.4', 'stroke-width="1.8"'));       // the tail
+    k.push(d('M-16.6,-23 q-3.4,4.4 -2.8,9.6', 'stroke-width="1.2"'));
+    o.push(d('M17.2,-40 L16.6,-43.6 L19,-40.4 Z', 'fill="' + P.ink + '" stroke="none"'));  // the ears
+    o.push(d('M19.6,-39.6 L19.6,-42.8 L21.2,-39.2 Z', 'fill="' + P.ink + '" stroke="none"'));
+    o.push(ci(20.4, -36, 0.8, 'fill="' + P.ink + '"'));                        // the eye
+    o.push(ci(24.4, -31.2, 0.6, 'fill="' + P.ink + '"'));                      // the nostril
+    return '<g transform="translate(-1.5,1.4)">' + w.join('') + '</g>' +
+      INK_OPEN + k.join('') + '</g>' + o.join('');
+  }
+
+  function mounted(id, tier) {
+    var T = THEMES[id];
+    var coat = T.faction === 'han' ? P.nauDark : P.nau;
+    return pony(coat) +
+      '<g transform="translate(-1,-17)">' +
+      '<rect x="-9" y="-14.5" width="18" height="4.6" fill="' + ACCENT[T.faction] + '"/>' +
+      soldier(id, 'mounted', tier) + '</g>';
+  }
+
+  // ── one figure, mounted or not ─────────────────────────────────────────
+  function fig(id, arm, tier) {
+    return arm === 'mounted' ? mounted(id, tier) : soldier(id, arm, tier);
+  }
+
+  // ── plate builders ─────────────────────────────────────────────────────
+  function svgWrap(w, h, inner, label) {
+    return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" style="max-width:' + w +
+      'px;height:auto" role="img" aria-label="' + label + '">' +
+      rect(0, 0, w, h, { fill: P.paper }) + inner + '</svg>';
+  }
+
+  function gridPlate(ids, arms, opts) {
+    opts = opts || {};
+    var tier = opts.tier === undefined ? 1 : opts.tier;
+    var labelW = 92, cellW = 84, rowH = 96, headH = 24;
+    var w = labelW + arms.length * cellW + 8;
+    var h = headH + ids.length * rowH + 8;
+    var s = [];
+
+    for (var a = 0; a < arms.length; a++) {
+      s.push(text(labelW + a * cellW + cellW / 2, 15, ARM_LABEL[arms[a]].toUpperCase(),
+        { size: 8.4, anchor: 'middle', spacing: 0.9, fill: P.inkSoft, weight: 600 }));
+    }
+    for (var r = 0; r < ids.length; r++) {
+      var y = headH + r * rowH;
+      s.push(line(8, y, w - 8, y, { stroke: P.dark, w: 1 }));
+      var T = THEMES[ids[r]];
+      s.push(text(10, y + 34, T.label, { family: 'Newsreader, serif', size: 14, fill: P.ink, weight: 600 }));
+      s.push(text(10, y + 47, T.years, { size: 8.6, fill: P.inkSoft }));
+      for (var c = 0; c < arms.length; c++) {
+        var cx = labelW + c * cellW + cellW / 2;
+        s.push('<g transform="translate(' + cx + ',' + (y + rowH - 16) + ')">' +
+          fig(ids[r], arms[c], tier) + '</g>');
+      }
+    }
+    s.push(line(8, headH + ids.length * rowH, w - 8, headH + ids.length * rowH, { stroke: P.dark, w: 1 }));
+    return svgWrap(w, h, s.join(''), opts.alt || 'A grid of soldier figures.');
+  }
+
+  function mount(id, html) { var el = document.getElementById(id); if (el) el.innerHTML = html; }
+
+  mount('plate-viet', gridPlate(['ly', 'tran', 'le', 'nguyen'], ARMS,
+    { alt: 'Sixteen Vietnamese soldiers: four dynasties down, four weapon types across.' }));
+
+  mount('plate-lords', gridPlate(['trinh', 'nguyenLord', 'tayson'], ARMS,
+    { alt: 'Twelve figures from the three lord-period wardrobes.' }));
+
+  mount('plate-han', gridPlate(['song', 'yuan', 'ming', 'qing'], ARMS,
+    { alt: 'Sixteen soldiers of the four northern dynasties.' }));
+
+  // ── Champa: one theme, so show the tier ladder instead ─────────────────
+  (function () {
+    var cellW = 92, w = 100 + 4 * cellW, h = 132, s = [];
+    var cols = [
+      { arm: 'skirmish', tier: 0, cap: 'LEVY' },
+      { arm: 'sword', tier: 1, cap: 'TRAINED' },
+      { arm: 'sword', tier: 2, cap: 'ROYAL GUARD' },
+      { arm: 'mounted', tier: 2, cap: 'MOUNTED' }
+    ];
+    s.push(text(10, 40, 'Chăm', { family: 'Newsreader, serif', size: 14, fill: P.ink, weight: 600 }));
+    s.push(text(10, 53, 'Champa', { size: 8.6, fill: P.inkSoft }));
+    s.push(text(10, 66, 'to 1471', { size: 8.6, fill: P.inkSoft }));
+    for (var i = 0; i < cols.length; i++) {
+      var cx = 100 + i * cellW + cellW / 2;
+      s.push(text(cx, 16, cols[i].cap, { size: 8.4, anchor: 'middle', spacing: 0.9, weight: 600 }));
+      s.push('<g transform="translate(' + cx + ',' + (h - 16) + ')">' +
+        fig('champa', cols[i].arm, cols[i].tier) + '</g>');
+    }
+    mount('plate-champa', svgWrap(w, h, s.join(''), 'Four Champa figures across the tier ladder.'));
+  })();
+
+  // ── the four arms, at plate scale and at field scale ───────────────────
+  (function () {
+    var w = 380, h = 176, s = [], cellW = 86;
+    s.push(text(10, 16, 'AT PLATE SCALE', { size: 8.4, spacing: 0.9, weight: 600 }));
+    for (var i = 0; i < ARMS.length; i++) {
+      var cx = 44 + i * cellW;
+      s.push('<g transform="translate(' + cx + ',104)">' + fig('le', ARMS[i], 1) + '</g>');
+      s.push(text(cx, 118, ARM_LABEL[ARMS[i]], { size: 8.6, anchor: 'middle' }));
+    }
+    s.push(line(10, 132, w - 10, 132, { stroke: P.dark, w: 1 }));
+    s.push(text(10, 148, 'AT FIELD SCALE — 0.30x, one mark per 55 men', { size: 8.4, spacing: 0.9, weight: 600 }));
+    for (var j = 0; j < ARMS.length; j++) {
+      var fx = 40 + j * cellW;
+      s.push('<g transform="translate(' + fx + ',170) scale(0.3)">' + fig('le', ARMS[j], 1) + '</g>');
+      s.push('<g transform="translate(' + (fx + 22) + ',170) scale(0.3)">' + fig('le', ARMS[j], 1) + '</g>');
+      s.push('<g transform="translate(' + (fx + 44) + ',170) scale(0.3)">' + fig('le', ARMS[j], 1) + '</g>');
+    }
+    mount('plate-arms', svgWrap(w, h, s.join(''), 'The four arms drawn large, and again at the size they run on the battlefield.'));
+  })();
+
+  // ── the standing measure ───────────────────────────────────────────────
+  (function () {
+    var w = 400, h = 150, base = 128, s = [];
+    var rate = 24.7;
+    // metre rules
+    for (var m = 1; m <= 3; m++) {
+      var y = base - m * rate;
+      s.push(line(8, y, w - 8, y, { stroke: P.dark, w: 1 }));
+      s.push(text(w - 6, y - 3, m + ' m', { size: 8, fill: P.inkSoft, anchor: 'end' }));
+    }
+    s.push(line(8, base, w - 8, base, { stroke: P.inkSoft, w: 1.2 }));
+    var items = [
+      { x: 44, draw: fig('nguyen', 'sword', 1), cap: 'soldier', sub: '1.70 m' },
+      { x: 122, draw: fig('nguyen', 'bow', 0), cap: 'levy', sub: '1.70 m' },
+      { x: 218, draw: fig('trinh', 'mounted', 2), cap: 'rider on a pony', sub: '2.39 m' },
+      { x: 334, draw: pony(P.nau), cap: 'ngựa — the pony alone', sub: '1.26 m at the withers' }
+    ];
+    for (var i = 0; i < items.length; i++) {
+      s.push('<g transform="translate(' + items[i].x + ',' + base + ')">' + items[i].draw + '</g>');
+      s.push(text(items[i].x, base + 12, items[i].cap, { size: 8.6, anchor: 'middle', fill: P.ink }));
+      s.push(text(items[i].x, base + 22, items[i].sub, { size: 8, anchor: 'middle' }));
+    }
+    s.push(text(8, 14, 'HEIGHTS ARE TO THE CROWN OF THE HEAD', { size: 8, spacing: 0.9, weight: 600 }));
+    s.push(text(8, 25, 'headwear runs over the rule on purpose — see below', { size: 8 }));
+    mount('plate-scale', svgWrap(w, h, s.join(''), 'A soldier, a levy, a rider and a pony measured against a metre rule.'));
+  })();
+
+  // ── the dressing bench ─────────────────────────────────────────────────
+  var pick = { theme: 'tran', arm: 'sword', tier: 2 };
+
+  function chipRow(hostId, values, labels, key) {
+    var host = document.getElementById(hostId);
+    if (!host) return;
+    host.innerHTML = values.map(function (v, i) {
+      return '<button type="button" data-v="' + v + '" aria-pressed="false">' + labels[i] + '</button>';
+    }).join('');
+    host.addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b) return;
+      pick[key] = key === 'tier' ? Number(b.getAttribute('data-v')) : b.getAttribute('data-v');
+      drawBench();
+    });
+  }
+
+  function drawBench() {
+    var T = THEMES[pick.theme];
+    var body = '<g transform="translate(44,84)">' + fig(pick.theme, pick.arm, pick.tier) + '</g>';
+    mount('bench-stage', '<svg viewBox="0 0 92 96" width="264" height="276" role="img" aria-label="' +
+      TIER_LABEL[pick.tier] + ' of the ' + T.label + ' wardrobe, ' + ARM_LABEL[pick.arm] + '">' + body + '</svg>');
+
+    var acc = T.faction === 'viet' && pick.theme !== 'trinh' && pick.theme !== 'nguyenLord' && pick.theme !== 'tayson'
+      ? 'PIGMENT.son' : (T.faction === 'han' ? 'PIGMENT.cham' : 'PIGMENT.hoe');
+    mount('bench-emit',
+      'figure(g, x, y, s, colour, {\n' +
+      "  faction: '" + T.faction + "',\n" +
+      "  theme:   '" + pick.theme + "',\n" +
+      '  tier:    ' + pick.tier + ',\n' +
+      "  arm:     '" + pick.arm + "',\n" +
+      '  accent:  ' + acc + ',\n' +
+      '})');
+    mount('bench-read', '<b>' + T.label + ' ' + T.years + '</b> · ' + TIER_LABEL[pick.tier] + ' · ' +
+      ARM_LABEL[pick.arm] + (pick.arm === 'skirmish' ? (T.gun ? ' with a matchlock' : ' with a javelin') : '') + '.');
+
+    ['pick-theme', 'pick-arm', 'pick-tier'].forEach(function (hostId) {
+      var key = hostId.split('-')[1];
+      var host = document.getElementById(hostId);
+      if (!host) return;
+      Array.prototype.forEach.call(host.querySelectorAll('button'), function (b) {
+        b.setAttribute('aria-pressed', String(b.getAttribute('data-v') === String(pick[key])));
+      });
+    });
+  }
+
+  chipRow('pick-theme', THEME_ORDER, THEME_ORDER.map(function (id) { return THEMES[id].label; }), 'theme');
+  chipRow('pick-arm', ARMS, ARMS.map(function (a) { return ARM_LABEL[a]; }), 'arm');
+  chipRow('pick-tier', ['0', '1', '2'], TIER_LABEL, 'tier');
+  drawBench();
+
+  // ── the ring ───────────────────────────────────────────────────────────
+  (function () {
+    var w = 560, h = 300, cx = 190, cy = 152, R = 104, s = [];
+    var nodes = [
+      { a: -90, id: 'sword', lab: 'Swordman', sub: 'đao thủ' },
+      { a: 0, id: 'bow', lab: 'Archer', sub: 'cung thủ' },
+      { a: 90, id: 'skirmish', lab: 'Skirmisher', sub: 'quân khinh' },
+      { a: 180, id: 'mounted', lab: 'Mounted', sub: 'kỵ binh' }
+    ];
+    function pt(a, r) {
+      var rad = a * Math.PI / 180;
+      return { x: cx + Math.cos(rad) * r, y: cy + Math.sin(rad) * r };
+    }
+    // the cycle: sword → bow → skirmish → mounted → sword
+    for (var i = 0; i < 4; i++) {
+      var A = pt(nodes[i].a, R - 34), B = pt(nodes[(i + 1) % 4].a, R - 34);
+      s.push(path('M' + A.x + ',' + A.y + ' L' + B.x + ',' + B.y, { stroke: '#c9973b', w: 1.6, opacity: 0.55 }));
+      var mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+      var ang = Math.atan2(B.y - A.y, B.x - A.x) * 180 / Math.PI;
+      s.push('<g transform="translate(' + mx + ',' + my + ') rotate(' + ang + ')">' +
+        path('M-5,-4.5 L5,0 L-5,4.5 Z', { fill: '#c9973b' }) + '</g>');
+    }
+    // the two neutral pairings, dotted
+    var d1 = pt(-90, R - 34), d2 = pt(90, R - 34), d3 = pt(0, R - 34), d4 = pt(180, R - 34);
+    s.push('<line x1="' + d1.x + '" y1="' + d1.y + '" x2="' + d2.x + '" y2="' + d2.y +
+      '" stroke="#5a4c39" stroke-width="1" stroke-dasharray="3 4"/>');
+    s.push('<line x1="' + d3.x + '" y1="' + d3.y + '" x2="' + d4.x + '" y2="' + d4.y +
+      '" stroke="#5a4c39" stroke-width="1" stroke-dasharray="3 4"/>');
+    for (var n = 0; n < 4; n++) {
+      var p = pt(nodes[n].a, R);
+      s.push('<circle cx="' + p.x + '" cy="' + p.y + '" r="26" fill="#14100b" stroke="#33291c" stroke-width="1"/>');
+      s.push(text(p.x, p.y - 2, nodes[n].lab, { size: 10.5, anchor: 'middle', fill: '#ece2cc', weight: 600 }));
+      s.push(text(p.x, p.y + 10, nodes[n].sub, { size: 8.4, anchor: 'middle', fill: '#a2907a' }));
+    }
+    var legend = [
+      ['Swordman', 'Archer', 'shields walk through a volley'],
+      ['Archer', 'Skirmisher', 'massed shot outweighs loose harassment'],
+      ['Skirmisher', 'Mounted', 'broken ground and thrown weapons stop horses'],
+      ['Mounted', 'Swordman', 'heavy infantry in the open is ridden down']
+    ];
+    s.push(text(340, 42, 'THE CYCLE', { size: 8.6, spacing: 1.4, fill: '#c9973b', weight: 600 }));
+    for (var L = 0; L < legend.length; L++) {
+      var ly = 66 + L * 34;
+      s.push(text(340, ly, legend[L][0] + '  ▸  ' + legend[L][1],
+        { size: 11, fill: '#ece2cc', weight: 600, family: 'Newsreader, serif' }));
+      s.push(text(340, ly + 13, legend[L][2], { size: 9, fill: '#a2907a' }));
+    }
+    s.push(text(340, 214, 'Opposite corners are neutral: a swordman and a', { size: 9, fill: '#a2907a' }));
+    s.push(text(340, 226, 'skirmisher settle it on numbers alone, as do an', { size: 9, fill: '#a2907a' }));
+    s.push(text(340, 238, 'archer and a horseman.', { size: 9, fill: '#a2907a' }));
+    document.getElementById('ring').innerHTML =
+      '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" style="height:auto" role="img" ' +
+      'aria-label="A four-way cycle: swordman beats archer, archer beats skirmisher, skirmisher beats mounted, mounted beats swordman.">' +
+      s.join('') + '</svg>';
+  })();
+
+  // ── an army ────────────────────────────────────────────────────────────
+  // Not one block with the weapon types sprinkled through it. Several
+  // blocks, one per arm, standing where that arm actually stood: a loose
+  // screen out in front, the line of shields as the main body, the bows
+  // behind it, and the horse as a wing off the near flank.
+  //
+  // `dx` runs toward the enemy and `dy` toward the viewer, so "behind the
+  // line" is one description rather than two, and mirroring the whole
+  // formation for the other army is a single sign flip.
+  // Offsets are to each block's **centre**, in the same unscaled units as the
+  // blocks themselves, and they have to clear them: the line alone is seven
+  // files at a pitch of 16, so it is 96 wide before anything else is placed.
+  // Two passes went wrong here. Offsets of thirty drew all four blocks on top
+  // of one another; offsets to the block's *left edge* then meant a nine-file
+  // bow block grew rightwards straight through the line it was meant to be
+  // standing behind. Anchored at the centre, a block that gets wider gets
+  // wider in both directions and the formation still reads.
+  var FORMATION = {
+    screen: { arm: 'skirmish', dx: 112, dy: -20, pitch: 23, pri: 0, name: 'screen', vi: 'quân khinh' },
+    line: { arm: 'sword', dx: 0, dy: 0, pri: 1, name: 'line', vi: 'đao thủ' },
+    bows: { arm: 'bow', dx: -106, dy: 30, pri: 2, name: 'bows', vi: 'cung thủ' },
+    horse: { arm: 'mounted', dx: 18, dy: 86, pitch: 30, rank: 16, pri: 3, name: 'horse', vi: 'kỵ binh' }
+  };
+  var FORM_ORDER = ['screen', 'line', 'bows', 'horse'];
+
+  function hostArmy(id, plan, o) {
+    var face = o.face || 1, scale = o.scale;
+    var parts = [], marks = 0, minX = 1e9, maxX = -1e9, maxY = -1e9;
+    for (var i = 0; i < plan.length; i += 1) {
+      var p = plan[i], F = FORMATION[p.of];
+      if (!F || !p.cols || !p.rows) continue;
+      var wBlock = ((p.cols - 1) * (F.pitch || 16) + (p.rows - 1) * 3.6) * scale;
+      var dBlock = (p.rows - 1) * (F.rank || 12) * scale;
+      var bx = o.x + F.dx * scale * face - wBlock / 2;
+      var by = o.y + F.dy * scale - dBlock / 2;
+      var b = hostBlock(id, [F.arm], {
+        x: bx, y: by, cols: p.cols, rows: p.rows, scale: scale, face: face,
+        pitch: F.pitch, rank: F.rank, tier: p.tier === undefined ? o.tier : p.tier
+      });
+      marks += p.cols * p.rows;
+      minX = Math.min(minX, bx); maxX = Math.max(maxX, bx + b.width); maxY = Math.max(maxY, b.feet);
+      parts.push({
+        pri: F.pri, name: F.name, vi: F.vi, y: b.feet, cx: bx + b.width / 2, feet: b.feet,
+        marks: p.cols * p.rows,
+        svg: '<g class="sub" data-p="' + F.pri + '">' + b.svg + '</g>'
+      });
+    }
+    // Painted bottom-up by ascending y — whatever stands nearer the viewer is
+    // drawn last, or the rear ranks come out on top of the front line.
+    parts.sort(function (a, b) { return a.y - b.y; });
+    var body = parts.map(function (x) { return x.svg; }).join('');
+    return {
+      svg: body, body: body, shadow: '', blocks: parts, marks: marks,
+      cx: (minX + maxX) / 2, feet: maxY, width: maxX - minX
+    };
+  }
+
+  // ── the muster ─────────────────────────────────────────────────────────
+  // Each doctrine is the same army spent differently, and the point is that
+  // it changes the formation's *shape* and not just its texture.
+  var DOCTRINE = {
+    balanced: {
+      label: 'Balanced',
+      plan: [{ of: 'screen', cols: 5, rows: 1 }, { of: 'line', cols: 7, rows: 3 },
+        { of: 'bows', cols: 6, rows: 2 }, { of: 'horse', cols: 3, rows: 2 }],
+      note: '<b>Four blocks, four jobs.</b> A loose screen of skirmishers out in front to take the first volley and fall back through the line; the shield wall as the main body; the bows behind it, shooting over; a small wing of horse on the near flank waiting for a flank to open. Everything after this is that same army spent differently.'
+    },
+    spears: {
+      label: 'Spear wall',
+      plan: [{ of: 'screen', cols: 3, rows: 1 }, { of: 'line', cols: 9, rows: 4 },
+        { of: 'bows', cols: 4, rows: 2 }, { of: 'horse', cols: 0, rows: 0 }],
+      note: '<b>Everything in the line.</b> Nine files and four ranks deep, a token screen, almost no shot, and not one horse. It is the widest and deepest single block on the field and it does exactly one thing — it does not move and it does not break — which is the shape of a host that has decided to be an obstacle.'
+    },
+    archers: {
+      label: 'Archer host',
+      plan: [{ of: 'screen', cols: 4, rows: 1 }, { of: 'line', cols: 5, rows: 2 },
+        { of: 'bows', cols: 9, rows: 3 }, { of: 'horse', cols: 0, rows: 0 }],
+      note: '<b>The main body is at the back.</b> The line is a thin crust two ranks deep whose whole job is to keep anything off the twenty-seven marks of bowmen behind it. Read the picture and you can see the weakness without being told it: everything valuable is in the block that cannot defend itself.'
+    },
+    shock: {
+      label: 'Shock',
+      plan: [{ of: 'screen', cols: 0, rows: 0 }, { of: 'line', cols: 8, rows: 4 },
+        { of: 'bows', cols: 3, rows: 1 }, { of: 'horse', cols: 5, rows: 2 }],
+      note: '<b>No screen at all, and a real wing.</b> Thirty-two marks of shields going forward with ten of horse on the flank and almost nothing shooting. It gives up the exchange before contact entirely in order to win the exchange at contact — and the missing screen block is the first thing you notice, because there is bare ground where every other doctrine has men.'
+    },
+    horse: {
+      label: 'Cavalry wing',
+      plan: [{ of: 'screen', cols: 4, rows: 1 }, { of: 'line', cols: 5, rows: 2 },
+        { of: 'bows', cols: 4, rows: 2 }, { of: 'horse', cols: 6, rows: 3 }],
+      note: '<b>Eighteen marks of horse, and it costs the line.</b> A pony and rider is about seventeen marks of drawing against a footman’s eight, so a wing this size is paid for out of the block that has to hold the ground while it manoeuvres. The picture makes the trade legible: the wing is the biggest thing on the field and the line is two ranks thin.'
+    }
+  };
+  // The column that comes north is not our army in another colour: heavier
+  // in the line, lighter in the screen, and it brings its own horse.
+  var QING_PLAN = [{ of: 'screen', cols: 3, rows: 1 }, { of: 'line', cols: 6, rows: 3 },
+    { of: 'bows', cols: 5, rows: 2 }, { of: 'horse', cols: 3, rows: 2 }];
+
+  var COMPO_ORDER = ['balanced', 'spears', 'archers', 'shock', 'horse'];
+  var compo = { kind: 'balanced', theme: 'nguyen' };
+
+  function drawCompo() {
+    var D = DOCTRINE[compo.kind];
+    var w = 390, h = 236, horizon = 54;
+    var a = hostArmy(compo.theme, D.plan, { x: 158, y: 108, scale: 0.54, tier: 1 });
+    var tags = a.blocks.map(function (b) {
+      return '<text x="' + b.cx.toFixed(1) + '" y="' + (b.feet + 13).toFixed(1) +
+        '" text-anchor="middle" font-family="Be Vietnam Pro, sans-serif" font-size="7.8" ' +
+        'letter-spacing="0.5" stroke="' + P.paper + '" stroke-width="2.6" stroke-linejoin="round" ' +
+        'paint-order="stroke" fill="' + P.inkSoft + '">' + b.vi + ' · ' + b.marks + '</text>';
+    }).join('');
+    mount('compo-stage', '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" style="max-width:' + w +
+      'px;height:auto" role="img" aria-label="An army in the ' + D.label.toLowerCase() +
+      ' doctrine, drawn as separate blocks of skirmishers, swordsmen, archers and cavalry.">' +
+      fieldGround(w, h, horizon) + a.svg + tags +
+      '<rect x="0.5" y="0.5" width="' + (w - 1) + '" height="' + (h - 1) +
+      '" fill="none" stroke="' + P.dark + '" stroke-width="1"/></svg>');
+    mount('compo-note', D.note);
+    mount('muster-count', a.marks + ' marks · ' + (a.marks * 55).toLocaleString('en-US') +
+      ' men · ' + a.blocks.length + ' blocks');
+    setPressed('pick-compo', compo.kind);
+    setPressed('pick-compo-theme', compo.theme);
+  }
+
+  // ── two armies on the field ───────────────────────────────────────────
+  (function () {
+    // 390 wide on purpose: that is GAME_WIDTH, and this plate is worthless
+    // at any other size.
+    var w = 390, h = 250, s = [];
+    s.push(fieldGround(w, h, 84));
+
+    // Two formations, not two blocks — and the column that came for you is
+    // drawn facing you, so its screen is the part nearest your line.
+    var them = hostArmy('qing', QING_PLAN, { x: 262, y: 136, scale: 0.42, face: -1, tier: 1 });
+    s.push(them.svg);
+    var us = hostArmy('nguyen', DOCTRINE.balanced.plan, { x: 112, y: 176, scale: 0.46, tier: 1 });
+    s.push(us.svg);
+
+    s.push(text(us.cx, us.feet + 22, 'ĐẠI VIỆT · 2,420', { size: 10, anchor: 'middle', fill: P.ink, weight: 600, spacing: 0.6 }));
+    s.push(text(them.cx, them.feet + 18, 'THANH · 2,090', { size: 9.5, anchor: 'middle', fill: P.inkSoft, weight: 600, spacing: 0.6 }));
+    s.push(rect(0.5, 0.5, w - 1, h - 1, { stroke: P.dark, w: 1 }));
+    mount('plate-field', svgWrap(w, h, s.join(''), 'Two blocks of soldiers facing each other at battlefield scale: a Nguyễn host in front, a Qing column beyond.'));
+  })();
+
+  // ── a host block ───────────────────────────────────────────────────────
+  // Each rank comes back in its own <g class="rank">, which is not a
+  // decoration: it is how the game has to build a host anyway, because a
+  // block collected into one object can only ever stand still.
+  function hostBlock(id, arms, o) {
+    // Kept inside the function on purpose: `var` at module level hoists as
+    // undefined, and the field plate above calls this before that line has
+    // run, which produced a whole SVG of NaN.
+    var BPITCH = 16, BRANK = 12, BSHEAR = 3.6;
+    var scale = o.scale, cols = o.cols, rows = o.rows;
+    var pitch = (o.pitch || BPITCH) * scale, rank = (o.rank || BRANK) * scale, shear = BSHEAR * scale;
+    var face = o.face || 1;
+    var out = [], n = 0;
+    var feet = o.y + (rows - 1) * rank;
+    var wide = (cols - 1) * pitch + (rows - 1) * shear;
+    var shadow = '<ellipse cx="' + (o.x + wide / 2) + '" cy="' + (feet + 2) +
+      '" rx="' + (wide / 2 + 13 * scale) + '" ry="' + (4 + 8 * scale) +
+      '" fill="' + P.dark + '" opacity="0.4"/>';
+    for (var r = 0; r < rows; r++) {
+      var men = [];
+      for (var c = 0; c < cols; c++) {
+        var arm = arms[(r * cols + c) % arms.length];
+        var jx = ((n * 37) % 7 - 3) * 0.5, jy = ((n * 53) % 5 - 2) * 0.4;
+        men.push('<g transform="translate(' + (o.x + c * pitch + r * shear + jx) + ',' +
+          (o.y + r * rank + jy) + ') scale(' + (scale * face) + ',' + scale + ')">' +
+          fig(id, arm, o.tier === undefined ? 1 : o.tier) + '</g>');
+        n += 1;
+      }
+      out.push('<g class="rank" style="--i:' + r + '">' + men.join('') + '</g>');
+    }
+    return { svg: shadow + out.join(''), body: out.join(''), shadow: shadow,
+      cx: o.x + wide / 2, feet: feet, width: wide };
+  }
+
+  // A strip of country for a block to stand on: horizon, a far ridge, and
+  // some scatter. Shared by both stages so they read as the same place.
+  function fieldGround(w, h, horizon) {
+    var s = [];
+    s.push('<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="' + P.paper + '"/>');
+    s.push('<rect x="0" y="0" width="' + w + '" height="' + horizon + '" fill="' + P.shade + '" opacity="0.55"/>');
+    s.push(d('M0,' + horizon + ' Q64,' + (horizon - 22) + ' 138,' + (horizon - 8) +
+      ' Q216,' + (horizon + 8) + ' 288,' + (horizon - 16) +
+      ' Q336,' + (horizon - 30) + ' ' + w + ',' + (horizon - 14) + ' L' + w + ',' + horizon + ' Z',
+      'fill="' + P.dark + '" opacity="0.5"'));
+    s.push(ln(0, horizon, w, horizon, 'stroke="' + P.dark + '" stroke-width="1"'));
+    for (var i = 0; i < 22; i += 1) {
+      var gx = ((i * 71) % w), gy = horizon + 8 + ((i * 43) % (h - horizon - 16));
+      s.push(d('M' + gx + ',' + gy + ' q1.4,-3 2.8,-0.4',
+        'stroke="' + P.dark + '" stroke-width="1" fill="none" opacity="0.55"'));
+    }
+    return s.join('');
+  }
+
+  function setPressed(hostId, value) {
+    var host = document.getElementById(hostId);
+    if (!host) return;
+    Array.prototype.forEach.call(host.querySelectorAll('button'), function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-v') === String(value)));
+    });
+  }
+
+  function buildPicker(hostId, values, labels, onPick) {
+    var host = document.getElementById(hostId);
+    if (!host) return;
+    host.innerHTML = values.map(function (v, i) {
+      return '<button type="button" data-v="' + v + '" aria-pressed="false">' + labels[i] + '</button>';
+    }).join('');
+    host.addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (b) onPick(b.getAttribute('data-v'));
+    });
+  }
+
+  buildPicker('pick-compo', COMPO_ORDER, COMPO_ORDER.map(function (k) { return DOCTRINE[k].label; }),
+    function (v) { compo.kind = v; drawCompo(); });
+  buildPicker('pick-compo-theme', THEME_ORDER, THEME_ORDER.map(function (id) { return THEMES[id].label; }),
+    function (v) { compo.theme = v; drawCompo(); });
+  drawCompo();
+
+  // ── the fight, played out beat by beat ─────────────────────────────────
+  //
+  // Not three canned states: the real clock. `BATTLE_TICK_MS` drains one
+  // beat at a time, each beat trades men, and everything on the field is
+  // downstream of that one number — the seam shoves toward whoever lost the
+  // exchange, the ranks thin one mark per fifty-five men, the dead stay
+  // where they fell, and the frame holds for the hit-stop.
+  var FIGHT = {
+    W: 390, H: 268, HORIZON: 98, RAIL: 48,
+    BEAT: 520,        // BATTLE_TICK_MS, near enough
+    HOLD: 110,        // BATTLE_HIT_STOP_MS
+    MEN: 55,          // MEN_PER_MARK
+    ROUNDS: 9,
+    SEAM_X: 182, SEAM_Y: 186
+  };
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  var LOG_CLOSE = [
+    'The lines close on the paddy bunds.',
+    'Their column comes on at the walk.',
+    'Arrows fall among the forward ranks.',
+    'Our front dresses its line.'
+  ];
+  var LOG_MELEE = [
+    'The centre holds.',
+    'Our left gives ground and re-forms.',
+    'They press the seam.',
+    'A file breaks; the rank behind fills it.',
+    'Spears cross along the whole front.',
+    'The Thanh push and are pushed back.',
+    'Their right wavers.',
+    'Our guard goes in at the centre.'
+  ];
+
+  var PHASE_NOTE = {
+    approach: '<b>The approach.</b> Both blocks close on the seam, ranks bobbing out of phase the whole way. The bob is small on purpose — about a third of a mark — because a host that bounces reads as a crowd and a host that is perfectly still reads as furniture.',
+    melee: '<b>Contact.</b> The front ranks interpenetrate by about a file. Every beat trades men: the seam shoves toward whoever lost the exchange, numbers rise off the contact — ours in sỏi son, theirs in ink — and the frame holds for 110 ms on the first clash and on any break. <b>Watch the blocks thin.</b> One mark is fifty-five men, so a rank loses a figure every time the butcher’s bill crosses fifty-five, which makes attrition the most legible thing on the screen with no number read.',
+    rout: '<b>The break.</b> A host that loses its heart turns and runs off its own edge over two beats, thinning as it goes. The dead stay where they fell. This is the single most legible event in a fight, the simulation has always written it into <code>battle.log</code>, and nothing has ever drawn it.',
+    done: '<b>The field settles.</b> Dust hangs, the bodies stay, and the aftermath card is raised on the next tick — which is the one the Reckoning used to be skipped by, because a run-over prompt arrives on the same tick and the screen would only show one of them.'
+  };
+
+  function buildFight() {
+    var F = FIGHT, W = F.W, H = F.H, s = [];
+    var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    var us = hostArmy('nguyen', DOCTRINE.balanced.plan, { x: 100, y: 182, scale: 0.46, tier: 1 });
+    var them = hostArmy('qing', QING_PLAN, { x: 258, y: 152, scale: 0.44, face: -1, tier: 1 });
+
+    s.push(fieldGround(W, H, F.HORIZON));
+
+    // ── the rail ─────────────────────────────────────────────────────────
+    // Both readouts live above the field, not on it. Printed beside the
+    // blocks they sat on top of the other army, which is the one place a
+    // number must never be.
+    s.push('<rect x="0" y="0" width="' + W + '" height="' + F.RAIL + '" fill="' + P.shade + '"/>');
+    s.push(ln(0, F.RAIL, W, F.RAIL, 'stroke="' + P.dark + '" stroke-width="1"'));
+    // The round track: the clock made visible, one pip per round.
+    for (var i = 0; i < F.ROUNDS; i += 1) {
+      s.push('<rect class="pip" data-i="' + i + '" x="' + (10 + i * ((W - 20) / F.ROUNDS)) +
+        '" y="7" width="' + ((W - 20) / F.ROUNDS - 3) + '" height="3" rx="1.5" fill="' + P.dark + '"/>');
+    }
+
+    s.push('<g class="bodies"></g>');
+    s.push('<g class="host them" transform="translate(64,0)">' + them.shadow + them.body + '</g>');
+    s.push('<g class="dust" opacity="0">');
+    // Kicked-up dust, not one smooth ellipse: a single big oval at the seam
+    // reads as a second ground shadow with nothing standing on it.
+    for (var j = 0; j < 16; j += 1) {
+      s.push('<ellipse cx="' + (F.SEAM_X - 30 + j * 4.4 + (j % 3) * 3) + '" cy="' +
+        (F.SEAM_Y + 8 - (j % 5) * 3.4) + '" rx="' + (3.4 + (j % 4) * 1.8) +
+        '" ry="' + (1.8 + (j % 3) * 0.9) + '" fill="' + P.dark + '"/>');
+    }
+    s.push('</g>');
+    s.push('<g class="host us" transform="translate(-60,0)">' + us.shadow + us.body + '</g>');
+    s.push('<g class="floaters"></g>');
+
+    function railSide(x, anchor, name, cls, colour) {
+      var o = [];
+      o.push('<text x="' + x + '" y="' + 24 + '" text-anchor="' + anchor +
+        '" font-family="Be Vietnam Pro, sans-serif" font-size="8.4" font-weight="600" ' +
+        'letter-spacing="1.4" fill="' + P.inkSoft + '">' + name + '</text>');
+      o.push('<text class="lbl-' + cls + '" x="' + x + '" y="' + 38 +
+        '" text-anchor="' + anchor + '" font-family="JetBrains Mono, monospace" font-size="13" ' +
+        'font-weight="700" fill="' + P.ink + '">0</text>');
+      var bx = anchor === 'end' ? x - 62 : x;
+      o.push('<rect x="' + bx + '" y="' + 42 + '" width="62" height="3" rx="1.5" fill="' + P.dark + '" opacity="0.4"/>');
+      o.push('<rect class="mor-' + cls + '" x="' + bx + '" y="' + 42 +
+        '" width="62" height="3" rx="1.5" fill="' + colour + '"/>');
+      return o.join('');
+    }
+    s.push(railSide(12, 'start', 'ĐẠI VIỆT', 'us', P.son));
+    s.push(railSide(W - 12, 'end', 'THANH', 'them', P.cham));
+
+    // The log ribbon: two lines, newest inked, the one before it faded.
+    s.push('<rect x="0" y="' + (H - 30) + '" width="' + W + '" height="30" fill="' + P.shade + '" opacity="0.9"/>');
+    s.push('<text class="log1" x="10" y="' + (H - 17) + '" font-family="Be Vietnam Pro, sans-serif" font-size="9.5" fill="' + P.ink + '"></text>');
+    s.push('<text class="log2" x="10" y="' + (H - 6) + '" font-family="Be Vietnam Pro, sans-serif" font-size="9.5" fill="' + P.inkSoft + '" opacity="0.62"></text>');
+    s.push('<rect x="0.5" y="0.5" width="' + (W - 1) + '" height="' + (H - 1) + '" fill="none" stroke="' + P.dark + '" stroke-width="1"/>');
+
+    mount('motion-stage', '<div class="motion"><svg viewBox="0 0 ' + W + ' ' + H +
+      '" width="100%" style="max-width:' + W + 'px;height:auto" role="img" ' +
+      'aria-label="A battle played out beat by beat: two hosts close, trade men until the blocks visibly thin, and one breaks and runs.">' +
+      s.join('') + '</svg></div>');
+
+    var root = document.querySelector('#motion-stage .motion');
+    var el = {
+      us: root.querySelector('.host.us'), them: root.querySelector('.host.them'),
+      dust: root.querySelector('.dust'), bodies: root.querySelector('.bodies'),
+      floaters: root.querySelector('.floaters'),
+      lblUs: root.querySelector('.lbl-us'), lblThem: root.querySelector('.lbl-them'),
+      morUs: root.querySelector('.mor-us'), morThem: root.querySelector('.mor-them'),
+      log1: root.querySelector('.log1'), log2: root.querySelector('.log2'),
+      pips: root.querySelectorAll('.pip')
+    };
+    return { el: el, root: root, us: us, them: them, reduced: reduced };
+  }
+
+  // Casualties are spent in formation order: the screen first, then the line
+  // of shields, then the bows, and the horse last. Within a block the rear
+  // rank empties first, so the fighting line stays where it is and the block
+  // simply gets shallower.
+  //
+  // This is the whole reason an army is several blocks rather than one. A
+  // mixed block loses a mark at random and nothing is learned; a formation
+  // loses its screen, then its line, and when the bows start disappearing
+  // the picture has told you the front has gone without a word of text.
+  function thinTo(hostEl, marks) {
+    var subs = Array.prototype.slice.call(hostEl.querySelectorAll('.sub'));
+    subs.sort(function (a, b) {
+      return (+a.getAttribute('data-p')) - (+b.getAttribute('data-p'));
+    });
+    var total = 0, i, r;
+    for (i = 0; i < subs.length; i += 1) total += subs[i].querySelectorAll('.rank > g').length;
+    while (total > marks) {
+      var did = false;
+      for (i = 0; i < subs.length && !did; i += 1) {
+        var ranks = subs[i].querySelectorAll('.rank');
+        for (r = ranks.length - 1; r >= 0; r -= 1) {
+          if (ranks[r].children.length) {
+            ranks[r].removeChild(ranks[r].lastElementChild);
+            total -= 1; did = true; break;
+          }
+        }
+      }
+      if (!did) break;
+    }
+    // A block that has lost every man loses its ground shadow with them.
+    for (i = 0; i < subs.length; i += 1) {
+      var sh = subs[i].querySelector('ellipse');
+      if (sh) sh.setAttribute('opacity', subs[i].querySelectorAll('.rank > g').length ? '0.4' : '0');
+    }
+    return total;
+  }
+
+  function addBody(g, rand, side) {
+    if (g.children.length > 26) return;
+    var x = FIGHT.SEAM_X + (rand() - 0.5) * 54 + (side > 0 ? -10 : 12);
+    var y = FIGHT.SEAM_Y + 4 + (rand() - 0.5) * 26;
+    g.insertAdjacentHTML('beforeend',
+      '<g transform="translate(' + x.toFixed(1) + ',' + y.toFixed(1) + ') rotate(' +
+      ((rand() - 0.5) * 40).toFixed(0) + ')">' +
+      '<ellipse cx="0" cy="0" rx="3.4" ry="1.2" fill="' + P.inkSoft + '" opacity="0.5"/>' +
+      '<path d="M-3.6,1.4 L2.8,-1.2" stroke="' + P.inkSoft + '" stroke-width="0.7" opacity="0.45" fill="none"/>' +
+      '</g>');
+  }
+
+  function floater(g, n, ours, rand) {
+    // Ours rises on our side of the seam and theirs on theirs, both clear of
+    // the blocks — and both knocked out of the paper with a halo, because a
+    // number printed over a rank of inked men is a number nobody reads.
+    var x = FIGHT.SEAM_X + (rand() - 0.5) * 26 + (ours ? -46 : 30);
+    var y = FIGHT.SEAM_Y - (ours ? 6 : 22) + (rand() - 0.5) * 10;
+    var node = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    node.setAttribute('class', 'floater');
+    node.setAttribute('x', x.toFixed(1));
+    node.setAttribute('y', y.toFixed(1));
+    node.setAttribute('text-anchor', 'middle');
+    node.setAttribute('font-size', '9.5');
+    node.setAttribute('stroke', P.paper);
+    node.setAttribute('stroke-width', '2.6');
+    node.setAttribute('stroke-linejoin', 'round');
+    node.setAttribute('paint-order', 'stroke');
+    node.setAttribute('fill', ours ? P.son : P.ink);
+    node.textContent = '−' + n;
+    g.appendChild(node);
+    window.setTimeout(function () { if (node.parentNode) node.parentNode.removeChild(node); }, 1000);
+  }
+
+  var fight = null, raf = null, running = true, resumeFight = null, restartTimer = null;
+
+  function runFight() {
+    if (raf) { window.cancelAnimationFrame(raf); raf = null; }
+    if (restartTimer) { window.clearTimeout(restartTimer); restartTimer = null; }
+    fight = buildFight();
+
+    var el = fight.el, F = FIGHT;
+    var rand = mulberry32(20260820);
+    var st = {
+      beat: 0, us: fight.us.marks * 55, them: fight.them.marks * 55,
+      usMor: 100, themMor: 100, press: 0, phase: 'approach', dust: 0,
+      usMarks: fight.us.marks, themMarks: fight.them.marks, hold: 640, close: 0,
+      usStart: fight.us.marks * 55, themStart: fight.them.marks * 55
+    };
+    // Position is a *separate* thing from the simulation. The beat clock
+    // decides what happened; this decides where everything is right now, and
+    // it is recomputed every frame. Setting a transform once a beat and
+    // letting CSS ease the gap is what makes a host walk, stop, walk, stop.
+    var pos = { us: -48, them: 52, imp: 0, dust: 0, rout: 0, routV: 0, flip: false };
+    var APPROACH = 5 * F.BEAT;
+    var sinceBeat = 0, elapsed = 0, last = 0;
+
+    setNote('approach');
+    readout();
+    draw();
+
+    if (fight.reduced) {                       // one static contact frame
+      pos.us = 0; pos.them = 0; pos.dust = 0.3;
+      draw(); setNote('melee');
+      return;
+    }
+
+    // ── the simulation: one exchange, once a beat ────────────────────────
+    function beat() {
+      st.beat += 1;
+      var b = st.beat;
+
+      if (st.phase === 'approach') {
+        say(LOG_CLOSE[(b - 1) % LOG_CLOSE.length]);
+        if (b >= 5) {
+          st.phase = 'melee'; st.beat = 0; sinceBeat = 0;
+          setNote('melee'); shake(); st.hold = F.HOLD;
+        }
+        return;
+      }
+
+      if (st.phase === 'melee') {
+        // Ours is the better host, so the odds drift our way — but the beat
+        // that goes against us still has to be visible.
+        var swing = rand();
+        var ourLoss = Math.round(22 + swing * 54);
+        var theirLoss = Math.round(34 + (1 - swing) * 72);
+        st.us = Math.max(0, st.us - ourLoss);
+        st.them = Math.max(0, st.them - theirLoss);
+        var traded = ourLoss + theirLoss;
+        var won = (theirLoss - ourLoss) / traded;
+        st.press = Math.max(-1, Math.min(1, st.press * 0.72 + won * 0.5));
+        pos.imp += won * 3.4;                       // the beat's own kick, which then decays
+        st.usMor = Math.max(8, st.usMor - ourLoss / 26);
+        st.themMor = Math.max(0, st.themMor - theirLoss / 17);
+
+        floater(el.floaters, ourLoss, true, rand);
+        floater(el.floaters, theirLoss, false, rand);
+
+        var wantUs = Math.max(5, Math.round(fight.us.marks * st.us / st.usStart));
+        var wantThem = Math.max(3, Math.round(fight.them.marks * st.them / st.themStart));
+        while (st.usMarks > wantUs) { st.usMarks -= 1; addBody(el.bodies, rand, 1); }
+        while (st.themMarks > wantThem) { st.themMarks -= 1; addBody(el.bodies, rand, -1); }
+        thinTo(el.us, st.usMarks);
+        thinTo(el.them, st.themMarks);
+
+        // Contact is not one event. The screens meet first and are spent;
+        // the lines behind them keep coming, so the armies close a little
+        // more every beat until the shield walls are the thing touching.
+        st.close = Math.min(46, st.close + 6.5);
+        st.dust = Math.min(0.46, st.dust + 0.05);
+        readout();
+        say(pick(LOG_MELEE));
+        for (var p = 0; p < el.pips.length; p += 1) {
+          var lit = Math.ceil(b / 2);
+          el.pips[p].setAttribute('fill', p < lit ? (p === lit - 1 ? P.son : P.hoe) : P.dark);
+        }
+
+        if (traded > 128) { shake(); st.hold = F.HOLD; }
+        if (st.themMor <= 26 || b >= 16) {
+          st.phase = 'rout'; st.beat = 0;
+          pos.flip = true; pos.routV = 0.012;
+          setNote('rout'); shake(); st.hold = F.HOLD * 2;
+          say('The Thanh column breaks and runs.');
+        }
+        return;
+      }
+
+      if (st.phase === 'rout') {
+        st.themMarks = Math.max(3, st.themMarks - 3);
+        thinTo(el.them, st.themMarks);
+        st.them = Math.max(0, Math.round(st.them * 0.82));
+        readout();
+        if (b >= 4) {
+          st.phase = 'done';
+          setNote('done');
+          say('The field is ours. ' + (st.usStart - st.us).toLocaleString('en-US') + ' fell holding the bunds.');
+          restartTimer = window.setTimeout(runFight, 2600);
+        }
+      }
+    }
+
+    // ── where everything is, this frame ──────────────────────────────────
+    function step(dt) {
+      var k = 1 - Math.exp(-dt / 185);                       // critically soft follow
+      pos.imp *= Math.exp(-dt / 210);
+      pos.dust += (st.dust - pos.dust) * (1 - Math.exp(-dt / 420));
+
+      if (st.phase === 'approach') {
+        // One continuous glide across the whole approach, eased at both
+        // ends, rather than five hops of a fifth of the distance each.
+        var t = Math.min(1, elapsed / APPROACH);
+        var e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+        pos.us = -48 * (1 - e);
+        pos.them = 52 * (1 - e);
+      } else if (st.phase === 'melee' || st.phase === 'done') {
+        // Two lines leaning on each other: a slow grind that never settles,
+        // plus the seam's drift toward whoever is winning, plus this beat's
+        // decaying kick. Nothing here ever reaches its target and stops.
+        var grind = Math.sin(elapsed / 370) * 1.15 + Math.sin(elapsed / 149) * 0.35;
+        var seam = st.press * 4.2 + pos.imp;
+        pos.us += (seam + grind + st.close - pos.us) * k;
+        pos.them += (seam * 0.8 - grind * 0.85 - st.close * 0.95 - pos.them) * k;
+      } else if (st.phase === 'rout') {
+        pos.routV = Math.min(0.108, pos.routV + dt * 0.00019);   // they accelerate away
+        pos.rout += pos.routV * dt;
+        pos.us += (st.close + 17 - pos.us) * (1 - Math.exp(-dt / 620));
+      }
+    }
+
+    function draw() {
+      el.us.setAttribute('transform', 'translate(' + pos.us.toFixed(2) + ',0)');
+      if (pos.flip) {
+        el.them.setAttribute('transform',
+          'translate(' + (2 * fight.them.cx + pos.rout).toFixed(2) + ',' +
+          (-pos.rout * 0.13).toFixed(2) + ') scale(-1,1)');
+        el.them.setAttribute('opacity', Math.max(0.05, 1 - pos.rout / 116).toFixed(3));
+      } else {
+        el.them.setAttribute('transform', 'translate(' + pos.them.toFixed(2) + ',0)');
+      }
+      el.dust.setAttribute('opacity', pos.dust.toFixed(3));
+    }
+
+    function frame(now) {
+      if (!running) { raf = null; return; }
+      if (!last) last = now;
+      var dt = Math.min(50, now - last);       // a backgrounded tab must not teleport
+      last = now;
+
+      if (st.hold > 0) {
+        // The hit-stop. Not a pause in the animation — a pause in *time*:
+        // the simulation and the motion both stand still for 110 ms, which
+        // is the cheapest legibility trick there is and the only one that
+        // survives a phone.
+        st.hold -= dt;
+      } else {
+        elapsed += dt;
+        sinceBeat += dt;
+        var guard = 0;
+        while (sinceBeat >= F.BEAT && st.hold <= 0 && st.phase !== 'done' && guard < 4) {
+          sinceBeat -= F.BEAT; guard += 1; beat();
+        }
+        step(dt);
+      }
+      draw();
+      raf = window.requestAnimationFrame(frame);
+    }
+
+    function readout() {
+      el.lblUs.textContent = st.us.toLocaleString('en-US');
+      el.lblThem.textContent = st.them.toLocaleString('en-US');
+      el.morUs.setAttribute('width', (62 * st.usMor / 100).toFixed(1));
+      var tw = 62 * Math.max(0, st.themMor) / 100;
+      el.morThem.setAttribute('x', (F.W - 12 - tw).toFixed(1));
+      el.morThem.setAttribute('width', tw.toFixed(1));
+    }
+    function say(line) {
+      el.log2.textContent = el.log1.textContent;
+      el.log1.textContent = line;
+    }
+    // Never the same line twice running: a ribbon that repeats itself reads
+    // as a stuck screen, which is the complaint the whole deck of questions
+    // was written to answer.
+    function pick(list) {
+      for (var i = 0; i < 8; i += 1) {
+        var line = list[Math.floor(rand() * list.length)];
+        if (line !== el.log1.textContent) return line;
+      }
+      return list[0];
+    }
+    function shake() {
+      fight.root.classList.remove('shake');
+      void fight.root.offsetWidth;
+      fight.root.classList.add('shake');
+    }
+
+    resumeFight = function () { last = 0; if (!raf) raf = window.requestAnimationFrame(frame); };
+    resumeFight();
+  }
+
+  function setNote(phase) {
+    mount('motion-note', PHASE_NOTE[phase]);
+    var chip = document.getElementById('motion-phase');
+    if (chip) chip.textContent = phase === 'approach' ? 'closing' :
+      (phase === 'melee' ? 'in contact' : (phase === 'rout' ? 'broken' : 'settled'));
+  }
+
+  (function motionControls() {
+    var host = document.getElementById('pick-motion');
+    if (!host) return;
+    host.innerHTML =
+      '<button type="button" data-a="toggle" aria-pressed="true">Pause</button>' +
+      '<button type="button" data-a="replay">Replay</button>';
+    host.addEventListener('click', function (e) {
+      var btn = e.target.closest('button');
+      if (!btn) return;
+      if (btn.getAttribute('data-a') === 'replay') {
+        running = true; setToggle(host, true); runFight(); return;
+      }
+      running = !running;
+      setToggle(host, running);
+      if (!running) {
+        if (raf) { window.cancelAnimationFrame(raf); raf = null; }
+        if (restartTimer) { window.clearTimeout(restartTimer); restartTimer = null; }
+      } else if (resumeFight) {
+        resumeFight();                          // pick the fight back up, not from the top
+      } else {
+        runFight();
+      }
+    });
+    runFight();
+  })();
+
+  function setToggle(host, on) {
+    var b = host.querySelector('[data-a="toggle"]');
+    b.textContent = on ? 'Pause' : 'Play';
+    b.setAttribute('aria-pressed', String(on));
+  }
+})();
+</script>
+
+</body>
+</html>
