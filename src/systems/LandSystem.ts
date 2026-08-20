@@ -1,3 +1,4 @@
+import { registryTallies } from './decree/rules';
 import { isEndlessMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import { ENEMY_SPOT_RADIUS } from '../game/ascentConfig';
 import type { GameState, Land } from '../state/types';
@@ -28,6 +29,14 @@ export function isLandVisibleToPlayer(state: GameState, landId: string): boolean
 
 export function refreshPlayerVisibility(state: GameState): void {
   const visibleLandIds = new Set<string>();
+
+  // Sổ đinh · tín bài — the Nguyễn registry. Everyone counted, everyone carrying a tag, and the
+  // throne able to read any prefecture off a ledger without sending anyone to look. Information as
+  // a decree: the map is simply legible, which is what the clerks in every village are *for* and
+  // exactly why the countryside resents them.
+  if (registryTallies(state)) {
+    for (const land of state.lands) visibleLandIds.add(land.id);
+  }
 
   for (const land of state.lands) {
     if (land.ownerId !== PLAYER_KINGDOM_ID) {

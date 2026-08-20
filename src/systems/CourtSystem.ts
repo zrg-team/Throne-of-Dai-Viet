@@ -15,6 +15,8 @@ import type {
   ResourceBag,
 } from '../state/types';
 import { getLandSpecialization } from './ResourceSystem';
+import { estateMult, realisedFactor, tickDecrees } from './DecreeSystem';
+import { princelyFiefs, SAT_THAT_RECRUIT_MULT, tattooedArms } from './decree/rules';
 import { currentTaxRate, taxFatigueDrift, taxStabilityBase } from './TaxSystem';
 import { heroName, t } from '../i18n';
 
@@ -261,8 +263,11 @@ export function getCourtBonuses(state: GameState): CourtBonuses {
       continue;
     }
     const effects = COURT_POSITION_EFFECTS[positionId as CourtPositionId](hero.stats);
+    // Thái ấp's upside: a champion who holds land in their own name brings twice the weight to
+    // their seat. The province pays for it — see `getLandGovernorOutputMult`.
+    const fiefMult = princelyFiefs(state) ? 2 : 1;
     for (const [key, value] of Object.entries(effects)) {
-      delta[key as NumericCourtBonusKey] += value ?? 0;
+      delta[key as NumericCourtBonusKey] += (value ?? 0) * fiefMult;
     }
   }
 
@@ -293,6 +298,50 @@ export function getCourtBonuses(state: GameState): CourtBonuses {
     delta.nextArmyHeavyBonus += modifier.nextArmyHeavyBonus ?? 0;
     delta.armyLevelCapBonus += modifier.armyLevelCapBonus ?? 0;
     delta.claimSlotBonus += modifier.claimSlotBonus ?? 0;
+  }
+
+  // ── Chiếu Chỉ: what the realm actually grants, rather than what the code promises ──
+  //
+  // Everything above is what the court and the standing law are *worth on paper*. This scales it
+  // by whether the country is carrying the law out at all (`realisedFactor`) and by the standing of
+  // the estate whose domain each bonus lives in. A realm that legislated past its authority, or one
+  // that ground its farmers down to nothing, keeps the same list of decrees and gets less from
+  // every one of them — which is the entire point of the system.
+  //
+  // Guarded on `state.mandate`, which only `createEmpireGameState` seeds. Rival and campaign fall
+  // straight through and their bonuses are bit-identical to before; `verify-modes-regression.mjs`
+  // is the proof.
+  if (state.mandate) {
+    const realised = realisedFactor(state);
+    const si = estateMult(state, 'si');
+    const nong = estateMult(state, 'nong');
+    const thuong = estateMult(state, 'thuong');
+    const vo = estateMult(state, 'vo');
+    const scale = (key: NumericCourtBonusKey, estate: number) => {
+      delta[key] *= realised * estate;
+    };
+
+    scale('cardFrequencyMult', si);
+    scale('foodOutputMult', nong);
+    scale('suppliesOutputMult', nong);
+    scale('goldOutputMult', thuong);
+    scale('marketGoldOutputMult', thuong);
+    scale('acquisitionCostMult', thuong);
+    scale('armyPowerMult', vo);
+    scale('recruitSpeedMult', vo);
+    scale('armyXpMult', vo);
+
+    // Sát Thát's price. A host sworn never to break is a host of veterans, and veterans are not
+    // something you can raise more of on demand — the muster slows for as long as the oath stands.
+    if (tattooedArms(state)) delta.recruitSpeedMult -= (1 - SAT_THAT_RECRUIT_MULT);
+
+    // Flat resource grants ride the estate that grows the thing, not the one that spends it.
+    const rateEstate: Partial<Record<keyof ResourceBag, number>> = {
+      food: nong, humans: nong, supplies: nong, gold: thuong,
+    };
+    for (const key of Object.keys(resourceRateModifier) as Array<keyof ResourceBag>) {
+      resourceRateModifier[key] = (resourceRateModifier[key] ?? 0) * realised * (rateEstate[key] ?? 1);
+    }
   }
 
   const filledSeatCount = Object.values(state.court.seats).filter(Boolean).length;
@@ -334,6 +383,20 @@ export function getCourtBonuses(state: GameState): CourtBonuses {
 
 export function addCourtModifier(state: GameState, modifier: CourtModifier): void {
   state.activeCourtModifiers.push(modifier);
+}
+
+/**
+ * Takes a modifier back off the realm by its id.
+ *
+ * Only safe for modifiers given a *deterministic* id — `project-<decreeId>` is the one that
+ * matters, since repealing a decree has to find the exact bonus that decree added. Court cards
+ * mint ids from `Date.now()` and a random suffix and can never be addressed this way, which is
+ * why repeal keys off the decree id and not the modifier id.
+ */
+export function removeCourtModifier(state: GameState, id: string): boolean {
+  const before = state.activeCourtModifiers.length;
+  state.activeCourtModifiers = state.activeCourtModifiers.filter((modifier) => modifier.id !== id);
+  return state.activeCourtModifiers.length < before;
 }
 
 export function progressCourtModifiers(state: GameState): void {
@@ -519,7 +582,15 @@ export function getLandGovernorOutputMult(state: GameState, landId: string): num
   if (!land) {
     return 1;
   }
-  return getLandGovernorEffects(state, land).outputMult;
+  const mult = getLandGovernorEffects(state, land).outputMult;
+  // Thái ấp — the Trần princely fiefs. A champion posted here does not administer the province for
+  // the throne, they *hold* it: their effect at court doubles (see `getCourtBonuses`) and half of
+  // what this ground makes stays with them. Concentrating power in your champions is the trade, and
+  // it is why the farmers hate it — the yield they lose goes to a lord, not to the state.
+  if (princelyFiefs(state) && state.heroes.some((hero) => hero.assignedTo === land.id)) {
+    return mult * 0.5;
+  }
+  return mult;
 }
 
 /** Adds or removes hero signature cards from the politics deck based on current court seating. */
@@ -556,6 +627,11 @@ function syncSignatureCards(state: GameState): void {
 export function progressCourt(state: GameState): void {
   progressCourtModifiers(state);
   refreshCourtSeats(state);
+  // The realm's own opinion of the law it is carrying. Placed here rather than in either tick
+  // loop on purpose: `progressCourt` is already called by both `advanceRealtimeMonth` and
+  // `advanceAscentTick`, so one call reaches empire and Dragon Ascent, and `tickDecrees` returns
+  // immediately for the two modes that have no Mandate.
+  tickDecrees(state);
   const bonuses = getCourtBonuses(state);
 
   state.court.favor += bonuses.favorPerTick;

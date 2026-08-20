@@ -13,14 +13,17 @@ import {
   releaseHeroAssignment,
 } from '../CourtSystem';
 import { refreshAllLandOutputs } from '../ResourceSystem';
+import { estateStanding, overreach } from '../DecreeSystem';
+import { weightedPickIndex } from '../../utils/math';
 import { applyCourtEffect, choosePoliticsCard } from '../PoliticsSystem';
-import { enactProject, isUnlockMet, projectBlockedReason, projectEffectSummary, projectTitle } from '../empire/EdictSystem';
+import { enactProject, isUnlockMet, projectBlockedReason, projectEffectSummary, projectTitle, isStandingLaw } from '../empire/EdictSystem';
 import { eraIndex } from '../empire/MandateSystem';
 import { pushToast } from '../empire/notifications';
 import { enqueueAscentPrompt } from './AscentState';
 import { heroName, politicsTitle, t } from '../../i18n';
 import type {
   AppointmentOption,
+  EstateId,
   CourtPositionId,
   GameState,
   Hero,
@@ -337,13 +340,52 @@ const MAX_LAW_OPTIONS = 4;
  * is built to avoid.
  */
 export function buildLawOptions(state: GameState): string[] {
-  const score = (project: (typeof REALM_PROJECTS)[number]): number =>
-    (project.unlock ? 100 : 0) + eraIndex(project.era) * 10 + (project.edictCost ?? 0);
-  return REALM_PROJECTS
-    .filter((project) => !projectBlockedReason(state, project))
-    .sort((a, b) => score(b) - score(a))
-    .slice(0, MAX_LAW_OPTIONS)
-    .map((project) => project.id);
+  const eligible = REALM_PROJECTS
+    // Chiếu and wonders only — the other three instruments are raised by the world, not chosen
+    // from a list. See `isStandingLaw`.
+    .filter((project) => isStandingLaw(project) && !projectBlockedReason(state, project));
+  if (eligible.length === 0) return [];
+
+  // ── A draw, not a sort ────────────────────────────────────────────────────
+  //
+  // This used to be a deterministic sort, and that single line was why run twenty offered the same
+  // four rows as run one: the catalogue could grow to any size and the player would still only
+  // ever see its top slice. Weighting and drawing without replacement is what turns a menu into a
+  // deck — a run now sees ten to fourteen laws out of a pool near sixty-five, and *which* ten
+  // depends on who was drawn, what was conquered and which stories ended.
+  //
+  // The weights are still opinionated, so this is not a shuffle: what the run has earned leads,
+  // what a champion brought with them is close behind, and the estate a law would please pulls it
+  // up when that estate is the one in trouble.
+  const taught = state.mandate?.taughtDecrees ?? [];
+  const weightOf = (project: (typeof REALM_PROJECTS)[number]): number => {
+    let weight = 10 + eraIndex(project.era) * 4;
+    // Earned by play, and by a named champion, lead — the run should be offered the decree it
+    // just produced rather than the same three most expensive rows every time.
+    if (project.unlock?.kind === 'hero') weight += 55;
+    else if (project.unlock) weight += 35;
+    if (taught.includes(project.id)) weight += 45;
+    // A law that would please whichever estate is worst off is worth putting in front of a player
+    // who probably needs it. Read off the actual standing, so the deck answers the realm's state.
+    for (const [estate, delta] of Object.entries(project.estates)) {
+      if ((delta ?? 0) <= 0) continue;
+      const standing = estateStanding(state, estate as EstateId);
+      if (standing < 45) weight += (45 - standing) * 0.8;
+    }
+    // A realm already past its authority should be shown cheap laws, not another three-weight one.
+    if (overreach(state) > 0) weight += (4 - project.weight) * 6;
+    return Math.max(1, weight);
+  };
+
+  const pool = [...eligible];
+  const drawn: string[] = [];
+  while (drawn.length < MAX_LAW_OPTIONS && pool.length > 0) {
+    const weights = pool.map(weightOf);
+    const index = weightedPickIndex(weights);
+    const picked = pool.splice(index < 0 ? 0 : index, 1)[0];
+    drawn.push(picked.id);
+  }
+  return drawn;
 }
 
 /**

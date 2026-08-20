@@ -1,5 +1,7 @@
 import type { GameState } from './types';
 import { applyResourceDelta } from '../systems/ResourceSystem';
+import { addCourtModifier } from '../systems/CourtSystem';
+import { REALM_PROJECTS } from '../data/edicts';
 import { t } from '../i18n';
 
 const LEGACY_KEY = 'mandate:legacy:v1';
@@ -10,6 +12,15 @@ interface LegacyStore {
   ascensions: number;
   /** Ids of permanently-purchased ascension perks (the meta-progression spend sink). */
   perks: string[];
+  /**
+   * Schools whose capstone a past reign completed — the quốc bảo, an ancestral law.
+   *
+   * The missing half of the decree loop: a reign that reached the Hồng Đức code proved something
+   * about how it governed, and nothing carried that forward. A completed capstone means every
+   * later dynasty may open holding one article of it, which is the only cross-run reward in the
+   * game that is earned by *how* you played rather than by how long you lasted.
+   */
+  codes?: string[];
 }
 
 /**
@@ -45,7 +56,7 @@ function canUseLocalStorage(): boolean {
 }
 
 export function getLegacy(): LegacyStore {
-  if (!canUseLocalStorage()) return { points: 0, bestScore: 0, ascensions: 0, perks: [] };
+  if (!canUseLocalStorage()) return { points: 0, bestScore: 0, ascensions: 0, perks: [], codes: [] };
   try {
     const raw = localStorage.getItem(LEGACY_KEY);
     if (!raw) return { points: 0, bestScore: 0, ascensions: 0, perks: [] };
@@ -55,6 +66,7 @@ export function getLegacy(): LegacyStore {
       bestScore: Math.max(0, Math.floor(parsed.bestScore ?? 0)),
       ascensions: Math.max(0, Math.floor(parsed.ascensions ?? 0)),
       perks: Array.isArray(parsed.perks) ? parsed.perks.filter((id) => typeof id === 'string') : [],
+      codes: Array.isArray(parsed.codes) ? parsed.codes.filter((id) => typeof id === 'string') : [],
     };
   } catch {
     return { points: 0, bestScore: 0, ascensions: 0, perks: [] };
@@ -98,6 +110,37 @@ export function applyLegacyPerks(state: GameState): void {
       state.mandate.edictPoints += perk.startEdictPoints;
     }
   }
+  applyAncestralCodes(state);
+}
+
+/**
+ * Quốc bảo — one article of an ancestral code, in force from the founding.
+ *
+ * Deliberately the *cheapest* decree of the school rather than its capstone: what carries forward
+ * is the tradition, not the achievement. Reaching the Hồng Đức code once means every later dynasty
+ * starts already Confucian-leaning, which nudges a run toward that school without deciding it —
+ * the player can still commit against it and pay the ordinary price.
+ *
+ * Passed through `mandate.edicts` directly rather than `enactProject`, because a founding
+ * inheritance costs no edict points and angers nobody: it has always been the law here.
+ */
+function applyAncestralCodes(state: GameState): void {
+  const codes = getLegacy().codes ?? [];
+  const mandate = state.mandate;
+  if (!mandate || codes.length === 0) return;
+
+  for (const school of codes) {
+    const seed = REALM_PROJECTS
+      .filter((project) => project.school === school && project.kind === 'edict' && !project.unlock)
+      .sort((a, b) => (a.edictCost ?? 0) - (b.edictCost ?? 0))[0];
+    if (!seed || mandate.edicts.includes(seed.id)) continue;
+    mandate.edicts.push(seed.id);
+    addCourtModifier(state, {
+      id: `project-${seed.id}`,
+      label: t(`empire.edict.${seed.id}` as Parameters<typeof t>[0]),
+      ...seed.modifier,
+    });
+  }
 }
 
 /** Score for a finished empire run, from lands held, invasions repelled, and Mandate. */
@@ -138,6 +181,9 @@ export function bankLegacy(state: GameState, ascended: boolean): number {
   store.points += earned;
   store.bestScore = Math.max(store.bestScore, runScore);
   if (ascended) store.ascensions += 1;
+  // A capstone reached is a code the dynasty leaves behind, whether or not the run ended well —
+  // Lê Thánh Tông's laws outlived his reign, which is the whole idea.
+  store.codes = Array.from(new Set([...(store.codes ?? []), ...(state.mandate?.capstones ?? [])]));
   writeLegacy(store);
   return earned;
 }

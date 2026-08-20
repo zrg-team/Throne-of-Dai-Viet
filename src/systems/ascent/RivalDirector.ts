@@ -1,5 +1,6 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
+  BOSS_TELEGRAPH_TICKS,
   COALITION_COOLDOWN_TICKS,
   COALITION_DOMINANCE,
   COALITION_LEAD_TICKS,
@@ -19,6 +20,7 @@ import { pushToast } from '../empire/notifications';
 import { enqueueAscentPrompt } from './AscentState';
 import { computeFieldDefencePower, contestedDefencePower } from './PowerSystem';
 import { launchPunitiveHost } from './EnemyCommandDirector';
+import { isBossWave } from './WaveDirector';
 import { t } from '../../i18n';
 import type { GameState, Kingdom, RivalDemandOption } from '../../state/types';
 
@@ -311,7 +313,18 @@ export function resolveRivalDemand(
       // be visible on the map rather than inferred from a countdown. Falls back to the old nudge
       // when the map is already too crowded to add a host.
       if (!launchPunitiveHost(state, kingdom.id)) {
-        ascent.ticksToWave = Math.max(1, ascent.ticksToWave - TRIBUTE_REFUSE_TICKS);
+        // Never inside a Great Invasion's warning window.
+        //
+        // `tickWaveDirector` only telegraphs a boss when `ticksToWave` crosses
+        // `BOSS_TELEGRAPH_TICKS`, so pulling the clock past that point lands the boss on the very
+        // tick it is announced — measured, wave 12 of a seeded run went from four seasons out to
+        // arriving with its own toast, and `verify-ascent`'s "bosses telegraphed" check caught it.
+        // Clamped here rather than in the wave director because this is the thing doing the
+        // yanking: the fix then costs nothing on any tick where no demand was refused.
+        ascent.ticksToWave = Math.max(
+          isBossWave(ascent.wave + 1) ? BOSS_TELEGRAPH_TICKS + 1 : 1,
+          ascent.ticksToWave - TRIBUTE_REFUSE_TICKS,
+        );
       }
       pushToast(state, t('ascent.rival.tributeRefused', { kingdom: kingdom.name }), 'threat');
       break;
@@ -361,7 +374,18 @@ export function resolveRivalDemand(
       // Defying a demand for submission is the harder refusal, so it earns the heavier answer:
       // a war host aimed at the seat rather than a raid on the border.
       if (!launchPunitiveHost(state, kingdom.id, { conquest: true, sizeMult: 1.2 })) {
-        ascent.ticksToWave = Math.max(1, ascent.ticksToWave - TRIBUTE_REFUSE_TICKS);
+        // Never inside a Great Invasion's warning window.
+        //
+        // `tickWaveDirector` only telegraphs a boss when `ticksToWave` crosses
+        // `BOSS_TELEGRAPH_TICKS`, so pulling the clock past that point lands the boss on the very
+        // tick it is announced — measured, wave 12 of a seeded run went from four seasons out to
+        // arriving with its own toast, and `verify-ascent`'s "bosses telegraphed" check caught it.
+        // Clamped here rather than in the wave director because this is the thing doing the
+        // yanking: the fix then costs nothing on any tick where no demand was refused.
+        ascent.ticksToWave = Math.max(
+          isBossWave(ascent.wave + 1) ? BOSS_TELEGRAPH_TICKS + 1 : 1,
+          ascent.ticksToWave - TRIBUTE_REFUSE_TICKS,
+        );
       }
       pushToast(state, t('ascent.rival.defied', { kingdom: kingdom.name }), 'threat');
       break;

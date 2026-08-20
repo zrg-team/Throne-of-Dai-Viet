@@ -12,6 +12,8 @@ import {
   methodHasActor,
 } from './ConquestSystem';
 import { applyAppointment, offerAppointment, resolveLawChoice, resolveParliament } from './CourtLaneSystem';
+import { resolveDecreeOffer } from '../decree/OfferSystem';
+import { reignName, reignSummary } from '../decree/SchoolSystem';
 import { resolveDoctrine } from './RealmDoctrineSystem';
 import { resolveEnvoy } from './EnvoySystem';
 import { resolveFamine } from './FamineSystem';
@@ -173,6 +175,11 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
       break;
     }
 
+    case 'decree-offer': {
+      handled = resolveDecreeOffer(state, choiceId, prompt);
+      break;
+    }
+
     case 'doctrine': {
       handled = resolveDoctrine(state, choiceId);
       break;
@@ -259,6 +266,8 @@ export function endAscentRun(state: GameState): void {
     landName: ascent.endLandName,
     previousBest,
     legacyTotal: getLegacy().points,
+    reign: reignName(state),
+    reignDetail: reignSummary(state),
   };
   state.isPaused = true;
 }

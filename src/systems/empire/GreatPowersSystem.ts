@@ -2,6 +2,7 @@ import { isEndlessMode, PLAYER_KINGDOM_ID } from '../../game/constants';
 import type { GameState, Kingdom, KingdomPersonality } from '../../state/types';
 import { addOpinionModifier, naturalBaseline, recomputeOpinion } from '../DiplomacySystem';
 import { pushToast } from './notifications';
+import { reconcileRivalDecrees, tickRivalDecrees } from '../decree/RivalDecreeSystem';
 import { t } from '../../i18n';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -113,6 +114,13 @@ function activeEmpires(state: GameState): Kingdom[] {
 /** Called once per in-game year (from the season/year rollover). */
 export function tickGreatPowersYear(state: GameState): void {
   if (!isEndlessMode(state.gameMode)) return;
+
+  // The other courts legislate too. On this clock rather than the tick, because these empires
+  // already live on their own slower one — a neighbour proclaiming at you every season would be
+  // noise instead of an event. `reconcileRivalDecrees` runs first so warming a relationship this
+  // year takes their edict off before the same pass considers writing another.
+  reconcileRivalDecrees(state);
+  tickRivalDecrees(state);
 
   const empires = activeEmpires(state);
   for (const k of empires) {

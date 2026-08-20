@@ -26,7 +26,17 @@ import {
 import { foreignChoiceEnabled } from '../systems/ForeignEventSystem';
 import { directiveTitle } from '../systems/empire/DirectiveSystem';
 import { eraLabel, eraProgress, pointsToNextEra } from '../systems/empire/MandateSystem';
-import { allProjects, enactProject, isProjectEnacted, projectBlockedReason, projectDescription, projectEffectSummary, projectTitle } from '../systems/empire/EdictSystem';
+import { allProjects, enactProject, isProjectEnacted, projectBlockedReason, projectDescription, projectEffectSummary, projectTitle, repealProject } from '../systems/empire/EdictSystem';
+import {
+  authorityCap,
+  averageCompliance,
+  ESTATE_CRISIS,
+  estateStanding,
+  overreach,
+  realisedFactor,
+  repealTerms,
+  standingWeight,
+} from '../systems/DecreeSystem';
 import { ABILITIES, abilityBlockedReason, abilityCooldown, abilityLabel, useAbility } from '../systems/empire/AbilitySystem';
 import {
   activeHeroMission,
@@ -64,6 +74,7 @@ import { ARMY_DEFAULT_PROVISIONS, ARMY_DEFAULT_RATIONS, ARMY_LOGISTICS_STEP } fr
 import { applyPaperFX } from '../ui/ink/PaperFX';
 import { applyRenderScale, designPointer } from '../game/graphicsQuality';
 import type { CourtPositionId, GameState, Hero, Land, PoliticsCard, TaxPolicy } from '../state/types';
+import { ESTATE_IDS } from '../state/types';
 import {
   buildingLabel,
   formatResourceList,
@@ -2375,8 +2386,34 @@ export class UIScene extends Phaser.Scene {
     this.modalLayer.add(createLabel(this, content.x + content.width, content.y + 20, t('empire.edict.activeCount', { count: activeCount }), 'caption', { fontSize: '9px', align: 'right', color: '#3f6b32' }).setOrigin(1, 0));
     this.modalLayer.add(createLabel(this, content.x, content.y + 32, t('empire.edict.explain'), 'caption', { fontSize: '9px', color: '#6b5230', wordWrap: { width: content.width } }));
 
-    const listTop = content.y + 62;
-    const listH = content.height - 62;
+    // ── What the realm will bear, and whether it is listening ──
+    //
+    // Two lines, not a panel: this screen is already a dense scrolling list and the numbers are
+    // context for it rather than the subject. Weight against authority answers "may I pass another
+    // law", obedience answers "are the ones I passed doing anything", and the estates line names
+    // whichever constituency is in open grievance. Overreach turns the first line red, because it
+    // is the state a player will otherwise never notice they are in.
+    if (mandate) {
+      const weight = standingWeight(this.state);
+      const cap = authorityCap(this.state);
+      const over = overreach(this.state);
+      const authorityLine = `${t('decree.stat.weight')} ${t('decree.authority.value', { weight: `${weight}`, cap: `${cap}` })}  ·  ${t('decree.stat.compliance')} ${Math.round(averageCompliance(this.state))}%  ·  ×${realisedFactor(this.state).toFixed(2)}`;
+      this.modalLayer.add(createLabel(this, content.x, content.y + 46, authorityLine, 'caption', {
+        fontSize: '9px',
+        color: over > 0 ? '#8f2114' : '#3f6b32',
+      }));
+      const estateLine = ESTATE_IDS
+        .map((estate) => `${t(`decree.estate.${estate}` as Parameters<typeof t>[0])} ${Math.round(estateStanding(this.state, estate))}`)
+        .join('  ·  ');
+      const aggrieved = ESTATE_IDS.find((estate) => estateStanding(this.state, estate) < ESTATE_CRISIS);
+      this.modalLayer.add(createLabel(this, content.x, content.y + 60, estateLine, 'caption', {
+        fontSize: '9px',
+        color: aggrieved ? '#8f2114' : '#6b5230',
+      }));
+    }
+
+    const listTop = content.y + (mandate ? 78 : 62);
+    const listH = content.height - (mandate ? 78 : 62);
     const scroll = this.ui.scrollArea({ x: content.x, y: listTop, width: content.width, height: listH });
     scroll.addTo(this.modalLayer);
     this.activeScrollAreas.push(scroll);
@@ -2415,7 +2452,16 @@ export class UIScene extends Phaser.Scene {
       const btnW = 90;
       const btnX = content.width - btnW - 4;
       if (enacted) {
-        scroll.content.add(createLabel(this, btnX + btnW, rowY + 14, t('empire.edict.done'), 'caption', { fontSize: '10px', align: 'right', color: '#3f6b32' }).setOrigin(1, 0));
+        scroll.content.add(createLabel(this, btnX + btnW, rowY + 8, t('empire.edict.done'), 'caption', { fontSize: '10px', align: 'right', color: '#3f6b32' }).setOrigin(1, 0));
+        // A standing law is a decision that can be taken back. Wonders cannot — a canal that has
+        // been dug is not a statute, and `repealProject` prices repeal off the edict-point cost a
+        // wonder never had.
+        const terms = project.kind === 'edict' ? repealTerms(this.state, project.id) : undefined;
+        if (terms) {
+          scroll.content.add(this.ui.button({ x: btnX, y: rowY + 26, width: btnW, height: 26 }, t('decree.repeal.cost', { n: terms.cost }), () => {
+            if (repealProject(this.state, project.id)) this.refresh();
+          }, { variant: terms.affordable ? 'secondary' : 'disabled', fontSize: '10px' }));
+        }
       } else if (blocked) {
         scroll.content.add(createLabel(this, btnX + btnW, rowY + 14, blocked, 'caption', { fontSize: '9px', align: 'right', color: '#8f2114', wordWrap: { width: btnW } }).setOrigin(1, 0));
       } else {

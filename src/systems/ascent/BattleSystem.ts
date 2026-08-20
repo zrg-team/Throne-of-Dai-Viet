@@ -1,3 +1,5 @@
+import { hasCapstone } from '../decree/SchoolSystem';
+import { tattooedArms, SAT_THAT_ROUT_FLOOR } from '../decree/rules';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   BATTLE_ADVANCE_PER_TICK,
@@ -1168,7 +1170,20 @@ export function fightRound(state: GameState): void {
   // Hosts break one at a time. Losing a host is a setback, not the battle — which is what makes
   // bringing a second column worth the march, and what stops one bad exchange ending everything.
   const brokeThisBeat: string[] = [];
+  // Sát Thát — the arm tattoos of 1285. Trần soldiers cut "kill the Mongols" into their own
+  // forearms before the second Yuan invasion, and this is the mechanical shape of that: our hosts
+  // hold to a fifth strength rather than breaking at the usual morale. Only ours — the invader
+  // never swore anything. The price is on the other side of the trade, in `SAT_THAT_RECRUIT_MULT`:
+  // men who will not run are also men who cannot be replaced.
+  // Measured against the side's opening strength rather than each host's own, because a host is
+  // an `Army` and carries no record of what it marched in with — `battle.ourStart` is the only
+  // honest starting figure either side has.
+// Sát Thát vĩnh cửu, the militarist capstone, goes further than the oath it is named for: the
+  // floor drops to zero, so our hosts fight until they are destroyed and never break at all.
+  const eternal = hasCapstone(state, 'binh');
+  const swornFloor = eternal ? 0 : tattooedArms(state) ? battle.ourStart * (SAT_THAT_ROUT_FLOOR / 100) : -1;
   for (const host of [...ours, ...theirs]) {
+    if (swornFloor >= 0 && ours.includes(host) && battle.ourNow > swornFloor) continue;
     if (host.morale > BATTLE_ROUT_MORALE) continue;
     battle.brokenHostIds.push(host.id);
     brokeThisBeat.push(host.id);

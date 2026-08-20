@@ -1,6 +1,7 @@
 import { MAX_BUILDING_LEVEL } from '../../game/gameplayConfig';
 import type { EraId, GameState, MandateState } from '../../state/types';
 import { t } from '../../i18n';
+import { estateStanding, ESTATE_CRISIS } from '../DecreeSystem';
 import { pushToast } from './notifications';
 
 /** Ordered eras and the cumulative Mandate points needed to enter each. */
@@ -142,6 +143,17 @@ export function addMandate(state: GameState, amount: number): void {
 export function grantEdictPoints(state: GameState, amount: number): void {
   const mandate = state.mandate;
   if (!mandate || amount <= 0) return;
+  // Sĩ at rock bottom stops the reform engine dead. Scholars are the office that drafts, copies
+  // and files a decree; a court that has dishonoured them has nobody left to write with, and the
+  // player has to repair that standing before they can legislate again. Deliberately a full stop
+  // rather than a slowdown — a fractional trickle would read as a bug, not as a consequence.
+  if (estateStanding(state, 'si') < ESTATE_CRISIS) {
+    pushToast(state, t('decree.estate.angry', {
+      estate: t('decree.estate.si'),
+      effect: t('decree.estate.si.angry'),
+    }), 'threat');
+    return;
+  }
   mandate.edictPoints += amount;
   pushToast(state, t('empire.mandate.edictEarned', { points: amount }), 'reward');
 }

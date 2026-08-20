@@ -22,6 +22,27 @@ import {
   upgradeArmy,
 } from '../systems/WarSystem';
 import { getCourtBonuses } from '../systems/CourtSystem';
+import {
+  authorityCap,
+  averageCompliance,
+  ESTATE_CRISIS,
+  estateStanding,
+  overreach,
+  realisedFactor,
+  repealTerms,
+  standingWeight,
+} from '../systems/DecreeSystem';
+import { projectDescription, projectEffectSummary, projectTitle, repealProject } from '../systems/empire/EdictSystem';
+import { getProject } from '../data/edicts';
+import {
+  ALL_SCHOOLS,
+  capstoneReady,
+  capstonesTaken,
+  isSchoolLocked,
+  SCHOOL_COMMIT,
+  schoolTally,
+  takeCapstone,
+} from '../systems/decree/SchoolSystem';
 import { currentTaxRate, setTaxRate, taxGoldMult, taxGrowthDelta, taxStabilityBase } from '../systems/TaxSystem';
 import { lawCardView, seatedEffectSummary } from '../systems/ascent/CourtLaneSystem';
 import { envoyOptionDetail } from '../systems/ascent/EnvoySystem';
@@ -140,6 +161,7 @@ import type {
   Land,
   StoryOpening,
 } from '../state/types';
+import { ESTATE_IDS } from '../state/types';
 import { ARMY_RATION_USE_PER_100 } from '../game/gameplayConfig';
 
 /** The three map controls stacked at the right edge, matching the classic modes. */
@@ -560,6 +582,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'hero-choice': return `${prompt.source}:${prompt.heroIds.join(',')}`;
       case 'court-appointment': return `${prompt.heroId}:${prompt.options.map((option) => option.id).join(',')}`;
       case 'law-choice': return `${prompt.points}:${prompt.projectIds.join(',')}`;
+      case 'decree-offer': return `${prompt.instrument}:${prompt.targetId ?? ''}:${prompt.projectIds.join(',')}`;
       case 'doctrine': return `doctrine:${prompt.era}`;
       case 'parliament': return prompt.cardId;
       case 'envoy': return `${prompt.kingdomId}:${prompt.relations}`;
@@ -584,6 +607,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'hero-choice': this.showHeroChoice(prompt); break;
       case 'court-appointment': this.showAppointment(prompt); break;
       case 'law-choice': this.showLawChoice(prompt); break;
+      case 'decree-offer': this.showDecreeOffer(prompt); break;
       case 'doctrine': this.showDoctrine(prompt); break;
       case 'parliament': this.showParliament(prompt); break;
       case 'envoy': this.showEnvoy(prompt); break;
@@ -2150,6 +2174,109 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       },
     ]));
 
+    // ── Authority: what the realm will bear, and whether it is obeying ──
+    //
+    // This is the header the standing-law list never had. A decree used to be a purchase with no
+    // running cost, so a list of them told the player nothing about the state they were in. Weight
+    // against authority says how much more law the throne can carry; obedience says what the laws
+    // already passed are actually worth. Both are the numbers the whole screen is about.
+    if (mandate) {
+      addHeading(t('decree.section.authority'));
+      const weight = standingWeight(state);
+      const cap = authorityCap(state);
+      const over = overreach(state);
+      const obedience = Math.round(averageCompliance(state));
+      // Nghiêm pháp lifts the cap to infinity, which would print as "3 / Infinity". A word, not a
+      // number, because at that point the number has stopped being the thing the player reads.
+      const capLabel = Number.isFinite(cap) ? `${cap}` : t('decree.authority.boundless');
+      addWidget(0, (parent, width) => this.statPanel(parent, width, [
+        {
+          label: t('decree.stat.weight'),
+          value: t('decree.authority.value', { weight: `${weight}`, cap: capLabel }),
+          accent: over > 0 ? cssHex(INK_UI.cinnabar) : undefined,
+        },
+        {
+          label: t('decree.stat.compliance'),
+          value: t('decree.compliance.value', { n: `${obedience}` }),
+          accent: obedience < 45 ? cssHex(INK_UI.cinnabar) : undefined,
+        },
+        { label: t('decree.stat.authority'), value: capLabel },
+      ]));
+      addNote(
+        over > 0
+          ? t('decree.authority.over', { n: `${over}` })
+          : weight >= cap
+            ? t('decree.authority.full')
+            : t('decree.authority.room', { n: `${cap - weight}` }),
+        over > 0 ? INK_UI.cinnabar : INK_UI.softBrush,
+      );
+      addNote(t('decree.compliance.effect', { mult: realisedFactor(state).toFixed(2) }));
+
+      // ── The four estates ──
+      //
+      // One shared 0–100 number per estate is the wire between decrees and everything else in the
+      // game, so it has to be visible before a law is passed, not discovered afterwards. An estate
+      // in open grievance is called out by name with what it is actually withholding.
+      addHeading(t('decree.section.estates'));
+      addWidget(0, (parent, width) => this.statPanel(parent, width, ESTATE_IDS.map((estate) => ({
+        label: t(`decree.estate.${estate}` as Parameters<typeof t>[0]),
+        value: `${Math.round(estateStanding(state, estate))}`,
+        accent: estateStanding(state, estate) < ESTATE_CRISIS ? cssHex(INK_UI.cinnabar) : undefined,
+      }))));
+      for (const estate of ESTATE_IDS) {
+        if (estateStanding(state, estate) >= ESTATE_CRISIS) continue;
+        addNote(t('decree.estate.angry', {
+          estate: t(`decree.estate.${estate}` as Parameters<typeof t>[0]),
+          effect: t(`decree.estate.${estate}.angry` as Parameters<typeof t>[0]),
+        }), INK_UI.cinnabar);
+      }
+    }
+
+    // ── Schools of statecraft ──
+    //
+    // Only once the reign has actually leaned somewhere. Shown from the first decree of a school
+    // rather than only at the capstone, so the player can see the commitment coming and decide
+    // whether to make it — a fork you discover after crossing it is not a fork.
+    if (mandate) {
+      const tally = schoolTally(state);
+      const leaning = ALL_SCHOOLS.filter((school) => tally[school] > 0);
+      if (leaning.length > 0) {
+        addHeading(t('decree.section.schools'));
+        addWidget(0, (parent, width) => this.statPanel(parent, width, ALL_SCHOOLS.map((school) => ({
+          label: t(`decree.school.${school}` as Parameters<typeof t>[0]),
+          value: `${tally[school]}`,
+          accent: isSchoolLocked(state, school)
+            ? cssHex(INK_UI.softBrush)
+            : tally[school] >= SCHOOL_COMMIT ? cssHex(INK_UI.jade) : undefined,
+        }))));
+        for (const school of ALL_SCHOOLS) {
+          if (!capstoneReady(state, school)) continue;
+          addRow(
+            {
+              title: t('decree.capstone.offer', { title: t(`decree.capstone.${school}` as Parameters<typeof t>[0]) }),
+              subtitle: t(`decree.capstone.${school}.d` as Parameters<typeof t>[0]),
+              border: INK_UI.jade,
+            },
+            () => {
+              if (takeCapstone(state, school)) {
+                refreshAllLandOutputs(state);
+                this.closeLane();
+                this.showCourtScreen();
+              }
+            },
+          );
+        }
+        for (const school of capstonesTaken(state)) {
+          addRow({
+            title: t(`decree.capstone.${school}` as Parameters<typeof t>[0]),
+            subtitle: t(`decree.capstone.${school}.d` as Parameters<typeof t>[0]),
+            border: INK_UI.jade,
+            muted: true,
+          });
+        }
+      }
+    }
+
     // ── Decrees ──
     if ((mandate?.edictPoints ?? 0) > 0 || (mandate?.edicts.length ?? 0) > 0) {
       addHeading(t('court.section.decrees'));
@@ -2170,7 +2297,26 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     for (const edictId of mandate?.edicts ?? []) {
       const view = lawCardView(state, edictId);
       if (!view) continue;
-      addRow({ title: view.title, subtitle: view.effect, border: INK_UI.gold, muted: true });
+      const terms = repealTerms(state, edictId);
+      // A standing law is now a row you can act on rather than a receipt. Repeal is the pressure
+      // valve the weight system needs: without it, one bad early pick is a bad whole run.
+      addRow(
+        {
+          title: view.title,
+          subtitle: `${view.effect}  ·  ${t('decree.weight.cost', { n: `${terms?.weight ?? 0}` })}`,
+          border: INK_UI.gold,
+          muted: !terms?.affordable,
+        },
+        terms?.affordable
+          ? () => {
+            if (repealProject(state, edictId)) {
+              refreshAllLandOutputs(state);
+              this.closeLane();
+              this.showCourtScreen();
+            }
+          }
+          : undefined,
+      );
     }
 
     // ── The tax dial, always directly under the decrees ──
@@ -3730,6 +3876,96 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       cards.push(card);
       used += ((card.getData('cardHeight') as number) ?? rowHeight) + 9;
     });
+    staggerIn(this, cards);
+    finish(used);
+  }
+
+  /**
+   * The four instruments the world raises: sắc, dụ, hịch and lệ.
+   *
+   * One card for all four, because they are one prompt kind and therefore one slot in the
+   * director's budget — see the note on `decree-offer`. What differs between them is the framing:
+   * a hịch is a war proclamation and gets the cinnabar accent, a lệ is a village asking and gets
+   * two answers rather than one, and every instrument may be declined.
+   */
+  private showDecreeOffer(prompt: Extract<AscentPrompt, { kind: 'decree-offer' }>): void {
+    const instrument = prompt.instrument;
+    const { body, bodyWidth, finish } = this.promptScrollBody(
+      t(`decree.instrument.${instrument}.title` as Parameters<typeof t>[0]),
+      prompt.targetName
+        ? t(`decree.instrument.${instrument}.at` as Parameters<typeof t>[0], { target: prompt.targetName })
+        : t(`decree.instrument.${instrument}.body` as Parameters<typeof t>[0]),
+      0,
+    );
+
+    const accent = instrument === 'hich' ? INK_UI.cinnabar
+      : instrument === 'du' ? INK_UI.gold
+        : instrument === 'sac' ? INK_UI.jade : INK_UI.softBrush;
+
+    const cards: Phaser.GameObjects.Container[] = [];
+    let used = 0;
+    const addCard = (opts: { title: string; bodyText: string; note?: string; badge?: string; onTap: () => void }) => {
+      const card = this.optionCard(
+        { x: 0, y: used, width: bodyWidth, height: 76 },
+        {
+          title: opts.title,
+          body: opts.bodyText,
+          note: opts.note,
+          badge: opts.badge,
+          accent,
+          parent: body,
+          onTap: opts.onTap,
+        },
+      );
+      cards.push(card);
+      used += ((card.getData('cardHeight') as number) ?? 76) + 9;
+    };
+
+    for (const projectId of prompt.projectIds) {
+      const project = getProject(projectId);
+      if (!project) continue;
+      const title = projectTitle(project);
+      const description = projectDescription(project);
+
+      if (instrument === 'le') {
+        // A custom has two answers, not one: keep it to the village that asked (strong, free,
+        // local) or write it into the realm's law (weaker, everywhere, and it costs weight).
+        addCard({
+          title: t('decree.le.grantTitle', { title }),
+          bodyText: description,
+          note: t('decree.le.grantNote', { land: prompt.targetName ?? '' }),
+          badge: t('decree.le.badgeLocal'),
+          onTap: () => this.choose(`le:${projectId}:local`),
+        });
+        addCard({
+          title: t('decree.le.ratifyTitle', { title }),
+          bodyText: projectEffectSummary(project) || description,
+          note: t('decree.weight.cost', { n: `${project.weight}` }),
+          badge: t('decree.le.badgeRealm'),
+          onTap: () => this.choose(`le:${projectId}:realm`),
+        });
+        continue;
+      }
+
+      addCard({
+        title,
+        bodyText: description,
+        note: (project.edictCost ?? 0) > 0
+          ? t('ascent.law.pointCost', { n: project.edictCost ?? 0 })
+          : t(`decree.instrument.${instrument}.free` as Parameters<typeof t>[0]),
+        badge: t(`decree.instrument.${instrument}.badge` as Parameters<typeof t>[0]),
+        onTap: () => this.choose(`decree:${projectId}`),
+      });
+    }
+
+    // Always declinable. A card the player cannot say no to is not a decision, and refusing a
+    // village its custom is the choice this whole instrument exists to make available.
+    addCard({
+      title: t(`decree.instrument.${instrument}.decline` as Parameters<typeof t>[0]),
+      bodyText: t(`decree.instrument.${instrument}.declineBody` as Parameters<typeof t>[0]),
+      onTap: () => this.choose('decline'),
+    });
+
     staggerIn(this, cards);
     finish(used);
   }
@@ -7133,11 +7369,16 @@ ${t('ascent.codex.subtitle', codex)}`,
     const ascent = this.state.ascent;
     const beatBest = prompt.score > prompt.previousBest;
 
+    // The reign leads the subtitle when it has a name. The Reckoning previously said only how the
+    // dynasty fell, so a run that legislated its way to the Hong Duc code closed on exactly the
+    // same sentence as one that never passed a law — the two things it is most worth telling apart.
+    const fall = prompt.cause === 'capital'
+      ? t('ascent.over.causeCapital', { land: prompt.landName ?? '', waves: ascent?.wavesSurvived ?? 0 })
+      : t('ascent.over.causeAnnihilated', { waves: ascent?.wavesSurvived ?? 0 });
     const content = this.promptFrame(
-      t('ascent.over.title'),
-      prompt.cause === 'capital'
-        ? t('ascent.over.causeCapital', { land: prompt.landName ?? '', waves: ascent?.wavesSurvived ?? 0 })
-        : t('ascent.over.causeAnnihilated', { waves: ascent?.wavesSurvived ?? 0 }),
+      prompt.reign ?? t('ascent.over.title'),
+      prompt.reignDetail ? `${prompt.reignDetail}
+${fall}` : fall,
     );
 
     // ── The headline: this run against the record ───────────────────────────

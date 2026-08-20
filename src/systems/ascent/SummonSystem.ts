@@ -1,3 +1,4 @@
+import { seekingTheWorthy, SEEKING_PITY_BONUS, SEEKING_TIER_WEIGHT } from '../decree/rules';
 import {
   PITY_GOLD_STEP,
   PITY_HARD_CAP,
@@ -36,12 +37,19 @@ export function tierForHero(hero: Hero): AscentRarity {
  * gold-or-better tilts the odds further toward the top tiers, so a cold streak visibly
  * corrects itself instead of feeling arbitrary.
  */
-function summonWeights(pity: number): Record<AscentRarity, number> {
+function summonWeights(state: GameState, pity: number): Record<AscentRarity, number> {
+  // Chiếu cầu hiền — the edict seeking the worthy, which Quang Trung issued after Hán Cao Tổ's.
+  // The court that publicly asks for talent gets more of it: pity arrives two summons sooner and
+  // the top tiers weigh half again as much. What it costs is on the payroll, not here — see
+  // `SEEKING_UPKEEP_MULT`. This is the first decree in the game that reaches the gacha at all.
+  const seeking = seekingTheWorthy(state);
+  const effective = pity + (seeking ? SEEKING_PITY_BONUS : 0);
+  const lift = seeking ? SEEKING_TIER_WEIGHT : 1;
   return {
-    bronze: Math.max(4, SUMMON_WEIGHTS.bronze - pity * (PITY_GOLD_STEP * 0.8)),
+    bronze: Math.max(4, SUMMON_WEIGHTS.bronze - effective * (PITY_GOLD_STEP * 0.8)),
     silver: SUMMON_WEIGHTS.silver,
-    gold: SUMMON_WEIGHTS.gold + pity * PITY_GOLD_STEP,
-    jade: SUMMON_WEIGHTS.jade + pity * PITY_JADE_STEP,
+    gold: (SUMMON_WEIGHTS.gold + effective * PITY_GOLD_STEP) * lift,
+    jade: (SUMMON_WEIGHTS.jade + effective * PITY_JADE_STEP) * lift,
   };
 }
 
@@ -74,7 +82,7 @@ export function rollSummonHeroes(state: GameState): { heroIds: string[]; pityUse
   if (!ascent || state.heroDeck.length === 0) return { heroIds: [], pityUsed: false };
 
   const guaranteed = ascent.summonPity >= PITY_HARD_CAP;
-  const weights = summonWeights(ascent.summonPity);
+  const weights = summonWeights(state, ascent.summonPity);
   const remaining = [...state.heroDeck];
   const heroIds: string[] = [];
 
