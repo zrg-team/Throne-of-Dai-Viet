@@ -817,6 +817,8 @@ export const enEmpire = {
   "decree.rival.be-quan-toa-cang": "{kingdom}: the closed frontier",
   "decree.rival.treo-giai-thuong": "{kingdom}: a bounty on our recruiters",
   "decree.taught": "The record teaches the court something: {title} is within reach.",
+  "decree.capital.moved": "The seat of the dynasty moves to {land}. The court follows the throne.",
+  "decree.thanhDa.done": "{land} is emptied and given up. The invader will find ash and take it.",
 
   // ── Phase 4: schools, capstones, and the reign's name ──
   "decree.school.none": "no school",
@@ -1653,6 +1655,8 @@ export const viEmpire: Record<keyof typeof enEmpire, string> = {
   "decree.rival.be-quan-toa-cang": "{kingdom}: bế quan toả cảng",
   "decree.rival.treo-giai-thuong": "{kingdom}: treo giải lấy đầu người mộ lính của ta",
   "decree.taught": "Sử sách dạy triều đình một điều: {title} đã trong tầm với.",
+  "decree.capital.moved": "Kinh đô dời về {land}. Triều thần theo ngai vàng mà đi.",
+  "decree.thanhDa.done": "{land} bị bỏ trống. Giặc tới chỉ gặp tro tàn mà chiếm.",
 
   // ── Giai đoạn 4: các nhà, đại pháp, và tên của triều đại ──
   "decree.school.none": "chưa theo nhà nào",

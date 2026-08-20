@@ -2,10 +2,11 @@ import { getProject, REALM_PROJECTS, type RealmProject } from '../../data/edicts
 import { BOSS_TELEGRAPH_TICKS } from '../../game/ascentConfig';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import type { DecreeInstrument, GameState, Land } from '../../state/types';
-import { applyEstateDeltas, estateStanding, landCompliance } from '../DecreeSystem';
+import { applyEstateDeltas, BASE_COMPLIANCE, estateStanding, landCompliance } from '../DecreeSystem';
 import { enqueueAscentPrompt } from '../ascent/AscentState';
 import { famineReady } from '../ascent/FamineSystem';
 import { isBossWave } from '../ascent/WaveDirector';
+import { canVassalize, grantVassalage } from '../ascent/VassalSystem';
 import { addCourtModifier } from '../CourtSystem';
 import { pushToast } from '../empire/notifications';
 import { projectTitle } from '../empire/EdictSystem';
@@ -293,6 +294,12 @@ function applyCustom(state: GameState, id: string, realmWide: boolean, targetId?
       case 'le-giap-binh': land.localSoldiers = Math.round(land.localSoldiers * 1.5); break;
       case 'le-cho-phien': land.outputs.gold = Math.round(land.outputs.gold * 1.4); break;
       case 'le-thuy-loi': land.outputs.food += 3; break;
+      // The village feast: the commune eats together and the throne is toasted. Obedience and
+      // steadiness, which is exactly what a hương ước of this kind was for.
+      case 'le-huong-am':
+        land.compliance = Math.min(100, landCompliance(land) + 10);
+        state.court.stability = Math.min(100, state.court.stability + 2);
+        break;
       default: land.defense += 4; break;
     }
     applyEstateDeltas(state, { nong: 6 });
@@ -304,6 +311,25 @@ function applyCustom(state: GameState, id: string, realmWide: boolean, targetId?
   if (mandate.edicts.includes(id)) return false;
   mandate.edicts.push(id);
   applyEstateDeltas(state, project.estates);
+  // Ratifying the feast costs the granary a tenth, everywhere — the realm-wide form of a custom
+  // is always weaker and always paid for, which is what makes granting it locally the other
+  // genuine answer rather than the consolation prize.
+  if (id === 'le-huong-am') {
+    addCourtModifier(state, {
+      id: 'project-le-huong-am-cost',
+      label: projectTitle(project),
+      resourceRateModifier: { food: -Math.max(1, Math.round(Math.max(0, state.resourceRates.food) * 0.1)) },
+    });
+  }
+  // The village watch: far more militia everywhere, and one fewer province the throne can court
+  // at a time — men who guard their own commune are not men marching to claim a new one.
+  if (id === 'le-giap-binh') {
+    addCourtModifier(state, {
+      id: 'project-le-giap-binh-slot',
+      label: projectTitle(project),
+      claimSlotBonus: -1,
+    });
+  }
   if (Object.keys(project.modifier).length > 0) {
     addCourtModifier(state, { id: `project-${id}`, label: projectTitle(project), ...project.modifier });
   }
@@ -376,6 +402,102 @@ function applySpecialEffect(state: GameState, id: string, targetId?: string): vo
     }
     case 'hoi-nghi-dien-hong': {
       resolveDienHong(state);
+      break;
+    }
+
+    case 'chieu-doi-do': {
+      // Lý Thái Tổ, 1010. The seat of the dynasty moves to the best ground the realm holds, and
+      // the whole defensive geometry of the run moves with it — `checkAscentDefeat` reads
+      // `capitalLandId`, so this is the one decree that changes where the run can be lost.
+      const ascent = state.ascent;
+      if (!ascent) break;
+      const best = ourLands(state)
+        .filter((land) => land.id !== ascent.capitalLandId)
+        .sort((a, b) => (b.defense + b.outputs.gold + b.outputs.food) - (a.defense + a.outputs.gold + a.outputs.food))[0];
+      if (!best) break;
+      ascent.capitalLandId = best.id;
+      ascent.capitalLostTicks = 0;
+      best.defense += 25;
+      best.compliance = Math.min(100, landCompliance(best) + 15);
+      pushToast(state, t('decree.capital.moved', { land: best.name }), 'milestone');
+      break;
+    }
+
+    case 'sac-phong-vuong': {
+      // Investiture as a tributary king, with none of the oath-gold `vassalOathGold` would ask.
+      const beaten = state.kingdoms
+        .filter((k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated && canVassalize(state, k))
+        .sort((a, b) => (a.power ?? 40) - (b.power ?? 40))[0]
+        ?? state.kingdoms.filter((k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated)
+          .sort((a, b) => (a.power ?? 40) - (b.power ?? 40))[0];
+      // Sworn by envoy: the sắc is a document, not a conquest — the same path the diplomatic
+      // oath already takes, minus the gold  would have asked for.
+      if (beaten) grantVassalage(state, beaten, 'envoy');
+      break;
+    }
+
+    case 'du-thanh-da': {
+      // Trần scorched earth, 1285. The province nearest the incoming host is emptied and given
+      // up: the invader takes ground worth nothing and marches on with a third of its strength
+      // gone. Losing ground becomes a tactic rather than only a failure.
+      const exposed = ourLands(state)
+        .filter((land) => land.id !== state.ascent?.capitalLandId)
+        .sort((a, b) => a.defense - b.defense)[0];
+      if (exposed) {
+        exposed.buildings = [];
+        exposed.outputs = { food: 0, supplies: 0, gold: 0, humans: 0 };
+        exposed.ownerId = 'neutral';
+        exposed.compliance = BASE_COMPLIANCE;
+      }
+      for (const army of state.armies) {
+        if (army.kingdomId === PLAYER_KINGDOM_ID) continue;
+        army.units.spearmen = Math.floor(army.units.spearmen * 0.7);
+        army.units.archers = Math.floor(army.units.archers * 0.7);
+        army.units.heavyInfantry = Math.floor(army.units.heavyInfantry * 0.7);
+        army.supply = Math.max(5, army.supply - 30);
+      }
+      pushToast(state, t('decree.thanhDa.done', { land: exposed?.name ?? '' }), 'threat');
+      break;
+    }
+
+    case 'du-ti-nan': {
+      // The Trần withdrew the court twice and won both times. The grace clock is frozen while the
+      // dụ stands — see `checkAscentDefeat` — and the treasury pays for the move.
+      if (state.ascent) state.ascent.capitalLostTicks = 0;
+      addCourtModifier(state, {
+        id: 'project-du-ti-nan-cost',
+        label: projectTitle(getProject('du-ti-nan')!),
+        remainingTicks: 6,
+        resourceRateModifier: { gold: -Math.max(1, Math.round(Math.max(0, state.resourceRates.gold) * 0.5)) },
+      });
+      break;
+    }
+
+    case 'binh-ngo-dai-cao': {
+      // Nguyễn Trãi, 1428, written only after the victory. The spoils of the broken invasion
+      // become a permanent tenth on everything the realm makes — computed off the rates as they
+      // stand, so it is worth what the realm was worth at the moment it held.
+      const rates = state.resourceRates;
+      addCourtModifier(state, {
+        id: 'project-binh-ngo-dai-cao-gain',
+        label: projectTitle(getProject('binh-ngo-dai-cao')!),
+        resourceRateModifier: {
+          food: Math.max(1, Math.round(Math.max(0, rates.food) * 0.1)),
+          supplies: Math.max(1, Math.round(Math.max(0, rates.supplies) * 0.1)),
+          gold: Math.max(1, Math.round(Math.max(0, rates.gold) * 0.1)),
+          humans: Math.max(1, Math.round(Math.max(0, rates.humans) * 0.1)),
+        },
+      });
+      state.court.stability = Math.min(100, state.court.stability + 8);
+      break;
+    }
+
+    case 'muoi-ba-dao': {
+      // Lê Thánh Tông, 1489: the realm surveyed and divided. Every province is legible to the
+      // throne for the first time, and obeys accordingly.
+      for (const land of ourLands(state)) {
+        land.compliance = Math.min(100, landCompliance(land) + 15);
+      }
       break;
     }
     default: break;

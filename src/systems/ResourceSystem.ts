@@ -46,6 +46,9 @@ import {
   sanghaPatronage,
   seekingTheWorthy,
   SEEKING_UPKEEP_MULT,
+  tutelaryOutputMult,
+  villageWatch,
+  VILLAGE_WATCH_MILITIA,
 } from './decree/rules';
 import { currentTaxRate, taxGoldMult, taxGrowthDelta, taxStabilityBase } from './TaxSystem';
 import type { BuildOrder, EraId, GameState, Land, LandBuildingType, LandSpecialization, ResourceBag, ResourceKey, Season } from '../state/types';
@@ -350,7 +353,10 @@ export function militiaCapacity(state: GameState, land: Land): number {
     * (0.4 + (land.loyalty / 100) * 0.6)
     * getFocusGarrisonMult(state, land)
     * (1 + palisadeMilitiaBonus(state))
-    * doctrineMilitiaMult(state),
+    * doctrineMilitiaMult(state)
+    // Lệ giáp binh ratified: every commune keeps its own watch. Paid for with a claim slot —
+    // men guarding their own village are not men marching to claim another.
+    * (villageWatch(state) ? VILLAGE_WATCH_MILITIA : 1),
   );
 }
 
@@ -651,7 +657,12 @@ export function refreshAllLandOutputs(state: GameState): void {
     //
     // `state.mandate` guards it: rival and campaign fall straight through with realised 1.
     const realised = state.mandate ? landRealised(land) : 1;
-    const governorMult = realmShare(getLandGovernorOutputMult(state, land.id), realised);
+    // Sắc phong thành hoàng: the ground a deified champion watches over simply produces more, for
+    // as long as the realm holds it. The one-off compliance bump `applySpecialEffect` grants would
+    // be erased by ordinary drift within twenty seasons, and "it never forgets them" has to mean
+    // something permanent or the investiture is a toast with a number attached.
+    const governorMult = realmShare(getLandGovernorOutputMult(state, land.id), realised)
+      * tutelaryOutputMult(state, land);
     const outputs = calculateLandOutputs(state, land, labor.efficiency * governorMult * settledMult(state, land));
     outputs.gold = Math.round(outputs.gold * realmShare(courtBonuses.goldOutputMult, realised));
     outputs.food = Math.round(outputs.food * realmShare(courtBonuses.foodOutputMult, realised));

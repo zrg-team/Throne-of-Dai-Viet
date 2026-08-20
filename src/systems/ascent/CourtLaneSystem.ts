@@ -14,6 +14,7 @@ import {
 } from '../CourtSystem';
 import { refreshAllLandOutputs } from '../ResourceSystem';
 import { estateStanding, overreach } from '../DecreeSystem';
+import { ennobled } from '../decree/rules';
 import { weightedPickIndex } from '../../utils/math';
 import { applyCourtEffect, choosePoliticsCard } from '../PoliticsSystem';
 import { enactProject, isUnlockMet, projectBlockedReason, projectEffectSummary, projectTitle, isStandingLaw } from '../empire/EdictSystem';
@@ -185,6 +186,9 @@ export function buildAppointmentOptions(state: GameState, hero: Hero): Appointme
 export function canDismissHero(state: GameState, hero: Hero): boolean {
   if (hero.id === 'king') return false;
   if (state.ascent?.founderHeroId === hero.id) return false;
+  // Sắc phong công thần — a rank the throne granted is a rank it cannot quietly revoke. Also
+  // closes the obvious exploit: ennoble for the stat lift, then dismiss to clear the payroll.
+  if (ennobled(hero)) return false;
   const at = hero.assignedTo;
   if (at && (at.startsWith('ambassador:') || at.startsWith('diplomacy-'))) return false;
   if (at && state.recruitmentOrders.some((order) => order.id === at)) return false;
