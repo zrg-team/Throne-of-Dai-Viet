@@ -254,26 +254,55 @@ export class ConquestScene extends MapScene {
     const blocked = this.state.ascent?.frontBlocked ?? false;
     const color = blocked ? INK_UI.gold : INK_UI.cinnabar;
 
-    const marker = this.add.container(this.wx(land.x), this.wy(land.y)).setDepth(60);
-    const ring = this.add.graphics();
-    ring.lineStyle(3, color, 0.95);
-    ring.strokeCircle(0, 0, 24);
-    ring.lineStyle(2, color, 0.5);
-    ring.strokeCircle(0, 0, 31);
-    marker.add(ring);
+    // On the seat, not the centroid.
+    //
+    // A province's centroid is wherever the middle of its hexes happens to fall, which for a long
+    // or bent province is bare ground some way from anything — so the mark for "we are taking this
+    // place" floated in an empty field while the place itself sat elsewhere under its own name
+    // label. The flag, the settlement and the march arrow all anchor on the seat; this now does too.
+    const seat = this.getSettlementAnchor(land);
+    const marker = this.add.container(this.wx(seat.x), this.wy(seat.y)).setDepth(60);
 
-    // Four ticks around the ring read as crosshairs without needing an art asset.
-    const ticks = this.add.graphics();
-    ticks.lineStyle(3, color, 0.9);
-    for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]] as const) {
-      ticks.lineBetween(dx * 34, dy * 34, dx * 42, dy * 42);
-    }
-    marker.add(ticks);
+    // Crossed blades, not a reticle.
+    //
+    // This was two concentric rings with four ticks outside them, pulsing — which is a *gunsight*,
+    // and it put an FPS crosshair on a fourteenth-century woodblock map. It also said nothing about
+    // what the ring meant: the same mark would have served for "inspect this", "select this" or
+    // "shoot this".
+    //
+    // Two crossed sabres say the one thing this marker exists to say — a fight is being taken to
+    // this province — in a language the rest of the sheet already speaks.
+    const wash = this.add.graphics();
+    wash.fillStyle(color, 0.13);
+    wash.fillCircle(0, 0, 27);
+    wash.lineStyle(1.5, color, 0.45);
+    wash.strokeCircle(0, 0, 27);
+    marker.add(wash);
 
+    const blades = this.add.graphics();
+    const blade = (x1: number, y1: number, x2: number, y2: number): void => {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len;
+      const uy = dy / len;
+      blades.lineStyle(3, color, 0.95);
+      blades.lineBetween(x1, y1, x2, y2);
+      // The guard, a short bar across the blade a third of the way up from the grip.
+      const gx = x1 + ux * len * 0.3;
+      const gy = y1 + uy * len * 0.3;
+      blades.lineStyle(2.5, color, 0.95);
+      blades.lineBetween(gx - uy * 4.5, gy + ux * 4.5, gx + uy * 4.5, gy - ux * 4.5);
+    };
+    blade(-13, 13, 13, -13);
+    blade(13, 13, -13, -13);
+    marker.add(blades);
+
+    // The province breathes rather than the sight pulsing. Alpha only: a mark that changes *size*
+    // is a mark that is aiming at something.
     this.tweens.add({
-      targets: ring,
-      scale: { from: 0.92, to: 1.12 },
-      alpha: { from: 1, to: 0.55 },
+      targets: wash,
+      alpha: { from: 1, to: 0.45 },
       duration: blocked ? 1400 : 850,
       yoyo: true,
       repeat: -1,

@@ -49,9 +49,19 @@ const ASCENT_SYSTEM_KEYS = ['pause', 'menu'] as const;
 export const ACTION_BUTTON_HEIGHT = 36;
 export const ACTION_BUTTON_Y = GAME_HEIGHT - ACTION_BAR_HEIGHT / 2;
 
-/** Width of an icon-only system control, and the gap separating that cluster from the lanes. */
+/**
+ * Width of an icon-only system control, and the gap separating that cluster from the lanes.
+ *
+ * 34 is a *touch* number, not a drawn one — the glyphs inside are about eighteen units across and
+ * nothing is printed around them. With `extraHitPadding` it comes to the 44 units a fingertip
+ * wants, which is the whole reason these keep a width at all.
+ *
+ * The gap went 6 → 12 when the frames came off. A framed control ends at its own border and the
+ * eye finds the seam; a bare mark ends wherever its ink stops, so the only thing left to say
+ * "these two are not lanes" is the air in front of them.
+ */
 const SYSTEM_BUTTON_WIDTH = 34;
-const SYSTEM_CLUSTER_GAP = 6;
+const SYSTEM_CLUSTER_GAP = 12;
 
 /** One button's place on the bar. Produced by `actionBarSlots`, which owns all bar geometry. */
 export interface ActionSlot {
@@ -257,11 +267,22 @@ export class ActionBar extends Phaser.GameObjects.Container {
   }
 
   /**
-   * Pause and Menu, drawn as glyphs rather than words.
+   * Pause and Menu: the mark alone, with nothing printed round it.
    *
-   * Drawn with Graphics rather than set as text: the two are one-shape ideas that survive at
-   * 34px where a label cannot, and drawing them means never depending on a webfont happening
-   * to carry ❚❚ / ☰.
+   * Drawn with Graphics rather than set as text — the two are one-shape ideas that survive at
+   * this size where a label cannot, and drawing them means never depending on a webfont
+   * happening to carry ❚❚ / ☰.
+   *
+   * They used to sit in the same rounded, bordered, shaded surface as the six lane buttons, which
+   * put a frame around two marks that were already legible and made the busiest end of the bar out
+   * of the part with the least in it. A frame earns its ink by saying *this is pressable* — and it
+   * has nothing to say next to six framed buttons that already established what pressable looks
+   * like, on a bar where everything is. Bare, the cluster reads as what it is: not another lane,
+   * but the controls for the clock and the door.
+   *
+   * State moved with the frame. Paused was the `primary` variant — a printed surface — so with no
+   * surface to print it is carried by the glyph itself: the mark turns to sỏi son and swaps to a
+   * play triangle, which is two signals where the frame gave one.
    */
   private buildSystemButton(slot: ActionSlot, bounds: { x: number; y: number; width: number; height: number }, paused: boolean): void {
     const isPause = slot.action === 'pause';
@@ -270,9 +291,9 @@ export class ActionBar extends Phaser.GameObjects.Container {
       '',
       () => this.onAction(slot.action),
       {
-        variant: isPause && paused ? 'primary' : 'secondary',
+        frameless: true,
         // The smallest targets on the bar, so they get back in touch area what they gave up
-        // in width.
+        // in width. 34 + 10 is the 44 units a fingertip actually needs.
         extraHitPadding: 10,
       },
     );
@@ -280,16 +301,19 @@ export class ActionBar extends Phaser.GameObjects.Container {
     const glyph = this.scene.add.graphics();
     const cx = bounds.width / 2;
     const cy = bounds.height / 2;
-    glyph.fillStyle(INK_UI.brush, 0.92);
+    // A hair heavier than the framed pair carried: a mark on open paper has no border helping it
+    // hold the eye, so it holds it alone.
+    const lit = isPause && paused;
+    glyph.fillStyle(lit ? INK_UI.cinnabar : INK_UI.brush, lit ? 1 : 0.9);
 
-    if (isPause && paused) {
-      // Paused → the button offers play.
-      glyph.fillTriangle(cx - 5, cy - 7, cx + 7, cy, cx - 5, cy + 7);
+    if (lit) {
+      // Paused → the control offers play.
+      glyph.fillTriangle(cx - 6, cy - 8, cx + 8, cy, cx - 6, cy + 8);
     } else if (isPause) {
-      glyph.fillRect(cx - 6, cy - 7, 4, 14);
-      glyph.fillRect(cx + 2, cy - 7, 4, 14);
+      glyph.fillRect(cx - 7, cy - 8, 5, 16);
+      glyph.fillRect(cx + 2, cy - 8, 5, 16);
     } else {
-      for (const dy of [-6, 0, 6]) glyph.fillRect(cx - 8, cy + dy - 1.5, 16, 3);
+      for (const dy of [-6.5, 0, 6.5]) glyph.fillRect(cx - 9, cy + dy - 1.6, 18, 3.2);
     }
 
     button.add(glyph);

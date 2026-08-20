@@ -125,6 +125,17 @@ export interface InkButtonOptions {
    * centred, which a left-pinned icon and a centred label do not.
    */
   icon?: CardIconId;
+  /**
+   * Drops the printed surface and leaves only what the caller puts inside it.
+   *
+   * For a control whose whole meaning is one glyph — Pause, the run menu. A frame around a mark
+   * that is already a mark says nothing the mark did not: it draws a box, a border and a shade
+   * per control, and on a bar of eight labelled buttons those two extra boxes are the only
+   * things on it that are pure chrome. Everything else about the button survives — the hit
+   * rectangle, the scroll-tap guard, the press tween — so a frameless control is still a
+   * button in every way a finger can tell.
+   */
+  frameless?: boolean;
 }
 
 export interface InkTextLinkOptions {
@@ -612,7 +623,12 @@ export class InkUI {
     const disabled = variant === 'disabled';
     const container = this.scene.add.container(bounds.x, bounds.y);
     const graphics = this.scene.add.graphics();
-    const draw = (pressed: boolean) => drawButtonSurface(graphics, bounds.width, bounds.height, radius, variant, pressed);
+    // The frameless control keeps its Graphics rather than skipping it: the press handlers below
+    // call `draw` unconditionally, and a surface that draws nothing is a smaller thing to be right
+    // about than four call sites that have to remember there is no surface.
+    const draw = opts.frameless
+      ? () => {}
+      : (pressed: boolean) => drawButtonSurface(graphics, bounds.width, bounds.height, radius, variant, pressed);
     draw(false);
 
     const text = this.label(bounds.width / 2, bounds.height / 2, label, 'button', {

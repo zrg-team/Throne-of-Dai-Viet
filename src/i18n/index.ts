@@ -11,6 +11,7 @@ import type {
 import { enAscent, viAscent } from './catalogs/ascent';
 import { enCore, viCore } from './catalogs/core';
 import { enEmpire, viEmpire } from './catalogs/empire';
+import { enGuide, viGuide } from './catalogs/guide';
 import { enHeroBios, viHeroBios } from './catalogs/heroBios';
 import { enHeroes, viHeroes } from './catalogs/heroes';
 import { viPolitics } from './catalogs/politics';
@@ -29,6 +30,7 @@ const en = {
   ...enHeroBios,
   ...enEmpire,
   ...enAscent,
+  ...enGuide,
 } as const;
 
 const vi = {
@@ -38,6 +40,7 @@ const vi = {
   ...viHeroBios,
   ...viEmpire,
   ...viAscent,
+  ...viGuide,
 } satisfies Record<keyof typeof en, string>;
 
 export type TranslationKey = keyof typeof en;

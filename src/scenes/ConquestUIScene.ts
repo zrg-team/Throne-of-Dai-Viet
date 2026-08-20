@@ -595,11 +595,24 @@ export class ConquestUIScene extends Phaser.Scene {
     return true;
   }
 
-  /** The first order lets the fight run: the opening hold ends and the world resumes. */
+  /**
+   * The first order lets the fight run: the opening hold ends and the world resumes.
+   *
+   * `false`, not `lanePauseBeforeOpen`, and that is the whole bug. The lane captures whatever pause
+   * was in force when it opened and every other screen hands it back on the way out — correct for a
+   * screen you were *reading*, and wrong for this one. A battle can open itself while the world is
+   * already strategy-paused (the player paused it, or a prompt did), and then the player's first
+   * order restored the pause it had just been released from: the note said "the fight begins", the
+   * dock accepted the tap, and nothing moved. Close was the only control that did anything, which
+   * is exactly what a stuck screen looks like.
+   *
+   * Ordering a fight to start is an explicit instruction to start it.
+   */
   private releaseBattleHold(): void {
     if (!this.battleAwaitingOrder) return;
     this.battleAwaitingOrder = false;
-    this.state.isStrategyPause = this.lanePauseBeforeOpen;
+    this.lanePauseBeforeOpen = false;
+    this.state.isStrategyPause = false;
   }
 
   /** Identity of a prompt's *content*, so a reroll re-renders but a tick does not. */
@@ -6274,6 +6287,21 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     }
 
     const formY = formLabelY + BATTLE_STRIP_LABEL;
+    // While the fight is held waiting for its first order, say which strip is the one to touch.
+    // The note in the field tells the player to pick a formation; this is the strip it means, and
+    // without it "give the first order" is a sentence with no object.
+    if (this.battleAwaitingOrder) {
+      const call = this.add.graphics();
+      call.lineStyle(2, INK_UI.cinnabar, 0.9);
+      call.strokeRoundedRect(
+        content.x - 3, formY - 3, content.width + 6, BATTLE_FORMATION_HEIGHT + 6, 8,
+      );
+      orders.add(call);
+      this.tweens.add({
+        targets: call, alpha: { from: 1, to: 0.25 }, duration: 700, yoyo: true, repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
     const states = this.ourFormationStates(battle);
     const reforming = (battle.reformBeats ?? 0) > 0;
     // Their *target* is what a shape has to answer — countering the thing they are walking out of

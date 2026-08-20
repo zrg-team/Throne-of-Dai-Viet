@@ -1399,7 +1399,8 @@ export class MapScene extends Phaser.Scene {
    * That last part used to be the province centroid, full stop, which put a handful of provinces'
    * houses on a limestone face every map. See `SettlementRenderer.getSeatCentre`.
    */
-  private getSettlementAnchor(land: Land): { x: number; y: number } {
+  /** Protected so subclasses can put their own marks on the seat rather than on the centroid. */
+  protected getSettlementAnchor(land: Land): { x: number; y: number } {
     return this.settlements.getSeatCentre(this.state, land);
   }
 

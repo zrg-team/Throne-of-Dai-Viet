@@ -2,12 +2,14 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { createAscentGameState, createInitialGameState } from '../state/GameState';
 import { hasSnapshot, loadSnapshot, snapshotLabel } from '../state/save';
+import { hasSeenTour, markTourSeen } from '../state/tour';
 import { getLegacy, LEGACY_PERKS, purchaseLegacyPerk, rankForScore } from '../state/legacy';
 import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
-import { InkUI, INK_UI, INK_UI_HEX } from '../ui/InkUI';
+import { InkUI, INK_UI, INK_UI_HEX, type UIBounds } from '../ui/InkUI';
 import { CARD_ICON_SIZE, drawCardIcon } from '../ui/CardIcons';
+import { Copilot, type CopilotStep } from '../ui/Copilot';
 import { PIGMENT } from '../ui/ink/palette';
 import { INK, brushStroke, inkOutline, shade, washFill, waveLine } from '../ui/inkTheme';
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
@@ -68,6 +70,22 @@ export class MenuScene extends Phaser.Scene {
   private modalObjects: Phaser.GameObjects.GameObject[] = [];
   private mode: MenuMode = 'main';
   private previewFlagSeed = 0;
+  /**
+   * The front-page tour, while it is running.
+   *
+   * Kept out of `content` for the same reason the coffee modal is: a re-render underneath would
+   * destroy the tour's veil and leave its card floating over a page it no longer blocks.
+   */
+  private copilot?: Copilot;
+  /**
+   * What the tour points at, filled in by `renderMain` as it lays the column out.
+   *
+   * The column is measured against the sheet's real height and the language's real line count, so
+   * none of these rectangles exists until the page has been built. A tour step asks for its target
+   * at the moment it is drawn and reads whatever is here — which is why the tour is started after
+   * `render()` and not before it.
+   */
+  private tourTargets: Partial<Record<'play' | 'classic' | 'footer', UIBounds>> = {};
 
   constructor() {
     super('MenuScene');
@@ -111,6 +129,41 @@ export class MenuScene extends Phaser.Scene {
     this.previewFlagSeed = loadSnapshot()?.state.mapConfig.seed ?? Math.floor(Math.random() * 1_000_000);
     this.drawBackground();
     this.render();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.copilot?.destroy();
+      this.copilot = undefined;
+    });
+    // After the page, never before it: every rectangle the tour points at is a measured one.
+    if (this.mode === 'main' && !hasSeenTour()) {
+      this.startTour();
+    }
+  }
+
+  /**
+   * The five cards a first-time player is shown, once.
+   *
+   * The steps are declared here rather than in `Copilot` because they are about *this page* — its
+   * primary button, its Classic Modes door, its footer — and a tour component that knew which
+   * scene it was touring would be a tour component that could only ever tour one.
+   */
+  private startTour(): void {
+    const steps: CopilotStep[] = [
+      { id: 'welcome', heading: 'copilot.welcome.h', body: 'copilot.welcome.b' },
+      { id: 'play', heading: 'copilot.play.h', body: 'copilot.play.b', target: () => this.tourTargets.play },
+      { id: 'modes', heading: 'copilot.modes.h', body: 'copilot.modes.b', target: () => this.tourTargets.classic },
+      { id: 'learn', heading: 'copilot.learn.h', body: 'copilot.learn.b', target: () => this.tourTargets.footer },
+      { id: 'ready', heading: 'copilot.ready.h', body: 'copilot.ready.b' },
+    ];
+    this.copilot = new Copilot(this, {
+      steps,
+      onGuide: () => this.scene.start('GuideScene'),
+      // Skipped and finished are the same event here. A player who dismissed the tour has answered
+      // the question it was asking, and showing it again next time refuses to take that answer.
+      onClose: () => {
+        markTourSeen();
+        this.copilot = undefined;
+      },
+    });
   }
 
   private drawBackground(): void {
@@ -1114,7 +1167,8 @@ export class MenuScene extends Phaser.Scene {
     const lane = SETTINGS_TOP - gap * 2 - ART_FLOOR;
     let cursor = ART_FLOOR + Math.max(0, Math.round((lane - stack) / 2));
 
-    this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: this.vh(58) }, t('ascent.menu.title'), () => {
+    this.tourTargets.play = { x: 54, y: cursor, width: 282, height: this.vh(58) };
+    this.content.push(this.ui.button(this.tourTargets.play, t('ascent.menu.title'), () => {
       this.startAscentRun();
     }, { variant: 'primary', fontSize: '17px' }));
     cursor += this.vh(58) + gap;
@@ -1123,7 +1177,8 @@ export class MenuScene extends Phaser.Scene {
     this.content.push(tagline);
     cursor += tagline.height + gap;
 
-    this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: ROW }, t('ascent.menu.classic'), () => {
+    this.tourTargets.classic = { x: 54, y: cursor, width: 282, height: ROW };
+    this.content.push(this.ui.button(this.tourTargets.classic, t('ascent.menu.classic'), () => {
       this.mode = 'classic';
       this.render();
     }, { variant: 'secondary', fontSize: '15px' }));
@@ -1615,31 +1670,53 @@ export class MenuScene extends Phaser.Scene {
    * room above the bottom edge.
    */
   /**
-   * The two places that are not a game: the history the game is built out of, and the settings.
+   * The three places that are not a game: the manual, the history the game is built out of, and
+   * the settings.
    *
    * They were full-width rows in the column above, which put five buttons of the same width down
    * the middle of the page and made a page of choices out of what is really one choice with some
    * doors beside it. Side by side in the footer they are half the height of the page's furniture
-   * and read as the tier they are — and neither of them lost anything, because a button you can
-   * still see and still press has not been demoted, only stopped shouting.
+   * and read as the tier they are — and none of them lost anything, because a button you can still
+   * see and still press has not been demoted, only stopped shouting.
    *
-   * Inset from the column's 282 on purpose: a footer row as wide as the primary button is another
-   * row of the same thing.
+   * How to Play joins them rather than going in the column, and it is worth saying why, because it
+   * is the one door here a first-time player actually needs. A manual advertised as loudly as the
+   * game would be a front page that leads with homework — and the tour already walks a new player
+   * to this exact rectangle on their first load, which is a better introduction than a bigger
+   * button would have been. Anyone who skipped the tour finds it where a manual belongs: with the
+   * other reference material, at the foot of the page.
+   *
+   * Three at 104 rather than two at 122, and the row is 22 units NARROWER overall than the pair
+   * was. A footer that grows with each door added is the failure mode here; this one gets tighter,
+   * and the inset from the column's 282 is the whole point — a footer row as wide as the primary
+   * button is just another row of the same thing.
    */
   private renderFooterPair(): void {
-    const WIDTH = 122;
-    const GAP = 8;
-    const left = Math.round((GAME_WIDTH - (WIDTH * 2 + GAP)) / 2);
+    const WIDTH = 104;
+    const GAP = 7;
+    const left = Math.round((GAME_WIDTH - (WIDTH * 3 + GAP * 2)) / 2);
     const height = this.vh(34);
+    // Remembered as one rectangle rather than three: the tour's card is about the footer as a
+    // tier — the manual, the record and the settings — and framing one of the three would say the
+    // other two were something else.
+    this.tourTargets.footer = { x: left, y: SETTINGS_TOP, width: WIDTH * 3 + GAP * 2, height };
 
-    this.content.push(this.ui.button({ x: left, y: SETTINGS_TOP, width: WIDTH, height }, t('history.menu.button'), () => {
-      this.scene.start('HistoryScene');
-    }, { variant: 'ghost', fontSize: '13px' }));
-
-    this.content.push(this.ui.button({ x: left + WIDTH + GAP, y: SETTINGS_TOP, width: WIDTH, height }, t('menu.settings'), () => {
-      this.mode = 'settings';
-      this.render();
-    }, { variant: 'ghost', fontSize: '13px' }));
+    // 12px, not 13. "How to Play" is three words where the other two are two and one, and at 13 it
+    // wraps to a second line inside a 34-unit button — which centres the pair of lines and leaves
+    // the row looking like one button broke.
+    const doors: Array<{ label: string; onPress: () => void }> = [
+      { label: t('guide.menu.button'), onPress: () => this.scene.start('GuideScene') },
+      { label: t('history.menu.button'), onPress: () => this.scene.start('HistoryScene') },
+      { label: t('menu.settings'), onPress: () => { this.mode = 'settings'; this.render(); } },
+    ];
+    doors.forEach((door, index) => {
+      this.content.push(this.ui.button(
+        { x: left + index * (WIDTH + GAP), y: SETTINGS_TOP, width: WIDTH, height },
+        door.label,
+        door.onPress,
+        { variant: 'ghost', fontSize: '12px' },
+      ));
+    });
   }
 
   private renderSupportRow(): void {
