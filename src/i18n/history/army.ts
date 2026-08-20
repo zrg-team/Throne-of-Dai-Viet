@@ -21,6 +21,26 @@ export const armyEn: HistoryCatalog = {
   'army.label.arm': 'ARM',
   'army.mark': 'The mark',
 
+  'army.label.formation': 'FORMATION',
+  'army.formation.note':
+    'One mark is fifty-five men, and the blocks are the same host spent differently. Casualties are taken from the front of the formation: the screen is used up first, then the line, then the bows, and the horse is still standing at the end of most fights.',
+
+  'army.doctrine.balanced.title': 'Balanced · four blocks, four jobs',
+  'army.doctrine.balanced.body':
+    'A loose screen of skirmishers out in front to take the first volley and fall back through the line; the shield wall as the main body; the bows behind it, shooting over; a small wing of horse on the flank waiting for something to open. Everything else is this same army spent differently.',
+  'army.doctrine.spears.title': 'Spear wall · everything in the line',
+  'army.doctrine.spears.body':
+    'Nine files and four ranks deep, a token screen, almost no shot, and not one horse. The widest and deepest single block on the field, and it does exactly one thing — it does not move and it does not break. The shape of a host that has decided to be an obstacle.',
+  'army.doctrine.archers.title': 'Archer host · the body is at the back',
+  'army.doctrine.archers.body':
+    'The line is a crust two ranks deep whose whole job is to keep anything off the bowmen behind it. Read the picture and the weakness is there without being written down: everything valuable is in the block that cannot defend itself.',
+  'army.doctrine.shock.title': 'Shock · no screen at all',
+  'army.doctrine.shock.body':
+    'Shields going forward with a real wing of horse on the flank and almost nothing shooting. It gives up the exchange before contact entirely in order to win the exchange at contact — and the missing screen is the first thing you notice, because there is bare ground where every other doctrine has men.',
+  'army.doctrine.horse.title': 'Cavalry wing · paid for out of the line',
+  'army.doctrine.horse.body':
+    'A pony and rider is about seventeen marks of drawing against a footman\'s eight, so a wing this size comes out of the block that has to hold the ground while it manoeuvres. The picture makes the trade legible: the wing is the biggest thing on the field and the line is two ranks thin.',
+
   // ── the seven Việt wardrobes ──
   'army.ly.title': 'Lý · 1010–1225',
   'army.ly.mark': 'A domed helm with a long crest swept back off it.',
@@ -108,6 +128,26 @@ export const armyVi: HistoryCatalog = {
   'army.label.rank': 'CẤP BẬC',
   'army.label.arm': 'BINH CHỦNG',
   'army.mark': 'Dấu nhận biết',
+
+  'army.label.formation': 'ĐỘI HÌNH',
+  'army.formation.note':
+    'Một nét quân là năm mươi lăm người, và các khối là cùng một đạo quân được chia khác đi. Thương vong lấy từ phía trước đội hình: quân khinh mất trước, rồi đến hàng đao thủ, rồi cung thủ — còn kỵ binh thì phần lớn trận vẫn còn đứng đó.',
+
+  'army.doctrine.balanced.title': 'Cân bằng · bốn khối, bốn việc',
+  'army.doctrine.balanced.body':
+    'Một lớp khinh binh dàn mỏng phía trước để hứng loạt đầu rồi rút qua hàng quân; hàng khiên làm thân quân; cung thủ đứng sau bắn vượt qua đầu; một cánh kỵ binh nhỏ chờ bên sườn xem có chỗ nào hở. Mọi lối bày quân khác đều là đạo quân này chia khác đi.',
+  'army.doctrine.spears.title': 'Tường giáo · dồn hết vào hàng quân',
+  'army.doctrine.spears.body':
+    'Chín hàng dọc, sâu bốn hàng ngang, khinh binh lấy lệ, gần như không có quân bắn, và không một con ngựa. Khối đơn rộng nhất và dày nhất trên mặt trận, và nó làm đúng một việc — không lùi và không vỡ. Đó là hình dáng của một đạo quân đã quyết định làm một vật cản.',
+  'army.doctrine.archers.title': 'Quân cung · thân quân ở phía sau',
+  'army.doctrine.archers.body':
+    'Hàng quân chỉ còn là một lớp vỏ dày hai hàng, việc duy nhất của nó là giữ cho không thứ gì chạm được vào đám cung thủ phía sau. Nhìn hình là thấy chỗ yếu mà không cần ai nói: thứ quý nhất nằm trong cái khối không tự giữ được mình.',
+  'army.doctrine.shock.title': 'Xung kích · không có lớp che',
+  'army.doctrine.shock.body':
+    'Khiên tiến lên, một cánh kỵ binh thật sự bên sườn, và gần như không có gì bắn. Nó bỏ hẳn phần ăn thua trước khi giáp lá cà để đổi lấy phần ăn thua lúc giáp lá cà — và chỗ trống nơi các lối bày quân khác đều có người là thứ đập vào mắt trước tiên.',
+  'army.doctrine.horse.title': 'Cánh kỵ · trả giá bằng hàng quân',
+  'army.doctrine.horse.body':
+    'Một ngựa một người tốn chừng mười bảy nét mực so với tám nét của một bộ binh, nên một cánh kỵ lớn thế này phải lấy ra từ chính cái khối có nhiệm vụ giữ đất trong lúc nó vòng đánh. Bức hình nói rõ cái giá ấy: cánh kỵ là thứ lớn nhất trên mặt trận, còn hàng quân chỉ còn mỏng hai hàng.',
 
   'army.ly.title': 'Lý · 1010–1225',
   'army.ly.mark': 'Mũ tròn có chỏm, phía sau vắt ra một chùm lông dài.',

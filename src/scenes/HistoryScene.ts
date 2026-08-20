@@ -22,9 +22,9 @@ import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { renderHeroFaceInBox } from '../ui/FaceRenderer';
 import { applyPaperFX } from '../ui/ink/PaperFX';
 import { inkPath } from '../ui/ink/stroke';
-import { figure, type FigureArm, type FigureTier } from '../ui/ink/devices';
+import { armyShape, drawArmy, figure, type FigureArm, type FigureTier } from '../ui/ink/devices';
 import { PIGMENT } from '../ui/ink/palette';
-import type { ArmyWardrobe } from '../state/types';
+import type { ArmyComposition, ArmyWardrobe } from '../state/types';
 import { RULE_COLOUR } from '../ui/ink/eraRule';
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
 
@@ -45,6 +45,18 @@ const VIET_WARDROBE_ORDER: readonly ArmyWardrobe[] =
 
 /** `spear` first: it is what a levy holds, and the tier chips open on the levy. */
 const ARMY_ARMS: readonly FigureArm[] = ['spear', 'sword', 'skirmish', 'bow', 'mounted'];
+
+/** The five ways the same host can be deployed. Shape of the formation, nothing else. */
+const ARMY_DOCTRINES: readonly ArmyComposition[] = ['balanced', 'spears', 'archers', 'shock', 'horse'];
+
+/**
+ * The host the formation plate draws, in men.
+ *
+ * Fixed rather than taken from a live army so the five doctrines can be read against each other:
+ * change the deployment and only the deployment changes. Forty-four marks, which is the size the
+ * design document plates.
+ */
+const ARMY_PLATE_MEN = 2420;
 
 const SIDE = 12;
 const LIST_WIDTH = GAME_WIDTH - SIDE * 2;
@@ -96,6 +108,7 @@ export class HistoryScene extends Phaser.Scene {
   private armyTheme: ArmyWardrobe = 'ly';
   private armyTier: FigureTier = 1;
   private armyArm: FigureArm = 'sword';
+  private armyDoctrine: ArmyComposition = 'balanced';
 
   constructor() {
     super('HistoryScene');
@@ -580,6 +593,16 @@ ${rest.join(' · ')}`,
         pick: () => { this.armyArm = arm; },
       })));
 
+    // ── and the same wardrobe as a whole army ───────────────────────────
+    y = this.armyChips(scroll, y, width, historyText('army.label.formation'), 3,
+      ARMY_DOCTRINES.map((doctrine) => ({
+        key: doctrine,
+        label: historyText(`army.doctrine.${doctrine}.title`).split(' · ')[0],
+        on: this.armyDoctrine === doctrine,
+        pick: () => { this.armyDoctrine = doctrine; },
+      })));
+    y = this.armyFormation(scroll, y, width);
+
     // ── what you are looking at ─────────────────────────────────────────
     // Intro first and once, then the three entries the current pick resolves to. Each is the same
     // record/confession pair the Dynasties tab uses, so the page never blurs what is documented
@@ -598,6 +621,12 @@ ${rest.join(' · ')}`,
         title: historyText(`army.arm.${this.armyArm}.title`),
         body: historyText(`army.arm.${this.armyArm}.body`),
       },
+      {
+        title: historyText(`army.doctrine.${this.armyDoctrine}.title`),
+        body: `${historyText(`army.doctrine.${this.armyDoctrine}.body`)}
+
+${historyText('army.formation.note')}`,
+      },
     ];
     for (const entry of cards) {
       const card = this.ui.card({ x: 0, y, width, height: 40 }, {
@@ -608,6 +637,67 @@ ${rest.join(' · ')}`,
       y += ((card.getData('cardHeight') as number | undefined) ?? 40) + CARD_GAP;
     }
     return y;
+  }
+
+  /**
+   * The same wardrobe, deployed — a whole army rather than one man.
+   *
+   * An army is four blocks, not one: a loose screen forward, the shield wall as the main body, the
+   * bows behind it and the horse as a wing off the flank. Drawn by `drawArmy`, which is what the
+   * battlefield and the map markers both call, so the deployment on this page is the deployment in
+   * the game rather than a picture of it.
+   *
+   * The scale is *measured*, not chosen. `armyShape` is asked for the formation at scale 1 and the
+   * plate is fitted to whichever of width or height binds — a spear wall is wide and shallow, a
+   * cavalry doctrine is neither, and a scale picked to suit one of them overflows on another.
+   */
+  private armyFormation(scroll: InkScrollArea, y: number, width: number): number {
+    const plateHeight = 168;
+    const plate = this.add.graphics();
+    plate.fillStyle(INK_UI.parchmentShade, 1);
+    plate.fillRoundedRect(0, y, width, plateHeight, 6);
+    plate.lineStyle(1, INK_UI.parchmentDark, 1);
+    plate.strokeRoundedRect(0, y, width, plateHeight, 6);
+    scroll.content.add(plate);
+
+    const probe = armyShape(ARMY_PLATE_MEN, this.armyDoctrine, 1);
+    // 7.6 is the tallest a figure gets — a mounted man — and it stands *above* the block's own
+    // depth, so the vertical budget is the deployment plus one soldier. The 60 reserved is the
+    // doctrine's name at the top and the block labels at the foot; at 44 the front rank was drawn
+    // through its own heading.
+    const scale = Math.min((width - 30) / probe.width, (plateHeight - 60) / (probe.height + 7.6));
+    const shape = armyShape(ARMY_PLATE_MEN, this.armyDoctrine, scale);
+    const figures = this.add.graphics();
+    // `armyShape.left` is the leftmost file and `top` the frontmost rank, both relative to the
+    // line's own centre, so this places the whole deployment rather than one of its blocks.
+    const originX = -shape.left + (width - shape.width) / 2;
+    const originY = y + plateHeight - 22 - shape.height;
+    drawArmy(figures, originX, originY, ARMY_PLATE_MEN, 41, PIGMENT.muc, scale, {
+      theme: this.armyTheme, tier: this.armyTier, accent: PIGMENT.son, composition: this.armyDoctrine,
+    });
+    scroll.content.add(figures);
+
+    // Each block says what it is and how many marks it stands. Without this the picture reads as
+    // one crowd with gaps in it rather than as four blocks doing four jobs.
+    for (const block of shape.blocks) {
+      const label = `${historyText(`army.arm.${block.arm}.title`).split(' · ')[0]} ${block.marks}`;
+      scroll.content.add(this.add.text(
+        originX + block.x + ((block.cols - 1) * block.pitch) / 2,
+        originY + block.feet + 4,
+        label,
+        {
+          color: '#6b5230', fontFamily: UI_FONT, fontSize: '8px', align: 'center',
+          // Knocked out of the paper. The blocks are deliberately close together, so a label
+          // printed plainly lands on the men of whichever block stands behind it.
+          stroke: '#e9dfc2', strokeThickness: 3,
+        },
+      ).setOrigin(0.5, 0));
+    }
+
+    scroll.content.add(this.add.text(width / 2, y + 8, historyText(`army.doctrine.${this.armyDoctrine}.title`), {
+      color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '12px', fontStyle: '700', align: 'center',
+    }).setOrigin(0.5, 0));
+    return y + plateHeight + CARD_GAP;
   }
 
   /**
