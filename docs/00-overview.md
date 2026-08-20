@@ -1,8 +1,8 @@
-# Mandate of Đại Việt Overview
+# Vạn Thắng Overview
 
 ## One-Sentence Pitch
 
-**Mandate of Đại Việt** is a one-hand mobile grand strategy game where the player starts with one castle, drafts heroes, expands across a Vietnam-inspired map, and conquers rival kingdoms through land, politics, and war.
+**Vạn Thắng** is a one-hand mobile grand strategy game where the player starts with one castle, drafts heroes, expands across a Vietnam-inspired map, and conquers rival kingdoms through land, politics, and war.
 
 ## Core Fantasy
 

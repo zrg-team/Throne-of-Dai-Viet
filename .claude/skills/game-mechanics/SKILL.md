@@ -1,6 +1,6 @@
 ---
 name: game-mechanics
-description: Core gameplay of Mandate of Đại Việt — the four modes and their factories, both real-time tick loops in call order, the resource economy and its formulas, the three separate combat resolvers, the Dragon Ascent roguelite loop (waves, ambition, cards, gacha, doctrine, autopilot), the Chronicle story engine, and ordered recipes for adding units, heroes, edicts, cards and stories. Use when changing rules, balance, systems, or content.
+description: Core gameplay of Vạn Thắng — the four modes and their factories, both real-time tick loops in call order, the resource economy and its formulas, the three separate combat resolvers, the Dragon Ascent roguelite loop (waves, ambition, cards, gacha, doctrine, autopilot), the Chronicle story engine, and ordered recipes for adding units, heroes, edicts, cards and stories. Use when changing rules, balance, systems, or content.
 ---
 
 # How the game plays

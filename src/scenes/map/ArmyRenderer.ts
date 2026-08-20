@@ -24,7 +24,14 @@ const MARKER_OFFSET_Y = -28;
 /** Where the general's face sits beside a standing host, relative to the marker's ground line. */
 const FACE_BADGE_X = 26;
 const FACE_BADGE_Y = -34;
-const FACE_BADGE_SIZE = 26;
+/**
+ * The general's portrait beside his host.
+ *
+ * 26 put a face three and a quarter times a soldier's height next to the men it belonged to, which
+ * on a map where a five-metre house is 11.2 px made the badge the largest thing in the province
+ * after the citadel. 19 still reads at a glance and stops competing with the host it labels.
+ */
+const FACE_BADGE_SIZE = 19;
 
 /** How long a host takes to settle onto its destination once the leg resolves. */
 const ARRIVE_MS = 320;
@@ -243,7 +250,6 @@ export class ArmyRenderer {
           // which. The line makes the association explicit.
           const trail = this.scene.add.graphics();
           trail.setDepth(68);
-          trail.lineStyle(2, INK.sealRed, 0.5);
           const fromX = marker.x;
           // The marker's own origin is the block's ground line — `drawHost` anchors at `-height`
           // so the feet land at y ≈ 0. The `+6` this used to carry started the trail below the men,
@@ -251,15 +257,41 @@ export class ArmyRenderer {
           const fromY = marker.y;
           const toX = wx(anchor.x);
           const toY = wy(anchor.y) - 12;
+
+          // An arrow, not a dotted rule.
+          //
+          // This was nine evenly-weighted dashes between two points, which says *these two places
+          // are related* and nothing whatever about which way anybody is walking — the same mark
+          // read identically whether the host was marching out or coming home. Two things fix it
+          // without any new art: the dashes **taper**, thin at the column and heavy at the target,
+          // so the line has a direction even standing still; and it ends in a **head**.
+          const dx = toX - fromX;
+          const dy = toY - fromY;
+          const len = Math.hypot(dx, dy) || 1;
+          const ux = dx / len;
+          const uy = dy / len;
+          const HEAD = 11;
+          const HEAD_HALF = 5.5;
+          const shaft = Math.max(0, len - HEAD);
           const segments = 9;
           for (let i = 0; i < segments; i += 2) {
-            const a = i / segments;
-            const b = Math.min(1, (i + 1) / segments);
-            trail.lineBetween(
-              fromX + (toX - fromX) * a, fromY + (toY - fromY) * a,
-              fromX + (toX - fromX) * b, fromY + (toY - fromY) * b,
-            );
+            const a = (i / segments) * shaft;
+            const bEnd = Math.min(shaft, ((i + 1) / segments) * shaft);
+            const t = bEnd / Math.max(1, shaft);
+            trail.lineStyle(1.1 + t * 1.6, INK.sealRed, 0.34 + t * 0.4);
+            trail.lineBetween(fromX + ux * a, fromY + uy * a, fromX + ux * bEnd, fromY + uy * bEnd);
           }
+          // The head sits on the line's own end, pointing where the column is going.
+          const tipX = fromX + ux * len;
+          const tipY = fromY + uy * len;
+          const backX = fromX + ux * shaft;
+          const backY = fromY + uy * shaft;
+          trail.fillStyle(INK.sealRed, 0.78);
+          trail.fillTriangle(
+            tipX, tipY,
+            backX - uy * HEAD_HALF, backY + ux * HEAD_HALF,
+            backX + uy * HEAD_HALF, backY - ux * HEAD_HALF,
+          );
           this.destinationMarkers.push(trail);
 
           const arrow = this.mapItems.createDestinationArrow();

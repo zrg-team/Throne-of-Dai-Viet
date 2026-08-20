@@ -82,7 +82,7 @@ const opened = await page.evaluate(async ([src, beats]) => {
   // A tap does two things: it lifts the opening hold on the scene and it gives the order. The
   // fight does not advance until the hold is lifted.
   ui.releaseBattleHold();
-  ui.events.emit('ui:battle-order', 'press');
+  ui.events.emit('ui:battle-order', 'stance:press');
   // Resolve a stretch of the fight into the beat queue and then leave it alone. The view drains
   // one beat per `BATTLE_TICK_MS` off its own clock, which is the thing under test — driving the
   // world during the sample would measure the harness's cadence instead of the screen's.

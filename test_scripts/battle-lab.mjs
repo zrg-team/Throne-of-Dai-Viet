@@ -37,6 +37,8 @@ await page.waitForFunction(() => window.__phaserGame.scene.isActive('ConquestSce
 
 const out = await page.evaluate(async (fights) => {
   const B = await import('/src/systems/ascent/BattleSystem.ts');
+  const F = await import('/src/data/ascent/formations.ts');
+  const RING = F.FORMATION_RING;
   const CFG = await import('/src/game/ascentConfig.ts');
   const st = window.__mandateState;
 
@@ -125,12 +127,28 @@ const out = await page.evaluate(async (fights) => {
       B.delegateBattle(st, true);
       b.generalMartial = generalMartial;
     }
+    // Every policy that touches a dial has to say so, or the host's own commander goes on giving
+    // orders underneath it and the two fight each other over the same two controls every beat.
+    // Measured with them both live: `adaptive` scored 14.6%, below `general-60`'s 33.3%, because it
+    // spent the whole engagement in transit between shapes neither of them had settled on.
+    //
+    // `auto` is the one that must NOT: it models a player who gives no orders at all, and in that
+    // fight the commander is supposed to be the one playing.
+    if (policy !== 'auto' && generalMartial === 0) B.markPlayerSteered(st);
 
-    if (policy === 'always-charge') B.setBattlePosture(st, 'press');
-    if (policy === 'always-loose') B.setBattlePosture(st, 'loose');
-    // Reads the enemy's telegraphed stance and answers with the one that beats it. If this does
-    // not beat every fixed stance, the ring is decoration.
-    const counterOf = { press: 'hold', hold: 'loose', loose: 'press' };
+    // The stances are a tempo dial now and the ring is a *formation* — see
+    // docs/14-five-shapes-two-dials.html. `always-charge` is a host that presses whatever happens;
+    // `always-loose` is one that stands in Thế Nỏ and shoots, which is where loosing went.
+    if (policy === 'always-charge') B.setBattleStance(st, 'press');
+    if (policy === 'always-loose') B.setBattleFormation(st, 'no');
+    // Answers the shape they are walking into with one that beats it. If this does not beat every
+    // fixed policy, the ring is decoration.
+    const answer = (read) => {
+      if (!read) return;
+      const target = read.next ?? read.formation;
+      const shape = RING.find((s) => F.formationBeats(s, target) && B.canFormFormation(st, s));
+      if (shape && shape !== b.ourFormation && !(b.reformBeats > 0)) B.setBattleFormation(st, shape);
+    };
     let guard = 0;
     while (!b.over && guard++ < 400) {
       // Fixed one-shot timings, to prove no single moment is always right.
@@ -158,8 +176,7 @@ const out = await page.evaluate(async (fights) => {
       // skilled play. `delegateBattle` hands the fight to `generalPlaysBeat`, so what the lab
       // reports is what a delegating player actually gets.
       if (policy === 'counter-ring') {
-        const next = B.battleTelegraph(st);
-        if (next) B.setBattlePosture(st, counterOf[next]);
+        answer(B.battleTelegraph(st));
         if (b.ourAdvance + b.theirAdvance >= 1) {
           if (!b.reserveSpent) B.commitReserve(st);
           else if (!b.rallySpent && b.ourMorale < CFG.BATTLE_ROUT_MORALE + 12) B.rally(st);
@@ -169,11 +186,19 @@ const out = await page.evaluate(async (fights) => {
         const ours = st.armies.find((a) => a.id === 'lab-us');
         const theirs = st.armies.find((a) => a.id === 'lab-them');
         const met = b.ourAdvance + b.theirAdvance >= 1;
-        // Playing well now means reading the ring: answer the stance they have telegraphed, and
-        // spend the one-shots at contact. A two-stance heuristic cannot represent good play any more.
-        const next = B.battleTelegraph(st);
-        if (next) B.setBattlePosture(st, counterOf[next]);
-        else if (!met) B.setBattlePosture(st, theirs.units.archers > ours.units.archers ? 'press' : 'loose');
+        // Playing well means working *both* dials: answer the shape they are standing in, then
+        // cash the matchup in with the tempo — press while the shape is ours, steady while it is
+        // theirs. This is the same rule `generalPlaysBeat` uses, deliberately: `adaptive` is the
+        // lab's model of *best* play, and a model that plays worse than the shipped commander
+        // measures nothing. (It did, for one pass: adaptive 17.5% against general-90's 42.1%.)
+        answer(B.battleTelegraph(st));
+        if (!B.stanceIsLocked(b, 'press')) {
+          const walking = (b.reformBeats > 0) || (b.theirReformBeats > 0);
+          const sign = walking ? 0 : F.formationTiltSign(b.ourFormation, b.theirFormation);
+          B.setBattleStance(st, sign > 0 && met ? 'press'
+            : sign < 0 || b.ourMorale < CFG.BATTLE_ROUT_MORALE + 20 ? 'defend'
+              : 'balanced');
+        }
         if (met) {
           if (!b.reserveSpent) B.commitReserve(st);
           else if (!b.rallySpent && b.ourMorale < CFG.BATTLE_ROUT_MORALE + 12) B.rally(st);
@@ -182,7 +207,7 @@ const out = await page.evaluate(async (fights) => {
       B.fightRound(st);
     }
 
-    if (decision !== 'retreat') decision = b.posture === 'press' ? 'press' : 'hold';
+    if (decision !== 'retreat') decision = b.stance === 'press' ? 'press' : 'hold';
     const outcome = b.outcome;
     const startedWith = b.ourStart;
     const beats = b.round;

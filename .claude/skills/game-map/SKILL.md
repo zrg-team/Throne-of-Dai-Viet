@@ -1,6 +1,6 @@
 ---
 name: game-map
-description: The hex/tile map system of Mandate of Đại Việt — pointy-top axial coordinates and the exact conversion helpers, the nine terrain types and where their data actually lives, the map generator's flood-fill pipeline, how lands relate to hexes, boundary tracing and roads, ViewIndex culling and frontier-only fog, and the three coordinate spaces that get confused. Use when touching src/map/, MapScene, terrain, provinces, fog, or map rendering performance.
+description: The hex/tile map system of Vạn Thắng — pointy-top axial coordinates and the exact conversion helpers, the nine terrain types and where their data actually lives, the map generator's flood-fill pipeline, how lands relate to hexes, boundary tracing and roads, ViewIndex culling and frontier-only fog, and the three coordinate spaces that get confused. Use when touching src/map/, MapScene, terrain, provinces, fog, or map rendering performance.
 ---
 
 # The map

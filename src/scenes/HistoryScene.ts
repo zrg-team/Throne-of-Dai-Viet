@@ -4,14 +4,19 @@ import { applyRenderScale, designPointer } from '../game/graphicsQuality';
 import { heroBio, heroName, heroTypeLabel, t } from '../i18n';
 import { historyText } from '../i18n/history';
 import { storyCatalogIds, storyTitle } from '../i18n/story';
-import type { EraRule } from '../data/history';
+import type { EraRule, HistoryEra } from '../data/history';
 import {
+  ERA_PERIODS,
   FIGURE_DATES,
   FIGURE_ERA_OVERRIDE,
   figureYear,
   GLOSSARY_TERMS,
   HISTORY_ERAS,
+  type HistoryGroup,
   STORY_ANCHORS,
+  STORY_GROUPS,
+  TERM_GROUPS,
+  ungroupedIds,
 } from '../data/history';
 import { heroTemplates } from '../data/heroes';
 import { REAL_FIGURES } from '../data/heroNames';
@@ -61,6 +66,14 @@ const ARMY_PLATE_MEN = 2420;
 const SIDE = 12;
 const LIST_WIDTH = GAME_WIDTH - SIDE * 2;
 const CARD_GAP = 8;
+/**
+ * How far a row steps in from the heading it belongs to.
+ *
+ * Small on purpose. The heading already carries a colour bar, a marker and a count; ten units is
+ * enough for the eye to read the rows as *under* it, and any more of it eats the width the prose
+ * needs at 390.
+ */
+const ROW_INDENT = 10;
 /** Where the scrolling list starts: under the title, the subtitle and the tab strip. */
 const LIST_TOP = 108;
 const PORTRAIT = 46;
@@ -69,6 +82,16 @@ const RAIL_X = 14;
 const TIMELINE_X = 30;
 /** Header and tabs sit above the list, so they win the tap. See `chrome`. */
 const CHROME_DEPTH = 5;
+
+/**
+ * The heading a group falls under when nobody has filed it.
+ *
+ * Not a group in `data/history` — a hand-written grouping goes stale the moment a fifty-second
+ * story is registered, and the failure mode is silent: the entry simply stops appearing on a page
+ * whose whole job is being complete about the record. Everything unfiled lands here instead, and
+ * `verify-history.mjs` fails while this heading has anything under it.
+ */
+const OTHER_GROUP = 'other';
 
 /**
  * The real record behind the game, as four lists you can read.
@@ -88,6 +111,57 @@ export class HistoryScene extends Phaser.Scene {
   private tab: HistoryTab = 'dynasties';
   /** The one open accordion row, by a key unique across every tab. */
   private expanded?: string;
+  /**
+   * The one open section on each tab, by group id, or `''` for a tab shut all the way down.
+   *
+   * Per tab rather than one field, because a reader who opened the campaigns and went to look
+   * something up in the glossary should find the campaigns still open when they come back. It is
+   * the same argument as `pendingScroll` — a page that forgets where you were makes you navigate
+   * twice for every thing you wanted to read once.
+   */
+  private openSection: Record<HistoryTab, string> = {
+    dynasties: ERA_PERIODS[0]?.id ?? '',
+    // Resolved in `create`: the first age that anybody is actually filed under. Written flat here
+    // because the roster has to be read to know which one that is.
+    figures: '',
+    stories: STORY_GROUPS[0]?.id ?? '',
+    // Not a list. The wardrobe is a plate you change, and it has no sections to shut.
+    army: '',
+    terms: TERM_GROUPS[0]?.id ?? '',
+  };
+  /**
+   * The section header the next re-render should park itself on, and where it landed.
+   *
+   * Toggling a section changes the height of everything below it and — when it is the section
+   * being *shut* — everything below it moves up by the height of the whole section. Carrying the
+   * old offset across, which is right for opening a card, throws the heading you just pressed
+   * clean off the screen. So a header tap does not preserve the offset: it puts the header it
+   * pressed at the top of the window, which is the same place it would be on any other page that
+   * has accordions in it.
+   */
+  private anchorSection?: string;
+  private anchorY?: number;
+  /**
+   * The section whose rows should come in on a stagger, set only when a section is being *opened*.
+   *
+   * Opening a drawer replaces the page under the reader's thumb in one frame: eight rows that were
+   * not there are suddenly there, and the eye has to go and find out what happened. The stagger is
+   * the answer to "what changed" — the rows arrive in reading order, from the heading downwards,
+   * so the movement itself points at where to start.
+   *
+   * Not set when a section is shut — that is `collapseSection`'s job, and it runs on the rows that
+   * are still on the page rather than on the ones about to be built.
+   */
+  private revealSection?: string;
+  /**
+   * True while a section is folding away.
+   *
+   * The collapse animates the rows that are *already drawn* and only rebuilds when they have gone,
+   * so for those two hundred milliseconds the page is showing a layout that no longer matches
+   * `openSection`. A second tap in that window would animate a second collapse over the top of the
+   * first and rebuild twice; this makes the page ignore taps until it has caught up with itself.
+   */
+  private closing = false;
   private content: Phaser.GameObjects.GameObject[] = [];
   /**
    * Held separately because a scroll area is not a GameObject: it hangs four handlers off the
@@ -123,6 +197,11 @@ export class HistoryScene extends Phaser.Scene {
     // thing to read a page of prose over.
     this.mapRenderer.drawBackground(GAME_WIDTH, GAME_HEIGHT).setDepth(-10);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.clear());
+    // People opens on the first age anybody is actually filed under. Three of the eleven headings
+    // have no written-up champion at all, so opening on `HISTORY_ERAS[0]` would greet the reader
+    // with an empty drawer and no reason given for it.
+    const peopled = this.figuresByEra();
+    this.openSection.figures = HISTORY_ERAS.find((era) => peopled.get(era.id)?.length)?.id ?? '';
     this.render();
   }
 
@@ -220,7 +299,260 @@ export class HistoryScene extends Phaser.Scene {
       : this.buildTerms(scroll);
 
     scroll.setContentHeight(Math.max(height, used));
-    scroll.setScroll(this.pendingScroll);
+    // A header tap parks on that header; anything else keeps the reader where they were. Both go
+    // through `setScroll`, which clamps — so a section near the foot of a short list comes to rest
+    // as far down as the list actually goes rather than scrolling past its own end.
+    scroll.setScroll(this.anchorY !== undefined ? this.anchorY - 4 : this.pendingScroll);
+    this.anchorSection = undefined;
+    this.anchorY = undefined;
+    // One render, one arrival. Left set, the next rebuild — opening a card, pressing a chip —
+    // would replay the whole section's stagger for a change that touched one row.
+    this.revealSection = undefined;
+  }
+
+  // ── Sections ──
+
+  /**
+   * One shuttable heading, and the state that decides which one is open.
+   *
+   * Five tabs of flat list is what this page shipped as, and two of them ran to forty-eight and
+   * fifty-one rows. Nothing was wrong with any single row; what was wrong is that a reader looking
+   * for the stakes in the Bạch Đằng had to scroll past the Nika riots to find them, and a reader
+   * looking for nothing in particular had no way to see what was on offer short of reading all of
+   * it. Shut, a tab is now six or seven lines that say what kinds of thing are in here. Open, it
+   * is the list it always was.
+   *
+   * One section open at a time, per tab. Independent toggles were the other option and they lose
+   * the property that makes this worth doing at all: with three sections open the page is a long
+   * list again, only now with headings in it.
+   */
+  private sectionHeader(scroll: InkScrollArea, y: number, opts: {
+    key: string;
+    /** The count line, already worded — "12 entries", "2 ages". Right-aligned against the title. */
+    count?: string;
+    /** Dates, spans: the facts about the section rather than the pitch for it. */
+    meta?: string;
+    note?: string;
+    title: string;
+    open: boolean;
+    x?: number;
+    width?: number;
+    /** The open marker's colour. The timeline uses its own rule colours; everything else is son. */
+    colour?: number;
+  }): number {
+    const x = opts.x ?? 0;
+    const width = opts.width ?? LIST_WIDTH - 6;
+    const accent = opts.colour ?? INK_UI.cinnabar;
+    if (opts.key === this.anchorSection) {
+      this.anchorY = y;
+    }
+
+    const holder = this.add.container(x, y);
+    const skin = this.add.graphics();
+    holder.add(skin);
+
+    // Measured, not assumed — the same rule the cards follow. "The country, its capitals and its
+    // borders" wraps to two lines at 13px, and a fixed header height would print the note through
+    // it.
+    const count = opts.count
+      ? this.add.text(width - 10, 9, opts.count, {
+        color: '#8a7350', fontFamily: UI_FONT, fontSize: '9px',
+      }).setOrigin(1, 0)
+      : undefined;
+    const title = this.add.text(24, 8, opts.title, {
+      color: opts.open ? '#2a2118' : '#4a3b28',
+      fontFamily: TITLE_FONT,
+      fontSize: '13px',
+      fontStyle: '700',
+      wordWrap: { width: width - 34 - (count ? count.width + 8 : 0) },
+    });
+    let bottom = 8 + title.height;
+    holder.add(title);
+    if (count) {
+      holder.add(count);
+    }
+    if (opts.meta) {
+      const meta = this.add.text(24, bottom + 3, opts.meta, {
+        color: '#6b5230', fontFamily: UI_FONT, fontSize: '9px', wordWrap: { width: width - 34 },
+      });
+      bottom = meta.y + meta.height;
+      holder.add(meta);
+    }
+    if (opts.note) {
+      const note = this.add.text(24, bottom + 3, opts.note, {
+        color: '#7a6748', fontFamily: UI_FONT, fontSize: '9px', lineSpacing: 2,
+        wordWrap: { width: width - 34 },
+      });
+      bottom = note.y + note.height;
+      holder.add(note);
+    }
+    const height = bottom + 9;
+
+    skin.fillStyle(opts.open ? INK_UI.parchment : INK_UI.parchmentShade, 1);
+    skin.fillRoundedRect(0, 0, width, height, 6);
+    skin.lineStyle(1, INK_UI.parchmentDark, 1);
+    skin.strokeRoundedRect(0, 0, width, height, 6);
+    if (opts.open) {
+      // A bar down the open side, so a reader scrolling inside a section can see which heading the
+      // rows under their thumb belong to without going back up to read it.
+      //
+      // A bar and not a border. The open heading was outlined in son on all four sides and it read
+      // as an error state — the cards below it are outlined too, and the loudest thing on the page
+      // should be the entry you opened, not the drawer it came out of.
+      skin.fillStyle(accent, 0.9);
+      skin.fillRoundedRect(0, 6, 3, height - 12, 1.5);
+    }
+
+    // Drawn rather than typed. "▾" is a glyph the two UI fonts disagree about the height of, and
+    // the marker has to sit on the title's first line in both languages.
+    const marker = this.add.graphics();
+    const cy = 8 + Math.min(title.height, 17) / 2;
+    marker.fillStyle(opts.open ? accent : INK_UI.softBrush, 1);
+    if (opts.open) {
+      marker.fillTriangle(10, cy - 2, 18, cy - 2, 14, cy + 3.5);
+    } else {
+      marker.fillTriangle(11, cy - 4, 16.5, cy, 11, cy + 4);
+    }
+    holder.add(marker);
+
+    const hit = this.add.rectangle(width / 2, height / 2, width, height, 0xffffff, 0.001)
+      .setInteractive({ useHandCursor: true });
+    hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      if (scrollGestureConsumedTap(pointer)) {
+        return;
+      }
+      const at = designPointer(pointer);
+      if (at.y < LIST_TOP || at.y > LIST_TOP + this.listHeight()) {
+        return;
+      }
+      this.toggleSection(opts.key);
+    });
+    holder.add(hit);
+    // Read by the harness, so it can press a heading at whatever height that heading turned out to
+    // be rather than at a pixel that was right on the day it was written.
+    holder.setData('sectionKey', opts.key);
+    scroll.content.add(holder);
+    return y + height + CARD_GAP;
+  }
+
+  private toggleSection(key: string): void {
+    if (this.closing) {
+      return;
+    }
+    if (this.openSection[this.tab] === key) {
+      this.collapseSection(key);
+    } else {
+      this.applyToggle(key, true);
+    }
+  }
+
+  private applyToggle(key: string, opening: boolean): void {
+    this.closing = false;
+    this.openSection[this.tab] = opening ? key : '';
+    this.revealSection = opening ? key : undefined;
+    // The open card may be inside the section that just shut. Left set, it would spring open again
+    // the next time that section is opened, which is not what somebody who shut it asked for.
+    this.expanded = undefined;
+    this.anchorSection = key;
+    this.render();
+  }
+
+  /**
+   * Shutting a section, as a movement rather than as a cut.
+   *
+   * Opening got a stagger and closing did not, and the asymmetry was the more noticeable of the
+   * two: eight rows vanished between frames and everything below them jumped up by however tall
+   * they had been, so the eye had no way to tell "that section folded" from "the page reloaded".
+   *
+   * The trick is that the rebuild happens *last*. The rows that are on the page are the ones that
+   * animate — fade and settle a few units — while everything below them slides up by exactly the
+   * distance the rebuilt page will put it at, which is the next heading's own y minus the first
+   * row's. When the slide lands, the two layouts agree to the unit and `render` swaps one for the
+   * other with nothing moving. The alternative — rebuild first, then animate — needs the old rows
+   * kept alive alongside the new ones, which is two copies of the list and two answers to how tall
+   * it is.
+   */
+  private collapseSection(key: string): void {
+    const scroll = this.scroll;
+    const list = (scroll?.content.list ?? []) as Phaser.GameObjects.Container[];
+    const headerIndex = list.findIndex((item) => item.getData?.('sectionKey') === key);
+    if (headerIndex < 0) {
+      this.applyToggle(key, false);
+      return;
+    }
+    let nextIndex = list.length;
+    for (let i = headerIndex + 1; i < list.length; i += 1) {
+      if (list[i].getData?.('sectionKey') != null) {
+        nextIndex = i;
+        break;
+      }
+    }
+    const rows = list.slice(headerIndex + 1, nextIndex).filter((row) => typeof row.y === 'number');
+    // The timeline's rail is drawn behind everything at index 0 and belongs to no one section, so
+    // it cannot slide with the rest. It goes out with the fold and the rebuilt one comes back in.
+    const rail = list.find((item) => item.type === 'Graphics' && list.indexOf(item) === 0);
+    if (!rows.length) {
+      this.applyToggle(key, false);
+      return;
+    }
+
+    this.closing = true;
+    const top = Math.min(...rows.map((row) => row.y));
+    // Where the next heading is now, against where the rebuild will put it: exactly where the
+    // first row of this section starts, because that is what a shut section leaves behind.
+    const shift = nextIndex < list.length ? list[nextIndex].y - top : 0;
+    const below = list.slice(nextIndex).filter((item) => typeof item.y === 'number');
+
+    rows.forEach((row, index) => {
+      this.tweens.add({
+        targets: row,
+        alpha: 0,
+        y: row.y - 4,
+        duration: 130,
+        // Backwards, so the section folds towards its own heading rather than away from it.
+        delay: Math.min(rows.length - 1 - index, 5) * 14,
+        ease: 'Quad.easeIn',
+      });
+    });
+
+    if (rail && this.tab === 'dynasties') {
+      this.tweens.add({ targets: rail, alpha: 0, duration: 170, ease: 'Quad.easeIn' });
+    }
+
+    const done = (): void => this.applyToggle(key, false);
+    if (shift > 0 && below.length) {
+      this.tweens.add({
+        targets: below,
+        y: '-=' + shift,
+        duration: 210,
+        ease: 'Quad.easeInOut',
+        onComplete: done,
+      });
+    } else {
+      // Nothing underneath to close the gap — the last section on the tab. The fade is the whole
+      // animation, so the rebuild waits for it rather than for a slide that never happens.
+      this.time.delayedCall(150, done);
+    }
+  }
+
+  /**
+   * The groups of a tab, plus whatever the groups forgot, in catalogue order.
+   *
+   * The remainder is the point. `STORY_GROUPS` is written by hand against a catalogue that grows,
+   * and a story registered next month would otherwise be filed nowhere and drawn nowhere — missing
+   * from the one page in the game that promises to be complete about the record.
+   */
+  private sections(groups: readonly HistoryGroup[], all: readonly string[]): HistoryGroup[] {
+    const known = new Set(all);
+    const filed = groups
+      .map((group) => ({ id: group.id, ids: group.ids.filter((id) => known.has(id)) }))
+      .filter((group) => group.ids.length);
+    const rest = ungroupedIds(groups, all);
+    return rest.length ? [...filed, { id: OTHER_GROUP, ids: rest }] : filed;
+  }
+
+  private groupText(kind: 'eras' | 'stories' | 'terms', id: string, part: 'title' | 'note'): string {
+    return historyText(id === OTHER_GROUP ? `groups.other.${part}` : `groups.${kind}.${id}.${part}`);
   }
 
   // ── The four lists ──
@@ -240,55 +572,121 @@ export class HistoryScene extends Phaser.Scene {
    * advance, which is the same mistake as a fixed stride.
    */
   private buildDynasties(scroll: InkScrollArea): number {
-    const width = LIST_WIDTH - 6 - TIMELINE_X;
-    const longest = Math.max(...HISTORY_ERAS.map((era) => era.to - era.from));
-    const nodes: { y: number; radius: number; rule: EraRule }[] = [];
+    const headingWidth = LIST_WIDTH - 6 - TIMELINE_X;
+    const width = headingWidth - ROW_INDENT;
+    const eraById = new Map(HISTORY_ERAS.map((era) => [era.id, era]));
+    const periods = this.sections(ERA_PERIODS, HISTORY_ERAS.map((era) => era.id));
+    const membersOf = (group: { ids: readonly string[] }): HistoryEra[] =>
+      group.ids.map((id) => eraById.get(id)).filter((era): era is HistoryEra => Boolean(era));
+    // One scale for two kinds of node. A shut period stands for every age inside it, so its span
+    // can run past the longest single age — and a scale set by the ages alone would draw the shut
+    // Bắc thuộc period SMALLER than the thousand-year age it had just swallowed.
+    const longest = Math.max(
+      ...HISTORY_ERAS.map((era) => era.to - era.from),
+      ...periods.map((period) => {
+        const members = membersOf(period);
+        return Math.max(...members.map((era) => era.to)) - Math.min(...members.map((era) => era.from));
+      }),
+    );
+    const nodes: { y: number; radius: number; colour: number }[] = [];
     let y = this.buildRuleLegend(scroll);
 
-    for (const era of HISTORY_ERAS) {
-      const key = `era:${era.id}`;
-      const open = this.expanded === key;
-      const rulers = era.rulerSlugs
-        .map((slug) => this.template(`real-${slug}`))
-        .filter((hero): hero is Hero => Boolean(hero));
-      const span = era.to - era.from;
-      const body = open
-        ? [
-          historyText(`eras.${era.id}.body`),
-          `${t('history.era.inGame')} — ${historyText(`eras.${era.id}.inGame`)}`,
-          rulers.length ? rulers.map((hero) => heroName(hero)).join(' · ') : '',
-        ].filter(Boolean).join('\n\n')
-        : this.clip(historyText(`eras.${era.id}.body`), 92);
-      const card = this.ui.card({ x: TIMELINE_X, y, width, height: 62 }, {
-        title: historyText(`eras.${era.id}.title`),
-        // The length of the age beside its dates, because "111 BC – 938" does not announce itself
-        // as ten times "1778 – 1802" until you do the subtraction.
-        // The rule is named only when it is not self-rule. Printing "Vietnamese rule" on eight of
-        // eleven cards is a word the colour and the legend already carry; printing it on the three
-        // that broke is the whole point of having the field.
-        subtitle: [
-          this.range(era.from, era.to),
-          t('history.era.span', { years: span }),
-          era.rule === 'self' ? '' : t(`history.rule.${era.rule}` as 'history.rule.self'),
+    for (const period of periods) {
+      const members = membersOf(period);
+      const sectionOpen = this.openSection.dynasties === period.id;
+      const from = Math.min(...members.map((era) => era.from));
+      const to = Math.max(...members.map((era) => era.to));
+      // Every period is deliberately rule-homogeneous, and two of them are one age long for that
+      // reason alone. A shut period draws ONE node in ONE colour and that colour is the whole
+      // answer to "was this us?" — a period that mixed the two would have no honest colour to be,
+      // which is the same reason `EraRule` has two values and not three. A mixed one, if anybody
+      // ever writes one, is drawn in plain ink: it says nothing rather than something false.
+      const rule: EraRule | undefined =
+        members.every((era) => era.rule === members[0].rule) ? members[0].rule : undefined;
+      const colour = rule ? RULE_COLOUR[rule] : INK_UI.brush;
+      const headerY = y;
+      y = this.sectionHeader(scroll, y, {
+        key: period.id,
+        x: TIMELINE_X,
+        width: headingWidth,
+        title: this.groupText('eras', period.id, 'title'),
+        count: t('history.section.ages', { count: members.length }),
+        meta: [
+          this.range(from, to),
+          t('history.era.span', { years: to - from }),
+          rule && rule !== 'self' ? t(`history.rule.${rule}` as 'history.rule.self') : '',
         ].filter(Boolean).join('  ·  '),
-        body,
-        border: open ? RULE_COLOUR[era.rule] : undefined,
+        note: this.groupText('eras', period.id, 'note'),
+        open: sectionOpen,
+        colour,
       });
-      this.makeTappable(card, key, width);
-      scroll.content.add(card);
-      if (open) {
-        this.revealCard(card);
-      }
+      // Shut, the period IS its node, sized by everything it stands for — so the rail still reads
+      // as a thousand years of blot and a Tây Sơn full stop with every drawer closed. Open, the
+      // heading is a tick and the ages hang under it with nodes of their own.
       nodes.push({
-        // Level with the title, not with the middle of a card whose height is set by its prose.
-        y: y + 18,
-        radius: 3 + 6 * Math.sqrt(span / longest),
-        rule: era.rule,
+        y: headerY + 18,
+        radius: sectionOpen ? 3.5 : 3 + 6 * Math.sqrt(Math.min(1, (to - from) / longest)),
+        colour,
       });
-      y += ((card.getData('cardHeight') as number | undefined) ?? 62) + CARD_GAP;
+      if (!sectionOpen) {
+        continue;
+      }
+
+      for (const era of members) {
+        const key = `era:${era.id}`;
+        const open = this.expanded === key;
+        const rulers = era.rulerSlugs
+          .map((slug) => this.template(`real-${slug}`))
+          .filter((hero): hero is Hero => Boolean(hero));
+        const span = era.to - era.from;
+        const body = open
+          ? [
+            historyText(`eras.${era.id}.body`),
+            `${t('history.era.inGame')} — ${historyText(`eras.${era.id}.inGame`)}`,
+            rulers.length ? rulers.map((hero) => heroName(hero)).join(' · ') : '',
+          ].filter(Boolean).join('\n\n')
+          : this.clip(historyText(`eras.${era.id}.body`), 92);
+        const card = this.ui.card({ x: TIMELINE_X + ROW_INDENT, y, width, height: 62 }, {
+          title: historyText(`eras.${era.id}.title`),
+          // The length of the age beside its dates, because "111 BC – 938" does not announce itself
+          // as ten times "1778 – 1802" until you do the subtraction.
+          // The rule is named only when it is not self-rule. Printing "Vietnamese rule" on eight of
+          // eleven cards is a word the colour and the legend already carry; printing it on the three
+          // that broke is the whole point of having the field.
+          subtitle: [
+            this.range(era.from, era.to),
+            t('history.era.span', { years: span }),
+            era.rule === 'self' ? '' : t(`history.rule.${era.rule}` as 'history.rule.self'),
+          ].filter(Boolean).join('  ·  '),
+          body,
+          border: open ? RULE_COLOUR[era.rule] : undefined,
+        });
+        this.makeTappable(card, key, width);
+        scroll.content.add(card);
+        if (open) {
+          this.revealCard(card);
+        } else if (this.revealSection === period.id) {
+          this.revealRow(card, members.indexOf(era));
+        }
+        nodes.push({
+          // Level with the title, not with the middle of a card whose height is set by its prose.
+          y: y + 18,
+          radius: 3 + 6 * Math.sqrt(Math.min(1, span / longest)),
+          colour: RULE_COLOUR[era.rule],
+        });
+        y += ((card.getData('cardHeight') as number | undefined) ?? 62) + CARD_GAP;
+      }
     }
 
-    scroll.content.addAt(this.drawTimelineRail(nodes), 0);
+    const rail = this.drawTimelineRail(nodes);
+    // The rail is redrawn from scratch every render, so a section fold would otherwise snap the
+    // line and its nodes to a new shape in one frame while the cards beside it were still moving.
+    // `anchorSection` is set exactly on the renders that follow a heading being pressed.
+    if (this.anchorSection) {
+      rail.setAlpha(0);
+      this.tweens.add({ targets: rail, alpha: 1, duration: 200, ease: 'Quad.easeOut' });
+    }
+    scroll.content.addAt(rail, 0);
     return y;
   }
 
@@ -353,6 +751,36 @@ export class HistoryScene extends Phaser.Scene {
   }
 
   /**
+   * A row arriving as part of a section that just opened.
+   *
+   * Same six units and same easing as `revealCard`, because it is the same gesture — one row
+   * saying "I am new" — and two different arrival animations on one page reads as two different
+   * pages. What is added is the delay: 26ms a row, so eight rows finish in under four tenths of a
+   * second. Capped at six steps, because a section of twelve on a stagger that kept going would
+   * leave the last card arriving after the reader had started reading the first, and a list still
+   * moving is a list you cannot yet scroll with confidence.
+   */
+  private revealRow(target: Phaser.GameObjects.GameObject, index: number): void {
+    const row = target as Phaser.GameObjects.Container;
+    if (typeof row.y !== 'number' || typeof row.setAlpha !== 'function') {
+      return;
+    }
+    const settled = row.y;
+    row.setAlpha(0).setY(settled + 6);
+    // Tagged rather than inferred, for the same reason the single-card reveal is: the harness can
+    // assert the stagger ran without having to catch a tween mid-flight.
+    row.setData('sectionRevealed', true);
+    this.tweens.add({
+      targets: row,
+      y: settled,
+      alpha: 1,
+      duration: 170,
+      delay: Math.min(index, 6) * 26,
+      ease: 'Quad.easeOut',
+    });
+  }
+
+  /**
    * The line down the ages: one inked segment per era, in that era's own colour.
    *
    * The rail is where "what colour means what" actually pays off. Every segment belongs to the age
@@ -361,7 +789,7 @@ export class HistoryScene extends Phaser.Scene {
    * red down to the point where the age lost the country, indigo the rest of the way — the Hồ
    * twenty-seven years in, the Nguyễn from the protectorate.
    */
-  private drawTimelineRail(nodes: { y: number; radius: number; rule: EraRule }[]): Phaser.GameObjects.Graphics {
+  private drawTimelineRail(nodes: { y: number; radius: number; colour: number }[]): Phaser.GameObjects.Graphics {
     const rail = this.add.graphics();
 
     for (let i = 0; i < nodes.length; i += 1) {
@@ -374,7 +802,7 @@ export class HistoryScene extends Phaser.Scene {
         inkPath(rail, [{ x: RAIL_X, y: node.y }, { x: RAIL_X, y: bottom }], 4157 + i * 31, {
           width: 2.2,
           alpha: 0.72,
-          colour: RULE_COLOUR[node.rule],
+          colour: node.colour,
           wobble: 0.5,
           step: 22,
         });
@@ -385,7 +813,7 @@ export class HistoryScene extends Phaser.Scene {
       // Paper under the node first, so the rail does not show through the disc it passes behind.
       rail.fillStyle(INK_UI.parchment, 1);
       rail.fillCircle(RAIL_X, node.y, node.radius + 1.5);
-      rail.fillStyle(RULE_COLOUR[node.rule], 0.92);
+      rail.fillStyle(node.colour, 0.92);
       rail.fillCircle(RAIL_X, node.y, node.radius);
       rail.lineStyle(0.9, INK_UI.brush, 0.45);
       rail.strokeCircle(RAIL_X, node.y, node.radius);
@@ -393,6 +821,14 @@ export class HistoryScene extends Phaser.Scene {
     return rail;
   }
 
+  /**
+   * The champions, filed under the age they belong to — and now shut under it as well.
+   *
+   * The era headings were already here and were already the right split; what they were not was a
+   * *control*. Fifty-one portraits is eleven screens of scrolling, so a reader who wanted the Trần
+   * generals had to travel past every Lý minister to reach them, twice, once in each direction.
+   * The heading each of them was already standing under is the obvious thing to make shut.
+   */
   private buildFigures(scroll: InkScrollArea): number {
     let y = 0;
     const grouped = this.figuresByEra();
@@ -401,14 +837,19 @@ export class HistoryScene extends Phaser.Scene {
       if (!group?.length) {
         continue;
       }
-      const heading = this.add.text(2, y, historyText(`eras.${era.id}.title`), {
-        color: '#8a5f1c',
-        fontFamily: TITLE_FONT,
-        fontSize: '13px',
-        fontStyle: '700',
-      }).setOrigin(0, 0);
-      scroll.content.add(heading);
-      y += heading.height + 6;
+      const sectionOpen = this.openSection.figures === era.id;
+      y = this.sectionHeader(scroll, y, {
+        key: era.id,
+        title: historyText(`eras.${era.id}.title`),
+        count: t('history.section.people', { count: group.length }),
+        // The age's dates, not a written note. Which century a heading covers is the only thing a
+        // reader needs to choose between them here, and it is a fact the data already carries.
+        meta: this.range(era.from, era.to),
+        open: sectionOpen,
+      });
+      if (!sectionOpen) {
+        continue;
+      }
 
       for (const hero of group) {
         const key = `figure:${hero.id}`;
@@ -430,7 +871,15 @@ export class HistoryScene extends Phaser.Scene {
         // The portrait rides beside the card rather than inside it, because the card grows with
         // its prose and a face stretched to match would be worse than a face that simply sits at
         // the top of a tall entry.
-        scroll.content.add(renderHeroFaceInBox(this, hero, { x: 0, y, width: PORTRAIT, height: PORTRAIT }));
+        const face = renderHeroFaceInBox(this, hero, { x: 0, y, width: PORTRAIT, height: PORTRAIT });
+        scroll.content.add(face);
+        if (this.revealSection === era.id && !open) {
+          // Both on the same step. Staggered against each other, a face lands before the name
+          // beside it and the row reads as two things rather than one.
+          const step = group.indexOf(hero);
+          this.revealRow(card, step);
+          this.revealRow(face, step);
+        }
         y += cardHeight + CARD_GAP;
       }
     }
@@ -443,67 +892,130 @@ export class HistoryScene extends Phaser.Scene {
     const authored = new Set(heroTemplates.map((hero) => hero.name));
     const rest = REAL_FIGURES.filter((figure) => !authored.has(figure.name)).map((figure) => figure.name);
     if (rest.length) {
-      const card = this.ui.card({ x: 0, y, width: LIST_WIDTH - 6, height: 52 }, {
+      const sectionOpen = this.openSection.figures === 'also';
+      y = this.sectionHeader(scroll, y, {
+        key: 'also',
         title: t('history.figures.alsoDrawn'),
-        body: `${t('history.figures.alsoDrawnBody', { count: rest.length })}
-
-${rest.join(' · ')}`,
-        muted: true,
+        count: t('history.section.people', { count: rest.length }),
+        note: t('history.figures.alsoDrawnBody', { count: rest.length }),
+        open: sectionOpen,
       });
-      scroll.content.add(card);
-      y += ((card.getData('cardHeight') as number | undefined) ?? 52) + CARD_GAP;
+      if (sectionOpen) {
+        const card = this.ui.card(
+          { x: ROW_INDENT, y, width: LIST_WIDTH - 6 - ROW_INDENT, height: 52 },
+          { body: rest.join(' · '), muted: true },
+        );
+        scroll.content.add(card);
+        if (this.revealSection === 'also') {
+          this.revealRow(card, 0);
+        }
+        y += ((card.getData('cardHeight') as number | undefined) ?? 52) + CARD_GAP;
+      }
     }
     return y;
   }
 
+  /**
+   * The Chronicle's episodes, filed by what kind of thing happened.
+   *
+   * Not by date and not by dynasty — both were tried on paper and both scatter the entries a
+   * reader wants side by side. Bạch Đằng happened twice, three hundred and fifty years apart, and
+   * the two tellings of Diên Hồng would land in the same century and still not land together.
+   * What these entries share is a *behaviour*, which is the axis the stories were written on in
+   * the first place. `world` is the group that earns the scheme: five episodes that are Korean,
+   * Japanese, Roman, Byzantine and Cham, marked as not ours in prose you had to open one to read,
+   * and now shut behind a heading that says it.
+   */
   private buildStories(scroll: InkScrollArea): number {
+    const width = LIST_WIDTH - 6 - ROW_INDENT;
     let y = 0;
-    for (const id of storyCatalogIds) {
-      const key = `story:${id}`;
-      const open = this.expanded === key;
-      const happened = historyText(`stories.${id}.happened`);
-      const written = happened !== `stories.${id}.happened`;
-      const body = !written
-        ? t('history.stories.unwritten')
-        : open
-          ? `${happened}\n\n${t('history.stories.inGame')} — ${historyText(`stories.${id}.inGame`)}`
-          : this.clip(happened);
-      const card = this.ui.card({ x: 0, y, width: LIST_WIDTH - 6, height: 58 }, {
-        title: storyTitle(id),
-        subtitle: STORY_ANCHORS[id] ?? '',
-        body,
-        border: open ? INK_UI.cinnabar : undefined,
-        muted: !written,
+    for (const group of this.sections(STORY_GROUPS, storyCatalogIds)) {
+      const sectionOpen = this.openSection.stories === group.id;
+      y = this.sectionHeader(scroll, y, {
+        key: group.id,
+        title: this.groupText('stories', group.id, 'title'),
+        count: t('history.section.entries', { count: group.ids.length }),
+        note: this.groupText('stories', group.id, 'note'),
+        open: sectionOpen,
       });
-      if (written) {
-        this.makeTappable(card, key, LIST_WIDTH - 6);
+      if (!sectionOpen) {
+        continue;
       }
-      scroll.content.add(card);
-      if (open) {
-        this.revealCard(card);
+
+      for (const id of group.ids) {
+        const key = `story:${id}`;
+        const open = this.expanded === key;
+        const happened = historyText(`stories.${id}.happened`);
+        const written = happened !== `stories.${id}.happened`;
+        const body = !written
+          ? t('history.stories.unwritten')
+          : open
+            ? `${happened}\n\n${t('history.stories.inGame')} — ${historyText(`stories.${id}.inGame`)}`
+            : this.clip(happened);
+        const card = this.ui.card({ x: ROW_INDENT, y, width, height: 58 }, {
+          title: storyTitle(id),
+          subtitle: STORY_ANCHORS[id] ?? '',
+          body,
+          border: open ? INK_UI.cinnabar : undefined,
+          muted: !written,
+        });
+        if (written) {
+          this.makeTappable(card, key, width);
+        }
+        scroll.content.add(card);
+        if (open) {
+          this.revealCard(card);
+        } else if (this.revealSection === group.id) {
+          this.revealRow(card, group.ids.indexOf(id));
+        }
+        y += ((card.getData('cardHeight') as number | undefined) ?? 58) + CARD_GAP;
       }
-      y += ((card.getData('cardHeight') as number | undefined) ?? 58) + CARD_GAP;
     }
     return y;
   }
 
+  /**
+   * The glossary, in four drawers.
+   *
+   * `GLOSSARY_TERMS` is ordered by when a player first meets each word, which is the right order
+   * for a first read and the wrong one for every read after it: somebody who has just seen "Thái
+   * úy" on a hero card is looking for the offices, not for the ninth word on a list of
+   * twenty-four. The reading order survives inside each drawer.
+   */
   private buildTerms(scroll: InkScrollArea): number {
+    const width = LIST_WIDTH - 6 - ROW_INDENT;
     let y = 0;
-    for (const term of GLOSSARY_TERMS) {
-      const key = `term:${term}`;
-      const open = this.expanded === key;
-      const body = historyText(`terms.${term}.body`);
-      const card = this.ui.card({ x: 0, y, width: LIST_WIDTH - 6, height: 52 }, {
-        title: historyText(`terms.${term}.title`),
-        body: open ? body : this.clip(body),
-        border: open ? INK_UI.cinnabar : undefined,
+    for (const group of this.sections(TERM_GROUPS, GLOSSARY_TERMS)) {
+      const sectionOpen = this.openSection.terms === group.id;
+      y = this.sectionHeader(scroll, y, {
+        key: group.id,
+        title: this.groupText('terms', group.id, 'title'),
+        count: t('history.section.entries', { count: group.ids.length }),
+        note: this.groupText('terms', group.id, 'note'),
+        open: sectionOpen,
       });
-      this.makeTappable(card, key, LIST_WIDTH - 6);
-      scroll.content.add(card);
-      if (open) {
-        this.revealCard(card);
+      if (!sectionOpen) {
+        continue;
       }
-      y += ((card.getData('cardHeight') as number | undefined) ?? 52) + CARD_GAP;
+
+      for (const term of group.ids) {
+        const key = `term:${term}`;
+        const open = this.expanded === key;
+        const body = historyText(`terms.${term}.body`);
+        const card = this.ui.card({ x: ROW_INDENT, y, width, height: 52 }, {
+          title: historyText(`terms.${term}.title`),
+          body: open ? body : this.clip(body),
+          border: open ? INK_UI.cinnabar : undefined,
+        });
+        this.makeTappable(card, key, width);
+        scroll.content.add(card);
+        if (open) {
+          this.revealCard(card);
+        } else if (this.revealSection === group.id) {
+          this.revealRow(card, group.ids.indexOf(term));
+        }
+        y += ((card.getData('cardHeight') as number | undefined) ?? 52) + CARD_GAP;
+      }
     }
     return y;
   }
@@ -854,10 +1366,14 @@ ${historyText('army.formation.note')}`,
    */
   private makeTappable(card: Phaser.GameObjects.Container, key: string, width: number): void {
     const height = (card.getData('cardHeight') as number | undefined) ?? 48;
+    // Tagged so the harness can press whichever row is actually first under the open heading. It
+    // used to press a hard-coded y and assert something opened, which is a check that passes right
+    // up until a heading of any height is drawn above the row it meant to press.
+    card.setData('rowKey', key);
     const hit = this.add.rectangle(width / 2, height / 2, width, height, 0xffffff, 0.001)
       .setInteractive({ useHandCursor: true });
     hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-      if (scrollGestureConsumedTap(pointer)) {
+      if (scrollGestureConsumedTap(pointer) || this.closing) {
         return;
       }
       // A geometry mask hides pixels, not hit areas. Once the list has been scrolled, the rows that
@@ -876,6 +1392,12 @@ ${historyText('army.formation.note')}`,
   }
 
   private clear(): void {
+    // Every tween on this page targets an object about to be destroyed — a collapse mid-flight, a
+    // stagger that has not finished arriving. Left running against dead objects they either throw
+    // or, worse, land a `y` on a recycled one.
+    this.tweens.killAll();
+    this.time.removeAllEvents();
+    this.closing = false;
     this.scroll?.destroy();
     this.scroll = undefined;
     for (const item of this.content) {

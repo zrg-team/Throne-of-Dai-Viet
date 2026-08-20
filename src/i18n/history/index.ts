@@ -1,6 +1,7 @@
 import { getLanguage, interpolate } from '../index';
 import { armyEn, armyVi } from './army';
 import { dynastiesEn, dynastiesVi } from './dynasties';
+import { groupsEn, groupsVi } from './groups';
 import { storyNotesEn, storyNotesVi } from './storyNotes';
 import { termsEn, termsVi } from './terms';
 
@@ -16,8 +17,8 @@ import { termsEn, termsVi } from './terms';
 
 export type HistoryCatalog = Record<string, string>;
 
-const EN: HistoryCatalog = { ...armyEn, ...dynastiesEn, ...storyNotesEn, ...termsEn };
-const VI: HistoryCatalog = { ...armyVi, ...dynastiesVi, ...storyNotesVi, ...termsVi };
+const EN: HistoryCatalog = { ...armyEn, ...dynastiesEn, ...groupsEn, ...storyNotesEn, ...termsEn };
+const VI: HistoryCatalog = { ...armyVi, ...dynastiesVi, ...groupsVi, ...storyNotesVi, ...termsVi };
 
 /** Resolves Vietnamese, then English, then hands back the key so a miss is visible and harmless. */
 export function historyText(key: string, params: Record<string, string | number> = {}): string {

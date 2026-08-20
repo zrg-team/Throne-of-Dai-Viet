@@ -4,6 +4,10 @@ import { inkPath, mulberry32, printedShape, washFill, type Pt } from './stroke';
 import { UNIT, unitScale } from './proportion';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import type { Army, ArmyComposition, ArmyWardrobe, GameState } from '../../state/types';
+import {
+  blockShares, compositionOfUnits, DOCTRINE, FORMATION_ORDER, HOST_MARK_CAP, MEN_PER_MARK,
+  type FormationKey,
+} from '../../data/ascent/formations';
 
 /**
  * Đông Sơn bronze — the narrator's register, kept deliberately distinct from the world's.
@@ -22,10 +26,15 @@ type G = Phaser.GameObjects.Graphics;
 
 // ── the host ──────────────────────────────────────────────────────────────────
 
-/** One drawn figure stands for about this many men. Nobody counts them; the eye compares blocks. */
-export const MEN_PER_MARK = 55;
-/** Past this, density stops adding information and starts costing frames — ranks deepen instead. */
-export const HOST_MARK_CAP = 420;
+/**
+ * One drawn figure stands for about this many men, and past `HOST_MARK_CAP` density stops adding
+ * information and starts costing frames — ranks deepen instead.
+ *
+ * Both now live in `data/ascent/formations.ts` with the doctrine table, because the fight resolver
+ * needs them to know whether a block is still standing and `src/systems/` may not import Phaser.
+ * Re-exported here so every existing caller keeps working.
+ */
+export { HOST_MARK_CAP, MEN_PER_MARK };
 
 /**
  * Ground between one man and the next, along the file and back through the ranks.
@@ -624,6 +633,22 @@ function drawArm(
  */
 export interface HostKit {
   theme?: FigureTheme;
+  /**
+   * How far apart the men stand, as a multiple of the formation's own pitch.
+   *
+   * Not a size — the figures keep the measured size `proportion.ts` gives them, which is the whole
+   * point of that contract. This opens the *gaps*.
+   *
+   * Doc 12's geometry is a plate's geometry: it draws a soldier 42 units to the crown and files
+   * him 16 units from his neighbour, which is a dense, deliberately shoulder-to-shoulder block.
+   * Carried onto the map at `GROUND_SCALE`, the same ratio puts men **3.23 px wide at a 1.72 px
+   * pitch** — overlapping by half — and ranks 1.29 px apart on a figure 6.82 px tall. A 2,400-man
+   * host came out 33 px across and read as a smudge with a flag over it.
+   *
+   * The battle screen was given room by raising `BATTLE_HOST_SCALE` to 2.3; the map was never
+   * re-checked. See `MAP_HOST_SPREAD`.
+   */
+  spread?: number;
   /** @deprecated The four-era name for `theme`. */
   era?: FigureEra;
   tier?: FigureTier;
@@ -774,7 +799,7 @@ export function drawHost(
  * block cannot: the doctrine reads at a glance, **which part of the army is dying** reads at a
  * glance, and the shape of the formation says what it is *for*.
  */
-export type FormationKey = 'screen' | 'line' | 'bows' | 'horse';
+export type { FormationKey };
 
 interface FormationSlot {
   arm: FigureArm;
@@ -801,47 +826,6 @@ const FORMATION: Record<FormationKey, FormationSlot> = {
   horse: { arm: 'mounted', dx: 1.125, dy: 7.17, pitch: 1.875, rank: 1.33, pri: 3 },
 };
 
-/** The order blocks are listed in — and, because `pri` follows it, the order they die in. */
-const FORMATION_ORDER: FormationKey[] = ['screen', 'line', 'bows', 'horse'];
-
-/**
- * Each doctrine is the same army spent differently: `weight` is its share of the host's marks and
- * `aspect` is how wide the block stands against how deep.
- *
- * The numbers are the ones drawn in `docs/12-armies-of-dai-viet.html`, which plates a 44-mark host
- * — so at 44 marks this table reproduces that page file for file.
- */
-const DOCTRINE: Record<ArmyComposition, Record<FormationKey, { weight: number; aspect: number }>> = {
-  balanced: {
-    screen: { weight: 5, aspect: 5 }, line: { weight: 21, aspect: 7 / 3 },
-    bows: { weight: 12, aspect: 3 }, horse: { weight: 6, aspect: 1.5 },
-  },
-  // Everything in the line: nine files and four ranks deep, a token screen, almost no shot and not
-  // one horse. A host that has decided to be an obstacle.
-  spears: {
-    screen: { weight: 3, aspect: 3 }, line: { weight: 36, aspect: 2.25 },
-    bows: { weight: 8, aspect: 2 }, horse: { weight: 0, aspect: 1.5 },
-  },
-  // The main body is at the back, behind a crust two ranks deep whose whole job is to keep anything
-  // off it. The weakness is visible without being written down.
-  archers: {
-    screen: { weight: 4, aspect: 4 }, line: { weight: 10, aspect: 2.5 },
-    bows: { weight: 27, aspect: 3 }, horse: { weight: 0, aspect: 1.5 },
-  },
-  // No screen at all and a real wing: it gives up the exchange before contact entirely in order to
-  // win the exchange at contact. The bare ground where every other doctrine has men is the tell.
-  shock: {
-    screen: { weight: 0, aspect: 4 }, line: { weight: 32, aspect: 2 },
-    bows: { weight: 3, aspect: 3 }, horse: { weight: 10, aspect: 2.5 },
-  },
-  // A wing this size is paid for out of the block that has to hold the ground while it manoeuvres,
-  // and the picture makes the trade legible.
-  horse: {
-    screen: { weight: 4, aspect: 4 }, line: { weight: 10, aspect: 2.5 },
-    bows: { weight: 8, aspect: 2 }, horse: { weight: 18, aspect: 2 },
-  },
-};
-
 /** One block of a formation, and where it stands in the army's own coordinates. */
 export interface FormationBlock {
   key: FormationKey;
@@ -857,6 +841,8 @@ export interface FormationBlock {
   /** Distance between files and between ranks, for this block. */
   pitch: number;
   rankPitch: number;
+  /** How far each rank back steps sideways. Carried on the block so `spread` reaches it too. */
+  shear: number;
   /** Where its feet land, which is what the painting order sorts on. */
   feet: number;
 }
@@ -879,14 +865,7 @@ export interface ArmyShape {
  * that was mustered bow-heavy deploys as an archer host whether or not anybody labelled it one.
  */
 export function compositionFor(kit: HostKit): ArmyComposition {
-  if (kit.composition) return kit.composition;
-  const mix = kit.units;
-  if (!mix) return 'balanced';
-  const total = Math.max(1, mix.spearmen + mix.archers + mix.heavyInfantry);
-  if (mix.archers / total >= 0.45) return 'archers';
-  if (mix.heavyInfantry / total >= 0.4) return 'shock';
-  if (mix.spearmen / total >= 0.7) return 'spears';
-  return 'balanced';
+  return compositionOfUnits(kit.units, kit.composition);
 }
 
 /**
@@ -905,40 +884,23 @@ export function compositionFor(kit: HostKit): ArmyComposition {
  *
  * Omit it — every caller that is drawing a host at rest — and the army simply deploys whole.
  */
-export function armyShape(men: number, composition: ArmyComposition, s = 1, mustered?: number): ArmyShape {
-  const marks = (n: number): number => Math.max(4, Math.min(HOST_MARK_CAP, Math.round(n / MEN_PER_MARK)));
-  const total = marks(Math.max(mustered ?? men, men));
-  const standing = marks(men);
+export function armyShape(
+  men: number, composition: ArmyComposition, s = 1, mustered?: number, spread = 1,
+): ArmyShape {
+  // The allocation — shares by doctrine, casualties spent in formation order — is `blockShares`,
+  // which the fight resolver reads too. One table, one arithmetic, so the dock can never offer a
+  // shape the exchange thinks has no block left to stand on.
+  const shares = blockShares(composition, men, mustered);
   const plan = DOCTRINE[composition] ?? DOCTRINE.balanced;
-  const weightSum = FORMATION_ORDER.reduce((sum, key) => sum + plan[key].weight, 0) || 1;
 
-  // Hand out marks by share, then give the rounding remainder to the line — which is the block
-  // that should absorb it, and the one block every doctrine has.
-  const share: Record<FormationKey, number> = { screen: 0, line: 0, bows: 0, horse: 0 };
-  let handed = 0;
-  for (const key of FORMATION_ORDER) {
-    const n = plan[key].weight === 0 ? 0 : Math.round((total * plan[key].weight) / weightSum);
-    share[key] = n;
-    handed += n;
-  }
-  share.line = Math.max(1, share.line + (total - handed));
-
-  // Casualties come out of the front of the formation, in order.
-  let losses = Math.max(0, total - standing);
-  for (const key of FORMATION_ORDER) {
-    if (losses <= 0) break;
-    const spent = Math.min(share[key], losses);
-    share[key] -= spent;
-    losses -= spent;
-  }
-
-  const pitch = FILE_PITCH * s;
-  const rankPitch = RANK_PITCH * s;
+  const pitch = FILE_PITCH * s * spread;
+  const rankPitch = RANK_PITCH * s * spread;
+  const shear = RANK_SHEAR * s * spread;
   const blocks: FormationBlock[] = [];
   let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
 
   for (const key of FORMATION_ORDER) {
-    const standingMarks = share[key];
+    const standingMarks = shares[key].standing;
     if (standingMarks <= 0) continue;
     const slot = FORMATION[key];
     const bp = pitch * slot.pitch;
@@ -946,7 +908,7 @@ export function armyShape(men: number, composition: ArmyComposition, s = 1, must
     // Frontage is set by what the block mustered; depth by what is left of it. A block that has
     // taken losses stands the same width and fewer ranks deep, which is a host thinning rather
     // than a host shrinking.
-    const full = Math.max(1, Math.round((total * plan[key].weight) / weightSum)) || standingMarks;
+    const full = Math.max(1, shares[key].full) || standingMarks;
     const fullRows = Math.max(1, Math.round(Math.sqrt(full / plan[key].aspect)));
     const cols = Math.max(1, Math.ceil(full / fullRows));
     const rows = Math.max(1, Math.ceil(standingMarks / cols));
@@ -957,7 +919,7 @@ export function armyShape(men: number, composition: ArmyComposition, s = 1, must
     const feet = by + (rows - 1) * br;
     blocks.push({
       key, arm: slot.arm, pri: slot.pri, marks, cols, rows,
-      x: bx, y: by, pitch: bp, rankPitch: br, feet,
+      x: bx, y: by, pitch: bp, rankPitch: br, shear, feet,
     });
     left = Math.min(left, bx);
     right = Math.max(right, bx + (cols - 1) * bp);
@@ -968,6 +930,7 @@ export function armyShape(men: number, composition: ArmyComposition, s = 1, must
   // Painted bottom-up by ascending feet: whatever stands nearer the viewer is drawn last, or the
   // rear ranks come out on top of the front line. (`setDepth` inside a container is a no-op.)
   blocks.sort((a, b) => a.feet - b.feet);
+  const total = FORMATION_ORDER.reduce((sum, key) => sum + shares[key].full, 0);
   return {
     blocks, marks: total,
     left, top, width: right - left, height: bottom - top,
@@ -992,7 +955,7 @@ export function drawArmy(
   kit: HostKit = {},
   rankTarget?: (index: number) => G,
 ): ArmyShape {
-  const shape = armyShape(men, compositionFor(kit), s, kit.mustered);
+  const shape = armyShape(men, compositionFor(kit), s, kit.mustered, kit.spread ?? 1);
   let index = 0;
   for (const block of shape.blocks) {
     const target = rankTarget ? (rank: number) => rankTarget(index + rank) : undefined;
@@ -1008,7 +971,8 @@ function drawBlock(
   kit: HostKit, rankTarget?: (rank: number) => G,
 ): void {
   const rand = mulberry32(seed);
-  const shear = RANK_SHEAR * s;
+  // The block's own shear, not the constant: it carries `spread` and the constant does not.
+  const shear = block.shear;
   let drawn = 0;
   for (let rank = 0; rank < block.rows && drawn < block.marks; rank += 1) {
     const target = rankTarget?.(rank) ?? g;
@@ -1067,7 +1031,7 @@ export function armyAnchor(shape: ArmyShape): { x: number; y: number } {
 export function armyFootprint(g: G, x: number, y: number, shape: ArmyShape, s = 1, alpha = 0.07): void {
   g.fillStyle(PIGMENT.muc, alpha);
   for (const block of shape.blocks) {
-    const spanX = (block.cols - 1) * block.pitch + (block.rows - 1) * RANK_SHEAR * s;
+    const spanX = (block.cols - 1) * block.pitch + (block.rows - 1) * block.shear;
     const spanY = (block.rows - 1) * block.rankPitch;
     g.fillEllipse(
       x + block.x + spanX / 2, y + block.y + spanY / 2 + 1.1 * s,

@@ -1,5 +1,5 @@
 {
-  "name": "mandate-of-dai-viet",
+  "name": "van-thang",
   "version": "0.2.0",
   "private": true,
   "homepage": "https://zrg-team.github.io/Throne-of-Dai-Viet/",
@@ -12,6 +12,8 @@
     "dev": "vite --host 0.0.0.0 --port 5179",
     "build": "tsc && vite build",
     "preview": "vite preview --host 0.0.0.0",
+    "icon": "node scripts/build-icon.mjs",
+    "icon:check": "node scripts/build-icon.mjs --check",
     "faces": "node scripts/build-faces.mjs",
     "faces:check": "node scripts/build-faces.mjs --check",
     "fonts": "node scripts/fetch-fonts.mjs"

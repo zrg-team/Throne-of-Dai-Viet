@@ -7,7 +7,18 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <meta name="theme-color" content="#2a2118" />
-    <title>Mandate of Đại Việt</title>
+    <title>Vạn Thắng — Ten Thousand Victories</title>
+    <!-- The drum, from `node scripts/build-icon.mjs`. Every href is relative: the game is served
+         from a repository sub-path on GitHub Pages, where a leading slash points at nothing.
+         The tab marks are transparent and the install icons are not — `favicon.svg` is the disc on
+         nothing, while `icon.svg` and the touch icons keep their sheet of paper, because iOS fills
+         an icon's alpha with black. -->
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="./favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="./favicon-96.png" sizes="96x96" type="image/png" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Vạn Thắng" />
+    <link rel="manifest" href="./manifest.webmanifest" />
     <!-- Self-hosted so the game's Vietnamese renders the same on every device, and so an
          offline load never falls back to whatever the phone happened to have. -->
     <link rel="stylesheet" href="./fonts/fonts.css" />

@@ -58,13 +58,31 @@ export class BattleArenaScene extends Phaser.Scene {
   private martial = 70;
   /** The last fight fought here, so the arena is a loop rather than a one-shot. */
   private last?: AscentBattleRecord;
+  /**
+   * The after-action report, and whether it is still waiting to be shown.
+   *
+   * A fight that has just ended is the only thing the player wants to look at, and the summary was
+   * a 70-pixel card three rows down a settings page — below the dials, inside a scroll area, easy
+   * to fight twice and never notice. It gets the screen now, once, and then gets out of the way.
+   */
+  private resultLayer?: Phaser.GameObjects.Container;
+  private resultPending = false;
+  /** Wall-clock start of the fight, so the report can say how long it actually took. */
+  private fightStartedAt = 0;
+  private lastDurationMs = 0;
 
   constructor() {
     super('BattleArenaScene');
   }
 
   init(data?: { result?: AscentBattleRecord }): void {
-    if (data?.result) this.last = data.result;
+    if (data?.result) {
+      this.last = data.result;
+      this.resultPending = true;
+      // `startFight` stamped the clock on the way out; the scene instance survives the round trip
+      // through ConquestScene, so the stamp is still here.
+      this.lastDurationMs = this.fightStartedAt > 0 ? Date.now() - this.fightStartedAt : 0;
+    }
   }
 
   create(): void {
@@ -74,6 +92,238 @@ export class BattleArenaScene extends Phaser.Scene {
     this.mapRenderer.drawBackground(GAME_WIDTH, GAME_HEIGHT);
     this.layer = this.add.container(0, 0);
     this.render();
+    // After `render`, so the report is laid over a finished screen rather than under one.
+    if (this.resultPending && this.last) {
+      this.resultPending = false;
+      this.showResult(this.last);
+    }
+  }
+
+  // ── the after-action report ───────────────────────────────────────────────
+
+  /**
+   * How well it was fought, from one to five.
+   *
+   * Winning is most of it but deliberately not all of it: a victory that spends the whole host to
+   * buy a field is not the same as one that walks off it. The other three terms are the ones a
+   * player can actually feel — how many came back, how the exchange went, and whether the odds
+   * were against you when it started.
+   *
+   * Losing floors at one star rather than zero. A defeat is already the feedback; a zero on top of
+   * it is a scolding, and the screen exists to make people fight again.
+   */
+  private gradeFight(record: AscentBattleRecord): { stars: number; score: number } {
+    const ourLost = Math.max(0, record.ourStart - record.ourEnd);
+    const theirLost = Math.max(0, record.theirStart - record.theirEnd);
+
+    let score = record.outcome === 'they-rout' ? 50
+      : record.outcome === 'spent' ? 22
+        : record.outcome === 'retreat' ? 16 : 0;
+
+    // Survivors: the whole of the difference between a win and a good win.
+    const kept = record.ourStart > 0 ? record.ourEnd / record.ourStart : 0;
+    score += Math.round(Math.max(0, Math.min(1, kept)) * 25);
+
+    // The exchange, capped at three to one — past that it is the enemy's mistake, not your skill.
+    const exchange = theirLost / Math.max(1, ourLost);
+    score += Math.round(Math.max(0, Math.min(3, exchange)) / 3 * 15);
+
+    // And what you were up against. Beating a bigger host is worth more than beating a smaller one.
+    const odds = record.ourStart > 0 ? record.theirStart / record.ourStart : 1;
+    score += Math.round(Math.max(0, Math.min(2, odds - 0.75)) / 2 * 10);
+
+    // And a ceiling set by what you brought. Survivors and the exchange alone will happily award
+    // five stars for walking four thousand men onto nine hundred — measured, exactly that scored
+    // 82 — and the top grade's own words are "longer odds, fewer graves", which would be a lie.
+    // You cannot buy a famous day with numbers.
+    const ceiling = odds >= 0.9 ? 5 : odds >= 0.6 ? 4 : 3;
+    const stars = Math.max(1, Math.min(ceiling, Math.ceil(score / 20)));
+    return { stars, score: Math.min(100, score) };
+  }
+
+  /** One drawn star, filled or hollow. Five strokes, because there are five of them. */
+  private star(x: number, y: number, r: number, filled: boolean): Phaser.GameObjects.Graphics {
+    const g = this.add.graphics({ x, y });
+    const points: Phaser.Geom.Point[] = [];
+    for (let i = 0; i < 10; i += 1) {
+      const radius = i % 2 === 0 ? r : r * 0.44;
+      const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+      points.push(new Phaser.Geom.Point(Math.cos(angle) * radius, Math.sin(angle) * radius));
+    }
+    if (filled) {
+      g.fillStyle(INK_UI.gold, 1);
+      g.fillPoints(points, true);
+    }
+    g.lineStyle(1.5, filled ? INK_UI.gold : INK_UI.softBrush, filled ? 1 : 0.7);
+    g.strokePoints(points, true, true);
+    return g;
+  }
+
+  /**
+   * The report itself: what happened, how it went, and the two things to do next.
+   *
+   * Modal on purpose. The player has just watched a battle and the one question in their head is
+   * "did I win", so nothing else is on screen until they have answered it and chosen whether to go
+   * again. Both buttons are big enough to hit without looking, because the whole loop here is
+   * fight, read, fight again.
+   */
+  private showResult(record: AscentBattleRecord): void {
+    this.resultLayer?.destroy(true);
+    const layer = this.add.container(0, 0);
+    this.resultLayer = layer;
+
+    const won = record.outcome === 'they-rout';
+    const drew = record.outcome === 'spent' || record.outcome === 'retreat';
+    const { stars } = this.gradeFight(record);
+    const ourLost = Math.max(0, record.ourStart - record.ourEnd);
+    const theirLost = Math.max(0, record.theirStart - record.theirEnd);
+
+    const dim = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, INK_UI.overlay, 0.93)
+      .setOrigin(0, 0)
+      .setInteractive();
+    layer.add(dim);
+
+    const cardW = GAME_WIDTH - 44;
+    const cardX = 22;
+    const cardH = 372;
+    const cardY = Math.max(40, (GAME_HEIGHT - cardH) / 2);
+    const accent = won ? INK_UI.jade : drew ? INK_UI.gold : INK_UI.cinnabar;
+    layer.add(this.ui.panel(
+      { x: cardX, y: cardY, width: cardW, height: cardH },
+      { border: accent, borderWidth: 2, radius: 8 },
+    ));
+
+    let y = cardY + 18;
+    const kicker = createLabel(this, GAME_WIDTH / 2, y, t('arena.report.kicker'), 'caption', {
+      fontSize: '9.5px', align: 'center',
+    }).setOrigin(0.5, 0);
+    layer.add(kicker);
+    y += kicker.height + 4;
+
+    const headline = createLabel(
+      this, GAME_WIDTH / 2, y,
+      t(won ? 'arena.report.won' : drew ? 'arena.report.drew' : 'arena.report.lost'),
+      'title',
+      { fontSize: '24px', align: 'center', color: `#${accent.toString(16).padStart(6, '0')}`, wordWrap: { width: cardW - 28 } },
+    ).setOrigin(0.5, 0);
+    layer.add(headline);
+    y += headline.height + 10;
+
+    // ── the grade ────────────────────────────────────────────────────────
+    const starR = 15;
+    const gap = 8;
+    const totalW = 5 * starR * 2 + 4 * gap;
+    const drawn: Phaser.GameObjects.Graphics[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      const filled = i < stars;
+      const mark = this.star(
+        GAME_WIDTH / 2 - totalW / 2 + starR + i * (starR * 2 + gap), y + starR, starR, filled,
+      );
+      layer.add(mark);
+      drawn.push(mark);
+      // Each earned star lands in turn, so the grade reads as a count rather than as a picture.
+      if (filled) {
+        mark.setScale(0);
+        this.tweens.add({
+          targets: mark, scale: 1, ease: 'Back.easeOut', duration: 260, delay: 140 + i * 130,
+        });
+      } else {
+        mark.setAlpha(0.35);
+      }
+    }
+    y += starR * 2 + 12;
+
+    const verdict = createLabel(
+      this, GAME_WIDTH / 2, y,
+      t(`arena.report.grade${stars}` as Parameters<typeof t>[0]), 'caption',
+      { fontSize: '11px', align: 'center', wordWrap: { width: cardW - 28 } },
+    ).setOrigin(0.5, 0);
+    layer.add(verdict);
+    y += verdict.height + 12;
+
+    // ── what it cost ─────────────────────────────────────────────────────
+    const rows: Array<[string, string]> = [
+      [t('arena.report.ourLosses'), `${ourLost.toLocaleString()} / ${record.ourStart.toLocaleString()}`],
+      [t('arena.report.theirLosses'), `${theirLost.toLocaleString()} / ${record.theirStart.toLocaleString()}`],
+      [t('arena.report.exchange'), `${(theirLost / Math.max(1, ourLost)).toFixed(2)} : 1`],
+      [t('arena.report.survivors'), `${Math.round((record.ourEnd / Math.max(1, record.ourStart)) * 100)}%`],
+      [t('arena.report.rounds'), t('arena.report.roundsValue', { n: record.rounds })],
+      [t('arena.report.duration'), this.lastDurationMs > 0
+        ? t('arena.report.durationValue', { n: Math.max(1, Math.round(this.lastDurationMs / 1000)) })
+        : '—'],
+    ];
+    for (const [label, value] of rows) {
+      layer.add(createLabel(this, cardX + 16, y, label, 'caption', { fontSize: '11px' }).setOrigin(0, 0));
+      layer.add(createLabel(this, cardX + cardW - 16, y, value, 'label', {
+        fontSize: '12px', align: 'right',
+      }).setOrigin(1, 0));
+      y += 19;
+    }
+
+    // ── and the two ways on ──────────────────────────────────────────────
+    const btnY = cardY + cardH - 60;
+    const half = (cardW - 28 - 8) / 2;
+    layer.add(this.ui.button(
+      { x: cardX + 14, y: btnY, width: half, height: 46 },
+      t('arena.report.again'),
+      () => { this.dismissResult(); this.startFight(); },
+      { variant: 'primary', fontSize: '15px' },
+    ));
+    layer.add(this.ui.button(
+      { x: cardX + 14 + half + 8, y: btnY, width: half, height: 46 },
+      t('arena.report.back'),
+      () => this.dismissResult(),
+      { variant: 'secondary', fontSize: '15px' },
+    ));
+
+    // ── the congratulation ───────────────────────────────────────────────
+    layer.setAlpha(0);
+    this.tweens.add({ targets: layer, alpha: 1, duration: 180 });
+    headline.setScale(won ? 0.7 : 1);
+    if (won) {
+      this.tweens.add({ targets: headline, scale: 1, ease: 'Back.easeOut', duration: 340 });
+      this.celebrate(layer, cardX, cardY, cardW);
+    }
+  }
+
+  /**
+   * Petals over a won field.
+   *
+   * Đông Hồ prints celebrate with flowers rather than confetti, so this drops hoa đào across the
+   * card: a scatter of small red-brown marks that fall, drift and fade. Deterministic count and a
+   * fixed lifetime, because a celebration that is still running when the player presses "again" is
+   * a leak — every one of them is destroyed on completion and the layer takes the rest with it.
+   */
+  private celebrate(
+    layer: Phaser.GameObjects.Container, cardX: number, cardY: number, cardW: number,
+  ): void {
+    for (let i = 0; i < 18; i += 1) {
+      const x = cardX + 10 + Math.random() * (cardW - 20);
+      const petal = this.add.graphics({ x, y: cardY - 10 - Math.random() * 40 });
+      petal.fillStyle(i % 3 === 0 ? INK_UI.gold : INK_UI.cinnabar, 0.8);
+      petal.fillEllipse(0, 0, 5, 3);
+      petal.setAngle(Math.random() * 360);
+      layer.add(petal);
+      this.tweens.add({
+        targets: petal,
+        y: cardY + 200 + Math.random() * 120,
+        x: petal.x + (Math.random() * 40 - 20),
+        angle: petal.angle + 180 + Math.random() * 180,
+        alpha: { from: 0.85, to: 0 },
+        ease: 'Sine.easeIn',
+        duration: 1500 + Math.random() * 900,
+        delay: i * 45,
+        onComplete: () => petal.destroy(),
+      });
+    }
+  }
+
+  private dismissResult(): void {
+    const layer = this.resultLayer;
+    this.resultLayer = undefined;
+    if (!layer) return;
+    this.tweens.killTweensOf(layer);
+    layer.destroy(true);
   }
 
   // ── the dials ─────────────────────────────────────────────────────────────
@@ -506,6 +756,8 @@ export class BattleArenaScene extends Phaser.Scene {
   }
 
   private startFight(): void {
+    this.dismissResult();
+    this.fightStartedAt = Date.now();
     this.scene.start('ConquestScene', { state: this.buildArenaState() });
   }
 

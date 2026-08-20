@@ -30,8 +30,12 @@ await page.waitForTimeout(1400);
 const read = () => page.evaluate(() => {
   const b = window.__mandateState.ascent?.activeBattle;
   const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  // Both containers: the hand-over chip left the dock for the field's top-right corner when the
+  // dock became two dials, and looking only at `orders` reported "no way back" for a chip that was
+  // sitting on screen the whole time.
   const labels = [];
   ui.battleUi?.orders?.list?.forEach((o) => { if (o.text) labels.push(o.text); });
+  ui.battleUi?.exits?.list?.forEach((o) => { if (o.text) labels.push(o.text); });
   const st = window.__mandateState;
   return b ? {
     paused: Boolean(st.isPaused), strat: Boolean(st.isStrategyPause), defeated: Boolean(st.isDefeated),
@@ -43,7 +47,7 @@ const read = () => page.evaluate(() => {
     // the approach, so a fight that is closing the ground perfectly happily reads as round 0 —
     // which is how this check came to report a stall that was not one.
     beat: (b.approachBeats ?? 0) + b.round,
-    martial: b.generalMartial ?? null, posture: b.posture,
+    martial: b.generalMartial ?? null, stance: b.stance, formation: b.ourFormation,
     log: b.log.slice(-3), labels,
   } : { gone: true, labels };
 });

@@ -1,6 +1,6 @@
 ---
 name: game-harness
-description: Write and run verification scripts for Mandate of Đại Việt. There is no test framework — every check drives the real game in headless Chromium from test_scripts/*.mjs. Covers the bootstrap boilerplate, the two run styles (headless engine vs rendered run), the window hooks, prompt-kind option shapes, pass/fail reporting conventions, and the traps that make a harness silently pass while testing nothing. Use when adding a check, debugging a failing harness, or proving a change works.
+description: Write and run verification scripts for Vạn Thắng. There is no test framework — every check drives the real game in headless Chromium from test_scripts/*.mjs. Covers the bootstrap boilerplate, the two run styles (headless engine vs rendered run), the window hooks, prompt-kind option shapes, pass/fail reporting conventions, and the traps that make a harness silently pass while testing nothing. Use when adding a check, debugging a failing harness, or proving a change works.
 ---
 
 # Verifying this game

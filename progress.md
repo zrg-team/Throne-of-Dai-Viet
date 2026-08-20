@@ -1,4 +1,4 @@
-Original prompt: Please implement the proposed Mandate of Đại Việt documentation and Phaser 3 TypeScript mobile-vertical MVP plan.
+Original prompt: Please implement the proposed Vạn Thắng documentation and Phaser 3 TypeScript mobile-vertical MVP plan.
 
 ## Progress
 - Created a Vite + TypeScript + Phaser 3 scaffold.

@@ -95,7 +95,7 @@ await page.evaluate(async () => {
   // the world — and therefore the fight — never advances.
   ui.battleAwaitingOrder = false;
   window.__mandateState.isStrategyPause = false;
-  ui.events.emit('ui:battle-order', 'hold');
+  ui.events.emit('ui:battle-order', 'stance:defend');
   window.__paceSamples = [];
   let lastKey = '';
   const tick = () => {

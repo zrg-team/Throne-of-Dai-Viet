@@ -37,6 +37,9 @@ import { t } from '../i18n';
 import { MINIMAP_H, MINIMAP_W } from '../ui/MinimapRenderer';
 import { RENDER_SCALE, bakeScale, designPointer, lodDropsLabels, lodZoomThreshold } from '../game/graphicsQuality';
 
+/** How big a province's standard is drawn against the ground it stands on. See `drawFlags`. */
+const MAP_LAND_FLAG_SCALE = 0.55;
+
 /**
  * How far past the camera's edge an object still counts as visible.
  *
@@ -341,6 +344,17 @@ export class MapScene extends Phaser.Scene {
     this.game.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
     this.seasons?.destroy();
     this.birds?.destroy();
+    // The bake belongs to the display list, which Phaser tears down on shutdown — but the *scene
+    // instance* is reused across `scene.start`, so this field survived pointing at a destroyed
+    // RenderTexture. On the second entry `bakeStaticTerrain` saw a truthy handle, skipped
+    // re-creating it, and `clear()` dereferenced a null GL binding.
+    //
+    // The throw was caught and warned, which is what made it so expensive to miss: the bake bailed
+    // *before* hiding the source layers, so every static layer under depth 1.5 went on drawing live,
+    // every frame, for the rest of the run. Roughly 160k fill and upload commands a frame instead of
+    // one textured quad — the "second fight is unplayable" bug.
+    this.staticBakeRT = undefined;
+    this.lastBakedRenderMode = undefined;
   }
 
   /** Re-bake the cached terrain + fog textures once a lost WebGL context is restored.
@@ -1145,6 +1159,11 @@ export class MapScene extends Phaser.Scene {
       this.applyRenderModeVisibility();
       return;
     }
+    // `scene` is nulled by `GameObject.destroy()`, so this catches a handle that outlived its
+    // display list even if something else forgets to clear the field.
+    if (this.staticBakeRT && !this.staticBakeRT.scene) {
+      this.staticBakeRT = undefined;
+    }
     if (!this.staticBakeRT) {
       // Texture is baked at BAKE_SCALE resolution then displayed scaled up to full world size.
       this.staticBakeRT = this.add.renderTexture(0, 0, Math.ceil(this.worldWidth * BAKE_SCALE), Math.ceil(this.worldHeight * BAKE_SCALE))
@@ -1380,7 +1399,8 @@ export class MapScene extends Phaser.Scene {
    * That last part used to be the province centroid, full stop, which put a handful of provinces'
    * houses on a limestone face every map. See `SettlementRenderer.getSeatCentre`.
    */
-  private getSettlementAnchor(land: Land): { x: number; y: number } {
+  /** Protected so subclasses can put their own marks on the seat rather than on the centroid. */
+  protected getSettlementAnchor(land: Land): { x: number; y: number } {
     return this.settlements.getSeatCentre(this.state, land);
   }
 
@@ -2007,6 +2027,18 @@ export class MapScene extends Phaser.Scene {
 
       const isCapital = land.type === 'castle';
       const marker = this.mapItems.createPlayerLandFlag(isCapital, this.state.mapConfig.seed);
+      // Sized to the ground it stands on, which it never was.
+      //
+      // `createPlayerLandFlag` draws 54 units from finial to base, and the map added it at its
+      // natural size — on a sheet where a five-metre house is 11.2 px and a soldier 8.2. A province
+      // marker was therefore **6.6 times a man's height and nearly five times a roof**, and it read
+      // as a tower rather than as a standard: the biggest thing in the province was the pin saying
+      // whose the province was.
+      //
+      // 0.55 puts it at ~30 px — taller than the dinh it flies beside, which is what a standard
+      // should be, and still the thing your eye finds first when you are looking for your own land.
+      // The host's own standard was already doing this properly at `FLAG_SCALE` 0.37.
+      marker.setScale(MAP_LAND_FLAG_SCALE);
       marker.setDepth(76);
       const anchor = this.getSettlementAnchor(land);
       // The capital used to pin to the land centroid while its walls stood on the fortress hexes,

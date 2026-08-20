@@ -1,4 +1,4 @@
-import type { GameState } from './types';
+import type { FieldStance, GameState } from './types';
 import { t } from '../i18n';
 import { ensureAscentLaneState } from '../systems/ascent/ConquestSystem';
 
@@ -110,6 +110,29 @@ function normalizeSnapshotState(state: GameState): GameState {
   if (clone.ascent) {
     clone.ascent.promptQueue = [];
     ensureAscentLaneState(clone);
+    // A run saved mid-engagement carries the retired stance ring — `hold` and `loose` are no longer
+    // stances at all, and neither side had a formation. Without this the fight resumes on
+    // `undefined` and every multiplier in the exchange reads NaN.
+    //
+    // `loose` becomes `defend` rather than anything cleverer: standing off and shooting is a
+    // *shape* now (Thế Nỏ), and the host it described was a cautious one.
+    const fight = clone.ascent.activeBattle;
+    if (fight) {
+      const stance = (value: unknown): FieldStance => (
+        value === 'press' || value === 'balanced' || value === 'defend' || value === 'withdraw'
+          ? value : 'defend'
+      );
+      fight.stance = stance(fight.stance);
+      fight.theirStance = stance(fight.theirStance);
+      fight.ourFormation ??= 'chong';
+      fight.theirFormation ??= 'chong';
+      fight.stancePending = undefined;
+      fight.stanceLockBeats = 0;
+      fight.reformBeats = 0;
+      fight.theirReformBeats = 0;
+      fight.formationTarget = undefined;
+      fight.theirFormationTarget = undefined;
+    }
   }
   return clone;
 }

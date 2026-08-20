@@ -573,9 +573,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"mandate-of-dai-viet@workspace:.":
+"van-thang@workspace:.":
   version: 0.0.0-use.local
-  resolution: "mandate-of-dai-viet@workspace:."
+  resolution: "van-thang@workspace:."
   dependencies:
     jsqr: "npm:1.4.0"
     phaser: "npm:^3.90.0"

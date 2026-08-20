@@ -243,3 +243,104 @@ export function figureYear(heroId: string): number | undefined {
   const match = dates.match(/(\d+)\s*$/);
   return match ? Number(match[1]) : undefined;
 }
+
+/**
+ * A named section of one tab: a heading you can shut, and the entries that live under it.
+ *
+ * The page was five tabs of flat list, and two of them ran to forty-eight and fifty-one rows. A
+ * reader looking for the Bạch Đằng stakes had to scroll past the Nika riots to find them, and a
+ * reader who wanted nothing in particular had no way to see what was on offer without reading all
+ * of it. Grouping is what turns a list into a table of contents: shut, the tab is six or seven
+ * lines saying what kinds of thing are in here; open, it is the same list it always was.
+ *
+ * `ids` is a reading order as well as a membership list, so a group can put its keystone entry
+ * first rather than wherever the underlying catalogue happened to register it.
+ */
+export interface HistoryGroup {
+  id: string;
+  ids: readonly string[];
+}
+
+/**
+ * The ages, gathered into periods — and gathered so that no period has to lie about who held the
+ * country.
+ *
+ * Every group here is *rule-homogeneous* on purpose. A shut period draws one node on the timeline
+ * rail in one colour, and the whole point of that colour is that it answers "was this us?" without
+ * a caption. Group the Hồ with the twenty years of Ming rule that followed them and the node has
+ * no honest colour to be — which is the same reason `EraRule` has two values and not three. Two of
+ * these periods are one age long for exactly that reason, and a period of one is a cheap price for
+ * a rail that never fudges.
+ */
+export const ERA_PERIODS: readonly HistoryGroup[] = [
+  { id: 'origins', ids: ['hong-bang', 'au-lac'] },
+  { id: 'northern-rule', ids: ['nam-viet', 'bac-thuoc'] },
+  { id: 'restored', ids: ['ngo-dinh-le', 'ly', 'tran', 'ho'] },
+  { id: 'ming', ids: ['thuoc-minh'] },
+  { id: 'later', ids: ['le-so', 'phan-tranh', 'tay-son', 'nguyen'] },
+  { id: 'colonial', ids: ['phap-thuoc'] },
+];
+
+/**
+ * The Chronicle's episodes, sorted by what kind of thing happened.
+ *
+ * Not by date, and not by dynasty. Both were tried on paper and both scatter the entries a reader
+ * actually wants side by side: Bạch Đằng happened twice three hundred and fifty years apart, and
+ * the two tellings of Diên Hồng — one from the throne, one from the floor — would sit in the same
+ * century and still not sit together. What these entries share is a *behaviour*, which is the same
+ * axis the stories themselves were written on.
+ *
+ * `world` is the group that earns the scheme: five episodes that are Korean, Japanese, Roman,
+ * Byzantine and Cham. They were always marked as not ours inside their own prose, where you had to
+ * open one to find out. Now they are shut behind a heading that says it.
+ */
+export const STORY_GROUPS: readonly HistoryGroup[] = [
+  { id: 'throne', ids: ['reed-banner', 'khuc-thua-du', 'no-heir', 'thirteenth'] },
+  {
+    id: 'campaign',
+    ids: [
+      'river-stakes', 'sixty-five-citadels', 'hai-ba-trung', 'ride-the-wind', 'tien-phat',
+      'chi-lang', 'van-don', 'yet-kieu', 'five-days', 'than-toc', 'without-slaughter', 'che-bong-nga',
+    ],
+  },
+  {
+    id: 'nerve',
+    ids: ['dien-hong', 'assembly', 'orange', 'thu-do', 'ghost-south', 'binh-trong', 'substitution', 'eat-together'],
+  },
+  { id: 'words', ids: ['nam-quoc', 'hich-tuong-si', 'dai-cao', 'chieu-doi-do'] },
+  {
+    id: 'state',
+    ids: ['granaries', 'paper-money', 'counting-house', 'unpaid', 'the-dykes', 'salt-road', 'sickness', 'luy-thay', 'van-mieu'],
+  },
+  { id: 'legend', ids: ['goose-feathers', 'no-than', 'thanh-giong', 'mountain-water', 'borrowed-sword', 'ho-guom'] },
+  { id: 'world', ids: ['slandered', 'trusted', 'delayer', 'rice-riot', 'cham-engineer'] },
+];
+
+/**
+ * The glossary, in four drawers.
+ *
+ * Twenty-four terms in the order a player meets them is the right order for a first read and the
+ * wrong one for a second: somebody who has just seen "Thái úy" on a hero card is looking for the
+ * offices, not for the sixth word on a list. Filed by what kind of word it is instead.
+ */
+export const TERM_GROUPS: readonly HistoryGroup[] = [
+  { id: 'land', ids: ['dai-viet', 'thang-long', 'hoa-lu', 'phu-xuan', 'quan-tran', 'lang-xa', 'de-dieu', 'bac-thuoc', 'chiem-thanh'] },
+  { id: 'court', ids: ['thien-menh', 'de-vuong', 'chieu', 'thai-uy', 'do-doc', 'kinh-luoc-su'] },
+  { id: 'letters', ids: ['su-ky', 'van-mieu', 'trang-nguyen', 'nom', 'dai-cao', 'hich'] },
+  { id: 'life', ids: ['tet', 'dong-ho', 'co-ngu-sac'] },
+];
+
+/**
+ * Whatever the groups above forgot, in catalogue order.
+ *
+ * A hand-written grouping goes stale the moment somebody registers a fifty-second story, and the
+ * failure mode is silent: the entry simply stops appearing on a page whose entire job is being
+ * complete about the record. So the page never renders the groups alone — it renders them and then
+ * this, under a heading that says these have not been filed yet. `verify-history.mjs` asserts the
+ * remainder is empty, so the honest fallback shows up as a failing check rather than as a heading
+ * nobody meant to ship.
+ */
+export function ungroupedIds(groups: readonly HistoryGroup[], all: readonly string[]): string[] {
+  const filed = new Set(groups.flatMap((group) => group.ids));
+  return all.filter((id) => !filed.has(id));
+}

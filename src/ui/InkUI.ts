@@ -116,6 +116,26 @@ export interface InkButtonOptions {
    * units the button grows by, and it greys out with the button instead of contradicting it.
    */
   subLabel?: string;
+  /**
+   * A glyph inked immediately left of the label, as one centred group with it.
+   *
+   * Inline rather than pinned to the left edge on purpose: the primary variant already prints a
+   * flourish about sixteen units in from each end, and an icon parked at a left inset lands on top
+   * of it. Grouping the glyph with the type also means a short label and a long one both stay
+   * centred, which a left-pinned icon and a centred label do not.
+   */
+  icon?: CardIconId;
+  /**
+   * Drops the printed surface and leaves only what the caller puts inside it.
+   *
+   * For a control whose whole meaning is one glyph — Pause, the run menu. A frame around a mark
+   * that is already a mark says nothing the mark did not: it draws a box, a border and a shade
+   * per control, and on a bar of eight labelled buttons those two extra boxes are the only
+   * things on it that are pure chrome. Everything else about the button survives — the hit
+   * rectangle, the scroll-tap guard, the press tween — so a frameless control is still a
+   * button in every way a finger can tell.
+   */
+  frameless?: boolean;
 }
 
 export interface InkTextLinkOptions {
@@ -603,7 +623,12 @@ export class InkUI {
     const disabled = variant === 'disabled';
     const container = this.scene.add.container(bounds.x, bounds.y);
     const graphics = this.scene.add.graphics();
-    const draw = (pressed: boolean) => drawButtonSurface(graphics, bounds.width, bounds.height, radius, variant, pressed);
+    // The frameless control keeps its Graphics rather than skipping it: the press handlers below
+    // call `draw` unconditionally, and a surface that draws nothing is a smaller thing to be right
+    // about than four call sites that have to remember there is no surface.
+    const draw = opts.frameless
+      ? () => {}
+      : (pressed: boolean) => drawButtonSurface(graphics, bounds.width, bounds.height, radius, variant, pressed);
     draw(false);
 
     const text = this.label(bounds.width / 2, bounds.height / 2, label, 'button', {
@@ -612,7 +637,9 @@ export class InkUI {
         : INK_UI_HEX.inkText,
       fontSize,
       align: 'center',
-      wordWrap: { width: bounds.width - 10 },
+      // A glyph and its gap come out of the label's line before it wraps, or a long label wraps to
+      // the full width and then the group is centred as if it had not.
+      wordWrap: { width: bounds.width - 10 - (opts.icon ? 30 : 0) },
     }).setOrigin(0.5);
     text.setAlpha(disabled ? 0.55 : 1);
 
@@ -631,6 +658,25 @@ export class InkUI {
       const block = text.height + 1 + sub.height;
       text.setY(bounds.height / 2 - block / 2 + text.height / 2);
       sub.setY(bounds.height / 2 + block / 2 - sub.height / 2);
+    }
+
+    let glyph: Phaser.GameObjects.Container | undefined;
+    if (opts.icon) {
+      const tint = variant === 'primary' ? INK_UI.cinnabar
+        : variant === 'danger' ? PIGMENT.diepHi
+        : PIGMENT.muc;
+      glyph = drawCardIcon(this.scene, opts.icon, tint);
+      // The glyph box is 26 units and a button label is 13–17px, so it is drawn at roughly the
+      // cap-height of the type beside it rather than at the size a card would give it.
+      const scale = 0.62;
+      glyph.setScale(scale);
+      glyph.setAlpha(disabled ? 0.5 : 0.92);
+      const glyphWidth = CARD_ICON_SIZE * scale;
+      const GAP = 7;
+      const group = glyphWidth + GAP + text.width;
+      const left = bounds.width / 2 - group / 2;
+      glyph.setPosition(left + glyphWidth / 2, text.y);
+      text.setX(left + glyphWidth + GAP + text.width / 2);
     }
 
     const hitArea = this.scene.add
@@ -687,7 +733,12 @@ export class InkUI {
       }
     });
 
-    container.add(sub ? [graphics, text, sub, hitArea] : [graphics, text, hitArea]);
+    const parts: Phaser.GameObjects.GameObject[] = [graphics];
+    if (glyph) parts.push(glyph);
+    parts.push(text);
+    if (sub) parts.push(sub);
+    parts.push(hitArea);
+    container.add(parts);
     if (!disabled) {
       addPressFeedback(this.scene, container, hitArea, { width: bounds.width, height: bounds.height });
     }

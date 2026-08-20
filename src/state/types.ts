@@ -1,4 +1,7 @@
 import type { HexTile, MapGenConfig } from '../map/hexMapGenerator';
+// Type-only both ways — `formations.ts` imports `ArmyComposition` from here — so the cycle is
+// erased at compile and there is no runtime edge in either direction.
+import type { BattleFormation } from '../data/ascent/formations';
 
 export type ResourceKey = 'food' | 'supplies' | 'gold' | 'humans';
 
@@ -1487,20 +1490,30 @@ export type AscentDoctrine = 'fortify' | 'expand' | 'enrich' | 'arm';
 
 export type AscentPromptKind = AscentPrompt['kind'];
 
-/** How a host is fighting this exchange. A trade, not a strictly-better setting. */
 /**
- * The three stances, as a cycle rather than a scale.
+ * The tempo a host is fighting at. **Not** a tactic — a temperature.
  *
- * Two options could never be a real choice: `press` and `hold` had the same exchange ratio to
- * three decimals (1.20/1.10 against 0.85/0.78), so pressing was simply the same trade delivered
- * faster — measured, it won 60% of contested fights against holding's 10%.
+ * This used to be a three-way ring that carried the matchup as well as the tempo, and the two jobs
+ * fought: `press` and `hold` had the same exchange ratio to three decimals, so pressing was simply
+ * the same trade delivered faster. Splitting them is the whole of `docs/14-five-shapes-two-dials`:
+ * **the shape decides which way the men are spent, the stance decides how fast.**
  *
- * Three can be, and structurally rather than by tuning: charge closes before the volleys tell,
- * loose shoots a line that stands still, and a braced line breaks a charge. A three-cycle cannot
- * have a dominant option, so the constants decide how much the counter is *worth* rather than
- * whether a choice exists at all.
+ * It is also the *slow* dial, and deliberately so. A stance is an order sent down the line rather
+ * than a shape the men take: it lands on the **next** beat and then locks for
+ * `BATTLE_STANCE_LOCK_BEATS`. That single constraint is what turns choosing aggression into a bet,
+ * because in four beats the enemy can change shape — and if they do, you are pressing into a
+ * counter with the dial that would fix it greyed out.
+ *
+ * Two of the four are never locked. `defend` is the brake and `withdraw` is the way out, and a game
+ * may take your good options away but not those.
  */
-export type BattlePosture = 'press' | 'hold' | 'loose';
+/**
+ * Named `FieldStance` and not `BattleStance` because that name is already taken by the pre-battle
+ * plan the classic odds roll uses (`attackLand`, `BattlePreviewPanel`). Different system, different
+ * clock, and the two must never be confused: that one is chosen once before a fight nobody watches,
+ * this one is worked during an engagement on screen.
+ */
+export type FieldStance = 'withdraw' | 'defend' | 'balanced' | 'press';
 
 /** A field engagement in progress, exchange by exchange. */
 export interface AscentBattle {
@@ -1512,21 +1525,50 @@ export interface AscentBattle {
   isGreat: boolean;
   round: number;
   totalRounds: number;
-  posture: BattlePosture;
-  /** What the invader is doing this beat, from its doctrine. */
-  theirPosture: BattlePosture;
+  stance: FieldStance;
+  /** What the invader is fighting at this beat, from its doctrine. */
+  theirStance: FieldStance;
   /**
-   * What each side was doing on the previous beat, so a change of footing can be charged for.
-   * See `BATTLE_REFORM_COST` — without it, answering the telegraph every beat wins every fight.
+   * A stance ordered but not yet in force. Lands at the top of the next beat.
+   *
+   * The order/effect split is what makes the two dials different *kinds* of control rather than
+   * two of the same one — see `FieldStance`.
    */
-  lastPosture?: BattlePosture;
-  lastTheirPosture?: BattlePosture;
+  stancePending?: FieldStance;
+  /** Beats before the stance can be changed again. `defend` and `withdraw` ignore it. */
+  stanceLockBeats?: number;
+  /** Beats spent disengaging, once the stance is `withdraw`. */
+  withdrawBeats?: number;
+  /**
+   * The player has touched a dial in this engagement.
+   *
+   * Until they do, the host's own commander plays the beat — see `fightRound`. A line standing flat
+   * while the invader reads the board every beat is not a harder fight, it is a broken one.
+   */
+  playerSteered?: boolean;
+
+  /**
+   * The shape each side is standing in — the fast dial, and the whole rock-paper-scissors.
+   *
+   * See `data/ascent/formations.ts` for the ring. Unlike the stance these are *instant to order and
+   * slow to complete*: the order sets `formationTarget` and a `reformBeats` clock, and during that
+   * window the host has **no shape at all** — the tilt reads zero and it deals less and takes more.
+   * The question the whole fight is built around is whether the counter is worth the beats.
+   */
+  ourFormation: BattleFormation;
+  theirFormation: BattleFormation;
+  formationTarget?: BattleFormation;
+  reformBeats?: number;
+  theirFormationTarget?: BattleFormation;
+  theirReformBeats?: number;
+  /** Beats their shape is frozen for, bought by a Moment. Their re-form clock does not run. */
+  theirShapeLockBeats?: number;
+  /** The next change of shape costs no beats at all, bought by a Moment. */
+  freeReform?: boolean;
   /** Hosts that have broken and left the line, either side. */
   brokenHostIds: string[];
   /** Men of ours lost so far, so an orderly withdrawal can recover its stragglers. */
   ourLostTotal: number;
-  /** The enemy host the line is concentrating on, if any. */
-  focusHostId?: string;
   /** Morale we opened with, so a rally can be scaled by how far the line has sagged. */
   ourStartMorale: number;
   /**
@@ -1609,6 +1651,10 @@ export interface AscentBattle {
     morale: number;
     /** Multiplier on what the line *takes* while the bonus lasts. Below 1 is protection. */
     taken?: number;
+    /** Beats the formation tilt is sharpened for — `BATTLE_FORMATION_TILT_SHARP` instead of the usual. */
+    sharpBeats?: number;
+    /** Beats the tilt cannot be turned *against* us for. A floor, not a ceiling. */
+    guardBeats?: number;
   };
   /**
    * The fight is being run by whoever holds the field, not by the player.

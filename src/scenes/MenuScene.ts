@@ -2,11 +2,14 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { createAscentGameState, createInitialGameState } from '../state/GameState';
 import { hasSnapshot, loadSnapshot, snapshotLabel } from '../state/save';
+import { hasSeenTour, markTourSeen } from '../state/tour';
 import { getLegacy, LEGACY_PERKS, purchaseLegacyPerk, rankForScore } from '../state/legacy';
 import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
-import { InkUI, INK_UI, INK_UI_HEX } from '../ui/InkUI';
+import { InkUI, INK_UI, INK_UI_HEX, type UIBounds } from '../ui/InkUI';
+import { CARD_ICON_SIZE, drawCardIcon } from '../ui/CardIcons';
+import { Copilot, type CopilotStep } from '../ui/Copilot';
 import { PIGMENT } from '../ui/ink/palette';
 import { INK, brushStroke, inkOutline, shade, washFill, waveLine } from '../ui/inkTheme';
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
@@ -34,10 +37,14 @@ type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy' | 'settings';
  * and the settings button just above it. The row holds pressable phrases rather than buttons, so
  * its height is the band they are centred in, not the height of anything drawn.
  *
+ * 46 rather than 32 because the sentence wraps to two lines in Vietnamese, and two pressable
+ * phrases need real space between them before a thumb can tell them apart. A band sized for one
+ * line puts both of them inside a single fingertip.
+ *
  * The button column stops at `SETTINGS_TOP`; the three settings rows that used to live there have
  * their own page now, and what is left above the footer is breathing room for the art.
  */
-const SUPPORT_ROW_HEIGHT = 32;
+const SUPPORT_ROW_HEIGHT = 46;
 const SUPPORT_TOP = GAME_HEIGHT - 14 - SUPPORT_ROW_HEIGHT;
 /** The language line under the settings button: two words and the space to tap one. */
 const LANGUAGE_ROW_HEIGHT = 20;
@@ -63,6 +70,22 @@ export class MenuScene extends Phaser.Scene {
   private modalObjects: Phaser.GameObjects.GameObject[] = [];
   private mode: MenuMode = 'main';
   private previewFlagSeed = 0;
+  /**
+   * The front-page tour, while it is running.
+   *
+   * Kept out of `content` for the same reason the coffee modal is: a re-render underneath would
+   * destroy the tour's veil and leave its card floating over a page it no longer blocks.
+   */
+  private copilot?: Copilot;
+  /**
+   * What the tour points at, filled in by `renderMain` as it lays the column out.
+   *
+   * The column is measured against the sheet's real height and the language's real line count, so
+   * none of these rectangles exists until the page has been built. A tour step asks for its target
+   * at the moment it is drawn and reads whatever is here — which is why the tour is started after
+   * `render()` and not before it.
+   */
+  private tourTargets: Partial<Record<'play' | 'classic' | 'footer', UIBounds>> = {};
 
   constructor() {
     super('MenuScene');
@@ -106,6 +129,41 @@ export class MenuScene extends Phaser.Scene {
     this.previewFlagSeed = loadSnapshot()?.state.mapConfig.seed ?? Math.floor(Math.random() * 1_000_000);
     this.drawBackground();
     this.render();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.copilot?.destroy();
+      this.copilot = undefined;
+    });
+    // After the page, never before it: every rectangle the tour points at is a measured one.
+    if (this.mode === 'main' && !hasSeenTour()) {
+      this.startTour();
+    }
+  }
+
+  /**
+   * The five cards a first-time player is shown, once.
+   *
+   * The steps are declared here rather than in `Copilot` because they are about *this page* — its
+   * primary button, its Classic Modes door, its footer — and a tour component that knew which
+   * scene it was touring would be a tour component that could only ever tour one.
+   */
+  private startTour(): void {
+    const steps: CopilotStep[] = [
+      { id: 'welcome', heading: 'copilot.welcome.h', body: 'copilot.welcome.b' },
+      { id: 'play', heading: 'copilot.play.h', body: 'copilot.play.b', target: () => this.tourTargets.play },
+      { id: 'modes', heading: 'copilot.modes.h', body: 'copilot.modes.b', target: () => this.tourTargets.classic },
+      { id: 'learn', heading: 'copilot.learn.h', body: 'copilot.learn.b', target: () => this.tourTargets.footer },
+      { id: 'ready', heading: 'copilot.ready.h', body: 'copilot.ready.b' },
+    ];
+    this.copilot = new Copilot(this, {
+      steps,
+      onGuide: () => this.scene.start('GuideScene'),
+      // Skipped and finished are the same event here. A player who dismissed the tour has answered
+      // the question it was asking, and showing it again next time refuses to take that answer.
+      onClose: () => {
+        markTourSeen();
+        this.copilot = undefined;
+      },
+    });
   }
 
   private drawBackground(): void {
@@ -152,7 +210,47 @@ export class MenuScene extends Phaser.Scene {
     // Outside the squash, always. The seal is a piece of identity, not scenery: run through the same
     // vertical-only scale as the landscape it used to be collected with, a 96-unit circle comes out
     // 96 wide and 66 tall on a 664-tall phone sheet, and the emblem inside it flattens with it.
-    this.drawDaiVietLotusSeal();
+    this.drawColumnVeil();
+    this.drawDaiVietDrumSeal();
+  }
+
+  /**
+   * A wash of điệp laid back over the lower half of the diorama.
+   *
+   * The menu's landscape is the same art the map is drawn with — two hosts under standards, a
+   * river, paddies, a village, a buffalo — and at full strength every one of those competes with
+   * the one thing this page exists for, which is pressing a button. The scene is not thinned to
+   * fix that, because it is the map's own code and thinning it here would fork it. The sheet is
+   * simply laid back down over it, gaining opacity down the page, so the button column sits on
+   * calm paper and the art reads as what is behind the page rather than what is on it.
+   *
+   * Graded slices with no overlap, for the same reason the horizon haze uses them: sheets that
+   * each run from a shared top accumulate their opacity and arrive as a curtain, with a seam
+   * everywhere the registration offsets one from the next. Slice edges are rounded to whole
+   * pixels and each slice starts where the last one ended, so there is neither a gap nor a
+   * double-painted line between them.
+   */
+  private drawColumnVeil(): void {
+    const veil = this.add.graphics().setDepth(-5);
+    const band = (from: number, to: number, at: (t: number) => number) => {
+      const SLICES = 30;
+      for (let slice = 0; slice < SLICES; slice += 1) {
+        const y0 = Math.round(from + (slice / SLICES) * (to - from));
+        const y1 = Math.round(from + ((slice + 1) / SLICES) * (to - from));
+        veil.fillStyle(PIGMENT.diep, at((slice + 0.5) / SLICES));
+        veil.fillRect(0, y0, GAME_WIDTH, y1 - y0);
+      }
+    };
+
+    // The plate the wordmark stands on. Type never sits on busy ground in this art — the same rule
+    // that puts a `clearPlate` behind a label on hatching. The karst tops reach 204 in the design,
+    // well up into the title block, and a gold rule ruled straight across a mountain ridge is the
+    // exact thing that rule is there to prevent.
+    band(0, this.vy(268), (t) => 0.94 * (1 - t) ** 1.5);
+
+    // And the wash the button column stands on. Squared rather than linear: a straight ramp greys
+    // the mountains as much as it settles the foreground, and the mountains were already quiet.
+    band(this.vy(286), GAME_HEIGHT, (t) => 0.9 * t ** 1.6);
   }
 
   /**
@@ -387,7 +485,11 @@ export class MenuScene extends Phaser.Scene {
       // Planted on the outward side, so the cloth streams away from its own ranks rather than
       // across the front of them.
       flag.setPosition(host.player ? host.shape.width / 2 + 11 : -host.shape.width / 2 - 11, 3);
-      flag.setScale(host.player ? 0.78 : -0.78, 0.78);
+      // 0.57, not 0.78. The menu draws its men at `MENU_HOST_SCALE` 0.74 — a soldier 8.4 px tall —
+      // and a flag at 0.78 is 42 px finial to base, **five times his height**, which is why the
+      // banners were the loudest thing on a screen that is mostly buttons. This is the map's own
+      // `MAP_LAND_FLAG_SCALE` carried across, adjusted for the menu's slightly larger ground.
+      flag.setScale(host.player ? 0.57 : -0.57, 0.57);
       container.add(flag);
     }
 
@@ -795,72 +897,95 @@ export class MenuScene extends Phaser.Scene {
   }
 
   /**
-   * The dynastic seal: a lotus rising inside a square cartouche.
+   * The dynastic seal: the face of a Đông Sơn drum, which is also the mark on the app icon.
    *
-   * Two things made it read as "scaled wrong". It was collected into the squashed landscape layer,
-   * so on a phone sheet a circle came out a third wider than tall — fixed by drawing it after that
-   * layer and scaling it *uniformly*. And the flower itself was five wide `fillEllipse` calls making
-   * a fan 66 units across and 44 high: wider than it was tall, spilling past both sides of the frame
-   * that was supposed to contain it, and reading as a squashed shell rather than a lotus. It is now
-   * built from petals swung out around the stem, taller than the flower is wide, sized to sit inside
-   * the cartouche.
+   * It used to be a lotus, and a lotus at eighty-eight pixels across is a pale fan that reads as a
+   * sheaf of wheat — five petals is not enough shape to survive that size, however carefully the
+   * petals are swung. A drum face survives it because it is a *pattern* rather than a silhouette:
+   * a sun on a raised boss, răng cưa at the rim, and enough register between them that the eye
+   * reads an object. Fourteen rays, because that is the count on the Ngọc Lũ drum in Hanoi, which
+   * is the drum this is drawn from and the same one `scripts/build-icon.mjs` draws.
+   *
+   * Drawn after the landscape layer and scaled *uniformly*. Collected into that squashed layer, a
+   * 44-unit circle came out a third wider than tall on a phone sheet, and the device inside it
+   * flattened with it.
+   *
+   * Flat, and deliberately so. The first cut of this had a soft sheen disc over it to suggest cast
+   * metal, which is a thing a painter can do and a woodblock printer cannot.
    */
-  private drawDaiVietLotusSeal(): void {
-    const seal = this.add.graphics({ x: GAME_WIDTH / 2, y: this.vy(66) }).setDepth(-6);
-    seal.setScale(this.vScale);
+  private drawDaiVietDrumSeal(): void {
+    const seal = this.add.graphics({ x: GAME_WIDTH / 2, y: this.vy(68) }).setDepth(-4);
+    // The device is drawn at a 44-unit radius and scaled up, rather than every radius in it being
+    // rewritten: the proportions between the sun, the dot ring and the sawtooth were tuned against
+    // each other, and re-typing eleven numbers is how one of them ends up not scaling with the rest.
+    seal.setScale(this.vScale * 1.3);
 
-    seal.fillStyle(PIGMENT.sonDeep, 0.94);
-    seal.fillCircle(0, 0, 44);
-    seal.lineStyle(5, INK_UI.gold, 0.92);
+    // Three blocks and the paper, and every one of them is already on this page.
+    //
+    // The drum is bronze, and the first cut of this was gỉ đồng because of it — which made the seal
+    // the only green thing on a sheet whose whole palette is điệp, mực, sỏi son and hoa hòe. One
+    // cool hue at the top of a warm page pulls the eye straight off the button column. A Đông Hồ
+    // printer cut what was in the tray, not what the subject was made of, so this is cut in the
+    // tray's red: the same red as the standards on the field below it and the primary button under
+    // that. The brightest thing on it is unprinted điệp — on a real print the white is always the
+    // sheet showing through — and the contour is mực, because a Đông Hồ contour is soot and nothing
+    // else. `scripts/build-icon.mjs --mark drum-bronze` still cuts the green one.
+    const block = PIGMENT.son;
+    const gold = PIGMENT.hoePale;
+    const white = PIGMENT.diepHi;
+    const RAYS = 14;
+    // The register slip. The colour block is pulled first and the contour second, and they never
+    // land together; a device whose fill sits exactly inside its own outline reads as clip art.
+    const SLIP = 1;
+
+    seal.fillStyle(block, 0.97);
+    seal.fillCircle(-SLIP, -SLIP * 0.8, 44);
+    seal.lineStyle(2, PIGMENT.muc, 0.92);
     seal.strokeCircle(0, 0, 44);
 
-    seal.fillStyle(shade(PIGMENT.sonDeep, 0.72), 0.34);
-    seal.fillCircle(0, 0, 34);
-    seal.lineStyle(1.4, INK_UI.goldLight, 0.48);
-    seal.strokeCircle(0, 0, 32);
+    // Răng cưa — the sawtooth register that rings every tympanum.
+    seal.fillStyle(gold, 0.95);
+    const TEETH = 22;
+    for (let tooth = 0; tooth < TEETH; tooth += 1) {
+      const a0 = (tooth / TEETH) * Math.PI * 2;
+      const a1 = ((tooth + 1) / TEETH) * Math.PI * 2;
+      const mid = (a0 + a1) / 2;
+      seal.fillPoints(
+        [
+          { x: Math.cos(a0) * 33, y: Math.sin(a0) * 33 },
+          { x: Math.cos(mid) * 40, y: Math.sin(mid) * 40 },
+          { x: Math.cos(a1) * 33, y: Math.sin(a1) * 33 },
+        ],
+        true,
+      );
+    }
+    seal.lineStyle(1, gold, 0.85);
+    seal.strokeCircle(0, 0, 32.5);
 
-    // 40 across the flats, so the cartouche's corners stay inside the inner ring.
-    seal.lineStyle(2.2, INK_UI.gold, 0.78);
-    seal.strokeRoundedRect(-20, -23, 40, 45, 7);
-
-    seal.lineStyle(3.4, PIGMENT.muc, 0.3);
-    seal.lineBetween(0, 19, 0, 5);
-    seal.lineStyle(2.1, INK_UI.goldLight, 0.94);
-    seal.lineBetween(0, 19, 0, 5);
-
-    // Two lotus pads floating either side of the stem, drawn before the flower.
-    for (const sign of [-1, 1] as const) {
-      const pad = petalOutline(sign * 2, 10, 7.5, 12, sign * 1.35);
-      seal.fillStyle(shade(INK_UI.gold, 0.9), 0.92);
-      seal.fillPoints(pad, true);
-      seal.lineStyle(0.9, PIGMENT.muc, 0.35);
-      seal.strokePoints(pad, true);
+    // A ring of raised dots: the plainest register a drum carries, and the one that keeps the band
+    // between the sun and the rim from reading as bare metal.
+    seal.fillStyle(gold, 0.9);
+    for (let dot = 0; dot < RAYS; dot += 1) {
+      const angle = ((dot + 0.5) / RAYS) * Math.PI * 2;
+      seal.fillCircle(Math.cos(angle) * 28, Math.sin(angle) * 28, 1.5);
     }
 
-    // Petals, outermost first so the centre one reads in front. Each pair swings further out than
-    // the last and stands shorter, which is what makes an open lotus rather than a sheaf of wheat.
-    const petals: Array<{ angle: number; height: number; width: number; colour: number }> = [
-      { angle: -0.82, height: 18, width: 8.5, colour: shade(INK_UI.gold, 0.92) },
-      { angle: 0.82, height: 18, width: 8.5, colour: shade(INK_UI.gold, 0.92) },
-      { angle: -0.44, height: 25, width: 9.5, colour: INK_UI.gold },
-      { angle: 0.44, height: 25, width: 9.5, colour: INK_UI.gold },
-      { angle: 0, height: 31, width: 10.5, colour: INK_UI.goldLight },
-    ];
-    for (const petal of petals) {
-      const points = petalOutline(0, 6, petal.width, petal.height, petal.angle);
-      seal.fillStyle(petal.colour, 0.98);
-      seal.fillPoints(points, true);
-      seal.lineStyle(1, PIGMENT.muc, 0.5);
-      seal.strokePoints(points, true);
-      // Centre vein, so each petal reads separately against its neighbour.
-      seal.lineStyle(0.8, PIGMENT.muc, 0.3);
-      seal.lineBetween(0, 6, Math.sin(petal.angle) * petal.height * 0.82, 6 - Math.cos(petal.angle) * petal.height * 0.82);
+    // The sun, as a fourteen-point star whose valleys land on the edge of the boss.
+    const sun: Pt[] = [];
+    for (let point = 0; point < RAYS * 2; point += 1) {
+      const angle = (point / (RAYS * 2)) * Math.PI * 2 - Math.PI / 2;
+      const radius = point % 2 === 0 ? 23 : 9.5;
+      sun.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
     }
+    seal.fillStyle(white, 0.98);
+    seal.fillPoints(sun.map((point) => ({ x: point.x - SLIP * 0.8, y: point.y - SLIP * 0.7 })), true);
+    seal.lineStyle(1, PIGMENT.muc, 0.8);
+    seal.strokePoints(sun, true);
 
-    seal.fillStyle(INK_UI.gold, 0.98);
-    seal.fillEllipse(0, 7, 13, 6);
-    seal.lineStyle(1, PIGMENT.muc, 0.4);
-    seal.strokeEllipse(0, 7, 13, 6);
+    seal.fillStyle(white, 1);
+    seal.fillCircle(-SLIP * 0.8, -SLIP * 0.7, 9);
+    seal.lineStyle(1, PIGMENT.muc, 0.85);
+    seal.strokeCircle(0, 0, 9);
   }
 
   private render(): void {
@@ -881,35 +1006,69 @@ export class MenuScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * The wordmark.
+   *
+   * It was set at 36 units on a 390-wide sheet with the seal at 44 — a mark and a title that both
+   * sat there being legible while the landscape behind them was the loudest thing on the page. A
+   * front page has a subject, and on this one it has to be the name. So: half again the type, a
+   * third again the device, and the block spaced as a block — device, name, country, rule — rather
+   * than four things that happen to be stacked.
+   *
+   * Both lines are printed twice, the lower copy offset by two units. That is the woodblock's
+   * doubled pull, not a drop shadow: it is the same colour family as the ink, not a grey.
+   */
   private renderTitle(): void {
-    const shadow = this.ui.label(GAME_WIDTH / 2 + 2, this.vy(130), 'MANDATE', 'title', {
-      color: '#301509',
-      fontFamily: TITLE_FONT,
-      fontSize: `${Math.round(36 * this.vScale)}px`,
-      fontStyle: '700',
-      align: 'center',
-    }).setOrigin(0.5);
-    const title = this.ui.label(GAME_WIDTH / 2, this.vy(127), 'MANDATE', 'title', {
-      color: '#2a2118',
-      fontFamily: TITLE_FONT,
-      fontSize: `${Math.round(36 * this.vScale)}px`,
-      fontStyle: '700',
-      align: 'center',
-    }).setOrigin(0.5);
-    const subtitleShadow = this.ui.label(GAME_WIDTH / 2 + 1, this.vy(161), 'OF ĐẠI VIỆT', 'title', {
-      color: '#301509',
-      fontFamily: TITLE_FONT,
-      fontSize: `${Math.round(19 * this.vScale)}px`,
-      fontStyle: '700',
-    }).setOrigin(0.5);
-    const subtitle = this.ui.label(GAME_WIDTH / 2, this.vy(159), 'OF ĐẠI VIỆT', 'title', {
-      color: '#2a2118',
-      fontFamily: TITLE_FONT,
-      fontSize: `${Math.round(19 * this.vScale)}px`,
-      fontStyle: '700',
-    }).setOrigin(0.5);
-    const rule = this.add.rectangle(GAME_WIDTH / 2, this.vy(184), 210, 2, INK_UI.gold, 0.88);
-    this.content.push(shadow, title, subtitleShadow, subtitle, rule);
+    // `pull` is how far the second impression sits off the first. It scales with the type: the
+    // 46-unit name can carry a 2-unit slip and read as a woodblock pulled twice, while the same
+    // slip under a 14-unit line is a third of its stroke width and just prints muddy.
+    const wordmark = (text: string, y: number, size: number, spacing: number, pull = 2) => {
+      const style = {
+        fontFamily: TITLE_FONT,
+        fontSize: `${Math.round(size * this.vScale)}px`,
+        fontStyle: '700',
+        align: 'center',
+      };
+      const under = this.ui.label(GAME_WIDTH / 2 + pull, this.vy(y + pull * 1.5), text, 'title', { ...style, color: '#301509' }).setOrigin(0.5);
+      const over = this.ui.label(GAME_WIDTH / 2, this.vy(y), text, 'title', { ...style, color: '#2a2118' }).setOrigin(0.5);
+      // Letter-spacing is what makes a short line read as a wordmark rather than as a caption, and
+      // it is the only thing holding ĐẠI VIỆT's two words apart at this size.
+      under.setLetterSpacing?.(spacing);
+      over.setLetterSpacing?.(spacing);
+      return [under, over];
+    };
+
+    const title = wordmark('VẠN THẮNG', 152, 46, 2);
+    // Both lines are the mark, and the mark does not change with the language: the game is called
+    // Vạn Thắng in Vietnamese and in English, and the line under it says what that means for the
+    // half of the audience it does not mean anything to yet. Hardcoded rather than keyed for the
+    // same reason — a name handed to a catalog is a name somebody eventually translates.
+    //
+    // Fitted rather than sized, because it is a long line on a 390-unit sheet: set at 21, measured,
+    // and stepped down until it clears the margins. A wordmark that runs off the page is not one.
+    const sub = wordmark('TEN THOUSAND VICTORIES', 188, 21, 3, 1);
+    // 200, not the sheet's margin and not the width of the name. Fitted to the margin the gloss
+    // comes out as wide as VẠN THẮNG above it, and two lines of equal width are two titles rather
+    // than a title and the thing it means.
+    const SUB_MAX = 200;
+    // Measured and re-measured rather than solved in one step. Phaser reports a Text's width
+    // without the letter-spacing it was just given, so a single divide lands about a spacing-unit
+    // per character too wide — twenty-two characters at three units is a fifth of the line. Three
+    // passes converge on the real width whether the metric includes the spacing or not.
+    let subSize = 21 * this.vScale;
+    for (let pass = 0; pass < 3 && sub[1].width > SUB_MAX; pass += 1) {
+      subSize = Math.max(9, subSize * (SUB_MAX / sub[1].width));
+      for (const line of sub) {
+        line.setFontSize(Math.round(subSize));
+      }
+    }
+    // The rule is the bottom of the wordmark, so it tracks the line above it rather than sitting at
+    // a width of its own — and it stops at 206. The karst tops reach 204 in the design, so a rule
+    // hung any lower is ruled straight across a mountain, which is what the first pass did: it read
+    // as a stray stroke rather than as part of the mark.
+    const ruleWidth = Phaser.Math.Clamp(Math.round(sub[1].width + 28), 186, 300);
+    const rule = this.add.rectangle(GAME_WIDTH / 2, this.vy(206), ruleWidth, 2, INK_UI.gold, 0.88);
+    this.content.push(...title, ...sub, rule);
   }
 
   /**
@@ -942,9 +1101,14 @@ export class MenuScene extends Phaser.Scene {
     // greys out with the button and hands its row back to the column — which is what pays for the
     // History button below.
     //
-    // 38 rather than vh(46): font sizes here are fixed px and do NOT scale with vScale, so at 0.62 a
-    // vh(46) button is 29 units and cannot hold a 15px line over a 10px one.
-    const continueHeight = Math.max(38, this.vh(46));
+    // ONE height for both rows of this tier, not one per row.
+    //
+    // Continue carries a second line and so needs 38 (font sizes here are fixed px and do NOT scale
+    // with vScale, so at 0.62 a vh(46) button is 29 units and cannot hold a 15px line over a 10px
+    // one). It used to be the only row that took it, which made it visibly taller than the button
+    // directly above it — the odd one out in a stack whose whole job is to look like a stack. The
+    // taller of the two heights now sets both.
+    const ROW = Math.max(38, this.vh(46));
 
     // The column sits against the settings button rather than at a fixed height, so the art above
     // it keeps whatever room is left over instead of the page ending in a hole.
@@ -962,7 +1126,11 @@ export class MenuScene extends Phaser.Scene {
     //
     // The gaps are also counted here EXACTLY as they are spent below, or the slack piles up in
     // whichever one the arithmetic forgot.
-    const rows = this.vh(58) + tagline.height + this.vh(46) + continueHeight + this.vh(42);
+    // Continue is not drawn at all without a save behind it. A disabled button that says "no saved
+    // campaign" is a row of a phone screen spent telling a first-time player that something they
+    // have never done cannot be resumed; the tier below carries the same information by simply not
+    // being there. It is also one fewer thing to read on a page that had five buttons on it.
+    const rows = this.vh(58) + tagline.height + ROW + (saved ? ROW : 0);
     // TWICE the gap for the break, not three times it. Three left an obvious hole between the last
     // row and Settings while the art above the column was being crowded — the page had its slack
     // in the one place nothing needed it. Doubling is still an unmissable break (the gaps inside
@@ -973,7 +1141,8 @@ export class MenuScene extends Phaser.Scene {
     // the column has 184. The rows come to 36 + 28 (the tagline wraps to two lines in Vietnamese)
     // + 29 + 38 + 26 = 157, and six gaps at the 4-unit clamp are 24. It fits by three. The save
     // label's row, now folded into Continue, is what buys History its own.
-    const GAPS = 4 + 2;
+    const inner = saved ? 3 : 2;
+    const GAPS = inner + 2;
     // The floor the column may not climb above: the rear host's feet stand at 488 in the design,
     // and the pair of them are the busiest thing on the page. At 844 the bottom-anchored column
     // landed at 463 and cleared them by luck; on a 620 sheet everything above the footer is
@@ -987,10 +1156,19 @@ export class MenuScene extends Phaser.Scene {
       4,
       Math.round(14 * this.vScale),
     );
-    const gapsBelow = gap * 4 + gap * 2;
-    let cursor = Math.max(ART_FLOOR, SETTINGS_TOP - rows - gapsBelow);
+    // Centred in the open paper, not hung off the footer.
+    //
+    // Bottom-anchoring was right when the column was five rows and filled the lane. With two it
+    // sank to the footer and left the hole where the fifth, fourth and third rows used to be —
+    // right in the middle of the page, which is the one place a hole is read as a mistake rather
+    // than as air. Splitting the slack puts the same buttons in the same order with the emptiness
+    // shared between the art above and the footer below, where both of them can use it.
+    const stack = rows + gap * inner;
+    const lane = SETTINGS_TOP - gap * 2 - ART_FLOOR;
+    let cursor = ART_FLOOR + Math.max(0, Math.round((lane - stack) / 2));
 
-    this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: this.vh(58) }, t('ascent.menu.title'), () => {
+    this.tourTargets.play = { x: 54, y: cursor, width: 282, height: this.vh(58) };
+    this.content.push(this.ui.button(this.tourTargets.play, t('ascent.menu.title'), () => {
       this.startAscentRun();
     }, { variant: 'primary', fontSize: '17px' }));
     cursor += this.vh(58) + gap;
@@ -999,40 +1177,28 @@ export class MenuScene extends Phaser.Scene {
     this.content.push(tagline);
     cursor += tagline.height + gap;
 
-    this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: this.vh(46) }, t('ascent.menu.classic'), () => {
+    this.tourTargets.classic = { x: 54, y: cursor, width: 282, height: ROW };
+    this.content.push(this.ui.button(this.tourTargets.classic, t('ascent.menu.classic'), () => {
       this.mode = 'classic';
       this.render();
     }, { variant: 'secondary', fontSize: '15px' }));
-    cursor += this.vh(46) + gap;
+    cursor += ROW + gap;
 
-    this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: continueHeight }, t('menu.continue'), () => {
-      const snapshot = loadSnapshot();
-      if (snapshot) {
-        this.startGame(snapshot.state);
-      }
-    }, { variant: saved ? 'ghost' : 'disabled', fontSize: '15px', subLabel: snapshotLabel() }));
-    cursor += continueHeight + gap;
-
-    // The real history the game is built out of. It belongs in this group and not with Settings:
-    // it is something to go and read, not a switch to set.
-    this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: this.vh(42) }, t('history.menu.button'), () => {
-      this.scene.start('HistoryScene');
-    }, { variant: 'ghost', fontSize: '14px' }));
-    // The group break, and the reason Settings reads as a different kind of thing from the
+    if (saved) {
+      this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: ROW }, t('menu.continue'), () => {
+        const snapshot = loadSnapshot();
+        if (snapshot) {
+          this.startGame(snapshot.state);
+        }
+      }, { variant: 'ghost', fontSize: '15px', subLabel: snapshotLabel() }));
+      cursor += ROW + gap;
+    }
+    // The group break, and the reason the footer reads as a different kind of thing from the
     // buttons above it.
-    cursor += this.vh(42) + gap * 2;
+    cursor += gap * 2;
 
     this.renderLanguageSwitch();
-
-    this.content.push(this.ui.button(
-      { x: 108, y: SETTINGS_TOP, width: 174, height: this.vh(34) },
-      t('menu.settings'),
-      () => {
-        this.mode = 'settings';
-        this.render();
-      },
-      { variant: 'ghost', fontSize: '13px' },
-    ));
+    this.renderFooterPair();
 
     this.renderSupportRow();
 
@@ -1503,6 +1669,56 @@ export class MenuScene extends Phaser.Scene {
    * sheet it shrinks to fit rather than wrapping under itself, since there is exactly one line of
    * room above the bottom edge.
    */
+  /**
+   * The three places that are not a game: the manual, the history the game is built out of, and
+   * the settings.
+   *
+   * They were full-width rows in the column above, which put five buttons of the same width down
+   * the middle of the page and made a page of choices out of what is really one choice with some
+   * doors beside it. Side by side in the footer they are half the height of the page's furniture
+   * and read as the tier they are — and none of them lost anything, because a button you can still
+   * see and still press has not been demoted, only stopped shouting.
+   *
+   * How to Play joins them rather than going in the column, and it is worth saying why, because it
+   * is the one door here a first-time player actually needs. A manual advertised as loudly as the
+   * game would be a front page that leads with homework — and the tour already walks a new player
+   * to this exact rectangle on their first load, which is a better introduction than a bigger
+   * button would have been. Anyone who skipped the tour finds it where a manual belongs: with the
+   * other reference material, at the foot of the page.
+   *
+   * Three at 104 rather than two at 122, and the row is 22 units NARROWER overall than the pair
+   * was. A footer that grows with each door added is the failure mode here; this one gets tighter,
+   * and the inset from the column's 282 is the whole point — a footer row as wide as the primary
+   * button is just another row of the same thing.
+   */
+  private renderFooterPair(): void {
+    const WIDTH = 104;
+    const GAP = 7;
+    const left = Math.round((GAME_WIDTH - (WIDTH * 3 + GAP * 2)) / 2);
+    const height = this.vh(34);
+    // Remembered as one rectangle rather than three: the tour's card is about the footer as a
+    // tier — the manual, the record and the settings — and framing one of the three would say the
+    // other two were something else.
+    this.tourTargets.footer = { x: left, y: SETTINGS_TOP, width: WIDTH * 3 + GAP * 2, height };
+
+    // 12px, not 13. "How to Play" is three words where the other two are two and one, and at 13 it
+    // wraps to a second line inside a 34-unit button — which centres the pair of lines and leaves
+    // the row looking like one button broke.
+    const doors: Array<{ label: string; onPress: () => void }> = [
+      { label: t('guide.menu.button'), onPress: () => this.scene.start('GuideScene') },
+      { label: t('history.menu.button'), onPress: () => this.scene.start('HistoryScene') },
+      { label: t('menu.settings'), onPress: () => { this.mode = 'settings'; this.render(); } },
+    ];
+    doors.forEach((door, index) => {
+      this.content.push(this.ui.button(
+        { x: left + index * (WIDTH + GAP), y: SETTINGS_TOP, width: WIDTH, height },
+        door.label,
+        door.onPress,
+        { variant: 'ghost', fontSize: '12px' },
+      ));
+    });
+  }
+
   private renderSupportRow(): void {
     const row = this.add.container(GAME_WIDTH / 2, SUPPORT_TOP + SUPPORT_ROW_HEIGHT / 2);
 
@@ -1520,18 +1736,39 @@ export class MenuScene extends Phaser.Scene {
     const improveWidth = improve.getData('linkWidth') as number;
     const total = coffeeWidth + gap + connective.width + gap + improveWidth;
 
-    let cursor = -total / 2;
-    coffee.x = cursor;
-    cursor += coffeeWidth + gap;
-    connective.x = cursor;
-    cursor += connective.width + gap;
-    improve.x = cursor;
+    /**
+     * One line if it fits with margins to spare; two if it does not.
+     *
+     * The sentence is a comfortable single line in English and runs the full width of the sheet in
+     * Vietnamese, where it was printing edge to edge and shrinking itself to do it — a footer aside
+     * laid out like a banner, in type a size smaller than the aside above it. Broken after the
+     * connective it is two short centred lines at full size, with the same margins as everything
+     * else on the page.
+     */
+    const maxWidth = GAME_WIDTH - 64;
+    if (total <= maxWidth) {
+      let cursor = -total / 2;
+      coffee.x = cursor;
+      cursor += coffeeWidth + gap;
+      connective.x = cursor;
+      cursor += connective.width + gap;
+      improve.x = cursor;
+    } else {
+      const second = connective.width + gap + improveWidth;
+      // 15 apart, not 9. Two pressable phrases nine units either side of a centre line are two
+      // tap targets sharing an edge, and a thumb aiming for one of them lands between both. This
+      // is also why SUPPORT_ROW_HEIGHT grew: the band has to be tall enough to hold the gap.
+      coffee.setPosition(-coffeeWidth / 2, -15);
+      connective.setPosition(-second / 2, 15);
+      improve.setPosition(-second / 2 + connective.width + gap, 15);
+      // Only if a single one of the two lines still overruns, which no language does today.
+      const widest = Math.max(coffeeWidth, second);
+      if (widest > maxWidth) {
+        row.setScale(maxWidth / widest);
+      }
+    }
 
     row.add([coffee, connective, improve]);
-    const maxWidth = GAME_WIDTH - 20;
-    if (total > maxWidth) {
-      row.setScale(maxWidth / total);
-    }
     this.content.push(row);
   }
 
@@ -1598,6 +1835,18 @@ export class MenuScene extends Phaser.Scene {
         const label = this.ui.label(bounds.x + bounds.width / 2, cursor + tabHeight / 2, t(`menu.support.${channel.id}.title`), 'button', {
           color: '#211103', fontSize: '12px', fontStyle: selected ? '700' : '400', align: 'center',
         }).setOrigin(0.5);
+        // A glyph apiece: a globe for the one that takes any currency from anywhere, a phone for
+        // the one you open on a phone. The two labels are both "<name> · <place>" at the same size
+        // in the same weight, and a tab strip whose only difference is the letters is a tab strip
+        // you have to read. Grouped with the label and centred with it, as on a button.
+        const glyph = drawCardIcon(this, channel.id === 'momo' ? 'phone' : 'globe', PIGMENT.muc);
+        const glyphScale = 0.56;
+        glyph.setScale(glyphScale).setAlpha(selected ? 0.9 : 0.6);
+        const glyphWidth = CARD_ICON_SIZE * glyphScale;
+        const group = glyphWidth + 6 + label.width;
+        glyph.setPosition(bounds.x + bounds.width / 2 - group / 2 + glyphWidth / 2, cursor + tabHeight / 2);
+        label.setX(bounds.x + bounds.width / 2 - group / 2 + glyphWidth + 6 + label.width / 2);
+        this.modalObjects.push(glyph);
         const hit = this.add.rectangle(bounds.x + bounds.width / 2, cursor + tabHeight / 2, bounds.width, tabHeight, 0xffffff, 0.001)
           .setInteractive(selected ? undefined : { useHandCursor: true });
         hit.on('pointerup', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
@@ -1768,40 +2017,23 @@ function linkHost(link: string): string {
   }
 }
 
-/**
- * Outline of one lotus petal: a pointed leaf rooted at `(baseX, baseY)`, `height` tall and `width`
- * across at its widest, swung `angle` radians off vertical.
- *
- * Splayed by rotation rather than by leaning the tips, which is what makes the flower read as an
- * open lotus instead of one shape with a few slivers behind it.
- */
-function petalOutline(baseX: number, baseY: number, width: number, height: number, angle: number): Pt[] {
-  const steps = 9;
-  const right: Pt[] = [];
-  const left: Pt[] = [];
-  const sin = Math.sin(angle);
-  const cos = Math.cos(angle);
-  const place = (ox: number, oy: number): Pt => ({
-    x: baseX + ox * cos - oy * sin,
-    y: baseY + ox * sin + oy * cos,
-  });
-
-  for (let step = 0; step <= steps; step += 1) {
-    const t = step / steps;
-    const spread = Math.sin(Math.PI * t) ** 0.68 * (width / 2) * (1 - t * 0.2);
-    right.push(place(spread, -height * t));
-    left.push(place(-spread, -height * t));
-  }
-  return [...right, ...left.reverse()];
-}
-
 /** The figure scale the menu's hosts are drawn at. */
 const MENU_HOST_SCALE = 0.74;
 
 /** The herd in front of the near-bank village, in landscape design coordinates. */
+/**
+ * The herd, at the ground scale the rest of the diorama is drawn at.
+ *
+ * These were 1.05 and 0.85 while the hosts beside them were `MENU_HOST_SCALE` 0.74 — and the map
+ * itself passes `GROUND_SCALE` to the very same buffalo. A 1.5 m animal was therefore drawn 10 px
+ * tall next to an 8.4 px man, which is the one thing `verify-ground-scale` names outright: *a
+ * buffalo does not out-stand a soldier*. The menu is not covered by that harness, so it drifted.
+ *
+ * Kept as two different sizes, because a herd of identical animals is a pattern rather than a herd.
+ */
 const MENU_HERD: ReadonlyArray<{ x: number; y: number; scale: number; seed: number; rider: boolean }> = [
-  { x: 74, y: 424, scale: 1.05, seed: 5005, rider: true },
-  { x: 152, y: 410, scale: 0.85, seed: 5006, rider: false },
+  { x: 74, y: 424, scale: 0.76, seed: 5005, rider: true },
+  { x: 152, y: 410, scale: 0.61, seed: 5006, rider: false },
 ];
 
 /**
