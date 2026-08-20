@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import { PIGMENT } from './palette';
-import { inkPath, mulberry32, printedShape, type Pt } from './stroke';
+import { inkPath, mulberry32, printedShape, washFill, type Pt } from './stroke';
 import { UNIT, unitScale } from './proportion';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
-import type { Army, GameState } from '../../state/types';
+import type { Army, ArmyComposition, ArmyWardrobe, GameState } from '../../state/types';
 
 /**
  * Đông Sơn bronze — the narrator's register, kept deliberately distinct from the world's.
@@ -39,10 +39,20 @@ export const HOST_MARK_CAP = 420;
  *
  * Files are wider than ranks are deep, so a host is wider than it is deep the way one on the march
  * is. The rank shear is what stops the block reading as a grid.
+ *
+ * The numbers are the document's grid divided by the document's own unit — 16, 12 and 3.6 against a
+ * soldier 42 units to the crown of his head — so a block in the game has the same density as the
+ * plates in `docs/12-armies-of-dai-viet.html`.
+ *
+ * They used to be 4.6 / 4.0 / 1.2, which is three body-widths of ground between one man and the
+ * next: an open skirmish order, not a block. That spacing was chosen against the *old* figure — a
+ * stick with a spear nearly three files long, which at any tighter pitch smeared into its
+ * neighbours. The figure is a drawn soldier now and can stand shoulder to shoulder, which is both
+ * what an army looked like and what makes a host read as a mass rather than as scattered marks.
  */
-const FILE_PITCH = 4.6 * UNIT.figure;
-const RANK_PITCH = 4.0 * UNIT.figure;
-const RANK_SHEAR = 1.2 * UNIT.figure;
+const FILE_PITCH = (16 / 9.46) * UNIT.figure;
+const RANK_PITCH = (12 / 9.46) * UNIT.figure;
+const RANK_SHEAR = (3.6 / 9.46) * UNIT.figure;
 
 export interface HostShape {
   marks: number;
@@ -89,16 +99,76 @@ export function hostShapeAt(men: number, s = 1): HostShape {
  * can be on screen. The cost is paid once when the marker is built, not per frame — each rank is
  * its own `Graphics` that is tweened rather than redrawn.
  */
+/**
+ * Which people a soldier belongs to. Carried by the **body**, not by colour.
+ *
+ * The palette is a scarcity system with nine pigments in it; if the north were told apart by being
+ * blue, a Ming column on a wet-season map would vanish. So the faction is a silhouette: a Việt robe
+ * trapezoid, a Hán straight coat with a centre placket and a lower hem, a Chăm bare torso over a
+ * flared sarong. It is the slot that still reads once the head is lost at distance.
+ */
+export type FigureFaction = 'viet' | 'han' | 'champa';
+
+/**
+ * The twelve wardrobes.
+ *
+ * Seven Việt — the four on the Mandate ladder plus the three lord periods, which never enter it
+ * because they are what a *rival* Việt kingdom wears. Four northern, paired to the era they
+ * historically came in. One Chăm.
+ */
+export type FigureTheme = ArmyWardrobe;
+
+/** The four Mandate eras. Kept as a narrowing of `FigureTheme` so old call sites still read. */
 export type FigureEra = 'ly' | 'tran' | 'le' | 'nguyen';
+
 /** levy → trained → royal guard, straight off `army.elite`. */
 export type FigureTier = 0 | 1 | 2;
-export type FigureArm = 'spear' | 'bow' | 'heavy';
+
+/**
+ * What a man is carrying — and, through `FORMATION`, which block of the army he stands in.
+ *
+ * `spear` is not one of the four: it is what a levy holds, a billhook off a farm, and the default
+ * when a host has no composition to read.
+ */
+export type FigureArm = 'spear' | 'sword' | 'skirmish' | 'bow' | 'mounted';
+
+interface ThemeSpec {
+  faction: FigureFaction;
+  /** The robe's dye. */
+  robe: number;
+  /** The crown's. */
+  crown: number;
+  /** Hand-guns reach the row under the Later Lê; before that a skirmisher throws. */
+  gun: boolean;
+}
+
+export const FIGURE_THEMES: Record<FigureTheme, ThemeSpec> = {
+  ly: { faction: 'viet', robe: PIGMENT.tram, crown: PIGMENT.hoePale, gun: false },
+  tran: { faction: 'viet', robe: PIGMENT.nau, crown: PIGMENT.hoe, gun: false },
+  le: { faction: 'viet', robe: PIGMENT.tram, crown: PIGMENT.son, gun: true },
+  trinh: { faction: 'viet', robe: PIGMENT.nau, crown: PIGMENT.hide, gun: true },
+  nguyenLord: { faction: 'viet', robe: PIGMENT.tram, crown: PIGMENT.muc, gun: true },
+  tayson: { faction: 'viet', robe: PIGMENT.nau, crown: PIGMENT.cham, gun: true },
+  nguyen: { faction: 'viet', robe: PIGMENT.hoe, crown: PIGMENT.nau, gun: true },
+  song: { faction: 'han', robe: PIGMENT.chamPale, crown: PIGMENT.cham, gun: false },
+  yuan: { faction: 'han', robe: PIGMENT.nauDark, crown: PIGMENT.hide, gun: false },
+  ming: { faction: 'han', robe: PIGMENT.cham, crown: PIGMENT.nau, gun: true },
+  qing: { faction: 'han', robe: PIGMENT.hide, crown: PIGMENT.cham, gun: true },
+  champa: { faction: 'champa', robe: PIGMENT.hoe, crown: PIGMENT.nau, gun: false },
+};
+
+/** Which people wear a theme. The only place the mapping is written down. */
+export function factionFor(theme: FigureTheme): FigureFaction {
+  return FIGURE_THEMES[theme]?.faction ?? 'viet';
+}
 
 /**
  * What a soldier is wearing and carrying. Everything optional: a caller that passes nothing gets
  * the old silhouette, so this stayed additive across forty-odd call sites.
  */
 export interface FigureKit {
+  theme?: FigureTheme;
+  /** @deprecated The four-era name for `theme`; still honoured so old callers keep working. */
   era?: FigureEra;
   tier?: FigureTier;
   arm?: FigureArm;
@@ -107,167 +177,440 @@ export interface FigureKit {
 }
 
 /**
- * One soldier: five slots, and every one of them is doing a job.
+ * The document's own grid, and the single divisor that maps it onto the game's.
  *
- * The old figure was a body, a nón and a spear — a generic pikeman that would suit any army in
- * any century. Đạt H. Võ's *Timeline of Vietnamese army costume* separates eight periods with no
- * text on the figures at all, and the way it does that is the design here: **headwear carries
- * most of the identification, the chest carries the rank, one accent carries the realm.**
+ * `docs/12-armies-of-dai-viet.html` draws a soldier **42 units** from the ground to the crown of
+ * his head. `unitScale('figure', …)` puts that same distance at **4.44**. So one division, applied
+ * once, and every number below is literally the number printed in the document — which is the only
+ * way a drawing this long stays checkable against it.
+ */
+const DOC_UNIT = 42 / 4.44;
+
+/**
+ * Body geometry per faction, in document units. `hem` is where the robe stops, `top` where it
+ * starts, and the top edge **is** the shoulders — a separate shoulder line only adds weight.
+ */
+const BODY: Record<FigureFaction, { hem: number; top: number; hw: number; sw: number }> = {
+  viet: { hem: -12, top: -30, hw: 7, sw: 6 },
+  han: { hem: -9, top: -30, hw: 7.6, sw: 6.6 },
+  champa: { hem: -12, top: -23, hw: 9.4, sw: 5.6 },
+};
+
+/**
+ * One soldier: six slots, and every one of them is doing a job.
  *
- *   1. crown  — the era. The most identifying mark, so it is the one that never drops at any zoom.
- *   2. chest  — the tier. Nothing, a mirror plate, or a plate with shoulder pieces.
- *   3. sash   — the realm. One diagonal stroke; the only place the scarcity law touches a soldier.
- *   4. arm    — the weapon, as a silhouette. The angle reads where a shape would not.
- *   5. ground — bare feet, or boots. Small, but it is what makes a levy read as farmers.
+ * Đạt H. Võ's *Timeline of Vietnamese army costume* separates eight periods with no text on the
+ * figures at all, and the way it does that is the design here: **headwear carries most of the
+ * identification, the chest carries the rank, one accent carries the realm.**
  *
- * The crowns come from the written record as much as the reference: the mirror plate on the chest
- * is the commonest armour found in northern Việt Nam, the Trần officer's round disc is in both the
- * timeline and the texts, and a levy has none of it because *ngụ binh ư nông* turned farmers out
- * and sent them home again.
+ *   1. crown  — the theme. The most identifying mark, so the one that never drops at any zoom.
+ *   2. body   — the faction. What still reads once the head is too small to see.
+ *   3. chest  — the tier. Nothing, a mirror plate, or a plate with shoulder pieces.
+ *   4. sash   — the realm. One diagonal stroke; the only place the scarcity law touches a soldier.
+ *   5. arm    — the weapon, and the block of the formation this man stands in.
+ *   6. ground — bare feet, or boots. Small, but it is what makes a levy read as farmers.
+ *
+ * **Three rules make it a person rather than a stack of parts**, and each was got wrong once
+ * before it was got right:
+ *
+ *   - The skull is an **outline**, never a filled disc, so the paper shows through as a face.
+ *   - The crown's brim sits at −39, *inside* the head circle (centre −36, r 6). A hat lifted clear
+ *     of the skull reads as a lid resting on a ball. **The overlap is the join.**
+ *   - Every weapon is held by an **arm that starts at the shoulder**. One extra stroke, and a man
+ *     carrying a spear stops being a spear floating beside a man.
  *
  * Still drawn through `inkPath` like every other living thing on the map, and still counted: this
- * runs up to `HOST_MARK_CAP` times per host and several hosts can be on screen, so the budget went
- * from five marks to eight and not one further.
+ * runs up to `HOST_MARK_CAP` times per host and several hosts can be on screen.
  */
 export function figure(g: G, x: number, y: number, scale: number, colour: number, kit: FigureKit | boolean = {}): void {
   const s = unitScale('figure', scale);
+  const u = s / DOC_UNIT;
   const seed = Math.round(x * 31 + y * 17);
-  const ink = { colour, wobble: 0.16 * s, step: 2.2 };
   // A bare boolean is the old sixth argument — "does this one carry a spear".
   const spec: FigureKit = typeof kit === 'boolean' ? { arm: kit ? 'spear' : undefined } : kit;
-  const era = spec.era ?? 'le';
+  const theme: FigureTheme = spec.theme ?? spec.era ?? 'le';
+  const T = FIGURE_THEMES[theme] ?? FIGURE_THEMES.le;
   const tier = spec.tier ?? 1;
+  const arm = spec.arm;
 
-  // Body: hem to shoulder. Slightly off vertical, so a rank is people standing rather than a comb.
-  const lean = ((seed % 7) - 3) * 0.055 * s;
-  const cx = x + lean;
-  // Thinner than it looks. `inkPath` lays a soaked underlay at 2.6x the stated width, so 0.85
-  // painted 2.2 units across a figure 1.9 wide — every mark merged into one blob and the crowns,
-  // which are the whole point of the wardrobe, were lost inside it.
-  inkPath(g, [{ x, y }, { x: cx, y: y - 3.0 * s }], seed, { width: 0.52 * s, alpha: 0.85, ...ink });
-  // Shoulders — the one mark that separates a man from a stick at this size.
-  inkPath(
-    g,
-    [{ x: cx - 0.95 * s, y: y - 2.85 * s }, { x: cx + 0.95 * s, y: y - 3.05 * s }],
-    seed + 1,
-    { width: 0.4 * s, alpha: 0.66, ...ink },
-  );
+  const ink = { colour, wobble: 0.055 * s, step: 2.4 };
+  // Slightly off vertical, so a rank is people standing rather than a comb.
+  const cx = x + ((seed % 7) - 3) * 0.5 * u;
+  // A mounted man is lifted onto the saddle and everything above his feet goes with him; the pony
+  // is drawn at ground level, which is what `ground` below is for.
+  const lift = arm === 'mounted' ? -17 : 0;
+  /** A point in the document's coordinates: x across, y up from the feet. */
+  const P = (dx: number, dy: number): Pt => ({ x: cx + dx * u, y: y + (dy + lift) * u });
+  const ground = (dx: number, dy: number): Pt => ({ x: cx + dx * u, y: y + dy * u });
+  const stroke = (pts: Pt[], sd: number, w = 1.55, alpha = 0.85, closed = false): void => {
+    inkPath(g, pts, sd, { ...ink, width: w * u, alpha, closed });
+  };
+  const solid = (pts: Pt[], fill: number, alpha = 0.85): void => {
+    g.fillStyle(fill, alpha);
+    g.fillPoints(pts, true);
+  };
+  const ring = (dx: number, dy: number, r: number, n = 10): Pt[] =>
+    Array.from({ length: n }, (_, i) => {
+      const a = (i / n) * Math.PI * 2;
+      return P(dx + Math.cos(a) * r, dy + Math.sin(a) * r);
+    });
 
-  // ── 2. chest ──────────────────────────────────────────────────────────────
-  // Hộ tâm kính, the mirror plate: one square over the heart, and the commonest armour the
-  // northern record knows. A single fill, and the silhouette stops being generic.
-  if (tier >= 1) {
-    g.fillStyle(PIGMENT.horn, 0.85);
-    if (era === 'tran') g.fillCircle(cx, y - 2.4 * s, 0.46 * s);
-    else g.fillRect(cx - 0.42 * s, y - 2.75 * s, 0.84 * s, 0.8 * s);
-  }
-  // Shoulder pieces, for the guard only.
-  if (tier >= 2) {
-    inkPath(
-      g,
-      [{ x: cx - 1.05 * s, y: y - 2.95 * s }, { x: cx - 1.2 * s, y: y - 2.5 * s }],
-      seed + 7,
-      { width: 0.4 * s, alpha: 0.55, ...ink },
-    );
-  }
-
-  // ── 3. sash ───────────────────────────────────────────────────────────────
-  if (spec.accent !== undefined) {
-    inkPath(
-      g,
-      [{ x: cx - 0.8 * s, y: y - 1.6 * s }, { x: cx + 0.8 * s, y: y - 2.2 * s }],
-      seed + 8,
-      { width: 0.3 * s, alpha: 0.9, colour: spec.accent, wobble: 0.08 * s, step: 2.2 },
-    );
-  }
-
-  // Head, then the crown over it.
-  //
-  // Bigger than it was, and the crown now sits *above* it rather than through it. The old brow
-  // line ran at -3.75 while the head reached -4.27, so every hat was drawn inside the skull and
-  // the two smeared together. A hat has to have air under it to be a hat.
-  g.fillStyle(colour, 0.85);
-  g.fillCircle(cx, y - 3.72 * s, 0.72 * s);
-
-  // ── 1. crown ──────────────────────────────────────────────────────────────
-  const brow = y - 4.4 * s;
-  if (tier === 0) {
-    // A levy is bare-headed: a topknot under the Lý and Trần, a bun under the Nguyễn. Farmers
-    // turned out of the fields, which is exactly what `raiseGarrisonLevy` musters.
-    g.fillStyle(colour, 0.8);
-    g.fillCircle(cx, y - 4.72 * s, era === 'nguyen' ? 0.44 * s : 0.32 * s);
-  } else if (era === 'nguyen') {
-    // Nón dấu: a shallow, wide cone with a spike at the crown.
-    inkPath(g, [{ x: cx - 1.3 * s, y: brow }, { x: cx, y: y - 5.45 * s }, { x: cx + 1.3 * s, y: brow }],
-      seed + 2, { width: 0.38 * s, alpha: 0.85, ...ink });
-    inkPath(g, [{ x: cx, y: y - 5.45 * s }, { x: cx, y: y - 5.95 * s }], seed + 3,
-      { width: 0.26 * s, alpha: 0.8, ...ink });
-  } else if (era === 'le') {
-    // A brimmed dome: the helm gains a brim under the Later Lê.
-    inkPath(g, [{ x: cx - 0.82 * s, y: brow }, { x: cx, y: y - 5.35 * s }, { x: cx + 0.82 * s, y: brow }],
-      seed + 2, { width: 0.38 * s, alpha: 0.85, ...ink });
-    inkPath(g, [{ x: cx - 1.4 * s, y: brow }, { x: cx + 1.4 * s, y: brow }], seed + 3,
-      { width: 0.3 * s, alpha: 0.8, ...ink });
-  } else {
-    // Lý and Trần both wear a dome; the Lý officer's sweeps a long crest back off it, and the
-    // Trần's carries cheek flaps instead. Those two marks are the whole difference, and they are
-    // enough — cover everything below the neck and the periods are still separable.
-    inkPath(g, [{ x: cx - 0.9 * s, y: brow }, { x: cx, y: y - 5.3 * s }, { x: cx + 0.9 * s, y: brow }],
-      seed + 2, { width: 0.38 * s, alpha: 0.85, ...ink });
-    if (era === 'ly') {
-      // The crest sweeps back and *up*, well clear of the dome, or it is just a thicker helmet.
-      inkPath(g, [{ x: cx + 0.35 * s, y: y - 5.1 * s }, { x: cx + 1.5 * s, y: y - 6.0 * s }], seed + 3,
-        { width: 0.28 * s, alpha: 0.8, ...ink });
-    } else {
-      // Cheek flaps hang below the brow on both sides — two short strokes, and the Trần helm is
-      // not the Lý one.
-      inkPath(g, [{ x: cx - 0.88 * s, y: brow }, { x: cx - 0.98 * s, y: y - 3.5 * s }], seed + 3,
-        { width: 0.26 * s, alpha: 0.75, ...ink });
-      inkPath(g, [{ x: cx + 0.88 * s, y: brow }, { x: cx + 0.98 * s, y: y - 3.5 * s }], seed + 9,
-        { width: 0.26 * s, alpha: 0.75, ...ink });
+  // ── 6. mount ──────────────────────────────────────────────────────────────
+  if (arm === 'mounted') {
+    const groundRing = (dx: number, dy: number, r: number, n = 8): Pt[] =>
+      Array.from({ length: n }, (_, i) => {
+        const a = (i / n) * Math.PI * 2;
+        return ground(dx + Math.cos(a) * r, dy + Math.sin(a) * r);
+      });
+    const groundStroke = (pts: Pt[], sd: number, w = 1.55, alpha = 0.85, closed = false): void => {
+      inkPath(g, pts, sd, { ...ink, width: w * u, alpha, closed });
+    };
+    drawPony(g, ground, groundRing, groundStroke, solid, seed, T.faction === 'han' ? PIGMENT.nauDark : PIGMENT.nau);
+    // The saddle cloth, in the realm's own colour: the one place a rival's accent gets any size.
+    if (spec.accent !== undefined) {
+      solid([P(-9, -14.5), P(9, -14.5), P(9, -9.9), P(-9, -9.9)], spec.accent, 0.85);
     }
   }
 
-  // ── 4. arm ────────────────────────────────────────────────────────────────
-  const arm = spec.arm;
-  if (arm === 'spear') {
-    // Held upright and close in. The old spear ran 8.5 units — nearly three files — so every
-    // soldier's weapon crossed the men beside him.
-    inkPath(g, [{ x: cx + 1.15 * s, y: y - 0.7 * s }, { x: cx + 1.3 * s, y: y - 6.6 * s }], seed + 4,
-      { width: 0.3 * s, alpha: 0.7, ...ink });
-  } else if (arm === 'bow') {
-    // A bow is a curve held out from the body — three points, because two is a stick.
-    inkPath(
-      g,
-      [
-        { x: cx + 1.1 * s, y: y - 3.5 * s },
-        { x: cx + 1.6 * s, y: y - 2.3 * s },
-        { x: cx + 1.1 * s, y: y - 1.1 * s },
-      ],
-      seed + 4,
-      { width: 0.28 * s, alpha: 0.75, ...ink },
-    );
-  } else if (arm === 'heavy') {
-    // Cái khiên: wood with a rattan-bound edge, lacquered black with a silver-foil inlay. A dark
-    // disc and one pale dot, and the heavy arm has a read at eight pixels.
-    g.fillStyle(colour, 0.62);
-    g.fillCircle(cx - 1.15 * s, y - 2.1 * s, 0.6 * s);
-    g.fillStyle(PIGMENT.horn, 0.7);
-    g.fillCircle(cx - 1.15 * s, y - 2.1 * s, 0.18 * s);
-    inkPath(g, [{ x: cx + 1.05 * s, y: y - 1.2 * s }, { x: cx + 1.2 * s, y: y - 5.4 * s }], seed + 4,
-      { width: 0.34 * s, alpha: 0.7, ...ink });
+  // ── 2. body ───────────────────────────────────────────────────────────────
+  const B = BODY[T.faction];
+  const robe = [P(-B.hw, B.hem), P(B.hw, B.hem), P(B.sw, B.top), P(-B.sw, B.top)];
+  // The printed underlay, laid a hair off register like every other wash in the game. The
+  // registration is scaled: the default 1.6 is a *map* number and would push a figure's robe
+  // clean off the figure.
+  washFill(g, robe, T.robe, seed + 21, 0.9, 1.5 * u);
+
+  // Legs first, so the robe's hem prints over where they meet it.
+  if (arm !== 'mounted') {
+    stroke([P(-4, 0), P(-3, B.hem)], seed + 2);
+    stroke([P(4, 0), P(3, B.hem)], seed + 3);
+  } else {
+    // One leg bent over the flank. A rider with two straight legs is a man standing behind a horse.
+    stroke([P(-0.4, -13), P(6.6, -15), P(7.8, -5.6)], seed + 2, 1.7);
+  }
+  stroke(robe, seed + 22, 1.55, 0.85, true);
+  if (T.faction === 'han') {
+    // The coat's centre placket — the mark that separates a northern coat from a Việt robe at the
+    // one size where the crowns have already gone.
+    stroke([P(0, B.hem + 1.6), P(0, B.top + 1.2)], seed + 23, 0.9, 0.6);
+  }
+  if (T.faction === 'champa') {
+    // A bare torso: two flanks and a shoulder line, so the man above the sarong is drawn rather
+    // than implied.
+    stroke([P(-5.6, B.top), P(-5.4, -29.4)], seed + 24, 1.4);
+    stroke([P(5.6, B.top), P(5.4, -29.4)], seed + 25, 1.4);
+    stroke([P(-5.4, -29.4), P(5.4, -29.4)], seed + 26, 1.4);
   }
 
-  // ── 5. ground ─────────────────────────────────────────────────────────────
-  // Bare feet leave no mark; a guard's boots do. It is two fills, and it is what makes the levy
-  // beside him read as men pulled off the fields.
-  if (tier >= 2) {
-    g.fillStyle(colour, 0.62);
-    g.fillRect(cx - 0.75 * s, y - 0.28 * s, 0.6 * s, 0.32 * s);
-    g.fillRect(cx + 0.18 * s, y - 0.28 * s, 0.6 * s, 0.32 * s);
+  // ── 3. chest ──────────────────────────────────────────────────────────────
+  if (tier >= 1) {
+    if (theme === 'tran') {
+      // The round mirror disc, in both the timeline and the texts.
+      const disc = ring(0, -24, 4.6, 9);
+      solid(disc, PIGMENT.horn);
+      stroke(disc, seed + 31, 1.2, 0.8, true);
+      if (tier > 1) solid(ring(0, -24, 1.5, 7), colour, 0.9);
+    } else if (theme === 'ming') {
+      // Brigandine: the studs are the armour, and they are the mark.
+      const plate = [P(-4.8, -28), P(4.8, -28), P(4.8, -20), P(-4.8, -20)];
+      solid(plate, PIGMENT.horn);
+      stroke(plate, seed + 31, 1.1, 0.8, true);
+      for (let i = -1; i <= 1; i += 1) solid(ring(i * 2.4, -25.8, 0.85, 6), colour, 0.9);
+    } else if (T.faction === 'champa') {
+      // No plate — a collar band over a bare chest. Chăm armour was light and the reliefs show it.
+      stroke([P(-5.2, -27.4), P(0, -25.8), P(5.2, -27.4)], seed + 31, 1.4, 0.8);
+      if (tier > 1) solid(ring(0, -25.2, 1.4, 6), PIGMENT.hoe, 0.9);
+    } else if (T.faction === 'han') {
+      // Lamellar: two banded courses and a small plate at the heart.
+      stroke([P(-5.2, -27), P(5.2, -27)], seed + 31, 1.1, 0.7);
+      stroke([P(-5.2, -23.6), P(5.2, -23.6)], seed + 32, 1.1, 0.7);
+      const heart = [P(-2.6, -26.6), P(2.6, -26.6), P(2.6, -22), P(-2.6, -22)];
+      solid(heart, PIGMENT.horn);
+      stroke(heart, seed + 33, 1, 0.8, true);
+    } else {
+      // Hộ tâm kính, the mirror plate — the commonest armour the northern record knows.
+      const plate = [P(-4.5, -28), P(4.5, -28), P(4.5, -20.4), P(-4.5, -20.4)];
+      solid(plate, PIGMENT.horn);
+      stroke(plate, seed + 31, 1.2, 0.8, true);
+    }
+    if (tier > 1) {
+      stroke([P(-6.5, -29.4), P(-9.3, -27.4), P(-9.5, -24)], seed + 34, 1.5, 0.75);
+      stroke([P(6.5, -29.4), P(9.3, -27.4), P(9.5, -24)], seed + 35, 1.5, 0.75);
+    }
+  }
+
+  // ── 4. sash ───────────────────────────────────────────────────────────────
+  if (spec.accent !== undefined) {
+    const sy = T.faction === 'champa' ? -17.5 : -16;
+    inkPath(g, [P(-6.4, sy), P(6.4, sy - 6)], seed + 8, {
+      colour: spec.accent, wobble: 0.08 * s, step: 2.2, width: 2.2 * u, alpha: 0.9,
+    });
+  }
+
+  // ── the head, and 1. the crown over it ────────────────────────────────────
+  stroke(ring(0, -36, 6, 11), seed + 40, 1.55, 0.85, true);
+  drawCrown(g, P, ring, stroke, solid, seed, theme, T, tier, colour);
+
+  // ── 5. arm ────────────────────────────────────────────────────────────────
+  drawArm(g, P, ring, stroke, solid, seed, T, arm, tier, colour);
+
+  // ── 6. ground ─────────────────────────────────────────────────────────────
+  // Bare feet leave no mark; a guard's boots do. Two fills, and it is what makes the levy beside
+  // him read as men pulled off the fields.
+  if (tier > 1 && arm !== 'mounted') {
+    solid([P(-5.5, -2), P(-1.1, -2), P(-1.1, 1), P(-5.5, 1)], colour, 0.62);
+    solid([P(1.1, -2), P(5.5, -2), P(5.5, 1), P(1.1, 1)], colour, 0.62);
+  }
+  // The guard's rank mark: a drum band, never a written character — the seal rule forbids a Hán
+  // glyph standing in for information.
+  if (tier > 1) {
+    const rk = T.faction === 'viet' ? PIGMENT.son : PIGMENT.nau;
+    inkPath(g, [P(8.4, -25.4), P(11.2, -22.6)], seed + 51, { colour: rk, wobble: 0.05 * s, step: 2, width: 1.3 * u, alpha: 0.9 });
+    inkPath(g, [P(10.4, -27.4), P(13.2, -24.6)], seed + 52, { colour: rk, wobble: 0.05 * s, step: 2, width: 1.3 * u, alpha: 0.9 });
   }
 }
 
+type PointAt = (dx: number, dy: number) => Pt;
+type RingAt = (dx: number, dy: number, r: number, n?: number) => Pt[];
+type StrokeAt = (pts: Pt[], sd: number, w?: number, alpha?: number, closed?: boolean) => void;
+type SolidAt = (pts: Pt[], fill: number, alpha?: number) => void;
+
+/**
+ * Ngựa: the mount, and the reason `mounted` moves the whole figure rather than decorating it.
+ *
+ * Built off one measurement the way a horse actually is — **1.25 m at the withers**, body length
+ * equal to that, barrel depth 0.45 of it, head 0.4 of it. Guess those three and the result is a
+ * donkey. The Vietnamese cavalry mount is a small southern pony, not a destrier: drawn at European
+ * size a mounted mark is nearly twice a footman and a wing reads as giants.
+ *
+ * Two details do most of the work. The hind leg **bends backwards at the hock**, which is most of
+ * what separates a pony from a table. And the barrel and the neck are each an **open** outline that
+ * hands off to the other — closed, the neck's base edge prints across the shoulder and reads as a
+ * collar strap.
+ */
+function drawPony(
+  g: G, at: PointAt, ring: RingAt, stroke: StrokeAt, solid: SolidAt, seed: number, coat: number,
+): void {
+  const pts = (...pairs: Array<[number, number]>): Pt[] => pairs.map(([dx, dy]) => at(dx, dy));
+
+  const barrel = pts(
+    [5.4, -31], [-6, -31.8], [-13.2, -29.6], [-16.2, -28.4], [-16.6, -25.6],
+    [-18.2, -21.6], [-15.2, -19.2], [-12.8, -17.6], [-9.8, -18.2], [-2, -18],
+    [5, -17.6], [9.4, -19.2], [13, -21.2], [13.2, -25.6],
+  );
+  const neck = pts(
+    [5.6, -30.6], [9.4, -36.4], [14.2, -39.2], [16.6, -40.6], [18.8, -39.6], [21.4, -38.2],
+    [23.4, -35], [25.6, -31.6], [26.2, -29.6], [24, -29.8], [20.6, -30.8], [17, -31.8],
+    [14.6, -29], [12.6, -26.8], [12.8, -25.4],
+  );
+
+  // The wash wants closed shapes even though the outlines are open.
+  solid([...neck, at(5.6, -30.6)], coat, 0.92);
+  solid([...barrel, at(12.4, -30)], coat, 0.92);
+
+  stroke(pts([-12.4, -18.6], [-14.6, -12.4], [-11.4, -8.2], [-12.4, -1.2]), seed + 70, 1.8);
+  stroke(pts([-9.2, -18.6], [-11.2, -12.6], [-8.2, -8.6], [-9, -1.2]), seed + 71, 1.5);
+  stroke(pts([9.2, -19], [10.2, -10.4], [10.8, -1.2]), seed + 72, 1.8);
+  stroke(pts([12, -19.6], [13.2, -10.6], [13.8, -1.2]), seed + 73, 1.5);
+  stroke(barrel, seed + 74, 1.55);
+  stroke(neck, seed + 75, 1.55);
+  stroke(pts([8.4, -31.6], [10.6, -35], [12.6, -37]), seed + 76, 1.2, 0.7);          // the mane
+  stroke(pts([12, -35], [14, -37.6], [15.6, -38.8]), seed + 77, 1, 0.7);
+  stroke(pts([-16.8, -26.4], [-20, -21], [-20.2, -14]), seed + 78, 1.8, 0.8);        // the tail
+  stroke(pts([-16.6, -23], [-19.2, -18.6], [-19.4, -13.4]), seed + 79, 1.2, 0.7);
+  solid(pts([17.2, -40], [16.6, -43.6], [19, -40.4]), PIGMENT.muc, 0.9);             // the ears
+  solid(pts([19.6, -39.6], [19.6, -42.8], [21.2, -39.2]), PIGMENT.muc, 0.9);
+  solid(ring(20.4, -36, 0.8, 6), PIGMENT.muc, 0.9);                                  // the eye
+  solid(ring(24.4, -31.2, 0.6, 6), PIGMENT.muc, 0.9);                                // the nostril
+}
+
+/**
+ * Slot 1. The brim sits at −39, which is *inside* the head circle — that overlap is what joins the
+ * hat to the man, and lifting it clear was the single change that made the first pass read as a
+ * lid on a ball.
+ */
+function drawCrown(
+  g: G, P: PointAt, ring: RingAt, stroke: StrokeAt, solid: SolidAt,
+  seed: number, theme: FigureTheme, T: ThemeSpec, tier: FigureTier, colour: number,
+): void {
+  const hair = (): void => solid([P(-6, -38.6), P(-4, -42.2), P(0, -43.4), P(4, -42.2), P(6, -38.6)], colour, 0.9);
+
+  if (tier === 0) {
+    // Bare-headed: what a man pulled off his fields is wearing.
+    if (theme === 'nguyen' || theme === 'nguyenLord' || theme === 'tayson') {
+      hair();
+      solid(ring(0, -43.8, 3, 8), colour, 0.9);                       // búi tó, the bun
+    } else if (theme === 'yuan' || theme === 'qing') {
+      hair();
+      stroke([P(-5.2, -38.6), P(-9.6, -34), P(-10.2, -26)], seed + 41, 1.4);   // the queue
+    } else if (theme === 'song' || theme === 'ming') {
+      const cap = [P(-6, -39), P(-4.4, -43.4), P(0, -44.6), P(4.4, -43.4), P(6, -39)];
+      solid(cap, T.crown, 0.9);
+      stroke(cap, seed + 41, 1.5, 0.85, true);                        // a cloth cap
+    } else if (theme === 'champa') {
+      hair();
+      stroke([P(-6.2, -39.4), P(6.2, -39.4)], seed + 41, 1.4);        // a headband
+    } else {
+      hair();
+      solid(ring(0, -43.6, 2.5, 7), colour, 0.9);                     // búi tóc, the topknot
+    }
+    return;
+  }
+
+  const domed = (halfW: number, apex: number): Pt[] => [
+    P(-halfW, -39), P(-halfW * 0.86, apex * 0.72 - 10), P(0, apex), P(halfW * 0.86, apex * 0.72 - 10), P(halfW, -39),
+  ];
+
+  switch (theme) {
+    case 'ly': {                                   // dome, and a crest swept back and up off it
+      const d = domed(7, -47);
+      solid(d, T.crown, 0.9); stroke(d, seed + 42, 1.55, 0.85, true);
+      stroke([P(4.2, -45.4), P(9.4, -46.6), P(13.6, -52.4)], seed + 43, 2.1, 0.8);
+      break;
+    }
+    case 'tran': {                                 // dome, finial, and cheek flaps past the jaw
+      const d = domed(7, -47.5);
+      solid(d, T.crown, 0.9); stroke(d, seed + 42, 1.55, 0.85, true);
+      solid(ring(0, -49.2, 1.9, 7), colour, 0.9);
+      stroke([P(-6.9, -39), P(-7.6, -35.6), P(-7.8, -32.4)], seed + 43, 1.3, 0.8);
+      stroke([P(6.9, -39), P(7.6, -35.6), P(7.8, -32.4)], seed + 44, 1.3, 0.8);
+      break;
+    }
+    case 'le': {                                   // the helm gains a brim under the Later Lê
+      const d = domed(6, -47);
+      solid(d, T.crown, 0.9); stroke(d, seed + 42, 1.55, 0.85, true);
+      stroke([P(-10.6, -39.4), P(10.6, -39.4)], seed + 43, 1.4, 0.85);
+      break;
+    }
+    case 'nguyen': {                               // nón dấu — a shallow wide cone with a spike
+      const cone = [P(-9.4, -38.4), P(0, -51.4), P(9.4, -38.4)];
+      solid(cone, T.crown, 0.9); stroke(cone, seed + 42, 1.55, 0.85, true);
+      stroke([P(0, -51.4), P(0, -55.4)], seed + 43, 1.3, 0.85);
+      break;
+    }
+    case 'trinh': {                                // a tall dark fur cap
+      const cap = [P(-6, -39), P(-6.6, -49.6), P(0, -51.2), P(6.6, -49.6), P(6.6, -39)];
+      solid(cap, T.crown, 0.92); stroke(cap, seed + 42, 1.55, 0.85, true);
+      stroke([P(-6.3, -44.2), P(6.4, -44.2)], seed + 43, 1, 0.5);
+      break;
+    }
+    case 'nguyenLord':                             // bare-headed even when trained: hair and a bun
+      solid([P(-6, -38.6), P(-4, -42.2), P(0, -43.4), P(4, -42.2), P(6, -38.6)], colour, 0.9);
+      solid(ring(0, -44, 3.1, 8), colour, 0.9);
+      stroke([P(-5.9, -38.4), P(5.9, -38.8)], seed + 43, 1.1, 0.7);
+      break;
+    case 'tayson': {                               // khăn đóng — a soft wrap, knot at the side
+      const wrap = [P(-7.4, -39), P(-5, -45.6), P(0, -47), P(5, -45.6), P(7.4, -39)];
+      solid(wrap, T.crown, 0.9); stroke(wrap, seed + 42, 1.55, 0.85, true);
+      stroke([P(-6.3, -42.2), P(0, -44.2), P(6.3, -42.2)], seed + 43, 1, 0.7);
+      solid(ring(8, -42.8, 1.7, 7), colour, 0.9);
+      break;
+    }
+    case 'song': {                                 // a bowl under a wide upturned brim, and a plume
+      const d = domed(6, -46);
+      solid(d, T.crown, 0.9); stroke(d, seed + 42, 1.55, 0.85, true);
+      stroke([P(-11.6, -37.6), P(0, -42), P(11.6, -37.6)], seed + 43, 1.5, 0.85);
+      // Red in every source, and drawn in nâu: sỏi son is the player's banner, seal and losses,
+      // and the scarcity law outranks the reference.
+      stroke([P(0, -46), P(2.4, -50), P(-0.4, -54)], seed + 44, 2, 0.85);
+      break;
+    }
+    case 'yuan': {                                 // conical helm, finial, fur neck lappets
+      const cone = [P(-6, -39), P(0, -51.6), P(6, -39)];
+      solid(cone, T.crown, 0.9); stroke(cone, seed + 42, 1.55, 0.85, true);
+      solid(ring(0, -52.6, 1.6, 7), colour, 0.9);
+      stroke([P(-6, -39), P(-8.4, -35.6), P(-8.4, -30.8)], seed + 43, 2, 0.8);
+      stroke([P(6, -39), P(8.4, -35.6), P(8.4, -30.8)], seed + 44, 2, 0.8);
+      break;
+    }
+    case 'ming': {                                 // the wide flat rattan hat
+      const hat = [P(-12.6, -38.6), P(0, -46.8), P(12.6, -38.6)];
+      solid(hat, T.crown, 0.9); stroke(hat, seed + 42, 1.55, 0.85, true);
+      stroke([P(0, -46.8), P(0, -49.8)], seed + 43, 1.3, 0.85);
+      break;
+    }
+    case 'qing': {                                 // a tall spike and a tassel, the queue behind
+      const d = domed(5.6, -45.8);
+      solid(d, T.crown, 0.9); stroke(d, seed + 42, 1.55, 0.85, true);
+      stroke([P(0, -45.4), P(0, -56.4)], seed + 43, 1.3, 0.85);
+      stroke([P(0, -56.4), P(2.4, -54.4), P(1.5, -50.4)], seed + 44, 1.6, 0.8);
+      stroke([P(-5.4, -37.4), P(-9.8, -33), P(-10.4, -25.4)], seed + 45, 1.4, 0.8);
+      break;
+    }
+    case 'champa': {                               // the tall pointed crown of the reliefs
+      const crown = [P(-6, -39), P(-4.6, -47.6), P(0, -55), P(4.6, -47.6), P(6, -39)];
+      solid(crown, T.crown, 0.9); stroke(crown, seed + 42, 1.55, 0.85, true);
+      solid(ring(-6.7, -35.4, 1.3, 6), colour, 0.9);
+      solid(ring(6.7, -35.4, 1.3, 6), colour, 0.9);
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+/**
+ * Slot 5. Four arms, chosen so that no two disturb the block's outline in the same place — a
+ * shield on the left, a low diagonal at the waist, a curve out from the ribs, or the whole man
+ * raised onto a pony. At a mark's real size nothing looks like the weapon; what has to change is
+ * the shape of the block.
+ */
+function drawArm(
+  g: G, P: PointAt, ring: RingAt, stroke: StrokeAt, solid: SolidAt,
+  seed: number, T: ThemeSpec, arm: FigureArm | undefined, tier: FigureTier, colour: number,
+): void {
+  const shoulder = T.faction === 'champa' ? -29.4 : -30;
+
+  if (arm === 'spear') {
+    // The levy's billhook: held upright and close in, so a rank is not a picket fence of crossed
+    // shafts. The one arm the four below replace rather than join.
+    stroke([P(10.9, -6.6), P(11.6, -30), P(12.3, -62.4)], seed + 60, 2.4, 0.72);
+    return;
+  }
+
+  if (arm === 'sword' || arm === 'mounted') {
+    const hand = arm === 'mounted' ? -20 : -16.5;
+    stroke([P(5.6, shoulder + 1.4), P(8.4, hand + 1.5)], seed + 60, 1.5, 0.8);       // the arm
+    stroke([P(8.4, hand), P(11.4, hand - 10), P(11.8, hand - 19)], seed + 61, 1.8);  // đao
+    stroke([P(6.6, hand - 1.2), P(10.2, hand + 0.2)], seed + 62, 1.3, 0.8);          // the guard
+    if (arm === 'sword') {
+      // Cái khiên: wood with a rattan-bound edge, lacquered, a boss at the centre.
+      const face = T.faction === 'han' ? PIGMENT.chamPale : (T.faction === 'champa' ? PIGMENT.hoePale : PIGMENT.tramPale);
+      const shield = ring(-11.2, -22, 5.2, 10);
+      stroke([P(-5.8, shoulder + 1.4), P(-8.6, -23.6)], seed + 63, 1.5, 0.8);        // the shield arm
+      solid(shield, face, 0.92);
+      stroke(shield, seed + 64, 1.5, 0.85, true);
+      solid(ring(-11.2, -22, 1.4, 6), colour, 0.9);                                  // the umbo
+    }
+    return;
+  }
+
+  if (arm === 'skirmish') {
+    if (T.gun) {
+      // Súng hỏa mai — the matchlock, brought across the body. Hand-guns reach this row under the
+      // Later Lê and never leave it.
+      stroke([P(5.6, shoulder + 1.6), P(3.4, -24.6)], seed + 60, 1.5, 0.8);
+      stroke([P(-7.4, -18.2), P(12.6, -30)], seed + 61, 1.9);
+      stroke([P(-7.4, -18.2), P(-11, -16)], seed + 62, 2.6);                         // the stock
+      solid(ring(1.6, -24.6, 1, 6), colour, 0.9);                                    // the match
+    } else {
+      // Lao — the javelin, cocked to throw, and a spare at the belt.
+      stroke([P(5.6, shoulder + 1.4), P(8.6, -31)], seed + 60, 1.5, 0.8);
+      stroke([P(-8.6, -26.2), P(12.4, -32.2)], seed + 61, 1.5);
+      solid([P(12.4, -32.2), P(16.8, -33.8), P(13.2, -29.8)], colour, 0.9);
+      stroke([P(-8.2, -14), P(-4.6, -21.2)], seed + 62, 1.1, 0.7);
+    }
+    return;
+  }
+
+  if (arm === 'bow') {
+    stroke([P(5.6, shoulder + 1.4), P(8.8, -24)], seed + 60, 1.5, 0.8);              // the bow arm
+    stroke([P(9, -32.6), P(15.4, -23), P(9, -13.4)], seed + 61, 1.6);
+    stroke([P(9, -32.6), P(9, -13.4)], seed + 62, 0.7, 0.7);                         // the string
+    stroke([P(3.2, -23), P(13.8, -23)], seed + 63, 0.8, 0.7);                        // the arrow
+    if (tier > 0) stroke([P(-9.2, -24), P(-11.2, -20.4), P(-10.6, -16.2)], seed + 64, 1.6, 0.75);
+  }
+}
 /**
  * What a whole host is wearing and carrying.
  *
@@ -275,10 +618,14 @@ export function figure(g: G, x: number, y: number, scale: number, colour: number
  * mustered: bring bowmen and the block fills with bows.
  */
 export interface HostKit {
+  theme?: FigureTheme;
+  /** @deprecated The four-era name for `theme`. */
   era?: FigureEra;
   tier?: FigureTier;
   accent?: number;
   units?: { spearmen: number; archers: number; heavyInfantry: number };
+  /** How the host deploys. Read off `units` when absent — see `compositionFor`. */
+  composition?: ArmyComposition;
   /** The old boolean, kept so callers that only ever said "spears or not" still work. */
   spear?: boolean;
 }
@@ -302,15 +649,44 @@ export function figureEraFor(state: GameState): FigureEra {
   }
 }
 
+/**
+ * Which wardrobe a given host is dressed in.
+ *
+ * The player wears the run's rolled dynasty; a rival wears whichever power it was rolled as. Both
+ * fall back to the Mandate era, which is what every save made before the roll existed will do and
+ * what the modes without a Mandate track do for ever.
+ *
+ * This and `figureEraFor` are the **only** places the state → wardrobe mapping is written down, so
+ * the citadel and the host can never end up in different centuries.
+ */
+export function themeFor(state: GameState, army: Army): FigureTheme {
+  if (army.kingdomId === PLAYER_KINGDOM_ID) return state.muster?.dynasty ?? figureEraFor(state);
+  const kingdom = state.kingdoms.find((k) => k.id === army.kingdomId);
+  return kingdom?.wardrobe ?? figureEraFor(state);
+}
+
 /** What a host is wearing: its dynasty, its elite tier, its realm's colour, its real arms. */
 export function hostKitFor(state: GameState, army: Army): HostKit {
   return {
-    era: figureEraFor(state),
+    theme: themeFor(state, army),
     // levy → trained → royal guard, straight off the tier the barracks and the era already set.
     tier: Math.max(0, Math.min(2, army.isLevy ? 0 : (army.elite ?? 0) + 1)) as 0 | 1 | 2,
     accent: army.kingdomId === PLAYER_KINGDOM_ID ? PIGMENT.son : PIGMENT.mucSoft,
     units: army.units,
+    composition: compositionForArmy(state, army),
   };
+}
+
+/**
+ * Which doctrine a host deploys in: its own if it has one, otherwise its realm's standing one.
+ *
+ * The player's comes from the run's muster roll; a rival's from whatever it was rolled as. Neither
+ * is a balance lever — it decides the *shape of the formation*, nothing else.
+ */
+function compositionForArmy(state: GameState, army: Army): ArmyComposition | undefined {
+  if (army.composition) return army.composition;
+  if (army.kingdomId === PLAYER_KINGDOM_ID) return state.muster?.composition;
+  return state.kingdoms.find((k) => k.id === army.kingdomId)?.composition;
 }
 
 /**
@@ -346,7 +722,7 @@ export function drawHost(
   const armFor = (roll: number): FigureArm | undefined => {
     if (!mix) return kit.spear !== false && roll > 0.25 ? 'spear' : undefined;
     if (roll < bowShare) return 'bow';
-    if (roll < bowShare + heavyShare) return 'heavy';
+    if (roll < bowShare + heavyShare) return 'sword';
     // A quarter of the spearmen are drawn without one, so a block is not a picket fence.
     return roll > bowShare + heavyShare + (1 - bowShare - heavyShare) * 0.2 ? 'spear' : undefined;
   };
@@ -364,12 +740,250 @@ export function drawHost(
         y + rank * RANK_PITCH * s + (rand() - 0.5) * 0.3 * RANK_PITCH * s,
         s,
         colour,
-        { era: kit.era, tier: kit.tier, accent: kit.accent, arm: armFor(rand()) },
+        { theme: kit.theme ?? kit.era, tier: kit.tier, accent: kit.accent, arm: armFor(rand()) },
       );
       drawn += 1;
     }
   }
   return shape;
+}
+
+/**
+ * An army is not a block. It is four of them.
+ *
+ * One block with the weapon types sprinkled through it is a lie about how an army stood, and it
+ * throws away the only thing the arm slot is good for. Armies deployed **by arm**: a loose screen
+ * of skirmishers out in front to take the first volley and fall back through the line, the shield
+ * wall as the main body, the bows behind it shooting over, and the horse as a wing off the flank
+ * waiting for something to open.
+ *
+ * It costs nothing extra to draw — the same marks, arranged — and it buys three things a mixed
+ * block cannot: the doctrine reads at a glance, **which part of the army is dying** reads at a
+ * glance, and the shape of the formation says what it is *for*.
+ */
+export type FormationKey = 'screen' | 'line' | 'bows' | 'horse';
+
+interface FormationSlot {
+  arm: FigureArm;
+  /**
+   * Offsets are to the block's **centre**, in multiples of the block grid's own pitch — so the
+   * formation keeps its shape whatever `FILE_PITCH` is, and a block that gets wider gets wider in
+   * both directions instead of growing through its neighbour.
+   *
+   * `dx` runs toward the enemy, `dy` toward the viewer.
+   */
+  dx: number;
+  dy: number;
+  /** Some blocks stand looser than the line: a screen is not shoulder to shoulder. */
+  pitch: number;
+  rank: number;
+  /** Casualty order. The screen is spent first and the horse last. */
+  pri: number;
+}
+
+const FORMATION: Record<FormationKey, FormationSlot> = {
+  screen: { arm: 'skirmish', dx: 7.0, dy: -1.67, pitch: 1.44, rank: 1, pri: 0 },
+  line: { arm: 'sword', dx: 0, dy: 0, pitch: 1, rank: 1, pri: 1 },
+  bows: { arm: 'bow', dx: -6.63, dy: 2.5, pitch: 1, rank: 1, pri: 2 },
+  horse: { arm: 'mounted', dx: 1.125, dy: 7.17, pitch: 1.875, rank: 1.33, pri: 3 },
+};
+
+/** The order blocks are listed in — and, because `pri` follows it, the order they die in. */
+const FORMATION_ORDER: FormationKey[] = ['screen', 'line', 'bows', 'horse'];
+
+/**
+ * Each doctrine is the same army spent differently: `weight` is its share of the host's marks and
+ * `aspect` is how wide the block stands against how deep.
+ *
+ * The numbers are the ones drawn in `docs/12-armies-of-dai-viet.html`, which plates a 44-mark host
+ * — so at 44 marks this table reproduces that page file for file.
+ */
+const DOCTRINE: Record<ArmyComposition, Record<FormationKey, { weight: number; aspect: number }>> = {
+  balanced: {
+    screen: { weight: 5, aspect: 5 }, line: { weight: 21, aspect: 7 / 3 },
+    bows: { weight: 12, aspect: 3 }, horse: { weight: 6, aspect: 1.5 },
+  },
+  // Everything in the line: nine files and four ranks deep, a token screen, almost no shot and not
+  // one horse. A host that has decided to be an obstacle.
+  spears: {
+    screen: { weight: 3, aspect: 3 }, line: { weight: 36, aspect: 2.25 },
+    bows: { weight: 8, aspect: 2 }, horse: { weight: 0, aspect: 1.5 },
+  },
+  // The main body is at the back, behind a crust two ranks deep whose whole job is to keep anything
+  // off it. The weakness is visible without being written down.
+  archers: {
+    screen: { weight: 4, aspect: 4 }, line: { weight: 10, aspect: 2.5 },
+    bows: { weight: 27, aspect: 3 }, horse: { weight: 0, aspect: 1.5 },
+  },
+  // No screen at all and a real wing: it gives up the exchange before contact entirely in order to
+  // win the exchange at contact. The bare ground where every other doctrine has men is the tell.
+  shock: {
+    screen: { weight: 0, aspect: 4 }, line: { weight: 32, aspect: 2 },
+    bows: { weight: 3, aspect: 3 }, horse: { weight: 10, aspect: 2.5 },
+  },
+  // A wing this size is paid for out of the block that has to hold the ground while it manoeuvres,
+  // and the picture makes the trade legible.
+  horse: {
+    screen: { weight: 4, aspect: 4 }, line: { weight: 10, aspect: 2.5 },
+    bows: { weight: 8, aspect: 2 }, horse: { weight: 18, aspect: 2 },
+  },
+};
+
+/** One block of a formation, and where it stands in the army's own coordinates. */
+export interface FormationBlock {
+  key: FormationKey;
+  arm: FigureArm;
+  /** Casualty order: lowest is spent first. */
+  pri: number;
+  marks: number;
+  cols: number;
+  rows: number;
+  /** Top-left of the block — the same anchor `drawHost` takes. */
+  x: number;
+  y: number;
+  /** Distance between files and between ranks, for this block. */
+  pitch: number;
+  rankPitch: number;
+  /** Where its feet land, which is what the painting order sorts on. */
+  feet: number;
+}
+
+/** A whole army: its blocks, and the ground the lot of them stand on. */
+export interface ArmyShape {
+  blocks: FormationBlock[];
+  marks: number;
+  width: number;
+  height: number;
+  /** Extent in the army's own coordinates, so a caller can centre or footprint it. */
+  left: number;
+  top: number;
+}
+
+/**
+ * Which doctrine a host deploys in.
+ *
+ * An explicit `composition` wins. Failing that it is read off the host's real `units`, so an army
+ * that was mustered bow-heavy deploys as an archer host whether or not anybody labelled it one.
+ */
+export function compositionFor(kit: HostKit): ArmyComposition {
+  if (kit.composition) return kit.composition;
+  const mix = kit.units;
+  if (!mix) return 'balanced';
+  const total = Math.max(1, mix.spearmen + mix.archers + mix.heavyInfantry);
+  if (mix.archers / total >= 0.45) return 'archers';
+  if (mix.heavyInfantry / total >= 0.4) return 'shock';
+  if (mix.spearmen / total >= 0.7) return 'spears';
+  return 'balanced';
+}
+
+/**
+ * The formation a host of this many men fills at drawing scale `s`.
+ *
+ * The doctrine gives each block its *share* of the marks, not a fixed count, so a small host
+ * deploys the same shape as a large one rather than the same number of men.
+ */
+export function armyShape(men: number, composition: ArmyComposition, s = 1): ArmyShape {
+  const total = Math.max(4, Math.min(HOST_MARK_CAP, Math.round(men / MEN_PER_MARK)));
+  const plan = DOCTRINE[composition] ?? DOCTRINE.balanced;
+  const weightSum = FORMATION_ORDER.reduce((sum, key) => sum + plan[key].weight, 0) || 1;
+
+  // Hand out marks by share, then give the rounding remainder to the line — which is the block
+  // that should absorb it, and the one block every doctrine has.
+  const share: Record<FormationKey, number> = { screen: 0, line: 0, bows: 0, horse: 0 };
+  let handed = 0;
+  for (const key of FORMATION_ORDER) {
+    const n = plan[key].weight === 0 ? 0 : Math.round((total * plan[key].weight) / weightSum);
+    share[key] = n;
+    handed += n;
+  }
+  share.line = Math.max(1, share.line + (total - handed));
+
+  const pitch = FILE_PITCH * s;
+  const rankPitch = RANK_PITCH * s;
+  const blocks: FormationBlock[] = [];
+  let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
+
+  for (const key of FORMATION_ORDER) {
+    const marks = share[key];
+    if (marks <= 0) continue;
+    const slot = FORMATION[key];
+    const bp = pitch * slot.pitch;
+    const br = rankPitch * slot.rank;
+    const rows = Math.max(1, Math.round(Math.sqrt(marks / plan[key].aspect)));
+    const cols = Math.max(1, Math.ceil(marks / rows));
+    // Centre-anchored: the offset places the middle of the block, and the files grow either side.
+    const bx = slot.dx * pitch - ((cols - 1) * bp) / 2;
+    const by = slot.dy * rankPitch - ((rows - 1) * br) / 2;
+    const feet = by + (rows - 1) * br;
+    blocks.push({
+      key, arm: slot.arm, pri: slot.pri, marks, cols, rows,
+      x: bx, y: by, pitch: bp, rankPitch: br, feet,
+    });
+    left = Math.min(left, bx);
+    right = Math.max(right, bx + (cols - 1) * bp);
+    top = Math.min(top, by);
+    bottom = Math.max(bottom, feet);
+  }
+
+  // Painted bottom-up by ascending feet: whatever stands nearer the viewer is drawn last, or the
+  // rear ranks come out on top of the front line. (`setDepth` inside a container is a no-op.)
+  blocks.sort((a, b) => a.feet - b.feet);
+  return {
+    blocks, marks: total,
+    left, top, width: right - left, height: bottom - top,
+  };
+}
+
+/**
+ * Draws a whole army as its formation, anchored so that `x, y` is the **line's** centre-front —
+ * the same place a single block used to stand, so callers keep their anchoring.
+ *
+ * `rankTarget` is handed a running index across every block, so a caller that wants each rank in
+ * its own object (which is what lets a host move at all) gets one flat list back.
+ */
+export function drawArmy(
+  g: G,
+  x: number,
+  y: number,
+  men: number,
+  seed: number,
+  colour: number,
+  s = 1,
+  kit: HostKit = {},
+  rankTarget?: (index: number) => G,
+): ArmyShape {
+  const shape = armyShape(men, compositionFor(kit), s);
+  let index = 0;
+  for (const block of shape.blocks) {
+    const target = rankTarget ? (rank: number) => rankTarget(index + rank) : undefined;
+    drawBlock(g, x + block.x, y + block.y, block, seed + block.pri * 131, colour, s, kit, target);
+    index += block.rows;
+  }
+  return shape;
+}
+
+/** One block of the formation: `cols x rows` marks of a single arm, at that block's own pitch. */
+function drawBlock(
+  g: G, x: number, y: number, block: FormationBlock, seed: number, colour: number, s: number,
+  kit: HostKit, rankTarget?: (rank: number) => G,
+): void {
+  const rand = mulberry32(seed);
+  const shear = RANK_SHEAR * s;
+  let drawn = 0;
+  for (let rank = 0; rank < block.rows && drawn < block.marks; rank += 1) {
+    const target = rankTarget?.(rank) ?? g;
+    for (let file = 0; file < block.cols && drawn < block.marks; file += 1) {
+      figure(
+        target,
+        x + file * block.pitch + (rand() - 0.5) * 0.32 * block.pitch + rank * shear,
+        y + rank * block.rankPitch + (rand() - 0.5) * 0.3 * block.rankPitch,
+        s,
+        colour,
+        { theme: kit.theme ?? kit.era, tier: kit.tier, accent: kit.accent, arm: block.arm },
+      );
+      drawn += 1;
+    }
+  }
 }
 
 /**

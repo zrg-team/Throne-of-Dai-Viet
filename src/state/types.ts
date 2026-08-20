@@ -303,6 +303,10 @@ export interface Kingdom {
   stability?: number;
   /** Hero id seated as the player's ambassador here (standing opinion gain + intel). */
   ambassadorHeroId?: string;
+  /** Which power this realm is dressed as, rolled at muster. One of `ENEMY_WARDROBES`. */
+  wardrobe?: ArmyWardrobe;
+  /** How this realm deploys — its formation's shape. Rolled with the wardrobe. */
+  composition?: ArmyComposition;
   /** Sworn to the player. See `systems/ascent/VassalSystem`. */
   vassalage?: Vassalage;
   /** Cumulative years this empire has existed under its current identity (reset on rebirth). */
@@ -356,6 +360,13 @@ export interface Army {
   name: string;
   landId: string;
   units: UnitCounts;
+  /**
+   * How this host deploys — which shape its formation takes on the field.
+   *
+   * Purely how it is *drawn*: the blocks and their sizes. Absent on most hosts, in which case the
+   * realm's standing doctrine is used, and failing that the host's own `units` are read.
+   */
+  composition?: ArmyComposition;
   generalHeroId?: string;
   morale: number;
   supply: number;
@@ -704,7 +715,42 @@ export interface BuildOrder {
 
 /** An in-progress training order: a new army being assembled at `landId` over several ticks. */
 /** Chosen army composition doctrine — shapes the spearmen/archer/heavy mix (unit counters). */
-export type ArmyComposition = 'balanced' | 'spears' | 'archers' | 'shock';
+export type ArmyComposition = 'balanced' | 'spears' | 'archers' | 'shock' | 'horse';
+
+/**
+ * Which army a host is dressed and deployed as.
+ *
+ * Declared here rather than in the renderer because it is **run state**: it is rolled at muster,
+ * saved with the game and read back on load. `devices.ts` re-exports it as `FigureTheme` and does
+ * the drawing; nothing else needs to know the list.
+ *
+ * Seven Việt — the four on the Mandate ladder plus the three lord periods, which are what a rival
+ * Việt kingdom wears. Four northern, each paired to the era it historically came in. One Chăm.
+ */
+export type ArmyWardrobe =
+  | 'ly' | 'tran' | 'le' | 'trinh' | 'nguyenLord' | 'tayson' | 'nguyen'
+  | 'song' | 'yuan' | 'ming' | 'qing'
+  | 'champa';
+
+/** The five powers a rival can be drawn from. Chăm is the only one that is not northern. */
+export const ENEMY_WARDROBES = ['song', 'yuan', 'ming', 'qing', 'champa'] as const;
+
+/** The seven a Việt realm — the player's, or a rival lord's — can be dressed in. */
+export const VIET_WARDROBES = ['ly', 'tran', 'le', 'trinh', 'nguyenLord', 'tayson', 'nguyen'] as const;
+
+/**
+ * What this run's armies look like, rolled once at muster from the map seed.
+ *
+ * Rolled rather than earned so that two runs do not open on the same picture. The Mandate track
+ * still advances the **tier** — levy to trained to royal guard — and the settlements; what is
+ * chosen here is which dynasty's wardrobe that ladder is climbed in.
+ */
+export interface MusterRoll {
+  /** The player's dynasty, drawn from `VIET_WARDROBES`. */
+  dynasty: ArmyWardrobe;
+  /** The player's opening deployment. */
+  composition: ArmyComposition;
+}
 
 /** Pre-battle tactical plan — trades win chance against casualties. */
 export type BattleStance = 'assault' | 'balanced' | 'cautious';
@@ -1930,6 +1976,8 @@ export interface GameState {
   mapSettings: MapGenConfig & { neutralDistrictTarget: number };
   hexTiles: HexTile[];
   mapConfig: MapGenConfig;
+  /** This run's wardrobe roll. Absent on saves made before the roll existed. */
+  muster?: MusterRoll;
   lands: Land[];
   kingdoms: Kingdom[];
   armies: Army[];
