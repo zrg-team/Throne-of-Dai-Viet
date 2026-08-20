@@ -37,6 +37,9 @@ import { t } from '../i18n';
 import { MINIMAP_H, MINIMAP_W } from '../ui/MinimapRenderer';
 import { RENDER_SCALE, bakeScale, designPointer, lodDropsLabels, lodZoomThreshold } from '../game/graphicsQuality';
 
+/** How big a province's standard is drawn against the ground it stands on. See `drawFlags`. */
+const MAP_LAND_FLAG_SCALE = 0.55;
+
 /**
  * How far past the camera's edge an object still counts as visible.
  *
@@ -2023,6 +2026,18 @@ export class MapScene extends Phaser.Scene {
 
       const isCapital = land.type === 'castle';
       const marker = this.mapItems.createPlayerLandFlag(isCapital, this.state.mapConfig.seed);
+      // Sized to the ground it stands on, which it never was.
+      //
+      // `createPlayerLandFlag` draws 54 units from finial to base, and the map added it at its
+      // natural size — on a sheet where a five-metre house is 11.2 px and a soldier 8.2. A province
+      // marker was therefore **6.6 times a man's height and nearly five times a roof**, and it read
+      // as a tower rather than as a standard: the biggest thing in the province was the pin saying
+      // whose the province was.
+      //
+      // 0.55 puts it at ~30 px — taller than the dinh it flies beside, which is what a standard
+      // should be, and still the thing your eye finds first when you are looking for your own land.
+      // The host's own standard was already doing this properly at `FLAG_SCALE` 0.37.
+      marker.setScale(MAP_LAND_FLAG_SCALE);
       marker.setDepth(76);
       const anchor = this.getSettlementAnchor(land);
       // The capital used to pin to the land centroid while its walls stood on the fortress hexes,

@@ -15,19 +15,20 @@ for (const [lang, h] of [['vi', 844], ['vi', 620], ['en', 844]]) {
   await page.screenshot({ path: `test_scripts/shots/menu-${lang}-${h}.png` });
 
   // Reach the History page by clicking the real button, not by starting the scene.
-  const at = await page.evaluate(() => {
+  // Polled, not sampled once. The front page builds its diorama over a second or so and the
+  // button is not in `children.list` until it does — a single evaluate after a fixed wait reports
+  // "no History button on the menu" perhaps one run in six, which reads as a broken page.
+  const at = await page.waitForFunction(() => {
     const s = window.__phaserGame.scene.getScene('MenuScene');
     for (const c of s.children.list) {
       const label = c.list?.find?.((k) => k.type === 'Text');
       if (label && /Sử thật|Real History/.test(label.text)) {
-        // The label's own centre. The front page has been relaid since this was written and the
-        // button is 122 wide now, so corner-plus-141 lands on bare paper beside it.
         const m = label.getWorldTransformMatrix();
         return { x: m.tx, y: m.ty };
       }
     }
     return null;
-  });
+  }, null, { timeout: 15000 }).then((h) => h.jsonValue()).catch(() => null);
   if (!at) { console.log(`FAIL ${lang} h=${h}: no History button on the menu`); await page.close(); continue; }
   // Design units are CSS pixels here: RENDER_SCALE inflates gameSize and the camera zoom takes it
   // straight back out, so a world coordinate is already where the finger goes.

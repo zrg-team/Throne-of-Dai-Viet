@@ -41,7 +41,9 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
   // Reached by pressing the real button, not by starting the scene: a History page nothing can
   // navigate to is the failure this check exists for. Design units are CSS pixels here — the
   // render scale inflates the game size and the camera zoom takes it straight back out.
-  const button = await page.evaluate(() => {
+  // Polled, not sampled once: the front page builds over about a second and the button is not in
+  // `children.list` until it does.
+  const button = await page.waitForFunction(() => {
     const scene = window.__phaserGame.scene.getScene('MenuScene');
     for (const child of scene.children.list) {
       const label = child.list?.find?.((k) => k.type === 'Text');
@@ -54,7 +56,7 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
       }
     }
     return null;
-  });
+  }, null, { timeout: 15000 }).then((handle) => handle.jsonValue()).catch(() => null);
   if (!button) {
     fail(`${tag}  no History button on the front page`);
     await page.close();
@@ -105,7 +107,7 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
     // is written and silently presses the wrong thing ever after.
     const sections = await page.evaluate(() => {
       const scene = window.__phaserGame.scene.getScene('HistoryScene');
-      return scene.scroll.content.list
+      return (scene.scroll?.content.list ?? [])
         .filter((o) => o.getData?.('sectionKey') != null)
         .map((o) => {
           const m = o.getWorldTransformMatrix();
@@ -120,11 +122,11 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
     const listState = () => page.evaluate(() => {
       const scene = window.__phaserGame.scene.getScene('HistoryScene');
       return {
-        rows: scene.scroll.content.list.filter((o) => o.getData?.('rowKey') != null).length,
+        rows: (scene.scroll?.content.list ?? []).filter((o) => o.getData?.('rowKey') != null).length,
         open: scene.openSection[scene.tab],
         // Set by the stagger's setup rather than read off a live tween, so this asserts the
         // animation ran without racing a 170ms tween on a fast machine.
-        staggered: scene.scroll.content.list.some((o) => o.getData?.('sectionRevealed') === true),
+        staggered: (scene.scroll?.content.list ?? []).some((o) => o.getData?.('sectionRevealed') === true),
       };
     });
     // The first heading is the one each tab opens on and the list starts at the top, so it is the
@@ -133,12 +135,23 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
     const first = sections[0];
     const before = await listState();
     await page.mouse.click(first.x + 60, first.y + 12);
-    await page.waitForTimeout(320);
+    // Caught mid-fold. Shutting a section animates the rows that are already drawn and only
+    // rebuilds when they have gone, so for about two hundred milliseconds the page is still
+    // showing them — which is the whole point, and is invisible once it has finished.
+    await page.waitForTimeout(70);
+    const folding = await page.evaluate(() => {
+      const scene = window.__phaserGame.scene.getScene('HistoryScene');
+      return { closing: scene.closing, rows: (scene.scroll?.content.list ?? []).filter((o) => o.getData?.('rowKey') != null).length };
+    });
+    if (!folding.closing || folding.rows === 0) {
+      fail(`${tag}  ${tab}: shutting a section did not animate (closing=${folding.closing}, rows=${folding.rows})`);
+    }
+    await page.waitForTimeout(500);
     const shut = await listState();
     if (shut.open !== '') fail(`${tag}  ${tab}: pressing the open heading did not shut it (${shut.open})`);
     if (shut.rows >= before.rows) fail(`${tag}  ${tab}: shutting a section still drew ${shut.rows} rows`);
     await page.mouse.click(first.x + 60, first.y + 12);
-    await page.waitForTimeout(320);
+    await page.waitForTimeout(420);
     const reopened = await listState();
     if (reopened.open !== first.key) fail(`${tag}  ${tab}: the heading did not reopen (${reopened.open})`);
     else if (!reopened.staggered) fail(`${tag}  ${tab}: the reopened section's rows did not animate in`);
@@ -150,14 +163,14 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
     // the tap is proved directly above.
     const sweep = await page.evaluate(() => {
       const scene = window.__phaserGame.scene.getScene('HistoryScene');
-      const keys = scene.scroll.content.list
+      const keys = (scene.scroll?.content.list ?? [])
         .filter((o) => o.getData?.('sectionKey') != null)
         .map((o) => o.getData('sectionKey'));
       const seen = new Set();
       for (const key of keys) {
         scene.openSection[scene.tab] = key;
         scene.render();
-        for (const o of scene.scroll.content.list) {
+        for (const o of (scene.scroll?.content.list ?? [])) {
           const row = o.getData?.('rowKey');
           if (row != null) seen.add(row);
         }
@@ -177,7 +190,7 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
     // per-tab, so both can be forgotten per-tab.
     const row = await page.evaluate(() => {
       const scene = window.__phaserGame.scene.getScene('HistoryScene');
-      const card = scene.scroll.content.list.find((o) => o.getData?.('rowKey') != null);
+      const card = (scene.scroll?.content.list ?? []).find((o) => o.getData?.('rowKey') != null);
       if (!card) return null;
       const m = card.getWorldTransformMatrix();
       return { key: card.getData('rowKey'), x: m.tx, y: m.ty };
@@ -192,7 +205,7 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
       const scene = window.__phaserGame.scene.getScene('HistoryScene');
       return {
         expanded: scene.expanded ?? null,
-        revealed: scene.scroll.content.list.some((o) => o.getData?.('revealed') === true),
+        revealed: (scene.scroll?.content.list ?? []).some((o) => o.getData?.('revealed') === true),
       };
     });
     if (opened.expanded !== row.key) fail(`${tag}  ${tab}: tapping "${row.key}" opened ${opened.expanded}`);
@@ -213,7 +226,7 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
   await page.waitForTimeout(350);
   const afterDrag = await page.evaluate(() => {
     const scene = window.__phaserGame.scene.getScene('HistoryScene');
-    return { offset: -scene.scroll.content.y, expanded: scene.expanded ?? null };
+    return { offset: -(scene.scroll?.content.y ?? 0), expanded: scene.expanded ?? null };
   });
   if (afterDrag.offset <= 0) fail(`${tag}  dragging the list did not scroll it`);
   if (afterDrag.expanded) fail(`${tag}  dragging the list opened "${afterDrag.expanded}"`);
@@ -224,7 +237,7 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
     const scene = window.__phaserGame.scene.getScene('HistoryScene');
     const top = 108;
     const bottom = top + scene.listHeight();
-    for (const o of scene.scroll.content.list) {
+    for (const o of (scene.scroll?.content.list ?? [])) {
       if (o.getData?.('rowKey') == null) continue;
       const m = o.getWorldTransformMatrix();
       if (m.ty > top + 8 && m.ty < bottom - 30) return { x: m.tx, y: m.ty };
@@ -238,8 +251,8 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
     const scene = window.__phaserGame.scene.getScene('HistoryScene');
     // The opened card carries a tag set by the reveal tween's setup, so this asserts the animation
     // ran without racing a 170ms tween.
-    const revealed = scene.scroll.content.list.some((o) => o.getData?.('revealed') === true);
-    return { offset: -scene.scroll.content.y, expanded: scene.expanded ?? null, revealed };
+    const revealed = (scene.scroll?.content.list ?? []).some((o) => o.getData?.('revealed') === true);
+    return { offset: -(scene.scroll?.content.y ?? 0), expanded: scene.expanded ?? null, revealed };
   });
   if (!afterTap.expanded) fail(`${tag}  tapping a row did not open it`);
   if (!afterTap.revealed) fail(`${tag}  the opened row did not animate in`);

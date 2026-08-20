@@ -24,7 +24,14 @@ const MARKER_OFFSET_Y = -28;
 /** Where the general's face sits beside a standing host, relative to the marker's ground line. */
 const FACE_BADGE_X = 26;
 const FACE_BADGE_Y = -34;
-const FACE_BADGE_SIZE = 26;
+/**
+ * The general's portrait beside his host.
+ *
+ * 26 put a face three and a quarter times a soldier's height next to the men it belonged to, which
+ * on a map where a five-metre house is 11.2 px made the badge the largest thing in the province
+ * after the citadel. 19 still reads at a glance and stops competing with the host it labels.
+ */
+const FACE_BADGE_SIZE = 19;
 
 /** How long a host takes to settle onto its destination once the leg resolves. */
 const ARRIVE_MS = 320;

@@ -149,12 +149,19 @@ export class HistoryScene extends Phaser.Scene {
    * the answer to "what changed" — the rows arrive in reading order, from the heading downwards,
    * so the movement itself points at where to start.
    *
-   * Not set when a section is shut. Closing is a rebuild without those rows in it, and there is
-   * nothing left alive to animate out; a collapse would have to keep the old rows on the page and
-   * tween them away, which is a second copy of the list and a second source of truth about how
-   * tall it is.
+   * Not set when a section is shut — that is `collapseSection`'s job, and it runs on the rows that
+   * are still on the page rather than on the ones about to be built.
    */
   private revealSection?: string;
+  /**
+   * True while a section is folding away.
+   *
+   * The collapse animates the rows that are *already drawn* and only rebuilds when they have gone,
+   * so for those two hundred milliseconds the page is showing a layout that no longer matches
+   * `openSection`. A second tap in that window would animate a second collapse over the top of the
+   * first and rebuild twice; this makes the page ignore taps until it has caught up with itself.
+   */
+  private closing = false;
   private content: Phaser.GameObjects.GameObject[] = [];
   /**
    * Held separately because a scroll area is not a GameObject: it hangs four handlers off the
@@ -383,11 +390,15 @@ export class HistoryScene extends Phaser.Scene {
 
     skin.fillStyle(opts.open ? INK_UI.parchment : INK_UI.parchmentShade, 1);
     skin.fillRoundedRect(0, 0, width, height, 6);
-    skin.lineStyle(1, opts.open ? accent : INK_UI.parchmentDark, opts.open ? 0.8 : 1);
+    skin.lineStyle(1, INK_UI.parchmentDark, 1);
     skin.strokeRoundedRect(0, 0, width, height, 6);
     if (opts.open) {
       // A bar down the open side, so a reader scrolling inside a section can see which heading the
       // rows under their thumb belong to without going back up to read it.
+      //
+      // A bar and not a border. The open heading was outlined in son on all four sides and it read
+      // as an error state — the cards below it are outlined too, and the loudest thing on the page
+      // should be the entry you opened, not the drawer it came out of.
       skin.fillStyle(accent, 0.9);
       skin.fillRoundedRect(0, 6, 3, height - 12, 1.5);
     }
@@ -425,7 +436,18 @@ export class HistoryScene extends Phaser.Scene {
   }
 
   private toggleSection(key: string): void {
-    const opening = this.openSection[this.tab] !== key;
+    if (this.closing) {
+      return;
+    }
+    if (this.openSection[this.tab] === key) {
+      this.collapseSection(key);
+    } else {
+      this.applyToggle(key, true);
+    }
+  }
+
+  private applyToggle(key: string, opening: boolean): void {
+    this.closing = false;
     this.openSection[this.tab] = opening ? key : '';
     this.revealSection = opening ? key : undefined;
     // The open card may be inside the section that just shut. Left set, it would spring open again
@@ -433,6 +455,84 @@ export class HistoryScene extends Phaser.Scene {
     this.expanded = undefined;
     this.anchorSection = key;
     this.render();
+  }
+
+  /**
+   * Shutting a section, as a movement rather than as a cut.
+   *
+   * Opening got a stagger and closing did not, and the asymmetry was the more noticeable of the
+   * two: eight rows vanished between frames and everything below them jumped up by however tall
+   * they had been, so the eye had no way to tell "that section folded" from "the page reloaded".
+   *
+   * The trick is that the rebuild happens *last*. The rows that are on the page are the ones that
+   * animate — fade and settle a few units — while everything below them slides up by exactly the
+   * distance the rebuilt page will put it at, which is the next heading's own y minus the first
+   * row's. When the slide lands, the two layouts agree to the unit and `render` swaps one for the
+   * other with nothing moving. The alternative — rebuild first, then animate — needs the old rows
+   * kept alive alongside the new ones, which is two copies of the list and two answers to how tall
+   * it is.
+   */
+  private collapseSection(key: string): void {
+    const scroll = this.scroll;
+    const list = (scroll?.content.list ?? []) as Phaser.GameObjects.Container[];
+    const headerIndex = list.findIndex((item) => item.getData?.('sectionKey') === key);
+    if (headerIndex < 0) {
+      this.applyToggle(key, false);
+      return;
+    }
+    let nextIndex = list.length;
+    for (let i = headerIndex + 1; i < list.length; i += 1) {
+      if (list[i].getData?.('sectionKey') != null) {
+        nextIndex = i;
+        break;
+      }
+    }
+    const rows = list.slice(headerIndex + 1, nextIndex).filter((row) => typeof row.y === 'number');
+    // The timeline's rail is drawn behind everything at index 0 and belongs to no one section, so
+    // it cannot slide with the rest. It goes out with the fold and the rebuilt one comes back in.
+    const rail = list.find((item) => item.type === 'Graphics' && list.indexOf(item) === 0);
+    if (!rows.length) {
+      this.applyToggle(key, false);
+      return;
+    }
+
+    this.closing = true;
+    const top = Math.min(...rows.map((row) => row.y));
+    // Where the next heading is now, against where the rebuild will put it: exactly where the
+    // first row of this section starts, because that is what a shut section leaves behind.
+    const shift = nextIndex < list.length ? list[nextIndex].y - top : 0;
+    const below = list.slice(nextIndex).filter((item) => typeof item.y === 'number');
+
+    rows.forEach((row, index) => {
+      this.tweens.add({
+        targets: row,
+        alpha: 0,
+        y: row.y - 4,
+        duration: 130,
+        // Backwards, so the section folds towards its own heading rather than away from it.
+        delay: Math.min(rows.length - 1 - index, 5) * 14,
+        ease: 'Quad.easeIn',
+      });
+    });
+
+    if (rail && this.tab === 'dynasties') {
+      this.tweens.add({ targets: rail, alpha: 0, duration: 170, ease: 'Quad.easeIn' });
+    }
+
+    const done = (): void => this.applyToggle(key, false);
+    if (shift > 0 && below.length) {
+      this.tweens.add({
+        targets: below,
+        y: '-=' + shift,
+        duration: 210,
+        ease: 'Quad.easeInOut',
+        onComplete: done,
+      });
+    } else {
+      // Nothing underneath to close the gap — the last section on the tab. The fade is the whole
+      // animation, so the rebuild waits for it rather than for a slide that never happens.
+      this.time.delayedCall(150, done);
+    }
   }
 
   /**
@@ -578,7 +678,15 @@ export class HistoryScene extends Phaser.Scene {
       }
     }
 
-    scroll.content.addAt(this.drawTimelineRail(nodes), 0);
+    const rail = this.drawTimelineRail(nodes);
+    // The rail is redrawn from scratch every render, so a section fold would otherwise snap the
+    // line and its nodes to a new shape in one frame while the cards beside it were still moving.
+    // `anchorSection` is set exactly on the renders that follow a heading being pressed.
+    if (this.anchorSection) {
+      rail.setAlpha(0);
+      this.tweens.add({ targets: rail, alpha: 1, duration: 200, ease: 'Quad.easeOut' });
+    }
+    scroll.content.addAt(rail, 0);
     return y;
   }
 
@@ -1265,7 +1373,7 @@ ${historyText('army.formation.note')}`,
     const hit = this.add.rectangle(width / 2, height / 2, width, height, 0xffffff, 0.001)
       .setInteractive({ useHandCursor: true });
     hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-      if (scrollGestureConsumedTap(pointer)) {
+      if (scrollGestureConsumedTap(pointer) || this.closing) {
         return;
       }
       // A geometry mask hides pixels, not hit areas. Once the list has been scrolled, the rows that
@@ -1284,6 +1392,12 @@ ${historyText('army.formation.note')}`,
   }
 
   private clear(): void {
+    // Every tween on this page targets an object about to be destroyed — a collapse mid-flight, a
+    // stagger that has not finished arriving. Left running against dead objects they either throw
+    // or, worse, land a `y` on a recycled one.
+    this.tweens.killAll();
+    this.time.removeAllEvents();
+    this.closing = false;
     this.scroll?.destroy();
     this.scroll = undefined;
     for (const item of this.content) {

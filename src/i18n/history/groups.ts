@@ -109,7 +109,7 @@ export const groupsVi: HistoryCatalog = {
     'Chuyện chính sử không chép mà cả nước vẫn kể — và có hai chuyện về sau lưỡi cuốc đã đào lên được.',
   'groups.stories.world.title': 'Ngoài cõi',
   'groups.stories.world.note':
-    'Năm tích của Triều Tiên, Nhật Bản, La Mã, Byzantine và Chiêm Thành, giữ lại vì lối hành xử thì ở đâu cũng vậy, dù cái tên thì không.',
+    'Năm tích của Triều Tiên, Nhật Bản, La Mã, Đông La Mã và Chiêm Thành, giữ lại vì lối hành xử thì ở đâu cũng vậy, dù cái tên thì không.',
 
   'groups.terms.land.title': 'Nước, kinh đô và bờ cõi',
   'groups.terms.land.note':

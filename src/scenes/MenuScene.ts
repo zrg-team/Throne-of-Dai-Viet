@@ -432,7 +432,11 @@ export class MenuScene extends Phaser.Scene {
       // Planted on the outward side, so the cloth streams away from its own ranks rather than
       // across the front of them.
       flag.setPosition(host.player ? host.shape.width / 2 + 11 : -host.shape.width / 2 - 11, 3);
-      flag.setScale(host.player ? 0.78 : -0.78, 0.78);
+      // 0.57, not 0.78. The menu draws its men at `MENU_HOST_SCALE` 0.74 — a soldier 8.4 px tall —
+      // and a flag at 0.78 is 42 px finial to base, **five times his height**, which is why the
+      // banners were the loudest thing on a screen that is mostly buttons. This is the map's own
+      // `MAP_LAND_FLAG_SCALE` carried across, adjusted for the menu's slightly larger ground.
+      flag.setScale(host.player ? 0.57 : -0.57, 0.57);
       container.add(flag);
     }
 
@@ -1940,9 +1944,19 @@ function linkHost(link: string): string {
 const MENU_HOST_SCALE = 0.74;
 
 /** The herd in front of the near-bank village, in landscape design coordinates. */
+/**
+ * The herd, at the ground scale the rest of the diorama is drawn at.
+ *
+ * These were 1.05 and 0.85 while the hosts beside them were `MENU_HOST_SCALE` 0.74 — and the map
+ * itself passes `GROUND_SCALE` to the very same buffalo. A 1.5 m animal was therefore drawn 10 px
+ * tall next to an 8.4 px man, which is the one thing `verify-ground-scale` names outright: *a
+ * buffalo does not out-stand a soldier*. The menu is not covered by that harness, so it drifted.
+ *
+ * Kept as two different sizes, because a herd of identical animals is a pattern rather than a herd.
+ */
 const MENU_HERD: ReadonlyArray<{ x: number; y: number; scale: number; seed: number; rider: boolean }> = [
-  { x: 74, y: 424, scale: 1.05, seed: 5005, rider: true },
-  { x: 152, y: 410, scale: 0.85, seed: 5006, rider: false },
+  { x: 74, y: 424, scale: 0.76, seed: 5005, rider: true },
+  { x: 152, y: 410, scale: 0.61, seed: 5006, rider: false },
 ];
 
 /**
