@@ -1,8 +1,10 @@
 <div align="center">
 
-<img src="docs/readme/banner.webp" alt="Mandate of Đại Việt — the front page, the map, a champion draft, and a battle" width="100%">
+<img src="docs/readme/banner.webp" alt="Vạn Thắng — the front page, the map, a champion draft, and a battle" width="100%">
 
-# Mandate of Đại Việt
+# Vạn Thắng
+
+### *Ten Thousand Victories*
 
 ### Vietnamese history, played one-handed on a phone.
 
@@ -28,7 +30,7 @@ Every Vietnamese child grows up with the same stories: the boy who played war wi
 
 Outside Việt Nam almost nobody knows them. Inside, they arrive as paragraphs in a textbook.
 
-**Mandate of Đại Việt** is an attempt to make that history *playable* — to have Yết Kiêu the diver, Lê Lai's borrowed coat and the Temple of Literature turn up as decisions on your screen, in a game good enough that people play it for the game. It is written for the phone in your pocket, in both languages as equals, and it is free.
+**Vạn Thắng** is an attempt to make that history *playable* — to have Yết Kiêu the diver, Lê Lai's borrowed coat and the Temple of Literature turn up as decisions on your screen, in a game good enough that people play it for the game. It is written for the phone in your pocket, in both languages as equals, and it is free.
 
 ## 🐉 How it plays
 

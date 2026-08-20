@@ -20,7 +20,7 @@ export type CardIconId =
   | 'coin' | 'purse' | 'scroll' | 'blade' | 'shield' | 'banner'
   | 'hut' | 'ladder' | 'crown' | 'scales' | 'person' | 'grain'
   | 'herd' | 'cart' | 'branch' | 'retreat' | 'spark' | 'wall'
-  | 'hourglass' | 'skull' | 'cup' | 'hammer';
+  | 'hourglass' | 'skull' | 'cup' | 'hammer' | 'gear' | 'globe' | 'phone';
 
 /** Side of the square a glyph is drawn into, centred on the container's origin. */
 export const CARD_ICON_SIZE = 26;
@@ -227,6 +227,33 @@ export function drawCardIcon(
       g.fillTriangle(0, 11, 4, 2, -4, 2);
       g.fillTriangle(-11, 0, -2, 4, -2, -4);
       g.fillTriangle(11, 0, 2, 4, 2, -4);
+      break;
+
+    case 'globe':
+      // A meridian and an equator, and nothing else. Continents at 26 units are three grey blobs.
+      line(2); g.strokeCircle(0, 0, 10);
+      line(1.6);
+      g.lineBetween(-10, 0, 10, 0);
+      g.strokeEllipse(0, 0, 9, 20);
+      break;
+
+    case 'phone':
+      // Wider and heavier than a real handset's proportions. Drawn to scale it is a 6px-wide
+      // sliver beside a 20px globe, and the pair reads as one icon and one smudge.
+      line(2.4); g.strokeRoundedRect(-8, -10.5, 16, 21, 3.5);
+      line(1.6); g.lineBetween(-3, -7, 3, -7);
+      fill(); g.fillCircle(0, 7, 1.8);
+      break;
+
+    case 'gear':
+      // Eight spokes off a ring rather than a toothed outline: a real cog's teeth are a 1px
+      // sawtooth at this size and print as a fuzzy circle.
+      line(2); g.strokeCircle(0, 0, 5.5);
+      line(2.4);
+      for (let tooth = 0; tooth < 8; tooth += 1) {
+        const angle = (tooth / 8) * Math.PI * 2;
+        g.lineBetween(Math.cos(angle) * 7.5, Math.sin(angle) * 7.5, Math.cos(angle) * 11, Math.sin(angle) * 11);
+      }
       break;
 
     case 'hourglass':

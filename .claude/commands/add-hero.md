@@ -4,7 +4,7 @@ argument-hint: "[how many, or a description: \"3 Trần-era naval generals\"]"
 allowed-tools: Bash, Read, Edit, Write, Glob, Grep, Skill
 ---
 
-Add one or more champions to Mandate of Đại Việt. Request: `$ARGUMENTS`
+Add one or more champions to Vạn Thắng. Request: `$ARGUMENTS`
 
 Load the `game-heroes` skill first — it has the file order, the i18n invariant that takes the
 game down at import time, the wardrobe's era rules and the portrait design space. Follow it

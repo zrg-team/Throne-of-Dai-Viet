@@ -1,6 +1,6 @@
 ---
 name: game-heroes
-description: Add or change champions in Mandate of Đại Việt — the 104-template roster, the runtime name generator, the 125 real historical figures, the bio layer, the throne's ruler pool, and the layered SVG portrait system (heads, hair, headwear, garments, rank badges). Covers the exact files to touch in order, the i18n invariant that crashes the game at import time, the wardrobe's era rules, and how to prove a new champion actually renders. Use when adding heroes, writing bios, drawing a new hat or robe, or debugging a portrait.
+description: Add or change champions in Vạn Thắng — the 104-template roster, the runtime name generator, the 125 real historical figures, the bio layer, the throne's ruler pool, and the layered SVG portrait system (heads, hair, headwear, garments, rank badges). Covers the exact files to touch in order, the i18n invariant that crashes the game at import time, the wardrobe's era rules, and how to prove a new champion actually renders. Use when adding heroes, writing bios, drawing a new hat or robe, or debugging a portrait.
 ---
 
 # Adding a champion

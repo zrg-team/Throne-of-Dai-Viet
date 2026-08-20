@@ -1,6 +1,6 @@
 ---
 name: game-art-theme
-description: The graphics and theme system of Mandate of Đại Việt — the three swappable map themes and their renderer interfaces, the three-layer colour system (pigments → theme palettes → UI tokens), the procedural Đông Hồ ink aesthetic, hero portraits, fonts, graphics quality tiers, and the RenderTexture bake. Use when touching colours, drawing code, renderers, portraits, icons, UI chrome, or anything that changes how the game looks.
+description: The graphics and theme system of Vạn Thắng — the three swappable map themes and their renderer interfaces, the three-layer colour system (pigments → theme palettes → UI tokens), the procedural Đông Hồ ink aesthetic, hero portraits, fonts, graphics quality tiers, and the RenderTexture bake. Use when touching colours, drawing code, renderers, portraits, icons, UI chrome, or anything that changes how the game looks.
 ---
 
 # The look of Đại Việt

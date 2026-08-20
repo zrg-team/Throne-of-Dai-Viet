@@ -1,9 +1,9 @@
 ---
 name: game-dev
-description: Start here for any code change to Mandate of Đại Việt (this Phaser 3 + TypeScript grand-strategy game) — the build/verify gates, the dev-server dance, the design surface, the localization invariant that crashes the game at import time, and which of the deeper skills to load next. Use whenever editing src/, adding content, fixing a rendering or gameplay bug, or wiring a new screen.
+description: Start here for any code change to Vạn Thắng (this Phaser 3 + TypeScript grand-strategy game) — the build/verify gates, the dev-server dance, the design surface, the localization invariant that crashes the game at import time, and which of the deeper skills to load next. Use whenever editing src/, adding content, fixing a rendering or gameplay bug, or wiring a new screen.
 ---
 
-# Developing Mandate of Đại Việt
+# Developing Vạn Thắng
 
 A one-hand, portrait-phone grand strategy game. Vite + TypeScript + Phaser 3, no test
 framework — correctness is proven by driving the real game in a real browser (see
