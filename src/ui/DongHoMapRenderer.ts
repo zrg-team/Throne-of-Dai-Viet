@@ -10,6 +10,7 @@ import {
   type ReliefPlan,
 } from './ink/props';
 import { drawFieldPlot, paddyLattice } from './ink/settlements';
+import { fishStakes, heron, sampan, waterHyacinth } from './ink/props';
 import { traceRegionEdges, weldLoops } from '../map/boundary';
 import { MAP_SCALE, axialToPixel } from '../map/hex';
 import type { HexTile } from '../map/hexMapGenerator';
@@ -73,7 +74,9 @@ function groundFor(terrain: HexTerrainType): number | null {
   }
 }
 
-type PropKind = 'tree' | 'tuft' | 'bamboo' | 'banana' | 'areca' | 'banyan' | 'farmer';
+type PropKind = 'tree' | 'tuft' | 'bamboo' | 'banana' | 'areca' | 'banyan' | 'farmer'
+  // On the water. Kept out of `SCATTER`'s land entries — these are placed by `planWaterLife`.
+  | 'sampan' | 'fishStakes' | 'hyacinth' | 'heron';
 
 interface ScatterSpec {
   count: [number, number];
@@ -118,6 +121,10 @@ const SCATTER: Partial<Record<HexTerrainType, ScatterSpec>> = {
 
 /** Roughly how much ground each scattered thing needs to itself, in units of the world scale. */
 const FOOTPRINT: Record<PropKind, number> = {
+  sampan: 10,
+  fishStakes: 6,
+  hyacinth: 5,
+  heron: 4,
   tree: 11,
   banyan: 20,
   bamboo: 9,
@@ -185,7 +192,9 @@ export class DongHoMapRenderer implements MapRenderer {
     this.paintFields(graphics, visible, ctx);
 
     this.reliefPlan = this.planRanges(visible, ctx);
-    this.scatterPlan = this.planScatter(visible, ctx, tileSize);
+    // Water life joins the same plan, so a boat and the tree on the bank behind it sort together.
+    this.scatterPlan = [...this.planScatter(visible, ctx, tileSize), ...this.planWaterLife(visible, ctx)]
+      .sort((a, b) => a.y - b.y);
     this.groundPlan = visible.map((tile) => ({ ...ctx.centreOf(tile), terrain: tile.terrain }));
     this.scatterTileSize = tileSize;
     this.paintDecoration(decoration);
@@ -635,6 +644,73 @@ export class DongHoMapRenderer implements MapRenderer {
   }
 
   /**
+   * What is on the water.
+   *
+   * A separate pass from the land scatter, and it has to be: `planScatter` throws points up to
+   * 1.12 tile radii from a cell centre and then keeps everything *off* the water, which is exactly
+   * right for a tree and exactly wrong for a boat. These are placed inside their own cell instead,
+   * and only on water wide enough to carry them — a sampan drawn on a stream is a boat in a ditch.
+   *
+   * Returned in the same shape the land props use so both sort into one back-to-front order; a
+   * heron standing behind a boat has to be drawn behind it.
+   */
+  private planWaterLife(tiles: LandscapeContext['tiles'], ctx: LandscapeContext): ScatterItem[] {
+    const items: ScatterItem[] = [];
+    const rand = mulberry32(9311);
+    const wet = new Set<string>();
+    for (const tile of tiles) {
+      if (tile.terrain === 'water') {
+        wet.add(`${tile.coord.q},${tile.coord.r}`);
+      }
+    }
+    const neighbours: Array<[number, number]> = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
+
+    for (const tile of tiles) {
+      if (tile.terrain !== 'water') {
+        continue;
+      }
+      const kind = tile.waterKind ?? 'river';
+      const { q, r } = tile.coord;
+      const openness = neighbours.filter(([dq, dr]) => wet.has(`${q + dq},${r + dr}`)).length;
+      const centre = ctx.centreOf(tile);
+      const seed = (q * 7919 + r * 104729) % 100000;
+      const at = (spread: number) => ({
+        x: centre.x + (rand() - 0.5) * ctx.tileSize * spread,
+        y: centre.y + (rand() - 0.5) * ctx.tileSize * spread * 0.75,
+      });
+
+      // The sea gets nothing. It is scenery, not somewhere people work.
+      if (kind === 'sea') {
+        continue;
+      }
+
+      // One independent roll per kind, not a shared one down a chain of thresholds.
+      //
+      // Sharing it meant the first branch tested — the heron, which wants narrow water — took
+      // every low roll on exactly the cells a boat is most likely to be on, and the whole map came
+      // out with a single sampan on it.
+      const bank = openness <= 4;
+      if (bank && rand() < 0.12) {
+        items.push({ ...at(0.5), kind: 'heron', scale: 0.9 + rand() * 0.25, seed });
+      }
+      if (kind === 'stream') {
+        continue; // nothing floats on a stream, and stakes in one would be a fence
+      }
+      if (rand() < 0.18) {
+        items.push({ ...at(0.45), kind: 'sampan', scale: 0.9 + rand() * 0.3, seed: seed + 11 });
+      }
+      if (bank && rand() < 0.12) {
+        items.push({ ...at(0.5), kind: 'fishStakes', scale: 0.9 + rand() * 0.3, seed: seed + 23 });
+      }
+      if (rand() < 0.3) {
+        items.push({ ...at(0.65), kind: 'hyacinth', scale: 0.85 + rand() * 0.4, seed: seed + 37 });
+      }
+    }
+
+    return items;
+  }
+
+  /**
    * Decides where everything stands. One scatter over the whole map: points drift past their own
    * cell on purpose, and the lot comes back sorted back-to-front so overlap reads as depth rather
    * than as z-fighting.
@@ -779,6 +855,10 @@ export class DongHoMapRenderer implements MapRenderer {
       case 'areca': areca(graphics, item.x, item.y, s, item.seed); break;
       case 'banyan': banyan(graphics, item.x, item.y, s, item.seed); break;
       case 'farmer': farmer(graphics, item.x, item.y, s, item.seed); break;
+      case 'sampan': sampan(graphics, item.x, item.y, s, item.seed); break;
+      case 'fishStakes': fishStakes(graphics, item.x, item.y, s, item.seed); break;
+      case 'hyacinth': waterHyacinth(graphics, item.x, item.y, s, item.seed); break;
+      case 'heron': heron(graphics, item.x, item.y, s, item.seed); break;
       default: break;
     }
   }

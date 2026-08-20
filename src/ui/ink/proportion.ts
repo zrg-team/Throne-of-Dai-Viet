@@ -78,6 +78,16 @@ export const UNIT = {
   // pillars down to the ground. The correction comes down to match, so it still stands fourteen
   // metres and still lands at 31.2 px beside everything else.
   banyan: 1.303,
+  // ── On the water ──
+  //
+  // These get their own entries rather than borrowing `house` and `grassTuft`, which is what the
+  // first pass did — and `verify-ground-scale` caught it immediately, because a prop reporting
+  // itself as grass while drawn at half grass's size is exactly the "ground disagrees with itself"
+  // fault this table exists to prevent. Corrections measured with `_measure-props.mjs`.
+  sampan: 1.785,
+  fishStakes: 0.886,
+  waterHyacinth: 0.564,
+  heron: 0.337,
   /**
    * Grass keeps a nominal 0.9 m and takes **no** exaggeration.
    *
@@ -180,6 +190,12 @@ const METRES: Record<keyof typeof UNIT, number> = {
   house: 5, dinh: 8, thap: 16, hayStack: 3,
   tree: 8, bamboo: 8, banana: 4, areca: 10, banyan: 14,
   grassTuft: 0.9, figure: 1.7, farmer: 1.7, buffalo: 1.5,
+  // A sampan with a standing boatman is about as tall as the man; stakes stand a couple of metres
+  // clear of the water; a heron is a metre and is sized as an object rather than as livestock,
+  // because a bird standing in a river is scenery and not one of the actors; hyacinth is a mat on
+  // the surface and, like grass, its
+  // figure is a judgement about texture rather than a measurement.
+  sampan: 1.9, fishStakes: 2, waterHyacinth: 0.6, heron: 1,
 };
 
 /** Drawn height at `s = 1`, measured off each prop by `_measure-props.mjs`, not estimated. */
@@ -187,6 +203,7 @@ const DRAWN: Record<keyof typeof UNIT, number> = {
   house: 18.4, dinh: 29.7, thap: 49.4, hayStack: 26,
   tree: 17.3, bamboo: 44.6, banana: 18.6, areca: 34.1, banyan: 33.3,
   grassTuft: 6, figure: 6.6, farmer: 15.3, buffalo: 28.6,
+  sampan: 3.3, fishStakes: 7, waterHyacinth: 3.3, heron: 9.2,
 };
 
 /**

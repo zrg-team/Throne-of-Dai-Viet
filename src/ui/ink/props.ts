@@ -1383,6 +1383,127 @@ export function karstRange(
  * shoulder hump and a dip behind it; the legs bend and have hooves and the animal is **walking**;
  * the hide is near-black so the cream horns and the green lotus leaf carry all the colour.
  */
+// ── on the water ───────────────────────────────────────────────────────────
+//
+// A river with nothing on it is a coloured gap in the map. These are the four things you would
+// actually see on a channel in the delta, and the one thing you would see at its edge.
+
+/** Thuyền nan — a sampan. Shallow hull, one standing pole, drawn from the side like the prints. */
+export function sampan(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = unitScale('sampan', scale);
+  const rand = mulberry32(seed);
+  const length = (7 + rand() * 2) * s;
+  const rise = 1.9 * s;
+
+  // The hull: a flat sheer line with both ends lifted. One shape, no keel — these are basket boats
+  // and river craft, not sea-going hulls.
+  const hull: Pt[] = [
+    { x: x - length, y: y - rise * 0.5 },
+    { x: x - length * 0.55, y: y + rise * 0.35 },
+    { x: x + length * 0.55, y: y + rise * 0.35 },
+    { x: x + length, y: y - rise * 0.5 },
+  ];
+  washFill(g, hull, PIGMENT.nau, seed, 0.5);
+  inkPath(g, hull, seed, { width: 0.8 * s, alpha: 0.7, colour: PIGMENT.nauDark, wobble: 0.1 * s, step: 4 });
+
+  // A boatman, if there is one aboard. Just a pole and a stroke — at this size a figure is two
+  // marks, and two marks is all the prints give it either.
+  if (rand() < 0.7) {
+    const px = x + (rand() - 0.5) * length * 0.5;
+    inkPath(g, [{ x: px, y: y + rise * 0.2 }, { x: px + 0.4 * s, y: y - 5.5 * s }], seed + 3,
+      { width: 0.7 * s, alpha: 0.75, colour: PIGMENT.muc, wobble: 0.08 * s, step: 3 });
+    inkPath(g, [{ x: px + 2.4 * s, y: y - 5 * s }, { x: px - 1.6 * s, y: y + 0.4 * s }], seed + 5,
+      { width: 0.5 * s, alpha: 0.55, colour: PIGMENT.nauDark, wobble: 0.06 * s, step: 3 });
+  }
+}
+
+/** Đó / vó — fish-trap stakes driven into the bed. The oldest thing on any Vietnamese river. */
+export function fishStakes(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = unitScale('fishStakes', scale);
+  const rand = mulberry32(seed);
+  const count = 3 + Math.floor(rand() * 3);
+  for (let index = 0; index < count; index += 1) {
+    const ox = (index - (count - 1) / 2) * 1.9 * s + (rand() - 0.5) * 0.7 * s;
+    const height = (4.5 + rand() * 2.4) * s;
+    inkPath(g, [{ x: x + ox, y: y + 0.6 * s }, { x: x + ox + (rand() - 0.5) * 1.2 * s, y: y - height }], seed + index,
+      { width: 0.5 * s, alpha: 0.6, colour: PIGMENT.nauDark, wobble: 0.1 * s, step: 3 });
+  }
+  // The net slung between them, sketched as one sag.
+  const half = ((count - 1) / 2) * 1.9 * s;
+  inkPath(g, [
+    { x: x - half, y: y - 3.4 * s },
+    { x, y: y - 1.6 * s },
+    { x: x + half, y: y - 3.4 * s },
+  ], seed + 11, { width: 0.4 * s, alpha: 0.4, colour: PIGMENT.nauDark, wobble: 0.12 * s, step: 4 });
+}
+
+/** Bèo tây — water hyacinth. The mats of it are half of what a delta channel actually looks like. */
+export function waterHyacinth(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = unitScale('waterHyacinth', scale);
+  const rand = mulberry32(seed);
+  const palette = foliagePalette();
+  const pads = 3 + Math.floor(rand() * 3);
+  for (let index = 0; index < pads; index += 1) {
+    const ox = (rand() - 0.5) * 5.5 * s;
+    const oy = (rand() - 0.5) * 2.4 * s;
+    g.fillStyle(palette.foliage, 0.5);
+    g.fillEllipse(x + ox, y + oy, (2.6 + rand() * 1.4) * s, (1.5 + rand()) * s);
+  }
+}
+
+/** Cò — a heron, standing in the shallows. One leg, one neck, and it reads instantly. */
+export function heron(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = unitScale('heron', scale);
+  const rand = mulberry32(seed);
+  const lean = rand() < 0.5 ? -1 : 1;
+  // Legs down into the water.
+  inkPath(g, [{ x, y: y + 2.6 * s }, { x: x + 0.3 * s, y: y - 1.6 * s }], seed,
+    { width: 0.4 * s, alpha: 0.6, colour: PIGMENT.muc, wobble: 0.06 * s, step: 3 });
+  // Body.
+  g.fillStyle(PIGMENT.diepHi, 0.9);
+  g.fillEllipse(x + 0.3 * s, y - 3 * s, 3.4 * s, 2.1 * s);
+  inkPath(g, [
+    { x: x + 0.3 * s - 1.7 * s, y: y - 3 * s },
+    { x: x + 0.3 * s, y: y - 4.1 * s },
+    { x: x + 0.3 * s + 1.7 * s, y: y - 3 * s },
+  ], seed + 2, { width: 0.35 * s, alpha: 0.55, colour: PIGMENT.muc, wobble: 0.05 * s, step: 3 });
+  // Neck and bill — the S is the whole bird.
+  inkPath(g, [
+    { x: x + 0.3 * s + lean * 0.6 * s, y: y - 4.2 * s },
+    { x: x + 0.3 * s + lean * 1.6 * s, y: y - 6.2 * s },
+    { x: x + 0.3 * s + lean * 3.4 * s, y: y - 6.6 * s },
+  ], seed + 4, { width: 0.38 * s, alpha: 0.6, colour: PIGMENT.muc, wobble: 0.05 * s, step: 3 });
+}
+
+/**
+ * Bến nước — the water landing.
+ *
+ * Cây đa, bến nước, sân đình: banyan, water landing, communal-house yard. Those three name a
+ * village in the Vietnamese imagination, and this map already draws the other two. Steps down the
+ * bank and a post to tie up to; it belongs beside a settlement, not scattered at random.
+ */
+export function waterLanding(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = unitScale('house', scale) * 0.5;
+  const rand = mulberry32(seed);
+  const steps = 3;
+  for (let index = 0; index < steps; index += 1) {
+    const width = (5.5 - index * 1.1) * s;
+    const oy = y - index * 1.5 * s;
+    const slab: Pt[] = [
+      { x: x - width, y: oy },
+      { x: x + width, y: oy },
+      { x: x + width * 0.86, y: oy - 1.2 * s },
+      { x: x - width * 0.86, y: oy - 1.2 * s },
+    ];
+    washFill(g, slab, PIGMENT.diepLo, seed + index, 0.6);
+    inkPath(g, [...slab, slab[0]], seed + index * 3,
+      { width: 0.45 * s, alpha: 0.5, colour: PIGMENT.nauDark, wobble: 0.08 * s, step: 4 });
+  }
+  // The mooring post, leaning the way a used one does.
+  inkPath(g, [{ x: x + 6.2 * s, y: y + 0.8 * s }, { x: x + 6.8 * s + (rand() - 0.5) * s, y: y - 5.4 * s }], seed + 9,
+    { width: 0.7 * s, alpha: 0.65, colour: PIGMENT.nauDark, wobble: 0.1 * s, step: 3 });
+}
+
 export function buffalo(g: G, x: number, y: number, scale: number, seed: number, rider = false): void {
   const s = unitScale('buffalo', scale);
   const rand = mulberry32(seed);

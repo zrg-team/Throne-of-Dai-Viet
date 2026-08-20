@@ -27,7 +27,7 @@ const quiet = () => page.evaluate(() => {
   s.lands.forEach((l) => { l.isVisible = true; l.isExplored = true; });
   s.isPaused = true; s.activePoliticsCard = undefined; s.pendingCourtRequest = undefined; s.activeHeroDraft = undefined;
 });
-await page.evaluate((aim) => { window.__AIM = aim; }, process.env.AIM ?? '');
+await page.evaluate(({ aim, prop }) => { window.__AIM = aim; window.__PROP = prop; }, { aim: process.env.AIM ?? '', prop: process.env.PROP ?? 'sampan' });
 await quiet();
 await page.waitForTimeout(500);
 await page.evaluate(() => window.__phaserGame.scene.getScene('MapScene').drawMap());
@@ -40,7 +40,11 @@ await page.evaluate(() => {
   const vw = cam.width / cam.zoom, vh = cam.height / cam.zoom;
   const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
   let tx = sc.worldWidth / 2, ty = sc.worldHeight / 2;
-  if (window.__AIM === 'water') {
+  if (window.__AIM === 'prop') {
+    const plan = sc.mapRenderer.scatterPlan ?? [];
+    const target = plan.find((i) => i.kind === (window.__PROP ?? 'sampan'));
+    if (target) { tx = target.x; ty = target.y; }
+  } else if (window.__AIM === 'water') {
     const s = window.__mandateState;
     const inland = s.hexTiles.filter((t) => t.terrain === 'water' && t.waterKind && t.waterKind !== 'sea');
     const pick = inland[Math.floor(inland.length * 0.55)];
