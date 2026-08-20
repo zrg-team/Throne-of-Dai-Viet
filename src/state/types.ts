@@ -8,7 +8,10 @@ export type LandBuildingType =
   | 'farm' | 'mine' | 'market' | 'wall' | 'tower' | 'barracks' | 'communalHall'
   // Era-unlocked advanced districts (empire mode): new economic levers that only become
   // available as the realm advances, so later eras genuinely expand what you can build.
-  | 'harbor' | 'workshop' | 'guild' | 'university';
+  | 'harbor' | 'workshop' | 'guild' | 'university'
+  // Đê điều. Flood control was a function of the throne, not a village project, and it was paid
+  // for in conscripted labour — which is why this one costs people to keep rather than only gold.
+  | 'dike';
 
 /**
  * A province's economic focus. Chosen by the player to tilt a district hard toward one
@@ -83,6 +86,22 @@ export interface Land {
   buildings: LandBuildingInstance[];
   buildingCapacity: number;
   terrainSummary: TerrainSummary;
+  /**
+   * The province's water, told apart by kind.
+   *
+   * Deliberately here and not on `TerrainSummary`: `TERRAIN_MOVE_COST` in `movementConfig` is typed
+   * `Record<keyof TerrainSummary, number>` and `getLandMovementCost` averages over *every* entry,
+   * so a new field there is both a compile break and a silent skew of every march time in the game.
+   */
+  waterKinds: { river: number; stream: number; lake: number };
+  /** Dry hexes of this province that border open sea. A coast without a river is still a coast. */
+  coastHexes: number;
+  /**
+   * Can a hull reach the sea from here? True only for river-grade water whose body runs to the
+   * ocean — a stream is never navigable at any length, which is what keeps streams the safe water
+   * rather than the rich water.
+   */
+  navigable: boolean;
   outputs: ResourceBag;
   isVisible: boolean;
   isExplored: boolean;
@@ -98,6 +117,17 @@ export interface Land {
   /** Player-chosen economic focus for this province. Absent = 'balanced'. */
   specialization?: LandSpecialization;
   /**
+   * The year this province stops paying for its last flood. Absent = it has not flooded.
+   *
+   * Held as a deadline rather than applied as a one-off delta so the loss shows in the province's
+   * standing output all year — a hit the player can read off the panel beats one they cannot trace.
+   */
+  floodedUntilYear?: number;
+  /** Economy tick the dry season stops biting. Absent = no drought. */
+  droughtUntilTurn?: number;
+  /** Fertility left behind by past floods, and lost to a dike. See `HydrologySystem`. */
+  silt?: number;
+  /**
    * How far this province actually obeys the throne's standing law, 0–100 (empire/ascent only).
    *
    * Not the same thing as `loyalty`, and the difference is the point: loyalty is whether they want
@@ -112,7 +142,7 @@ export interface Land {
 }
 
 /** Authored land data before hex-map generation fills in position/adjacency. */
-export type LandTemplate = Omit<Land, 'x' | 'y' | 'neighbors' | 'buildingCapacity' | 'terrainSummary' | 'outputs' | 'isVisible' | 'isExplored' | 'population' | 'localSoldiers' | 'hasVillage' | 'trust'>;
+export type LandTemplate = Omit<Land, 'x' | 'y' | 'neighbors' | 'buildingCapacity' | 'terrainSummary' | 'waterKinds' | 'coastHexes' | 'navigable' | 'outputs' | 'isVisible' | 'isExplored' | 'population' | 'localSoldiers' | 'hasVillage' | 'trust'>;
 
 export type GameMode = 'rival' | 'campaign' | 'empire' | 'ascent';
 export type Difficulty = 'easy' | 'normal' | 'hard' | 'ironman';

@@ -1,0 +1,16 @@
+import { chromium } from 'playwright';
+const FILE = 'file:///' + process.argv[2].split(String.fromCharCode(92)).join('/');
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1000, height: 1100 }, deviceScaleFactor: 1 });
+await page.goto(FILE, { waitUntil: 'load' });
+await page.waitForTimeout(1000);
+const el = await page.$('.gen');
+await el.screenshot({ path: 'output/water-probe/doc/_gen-proposed.png' });
+await page.click('#btn-regions');
+await page.waitForTimeout(900);
+await el.screenshot({ path: 'output/water-probe/doc/_gen-regions.png' });
+await page.click('#btn-current');
+await page.waitForTimeout(700);
+await el.screenshot({ path: 'output/water-probe/doc/_gen-current.png' });
+console.log('ok');
+await browser.close();

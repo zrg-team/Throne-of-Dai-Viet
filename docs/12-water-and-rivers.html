@@ -1,0 +1,2222 @@
+<title>The Dry Map of Đại Việt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap">
+
+<style>
+  /* ── Tokens ────────────────────────────────────────────────────────────────
+     Every colour here is a pigment the game already grinds (src/ui/ink/palette.ts).
+     Điệp paper and mực nho in light; chàm indigo in dark — indigo being the
+     pigment this whole document is about. Sỏi son appears on exactly one class
+     of thing (the zeros), which is the art direction's own standing rule.      */
+  :root {
+    --paper:      #F3ECD8;
+    --paper-2:    #E9DFC2;
+    --paper-3:    #DED2B2;
+    --edge:       #CBBB93;
+    --edge-soft:  #DDCFAA;
+    --ink:        #2A2118;
+    --ink-2:      #5A4C39;
+    --ink-3:      #8C7E67;
+    --accent:     #42596B;
+    --accent-2:   #6E8798;
+    --accent-bg:  #DFE3E0;
+    --alarm:      #B33A26;
+    --alarm-bg:   #F0DCD3;
+    --leaf:       #5B6D45;
+    --gold:       #A2731F;
+    --shadow:     0 1px 0 rgba(42,33,24,.06), 0 10px 28px -18px rgba(42,33,24,.5);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #191F26;
+      --paper-2:    #202832;
+      --paper-3:    #2A343F;
+      --edge:       #3A4653;
+      --edge-soft:  #2E3945;
+      --ink:        #E6DDC7;
+      --ink-2:      #B3AB97;
+      --ink-3:      #857F70;
+      --accent:     #AFC0C7;
+      --accent-2:   #8FA5B2;
+      --accent-bg:  #232F3A;
+      --alarm:      #E09277;
+      --alarm-bg:   #35251F;
+      --leaf:       #9FB383;
+      --gold:       #D3AC63;
+      --shadow:     0 1px 0 rgba(0,0,0,.3), 0 10px 28px -18px rgba(0,0,0,.9);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #191F26;
+    --paper-2:    #202832;
+    --paper-3:    #2A343F;
+    --edge:       #3A4653;
+    --edge-soft:  #2E3945;
+    --ink:        #E6DDC7;
+    --ink-2:      #B3AB97;
+    --ink-3:      #857F70;
+    --accent:     #AFC0C7;
+    --accent-2:   #8FA5B2;
+    --accent-bg:  #232F3A;
+    --alarm:      #E09277;
+    --alarm-bg:   #35251F;
+    --leaf:       #9FB383;
+    --gold:       #D3AC63;
+    --shadow:     0 1px 0 rgba(0,0,0,.3), 0 10px 28px -18px rgba(0,0,0,.9);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 16.5px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 22px 96px; }
+  .col  { max-width: 66ch; }
+
+  h1, h2, h3, h4 {
+    font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+    text-wrap: balance;
+    margin: 0;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  h1 { font-size: clamp(2.5rem, 6.5vw, 4rem); line-height: 1.02; letter-spacing: -0.028em; font-weight: 700; }
+  h2 { font-size: clamp(1.6rem, 3.4vw, 2.1rem); line-height: 1.12; }
+  h3 { font-size: 1.22rem; line-height: 1.25; }
+  h4 { font-size: 1.02rem; line-height: 1.3; }
+
+  p { margin: 0 0 1.05em; }
+  a { color: var(--accent); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+  strong { font-weight: 600; }
+
+  code, .mono {
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    font-size: 0.855em;
+  }
+  code {
+    background: var(--paper-2);
+    border: 1px solid var(--edge-soft);
+    border-radius: 3px;
+    padding: 0.08em 0.34em;
+    word-break: break-word;
+  }
+
+  .eyebrow {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 0.9rem;
+  }
+
+  .rule { display: block; width: 100%; height: 9px; overflow: visible; color: var(--edge); }
+  .rule path { fill: none; stroke: currentColor; stroke-width: 1.1; stroke-linecap: round; }
+
+  /* ── Masthead ───────────────────────────────────────────────────────────── */
+  header.mast { padding: 64px 0 30px; }
+  .mast .lede {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-size: clamp(1.16rem, 2.4vw, 1.42rem);
+    line-height: 1.46;
+    color: var(--ink-2);
+    max-width: 46ch;
+    margin: 1.35rem 0 0;
+  }
+  .byline { margin-top: 1.6rem; font-size: 0.83rem; color: var(--ink-3); display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1px;
+    background: var(--edge-soft);
+    border: 1px solid var(--edge-soft);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 2.6rem 0 0;
+  }
+  .stat { background: var(--paper); padding: 15px 17px 16px; }
+  .stat .n {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-size: 2.05rem; font-weight: 700; line-height: 1;
+    font-variant-numeric: tabular-nums; display: block;
+  }
+  .stat .k { font-size: 0.775rem; color: var(--ink-3); margin-top: 7px; display: block; line-height: 1.35; }
+  .stat.zero .n { color: var(--alarm); }
+
+  section { padding: 54px 0 0; }
+  .sec-head { margin-bottom: 1.7rem; }
+  .sec-head h2 { margin-bottom: 0.55rem; }
+  .sec-head .sub { color: var(--ink-2); max-width: 60ch; margin: 0; }
+
+  /* ── Figures ────────────────────────────────────────────────────────────── */
+  .figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 22px; margin: 2rem 0 2.2rem; }
+  .figs.pair { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  figure { margin: 0; }
+  figure img { display: block; width: 100%; height: auto; border: 1px solid var(--edge); border-radius: 3px; background: var(--paper-2); }
+  figcaption { font-size: 0.83rem; color: var(--ink-2); margin-top: 0.65rem; line-height: 1.5; }
+  figcaption b { color: var(--ink); font-weight: 600; }
+  .figtag {
+    display: inline-block; font-size: 0.665rem; letter-spacing: 0.12em; text-transform: uppercase;
+    font-weight: 600; padding: 2px 7px; border-radius: 3px; margin-right: 0.5rem;
+    border: 1px solid currentColor;
+  }
+  .figtag.now { color: var(--alarm); }
+  .figtag.next { color: var(--leaf); }
+
+  /* ── Tables ─────────────────────────────────────────────────────────────── */
+  .tablewrap { overflow-x: auto; margin: 1.8rem 0 2rem; border: 1px solid var(--edge-soft); border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 560px; }
+  caption { caption-side: top; text-align: left; font-size: 0.83rem; color: var(--ink-3); padding: 12px 15px 10px; }
+  th, td { text-align: left; padding: 10px 15px; border-bottom: 1px solid var(--edge-soft); vertical-align: top; }
+  thead th {
+    font-size: 0.71rem; letter-spacing: 0.11em; text-transform: uppercase; color: var(--ink-3);
+    font-weight: 600; background: var(--paper-2); border-bottom: 1px solid var(--edge); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.num, th.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  td.z { color: var(--alarm); font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+  td.good { color: var(--leaf); font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+  td code { background: transparent; border: 0; padding: 0; color: var(--accent); }
+  .bar { height: 7px; border-radius: 2px; background: var(--accent-2); display: block; min-width: 2px; }
+
+  /* ── Callouts ───────────────────────────────────────────────────────────── */
+  .note { border-left: 2px solid var(--accent-2); background: var(--accent-bg); padding: 15px 19px; border-radius: 0 4px 4px 0; margin: 1.7rem 0; font-size: 0.94rem; }
+  .note p:last-child { margin-bottom: 0; }
+  .note.hot { border-left-color: var(--alarm); background: var(--alarm-bg); }
+  .note .tag { display: block; font-size: 0.68rem; letter-spacing: 0.15em; text-transform: uppercase; font-weight: 600; color: var(--ink-3); margin-bottom: 0.45rem; }
+
+  /* ── Cards ──────────────────────────────────────────────────────────────── */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(258px, 1fr)); gap: 18px; margin: 2rem 0; }
+  .card { background: var(--paper-2); border: 1px solid var(--edge-soft); border-radius: 5px; padding: 19px 20px 21px; box-shadow: var(--shadow); }
+  .card h4 { margin-bottom: 0.5rem; }
+  .card p { font-size: 0.915rem; margin-bottom: 0.75em; color: var(--ink-2); }
+  .card p:last-child { margin-bottom: 0; }
+  .card .vn { font-family: "Source Serif 4", Georgia, serif; font-style: italic; color: var(--accent); font-size: 0.94rem; }
+
+  /* ── The water-kind cards, colour-keyed to the map legend ───────────────── */
+  .kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(232px, 1fr)); gap: 16px; margin: 2rem 0; }
+  .kind { border: 1px solid var(--edge-soft); border-radius: 5px; overflow: hidden; background: var(--paper-2); }
+  .kind .swatch { height: 7px; display: block; }
+  .kind .body { padding: 16px 18px 18px; }
+  .kind h4 { margin-bottom: 0.15rem; }
+  .kind .vn { font-family: "Source Serif 4", Georgia, serif; font-style: italic; color: var(--ink-3); font-size: 0.88rem; display: block; margin-bottom: 0.7rem; }
+  .kind p { font-size: 0.885rem; color: var(--ink-2); margin-bottom: 0.7em; }
+  .kind ul { margin: 0; padding-left: 1.05em; font-size: 0.855rem; }
+  .kind li { margin-bottom: 0.28em; color: var(--ink-2); }
+  .kind li b { color: var(--ink); font-weight: 600; }
+
+  /* ── Generator preview ──────────────────────────────────────────────────── */
+  .gen { border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; margin: 2rem 0; background: var(--paper-2); }
+  .gen-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 13px 16px; border-bottom: 1px solid var(--edge-soft); background: var(--paper-3); }
+  .gen-bar .grp { display: flex; gap: 0; border: 1px solid var(--edge); border-radius: 4px; overflow: hidden; }
+  button {
+    font-family: inherit; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.02em;
+    padding: 7px 14px; border: 0; background: var(--paper); color: var(--ink-2);
+    cursor: pointer; transition: background .12s, color .12s;
+  }
+  button + button { border-left: 1px solid var(--edge); }
+  button:hover { background: var(--paper-2); color: var(--ink); }
+  button[aria-pressed="true"] { background: var(--accent); color: var(--paper); }
+  button.solo { border: 1px solid var(--edge); border-radius: 4px; }
+  .gen-bar .seedlbl { font-size: 0.78rem; color: var(--ink-3); font-variant-numeric: tabular-nums; margin-left: auto; }
+  .gen-canvas { display: block; width: 100%; height: auto; background: var(--paper); }
+  .gen-foot { padding: 13px 16px; border-top: 1px solid var(--edge-soft); font-size: 0.82rem; color: var(--ink-2); display: flex; flex-wrap: wrap; gap: 6px 18px; }
+  .gen-foot .m b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 11px 16px; border-top: 1px solid var(--edge-soft); font-size: 0.78rem; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 11px; height: 11px; border-radius: 2px; display: inline-block; }
+
+  /* ── Province panel mock-up, in the game's own card idiom ───────────────── */
+  .mocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 20px; margin: 2rem 0; }
+  .panel {
+    background: #EDE4CB; color: #2A2118;
+    border: 2px solid #2A2118; border-radius: 10px 12px 10px 13px;
+    padding: 0; overflow: hidden; box-shadow: var(--shadow);
+    font-size: 0.88rem;
+  }
+  :root[data-theme="dark"] .panel, :root:not([data-theme="light"]) .panel { }
+  .panel .ph { padding: 13px 16px 11px; border-bottom: 1.5px solid #2A2118; background: #E2D6B4; }
+  .panel .ph h4 { font-size: 1.05rem; margin: 0 0 2px; color: #2A2118; }
+  .panel .ph .meta { font-size: 0.76rem; color: #6B5C45; }
+  .panel .pb { padding: 13px 16px 15px; }
+  .panel .row { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px dotted #C3B48D; }
+  .panel .row:last-of-type { border-bottom: 0; }
+  .panel .row .lab { color: #6B5C45; }
+  .panel .row .val { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .panel .val .up { color: #4A6B36; }
+  .panel .val .dn { color: #A2331F; }
+  .panel .src { display: flex; flex-wrap: wrap; gap: 5px; margin: 3px 0 11px; }
+  .panel .src i {
+    font-style: normal; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.03em;
+    padding: 3px 8px; border-radius: 3px; border: 1px solid #2A2118; background: #F3ECD8;
+  }
+  .panel .warn { margin-top: 11px; padding: 8px 11px; border: 1.5px solid #A2331F; border-radius: 5px; background: #F2DED6; font-size: 0.79rem; color: #7D2A20; }
+  .panel .okline { margin-top: 11px; padding: 8px 11px; border: 1.5px solid #4A6B36; border-radius: 5px; background: #E1E7D2; font-size: 0.79rem; color: #3B5629; }
+  .panel .act { margin-top: 12px; display: flex; gap: 8px; }
+  .panel .act span {
+    flex: 1; text-align: center; font-size: 0.79rem; font-weight: 600; padding: 8px 6px;
+    border: 1.5px solid #2A2118; border-radius: 6px 7px 6px 8px; background: #DCCB9E;
+  }
+  .panel .act span.ghost { background: #F3ECD8; color: #6B5C45; }
+  .mockcap { font-size: 0.79rem; color: var(--ink-3); margin-top: 0.6rem; }
+
+  /* ── Monsoon strip ──────────────────────────────────────────────────────── */
+  .year { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1px; background: var(--edge-soft); border: 1px solid var(--edge-soft); border-radius: 5px; overflow: hidden; margin: 2rem 0; }
+  .season { background: var(--paper); padding: 16px 18px 18px; }
+  .season .s { font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; font-weight: 600; color: var(--accent); display: block; margin-bottom: 0.5rem; }
+  .season .lvl { height: 5px; border-radius: 3px; background: var(--accent-2); display: block; margin-bottom: 0.7rem; }
+  .season h4 { font-size: 0.97rem; margin-bottom: 0.35rem; }
+  .season p { font-size: 0.855rem; color: var(--ink-2); margin: 0; }
+
+  .prop { border-top: 1px solid var(--edge-soft); padding: 26px 0 4px; }
+  .prop:first-of-type { border-top: 0; }
+  .prop .lbl { font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; font-weight: 600; color: var(--accent); display: block; margin-bottom: 0.5rem; }
+  .prop h3 { margin-bottom: 0.6rem; }
+  .prop > p, .prop > ul { max-width: 66ch; }
+
+  ul, ol { margin: 0 0 1.1em; padding-left: 1.25em; }
+  li { margin-bottom: 0.42em; }
+  li::marker { color: var(--ink-3); }
+
+  .files { list-style: none; padding: 0; margin: 1.1rem 0 0; font-size: 0.875rem; display: grid; gap: 0.45rem; }
+  .files li { margin: 0; padding-left: 1.1rem; position: relative; color: var(--ink-2); }
+  .files li::before { content: ""; position: absolute; left: 0; top: 0.65em; width: 6px; height: 1px; background: var(--accent-2); }
+  .files code { color: var(--ink); }
+
+  .phases { display: grid; gap: 1px; background: var(--edge-soft); border: 1px solid var(--edge-soft); border-radius: 5px; overflow: hidden; margin: 2rem 0; }
+  .phase { background: var(--paper); padding: 20px 22px; display: grid; grid-template-columns: 62px 1fr; gap: 18px; align-items: start; }
+  .phase .p { font-family: "Source Serif 4", Georgia, serif; font-weight: 700; font-size: 1.02rem; color: var(--accent); padding-top: 1px; }
+  .phase h4 { margin-bottom: 0.4rem; }
+  .phase p { font-size: 0.915rem; color: var(--ink-2); margin-bottom: 0.55em; }
+  .phase p:last-child { margin-bottom: 0; }
+  .phase .unlocks { font-size: 0.85rem; color: var(--ink-3); }
+  .phase .unlocks b { color: var(--leaf); font-weight: 600; }
+
+  .chip { display: inline-block; font-size: 0.665rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; padding: 3px 8px; border-radius: 3px; border: 1px solid currentColor; vertical-align: 0.18em; margin-left: 0.6rem; }
+  .chip.meas { color: var(--leaf); }
+  .chip.prop { color: var(--accent-2); }
+
+  footer { margin-top: 66px; padding-top: 26px; border-top: 1px solid var(--edge-soft); font-size: 0.855rem; color: var(--ink-3); }
+  footer h4 { font-size: 0.92rem; margin-bottom: 0.7rem; color: var(--ink-2); }
+  footer ul { list-style: none; padding: 0; display: grid; gap: 0.35rem; }
+  footer li { margin: 0; }
+
+  @media (max-width: 560px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 17px 70px; }
+    header.mast { padding-top: 44px; }
+    .phase { grid-template-columns: 1fr; gap: 8px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation-duration: .001ms !important; transition-duration: .001ms !important; } }
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <p class="eyebrow">Map design · Mandate of Đại Việt</p>
+    <h1>The Dry Map of Đại Việt</h1>
+    <p class="lede">
+      The realm is a river country with one river, no lakes, no streams and no bridges — and
+      the water it does have is worth nothing to any province that touches it.
+    </p>
+    <div class="byline">
+      <span>Terrain, renderer and economy audit</span>
+      <span>Campaign mode · seeds 1337, 42, 7, 2024, 99</span>
+      <span>20 August 2026</span>
+      <span><strong>Shipped</strong> — this is now how the game generates and draws its water</span>
+    </div>
+
+    <div class="stats">
+      <div class="stat zero"><span class="n">0</span><span class="k">provinces that own a single water hex</span></div>
+      <div class="stat zero"><span class="n">1</span><span class="k">connected water body — no lakes, ever</span></div>
+      <div class="stat zero"><span class="n">7</span><span class="k">shipped mechanics that can never fire</span></div>
+      <div class="stat"><span class="n">28</span><span class="k">road crossings that now get a bridge</span></div>
+      <div class="stat"><span class="n">10/10</span><span class="k">on the ground-scale gate, 15/15 on smoke</span></div>
+      <div class="stat"><span class="n">26</span><span class="k">provinces with water after the fix, same seed</span></div>
+      <div class="stat"><span class="n">28</span><span class="k">provinces that could finally build a harbour</span></div>
+    </div>
+  </header>
+
+  <svg class="rule" viewBox="0 0 1000 9" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 5 C 60 3.4, 120 6.6, 180 4.8 S 300 3.2, 360 5.4 S 480 6.8, 540 4.4 S 660 3.6, 720 5.8 S 840 6.4, 900 4.6 S 970 5.2, 1000 4.9" />
+  </svg>
+
+  <!-- ══ 1. WHAT'S THERE ═══════════════════════════════════════════════════ -->
+  <section>
+    <div class="sec-head col">
+      <p class="eyebrow">The finding</p>
+      <h2>What the map has now<span class="chip meas">Measured</span></h2>
+      <p class="sub">
+        Driven in a real browser from <code>test_scripts/</code>, five seeds, campaign mode.
+        Every number below came out of the running game, not out of reading the source.
+      </p>
+    </div>
+
+    <div class="col">
+      <p>
+        The generator carves exactly one thing: a 92-step random walk called
+        <code>carveRiver</code>, one hex wide, that turns ±1 direction with 35% probability per step
+        and stops wherever it runs out of steps or falls off the grid. It has no source, no mouth,
+        no downhill and no width. On top of that, <code>applySeaBorders</code> floods a four-hex band
+        along one edge of the map.
+      </p>
+      <p>
+        Because the river is carved <em>before</em> the sea band and both write the same
+        <code>water</code> terrain, they merge. The live campaign map contains
+        <strong>one connected water body</strong> of 157 hexes. There is no second body — which is
+        to say there is not, and structurally cannot be, a lake anywhere in the game.
+      </p>
+    </div>
+
+    <div class="figs">
+      <figure>
+        <img src="readme/water-d-whole-map.webp" alt="The southern two thirds of the campaign map, fully revealed: roads, villages, mountains, woodland — and no water at all.">
+        <figcaption><span class="figtag now">Now</span><b>The realm below the river.</b> Fog lifted, everything drawn. Roads, hamlets, karst, woodland — and not one drop of water in the whole southern span.</figcaption>
+      </figure>
+      <figure>
+        <img src="readme/water-a-river-mid.webp" alt="The river at mid zoom: a narrow ribbon of pale blue whose banks are visibly a chain of hexagon edges.">
+        <figcaption><span class="figtag now">Now</span><b>The river as a chain of hexagons.</b> The bank is inked one hex edge at a time, so at any real zoom you can count the tiles.</figcaption>
+      </figure>
+      <figure>
+        <img src="readme/water-c-settled-ground.webp" alt="The river running past a settled province: same pale wash, horizontal tick marks, no boats or bridges.">
+        <figcaption><span class="figtag now">Now</span><b>Where it meets the country.</b> Nothing crosses it, nothing floats on it, nothing lands at it — and the flow ticks run east–west while the channel runs north–south.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <svg class="rule" viewBox="0 0 1000 9" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 4.6 C 70 6.2, 140 3.5, 210 5.1 S 330 6.5, 400 4.2 S 520 3.4, 590 5.6 S 710 6.7, 780 4.4 S 930 3.9, 1000 5.3" />
+  </svg>
+
+  <!-- ══ 2. THE ZERO ═══════════════════════════════════════════════════════ -->
+  <section>
+    <div class="sec-head col">
+      <p class="eyebrow">The root cause</p>
+      <h2>Every province owns zero water<span class="chip meas">Measured</span></h2>
+      <p class="sub">
+        One line of generator behaviour makes <code>TerrainSummary.water</code> a field that can only
+        ever hold 0. Seven shipped mechanics read that field.
+      </p>
+    </div>
+
+    <div class="col">
+      <p>
+        A province's terrain is counted in <code>GameState.ts</code> with a single loop:
+        <code>if (tile.landId === template.id) summary[tile.terrain] += 1</code>. Water hexes never
+        receive a <code>landId</code>, so that branch never fires for them. The counter is correct;
+        the input can never contain water. Confirmed on all 42 provinces across every seed tested.
+      </p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <caption>What reads <code>terrainSummary.water</code>, and what it therefore always computes</caption>
+        <thead>
+          <tr><th>Site</th><th>Written intent</th><th class="num">Actual</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>ResourceSystem</code> · harbour gate</td><td>Harbour needs a coastal or river tile</td><td class="z">unbuildable, all 42</td></tr>
+          <tr><td><code>ResourceSystem</code> · <code>waterBonus</code></td><td><code>min(4, water × 1.2)</code> food on every producer</td><td class="z">0.0</td></tr>
+          <tr><td><code>ResourceSystem</code> · <code>harborWater</code></td><td>Harbour supplies ride the local water bonus</td><td class="z">0.0</td></tr>
+          <tr><td><code>getLandAptitude</code> · <code>wet</code></td><td>+0.35 breadbasket, +0.45 trade — “irrigation is what makes a delta”</td><td class="z">0.00</td></tr>
+          <tr><td><code>WarSystem</code> · <code>terrainDefenseMultiplier</code></td><td>Rivers favour the defender, <code>water × 0.7</code></td><td class="z">0.0</td></tr>
+          <tr><td><code>movementConfig</code> · <code>TERRAIN_MOVE_COST.water</code></td><td>2.2 — the slowest ground in the game</td><td class="z">never averaged</td></tr>
+          <tr><td><code>GameState</code> · <code>buildingCapacity</code></td><td><code>(hexes − water) / 7</code> — don't count the wet part</td><td class="z">no-op subtraction</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note hot col">
+      <span class="tag">The sharpest edge</span>
+      <p>
+        <strong>The harbour cannot be built.</strong> Not in campaign, not in empire, not in ascent,
+        not on any seed. It has a cost, an upkeep, an output of 7 gold and 5 supplies, an era gate,
+        a label in both language catalogs, and a refusal string — <em>“Needs a coastal or river
+        tile”</em> — that no province in the game can ever satisfy.
+      </p>
+    </div>
+
+    <div class="col">
+      <p style="margin-top:1.6rem">
+        Three more things exist only as names: <strong>River Marines</strong>
+        (<em>Thủy Binh Sông</em>) is a unit with a speed of 0.9 and no river behaviour of any kind;
+        <strong>bridge, ford, ferry, lake, stream, delta and estuary</strong> return zero grep hits
+        across all of <code>src/</code>; and the river <strong>severs nothing</strong>, because the
+        walk stops mid-map, so the land graph stays a single connected component of 42 and provinces
+        simply route around its end.
+      </p>
+    </div>
+  </section>
+
+  <svg class="rule" viewBox="0 0 1000 9" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 5.4 C 80 3.8, 150 6.3, 220 4.7 S 340 3.3, 410 5.7 S 530 6.6, 600 4.3 S 720 3.7, 790 5.9 S 940 6.1, 1000 4.5" />
+  </svg>
+
+  <!-- ══ 3. THE EXPECTED MAP ═══════════════════════════════════════════════ -->
+  <section>
+    <div class="sec-head col">
+      <p class="eyebrow">The expected map</p>
+      <h2>A realm that drains<span class="chip meas">Built and measured</span></h2>
+      <p class="sub">
+        The proposed generator is written and running. It reimplements the shipped pipeline exactly —
+        at the live map seed it reproduces the real game's numbers to the tile — then replaces the
+        one random walk with a drainage system.
+      </p>
+    </div>
+
+    <div class="col">
+      <p>
+        A course now starts on high ground, runs downhill, gathers flow as it goes, pools into a
+        <strong>lake</strong> where it stalls in a basin, takes <strong>tributaries</strong>, widens
+        from <strong>stream</strong> to <strong>river</strong> as its flow accumulates, and ends in
+        the sea as a <strong>delta</strong>. Inland water is claimed by the province it runs through,
+        so <code>terrainSummary.water</code> stops being structurally zero.
+      </p>
+    </div>
+
+    <div class="figs pair">
+      <figure>
+        <img src="readme/water-d-current-wide.webp" alt="The current generator at this framing: a sea band and one river stub, everything else dry.">
+        <figcaption><span class="figtag now">Now</span><b>The same ground today.</b> Live map seed, fog lifted, camera centred on the realm. A sea inlet top-left, one short river stub, and nothing else wet in the whole frame.</figcaption>
+      </figure>
+      <figure>
+        <img src="readme/water-ship-wide.webp" alt="The proposed map: the same region with a trunk river widening downstream, tributaries, and a lake.">
+        <figcaption><span class="figtag next">Proposed</span><b>The realm as it now generates.</b> No injection and no swapped layer — this is the shipped generator, drawn by the shipped renderer. A trunk river runs the length of the frame with tributaries feeding it, sampans on the water, bridges where the roads cross, and a bank that is one inked line rather than a chain of hexagons.</figcaption>
+      </figure>
+    </div>
+
+    <div class="note col">
+      <span class="tag">How that picture was made</span>
+      <p>
+        The proposed hydrology was computed offline and painted onto the running game's
+        <code>hexTiles</code>, then redrawn by the actual Đông Hồ renderer. So the shapes are real
+        output, not an illustration — but the <em>paint</em> is still today's: every kind of water is
+        the same pigment, the banks are still hex edges, and the flow ticks still run horizontally.
+        That is what the art direction section fixes.
+      </p>
+    </div>
+
+    <h3 style="margin:2.4rem 0 0.3rem">Run it yourself</h3>
+    <p class="col" style="margin-bottom:1.2rem">
+      This is the same generator, compiled into the page. Switch between the two pipelines and reseed
+      to see how the drainage varies — the schematic colours each water kind separately, which the
+      game's renderer does not yet do.
+    </p>
+
+    <div class="gen">
+      <div class="gen-bar">
+        <div class="grp" role="group" aria-label="Generator">
+          <button id="btn-current" aria-pressed="false">Current</button>
+          <button id="btn-proposed" aria-pressed="true">Proposed</button>
+          <button id="btn-regions" aria-pressed="false">Regions</button>
+        </div>
+        <button class="solo" id="btn-seed">New seed</button>
+        <span class="seedlbl">seed <span id="seedval">—</span></span>
+      </div>
+      <canvas class="gen-canvas" id="gen-canvas" width="1160" height="980" role="img" aria-label="Generated hex map preview showing sea, rivers, streams and lakes"></canvas>
+      <div class="legend">
+        <span><i style="background:#AEC2CA"></i> sea</span>
+        <span><i style="background:#7E9AAA"></i> river</span>
+        <span><i style="background:#C2D2D8"></i> stream</span>
+        <span><i style="background:#5B7C8E"></i> lake</span>
+        <span><i style="background:#D9CDA6"></i> plains</span>
+        <span><i style="background:#BFC9A4"></i> forest / crop</span>
+        <span><i style="background:#C8BA96"></i> hills</span>
+        <span><i style="background:#B5A684"></i> mountains</span>
+        <span id="legend-regions" hidden><i style="background:#2A2118"></i> bridge site that would rejoin two regions</span>
+      </div>
+      <div class="gen-foot" id="gen-foot"></div>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <caption>Both pipelines. “Prov. with water” is the number the whole audit turns on; the last column is the drainage check.</caption>
+        <thead>
+          <tr>
+            <th>Pipeline</th><th class="num">Water</th><th class="num">Share</th>
+            <th class="num">Lakes</th><th class="num">Streams</th>
+            <th class="num">Prov. with water</th><th class="num">Can build harbour</th><th class="num">No outlet to sea</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Current</strong> · seed 1337</td><td class="num">126</td><td class="num">8.1%</td><td class="z">0</td><td class="z">0</td><td class="z">0 / 42</td><td class="num">6</td><td class="num">1</td></tr>
+          <tr><td><strong>Current</strong> · seed 42</td><td class="num">204</td><td class="num">13.1%</td><td class="z">0</td><td class="z">0</td><td class="z">0 / 42</td><td class="num">5</td><td class="num">1</td></tr>
+          <tr><td><strong>Current</strong> · seed 7</td><td class="num">121</td><td class="num">7.8%</td><td class="z">0</td><td class="z">0</td><td class="z">0 / 42</td><td class="num">4</td><td class="num">0</td></tr>
+          <tr><td><strong>Current</strong> · live map</td><td class="num">157</td><td class="num">10.1%</td><td class="z">0</td><td class="z">0</td><td class="z">0 / 42</td><td class="num">6</td><td class="num">0</td></tr>
+          <tr style="border-top:2px solid var(--edge)"><td><strong>Proposed</strong> · seed 1337</td><td class="num">280</td><td class="num">17.9%</td><td class="good">2</td><td class="good">23</td><td class="good">32 / 42</td><td class="good">33</td><td class="good">0</td></tr>
+          <tr><td><strong>Proposed</strong> · seed 42</td><td class="num">310</td><td class="num">19.9%</td><td class="good">2</td><td class="good">29</td><td class="good">30 / 42</td><td class="good">31</td><td class="good">0</td></tr>
+          <tr><td><strong>Proposed</strong> · seed 7</td><td class="num">270</td><td class="num">17.3%</td><td class="good">4</td><td class="good">28</td><td class="good">25 / 42</td><td class="good">27</td><td class="good">0</td></tr>
+          <tr><td><strong>Proposed</strong> · live map</td><td class="num">274</td><td class="num">17.6%</td><td class="good">3</td><td class="good">28</td><td class="good">26 / 42</td><td class="good">28</td><td class="good">0</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note col">
+      <span class="tag">The drainage guarantee</span>
+      <p>
+        The first version of this generator still produced watercourses that stopped in a field —
+        the same fault in a nicer shape. So after carving, every body of water that does not reach
+        the sea has an outlet cut for it along the sea-distance gradient. On all five seeds the
+        result is <strong>one connected network with zero bodies lacking an outlet</strong>: every
+        drop of water on the map drains somewhere, which is what makes it read as a country rather
+        than as decoration.
+      </p>
+      <p style="margin-top:.7em">
+        Water sits at 17–20% of the sheet against today's 8–13%. That is one constant away from
+        whatever density you want — the widening probability and the trunk count are the two dials.
+      </p>
+    </div>
+
+    <div class="note col">
+      <span class="tag">Validation</span>
+      <p>
+        Run against the live map's own seed, the prototype's <em>current</em> pipeline reproduces the
+        real game exactly: 157 water hexes, one body, zero lakes, 0 of 42 provinces owning water,
+        157 unclaimed tiles. That match is what makes the proposed column worth reading.
+      </p>
+    </div>
+  </section>
+
+  <svg class="rule" viewBox="0 0 1000 9" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 4.8 C 65 6.4, 135 3.6, 205 5.2 S 325 6.7, 395 4.1 S 515 3.5, 585 5.8 S 705 6.3, 775 4.7 S 925 5.9, 1000 4.4" />
+  </svg>
+
+
+
+  <svg class="rule" viewBox="0 0 1000 9" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 4.7 C 68 6.3, 132 3.7, 202 5.4 S 324 6.6, 392 4.2 S 512 3.5, 582 5.8 S 704 6.4, 772 4.6 S 928 5.6, 1000 4.8" />
+  </svg>
+
+  <section>
+    <div class="sec-head col">
+      <p class="eyebrow">The renderer</p>
+      <h2>Nothing should be standing in the river<span class="chip meas">Fixed</span></h2>
+      <p class="sub">
+        The first renders showed trees growing out of the water and limestone massifs lying across
+        it. That was not the new hydrology's doing — it is a shipped fault the new hydrology dragged
+        into the light. It is now fixed, and the numbers below are before and after.
+      </p>
+    </div>
+
+    <div class="col">
+      <p>
+        <strong>Four independent layers put things in the water, and each had to be fixed on its
+        own terms.</strong> Three of them made the same mistake in different clothes: they tested
+        where a thing was <em>anchored</em>, when what matters is where it is <em>drawn</em>.
+      </p>
+      <ul>
+        <li>
+          <strong>Scatter drift.</strong> A prop is placed at
+          <code>distance = √rand × tileSize × 1.12</code> from its own cell centre — but a hex's
+          inradius is only <code>0.866</code> tile radii. So <strong>roughly 40% of every prop on
+          the map lands outside the cell that spawned it.</strong> That is deliberate: it is what
+          stops the scatter reading as a grid. The problem is the guard list. <code>keepClear</code>
+          protects fortress plazas, shrines and mountain faces — <em>“the rock keeps its own
+          ground”</em> — and nobody ever added water to it.
+        </li>
+        <li>
+          <strong>Ranges bleed by design.</strong> <code>planRanges</code> merges a run of hill or
+          mountain cells into one massif that spans the whole run and deliberately bleeds past its
+          cells. It never consults water, so a range whose run ends at a bank simply carries on
+          across the channel.
+        </li>
+        <li>
+          <strong>The paddy lattice keeps a plot wherever paddy is <em>near</em>.</strong> One
+          wandering lattice is drawn across the whole map and thinned to where the ground beneath is
+          paddy — which is what makes the field system end raggedly like a real delta instead of one
+          field per tile. But a paddy cell one hex inland is still within reach of open water, so
+          the bunded plots carried straight on over the river.
+        </li>
+        <li>
+          <strong>A village seat was only required to be dry.</strong> <code>getSeatCentre</code>
+          already skips water and mountain, but the cluster drawn around the seat — houses, grove,
+          name plate — spreads well past its own hex, so a town seated on the bank put its roofs in
+          the channel.
+        </li>
+      </ul>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <caption>Read out of the renderer's own scatter and relief plans, both maps fully revealed, Đông Hồ theme</caption>
+        <thead><tr><th>Measure</th><th class="num">Shipped renderer</th><th class="num">New rivers, before the fix</th><th class="num">New rivers, after the fix</th></tr></thead>
+        <tbody>
+          <tr><td>Scattered props planned</td><td class="num">3,968</td><td class="num">3,732</td><td class="num">3,634</td></tr>
+          <tr><td>Props standing on a water hex</td><td class="num">33 &nbsp;(0.8%)</td><td class="z">81 &nbsp;(2.2%)</td><td class="good">0</td></tr>
+          <tr><td>Nearest prop to a water hex centre</td><td class="num">—</td><td class="num">—</td><td class="good">1.01 tile radii</td></tr>
+          <tr><td>Paddy plots over the channel</td><td class="num">yes</td><td class="z">yes</td><td class="good">none</td></tr>
+          <tr><td>Village seats on the bank</td><td class="num">yes</td><td class="z">yes</td><td class="good">set back one hex</td></tr>
+          <tr><td>Hill and mountain ranges</td><td class="num">156</td><td class="num">144</td><td class="num">144</td></tr>
+          <tr><td>Ranges lying across water</td><td class="num">2 &nbsp;(1.3%)</td><td class="z">19 &nbsp;(13.2%)</td><td class="good">11 &nbsp;(7.6%)</td></tr>
+          <tr><td>Water cells a massif covers</td><td class="num">10</td><td class="z">224</td><td class="good">88</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note hot col">
+      <span class="tag">Already shipped, just not yet visible</span>
+      <p>
+        33 props and 2 massifs already stand in the water today. It goes unnoticed because the only
+        water is a band at the edge of the map with almost nothing beside it. Route rivers through
+        settled, wooded, hilly country and props on water rise 2.5× while massifs across water rise
+        nearly tenfold — one range in eight on the whole map.
+      </p>
+    </div>
+
+    <div class="note col">
+      <span class="tag">What was changed</span>
+      <p>
+        <strong>Water joined <code>keepClear</code></strong> at the radius the mountains already
+        claim — <code>tileSize × 0.95</code>, and the comment beside the rock says exactly why:
+        <em>“the rock keeps its own ground.”</em> Now so does the water.<br>
+        <strong>But clearing the anchor was not enough.</strong> That alone took props on water from
+        81 to 4, and the river still had trees hanging over it — because a tree whose <em>trunk</em>
+        sits two units outside the bank is <em>drawn</em> many times wider than that. The thinning
+        pass already computes each prop's own reach for spacing; water zones now test against that
+        reach instead of the bare centre. Props on water: <b>0</b>, and the nearest one stands a
+        full tile radius clear of the channel.<br>
+        <strong>A massif now stops at the bank.</strong> A range pulls its horizontal bleed in from
+        1.1 tile radii to 0.12 where the cell beyond its run is wet, and drops to 45% height where
+        the rows it would rise over are water. Ranges across water fall from 19 to 11, and the water
+        they cover from 224 cells to 88.<br>
+        <strong>The paddy stops there too.</strong> Water now vetoes a plot the way paddy grants it
+        — and vetoes it on the plot's body, half a plot-width past the water's own reach, because
+        testing the centre left half a field lying in the river. Same mistake, same shape of fix.<br>
+        <strong>A village stands back from the water.</strong> A seat now prefers a tile with no wet
+        neighbour at all, falling back to the waterline only where a province has nowhere else to
+        stand — so the cluster has room to spread without wading in.
+      </p>
+      <p style="margin-top:.7em">
+        <strong>The remaining 11 are worth a second pass.</strong> They are massifs deep enough to
+        rise over two rows, where a single height cap is too blunt an instrument; clipping the drawn
+        silhouette against the wet/dry boundary would finish the job properly.
+      </p>
+    </div>
+  </section>
+
+  <svg class="rule" viewBox="0 0 1000 9" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 5.2 C 62 3.6, 128 6.4, 196 4.8 S 318 3.3, 386 5.6 S 508 6.7, 576 4.3 S 698 3.9, 766 5.7 S 918 6.2, 1000 4.7" />
+  </svg>
+
+  <section>
+    <div class="sec-head col">
+      <p class="eyebrow">Severance</p>
+      <h2>Does water isolate land?<span class="chip meas">Measured</span></h2>
+      <p class="sub">
+        It depends entirely on one decision, and I had assumed the answer. Measured, the assumption
+        was wrong — so here is what actually happens, and which way I would go.
+      </p>
+    </div>
+
+    <div class="note hot col">
+      <span class="tag">Correction</span>
+      <p>
+        An earlier version of this document claimed that once a river reaches the sea it “starts
+        cutting the land graph in two.” That is not automatic. Whether a river severs anything is
+        decided by a single line in <code>growZones</code>: <strong>may a province grow across
+        water?</strong> Both answers are defensible and they produce completely different games.
+      </p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <caption>The same rivers, the same seeds, under the two zone-growth policies</caption>
+        <thead>
+          <tr>
+            <th>Policy</th><th class="num">Regions</th><th class="num">Severed pairs</th>
+            <th class="num">Unreachable pairs</th><th class="num">Bridge sites</th>
+            <th class="num">Bridges needed</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Permeable</strong> — a province straddles its river</td><td class="num">1</td><td class="num">0 – 7</td><td class="num">0</td><td class="num">63 – 75</td><td class="num">0</td></tr>
+          <tr><td><strong>Barrier</strong> — a province stops at the bank</td><td class="good">2 – 4</td><td class="good">18 – 32</td><td class="good">6 – 23</td><td class="good">90 – 122</td><td class="good">1 – 3</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="col">
+      <p>
+        Under <strong>permeable</strong> growth the realm stays one connected piece on every seed
+        tested. A few facing pairs lose their direct link, but every detour is exactly two hops —
+        through one intermediate province. Rivers are scenery with a food bonus, and a bridge is a
+        convenience.
+      </p>
+      <p>
+        Under <strong>barrier</strong> growth the map breaks into <strong>two to four regions</strong>.
+        On the live map seed the split is 26 / 12 / 4 — a heartland, a far bank, and a pocket — and
+        <strong>16 of 42 provinces sit across the water</strong> from the capital's region. One to
+        three bridges rejoin the realm, and there are 90–122 places one could physically stand.
+      </p>
+      <p>
+        <strong>Barrier is the better game and the truer history.</strong> Rivers were administrative
+        boundaries in the delta, and the ferry-and-bridge network is what made the country
+        governable at all. It also makes every other water mechanic matter: a chokepoint is only a
+        chokepoint if going round is not an option, and River Marines are only interesting if the
+        crossing is scarce.
+      </p>
+    </div>
+
+    <div class="note col">
+      <span class="tag">The one guard-rail it needs</span>
+      <p>
+        On one seed the split came out 39 / 1 / 1 / 1 — three provinces each cut off alone. A lone
+        unreachable province is a broken game, not an interesting one. So world-gen must
+        <strong>guarantee at least one crossing per region</strong>, placed where a road already
+        wants to cross, and the check belongs in a harness: assert that the land graph plus its
+        bridges is a single component on every seed before the map is ever handed to a player.
+      </p>
+    </div>
+
+    <div class="note col">
+      <span class="tag">Decision taken — permeable</span>
+      <p>
+        <strong>The realm ships permeable.</strong> The argument for barrier stands on its merits and
+        is left above unaltered, but it buys its drama with the riskiest change in the whole design:
+        armies would have to path through crossings, which puts the autopilot, the AI and the
+        acquisition logic in scope, and world-gen would have to guarantee a bridge per region or a
+        province becomes unreachable — one seed already produced 39&nbsp;/&nbsp;1&nbsp;/&nbsp;1&nbsp;/&nbsp;1.
+      </p>
+      <p style="margin-top:.7em">
+        Permeable keeps the land graph whole, so none of that is touched. Water still counts for
+        yields, defence and harbours; a bridge is still drawn wherever a road crosses, and still
+        earns its toll and its defender's edge — it is simply no longer the thing holding the country
+        together. Barrier remains available behind one flag in <code>growZones</code> if the appetite
+        for it returns.
+      </p>
+    </div>
+
+    <p class="col" style="margin-top:1.4rem">
+      Switch the preview above to <strong>Regions</strong> to see what barrier <em>would</em> do: each colour is a set of
+      provinces an army can reach without crossing water, and each dark dot is a place a bridge
+      would rejoin two of them.
+    </p>
+  </section>
+
+  <!-- ══ 4. THE ECONOMY ════════════════════════════════════════════════════ -->
+  <section>
+    <div class="sec-head col">
+      <p class="eyebrow">The economy</p>
+      <h2>Water is not a bonus, it is the constraint<span class="chip prop">Proposed</span></h2>
+      <p class="sub">
+        In a wet-rice civilisation water is the limiting factor of food, and food is the limiting
+        factor of everything else. Modelling it as “+4 food if there's a river” gets the causality
+        backwards.
+      </p>
+    </div>
+
+    <div class="col">
+      <p>
+        The chain that ran Đại Việt is short and it is not about gold:
+        <strong>water → rice → people → soldiers</strong>. Irrigated paddy feeds more people per
+        hectare than any other pre-modern agriculture, which is why the Red River delta became one
+        of the densest rural regions on earth, and why a dynasty's power was counted in registered
+        households. Gold came third, behind grain and behind men.
+      </p>
+      <p>
+        So the proposal is not an additive bonus. It is a <strong>multiplier on the ground that is
+        already under crop</strong>, plus a population term, plus a transport term — and a real
+        downside, because the same river that feeds the province also drowns it.
+      </p>
+    </div>
+
+    <div class="kinds">
+      <div class="kind">
+        <span class="swatch" style="background:#C2D2D8"></span>
+        <div class="body">
+          <h4>Stream</h4><span class="vn">suối · ngòi</span>
+          <p>Small, local, reliable. Feeds a village's paddy and turns a mill. Carries no freight and never drowns anyone.</p>
+          <ul>
+            <li><b>Food</b> — irrigation 0.35</li>
+            <li><b>People</b> — modest growth</li>
+            <li><b>Risk</b> — none. This is the safe water.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="kind">
+        <span class="swatch" style="background:#7E9AAA"></span>
+        <div class="body">
+          <h4>River</h4><span class="vn">sông</span>
+          <p>Carries silt, carries boats, carries floods. The high-variance water: the largest upside on the map and the only recurring disaster.</p>
+          <ul>
+            <li><b>Food</b> — irrigation 0.70</li>
+            <li><b>Supplies</b> — freight, up to +4</li>
+            <li><b>Gold</b> — market ×1.20</li>
+            <li><b>Risk</b> — annual flood unless diked</li>
+          </ul>
+        </div>
+      </div>
+      <div class="kind">
+        <span class="swatch" style="background:#5B7C8E"></span>
+        <div class="body">
+          <h4>Lake</h4><span class="vn">hồ · đầm</span>
+          <p>Still water. Fish, lotus and water chestnut, and — the part that matters — a reservoir that holds through the dry months.</p>
+          <ul>
+            <li><b>Food</b> — irrigation +0.20, and it is <em>drought-proof</em></li>
+            <li><b>Supplies</b> — fishing, small and steady</li>
+            <li><b>Risk</b> — none; it cancels drought</li>
+          </ul>
+        </div>
+      </div>
+      <div class="kind">
+        <span class="swatch" style="background:#AEC2CA"></span>
+        <div class="body">
+          <h4>Sea coast</h4><span class="vn">biển · cửa biển</span>
+          <p>Salt, sea fish and ocean trade — but salt intrusion ruins paddy, so a coast without a river behind it is poorer ground, not richer.</p>
+          <ul>
+            <li><b>Gold</b> — harbour, the ocean trade</li>
+            <li><b>Supplies</b> — salt and fish</li>
+            <li><b>Food</b> — irrigation −0.25 (salt)</li>
+          </ul>
+        </div>
+      </div>
+      <div class="kind">
+        <span class="swatch" style="background:linear-gradient(90deg,#7E9AAA,#AEC2CA)"></span>
+        <div class="body">
+          <h4>Delta</h4><span class="vn">cửa sông · đồng bằng</span>
+          <p>Where the river meets the sea: the richest soil there is, the best port site, and the most exposed ground on the map. The province worth fighting a war over.</p>
+          <ul>
+            <li><b>Food</b> — irrigation 0.90, the map's best</li>
+            <li><b>Gold</b> — harbour ×1.35</li>
+            <li><b>Risk</b> — flood, storm surge, and it is where an invasion lands</li>
+          </ul>
+        </div>
+      </div>
+      <div class="kind">
+        <span class="swatch" style="background:#C9B78C"></span>
+        <div class="body">
+          <h4>Dry</h4><span class="vn">đất khô</span>
+          <p>No water at all. Rice will not grow without irrigation, so the province falls back to dry crop and stays thin — which is what makes the wet ground worth taking.</p>
+          <ul>
+            <li><b>Food</b> — no multiplier</li>
+            <li><b>Risk</b> — drought hits hardest here</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin:2.6rem 0 0.4rem">The rule, in the game's own units</h3>
+    <p class="col" style="margin-bottom:0.4rem">
+      A farm outputs <code>food: 9</code> at level 1. Irrigation multiplies that, but only in
+      proportion to how much of the province is actually under crop — a river through a mountain
+      province gives transport, not grain.
+    </p>
+
+    <div class="tablewrap">
+      <table>
+        <caption>Proposed formulas, expressed against the existing <code>BUILDING_ECONOMY</code> scale</caption>
+        <thead><tr><th style="width:22%">Quantity</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Irrigation</strong></td>
+            <td><code>stream 0.35 · river 0.70 · delta 0.90</code>, then <code>+0.20</code> lakeside, <code>−0.25</code> coast without a river, clamped to <code>0 … 1.0</code></td>
+          </tr>
+          <tr>
+            <td><strong>Seated</strong></td>
+            <td><code>true</code> where the province's settlement sits on its water — the town has taken the waterfront</td>
+          </tr>
+          <tr>
+            <td><strong>Navigable</strong></td>
+            <td><code>true</code> where the water is river-grade <em>and</em> its body reaches the sea. A stream is never navigable at any length.</td>
+          </tr>
+          <tr>
+            <td><strong>Food</strong></td>
+            <td><code>farmFood × (1 + irrigation × cropShare × (seated ? 0.6 : 1))</code> where <code>cropShare = (riceFields + fields) / workable</code></td>
+          </tr>
+          <tr>
+            <td><strong>People</strong></td>
+            <td><code>popGrowth × (1 + 0.6 × irrigation)</code> — the term that turns wet ground into soldiers two steps later</td>
+          </tr>
+          <tr>
+            <td><strong>Supplies</strong></td>
+            <td><code>+min(4, riverHexes × 0.5)</code> river freight; lake fishing <code>+1</code>; army upkeep <code>×0.85</code> on a river-connected province</td>
+          </tr>
+          <tr>
+            <td><strong>Gold</strong></td>
+            <td><code>seated &amp;&amp; navigable</code> → harbour unlocked, market <code>×1.35</code>; <code>seated</code> alone → market <code>×1.10</code>, the ferry and the mill; otherwise nothing — an empty bank earns no coin</td>
+          </tr>
+          <tr>
+            <td><strong>Flood</strong></td>
+            <td>each summer on an undiked river province: <code>P = min(0.45, 0.15 + 0.05 × riverHexes)</code> → food <code>−35%</code> for the year, population <code>−2%</code>, stability <code>−6</code></td>
+          </tr>
+          <tr>
+            <td><strong>Silt</strong></td>
+            <td>a flood leaves silt: <code>irrigation +0.10</code> the following year, up to the clamp</td>
+          </tr>
+          <tr>
+            <td><strong>Drought</strong></td>
+            <td>each winter, a cropped province with no lake and no dike: food <code>−20%</code> for the season</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin:2.6rem 0 0.4rem">The same river pays two different ways</h3>
+    <p class="col" style="margin-bottom:0.4rem">
+      A river is not worth a fixed amount. It is worth whatever the ground beside it is set up to
+      take from it — and a province can only take one of the two. That is the rule that makes
+      settlement placement a decision rather than a formality.
+    </p>
+
+    <div class="tablewrap">
+      <table>
+        <caption>Two questions decide it: is there a town on this water, and can a boat reach the sea from it?</caption>
+        <thead>
+          <tr><th style="width:20%">The ground</th><th>What the water does</th><th class="num">Pays in</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Town on a navigable river</strong></td>
+            <td>The waterfront becomes a landing. Freight moves by boat, and a hull that can reach the river mouth can reach anywhere on the coast. <em>This is the only ground a harbour can stand on.</em></td>
+            <td class="num"><strong>Gold</strong><br><span style="color:var(--ink-3)">+ supplies</span></td>
+          </tr>
+          <tr>
+            <td><strong>Town on water with no way to the sea</strong></td>
+            <td>A ferry, a mill, a fishing landing — real, local, and small. No hull leaves the province.</td>
+            <td class="num">A little gold</td>
+          </tr>
+          <tr>
+            <td><strong>River with no town on it</strong></td>
+            <td>Nobody has taken the waterfront, so all of it goes to the fields. This is the paddy at full irrigation.</td>
+            <td class="good"><strong>Food</strong></td>
+          </tr>
+          <tr>
+            <td><strong>Stream, town or no town</strong></td>
+            <td>Too small to float anything. A stream only ever feeds the crop — which is why it is the safe water and never the rich water.</td>
+            <td class="good">Food</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note col">
+      <span class="tag">The trade-off this creates</span>
+      <p>
+        <strong>You cannot have the port and the full paddy from the same stretch of river.</strong>
+        Seating a town on the water turns grain into gold; leaving the bank empty keeps the grain.
+        In formula terms the irrigation multiplier takes a <code>×0.6</code> where a settlement sits
+        on the water, and the province gains the harbour and a <code>×1.35</code> on market gold in
+        exchange. A stream never qualifies for either — no hull floats on it — so it pays its food
+        whatever you build.
+      </p>
+      <p style="margin-top:.7em">
+        <em>Navigable</em> is a property of the water body, traced once at world-gen: does this
+        channel reach the sea, and is it river-grade rather than stream-grade? With the drainage
+        guarantee every body drains somewhere, so the question that actually bites is the second
+        one.
+      </p>
+    </div>
+
+    <h3 style="margin:2.4rem 0 0.4rem">What that does to four provinces</h3>
+    <p class="col" style="margin-bottom:0.4rem">
+      Same size, same two level-1 farms (18 food before water), half the workable ground under crop.
+      Nothing but the water differs.
+    </p>
+
+    <div class="tablewrap">
+      <table>
+        <caption>Water is worth a 69% swing in food between the poorest and richest ground</caption>
+        <thead>
+          <tr><th>Province</th><th class="num">Irrigation</th><th class="num">Food</th><th class="num">Pop. growth</th><th class="num">Supplies</th><th>Standing risk</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Dry upland</strong> — no water</td><td class="num">0.00</td><td class="num">18</td><td class="num">×1.00</td><td class="num">—</td><td>Drought every winter</td></tr>
+          <tr><td><strong>Coastal, no river</strong> — salt</td><td class="z">−0.25</td><td class="z">16</td><td class="num">×1.00</td><td class="num">+2 salt</td><td>Drought; poor paddy</td></tr>
+          <tr><td><strong>Stream village</strong></td><td class="num">0.35</td><td class="good">21</td><td class="num">×1.21</td><td class="num">—</td><td>None</td></tr>
+          <tr><td><strong>River province</strong></td><td class="num">0.70</td><td class="good">24</td><td class="num">×1.42</td><td class="num">+3</td><td>Flood, ~30%/yr undiked</td></tr>
+          <tr><td><strong>Delta + lake</strong></td><td class="num">1.00</td><td class="good">27</td><td class="good">×1.60</td><td class="num">+4</td><td>Flood, surge, invasion</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note col">
+      <span class="tag">The decision this creates</span>
+      <p>
+        <strong>The dike is not a straight upgrade — and that is the point.</strong> Historically,
+        dikes stopped the flood <em>and</em> stopped the silt that made the delta fertile in the first
+        place; over centuries the Red River's diked bed rose above the plain behind it. So in game
+        terms a dike should remove the flood, remove the <code>+0.10</code> silt renewal, cost gold to
+        raise, and cost <strong>people</strong> to keep — corvée labour was the real price of the dike
+        system. Safety, paid for in fertility and in men. That is a genuine choice rather than a stat.
+      </p>
+    </div>
+  </section>
+
+  <svg class="rule" viewBox="0 0 1000 9" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 5.1 C 75 3.7, 145 6.5, 215 4.9 S 335 3.4, 405 5.5 S 525 6.9, 595 4.2 S 715 3.8, 785 6.0 S 935 4.3, 1000 5.5" />
+  </svg>
+
+  <!-- ══ 5. WHAT THE PLAYER SEES ═══════════════════════════════════════════ -->
+  <section>
+    <div class="sec-head col">
+      <p class="eyebrow">At the table</p>
+      <h2>What the player actually sees<span class="chip prop">Mock-ups</span></h2>
+      <p class="sub">
+        The province panel is where all of this becomes legible. Today it lists yields with no
+        explanation of where they came from; with water in play it can show the reason.
+      </p>
+    </div>
+
+    <div class="mocks">
+      <div>
+        <div class="panel">
+          <div class="ph">
+            <h4>Thủy Vực Đông</h4>
+            <div class="meta">Farm province · 14 hexes · Age of Rivalry</div>
+          </div>
+          <div class="pb">
+            <div class="src">
+              <i>Sông — 4 river hexes</i><i>Hồ — lake</i><i>Delta</i>
+            </div>
+            <div class="row"><span class="lab">Irrigation</span><span class="val">1.00 <span class="up">max</span></span></div>
+            <div class="row"><span class="lab">Food</span><span class="val">27 <span class="up">+9 water</span></span></div>
+            <div class="row"><span class="lab">Gold</span><span class="val">12 <span class="up">+3 harbour</span></span></div>
+            <div class="row"><span class="lab">Supplies</span><span class="val">9 <span class="up">+4 freight</span></span></div>
+            <div class="row"><span class="lab">People</span><span class="val">+4 <span class="up">×1.60</span></span></div>
+            <div class="warn"><strong>Flood risk 35%</strong> each summer. A flood costs a third of the year's grain — and leaves silt worth +0.10 irrigation.</div>
+            <div class="act"><span>Build dike</span><span class="ghost">Leave it</span></div>
+          </div>
+        </div>
+        <p class="mockcap">Delta province. Everything good and everything dangerous in one place.</p>
+      </div>
+
+      <div>
+        <div class="panel">
+          <div class="ph">
+            <h4>Thiên Ấp Thượng</h4>
+            <div class="meta">Wilderness province · 12 hexes · Age of Rivalry</div>
+          </div>
+          <div class="pb">
+            <div class="src"><i>Suối — 2 stream hexes</i></div>
+            <div class="row"><span class="lab">Irrigation</span><span class="val">0.35</span></div>
+            <div class="row"><span class="lab">Food</span><span class="val">21 <span class="up">+3 water</span></span></div>
+            <div class="row"><span class="lab">Gold</span><span class="val">4</span></div>
+            <div class="row"><span class="lab">Supplies</span><span class="val">2</span></div>
+            <div class="row"><span class="lab">People</span><span class="val">+2 <span class="up">×1.21</span></span></div>
+            <div class="okline"><strong>No flood risk.</strong> A stream feeds the paddy and never drowns it. Safe ground to settle, poor ground to trade from.</div>
+            <div class="act"><span>Build farm</span><span class="ghost">Focus: breadbasket</span></div>
+          </div>
+        </div>
+        <p class="mockcap">Stream village. The safe, unspectacular middle of the map.</p>
+      </div>
+
+      <div>
+        <div class="panel">
+          <div class="ph">
+            <h4>Đại Đèo Đông</h4>
+            <div class="meta">Iron province · 11 hexes · Age of Rivalry</div>
+          </div>
+          <div class="pb">
+            <div class="src"><i style="opacity:.55">No water source</i></div>
+            <div class="row"><span class="lab">Irrigation</span><span class="val">0.00</span></div>
+            <div class="row"><span class="lab">Food</span><span class="val">18</span></div>
+            <div class="row"><span class="lab">Gold</span><span class="val">3</span></div>
+            <div class="row"><span class="lab">Supplies</span><span class="val">8 <span class="up">mines</span></span></div>
+            <div class="row"><span class="lab">People</span><span class="val">+1 <span class="dn">×1.00</span></span></div>
+            <div class="warn"><strong>Drought each winter</strong> — food falls a fifth. No lake and no canal to hold water through the dry months.</div>
+            <div class="act"><span class="ghost">Harbour — needs water</span></div>
+          </div>
+        </div>
+        <p class="mockcap">Dry upland. Rich in ore, thin in grain — and the refusal string finally tells the truth.</p>
+      </div>
+    </div>
+
+    <h3 style="margin:2.4rem 0 0.5rem">The year on a river province</h3>
+    <p class="col" style="margin-bottom:0.4rem">
+      The paddy already runs a five-stage water cycle in <code>season.ts</code>. This is the same idea
+      one scale up: the river's <em>level</em> turns with the monsoon, never its colour.
+    </p>
+
+    <div class="year">
+      <div class="season">
+        <span class="s">Spring</span>
+        <span class="lvl" style="width:45%"></span>
+        <h4>The water goes on</h4>
+        <p>Transplanting. Streams matter most — the small reliable water is what fills the nursery beds. Fords still open.</p>
+      </div>
+      <div class="season">
+        <span class="s">Summer</span>
+        <span class="lvl" style="width:100%"></span>
+        <h4>High water</h4>
+        <p>Flood risk peaks on undiked river provinces. Rivers are fully navigable: freight is cheapest now. Fords close.</p>
+      </div>
+      <div class="season">
+        <span class="s">Autumn</span>
+        <span class="lvl" style="width:68%"></span>
+        <h4>The harvest</h4>
+        <p>Water recedes, the silt is already down. Grain lands. The one season where a flooded province learns what it cost.</p>
+      </div>
+      <div class="season">
+        <span class="s">Winter</span>
+        <span class="lvl" style="width:26%"></span>
+        <h4>Low water</h4>
+        <p>Drought bites where there is no lake and no dike-fed canal. Sandbars show. Fords reopen — and armies cross where they could not in summer.</p>
+      </div>
+    </div>
+
+    <div class="note col">
+      <span class="tag">Why this matters beyond the economy</span>
+      <p>
+        The last line of winter is the whole reason to build this: a ford that is open in the dry
+        season and closed in the flood makes the <em>calendar</em> a strategic input. Campaigning
+        season stops being flavour text.
+      </p>
+    </div>
+  </section>
+
+  <svg class="rule" viewBox="0 0 1000 9" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 4.5 C 70 6.1, 140 3.9, 210 5.6 S 330 6.4, 400 4.1 S 520 3.6, 590 5.9 S 710 6.2, 780 4.8 S 930 5.7, 1000 4.6" />
+  </svg>
+
+  <!-- ══ 6. GROUNDING ══════════════════════════════════════════════════════ -->
+  <section>
+    <div class="sec-head col">
+      <p class="eyebrow">The grounding</p>
+      <h2>What water was to Đại Việt</h2>
+      <p class="sub">
+        Not decoration. In the record the water is the state's core administrative problem, the
+        village's social centre, the army's best weapon, and the economy's road.
+      </p>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <h4>The delta is the country</h4>
+        <p class="vn">Đồng bằng sông Hồng</p>
+        <p>Some 15,000 km², almost all of it under rice, and the cradle of Vietnamese civilization. Settlement, village form and stable agriculture all follow the water first. A map where the fertile ground is not <em>wet</em> ground has the causality backwards.</p>
+      </div>
+      <div class="card">
+        <h4>The dike is a state function</h4>
+        <p class="vn">Đê điều · Đỉnh Nhĩ</p>
+        <p>Flood control and irrigation were communal projects <em>and</em> functions of the throne. Repeated flooding and the need to protect the citadel drove the consolidation of the dike system in the mid-13th century — paid for in conscripted labour.</p>
+      </div>
+      <div class="card">
+        <h4>The water landing makes a village</h4>
+        <p class="vn">Cây đa, bến nước, sân đình</p>
+        <p>Banyan tree, water landing, communal-house yard — the three things that identify a village in the Vietnamese imagination. The game draws the banyan and the đình. It is missing the third leg of the triangle.</p>
+      </div>
+      <div class="card">
+        <h4>The river is the great weapon</h4>
+        <p class="vn">Bạch Đằng, 938 · 981 · 1288</p>
+        <p>Stakes driven into the bed at low tide, a feigned retreat drawing the fleet in at high water, the tide falling on a trapped enemy — perhaps 400 vessels destroyed in 1288. The most celebrated victories in Vietnamese history are terrain used as a weapon.</p>
+      </div>
+      <div class="card">
+        <h4>The river is the road</h4>
+        <p class="vn">Vân Đồn · Phố Hiến</p>
+        <p>By the 12th century Đại Việt was developing waterways to move goods, and its royal ports drew merchants from across maritime Asia. The code already knows: <em>“a river or a coast is a road that costs nothing to keep.”</em></p>
+      </div>
+      <div class="card">
+        <h4>The old maps drew water first</h4>
+        <p class="vn">Hồng Đức bản đồ, 1490</p>
+        <p>Traditional Vietnamese cartography organises the country around waterways and routes rather than a survey grid — the frame is a journey between landmarks. That argues for rivers that visibly <em>go somewhere</em>.</p>
+      </div>
+    </div>
+  </section>
+
+  <svg class="rule" viewBox="0 0 1000 9" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 5 C 60 3.4, 120 6.6, 180 4.8 S 300 3.2, 360 5.4 S 480 6.8, 540 4.4 S 660 3.6, 720 5.8 S 840 6.4, 900 4.6 S 970 5.2, 1000 4.9" />
+  </svg>
+
+  <!-- ══ 7. THE REST OF THE PROPOSAL ═══════════════════════════════════════ -->
+  <section>
+    <div class="sec-head col">
+      <p class="eyebrow">The build</p>
+      <h2>The rest of the change<span class="chip prop">Proposed</span></h2>
+    </div>
+
+    <div class="prop">
+      <span class="lbl">A · The unlock</span>
+      <h3>Give water a kind, and give provinces a wet count</h3>
+      <p>
+        Adding <code>stream</code>, <code>river</code> and <code>lake</code> as full terrain types
+        means walking the twelve-step terrain recipe three times for what is one substance. Cheaper
+        and truer: keep <code>water</code> as the single terrain and add a <em>kind</em> beside it.
+      </p>
+      <ul>
+        <li><code>HexTile</code> gains <code>waterKind?: 'sea' | 'river' | 'stream' | 'lake'</code>. One optional field, no change to the <code>HexTerrainType</code> union, no compile break anywhere.</li>
+        <li>Inland water is claimed by the province it runs through; sea hexes stay unclaimed, so the sea remains a boundary rather than a province.</li>
+        <li><code>TerrainSummary</code> gains a <code>coast</code> count from hexes that <em>border</em> unclaimed sea — giving the harbour the two ways to qualify its own refusal string already promises.</li>
+      </ul>
+      <ul class="files">
+        <li><code>src/map/hexMapGenerator.ts</code> — tag kinds during carve; claim inland water in <code>growZones</code></li>
+        <li><code>src/state/types.ts</code> + <code>src/state/GameState.ts</code> — the <code>coast</code> field, and <em>both</em> copies of the summary loop</li>
+        <li><code>src/systems/ResourceSystem.ts</code> — harbour gate reads <code>water + coast</code></li>
+      </ul>
+      <div class="note hot">
+        <span class="tag">Watch this</span>
+        <p>
+          Claiming water changes <code>computeNeighbors</code>: two provinces facing each other across
+          a claimed river become adjacent again, and <code>buildingCapacity</code> shifts on every
+          riverside province. Claim the river hexes but keep them out of the adjacency pass, or the
+          river stops being a barrier the moment it becomes an asset.
+        </p>
+      </div>
+    </div>
+
+    <div class="prop">
+      <span class="lbl">B · Crossings</span>
+      <h3>Bridges, fords, and the marines who don't need them<span class="chip meas" style="margin-left:.5rem">Bridges built</span></h3>
+
+      <div class="figs pair" style="margin:0 0 1.8rem">
+        <figure>
+          <img src="readme/water-ship-river.webp" alt="Two provinces either side of the new river, with timber bridges carrying the roads across it.">
+          <figcaption><span class="figtag next">Built</span><b>The channel, close up.</b> A continuous bank — two rounds of Chaikin corner-cutting on the welded outline is what stops it reading as hexagons — silt-warm water that is not the same colour as the sea, and flow lines that run <em>along</em> the current instead of always east–west.</figcaption>
+        </figure>
+        <figure>
+          <img src="readme/water-ship-life.webp" alt="Close-up of a timber bridge: bowed deck, planking, two rails and posts standing in the water.">
+          <figcaption><span class="figtag next">Built</span><b>A sampan above a crossing.</b> <em>Thuyền nan</em> with a boatman poling it, and the bridge below — deck, planking, rails and posts in nâu, the iron-brown every other timber on this map is drawn in. The boat is sized off a measured drawn height, not an estimate: it reports to the same proportion table as the houses and the trees.</figcaption>
+        </figure>
+      </div>
+      <p>
+        Under the barrier policy the rivers leave the realm in two to four regions, with 16 of 42
+        provinces across the water from the capital on the live seed. Crossings are what make it one
+        country again — and the most interesting thing water can add to this game.
+      </p>
+      <ul>
+        <li><strong>Where the roads already are.</strong> <em>Built:</em> <code>buildRoadCurve</code> draws a spline between neighbouring provinces; <code>TrafficRenderer</code> samples it against a bucketed water index and puts a crossing on the wet run. The road already tells you where a bridge belongs. <b>28 bridges</b> on the live map, from 44 wet spans.</li>
+        <li><strong>The deck is measured bank to bank, not across the water.</strong> From the last dry sample before the channel to the first dry one after it. A deck sized to the wet run alone stops at the waterline and reads as a raft moored midstream; reaching dry ground on both sides is what makes it a bridge.</li>
+        <li><strong>Three things disqualify a crossing.</strong> A road running <em>along</em> a bank is wet for its whole length and is not a crossing at all. A road meeting a wide channel at a shallow angle dips in and out repeatedly, so only the longest span on any one road is built — otherwise the decks chain into what looks like a plank laid down the valley. And <strong>water narrow enough to step over gets nothing</strong>: a cart fords a stream, and a bridge over two metres of water looks absurd, so anything under nine tenths of a tile is left alone.</li>
+        <li><strong>A crossing is what restores adjacency.</strong> Opposite banks are neighbours only through a bridge or ford, so destroying one is a real strategic act — and world-gen must guarantee one per region, or a province ends up unreachable.</li>
+        <li><strong>A crossing is a chokepoint.</strong> An attacker forcing a bridge fights at a penalty — the first time terrain creates a <em>position</em> rather than a modifier.</li>
+        <li><strong>River Marines finally mean something</strong> — they cross without a bridge and fight at an advantage in a river province.</li>
+        <li><strong>A stake-the-estuary action</strong> on a river-mouth province: costly, one-shot, devastating against a seaborne attacker. Bạch Đằng, three times over.</li>
+      </ul>
+      <ul class="files">
+        <li><code>src/map/roadCurve.ts</code> + <code>src/map/hexMapGenerator.ts</code> — crossing sites</li>
+        <li><code>src/systems/WarSystem.ts</code> — crossing penalty; <code>src/game/movementConfig.ts</code> — marine exemption</li>
+        <li><code>src/systems/LandSystem.ts</code> — <code>getAcquisitionTicksRequired</code> picks up a water term, so the delta is the ground worth fighting for</li>
+      </ul>
+    </div>
+
+    <div class="prop">
+      <span class="lbl">C · Art direction</span>
+      <h3>Six changes that make it look like water</h3>
+      <ul>
+        <li><strong>Split the pigment.</strong> The sea keeps <code>chamWash</code> over <code>cham</code>; the river takes a warmer, siltier tone mixed toward <code>nau</code> — the Red River is named for the silt it carries. Streams paler, lakes darkest and stillest.</li>
+        <li><strong>Stroke the bank as one line.</strong> <code>src/map/boundary.ts</code> already welds per-edge segments into closed loops for province borders. Point <code>traceLandBoundaryLoops</code> at the wet/dry boundary and stroke each loop as a single <code>inkPath</code>. One reused function removes the hexagon chain entirely.</li>
+        <li><strong>Turn the current.</strong> Derive flow direction from the vector to the wet neighbours. Free, and it is the difference between hatching and a river.</li>
+        <li><strong>Populate it.</strong> A <code>SCATTER</code> entry for water: sampan, bamboo raft, fish-trap stakes, water hyacinth, a heron. On the bank beside a settlement, a <em>bến nước</em> — which also completes the village triad the art direction already half-draws.</li>
+        <li><strong>Vary the width.</strong> A stream inset well inside its hex, a river at hex width, an estuary spilling past it.</li>
+        <li><strong>Nothing stands in the river.</strong> <em>Built:</em> water joined <code>keepClear</code> and a range now pulls in its bleed and its height at the bank. Props on water 81 → 4; massifs across water 19 → 11.</li>
+        <li><strong>Let the level turn, not the colour.</strong> Bank inset, flow-line density, an exposed sandbar in winter. No cast, no filter — that is the fault <code>season.ts</code> was rewritten to remove.</li>
+      </ul>
+      <ul class="files">
+        <li><code>src/ui/DongHoMapRenderer.ts</code> — <code>paintWater</code>, <code>groundFor</code>, <code>SCATTER</code> <em>(the default theme — do this one first)</em></li>
+        <li><code>src/ui/ink/props.ts</code> — sampan, stakes, heron, landing steps</li>
+        <li><code>src/ui/MapRenderer.ts</code>, <code>src/ui/AtlasMapRenderer.ts</code> — both have a <code>default: return</code>, so a missed case is silent</li>
+        <li><code>src/ui/mapTheme.ts</code> — a river tone in all three palettes <em>(compile break if skipped)</em></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══ 8. SEQUENCE ═══════════════════════════════════════════════════════ -->
+  <section>
+    <div class="sec-head col">
+      <p class="eyebrow">Sequence</p>
+      <h2>What to do first</h2>
+      <p class="sub">Each phase is independently shippable and independently verifiable.</p>
+    </div>
+
+    <div class="phases">
+      <div class="phase">
+        <span class="p">First</span>
+        <div>
+          <h4>Make water countable</h4>
+          <p><code>waterKind</code> on the tile, inland water claimed, a <code>coast</code> count on the summary, harbour gate reading both. No art, no new UI, no new content.</p>
+          <p class="unlocks">Unlocks <b>all seven dead mechanics</b>, including a buildable harbour.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <span class="p">Second</span>
+        <div>
+          <h4>Rivers that flow</h4>
+          <p>The generator in the preview above: source in high ground, course biased to the sea, accumulation into width, tributaries, lakes where a course stalls, a delta at the mouth.</p>
+          <p class="unlocks">Unlocks <b>water everywhere on the map</b> — and the first lake the game has ever generated.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <span class="p">Third</span>
+        <div>
+          <h4>The water economy</h4>
+          <p>Irrigation as a multiplier on cropped ground, the population term, river freight, the flood, the silt, the drought, and the dike that trades fertility and men for safety.</p>
+          <p class="unlocks">Unlocks <b>a map that argues back</b>: for the first time the ground tells the player what a province is for, and what it will cost to hold.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <span class="p">Fourth</span>
+        <div>
+          <h4>Draw it properly <span class="chip meas" style="margin-left:.35rem">Part done</span></h4>
+          <p><b>Done:</b> nothing stands in the river any more, massifs stop at the bank, and roads that cross water get a timber bridge — all three in the Đông Hồ renderer.</p>
+          <p><b>Left:</b> continuous bank loops instead of the hex-edge chain — still the most visible fault in these renders — river pigment split from sea, flow along the channel rather than always horizontal, water props, width variation — and the 11 deep massifs that still overhang water.</p>
+          <p class="unlocks">Unlocks <b>the whole visual payoff</b>. Re-run the bake and render benchmarks: new props are bake cost, and that is where it lands.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <span class="p">Fifth</span>
+        <div>
+          <h4>Crossings and the war layer <span class="chip meas" style="margin-left:.35rem">Bridges done</span></h4>
+          <p><b>Done:</b> a bridge is drawn wherever a road crosses water — 28 of them on the live map, one per road at its widest span — and nothing else stands in the channel: props, paddy and village seats all keep off it.</p>
+          <p><b>Left:</b> making a crossing <em>mean</em> something — adjacency through crossings only, the chokepoint penalty, River Marines earning their name, the estuary stakes, and the world-gen guarantee of one crossing per region.</p>
+          <p class="unlocks">Unlocks <b>terrain as position</b>. Highest upside and highest risk — this is the phase that can strand a host behind an uncrossable river, so the autopilot needs checking hard.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="note col">
+      <span class="tag">Three traps on the way</span>
+      <p>
+        <strong>i18n crashes at import.</strong> Every new key — dike, bridge, ford, irrigation, flood
+        — must land in <em>both</em> catalogs. A missing key is a boot failure, not a fallback.<br>
+        <strong>The bake is where props cost.</strong> Sampans and stakes are bake cost, not frame
+        cost, but still cost — measure before and after on the throttled profile.<br>
+        <strong>Two copies of the summary loop.</strong> <code>GameState.ts</code> builds
+        <code>terrainSummary</code> in two separate places. Change one and not the other and half the
+        provinces know about water.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    <h4>Where this came from</h4>
+    <p style="margin-bottom:1.1rem">
+      Terrain, renderer and systems findings were measured against the running game in headless
+      Chromium; the proposed generator is a working prototype that reproduces the shipped pipeline
+      exactly at the live map seed before diverging from it. Everything marked
+      <span class="chip prop" style="margin-left:0">Proposed</span> — the economy rules, the panel
+      mock-ups, the phase plan — is design, not measurement.
+    </p>
+    <h4>Historical sources</h4>
+    <ul>
+      <li><a href="https://www.cambridge.org/core/journals/trans-trans-regional-and-national-studies-of-southeast-asia/article/historical-sketch-of-the-landscape-of-the-red-river-delta/1C29D5B4A9DF8FAF1FC53E2B49EAD1FF">A Historical Sketch of the Landscape of the Red River Delta</a> — TRaNS, Cambridge Core</li>
+      <li><a href="https://en.wikipedia.org/wiki/Red_River_Delta">Red River Delta</a> — dike network, extent, rice cultivation</li>
+      <li><a href="https://nauticalarch.org/projects/battle-of-bach-dang-research-project/">Battle of Bạch Đằng Research Project</a> — Institute of Nautical Archaeology</li>
+      <li><a href="https://www.ancient-origins.net/news-history-archaeology/bach-dang-0013060">Iron-tipped stakes and the guerrilla warfare of Bạch Đằng</a> — Ancient Origins</li>
+      <li><a href="https://hoidisanvanhoa.vn/cay-da-gieng-nuoc-san-dinh-bo-ba-linh-hon-cua-lang-que-bac-bo/">Cây đa – giếng nước – sân đình</a> — Hội Di sản Văn hóa Việt Nam</li>
+      <li><a href="https://en.wikipedia.org/wiki/Atlas_of_H%E1%BB%93ng_%C4%90%E1%BB%A9c">Atlas of Hồng Đức</a> — Lê Thánh Tông, 1467–1490</li>
+      <li><a href="https://www.asianstudies.org/publications/eaa/archives/silk-roads-into-vietnamese-history/">Silk Roads into Vietnamese History</a> — Association for Asian Studies, on Vân Đồn and the royal ports</li>
+      <li><a href="https://bpb-us-w2.wpmucdn.com/campuspress.yale.edu/dist/6/3381/files/2020/07/Whitmore.CartographyinVietnam.1994.HOC_VOLUME2_Book2_chapter12.pdf">Whitmore, “Cartography in Vietnam”</a> — <em>The History of Cartography</em> vol. 2 bk. 2, 1994</li>
+    </ul>
+  </footer>
+
+</div>
+
+<script>
+/* ── The generator, verbatim from test_scripts/_hydrology.mjs ──────────────── */
+/**
+ * Prototype of the proposed waterway generator, as a pure function over a hex grid.
+ *
+ * Mirrors the real pipeline's coordinate system and RNG exactly (pointy-top axial,
+ * mulberry32, generateRectGrid odd-r offset) so its output can be dropped straight onto
+ * `state.hexTiles` and painted by the real renderer.
+ *
+ * Difference from `carveRiver`: a river here has a source in high ground, runs downhill,
+ * accumulates flow, gathers tributaries, pools into a lake when it stalls in a basin, and
+ * ends in the sea as a delta. Width follows accumulated flow, so it starts as a stream.
+ */
+
+const HEX_DIRECTIONS = [
+  { q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 },
+  { q: -1, r: 0 }, { q: -1, r: 1 }, { q: 0, r: 1 },
+];
+
+const key = (c) => `${c.q},${c.r}`;
+const add = (a, b) => ({ q: a.q + b.q, r: a.r + b.r });
+const neighbours = (c) => HEX_DIRECTIONS.map((d) => add(c, d));
+const hexDistance = (a, b) => {
+  const dq = a.q - b.q, dr = a.r - b.r;
+  return (Math.abs(dq) + Math.abs(dq + dr) + Math.abs(dr)) / 2;
+};
+const axialToPixel = (c, size) => ({
+  x: size * Math.sqrt(3) * (c.q + c.r / 2),
+  y: size * 1.5 * c.r,
+});
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function generateRectGrid(cols, rows) {
+  const out = [];
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) out.push({ q: col - Math.floor(row / 2), r: row });
+  }
+  return out;
+}
+
+const randomInt = (rng, n) => Math.floor(rng() * n);
+
+/** The current shipped carve, for side-by-side comparison. */
+function carveRiverCurrent(cells, coords, length, rng) {
+  let current = coords[randomInt(rng, coords.length)];
+  let dir = randomInt(rng, HEX_DIRECTIONS.length);
+  for (let step = 0; step < length; step += 1) {
+    const cell = cells.get(key(current));
+    if (!cell) break;
+    cell.terrain = 'water';
+    cell.waterKind = 'river';
+    if (rng() < 0.35) dir = (dir + (rng() < 0.5 ? 1 : -1) + 6) % 6;
+    current = add(current, HEX_DIRECTIONS[dir]);
+    if (!cells.has(key(current))) break;
+  }
+}
+
+/** Sea band along `sides` edges of the map, four hexes deep — unchanged from the real one. */
+function applySeaBorders(cells, coords, sides, cols, rows) {
+  const DEPTH = 4;
+  const checks = [
+    (c) => c.r < DEPTH,
+    (c) => c.q >= cols - 1 - Math.floor(c.r / 2) - DEPTH + 1,
+    (c) => c.r >= rows - DEPTH,
+    (c) => c.q <= -Math.floor(c.r / 2) + DEPTH - 1,
+  ];
+  for (const coord of coords) {
+    for (let i = 0; i < sides && i < checks.length; i += 1) {
+      if (checks[i](coord)) {
+        const cell = cells.get(key(coord));
+        if (cell) { cell.terrain = 'water'; cell.waterKind = 'sea'; }
+        break;
+      }
+    }
+  }
+}
+
+/**
+ * Cheap elevation field: a handful of massifs with quadratic falloff, ramped down to zero at
+ * the sea. There is no noise library in this codebase and this needs none — the field only has
+ * to give the water a consistent downhill to follow and a high ground to start from.
+ *
+ * This is an addition to the original proposal: hydrology has to run before `assignTerrain`,
+ * so "source in the mountains" needs a notion of height that does not exist yet. The same field
+ * can later bias where `assignTerrain` puts mountains, so the ranges and the rivers agree.
+ */
+function buildElevation(cells, coords, rng, opts = {}) {
+  const { ridges = 5 } = opts;
+  const dry = coords.filter((c) => cells.get(key(c)).terrain !== 'water');
+  if (dry.length === 0) return new Map();
+
+  const seeds = [];
+  for (let i = 0; i < ridges; i += 1) {
+    const at = dry[randomInt(rng, dry.length)];
+    seeds.push({ at, radius: 8 + rng() * 11, peak: 0.30 + rng() * 0.40 });
+  }
+
+  // Distance to the nearest sea hex, so the land tilts toward the coast everywhere.
+  const seaDist = new Map();
+  const queue = [];
+  for (const c of coords) {
+    if (cells.get(key(c)).waterKind === 'sea') { seaDist.set(key(c), 0); queue.push(c); }
+  }
+  for (let head = 0; head < queue.length; head += 1) {
+    const c = queue[head];
+    const d = seaDist.get(key(c));
+    for (const n of neighbours(c)) {
+      const k = key(n);
+      if (!cells.has(k) || seaDist.has(k)) continue;
+      seaDist.set(k, d + 1);
+      queue.push(n);
+    }
+  }
+  let maxDist = 1;
+  for (const d of seaDist.values()) maxDist = Math.max(maxDist, d);
+
+  const elev = new Map();
+  for (const c of coords) {
+    const k = key(c);
+    let h = 0;
+    for (const s of seeds) {
+      const t = 1 - hexDistance(c, s.at) / s.radius;
+      if (t > 0) h += s.peak * t * t;
+    }
+    // Coastal ramp: guarantees a global downhill even where no massif reaches.
+    h += ((seaDist.get(k) ?? maxDist) / maxDist) * 0.95;
+    // A little hash jitter so ties do not resolve into straight lines.
+    h += (((c.q * 73856093) ^ (c.r * 19349663)) % 1000) / 1000 * 0.035;
+    elev.set(k, cells.get(k).waterKind === 'sea' ? -1 : h);
+  }
+  return elev;
+}
+
+/**
+ * Carve a whole drainage system: trunk rivers from the high ground to the sea, tributaries
+ * joining them, lakes where a course stalls in a basin, and a delta at each mouth.
+ */
+function carveWaterways(cells, coords, elev, rng, opts = {}) {
+  const {
+    trunks = 2,
+    tributaries = 3,
+    streamFlow = 7,      // below this much accumulated flow, a course is a stream
+    riverFlow = 22,      // above this, wide enough to widen the channel
+    lakeMax = 6,         // largest basin pool, in hexes
+    lakeBudget = 16,     // total lake hexes allowed on one map
+    deltaSteps = 4,      // how far back from the mouth the channel splits
+    maxSteps = 58,       // a course from the far edge to the coast needs about 48
+    tribSteps = 20,      // tributaries are short by definition
+  } = opts;
+
+  const wet = (k) => cells.get(k)?.terrain === 'water';
+  const isSea = (k) => cells.get(k)?.waterKind === 'sea';
+
+  // Hops to the nearest sea hex. A river that stops in a field is the fault being fixed here, so
+  // when a course runs out of downhill this is the guaranteed way out to base level.
+  const seaDist = new Map();
+  const bfs = coords.filter((c) => isSea(key(c)));
+  for (const c of bfs) seaDist.set(key(c), 0);
+  for (let head = 0; head < bfs.length; head += 1) {
+    const d = seaDist.get(key(bfs[head]));
+    for (const n of neighbours(bfs[head])) {
+      const nk = key(n);
+      if (!cells.has(nk) || seaDist.has(nk)) continue;
+      seaDist.set(nk, d + 1);
+      bfs.push(n);
+    }
+  }
+  const stats = { lakes: 0, reachedSea: 0, courses: 0, merged: 0 };
+  const flowAt = new Map();
+  let lakeHexes = 0;
+
+  const setWater = (c, kind, flow) => {
+    const cell = cells.get(key(c));
+    if (!cell || cell.waterKind === 'sea') return;
+    cell.terrain = 'water';
+    cell.waterKind = kind;
+    flowAt.set(key(c), Math.max(flowAt.get(key(c)) ?? 0, flow));
+  };
+
+  /** Flood a basin outward from a stalled step, then hand back its lowest rim as the outflow. */
+  const poolLake = (start) => {
+    const pool = new Set([key(start)]);
+    const rim = new Map();
+    const consider = (c) => {
+      for (const n of neighbours(c)) {
+        const k = key(n);
+        if (!cells.has(k) || pool.has(k)) continue;
+        rim.set(k, { at: n, h: elev.get(k) ?? Infinity });
+      }
+    };
+    consider(start);
+    while (pool.size < lakeMax && rim.size > 0) {
+      let lowest = null;
+      for (const entry of rim.values()) if (!lowest || entry.h < lowest.h) lowest = entry;
+      if (!lowest) break;
+      // The lake stops where the rim rises clear of the pool: that lip is the outflow.
+      if (pool.size >= 3 && lowest.h > (elev.get(key(start)) ?? 0) + 0.06) break;
+      rim.delete(key(lowest.at));
+      if (isSea(key(lowest.at))) return { pool, outflow: lowest.at };
+      pool.add(key(lowest.at));
+      consider(lowest.at);
+    }
+    let outflow = null;
+    for (const entry of rim.values()) if (!outflow || entry.h < outflow.h) outflow = entry;
+    return { pool, outflow: outflow?.at ?? null };
+  };
+
+  /** One watercourse, from a source down to the sea, another course, or a dead end. */
+  const runCourse = (source, startFlow, allowLakes, limit = maxSteps, wander = 0.05) => {
+    let current = source;
+    let flow = startFlow;
+    const path = [];
+    let lastPoolStep = -99;
+    stats.courses += 1;
+
+    for (let step = 0; step < limit; step += 1) {
+      const k = key(current);
+      if (!cells.has(k)) break;
+
+      if (isSea(k)) { stats.reachedSea += 1; break; }
+      if (wet(k) && path.length > 0) { stats.merged += 1; break; }   // joined an existing course
+
+      path.push(current);
+      flow += 1;
+      const kind = flow < streamFlow ? 'stream' : 'river';
+      setWater(current, kind, flow);
+
+      // Downhill, with a wander term so the course meanders instead of running the gradient.
+      let best = null;
+      for (const n of neighbours(current)) {
+        const nk = key(n);
+        if (!cells.has(nk)) continue;
+        if (path.some((p) => p.q === n.q && p.r === n.r)) continue;
+        const h = (elev.get(nk) ?? Infinity) + (rng() - 0.5) * wander;
+        if (!best || h < best.h) best = { at: n, h, raw: elev.get(nk) ?? Infinity };
+      }
+      if (!best) break;
+
+      const here = elev.get(k) ?? 0;
+      const canPool = allowLakes && flow > 3 && lakeHexes < lakeBudget && step - lastPoolStep > 3;
+      if (best.raw >= here && canPool) {
+        // Nowhere lower to go: the water stands. That is a lake.
+        const { pool, outflow } = poolLake(current);
+        if (pool.size >= 3) {
+          stats.lakes += 1;
+          lastPoolStep = step;
+          for (const pk of pool) {
+            const [q, r] = pk.split(',').map(Number);
+            if (!wet(pk)) lakeHexes += 1;
+            setWater({ q, r }, 'lake', flow);
+          }
+        }
+        if (outflow) { current = outflow; continue; }
+      }
+      if (best.raw >= here && !canPool) {
+        // Out of downhill and out of lake budget: fall back to the shortest way to the sea.
+        let toward = null;
+        for (const n of neighbours(current)) {
+          const nk = key(n);
+          if (!cells.has(nk)) continue;
+          if (path.some((pp) => pp.q === n.q && pp.r === n.r)) continue;
+          const d = (seaDist.get(nk) ?? Infinity) + rng() * 0.9;
+          if (!toward || d < toward.d) toward = { at: n, d };
+        }
+        if (!toward || toward.d === Infinity) break;
+        current = toward.at;
+        continue;
+      }
+      current = best.at;
+    }
+    return { path, flow };
+  };
+
+  // Trunk rivers: sources among the highest dry ground, kept apart from each other.
+  const dry = coords.filter((c) => !wet(key(c)));
+  const highFirst = [...dry].sort((a, b) => (elev.get(key(b)) ?? 0) - (elev.get(key(a)) ?? 0));
+  const sources = [];
+  for (const c of highFirst) {
+    if (sources.length >= trunks) break;
+    if (sources.every((s) => hexDistance(s, c) > 12)) sources.push(c);
+  }
+  const trunkPaths = [];
+  for (const s of sources) trunkPaths.push(runCourse(s, 0, true).path);
+
+  // Tributaries: start on high-ish ground and run until they meet something already wet.
+  const upper = highFirst.slice(0, Math.max(1, Math.floor(highFirst.length * 0.35)));
+  for (let i = 0; i < tributaries; i += 1) {
+    const s = upper[randomInt(rng, upper.length)];
+    if (wet(key(s))) continue;
+    runCourse(s, 0, false, tribSteps, 0.07);
+  }
+
+  // Width: a high-flow hex wets one neighbour, so the lower course is visibly broader than
+  // the headwaters. This is the single cheapest thing that reads as "a river, going somewhere".
+  for (const [k, flow] of [...flowAt.entries()]) {
+    if (flow < riverFlow) continue;
+    if (rng() > 0.38) continue;                        // about a third of the lower course, not all of it
+    const [q, r] = k.split(',').map(Number);
+    if (cells.get(k)?.waterKind === 'lake') continue;  // a lake is already as wide as it should be
+    const options = neighbours({ q, r }).filter((n) => cells.has(key(n)) && !wet(key(n)));
+    if (options.length === 0) continue;
+    setWater(options[randomInt(rng, options.length)], 'river', flow);
+  }
+
+  // Drainage guarantee. Any body of water that does not reach the sea gets an outlet cut for it,
+  // following the sea-distance gradient. Without this, a course that runs out of downhill simply
+  // stops — which is exactly the "river that ends in a field" this whole change exists to remove.
+  const drains = (startKey) => {
+    const seenBody = new Set([startKey]);
+    const stack = [startKey];
+    const body = [];
+    let touchesSea = false;
+    while (stack.length) {
+      const bk = stack.pop();
+      body.push(bk);
+      if (isSea(bk)) touchesSea = true;
+      const [bq, br] = bk.split(',').map(Number);
+      for (const n of neighbours({ q: bq, r: br })) {
+        const nk = key(n);
+        if (wet(nk) && !seenBody.has(nk)) { seenBody.add(nk); stack.push(nk); }
+      }
+    }
+    return { body, touchesSea };
+  };
+
+  const handled = new Set();
+  for (const c of coords) {
+    const k = key(c);
+    if (!wet(k) || handled.has(k) || isSea(k)) continue;
+    const { body, touchesSea } = drains(k);
+    for (const bk of body) handled.add(bk);
+    if (touchesSea) continue;
+
+    // Start from whichever hex of this body is nearest the sea, and cut downhill from there.
+    let outlet = null;
+    for (const bk of body) {
+      const d = seaDist.get(bk) ?? Infinity;
+      if (!outlet || d < outlet.d) outlet = { k: bk, d };
+    }
+    if (!outlet || outlet.d === Infinity) continue;
+    let [cq, cr] = outlet.k.split(',').map(Number);
+    let cur = { q: cq, r: cr };
+    for (let step = 0; step < 70; step += 1) {
+      let toward = null;
+      for (const n of neighbours(cur)) {
+        const nk = key(n);
+        if (!cells.has(nk)) continue;
+        // + jitter: the gradient is integer hops, so ties are everywhere and taking the first
+        // every time draws a ruler-straight diagonal across the map.
+        const d = (seaDist.get(nk) ?? Infinity) + rng() * 0.95;
+        if (!toward || d < toward.d) toward = { at: n, d, k: nk };
+      }
+      if (!toward || toward.d === Infinity) break;
+      if (isSea(toward.k)) break;                    // reached base level
+      const alreadyWet = wet(toward.k);
+      setWater(toward.at, 'river', riverFlow);
+      cur = toward.at;
+      if (alreadyWet) break;                         // merged into a body that already drains
+    }
+  }
+
+  // Delta: near each mouth, throw two extra distributaries out toward the sea.
+  for (const path of trunkPaths) {
+    if (path.length < deltaSteps + 2) continue;
+    const mouth = path[path.length - 1];
+    if (!neighbours(mouth).some((n) => isSea(key(n)))) continue;
+    for (const branchStart of path.slice(-deltaSteps - 1, -1)) {
+      if (rng() < 0.45) continue;
+      let c = branchStart;
+      for (let step = 0; step < deltaSteps + 2; step += 1) {
+        let best = null;
+        for (const n of neighbours(c)) {
+          const nk = key(n);
+          if (!cells.has(nk)) continue;
+          const h = (elev.get(nk) ?? Infinity) + (rng() - 0.5) * 0.16;
+          if (!best || h < best.h) best = { at: n, h };
+        }
+        if (!best) break;
+        if (isSea(key(best.at))) break;
+        setWater(best.at, 'river', riverFlow);
+        c = best.at;
+      }
+    }
+  }
+
+  return { stats, flowAt };
+}
+
+/**
+ * Zones, and the single decision that determines whether a river is a border or a feature.
+ *
+ * `waterPolicy` is the lever:
+ *  - `'barrier'`  — growth cannot cross water. Provinces stop at the bank, so rivers become
+ *                   province boundaries and genuinely sever adjacency. Inland water is handed to
+ *                   the province with the most frontage on it afterwards, so `terrainSummary.water`
+ *                   still stops being zero.
+ *  - `'permeable'`— growth spreads through inland water, so a province straddles its river. Water
+ *                   counts, but nothing is ever separated by it.
+ *  - `'none'`     — today's behaviour: water blocks growth and is never claimed, which is what
+ *                   makes `terrainSummary.water` structurally 0.
+ */
+function growZones(cells, coords, landCount, rng, waterPolicy = 'none') {
+  const permeable = waterPolicy === 'permeable';
+  const claimable = (cell) =>
+    cell && !cell.landId && (cell.terrain !== 'water' || (permeable && cell.waterKind !== 'sea'));
+  const frontiers = new Map();
+  for (let i = 0; i < landCount; i += 1) {
+    const id = `district-${String(i + 1).padStart(2, '0')}`;
+    const available = coords.filter((c) => {
+      const cell = cells.get(key(c));
+      return cell && !cell.landId && cell.terrain !== 'water';
+    });
+    if (available.length === 0) continue;
+    const seed = available[randomInt(rng, available.length)];
+    cells.get(key(seed)).landId = id;
+    frontiers.set(id, [seed]);
+  }
+  let active = [...frontiers.keys()];
+  while (active.length > 0) {
+    const next = [];
+    for (const id of active) {
+      const frontier = frontiers.get(id);
+      if (frontier.length === 0) continue;
+      const hex = frontier.splice(randomInt(rng, frontier.length), 1)[0];
+      for (const n of neighbours(hex)) {
+        const cell = cells.get(key(n));
+        if (!claimable(cell)) continue;
+        cell.landId = id;
+        frontier.push(n);
+      }
+      if (frontier.length > 0) next.push(id);
+    }
+    active = next;
+  }
+
+  // Barrier policy: the bank stopped the zone, so hand each inland water hex to whichever province
+  // holds the most of its shoreline. The water belongs to a province without ever having let that
+  // province grow across it.
+  if (waterPolicy === 'barrier') {
+    const pending = [];
+    for (const c of coords) {
+      const cell = cells.get(key(c));
+      if (!cell || cell.terrain !== 'water' || cell.waterKind === 'sea' || cell.landId) continue;
+      const tally = new Map();
+      for (const n of neighbours(c)) {
+        const nb = cells.get(key(n));
+        if (nb?.landId && nb.terrain !== 'water') tally.set(nb.landId, (tally.get(nb.landId) ?? 0) + 1);
+      }
+      let best = null;
+      for (const [id, n] of tally) if (!best || n > best.n) best = { id, n };
+      if (best) pending.push({ cell, id: best.id });
+    }
+    for (const { cell, id } of pending) cell.landId = id;
+  }
+}
+
+const LAND_TYPES = ['castle', 'farm', 'market', 'iron', 'temple', 'enemyCastle', 'wilderness'];
+const REGISTRY = {
+  plains: { preferredFor: LAND_TYPES, weight: 2 },
+  fields: { preferredFor: ['farm'], weight: 1 },
+  riceFields: { preferredFor: ['farm'], weight: 1 },
+  forest: { preferredFor: ['farm', 'wilderness'], weight: 1 },
+  mountains: { preferredFor: ['iron', 'wilderness'], weight: 2 },
+  hills: { preferredFor: ['iron', 'wilderness'], weight: 2 },
+};
+
+/**
+ * Terrain fill. Water hexes keep their terrain — claiming a river must not paint over it —
+ * and `elev` biases which provinces read as upland, so the ranges agree with the rivers.
+ */
+function assignTerrain(cells, coords, rng, elev) {
+  const byLand = new Map();
+  for (const c of coords) {
+    const cell = cells.get(key(c));
+    if (!cell.landId) continue;
+    if (!byLand.has(cell.landId)) byLand.set(cell.landId, []);
+    byLand.get(cell.landId).push(c);
+  }
+  for (const [, hexes] of byLand) {
+    const dryHexes = hexes.filter((c) => cells.get(key(c)).terrain !== 'water');
+    if (dryHexes.length === 0) continue;
+    const mean = dryHexes.reduce((a, c) => a + (elev?.get(key(c)) ?? 0.4), 0) / dryHexes.length;
+    const touchesWater = hexes.some((c) => cells.get(key(c)).terrain === 'water')
+      || hexes.some((c) => neighbours(c).some((n) => cells.get(key(n))?.terrain === 'water'));
+    // Upland provinces read as iron, well-watered lowland as farm — the map's own logic,
+    // just informed by the field the rivers were carved on.
+    const type = mean > 0.72 ? 'iron' : mean > 0.55 ? 'wilderness' : touchesWater ? 'farm' : 'market';
+    const candidates = Object.entries(REGISTRY)
+      .filter(([, def]) => def.preferredFor.includes(type))
+      .map(([k, def]) => ({ value: k, weight: def.weight }));
+    const pool = candidates.length > 0 ? candidates : [{ value: 'plains', weight: 1 }];
+    const total = pool.reduce((a, e) => a + e.weight, 0);
+    for (const c of dryHexes) {
+      let roll = rng() * total;
+      let picked = pool[pool.length - 1].value;
+      for (const e of pool) { roll -= e.weight; if (roll <= 0) { picked = e.value; break; } }
+      cells.get(key(c)).terrain = picked;
+    }
+  }
+}
+
+/** Whole-map build. `mode` is 'current' for the shipped pipeline or 'proposed' for the new one. */
+function buildMap(seed, mode, config = {}) {
+  const { cols = 30, rows = 52, seaSides = 1, riverHexCount = 92, lands = 42, waterPolicy = 'barrier' } = config;
+  const rng = mulberry32(seed);
+  const coords = generateRectGrid(cols, rows);
+  const cells = new Map(coords.map((c) => [key(c), { coord: c, terrain: 'plains' }]));
+
+  let elev = null;
+  let stats = { lakes: 0, reachedSea: 0, courses: 0, merged: 0 };
+
+  if (mode === 'current') {
+    carveRiverCurrent(cells, coords, riverHexCount, rng);
+    applySeaBorders(cells, coords, seaSides, cols, rows);
+    growZones(cells, coords, lands, rng, 'none');
+    assignTerrain(cells, coords, rng, null);
+  } else {
+    applySeaBorders(cells, coords, seaSides, cols, rows);   // sea first, so a mouth exists to find
+    elev = buildElevation(cells, coords, rng);
+    stats = carveWaterways(cells, coords, elev, rng).stats;
+    growZones(cells, coords, lands, rng, waterPolicy);      // see the doc comment above
+    assignTerrain(cells, coords, rng, elev);
+  }
+
+  return { cells, coords, elev, stats, cols, rows };
+}
+
+/** Everything the audit needs to be checkable rather than asserted. */
+/** Connected components of the cells matching `pred` — used to count distinct lakes. */
+function countClusters(cells, coords, pred) {
+  const seen = new Set();
+  let n = 0;
+  for (const c of coords) {
+    const k = key(c);
+    if (seen.has(k) || !pred(cells.get(k))) continue;
+    n += 1;
+    const stack = [c]; seen.add(k);
+    while (stack.length) {
+      const cur = stack.pop();
+      for (const nb of neighbours(cur)) {
+        const nk = key(nb);
+        if (!seen.has(nk) && cells.get(nk) && pred(cells.get(nk))) { seen.add(nk); stack.push(nb); }
+      }
+    }
+  }
+  return n;
+}
+
+function summarise(map) {
+  const { cells, coords } = map;
+  const counts = {};
+  const kinds = { sea: 0, river: 0, stream: 0, lake: 0 };
+  for (const c of coords) {
+    const cell = cells.get(key(c));
+    counts[cell.terrain] = (counts[cell.terrain] ?? 0) + 1;
+    if (cell.terrain === 'water') kinds[cell.waterKind ?? 'river'] += 1;
+  }
+
+  // Connected water bodies, and how many of them never touch the sea band (i.e. real lakes).
+  const seen = new Set();
+  const bodies = [];
+  for (const c of coords) {
+    const k = key(c);
+    if (cells.get(k).terrain !== 'water' || seen.has(k)) continue;
+    const stack = [c]; seen.add(k);
+    let size = 0; let touchesSea = false; let allLake = true;
+    while (stack.length) {
+      const cur = stack.pop(); size += 1;
+      const kind = cells.get(key(cur)).waterKind;
+      if (kind === 'sea') touchesSea = true;
+      if (kind !== 'lake') allLake = false;
+      for (const n of neighbours(cur)) {
+        const nk = key(n);
+        if (cells.get(nk)?.terrain === 'water' && !seen.has(nk)) { seen.add(nk); stack.push(n); }
+      }
+    }
+    bodies.push({ size, touchesSea, allLake });
+  }
+
+  // Per-province water and coast, the two numbers the whole audit turns on.
+  const lands = new Map();
+  for (const c of coords) {
+    const cell = cells.get(key(c));
+    if (!cell.landId) continue;
+    if (!lands.has(cell.landId)) lands.set(cell.landId, { water: 0, coast: 0, hexes: 0 });
+    const rec = lands.get(cell.landId);
+    rec.hexes += 1;
+    if (cell.terrain === 'water') rec.water += 1;
+    else if (neighbours(c).some((n) => cells.get(key(n))?.waterKind === 'sea')) rec.coast += 1;
+  }
+  const list = [...lands.values()];
+
+  return {
+    counts,
+    kinds,
+    waterTiles: counts.water ?? 0,
+    waterShare: ((counts.water ?? 0) / coords.length * 100).toFixed(1),
+    bodies: bodies.length,
+    lakeBodies: countClusters(cells, coords, (cell) => cell.waterKind === 'lake'),
+    noOutlet: bodies.filter((b) => !b.touchesSea).length,
+    provinces: list.length,
+    withWater: list.filter((l) => l.water > 0).length,
+    withCoast: list.filter((l) => l.coast > 0).length,
+    harbourable: list.filter((l) => l.water + l.coast > 0).length,
+    unclaimedWater: coords.filter((c) => {
+      const cell = cells.get(key(c));
+      return cell.terrain === 'water' && !cell.landId;
+    }).length,
+  };
+}
+
+/* ── Schematic renderer ────────────────────────────────────────────────────── */
+(function () {
+  const canvas = document.getElementById('gen-canvas');
+  const ctx = canvas.getContext('2d');
+  const foot = document.getElementById('gen-foot');
+  const seedval = document.getElementById('seedval');
+  const btnCurrent = document.getElementById('btn-current');
+  const btnProposed = document.getElementById('btn-proposed');
+  const btnSeed = document.getElementById('btn-seed');
+
+  const GROUND = {
+    plains: '#D9CDA6', fields: '#CBD3AB', riceFields: '#C6D0A6',
+    forest: '#BFC9A4', hills: '#C8BA96', mountains: '#B5A684',
+  };
+  const WATER = { sea: '#AEC2CA', river: '#7E9AAA', stream: '#C2D2D8', lake: '#5B7C8E' };
+  // A stream is drawn well inside its cell and a lake fills it, so width reads as flow —
+  // the same idea the art-direction section asks the real renderer for.
+  const INSET = { sea: 1.0, river: 0.94, stream: 0.78, lake: 1.0 };
+
+  // Each region gets a wash of its own so the split reads at a glance. Deliberately desaturated:
+  // the point is which side of the water a province is on, not a carnival of colour.
+  const REGION = ['#C9B78C', '#B6A9C4', '#A8BFA4', '#C9A98C', '#9FB4BE', '#C6B7A0'];
+
+  let mode = 'proposed';
+  let showRegions = false;
+  let seed = 184411832;
+
+  /** Provinces grouped by what a marching army can actually reach without crossing water. */
+  function regionsOf(map) {
+    const dryLand = (k) => {
+      const c = map.cells.get(k);
+      return c && c.landId && c.terrain !== 'water' ? c.landId : null;
+    };
+    const adj = new Map();
+    const ids = new Set();
+    for (const c of map.coords) {
+      const a = dryLand(key(c));
+      if (!a) continue;
+      ids.add(a);
+      if (!adj.has(a)) adj.set(a, new Set());
+      for (const n of neighbours(c)) {
+        const b = dryLand(key(n));
+        if (b && b !== a) adj.get(a).add(b);
+      }
+    }
+    const compOf = new Map();
+    let index = 0;
+    for (const id of ids) {
+      if (compOf.has(id)) continue;
+      const stack = [id];
+      compOf.set(id, index);
+      while (stack.length) {
+        const cur = stack.pop();
+        for (const nb of adj.get(cur) || []) if (!compOf.has(nb)) { compOf.set(nb, index); stack.push(nb); }
+      }
+      index += 1;
+    }
+    // A crossing that would rejoin two regions is where a bridge earns its keep.
+    const bridges = [];
+    for (const c of map.coords) {
+      const cell = map.cells.get(key(c));
+      if (cell.terrain !== 'water' || cell.waterKind === 'sea') continue;
+      const comps = new Set();
+      for (const n of neighbours(c)) {
+        const b = dryLand(key(n));
+        if (b != null && compOf.has(b)) comps.add(compOf.get(b));
+      }
+      if (comps.size >= 2) bridges.push(c);
+    }
+    return { compOf, count: index, bridges };
+  }
+
+  function corners(cx, cy, size) {
+    const out = [];
+    for (let i = 0; i < 6; i += 1) {
+      const a = (Math.PI / 180) * (60 * i - 30);
+      out.push([cx + size * Math.cos(a), cy + size * Math.sin(a)]);
+    }
+    return out;
+  }
+
+  function render() {
+    const map = buildMap(seed, mode, { waterPolicy: 'barrier' });
+    const s = summarise(map);
+    const regions = showRegions ? regionsOf(map) : null;
+    const size = 11;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const pts = new Map();
+    for (const c of map.coords) {
+      const p = axialToPixel(c, size);
+      pts.set(key(c), p);
+      if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+    }
+    const w = maxX - minX + size * 3, h = maxY - minY + size * 3;
+    const scale = Math.min(canvas.width / w, canvas.height / h);
+    const offX = (canvas.width - w * scale) / 2 - (minX - size * 1.5) * scale;
+    const offY = (canvas.height - h * scale) / 2 - (minY - size * 1.5) * scale;
+
+    const bg = getComputedStyle(document.body).backgroundColor;
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Dry ground first, as one flat field.
+    for (const c of map.coords) {
+      const cell = map.cells.get(key(c));
+      if (cell.terrain === 'water') continue;
+      const p = pts.get(key(c));
+      const cx = offX + p.x * scale, cy = offY + p.y * scale;
+      ctx.fillStyle = regions && cell.landId != null && regions.compOf.has(cell.landId)
+        ? REGION[regions.compOf.get(cell.landId) % REGION.length]
+        : (GROUND[cell.terrain] || GROUND.plains);
+      ctx.beginPath();
+      const cs = corners(cx, cy, size * scale * 1.02);
+      ctx.moveTo(cs[0][0], cs[0][1]);
+      for (let i = 1; i < 6; i += 1) ctx.lineTo(cs[i][0], cs[i][1]);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Water on top, each kind at its own width.
+    for (const c of map.coords) {
+      const cell = map.cells.get(key(c));
+      if (cell.terrain !== 'water') continue;
+      const kind = cell.waterKind || 'river';
+      const p = pts.get(key(c));
+      const cx = offX + p.x * scale, cy = offY + p.y * scale;
+      ctx.fillStyle = WATER[kind] || WATER.river;
+      ctx.beginPath();
+      const cs = corners(cx, cy, size * scale * (INSET[kind] ?? 0.95) * 1.02);
+      ctx.moveTo(cs[0][0], cs[0][1]);
+      for (let i = 1; i < 6; i += 1) ctx.lineTo(cs[i][0], cs[i][1]);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    if (regions) {
+      ctx.fillStyle = '#2A2118';
+      for (const c of regions.bridges) {
+        const p = pts.get(key(c));
+        ctx.beginPath();
+        ctx.arc(offX + p.x * scale, offY + p.y * scale, Math.max(1.6, size * scale * 0.24), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    seedval.textContent = String(seed);
+    const fmt = (label, value, warn) =>
+      '<span class="m">' + label + ' <b' + (warn ? ' style="color:var(--alarm)"' : '') + '>' + value + '</b></span>';
+    foot.innerHTML = (regions ? [
+      fmt('regions the water leaves', regions.count, regions.count === 1),
+      fmt('bridges needed to rejoin them', Math.max(0, regions.count - 1)),
+      fmt('crossings that would rejoin two regions', regions.bridges.length),
+      fmt('provinces owning water', s.withWater + ' / ' + s.provinces, s.withWater === 0),
+    ] : [
+      fmt('water', s.waterTiles + ' (' + s.waterShare + '%)'),
+      fmt('lakes', s.lakeBodies, s.lakeBodies === 0),
+      fmt('stream hexes', s.kinds.stream, s.kinds.stream === 0),
+      fmt('river hexes', s.kinds.river),
+      fmt('provinces owning water', s.withWater + ' / ' + s.provinces, s.withWater === 0),
+      fmt('can build a harbour', s.harbourable),
+    ]).join('');
+  }
+
+  const btnRegions = document.getElementById('btn-regions');
+  const legendRegions = document.getElementById('legend-regions');
+
+  function setMode(next, regionsView) {
+    mode = next;
+    showRegions = !!regionsView;
+    btnCurrent.setAttribute('aria-pressed', String(next === 'current' && !showRegions));
+    btnProposed.setAttribute('aria-pressed', String(next === 'proposed' && !showRegions));
+    btnRegions.setAttribute('aria-pressed', String(showRegions));
+    legendRegions.hidden = !showRegions;
+    render();
+  }
+
+  btnCurrent.addEventListener('click', () => setMode('current', false));
+  btnProposed.addEventListener('click', () => setMode('proposed', false));
+  btnRegions.addEventListener('click', () => setMode('proposed', true));
+  btnSeed.addEventListener('click', () => {
+    seed = Math.floor(Math.random() * 2000000000);
+    render();
+  });
+
+  render();
+})();
+</script>

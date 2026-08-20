@@ -10,6 +10,10 @@ import {
   type ReliefPlan,
 } from './ink/props';
 import { drawFieldPlot, paddyLattice } from './ink/settlements';
+import { fishStakes, heron, sampan, waterHyacinth } from './ink/props';
+import { traceRegionEdges, weldLoops } from '../map/boundary';
+import { MAP_SCALE, axialToPixel } from '../map/hex';
+import type { HexTile } from '../map/hexMapGenerator';
 import { worldScale } from './ink/proportion';
 import { groundCast, mixPigment, seasonPalette } from './ink/season';
 import { scatterDensity } from '../game/graphicsQuality';
@@ -70,7 +74,9 @@ function groundFor(terrain: HexTerrainType): number | null {
   }
 }
 
-type PropKind = 'tree' | 'tuft' | 'bamboo' | 'banana' | 'areca' | 'banyan' | 'farmer';
+type PropKind = 'tree' | 'tuft' | 'bamboo' | 'banana' | 'areca' | 'banyan' | 'farmer'
+  // On the water. Kept out of `SCATTER`'s land entries — these are placed by `planWaterLife`.
+  | 'sampan' | 'fishStakes' | 'hyacinth' | 'heron';
 
 interface ScatterSpec {
   count: [number, number];
@@ -115,6 +121,10 @@ const SCATTER: Partial<Record<HexTerrainType, ScatterSpec>> = {
 
 /** Roughly how much ground each scattered thing needs to itself, in units of the world scale. */
 const FOOTPRINT: Record<PropKind, number> = {
+  sampan: 10,
+  fishStakes: 6,
+  hyacinth: 5,
+  heron: 4,
   tree: 11,
   banyan: 20,
   bamboo: 9,
@@ -182,7 +192,9 @@ export class DongHoMapRenderer implements MapRenderer {
     this.paintFields(graphics, visible, ctx);
 
     this.reliefPlan = this.planRanges(visible, ctx);
-    this.scatterPlan = this.planScatter(visible, ctx, tileSize);
+    // Water life joins the same plan, so a boat and the tree on the bank behind it sort together.
+    this.scatterPlan = [...this.planScatter(visible, ctx, tileSize), ...this.planWaterLife(visible, ctx)]
+      .sort((a, b) => a.y - b.y);
     this.groundPlan = visible.map((tile) => ({ ...ctx.centreOf(tile), terrain: tile.terrain }));
     this.scatterTileSize = tileSize;
     this.paintDecoration(decoration);
@@ -278,62 +290,118 @@ export class DongHoMapRenderer implements MapRenderer {
    * fill. Flow lines run inside, never across it.
    */
   private paintWater(graphics: Phaser.GameObjects.Graphics, tiles: LandscapeContext['tiles'], ctx: LandscapeContext): void {
-    const wet = new Set<string>();
+    const wet = new Map<string, LandscapeContext['tiles'][number]>();
     for (const tile of tiles) {
       if (tile.terrain === 'water') {
-        wet.add(`${tile.coord.q},${tile.coord.r}`);
+        wet.set(`${tile.coord.q},${tile.coord.r}`, tile);
       }
     }
     if (wet.size === 0) {
       return;
     }
 
-    for (const tile of tiles) {
-      if (tile.terrain !== 'water') {
-        continue;
-      }
+    // Tone first, by kind. The sea keeps the cool chàm wash it always had; a river is warmer and
+    // siltier — the Red River is named for what it carries — a stream is paler because there is
+    // less of it, and a lake is the darkest and stillest thing on the sheet.
+    for (const tile of wet.values()) {
       const centre = ctx.centreOf(tile);
-      groundTone(graphics, centre.x, centre.y, ctx.tileSize * 1.15, PIGMENT.chamWash, 0.5);
+      const kind = tile.waterKind ?? 'river';
+      const tone = kind === 'sea' ? PIGMENT.chamWash
+        : kind === 'lake' ? PIGMENT.chamPale
+          : kind === 'stream' ? PIGMENT.chamWash
+            : PIGMENT.chamSilt;
+      // Width is how a watercourse says how much of it there is. A stream sits well inside its own
+      // cell; a river fills it; the sea and a lake spill past to keep their surfaces continuous.
+      const spread = kind === 'stream' ? 0.78 : kind === 'river' ? 1.2 : 1.3;
+      const depth = kind === 'lake' ? 0.7 : kind === 'stream' ? 0.42 : 0.62;
+      groundTone(graphics, centre.x, centre.y, ctx.tileSize * spread, tone, depth);
     }
 
+    // The bank as one drawn line.
+    //
+    // This used to ink each wet/dry hex edge on its own, which meant the shoreline was literally a
+    // chain of hexagons and you could count the tiles at any real zoom. `weldLoops` already exists
+    // to walk province borders into closed outlines; the wet/dry boundary is the same question, so
+    // the water gets a real coastline for the price of an import.
+    const hexSize = ctx.tileSize / MAP_SCALE;
+    const origin = ctx.centreAt(0, 0);
+    const asTileMap = new Map(tiles.map((tile) => [`${tile.coord.q},${tile.coord.r}`, tile]));
+    const edges = traceRegionEdges(
+      tiles as HexTile[],
+      asTileMap as Map<string, HexTile>,
+      hexSize,
+      // `traceRegionEdges` works in map units and applies the world transform itself, but the
+      // landscape context only hands out already-transformed centres. axialToPixel(0,0) is the
+      // origin, so the offset is simply where this context puts that hex.
+      (value) => origin.x + value * MAP_SCALE,
+      (value) => origin.y + value * MAP_SCALE,
+      (tile) => tile.terrain === 'water',
+    );
+    for (const loop of weldLoops(edges, true)) {
+      // Cut the corners twice before inking.
+      //
+      // The welded chain is geometrically perfect and still unmistakably a chain of hexagons,
+      // because that is exactly what it is: six-way corners every tile. Two rounds of Chaikin
+      // smoothing round those corners off, and the bank stops being a grid artefact and starts
+      // being a shoreline. Cheap, and it happens once at bake time.
+      const bank = smoothChain(smoothChain(loop));
+      inkPath(graphics, bank as Pt[], Math.round(bank[0].x + bank[0].y), {
+        width: 1.5, alpha: 0.72, colour: PIGMENT.cham, wobble: 1.8, step: 10,
+      });
+    }
+
+    // Flow, along the channel rather than across it.
+    //
+    // The old lines were always horizontal, so a river running north-south was hatched at right
+    // angles to its own current. Direction now comes from the vector between a cell's wet
+    // neighbours, which costs nothing and is the difference between hatching and a river.
     const rand = mulberry32(4400);
-    for (const tile of tiles) {
-      if (tile.terrain !== 'water') {
-        continue;
+    const neighbours: Array<[number, number]> = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
+    for (const tile of wet.values()) {
+      const kind = tile.waterKind ?? 'river';
+      if (kind === 'lake') {
+        continue; // still water has no current to draw
       }
       const centre = ctx.centreOf(tile);
       const { q, r } = tile.coord;
-      // Only a cell with a dry neighbour is on the shore, so the ink follows the water's real edge.
-      const neighbours = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
+
+      let dx = 0;
+      let dy = 0;
       for (const [dq, dr] of neighbours) {
-        if (wet.has(`${q + dq},${r + dr}`)) {
+        if (!wet.has(`${q + dq},${r + dr}`)) {
           continue;
         }
-        const away = ctx.centreAt(q + dq, r + dr);
-        const mx = (centre.x + away.x) / 2;
-        const my = (centre.y + away.y) / 2;
-        const nx = -(away.y - centre.y);
-        const ny = away.x - centre.x;
-        const length = Math.hypot(nx, ny) || 1;
-        const reach = ctx.tileSize * 0.55;
-        inkPath(
-          graphics,
-          [
-            { x: mx - (nx / length) * reach, y: my - (ny / length) * reach },
-            { x: mx + (nx / length) * reach, y: my + (ny / length) * reach },
-          ],
-          Math.round(mx + my * 3),
-          { width: 1.05, alpha: 0.5, colour: PIGMENT.cham, wobble: 3.2, step: 12 },
-        );
+        const to = ctx.centreAt(q + dq, r + dr);
+        dx += to.x - centre.x;
+        dy += to.y - centre.y;
       }
-      // Two flow lines per cell, well inside the edge, so the sheet reads as moving water.
-      for (let line = 0; line < 2; line += 1) {
-        const oy = centre.y + (rand() - 0.5) * ctx.tileSize * 0.7;
-        const half = ctx.tileSize * (0.2 + rand() * 0.28);
+      // A cell with wet neighbours on opposite sides sums to nothing, which is exactly the case
+      // where the channel runs straight through it — fall back to the line between the two.
+      if (Math.abs(dx) + Math.abs(dy) < 0.001) {
+        const first = neighbours.find(([dq, dr]) => wet.has(`${q + dq},${r + dr}`));
+        if (first) {
+          const to = ctx.centreAt(q + first[0], r + first[1]);
+          dx = to.x - centre.x;
+          dy = to.y - centre.y;
+        } else {
+          dx = 1;
+        }
+      }
+      const length = Math.hypot(dx, dy) || 1;
+      const ux = dx / length;
+      const uy = dy / length;
+
+      const lines = kind === 'stream' ? 1 : 2;
+      for (let line = 0; line < lines; line += 1) {
+        // Offset across the current, so the two lines read as separate threads of the same flow.
+        const across = (rand() - 0.5) * ctx.tileSize * (kind === 'stream' ? 0.24 : 0.6);
+        const half = ctx.tileSize * (kind === 'stream' ? 0.16 : 0.2 + rand() * 0.28);
+        const ox = centre.x - uy * across;
+        const oy = centre.y + ux * across;
         inkPath(
           graphics,
-          [{ x: centre.x - half, y: oy }, { x: centre.x + half, y: oy }],
-          Math.round(centre.x + oy + line),
+          [{ x: ox - ux * half, y: oy - uy * half }, { x: ox + ux * half, y: oy + uy * half }],
+          Math.round(ox + oy + line),
           { width: 0.65, alpha: 0.3, colour: PIGMENT.cham, wobble: 1.6, step: 9 },
         );
       }
@@ -366,9 +434,12 @@ export class DongHoMapRenderer implements MapRenderer {
   private planRanges(tiles: LandscapeContext['tiles'], ctx: LandscapeContext): ReliefPlan[] {
     const plans: ReliefPlan[] = [];
     const relief = new Map<string, HexTerrainType>();
+    const wet = new Set<string>();
     for (const tile of tiles) {
       if (tile.terrain === 'mountains' || tile.terrain === 'hills') {
         relief.set(`${tile.coord.q},${tile.coord.r}`, tile.terrain);
+      } else if (tile.terrain === 'water') {
+        wet.add(`${tile.coord.q},${tile.coord.r}`);
       }
     }
     // A hex row below this one, in the pointy-top axial layout used by the map.
@@ -417,18 +488,34 @@ export class DongHoMapRenderer implements MapRenderer {
         const seed = Math.round(from.x * 3 + from.y);
         // A deeper massif stands taller, so a range reads as a body of rock rather than a wall.
         const depth = depthBehind(row[index].q, r);
+
+        // A range deliberately bleeds past the cells it was built from, which is what stops it
+        // reading as one peak per tile. Against water that bleed put whole massifs lying across
+        // the channel, so each end is pulled back in when the cell beyond it is wet, and the
+        // massif is kept short when the rows it would rise over are water.
+        const bleedLeft = wet.has(`${row[index].q - 1},${r}`) ? 0.12 : 1.1;
+        const bleedRight = wet.has(`${row[end].q + 1},${r}`) ? 0.12 : 1.1;
+        let risesOverWater = false;
+        for (let q = row[index].q; q <= row[end].q && !risesOverWater; q += 1) {
+          // The two cells a pointy-top hex sits under, one row back.
+          if (wet.has(`${q},${r - 1}`) || wet.has(`${q + 1},${r - 1}`)) {
+            risesOverWater = true;
+          }
+        }
+        const headroom = risesOverWater ? 0.45 : 1;
+
         if (terrain === 'mountains') {
           // 1.0 nominal, not 0.8: landforms sit outside the prop proportion system, and at 0.8
           // a front-row tower came out barely taller than the 18 px trees beside it — limestone
           // reading as shrubbery was the other half of "the mountains look unreal".
           plans.push(planKarstRange(
-            from.x - ctx.tileSize * 1.1, to.x + ctx.tileSize * 1.1,
-            from.y + ctx.tileSize * 0.8, ctx.tileSize * (1.0 + depth * 0.38), seed,
+            from.x - ctx.tileSize * bleedLeft, to.x + ctx.tileSize * bleedRight,
+            from.y + ctx.tileSize * 0.8, ctx.tileSize * (1.0 + depth * 0.38) * headroom, seed,
           ));
         } else {
           plans.push(planSoftRidge(
-            from.x - ctx.tileSize * 1.1, to.x + ctx.tileSize * 1.1,
-            from.y + ctx.tileSize * 0.7, ctx.tileSize * (0.26 + depth * 0.1), seed,
+            from.x - ctx.tileSize * bleedLeft, to.x + ctx.tileSize * bleedRight,
+            from.y + ctx.tileSize * 0.7, ctx.tileSize * (0.26 + depth * 0.1) * headroom, seed,
           ));
         }
         index = end + 1;
@@ -520,16 +607,107 @@ export class DongHoMapRenderer implements MapRenderer {
       return false;
     };
 
+    // The lattice is kept wherever paddy is *near*, which on a bank means the plots carry on over
+    // the channel — a paddy cell one hex inland is still within reach of open water. Nobody floods
+    // a bunded field on top of a river, so the water vetoes the plot the way the paddy grants it.
+    const wetCentres: Array<{ x: number; y: number }> = [];
+    for (const tile of tiles) {
+      if (tile.terrain === 'water') {
+        wetCentres.push(ctx.centreOf(tile));
+      }
+    }
+    // Vetoed on the plot's *body*, not its centre. `keep` is asked about a point, but a plot is
+    // drawn `tileSize · 0.58` across, so testing the centre against the bank left half a paddy
+    // lying in the channel — the same anchor-versus-body mistake the prop scatter made. Half a
+    // plot's width past the water's own reach is what actually keeps the fields on land.
+    const wetReach = reach + ctx.tileSize * 0.29;
+    const overWater = (x: number, y: number): boolean => {
+      for (const centre of wetCentres) {
+        if ((centre.x - x) ** 2 + (centre.y - y) ** 2 < wetReach * wetReach) {
+          return true;
+        }
+      }
+      return false;
+    };
+    const keepPlot = (x: number, y: number): boolean => nearPaddy(x, y) && !overWater(x, y);
+
     // The lattice itself is shared with the menu's far bank — same country, same hand.
     //
     // Plots a little larger than they were (0.5 -> 0.58 of a tile): the paddy's density of inked
     // bunds is what made it the loudest thing on the sheet, and fewer, bigger plots quiet it
     // without taking the field system apart.
     for (const plot of paddyLattice({
-      x0: minX, x1: maxX, y0: minY, y1: maxY, cell: ctx.tileSize * 0.58, seed: 7777, keep: nearPaddy,
+      x0: minX, x1: maxX, y0: minY, y1: maxY, cell: ctx.tileSize * 0.58, seed: 7777, keep: keepPlot,
     })) {
       drawFieldPlot(graphics, plot);
     }
+  }
+
+  /**
+   * What is on the water.
+   *
+   * A separate pass from the land scatter, and it has to be: `planScatter` throws points up to
+   * 1.12 tile radii from a cell centre and then keeps everything *off* the water, which is exactly
+   * right for a tree and exactly wrong for a boat. These are placed inside their own cell instead,
+   * and only on water wide enough to carry them — a sampan drawn on a stream is a boat in a ditch.
+   *
+   * Returned in the same shape the land props use so both sort into one back-to-front order; a
+   * heron standing behind a boat has to be drawn behind it.
+   */
+  private planWaterLife(tiles: LandscapeContext['tiles'], ctx: LandscapeContext): ScatterItem[] {
+    const items: ScatterItem[] = [];
+    const rand = mulberry32(9311);
+    const wet = new Set<string>();
+    for (const tile of tiles) {
+      if (tile.terrain === 'water') {
+        wet.add(`${tile.coord.q},${tile.coord.r}`);
+      }
+    }
+    const neighbours: Array<[number, number]> = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
+
+    for (const tile of tiles) {
+      if (tile.terrain !== 'water') {
+        continue;
+      }
+      const kind = tile.waterKind ?? 'river';
+      const { q, r } = tile.coord;
+      const openness = neighbours.filter(([dq, dr]) => wet.has(`${q + dq},${r + dr}`)).length;
+      const centre = ctx.centreOf(tile);
+      const seed = (q * 7919 + r * 104729) % 100000;
+      const at = (spread: number) => ({
+        x: centre.x + (rand() - 0.5) * ctx.tileSize * spread,
+        y: centre.y + (rand() - 0.5) * ctx.tileSize * spread * 0.75,
+      });
+
+      // The sea gets nothing. It is scenery, not somewhere people work.
+      if (kind === 'sea') {
+        continue;
+      }
+
+      // One independent roll per kind, not a shared one down a chain of thresholds.
+      //
+      // Sharing it meant the first branch tested — the heron, which wants narrow water — took
+      // every low roll on exactly the cells a boat is most likely to be on, and the whole map came
+      // out with a single sampan on it.
+      const bank = openness <= 4;
+      if (bank && rand() < 0.12) {
+        items.push({ ...at(0.5), kind: 'heron', scale: 0.9 + rand() * 0.25, seed });
+      }
+      if (kind === 'stream') {
+        continue; // nothing floats on a stream, and stakes in one would be a fence
+      }
+      if (rand() < 0.18) {
+        items.push({ ...at(0.45), kind: 'sampan', scale: 0.9 + rand() * 0.3, seed: seed + 11 });
+      }
+      if (bank && rand() < 0.12) {
+        items.push({ ...at(0.5), kind: 'fishStakes', scale: 0.9 + rand() * 0.3, seed: seed + 23 });
+      }
+      if (rand() < 0.3) {
+        items.push({ ...at(0.65), kind: 'hyacinth', scale: 0.85 + rand() * 0.4, seed: seed + 37 });
+      }
+    }
+
+    return items;
   }
 
   /**
@@ -550,7 +728,7 @@ export class DongHoMapRenderer implements MapRenderer {
 
     // Ground the scatter must leave alone: the seats, which draw their own groves and roofs, and
     // the limestone, whose faces are the drawing and not a place for trees to stand on.
-    const keepClear: Array<{ x: number; y: number; r: number }> = [];
+    const keepClear: Array<{ x: number; y: number; r: number; padByItem?: boolean }> = [];
 
     // Every settlement, not just the ones the generator happened to give fortress terrain. A farm,
     // a mine or a plain village renders through `addResourceCluster` on ordinary ground and was
@@ -571,6 +749,18 @@ export class DongHoMapRenderer implements MapRenderer {
         // halfway up a cliff face. The rock keeps its own ground.
         const centre = ctx.centreOf(tile);
         keepClear.push({ x: centre.x, y: centre.y, r: tileSize * 0.95 });
+      } else if (tile.terrain === 'water') {
+        // Water keeps its own surface, for exactly the reason the rock does. A scatter point is
+        // thrown up to 1.12 tile radii from its own centre against an inradius of 0.87, so about
+        // two points in five land outside the cell that spawned them — and the bank is where the
+        // trees are. Without this, a river through wooded country grows a wood in midstream.
+        //
+        // `padByItem` is what makes it actually work. Clearing the anchor alone still left canopies
+        // hanging over the channel: a tree whose trunk sits 2 units outside the bank is drawn many
+        // times wider than that. Water is the one surface where the overhang reads as wrong, so
+        // here the test is against the prop's own reach rather than its centre.
+        const centre = ctx.centreOf(tile);
+        keepClear.push({ x: centre.x, y: centre.y, r: tileSize * 0.95, padByItem: true });
       }
     }
 
@@ -611,7 +801,7 @@ export class DongHoMapRenderer implements MapRenderer {
     );
     for (const item of bySize) {
       const reach = FOOTPRINT[item.kind] * item.scale * unit * 0.5;
-      if (keepClear.some((zone) => Math.hypot(item.x - zone.x, item.y - zone.y) < zone.r)) {
+      if (keepClear.some((zone) => Math.hypot(item.x - zone.x, item.y - zone.y) < zone.r + (zone.padByItem ? reach : 0))) {
         continue;
       }
       let blocked = false;
@@ -665,6 +855,10 @@ export class DongHoMapRenderer implements MapRenderer {
       case 'areca': areca(graphics, item.x, item.y, s, item.seed); break;
       case 'banyan': banyan(graphics, item.x, item.y, s, item.seed); break;
       case 'farmer': farmer(graphics, item.x, item.y, s, item.seed); break;
+      case 'sampan': sampan(graphics, item.x, item.y, s, item.seed); break;
+      case 'fishStakes': fishStakes(graphics, item.x, item.y, s, item.seed); break;
+      case 'hyacinth': waterHyacinth(graphics, item.x, item.y, s, item.seed); break;
+      case 'heron': heron(graphics, item.x, item.y, s, item.seed); break;
       default: break;
     }
   }
@@ -879,6 +1073,97 @@ export class DongHoMapRenderer implements MapRenderer {
       width: Math.max(1, widthFrom * 0.5), alpha: 0.24, colour: PIGMENT.nau, wobble: 1.4, step: 14,
     });
   }
+
+  /**
+   * A timber footbridge — deck, two rails and its posts in the water.
+   *
+   * Drawn in nâu, the iron-brown of Trần ware that every other piece of timber on this map is
+   * drawn in, so a bridge reads as the same material as the houses it connects. Slightly bowed:
+   * a flat deck at this size reads as a plank dropped on the river rather than a thing built.
+   */
+  drawBridge(
+    graphics: Phaser.GameObjects.Graphics,
+    at: PixelPoint,
+    angle: number,
+    span: number,
+    roadWidth: number,
+  ): void {
+    const half = Math.max(6, span * 0.5 + 3);
+    const deckHalf = Math.max(2.4, roadWidth * 0.85);
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    // Along the bridge, then across it.
+    const along = (t: number): Pt => ({ x: at.x + cos * t, y: at.y + sin * t });
+    const across = (p: Pt, d: number): Pt => ({ x: p.x - sin * d, y: p.y + cos * d });
+    // The bow, lifted against the road's own direction of travel.
+    const rise = (t: number): number => -Math.cos((t / half) * (Math.PI / 2)) * half * 0.16;
+    const seed = Math.round(at.x + at.y * 3);
+
+    const railPoints = (side: number): Pt[] => {
+      const out: Pt[] = [];
+      for (let step = -3; step <= 3; step += 1) {
+        const t = (step / 3) * half;
+        const base = across(along(t), side * deckHalf);
+        out.push({ x: base.x, y: base.y + rise(t) });
+      }
+      return out;
+    };
+
+    // Posts first, so the deck sits on top of them.
+    for (const t of [-half * 0.55, 0, half * 0.55]) {
+      const foot = along(t);
+      const head = { x: foot.x, y: foot.y + rise(t) - deckHalf * 0.15 };
+      inkPath(graphics, [{ x: foot.x, y: foot.y + deckHalf * 1.1 }, head], seed + Math.round(t),
+        { width: 0.9, alpha: 0.4, colour: PIGMENT.nauDark, wobble: 0.8, step: 6 });
+    }
+
+    // The deck: a filled span between the two rail lines, so the water does not show through it.
+    const left = railPoints(-1);
+    const right = railPoints(1);
+    graphics.fillStyle(PIGMENT.nau, 0.5);
+    graphics.beginPath();
+    graphics.moveTo(left[0].x, left[0].y);
+    for (const p of left.slice(1)) graphics.lineTo(p.x, p.y);
+    for (const p of [...right].reverse()) graphics.lineTo(p.x, p.y);
+    graphics.closePath();
+    graphics.fillPath();
+
+    // Planking, then the two rails over it.
+    for (let step = -2; step <= 2; step += 1) {
+      const t = (step / 2.4) * half;
+      const p = along(t);
+      const lift = rise(t);
+      inkPath(graphics,
+        [across({ x: p.x, y: p.y + lift }, -deckHalf), across({ x: p.x, y: p.y + lift }, deckHalf)],
+        seed + step * 7, { width: 0.6, alpha: 0.3, colour: PIGMENT.nauDark, wobble: 0.5, step: 5 });
+    }
+    for (const rail of [left, right]) {
+      inkPath(graphics, rail, seed + Math.round(rail[0].x),
+        { width: 1.05, alpha: 0.55, colour: PIGMENT.nauDark, wobble: 0.9, step: 8 });
+    }
+  }
+}
+
+/**
+ * One round of Chaikin corner-cutting.
+ *
+ * Replaces every corner with two points a quarter and three quarters along its edges, which pulls
+ * the path inside its own corners. Run twice it turns a hex-edge chain into something that reads as
+ * drawn rather than tiled.
+ */
+function smoothChain(points: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
+  if (points.length < 3) {
+    return points;
+  }
+  const out: Array<{ x: number; y: number }> = [points[0]];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const a = points[index];
+    const b = points[index + 1];
+    out.push({ x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25 });
+    out.push({ x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75 });
+  }
+  out.push(points[points.length - 1]);
+  return out;
 }
 
 /** Exported for the item renderer, which paints the same wash under settlements. */

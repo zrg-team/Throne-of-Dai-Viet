@@ -38,6 +38,7 @@ import { courtInRefuge, militaryColonies } from '../decree/rules';
 import { tickEdictDiscovery } from './CourtLaneSystem';
 import { endAscentRun } from './AscentResolver';
 import { advanceSeasonClock, greatPowersDue } from '../seasonClock';
+import { tickHydrology } from '../HydrologySystem';
 import { seasonLabel, t } from '../../i18n';
 import type { GameState } from '../../state/types';
 
@@ -187,7 +188,11 @@ export function advanceAscentTick(state: GameState): void {
   tickVassals(state);
 
   state.turn += 1;
-  advanceSeasonClock(state);
+  const calendar = advanceSeasonClock(state);
+  // The monsoon only turns when the season does: floods in summer, drought in winter.
+  if (calendar.seasonTurned) {
+    tickHydrology(state);
+  }
   // The rival empires live on their own: they arm, destabilise, war on each other, collapse
   // and are reborn — so the world the player is fighting is not a static backdrop. On their own
   // tick count rather than on the year, so a longer season does not slow them down with it.

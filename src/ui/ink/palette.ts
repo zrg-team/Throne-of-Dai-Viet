@@ -31,6 +31,13 @@ export const PIGMENT = {
   cham: 0x42596b,
   chamPale: 0x8fa5b2,
   chamWash: 0xafc0c7,
+  /**
+   * Chàm carrying silt: the wash mixed about a third of the way towards nâu.
+   *
+   * A river is not the same colour as the sea and never has been — the Sông Hồng is named for what
+   * it carries. Giving inland water its own tone is what stops a channel reading as an inlet.
+   */
+  chamSilt: 0x9db1ad,
 
   /**
    * Lá tràm — cajuput leaf. Every growing thing.

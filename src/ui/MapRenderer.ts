@@ -6,6 +6,7 @@
  */
 import Phaser from 'phaser';
 import type { PixelPoint } from '../map/hex';
+import type { WaterKind } from '../map/hexMapGenerator';
 import type { HexTerrainType } from '../map/terrainTypes';
 import { MAP_VISUAL_CONFIG } from '../game/gameplayConfig';
 import { INK, brushStroke, inkOutline, shade, washFill, waveLine, cloudMotif } from './inkTheme';
@@ -18,6 +19,13 @@ export interface LandscapeTile {
   coord: { q: number; r: number };
   terrain: HexTerrainType;
   landId?: string;
+  /**
+   * What kind of water this is, on `water` tiles only.
+   *
+   * A theme needs it to tell a shipping lane from a stream: they are the same terrain but not the
+   * same picture — different tone, different width, different current.
+   */
+  waterKind?: WaterKind;
 }
 
 /**
@@ -59,6 +67,22 @@ export interface MapRenderer {
   drawCloud(graphics: Phaser.GameObjects.Graphics, x: number, y: number, baseRadius: number, seed: number, alpha?: number): void;
   drawZoneBorder(graphics: Phaser.GameObjects.Graphics, edges: Array<[number, number, number, number]>, color: number, alpha?: number): void;
   drawRoad(graphics: Phaser.GameObjects.Graphics, points: PixelPoint[], widthFrom: number, widthTo: number): void;
+
+  /**
+   * A crossing where a road meets water.
+   *
+   * Roads are drawn between settlement anchors and have never known what they pass over, so a
+   * road that met a river simply ran into it and out the other side. `TrafficRenderer` now finds
+   * those spans and asks the theme to put something there. `at` is the middle of the wet run,
+   * `angle` the road's bearing through it, `span` how much water it covers.
+   */
+  drawBridge?(
+    graphics: Phaser.GameObjects.Graphics,
+    at: PixelPoint,
+    angle: number,
+    span: number,
+    roadWidth: number,
+  ): void;
 
   /**
    * Draws the whole landscape in one pass instead of tile by tile.

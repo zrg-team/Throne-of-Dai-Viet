@@ -9,8 +9,9 @@ export const GAMEPLAY_MAP_CONFIG: GameplayMapConfig = {
   rows: 52,
   hexSize: 18,
   seed: 1337,
-  riverHexCount: 92,
   neutralDistrictTarget: 40,
+  // Water is left on `DRAINAGE_DEFAULTS`. The realm is a delta country, so this is a dial worth
+  // knowing about: `trunks` and `widenChance` between them decide how wet the sheet reads.
 };
 
 export const MOUNTAIN_OPACITY_PRESETS = {
