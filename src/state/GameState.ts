@@ -4,7 +4,8 @@ import { generateKingHero, heroTemplates } from '../data/heroes';
 import { kingdomTemplates } from '../data/kingdoms';
 import { politicsCardTemplates } from '../data/politicsCards';
 import { OPENING_BOONS } from '../data/ascentCards';
-import { computeCentroid, computeNeighbors, generateHexMap, type MapGenConfig } from '../map/hexMapGenerator';
+import { computeCentroid, computeNeighbors, generateHexMap, type HexTile, type MapGenConfig } from '../map/hexMapGenerator';
+import { hexKey, hexNeighbors } from '../map/hex';
 import { refreshAllLandOutputs } from '../systems/ResourceSystem';
 import { refreshPlayerVisibility } from '../systems/LandSystem';
 import { createInitialCourtState } from '../systems/CourtSystem';
@@ -144,10 +145,83 @@ function createConfiguredLandTemplates(): LandTemplate[] {
   return templates;
 }
 
+/**
+ * Everything the water layer needs to know about, worked out once for the whole map.
+ *
+ * Written as one pass over the tiles rather than as work inside the per-province loop because that
+ * loop exists **twice** in this file — the campaign builder and the generated-district builder are
+ * separate copies of the same code — and a second copy of this logic would be a second thing to
+ * forget. `navigable` in particular cannot be answered province by province at all: it is a
+ * question about the water *body*, which spans provinces.
+ */
+function analyseWater(tiles: HexTile[]): Map<string, { waterKinds: { river: number; stream: number; lake: number }; coastHexes: number; navigable: boolean }> {
+  const byKey = new Map(tiles.map((tile) => [hexKey(tile.coord), tile]));
+
+  // Which wet hexes can a hull reach the sea from? One flood fill outward from every sea tile,
+  // through water only. A stream is excluded deliberately — nothing floats on it — so a channel
+  // that narrows to a trickle before the coast is correctly not navigable along its upper reach.
+  const seaConnected = new Set<string>();
+  const queue: HexTile[] = [];
+  for (const tile of tiles) {
+    if (tile.waterKind === 'sea') {
+      seaConnected.add(hexKey(tile.coord));
+      queue.push(tile);
+    }
+  }
+  for (let head = 0; head < queue.length; head += 1) {
+    for (const coord of hexNeighbors(queue[head].coord)) {
+      const key = hexKey(coord);
+      const next = byKey.get(key);
+      if (!next || seaConnected.has(key) || next.terrain !== 'water' || next.waterKind === 'stream') {
+        continue;
+      }
+      seaConnected.add(key);
+      queue.push(next);
+    }
+  }
+
+  const result = new Map<string, { waterKinds: { river: number; stream: number; lake: number }; coastHexes: number; navigable: boolean }>();
+  const entryFor = (landId: string) => {
+    let entry = result.get(landId);
+    if (!entry) {
+      entry = { waterKinds: { river: 0, stream: 0, lake: 0 }, coastHexes: 0, navigable: false };
+      result.set(landId, entry);
+    }
+    return entry;
+  };
+
+  for (const tile of tiles) {
+    if (!tile.landId) {
+      continue;
+    }
+    const entry = entryFor(tile.landId);
+    if (tile.terrain === 'water') {
+      const kind = tile.waterKind ?? 'river';
+      if (kind !== 'sea') {
+        entry.waterKinds[kind] += 1;
+      }
+      if (kind === 'river' && seaConnected.has(hexKey(tile.coord))) {
+        entry.navigable = true;
+      }
+      continue;
+    }
+    // A coast is dry ground that looks out over open sea — the sea itself belongs to no province.
+    for (const coord of hexNeighbors(tile.coord)) {
+      if (byKey.get(hexKey(coord))?.waterKind === 'sea') {
+        entry.coastHexes += 1;
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
 function createLands(mapConfig: MapGenConfig): { lands: Land[]; hexTiles: GameState['hexTiles']; playerStartId: string; rivalStartId: string } {
   const templates = createConfiguredLandTemplates();
   const { tiles, landHexes } = generateHexMap(templates, mapConfig);
   const neighbors = computeNeighbors(tiles);
+  const water = analyseWater(tiles);
 
   const lands: Land[] = templates.map((template) => {
     const hexes = landHexes.get(template.id) ?? [];
@@ -173,6 +247,9 @@ function createLands(mapConfig: MapGenConfig): { lands: Land[]; hexTiles: GameSt
       neighbors: Array.from(neighbors.get(template.id) ?? []).sort(),
       buildingCapacity,
       terrainSummary: summary,
+      waterKinds: water.get(template.id)?.waterKinds ?? { river: 0, stream: 0, lake: 0 },
+      coastHexes: water.get(template.id)?.coastHexes ?? 0,
+      navigable: water.get(template.id)?.navigable ?? false,
       outputs: { ...EMPTY_RESOURCE_BAG },
       isVisible: false,
       isExplored: false,
@@ -298,6 +375,7 @@ function createCampaignLands(
   const templates = createConfiguredLandTemplates();
   const { tiles, landHexes } = generateHexMap(templates, mapConfig);
   const neighbors = computeNeighbors(tiles);
+  const water = analyseWater(tiles);
 
   const lands: Land[] = templates.map((template) => {
     const hexes = landHexes.get(template.id) ?? [];
@@ -323,6 +401,9 @@ function createCampaignLands(
       neighbors: Array.from(neighbors.get(template.id) ?? []).sort(),
       buildingCapacity,
       terrainSummary: summary,
+      waterKinds: water.get(template.id)?.waterKinds ?? { river: 0, stream: 0, lake: 0 },
+      coastHexes: water.get(template.id)?.coastHexes ?? 0,
+      navigable: water.get(template.id)?.navigable ?? false,
       outputs: { ...EMPTY_RESOURCE_BAG },
       isVisible: false,
       isExplored: false,

@@ -12,10 +12,23 @@ import {
 import { createRng, pickWeighted, randomInt } from './random';
 import { TERRAIN_REGISTRY, type HexTerrainType } from './terrainTypes';
 
+/**
+ * What kind of water a wet hex is.
+ *
+ * `water` stays a single terrain — splitting it into three would mean walking the whole terrain
+ * recipe three times for what is one substance, and every consumer that only cares "is this wet"
+ * would have to learn all three. The kind rides alongside instead, so `terrainSummary.water` keeps
+ * meaning what it says while the economy, the renderer and the war layer can still tell a stream
+ * from a shipping lane.
+ */
+export type WaterKind = 'sea' | 'river' | 'stream' | 'lake';
+
 export interface HexTile {
   coord: HexCoord;
   terrain: HexTerrainType;
   landId?: string;
+  /** Only set on `water` tiles. */
+  waterKind?: WaterKind;
 }
 
 export interface MapGenConfig {
@@ -88,6 +101,7 @@ function applySeaBorders(
         const tile = tiles.get(hexKey(coord));
         if (tile) {
           tile.terrain = 'water';
+          tile.waterKind = 'sea';
         }
         break;
       }
@@ -105,6 +119,7 @@ function carveRiver(tiles: Map<string, HexTile>, coords: HexCoord[], length: num
       break;
     }
     tile.terrain = 'water';
+    tile.waterKind = 'river';
 
     if (rng() < 0.35) {
       directionIndex = (directionIndex + (rng() < 0.5 ? 1 : -1) + HEX_DIRECTIONS.length) % HEX_DIRECTIONS.length;
@@ -158,7 +173,19 @@ function growZones(
       for (const neighbor of hexNeighbors(hex)) {
         const key = hexKey(neighbor);
         const neighborTile = tiles.get(key);
-        if (!neighborTile || neighborTile.landId || neighborTile.terrain === 'water') {
+        if (!neighborTile || neighborTile.landId) {
+          continue;
+        }
+        // A province grows across its own river but never out into the sea.
+        //
+        // This one condition is what takes `terrainSummary.water` off zero. Water hexes never
+        // received a `landId`, so the counting loop in `GameState` — `summary[tile.terrain] += 1`,
+        // which only ever runs for tiles belonging to the province — could not see a drop of it,
+        // and seven shipped mechanics read a field that was structurally always 0.
+        //
+        // The sea stays unclaimed on purpose: it is the edge of the world, not a province's back
+        // garden, and leaving it out is what keeps a coast a coast.
+        if (neighborTile.terrain === 'water' && neighborTile.waterKind === 'sea') {
           continue;
         }
         neighborTile.landId = landId;
@@ -196,19 +223,28 @@ function assignTerrain(
 
     for (const coord of hexes) {
       const tile = tiles.get(hexKey(coord))!;
+      // A province owns its river, which means the river is in this list. Rolling terrain for it
+      // would paint the water back into dry ground on the very pass that is supposed to describe
+      // the province — the map would generate a river and then quietly fill it in.
+      if (tile.terrain === 'water') {
+        continue;
+      }
       tile.terrain = pickWeighted(rng, candidates);
     }
 
     if (land.type === 'castle' || land.type === 'enemyCastle' || land.type === 'market' || land.type === 'temple') {
       const cityTerrain: HexTerrainType = land.type === 'temple' ? 'shrine' : 'fortress';
       const cityHexCount = Math.min(8, Math.max(1, Math.round(hexes.length * 0.15)));
-      const hexSet = new Set(hexes.map(hexKey));
-      const byClaimOrder = [...hexes].sort(
-        (a, b) => (claimOrder.get(hexKey(a)) ?? 0) - (claimOrder.get(hexKey(b)) ?? 0),
-      );
+      const hexSet = new Set(hexes.filter((coord) => tiles.get(hexKey(coord))!.terrain !== 'water').map(hexKey));
+      const byClaimOrder = [...hexes]
+        .filter((coord) => tiles.get(hexKey(coord))!.terrain !== 'water')
+        .sort((a, b) => (claimOrder.get(hexKey(a)) ?? 0) - (claimOrder.get(hexKey(b)) ?? 0));
 
       // BFS out from the land's seed hex so city hexes form one contiguous cluster.
       const start = byClaimOrder[0];
+      if (!start) {
+        continue;
+      }
       const visited = new Set<string>([hexKey(start)]);
       const queue: HexCoord[] = [start];
       const cityCoords: HexCoord[] = [];

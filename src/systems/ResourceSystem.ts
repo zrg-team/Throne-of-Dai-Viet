@@ -1724,7 +1724,10 @@ function getBuildingTerrainBlocker(land: Land, building: LandBuildingType): stri
   }
 
   if (building === 'harbor') {
-    return land.terrainSummary.water > 0 ? undefined : t('reason.needWater');
+    // Both halves of what the refusal string has always promised: "a coastal **or** river tile".
+    // Until provinces owned their water this read a field that was structurally 0, so the harbour
+    // could not be built in any mode, on any seed, ever.
+    return land.terrainSummary.water + land.coastHexes > 0 ? undefined : t('reason.needWater');
   }
 
   const hasCityCore = land.terrainSummary.fortress + land.terrainSummary.shrine > 0;
