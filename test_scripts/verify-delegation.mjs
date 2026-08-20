@@ -37,7 +37,12 @@ const read = () => page.evaluate(() => {
     paused: Boolean(st.isPaused), strat: Boolean(st.isStrategyPause), defeated: Boolean(st.isDefeated),
     conquestActive: window.__phaserGame.scene.isActive('ConquestScene'),
     awaiting: Boolean(ui.battleAwaitingOrder), turn: st.turn,
-    over: b.over, round: b.round, delegated: Boolean(b.delegated),
+    over: b.over, round: b.round, key: b.key ?? b.landId, delegated: Boolean(b.delegated),
+    moment: b.moment?.id ?? null,
+    // The fight's whole clock. `round` counts *exchanges* and deliberately does not move during
+    // the approach, so a fight that is closing the ground perfectly happily reads as round 0 —
+    // which is how this check came to report a stall that was not one.
+    beat: (b.approachBeats ?? 0) + b.round,
     martial: b.generalMartial ?? null, posture: b.posture,
     log: b.log.slice(-3), labels,
   } : { gone: true, labels };
@@ -72,13 +77,19 @@ line(!handed.gone && !handed.over, 'handing over does not end the fight',
   handed.gone ? 'the battle was destroyed' : `round ${handed.round}, over=${handed.over}`);
 line(handed.delegated === true, 'the field changed hands', `delegated=${handed.delegated}`);
 line((handed.martial ?? 0) > 0, 'a commander with a martial score has it', `martial ${handed.martial}`);
-line(!later.gone && later.round > handed.round, 'the fight kept running without the player',
-  `round ${handed.round} -> ${later.round}`);
+// Pinned to the engagement that was handed over. A fight that finished and was replaced by the
+// next one also reads "round 0", and calling that a stall would be the harness lying about which
+// battle it was watching.
+line(!later.gone && (later.key !== handed.key || later.beat > handed.beat),
+  'the fight kept running without the player',
+  later.key !== handed.key ? `it finished; the next one is at beat ${later.beat}`
+    : `beat ${handed.beat} -> ${later.beat} (exchange ${handed.round} -> ${later.round})`);
 line(later.labels.some((s) => /Take the field|Thu lại quyền/.test(s)), 'the chip offers the way back',
   later.labels.filter((s) => s.length < 24).join(' | '));
 line(back.delegated === false, 'taking the field back works', `delegated=${back.delegated}`);
 line(!back.gone && !back.over, 'and the fight is still there afterwards', `round ${back.round}`);
 console.log(`\nlog at hand-over: ${handed.log.join(' / ')}`);
+console.log(`fights: handed ${handed.key}@${handed.beat}  later ${later.key}@${later.beat}  back ${back.key}@${back.beat}`);
 console.log(`clocks: handed ${JSON.stringify({ p: handed.paused, s: handed.strat, a: handed.awaiting, t: handed.turn })}`
   + `  later ${JSON.stringify({ p: later.paused, s: later.strat, a: later.awaiting, t: later.turn, d: later.defeated, c: later.conquestActive })}`);
 console.log(`console errors: ${errors.length ? errors.slice(0, 2).join(' ; ') : 'none'}`);

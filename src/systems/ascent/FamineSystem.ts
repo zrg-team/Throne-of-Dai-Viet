@@ -1,3 +1,4 @@
+import { dikeOffice } from '../decree/rules';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   FAMINE_COOLDOWN_TICKS,
@@ -59,6 +60,11 @@ export function famineShortfall(state: GameState): number {
 export function famineReady(state: GameState): boolean {
   const ascent = state.ascent;
   if (!ascent) return false;
+  // Hà đê sứ, 1248 — the dike office. Trần Thái Tông made flood control a standing office with its
+  // own officials rather than something done after the water came, and a delta realm that keeps its
+  // dikes simply does not have the famine that follows a flood. The card leaves this run's deck.
+  if (dikeOffice(state) && state.lands.some((land) => land.ownerId === PLAYER_KINGDOM_ID
+    && (land.terrainSummary.water > 0 || land.terrainSummary.riceFields > 0))) return false;
   if ((ascent.famineCooldown ?? 0) > 0) return false;
   if (famineShortfall(state) <= 0) return false;
   return foodRunway(state) <= SCARCITY_CRISIS_SEASONS;

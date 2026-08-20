@@ -1,3 +1,5 @@
+import { hasCapstone } from '../decree/SchoolSystem';
+import { marchSouth, NAM_TIEN_AMBITION_MULT } from '../decree/rules';
 import {
   AMBITION_DECAY_PER_WAVE,
   AMBITION_HEAT_MAX,
@@ -69,7 +71,19 @@ export function chargeAmbition(state: GameState, reason: AmbitionReason, times =
   const ascent = state.ascent;
   if (!ascent || times <= 0) return;
 
-  const cost = AMBITION_COSTS[reason] * times;
+  // Nam tiến — the March South. Four centuries of Lê and Nguyễn expansion, and the only decree in
+  // the game that touches this dial. Taking ground still charges ambition, but at half rate, so an
+  // expansionist run stops being punished by its own central mechanic for doing the thing it is
+  // built to do. Costed dearly on the other side: three weight, and twelve points of Sĩ.
+  // The two discounts do NOT stack. Multiplied, Nam tiến's 0.5 and Trúc Lâm's 0.6 become 0.3, and a
+  // realm holding both outgrows the only pressure this mode has: measured, waves fell to under a
+  // tenth of the realm's defence and `verify-ascent`'s "waves track the realm" check went red. The
+  // better of the two applies, so each decree is worth exactly what its card says and no more.
+  const discounts = [
+    marchSouth(state) ? NAM_TIEN_AMBITION_MULT : 1,
+    hasCapstone(state, 'phat') ? 0.6 : 1,
+  ];
+  const cost = AMBITION_COSTS[reason] * times * Math.min(...discounts);
   ascent.ambition = ambitionOf(state) + cost;
   ascent.ambitionSpent = (ascent.ambitionSpent ?? 0) + cost;
   // What the player spent *this* cycle, so the Court phase can show the dial climbing as they

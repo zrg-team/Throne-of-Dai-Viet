@@ -104,6 +104,11 @@ const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   'court-appointment': 5,
   'conquer-target': 6,
   'law-choice': 7,
+  // Just below the standing law it is a cousin of. A sac, du, hich or le is raised by the
+  // world rather than reached for, so it should not push aside a decision the player has
+  // already half-made — but it outranks the court and the envoy, because a hich is only ever
+  // offered in the two seasons before a Great Invasion and is worthless a season later.
+  'decree-offer': 7.5,
   // Just above the laws it will shape. Four cards in a whole run, each governing the era that
   // follows it, so it should not queue behind an edict it is about to change the value of.
   doctrine: 6.5,

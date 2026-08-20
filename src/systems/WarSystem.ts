@@ -1,3 +1,4 @@
+import { recalledHostPenalty } from './decree/rules';
 import { PLAYER_KINGDOM_ID } from '../game/constants';
 import { getLegTicks } from '../game/movementConfig';
 import {
@@ -86,7 +87,12 @@ export function armyPower(state: GameState, army: Army): number {
   // A capable general lifts the whole host — keeping veteran commanders alive matters.
   const general = army.generalHeroId ? state.heroes.find((h) => h.id === army.generalHeroId) : undefined;
   const generalMult = general ? 1 + (general.stats.martial / 100) * 0.25 : 1;
-  return unitPower * (army.morale / 100) * (army.supply / 100) * powerMult * levelMult * eliteMult * generalMult;
+  // Ngụ binh ư nông's other half. A host that has been out in the fields does not come back to the
+  // colours sharp: for one wave after it is recalled it fights at three-quarters. This is the
+  // whole trade — an army that feeds the realm is an army that is not ready when you want it — and
+  // it is applied here so it reaches every resolver at once rather than only the watched battle.
+  const recallMult = army.recalledUntil && army.recalledUntil > state.turn ? recalledHostPenalty(state) : 1;
+  return unitPower * (army.morale / 100) * (army.supply / 100) * powerMult * levelMult * eliteMult * generalMult * recallMult;
 }
 
 /**

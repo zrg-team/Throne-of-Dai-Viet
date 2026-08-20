@@ -925,7 +925,7 @@ export class MenuScene extends Phaser.Scene {
     const saved = hasSnapshot();
 
     // The settings block is pinned to the bottom of the sheet, so the column above it has a hard
-    // floor. Both texts are built first because only Phaser knows how many lines they wrap to, and
+    // floor. The tagline is built first because only Phaser knows how many lines it wraps to, and
     // then the gaps are shared out of whatever room is left — which is how the page fits at any
     // height in any language instead of fitting at 844 in English.
     const tagline = this.add.text(GAME_WIDTH / 2, 0, t('ascent.menu.tagline'), {
@@ -935,16 +935,16 @@ export class MenuScene extends Phaser.Scene {
       align: 'center',
       wordWrap: { width: 270 },
     }).setOrigin(0.5, 0);
-    const saveLabel = this.add.text(GAME_WIDTH / 2, 0, snapshotLabel(), {
-      color: saved ? '#2a2118' : '#5a4c39',
-      fontFamily: UI_FONT,
-      fontSize: '12px',
-      fontStyle: '700',
-      align: 'center',
-      backgroundColor: 'rgba(243,230,196,0.72)',
-      padding: { x: 6, y: 3 },
-      wordWrap: { width: 250 },
-    }).setOrigin(0.5, 0);
+
+    // The save note used to be a stamped row of its own under Continue, with a gap above it and the
+    // doubled group break below. On a first run it said nothing but "the button above does nothing"
+    // and charged a line of a 620-tall sheet for it. Folded into the button as a second line, it
+    // greys out with the button and hands its row back to the column — which is what pays for the
+    // History button below.
+    //
+    // 38 rather than vh(46): font sizes here are fixed px and do NOT scale with vScale, so at 0.62 a
+    // vh(46) button is 29 units and cannot hold a 15px line over a 10px one.
+    const continueHeight = Math.max(38, this.vh(46));
 
     // The column sits against the settings button rather than at a fixed height, so the art above
     // it keeps whatever room is left over instead of the page ending in a hole.
@@ -952,7 +952,7 @@ export class MenuScene extends Phaser.Scene {
     // Spacing is grouping, so there are two sizes of it and not one.
     //
     //   · `gap` runs between the things you came here to press — the two modes, the tagline under
-    //     the one it belongs to, the save label tucked under Continue at 0.6 of it.
+    //     the one it belongs to, Continue and the History page under those.
     //   · TWICE that runs between the last of them and Settings, because Settings is not one of
     //     them. It and the language line under it are the other block on this page.
     //
@@ -962,13 +962,18 @@ export class MenuScene extends Phaser.Scene {
     //
     // The gaps are also counted here EXACTLY as they are spent below, or the slack piles up in
     // whichever one the arithmetic forgot.
-    const rows = this.vh(58) + this.vh(46) + this.vh(42) + tagline.height + saveLabel.height;
-    // TWICE the gap for the break, not three times it. Three left an obvious hole between the save
-    // label and Settings while the art above the column was being crowded — the page had its slack
+    const rows = this.vh(58) + tagline.height + this.vh(46) + continueHeight + this.vh(42);
+    // TWICE the gap for the break, not three times it. Three left an obvious hole between the last
+    // row and Settings while the art above the column was being crowded — the page had its slack
     // in the one place nothing needed it. Doubling is still an unmissable break (the gaps inside
     // the group are 12 design units at 844 against 24 here) and it hands the difference back to
     // the column, which now sits that much lower down the sheet.
-    const GAPS = 3 + 0.6 + 2;
+    //
+    // The budget, at the 620 floor where it is tightest: SETTINGS_TOP is 506 and ART_FLOOR 322, so
+    // the column has 184. The rows come to 36 + 28 (the tagline wraps to two lines in Vietnamese)
+    // + 29 + 38 + 26 = 157, and six gaps at the 4-unit clamp are 24. It fits by three. The save
+    // label's row, now folded into Continue, is what buys History its own.
+    const GAPS = 4 + 2;
     // The floor the column may not climb above: the rear host's feet stand at 488 in the design,
     // and the pair of them are the busiest thing on the page. At 844 the bottom-anchored column
     // landed at 463 and cleared them by luck; on a 620 sheet everything above the footer is
@@ -982,7 +987,7 @@ export class MenuScene extends Phaser.Scene {
       4,
       Math.round(14 * this.vScale),
     );
-    const gapsBelow = gap * 3 + Math.round(gap * 0.6) + gap * 2;
+    const gapsBelow = gap * 4 + gap * 2;
     let cursor = Math.max(ART_FLOOR, SETTINGS_TOP - rows - gapsBelow);
 
     this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: this.vh(58) }, t('ascent.menu.title'), () => {
@@ -1000,19 +1005,22 @@ export class MenuScene extends Phaser.Scene {
     }, { variant: 'secondary', fontSize: '15px' }));
     cursor += this.vh(46) + gap;
 
-    this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: this.vh(42) }, t('menu.continue'), () => {
+    this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: continueHeight }, t('menu.continue'), () => {
       const snapshot = loadSnapshot();
       if (snapshot) {
         this.startGame(snapshot.state);
       }
-    }, { variant: saved ? 'ghost' : 'disabled', fontSize: '15px' }));
-    cursor += this.vh(42) + Math.round(gap * 0.6);
+    }, { variant: saved ? 'ghost' : 'disabled', fontSize: '15px', subLabel: snapshotLabel() }));
+    cursor += continueHeight + gap;
 
-    saveLabel.setY(cursor);
-    this.content.push(saveLabel);
-    // The group break, and the reason Settings reads as a different kind of thing from the two
+    // The real history the game is built out of. It belongs in this group and not with Settings:
+    // it is something to go and read, not a switch to set.
+    this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: this.vh(42) }, t('history.menu.button'), () => {
+      this.scene.start('HistoryScene');
+    }, { variant: 'ghost', fontSize: '14px' }));
+    // The group break, and the reason Settings reads as a different kind of thing from the
     // buttons above it.
-    cursor += saveLabel.height + gap * 2;
+    cursor += this.vh(42) + gap * 2;
 
     this.renderLanguageSwitch();
 

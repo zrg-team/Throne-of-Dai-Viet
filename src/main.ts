@@ -232,7 +232,7 @@ window.__startBenchGame = (seed = 1337, mode = 'rival') => {
   // renders underneath MapScene (otherwise control-render-mode, which hides the opaque
   // paper background, would reveal them).
   const worldScene = mode === 'ascent' ? 'ConquestScene' : 'MapScene';
-  for (const key of ['MenuScene', 'CampaignScene', 'MapScene', 'UIScene', 'ConquestScene', 'ConquestUIScene']) {
+  for (const key of ['MenuScene', 'HistoryScene', 'CampaignScene', 'MapScene', 'UIScene', 'ConquestScene', 'ConquestUIScene']) {
     if (key !== worldScene && game.scene.getScene(key)) game.scene.stop(key);
   }
   game.scene.start(worldScene, { state });

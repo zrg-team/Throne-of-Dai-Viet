@@ -126,6 +126,7 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
    */
   override createArmyMarker(
     total: number, isPlayer: boolean, _kingdomColor?: number, flagSeed?: number, kit?: HostKit,
+    drawScale?: number,
   ): Phaser.GameObjects.Container {
     const scene = this.scene as Phaser.Scene;
     const container = scene.add.container(0, 0);
@@ -142,7 +143,8 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // the same sheet, at the same distance — and the result was that a villager out-stood a
     // soldier by half again, with the buffalo beside them larger than either. A host reads as a
     // host because of its ranks and its standard, not because its men are drawn short.
-    const scale = GROUND_SCALE;
+    // The map's one ground scale, unless the caller is the battle screen — see the interface.
+    const scale = drawScale ?? GROUND_SCALE;
     const shape = hostShapeAt(Math.max(1, total), scale);
 
     // The shadow is the ground the whole block stands on, not a blob under one point of it. Same
@@ -182,10 +184,14 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // Down from 0.72 with the men. A standard is carried by somebody, so it wants to read at three
     // or four times a soldier's height, not six — at the old size the banner was the host and the
     // block behind it was texture.
-    const FLAG_SCALE = 0.5;
+    // Three and a half times a soldier's height, measured on the battle screen where both are
+    // large enough to compare. It grows with the men — a bigger host is drawn bigger and its
+    // standard has to come with it — but the *ratio* is the thing being fixed, and at 0.5 it came
+    // out near five, with a cloth wider than the block it belonged to.
+    const FLAG_SCALE = 0.37 * (scale / GROUND_SCALE);
     const FLAG_FOOT = 10 * FLAG_SCALE;
     // Wider than the cloth (25 * FLAG_SCALE), or three standards stack into one smear.
-    const FLAG_STEP = 14;
+    const FLAG_STEP = 14 * (scale / GROUND_SCALE);
     const span = hostSpan(shape, scale);
     const frontRankY = -shape.height + span.spanY;
     const standards = Math.max(1, Math.min(3, Math.round(total / 4000)));

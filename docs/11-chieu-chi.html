@@ -1,0 +1,1147 @@
+<title>Chiếu Chỉ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Noto+Serif+SC:wght@700&display=swap">
+
+<style>
+:root {
+  /* Đông Hồ pigments, lifted from src/ui/ink/palette.ts so the doc and the game agree. */
+  --paper:      #f3ecd8;   /* điệp hi   */
+  --paper-2:    #e9dfc2;   /* điệp      */
+  --paper-3:    #ded0af;   /* điệp lo   */
+  --edge:       #c4b189;
+  --edge-soft:  #d6c8a6;
+  --ink:        #2a2118;   /* mực nho   */
+  --ink-2:      #5a4c39;
+  --ink-3:      #8a7c65;
+  --son:        #b33a26;   /* sỏi son   */
+  --son-deep:   #8a2a1b;
+  --son-wash:   rgba(179, 58, 38, 0.09);
+  --cham:       #42596b;   /* chàm      */
+  --gidong:     #4d766f;   /* gỉ đồng   */
+  --gidong-wash:rgba(77, 118, 111, 0.10);
+  --hoe:        #9a7418;   /* hoa hòe   */
+  --hoe-wash:   rgba(154, 116, 24, 0.12);
+  --tram:       #5b6d45;   /* lá tràm   */
+  --stamp-fg:   #fbf2df;
+
+  --serif: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --sans: "Be Vietnam Pro", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace;
+  --seal-face: "Noto Serif SC", "Songti SC", "SimSun", serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:      #17120d;
+    --paper-2:    #201a13;
+    --paper-3:    #2a2219;
+    --edge:       #423628;
+    --edge-soft:  #332a1f;
+    --ink:        #ece0c4;
+    --ink-2:      #bcac8b;
+    --ink-3:      #8b7d63;
+    --son:        #e0705a;
+    --son-deep:   #c05340;
+    --son-wash:   rgba(224, 112, 90, 0.13);
+    --cham:       #93a9b6;
+    --gidong:     #8fbcb3;
+    --gidong-wash:rgba(143, 188, 179, 0.12);
+    --hoe:        #d9b64a;
+    --hoe-wash:   rgba(217, 182, 74, 0.14);
+    --tram:       #9db67f;
+    --stamp-fg:   #17120d;
+  }
+}
+:root[data-theme="dark"] {
+  --paper:      #17120d;
+  --paper-2:    #201a13;
+  --paper-3:    #2a2219;
+  --edge:       #423628;
+  --edge-soft:  #332a1f;
+  --ink:        #ece0c4;
+  --ink-2:      #bcac8b;
+  --ink-3:      #8b7d63;
+  --son:        #e0705a;
+  --son-deep:   #c05340;
+  --son-wash:   rgba(224, 112, 90, 0.13);
+  --cham:       #93a9b6;
+  --gidong:     #8fbcb3;
+  --gidong-wash:rgba(143, 188, 179, 0.12);
+  --hoe:        #d9b64a;
+  --hoe-wash:   rgba(217, 182, 74, 0.14);
+  --tram:       #9db67f;
+  --stamp-fg:   #17120d;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  max-width: 1140px;
+  margin-inline: auto;
+  padding: 0 24px 96px;
+}
+
+.col { max-width: 68ch; }
+
+/* ── Masthead ──────────────────────────────────────────────────────── */
+
+.masthead {
+  border-bottom: 2px solid var(--ink);
+  padding: 56px 0 26px;
+  margin-bottom: 8px;
+}
+.eyebrow {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--son);
+  margin: 0 0 18px;
+}
+.masthead h1 {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: clamp(46px, 8vw, 82px);
+  line-height: 0.98;
+  letter-spacing: -0.015em;
+  margin: 0;
+  text-wrap: balance;
+}
+.masthead h1 .han {
+  font-family: var(--seal-face);
+  color: var(--son);
+  font-size: 0.62em;
+  margin-left: 0.28em;
+  vertical-align: 0.08em;
+}
+.lede {
+  font-family: var(--serif);
+  font-size: 21px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 60ch;
+  margin: 22px 0 0;
+}
+.masthead-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin-top: 26px;
+  font-size: 12px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.masthead-meta b { color: var(--ink-2); font-weight: 600; }
+
+/* ── Sections & the seal rail ──────────────────────────────────────── */
+
+section { padding-top: 60px; }
+
+.sec-head {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  border-top: 1px solid var(--edge);
+  padding-top: 22px;
+  margin-bottom: 26px;
+}
+.sec-head.plain { grid-template-columns: minmax(0, 1fr); }
+
+/* The stamp is not ornament: it names which instrument the section governs. */
+.seal {
+  width: 52px;
+  height: 52px;
+  background: var(--son);
+  color: var(--stamp-fg);
+  font-family: var(--seal-face);
+  font-size: 28px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  user-select: none;
+}
+.seal.cham { background: var(--cham); }
+.seal.gidong { background: var(--gidong); }
+.seal.hoe { background: var(--hoe); }
+
+.sec-head h2 {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: clamp(27px, 3.4vw, 38px);
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  margin: 0;
+  text-wrap: balance;
+}
+.sec-head .kicker {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 7px;
+}
+.sec-head .sub {
+  font-family: var(--serif);
+  font-size: 18px;
+  color: var(--ink-2);
+  margin: 12px 0 0;
+  max-width: 62ch;
+}
+
+h3 {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--son);
+  margin: 40px 0 12px;
+}
+h4 {
+  font-family: var(--serif);
+  font-size: 21px;
+  font-weight: 600;
+  margin: 32px 0 8px;
+}
+
+p { margin: 0 0 16px; }
+a { color: var(--son); text-underline-offset: 2px; }
+a:focus-visible, .navlink:focus-visible {
+  outline: 2px solid var(--son);
+  outline-offset: 2px;
+}
+
+code, .id {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: var(--paper-2);
+  border: 1px solid var(--edge-soft);
+  border-radius: 2px;
+  padding: 0.06em 0.34em;
+  white-space: nowrap;
+}
+.vn { font-style: italic; color: var(--ink-2); }
+
+/* ── Nav ───────────────────────────────────────────────────────────── */
+
+nav.toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border-bottom: 1px solid var(--edge);
+  margin-bottom: 4px;
+}
+.navlink {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
+  text-decoration: none;
+  padding: 12px 16px 12px 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.navlink:hover { color: var(--son); border-bottom-color: var(--son); }
+
+/* ── Stat strip ────────────────────────────────────────────────────── */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  border: 1px solid var(--edge);
+  background: var(--paper-2);
+  margin: 0 0 8px;
+}
+.stat { padding: 18px 20px; border-right: 1px solid var(--edge); }
+.stat:last-child { border-right: 0; }
+.stat .n {
+  font-family: var(--serif);
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  display: block;
+}
+.stat .l {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-top: 8px;
+  display: block;
+}
+.stat.hot .n { color: var(--son); }
+
+/* ── Tables ────────────────────────────────────────────────────────── */
+
+.scroller { overflow-x: auto; margin: 18px 0 8px; border: 1px solid var(--edge); }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 720px;
+  font-size: 13.5px;
+  background: var(--paper-2);
+}
+thead th {
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 11px 14px;
+  border-bottom: 1.5px solid var(--ink);
+  white-space: nowrap;
+  background: var(--paper-3);
+}
+tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--edge-soft);
+  vertical-align: top;
+  line-height: 1.5;
+}
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: var(--paper-3); }
+td .nm {
+  font-family: var(--serif);
+  font-size: 15px;
+  font-weight: 600;
+  display: block;
+  line-height: 1.25;
+}
+td .en {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.02em;
+  display: block;
+  margin-top: 2px;
+}
+td.num { font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+.src { font-size: 12px; color: var(--ink-2); }
+
+/* ── Chips ─────────────────────────────────────────────────────────── */
+
+.chip {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 2px;
+  border: 1px solid;
+  white-space: nowrap;
+  margin: 1px 3px 1px 0;
+}
+.chip.up { color: var(--gidong); border-color: var(--gidong); background: var(--gidong-wash); }
+.chip.down { color: var(--son); border-color: var(--son); background: var(--son-wash); }
+.chip.n { color: var(--ink-2); border-color: var(--edge); background: transparent; }
+.chip.w { color: var(--hoe); border-color: var(--hoe); background: var(--hoe-wash); }
+
+/* ── Callouts ──────────────────────────────────────────────────────── */
+
+.note {
+  border-left: 3px solid var(--son);
+  background: var(--son-wash);
+  padding: 16px 20px;
+  margin: 22px 0;
+}
+.note.calm { border-left-color: var(--cham); background: var(--paper-2); }
+.note.trap { border-left-color: var(--hoe); background: var(--hoe-wash); }
+.note .t {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0 0 7px;
+  color: var(--ink-2);
+}
+.note p:last-child { margin-bottom: 0; }
+
+.formula {
+  font-family: var(--mono);
+  font-size: 13px;
+  background: var(--paper-2);
+  border: 1px solid var(--edge);
+  padding: 16px 20px;
+  margin: 18px 0;
+  overflow-x: auto;
+  line-height: 1.85;
+}
+.formula .c { color: var(--ink-3); }
+
+/* ── Estate / school cards ─────────────────────────────────────────── */
+
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1px;
+  background: var(--edge);
+  border: 1px solid var(--edge);
+  margin: 20px 0;
+}
+.card { background: var(--paper-2); padding: 20px 22px; }
+.card .han {
+  font-family: var(--seal-face);
+  font-size: 15px;
+  color: var(--son);
+  margin-right: 8px;
+}
+.card h5 {
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.card .who {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+  margin: 0 0 12px;
+}
+.card p { font-size: 13.5px; margin-bottom: 10px; }
+.card p:last-child { margin-bottom: 0; }
+.card .cap {
+  border-top: 1px solid var(--edge-soft);
+  padding-top: 11px;
+  margin-top: 13px;
+  font-size: 13px;
+}
+.card .cap b { color: var(--son); }
+
+ul, ol { margin: 0 0 16px; padding-left: 22px; }
+li { margin-bottom: 8px; }
+li::marker { color: var(--ink-3); }
+
+ol.phases { list-style: none; padding-left: 0; counter-reset: ph; }
+ol.phases > li {
+  counter-increment: ph;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 18px;
+  border-top: 1px solid var(--edge);
+  padding: 20px 0;
+  margin: 0;
+}
+ol.phases > li::before {
+  content: counter(ph);
+  font-family: var(--serif);
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--son);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+ol.phases h4 { margin: 0 0 6px; font-size: 19px; }
+ol.phases .files {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  margin-top: 10px;
+  line-height: 1.8;
+  word-break: break-word;
+}
+
+figure { margin: 26px 0; }
+figcaption {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-top: 12px;
+  max-width: 62ch;
+}
+svg { display: block; max-width: 100%; height: auto; }
+.dg-fill-paper { fill: var(--paper-2); }
+.dg-fill-ink { fill: var(--ink); }
+.dg-fill-ink2 { fill: var(--ink-2); }
+.dg-fill-ink3 { fill: var(--ink-3); }
+.dg-fill-son { fill: var(--son); }
+.dg-fill-stamp { fill: var(--stamp-fg); }
+.dg-son { fill: var(--son); stroke: var(--son); }
+.dg-stroke { stroke: var(--ink); fill: none; }
+.dg-stroke-soft { stroke: var(--edge); fill: none; }
+.dg-stroke-son { stroke: var(--son); fill: none; }
+
+footer {
+  border-top: 2px solid var(--ink);
+  margin-top: 72px;
+  padding-top: 24px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+footer h3 { margin-top: 0; }
+footer ul { padding-left: 18px; }
+footer li { margin-bottom: 5px; font-size: 12.5px; }
+
+@media (max-width: 700px) {
+  .sec-head { grid-template-columns: 40px minmax(0, 1fr); gap: 14px; }
+  .seal { width: 40px; height: 40px; font-size: 21px; }
+  main { padding: 0 18px 72px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+
+<main>
+
+<header class="masthead">
+  <p class="eyebrow">Mandate of Đại Việt · design proposal · Dragon Ascent + Throne of Empires</p>
+  <h1>Chiếu Chỉ<span class="han">詔</span></h1>
+  <p class="lede">Turning the decree from a shop of permanent percentages into the realm's constitution — a standing law that heroes author, provinces resist, rivals answer, and history remembers.</p>
+  <div class="masthead-meta">
+    <span><b>Today</b> 31 rows, 1 currency, 1 verb</span>
+    <span><b>Proposed</b> ~65 decrees, 5 instruments, 7 sources</span>
+    <span><b>Touches</b> economy · army · gacha · waves · heroes · rivals · Chronicle · Legacy</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a class="navlink" href="#audit">Where it stands</a>
+  <a class="navlink" href="#thesis">The reframe</a>
+  <a class="navlink" href="#instruments">Five instruments</a>
+  <a class="navlink" href="#pressure">Weight &amp; compliance</a>
+  <a class="navlink" href="#estates">The four estates</a>
+  <a class="navlink" href="#sources">Seven sources</a>
+  <a class="navlink" href="#catalogue">The catalogue</a>
+  <a class="navlink" href="#schools">Schools &amp; codes</a>
+  <a class="navlink" href="#build">Build order</a>
+  <a class="navlink" href="#proof">Proof</a>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="audit">
+  <div class="sec-head plain">
+    <div>
+      <p class="kicker">01 · Audit</p>
+      <h2>What the decree actually is right now</h2>
+      <p class="sub">Read honestly before redesigning. The bones are good — the era gate, the play-unlocks, the exclusive groups all work. The problem is that every decree in the game does the same one thing.</p>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><span class="n">31</span><span class="l">rows in edicts.ts</span></div>
+    <div class="stat"><span class="n">19</span><span class="l">modifier keys</span></div>
+    <div class="stat hot"><span class="n">1</span><span class="l">verb: <em>+X%</em></span></div>
+    <div class="stat hot"><span class="n">3</span><span class="l">exclusive forks</span></div>
+    <div class="stat hot"><span class="n">0</span><span class="l">ongoing cost</span></div>
+  </div>
+
+  <div class="col">
+    <p>A decree today is a <code>RealmProject</code> in <code>src/data/edicts.ts</code>: an id, a branch, an era, a point cost, and a <code>CourtModifier</code> payload. Enacting it pushes the id onto <code>mandate.edicts</code>, adds a permanent modifier, and refreshes land outputs. <code>buildLawOptions</code> sorts every unblocked project by a fixed score and hands the top four to a <span class="id">law-choice</span> prompt.</p>
+
+    <h3>Five ways it is small</h3>
+    <ol>
+      <li><strong>One verb.</strong> All 19 <code>CourtModifier</code> fields are multipliers on your own economy or army. Not one decree changes a <em>rule</em> — how the gacha draws, where the capital sits, what an invader takes when it wins.</li>
+      <li><strong>Nothing pushes back.</strong> A decree is a purchase, not a policy. It has no upkeep, no constituency, no way to be repealed, and no way to fail. Real reform is a <em>fight</em>; this is a vending machine.</li>
+      <li><strong>It connects to nothing.</strong> Heroes never author a decree. Provinces never want one. Rivals never notice. Waves, summons and the Chronicle all run past it untouched. The only inbound wire is <code>ProjectUnlock</code>, and it just gates visibility.</li>
+      <li><strong>The choice is shallow.</strong> Three <code>exclusiveGroup</code>s across the whole list. Everything else is bought in whatever order points arrive — a checklist, not a decision.</li>
+      <li><strong>No identity.</strong> <code>buildLawOptions</code> is a deterministic sort, so run 20 shows the same four rows as run 1, and nothing at the end of a run can say <em>what kind of reign that was</em>.</li>
+    </ol>
+
+    <div class="note calm">
+      <p class="t">Keep all of this</p>
+      <p>The era gate, <code>ProjectUnlock</code>, <code>exclusiveGroup</code>, <code>projectEffectSummary</code>'s hard-numbers copy, <code>tickEdictDiscovery</code>'s "a new decree is within reach" toast, and the <code>allProjects(state)</code> guard that hides ascent-only rows from empire mode. Everything below is additive to that skeleton.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="thesis">
+  <div class="sec-head plain">
+    <div>
+      <p class="kicker">02 · Thesis</p>
+      <h2>A decree is not something you buy. It is something the realm must obey.</h2>
+    </div>
+  </div>
+
+  <div class="col">
+    <p>Hồ Quý Ly is the whole design in one reign. Between 1396 and 1397 he issued the most intelligent legislation in Vietnamese history — the first paper currency, <span class="vn">hạn điền</span> capping noble estates at ten mẫu, <span class="vn">hạn nô</span> capping bondsmen, standardised weights. Every one was correct. Every one was refused. The country would not follow, and when the Ming crossed the border in 1406 there was no realm left underneath the laws.</p>
+
+    <p>Against that, Lê Thánh Tông spent twenty-seven years passing fewer laws more slowly — the Hồng Đức code, thirteen <span class="vn">đạo</span>, the examinations — and each one <em>stuck</em>, because the estates that had to carry it were brought along first.</p>
+
+    <p>That contrast is the mechanic. Three consequences follow, and they generate the rest of this document:</p>
+
+    <ol>
+      <li>A standing decree carries <strong>weight</strong> against a finite authority. Legislate past it and the realm stops listening.</li>
+      <li>Every decree pleases some <strong>estate</strong> and angers another. There is no free law.</li>
+      <li>A decree's effect is multiplied by <strong>compliance</strong>, province by province. A law nobody obeys is worth nothing, and <em>phép vua thua lệ làng</em> — the king's rule loses to the village's custom — becomes something the player can feel.</li>
+    </ol>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 1100 330" role="img" aria-label="The decree loop: seven sources feed the throne, the throne issues a decree, the decree spends weight and moves the four estates, estates and weight set province compliance, and compliance scales what the decree gives back.">
+      <!-- sources -->
+      <text x="0" y="16" class="dg-fill-ink3" font-family="Be Vietnam Pro, sans-serif" font-size="11" font-weight="600" letter-spacing="1.4">SOURCES</text>
+      <g font-family="Be Vietnam Pro, sans-serif" font-size="12" class="dg-fill-ink2">
+        <text x="0" y="44">Era track</text>
+        <text x="0" y="68">Seated hero</text>
+        <text x="0" y="92">Province</text>
+        <text x="0" y="116">Chronicle</text>
+        <text x="0" y="140">Rival empire</text>
+        <text x="0" y="164">Crisis / wave</text>
+        <text x="0" y="188">Legacy</text>
+      </g>
+      <path d="M105 40 C160 40 160 112 205 112" class="dg-stroke-soft" stroke-width="1.2"/>
+      <path d="M105 64 C160 64 160 112 205 112" class="dg-stroke-soft" stroke-width="1.2"/>
+      <path d="M105 88 C160 88 160 112 205 112" class="dg-stroke-soft" stroke-width="1.2"/>
+      <path d="M105 112 L205 112" class="dg-stroke-soft" stroke-width="1.2"/>
+      <path d="M105 136 C160 136 160 112 205 112" class="dg-stroke-soft" stroke-width="1.2"/>
+      <path d="M105 160 C160 160 160 112 205 112" class="dg-stroke-soft" stroke-width="1.2"/>
+      <path d="M105 184 C160 184 160 112 205 112" class="dg-stroke-soft" stroke-width="1.2"/>
+
+      <!-- throne -->
+      <rect x="208" y="84" width="132" height="56" class="dg-son" stroke-width="0"/>
+      <text x="274" y="108" text-anchor="middle" class="dg-fill-stamp" font-family="Newsreader, serif" font-size="17" font-weight="600">The Throne</text>
+      <text x="274" y="126" text-anchor="middle" class="dg-fill-stamp" font-family="Be Vietnam Pro, sans-serif" font-size="10.5" opacity="0.85">issues a decree</text>
+
+      <!-- to weight -->
+      <path d="M340 100 L432 62" class="dg-stroke" stroke-width="1.4" marker-end="url(#ar)"/>
+      <path d="M340 124 L432 176" class="dg-stroke" stroke-width="1.4" marker-end="url(#ar)"/>
+
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" class="dg-fill-ink"/>
+        </marker>
+        <marker id="ars" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" class="dg-fill-son"/>
+        </marker>
+      </defs>
+
+      <!-- weight -->
+      <rect x="436" y="36" width="176" height="54" class="dg-fill-paper" stroke-width="1.3" style="stroke: var(--ink)"/>
+      <text x="524" y="58" text-anchor="middle" class="dg-fill-ink" font-family="Newsreader, serif" font-size="16" font-weight="600">Weight</text>
+      <text x="524" y="76" text-anchor="middle" class="dg-fill-ink3" font-family="Be Vietnam Pro, sans-serif" font-size="10.5">spent against authority</text>
+
+      <!-- estates -->
+      <rect x="436" y="150" width="176" height="54" class="dg-fill-paper" stroke-width="1.3" style="stroke: var(--ink)"/>
+      <text x="524" y="172" text-anchor="middle" class="dg-fill-ink" font-family="Newsreader, serif" font-size="16" font-weight="600">Four Estates</text>
+      <text x="524" y="190" text-anchor="middle" class="dg-fill-ink3" font-family="Be Vietnam Pro, sans-serif" font-size="10.5">sĩ · nông · thương · võ</text>
+
+      <!-- both to compliance -->
+      <path d="M612 63 L708 108" class="dg-stroke" stroke-width="1.4" marker-end="url(#ar)"/>
+      <path d="M612 177 L708 132" class="dg-stroke" stroke-width="1.4" marker-end="url(#ar)"/>
+
+      <rect x="712" y="84" width="164" height="56" class="dg-fill-paper" stroke-width="1.3" style="stroke: var(--ink)"/>
+      <text x="794" y="107" text-anchor="middle" class="dg-fill-ink" font-family="Newsreader, serif" font-size="16" font-weight="600">Compliance</text>
+      <text x="794" y="125" text-anchor="middle" class="dg-fill-ink3" font-family="Be Vietnam Pro, sans-serif" font-size="10.5">per province, 0–100</text>
+
+      <!-- to world -->
+      <path d="M876 112 L974 112" class="dg-stroke" stroke-width="1.4" marker-end="url(#ar)"/>
+      <text x="984" y="100" class="dg-fill-ink2" font-family="Be Vietnam Pro, sans-serif" font-size="12">Realised</text>
+      <text x="984" y="118" class="dg-fill-ink2" font-family="Be Vietnam Pro, sans-serif" font-size="12">effect</text>
+      <text x="984" y="136" class="dg-fill-ink3" font-family="Be Vietnam Pro, sans-serif" font-size="11">×0.3 – ×1.15</text>
+
+      <!-- feedback loop -->
+      <path d="M1020 148 C1020 250 700 292 274 292 L274 152" class="dg-stroke-son" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ars)"/>
+      <text x="640" y="286" text-anchor="middle" class="dg-fill-son" font-family="Be Vietnam Pro, sans-serif" font-size="11.5" font-weight="600">a weak realm can afford fewer laws — and needs them more</text>
+    </svg>
+    <figcaption>The loop closes on itself. Expansion buys authority, authority buys decrees, decrees anger estates, angry estates cut compliance, and low compliance shrinks the very decrees that were meant to fix the problem. It is the same shape as Ambition in Dragon Ascent, applied to law instead of war.</figcaption>
+  </figure>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="instruments">
+  <div class="sec-head">
+    <div class="seal">敕</div>
+    <div>
+      <p class="kicker">03 · Vastness</p>
+      <h2>Five instruments, not one list</h2>
+      <p class="sub">The imperial chancery did not issue one kind of document. It issued five, and each had a different reach, lifetime and audience — which is exactly the mechanical variety the feature is missing.</p>
+    </div>
+  </div>
+
+  <div class="scroller">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:15%">Instrument</th>
+          <th style="width:20%">What it was</th>
+          <th style="width:23%">Shape in game</th>
+          <th style="width:22%">Where it comes from</th>
+          <th style="width:20%">Cost</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="nm">Chiếu <span style="font-family:var(--seal-face)">詔</span></span><span class="en">Edict</span></td>
+          <td class="src">The great proclamation, addressed to the whole realm and read aloud in every province.</td>
+          <td>A <strong>standing law</strong>. Permanent, carries weight, has a constituency, can be repealed. The 31 existing rows all become these.</td>
+          <td>Era track, Chronicle, Legacy</td>
+          <td>Edict points + permanent weight</td>
+        </tr>
+        <tr>
+          <td><span class="nm">Sắc <span style="font-family:var(--seal-face)">敕</span></span><span class="en">Investiture</span></td>
+          <td class="src">Appointed, ennobled or deified a named person or place — including village tutelary gods, certified by the Ministry of Rites.</td>
+          <td><strong>Targets one hero or one province</strong>, not the realm. Bonuses are local and enormous.</td>
+          <td>Seated heroes, high-loyalty provinces, the fallen</td>
+          <td>1 point, 0–1 weight, one estate</td>
+        </tr>
+        <tr>
+          <td><span class="nm">Dụ <span style="font-family:var(--seal-face)">諭</span></span><span class="en">Admonition</span></td>
+          <td class="src">An urgent instruction for a specific situation — relief, evacuation, amnesty.</td>
+          <td><strong>Temporary.</strong> 10–25 ticks, then expires and refunds its weight. Offered only while the crisis is live.</td>
+          <td>Famine, revolt, capital under siege</td>
+          <td>Free or resources; no permanent weight</td>
+        </tr>
+        <tr>
+          <td><span class="nm">Hịch <span style="font-family:var(--seal-face)">檄</span></span><span class="en">Proclamation</span></td>
+          <td class="src">The rallying call before battle — Trần Hưng Đạo's <em>Hịch tướng sĩ</em>, 1284.</td>
+          <td><strong>One shot, one wave.</strong> Massive military effect, then gone. Offered only when a Great Invasion is telegraphed.</td>
+          <td>Wave director, at boss telegraph</td>
+          <td>Estate standing, not points</td>
+        </tr>
+        <tr>
+          <td><span class="nm">Lệ <span style="font-family:var(--seal-face)">例</span></span><span class="en">Custom</span></td>
+          <td class="src">The village convention — <span class="vn">hương ước</span>. Not the throne's law at all. <em>Phép vua thua lệ làng.</em></td>
+          <td><strong>Proposed to you</strong> by a province. Ratify it realm-wide (weaker, costs weight), grant it locally (strong, free), or crush it (compliance falls).</td>
+          <td>Provinces with loyalty &gt; 75</td>
+          <td>Refusing costs more than accepting</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <div class="note">
+      <p class="t">Why this is the load-bearing idea</p>
+      <p>It multiplies the feature without multiplying the content burden. The same <code>RealmProject</code> row, tagged <code>kind: 'du'</code> instead of <code>'edict'</code>, becomes a different <em>kind of moment</em> — one that arrives unbidden, expires, and cannot be planned for. Five delivery shapes over one catalogue is where "vast" comes from cheaply.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="pressure">
+  <div class="sec-head">
+    <div class="seal cham">重</div>
+    <div>
+      <p class="kicker">04 · The pressure</p>
+      <h2>Weight and compliance</h2>
+      <p class="sub">Two numbers that make the existing 31 decrees interesting before a single new one is written.</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <h3>Weight — <span class="vn">trọng</span></h3>
+    <p>Every standing chiếu carries a weight of 1–3. The throne can carry only so much law at once, and the cap grows with the reign rather than with your treasury.</p>
+  </div>
+
+  <div class="formula">
+authorityCap = 4 + eraIndex × 2 + (censor seated ? 2 : 0) + floor(stability / 25)
+             <span class="c">// 4 at founding · ~13 at the Mandate era with a censor and a calm realm</span>
+
+overreach    = max(0, sum(standing decree weights) − authorityCap)
+  </div>
+
+  <div class="col">
+    <p>Overreach is not a wall — you may always pass one more law. It is a <em>tax on the whole system</em>: every point of overreach drains 1.2 compliance per tick from every province, everywhere. That is Hồ Quý Ly's reign expressed as a number.</p>
+
+    <h3>Compliance — <span class="vn">tuân</span></h3>
+    <p>A per-province 0–100 field, starting at 65. It drifts each tick and it scales what your laws are actually worth.</p>
+  </div>
+
+  <div class="formula">
+drift  = +0.6                          <span class="c">// the realm settles into habit</span>
+       − overreach × 1.2               <span class="c">// too much law at once</span>
+       − (taxRate − 0.5) × 2.0         <span class="c">// the existing tax dial finally has a second consequence</span>
+       + (estateAverage − 50) / 40      <span class="c">// a realm at peace with itself obeys</span>
+       + (governor seated here ? 0.4 : 0)
+       + terrainAffinity(decrees, land) <span class="c">// a rice law in the mountains is resented</span>
+
+realised = clamp(avgCompliance / 70, 0.30, 1.15)   <span class="c">// multiplies every decree's numeric effect</span>
+  </div>
+
+  <div class="scroller">
+    <table>
+      <thead><tr><th style="width:20%">Compliance</th><th style="width:22%">State</th><th>What happens</th></tr></thead>
+      <tbody>
+        <tr><td class="num">85–100</td><td><span class="chip up">Devoted</span></td><td>Decrees realised at ×1.15. The province volunteers a <em>lệ</em> proposal. Militia grows free.</td></tr>
+        <tr><td class="num">45–84</td><td><span class="chip n">Obedient</span></td><td>Normal. Effects scale linearly.</td></tr>
+        <tr><td class="num">25–44</td><td><span class="chip w">Grudging</span></td><td>Effects at ×0.5. Court crisis cards weight toward this province. Acquisition of its neighbours costs more.</td></tr>
+        <tr><td class="num">10–24</td><td><span class="chip down">Defiant</span></td><td><strong>Decrees do not apply here at all.</strong> Output ignores every realm modifier. Local militia will not answer a muster.</td></tr>
+        <tr><td class="num">&lt; 10</td><td><span class="chip down">Seceded</span></td><td>The province leaves — reusing the <code>secede</code> verb already in <code>systems/story/effects.ts</code>. It becomes hostile terrain between you and the front.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <div class="note trap">
+      <p class="t">Design guard</p>
+      <p>Compliance must be <em>recoverable by play</em>, never only by waiting. Three live levers: lower the tax dial, repeal a decree, or spend a <span class="vn">Dụ</span>. A pressure system with no lever is just a timer, and Dragon Ascent already has enough of those.</p>
+    </div>
+
+    <h3>Repeal — <span class="vn">phế chiếu</span></h3>
+    <p>Costs <strong>2× the original edict points</strong>, drops stability by 8, and angers whichever estate the decree pleased. In exchange it returns the weight immediately and lifts 20 compliance realm-wide. This is what makes weight a resource you can trade in both directions rather than a one-way ratchet, and it gives a bad early pick a way out — the single biggest quality-of-life gap in the current system.</p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="estates">
+  <div class="sec-head">
+    <div class="seal gidong">四</div>
+    <div>
+      <p class="kicker">05 · Connection</p>
+      <h2>The four estates</h2>
+      <p class="sub">The traditional order — <span class="vn">sĩ, nông, công, thương</span>, scholar, farmer, artisan, merchant — with the military restored to it, because in Đại Việt it always was. This is the wire that connects decrees to everything else in the game.</p>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h5><span class="han">士</span>Sĩ</h5>
+      <p class="who">Scholars &amp; mandarins</p>
+      <p><strong>Governs:</strong> edict point income, court card frequency, and the <em>rarity floor of every hero draft</em> — a court that honours learning attracts talent.</p>
+      <p class="cap"><b>Below 30:</b> no new edict points accrue at all. The reform engine stalls until you fix it.</p>
+    </div>
+    <div class="card">
+      <h5><span class="han">農</span>Nông</h5>
+      <p class="who">Peasantry &amp; villages</p>
+      <p><strong>Governs:</strong> food and humans rates, compliance drift everywhere, militia capacity, and how fast an abandoned province resettles.</p>
+      <p class="cap"><b>Below 30:</b> revolts spawn hostile local hosts in your own provinces — an invasion you caused.</p>
+    </div>
+    <div class="card">
+      <h5><span class="han">商</span>Thương</h5>
+      <p class="who">Merchants &amp; landed gentry</p>
+      <p><strong>Governs:</strong> gold rate, market output, acquisition cost, and the price of a vassal's oath.</p>
+      <p class="cap"><b>Below 30:</b> the gold soft cap tightens and provinces you bought rather than conquered begin to defect back.</p>
+    </div>
+    <div class="card">
+      <h5><span class="han">武</span>Võ</h5>
+      <p class="who">Generals &amp; the standing host</p>
+      <p><strong>Governs:</strong> army power, the morale floor a host routs at, recruit speed, and whether generals accept a posting.</p>
+      <p class="cap"><b>Below 30:</b> unhappy generals unassign themselves from your hosts mid-wave. Leaderless hosts fight far worse.</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="formula">
+estateMult(e) = 0.75 + standing(e) / 200      <span class="c">// ×0.75 at 0 · ×1.00 at 50 · ×1.25 at 100</span>
+    </div>
+
+    <p>Each estate starts at 50 and drifts toward 50 by 0.15/tick, so anger fades and favour is not permanent — you must keep governing. Every decree lists its estate deltas on the card, so <em>the trade is visible before you commit</em>, which is the difference between a hard choice and a trap.</p>
+
+    <h4>What this unlocks that nothing else can</h4>
+    <p>Estates make the decree screen the place where the rest of the game's systems meet. Passing <span class="vn">Khoa cử</span> raises Sĩ, which improves the summon pool, which changes which heroes you draw, which changes which <span class="vn">Sắc</span> decrees become available. Passing <span class="vn">Nam tiến</span> raises Võ and Nông but drops Sĩ, which slows your edict points, which means the southern-expansion run legislates less and fights more. Nobody has to hand-author those interactions — they fall out of one shared number.</p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="sources">
+  <div class="sec-head">
+    <div class="seal hoe">源</div>
+    <div>
+      <p class="kicker">06 · Connection</p>
+      <h2>Seven places a decree can come from</h2>
+      <p class="sub">Right now there is exactly one: the era track. Every source below is a wire into a system that currently ignores decrees entirely.</p>
+    </div>
+  </div>
+
+  <div class="scroller">
+    <table>
+      <thead><tr><th style="width:16%">Source</th><th style="width:30%">How it fires</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="nm">Era track</span><span class="en">existing</span></td>
+          <td>Mandate points cross an era threshold and grant edict points.</td>
+          <td>The 31 rows already in <code>edicts.ts</code>, now carrying weight and estates.</td>
+        </tr>
+        <tr>
+          <td><span class="nm">Heroes</span><span class="en">Sắc</span></td>
+          <td>A hero gains <code>decreeId</code>. Seating them in the right court position unlocks the decree they alone can author — and dismissing them <em>does not</em> repeal it.</td>
+          <td>A Lý Thường Kiệt-type seated as Marshal unlocks <span class="vn">Tiên phát chế nhân</span> — strike first: you may assault a wave's staging ground one tick before it lands.</td>
+        </tr>
+        <tr>
+          <td><span class="nm">Provinces</span><span class="en">Lệ</span></td>
+          <td>Loyalty &gt; 75 and compliance &gt; 80, matched to terrain or a standing building, raises an offer.</td>
+          <td>A rice province proposes <span class="vn">Lệ thủy lợi</span>, the water share. Grant locally, ratify realm-wide, or refuse and watch its compliance fall 15.</td>
+        </tr>
+        <tr>
+          <td><span class="nm">Chronicle</span><span class="en">terminal fragment</span></td>
+          <td>A story that reaches a <code>terminal</code> fragment writes a decree into the pool via a new <code>grantDecree</code> effect verb.</td>
+          <td>The counting-house story ends in embezzlement → <span class="vn">Sổ đinh</span>, the registry tallies, appears. History teaches the throne something.</td>
+        </tr>
+        <tr>
+          <td><span class="nm">Rivals</span><span class="en">counter-decree</span></td>
+          <td>An off-map empire in <code>GreatPowersSystem</code> enacts a decree <em>against you</em>, visible in the intel panel with a countdown.</td>
+          <td>Đại Lý proclaims a trade embargo: −25% market gold until you vassalise them, buy them off, or pass a counter-decree that costs 2 weight.</td>
+        </tr>
+        <tr>
+          <td><span class="nm">Crisis</span><span class="en">Dụ / Hịch</span></td>
+          <td>Offered only while famine, revolt or a telegraphed Great Invasion is live. Vanishes when the moment passes.</td>
+          <td><span class="vn">Dụ thanh dã</span> — empty the fields. Abandon a province before the wave reaches it and the invader takes nothing.</td>
+        </tr>
+        <tr>
+          <td><span class="nm">Legacy</span><span class="en">Quốc bảo</span></td>
+          <td>A code completed in a past run is offered at founding of the next, for Legacy points.</td>
+          <td>You finished the Hồng Đức code once; every future dynasty may open with one of its articles already in force.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <div class="note calm">
+      <p class="t">Replayability, concretely</p>
+      <p>Replace <code>buildLawOptions</code>' deterministic sort with a weighted draw — source, era, estate standing, seated heroes and recent play all bias the four cards shown. A 25-wave run enacts 10–14 decrees out of a pool near 65, and which 14 depends on who you drew, what you conquered and which stories ended. That is the difference between a checklist and a deck.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="catalogue">
+  <div class="sec-head">
+    <div class="seal">詔</div>
+    <div>
+      <p class="kicker">07 · Content</p>
+      <h2>Decrees that change rules, not numbers</h2>
+      <p class="sub">Thirty-four new decrees, each grounded in a real reign and each hooked to a system that currently has no idea decrees exist. These are the ones worth building first — the flat percentage decrees already exist.</p>
+    </div>
+  </div>
+
+  <h3><span style="font-family:var(--seal-face)">詔</span> &nbsp;Chiếu — standing law</h3>
+  <div class="scroller">
+    <table>
+      <thead><tr><th style="width:19%">Decree</th><th style="width:15%">Historical source</th><th style="width:36%">The rule it changes</th><th style="width:6%">Wt</th><th style="width:24%">Estates</th></tr></thead>
+      <tbody>
+        <tr><td><span class="nm">Chiếu dời đô</span><span class="en">Move the Capital</span></td><td class="src">Lý Thái Tổ, 1010</td><td>Reassigns <code>capitalLandId</code> to any owned province. Clears <code>capitalLostTicks</code>, re-anchors the opening camera, and makes the wave director re-pick its approach. The whole defensive geometry of the run changes.</td><td class="num">2</td><td><span class="chip up">Sĩ</span><span class="chip up">Thương</span><span class="chip down">Nông</span></td></tr>
+        <tr><td><span class="nm">Ngụ binh ư nông</span><span class="en">Soldiers to the Fields</span></td><td class="src">Lý–Trần–Lê standing policy</td><td>A host with no order for 3+ ticks pays no supply upkeep and adds +2 food. Recalled hosts fight at ×0.75 power for one wave. Idling an army becomes a real economic choice instead of waste.</td><td class="num">2</td><td><span class="chip up">Nông</span><span class="chip up">Thương</span><span class="chip down">Võ</span></td></tr>
+        <tr><td><span class="nm">Hạn điền</span><span class="en">The Land Limit</span></td><td class="src">Hồ Quý Ly, 1397</td><td>Caps building level at 3 in your three richest provinces and redistributes the surplus output to your three poorest. Flattens the snowball; rescues a bad map.</td><td class="num">3</td><td><span class="chip up">Nông</span><span class="chip down">Thương</span><span class="chip down">Sĩ</span></td></tr>
+        <tr><td><span class="nm">Thông bảo hội sao</span><span class="en">Paper Money</span></td><td class="src">Hồ Quý Ly, 1396</td><td>Removes the gold soft cap entirely. In exchange gold decays 5%/tick while stability is under 55, and a crash event wipes 40% of the treasury if it falls under 35. The greed decree.</td><td class="num">3</td><td><span class="chip up">Thương</span><span class="chip down">Nông</span><span class="chip down">Sĩ</span></td></tr>
+        <tr><td><span class="nm">Khoa cử</span><span class="en">The Examinations</span></td><td class="src">Lý Nhân Tông 1075; Lê Thánh Tông</td><td>Every 15 ticks the exam hall mints a hero for free, rarity chosen by Sĩ standing. A second, deterministic talent pipeline that bypasses the gacha entirely.</td><td class="num">2</td><td><span class="chip up">Sĩ</span><span class="chip down">Võ</span></td></tr>
+        <tr><td><span class="nm">Chiếu cầu hiền</span><span class="en">Seeking the Worthy</span></td><td class="src">Quang Trung, after Hán Cao Tổ</td><td>Summon soft pity −2 and gold/jade draft weight +50%; hero upkeep +40%. Directly retunes <code>SummonSystem</code> — the first decree that touches the gacha.</td><td class="num">2</td><td><span class="chip up">Sĩ</span><span class="chip down">Thương</span></td></tr>
+        <tr><td><span class="nm">Chiếu lập học</span><span class="en">Found the Schools</span></td><td class="src">Quang Trung, 1789</td><td>Army XP ×2 and court cards ×1.5 — but −15% on every resource rate for 20 ticks first, then +10% forever. A decree you must survive before it pays.</td><td class="num">2</td><td><span class="chip up">Sĩ</span><span class="chip up">Nông</span></td></tr>
+        <tr><td><span class="nm">Hình thư</span><span class="en">The First Code</span></td><td class="src">Lý Thái Tông, 1042</td><td>Every court crisis card resolves at half severity, and stability gains a hard floor of 30. The anti-death-spiral decree.</td><td class="num">1</td><td><span class="chip up">Sĩ</span><span class="chip up">Nông</span><span class="chip down">Võ</span></td></tr>
+        <tr><td><span class="nm">Chia mười ba đạo</span><span class="en">The Thirteen Circuits</span></td><td class="src">Lê Thánh Tông, 1489</td><td>+2 claim slots, +15 compliance in every province, and seated governors' effects double. The administrative-empire decree.</td><td class="num">2</td><td><span class="chip up">Sĩ</span><span class="chip down">Võ</span></td></tr>
+        <tr><td><span class="nm">Sổ đinh · tín bài</span><span class="en">The Registry Tallies</span></td><td class="src">Nguyễn dynasty</td><td>Reveals every province's stats map-wide regardless of fog, +1 claim slot, recruitment cost −20%. Information as a decree.</td><td class="num">2</td><td><span class="chip up">Sĩ</span><span class="chip up">Võ</span><span class="chip down">Nông</span></td></tr>
+        <tr><td><span class="nm">Hà đê sứ</span><span class="en">The Dike Office</span></td><td class="src">Trần Thái Tông, 1248</td><td>Water and rice provinces become immune to famine and the winter food penalty; flood crisis cards leave the deck for the run.</td><td class="num">1</td><td><span class="chip up">Nông</span></td></tr>
+        <tr><td><span class="nm">Đồn điền</span><span class="en">Military Colonies</span></td><td class="src">Lê Thánh Tông; Nguyễn</td><td>Conquered provinces settle instantly at half output but full <code>localSoldiers</code> and +50% defence. Turns a wide conquest run from a liability into a wall.</td><td class="num">2</td><td><span class="chip up">Võ</span><span class="chip down">Nông</span></td></tr>
+        <tr><td><span class="nm">Thái ấp</span><span class="en">The Princely Fiefs</span></td><td class="src">Trần dynasty</td><td>Each seated hero governs a province directly: their court effect doubles, but that province pays you only half its output. Concentrates power in your champions.</td><td class="num">2</td><td><span class="chip up">Võ</span><span class="chip up">Sĩ</span><span class="chip down">Nông</span></td></tr>
+        <tr><td><span class="nm">Lệ làng</span><span class="en">Recognise the Village Custom</span></td><td class="src"><em>Phép vua thua lệ làng</em></td><td>+30 compliance realm-wide and revolts stop entirely — but every future decree costs +1 weight. You buy obedience by giving up the right to legislate.</td><td class="num">1</td><td><span class="chip up">Nông</span><span class="chip down">Sĩ</span></td></tr>
+        <tr><td><span class="nm">Sùng Phật</span><span class="en">Patronage of the Sangha</span></td><td class="src">Lý–Trần Buddhism</td><td>Monastic heroes cost no upkeep, temples give +2 stability each, gold −10%. Makes the monastic wardrobe flag on <code>Hero</code> mechanically real for the first time.</td><td class="num">1</td><td><span class="chip up">Nông</span><span class="chip down">Thương</span></td></tr>
+        <tr><td><span class="nm">Nam tiến</span><span class="en">The March South</span></td><td class="src">Lê–Nguyễn southward expansion</td><td>Claiming a province on an unowned frontier costs half, and conquest charges only half the usual Ambition. The expansionist run's keystone — it directly bends the mode's central dial.</td><td class="num">3</td><td><span class="chip up">Nông</span><span class="chip up">Võ</span><span class="chip down">Sĩ</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3><span style="font-family:var(--seal-face)">敕</span> &nbsp;Sắc — investiture, aimed at one person or place</h3>
+  <div class="scroller">
+    <table>
+      <thead><tr><th style="width:19%">Decree</th><th style="width:15%">Historical source</th><th style="width:36%">The rule it changes</th><th style="width:6%">Wt</th><th style="width:24%">Estates</th></tr></thead>
+      <tbody>
+        <tr><td><span class="nm">Sắc phong thành hoàng</span><span class="en">Deify the Fallen</span></td><td class="src">Tutelary spirit cult, certified from the 15th c.</td><td>Name a dead or departed hero the guardian spirit of a province: permanently +25% output, +20 defence, +30 compliance there — and a Chronicle echo that names them again in a future run. The game's first decree that reaches across runs.</td><td class="num">1</td><td><span class="chip up">Nông</span><span class="chip up">Sĩ</span></td></tr>
+        <tr><td><span class="nm">Sắc phong công thần</span><span class="en">Ennoble a Champion</span></td><td class="src">Merit-official ranks</td><td>A seated hero gains a rank: stats rise to the next rarity tier and their signature card enters the power draft. They can never be dismissed, and their death costs 15 Võ.</td><td class="num">1</td><td><span class="chip up">Võ</span><span class="chip down">Sĩ</span></td></tr>
+        <tr><td><span class="nm">Cải thổ quy lưu</span><span class="en">Replace the Local Lord</span></td><td class="src">Nguyễn policy in the uplands</td><td>Convert one high-loyalty province to direct rule: +40% output, −40 compliance <em>there</em>, and a real chance of revolt. The greedy, dangerous local play.</td><td class="num">1</td><td><span class="chip up">Sĩ</span><span class="chip down">Nông</span></td></tr>
+        <tr><td><span class="nm">Sắc phong vương</span><span class="en">Crown a Vassal</span></td><td class="src">Tributary investiture</td><td>Turn a beaten rival into a vassal without paying the oath gold — <code>VassalSystem</code> already has the shape. Costs 2 weight and 15 Võ, because your generals wanted them destroyed.</td><td class="num">2</td><td><span class="chip up">Sĩ</span><span class="chip up">Thương</span><span class="chip down">Võ</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3><span style="font-family:var(--seal-face)">諭</span> &nbsp;Dụ — temporary, crisis only</h3>
+  <div class="scroller">
+    <table>
+      <thead><tr><th style="width:19%">Decree</th><th style="width:15%">Historical source</th><th style="width:36%">The rule it changes</th><th style="width:6%">Life</th><th style="width:24%">Estates</th></tr></thead>
+      <tbody>
+        <tr><td><span class="nm">Dụ chẩn tế</span><span class="en">Open the Granaries</span></td><td class="src">Famine relief edicts</td><td>Converts 40% of the food stock into stability and compliance, and suppresses the famine card for 20 ticks. Offered only while <code>FamineSystem</code> is live.</td><td class="num">20t</td><td><span class="chip up">Nông</span><span class="chip down">Thương</span></td></tr>
+        <tr><td><span class="nm">Dụ thanh dã</span><span class="en">Empty the Fields</span></td><td class="src">Trần scorched earth, 1285</td><td>Abandon a province before the wave reaches it: the invader takes it with zero spoils and −30% power for three waves. You lose its buildings. Losing ground becomes a <em>tactic</em>.</td><td class="num">1 wave</td><td><span class="chip up">Võ</span><span class="chip down">Nông</span></td></tr>
+        <tr><td><span class="nm">Dụ đại xá</span><span class="en">The Great Amnesty</span></td><td class="src">Accession amnesties</td><td>Pulls all four estates back toward 50 and clears every decree's accumulated resentment. The reset button, priced at an edict point.</td><td class="num">instant</td><td><span class="chip up">Nông</span><span class="chip down">Sĩ</span></td></tr>
+        <tr><td><span class="nm">Dụ tị nạn</span><span class="en">Move the Court</span></td><td class="src">Trần court withdrawals, 1285</td><td>Relocate the court for the duration of a wave: the capital cannot fall and <code>capitalLostTicks</code> freezes, at −50% gold for 6 ticks. A run-saver you pay dearly for.</td><td class="num">6t</td><td><span class="chip down">Sĩ</span><span class="chip down">Võ</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3><span style="font-family:var(--seal-face)">檄</span> &nbsp;Hịch — one shot, when a Great Invasion is telegraphed</h3>
+  <div class="scroller">
+    <table>
+      <thead><tr><th style="width:19%">Decree</th><th style="width:15%">Historical source</th><th style="width:36%">The rule it changes</th><th style="width:6%">Cost</th><th style="width:24%">Estates</th></tr></thead>
+      <tbody>
+        <tr><td><span class="nm">Hịch tướng sĩ</span><span class="en">Proclamation to the Officers</span></td><td class="src">Trần Hưng Đạo, 1284</td><td>Every host gains +50% power and cannot rout for one wave. Survivors gain a level. The single most dramatic button in the game, available once every four waves.</td><td class="num">20 Nông</td><td><span class="chip up">Võ</span><span class="chip down">Nông</span></td></tr>
+        <tr><td><span class="nm">Hội nghị Diên Hồng</span><span class="en">The Council of Elders</span></td><td class="src">Diên Hồng hall, winter 1284</td><td>Summon the elders and put the war to a vote. Every estate ≥ 55 → unanimous <em>ĐÁNH</em>: +40% defence for the wave and +2 edict points. Any estate under 35 → the hall divides: −20 stability and the wave arrives 15% stronger. <strong>The one moment where four seasons of governing are judged in a single card.</strong></td><td class="num">free</td><td><span class="chip n">verdict</span></td></tr>
+        <tr><td><span class="nm">Sát Thát</span><span class="en">Tattoo the Arms</span></td><td class="src">Trần soldiers' arm tattoos, 1285</td><td>Permanent for the run: hosts never rout above 20% strength, at −15% recruit speed. Veterans who will not break are also veterans you cannot replace.</td><td class="num">1 pt</td><td><span class="chip up">Võ</span><span class="chip down">Nông</span></td></tr>
+        <tr><td><span class="nm">Bình Ngô đại cáo</span><span class="en">Proclamation of Victory</span></td><td class="src">Nguyễn Trãi, 1428</td><td>Offered <em>only</em> in the aftermath of breaking a Great Invasion. Converts the wave's spoils into +10% on every rate, permanently, and writes a named Chronicle entry. The victory lap, earned.</td><td class="num">free</td><td><span class="chip up">Sĩ</span><span class="chip up">Võ</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3><span style="font-family:var(--seal-face)">例</span> &nbsp;Lệ — proposed by a province; grant locally, ratify widely, or refuse</h3>
+  <div class="scroller">
+    <table>
+      <thead><tr><th style="width:19%">Custom</th><th style="width:15%">Raised by</th><th style="width:33%">Granted locally</th><th style="width:33%">Ratified realm-wide</th></tr></thead>
+      <tbody>
+        <tr><td><span class="nm">Lệ hương ẩm</span><span class="en">The Village Feast</span></td><td class="src">Any province, loyalty &gt; 80</td><td>+10 compliance and +2 stability here. Free.</td><td>All provinces, at −10% food and 1 weight.</td></tr>
+        <tr><td><span class="nm">Lệ giáp binh</span><span class="en">The Village Watch</span></td><td class="src">A province with a fort or barracks</td><td><code>localSoldiers</code> +50% here.</td><td>Militia capacity +40% everywhere, −1 claim slot. Defensive realms only.</td></tr>
+        <tr><td><span class="nm">Lệ chợ phiên</span><span class="en">The Market Days</span></td><td class="src">A province with a market</td><td>Gold ×1.4 here.</td><td>Market gold +25% realm-wide, Nông −10.</td></tr>
+        <tr><td><span class="nm">Lệ thủy lợi</span><span class="en">The Water Share</span></td><td class="src">Rice or river terrain</td><td>+3 food here, immune to the winter penalty.</td><td>Every rice province ignores the season multiplier. 2 weight.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <div class="note">
+      <p class="t">Refusal is the interesting option</p>
+      <p>Turning down a <span class="vn">lệ</span> costs that province 15 compliance — but keeps your weight free and your Sĩ happy. A realm that says yes to every village ends up unable to pass a single law of its own. That is <em>phép vua thua lệ làng</em> played forward, and it is a genuinely new kind of decision for this game.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="schools">
+  <div class="sec-head">
+    <div class="seal cham">家</div>
+    <div>
+      <p class="kicker">08 · Identity</p>
+      <h2>Schools of thought, and the code you leave behind</h2>
+      <p class="sub">Three exclusive forks is not enough branching to make two runs feel different. Four opposed schools, each with a capstone that locks out its opposite, is.</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <p>Every decree is tagged with a school. Enact three of one school and its <strong>capstone</strong> unlocks — and the opposing school locks for the run. The pairs are opposed because they were: <span class="vn">Pháp gia</span> against <span class="vn">Phật gia</span> is Hồ Quý Ly against the Lý–Trần settlement; <span class="vn">Nho gia</span> against <span class="vn">Binh gia</span> is Lê Thánh Tông's civil bureaucracy against the Tây Sơn's armed pragmatism.</p>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h5><span class="han">法</span>Pháp gia</h5>
+      <p class="who">Legalist · Hồ Quý Ly · opposed to Phật gia</p>
+      <p>Hạn điền · Thông bảo hội sao · Cải thổ quy lưu · Sổ đinh · Hạn nô</p>
+      <p class="cap"><b>Nghiêm pháp</b> — weight is ignored entirely; pass as many laws as you like. Compliance decays 1/tick everywhere, and any province that reaches 20 secedes. The fastest, most fragile realm in the game.</p>
+    </div>
+    <div class="card">
+      <h5><span class="han">儒</span>Nho gia</h5>
+      <p class="who">Confucian · Lê Thánh Tông · opposed to Binh gia</p>
+      <p>Khoa cử · Chiếu lập học · Hình thư · Mười ba đạo · Chiếu cầu hiền</p>
+      <p class="cap"><b>Quốc triều hình luật</b> — the Hồng Đức code. All weights −1, +1 edict point per era, a free hero every 12 ticks, and women inherit: female heroes' upkeep −30%, as the real code allowed.</p>
+    </div>
+    <div class="card">
+      <h5><span class="han">兵</span>Binh gia</h5>
+      <p class="who">Militarist · Trần Hưng Đạo, Quang Trung · opposed to Nho gia</p>
+      <p>Đồn điền · Sát Thát · Thái ấp · Nam tiến · Hịch tướng sĩ</p>
+      <p class="cap"><b>Sát Thát vĩnh cửu</b> — hosts never rout and gain +25% power permanently. Sĩ and Nông are both capped at 40 for the rest of the run: you will never legislate again, and you will never need to.</p>
+    </div>
+    <div class="card">
+      <h5><span class="han">佛</span>Phật gia</h5>
+      <p class="who">Buddhist–agrarian · Lý–Trần · opposed to Pháp gia</p>
+      <p>Chiếu khuyến nông · Hà đê sứ · Sùng Phật · Lệ làng · Dụ chẩn tế</p>
+      <p class="cap"><b>Trúc Lâm</b> — stability never falls below 60 and Ambition charges 40% less, so waves grow slowly. Every military decree locks out. The long, patient, defensive run.</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <h3>The reign's name</h3>
+    <p>At run end, the summary stops reporting only a score and names the reign from its school, its capstone and its heaviest decree — <em>"The Hồng Đức Reign · 14 decrees · Confucian · 31 waves"</em>. Completing a capstone banks it as a Legacy <span class="vn">quốc bảo</span>, purchasable at the founding of a later run.</p>
+    <p>That is the missing loop: the current run-end screen has nothing to say about how you governed, only how long you lasted.</p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="build">
+  <div class="sec-head plain">
+    <div>
+      <p class="kicker">09 · Delivery</p>
+      <h2>Build order</h2>
+      <p class="sub">Each phase ships something playable on its own. Phase 1 alone makes the 31 decrees already in the game meaningfully better without writing a single new one.</p>
+    </div>
+  </div>
+
+  <ol class="phases">
+    <li>
+      <div>
+        <h4>The pressure — weight, compliance, estates</h4>
+        <p>No new content. Tag the existing 31 rows with <code>weight</code>, <code>estates</code> and <code>school</code>; add <code>Land.compliance</code> and a four-field estate record on <code>mandate</code>; scale <code>getCourtBonuses</code> output by the realised-compliance factor. Add repeal. Rebuild the court screen's Decrees section around an estate bar and a weight gauge.</p>
+        <p class="files">src/state/types.ts · src/data/edicts.ts · src/systems/DecreeSystem.ts <em>(new)</em> · src/systems/CourtSystem.ts · src/systems/ascent/AscentTick.ts · src/systems/RealtimeSystem.ts · src/scenes/ConquestUIScene.ts · src/i18n/catalogs/empire.ts</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>The vocabulary — decrees that change rules</h4>
+        <p>A <code>hasDecree(state, id)</code> reader module, following the precedent <code>ascent/DoctrineSystem.ts</code> already sets for rule-cards, and the sixteen Chiếu above wired into the systems they actually change. Add the <code>kind</code> field so Dụ and Hịch can exist, plus their expiry.</p>
+        <p class="files">src/systems/decree/rules.ts <em>(new)</em> · ResourceSystem · SummonSystem · WaveDirector · ConquestSystem · BattleSystem · InvasionSystem · FamineSystem</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>The wires — seven sources</h4>
+        <p><code>Hero.decreeId</code> and the roster additions; the province <span class="vn">lệ</span> proposer; rival counter-decrees in <code>GreatPowersSystem</code>; a <code>grantDecree</code> verb added to the story effect vocabulary. Replace <code>buildLawOptions</code>' sort with the weighted draw.</p>
+        <p class="files">src/data/heroes.ts · src/systems/decree/ProposalSystem.ts <em>(new)</em> · src/systems/empire/GreatPowersSystem.ts · src/systems/story/effects.ts · src/systems/ascent/CourtLaneSystem.ts</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>The identity — schools, capstones, quốc bảo</h4>
+        <p>School tallies and opposition locks, the four capstones, the reign name on the run summary, and Legacy persistence of a completed code.</p>
+        <p class="files">src/systems/decree/SchoolSystem.ts <em>(new)</em> · src/state/legacy.ts · the run-summary screen</p>
+      </div>
+    </li>
+  </ol>
+
+  <div class="col">
+    <h3>Traps this codebase will spring</h3>
+    <ul>
+      <li><strong>Never add a <code>CourtModifier</code> key for a rule.</strong> A new key must be added in four places — the interface in <code>types.ts</code>, the hardcoded <code>modifierKeys</code> allow-list at <code>PoliticsSystem.ts:195</code>, the <code>CourtBonuses</code> interface, and the accumulator in <code>getCourtBonuses</code>. Miss any one and the field is stored and silently never read. Rule-decrees should be read at the call site instead, exactly as <code>DoctrineSystem</code> reads power-card stacks.</li>
+      <li><strong>Decree ids are a save contract.</strong> Same rule as story fragment ids: append-only, never renamed. <code>mandate.edicts</code> is a list of raw ids in every save.</li>
+      <li><strong>Both languages or the game will not boot.</strong> Every new key needs an <code>en</code> and a <code>vi</code> entry; a missing one throws at import time, not at render.</li>
+      <li><strong><code>allProjects(state)</code> already guards empire mode</strong> from ascent-only rows. Sắc, Dụ, Hịch and Lệ need the same guard, or empire mode shows a column of decrees whose trigger can never fire there.</li>
+      <li><strong>Wave-facing decrees are ascent-only.</strong> Gate them on <code>isEndlessMode</code> the way the rest of the shared layer does.</li>
+      <li><strong>Modifier ids use <code>Date.now()</code>,</strong> so they are not reproducible across a seeded run. Decree identity must key off the decree id, never the modifier id.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<section id="proof">
+  <div class="sec-head plain">
+    <div>
+      <p class="kicker">10 · Proof</p>
+      <h2>How we will know it worked</h2>
+      <p class="sub">Balance in this project is measured, not argued. Every claim above has a number attached to it.</p>
+    </div>
+  </div>
+
+  <div class="scroller">
+    <table>
+      <thead><tr><th style="width:26%">Check</th><th style="width:30%">How</th><th>Bar</th></tr></thead>
+      <tbody>
+        <tr><td><span class="nm">Overreach bites</span></td><td><code>test_scripts/verify-decrees.mjs</code> <em>(new)</em></td><td>A run forced past its authority cap shows realised rates strictly below a matched run inside it. If it does not, weight is decorative.</td></tr>
+        <tr><td><span class="nm">Defiance is reachable and escapable</span></td><td>same harness</td><td>A province driven under 25 stops receiving decree effects; lowering tax and repealing one decree returns it above 45 within 30 ticks.</td></tr>
+        <tr><td><span class="nm">Repeal accounts correctly</span></td><td>same harness</td><td>Weight returns exactly, the modifier is removed by id, and the estate that liked the decree loses standing.</td></tr>
+        <tr><td><span class="nm">Runs actually diverge</span></td><td>10 seeded runs, log enacted ids</td><td>No two runs share more than 60% of their decree list, and at least three sources appear in each.</td></tr>
+        <tr><td><span class="nm">Nothing else moved</span></td><td><code>verify-modes-regression.mjs</code></td><td>The 60-tick fingerprint for rival and campaign is unchanged — Phase 1 touches <code>CourtSystem</code> and <code>ResourceSystem</code>, which all four modes share.</td></tr>
+        <tr><td><span class="nm">It is more fun, not just busier</span></td><td><code>/funscore</code> and <code>/playtest</code>, before and after</td><td>Decision density rises without prompt fatigue: the decision director's per-kind cooldowns must absorb the new prompt kinds, or the mode turns into a modal queue.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <div class="note trap">
+      <p class="t">The one real risk</p>
+      <p>Prompt saturation. Dragon Ascent already paces cards through the decision director at two ticks apart with per-kind cooldowns and a 15% story cap. Adding Sắc, Dụ, Hịch and Lệ as new prompt kinds without giving them cooldowns and a shared budget will drown the run. <strong>Budget them as one family:</strong> at most one decree-family prompt per court phase, with Hịch always outranking the rest, because a Great Invasion is the moment that most deserves the interruption.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <h3>Sources</h3>
+  <ul>
+    <li><a href="https://en.wikipedia.org/wiki/Edict_on_the_Transfer_of_the_Capital">Edict on the Transfer of the Capital</a> — Lý Thái Tổ, 1010; and <a href="https://vi.wikipedia.org/wiki/Chi%E1%BA%BFu_d%E1%BB%9Di_%C4%91%C3%B4">Chiếu dời đô</a>, with the <em>chiếu cầu hiền</em> and <em>chiếu khuyến nông</em> forms it belongs to.</li>
+    <li><a href="https://en.wikipedia.org/wiki/L%C3%AA_Th%C3%A1nh_T%C3%B4ng">Lê Thánh Tông</a> and the <a href="https://vietnamlawmagazine.vn/king-le-thanh-tong-with-the-defense-of-national-territory-6263.html">defence of national territory</a> — the Hồng Đức code of 1483, the thirteen đạo of 1489, and <em>ngụ binh ư nông</em>.</li>
+    <li><a href="https://grokipedia.com/page/H%E1%BB%93_Qu%C3%BD_Ly">Hồ Quý Ly</a> and the <a href="https://en.wikipedia.org/wiki/Ming_conquest_of_%C4%90%E1%BA%A1i_Ngu">Ming conquest of Đại Ngu</a> — paper money 1396, hạn điền and hạn nô 1397, and reforms that failed for being imposed faster than they were accepted.</li>
+    <li><a href="https://en.wikipedia.org/wiki/Quang_Trung">Quang Trung</a> — the Tây Sơn land and education policies, and the promotion of chữ Nôm.</li>
+    <li><a href="https://vi.wikipedia.org/wiki/H%E1%BB%99i_ngh%E1%BB%8B_Di%C3%AAn_H%E1%BB%93ng">Hội nghị Diên Hồng</a> and the <a href="https://grokipedia.com/page/Tr%E1%BA%A7n_dynasty">Trần dynasty</a> — the council of elders of winter 1284, and the scorched-earth defence of the second Yuan invasion.</li>
+    <li><a href="https://vietnamlawmagazine.vn/rural-management-by-state-laws-and-village-conventions-under-the-nguyen-dynasty-17026.html">Rural management by state laws and village conventions</a> and <a href="https://en.wiktionary.org/wiki/ph%C3%A9p_vua_thua_l%E1%BB%87_l%C3%A0ng">phép vua thua lệ làng</a> — hương ước, and the limits of the throne's reach.</li>
+    <li><a href="https://en.wikipedia.org/wiki/Th%C3%A0nh_ho%C3%A0ng">Thành hoàng</a> — village tutelary spirits and the imperial <em>sắc phong</em> that certified them.</li>
+  </ul>
+</footer>
+
+</main>

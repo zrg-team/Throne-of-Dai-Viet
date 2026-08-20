@@ -6,7 +6,10 @@ const browser = await chromium.launch();
 let bad = 0;
 for (const theme of ['dong-ho', 'ink-wash', 'illustrated-atlas']) {
   for (const lang of ['en', 'vi']) {
-    for (const [quality, h] of [['low', 660], ['medium', 844], ['high', 926]]) {
+    // 620 is MIN_DESIGN_HEIGHT — where the front page's gap budget bottoms out at its 4-unit clamp
+    // and the button column has the least room it will ever have. The sweep used to start at 660
+    // and so never tested the case the clamp exists for.
+    for (const [quality, h] of [['low', 620], ['low', 660], ['medium', 844], ['high', 926]]) {
       const page = await browser.newPage({ viewport: { width: 390, height: h }, deviceScaleFactor: 3 });
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));

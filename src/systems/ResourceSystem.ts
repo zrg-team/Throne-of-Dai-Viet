@@ -32,6 +32,21 @@ import { doctrineMilitiaMult } from './ascent/RealmDoctrineSystem';
 import { eraIndex, eraLabel, getBuildingLevelCap } from './empire/MandateSystem';
 import { pushToast } from './empire/notifications';
 import { getCourtBonuses, getLandGovernorOutputMult } from './CourtSystem';
+import { estateStanding, ESTATE_CRISIS, landRealised, realmShare } from './DecreeSystem';
+import {
+  dikeOffice,
+  IDLE_HOST_FOOD,
+  isFarming,
+  landLimit,
+  LAND_LIMIT_COUNT,
+  militaryColonies,
+  paperMoney,
+  PAPER_MONEY_DECAY,
+  PAPER_MONEY_STABLE_ABOVE,
+  sanghaPatronage,
+  seekingTheWorthy,
+  SEEKING_UPKEEP_MULT,
+} from './decree/rules';
 import { currentTaxRate, taxGoldMult, taxGrowthDelta, taxStabilityBase } from './TaxSystem';
 import type { BuildOrder, EraId, GameState, Land, LandBuildingType, LandSpecialization, ResourceBag, ResourceKey, Season } from '../state/types';
 import { buildingLabel, buildBuildingLabel, formatResourceList, resourceLabel, t } from '../i18n';
@@ -622,15 +637,67 @@ export function refreshAllLandOutputs(state: GameState): void {
       continue;
     }
 
-    const governorMult = getLandGovernorOutputMult(state, land.id);
+    // ── Chiếu Chỉ: whether this province is carrying out the throne's law ──
+    //
+    // This is the seam where the realm's contribution is actually separable. Everything the realm
+    // adds on top of ground and buildings arrives here as a multiplier — a seated governor and the
+    // court/decree output bonuses — and `realmShare` bends each of them back toward 1 by how far
+    // this province is obeying. A defiant one returns `landRealised` 0 and therefore keeps only
+    // what its terrain and districts make.
+    //
+    // Applied here rather than inside `calculateLandOutputs` because that function returns *before*
+    // the court multipliers are applied, so scaling in there would have divided out bonuses that
+    // had not been added yet — measured, it changed a province's output by exactly nothing.
+    //
+    // `state.mandate` guards it: rival and campaign fall straight through with realised 1.
+    const realised = state.mandate ? landRealised(land) : 1;
+    const governorMult = realmShare(getLandGovernorOutputMult(state, land.id), realised);
     const outputs = calculateLandOutputs(state, land, labor.efficiency * governorMult * settledMult(state, land));
-    outputs.gold = Math.round(outputs.gold * courtBonuses.goldOutputMult);
-    outputs.food = Math.round(outputs.food * courtBonuses.foodOutputMult);
-    outputs.supplies = Math.round(outputs.supplies * courtBonuses.suppliesOutputMult);
+    outputs.gold = Math.round(outputs.gold * realmShare(courtBonuses.goldOutputMult, realised));
+    outputs.food = Math.round(outputs.food * realmShare(courtBonuses.foodOutputMult, realised));
+    outputs.supplies = Math.round(outputs.supplies * realmShare(courtBonuses.suppliesOutputMult, realised));
     land.outputs = outputs;
   }
 
+  applyLandLimit(state);
   state.resourceRates = calculatePlayerResourceRates(state);
+}
+
+/**
+ * Hạn điền, 1397 — the land limit.
+ *
+ * Hồ Quý Ly capped noble holdings at ten mẫu and confiscated the surplus for redistribution. Here
+ * the three richest provinces give up a third of what they make and the three poorest receive it,
+ * which flattens the snowball and can rescue a run whose good ground was taken early.
+ *
+ * Applied after every province has been costed, because it is a transfer between them and cannot
+ * be expressed while each is still being computed on its own. Total output is deliberately
+ * *conserved* rather than reduced — the law redistributes, it does not destroy, and its real
+ * price is the twelve points of Thương standing it costs on enactment.
+ */
+function applyLandLimit(state: GameState): void {
+  if (!landLimit(state)) return;
+  const owned = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
+  if (owned.length < LAND_LIMIT_COUNT * 2) return;
+
+  const worth = (land: Land) => land.outputs.food + land.outputs.supplies + land.outputs.gold;
+  const ranked = [...owned].sort((a, b) => worth(b) - worth(a));
+  const richest = ranked.slice(0, LAND_LIMIT_COUNT);
+  const poorest = ranked.slice(-LAND_LIMIT_COUNT);
+
+  const pot: ResourceBag = emptyResourceBag();
+  for (const land of richest) {
+    for (const key of RESOURCE_KEYS) {
+      const taken = Math.floor(land.outputs[key] / 3);
+      land.outputs[key] -= taken;
+      pot[key] += taken;
+    }
+  }
+  for (const key of RESOURCE_KEYS) {
+    const share = Math.floor(pot[key] / poorest.length);
+    if (share <= 0) continue;
+    for (const land of poorest) land.outputs[key] += share;
+  }
 }
 
 /**
@@ -663,6 +730,13 @@ function getTradeNetworkMult(state: GameState): number {
  */
 function settledMult(state: GameState, land: Land): number {
   if (state.gameMode !== 'ascent') return 1;
+  // Đồn điền — Lê Thánh Tông's military colonies. Soldiers were settled on the ground they had just
+  // taken, which made a frontier province defensible immediately and productive slowly. Here that
+  // is exactly the trade: the settling-in penalty is replaced by a flat half yield that never
+  // improves, in exchange for the garrison and defence bonus applied in `ConquestSystem`. Better
+  // than the floor for ground you have only just taken, worse than the ceiling for ground you have
+  // held for years — which is what makes it a decision rather than a free upgrade.
+  if (militaryColonies(state)) return 0.5;
   const loyalty = Math.max(0, Math.min(100, land.loyalty));
   return UNSETTLED_OUTPUT_FLOOR + (1 - UNSETTLED_OUTPUT_FLOOR) * (loyalty / 100);
 }
@@ -682,7 +756,12 @@ export function calculateLandOutputs(state: GameState, land: Land, efficiency = 
   const outputs = emptyResourceBag();
   const ownedNeighbors = land.neighbors.filter((neighborId) => state.lands.find((other) => other.id === neighborId)?.ownerId === PLAYER_KINGDOM_ID).length;
   const roads = Math.floor(land.neighbors.length / 3) + ownedNeighbors * 2;
-  const tradeMult = land.ownerId === PLAYER_KINGDOM_ID ? getTradeNetworkMult(state) : 1;
+  // The trade network is the biggest thing the realm gives a province — up to +160% — and it is
+  // given by *being part of this realm*, so a province that has stopped answering the throne stops
+  // receiving it. See `realmShare`; realised is 1 outside empire/ascent, leaving this untouched.
+  const tradeMult = land.ownerId === PLAYER_KINGDOM_ID
+    ? realmShare(getTradeNetworkMult(state), state.mandate ? landRealised(land) : 1)
+    : 1;
   // Terrain bonuses scale with how much of it there is, rather than asking whether there is any.
   //
   // These were `water > 0 ? 2 : 0`, `riceFields > 0 ? 2 : 0` and `mountains > hills ? 2 : 0` —
@@ -811,12 +890,20 @@ export function ascentArmyUpkeep(state: GameState): { gold: number; food: number
   // armies stop moving. Split per army so one host on campaign does not bill the whole muster.
   let garrisonTroops = 0;
   let campaignTroops = 0;
+  // Ngụ binh ư nông: a host sitting at home is out in the fields, not on the payroll. It draws no
+  // supplies and sends food back. The Lý, Trần and Lê all ran this, rotating the army home for the
+  // fifth- and tenth-month harvests, and it is why Đại Việt could field armies it could not
+  // otherwise feed. The bill comes due in `recalledHostPenalty` the season they are called back.
+  let idleHosts = 0;
   for (const army of state.armies) {
     if (army.kingdomId !== PLAYER_KINGDOM_ID || army.isLevy) continue;
     const size = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
     const marching = state.movementOrders.some((order) => order.armyId === army.id);
     const abroad = state.lands.find((land) => land.id === army.landId)?.ownerId !== PLAYER_KINGDOM_ID;
     if (marching || abroad) campaignTroops += size;
+    // Out in the fields only after standing still for a few seasons — see `FARMING_AFTER`. A host
+    // that halted this tick is in garrison, not at the harvest.
+    else if (isFarming(state, army.idleTicks)) idleHosts += 1;
     else garrisonTroops += size;
   }
 
@@ -826,7 +913,9 @@ export function ascentArmyUpkeep(state: GameState): { gold: number; food: number
     + campaignTroops * ARMY_FOOD_PER_SOLDIER * ARMY_CAMPAIGN_FOOD_MULT;
   return {
     gold: Math.ceil(troops * ARMY_GOLD_PER_SOLDIER * burden),
-    food: Math.ceil(foodDraw * burden),
+    // Negative is allowed and intended: enough hosts at home under ngụ binh ư nông and the army
+    // becomes a net food *producer*. That is the decree working, not an accounting slip.
+    food: Math.ceil(foodDraw * burden) - idleHosts * IDLE_HOST_FOOD,
   };
 }
 
@@ -913,6 +1002,19 @@ function addBag(target: ResourceBag, delta: Partial<ResourceBag>, sign = 1): voi
   }
 }
 
+/**
+ * Hà đê sứ, 1248 — the dike office.
+ *
+ * Trần Thái Tông made flood control a standing office with its own officials rather than a thing
+ * done after the water came. Water and rice ground stops fearing the season entirely, which in
+ * this economy means the winter multiplier stops applying to a realm built on the delta.
+ */
+function dikeProtected(state: GameState): boolean {
+  if (!dikeOffice(state)) return false;
+  return state.lands.some((land) => land.ownerId === PLAYER_KINGDOM_ID
+    && (land.terrainSummary.water > 0 || land.terrainSummary.riceFields > 0));
+}
+
 function getSeasonFarmMultiplier(season: Season): number {
   switch (season) {
     case 'Spring': return 1.1;
@@ -977,7 +1079,12 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
       : land.outputs.gold;
   }
 
-  rates.food = Math.round(rates.food * getSeasonFarmMultiplier(state.season));
+  // The dike office holds the winter off a delta realm: the season stops taking from the harvest,
+  // though a good season still gives. Only ever a floor, never a cap — see `dikeProtected`.
+  const seasonMult = dikeProtected(state)
+    ? Math.max(1, getSeasonFarmMultiplier(state.season))
+    : getSeasonFarmMultiplier(state.season);
+  rates.food = Math.round(rates.food * seasonMult);
 
   // Tax stance scales gross gold income before upkeep is deducted.
   rates.gold = Math.round(rates.gold * getTaxEffects(state).goldMult);
@@ -1093,9 +1200,19 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
   // price that matters — mercenaries, tribute, buy-offs — is pegged to income, so they scale
   // down with it and the *decisions* keep their shape while the numbers stay legible.
   let softcapGold = 0;
-  if (state.gameMode === 'ascent' && rates.gold > GOLD_SOFTCAP_FROM) {
-    const excess = rates.gold - GOLD_SOFTCAP_FROM;
-    const capped = Math.round(GOLD_SOFTCAP_FROM + Math.pow(excess, GOLD_SOFTCAP_EXPONENT));
+  // Merchants in open grievance stop moving money for you, so the drag starts far earlier. Half
+  // the usual threshold rather than a new exponent: the shape of the curve is right, it is *where
+  // it begins to bite* that a hostile Thương estate changes.
+  const softcapFrom = state.mandate && estateStanding(state, 'thuong') < ESTATE_CRISIS
+    ? GOLD_SOFTCAP_FROM * 0.5
+    : GOLD_SOFTCAP_FROM;
+  // Thông bảo hội sao, 1396 — paper money lifts the ceiling off income entirely. What it costs is
+  // below: a treasury that rots whenever the realm is unsteady. Hồ Quý Ly's currency was backed by
+  // decree and nothing else, and the country would not hold it.
+  const uncapped = paperMoney(state);
+  if (!uncapped && state.gameMode === 'ascent' && rates.gold > softcapFrom) {
+    const excess = rates.gold - softcapFrom;
+    const capped = Math.round(softcapFrom + Math.pow(excess, GOLD_SOFTCAP_EXPONENT));
     softcapGold = rates.gold - capped;
     rates.gold = capped;
   }
@@ -1110,6 +1227,15 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
   if (state.gameMode === 'ascent' && state.resources.gold > TREASURY_GRAFT_FROM) {
     graftGold = Math.round((state.resources.gold - TREASURY_GRAFT_FROM) * TREASURY_GRAFT_RATE);
     rates.gold -= graftGold;
+  }
+
+  // Paper money's price. A fiat currency nobody trusts loses value while the realm is unsteady,
+  // and the whole treasury goes with it — folded into the displayed rate rather than taken
+  // quietly, the same way graft is, so the header tells the player their money is evaporating.
+  if (uncapped && state.court.stability < PAPER_MONEY_STABLE_ABOVE) {
+    const rot = Math.round(state.resources.gold * PAPER_MONEY_DECAY);
+    graftGold += rot;
+    rates.gold -= rot;
   }
 
   // The books, kept current every tick. Gross is the income side snapshotted above; demand is
@@ -1317,13 +1443,21 @@ function ascentShortfallEvents(state: GameState, foodShort: boolean, suppliesSho
  * gold drain in every measured run, and the one the player had no lever on.
  */
 export function heroPayroll(state: GameState): number {
+  // Two decrees move the payroll, and they pull in opposite directions on purpose. Sùng Phật
+  // keeps the monastics for nothing — the Lý and Trần courts were staffed by monks who took no
+  // wage — while Chiếu cầu hiền advertises for talent and gets talent that knows its price.
+  const monasticsFree = sanghaPatronage(state);
+  const seeking = seekingTheWorthy(state) ? SEEKING_UPKEEP_MULT : 1;
+  const upkeepOf = (hero: GameState['heroes'][number]) =>
+    (monasticsFree && hero.monastic ? 0 : hero.upkeepGold * seeking);
+
   if (state.gameMode !== 'ascent') {
-    return state.heroes.reduce((sum, hero) => sum + hero.upkeepGold, 0);
+    return Math.round(state.heroes.reduce((sum, hero) => sum + upkeepOf(hero), 0));
   }
   const total = state.heroes.reduce((sum, hero) => {
     const kingMult = hero.id === 'king' ? ASCENT_KING_UPKEEP_MULT : 1;
     const postingMult = hero.assignedTo ? 1 : HERO_RESERVE_UPKEEP_SHARE;
-    return sum + hero.upkeepGold * kingMult * postingMult;
+    return sum + upkeepOf(hero) * kingMult * postingMult;
   }, 0);
   return Math.round(total);
 }

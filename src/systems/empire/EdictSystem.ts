@@ -1,7 +1,9 @@
 import { getProject, REALM_PROJECTS, type ProjectUnlock, type RealmProject } from '../../data/edicts';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import type { GameState, ResourceKey } from '../../state/types';
-import { addCourtModifier } from '../CourtSystem';
+import { addCourtModifier, removeCourtModifier } from '../CourtSystem';
+import { applyEstateDeltas, applyRepealRelief, repealTerms } from '../DecreeSystem';
+import { schoolBlockedReason } from '../decree/SchoolSystem';
 import { applyResourceDelta, canSpend, refreshAllLandOutputs } from '../ResourceSystem';
 import { eraIndex, grantEdictPoints } from './MandateSystem';
 import { pushToast } from './notifications';
@@ -64,6 +66,11 @@ export function isUnlockMet(state: GameState, unlock: ProjectUnlock): boolean {
       const wanted: Array<GameState['heroes'][number]['rarity']> = unlock.rarity === 'Epic' ? ['Epic', 'Legendary'] : ['Legendary'];
       return state.heroes.some((hero) => hero.assignedTo?.startsWith('court:') && wanted.includes(hero.rarity));
     }
+    // Serving anywhere, not only at court: Trần Hưng Đạo wrote the Hịch tướng sĩ as a field
+    // commander, not as a minister. Having drawn them is the gate; where they are posted is the
+    // player's business.
+    case 'hero':
+      return state.heroes.some((hero) => hero.id === unlock.heroId);
   }
 }
 
@@ -76,6 +83,7 @@ function unlockBlockedReason(state: GameState, unlock: ProjectUnlock): string | 
     case 'waves': return t('empire.edict.blocked.waves', { n: unlock.count });
     case 'chronicle': return t('empire.edict.blocked.chronicle', { n: unlock.count });
     case 'seat': return t('empire.edict.blocked.seat', { rarity: t(`rarity.${unlock.rarity}` as Parameters<typeof t>[0]) });
+    case 'hero': return t('empire.edict.blocked.hero', { hero: t(`heroes.${unlock.heroId}.name` as Parameters<typeof t>[0]) });
   }
 }
 
@@ -95,7 +103,16 @@ export function projectBlockedReason(state: GameState, project: RealmProject): s
   })) {
     return t('empire.edict.blocked.exclusive');
   }
-  if (eraIndex(mandate.era) < eraIndex(project.era)) {
+  // A school this reign has committed *against* is shut for good. Layered on top of the existing
+  // exclusive-group mechanism rather than replacing it: a group is a fork between two laws, a
+  // school is a fork between two ways of governing.
+  const schoolReason = schoolBlockedReason(state, project.id);
+  if (schoolReason) return schoolReason;
+
+  // A law the Chronicle taught the throne arrives out of order — that is the entire point of
+  // `grantDecree`. The era gate is what it bypasses; the cost is not.
+  const taught = mandate.taughtDecrees?.includes(project.id) ?? false;
+  if (!taught && eraIndex(mandate.era) < eraIndex(project.era)) {
     return t('empire.edict.blocked.era', { era: t(`empire.era.${project.era}` as Parameters<typeof t>[0]) });
   }
   if (project.kind === 'edict') {
@@ -126,6 +143,9 @@ export function enactProject(state: GameState, id: string): boolean {
   }
 
   mandate.edicts.push(project.id);
+  // Who this pleases and who it angers. Applied here rather than in the UI so an edict enacted by
+  // a story, a capstone or a harness carries its constituency exactly as one enacted by hand does.
+  applyEstateDeltas(state, project.estates);
   addCourtModifier(state, {
     id: `project-${project.id}`,
     label: projectTitle(project),
@@ -142,11 +162,58 @@ export function enactProject(state: GameState, id: string): boolean {
 }
 
 /**
+ * Repeal — phế chiếu.
+ *
+ * Costs twice what the law cost to pass, and returns none of it. That asymmetry is deliberate:
+ * without it, enact→repeal cycling would be a way to farm estate standing for free, and the
+ * weight system would be a ratchet a patient player could unwind at no price.
+ *
+ * What you buy is room. The weight comes back at once and the countryside relaxes by 20, so a bad
+ * early pick stops being a bad whole run — the single largest quality-of-life hole in the old
+ * system, where an enacted edict could never be undone by anything.
+ */
+export function repealProject(state: GameState, id: string): boolean {
+  const mandate = state.mandate;
+  const project = getProject(id);
+  if (!mandate || !project) return false;
+  if (!mandate.edicts.includes(id)) return false;
+
+  const terms = repealTerms(state, id);
+  if (!terms || !terms.affordable) return false;
+
+  mandate.edictPoints -= terms.cost;
+  mandate.edicts = mandate.edicts.filter((standing) => standing !== id);
+  if (mandate.decreeResentment) delete mandate.decreeResentment[id];
+
+  // Undo the constituency: whoever this law pleased is now the party losing something.
+  applyEstateDeltas(state, project.estates, -1);
+  // Deterministic id, minted by `enactProject` above — the reason repeal can find the exact
+  // bonus this decree added while a court card's `Date.now()` id could never be addressed.
+  removeCourtModifier(state, `project-${project.id}`);
+  applyRepealRelief(state);
+  refreshAllLandOutputs(state);
+
+  pushToast(state, t('decree.repeal.done', { title: projectTitle(project) }), 'milestone');
+  return true;
+}
+
+/**
  * The projects this save can ever see. Play-unlocked edicts exist only in Dragon Ascent —
  * empire mode has no waves, levels or chronicle, so listing them there would be a column of
  * rows whose requirement can never come true.
  */
 export function allProjects(state?: GameState): RealmProject[] {
-  if (state && !state.ascent) return REALM_PROJECTS.filter((project) => !project.unlock);
-  return REALM_PROJECTS;
+  // Only the two instruments the throne issues at will. Sắc, dụ, hịch and lệ are all raised *by*
+  // something — a champion seated, a famine running, a Great Invasion telegraphed, a village
+  // asking — and listing them on a browsable menu would advertise rows whose trigger the player
+  // cannot reach from here. They enact through their own prompts, which call `enactProject`
+  // directly, so this filter never blocks them.
+  const issuable = REALM_PROJECTS.filter((project) => isStandingLaw(project));
+  if (state && !state.ascent) return issuable.filter((project) => !project.unlock);
+  return issuable;
+}
+
+/** True for the instruments the throne may reach for unprompted: chiếu and wonders. */
+export function isStandingLaw(project: RealmProject): boolean {
+  return project.kind === 'edict' || project.kind === 'wonder';
 }

@@ -4,6 +4,7 @@ import { applyResourceDelta } from '../ResourceSystem';
 import { pushToast } from '../empire/notifications';
 import { launchPunitiveHost } from '../ascent/EnemyCommandDirector';
 import { findPowerCard } from '../../data/ascentCards';
+import { getProject as findProject } from '../../data/edicts';
 import { generateHero } from '../../data/heroFactory';
 import { recordEcho } from './echoes';
 import type { StoryCtx } from './types';
@@ -555,6 +556,27 @@ export function grantClaimSlot(ctx: StoryCtx, count = 1): void {
 export function grantEdictPoints(ctx: StoryCtx, count = 1): void {
   if (!ctx.state.mandate) return;
   ctx.state.mandate.edictPoints = (ctx.state.mandate.edictPoints ?? 0) + count;
+}
+
+/**
+ * A story that ends teaches the throne a law.
+ *
+ * The strongest thing the Chronicle can do to a run, and the reason it belongs beside
+ * `grantPowerCard` rather than in the story file: a resource swing is forgotten within a minute,
+ * while a decree the realm only holds because of something that *happened to it* changes how the
+ * rest of the run is governed. The counting-house ending in embezzlement is what puts the registry
+ * tallies within reach — history teaching the court something it would not otherwise have known.
+ *
+ * Adds the decree to the pool rather than enacting it: the player still chooses, and still pays.
+ */
+export function grantDecree(ctx: StoryCtx, decreeId: string): boolean {
+  const mandate = ctx.state.mandate;
+  if (!mandate) return false;
+  if (!findProject(decreeId)) return false;
+  mandate.taughtDecrees ??= [];
+  if (mandate.taughtDecrees.includes(decreeId)) return false;
+  mandate.taughtDecrees.push(decreeId);
+  return true;
 }
 
 // ── Legacy ──────────────────────────────────────────────────────────────────

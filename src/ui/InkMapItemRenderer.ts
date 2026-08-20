@@ -130,6 +130,7 @@ export class InkMapItemRenderer implements MapItemRenderer {
    */
   createArmyMarker(
     total: number, isPlayer: boolean, kingdomColor?: number, _flagSeed?: number, _kit?: HostKit,
+    _drawScale?: number,
   ): Phaser.GameObjects.Container {
     const container = this.scene.add.container(0, 0);
     const sealColor = isPlayer ? INK.sealRed : (kingdomColor ?? INK.ink);

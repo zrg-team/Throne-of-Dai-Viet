@@ -7,6 +7,7 @@ import {
   SUMMON_EVERY_N_WAVES,
   WAVE_INTERVAL_TICKS,
 } from '../../game/ascentConfig';
+import { buildDecreeOffer, offerDecree } from '../decree/OfferSystem';
 import { buildConquestTargets, offerConquestPrompt } from './ConquestSystem';
 import {
   buildLawOptions,
@@ -74,6 +75,11 @@ const PROMPT_COOLDOWN: Partial<Record<AscentPromptKind, number>> = {
   'story-beat': 4,
   'court-appointment': 5,
   'law-choice': 8,
+  // The four raised instruments share one cooldown because they share one slot. Long, so a
+  // village asking about its market days cannot crowd out the court — but shorter than the
+  // law it sits beside, since a hich is only offered inside a two-season window and would
+  // otherwise never be seen at all.
+  'decree-offer': 10,
   envoy: 12,
 };
 
@@ -121,6 +127,10 @@ const CONSIDER_ORDER: AscentPromptKind[] = [
   'rival-demand',
   'court-appointment',
   'conquer-target',
+  // Above the card draft: a hich exists only in the two seasons before a Great Invasion
+  // lands, and a du answers something costing the realm every tick it waits. A power card
+  // can wait a season; neither of those can.
+  'decree-offer',
   'power-draft',
   'hero-choice',
   'law-choice',
@@ -215,6 +225,9 @@ function isReady(state: GameState, kind: AscentPromptKind): boolean {
         target.methods.some((method) => !method.blockedReason && method.method !== 'siege' && method.method !== 'occupy'));
     }
 
+    case 'decree-offer':
+      return Boolean(buildDecreeOffer(state));
+
     case 'doctrine':
       return doctrineReady(state);
 
@@ -276,6 +289,8 @@ function raise(state: GameState, kind: AscentPromptKind): boolean {
       return offerHeroSummon(state);
     case 'law-choice':
       return offerLawChoice(state);
+    case 'decree-offer':
+      return offerDecree(state);
     case 'parliament':
       return offerParliament(state);
     case 'envoy':

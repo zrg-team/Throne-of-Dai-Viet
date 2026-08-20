@@ -97,6 +97,18 @@ export interface Land {
   trust: Record<string, number>;
   /** Player-chosen economic focus for this province. Absent = 'balanced'. */
   specialization?: LandSpecialization;
+  /**
+   * How far this province actually obeys the throne's standing law, 0–100 (empire/ascent only).
+   *
+   * Not the same thing as `loyalty`, and the difference is the point: loyalty is whether they want
+   * you as their ruler, compliance is whether they carry out your decrees. A province can adore the
+   * dynasty and still ignore a land survey — *phép vua thua lệ làng*, the king's rule loses to the
+   * village's custom.
+   *
+   * Optional so saves written before the decree system need no migration; read it through
+   * `landCompliance()` in `DecreeSystem`, which defaults it to `BASE_COMPLIANCE`.
+   */
+  compliance?: number;
 }
 
 /** Authored land data before hex-map generation fills in position/adjacency. */
@@ -372,6 +384,24 @@ export interface Army {
    * standing on resolved its defence as a silent dice roll.
    */
   isLevy?: boolean;
+  /**
+   * Turn this host stops fighting at the recalled-from-the-fields penalty (ngụ binh ư nông).
+   *
+   * Only ever set while that decree stands. Read by `armyPower`, so a host called back off the
+   * harvest is measurably worse everywhere the game asks how strong it is — the field battle, the
+   * odds roll, and the defence readout alike.
+   */
+  recalledUntil?: number;
+  /**
+   * Consecutive seasons this host has stood at home with no order (ngụ binh ư nông).
+   *
+   * A count rather than a flag, and that distinction is the whole mechanic: a host is only *in the
+   * fields* once it has been still for `FARMING_AFTER` seasons, so only a genuinely idle army feeds
+   * the realm and only a genuinely idle army is unready when it is called back. Measured with a
+   * flag instead, every ordinary march counted as a recall and the autopilot — which moves hosts
+   * constantly — left every army permanently at three-quarters strength.
+   */
+  idleTicks?: number;
   /**
    * Militia a garrison levy actually drew from its province, so dissolving it returns at most
    * what it took — the walls' share of the turnout must not become standing militia.
@@ -774,12 +804,72 @@ export interface Directive {
 
 export type EraId = 'founding' | 'rivalry' | 'empires' | 'mandate';
 
+/**
+ * The four estates the throne governs through — scholar, farmer, merchant, soldier.
+ *
+ * The traditional order (sĩ · nông · công · thương) with the military restored to it, because in
+ * Đại Việt it always was. Every decree pleases some and angers others, which is what makes a law a
+ * decision rather than a purchase: there is no free reform.
+ *
+ * This is also the wire that connects decrees to the rest of the game. One shared 0–100 number per
+ * estate reaches the summon pool, the rout threshold, revolt spawning and edict-point income, so
+ * interactions between systems fall out of the model instead of being hand-authored one by one.
+ */
+export type EstateId = 'si' | 'nong' | 'thuong' | 'vo';
+
+export const ESTATE_IDS: EstateId[] = ['si', 'nong', 'thuong', 'vo'];
+
+/**
+ * Which school of statecraft a decree belongs to.
+ *
+ * Enact enough of one and its capstone unlocks while the opposing school locks for the run — Pháp
+ * gia against Phật gia is Hồ Quý Ly against the Lý–Trần settlement; Nho gia against Binh gia is Lê
+ * Thánh Tông's civil bureaucracy against Tây Sơn arms.
+ */
+export type SchoolId = 'phap' | 'nho' | 'binh' | 'phat';
+
+/** The four instruments raised by the world rather than chosen off a list. See `decree-offer`. */
+export type DecreeInstrument = 'sac' | 'du' | 'hich' | 'le';
+
 /** Kingdom-wide progression track (empire mode). Fills from directives + battles. */
 export interface MandateState {
   points: number;
   era: EraId;
   /** Ids of edicts the player has enacted (permanent CourtModifiers). */
   edicts: string[];
+  /**
+   * Standing of each estate, 0–100, starting at 50 and drifting back toward it.
+   *
+   * Optional so a save written before the decree system needs no migration — always read it
+   * through `estateStanding()` in `DecreeSystem`, never off this field directly.
+   */
+  estates?: Record<EstateId, number>;
+  /** Per-decree resentment accrued since enactment, keyed by decree id. Cleared by an amnesty. */
+  decreeResentment?: Record<string, number>;
+  /**
+   * Provinces a `sắc phong thành hoàng` has bound a tutelary spirit to: land id → hero name.
+   *
+   * Keyed by name rather than by hero id on purpose — the whole point of the investiture is that
+   * it outlives the person, so it must still resolve after the hero has left the roster, died, or
+   * been written into a Chronicle echo in a run that no longer holds their record.
+   */
+  tutelary?: Record<string, string>;
+  /** Ticks since the exam hall last seated a graduate (khoa cử). */
+  examTicks?: number;
+  /** Decrees whose `hịch`/`dụ` effect is live, with the tick it lapses on. */
+  temporary?: Record<string, number>;
+  /**
+   * Decrees a finished Chronicle story has put within reach (`grantDecree`).
+   *
+   * A separate list from `edicts` because being *taught* a law is not the same as passing it: the
+   * player still chooses it off the card and still pays for it. This only bypasses the era gate,
+   * which is the whole point — a run learns something out of order because of what happened to it.
+   */
+  taughtDecrees?: string[];
+  /** Edicts a hostile empire has passed against the realm, with the turn each lapses on. */
+  rivalDecrees?: Array<{ kingdomId: string; decreeId: string; until: number }>;
+  /** Schools of statecraft whose capstone this reign has taken. */
+  capstones?: SchoolId[];
   /** Unspent points available to enact edicts. */
   edictPoints: number;
   /** Era transitions already announced, so we only fire the toast/unlock once. */
@@ -1234,6 +1324,25 @@ export type AscentPrompt =
   /** A permanent law: an edict/wonder from REALM_PROJECTS, or the tax dial. */
   | { kind: 'law-choice'; projectIds: string[]; points: number; taxOptions: TaxPolicy[] }
   /**
+   * The four instruments the throne does not reach for — they are raised *by* the world.
+   *
+   * One prompt kind for all four rather than four kinds, and that is a budget decision, not a
+   * shortcut. The decision director already has nine kinds competing, four of which once fired
+   * zero times in a 320-tick run before ageing was added; adding four more unbudgeted would drown
+   * the mode. As one family they share a single cooldown and a single slot in `CONSIDER_ORDER`,
+   * and `buildDecreeOffer` decides which instrument is most worth the interruption — a hịch when
+   * a Great Invasion is telegraphed always outranks a village asking about its market days.
+   */
+  | {
+    kind: 'decree-offer';
+    instrument: DecreeInstrument;
+    /** Candidate decrees, best first. */
+    projectIds: string[];
+    /** Province or champion the instrument is aimed at, where it takes a target. */
+    targetId?: string;
+    targetName?: string;
+  }
+  /**
    * What kind of realm this is going to be. Offered once per era, and the only thing in the mode
    * that changes how the autopilot plays rather than what the player does themselves.
    */
@@ -1276,6 +1385,15 @@ export type AscentPrompt =
       /** Best single-run score before this one — the number the player is chasing. */
       previousBest: number;
       legacyTotal: number;
+      /**
+       * What kind of reign this was, named off its school, capstone and heaviest law.
+       *
+       * The summary previously had nothing to say about *how* the realm was governed, only how
+       * long it lasted — which is why a decree-heavy run and a decree-free one read identically at
+       * the end. Two runs that score the same should not close on the same sentence.
+       */
+      reign?: string;
+      reignDetail?: string;
     }
   /**
    * One fragment of a running story, speaking loudly enough to stop the world.
@@ -1434,10 +1552,18 @@ export interface AscentBattle {
   moment?: BattleMoment;
   /** How many Moments this fight has already raised, so it cannot become whack-a-mole. */
   momentsRaised?: number;
-  /** Kinds already raised, so one trigger cannot take the whole budget. */
-  momentKinds?: Array<BattleMoment['kind']>;
+  /** Questions already asked this fight, so none is asked twice. */
+  momentIds?: string[];
+  /** Beat the last question was asked on, so they are spread across the fight rather than bunched. */
+  momentLastBeat?: number;
   /** Beats left on a bonus a Moment bought, and what it is worth while it lasts. */
-  momentBonus?: { beats: number; dealt: number; morale: number };
+  momentBonus?: {
+    beats: number;
+    dealt: number;
+    morale: number;
+    /** Multiplier on what the line *takes* while the bonus lasts. Below 1 is protection. */
+    taken?: number;
+  };
   /**
    * The fight is being run by whoever holds the field, not by the player.
    *
@@ -1515,8 +1641,14 @@ export interface BattleBeatHost {
  * That makes delegation the substrate of the mechanic rather than an escape from it.
  */
 export interface BattleMoment {
-  /** What produced it. Each kind has its own pair of answers and its own default. */
-  kind: 'wavering' | 'charge-coming' | 'relief' | 'last-rounds';
+  /**
+   * Which question this is — the id of a `BattleMomentDef`, and the stem of its i18n keys.
+   *
+   * Was a union of four literals, three of which were ever raised, so every fight in a run asked
+   * the same three questions in the same order. The deck lives in `data/ascent/battleMoments.ts`
+   * now and has thirty entries; this is a plain string because the *content* is data.
+   */
+  id: string;
   /** Beat it was raised on, so the view can run the timer against the same clock the fight does. */
   raisedAtBeat: number;
   /** Ticks of the world it stays open for, during which the fight does not advance. */

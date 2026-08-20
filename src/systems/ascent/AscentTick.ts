@@ -33,6 +33,8 @@ import { detectConquests, ensureAscentLaneState, refreshAscentLaneState } from '
 import { tickDecisionDirector, tickPromptCooldowns } from './DecisionDirector';
 import { tickStories } from '../story/StorySystem';
 import { tickStoryCharges } from '../story/charges';
+import { tickDecreeEffects } from '../decree/DecreeTick';
+import { militaryColonies } from '../decree/rules';
 import { tickEdictDiscovery } from './CourtLaneSystem';
 import { endAscentRun } from './AscentResolver';
 import { advanceSeasonClock, greatPowersDue } from '../seasonClock';
@@ -96,8 +98,18 @@ function checkAscentDefeat(state: GameState): void {
  * `progressCourt`, which is what makes a governorship worth more than a stat line.
  */
 function settleOwnedLands(state: GameState): void {
+  // Đồn điền — the military colony. Ground taken is ground garrisoned, at once: the province is
+  // fully loyal the moment it is held and its own militia stands at full strength, because the men
+  // holding it are the men who took it. What it never becomes is rich — see `settledMult`, which
+  // pins a colonised realm at half yield for good.
+  const colonies = militaryColonies(state);
   for (const land of state.lands) {
     if (land.ownerId !== PLAYER_KINGDOM_ID) continue;
+    if (colonies) {
+      land.loyalty = 100;
+      land.defense = Math.max(land.defense, Math.round(land.defense * 1.5));
+      continue;
+    }
     if (land.loyalty >= 100) continue;
     // A province held as a fortress settles faster — the garrison is the reassurance.
     land.loyalty = Math.min(100, land.loyalty + LOYALTY_SETTLE_PER_TICK + getFocusLoyaltyBonus(state, land));
@@ -244,6 +256,11 @@ export function advanceAscentTick(state: GameState): void {
   // After mandate and conquest have settled, so an edict unlocked by this very tick's wave or
   // captured province is announced on the tick it happened.
   tickEdictDiscovery(state);
+  // The rule decrees that run on a clock: the examination hall seating a graduate, a dụ or
+  // hịch lapsing and handing its weight back, and paper money's reckoning. Placed beside
+  // discovery because both are the decree layer's own bookkeeping, and after the economy so a
+  // crash reads this tick's stability rather than last tick's.
+  tickDecreeEffects(state);
 
   trackScore(state);
   state.message = state.message || t('msg.economyTick', { year: state.year, season: seasonLabel(state.season) });

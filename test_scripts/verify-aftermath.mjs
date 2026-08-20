@@ -13,7 +13,11 @@ page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 
 await page.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
-await page.waitForFunction(() => typeof window.__startBenchGame === 'function', null, { timeout: 30000 });
+// MenuScene has to be up before the bench bootstrap fires. PreloadScene starts it, and a
+// MenuScene that boots *after* the jump wipes `window.__mandateState` in its own create() — so
+// waiting only for the hook to exist is a race this script won by luck.
+await page.waitForFunction(() => typeof window.__startBenchGame === 'function'
+  && window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
 await page.evaluate(() => window.__startBenchGame(20260812, 'ascent'));
 await page.waitForFunction(() => window.__phaserGame.scene.isActive('ConquestScene'), null, { timeout: 30000 });
 await page.waitForTimeout(600);
@@ -64,6 +68,35 @@ const seen = await page.evaluate(() => {
 });
 mkdirSync('output/web-game', { recursive: true });
 await page.screenshot({ path: 'output/web-game/aftermath.png' });
+
+// ── the last fight of the run ──────────────────────────────────────────────
+//
+// The Reckoning waits for a clear screen, and the card that ends a run is raised on the same tick
+// as the fight that ended it — so the one result that matters most was the one never shown. This
+// stages exactly that: a card waiting, and `run-over` on the table with it.
+const lastFight = await page.evaluate(async () => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  const st = window.__mandateState;
+  // Put the screen back to nothing open, then stage the collision.
+  ui.dismissAftermath?.();
+  ui.openPromptKey = '';
+  ui.modalLayer.removeAll(true);
+  // Staged the way `raiseAftermath` stages it — the view's gate is what is under test here, not
+  // the raiser, which the first half of this script already exercised for real.
+  const record = st.ascent.battleHistory[st.ascent.battleHistory.length - 1];
+  st.ascent.pendingAftermath = record ? { record, alsoFought: [] } : undefined;
+  const raised = Boolean(st.ascent.pendingAftermath);
+  st.pendingAscentPrompt = {
+    kind: 'run-over', score: 1200, legacyEarned: 30, cause: 'capital', previousBest: 900,
+  };
+  ui.refresh();
+  await new Promise((r) => setTimeout(r, 400));
+  return { raised, lane: ui.openPromptKey, modal: ui.modalLayer.list.length };
+});
+console.log('');
+console.log('═══ THE LAST FIGHT OF A RUN ═══');
+console.log(JSON.stringify(lastFight));
+
 await browser.close();
 
 console.log('═══ THE RECKONING ═══');
@@ -84,4 +117,6 @@ line(has(/still standing|còn/), 'what it bought is on it',
 line(has(/^Year \d+:|^Năm \d+:/), 'one line of chronicle names the place and the enemy',
   seen.texts.find((x) => /^Year \d+:|^Năm \d+:/.test(x)) ?? '-');
 line(seen.texts.length >= 8, 'the card is not blank', `${seen.texts.length} strings drawn`);
+line(lastFight.raised, 'a last fight leaves a card waiting', String(lastFight.raised));
+line(lastFight.lane === 'lane:aftermath', 'it is read before the run-over screen', lastFight.lane);
 line(errors.length === 0, 'no console errors', errors.length ? errors.slice(0, 2).join(' ; ') : 'none');
