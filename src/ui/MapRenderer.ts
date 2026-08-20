@@ -6,6 +6,7 @@
  */
 import Phaser from 'phaser';
 import type { PixelPoint } from '../map/hex';
+import type { WaterKind } from '../map/hexMapGenerator';
 import type { HexTerrainType } from '../map/terrainTypes';
 import { MAP_VISUAL_CONFIG } from '../game/gameplayConfig';
 import { INK, brushStroke, inkOutline, shade, washFill, waveLine, cloudMotif } from './inkTheme';
@@ -18,6 +19,13 @@ export interface LandscapeTile {
   coord: { q: number; r: number };
   terrain: HexTerrainType;
   landId?: string;
+  /**
+   * What kind of water this is, on `water` tiles only.
+   *
+   * A theme needs it to tell a shipping lane from a stream: they are the same terrain but not the
+   * same picture — different tone, different width, different current.
+   */
+  waterKind?: WaterKind;
 }
 
 /**

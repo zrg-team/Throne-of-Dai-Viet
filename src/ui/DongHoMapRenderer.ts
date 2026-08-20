@@ -10,6 +10,9 @@ import {
   type ReliefPlan,
 } from './ink/props';
 import { drawFieldPlot, paddyLattice } from './ink/settlements';
+import { traceRegionEdges, weldLoops } from '../map/boundary';
+import { MAP_SCALE, axialToPixel } from '../map/hex';
+import type { HexTile } from '../map/hexMapGenerator';
 import { worldScale } from './ink/proportion';
 import { groundCast, mixPigment, seasonPalette } from './ink/season';
 import { scatterDensity } from '../game/graphicsQuality';
@@ -278,62 +281,118 @@ export class DongHoMapRenderer implements MapRenderer {
    * fill. Flow lines run inside, never across it.
    */
   private paintWater(graphics: Phaser.GameObjects.Graphics, tiles: LandscapeContext['tiles'], ctx: LandscapeContext): void {
-    const wet = new Set<string>();
+    const wet = new Map<string, LandscapeContext['tiles'][number]>();
     for (const tile of tiles) {
       if (tile.terrain === 'water') {
-        wet.add(`${tile.coord.q},${tile.coord.r}`);
+        wet.set(`${tile.coord.q},${tile.coord.r}`, tile);
       }
     }
     if (wet.size === 0) {
       return;
     }
 
-    for (const tile of tiles) {
-      if (tile.terrain !== 'water') {
-        continue;
-      }
+    // Tone first, by kind. The sea keeps the cool chàm wash it always had; a river is warmer and
+    // siltier — the Red River is named for what it carries — a stream is paler because there is
+    // less of it, and a lake is the darkest and stillest thing on the sheet.
+    for (const tile of wet.values()) {
       const centre = ctx.centreOf(tile);
-      groundTone(graphics, centre.x, centre.y, ctx.tileSize * 1.15, PIGMENT.chamWash, 0.5);
+      const kind = tile.waterKind ?? 'river';
+      const tone = kind === 'sea' ? PIGMENT.chamWash
+        : kind === 'lake' ? PIGMENT.chamPale
+          : kind === 'stream' ? PIGMENT.chamWash
+            : PIGMENT.chamSilt;
+      // Width is how a watercourse says how much of it there is. A stream sits well inside its own
+      // cell; a river fills it; the sea and a lake spill past to keep their surfaces continuous.
+      const spread = kind === 'stream' ? 0.78 : kind === 'river' ? 1.2 : 1.3;
+      const depth = kind === 'lake' ? 0.7 : kind === 'stream' ? 0.42 : 0.62;
+      groundTone(graphics, centre.x, centre.y, ctx.tileSize * spread, tone, depth);
     }
 
+    // The bank as one drawn line.
+    //
+    // This used to ink each wet/dry hex edge on its own, which meant the shoreline was literally a
+    // chain of hexagons and you could count the tiles at any real zoom. `weldLoops` already exists
+    // to walk province borders into closed outlines; the wet/dry boundary is the same question, so
+    // the water gets a real coastline for the price of an import.
+    const hexSize = ctx.tileSize / MAP_SCALE;
+    const origin = ctx.centreAt(0, 0);
+    const asTileMap = new Map(tiles.map((tile) => [`${tile.coord.q},${tile.coord.r}`, tile]));
+    const edges = traceRegionEdges(
+      tiles as HexTile[],
+      asTileMap as Map<string, HexTile>,
+      hexSize,
+      // `traceRegionEdges` works in map units and applies the world transform itself, but the
+      // landscape context only hands out already-transformed centres. axialToPixel(0,0) is the
+      // origin, so the offset is simply where this context puts that hex.
+      (value) => origin.x + value * MAP_SCALE,
+      (value) => origin.y + value * MAP_SCALE,
+      (tile) => tile.terrain === 'water',
+    );
+    for (const loop of weldLoops(edges, true)) {
+      // Cut the corners twice before inking.
+      //
+      // The welded chain is geometrically perfect and still unmistakably a chain of hexagons,
+      // because that is exactly what it is: six-way corners every tile. Two rounds of Chaikin
+      // smoothing round those corners off, and the bank stops being a grid artefact and starts
+      // being a shoreline. Cheap, and it happens once at bake time.
+      const bank = smoothChain(smoothChain(loop));
+      inkPath(graphics, bank as Pt[], Math.round(bank[0].x + bank[0].y), {
+        width: 1.5, alpha: 0.72, colour: PIGMENT.cham, wobble: 1.8, step: 10,
+      });
+    }
+
+    // Flow, along the channel rather than across it.
+    //
+    // The old lines were always horizontal, so a river running north-south was hatched at right
+    // angles to its own current. Direction now comes from the vector between a cell's wet
+    // neighbours, which costs nothing and is the difference between hatching and a river.
     const rand = mulberry32(4400);
-    for (const tile of tiles) {
-      if (tile.terrain !== 'water') {
-        continue;
+    const neighbours: Array<[number, number]> = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
+    for (const tile of wet.values()) {
+      const kind = tile.waterKind ?? 'river';
+      if (kind === 'lake') {
+        continue; // still water has no current to draw
       }
       const centre = ctx.centreOf(tile);
       const { q, r } = tile.coord;
-      // Only a cell with a dry neighbour is on the shore, so the ink follows the water's real edge.
-      const neighbours = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
+
+      let dx = 0;
+      let dy = 0;
       for (const [dq, dr] of neighbours) {
-        if (wet.has(`${q + dq},${r + dr}`)) {
+        if (!wet.has(`${q + dq},${r + dr}`)) {
           continue;
         }
-        const away = ctx.centreAt(q + dq, r + dr);
-        const mx = (centre.x + away.x) / 2;
-        const my = (centre.y + away.y) / 2;
-        const nx = -(away.y - centre.y);
-        const ny = away.x - centre.x;
-        const length = Math.hypot(nx, ny) || 1;
-        const reach = ctx.tileSize * 0.55;
-        inkPath(
-          graphics,
-          [
-            { x: mx - (nx / length) * reach, y: my - (ny / length) * reach },
-            { x: mx + (nx / length) * reach, y: my + (ny / length) * reach },
-          ],
-          Math.round(mx + my * 3),
-          { width: 1.05, alpha: 0.5, colour: PIGMENT.cham, wobble: 3.2, step: 12 },
-        );
+        const to = ctx.centreAt(q + dq, r + dr);
+        dx += to.x - centre.x;
+        dy += to.y - centre.y;
       }
-      // Two flow lines per cell, well inside the edge, so the sheet reads as moving water.
-      for (let line = 0; line < 2; line += 1) {
-        const oy = centre.y + (rand() - 0.5) * ctx.tileSize * 0.7;
-        const half = ctx.tileSize * (0.2 + rand() * 0.28);
+      // A cell with wet neighbours on opposite sides sums to nothing, which is exactly the case
+      // where the channel runs straight through it — fall back to the line between the two.
+      if (Math.abs(dx) + Math.abs(dy) < 0.001) {
+        const first = neighbours.find(([dq, dr]) => wet.has(`${q + dq},${r + dr}`));
+        if (first) {
+          const to = ctx.centreAt(q + first[0], r + first[1]);
+          dx = to.x - centre.x;
+          dy = to.y - centre.y;
+        } else {
+          dx = 1;
+        }
+      }
+      const length = Math.hypot(dx, dy) || 1;
+      const ux = dx / length;
+      const uy = dy / length;
+
+      const lines = kind === 'stream' ? 1 : 2;
+      for (let line = 0; line < lines; line += 1) {
+        // Offset across the current, so the two lines read as separate threads of the same flow.
+        const across = (rand() - 0.5) * ctx.tileSize * (kind === 'stream' ? 0.24 : 0.6);
+        const half = ctx.tileSize * (kind === 'stream' ? 0.16 : 0.2 + rand() * 0.28);
+        const ox = centre.x - uy * across;
+        const oy = centre.y + ux * across;
         inkPath(
           graphics,
-          [{ x: centre.x - half, y: oy }, { x: centre.x + half, y: oy }],
-          Math.round(centre.x + oy + line),
+          [{ x: ox - ux * half, y: oy - uy * half }, { x: ox + ux * half, y: oy + uy * half }],
+          Math.round(ox + oy + line),
           { width: 0.65, alpha: 0.3, colour: PIGMENT.cham, wobble: 1.6, step: 9 },
         );
       }
@@ -1003,6 +1062,28 @@ export class DongHoMapRenderer implements MapRenderer {
         { width: 1.05, alpha: 0.55, colour: PIGMENT.nauDark, wobble: 0.9, step: 8 });
     }
   }
+}
+
+/**
+ * One round of Chaikin corner-cutting.
+ *
+ * Replaces every corner with two points a quarter and three quarters along its edges, which pulls
+ * the path inside its own corners. Run twice it turns a hex-edge chain into something that reads as
+ * drawn rather than tiled.
+ */
+function smoothChain(points: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
+  if (points.length < 3) {
+    return points;
+  }
+  const out: Array<{ x: number; y: number }> = [points[0]];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const a = points[index];
+    const b = points[index + 1];
+    out.push({ x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25 });
+    out.push({ x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75 });
+  }
+  out.push(points[points.length - 1]);
+  return out;
 }
 
 /** Exported for the item renderer, which paints the same wash under settlements. */

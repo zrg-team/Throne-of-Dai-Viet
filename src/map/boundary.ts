@@ -10,19 +10,26 @@ import { EDGE_DIRECTIONS, MAP_SCALE, axialToPixel, hexCorners, hexKey } from './
 
 type WorldTransform = (value: number) => number;
 
-/** Edges of a land's merged hex region that border another land (or the map edge). */
-export function traceLandBoundaryEdges(
-  state: GameState,
+/**
+ * The outline of any set of hexes: every edge where a member cell meets a non-member.
+ *
+ * Written against a predicate rather than a land id because the shape of "where does this region
+ * end" is the same question for a province border, a fog boundary and a river bank, and the second
+ * caller should not need a second copy of the walk. Pair it with `weldLoops` to get closed outlines
+ * instead of a chain of disconnected segments.
+ */
+export function traceRegionEdges(
+  tiles: HexTile[],
   hexTileMap: Map<string, HexTile>,
+  hexSize: number,
   wx: WorldTransform,
   wy: WorldTransform,
-  landId: string,
+  isMember: (tile: HexTile) => boolean,
 ): Array<[number, number, number, number]> {
-  const hexSize = state.mapConfig.hexSize;
   const edges: Array<[number, number, number, number]> = [];
 
-  for (const tile of state.hexTiles) {
-    if (tile.landId !== landId) {
+  for (const tile of tiles) {
+    if (!isMember(tile)) {
       continue;
     }
     const pixel = axialToPixel(tile.coord, hexSize);
@@ -33,7 +40,7 @@ export function traceLandBoundaryEdges(
       const direction = EDGE_DIRECTIONS[edge];
       const neighborCoord = { q: tile.coord.q + direction.q, r: tile.coord.r + direction.r };
       const neighborTile = hexTileMap.get(hexKey(neighborCoord));
-      if (neighborTile?.landId === landId) {
+      if (neighborTile && isMember(neighborTile)) {
         continue;
       }
 
@@ -46,21 +53,36 @@ export function traceLandBoundaryEdges(
   return edges;
 }
 
-/** Closed loops formed by a land's boundary edges, cached per-land in `cache`. */
-export function traceLandBoundaryLoops(
+/** Edges of a land's merged hex region that border another land (or the map edge). */
+export function traceLandBoundaryEdges(
   state: GameState,
   hexTileMap: Map<string, HexTile>,
   wx: WorldTransform,
   wy: WorldTransform,
-  cache: Map<string, Array<Array<{ x: number; y: number }>>>,
   landId: string,
-): Array<Array<{ x: number; y: number }>> {
-  const cached = cache.get(landId);
-  if (cached) {
-    return cached;
-  }
+): Array<[number, number, number, number]> {
+  return traceRegionEdges(
+    state.hexTiles,
+    hexTileMap,
+    state.mapConfig.hexSize,
+    wx,
+    wy,
+    (tile) => tile.landId === landId,
+  );
+}
 
-  const edges = traceLandBoundaryEdges(state, hexTileMap, wx, wy, landId);
+/**
+ * Welds loose boundary segments into closed outlines.
+ *
+ * Segments arrive one hex edge at a time and in no useful order; walked into loops they can be
+ * stroked as a single line, which is the difference between an inked bank and a visible chain of
+ * hexagons. Endpoints are quantised to 0.1 units so two segments that meet at a shared corner are
+ * recognised as meeting despite floating-point drift.
+ */
+export function weldLoops(
+  edges: Array<[number, number, number, number]>,
+  keepOpenChains = false,
+): Array<Array<{ x: number; y: number }>> {
   const points = new Map<string, { x: number; y: number }>();
   const adjacency = new Map<string, Array<{ to: string; edgeIndex: number }>>();
   const pointKey = (x: number, y: number) => `${Math.round(x * 10)}:${Math.round(y * 10)}`;
@@ -117,9 +139,33 @@ export function traceLandBoundaryLoops(
 
     if (loop.length > 3 && current === start) {
       loops.push(loop);
+    } else if (keepOpenChains && loop.length > 2) {
+      // A run that never closed is still a real edge.
+      //
+      // Province regions are simple blobs and always close, so this used to be a safe thing to
+      // throw away. A river network is not a blob: it branches, it meets the sea band, and most of
+      // its outline is an open chain — discarding those left the water with no drawn bank at all.
+      loops.push(loop);
     }
   }
 
+  return loops;
+}
+
+/** Closed loops formed by a land's boundary edges, cached per-land in `cache`. */
+export function traceLandBoundaryLoops(
+  state: GameState,
+  hexTileMap: Map<string, HexTile>,
+  wx: WorldTransform,
+  wy: WorldTransform,
+  cache: Map<string, Array<Array<{ x: number; y: number }>>>,
+  landId: string,
+): Array<Array<{ x: number; y: number }>> {
+  const cached = cache.get(landId);
+  if (cached) {
+    return cached;
+  }
+  const loops = weldLoops(traceLandBoundaryEdges(state, hexTileMap, wx, wy, landId));
   cache.set(landId, loops);
   return loops;
 }

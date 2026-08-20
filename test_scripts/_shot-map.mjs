@@ -27,6 +27,7 @@ const quiet = () => page.evaluate(() => {
   s.lands.forEach((l) => { l.isVisible = true; l.isExplored = true; });
   s.isPaused = true; s.activePoliticsCard = undefined; s.pendingCourtRequest = undefined; s.activeHeroDraft = undefined;
 });
+await page.evaluate((aim) => { window.__AIM = aim; }, process.env.AIM ?? '');
 await quiet();
 await page.waitForTimeout(500);
 await page.evaluate(() => window.__phaserGame.scene.getScene('MapScene').drawMap());
@@ -38,8 +39,19 @@ await page.evaluate(() => {
   const cam = sc.cameras.main;
   const vw = cam.width / cam.zoom, vh = cam.height / cam.zoom;
   const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
-  cam.scrollX = clamp(sc.worldWidth / 2 - vw / 2, 0, Math.max(0, sc.worldWidth - vw));
-  cam.scrollY = clamp(sc.worldHeight / 2 - vh / 2, 0, Math.max(0, sc.worldHeight - vh));
+  let tx = sc.worldWidth / 2, ty = sc.worldHeight / 2;
+  if (window.__AIM === 'water') {
+    const s = window.__mandateState;
+    const inland = s.hexTiles.filter((t) => t.terrain === 'water' && t.waterKind && t.waterKind !== 'sea');
+    const pick = inland[Math.floor(inland.length * 0.55)];
+    if (pick) {
+      const size = s.mapConfig.hexSize;
+      tx = sc.wx(size * Math.sqrt(3) * (pick.coord.q + pick.coord.r / 2));
+      ty = sc.wy(size * 1.5 * pick.coord.r);
+    }
+  }
+  cam.scrollX = clamp(tx - vw / 2, 0, Math.max(0, sc.worldWidth - vw));
+  cam.scrollY = clamp(ty - vh / 2, 0, Math.max(0, sc.worldHeight - vh));
 });
 await page.waitForTimeout(900);
 await quiet();
