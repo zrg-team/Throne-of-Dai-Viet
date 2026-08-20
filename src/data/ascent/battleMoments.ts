@@ -1,4 +1,5 @@
-import type { Army, AscentBattle, BattlePosture } from '../../state/types';
+import type { Army, ArmyComposition, AscentBattle, FieldStance } from '../../state/types';
+import type { BattleFormation } from './formations';
 
 /**
  * The questions a fight can ask.
@@ -49,10 +50,22 @@ export interface MomentEffect {
   morale?: number;
   /** Heart out of theirs, at once. */
   theirMorale?: number;
-  /** Sets the stance, the same way the dock does. */
-  posture?: BattlePosture;
-  /** Aims the line at the enemy column the question was about, or lets it go. */
-  focus?: 'subject' | 'clear';
+  /**
+   * TEMPO — sets the stance, the same way the dock does.
+   *
+   * With `stanceNow` it also ignores the four-beat lock, which is the one thing a Moment can do
+   * that the dock cannot: the fight offering you a way out of a commitment you have made.
+   */
+  stance?: FieldStance;
+  stanceNow?: boolean;
+  /** SHAPE — the next change of shape costs zero beats. The counter without the bill. */
+  freeReform?: boolean;
+  /** SHAPE — freezes their formation for this many beats. You know what you are answering. */
+  lockTheirShape?: number;
+  /** EDGE — the tilt runs at `BATTLE_FORMATION_TILT_SHARP` for `BATTLE_MOMENT_BONUS_BEATS`. */
+  sharpen?: boolean;
+  /** EDGE — the tilt cannot be turned *against* us for the same window. A floor, not a ceiling. */
+  guard?: boolean;
   /** Sends the reserve in now — the same commitment the dock's own button makes. */
   reserve?: boolean;
   /** Spends the general's one steadying moment. */
@@ -105,6 +118,9 @@ export interface MomentContext {
   brokenGround: boolean;
   isGreat: boolean;
   role: 'defence' | 'offence';
+  /** The shapes on the board, so a question can be about the very thing the player is looking at. */
+  ourFormation: BattleFormation;
+  theirFormation: BattleFormation;
   /** How our arms meet theirs, from `compositionMatchup`. Above 1 is favourable. */
   arms: number;
 }
@@ -123,6 +139,14 @@ export interface BattleMomentDef {
    * never got to ask about the melee at all.
    */
   opening?: boolean;
+  /**
+   * Only ask this while we are holding one of these shapes.
+   *
+   * What turns the deck from a hand of cards into the fight talking to you about the board: an
+   * answer that says "you are in Thế Quy, the shields will hold this — stand" is only offered when
+   * you actually are.
+   */
+  requiresFormation?: BattleFormation[];
   /** Is this question worth asking right now? */
   when: (ctx: MomentContext) => boolean;
   /** The name the question is about. */
@@ -151,8 +175,8 @@ export const BATTLE_MOMENTS: BattleMomentDef[] = [
     when: (c) => Boolean(c.wavering),
     subject: (c) => c.wavering?.name,
     hostId: (c) => c.wavering?.id,
-    commit: { says: 'focused', focus: 'subject', dealt: 1.4, taken: 1.12 },
-    steady: { says: 'held', focus: 'clear', morale: 5, taken: 0.92 },
+    commit: { says: 'focused', sharpen: true, dealt: 1.4, taken: 1.12 },
+    steady: { says: 'held', guard: true, morale: 5, taken: 0.92 },
   },
   {
     id: 'charge-coming',
@@ -160,10 +184,10 @@ export const BATTLE_MOMENTS: BattleMomentDef[] = [
     // Not "and we are not braced": the dock opens on Hold and an unattended fight never leaves
      // it, so the second clause made this unreachable in exactly the runs where it matters most.
      // The question is whether to meet a charge, and it is a question either way.
-    when: (c) => c.battle.theirPosture === 'press',
+    when: (c) => c.battle.theirStance === 'press' || c.theirFormation === 'xung',
     subject: enemy,
-    commit: { says: 'charged', posture: 'press', dealt: 1.3, taken: 1.15, advance: 0.05 },
-    steady: { says: 'braced', posture: 'hold', taken: 0.74, morale: 4 },
+    commit: { says: 'charged', sharpen: true, dealt: 1.3, taken: 1.15, advance: 0.05 },
+    steady: { says: 'braced', lockTheirShape: 3, taken: 0.74, morale: 4 },
   },
   {
     id: 'last-rounds',
@@ -182,7 +206,7 @@ export const BATTLE_MOMENTS: BattleMomentDef[] = [
     weight: 0.5,
     when: (c) => c.phase === 'approach' && c.beat >= 2,
     subject: enemy,
-    commit: { says: 'charged', posture: 'press', advance: 0.1, taken: 1.2, dealt: 1.25 },
+    commit: { says: 'charged', stance: 'press', stanceNow: true, advance: 0.1, taken: 1.2, dealt: 1.25 },
     steady: { says: 'braced', taken: 0.7, rounds: -1 },
   },
   {
@@ -190,6 +214,27 @@ export const BATTLE_MOMENTS: BattleMomentDef[] = [
     when: (c) => c.reserveMen > 0 && !c.battle.reserveSpent && c.ourMorale <= 62,
     commit: { says: 'reserveIn', reserve: true, morale: 6 },
     steady: { says: 'waited', dealt: 1.15, morale: 3 },
+  },
+  {
+    // The general's one steadying moment, which used to be a button on the dock. With that button
+    // gone the deck is the *only* way to spend a rally, so this question has to be reachable in
+    // every fight that has a commander and a line that has started to sag.
+    id: 'the-general-speaks',
+    when: (c) => !c.battle.rallySpent && c.battle.rallyPower > 0 && c.ourMorale <= 58,
+    subject: (c) => c.battle.generalName,
+    commit: { says: 'rallied', rally: true, morale: 4 },
+    steady: { says: 'held', guard: true, dealt: 1.12 },
+  },
+  {
+    // Only ever asked of a host actually standing in the tortoise — the fight reading the board
+    // back to the player rather than dealing them a card.
+    id: 'shields-will-hold',
+    requiresFormation: ['quy'],
+    weight: 0.6,
+    when: (c) => c.phase === 'clash' && c.ourSpent >= 0.2,
+    subject: enemy,
+    commit: { says: 'pressed', freeReform: true, dealt: 1.2 },
+    steady: { says: 'braced', guard: true, taken: 0.78, morale: 5 },
   },
   {
     id: 'their-line-thins',
@@ -228,8 +273,8 @@ export const BATTLE_MOMENTS: BattleMomentDef[] = [
     id: 'outnumbered',
     when: (c) => c.odds >= 1.35,
     subject: enemy,
-    commit: { says: 'charged', posture: 'press', dealt: 1.35, taken: 1.1 },
-    steady: { says: 'braced', posture: 'hold', taken: 0.72, advance: -0.05 },
+    commit: { says: 'charged', stance: 'press', stanceNow: true, dealt: 1.35, taken: 1.1 },
+    steady: { says: 'braced', stance: 'defend', taken: 0.72, advance: -0.05 },
   },
   {
     id: 'we-outnumber',
@@ -301,7 +346,7 @@ export const BATTLE_MOMENTS: BattleMomentDef[] = [
     id: 'their-relief-seen',
     when: (c) => c.theirs.length >= 2 && c.phase === 'clash',
     subject: enemy,
-    commit: { says: 'focused', focus: 'subject', dealt: 1.4, taken: 1.2, rounds: -1 },
+    commit: { says: 'focused', sharpen: true, dealt: 1.4, taken: 1.2, rounds: -1 },
     steady: { says: 'spread', taken: 0.8, dealt: 0.9, morale: 4 },
   },
   {
@@ -335,8 +380,8 @@ export const BATTLE_MOMENTS: BattleMomentDef[] = [
     id: 'arms-favour-them',
     when: (c) => c.arms <= 0.96,
     subject: enemy,
-    commit: { says: 'charged', posture: 'press', dealt: 1.28, loss: 0.04 },
-    steady: { says: 'braced', posture: 'hold', taken: 0.72, advance: -0.05 },
+    commit: { says: 'charged', stance: 'press', stanceNow: true, dealt: 1.28, loss: 0.04 },
+    steady: { says: 'braced', freeReform: true, taken: 0.72, advance: -0.05 },
   },
   {
     id: 'sworn-oath',
@@ -378,5 +423,8 @@ export const BATTLE_MOMENTS: BattleMomentDef[] = [
  * trigger took every Moment in forty fights.
  */
 export function eligibleMoments(ctx: MomentContext, asked: readonly string[]): BattleMomentDef[] {
-  return BATTLE_MOMENTS.filter((def) => !asked.includes(def.id) && def.when(ctx));
+  return BATTLE_MOMENTS.filter((def) => !asked.includes(def.id)
+    // A question about the shape we are holding is only worth asking while we are holding it.
+    && (!def.requiresFormation || def.requiresFormation.includes(ctx.ourFormation))
+    && def.when(ctx));
 }

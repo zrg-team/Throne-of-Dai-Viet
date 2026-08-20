@@ -16,12 +16,14 @@ import { raiseHostWithPlan, type MusterPlan } from '../systems/ascent/MusterSyst
 import { pushToast } from '../systems/empire/notifications';
 import { disbandArmy } from '../systems/WarSystem';
 import {
-  answerBattleMoment, commitReserve, delegateBattle, finishBattle, rally, setBattleFocus, setBattlePosture,
+  answerBattleMoment, delegateBattle, finishBattle, markPlayerSteered, setBattleFormation,
+  setBattleStance,
 } from '../systems/ascent/BattleSystem';
 import { createAscentGameState } from '../state/GameState';
 import { ASCENT_HUD_HEIGHT } from '../ui/ascent/AscentHud';
 import { MapScene } from './MapScene';
-import type { ArmyOrders } from '../state/types';
+import type { BattleFormation } from '../data/ascent/formations';
+import type { ArmyOrders, FieldStance } from '../state/types';
 
 /**
  * Dragon Ascent's world scene.
@@ -335,10 +337,6 @@ export class ConquestScene extends MapScene {
     // own recruit pass, which only fires when the realm is *below* its target host count.
     // Battle orders act on the live siege rather than resolving a prompt: the fight is part of
     // the world now, so an order is a standing instruction to it, not a turn taken in it.
-    ui.events.on('ui:battle-focus', (hostId?: string) => {
-      setBattleFocus(this.state, hostId);
-      ui.events.emit('state-changed');
-    });
     // A Moment is answered on its own channel: it is not a standing order, it is one decision
     // taken once, and it must not be confused with the stance the host is holding.
     // Leaving an arena fight goes back to the setup rather than to the map behind it.
@@ -351,11 +349,23 @@ export class ConquestScene extends MapScene {
       answerBattleMoment(this.state, answer);
       ui.events.emit('state-changed');
     });
+    // Two dials on two clocks, plus the two exits. Reserve and rally left this channel entirely:
+    // with their buttons gone from the dock they are questions the fight asks, not orders it takes.
     ui.events.on('ui:battle-order', (order: string) => {
-      if (order === 'rally') rally(this.state);
-      else if (order === 'reserve') commitReserve(this.state);
-      else if (order === 'press' || order === 'hold') setBattlePosture(this.state, order);
-      else if (order === 'retreat') finishBattle(this.state, 'retreat');
+      if (order.startsWith('stance:')) {
+        // A person pressed something, so the commander stands down — see `markPlayerSteered`.
+        markPlayerSteered(this.state);
+        setBattleStance(this.state, order.slice(7) as FieldStance);
+      } else if (order.startsWith('formation:')) {
+        markPlayerSteered(this.state);
+        setBattleFormation(this.state, order.slice(10) as BattleFormation);
+      } else if (order === 'leave') {
+        // Hand the rest of it over and step away. `delegateBattle` hands over the *remainder* —
+        // the battlefield keeps running and the player can take the field back at any point — so
+        // leaving is a way of playing rather than a way of skipping.
+        delegateBattle(this.state, true);
+        ui.events.emit('ui:battle-leave');
+      }
       // "Leave it to my generals" hands back *this* fight. It used to flip the run-wide
       // `autoResolveBattles` as well, so one tap on the way out of a lost cause silently
       // disabled the mode's best screen for the rest of the run; Settings still offers that.

@@ -341,6 +341,17 @@ export class MapScene extends Phaser.Scene {
     this.game.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
     this.seasons?.destroy();
     this.birds?.destroy();
+    // The bake belongs to the display list, which Phaser tears down on shutdown — but the *scene
+    // instance* is reused across `scene.start`, so this field survived pointing at a destroyed
+    // RenderTexture. On the second entry `bakeStaticTerrain` saw a truthy handle, skipped
+    // re-creating it, and `clear()` dereferenced a null GL binding.
+    //
+    // The throw was caught and warned, which is what made it so expensive to miss: the bake bailed
+    // *before* hiding the source layers, so every static layer under depth 1.5 went on drawing live,
+    // every frame, for the rest of the run. Roughly 160k fill and upload commands a frame instead of
+    // one textured quad — the "second fight is unplayable" bug.
+    this.staticBakeRT = undefined;
+    this.lastBakedRenderMode = undefined;
   }
 
   /** Re-bake the cached terrain + fog textures once a lost WebGL context is restored.
@@ -1144,6 +1155,11 @@ export class MapScene extends Phaser.Scene {
     if (typeof window !== 'undefined' && /[?&]nobake=1\b/.test(window.location.search)) {
       this.applyRenderModeVisibility();
       return;
+    }
+    // `scene` is nulled by `GameObject.destroy()`, so this catches a handle that outlived its
+    // display list even if something else forgets to clear the field.
+    if (this.staticBakeRT && !this.staticBakeRT.scene) {
+      this.staticBakeRT = undefined;
     }
     if (!this.staticBakeRT) {
       // Texture is baked at BAKE_SCALE resolution then displayed scaled up to full world size.

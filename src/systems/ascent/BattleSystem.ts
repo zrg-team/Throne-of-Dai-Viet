@@ -8,32 +8,39 @@ import {
   BATTLE_BEATS_PER_TICK,
   BATTLE_CHARGE_COVER,
   BATTLE_CHARGE_MORALE,
-  BATTLE_CHARGE_TRADE,
+  BATTLE_STANCE_TRADE,
   BATTLE_COUNTER_MORALE,
-  BATTLE_FOCUS_MULT,
-  BATTLE_HOLD_TRADE,
-  BATTLE_LOOSE_TRADE,
+  BATTLE_FORMATION_TILT,
+  BATTLE_FORMATION_TILT_BLUNT,
+  BATTLE_FORMATION_TILT_SHARP,
+  BATTLE_REFORM_BEATS,
+  BATTLE_REFORM_DEALT,
+  BATTLE_REFORM_TAKEN,
   BATTLE_LOOSE_VOLLEY,
-  BATTLE_POSTURE_COUNTER,
+  BATTLE_STANCE_LOCK_BEATS,
   BATTLE_MAX_ROUNDS,
   BATTLE_MOMENT_TICKS,
   BATTLE_MOMENT_BONUS_BEATS,
   BATTLE_MOMENT_EARLIEST,
   BATTLE_MOMENT_GAP,
   BATTLE_MOMENTS_PER_FIGHT,
+  BATTLE_MOMENTS_PER_GREAT_FIGHT,
   BATTLE_MORALE_PER_LOSS,
   BATTLE_MORALE_WIN_GAIN,
   BATTLE_RALLY_BASE,
-  BATTLE_REFORM_COST,
+  BATTLE_WITHDRAW_BEATS,
   BATTLE_RESERVE_SHARE,
   BATTLE_ROUND_BITE,
   BATTLE_RALLY_DESPERATION,
   BATTLE_ROUT_LOSS_SHARE,
   BATTLE_ROUT_MORALE,
-  BATTLE_SPREAD_MULT,
   BATTLE_VOLLEY_BITE,
   BATTLE_WITHDRAW_RECOVERY,
 } from '../../game/ascentConfig';
+import {
+  BLOCK_OF, compositionOfUnits, formationAvailability, formationBeats, formationTiltSign,
+  FORMATION_RING, type BattleFormation,
+} from '../../data/ascent/formations';
 import { raiseEnemyGarrisonLevy, raiseGarrisonLevy, resolveBattleRecord } from '../empire/InvasionSystem';
 import { pushToast } from '../empire/notifications';
 import {
@@ -48,7 +55,7 @@ import { t } from '../../i18n';
 import { BATTLE_MOMENTS, eligibleMoments } from '../../data/ascent/battleMoments';
 import type { BattleMomentDef, MomentContext, MomentEffect } from '../../data/ascent/battleMoments';
 import type {
-  Army, AscentBattle, BattleBeatHost, BattleMoment, BattleMomentAnswer, BattlePosture,
+  Army, ArmyComposition, AscentBattle, BattleBeatHost, BattleMoment, BattleMomentAnswer, FieldStance,
   GameState, Land, PendingBattle,
 } from '../../state/types';
 
@@ -474,11 +481,28 @@ function emptyBattle(pending: PendingBattle): AscentBattle {
     isGreat: pending.isGreat,
     round: 0,
     totalRounds: BATTLE_BASE_ROUNDS,
-    posture: 'hold',
-    theirPosture: 'press',
+    // Opens balanced and in the hedge: the one shape every doctrine can form, and the tempo that
+    // commits to nothing. A fight that begins already leaning has made the first decision for you.
+    // Both sides open flat, and that is a deliberate, load-bearing change.
+    //
+    // The old dock opened on `hold` while the invader's doctrine opened on `press`, and under the
+    // retired ring **hold countered press** — so an engagement nobody steered was a free 2.71-to-1
+    // win for the player before a single order was given. Measured on the old constants:
+    // ourShare 0.550 against theirShare 1.490.
+    //
+    // The document removes stance-countering on purpose: tempo decides how fast the men are spent,
+    // shape decides which way. At even shape two symmetric defaults can only be level, and level is
+    // the honest answer — "play moves a fight by about a third, it does not overturn one".
+    //
+    // The consequence is real and is not a bug: an unattended fight in Dragon Ascent now returns
+    // roughly a coin flip where it used to be a rout in the player's favour, and the mode's economy
+    // was tuned against the rout. See the note in the changelog; re-tuning it is separate work.
+    stance: 'balanced',
+    theirStance: 'balanced',
+    ourFormation: 'chong',
+    theirFormation: 'chong',
     brokenHostIds: [],
     ourLostTotal: 0,
-    focusHostId: undefined,
     ourStartMorale: 0,
     ourAdvance: 0,
     theirAdvance: 0,
@@ -559,7 +583,7 @@ export function summonAdjacentRelief(state: GameState, landId: string): void {
  * The invader deliberately gets no reserve and no rally. That asymmetry is the player's edge,
  * and it is what keeps a fair fight winnable.
  */
-function enemyPosture(state: GameState, battle: AscentBattle): BattlePosture {
+function enemyStance(state: GameState, battle: AscentBattle): FieldStance {
   const kingdom = state.kingdoms.find((candidate) => candidate.id === battle.kingdomId);
   const personality = kingdom?.personality ?? 'aggressive';
   const theirEdge = battle.theirMorale - battle.ourMorale;
@@ -568,20 +592,43 @@ function enemyPosture(state: GameState, battle: AscentBattle): BattlePosture {
   // rather than a guessing game: `battleTelegraph` shows this same value before the beat resolves,
   // and it must be the stance actually taken or the whole thing collapses into a coin flip.
   const bows = theirBowShare(state, battle);
+
+  // Tempo follows the shape, for them exactly as the document asks it to for us.
+  //
+  // Without this the invader pressed on nearly every beat of nearly every fight, and pressing is a
+  // far better trade than it used to be (1.55 dealt against the old 1.12). The old ring hid that:
+  // the *player's* default stance countered the invader's default stance, so an unattended fight
+  // was a free 2.7-to-1 win. Tempo cannot be countered any more — only shape can — so an enemy
+  // that presses regardless is simply stronger than one that reads the board, and a fight nobody
+  // was steering swung from 2.7:1 for the player to 1.1:1 against.
+  //
+  // Reading the tilt first fixes it at the source and keeps every property the telegraph needs:
+  // deterministic, visible, and stable across a run.
+  if (!reforming(battle.reformBeats) && !reforming(battle.theirReformBeats)) {
+    const sign = formationTiltSign(battle.theirFormation, battle.ourFormation);
+    if (sign > 0) return 'press';
+    if (sign < 0) return theirEdge > 25 ? 'balanced' : 'defend';
+    // Even shape, so nothing is bought by spending faster. Aggressive powers still press once they
+    // are ahead on heart, which is what keeps a personality learnable across a run.
+    if (personality === 'aggressive' || personality === 'expansionist') {
+      return theirEdge > 12 ? 'press' : 'balanced';
+    }
+  }
+
   switch (personality) {
     // Cautious powers spend other people's soldiers reluctantly: they stand off and shoot while
     // they have the archers for it, and only close when clearly ahead.
     case 'economic':
     case 'diplomatic':
       if (theirEdge > 18) return 'press';
-      return bows > 0.3 ? 'loose' : 'hold';
+      return bows > 0.3 ? 'balanced' : 'defend';
     // A defensive doctrine shoots first and only closes once it has the upper hand.
     case 'defensive':
       if (theirEdge > 8) return 'press';
-      return bows > 0.22 ? 'loose' : 'hold';
+      return bows > 0.22 ? 'balanced' : 'defend';
     // Aggressive and expansionist powers come on hard, and only steady up if badly beaten.
     default:
-      return theirEdge < -20 ? 'hold' : 'press';
+      return theirEdge < -20 ? 'defend' : 'press';
   }
 }
 
@@ -607,41 +654,185 @@ function matchupAcross(mine: Army[], theirs: Army[]): number {
   return compositionMatchup(pool(mine), { units: foe } as Army);
 }
 
-/**
- * The stance cycle: charge > loose > brace > charge.
- *
- * Charge closes before the volleys tell; loose shoots a line that is standing still; a braced
- * line breaks a rush. Returns what `attacker` gets for meeting `defender` with this stance.
- */
-export function posturesCounter(attacker: BattlePosture, defender: BattlePosture): boolean {
-  return (attacker === 'press' && defender === 'loose')
-    || (attacker === 'loose' && defender === 'hold')
-    || (attacker === 'hold' && defender === 'press');
+/** The trade a stance makes. Tempo only — the ring is a separate term entirely. */
+function tradeFor(stance: FieldStance): { dealt: number; taken: number } {
+  return BATTLE_STANCE_TRADE[stance] ?? BATTLE_STANCE_TRADE.balanced;
 }
 
-/** The trade a stance makes before the counter is applied. */
-function tradeFor(posture: BattlePosture): { dealt: number; taken: number } {
-  if (posture === 'press') return BATTLE_CHARGE_TRADE;
-  if (posture === 'loose') return BATTLE_LOOSE_TRADE;
-  return BATTLE_HOLD_TRADE;
+/** Pooled headcount of a side, and what it mustered, for the block accounting. */
+function sideStrength(hosts: Army[]): number {
+  return hosts.reduce((total, host) => total + totalUnits(host), 0);
+}
+
+/** Which doctrine a side is deploying in — the largest host speaks for the line. */
+function sideComposition(hosts: Army[]): ArmyComposition {
+  const biggest = hosts.slice().sort((a, b) => totalUnits(b) - totalUnits(a))[0];
+  if (!biggest) return 'balanced';
+  return compositionOfUnits(biggest.units, biggest.composition);
 }
 
 /**
- * A stance's trade with the ring folded in.
+ * What our side actually deployed, which is **not** `ourStart`.
  *
- * Countering deals harder and takes less; being countered is the mirror. Applied to the trade
- * rather than to the final loss so that it composes with everything else the exchange already
- * multiplies by, instead of becoming a special case bolted onto the end.
+ * `ourStart` counts everything the side brought, the reserve included — and the reserve is by
+ * construction standing at camp, not on the line. Measured against it, a host reads as having lost
+ * its whole screen block on the opening beat and Thế Tán is greyed out before a shot is fired.
+ *
+ * The morale maths already learned this lesson the same way; see the note on `ourEngaged`.
  */
-function tradeAgainst(mine: BattlePosture, theirs: BattlePosture): { dealt: number; taken: number } {
-  const base = tradeFor(mine);
-  if (posturesCounter(mine, theirs)) {
-    return { dealt: base.dealt * BATTLE_POSTURE_COUNTER.dealt, taken: base.taken * BATTLE_POSTURE_COUNTER.taken };
+export function ourMustered(battle: AscentBattle): number {
+  const held = battle.reserveSpent
+    ? 0
+    : battle.reserve.spearmen + battle.reserve.archers + battle.reserve.heavyInfantry;
+  return Math.max(1, battle.ourStart - held);
+}
+
+/** The invader gets no reserve, so everything it brought is on the field. */
+export function theirMustered(battle: AscentBattle): number {
+  return Math.max(1, battle.theirStart);
+}
+
+/** Which shapes a side can still form, from what is left of its blocks. */
+export function sideFormations(
+  hosts: Army[], mustered: number,
+): Record<BattleFormation, 'ready' | 'blunt' | 'gone'> {
+  return formationAvailability(sideComposition(hosts), sideStrength(hosts), mustered);
+}
+
+/**
+ * A host in transit has no shape at all.
+ *
+ * Not "the shape it left" and not "the shape it is heading for" — men walking between blocks are in
+ * neither, which is the whole cost of the fast dial and the reason changing shape is a decision
+ * rather than a reflex.
+ */
+function reforming(beats?: number): boolean {
+  return (beats ?? 0) > 0;
+}
+
+/**
+ * Which way the exchange leans this beat. Positive is ours.
+ *
+ * Zero while **either** side is re-forming — a counter is worth nothing against men who are not in
+ * a formation to be countered, and it is worth nothing to you if you are not in one to counter
+ * with. A Moment can sharpen it or put a floor under it; a blunted shape halves it.
+ */
+function formationTilt(state: GameState, battle: AscentBattle): number {
+  if (reforming(battle.reformBeats) || reforming(battle.theirReformBeats)) return 0;
+  const sign = formationTiltSign(battle.ourFormation, battle.theirFormation);
+  if (sign === 0) return 0;
+
+  const bonus = battle.momentBonus;
+  // A guard cannot be turned against us: the floor a `steady` answer buys.
+  if (sign < 0 && (bonus?.guardBeats ?? 0) > 0) return 0;
+
+  const size = (bonus?.sharpBeats ?? 0) > 0 ? BATTLE_FORMATION_TILT_SHARP : BATTLE_FORMATION_TILT;
+  // A shape whose block has been spent still forms, but only half of it means anything.
+  const ours = sideFormations(ourHosts(state, battle), ourMustered(battle));
+  const blunt = ours[battle.ourFormation] === 'blunt';
+  return sign * size * (blunt ? BATTLE_FORMATION_TILT_BLUNT : 1);
+}
+
+/**
+ * Both dials, advanced one beat, before anything is resolved.
+ *
+ * The order matters: a stance ordered last beat lands *now* and only then starts its lock, and a
+ * formation whose clock reaches zero is in shape *for* this beat rather than after it. Getting this
+ * backwards would make every order arrive one beat later than the screen said it would.
+ */
+function advanceStance(battle: AscentBattle): void {
+  // Tempo: slow to order, instant to complete.
+  if (battle.stancePending) {
+    battle.stance = battle.stancePending;
+    battle.stancePending = undefined;
+    battle.stanceLockBeats = BATTLE_STANCE_LOCK_BEATS;
+  } else if ((battle.stanceLockBeats ?? 0) > 0) {
+    battle.stanceLockBeats = (battle.stanceLockBeats ?? 0) - 1;
   }
-  if (posturesCounter(theirs, mine)) {
-    return { dealt: base.dealt * BATTLE_POSTURE_COUNTER.taken, taken: base.taken * BATTLE_POSTURE_COUNTER.dealt };
+
+}
+
+/**
+ * The formation clocks, ticked at the **end** of the beat the transit was paid on.
+ *
+ * The other half of `advanceStance`, and deliberately at the other end of the beat. A stance lands
+ * at the top and is in force for the beat that follows the order; a shape must still be *walking*
+ * for the beat it was ordered into, or a one-beat re-form would arrive without ever paying the
+ * transit — which is exactly what `verify-battle-dials` caught: the host was in Thế Quy on the
+ * first beat after the order, with full tilt and no penalty, and the fast dial was free.
+ *
+ * Order at beat N, walk through beat N+1 with no shape at all, stand in it from beat N+2.
+ */
+function settleFormations(battle: AscentBattle): void {
+  if (reforming(battle.reformBeats)) {
+    battle.reformBeats = (battle.reformBeats ?? 0) - 1;
+    if (!reforming(battle.reformBeats) && battle.formationTarget) {
+      battle.ourFormation = battle.formationTarget;
+      battle.formationTarget = undefined;
+      battle.log.push(t('ascent.battle.reformDone', {
+        shape: t(`ascent.formation.${battle.ourFormation}.full` as Parameters<typeof t>[0]),
+      }));
+    }
   }
-  return base;
+  if (reforming(battle.theirReformBeats)) {
+    battle.theirReformBeats = (battle.theirReformBeats ?? 0) - 1;
+    if (!reforming(battle.theirReformBeats) && battle.theirFormationTarget) {
+      battle.theirFormation = battle.theirFormationTarget;
+      battle.theirFormationTarget = undefined;
+    }
+  }
+  if ((battle.theirShapeLockBeats ?? 0) > 0) {
+    battle.theirShapeLockBeats = (battle.theirShapeLockBeats ?? 0) - 1;
+  }
+  const bonus = battle.momentBonus;
+  if (bonus) {
+    if ((bonus.sharpBeats ?? 0) > 0) bonus.sharpBeats = (bonus.sharpBeats ?? 0) - 1;
+    if ((bonus.guardBeats ?? 0) > 0) bonus.guardBeats = (bonus.guardBeats ?? 0) - 1;
+  }
+}
+
+/**
+ * The shape the invader walks into next, and the clock it walks on.
+ *
+ * Deterministic on state the player can see — their personality, the morale edge, our held shape
+ * and what is left of their own blocks. **Never a `Math.random` draw**: `battleTelegraph` prints
+ * this before the beat resolves and it must be what actually happens, and a draw here would shift
+ * the RNG call order for every mode's regression fingerprint.
+ *
+ * They answer our shape rather than guessing at it, which is what makes the fight a conversation:
+ * you counter them, they counter back, and the question each time is whether the beats are worth it.
+ */
+function advanceEnemyFormation(state: GameState, battle: AscentBattle, theirs: Army[]): void {
+  if (reforming(battle.theirReformBeats)) return;
+  // A Moment can freeze them: three beats of knowing exactly what you are answering.
+  if ((battle.theirShapeLockBeats ?? 0) > 0) return;
+
+  // Only when they are actually losing the matchup. An invader that re-forms on every beat it could
+  // is an invader permanently in transit, which is its own kind of free win.
+  if (formationTiltSign(battle.theirFormation, battle.ourFormation) >= 0) return;
+
+  const available = sideFormations(theirs, theirMustered(battle));
+  // They answer the shape we are **standing in**, never the one we are walking towards.
+  //
+  // Reading `formationTarget` made them omniscient: they began countering a shape before it had
+  // even formed, so a player who changed shape arrived to find the answer already waiting and could
+  // never hold a winning matchup for a single beat. Measured in `battle-lab`, that alone put
+  // skilled play at a 10.8% win rate with every fixed policy at zero.
+  //
+  // Reading the arrived shape gives the player the window the whole design depends on: counter,
+  // hold it while they walk, and spend the advantage before they get there.
+  const wanted = countersTo(battle.ourFormation).find((shape) => available[shape] === 'ready');
+  if (!wanted || wanted === battle.theirFormation) return;
+
+  // Their discipline, on the same ladder ours is on. A levy invader is slow to answer and that is
+  // the window the player is playing in.
+  const tier = Math.max(0, Math.min(2, theirs[0]?.elite ?? 0));
+  const beats = Math.max(
+    BATTLE_REFORM_BEATS.min,
+    Math.min(BATTLE_REFORM_BEATS.max, BATTLE_REFORM_BEATS.byTier[tier] ?? 2),
+  );
+  battle.theirFormationTarget = wanted;
+  battle.theirReformBeats = beats;
 }
 
 /** What share of the invader's strength is bowmen — the thing that decides whether they stand off. */
@@ -658,14 +849,30 @@ function theirBowShare(state: GameState, battle: AscentBattle): number {
  * Resolved from the same function the fight uses and nothing else. A telegraph that could differ
  * from what happens is worse than none: it would teach the player a rule the game does not keep.
  */
-export function battleTelegraph(state: GameState): BattlePosture | undefined {
+export interface BattleTelegraph {
+  /** The tempo they will fight the next beat at. */
+  stance: FieldStance;
+  /** The shape they are standing in now. */
+  formation: BattleFormation;
+  /** The shape they are walking into, if they are walking. */
+  next?: BattleFormation;
+  /** Beats until `next` lands. Zero when they are already in shape. */
+  beatsLeft: number;
+}
+
+export function battleTelegraph(state: GameState): BattleTelegraph | undefined {
   const battle = state.ascent?.activeBattle;
   if (!battle || battle.over) return undefined;
   const offence = battle.role === 'offence';
   const theirs = theirHosts(state, battle);
   if (theirs.length === 0) return undefined;
-  if (offence && theirs.every((host) => host.isLevy)) return 'hold';
-  return enemyPosture(state, battle);
+  const stance = offence && theirs.every((host) => host.isLevy) ? 'defend' : enemyStance(state, battle);
+  return {
+    stance,
+    formation: battle.theirFormation,
+    next: battle.theirFormationTarget,
+    beatsLeft: battle.theirReformBeats ?? 0,
+  };
 }
 
 /** Strips a share of a host's strength, spread across its unit types. */
@@ -721,7 +928,8 @@ function setMorale(army: Army, value: number): number {
  */
 function raiseMoment(state: GameState, battle: AscentBattle, ours: Army[], theirs: Army[]): void {
   if (battle.moment || battle.over) return;
-  if ((battle.momentsRaised ?? 0) >= BATTLE_MOMENTS_PER_FIGHT) return;
+  const budget = battle.isGreat ? BATTLE_MOMENTS_PER_GREAT_FIGHT : BATTLE_MOMENTS_PER_FIGHT;
+  if ((battle.momentsRaised ?? 0) >= budget) return;
   // Never on the opening beats: a fight that begins with a decision has not earned one yet.
   //
   // Measured against the *whole* fight rather than against `battle.round`, which does not count
@@ -795,6 +1003,9 @@ function momentContext(
     isGreat: Boolean(battle.isGreat),
     role: battle.role ?? 'defence',
     arms: battle.ourMatchup ?? 1,
+    // The board itself, so a question can be about the very thing the player is looking at.
+    ourFormation: battle.ourFormation,
+    theirFormation: battle.theirFormation,
   };
 }
 
@@ -854,11 +1065,20 @@ function applyMomentEffect(
     // separate and is written straight onto the line.
     morale: 0,
     taken: gain(effect.taken ?? 1, 1),
+    // The two windows that speak the dials' own language rather than a percentage.
+    sharpBeats: effect.sharpen ? BATTLE_MOMENT_BONUS_BEATS : 0,
+    guardBeats: effect.guard ? BATTLE_MOMENT_BONUS_BEATS : 0,
   };
 
-  if (effect.posture) battle.posture = effect.posture;
-  if (effect.focus === 'subject' && moment.hostId) battle.focusHostId = moment.hostId;
-  if (effect.focus === 'clear') battle.focusHostId = undefined;
+  // Tempo: a stance change that ignores the four-beat lock, landing at once rather than next beat.
+  if (effect.stance) {
+    battle.stance = effect.stance;
+    battle.stancePending = undefined;
+    battle.stanceLockBeats = effect.stanceNow ? 0 : BATTLE_STANCE_LOCK_BEATS;
+  }
+  // Shape: the counter without the bill, or three beats of knowing what you are answering.
+  if (effect.freeReform) battle.freeReform = true;
+  if (effect.lockTheirShape) battle.theirShapeLockBeats = effect.lockTheirShape;
 
   if (effect.morale) {
     battle.ourMorale = clampMorale(battle.ourMorale + gain(effect.morale, 0));
@@ -961,13 +1181,32 @@ export function fightRound(state: GameState): void {
   const battle = ascent?.activeBattle;
   if (!ascent || !battle || battle.over) return;
 
-  // The commander gives their orders for this beat, if the field is theirs.
+  // The commander gives their orders for this beat, if the field is theirs — **or if nobody else
+  // is giving any**.
+  //
+  // The second half is the whole reason this reads the way it does. Under the retired ring the dock
+  // opened on `hold` and the invader's doctrine opened on `press`, and hold countered press: an
+  // engagement nobody touched was a free 2.71-to-1 win. Measured in `battle-lab`, the player side
+  // won 48.8% of fights and **routed in none of them**.
+  //
+  // Tempo cannot be countered any more, only shape can, so that accident is gone — and the invader
+  // reads the board every beat while an untouched host stands flat and does nothing. Measured, that
+  // put the player at a 17.5% win rate and a 63% rout rate: not a harder fight, a broken one.
+  //
+  // A host whose commander is standing right there does not simply stand flat. `generalPlaysBeat`
+  // reads the telegraph and answers with shape, which is what the player would do — earned, rather
+  // than free. The moment the player touches either dial the fight is theirs and the general stops.
   //
   // Here rather than in `advanceBattle` because the beat is the unit a commander acts on, and
   // because `advanceBattle` is not the only thing that runs a beat — `battle-lab` drives
   // `fightRound` directly, so a general placed one level up simply never played and every martial
   // value scored identically. A harness that cannot reach the code it is grading is not grading it.
-  if (battle.delegated) generalPlaysBeat(state, battle);
+  if (battle.delegated || !battle.playerSteered) generalPlaysBeat(state, battle);
+
+  // The tempo dial ticks first, so a stance ordered last beat is in force for this one — which is
+  // what the dock told the player would happen. The shape clocks tick at the *end*; see
+  // `settleFormations`.
+  advanceStance(battle);
 
   // Read the field fresh each beat rather than holding references from when the fight opened.
   // That single choice is what makes reinforcement work: a host that marched in since the last
@@ -1000,8 +1239,11 @@ export function fightRound(state: GameState): void {
   battle.ourStart = Math.max(battle.ourStart, ours.reduce((total, host) => total + totalUnits(host), 0));
   battle.theirStart = Math.max(battle.theirStart, theirs.reduce((total, host) => total + totalUnits(host), 0));
 
-  const charging = battle.posture === 'press';
-  const loosing = battle.posture === 'loose';
+  const charging = battle.stance === 'press';
+  const withdrawing = battle.stance === 'withdraw';
+  // Shooting is a *shape* now, not a tempo — Thế Nỏ is the host that has decided to stand off and
+  // loose, which is exactly the split the two dials are built on.
+  const loosing = battle.ourFormation === 'no';
   const offence = battle.role === 'offence';
   // How the two sides' arms meet, written before the branch rather than inside the melee.
   // It is true of the hosts, not of the phase — a spear wall is wrong against heavy infantry
@@ -1010,7 +1252,11 @@ export function fightRound(state: GameState): void {
   battle.ourMatchup = matchupAcross(ours, theirs);
   battle.theirMatchup = matchupAcross(theirs, ours);
   // Walls do not sally: a garrison-only defence holds its ground and shoots.
-  battle.theirPosture = offence && theirs.every((host) => host.isLevy) ? 'hold' : enemyPosture(state, battle);
+  battle.theirStance = offence && theirs.every((host) => host.isLevy) ? 'defend' : enemyStance(state, battle);
+  // Their shape is chosen from the same function the telegraph prints, so what the screen promised
+  // is what the beat does. Deterministic on visible state — never a draw, or every mode's
+  // regression fingerprint shifts for a reason that has nothing to do with this fight.
+  advanceEnemyFormation(state, battle, theirs);
 
   if (offence) {
     // We are the ones coming. Holding is closing under shields — slower, and under fewer arrows;
@@ -1036,6 +1282,21 @@ export function fightRound(state: GameState): void {
       : Math.max(0, battle.ourAdvance - BATTLE_ADVANCE_PER_TICK * (loosing ? 0.6 : 0.5));
   }
 
+  // Disengaging is something you survive, not a button you press. The line keeps trading — badly,
+  // at `withdraw`'s own numbers — while it walks backwards, and only after `BATTLE_WITHDRAW_BEATS`
+  // is it clear away. `finishBattle('retreat')` still returns the stragglers.
+  if (withdrawing) {
+    battle.withdrawBeats = (battle.withdrawBeats ?? 0) + 1;
+    battle.ourAdvance = Math.max(0, battle.ourAdvance - BATTLE_ADVANCE_PER_TICK * 2);
+    if (battle.withdrawBeats >= BATTLE_WITHDRAW_BEATS) {
+      battle.log.push(t('ascent.battle.withdrew'));
+      finishBattle(state, 'retreat');
+      return;
+    }
+  } else if (battle.withdrawBeats) {
+    battle.withdrawBeats = 0;
+  }
+
   const met = battle.ourAdvance + battle.theirAdvance >= 1;
 
   if (!met) {
@@ -1049,7 +1310,7 @@ export function fightRound(state: GameState): void {
     // the approach, and it is why an arrow-heavy host wants the lines apart.
     const ourVolley = bows(ours) * BATTLE_VOLLEY_BITE * (battle.ourMorale / 100) * (loosing ? BATTLE_LOOSE_VOLLEY : 1);
     const theirVolley = bows(theirs) * BATTLE_VOLLEY_BITE * (battle.theirMorale / 100)
-      * (battle.theirPosture === 'loose' ? BATTLE_LOOSE_VOLLEY : 1);
+      * (battle.theirFormation === 'no' ? BATTLE_LOOSE_VOLLEY : 1);
     const cover = charging ? BATTLE_CHARGE_COVER : 1;
 
     // Spread across the hosts present, so arriving relief is shot at too.
@@ -1070,6 +1331,7 @@ export function fightRound(state: GameState): void {
     // striking camp) was unreachable no matter what its trigger said. Measured across sixty
     // engagements, five of the thirty fired zero times for this reason alone.
     raiseMoment(state, battle, ours, theirs);
+    settleFormations(battle);
     recordBeat(battle, 'approach', ours, theirs, ourLoss, theirLoss, volleyLine);
     // Deliberately does not spend the round budget: the approach is the opening, not the fight.
     return;
@@ -1095,16 +1357,17 @@ export function fightRound(state: GameState): void {
   const theirPower = Math.max(1, sum(theirs) * (offence ? battle.terrainEdge : 1) * theirArms);
   // Each side's losses are its own exposure times the other's aggression, so a cautious enemy
   // is genuinely a different fight from a reckless one rather than the same fight relabelled.
-  const ourTrade = tradeAgainst(battle.posture, battle.theirPosture);
-  const theirTrade = tradeAgainst(battle.theirPosture, battle.posture);
-  // A line that changed its footing this beat is still finding it. Applied to both sides from the
-  // same rule, so an enemy that flip-flops pays exactly what the player would.
-  const ourReform = battle.lastPosture !== undefined && battle.lastPosture !== battle.posture
-    ? BATTLE_REFORM_COST : 1;
-  const theirReform = battle.lastTheirPosture !== undefined && battle.lastTheirPosture !== battle.theirPosture
-    ? BATTLE_REFORM_COST : 1;
-  battle.lastPosture = battle.posture;
-  battle.lastTheirPosture = battle.theirPosture;
+  // Tempo only. The ring is one separate term below, which is the whole point of the split.
+  const ourTrade = tradeFor(battle.stance);
+  const theirTrade = tradeFor(battle.theirStance);
+  // Which way the men are spent, as against how fast.
+  const tilt = formationTilt(state, battle);
+  // A host walking between blocks deals less and takes more, for as long as it is walking. Applied
+  // to both sides from the same rule, so an enemy that changes shape pays exactly what we would.
+  const ourReformDealt = reforming(battle.reformBeats) ? BATTLE_REFORM_DEALT : 1;
+  const ourReformTaken = reforming(battle.reformBeats) ? BATTLE_REFORM_TAKEN : 1;
+  const theirReformDealt = reforming(battle.theirReformBeats) ? BATTLE_REFORM_DEALT : 1;
+  const theirReformTaken = reforming(battle.theirReformBeats) ? BATTLE_REFORM_TAKEN : 1;
   const fuzz = (): number => 0.9 + Math.random() * 0.2;
 
   // What a Moment bought, while it lasts. Half the deck answers a question by *protecting* the
@@ -1113,24 +1376,19 @@ export function fightRound(state: GameState): void {
   const momentTaken = battle.momentBonus?.taken ?? 1;
   const momentDealt = battle.momentBonus?.dealt ?? 1;
   const ourShare = BATTLE_ROUND_BITE * (theirPower / (ourPower + theirPower)) * 2
-    * ourTrade.taken * theirTrade.dealt * theirReform * momentTaken * fuzz();
+    * ourTrade.taken * theirTrade.dealt * ourReformTaken * theirReformDealt
+    * (1 - tilt) * momentTaken * fuzz();
   const theirShare = BATTLE_ROUND_BITE * (ourPower / (ourPower + theirPower)) * 2
-    * ourTrade.dealt * theirTrade.taken * ourReform * momentDealt * fuzz();
+    * ourTrade.dealt * theirTrade.taken * ourReformDealt * theirReformTaken
+    * (1 + tilt) * momentDealt * fuzz();
 
   // Losses land across every host present, so relief shares the burden rather than watching.
   const ourLoss = ours.reduce((total, host) => total + bleed(host, Math.min(0.9, ourShare)), 0);
 
-  // Focus concentrates everything we have on one of their hosts. Breaking a column outright
-  // removes its share of their power for the rest of the fight, so concentrating is how you win
-  // a battle you are losing on total numbers — at the cost of letting the others work freely.
-  const focused = battle.focusHostId
-    ? theirs.find((host) => host.id === battle.focusHostId)
-    : undefined;
-  const theirLoss = focused
-    ? bleed(focused, Math.min(0.9, theirShare * BATTLE_FOCUS_MULT))
-      + theirs.filter((h) => h !== focused)
-        .reduce((total, host) => total + bleed(host, Math.min(0.9, theirShare * BATTLE_SPREAD_MULT)), 0)
-    : theirs.reduce((total, host) => total + bleed(host, Math.min(0.9, theirShare)), 0);
+  // Spread across every host they have, always. Concentrating the line on one enemy column used to
+  // be an order; it was a second cursor on a one-thumb screen, and it was very nearly always
+  // correct, which makes it a tax rather than a choice. See `docs/14-five-shapes-two-dials.html`.
+  const theirLoss = theirs.reduce((total, host) => total + bleed(host, Math.min(0.9, theirShare)), 0);
 
   // Morale follows the exchange: bleeding costs heart, and winning the exchange restores a
   // little of it. Because `armyPower` reads morale, the side that starts losing keeps losing.
@@ -1155,8 +1413,10 @@ export function fightRound(state: GameState): void {
   // battered relief column carries its own heart rather than borrowing the vanguard's.
   // Being countered costs heart as well as men — see `BATTLE_COUNTER_MORALE`. This is what lets
   // a stance win a fight rather than merely trade well through one.
-  const ourCountered = posturesCounter(battle.theirPosture, battle.posture) ? BATTLE_COUNTER_MORALE : 0;
-  const theirCountered = posturesCounter(battle.posture, battle.theirPosture) ? BATTLE_COUNTER_MORALE : 0;
+  // Being answered costs heart as well as men — keyed off the shape now, not the tempo. This is
+  // what lets a formation win a fight rather than merely trade well through one.
+  const ourCountered = tilt < 0 ? BATTLE_COUNTER_MORALE : 0;
+  const theirCountered = tilt > 0 ? BATTLE_COUNTER_MORALE : 0;
   const momentMorale = battle.momentBonus?.morale ?? 0;
   for (const host of ours) {
     setMorale(host, host.morale - ourDrop - ourCountered + momentMorale + (wonExchange ? BATTLE_MORALE_WIN_GAIN : 0));
@@ -1206,6 +1466,7 @@ export function fightRound(state: GameState): void {
 
   const exchangeLine = t('ascent.battle.exchange', { round: battle.round, ours: ourLoss, theirs: theirLoss });
   battle.log.push(exchangeLine);
+  settleFormations(battle);
   recordBeat(battle, 'clash', ours, theirs, ourLoss, theirLoss, exchangeLine, brokeThisBeat);
 
   // ── Does anyone break? ───────────────────────────────────────────────────
@@ -1234,8 +1495,16 @@ export function fightRound(state: GameState): void {
  * Called from the economy tick rather than from the view: the fight belongs to the world now,
  * so it carries on whether or not anyone is looking at it. The view animates what this produces.
  */
-/** The stance that answers each stance, as the ring defines it. */
-const COUNTER_OF: Record<BattlePosture, BattlePosture> = { press: 'hold', hold: 'loose', loose: 'press' };
+/**
+ * The shapes that answer a given shape, best first.
+ *
+ * Two of them, because the ring gives every shape two answers. The first is the one that also
+ * *loses* to fewer of the things they might switch to next, so a commander picking blind picks the
+ * more forgiving of the two.
+ */
+function countersTo(theirs: BattleFormation): BattleFormation[] {
+  return FORMATION_RING.filter((shape) => formationBeats(shape, theirs));
+}
 
 /**
  * Whether the commander reads this beat correctly.
@@ -1261,11 +1530,40 @@ function generalReadsBeat(battle: AscentBattle, martial: number): boolean {
  * only later when the read fails.
  */
 function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
-  const martial = battle.generalMartial ?? 0;
+  // Delegation stamps `generalMartial`; a fight the player simply has not touched has not been
+  // stamped, so the commander actually standing with the host answers for it. No commander at all
+  // means a middling one, the same figure `delegateBattle` falls back to.
+  const martial = battle.generalMartial ?? (() => {
+    const led = ourHosts(state, battle).find((host) => host.generalHeroId)?.generalHeroId;
+    const hero = led ? state.heroes.find((candidate) => candidate.id === led) : undefined;
+    return hero ? hero.stats.martial : 45;
+  })();
   const met = battle.ourAdvance + battle.theirAdvance >= 1;
   if (generalReadsBeat(battle, martial)) {
-    const next = battleTelegraph(state);
-    if (next) setBattlePosture(state, COUNTER_OF[next]);
+    const read = battleTelegraph(state);
+    if (read) {
+      // The shape they are heading for, if they are heading anywhere — a commander who can read a
+      // beat reads the walk, not just the stand.
+      const target = read.next ?? read.formation;
+      const answer = countersTo(target).find((shape) => canFormFormation(state, shape));
+      if (answer && answer !== battle.ourFormation && !reforming(battle.reformBeats)) {
+        setBattleFormation(state, answer);
+      }
+      // Tempo second, by **the same rule the invader plays** — press while the shape is ours,
+      // steady while it is theirs, commit to nothing in between.
+      //
+      // This used to be an ad-hoc pair of conditions that mostly returned `balanced`, and the
+      // asymmetry was fatal: the invader read the tilt every beat and the player's commander did
+      // not, so an unsteered host stood flat at 1.0/1.0 while the invader pressed at 1.55/1.40.
+      // Measured in `battle-lab`, the player routed in 80% of fights.
+      if (!stanceIsLocked(battle, 'press')) {
+        const sign = reforming(battle.reformBeats) || reforming(battle.theirReformBeats)
+          ? 0 : formationTiltSign(battle.ourFormation, battle.theirFormation);
+        setBattleStance(state, sign > 0 ? 'press'
+          : sign < 0 || battle.ourMorale < BATTLE_ROUT_MORALE + 20 ? 'defend'
+            : 'balanced');
+      }
+    }
     if (met) {
       if (!battle.reserveSpent) commitReserve(state);
       else if (!battle.rallySpent && battle.ourMorale < BATTLE_ROUT_MORALE + 12) rally(state);
@@ -1338,7 +1636,7 @@ export function advanceBattle(state: GameState): void {
   }
   // `finishBattle` asks what the host was *told*, not which of three stances it was in when the
   // last beat landed. Loosing is a way of holding the ground, so it resolves as holding.
-  if (battle.over) finishBattle(state, battle.posture === 'press' ? 'press' : 'hold');
+  if (battle.over) finishBattle(state, battle.stance === 'press' ? 'press' : 'hold');
 }
 
 /** Commits the host held back at camp. One-shot, and the reason to keep watching. */
@@ -1637,16 +1935,103 @@ function takePending(state: GameState): PendingBattle {
   return pending;
 }
 
-/** Concentrates the line on one of their hosts, or spreads it again when cleared. */
-export function setBattleFocus(state: GameState, hostId?: string): void {
+/**
+ * The player has taken the field, so the commander stops playing it for them.
+ *
+ * Deliberately **not** set inside `setBattleStance` / `setBattleFormation`. It was, and the effect
+ * was silent and total: `generalPlaysBeat` calls those same two functions, so the commander marked
+ * the fight as player-steered with its own first order and never ran again. Traced on an even
+ * 1,500-a-side fight under a martial-95 general — the host moved to Thế Quy on beat one and then
+ * stood in it for twelve beats while the invader formed the wedge that beats it, losing 1,266 men
+ * to 479.
+ *
+ * Only the order channel calls this, which is the only place that knows a *person* pressed
+ * something.
+ */
+export function markPlayerSteered(state: GameState): void {
   const battle = state.ascent?.activeBattle;
-  if (battle && !battle.over) battle.focusHostId = hostId;
+  if (battle && !battle.over) battle.playerSteered = true;
 }
 
-/** Switches standing orders between beats. */
-export function setBattlePosture(state: GameState, posture: BattlePosture): void {
+/**
+ * Is this stance refused right now?
+ *
+ * `defend` and `withdraw` never are. The lock exists to make choosing aggression a commitment, not
+ * to trap a player in one — a game may take your good options away, it may not take away the brake.
+ */
+export function stanceIsLocked(battle: AscentBattle, stance: FieldStance): boolean {
+  if (stance === 'defend' || stance === 'withdraw') return false;
+  return (battle.stanceLockBeats ?? 0) > 0;
+}
+
+/**
+ * Orders a stance. It lands on the **next** beat and then holds for `BATTLE_STANCE_LOCK_BEATS`.
+ *
+ * Never writes `battle.stance` directly: the order/effect split is what makes this a different kind
+ * of control from the formation strip, and collapsing it would put both dials back on one clock.
+ */
+export function setBattleStance(state: GameState, stance: FieldStance): boolean {
   const battle = state.ascent?.activeBattle;
-  if (battle && !battle.over) battle.posture = posture;
+  if (!battle || battle.over) return false;
+  if (stance === battle.stance && !battle.stancePending) return false;
+  if (stanceIsLocked(battle, stance)) return false;
+  battle.stancePending = stance;
+  return true;
+}
+
+/** Can we form this shape at all — does the block it stands on still exist? */
+export function canFormFormation(state: GameState, formation: BattleFormation): boolean {
+  const battle = state.ascent?.activeBattle;
+  if (!battle) return false;
+  return sideFormations(ourHosts(state, battle), ourMustered(battle))[formation] !== 'gone';
+}
+
+/**
+ * How many beats this host needs to change shape.
+ *
+ * Quality and the general as **reaction time** rather than a percentage — see
+ * `BATTLE_REFORM_BEATS`. A host whose morale has already gone cannot re-form cleanly whatever it is.
+ */
+export function reformBeatsFor(state: GameState, battle: AscentBattle): number {
+  if (battle.freeReform) return 0;
+  const hosts = ourHosts(state, battle);
+  const tier = Math.max(0, Math.min(2, hosts[0]?.elite ?? 0));
+  const general = hosts.find((host) => host.generalHeroId)?.generalHeroId;
+  const martial = general
+    ? state.heroes.find((hero) => hero.id === general)?.stats.martial ?? 0
+    : (battle.delegated ? battle.generalMartial ?? 0 : 0);
+
+  if (battle.ourMorale < BATTLE_ROUT_MORALE) {
+    return martial >= BATTLE_REFORM_BEATS.brokenWellLedMartial
+      ? BATTLE_REFORM_BEATS.brokenWellLed : BATTLE_REFORM_BEATS.broken;
+  }
+  let beats = BATTLE_REFORM_BEATS.byTier[tier] ?? 2;
+  if (martial >= BATTLE_REFORM_BEATS.martialShavesAt) beats -= 1;
+  return Math.max(BATTLE_REFORM_BEATS.min, Math.min(BATTLE_REFORM_BEATS.max, beats));
+}
+
+/**
+ * Orders a change of shape. Instant to give, slow to arrive — the mirror of the stance dial.
+ *
+ * The host is in **no** formation until the clock runs out, which is the entire cost of the fast
+ * dial and the question the fight is built around: is the counter worth the beats it takes to
+ * reach it?
+ */
+export function setBattleFormation(state: GameState, formation: BattleFormation): boolean {
+  const battle = state.ascent?.activeBattle;
+  if (!battle || battle.over) return false;
+  if (formation === battle.ourFormation && !battle.formationTarget) return false;
+  if (!canFormFormation(state, formation)) return false;
+
+  const beats = reformBeatsFor(state, battle);
+  battle.freeReform = false;
+  battle.formationTarget = formation;
+  battle.reformBeats = beats;
+  if (beats <= 0) {
+    battle.ourFormation = formation;
+    battle.formationTarget = undefined;
+  }
+  return true;
 }
 
 /** A snapshot for the view, so the scene never reaches into army internals itself. */

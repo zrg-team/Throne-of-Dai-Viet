@@ -14,6 +14,18 @@ import { areca, bamboo, banyan, buffalo, farmer, groundShadow, hayStack, house, 
 import { grazeInSmallArea, livingSprite, setNativeFacing } from './ink/life';
 import { bakedBuffalo } from './ink/sprites';
 import { GROUND_SCALE } from './ink/proportion';
+
+/**
+ * How much room the map gives a formation, against the plate geometry it inherits.
+ *
+ * 2.72 is not a taste: it is `4.6 / 1.691`, the ratio between the file pitch the map had before the
+ * formation work and the one the doc's plate uses. Measured at `GROUND_SCALE`, it takes the pitch
+ * from 1.72 px to 4.69 px against a figure 3.23 px wide — men that stand beside each other rather
+ * than inside each other.
+ *
+ * The battle screen passes its own `drawScale` and is left alone; it already has `BATTLE_HOST_SCALE`.
+ */
+const MAP_HOST_SPREAD = 4.6 / (16 / 9.46);
 import { LABEL_KEEP_OUT } from './MapItemRenderer';
 import { createPlayerLandFlag } from './playerFlag';
 
@@ -148,7 +160,20 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // A host is a formation, not a block: a loose screen forward, the shield wall as the main body,
     // the bows behind it and the horse as a wing off the flank. `armyAnchor` puts the lot of it
     // where the single block used to stand, so everything hung off this marker stays registered.
-    const shape = armyShape(Math.max(1, total), compositionFor(kit ?? {}), scale, kit?.mustered);
+    // Room between the men, which the map lost when the formation took on the plate's geometry.
+    //
+    // Doc 12 files a soldier 16 units from his neighbour and draws him 42 units tall; at
+    // `GROUND_SCALE` that lands as a 1.72 px pitch on a figure 3.23 px wide, so every man sat half
+    // inside the next one and a 2,400-strong host was 33 px across. The battle screen was given its
+    // room back by raising `BATTLE_HOST_SCALE`; nobody re-checked the map, where a host is drawn a
+    // third of that size and there is no such dial.
+    //
+    // This opens the *gaps* and nothing else: the figures keep the size `proportion.ts` measures
+    // for them, so a soldier still stands against a house and a buffalo exactly as before.
+    const mapKit = { ...(kit ?? {}), spread: drawScale ? 1 : MAP_HOST_SPREAD };
+    const shape = armyShape(
+      Math.max(1, total), compositionFor(mapKit), scale, kit?.mustered, mapKit.spread ?? 1,
+    );
     const at = armyAnchor(shape);
 
     // The ground each block stands on. One patch per block, because the gaps between them are what
@@ -161,7 +186,7 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     const ranks: Phaser.GameObjects.Graphics[] = [];
     drawArmy(
       graphics, at.x, at.y, Math.max(1, total), Math.round(total) + 17, colour, scale,
-      { ...kit },
+      mapKit,
       (index) => {
         while (ranks.length <= index) {
           const layer = scene.add.graphics();

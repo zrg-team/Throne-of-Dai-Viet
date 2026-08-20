@@ -1,4 +1,5 @@
 import type { AscentRarity } from '../state/types';
+import type { FieldStance } from '../state/types';
 
 /**
  * Every tuning number for Dragon Ascent lives here, so the run's feel can be retuned
@@ -675,7 +676,15 @@ export const BATTLE_BEATS_PER_TICK = 6;
  * where a man stands about a seventh of the ground band. The blocks are smaller than they were and
  * the men are larger, which is the trade a dense formation makes.
  */
-export const BATTLE_HOST_SCALE = 2.3;
+/**
+ * 2.3 x 1.8/2.15. Trimmed in exact step with `LIVING` going from 1.8 to 2.15, so the battle screen is
+ * drawn at precisely the size it was: the figures grew a third and this shrank a third, and the
+ * product — which is what actually reaches `figure()` — did not move a pixel.
+ *
+ * The exaggeration was raised for the *map*, where a soldier was 6.8 px tall and read as a speck.
+ * The battle screen already had its own room and did not need any.
+ */
+export const BATTLE_HOST_SCALE = 1.9256;
 
 /**
  * How far winning the exchanges can walk the contact line, as a fraction of the field.
@@ -740,64 +749,111 @@ export const BATTLE_ROUND_BITE = 0.0345;
 /** Fraction of its starting strength at which a host breaks and the engagement ends early. */
 export const BATTLE_BREAK_SHARE = 0.35;
 /**
- * What each order trades in the melee.
+ * What each stance trades, and nothing else.
  *
- * The old pair was a designed-in dominated option: press dealt 1.35 and took 1.30 (ratio 1.038)
- * against hold's 0.80/0.72 (ratio 1.111), so holding traded 7% better *and* lost fewer men, with
- * the only counterweight an end-of-fight bonus the player never saw. Charging now trades almost
- * level with holding in the melee, and earns its keep in the archery phase instead — it closes
- * faster, so it eats far less incoming fire (`BATTLE_CHARGE_COVER`), and it lifts morale on
- * contact. Hold's case is the better trade *if* you out-shoot them or are waiting on the reserve.
+ * The old table folded the matchup into the tempo and the two jobs fought each other: `press` and
+ * `hold` came out with the same exchange ratio to three decimals, so pressing was simply the same
+ * trade delivered faster. `docs/14-five-shapes-two-dials.html` splits them — **the shape decides
+ * which way the men are spent, the stance decides how fast** — and these four numbers are the
+ * whole of the tempo half.
+ *
+ * Aggression is a genuinely favourable trade at even shape (1.55 dealt against 1.40 taken), so it
+ * is not a trap, it is a *bet*. What makes it a bet is that the multiplier lands on whichever side
+ * the formation tilt has already tipped: press with the counter and you win at nearly two to one;
+ * press into the counter and you lose at better than three to two, in half the time.
+ *
+ * `withdraw` is the cold end rather than a button. Disengaging is something you survive — the line
+ * still trades while it walks backwards, badly, for `BATTLE_WITHDRAW_BEATS`.
  */
-export const BATTLE_CHARGE_TRADE = { dealt: 1.12, taken: 1.42 };
-export const BATTLE_HOLD_TRADE = { dealt: 0.78, taken: 0.58 };
+export const BATTLE_STANCE_TRADE: Record<FieldStance, { dealt: number; taken: number }> = {
+  withdraw: { dealt: 0.35, taken: 0.75 },
+  defend: { dealt: 0.62, taken: 0.55 },
+  balanced: { dealt: 1.00, taken: 1.00 },
+  press: { dealt: 1.55, taken: 1.40 },
+};
+
 /**
- * Loosing: keep the range open and shoot instead of closing.
+ * Beats a stance holds you before it can be changed again.
  *
- * The archery phase promoted from an opening into a stance you can hold. Its melee trade is the
- * worst of the three because a host still shooting when the lines meet is a host that has not set
- * itself — it pays for the volleys it got in on the way.
+ * The single most load-bearing number on this screen, because it is what produces the *cadence*:
+ * formation is meant to be worked three to five times an engagement and stance once or twice, and
+ * a dial with no commitment cost would simply be worked as often as the other one.
+ *
+ * Four, measured against an eighteen-beat fight: it allows three changes and bites about once, so
+ * it is felt without being resented. At three it is barely a constraint; at six you commit once and
+ * then only watch.
+ *
+ * `defend` and `withdraw` ignore it — see `stanceIsLocked`. A game may take your good options away;
+ * it may not take away the brake.
  */
-export const BATTLE_LOOSE_TRADE = { dealt: 0.82, taken: 0.86 };
+export const BATTLE_STANCE_LOCK_BEATS = 4;
+
+/** Beats spent disengaging once the stance is `withdraw`, before the host is clear away. */
+export const BATTLE_WITHDRAW_BEATS = 3;
+
 /**
- * What countering is worth.
+ * Which way the exchange leans when one shape answers another.
  *
- * Charge beats loose (it closes before the volleys tell), loose beats brace (a wall that stands
- * still is shot to pieces), brace beats charge (braced spears break a rush).
- *
- * A lever, not a verdict. Naive rock-paper-scissors against a reactive opponent degenerates into
- * a coin flip — you guess, they guess, and skill goes to zero. Three things keep this a read:
- * `enemyPosture` is deterministic and telegraphed, personality is stable across a run and so
- * learnable, and the multiplier is small enough that being wrong is a setback rather than the
- * end of the fight.
+ * Deliberately modest. At 0.28 the counter is worth roughly two and a half beats of exchange, so a
+ * two-beat re-form window makes changing shape *marginally* correct — which is the knife-edge the
+ * whole fight is balanced on. Move this and `BATTLE_REFORM_BEATS` together or not at all.
  */
-export const BATTLE_POSTURE_COUNTER = { dealt: 1.16, taken: 0.92 };
+export const BATTLE_FORMATION_TILT = 0.28;
+
+/** What a Moment's `sharpen` raises the tilt to, whichever way it is already pointing. */
+export const BATTLE_FORMATION_TILT_SHARP = 0.42;
+
+/** A shape whose block is spent still forms, but only half the counter is worth anything. */
+export const BATTLE_FORMATION_TILT_BLUNT = 0.5;
+
 /**
- * Heart a countered host loses each beat, on top of the trade.
+ * What a host deals and takes while it is walking between shapes.
  *
- * Without this the ring could not decide a fight. Measured with the trade multiplier alone,
- * charge beat every doctrine — 76.7% / 71.1% / 53.3% against bracing's 34.4% / 5.6% / 4.4% —
- * because a fight is won by *breaking* the enemy inside the round budget, and charging is the
- * only stance fast enough to do it. Trading more efficiently just ran out the clock.
+ * This is the entire cost of the fast dial and it has to hurt, or the player simply mirror-counters
+ * every beat and the fight is a reflex test. Men crossing between blocks are in **no formation**:
+ * the tilt reads zero for them, half the army is facing the wrong way, and they are being shot at
+ * the whole time.
+ */
+export const BATTLE_REFORM_DEALT = 0.55;
+export const BATTLE_REFORM_TAKEN = 1.45;
+
+/**
+ * How many beats a change of shape takes, by what the host is and who leads it.
  *
- * Countering therefore has to cost the other side their nerve, not only their men. It is also
- * the truer reading: a charge stopped dead by braced spears does not lose a careful exchange,
- * it recoils.
+ * Army quality and the general stop being a percentage bonus here and become **reaction time**,
+ * which is the correct way for a strategy layer to be felt inside a tactical screen: a guard host
+ * under a good commander answers inside one beat, a levy is committed for two and will often eat
+ * the counter it was trying to escape.
+ *
+ * One or two beats, never three as a baseline — a dial the player is meant to work constantly
+ * cannot cost a fifth of the battle every time it is touched. Three is a *punishment* state,
+ * reserved for a host whose morale has already gone.
+ */
+export const BATTLE_REFORM_BEATS = {
+  /** tier 0 levy, tier 1 trained, tier 2 royal guard — before the general is counted. */
+  byTier: [2, 2, 1],
+  /** A commander this good shaves a beat off, to a floor of one. */
+  martialShavesAt: 45,
+  /** A host below the rout line cannot re-form cleanly whatever it is. */
+  broken: 3,
+  /** ...unless it is very well led. */
+  brokenWellLed: 2,
+  brokenWellLedMartial: 80,
+  min: 1,
+  max: 3,
+};
+
+/**
+ * Heart a host loses each beat while its shape is being answered, on top of the trade.
+ *
+ * Without this the ring could not decide a fight: a battle is won by *breaking* the enemy inside
+ * the round budget, so a counter that only trades more efficiently just runs out the clock. It is
+ * also the truer reading — a wedge stopped dead by levelled spears does not lose a careful
+ * exchange, it recoils.
+ *
+ * Keyed off the **formation** tilt now, not the retired stance ring.
  */
 export const BATTLE_COUNTER_MORALE = 0.7;
-/**
- * What a host gives up on the beat it changes stance.
- *
- * Without this the ring is not a decision, it is arithmetic. `enemyPosture` is deterministic and
- * `battleTelegraph` shows it honestly, so a player who simply answers the telegraph every beat
- * counters every single exchange — measured, that won 100% of fights, which is not a game.
- *
- * Re-forming a line costs something. Braced spears cannot become a charge without first standing
- * up, and a host in the middle of loosing cannot brace on the same breath. So switching is worth
- * doing when the read is worth it, and holding a stance through a bad beat is sometimes the
- * better answer — which is the whole difference between reading a fight and reacting to it.
- */
-export const BATTLE_REFORM_COST = 0.62;
 /**
  * How many economy ticks a Moment holds the fight open for.
  *
@@ -810,7 +866,17 @@ export const BATTLE_REFORM_COST = 0.62;
  */
 export const BATTLE_MOMENT_TICKS = 1;
 /** At most this many in one engagement. Above it the fight becomes whack-a-mole. */
-export const BATTLE_MOMENTS_PER_FIGHT = 3;
+export const BATTLE_MOMENTS_PER_FIGHT = 2;
+/**
+ * A great battle gets the third question, and an ordinary engagement does not.
+ *
+ * A fight is about twenty beats at `BATTLE_TICK_MS` 560 — call it twelve seconds of watching — and
+ * three stops of one world tick each freezes the screen for more of the engagement than it runs.
+ * The old budget of three was tuned when the player had nothing to do *between* Moments; they now
+ * have a dial they touch three or four times. Keeping the third for `isGreat` also gives a great
+ * battle a shape an ordinary one does not have.
+ */
+export const BATTLE_MOMENTS_PER_GREAT_FIGHT = 3;
 /** Beats before the first one may be raised, so a fight never opens on a decision. */
 export const BATTLE_MOMENT_EARLIEST = 4;
 /**
@@ -882,13 +948,6 @@ export const BATTLE_RALLY_BASE = 10;
  * spend it a decision rather than a reminder.
  */
 export const BATTLE_RALLY_DESPERATION = 1.5;
-/**
- * Damage multipliers when the line concentrates on one enemy host rather than spreading.
- * Focusing more than doubles what lands on the chosen column while the rest get a fraction —
- * so it is how you break a host outright, and how you let the others hurt you doing it.
- */
-export const BATTLE_FOCUS_MULT = 2.2;
-export const BATTLE_SPREAD_MULT = 0.35;
 
 /**
  * Share of a battle's losses that rejoin a host which withdrew in good order — stragglers and

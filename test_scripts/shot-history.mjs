@@ -20,8 +20,10 @@ for (const [lang, h] of [['vi', 844], ['vi', 620], ['en', 844]]) {
     for (const c of s.children.list) {
       const label = c.list?.find?.((k) => k.type === 'Text');
       if (label && /Sử thật|Real History/.test(label.text)) {
-        const m = c.getWorldTransformMatrix();
-        return { x: m.tx + 141, y: m.ty + 16 };
+        // The label's own centre. The front page has been relaid since this was written and the
+        // button is 122 wide now, so corner-plus-141 lands on bare paper beside it.
+        const m = label.getWorldTransformMatrix();
+        return { x: m.tx, y: m.ty };
       }
     }
     return null;
@@ -35,13 +37,26 @@ for (const [lang, h] of [['vi', 844], ['vi', 620], ['en', 844]]) {
   const active = await page.evaluate(() => window.__phaserGame.scene.isActive('HistoryScene'));
   await page.screenshot({ path: `test_scripts/shots/history-${lang}-${h}.png` });
 
-  // The Army tab is the one section that is not a list, so it is the one a screenshot is actually
-  // for. Tab centres are computed the same way the scene lays them out.
+  // Every tab, shut and then opened. Since the lists became drawers there are two things worth
+  // looking at per tab and they are different pictures: the headings a reader lands on, and the
+  // rows behind one of them. Tab centres are computed the same way the scene lays them out.
   const SIDE = 12;
+  const TABS = ['dynasties', 'figures', 'stories', 'army', 'terms'];
   const tabWidth = Math.floor((390 - SIDE * 2 - 4 * 4) / 5);
-  await page.mouse.click(SIDE + 3 * (tabWidth + 4) + tabWidth / 2, 84);
-  await page.waitForTimeout(500);
-  await page.screenshot({ path: `test_scripts/shots/history-army-${lang}-${h}.png` });
+  for (const [index, tab] of TABS.entries()) {
+    await page.mouse.click(SIDE + index * (tabWidth + 4) + tabWidth / 2, 84);
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `test_scripts/shots/history-${tab}-${lang}-${h}.png` });
+    if (tab === 'army') continue;
+    // And the same tab with every drawer shut — the state that says what the page even contains.
+    await page.evaluate(() => {
+      const scene = window.__phaserGame.scene.getScene('HistoryScene');
+      scene.openSection[scene.tab] = '';
+      scene.render();
+    });
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: `test_scripts/shots/history-${tab}-shut-${lang}-${h}.png` });
+  }
   console.log(`${active && !errors.length ? 'PASS' : 'FAIL'} ${lang} h=${h} active=${active} errors=${errors.slice(0,2).join(' | ')}`);
   await page.close();
 }

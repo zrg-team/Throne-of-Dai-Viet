@@ -50,7 +50,7 @@ const end = await page.evaluate(async () => {
   const world = window.__phaserGame.scene.getScene('ConquestScene');
   const settle = () => { let g = 0; while (st.pendingAscentPrompt && g++ < 10) { const p = st.pendingAscentPrompt; resolveAscentPrompt(st, p.kind === 'power-draft' ? (p.cards[0] ?? 'skip') : p.kind === 'hero-choice' ? 'pass' : p.kind === 'conquer-target' ? 'hold' : p.kind === 'law-choice' ? 'hold' : p.kind === 'parliament' ? 'decline' : (p.options?.[0]?.id ?? 'ok')); } };
   // Press the attack: the first order releases the hold.
-  ui.events.emit('ui:battle-order', 'press');
+  ui.events.emit('ui:battle-order', 'stance:press');
   const target = st.ascent.activeBattle?.landId;
   let ticks = 0;
   while (st.ascent.activeBattle && ticks++ < 20) { st.ascent.ticksToWave = 999; st.invasions = []; advanceAscentTick(st); settle(); world.refresh(); ui.events.emit('state-changed'); }

@@ -54,8 +54,22 @@ export const PX_PER_M = 3.1;
  * Đông Hồ prints exaggerate people for the same reason. What matters is that the exaggeration is
  * one number applied to every human on the map — the farmer in the paddy and the soldier in the
  * rank are the same height, and both still stand lower than a roof.
+ *
+ * **1.8 was still not enough.** Measured on the map at `GROUND_SCALE`, everything lands at
+ * 2.23 px to the metre and living things at 4.02, which made a soldier **6.8 px tall and 3.2 px
+ * wide** — the narrowest thing on the sheet, against a buffalo 10.8 px across and a house 22. A
+ * host read as a smudge under its own standard whatever the spacing.
+ *
+ * At 2.15 a soldier is 8.2 px and still stands well under a roof, and the farmer and the buffalo
+ * grow with him, which is the only property that matters: the exaggeration is one number, applied
+ * to every living thing, and nothing on the map is drawn to a different rule because of it.
+ *
+ * 2.15 and not more: `verify-ground-scale` bands the living-to-object ratio at 1.4–2.2, which is
+ * the line between an exaggeration and a cartoon. 2.4 was tried and it broke that band at 2.40x —
+ * a man three-quarters the height of a five-metre house is a different drawing, not a bigger one.
+ * Raising the ceiling is a design decision and belongs in the harness, deliberately, not here.
  */
-const LIVING = 1.8;
+const LIVING = 2.15;
 
 /**
  * Per-prop corrections from the measurements above: `PX_PER_M / (drawn height ÷ real height)`.
