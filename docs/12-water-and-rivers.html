@@ -335,6 +335,7 @@
       <span>Terrain, renderer and economy audit</span>
       <span>Campaign mode · seeds 1337, 42, 7, 2024, 99</span>
       <span>20 August 2026</span>
+      <span><strong>Shipped</strong> — this is now how the game generates and draws its water</span>
     </div>
 
     <div class="stats">
@@ -342,6 +343,7 @@
       <div class="stat zero"><span class="n">1</span><span class="k">connected water body — no lakes, ever</span></div>
       <div class="stat zero"><span class="n">7</span><span class="k">shipped mechanics that can never fire</span></div>
       <div class="stat"><span class="n">28</span><span class="k">road crossings that now get a bridge</span></div>
+      <div class="stat"><span class="n">10/10</span><span class="k">on the ground-scale gate, 15/15 on smoke</span></div>
       <div class="stat"><span class="n">26</span><span class="k">provinces with water after the fix, same seed</span></div>
       <div class="stat"><span class="n">28</span><span class="k">provinces that could finally build a harbour</span></div>
     </div>
@@ -490,8 +492,8 @@
         <figcaption><span class="figtag now">Now</span><b>The same ground today.</b> Live map seed, fog lifted, camera centred on the realm. A sea inlet top-left, one short river stub, and nothing else wet in the whole frame.</figcaption>
       </figure>
       <figure>
-        <img src="readme/water-e-proposed-wide.webp" alt="The proposed map: the same region with a trunk river widening downstream, tributaries, and a lake.">
-        <figcaption><span class="figtag next">Proposed</span><b>The same ground, same seed, same camera, drawn by the real renderer.</b> Only the water layer was swapped — provinces, settlements, roads and terrain are untouched. A trunk river runs the length of the frame, tributaries feed it, and it broadens into standing water at the foot. Nothing stands in it, and the massifs stop at the bank.</figcaption>
+        <img src="readme/water-ship-wide.webp" alt="The proposed map: the same region with a trunk river widening downstream, tributaries, and a lake.">
+        <figcaption><span class="figtag next">Proposed</span><b>The realm as it now generates.</b> No injection and no swapped layer — this is the shipped generator, drawn by the shipped renderer. A trunk river runs the length of the frame with tributaries feeding it, sampans on the water, bridges where the roads cross, and a bank that is one inked line rather than a chain of hexagons.</figcaption>
       </figure>
     </div>
 
@@ -1269,12 +1271,12 @@
 
       <div class="figs pair" style="margin:0 0 1.8rem">
         <figure>
-          <img src="readme/water-z-crossing.webp" alt="Two provinces either side of the new river, with timber bridges carrying the roads across it.">
-          <figcaption><span class="figtag next">Built</span><b>Roads cross now.</b> Where a road runs over water, <code>TrafficRenderer</code> finds the wet span and the theme puts a bridge on it. The paddy stops at the bank on both sides and the road picks up again on the far one. The live campaign map draws <b>28</b> bridges, one per road, from 44 wet spans.</figcaption>
+          <img src="readme/water-ship-river.webp" alt="Two provinces either side of the new river, with timber bridges carrying the roads across it.">
+          <figcaption><span class="figtag next">Built</span><b>The channel, close up.</b> A continuous bank — two rounds of Chaikin corner-cutting on the welded outline is what stops it reading as hexagons — silt-warm water that is not the same colour as the sea, and flow lines that run <em>along</em> the current instead of always east–west.</figcaption>
         </figure>
         <figure>
-          <img src="readme/water-g-bridge-close.webp" alt="Close-up of a timber bridge: bowed deck, planking, two rails and posts standing in the water.">
-          <figcaption><span class="figtag next">Built</span><b>The crossing itself.</b> Deck, planking, two rails and its posts, drawn in nâu — the iron-brown of Trần ware every other piece of timber on this map uses, so a bridge reads as the same material as the houses it joins. It lands on dry ground at both ends: a crossing has to reach past the water to be a crossing.</figcaption>
+          <img src="readme/water-ship-life.webp" alt="Close-up of a timber bridge: bowed deck, planking, two rails and posts standing in the water.">
+          <figcaption><span class="figtag next">Built</span><b>A sampan above a crossing.</b> <em>Thuyền nan</em> with a boatman poling it, and the bridge below — deck, planking, rails and posts in nâu, the iron-brown every other timber on this map is drawn in. The boat is sized off a measured drawn height, not an estimate: it reports to the same proportion table as the houses and the trees.</figcaption>
         </figure>
       </div>
       <p>
