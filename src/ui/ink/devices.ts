@@ -626,6 +626,14 @@ export interface HostKit {
   units?: { spearmen: number; archers: number; heavyInfantry: number };
   /** How the host deploys. Read off `units` when absent — see `compositionFor`. */
   composition?: ArmyComposition;
+  /**
+   * What this host had when the fight opened.
+   *
+   * Given, the difference between it and the men still standing is spent in formation order, so
+   * the screen empties before the line and the line before the bows. Omitted — which is every
+   * caller drawing a host at rest — the army simply deploys whole.
+   */
+  mustered?: number;
   /** The old boolean, kept so callers that only ever said "spears or not" still work. */
   spear?: boolean;
 }
@@ -881,9 +889,21 @@ export function compositionFor(kit: HostKit): ArmyComposition {
  *
  * The doctrine gives each block its *share* of the marks, not a fixed count, so a small host
  * deploys the same shape as a large one rather than the same number of men.
+ *
+ * `mustered` is what the host started the fight with. Give it, and the difference is spent **in
+ * formation order** — the screen first, then the line, then the bows, and the horse last — with
+ * each block keeping its frontage and losing depth, so the rear rank empties and the fighting line
+ * stays where it is. That is the whole reason an army is several blocks: a mixed block loses a
+ * mark at random and nothing is learned, where a formation loses its screen inside a few beats,
+ * then grinds its line down, and when the *bows* start disappearing the picture has said the front
+ * has collapsed without a word of text.
+ *
+ * Omit it — every caller that is drawing a host at rest — and the army simply deploys whole.
  */
-export function armyShape(men: number, composition: ArmyComposition, s = 1): ArmyShape {
-  const total = Math.max(4, Math.min(HOST_MARK_CAP, Math.round(men / MEN_PER_MARK)));
+export function armyShape(men: number, composition: ArmyComposition, s = 1, mustered?: number): ArmyShape {
+  const marks = (n: number): number => Math.max(4, Math.min(HOST_MARK_CAP, Math.round(n / MEN_PER_MARK)));
+  const total = marks(Math.max(mustered ?? men, men));
+  const standing = marks(men);
   const plan = DOCTRINE[composition] ?? DOCTRINE.balanced;
   const weightSum = FORMATION_ORDER.reduce((sum, key) => sum + plan[key].weight, 0) || 1;
 
@@ -898,19 +918,34 @@ export function armyShape(men: number, composition: ArmyComposition, s = 1): Arm
   }
   share.line = Math.max(1, share.line + (total - handed));
 
+  // Casualties come out of the front of the formation, in order.
+  let losses = Math.max(0, total - standing);
+  for (const key of FORMATION_ORDER) {
+    if (losses <= 0) break;
+    const spent = Math.min(share[key], losses);
+    share[key] -= spent;
+    losses -= spent;
+  }
+
   const pitch = FILE_PITCH * s;
   const rankPitch = RANK_PITCH * s;
   const blocks: FormationBlock[] = [];
   let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
 
   for (const key of FORMATION_ORDER) {
-    const marks = share[key];
-    if (marks <= 0) continue;
+    const standingMarks = share[key];
+    if (standingMarks <= 0) continue;
     const slot = FORMATION[key];
     const bp = pitch * slot.pitch;
     const br = rankPitch * slot.rank;
-    const rows = Math.max(1, Math.round(Math.sqrt(marks / plan[key].aspect)));
-    const cols = Math.max(1, Math.ceil(marks / rows));
+    // Frontage is set by what the block mustered; depth by what is left of it. A block that has
+    // taken losses stands the same width and fewer ranks deep, which is a host thinning rather
+    // than a host shrinking.
+    const full = Math.max(1, Math.round((total * plan[key].weight) / weightSum)) || standingMarks;
+    const fullRows = Math.max(1, Math.round(Math.sqrt(full / plan[key].aspect)));
+    const cols = Math.max(1, Math.ceil(full / fullRows));
+    const rows = Math.max(1, Math.ceil(standingMarks / cols));
+    const marks = standingMarks;
     // Centre-anchored: the offset places the middle of the block, and the files grow either side.
     const bx = slot.dx * pitch - ((cols - 1) * bp) / 2;
     const by = slot.dy * rankPitch - ((rows - 1) * br) / 2;
@@ -952,7 +987,7 @@ export function drawArmy(
   kit: HostKit = {},
   rankTarget?: (index: number) => G,
 ): ArmyShape {
-  const shape = armyShape(men, compositionFor(kit), s);
+  const shape = armyShape(men, compositionFor(kit), s, kit.mustered);
   let index = 0;
   for (const block of shape.blocks) {
     const target = rankTarget ? (rank: number) => rankTarget(index + rank) : undefined;
@@ -1003,6 +1038,37 @@ export function hostFootprint(g: G, x: number, y: number, shape: HostShape, s = 
   const { spanX, spanY } = hostSpan(shape, s);
   g.fillStyle(PIGMENT.muc, alpha);
   g.fillEllipse(x + spanX / 2, y + spanY / 2 + 1.1 * s, spanX + 9 * s, spanY + 6 * s);
+}
+
+/**
+ * Where to put a formation so it stands like a single block did: centred across its files, with the
+ * rearmost feet on the anchor line.
+ *
+ * A caller that anchored `drawHost` at `(-width/2, -height)` gets the same picture by anchoring
+ * `drawArmy` here, which is what keeps the shadow, the standard and the marker's own origin
+ * registered with the men through the change.
+ */
+export function armyAnchor(shape: ArmyShape): { x: number; y: number } {
+  return { x: -(shape.left + shape.width / 2), y: -(shape.top + shape.height) };
+}
+
+/**
+ * The ground the army stands on — **one patch per block**, not one under the lot of them.
+ *
+ * A single ellipse around a formation is a puddle with three groups of men floating in it: the
+ * blocks are deliberately apart, and the gaps between them are the thing that makes the deployment
+ * readable. Per block, it also means a block that loses every man can lose its ground with them.
+ */
+export function armyFootprint(g: G, x: number, y: number, shape: ArmyShape, s = 1, alpha = 0.07): void {
+  g.fillStyle(PIGMENT.muc, alpha);
+  for (const block of shape.blocks) {
+    const spanX = (block.cols - 1) * block.pitch + (block.rows - 1) * RANK_SHEAR * s;
+    const spanY = (block.rows - 1) * block.rankPitch;
+    g.fillEllipse(
+      x + block.x + spanX / 2, y + block.y + spanY / 2 + 1.1 * s,
+      spanX + 9 * s, spanY + 6 * s,
+    );
+  }
 }
 
 /**

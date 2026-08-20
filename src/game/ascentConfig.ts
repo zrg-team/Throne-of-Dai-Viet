@@ -664,11 +664,18 @@ export const BATTLE_BEATS_PER_TICK = 6;
  * real fight, a 367-man host filled a block 19 px wide and 12 px deep in the middle of a
  * 262 x 301 field: the complaint that the battlefield looks empty is mostly this one number.
  *
- * 1.45 puts a soldier at 13.7 px and roughly doubles the block. Deliberately not larger: the
- * blocks have to fit two or three deep a side with the standards beside them, and a host that
- * fills its half of the field leaves the ground with nothing to say.
+ * 1.45 put a soldier at 13.7 px and roughly doubled the block. Deliberately not larger: the blocks
+ * have to fit two or three deep a side with the standards beside them, and a host that fills its
+ * half of the field leaves the ground with nothing to say.
+ *
+ * Raised to 2.3 when the block grid tightened to the document's — men shoulder to shoulder rather
+ * than three body-widths apart. That change shrank every block by about 2.7x in each axis and left
+ * the hosts as specks on the field. Restoring the block's *width* would have meant 3.9, which puts
+ * a soldier a quarter of the way up the field; 2.3 instead matches the document's own proportion,
+ * where a man stands about a seventh of the ground band. The blocks are smaller than they were and
+ * the men are larger, which is the trade a dense formation makes.
  */
-export const BATTLE_HOST_SCALE = 1.45;
+export const BATTLE_HOST_SCALE = 2.3;
 
 /**
  * How far winning the exchanges can walk the contact line, as a fraction of the field.

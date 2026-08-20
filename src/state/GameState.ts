@@ -2,6 +2,7 @@ import { ORDERS_PER_SEASON, PLAYER_KINGDOM_ID } from '../game/constants';
 import { GAMEPLAY_MAP_CONFIG } from '../game/gameplayConfig';
 import { generateKingHero, heroTemplates } from '../data/heroes';
 import { kingdomTemplates } from '../data/kingdoms';
+import { rollMuster } from '../data/wardrobe';
 import { politicsCardTemplates } from '../data/politicsCards';
 import { OPENING_BOONS } from '../data/ascentCards';
 import { computeCentroid, computeNeighbors, generateHexMap, type MapGenConfig } from '../map/hexMapGenerator';
@@ -529,6 +530,9 @@ export function createCampaignGameState(config: CampaignConfig): GameState {
 
   refreshAllLandOutputs(state);
   refreshPlayerVisibility(state);
+  // What this run's armies look like. Seeded off the map, so the same seed opens on the same
+  // war; see `rollMuster`.
+  rollMuster(state);
   return state;
 }
 
@@ -624,6 +628,9 @@ export function createEmpireGameState(config: CampaignConfig): GameState {
   initDirectives(state);
   refreshAllLandOutputs(state);
   refreshPlayerVisibility(state);
+  // What this run's armies look like. Seeded off the map, so the same seed opens on the same
+  // war; see `rollMuster`.
+  rollMuster(state);
   return state;
 }
 
@@ -649,6 +656,9 @@ export function createAscentGameState(config: CampaignConfig): GameState {
   offerFounderChoice(state);
 
   state.message = t('ascent.msg.runStart');
+  // What this run's armies look like. Seeded off the map, so the same seed opens on the same
+  // war; see `rollMuster`.
+  rollMuster(state);
   return state;
 }
 
@@ -1002,5 +1012,8 @@ export function createInitialGameState(): GameState {
 
   refreshAllLandOutputs(state);
   refreshPlayerVisibility(state);
+  // What this run's armies look like. Seeded off the map, so the same seed opens on the same
+  // war; see `rollMuster`.
+  rollMuster(state);
   return state;
 }

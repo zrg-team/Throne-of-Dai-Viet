@@ -110,7 +110,7 @@ import { playArrivalFanfare } from '../ui/ascent/arrivalFanfare';
 import { THRONE_HALL_HEIGHT, throneHallDiorama } from '../ui/ascent/throneHall';
 import { CARD_STACK_PEEK, CardStack } from '../ui/ascent/CardStack';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
-import { figureEraFor, hostKitFor, hostShapeAt } from '../ui/ink/devices';
+import { armyShape, compositionFor, figureEraFor, hostKitFor, hostShapeAt } from '../ui/ink/devices';
 import { areca, bamboo, buffalo, grassTuft, hayStack, softRidge, tree } from '../ui/ink/props';
 import { citadel, hamlet, village } from '../ui/ink/settlements';
 import { groundTone, inkPath, mulberry32, printedShape } from '../ui/ink/stroke';
@@ -293,6 +293,14 @@ interface BattleMarker {
   hostId: string;
   marker: Phaser.GameObjects.Container;
   count?: Phaser.GameObjects.Text;
+  /**
+   * What this host had when the field opened.
+   *
+   * Kept here rather than in state because it is a *drawing* fact: it is what lets the formation
+   * spend its losses in order — the screen first, then the line, then the bows — instead of every
+   * block shrinking together. Nothing in the simulation needs it.
+   */
+  mustered?: number;
   /** The host broke and is running. It has left the line and the line stops moving it. */
   routed?: boolean;
   /**
@@ -5617,9 +5625,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
   }
 
   /** Pairs a drawn marker with its host, finding the strength label to keep current. */
-  private trackMarker(hostId: string, marker: Phaser.GameObjects.Container): BattleMarker {
+  private trackMarker(hostId: string, marker: Phaser.GameObjects.Container, mustered?: number): BattleMarker {
     const count = marker.list.find((child) => child.type === 'Text') as Phaser.GameObjects.Text | undefined;
-    return { hostId, marker, count };
+    return { hostId, marker, count, mustered };
   }
 
   /** Who is standing on the field, so relief arriving or a column breaking forces a redraw. */
@@ -5696,13 +5704,14 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const lines = this.battleLines(battle.ourAdvance, battle.theirAdvance);
     ours.forEach((host, index) => {
       const marker = this.battleItems!.createArmyMarker(
-        hostSize(host), true, undefined, this.state.mapConfig.seed, hostKitFor(this.state, host),
+        hostSize(host), true, undefined, this.state.mapConfig.seed,
+        { ...hostKitFor(this.state, host), mustered: hostSize(host) },
         this.battleBaseScale(),
       );
       marker.setPosition(lines.ourX, lane(index, ours.length));
       field.add(marker);
-      const tracked = this.trackMarker(host.id, marker);
-      tracked.halfWidth = hostShapeAt(Math.max(1, hostSize(host)), this.battleBaseScale()).width / 2;
+      const tracked = this.trackMarker(host.id, marker, hostSize(host));
+      tracked.halfWidth = this.hostHalfWidth(host, undefined, tracked.mustered);
       ui.ourMarkers.push(tracked);
     });
 
@@ -5710,7 +5719,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       const marker = this.battleItems!.createArmyMarker(
         hostSize(host), false, rivalColor,
         Math.max(0, this.state.kingdoms.findIndex((k) => k.id === battle.kingdomId)),
-        hostKitFor(this.state, host),
+        { ...hostKitFor(this.state, host), mustered: hostSize(host) },
         this.battleBaseScale(),
       );
       marker.setPosition(lines.theirX, lane(index, theirs.length));
@@ -5720,8 +5729,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       // a battle and a queue. `faceTravel` reads the prop's own declared facing rather than
       // mirroring it blind, which is the rule for every baked prop in the game.
       faceTravel(marker, -1);
-      const tracked = this.trackMarker(host.id, marker);
-      tracked.halfWidth = hostShapeAt(Math.max(1, hostSize(host)), this.battleBaseScale()).width / 2;
+      const tracked = this.trackMarker(host.id, marker, hostSize(host));
+      tracked.halfWidth = this.hostHalfWidth(host, undefined, tracked.mustered);
       ui.theirMarkers.push(tracked);
 
       // Tapping an enemy column concentrates the line on it; a ring marks the current target, so
@@ -6470,6 +6479,20 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
    * focus rings and the tap targets — throwing it away to shrink one column would drop the order
    * the player is in the middle of giving.
    */
+  /**
+   * Half the ground a host's whole formation covers.
+   *
+   * `BATTLE_SEAM_GAP` is a distance between two hosts' *centres*, so what it has to clear is the
+   * deployment, not the shield wall in the middle of it. Measured off one block, a screen thrown
+   * forward of the line stands inside the enemy's rear ranks.
+   */
+  private hostHalfWidth(host: Army, men?: number, mustered?: number): number {
+    const size = Math.max(1, men ?? hostSize(host));
+    return armyShape(
+      size, compositionFor(hostKitFor(this.state, host)), this.battleBaseScale(), mustered,
+    ).width / 2;
+  }
+
   private redrawHostBlock(entry: BattleMarker, men: number): void {
     const ui = this.battleUi;
     if (!ui || !this.battleItems) return;
@@ -6487,12 +6510,12 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       ours
         ? this.state.mapConfig.seed
         : Math.max(0, this.state.kingdoms.findIndex((k) => k.id === battle.kingdomId)),
-      hostKitFor(this.state, host),
+      { ...hostKitFor(this.state, host), mustered: entry.mustered },
       this.battleBaseScale(),
     );
     rebuilt.setPosition(x, y);
     if (!ours) faceTravel(rebuilt, -1);
-    entry.halfWidth = hostShapeAt(Math.max(1, men), this.battleBaseScale()).width / 2;
+    entry.halfWidth = this.hostHalfWidth(host, men, entry.mustered);
 
     // Whatever was riding on the old block — the focus ring, the tap target — is rebuilt with it
     // by `buildBattleField`'s own rules, so only the drawing is replaced here.

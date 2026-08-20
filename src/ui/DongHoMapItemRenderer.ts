@@ -5,7 +5,7 @@ import type { LandBuildingType } from '../state/types';
 import { UI_FONT } from './fonts';
 import { PIGMENT } from './ink/palette';
 import {
-  drawHost, figure, hostFootprint, hostShapeAt, hostSpan, marchInPlace, seal, type HostKit,
+  armyAnchor, armyFootprint, armyShape, compositionFor, drawArmy, figure, marchInPlace, seal, type HostKit,
 } from './ink/devices';
 import { drawFieldPlot } from './ink/settlements';
 import { citadel, drawnEra, GroundSpacer, hamlet, village } from './ink/settlements';
@@ -145,26 +145,30 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // host because of its ranks and its standard, not because its men are drawn short.
     // The map's one ground scale, unless the caller is the battle screen — see the interface.
     const scale = drawScale ?? GROUND_SCALE;
-    const shape = hostShapeAt(Math.max(1, total), scale);
+    // A host is a formation, not a block: a loose screen forward, the shield wall as the main body,
+    // the bows behind it and the horse as a wing off the flank. `armyAnchor` puts the lot of it
+    // where the single block used to stand, so everything hung off this marker stays registered.
+    const shape = armyShape(Math.max(1, total), compositionFor(kit ?? {}), scale, kit?.mustered);
+    const at = armyAnchor(shape);
 
-    // The shadow is the ground the whole block stands on, not a blob under one point of it. Same
-    // anchor as the `drawHost` call below, which is the only way the two stay registered.
-    hostFootprint(graphics, -shape.width / 2, -shape.height, shape, scale);
+    // The ground each block stands on. One patch per block, because the gaps between them are what
+    // makes the deployment readable.
+    armyFootprint(graphics, at.x, at.y, shape, scale);
     container.add(graphics);
 
     // Each rank on its own object so the block has a cadence. A host that never moves is the
     // largest still object on a map where the roads, the herds and the water all move.
     const ranks: Phaser.GameObjects.Graphics[] = [];
-    drawHost(
-      graphics, -shape.width / 2, -shape.height, Math.max(1, total), Math.round(total) + 17, colour, scale,
-      { ...kit, spear: true },
-      (rank) => {
-        while (ranks.length <= rank) {
+    drawArmy(
+      graphics, at.x, at.y, Math.max(1, total), Math.round(total) + 17, colour, scale,
+      { ...kit },
+      (index) => {
+        while (ranks.length <= index) {
           const layer = scene.add.graphics();
           ranks.push(layer);
           container.add(layer);
         }
-        return ranks[rank];
+        return ranks[index];
       },
     );
     marchInPlace(scene, ranks, scale);
@@ -192,8 +196,7 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     const FLAG_FOOT = 10 * FLAG_SCALE;
     // Wider than the cloth (25 * FLAG_SCALE), or three standards stack into one smear.
     const FLAG_STEP = 14 * (scale / GROUND_SCALE);
-    const span = hostSpan(shape, scale);
-    const frontRankY = -shape.height + span.spanY;
+    const frontRankY = at.y + shape.top + shape.height;
     const standards = Math.max(1, Math.min(3, Math.round(total / 4000)));
     // The realm's own standard, the one its provinces fly — not a style rolled from the headcount,
     // which changed as the host bled and let two realms' hosts share a design. Every standard a
@@ -204,7 +207,7 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
         ? createPlayerLandFlag(scene, false, seed)
         : createPlayerLandFlag(scene, false, seed, true);
       // Inside the block's left edge, stepping right so several standards read as several.
-      flag.setPosition(-shape.width / 2 + index * FLAG_STEP, frontRankY - FLAG_FOOT);
+      flag.setPosition(at.x + shape.left + index * FLAG_STEP, frontRankY - FLAG_FOOT);
       flag.setScale(FLAG_SCALE);
       container.add(flag);
     }
