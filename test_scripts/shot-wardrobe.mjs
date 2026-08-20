@@ -80,9 +80,9 @@ const drew = await page.evaluate(async (mode) => {
   } else if (mode === 'dynasties') {
     // The same host as the dynasty changes: the progression, as a block.
     ['ly', 'tran', 'le', 'nguyen', 'song', 'qing', 'champa'].forEach((theme, i) => {
-      const y = 120 + i * 138;
+      const y = 150 + i * 178;
       label(theme, 8, y - 84, 11);
-      devices.drawArmy(g, 200, y, 1600, 17, PIGMENT.muc, 0.55, {
+      devices.drawArmy(g, 150, y, 1600, 17, PIGMENT.muc, 1.7, {
         theme, tier: i === 0 ? 0 : 1, accent: PIGMENT.son, composition: 'balanced',
       });
       n += 1;
