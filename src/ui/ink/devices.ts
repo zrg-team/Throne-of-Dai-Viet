@@ -233,7 +233,12 @@ export function figure(g: G, x: number, y: number, scale: number, colour: number
   const tier = spec.tier ?? 1;
   const arm = spec.arm;
 
-  const ink = { colour, wobble: 0.055 * s, step: 2.4 };
+  // `step` is a segment length in world units, so at a plate scale — the History page draws a
+  // soldier a hundred units tall — a fixed 2.4 chops every outline into fifty wobbled pieces and
+  // the figure comes out looking rubbed rather than printed. Growing it with the figure keeps the
+  // *number* of wobbles constant, which is what the hand-drawn look actually is. Floored at the
+  // old value so nothing at map or battlefield size changes.
+  const ink = { colour, wobble: 0.055 * s, step: Math.max(2.4, 1.7 * s) };
   // Slightly off vertical, so a rank is people standing rather than a comb.
   const cx = x + ((seed % 7) - 3) * 0.5 * u;
   // A mounted man is lifted onto the saddle and everything above his feet goes with him; the pony

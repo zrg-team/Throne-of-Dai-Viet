@@ -1,4 +1,4 @@
-// The History page: reachable from the menu, four lists that actually fill, a list you can drag
+// The History page: reachable from the menu, five sections that actually fill, a list you can drag
 // without picking a row, and every line of it written in both languages.
 //
 // The last check is the one that cannot be seen in a screenshot. History prose lives outside the
@@ -8,10 +8,13 @@
 import { chromium } from 'playwright';
 
 const BASE = process.env.DEV_URL ?? process.env.PLAYTEST_URL ?? 'http://localhost:5173';
-const TABS = ['dynasties', 'figures', 'stories', 'terms'];
+const TABS = ['dynasties', 'figures', 'stories', 'army', 'terms'];
 // Floors, not targets: eleven ages, the fifty-one authored real champions with their era headings,
-// the whole story catalogue, and the glossary.
-const MIN_OBJECTS = { dynasties: 11, figures: 100, stories: 40, terms: 20 };
+// the whole story catalogue, the wardrobe's plate and its chips, and the glossary.
+const MIN_OBJECTS = { dynasties: 11, figures: 100, stories: 40, army: 20, terms: 20 };
+// Army is a plate you change rather than a list you open, so the accordion assertion does not
+// apply to it — it gets its own, below.
+const ACCORDION = TABS.filter((tab) => tab !== 'army');
 
 const browser = await chromium.launch();
 let bad = 0;
@@ -58,7 +61,13 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
   }
   await page.waitForTimeout(700);
 
-  const tabX = [56, 148, 240, 332];
+  // Computed, not typed. These were four hardcoded numbers, and adding a fifth tab left every one
+  // of them pointing at a neighbour: the harness clicked Army, counted its objects, and reported
+  // them as a shortfall in Stories. A test that lies about which screen it is on is worse than no
+  // test. SIDE and the tab width come straight from HistoryScene's own arithmetic.
+  const SIDE = 12;
+  const tabWidth = Math.floor((390 - SIDE * 2 - (TABS.length - 1) * 4) / TABS.length);
+  const tabX = TABS.map((_, i) => SIDE + i * (tabWidth + 4) + tabWidth / 2);
   for (const [index, tab] of TABS.entries()) {
     await page.mouse.click(tabX[index], 84);
     await page.waitForTimeout(450);
@@ -72,8 +81,26 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
       console.log(`PASS  ${tag}  ${tab}: ${count} rows`);
     }
 
-    // Every tab expands, and every tab animates the row it expanded. Both were wired per-tab, so
-    // both can be forgotten per-tab.
+    if (!ACCORDION.includes(tab)) {
+      // The wardrobe: pressing a dynasty chip has to redraw the plate. The chips sit under the
+      // plate at a known offset from the list top, and the second one is never the one already on.
+      const before = await page.evaluate(() => {
+        const scene = window.__phaserGame.scene.getScene('HistoryScene');
+        return `${scene.armyTheme}/${scene.armyTier}/${scene.armyArm}`;
+      });
+      await page.mouse.click(146, 319);
+      await page.waitForTimeout(350);
+      const after = await page.evaluate(() => {
+        const scene = window.__phaserGame.scene.getScene('HistoryScene');
+        return `${scene.armyTheme}/${scene.armyTier}/${scene.armyArm}`;
+      });
+      if (before === after) fail(`${tag}  ${tab}: pressing a dynasty chip changed nothing (${before})`);
+      else console.log(`PASS  ${tag}  ${tab}: chip redraws the plate — ${before} -> ${after}`);
+      continue;
+    }
+
+    // Every list tab expands, and every one animates the row it expanded. Both were wired per-tab,
+    // so both can be forgotten per-tab.
     await page.mouse.click(195, 200);
     await page.waitForTimeout(350);
     const opened = await page.evaluate(() => {

@@ -16,18 +16,35 @@ import {
 import { heroTemplates } from '../data/heroes';
 import { REAL_FIGURES } from '../data/heroNames';
 import type { Hero } from '../state/types';
-import { InkUI, INK_UI, type InkScrollArea } from '../ui/InkUI';
+import { InkUI, INK_UI, INK_UI_HEX, type InkScrollArea } from '../ui/InkUI';
 import { scrollGestureConsumedTap } from '../ui/InkUI';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { renderHeroFaceInBox } from '../ui/FaceRenderer';
 import { applyPaperFX } from '../ui/ink/PaperFX';
 import { inkPath } from '../ui/ink/stroke';
+import { figure, type FigureArm, type FigureTier } from '../ui/ink/devices';
+import { PIGMENT } from '../ui/ink/palette';
+import type { ArmyWardrobe } from '../state/types';
 import { RULE_COLOUR } from '../ui/ink/eraRule';
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
 
-type HistoryTab = 'dynasties' | 'figures' | 'stories' | 'terms';
+type HistoryTab = 'dynasties' | 'figures' | 'stories' | 'army' | 'terms';
 
-const TABS: readonly HistoryTab[] = ['dynasties', 'figures', 'stories', 'terms'];
+const TABS: readonly HistoryTab[] = ['dynasties', 'figures', 'stories', 'army', 'terms'];
+
+/**
+ * The seven Việt wardrobes, in the order they happened.
+ *
+ * `VIET_WARDROBES` is the same seven and is what the muster rolls from; this is only the reading
+ * order, because the three lord periods overlap in time and a chronological sort would interleave
+ * them. Đại Việt only: the northern powers and Chăm are drawn by the same code and worn by rivals
+ * every run, but this page is about the army the player raises.
+ */
+const VIET_WARDROBE_ORDER: readonly ArmyWardrobe[] =
+  ['ly', 'tran', 'le', 'trinh', 'nguyenLord', 'tayson', 'nguyen'];
+
+/** `spear` first: it is what a levy holds, and the tier chips open on the levy. */
+const ARMY_ARMS: readonly FigureArm[] = ['spear', 'sword', 'skirmish', 'bow', 'mounted'];
 
 const SIDE = 12;
 const LIST_WIDTH = GAME_WIDTH - SIDE * 2;
@@ -75,6 +92,10 @@ export class HistoryScene extends Phaser.Scene {
    * to zero on purpose: that IS a new list.
    */
   private pendingScroll = 0;
+  /** What the Army tab is currently showing. Opens on the dynasty the game itself defaults to. */
+  private armyTheme: ArmyWardrobe = 'ly';
+  private armyTier: FigureTier = 1;
+  private armyArm: FigureArm = 'sword';
 
   constructor() {
     super('HistoryScene');
@@ -135,9 +156,10 @@ export class HistoryScene extends Phaser.Scene {
   }
 
   private renderTabs(): void {
-    // Four across a 390 sheet leaves 88 apiece. The labels are one word in both languages for
-    // exactly this reason — "Dynasties / Triều đại" fits, "Historical figures" would not.
-    const width = Math.floor((LIST_WIDTH - 3 * 4) / 4);
+    // Five across a 390 sheet leaves 70 apiece, down from 88 when there were four. The labels are
+    // one word in both languages for exactly this reason — "Dynasties / Triều đại" fits at 10px,
+    // "Historical figures" would not have fitted at any size.
+    const width = Math.floor((LIST_WIDTH - 4 * 4) / 5);
     TABS.forEach((tab, index) => {
       this.chrome(this.ui.button(
         { x: SIDE + index * (width + 4), y: 70, width, height: 28 },
@@ -153,7 +175,7 @@ export class HistoryScene extends Phaser.Scene {
           this.expanded = undefined;
           this.render();
         },
-        { variant: this.tab === tab ? 'secondary' : 'ghost', fontSize: '11px' },
+        { variant: this.tab === tab ? 'secondary' : 'ghost', fontSize: '10px' },
       ));
     });
   }
@@ -181,6 +203,7 @@ export class HistoryScene extends Phaser.Scene {
     const used = this.tab === 'dynasties' ? this.buildDynasties(scroll)
       : this.tab === 'figures' ? this.buildFigures(scroll)
       : this.tab === 'stories' ? this.buildStories(scroll)
+      : this.tab === 'army' ? this.buildArmy(scroll)
       : this.buildTerms(scroll);
 
     scroll.setContentHeight(Math.max(height, used));
@@ -470,6 +493,187 @@ ${rest.join(' · ')}`,
       y += ((card.getData('cardHeight') as number | undefined) ?? 52) + CARD_GAP;
     }
     return y;
+  }
+
+  /**
+   * The wardrobe, as something you turn rather than something you look at.
+   *
+   * The other three tabs are lists you read. This one is a plate you *change*: pick a dynasty, a
+   * rank and a weapon, and the soldier at the top is redrawn by `figure()` — the same call the
+   * battlefield makes, at the same six slots, so the page can never drift from the game the way a
+   * hand-drawn illustration of it would.
+   *
+   * Đại Việt only. The northern powers and Chăm have wardrobes in the code and a rival wears one
+   * every run, but this page is about the army the player raises; a page that also taught you to
+   * recognise the Ming would be a different page.
+   *
+   * The whole tab re-renders on every chip, which is what the accordion rows on the other tabs
+   * already do. `pendingScroll` carries the offset across, so the chip you pressed stays under the
+   * finger that pressed it.
+   */
+  private buildArmy(scroll: InkScrollArea): number {
+    const width = LIST_WIDTH - 6;
+    let y = 0;
+
+    // ── the plate ───────────────────────────────────────────────────────
+    // A framed sheet with one soldier on it, drawn large. The scale is set from the frame rather
+    // than picked: the dynasty's name takes the top 30, its one identifying mark goes at the foot
+    // under the soldier's feet, and the tallest thing the slot table can produce is a mounted man
+    // at DRAWN 7.48. The mark sits *below* rather than beside the title because a raised sabre
+    // reaches into the top right corner, and a caption a weapon is drawn through is not a caption.
+    const plateHeight = 176;
+    const plateFeet = plateHeight - 30;
+    const plateScale = (plateFeet - 32) / 7.6;
+    const plate = this.add.graphics();
+    plate.fillStyle(INK_UI.parchmentShade, 1);
+    plate.fillRoundedRect(0, y, width, plateHeight, 6);
+    plate.lineStyle(1, INK_UI.parchmentDark, 1);
+    plate.strokeRoundedRect(0, y, width, plateHeight, 6);
+    scroll.content.add(plate);
+
+    const figures = this.add.graphics();
+    // A man is drawn about his own spine; a horseman is not. The pony's head reaches 26 units
+    // forward against the tail's 20 back, so centring a mounted figure on its origin puts it
+    // visibly right of everything else on the page.
+    const centreX = width / 2 - (this.armyArm === 'mounted' ? 9 : 0);
+    figure(figures, centreX, y + plateFeet, plateScale, PIGMENT.muc, {
+      theme: this.armyTheme,
+      tier: this.armyTier,
+      arm: this.armyArm,
+      accent: PIGMENT.son,
+    });
+    scroll.content.add(figures);
+
+    // The dynasty's name and the one mark that identifies it, printed on the plate itself rather
+    // than under it — a caption that has to be looked up is a caption nobody reads.
+    scroll.content.add(this.add.text(10, y + 10, historyText(`army.${this.armyTheme}.title`), {
+      color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '15px', fontStyle: '700',
+    }));
+    scroll.content.add(this.add.text(width / 2, y + plateHeight - 20, historyText(`army.${this.armyTheme}.mark`), {
+      color: '#6b5230', fontFamily: UI_FONT, fontSize: '10px', align: 'center',
+      wordWrap: { width: width - 20 },
+    }).setOrigin(0.5, 0));
+    y += plateHeight + CARD_GAP;
+
+    // ── the three rows of chips ─────────────────────────────────────────
+    y = this.armyChips(scroll, y, width, historyText('army.label.dynasty'), 4,
+      VIET_WARDROBE_ORDER.map((theme) => ({
+        key: theme,
+        label: historyText(`army.${theme}.title`).split(' · ')[0],
+        on: this.armyTheme === theme,
+        pick: () => { this.armyTheme = theme; },
+      })));
+
+    y = this.armyChips(scroll, y, width, historyText('army.label.rank'), 3,
+      ([0, 1, 2] as const).map((tier) => ({
+        key: `tier${tier}`,
+        label: historyText(`army.tier.${tier}.title`).split(' · ')[0],
+        on: this.armyTier === tier,
+        pick: () => { this.armyTier = tier; },
+      })));
+
+    y = this.armyChips(scroll, y, width, historyText('army.label.arm'), 3,
+      ARMY_ARMS.map((arm) => ({
+        key: arm,
+        label: historyText(`army.arm.${arm}.title`).split(' · ')[0],
+        on: this.armyArm === arm,
+        pick: () => { this.armyArm = arm; },
+      })));
+
+    // ── what you are looking at ─────────────────────────────────────────
+    // Intro first and once, then the three entries the current pick resolves to. Each is the same
+    // record/confession pair the Dynasties tab uses, so the page never blurs what is documented
+    // and what is us drawing something legible at eight pixels.
+    const cards: Array<{ title: string; body: string }> = [
+      { title: '', body: historyText('army.intro') },
+      {
+        title: historyText(`army.${this.armyTheme}.title`),
+        body: `${historyText(`army.${this.armyTheme}.body`)}\n\n${historyText(`army.${this.armyTheme}.inGame`)}`,
+      },
+      {
+        title: historyText(`army.tier.${this.armyTier}.title`),
+        body: historyText(`army.tier.${this.armyTier}.body`),
+      },
+      {
+        title: historyText(`army.arm.${this.armyArm}.title`),
+        body: historyText(`army.arm.${this.armyArm}.body`),
+      },
+    ];
+    for (const entry of cards) {
+      const card = this.ui.card({ x: 0, y, width, height: 40 }, {
+        title: entry.title || undefined,
+        body: entry.body,
+      });
+      scroll.content.add(card);
+      y += ((card.getData('cardHeight') as number | undefined) ?? 40) + CARD_GAP;
+    }
+    return y;
+  }
+
+  /**
+   * One labelled row of chips, wrapping at `perRow`. Returns the y it finished at.
+   *
+   * Drawn by hand rather than through `InkUI.button` for one reason: the tap has to be guarded
+   * against the list window. A geometry mask hides pixels, not hit areas, so a chip scrolled off
+   * the top of the list is still sitting there with a live hit rectangle under the header — which
+   * is the fault this scene already records against its cards, where it stopped Back from working.
+   */
+  private armyChips(
+    scroll: InkScrollArea,
+    y: number,
+    width: number,
+    label: string,
+    perRow: number,
+    chips: Array<{ key: string; label: string; on: boolean; pick: () => void }>,
+  ): number {
+    scroll.content.add(this.add.text(2, y, label, {
+      color: '#6b5230', fontFamily: UI_FONT, fontSize: '9px', fontStyle: '700',
+    }));
+    const top = y + 14;
+    const gap = 5;
+    const height = 26;
+    const chipWidth = Math.floor((width - (perRow - 1) * gap) / perRow);
+
+    chips.forEach((chip, index) => {
+      const cx = (index % perRow) * (chipWidth + gap);
+      const cy = top + Math.floor(index / perRow) * (height + 4);
+      const holder = this.add.container(cx, cy);
+
+      const skin = this.add.graphics();
+      skin.fillStyle(chip.on ? INK_UI.cinnabar : INK_UI.parchmentShade, chip.on ? 0.92 : 1);
+      skin.fillRoundedRect(0, 0, chipWidth, height, 5);
+      skin.lineStyle(1, chip.on ? INK_UI.cinnabarDark : INK_UI.parchmentDark, 1);
+      skin.strokeRoundedRect(0, 0, chipWidth, height, 5);
+      holder.add(skin);
+
+      holder.add(this.add.text(chipWidth / 2, height / 2, chip.label, {
+        color: chip.on ? INK_UI_HEX.lightText : INK_UI_HEX.inkText,
+        fontFamily: UI_FONT,
+        fontSize: '10px',
+        align: 'center',
+      }).setOrigin(0.5));
+
+      const hit = this.add.rectangle(chipWidth / 2, height / 2, chipWidth, height, 0xffffff, 0.001)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        // A drag that ended on a chip is a scroll, not a tap — and the chips are in the middle of
+        // the list, which is exactly where a reader grabs it to scroll.
+        if (scrollGestureConsumedTap(pointer)) {
+          return;
+        }
+        const at = designPointer(pointer);
+        if (at.y < LIST_TOP || at.y > LIST_TOP + this.listHeight()) {
+          return;
+        }
+        this.pendingScroll = this.scroll ? -this.scroll.content.y : 0;
+        chip.pick();
+        this.render();
+      });
+      holder.add(hit);
+      scroll.content.add(holder);
+    });
+
+    return top + Math.ceil(chips.length / perRow) * (height + 4) + 2;
   }
 
   // ── Helpers ──
