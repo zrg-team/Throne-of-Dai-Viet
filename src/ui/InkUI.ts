@@ -193,6 +193,22 @@ export interface InkScrollAreaOptions {
 const SCROLL_TAP_SLOP = 20;
 
 /**
+ * How a flick decays, per 60 Hz frame.
+ *
+ * The list used to stop dead the instant the finger left the glass: a drag tracked one-for-one and
+ * then simply ended, which is why it read as heavy and unlike every other list on the phone. 0.94
+ * a frame is about half a second of glide from a hard flick — long enough to throw a long list,
+ * short enough that it never feels like it got away from you.
+ */
+const SCROLL_FRICTION = 0.94;
+/** Below this — a fifth of a unit a frame — the glide has stopped and the tail is just noise. */
+const SCROLL_MIN_FLICK = 0.012;
+/** A hard cap on a fling, so a fast swipe on a short list cannot slingshot. */
+const SCROLL_MAX_FLICK = 4.5;
+/** A finger that has been still this long before it lifts was placing, not throwing. */
+const SCROLL_FLICK_STALE_MS = 90;
+
+/**
  * The gesture a list has already claimed as a scroll, identified rather than merely flagged.
  *
  * Cards inside a scroll area lay a full-bleed hit rectangle over the whole viewport and fire on
@@ -235,6 +251,9 @@ export class InkScrollArea {
   private scrollY = 0;
   private maxScroll = 0;
   private dragStart?: { pointerY: number; scrollY: number };
+  /** Design units of scroll per millisecond, carried out of the drag and decayed by friction. */
+  private velocity = 0;
+  private lastMove?: { y: number; t: number };
   private disposed = false;
   private readonly wheelHandler: (
     pointer: Phaser.Input.Pointer,
@@ -245,6 +264,7 @@ export class InkScrollArea {
   private readonly downHandler: (pointer: Phaser.Input.Pointer) => void;
   private readonly moveHandler: (pointer: Phaser.Input.Pointer) => void;
   private readonly upHandler: () => void;
+  private readonly glideHandler: (time: number, delta: number) => void;
 
   constructor(private readonly scene: Phaser.Scene, readonly bounds: UIBounds, opts: InkScrollAreaOptions = {}) {
     this.wheelStep = opts.wheelStep ?? 1;
@@ -267,14 +287,29 @@ export class InkScrollArea {
       if (this.maxScroll <= 0 || !this.containsPointer(pointer)) {
         return;
       }
+      // Catch to stop: putting a finger down on a gliding list halts it, the way every other list
+      // on the device behaves. Without this a second flick compounds the first.
+      this.velocity = 0;
+      this.lastMove = undefined;
       this.dragStart = { pointerY: designLength(pointer.y), scrollY: this.scrollY };
     };
     this.moveHandler = (pointer: Phaser.Input.Pointer) => {
       if (!this.dragStart || !pointer.isDown) {
         return;
       }
-      const travelled = designLength(pointer.y) - this.dragStart.pointerY;
+      const at = designLength(pointer.y);
+      const travelled = at - this.dragStart.pointerY;
       this.setScroll(this.dragStart.scrollY - travelled);
+
+      // Speed, smoothed. One raw sample is enough to throw a flick wildly — a stray move event a
+      // millisecond apart reads as an enormous velocity — so the estimate is a running blend.
+      const now = this.scene.time.now;
+      if (this.lastMove) {
+        const dt = Math.max(1, now - this.lastMove.t);
+        const sample = -(at - this.lastMove.y) / dt;
+        this.velocity = this.velocity * 0.6 + sample * 0.4;
+      }
+      this.lastMove = { y: at, t: now };
       // Claimed on travel alone, deliberately — not on whether the list moved.
       //
       // Requiring actual movement looks tempting and is wrong: a list already at its end does not
@@ -287,8 +322,41 @@ export class InkScrollArea {
       }
     };
     this.upHandler = () => {
+      // Once per release, and only if a drag was actually running.
+      //
+      // `pointerup` and `pointerupoutside` are both wired to this handler and Phaser fires both for
+      // the same release. The second call found `lastMove` already cleared by the first, read that
+      // as "the finger was resting", and zeroed the velocity the first call had just captured — so
+      // every flick died on the frame it was thrown. Measured: velocity 0 at release, every time.
+      if (!this.dragStart) {
+        return;
+      }
       this.dragStart = undefined;
+      // A finger that stopped and rested before lifting was placing the list, not throwing it.
+      if (!this.lastMove || this.scene.time.now - this.lastMove.t > SCROLL_FLICK_STALE_MS) {
+        this.velocity = 0;
+      }
+      this.velocity = Phaser.Math.Clamp(this.velocity, -SCROLL_MAX_FLICK, SCROLL_MAX_FLICK);
+      this.lastMove = undefined;
     };
+
+    // The glide. Driven off the scene's own update so it stops when the scene does, rather than
+    // off a tween — there is no fixed destination to tween to, only a speed that runs out.
+    this.glideHandler = (_time: number, delta: number) => {
+      if (this.dragStart || Math.abs(this.velocity) < SCROLL_MIN_FLICK) {
+        return;
+      }
+      const before = this.scrollY;
+      this.setScroll(this.scrollY + this.velocity * delta);
+      // Hitting either end kills the glide outright: `setScroll` clamps, so without this the list
+      // sits at the stop with a live velocity and swallows the next frame's worth of movement.
+      if (this.scrollY === before) {
+        this.velocity = 0;
+        return;
+      }
+      this.velocity *= Math.pow(SCROLL_FRICTION, delta / (1000 / 60));
+    };
+    scene.events.on(Phaser.Scenes.Events.UPDATE, this.glideHandler);
     scene.input.on('pointerdown', this.downHandler);
     scene.input.on('pointermove', this.moveHandler);
     scene.input.on('pointerup', this.upHandler);
@@ -302,7 +370,12 @@ export class InkScrollArea {
       if (!this.containsPointer(pointer)) {
         return;
       }
-      this.setScroll(this.scrollY + dy * this.wheelStep);
+      // Wheel deltas are not in one unit. Chrome reports pixels — about 100 a notch — while
+      // Firefox and a good many mice report *lines*, about 3. Taken raw that is three design units
+      // a notch, and a page of prose took forty notches to get through, which is most of what
+      // "the scroll is slow" was. Small deltas are lines and get a line's worth of height.
+      const step = Math.abs(dy) < 12 ? dy * 34 : dy;
+      this.setScroll(this.scrollY + step * this.wheelStep);
     };
     scene.input.on('wheel', this.wheelHandler);
   }
@@ -338,6 +411,7 @@ export class InkScrollArea {
       return;
     }
     this.disposed = true;
+    this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.glideHandler);
     this.scene.input.off('wheel', this.wheelHandler);
     this.scene.input.off('pointerdown', this.downHandler);
     this.scene.input.off('pointermove', this.moveHandler);

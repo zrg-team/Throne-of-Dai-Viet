@@ -34,6 +34,14 @@ for (const [lang, h] of [['vi', 844], ['vi', 620], ['en', 844]]) {
   await page.waitForTimeout(900);
   const active = await page.evaluate(() => window.__phaserGame.scene.isActive('HistoryScene'));
   await page.screenshot({ path: `test_scripts/shots/history-${lang}-${h}.png` });
+
+  // The Army tab is the one section that is not a list, so it is the one a screenshot is actually
+  // for. Tab centres are computed the same way the scene lays them out.
+  const SIDE = 12;
+  const tabWidth = Math.floor((390 - SIDE * 2 - 4 * 4) / 5);
+  await page.mouse.click(SIDE + 3 * (tabWidth + 4) + tabWidth / 2, 84);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `test_scripts/shots/history-army-${lang}-${h}.png` });
   console.log(`${active && !errors.length ? 'PASS' : 'FAIL'} ${lang} h=${h} active=${active} errors=${errors.slice(0,2).join(' | ')}`);
   await page.close();
 }
