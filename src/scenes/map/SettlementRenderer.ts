@@ -71,19 +71,49 @@ export class SettlementRenderer {
     }
 
     const hexSize = state.mapConfig.hexSize;
+    // A seat on dry ground is not enough. The cluster drawn around it — houses, grove, name plate —
+    // spreads well past its own hex, so a town seated right on the bank puts its roofs in the
+    // river. Prefer a tile with no water neighbour at all, and only fall back to the waterline if
+    // the province has nowhere else to stand.
+    const wet = new Set<string>();
+    for (const tile of state.hexTiles) {
+      if (tile.terrain === 'water') {
+        wet.add(`${tile.coord.q},${tile.coord.r}`);
+      }
+    }
+    const onTheBank = (tile: (typeof state.hexTiles)[number]): boolean => {
+      const { q, r } = tile.coord;
+      for (const [dq, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]]) {
+        if (wet.has(`${q + dq},${r + dr}`)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
     let best: { x: number; y: number } | undefined;
     let bestDistance = Infinity;
+    let fallback: { x: number; y: number } | undefined;
+    let fallbackDistance = Infinity;
     for (const tile of state.hexTiles) {
       if (tile.landId !== land.id || tile.terrain === 'mountains' || tile.terrain === 'water') {
         continue;
       }
       const pixel = axialToPixel(tile.coord, hexSize);
       const distance = (pixel.x - land.x) ** 2 + (pixel.y - land.y) ** 2;
+      if (distance < fallbackDistance) {
+        fallbackDistance = distance;
+        fallback = pixel;
+      }
+      if (onTheBank(tile)) {
+        continue;
+      }
       if (distance < bestDistance) {
         bestDistance = distance;
         best = pixel;
       }
     }
+    best = best ?? fallback;
     // A province that really is nothing but rock and water keeps its centroid; there is nowhere
     // better to put it, and pretending otherwise would move the town off its own ground.
     const seat = best ?? { x: land.x, y: land.y };

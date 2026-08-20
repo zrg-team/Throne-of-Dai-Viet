@@ -12,3 +12,11 @@ test_scripts/shots/
 
 # Screenshot dropped by check-console.mjs
 tmp-verify.png
+
+# Throwaway diagnostic harnesses. The `_` prefix is the marker for a script written to answer
+# one question about a running build and then thrown away — they are working notes, not source,
+# and they accumulate every session. The keepers are the unprefixed verify-*/shot-*/measure-*.
+test_scripts/_*.mjs
+
+# Perf run output, same status as output/ and test_scripts/shots/.
+test_scripts/perf-results/
