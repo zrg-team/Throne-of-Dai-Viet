@@ -109,39 +109,39 @@ export const termsEn: HistoryCatalog = {
 export const termsVi: HistoryCatalog = {
   'terms.dai-viet.title': 'Đại Việt',
   'terms.dai-viet.body':
-    'Quốc hiệu nước ta, lúc có lúc không, từ năm 1054 đến 1804. Trước đó là Vạn Xuân, Đại Cồ Việt. Sau đó là Việt Nam. Đổi quốc hiệu là việc một triều đại mới làm để tuyên bố mình định làm một nước như thế nào.',
+    'Quốc hiệu nước ta, lúc đặt lúc bỏ, từ năm 1054 đến năm 1804. Trước đó là Vạn Xuân rồi Đại Cồ Việt; sau đó là Việt Nam. Đổi quốc hiệu là việc một triều đại mới thường làm, để nói ra mình định dựng một nước như thế nào.',
 
   'terms.thien-menh.title': 'Thiên mệnh',
   'terms.thien-menh.body':
-    'Ý rằng quyền trị nước là do trời trao và trời rút lại khi người trị nước không còn xứng — rút một cách nhìn thấy được, qua lụt lội, mất mùa và loạn lạc. Đó không phải thần quyền; đó là một kỳ khảo hạch không có đường kháng nghị, và mọi triều đại trong danh sách này đều từng nhận nó rồi cuối cùng đều trượt.',
+    'Quan niệm cho rằng quyền trị nước là do trời trao, và trời rút lại khi người trị nước không còn xứng — rút một cách nhìn thấy được, qua lụt lội, mất mùa và loạn lạc. Đó không phải thần quyền; đó là một kỳ khảo hạch không có đường kháng nghị, mà triều đại nào trong bảng này cũng từng nhận, và cuối cùng đều trượt.',
 
   'terms.su-ky.title': 'Sử ký',
   'terms.su-ky.body':
-    'Sách chép sử. Đại Việt sử ký toàn thư do Ngô Sĩ Liên soạn năm 1479 là bộ chính sử, và bắt đầu nước ta từ Kinh Dương Vương chứ không từ thời cai trị của phương Bắc — một quyết định về chỗ khởi đầu của một nước, và nó đứng vững năm trăm năm nay.',
+    'Sách chép sử. Đại Việt sử ký toàn thư do Ngô Sĩ Liên soạn năm 1479 là bộ chính sử, và bắt đầu nước ta từ Kinh Dương Vương chứ không từ buổi phương Bắc sang cai trị — một quyết định về chỗ khởi đầu của một nước, và nó đã đứng vững năm trăm năm.',
 
   'terms.thang-long.title': 'Thăng Long',
   'terms.thang-long.body':
-    '"Rồng bay lên" — tên Lý Thái Tổ đặt cho Đại La khi dời đô về đó năm 1010. Nay là Hà Nội. Phần lớn chuyện triều chính trong game diễn ra ở một kinh thành mang tên này.',
+    '"Rồng bay lên" — tên Lý Thái Tổ đặt cho Đại La khi dời đô về đó năm 1010. Nay là Hà Nội. Phần lớn việc triều chính trong trò chơi diễn ra ở một kinh thành mang tên này.',
 
   'terms.hoa-lu.title': 'Hoa Lư',
   'terms.hoa-lu.body':
-    'Kinh đô nhà Đinh và Tiền Lê, nằm trong thung lũng bao quanh bởi núi đá vôi — một pháo đài không ai đẩy ngươi ra được, và là chỗ dở để cai trị một nước. Việc dời về Thăng Long là lúc phòng thủ thôi còn là điều nghĩ đến trước tiên.',
+    'Kinh đô nhà Đinh và nhà Tiền Lê, nằm trong thung lũng bốn bề núi đá vôi — một toà thành không ai đánh bật ra được, và là chỗ dở để cai trị một nước. Việc dời về Thăng Long là lúc phòng thủ thôi còn là điều phải nghĩ đến trước nhất.',
 
   'terms.phu-xuan.title': 'Phú Xuân',
   'terms.phu-xuan.body':
-    'Thủ phủ chúa Nguyễn ở miền Trung, và là thành phố sau này thành Huế. Cuộc hành quân bốn mươi ngày ra Thăng Long của Quang Trung khởi hành từ đây.',
+    'Thủ phủ chúa Nguyễn ở miền Trung, về sau thành kinh đô Huế. Cuộc hành quân bốn mươi ngày ra Thăng Long của Quang Trung khởi hành từ đây.',
 
   'terms.chieu.title': 'Chiếu',
   'terms.chieu.body':
-    'Lời tuyên bố bằng văn bản do vua ban, và là công cụ cai trị thường ngày. Chiếu dời đô dời cả một kinh đô chỉ bằng một tờ; các chiếu chỉ trong game cũng là ý ấy — một mệnh lệnh thường trực, tốn kém để ban ra và còn tốn kém suốt thời gian nó còn hiệu lực.',
+    'Lời tuyên bố bằng văn bản do vua ban, và là công cụ cai trị thường ngày ở đây. Chiếu dời đô dời cả một kinh đô chỉ bằng một tờ; các chiếu chỉ trong trò chơi cũng là ý ấy — một mệnh lệnh thường trực, tốn kém để ban ra và còn tốn kém suốt thời gian nó còn hiệu lực.',
 
   'terms.quan-tran.title': 'Trấn · quận · châu',
   'terms.quan-tran.body':
-    'Các đơn vị hành chính, gần như triều nào cũng đổi tên: quận thời Bắc thuộc, lộ thời Lý – Trần, đạo rồi thừa tuyên thời Lê, trấn rồi tỉnh thời Nguyễn. Những vùng đất ngươi giữ trong game chính là lớp này.',
+    'Các đơn vị hành chính, gần như triều nào cũng đổi tên: quận thời Bắc thuộc, lộ thời Lý – Trần, đạo rồi thừa tuyên thời Lê, trấn rồi tỉnh thời Nguyễn. Những vùng đất ngươi giữ trong trò chơi chính là lớp này.',
 
   'terms.thai-uy.title': 'Thái úy',
   'terms.thai-uy.body':
-    'Chức võ quan cao nhất, trên cả các tướng cầm quân. Lý Thường Kiệt từng giữ chức này. Trong game đây là một trong các tước hiệu mà bộ sinh tên gán cho tướng, vì tước hiệu là một phần của việc người ấy là ai.',
+    'Chức võ quan cao nhất, đứng trên các tướng cầm quân. Lý Thường Kiệt từng giữ chức này. Trong trò chơi, đây là một trong những tước hiệu mà phép đặt tên gán cho tướng, vì tước hiệu là một phần của việc người ấy là ai.',
 
   'terms.do-doc.title': 'Đô đốc',
   'terms.do-doc.body':
@@ -149,35 +149,35 @@ export const termsVi: HistoryCatalog = {
 
   'terms.kinh-luoc-su.title': 'Kinh lược sứ · An phủ sứ',
   'terms.kinh-luoc-su.body':
-    'Quan được phái đi coi một vùng biên, nắm cả việc dân lẫn việc binh. Chức này tồn tại vì một châu ngoài biên không thể ngồi chờ kinh đô trả lời.',
+    'Quan được phái đi coi một vùng biên, nắm cả việc dân lẫn việc binh. Chức ấy có là vì một châu ngoài biên không thể ngồi chờ kinh đô trả lời.',
 
   'terms.trang-nguyen.title': 'Trạng nguyên',
   'terms.trang-nguyen.body':
-    'Người đỗ đầu kỳ thi Đình, bậc cao nhất trong tam khôi. Lương Thế Vinh được gọi là Trạng Lường vì cả đời làm toán thực dụng.',
+    'Người đỗ đầu kỳ thi Đình, bậc cao nhất trong tam khôi. Lương Thế Vinh được người đương thời gọi là Trạng Lường, vì cả đời làm toán thực dụng.',
 
   'terms.van-mieu.title': 'Văn Miếu · Quốc Tử Giám',
   'terms.van-mieu.body':
-    'Văn Miếu dựng năm 1070, Quốc Tử Giám lập năm 1076 bên cạnh. Những tấm bia tiến sĩ trong sân khắc tên người đỗ từ năm 1442 trở đi, đặt trên lưng rùa đá.',
+    'Văn Miếu dựng năm 1070, Quốc Tử Giám lập năm 1076 ngay bên cạnh. Những tấm bia tiến sĩ trong sân khắc tên người đỗ từ khoa 1442 trở đi, đặt trên lưng rùa đá.',
 
   'terms.nom.title': 'Chữ Nôm',
   'terms.nom.body':
-    'Thứ chữ đặt ra để viết tiếng Việt bằng các ký tự gốc Hán, khác với viết bằng chữ Hán. Viết bằng Nôm là một lập trường chứ không chỉ là một phương tiện — Hồ Xuân Hương và Đoàn Thị Điểm còn được đọc đến hôm nay là nhờ đó.',
+    'Thứ chữ đặt ra để viết tiếng Việt bằng ký tự gốc Hán, khác với viết thẳng bằng chữ Hán. Viết bằng Nôm là một lập trường chứ không riêng một phương tiện — Hồ Xuân Hương và Đoàn Thị Điểm còn được đọc đến hôm nay là nhờ đó.',
 
   'terms.bac-thuoc.title': 'Bắc thuộc',
   'terms.bac-thuoc.body':
-    'Khoảng một nghìn năm dưới quyền cai trị phương Bắc, từ năm 111 TCN đến năm 938, chia làm ba hay bốn kỳ tùy sách. Đây là dữ kiện dài nhất trong toàn bộ dòng thời gian này.',
+    'Hơn một nghìn năm dưới quyền cai trị của phương Bắc, từ năm 111 TCN đến năm 938, sách chia làm ba hay bốn kỳ tuỳ từng bộ. Đây là dữ kiện dài nhất trong toàn bộ dòng thời gian này.',
 
   'terms.chiem-thanh.title': 'Chiêm Thành',
   'terms.chiem-thanh.body':
-    'Các vương quốc nói tiếng Nam Đảo, theo Ấn giáo rồi Hồi giáo, dọc dải duyên hải miền Trung — láng giềng, đối thủ và đôi khi là bề trên của Đại Việt suốt sáu trăm năm. Tháp gạch của họ vẫn đứng. Tiếng nói của họ vẫn còn người dùng.',
+    'Các vương quốc nói tiếng Nam Đảo, theo Ấn giáo rồi theo Hồi giáo, dọc dải duyên hải miền Trung — láng giềng, đối thủ và có lúc là bề trên của Đại Việt suốt sáu trăm năm. Tháp gạch của họ vẫn còn đứng. Tiếng nói của họ vẫn còn người dùng.',
 
   'terms.co-ngu-sac.title': 'Cờ ngũ sắc',
   'terms.co-ngu-sac.body':
-    'Lá cờ hội năm màu — các ô vuông lồng nhau theo màu ngũ hành, treo ở đình chùa và trong dịp Tết. Đây là lá cờ game treo trên một khu dân cư đang yên, và nó không phải quốc kỳ; nước ta mãi về sau mới có quốc kỳ.',
+    'Lá cờ hội năm màu — những ô vuông lồng nhau theo màu ngũ hành, treo ở đình chùa và trong dịp Tết. Đây là lá cờ trò chơi treo trên một làng đang yên, và nó không phải quốc kỳ: mãi về sau nước ta mới có quốc kỳ.',
 
   'terms.dong-ho.title': 'Tranh Đông Hồ',
   'terms.dong-ho.body':
-    'Tranh khắc gỗ dân gian làng Đông Hồ, Bắc Ninh, in trên giấy điệp quét vỏ sò nghiền, màu lấy từ lá, than, gỉ đồng và gỗ vang. Toàn bộ ngôn ngữ thị giác của game lấy từ đó, kể cả tên các màu trong mã nguồn.',
+    'Tranh khắc gỗ dân gian làng Đông Hồ, Bắc Ninh, in trên giấy điệp quét vỏ sò nghiền, màu lấy từ lá cây, than, gỉ đồng và gỗ vang. Toàn bộ lối vẽ của trò chơi lấy từ đó, kể cả tên các màu trong mã nguồn.',
 
   'terms.tet.title': 'Tết Nguyên Đán',
   'terms.tet.body':
@@ -185,19 +185,19 @@ export const termsVi: HistoryCatalog = {
 
   'terms.de-vuong.title': 'Đế · Vương',
   'terms.de-vuong.body':
-    'Hoàng đế, và vua. Chỗ khác nhau chính là toàn bộ lập luận: vua nước ta xưng vương trong thư gửi triều đình phương Bắc và xưng đế ở trong nước. Nam quốc sơn hà viết "Nam đế cư" là cố ý.',
+    'Hoàng đế, và vua. Chỗ khác nhau giữa hai chữ mới là điều đáng nói: vua nước ta xưng vương trong thư gửi triều đình phương Bắc và xưng đế ở trong nước. Nam quốc sơn hà viết "Nam đế cư" là cố ý.',
 
   'terms.lang-xa.title': 'Làng · xã',
   'terms.lang-xa.body':
-    '"Phép vua thua lệ làng" là một câu tục ngữ, không phải một câu đùa: làng giữ sổ điền riêng, có đình riêng và thường có cả dân binh riêng.',
+    'Làng, và xã với tư cách một đơn vị hành chính. "Phép vua thua lệ làng" là một câu tục ngữ chứ không phải một câu đùa: làng giữ sổ điền riêng, có đình riêng và thường có cả dân binh riêng.',
 
   'terms.de-dieu.title': 'Đê điều',
   'terms.de-dieu.body':
-    'Những con đê giữ sông Hồng nằm cao hơn chính châu thổ của nó, đắp bằng sức phu mà triều nào cũng phải trưng, và nhà Trần lập hẳn chức Hà đê sứ để trông. Bỏ bê một mùa là hai năm sau có đói.',
+    'Những con đê giữ sông Hồng nằm cao hơn chính châu thổ của nó, đắp bằng sức phu mà triều nào cũng phải trưng, và nhà Trần lập hẳn chức Hà đê sứ để trông coi. Bỏ bê một mùa là hai năm sau có đói.',
 
   'terms.dai-cao.title': 'Đại cáo',
   'terms.dai-cao.body':
-    'Bài cáo lớn — thể văn Nguyễn Trãi dùng năm 1428 để bố cáo việc dứt chiến tranh. Cáo là nói với cả nước chứ không phải với một viên quan, và chính điều đó khiến nó là một áng lập quốc chứ không phải một mệnh lệnh.',
+    'Bài cáo lớn — thể văn Nguyễn Trãi dùng năm 1428 để bố cáo việc chiến tranh đã dứt. Cáo là nói với cả nước chứ không phải với một viên quan, và chính chỗ đó khiến nó thành một văn kiện lập quốc chứ không phải một mệnh lệnh.',
 
   'terms.hich.title': 'Hịch',
   'terms.hich.body':

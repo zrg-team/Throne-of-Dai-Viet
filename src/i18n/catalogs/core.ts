@@ -707,7 +707,7 @@ export const viCore = {
   "history.era.span": "{years} năm",
   "history.rule.self": "Tự chủ",
   "history.rule.foreign": "Bị đô hộ",
-  "history.figures.lived": "sống {dates}",
+  "history.figures.lived": "{dates}",
   "history.figures.unknown": "chưa rõ năm sinh năm mất",
   "history.figures.alsoDrawn": "Cũng lấy từ chính sử",
   "history.figures.alsoDrawnBody": "{count} nhân vật có thật nữa mà trò chơi có thể gọi tên làm tướng, nhưng tiểu sử chưa được chép ở đây.",
