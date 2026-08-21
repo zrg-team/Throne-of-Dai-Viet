@@ -15,7 +15,7 @@ game does not boot:
 | The life | [src/i18n/catalogs/heroBios.ts](../../../src/i18n/catalogs/heroBios.ts) | Falls back to a pooled bio |
 | The face | [scripts/build-faces.mjs](../../../scripts/build-faces.mjs) + wardrobe | Silently draws nothing |
 
-Verify with `node test_scripts/verify-heroes.mjs`, which is the gate for all of it.
+Verify with `node test_scripts/verify/verify-heroes.mjs`, which is the gate for all of it.
 
 ## The roster's two halves
 
@@ -128,8 +128,8 @@ byte-for-byte gate.
    colour it (`skin`, `hair`, `robe`, `robeDark`, `robeLight`, …). Only ship a fixed colour when
    the thing has one: black lacquer, a gold coronet, a red yếm. Six skin tones are one file.
 3. Add it to a pool in `wardrobe.ts` — that is the only place that decides *who may wear it*.
-4. `node scripts/build-faces.mjs` then `node test_scripts/verify-heroes.mjs`.
-5. **Look at it**: `node test_scripts/shot-portraits.mjs` writes contact sheets to
+4. `node scripts/build-faces.mjs` then `node test_scripts/verify/verify-heroes.mjs`.
+5. **Look at it**: `node test_scripts/shot/shot-portraits.mjs` writes contact sheets to
    `output/web-game/`. Open the PNG. Every failure here is visual.
 
 ### The design space
@@ -168,9 +168,9 @@ military ones, and only fit on the round-collar **áo viên lĩnh**, which is th
 ```bash
 npx tsc --noEmit                              # ~4s; necessary, nowhere near sufficient
 yarn faces:check                              # the parts on disk match the generator
-node test_scripts/verify-heroes.mjs           # 15 checks: deck, wardrobe, throne, bios, founder card
-node test_scripts/shot-portraits.mjs          # contact sheets — then open the PNG and look
-node test_scripts/smoke.mjs                   # the game still boots in every mode
+node test_scripts/verify/verify-heroes.mjs           # 15 checks: deck, wardrobe, throne, bios, founder card
+node test_scripts/shot/shot-portraits.mjs          # contact sheets — then open the PNG and look
+node test_scripts/gate/smoke.mjs                   # the game still boots in every mode
 ```
 
 All of these take `DEV_URL`; port 5173 is frequently another project on this machine. Check with

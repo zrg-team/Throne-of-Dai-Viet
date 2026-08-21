@@ -34,7 +34,7 @@ Stop any server you started when you are done.
 ## 2 · Measure what is measurable
 
 ```bash
-node test_scripts/playtest-metrics.mjs --seeds 8 --ticks 600
+node test_scripts/playtest/playtest-metrics.mjs --seeds 8 --ticks 600
 ```
 
 This returns an objective score out of 85 across six dimensions — agency, divergence, pacing,
@@ -47,7 +47,7 @@ wins, stop treating anything else as the main problem and say so plainly in the 
 ## 3 · Watch a session (skip on `quick`)
 
 ```bash
-node test_scripts/playtest-session.mjs --minutes 8 --seed 1337
+node test_scripts/playtest/playtest-session.mjs --minutes 8 --seed 1337
 ```
 
 This drives the real UI with real taps at real speed, so an unclickable control fails here rather
@@ -73,9 +73,9 @@ The sharpest question is whether a thinking player can get *better*. Write a str
 read what it did, and write a better one.
 
 ```bash
-node test_scripts/playtest-play.mjs --template > /tmp/attempt.json
+node test_scripts/playtest/playtest-play.mjs --template > /tmp/attempt.json
 # edit it, then:
-node test_scripts/playtest-play.mjs --strategy /tmp/attempt.json --seeds 8
+node test_scripts/playtest/playtest-play.mjs --strategy /tmp/attempt.json --seeds 8
 ```
 
 Do at least three attempts, and make each one a real hypothesis you can state in a sentence —
@@ -83,7 +83,7 @@ the `reasoning` field is not decoration, it is the thing you are testing. Use th
 "most-refused options" report to see what you walked past. Then:
 
 ```bash
-node test_scripts/playtest-play.mjs --leaderboard
+node test_scripts/playtest/playtest-play.mjs --leaderboard
 ```
 
 Judge the **skill ceiling** from the improvement curve:

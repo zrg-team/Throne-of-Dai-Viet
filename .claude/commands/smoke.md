@@ -28,7 +28,7 @@ sleep 6 && export DEV_URL=http://127.0.0.1:5199
 Then:
 
 ```bash
-npx tsc --noEmit && node test_scripts/smoke.mjs $ARGUMENTS
+npx tsc --noEmit && node test_scripts/gate/smoke.mjs $ARGUMENTS
 ```
 
 Stop any server you started afterwards.

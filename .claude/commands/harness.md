@@ -13,15 +13,19 @@ traps. This command is the short form.
 ## 1 · Check one does not already exist
 
 ```bash
-ls test_scripts/
+ls test_scripts/verify/ test_scripts/diag/
 ```
 
-~68 harnesses are already here. If one answers the question, run it instead of writing another.
+~133 harnesses are already here, filed by what they answer: `verify/` asserts, `shot/` photographs,
+`perf/` measures, `playtest/` judges, `diag/` investigates, `gate/` is the cheap boot check, and
+`scratch/` is gitignored one-offs. If one answers the question, run it instead of writing another.
 
-## 2 · Write it in `test_scripts/`
+## 2 · Write it under `test_scripts/`
 
-It must live there or `import 'playwright'` will not resolve. Name it `diag-<topic>.mjs` for a
-one-off measurement, `verify-<topic>.mjs` if it asserts something worth keeping.
+It must live under that tree or `import 'playwright'` will not resolve. Put a one-off measurement in
+`test_scripts/diag/diag-<topic>.mjs`, something that asserts an invariant worth keeping in
+`test_scripts/verify/verify-<topic>.mjs`, and a throwaway probe you do not intend to commit in
+`test_scripts/scratch/_<topic>.mjs`, which is gitignored.
 
 Prefer the **headless engine** style — import the systems and tick them with no renderer. It runs
 thousands of ticks in seconds and is how balance questions get answered:
@@ -91,7 +95,7 @@ which nothing accepts, so the driver re-answers the same card forever.
 ## 3 · Run it, then decide whether it stays
 
 ```bash
-node test_scripts/diag-<topic>.mjs 2>&1 | tail -40
+node test_scripts/diag/diag-<topic>.mjs 2>&1 | tail -40
 ```
 
 If the answer is a one-off, delete the script and keep the number. If it encodes an invariant that

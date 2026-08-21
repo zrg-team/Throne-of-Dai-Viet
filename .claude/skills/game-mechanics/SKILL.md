@@ -223,7 +223,7 @@ Confirm that is really what is wanted before starting.
 ## Verifying a change
 
 Balance is measured, not reasoned about. `/funscore` for the six-dimension score before and after;
-`node test_scripts/verify-economy.mjs` for the ledger; `verify-ascent.mjs` for the run loop
+`node test_scripts/verify/verify-economy.mjs` for the ledger; `verify-ascent.mjs` for the run loop
 (**always exits 0 — parse stdout for `PASS:` vs `CHECK:`**); `verify-modes-regression.mjs` prints a
 60-tick fingerprint per mode to diff across a shared-code edit. See
 [game-harness](../game-harness/SKILL.md).

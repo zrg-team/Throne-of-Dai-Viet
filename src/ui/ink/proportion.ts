@@ -87,7 +87,7 @@ export const UNIT = {
   bamboo: 0.556,
   banana: 0.667,
   areca: 0.909,
-  // Re-measured with `_measure-props.mjs` when the đa was redrawn as an actual banyan: 33.3 at
+  // Re-measured with `diag/measure-props.mjs` when the đa was redrawn as an actual banyan: 33.3 at
   // `s = 1` against the old stamp's 30.8, because it grew a bole, a fringe of aerial root and two
   // pillars down to the ground. The correction comes down to match, so it still stands fourteen
   // metres and still lands at 31.2 px beside everything else.
@@ -105,7 +105,7 @@ export const UNIT = {
   // ── Living things ──
   // People carry one exaggeration between them, so the farmer in the paddy and the soldier in the
   // rank are the same height, and both stand lower than a roof.
-  // Re-measured twice, both times with `_measure-figure.mjs` and never by eye — the table's own
+  // Re-measured twice, both times with `diag/measure-figure.mjs` and never by eye — the table's own
   // header records what happened the last time these were guessed. The wardrobe's crowns took it
   // from 6.2 to 6.6; rebuilding the figure to the document's geometry took it to 6.7, the tallest
   // being a Lý royal guard with a levy's billhook.
@@ -202,7 +202,7 @@ const METRES: Record<keyof typeof UNIT, number> = {
   grassTuft: 0.9, figure: 1.7, farmer: 1.7, buffalo: 1.5,
 };
 
-/** Drawn height at `s = 1`, measured off each prop by `_measure-props.mjs`, not estimated. */
+/** Drawn height at `s = 1`, measured off each prop by `diag/measure-props.mjs`, not estimated. */
 const DRAWN: Record<keyof typeof UNIT, number> = {
   house: 18.4, dinh: 29.7, thap: 49.4, hayStack: 26,
   tree: 17.3, bamboo: 44.6, banana: 18.6, areca: 34.1, banyan: 33.3,

@@ -1882,7 +1882,7 @@ export class MapScene extends Phaser.Scene {
    * the world at all now — the year is read off the canopy, the grass, the ground cast and the name
    * plates — so those things have to be genuinely redrawn, and they live inside the static bake.
    *
-   * Measured on a 4x-throttled mid-tier profile (`test_scripts/measure-bake.mjs`, 1560 tiles, 42
+   * Measured on a 4x-throttled mid-tier profile (`test_scripts/perf/measure-bake.mjs`, 1560 tiles, 42
    * lands): **110-220 ms across four runs, median ~170**, against 1200-1500 ms for the `refresh()`
    * this replaces. Roughly 2% of a seven-second ascent season, once per season. Budget for this
    * path is 250 ms — if a future scatter change pushes it past that, thin the plan rather than

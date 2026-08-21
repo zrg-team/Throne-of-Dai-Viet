@@ -189,7 +189,7 @@ Repaints are gated by six independent signatures
 and `isExplored` changes nothing but a fog alpha while costing a full repaint. Keep them split:
 
 - `roads` is deliberately **not** keyed on buildings, so a granary going up does not rebuild the
-  country's roads. `test_scripts/diag-build.mjs` guards this.
+  country's roads. `test_scripts/diag/diag-build.mjs` guards this.
 - `fog` gets its own texture so re-inking it does not drag ground, ranges and roads through a
   re-composite.
 - `node` is per-land, so only the lands that changed are rebuilt.
@@ -215,7 +215,7 @@ Diagnostic switches: `?nobake=1`, `?nofx=1`, `?nocull=1`, `?noseason=1`, `?bakes
 4. Same file — add a `case` to `drawProp`.
 5. If it moves: bake it in `ink/sprites.ts` with a `PropBox` in `UNIT`-corrected units, place with
    `livingSprite`, declare `setNativeFacing`.
-6. Verify with `node test_scripts/verify-ground-scale.mjs`, then screenshot via `shot-dongho.mjs`
+6. Verify with `node test_scripts/verify/verify-ground-scale.mjs`, then screenshot via `shot-dongho.mjs`
    or `shot-art.mjs`.
 
 **A new card icon**

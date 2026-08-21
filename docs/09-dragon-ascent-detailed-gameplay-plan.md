@@ -1238,8 +1238,8 @@ Files:
 - `src/ui/ascent/AscentHud.ts`
 - `src/systems/ascent/AscentState.ts`
 - `src/i18n/catalogs/ascent.ts`
-- `test_scripts/shot-ascent.mjs`
-- `test_scripts/verify-ascent.mjs`
+- `test_scripts/shot/shot-ascent.mjs`
+- `test_scripts/verify/verify-ascent.mjs`
 
 Tasks:
 
@@ -1357,7 +1357,7 @@ Files:
 - `src/systems/ascent/PowerDraftSystem.ts`
 - `src/scenes/ConquestUIScene.ts`
 - `src/i18n/catalogs/ascent.ts`
-- `test_scripts/verify-ascent.mjs`
+- `test_scripts/verify/verify-ascent.mjs`
 
 Tasks:
 
@@ -1384,7 +1384,7 @@ Files:
 - `src/state/codex.ts`
 - `src/scenes/MenuScene.ts`
 - `src/scenes/ConquestUIScene.ts`
-- `test_scripts/verify-ascent.mjs`
+- `test_scripts/verify/verify-ascent.mjs`
 
 Tasks:
 

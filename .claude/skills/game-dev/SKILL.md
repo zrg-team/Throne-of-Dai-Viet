@@ -143,7 +143,7 @@ src/data/              content: units, heroes, edicts, cards, lands, kingdoms, s
 src/map/               hex math, generation, terrain, boundaries, roads
 src/ui/                renderers and panels (Phaser-aware)
 src/i18n/              catalogs; every key needs en + vi
-test_scripts/          Playwright harnesses (see game-harness)
+test_scripts/          Playwright harnesses, filed by family (see game-harness)
 docs/                  design docs + generated art/story reference pages
 ```
 
@@ -166,8 +166,8 @@ renderer instead.
   is missing a field.
 - `output/`, `dist/`, `test_scripts/shots/` and `tmp-verify.png` are gitignored — write scratch
   artifacts there freely.
-- Scratch harnesses must live **inside the project** (`test_scripts/`) or `import 'playwright'`
-  will not resolve.
+- Scratch harnesses must live **inside the project** (`test_scripts/scratch/`, which is
+  gitignored) or `import 'playwright'` will not resolve.
 
 ## Before you say it works
 

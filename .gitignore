@@ -7,15 +7,19 @@ output/
 # Yarn writes this install cache on every install; it is not source.
 .yarn/install-state.gz
 
-# Screenshot output from the test_scripts/shot-*.mjs drivers.
+# Screenshot output from the test_scripts/shot/ drivers. Written relative to the project root,
+# so it stays at the top of the tree rather than under shot/.
 test_scripts/shots/
 
 # Screenshot dropped by check-console.mjs
 tmp-verify.png
 
-# Throwaway diagnostic harnesses. The `_` prefix is the marker for a script written to answer
-# one question about a running build and then thrown away — they are working notes, not source,
-# and they accumulate every session. The keepers are the unprefixed verify-*/shot-*/measure-*.
+# Throwaway diagnostic harnesses — scripts written to answer one question about a running build
+# and then thrown away. They are working notes, not source, and they accumulate every session, so
+# the whole folder is ignored rather than a name prefix. The keepers live in the sibling families:
+# verify/, shot/, perf/, playtest/, diag/, gate/.
+test_scripts/scratch/
+# The old flat location, kept so a stale `_*.mjs` left in a working tree is still ignored.
 test_scripts/_*.mjs
 
 # Perf run output, same status as output/ and test_scripts/shots/.

@@ -141,13 +141,13 @@ yarn build               # tsc && vite build — the CI gate
 
 Vite + TypeScript (strict) + Phaser 3, no backend, no framework beyond that. Content is data: units, heroes, cards, edicts, provinces and every story live under `src/data/`, systems are plain functions over one `GameState`, and every player-facing string has an English and a Vietnamese entry — the game refuses to boot if one is missing.
 
-There is no test framework. The game is proven by **driving it in a real headless browser**: `test_scripts/` holds some seventy Playwright harnesses that boot every mode, tick the economy for hundreds of seasons across many seeds, tap the real buttons, screenshot every screen, and score how *fun* a build is out of 100 before and after a balance change.
+There is no test framework. The game is proven by **driving it in a real headless browser**: `test_scripts/` holds some 130 Playwright harnesses — filed by the question they answer: `verify/` asserts, `shot/` photographs, `perf/` measures, `playtest/` judges, `diag/` investigates — that boot every mode, tick the economy for hundreds of seasons across many seeds, tap the real buttons, screenshot every screen, and score how *fun* a build is out of 100 before and after a balance change.
 
 ```bash
-node test_scripts/smoke.mjs              # every mode boots, ticks, draws — ~40 s
-node test_scripts/verify-ascent.mjs      # the Dragon Ascent loop end to end
-node test_scripts/playtest-metrics.mjs   # six measured preconditions of fun, /85
-node test_scripts/shot-readme.mjs        # regenerates every picture on this page
+node test_scripts/gate/smoke.mjs              # every mode boots, ticks, draws — ~40 s
+node test_scripts/verify/verify-ascent.mjs      # the Dragon Ascent loop end to end
+node test_scripts/playtest/playtest-metrics.mjs   # six measured preconditions of fun, /85
+node test_scripts/shot/shot-readme.mjs        # regenerates every picture on this page
 ```
 
 The repository also carries a set of [Claude Code](https://claude.com/claude-code) skills and slash-commands (`.claude/`) that teach an AI assistant the art system, the hex map, the gameplay rules and the harness conventions, so contributions with an assistant start from the same understanding as contributions without one.
@@ -163,6 +163,12 @@ src/
 └── i18n/        catalogs — en and vi, side by side
 docs/            design documents and generated reference pages
 test_scripts/    the Playwright harnesses
+├── verify/      pass/fail gates
+├── shot/        screenshot drivers
+├── perf/        render, bake and heap cost
+├── playtest/    is it fun — metrics, sessions, full playthroughs
+├── diag/        one-off investigations
+└── gate/        smoke and console checks
 ```
 
 ## 🤝 Help improve the game
@@ -174,7 +180,7 @@ Issues and pull requests are open. The most useful things you can bring, in orde
 3. **Vietnamese copy.** Both languages are meant to be equals; where the Vietnamese reads like a translation, it should be rewritten, not patched.
 4. **A new story.** `src/data/stories/countingHouse.ts` is the smallest complete template; the effect vocabulary in `src/systems/story/effects.ts` is what a story is allowed to do to the world.
 
-Before opening a pull request: `yarn build` must pass, and `node test_scripts/smoke.mjs` should be green against your dev server.
+Before opening a pull request: `yarn build` must pass, and `node test_scripts/gate/smoke.mjs` should be green against your dev server.
 
 ## ☕ Support
 
