@@ -151,13 +151,26 @@ export const enCore = {
   "landType.wilderness": "wilderness",
   "language.en": "EN",
   "language.vi": "VN",
-  "menu.back": "Back",
+  /**
+   * The way back, everywhere.
+   *
+   * One string because it is one control: the classic-modes page had it right — a bar at the foot
+   * of the page with a chevron in the label — and the manual, Real History, the settings sheet and
+   * the skirmish setup each had their own version of the same word, two of them stranded in a
+   * top-left corner no thumb reaches. The chevron belongs to the label rather than to a drawn icon
+   * so that every page saying "back" is saying it with the same characters.
+   */
+  "menu.back": "\u2039 Back",
   "menu.continue": "Continue",
   "menu.savedSnapshotKept": "The saved snapshot remains until you save again.",
   "menu.startCampaign": "Start Campaign",
   "menu.startNewCampaign": "Start New Campaign",
   "menu.startNewQuestion": "Start a new campaign?",
   "menu.mapTheme": "MAP THEME",
+  // Shorter than the skirmish page's own headings, which get a whole row; these share a line with
+  // three or four choices.
+  "menu.battleDifficulty": "ENEMY",
+  "menu.battleSpeed": "BATTLE PACE",
   "menu.mapTheme.atlas": "Illustrated",
   "menu.mapTheme.ink": "Ink Wash",
   "menu.mapTheme.dongHo": "Đông Hồ",
@@ -177,6 +190,20 @@ export const enCore = {
   "menu.graphics.low": "Low",
   "menu.graphics.medium": "Medium",
   "menu.graphics.high": "High",
+  // ── The app's own upkeep ──
+  //
+  // A cached game is a frozen game, so the settings page has to be able to say which build is
+  // running and offer the tap that takes a newer one. "Version" carries the build stamp; the rest
+  // is the four states of the service worker, in words a player can act on.
+  "menu.update.version": "Version {version}",
+  "menu.update.build": "build {build}",
+  "menu.update.caching": "Saving for offline play…",
+  "menu.update.offlineReady": "Ready to play offline",
+  "menu.update.installing": "New version installing…",
+  "menu.update.ready": "New version ready",
+  "menu.update.readyHint": "New version ready — reload",
+  "menu.update.reload": "Reload to update",
+  "menu.update.check": "Check for updates",
   "menu.support.coffee": "Buy me a coffee",
   "menu.support.or": "— or even better,",
   "menu.support.improve": "help build the game",
@@ -197,8 +224,8 @@ export const enCore = {
   "menu.support.thanks": "Thank you — every coffee is another page in the chronicle.",
 
   // ── The History page: the real record the game was built out of ──
-  "history.menu.button": "Real History",
-  "history.title": "REAL HISTORY",
+  "history.menu.button": "History",
+  "history.title": "HISTORY",
   "history.subtitle": "What actually happened, and what this game made of it.",
   "history.back": "Back",
   "history.tab.dynasties": "Dynasties",
@@ -645,13 +672,15 @@ export const viCore = {
   "landType.wilderness": "hoang địa",
   "language.en": "EN",
   "language.vi": "VN",
-  "menu.back": "Quay lại",
+  "menu.back": "\u2039 Quay lại",
   "menu.continue": "Tiếp tục",
   "menu.savedSnapshotKept": "Bản lưu vẫn được giữ cho đến khi bạn lưu lại.",
   "menu.startCampaign": "Bắt đầu chiến dịch",
   "menu.startNewCampaign": "Chiến dịch mới",
   "menu.startNewQuestion": "Bắt đầu chiến dịch mới?",
   "menu.mapTheme": "KIỂU BẢN ĐỒ",
+  "menu.battleDifficulty": "QUÂN ĐỊCH",
+  "menu.battleSpeed": "NHỊP TRẬN",
   "menu.mapTheme.atlas": "Minh họa",
   "menu.mapTheme.ink": "Thủy mặc",
   "menu.mapTheme.dongHo": "Đông Hồ",
@@ -671,6 +700,15 @@ export const viCore = {
   "menu.graphics.low": "Thấp",
   "menu.graphics.medium": "Vừa",
   "menu.graphics.high": "Cao",
+  "menu.update.version": "Phiên bản {version}",
+  "menu.update.build": "bản dựng {build}",
+  "menu.update.caching": "Đang lưu để chơi ngoại tuyến…",
+  "menu.update.offlineReady": "Sẵn sàng chơi ngoại tuyến",
+  "menu.update.installing": "Đang cài bản mới…",
+  "menu.update.ready": "Đã có bản mới",
+  "menu.update.readyHint": "Đã có bản mới — tải lại",
+  "menu.update.reload": "Tải lại để cập nhật",
+  "menu.update.check": "Kiểm tra bản mới",
   "menu.support.coffee": "Mời mình ly cà phê",
   "menu.support.or": "— hay hơn nữa,",
   "menu.support.improve": "chung tay làm game",
@@ -691,8 +729,8 @@ export const viCore = {
   "menu.support.thanks": "Cảm ơn bạn — mỗi ly cà phê là thêm một trang sử ký.",
 
   // ── Trang Sử Thật: chính sử mà trò chơi này dựng lên từ đó ──
-  "history.menu.button": "Sử thật",
-  "history.title": "SỬ THẬT",
+  "history.menu.button": "Lịch sử",
+  "history.title": "LỊCH SỬ",
   "history.subtitle": "Chuyện đã thật sự xảy ra, và trò chơi này đã làm gì với nó.",
   "history.back": "Quay lại",
   "history.tab.dynasties": "Triều đại",

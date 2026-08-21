@@ -29,6 +29,23 @@ export interface CopilotStep {
    * usual control cannot be reached.
    */
   languagePicker?: boolean;
+  /**
+   * A drawing, between the paragraph and the buttons.
+   *
+   * For the one thing in this game that a paragraph genuinely cannot carry: which formation
+   * answers which. The rule is a five-way ring, and the coach's only way of saying so in words was
+   * "laid out in the ring order they beat each other in" — a sentence that describes a picture
+   * instead of being one, and one nobody parses with a host closing on them.
+   *
+   * A thunk that draws into the card and reports its own height, so the card measures art the same
+   * way it measures type. Everything it adds must be parented to the returned container: the card
+   * is torn down and rebuilt on every step and on a language change, and a loose Graphics survives
+   * both.
+   */
+  art?: (x: number, y: number, width: number) => {
+    container: Phaser.GameObjects.Container;
+    height: number;
+  };
 }
 
 export interface CopilotOptions {
@@ -198,7 +215,18 @@ export class Copilot {
     const BUTTON_H = 34;
     // The picker's own row, when there is one: a line of type and the air around it.
     const LANGUAGE_ROW = step.languagePicker ? 30 : 0;
-    const height = PAD + heading.height + 6 + body.height + LANGUAGE_ROW + 14 + BUTTON_H + PAD;
+    /**
+     * The drawing is made before the card is sized, because it is part of what the card has to fit.
+     *
+     * Its height is not knowable without drawing it — the counter table's row count is the ring's
+     * own length — so it is measured exactly the way the paragraph is: build it, ask how tall, add
+     * it up. Built at the origin and moved into place once `y` is known, because `y` is derived
+     * from this very number.
+     */
+    const art = step.art?.(0, 0, bodyWidth);
+    const ART_ROW = art ? art.height + 12 : 0;
+    const height = PAD + heading.height + 6 + body.height + ART_ROW + LANGUAGE_ROW + 14
+      + BUTTON_H + PAD;
     const x = (GAME_WIDTH - CARD_WIDTH) / 2;
 
     /**
@@ -263,8 +291,15 @@ export class Copilot {
     body.setPosition(x + PAD, heading.y + heading.height + 6).setDepth(DEPTH + 2);
     this.objects.push(heading, body);
 
+    let cursor = body.y + body.height;
+    if (art) {
+      art.container.setPosition(x + PAD, cursor + 10).setDepth(DEPTH + 2);
+      this.objects.push(art.container);
+      cursor += ART_ROW;
+    }
+
     if (step.languagePicker) {
-      this.renderLanguagePicker(x, body.y + body.height + 12);
+      this.renderLanguagePicker(x, cursor + 12);
     }
 
     const row = y + height - PAD - BUTTON_H;

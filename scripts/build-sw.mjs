@@ -1,0 +1,118 @@
+/**
+ * Seals the finished build into a service worker, so the game plays with the network off.
+ *
+ * Runs after `vite build` (see the `build` script in package.json). It walks `dist/`, sorts what it
+ * finds into the shell and the art, hashes the lot, and writes `dist/sw.js` from
+ * `scripts/sw-template.js`.
+ *
+ * Why a hand-rolled worker rather than vite-plugin-pwa: this repo has exactly one runtime
+ * dependency, and Workbox's default `maximumFileSizeToCacheInBytes` is 2 MiB — it would refuse the
+ * game's 3.4 MB bundle and precache a shell that cannot boot, quietly.
+ *
+ * The version is a hash of the *contents* of everything precached, not a timestamp. A rebuild that
+ * changes nothing produces a byte-identical `sw.js`, the browser sees no new worker, and the player
+ * is never told there is an update when there is not one.
+ *
+ * Usage: node scripts/build-sw.mjs [--dist dir] [--base /path/]
+ */
+import { createHash } from 'node:crypto';
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(HERE, '..');
+
+const argOf = (flag, fallback) => {
+  const index = process.argv.indexOf(flag);
+  return index === -1 ? fallback : process.argv[index + 1];
+};
+
+const DIST = resolve(ROOT, argOf('--dist', 'dist'));
+
+/** The sub-path the game is served from — `/Throne-of-Dai-Viet/` on Pages, `/` anywhere else. */
+const BASE = (() => {
+  const override = argOf('--base', undefined);
+  if (override) return override.endsWith('/') ? override : `${override}/`;
+  const { homepage } = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+  if (typeof homepage !== 'string' || homepage.length === 0) return '/';
+  const { pathname } = new URL(homepage);
+  return pathname.endsWith('/') ? pathname : `${pathname}/`;
+})();
+
+/**
+ * Not precached, and each for its own reason:
+ *   · `sw.js` — a worker that caches itself can never be replaced.
+ *   · `public/**` — the deploy workflow copies `public/` a second time into `dist/public/` after
+ *     this script runs. Nothing loads from there; precaching it would double 1.5 MB for nothing.
+ *   · dotfiles — `.nojekyll` and friends are for the server, not the client.
+ */
+const skip = (rel) => rel === 'sw.js' || rel.startsWith('public/') || rel.split('/').some((part) => part.startsWith('.'));
+
+/** The art: fetched by the Phaser loader at runtime, and survivable if one is missing. */
+const isOptional = (rel) => rel.startsWith('faces/') || rel.startsWith('support/');
+
+const walk = (dir) => {
+  const out = [];
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) out.push(...walk(full));
+    else out.push(full);
+  }
+  return out;
+};
+
+let files;
+try {
+  files = walk(DIST);
+} catch {
+  console.error(`build-sw: no build to seal at ${DIST} — run \`vite build\` first.`);
+  process.exit(1);
+}
+
+const entries = files
+  .map((full) => ({ full, rel: relative(DIST, full).split('\\').join('/') }))
+  .filter(({ rel }) => !skip(rel))
+  .sort((a, b) => (a.rel < b.rel ? -1 : 1));
+
+if (entries.length === 0) {
+  console.error(`build-sw: ${DIST} holds nothing to cache.`);
+  process.exit(1);
+}
+
+const template = readFileSync(join(HERE, 'sw-template.js'), 'utf8');
+
+const fingerprint = createHash('sha256');
+// The worker's own source is part of the version. Without this a fix to the fetch handler ships
+// under the old cache name and inherits whatever the broken one put there.
+fingerprint.update(`sw-template:${createHash('sha256').update(template).digest('hex')}\n`);
+for (const entry of entries) {
+  fingerprint.update(`${entry.rel}:${createHash('sha256').update(readFileSync(entry.full)).digest('hex')}\n`);
+}
+const version = fingerprint.digest('hex').slice(0, 12);
+
+const url = (rel) => `${BASE}${rel}`;
+const critical = [];
+const optional = [];
+for (const { rel } of entries) {
+  // The shell is asked for twice under two names — a cold launch of an installed app requests the
+  // directory, a reload requests the file — and `caches.match` does not know they are the same
+  // page. Both are cached; the worker answers navigations with the directory form.
+  if (rel === 'index.html') critical.push(BASE, url(rel));
+  else (isOptional(rel) ? optional : critical).push(url(rel));
+}
+
+const list = (urls) => `[\n${urls.map((entry) => `  ${JSON.stringify(entry)},`).join('\n')}\n]`;
+
+const worker = template
+  .replace("'__CACHE_VERSION__'", JSON.stringify(version))
+  .replace('__PRECACHE_CRITICAL__', list(critical))
+  .replace('__PRECACHE_OPTIONAL__', list(optional))
+  .replace('__SHELL_URL__', JSON.stringify(BASE));
+
+writeFileSync(join(DIST, 'sw.js'), worker);
+
+const bytes = entries.reduce((total, entry) => total + statSync(entry.full).size, 0);
+console.log(
+  `sw.js  ${version}  ${critical.length} shell + ${optional.length} art  ${(bytes / 1024 / 1024).toFixed(2)} MB  base ${BASE}`,
+);

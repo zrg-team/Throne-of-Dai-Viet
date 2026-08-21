@@ -10,13 +10,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5179",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && node scripts/build-sw.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "icon": "node scripts/build-icon.mjs",
     "icon:check": "node scripts/build-icon.mjs --check",
     "faces": "node scripts/build-faces.mjs",
     "faces:check": "node scripts/build-faces.mjs --check",
-    "fonts": "node scripts/fetch-fonts.mjs"
+    "fonts": "node scripts/fetch-fonts.mjs",
+    "sw": "node scripts/build-sw.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"

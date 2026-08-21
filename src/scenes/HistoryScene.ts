@@ -21,7 +21,7 @@ import {
 import { heroTemplates } from '../data/heroes';
 import { REAL_FIGURES } from '../data/heroNames';
 import type { Hero } from '../state/types';
-import { InkUI, INK_UI, INK_UI_HEX, type InkScrollArea } from '../ui/InkUI';
+import { BACK_BAR_BAND, BACK_BAR_HEIGHT, InkUI, INK_UI, INK_UI_HEX, type InkScrollArea } from '../ui/InkUI';
 import { scrollGestureConsumedTap } from '../ui/InkUI';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { renderHeroFaceInBox } from '../ui/FaceRenderer';
@@ -76,6 +76,7 @@ const CARD_GAP = 8;
 const ROW_INDENT = 10;
 /** Where the scrolling list starts: under the title, the subtitle and the tab strip. */
 const LIST_TOP = 108;
+/** The way back sits at the foot; the list gives up `BACK_BAR_BAND` to clear it. Same as the manual. */
 const PORTRAIT = 46;
 /** The Dynasties timeline: the rail's own x, and where the cards start to the right of it. */
 const RAIL_X = 14;
@@ -227,9 +228,10 @@ export class HistoryScene extends Phaser.Scene {
   }
 
   private renderHeader(): void {
-    this.chrome(this.ui.button({ x: SIDE, y: 10, width: 64, height: 28 }, t('history.back'), () => {
-      this.scene.start('MenuScene');
-    }, { variant: 'ghost', fontSize: '12px' }));
+    this.chrome(this.ui.backBar(
+      GAME_HEIGHT - BACK_BAR_HEIGHT - 10,
+      () => this.scene.start('MenuScene'),
+    ));
 
     this.chrome(this.add.text(GAME_WIDTH / 2, 14, t('history.title'), {
       color: '#2a2118',
@@ -274,7 +276,7 @@ export class HistoryScene extends Phaser.Scene {
 
   /** The list window: everything under the tab strip, less a hair of margin at the foot. */
   private listHeight(): number {
-    return GAME_HEIGHT - LIST_TOP - 10;
+    return GAME_HEIGHT - LIST_TOP - 10 - BACK_BAR_BAND;
   }
 
   private renderList(): void {

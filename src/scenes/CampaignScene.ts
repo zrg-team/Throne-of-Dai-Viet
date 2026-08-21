@@ -3,7 +3,7 @@ import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { createCampaignGameState, createEmpireGameState } from '../state/GameState';
 import { scheduleCampaignEvents } from '../systems/CampaignEventSystem';
 import type { CampaignConfig, Difficulty, GameMode } from '../state/types';
-import { InkUI, INK_UI } from '../ui/InkUI';
+import { BACK_BAR_HEIGHT, InkUI, INK_UI } from '../ui/InkUI';
 import { createLabel } from '../ui/theme';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { FOUNDER_IDS, heroTemplates } from '../data/heroes';
@@ -122,13 +122,12 @@ export class CampaignScene extends Phaser.Scene {
     );
     this.content.push(beginBtn);
 
-    const backBtn = this.ui.button(
-      { x: 54, y: 662, width: GAME_WIDTH - 108, height: 40 },
-      t('menu.back'),
+    // Clamped, not pinned at 662: `GAME_HEIGHT` follows the device and clamps as low as 620, where
+    // a bar written down against the 844 sheet is thirty points below the bottom of the screen.
+    this.content.push(this.ui.backBar(
+      Math.min(662, GAME_HEIGHT - BACK_BAR_HEIGHT - 10),
       () => this.scene.start('MenuScene'),
-      { variant: 'secondary', fontSize: '14px' },
-    );
-    this.content.push(backBtn);
+    ));
   }
 
   private renderSectionLabel(y: number, label: string, color?: string): void {

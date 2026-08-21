@@ -6,6 +6,7 @@ import { UI_FONT } from './fonts';
 import { PIGMENT } from './ink/palette';
 import { inkPath, mulberry32, washFill, type Pt } from './ink/stroke';
 import { designLength, designPointer } from '../game/graphicsQuality';
+import { t } from '../i18n';
 
 /**
  * A printed surface: a sheet of paper with a hand-pulled contour round it.
@@ -54,6 +55,26 @@ function printedSurface(
     closed: true,
   });
 }
+
+/**
+ * The way back: one width, one height, one place, on every page in the game.
+ *
+ * Taken from the classic-modes page, which had it right — an inset bar at the foot with a chevron
+ * in the label. Everywhere else had its own version: two pages put a 64x28 ghost button in the
+ * top-left corner, out of a thumb's reach entirely, and the three that were already at the foot
+ * ran the full width of the sheet at three different heights.
+ *
+ * The size is the classic page's own, to the point: 282 wide, and 44 through that page's vertical
+ * scale — 39 on an 844 sheet. Copied as a formula rather than as a number so the reference page
+ * renders exactly what it always did and every other page now renders the same thing.
+ */
+export const BACK_BAR_WIDTH = 282;
+/** `MenuScene.vh(44)`, lifted verbatim. `GAME_HEIGHT` is fixed for the life of the page. */
+export const BACK_BAR_HEIGHT = Math.round(
+  44 * Math.max(0.62, Math.min(1, (GAME_HEIGHT - 148) / 790)),
+);
+/** What a page has to keep clear at its foot to sit the bar there. */
+export const BACK_BAR_BAND = BACK_BAR_HEIGHT + 12;
 
 export interface UIBounds {
   x: number;
@@ -638,11 +659,17 @@ export class InkUI {
       wordWrap: { width: bounds.width - 12 - (opts.icon ? 30 : 0) },
     }).setOrigin(0.5);
     text.setAlpha(disabled ? 0.55 : 1);
-    fitTextToButton(text, bounds, fontSize, Boolean(opts.icon));
 
-    // The second line, if there is one. Both lines are re-centred as a block rather than the label
-    // staying put and the note hanging off the bottom — a button whose type sits high with a gap
-    // under it reads as a button with something clipped off it.
+    /**
+     * The second line, if there is one — built *before* the label is fitted, because it is the
+     * label's height budget.
+     *
+     * `fitTextToButton` was measuring the label against the whole button, then the note was
+     * stacked under it and the pair overflowed. It only shows when both wrap: a Moment offering
+     * `Strike before they deploy` over `Numbers only tell once they are in line.` in a 163-point
+     * button needs two lines of each, about 56 points of type in a 46-point box, and it printed
+     * straight through the timer bar under the card.
+     */
     let sub: Phaser.GameObjects.Text | undefined;
     if (opts.subLabel) {
       sub = this.label(bounds.width / 2, 0, opts.subLabel, 'caption', {
@@ -652,6 +679,18 @@ export class InkUI {
         wordWrap: { width: bounds.width - 16 },
       }).setOrigin(0.5);
       sub.setAlpha(disabled ? 0.55 : 0.82);
+    }
+    fitTextToButton(text, bounds, fontSize, Boolean(opts.icon), sub ? sub.height + 1 : 0);
+
+    // Both lines are re-centred as a block rather than the label staying put and the note hanging
+    // off the bottom — a button whose type sits high with a gap under it reads as a button with
+    // something clipped off it. The note gives ground of its own if the pair is still too tall:
+    // the label is what the button *is*, so it shrinks last.
+    if (sub) {
+      const budget = bounds.height - 8;
+      for (let size = 9.5; size >= 7.5 && text.height + 1 + sub.height > budget; size -= 0.5) {
+        sub.setFontSize(size);
+      }
       const block = text.height + 1 + sub.height;
       text.setY(bounds.height / 2 - block / 2 + text.height / 2);
       sub.setY(bounds.height / 2 + block / 2 - sub.height / 2);
@@ -895,6 +934,26 @@ export class InkUI {
     };
   }
 
+  /**
+   * The way back, at `y`, centred. See `BACK_BAR_WIDTH`.
+   *
+   * A method rather than five call sites agreeing to pass the same numbers, because five call
+   * sites agreeing is exactly what was not happening.
+   */
+  backBar(y: number, onClick: () => void): Phaser.GameObjects.Container {
+    return this.button(
+      {
+        x: Math.round((GAME_WIDTH - BACK_BAR_WIDTH) / 2),
+        y,
+        width: BACK_BAR_WIDTH,
+        height: BACK_BAR_HEIGHT,
+      },
+      t('menu.back'),
+      onClick,
+      { variant: 'secondary', fontSize: '14px' },
+    );
+  }
+
   closeIcon(bounds: UIBounds, onClick: () => void): Phaser.GameObjects.Container {
     const container = this.scene.add.container(bounds.x, bounds.y);
     const text = this.label(bounds.width / 2, bounds.height / 2 - 1, '×', 'button', {
@@ -1096,12 +1155,14 @@ function fitTextToButton(
   bounds: UIBounds,
   fontSize: string,
   hasIcon: boolean,
+  /** Height already spoken for by a second line under this one. */
+  reserved = 0,
 ): void {
   const base = Number.parseFloat(fontSize) || 13;
   // 12 units of side padding is the border (1.6) plus its wobble plus the cut corner, doubled;
   // 10 vertical keeps a two-line label off the top corner where the status dot is stamped.
   const maxWidth = bounds.width - 12 - (hasIcon ? 30 : 0);
-  const maxHeight = bounds.height - 10;
+  const maxHeight = bounds.height - 10 - reserved;
   if (text.width <= maxWidth && text.height <= maxHeight) return;
 
   const floor = Math.max(9, base * 0.72);

@@ -5,7 +5,7 @@ import { t } from '../i18n';
 import { GUIDE_ENTRIES, GUIDE_TABS, type GuideEntry, type GuideTab } from '../data/guide';
 import { forgetTour, requestGuidedRun } from '../state/tour';
 import { createAscentGameState } from '../state/GameState';
-import { InkUI, INK_UI, type InkScrollArea } from '../ui/InkUI';
+import { BACK_BAR_BAND, BACK_BAR_HEIGHT, InkUI, INK_UI, type InkScrollArea } from '../ui/InkUI';
 import { CARD_ICON_SIZE, drawCardIcon } from '../ui/CardIcons';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { applyPaperFX } from '../ui/ink/PaperFX';
@@ -16,6 +16,12 @@ const SIDE = 12;
 const LIST_WIDTH = GAME_WIDTH - SIDE * 2;
 /** Where the scrolling manual starts: under the title, the subtitle and the tab strip. */
 const LIST_TOP = 108;
+/**
+ * It was a 64x28 ghost button in the top-left corner — about seven hundred points from the thumb of
+ * the hand holding an 844-point phone, on a page whose whole content is read one-handed. It is the
+ * same bar every other page uses now, at the foot, and the list is shortened to clear it rather
+ * than the bar floating over what is being read.
+ */
 const CARD_GAP = 8;
 /** Header and tabs sit above the list, so they win the tap. Same trap as `HistoryScene.chrome`. */
 const CHROME_DEPTH = 5;
@@ -96,9 +102,10 @@ export class GuideScene extends Phaser.Scene {
   }
 
   private renderHeader(): void {
-    this.chrome(this.ui.button({ x: SIDE, y: 10, width: 64, height: 28 }, t('guide.back'), () => {
-      this.scene.start(this.returnTo);
-    }, { variant: 'ghost', fontSize: '12px' }));
+    this.chrome(this.ui.backBar(
+      GAME_HEIGHT - BACK_BAR_HEIGHT - 10,
+      () => this.scene.start(this.returnTo),
+    ));
 
     this.chrome(this.add.text(GAME_WIDTH / 2, 14, t('guide.title'), {
       color: '#2a2118',
@@ -135,7 +142,7 @@ export class GuideScene extends Phaser.Scene {
   }
 
   private renderPage(): void {
-    const height = GAME_HEIGHT - LIST_TOP - 10;
+    const height = GAME_HEIGHT - LIST_TOP - 10 - BACK_BAR_BAND;
     const scroll = this.ui.scrollArea({ x: SIDE, y: LIST_TOP, width: LIST_WIDTH, height });
     this.scroll = scroll;
     // `addTo` is not a convenience: it parents the area's swallow-zone and its content in that

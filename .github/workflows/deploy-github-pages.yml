@@ -21,6 +21,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The settings page prints a build number, and that number is `git rev-list --count HEAD`.
+          # The default shallow checkout has one commit in it, so every deploy would call itself
+          # build 1 — a version string that cannot tell two builds apart is not one.
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

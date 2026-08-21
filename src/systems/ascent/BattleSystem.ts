@@ -33,10 +33,12 @@ import {
   BATTLE_ROUND_BITE,
   BATTLE_RALLY_DESPERATION,
   BATTLE_ROUT_LOSS_SHARE,
+  BATTLE_OVERTIME_MORALE,
   BATTLE_ROUT_MORALE,
   BATTLE_VOLLEY_BITE,
   BATTLE_WITHDRAW_RECOVERY,
 } from '../../game/ascentConfig';
+import { battleAnswersEven, battleBeatsPerTick, battleReactDelay } from '../../game/battleOptions';
 import {
   BLOCK_OF, compositionOfUnits, formationAvailability, formationBeats, formationTiltSign,
   FORMATION_RING, type BattleFormation,
@@ -808,9 +810,15 @@ function advanceEnemyFormation(state: GameState, battle: AscentBattle, theirs: A
   // A Moment can freeze them: three beats of knowing exactly what you are answering.
   if ((battle.theirShapeLockBeats ?? 0) > 0) return;
 
-  // Only when they are actually losing the matchup. An invader that re-forms on every beat it could
-  // is an invader permanently in transit, which is its own kind of free win.
-  if (formationTiltSign(battle.theirFormation, battle.ourFormation) >= 0) return;
+  /**
+    * Only when they are actually losing the matchup. An invader that re-forms on every beat it
+    * could is an invader permanently in transit, which is its own kind of free win.
+    *
+    * Nightmare takes the even case too — see `battleAnswersEven`. There is no beat on that setting
+    * where the enemy is content to stand where they are.
+    */
+  const tilt = formationTiltSign(battle.theirFormation, battle.ourFormation);
+  if (tilt > 0 || (tilt === 0 && !battleAnswersEven())) return;
 
   const available = sideFormations(theirs, theirMustered(battle));
   // They answer the shape we are **standing in**, never the one we are walking towards.
@@ -827,10 +835,15 @@ function advanceEnemyFormation(state: GameState, battle: AscentBattle, theirs: A
 
   // Their discipline, on the same ladder ours is on. A levy invader is slow to answer and that is
   // the window the player is playing in.
+  // Their discipline, and then the player's own dial on top of it: difficulty in this game is how
+  // fast the enemy answers your shape, and nothing else. See `battleOptions`.
   const tier = Math.max(0, Math.min(2, theirs[0]?.elite ?? 0));
   const beats = Math.max(
     BATTLE_REFORM_BEATS.min,
-    Math.min(BATTLE_REFORM_BEATS.max, BATTLE_REFORM_BEATS.byTier[tier] ?? 2),
+    Math.min(
+      BATTLE_REFORM_BEATS.max,
+      (BATTLE_REFORM_BEATS.byTier[tier] ?? 2) + battleReactDelay(),
+    ),
   );
   battle.theirFormationTarget = wanted;
   battle.theirReformBeats = beats;
@@ -1423,6 +1436,13 @@ export function fightRound(state: GameState): void {
   const ourDrop = (ourLoss / ourEngaged) * BATTLE_MORALE_PER_LOSS;
   const theirDrop = (theirLoss / theirEngaged) * BATTLE_MORALE_PER_LOSS;
   const wonExchange = theirLoss > ourLoss;
+  // The run, for the screen. Only counted once the two are actually trading — an approach where
+  // nobody has lost anybody is not a round going against us.
+  if (ourLoss + theirLoss > 0) {
+    battle.wonLast = wonExchange;
+    battle.lostRun = wonExchange ? 0 : (battle.lostRun ?? 0) + 1;
+  }
+  battle.beatsSinceOurShape = (battle.beatsSinceOurShape ?? 0) + 1;
   // Applied to *every* host on the side, not just the one the maths treats as the line, so a
   // battered relief column carries its own heart rather than borrowing the vanguard's.
   // Being countered costs heart as well as men — see `BATTLE_COUNTER_MORALE`. This is what lets
@@ -1432,11 +1452,26 @@ export function fightRound(state: GameState): void {
   const ourCountered = tilt < 0 ? BATTLE_COUNTER_MORALE : 0;
   const theirCountered = tilt > 0 ? BATTLE_COUNTER_MORALE : 0;
   const momentMorale = battle.momentBonus?.morale ?? 0;
+  /**
+   * Overtime: what used to be the end of the fight is now the point at which it stops being
+   * survivable.
+   *
+   * A fight ended at `totalRounds` whether or not anything had been decided, and the commonest
+   * result of a close engagement was `spent` — two hosts still standing, the field still contested,
+   * and a screen that had spent twenty rounds asking for decisions announcing that none of them
+   * mattered. The clock is gone. In its place both lines start losing heart simply for still being
+   * there, and the loss grows every round, so the fight always reaches a decision — by somebody
+   * breaking, which is the only ending this screen was ever built to show.
+   *
+   * See `BATTLE_OVERTIME_MORALE` for why this cannot run away.
+   */
+  const overtime = Math.max(0, battle.round - battle.totalRounds);
+  const grind = overtime * BATTLE_OVERTIME_MORALE;
   for (const host of ours) {
-    setMorale(host, host.morale - ourDrop - ourCountered + momentMorale + (wonExchange ? BATTLE_MORALE_WIN_GAIN : 0));
+    setMorale(host, host.morale - ourDrop - ourCountered - grind + momentMorale + (wonExchange ? BATTLE_MORALE_WIN_GAIN : 0));
   }
   for (const host of theirs) {
-    setMorale(host, host.morale - theirDrop - theirCountered + (wonExchange ? 0 : BATTLE_MORALE_WIN_GAIN));
+    setMorale(host, host.morale - theirDrop - theirCountered - grind + (wonExchange ? 0 : BATTLE_MORALE_WIN_GAIN));
   }
   battle.ourMorale = defender.morale;
   battle.theirMorale = invader.morale;
@@ -1497,10 +1532,10 @@ export function fightRound(state: GameState): void {
     battle.over = true;
     return;
   }
-  if (battle.round >= battle.totalRounds) {
-    battle.outcome = 'spent';
-    battle.over = true;
-  }
+  // No `spent` here any more. `totalRounds` is where the grind starts, not where the fight stops —
+  // see the overtime block in `fightRound`. The outcome itself is still reachable: handing a live
+  // engagement to the generals or resolving one off-screen both still settle it on what is left
+  // standing.
 }
 
 /**
@@ -1632,7 +1667,10 @@ export function advanceBattle(state: GameState): void {
     if (ageMoment(state, battle)) return;
   }
 
-  for (let beat = 0; beat < BATTLE_BEATS_PER_TICK && !battle.over; beat += 1) {
+  // How many beats a season is worth, which the player can set. `BATTLE_BEATS_PER_TICK` is still
+  // the default this returns; see `battleOptions` for why the two speed numbers move together.
+  const perTick = battleBeatsPerTick();
+  for (let beat = 0; beat < perTick && !battle.over; beat += 1) {
     fightRound(state);
     if (!battle.moment) continue;
     // A commander does not stop the war to think.
@@ -2045,6 +2083,10 @@ export function setBattleFormation(state: GameState, formation: BattleFormation)
   if (!canFormFormation(state, formation)) return false;
 
   const beats = reformBeatsFor(state, battle);
+  // The order counts as noticing, whether or not it turns out to be the right one — the losing
+  // banner exists to say *you are being countered and have not answered*, and this is an answer.
+  battle.beatsSinceOurShape = 0;
+  battle.lostRun = 0;
   battle.freeReform = false;
   battle.formationTarget = formation;
   battle.reformBeats = beats;

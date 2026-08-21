@@ -7,9 +7,17 @@ import {
 } from '../state/tour';
 import { getLegacy, LEGACY_PERKS, purchaseLegacyPerk, rankForScore } from '../state/legacy';
 import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
+import {
+  applyUpdate, BUILD_NUMBER, BUILD_VERSION, buildDateLabel, checkForUpdate, getUpdateStatus,
+  subscribeUpdateStatus,
+} from '../pwa/updates';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
-import { InkUI, INK_UI, INK_UI_HEX, type UIBounds } from '../ui/InkUI';
+import { BACK_BAR_HEIGHT, InkUI, INK_UI, INK_UI_HEX, type UIBounds } from '../ui/InkUI';
+import {
+  BATTLE_DIFFICULTIES, BATTLE_SPEEDS, getBattleDifficulty, getBattleSpeed,
+  setBattleDifficulty, setBattleSpeed,
+} from '../game/battleOptions';
 import { CARD_ICON_SIZE, drawCardIcon } from '../ui/CardIcons';
 import { Copilot, type CopilotStep } from '../ui/Copilot';
 import { PIGMENT } from '../ui/ink/palette';
@@ -143,7 +151,12 @@ export class MenuScene extends Phaser.Scene {
     this.previewFlagSeed = loadSnapshot()?.state.mapConfig.seed ?? Math.floor(Math.random() * 1_000_000);
     this.drawBackground();
     this.render();
+    // The service worker finishes caching, or a new build lands, minutes after this page was
+    // drawn. Redrawing on the change is what lets the front page raise its notice and the settings
+    // page grow its Reload button without the player having to leave and come back.
+    const unsubscribeUpdates = subscribeUpdateStatus(() => this.render());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      unsubscribeUpdates();
       this.copilot?.destroy();
       this.copilot = undefined;
     });
@@ -1142,6 +1155,8 @@ export class MenuScene extends Phaser.Scene {
   private renderMain(): void {
     const saved = hasSnapshot();
 
+    this.renderUpdateNotice();
+
     // The settings block is pinned to the bottom of the sheet, so the column above it has a hard
     // floor. The tagline is built first because only Phaser knows how many lines it wraps to, and
     // then the gaps are shared out of whatever room is left — which is how the page fits at any
@@ -1287,6 +1302,59 @@ export class MenuScene extends Phaser.Scene {
   }
 
   /**
+   * The one line the front page will interrupt itself for: there is a newer game than this one.
+   *
+   * It hangs under the gold rule, on the sky above the karst, and it is an overlay — nothing below
+   * it moves. That is deliberate. The button column's gaps are already clamped at their floor on a
+   * 620-tall sheet (`renderMain` shares out whatever is left between the art and the footer), so a
+   * notice that took a row would have taken it out of the landscape, on every page load, for a
+   * state that is true for about a minute a month.
+   *
+   * Under the rule rather than over the top of the sheet: the first pass put it at vy(112), which
+   * on every height printed it straight across the bottom third of the drum. The mark and the
+   * wordmark own everything from the top edge down to the rule at 206, and the only paper this
+   * page has spare is the sky between that rule and the mountain tops.
+   *
+   * Only the two states a player can do something about are shown. "Saving for offline play" and
+   * "ready to play offline" are the settings page's business: the front page is not the place to
+   * narrate housekeeping that needs no decision.
+   */
+  private renderUpdateNotice(): void {
+    const status = getUpdateStatus();
+    if (status !== 'ready' && status !== 'installing') {
+      return;
+    }
+
+    const ready = status === 'ready';
+    const label = this.ui.label(
+      GAME_WIDTH / 2,
+      this.vy(224),
+      ready ? t('menu.update.readyHint') : t('menu.update.installing'),
+      'caption',
+      {
+        color: ready ? '#8a2a1b' : INK_UI_HEX.mutedText,
+        fontSize: '11px',
+        fontStyle: ready ? '700' : '400',
+        align: 'center',
+        // The paper behind it is a landscape; small type straight onto a mountain is unreadable.
+        backgroundColor: 'rgba(243,230,196,0.86)',
+        padding: { x: 9, y: 4 },
+      },
+    ).setOrigin(0.5);
+    this.content.push(label);
+
+    if (!ready) {
+      return;
+    }
+
+    const hit = this.add
+      .rectangle(GAME_WIDTH / 2, label.y, label.width + 20, label.height + 12, 0xffffff, 0.001)
+      .setInteractive({ useHandCursor: true });
+    hit.on('pointerup', () => applyUpdate());
+    this.content.push(hit);
+  }
+
+  /**
    * Both hand-played modes, stacked by flow rather than at fixed heights.
    *
    * `InkUI.card` grows to fit whatever its body wraps to and reports the result — the requested
@@ -1373,10 +1441,10 @@ export class MenuScene extends Phaser.Scene {
     // First time on this page, once: what a skirmish is and how one is won.
     this.startClassicTour();
 
-    this.content.push(this.ui.button({ x: 54, y: cursor + 6, width: 282, height: this.vh(44) }, t('ascent.menu.back'), () => {
+    this.content.push(this.ui.backBar(cursor + 6, () => {
       this.mode = 'main';
       this.render();
-    }, { variant: 'secondary', fontSize: '14px' }));
+    }));
   }
 
   /**
@@ -1464,10 +1532,10 @@ export class MenuScene extends Phaser.Scene {
       y += 82;
     }
 
-    this.content.push(this.ui.button({ x: 54, y: Math.min(y + 6, this.vy(726)), width: 282, height: this.vh(44) }, t('menu.back'), () => {
+    this.content.push(this.ui.backBar(Math.min(y + 6, this.vy(726)), () => {
       this.mode = 'main';
       this.render();
-    }, { variant: 'secondary', fontSize: '14px' }));
+    }));
   }
 
   /**
@@ -1651,6 +1719,45 @@ export class MenuScene extends Phaser.Scene {
           },
         ),
       },
+      /**
+       * ── The fight itself ──
+       *
+       * Not a graphics setting and not a taste setting about the map: these two change how the game
+       * plays. Difficulty is how fast an invader answers the shape you are standing in — the fight
+       * is a race between spotting a matchup and being countered out of it, so reaction time is the
+       * one number that makes it harder without making it a different game. Pace is how long a
+       * round is held on screen.
+       *
+       * Repeated on the skirmish setup page, which is where a player actually tries them out.
+       */
+      {
+        name: t('arena.difficulty'),
+        build: (y) => this.renderSettingRow(
+          { x: contentX, y, width: contentWidth, height: ROW_HEIGHT },
+          t('menu.battleDifficulty'),
+          BATTLE_DIFFICULTIES.map((id) => ({
+            id, label: t(`arena.difficulty.${id}` as 'arena.difficulty.easy'),
+          })),
+          getBattleDifficulty(),
+          (id) => {
+            setBattleDifficulty(id);
+            this.render();
+          },
+        ),
+      },
+      {
+        name: t('arena.speed'),
+        build: (y) => this.renderSettingRow(
+          { x: contentX, y, width: contentWidth, height: ROW_HEIGHT },
+          t('menu.battleSpeed'),
+          BATTLE_SPEEDS.map((id) => ({ id, label: t(`arena.speed.${id}` as 'arena.speed.slow') })),
+          getBattleSpeed(),
+          (id) => {
+            setBattleSpeed(id);
+            this.render();
+          },
+        ),
+      },
       // ── What the map is allowed to be doing ──
       //
       // Not the same question as graphics quality, which buys pixels. These buy *movement*: every
@@ -1723,9 +1830,22 @@ export class MenuScene extends Phaser.Scene {
       align: 'center',
     }).setOrigin(0.5, 0);
 
-    const backHeight = this.vh(40);
+    // The sheet is sized from this sum, and the way back is one fixed control on every page now
+    // — see `BACK_BAR_HEIGHT`. Scaled, it came out 27 points tall on a 620 sheet.
+    const backHeight = BACK_BAR_HEIGHT;
+    // The update block: a rule, one line of type, and — only when there is something to take — the
+    // button that takes it. Measured here rather than drawn and hoped for, because the plate is
+    // sized from this sum and a short sheet (620) has nothing to spare at the bottom.
+    const status = getUpdateStatus();
+    const VERSION_LINE = 13;
+    const STATUS_LINE = 15;
+    const updateButtonHeight = status === 'ready' ? this.vh(34) : 0;
+    const updateHeight = status === 'unsupported'
+      ? 0
+      : 14 + VERSION_LINE + 4 + STATUS_LINE + (updateButtonHeight > 0 ? 8 + updateButtonHeight : 0);
     const plateHeight = PAD + title.height + 20
       + settings.length * ROW_HEIGHT + (settings.length - 1) * ROW_GAP
+      + updateHeight
       + 22 + backHeight + PAD;
     const plateTop = Math.max(this.vy(150), Math.min(this.vy(232), GAME_HEIGHT - 24 - plateHeight));
 
@@ -1746,17 +1866,80 @@ export class MenuScene extends Phaser.Scene {
       setting.build(cursor);
       cursor += ROW_HEIGHT + ROW_GAP;
     }
-    cursor += 22 - ROW_GAP;
+    cursor -= ROW_GAP;
 
-    this.content.push(this.ui.button(
-      { x: contentX, y: cursor, width: contentWidth, height: backHeight },
-      t('menu.back'),
-      () => {
-        this.mode = 'main';
-        this.render();
-      },
-      { variant: 'secondary', fontSize: '14px' },
-    ));
+    // ── Which build this is, and whether there is a better one ──
+    //
+    // Two lines rather than one. The build stamp is a serial number a player reads out to somebody
+    // else; the state is a sentence they act on. Run together they were a line nobody finished.
+    if (updateHeight > 0) {
+      cursor += 14;
+
+      // Composed from the parts that exist rather than from one template, so a build made outside a
+      // git checkout prints "Version 0.2.0" and not "Version 0.2.0 · build  · ".
+      const stamp = [
+        t('menu.update.version', { version: BUILD_VERSION }),
+        BUILD_NUMBER ? t('menu.update.build', { build: BUILD_NUMBER }) : '',
+        buildDateLabel(),
+      ].filter(Boolean).join('  ·  ');
+      const version = this.ui.label(contentX, cursor, stamp, 'caption', {
+        color: INK_UI_HEX.mutedText,
+        fontSize: '9px',
+      }).setOrigin(0, 0);
+      this.content.push(version);
+
+      // The manual check is offered only at rest. While anything is in flight the game is already
+      // asking, and a button that re-asks a question being answered is a button that does nothing.
+      if (status === 'offlineReady') {
+        const check = this.ui.textLink(
+          contentX + contentWidth,
+          cursor + VERSION_LINE / 2,
+          t('menu.update.check'),
+          // Forced: a player who taps a button labelled "check for updates" gets a check, not the
+          // throttle that keeps the background poll from spending their data.
+          () => checkForUpdate(true),
+          { fontSize: '9px' },
+        );
+        // `textLink` lays its type out rightwards from its origin, so right-aligning it means
+        // measuring the drawn thing and stepping back by that — its own hit padding included.
+        const linkWidth = check.getBounds().width;
+        check.setX(check.x - linkWidth);
+        // Both halves share one line, and the stamp is the longer half in Vietnamese. If they would
+        // meet, the link goes — the version is the thing that has to be readable, and the check it
+        // offers happens on its own every half hour anyway.
+        if (version.width + 10 + linkWidth <= contentWidth) {
+          this.content.push(check);
+        } else {
+          check.destroy();
+        }
+      }
+      cursor += VERSION_LINE + 4;
+
+      this.content.push(this.ui.label(contentX, cursor, t(`menu.update.${status}` as 'menu.update.ready'), 'caption', {
+        color: status === 'ready' ? '#8a2a1b' : INK_UI_HEX.mutedText,
+        fontSize: '11px',
+        fontStyle: status === 'ready' ? '700' : '400',
+        wordWrap: { width: contentWidth },
+      }).setOrigin(0, 0));
+      cursor += STATUS_LINE;
+
+      if (updateButtonHeight > 0) {
+        cursor += 8;
+        this.content.push(this.ui.button(
+          { x: contentX, y: cursor, width: contentWidth, height: updateButtonHeight },
+          t('menu.update.reload'),
+          () => applyUpdate(),
+          { variant: 'primary', fontSize: '13px' },
+        ));
+        cursor += updateButtonHeight;
+      }
+    }
+    cursor += 22;
+
+    this.content.push(this.ui.backBar(cursor, () => {
+      this.mode = 'main';
+      this.render();
+    }));
   }
 
   private renderConfirmNew(): void {
@@ -1772,10 +1955,10 @@ export class MenuScene extends Phaser.Scene {
       this.startGame(createInitialGameState());
       // Note: full campaign setup is via "Start Campaign" → CampaignScene
     }, { variant: 'danger', fontSize: '14px' }));
-    this.content.push(this.ui.button({ x: 54, y: this.vy(690), width: 282, height: this.vh(44) }, t('menu.back'), () => {
+    this.content.push(this.ui.backBar(this.vy(690), () => {
       this.mode = 'main';
       this.render();
-    }, { variant: 'secondary', fontSize: '14px' }));
+    }));
   }
 
   /**

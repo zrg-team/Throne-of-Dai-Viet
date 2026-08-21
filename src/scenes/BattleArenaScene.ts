@@ -5,11 +5,18 @@ import { beginBattle } from '../systems/ascent/BattleSystem';
 import type {
   Army, AscentBattleRecord, GameState, KingdomPersonality, Land, TerrainSummary,
 } from '../state/types';
-import { InkUI, INK_UI, scrollGestureConsumedTap, type InkScrollArea } from '../ui/InkUI';
+import {
+  BACK_BAR_WIDTH, InkUI, INK_UI, scrollGestureConsumedTap, type InkScrollArea,
+} from '../ui/InkUI';
 import { createLabel } from '../ui/theme';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { t } from '../i18n';
 import { applyRenderScale } from '../game/graphicsQuality';
+import { drawFormationRing } from '../ui/ascent/formationCounters';
+import {
+  BATTLE_DIFFICULTIES, BATTLE_SPEEDS, getBattleDifficulty, getBattleSpeed,
+  setBattleDifficulty, setBattleSpeed, type BattleDifficulty, type BattleSpeed,
+} from '../game/battleOptions';
 
 /**
  * The fight, on its own, with the dials exposed.
@@ -31,6 +38,16 @@ import { applyRenderScale } from '../game/graphicsQuality';
  * is the matchup you get.
  */
 
+/**
+ * Take command: full width, and 38 tall rather than 50.
+ *
+ * It is the width of the page because it is the thing the page is for — that part was never the
+ * problem. It was the *height*: fifty points of button under a column of thirty-point tiles read as
+ * a slab, and it is the one control here that does not need to shout to be found. 32 is still four
+ * clear of a 28-point row of tiles and well over any touch floor at this width.
+ */
+const FIGHT_BUTTON = 32;
+
 /** A step on one of the arena's dials. `value` is what the state gets; `label` is what you tap. */
 interface Choice<T> {
   value: T;
@@ -47,10 +64,11 @@ export class BattleArenaScene extends Phaser.Scene {
   private content: Phaser.GameObjects.GameObject[] = [];
   private scroll?: InkScrollArea;
 
-  private ourMen = 900;
   // Defaults must be steps the dials actually offer, or the row opens with nothing lit and the
-  // player cannot tell whether the setting is unset or simply invisible.
-  private theirMen = 1500;
+  // player cannot tell whether the setting is unset or simply invisible. Moved up with the dial
+  // itself: 900 and 1,500 are not on it any more.
+  private ourMen = 2400;
+  private theirMen = 4000;
   private ourArms: ArmSpread = { archers: 0.25, heavy: 0.15 };
   private theirArms: ArmSpread = { archers: 0.25, heavy: 0.15 };
   private ground: keyof TerrainSummary = 'plains';
@@ -328,13 +346,23 @@ export class BattleArenaScene extends Phaser.Scene {
 
   // ── the dials ─────────────────────────────────────────────────────────────
 
+  /**
+    * The dial stopped at 2,400, which is a skirmish and not the thing the mode is named for.
+    *
+    * A late Dragon Ascent wave fields far more than that, and this page exists to let a player set
+    * up the fight they actually want to see. The steps stay coarse — a slider of every number
+    * between three hundred and twelve thousand is a worse control than seven presses — and they
+    * roughly double, so each one is a visibly different fight rather than a nudge.
+    */
   private sizes(): Array<Choice<number>> {
     return [
-      { value: 300, label: '300' },
       { value: 600, label: '600' },
-      { value: 900, label: '900' },
-      { value: 1500, label: '1.5k' },
+      { value: 1200, label: '1.2k' },
       { value: 2400, label: '2.4k' },
+      { value: 4000, label: '4k' },
+      { value: 6500, label: '6.5k' },
+      { value: 9000, label: '9k' },
+      { value: 12000, label: '12k' },
     ];
   }
 
@@ -354,6 +382,20 @@ export class BattleArenaScene extends Phaser.Scene {
    * `1 + min(0.35, rugged * 0.5)`, so 1.35 is the ceiling and a dial offering more would be
    * lying. A province made entirely of one terrain gives 1.00 / 1.20 / 1.30 / 1.35.
    */
+  /** How fast the enemy answers a shape, and nothing else. See `battleOptions`. */
+  private difficulties(): Array<Choice<BattleDifficulty>> {
+    return BATTLE_DIFFICULTIES.map((value) => ({
+      value, label: t(`arena.difficulty.${value}` as Parameters<typeof t>[0]),
+    }));
+  }
+
+  /** How long a round is held on screen, and how many of them a season is worth. */
+  private speeds(): Array<Choice<BattleSpeed>> {
+    return BATTLE_SPEEDS.map((value) => ({
+      value, label: t(`arena.speed.${value}` as Parameters<typeof t>[0]),
+    }));
+  }
+
   private grounds(): Array<Choice<keyof TerrainSummary>> {
     return [
       { value: 'plains', label: t('arena.ground.open') },
@@ -412,31 +454,16 @@ export class BattleArenaScene extends Phaser.Scene {
     this.push(blurb);
     y += blurb.height + 12;
 
-    // ── how the fight goes ──────────────────────────────────────────────
-    //
-    // The Field is the one screen whose whole job is teaching the battle, and it taught nothing:
-    // measured over forty fights, a player who pressed one chip and then watched traded at 0.28
-    // against 1.96 for never touching the screen — and no line anywhere said that the general was
-    // playing for them, or that touching a dial took it off him. The rule is now per dial, and
-    // this is where it gets said.
-    const howTitle = createLabel(this, GAME_WIDTH / 2, y, t('arena.howTitle'), 'caption', {
-      fontSize: '8.5px', align: 'center', color: `#${INK_UI.gold.toString(16).padStart(6, '0')}`,
-    }).setOrigin(0.5, 0);
-    this.push(howTitle);
-    y += howTitle.height + 5;
-
-    for (const key of ['arena.how1', 'arena.how2', 'arena.how3'] as const) {
-      const line = createLabel(this, GAME_WIDTH / 2, y, t(key), 'caption', {
-        fontSize: '10px', align: 'center', wordWrap: { width: GAME_WIDTH - 56 },
-      }).setOrigin(0.5, 0);
-      this.push(line);
-      y += line.height + 4;
-    }
-    y += 8;
-
     // The buttons are placed first, so the body knows exactly how much room it is allowed.
     const pinnedBackY = GAME_HEIGHT - 54;
-    const fightY = pinnedBackY - 60;
+    /**
+     * The two buttons as a matched pair, both the width of the way back.
+     *
+     * Take command was the full width of the sheet at fifty points tall with 17-point type — about
+     * twice the area of the bar under it, on a page whose entire content above them is small tiles.
+     * Loud is carried by the sỏi son border and by the word, not by size.
+     */
+    const fightY = pinnedBackY - FIGHT_BUTTON - 8;
 
     const body = this.add.container(0, 0);
     let by = 0;
@@ -451,28 +478,93 @@ export class BattleArenaScene extends Phaser.Scene {
     by = this.row(body, by, t('arena.general'), this.generals(), (c) => c.value === this.martial,
       (c) => { this.martial = c.value; this.render(); });
 
+    /**
+     * The two dials that are not about this matchup but about every fight.
+     *
+     * They are preferences, kept in `battleOptions` beside the language and the map theme, and the
+     * settings sheet on the front page offers the same two. They are repeated here because this is
+     * the screen built for trying a fight out — sending somebody to the front page and back to find
+     * out whether a quicker enemy is more fun is the sort of round trip that stops people trying.
+     */
+    by = this.row(body, by, t('arena.difficulty'), this.difficulties(),
+      (c) => c.value === getBattleDifficulty(),
+      (c) => { setBattleDifficulty(c.value); this.render(); });
+    by = this.row(body, by, t('arena.speed'), this.speeds(),
+      (c) => c.value === getBattleSpeed(),
+      (c) => { setBattleSpeed(c.value); this.render(); });
+
     if (this.last) by = this.renderLastFight(body, by);
 
-    const room = Math.max(120, fightY - y - 10);
+    /**
+     * The ring is pinned, and the dials scroll under it.
+     *
+     * Inside the body it scrolled with everything else, which on a 620 sheet meant the loop was cut
+     * in half by the bottom of the window — measured, the body wants 522 points and has 409 there.
+     * A closed loop with a piece missing is not a picture of a closed loop, and a reader who cannot
+     * see it is not going to learn that nothing in the ring is best.
+     *
+     * So it takes a fixed band above the buttons. The dials give up the difference, which costs
+     * them nothing they cannot scroll to and costs the drawing nothing at all — and on a tall sheet
+     * it fills the dead paper the pinned buttons left behind.
+     */
+    const ringTop = this.renderRing(fightY - 12);
+    const room = Math.max(120, ringTop - y - 10);
     const used = Math.min(room, by + 6);
     this.scroll = this.ui.scrollArea({ x: 20, y, width: GAME_WIDTH - 40, height: used });
     this.scroll.content.add(body);
     this.scroll.setContentHeight(by + 6);
     this.scroll.addTo(this.layer);
 
-    // Just under the dials when they fit, pinned when they do not. Clamped rather than free: the
-    // body is clipped to `used`, so nothing can ever reach down and cover the button.
-    const actionY = Math.min(y + used + 14, fightY);
+    /**
+     * Pinned at the foot, always — not floated up under whatever the dials happened to need.
+     *
+     * It used to follow the content, on the reasoning that a page whose dials fit should not leave
+     * sixty points of nothing between the two things you can press. Then the three paragraphs at
+     * the top became one row at the bottom, the dials stopped needing to scroll at all, and the
+     * same rule left four hundred and fifty points of empty paper below the buttons on a tall
+     * phone — with the one button this page exists for floating in the middle of the sheet.
+     *
+     * The foot is where every other page in the game puts its action and its way back, and it is
+     * the only part of a tall phone a thumb reaches. `used` still clips the body, so the dials can
+     * never reach down and cover it.
+     */
+    const actionY = fightY;
     this.push(this.ui.button(
-      { x: 28, y: actionY, width: GAME_WIDTH - 56, height: 50 },
-      t('arena.fight'), () => this.startFight(), { variant: 'primary', fontSize: '17px' },
+      { x: 28, y: actionY, width: GAME_WIDTH - 56, height: FIGHT_BUTTON },
+      t('arena.fight'), () => this.startFight(), { variant: 'primary', fontSize: '15px' },
     ));
     // Follows the fight button up rather than staying pinned, or a screen whose dials fit leaves
     // sixty pixels of nothing between the two things you can press.
-    this.push(this.ui.button(
-      { x: 28, y: Math.min(actionY + 60, pinnedBackY), width: GAME_WIDTH - 56, height: 40 },
-      t('menu.back'), () => this.scene.start('MenuScene'), { variant: 'secondary', fontSize: '14px' },
+    this.push(this.ui.backBar(
+      Math.min(actionY + 60, pinnedBackY), () => this.scene.start('MenuScene'),
     ));
+  }
+
+  /**
+   * The ring, under the dials rather than over them.
+   *
+   * It replaced three paragraphs of *watch what they are doing, two of your five answer it, press
+   * one* — a description of a picture where the picture would do — and it was first put at the top
+   * of the page, above everything. That was the wrong place twice over: this page's business is two
+   * hosts, four dials and a general, and a hundred and sixty points of reference material above
+   * them pushed the last dial off the bottom of a 620 sheet entirely.
+   *
+   * So it is the chain rather than the table — one row instead of five — and it sits at the foot of
+   * the body, where reference belongs. The table is still the right drawing on the coach card
+   * inside a fight, where the reader is under time; both are read off `formationBeats`.
+   */
+  private renderRing(bottom: number): number {
+    // Drawn at the origin and measured, then moved: its height is the five labels' own heights and
+    // those change with the language, so where it starts can only be known after it exists.
+    //
+    // The heading goes *inside* the loop rather than on a row above it — a ring is the one diagram
+    // that comes with its own empty middle, and paying a line of the page for a title while leaving
+    // that hole blank is paying twice for one idea.
+    const ring = drawFormationRing(this, 20, 0, GAME_WIDTH - 40, t('arena.howTitle'));
+    const top = bottom - ring.height;
+    ring.container.setY(top);
+    this.push(ring.container);
+    return top;
   }
 
   /** The two hosts, side by side, as the thing the screen is actually about. */

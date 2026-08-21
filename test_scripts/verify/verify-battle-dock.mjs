@@ -53,16 +53,12 @@ const layout = await page.evaluate(() => {
     return out;
   };
 
-  // The lane's Close button lives in `modalLayer`, not in the dock, and is the thing the dock has
-  // historically been printed straight through.
-  let closeTop = design;
-  game.scene.getScene('ConquestUIScene').modalLayer.list.forEach((o) => {
-    if (o.type !== 'Container' || o === ui.battleUi?.orders || o === ui.battleUi?.exits) return;
-    const hasText = o.list?.some?.((c) => c.type === 'Text');
-    if (!hasText) return;
-    const b = o.getBounds();
-    if (b.y > design * 0.6 && b.y < closeTop) closeTop = Math.round(b.y);
-  });
+  // The two exits took the foot of the screen from the lane's Close button, which is not drawn on
+  // this one at all. They are what the dock must now clear, and the reason to keep measuring it is
+  // unchanged: a dock that grows by ten points prints straight through whatever is under it.
+  const closeTop = Math.round(Math.min(
+    ...ui.battleUi.exits.list.filter((o) => o.type === 'Zone').map((o) => o.y),
+  ));
 
   // What the fight says should be on offer, so the count is a statement about the dock rather than
   // about this particular arena host's doctrine.
@@ -130,8 +126,8 @@ check(shapes[0] && stance[0] && shapes[0].h > stance[0].h,
   `shape ${shapes[0]?.h} vs stance ${stance[0]?.h}`);
 
 const bottom = Math.max(...layout.dock.map((z) => z.y + z.h));
-check(bottom <= layout.closeTop, 'the dock clears the lane’s Close button',
-  `dock ends ${bottom}, Close starts ${layout.closeTop}`);
+check(bottom <= layout.closeTop, 'the dock clears the exits below it',
+  `dock ends ${bottom}, exits start ${layout.closeTop}`);
 check(bottom <= layout.design, 'nothing runs off the bottom of the screen',
   `${bottom} of ${layout.design}`);
 
@@ -149,10 +145,23 @@ check(overlaps.length === 0, 'no two tap targets overlap', overlaps.slice(0, 3).
 const thumb = layout.design - Math.min(...layout.dock.map((z) => z.y));
 check(thumb <= 210, 'the whole dock is inside the thumb arc', `${thumb} points from the bottom`);
 
-// The exits are deliberately *outside* it.
+/**
+ * And the exits are inside it too, which is the opposite of what this file used to assert.
+ *
+ * They were a column in the header — about seven hundred points up an 844-point phone — on the
+ * argument that two semi-final controls should be hard to reach by accident. What that bought was
+ * two controls the player had to shift their grip to press at all, on the one screen in the game
+ * whose entire layout is an argument about a one-handed grip. Accident is guarded by their size
+ * and their wording now; reachability is not negotiable.
+ */
+const exitTop = Math.min(...layout.exits.map((z) => z.y));
 const exitBottom = Math.max(...layout.exits.map((z) => z.y + z.h));
-check(exitBottom < layout.design - thumb, 'the exits are out of the thumb’s reach',
-  `exits end ${exitBottom}, dock starts ${layout.design - thumb}`);
+check(layout.design - exitTop <= 210, 'the exits are inside the thumb arc too',
+  `${layout.design - exitTop} points from the bottom`);
+check(exitBottom <= layout.design, 'and still on the screen',
+  `exits end ${exitBottom} of ${layout.design}`);
+check(layout.exits.every((z) => z.h >= 40), 'each exit clears a thumb-sized target',
+  `${Math.min(...layout.exits.map((z) => z.h))} smallest`);
 
 check(held.ordersVisible === false, 'a Moment takes the dock away entirely');
 check(held.exitsAlpha < 1, 'and dims the exits too', `alpha ${held.exitsAlpha}`);
