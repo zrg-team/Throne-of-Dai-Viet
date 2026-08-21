@@ -122,6 +122,9 @@ import { PIGMENT } from '../ui/ink/palette';
 import { findLand } from '../systems/LandSystem';
 import { CARD_ICON_SIZE, drawCardIcon, iconForOption, type CardIconId } from '../ui/CardIcons';
 import { ASCENT_HUD_HEIGHT, AscentHud } from '../ui/ascent/AscentHud';
+import { AdvisorStrip } from '../ui/ascent/AdvisorStrip';
+import { Copilot, type CopilotStep } from '../ui/Copilot';
+import { hasSeenRunTour, markRunTourSeen } from '../state/tour';
 import { ActionBar } from '../ui/ActionBar';
 import { ResourceBar } from '../ui/ResourceBar';
 import { staggerIn } from '../ui/animations';
@@ -400,6 +403,28 @@ export class ConquestUIScene extends Phaser.Scene {
   private lanePauseBeforeOpen = false;
   /** The "world is stopped" badge, rebuilt with the bar. */
   private pausedBadge?: Phaser.GameObjects.Container;
+  /** The standing advisor under the readout band. Never rebuilt, only written into. */
+  private advisor!: AdvisorStrip;
+  /**
+   * The four cards a first run is shown, while they are up.
+   *
+   * Held rather than fired and forgotten so the scene's shutdown can take the veil down with it:
+   * the tour lays a full-screen blocker, and a blocker outliving its scene deafens whatever comes
+   * next. This is the same fault the front-page tour had when Settings was opened underneath it.
+   */
+  private runTour?: Copilot;
+  /**
+   * Whether this scene has already offered the tour, regardless of what storage thinks.
+   *
+   * `maybeRunTour` is called from `renderActionBar`, which runs on every economy tick, so the only
+   * thing stopping a second tour is the answer to "has it been seen". Leaving that answer entirely
+   * to `hasSeenRunTour()` is a loop waiting to happen: under `?tour=1` the storage answer is
+   * overridden to "no" forever, so the tour closed and immediately reopened from its first card,
+   * every tick, and could not be got rid of. A latch in the scene is the honest guard — the tour is
+   * offered once per run because it is about this run, and storage only decides whether it is
+   * offered at all.
+   */
+  private runTourDone = false;
   /**
    * The engagement the screen last opened itself for. A battle opens the lane exactly once —
    * closing it is a decision, and the fight carries on underneath — so this is keyed on the
@@ -466,11 +491,23 @@ export class ConquestUIScene extends Phaser.Scene {
     this.actionBar.context = () => ({ battleLive: Boolean(this.state.ascent?.activeBattle) });
     this.actionBar.refresh();
 
+    // The advisor. Built here beside the bar rather than per render for the same reason: it is
+    // written into on every economy tick and rebuilding its text would cost a canvas measure a
+    // second for a line that usually has not changed.
+    //
+    // Its action goes through `handleBarAction`, not through a private door of its own — the
+    // advice names a lane and the bar already knows how to open every lane there is. A second
+    // route into those screens is a second thing to keep correct.
+    this.advisor = new AdvisorStrip(this, (lane) => this.handleBarAction(lane));
+
     // The battle clock and the published control bounds both outlive a single render; neither
     // may survive the scene that owns them.
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.stopBattleClock();
       window.__hudTapBounds = [];
+      this.advisor.destroy();
+      this.runTour?.destroy();
+      this.runTour = undefined;
     });
 
     this.modalLayer = this.add.container(0, 0).setDepth(500);
@@ -487,6 +524,9 @@ export class ConquestUIScene extends Phaser.Scene {
     refreshAscentLaneState(this.state);
     this.resourceBar.refresh();
     this.hud.render(this.state.ascent);
+    // Written before the lane guards below: those can return early, and the one line on screen
+    // that claims to be reading the run must never be a tick behind the band above it.
+    this.advisor.render(this.state);
 
     // A lane that renders nothing has stranded the player: the bar and the map controls are
     // torn down before the screen is built, so an empty modal layer means no UI at all and no
@@ -1201,8 +1241,61 @@ export class ConquestUIScene extends Phaser.Scene {
     const hidden = Boolean(this.state.pendingAscentPrompt) || this.openPromptKey !== '';
     this.actionBar.setVisible(!hidden);
     if (!hidden) this.actionBar.refresh();
+    this.advisor.setVisible(!hidden);
+    // AFTER `renderMapControls`, which rewrites `__hudTapBounds` wholesale — the advisor's own
+    // rectangle has to be appended to that list rather than published before it and overwritten.
     this.renderMapControls(hidden);
+    if (!hidden) window.__hudTapBounds!.push(...this.advisor.tapBounds());
     this.renderPausedBadge(hidden);
+    this.maybeRunTour(hidden);
+  }
+
+  /**
+   * The four cards a first run is shown, once.
+   *
+   * Deliberately gated on the run being *playable* — no prompt up, the bar and the advisor both on
+   * screen. A tour that opened over the founder card would be pointing at a band the player cannot
+   * see and a bar that is not drawn, and its own blocker would sit on top of a decision that has
+   * to be answered before anything else can happen.
+   *
+   * The flag is separate from the front page's. They teach different things, a player may well
+   * arrive here having skipped the other, and a first run reached from a saved game never saw the
+   * front page's at all.
+   */
+  private maybeRunTour(hidden: boolean): void {
+    if (hidden || this.runTour || this.runTourDone || hasSeenRunTour()) return;
+
+    const band = { x: 0, y: HEADER_HEIGHT, width: GAME_WIDTH, height: ASCENT_HUD_HEIGHT };
+    const steps: CopilotStep[] = [
+      { id: 'band', heading: 'copilot.run.band.h', body: 'copilot.run.band.b', target: () => band },
+      {
+        id: 'coach',
+        heading: 'copilot.run.coach.h',
+        body: 'copilot.run.coach.b',
+        target: () => this.advisor.tapBounds()[0],
+      },
+      {
+        id: 'bar',
+        heading: 'copilot.run.bar.h',
+        body: 'copilot.run.bar.b',
+        target: () => ({
+          x: 0,
+          y: GAME_HEIGHT - ACTION_BAR_HEIGHT,
+          width: GAME_WIDTH,
+          height: ACTION_BAR_HEIGHT,
+        }),
+      },
+      { id: 'go', heading: 'copilot.run.go.h', body: 'copilot.run.go.b' },
+    ];
+
+    this.runTour = new Copilot(this, {
+      steps,
+      onClose: () => {
+        markRunTourSeen();
+        this.runTourDone = true;
+        this.runTour = undefined;
+      },
+    });
   }
 
   /**
