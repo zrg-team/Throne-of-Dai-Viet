@@ -98,6 +98,7 @@ export const enGuide = {
   "copilot.next": "Next",
   "copilot.guide": "How to play",
   "copilot.done": "Start playing",
+  "copilot.gotIt": "Got it",
   "copilot.welcome.h": "Welcome to Vạn Thắng",
   "copilot.welcome.b": "A strategy game about Đại Việt, drawn as a folk woodblock. A few presses and you are ruling one. Let me show you the front page.",
   "copilot.play.h": "Start here",
@@ -142,6 +143,12 @@ export const enGuide = {
   "advice.steady.body": "Nothing needs answering. POWER is what your realm is worth in the field; THREAT is what the coming wave is worth. When the second passes the first this strip will say so, and name what to do about it.",
 
   // ── The tour a first run is given ────────────────────────────────────────
+  "copilot.run.mandate.h": "Your first choice, and it is permanent",
+  "copilot.run.mandate.b": "The throne comes with something already on it. These three are different opening moves rather than better and worse ones — a walled frontier, a stronger household army, or a faster court with a champion already on the road. None can be taken back and none is wrong. Read what each one does to a number, and pick the run you want to play.",
+  "copilot.run.founder.h": "The champion who founds the dynasty",
+  "copilot.run.founder.b": "One of these joins you now, and each arrives carrying something: a district already administered, a host already raised, a treasury already kept, or the country's goodwill. Swipe to see all three. Whoever you take is recorded in the Codex for good and may be offered to you as a founder in a later run — so a summon matters beyond the run that made it.",
+  "copilot.run.court.h": "Where they serve",
+  "copilot.run.court.b": "A champion posted earns their keep — a governor plainly, a marshal or a treasurer more. Held in reserve they still draw wages every season and return nothing, so reserve is a real answer only when nothing on offer suits them. A court seat changes what the whole realm produces; a governorship changes one province.",
   "copilot.run.band.h": "The band across the top",
   "copilot.run.band.b": "POWER is what your realm is worth. THREAT is what the next wave is worth, with one word for the comparison — ahead, even, behind. Between them: the level, the wave, and how many seasons until it lands.",
   "copilot.run.coach.h": "This line is your advisor",
@@ -150,6 +157,14 @@ export const enGuide = {
   "copilot.run.bar.b": "Build, Heroes, Court, Army, Affairs and the Chronicle. Your ministers act on their own; these are where you overrule them. The two bare marks at the end stop the clock and leave the run — and stopping the clock costs nothing at all.",
   "copilot.run.go.h": "Now let it run",
   "copilot.run.go.b": "The realm marches itself. It will stop and ask you the decisions that matter, one card at a time, and nothing has a timer you can lose to. Watch the band, follow the advisor, and see how many waves you hold.",
+  "guide.play.label": "Play a guided run",
+  "guide.play.note": "A real Dragon Ascent run, with the advisor walking you through it step by step.",
+  "copilot.run.decision.h": "That was a decision",
+  "copilot.run.decision.b": "One card at a time, two to four options, and never a timer you can lose to. The clock does run underneath — so if you want to read the map before answering, press the pause mark first and take as long as you like. Look at the band now: what you just chose has already moved it.",
+  "copilot.run.muster.h": "The first wave is mustering",
+  "copilot.run.muster.b": "A host lands on your frontier in two seasons. Your generals will meet it whether or not you watch, and if the fight is worth watching a Battle button appears on the bar and the advisor points straight at it. The question to ask is the one word beside THREAT: ahead, even, or behind.",
+  "copilot.run.aftermath.h": "You held",
+  "copilot.run.aftermath.b": "Read the band again. POWER has moved by what the fight cost and won. THREAT is now the *next* wave, which is larger — the floor climbs every wave whatever you do. And if the ambition multiplier went up, that is the price of what you took, billed once and then shed. The advisor reads all three every season. From here, follow it.",
 } as const;
 
 export const viGuide = {
@@ -238,6 +253,7 @@ export const viGuide = {
   "copilot.next": "Tiếp",
   "copilot.guide": "Cách chơi",
   "copilot.done": "Vào chơi",
+  "copilot.gotIt": "Đã rõ",
   "copilot.welcome.h": "Chào mừng đến Vạn Thắng",
   "copilot.welcome.b": "Một trò chơi chiến lược về Đại Việt, vẽ theo lối tranh khắc gỗ dân gian. Vài lần bấm nữa là ngươi bắt đầu cai trị. Để tôi chỉ qua trang đầu.",
   "copilot.play.h": "Bắt đầu ở đây",
@@ -277,6 +293,12 @@ export const viGuide = {
   "advice.steady.body": "Chưa có gì phải trả lời. SỨC MẠNH là giá trị giang sơn ngươi ngoài trận; HIỂM HỌA là giá trị đợt giặc sắp tới. Khi cái sau vượt cái trước, dòng này sẽ nói, và nói luôn phải làm gì.",
 
   // ── Vòng dẫn của ván đầu tiên ────────────────────────────────────────────
+  "copilot.run.mandate.h": "Lựa chọn đầu tiên, và là vĩnh viễn",
+  "copilot.run.mandate.b": "Ngai vàng đến tay đã kèm sẵn một thứ. Ba lá này là ba nước mở đầu khác nhau, chứ không phải hay dở hơn kém — biên ải đã đắp thành, cấm quân mạnh hơn, hay một triều đình chạy nhanh hơn cùng một danh tướng đang trên đường về. Không lá nào rút lại được và cũng chẳng lá nào sai. Hãy đọc xem mỗi lá đổi con số nào, rồi chọn lối chơi ngươi muốn.",
+  "copilot.run.founder.h": "Danh tướng khai quốc",
+  "copilot.run.founder.b": "Một trong những người này sẽ theo ngươi ngay bây giờ, và ai cũng mang theo một thứ: một huyện đã có người cai quản, một đạo quân đã mộ xong, một ngân khố đã dành sẵn, hoặc lòng dân cả nước. Vuốt để xem đủ ba người. Ai được chọn đều ghi vào Danh Lục vĩnh viễn và có thể được dâng lên làm người khai quốc ở ván sau — nên một lần triệu hồi có ý nghĩa vượt ra ngoài ván đấu đã tạo ra nó.",
+  "copilot.run.court.h": "Cho họ chức gì",
+  "copilot.run.court.b": "Danh tướng có chức thì đáng đồng tiền — quan trấn thủ đã rõ, còn thái úy hay quan coi kho thì hơn. Để dự bị thì mỗi mùa vẫn ăn bổng lộc mà chẳng trả lại gì, nên dự bị chỉ là câu trả lời thật khi không chức nào hợp với họ. Một ghế trong triều đổi thứ cả giang sơn làm ra; một chức trấn thủ chỉ đổi một trấn.",
   "copilot.run.band.h": "Dải trên đỉnh màn hình",
   "copilot.run.band.b": "SỨC MẠNH là giá trị giang sơn ngươi. HIỂM HỌA là giá trị đợt giặc kế tiếp, kèm một chữ so sánh — vượt trội, ngang tài, yếu thế. Giữa hai bên: cấp, số đợt, và còn mấy mùa nữa nó tới.",
   "copilot.run.coach.h": "Dòng này là cố vấn của ngươi",
@@ -285,4 +307,12 @@ export const viGuide = {
   "copilot.run.bar.b": "Xây, Anh hùng, Triều đình, Quân đội, Bang giao và Biên niên. Quần thần tự hành động; đây là nơi ngươi bác lời họ. Hai dấu trơn ở cuối dùng để dừng đồng hồ và rời ván — mà dừng đồng hồ thì chẳng mất gì cả.",
   "copilot.run.go.h": "Giờ thì để nó chạy",
   "copilot.run.go.b": "Giang sơn tự vận hành. Nó sẽ dừng lại hỏi ngươi những quyết định đáng hỏi, mỗi lần một lá bài, và không có gì đếm ngược để ngươi thua cả. Hãy nhìn dải số, nghe cố vấn, và xem ngươi giữ được bao nhiêu đợt.",
+  "guide.play.label": "Chơi một ván có hướng dẫn",
+  "guide.play.note": "Một ván Rồng Thăng Long thật, có cố vấn dẫn ngươi đi từng bước.",
+  "copilot.run.decision.h": "Vừa rồi là một quyết định",
+  "copilot.run.decision.b": "Mỗi lần một lá bài, hai đến bốn lựa chọn, và không bao giờ có đồng hồ đếm ngược khiến ngươi thua. Nhịp thời gian vẫn chạy bên dưới — nên nếu muốn đọc bản đồ trước khi trả lời, hãy bấm dấu tạm dừng rồi thong thả bao lâu cũng được. Giờ hãy nhìn dải số: điều ngươi vừa chọn đã làm nó đổi rồi.",
+  "copilot.run.muster.h": "Đợt giặc đầu tiên đang tập hợp",
+  "copilot.run.muster.b": "Hai mùa nữa một đạo quân sẽ đổ xuống biên thùy. Các tướng của ngươi sẽ nghênh chiến dù ngươi có xem hay không, và nếu trận ấy đáng xem thì nút Chiến trận sẽ hiện trên thanh, còn cố vấn thì chỉ thẳng vào đó. Câu cần hỏi là chữ nằm cạnh HIỂM HỌA: vượt trội, ngang tài, hay yếu thế.",
+  "copilot.run.aftermath.h": "Ngươi đã giữ được",
+  "copilot.run.aftermath.b": "Hãy đọc lại dải số. SỨC MẠNH đã đổi đúng bằng cái giá và cái được của trận vừa rồi. HIỂM HỌA giờ là đợt *kế tiếp*, và nó lớn hơn — cái sàn ấy mỗi đợt đều dâng, dù ngươi làm gì. Còn nếu số nhân tham vọng tăng lên, đó là giá của những gì ngươi đã lấy: tính một lần rồi rụng dần. Cố vấn đọc cả ba thứ ấy mỗi mùa. Từ đây, cứ theo nó.",
 } satisfies Record<keyof typeof enGuide, string>;
