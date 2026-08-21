@@ -635,9 +635,10 @@ export class InkUI {
       align: 'center',
       // A glyph and its gap come out of the label's line before it wraps, or a long label wraps to
       // the full width and then the group is centred as if it had not.
-      wordWrap: { width: bounds.width - 10 - (opts.icon ? 30 : 0) },
+      wordWrap: { width: bounds.width - 12 - (opts.icon ? 30 : 0) },
     }).setOrigin(0.5);
     text.setAlpha(disabled ? 0.55 : 1);
+    fitTextToButton(text, bounds, fontSize, Boolean(opts.icon));
 
     // The second line, if there is one. Both lines are re-centred as a block rather than the label
     // staying put and the note hanging off the bottom — a button whose type sits high with a gap
@@ -1073,6 +1074,42 @@ function textStyle(variant: 'title' | 'subtitle' | 'body' | 'label' | 'caption' 
     default:
       return { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '13px' };
   }
+}
+
+/**
+ * Shrink a button's label until it is actually inside the button.
+ *
+ * Phaser's word wrap only breaks on spaces, so a single word wider than the button does not wrap —
+ * it draws straight through the border and into the next control. That is what the action bar
+ * looked like: at 47 units a button, "Heroes" measures 40 and "Affairs" 38 against 37 units of
+ * usable width, so both labels sat on their own outline, and with the Battle button present the
+ * lanes drop to 41 and the words ran into each other across the seam. Vietnamese fails the other
+ * way — "Ngoại giao" wraps to two lines 28 tall inside 36 units of button and touches both edges.
+ *
+ * So the label is measured after it is laid out and stepped down half a point at a time until it
+ * fits both ways, with a floor so a hopeless case ends up small rather than invisible. It only ever
+ * shrinks: a label that already fits is left at the size its caller asked for, which is why this
+ * can sit in the shared button and change nothing on the screens that had the room all along.
+ */
+function fitTextToButton(
+  text: Phaser.GameObjects.Text,
+  bounds: UIBounds,
+  fontSize: string,
+  hasIcon: boolean,
+): void {
+  const base = Number.parseFloat(fontSize) || 13;
+  // 12 units of side padding is the border (1.6) plus its wobble plus the cut corner, doubled;
+  // 10 vertical keeps a two-line label off the top corner where the status dot is stamped.
+  const maxWidth = bounds.width - 12 - (hasIcon ? 30 : 0);
+  const maxHeight = bounds.height - 10;
+  if (text.width <= maxWidth && text.height <= maxHeight) return;
+
+  const floor = Math.max(9, base * 0.72);
+  for (let size = base - 0.5; size >= floor; size -= 0.5) {
+    text.setFontSize(size);
+    if (text.width <= maxWidth && text.height <= maxHeight) return;
+  }
+  text.setFontSize(floor);
 }
 
 function drawButtonSurface(

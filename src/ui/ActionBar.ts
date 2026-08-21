@@ -61,6 +61,16 @@ const BUTTON_CLEAR = 4;
 
 export const ACTION_BUTTON_HEIGHT = 36;
 /**
+ * The type size the row is set in, and the floor it will not go below.
+ *
+ * 11 is the size the bar was fixed at, and it was a size for six English words: at 49 units a
+ * button "Heroes" measures 40 against 37 units of usable width, so it drew over its own border.
+ * 9 is where a bar label stops being readable at arm's length, so a row that cannot fit at 9 —
+ * seven Vietnamese lanes with a siege running — is left slightly tight rather than illegible.
+ */
+const MAX_BAR_FONT = 11;
+const MIN_BAR_FONT = 9;
+/**
  * The buttons' centre line — measured down from the band, not taken as the middle of the bar.
  *
  * `GAME_HEIGHT - ACTION_BAR_HEIGHT / 2` is what this was, and centring is exactly what went wrong:
@@ -75,16 +85,18 @@ export const ACTION_BUTTON_Y = GAME_HEIGHT - ACTION_BAR_HEIGHT
 /**
  * Width of an icon-only system control, and the gap separating that cluster from the lanes.
  *
- * 34 is a *touch* number, not a drawn one — the glyphs inside are about eighteen units across and
+ * 28 is a *touch* number, not a drawn one — the glyphs inside are about eighteen units across and
  * nothing is printed around them. With `extraHitPadding` it comes to the 44 units a fingertip
- * wants, which is the whole reason these keep a width at all.
+ * wants, which is the whole reason these keep a width at all. It came down from 34 to buy the
+ * lanes their gaps back: two frameless glyphs were reserving twelve units of the strip that the
+ * six labelled buttons beside them needed more, and nothing about the marks reads differently.
  *
  * The gap went 6 → 12 when the frames came off. A framed control ends at its own border and the
  * eye finds the seam; a bare mark ends wherever its ink stops, so the only thing left to say
  * "these two are not lanes" is the air in front of them.
  */
-const SYSTEM_BUTTON_WIDTH = 34;
-const SYSTEM_CLUSTER_GAP = 12;
+const SYSTEM_BUTTON_WIDTH = 28;
+const SYSTEM_CLUSTER_GAP = 10;
 
 /** One button's place on the bar. Produced by `actionBarSlots`, which owns all bar geometry. */
 export interface ActionSlot {
@@ -119,13 +131,21 @@ function getButtonWidth(gameMode: string): number {
   return isCampaignMode(gameMode) ? 60 : 72;
 }
 
+/**
+ * Air between two buttons.
+ *
+ * Two units was not a gap. Each button is drawn as a torn sheet — a wobbled contour with a 1.6-unit
+ * border and a shadow offset a unit and a half down-right — so at two units of nominal clearance
+ * the ink of one button reached the ink of the next and the six lanes read as one crowded ribbon.
+ * Three is the least that shows daylight at this scale, and it costs the lanes one unit of width.
+ */
 function getButtonGap(gameMode: string): number {
-  if (gameMode === 'ascent' || gameMode === 'empire') return 2;
+  if (gameMode === 'ascent' || gameMode === 'empire') return 3;
   return isCampaignMode(gameMode) ? 3 : 4;
 }
 
 function getButtonMargin(gameMode: string): number {
-  if (gameMode === 'ascent' || gameMode === 'empire') return 6;
+  if (gameMode === 'ascent' || gameMode === 'empire') return 5;
   return isCampaignMode(gameMode) ? 7 : 6;
 }
 
@@ -240,11 +260,59 @@ export class ActionBar extends Phaser.GameObjects.Container {
     this.buttonObjects = [];
   }
 
+  /** What is printed on a lane button. Read twice per refresh: once to size the row, once to draw it. */
+  private slotLabel(action: string, paused: boolean): string {
+    if (action === 'pause') return paused ? t('action.resume') : t('action.pause');
+    if (action === 'directives') return t('empire.action.directives');
+    return t(`action.${action}` as Parameters<typeof t>[0]);
+  }
+
+  /**
+   * One type size for the whole row, chosen from the longest label on it.
+   *
+   * `InkUI.button` will shrink a label that does not fit its own button, which is what stops a word
+   * running through its border — but done button by button it produced a bar set in four sizes at
+   * once (Build at 11, Heroes at 10, Affairs at 10.5, Battle at 9), and a row of equal buttons in
+   * ragged type reads as a mistake even when every word fits. So the row is measured as a set and
+   * the largest size that suits all of it is used for all of it.
+   *
+   * Measured on a throwaway Text rather than estimated from character counts: Vietnamese labels
+   * wrap to two lines ("Ngoại giao") and the wrap decides the height, which is half of what has to
+   * fit.
+   */
+  private barFontSize(labels: string[], laneWidth: number): number {
+    const maxWidth = laneWidth - 12;
+    const maxHeight = ACTION_BUTTON_HEIGHT - 10;
+    const probe = this.ui.label(0, 0, '', 'button', { wordWrap: { width: maxWidth }, align: 'center' });
+    probe.setVisible(false);
+
+    let chosen = MIN_BAR_FONT;
+    for (let size = MAX_BAR_FONT; size >= MIN_BAR_FONT; size -= 0.5) {
+      probe.setFontSize(size);
+      const fits = labels.every((text) => {
+        probe.setText(text);
+        return probe.width <= maxWidth && probe.height <= maxHeight;
+      });
+      if (fits) {
+        chosen = size;
+        break;
+      }
+    }
+    probe.destroy();
+    return chosen;
+  }
+
   private buildButtons(): void {
     const paused = this.gameState.isStrategyPause;
     const top = ACTION_BUTTON_Y - ACTION_BUTTON_HEIGHT / 2;
+    const slots = actionBarSlots(this.gameMode, this.context());
+    const laneWidth = slots.find((slot) => !slot.system)?.width ?? 0;
+    const fontSize = this.barFontSize(
+      slots.filter((slot) => !slot.system).map((slot) => this.slotLabel(slot.action, paused)),
+      laneWidth,
+    );
 
-    for (const slot of actionBarSlots(this.gameMode, this.context())) {
+    for (const slot of slots) {
       const bounds = { x: slot.x, y: top, width: slot.width, height: ACTION_BUTTON_HEIGHT };
 
       if (slot.system) {
@@ -252,28 +320,16 @@ export class ActionBar extends Phaser.GameObjects.Container {
         continue;
       }
 
-      let label: string;
+      const label = this.slotLabel(slot.action, paused);
       let variant: string;
 
       if (slot.action === 'pause') {
         // Classic modes keep the labelled Pause/Resume toggle.
-        label = paused ? t('action.resume') : t('action.pause');
         variant = paused ? 'danger' : 'ghost';
-      } else if (slot.action === 'affairs') {
-        label = t('action.affairs');
-        variant = 'secondary';
-      } else if (slot.action === 'directives') {
-        label = t('empire.action.directives');
-        variant = 'secondary';
-      } else if (slot.action === 'chronicle') {
-        label = t('action.chronicle');
-        variant = 'secondary';
       } else if (slot.action === 'battle') {
         // The siege is the loudest thing on the bar while it lasts.
-        label = t('action.battle');
         variant = 'danger';
       } else {
-        label = t(`action.${slot.action}` as Parameters<typeof t>[0]);
         variant = 'secondary';
       }
 
@@ -281,7 +337,7 @@ export class ActionBar extends Phaser.GameObjects.Container {
         bounds,
         label,
         () => this.onAction(slot.action),
-        { fontSize: '11px', variant: variant as 'secondary' | 'ghost' | 'danger' | 'primary' },
+        { fontSize: `${fontSize}px`, variant: variant as 'secondary' | 'ghost' | 'danger' | 'primary' },
       );
       this.add(button);
       this.buttonObjects.push(button);
@@ -316,8 +372,8 @@ export class ActionBar extends Phaser.GameObjects.Container {
       {
         frameless: true,
         // The smallest targets on the bar, so they get back in touch area what they gave up
-        // in width. 34 + 10 is the 44 units a fingertip actually needs.
-        extraHitPadding: 10,
+        // in width. 28 + 16 is the 44 units a fingertip actually needs.
+        extraHitPadding: 16,
       },
     );
 
@@ -345,13 +401,26 @@ export class ActionBar extends Phaser.GameObjects.Container {
     this.addStatusDot(slot, bounds.y);
   }
 
+  /**
+   * The dot, stamped on the button's cut corner rather than inside it.
+   *
+   * Seven units in from the corner put it in the one place the label also wants: with a lane
+   * 47 units wide an English label measured up to 40 and a wrapped Vietnamese one stands two lines
+   * tall, so the dot landed on the type — on the "t" of Court, over the second line of "Triều
+   * đình". Moved onto the corner itself it overlaps only the chamfer, which is paper, and the ring
+   * behind it keeps it legible where it crosses the button's own border.
+   */
   private addStatusDot(slot: ActionSlot, top: number): void {
     const dot = this.statusColor?.(slot.action);
     if (dot === undefined) return;
-    // Drawn as a sibling rather than a child of the button, so `ui.button`'s press
+    // Drawn as siblings rather than children of the button, so `ui.button`'s press
     // tween (which scales the whole container) does not make the dot pulse with it.
-    const marker = this.scene.add.circle(slot.x + slot.width - 7, top + 7, 3.5, dot, 0.95);
+    const x = slot.x + slot.width - 4;
+    const y = top + 4;
+    const ring = this.scene.add.circle(x, y, 4.6, INK_UI.parchment, 1);
+    const marker = this.scene.add.circle(x, y, 3.2, dot, 0.95);
+    this.add(ring);
     this.add(marker);
-    this.buttonObjects.push(marker);
+    this.buttonObjects.push(ring, marker);
   }
 }

@@ -967,6 +967,16 @@ export class ConquestUIScene extends Phaser.Scene {
     groundSources: Phaser.GameObjects.GameObject[];
     /** Where the two exits sit in the header, so `buildBattleExits` never has to guess. */
     exitBounds: UIBounds;
+    /**
+     * Where each part of the fight's furniture ended up, for the coach to point at.
+     *
+     * Recorded as the dock lays itself out rather than recomputed by whoever wants to highlight
+     * something, and for the same reason `exitBounds` is: the arithmetic is four constants deep
+     * (`BATTLE_PIPS_HEIGHT`, the field's measured height, `BATTLE_RAILS_HEIGHT`,
+     * `BATTLE_READOUT_HEIGHT`) and a second copy of it in the tour would come apart the first time
+     * anybody moved a row by three pixels. Filled every rebuild, so it is never a beat stale.
+     */
+    coachBounds: Partial<Record<'pips' | 'rails' | 'readout' | 'stance' | 'formation', UIBounds>>;
     /** Both dials, fixed. They used to scroll, and Retreat sat below the fold. */
     orders: Phaser.GameObjects.Container;
     /**
@@ -1519,6 +1529,67 @@ export class ConquestUIScene extends Phaser.Scene {
         id: 'go',
         when: () => true,
         steps: () => card('go', 'copilot.run.go.h', 'copilot.run.go.b'),
+      },
+      /**
+       * The fight, the first time one is watched.
+       *
+       * The screen the coach had least business skipping and skipped anyway: it is a whole
+       * interface of its own — two hosts, a round clock, a telegraph line, four stances, five
+       * shapes and two ways out — and none of it appears anywhere else in the game. It was
+       * skipped because a lane sets `openPromptKey`, which is how `maybeRunTour` decides a card
+       * owns the glass; `overCard` is what lets a stage speak when the thing it is about IS the
+       * thing owning the glass.
+       *
+       * Every rectangle comes off `battleUi.coachBounds`, recorded by the dock as it lays itself
+       * out. The dock is four constants deep and another session is actively moving it; a second
+       * copy of that arithmetic here would be wrong within the week.
+       */
+      {
+        id: 'fight',
+        overCard: true,
+        when: () => this.openPromptKey === 'lane:battle' && Boolean(this.battleUi?.coachBounds.stance),
+        steps: () => {
+          const box = (key: 'pips' | 'rails' | 'readout' | 'stance' | 'formation') =>
+            () => this.battleUi?.coachBounds[key];
+          return [
+            {
+              id: 'fight-rails',
+              heading: 'copilot.fight.rails.h',
+              body: 'copilot.fight.rails.b',
+              target: box('rails'),
+            },
+            {
+              id: 'fight-pips',
+              heading: 'copilot.fight.pips.h',
+              body: 'copilot.fight.pips.b',
+              target: box('pips'),
+            },
+            {
+              id: 'fight-read',
+              heading: 'copilot.fight.read.h',
+              body: 'copilot.fight.read.b',
+              target: box('readout'),
+            },
+            {
+              id: 'fight-stance',
+              heading: 'copilot.fight.stance.h',
+              body: 'copilot.fight.stance.b',
+              target: box('stance'),
+            },
+            {
+              id: 'fight-shapes',
+              heading: 'copilot.fight.shapes.h',
+              body: 'copilot.fight.shapes.b',
+              target: box('formation'),
+            },
+            {
+              id: 'fight-exits',
+              heading: 'copilot.fight.exits.h',
+              body: 'copilot.fight.exits.b',
+              target: () => this.battleUi?.exitBounds,
+            },
+          ];
+        },
       },
       // ── The rest of a real run, each at the moment it first happens ─────
       {
@@ -5403,6 +5474,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     this.battleUi = {
       content,
       fieldHeight,
+      coachBounds: {},
       field,
       readout,
       pips,
@@ -6585,6 +6657,22 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     }
 
     const stanceY = dockY + BATTLE_READOUT_HEIGHT + 3;
+    // Recorded where they are computed. See `coachBounds`.
+    ui.coachBounds.pips = {
+      x: content.x, y: content.y, width: content.width, height: BATTLE_PIPS_HEIGHT,
+    };
+    ui.coachBounds.rails = {
+      x: content.x,
+      y: content.y + BATTLE_PIPS_HEIGHT + ui.fieldHeight + 8,
+      width: content.width,
+      height: BATTLE_RAILS_HEIGHT,
+    };
+    ui.coachBounds.readout = {
+      x: content.x, y: dockY, width: content.width, height: BATTLE_READOUT_HEIGHT,
+    };
+    ui.coachBounds.stance = {
+      x: content.x, y: stanceY, width: content.width, height: BATTLE_STANCE_HEIGHT,
+    };
     const stances: FieldStance[] = ['withdraw', 'defend', 'balanced', 'press'];
     const segGap = 5;
     const segW = (content.width - segGap * (stances.length - 1)) / stances.length;
@@ -6622,6 +6710,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // No caption. The chips carry an icon and a verb now, and the readout band above says what the
     // enemy is doing in words — between them there is nothing left for a label to add.
     const formY = stanceY + BATTLE_STANCE_HEIGHT + 3;
+    ui.coachBounds.formation = {
+      x: content.x, y: formY, width: content.width, height: BATTLE_FORMATION_HEIGHT,
+    };
     // While the fight is held waiting for its first order, say which strip is the one to touch.
     // The note in the field tells the player to pick a formation; this is the strip it means, and
     // without it "give the first order" is a sentence with no object.

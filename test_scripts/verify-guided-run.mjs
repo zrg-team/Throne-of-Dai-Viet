@@ -427,6 +427,61 @@ const pressOnMenu = (pattern) => handoff.evaluate((source) => {
   return false;
 }, pattern);
 
+// ── The first card offers the language ──────────────────────────────────────
+//
+// A tour is the first thing a new player sees and it comes up in whatever the browser defaulted
+// to, while the switch that would fix it is a two-word line at the foot of a page this very tour
+// is covering with its veil: the one moment the choice is most needed is the one moment the usual
+// control cannot be reached.
+const pickLanguage = (label) => handoff.evaluate((want) => {
+  const scene = window.__phaserGame.scene.getScene('MenuScene');
+  for (const child of scene.children.list) {
+    if (child.type !== 'Text' || child.text !== want || child.depth < 900) continue;
+    const m = child.getWorldTransformMatrix();
+    const hit = scene.children.list.find((r) => r.type === 'Rectangle' && r.depth >= 900
+      && Math.abs(r.x - (m.tx + child.width / 2)) < 4);
+    if (hit) {
+      hit.emit('pointerup', { id: 21, downTime: 0 }, 0, 0, { stopPropagation() {} });
+      return true;
+    }
+  }
+  return false;
+}, label);
+
+const offered = await handoff.evaluate(() => {
+  const scene = window.__phaserGame.scene.getScene('MenuScene');
+  return scene.children.list
+    .filter((c) => c.type === 'Text' && c.depth >= 900)
+    .map((c) => c.text);
+});
+check('the first card offers both languages',
+  offered.includes('English') && offered.includes('Tiếng Việt'), JSON.stringify(offered));
+
+check('the other language can be pressed', await pickLanguage('Tiếng Việt'));
+await handoff.waitForTimeout(700);
+const switched = await handoff.evaluate(() => {
+  const scene = window.__phaserGame.scene.getScene('MenuScene');
+  const menuLabels = scene.children.list
+    .flatMap((c) => (c.list ?? []).filter((k) => k.type === 'Text').map((k) => k.text));
+  const cardLabels = scene.children.list
+    .filter((c) => c.type === 'Text' && c.depth >= 900).map((c) => c.text);
+  return {
+    stored: localStorage.getItem('mandate:language:v1'),
+    tourUp: Boolean(scene.copilot),
+    cardVietnamese: cardLabels.some((text) => /Chào mừng/.test(text)),
+    pageVietnamese: menuLabels.some((text) => /Rồng Thăng Long|Chế độ cổ điển/.test(text)),
+  };
+});
+check('choosing it switches the language', switched.stored === 'vi', JSON.stringify(switched));
+check('the card redraws in it rather than restarting the tour',
+  switched.cardVietnamese && switched.tourUp, JSON.stringify(switched));
+// Nothing in this game subscribes to `subscribeLanguageChange` — every switch re-renders its own
+// scene by hand — so without wiring the page would stay in the old language behind the new card.
+check('and the page underneath redraws with it', switched.pageVietnamese, JSON.stringify(switched));
+// Back to English so the rest of the run reads the labels it expects.
+await pickLanguage('English');
+await handoff.waitForTimeout(600);
+
 for (let card = 1; card <= 4; card += 1) {
   const advanced = await pressOnMenu('^Next$');
   if (!advanced) { check(`front-page tour card ${card} has a Next`, false); break; }
