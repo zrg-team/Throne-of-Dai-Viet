@@ -113,7 +113,7 @@ export const termsVi: HistoryCatalog = {
 
   'terms.thien-menh.title': 'Thiên mệnh',
   'terms.thien-menh.body':
-    'Quan niệm cho rằng quyền trị nước là do trời trao, và trời rút lại khi người trị nước không còn xứng — rút một cách nhìn thấy được, qua lụt lội, mất mùa và loạn lạc. Đó không phải thần quyền; đó là một kỳ khảo hạch không có đường kháng nghị, mà triều đại nào trong bảng này cũng từng nhận, và cuối cùng đều trượt.',
+    'Quan niệm cho rằng quyền trị nước là do trời trao, và trời rút lại khi người trị nước không còn xứng — rút một cách nhìn thấy được, qua lụt lội, mất mùa và loạn lạc. Đó không phải thần quyền; đó là một kỳ khảo hạch không cho ai kêu oan, mà triều đại nào trong bảng này cũng từng nhận, và cuối cùng đều trượt.',
 
   'terms.su-ky.title': 'Sử ký',
   'terms.su-ky.body':
@@ -125,7 +125,7 @@ export const termsVi: HistoryCatalog = {
 
   'terms.hoa-lu.title': 'Hoa Lư',
   'terms.hoa-lu.body':
-    'Kinh đô nhà Đinh và nhà Tiền Lê, nằm trong thung lũng bốn bề núi đá vôi — một toà thành không ai đánh bật ra được, và là chỗ dở để cai trị một nước. Việc dời về Thăng Long là lúc phòng thủ thôi còn là điều phải nghĩ đến trước nhất.',
+    'Kinh đô nhà Đinh và nhà Tiền Lê, nằm trong thung lũng bốn bề núi đá vôi — một toà thành không ai đánh bật ra được, nhưng lại là nơi khó bề cai trị cả nước. Việc dời về Thăng Long là lúc phòng thủ thôi còn là điều phải nghĩ đến trước nhất.',
 
   'terms.phu-xuan.title': 'Phú Xuân',
   'terms.phu-xuan.body':
@@ -133,7 +133,7 @@ export const termsVi: HistoryCatalog = {
 
   'terms.chieu.title': 'Chiếu',
   'terms.chieu.body':
-    'Lời tuyên bố bằng văn bản do vua ban, và là công cụ cai trị thường ngày ở đây. Chiếu dời đô dời cả một kinh đô chỉ bằng một tờ; các chiếu chỉ trong trò chơi cũng là ý ấy — một mệnh lệnh thường trực, tốn kém để ban ra và còn tốn kém suốt thời gian nó còn hiệu lực.',
+    'Lời tuyên bố bằng văn bản do vua ban, và là công cụ cai trị thường ngày của triều đình. Chiếu dời đô dời cả một kinh đô chỉ bằng một tờ; các chiếu chỉ trong trò chơi cũng là ý ấy — một mệnh lệnh thường trực, tốn kém để ban ra và còn tốn kém suốt thời gian nó còn hiệu lực.',
 
   'terms.quan-tran.title': 'Trấn · quận · châu',
   'terms.quan-tran.body':
@@ -165,7 +165,7 @@ export const termsVi: HistoryCatalog = {
 
   'terms.bac-thuoc.title': 'Bắc thuộc',
   'terms.bac-thuoc.body':
-    'Hơn một nghìn năm dưới quyền cai trị của phương Bắc, từ năm 111 TCN đến năm 938, sách chia làm ba hay bốn kỳ tuỳ từng bộ. Đây là dữ kiện dài nhất trong toàn bộ dòng thời gian này.',
+    'Hơn một nghìn năm dưới quyền cai trị của phương Bắc, từ năm 111 TCN đến năm 938, sách chia làm ba hay bốn kỳ tuỳ từng bộ. Đây là quãng dài nhất trong suốt dòng thời gian này.',
 
   'terms.chiem-thanh.title': 'Chiêm Thành',
   'terms.chiem-thanh.body':
@@ -185,7 +185,7 @@ export const termsVi: HistoryCatalog = {
 
   'terms.de-vuong.title': 'Đế · Vương',
   'terms.de-vuong.body':
-    'Hoàng đế, và vua. Chỗ khác nhau giữa hai chữ mới là điều đáng nói: vua nước ta xưng vương trong thư gửi triều đình phương Bắc và xưng đế ở trong nước. Nam quốc sơn hà viết "Nam đế cư" là cố ý.',
+    'Hoàng đế, và vua. Chỗ khác nhau giữa hai chữ ấy mới là điều đáng nói: vua nước ta xưng vương trong thư gửi triều đình phương Bắc và xưng đế ở trong nước. Nam quốc sơn hà viết "Nam đế cư" là cố ý.',
 
   'terms.lang-xa.title': 'Làng · xã',
   'terms.lang-xa.body':
