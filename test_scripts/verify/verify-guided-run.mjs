@@ -213,7 +213,43 @@ let seen = await stage('', 'opening');
 check('a clear frame raises the strip-and-readout walkthrough',
   seen.shown.includes('opening'), JSON.stringify(seen.shown));
 
-seen = await stage('scene.promptsAnswered = 1;', 'decision');
+// ── The decision card must follow a decision the player actually made ───────
+//
+// Reported from a real run: the card said "that was a decision" over a board where none had been
+// answered. `promptsAnswered` was already three by then — the mandate, the founder and the court
+// appointment are all prompts, and the walkthrough had just walked the player through every one
+// of them — so it fired the instant the scripted part ended, pointing at a band that had not
+// moved. It now measures from the hand-over instead of from zero.
+const premature = await page.evaluate(() => {
+  const scene = window.__phaserGame.scene.getScene('ConquestUIScene');
+  scene.runTour?.destroy();
+  scene.runTour = undefined;
+  scene.tourStagesShown.clear();
+  scene.promptsAtHandover = -1;
+  // Exactly the state after the opening cards: three prompts answered, none of them the player's
+  // own decision, and the walkthrough not yet finished.
+  scene.promptsAnswered = 3;
+  const stage = scene.tourStages().find((s) => s.id === 'decision');
+  return { fires: stage.when(), answered: scene.promptsAnswered };
+});
+check('the decision card does not fire on the opening cards',
+  premature.fires === false, JSON.stringify(premature));
+
+const afterHandover = await page.evaluate(() => {
+  const scene = window.__phaserGame.scene.getScene('ConquestUIScene');
+  // The `go` stage records the line to measure from as it builds its card.
+  scene.tourStages().find((s) => s.id === 'go').steps();
+  const stage = scene.tourStages().find((s) => s.id === 'decision');
+  const quietAfterHandover = stage.when();
+  scene.promptsAnswered += 1;
+  return { quietAfterHandover, afterOneMore: stage.when(), line: scene.promptsAtHandover };
+});
+check('nor immediately after the walkthrough lets go',
+  afterHandover.quietAfterHandover === false, JSON.stringify(afterHandover));
+check('but it does once a real decision is answered',
+  afterHandover.afterOneMore === true, JSON.stringify(afterHandover));
+
+seen = await stage('scene.promptsAnswered += 1;', 'decision');
 check('answering a decision raises the decision card',
   seen.shown.includes('decision'), JSON.stringify(seen.shown));
 

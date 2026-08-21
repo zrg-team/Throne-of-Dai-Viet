@@ -478,6 +478,20 @@ export class ConquestUIScene extends Phaser.Scene {
   /** Prompts answered so far, which is how the `decision` stage knows it has something to explain. */
   private promptsAnswered = 0;
   /**
+   * What `promptsAnswered` stood at when the scripted part of the walkthrough finished.
+   *
+   * The `decision` card exists to catch the player just after they have answered their first
+   * real decision — it says "that was a decision" and tells them to look at what it moved on the
+   * band. It fired on `promptsAnswered > 0`, and by then the count was already three: the
+   * mandate, the founder and the court appointment are all prompts, and the walkthrough had just
+   * walked the player through every one of them. So the card arrived immediately after "now let
+   * it run", announcing a decision whose last act had been closing a coach card, and pointing at
+   * a band that had not moved since.
+   *
+   * -1 until the hand-over, so the stage cannot fire during the scripted opening at all.
+   */
+  private promptsAtHandover = -1;
+  /**
    * The engagement the screen last opened itself for. A battle opens the lane exactly once —
    * closing it is a decision, and the fight carries on underneath — so this is keyed on the
    * battle's identity rather than on "is one live".
@@ -1528,7 +1542,11 @@ export class ConquestUIScene extends Phaser.Scene {
       {
         id: 'go',
         when: () => true,
-        steps: () => card('go', 'copilot.run.go.h', 'copilot.run.go.b'),
+        steps: () => {
+          // The scripted part ends here, so this is the line the `decision` card measures from.
+          this.promptsAtHandover = this.promptsAnswered;
+          return card('go', 'copilot.run.go.h', 'copilot.run.go.b');
+        },
       },
       /**
        * The fight, the first time one is watched.
@@ -1594,7 +1612,9 @@ export class ConquestUIScene extends Phaser.Scene {
       // ── The rest of a real run, each at the moment it first happens ─────
       {
         id: 'decision',
-        when: () => this.promptsAnswered > 0,
+        // A decision answered in ordinary play, after the walkthrough let go — not one of the
+        // opening cards the walkthrough itself just talked the player through.
+        when: () => this.promptsAtHandover >= 0 && this.promptsAnswered > this.promptsAtHandover,
         steps: () => card('decision', 'copilot.run.decision.h', 'copilot.run.decision.b'),
       },
       {
