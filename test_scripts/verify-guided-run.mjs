@@ -24,6 +24,19 @@ const page = await browser.newPage({ viewport: { width: 390, height: 844 }, devi
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+// A page that reloads or crashes mid-run reports itself as "execution context was destroyed",
+// which names the symptom and not the cause. These two name the cause.
+page.on('crash', () => errors.push('THE PAGE CRASHED'));
+// Counted rather than reported: the first navigation is the `goto` below, and a listener that
+// calls that an error reports a failure on every single run. What matters is a SECOND one — the
+// page reloading under the harness, which surfaces as "execution context was destroyed" and names
+// the symptom rather than the cause.
+let navigations = 0;
+page.on('framenavigated', (frame) => {
+  if (frame !== page.mainFrame()) return;
+  navigations += 1;
+  if (navigations > 1) errors.push(`THE PAGE RELOADED (${frame.url()})`);
+});
 
 /** The world-position of the first button on a scene whose label matches. */
 const buttonAt = (sceneKey, pattern) => page.evaluate(([key, source]) => {
@@ -283,6 +296,77 @@ check('a stage about the map does not speak over a card', waitsForClear === fals
 
 firstErrors.forEach((e) => errors.push(`first-run: ${e}`));
 await first.close();
+
+// ── The front page's tour ends by handing over a game, not a manual ─────────
+//
+// The last card used to offer "How to play", which opened four pages of prose — a tour that
+// answers "how do I play" with "go and read". It now starts a real run with the walkthrough on.
+// `?tour=1` is required: the front-page tour is suppressed under `navigator.webdriver` like every
+// other one here.
+const handoff = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+const handoffErrors = [];
+handoff.on('pageerror', (e) => handoffErrors.push(e.message));
+handoff.on('console', (m) => { if (m.type() === 'error') handoffErrors.push(m.text()); });
+await handoff.goto(`${BASE}/?capture=1&tour=1`, { waitUntil: 'domcontentloaded' });
+await handoff.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
+await handoff.waitForTimeout(1400);
+
+const pressOnMenu = (pattern) => handoff.evaluate((source) => {
+  const scene = window.__phaserGame.scene.getScene('MenuScene');
+  const re = new RegExp(source);
+  for (const child of scene.children.list) {
+    const label = child.list?.find?.((k) => k.type === 'Text' && re.test(k.text));
+    if (label) {
+      child.list.find((k) => k.type === 'Rectangle')
+        ?.emit('pointerup', { id: 11, downTime: 0 }, 0, 0, { stopPropagation() {} });
+      return true;
+    }
+  }
+  return false;
+}, pattern);
+
+for (let card = 1; card <= 4; card += 1) {
+  const advanced = await pressOnMenu('^Next$');
+  if (!advanced) { check(`front-page tour card ${card} has a Next`, false); break; }
+  await handoff.waitForTimeout(320);
+}
+const lastCard = await handoff.evaluate(() => {
+  const scene = window.__phaserGame.scene.getScene('MenuScene');
+  const labels = [];
+  for (const child of scene.children.list) {
+    const label = child.list?.find?.((k) => k.type === 'Text');
+    if (label) labels.push(label.text);
+  }
+  return labels;
+});
+check('the last front-page card offers to teach by playing',
+  lastCard.some((text) => /How to play now/.test(text)), JSON.stringify(lastCard.slice(-4)));
+// A label that wraps inside its button is the failure this row is most prone to: it carries two
+// buttons and a counter on one line, and the longer of the two labels grew when it stopped
+// pointing at the manual.
+const NEWLINE = String.fromCharCode(10);
+check('neither button on that card wraps',
+  !lastCard.some((text) => /How to play now|Start playing/.test(text) && text.includes(NEWLINE)),
+  JSON.stringify(lastCard.filter((text) => text.includes(NEWLINE))));
+
+check('pressing it is possible', await pressOnMenu('How to play now'));
+const landed = await handoff.waitForFunction(
+  () => window.__phaserGame.scene.isActive('ConquestUIScene'),
+  null,
+  { timeout: 20000 },
+).then(() => true).catch(() => false);
+check('it opens a real run rather than the manual', landed);
+if (landed) {
+  await handoff.waitForTimeout(1500);
+  const coached = await handoff.evaluate(() => {
+    const scene = window.__phaserGame.scene.getScene('ConquestUIScene');
+    return { guidedRun: scene.guidedRun, active: scene.tourActive, shown: [...scene.tourStagesShown] };
+  });
+  check('and the run it opens is a coached one',
+    coached.guidedRun === true && coached.active === true, JSON.stringify(coached));
+}
+handoffErrors.forEach((e) => errors.push(`handoff: ${e}`));
+await handoff.close();
 
 check('no console errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 

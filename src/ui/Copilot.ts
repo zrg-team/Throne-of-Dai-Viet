@@ -260,7 +260,11 @@ export class Copilot {
 
     // The manual, offered once, on the card where the player has just been told it exists.
     if (last && this.opts.onGuide) {
-      const guideWidth = 96;
+      // 128, not 96. This button no longer says "How to play" — it says "How to play now", and in
+      // Vietnamese "Chỉ ta chơi ngay", either of which wrapped to two lines inside 96 and left the
+      // card looking like one of its two buttons had broken. The row still fits: the card is 350
+      // wide, the pair comes to 128 + 8 + 104 = 240, and the counter beside them needs about 40.
+      const guideWidth = 128;
       const guide = this.ui.button(
         { x: nextX - 8 - guideWidth, y: row, width: guideWidth, height: BUTTON_H },
         t('copilot.guide'),

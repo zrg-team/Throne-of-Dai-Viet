@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { createAscentGameState, createInitialGameState } from '../state/GameState';
 import { hasSnapshot, loadSnapshot, snapshotLabel } from '../state/save';
-import { hasSeenTour, markTourSeen } from '../state/tour';
+import { hasSeenTour, markTourSeen, requestGuidedRun } from '../state/tour';
 import { getLegacy, LEGACY_PERKS, purchaseLegacyPerk, rankForScore } from '../state/legacy';
 import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
@@ -156,7 +156,19 @@ export class MenuScene extends Phaser.Scene {
     ];
     this.copilot = new Copilot(this, {
       steps,
-      onGuide: () => this.scene.start('GuideScene'),
+      /**
+       * The last card's second button starts a *run*, not the manual.
+       *
+       * A tour that ends by sending the reader to four pages of prose has answered "how do I
+       * play" with "go and read". The player is one press from a game and has just been told
+       * what every door on this page does; what they want now is somebody to sit beside them
+       * while they play one. The manual is still a door on the footer for anyone who would
+       * rather read first.
+       */
+      onGuide: () => {
+        requestGuidedRun();
+        this.startAscentRun();
+      },
       // Skipped and finished are the same event here. A player who dismissed the tour has answered
       // the question it was asking, and showing it again next time refuses to take that answer.
       onClose: () => {
