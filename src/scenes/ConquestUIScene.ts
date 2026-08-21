@@ -981,6 +981,13 @@ export class ConquestUIScene extends Phaser.Scene {
     /** Identity of what the order cards offer, so a spent one-shot greys out. */
     orderSignature: string;
     /**
+     * The shape each side is *standing in*, so the blocks re-arrange on the beat an order lands.
+     *
+     * Separate from `fieldSignature` on purpose: that one rebuilds the ground, the camps and the
+     * banners, and none of them should flicker because a block moved.
+     */
+    shapeSignature: string;
+    /**
      * Identity of the half of the rails a beat does not move, so it is built once per fight.
      *
      * See `buildBattleRails`: rebuilding the whole readout on the beat was two thirds of the
@@ -5352,6 +5359,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       rivalColor,
       fieldSignature: '',
       orderSignature: '',
+      shapeSignature: '',
       railsSignature: '',
       ourMarkers: [],
       theirMarkers: [],
@@ -6133,13 +6141,13 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     ours.forEach((host, index) => {
       const marker = this.battleItems!.createArmyMarker(
         hostSize(host), true, undefined, this.state.mapConfig.seed,
-        { ...hostKitFor(this.state, host), mustered: hostSize(host) },
+        { ...hostKitFor(this.state, host), mustered: hostSize(host), shape: battle.ourFormation },
         this.battleBaseScale(),
       );
       marker.setPosition(lines.ourX, lane(index, ours.length));
       field.add(marker);
       const tracked = this.trackMarker(host.id, marker, hostSize(host));
-      tracked.halfWidth = this.hostHalfWidth(host, undefined, tracked.mustered);
+      tracked.halfWidth = this.hostHalfWidth(host, undefined, tracked.mustered, battle.ourFormation);
       ui.ourMarkers.push(tracked);
     });
 
@@ -6147,7 +6155,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       const marker = this.battleItems!.createArmyMarker(
         hostSize(host), false, rivalColor,
         Math.max(0, this.state.kingdoms.findIndex((k) => k.id === battle.kingdomId)),
-        { ...hostKitFor(this.state, host), mustered: hostSize(host) },
+        { ...hostKitFor(this.state, host), mustered: hostSize(host), shape: battle.theirFormation },
         this.battleBaseScale(),
       );
       marker.setPosition(lines.theirX, lane(index, theirs.length));
@@ -6158,7 +6166,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       // mirroring it blind, which is the rule for every baked prop in the game.
       faceTravel(marker, -1);
       const tracked = this.trackMarker(host.id, marker, hostSize(host));
-      tracked.halfWidth = this.hostHalfWidth(host, undefined, tracked.mustered);
+      tracked.halfWidth = this.hostHalfWidth(host, undefined, tracked.mustered, battle.theirFormation);
       ui.theirMarkers.push(tracked);
       // Nothing on an enemy column is tappable any more. Concentrating the line on one of them was
       // a second cursor on a screen designed for one thumb, and it asked the player to *aim* in a
@@ -6509,10 +6517,10 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       // A greyed control with no explanation is a bug; one that says how long it is greyed for is
       // a rule. This is the only extra reading the stance strip carries that formation does not.
       orders.add(this.ui.label(
-        content.x + content.width - 2, dockY + BATTLE_READOUT_HEIGHT - 1,
+        content.x + content.width - 2, dockY + 13,
         t('ascent.battle.locked', { n: String(battle.stanceLockBeats ?? 0) }), 'caption',
         { fontSize: '8px', color: `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}` },
-      ).setOrigin(1, 1));
+      ).setOrigin(1, 0));
     }
 
     const stanceY = dockY + BATTLE_READOUT_HEIGHT + 3;
@@ -6766,7 +6774,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     if (battle.landedBeat === undefined || beatNow - battle.landedBeat > 1 || walking) return;
     const good = battle.landedCountered === true;
     const stamp = this.ui.label(
-      content.x + content.width - 2, y + 4,
+      content.x + content.width - 2, y + 1,
       good ? t('ascent.battle.landedGood') : t('ascent.battle.landedEven'), 'label',
       {
         fontSize: good ? '10.5px' : '9px',
@@ -7026,6 +7034,23 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       this.buildBattleRibbon(battle);
     }
 
+    // The men stand up in the new shape on the beat it lands, and not before: a host that
+    // re-arranged the instant the order was given would make the walk free, and paying for the
+    // walk is the whole decision the fast dial is built around.
+    //
+    // Per host through `redrawHostBlock` rather than by rebuilding the field: the field carries the
+    // ground, the camps and the banners, and none of those have any business flickering because a
+    // block moved.
+    const standing = `${battle.ourFormation}|${battle.theirFormation}`;
+    if (standing !== ui.shapeSignature) {
+      ui.shapeSignature = standing;
+      [...ui.ourMarkers, ...ui.theirMarkers].forEach((entry) => {
+        if (entry.routed) return;
+        const host = this.state.armies.find((army) => army.id === entry.hostId);
+        if (host) this.redrawHostBlock(entry, hostSize(host));
+      });
+    }
+
     if (this.battleOrderSignature(battle) !== ui.orderSignature) {
       this.buildBattleOrders(battle);
       // The exits are their own layer but not their own clock: the hand-over chip is two chips
@@ -7247,10 +7272,12 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
    * deployment, not the shield wall in the middle of it. Measured off one block, a screen thrown
    * forward of the line stands inside the enemy's rear ranks.
    */
-  private hostHalfWidth(host: Army, men?: number, mustered?: number): number {
+  private hostHalfWidth(
+    host: Army, men?: number, mustered?: number, shape?: BattleFormation,
+  ): number {
     const size = Math.max(1, men ?? hostSize(host));
     return armyShape(
-      size, compositionFor(hostKitFor(this.state, host)), this.battleBaseScale(), mustered,
+      size, compositionFor(hostKitFor(this.state, host)), this.battleBaseScale(), mustered, 1, shape,
     ).width / 2;
   }
 
@@ -7271,12 +7298,14 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       ours
         ? this.state.mapConfig.seed
         : Math.max(0, this.state.kingdoms.findIndex((k) => k.id === battle.kingdomId)),
-      { ...hostKitFor(this.state, host), mustered: entry.mustered },
+      { ...hostKitFor(this.state, host), mustered: entry.mustered, shape: ours ? battle.ourFormation : battle.theirFormation },
       this.battleBaseScale(),
     );
     rebuilt.setPosition(x, y);
     if (!ours) faceTravel(rebuilt, -1);
-    entry.halfWidth = this.hostHalfWidth(host, men, entry.mustered);
+    entry.halfWidth = this.hostHalfWidth(
+      host, men, entry.mustered, ours ? battle.ourFormation : battle.theirFormation,
+    );
 
     // Nothing rides on a block any more — the target picker and its ring are gone — so only the
     // drawing is replaced here.
