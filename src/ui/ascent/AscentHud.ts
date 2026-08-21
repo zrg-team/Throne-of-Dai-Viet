@@ -6,6 +6,7 @@ import { heatFor } from '../../systems/ascent/AmbitionSystem';
 import { WAVE_INTERVAL_TICKS } from '../../game/ascentConfig';
 import { heronMeter } from '../ink/devices';
 import { t } from '../../i18n';
+import { formatNumber } from '../../utils/format';
 import type { AscentState } from '../../state/types';
 import { PIGMENT } from '../ink/palette';
 
@@ -36,10 +37,6 @@ import { PIGMENT } from '../ink/palette';
 export const ASCENT_HUD_HEIGHT = 48;
 
 const TOP = HEADER_HEIGHT;
-
-function formatNumber(value: number): string {
-  return Math.round(value).toLocaleString('en-US');
-}
 
 /**
  * The permanent readout: POWER, THREAT, MOMENTUM.

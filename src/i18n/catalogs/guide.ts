@@ -67,6 +67,8 @@ export const enGuide = {
   "guide.screens.hud.p2": "THREAT — what the coming wave is worth, with one word for the comparison: ahead, even, behind.",
   "guide.screens.hud.p3": "×n ambition — how far your recent growth is multiplying that wave.",
   "guide.screens.hud.p4": "Level, wave, the countdown, and under them the bar to the next wave with the thin gold line of your progress to the next level.",
+  "guide.screens.coach.h": "The line under the band",
+  "guide.screens.coach.b": "Your advisor. It reads the run every season and says the one thing most worth doing, quoting the figure it read — so you can check it against the band above and, after a few waves, stop needing it. A ring in sỏi son means something wants doing now; hoè is an opportunity; a plain soot dot is the steady reading and means nothing needs answering. Press the line for the reasoning and a way straight to the screen that fixes it.",
   "guide.screens.bar.h": "The bar across the bottom",
   "guide.screens.bar.b": "Six screens and two controls.",
   "guide.screens.bar.p1": "Build, Heroes, Court, Army, Affairs — the realm's business, the same screens every mode has.",
@@ -106,6 +108,48 @@ export const enGuide = {
   "copilot.learn.b": "How to Play is the whole game explained in four short pages — the clock, the waves, the dial that decides runs. Real History is the other thing: what actually happened, and where we changed it. Settings holds the language.",
   "copilot.ready.h": "That is the front page",
   "copilot.ready.b": "Nothing here is lost by pressing it. Pause is free in every mode, a run saves itself, and even defeat banks Legacy toward the next reign. Go and lose one.",
+
+  // ── The in-run advisor ───────────────────────────────────────────────────
+  //
+  // Every line quotes the figure it is about, and every line above `calm` names the screen that
+  // answers it. See `systems/ascent/Advisor.ts` for why both are rules rather than taste. The
+  // numbers interpolated here are read off `ascentConfig.ts` at runtime, so a retune moves the
+  // prose with it.
+  "advice.open": "Take me there",
+  "advice.siege.line": "A siege at {land} — the fight is running now.",
+  "advice.siege.body": "The beats resolve on the world's clock whether or not anyone is watching. Open it and you can set the posture, focus a host, commit the reserve or call a rally. Leave it and your generals decide for you.",
+  "advice.opening.line": "{ticks} quiet seasons left. Nothing attacks yet.",
+  "advice.opening.body": "The first {grace} seasons of a run are free — no wave is raised at all. It is the only stretch that compounds without being billed for, so clear ground and raise a first host now instead of waiting to be attacked.",
+  "advice.behind.line": "THREAT {threat} against a defence of {defence}.",
+  "advice.behind.body": "The coming wave outweighs what can actually fight, and it lands in {ticks} seasons. POWER counts the whole realm; this compares against the part that holds a wall. Raise a host, bring one home, or take a province — spoils are paid in men, grain and stores, which is what a host is made of.",
+  "advice.ahead.line": "Defence {defence} against THREAT {threat}. You have room.",
+  "advice.ahead.body": "This is when expanding is cheap. Taking a province charges ambition, which is billed at the next wave and then decays — a price paid once — while the province stays for good. A realm that only defends is overtaken by the wave floor sooner or later, because that floor climbs whatever you do.",
+  "advice.boss.line": "A Great Invasion in {ticks} seasons.",
+  "advice.boss.body": "Every fourth wave is named, and it arrives about a third larger than the curve. The seasons of warning are the whole point of telegraphing it: bring hosts home, buy a wall, hire a company, spend the treasury. Nothing about it is a surprise except the size.",
+  "advice.starving.line": "{seasons} seasons of grain left, falling {rate} a season.",
+  "advice.starving.body": "An empty granary starves the host: morale and supply both fall, and a host low on either is worth a fraction of its numbers in the field. Build in a province that grows rice, or disband what you cannot feed — a smaller host that eats beats a large one that does not.",
+  "advice.ambitionHot.line": "Ambition ×{mult} of ×{max}. The next wave is that much bigger.",
+  "advice.ambitionHot.body": "You have been taking a great deal, and every point of it is billed at the next wave. It pays as well as costs: while the dial is high, each wave you survive pays spoils in men, grain and stores. Ride it if you can hold. If you cannot, decline the next offer — {shed}% of the dial sheds at every wave, so two quiet waves genuinely cool the realm down.",
+  "advice.ambitionCold.line": "Ambition ×{mult}. You are paying nothing — and earning nothing.",
+  "advice.ambitionCold.body": "Growth is what charges this dial, and you have stopped. It feels safe and is not: the wave floor climbs about {growth}% every wave whatever you do, so a defence that stops growing is passed sooner or later. Take a province. The price is one larger wave; the province is permanent.",
+  "advice.goldRot.line": "{gold} gold — {lost} of it rots this season.",
+  "advice.goldRot.body": "Above {from}, the treasury loses {rate}% a season to graft. Gold is the one thing this mode oversupplies, and hoarding it is the one thing you cannot usefully do with it. Buy a province, buy a wall, hire a company, reroll a power.",
+  "advice.edicts.line": "{points} edict points unspent.",
+  "advice.edicts.body": "Edicts are permanent, they compound with everything else you take, and they are the cheapest power in the run. Banked points do nothing at all. Spend them in Court.",
+  "advice.payroll.line": "Champion wages take {pct}% of the realm's gold.",
+  "advice.payroll.body": "{payroll} gold a season goes out in wages before anything else is paid. A champion earns their keep while posted — a governor plainly, a general more — but a bench of them is a cost with no return. Post them or let them go.",
+  "advice.steady.line": "Wave {wave} in {ticks}. POWER {power}, THREAT {threat}.",
+  "advice.steady.body": "Nothing needs answering. POWER is what your realm is worth in the field; THREAT is what the coming wave is worth. When the second passes the first this strip will say so, and name what to do about it.",
+
+  // ── The tour a first run is given ────────────────────────────────────────
+  "copilot.run.band.h": "The band across the top",
+  "copilot.run.band.b": "POWER is what your realm is worth. THREAT is what the next wave is worth, with one word for the comparison — ahead, even, behind. Between them: the level, the wave, and how many seasons until it lands.",
+  "copilot.run.coach.h": "This line is your advisor",
+  "copilot.run.coach.b": "It reads the run and says the one thing worth doing now, with the number it is reading. Press it for the reasoning and a way straight to the screen that answers it. It is always there — at wave 1 and at wave 40.",
+  "copilot.run.bar.h": "The realm's business",
+  "copilot.run.bar.b": "Build, Heroes, Court, Army, Affairs and the Chronicle. Your ministers act on their own; these are where you overrule them. The two bare marks at the end stop the clock and leave the run — and stopping the clock costs nothing at all.",
+  "copilot.run.go.h": "Now let it run",
+  "copilot.run.go.b": "The realm marches itself. It will stop and ask you the decisions that matter, one card at a time, and nothing has a timer you can lose to. Watch the band, follow the advisor, and see how many waves you hold.",
 } as const;
 
 export const viGuide = {
@@ -163,6 +207,8 @@ export const viGuide = {
   "guide.screens.hud.p2": "HIỂM HỌA — đợt giặc sắp tới đáng giá bao nhiêu, kèm một chữ so sánh: vượt trội, ngang tài, yếu thế.",
   "guide.screens.hud.p3": "×n tham vọng — mức lớn mạnh gần đây đang nhân đợt giặc ấy lên bao nhiêu lần.",
   "guide.screens.hud.p4": "Cấp, đợt, số mùa còn lại, và bên dưới là thanh đến đợt sau cùng vạch vàng mảnh chỉ đường lên cấp kế tiếp.",
+  "guide.screens.coach.h": "Dòng ngay dưới dải số",
+  "guide.screens.coach.b": "Cố vấn của ngươi. Mỗi mùa nó đọc lại ván đấu và nói ra một việc đáng làm nhất, kèm chính con số nó vừa đọc — để ngươi đối chiếu với dải số bên trên, và sau vài đợt thì không cần tới nó nữa. Vòng tròn màu sỏi son là có việc phải làm ngay; màu hoa hòe là một cơ hội; chấm mực đặc là bản đọc bình thường, nghĩa là chưa có gì phải trả lời. Bấm vào dòng ấy để xem lý lẽ và lối đi thẳng tới màn hình giải quyết nó.",
   "guide.screens.bar.h": "Thanh dưới đáy màn hình",
   "guide.screens.bar.b": "Sáu màn hình và hai nút điều khiển.",
   "guide.screens.bar.p1": "Xây, Anh hùng, Triều đình, Quân đội, Bang giao — việc nước, cùng những màn hình mà mọi chế độ đều có.",
@@ -202,4 +248,41 @@ export const viGuide = {
   "copilot.learn.b": "Cách chơi là toàn bộ trò chơi giải thích trong bốn trang ngắn — nhịp đồng hồ, các đợt giặc, cái dây cương định đoạt ván đấu. Sử thật là chuyện khác: điều đã thật sự xảy ra, và chỗ chúng tôi đã đổi. Ngôn ngữ nằm trong Thiết lập.",
   "copilot.ready.h": "Trang đầu là vậy",
   "copilot.ready.b": "Không gì ở đây mất đi vì ngươi bấm thử. Tạm dừng miễn phí ở mọi chế độ, ván đấu tự lưu, và ngay cả thất bại cũng ghi Di Sản cho triều sau. Cứ đi thua một ván.",
+
+  // ── Cố vấn trong ván ─────────────────────────────────────────────────────
+  "advice.open": "Đưa ta tới đó",
+  "advice.siege.line": "Có trận đánh ở {land} — đang diễn ra lúc này.",
+  "advice.siege.body": "Từng nhịp trận đánh chạy theo đồng hồ của thế giới, dù có ai xem hay không. Mở ra thì ngươi định được thế trận, dồn đánh một đạo, tung quân dự bị hay hô chỉnh đốn hàng ngũ. Bỏ đó thì các tướng tự quyết thay ngươi.",
+  "advice.opening.line": "Còn {ticks} mùa yên. Chưa ai đánh cả.",
+  "advice.opening.body": "{grace} mùa đầu của ván đấu là miễn phí — không đợt giặc nào được dấy lên. Đó là quãng duy nhất sinh sôi mà không bị tính tiền, nên hãy khai đất và mộ đạo quân đầu tiên ngay, đừng ngồi đợi bị đánh.",
+  "advice.behind.line": "HIỂM HỌA {threat} so với phòng thủ {defence}.",
+  "advice.behind.body": "Đợt giặc sắp tới nặng hơn phần thực sự đánh được của ngươi, và nó tới sau {ticks} mùa. SỨC MẠNH tính cả giang sơn; con số này chỉ so với phần giữ được thành. Hãy mộ thêm quân, gọi một đạo về, hoặc lấy một trấn — chiến lợi phẩm trả bằng nhân lực, lương thực và quân nhu, tức là đúng thứ làm nên một đạo quân.",
+  "advice.ahead.line": "Phòng thủ {defence} so với HIỂM HỌA {threat}. Ngươi còn dư sức.",
+  "advice.ahead.body": "Đây là lúc mở mang rẻ nhất. Lấy một trấn thì cộng tham vọng, khoản ấy bị tính vào đợt giặc kế tiếp rồi rụng dần — trả một lần — còn trấn thì ở lại vĩnh viễn. Giang sơn chỉ biết thủ sớm muộn cũng bị sàn của đợt giặc vượt qua, vì cái sàn ấy dâng lên dù ngươi làm gì.",
+  "advice.boss.line": "Đại Xâm Lược sau {ticks} mùa.",
+  "advice.boss.body": "Cứ đợt thứ tư là một đợt có tên, và nó tới lớn hơn đường cong thường chừng một phần ba. Mấy mùa báo trước chính là lý do người ta báo trước: gọi quân về, xây thành, thuê quân, tiêu ngân khố. Chẳng có gì bất ngờ ngoài cỡ của nó.",
+  "advice.starving.line": "Còn {seasons} mùa lương, mỗi mùa hụt {rate}.",
+  "advice.starving.body": "Kho lẫm cạn thì quân đói: sĩ khí và quân nhu cùng tụt, mà một đạo quân thiếu một trong hai chỉ còn đáng một phần nhỏ quân số của nó ngoài trận. Hãy xây ở trấn trồng lúa, hoặc giải tán phần ngươi không nuôi nổi — một đạo nhỏ mà no hơn hẳn một đạo lớn mà đói.",
+  "advice.ambitionHot.line": "Tham vọng ×{mult} trên ×{max}. Đợt sau lớn lên đúng ngần ấy.",
+  "advice.ambitionHot.body": "Ngươi đã lấy rất nhiều, và từng điểm một đều bị tính vào đợt giặc kế tiếp. Nhưng nó vừa đòi vừa trả: khi dây cương còn cao, mỗi đợt ngươi sống sót đều được chiến lợi phẩm bằng nhân lực, lương thực và quân nhu. Giữ được thì cứ cưỡi tiếp. Không giữ nổi thì từ chối lời mời sau — mỗi đợt dây cương rụng {shed}%, nên hai đợt nằm im là giang sơn nguội thật.",
+  "advice.ambitionCold.line": "Tham vọng ×{mult}. Ngươi không trả gì — và cũng chẳng được gì.",
+  "advice.ambitionCold.body": "Chính sự lớn mạnh nạp cho dây cương này, mà ngươi đã dừng. Nghe thì an toàn nhưng không phải: sàn của đợt giặc mỗi đợt vẫn dâng chừng {growth}% dù ngươi làm gì, nên nền phòng thủ ngừng lớn sớm muộn cũng bị vượt. Hãy lấy một trấn. Cái giá là một đợt giặc lớn hơn; còn trấn thì là vĩnh viễn.",
+  "advice.goldRot.line": "{gold} vàng — mùa này mục mất {lost}.",
+  "advice.goldRot.body": "Trên {from}, ngân khố mỗi mùa hao {rate}% vì tham nhũng. Vàng là thứ chế độ này thừa mứa, và cất giữ lại đúng là việc duy nhất không dùng được nó. Mua một trấn, xây thành, thuê một đội quân, hoặc đổi bài sức mạnh.",
+  "advice.edicts.line": "Còn {points} điểm chiếu chỉ chưa dùng.",
+  "advice.edicts.body": "Chiếu chỉ là vĩnh viễn, cộng dồn với mọi thứ khác ngươi lấy, và là sức mạnh rẻ nhất trong ván. Điểm để dành thì chẳng làm gì cả. Hãy tiêu ở Triều đình.",
+  "advice.payroll.line": "Bổng lộc danh tướng ăn {pct}% vàng của cõi.",
+  "advice.payroll.body": "Mỗi mùa {payroll} vàng ra đi làm bổng lộc trước khi trả bất cứ khoản nào khác. Một danh tướng có chức thì đáng đồng tiền — quan trấn thủ đã rõ, tướng cầm quân còn hơn — nhưng một hàng ghế ngồi không là khoản chi không lãi. Hãy giao việc, hoặc cho họ đi.",
+  "advice.steady.line": "Đợt {wave} còn {ticks}. SỨC MẠNH {power}, HIỂM HỌA {threat}.",
+  "advice.steady.body": "Chưa có gì phải trả lời. SỨC MẠNH là giá trị giang sơn ngươi ngoài trận; HIỂM HỌA là giá trị đợt giặc sắp tới. Khi cái sau vượt cái trước, dòng này sẽ nói, và nói luôn phải làm gì.",
+
+  // ── Vòng dẫn của ván đầu tiên ────────────────────────────────────────────
+  "copilot.run.band.h": "Dải trên đỉnh màn hình",
+  "copilot.run.band.b": "SỨC MẠNH là giá trị giang sơn ngươi. HIỂM HỌA là giá trị đợt giặc kế tiếp, kèm một chữ so sánh — vượt trội, ngang tài, yếu thế. Giữa hai bên: cấp, số đợt, và còn mấy mùa nữa nó tới.",
+  "copilot.run.coach.h": "Dòng này là cố vấn của ngươi",
+  "copilot.run.coach.b": "Nó đọc ván đấu và nói ra một việc đáng làm nhất lúc này, kèm con số nó đang đọc. Bấm vào để xem lý lẽ và một lối đi thẳng tới màn hình giải quyết việc ấy. Nó luôn ở đó — từ đợt 1 cho tới đợt 40.",
+  "copilot.run.bar.h": "Việc nước",
+  "copilot.run.bar.b": "Xây, Anh hùng, Triều đình, Quân đội, Bang giao và Biên niên. Quần thần tự hành động; đây là nơi ngươi bác lời họ. Hai dấu trơn ở cuối dùng để dừng đồng hồ và rời ván — mà dừng đồng hồ thì chẳng mất gì cả.",
+  "copilot.run.go.h": "Giờ thì để nó chạy",
+  "copilot.run.go.b": "Giang sơn tự vận hành. Nó sẽ dừng lại hỏi ngươi những quyết định đáng hỏi, mỗi lần một lá bài, và không có gì đếm ngược để ngươi thua cả. Hãy nhìn dải số, nghe cố vấn, và xem ngươi giữ được bao nhiêu đợt.",
 } satisfies Record<keyof typeof enGuide, string>;

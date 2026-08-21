@@ -216,7 +216,7 @@ export const storyNotesEn: HistoryCatalog = {
     'A reform that works in the ledger and fails in the market, on a delay long enough that you will have moved on before it lands.',
 
   'stories.luy-thay.happened':
-    'Đào Duy Từ, refused the examinations because of his family\u2019s status in the north, went south and built the Nguyễn their walls at Đồng Hới in 1631. They held the Trịnh out for the better part of fifty years.',
+    'Đào Duy Từ was barred from the examinations because his father had been a stage performer, a trade the Lê code ruled out of the halls. He went south instead and built the Nguyễn their walls at Đồng Hới in 1631. They held the Trịnh out for the better part of fifty years.',
   'stories.luy-thay.inGame':
     'A defence built by a man the other side rejected. What it costs is everything you were not building instead.',
 
@@ -253,172 +253,172 @@ export const storyNotesEn: HistoryCatalog = {
 
 export const storyNotesVi: HistoryCatalog = {
   'stories.reed-banner.happened':
-    'Đinh Bộ Lĩnh lớn lên chăn trâu ở Hoa Lư, cùng lũ trẻ lấy bông lau làm cờ tập trận. Ông dẹp mười hai sứ quân đã chia cắt đất nước sau khi Ngô Quyền mất, dựng nước Đại Cồ Việt năm 968.',
+    'Đinh Bộ Lĩnh lớn lên chăn trâu ở Hoa Lư, cùng lũ trẻ trong vùng lấy bông lau làm cờ bày trận. Sau khi Ngô Quyền mất, nước chia làm mười hai sứ quân; ông dẹp xong cả mười hai, rồi năm 968 lên ngôi, đặt quốc hiệu Đại Cồ Việt.',
   'stories.reed-banner.inGame':
-    'Một người trở thành đúng cái ngươi làm nên. Cùng những mảnh chuyện ấy dẫn tới một cuộc lập quốc hoặc một cuộc phản loạn, và rơi vào bên nào là do ngươi đã dùng ông ta thế nào, chứ không do một nhánh ngươi bấm chọn.',
+    'Một người trở thành đúng cái ngươi làm nên. Cùng những mảnh chuyện ấy có thể dẫn tới một cuộc lập quốc, cũng có thể dẫn tới một cuộc phản loạn, và rơi vào bên nào là do ngươi đã dùng ông ta thế nào, chứ không do một nhánh ngươi bấm chọn.',
 
   'stories.goose-feathers.happened':
-    'Mỵ Châu, con gái An Dương Vương, lấy Trọng Thủy, con của kẻ thù. Chàng tìm ra chỗ giấu lẫy nỏ và tráo bằng một cái giả. Khi Cổ Loa vỡ, nàng chạy và rắc lông ngỗng đánh dấu đường — cho chàng.',
+    'Mỵ Châu, con gái An Dương Vương, lấy Trọng Thủy là con của kẻ thù. Chàng tìm ra chỗ cất lẫy nỏ và tráo bằng một cái giả. Khi Cổ Loa thất thủ, nàng theo cha chạy về nam, dọc đường rắc lông ngỗng đánh dấu — đánh dấu cho chàng.',
   'stories.goose-feathers.inGame':
-    'Món quà vẫn đang đọc ngược lại ngươi. Nhịp lông ngỗng chỉ tồn tại nếu người được đánh dấu đang trấn một châu biên giới, và nó nổ theo lịch của ông ta chứ không phải của ngươi.',
+    'Món quà vẫn đang đọc ngược lại ngươi. Nhịp lông ngỗng chỉ có nếu người được đánh dấu đang trấn một châu ngoài biên, và nó nổ theo lịch của ông ta chứ không theo lịch của ngươi.',
 
   'stories.river-stakes.happened':
-    'Hai lần — năm 938 với Nam Hán và năm 1288 với quân Nguyên — một hạm đội được thả vào Bạch Đằng lúc nước lớn rồi gặp cọc và lửa lúc nước ròng. Lần sau vẫn con sông ấy, vẫn kế ấy, và giặc đã biết trước tích này.',
+    'Hai lần — năm 938 với quân Nam Hán và năm 1288 với quân Nguyên — một hạm đội bị dử vào sông Bạch Đằng lúc nước lớn, rồi gặp cọc và gặp lửa lúc nước ròng. Lần sau vẫn con sông ấy, vẫn cái kế ấy, và bên kia đã biết trước cả tích này.',
   'stories.river-stakes.inGame':
-    'Một mưu kế có con nước trong đó. Việc chuẩn bị thì chậm và lộ; cửa sổ thì hẹp và không do ngươi dời được. Lỡ một nhịp là công sức vẫn mất.',
+    'Một mưu kế có con nước trong đó. Việc chuẩn bị thì chậm và lộ; khoảng hở thì hẹp, và không phải thứ ngươi dời được. Lỡ một nhịp thì công sức vẫn cứ mất.',
 
   'stories.dien-hong.happened':
-    'Trước cuộc xâm lăng lần hai của quân Nguyên năm 1284, Thượng hoàng vời các bô lão trong nước về điện Diên Hồng, hỏi nên hoà hay nên đánh. Muôn miệng cùng hô: đánh.',
+    'Trước cuộc xâm lăng lần thứ hai của quân Nguyên, năm 1284 Thượng hoàng vời các bô lão trong nước về điện Diên Hồng, hỏi nên hoà hay nên đánh. Muôn miệng cùng hô: đánh.',
   'stories.dien-hong.inGame':
-    'Một lá bài ngươi không trả lời. Ngươi bày ra các lựa chọn; các bô lão quyết, nặng nhẹ theo lòng dân các châu và sự yên ổn của triều đình. Mười phút cai trị lặng lẽ được thanh toán trong một khoảnh khắc mà ngươi chỉ đứng nhìn.',
+    'Một lá bài mà ngươi không trả lời. Ngươi bày ra các lối chọn; các bô lão quyết, nặng nhẹ theo lòng dân các châu và theo sự yên ổn của triều đình. Mười phút cai trị lặng lẽ được thanh toán trong một khoảnh khắc mà ngươi chỉ đứng nhìn.',
 
   'stories.orange.happened':
-    'Trần Quốc Toản còn nhỏ, không được dự hội nghị Bình Than. Đứng ngoài, cậu bóp nát quả cam trong tay mà không hay. Cậu dựng cờ riêng thêu sáu chữ, và tử trận năm mười sáu tuổi.',
+    'Trần Quốc Toản còn nhỏ, không được dự hội nghị Bình Than. Đứng ngoài, cậu bóp nát quả cam trong tay mà không hay. Cậu về dựng cờ riêng thêu sáu chữ, và tử trận năm mười sáu tuổi.',
   'stories.orange.inGame':
-    'Từ chối không phải là không nhập gì. Đuổi cậu về thì cậu vẫn làm — một đạo quân ngươi không điều khiển, và một kết cục hoàn toàn ngoài tay ngươi.',
+    'Từ chối không phải là một lựa chọn bỏ trống. Đuổi cậu về thì cậu vẫn cứ làm — một đạo quân ngươi không điều khiển, và một kết cục hoàn toàn ngoài tay ngươi.',
 
   'stories.granaries.happened':
-    'Hồ Quý Ly hạn định số ruộng mỗi nhà được giữ và số gia nô được nuôi, rồi thu phần dư vào kho nhà nước. Cải cách đúng trên giấy, và bảy năm sau mất nước.',
+    'Hồ Quý Ly hạn định số ruộng mỗi nhà được giữ và số gia nô được nuôi, rồi thu phần dư vào kho nhà nước. Cải cách đúng trên giấy, và bảy năm sau thì mất nước.',
   'stories.granaries.inGame':
-    'Sự quy công. Tích này không gây ra nạn đói; nó chỉ lo cho nạn đói ấy được nhớ là của ngươi.',
+    'Chuyện quy công. Tích này không gây ra nạn đói; nó chỉ lo cho nạn đói ấy được nhớ là của ngươi.',
 
   'stories.sixty-five-citadels.happened':
-    'Hai Bà Trưng dấy cả châu thổ chống nhà Hán năm 40, giữ sáu mươi lăm thành trong ba năm. Khi Mã Viện đem quân sang lần nữa, Trưng Trắc không chịu để bị bắt, gieo mình xuống sông Hát.',
+    'Năm 40, Hai Bà Trưng dấy binh chống nhà Hán, cả châu thổ hưởng ứng, lấy được sáu mươi lăm thành và giữ trong ba năm. Đến khi Mã Viện đem quân sang lần nữa, Trưng Trắc không chịu để bị bắt, gieo mình xuống sông Hát.',
   'stories.sixty-five-citadels.inGame':
-    'Một cuộc dấy nghĩa cho ngươi nhiều hơn sức ngươi giữ. Đất về rất nhanh, còn cái giá để giữ thì đến sau, theo một lịch không do ngươi đặt.',
+    'Một cuộc dấy binh cho ngươi nhiều hơn sức ngươi giữ. Đất về rất nhanh, còn cái giá để giữ thì đến sau, theo một cái lịch không do ngươi đặt.',
 
   'stories.ride-the-wind.happened':
-    'Bà Triệu ra trận năm 248, tuổi hai mươi ba. "Tôi muốn cưỡi cơn gió mạnh, đạp luồng sóng dữ, đuổi giặc ra khỏi bờ cõi — chứ không chịu khom lưng làm tì thiếp cho người."',
+    'Năm 248, Bà Triệu ra trận, bấy giờ hai mươi ba tuổi. "Tôi muốn cưỡi cơn gió mạnh, đạp luồng sóng dữ, chém cá kình ở biển Đông, đánh đuổi quân Ngô, giành lại giang sơn, cởi ách nô lệ, chứ không chịu khom lưng làm tì thiếp cho người."',
   'stories.ride-the-wind.inGame':
-    'Một người hùng mang chí riêng không phải chí của ngươi. Bà từ chối các chức phong. Ngươi từ chối lại thì bà bỏ đi — và câu chuyện không kết thúc khi bà đi.',
+    'Một người hùng mang chí riêng, và cái chí ấy không phải chí của ngươi. Bà từ chối các chức phong. Ngươi từ chối lại thì bà bỏ đi — và câu chuyện không kết thúc khi bà đi.',
 
   'stories.substitution.happened':
-    'Ở Chí Linh năm 1419, khi Lê Lợi bị vây, Lê Lai mặc áo bào chúa, xưng là chúa Lam Sơn mà xông ra, rồi bị bắt và bị giết. Cuộc khởi nghĩa sống sót vì quân Minh tin rằng mình đã thắng.',
+    'Năm 1419 ở Chí Linh, khi Lê Lợi bị vây, Lê Lai mặc áo bào chúa, xưng là chúa Lam Sơn mà xông ra, rồi bị bắt và bị giết. Cuộc khởi nghĩa sống được là vì quân Minh tin rằng mình đã thắng.',
   'stories.substitution.inGame':
-    'Một người hùng mà ngươi chọn để mất. Trò chơi sẽ không tự tiêu ông ta thay ngươi, và cũng không nói cho ngươi rằng cái giá ấy là đáng.',
+    'Một người hùng mà ngươi chọn để mất. Trò chơi sẽ không tự tiêu ông ta thay ngươi, và cũng không nói cho ngươi biết rằng cái giá ấy là đáng.',
 
   'stories.borrowed-sword.happened':
     'Truyền rằng thần cho Lê Lợi mượn gươm để đuổi giặc Minh, và sau đó rùa vàng nổi lên ở hồ giữa Thăng Long đòi lại. Hồ mang tên Hoàn Kiếm từ bấy giờ.',
   'stories.borrowed-sword.inGame':
-    'Quyền lực đi mượn, với một kỳ hạn không được cho biết. Cái nó mua là thật; giữ quá hạn mới là phần phải trả.',
+    'Quyền lực đi mượn, với một kỳ hạn không ai cho biết. Cái nó mua được là thật; giữ quá hạn mới là phần phải trả.',
 
   'stories.slandered.happened':
-    'Yi Sun-sin bị tước binh quyền năm 1597 vì một lời tố ở triều, giáng làm lính trơn, rồi được gọi lại sau khi hạm đội ông dựng bị diệt lúc vắng ông. Ông thắng ở Myeongnyang với mười ba chiếc thuyền.',
+    'Năm 1597, Yi Sun-sin — chữ Hán đọc là Lý Thuấn Thần — bị tước binh quyền vì một lời tố ở triều, giáng làm lính trơn, rồi được gọi lại sau khi hạm đội chính ông dựng nên bị diệt lúc vắng ông. Ông thắng ở Myeongnyang với mười ba chiếc thuyền.',
   'stories.slandered.inGame':
-    'Không phải tích nào ở đây cũng là của ta. Tích này của Triều Tiên, giữ lại vì cái nết ấy ở đâu cũng có: một triều đình có thể làm ngươi thua một cuộc chiến mà không cần đánh trận nào.',
+    'Không phải tích nào ở đây cũng là của ta. Tích này của Triều Tiên, giữ lại vì cái nết ấy ở đâu cũng có: một triều đình có thể làm ngươi thua cả một cuộc chiến mà không cần đánh trận nào.',
 
   'stories.trusted.happened':
-    'Oda Nobunaga sai Akechi Mitsuhide đem quân tiếp viện cho đồng minh năm 1582. Mitsuhide quay quân, kéo về chùa Honnō, giết ông ở đó. Y giữ được thiên hạ mười ba ngày.',
+    'Năm 1582 Oda Nobunaga sai Akechi Mitsuhide đem quân đi tiếp viện cho một đồng minh. Mitsuhide quay quân, kéo về chùa Honnō và giết ông ở đó. Y giữ được thiên hạ mười ba ngày.',
   'stories.trusted.inGame':
-    'Cũng không phải của ta. Nó có mặt trong Sử Ký vì một thuộc tướng phản phải là người ngươi từng có lý do để tin, nếu không thì sự phản bội chỉ là một con xúc xắc.',
+    'Cũng không phải của ta. Nó có mặt trong Sử Ký vì một thuộc tướng phản phải là người ngươi từng có lý do để tin; không thì sự phản bội chỉ còn là một con xúc xắc.',
 
   'stories.assembly.happened':
-    'Vẫn hội nghị Diên Hồng năm 1284, nhưng kể từ dưới sân chứ không từ trên ngai: các bô lão thật ra đang được hỏi phải gánh gì, và các châu đã trả giá bao nhiêu cho tiếng "đánh" ấy.',
+    'Vẫn hội nghị Diên Hồng năm 1284, nhưng kể từ dưới sân chứ không từ trên ngai: các bô lão thật ra đang được hỏi rằng họ sẽ phải gánh những gì, và các châu đã trả bao nhiêu cho tiếng "đánh" ấy.',
   'stories.assembly.inGame':
-    'Lần kể thứ hai tồn tại vì một khoảnh khắc đồng lòng đáng giá hơn khi ngươi đã thấy sự đồng lòng ấy tốn những gì.',
+    'Lần kể thứ hai có mặt vì một khoảnh khắc đồng lòng đáng giá hơn khi ngươi đã thấy sự đồng lòng ấy tốn những gì.',
 
   'stories.rice-riot.happened':
-    'Loạn Nika năm 532 bắt đầu từ trường đua ngựa và suýt kết liễu triều Justinian. Thành đô cháy năm ngày vì bánh mì, vì trò vui, và vì hai phe đã từ lâu không còn là chuyện đua ngựa.',
+    'Loạn Nika năm 532 khởi từ trường đua ngựa và suýt kết liễu triều Justinian. Kinh thành cháy năm ngày vì miếng bánh, vì trò vui, và vì hai phe đã từ lâu không còn là chuyện đua ngựa nữa.',
   'stories.rice-riot.inGame':
-    'Một kinh đô trở mặt với ngươi vì ngươi giàu. Thịnh vượng không trung tính: thóc làm nên kho bạc của ngươi cũng là thóc mà cả thành nhìn thấy ngươi đang giữ.',
+    'Một kinh đô trở mặt với ngươi vì ngươi giàu. Thịnh vượng không phải thứ trung tính: thóc làm nên kho bạc của ngươi cũng là thóc mà cả thành nhìn thấy ngươi đang giữ.',
 
   'stories.no-heir.happened':
-    'Lý Chiêu Hoàng lên ngôi năm bảy tuổi, lấy chồng năm bảy tuổi, và bị buộc nhường ngôi cho chồng năm tám tuổi. Một triều đại chấm dứt vì không sinh được con trai, và những người đàn ông quanh đứa bé sắp đặt nốt phần còn lại.',
+    'Lý Chiêu Hoàng lên ngôi năm bảy tuổi, lấy chồng năm bảy tuổi, và bị ép nhường ngôi cho chồng năm tám tuổi. Một triều đại chấm dứt vì không sinh được con trai, còn những người đàn ông quanh đứa bé thì sắp đặt nốt phần còn lại.',
   'stories.no-heir.inGame':
-    'Một cuộc kế vị được quyết bởi tất cả mọi người trừ người đang ngồi trên ngai.',
+    'Một cuộc kế vị do tất cả mọi người quyết, trừ chính người đang ngồi trên ngai.',
 
   'stories.eat-together.happened':
-    'Hịch tướng sĩ của Trần Hưng Đạo nhắc các tướng rằng khi họ không có áo ông cho áo mình, khi không có cơm thì ăn cùng một mâm. Đó là toàn bộ lý lẽ cho việc bây giờ họ phải chết ở nơi ông chỉ.',
+    'Hịch tướng sĩ của Trần Hưng Đạo nhắc các tướng rằng khi họ không có áo thì ông cho áo mình, khi không có cơm thì ăn cùng một mâm. Đó là toàn bộ lý lẽ cho việc bây giờ họ phải chết ở nơi ông chỉ.',
   'stories.eat-together.inGame':
-    'Lòng trung là một cuốn sổ ngươi đã ghi mà không để ý. Việc các tướng làm trong cơn nguy được rút ra từ việc ngươi đã làm những năm trước đó.',
+    'Lòng trung là một cuốn sổ ngươi đã ghi mà không để ý. Việc các tướng làm lúc nguy được rút ra từ việc chính ngươi đã làm những năm trước đó.',
 
   'stories.unpaid.happened':
-    'Quân không được trả công thì về, hoặc tệ hơn, ở lại. Triều nào ở đây cũng học được điều đó: nhà Trần trả bằng ruộng, nhà Lê bằng chức, nhà Nguyễn bằng muối và gạo, còn triều nào trả bằng lời hứa thì giữ ngai ngắn hơn.',
+    'Quân không được trả công thì bỏ về, hoặc tệ hơn, ở lại. Triều nào ở đây cũng học được điều đó: nhà Trần trả bằng ruộng, nhà Lê bằng chức, nhà Nguyễn bằng muối và gạo; còn triều nào trả bằng lời hứa thì giữ ngai ngắn hơn.',
   'stories.unpaid.inGame':
-    'Một đạo quân tốn thứ tiền ngươi không có sẽ không lặng lẽ biến mất khỏi sổ sách. Nó tự ra một quyết định của riêng nó.',
+    'Một đạo quân tốn thứ tiền ngươi không có sẽ không lặng lẽ biến mất khỏi sổ sách. Nó tự ra lấy một quyết định của riêng nó.',
 
   'stories.five-days.happened':
-    'Quang Trung hành quân từ Phú Xuân ra Thăng Long trong bốn mươi ngày, đến vào đêm mồng năm Tết Kỷ Dậu 1789, và đến mồng bảy đã phá xong đạo quân Thanh đông gấp nhiều lần. Ông đã hứa với quân sĩ rằng họ sẽ ăn Tết trong kinh thành.',
+    'Quang Trung đem quân từ Phú Xuân ra Thăng Long trong bốn mươi ngày, đến vào đêm mồng năm Tết Kỷ Dậu 1789, và đến mồng bảy đã phá xong đạo quân Thanh đông gấp nhiều lần. Ông đã hứa với quân sĩ rằng họ sẽ ăn Tết trong kinh thành.',
   'stories.five-days.inGame':
     'Một cánh cửa đang khép. Cuộc hành quân được trả bằng tình trạng của đạo quân lúc tới nơi, và trò chơi cho phép ngươi tới nơi mệt đến mức không thắng nổi.',
 
   'stories.ghost-south.happened':
-    'Bị bắt sống năm 1285 và được dụ phong vương đất Bắc, Trần Bình Trọng đáp rằng thà làm quỷ nước Nam còn hơn làm vương đất Bắc. Ông bị giết.',
+    'Bị bắt sống năm 1285 và được dụ phong vương đất Bắc, Trần Bình Trọng đáp: "Ta thà làm quỷ nước Nam, chứ không thèm làm vương đất Bắc." Ông bị giết.',
   'stories.ghost-south.inGame':
-    'Một người hùng bị bắt sống, và một lời dụ đưa cho ngươi chứ không đưa cho ông ta. Ngươi quyết thế nào thì ông ta cũng đã quyết rồi.',
+    'Một người hùng bị bắt sống, và một lời dụ đưa cho ngươi chứ không đưa cho ông ta. Ngươi quyết thế nào thì ông ta cũng đã quyết xong rồi.',
 
   'stories.without-slaughter.happened':
-    'Nguyễn Trãi lập luận rằng một thành lấy bằng thư thì giữ không tốn gì, còn một thành lấy bằng máu thì phải giữ mãi mãi. Nhiều đồn quân Minh mở cổng cho một tờ giấy, và năm 1427 đạo quân bại trận được cấp ngựa và thuyền để về.',
+    'Nguyễn Trãi cho rằng một thành lấy bằng thư thì giữ không tốn gì, còn một thành lấy bằng máu thì phải giữ mãi mãi. Nhiều đồn quân Minh mở cổng cho một tờ giấy, và năm 1427 đạo quân bại trận được cấp ngựa và thuyền cho về nước.',
   'stories.without-slaughter.inGame':
     'Chiến thắng rẻ hơn vẻ ngoài của nó, và chậm hơn ngươi muốn. Những bức thư ăn mất số lượt mà ngươi thà dùng để công thành.',
 
   'stories.delayer.happened':
-    'Fabius Maximus không cho Hannibal cái trận mà Hannibal cần sau Cannae, và bị cả La Mã chê cười cho tới khi phương lược ấy thành công. Cũng không phải của ta — giữ lại vì đây là bản ghi của việc bị ghét vì mình đúng.',
+    'Sau trận Cannae, Fabius Maximus nhất định không cho Hannibal cái trận mà Hannibal cần, và bị cả La Mã chê cười cho đến khi phương lược ấy thành công. Cũng không phải chuyện của ta — giữ lại vì đây là bản ghi xưa nhất về việc bị ghét chỉ vì mình đúng.',
   'stories.delayer.inGame':
-    'Một vị tướng mà mỗi lần ngươi nghe lời khuyên đúng của ông ta là một lần ngươi mất uy tín.',
+    'Một vị tướng mà mỗi lần ngươi nghe theo lời khuyên đúng của ông ta là một lần ngươi mất uy tín.',
 
   'stories.thanh-giong.happened':
-    'Một đứa bé ba năm không nói, khi giặc đến thì xin ngựa sắt roi sắt, vươn vai thành người khổng lồ, đuổi giặc, rồi bay lên trời ở Sóc Sơn mà không đợi ai cảm ơn.',
+    'Một đứa bé ba năm không nói, khi giặc Ân sang thì xin ngựa sắt roi sắt, vươn vai thành tráng sĩ, đuổi xong giặc rồi bay lên trời ở Sóc Sơn mà không đợi ai cảm ơn.',
   'stories.thanh-giong.inGame':
-    'Sự trợ giúp đến từ hư không, làm đúng một việc, và không thể giữ lại, không thể thăng chức, cũng không thể xin lần nữa.',
+    'Sự trợ giúp đến từ hư không, làm đúng một việc, rồi không giữ lại được, không thăng chức được, cũng không xin thêm lần nữa được.',
 
   'stories.mountain-water.happened':
-    'Sơn Tinh và Thủy Tinh cùng hỏi một người con gái. Thần Núi tới trước. Thần Nước từ đó năm nào cũng quay lại, và đó là mùa nước lũ.',
+    'Sơn Tinh và Thủy Tinh cùng đến cầu hôn công chúa Mỵ Nương. Thần Núi tới trước. Thần Nước từ đó năm nào cũng quay lại, và đó là mùa nước lũ.',
   'stories.mountain-water.inGame':
-    'Một đối thủ không cần thắng một lần nào. Chính việc thua ngươi là lý do nó trở lại đúng hẹn.',
+    'Một đối thủ không cần thắng lần nào. Chính việc thua ngươi mới là lý do nó trở lại đúng hẹn.',
 
   'stories.salt-road.happened':
-    'Muối từ biển ngược lên miền cao, gạo xuôi xuống, theo những con đường không ai đóng đồn vì không ai tranh. Cắt một con đường ấy là hai châu đói mà chẳng có trận nào xảy ra.',
+    'Muối từ biển ngược lên miền cao, gạo xuôi xuống, theo những con đường không ai đóng đồn vì không ai tranh. Cắt một con đường ấy là hai châu đói, mà chẳng có trận nào xảy ra.',
   'stories.salt-road.inGame':
-    'Phần bản đồ mà ngươi đã thôi để mắt. Không có gì báo trước, cho tới khi hậu quả hiện ra ở một nơi khác.',
+    'Phần bản đồ mà ngươi đã thôi để mắt tới. Không có gì báo trước, cho đến khi hậu quả hiện ra ở một nơi khác.',
 
   'stories.thirteenth.happened':
-    'Mười hai sứ quân chia cắt đất nước sau năm 944 và sử nào cũng đếm đủ. Người thứ mười ba là kẻ nhỏ quá nên không được chép, và ý của tích này là: cái danh sách không phải là đất nước.',
+    'Mười hai sứ quân chia cắt đất nước sau năm 944, và sử nào cũng đếm đủ mười hai. Người thứ mười ba là kẻ nhỏ quá nên không được chép — và ý của tích này nằm ở đó: cái danh sách không phải là đất nước.',
   'stories.thirteenth.inGame':
     'Một đối thủ tan rã. Cái thay chỗ nó không có trong bất cứ danh sách nào ngươi đã đọc.',
 
   'stories.sickness.happened':
     'Dịch hạch và dịch tả đi theo đúng những con sông và con đường mà thóc gạo đi. Triều nào sống sót qua một trận dịch là triều đã có sẵn kho lẫm và phu đê điều.',
   'stories.sickness.inGame':
-    'Một tai hoạ không đánh được, chỉ phòng được, và nó đến theo một lịch không đoái hoài tới việc ngươi đang bận gì.',
+    'Một tai hoạ không đánh được, chỉ phòng được, và nó đến theo một cái lịch không đoái hoài tới việc ngươi đang bận gì.',
 
   'stories.cham-engineer.happened':
-    'Đại Việt và Chiêm Thành đánh nhau sáu thế kỷ và suốt sáu thế kỷ ấy vay mượn của nhau — tháp, nhạc, giống lúa, và cả nghề công thành xuất hiện trong quân Việt không lâu sau khi xuất hiện trong quân Chăm.',
+    'Đại Việt và Chiêm Thành đánh nhau sáu thế kỷ, và suốt sáu thế kỷ ấy vay mượn của nhau — tháp, nhạc, giống lúa, và cả nghề công thành, thứ xuất hiện trong quân Việt không lâu sau khi xuất hiện trong quân Chăm.',
   'stories.cham-engineer.inGame':
-    'Tài nghệ đến từ chính những người ngươi đang đánh, và một triều đình thà không phải nhắc lại nó từ đâu ra.',
+    'Tài nghệ đến từ chính những người ngươi đang đánh, và một triều đình thà không phải nhắc lại nó từ đâu mà ra.',
 
   'stories.counting-house.happened':
-    'Chín trăm lượng là con số lấy ra từ sổ thuế, không phải từ một thiên anh hùng ca. Phần lớn việc một triều đại làm là tính toán, và phần lớn cái làm một triều đại sụp là tính toán đã sai lặng lẽ nhiều năm.',
+    'Chín trăm lượng là con số lấy ra từ sổ thuế chứ không phải từ một thiên anh hùng ca. Phần lớn công việc của một triều đại là sổ sách, và phần lớn cái làm sụp một triều đại là những phép tính đã sai lặng lẽ nhiều năm.',
   'stories.counting-house.inGame':
     'Một cơn nguy bắt đầu trong sổ sách. Trong đó không có trận đánh nào cả.',
 
   'stories.dai-cao.happened':
-    'Bình Ngô đại cáo của Nguyễn Trãi, năm 1428, tuyên bố quân Minh đã bại, và mở đầu bằng lời rằng nước Đại Việt có nền văn hiến riêng, có núi sông bờ cõi riêng, có các đế một phương — một lập luận về thế nào là một nước, nói ra đúng lúc vừa giành lại được nước.',
+    'Bình Ngô đại cáo của Nguyễn Trãi, năm 1428, bố cáo việc quân Minh đã bại, mở đầu bằng lời rằng nước Đại Việt ta có nền văn hiến riêng, núi sông bờ cõi đã chia, phong tục Bắc Nam cũng khác, và mỗi bên xưng đế một phương — một lập luận về thế nào là một nước, nói ra đúng vào lúc vừa giành lại được nước.',
   'stories.dai-cao.inGame':
-    'Một lời thề ngươi nhận hoặc từ chối. Nhận là buộc mình kết thúc cuộc chiến theo một cách nhất định, và trả bằng một lá bài không có ở đâu khác.',
+    'Một lời thề ngươi nhận hoặc từ chối. Nhận là tự buộc mình kết thúc cuộc chiến theo một cách nhất định, và trả bằng một lá bài không có ở đâu khác.',
 
   'stories.chieu-doi-do.happened':
-    'Chiếu dời đô năm 1010 nêu lý do rời kinh khỏi vùng núi: Hoa Lư hiểm mà nghèo, Đại La bằng phẳng, ở giữa, và là nơi có thể thật sự cai trị một nước.',
+    'Chiếu dời đô năm 1010 nêu rõ lý do rời kinh khỏi vùng núi: Hoa Lư hiểm mà chật, còn Đại La ở vào nơi trung tâm trời đất, thế rồng cuộn hổ ngồi, đất rộng mà bằng — là nơi có thể thật sự cai trị cả nước.',
   'stories.chieu-doi-do.inGame':
     'Một nước cờ cố ý bỏ đi chỗ đứng an toàn nhất của ngươi, và không rút lại được khi triều đình đã theo ngươi đi rồi.',
 
   'stories.nam-quoc.happened':
-    'Năm 1076, khi quân Tống ở bên kia sông Như Nguyệt, bốn câu thơ được đọc lên trong đền lúc đêm: sông núi nước Nam vua Nam ở, rành rành định phận tại sách trời. Ai là tác giả thì còn bàn; tác động lên những người nghe nó thì không.',
+    'Năm 1076, khi quân Tống đóng bên kia sông Như Nguyệt, bốn câu thơ được đọc lên trong đền lúc đêm: "Nam quốc sơn hà Nam đế cư, tiệt nhiên định phận tại thiên thư." Ai là tác giả thì đến nay còn bàn; tác động lên những người nghe nó đêm ấy thì không.',
   'stories.nam-quoc.inGame':
-    'Sĩ khí như một nguồn lực tiêu được đúng một lần. Cái nó mua là một phòng tuyến trụ thêm một ngày nữa so với lẽ ra.',
+    'Sĩ khí như một nguồn lực chỉ tiêu được đúng một lần. Cái nó mua là một phòng tuyến trụ thêm một ngày nữa so với lẽ ra.',
 
   'stories.hich-tuong-si.happened':
-    'Khoảng năm 1284 Trần Hưng Đạo viết cho các tướng rằng ông quên ăn, đêm không ngủ, rồi hỏi họ sẽ nói gì khi nước mất và tên tuổi chính họ mất theo. Bài hịch được chép ra và đọc trước hàng quân.',
+    'Khoảng năm 1284, Trần Hưng Đạo viết cho các tướng dưới quyền rằng ông tới bữa quên ăn, nửa đêm vỗ gối, ruột đau như cắt, rồi hỏi họ sẽ nói gì khi nước mất và tên tuổi chính họ cũng mất theo. Bài hịch được chép ra và đọc trước hàng quân.',
   'stories.hich-tuong-si.inGame':
     'Một lời thề tiêu bằng uy tín của chính ngươi chứ không bằng kho bạc, và một triều không thể nhận nó hai lần.',
 
   'stories.chi-lang.happened':
-    'Năm 1427 đạo viện binh nhà Minh do Liễu Thăng cầm đầu bị dụ vào ải Chi Lăng và bị diệt tại đó. Cuộc vây thành mà nó đang đi giải toả kết thúc bằng thương lượng vài tuần sau.',
+    'Năm 1427, đạo viện binh nhà Minh do Liễu Thăng cầm đầu bị dụ vào ải Chi Lăng và bị diệt tại đó. Cuộc vây thành mà nó đang đi giải toả kết thúc bằng thương lượng vài tuần sau.',
   'stories.chi-lang.inGame':
     'Cái bẫy chỉ ăn nếu ngươi đủ kiên nhẫn để mặc chỗ đang bị vây không được cứu trong lúc ngươi giăng nó.',
 
   'stories.than-toc.happened':
-    'Thần tốc. Quân Quang Trung đi thay phiên, ba người khiêng một người trên võng để đoàn quân không bao giờ dừng, vượt sáu trăm cây số trong bốn mươi ngày.',
+    'Thần tốc. Quân Quang Trung đi thay phiên, ba người khiêng một người trên võng để đoàn quân không lúc nào phải dừng, vượt sáu trăm cây số trong bốn mươi ngày.',
   'stories.than-toc.inGame':
     'Tốc độ mua bằng sức lực. Đạo quân tới nơi không còn là đạo quân lúc xuất phát, và trò chơi bắt ngươi nhìn thẳng vào chỗ chênh ấy.',
 
@@ -428,67 +428,67 @@ export const storyNotesVi: HistoryCatalog = {
     'Một cuộc đánh phủ đầu mà sau đó ngươi phải phân trần trước một triều đình chưa hề nhìn thấy những cái kho ấy.',
 
   'stories.hai-ba-trung.happened':
-    'Trưng Trắc và Trưng Nhị, năm 40–43. Cuộc khởi nghĩa nổ ra sau khi thái thú nhà Hán giết chồng bà Trưng Trắc, và sử chép rõ một cách hiếm thấy rằng các tướng dưới quyền hai bà phần lớn là đàn bà.',
+    'Trưng Trắc và Trưng Nhị, những năm 40–43. Cuộc khởi nghĩa nổ ra sau khi thái thú nhà Hán là Tô Định giết chồng bà Trưng Trắc, và sử chép rõ một cách hiếm thấy rằng các tướng dưới quyền hai bà phần nhiều là đàn bà.',
   'stories.hai-ba-trung.inGame':
     'Một lời thề nhận trong tang tóc. Nó cho ngươi nhiều hơn sức ngươi giữ, và trò chơi không cho ngươi trả lại phần nào.',
 
   'stories.ho-guom.happened':
-    'Thanh gươm cho Lê Lợi mượn và được rùa vàng đòi lại ở hồ giữa Thăng Long, năm 1428. Hồ vẫn mang cái tên ấy, và tích này là cách đất nước tự giải thích với mình rằng mệnh trời là đi mượn, không phải sở hữu.',
+    'Thanh gươm cho Lê Lợi mượn, và được rùa vàng đòi lại ở hồ giữa Thăng Long, năm 1428. Hồ vẫn mang cái tên ấy, và tích này là cách đất nước tự giải thích với mình rằng mệnh trời là thứ đi mượn chứ không phải thứ sở hữu.',
   'stories.ho-guom.inGame':
-    'Cái đã mượn thì phải trả, và trò chơi chọn thời điểm.',
+    'Cái đã mượn thì phải trả, và trò chơi chọn lấy thời điểm.',
 
   'stories.no-than.happened':
-    'Nỏ thần Cổ Loa, lẫy làm từ móng rùa vàng, và người con rể tráo nó bằng một cái giả. Khảo cổ đã đào được lẫy nỏ bằng đồng và hàng vạn mũi tên ở di chỉ ấy; con rùa là phần sử chép thêm.',
+    'Nỏ thần Cổ Loa, lẫy làm bằng móng rùa vàng, và người con rể đã tráo nó bằng một cái giả. Khảo cổ đào được lẫy nỏ bằng đồng và hàng vạn mũi tên ngay tại di chỉ; con rùa là phần sử chép thêm.',
   'stories.no-than.inGame':
     'Một thứ vũ khí thôi hoạt động, và không một dòng nào ở đâu báo cho ngươi biết nó thôi từ lúc nào.',
 
   'stories.yet-kieu.happened':
-    'Con nhà chài lặn được gần trọn một ngày dưới nước. Ông đi đêm với cái khoan, và đưa được một phần hạm đội Nguyên xuống đáy sông mà không đánh trận nào.',
+    'Con nhà chài, lặn được gần trọn một ngày dưới nước. Ông đang đêm mang khoan ra sông, đưa được một phần hạm đội Nguyên xuống đáy mà không phải đánh trận nào.',
   'stories.yet-kieu.inGame':
-    'Một động từ mà trò chơi trước đó chưa có: thiệt hại giáng lên một hạm đội bởi một người, trong đêm, không có trận nào để phân thắng bại.',
+    'Một động từ mà trò chơi trước đó chưa có: thiệt hại giáng lên cả một hạm đội bởi một người, trong đêm, không có trận nào để phân thắng bại.',
 
   'stories.van-don.happened':
-    'Trần Khánh Dư, bị cách chức và phải bán than ngoài bờ biển, được gọi lại năm 1288 và cướp trọn đoàn thuyền lương của quân Nguyên ở Vân Đồn. Đạo quân mà nó nuôi đã thắng hết các trận của mình, rồi vẫn chết đói.',
+    'Trần Khánh Dư bị cách chức, phải bán than ngoài bờ biển, rồi được gọi lại và năm 1288 cướp trọn đoàn thuyền lương của quân Nguyên ở Vân Đồn. Đạo quân mà đoàn thuyền ấy nuôi đã thắng hết các trận của mình, rồi vẫn chết đói.',
   'stories.van-don.inGame':
-    'Đường lương là mục tiêu. Thắng mọi trận mà thua cả cuộc chinh phạt là điều trò chơi cho phép xảy ra với cả hai bên.',
+    'Đường lương là một mục tiêu. Thắng mọi trận mà thua cả cuộc chinh phạt là điều trò chơi cho phép xảy ra với cả hai bên.',
 
   'stories.paper-money.happened':
-    'Thông bảo hội sao, năm 1400: đồng tiền giấy đầu tiên của nước ta, dựa trên một đạo luật khép tội người giữ tiền đồng. Tiền giả xuất hiện ngay lập tức, và chỉ vài năm sau giấy bạc thành vô giá trị.',
+    'Thông bảo hội sao, năm 1400: đồng tiền giấy đầu tiên của nước ta, dựa vào một đạo luật khép tội người còn giữ tiền đồng. Tiền giả xuất hiện ngay lập tức, và chỉ vài năm sau giấy bạc thành vô giá trị.',
   'stories.paper-money.inGame':
     'Một cải cách chạy đúng trong sổ sách và hỏng ngoài chợ, với độ trễ đủ dài để ngươi đã đi làm việc khác trước khi nó rơi xuống.',
 
   'stories.luy-thay.happened':
-    'Đào Duy Từ bị cấm thi vì gốc gác nhà mình ở Đàng Ngoài, bèn vào nam và đắp cho chúa Nguyễn hệ luỹ ở Đồng Hới năm 1631. Nó chặn quân Trịnh gần năm mươi năm.',
+    'Đào Duy Từ bị cấm thi vì cha làm nghề xướng ca, nghề mà lệ triều Lê xếp vào hạng không được ứng thí. Ông bèn vào nam, và năm 1631 đắp cho chúa Nguyễn hệ luỹ ở Đồng Hới. Luỹ ấy chặn quân Trịnh gần năm mươi năm.',
   'stories.luy-thay.inGame':
-    'Một phòng tuyến do chính người bị bên kia chối bỏ dựng nên. Cái giá của nó là tất cả những thứ ngươi đã không xây vì xây nó.',
+    'Một phòng tuyến do chính người bị bên kia chối bỏ dựng nên. Cái giá của nó là tất cả những thứ ngươi đã không xây vì đã xây nó.',
 
   'stories.van-mieu.happened':
-    'Văn Miếu dựng năm 1070, Quốc Tử Giám năm 1076. Những tấm bia tiến sĩ còn đứng ở Hà Nội là một danh sách tên người từ những làng mà nếu không có bia thì chẳng có sổ sách nào ghi.',
+    'Văn Miếu dựng năm 1070, Quốc Tử Giám lập năm 1076. Những tấm bia tiến sĩ còn đứng ở Hà Nội khắc tên những người xuất thân từ các làng mà nếu không có bia thì chẳng sổ sách nào ghi lại.',
   'stories.van-mieu.inGame':
-    'Một thiết chế trả lãi muộn hơn mức bất cứ người chơi nào thấy dễ chịu, và trả mãi rất lâu sau cái triều đã dựng nên nó.',
+    'Một thiết chế trả lãi muộn hơn mức bất cứ người chơi nào thấy dễ chịu, và trả mãi rất lâu sau khi cái triều dựng nên nó đã mất.',
 
   'stories.thu-do.happened':
-    'Năm 1258, khi triều đình hỏi có nên hàng quân Mông Cổ không, Trần Thủ Độ đáp rằng đầu thần chưa rơi xuống đất thì xin bệ hạ đừng lo. Đầu ông không rơi.',
+    'Năm 1258, khi triều đình hỏi có nên hoà với quân Mông Cổ không, Trần Thủ Độ đáp: "Đầu thần chưa rơi xuống đất, xin bệ hạ đừng lo." Đầu ông không rơi.',
   'stories.thu-do.inGame':
-    'Một vị đại thần mà sự chắc chắn là một nguồn lực, và thỉnh thoảng sự chắc chắn ấy sai.',
+    'Một vị đại thần mà sự chắc chắn của ông là một nguồn lực, và thỉnh thoảng sự chắc chắn ấy sai.',
 
   'stories.binh-trong.happened':
-    'Vẫn vụ bắt sống ấy, kể từ đầu bên kia: lời dụ trông ra sao trong mắt người đưa ra nó, và vì sao một lời từ chối không thay đổi được gì về mặt binh bị vẫn được chép lại.',
+    'Vẫn vụ bắt sống ấy, kể từ đầu bên kia: lời dụ trông ra sao trong mắt chính những người đưa nó ra, và vì sao một lời từ chối không thay đổi được gì về mặt binh bị vẫn cứ được chép lại.',
   'stories.binh-trong.inGame':
-    'Một người hùng mà giặc thà có được hơn là giết, và một quyết định chỉ mang tên ngươi.',
+    'Một người hùng mà giặc thà có được còn hơn giết đi, và một quyết định chỉ mang tên ngươi.',
 
   'stories.khuc-thua-du.happened':
-    'Năm 905, khi nhà Đường đang sụp, Khúc Thừa Dụ nhận lấy chức Tiết độ sứ ở Đại La rồi xin được công nhận. Ông được công nhận. Quyền tự chủ đến bằng đường hành chính, ở chỗ ba thế kỷ khởi nghĩa đã không làm nổi.',
+    'Năm 905, nhân nhà Đường đang đổ, Khúc Thừa Dụ nhận lấy chức Tiết độ sứ ở Đại La rồi xin được công nhận. Ông được công nhận. Quyền tự chủ đến bằng con đường hành chính, ở chỗ mà ba thế kỷ khởi nghĩa đã không làm nổi.',
   'stories.khuc-thua-du.inGame':
     'Nền độc lập giành được mà không có chiến tranh, và một triều đình không chịu tính đó là một chiến thắng.',
 
   'stories.the-dykes.happened':
-    'Sông Hồng chảy cao hơn chính châu thổ của nó và được giữ ở đó bằng đất. Triều nào cũng có phu đê; nhà Trần lập hẳn chức Hà đê sứ. Một mùa bỏ bê là một nạn đói hai năm sau.',
+    'Sông Hồng chảy cao hơn chính châu thổ của nó, và được giữ ở đó bằng đất. Triều nào cũng phải trưng phu đắp đê; nhà Trần lập hẳn chức Hà đê sứ. Bỏ bê một mùa là một nạn đói hai năm sau.',
   'stories.the-dykes.inGame':
-    'Sự bảo trì. Hệ thống duy nhất trong game mà phần thưởng cho việc chạy hoàn hảo là không có chuyện gì xảy ra cả.',
+    'Chuyện bảo trì. Hệ thống duy nhất trong trò chơi mà phần thưởng cho việc chạy hoàn hảo là không có chuyện gì xảy ra cả.',
 
   'stories.che-bong-nga.happened':
-    'Vua Chiêm Chế Bồng Nga ba lần đánh phá Thăng Long trong khoảng 1371–1383. Nhà Trần không chặn nổi và không thắng nổi ông; ông chết năm 1390 khi một hàng tướng chỉ đúng chiếc thuyền của ông cho pháo quân Việt.',
+    'Vua Chiêm là Chế Bồng Nga ba lần đánh vào Thăng Long trong khoảng 1371–1383. Nhà Trần không chặn nổi và cũng không thắng nổi ông; ông chết năm 1390, khi một hàng tướng chỉ đúng chiếc thuyền của ông cho pháo bên quân Việt.',
   'stories.che-bong-nga.inGame':
     'Một kẻ địch cứ quay lại mạnh hơn, và không bị loại bỏ bởi bất cứ thứ gì ngươi gọi là chiến thắng.',
 };

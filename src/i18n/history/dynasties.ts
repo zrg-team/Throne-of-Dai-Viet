@@ -34,7 +34,7 @@ export const dynastiesEn: HistoryCatalog = {
 
   'eras.ngo-dinh-le.title': 'Ngô · Đinh · Tiền Lê',
   'eras.ngo-dinh-le.body':
-    'In 938 Ngô Quyền had iron-tipped stakes driven into the bed of the Bạch Đằng, let the Southern Han fleet ride in on the flood and met it coming back on the ebb. A thousand years of northern rule ended on one turn of the water. His death broke the country into twelve warlord domains; Đinh Bộ Lĩnh, a herdsman\’s son who had played at war with reed banners, put all twelve down and named the state Đại Cồ Việt with its capital in the limestone valley of Hoa Lư. He was assassinated in 979. The guard put Lê Hoàn on the throne and he beat the Song in the same year.',
+    'In 938 Ngô Quyền had iron-tipped stakes driven into the bed of the Bạch Đằng, let the Southern Han fleet ride in on the flood and met it coming back on the ebb. A thousand years of northern rule ended on one turn of the water. His death broke the country into twelve warlord domains; Đinh Bộ Lĩnh, a herdsman\’s son who had played at war with reed banners, put all twelve down and named the state Đại Cồ Việt with its capital in the limestone valley of Hoa Lư. He was assassinated in 979. The guard put Lê Hoàn on the throne, and in 981 he broke the Song army that came for the succession.',
   'eras.ngo-dinh-le.inGame':
     'The reed banner is the game\’s worked example of a hero who becomes what you make him, and the stakes in the river are a story with a tide in it. Hoa Lư is why the earliest wardrobe is a two-flap wrap and not a court robe.',
 
@@ -60,7 +60,7 @@ export const dynastiesEn: HistoryCatalog = {
   'eras.thuoc-minh.body':
     'Twenty years of direct Ming administration. They carried the books and the bronzes north, banned Nôm and local dress, and ran the country as a province called Giao Chỉ. The risings failed one after another until one from Lam Sơn did not — Lê Lợi swore an oath with eighteen men in 1418 and was still being hunted through the hills of Thanh Hoá a decade later.',
   'eras.thuoc-minh.inGame':
-    'This age is why Lam Sơn is legible at all. The game gets its idea that a rebellion is logistics and letters long before it is a battle from a decade in which fighting was the thing that kept failing.',
+    'These twenty years are why Lam Sơn is legible at all. What the game took from them is narrower than the Lê sơ note below: when fighting is the thing that keeps failing, the win has to be found somewhere else.',
 
   'eras.le-so.title': 'Lê sơ',
   'eras.le-so.body':
@@ -76,7 +76,7 @@ export const dynastiesEn: HistoryCatalog = {
 
   'eras.tay-son.title': 'Tây Sơn',
   'eras.tay-son.body':
-    'Three brothers from a highland village brought both houses down. Nguyễn Huệ destroyed a Siamese fleet at Rạch Gầm–Xoài Mút, took Thăng Long, and then marched an army from Phú Xuân to the capital in forty days, arrived on the fifth night of Tết and had beaten a Qing army of two hundred thousand by the seventh. He was thirty-nine when he died, four years later, and what he built did not outlive him.',
+    'Three brothers from a highland village brought both houses down. Nguyễn Huệ destroyed a Siamese fleet at Rạch Gầm–Xoài Mút, took Thăng Long, and then marched an army from Phú Xuân to the capital in forty days, arrived on the fifth night of Tết and had beaten a Qing army the annals put at two hundred thousand by the seventh. He was thirty-nine when he died, four years later, and what he built did not outlive him.',
   'eras.tay-son.inGame':
     'The lightning march is a charge you accept or decline, and it costs you what a real forced march costs. The Tây Sơn are also the game\’s reminder that speed is a strategy and not a stat.',
 
@@ -96,85 +96,85 @@ export const dynastiesEn: HistoryCatalog = {
 export const dynastiesVi: HistoryCatalog = {
   'eras.hong-bang.title': 'Hồng Bàng · Văn Lang',
   'eras.hong-bang.body':
-    'Thời dựng nước, phần nhiều là truyền thuyết chứ chưa phải chính sử. Chép rằng mười tám đời vua Hùng trị nước Văn Lang từ Phong Châu — một cõi của trống đồng, lúa nước và làng ven sông. Trống đồng là thật: trống Đông Sơn đào lên hàng trăm chiếc khắp châu thổ, tinh xảo đến mức cái thời sinh ra chúng hiển nhiên không hề đơn sơ. Danh sách vua thì không.',
+    'Thời này phần nhiều còn là truyền thuyết chứ chưa phải chính sử. Sử cũ chép mười tám đời vua Hùng nối nhau trị nước Văn Lang, đóng đô ở Phong Châu — một cõi trống đồng, lúa nước và làng mạc ven sông. Trống đồng thì có thật: hàng trăm chiếc trống Đông Sơn đã được đào lên khắp châu thổ, đúc tinh xảo đến mức cái thời làm ra chúng hẳn không thể là một thời thô sơ. Còn danh sách mười tám đời vua thì không có vật chứng nào như thế.',
   'eras.hong-bang.inGame':
-    'Không ván nào bắt đầu ở đây. Đây là nơi trò chơi lấy đồ đạc của mình: cái trống, ngọn cờ lau, và cái làng có trước mọi triều đại từng thu thuế nó.',
+    'Không ván nào bắt đầu ở đây. Đây là chỗ trò chơi lấy đồ nghề của mình: cái trống, ngọn cờ lau, và cái làng có trước mọi triều đại từng thu thuế nó.',
 
   'eras.au-lac.title': 'Âu Lạc',
   'eras.au-lac.body':
-    'Thục Phán lấy Văn Lang, xưng An Dương Vương, đắp thành ốc ở Cổ Loa. Chuyện kể thành cứ xây lại đổ cho đến khi thần Kim Quy cho cái móng làm lẫy nỏ bắn một phát ngàn mũi; rằng con gái ông là Mỵ Châu lấy con trai kẻ thù; và rằng chàng rể đã tráo lẫy nỏ. Khảo cổ đã đào được lẫy nỏ bằng đồng và hàng vạn mũi tên ở di chỉ ấy. Con rùa là phần sử chép thêm.',
+    'Thục Phán lấy nước Văn Lang, xưng An Dương Vương, đắp thành ốc ở Cổ Loa. Truyền rằng thành đắp lên lại đổ, đến khi thần Kim Quy cho cái móng làm lẫy nỏ, bắn một phát ra nghìn mũi; rằng con gái ông là Mỵ Châu lấy con trai kẻ thù; và rằng chính chàng rể ấy đã tráo mất lẫy nỏ. Khảo cổ về sau đào được lẫy nỏ bằng đồng và hàng vạn mũi tên ngay tại di chỉ Cổ Loa. Con rùa vàng là phần sử chép thêm.',
   'eras.au-lac.inGame':
-    'Nỏ thần và áo lông ngỗng là một tích trong Sử Ký — món quà vẫn đang đọc ngược lại ngươi. Cổ Loa có mặt trên bản đồ trong kho tên đất.',
+    'Nỏ thần và áo lông ngỗng là một tích trong Sử Ký — món quà vẫn đang đọc ngược lại ngươi. Cổ Loa có tên trong kho địa danh mà bản đồ rút ra.',
 
   'eras.nam-viet.title': 'Nam Việt · nhà Triệu',
   'eras.nam-viet.body':
-    'Triệu Đà, một viên tướng nhà Tần tự lập làm vua một cõi quanh Quảng Châu, lấy Âu Lạc năm 179 TCN và giữ sáu mươi tám năm, cho đến khi nhà Hán lấy trọn của ông. Chuyện ấy có tính là nước ta tự trị hay không là mối tranh luận xưa nhất của sử học nước nhà: Đại Việt sử ký toàn thư mở phần bản kỷ bằng nhà Triệu và coi đó là một triều đại của ta, còn sử học hiện đại coi năm 179 TCN là cuộc xâm chiếm mở đầu một nghìn năm. Trang này theo cách đọc thứ hai — nên vạch kẻ lạnh đi từ đây — và in cách đọc thứ nhất ra để bạn có thể không đồng ý.',
+    'Triệu Đà vốn là tướng nhà Tần, nhân lúc Tần đổ mà tự lập làm vua một cõi, đóng ở Phiên Ngung. Năm 179 TCN ông lấy Âu Lạc, giữ được sáu mươi tám năm, đến khi nhà Hán lấy trọn nước Nam Việt. Việc ấy có kể là một triều đại của nước ta hay không là mối tranh luận xưa nhất của sử học nước nhà: Đại Việt sử ký toàn thư xếp nhà Triệu vào Bản kỷ, coi là chính thống; sử học ngày nay lấy năm 179 TCN làm mốc mất nước, mở đầu hơn một nghìn năm Bắc thuộc. Trang này theo cách đọc thứ hai, nên từ đây đã là màu của thời mất nước — và chép cách đọc thứ nhất ngay bên cạnh, để người đọc còn có chỗ mà không đồng ý.',
   'eras.nam-viet.inGame':
-    'Không ván nào bắt đầu ở đây. Cái trò chơi thừa hưởng là sự sụp đổ của Cổ Loa, không phải cuộc tranh luận về ai cai trị sau đó.',
+    'Không ván nào bắt đầu ở đây. Trò chơi thừa hưởng buổi Cổ Loa thất thủ, chứ không thừa hưởng cuộc tranh luận về việc ai cai trị sau đó.',
 
   'eras.bac-thuoc.title': 'Bắc thuộc',
   'eras.bac-thuoc.body':
-    'Một nghìn năm dưới Hán, Ngô, Lương, Tùy và Đường, xen giữa là những cuộc khởi nghĩa phần lớn thất bại và phần lớn vẫn được nhớ. Hai Bà Trưng dấy châu thổ năm 40, giữ sáu mươi lăm thành trong ba năm. Bà Triệu ra trận năm 248, tuổi hai mươi ba. Lý Bí dựng nước Vạn Xuân năm 544. Mai Thúc Loan rồi Phùng Hưng đều chiếm được phủ đô hộ, và đều bị đạo quân kế tiếp từ phương Bắc dẹp. Năm 905 Khúc Thừa Dụ chỉ đơn giản nhận lấy chức Tiết độ sứ rồi được công nhận — cách ấy thành công ở chỗ mà chiến tranh đã không.',
+    'Hơn một nghìn năm dưới các nhà Hán, Ngô, Lương, Tùy và Đường, xen vào giữa là những cuộc khởi nghĩa phần lớn thất bại và phần lớn vẫn được nhớ. Năm 40, Hai Bà Trưng dấy binh, cả châu thổ hưởng ứng, lấy được sáu mươi lăm thành và giữ trong ba năm. Năm 248, Bà Triệu ra trận, bấy giờ hai mươi ba tuổi. Năm 544, Lý Bí dựng nước Vạn Xuân. Mai Thúc Loan rồi Phùng Hưng đều có lúc chiếm được phủ đô hộ, và đều bị đạo quân kế tiếp từ phương Bắc dẹp. Đến năm 905, Khúc Thừa Dụ chỉ việc nhận lấy chức Tiết độ sứ ở Đại La rồi xin công nhận — và được công nhận. Cách ấy làm được điều mà ba thế kỷ binh đao đã không làm nổi.',
   'eras.bac-thuoc.inGame':
-    'Bốn vị vua mà một ván có thể mở màn đến từ thời này, và không ai trong họ cai trị một nước đã yên. Đó chính là dụng ý: trò chơi đặt ngươi vào đúng chỗ họ đã đứng, cầm một thứ chưa ai chịu công nhận.',
+    'Bốn vị vua mà một ván có thể bắt đầu cùng đều ra từ thời này, và không ai trong họ cai trị một nước đã yên. Đó là dụng ý: trò chơi đặt ngươi vào đúng chỗ họ từng đứng, tay cầm một thứ chưa ai chịu công nhận.',
 
   'eras.ngo-dinh-le.title': 'Ngô · Đinh · Tiền Lê',
   'eras.ngo-dinh-le.body':
-    'Năm 938 Ngô Quyền cho đóng cọc bịt sắt xuống lòng Bạch Đằng, để thủy quân Nam Hán theo nước lớn tiến vào, rồi đón chúng lúc nước ròng. Một nghìn năm Bắc thuộc chấm dứt trong một con nước. Ông mất, nước vỡ thành mười hai sứ quân; Đinh Bộ Lĩnh, con nhà chăn trâu từng lấy cờ lau tập trận, dẹp cả mười hai, đặt quốc hiệu Đại Cồ Việt, đóng đô ở thung lũng đá vôi Hoa Lư. Năm 979 ông bị ám sát. Quân sĩ tôn Lê Hoàn lên ngôi, và ngay năm ấy ông phá Tống.',
+    'Năm 938, Ngô Quyền sai đóng cọc bịt sắt xuống lòng Bạch Đằng, dử thủy quân Nam Hán theo nước lớn tiến vào, đợi nước ròng mới tung quân ra đánh. Hơn một nghìn năm Bắc thuộc chấm dứt trong một con nước. Ông mất, nước vỡ ra mười hai sứ quân. Đinh Bộ Lĩnh, con nhà chăn trâu từng lấy bông lau làm cờ bày trận, dẹp xong cả mười hai, lên ngôi Hoàng đế, đặt quốc hiệu Đại Cồ Việt, đóng đô trong thung lũng đá vôi Hoa Lư. Năm 979 ông bị ám sát. Quân sĩ tôn Thập đạo tướng quân Lê Hoàn lên ngôi, và năm 981 ông phá tan quân Tống sang đánh.',
   'eras.ngo-dinh-le.inGame':
-    'Ngọn cờ lau là ví dụ mẫu của trò chơi về một người trở thành đúng cái mà ngươi làm nên, còn cọc dưới sông là một tích có con nước trong đó. Hoa Lư là lý do bộ y phục sớm nhất là áo giao lĩnh hai vạt, không phải triều phục.',
+    'Ngọn cờ lau là ví dụ mẫu của trò chơi cho một người trở thành đúng cái mà ngươi làm nên, còn cọc dưới lòng sông là một tích có con nước trong đó. Hoa Lư là lý do bộ y phục sớm nhất là áo giao lĩnh hai vạt chứ không phải triều phục.',
 
   'eras.ly.title': 'Nhà Lý',
   'eras.ly.body':
-    'Một đứa trẻ nuôi ở cửa chùa lên ngôi năm 1009 và dời đô khỏi vùng núi về Đại La, vì đã mộng thấy rồng bay lên ở đó. Ông đặt tên là Thăng Long. Sau đó là quãng cai trị quy củ dài đầu tiên của nước này: bộ Hình thư, quả chuông treo trước cửa cung cho ai có oan được đánh, Văn Miếu và khoa thi đầu tiên, đê dọc sông Hồng, và năm 1075 một trận đánh phủ đầu sang đất Tống thiêu các kho lương trước khi chúng kịp dùng đến. Bài thơ đọc trong đền bên sông Như Nguyệt năm sau là lời tuyên xưng đầu tiên của nước này về chính mình.',
+    'Một đứa trẻ nuôi ở cửa chùa lên ngôi năm 1009, rồi dời đô khỏi vùng núi về Đại La vì đã mộng thấy rồng bay lên ở đó, và đặt tên kinh thành là Thăng Long. Sau đó là lần đầu tiên nước này có một nền cai trị quy củ kéo dài: bộ Hình thư, quả chuông treo trước cửa cung cho ai có oan được đánh, Văn Miếu rồi khoa thi đầu tiên, đê đắp dọc sông Hồng. Năm 1075 Lý Thường Kiệt đem quân sang đất Tống, đốt các kho lương đang chất sẵn để đánh xuống. Bài thơ đọc trong đền bên sông Như Nguyệt năm sau vẫn được coi là bản tuyên ngôn độc lập đầu tiên của nước ta.',
   'eras.ly.inGame':
-    'Gần như mọi hệ thống thời bình trong game đều là nhà Lý: chiếu chỉ, khoa cử, đê điều, và cái ý rằng cai trị cho khéo mười phút yên ắng chính là vốn để tiêu trong một phút ồn ào.',
+    'Gần như mọi hệ thống thời bình trong trò chơi đều là của nhà Lý: chiếu chỉ, khoa cử, đê điều, và lối nghĩ rằng cai trị cho khéo mười phút yên ắng chính là vốn để tiêu trong một phút ồn ào.',
 
   'eras.tran.title': 'Nhà Trần',
   'eras.tran.body':
-    'Trần Thủ Độ dàn xếp một cuộc hôn nhân, một cuộc nhường ngôi và cả một triều đại gọn trong một năm, và tự tay làm phần việc phải giết. Cái nhà Trần được nhớ là chuyện sau đó: ba lần Nguyên Mông xâm lăng trong ba mươi năm, và ba lần đế quốc lớn nhất mà loài người từng dựng phải chuốc lấy bại trận. Họ bỏ Thăng Long hai lần thay vì tử thủ, cắt đứt đoàn thuyền lương ở Vân Đồn, và kết thúc ở Bạch Đằng năm 1288 bằng đúng thứ cọc và đúng con nước Ngô Quyền đã dùng ba thế kỷ trước.',
+    'Trần Thủ Độ thu xếp một cuộc hôn nhân, một cuộc nhường ngôi và cả một triều đại gọn trong một năm, và tự tay làm lấy phần việc đổ máu. Nhưng nhà Trần được nhớ là vì chuyện về sau: ba lần quân Mông – Nguyên sang trong ba mươi năm, và ba lần đế quốc lớn nhất mà loài người từng lập nên phải chuốc lấy bại trận. Họ bỏ Thăng Long hai lần chứ không tử thủ, cắt đứt đường lương ở Vân Đồn, rồi kết thúc ở Bạch Đằng năm 1288 bằng đúng thứ cọc và đúng con nước mà Ngô Quyền đã dùng ba thế kỷ trước.',
   'eras.tran.inGame':
-    'Nhà Trần là lập luận của trò chơi rằng một cuộc chiến thắng ở phía sau mặt trận. Diên Hồng, Vân Đồn, Yết Kiêu lặn nước, Trần Bình Trọng bị bắt sống — mỗi chuyện là một tích trong Sử Ký, và không chuyện nào là một trận ngươi cầm quân.',
+    'Nhà Trần là chỗ trò chơi lập luận rằng một cuộc chiến được thắng ở phía sau mặt trận. Diên Hồng, Vân Đồn, Yết Kiêu lặn nước, Trần Bình Trọng bị bắt sống — mỗi chuyện là một tích trong Sử Ký, và không chuyện nào là một trận ngươi cầm quân.',
 
   'eras.ho.title': 'Nhà Hồ',
   'eras.ho.body':
-    'Bảy năm. Hồ Quý Ly lên ngôi năm 1400 và thi hành những cải cách thật sự đi trước thời đại mà không hỏi lòng dân: tiền giấy toàn quốc, hạn điền hạn nô, thi cả toán pháp, dựng kinh thành đá ở Tây Đô. Trước là nạn tiền giả, rồi đến đói. Khi quân Minh kéo sang năm 1406 nói rằng đến để phục dựng nhà Trần, gần như không còn ai chịu đánh giúp ông.',
+    'Bảy năm. Năm 1400 Hồ Quý Ly cướp ngôi nhà Trần, rồi thi hành một loạt cải cách thật sự đi trước thời đại mà không hỏi lòng dân: phát hành tiền giấy trong cả nước, hạn điền hạn nô, thi cả toán pháp, dựng thành đá ở Tây Đô. Trước là nạn tiền giả, rồi đến đói kém. Đến năm 1406, khi quân Minh kéo sang, nói rằng sang để phục dựng nhà Trần, thì gần như không còn ai chịu cầm giáo đánh giúp ông.',
   'eras.ho.inGame':
-    'Tiền giấy và kho thóc đều là tích trong Sử Ký, và cả hai đều nói về sự quy công: một cải cách đúng mà bị ghét thì vẫn là bị ghét, và trò chơi sẽ không cho ngươi phân trần về sau.',
+    'Tiền giấy và kho thóc đều là tích trong Sử Ký, và cả hai đều nói về sự quy công: một cải cách đúng mà mất lòng dân thì vẫn là mất lòng dân, và trò chơi sẽ không cho ngươi phân trần về sau.',
 
   'eras.thuoc-minh.title': 'Thuộc Minh',
   'eras.thuoc-minh.body':
-    'Hai mươi năm nhà Minh cai trị trực tiếp. Họ chở sách vở và đồ đồng về Bắc, cấm chữ Nôm và y phục bản xứ, đặt nước ta thành quận Giao Chỉ. Các cuộc khởi nghĩa lần lượt thất bại, cho đến khi có một cuộc ở Lam Sơn thì không — Lê Lợi cùng mười tám người thề ước năm 1418, và mười năm sau vẫn còn bị lùng trong núi Thanh Hoá.',
+    'Hai mươi năm nhà Minh cai trị trực tiếp. Họ chở sách vở và đồ đồng về Bắc, cấm chữ Nôm và y phục bản xứ, đặt nước ta thành quận Giao Chỉ. Các cuộc khởi nghĩa lần lượt bị dẹp, cho đến một cuộc ở Lam Sơn thì không: năm 1418 Lê Lợi dấy binh, và mười năm ròng vẫn còn bị truy quét trong núi Thanh Hoá.',
   'eras.thuoc-minh.inGame':
-    'Chính thời này làm cho Lam Sơn đọc được. Cái ý rằng một cuộc khởi nghĩa là lương thảo và thư từ trước khi là một trận đánh, trò chơi lấy từ một thập kỷ mà đánh nhau là thứ liên tục thất bại.',
+    'Chính hai mươi năm này làm cho Lam Sơn đọc được. Trò chơi lấy ở đây một điều: khi đánh nhau là thứ liên tục thất bại thì phần thắng phải tìm ở chỗ khác.',
 
   'eras.le-so.title': 'Lê sơ',
   'eras.le-so.body':
-    'Một hào trưởng đất Lam Sơn cùng mười tám người thề ước, rồi mười năm bị lùng trong núi Thanh Hoá. Lê Lợi thua nhiều hơn thắng và thắng trận cuối cùng, ở Chi Lăng năm 1427, nơi đạo viện binh bị diệt gọn trong một cửa ải. Nguyễn Trãi viết những bức thư mở được cổng thành mà không cần vây, rồi viết Bình Ngô đại cáo. Quân Minh được cấp ngựa và thuyền để về. Đến đời Lê Thánh Tông, luật Hồng Đức cho người đàn bà quyền có và thừa kế điền sản, và cả nước được đo vẽ từng thừa tuyên.',
+    'Một hào trưởng đất Lam Sơn cùng mười tám người thề ước, rồi mười năm bị truy quét trong núi Thanh Hoá. Lê Lợi thua nhiều hơn thắng, và thắng trận cuối cùng: năm 1427 ở ải Chi Lăng, đạo viện binh nhà Minh bị diệt gọn trong một cửa ải. Nguyễn Trãi viết những bức thư mở được cổng thành mà không phải vây, rồi viết Bình Ngô đại cáo. Quân Minh được cấp ngựa và thuyền cho về nước. Đến đời Lê Thánh Tông, luật Hồng Đức cho người đàn bà quyền có và thừa kế điền sản, và cả nước được đo vẽ theo từng thừa tuyên.',
   'eras.le-so.inGame':
-    'Lam Sơn là nơi trò chơi lấy cái ý rằng một cuộc khởi nghĩa là lương thảo và thư từ trước khi là một trận đánh. Lê Lai liều mình thay chúa là tích về một người hùng mà ngươi chọn để mất.',
+    'Khởi nghĩa Lam Sơn là chỗ trò chơi học rằng lương thảo và thư từ đi trước trận đánh. Lê Lai liều mình thay chúa là tích về một người hùng mà ngươi chọn để mất.',
 
   'eras.phan-tranh.title': 'Mạc · Trịnh – Nguyễn',
   'eras.phan-tranh.body':
-    'Mạc Đăng Dung cướp ngôi năm 1527 và nước bung ra theo đường chỉ suốt hai trăm năm mươi năm. Vua Lê được dựng lại thì ngồi mà không trị; chúa Trịnh cầm Đàng Ngoài nhân danh vua, chúa Nguyễn cầm Đàng Trong từ Phú Xuân, ở giữa là Lũy Thầy của Đào Duy Từ. Đây cũng là thời nước Nam vươn xa nhất về nam, thời cảng Hội An, và thời có rất nhiều áng văn hay do những người không giữ chức gì viết ra.',
+    'Năm 1527 Mạc Đăng Dung cướp ngôi nhà Lê, và nước ta chia đôi theo vết nứt ấy suốt hơn hai trăm năm. Vua Lê được dựng lại thì ngồi mà không trị; chúa Trịnh cầm Đàng Ngoài nhân danh vua, chúa Nguyễn cầm Đàng Trong từ Phú Xuân, ở giữa là hệ luỹ Đào Duy Từ đắp ở Đồng Hới. Đây cũng là thời đất nước vươn xa nhất về phương nam, thời cảng Hội An, và thời có rất nhiều áng văn hay do những người không giữ chức tước gì viết ra.',
   'eras.phan-tranh.inGame':
-    'Hai triều cùng giữ một mệnh trời là gốc của các nước đối địch trong game — và là lý do một cuộc chiến ở đây đánh với những người nói cùng tiếng nói và dẫn cùng sách thánh hiền.',
+    'Hai triều cùng nhận một mệnh trời là gốc của các nước đối địch trong trò chơi — và là lý do một cuộc chiến ở đây đánh với những người nói cùng một tiếng nói và đọc cùng một pho sách.',
 
   'eras.tay-son.title': 'Tây Sơn',
   'eras.tay-son.body':
-    'Ba anh em từ một ấp vùng cao hạ cả hai họ chúa. Nguyễn Huệ diệt thủy quân Xiêm ở Rạch Gầm – Xoài Mút, lấy Thăng Long, rồi hành quân từ Phú Xuân ra kinh trong bốn mươi ngày, đến vào đêm mồng năm Tết và đến mồng bảy đã phá xong hai mươi vạn quân Thanh. Ông mất bốn năm sau, ba mươi chín tuổi, và cơ nghiệp ông dựng không sống lâu hơn ông.',
+    'Ba anh em từ một ấp vùng cao hạ cả hai họ chúa. Nguyễn Huệ diệt thủy quân Xiêm ở Rạch Gầm – Xoài Mút, lấy Thăng Long, rồi đem quân từ Phú Xuân ra kinh trong bốn mươi ngày, đến vào đêm mồng năm Tết Kỷ Dậu 1789, và đến mồng bảy đã phá xong đạo quân Thanh mà sử ta chép là hai mươi vạn. Ông mất bốn năm sau, ba mươi chín tuổi, và cơ nghiệp ông dựng không sống lâu hơn ông.',
   'eras.tay-son.inGame':
     'Cuộc hành quân thần tốc là một lời thề ngươi nhận hoặc từ chối, và nó lấy của ngươi đúng cái giá mà một cuộc cưỡng hành quân thật phải trả. Tây Sơn cũng là lời nhắc rằng tốc độ là một phương lược, không phải một chỉ số.',
 
   'eras.nguyen.title': 'Nhà Nguyễn',
   'eras.nguyen.body':
-    'Nguyễn Ánh thu cả nước năm 1802, đặt quốc hiệu Việt Nam, dựng kinh thành ở Huế. Minh Mạng nhất thống các trấn thành tỉnh, chuẩn hoá quan chế, và đóng cửa với phương Tây đúng vào lúc phương Tây thôi chấp nhận câu từ chối. Pháp lấy Gia Định năm 1859 rồi lấy nốt Nam Kỳ; đến năm 1883 triều đình ký nhượng phần còn lại.',
+    'Năm 1802 Nguyễn Ánh thu cả nước về một mối, đặt quốc hiệu Việt Nam, dựng kinh thành ở Huế. Minh Mạng đổi các trấn thành tỉnh, chuẩn hoá quan chế, và đóng cửa với phương Tây đúng vào lúc phương Tây không còn chịu nhận lời khước từ nữa. Năm 1859 quân Pháp lấy Gia Định rồi lấy nốt sáu tỉnh Nam Kỳ; đến năm 1883 triều đình ký nhượng phần còn lại.',
   'eras.nguyen.inGame':
-    'Áo cổ đứng trong các chân dung muộn là mốc 1744 chứ không phải 1802 — Nguyễn Phúc Khoát cải trang phục trước, cải đất nước sau. Trò chơi mặc cho nhân vật theo đúng thế kỷ họ sống, nên cả dàn tướng không trông như mặc một bộ suốt nghìn năm.',
+    'Áo cổ đứng trong các chân dung muộn là mốc 1744 chứ không phải 1802 — Nguyễn Phúc Khoát cải trang phục trước, cải đất nước sau. Trò chơi mặc cho nhân vật theo đúng thế kỷ họ sống, nên cả dàn tướng không trông như mặc chung một bộ suốt nghìn năm.',
 
   'eras.phap-thuoc.title': 'Pháp thuộc',
   'eras.phap-thuoc.body':
-    'Hoà ước 1883 và 1884 đặt Bắc Kỳ và Trung Kỳ thành xứ bảo hộ, Nam Kỳ thành thuộc địa. Vua Nguyễn vẫn giữ ngai vàng, nghi lễ và ấn tín, nhưng mất quyền bổ nhiệm, quyền thu thuế và quyền nói không; những ông vua muốn giành lại — Hàm Nghi, Thành Thái, Duy Tân — đều lần lượt bị phế và đày. Vị cuối cùng thoái vị năm 1945.',
+    'Hoà ước 1883 và 1884 đặt Bắc Kỳ và Trung Kỳ làm xứ bảo hộ, Nam Kỳ làm thuộc địa. Vua Nguyễn vẫn giữ ngai vàng, nghi lễ và ấn tín, nhưng mất quyền bổ nhiệm, quyền thu thuế và quyền khước từ. Những ông vua muốn giành lại — Hàm Nghi, Thành Thái, Duy Tân — lần lượt bị phế và bị đày. Vị cuối cùng thoái vị năm 1945.',
   'eras.phap-thuoc.inGame':
     'Hoàn toàn nằm ngoài trò chơi: mọi chế độ chơi đều kết thúc trước đó hàng thế kỷ. Nó có mặt trên dòng thời gian vì một dòng thời gian dừng ở năm 1802 sẽ khiến người đọc tưởng câu chuyện kết thúc bằng một chiến thắng.',
 };

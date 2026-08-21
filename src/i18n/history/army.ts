@@ -122,7 +122,7 @@ export const armyEn: HistoryCatalog = {
 
 export const armyVi: HistoryCatalog = {
   'army.intro':
-    'Một người lính được vẽ bằng sáu nét: đội gì trên đầu, thân cắt ra sao, che gì trước ngực, một dải thắt lưng, cầm gì trong tay, và chân đi gì. Đổi một nét là đổi cả thế kỷ. Hãy chọn một triều đại, một cấp bậc và một thứ vũ khí — người lính ở trên được vẽ bằng đúng đoạn mã vẽ anh ta ngoài chiến trường.',
+    'Một người lính được vẽ bằng sáu nét: đội gì trên đầu, thân cắt ra sao, che gì trước ngực, một dải thắt lưng, cầm gì trong tay, và chân đi gì. Đổi một nét là đổi cả một thế kỷ. Hãy chọn một triều đại, một cấp bậc và một thứ binh khí — người lính ở trên được vẽ bằng đúng đoạn mã vẽ anh ta ngoài trận.',
 
   'army.label.dynasty': 'TRIỀU ĐẠI',
   'army.label.rank': 'CẤP BẬC',
@@ -131,49 +131,49 @@ export const armyVi: HistoryCatalog = {
 
   'army.label.formation': 'ĐỘI HÌNH',
   'army.formation.note':
-    'Một nét quân là năm mươi lăm người, và các khối là cùng một đạo quân được chia khác đi. Thương vong lấy từ phía trước đội hình: quân khinh mất trước, rồi đến hàng đao thủ, rồi cung thủ — còn kỵ binh thì phần lớn trận vẫn còn đứng đó.',
+    'Một nét quân là năm mươi lăm người, và bốn khối chỉ là cùng một đạo quân được chia khác đi. Thương vong lấy từ phía trước đội hình: khinh binh mất trước, rồi đến hàng đao thủ, rồi cung thủ — còn kỵ binh thì gần hết trận vẫn còn đứng đó.',
 
   'army.doctrine.balanced.title': 'Cân bằng · bốn khối, bốn việc',
   'army.doctrine.balanced.body':
-    'Một lớp khinh binh dàn mỏng phía trước để hứng loạt đầu rồi rút qua hàng quân; hàng khiên làm thân quân; cung thủ đứng sau bắn vượt qua đầu; một cánh kỵ binh nhỏ chờ bên sườn xem có chỗ nào hở. Mọi lối bày quân khác đều là đạo quân này chia khác đi.',
+    'Một lớp khinh binh dàn mỏng phía trước để hứng loạt đầu rồi rút qua hàng quân; hàng khiên làm thân quân; cung thủ đứng sau bắn vượt qua đầu; một cánh kỵ nhỏ chờ bên sườn xem có chỗ nào hở. Mọi lối bày quân khác đều là đạo quân này chia khác đi.',
   'army.doctrine.spears.title': 'Tường giáo · dồn hết vào hàng quân',
   'army.doctrine.spears.body':
-    'Chín hàng dọc, sâu bốn hàng ngang, khinh binh lấy lệ, gần như không có quân bắn, và không một con ngựa. Khối đơn rộng nhất và dày nhất trên mặt trận, và nó làm đúng một việc — không lùi và không vỡ. Đó là hình dáng của một đạo quân đã quyết định làm một vật cản.',
+    'Chín hàng dọc, sâu bốn hàng ngang, khinh binh lấy lệ, gần như không có quân bắn, và không một con ngựa. Đây là khối đơn rộng nhất và dày nhất trên mặt trận, và nó làm đúng một việc: không lùi và không vỡ. Đó là hình dáng của một đạo quân đã quyết định làm một vật cản.',
   'army.doctrine.archers.title': 'Quân cung · thân quân ở phía sau',
   'army.doctrine.archers.body':
-    'Hàng quân chỉ còn là một lớp vỏ dày hai hàng, việc duy nhất của nó là giữ cho không thứ gì chạm được vào đám cung thủ phía sau. Nhìn hình là thấy chỗ yếu mà không cần ai nói: thứ quý nhất nằm trong cái khối không tự giữ được mình.',
+    'Hàng quân chỉ còn là một lớp vỏ dày hai hàng, việc duy nhất của nó là giữ cho không thứ gì chạm được vào đám cung thủ phía sau. Nhìn hình là thấy ngay chỗ yếu mà không cần ai nói: thứ quý nhất nằm trong cái khối không tự giữ nổi mình.',
   'army.doctrine.shock.title': 'Xung kích · không có lớp che',
   'army.doctrine.shock.body':
-    'Khiên tiến lên, một cánh kỵ binh thật sự bên sườn, và gần như không có gì bắn. Nó bỏ hẳn phần ăn thua trước khi giáp lá cà để đổi lấy phần ăn thua lúc giáp lá cà — và chỗ trống nơi các lối bày quân khác đều có người là thứ đập vào mắt trước tiên.',
+    'Hàng khiên tiến lên, một cánh kỵ thật sự bên sườn, và gần như không có gì bắn. Nó bỏ hẳn phần ăn thua trước khi giáp lá cà để đổi lấy phần ăn thua lúc giáp lá cà — và chỗ trống nơi các lối bày quân khác đều có người là thứ đập vào mắt trước tiên.',
   'army.doctrine.horse.title': 'Cánh kỵ · trả giá bằng hàng quân',
   'army.doctrine.horse.body':
-    'Một ngựa một người tốn chừng mười bảy nét mực so với tám nét của một bộ binh, nên một cánh kỵ lớn thế này phải lấy ra từ chính cái khối có nhiệm vụ giữ đất trong lúc nó vòng đánh. Bức hình nói rõ cái giá ấy: cánh kỵ là thứ lớn nhất trên mặt trận, còn hàng quân chỉ còn mỏng hai hàng.',
+    'Một ngựa một người tốn chừng mười bảy nét mực, so với tám nét của một bộ binh, nên một cánh kỵ lớn thế này phải lấy ra từ chính cái khối có nhiệm vụ giữ đất trong lúc nó vòng đánh. Bức hình nói rõ cái giá ấy: cánh kỵ là thứ lớn nhất trên mặt trận, còn hàng quân chỉ còn mỏng hai hàng.',
 
   'army.ly.title': 'Lý · 1010–1225',
   'army.ly.mark': 'Mũ tròn có chỏm, phía sau vắt ra một chùm lông dài.',
   'army.ly.body':
-    'Hai thế kỷ triều đình yên vị ở Thăng Long, và là quân đội Việt đầu tiên được dựng theo chế độ chứ không theo gia binh của một lãnh chúa. Ngụ binh ư nông cho lính thay phiên về ruộng, nên một đạo quân Lý phần lớn là người không giáp, lác đác vài viên tướng đội mũ. Thứ giáp có thật là hộ tâm kính — một tấm gương che tim, hiện vật thường gặp nhất trong ghi chép phương Bắc.',
+    'Hai thế kỷ triều đình yên vị ở Thăng Long, và là quân đội Việt đầu tiên được dựng theo chế độ chứ không theo gia binh của một hào trưởng. Phép ngụ binh ư nông cho lính thay phiên về ruộng, nên một đạo quân nhà Lý phần lớn là người không giáp, lác đác vài viên tướng đội mũ. Thứ giáp có thật là hộ tâm kính — một tấm gương che tim, thứ hiện vật mà ghi chép của phương Bắc nhắc đến nhiều nhất.',
   'army.ly.inGame':
-    'Chùm lông được vẽ dài hơn mọi hình vẽ còn lại. Ở kích thước người lính ngoài trận, một cái mũ tròn chỉ là một chấm; chính nét vắt ra sau mới tách được Lý khỏi Trần trong một cái liếc. Đó là cường điệu có chủ ý, và đây là chỗ chúng tôi nói ra điều ấy.',
+    'Chùm lông được vẽ dài hơn mọi hình vẽ còn lại. Ở cỡ người lính ngoài trận, một cái mũ tròn chỉ còn là một chấm; chính nét vắt ra sau mới tách được Lý khỏi Trần trong một cái liếc. Đó là cường điệu có chủ ý, và đây là chỗ chúng tôi nói ra điều ấy.',
 
   'army.tran.title': 'Trần · 1225–1400',
   'army.tran.mark': 'Hai má hộ hai bên, và một đĩa tròn trước ngực.',
   'army.tran.body':
-    'Triều đại ba lần đối đầu quân Mông – Nguyên và vẫn còn đó sau đó. Quân Trần được trang bị nặng nhất trong các thời kỳ có mặt trong trò chơi này: giáp lá xếp lớp cho tướng, một đĩa gương tròn thay tấm vuông trước ngực, mũ có má hộ buông quá quai hàm. Nhà Trần còn giữ một lực lượng thường trực chuyên nghiệp chứ không chỉ dựa vào phiên chế, và khác biệt ấy hiện ra ngay trong hình vẽ.',
+    'Triều đại ba lần đương đầu với quân Mông – Nguyên, và ba lần vẫn còn đó sau đó. Quân Trần được trang bị nặng nhất trong các thời kỳ có mặt ở đây: giáp lá xếp lớp cho tướng, một đĩa gương tròn thay tấm vuông trước ngực, mũ có má hộ buông quá quai hàm. Nhà Trần còn giữ một lực lượng thường trực chuyên nghiệp chứ không chỉ trông vào phiên chế, và khác biệt ấy hiện ra ngay trong hình vẽ.',
   'army.tran.inGame':
-    'Đĩa tròn có trong cả tài liệu trang phục lẫn sử sách, nên nó gánh việc phân biệt Trần với Lý mà không phải động tới mũ. Còn má hộ có buông thấp đến thế hay không là một phán đoán vì dễ nhìn, không phải một kết luận.',
+    'Đĩa tròn có trong cả tài liệu trang phục lẫn sử sách, nên nó gánh việc phân biệt Trần với Lý mà không phải động tới cái mũ. Còn má hộ có buông thấp đến thế hay không thì là một phán đoán vì dễ nhìn, không phải một kết luận.',
 
   'army.le.title': 'Hậu Lê · 1427–1527',
   'army.le.mark': 'Mũ tròn có thêm vành — và những khẩu súng đầu tiên trong hàng.',
   'army.le.body':
-    'Cuộc kháng chiến của Lê Lợi kết thúc năm 1428, và thế kỷ sau đó là thời hành chính rực rỡ nhất: bộ luật thành văn, sổ đinh, quân chia thành năm đạo. Đây cũng là lúc súng cầm tay thôi là của lạ. Nhà Hồ đã đúc súng trước đó một đời — Hồ Nguyên Trừng bị bắt sang Minh và bị bắt làm súng ở đó — và đến thời Lê thì đạo quân nào cũng có một phần mang súng.',
+    'Cuộc kháng chiến của Lê Lợi kết thúc năm 1428, và thế kỷ sau đó là thời hành chính rực rỡ nhất: bộ luật thành văn, sổ đinh, quân chia làm năm đạo. Đây cũng là lúc súng cầm tay thôi còn là của lạ. Nhà Hồ đã đúc súng trước đó một đời — Hồ Nguyên Trừng bị bắt sang Minh rồi bị bắt làm súng ở đó — và đến thời Lê thì đạo quân nào cũng có một phần mang súng.',
   'army.le.inGame':
-    'Chọn binh chủng khinh binh từ thời Lê trở đi thì người lính cầm súng hỏa mai; thời Lý và Trần thì cầm lao. Việc đổi ấy nằm bên trong hàm vẽ người và khoá theo triều đại, nên đoạn mã gọi tới không bao giờ đặt sai được.',
+    'Chọn binh chủng khinh binh từ thời Lê trở đi thì người lính cầm súng hoả mai; thời Lý và Trần thì cầm lao. Việc đổi ấy nằm bên trong hàm vẽ người và khoá theo triều đại, nên chỗ gọi tới không bao giờ đặt sai được.',
 
   'army.trinh.title': 'Chúa Trịnh · 1545–1787',
   'army.trinh.mark': 'Mũ lông cao màu sẫm, và là bên duy nhất có kỵ binh trong tài liệu gốc.',
   'army.trinh.body':
-    'Hai trăm năm vua Lê ngồi ngôi ở Thăng Long còn chúa Trịnh cầm quyền. Đàng Ngoài giữ triều đình, bộ máy quan lại và phần dân đông hơn, đánh nhau với họ Nguyễn bảy lần mà không phân thắng bại. Quân Đàng Ngoài là bên được vẽ có ngựa: ngựa được nuôi và mua từ miền núi xuống, và đất phía bắc sông Gianh là đất dùng được ngựa.',
+    'Hai trăm năm vua Lê ngồi ngôi ở Thăng Long còn chúa Trịnh cầm quyền. Đàng Ngoài giữ triều đình, giữ bộ máy quan lại và phần dân đông hơn, đánh nhau với họ Nguyễn bảy lần mà không phân thắng bại. Quân Đàng Ngoài là bên được vẽ có ngựa: ngựa nuôi và mua từ miền núi xuống, và đất phía bắc sông Gianh là đất dùng được ngựa.',
   'army.trinh.inGame':
     'Trịnh không phải một nấc trên thang tiến của người chơi — không ván nào leo tới đó. Đó là thứ một vương quốc Việt *đối địch* mặc, để một cuộc chiến giữa hai nước Việt không phải là hai đạo quân giống hệt nhau trong hai sắc nâu.',
 
@@ -182,25 +182,25 @@ export const armyVi: HistoryCatalog = {
   'army.nguyenLord.body':
     'Nửa phía nam của cùng một cuộc phân tranh. Họ Nguyễn giữ từ sông Gianh trở vào, mở đất về phía Chăm và Khmer, mở cảng cho thương nhân Bồ Đào Nha và Hà Lan rồi lấy tiền ấy mua súng. Lính của họ được vẽ đầu trần tóc búi, áo vải trơn, mang súng và đeo đao bên hông — đúng như tài liệu trang phục ghi lại, và đó là quân phục để dùng chứ không phải để chầu.',
   'army.nguyenLord.inGame':
-    'Một cái đầu trần là bài toán khó cho một trò chơi nhận triều đại qua mũ, và chúng tôi không giải nó bằng cách bịa ra một cái mũ. Thay vào đó áo của họ dài hơn và khẩu súng hạ thấp hơn mọi bên khác. Khi một bộ trang phục không thắng được ở cái mũ thì nó phải thắng ở chỗ khác.',
+    'Một cái đầu trần là bài toán khó cho một trò chơi nhận triều đại qua cái mũ, và chúng tôi không giải nó bằng cách bịa ra một cái mũ. Thay vào đó áo của họ dài hơn và khẩu súng hạ thấp hơn mọi bên khác. Khi một bộ trang phục không thắng được ở cái mũ thì nó phải thắng ở chỗ khác.',
 
   'army.tayson.title': 'Tây Sơn · 1778–1802',
   'army.tayson.mark': 'Khăn đóng quấn mềm, nút buộc lệch một bên.',
   'army.tayson.body':
-    'Một cuộc khởi nghĩa nông dân từ một làng ở Bình Định, kết thúc bằng việc lấy cả nước và đập tan quân Thanh ở Ngọc Hồi – Đống Đa ngay mấy ngày đầu năm Kỷ Dậu, 1789. Quân Quang Trung ra Bắc với tốc độ đến nay vẫn còn được bàn cãi, và đánh có voi trong đội hình. Lính Tây Sơn được vẽ với khăn đóng — vải quấn rồi buộc chứ không phải mũ làm sẵn — đúng thứ những người mới năm ngoái còn là nông dân đội trên đầu.',
+    'Một cuộc khởi nghĩa nông dân từ một làng ở Bình Định, kết thúc bằng việc lấy cả nước và phá tan quân Thanh ở Ngọc Hồi – Đống Đa ngay mấy ngày đầu năm Kỷ Dậu, 1789. Quân Quang Trung ra Bắc với tốc độ đến nay vẫn còn được bàn cãi, và ra trận có voi trong đội hình. Lính Tây Sơn được vẽ với khăn đóng — vải quấn rồi buộc chứ không phải mũ làm sẵn — đúng thứ những người mới năm ngoái còn là nông dân đội trên đầu.',
   'army.tayson.inGame':
-    'Voi thì chưa vẽ. Một con voi tốn chừng bốn mươi nét mực so với tám nét của một người lính, nên nó không thể là một hình trong hàng; nó phải là một vật đứng sau khối quân, và phần đó chưa dựng. Khăn đóng thì có.',
+    'Voi thì chưa vẽ. Một con voi tốn chừng bốn mươi nét mực so với tám nét của một người lính, nên nó không thể là một hình đứng trong hàng; nó phải là một vật đứng sau khối quân, và phần đó chưa dựng. Khăn đóng thì có.',
 
   'army.nguyen.title': 'Nhà Nguyễn · 1802–1945',
   'army.nguyen.mark': 'Nón dấu: nón nông, vành rộng, chóp có mũi nhọn.',
   'army.nguyen.body':
-    'Gia Long thống nhất đất nước năm 1802 và dời kinh đô về Huế. Quân đội nhà Nguyễn là quân đội được ghi chép đầy đủ nhất ở đây — thế kỷ cuối của nó còn ảnh chụp — và nón dấu là thứ dễ nhận ra nhất: sơn dầu, rộng, nông, chóp gắn mũi kim loại, đội trên áo dài, bên trong có giáp nếu là cấm quân.',
+    'Gia Long thống nhất đất nước năm 1802 và dời kinh đô về Huế. Quân đội nhà Nguyễn là quân đội được ghi chép đầy đủ nhất ở đây — thế kỷ cuối của nó còn có cả ảnh chụp — và nón dấu là thứ dễ nhận ra nhất: quang dầu, rộng, nông, chóp gắn mũi kim loại, đội trên áo dài, bên trong có giáp nếu là cấm quân.',
   'army.nguyen.inGame':
-    'Đây là bộ trang phục trò chơi lấy khi không còn căn cứ nào khác, và cũng là bộ mà toà thành trên bản đồ từng bị khoá cứng vào, chơi thời nào cũng vậy. Giờ cả hai đều theo triều đại mà ván chơi của bạn được điểm binh.',
+    'Đây là bộ trang phục trò chơi lấy khi không còn căn cứ nào khác, và cũng là bộ mà toà thành trên bản đồ từng bị khoá cứng vào, chơi thời nào cũng vậy. Giờ cả hai đều theo đúng triều đại mà ván của ngươi được điểm binh.',
 
   'army.tier.0.title': 'Lính mộ',
   'army.tier.0.body':
-    'Không mũ, không giáp, không giày. Lính mộ được vẽ đầu trần tóc búi, tay cầm một cây câu liêm lấy ở ruộng. Đây là ngụ binh ư nông hiện thành hình: thời Lý và Trần triều đình cho lính thay phiên về gặt, và một người lính mộ là người sẽ về lại ruộng của mình trước khi hết năm.',
+    'Không mũ, không giáp, không giày. Lính mộ được vẽ đầu trần tóc búi, tay cầm một cây câu liêm lấy ở ruộng. Đây là phép ngụ binh ư nông hiện thành hình: thời Lý và Trần triều đình cho lính thay phiên về gặt, và một người lính mộ là người sẽ về lại ruộng của mình trước khi hết năm.',
   'army.tier.1.title': 'Quân thường trực',
   'army.tier.1.body':
     'Mũ của triều đại, hộ tâm kính trước ngực, và dải thắt lưng màu của nước. Người lính ăn lương, ở dưới cờ quanh năm — và là phần lớn của bất kỳ đạo quân nào.',
@@ -213,10 +213,10 @@ export const armyVi: HistoryCatalog = {
     'Dựng đứng và ôm sát người. Không phải một binh chủng được huấn luyện — đó là thứ lính mộ cầm, và là thứ một đạo quân mang khi chưa có gì cho biết nó được ghép từ những ai.',
   'army.arm.sword.title': 'Đao thủ',
   'army.arm.sword.body':
-    'Đao ở tay phải, khiên ở tay trái: khiên gỗ viền mây, quang dầu đen. Trong đội hình, đây là thân quân, và một khối đao thủ dày đặc những đĩa nhạt ngang ngực — bóng dáng đặc nhất trong năm binh chủng, và là khối trông đã thấy không nên đâm đầu vào.',
+    'Đao ở tay phải, khiên ở tay trái: khiên gỗ viền mây, quang dầu đen. Trong đội hình, đây là thân quân, và một khối đao thủ thì dày đặc những đĩa nhạt ngang ngực — bóng dáng đặc nhất trong năm binh chủng, và là khối trông đã thấy không nên đâm đầu vào.',
   'army.arm.skirmish.title': 'Quân khinh',
   'army.arm.skirmish.body':
-    'Cây lao trước thời Hậu Lê và khẩu súng hỏa mai sau đó, cầm thấp và vắt ngang thân. Khinh binh che phía trước rồi rút qua hàng quân. Một khối khinh binh trông như một mảng gạch chéo chứ không như một hàng cọc dựng — ở cỡ ngoài chiến trường, đó chính là dấu nhận biết.',
+    'Cây lao trước thời Hậu Lê và khẩu súng hoả mai sau đó, cầm thấp và vắt ngang thân. Khinh binh che phía trước rồi rút qua hàng quân. Một khối khinh binh trông như một mảng gạch chéo chứ không như một hàng cọc dựng — ở cỡ ngoài trận, đó chính là dấu nhận biết.',
   'army.arm.bow.title': 'Cung thủ',
   'army.arm.bow.body':
     'Cung đưa ra khỏi sườn, mũi tên vắt ngang, ống tên sau vai. Quân Việt là quân dùng nỏ từ thời Cổ Loa, và khối cung thủ đứng sau hàng quân bắn vượt qua đầu. Đây là bóng dáng mỏng nhất trong năm — và đọc như thế là đúng: đó là khối sẽ chết nếu có thứ gì tới được chỗ nó.',
