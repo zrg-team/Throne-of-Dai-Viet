@@ -51,6 +51,9 @@ const before = await page.evaluate(() => {
   const st = window.__mandateState;
   const b = st.ascent.activeBattle;
   ui.lanePauseBeforeOpen = true;
+  // And the hard pause, the other clock that halts the world. A player who pressed Pause before a
+  // battle opened had a fight that no order could start: `isWorldHalted` reads both.
+  st.isPaused = true;
   const d = window.__phaserGame.scale.displayScale;
   const zones = [];
   ui.battleUi.orders.list.forEach((o) => {
@@ -62,6 +65,7 @@ const before = await page.evaluate(() => {
   return {
     awaiting: ui.battleAwaitingOrder,
     strategyPause: st.isStrategyPause,
+    paused: st.isPaused,
     beat: (b.approachBeats ?? 0) + b.round,
     stances: zones.length - chips.length,
     chips: chips.length,
@@ -85,6 +89,7 @@ const after = await page.evaluate(() => {
   return {
     awaiting: ui.battleAwaitingOrder,
     strategyPause: st.isStrategyPause,
+    paused: st.isPaused,
     beat: b ? (b.approachBeats ?? 0) + b.round : Infinity,
     gone: !b,
   };
@@ -93,8 +98,10 @@ const after = await page.evaluate(() => {
 await browser.close();
 
 check(after.awaiting === false, 'the tap ends the hold');
-check(after.strategyPause === false, 'and does not hand the pause straight back',
+check(after.strategyPause === false, 'and does not hand the strategy pause straight back',
   `isStrategyPause ${after.strategyPause}`);
+check(after.paused === false, 'nor leave the world hard-paused underneath it',
+  `isPaused ${after.paused}`);
 check(after.beat > before.beat, 'the fight is actually running nine seconds later',
   after.gone ? 'it ran to a finish' : `beat ${before.beat} → ${after.beat}`);
 
