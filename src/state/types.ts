@@ -1593,6 +1593,22 @@ export interface AscentBattle {
    * one refactor away from disagreeing with the fight it claims to describe.
    */
   lastBeatLoss?: { ours: number; theirs: number };
+  /**
+   * How the exchange is going, kept so the screen can say so.
+   *
+   * `wonLast` is the beat just fought and nothing more — winning is announced the moment it is
+   * true, because a round that went your way is the feedback that tells you the shape you picked
+   * was right.
+   *
+   * Losing is deliberately **not** its mirror. One bad exchange is noise; a banner for it would
+   * flicker on and off every other beat and teach the player to ignore it. `lostRun` and
+   * `beatsSinceOurShape` together are the case worth interrupting for: three rounds going against
+   * us and no order given in that time, which is a player who has not noticed they are being
+   * countered. See `buildBattleReadout`.
+   */
+  wonLast?: boolean;
+  lostRun?: number;
+  beatsSinceOurShape?: number;
   theirFormationTarget?: BattleFormation;
   theirReformBeats?: number;
   /** Beats their shape is frozen for, bought by a Moment. Their re-form clock does not run. */

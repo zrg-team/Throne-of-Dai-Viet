@@ -632,6 +632,23 @@ export const ENEMY_SPOT_RADIUS = 2;
 export const BATTLE_BASE_ROUNDS = 14;
 export const BATTLE_MAX_ROUNDS = 22;
 /**
+ * Extra heart lost by **both** sides, per round, for every round past `totalRounds`.
+ *
+ * The round count is not a deadline any more — a fight ends when a side breaks, and only when a
+ * side breaks. What this replaces it with is pressure: past the reference length the exchange
+ * starts costing heart on its own, a point and a fifth more each round, until somebody's line
+ * goes. Two evenly matched hosts do not grind for ever; they get angrier.
+ *
+ * It is also the guarantee that a fight terminates without a cap. The extra drain accumulates as
+ * `1.2 x k(k+1)/2`, which passes a full 100 morale by the thirteenth round of overtime — so the
+ * worst case is bounded by the arithmetic rather than by a timer, and the bound is reached by men
+ * breaking rather than by the screen giving up on them.
+ *
+ * Applied to both sides equally on purpose. A pressure that favoured either would decide fights
+ * the shapes and the tempo are supposed to decide.
+ */
+export const BATTLE_OVERTIME_MORALE = 1.2;
+/**
  * Milliseconds a single beat is held on screen.
  *
  * This is the *replay* clock, and until the beat buffer existed it was not a clock at all — it
@@ -684,7 +701,15 @@ export const BATTLE_BEATS_PER_TICK = 6;
  * The exaggeration was raised for the *map*, where a soldier was 6.8 px tall and read as a speck.
  * The battle screen already had its own room and did not need any.
  */
-export const BATTLE_HOST_SCALE = 1.9256;
+/**
+ * 2.2, up from 1.9256.
+ *
+ * The men were the smallest thing on the screen this screen is about. `verify-battle-scale` holds
+ * the ceiling — nothing may be drawn larger than the near edge of the ground allows, which it
+ * measures at 2.57 — and the tallest figure was coming out at 2.16 against it, so there was room
+ * and nobody had taken it. Raised until the harness says the field is full rather than by eye.
+ */
+export const BATTLE_HOST_SCALE = 2.2;
 
 /**
  * How far winning the exchanges can walk the contact line, as a fraction of the field.

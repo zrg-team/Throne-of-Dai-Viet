@@ -171,8 +171,22 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // This opens the *gaps* and nothing else: the figures keep the size `proportion.ts` measures
     // for them, so a soldier still stands against a house and a buffalo exactly as before.
     const mapKit = { ...(kit ?? {}), spread: drawScale ? 1 : MAP_HOST_SPREAD };
+    /**
+     * **The formation goes in here, and leaving it out was visible from across the room.**
+     *
+     * `drawArmy` derives its own shape internally and passes `kit.shape` when it does, so on the
+     * battle screen the men stood in Thế Chông or Thế Nỏ — the line thrown forward, the horse
+     * pulled back, the bows banked deep. This call did not pass it, so the ground and the standards
+     * were laid out for the *base* arrangement instead: two pale ellipses in open grass with nobody
+     * on them, blocks of men standing on nothing, and a banner planted a block clear of the host
+     * carrying it.
+     *
+     * One shape for the whole marker. `armyAnchor` reads it too, so the host is centred on where
+     * its men actually are rather than on where they would have stood in no formation at all.
+     */
     const shape = armyShape(
       Math.max(1, total), compositionFor(mapKit), scale, kit?.mustered, mapKit.spread ?? 1,
+      mapKit.shape,
     );
     const at = armyAnchor(shape);
 

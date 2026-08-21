@@ -83,7 +83,7 @@ const out = await page.evaluate(async () => {
   // rather than to "refresh", which is where the whole screen hides.
   const parts = {};
   const calls = {};
-  for (const name of ['buildBattleRails', 'updateBattleRails', 'buildBattlePips', 'buildBattleRibbon', 'buildBattleOrders',
+  for (const name of ['buildBattleRails', 'updateBattleRails', 'buildBattlePips', 'buildBattleOrders',
     'updateBattle', 'spawnBattleFloaters', 'layFallen', 'slideMarkers', 'redrawHostBlock', 'buildBattleField']) {
     const original = ui[name];
     if (typeof original !== 'function') continue;

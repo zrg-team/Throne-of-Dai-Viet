@@ -13,7 +13,11 @@ import {
 } from '../pwa/updates';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
-import { InkUI, INK_UI, INK_UI_HEX, type UIBounds } from '../ui/InkUI';
+import { BACK_BAR_HEIGHT, InkUI, INK_UI, INK_UI_HEX, type UIBounds } from '../ui/InkUI';
+import {
+  BATTLE_DIFFICULTIES, BATTLE_SPEEDS, getBattleDifficulty, getBattleSpeed,
+  setBattleDifficulty, setBattleSpeed,
+} from '../game/battleOptions';
 import { CARD_ICON_SIZE, drawCardIcon } from '../ui/CardIcons';
 import { Copilot, type CopilotStep } from '../ui/Copilot';
 import { PIGMENT } from '../ui/ink/palette';
@@ -1437,10 +1441,10 @@ export class MenuScene extends Phaser.Scene {
     // First time on this page, once: what a skirmish is and how one is won.
     this.startClassicTour();
 
-    this.content.push(this.ui.button({ x: 54, y: cursor + 6, width: 282, height: this.vh(44) }, t('ascent.menu.back'), () => {
+    this.content.push(this.ui.backBar(cursor + 6, () => {
       this.mode = 'main';
       this.render();
-    }, { variant: 'secondary', fontSize: '14px' }));
+    }));
   }
 
   /**
@@ -1528,10 +1532,10 @@ export class MenuScene extends Phaser.Scene {
       y += 82;
     }
 
-    this.content.push(this.ui.button({ x: 54, y: Math.min(y + 6, this.vy(726)), width: 282, height: this.vh(44) }, t('menu.back'), () => {
+    this.content.push(this.ui.backBar(Math.min(y + 6, this.vy(726)), () => {
       this.mode = 'main';
       this.render();
-    }, { variant: 'secondary', fontSize: '14px' }));
+    }));
   }
 
   /**
@@ -1715,6 +1719,45 @@ export class MenuScene extends Phaser.Scene {
           },
         ),
       },
+      /**
+       * ── The fight itself ──
+       *
+       * Not a graphics setting and not a taste setting about the map: these two change how the game
+       * plays. Difficulty is how fast an invader answers the shape you are standing in — the fight
+       * is a race between spotting a matchup and being countered out of it, so reaction time is the
+       * one number that makes it harder without making it a different game. Pace is how long a
+       * round is held on screen.
+       *
+       * Repeated on the skirmish setup page, which is where a player actually tries them out.
+       */
+      {
+        name: t('arena.difficulty'),
+        build: (y) => this.renderSettingRow(
+          { x: contentX, y, width: contentWidth, height: ROW_HEIGHT },
+          t('menu.battleDifficulty'),
+          BATTLE_DIFFICULTIES.map((id) => ({
+            id, label: t(`arena.difficulty.${id}` as 'arena.difficulty.easy'),
+          })),
+          getBattleDifficulty(),
+          (id) => {
+            setBattleDifficulty(id);
+            this.render();
+          },
+        ),
+      },
+      {
+        name: t('arena.speed'),
+        build: (y) => this.renderSettingRow(
+          { x: contentX, y, width: contentWidth, height: ROW_HEIGHT },
+          t('menu.battleSpeed'),
+          BATTLE_SPEEDS.map((id) => ({ id, label: t(`arena.speed.${id}` as 'arena.speed.slow') })),
+          getBattleSpeed(),
+          (id) => {
+            setBattleSpeed(id);
+            this.render();
+          },
+        ),
+      },
       // ── What the map is allowed to be doing ──
       //
       // Not the same question as graphics quality, which buys pixels. These buy *movement*: every
@@ -1787,7 +1830,9 @@ export class MenuScene extends Phaser.Scene {
       align: 'center',
     }).setOrigin(0.5, 0);
 
-    const backHeight = this.vh(40);
+    // The sheet is sized from this sum, and the way back is one fixed control on every page now
+    // — see `BACK_BAR_HEIGHT`. Scaled, it came out 27 points tall on a 620 sheet.
+    const backHeight = BACK_BAR_HEIGHT;
     // The update block: a rule, one line of type, and — only when there is something to take — the
     // button that takes it. Measured here rather than drawn and hoped for, because the plate is
     // sized from this sum and a short sheet (620) has nothing to spare at the bottom.
@@ -1891,15 +1936,10 @@ export class MenuScene extends Phaser.Scene {
     }
     cursor += 22;
 
-    this.content.push(this.ui.button(
-      { x: contentX, y: cursor, width: contentWidth, height: backHeight },
-      t('menu.back'),
-      () => {
-        this.mode = 'main';
-        this.render();
-      },
-      { variant: 'secondary', fontSize: '14px' },
-    ));
+    this.content.push(this.ui.backBar(cursor, () => {
+      this.mode = 'main';
+      this.render();
+    }));
   }
 
   private renderConfirmNew(): void {
@@ -1915,10 +1955,10 @@ export class MenuScene extends Phaser.Scene {
       this.startGame(createInitialGameState());
       // Note: full campaign setup is via "Start Campaign" → CampaignScene
     }, { variant: 'danger', fontSize: '14px' }));
-    this.content.push(this.ui.button({ x: 54, y: this.vy(690), width: 282, height: this.vh(44) }, t('menu.back'), () => {
+    this.content.push(this.ui.backBar(this.vy(690), () => {
       this.mode = 'main';
       this.render();
-    }, { variant: 'secondary', fontSize: '14px' }));
+    }));
   }
 
   /**

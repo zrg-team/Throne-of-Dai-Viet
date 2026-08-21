@@ -6,6 +6,7 @@ import { UI_FONT } from './fonts';
 import { PIGMENT } from './ink/palette';
 import { inkPath, mulberry32, washFill, type Pt } from './ink/stroke';
 import { designLength, designPointer } from '../game/graphicsQuality';
+import { t } from '../i18n';
 
 /**
  * A printed surface: a sheet of paper with a hand-pulled contour round it.
@@ -54,6 +55,26 @@ function printedSurface(
     closed: true,
   });
 }
+
+/**
+ * The way back: one width, one height, one place, on every page in the game.
+ *
+ * Taken from the classic-modes page, which had it right — an inset bar at the foot with a chevron
+ * in the label. Everywhere else had its own version: two pages put a 64x28 ghost button in the
+ * top-left corner, out of a thumb's reach entirely, and the three that were already at the foot
+ * ran the full width of the sheet at three different heights.
+ *
+ * The size is the classic page's own, to the point: 282 wide, and 44 through that page's vertical
+ * scale — 39 on an 844 sheet. Copied as a formula rather than as a number so the reference page
+ * renders exactly what it always did and every other page now renders the same thing.
+ */
+export const BACK_BAR_WIDTH = 282;
+/** `MenuScene.vh(44)`, lifted verbatim. `GAME_HEIGHT` is fixed for the life of the page. */
+export const BACK_BAR_HEIGHT = Math.round(
+  44 * Math.max(0.62, Math.min(1, (GAME_HEIGHT - 148) / 790)),
+);
+/** What a page has to keep clear at its foot to sit the bar there. */
+export const BACK_BAR_BAND = BACK_BAR_HEIGHT + 12;
 
 export interface UIBounds {
   x: number;
@@ -911,6 +932,26 @@ export class InkUI {
       contentBounds: { x: x + 14, y: y + headerHeight + 14, width: width - 28, height: height - headerHeight - footerHeight - 20 },
       footerBounds: { x: x + 14, y: y + height - footerHeight + 10, width: width - 28, height: footerHeight - 18 },
     };
+  }
+
+  /**
+   * The way back, at `y`, centred. See `BACK_BAR_WIDTH`.
+   *
+   * A method rather than five call sites agreeing to pass the same numbers, because five call
+   * sites agreeing is exactly what was not happening.
+   */
+  backBar(y: number, onClick: () => void): Phaser.GameObjects.Container {
+    return this.button(
+      {
+        x: Math.round((GAME_WIDTH - BACK_BAR_WIDTH) / 2),
+        y,
+        width: BACK_BAR_WIDTH,
+        height: BACK_BAR_HEIGHT,
+      },
+      t('menu.back'),
+      onClick,
+      { variant: 'secondary', fontSize: '14px' },
+    );
   }
 
   closeIcon(bounds: UIBounds, onClick: () => void): Phaser.GameObjects.Container {

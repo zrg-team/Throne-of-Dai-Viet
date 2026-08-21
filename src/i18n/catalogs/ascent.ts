@@ -138,10 +138,18 @@ export const enAscent = {
   // The Field is where the fight is learned, and until now it explained none of it. Three lines,
   // in the order a player needs them: what to look at, what to press, and what happens if they
   // press nothing at all. No ring, no counter-chart, no vocabulary.
-  "arena.howTitle": "HOW THE FIGHT GOES",
-  "arena.how1": "Watch what they are doing — arrows, horse, a wall of spears. Two of your five shapes answer it, and those two light up.",
-  "arena.how2": "Press one. Your men take a beat or two to re-form, then the exchange turns your way and the screen says so.",
-  "arena.how3": "Touch nothing and your general fights it for you. Take a dial and he keeps working the other one.",
+  "arena.howTitle": "WHICH SHAPE BEATS WHICH",
+  // The two dials that belong to every fight rather than to this matchup. Difficulty is how fast
+  // the enemy answers your shape and nothing else; speed is how long a round is held on screen.
+  "arena.difficulty": "THE ENEMY",
+  "arena.difficulty.easy": "Slow to answer",
+  "arena.difficulty.medium": "Steady",
+  "arena.difficulty.hard": "Quick",
+  "arena.difficulty.nightmare": "Never rests",
+  "arena.speed": "PACE",
+  "arena.speed.slow": "Unhurried",
+  "arena.speed.normal": "Normal",
+  "arena.speed.fast": "Brisk",
   "arena.ourHost": "Our host",
   "arena.ourArms": "Our arms",
   "arena.theirHost": "Their host",
@@ -694,6 +702,12 @@ export const enAscent = {
   "ascent.battle.retreatOff": "Break off the assault",
   "ascent.battle.retreatOffD": "The host falls back to its own ground, in good order.",
   "ascent.battle.roundsLeft": "{n} rounds left",
+  // Past the reference length both lines start losing heart for still being there, so the track
+  // stops counting down and starts counting up. See BATTLE_OVERTIME_MORALE.
+  "ascent.battle.overtime": "no quarter · round {n}",
+  // The chip's floor, against the shape we are holding — one step round the ring either way.
+  "ascent.battle.weBeatIt": "we beat it",
+  "ascent.battle.itBeatsUs": "it beats us",
   "ascent.battle.pressShort": "faster, and costlier",
   "ascent.battle.holdShort": "slower, and fewer fall",
   "ascent.battle.pressOffShort": "rush the gate",
@@ -719,6 +733,8 @@ export const enAscent = {
   // *enemy* is standing in it, which is the only form of it anyone has to read under time. The
   // ring is common sense once it is said out loud — spears stop horses, shields stop arrows — and
   // the Vietnamese name was the whole of what made it look like homework.
+  // The wrap-around, which a row of five cannot draw: the fifth follows round to the first.
+  "ascent.formation.ringNote": "Each shape beats the two that follow it, round the ring.",
   "ascent.formation.chong": "Chông",
   "ascent.formation.chong.full": "Thế Chông",
   "ascent.formation.chong.gloss": "Hedge",
@@ -772,7 +788,7 @@ export const enAscent = {
 
   "ascent.battle.formationLabel": "THẾ TRẬN — FORMATION",
   "ascent.battle.stanceLabel": "THẾ ĐÁNH — STANCE",
-  "ascent.battle.locked": "LOCKED · {n} BEATS",
+  "ascent.battle.locked": "LOCKED · {n}",
   "ascent.battle.reforming": "re-forming · {n}",
   "ascent.battle.blunt": "blunt",
   "ascent.battle.shapeGone": "spent",
@@ -786,6 +802,10 @@ export const enAscent = {
   "ascent.battle.walkingThreat": "our men are re-forming",
   "ascent.battle.walkingWhy": "no shape yet — this is what the change costs",
   "ascent.battle.landedGood": "ĐÚNG THẾ · GOOD CALL",
+  // The exchange, as it stands. Winning the moment it is true; losing only after three rounds
+  // against us with no order given — see `buildBattleReadout`.
+  "ascent.battle.winning": "WINNING",
+  "ascent.battle.losing": "LOSING · CHANGE SHAPE",
   "ascent.battle.landedEven": "in shape — nothing between us",
   "ascent.battle.held": "H E L D",
   "ascent.battle.noCommander": "no\ncommander",
@@ -1377,10 +1397,16 @@ export const viAscent = {
   "arena.title": "Giao Tranh",
   "arena.menuBlurb": "Một trận đánh riêng lẻ. Chọn hai bên và thế đất, rồi cầm quân.",
   "arena.blurb": "Dựng trận rồi đánh. Không bản đồ, không kinh tế — chỉ có trận chiến.",
-  "arena.howTitle": "TRẬN ĐÁNH DIỄN RA THẾ NÀO",
-  "arena.how1": "Xem địch đang làm gì — bắn tên, thúc ngựa, dàn giáo. Hai trong năm thế của ta khắc chế được, và hai thế ấy sẽ sáng lên.",
-  "arena.how2": "Bấm một thế. Quân ta mất một hai nhịp để chuyển, rồi thế trận nghiêng về phía ta và màn hình sẽ báo.",
-  "arena.how3": "Không bấm gì thì tướng của ta tự đánh. Ta cầm vòng nào, tướng giữ vòng còn lại.",
+  "arena.howTitle": "THẾ NÀO KHẮC THẾ NÀO",
+  "arena.difficulty": "QUÂN ĐỊCH",
+  "arena.difficulty.easy": "Chậm đối phó",
+  "arena.difficulty.medium": "Vừa phải",
+  "arena.difficulty.hard": "Nhanh nhạy",
+  "arena.difficulty.nightmare": "Không hở nhịp",
+  "arena.speed": "NHỊP ĐỘ",
+  "arena.speed.slow": "Thong thả",
+  "arena.speed.normal": "Bình thường",
+  "arena.speed.fast": "Dồn dập",
   "arena.ourHost": "Quân ta",
   "arena.ourArms": "Binh chủng ta",
   "arena.theirHost": "Quân địch",
@@ -1931,6 +1957,9 @@ export const viAscent = {
   "ascent.battle.retreatOff": "Rút khỏi trận công thành",
   "ascent.battle.retreatOffD": "Quân lui về đất mình, đội ngũ chỉnh tề.",
   "ascent.battle.roundsLeft": "còn {n} hiệp",
+  "ascent.battle.overtime": "đến cùng · hiệp {n}",
+  "ascent.battle.weBeatIt": "ta khắc nó",
+  "ascent.battle.itBeatsUs": "nó khắc ta",
   "ascent.battle.pressShort": "nhanh hơn, hao hơn",
   "ascent.battle.holdShort": "chậm hơn, ít tổn thất",
   "ascent.battle.pressOffShort": "phá cổng",
@@ -1953,6 +1982,7 @@ export const viAscent = {
   // `.verb` là lệnh người chơi bấm; `.threat` là chính thế ấy khi *địch* đứng trong nó — dạng duy
   // nhất mà người chơi phải đọc kịp trong lúc đánh. Vòng khắc chế vốn đã hợp lẽ thường: giáo chặn
   // ngựa, khiên chắn tên. Cái tên chữ mới là thứ làm nó giống bài tập.
+  "ascent.formation.ringNote": "Mỗi thế khắc hai thế đứng sau nó, vòng quanh.",
   "ascent.formation.chong": "Chông",
   "ascent.formation.chong.full": "Thế Chông",
   "ascent.formation.chong.gloss": "Hàng chông",
@@ -2002,8 +2032,8 @@ export const viAscent = {
 
   "ascent.battle.formationLabel": "THẾ TRẬN",
   "ascent.battle.stanceLabel": "THẾ ĐÁNH",
-  "ascent.battle.locked": "KHOÁ · {n} NHỊP",
-  "ascent.battle.reforming": "đang chuyển thế · {n}",
+  "ascent.battle.locked": "KHOÁ · {n}",
+  "ascent.battle.reforming": "chuyển thế · {n}",
   "ascent.battle.blunt": "cùn",
   "ascent.battle.shapeGone": "đã cạn",
   "ascent.battle.telegraphHeld": "địch giữ {shape}",
@@ -2014,6 +2044,8 @@ export const viAscent = {
   "ascent.battle.walkingThreat": "quân ta đang chuyển thế",
   "ascent.battle.walkingWhy": "chưa vào thế — đây là cái giá của việc đổi",
   "ascent.battle.landedGood": "ĐÚNG THẾ",
+  "ascent.battle.winning": "ĐANG THẮNG",
+  "ascent.battle.losing": "ĐANG THUA · ĐỔI THẾ",
   "ascent.battle.landedEven": "đã vào thế — chưa bên nào hơn",
   "ascent.battle.held": "D Ừ N G",
   "ascent.battle.noCommander": "chưa có\nchủ tướng",
