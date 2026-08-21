@@ -613,6 +613,14 @@ export class ConquestUIScene extends Phaser.Scene {
     this.battleAwaitingOrder = false;
     this.lanePauseBeforeOpen = false;
     this.state.isStrategyPause = false;
+    // And the hard pause, which is the *other* half of this bug and the half that survived the
+    // first fix. `isWorldHalted` is `isDefeated || isPaused || isStrategyPause`, so clearing only
+    // the strategy pause still left a fight frozen for a player who had pressed Pause — which is
+    // an entirely ordinary thing to do in a real-time game, and after which every tap on the dock
+    // did nothing at all and Close was the only control that appeared to work.
+    //
+    // Ordering a fight to begin is an instruction to begin it, whichever clock was holding it.
+    this.state.isPaused = false;
   }
 
   /** Identity of a prompt's *content*, so a reroll re-renders but a tick does not. */

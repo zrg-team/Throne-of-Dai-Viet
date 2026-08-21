@@ -989,6 +989,22 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private render(): void {
+    // The tour ends when the page it is touring does.
+    //
+    // `startTour` only runs from `create`, and only on the front page — but `render` changes
+    // `mode` without going near `create`, so the tour outlived the page it was measured against.
+    // Its veil is a full-screen `setInteractive` blocker at depth 900: left up over the settings
+    // sheet it framed nothing and deafened everything under it. Measured, with the tour running,
+    // tapping a map-theme option did exactly nothing while the same tap worked without it — which
+    // is what "changing map type does not work any more" is.
+    //
+    // Navigating away answers the tour's question the same way Skip does, so it counts as seen —
+    // see `onClose`, which takes the same view.
+    if (this.copilot && this.mode !== 'main') {
+      this.copilot.destroy();
+      this.copilot = undefined;
+      markTourSeen();
+    }
     this.clearContent();
     this.renderTitle();
     if (this.mode === 'settings') {
