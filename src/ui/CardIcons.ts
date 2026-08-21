@@ -20,7 +20,11 @@ export type CardIconId =
   | 'coin' | 'purse' | 'scroll' | 'blade' | 'shield' | 'banner'
   | 'hut' | 'ladder' | 'crown' | 'scales' | 'person' | 'grain'
   | 'herd' | 'cart' | 'branch' | 'retreat' | 'spark' | 'wall'
-  | 'hourglass' | 'skull' | 'cup' | 'hammer' | 'gear' | 'globe' | 'phone';
+  | 'hourglass' | 'skull' | 'cup' | 'hammer' | 'gear' | 'globe' | 'phone'
+  // The five shapes of the fight screen's fast dial. `shield` and `blade` are spoken for
+  // elsewhere, and a formation chip that shared a glyph with a conquest method would read as
+  // the same thing twice, so these are their own.
+  | 'spears' | 'horse' | 'skirmish' | 'tortoise' | 'bows';
 
 /** Side of the square a glyph is drawn into, centred on the container's origin. */
 export const CARD_ICON_SIZE = 26;
@@ -154,6 +158,58 @@ export function drawCardIcon(
     case 'banner':
       line(2); g.lineBetween(-6, 11, -6, -10);
       fill(); g.fillTriangle(-6, -10, 9, -6, -6, -1);
+      break;
+
+    // ── the five shapes ──────────────────────────────────────────────────
+    //
+    // Drawn at 16px on the chip, so the silhouette is the entire job: whatever survives being
+    // squinted at is the icon, and anything finer is a smudge. Each one is the *arrangement*
+    // the shape puts its men in, seen from above — the same reading the field gives, small.
+
+    case 'spears':
+      // A hedge: one rank across the front, points levelled over it.
+      line(2); g.lineBetween(-11, 4, 11, 4);
+      line(1.8);
+      for (let x = -9; x <= 9; x += 6) g.lineBetween(x, 2, x, -9);
+      break;
+
+    case 'horse':
+      // A wedge, in ranks of one, two, three. The point is what the shape is for.
+      fill();
+      g.fillTriangle(0, -10, -3.2, -3.4, 3.2, -3.4);
+      g.fillCircle(-4.6, 1.6, 2.1); g.fillCircle(4.6, 1.6, 2.1);
+      g.fillCircle(-8.4, 7, 2.1); g.fillCircle(0, 7, 2.1); g.fillCircle(8.4, 7, 2.1);
+      break;
+
+    case 'skirmish':
+      // Scattered: no rank, no file, nothing solid to hit. The gaps carry the meaning, so the
+      // dots are deliberately off any grid a viewer could infer one from.
+      fill();
+      g.fillCircle(-9, -6, 2); g.fillCircle(-1, -9, 2); g.fillCircle(7, -4, 2);
+      g.fillCircle(-6, 2, 2); g.fillCircle(2, 0, 2); g.fillCircle(10, 4, 2);
+      g.fillCircle(-9, 9, 2); g.fillCircle(1, 8, 2);
+      break;
+
+    case 'tortoise':
+      // Closed up: a packed block behind one unbroken face. Drawn as an outline with the ranks
+      // inside it, because what a player has to see is that there are no gaps.
+      line(2.2); g.strokeRect(-8, -8, 16, 16);
+      line(1.4);
+      g.lineBetween(-8, -2.7, 8, -2.7);
+      g.lineBetween(-8, 2.7, 8, 2.7);
+      g.lineBetween(-2.7, -8, -2.7, 8);
+      g.lineBetween(2.7, -8, 2.7, 8);
+      break;
+
+    case 'bows':
+      // Shot in the air: three arrows falling, and the rank they were loosed from.
+      line(1.8);
+      for (let x = -7; x <= 7; x += 7) {
+        g.lineBetween(x, -10, x, -1);
+        g.lineBetween(x - 2.4, -3.6, x, -1);
+        g.lineBetween(x + 2.4, -3.6, x, -1);
+      }
+      line(2.2); g.lineBetween(-11, 6, 11, 6);
       break;
 
     case 'hut':

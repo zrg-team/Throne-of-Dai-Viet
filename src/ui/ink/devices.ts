@@ -5,8 +5,8 @@ import { UNIT, unitScale } from './proportion';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import type { Army, ArmyComposition, ArmyWardrobe, GameState } from '../../state/types';
 import {
-  blockShares, compositionOfUnits, DOCTRINE, FORMATION_ORDER, HOST_MARK_CAP, MEN_PER_MARK,
-  type FormationKey,
+  blockShares, compositionOfUnits, DOCTRINE, FORMATION_ORDER, FORMATION_PLAN, HOST_MARK_CAP,
+  MEN_PER_MARK, type BattleFormation, type FormationKey,
 } from '../../data/ascent/formations';
 
 /**
@@ -649,6 +649,14 @@ export interface HostKit {
    * re-checked. See `MAP_HOST_SPREAD`.
    */
   spread?: number;
+  /**
+   * The battle shape this host is standing in, if it is in a fight at all.
+   *
+   * Optional on purpose. Omitted, `armyShape` draws the one arrangement it always has — which is
+   * what every caller outside the fight screen wants, because an army crossing a province on the
+   * map is not standing in Thế Nỏ.
+   */
+  shape?: BattleFormation;
   /** @deprecated The four-era name for `theme`. */
   era?: FigureEra;
   tier?: FigureTier;
@@ -843,6 +851,8 @@ export interface FormationBlock {
   rankPitch: number;
   /** How far each rank back steps sideways. Carried on the block so `spread` reaches it too. */
   shear: number;
+  /** Ranks of one, two, three, drawn as a point. Only Thế Xung's horse asks for it. */
+  wedge?: boolean;
   /** Where its feet land, which is what the painting order sorts on. */
   feet: number;
 }
@@ -886,12 +896,17 @@ export function compositionFor(kit: HostKit): ArmyComposition {
  */
 export function armyShape(
   men: number, composition: ArmyComposition, s = 1, mustered?: number, spread = 1,
+  shape?: BattleFormation,
 ): ArmyShape {
   // The allocation — shares by doctrine, casualties spent in formation order — is `blockShares`,
   // which the fight resolver reads too. One table, one arithmetic, so the dock can never offer a
   // shape the exchange thinks has no block left to stand on.
   const shares = blockShares(composition, men, mustered);
   const plan = DOCTRINE[composition] ?? DOCTRINE.balanced;
+  // The five shapes, when a host is standing in one. Absent — every caller that is not the fight
+  // screen — the base table draws exactly what it always has, which is what keeps the map marker
+  // and the History plate out of this entirely.
+  const tweaks = shape ? FORMATION_PLAN[shape] : undefined;
 
   const pitch = FILE_PITCH * s * spread;
   const rankPitch = RANK_PITCH * s * spread;
@@ -902,14 +917,24 @@ export function armyShape(
   for (const key of FORMATION_ORDER) {
     const standingMarks = shares[key].standing;
     if (standingMarks <= 0) continue;
-    const slot = FORMATION[key];
+    const base = FORMATION[key];
+    const tweak = tweaks?.[key];
+    const slot = tweak
+      ? {
+        ...base,
+        dx: tweak.dx ?? base.dx,
+        dy: tweak.dy ?? base.dy,
+        pitch: tweak.pitch ?? base.pitch,
+      }
+      : base;
     const bp = pitch * slot.pitch;
     const br = rankPitch * slot.rank;
     // Frontage is set by what the block mustered; depth by what is left of it. A block that has
     // taken losses stands the same width and fewer ranks deep, which is a host thinning rather
     // than a host shrinking.
     const full = Math.max(1, shares[key].full) || standingMarks;
-    const fullRows = Math.max(1, Math.round(Math.sqrt(full / plan[key].aspect)));
+    const aspect = tweak?.aspect ?? plan[key].aspect;
+    const fullRows = Math.max(1, Math.round(Math.sqrt(full / aspect)));
     const cols = Math.max(1, Math.ceil(full / fullRows));
     const rows = Math.max(1, Math.ceil(standingMarks / cols));
     const marks = standingMarks;
@@ -919,7 +944,7 @@ export function armyShape(
     const feet = by + (rows - 1) * br;
     blocks.push({
       key, arm: slot.arm, pri: slot.pri, marks, cols, rows,
-      x: bx, y: by, pitch: bp, rankPitch: br, shear, feet,
+      x: bx, y: by, pitch: bp, rankPitch: br, shear, feet, wedge: tweak?.wedge,
     });
     left = Math.min(left, bx);
     right = Math.max(right, bx + (cols - 1) * bp);
@@ -955,7 +980,7 @@ export function drawArmy(
   kit: HostKit = {},
   rankTarget?: (index: number) => G,
 ): ArmyShape {
-  const shape = armyShape(men, compositionFor(kit), s, kit.mustered, kit.spread ?? 1);
+  const shape = armyShape(men, compositionFor(kit), s, kit.mustered, kit.spread ?? 1, kit.shape);
   let index = 0;
   for (const block of shape.blocks) {
     const target = rankTarget ? (rank: number) => rankTarget(index + rank) : undefined;
@@ -974,6 +999,32 @@ function drawBlock(
   // The block's own shear, not the constant: it carries `spread` and the constant does not.
   const shear = block.shear;
   let drawn = 0;
+
+  // Thế Xung's horse stands as a point, not a column: ranks of one, two, three. It is the one
+  // shape whose whole meaning is its outline, and drawn as a rectangle it is a wedge in name only.
+  if (block.wedge) {
+    let rank = 0;
+    while (drawn < block.marks) {
+      const wide = rank + 1;
+      const target = rankTarget?.(rank) ?? g;
+      for (let file = 0; file < wide && drawn < block.marks; file += 1) {
+        // Centred on the block's middle file, so the point sits over the men behind it.
+        const offset = (block.cols - 1) / 2 - rank / 2 + file;
+        figure(
+          target,
+          x + offset * block.pitch + (rand() - 0.5) * 0.32 * block.pitch + rank * shear,
+          y + rank * block.rankPitch + (rand() - 0.5) * 0.3 * block.rankPitch,
+          s,
+          colour,
+          { theme: kit.theme ?? kit.era, tier: kit.tier, accent: kit.accent, arm: block.arm },
+        );
+        drawn += 1;
+      }
+      rank += 1;
+    }
+    return;
+  }
+
   for (let rank = 0; rank < block.rows && drawn < block.marks; rank += 1) {
     const target = rankTarget?.(rank) ?? g;
     for (let file = 0; file < block.cols && drawn < block.marks; file += 1) {

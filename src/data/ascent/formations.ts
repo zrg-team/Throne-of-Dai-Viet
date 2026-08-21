@@ -199,6 +199,78 @@ export const BLOCK_OF: Record<BattleFormation, FormationKey> = {
   no: 'bows',
 };
 
+/** How one shape re-states one block: where it stands, how wide, how loose. */
+export interface FormationTweak {
+  /** Toward the enemy, in file pitches. */
+  dx?: number;
+  /** Toward the viewer, in rank pitches. */
+  dy?: number;
+  /** Looser or tighter than the block normally stands. */
+  pitch?: number;
+  /** Frontage against depth. Higher is wider and shallower. */
+  aspect?: number;
+  /** Ranks of one, two, three — a point rather than a column. Only the wedge wants this. */
+  wedge?: boolean;
+}
+
+/**
+ * The five shapes, as an override of the one arrangement `devices.ts` otherwise always draws.
+ *
+ * A formation does not change who is in the host or how a man is drawn. It re-states, per block,
+ * **how far forward it stands, how wide, and how loose** — which is exactly the three fields the
+ * base table already carries. So this is that table with a fifth axis, and a shape the player
+ * cannot see is a shape they cannot answer.
+ *
+ * Anything omitted keeps the base value, and a host with no plan at all draws exactly as it always
+ * has. That default is load-bearing: `armyShape` has three callers and only one of them is in a
+ * battle — the map marker and the History plate must never re-form, because an army crossing a
+ * province is not standing in Thế Nỏ.
+ *
+ * The numbers are Doc 14's `PLAN` carried into this space, with one correction. Doc 14 drew its
+ * frontages on a 780-wide chart: `front: 24` at a 16-unit pitch is 176 units of a host that has
+ * about 205 to stand in before it is inside the enemy. On the real 390-wide surface the fronts come
+ * down and each shape carries its character in **depth, looseness and which block is at the seam**
+ * instead. See `docs/14-five-shapes-two-dials.html`.
+ */
+export const FORMATION_PLAN: Record<BattleFormation, Partial<Record<FormationKey, FormationTweak>>> = {
+  // The hedge: the line wide and shallow at the seam, everything else stacked behind it.
+  chong: {
+    line: { dx: 6.25, dy: 0, aspect: 5.5 },
+    screen: { dx: 1.88, dy: -3.0 },
+    bows: { dx: -3.13, dy: 3.0, aspect: 3 },
+    horse: { dx: -6.56, dy: 7.17 },
+  },
+  // The wedge: the horse at the point, in ranks of one, two, three, and the foot behind it.
+  xung: {
+    horse: { dx: 7.0, dy: -0.83, wedge: true },
+    line: { dx: 1.88, dy: 2.0, aspect: 2.33 },
+    screen: { dx: -1.88, dy: -2.83 },
+    bows: { dx: -5.94, dy: 3.33, aspect: 3 },
+  },
+  // The skirmish: the screen thrown forward and deliberately loose, the body massed behind.
+  tan: {
+    screen: { dx: 6.56, dy: -1.5, pitch: 2.38 },
+    line: { dx: 0.63, dy: 1.67, aspect: 2.33 },
+    bows: { dx: -3.75, dy: 4.33, aspect: 3 },
+    horse: { dx: -6.88, dy: 8.0 },
+  },
+  // The tortoise: packed tight and deep. The smallest footprint of the five, and it should read so.
+  quy: {
+    line: { dx: 5.31, dy: 0, pitch: 0.81, aspect: 1 },
+    bows: { dx: 1.38, dy: 3.83, pitch: 0.88, aspect: 1.33 },
+    screen: { dx: -0.88, dy: -2.83, pitch: 0.88 },
+    horse: { dx: -5.0, dy: 7.67 },
+  },
+  // The volley: one thin rank across the whole front, the bows banked deep behind it, and the
+  // screen and horse pushed out onto the wings where they are not in the way of the shooting.
+  no: {
+    line: { dx: 5.94, dy: 0, pitch: 0.72, aspect: 12 },
+    bows: { dx: 2.19, dy: 3.67, pitch: 1.31, aspect: 1.33 },
+    screen: { dx: 0.31, dy: -4.33 },
+    horse: { dx: -0.31, dy: 8.33 },
+  },
+};
+
 function ringIndex(formation: BattleFormation): number {
   return FORMATION_RING.indexOf(formation);
 }
