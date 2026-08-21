@@ -6517,10 +6517,10 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       // A greyed control with no explanation is a bug; one that says how long it is greyed for is
       // a rule. This is the only extra reading the stance strip carries that formation does not.
       orders.add(this.ui.label(
-        content.x + content.width - 2, dockY + 13,
+        content.x + content.width - 2, dockY + BATTLE_READOUT_HEIGHT - 1,
         t('ascent.battle.locked', { n: String(battle.stanceLockBeats ?? 0) }), 'caption',
         { fontSize: '8px', color: `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}` },
-      ).setOrigin(1, 0));
+      ).setOrigin(1, 1));
     }
 
     const stanceY = dockY + BATTLE_READOUT_HEIGHT + 3;
@@ -6774,7 +6774,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     if (battle.landedBeat === undefined || beatNow - battle.landedBeat > 1 || walking) return;
     const good = battle.landedCountered === true;
     const stamp = this.ui.label(
-      content.x + content.width - 2, y + 1,
+      content.x + content.width - 2, y + 4,
       good ? t('ascent.battle.landedGood') : t('ascent.battle.landedEven'), 'label',
       {
         fontSize: good ? '10.5px' : '9px',
