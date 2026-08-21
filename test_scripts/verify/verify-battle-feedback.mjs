@@ -85,18 +85,50 @@ check(opening.icons >= 5, 'every shape carries a glyph', `${opening.icons} icons
 const VERBS = ['SPEARS', 'CHARGE', 'SPREAD', 'SHIELDS', 'VOLLEY'];
 const shown = VERBS.filter((v) => opening.texts.includes(v));
 check(shown.length === 5, 'and an order rather than a name', shown.join(' '));
+// And nothing else. The Vietnamese name used to sit permanently under every verb — a word the
+// reader could not read directly below one they could, five times across the busiest strip on the
+// screen, on a chip whose second line is needed for `re-forming · 2`.
 const VN = ['Chông', 'Xung', 'Tán', 'Quy', 'Nỏ'];
-check(VN.filter((v) => opening.texts.includes(v)).length >= 4,
-  'the Vietnamese name is kept, small, under the order it belongs to');
+check(VN.every((v) => !opening.texts.includes(v)),
+  'and nothing but the order — the vocabulary lesson is off the chip',
+  VN.filter((v) => opening.texts.includes(v)).join(' ') || 'none');
 
-// ── the threat, in plain words ─────────────────────────────────────────────
+// ── the threat, in plain words, over the men it belongs to ─────────────────
+//
+// It was a line in the dock, a hundred and eighty points below the two blocks of figures it was
+// about; the reader had to take on trust which host it meant. It is a speech bubble over the host
+// itself now, and both sides get one.
+const bubbles = await page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  const texts = [];
+  const walk = (o) => {
+    if (o.type === 'Text') texts.push(o.text);
+    if (o.list) o.list.forEach(walk);
+  };
+  ui.battleUi.bubbles.list.forEach(walk);
+  return { texts, said: ui.battleUi.bubbleSaid };
+});
 const THREATS = ['their spears are set', 'their horse is coming', 'they are swarming loose',
   'they are locked up tight', 'their arrows are falling'];
-check(opening.texts.some((line) => THREATS.includes(line)),
-  'the band says what the enemy is doing, not what it is called',
-  opening.texts.find((line) => THREATS.includes(line)) ?? opening.texts.slice(0, 3).join(' | '));
-check(!opening.texts.some((line) => line.startsWith('họ:')),
-  'and the old vocabulary line is gone');
+check(bubbles.texts.some((line) => THREATS.includes(line)),
+  'a bubble over their host says what they are doing',
+  bubbles.texts.join(' | '));
+const OURS = ['our spears are set', 'our horse is massing', 'we are spread loose',
+  'we are locked up tight', 'our arrows are falling'];
+check(bubbles.texts.some((line) => OURS.includes(line)),
+  'and one over ours says what we are doing — which nothing ever said before',
+  bubbles.said.ours);
+check(!opening.texts.some((line) => THREATS.includes(line) || line.startsWith('họ:')),
+  'and neither the old vocabulary line nor the threat is left in the dock');
+
+// ── the fight's one red line, where the eye starts ─────────────────────────
+const notice = await page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  return { text: ui.battleUi.notice.text, y: Math.round(ui.battleUi.notice.y) };
+});
+check(notice.text.length > 0 && notice.y < 160,
+  'the urgent line is in the header, beside the commander',
+  `"${notice.text}" at y=${notice.y}`);
 
 // ── the press ──────────────────────────────────────────────────────────────
 const wired = await page.evaluate(() => {
@@ -157,8 +189,14 @@ check(ordered.total >= 1 && ordered.total >= ordered.beats,
 const walking = await dock();
 check(walking.texts.some((line) => line.startsWith('re-forming')),
   'the chip says it is walking');
-check(walking.texts.includes('our men are re-forming'),
-  'and the band says why the exchange has just got worse');
+const walkingBubble = await page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  return ui.battleUi.bubbleSaid.ours;
+});
+check(/^re-forming/.test(walkingBubble),
+  'and our own bubble says why the exchange has just got worse', walkingBubble);
+check(walking.texts.includes('no shape yet — this is what the change costs'),
+  'with the price of the change still beside the dials');
 // The seal and the bar are extra graphics that only exist mid-walk.
 check(walking.graphics > opening.graphics,
   'a seal and a transit bar are drawn while it walks',
@@ -241,22 +279,23 @@ check(qte.dials === false,
 check(qte.plate > 0, 'and still puts its question up', `${qte.plate} objects in the moment layer`);
 
 // ── it all fits on the smallest screen ─────────────────────────────────────
+// The way out is the two exits at the foot now — the lane's Close button is not drawn on this
+// screen at all, because leaving the field already does what closing it did.
 const fit = await page.evaluate(() => {
   const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
   const zones = ui.battleUi.orders.list
     .filter((o) => o.type === 'Zone' && o.input)
     .map((o) => o.y + o.height);
-  const close = [];
-  const walk = (o) => {
-    if (o.type === 'Text' && /Close|Đóng/.test(o.text ?? '')) close.push(o.getBounds().y);
-    if (o.list) o.list.forEach(walk);
+  const exits = ui.battleUi.exits.list.filter((o) => o.type === 'Zone').map((o) => o.y);
+  return {
+    dockBottom: Math.max(...zones),
+    closeTop: exits.length ? Math.min(...exits) : Infinity,
+    exitCount: exits.length,
   };
-  ui.children.list.forEach(walk);
-  return { dockBottom: Math.max(...zones), closeTop: close.length ? Math.min(...close) : Infinity };
 });
-check(fit.dockBottom <= fit.closeTop,
+check(fit.exitCount === 2 && fit.dockBottom <= fit.closeTop,
   'the dock clears the way out at 390×620',
-  `dock ends ${Math.round(fit.dockBottom)}, Close starts ${Math.round(fit.closeTop)}`);
+  `dock ends ${Math.round(fit.dockBottom)}, exits start ${Math.round(fit.closeTop)}`);
 
 check(errors.length === 0, 'no console errors', errors.slice(0, 2).join(' | '));
 

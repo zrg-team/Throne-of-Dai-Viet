@@ -124,6 +124,7 @@ import { CARD_ICON_SIZE, drawCardIcon, iconForOption, type CardIconId } from '..
 import { ASCENT_HUD_HEIGHT, AscentHud } from '../ui/ascent/AscentHud';
 import { AdvisorStrip } from '../ui/ascent/AdvisorStrip';
 import { Copilot, type CopilotStep } from '../ui/Copilot';
+import { drawFormationCounters } from '../ui/ascent/formationCounters';
 import { hasSeenRunTour, markRunTourSeen, takeGuidedRun } from '../state/tour';
 import {
   ACTION_BUTTON_HEIGHT, ACTION_BUTTON_Y, ActionBar, actionBarSlots,
@@ -246,8 +247,11 @@ const FORMATION_ICON: Record<BattleFormation, CardIconId> = {
 };
 /** The two-line log ribbon along the foot of the field, inside it. */
 const BATTLE_RIBBON_HEIGHT = 34;
-/** The round pips above the field, and the count beside them. */
-const BATTLE_PIPS_HEIGHT = 24;
+/**
+ * The round pips used to be a full-width band between the header and the field, and they are in
+ * the header's own top-right corner now — see `battleHeaderFrame`. The band is gone; the field
+ * kept the twenty-four points.
+ */
 /**
  * Most bodies the killing floor will hold.
  *
@@ -271,7 +275,7 @@ function battleFieldHeight(content: UIBounds): number {
   // `verify-header-fit` and `verify-scroll` exist to catch and neither of them looks here.
   const closeBand = LANE_CLOSE_BUTTON_OFFSET - 20 + 12;
   const room = content.height
-    - BATTLE_PIPS_HEIGHT - BATTLE_RAILS_HEIGHT - BATTLE_DOCK_HEIGHT - closeBand - 24;
+    - BATTLE_RAILS_HEIGHT - BATTLE_DOCK_HEIGHT - closeBand - 24;
   // A shade under square: wide enough for two camps and a killing ground between them.
   return Math.round(Math.max(150, Math.min(content.width * 0.86, room)));
 }
@@ -797,18 +801,31 @@ export class ConquestUIScene extends Phaser.Scene {
    * right above it — and the count-up is visible the moment the choice lands.
    */
   /**
-   * The fight's own header: who is commanding, where, and the two ways out.
+   * The fight's own header: who is commanding, where, and what the screen is shouting about.
    *
    * `promptFrame` centres a title over a subtitle, which is right for a card and wrong for this. The
-   * fight is about a *person* holding a field, and under the centred version the two exits had
-   * nowhere to live but floating over the battlefield — where they printed straight through the
-   * opening order line.
+   * fight is about a *person* holding a field, so: portrait hard left, name and the engagement
+   * under it. Left-aligned, because a row that starts at the same x every time is read at a glance
+   * where a centred one has to be found first.
    *
-   * So: portrait hard left, name and the engagement under it, exits as a column on the right.
-   * Left-aligned, because a row that starts at the same x every time is read at a glance where a
-   * centred one has to be found first.
+   * **The exits used to be a column in this corner and are not any more.** They are pressed once a
+   * fight and they sat at the very top of a phone the whole rest of the screen is designed to be
+   * played one-handed — reachable only by shifting the grip. They are at the foot now, beside the
+   * dock the thumb already works; see `buildBattleExits`.
+   *
+   * What takes the corner instead is the band's third line: the fight's own notice, in sỏi son.
+   * Every urgent red sentence this screen had was somewhere else — "the realm holds its breath"
+   * was printed across the sky over the battlefield, the enemy's telegraph was a loose line under
+   * the rails — so the one thing the player most needed to notice had no fixed place to appear and
+   * two different ones to be hunted for. One line, always in the same spot, right of the commander.
    */
-  private battleHeaderFrame(battle: AscentBattle): { content: UIBounds; exits: UIBounds } {
+  private battleHeaderFrame(battle: AscentBattle): {
+    content: UIBounds;
+    exits: UIBounds;
+    pips: UIBounds;
+    notice: Phaser.GameObjects.Text;
+    log: Phaser.GameObjects.Text;
+  } {
     const top = HEADER_HEIGHT + ASCENT_HUD_HEIGHT;
     const dim = this.add
       .rectangle(0, top, GAME_WIDTH, GAME_HEIGHT - top, INK_UI.overlay, 0.93)
@@ -819,8 +836,6 @@ export class ConquestUIScene extends Phaser.Scene {
     const left = 20;
     const right = GAME_WIDTH - 20;
     const face = 46;
-    const exitW = 88;
-    const exitH = 25;
     const bandY = top + 8;
 
     // Whoever is actually holding the field. `generalName` is only stamped on delegation, so an
@@ -847,33 +862,99 @@ export class ConquestUIScene extends Phaser.Scene {
     }
 
     const textX = left + face + 10;
-    const textW = right - exitW - 10 - textX;
+    /**
+     * The clock's own corner, opposite the commander.
+     *
+     * The round track was a full-width band between the header and the field, and it cost the
+     * picture twenty-four points to say a thing that needs about twenty: how many rounds are left.
+     * The two facts a player checks in the same glance are *who is holding this* and *how long
+     * have I got* — so they take the two ends of one row, and the field gets the band back.
+     *
+     * Narrower beads, and that is fine. Nobody counts them; the row is read as a bar that fills.
+     */
+    const pipsW = 132;
+    const pips = { x: right - pipsW, y: bandY + 2, width: pipsW, height: 24 };
+    const textW = right - textX;
+    // Only the two rows that sit beside the clock are held off it. The notice and the log line run
+    // the full width underneath, where there is nothing to collide with.
+    const topW = textW - pipsW - 10;
     const name = this.add.text(
       textX, bandY + 1, hero ? hero.name : t('ascent.battle.noCommanderName'),
       {
         color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '15px', fontStyle: '700',
-        wordWrap: { width: textW },
+        wordWrap: { width: topW },
       },
     ).setOrigin(0, 0);
     this.modalLayer.add(name);
 
     const offence = battle.role === 'offence';
+    // The place, and not the rival with it. The rails name the rival under their own strength bar
+    // — in the size that band deserves — so repeating it here bought nothing and wrapped the line
+    // to three at the width the clock leaves.
     const where = offence
       ? t('ascent.battle.assaultTitle', { land: battle.landName })
       : battle.isGreat
         ? t('ascent.battle.greatTitle', { land: battle.landName })
         : t('ascent.battle.title', { land: battle.landName });
-    const desc = this.add.text(textX, bandY + name.height + 2, `${where} · ${battle.kingdomName}`, {
+    const desc = this.add.text(textX, bandY + name.height + 2, where, {
       color: '#5a4c39', fontFamily: UI_FONT, fontSize: '10.5px', lineSpacing: 1,
-      wordWrap: { width: textW },
+      wordWrap: { width: topW },
     }).setOrigin(0, 0);
     this.modalLayer.add(desc);
 
-    const bandHeight = Math.max(face, name.height + desc.height + 4, exitH * 2 + 5);
-    const cursor = bandY + bandHeight + 10;
+    /**
+     * Two lines of room, kept whether or not there is anything to say.
+     *
+     * Reserved rather than measured because this line changes on the beat — hold, telegraph, lock
+     * — and a header that grew and shrank with it would walk the whole screen up and down every
+     * couple of seconds. Two lines is what the longest of them needs at this width — a rival with
+     * a four-word name wraps the telegraph — and the empty case simply prints nothing into the
+     * same space.
+     */
+    const noticeY = Math.max(bandY + name.height + desc.height + 5, pips.y + pips.height + 2);
+    const notice = this.add.text(textX, noticeY, '', {
+      color: `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`,
+      fontFamily: UI_FONT, fontSize: '10px', fontStyle: '700', lineSpacing: 1,
+      wordWrap: { width: textW },
+    }).setOrigin(0, 0);
+    this.modalLayer.add(notice);
+    const NOTICE_ROOM = 26;
+
+    /**
+     * What just happened, in the header — because on a real phone it could not be read where it was.
+     *
+     * The fight writes about twenty-one lines an engagement and they are printed along the foot of
+     * the battlefield, over hatching, on a plate at 0.82. That is the right place for them as
+     * *atmosphere* and a hopeless one as information: photographed off an actual handset, the older
+     * of the two lines is not legible at all. So the newest one is repeated here, on paper, at the
+     * one place on this screen the eye already goes for words.
+     *
+     * One line, and the newest. A header that scrolled a feed would be a second thing to read
+     * during a fight that already asks for a decision every beat.
+     */
+    const log = this.add.text(textX, noticeY + NOTICE_ROOM, '', {
+      color: INK_UI_HEX.mutedText,
+      fontFamily: UI_FONT, fontSize: '10px', fontStyle: '400',
+    }).setOrigin(0, 0);
+    log.setMaxLines(1);
+    this.modalLayer.add(log);
+    const LOG_ROOM = 14;
+
+    const bandHeight = Math.max(face, noticeY - bandY + NOTICE_ROOM + LOG_ROOM);
+    const cursor = bandY + bandHeight + 6;
     return {
       content: { x: left, y: cursor, width: GAME_WIDTH - 40, height: GAME_HEIGHT - cursor - 20 },
-      exits: { x: right - exitW, y: bandY, width: exitW, height: exitH },
+      // The whole row, not one chip: `buildBattleExits` divides it, and the coach lights it. A
+      // rectangle that covered only the left button pointed at half of what the card described.
+      exits: {
+        x: left,
+        y: GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET,
+        width: GAME_WIDTH - 40,
+        height: LANE_CLOSE_BUTTON_HEIGHT,
+      },
+      notice,
+      log,
+      pips,
     };
   }
 
@@ -979,26 +1060,46 @@ export class ConquestUIScene extends Phaser.Scene {
      * is what the check reported as an 85% difference, twice, before this existed.
      */
     groundSources: Phaser.GameObjects.GameObject[];
-    /** Where the two exits sit in the header, so `buildBattleExits` never has to guess. */
+    /** Where the two exits sit at the foot, so `buildBattleExits` never has to guess. */
     exitBounds: UIBounds;
+    /**
+     * The two speech bubbles over the hosts, and the line each is currently saying.
+     *
+     * Their own layer because `field` is rebuilt whenever the hosts on it change and a bubble must
+     * survive that, and because the bubble is redrawn on a different clock from either: only when
+     * the *sentence* changes, which across a whole engagement is four or five times rather than
+     * once a beat.
+     */
+    bubbles: Phaser.GameObjects.Container;
+    bubbleSaid: { ours: string; theirs: string };
+    /** Where the two lines stood when the bubbles were last drawn. See `updateBattleBubbles`. */
+    bubbleAt: { ours: number; theirs: number };
+    /** The fight's one red line, in the header band. Written in place, never rebuilt. */
+    notice: Phaser.GameObjects.Text;
+    /** The newest line of `battle.log`, repeated in the header where it can actually be read. */
+    logLine: Phaser.GameObjects.Text;
+    /** Where the header put the round track, so `buildBattlePips` never has to guess. */
+    pipBounds: UIBounds;
     /**
      * Where each part of the fight's furniture ended up, for the coach to point at.
      *
      * Recorded as the dock lays itself out rather than recomputed by whoever wants to highlight
      * something, and for the same reason `exitBounds` is: the arithmetic is four constants deep
-     * (`BATTLE_PIPS_HEIGHT`, the field's measured height, `BATTLE_RAILS_HEIGHT`,
+     * (the header band's own height, the field's measured height, `BATTLE_RAILS_HEIGHT`,
      * `BATTLE_READOUT_HEIGHT`) and a second copy of it in the tour would come apart the first time
      * anybody moved a row by three pixels. Filled every rebuild, so it is never a beat stale.
      */
-    coachBounds: Partial<Record<'pips' | 'rails' | 'readout' | 'stance' | 'formation', UIBounds>>;
+    coachBounds: Partial<Record<
+      'pips' | 'field' | 'rails' | 'readout' | 'stance' | 'formation', UIBounds
+    >>;
     /** Both dials, fixed. They used to scroll, and Retreat sat below the fold. */
     orders: Phaser.GameObjects.Container;
     /**
-     * Hand-over and leave, in the field's top-right corner rather than on the dock.
+     * Hand-over and leave, along the foot of the screen.
      *
-     * They are pressed at most once a fight and they are semi-final, which makes the band the thumb
-     * is working every few beats the worst place on the screen for them. Their own layer because
-     * `field` is rebuilt whenever the hosts on it change and these must survive that.
+     * Their own layer because `field` is rebuilt whenever the hosts on it change and these must
+     * survive that, and because a hand-over flips what the left one says without anything else on
+     * the screen having moved.
      */
     exits: Phaser.GameObjects.Container;
     rivalColor: number;
@@ -1026,8 +1127,6 @@ export class ConquestUIScene extends Phaser.Scene {
     railsGeom?: { barW: number; readoutY: number; ourX: number; theirX: number };
     ourStrength?: Phaser.GameObjects.Text;
     theirStrength?: Phaser.GameObjects.Text;
-    /** The two sentences under the rails: their intent, and how the arms meet. Written in place. */
-    railsNotes?: Phaser.GameObjects.Text[];
     /** The log ribbon's two lines, kept for the whole fight and re-written rather than remade. */
     ribbonLines?: Phaser.GameObjects.Text[];
     /**
@@ -1041,8 +1140,8 @@ export class ConquestUIScene extends Phaser.Scene {
     /** The round track, redrawn into one graphics instead of rebuilt out of two objects a beat. */
     pipTrack?: Phaser.GameObjects.Graphics;
     pipsLeft?: Phaser.GameObjects.Text;
-    /** The pulse over the seam. Kept, because its tween never ends and one a fight is plenty. */
-    clashMark?: Phaser.GameObjects.Text;
+    /** The mark over the seam. Kept, because its pulse never ends and one a fight is plenty. */
+    clashMark?: Phaser.GameObjects.Container;
     /** Whether the lines have met yet, so the hit-stop fires on the first contact only. */
     hadContact?: boolean;
     /** Marker plus the host it stands for, so its strength can be re-stamped as men fall. */
@@ -1567,7 +1666,7 @@ export class ConquestUIScene extends Phaser.Scene {
         overCard: true,
         when: () => this.openPromptKey === 'lane:battle' && Boolean(this.battleUi?.coachBounds.stance),
         steps: () => {
-          const box = (key: 'pips' | 'rails' | 'readout' | 'stance' | 'formation') =>
+          const box = (key: 'pips' | 'field' | 'rails' | 'readout' | 'stance' | 'formation') =>
             () => this.battleUi?.coachBounds[key];
           return [
             {
@@ -1583,10 +1682,13 @@ export class ConquestUIScene extends Phaser.Scene {
               target: box('pips'),
             },
             {
+              // The bubbles, not the dock. What each side is doing is said over its own men now,
+              // and the card that explains that has to light the men rather than a band of type
+              // three rows below them.
               id: 'fight-read',
               heading: 'copilot.fight.read.h',
               body: 'copilot.fight.read.b',
-              target: box('readout'),
+              target: box('field'),
             },
             {
               id: 'fight-stance',
@@ -1595,10 +1697,23 @@ export class ConquestUIScene extends Phaser.Scene {
               target: box('stance'),
             },
             {
+              /**
+               * The one card in the game that carries a drawing, and the reason `CopilotStep.art`
+               * exists at all.
+               *
+               * The counter ring is the whole of the fight's decision and the only way the coach
+               * had to state it was "laid out in the ring order they beat each other in" — a
+               * sentence describing a picture. Nobody holds five names, a direction and a step
+               * count in their head with a host closing on them. The table says it in one look.
+               */
               id: 'fight-shapes',
               heading: 'copilot.fight.shapes.h',
               body: 'copilot.fight.shapes.b',
               target: box('formation'),
+              art: (x, y, width) => drawFormationCounters(this, x, y, width, {
+                // Lit on the row the fight is actually asking about, when it is asking one.
+                highlight: battleTelegraph(this.state)?.formation,
+              }),
             },
             {
               id: 'fight-exits',
@@ -5463,7 +5578,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const content = frame.content;
 
     const fieldHeight = battleFieldHeight(content);
-    const fieldY = content.y + BATTLE_PIPS_HEIGHT;
+    const fieldY = content.y;
     // The men stand a little below centre, so the camps and the horizon have room above them.
     // Where the two lines stand, as a fraction of the field.
     //
@@ -5480,6 +5595,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const span = rightX - leftX - 60;
 
     const field = this.add.container(0, 0);
+    const bubbles = this.add.container(0, 0);
     const floaters = this.add.container(0, 0);
     const ribbon = this.add.container(0, 0);
     const pips = this.add.container(0, 0);
@@ -5489,13 +5605,19 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const moment = this.add.container(0, 0);
     const fallen = this.add.graphics();
     field.add(fallen);
-    this.modalLayer.add([field, floaters, ribbon, pips, readout, orders, exits, moment]);
+    this.modalLayer.add([field, bubbles, floaters, ribbon, pips, readout, orders, exits, moment]);
 
     this.battleUi = {
       content,
       fieldHeight,
       coachBounds: {},
       field,
+      bubbles,
+      bubbleSaid: { ours: '', theirs: '' },
+      bubbleAt: { ours: 0, theirs: 0 },
+      notice: frame.notice,
+      logLine: frame.log,
+      pipBounds: frame.pips,
       readout,
       pips,
       ribbon,
@@ -5530,12 +5652,15 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     this.updateBattleRails(battle);
     this.buildBattlePips(battle);
     this.buildBattleOrders(battle);
+    // The two exits ARE the foot of this screen now — the lane's own Close button is not drawn
+    // here. Leaving hands the rest of the fight to the general and steps away, which is what
+    // closing it did anyway; two buttons that do nearly the same thing, one of them unlabelled as
+    // to what it costs, is worse than one that says so.
     this.buildBattleExits(battle);
     this.buildBattleMoment(battle);
-    // The screen had no way out at all: the only exits were Retreat and "leave it to my
-    // generals", both of which end the fight. Watching a siege you are winning meant being
-    // held there until it resolved.
-    this.laneCloseButton(content);
+    this.updateBattleBubbles(battle);
+    this.updateBattleNotice(battle);
+    this.updateBattleLogLine(battle);
 
     this.startBattleClock();
   }
@@ -5582,7 +5707,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
   private buildBattlePips(battle: AscentBattle): void {
     const ui = this.battleUi;
     if (!ui) return;
-    const { content, pips } = ui;
+    const { pipBounds: box, pips } = ui;
     // The track is one graphics and one label for the whole fight; a beat clears and re-fills it.
     // Throwing both away and making them again cost 5.3 ms a beat to move one pip along.
     if (!ui.pipTrack?.active) {
@@ -5590,22 +5715,24 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       ui.pipTrack = this.add.graphics();
       pips.add(ui.pipTrack);
       ui.pipsLeft = this.ui.label(
-        content.x + content.width, content.y + 9, '', 'caption',
+        box.x + box.width, box.y + 9, '', 'caption',
         { fontSize: '10px', align: 'right' },
       ).setOrigin(1, 0);
       pips.add(ui.pipsLeft);
     }
 
+    // A gap of one, not two: at 132 points wide a thirty-round fight gives each bead about three,
+    // and a two-point gap either side of that is more air than bead.
     const total = Math.max(1, battle.totalRounds);
-    const gap = 2;
-    const width = (content.width - gap * (total - 1)) / total;
+    const gap = 1;
+    const width = (box.width - gap * (total - 1)) / total;
     const g = ui.pipTrack;
     g.clear();
     for (let i = 0; i < total; i += 1) {
       const spent = i < battle.round;
       const current = i === battle.round;
       g.fillStyle(current ? INK_UI.cinnabar : spent ? INK_UI.gold : INK_UI.softBrush, spent || current ? 0.95 : 0.3);
-      g.fillRect(content.x + i * (width + gap), content.y + 2, Math.max(1, width), current ? 5 : 3.5);
+      g.fillRect(box.x + i * (width + gap), box.y, Math.max(1, width), current ? 6 : 4);
     }
 
     const left = Math.max(0, battle.totalRounds - battle.round);
@@ -5664,7 +5791,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const ui = this.battleUi;
     if (!ui) return;
     const { content, ribbon } = ui;
-    const base = content.y + BATTLE_PIPS_HEIGHT + ui.fieldHeight - BATTLE_RIBBON_HEIGHT;
+    const base = content.y + ui.fieldHeight - BATTLE_RIBBON_HEIGHT;
 
     // Built once. The plate never moves and the two lines are the same two `Text` objects for the
     // whole fight, so a new sentence costs one `setText` rather than three fresh objects a beat.
@@ -5773,7 +5900,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const { content, field } = ui;
     const { leftX, rightX, groundY } = ui.geometry;
 
-    const top = content.y + BATTLE_PIPS_HEIGHT;
+    const top = content.y;
     const bottom = top + ui.fieldHeight;
     const x0 = content.x + 4;
     const x1 = content.x + content.width - 4;
@@ -6048,7 +6175,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
   private battleBands(): { horizon: number; groundY: number; bottom: number } {
     const ui = this.battleUi;
     if (!ui) return { horizon: 0, groundY: 0, bottom: 0 };
-    const top = ui.content.y + BATTLE_PIPS_HEIGHT;
+    const top = ui.content.y;
     return { horizon: top + ui.fieldHeight * 0.30, groundY: ui.geometry.groundY, bottom: top + ui.fieldHeight };
   }
 
@@ -6069,7 +6196,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
   private battleBaseScale(): number {
     const ui = this.battleUi;
     if (!ui) return BATTLE_HOST_SCALE;
-    const band = ui.geometry.groundY - (ui.content.y + BATTLE_PIPS_HEIGHT + ui.fieldHeight * 0.30);
+    const band = ui.geometry.groundY - (ui.content.y + ui.fieldHeight * 0.30);
     return BATTLE_HOST_SCALE * Math.max(0.62, Math.min(1, band / 114));
   }
 
@@ -6264,7 +6391,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     ui.fieldSignature = this.battleFieldSignature(battle);
 
     field.add(this.ui.panel(
-      { x: content.x, y: content.y + BATTLE_PIPS_HEIGHT, width: content.width, height: ui.fieldHeight },
+      { x: content.x, y: content.y, width: content.width, height: ui.fieldHeight },
       { border: INK_UI.softBrush },
     ));
 
@@ -6365,7 +6492,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // Whole pixels. A texture landing on a half-pixel resamples everything inside it, which is a
     // broad, low-amplitude difference across the whole picture rather than an obvious fault.
     const x = Math.round(content.x + 2);
-    const y = Math.round(content.y + BATTLE_PIPS_HEIGHT + 2);
+    const y = Math.round(content.y + 2);
     const width = Math.ceil(content.width - 4);
     const height = Math.ceil(ui.fieldHeight - 4);
     if (width <= 0 || height <= 0) return;
@@ -6434,10 +6561,12 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // in a fight and both are one line of text — putting them here rebuilt the panel, both names
     // and both rout marks to change a sentence, which is how this cost 5.8 ms a beat even after
     // the numbers had been lifted out of it. They are written in place instead.
+    // The opening hold is not in here any more either: it used to print a note across the field,
+    // and that note is the header's notice now — which is written in place and never rebuilds
+    // anything.
     return [
       battle.kingdomName,
       battle.terrainEdge.toFixed(2),
-      this.battleAwaitingOrder ? 'holding' : 'running',
       battle.ourAdvance + battle.theirAdvance >= 1 ? 'met' : 'apart',
     ].join(':');
   }
@@ -6453,23 +6582,19 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     ui.ourStrength = undefined;
     ui.theirStrength = undefined;
     ui.clashMark = undefined;
-    ui.railsNotes = undefined;
 
     // Clash mark, only once they have actually met. Built here rather than on the beat because
     // its pulse is `repeat: -1` — one per fight, not one per exchange.
     if (battle.ourAdvance + battle.theirAdvance >= 1) {
-      const clash = this.ui.label(0, groundY - 44, t('ascent.battle.clash'), 'label', {
-        fontSize: '22px', align: 'center',
-      }).setOrigin(0.5);
+      // High enough to clear the front rank. At 44 it was drawn straight across their heads, which
+      // is the one place on the field guaranteed to have something in it.
+      const clash = this.battleClashMark();
+      clash.setPosition(0, groundY - 56);
       readout.add(clash);
       ui.clashMark = clash;
-      this.tweens.add({
-        targets: clash, scale: { from: 0.7, to: 1.15 }, alpha: { from: 1, to: 0.35 },
-        duration: 380, yoyo: true, repeat: -1,
-      });
     }
 
-    const readoutY = content.y + BATTLE_PIPS_HEIGHT + ui.fieldHeight + 8;
+    const readoutY = content.y + ui.fieldHeight + 8;
     readout.add(this.ui.panel(
       { x: content.x, y: readoutY, width: content.width, height: BATTLE_RAILS_HEIGHT },
       { border: INK_UI.softBrush },
@@ -6521,38 +6646,30 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     readout.add(bars);
     ui.railsBars = bars;
 
-    // Two lines for what they are about to do and how the two hosts' arms meet. Both are read off
-    // the same functions the fight uses, so neither can tell the player something the beat then
-    // contradicts — and both are written into labels that already exist rather than made afresh.
-    ui.railsNotes = [0, 1].map((index) => {
-      const note = this.ui.label(
-        content.x + content.width / 2, readoutY + BATTLE_RAILS_HEIGHT + 2 + index * 13, '', 'caption',
-        { fontSize: '10px', align: 'center', wordWrap: { width: content.width - 20 } },
-      ).setOrigin(0.5, 0);
-      readout.add(note);
-      return note;
-    });
+    /**
+     * The two loose lines that used to hang under the rails are gone, and both went somewhere the
+     * player was already looking.
+     *
+     * The telegraph — *Lãnh Chúa Phương Bắc commits to nothing next beat* — is the header's notice
+     * now, the one place on this screen reserved for the sentence that matters right this beat. The
+     * arms verdict is in the readout band beside the dials, with the other reading about the order
+     * last given. Between them they were a third and fourth red line on a screen that already had
+     * two, floating in the gap between the rails and the dock and belonging to neither.
+     *
+     * The opening hold went the same way. It was printed across the sky over the battlefield, which
+     * is a beautiful place for a sentence and a poor one for an instruction: the strip it was
+     * telling the player to touch is at the other end of the screen, and the pulsing frame round
+     * that strip was already doing the pointing.
+     */
 
     // The ground's edge, computed since the day the screen shipped and printed nowhere. A player
     // deciding whether to intercept on high ground could not see what it bought them. It belongs
     // to the ground, not the beat, so it is written once.
     if (battle.terrainEdge > 1.01) {
       readout.add(this.ui.label(
-        content.x + content.width / 2, readoutY + BATTLE_RAILS_HEIGHT + 2 + 26,
+        content.x + content.width / 2, readoutY + BATTLE_RAILS_HEIGHT + 3,
         t('ascent.battle.terrain', { mult: battle.terrainEdge.toFixed(2) }), 'caption',
         { fontSize: '10px', align: 'center' },
-      ).setOrigin(0.5, 0));
-    }
-
-    // The opening hold, said out loud: the world is stopped for the first order, and the caption
-    // goes with the first tap.
-    if (this.battleAwaitingOrder) {
-      readout.add(this.ui.label(
-        content.x + content.width / 2, content.y + BATTLE_PIPS_HEIGHT + 10, t('ascent.battle.holdNote'), 'caption', {
-          align: 'center',
-          wordWrap: { width: content.width - 40 },
-          color: `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`,
-        },
       ).setOrigin(0.5, 0));
     }
   }
@@ -6595,42 +6712,342 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     bar(theirX, readoutY + 28, 8, frame.theirNow / Math.max(1, battle.theirStart), ui.rivalColor);
     bar(ourX, readoutY + 42, 5, frame.ourMorale / 100, heartColour(frame.ourMorale));
     bar(theirX, readoutY + 42, 5, frame.theirMorale / 100, heartColour(frame.theirMorale));
+  }
 
-    // The two sentences under the rails. `setText` on an unchanged string still re-measures the
-    // canvas and re-uploads the texture, so each one is compared before it is written.
-    const telegraph = battleTelegraph(this.state);
-    const arms = battle.ourMatchup ?? 1;
-    const lines: Array<{ text: string; colour: string }> = [];
-    if (telegraph) {
-      // The telegraph is a reading now, not a single stance — their tempo, the shape they are
-      // standing in, and the one they are walking into. The ribbon says the *shape*, because that
-      // is the half the player has to answer; the strip's own label carries the beats left.
-      lines.push({
-        text: telegraph.next
-          ? t('ascent.battle.theyForm', {
-            kingdom: battle.kingdomName,
-            shape: t(`ascent.formation.${telegraph.next}.full` as Parameters<typeof t>[0]),
-            n: String(telegraph.beatsLeft),
-          })
-          : t(`ascent.battle.theyWill.${telegraph.stance}` as Parameters<typeof t>[0], {
-            kingdom: battle.kingdomName,
-          }),
-        colour: '#8a2a1b',
-      });
+  /**
+   * The mark over the seam, where the two lines are actually touching.
+   *
+   * **It was the character `⚔`, and that is a font, not a drawing.** Everything else on this screen
+   * is cut from the same woodblock — the men, the camps, the banners, the paper itself — and in the
+   * middle of it sat a glyph the platform chose: a flat outline on desktop Chromium, and on iOS a
+   * full-colour emoji, rendered in Apple's palette at Apple's weight, over Đông Hồ paper. The one
+   * mark on the screen that says "this is the fight" was the one mark that did not belong to it.
+   *
+   * Drawn now, in three pieces that each answer a different question:
+   *
+   *   the burst  — *something is happening here*. Sỏi son, breathing on its own clock so the mark
+   *                is alive even in the second or two between beats.
+   *   the blades — *what* is happening. Crossed, ink-edged, paper-bright so they read against both
+   *                the pale ground and the dark blocks of men.
+   *   the ring   — *now*. Fired per exchange by `strikeClash`, and the only part of the three that
+   *                is tied to the simulation rather than to a timer.
+   *
+   * The three are separate objects on purpose: the burst's pulse is `repeat: -1` and the blades'
+   * punch is a one-shot, and a single target cannot carry both without one stealing the other's
+   * scale.
+   */
+  private battleClashMark(): Phaser.GameObjects.Container {
+    const container = this.add.container(0, 0);
+
+    // A soft ground first, so the mark has weight over a pale field and over a dark block of men
+    // alike. Without it the blades were a thin white scratch on whatever happened to be behind.
+    const halo = this.add.graphics();
+    halo.fillStyle(INK_UI.cinnabar, 0.16);
+    halo.fillCircle(0, 0, 19);
+    container.add(halo);
+
+    // Eight rays, alternating long and short, and turned off-axis so the star does not read as a
+    // compass. Uneven lengths because a cut mark on a print is never symmetrical.
+    const burst = this.add.graphics();
+    burst.fillStyle(INK_UI.cinnabar, 0.9);
+    for (let i = 0; i < 8; i += 1) {
+      const angle = (i / 8) * Math.PI * 2 + 0.26;
+      const reach = i % 2 === 0 ? 23 : 14.5;
+      burst.fillTriangle(
+        Math.cos(angle) * reach, Math.sin(angle) * reach,
+        Math.cos(angle + 0.3) * 5.5, Math.sin(angle + 0.3) * 5.5,
+        Math.cos(angle - 0.3) * 5.5, Math.sin(angle - 0.3) * 5.5,
+      );
     }
-    if (Math.abs(arms - 1) > 0.03) {
-      lines.push({
-        text: arms > 1 ? t('ascent.battle.armsGood') : t('ascent.battle.armsBad'),
-        colour: arms > 1 ? '#4c5f45' : '#8a2a1b',
-      });
-    }
-    (ui.railsNotes ?? []).forEach((note, index) => {
-      if (!note.active) return;
-      const line = lines[index];
-      const text = line?.text ?? '';
-      if (note.text !== text) note.setText(text);
-      if (line && note.style.color !== line.colour) note.setColor(line.colour);
+    container.add(burst);
+    // Never all the way down: the floor of 0.55 is what keeps the mark present between beats. At
+    // 0.4 it read as a fault in the paper on the frames it was caught low.
+    this.tweens.add({
+      targets: burst,
+      scale: { from: 0.86, to: 1.16 },
+      alpha: { from: 0.95, to: 0.55 },
+      angle: { from: -7, to: 7 },
+      duration: 640,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
     });
+
+    /**
+     * One blade along +x, pommel behind the origin and point in front of it.
+     *
+     * The pair are hung at −45° and −135°, which is the heraldic arrangement: both points up, both
+     * hilts down, and the crossing at the middle. First attempt used ±45°, so the points were at
+     * opposite corners and the two hilts made a dark blob exactly where the eye lands. The guard is
+     * a short bar rather than a full cross-piece for the same reason — at eighteen points across
+     * there is no room for a hilt that is drawn in detail.
+     */
+    const blade = (angle: number): Phaser.GameObjects.Graphics => {
+      const g = this.add.graphics();
+      g.fillStyle(INK_UI.brush, 1);
+      g.fillRect(-13, -1.3, 6.5, 2.6);
+      g.fillCircle(-13.2, 0, 1.9);
+      g.fillRect(-6.8, -3.8, 2.2, 7.6);
+      // Paper-bright, so the blade reads against the dark blocks of men it stands between.
+      g.fillStyle(INK_UI.parchment, 1);
+      g.beginPath();
+      g.moveTo(-4.2, -2.4);
+      g.lineTo(10, -2.1);
+      g.lineTo(15.5, 0);
+      g.lineTo(10, 2.1);
+      g.lineTo(-4.2, 2.4);
+      g.closePath();
+      g.fillPath();
+      g.lineStyle(1.3, INK_UI.brush, 0.95);
+      g.strokePath();
+      g.setRotation(angle);
+      return g;
+    };
+    const blades = this.add.container(0, 0);
+    blades.add([blade(-Math.PI / 4), blade(-Math.PI * 0.75)]);
+    blades.setData('role', 'blades');
+    container.add(blades);
+
+    return container;
+  }
+
+  /**
+   * One exchange, struck.
+   *
+   * A ring off the point of contact and a punch through the blades, fired from `reactToBeat` — so
+   * the mark moves because the fight moved, not because a timer said so. Both are one-shots that
+   * clean themselves up: the ring destroys itself, and the punch lands back on scale 1.
+   *
+   * Deliberately small. This fires 1.8 times a second for the length of a siege, and anything that
+   * reads as an explosion at that rate stops being feedback within about four beats.
+   */
+  private strikeClash(): void {
+    const mark = this.battleUi?.clashMark;
+    if (!mark?.active) return;
+
+    const ring = this.add.graphics();
+    ring.lineStyle(2.5, INK_UI.cinnabar, 0.95);
+    ring.strokeCircle(0, 0, 14);
+    // Over the blades, not behind them. Behind, the burst's own rays swallowed it and the beat had
+    // no visible answer at all — the shockwave has to leave the mark to read as one.
+    mark.add(ring);
+    this.tweens.add({
+      targets: ring,
+      scale: { from: 0.55, to: 2.6 },
+      alpha: { from: 0.95, to: 0 },
+      duration: 460,
+      ease: 'Quad.easeOut',
+      onComplete: () => ring.destroy(),
+    });
+
+    const blades = mark.list.find(
+      (child) => (child as Phaser.GameObjects.Container).getData?.('role') === 'blades',
+    );
+    if (!blades) return;
+    this.tweens.killTweensOf(blades);
+    this.tweens.add({
+      targets: blades,
+      scale: { from: 1.34, to: 1 },
+      angle: { from: -7, to: 0 },
+      duration: 280,
+      ease: 'Back.easeOut',
+    });
+  }
+
+  /**
+   * What each side's line is doing, said over its own men.
+   *
+   * **This is the sentence the whole fight turns on, and it used to be printed a hundred and
+   * eighty points away from the thing it was about.** "their spears are set" sat in a band under
+   * the rails, in the dock, between a price and a lock counter — so the player read a caption,
+   * looked up at two blocks of figures, and had to take on trust which of them it referred to.
+   * There was no line at all for our own shape: the only way to know what your own host was
+   * standing in was to look at which chip was filled.
+   *
+   * A bubble over the men answers both at once. It is attached to the host it belongs to, both
+   * sides get one, and the answer to "who is doing that" is where the tail points. The manga
+   * device is deliberate rather than decorative — the fight is the one screen in this game with
+   * two *actors* on it, and a speech bubble is the one drawing everybody already reads as "this
+   * one, not that one".
+   *
+   * Rebuilt only when a sentence changes. Across a whole engagement that is four or five times;
+   * a bubble redrawn on the beat would flicker under a shape that had not moved.
+   */
+  private updateBattleBubbles(battle: AscentBattle): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+
+    const read = battleTelegraph(this.state);
+    const walking = (battle.reformBeats ?? 0) > 0;
+    const ourShape = walking && battle.formationTarget ? battle.formationTarget : battle.ourFormation;
+    const ours = walking
+      ? t('ascent.battle.bubbleReforming', {
+        shape: t(`ascent.formation.${ourShape}.verb` as Parameters<typeof t>[0]),
+      })
+      : t(`ascent.formation.${battle.ourFormation}.ours` as Parameters<typeof t>[0]);
+    // What they are *standing in*, not what they are walking into. The second is a warning and
+    // belongs in the notice; a bubble says what the men under it are doing now.
+    const theirShape = read?.formation ?? battle.theirFormation;
+    const theirs = t(`ascent.formation.${theirShape}.threat` as Parameters<typeof t>[0]);
+
+    /**
+     * Redrawn when the sentence changes — or when the host it points at has walked far enough that
+     * the tail no longer lands on it.
+     *
+     * The tail is part of the closed path, so it cannot be moved without redrawing the bubble, and
+     * the two lines close across most of the field over an engagement. Ten units is under half a
+     * host block, so the spike is always plainly on the men; over a whole engagement it fires a
+     * handful of times rather than 1.8 times a second.
+     */
+    const frame = this.battleFrame(battle);
+    const lines = this.battleLines(frame.ourAdvance, frame.theirAdvance);
+    const moved = Math.abs(lines.ourX - ui.bubbleAt.ours) > 10
+      || Math.abs(lines.theirX - ui.bubbleAt.theirs) > 10;
+    if (!moved && ui.bubbleSaid.ours === ours && ui.bubbleSaid.theirs === theirs) return;
+    ui.bubbleSaid = { ours, theirs };
+    ui.bubbleAt = { ours: lines.ourX, theirs: lines.theirX };
+
+    this.clearLayer(ui.bubbles);
+    ui.bubbles.add(this.battleBubble(lines.ourX, 'ours', ours));
+    ui.bubbles.add(this.battleBubble(lines.theirX, 'theirs', theirs));
+  }
+
+  /**
+   * One bubble: a printed blob with a spike pointing down at the host that is speaking.
+   *
+   * Drawn through `printedShape` like every other surface in the game rather than as a rounded
+   * rectangle, so it belongs to the same woodblock as the men underneath it. The outline is an
+   * eight-point sheet with the tail spliced into its bottom edge — one closed path, so the wobble
+   * runs continuously round the spike instead of stopping at a seam.
+   */
+  private battleBubble(
+    anchorX: number, side: 'ours' | 'theirs', text: string,
+  ): Phaser.GameObjects.Container {
+    const ui = this.battleUi!;
+    const { content } = ui;
+    const { groundY } = ui.geometry;
+    const fieldTop = content.y;
+
+    const label = this.ui.label(0, 0, text, 'caption', {
+      fontSize: '9.5px',
+      align: 'center',
+      color: side === 'ours' ? INK_UI_HEX.inkText : '#8a2a1b',
+      wordWrap: { width: Math.round(content.width * 0.42) },
+    }).setOrigin(0.5, 0);
+
+    const width = Math.min(content.width * 0.46, label.width + 18);
+    const height = label.height + 11;
+    /**
+     * Centred over the host that is speaking, and kept on its own half of the field.
+     *
+     * Pinned to the two edges first, which looked right on the opening frame and wrong from about
+     * the fourth beat: the lines close across most of the field, and a bubble that cannot move has
+     * a tail clamped to its own edge, so the spike ends up pointing at bare ground behind the men.
+     *
+     * The half-field clamp is what keeps the two apart once the lines meet in the middle — at that
+     * point both hosts are within thirty units of each other and two bubbles that simply followed
+     * them would be drawn on top of one another.
+     */
+    const mid = content.x + content.width / 2;
+    const x = side === 'ours'
+      ? Phaser.Math.Clamp(anchorX - width / 2, content.x + 4, mid - 3 - width)
+      : Phaser.Math.Clamp(anchorX - width / 2, mid + 3, content.x + content.width - 4 - width);
+    /**
+     * High enough to clear the men, low enough to still be over them.
+     *
+     * 78 is measured off the tallest host block this screen draws. The clamp is what keeps it
+     * honest on a short phone: `GAME_HEIGHT` goes to 620, where the field is at its 150 floor and
+     * a bubble hung 78 above the line would be off the top of the frame entirely.
+     */
+    const bottom = Math.max(fieldTop + height + 6, groundY - 78);
+    const y = bottom - height;
+
+    const container = this.add.container(0, 0);
+    const cut = 7;
+    const tailX = Phaser.Math.Clamp(anchorX, x + 14, x + width - 14);
+    const shape = this.add.graphics();
+    printedShape(shape, [
+      { x: x + cut, y },
+      { x: x + width - cut, y },
+      { x: x + width, y: y + cut },
+      { x: x + width, y: bottom - cut },
+      { x: x + width - cut, y: bottom },
+      // The spike, spliced into the bottom edge on its way back to the left.
+      { x: tailX + 6, y: bottom },
+      { x: tailX - 1, y: bottom + 13 },
+      { x: tailX - 7, y: bottom },
+      { x: x + cut, y: bottom },
+      { x, y: bottom - cut },
+      { x, y: y + cut },
+    ], INK_UI.parchment, Math.round(x * 13 + y), {
+      fillAlpha: 0.97, width: 1.4, alpha: 0.85, colour: INK_UI.brush, wobble: 0.6, step: 9,
+    });
+    container.add(shape);
+    label.setPosition(x + width / 2, y + 5);
+    container.add(label);
+    return container;
+  }
+
+  /**
+   * The newest line of the fight's own account, repeated in the header.
+   *
+   * The ribbon along the foot of the field keeps it too — that is where it belongs as atmosphere,
+   * printed over the ground it is describing. But it is 10-point type on a 0.82 plate over hatching,
+   * and photographed off a real handset the older of its two lines cannot be read at all. The
+   * header carries the same sentence on plain paper, and the two never disagree because both are
+   * written from `battle.log` on the same beat.
+   *
+   * Shrunk to fit rather than wrapped: the band's rows are reserved heights, and a second line here
+   * would push the field down every time the fight said something long.
+   */
+  private updateBattleLogLine(battle: AscentBattle): void {
+    const ui = this.battleUi;
+    if (!ui?.logLine?.active) return;
+    const newest = battle.log[battle.log.length - 1] ?? '';
+    if (ui.logLine.text === newest) return;
+    ui.logLine.setFontSize(10);
+    ui.logLine.setText(newest);
+    const room = GAME_WIDTH - 20 - ui.logLine.x;
+    for (let size = 9.5; size >= 8 && ui.logLine.width > room; size -= 0.5) {
+      ui.logLine.setFontSize(size);
+    }
+  }
+
+  /**
+   * The fight's one red line, in the header band.
+   *
+   * Everything urgent this screen had to say used to be said somewhere different: the opening hold
+   * across the sky over the battlefield, the enemy's telegraph in a loose line under the rails, the
+   * stance lock as an eight-point note tucked against the right edge of the dock. Three places for
+   * one job, none of them where the eye starts.
+   *
+   * Ranked, and only ever one at a time. A notice strip that stacks is a notice strip nobody reads
+   * — and the ranking is the order the player can act on them: the hold blocks the fight entirely,
+   * the telegraph is the thing to answer this beat, the lock is why the tap they just tried did
+   * nothing.
+   */
+  private updateBattleNotice(battle: AscentBattle): void {
+    const ui = this.battleUi;
+    if (!ui?.notice?.active) return;
+
+    const read = battleTelegraph(this.state);
+    let line = '';
+    if (this.battleAwaitingOrder) {
+      line = t('ascent.battle.holdNote');
+    } else if (read?.next) {
+      line = t('ascent.battle.theyForm', {
+        kingdom: battle.kingdomName,
+        shape: t(`ascent.formation.${read.next}.full` as Parameters<typeof t>[0]),
+        n: String(read.beatsLeft),
+      });
+    } else if ((battle.stanceLockBeats ?? 0) > 0) {
+      line = t('ascent.battle.locked', { n: String(battle.stanceLockBeats ?? 0) });
+    } else if (read) {
+      line = t(`ascent.battle.theyWill.${read.stance}` as Parameters<typeof t>[0], {
+        kingdom: battle.kingdomName,
+      });
+    }
+    if (ui.notice.text !== line) ui.notice.setText(line);
   }
 
   /**
@@ -6658,11 +7075,11 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     this.clearLayer(orders);
     ui.orderSignature = this.battleOrderSignature(battle);
 
-    const dockY = content.y + BATTLE_PIPS_HEIGHT + ui.fieldHeight + 8 + BATTLE_RAILS_HEIGHT + 16;
+    const dockY = content.y + ui.fieldHeight + 8 + BATTLE_RAILS_HEIGHT + 16;
     const read = battleTelegraph(this.state);
 
     // ── the readout ──────────────────────────────────────────────────────
-    this.buildBattleReadout(battle, read, dockY);
+    this.buildBattleReadout(battle, dockY);
 
     // ── the slow dial ────────────────────────────────────────────────────
     const locked = (battle.stanceLockBeats ?? 0) > 0;
@@ -6678,12 +7095,20 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
 
     const stanceY = dockY + BATTLE_READOUT_HEIGHT + 3;
     // Recorded where they are computed. See `coachBounds`.
-    ui.coachBounds.pips = {
-      x: content.x, y: content.y, width: content.width, height: BATTLE_PIPS_HEIGHT,
+    // Recorded from where the header put it, not recomputed: the clock is the one part of this
+    // screen that is no longer laid out against `content` at all.
+    ui.coachBounds.pips = ui.pipBounds;
+    // The field, because the bubbles over the two hosts live on it and the coach has to be able
+    // to point at what each side is saying.
+    ui.coachBounds.field = {
+      x: content.x,
+      y: content.y,
+      width: content.width,
+      height: ui.fieldHeight,
     };
     ui.coachBounds.rails = {
       x: content.x,
-      y: content.y + BATTLE_PIPS_HEIGHT + ui.fieldHeight + 8,
+      y: content.y + ui.fieldHeight + 8,
       width: content.width,
       height: BATTLE_RAILS_HEIGHT,
     };
@@ -6790,14 +7215,34 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       const ink = held || walking ? INK_UI.cinnabar
         : gone ? INK_UI.softBrush
           : rim === INK_UI.jade ? INK_UI.jade : INK_UI.brush;
-      const glyph = drawCardIcon(this, FORMATION_ICON[id], ink);
-      glyph.setPosition(x + chipW / 2, formY + 13).setScale(15 / CARD_ICON_SIZE);
-      if (gone) glyph.setAlpha(0.5);
-      orders.add(glyph);
+      /**
+       * The second line is a *state*, not a name — and only when there is one.
+       *
+       * The Vietnamese name used to live here permanently, on the theory that a player picks the
+       * vocabulary up by association. In practice it put a word nobody could read directly under
+       * every word they could, five times across the busiest strip on the screen, and it did it
+       * while the line beneath the chip was trying to say "re-forming · 2". Two lines of type on a
+       * 52-point chip, and the one that mattered was the one that only sometimes appeared.
+       *
+       * So the shape's name is the icon and the verb, and this line is kept clear for the three
+       * things that are true only sometimes and change what the player should press. The chip
+       * shifts up when it has nothing to say, so an ordinary chip is a glyph and a word centred in
+       * their own box rather than a heading over an empty line.
+       */
+      const note = walking ? t('ascent.battle.reforming', { n: String(battle.reformBeats ?? 0) })
+        : gone ? t('ascent.battle.shapeGone')
+          : state === 'blunt' ? t('ascent.battle.blunt') : '';
 
-      orders.add(this.ui.label(
-        x + chipW / 2, formY + 22,
-        t(`ascent.formation.${id}.verb` as Parameters<typeof t>[0]), 'label',
+      /**
+       * Glyph, verb and — when there is one — the state line, stacked and centred as a block.
+       *
+       * Measured rather than placed at written-down offsets, because the verb is one line in
+       * English and two in Vietnamese: `GIƯƠNG KHIÊN` and `XUNG PHONG` both wrap at this width, and
+       * the fixed offsets this used to have put the second line straight through the note under it.
+       */
+      const GLYPH = 15;
+      const verb = this.ui.label(
+        0, 0, t(`ascent.formation.${id}.verb` as Parameters<typeof t>[0]), 'label',
         {
           fontSize: '10px',
           align: 'center',
@@ -6805,22 +7250,32 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
           color: held || walking ? `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`
             : gone ? INK_UI_HEX.mutedText : INK_UI_HEX.inkText,
         },
-      ).setOrigin(0.5, 0));
+      ).setOrigin(0.5, 0);
+      const noteLabel = note
+        ? this.ui.label(0, 0, note, 'caption', {
+          fontSize: '8px',
+          align: 'center',
+          wordWrap: { width: chipW - 4 },
+          color: held || walking ? '#8a2a1b'
+            : rim === INK_UI.jade ? '#4c5f45'
+              : rim === INK_UI.cinnabar ? '#8a2a1b' : INK_UI_HEX.mutedText,
+        }).setOrigin(0.5, 0)
+        : undefined;
 
-      // The Vietnamese name stays, small, under the order it belongs to — learned by association
-      // rather than by homework. Displaced only while the chip has something more urgent to say.
-      const note = walking ? t('ascent.battle.reforming', { n: String(battle.reformBeats ?? 0) })
-        : gone ? t('ascent.battle.shapeGone')
-          : state === 'blunt' ? t('ascent.battle.blunt')
-            : t(`ascent.formation.${id}` as Parameters<typeof t>[0]);
-      orders.add(this.ui.label(x + chipW / 2, formY + 36, note, 'caption', {
-        fontSize: '8px',
-        align: 'center',
-        wordWrap: { width: chipW - 4 },
-        color: held || walking ? '#8a2a1b'
-          : rim === INK_UI.jade ? '#4c5f45'
-            : rim === INK_UI.cinnabar ? '#8a2a1b' : INK_UI_HEX.mutedText,
-      }).setOrigin(0.5, 0));
+      const stack = GLYPH + 2 + verb.height + (noteLabel ? 1 + noteLabel.height : 0);
+      const top = formY + Math.max(2, (BATTLE_FORMATION_HEIGHT - stack) / 2);
+
+      const glyph = drawCardIcon(this, FORMATION_ICON[id], ink);
+      glyph.setPosition(x + chipW / 2, top + GLYPH / 2).setScale(GLYPH / CARD_ICON_SIZE);
+      if (gone) glyph.setAlpha(0.5);
+      orders.add(glyph);
+
+      verb.setPosition(x + chipW / 2, top + GLYPH + 2);
+      orders.add(verb);
+      if (noteLabel) {
+        noteLabel.setPosition(x + chipW / 2, verb.y + verb.height + 1);
+        orders.add(noteLabel);
+      }
 
       // ── the order in flight ────────────────────────────────────────────
       //
@@ -6903,41 +7358,46 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
    * situation anybody can act on. Written plainly the ring turns out to be common sense: spears
    * stop horses, shields stop arrows, spread out and the arrows miss. The names were the barrier.
    */
-  private buildBattleReadout(
-    battle: AscentBattle,
-    read: ReturnType<typeof battleTelegraph>,
-    y: number,
-  ): void {
+  private buildBattleReadout(battle: AscentBattle, y: number): void {
     const ui = this.battleUi;
     if (!ui) return;
     const { content, orders } = ui;
     const walking = (battle.reformBeats ?? 0) > 0;
 
-    // Their *target*, not what they are standing in: countering the shape they are walking out of
-    // is the classic way to arrive one beat too late.
-    const theirs = read ? (read.next ?? read.formation) : battle.theirFormation;
-    const threat = walking
-      ? t('ascent.battle.walkingThreat')
-      : t(`ascent.formation.${theirs}.threat` as Parameters<typeof t>[0]);
-    orders.add(this.ui.label(content.x + 2, y, threat, 'label', {
-      fontSize: '11px',
-      color: walking ? INK_UI_HEX.mutedText : `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`,
-    }));
-
-    // The price, in the currency the strength bars already count. A multiplier cannot be weighed
-    // against the two beats a change costs; forty men can.
+    /**
+     * The band is the *price* now. What the enemy is doing left it for the bubble over their own
+     * men, which is where it always belonged — a caption in the dock naming a shape, a hundred and
+     * eighty points below the two blocks of figures it was about, made the reader take on trust
+     * which of them it referred to.
+     *
+     * What is left is the pair of readings that genuinely belong beside the dials, because both
+     * are about the order last given: what this beat cost, and whether the arms in the two hosts
+     * favour us.
+     */
     const loss = battle.lastBeatLoss;
     const price = walking ? t('ascent.battle.walkingWhy')
       : loss ? `${t('ascent.battle.priceOurs', { ours: String(Math.round(loss.ours)) })}  ·  `
         + t('ascent.battle.priceTheirs', { theirs: String(Math.round(loss.theirs)) })
         : t('ascent.battle.priceOpening');
     const losing = !walking && loss !== undefined && loss.ours > loss.theirs;
-    orders.add(this.ui.label(content.x + 2, y + 12, price, 'caption', {
-      fontSize: '9px',
+    orders.add(this.ui.label(content.x + 2, y, price, 'label', {
+      fontSize: '11px',
       color: walking ? INK_UI_HEX.mutedText
         : losing ? '#8a2a1b'
           : loss ? '#4c5f45' : INK_UI_HEX.mutedText,
     }));
+
+    // How the two hosts' arms meet — spears against horse, bows against spears. Computed by the
+    // fight, and until now printed in a loose line under the rails, where it sat beside the
+    // telegraph and was read as part of it.
+    const arms = battle.ourMatchup ?? 1;
+    if (Math.abs(arms - 1) > 0.03) {
+      orders.add(this.ui.label(
+        content.x + 2, y + 13,
+        arms > 1 ? t('ascent.battle.armsGood') : t('ascent.battle.armsBad'), 'caption',
+        { fontSize: '9px', color: arms > 1 ? '#4c5f45' : '#8a2a1b' },
+      ));
+    }
 
     // And whether the last order bought anything. Only on a landing, and it remembers whether the
     // shape actually counters — praise for a change that bought nothing is noise, and a player
@@ -6962,16 +7422,28 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
   }
 
   /**
-   * Hand over and leave, in the field's top-right corner.
+   * Hand over and leave, along the foot of the screen.
    *
-   * Off the dock deliberately. They are pressed at most once a fight and both are semi-final, which
-   * makes the band the thumb works every few beats the worst place on the screen to put them —
-   * reachable with a small hand-shift, unreachable by accident.
+   * **They were in the header, and the header is the one place on this screen a thumb cannot
+   * reach.** Everything else here is built around a one-handed grip — the formation strip owns the
+   * bottom band precisely because it is worked three to five times a fight — and the two controls
+   * that end a player's involvement in it sat about seven hundred points up a phone held in one
+   * hand. The justification was that they are semi-final and should be hard to hit by accident;
+   * what it actually bought was two controls that had to be hunted for with the other hand.
+   *
+   * So they take the foot, where the lane's Close button stood on its own. That is not a lost exit:
+   * closing the screen and leaving the field already did the same thing to the fight — the general
+   * takes the remainder either way — and one button that says so beats two that differ in a way
+   * nothing on the screen explained.
+   *
+   * Accident is guarded by size and by wording instead of by distance. Neither is the loud
+   * cinnabar the dock uses, both say plainly what happens next, and the hand-over is reversible
+   * from the same slot: the chip flips to "take the field back" the moment it is pressed.
    */
   private buildBattleExits(battle: AscentBattle): void {
     const ui = this.battleUi;
     if (!ui) return;
-    const { content, exits } = ui;
+    const { exits } = ui;
     this.clearLayer(exits);
 
     const handedOver = Boolean(battle.delegated);
@@ -6994,20 +7466,34 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       },
     ];
 
-    const { x, width: w, height: h } = ui.exitBounds;
-    const gap = 5;
+    const { x: baseX, y, height: h } = ui.exitBounds;
+    const gap = 8;
+    const w = (ui.exitBounds.width - gap) / 2;
     chips.forEach((chip, index) => {
-      const y = ui.exitBounds.y + index * (h + gap);
+      const x = baseX + index * (w + gap);
       const bounds = { x, y, width: w, height: h };
-      exits.add(this.ui.panel(bounds, { border: chip.accent, fillAlpha: 0.95, borderWidth: 1, radius: 4 }));
-      exits.add(this.ui.label(x + w / 2, y + 3, chip.label, 'label', {
-        fontSize: '10px', align: 'center',
+      const plate = this.ui.panel(bounds, {
+        border: chip.accent, fillAlpha: 0.97, borderWidth: 1.5, radius: 6,
+      });
+      exits.add(plate);
+      exits.add(this.ui.label(x + w / 2, y + 8, chip.label, 'label', {
+        fontSize: '12px', align: 'center', wordWrap: { width: w - 10 },
       }).setOrigin(0.5, 0));
-      exits.add(this.ui.label(x + w / 2, y + 14, chip.sub, 'caption', {
-        fontSize: '7.5px', align: 'center', wordWrap: { width: w - 4 },
+      exits.add(this.ui.label(x + w / 2, y + 24, chip.sub, 'caption', {
+        fontSize: '8.5px', align: 'center', wordWrap: { width: w - 10 },
       }).setOrigin(0.5, 0));
+
       const hit = this.add.zone(x, y, w, h).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      // The same dip every other control on this screen gives. A bare zone over a panel is the one
+      // shape in this codebase that looks pressable and never acknowledges a press.
+      hit.on('pointerdown', () => {
+        plate.setScale(0.97);
+        plate.setPosition(x + w * 0.015, y + h * 0.015);
+      });
+      const unpress = (): void => { plate.setScale(1); plate.setPosition(x, y); };
+      hit.on('pointerout', unpress);
       hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        unpress();
         if (scrollGestureConsumedTap(pointer)) return;
         this.releaseBattleHold();
         this.events.emit('ui:battle-order', chip.order);
@@ -7057,10 +7543,10 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // no-op: the only thing that puts this above the men is being in a later container.
     const wash = this.add.graphics();
     wash.fillStyle(INK_UI.parchment, 0.55);
-    wash.fillRect(content.x, content.y + BATTLE_PIPS_HEIGHT, content.width, ui.fieldHeight);
+    wash.fillRect(content.x, content.y, content.width, ui.fieldHeight);
     layer.add(wash);
     layer.add(this.ui.label(
-      content.x + content.width / 2, content.y + BATTLE_PIPS_HEIGHT + ui.fieldHeight * 0.32,
+      content.x + content.width / 2, content.y + ui.fieldHeight * 0.32,
       t('ascent.battle.held'), 'caption',
       {
         fontSize: '10px',
@@ -7069,8 +7555,24 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       },
     ).setOrigin(0.5));
 
-    const y = content.y + BATTLE_PIPS_HEIGHT + ui.fieldHeight + 8 + BATTLE_RAILS_HEIGHT + 8;
-    const height = BATTLE_DOCK_HEIGHT + 8;
+    const y = content.y + ui.fieldHeight + 8 + BATTLE_RAILS_HEIGHT + 8;
+
+    // Built before the plate is sized, because the plate is sized around it. A Moment's title is
+    // one line for `Their baggage is within bowshot.` and two for one carrying a rival's full name
+    // — and at the fixed height this used to have, that second line ate the answers' room and the
+    // two buttons printed their own sub-lines straight through the timer bar.
+    const title = this.ui.label(
+      content.x + 12, y + 16,
+      t(`ascent.moment.${moment.id}.title` as Parameters<typeof t>[0], { subject: moment.subject ?? '' }),
+      'label', { fontSize: '14px', wordWrap: { width: content.width - 28 } },
+    );
+    // Grown by exactly what the wrap cost, and never past the exits at the foot — the band this
+    // sits in is the dock's, and on a 620-high screen there is 12 points between the two.
+    const room = ui.exitBounds.y - 6 - y;
+    const height = Math.min(
+      Math.max(BATTLE_DOCK_HEIGHT + 8, BATTLE_DOCK_HEIGHT + 8 + (title.height - 17)),
+      Math.max(BATTLE_DOCK_HEIGHT + 8, room),
+    );
 
     // A plate, not a scrim: the field behind it stays fully visible, because the field is what the
     // question is about. The old card covered the very thing it was asking after.
@@ -7084,12 +7586,6 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     layer.add(this.ui.label(content.x + 12, y + 5, t('ascent.moment.kicker'), 'caption', {
       fontSize: '9px', color: `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`,
     }));
-
-    const title = this.ui.label(
-      content.x + 12, y + 16,
-      t(`ascent.moment.${moment.id}.title` as Parameters<typeof t>[0], { subject: moment.subject ?? '' }),
-      'label', { fontSize: '14px', wordWrap: { width: content.width - 28 } },
-    );
     layer.add(title);
 
     // Two real buttons, side by side, filling the width. Forty-six high, which clears the
@@ -7206,6 +7702,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     if (newest !== ui.lastLine) {
       ui.lastLine = newest;
       this.buildBattleRibbon(battle);
+      this.updateBattleLogLine(battle);
     }
 
     // The men stand up in the new shape on the beat it lands, and not before: a host that
@@ -7232,6 +7729,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       // had — which is the way back to the fight, greyed into nothing.
       this.buildBattleExits(battle);
     }
+
+    this.updateBattleBubbles(battle);
+    this.updateBattleNotice(battle);
 
     // Rebuilt only when the question or its clock changes — never every beat, because a card
     // destroyed between press and release never fires.
@@ -7310,6 +7810,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const met = beat.ourAdvance + beat.theirAdvance >= 1;
     const firstContact = met && !ui.hadContact;
     if (firstContact) ui.hadContact = true;
+    // Only once they are actually touching, and only when the exchange cost somebody something —
+    // a ring struck over two lines still walking toward each other is a lie about the picture.
+    if (met && traded > 0) this.strikeClash();
 
     const broke = beat.broke ?? [];
     if (broke.length > 0) {

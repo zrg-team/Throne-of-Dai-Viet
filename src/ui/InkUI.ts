@@ -638,11 +638,17 @@ export class InkUI {
       wordWrap: { width: bounds.width - 12 - (opts.icon ? 30 : 0) },
     }).setOrigin(0.5);
     text.setAlpha(disabled ? 0.55 : 1);
-    fitTextToButton(text, bounds, fontSize, Boolean(opts.icon));
 
-    // The second line, if there is one. Both lines are re-centred as a block rather than the label
-    // staying put and the note hanging off the bottom — a button whose type sits high with a gap
-    // under it reads as a button with something clipped off it.
+    /**
+     * The second line, if there is one — built *before* the label is fitted, because it is the
+     * label's height budget.
+     *
+     * `fitTextToButton` was measuring the label against the whole button, then the note was
+     * stacked under it and the pair overflowed. It only shows when both wrap: a Moment offering
+     * `Strike before they deploy` over `Numbers only tell once they are in line.` in a 163-point
+     * button needs two lines of each, about 56 points of type in a 46-point box, and it printed
+     * straight through the timer bar under the card.
+     */
     let sub: Phaser.GameObjects.Text | undefined;
     if (opts.subLabel) {
       sub = this.label(bounds.width / 2, 0, opts.subLabel, 'caption', {
@@ -652,6 +658,18 @@ export class InkUI {
         wordWrap: { width: bounds.width - 16 },
       }).setOrigin(0.5);
       sub.setAlpha(disabled ? 0.55 : 0.82);
+    }
+    fitTextToButton(text, bounds, fontSize, Boolean(opts.icon), sub ? sub.height + 1 : 0);
+
+    // Both lines are re-centred as a block rather than the label staying put and the note hanging
+    // off the bottom — a button whose type sits high with a gap under it reads as a button with
+    // something clipped off it. The note gives ground of its own if the pair is still too tall:
+    // the label is what the button *is*, so it shrinks last.
+    if (sub) {
+      const budget = bounds.height - 8;
+      for (let size = 9.5; size >= 7.5 && text.height + 1 + sub.height > budget; size -= 0.5) {
+        sub.setFontSize(size);
+      }
       const block = text.height + 1 + sub.height;
       text.setY(bounds.height / 2 - block / 2 + text.height / 2);
       sub.setY(bounds.height / 2 + block / 2 - sub.height / 2);
@@ -1096,12 +1114,14 @@ function fitTextToButton(
   bounds: UIBounds,
   fontSize: string,
   hasIcon: boolean,
+  /** Height already spoken for by a second line under this one. */
+  reserved = 0,
 ): void {
   const base = Number.parseFloat(fontSize) || 13;
   // 12 units of side padding is the border (1.6) plus its wobble plus the cut corner, doubled;
   // 10 vertical keeps a two-line label off the top corner where the status dot is stamped.
   const maxWidth = bounds.width - 12 - (hasIcon ? 30 : 0);
-  const maxHeight = bounds.height - 10;
+  const maxHeight = bounds.height - 10 - reserved;
   if (text.width <= maxWidth && text.height <= maxHeight) return;
 
   const floor = Math.max(9, base * 0.72);
