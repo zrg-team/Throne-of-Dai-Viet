@@ -124,7 +124,7 @@ import { CARD_ICON_SIZE, drawCardIcon, iconForOption, type CardIconId } from '..
 import { ASCENT_HUD_HEIGHT, AscentHud } from '../ui/ascent/AscentHud';
 import { AdvisorStrip } from '../ui/ascent/AdvisorStrip';
 import { Copilot, type CopilotStep } from '../ui/Copilot';
-import { hasSeenRunTour, markRunTourSeen } from '../state/tour';
+import { hasSeenRunTour, markRunTourSeen, takeGuidedRun } from '../state/tour';
 import { ActionBar } from '../ui/ActionBar';
 import { ResourceBar } from '../ui/ResourceBar';
 import { staggerIn } from '../ui/animations';
@@ -426,6 +426,32 @@ export class ConquestUIScene extends Phaser.Scene {
    */
   private runTourDone = false;
   /**
+   * Whether this run was started from the manual's "play a guided run" button.
+   *
+   * It does one thing: force the walkthrough on for a run that would not otherwise get one. A
+   * *first* run is walked through in full regardless — it is exactly the player who needs it —
+   * so this is only the door back in for somebody who has already played, or skipped it.
+   */
+  private guidedRun = false;
+  /**
+   * Whether this run teaches at all, decided once when it starts.
+   *
+   * It used to be re-derived on every frame from `runTourDone || hasSeenRunTour()`, and that is
+   * wrong the moment the walkthrough is more than one card: the first stage closing marks the tour
+   * as seen, which then switched the remaining stages off for the rest of the run. A player got
+   * the throne card explained and nothing else, ever.
+   *
+   * Asked once, here. Storage decides whether a run teaches; it does not get to change its mind
+   * halfway through one.
+   */
+  private tourActive = false;
+  /** Stages already shown, by id. Each fires once per run. */
+  private tourStagesShown = new Set<string>();
+  /** The clock's state before a coach card stopped it, restored when the card closes. */
+  private tourPauseBefore = false;
+  /** Prompts answered so far, which is how the `decision` stage knows it has something to explain. */
+  private promptsAnswered = 0;
+  /**
    * The engagement the screen last opened itself for. A battle opens the lane exactly once —
    * closing it is a decision, and the fight carries on underneath — so this is keyed on the
    * battle's identity rather than on "is one live".
@@ -499,6 +525,12 @@ export class ConquestUIScene extends Phaser.Scene {
     // advice names a lane and the bar already knows how to open every lane there is. A second
     // route into those screens is a second thing to keep correct.
     this.advisor = new AdvisorStrip(this, (lane) => this.handleBarAction(lane));
+
+    // Taken once, here, rather than read where it is used: the flag is a one-shot handoff from the
+    // manual and any second reader would find it already spent.
+    this.guidedRun = takeGuidedRun();
+    // A first run teaches by default, and the manual's button forces it for any run.
+    this.tourActive = this.guidedRun || !hasSeenRunTour();
 
     // The battle clock and the published control bounds both outlive a single render; neither
     // may survive the scene that owns them.
@@ -578,6 +610,11 @@ export class ConquestUIScene extends Phaser.Scene {
     }
 
     if (!overlayOpen && key !== this.openPromptKey) {
+      // A decision card leaving the screen is a decision the player has answered. Counted here,
+      // where the transition is already being detected, rather than in each of the twenty-odd
+      // prompt renderers — the guided run's `decision` stage only needs to know that one has
+      // happened, and a counter kept at the single place the key changes cannot drift from it.
+      if (this.openPromptKey !== '' && key === '') this.promptsAnswered += 1;
       this.beginOverlay(key);
       if (prompt) this.renderPrompt(prompt);
     }
@@ -1263,39 +1300,154 @@ export class ConquestUIScene extends Phaser.Scene {
    * front page's at all.
    */
   private maybeRunTour(hidden: boolean): void {
-    if (hidden || this.runTour || this.runTourDone || hasSeenRunTour()) return;
+    if (this.runTour || !this.tourActive) return;
 
-    const band = { x: 0, y: HEADER_HEIGHT, width: GAME_WIDTH, height: ASCENT_HUD_HEIGHT };
-    const steps: CopilotStep[] = [
-      { id: 'band', heading: 'copilot.run.band.h', body: 'copilot.run.band.b', target: () => band },
-      {
-        id: 'coach',
-        heading: 'copilot.run.coach.h',
-        body: 'copilot.run.coach.b',
-        target: () => this.advisor.tapBounds()[0],
-      },
-      {
-        id: 'bar',
-        heading: 'copilot.run.bar.h',
-        body: 'copilot.run.bar.b',
-        target: () => ({
-          x: 0,
-          y: GAME_HEIGHT - ACTION_BAR_HEIGHT,
-          width: GAME_WIDTH,
-          height: ACTION_BAR_HEIGHT,
-        }),
-      },
-      { id: 'go', heading: 'copilot.run.go.h', body: 'copilot.run.go.b' },
-    ];
+    /**
+     * A stage may speak over a decision card only if it is *about* that card.
+     *
+     * The first three are, and they have to be: the throne card is the very first thing a run
+     * puts on the screen, and it asks a permanent question about three options a new player has
+     * never seen. Waiting for a clear frame meant the walkthrough opened by explaining the band
+     * to somebody who had already guessed at it. Everything after them describes the map, the
+     * bar or the clock, and none of that is visible behind a card — those wait.
+     */
+    const stage = this.tourStages().find((candidate) => !this.tourStagesShown.has(candidate.id)
+      && (candidate.overCard || !hidden)
+      && candidate.when());
+    if (!stage) return;
 
+    this.tourStagesShown.add(stage.id);
+    /**
+     * The world stops while a card is being read.
+     *
+     * Not politeness — correctness. A stage is chosen against the state of the screen at the
+     * moment it opens, but a `Copilot` then runs its own steps to the end without asking again,
+     * and the clock underneath was still turning. So the walkthrough would reach "here is the
+     * action bar", pointing at a bar that a doctrine card arriving two seconds earlier had
+     * already hidden — the coach describing one screen while the player looks at another.
+     *
+     * Stopping the clock removes the race rather than papering over it: no prompt can be raised
+     * between the first card of a stage and the last, so what the coach points at is still there
+     * when it points at it. The previous pause state is restored, exactly as `openLane` does,
+     * because a player who had deliberately stopped the clock must not find it running again.
+     */
+    this.tourPauseBefore = this.state.isStrategyPause;
+    this.state.isStrategyPause = true;
     this.runTour = new Copilot(this, {
-      steps,
+      steps: stage.steps(),
+      // Only the stage that ends with "now let it run" may offer to start playing. Every other
+      // card in the walkthrough is read in the middle of a run that is already going.
+      finishLabel: stage.id === 'opening' ? undefined : 'copilot.gotIt',
       onClose: () => {
+        this.state.isStrategyPause = this.tourPauseBefore;
+        // Marked on the first stage, not the last. A player who leaves after two cards has still
+        // had the introduction offered, and a walkthrough that restarts from the throne every time
+        // a run is abandoned is the most irritating thing this could possibly do. The rest of the
+        // stages keep coming for the remainder of *this* run, which `tourActive` already decided.
         markRunTourSeen();
         this.runTourDone = true;
         this.runTour = undefined;
       },
     });
+  }
+
+  /**
+   * The coached moments of a run, in the order they can happen.
+   *
+   * Each is keyed to a condition rather than to a tick, and fires once. The point of the later
+   * three is that they arrive **while the thing they describe is on the screen**: a paragraph
+   * about what a decision costs you is worth very little in a manual and quite a lot immediately
+   * after the first one has been answered, with the band showing what it did.
+   */
+  private tourStages(): Array<{
+    id: string;
+    /** May be raised while a decision card owns the screen. Only for stages about that card. */
+    overCard?: boolean;
+    when: () => boolean;
+    steps: () => CopilotStep[];
+  }> {
+    const ascent = this.state.ascent;
+    // A one-card stage, placed at the top of the sheet: these all explain a decision whose
+    // options are printed low, and a card at the foot covers the very things it is comparing.
+    const card = (id: string, heading: string, body: string): CopilotStep[] =>
+      [{
+        id,
+        heading: heading as CopilotStep['heading'],
+        body: body as CopilotStep['body'],
+        placement: 'top',
+      }];
+    const showing = (kind: string) => this.openPromptKey.startsWith(kind);
+
+    return [
+      // ── The opening cards, explained while they are on the screen ────────
+      {
+        id: 'mandate',
+        overCard: true,
+        when: () => showing('mandate'),
+        steps: () => card('mandate', 'copilot.run.mandate.h', 'copilot.run.mandate.b'),
+      },
+      {
+        id: 'founder',
+        overCard: true,
+        when: () => showing('founder'),
+        steps: () => card('founder', 'copilot.run.founder.h', 'copilot.run.founder.b'),
+      },
+      {
+        id: 'court',
+        overCard: true,
+        when: () => showing('court-appointment'),
+        steps: () => card('court', 'copilot.run.court.h', 'copilot.run.court.b'),
+      },
+      {
+        id: 'opening',
+        when: () => true,
+        steps: () => [
+          {
+            id: 'band',
+            heading: 'copilot.run.band.h',
+            body: 'copilot.run.band.b',
+            target: () => ({ x: 0, y: HEADER_HEIGHT, width: GAME_WIDTH, height: ASCENT_HUD_HEIGHT }),
+          },
+          {
+            id: 'coach',
+            heading: 'copilot.run.coach.h',
+            body: 'copilot.run.coach.b',
+            target: () => this.advisor.tapBounds()[0],
+          },
+          {
+            id: 'bar',
+            heading: 'copilot.run.bar.h',
+            body: 'copilot.run.bar.b',
+            target: () => ({
+              x: 0,
+              y: GAME_HEIGHT - ACTION_BAR_HEIGHT,
+              width: GAME_WIDTH,
+              height: ACTION_BAR_HEIGHT,
+            }),
+          },
+          { id: 'go', heading: 'copilot.run.go.h', body: 'copilot.run.go.b' },
+        ],
+      },
+      // ── The rest of a real run, each at the moment it first happens ─────
+      {
+        id: 'decision',
+        when: () => this.promptsAnswered > 0,
+        steps: () => card('decision', 'copilot.run.decision.h', 'copilot.run.decision.b'),
+      },
+      {
+        // The first wave, while it is still coming. `wave` is 0 until one has actually landed, so
+        // this is the muster before the first — the one moment in a run where the countdown means
+        // something the player has not seen before.
+        id: 'muster',
+        when: () => Boolean(ascent) && ascent!.wave === 0 && ascent!.ticksToWave <= 2,
+        steps: () => card('muster', 'copilot.run.muster.h', 'copilot.run.muster.b'),
+      },
+      {
+        id: 'aftermath',
+        when: () => Boolean(ascent) && ascent!.wavesSurvived >= 1,
+        steps: () => card('aftermath', 'copilot.run.aftermath.h', 'copilot.run.aftermath.b'),
+      },
+    ];
   }
 
   /**

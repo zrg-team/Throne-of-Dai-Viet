@@ -80,6 +80,32 @@ export function markTourSeen(): void {
   localStorage.setItem(TOUR_KEY, 'seen');
 }
 
+/**
+ * A guided run has been asked for, and has not started yet.
+ *
+ * Module state rather than a field threaded through `scene.start`, because the two ends of this
+ * are three scenes apart: the manual starts `ConquestScene`, which launches `ConquestUIScene`
+ * itself with only the game state, and the flag belongs to neither of those payloads — it is a
+ * teaching preference, not part of the run, and putting it in `GameState` would save it into the
+ * player's file and resume a tutorial six sessions later.
+ *
+ * One-shot on purpose. `takeGuidedRun` clears it, so a guided run that ends and is started again
+ * from the front page is an ordinary run.
+ */
+let guidedRunPending = false;
+
+/** Called by the manual, immediately before it starts the run. */
+export function requestGuidedRun(): void {
+  guidedRunPending = true;
+}
+
+/** Called once by the run's UI scene. True exactly once per request. */
+export function takeGuidedRun(): boolean {
+  const asked = guidedRunPending;
+  guidedRunPending = false;
+  return asked;
+}
+
 /** Forgets both, so each tour runs again where it belongs. Behind the How to Play page's button. */
 export function forgetTour(): void {
   if (typeof localStorage === 'undefined') {
