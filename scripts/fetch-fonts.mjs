@@ -42,7 +42,11 @@ for (const block of blocks) {
 
   const name = `${family.replace(/\s+/g, '')}-${weight}-${subset}.woff2`;
   files.set(name, url);
-  kept.push(block.replace(url, `/fonts/${name}`).trim());
+  // Relative, not `/fonts/${name}`: this stylesheet is served from inside /fonts/, and the game
+  // is served from a repository sub-path on GitHub Pages, where a leading slash points at the
+  // user site root. An absolute src there is a 404 on every face and a silent fall back to
+  // whatever the phone had — which is the exact failure this whole file exists to prevent.
+  kept.push(block.replace(url, name).trim());
 }
 
 for (const [name, url] of files) {

@@ -4,6 +4,7 @@ import { createInitialGameState, createCampaignGameState, createEmpireGameState,
 import { scheduleCampaignEvents } from './systems/CampaignEventSystem';
 import type { GameState } from './state/types';
 import { getLanguage, heroName, politicsTitle, seasonLabel, t } from './i18n';
+import { registerServiceWorker } from './pwa/updates';
 import { getMapTheme } from './ui/mapTheme';
 
 declare global {
@@ -24,6 +25,10 @@ declare global {
     __startBenchGame?: (seed?: number, mode?: 'rival' | 'campaign' | 'empire' | 'ascent') => void;
   }
 }
+
+// Before Phaser, so the first visit starts filling its offline cache while the loader is still
+// unpacking fonts. Does nothing in dev — see `registerServiceWorker`.
+registerServiceWorker();
 
 const game = new Phaser.Game(gameConfig);
 window.__phaserGame = game;

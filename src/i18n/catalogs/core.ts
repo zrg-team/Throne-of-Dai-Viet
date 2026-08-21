@@ -177,6 +177,20 @@ export const enCore = {
   "menu.graphics.low": "Low",
   "menu.graphics.medium": "Medium",
   "menu.graphics.high": "High",
+  // ── The app's own upkeep ──
+  //
+  // A cached game is a frozen game, so the settings page has to be able to say which build is
+  // running and offer the tap that takes a newer one. "Version" carries the build stamp; the rest
+  // is the four states of the service worker, in words a player can act on.
+  "menu.update.version": "Version {version}",
+  "menu.update.build": "build {build}",
+  "menu.update.caching": "Saving for offline play…",
+  "menu.update.offlineReady": "Ready to play offline",
+  "menu.update.installing": "New version installing…",
+  "menu.update.ready": "New version ready",
+  "menu.update.readyHint": "New version ready — reload",
+  "menu.update.reload": "Reload to update",
+  "menu.update.check": "Check for updates",
   "menu.support.coffee": "Buy me a coffee",
   "menu.support.or": "— or even better,",
   "menu.support.improve": "help build the game",
@@ -671,6 +685,15 @@ export const viCore = {
   "menu.graphics.low": "Thấp",
   "menu.graphics.medium": "Vừa",
   "menu.graphics.high": "Cao",
+  "menu.update.version": "Phiên bản {version}",
+  "menu.update.build": "bản dựng {build}",
+  "menu.update.caching": "Đang lưu để chơi ngoại tuyến…",
+  "menu.update.offlineReady": "Sẵn sàng chơi ngoại tuyến",
+  "menu.update.installing": "Đang cài bản mới…",
+  "menu.update.ready": "Đã có bản mới",
+  "menu.update.readyHint": "Đã có bản mới — tải lại",
+  "menu.update.reload": "Tải lại để cập nhật",
+  "menu.update.check": "Kiểm tra bản mới",
   "menu.support.coffee": "Mời mình ly cà phê",
   "menu.support.or": "— hay hơn nữa,",
   "menu.support.improve": "chung tay làm game",
