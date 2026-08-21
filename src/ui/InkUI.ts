@@ -249,13 +249,9 @@ let consumedGesture: { id: number; downTime: number } | undefined;
  * Call it first thing in any `pointerup` handler that sits inside an `InkScrollArea`, passing the
  * pointer the handler was given.
  */
-export function scrollGestureConsumedTap(pointer?: { id: number; downTime: number }): boolean {
+export function scrollGestureConsumedTap(pointer: { id: number; downTime: number }): boolean {
   if (!consumedGesture) {
     return false;
-  }
-  // Without a pointer to compare, fall back to the old behaviour for that one call.
-  if (!pointer) {
-    return true;
   }
   return pointer.id === consumedGesture.id && pointer.downTime === consumedGesture.downTime;
 }

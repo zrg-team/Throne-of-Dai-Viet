@@ -382,11 +382,13 @@ export class ConquestScene extends MapScene {
     // with their buttons gone from the dock they are questions the fight asks, not orders it takes.
     ui.events.on('ui:battle-order', (order: string) => {
       if (order.startsWith('stance:')) {
-        // A person pressed something, so the commander stands down — see `markPlayerSteered`.
-        markPlayerSteered(this.state);
+        // The commander hands over the tempo — and only the tempo. See `markPlayerSteered`: one
+        // flag for both dials meant a single tap cost the player their shape play, their reserve
+        // and their rally as well, none of which they had asked to take.
+        markPlayerSteered(this.state, 'stance');
         setBattleStance(this.state, order.slice(7) as FieldStance);
       } else if (order.startsWith('formation:')) {
-        markPlayerSteered(this.state);
+        markPlayerSteered(this.state, 'formation');
         setBattleFormation(this.state, order.slice(10) as BattleFormation);
       } else if (order === 'leave') {
         // Hand the rest of it over and step away. `delegateBattle` hands over the *remainder* —

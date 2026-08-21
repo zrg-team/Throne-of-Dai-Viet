@@ -6610,8 +6610,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       if (refused) return;
       const hit = this.add.zone(x, stanceY, segW, BATTLE_STANCE_HEIGHT).setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
-      hit.on('pointerup', () => {
-        if (scrollGestureConsumedTap()) return;
+      hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        if (scrollGestureConsumedTap(pointer)) return;
         this.releaseBattleHold();
         this.events.emit('ui:battle-order', `stance:${id}`);
       });
@@ -6774,9 +6774,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         tile.setPosition(bounds.x, bounds.y);
       };
       hit.on('pointerout', unpress);
-      hit.on('pointerup', () => {
+      hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
         unpress();
-        if (scrollGestureConsumedTap()) return;
+        if (scrollGestureConsumedTap(pointer)) return;
         this.releaseBattleHold();
         this.events.emit('ui:battle-order', `formation:${id}`);
       });
@@ -6896,8 +6896,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         fontSize: '7.5px', align: 'center', wordWrap: { width: w - 4 },
       }).setOrigin(0.5, 0));
       const hit = this.add.zone(x, y, w, h).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-      hit.on('pointerup', () => {
-        if (scrollGestureConsumedTap()) return;
+      hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        if (scrollGestureConsumedTap(pointer)) return;
         this.releaseBattleHold();
         this.events.emit('ui:battle-order', chip.order);
         // Stepping away closes the screen; handing over keeps it open, which is the whole
@@ -6993,7 +6993,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         { x: content.x + 12 + index * (buttonW + gap), y: rowY, width: buttonW, height: buttonH },
         t(`ascent.moment.${moment.id}.${id}` as Parameters<typeof t>[0]),
         () => {
-          if (scrollGestureConsumedTap()) return;
+          // No gesture guard here: `InkUI.button` has already refused the tap if it was the tail
+          // of a scroll, and it did so with the pointer in hand. A second, pointerless check could
+          // only ever throw away an answer the player did mean to give.
           this.releaseBattleHold();
           this.events.emit('ui:battle-moment', id);
         },

@@ -410,7 +410,29 @@ export class BattleArenaScene extends Phaser.Scene {
       fontSize: '11px', align: 'center', wordWrap: { width: GAME_WIDTH - 56 },
     }).setOrigin(0.5, 0);
     this.push(blurb);
-    y += blurb.height + 10;
+    y += blurb.height + 12;
+
+    // ── how the fight goes ──────────────────────────────────────────────
+    //
+    // The Field is the one screen whose whole job is teaching the battle, and it taught nothing:
+    // measured over forty fights, a player who pressed one chip and then watched traded at 0.28
+    // against 1.96 for never touching the screen — and no line anywhere said that the general was
+    // playing for them, or that touching a dial took it off him. The rule is now per dial, and
+    // this is where it gets said.
+    const howTitle = createLabel(this, GAME_WIDTH / 2, y, t('arena.howTitle'), 'caption', {
+      fontSize: '8.5px', align: 'center', color: `#${INK_UI.gold.toString(16).padStart(6, '0')}`,
+    }).setOrigin(0.5, 0);
+    this.push(howTitle);
+    y += howTitle.height + 5;
+
+    for (const key of ['arena.how1', 'arena.how2', 'arena.how3'] as const) {
+      const line = createLabel(this, GAME_WIDTH / 2, y, t(key), 'caption', {
+        fontSize: '10px', align: 'center', wordWrap: { width: GAME_WIDTH - 56 },
+      }).setOrigin(0.5, 0);
+      this.push(line);
+      y += line.height + 4;
+    }
+    y += 8;
 
     // The buttons are placed first, so the body knows exactly how much room it is allowed.
     const pinnedBackY = GAME_HEIGHT - 54;
