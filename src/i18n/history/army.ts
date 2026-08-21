@@ -152,14 +152,14 @@ export const armyVi: HistoryCatalog = {
   'army.ly.title': 'Lý · 1010–1225',
   'army.ly.mark': 'Mũ tròn có chỏm, phía sau vắt ra một chùm lông dài.',
   'army.ly.body':
-    'Hai thế kỷ triều đình yên vị ở Thăng Long, và là quân đội Việt đầu tiên được dựng theo chế độ chứ không theo gia binh của một hào trưởng. Phép ngụ binh ư nông cho lính thay phiên về ruộng, nên một đạo quân nhà Lý phần lớn là người không giáp, lác đác vài viên tướng đội mũ. Thứ giáp có thật là hộ tâm kính — một tấm gương che tim, hiện vật được ghi chép phương Bắc nhắc đến nhiều nhất.',
+    'Hai thế kỷ triều đình yên vị ở Thăng Long, và là quân đội Việt đầu tiên được dựng theo chế độ chứ không theo gia binh của một hào trưởng. Phép ngụ binh ư nông cho lính thay phiên về ruộng, nên một đạo quân nhà Lý phần lớn là người không giáp, lác đác vài viên tướng đội mũ. Thứ giáp có thật là hộ tâm kính — một tấm gương che tim, thứ hiện vật mà ghi chép của phương Bắc nhắc đến nhiều nhất.',
   'army.ly.inGame':
     'Chùm lông được vẽ dài hơn mọi hình vẽ còn lại. Ở cỡ người lính ngoài trận, một cái mũ tròn chỉ còn là một chấm; chính nét vắt ra sau mới tách được Lý khỏi Trần trong một cái liếc. Đó là cường điệu có chủ ý, và đây là chỗ chúng tôi nói ra điều ấy.',
 
   'army.tran.title': 'Trần · 1225–1400',
   'army.tran.mark': 'Hai má hộ hai bên, và một đĩa tròn trước ngực.',
   'army.tran.body':
-    'Triều đại ba lần đối đầu quân Mông – Nguyên và vẫn còn đó sau đó. Quân Trần được trang bị nặng nhất trong các thời kỳ có mặt ở đây: giáp lá xếp lớp cho tướng, một đĩa gương tròn thay tấm vuông trước ngực, mũ có má hộ buông quá quai hàm. Nhà Trần còn giữ một lực lượng thường trực chuyên nghiệp chứ không chỉ trông vào phiên chế, và khác biệt ấy hiện ra ngay trong hình vẽ.',
+    'Triều đại ba lần đương đầu với quân Mông – Nguyên, và ba lần vẫn còn đó sau đó. Quân Trần được trang bị nặng nhất trong các thời kỳ có mặt ở đây: giáp lá xếp lớp cho tướng, một đĩa gương tròn thay tấm vuông trước ngực, mũ có má hộ buông quá quai hàm. Nhà Trần còn giữ một lực lượng thường trực chuyên nghiệp chứ không chỉ trông vào phiên chế, và khác biệt ấy hiện ra ngay trong hình vẽ.',
   'army.tran.inGame':
     'Đĩa tròn có trong cả tài liệu trang phục lẫn sử sách, nên nó gánh việc phân biệt Trần với Lý mà không phải động tới cái mũ. Còn má hộ có buông thấp đến thế hay không thì là một phán đoán vì dễ nhìn, không phải một kết luận.',
 

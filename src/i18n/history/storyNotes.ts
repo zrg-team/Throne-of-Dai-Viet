@@ -255,7 +255,7 @@ export const storyNotesVi: HistoryCatalog = {
   'stories.reed-banner.happened':
     'Đinh Bộ Lĩnh lớn lên chăn trâu ở Hoa Lư, cùng lũ trẻ trong vùng lấy bông lau làm cờ bày trận. Sau khi Ngô Quyền mất, nước chia làm mười hai sứ quân; ông dẹp xong cả mười hai, rồi năm 968 lên ngôi, đặt quốc hiệu Đại Cồ Việt.',
   'stories.reed-banner.inGame':
-    'Một người trở thành đúng cái ngươi làm nên. Cùng những mảnh chuyện ấy dẫn tới một cuộc lập quốc hay một cuộc phản loạn, và rơi vào bên nào là do ngươi đã dùng ông ta thế nào, chứ không do một nhánh ngươi bấm chọn.',
+    'Một người trở thành đúng cái ngươi làm nên. Cùng những mảnh chuyện ấy có thể dẫn tới một cuộc lập quốc, cũng có thể dẫn tới một cuộc phản loạn, và rơi vào bên nào là do ngươi đã dùng ông ta thế nào, chứ không do một nhánh ngươi bấm chọn.',
 
   'stories.goose-feathers.happened':
     'Mỵ Châu, con gái An Dương Vương, lấy Trọng Thủy là con của kẻ thù. Chàng tìm ra chỗ cất lẫy nỏ và tráo bằng một cái giả. Khi Cổ Loa thất thủ, nàng theo cha chạy về nam, dọc đường rắc lông ngỗng đánh dấu — đánh dấu cho chàng.',
@@ -263,7 +263,7 @@ export const storyNotesVi: HistoryCatalog = {
     'Món quà vẫn đang đọc ngược lại ngươi. Nhịp lông ngỗng chỉ có nếu người được đánh dấu đang trấn một châu ngoài biên, và nó nổ theo lịch của ông ta chứ không theo lịch của ngươi.',
 
   'stories.river-stakes.happened':
-    'Hai lần — năm 938 với quân Nam Hán và năm 1288 với quân Nguyên — một hạm đội được dử vào sông Bạch Đằng lúc nước lớn, rồi gặp cọc và gặp lửa lúc nước ròng. Lần sau vẫn con sông ấy, vẫn cái kế ấy, và bên kia đã biết trước cả tích này.',
+    'Hai lần — năm 938 với quân Nam Hán và năm 1288 với quân Nguyên — một hạm đội bị dử vào sông Bạch Đằng lúc nước lớn, rồi gặp cọc và gặp lửa lúc nước ròng. Lần sau vẫn con sông ấy, vẫn cái kế ấy, và bên kia đã biết trước cả tích này.',
   'stories.river-stakes.inGame':
     'Một mưu kế có con nước trong đó. Việc chuẩn bị thì chậm và lộ; khoảng hở thì hẹp, và không phải thứ ngươi dời được. Lỡ một nhịp thì công sức vẫn cứ mất.',
 
@@ -358,12 +358,12 @@ export const storyNotesVi: HistoryCatalog = {
     'Một vị tướng mà mỗi lần ngươi nghe theo lời khuyên đúng của ông ta là một lần ngươi mất uy tín.',
 
   'stories.thanh-giong.happened':
-    'Một đứa bé ba năm không nói, khi giặc Ân sang thì xin ngựa sắt roi sắt, vươn vai thành người khổng lồ, đuổi xong giặc rồi bay lên trời ở Sóc Sơn mà không đợi ai cảm ơn.',
+    'Một đứa bé ba năm không nói, khi giặc Ân sang thì xin ngựa sắt roi sắt, vươn vai thành tráng sĩ, đuổi xong giặc rồi bay lên trời ở Sóc Sơn mà không đợi ai cảm ơn.',
   'stories.thanh-giong.inGame':
     'Sự trợ giúp đến từ hư không, làm đúng một việc, rồi không giữ lại được, không thăng chức được, cũng không xin thêm lần nữa được.',
 
   'stories.mountain-water.happened':
-    'Sơn Tinh và Thủy Tinh cùng hỏi một người con gái. Thần Núi tới trước. Thần Nước từ đó năm nào cũng quay lại, và đó là mùa nước lũ.',
+    'Sơn Tinh và Thủy Tinh cùng đến cầu hôn công chúa Mỵ Nương. Thần Núi tới trước. Thần Nước từ đó năm nào cũng quay lại, và đó là mùa nước lũ.',
   'stories.mountain-water.inGame':
     'Một đối thủ không cần thắng lần nào. Chính việc thua ngươi mới là lý do nó trở lại đúng hẹn.',
 
@@ -388,17 +388,17 @@ export const storyNotesVi: HistoryCatalog = {
     'Tài nghệ đến từ chính những người ngươi đang đánh, và một triều đình thà không phải nhắc lại nó từ đâu mà ra.',
 
   'stories.counting-house.happened':
-    'Chín trăm lượng là con số lấy ra từ sổ thuế chứ không phải từ một thiên anh hùng ca. Phần lớn việc một triều đại làm là tính toán, và phần lớn cái làm sụp một triều đại là những phép tính đã sai lặng lẽ nhiều năm.',
+    'Chín trăm lượng là con số lấy ra từ sổ thuế chứ không phải từ một thiên anh hùng ca. Phần lớn công việc của một triều đại là sổ sách, và phần lớn cái làm sụp một triều đại là những phép tính đã sai lặng lẽ nhiều năm.',
   'stories.counting-house.inGame':
     'Một cơn nguy bắt đầu trong sổ sách. Trong đó không có trận đánh nào cả.',
 
   'stories.dai-cao.happened':
-    'Bình Ngô đại cáo của Nguyễn Trãi, năm 1428, bố cáo việc quân Minh đã bại, mở đầu bằng lời rằng nước Đại Việt ta có nền văn hiến riêng, có núi sông bờ cõi riêng, mỗi đời đều có đế một phương — một lập luận về thế nào là một nước, nói ra đúng vào lúc vừa giành lại được nước.',
+    'Bình Ngô đại cáo của Nguyễn Trãi, năm 1428, bố cáo việc quân Minh đã bại, mở đầu bằng lời rằng nước Đại Việt ta có nền văn hiến riêng, núi sông bờ cõi đã chia, phong tục Bắc Nam cũng khác, và mỗi bên xưng đế một phương — một lập luận về thế nào là một nước, nói ra đúng vào lúc vừa giành lại được nước.',
   'stories.dai-cao.inGame':
     'Một lời thề ngươi nhận hoặc từ chối. Nhận là tự buộc mình kết thúc cuộc chiến theo một cách nhất định, và trả bằng một lá bài không có ở đâu khác.',
 
   'stories.chieu-doi-do.happened':
-    'Chiếu dời đô năm 1010 nêu rõ lý do rời kinh khỏi vùng núi: Hoa Lư hiểm mà chật, còn Đại La ở giữa trời đất, đất rộng mà bằng, là nơi có thể thật sự cai trị một nước.',
+    'Chiếu dời đô năm 1010 nêu rõ lý do rời kinh khỏi vùng núi: Hoa Lư hiểm mà chật, còn Đại La ở vào nơi trung tâm trời đất, thế rồng cuộn hổ ngồi, đất rộng mà bằng — là nơi có thể thật sự cai trị cả nước.',
   'stories.chieu-doi-do.inGame':
     'Một nước cờ cố ý bỏ đi chỗ đứng an toàn nhất của ngươi, và không rút lại được khi triều đình đã theo ngươi đi rồi.',
 
@@ -408,7 +408,7 @@ export const storyNotesVi: HistoryCatalog = {
     'Sĩ khí như một nguồn lực chỉ tiêu được đúng một lần. Cái nó mua là một phòng tuyến trụ thêm một ngày nữa so với lẽ ra.',
 
   'stories.hich-tuong-si.happened':
-    'Khoảng năm 1284, Trần Hưng Đạo viết cho các tướng dưới quyền rằng ông tới bữa quên ăn, nửa đêm vỗ gối, rồi hỏi họ sẽ nói gì khi nước mất và tên tuổi chính họ cũng mất theo. Bài hịch được chép ra và đọc trước hàng quân.',
+    'Khoảng năm 1284, Trần Hưng Đạo viết cho các tướng dưới quyền rằng ông tới bữa quên ăn, nửa đêm vỗ gối, ruột đau như cắt, rồi hỏi họ sẽ nói gì khi nước mất và tên tuổi chính họ cũng mất theo. Bài hịch được chép ra và đọc trước hàng quân.',
   'stories.hich-tuong-si.inGame':
     'Một lời thề tiêu bằng uy tín của chính ngươi chứ không bằng kho bạc, và một triều không thể nhận nó hai lần.',
 
@@ -443,7 +443,7 @@ export const storyNotesVi: HistoryCatalog = {
     'Một thứ vũ khí thôi hoạt động, và không một dòng nào ở đâu báo cho ngươi biết nó thôi từ lúc nào.',
 
   'stories.yet-kieu.happened':
-    'Con nhà chài, lặn được gần trọn một ngày dưới nước. Ông đi đêm với cái khoan, và đưa được một phần hạm đội Nguyên xuống đáy sông mà không phải đánh trận nào.',
+    'Con nhà chài, lặn được gần trọn một ngày dưới nước. Ông đang đêm mang khoan ra sông, đưa được một phần hạm đội Nguyên xuống đáy mà không phải đánh trận nào.',
   'stories.yet-kieu.inGame':
     'Một động từ mà trò chơi trước đó chưa có: thiệt hại giáng lên cả một hạm đội bởi một người, trong đêm, không có trận nào để phân thắng bại.',
 
@@ -463,7 +463,7 @@ export const storyNotesVi: HistoryCatalog = {
     'Một phòng tuyến do chính người bị bên kia chối bỏ dựng nên. Cái giá của nó là tất cả những thứ ngươi đã không xây vì đã xây nó.',
 
   'stories.van-mieu.happened':
-    'Văn Miếu dựng năm 1070, Quốc Tử Giám lập năm 1076. Những tấm bia tiến sĩ còn đứng ở Hà Nội là một bảng tên người từ những làng mà nếu không có bia thì chẳng sổ sách nào ghi lại.',
+    'Văn Miếu dựng năm 1070, Quốc Tử Giám lập năm 1076. Những tấm bia tiến sĩ còn đứng ở Hà Nội khắc tên những người xuất thân từ các làng mà nếu không có bia thì chẳng sổ sách nào ghi lại.',
   'stories.van-mieu.inGame':
     'Một thiết chế trả lãi muộn hơn mức bất cứ người chơi nào thấy dễ chịu, và trả mãi rất lâu sau khi cái triều dựng nên nó đã mất.',
 
@@ -478,7 +478,7 @@ export const storyNotesVi: HistoryCatalog = {
     'Một người hùng mà giặc thà có được còn hơn giết đi, và một quyết định chỉ mang tên ngươi.',
 
   'stories.khuc-thua-du.happened':
-    'Năm 905, nhân nhà Đường đang đổ, Khúc Thừa Dụ nhận lấy chức Tiết độ sứ ở Đại La rồi xin được công nhận. Ông được công nhận. Quyền tự chủ về bằng đường hành chính, ở chỗ mà ba thế kỷ khởi nghĩa đã không làm nổi.',
+    'Năm 905, nhân nhà Đường đang đổ, Khúc Thừa Dụ nhận lấy chức Tiết độ sứ ở Đại La rồi xin được công nhận. Ông được công nhận. Quyền tự chủ đến bằng con đường hành chính, ở chỗ mà ba thế kỷ khởi nghĩa đã không làm nổi.',
   'stories.khuc-thua-du.inGame':
     'Nền độc lập giành được mà không có chiến tranh, và một triều đình không chịu tính đó là một chiến thắng.',
 
