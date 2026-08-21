@@ -1559,6 +1559,29 @@ export interface AscentBattle {
   theirFormation: BattleFormation;
   formationTarget?: BattleFormation;
   reformBeats?: number;
+  /**
+   * What `reformBeats` counted down *from*, so the dock can draw how far an order has travelled.
+   *
+   * Carried on the battle rather than held by the strip because `battleOrderSignature` includes
+   * `reformBeats` — the strip is torn down and rebuilt on every beat of a re-form, and a tween
+   * started on press would restart each time. The bar is drawn from state or it cannot be drawn.
+   */
+  reformTotalBeats?: number;
+  /**
+   * The beat an order actually landed on, and whether the shape it landed in beats theirs.
+   *
+   * The dock says so for a beat or two. Same reason as `reformTotalBeats`: a rebuild must not be
+   * able to swallow the one moment the player pressed the chip for.
+   */
+  landedBeat?: number;
+  landedCountered?: boolean;
+  /**
+   * Men each side actually lost on the last beat — the price the dock prints.
+   *
+   * Measured, never re-derived. A second copy of the exchange formula living in the view would be
+   * one refactor away from disagreeing with the fight it claims to describe.
+   */
+  lastBeatLoss?: { ours: number; theirs: number };
   theirFormationTarget?: BattleFormation;
   theirReformBeats?: number;
   /** Beats their shape is frozen for, bought by a Moment. Their re-form clock does not run. */

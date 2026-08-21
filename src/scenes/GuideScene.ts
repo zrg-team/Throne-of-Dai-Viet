@@ -3,7 +3,8 @@ import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { applyRenderScale } from '../game/graphicsQuality';
 import { t } from '../i18n';
 import { GUIDE_ENTRIES, GUIDE_TABS, type GuideEntry, type GuideTab } from '../data/guide';
-import { forgetTour } from '../state/tour';
+import { forgetTour, requestGuidedRun } from '../state/tour';
+import { createAscentGameState } from '../state/GameState';
 import { InkUI, INK_UI, type InkScrollArea } from '../ui/InkUI';
 import { CARD_ICON_SIZE, drawCardIcon } from '../ui/CardIcons';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
@@ -148,6 +149,33 @@ export class GuideScene extends Phaser.Scene {
     // number of lines in Vietnamese than in English, and a fixed stride would overlap in one of
     // the two languages whichever number it was tuned to.
     let cursor = 0;
+    /**
+     * Learn by playing, and it goes first on the page.
+     *
+     * The rest of this scene is four pages of prose, and prose is the wrong way to learn a
+     * real-time game — a reader finishes it having understood every sentence and still not
+     * knowing what to do when THREAT passes their defence. This starts an actual Dragon Ascent
+     * run with the advisor walking through it: the band, the line, the bar, then the first
+     * decision, the first wave mustering, and the first wave survived, each explained at the
+     * moment it happens rather than four screens earlier.
+     *
+     * On the Start tab only. It is the tab a reader lands on, and a button that appears on all
+     * four is a button that follows you around the manual asking you to stop reading it.
+     */
+    if (this.tab === 'start') {
+      scroll.content.add(this.ui.button(
+        { x: 0, y: cursor, width: LIST_WIDTH - 6, height: 52 },
+        t('guide.play.label'),
+        () => {
+          requestGuidedRun();
+          this.scene.start('ConquestScene', {
+            state: createAscentGameState({ seaSides: 1, difficulty: 'normal' }),
+          });
+        },
+        { variant: 'primary', fontSize: '15px', subLabel: t('guide.play.note') },
+      ));
+      cursor += 52 + CARD_GAP;
+    }
     for (const entry of GUIDE_ENTRIES.filter((candidate) => candidate.tab === this.tab)) {
       cursor += this.entryCard(scroll, cursor, entry) + CARD_GAP;
     }

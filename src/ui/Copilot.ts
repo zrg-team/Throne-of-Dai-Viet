@@ -18,12 +18,29 @@ export interface CopilotStep {
    * the card has no subject: the first and last steps are about the page as a whole.
    */
   target?: () => UIBounds | undefined;
+  /**
+   * Which end of the sheet the card sits at when it has no subject to point at.
+   *
+   * `bottom` is the default and is right for a card about the page as a whole. `top` exists for
+   * the cards that explain a decision the player is looking at: those prompts put their options
+   * low on the screen, and a card at the bottom lands squarely on top of the three things it is
+   * describing — the reader is told to compare them while they are covered up.
+   */
+  placement?: 'top' | 'bottom';
 }
 
 export interface CopilotOptions {
   steps: readonly CopilotStep[];
   /** The last card's second button. Omitted, the card carries only its finish button. */
   onGuide?: () => void;
+  /**
+   * What the final card's button says. Defaults to "Start playing".
+   *
+   * A walkthrough is several of these in sequence, one per moment of the run, and each is its own
+   * `Copilot` — so every one of them thinks it is the last. Left to the default, a card explaining
+   * the throne offers to start a game the player is already inside.
+   */
+  finishLabel?: TranslationKey;
   /** Finished or skipped, both. The caller marks it seen; the tour does not touch storage. */
   onClose: () => void;
 }
@@ -173,7 +190,7 @@ export class Copilot {
     const below = target ? target.y + target.height + 18 : 0;
     const above = target ? target.y - 18 - height : 0;
     const y = !target
-      ? GAME_HEIGHT - height - 28
+      ? (step.placement === 'top' ? 28 : GAME_HEIGHT - height - 28)
       : below + height <= GAME_HEIGHT - 16 ? below
       : above >= 16 ? above
       : Math.round((GAME_HEIGHT - height) / 2);
@@ -195,21 +212,30 @@ export class Copilot {
 
     // The counter, and the only thing on the card that is not a sentence or a button. It answers
     // the question a tour is always being asked, which is how much longer this goes on for.
-    const counter = this.scene.add.text(x + PAD, row + BUTTON_H / 2, t('copilot.step', {
-      n: this.index + 1,
-      total: this.opts.steps.length,
-    }), {
-      color: INK_UI_HEX.mutedText,
-      fontFamily: UI_FONT,
-      fontSize: '10px',
-    }).setOrigin(0, 0.5).setDepth(DEPTH + 2);
-    this.objects.push(counter);
+    //
+    // Omitted for a single card, where "1 of 1" answers a question nobody asked and reads as the
+    // start of a sequence that never arrives.
+    const counter = this.opts.steps.length > 1
+      ? this.scene.add.text(x + PAD, row + BUTTON_H / 2, t('copilot.step', {
+        n: this.index + 1,
+        total: this.opts.steps.length,
+      }), {
+        color: INK_UI_HEX.mutedText,
+        fontFamily: UI_FONT,
+        fontSize: '10px',
+      }).setOrigin(0, 0.5).setDepth(DEPTH + 2)
+      : undefined;
+    if (counter) this.objects.push(counter);
 
     // Skip stays a quiet phrase rather than becoming a button, on every card including the last.
     // A tour whose exit is as loud as its Next is a tour that expects to be escaped from.
-    const skip = this.ui.textLink(x + PAD + counter.width + 12, row + BUTTON_H / 2, t('copilot.skip'), () => this.close(), {
-      fontSize: '11px',
-    });
+    const skip = this.ui.textLink(
+      x + PAD + (counter ? counter.width + 12 : 0),
+      row + BUTTON_H / 2,
+      t('copilot.skip'),
+      () => this.close(),
+      { fontSize: '11px' },
+    );
     skip.setDepth(DEPTH + 2);
     this.objects.push(skip);
 
@@ -226,7 +252,7 @@ export class Copilot {
     const nextX = x + CARD_WIDTH - PAD - nextWidth;
     const next = this.ui.button(
       { x: nextX, y: row, width: nextWidth, height: BUTTON_H },
-      last ? t('copilot.done') : t('copilot.next'),
+      last ? t(this.opts.finishLabel ?? 'copilot.done') : t('copilot.next'),
       last ? () => this.close() : advance,
       { variant: 'primary', fontSize: '13px' },
     ).setDepth(DEPTH + 2);
