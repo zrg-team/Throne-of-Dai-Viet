@@ -18,15 +18,6 @@ export interface CopilotStep {
    * the card has no subject: the first and last steps are about the page as a whole.
    */
   target?: () => UIBounds | undefined;
-  /**
-   * Which end of the sheet the card sits at when it has no subject to point at.
-   *
-   * `bottom` is the default and is right for a card about the page as a whole. `top` exists for
-   * the cards that explain a decision the player is looking at: those prompts put their options
-   * low on the screen, and a card at the bottom lands squarely on top of the three things it is
-   * describing — the reader is told to compare them while they are covered up.
-   */
-  placement?: 'top' | 'bottom';
 }
 
 export interface CopilotOptions {
@@ -187,13 +178,28 @@ export class Copilot {
     const height = PAD + heading.height + 6 + body.height + 14 + BUTTON_H + PAD;
     const x = (GAME_WIDTH - CARD_WIDTH) / 2;
 
-    const below = target ? target.y + target.height + 18 : 0;
-    const above = target ? target.y - 18 - height : 0;
-    const y = !target
-      ? (step.placement === 'top' ? 28 : GAME_HEIGHT - height - 28)
-      : below + height <= GAME_HEIGHT - 16 ? below
-      : above >= 16 ? above
-      : Math.round((GAME_HEIGHT - height) / 2);
+    /**
+     * The card lives at the foot of the sheet, and that is a reachability rule rather than a
+     * layout preference.
+     *
+     * This is played one-handed. A card placed against the top of a 844-unit phone puts its
+     * buttons about 780 units from the thumb — visible, explained, and impossible to press
+     * without the other hand. It was doing exactly that for the cards that explain a decision,
+     * where it had been moved so as not to cover the options it described.
+     *
+     * So the card is anchored to the bottom instead, always, and the connection to whatever it is
+     * describing is made by the arrow below rather than by proximity. The one exception is a
+     * subject that is itself at the foot — the action bar — where the card steps above it, which
+     * still leaves the buttons within about seventy units of the bottom edge.
+     */
+    const GAP = 14;
+    const foot = GAME_HEIGHT - height - 20;
+    const targetIsLow = target ? target.y > GAME_HEIGHT - height - 40 : false;
+    const y = Phaser.Math.Clamp(
+      targetIsLow && target ? target.y - GAP - height : foot,
+      16,
+      Math.max(16, GAME_HEIGHT - height - 16),
+    );
 
     const panel = this.ui.panel({ x, y, width: CARD_WIDTH, height }, {
       fill: INK_UI.parchment,
@@ -203,6 +209,32 @@ export class Copilot {
       radius: 10,
     }).setDepth(DEPTH + 1);
     this.objects.push(panel);
+
+    /**
+     * A stub of an arrow from the card to the thing it is about.
+     *
+     * With the card pinned to the foot and the subject often up at the header, the two can be six
+     * hundred units apart, and a lit rectangle at one end of the screen with a paragraph at the
+     * other is two unrelated things until something joins them. The arrow is drawn at the card's
+     * edge and aligned with the subject's centre, so the eye is pointed the right way without a
+     * line being dragged across the whole page.
+     */
+    if (target) {
+      const pointsUp = target.y + target.height <= y;
+      const tipX = Phaser.Math.Clamp(
+        target.x + target.width / 2,
+        x + 24,
+        x + CARD_WIDTH - 24,
+      );
+      const arrow = this.scene.add.graphics().setDepth(DEPTH + 2);
+      arrow.fillStyle(INK_UI.brush, 1);
+      if (pointsUp) {
+        arrow.fillTriangle(tipX - 9, y + 1, tipX + 9, y + 1, tipX, y - 11);
+      } else if (target.y >= y + height) {
+        arrow.fillTriangle(tipX - 9, y + height - 1, tipX + 9, y + height - 1, tipX, y + height + 11);
+      }
+      this.objects.push(arrow);
+    }
 
     heading.setPosition(x + PAD, y + PAD).setDepth(DEPTH + 2);
     body.setPosition(x + PAD, heading.y + heading.height + 6).setDepth(DEPTH + 2);
@@ -248,37 +280,38 @@ export class Copilot {
       this.renderStep();
     };
 
-    const nextWidth = 104;
+    // On the last card of a tour that has somewhere to send the player, the loud button IS that
+    // offer and the quiet one is the exit. Everywhere else the loud button simply advances.
+    const handing = last && Boolean(this.opts.onGuide);
+    const nextWidth = handing ? 116 : 104;
     const nextX = x + CARD_WIDTH - PAD - nextWidth;
     const next = this.ui.button(
       { x: nextX, y: row, width: nextWidth, height: BUTTON_H },
-      last ? t(this.opts.finishLabel ?? 'copilot.done') : t('copilot.next'),
-      last ? () => this.close() : advance,
+      handing ? t('copilot.playNow')
+        : last ? t(this.opts.finishLabel ?? 'copilot.done')
+        : t('copilot.next'),
+      handing
+        ? () => {
+          const open = this.opts.onGuide;
+          this.close();
+          open?.();
+        }
+        : last ? () => this.close() : advance,
       { variant: 'primary', fontSize: '13px' },
     ).setDepth(DEPTH + 2);
     this.objects.push(next);
 
-    // The manual, offered once, on the card where the player has just been told it exists.
-    if (last && this.opts.onGuide) {
-      // 128, not 96. This button no longer says "How to play" — it says "How to play now", and in
-      // Vietnamese "Chỉ ta chơi ngay", either of which wrapped to two lines inside 96 and left the
-      // card looking like one of its two buttons had broken. The row still fits: the card is 350
-      // wide, the pair comes to 128 + 8 + 104 = 240, and the counter beside them needs about 40.
-      const guideWidth = 128;
-      const guide = this.ui.button(
-        { x: nextX - 8 - guideWidth, y: row, width: guideWidth, height: BUTTON_H },
-        t('copilot.guide'),
-        () => {
-          const open = this.opts.onGuide;
-          this.close();
-          open?.();
-        },
+    // The exit, as a button rather than as the quiet phrase — on this one card it stands beside a
+    // real offer and is a real choice, not an escape hatch from a tour.
+    if (handing) {
+      const closeWidth = 88;
+      this.objects.push(this.ui.button(
+        { x: nextX - 8 - closeWidth, y: row, width: closeWidth, height: BUTTON_H },
+        t('copilot.close'),
+        () => this.close(),
         { variant: 'ghost', fontSize: '12px' },
-      ).setDepth(DEPTH + 2);
-      this.objects.push(guide);
-      // Skip and the counter share the row with two buttons on this card alone. Hidden rather than
-      // squeezed: the finish button *is* the exit here, so the quiet phrase beside it would be a
-      // second way to do the same thing in less space than either deserves.
+      ).setDepth(DEPTH + 2));
+      // Skip would be a third way to do what Close already does, in less room than either deserves.
       skip.setVisible(false);
     }
   }

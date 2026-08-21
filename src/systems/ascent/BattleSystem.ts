@@ -1202,7 +1202,9 @@ export function fightRound(state: GameState): void {
   // because `advanceBattle` is not the only thing that runs a beat — `battle-lab` drives
   // `fightRound` directly, so a general placed one level up simply never played and every martial
   // value scored identically. A harness that cannot reach the code it is grading is not grading it.
-  if (battle.delegated || !battle.playerSteered) generalPlaysBeat(state, battle);
+  // Always. What he is allowed to touch is decided inside, per dial: he is not an autopilot
+  // that switches off, he is the officer standing next to you who works whatever you are not.
+  generalPlaysBeat(state, battle);
 
   // The tempo dial ticks first, so a stance ordered last beat is in force for this one — which is
   // what the dock told the player would happen. The shape clocks tick at the *end*; see
@@ -1551,6 +1553,9 @@ function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
     return hero ? hero.stats.martial : 45;
   })();
   const met = battle.ourAdvance + battle.theirAdvance >= 1;
+  // A delegated fight is entirely his. Otherwise he works what has not been taken from him.
+  const takeShape = battle.delegated || !battle.steeredFormation;
+  const takeTempo = battle.delegated || !battle.steeredStance;
   if (generalReadsBeat(battle, martial)) {
     const read = battleTelegraph(state);
     if (read) {
@@ -1558,7 +1563,7 @@ function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
       // beat reads the walk, not just the stand.
       const target = read.next ?? read.formation;
       const answer = countersTo(target).find((shape) => canFormFormation(state, shape));
-      if (answer && answer !== battle.ourFormation && !reforming(battle.reformBeats)) {
+      if (takeShape && answer && answer !== battle.ourFormation && !reforming(battle.reformBeats)) {
         setBattleFormation(state, answer);
       }
       // Tempo second, by **the same rule the invader plays** — press while the shape is ours,
@@ -1568,7 +1573,7 @@ function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
       // asymmetry was fatal: the invader read the tilt every beat and the player's commander did
       // not, so an unsteered host stood flat at 1.0/1.0 while the invader pressed at 1.55/1.40.
       // Measured in `battle-lab`, the player routed in 80% of fights.
-      if (!stanceIsLocked(battle, 'press')) {
+      if (takeTempo && !stanceIsLocked(battle, 'press')) {
         const sign = reforming(battle.reformBeats) || reforming(battle.theirReformBeats)
           ? 0 : formationTiltSign(battle.ourFormation, battle.theirFormation);
         setBattleStance(state, sign > 0 ? 'press'
@@ -1960,9 +1965,13 @@ function takePending(state: GameState): PendingBattle {
  * Only the order channel calls this, which is the only place that knows a *person* pressed
  * something.
  */
-export function markPlayerSteered(state: GameState): void {
+export function markPlayerSteered(state: GameState, dial?: 'formation' | 'stance'): void {
   const battle = state.ascent?.activeBattle;
-  if (battle && !battle.over) battle.playerSteered = true;
+  if (!battle || battle.over) return;
+  // No dial named means both — which is what `battle-lab` wants when it is grading a fight with
+  // no commander at all, and what a caller that has not been taught the difference will get.
+  if (dial !== 'stance') battle.steeredFormation = true;
+  if (dial !== 'formation') battle.steeredStance = true;
 }
 
 /**
