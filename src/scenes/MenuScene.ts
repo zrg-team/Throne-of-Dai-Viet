@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { createAscentGameState, createInitialGameState } from '../state/GameState';
 import { hasSnapshot, loadSnapshot, snapshotLabel } from '../state/save';
-import { hasSeenTour, markTourSeen, requestGuidedRun } from '../state/tour';
+import {
+  hasSeenClassicTour, hasSeenTour, markClassicTourSeen, markTourSeen, requestGuidedRun,
+} from '../state/tour';
 import { getLegacy, LEGACY_PERKS, purchaseLegacyPerk, rankForScore } from '../state/legacy';
 import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
@@ -85,7 +87,19 @@ export class MenuScene extends Phaser.Scene {
    * at the moment it is drawn and reads whatever is here — which is why the tour is started after
    * `render()` and not before it.
    */
-  private tourTargets: Partial<Record<'play' | 'classic' | 'footer', UIBounds>> = {};
+  private tourTargets: Partial<Record<'play' | 'classic' | 'footer' | 'skirmish', UIBounds>> = {};
+  /** Set for this visit to the classic page, so a re-render cannot raise the tour twice. */
+  private classicTourDone = false;
+  /**
+   * Which page the standing tour belongs to.
+   *
+   * There are two of them on this scene now — the front page's and the classic page's — and the
+   * guard in `render` that takes a tour down when the player navigates away has to know which one
+   * is up. Without it that guard would tear down the classic tour the instant it appeared, since
+   * its page is not `main`, and would mark the *front page's* flag as seen while doing it: one
+   * tour destroyed on sight, the other silently never shown again.
+   */
+  private copilotFor?: MenuMode;
 
   constructor() {
     super('MenuScene');
@@ -154,6 +168,7 @@ export class MenuScene extends Phaser.Scene {
       { id: 'learn', heading: 'copilot.learn.h', body: 'copilot.learn.b', target: () => this.tourTargets.footer },
       { id: 'ready', heading: 'copilot.ready.h', body: 'copilot.ready.b' },
     ];
+    this.copilotFor = 'main';
     this.copilot = new Copilot(this, {
       steps,
       /**
@@ -174,6 +189,7 @@ export class MenuScene extends Phaser.Scene {
       onClose: () => {
         markTourSeen();
         this.copilot = undefined;
+        this.copilotFor = undefined;
       },
     });
   }
@@ -1012,10 +1028,12 @@ export class MenuScene extends Phaser.Scene {
     //
     // Navigating away answers the tour's question the same way Skip does, so it counts as seen —
     // see `onClose`, which takes the same view.
-    if (this.copilot && this.mode !== 'main') {
+    if (this.copilot && this.copilotFor !== this.mode) {
       this.copilot.destroy();
       this.copilot = undefined;
-      markTourSeen();
+      if (this.copilotFor === 'classic') markClassicTourSeen();
+      else markTourSeen();
+      this.copilotFor = undefined;
     }
     this.clearContent();
     this.renderTitle();
@@ -1276,12 +1294,31 @@ export class MenuScene extends Phaser.Scene {
     this.content.push(title);
     cursor += title.height + 16;
 
+    /**
+     * Skirmish first, and the two long games under it.
+     *
+     * The order is by how much of an evening each one asks for, not by how much game is in it.
+     * Skirmish is one fight: set both hosts, pick the ground, take command, and it is over in
+     * minutes. The other two are runs. Somebody arriving on this page who has not decided what
+     * they want should meet the cheapest thing to try first — and it is also the only one here
+     * that teaches the battle system, which both of the others eventually hand you.
+     *
+     * Called Skirmish rather than "The Field" for the reason the genre already settled: it is what
+     * a one-off fight outside a campaign is called, in this kind of game, everywhere.
+     */
     for (const mode of [
+      {
+        title: t('arena.title'),
+        body: t('arena.menuBlurb'),
+        border: INK_UI.cinnabar,
+        variant: 'primary' as const,
+        start: 'arena' as const,
+      },
       {
         title: t('empire.menu.title'),
         body: t('ascent.menu.empireBlurb'),
         border: INK_UI.gold,
-        variant: 'primary' as const,
+        variant: 'secondary' as const,
         start: 'empire' as const,
       },
       {
@@ -1290,15 +1327,6 @@ export class MenuScene extends Phaser.Scene {
         border: INK_UI.softBrush,
         variant: 'secondary' as const,
         start: 'campaign' as const,
-      },
-      // The fight on its own. Not a mode with a map and an economy — one matchup, dialled in and
-      // fought, so the battle can be judged without playing a run to reach one.
-      {
-        title: t('arena.title'),
-        body: t('arena.menuBlurb'),
-        border: INK_UI.cinnabar,
-        variant: 'secondary' as const,
-        start: 'arena' as const,
       },
     ]) {
       const card = this.ui.card({ x: 28, y: cursor, width: GAME_WIDTH - 56, height: this.vh(88) }, {
@@ -1315,8 +1343,22 @@ export class MenuScene extends Phaser.Scene {
         },
       });
       this.content.push(card);
+      // The tour on this page points at the first card, so its measured rectangle is kept. Height
+      // comes off the card rather than from the 88 requested: `InkUI.card` grows to fit whatever
+      // its body wraps to, and in Vietnamese every one of these blurbs runs a line longer.
+      if (mode.start === 'arena') {
+        this.tourTargets.skirmish = {
+          x: 28,
+          y: cursor,
+          width: GAME_WIDTH - 56,
+          height: card.getData('cardHeight') as number,
+        };
+      }
       cursor += (card.getData('cardHeight') as number) + 14;
     }
+
+    // First time on this page, once: what a skirmish is and how one is won.
+    this.startClassicTour();
 
     this.content.push(this.ui.button({ x: 54, y: cursor + 6, width: 282, height: this.vh(44) }, t('ascent.menu.back'), () => {
       this.mode = 'main';
@@ -1331,6 +1373,50 @@ export class MenuScene extends Phaser.Scene {
   private startAscentRun(): void {
     const state = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
     this.scene.start('ConquestScene', { state });
+  }
+
+  /**
+   * The three cards on the classic page, explained the first time somebody opens it.
+   *
+   * Skirmish gets two of the three because it is the one mode nothing else on the front page
+   * prepares you for: the other two are runs whose shape the Dragon Ascent tour already
+   * described, while a skirmish is a single fight with its own vocabulary — ground, posture,
+   * focus, reserve — and no economy underneath to forgive a mistake.
+   *
+   * Its own storage flag. A player who skipped the front page's tour may still want this one,
+   * and a player who watched it has not thereby been told what a skirmish is.
+   */
+  private startClassicTour(): void {
+    if (this.classicTourDone || this.copilot || hasSeenClassicTour()) return;
+    this.classicTourDone = true;
+
+    const steps: CopilotStep[] = [
+      {
+        id: 'skirmish',
+        heading: 'copilot.classic.skirmish.h',
+        body: 'copilot.classic.skirmish.b',
+        target: () => this.tourTargets.skirmish,
+      },
+      {
+        id: 'skirmish-win',
+        heading: 'copilot.classic.win.h',
+        body: 'copilot.classic.win.b',
+        target: () => this.tourTargets.skirmish,
+      },
+      { id: 'classic-long', heading: 'copilot.classic.long.h', body: 'copilot.classic.long.b' },
+    ];
+
+    this.copilotFor = 'classic';
+    this.copilot = new Copilot(this, {
+      steps,
+      // The offer at the end is the thing the tour just spent two of its three cards on.
+      onGuide: () => this.scene.start('BattleArenaScene'),
+      onClose: () => {
+        markClassicTourSeen();
+        this.copilot = undefined;
+        this.copilotFor = undefined;
+      },
+    });
   }
 
   private renderLegacyShop(): void {

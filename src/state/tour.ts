@@ -106,6 +106,27 @@ export function takeGuidedRun(): boolean {
   return asked;
 }
 
+/**
+ * The classic-modes page's own flag.
+ *
+ * A third one rather than a shared "has been taught": the three tours answer three different
+ * questions — what the front page is, what a run is, and what a skirmish is — and a player may
+ * well want one having skipped another. A player who watched the front page's tour has not
+ * thereby been told what a skirmish is.
+ */
+const CLASSIC_TOUR_KEY = 'mandate:tour:classic:v1';
+
+export function hasSeenClassicTour(): boolean {
+  const override = forced();
+  if (override) return override === 'off';
+  return localStorage.getItem(CLASSIC_TOUR_KEY) === 'seen';
+}
+
+export function markClassicTourSeen(): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(CLASSIC_TOUR_KEY, 'seen');
+}
+
 /** Forgets both, so each tour runs again where it belongs. Behind the How to Play page's button. */
 export function forgetTour(): void {
   if (typeof localStorage === 'undefined') {
@@ -113,4 +134,5 @@ export function forgetTour(): void {
   }
   localStorage.removeItem(TOUR_KEY);
   localStorage.removeItem(RUN_TOUR_KEY);
+  localStorage.removeItem(CLASSIC_TOUR_KEY);
 }

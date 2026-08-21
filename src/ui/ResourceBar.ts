@@ -145,6 +145,25 @@ export class ResourceBar extends Phaser.GameObjects.Container {
     }
   }
 
+  /**
+   * Where one store sits on the strip, in design units.
+   *
+   * Exported for the coach, which highlights the four stores one at a time and cannot guess at
+   * them: `reflow` packs the row by *measured* width, so a realm holding 29.1k gold puts the
+   * people icon somewhere quite different from a realm holding 300. The alert chip is the right
+   * rectangle to read because it is already sized to the icon and its number together — it is what
+   * the strip itself lights up when a store is running out.
+   */
+  slotBounds(resource: ResourceKey): { x: number; y: number; width: number; height: number } {
+    const chip = this.alertChips[resource];
+    return {
+      x: chip.x,
+      y: chip.y - chip.height / 2,
+      width: chip.width,
+      height: chip.height,
+    };
+  }
+
   refresh(): void {
     this.seasonText.setText(t('time.yearSeason', { year: this.gameState.year, season: seasonLabel(this.gameState.season) }));
     RESOURCE_ORDER.forEach((resource) => {

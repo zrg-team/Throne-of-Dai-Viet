@@ -1540,12 +1540,23 @@ export interface AscentBattle {
   /** Beats spent disengaging, once the stance is `withdraw`. */
   withdrawBeats?: number;
   /**
-   * The player has touched a dial in this engagement.
+   * Which dials the player has taken, one flag each.
    *
-   * Until they do, the host's own commander plays the beat — see `fightRound`. A line standing flat
-   * while the invader reads the board every beat is not a harder fight, it is a broken one.
+   * Until a dial is taken the host's own commander works it — see `generalPlaysBeat`. A line
+   * standing flat while the invader reads the board every beat is not a harder fight, it is a
+   * broken one.
+   *
+   * **Per dial, and not one flag, because one flag was a trap.** `playerSteered` used to gate the
+   * commander entirely: touching *either* dial stopped him playing *both*, and stopped him
+   * committing the reserve and calling the rally as well — neither of which the player has a
+   * button for. Measured over forty fights of the same engagement, a player who pressed one
+   * formation chip and then watched traded at **0.28** against **1.96** for never touching the
+   * screen at all. The dial was not merely weak, it was worse than useless, and nothing said so.
+   *
+   * He now hands over exactly what was taken and goes on working the rest.
    */
-  playerSteered?: boolean;
+  steeredFormation?: boolean;
+  steeredStance?: boolean;
 
   /**
    * The shape each side is standing in — the fast dial, and the whole rock-paper-scissors.

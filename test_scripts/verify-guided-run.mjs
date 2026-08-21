@@ -113,8 +113,9 @@ const closeTour = async () => {
       for (const child of scene.children.list) {
         const label = child.list?.find?.((k) => k.type === 'Text'
           // Every label the forward button can carry: mid-walkthrough cards finish with
-          // "Got it", and only the map-and-bar stage offers to start playing.
-          && /^(Next|Got it|Start playing|Tiếp|Đã rõ|Vào chơi)$/.test(k.text));
+          // "Got it", the map-and-bar stage offers to start playing, and a tour with
+          // somewhere to send the player ends on "Play now".
+          && /^(Next|Got it|Start playing|Play now|Tiếp|Đã rõ|Vào chơi|Chơi ngay)$/.test(k.text));
         if (label) {
           child.list.find((k) => k.type === 'Rectangle')
             ?.emit('pointerup', { id: 7, downTime: 0 }, 0, 0, { stopPropagation() {} });
@@ -182,34 +183,45 @@ await page.evaluate(() => {
 // Each pass closes the standing card FIRST. Without that the checks read one stage behind — the
 // coach raises one card per frame, so a pass that leaves the previous one up simply returns it
 // again, and every assertion after the first fails for a reason that is entirely the harness's.
-const stage = async (setup) => {
-  await closeTour();
-  await page.evaluate((source) => {
-    const scene = window.__phaserGame.scene.getScene('ConquestUIScene');
-    // eslint-disable-next-line no-new-func
-    new Function('scene', 'state', 'ascent', source)(scene, scene.state, scene.state.ascent);
-    scene.renderActionBar();
-  }, setup);
-  await page.waitForTimeout(300);
+const stage = async (setup, wanted) => {
+  // Pumps until the wanted stage appears rather than assuming it is next in line. The coach raises
+  // ONE card per frame, and stages get inserted between existing ones as the walkthrough grows —
+  // when the bar was split into a card per button, every assertion after it started reading the
+  // stage before the one it named and failed for a reason that was entirely the harness's.
+  for (let pump = 0; pump < 12; pump += 1) {
+    await closeTour();
+    await page.evaluate((source) => {
+      const scene = window.__phaserGame.scene.getScene('ConquestUIScene');
+      // eslint-disable-next-line no-new-func
+      new Function('scene', 'state', 'ascent', source)(scene, scene.state, scene.state.ascent);
+      scene.renderActionBar();
+    }, setup);
+    await page.waitForTimeout(220);
+    const state = await page.evaluate(() => {
+      const scene = window.__phaserGame.scene.getScene('ConquestUIScene');
+      return { up: Boolean(scene.runTour), shown: [...scene.tourStagesShown] };
+    });
+    if (!wanted || state.shown.includes(wanted)) return state;
+  }
   return page.evaluate(() => {
     const scene = window.__phaserGame.scene.getScene('ConquestUIScene');
     return { up: Boolean(scene.runTour), shown: [...scene.tourStagesShown] };
   });
 };
 
-let seen = await stage('');
-check('a clear frame raises the map-and-bar walkthrough',
+let seen = await stage('', 'opening');
+check('a clear frame raises the strip-and-readout walkthrough',
   seen.shown.includes('opening'), JSON.stringify(seen.shown));
 
-seen = await stage('scene.promptsAnswered = 1;');
+seen = await stage('scene.promptsAnswered = 1;', 'decision');
 check('answering a decision raises the decision card',
   seen.shown.includes('decision'), JSON.stringify(seen.shown));
 
-seen = await stage('ascent.wave = 0; ascent.ticksToWave = 2;');
+seen = await stage('ascent.wave = 0; ascent.ticksToWave = 2;', 'muster');
 check('the first muster raises the muster card',
   seen.shown.includes('muster'), JSON.stringify(seen.shown));
 
-seen = await stage('ascent.wavesSurvived = 1;');
+seen = await stage('ascent.wavesSurvived = 1;', 'aftermath');
 check('surviving a wave raises the aftermath card',
   seen.shown.includes('aftermath'), JSON.stringify(seen.shown));
 
@@ -295,6 +307,96 @@ const waitsForClear = await first.evaluate(() => {
 check('a stage about the map does not speak over a card', waitsForClear === false);
 
 firstErrors.forEach((e) => errors.push(`first-run: ${e}`));
+// ── The resource strip, explained one store at a time ───────────────────────
+//
+// The strip was the last unexplained thing on the screen and the first a player looks at: four
+// icons, four numbers, four signed rates, none of which says what it is. Each store now gets its
+// own card pointed at its own slot — and the slot has to be READ from the strip, because `reflow`
+// packs the row by measured width, so a realm holding 29.1k gold puts the people icon somewhere a
+// hardcoded rectangle would miss entirely.
+const strip = await first.evaluate(() => {
+  const scene = window.__phaserGame.scene.getScene('ConquestUIScene');
+  const opening = scene.tourStages().find((s) => s.id === 'opening');
+  const steps = opening.steps();
+  const stores = steps.filter((s) => s.id.startsWith('res-'));
+  return {
+    ids: steps.map((s) => s.id),
+    boxes: stores.map((s) => s.target()),
+  };
+});
+check('every store on the strip gets its own card',
+  ['res-food', 'res-supplies', 'res-gold', 'res-people'].every((id) => strip.ids.includes(id)),
+  JSON.stringify(strip.ids));
+check('and each card points at a different slot',
+  new Set(strip.boxes.map((b) => Math.round(b.x))).size === 4, JSON.stringify(strip.boxes));
+check('the slots sit in the header strip, left to right',
+  strip.boxes.every((b) => b.y >= 0 && b.y < 60 && b.width > 20)
+  && strip.boxes.every((b, i) => i === 0 || b.x > strip.boxes[i - 1].x),
+  JSON.stringify(strip.boxes));
+
+// ── The action bar, one button at a time ────────────────────────────────────
+//
+// It was a single card naming all six screens, which is a paragraph rather than an explanation:
+// the reader finishes it knowing there are six of something and not which is which. Each button
+// now lights on its own, and the rectangle comes from `actionBarSlots` — the same function the bar
+// lays itself out from — so what is lit is the button rather than a guess at where one probably
+// is. The keys come from the live bar too: `battle` exists only while a siege does.
+const bar = await first.evaluate(() => {
+  const scene = window.__phaserGame.scene.getScene('ConquestUIScene');
+  const stage = scene.tourStages().find((s) => s.id === 'bar');
+  const steps = stage.steps();
+  return {
+    ids: steps.map((s) => s.id),
+    boxes: steps.map((s) => s.target()),
+    barTop: window.__phaserGame.scale.gameSize.height / (window.RENDER_SCALE ?? 1) - 50,
+  };
+});
+check('every button on the bar gets its own card',
+  ['build', 'heroes', 'court', 'army', 'affairs', 'chronicle', 'pause', 'menu']
+    .every((key) => bar.ids.includes(`bar-${key}`)),
+  JSON.stringify(bar.ids));
+check('each card lights one button, not the whole bar',
+  bar.boxes.every((b) => b.width < 120) && new Set(bar.boxes.map((b) => b.x)).size === bar.boxes.length,
+  JSON.stringify(bar.boxes.map((b) => [b.x, b.width])));
+check('and the lit rectangles march left to right along the bar',
+  bar.boxes.every((b, i) => i === 0 || b.x > bar.boxes[i - 1].x),
+  JSON.stringify(bar.boxes.map((b) => b.x)));
+
+// ── The card is inside a thumb's reach ──────────────────────────────────────
+//
+// This is played one-handed. A card against the top of an 844-unit phone puts its buttons about
+// 780 units from the thumb: visible, explained, unpressable. Whatever the card is pointing at —
+// and the strip is at the very top — the buttons stay at the foot.
+const reach = await first.evaluate(() => {
+  const scene = window.__phaserGame.scene.getScene('ConquestUIScene');
+  // Raise a fresh card rather than measuring whatever the earlier checks left behind — those
+  // destroy and re-raise the tour several times, and a stale one measures as nothing at all.
+  scene.runTour?.destroy();
+  scene.runTour = undefined;
+  scene.tourStagesShown.clear();
+  scene.openPromptKey = '';
+  // A live prompt also hides the bar, and `maybeRunTour` refuses over one for any stage that is
+  // not about a card. The run has been ticking through this whole file, so one may well be up.
+  scene.state.pendingAscentPrompt = undefined;
+  scene.renderActionBar();
+  let buttonTop = 0;
+  for (const child of scene.children.list) {
+    const label = child.list?.find?.((k) => k.type === 'Text' && /^(Next|Skip)$/.test(k.text));
+    if (label) buttonTop = Math.max(buttonTop, child.y || 0);
+  }
+  const target = scene.runTour ? 'up' : 'none';
+  return {
+    buttonTop,
+    target,
+    active: scene.tourActive,
+    height: window.__phaserGame.scale.gameSize.height,
+  };
+});
+check('the card keeps its buttons within reach of a thumb',
+  reach.target === 'up' && reach.buttonTop > reach.height / 2,
+  JSON.stringify(reach));
+
+
 await first.close();
 
 // ── The front page's tour ends by handing over a game, not a manual ─────────
@@ -340,16 +442,23 @@ const lastCard = await handoff.evaluate(() => {
   return labels;
 });
 check('the last front-page card offers to teach by playing',
-  lastCard.some((text) => /How to play now/.test(text)), JSON.stringify(lastCard.slice(-4)));
+  lastCard.some((text) => /Play now/.test(text)), JSON.stringify(lastCard.slice(-4)));
+// Two buttons, and they are two different things: get out of the way, or take me in and show me.
+// The pair used to be "Start playing" against "How to play now", which asked the player to choose
+// between two ways of starting the same game — one of which silently meant "and be coached".
+check('and an exit that is not a second way to start the game',
+  lastCard.some((text) => /^Close$/.test(text))
+  && !lastCard.some((text) => /Start playing|How to play/.test(text)),
+  JSON.stringify(lastCard.slice(-5)));
 // A label that wraps inside its button is the failure this row is most prone to: it carries two
 // buttons and a counter on one line, and the longer of the two labels grew when it stopped
 // pointing at the manual.
 const NEWLINE = String.fromCharCode(10);
 check('neither button on that card wraps',
-  !lastCard.some((text) => /How to play now|Start playing/.test(text) && text.includes(NEWLINE)),
+  !lastCard.some((text) => /Play now|Close/.test(text) && text.includes(NEWLINE)),
   JSON.stringify(lastCard.filter((text) => text.includes(NEWLINE))));
 
-check('pressing it is possible', await pressOnMenu('How to play now'));
+check('pressing it is possible', await pressOnMenu('Play now'));
 const landed = await handoff.waitForFunction(
   () => window.__phaserGame.scene.isActive('ConquestUIScene'),
   null,

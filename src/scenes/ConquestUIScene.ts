@@ -125,7 +125,9 @@ import { ASCENT_HUD_HEIGHT, AscentHud } from '../ui/ascent/AscentHud';
 import { AdvisorStrip } from '../ui/ascent/AdvisorStrip';
 import { Copilot, type CopilotStep } from '../ui/Copilot';
 import { hasSeenRunTour, markRunTourSeen, takeGuidedRun } from '../state/tour';
-import { ActionBar } from '../ui/ActionBar';
+import {
+  ACTION_BUTTON_HEIGHT, ACTION_BUTTON_Y, ActionBar, actionBarSlots,
+} from '../ui/ActionBar';
 import { ResourceBar } from '../ui/ResourceBar';
 import { staggerIn } from '../ui/animations';
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
@@ -1398,15 +1400,11 @@ export class ConquestUIScene extends Phaser.Scene {
     steps: () => CopilotStep[];
   }> {
     const ascent = this.state.ascent;
-    // A one-card stage, placed at the top of the sheet: these all explain a decision whose
-    // options are printed low, and a card at the foot covers the very things it is comparing.
+    // A one-card stage. Placement is no longer the caller's business: every card is anchored to
+    // the foot of the sheet so its buttons are inside a thumb's reach, and the arrow drawn from
+    // the card is what connects it to whatever it is describing.
     const card = (id: string, heading: string, body: string): CopilotStep[] =>
-      [{
-        id,
-        heading: heading as CopilotStep['heading'],
-        body: body as CopilotStep['body'],
-        placement: 'top',
-      }];
+      [{ id, heading: heading as CopilotStep['heading'], body: body as CopilotStep['body'] }];
     const showing = (kind: string) => this.openPromptKey.startsWith(kind);
 
     return [
@@ -1433,6 +1431,40 @@ export class ConquestUIScene extends Phaser.Scene {
         id: 'opening',
         when: () => true,
         steps: () => [
+          /**
+           * The four stores, one card each, pointed at individually.
+           *
+           * The strip was the last unexplained thing on the screen and the first thing a player
+           * looks at: four icons, four numbers and four signed rates, none of which says what it
+           * is or what it is for. One card naming all four would have been cheaper and would have
+           * taught nobody which icon was which — so each card lights its own slot, and the slot is
+           * read from the strip rather than guessed, because `reflow` packs the row by measured
+           * width and a realm holding 29.1k gold puts the people icon somewhere else entirely.
+           */
+          {
+            id: 'res-food',
+            heading: 'copilot.run.food.h',
+            body: 'copilot.run.food.b',
+            target: () => this.resourceBar.slotBounds('food'),
+          },
+          {
+            id: 'res-supplies',
+            heading: 'copilot.run.supplies.h',
+            body: 'copilot.run.supplies.b',
+            target: () => this.resourceBar.slotBounds('supplies'),
+          },
+          {
+            id: 'res-gold',
+            heading: 'copilot.run.gold.h',
+            body: 'copilot.run.gold.b',
+            target: () => this.resourceBar.slotBounds('gold'),
+          },
+          {
+            id: 'res-people',
+            heading: 'copilot.run.people.h',
+            body: 'copilot.run.people.b',
+            target: () => this.resourceBar.slotBounds('humans'),
+          },
           {
             id: 'band',
             heading: 'copilot.run.band.h',
@@ -1445,19 +1477,48 @@ export class ConquestUIScene extends Phaser.Scene {
             body: 'copilot.run.coach.b',
             target: () => this.advisor.tapBounds()[0],
           },
-          {
-            id: 'bar',
-            heading: 'copilot.run.bar.h',
-            body: 'copilot.run.bar.b',
-            target: () => ({
-              x: 0,
-              y: GAME_HEIGHT - ACTION_BAR_HEIGHT,
-              width: GAME_WIDTH,
-              height: ACTION_BAR_HEIGHT,
-            }),
-          },
-          { id: 'go', heading: 'copilot.run.go.h', body: 'copilot.run.go.b' },
         ],
+      },
+      /**
+       * The bar, one button at a time.
+       *
+       * It used to be a single card naming all six screens in a row, which is a paragraph rather
+       * than an explanation: a reader finishes it knowing there are six of something and not which
+       * is which. Every button now lights on its own and is told what is behind it and — the part
+       * that actually changes how the game is played — what its status dot means, because the dot
+       * is the game telling you when to open that screen and nothing anywhere says so.
+       *
+       * Built from `actionBarSlots`, the same function the bar itself lays out from, so the lit
+       * rectangle is the button rather than an approximation of where a button probably is. The
+       * keys come from the live bar too: `battle` exists only while a siege does, and a card
+       * pointing at a button that is not drawn would light up an empty patch of the bar.
+       */
+      {
+        id: 'bar',
+        when: () => true,
+        steps: () => {
+          const context = { battleLive: Boolean(this.state.ascent?.activeBattle) };
+          const slots = actionBarSlots(this.state.gameMode, context);
+          const known = ['battle', 'build', 'heroes', 'court', 'army', 'affairs', 'chronicle', 'pause', 'menu'];
+          return slots
+            .filter((slot) => known.includes(slot.action))
+            .map((slot) => ({
+              id: `bar-${slot.action}`,
+              heading: `copilot.bar.${slot.action}.h` as CopilotStep['heading'],
+              body: `copilot.bar.${slot.action}.b` as CopilotStep['body'],
+              target: () => ({
+                x: slot.x,
+                y: ACTION_BUTTON_Y - ACTION_BUTTON_HEIGHT / 2,
+                width: slot.width,
+                height: ACTION_BUTTON_HEIGHT,
+              }),
+            }));
+        },
+      },
+      {
+        id: 'go',
+        when: () => true,
+        steps: () => card('go', 'copilot.run.go.h', 'copilot.run.go.b'),
       },
       // ── The rest of a real run, each at the moment it first happens ─────
       {
@@ -6549,8 +6610,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       if (refused) return;
       const hit = this.add.zone(x, stanceY, segW, BATTLE_STANCE_HEIGHT).setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
-      hit.on('pointerup', () => {
-        if (scrollGestureConsumedTap()) return;
+      hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        if (scrollGestureConsumedTap(pointer)) return;
         this.releaseBattleHold();
         this.events.emit('ui:battle-order', `stance:${id}`);
       });
@@ -6713,9 +6774,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         tile.setPosition(bounds.x, bounds.y);
       };
       hit.on('pointerout', unpress);
-      hit.on('pointerup', () => {
+      hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
         unpress();
-        if (scrollGestureConsumedTap()) return;
+        if (scrollGestureConsumedTap(pointer)) return;
         this.releaseBattleHold();
         this.events.emit('ui:battle-order', `formation:${id}`);
       });
@@ -6835,8 +6896,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         fontSize: '7.5px', align: 'center', wordWrap: { width: w - 4 },
       }).setOrigin(0.5, 0));
       const hit = this.add.zone(x, y, w, h).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-      hit.on('pointerup', () => {
-        if (scrollGestureConsumedTap()) return;
+      hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        if (scrollGestureConsumedTap(pointer)) return;
         this.releaseBattleHold();
         this.events.emit('ui:battle-order', chip.order);
         // Stepping away closes the screen; handing over keeps it open, which is the whole
@@ -6932,7 +6993,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         { x: content.x + 12 + index * (buttonW + gap), y: rowY, width: buttonW, height: buttonH },
         t(`ascent.moment.${moment.id}.${id}` as Parameters<typeof t>[0]),
         () => {
-          if (scrollGestureConsumedTap()) return;
+          // No gesture guard here: `InkUI.button` has already refused the tap if it was the tail
+          // of a scroll, and it did so with the pointer in hand. A second, pointerless check could
+          // only ever throw away an answer the player did mean to give.
           this.releaseBattleHold();
           this.events.emit('ui:battle-moment', id);
         },
