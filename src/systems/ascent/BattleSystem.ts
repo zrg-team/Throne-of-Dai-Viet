@@ -769,6 +769,7 @@ function settleFormations(battle: AscentBattle): void {
     if (!reforming(battle.reformBeats) && battle.formationTarget) {
       battle.ourFormation = battle.formationTarget;
       battle.formationTarget = undefined;
+      markFormationLanded(battle);
       battle.log.push(t('ascent.battle.reformDone', {
         shape: t(`ascent.formation.${battle.ourFormation}.full` as Parameters<typeof t>[0]),
       }));
@@ -1319,6 +1320,10 @@ export function fightRound(state: GameState): void {
 
     battle.ourNow = ours.reduce((total, host) => total + totalUnits(host), 0);
     battle.theirNow = theirs.reduce((total, host) => total + totalUnits(host), 0);
+    // The approach costs men too. Recording it only on the melee path left the dock printing
+    // "the lines have not met" while the arrows were killing people, which is not a thing the
+    // screen is allowed to say while a number it could show is going up.
+    battle.lastBeatLoss = { ours: ourLoss, theirs: theirLoss };
     let volleyLine: string | undefined;
     if (ourLoss > 0 || theirLoss > 0) {
       volleyLine = t('ascent.battle.volley', { ours: ourLoss, theirs: theirLoss });
@@ -1389,6 +1394,13 @@ export function fightRound(state: GameState): void {
   // be an order; it was a second cursor on a one-thumb screen, and it was very nearly always
   // correct, which makes it a tax rather than a choice. See `docs/14-five-shapes-two-dials.html`.
   const theirLoss = theirs.reduce((total, host) => total + bleed(host, Math.min(0.9, theirShare)), 0);
+
+  // What the dock prints as the price of standing here.
+  //
+  // The *measured* exchange, not a re-derivation of it. A second copy of the formula in the view
+  // would be one refactor away from disagreeing with the fight, and a readout that drifts from the
+  // simulation teaches a rule the game does not keep. This costs one assignment and cannot drift.
+  battle.lastBeatLoss = { ours: ourLoss, theirs: theirLoss };
 
   // Morale follows the exchange: bleeding costs heart, and winning the exchange restores a
   // little of it. Because `armyPower` reads morale, the side that starts losing keeps losing.
@@ -2027,11 +2039,30 @@ export function setBattleFormation(state: GameState, formation: BattleFormation)
   battle.freeReform = false;
   battle.formationTarget = formation;
   battle.reformBeats = beats;
+  // What it counted down from, so the dock can show how far the order has walked. A bar that does
+  // not know its own length finishes at the wrong time, which is worse than having no bar.
+  battle.reformTotalBeats = Math.max(1, beats);
   if (beats <= 0) {
     battle.ourFormation = formation;
     battle.formationTarget = undefined;
+    markFormationLanded(battle);
   }
   return true;
+}
+
+/**
+ * Record that an order arrived, and whether it was worth making.
+ *
+ * The dock reads this to say so. It fires on **every** landing but remembers whether the shape
+ * counters, because praise for a change that bought nothing is noise a player learns to ignore
+ * inside two fights.
+ */
+export function markFormationLanded(battle: AscentBattle): void {
+  battle.landedBeat = (battle.approachBeats ?? 0) + battle.round;
+  battle.landedCountered = formationBeats(
+    battle.ourFormation,
+    battle.theirFormationTarget ?? battle.theirFormation,
+  );
 }
 
 /** A snapshot for the view, so the scene never reaches into army internals itself. */

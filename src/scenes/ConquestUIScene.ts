@@ -217,7 +217,31 @@ const BATTLE_RAILS_HEIGHT = 56;
 const BATTLE_STANCE_HEIGHT = 30;
 const BATTLE_FORMATION_HEIGHT = 52;
 const BATTLE_STRIP_LABEL = 12;
+/**
+ * The band above both dials: what the enemy is doing, what this beat is costing, and — when an
+ * order has just landed — whether it was worth making.
+ *
+ * It is paid for by deleting the two strip labels it replaces. `THẾ TRẬN — FORMATION` over a row of
+ * chips that now carry their own icons and verbs was a caption naming what the reader is looking
+ * at, and the dock has no 12 points to spend on that: `BATTLE_DOCK_HEIGHT` was already trimmed
+ * 122 → 112 because it printed through the lane's Close button at 620, and the field is at its 150
+ * floor there and cannot give any back. Two labels out, one band in, same 112.
+ */
+const BATTLE_READOUT_HEIGHT = 24;
 const BATTLE_DOCK_HEIGHT = 112;
+/**
+ * A glyph per shape, so a chip can be recognised rather than read.
+ *
+ * Each one draws the *arrangement* its shape puts the men in, seen from above — the same reading
+ * the field gives, at 15 points. See `docs/14-five-shapes-two-dials.html` for the ring itself.
+ */
+const FORMATION_ICON: Record<BattleFormation, CardIconId> = {
+  chong: 'spears',
+  xung: 'horse',
+  tan: 'skirmish',
+  quy: 'tortoise',
+  no: 'bows',
+};
 /** The two-line log ribbon along the foot of the field, inside it. */
 const BATTLE_RIBBON_HEIGHT = 34;
 /** The round pips above the field, and the count beside them. */
@@ -6040,6 +6064,12 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       battle.ourFormation,
       battle.formationTarget ?? '',
       battle.reformBeats ?? 0,
+      // The readout band lives in this layer, so its readings belong in the signature: the price
+      // moves every beat and the landing stamp has two beats to live. Without these the band would
+      // print one stale beat behind the fight it is describing.
+      Math.round(battle.lastBeatLoss?.ours ?? -1),
+      Math.round(battle.lastBeatLoss?.theirs ?? -1),
+      battle.landedBeat ?? -1,
       read ? `${read.formation}>${read.next ?? ''}:${read.beatsLeft}` : '',
       // A shape whose block has just been spent must grey out on the beat it dies.
       Object.entries(this.ourFormationStates(battle)).map(([k, v]) => `${k}${v[0]}`).join(''),
@@ -6470,22 +6500,22 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const dockY = content.y + BATTLE_PIPS_HEIGHT + ui.fieldHeight + 8 + BATTLE_RAILS_HEIGHT + 16;
     const read = battleTelegraph(this.state);
 
+    // ── the readout ──────────────────────────────────────────────────────
+    this.buildBattleReadout(battle, read, dockY);
+
     // ── the slow dial ────────────────────────────────────────────────────
     const locked = (battle.stanceLockBeats ?? 0) > 0;
-    orders.add(this.ui.label(content.x + 2, dockY, t('ascent.battle.stanceLabel'), 'caption', {
-      fontSize: '8.5px', color: INK_UI_HEX.mutedText,
-    }));
     if (locked) {
       // A greyed control with no explanation is a bug; one that says how long it is greyed for is
       // a rule. This is the only extra reading the stance strip carries that formation does not.
       orders.add(this.ui.label(
-        content.x + content.width - 2, dockY,
+        content.x + content.width - 2, dockY + BATTLE_READOUT_HEIGHT - 1,
         t('ascent.battle.locked', { n: String(battle.stanceLockBeats ?? 0) }), 'caption',
-        { fontSize: '8.5px', color: `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}` },
-      ).setOrigin(1, 0));
+        { fontSize: '8px', color: `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}` },
+      ).setOrigin(1, 1));
     }
 
-    const stanceY = dockY + BATTLE_STRIP_LABEL;
+    const stanceY = dockY + BATTLE_READOUT_HEIGHT + 3;
     const stances: FieldStance[] = ['withdraw', 'defend', 'balanced', 'press'];
     const segGap = 5;
     const segW = (content.width - segGap * (stances.length - 1)) / stances.length;
@@ -6520,26 +6550,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     });
 
     // ── the fast dial ────────────────────────────────────────────────────
-    const formLabelY = stanceY + BATTLE_STANCE_HEIGHT + 6;
-    orders.add(this.ui.label(content.x + 2, formLabelY, t('ascent.battle.formationLabel'), 'caption', {
-      fontSize: '8.5px', color: INK_UI_HEX.mutedText,
-    }));
-    // The telegraph, in words, because the blocks on the field do not re-arrange: this line and the
-    // chip rims are the *only* places the player can read what the enemy is about to stand in.
-    if (read) {
-      const shapeName = (id: BattleFormation): string =>
-        t(`ascent.formation.${id}` as Parameters<typeof t>[0]);
-      orders.add(this.ui.label(
-        content.x + content.width - 2, formLabelY,
-        read.next
-          ? t('ascent.battle.telegraphNext', { shape: shapeName(read.next), n: String(read.beatsLeft) })
-          : t('ascent.battle.telegraphHeld', { shape: shapeName(read.formation) }),
-        'caption',
-        { fontSize: '8.5px', color: read.next ? `#${INK_UI.gold.toString(16).padStart(6, '0')}` : INK_UI_HEX.mutedText },
-      ).setOrigin(1, 0));
-    }
-
-    const formY = formLabelY + BATTLE_STRIP_LABEL;
+    // No caption. The chips carry an icon and a verb now, and the readout band above says what the
+    // enemy is doing in words — between them there is nothing left for a label to add.
+    const formY = stanceY + BATTLE_STANCE_HEIGHT + 3;
     // While the fight is held waiting for its first order, say which strip is the one to touch.
     // The note in the field tells the player to pick a formation; this is the strip it means, and
     // without it "give the first order" is a sentence with no object.
@@ -6591,38 +6604,181 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         orders.add(edge);
       }
 
+      // The arrangement the shape puts its men in, drawn. A word has to be read and recognised;
+      // a shape only has to be recognised, so the icon is what carries the chip at a glance and
+      // the two names underneath are what the glance turns into knowledge over a few fights.
+      const ink = held || walking ? INK_UI.cinnabar
+        : gone ? INK_UI.softBrush
+          : rim === INK_UI.jade ? INK_UI.jade : INK_UI.brush;
+      const glyph = drawCardIcon(this, FORMATION_ICON[id], ink);
+      glyph.setPosition(x + chipW / 2, formY + 13).setScale(15 / CARD_ICON_SIZE);
+      if (gone) glyph.setAlpha(0.5);
+      orders.add(glyph);
+
       orders.add(this.ui.label(
-        x + chipW / 2, formY + 11, t(`ascent.formation.${id}` as Parameters<typeof t>[0]), 'label',
+        x + chipW / 2, formY + 22,
+        t(`ascent.formation.${id}.verb` as Parameters<typeof t>[0]), 'label',
         {
-          fontSize: '13px',
+          fontSize: '10px',
           align: 'center',
+          wordWrap: { width: chipW - 2 },
           color: held || walking ? `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`
             : gone ? INK_UI_HEX.mutedText : INK_UI_HEX.inkText,
         },
       ).setOrigin(0.5, 0));
 
+      // The Vietnamese name stays, small, under the order it belongs to — learned by association
+      // rather than by homework. Displaced only while the chip has something more urgent to say.
       const note = walking ? t('ascent.battle.reforming', { n: String(battle.reformBeats ?? 0) })
         : gone ? t('ascent.battle.shapeGone')
           : state === 'blunt' ? t('ascent.battle.blunt')
-            : t(`ascent.formation.${id}.gloss` as Parameters<typeof t>[0]);
-      orders.add(this.ui.label(x + chipW / 2, formY + 29, note, 'caption', {
+            : t(`ascent.formation.${id}` as Parameters<typeof t>[0]);
+      orders.add(this.ui.label(x + chipW / 2, formY + 36, note, 'caption', {
         fontSize: '8px',
         align: 'center',
         wordWrap: { width: chipW - 4 },
-        color: rim === INK_UI.jade ? '#4c5f45'
-          : rim === INK_UI.cinnabar ? '#8a2a1b' : INK_UI_HEX.mutedText,
+        color: held || walking ? '#8a2a1b'
+          : rim === INK_UI.jade ? '#4c5f45'
+            : rim === INK_UI.cinnabar ? '#8a2a1b' : INK_UI_HEX.mutedText,
       }).setOrigin(0.5, 0));
+
+      // ── the order in flight ────────────────────────────────────────────
+      //
+      // A formation is instant to order and slow to arrive, and until now the screen said neither.
+      // Three marks, because three different things are true at three different moments and
+      // merging them tells the player the wrong one:
+      //
+      //   the seal   — the order was *issued*. True at 0 ms. A tick would say "done", which is not.
+      //   the bar    — it is walking, and this is how much of the walk is left.
+      //   the flare  — it arrived. The only one of the three that means the shape has changed.
+      if (walking) {
+        const total = Math.max(1, battle.reformTotalBeats ?? battle.reformBeats ?? 1);
+        const done = Math.max(0, Math.min(1, 1 - (battle.reformBeats ?? 0) / total));
+
+        const seal = this.add.graphics();
+        seal.lineStyle(1.4, INK_UI.cinnabar, 0.95);
+        seal.strokeRect(x + chipW - 12, formY + 3, 8, 8);
+        seal.fillStyle(INK_UI.cinnabar, 0.85);
+        seal.fillRect(x + chipW - 10, formY + 5, 4, 4);
+        orders.add(seal);
+
+        // Drawn from `reformBeats`, never tweened. `battleOrderSignature` includes that clock, so
+        // this strip is torn down and rebuilt on every beat of a re-form and a tween would restart
+        // each time — a bar that runs the wrong length is worse than no bar at all.
+        //
+        // Track first, then fill. A trained host re-forms in a single beat, where the fill is zero
+        // wide for the whole of the walk: without the track there would be nothing on the chip at
+        // all in the commonest case, which is the exact complaint this is here to answer.
+        const bar = this.add.graphics();
+        bar.fillStyle(INK_UI.cinnabar, 0.22);
+        bar.fillRect(x + 2, formY + BATTLE_FORMATION_HEIGHT - 4, chipW - 4, 2.5);
+        bar.fillStyle(INK_UI.cinnabar, 0.95);
+        bar.fillRect(x + 2, formY + BATTLE_FORMATION_HEIGHT - 4, (chipW - 4) * done, 2.5);
+        orders.add(bar);
+      }
+
+      // The beat the men actually stood up in it. Two beats, then it stops mattering.
+      const beatNow = (battle.approachBeats ?? 0) + battle.round;
+      if (held && battle.landedBeat !== undefined && beatNow - battle.landedBeat <= 1) {
+        const flare = this.add.graphics();
+        flare.lineStyle(2, battle.landedCountered ? INK_UI.jade : INK_UI.gold, 0.95);
+        flare.strokeRoundedRect(x - 1, formY - 1, chipW + 2, BATTLE_FORMATION_HEIGHT + 2, 7);
+        orders.add(flare);
+        this.tweens.add({
+          targets: flare, alpha: { from: 1, to: 0 }, duration: 520, ease: 'Quad.easeOut',
+        });
+      }
 
       if (gone) return;
       const hit = this.add.zone(x, formY, chipW, BATTLE_FORMATION_HEIGHT).setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
+      // The press itself. Every other button in this game dips under the thumb — `InkUI.button`
+      // redraws on `pointerdown` — and these chips were a bare zone with a `pointerup` handler and
+      // nothing else, so the one control the fight is built around was the one control that gave
+      // no sign of having been touched.
+      hit.on('pointerdown', () => {
+        tile.setScale(0.94);
+        tile.setPosition(bounds.x + chipW * 0.03, bounds.y + BATTLE_FORMATION_HEIGHT * 0.03);
+      });
+      const unpress = (): void => {
+        tile.setScale(1);
+        tile.setPosition(bounds.x, bounds.y);
+      };
+      hit.on('pointerout', unpress);
       hit.on('pointerup', () => {
+        unpress();
         if (scrollGestureConsumedTap()) return;
         this.releaseBattleHold();
         this.events.emit('ui:battle-order', `formation:${id}`);
       });
       orders.add(hit);
     });
+  }
+
+  /**
+   * What they are doing, what it is costing, and whether the last order was worth making.
+   *
+   * The three readings a player actually needs, in the band the two strip labels used to occupy.
+   * The old dock named the enemy's shape — `họ: Thế Nỏ` — which is a fact about vocabulary, not a
+   * situation anybody can act on. Written plainly the ring turns out to be common sense: spears
+   * stop horses, shields stop arrows, spread out and the arrows miss. The names were the barrier.
+   */
+  private buildBattleReadout(
+    battle: AscentBattle,
+    read: ReturnType<typeof battleTelegraph>,
+    y: number,
+  ): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+    const { content, orders } = ui;
+    const walking = (battle.reformBeats ?? 0) > 0;
+
+    // Their *target*, not what they are standing in: countering the shape they are walking out of
+    // is the classic way to arrive one beat too late.
+    const theirs = read ? (read.next ?? read.formation) : battle.theirFormation;
+    const threat = walking
+      ? t('ascent.battle.walkingThreat')
+      : t(`ascent.formation.${theirs}.threat` as Parameters<typeof t>[0]);
+    orders.add(this.ui.label(content.x + 2, y, threat, 'label', {
+      fontSize: '11px',
+      color: walking ? INK_UI_HEX.mutedText : `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`,
+    }));
+
+    // The price, in the currency the strength bars already count. A multiplier cannot be weighed
+    // against the two beats a change costs; forty men can.
+    const loss = battle.lastBeatLoss;
+    const price = walking ? t('ascent.battle.walkingWhy')
+      : loss ? `${t('ascent.battle.priceOurs', { ours: String(Math.round(loss.ours)) })}  ·  `
+        + t('ascent.battle.priceTheirs', { theirs: String(Math.round(loss.theirs)) })
+        : t('ascent.battle.priceOpening');
+    const losing = !walking && loss !== undefined && loss.ours > loss.theirs;
+    orders.add(this.ui.label(content.x + 2, y + 12, price, 'caption', {
+      fontSize: '9px',
+      color: walking ? INK_UI_HEX.mutedText
+        : losing ? '#8a2a1b'
+          : loss ? '#4c5f45' : INK_UI_HEX.mutedText,
+    }));
+
+    // And whether the last order bought anything. Only on a landing, and it remembers whether the
+    // shape actually counters — praise for a change that bought nothing is noise, and a player
+    // learns inside two fights that it means nothing.
+    const beatNow = (battle.approachBeats ?? 0) + battle.round;
+    if (battle.landedBeat === undefined || beatNow - battle.landedBeat > 1 || walking) return;
+    const good = battle.landedCountered === true;
+    const stamp = this.ui.label(
+      content.x + content.width - 2, y + 4,
+      good ? t('ascent.battle.landedGood') : t('ascent.battle.landedEven'), 'label',
+      {
+        fontSize: good ? '10.5px' : '9px',
+        color: good ? `#${INK_UI.jade.toString(16).padStart(6, '0')}` : INK_UI_HEX.mutedText,
+      },
+    ).setOrigin(1, 0);
+    orders.add(stamp);
+    if (good) {
+      this.tweens.add({
+        targets: stamp, scale: { from: 1.28, to: 1 }, duration: 260, ease: 'Back.easeOut',
+      });
+    }
   }
 
   /**
