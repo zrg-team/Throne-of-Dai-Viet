@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import type { TranslationKey } from '../i18n';
-import { t } from '../i18n';
+import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
 import { InkUI, INK_UI, INK_UI_HEX, type UIBounds } from './InkUI';
 import { TITLE_FONT, UI_FONT } from './fonts';
 
@@ -18,6 +18,17 @@ export interface CopilotStep {
    * the card has no subject: the first and last steps are about the page as a whole.
    */
   target?: () => UIBounds | undefined;
+  /**
+   * Offers English and Tiếng Việt on this card.
+   *
+   * For the very first card of the front page's tour, and only for it. A tour is the first thing
+   * a new player is shown and it is shown in whatever language the browser happened to default
+   * to — so a Vietnamese speaker's introduction to the game is five cards of English, and the
+   * switch that would fix it is a two-word line at the bottom of a page the tour is currently
+   * covering with its own veil. The one moment the choice is most needed is the one moment the
+   * usual control cannot be reached.
+   */
+  languagePicker?: boolean;
 }
 
 export interface CopilotOptions {
@@ -34,6 +45,16 @@ export interface CopilotOptions {
   finishLabel?: TranslationKey;
   /** Finished or skipped, both. The caller marks it seen; the tour does not touch storage. */
   onClose: () => void;
+  /**
+   * The language was changed from the card, and the page underneath needs redrawing.
+   *
+   * Nothing in this game subscribes to `subscribeLanguageChange` — every existing switch simply
+   * re-renders its own scene by hand — so without this the tour would come up in Vietnamese over a
+   * front page still labelled in English, and stay that way until something else happened to
+   * redraw it. The tour does not call `render` itself because it has no business knowing which
+   * scene it is standing on.
+   */
+  onLanguage?: () => void;
 }
 
 /** Above every other thing either scene puts on the glass. */
@@ -175,7 +196,9 @@ export class Copilot {
     });
 
     const BUTTON_H = 34;
-    const height = PAD + heading.height + 6 + body.height + 14 + BUTTON_H + PAD;
+    // The picker's own row, when there is one: a line of type and the air around it.
+    const LANGUAGE_ROW = step.languagePicker ? 30 : 0;
+    const height = PAD + heading.height + 6 + body.height + LANGUAGE_ROW + 14 + BUTTON_H + PAD;
     const x = (GAME_WIDTH - CARD_WIDTH) / 2;
 
     /**
@@ -239,6 +262,10 @@ export class Copilot {
     heading.setPosition(x + PAD, y + PAD).setDepth(DEPTH + 2);
     body.setPosition(x + PAD, heading.y + heading.height + 6).setDepth(DEPTH + 2);
     this.objects.push(heading, body);
+
+    if (step.languagePicker) {
+      this.renderLanguagePicker(x, body.y + body.height + 12);
+    }
 
     const row = y + height - PAD - BUTTON_H;
 
@@ -314,5 +341,71 @@ export class Copilot {
       // Skip would be a third way to do what Close already does, in less room than either deserves.
       skip.setVisible(false);
     }
+  }
+
+  /**
+   * English · Tiếng Việt, centred on the card.
+   *
+   * Drawn as two pressable words rather than as buttons, the same way the front page draws the
+   * same choice — this is a preference, not an action the tour is asking for, and two more
+   * buttons on a card that already has two would read as four things to decide between.
+   *
+   * Switching re-renders the card in place rather than restarting the tour: the player stays on
+   * the step they were reading, in the language they just asked for. `setLanguage` also tells the
+   * scene underneath, which redraws its own labels; the tour survives that because it is not part
+   * of the scene's content.
+   */
+  private renderLanguagePicker(cardX: number, y: number): void {
+    const current = getLanguage();
+    const options: Array<{ id: LanguageCode; label: string }> = [
+      { id: 'en', label: 'English' },
+      { id: 'vi', label: 'Tiếng Việt' },
+    ];
+
+    const labels = options.map((option) => this.scene.add.text(0, y, option.label, {
+      color: option.id === current ? '#3a2a14' : INK_UI_HEX.mutedText,
+      fontFamily: UI_FONT,
+      fontSize: '12px',
+      fontStyle: option.id === current ? '700' : '400',
+    }).setOrigin(0, 0).setDepth(DEPTH + 2));
+    const dot = this.scene.add.text(0, y, '·', {
+      color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '12px',
+    }).setOrigin(0, 0).setDepth(DEPTH + 2);
+
+    const GAP = 8;
+    const total = labels[0].width + GAP + dot.width + GAP + labels[1].width;
+    let cursor = cardX + CARD_WIDTH / 2 - total / 2;
+    labels[0].setX(cursor);
+    cursor += labels[0].width + GAP;
+    dot.setX(cursor);
+    cursor += dot.width + GAP;
+    labels[1].setX(cursor);
+    this.objects.push(labels[0], dot, labels[1]);
+
+    labels.forEach((label, index) => {
+      const option = options[index];
+      if (option.id === current) return;
+      // Padded well past the type: a twelve-pixel word is a tap target only if the box around it
+      // is not.
+      const hit = this.scene.add
+        .rectangle(label.x + label.width / 2, y + label.height / 2, label.width + 24, 32, 0xffffff, 0.001)
+        .setInteractive({ useHandCursor: true })
+        .setDepth(DEPTH + 2);
+      hit.on('pointerup', (
+        _pointer: Phaser.Input.Pointer,
+        _localX: number,
+        _localY: number,
+        event: Phaser.Types.Input.EventData,
+      ) => {
+        event.stopPropagation();
+        setLanguage(option.id);
+        // The page first, then the card on top of it — the scene's re-render tears down its own
+        // content, and the card is not part of that content, so the order only matters for what
+        // the player sees flash.
+        this.opts.onLanguage?.();
+        this.renderStep();
+      });
+      this.objects.push(hit);
+    });
   }
 }

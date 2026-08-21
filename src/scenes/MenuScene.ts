@@ -162,7 +162,16 @@ export class MenuScene extends Phaser.Scene {
    */
   private startTour(): void {
     const steps: CopilotStep[] = [
-      { id: 'welcome', heading: 'copilot.welcome.h', body: 'copilot.welcome.b' },
+      // The first card offers the language, because it is the first thing anybody sees and it is
+      // shown in whatever the browser defaulted to. The front page's own switch is at the foot of
+      // a page this tour is covering with its veil, so without this the one moment the choice is
+      // most needed is the one moment it cannot be reached.
+      {
+        id: 'welcome',
+        heading: 'copilot.welcome.h',
+        body: 'copilot.welcome.b',
+        languagePicker: true,
+      },
       { id: 'play', heading: 'copilot.play.h', body: 'copilot.play.b', target: () => this.tourTargets.play },
       { id: 'modes', heading: 'copilot.modes.h', body: 'copilot.modes.b', target: () => this.tourTargets.classic },
       { id: 'learn', heading: 'copilot.learn.h', body: 'copilot.learn.b', target: () => this.tourTargets.footer },
@@ -186,6 +195,10 @@ export class MenuScene extends Phaser.Scene {
       },
       // Skipped and finished are the same event here. A player who dismissed the tour has answered
       // the question it was asking, and showing it again next time refuses to take that answer.
+      // The front page redraws in the new language under the card that asked for it. Safe while
+      // the tour is up: `render`'s teardown guard compares the page the tour belongs to against
+      // the page being drawn, and both are still `main`.
+      onLanguage: () => this.render(),
       onClose: () => {
         markTourSeen();
         this.copilot = undefined;

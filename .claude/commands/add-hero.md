@@ -35,9 +35,9 @@ Work in this order and do not skip the last two:
    `src/ui/faces/wardrobe.ts`, and re-run `node scripts/build-faces.mjs`.
 
 6. **Prove it.** `npx tsc --noEmit`, then `yarn faces:check`, then
-   `node test_scripts/verify-heroes.mjs` — all 15 checks must pass.
+   `node test_scripts/verify/verify-heroes.mjs` — all 15 checks must pass.
 
-7. **Look at it.** `node test_scripts/shot-portraits.mjs` and actually read the PNG in
+7. **Look at it.** `node test_scripts/shot/shot-portraits.mjs` and actually read the PNG in
    `output/web-game/`. A portrait bug compiles perfectly and passes every check; the only thing
    that catches it is your eyes on the contact sheet.
 

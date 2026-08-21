@@ -1113,7 +1113,7 @@ estateMult(e) = 0.75 + standing(e) / 200      <span class="c">// ×0.75 at 0 · 
     <table>
       <thead><tr><th style="width:26%">Check</th><th style="width:30%">How</th><th>Bar</th></tr></thead>
       <tbody>
-        <tr><td><span class="nm">Overreach bites</span></td><td><code>test_scripts/verify-decrees.mjs</code> <em>(new)</em></td><td>A run forced past its authority cap shows realised rates strictly below a matched run inside it. If it does not, weight is decorative.</td></tr>
+        <tr><td><span class="nm">Overreach bites</span></td><td><code>test_scripts/verify/verify-decrees.mjs</code> <em>(new)</em></td><td>A run forced past its authority cap shows realised rates strictly below a matched run inside it. If it does not, weight is decorative.</td></tr>
         <tr><td><span class="nm">Defiance is reachable and escapable</span></td><td>same harness</td><td>A province driven under 25 stops receiving decree effects; lowering tax and repealing one decree returns it above 45 within 30 ticks.</td></tr>
         <tr><td><span class="nm">Repeal accounts correctly</span></td><td>same harness</td><td>Weight returns exactly, the modifier is removed by id, and the estate that liked the decree loses standing.</td></tr>
         <tr><td><span class="nm">Runs actually diverge</span></td><td>10 seeded runs, log enacted ids</td><td>No two runs share more than 60% of their decree list, and at least three sources appear in each.</td></tr>

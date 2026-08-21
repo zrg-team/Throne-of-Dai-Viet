@@ -10,7 +10,7 @@
  * Follows ISO/IEC 18004: data → codewords with Reed–Solomon parity → interleaved → placed in the
  * zigzag → masked by the pattern with the lowest penalty → format (and, from version 7, version)
  * information written last. Verified by decoding the rendered result with an independent decoder
- * in `test_scripts/shot-support.mjs`, across every version this file can produce.
+ * in `test_scripts/shot/shot-support.mjs`, across every version this file can produce.
  */
 
 export type QrEcc = 'L' | 'M';

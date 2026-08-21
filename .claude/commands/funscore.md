@@ -15,14 +15,14 @@ Arguments: `$ARGUMENTS` (passed through to the harness).
 Make sure a dev server for *this* project is up, then:
 
 ```bash
-node test_scripts/playtest-metrics.mjs $ARGUMENTS
+node test_scripts/playtest/playtest-metrics.mjs $ARGUMENTS
 ```
 
 If port 5173 belongs to another project, start one and point the harness at it:
 
 ```bash
 (nohup npx vite --host 127.0.0.1 --port 5199 --strictPort > /tmp/ascent-dev.log 2>&1 &)
-sleep 4 && PLAYTEST_URL=http://127.0.0.1:5199 node test_scripts/playtest-metrics.mjs $ARGUMENTS
+sleep 4 && PLAYTEST_URL=http://127.0.0.1:5199 node test_scripts/playtest/playtest-metrics.mjs $ARGUMENTS
 ```
 
 Stop any server you started afterwards.

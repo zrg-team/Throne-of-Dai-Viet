@@ -32,22 +32,22 @@ they need `BASE_URL` set even when 5173 is ours.
 | `ascent` | `verify-ascent.mjs`, `verify-economy.mjs` |
 | `economy` | `verify-economy.mjs` |
 | `story` / `chronicle` | `verify-chronicle.mjs` |
-| `combat` / `battle` | `verify-combat.mjs`, `battle-lab.mjs` |
+| `combat` / `battle` | `verify-combat.mjs`, `playtest/battle-lab.mjs` |
 | `map` / `render` | `verify-culling.mjs`, `verify-living-map.mjs`, `verify-ground-scale.mjs`, `verify-render-scale.mjs` |
 | `ui` / `layout` | `verify-scroll.mjs`, `verify-header-fit.mjs`, `verify-menu-fit.mjs`, `verify-land-command.mjs` |
 | `empire` | `verify-empire-revamp.mjs`, `verify-edicts-ascension.mjs`, `verify-living-empires.mjs`, `verify-crisis-vassal.mjs` |
 | `hero` | `verify-hero-actions.mjs`, `verify-hero-events.mjs` |
 | `modes` / `regression` | `verify-modes-regression.mjs` |
-| `all` | every `test_scripts/verify-*.mjs` |
+| `all` | every `test_scripts/verify/*.mjs` |
 
-If the argument does not match, `Glob test_scripts/verify-*.mjs` and pick by name rather than
+If the argument does not match, `Glob test_scripts/verify/*.mjs` and pick by name rather than
 guessing. If the user named a *file they changed* instead of an area, grep the harnesses for the
 symbols that file exports and run the ones that touch it.
 
 Run them one at a time so a hang is attributable:
 
 ```bash
-node test_scripts/verify-ascent.mjs 2>&1 | tail -60
+node test_scripts/verify/verify-ascent.mjs 2>&1 | tail -60
 ```
 
 ## 3 · Read the result correctly

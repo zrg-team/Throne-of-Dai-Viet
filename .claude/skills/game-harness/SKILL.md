@@ -10,20 +10,40 @@ ESM script run with bare `node`. `"type": "module"` in package.json is what allo
 `await` in `.mjs`.
 
 ```bash
-node test_scripts/verify-ascent.mjs
-node test_scripts/playtest-metrics.mjs --seeds 8 --ticks 600
+node test_scripts/verify/verify-ascent.mjs
+node test_scripts/playtest/playtest-metrics.mjs --seeds 8 --ticks 600
 ```
 
 A dev server must already be running — **no harness starts one**, and if it is down `page.goto`
 throws or `waitForFunction` times out after 30s. See [game-dev](../game-dev/SKILL.md) for the
 server dance.
 
-Scratch scripts must live in `test_scripts/`; anywhere else and `import 'playwright'` will not
+Scratch scripts must live under `test_scripts/`; anywhere else and `import 'playwright'` will not
 resolve.
+
+## Where a harness lives
+
+Filed by the question it answers, not by the feature it touches:
+
+| Folder | Holds | Naming |
+|---|---|---|
+| `verify/` | pass/fail gates — the ones worth keeping | `verify-<topic>.mjs` |
+| `shot/` | screenshot drivers | `shot-<topic>.mjs` |
+| `perf/` | cost measurement: render, bake, beat, heap | `measure-*`, `perf-*` |
+| `playtest/` | is it *fun* — metrics, sessions, strategy, full playthroughs | `playtest-*`, and friends |
+| `diag/` | one-off investigation that prints rather than asserts | `diag-<topic>.mjs` |
+| `gate/` | the two cheapest checks: `smoke.mjs`, `check-console.mjs` | — |
+| `scratch/` | throwaway probes, **gitignored** | `_<topic>.mjs` |
+
+Two paths do **not** follow the script: `test_scripts/shots/` and `test_scripts/perf-results/` stay
+at the top of the tree, and shot scripts write to them relative to the **project root** — so a
+shooter works from `shot/` with no path change, and harnesses must be run from the repo root.
+
+`test_scripts/README.md` is the index; keep it current when you add a family member.
 
 ## The bootstrap every script repeats
 
-Only three scripts import `playtest-lib.mjs`. The other ~60 hand-roll this:
+Only four scripts import `playtest/playtest-lib.mjs`. The other ~130 hand-roll this:
 
 ```js
 import { chromium } from 'playwright';
@@ -51,7 +71,7 @@ script; keep it.
 |---|---|---|
 | `PLAYTEST_URL` | `playtest-lib.mjs` → the three `playtest-*` scripts | `http://localhost:5173` |
 | `DEV_URL` | most `shot-*` and `verify-*` (`verify-scroll`, `verify-land-command`, `verify-living-map`, …) | 5173 |
-| `BASE_URL` | `_attribute-frame`, `_cull-visual`, `verify-culling`, `verify-hero-*` | 5173 — **except `verify-hero-actions`/`verify-hero-events`, which default to `:5175`** |
+| `BASE_URL` | `diag/attribute-frame`, `diag/cull-visual`, `verify-culling`, `verify-hero-*` | 5173 — **except `verify-hero-actions`/`verify-hero-events`, which default to `:5175`** |
 | `--url` flag | `perf-bench`, `perf-profile` | 5173 |
 | none | `verify-ascent`, `verify-economy`, `battle-lab`, `diag-*`, `check-console`, `measure-*` … | hardcoded |
 
@@ -164,8 +184,8 @@ baseline data**. Always `mkdirSync(dir, { recursive: true })` first.
 | `output/playtest/strategies.json` | `playtest-play.mjs`, append-only ledger |
 | `output/ui-sweep/*.png` | `shot-ui-sweep.mjs`, numeric-prefix grouped |
 | `output/web-game/*.png` | most one-off `shot-*` scripts |
-| `test_scripts/shots/*.png` | `shot-art`, `shot-prompts`, `shot-seasons`, `shot-chronicle` |
-| `test_scripts/perf-results/<label>.json` | `perf-bench.mjs`; diffs against `baseline.json` |
+| `test_scripts/shots/*.png` | `shot/shot-art`, `shot-prompts`, `shot-seasons`, `shot-chronicle` |
+| `test_scripts/perf-results/<label>.json` | `perf/perf-bench.mjs`; diffs against `baseline.json` |
 
 ## Traps that make a harness lie
 

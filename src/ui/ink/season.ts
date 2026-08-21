@@ -243,7 +243,7 @@ const SEASON_ORDER: Season[] = ['Spring', 'Summer', 'Autumn', 'Winter'];
  * The season the map's *terrain fill* is painted in — always, regardless of the date in play.
  *
  * The full terrain bake costs about 1.5 s to rebuild on a mid-tier device
- * (`test_scripts/measure-bake.mjs`), and the season turns every several seconds, so the ground fill
+ * (`test_scripts/perf/measure-bake.mjs`), and the season turns every several seconds, so the ground fill
  * can never be repainted to follow the calendar. What follows it instead is everything in the
  * *decoration* layer above that fill — the prop scatter and `groundCast` — which is re-inked from a
  * cached plan in ~170 ms by `MapScene.rebakeScenery()`.

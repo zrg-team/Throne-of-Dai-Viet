@@ -18,10 +18,10 @@ sleep 6 && export DEV_URL=http://127.0.0.1:5199 BASE_URL=http://127.0.0.1:5199
 
 | Arg | Command | Answers |
 |---|---|---|
-| `bake` | `node test_scripts/measure-bake.mjs` | how long a scenery re-ink and a full static bake take. Budget is **250ms**; the season turn measures 110–220ms, median ~170, against 1200–1500ms for a full refresh |
-| `render` | `node test_scripts/measure-render.mjs` | per-frame render cost with no tick |
-| `bench` | `node test_scripts/perf-bench.mjs --label <name>` | median tick ms, frame p50/p95/p99, object count, heap. Writes `test_scripts/perf-results/<label>.json` and **auto-diffs against `baseline.json`** when the label is not `baseline` |
-| `cull` | `node test_scripts/verify-culling.mjs` | that culling actually culls, and by how much |
+| `bake` | `node test_scripts/perf/measure-bake.mjs` | how long a scenery re-ink and a full static bake take. Budget is **250ms**; the season turn measures 110–220ms, median ~170, against 1200–1500ms for a full refresh |
+| `render` | `node test_scripts/perf/measure-render.mjs` | per-frame render cost with no tick |
+| `bench` | `node test_scripts/perf/perf-bench.mjs --label <name>` | median tick ms, frame p50/p95/p99, object count, heap. Writes `test_scripts/perf-results/<label>.json` and **auto-diffs against `baseline.json`** when the label is not `baseline` |
+| `cull` | `node test_scripts/verify/verify-culling.mjs` | that culling actually culls, and by how much |
 | `all` | run bake, render and bench in sequence | |
 
 For a before/after: run `--label baseline` on the unchanged tree, make the change, run

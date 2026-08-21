@@ -30,11 +30,13 @@ sleep 6 && export DEV_URL=http://127.0.0.1:5199 SHOT_OUT=output/shots
 | army orders, flags | `shot-army-orders.mjs`, `shot-army-flag.mjs` | `output/web-game/` |
 | all modes, quickly | `smoke.mjs --shots` | `output/smoke/` |
 
-`Glob test_scripts/shot-*.mjs` if none of those match. Prefer an existing shooter over a new one.
+`Glob test_scripts/shot/*.mjs` if none of those match. Prefer an existing shooter over a new one.
 
 ## 3 · If nothing fits, write one
 
-Six lines, in `test_scripts/` (anywhere else and `import 'playwright'` will not resolve):
+Six lines, in `test_scripts/shot/` (outside the `test_scripts/` tree `import 'playwright'` will not
+resolve). Screenshot paths in these scripts are written relative to the **project root**, not to the
+script — `test_scripts/shots/…`, unchanged by which folder the shooter sits in:
 
 ```js
 import { mkdirSync } from 'node:fs';
