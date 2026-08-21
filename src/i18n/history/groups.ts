@@ -76,10 +76,10 @@ export const groupsVi: HistoryCatalog = {
     'Các vua Hùng như chính sử chép, và nhà nước Âu Lạc — cho đến khi Cổ Loa thất thủ.',
   'groups.eras.northern-rule.title': 'Nghìn năm Bắc thuộc',
   'groups.eras.northern-rule.note':
-    'Từ Triệu Đà đến Ngô Quyền: quãng dài nhất trên trục này, và không có năm nào tự chủ. Các cuộc khởi nghĩa nằm trong đó, chứ không thay được nó.',
+    'Từ Triệu Đà đến Ngô Quyền: quãng dài nhất trong bảng này, và không một năm nào tự chủ. Các cuộc khởi nghĩa nằm bên trong nó, chứ không thay được nó.',
   'groups.eras.restored.title': 'Tự chủ và Đại Việt',
   'groups.eras.restored.note':
-    'Ngô, Đinh, Tiền Lê, Lý, Trần, Hồ — bốn thế kỷ rưỡi nước tự cầm lấy mình, và cũng là thời mà phần lớn trò chơi này lấy làm bối cảnh.',
+    'Ngô, Đinh, Tiền Lê, Lý, Trần, Hồ — bốn thế kỷ rưỡi nước tự cầm lấy vận mệnh mình, và cũng là thời mà phần lớn trò chơi này lấy làm bối cảnh.',
   'groups.eras.ming.title': 'Hai mươi năm thuộc Minh',
   'groups.eras.ming.note':
     'Ngắn, nhưng để riêng: cải cách nhà Hồ và cuộc đô hộ đáp lại nó là hai thời, không phải một thời khó gọi tên.',
@@ -94,7 +94,7 @@ export const groupsVi: HistoryCatalog = {
   'groups.stories.throne.note': 'Nước được lập ra thế nào, và ngôi vua chuyển tay ra sao.',
   'groups.stories.campaign.title': 'Trận mạc',
   'groups.stories.campaign.note':
-    'Những lần giặc sang, và những thứ đã đẩy lui họ — một con nước, một cửa ải, một đoàn thuyền lương, một cuộc hành quân bốn mươi ngày.',
+    'Những lần giặc sang, và những thứ đã đẩy lui họ: một con nước, một cửa ải, một đoàn thuyền lương, một cuộc hành quân bốn mươi ngày.',
   'groups.stories.nerve.title': 'Khí tiết',
   'groups.stories.nerve.note':
     'Những lúc có người từ chối: giữa hội nghị, trước ngai vàng, hoặc khi lời chiêu hàng đã đưa tận tay.',
@@ -103,10 +103,10 @@ export const groupsVi: HistoryCatalog = {
     'Bốn áng văn đã dời một kinh đô, giữ một khúc sông, làm cả hàng tướng hổ thẹn, và kết thúc một cuộc chiến.',
   'groups.stories.state.title': 'Việc nước',
   'groups.stories.state.note':
-    'Thuế, đê, muối, tiền giấy, dịch bệnh và lương lính. Phần lớn việc của một triều đại là số học.',
+    'Thuế, đê, muối, tiền giấy, dịch bệnh và lương lính. Phần lớn việc của một triều đại là tính toán sổ sách.',
   'groups.stories.legend.title': 'Truyền thuyết',
   'groups.stories.legend.note':
-    'Chuyện chính sử không chép mà cả nước vẫn kể — và có hai chuyện về sau lưỡi cuốc đã đào lên được.',
+    'Chuyện chính sử không chép mà cả nước vẫn kể — và hai trong số đó thì về sau lưỡi cuốc khảo cổ đã đào lên được.',
   'groups.stories.world.title': 'Ngoài cõi',
   'groups.stories.world.note':
     'Năm tích của Triều Tiên, Nhật Bản, La Mã, Đông La Mã và Chiêm Thành, giữ lại vì lối hành xử thì ở đâu cũng vậy, dù cái tên thì không.',

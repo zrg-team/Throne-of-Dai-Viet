@@ -1345,7 +1345,12 @@ ${historyText('army.formation.note')}`,
     }
     const cut = text.slice(0, limit);
     const lastSpace = cut.lastIndexOf(' ');
-    return `${cut.slice(0, lastSpace > 40 ? lastSpace : limit).trimEnd()}…`;
+    const kept = cut.slice(0, lastSpace > 40 ? lastSpace : limit).trimEnd();
+    // Trailing punctuation comes off before the ellipsis goes on. Cutting a Vietnamese paragraph
+    // often lands just past a full stop, and "năm tám tuổi.…" renders as four dots in a row — which
+    // reads as a rendering fault rather than as a summary, the same thing the word boundary above
+    // exists to avoid.
+    return `${kept.replace(/[.,;:·–—]+$/, '')}…`;
   }
 
   /** A year range, with BC written the way each language writes it. */

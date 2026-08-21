@@ -149,6 +149,13 @@ export const GUIDE_ENTRIES: readonly GuideEntry[] = [
     ],
   },
   {
+    id: 'coach',
+    tab: 'screens',
+    icon: 'scales',
+    heading: 'guide.screens.coach.h',
+    body: 'guide.screens.coach.b',
+  },
+  {
     id: 'bar',
     tab: 'screens',
     icon: 'ladder',
