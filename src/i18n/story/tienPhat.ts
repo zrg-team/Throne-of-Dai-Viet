@@ -33,6 +33,7 @@ export const tienPhatVi: StoryCatalog = {
   'danh-truoc-hay-doi.doi-chung-toi': 'Đợi chúng tới',
   'danh-truoc-hay-doi.doi-chung-toi.d': 'Đánh ở đất của ta, với quân ở nhà.',
   'danh-truoc-hay-doi.chronicle': 'Ngươi đã quyết đánh trước hay đợi.',
+  'danh-truoc-hay-doi.scene': 'Có người buôn muối vừa ở Ung Châu về, ngồi ngoài hành lang chờ từ trưa, mang theo một nắm thóc gói trong khăn. Thóc ấy lấy ở kho mới, còn xanh, phơi chưa được nắng. Ông ta nói kho xây thêm ba dãy từ mùa trước, nói rất bình thản, rồi hỏi một câu không phải việc của ông ta: nhà ông ta ở ngay bên này biên, thì có nên dọn không.',
 
   'lo-bo-van.line': 'Trước khi qua biên, ta cho dán bảng nói rõ vì sao ta sang.',
   'lo-bo-van.scene': 'Bảng viết rằng quân ta sang là vì quan lại bên ấy đặt ra phép mới hà khắc, không phải vì dân bên ấy — và dán ở chợ, ở bến, ở cửa thành. Có người đọc xong thì về. Có người đọc xong thì đứng lại nhìn quân ta đi qua, và không ai ném gì cả.',
@@ -54,6 +55,7 @@ export const tienPhatVi: StoryCatalog = {
   'dot-kho-roi-rut.danh-tiep-nua': 'Đánh tiếp',
   'dot-kho-roi-rut.danh-tiep-nua.d': 'Bên kia đang loạn. Không lúc nào hơn lúc này.',
   'dot-kho-roi-rut.chronicle': 'Ngươi đã quyết việc rút quân khỏi Ung Châu.',
+  'dot-kho-roi-rut.scene': 'Kho cháy sang ngày thứ ba thì thóc chín, và cả doanh trại ngửi thấy mùi cơm. Lính ăn cơm chiều trong cái mùi ấy, ăn được, và không ai nói gì về chuyện ấy cả. Viên tướng trẻ xin đánh tiếp thì mang theo bản đồ vẽ tay của chính ông ta, vẽ tới chỗ mà bản đồ của triều đình bỏ trắng — và chỗ bỏ trắng ấy ông ta vẽ bằng lời người khác kể.',
 
   'dong-coc-ben-song.line': 'Quân về tới sông Như Nguyệt thì dừng lại, và bắt đầu đóng cọc.',
   'dong-coc-ben-song.scene': 'Bờ nam đắp lũy, bờ bắc để trống. Cọc đóng suốt từ khúc cạn xuống tới bến đò, đóng cả ban đêm, và dân ba huyện ra làm không ai gọi. Quan Thái úy đi dọc bờ mỗi sáng một lượt và không nói gì nhiều, chỉ chỉ tay vào chỗ nào cọc thưa.',
@@ -67,6 +69,7 @@ export const tienPhatVi: StoryCatalog = {
   'giu-song-hay-qua-song.ra-danh-o-ben': 'Qua sông đánh trước',
   'giu-song-hay-qua-song.ra-danh-o-ben.d': 'Bất ngờ, một lần, ở chỗ họ chưa dàn xong.',
   'giu-song-hay-qua-song.chronicle': 'Ngươi đã quyết cách giữ sông Như Nguyệt.',
+  'giu-song-hay-qua-song.scene': 'Lũy đắp xong trước hôm ấy bốn ngày, và người đắp phần lớn là dân ba huyện quanh đây, đắp xong thì ở lại luôn làm lính. Có ông cụ đóng cọc dưới bến nói với viên đội rằng cọc ấy ông đóng sâu hơn lệnh một thước, tự ý, không xin phép ai. Nói xong ông ta ngồi xuống bờ, quay mặt sang bờ bắc, nhìn khói bếp bên kia.',
 
   'a-voice-from-the-shrine.line': 'Nửa đêm, trong đền bên sông có tiếng đọc thơ.',
   'a-voice-from-the-shrine.scene': 'Bốn câu, đọc to, vọng sang cả bờ bắc: Nam quốc sơn hà Nam đế cư. Lính ta đang ngủ thì dậy cả, và không ai bảo ai. Sáng ra, người trong đền nói là không có ai vào đền đêm qua, và cửa đền thì khóa từ chiều.',
@@ -84,11 +87,13 @@ export const tienPhatVi: StoryCatalog = {
   'giang-hoa-hay-truy-kich.truy-kich': 'Truy kích',
   'giang-hoa-hay-truy-kich.truy-kich.d': 'Họ đã kiệt. Không lúc nào hơn.',
   'giang-hoa-hay-truy-kich.chronicle': 'Ngươi đã quyết việc giảng hòa hay truy kích.',
+  'giang-hoa-hay-truy-kich.scene': 'Bên kia sông, đêm nào cũng có ánh đuốc di động sát mép nước — lính họ ra đào rễ cây, đào cả rễ chuối. Lính ta ngồi bên này nhìn sang, không bắn, và không ai ra lệnh cấm bắn. Người Quan Thái úy định sai đi nói chuyện là một viên quan nhỏ biết tiếng bên ấy, và ông ta đã sửa soạn xong từ hôm kia.',
 
   'giang-hoa-xong.title': 'Giảng hòa',
   'giang-hoa-xong.body': 'Họ rút, có trật tự, và mang theo được người của họ. Ta không đuổi. Biên giới về chỗ cũ, hai bên đổi tù binh, và con đường họ đắp thì bỏ đấy cho cỏ mọc. Ba mươi năm sau vẫn còn người đi lại trên con đường ấy, và không ai nhớ nó đắp để làm gì.',
   'giang-hoa-xong.ok': 'Chép vào sử',
   'giang-hoa-xong.chronicle': 'Ta giảng hòa lúc đang mạnh. Họ rút.',
+  'giang-hoa-xong.scene': 'Việc đổi tù binh làm ở bến đò, mỗi ngày một chuyến, đếm bằng tay. Có người bên ta sang tới giữa sông thì nhận ra người chèo đò là người vẫn bán trâu ở chợ biên, quen mặt nhau đã lâu. Hai người không chào nhau. Đến bờ thì mỗi người đi một lối, và cả hai đều đi rất nhanh.',
 
   'chung-rut-khong-hoa.line': 'Họ rút, không nói gì, và không ai sang nói gì với họ.',
   'chung-rut-khong-hoa.scene': 'Một sáng thì bờ bắc trống. Không có sứ, không có thư, không có gì cả — chỉ có trại bỏ lại và mấy cái bếp còn ấm. Ta giữ được sông. Ta không được cái gì khác, và mọi thứ chưa nói ra thì vẫn còn nguyên đó.',
@@ -106,16 +111,19 @@ export const tienPhatVi: StoryCatalog = {
   'danh-o-ben-kia.rut-ve-bo-nam': 'Rút về bờ nam',
   'danh-o-ben-kia.rut-ve-bo-nam.d': 'Còn rút được thì rút.',
   'danh-o-ben-kia.chronicle': 'Ngươi đã quyết việc ở bờ bắc.',
+  'danh-o-ben-kia.scene': 'Trời chưa sáng hẳn thì bên trại họ đã có tiếng mõ báo, gõ ba hồi rồi im, và im lâu hơn ta muốn. Thuyền ta buộc dưới bến, ba mươi chiếc, người coi thuyền đứng sẵn tay cầm dây. Viên đội đi qua dặn họ đừng tháo dây vội — dặn hai lần, mà lần thứ hai thì giọng đã khác lần thứ nhất.',
 
   'thang-lon-o-ben-kia.title': 'Trại vỡ',
   'thang-lon-o-ben-kia.body': 'Trại vỡ trước khi trời sáng hẳn. Họ chạy về phía bắc bỏ lại lương, xe, và cả cái ấn của viên chủ tướng. Trận ấy lớn hơn mọi trận trong cuộc chiến này, và người chép sử về sau vẫn ghi chú một dòng rằng việc qua sông ấy là liều.',
   'thang-lon-o-ben-kia.ok': 'Chép cả dòng chú ấy',
   'thang-lon-o-ben-kia.chronicle': 'Ta phá trại họ ở bờ bắc.',
+  'thang-lon-o-ben-kia.scene': 'Cái ấn nhặt được trong trướng, còn nằm trên hộp son, son chưa khô. Người nhặt là một tên lính giữ ngựa, không biết chữ, cầm lên xem rồi đưa cho người bên cạnh vì thấy nó nặng. Sau này ai kể chuyện trận ấy cũng kể tới cái ấn, và không ai nhớ tên người nhặt được nó.',
 
   'mat-phong-tuyen-that.title': 'Mất phòng tuyến',
   'mat-phong-tuyen-that.body': 'Rút về giữa chừng là lúc dở nhất. Họ qua sông ngay sau lưng quân rút, ở đúng khúc cạn ta vừa dò, và cái lũy đắp một mùa thì giữ được nửa ngày. Cọc vẫn còn đấy. Cọc thì không giữ được gì nếu không có người đứng sau nó.',
   'mat-phong-tuyen-that.ok': 'Chép lại',
   'mat-phong-tuyen-that.chronicle': 'Họ qua sông ở khúc cạn ta vừa dò.',
+  'mat-phong-tuyen-that.scene': 'Khúc cạn ấy do một người chài dò giúp, dò bằng sào, cắm dấu bằng ba cây nứa buộc túm. Ba cây nứa vẫn còn đấy đến hôm họ qua. Người chài ấy đưa vợ con đi từ hôm trước, đi về phía nam, và trước khi đi có sang trả lại cho quân ta cái áo tơi mượn hồi tháng trước.',
 
   'duong-luong-dai-ra.line': 'Đi thêm mười ngày thì đường lương dài thêm hai mươi.',
   'duong-luong-dai-ra.scene': 'Xe lương về tới nơi thì đã ăn mất một phần ba dọc đường. Quan coi lương xin cho dừng, không phải vì hết, mà vì ông ta tính ra ngày hết — và ngày ấy còn xa hơn ngày quân về tới nhà, nếu bây giờ quay về.',
@@ -133,11 +141,13 @@ export const tienPhatVi: StoryCatalog = {
   've-hay-danh-toi-cung.danh-toi-cung': 'Đánh tới cùng',
   've-hay-danh-toi-cung.danh-toi-cung.d': 'Đã đi xa thế này rồi.',
   've-hay-danh-toi-cung.chronicle': 'Ngươi đã quyết việc quay về hay đánh tiếp.',
+  've-hay-danh-toi-cung.scene': 'Thư nhà đến bằng ngựa trạm, người đưa thư ngã ở cửa trại chứ không phải xuống ngựa. Thư viết ngắn, chữ của một viên quan trẻ, và ở cuối có thêm một dòng nhỏ hơn, viết sau, hỏi rằng đại quân còn cách bao nhiêu ngày đường. Người đưa thư nằm trong trướng, tỉnh lại thì hỏi đúng câu ấy trước khi hỏi nước.',
 
   've-khong-kip.title': 'Về không kịp',
   've-khong-kip.body': 'Quân về tới biên vào ngày thứ bốn mươi ba. Đợt ấy đã đổ bộ từ ngày thứ ba mươi chín. Lính đi bốn mươi ba ngày rồi vào trận ngay hôm ấy, và họ vào trận — nhưng cái quyết định thắng thua thì đã xảy ra ở nhà, không có họ.',
   've-khong-kip.ok': 'Chép lại ngày tháng',
   've-khong-kip.chronicle': 'Quân về tới nơi sau đợt xâm lăng bốn ngày.',
+  've-khong-kip.scene': 'Đến ngày thứ bốn mươi ba thì phần lớn lính không còn dép, chân quấn giẻ, và giẻ thì xé từ vạt áo. Họ vào trận chiều hôm ấy. Có người ngã trước khi chạm địch, ngã vì chân, rồi bò dậy đi tiếp. Về sau hỏi họ về trận ấy, họ không kể trận — họ kể quãng đường, kể rất kỹ, kể từng ngày một.',
 
   'lay-them-mot-thanh.title': 'Lấy thêm một thành',
   'lay-them-mot-thanh.body': 'Thành ấy đã hạ. Bây giờ là câu hỏi khác: giữ nó, hay đốt rồi về. Giữ thì phải để quân ở lại — quân ấy sẽ ở lại rất lâu, và bên kia sẽ không bao giờ thôi. Đốt rồi về thì bốn mươi ngày đường, và về tới nơi có thể chẳng còn gì.',
@@ -147,16 +157,19 @@ export const tienPhatVi: StoryCatalog = {
   'lay-them-mot-thanh.bo-ma-ve': 'Đốt rồi về',
   'lay-them-mot-thanh.bo-ma-ve.d': 'Bốn mươi ngày đường, và về ngay bây giờ.',
   'lay-them-mot-thanh.chronicle': 'Ngươi đã quyết việc cái thành vừa hạ.',
+  'lay-them-mot-thanh.scene': 'Viên thư lại của thành đến nộp sổ kho, quỳ ngoài sân, và nộp cả chìa khóa buộc trong một xâu dây gai. Sổ ấy chép rõ trong kho còn bao nhiêu, chép đến từng đấu. Ông ta không xin gì cho mình. Ông ta chỉ hỏi rằng nếu quân ta đi thì sổ này nộp lại cho ai, vì tên ông ta đã ở trang cuối rồi.',
 
   'chiem-duoc-dat-tong.title': 'Ta giữ đất của họ',
   'chiem-duoc-dat-tong.body': 'Thành ấy thành của ta, có quan ta, có quân ta, có thuế của ta. Kho ở đấy đầy hơn mọi kho trong nước. Và từ hôm ấy bên kia không có một năm nào không nhắc tới nó, và trong nước thì có hai mùa không có quân, và người ta cũng không có năm nào quên chuyện đó.',
   'chiem-duoc-dat-tong.ok': 'Vậy là của ta',
   'chiem-duoc-dat-tong.chronicle': 'Ta giữ đất của họ, và họ không quên.',
+  'chiem-duoc-dat-tong.scene': 'Viên quan ta cử sang coi thành đi mất năm mươi ngày mới tới, mang theo cả gia quyến và một cây cau giống. Cây cau ấy trồng ở sân công đường, sống được. Mỗi năm bên kia sai sứ sang đòi thành, sứ đến rồi về, và lần nào cũng đúng vào quãng cau ra buồng. Người trong nước thì đếm hai mùa không có quân theo cách khác.',
 
   'mat-ca-dao-quan.title': 'Mất cả đạo quân',
   'mat-ca-dao-quan.body': 'Họ cắt đường về trước khi ta rút. Quân ta đánh mở đường suốt chín ngày và mở không nổi. Về tới nhà là hơn hai trăm người, đi vòng đường núi, mất bốn tháng. Trong nước, hai mùa vừa rồi không có đạo quân nào — và bây giờ vẫn không có.',
   'mat-ca-dao-quan.ok': 'Chép lại tất cả',
   'mat-ca-dao-quan.chronicle': 'Đạo quân ấy không về.',
+  'mat-ca-dao-quan.scene': 'Hơn hai trăm người về tới ải vào tháng thứ tư, đi thành một hàng dài, và người đi đầu vẫn cầm cờ. Cờ ấy rách gần hết, chỉ còn cán và một mảnh. Quan giữ ải hỏi số hiệu các đạo, hỏi theo lệ, hỏi được ba câu thì thôi. Ông ta cho mở kho phát cơm, rồi vào trong, và không ra suốt buổi chiều hôm ấy.',
 
   'chung-den-du-quan.line': 'Họ tới, đủ mặt, và chậm rãi.',
   'chung-den-du-quan.scene': 'Không có gì bất ngờ cả. Họ đi đúng con đường đã đắp, đúng tốc độ của một đạo quân không phải vội, và dừng lại đóng trại mỗi tối như trong sách. Ta nhìn thấy họ từ ba ngày trước khi họ tới. Nhìn thấy trước thì cũng chỉ là nhìn thấy trước.',
@@ -170,6 +183,7 @@ export const tienPhatVi: StoryCatalog = {
   'co-thu-hay-chan-bien.chan-o-bien': 'Chặn ở biên',
   'co-thu-hay-chan-bien.chan-o-bien.d': 'Một trận, ở chỗ ta chọn.',
   'co-thu-hay-chan-bien.chronicle': 'Ngươi đã chọn cách đánh khi họ tới.',
+  'co-thu-hay-chan-bien.scene': 'Ngoài thành, chợ vẫn họp, và hôm nay họp sớm hơn mọi hôm. Người ta bán trâu, bán rẻ, bán cho nhau chứ không có ai ở xa tới mua. Một bà hàng gạo hỏi lính gác cổng rằng nếu vào trong thành thì được mang mấy gánh. Người lính bảo bà cứ mang, mang được bao nhiêu thì mang — anh ta chưa nhận được lệnh nào về việc ấy.',
 
   'trong-thanh-dem-ngay.line': 'Trong thành, đêm nào cũng có người trèo lên tường nhìn ra.',
   'trong-thanh-dem-ngay.scene': 'Nhìn về phía làng mình. Ban ngày thì thấy khói, ban đêm thì thấy lửa, và lửa thì ở chỗ nào cũng giống nhau nên không ai chắc là làng mình. Quan giữ thành cấm trèo tường. Lệnh ấy không ai giữ, và ông ta cũng không phạt ai.',
@@ -183,16 +197,19 @@ export const tienPhatVi: StoryCatalog = {
   'giu-duoc-hay-khong.bo-ngoai-thanh': 'Đóng cửa lại',
   'giu-duoc-hay-khong.bo-ngoai-thanh.d': 'Bốn mươi ngày. Đó là cái ta có.',
   'giu-duoc-hay-khong.chronicle': 'Ngươi đã quyết việc cái cửa thành.',
+  'giu-duoc-hay-khong.scene': 'Từ sáng đến giờ vào được hơn nghìn người, phần lớn đi bộ, và trong đám có cả một đàn dê. Quan giữ thành đứng trên cửa đếm, đếm bằng cách gạt hạt đậu sang tay trái. Ông ta hỏi xong câu ấy rồi vẫn đứng đấy đếm tiếp, và ngoài đường cái, người từ các làng phía bắc vẫn còn đang tới.',
 
   'giu-duoc-kinh-thanh.title': 'Giữ được kinh thành',
   'giu-duoc-kinh-thanh.body': 'Họ hết lương trước ta, đúng như đã tính, và rút vào tháng thứ ba. Kinh thành còn nguyên. Ngoài thành thì không, và mùa sau các trấn nộp thuế bằng một nửa mọi năm — không phải vì họ không muốn nộp.',
   'giu-duoc-kinh-thanh.ok': 'Mở cửa thành',
   'giu-duoc-kinh-thanh.chronicle': 'Kinh thành giữ được. Ngoài thành thì không.',
+  'giu-duoc-kinh-thanh.scene': 'Mùa sau, các trấn nộp thuế thì nộp kèm cả sổ đinh, và sổ nào cũng mỏng đi. Có ông xã trưởng ở trấn bắc nộp đủ số, đủ đến từng đồng, đủ hơn cả những trấn không bị gì. Nộp xong ông ta đứng ngoài công đường rất lâu, không kêu ca, không xin xỏ, rồi mới về. Viên thư lại không hỏi ông ta lấy đâu ra.',
 
   'mat-kinh-thanh.title': 'Mất kinh thành',
   'mat-kinh-thanh.body': 'Cửa đóng đúng ngày, lương tính đúng số, và tường thì vỡ ở chỗ không ai tính tới — góc đông bắc, chỗ mới xây lại đời trước. Triều đình rút về phía nam trong một đêm. Sổ sách mang đi được, ấn tín mang đi được, và kinh thành thì không mang đi được.',
   'mat-kinh-thanh.ok': 'Rút về phía nam',
   'mat-kinh-thanh.chronicle': 'Kinh thành mất. Triều đình rút về nam.',
+  'mat-kinh-thanh.scene': 'Sổ sách chất lên mười bốn chiếc thuyền, chất suốt đêm, và người khiêng là lính lẫn với thư lại. Có ông thư lại già xin ở lại giữ kho sách chép sử, nói rằng chở đi thì ướt hết. Người ta không cho, cũng không có thì giờ cãi, nên kéo ông ta xuống thuyền. Góc đông bắc lúc ấy đã cháy, và từ dưới thuyền thì trông rõ.',
 
   'dan-quan-o-bien.line': 'Ta dàn hết quân ở biên, không giữ lại gì.',
   'dan-quan-o-bien.scene': 'Cả ba cơ, cả dân đinh mới gọi, cả quân của các trấn. Sau lưng không còn ai. Quan Thái úy đi một lượt từ cánh trái sang cánh phải, mất hết buổi sáng, và không nói gì cả — ông ta chỉ đi, và để lính nhìn thấy ông ta đi.',
@@ -206,16 +223,19 @@ export const tienPhatVi: StoryCatalog = {
   'chan-duoc-hay-vo.lui-ve-giu': 'Lui về giữ',
   'chan-duoc-hay-vo.lui-ve-giu.d': 'Đổi đất lấy thì giờ.',
   'chan-duoc-hay-vo.chronicle': 'Ngươi đã quyết việc ở trận biên.',
+  'chan-duoc-hay-vo.scene': 'Người đi dò về nói rằng hàng bên ấy còn rối ở cánh trái, xe lương chưa dạt hết ra sau, và nói xong thì xin đi dò lần nữa cho chắc. Quan Thái úy không cho đi. Lần dò ấy mất một canh giờ, mà cái rối kia thì chỉ còn kéo dài chừng ấy. Ngoài kia, quân ta dàn xong đã lâu và đang ngồi cả xuống.',
 
   'chan-duoc-o-bien.title': 'Chặn được ở biên',
   'chan-duoc-o-bien.body': 'Ta đánh lúc họ chưa xong hàng và họ không gượng lại được. Trận ấy xong trước khi trời tối. Không có đền, không có thơ, không có ai bay lên trời — chỉ có một đạo quân đánh đúng lúc, ở đúng chỗ, một lần.',
   'chan-duoc-o-bien.ok': 'Chép vào sử',
   'chan-duoc-o-bien.chronicle': 'Ta chặn được họ ngay ở biên.',
+  'chan-duoc-o-bien.scene': 'Xong việc thì trời còn sáng, đủ để thu quân và đếm lại. Lính ngồi ăn ngay tại chỗ vừa đánh, ăn cơm nắm mang từ hôm trước. Viên đội đi dọc hàng hỏi tên từng người, hỏi to, và người nào còn thì đáp. Đến cuối hàng ông ta hỏi lại lần nữa từ đầu, và không ai bảo ông ta thôi.',
 
   'vo-o-tran-bien.title': 'Vỡ trận biên',
   'vo-o-tran-bien.body': 'Lui về giữ là lệnh đúng, và lệnh ấy tới lúc cánh trái đã bắt đầu lùi rồi. Lùi có lệnh và lùi không có lệnh trông giống nhau từ xa, và từ xa là chỗ cánh phải đang đứng. Đến chiều thì không còn hàng nào nữa, và giữa họ với kinh thành không còn gì.',
   'vo-o-tran-bien.ok': 'Chép lại',
   'vo-o-tran-bien.chronicle': 'Trận biên vỡ. Đường về kinh bỏ ngỏ.',
+  'vo-o-tran-bien.scene': 'Trống thu quân đánh ở giữa trận, mà từ cánh phải thì tiếng trống lẫn với tiếng bên kia. Viên tướng cánh phải hỏi người truyền lệnh ba lần cùng một câu, hỏi lệnh của ai, và người truyền lệnh thứ ba thì không phải người của ông ta. Đến lúc ông ta quyết thì cánh trái đã đi được nửa cánh đồng.',
 
   'duoi-theo-qua-bien.line': 'Ta đuổi theo họ qua bên kia biên.',
   'duoi-theo-qua-bien.scene': 'Đuổi thì dễ, vì họ không quay lại đánh. Bắt được nhiều, phần lớn là lính đói. Quan Thái úy hỏi bắt về thì nuôi bằng gì, và không ai trả lời được, và quân ta vẫn đuổi thêm ba ngày nữa.',
@@ -229,16 +249,19 @@ export const tienPhatVi: StoryCatalog = {
   'tra-tu-binh-hay-khong.tra-tu-binh': 'Trả tù binh',
   'tra-tu-binh-hay-khong.tra-tu-binh.d': 'Lấy tiền chuộc, và đóng việc này lại.',
   'tra-tu-binh-hay-khong.chronicle': 'Ngươi đã quyết việc tù binh.',
+  'tra-tu-binh-hay-khong.scene': 'Tù binh giam ở bãi ngoài thành, dựng lều, và mùa này thì mưa. Người coi tù trình lên rằng mỗi ngày hết ba mươi thúng gạo, và trình thêm một việc không ai hỏi: có mấy chục người trong đó xin ở lại, xin làm ruộng, vì nhà họ ở ba châu đã cháy. Lá thư của sứ bên kia thì không nhắc gì tới những người ấy.',
 
   'chien-tranh-keo-dai.title': 'Chiến tranh kéo dài',
   'chien-tranh-keo-dai.body': 'Không trả thì không có gì kết thúc cả. Biên giới ấy về sau không có năm nào yên, và mỗi lần họ sang là mỗi lần nhắc lại chuyện tù binh. Người ở biên đời sau vẫn biết chuyện này, và họ biết theo kiểu người ta biết về thời tiết.',
   'chien-tranh-keo-dai.ok': 'Vậy thì thế',
   'chien-tranh-keo-dai.chronicle': 'Không trả tù binh. Biên giới không yên nữa.',
+  'chien-tranh-keo-dai.scene': 'Ở chợ biên, người ta xem chừng bên kia như xem trời: hôm nào bên ấy không có người sang mua muối thì hôm ấy về sớm, cất hàng, không ai bảo ai. Có bà bán muối làm thế suốt ba mươi năm, đúng nhiều hơn sai. Hỏi bà vì sao biết thì bà không giảng được, chỉ nói là quen rồi.',
 
   'hoa-muon-va-dat.title': 'Hòa, muộn và đắt',
   'hoa-muon-va-dat.body': 'Ta trả tù binh và nhận tiền chuộc, và tiền chuộc ấy ít hơn phí nuôi họ ba tháng vừa rồi. Hòa thì có hòa. Chỉ là hòa lúc này thì ta ở thế đi xin, chứ không phải thế cho — mà nếu giảng hòa ngay sau khi giữ được sông thì đã là thế cho.',
   'hoa-muon-va-dat.ok': 'Ký lấy',
   'hoa-muon-va-dat.chronicle': 'Ta hòa, muộn hơn và đắt hơn.',
+  'hoa-muon-va-dat.scene': 'Tiền chuộc cân ở sân công đường, cân trước mặt sứ bên kia, và cân xong thì viên thư lại phải chép lại vì lần đầu chép nhầm sang cột thu. Sứ bên kia đứng xem cân, không ngồi, và lúc ra về thì hỏi thăm sức khỏe Quan Thái úy bằng cái giọng người ta hỏi thăm một người đã thôi việc.',
 
   // What the story page calls each step of the spine.
   'node.tin-bien': 'Tin từ biên giới',
@@ -293,6 +316,7 @@ export const tienPhatEn: StoryCatalog = {
   'danh-truoc-hay-doi.doi-chung-toi': 'Wait for them',
   'danh-truoc-hay-doi.doi-chung-toi.d': 'Fight on our ground, with the army here.',
   'danh-truoc-hay-doi.chronicle': 'You decided whether to strike first.',
+  'danh-truoc-hay-doi.scene': 'A salt trader back from Ung Châu has been sitting in the corridor since midday with a handful of rice knotted in a cloth. He took it from the new granary; it is green and has not had its sun yet. He says three more rows of sheds went up last season, says it quite evenly, and then asks a question that is not his to ask: his house is on this side of the border, and should he be moving it.',
 
   'lo-bo-van.line': 'Before crossing, we posted a notice saying why we were coming.',
   'lo-bo-van.scene': 'It said the army was crossing because of the harsh new statutes their officials had imposed, and not because of their people — posted in the markets, at the landings, on the gates. Some read it and went home. Some read it and stood and watched the column pass, and nobody threw anything.',
@@ -314,6 +338,7 @@ export const tienPhatEn: StoryCatalog = {
   'dot-kho-roi-rut.danh-tiep-nua': 'Press on',
   'dot-kho-roi-rut.danh-tiep-nua.d': 'They are in disorder. There will not be a better moment.',
   'dot-kho-roi-rut.chronicle': 'You decided whether to withdraw from Ung Châu.',
+  'dot-kho-roi-rut.scene': 'By the third day the burning grain has cooked, and the whole camp smells of rice. The men eat their evening meal in that smell, and eat it, and nobody remarks on it. The young commander who wants to press on brings a map he drew himself, carried on past where the court\'s maps go blank — and he drew the blank part from what other people told him.',
 
   'dong-coc-ben-song.line': 'The army stopped at the Như Nguyệt and began driving stakes.',
   'dong-coc-ben-song.scene': 'Earthworks on the south bank, the north bank left empty. Stakes driven from the shallows down to the ferry, worked through the nights, with men from three districts turning out unasked. The Marshal walks the bank once every morning and says very little — he points at wherever the stakes are thin.',
@@ -327,6 +352,7 @@ export const tienPhatEn: StoryCatalog = {
   'giu-song-hay-qua-song.ra-danh-o-ben': 'Cross and strike first',
   'giu-song-hay-qua-song.ra-danh-o-ben.d': 'Once, while their line is not yet formed.',
   'giu-song-hay-qua-song.chronicle': 'You decided how the Như Nguyệt would be held.',
+  'giu-song-hay-qua-song.scene': 'The rampart was finished four days ago and most of it was built by people from the three districts here, who stayed on afterwards as soldiers. An old man driving stakes at the landing tells his sergeant that he set his a foot deeper than ordered, on his own account, having asked nobody. Then he sits down on the bank facing north and watches the cooking smoke on the far side.',
 
   'a-voice-from-the-shrine.line': 'At midnight, a voice read a poem in the shrine by the river.',
   'a-voice-from-the-shrine.scene': 'Four lines, read aloud, carrying to the far bank: the Southern land’s rivers and mountains are the Southern emperor’s to hold. Our men were asleep and every one of them got up, and nobody gave an order. In the morning the shrine-keeper said nobody had gone in, and that the door had been locked since dusk.',
@@ -344,11 +370,13 @@ export const tienPhatEn: StoryCatalog = {
   'giang-hoa-hay-truy-kich.truy-kich': 'Pursue them',
   'giang-hoa-hay-truy-kich.truy-kich.d': 'They are spent. There will not be a better moment.',
   'giang-hoa-hay-truy-kich.chronicle': 'You decided between terms and pursuit.',
+  'giang-hoa-hay-truy-kich.scene': 'Every night now there are torches moving along the far waterline — their men out digging roots, banana roots included. Our men sit on this bank and watch and do not shoot, and no order was given forbidding it. The man the Marshal means to send across is a minor official who has their language, and he has had his things ready since the day before yesterday.',
 
   'giang-hoa-xong.title': 'Terms',
   'giang-hoa-xong.body': 'They withdrew in order and took their people with them. We did not follow. The border went back where it was, prisoners were exchanged, and the road they built was left to the grass. Thirty years later people were still walking on that road, and nobody remembered what it had been built for.',
   'giang-hoa-xong.ok': 'Enter it in the annals',
   'giang-hoa-xong.chronicle': 'We made terms while strong. They withdrew.',
+  'giang-hoa-xong.scene': 'The exchange was done at the ferry landing, one crossing a day, counted off by hand. One of ours got to midstream and recognised the man poling the boat as the one who sells buffalo at the border market, a face he had known for years. Neither of them spoke. At the bank they went off by different paths, and both went quickly.',
 
   'chung-rut-khong-hoa.line': 'They withdrew without a word, and nobody went to say one.',
   'chung-rut-khong-hoa.scene': 'One morning the north bank was empty. No envoy, no letter, nothing — only an abandoned camp and some cooking fires still warm. We held the river. We got nothing else, and everything unsaid is still sitting there.',
@@ -366,16 +394,19 @@ export const tienPhatEn: StoryCatalog = {
   'danh-o-ben-kia.rut-ve-bo-nam': 'Withdraw to the south bank',
   'danh-o-ben-kia.rut-ve-bo-nam.d': 'While withdrawing is still possible.',
   'danh-o-ben-kia.chronicle': 'You decided the matter on the north bank.',
+  'danh-o-ben-kia.scene': 'Before full light there was a wooden clapper sounding in their camp, three rounds and then nothing, and the nothing lasted longer than we wanted. Our boats are tied at the landing, thirty of them, the boatmen standing ready with the lines in their hands. A sergeant went along telling them not to cast off yet — twice, and the second time his voice was not the same as the first.',
 
   'thang-lon-o-ben-kia.title': 'The Camp Breaks',
   'thang-lon-o-ben-kia.body': 'The camp broke before full light. They ran north leaving grain, carts, and the commanding officer’s own seal. It was the largest action of the war, and the chroniclers still add a line noting that the crossing was a gamble.',
   'thang-lon-o-ben-kia.ok': 'Keep the chronicler’s note as well',
   'thang-lon-o-ben-kia.chronicle': 'We broke their camp on the north bank.',
+  'thang-lon-o-ben-kia.scene': 'The seal was picked up in the tent, still lying on its cinnabar box with the paste not dry. The man who picked it up was a horse-holder who cannot read; he lifted it, looked at it, and handed it to the man beside him because it was heavy. Everyone who tells the story tells the part about the seal. Nobody remembers his name.',
 
   'mat-phong-tuyen-that.title': 'The Line Is Lost',
   'mat-phong-tuyen-that.body': 'Withdrawing halfway is the worst moment there is. They crossed directly behind the retreating men, at the same shallows we had just sounded, and the rampart that took a season held half a day. The stakes are still there. Stakes hold nothing without men behind them.',
   'mat-phong-tuyen-that.ok': 'Write it down',
   'mat-phong-tuyen-that.chronicle': 'They crossed at the shallows we had sounded.',
+  'mat-phong-tuyen-that.scene': 'A fisherman sounded those shallows for us with a pole and marked them with three bamboo canes tied in a bunch. The three canes were still standing there on the day they crossed. He had taken his wife and children south the day before, and before he went he came round to give back a rain-cape he had borrowed from the camp a month earlier.',
 
   'duong-luong-dai-ra.line': 'Ten more days out means twenty more days of supply road.',
   'duong-luong-dai-ra.scene': 'A grain cart now eats a third of its own load on the way. The supply officer asks to stop — not because it has run out, but because he has worked out the day it will, and that day is further off than the day the army would reach home if it turned round now.',
@@ -393,11 +424,13 @@ export const tienPhatEn: StoryCatalog = {
   've-hay-danh-toi-cung.danh-toi-cung': 'Finish it',
   've-hay-danh-toi-cung.danh-toi-cung.d': 'Having come this far.',
   've-hay-danh-toi-cung.chronicle': 'You decided between turning home and pressing on.',
+  've-hay-danh-toi-cung.scene': 'The letter came by post-horse and the rider fell at the gate of the camp rather than dismounted. It is short, in a young official\'s hand, and at the bottom there is one more line in smaller writing, added afterwards, asking how many days\' march away the main army is. The rider came round inside the tent and asked that same question before he asked for water.',
 
   've-khong-kip.title': 'Four Days Late',
   've-khong-kip.body': 'The army reached the border on the forty-third day. The landing had happened on the thirty-ninth. Men who had marched forty-three days went into action the same afternoon, and they did go in — but the thing that decided it had already happened at home, without them.',
   've-khong-kip.ok': 'Record the dates',
   've-khong-kip.chronicle': 'The army arrived four days after the invasion.',
+  've-khong-kip.scene': 'By the forty-third day most of the men had no sandals left and were walking on rag-wrapped feet, the rags torn off their own coats. They went in that afternoon. Some went down before they reached anyone, went down from the feet, and got up and went on. Asked about it afterwards they do not describe the fighting — they describe the road, in detail, day by day.',
 
   'lay-them-mot-thanh.title': 'One More City',
   'lay-them-mot-thanh.body': 'The city has fallen. Now a different question: hold it, or burn it and go. Holding means leaving men there — men who will be there a very long time, and the other side will never let it rest. Burning it means forty days of road, and possibly nothing left at the end of them.',
@@ -407,16 +440,19 @@ export const tienPhatEn: StoryCatalog = {
   'lay-them-mot-thanh.bo-ma-ve': 'Burn it and march',
   'lay-them-mot-thanh.bo-ma-ve.d': 'Forty days of road, starting now.',
   'lay-them-mot-thanh.chronicle': 'You decided the matter of the captured city.',
+  'lay-them-mot-thanh.scene': 'The city\'s own clerk came and knelt in the yard and handed over the granary books and the keys on a hemp loop. The books are exact, down to the measure. He asked nothing for himself. He asked only who he should hand the books to if our army leaves, since his name is already written on the last page.',
 
   'chiem-duoc-dat-tong.title': 'We Hold Their Ground',
   'chiem-duoc-dat-tong.body': 'The city is ours, with our officials, our garrison, our taxes. Its granaries are fuller than any at home. And from that year on there was never a year in which the other side did not raise it — and at home there were two seasons with no army, and nobody forgot that either.',
   'chiem-duoc-dat-tong.ok': 'Then it is ours',
   'chiem-duoc-dat-tong.chronicle': 'We hold their ground, and they do not forget.',
+  'chiem-duoc-dat-tong.scene': 'The official sent to govern the city took fifty days to get there and brought his household and one areca seedling. The seedling was planted in the yard of the office and it took. Every year their court sends an envoy to demand the city back, and the envoy always comes and goes at about the time the areca is in fruit. At home, the two seasons without an army are counted differently.',
 
   'mat-ca-dao-quan.title': 'The Army Does Not Return',
   'mat-ca-dao-quan.body': 'They cut the road home before we withdrew. Our men fought to open it for nine days and could not. Just over two hundred reached home, by the mountain paths, after four months. The country had two seasons without a field army — and still has none.',
   'mat-ca-dao-quan.ok': 'Record all of it',
   'mat-ca-dao-quan.chronicle': 'That army did not come back.',
+  'mat-ca-dao-quan.scene': 'Just over two hundred came in at the pass in the fourth month, walking in one long file, and the man at the front was still carrying the standard. There was almost nothing left of it — the pole and one strip. The pass commander asked for their unit numbers, as the regulations require, got three questions in and stopped. He had the store opened and rice given out, went inside, and did not come out again that afternoon.',
 
   'chung-den-du-quan.line': 'They came, all of them, and unhurried.',
   'chung-den-du-quan.scene': 'Nothing about it was a surprise. They used the road they had built, at the pace of an army that does not need to hurry, camping every evening as the manuals say. We watched them coming for three days. Watching them coming is all that watching does.',
@@ -430,6 +466,7 @@ export const tienPhatEn: StoryCatalog = {
   'co-thu-hay-chan-bien.chan-o-bien': 'Meet them at the frontier',
   'co-thu-hay-chan-bien.chan-o-bien.d': 'One battle, on ground we choose.',
   'co-thu-hay-chan-bien.chronicle': 'You chose how to meet them.',
+  'co-thu-hay-chan-bien.scene': 'Outside the walls the market is still being held and today it opened early. People are selling buffalo, selling cheap, selling to each other because nobody has come in from any distance to buy. A rice-seller asks the man on the gate how many loads she may bring inside. He tells her to bring what she can carry — he has had no orders about it at all.',
 
   'trong-thanh-dem-ngay.line': 'Inside the walls, men climb up every night to look out.',
   'trong-thanh-dem-ngay.scene': 'Towards their own villages. By day there is smoke and by night there is fire, and fire looks the same everywhere, so nobody can be sure it is theirs. The city commander has forbidden climbing the wall. Nobody obeys it, and he punishes nobody.',
@@ -443,16 +480,19 @@ export const tienPhatEn: StoryCatalog = {
   'giu-duoc-hay-khong.bo-ngoai-thanh': 'Shut the gate',
   'giu-duoc-hay-khong.bo-ngoai-thanh.d': 'Forty days. That is what we have.',
   'giu-duoc-hay-khong.chronicle': 'You decided the matter of the gate.',
+  'giu-duoc-hay-khong.scene': 'Over a thousand have come in since morning, most on foot, and there is a herd of goats among them. The commander stands above the gate counting, moving beans from one hand into the other. Having asked his question he goes on standing there counting, and out on the high road there are still people coming down from the northern villages.',
 
   'giu-duoc-kinh-thanh.title': 'The Capital Held',
   'giu-duoc-kinh-thanh.body': 'They ran out before we did, exactly as calculated, and withdrew in the third month. The capital is untouched. Outside it is not, and the following season the provinces paid half the usual tax — not because they did not want to pay.',
   'giu-duoc-kinh-thanh.ok': 'Open the gate',
   'giu-duoc-kinh-thanh.chronicle': 'The capital held. What was outside it did not.',
+  'giu-duoc-kinh-thanh.scene': 'The following season the provinces sent their tax with the population rolls attached, and every roll had thinned. A commune head from the northern province paid in full, to the coin — fuller than provinces nothing had happened to. Having paid he stood outside the office a long while, not complaining, not asking for anything, and then went home. The clerk did not ask him where he had got it.',
 
   'mat-kinh-thanh.title': 'The Capital Fell',
   'mat-kinh-thanh.body': 'The gate shut on the right day, the grain was counted right, and the wall failed where nobody had thought to look — the north-east corner, rebuilt in the last reign. The court went south in a night. The registers came, the seals came, and the capital did not.',
   'mat-kinh-thanh.ok': 'Withdraw south',
   'mat-kinh-thanh.chronicle': 'The capital fell. The court went south.',
+  'mat-kinh-thanh.scene': 'The registers went onto fourteen boats, loaded all night, carried by soldiers and clerks together. One old clerk asked to be left behind with the chronicle store, saying the volumes would be soaked. There was no time to argue with him, so they pulled him down into a boat. The north-east corner was burning by then, and from the water you could see it clearly.',
 
   'dan-quan-o-bien.line': 'We put everything on the frontier and kept nothing back.',
   'dan-quan-o-bien.scene': 'All three companies, the new levies, the provincial men. Nothing behind them. The Marshal walked the line once from the left wing to the right, which took the whole morning, and said nothing at all — he only walked it, and let the men see him walk it.',
@@ -466,16 +506,19 @@ export const tienPhatEn: StoryCatalog = {
   'chan-duoc-hay-vo.lui-ve-giu': 'Fall back and hold',
   'chan-duoc-hay-vo.lui-ve-giu.d': 'Trade ground for time.',
   'chan-duoc-hay-vo.chronicle': 'You decided the matter at the frontier.',
+  'chan-duoc-hay-vo.scene': 'The scout says their left is still tangled and the supply carts have not cleared to the rear, and having said it asks to go out once more to be sure. The Marshal will not let him. That ride takes an hour, and the tangle will last about an hour. Out in front our own line has been formed up for a long time and has sat down.',
 
   'chan-duoc-o-bien.title': 'Stopped at the Frontier',
   'chan-duoc-o-bien.body': 'We struck before their line was formed and they could not recover. It was finished before dark. No shrine, no poem, nobody ascending into heaven — only an army that struck at the right moment, in the right place, once.',
   'chan-duoc-o-bien.ok': 'Enter it in the annals',
   'chan-duoc-o-bien.chronicle': 'We stopped them at the frontier.',
+  'chan-duoc-o-bien.scene': 'It was over with the light still good, enough to collect the men and count. They ate where they had fought, on rice balls carried from the day before. A sergeant went down the line calling names out loud, and whoever was there answered. At the end of the line he started again from the top, and nobody told him to stop.',
 
   'vo-o-tran-bien.title': 'The Frontier Line Broke',
   'vo-o-tran-bien.body': 'Falling back was the right order, and it arrived after the left wing had already begun to give. Falling back under orders and falling back without them look identical from a distance, and a distance is where the right wing was standing. By evening there was no line, and nothing between them and the capital.',
   'vo-o-tran-bien.ok': 'Write it down',
   'vo-o-tran-bien.chronicle': 'The frontier broke. The road to the capital was open.',
+  'vo-o-tran-bien.scene': 'The recall drum was beaten from the centre, and out on the right wing that drum was mixed in with theirs. The wing commander asked the messenger the same question three times — whose order — and the third messenger was not one of his own men. By the time he decided, the left wing had crossed half the field.',
 
   'duoi-theo-qua-bien.line': 'We pursued them over the border.',
   'duoi-theo-qua-bien.scene': 'Pursuing was easy, because they did not turn to fight. We took a great many, mostly starving. The Marshal asked what we would feed them on, and nobody could answer, and the pursuit went on for three more days.',
@@ -489,16 +532,19 @@ export const tienPhatEn: StoryCatalog = {
   'tra-tu-binh-hay-khong.tra-tu-binh': 'Return them',
   'tra-tu-binh-hay-khong.tra-tu-binh.d': 'Take the ransom and close this.',
   'tra-tu-binh-hay-khong.chronicle': 'You decided the matter of the prisoners.',
+  'tra-tu-binh-hay-khong.scene': 'The prisoners are in a compound outside the walls, in huts, and this is the rainy season. Their keeper reports thirty baskets of rice a day, and reports one further thing nobody asked about: several dozen of them have asked to stay and be given land, their homes in the three prefectures having burned. The envoy\'s letter does not mention those men at all.',
 
   'chien-tranh-keo-dai.title': 'A Long War',
   'chien-tranh-keo-dai.body': 'Keeping them meant nothing ended. That border had no quiet year afterwards, and every crossing brought the prisoners up again. Border people two generations later still knew about it, in the way people know about the weather.',
   'chien-tranh-keo-dai.ok': 'So be it',
   'chien-tranh-keo-dai.chronicle': 'The prisoners were kept. The border was never quiet again.',
+  'chien-tranh-keo-dai.scene': 'At the border market people read the other side the way they read the sky: on a day when nobody comes over to buy salt, you pack up early and go home, and nobody has to say so. A salt-seller did that for thirty years and was right more often than wrong. Asked how she knew, she could not explain it, and said only that you get used to it.',
 
   'hoa-muon-va-dat.title': 'Peace, Late and Expensive',
   'hoa-muon-va-dat.body': 'We returned the prisoners and took the ransom, and the ransom came to less than three months of feeding them. There is peace. It is only that making it now is asking, where making it straight after the river would have been giving.',
   'hoa-muon-va-dat.ok': 'Sign it',
   'hoa-muon-va-dat.chronicle': 'We made peace, later and dearer.',
+  'hoa-muon-va-dat.scene': 'The ransom silver was weighed in the yard of the office in front of their envoy, and afterwards the clerk had to enter it twice because the first time he put it in the receipts column. The envoy stood to watch the weighing rather than sit, and on leaving he asked after the Marshal\'s health in the voice people use for a man who has left his post.',
 
   // What the story page calls each step of the spine.
   'node.tin-bien': 'News from the border',

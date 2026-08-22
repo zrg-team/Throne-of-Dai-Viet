@@ -14,11 +14,14 @@ import type { StoryCatalog } from './types';
 
 export const daiCaoEn: StoryCatalog = {
   'the-scholar-asks-for-paper.chronicle': 'A scholar asked leave to write the country down.',
+  'the-scholar-asks-for-paper.scene': 'The record room keeps a lamp burning for him and the oil comes out of the clerks\' own allowance, which none of them has mentioned to anybody. There is one sheet squared on the desk already, the good mulberry kind, and he has not touched it in nine days. A junior asks whether he should file it back. Leave it where it is, he says. Then he asks how many provinces we hold this morning, and writes the number on the back of his hand.',
   'the-scholar-asks-for-paper.let-him-write.d': 'Only once, and only after it is true.',
   'the-scholar-asks-for-paper.not-yet.d': 'A boast now is a boast forever.',
   'the-proclamation-read-out.chronicle': 'The Great Proclamation was read at the gate.',
+  'the-proclamation-read-out.scene': 'A salt-carrier up for the market sets her two baskets down at the gate and does not pick them up again until it is finished, and by then the rain has been into the salt. She cannot read. On the ferry back she gets the middle part wrong twice and the boatman corrects her, and the boatman was not there either. Neither of them can say where they learned it.',
   'the-proclamation-read-out.ok': 'Let it be copied',
   'the-paper-goes-unused.chronicle': 'The paper stayed unmarked on his desk.',
+  'the-paper-goes-unused.scene': 'The clerk who sweeps the record room has taken to squaring the stack every morning, corner to corner, though nobody asked him to and the scholar has not sat there since the second month. Eleven sheets. He counted once and has not counted since. When the post cart goes he puts the letters at the top of the sack, where they will not be crushed, which is the only thing left that he can do for the man.',
   'the-paper-goes-unused.reconsider.d': 'He may still have the words.',
   'the-paper-goes-unused.dismiss-it.d': 'Some records are better unwritten.',
   title: 'The Great Proclamation',
@@ -53,11 +56,14 @@ export const daiCaoEn: StoryCatalog = {
 
 export const daiCaoVi: StoryCatalog = {
   'the-scholar-asks-for-paper.chronicle': 'Một người học trò xin được chép nước Nam xuống.',
+  'the-scholar-asks-for-paper.scene': 'Tàng thư để đèn suốt cho ông, mà dầu thì trích từ phần của mấy viên thư lại, chuyện ấy không ai thưa lên. Trên bàn đã sẵn một tờ giấy dó loại tốt, xếp vuông, chín hôm nay ông chưa chạm vào. Có người hỏi nhỏ có nên cất lại không. Ông bảo cứ để đấy. Rồi ông hỏi sáng nay ta giữ được mấy trấn, và chấm bút ghi con số ấy lên mu bàn tay.',
   'the-scholar-asks-for-paper.let-him-write.d': 'Chỉ một lần, và phải chép sau.',
   'the-scholar-asks-for-paper.not-yet.d': 'Khoe bây giờ thì khoe mãi mãi.',
   'the-proclamation-read-out.chronicle': 'Bình Ngô Đại Cáo tuyên ở cửa thành.',
+  'the-proclamation-read-out.scene': 'Một bà gánh muối lên chợ đặt đôi thúng xuống ở cửa thành, đứng nghe cho hết, lúc quay lại thì mưa đã ngấm vào muối. Bà không biết chữ. Trên đò về bà đọc sai khúc giữa tới hai lần, ông lái đò chữa lại cho bà, mà ông lái đò cũng đâu có mặt ở đấy. Hỏi ra thì cả hai đều không nói được mình nghe câu ấy từ ai.',
   'the-proclamation-read-out.ok': 'Cho sao chép ra',
   'the-paper-goes-unused.chronicle': 'Xấp giấy nằm trắng trên bàn ông.',
+  'the-paper-goes-unused.scene': 'Người quét tàng thư dạo này sáng nào cũng xếp lại xấp giấy cho vuông góc, chẳng ai sai, mà ông kia thì từ tháng hai đã không ngồi đấy nữa. Xấp ấy mười một tờ. Anh ta đếm một lần rồi thôi không đếm nữa. Hôm nào có xe trạm thì anh đặt mấy lá thư của ông lên trên cùng bao cho khỏi nhàu, chỉ còn chừng ấy việc anh làm được cho ông.',
   'the-paper-goes-unused.reconsider.d': 'Có lẽ chữ vẫn còn trong ông.',
   'the-paper-goes-unused.dismiss-it.d': 'Có những sử không chép còn hơn.',
   title: 'Bình Ngô Đại Cáo',
@@ -94,9 +100,11 @@ export const daiCaoVi: StoryCatalog = {
 
 export const chieuDoiDoEn: StoryCatalog = {
   'the-valley-is-too-narrow.chronicle': 'A geomancer named {land} as a better seat.',
+  'the-valley-is-too-narrow.scene': 'His granddaughter carries the map case because his hands shake now, and she has heard the speech about {land} eleven times on the road and could give it herself. When he unrolls it the dent from last time is still in the paper. The guards let him through without being told to. Somebody at the back of the hall says the valley has held for sixty years, and the old man agrees with him, pleasantly, and does not sit down.',
   'the-valley-is-too-narrow.survey-the-plain.d': 'A market, a wall, and twelve seasons.',
   'the-valley-is-too-narrow.hoa-lu-served-our-fathers.d': 'Defensible. Also poor.',
   'the-dragon-rising.chronicle': 'The seat of the dynasty moved to {land}.',
+  'the-dragon-rising.scene': 'The cart with the ancestral tablets loses a wheel in the shallows and four scribes go in to the waist to hold it level. One of them, a Nghệ man who never wanted to come, is still holding it up when the shouting about the dragon starts, and does not look. At {land} he is given a house near the new quay with a door wide enough for a loom. He writes home that the water here is bad. He stays.',
   'the-dragon-rising.ok': 'Move the court',
   title: 'The Edict on Moving the Capital',
   want: 'a seat the country can grow out of',
@@ -122,9 +130,11 @@ export const chieuDoiDoEn: StoryCatalog = {
 
 export const chieuDoiDoVi: StoryCatalog = {
   'the-valley-is-too-narrow.chronicle': 'Thầy địa lý chỉ {land} là chỗ đóng đô tốt hơn.',
+  'the-valley-is-too-narrow.scene': 'Cháu gái ông cắp ống bản đồ vì tay ông giờ run, và dọc đường nó đã nghe bài về {land} tới lần thứ mười một, nghe đến thuộc lòng. Lúc trải ra, vết lõm lần trước vẫn còn hằn trên giấy. Lính gác cho ông vào, không đợi ai bảo. Cuối điện có người nói thung lũng này giữ được sáu chục năm rồi, ông lão vui vẻ nhận là phải, rồi vẫn đứng đấy, không chịu ngồi.',
   'the-valley-is-too-narrow.survey-the-plain.d': 'Một cái chợ, một bức thành, mười hai mùa.',
   'the-valley-is-too-narrow.hoa-lu-served-our-fathers.d': 'Giữ thì dễ. Mà nghèo.',
   'the-dragon-rising.chronicle': 'Kinh đô dời về {land}.',
+  'the-dragon-rising.scene': 'Cỗ xe chở bài vị tổ tiên gãy bánh giữa chỗ nước cạn, bốn viên thư lại lội xuống ngang bụng đỡ cho khỏi nghiêng. Một người trong đó, dân Nghệ, vốn chẳng muốn đi, vẫn đang gồng đỡ lúc phía trên ồn ào chuyện con rồng, và không buồn ngẩng lên. Về sau ở {land} người ta cấp cho anh căn nhà gần bến mới, cửa rộng vừa đủ kê khung cửi. Anh viết thư về nhà chê nước ở đây dở. Anh ở lại.',
   'the-dragon-rising.ok': 'Dời triều đình',
   title: 'Chiếu Dời Đô',
   want: 'một kinh đô mà nước có thể lớn lên khỏi nó',
@@ -152,13 +162,16 @@ export const chieuDoiDoVi: StoryCatalog = {
 
 export const namQuocEn: StoryCatalog = {
   // The retired stub's one line: an in-flight save reads this once and the story closes.
-  'a-voice-from-the-shrine.line': 'Bốn câu ấy đã đọc ở phòng tuyến bên sông, và được chép ở đấy.',
+  'a-voice-from-the-shrine.line': 'The four lines were read on the river line, and are recorded there.',
   'a-voice-from-the-shrine.chronicle': 'An old man at {land} asked for somewhere to stand.',
+  'a-voice-from-the-shrine.scene': 'The four lines were read once already, in the shrine by the river, at midnight. That is recorded elsewhere in this chronicle. The old man at the {land} ferry did not wait for it: one morning he was simply not there, and his sleeping mat was rolled and propped against the kapok tree.',
   'a-voice-from-the-shrine.raise-the-shrine.d': 'On the bank, where the water carries.',
   'a-voice-from-the-shrine.the-river-is-only-a-river.d': 'Four lines win nothing.',
   'the-southern-land-has-its-own-emperor.chronicle': 'Four lines were read across the water at {land}.',
+  'the-southern-land-has-its-own-emperor.scene': 'The sentry on our bank is nineteen and has been told nothing, so he hears it the way the far side hears it: cold, out of the reeds behind him. He counts the readings on his fingers because there is nothing else to do with his hands. Between the second and the third a horse screams somewhere across the water and is quieted. In the morning he asks his sergeant who was in the shrine. The sergeant tells him to eat.',
   'the-southern-land-has-its-own-emperor.ok': 'Let it be read again',
   'the-shrine-burns.chronicle': 'The shrine at {land} was burned.',
+  'the-shrine-burns.scene': 'A woman from the ferry village goes down at first light to see what is left and comes back with four nails in her apron, which was all there was worth carrying. She puts them in the rice jar. Her husband asks what they are for and she says she will know later. Nobody at {land} has said the four lines out loud since the fire, though a good many people are waiting to see who does it first.',
   'the-shrine-burns.ok': 'Note it',
   title: 'The Mountains and Rivers of the Southern Land',
   want: 'to be heard across the water',
@@ -188,13 +201,16 @@ export const namQuocEn: StoryCatalog = {
 
 export const namQuocVi: StoryCatalog = {
   // The retired stub's one line: an in-flight save reads this once and the story closes.
-  'a-voice-from-the-shrine.line': 'The four lines were read on the river line, and are recorded there.',
+  'a-voice-from-the-shrine.line': 'Bốn câu ấy đã đọc ở phòng tuyến bên sông, và được chép ở đấy.',
   'a-voice-from-the-shrine.chronicle': 'Ông lão ở {land} xin một chỗ đứng.',
+  'a-voice-from-the-shrine.scene': 'Bốn câu ấy đã đọc một lần rồi, trong đền bên sông, giữa đêm. Chuyện ấy chép ở chỗ khác trong sử này. Ông lão ở bến đò {land} thì không đợi nữa: một sáng người ta ra không thấy ông đâu, chỉ còn cái chiếu cuộn lại dựng vào gốc gạo.',
   'a-voice-from-the-shrine.raise-the-shrine.d': 'Trên bờ, chỗ nước đưa tiếng đi.',
   'a-voice-from-the-shrine.the-river-is-only-a-river.d': 'Bốn câu thì thắng được gì.',
   'the-southern-land-has-its-own-emperor.chronicle': 'Bốn câu vọng qua sông ở {land}.',
+  'the-southern-land-has-its-own-emperor.scene': 'Anh lính gác bờ bên ta mười chín tuổi, chẳng ai dặn trước gì, nên anh nghe câu ấy y hệt như bờ bên kia nghe: lạnh, vọng lên từ đám lau sau lưng. Anh bấm ngón tay đếm số lượt đọc, vì tay không biết làm gì khác. Giữa lượt hai với lượt ba, bên kia sông có con ngựa hí lên rồi bị ghìm xuống. Sáng ra anh hỏi viên đội trong miếu là ai. Viên đội bảo ăn đi.',
   'the-southern-land-has-its-own-emperor.ok': 'Cho đọc lại',
   'the-shrine-burns.chronicle': 'Miếu ở {land} bị đốt.',
+  'the-shrine-burns.scene': 'Tang tảng sáng, một bà bên xóm bến xuống xem còn lại những gì, lúc về trong vạt áo có bốn cái đinh, chỗ ấy chỉ còn chừng đó là đáng mang. Bà bỏ vào hũ gạo. Chồng hỏi để làm gì, bà bảo rồi sẽ biết. Từ hôm cháy tới giờ ở {land} chưa ai đọc to bốn câu ấy lên, mà khối người đang chờ xem ai là người đọc trước.',
   'the-shrine-burns.ok': 'Ghi lại',
   title: 'Nam Quốc Sơn Hà',
   want: 'được nghe thấy từ bên kia sông',
@@ -226,11 +242,14 @@ export const namQuocVi: StoryCatalog = {
 
 export const hichEn: StoryCatalog = {
   'he-reads-it-to-the-officers.chronicle': 'A marshal wrote to his officers, and did not raise his voice.',
+  'he-reads-it-to-the-officers.scene': 'His scribe has copied the thing four times and has begun making small mistakes on purpose, to find out whether the marshal is still reading it. He is. The fifth copy comes back with one word struck out and nothing put in its place. Outside, an officer who was at the reading has sent his son to buy the sword back from whoever has it, above what he took for it, and has told the boy not to haggle.',
   'he-reads-it-to-the-officers.let-them-hear-it.d': 'Three hosts, three commanders.',
   'he-reads-it-to-the-officers.the-men-are-tired.d': 'Shame keeps. So does the sword.',
   'three-hosts-under-three-banners.chronicle': 'The proclamation was read to three hosts in one morning.',
+  'three-hosts-under-three-banners.scene': 'The young officer who asked for the hardest ground is given it before noon, and by dusk he has walked the whole length of it twice and come back with a list of eleven places where the bank is soft. He hands the list to a captain twenty years older who has held that line all season and never wrote anything down. The captain reads it through, says nothing, and keeps it. His own men notice that.',
   'three-hosts-under-three-banners.ok': 'Give him the hardest ground',
   'the-officers-look-at-their-boots.chronicle': 'The proclamation was never assembled for.',
+  'the-officers-look-at-their-boots.scene': 'A cook at the northern camp repeats the cockfight part to a supply sergeant, who carries it further, and by the time it reaches the ranks it has a name attached that was never in the text. That officer\'s horse has been let out of its lines twice in a fortnight. He has taken to eating alone with the tent flap tied open so that anyone passing can see him doing it. The marshal has sent for nobody, and everybody has noticed.',
   'the-officers-look-at-their-boots.ok': 'Say nothing',
   title: 'Proclamation to the Officers',
   want: 'officers who are ashamed of the right things',
@@ -260,11 +279,14 @@ export const hichEn: StoryCatalog = {
 
 export const hichVi: StoryCatalog = {
   'he-reads-it-to-the-officers.chronicle': 'Quan Thái uý viết hịch cho các tướng, mà không hề cao giọng.',
+  'he-reads-it-to-the-officers.scene': 'Viên thư lại chép bài ấy bốn lượt, rồi đâm ra cố tình sai vài chữ nhỏ, để dò xem quan Thái uý còn đọc lại hay không. Ông còn đọc. Bản thứ năm trả về, một chữ bị gạch, mà chỗ ấy bỏ trống, không thay chữ nào vào. Ngoài kia, một viên tướng có mặt hôm đọc đã sai con đi chuộc lại thanh gươm từ tay người mua, trả hơn cả giá đã bán, và dặn con đừng mặc cả.',
   'he-reads-it-to-the-officers.let-them-hear-it.d': 'Ba đạo quân, ba chủ tướng.',
   'he-reads-it-to-the-officers.the-men-are-tired.d': 'Nỗi hổ thẹn để dành được. Gươm cũng vậy.',
   'three-hosts-under-three-banners.chronicle': 'Bài hịch đọc cho ba đạo quân trong một buổi sáng.',
+  'three-hosts-under-three-banners.scene': 'Viên tướng trẻ xin khúc khó nhất được giao ngay trước trưa, tới chiều đã đi hết khúc ấy hai lượt, quay về với một bản kê mười một chỗ bờ lở. Anh đưa bản kê cho một viên quản hơn mình hai chục tuổi, người giữ khúc đó cả mùa nay mà chưa từng ghi xuống một chữ. Viên quản đọc một lượt, không nói gì, rồi cất vào trong áo. Quân của ông ta trông thấy cả.',
   'three-hosts-under-three-banners.ok': 'Giao cho anh ta khúc khó nhất',
   'the-officers-look-at-their-boots.chronicle': 'Rốt cuộc chẳng có buổi tụ nào để đọc hịch.',
+  'the-officers-look-at-their-boots.scene': 'Anh nuôi quân ở trại phía bắc kể lại khúc chọi gà cho viên đội tải lương, viên đội kể tiếp, tới lúc đến tai lính thì câu ấy đã kèm theo một cái tên vốn không hề có trong bài. Ngựa của viên tướng ấy nửa tháng nay sổng chuồng hai lần. Ông đâm ra ăn cơm một mình mà buộc vén cửa trại lên, để ai đi qua cũng trông thấy. Quan Thái uý không cho gọi một ai, và cả trại đều để ý điều đó.',
   'the-officers-look-at-their-boots.ok': 'Không nói gì',
   title: 'Hịch Tướng Sĩ',
   want: 'những viên tướng biết xấu hổ đúng chỗ',
@@ -296,9 +318,11 @@ export const hichVi: StoryCatalog = {
 
 export const chiLangEn: StoryCatalog = {
   'the-pass-is-narrow-here.chronicle': 'A captain proposed losing a battle badly at {land}.',
+  'the-pass-is-narrow-here.scene': 'His mother still lives four li below the bend, and he does not mention her once on the walk. What he mentions is a stone the size of a buffalo that three of them levered halfway up the east slope as boys and left there. It is still there. He wants two hundred more like it. He puts your hand flat on it so you can feel how little it would take, and then asks what the villages below are going to be told.',
   'the-pass-is-narrow-here.let-them-come-in.d': 'Look thin. Let the front get all the way in.',
   'the-pass-is-narrow-here.meet-them-on-the-plain.d': 'Where we can see them coming.',
   'lieu-thang-does-not-come-out.chronicle': 'A relief column was destroyed in the pass at {land}.',
+  'lieu-thang-does-not-come-out.scene': 'Among what is carried down afterward is a lacquered seal-case, unopened, belonging to a man nobody up there could have named at the time. The captain from {land} keeps it on his belt for a week, then gives it to a clerk with orders to send it back over the border with the body, whole, unopened. The clerk asks why. Because the siege has not heard yet, the captain says, and he wants them to hear it the right way.',
   'lieu-thang-does-not-come-out.ok': 'Close the road behind them',
   title: 'The Chi Lăng Pass',
   want: 'to be underestimated once, at the right place',
@@ -324,9 +348,11 @@ export const chiLangEn: StoryCatalog = {
 
 export const chiLangVi: StoryCatalog = {
   'the-pass-is-narrow-here.chronicle': 'Một viên đội trưởng bày cách thua cho thảm ở {land}.',
+  'the-pass-is-narrow-here.scene': 'Mẹ anh ta vẫn sống cách khúc quặt bốn dặm về phía dưới, mà suốt buổi đi anh không nhắc tới một lần. Cái anh nhắc là hòn đá to bằng con trâu, hồi nhỏ ba đứa bẩy được lên lưng chừng sườn đông rồi bỏ đấy. Giờ nó vẫn nằm đấy. Anh muốn thêm hai trăm hòn như thế. Anh kéo tay ngài đặt lên đá cho ngài thấy nó chực lăn tới mức nào, rồi hỏi sẽ nói gì với mấy làng phía dưới.',
   'the-pass-is-narrow-here.let-them-come-in.d': 'Để lộ ra mỏng. Cho khúc đầu vào thật sâu.',
   'the-pass-is-narrow-here.meet-them-on-the-plain.d': 'Chỗ ta còn trông thấy chúng tới.',
   'lieu-thang-does-not-come-out.chronicle': 'Một đạo viện binh bị diệt trong ải {land}.',
+  'lieu-thang-does-not-come-out.scene': 'Trong đống đồ khiêng xuống sau đó có một cái tráp sơn đựng ấn, chưa mở, của một người mà lúc ấy trên ải chẳng ai gọi được tên. Viên đội trưởng người {land} đeo nó ở thắt lưng một tuần, rồi giao cho viên thư lại, dặn trả nguyên vẹn qua bên kia biên cùng với cái xác. Viên thư lại hỏi vì sao. Vì đám vây thành chưa hay tin, anh ta nói, và anh muốn chúng hay tin cho đúng cách.',
   'lieu-thang-does-not-come-out.ok': 'Khép đường sau lưng chúng',
   title: 'Ải Chi Lăng',
   want: 'được coi thường một lần, đúng chỗ',
@@ -354,11 +380,14 @@ export const chiLangVi: StoryCatalog = {
 
 export const thanTocEn: StoryCatalog = {
   'we-eat-tet-in-the-capital.chronicle': 'A feast was promised in a city we did not hold.',
+  'we-eat-tet-in-the-capital.scene': 'The quartermaster does not argue about the hammocks. He argues about rice, standing there with a tally board, because three men to a hammock means the same mouths fed in a third of the time and nobody has costed it. He is told to buy along the road at whatever it costs. He writes that down and underlines it twice, which is as close as he comes to saying anything. After the twentieth his board is four columns of blank.',
   'we-eat-tet-in-the-capital.promise-the-feast.d': 'Three men to a hammock. Rotate on the walk.',
   'we-eat-tet-in-the-capital.no-army-moves-that-fast.d': 'And no feast survives a broken promise.',
   'the-thirtieth-day-of-the-twelfth-month.chronicle': 'They arrived on the day he named, four days early.',
+  'the-thirtieth-day-of-the-twelfth-month.scene': 'A boy of sixteen out of the second host takes his bowl, sits down against a wall with it, and does not eat. He has walked the skin off both heels and has carried his sandals in his belt since the eighteenth, saving them for today. He is wearing them now. Somebody lifts the bowl out of his hands before it goes over. He wakes after dark, eats it cold, and asks whether it has started.',
   'the-thirtieth-day-of-the-twelfth-month.ok': 'Let them sit down',
   'the-feast-is-eaten-cold.chronicle': 'The year turned with the column still on the road.',
+  'the-feast-is-eaten-cold.scene': 'A sergeant divides the last of one pack on a flat stone at the roadside: eleven men, nine portions, and he is not one of the nine. He does not say so. Somebody counts anyway and says nothing either. Further up the column the empty packs go back onto shoulders and not one man asks the quartermaster a single question, which is how the quartermaster learns exactly how bad it is.',
   'the-feast-is-eaten-cold.ok': 'Say nothing about it',
   title: 'The Lightning March',
   want: 'to arrive before anyone has finished celebrating',
@@ -388,11 +417,14 @@ export const thanTocEn: StoryCatalog = {
 
 export const thanTocVi: StoryCatalog = {
   'we-eat-tet-in-the-capital.chronicle': 'Một bữa tiệc được hứa ở toà thành ta chưa hề giữ.',
+  'we-eat-tet-in-the-capital.scene': 'Quan coi lương không cãi chuyện cái võng. Ông cãi chuyện gạo, đứng đó cầm cái bảng tính, vì ba người một võng nghĩa là chừng ấy miệng ăn dồn vào một phần ba thời gian, mà chưa ai tính ra tiền. Người ta bảo ông cứ mua dọc đường, giá nào cũng mua. Ông ghi câu ấy xuống, gạch chân hai lần, ông chỉ nói được đến thế. Trên bảng của ông, sau ngày hai mươi là bốn cột bỏ trắng.',
   'we-eat-tet-in-the-capital.promise-the-feast.d': 'Ba người một võng. Đổi phiên ngay trên đường.',
   'we-eat-tet-in-the-capital.no-army-moves-that-fast.d': 'Mà lời hứa gãy thì tiệc cũng chẳng còn.',
   'the-thirtieth-day-of-the-twelfth-month.chronicle': 'Họ tới đúng ngày ông hẹn, sớm bốn ngày.',
+  'the-thirtieth-day-of-the-twelfth-month.scene': 'Một thằng bé mười sáu ở đạo thứ hai nhận phần cơm rồi ngồi tựa lưng vào tường, mà không ăn. Nó đi tróc da cả hai gót, từ ngày mười tám tới giờ đôi dép vẫn giắt ở lưng quần, để dành cho hôm nay. Bây giờ nó đang xỏ chân vào đôi ấy. Có người đỡ lấy cái bát trước khi nó đổ. Tối nó tỉnh dậy, ăn cơm nguội, rồi hỏi đánh chưa.',
   'the-thirtieth-day-of-the-twelfth-month.ok': 'Cho họ ngồi xuống',
   'the-feast-is-eaten-cold.chronicle': 'Năm sang khi đạo quân vẫn còn trên đường.',
+  'the-feast-is-eaten-cold.scene': 'Viên đội chia chỗ cuối cùng của một cái đãy trên hòn đá phẳng bên đường: mười một người, chín phần, và ông không nằm trong chín phần ấy. Ông không nói ra. Có người đếm được, và cũng không nói ra. Trên đầu đội hình, những cái đãy rỗng lại lên vai, chẳng ai hỏi quan coi lương lấy một câu, và chính vì thế quan coi lương biết được sự thể tệ tới đâu.',
   'the-feast-is-eaten-cold.ok': 'Không nhắc tới nữa',
   title: 'Thần Tốc',
   want: 'tới nơi trước khi người ta ăn mừng xong',
@@ -422,81 +454,13 @@ export const thanTocVi: StoryCatalog = {
 
 // ── Tiên Phát Chế Nhân · 1075 ───────────────────────────────────────────────
 
-export const tienPhatEn: StoryCatalog = {
-  'they-are-stacking-grain-at-the-border.chronicle': 'Three depots rose across the border in one season.',
-  'they-are-stacking-grain-at-the-border.burn-the-depots.d': 'Be the aggressor. Choose the year.',
-  'they-are-stacking-grain-at-the-border.wait-for-them.d': 'Be the battlefield. Keep the name.',
-  'the-depots-burn.chronicle': 'The depots of {kingdom} burned for eleven days.',
-  'the-depots-burn.ok': 'Recall the columns',
-  'we-made-an-enemy-and-nothing-else.chronicle': 'The border was crossed and the depots still stand.',
-  'we-made-an-enemy-and-nothing-else.ok': 'Double the border garrisons',
-  title: 'Strike First',
-  want: 'to choose the year the war happens',
-  waiting: 'For {kingdom} to be cold enough, and beaten twice.',
-  stake: 'Whether the war is fought on their ground or ours.',
-  'regard.sharpening': 'The maps of the border have stopped being maps of our side of it.',
-
-  'they-are-stacking-grain-at-the-border.title': 'They are stacking grain at the border',
-  'they-are-stacking-grain-at-the-border.body':
-    'The merchant is nervous, and not about the price. "Three depots in a season," he says. "Grain, and then arrowshafts, and then more grain than any garrison eats. They are not defending anything — you do not stack a year of food behind a wall you intend to stand on." The marshal has been quiet through all of it. When he speaks he does not argue the point: "Then the only question left is whose fields it burns in. If we go first we are the aggressor and every court in the world will say so. If we wait we are the battlefield."',
-  'they-are-stacking-grain-at-the-border.burn-the-depots': 'Cross the border and burn the depots',
-  'they-are-stacking-grain-at-the-border.wait-for-them': 'Wait. Let them be the aggressor',
-
-  'charge.strike.sworn': 'The border is crossed. {kingdom} will not forgive it, and the depots are not burned yet.',
-  'charge.strike.watching': 'Not finished. {kingdom} is not cold enough, or has not been beaten twice.',
-  'charge.strike.kept': 'The depots burn. It was the right year to have chosen.',
-  'charge.strike.broken': 'The campaign ends where it started, with a border crossed and nothing to show.',
-
-  'the-depots-burn.title': 'The depots burn',
-  'the-depots-burn.body':
-    'It takes eleven days and the smoke is visible from our own bank, which the men treat as a festival. What was in those depots was a war — the whole of it, stacked and counted and waiting for a spring that will now not come. The court of {kingdom} says a great many things about treachery, all of them true, none of them worth a season of grain.',
-
-  'we-made-an-enemy-and-nothing-else.title': 'We made an enemy and nothing else',
-  'we-made-an-enemy-and-nothing-else.body':
-    'The depots are still there. So is everything that was in them, and now so is a reason. The marshal does not say he told us; he was, after all, the one who crossed. He simply asks for the border garrisons to be doubled, and does not explain what he expects to arrive.',
-};
-
-export const tienPhatVi: StoryCatalog = {
-  'they-are-stacking-grain-at-the-border.chronicle': 'Một mùa mà bên kia biên dựng ba cái kho.',
-  'they-are-stacking-grain-at-the-border.burn-the-depots.d': 'Mang tiếng gây sự. Nhưng chọn được năm.',
-  'they-are-stacking-grain-at-the-border.wait-for-them.d': 'Giữ được tiếng. Nhưng thành bãi chiến trường.',
-  'the-depots-burn.chronicle': 'Kho lương của {kingdom} cháy mười một ngày.',
-  'the-depots-burn.ok': 'Thu quân về',
-  'we-made-an-enemy-and-nothing-else.chronicle': 'Đã vượt biên mà các kho vẫn còn nguyên.',
-  'we-made-an-enemy-and-nothing-else.ok': 'Tăng gấp đôi quân đồn biên',
-  title: 'Tiên Phát Chế Nhân',
-  want: 'tự chọn lấy cái năm mà chiến tranh xảy ra',
-  waiting: '{kingdom} đủ lạnh nhạt, và bị đánh bại hai lần.',
-  stake: 'Cuộc chiến này đánh trên đất chúng, hay trên đất ta.',
-  'regard.sharpening': 'Bản đồ biên giới thôi không còn là bản đồ phía bên ta nữa.',
-
-  'they-are-stacking-grain-at-the-border.title': 'Chúng đang chất lương ngoài biên',
-  'they-are-stacking-grain-at-the-border.body':
-    'Người lái buôn có vẻ sợ, mà không phải sợ về giá. "Một mùa dựng ba kho," ông ta nói. "Lương, rồi cán tên, rồi lương nhiều hơn bất cứ đồn nào ăn hết. Chúng không phòng thủ gì cả — không ai chất lương cả năm sau một bức tường mà mình định đứng lại giữ." Quan Thái uý im lặng suốt buổi. Đến khi lên tiếng, ông không cãi lời nào: "Vậy chỉ còn một câu hỏi: nó cháy trên ruộng của ai. Ta đi trước thì ta là kẻ gây sự, và cả thiên hạ sẽ nói đúng như thế. Ta chờ thì ta là bãi chiến trường."',
-  'they-are-stacking-grain-at-the-border.burn-the-depots': 'Vượt biên, đốt sạch các kho',
-  'they-are-stacking-grain-at-the-border.wait-for-them': 'Chờ. Để chúng mang tiếng gây sự',
-
-  'charge.strike.sworn': 'Biên giới đã vượt. {kingdom} sẽ không bỏ qua, mà kho thì chưa cháy.',
-  'charge.strike.watching': 'Chưa xong. {kingdom} chưa đủ lạnh nhạt, hoặc chưa bại đủ hai lần.',
-  'charge.strike.kept': 'Các kho cháy. Quả là đã chọn đúng năm.',
-  'charge.strike.broken': 'Cuộc chinh phạt kết thúc ngay chỗ nó bắt đầu: một biên giới đã vượt, và không được gì.',
-
-  'the-depots-burn.title': 'Các kho cháy',
-  'the-depots-burn.body':
-    'Mất mười một ngày, khói bên ta cũng trông thấy, và quân sĩ coi đó như một ngày hội. Trong mấy cái kho ấy là cả một cuộc chiến tranh — trọn vẹn, chất đống, đếm đủ, chờ một mùa xuân mà bây giờ sẽ không tới nữa. Triều đình {kingdom} nói rất nhiều về chuyện bội tín, lời nào cũng đúng cả, mà chẳng lời nào đáng bằng một mùa lương.',
-
-  'we-made-an-enemy-and-nothing-else.title': 'Ta chỉ chuốc thêm một kẻ thù',
-  'we-made-an-enemy-and-nothing-else.body':
-    'Kho vẫn còn đó. Mọi thứ trong kho cũng còn đó, và bây giờ thì có thêm một cái cớ. Quan Thái uý không nói "thần đã bảo rồi"; dù sao chính ông là người đã vượt biên. Ông chỉ xin tăng gấp đôi quân đồn biên giới, và không giải thích ông đang đợi cái gì tới.',
-};
-
-// ── Hai Bà Trưng · 40 AD ────────────────────────────────────────────────────
-
 export const haiBaEn: StoryCatalog = {
   'two-women-at-the-gate.chronicle': 'Two sisters offered a country held by agreement.',
+  'two-women-at-the-gate.scene': 'They have brought one thing between them: a length of cloth with a district\'s mark woven into the border, which the elder unrolls just far enough to show the mark and then folds again. Six districts sent it, she says, and does not say which six. The younger has not spoken since the door. She is looking at where the guards stand and how many there are, and the elder lets the silence run long enough that everyone else looks too.',
   'two-women-at-the-gate.hear-them-out.d': 'Two courts warm at once. That is the hard part.',
   'two-women-at-the-gate.send-them-home.d': 'Provinces are taken, not asked for.',
   'sixty-five-citadels-answer.chronicle': 'Sixty-five citadels answered without being asked twice.',
+  'sixty-five-citadels-answer.scene': 'A headman three days out sends his answer by his daughter, there being nobody else left to send. She puts it into a hand at a river crossing and turns straight round. What she carried was one line and a house-mark scratched onto a shard. Nobody counted the shards until much later, and by then the number had already been settled by people repeating it to each other. Her father never learned whether it arrived.',
   'sixty-five-citadels-answer.ok': 'Ride with them',
   title: 'The Trưng Sisters',
   want: 'a country that answers without being ordered',
@@ -522,9 +486,11 @@ export const haiBaEn: StoryCatalog = {
 
 export const haiBaVi: StoryCatalog = {
   'two-women-at-the-gate.chronicle': 'Hai chị em hiến kế giữ nước bằng lòng người.',
+  'two-women-at-the-gate.scene': 'Hai bà mang theo đúng một thứ: một vuông vải dệt dấu của một huyện ở mép, mà bà chị chỉ mở vừa đủ để lộ cái dấu, rồi gấp lại ngay. Sáu huyện gửi cái này, bà nói, và không nói là những huyện nào. Bà em từ lúc bước qua cửa chưa hé môi. Bà nhìn chỗ lính đứng và đếm có mấy người, còn bà chị thì để yên lặng ấy kéo dài đủ lâu cho cả phòng cùng nhìn theo.',
   'two-women-at-the-gate.hear-them-out.d': 'Hai triều cùng ấm một lúc. Chỗ khó là đấy.',
   'two-women-at-the-gate.send-them-home.d': 'Trấn thì phải lấy, chứ không đi xin.',
   'sixty-five-citadels-answer.chronicle': 'Sáu mươi lăm thành đáp lời, không cần hỏi lần hai.',
+  'sixty-five-citadels-answer.scene': 'Một già làng cách ba ngày đường sai con gái mang lời đi, vì trong nhà không còn ai để sai. Nó dúi vào tay người ta ở một bến đò rồi quay về ngay. Cái nó mang là một câu và một dấu nhà khắc lên mảnh sành. Mãi về sau mới có người đếm số mảnh sành ấy, mà tới lúc ấy thì con số đã do người ta truyền miệng định sẵn rồi. Cha nó suốt đời không biết lời ấy có tới nơi không.',
   'sixty-five-citadels-answer.ok': 'Cùng lên ngựa với hai bà',
   title: 'Hai Bà Trưng',
   want: 'một đất nước tự đáp lời, không cần ai ra lệnh',

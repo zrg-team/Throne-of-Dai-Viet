@@ -44,6 +44,7 @@ export const depthVi: Record<string, StoryCatalog> = {
 
     'reed-children.line': 'Bông lau ở Uy Viễn lại trắng đồi. Lũ trẻ vẫn bày trận, và vẫn có đứa cầm cờ.',
     'reed-children.chronicle': 'Người ta bắt đầu nhắc tới một thằng bé chăn trâu.',
+    'reed-children.scene': 'Ông thợ rèn ở Uy Viễn mất cái đe nhỏ hồi tháng trước, lục cả lò hai lượt không ra, tới hôm lên đồi mới thấy nó chèn dưới chân cây cờ bông lau cho khỏi đổ. Ông để nguyên đấy. Thằng bé cầm cờ hôm ấy vẫn nhận phe ít người hơn, như mọi hôm. Chiều xuống, đứa nào nó bảo về thì về, đứa nào nó bảo ở lại giữ đồi thì ngồi lại, tới lúc trâu tự đi tìm chủ.',
     'three-banners.body': 'Ba trấn mở cổng trong một đêm, không ai đánh nhau. Quân đồn trú ở {land} không chống cự vì quân đồn trú ở {land} chính là những người ấy — bốn mươi người vá đê năm nào, và con cháu họ. Sáng hôm sau trên mặt thành có một lá cờ làm bằng bông lau buộc vào cán tre. Tường thành ấy ngươi xây. Kho thóc ấy ngươi chất đầy.',
     'dai-co-viet.body': 'Những trấn {hero} giữ thôi cần quân đồn trú. Không phải vì chúng an toàn — vì không còn ai ở đó muốn thay đổi gì nữa.',
   },
@@ -59,6 +60,7 @@ export const depthVi: Record<string, StoryCatalog> = {
     'a-marriage-offered.body': '{rival} xin kết thân, và gửi một người con trai sang triều. Hắn không nói gì suốt buổi lễ, và khi được hỏi thì trả lời ngắn, đúng phép, bằng thứ tiếng của ta mà hắn nói sõi hơn mức một người mới học nên nói sõi. Đêm ấy hắn xin đi xem thành — vòng ngoài, vòng giữa, vòng trong, ba vòng xoáy như vỏ ốc, đi hết cả ba, chậm, như người ngắm cảnh. Lính gác kể hắn dừng lâu nhất ở chân tường phía tây, chỗ cái cửa nhỏ không ai dùng nữa. Sáng hôm sau hắn khen thành đẹp.',
     'the-gown-grows-thin.line': 'Cái áo lông ngỗng của công chúa vẫn treo trong buồng. Nếu ai đó đi đếm, thì nó đã mỏng đi.',
     'the-gown-grows-thin.chronicle': 'Áo lông ngỗng mỏng đi, và không ai đếm.',
+    'the-gown-grows-thin.scene': 'Con hầu quét buồng công chúa nhặt được ba cái lông ngỗng ở bậu cửa, tưởng gió tạt vào, đem bỏ đi. Sáng sau lại ba cái. Nó không thưa với ai, vì thưa thì hoá ra nó để ý. Công chúa vẫn ngồi bên cửa sổ như mọi hôm, tay đặt trong lòng, không làm gì cả. Cái áo treo sau lưng nàng, chỗ vai thì vẫn dày, còn chỗ gấu đã thấy được ánh sáng lọt qua.',
     'feathers-on-the-road.body': 'Dọc đường từ cửa tây ra biên giới có lông ngỗng trắng rải trên đất. Không phải rơi vãi: cách nhau đều đặn chừng một lý, mỗi chỗ một nhúm, nhúm nào cũng nằm bên phải đường theo chiều đi ra. Người báo là một thằng lính trẻ, và nó không hiểu nó vừa báo cái gì — nó chỉ thấy lạ, vì trời không có gió, mà lông thì không tự đi thẳng hàng được.',
     'the-claw-is-changed.body': 'Cái lẫy nằm trong hộp, hộp trong kho, kho có khóa, và khóa vẫn nguyên. Cái nằm trong hộp bây giờ cũng là một mảnh sừng vàng — cùng cỡ, cùng màu, mài cùng kiểu. Nó vừa khít. Nó chỉ không phải cái cũ.',
   },
@@ -88,6 +90,7 @@ export const depthVi: Record<string, StoryCatalog> = {
     waiting: 'Xem lòng dân các trấn còn đủ để trả lời không.',
     'the-elders-arrive.line': 'Các cụ tới trước khi trời sáng, đi bộ, có cụ đi ba ngày. Không ai bảo họ mặc gì, nên họ mặc áo tốt nhất của họ, và áo tốt nhất của họ là áo vá.',
     'the-elders-arrive.chronicle': 'Các bô lão về kinh, áo vá, chân đất.',
+    'the-elders-arrive.scene': 'Viên quan giữ cửa đếm được bảy mươi hai cụ rồi thôi không đếm nữa. Có cụ chống cây gậy tre mòn vẹt một bên, mòn đúng phía tay quen chống. Nhà bếp dọn nước, tới tuần thứ ba thì hết ấm, phải sang phường bên mượn. Không cụ nào hỏi triều đình định bàn chuyện gì. Các cụ đi ba ngày đường để nói một tiếng, và tiếng ấy thì đã chọn xong từ lúc còn ở nhà.',
     'they-answer.body': 'Cả sảnh đầy các cụ già từ mọi trấn. Câu hỏi đã được đặt ra — đánh, hay hoà — và bây giờ là phần của họ. Cùng một sân, cùng những con người ấy, và chỉ còn chờ một câu. Câu ấy ngươi đã viết từ mười phút trước mà không biết mình đang viết.',
   },
 
@@ -246,6 +249,7 @@ export const depthEn: Record<string, StoryCatalog> = {
 
     'reed-children.line': 'The reeds at Uy Viễn are white on the hill again. The children still lay out battles, and one of them still carries the banner.',
     'reed-children.chronicle': 'People began mentioning a herdsman’s son.',
+    'reed-children.scene': 'The smith at Uy Viễn lost a small anvil last month. He finds it up on the hill, wedged at the foot of a reed banner to keep the pole from going over. He leaves it there. The boy holding the banner has taken the smaller side again, the way he does. At dusk the ones he sends home go home, and the ones he tells to hold the hill sit down and hold it until the buffalo come looking for them.',
     'three-banners.body': 'Three provinces open their gates in one night, and nobody fights. The garrison at {land} does not resist because the garrison at {land} is those men — the forty who mended the dyke, and their sons. By morning there is a banner on the wall, reed plume bound to a bamboo pole. You built that wall. You filled that granary.',
     'dai-co-viet.body': 'The provinces {hero} holds have stopped needing garrisons. Not because they are safe — because nobody in them wants anything to change.',
   },
@@ -261,6 +265,7 @@ export const depthEn: Record<string, StoryCatalog> = {
     'a-marriage-offered.body': '{rival} offers a bond and sends a son to your court. He says nothing through the ceremony, and answers briefly, correctly, in our language — which he speaks better than a man newly taught it should. That night he asks leave to see the citadel: outer ring, middle, inner, three ramparts coiled like a snail’s shell, all three walked slowly, like a man admiring a view. The guards say he stopped longest at the small western gate nobody uses. In the morning he says the citadel is beautiful.',
     'the-gown-grows-thin.line': 'The princess’s feather gown still hangs in her room. If anyone went and counted, it has grown thin.',
     'the-gown-grows-thin.chronicle': 'The feather gown grew thin, and nobody counted.',
+    'the-gown-grows-thin.scene': 'The girl who sweeps the princess\'s room finds three goose feathers on the threshold, takes them for a draught, and throws them out. The next morning, three more. She does not mention it to anyone, because mentioning it would mean she had been watching. The princess sits at the window as she always does, hands in her lap, doing nothing at all. Behind her the gown is still thick at the shoulder. At the hem you can see light through it.',
     'feathers-on-the-road.body': 'Along the road from the western gate to the border there are white goose feathers on the ground. Not dropped: spaced a lý apart, a handful at each place, every handful to the right of the road going out. The man who reports it is a young soldier who does not understand what he has reported — he only finds it strange, because there has been no wind, and feathers do not arrange themselves in a line.',
     'the-claw-is-changed.body': 'The trigger sits in a box, the box in a store, the store has a lock, and the lock is untouched. What is in the box now is also a sliver of golden claw — same size, same colour, ground the same way. It seats perfectly. It simply is not the one that was there.',
   },
@@ -290,6 +295,7 @@ export const depthEn: Record<string, StoryCatalog> = {
     waiting: 'To see whether the provinces’ loyalty is still enough to answer with.',
     'the-elders-arrive.line': 'They come before dawn, on foot, some of them three days on the road. Nobody told them what to wear, so they wear their best, and their best is patched.',
     'the-elders-arrive.chronicle': 'The elders came to the capital, patched coats, bare feet.',
+    'the-elders-arrive.scene': 'The gate officer counts seventy-two of them and then stops counting. One carries a bamboo stick worn flat down one side only, the side his hand favours. The kitchen runs out of kettles at the third round of water and sends to the next ward to borrow. Not one of them asks what the court means to discuss. They have walked three days to say one word, and they settled on the word before they left home.',
     'they-answer.body': 'The hall is full of old men from every province. The question has been put — fight, or terms — and now it is theirs. The same courtyard, the same people, and only one line still to come. You wrote that line ten minutes ago without knowing you were writing it.',
   },
 

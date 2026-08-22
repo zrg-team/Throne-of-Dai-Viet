@@ -33,6 +33,7 @@ export const orangeVi: StoryCatalog = {
   'juice-on-his-wrist.admit-him': 'Cho cậu ta vào',
   'juice-on-his-wrist.admit-him.d': 'Đã đứng đấy từ sáng thì cho vào mà nghe.',
   'juice-on-his-wrist.chronicle': 'Ngươi đã trả lời cậu bé ở cổng Bình Than.',
+  'juice-on-his-wrist.scene': 'Quả cam là của một ông quan già cho nó, bảo cầm lấy cho đỡ sốt ruột. Nó cầm suốt một canh giờ ngoài thềm, nghe tiếng người lớn bàn bên trong, tay mỗi lúc một chặt. Đến khi lính mở cửa thì tay nó ướt tới cổ tay, trong lòng bàn tay chỉ còn vỏ với xơ. Ông quan già trông thấy, và không nói với ai một lời nào.',
 
   'sau-chu-tren-la-co.line': 'Cậu ta về nhà, và thêu sáu chữ lên một lá cờ.',
   'sau-chu-tren-la-co.scene': 'Phá cường địch, báo hoàng ân. Sáu chữ, thêu chỉ vàng, do chính mẹ cậu ta thêu — bà không hỏi để làm gì, vì bà đã biết. Gia nô trong nhà không ai được gọi, mà sáng hôm sau sân nhà đã chật.',
@@ -42,6 +43,7 @@ export const orangeVi: StoryCatalog = {
   'he-raises-his-banner.body': 'Một nghìn gia nô và thân thuộc, tự sắm khí giới, tự lo lương. Không ai gọi họ và không ai trả công họ. Đạo quân ấy có mặt trên bản đồ của ngươi từ hôm nay — và ngươi không điều được nó, không gọi nó về được, và không biết nó sẽ đi đâu.',
   'he-raises-his-banner.ok': 'Cứ để thế',
   'he-raises-his-banner.chronicle': 'Cậu ta dựng cờ riêng. Một nghìn người theo.',
+  'he-raises-his-banner.scene': 'Cờ dựng giữa sân nhà nó ở {land}: lụa vàng, sáu chữ do chính tay nó viết, nét còn non. Người thợ thêu kể là nó bắt tháo ra thêu lại một lần vì chữ thứ tư nằm lệch. Sáu trăm người đứng dưới sân đọc sáu chữ ấy, không ai hô, không ai vỗ tay. Trong sáu chữ ấy không có chữ nào là tên ngươi.',
 
   'cong-nhan-hay-khong.title': 'Công nhận hay không',
   'cong-nhan-hay-khong.body': 'Đạo quân ấy đang đi về phía bắc và không hỏi ai. Quan Binh bộ muốn biết chép nó vào sổ thế nào: cấp lương và phong chức cho cậu ta, thì nó là quân của triều đình; không cấp gì cả, thì nó là việc riêng của một nhà — và cả hai cách đều không ngăn nó lại được.',
@@ -51,6 +53,7 @@ export const orangeVi: StoryCatalog = {
   'cong-nhan-hay-khong.de-tu-lo': 'Để họ tự lo',
   'cong-nhan-hay-khong.de-tu-lo.d': 'Họ đã tự lo được đến đây rồi.',
   'cong-nhan-hay-khong.chronicle': 'Ngươi đã quyết việc lá cờ riêng ấy.',
+  'cong-nhan-hay-khong.scene': 'Viên thư lại của Binh bộ đã mở sổ ra từ sáng, để ở cột quân số các đạo, và cột ấy vẫn trống. Ông ta không dám chép mà cũng không dám gạch. Quan Binh bộ đứng sau lưng, nói rằng chép vào thì từ nay lương phải cấp, mà bỏ trắng thì mai kia có việc gì, không ai gọi được nó về bằng giấy tờ nào cả.',
 
   'quan-cua-cau-ta-duoc-cap-luong.line': 'Quân của cậu ta có tên trong sổ, và có gạo.',
   'quan-cua-cau-ta-duoc-cap-luong.scene': 'Viên thư lại đi theo để ghi chép thì về thưa rằng họ nhận gạo nhưng không nhận lệnh, rất lễ phép, và rằng cậu ta gọi ông ta là thầy rồi vẫn làm theo ý mình. Sổ vẫn ghi. Lệnh vẫn không tới nơi.',
@@ -72,16 +75,19 @@ export const orangeVi: StoryCatalog = {
   'ham-tu-quan.goi-cau-ta-ve': 'Gọi cậu ta về hậu quân',
   'ham-tu-quan.goi-cau-ta-ve.d': 'Một mệnh lệnh, lần này bằng ấn của ta.',
   'ham-tu-quan.chronicle': 'Ngươi đã quyết chỗ đứng của cậu ta ở Hàm Tử.',
+  'ham-tu-quan.scene': 'Trên bàn cát, cánh phải là một hàng thẻ tre, và thẻ của cậu ta thì Quan Thái úy đã dựng đứng lên cho dễ nhìn — cả bàn chỉ có một thẻ dựng. Cậu ta đợi ngoài trướng, không vào. Người của cậu ta đã ăn cơm chiều từ lúc chưa tối, sớm hơn cả quân, và ăn xong thì ngồi quay mặt về phía sông.',
 
   'the-banner-falls.title': 'Lá cờ đổ',
   'the-banner-falls.body': 'Lá cờ sáu chữ vào trước và không ra. Người ta tìm được cậu ta ở chỗ xa nhất mà cánh quân ấy tới được, và mang về theo đường sông. Cậu ta mười sáu tuổi. Sử chép trận Hàm Tử, chép lá cờ, chép sáu chữ — chỗ này thì sử không chép, và cái ngươi vừa đọc là người đời sau kể lại.',
   'the-banner-falls.ok': 'Chép lấy sáu chữ ấy',
   'the-banner-falls.chronicle': 'Lá cờ sáu chữ vào trước và không ra.',
+  'the-banner-falls.scene': 'Về được ba mươi mấy người, trong đó có ông thợ thêu, tay trái băng bằng chính mảnh lụa vàng cắt ra từ lá cờ. Ông không kể trận đánh. Ông chỉ nói cái cán cờ cắm sâu quá, tới lúc muốn nhổ lên mà chạy thì không nhổ nổi, mà cũng chẳng ai bảo nhổ. Sáu chữ ấy giờ còn năm.',
 
   'cau-ta-song.title': 'Cậu ta sống',
   'cau-ta-song.body': 'Cậu ta nhận lệnh về hậu quân, và giận suốt một tháng. Trận Hàm Tử thắng mà không có cậu ta ở hàng đầu. Sử không chép cậu ta chết ở đâu — nên cậu ta còn sống không phải là trái sử, chỉ là sử không nói tới nữa. Bây giờ cậu ta mười bảy, có tiếng khắp nước, và chưa có việc gì.',
   'cau-ta-song.ok': 'Vậy thì tính tiếp',
   'cau-ta-song.chronicle': 'Cậu ta còn sống, và sử thôi nhắc tới cậu ta.',
+  'cau-ta-song.scene': 'Lá cờ ấy bây giờ cuộn lại gác trên xà nhà ngang. Mỗi năm đến giỗ họ hạ xuống phơi một buổi rồi lại cất lên chỗ cũ. Một nghìn người kia đã về ruộng cả, và vẫn để dành khí giới, không ai bảo ai. Cậu ta thì sáng nào cũng dậy sớm như hồi còn quân, mặc áo xong rồi ngồi đấy, vì không có chỗ nào phải đến.',
 
   'mot-nguoi-song-sot-thi-lam-gi.title': 'Một người còn sống thì làm gì',
   'mot-nguoi-song-sot-thi-lam-gi.body': 'Cậu ta mười bảy tuổi, có một nghìn người theo, và cả nước biết tên. Giao biên ải thì cậu ta có chỗ dùng và ở xa kinh thành. Cho về quê thì cậu ta yên, và cái tên ấy nguội dần đi. Quan Thái úy không giấu rằng ông ta thích cách thứ nhất, và cũng không giấu vì sao ông ta không dám nói to.',
@@ -91,6 +97,7 @@ export const orangeVi: StoryCatalog = {
   'mot-nguoi-song-sot-thi-lam-gi.cho-ve-que': 'Cho cậu ta về quê',
   'mot-nguoi-song-sot-thi-lam-gi.cho-ve-que.d': 'Đã đủ rồi. Để cậu ta lớn nốt.',
   'mot-nguoi-song-sot-thi-lam-gi.chronicle': 'Ngươi đã quyết chỗ của cậu ta sau trận.',
+  'mot-nguoi-song-sot-thi-lam-gi.scene': 'Quan Thái úy viết tờ trình xong thì không đóng dấu, để đấy, rồi lấy tay che nửa dưới mà đọc lại. Trong sảnh còn ba người, và một trong ba người ấy hôm trước đã nói hộ cậu ta ở buổi chầu. Ngoài sân, hai người lính của cậu ta đứng đợi ông ta ra, đứng từ giờ Thìn, không xin gặp, chỉ đứng.',
 
   'tran-bien-mot-doi.line': 'Cậu ta giữ biên ải ấy đến hết đời.',
   'tran-bien-mot-doi.scene': 'Không có trận nào lớn ở đấy nữa, mà cũng không cần — người bên kia biết ai đang giữ. Cậu ta không bao giờ về kinh quá mười ngày. Lá cờ sáu chữ vẫn treo, đã bạc màu, và mỗi năm mẹ cậu ta thêu lại một lần.',
@@ -112,6 +119,7 @@ export const orangeVi: StoryCatalog = {
   'lam-gi-voi-cau-ta.giu-ben-canh': 'Giữ bên cạnh ta',
   'lam-gi-voi-cau-ta.giu-ben-canh.d': 'Nhìn trước, làm sau.',
   'lam-gi-voi-cau-ta.chronicle': 'Ngươi đã quyết việc của cậu ta trong hội nghị.',
+  'lam-gi-voi-cau-ta.scene': 'Chiếu trải trong hội nghị đủ số, không thừa cái nào, và cậu ta thì đứng ở khoảng trống giữa hàng chiếu với vách. Quan Lễ bộ đã hai lần sai người lấy thêm một cái chiếu, cả hai lần đều bị chặn lại ở cửa, và không phải chặn bằng lệnh — chỉ là người cầm chiếu đến cửa thì tự dừng, rồi mang về.',
 
   'cau-xin-tien-phong.title': 'Cậu ta xin đi tiên phong',
   'cau-xin-tien-phong.body': 'Cánh quân của cậu ta đã ra tới nơi và cậu ta xin đi đầu. Đấy là chỗ nguy nhất và cậu ta biết. Cậu ta lập luận rất gọn: quân của cậu ta là người nhà cậu ta, họ theo cậu ta chứ không theo cái chức, nên nếu cậu ta đứng sau thì họ cũng không tiến được.',
@@ -121,6 +129,7 @@ export const orangeVi: StoryCatalog = {
   'cau-xin-tien-phong.giu-lai': 'Giữ lại hàng sau',
   'cau-xin-tien-phong.giu-lai.d': 'Mười lăm tuổi thì chưa đi đầu được.',
   'cau-xin-tien-phong.chronicle': 'Ngươi đã quyết chỗ đứng của cậu ta.',
+  'cau-xin-tien-phong.scene': 'Ba ông già trong đám gia nô sang trướng hỏi thăm, mang theo một vò rượu, và ngồi rất lâu mới nói ra việc: nếu đặt cậu ta ở giữa thì hàng đầu là con cháu họ, mà con cháu họ đi theo vì cậu ta chứ không vì cái ấn nào. Nói xong họ để vò rượu lại đấy, không ai uống ngụm nào.',
 
   'tuong-tre-lon-len.line': 'Cậu ta lớn lên thành tướng, và vẫn là người xin đi đầu.',
   'tuong-tre-lon-len.scene': 'Ba năm sau thì không ai nhắc tuổi cậu ta nữa. Cậu ta đánh cẩn thận hơn hồi mười lăm, mà vẫn ở hàng đầu, và lính cũ trong cánh quân ấy chưa ai bỏ đi. Lá cờ sáu chữ vẫn dùng — cậu ta bảo thay thì phí, chữ vẫn còn đọc được.',
@@ -130,6 +139,7 @@ export const orangeVi: StoryCatalog = {
   'mat-o-tien-phong-that.body': 'Cậu ta đi đầu và trận ấy thắng. Cậu ta thì không về. Lính của cậu ta mang cậu ta về, đi bộ, suốt bốn ngày, và không ai trong bọn họ chịu lên xe. Triều đình truy phong rất hậu. Không có cái nào trong số ấy là thứ họ muốn.',
   'mat-o-tien-phong-that.ok': 'Truy phong theo lễ',
   'mat-o-tien-phong-that.chronicle': 'Cậu ta đi đầu, và không về.',
+  'mat-o-tien-phong-that.scene': 'Sắc truy phong đến ấp vào tháng sau, hai đạo, cuốn trong ống sơn son, và người nhà nhận rồi để lên bàn thờ chưa mở ra. Cái mà lính của cậu ta xin thì không có trong đó: họ xin được chôn cậu ta ở chỗ trông ra con đường đi Hàm Tử. Việc ấy không ai phải cho phép, nên họ tự làm lấy từ hôm về.',
 
   'trieu-dinh-cuoi-cau-ta.line': 'Trong sảnh có người cười khi cậu ta đứng dậy.',
   'trieu-dinh-cuoi-cau-ta.scene': 'Không ai cười to. Nhưng cậu ta nghe thấy, và cậu ta ngồi xuống, và từ hôm ấy cậu ta không đứng dậy nữa. Cậu ta vẫn tới đủ mọi buổi, vẫn ghi chép, vẫn thưa khi được hỏi. Quan Thái úy có nói với ngươi một câu về việc này, rất khẽ, rồi thôi không nhắc lại.',
@@ -143,6 +153,7 @@ export const orangeVi: StoryCatalog = {
   'ao-tia-hay-la-co.de-cau-ta-doi': 'Để cậu ta đợi',
   'ao-tia-hay-la-co.de-cau-ta-doi.d': 'Còn sớm. Còn nhiều mùa nữa.',
   'ao-tia-hay-la-co.chronicle': 'Ngươi đã quyết việc cái ghế của cậu ta.',
+  'ao-tia-hay-la-co.scene': 'Ty may đo áo tía trước cả khi có lệnh, đo lén, lấy cớ sửa áo cũ — họ đo vì nếu chờ có lệnh mới đo thì không kịp lễ. Số đo chép vào một mảnh giấy để trong ngăn kéo, cạnh số đo áo của những người đã mặc áo tía trước cậu ta, ai cũng hơn cậu ta ít nhất hai mươi tuổi.',
 
   'mac-ao-tia-that.line': 'Cậu ta mặc áo tía, và không bao giờ cầm quân nữa.',
   'mac-ao-tia-that.scene': 'Cậu ta làm việc giỏi, kỹ, và không ai chê được. Lá cờ sáu chữ thì cất trong rương. Có lần quan Thái úy hỏi sao không treo, cậu ta thưa rằng treo ở đây thì không đúng chỗ — rồi thôi, và hai người không nói thêm gì nữa.',
@@ -198,6 +209,7 @@ export const orangeEn: StoryCatalog = {
   'juice-on-his-wrist.admit-him': 'Let him in',
   'juice-on-his-wrist.admit-him.d': 'He has stood there since morning. Let him listen.',
   'juice-on-his-wrist.chronicle': 'You answered the boy at the Bình Than gate.',
+  'juice-on-his-wrist.scene': 'The orange was given to him by an old official, to hold, to stop him fidgeting. He holds it for an hour on the step, listening to the men talking inside, his hand closing tighter. When the guards open the doors his hand is wet to the wrist and there is nothing in his palm but peel and pith. The old official sees it, and says nothing to anybody.',
 
   'sau-chu-tren-la-co.line': 'He went home and had six characters embroidered on a banner.',
   'sau-chu-tren-la-co.scene': 'Phá cường địch, báo hoàng ân — destroy the strong foe, repay the imperial favour. Six characters in gold thread, sewn by his own mother, who did not ask what it was for because she already knew. Nobody summoned the household; by the next morning the yard was full.',
@@ -207,6 +219,7 @@ export const orangeEn: StoryCatalog = {
   'he-raises-his-banner.body': 'A thousand retainers and kinsmen, armed at their own cost, fed at their own cost. Nobody called them and nobody pays them. That host is on your map from today — and you cannot direct it, cannot recall it, and do not know where it is going.',
   'he-raises-his-banner.ok': 'Leave it be',
   'he-raises-his-banner.chronicle': 'He raised his own banner. A thousand followed.',
+  'he-raises-his-banner.scene': 'The banner goes up in the yard of his house at {land}: yellow silk, six characters in his own hand, the strokes still a boy\'s. The embroiderer says he made her unpick it and do it again because the fourth character sat crooked. Six hundred men stand in the yard and read the six characters, and nobody cheers and nobody claps. Your name is not one of them.',
 
   'cong-nhan-hay-khong.title': 'Recognise It or Not',
   'cong-nhan-hay-khong.body': 'That host is moving north and asking nobody. The Minister of War wants to know how to enter it in the books: rations and a commission make it the throne’s army; nothing at all makes it one family’s private business — and neither one stops it.',
@@ -216,6 +229,7 @@ export const orangeEn: StoryCatalog = {
   'cong-nhan-hay-khong.de-tu-lo': 'Let them provide for themselves',
   'cong-nhan-hay-khong.de-tu-lo.d': 'They have managed this far.',
   'cong-nhan-hay-khong.chronicle': 'You decided the matter of the private banner.',
+  'cong-nhan-hay-khong.scene': 'The clerk of the Ministry of War opened the register at dawn to the column for field armies, and the column is still blank. He will not write it in and will not rule it out. The Minister stands behind him: enter it and rations must be issued from today; leave it white and there is no piece of paper in the country that can call that host back.',
 
   'quan-cua-cau-ta-duoc-cap-luong.line': 'His men are on the rolls now, and drawing rice.',
   'quan-cua-cau-ta-duoc-cap-luong.scene': 'The clerk sent to keep their books reports that they accept the rice and do not accept orders, very politely, and that the boy calls him teacher and then does as he likes. The books are kept. The orders do not arrive anywhere.',
@@ -237,16 +251,19 @@ export const orangeEn: StoryCatalog = {
   'ham-tu-quan.goi-cau-ta-ve': 'Order him to the rear',
   'ham-tu-quan.goi-cau-ta-ve.d': 'One order, this time under our seal.',
   'ham-tu-quan.chronicle': 'You decided where he would stand at Hàm Tử.',
+  'ham-tu-quan.scene': 'On the sand table the right wing is a row of bamboo tallies, and the Marshal has stood one of them upright so it can be found — the only upright tally on the board. The boy waits outside the tent and does not come in. His men ate the evening rice before the light went, earlier than the army, and afterwards sat facing the river.',
 
   'the-banner-falls.title': 'The Banner Falls',
   'the-banner-falls.body': 'The six-character banner went in first and did not come out. They found him at the furthest point that wing reached and brought him back by river. He was sixteen. The annals record the battle, the banner and the six characters; they do not record this part, and what you have just read is what later generations said.',
   'the-banner-falls.ok': 'Record the six characters',
   'the-banner-falls.chronicle': 'The banner went in first and did not come out.',
+  'the-banner-falls.scene': 'Thirty-odd came back, the embroiderer among them, his left hand bound up in a strip of the yellow silk cut from the banner. He will not describe the fighting. He only says the staff had been driven in too deep, that when it was time to pull it up and run it would not come, and that nobody told anyone to pull it up. There are five characters left of the six.',
 
   'cau-ta-song.title': 'He Lives',
   'cau-ta-song.body': 'He took the order to the rear, and was angry for a month. Hàm Tử was won without him in the front rank. The annals do not say where he died — so his being alive does not contradict them, it is only something they stop mentioning. He is seventeen now, known everywhere, and has nothing to do.',
   'cau-ta-song.ok': 'Then there is more to settle',
   'cau-ta-song.chronicle': 'He lived, and the annals stopped mentioning him.',
+  'cau-ta-song.scene': 'The banner is rolled up in the crossbeam of the side house now. Once a year at the ancestral rites they take it down, air it for an afternoon and put it back in the same place. The thousand have all gone back to their fields and have all kept their weapons, without anyone agreeing to it. He still wakes at the hour he woke on campaign, dresses, and then sits, because there is nowhere he has to be.',
 
   'mot-nguoi-song-sot-thi-lam-gi.title': 'What to Do With a Survivor',
   'mot-nguoi-song-sot-thi-lam-gi.body': 'He is seventeen, a thousand people follow him, and the whole country knows his name. Give him a frontier and he is useful and far from the capital. Send him home and he is quiet, and the name cools. The Marshal does not hide which he prefers, and does not hide why he will not say it loudly.',
@@ -256,6 +273,7 @@ export const orangeEn: StoryCatalog = {
   'mot-nguoi-song-sot-thi-lam-gi.cho-ve-que': 'Send him home',
   'mot-nguoi-song-sot-thi-lam-gi.cho-ve-que.d': 'That is enough. Let him finish growing up.',
   'mot-nguoi-song-sot-thi-lam-gi.chronicle': 'You decided where he would go after the battle.',
+  'mot-nguoi-song-sot-thi-lam-gi.scene': 'The Marshal finished the memorial and did not seal it. He left it on the desk, then read it again with his hand covering the lower half. Three men are in the hall and one of them spoke for the boy at the audience two days ago. In the courtyard two of the boy\'s soldiers have been waiting for the Marshal to come out since the hour of the dragon. They have asked for nothing.',
 
   'tran-bien-mot-doi.line': 'He held that frontier for the rest of his life.',
   'tran-bien-mot-doi.scene': 'There was never another large battle there, and there did not need to be — the other side knew who was holding it. He never stayed more than ten days in the capital. The six-character banner still flew, faded now, and his mother re-embroidered it once a year.',
@@ -277,6 +295,7 @@ export const orangeEn: StoryCatalog = {
   'lam-gi-voi-cau-ta.giu-ben-canh': 'Keep him at your side',
   'lam-gi-voi-cau-ta.giu-ben-canh.d': 'Watch first, act later.',
   'lam-gi-voi-cau-ta.chronicle': 'You decided his place in the council.',
+  'lam-gi-voi-cau-ta.scene': 'The mats in the council hall were counted out exactly, none spare, and he stands in the gap between the last mat and the wall. The Minister of Rites has twice sent a servant for another mat and both times the man was stopped at the door — not by an order. He simply got as far as the doorway, stopped on his own, and carried it back.',
 
   'cau-xin-tien-phong.title': 'He Asks for the Vanguard',
   'cau-xin-tien-phong.body': 'His wing is in the field and he asks for the front. It is the most dangerous place and he knows it. His argument is short: his men are his household, they follow him and not the commission, so if he stands behind them they will not advance either.',
@@ -286,6 +305,7 @@ export const orangeEn: StoryCatalog = {
   'cau-xin-tien-phong.giu-lai': 'Keep him in the second rank',
   'cau-xin-tien-phong.giu-lai.d': 'Fifteen is too young for the front.',
   'cau-xin-tien-phong.chronicle': 'You decided where he would stand.',
+  'cau-xin-tien-phong.scene': 'Three old men out of the retinue came to the tent to pay respects, brought a jar of wine, and sat a long while before they got to it: if he is put in the middle, the front rank is their grandsons, and their grandsons came for him and not for any commission. Then they left the jar behind. Nobody had drunk any of it.',
 
   'tuong-tre-lon-len.line': 'He grew into a commander, and still asks for the front.',
   'tuong-tre-lon-len.scene': 'Three years on nobody mentions his age. He fights more carefully than he did at fifteen and is still in the front rank, and not one of the old hands in that wing has left. The six-character banner is still in use — he says replacing it would be waste, the characters are perfectly legible.',
@@ -295,6 +315,7 @@ export const orangeEn: StoryCatalog = {
   'mat-o-tien-phong-that.body': 'He led and the battle was won. He did not come back. His men carried him home on foot over four days and not one of them would ride. The court granted him every posthumous honour available. None of them was the thing his men wanted.',
   'mat-o-tien-phong-that.ok': 'Grant the honours',
   'mat-o-tien-phong-that.chronicle': 'He led from the front, and did not return.',
+  'mat-o-tien-phong-that.scene': 'The patents of posthumous honour reached the estate the following month, two of them, in lacquered tubes, and the household set them on the altar without opening them. What his soldiers asked for is in neither: they asked to bury him where the grave looks out on the road to Hàm Tử. Nobody\'s permission was needed for that, so they had done it the day they got home.',
 
   'trieu-dinh-cuoi-cau-ta.line': 'Someone in the hall laughed when he stood up.',
   'trieu-dinh-cuoi-cau-ta.scene': 'Nobody laughed loudly. But he heard it, and he sat down, and from that day he did not stand up again. He still attends everything, still takes notes, still answers when asked. The Marshal said one thing to you about it, very quietly, and never raised it again.',
@@ -308,6 +329,7 @@ export const orangeEn: StoryCatalog = {
   'ao-tia-hay-la-co.de-cau-ta-doi': 'Let him wait',
   'ao-tia-hay-la-co.de-cau-ta-doi.d': 'It is early. There are other seasons.',
   'ao-tia-hay-la-co.chronicle': 'You decided the matter of his seat.',
+  'ao-tia-hay-la-co.scene': 'The tailors measured him for the purple robe before any order was given — quietly, on the pretext of taking in an old coat — because if they waited for the order there would not be time before the rite. The measurements went on a slip in the drawer beside the measurements of every man who has worn purple before him. All of them were at least twenty years older.',
 
   'mac-ao-tia-that.line': 'He wears the purple robe, and never commands again.',
   'mac-ao-tia-that.scene': 'He is good at it, meticulous, and nobody can fault him. The six-character banner is in a chest. The Marshal asked once why it was not hung up, and he said it would not be the right place for it — and that was the end of it, and neither of them raised it again.',

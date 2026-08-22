@@ -40,6 +40,7 @@ export const thanhGiongVi: StoryCatalog = {
   'loi-keu-goi.ta-co-quan-roi': 'Ta đã có quân',
   'loi-keu-goi.ta-co-quan-roi.d': 'Có bấy nhiêu thì đánh bấy nhiêu.',
   'loi-keu-goi.chronicle': 'Ngươi đã quyết cách gọi người cứu nước.',
+  'loi-keu-goi.scene': 'Sứ giả đã đứng sẵn ngoài sân từ sáng, sáu người, mỗi người một cái mõ và một con ngựa xấu. Quan Lễ bộ sai đem sổ đời tiên đế ra: lần ấy đi hết bốn tháng, tiêu hết ba trăm quan, và ở cuối sổ có một dòng chép người tìm được — một ông thầy cúng ở mạn ngược, sau đó không thấy chép gì thêm.',
 
   // ── su-gia ────────────────────────────────────────────────────────────────
   'a-child-who-has-never-spoken.line': 'Ở {land} có đứa bé lên ba chưa từng nói. Hôm qua nó nói.',
@@ -60,6 +61,7 @@ export const thanhGiongVi: StoryCatalog = {
   'he-asked-for-an-iron-horse.dua-ve-trieu': 'Đưa nó về triều',
   'he-asked-for-an-iron-horse.dua-ve-trieu.d': 'Nó là cái gì thì ở đây cũng an toàn hơn.',
   'he-asked-for-an-iron-horse.chronicle': 'Ngươi đã trả lời đứa bé ở {land}.',
+  'he-asked-for-an-iron-horse.scene': 'Ông thợ cả ở {land} đã tính ra rồi: ngựa sắt ấy ăn hết số sắt của cả tổng, kể cả lưỡi cày đang cắm ngoài ruộng. Ông ta không nói là không làm được. Ông ta hỏi mỗi một câu, hỏi hai lần, rằng đứa bé ấy có nói ngựa cao bao nhiêu không — vì đúc hụt một lần thì không còn sắt để đúc lại.',
 
   // ── ren-sat ───────────────────────────────────────────────────────────────
   'he-eats-everything-the-village-has.line': 'Nó ăn hết phần cơm của cả nhà, rồi cả xóm nấu thêm.',
@@ -85,6 +87,7 @@ export const thanhGiongVi: StoryCatalog = {
   'ngua-sat-da-xong.body': 'Lò rèn tắt lửa đêm qua. Ngựa sắt dựng ở sân đình {land}, roi sắt dựng bên cạnh, và giặc thì đã tới chỗ có thể nhìn thấy khói. Bây giờ chỉ còn một câu hỏi, và câu trả lời không nằm ở triều đình nữa: nó đã đủ lớn hay chưa.',
   'ngua-sat-da-xong.ok': 'Ra xem',
   'ngua-sat-da-xong.chronicle': 'Ngựa sắt xong, và giặc đã tới.',
+  'ngua-sat-da-xong.scene': 'Trong ba hôm rèn, làng nấu cơm cho nó bằng bảy nong một bữa, và đến hôm qua thì bảy nong không đủ nữa. Mẹ nó ngồi ở cửa, không vào sân đình xem ngựa. Bà đã vá xong cái áo cũ của nó từ tuần trước, vá rất kỹ, và cái áo ấy bây giờ nó không mặc vừa nữa, nên vẫn gấp để đấy.',
 
   // ── ra-tran ───────────────────────────────────────────────────────────────
   'nguoi-lang-dung-ben-duong.line': 'Người làng đứng hai bên đường, không ai nói gì.',
@@ -96,16 +99,19 @@ export const thanhGiongVi: StoryCatalog = {
   'he-rides.ok': 'Chép lại việc này',
   'he-rides.toast': '{count} quân theo ngài ra khỏi {land}.',
   'he-rides.chronicle': 'Ngài ra trận. Roi sắt gãy, ngài nhổ tre mà đánh.',
+  'he-rides.scene': 'Người ở đê nhìn xuống thì không theo kịp bằng mắt, chỉ thấy chỗ nào bụi bốc lên thì chỗ ấy là ngài. Nửa cây roi sắt gãy văng xuống ruộng, cắm đứng, còn nóng, và đám trẻ con ra xem thì bị người lớn lôi về. Đến chiều nó vẫn cắm ở đấy. Không ai dám nhổ, và cũng không ai dám cấy quanh chỗ ấy.',
 
   'soc-son-khong-xuong-nua.title': 'Sóc Sơn',
   'soc-son-khong-xuong-nua.body': 'Xong việc vào buổi chiều. Ngài không xuống bằng con đường đã đi lên: ngài phóng lên đỉnh Sóc Sơn, cởi áo giáp đặt lại trên phiến đá, rồi từ đó bay lên. Vết chân ngựa dọc đường ruộng đọng nước, các làng đã gọi đó là ao. Bụi tre khúc ấy mọc lại vàng, và vàng cho tới bây giờ.',
   'soc-son-khong-xuong-nua.ok': 'Dựng đền dưới chân núi',
   'soc-son-khong-xuong-nua.chronicle': 'Ngài lên núi và không xuống nữa.',
+  'soc-son-khong-xuong-nua.scene': 'Người đi lấy củi lên Sóc Sơn hôm sau thấy bộ giáp còn nguyên trên phiến đá, xếp ngay ngắn, và trong lòng giáp còn ấm hơn đá. Ông ta không đụng vào. Ông ta xuống núi, kể cho làng, rồi lên lại lần nữa vào chiều hôm ấy để xem có ai lấy mất chưa. Không ai lấy. Bây giờ vẫn không ai lấy.',
 
   'nga-ngua-con-ngua-ve-mot-minh.title': 'Con ngựa về một mình',
   'nga-ngua-con-ngua-ve-mot-minh.body': 'Ngựa sắt về tới đầu làng lúc gần tối, không có ai trên lưng. Nó đứng ở sân đình đúng chỗ nó đã dựng, và người ta để nguyên đó. Không ai đi tìm. Chỗ ngài ngã, ruộng vẫn cấy được, và mấy năm sau người ta vẫn cấy.',
   'nga-ngua-con-ngua-ve-mot-minh.ok': 'Chép lại',
   'nga-ngua-con-ngua-ve-mot-minh.chronicle': 'Ngài không về. Con ngựa về một mình.',
+  'nga-ngua-con-ngua-ve-mot-minh.scene': 'Mấy hôm đầu còn có người ra sờ vào con ngựa xem nó nguội hẳn chưa. Sau thì thôi. Mưa xuống, sắt hoen dần, và lũ trẻ trèo lên lưng nó ngồi, không ai mắng. Mẹ nó vẫn dọn cơm hai bát đến hết mùa ấy, dọn rồi ăn một bát, và trong nhà không ai nói gì về bát kia.',
 
   'the-village-forgets-him.line': 'Đứa bé ở {land} thôi nói. Người ta cũng thôi nhắc.',
   'the-village-forgets-him.scene': 'Áo giáp treo trong kho thóc, đã hoen. Ngựa sắt người ta kéo ra góc sân rồi trồng bí lên. Bà mẹ vẫn ở đấy, vẫn không ai hỏi bà cả. Cái làng ấy về sau không thích khách lạ, và không nói vì sao.',
@@ -130,6 +136,7 @@ export const thanhGiongVi: StoryCatalog = {
   'lam-gi-voi-mot-nguoi-khong-lo.nau-chuong-chua': 'Nấu chuông chùa',
   'lam-gi-voi-mot-nguoi-khong-lo.nau-chuong-chua.d': 'Đồng thì không phải sắt, nhưng đồng thì có sẵn.',
   'lam-gi-voi-mot-nguoi-khong-lo.chronicle': 'Ngươi đã quyết việc của người khổng lồ ở {land}.',
+  'lam-gi-voi-mot-nguoi-khong-lo.scene': 'Ông trưởng làng {land} mang theo ra kinh một cái đấu đong thóc, và đặt xuống giữa sảnh. Ông ta không nói cái đấu ấy để làm gì mãi đến lúc sắp về: mỗi bữa nó ăn hết chín đấu, một ngày hai bữa, và vụ này {land} gặt được ít hơn vụ trước. Ông ta xin phép mang cái đấu về, vì làng chỉ có một cái.',
 
   'roi-sat-khong-co-thi-lay-gi.line': 'Nó ra vườn tre, ngắm nghía một lúc lâu.',
   'roi-sat-khong-co-thi-lay-gi.scene': 'Nó thử mấy bụi, bụi nào cũng bẻ gãy trong tay. Cuối cùng nó chọn bụi già nhất ở bờ ao, thứ tre đằng ngà mà người làng vẫn để dành đan thúng, và nhổ thử cả gốc lên xem có được không. Được. Nó đặt xuống, cẩn thận, rồi về ăn cơm.',
@@ -143,16 +150,19 @@ export const thanhGiongVi: StoryCatalog = {
   'ra-di-tay-khong.giu-lai-da': 'Giữ lại đã',
   'ra-di-tay-khong.giu-lai-da.d': 'Chưa phải lúc, và chưa có gì trong tay.',
   'ra-di-tay-khong.chronicle': 'Ngươi đã trả lời việc nó đòi ra trận.',
+  'ra-di-tay-khong.scene': 'Nó đứng chỗ cây gạo đầu làng, và đứng lâu đến nỗi chân lún xuống đất ướt, hai vệt sâu bằng nửa gang. Có bà mang ra cho nó nắm cơm, đặt xuống cạnh chân nó rồi về, không nói gì. Nắm cơm để đến trưa vẫn còn đấy. Cả làng đi qua đi lại phía sau lưng nó, và không ai đi vòng ra phía trước để nhìn mặt.',
 
   'nhung-cay-tre-dang-nga.title': 'Những cây tre đằng ngà',
   'nhung-cay-tre-dang-nga.body': 'Nó đánh bằng cả bụi tre, cầm ở gốc, và đánh như người ta phát bờ. Không có áo giáp nên nó bị thương ngay từ đầu và không để ý. Đến chiều thì đường cái không còn ai đứng nữa. Bụi tre ấy về sau mọc lại vàng, và không ai biết vì sao — vì lần này không có lửa.',
   'nhung-cay-tre-dang-nga.ok': 'Chép lại tên cái bụi tre ấy',
   'nhung-cay-tre-dang-nga.chronicle': 'Nó thắng bằng tre, không bằng sắt.',
+  'nhung-cay-tre-dang-nga.scene': 'Chỗ bụi tre bị nhổ để lại một cái hố bằng nửa gian nhà, và mấy hôm sau trâu sa xuống đấy một con, phải bốn người lôi lên. Nó về đến làng thì đứng ở sân cho người ta rửa vết, đứng suốt, vì không có chỗ nào trong làng nó nằm xuống được. Người rửa vết là bà cụ vẫn vá áo cho nó, và bà không đếm.',
 
   'nga-xuong-ruong.title': 'Ngã xuống ruộng',
   'nga-xuong-ruong.body': 'Không có giáp thì không đi được xa. Nó ngã ở khúc ruộng trũng dưới chân đê, và nước khép lại trên chỗ ấy trong một mùa. Người làng không đắp mộ. Họ để nguyên khúc ruộng đó không cấy, và cũng không nói vì sao không cấy.',
   'nga-xuong-ruong.ok': 'Để yên khúc ruộng ấy',
   'nga-xuong-ruong.chronicle': 'Nó ngã ở ruộng, tay không.',
+  'nga-xuong-ruong.scene': 'Khúc ruộng ấy nước đọng quanh năm, và cỏ mọc khác cỏ chỗ khác — cao hơn, xanh hơn. Nhà có ruộng liền bên vẫn cấy sát đến bờ rồi dừng. Đứa con trai nhà ấy có lần hỏi bố tại sao không cấy nốt, hỏi lúc đang lội, và ông bố bảo nó lên bờ đi rồi hẵng hỏi. Nó lên bờ. Ông bố không trả lời.',
 
   'no-an-het-ca-huyen.line': 'Giữ nó ở làng thì cả huyện phải nuôi.',
   'no-an-het-ca-huyen.scene': 'Ba xã chia nhau mỗi xã mười ngày. Đến lượt xã nào thì xã ấy nấu từ gà gáy, và không xã nào từ chối, và cả ba xã đều đã tính xem cái này kéo dài được bao lâu. Nó biết. Nó ăn ít đi, rồi lại lớn thêm, rồi lại ăn như cũ.',
@@ -166,11 +176,13 @@ export const thanhGiongVi: StoryCatalog = {
   'giu-hay-tha.de-no-di': 'Để nó đi',
   'giu-hay-tha.de-no-di.d': 'Nó muốn đi từ lâu rồi.',
   'giu-hay-tha.chronicle': 'Ngươi đã quyết việc nuôi nó.',
+  'giu-hay-tha.scene': 'Ba xã chia nhau nuôi nó theo phiên, chép bằng vạch than lên cái cột đình {land}, và cái cột ấy bây giờ đen kín từ dưới lên tới ngang vai. Đến phiên xã dưới thì đong thiếu hai đấu, không ai nói ra, và hai xã kia bù vào. Bù xong thì cả ba xã cùng im, vì ai cũng biết tháng sau đến lượt mình thiếu.',
 
   'nguoi-khong-lo-o-lai.title': 'Người khổng lồ ở lại',
   'nguoi-khong-lo-o-lai.body': 'Nó ở lại. Nó đắp đê, kéo gỗ, dựng lại cái cầu đá mà ba đời không ai dựng nổi, và ăn bằng một xã. Người ta kéo tới xem, rồi kéo tới ở, và {land} đông lên trông thấy. Triều đình thì không bao giờ biết phải xếp nó vào sổ nào.',
   'nguoi-khong-lo-o-lai.ok': 'Cứ để như thế',
   'nguoi-khong-lo-o-lai.chronicle': 'Nó ở lại {land}, và {land} đông lên.',
+  'nguoi-khong-lo-o-lai.scene': 'Hòn đá giữa cầu là hòn mà ba đời trước kéo đến nửa đường thì bỏ, còn nằm ở vệ sông, cỏ mọc trùm. Nó vác một mình, đi bốn lượt nghỉ. Bây giờ chợ họp trên cầu ấy, và người bán hàng ngồi đúng chỗ có vết tay. Có người đến {land} ở hẳn, chỉ nói là ở đây làm ăn được, không nói vì sao thấy yên tâm.',
 
   'mot-dem-no-di.line': 'Một đêm nó đi, không ai thấy nó đi lối nào.',
   'mot-dem-no-di.scene': 'Cái mái lá vẫn còn, cơm nguội vẫn đậy trong thúng. Nó không lấy gì cả. Người ta đồn nó lên núi, có người đồn nó xuống bể, và ông trưởng làng thì không đồn gì — ông chỉ để cái mái lá đó thêm ba năm nữa mới dỡ.',
@@ -188,11 +200,13 @@ export const thanhGiongVi: StoryCatalog = {
   'chuong-hay-giap.nghe-nha-su': 'Nghe nhà chùa',
   'chuong-hay-giap.nghe-nha-su.d': 'Còn cách khác, và còn thì giờ để tìm.',
   'chuong-hay-giap.chronicle': 'Ngươi đã quyết việc cái chuông ở {land}.',
+  'chuong-hay-giap.scene': 'Sư cụ chùa {land} không cãi. Ông dẫn quan Công bộ lên gác chuông, cầm tay ông quan đặt lên vành chuông, chỗ có ba chữ, rồi bảo ba chữ ấy là tên bà nội của người lính đang đứng gác dưới chân thang. Người lính ấy nghe hết. Anh ta không nói gì, và anh ta cũng là người sẽ phải khiêng chuông xuống.',
 
   'giap-dong-nang-hon.title': 'Giáp đồng nặng hơn',
   'giap-dong-nang-hon.body': 'Giáp đồng nặng hơn giáp sắt và nó mặc vừa. Nó ra trận và nó thắng. Nhưng ở {land} người ta không dựng đền cho nó, và mấy chục năm sau, hỏi tới chuyện này, người làng chỉ nói rằng dạo ấy có một đứa bé lớn nhanh lắm — rồi thôi, không kể thêm.',
   'giap-dong-nang-hon.ok': 'Vậy là xong',
   'giap-dong-nang-hon.chronicle': 'Nó mặc giáp đồng ra trận. Không ai dựng đền.',
+  'giap-dong-nang-hon.scene': 'Gác chuông chùa {land} bỏ không từ dạo ấy, dầm vẫn chắc, chỉ không có gì treo. Ngày rằm người ta vẫn lên gác thắp một nén hương rồi xuống, và nếu hỏi thắp cho ai thì họ bảo thắp cho chùa. Trẻ con lớn lên ở {land} biết leo gác chuông trước khi biết chuông là cái gì.',
 
   'chuong-van-treo.line': 'Cái chuông vẫn treo. Đứa bé thì không đi đâu cả.',
   'chuong-van-treo.scene': 'Sư cụ có sang thăm nó một lần, mang theo oản. Hai người ngồi với nhau đến chiều, không nói gì mấy. Về sau chuông vẫn đánh đúng giờ, và người làng vẫn ra nghe, và trong số ra nghe có nó — ngồi ngoài sân, vì trong chùa không đủ chỗ.',
@@ -217,6 +231,7 @@ export const thanhGiongVi: StoryCatalog = {
   'lam-gi-voi-dua-be-o-trieu.tra-ve-lang': 'Trả nó về làng',
   'lam-gi-voi-dua-be-o-trieu.tra-ve-lang.d': 'Lò rèn ở {land} vẫn còn đó.',
   'lam-gi-voi-dua-be-o-trieu.chronicle': 'Ngươi đã quyết việc đứa bé ở trong cung.',
+  'lam-gi-voi-dua-be-o-trieu.scene': 'Ở khung cửa buồng nó có ba vạch dao, cách nhau bằng ba mùa, và ba vạch ấy chồng gần như lên nhau. Người khắc vạch là một bà vú người {land} theo nó vào cung. Bà ta khắc vạch thứ ba xong thì lấy vạt áo chùi cả ba, chùi không đi, rồi thôi không khắc nữa.',
 
   'mot-tuoc-cho-dua-tre.title': 'Một tước cho đứa trẻ',
   'mot-tuoc-cho-dua-tre.body': 'Nó có tước, có bổng, có hai người hầu và một chỗ ngồi trong sảnh mà nó không bao giờ ngồi. Quan Lễ bộ muốn đưa nó ra đứng ở lễ tế để dân trông thấy. Quan Thái úy muốn để yên. Cả hai đều biết rằng cái gì đã đem ra cho dân trông thấy thì không cất lại được.',
@@ -226,6 +241,7 @@ export const thanhGiongVi: StoryCatalog = {
   'mot-tuoc-cho-dua-tre.de-no-yen': 'Để nó yên',
   'mot-tuoc-cho-dua-tre.de-no-yen.d': 'Nó vẫn chỉ là đứa bé lên ba.',
   'mot-tuoc-cho-dua-tre.chronicle': 'Ngươi đã quyết việc cái tước của nó.',
+  'mot-tuoc-cho-dua-tre.scene': 'Áo lễ may cho nó thì may rộng, may theo cỡ người lớn, vì ty may nghe nói nó sẽ lớn. Áo treo trong buồng đã ba mùa. Quan Lễ bộ thì đã chọn xong chỗ đứng cho nó ở đàn tế, chỗ thứ ba từ trong ra, chỗ mà từ ngoài bãi nhìn vào thì trông rõ nhất — ông ta chọn chỗ ấy từ trước khi hỏi ai.',
 
   'hau-tre-lon-len.line': 'Nó lớn lên trong cung, và người ta quen dần với nó.',
   'hau-tre-lon-len.scene': 'Nó không bao giờ cao thêm được nữa, nhưng dân thì tin, và cái đó hóa ra là thứ dùng được. Đến đâu nó cũng có người theo, và đi tới đâu thì đinh ở đấy ghi tên vào sổ quân đông hơn hẳn. Nó vẫn lễ phép. Nó vẫn không bao giờ nhắc tới con ngựa sắt.',
@@ -235,6 +251,7 @@ export const thanhGiongVi: StoryCatalog = {
   'chet-o-trieu.body': 'Nó mất vào mùa đông, không vì bệnh gì thầy thuốc gọi được tên. Người ta chôn nó theo lễ dành cho tước hầu, và bà mẹ nó ở {land} không kịp về. Sau đó triều đình không nhắc tới chuyện này nữa, và cái sổ có tên nó thì cất vào trong.',
   'chet-o-trieu.ok': 'Chép theo lễ',
   'chet-o-trieu.chronicle': 'Nó mất ở trong cung, mùa đông.',
+  'chet-o-trieu.scene': 'Bà mẹ nó đi bộ từ {land} lên, đến nơi vào ngày thứ chín, và người ta đã lấp đất từ hôm thứ sáu. Người ta đưa bà một cái hộp có mũ tước của nó trong đó. Bà cầm về, và trên đường về thì hỏi người cùng đi rằng mùa đông trong cung có lạnh lắm không. Người cùng đi là lính, không biết, nên bảo là không lạnh.',
 
   'khong-co-gi-ca.line': 'Thầy thuốc khám ba ngày rồi thưa: không có gì cả.',
   'khong-co-gi-ca.scene': 'Không bệnh, không tật, không điềm. Một đứa bé lên ba chậm nói, thế thôi, và cái chuyện ở sân đình thì bốn người kể là bốn kiểu. Triều đình trả nó về với mẹ và cho một ít gạo. Từ đó, hễ có ai lên kinh báo điềm lạ thì người ta cho ăn cơm rồi tiễn về.',
@@ -257,6 +274,7 @@ export const thanhGiongVi: StoryCatalog = {
   'danh-the-nao.dan-tran': 'Dàn trận ngoài đồng',
   'danh-the-nao.dan-tran.d': 'Đánh một trận cho xong, ở chỗ ta chọn.',
   'danh-the-nao.chronicle': 'Ngươi đã chọn cách đánh.',
+  'danh-the-nao.scene': 'Quan Thái úy bày hai con đường bằng hai sợi dây gai trên nền gạch, kéo cho thẳng, rồi ngồi xuống chiếu nhìn xuống chúng. Ông ta ngồi lâu hơn cần thiết. Người hầu vào thay nến hai lần. Đến lần thứ ba thì ông ta bảo thôi khỏi thay, cứ để tối, và ông ta vẫn ngồi đấy nhìn hai sợi dây.',
 
   'ai-hep-va-sau.line': 'Ải hẹp, sâu, và hai bên là đá.',
   'ai-hep-va-sau.scene': 'Quân đóng ở chỗ khe thắt lại, nơi hai người đi ngang là chật. Lính chặt cây bó thành giàn, đổ đất lên, và làm việc ấy suốt đêm không cần ai giục. Người coi ải bảo rằng giữ được, nếu giặc chịu đi vào — và giặc thì phải đi vào, vì đường kia xa hơn mười ngày.',
@@ -270,16 +288,19 @@ export const thanhGiongVi: StoryCatalog = {
   'dot-kho-hay-cat-duong.cat-duong-sau-lung': 'Cắt đường sau lưng',
   'dot-kho-hay-cat-duong.cat-duong-sau-lung.d': 'Để chúng qua, rồi khóa lại.',
   'dot-kho-hay-cat-duong.chronicle': 'Ngươi đã quyết việc ở ải.',
+  'dot-kho-hay-cat-duong.scene': 'Các làng phía trước vừa gặt xong, thóc còn phơi ngoài sân, chưa vào bồ. Người ta đã bắt đầu cho trâu đi trước lên núi, đi ban đêm, không ai bảo mà cả tổng cùng làm. Có bà cụ hỏi lính đi ngang rằng thóc thì mang lên núi bằng gì — bà hỏi thật, không phải kêu ca, và người lính không có phép trả lời.',
 
   'tu-lo-lay-duoc.title': 'Ta tự lo lấy được',
   'tu-lo-lay-duoc.body': 'Chúng vào ải ngày thứ tư và không ra. Không có ngựa sắt, không có đứa bé nào cả — chỉ có quân ta, ở chỗ ta chọn, đông vừa đủ. Về sau người ta kể chuyện này ít hơn hẳn chuyện kia, nhưng các làng thì nhớ, và cái họ nhớ là lần ấy không ai phải đợi phép lạ.',
   'tu-lo-lay-duoc.ok': 'Chép vào sử',
   'tu-lo-lay-duoc.chronicle': 'Ta đánh lui giặc, không cần phép lạ.',
+  'tu-lo-lay-duoc.scene': 'Đêm trước, lính ngồi ở hai bên vách đá bó đuốc mà không đốt, mỗi người một bó, và đếm lại số bó ba lần. Người đếm là một viên đội trẻ, đếm to, đếm cho quen mồm. Đến khi việc xong thì bó đuốc vẫn còn nguyên phần lớn, và họ mang về, chia nhau, dùng dần đến tận sang năm.',
 
   'mat-phu-dong-that-thu.title': '{land} thất thủ',
   'mat-phu-dong-that-thu.body': 'Chúng qua ải rồi mới bị cắt đường, và cái giá của việc để chúng qua là {land}. Khi quân ta khép lại phía sau thì trong ấy đã cháy hai hôm. Chúng thua, và ta cũng không gọi đó là thắng.',
   'mat-phu-dong-that-thu.ok': 'Chép cả hai việc',
   'mat-phu-dong-that-thu.chronicle': '{land} cháy. Giặc thua ở phía sau nó.',
+  'mat-phu-dong-that-thu.scene': 'Người {land} chạy ra được thì đứng ở bờ đê phía nam nhìn về, đứng suốt hai hôm, và đêm thì nhìn rõ hơn ngày. Khi quân ta khép lại phía sau, có tiếng reo ở cánh đồng, và trên đê không ai reo. Về sau, ai hỏi năm ấy đánh thắng ở đâu thì người {land} nói được ngay, nói rất gọn, rồi hỏi sang chuyện khác.',
 
   'dan-tran-ngoai-dong.line': 'Quân ta dàn ngoài đồng, chỗ đất cao bên tả.',
   'dan-tran-ngoai-dong.scene': 'Ruộng vừa gặt xong nên đi lại được, và đó là lý do chọn chỗ này chứ không vì gì khác. Lính đứng từ sáng, ăn ngay tại chỗ, không ai được rời hàng. Bên kia đồng, bụi bốc lên từ trưa và cứ dày thêm mãi, và ta thì đứng nhìn nó dày lên.',
@@ -293,16 +314,19 @@ export const thanhGiongVi: StoryCatalog = {
   'ai-cam-quan.vua-di': 'Ta thân chinh',
   'ai-cam-quan.vua-di.d': 'Lính đứng ngoài đồng từ sáng.',
   'ai-cam-quan.chronicle': 'Ngươi đã chọn người cầm quân.',
+  'ai-cam-quan.scene': 'Cờ vua cuốn trong bao vải dựng ở góc sảnh từ đời trước, và sáng nay có người đem ra lau, không ai sai đi lau cả. Quan Thái úy trông thấy thì không nói gì. Ông ta đã sáu mươi tư tuổi, đêm qua ngủ được ba canh, và ngoài đồng thì lính đứng từ sáng, quay mặt về phía sảnh chứ không phải phía bắc.',
 
   'tuong-gia-giu-duoc-dat.title': 'Lão tướng giữ được đất',
   'tuong-gia-giu-duoc-dat.body': 'Ông ta giữ được hàng đến lúc bên kia gãy trước, và ông ta không về. Người ta tìm thấy ông ở chỗ hàng đầu, đúng chỗ ông đứng từ sáng. Đất giữ được. Trong sảnh, cái ghế của ông để trống suốt mùa ấy vì chưa ai muốn ngồi vào.',
   'tuong-gia-giu-duoc-dat.ok': 'Chép tên ông ta',
   'tuong-gia-giu-duoc-dat.chronicle': 'Lão tướng giữ được đất và không về.',
+  'tuong-gia-giu-duoc-dat.scene': 'Người nhà ông ta lên nhận đồ, nhận được một cái tráp, trong có ấn, hai đạo sắc cũ và một đôi giày chưa đi lần nào. Đôi giày ấy là quà mừng thọ, đóng hơi chật, ông ta không nói ra với ai. Trong sảnh, người quét dọn vẫn lau cái ghế ấy mỗi sáng như thường, lau xong thì kéo lại cho ngay ngắn.',
 
   'vua-than-chinh-ra-tran.title': 'Ta thân chinh',
   'vua-than-chinh-ra-tran.body': 'Lính trông thấy cờ vua ở hàng thứ hai thì hàng thứ nhất đứng thẳng lên, và cái đó không có trong sách nào cả. Trận ấy đánh từ trưa tới lúc tắt nắng. Về sau, hỏi các làng về năm ấy, họ không kể trận đánh — họ kể chuyện nhà vua đứng ở đâu.',
   'vua-than-chinh-ra-tran.ok': 'Chép vào sử',
   'vua-than-chinh-ra-tran.chronicle': 'Vua thân chinh. Các làng nhớ chỗ ngài đứng.',
+  'vua-than-chinh-ra-tran.scene': 'Chỗ ấy bây giờ là một gò đất giữa ruộng, không ai san, và đến vụ thì cày vòng qua. Có ông lão dẫn cháu ra chỉ: nhà vua đứng đây, ngựa buộc đằng kia, và hôm ấy trời nắng. Ông lão năm ấy mười một tuổi, đứng ở bờ bên kia, xa đến mức không trông rõ mặt ai cả — mà chỗ ông chỉ thì ông chỉ rất chắc.',
   // The spine's own labels: what the story page calls each step it has passed through.
   'node.tin-giac': 'Tin giặc tới',
   'node.su-gia': 'Sứ giả đi rao',
@@ -363,6 +387,7 @@ export const thanhGiongEn: StoryCatalog = {
   'loi-keu-goi.ta-co-quan-roi': 'We have an army',
   'loi-keu-goi.ta-co-quan-roi.d': 'It is what we have. It will have to do.',
   'loi-keu-goi.chronicle': 'You decided how the country would be called.',
+  'loi-keu-goi.scene': 'Six heralds have been standing in the yard since dawn, each with a gong and a poor horse. The Minister of Rites has had the old register brought out: four months on the road that time, three hundred strings of cash, and one line at the end recording what was found — a spirit-medium from upriver. Nothing is written after that line.',
 
   'a-child-who-has-never-spoken.line': 'At {land} there is a three-year-old who has never spoken. Yesterday he spoke.',
   'a-child-who-has-never-spoken.scene': 'The herald was calling in the yard at {land} when the widow’s child sat up and told his mother to invite the man inside. She was more frightened than pleased. He is three, he has never said one word in his life, and the first thing he said was not her name.',
@@ -382,6 +407,7 @@ export const thanhGiongEn: StoryCatalog = {
   'he-asked-for-an-iron-horse.dua-ve-trieu': 'Bring him to court',
   'he-asked-for-an-iron-horse.dua-ve-trieu.d': 'Whatever he is, he is safer here.',
   'he-asked-for-an-iron-horse.chronicle': 'You answered the child of {land}.',
+  'he-asked-for-an-iron-horse.scene': 'The master smith at {land} has done the arithmetic: that horse eats the iron of the whole canton, ploughshares included, and the ploughshares are still standing out in the fields. He does not say it cannot be done. He asks one question, and asks it twice — whether the child said how tall the horse should be. A bad casting cannot be poured again.',
 
   'he-eats-everything-the-village-has.line': 'He eats the household’s rice, and then the hamlet cooks more.',
   'he-eats-everything-the-village-has.scene': 'The widow ran out of rice the day before yesterday. The lower hamlet sent over one basket and the upper hamlet sent two. Nobody was asked and nobody has asked the court for anything. He finished and sat still, and they saw that his shoulder was against the crossbeam of the door.',
@@ -406,6 +432,7 @@ export const thanhGiongEn: StoryCatalog = {
   'ngua-sat-da-xong.body': 'The forge went cold last night. The iron horse stands in the yard at {land} with the rod beside it, and the Ân are close enough now that the smoke is visible from the dyke. There is only one question left and the court does not get to answer it: whether he is big enough yet.',
   'ngua-sat-da-xong.ok': 'Go and see',
   'ngua-sat-da-xong.chronicle': 'The horse was finished, and the Ân arrived.',
+  'ngua-sat-da-xong.scene': 'For the three days of the forging the village cooked him seven trays of rice a meal, and yesterday seven was not enough. His mother sits in the doorway and has not gone to the yard to look at the horse. She finished mending his old shirt last week, mended it carefully, and it no longer fits him, so it stays folded where it is.',
 
   'nguoi-lang-dung-ben-duong.line': 'The village stood along both sides of the road and said nothing.',
   'nguoi-lang-dung-ben-duong.scene': 'They came out at first light. Some brought rice balls, not to eat. When the iron horse went past nobody cheered — they only watched, and the old women put their hands together. His mother did not come out. She sat inside, and left the door open.',
@@ -416,16 +443,19 @@ export const thanhGiongEn: StoryCatalog = {
   'he-rides.ok': 'Have this written down',
   'he-rides.toast': '{count} men went out of {land} behind him.',
   'he-rides.chronicle': 'He rode. The rod broke and he fought on with bamboo.',
+  'he-rides.scene': 'From the dyke the eye cannot keep up with him; you watch for where the dust goes up and that is where he is. Half the broken rod came down in a paddy and stuck upright, still hot, and the children who went to look at it were dragged home. It was still standing there in the evening. Nobody would pull it out, and nobody would plant near it.',
 
   'soc-son-khong-xuong-nua.title': 'Sóc Sơn',
   'soc-son-khong-xuong-nua.body': 'It ends in the afternoon. He does not come back down the road he went up: he rides to the top of Sóc Sơn, takes the armour off and leaves it on the rock, and goes up from there. The hoofprints along the paddy road have filled with water and the villages are already calling them ponds. The bamboo on that stretch came back yellow and has stayed yellow.',
   'soc-son-khong-xuong-nua.ok': 'Build the shrine at the foot of it',
   'soc-son-khong-xuong-nua.chronicle': 'He went up the mountain and did not come down.',
+  'soc-son-khong-xuong-nua.scene': 'A man going up Sóc Sơn for firewood the next day found the armour on the rock, laid out straight, and the inside of it warmer than the stone. He did not touch it. He came down and told the village, then climbed back up the same afternoon to see whether anyone had taken it. Nobody had. Nobody has.',
 
   'nga-ngua-con-ngua-ve-mot-minh.title': 'The Horse Came Back Alone',
   'nga-ngua-con-ngua-ve-mot-minh.body': 'The iron horse reached the village near dusk with nobody on it. It stood in the yard exactly where it had been built, and they left it there. No one went to look for him. Where he fell the ground still takes a crop, and for years afterwards they went on taking one.',
   'nga-ngua-con-ngua-ve-mot-minh.ok': 'Write it down',
   'nga-ngua-con-ngua-ve-mot-minh.chronicle': 'He did not come back. The horse did.',
+  'nga-ngua-con-ngua-ve-mot-minh.scene': 'For the first few days people came out to put a hand on the horse and see whether it had gone cold. Then they stopped. The rain came, the iron rusted, and the children climbed up and sat on its back, and nobody told them off. His mother set out two bowls at every meal until the end of that season, ate from one, and nobody in the house said anything about the other.',
 
   'the-village-forgets-him.line': 'The child at {land} has stopped speaking. People have stopped mentioning it.',
   'the-village-forgets-him.scene': 'The armour hangs in the grain store, rusting. They dragged the iron horse into the corner of the yard and grew gourds up it. His mother is still there and nobody asks her anything. That village never did care much for strangers afterwards, and never said why.',
@@ -449,6 +479,7 @@ export const thanhGiongEn: StoryCatalog = {
   'lam-gi-voi-mot-nguoi-khong-lo.nau-chuong-chua': 'Melt the temple bell',
   'lam-gi-voi-mot-nguoi-khong-lo.nau-chuong-chua.d': 'Bronze is not iron, but bronze is here.',
   'lam-gi-voi-mot-nguoi-khong-lo.chronicle': 'You decided the matter of the giant at {land}.',
+  'lam-gi-voi-mot-nguoi-khong-lo.scene': 'The headman of {land} carried a grain measure up to the capital and set it down in the middle of the hall. He did not say what it was for until he was leaving: nine of these at a meal, twice a day, and {land} took in less this harvest than last. Then he asked permission to take the measure home again, the village having only the one.',
 
   'roi-sat-khong-co-thi-lay-gi.line': 'He went out to the bamboo and looked at it for a long time.',
   'roi-sat-khong-co-thi-lay-gi.scene': 'He tried several stands and broke each one in his hands. In the end he picked the oldest clump on the pond bank, the yellow kind the village keeps for weaving baskets, and pulled it up by the roots to see whether it would come. It came. He set it down carefully and went in to eat.',
@@ -462,16 +493,19 @@ export const thanhGiongEn: StoryCatalog = {
   'ra-di-tay-khong.giu-lai-da': 'Hold him back',
   'ra-di-tay-khong.giu-lai-da.d': 'Not yet, and not with empty hands.',
   'ra-di-tay-khong.chronicle': 'You answered his asking to go.',
+  'ra-di-tay-khong.scene': 'He stands at the kapok tree at the end of the lane, and has stood there long enough that his feet have sunk two hollows into the wet ground. A woman brought a ball of rice out, put it down by his foot and went back without speaking. It was still there at noon. The whole village passes behind him all day, and nobody walks round to the front to look at his face.',
 
   'nhung-cay-tre-dang-nga.title': 'The Yellow Bamboo',
   'nhung-cay-tre-dang-nga.body': 'He fought with the whole clump, held at the root, swinging it the way a man clears a hedge. With no armour he was cut early and did not notice. By evening there was nobody left standing on the high road. That bamboo grew back yellow, and nobody knows why — because this time there was no fire.',
   'nhung-cay-tre-dang-nga.ok': 'Record the name of that stand of bamboo',
   'nhung-cay-tre-dang-nga.chronicle': 'He won with bamboo, not iron.',
+  'nhung-cay-tre-dang-nga.scene': 'Where the clump came out there is a hole the size of half a room, and a few days later a buffalo went into it and took four men to get out. He came back and stood in the yard while they washed the cuts — stood, because there is nowhere in the village he can lie down. The woman washing them is the one who mends his clothes. She did not count them.',
 
   'nga-xuong-ruong.title': 'Down in the Paddy',
   'nga-xuong-ruong.body': 'Without armour a man does not get far. He went down in the low ground under the dyke and the water closed over the place within a season. The village raised no grave. They left that stretch of paddy unplanted, and never said why they left it.',
   'nga-xuong-ruong.ok': 'Leave that ground alone',
   'nga-xuong-ruong.chronicle': 'He fell in the paddy, bare-handed.',
+  'nga-xuong-ruong.scene': 'That stretch holds water all year and the grass on it comes up different from the grass around it — taller, greener. The family with the next field plant right up to the edge and stop. Their boy asked his father once, while they were both standing in the water, why they did not plant the rest. His father told him to get up on the bank first. He got up on the bank. His father did not answer.',
 
   'no-an-het-ca-huyen.line': 'Keeping him in the village means the whole district feeds him.',
   'no-an-het-ca-huyen.scene': 'Three communes take ten days each. Whichever commune has him cooks from cockcrow, and none of them has refused, and all three have worked out how long this can last. He knows. He eats less for a while, then grows again, then eats as before.',
@@ -485,11 +519,13 @@ export const thanhGiongEn: StoryCatalog = {
   'giu-hay-tha.de-no-di': 'Let him go',
   'giu-hay-tha.de-no-di.d': 'He has wanted to go for a long time.',
   'giu-hay-tha.chronicle': 'You decided how long he would be fed.',
+  'giu-hay-tha.scene': 'The three communes feed him by turns and keep the count in charcoal strokes on a pillar of the communal hall at {land}, and the pillar is black now from the floor to shoulder height. When the lower commune\'s turn came they were two measures short and said nothing, and the other two made it up. Then all three were quiet, because each of them knows whose month is next.',
 
   'nguoi-khong-lo-o-lai.title': 'The Giant Stays',
   'nguoi-khong-lo-o-lai.body': 'He stayed. He builds dykes, hauls timber, and put up the stone bridge three generations had failed to put up, and he eats what a commune eats. People came to look and then came to live, and {land} is visibly larger. The court never did work out which register he belonged in.',
   'nguoi-khong-lo-o-lai.ok': 'Leave it as it is',
   'nguoi-khong-lo-o-lai.chronicle': 'He stayed at {land}, and {land} grew.',
+  'nguoi-khong-lo-o-lai.scene': 'The middle stone of the bridge is the one three generations dragged half way and left in the reeds, grown over. He carried it alone and rested four times. The market is held on that bridge now and the woman who sells there sits on the part with the handprint in it. People come to {land} to stay, and say only that a living can be made here, and not why they feel safe.',
 
   'mot-dem-no-di.line': 'One night he went, and nobody saw which way.',
   'mot-dem-no-di.scene': 'The thatch roof is still standing and the cold rice is still covered in its basket. He took nothing. Some say he went up into the mountains and some say he went down to the sea, and the headman says neither — he simply left the roof up for another three years before taking it down.',
@@ -507,11 +543,13 @@ export const thanhGiongEn: StoryCatalog = {
   'chuong-hay-giap.nghe-nha-su': 'Listen to the temple',
   'chuong-hay-giap.nghe-nha-su.d': 'There are other ways, and time to find one.',
   'chuong-hay-giap.chronicle': 'You decided the matter of the bell at {land}.',
+  'chuong-hay-giap.scene': 'The old monk at {land} does not argue. He takes the Minister of Works up into the tower, puts the man\'s hand on the rim where three characters are cast, and tells him those three are the name of the grandmother of the soldier standing at the foot of the ladder. The soldier hears all of it. He says nothing, and he is also the one who will have to carry the bell down.',
 
   'giap-dong-nang-hon.title': 'Bronze Is Heavier',
   'giap-dong-nang-hon.body': 'Bronze armour is heavier than iron and it fit him. He rode out and he won. But there is no shrine at {land}, and decades later, asked about all this, the villagers will only say that there was a boy once who grew very fast — and stop there, and not go on.',
   'giap-dong-nang-hon.ok': 'So it is done',
   'giap-dong-nang-hon.chronicle': 'He rode in bronze. Nobody built a shrine.',
+  'giap-dong-nang-hon.scene': 'The bell tower at {land} has stood empty since then, the beams sound, nothing hanging in it. On the full moon people still climb up, light one stick of incense and come down, and if you ask who it is for they say it is for the pagoda. Children growing up in {land} learn to climb the tower before they learn what a bell is.',
 
   'chuong-van-treo.line': 'The bell still hangs. The boy did not go anywhere.',
   'chuong-van-treo.scene': 'The old monk went to see him once, and took sweet cakes. The two of them sat together until evening without saying much. The bell went on being rung at the proper hour and the village went on coming out to hear it, and he was among them — sitting in the yard, because there was no room for him inside.',
@@ -535,6 +573,7 @@ export const thanhGiongEn: StoryCatalog = {
   'lam-gi-voi-dua-be-o-trieu.tra-ve-lang': 'Send him back to the village',
   'lam-gi-voi-dua-be-o-trieu.tra-ve-lang.d': 'The forge at {land} is still standing.',
   'lam-gi-voi-dua-be-o-trieu.chronicle': 'You decided the matter of the child in the palace.',
+  'lam-gi-voi-dua-be-o-trieu.scene': 'There are three knife-marks on the doorframe of his room, three seasons apart, and they lie almost on top of one another. The woman who cut them is a nurse from {land} who came in with him. After the third she rubbed at all three with her sleeve, could not get them out, and has not cut another.',
 
   'mot-tuoc-cho-dua-tre.title': 'A Title for a Child',
   'mot-tuoc-cho-dua-tre.body': 'He has a title, a stipend, two servants and a seat in the hall that he never sits in. The Minister of Rites wants him stood up at the state sacrifice where the people can see him. The Marshal wants him left alone. Both of them know that what is shown to the people cannot afterwards be put away.',
@@ -544,6 +583,7 @@ export const thanhGiongEn: StoryCatalog = {
   'mot-tuoc-cho-dua-tre.de-no-yen': 'Leave him alone',
   'mot-tuoc-cho-dua-tre.de-no-yen.d': 'He is still a three-year-old.',
   'mot-tuoc-cho-dua-tre.chronicle': 'You decided what his title was for.',
+  'mot-tuoc-cho-dua-tre.scene': 'The ceremonial robe was cut large, to a grown man\'s size, because the tailors had heard he would grow. It has hung in his room for three seasons. The Minister of Rites has already picked his place at the altar — third from the inside, the place that shows clearest from out on the field — and he picked it before he asked anybody.',
 
   'hau-tre-lon-len.line': 'He grew up in the palace, and people got used to him.',
   'hau-tre-lon-len.scene': 'He never got any taller, but the people believe, and that turns out to be a usable thing. Wherever he goes a crowd goes, and wherever he goes the district registers noticeably more men fit to serve. He is still polite. He still never mentions the iron horse.',
@@ -553,6 +593,7 @@ export const thanhGiongEn: StoryCatalog = {
   'chet-o-trieu.body': 'He died in winter, of nothing the physicians could name. They buried him with the rites of a marquis, and his mother at {land} did not reach the capital in time. The court did not raise the matter again afterwards, and the register with his name in it was put away inside.',
   'chet-o-trieu.ok': 'Record it with the proper rites',
   'chet-o-trieu.chronicle': 'He died in the palace, in winter.',
+  'chet-o-trieu.scene': 'His mother walked up from {land} and arrived on the ninth day; the earth had gone back over him on the sixth. They handed her a box with his cap of rank in it. She carried it home, and somewhere on the road she asked the man walking with her whether the winters inside the palace are very cold. He was a soldier and did not know, so he said they were not.',
 
   'khong-co-gi-ca.line': 'The physicians examined him for three days and reported: nothing at all.',
   'khong-co-gi-ca.scene': 'No illness, no defect, no omen. A three-year-old slow to speak, and four witnesses to the business in the yard who tell it four different ways. The court sent him home to his mother with some rice. After that, anyone who came up to the capital reporting a marvel was fed and sent home.',
@@ -574,6 +615,7 @@ export const thanhGiongEn: StoryCatalog = {
   'danh-the-nao.dan-tran': 'Meet them in the open',
   'danh-the-nao.dan-tran.d': 'One battle, finished, on ground we choose.',
   'danh-the-nao.chronicle': 'You chose how the war would be fought.',
+  'danh-the-nao.scene': 'The Marshal laid the two roads out on the brick floor with two lengths of hemp cord, pulled straight, and then sat down on the mat and looked at them. He sat longer than there was any need to. A servant came in twice to change the candle. The third time he told the man not to bother, to leave it dark, and went on sitting there looking at the cords.',
 
   'ai-hep-va-sau.line': 'The pass is narrow and deep, with rock on both sides.',
   'ai-hep-va-sau.scene': 'They are dug in where the gorge pinches to the width of two men abreast. The soldiers cut timber into hurdles and piled earth on them, working all night without being told twice. The warden says it can be held, if the enemy comes in — and they must, because the other road is ten days longer.',
@@ -587,16 +629,19 @@ export const thanhGiongEn: StoryCatalog = {
   'dot-kho-hay-cat-duong.cat-duong-sau-lung': 'Cut the road behind them',
   'dot-kho-hay-cat-duong.cat-duong-sau-lung.d': 'Let them through, then shut it.',
   'dot-kho-hay-cat-duong.chronicle': 'You decided the matter at the pass.',
+  'dot-kho-hay-cat-duong.scene': 'The villages ahead have just cut, and the rice is still drying in the yards, not yet in the bins. People have started moving the buffalo up the hills at night, nobody having told them to, the whole canton doing it at once. An old woman asked a soldier going past what she was supposed to carry the rice up the hill in. She meant it as a question. He is not permitted to answer it.',
 
   'tu-lo-lay-duoc.title': 'We Managed It Ourselves',
   'tu-lo-lay-duoc.body': 'They came into the pass on the fourth day and did not come out. No iron horse, no child — only our men, on ground we chose, in just enough numbers. People tell this story far less often than the other one, but the villages remember it, and what they remember is that nobody had to wait for a miracle.',
   'tu-lo-lay-duoc.ok': 'Enter it in the annals',
   'tu-lo-lay-duoc.chronicle': 'We turned them back without a miracle.',
+  'tu-lo-lay-duoc.scene': 'The night before, the men sat along both walls of the pass with unlit torch-bundles, one each, and counted them three times over. The one counting was a young sergeant who counted out loud, to keep his mouth busy. When it was over most of the bundles were still unused, so they carried them home and shared them out and burned them through the following year.',
 
   'mat-phu-dong-that-thu.title': '{land} Fell',
   'mat-phu-dong-that-thu.body': 'They were through the pass before the road closed behind them, and the price of letting them through was {land}. By the time our men shut it, the place had been burning for two days. They lost, and we do not call it a victory.',
   'mat-phu-dong-that-thu.ok': 'Record both halves of it',
   'mat-phu-dong-that-thu.chronicle': '{land} burned. They were beaten behind it.',
+  'mat-phu-dong-that-thu.scene': 'Those who got out of {land} stood on the southern dyke and watched it for two days, and the nights showed more than the days did. When our men closed behind them there was cheering out in the fields, and none on the dyke. Afterwards, asked where the battle of that year was won, {land} people can tell you at once, briefly, and then ask about something else.',
 
   'dan-tran-ngoai-dong.line': 'Our line is out in the open, on the high ground to the left.',
   'dan-tran-ngoai-dong.scene': 'The fields were harvested last month so the ground carries, and that is the only reason this place was chosen. The men have stood since dawn and eaten where they stand and nobody may leave the line. Across the field the dust has been rising since noon and thickening, and we have watched it thicken.',
@@ -610,16 +655,19 @@ export const thanhGiongEn: StoryCatalog = {
   'ai-cam-quan.vua-di': 'Go yourself',
   'ai-cam-quan.vua-di.d': 'They have been standing in that field since dawn.',
   'ai-cam-quan.chronicle': 'You chose who would command.',
+  'ai-cam-quan.scene': 'The royal standard has stood wrapped in its cloth in the corner of the hall since the last reign, and this morning somebody took it out and cleaned it, unasked. The Marshal saw and said nothing. He is sixty-four and got three watches of sleep last night. Out in the field the men have been standing since dawn, facing the hall rather than north.',
 
   'tuong-gia-giu-duoc-dat.title': 'The Old Marshal Held',
   'tuong-gia-giu-duoc-dat.body': 'He held the line until the other side broke first, and he did not come back. They found him in the front rank, on the spot he had stood on since dawn. The ground was held. In the hall his chair stayed empty for the rest of that season because nobody wanted to sit in it yet.',
   'tuong-gia-giu-duoc-dat.ok': 'Write down his name',
   'tuong-gia-giu-duoc-dat.chronicle': 'The old Marshal held the ground and did not return.',
+  'tuong-gia-giu-duoc-dat.scene': 'His family came for his effects and were given one box: the seal, two old patents, and a pair of boots never worn. The boots were a birthday gift, cut slightly narrow, which he had not mentioned to anyone. In the hall the sweeper still wipes the chair down every morning and squares it up afterwards.',
 
   'vua-than-chinh-ra-tran.title': 'You Went Yourself',
   'vua-than-chinh-ra-tran.body': 'When the men saw the royal standard in the second rank the first rank straightened up, and that is in no book anywhere. The battle ran from noon until the light went. Afterwards, asked about that year, the villages do not describe the fighting — they describe where the king was standing.',
   'vua-than-chinh-ra-tran.ok': 'Enter it in the annals',
   'vua-than-chinh-ra-tran.chronicle': 'The king went himself. The villages remember where he stood.',
+  'vua-than-chinh-ra-tran.scene': 'The place is a low mound in the middle of a field now; nobody has levelled it, and at ploughing they go round it. An old man walks his grandson out and points: the king stood here, the horse was tied over there, and it was a bright day. He was eleven that year and watching from the far bank, too far off to make out anyone\'s face. He is very sure about the spot.',
   // The spine's own labels: what the story page calls each step it has passed through.
   'node.tin-giac': 'News of the Ân',
   'node.su-gia': 'The herald on the road',
