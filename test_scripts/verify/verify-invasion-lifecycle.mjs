@@ -199,15 +199,16 @@ const alive = () => page.evaluate(
  * arming delay had not elapsed after 750 ms of wall time, and had after 1100. Any fixed sleep here
  * is a coin toss that reports a working feature as broken.
  */
-const settle = async () => {
+const settle = async (budget = 9000) => {
+  const began = Date.now();
   try {
     await page.waitForFunction(
       () => !window.__phaserGame.scene.getScene('ConquestUIScene').waveBanner,
-      null, { timeout: 4000 },
+      null, { timeout: budget },
     );
-    return true;
+    return { gone: true, ms: Date.now() - began };
   } catch {
-    return false;
+    return { gone: false, ms: Date.now() - began };
   }
 };
 
@@ -227,7 +228,7 @@ const zoneArmed = async () => {
 
 const rendered = {
   raised: await raise(1), midFall: false, settled: false,
-  reRaised: false, armed: false, byTap: false, mapFree: null, pageHeld: false,
+  reRaised: false, armed: false, byTap: false, tapMs: -1, mapFree: null, pageHeld: false,
 };
 
 // Start the exit by hand and watch it fall. Still up a fifth of a second in, gone within a second:
@@ -237,7 +238,7 @@ await page.evaluate(() => window.__phaserGame.scene.getScene('ConquestUIScene').
 // clock that is behind, so a lagging scene can only make the banner more present, never less.
 await page.waitForTimeout(200);
 rendered.midFall = await alive();
-rendered.settled = await settle();
+rendered.settled = (await settle()).gone;
 
 // A tap anywhere — well outside the plate, low on the map — dismisses it. And the same tap must
 // still reach the map: the banner publishes nothing to `__hudTapBounds` and never sets
@@ -250,8 +251,27 @@ rendered.settled = await settle();
 // working feature as broken. Measured: at 750 ms `zone.input` was null, at 1100 ms it was live.
 rendered.reRaised = await raise(2);
 rendered.armed = await zoneArmed();
+// Two frames between arming the zone and clicking it, and this is a real Phaser rule rather than a
+// sleep for luck: `setInteractive` does not put an object into the input plugin's active list, it
+// queues it in `_pendingInsertion`, and the plugin drains that at the top of its next update. A
+// pointer delivered in the same frame therefore hit-tests against a list the zone is not in yet.
+// Measured: clicking immediately, the banner survived and expired on its own at ~4.6 s; with the
+// frames, it went in 151 ms. A human tap is always several frames after the 600 ms arming, so this
+// is a harness artefact and never something a player could hit.
+await page.evaluate(() => new Promise((done) => {
+  requestAnimationFrame(() => requestAnimationFrame(() => done()));
+}));
 await page.mouse.click(60, 700);
-rendered.byTap = await settle();
+// Timed, not merely awaited — and this is the whole point of the check.
+//
+// The first version just waited for the banner to be gone inside a 4 s budget, which a result
+// banner used to satisfy *on its own*: its full life was 3.3 s, so the check went green whether or
+// not the tap did anything. It was a false pass, and it only surfaced when the hold was lengthened
+// past the budget. A tap dismissal takes the 420 ms fall and nothing else; an untouched banner now
+// stands for better than five seconds. Two and a half seconds cleanly separates them.
+const tapped = await settle();
+rendered.tapMs = tapped.ms;
+rendered.byTap = tapped.gone && tapped.ms < 2500;
 rendered.mapFree = await page.evaluate(() => {
   const bounds = window.__hudTapBounds ?? [];
   const covering = bounds.some((r) => r.width >= 380 && r.height >= 600);
@@ -372,7 +392,8 @@ if (!rendered.pageHeld) {
     'still on screen 200ms after the roll began');
   check('and it does finish', rendered.settled);
   check('the dismiss zone arms itself', rendered.reRaised && rendered.armed);
-  check('a tap anywhere dismisses it', rendered.byTap === true);
+  check('a tap anywhere dismisses it', rendered.byTap === true,
+    `gone ${rendered.tapMs}ms after the tap; an untouched banner stands ~7600ms`);
   check('dismissing never blocks the map', rendered.mapFree === true);
 }
 
