@@ -8,8 +8,7 @@ import {
 import { getLegacy, LEGACY_PERKS, purchaseLegacyPerk, rankForScore } from '../state/legacy';
 import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
 import {
-  applyUpdate, BUILD_NUMBER, BUILD_VERSION, buildDateLabel, checkForUpdate, getUpdateStatus,
-  subscribeUpdateStatus,
+  applyUpdate, buildStamp, checkForUpdate, getUpdateStatus, subscribeUpdateStatus,
 } from '../pwa/updates';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
@@ -56,7 +55,30 @@ type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy' | 'settings';
  * their own page now, and what is left above the footer is breathing room for the art.
  */
 const SUPPORT_ROW_HEIGHT = 46;
-const SUPPORT_TOP = GAME_HEIGHT - 14 - SUPPORT_ROW_HEIGHT;
+/**
+ * The build stamp on the very bottom edge, under the support sentence.
+ *
+ * It was only ever on the settings page, which is two taps away and not where anybody thinks to
+ * look when they are trying to say which version they are running. On the front page it is the
+ * last thing on the sheet, in the quietest type the page has, doing what a colophon does: present
+ * for whoever needs it, invisible to whoever does not.
+ *
+ * It sits on the bottom edge itself, below the 14 of margin the rest of the footer keeps — a
+ * colophon belongs at the foot of the sheet, not floating one gap above it. `VERSION_EDGE` is all
+ * that is left under it, and it is not zero because a descender on the last line of a page needs
+ * somewhere to go, and because a phone with rounded corners eats the last few rows.
+ *
+ * 30 is the 9px line plus the air above it, and the air is most of it: the support sentence wraps
+ * to two lines in both languages and its lower line ends 15 below that band's centre, so a band
+ * sized to the type alone printed the stamp hard against "help build the game" and the two read as
+ * one paragraph.
+ *
+ * The whole footer stack moves up by what this band takes and the art lane above it loses the
+ * same, which is slack it had.
+ */
+const VERSION_ROW_HEIGHT = 30;
+const VERSION_EDGE = 6;
+const SUPPORT_TOP = GAME_HEIGHT - VERSION_ROW_HEIGHT - SUPPORT_ROW_HEIGHT;
 /** The language line under the settings button: two words and the space to tap one. */
 const LANGUAGE_ROW_HEIGHT = 20;
 /**
@@ -1289,6 +1311,7 @@ export class MenuScene extends Phaser.Scene {
     this.renderFooterPair();
 
     this.renderSupportRow();
+    this.renderVersionLine();
 
     // Lifetime standing across all Throne of Empires runs (hidden until earned).
     // Tapping it opens the Ascension Legacy shop, where banked points buy permanent perks.
@@ -1889,14 +1912,7 @@ export class MenuScene extends Phaser.Scene {
     if (updateHeight > 0) {
       cursor += 14;
 
-      // Composed from the parts that exist rather than from one template, so a build made outside a
-      // git checkout prints "Version 0.2.0" and not "Version 0.2.0 · build  · ".
-      const stamp = [
-        t('menu.update.version', { version: BUILD_VERSION }),
-        BUILD_NUMBER ? t('menu.update.build', { build: BUILD_NUMBER }) : '',
-        buildDateLabel(),
-      ].filter(Boolean).join('  ·  ');
-      const version = this.ui.label(contentX, cursor, stamp, 'caption', {
+      const version = this.ui.label(contentX, cursor, buildStamp(), 'caption', {
         color: INK_UI_HEX.mutedText,
         fontSize: '9px',
       }).setOrigin(0, 0);
@@ -2125,6 +2141,35 @@ export class MenuScene extends Phaser.Scene {
 
     row.add([coffee, connective, improve]);
     this.content.push(row);
+  }
+
+  /**
+   * The build stamp, centred on the bottom edge.
+   *
+   * Same string as the settings page prints — one `buildStamp()`, so the two can never disagree
+   * about what is running — and the same size and colour as the quietest caption on the page, which
+   * is what keeps it from competing with the sentence above it. Never pressable: it is a fact about
+   * the page, not a way off it.
+   *
+   * Shrinks rather than wraps in the unlikely event it outgrows the sheet, because there is exactly
+   * one line of room here and a wrapped colophon would push itself off the bottom edge.
+   */
+  private renderVersionLine(): void {
+    const stamp = buildStamp();
+    if (!stamp) {
+      return;
+    }
+    // Anchored to the bottom edge by its own baseline rather than centred in the band, so the air
+    // in the band is all above it and the line lands where the sheet ends.
+    const line = this.ui.label(GAME_WIDTH / 2, GAME_HEIGHT - VERSION_EDGE, stamp, 'caption', {
+      color: INK_UI_HEX.mutedText,
+      fontSize: '9px',
+    }).setOrigin(0.5, 1);
+    const maxWidth = GAME_WIDTH - 32;
+    if (line.width > maxWidth) {
+      line.setScale(maxWidth / line.width);
+    }
+    this.content.push(line);
   }
 
   /**
