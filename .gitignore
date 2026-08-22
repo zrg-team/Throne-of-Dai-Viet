@@ -27,3 +27,7 @@ test_scripts/_*.mjs
 
 # Perf run output, same status as output/ and test_scripts/shots/.
 test_scripts/perf-results/
+
+# Native build staging, moved out of the deep apps/mobile/android path so Windows MAX_PATH is
+# not hit. Build output, same status as dist/. See apps/mobile/plugins/withShortNativeBuildPath.js
+.ncxx/

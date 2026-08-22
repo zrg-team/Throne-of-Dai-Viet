@@ -8,8 +8,8 @@
  *   node scripts/gradle.mjs assembleRelease   → an APK you can sideload
  *   node scripts/gradle.mjs bundleRelease     → an AAB for Play
  *
- * Prebuild runs first, every time and with `--clean`: `android/` is generated output, and a stale
- * one silently keeps the previous run of `plugins/withLoopbackCleartext.js`.
+ * Prebuild runs first every time, re-applying the config plugins over the existing `android/`.
+ * For a from-scratch regeneration use `npm run prebuild`; see the note on `--no-clean` below.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -31,7 +31,24 @@ const run = (command, args, cwd) => {
   if (result.status !== 0) process.exit(result.status ?? 1);
 };
 
-run(windows ? 'npx.cmd' : 'npx', ['expo', 'prebuild', '-p', 'android', '--clean'], app);
+/**
+ * Prebuild with `--no-clean`, deliberately.
+ *
+ * SDK 57 made clearing the native directories prebuild's *default*, so dropping `--clean` changes
+ * nothing and `--no-clean` is the actual opt-out. That default deletes the whole `android/` tree,
+ * build output included — and Gradle keeps a daemon alive for three hours after a build, holding
+ * open handles on things like
+ * `app/build/intermediates/dex/release/mergeDexRelease/classes.dex`. On Windows the delete then
+ * fails with `EBUSY`, so every second build in a session died before it started. `gradlew --stop`
+ * first is not reliable either: the daemon exits asynchronously and the handles outlive the call.
+ *
+ * Prebuild without `--clean` re-runs the whole config-plugin pipeline and rewrites every file it
+ * manages — `AndroidManifest.xml`, `build.gradle`, the network security config — so a plugin
+ * change still lands. What it does not do is remove files a plugin *stopped* emitting. That is
+ * what `npm run prebuild` is for: an explicit, occasional, fresh start, run when no build is in
+ * flight.
+ */
+run(windows ? 'npx.cmd' : 'npx', ['expo', 'prebuild', '-p', 'android', '--no-clean'], app);
 
 /**
  * Prebuild is not trusted to have worked, because it exits 0 when it has not.
