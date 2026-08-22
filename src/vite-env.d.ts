@@ -9,3 +9,8 @@ declare const __APP_VERSION__: string;
 declare const __BUILD_NUMBER__: string;
 /** The commit's own date, `YYYY-MM-DD`. Empty when git is unavailable. */
 declare const __BUILD_DATE__: string;
+/**
+ * True in a build made by `vite build --mode shell` — the one every native cabinet in `apps/`
+ * serves. Relative asset URLs, no service worker. See `src/platform/shell.ts`.
+ */
+declare const __SHELL_BUILD__: boolean;

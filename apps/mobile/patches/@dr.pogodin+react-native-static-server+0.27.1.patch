@@ -1,0 +1,53 @@
+diff --git a/node_modules/@dr.pogodin/react-native-static-server/CMakeLists.txt b/node_modules/@dr.pogodin/react-native-static-server/CMakeLists.txt
+index 6a9711d..1dbf4ad 100644
+--- a/node_modules/@dr.pogodin/react-native-static-server/CMakeLists.txt
++++ b/node_modules/@dr.pogodin/react-native-static-server/CMakeLists.txt
+@@ -158,6 +158,29 @@ else()
+   set(CMAKE_PREFIX_PATH "${CMAKE_BINARY_DIR}/sysroot")
+ endif()
+ 
++# Cross-compiling to Android sets CMAKE_FIND_ROOT_PATH_MODE_PACKAGE to ONLY, which confines
++# find_package() to CMAKE_FIND_ROOT_PATH -- the NDK's own sysroot -- and leaves the
++# CMAKE_PREFIX_PATH set just above inert. The PCRE2 built into ${CMAKE_BINARY_DIR}/sysroot a few
++# lines earlier is therefore invisible to lighttpd's find_package(PCRE2), and it falls through to
++# pkg-config (absent on a Windows host) and then to pcre2-config, which is a POSIX shell script
++# Windows cannot execute. That last step returns nothing, which collapses
++# string(REPLACE ... PCRE_LDFLAGS ${__link_FLAGS}) to three arguments, and the configure ends on
++# "pcre2.h couldn't be found" -- with the header sitting in the sysroot the whole time.
++#
++# Adding the sysroot to the find root path is the whole fix: find_package then resolves
++# sysroot/lib/cmake/pcre2, PCRE_LDFLAGS becomes the PCRE2::8BIT imported target (which carries its
++# own include directories), and lighttpd takes the branch that sets HAVE_PCRE2_H directly rather
++# than the probe-based one.
++list(APPEND CMAKE_FIND_ROOT_PATH "${CMAKE_BINARY_DIR}/sysroot")
++
++# lighttpd links its glob shim by bare name -- target_link_libraries(lighttpd glob) at
++# lighttpd1.4/src/CMakeLists.txt:993 -- which reaches the linker as a plain `-lglob`. The library
++# was installed into ${CMAKE_BINARY_DIR}/sysroot/lib a few lines above, and nothing has put that
++# directory on the link search path, so ld.lld reports "unable to find library -lglob" for a file
++# that is sitting right there. This must precede add_subdirectory, since link_directories only
++# applies to targets created after it.
++link_directories("${CMAKE_BINARY_DIR}/sysroot/lib")
++
+ add_subdirectory(lighttpd1.4)
+ 
+ set(PLUGIN_STATIC
+diff --git a/node_modules/@dr.pogodin/react-native-static-server/lighttpd1.4/src/CMakeLists.txt b/node_modules/@dr.pogodin/react-native-static-server/lighttpd1.4/src/CMakeLists.txt
+index 81a709d..18943d8 100644
+--- a/node_modules/@dr.pogodin/react-native-static-server/lighttpd1.4/src/CMakeLists.txt
++++ b/node_modules/@dr.pogodin/react-native-static-server/lighttpd1.4/src/CMakeLists.txt
+@@ -559,7 +559,13 @@ if(WITH_GNUTLS)
+ endif()
+ 
+ if(WITH_PCRE2)
+-	find_package(PCRE2 QUIET)
++	# COMPONENTS 8BIT is not optional here. PCRE2's own pcre2-config.cmake hard-errors with
++	# "No components have been specified" when called bare, so a plain find_package(PCRE2 QUIET)
++	# aborts the configure rather than quietly reporting not-found. On Linux and macOS this never
++	# shows, because pkg_check_modules below succeeds first and this branch is never reached; it
++	# only surfaces cross-compiling from a Windows host, where there is no pkg-config.
++	# 8BIT is the width lighttpd asks for two lines down, via the PCRE2::8BIT target.
++	find_package(PCRE2 QUIET COMPONENTS 8BIT)
+ 	if(PCRE2_FOUND)
+ 		set(PCRE_LDFLAGS PCRE2::8BIT)
+ 		set(PCRE_CFLAGS "${PCRE2_CFLAGS}")

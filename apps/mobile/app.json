@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "Vạn Thắng",
+    "slug": "van-thang",
+    "version": "0.2.0",
+    "orientation": "portrait",
+    "scheme": "vanthang",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#201a12",
+    "assetBundlePatterns": [
+      "assets/**/*"
+    ],
+    "icon": "./assets/icon.png",
+    "ios": {
+      "bundleIdentifier": "zrg.team.vanthang",
+      "buildNumber": "1",
+      "supportsTablet": true,
+      "requireFullScreen": true,
+      "infoPlist": {
+        "NSAllowsLocalNetworking": true,
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "zrg.team.vanthang",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#201a12"
+      }
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#201a12",
+          "image": "./assets/splash.png",
+          "imageWidth": 220,
+          "dark": {
+            "backgroundColor": "#201a12"
+          }
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "targetSdkVersion": 36,
+            "compileSdkVersion": 36
+          },
+          "ios": {
+            "deploymentTarget": "16.4"
+          }
+        }
+      ],
+      "./plugins/withLoopbackCleartext",
+      "./plugins/withShortNativeBuildPath",
+      "./plugins/withUploadSigning",
+      "expo-status-bar"
+    ]
+  }
+}

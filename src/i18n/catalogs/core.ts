@@ -207,6 +207,10 @@ export const enCore = {
   "menu.support.coffee": "Buy me a coffee",
   "menu.support.or": "— or even better,",
   "menu.support.improve": "help build the game",
+  // The same link where the coffee half of the sentence is gone and this has to stand on its own —
+  // iOS, where the App Store will not have a donation link. `improve` is a sentence fragment by
+  // design ("or even better, help build the game"); alone it reads as one, hence the second cut.
+  "menu.support.improveAlone": "Help build the game",
   "menu.support.title": "Buy me a coffee",
   "menu.support.subtitle": "Vạn Thắng is free, has no ads, and is made after hours. A coffee keeps the ink flowing.",
   "menu.support.wise.title": "Wise · international",
@@ -712,6 +716,7 @@ export const viCore = {
   "menu.support.coffee": "Mời mình ly cà phê",
   "menu.support.or": "— hay hơn nữa,",
   "menu.support.improve": "chung tay làm game",
+  "menu.support.improveAlone": "Chung tay làm game",
   "menu.support.title": "Mời mình ly cà phê",
   "menu.support.subtitle": "Vạn Thắng miễn phí, không quảng cáo, được làm ngoài giờ. Một ly cà phê giúp mực còn chảy.",
   "menu.support.wise.title": "Wise · quốc tế",

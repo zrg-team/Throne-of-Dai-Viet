@@ -161,6 +161,9 @@ src/
 ├── ui/          renderers and panels; ui/ink/ is the Đông Hồ drawing vocabulary
 ├── scenes/      Boot → Preload → Menu → Map+UI · Conquest+ConquestUI
 └── i18n/        catalogs — en and vi, side by side
+apps/            platform shells; the game is built once and served by each
+├── mobile/      Expo — iOS and Android
+└── desktop/     Tauri — stub
 docs/            design documents and generated reference pages
 test_scripts/    the Playwright harnesses
 ├── verify/      pass/fail gates

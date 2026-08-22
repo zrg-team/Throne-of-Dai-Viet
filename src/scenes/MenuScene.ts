@@ -8,8 +8,7 @@ import {
 import { getLegacy, LEGACY_PERKS, purchaseLegacyPerk, rankForScore } from '../state/legacy';
 import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
 import {
-  applyUpdate, BUILD_NUMBER, BUILD_VERSION, buildDateLabel, checkForUpdate, getUpdateStatus,
-  subscribeUpdateStatus,
+  applyUpdate, buildStamp, checkForUpdate, getUpdateStatus, subscribeUpdateStatus,
 } from '../pwa/updates';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
@@ -35,6 +34,7 @@ import { drawHost, hostFootprint, hostShape, marchInPlace, type HostShape } from
 import { GRAPHICS_QUALITIES, applyRenderScale, getGraphicsQuality, setGraphicsQuality } from '../game/graphicsQuality';
 import { TRAFFIC_DENSITIES, getLifeSettings, setLifeSettings } from '../game/lifeSettings';
 import { SUPPORT, configuredSupportChannels, supportQrTextureKey, type SupportChannel } from '../data/support';
+import { allowsDonationLinks, notifyShellReady } from '../platform/shell';
 import { copyToClipboard, openExternalLink } from '../utils/browser';
 import { encodeQr, type QrMatrix } from '../utils/qr';
 
@@ -55,7 +55,30 @@ type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy' | 'settings';
  * their own page now, and what is left above the footer is breathing room for the art.
  */
 const SUPPORT_ROW_HEIGHT = 46;
-const SUPPORT_TOP = GAME_HEIGHT - 14 - SUPPORT_ROW_HEIGHT;
+/**
+ * The build stamp on the very bottom edge, under the support sentence.
+ *
+ * It was only ever on the settings page, which is two taps away and not where anybody thinks to
+ * look when they are trying to say which version they are running. On the front page it is the
+ * last thing on the sheet, in the quietest type the page has, doing what a colophon does: present
+ * for whoever needs it, invisible to whoever does not.
+ *
+ * It sits on the bottom edge itself, below the 14 of margin the rest of the footer keeps — a
+ * colophon belongs at the foot of the sheet, not floating one gap above it. `VERSION_EDGE` is all
+ * that is left under it, and it is not zero because a descender on the last line of a page needs
+ * somewhere to go, and because a phone with rounded corners eats the last few rows.
+ *
+ * 30 is the 9px line plus the air above it, and the air is most of it: the support sentence wraps
+ * to two lines in both languages and its lower line ends 15 below that band's centre, so a band
+ * sized to the type alone printed the stamp hard against "help build the game" and the two read as
+ * one paragraph.
+ *
+ * The whole footer stack moves up by what this band takes and the art lane above it loses the
+ * same, which is slack it had.
+ */
+const VERSION_ROW_HEIGHT = 30;
+const VERSION_EDGE = 6;
+const SUPPORT_TOP = GAME_HEIGHT - VERSION_ROW_HEIGHT - SUPPORT_ROW_HEIGHT;
 /** The language line under the settings button: two words and the space to tap one. */
 const LANGUAGE_ROW_HEIGHT = 20;
 /**
@@ -164,6 +187,19 @@ export class MenuScene extends Phaser.Scene {
     if (this.mode === 'main' && !hasSeenTour()) {
       this.startTour();
     }
+    // The launch splash comes down here and nowhere else, because this scene is the first thing
+    // the game ever draws. `postrender` rather than the end of `create`: `create` runs *before*
+    // the frame it just built reaches the canvas, so dismissing from here would cross-fade the
+    // splash into one frame of empty paper. The hook is declared inline in `index.html` and is
+    // gone by the time this fires a second time — `once` is belt to that braces.
+    //
+    // A native shell's splash comes down on the same frame and for the identical reason: it is
+    // holding a full-screen image over a web view that has not painted anything yet, and it wants
+    // the one frame that is genuinely the menu. Two splashes, one signal.
+    this.game.events.once(Phaser.Core.Events.POST_RENDER, () => {
+      window.__splashDone?.();
+      notifyShellReady();
+    });
   }
 
   /**
@@ -1275,6 +1311,7 @@ export class MenuScene extends Phaser.Scene {
     this.renderFooterPair();
 
     this.renderSupportRow();
+    this.renderVersionLine();
 
     // Lifetime standing across all Throne of Empires runs (hidden until earned).
     // Tapping it opens the Ascension Legacy shop, where banked points buy permanent perks.
@@ -1875,14 +1912,7 @@ export class MenuScene extends Phaser.Scene {
     if (updateHeight > 0) {
       cursor += 14;
 
-      // Composed from the parts that exist rather than from one template, so a build made outside a
-      // git checkout prints "Version 0.2.0" and not "Version 0.2.0 · build  · ".
-      const stamp = [
-        t('menu.update.version', { version: BUILD_VERSION }),
-        BUILD_NUMBER ? t('menu.update.build', { build: BUILD_NUMBER }) : '',
-        buildDateLabel(),
-      ].filter(Boolean).join('  ·  ');
-      const version = this.ui.label(contentX, cursor, stamp, 'caption', {
+      const version = this.ui.label(contentX, cursor, buildStamp(), 'caption', {
         color: INK_UI_HEX.mutedText,
         fontSize: '9px',
       }).setOrigin(0, 0);
@@ -2032,8 +2062,40 @@ export class MenuScene extends Phaser.Scene {
   private renderSupportRow(): void {
     const row = this.add.container(GAME_WIDTH / 2, SUPPORT_TOP + SUPPORT_ROW_HEIGHT / 2);
 
+    /**
+     * On iOS the sentence loses its first half, because the App Store will not have it.
+     *
+     * Two separate rules, either one of which is a rejection on its own: guideline 3.2.1(vii)
+     * excludes tips and donations *in games* from the external-link allowance other categories
+     * get, and 4.7 says HTML5 game content may not provide access to charitable donations. A link
+     * to the repository is neither, so the second half stays — see `allowsDonationLinks`.
+     *
+     * It stays under a different string, though. `menu.support.improve` is a sentence fragment by
+     * design — "— or even better, help build the game" — and printed on its own it reads as one,
+     * lowercase h and all. `improveAlone` is the same link written to stand up by itself.
+     *
+     * The band stays too, at its full height. `SETTINGS_TOP` is measured up from `SUPPORT_TOP`,
+     * so a row that removed itself would leave 46 units of nothing at the foot of the menu and
+     * float everything above it.
+     */
+    const alone = !allowsDonationLinks();
+    const improve = this.ui.textLink(
+      0,
+      0,
+      t(alone ? 'menu.support.improveAlone' : 'menu.support.improve'),
+      () => openExternalLink(SUPPORT.github),
+      { icon: 'hammer' },
+    );
+    const improveWidth = improve.getData('linkWidth') as number;
+
+    if (alone) {
+      improve.x = -improveWidth / 2;
+      row.add(improve);
+      this.content.push(row);
+      return;
+    }
+
     const coffee = this.ui.textLink(0, 0, t('menu.support.coffee'), () => this.renderSupportModal(), { icon: 'cup' });
-    const improve = this.ui.textLink(0, 0, t('menu.support.improve'), () => openExternalLink(SUPPORT.github), { icon: 'hammer' });
     // Quieter than either phrase, and deliberately not pressable: it is the sentence's connective
     // tissue, and a player hunting for what is clickable must never land on it.
     const connective = this.ui.label(0, 0, t('menu.support.or'), 'caption', {
@@ -2043,7 +2105,6 @@ export class MenuScene extends Phaser.Scene {
 
     const gap = 6;
     const coffeeWidth = coffee.getData('linkWidth') as number;
-    const improveWidth = improve.getData('linkWidth') as number;
     const total = coffeeWidth + gap + connective.width + gap + improveWidth;
 
     /**
@@ -2080,6 +2141,35 @@ export class MenuScene extends Phaser.Scene {
 
     row.add([coffee, connective, improve]);
     this.content.push(row);
+  }
+
+  /**
+   * The build stamp, centred on the bottom edge.
+   *
+   * Same string as the settings page prints — one `buildStamp()`, so the two can never disagree
+   * about what is running — and the same size and colour as the quietest caption on the page, which
+   * is what keeps it from competing with the sentence above it. Never pressable: it is a fact about
+   * the page, not a way off it.
+   *
+   * Shrinks rather than wraps in the unlikely event it outgrows the sheet, because there is exactly
+   * one line of room here and a wrapped colophon would push itself off the bottom edge.
+   */
+  private renderVersionLine(): void {
+    const stamp = buildStamp();
+    if (!stamp) {
+      return;
+    }
+    // Anchored to the bottom edge by its own baseline rather than centred in the band, so the air
+    // in the band is all above it and the line lands where the sheet ends.
+    const line = this.ui.label(GAME_WIDTH / 2, GAME_HEIGHT - VERSION_EDGE, stamp, 'caption', {
+      color: INK_UI_HEX.mutedText,
+      fontSize: '9px',
+    }).setOrigin(0.5, 1);
+    const maxWidth = GAME_WIDTH - 32;
+    if (line.width > maxWidth) {
+      line.setScale(maxWidth / line.width);
+    }
+    this.content.push(line);
   }
 
   /**

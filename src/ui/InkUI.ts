@@ -3,6 +3,7 @@ import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { addPressFeedback } from './animations';
 import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from './CardIcons';
 import { UI_FONT } from './fonts';
+import { clipFiltersUsable } from './ink/clipFilters';
 import { PIGMENT } from './ink/palette';
 import { inkPath, mulberry32, washFill, type Pt } from './ink/stroke';
 import { designLength, designPointer } from '../game/graphicsQuality';
@@ -283,6 +284,7 @@ export class InkScrollArea {
   readonly hitZone: Phaser.GameObjects.Zone;
 
   private readonly maskShape: Phaser.GameObjects.Graphics;
+  private readonly contentMask?: Phaser.Filters.Mask;
   private readonly wheelStep: number;
   private contentHeight = 0;
   private scrollY = 0;
@@ -399,9 +401,35 @@ export class InkScrollArea {
     scene.input.on('pointerup', this.upHandler);
     scene.input.on('pointerupoutside', this.upHandler);
 
+    // The clip. Under Phaser 4 this is a Mask *filter*, not a geometry mask: `GeometryMask` still
+    // exists and still compiles, but it is a Canvas-only feature there and the WebGL renderer never
+    // consults it — a scroll list would quietly paint across the whole screen.
+    //
+    // `fillStyle` is load-bearing and was not needed before. A geometry mask is a stencil pass and
+    // only coverage counts; a Mask filter multiplies the content by the mask's *alpha*, so an
+    // unstyled rect (fill alpha 0) hides everything instead of showing it.
+    //
+    // `clipFiltersUsable` is the other half of the story: the filter compositor cannot cope with
+    // this game's zoomed cameras, so above RENDER_SCALE 1 there is no clip at all and the list
+    // overflows. Read that file before touching this.
     this.maskShape = scene.make.graphics({}, false);
+    this.maskShape.fillStyle(0xffffff, 1);
     this.maskShape.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-    this.content.setMask(this.maskShape.createGeometryMask());
+    if (clipFiltersUsable(scene)) {
+      this.content.enableFilters();
+    }
+    if (this.content.filters) {
+      this.contentMask = this.content.filters.internal.addMask(this.maskShape);
+      // The rect never moves or resizes for the life of the area, so there is no reason to
+      // re-render it to a DynamicTexture every frame — which is what `autoUpdate` would do, once
+      // per scroll area on screen. One render, at the first frame that needs it.
+      this.contentMask.autoUpdate = false;
+      this.contentMask.needsUpdate = true;
+    } else {
+      // Canvas, or a zoomed camera the filter compositor cannot cope with. The geometry mask is
+      // a no-op under WebGL in v4, but it costs nothing and it is the right answer on Canvas.
+      this.content.setMask(this.maskShape.createGeometryMask());
+    }
 
     this.wheelHandler = (pointer, _objects, _dx, dy) => {
       if (!this.containsPointer(pointer)) {

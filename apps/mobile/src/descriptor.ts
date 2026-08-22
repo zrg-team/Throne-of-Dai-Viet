@@ -1,0 +1,38 @@
+import { Platform } from 'react-native';
+
+import appJson from '../app.json';
+
+/**
+ * The cabinet's half of the contract in `apps/README.md`: the `window.__shell` descriptor, built
+ * as a string for `injectedJavaScriptBeforeContentLoaded`.
+ *
+ * A string rather than a `postMessage` after load, and that is not a style choice. `src/main.ts`
+ * asks `usesServiceWorker()` at module scope, before Phaser exists — so the descriptor has to be
+ * on `window` before the bundle's first line runs, and this prop is the only hook that fires that
+ * early. A message sent on `onLoadEnd` arrives several hundred milliseconds too late, and the
+ * symptom is a service worker registering inside the app.
+ *
+ * `ready` posts the bare string `boot:ready`. `App.tsx` compares against exactly that.
+ */
+export function shellDescriptorScript(): string {
+  const descriptor = {
+    kind: 'mobile' as const,
+    // The two stores' rules differ and one build serves both, so this is the field that decides
+    // whether the menu may show a donation link. See `allowsDonationLinks` in the game.
+    os: Platform.OS === 'ios' ? ('ios' as const) : ('android' as const),
+    version: appJson.expo.version,
+  };
+
+  // JSON.stringify, not a template literal with the values dropped in: the version string comes
+  // from a file and an apostrophe in it would end the statement early and white-screen the game.
+  return `
+    window.__shell = Object.assign(${JSON.stringify(descriptor)}, {
+      ready: function () {
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage('boot:ready');
+        }
+      }
+    });
+    true;
+  `;
+}

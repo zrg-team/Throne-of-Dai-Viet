@@ -162,11 +162,11 @@ export class BattleArenaScene extends Phaser.Scene {
   /** One drawn star, filled or hollow. Five strokes, because there are five of them. */
   private star(x: number, y: number, r: number, filled: boolean): Phaser.GameObjects.Graphics {
     const g = this.add.graphics({ x, y });
-    const points: Phaser.Geom.Point[] = [];
+    const points: Phaser.Math.Vector2[] = [];
     for (let i = 0; i < 10; i += 1) {
       const radius = i % 2 === 0 ? r : r * 0.44;
       const angle = -Math.PI / 2 + (i * Math.PI) / 5;
-      points.push(new Phaser.Geom.Point(Math.cos(angle) * radius, Math.sin(angle) * radius));
+      points.push(new Phaser.Math.Vector2(Math.cos(angle) * radius, Math.sin(angle) * radius));
     }
     if (filled) {
       g.fillStyle(INK_UI.gold, 1);

@@ -47,7 +47,10 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
     const scene = window.__phaserGame.scene.getScene('MenuScene');
     for (const child of scene.children.list) {
       const label = child.list?.find?.((k) => k.type === 'Text');
-      if (label && /Sử thật|Real History/.test(label.text)) {
+      // `history.menu.button` — "History" / "Lịch sử". It used to read "Real History" / "Sử thật"
+      // and this harness was still looking for that, so it reported "no History button on the front
+      // page" on every run regardless of the page. Not a Phaser 4 change; found while migrating.
+      if (label && /Lịch sử|History/.test(label.text)) {
         // The label's own centre, not the container's corner plus half a width that was measured
         // once. The front page has been relaid since — the button is 122 wide now, not 282 — and
         // the old arithmetic was pressing bare paper 20 units to the right of it.
@@ -261,8 +264,28 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
   if (afterTap.offset === 0 && afterDrag.offset > 0) fail(`${tag}  opening a row threw the list back to the top`);
   if (!afterDrag.expanded && afterTap.expanded) console.log(`PASS  ${tag}  drag scrolls, tap opens, position kept`);
 
-  // And back out again.
-  await page.mouse.click(44, 24);
+  // And back out again. Found by its label rather than by a coordinate: this used to be a chevron
+  // at (44, 24) and the harness still clicked there long after the exit moved to a button at the
+  // foot of the page, so "Back did not return to the menu" failed on every run. Not a Phaser 4
+  // change; found while migrating.
+  const back = await page.evaluate(() => {
+    const scene = window.__phaserGame.scene.getScene('HistoryScene');
+    const hit = (node) => {
+      const label = node.list?.find?.((k) => k.type === 'Text');
+      if (label && /Quay lại|Back/.test(label.text)) {
+        const m = label.getWorldTransformMatrix();
+        return { x: m.tx, y: m.ty };
+      }
+      return null;
+    };
+    for (const child of scene.children.list) {
+      const found = hit(child);
+      if (found) return found;
+    }
+    return null;
+  });
+  if (!back) fail(`${tag}  no Back control on the page`);
+  await page.mouse.click(back?.x ?? 44, back?.y ?? 24);
   await page.waitForFunction(() => window.__phaserGame.scene.isActive('MenuScene'), null, { timeout: 8000 })
     .catch(() => {});
   if (!(await page.evaluate(() => window.__phaserGame.scene.isActive('MenuScene')))) {

@@ -11,16 +11,26 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5179",
     "build": "tsc && vite build && node scripts/build-sw.mjs",
+    "build:shell": "tsc && vite build --mode shell",
+    "mobile:sync": "yarn build:shell && npm --prefix apps/mobile run sync",
+    "mobile:link": "npm --prefix apps/mobile run link",
+    "mobile:android": "npm --prefix apps/mobile run android:apk",
+    "mobile:android:aab": "npm --prefix apps/mobile run android:aab",
+    "mobile:ios:ipa": "yarn build:shell && npm --prefix apps/mobile run sync && npm --prefix apps/mobile run ios:ipa",
+    "mobile:ios:check": "npm --prefix apps/mobile run ios:check",
+    "mobile:ios": "npm --prefix apps/mobile run ios:eas",
     "preview": "vite preview --host 0.0.0.0",
     "icon": "node scripts/build-icon.mjs",
     "icon:check": "node scripts/build-icon.mjs --check",
     "faces": "node scripts/build-faces.mjs",
     "faces:check": "node scripts/build-faces.mjs --check",
     "fonts": "node scripts/fetch-fonts.mjs",
-    "sw": "node scripts/build-sw.mjs"
+    "sw": "node scripts/build-sw.mjs",
+    "skills": "node scripts/sync-phaser-skills.mjs",
+    "skills:check": "node scripts/sync-phaser-skills.mjs --check"
   },
   "dependencies": {
-    "phaser": "^3.90.0"
+    "phaser": "4.2.1"
   },
   "devDependencies": {
     "jsqr": "1.4.0",

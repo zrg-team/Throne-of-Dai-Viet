@@ -10,7 +10,7 @@
  * status rather than just a `register()`: somebody has to be told there is something to tap.
  */
 
-import { getLanguage } from '../i18n';
+import { getLanguage, t } from '../i18n';
 
 export type UpdateStatus =
   /** Dev build, or a browser without service workers. Nothing to show. */
@@ -48,6 +48,24 @@ export function buildDateLabel(): string {
   } catch {
     return __BUILD_DATE__;
   }
+}
+
+/**
+ * "Which build have you got?", in one line.
+ *
+ * Composed from the parts that exist rather than from one template, so a build made outside a git
+ * checkout prints "Version 0.2.0" and not "Version 0.2.0 · build  · ".
+ *
+ * Lives here, beside the three constants it reads, because two places print it now — the settings
+ * page and the foot of the front page — and a version string that is assembled twice is a version
+ * string that will eventually disagree with itself about what the player is running.
+ */
+export function buildStamp(): string {
+  return [
+    t('menu.update.version', { version: BUILD_VERSION }),
+    BUILD_NUMBER ? t('menu.update.build', { build: BUILD_NUMBER }) : '',
+    buildDateLabel(),
+  ].filter(Boolean).join('  ·  ');
 }
 
 const listeners = new Set<(status: UpdateStatus) => void>();
