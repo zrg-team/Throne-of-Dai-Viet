@@ -4,6 +4,7 @@
   "private": true,
   "main": "index.ts",
   "scripts": {
+    "postinstall": "patch-package",
     "sync": "node scripts/sync-web.mjs",
     "start": "expo start --dev-client",
     "link": "expo start --dev-client --tunnel",
@@ -35,6 +36,7 @@
     "@types/react": "^19.1.1",
     "archiver": "^7.0.1",
     "expo-build-properties": "~57.0.13",
+    "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
   }
 }

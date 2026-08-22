@@ -49,90 +49,52 @@ npm run android:eas       # same, on EAS rather than this machine
 
 ## Signing
 
-### What signs the APK today: nothing you own
+Application id, both platforms: **`zrg.team.vanthang`**.
 
-`expo prebuild` generates `android/app/debug.keystore`, and the release build type is wired
-straight to it:
+### The key is yours and is not in this repository
 
-```gradle
-signingConfigs {
-    debug {
-        storeFile file('debug.keystore')
-        storePassword 'android'
-        keyAlias 'androiddebugkey'
-        keyPassword 'android'
-    }
-}
-buildTypes {
-    release {
-        // Caution! In production, you need to generate your own keystore file.
-        signingConfig signingConfigs.debug
-    }
-}
-```
-
-Those three strings — `android`, `androiddebugkey`, `android` — are the stock Android debug
-credentials. They are identical on every machine on earth and documented publicly. Expo wires
-release to them so that `assembleRelease` produces something installable out of the box, not
-because the result is publishable.
-
-| | debug keystore |
-|---|---|
-| Sideload onto your own phone | fine |
-| Hand an APK to a tester | fine |
-| Upload to Google Play | **rejected** |
-| Prove the app came from you | **no** — the key is public, so anyone can sign an "update" |
-
-One more consequence worth knowing before it confuses you: `prebuild --clean` regenerates the
-keystore, so two APKs built a week apart are signed by *different* keys. Android refuses to install
-an update whose signature does not match, with a message that reads like a corrupt download. You
-have to uninstall first.
-
-### Getting a real key
-
-**Route 1 — let EAS hold it.** Simplest, and it keeps the key off this machine and out of the repo:
-
-```bash
-eas build -p android --profile production
-```
-
-The first run offers to generate an upload keystore and stores it against your Expo account.
-`eas credentials` lists, rotates and downloads it later.
-
-**Route 2 — your own keystore, built locally.** Generate it once, and put it somewhere that is not
-this repository:
-
-```bash
-keytool -genkeypair -v -keystore van-thang-upload.jks \
-  -alias van-thang -keyalg RSA -keysize 2048 -validity 10000
-```
-
-Credentials go in your per-user `~/.gradle/gradle.properties` — outside the repo, which is the
-whole point:
+`plugins/withUploadSigning.js` points release builds at an upload key held outside the project.
+The keystore lives at `~/.android-keys/van-thang-upload.jks` and its credentials in the per-user
+`~/.gradle/gradle.properties`:
 
 ```properties
-VANTHANG_UPLOAD_STORE_FILE=C:/keys/van-thang-upload.jks
+VANTHANG_UPLOAD_STORE_FILE=C:/Users/<you>/.android-keys/van-thang-upload.jks
 VANTHANG_UPLOAD_KEY_ALIAS=van-thang
 VANTHANG_UPLOAD_STORE_PASSWORD=…
 VANTHANG_UPLOAD_KEY_PASSWORD=…
 ```
 
-Then the wiring, and this is the step that catches people: **it has to be a config plugin.** Adding
-a `release` signing config to `android/app/build.gradle` by hand works exactly once — the next
-`prebuild --clean`, which `npm run android:apk` runs every single time, throws it away. There is no
-such plugin in `plugins/` yet; Route 1 is why it has not been needed.
+Nothing about the key enters the repository, and `android/` is regenerated on every build, so the
+wiring has to be a plugin — an edit to `android/app/build.gradle` survives exactly one build.
+
+When those properties are absent — a fresh clone, a CI runner, somebody else's machine — the build
+falls back to Android's public debug key and still produces something installable. That is
+deliberate: a missing secret should not be a build failure. It does mean **you must check which key
+signed a binary before you upload it**:
+
+```bash
+apksigner verify --print-certs android/app/build/outputs/apk/release/app-release.apk
+```
+
+`CN=Van Thang, OU=zrg.team` is yours. `CN=Android Debug` is the public key — installable, and
+rejected by Play.
+
+### Do not print the signing config
+
+Any Gradle error that mentions a signing config dumps the whole object into the build log,
+`storePassword` and `keyPassword` in clear text. That is why the plugin reports nothing about which
+key it chose: check the built artefact with `apksigner` instead. If a password ever does reach a
+log, rotate the key — until an app is published, that costs nothing.
 
 ### Play App Signing
 
-Whichever route you take, the key you upload with is the **upload key**. Google re-signs the app
-with an **app signing key** that it holds. Lose the upload key and Play support can reset it; lose
-an app signing key you insisted on holding yourself and the listing can never be updated again.
-That asymmetry is the argument for letting Google keep it.
+The key you upload with is the **upload key**. Google re-signs with an **app signing key** it
+holds. Lose the upload key and Play support can reset it; lose an app signing key you insisted on
+holding yourself and the listing can never be updated again.
 
 ### Never commit
 
-`*.jks`, `*.keystore`, and any file containing a password. `android/` is gitignored, which covers
-`debug.keystore` — but by accident, not by intent. Do not rely on it for a real key.
+`*.jks`, `*.keystore`, and any file containing a password.
 
 ## How it fits together
 
@@ -141,8 +103,11 @@ That asymmetry is the argument for letting Google keep it.
 | `App.tsx` | Unpacks the archive once, starts the loopback server, holds the splash until the game paints, forwards outbound links to the OS browser |
 | `src/descriptor.ts` | Writes `window.__shell` *before* the bundle loads — `main.ts` reads it at module scope |
 | `plugins/withLoopbackCleartext.js` | Lets Android reach `127.0.0.1` and nothing else |
+| `plugins/withShortNativeBuildPath.js` | Moves the native build staging dir off the deep repo path — Windows `MAX_PATH`, see below |
 | `scripts/sync-web.mjs` | `dist-shell/` → `assets/web.zip` + a build stamp + the launcher marks |
 | `scripts/gradle.mjs` | Prebuild then Gradle, on either platform, failing loudly when prebuild silently did not |
+| `patches/` | Two CMake fixes to `react-native-static-server`, reapplied by `postinstall` — see below |
+| `plugins/withUploadSigning.js` | Signs release with your own key, falling back to debug when it is absent |
 
 ## Things that will bite
 
@@ -151,6 +116,33 @@ save lives. Changing it wipes every player's reign with no error anywhere.
 
 **`npm run sync` after every game change.** The symptom of forgetting is worse than a failure: the
 app runs perfectly, on last week's game.
+
+**`react-native-static-server` needs two CMake patches to build from Windows**, kept in
+`patches/` and reapplied automatically by the `postinstall` hook. Do not delete them; the native
+build fails without both. What they fix, in case they ever need rebasing onto a new version:
+
+1. *`pcre2.h couldn't be found` — with the header sitting in the sysroot.* Cross-compiling to
+   Android sets `CMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY`, which confines `find_package()` to the
+   NDK's own sysroot and makes the package's `CMAKE_PREFIX_PATH` inert. lighttpd then falls
+   through to pkg-config (absent on Windows) and finally to `pcre2-config`, a POSIX shell script
+   Windows cannot execute — which returns nothing and collapses a `string(REPLACE ...)` to three
+   arguments. Fix: add the sysroot to `CMAKE_FIND_ROOT_PATH`. Then `find_package(PCRE2)` needs
+   `COMPONENTS 8BIT`, because PCRE2's own config file hard-errors when called bare.
+2. *`unable to find library -lglob`.* lighttpd links its glob shim by bare name, and nothing puts
+   the sysroot's `lib/` on the link search path. Fix: `link_directories()` before
+   `add_subdirectory(lighttpd1.4)`.
+
+Neither shows on Linux or macOS, where pkg-config resolves PCRE2 before any of this is reached —
+which is why EAS builds do not need the patches, and why upstream has not hit them.
+
+**Windows `MAX_PATH` will stop the native build.** React Native's codegen writes paths like
+`android/app/.cxx/.../ReactNativeStaticServerSpec_autolinked_build/CMakeFiles/react_codegen_ReactNativeStaticServerSpec.dir/react/renderer/components/ReactNativeStaticServerSpec`
+— the module's spec name three times over. Rooted at this repository that is 265 characters
+against a 260 limit, and `ninja` reports it as `mkdir(...): No such file or directory`, which reads
+like a missing folder rather than a name five characters too long. `plugins/withShortNativeBuildPath.js`
+relocates the staging directory to `C:/ncxx/van-thang`; the OS-level `LongPathsEnabled=1` does
+*not* help, because the ninja bundled with Android SDK cmake 3.22.1 predates the manifest opt-in
+that flag requires.
 
 **Nothing may hold `android/` during a build.** `prebuild --clean` cannot delete a folder that is
 some process's working directory, and on Windows it prints `EBUSY`, carries on, and exits 0.

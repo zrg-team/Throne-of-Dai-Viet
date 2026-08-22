@@ -31,7 +31,22 @@ const run = (command, args, cwd) => {
   if (result.status !== 0) process.exit(result.status ?? 1);
 };
 
-run(windows ? 'npx.cmd' : 'npx', ['expo', 'prebuild', '-p', 'android', '--clean'], app);
+/**
+ * Prebuild, but deliberately *without* `--clean`.
+ *
+ * `--clean` deletes the whole `android/` tree, build output included — and Gradle keeps a daemon
+ * alive for three hours after a build, holding open handles on things like
+ * `app/build/intermediates/dex/release/mergeDexRelease/classes.dex`. On Windows the delete then
+ * fails with `EBUSY`, so every second build in a session died before it started. `gradlew --stop`
+ * first is not reliable either: the daemon exits asynchronously and the handles outlive the call.
+ *
+ * Prebuild without `--clean` re-runs the whole config-plugin pipeline and rewrites every file it
+ * manages — `AndroidManifest.xml`, `build.gradle`, the network security config — so a plugin
+ * change still lands. What it does not do is remove files a plugin *stopped* emitting. That is
+ * what `npm run prebuild` is for: an explicit, occasional, fresh start, run when no build is in
+ * flight.
+ */
+run(windows ? 'npx.cmd' : 'npx', ['expo', 'prebuild', '-p', 'android'], app);
 
 /**
  * Prebuild is not trusted to have worked, because it exits 0 when it has not.

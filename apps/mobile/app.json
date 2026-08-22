@@ -12,7 +12,7 @@
     ],
     "icon": "./assets/icon.png",
     "ios": {
-      "bundleIdentifier": "vn.zrgteam.vanthang",
+      "bundleIdentifier": "zrg.team.vanthang",
       "buildNumber": "1",
       "supportsTablet": true,
       "requireFullScreen": true,
@@ -22,7 +22,7 @@
       }
     },
     "android": {
-      "package": "vn.zrgteam.vanthang",
+      "package": "zrg.team.vanthang",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -54,7 +54,8 @@
         }
       ],
       "./plugins/withLoopbackCleartext",
-      "./plugins/withShortNativeBuildPath"
+      "./plugins/withShortNativeBuildPath",
+      "./plugins/withUploadSigning"
     ]
   }
 }
