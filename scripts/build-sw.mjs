@@ -30,7 +30,7 @@ const argOf = (flag, fallback) => {
 
 const DIST = resolve(ROOT, argOf('--dist', 'dist'));
 
-/** The sub-path the game is served from — `/Throne-of-Dai-Viet/` on Pages, `/` anywhere else. */
+/** The sub-path the game is served from — `/ten-thousand-victories/` on Pages, `/` anywhere else. */
 const BASE = (() => {
   const override = argOf('--base', undefined);
   if (override) return override.endsWith('/') ? override : `${override}/`;
@@ -43,11 +43,13 @@ const BASE = (() => {
 /**
  * Not precached, and each for its own reason:
  *   · `sw.js` — a worker that caches itself can never be replaced.
- *   · `public/**` — the deploy workflow copies `public/` a second time into `dist/public/` after
- *     this script runs. Nothing loads from there; precaching it would double 1.5 MB for nothing.
  *   · dotfiles — `.nojekyll` and friends are for the server, not the client.
+ *
+ * Everything else in `dist/` is the game, and all of it is sealed. (The deploy workflow used to
+ * copy `public/` a second time into `dist/public/`, which this skipped; that copy was a duplicate
+ * of files already at the root of `dist/` and nothing ever loaded from it, so it is gone.)
  */
-const skip = (rel) => rel === 'sw.js' || rel.startsWith('public/') || rel.split('/').some((part) => part.startsWith('.'));
+const skip = (rel) => rel === 'sw.js' || rel.split('/').some((part) => part.startsWith('.'));
 
 /** The art: fetched by the Phaser loader at runtime, and survivable if one is missing. */
 const isOptional = (rel) => rel.startsWith('faces/') || rel.startsWith('support/');
@@ -104,11 +106,16 @@ for (const { rel } of entries) {
 
 const list = (urls) => `[\n${urls.map((entry) => `  ${JSON.stringify(entry)},`).join('\n')}\n]`;
 
-const worker = template
-  .replace("'__CACHE_VERSION__'", JSON.stringify(version))
-  .replace('__PRECACHE_CRITICAL__', list(critical))
-  .replace('__PRECACHE_OPTIONAL__', list(optional))
-  .replace('__SHELL_URL__', JSON.stringify(BASE));
+// Function replacements, not string ones. `String.replace` reads `$&` and `$'` in a replacement
+// string as instructions, and three of these four replacements are file names. Nothing in `dist/`
+// carries a `$` today, and a build that silently emitted a corrupt worker would be a poor way to
+// find out that had changed.
+const worker = [
+  ["'__CACHE_VERSION__'", JSON.stringify(version)],
+  ['__PRECACHE_CRITICAL__', list(critical)],
+  ['__PRECACHE_OPTIONAL__', list(optional)],
+  ['__SHELL_URL__', JSON.stringify(BASE)],
+].reduce((source, [placeholder, value]) => source.replace(placeholder, () => value), template);
 
 writeFileSync(join(DIST, 'sw.js'), worker);
 

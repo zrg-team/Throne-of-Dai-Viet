@@ -117,6 +117,11 @@ export function registerServiceWorker(): void {
 
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!applying) {
+      // Somebody else's tap. One registration serves every client on the origin — an installed
+      // app and a browser tab, or two tabs — so when one of them applies the update, the new
+      // worker claims the rest of us on its way past. Nothing is waiting any more, which makes
+      // the notice this page is showing a lie and its Reload button a no-op. Retract it.
+      refresh();
       return;
     }
     window.location.reload();
@@ -184,8 +189,16 @@ export function checkForUpdate(force = false): void {
  * the page once it has.
  */
 export function applyUpdate(): void {
+  if (applying) {
+    return;
+  }
   const waiting = registration?.waiting;
-  if (!waiting || applying) {
+  if (!waiting) {
+    // The button was drawn from a status that went stale in the moment between: another client
+    // took this same update and its worker claimed us. There is nothing left to tell to stop
+    // waiting — but this page is still running the old bundle, so the reload is still the right
+    // answer, and it is the only one that is not the button doing visibly nothing.
+    window.location.reload();
     return;
   }
   applying = true;

@@ -30,7 +30,7 @@ export interface SupportChannel {
 
 export const SUPPORT = {
   /** Where "Help build the game" goes. Issues and pull requests are both welcome there. */
-  github: 'https://github.com/zrg-team/Throne-of-Dai-Viet',
+  github: 'https://github.com/zrg-team/ten-thousand-victories',
 
   channels: [
     { id: 'wise', handle: '@tand99', link: 'https://wise.com/pay/me/tand99' },

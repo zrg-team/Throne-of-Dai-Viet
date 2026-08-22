@@ -42,11 +42,6 @@ jobs:
       - name: Build
         run: yarn build
 
-      - name: Include public folder
-        run: |
-          mkdir -p dist/public
-          cp -R public/. dist/public/
-
       - name: Configure Pages
         uses: actions/configure-pages@v5
 

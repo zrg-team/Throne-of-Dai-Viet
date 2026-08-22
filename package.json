@@ -2,10 +2,10 @@
   "name": "van-thang",
   "version": "0.2.0",
   "private": true,
-  "homepage": "https://zrg-team.github.io/Throne-of-Dai-Viet/",
+  "homepage": "https://zrg-team.github.io/ten-thousand-victories/",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zrg-team/Throne-of-Dai-Viet.git"
+    "url": "https://github.com/zrg-team/ten-thousand-victories.git"
   },
   "type": "module",
   "scripts": {

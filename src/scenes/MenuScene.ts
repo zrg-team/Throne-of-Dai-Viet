@@ -1315,9 +1315,9 @@ export class MenuScene extends Phaser.Scene {
    * wordmark own everything from the top edge down to the rule at 206, and the only paper this
    * page has spare is the sky between that rule and the mountain tops.
    *
-   * Only the two states a player can do something about are shown. "Saving for offline play" and
-   * "ready to play offline" are the settings page's business: the front page is not the place to
-   * narrate housekeeping that needs no decision.
+   * Only the two states that are news are shown — one on its way down, one waiting to be taken.
+   * "Saving for offline play" and "ready to play offline" are the settings page's business: the
+   * front page is not the place to narrate housekeeping that needs no decision.
    */
   private renderUpdateNotice(): void {
     const status = getUpdateStatus();

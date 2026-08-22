@@ -10,9 +10,9 @@
 
 **A grand-strategy game printed like a Đông Hồ woodblock — free, ad-free, in English and Tiếng Việt.**
 
-[![Play in the browser](https://img.shields.io/badge/▶%20%20Play%20now-zrg--team.github.io-b33a26?style=for-the-badge)](https://zrg-team.github.io/Throne-of-Dai-Viet/)
+[![Play in the browser](https://img.shields.io/badge/▶%20%20Play%20now-zrg--team.github.io-b33a26?style=for-the-badge)](https://zrg-team.github.io/ten-thousand-victories/)
 &nbsp;
-[![Deploy](https://github.com/zrg-team/Throne-of-Dai-Viet/actions/workflows/deploy-github-pages.yml/badge.svg)](https://github.com/zrg-team/Throne-of-Dai-Viet/actions/workflows/deploy-github-pages.yml)
+[![Deploy](https://github.com/zrg-team/ten-thousand-victories/actions/workflows/deploy-github-pages.yml/badge.svg)](https://github.com/zrg-team/ten-thousand-victories/actions/workflows/deploy-github-pages.yml)
 
 ![Phaser 3](https://img.shields.io/badge/Phaser-3.90-2a2118?style=flat-square)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-42596b?style=flat-square&logo=typescript&logoColor=white)
@@ -123,7 +123,7 @@ Portraits are composed from a library of seventy-four drawn parts — collars, h
 
 ## 📱 Play
 
-**[▶ zrg-team.github.io/Throne-of-Dai-Viet](https://zrg-team.github.io/Throne-of-Dai-Viet/)** — no install, no account, nothing leaves your device.
+**[▶ zrg-team.github.io/ten-thousand-victories](https://zrg-team.github.io/ten-thousand-victories/)** — no install, no account, nothing leaves your device.
 
 - Built for a **portrait phone in one hand**; works with a mouse too.
 - **Drag** to pan, **+ / −** to zoom, **tap** a province, **tap** a card to answer it.

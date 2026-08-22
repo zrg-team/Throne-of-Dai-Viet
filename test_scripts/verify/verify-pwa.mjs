@@ -4,7 +4,7 @@
  * This is the one harness that cannot run against the dev server: service workers are a production
  * concern (`registerServiceWorker` unregisters in dev on purpose), and there is no `sw.js` until
  * `scripts/build-sw.mjs` has walked a finished build. So it drives `vite preview`, which serves
- * `dist/` at the same `/Throne-of-Dai-Viet/` sub-path GitHub Pages does.
+ * `dist/` at the same `/ten-thousand-victories/` sub-path GitHub Pages does.
  *
  *   yarn build                                  # emits dist/sw.js
  *   npx vite preview --port 4173                # in another shell
@@ -19,7 +19,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 
-const BASE = process.env.PREVIEW_URL ?? 'http://127.0.0.1:4173/Throne-of-Dai-Viet/';
+const BASE = process.env.PREVIEW_URL ?? 'http://127.0.0.1:4173/ten-thousand-victories/';
 const SW_PATH = process.env.SW_PATH ?? 'dist/sw.js';
 
 const checks = [];
@@ -172,7 +172,7 @@ try {
     await page.waitForTimeout(600);
     // Every string on the page, containers included — `InkUI.button` puts its label inside one, so
     // a flat pass over `children.list` sees the captions and misses every button in the game.
-    const readAllText = () => page.evaluate(() => {
+    const readAllText = (target = page) => target.evaluate(() => {
       const found = [];
       const walk = (list) => {
         for (const child of list) {
@@ -224,6 +224,29 @@ try {
       `lowest ${overflow.lowest} of ${overflow.height}`,
     );
 
+    // ── The other client ─────────────────────────────────────────────────────────────────────
+    //
+    // An installed app and a browser tab share one registration, and whichever one taps Reload
+    // claims the other on its way past. The client that did NOT tap is the interesting one — and
+    // only if it opened AFTER the update had already landed. `updatefound` does not fire for a
+    // worker that is already waiting (see `observe` in src/pwa/updates.ts), so such a page never
+    // attaches a `statechange` listener to it, and `controllerchange` is the only word it ever
+    // gets. Without that word it goes on printing "New version ready" over a button whose waiting
+    // worker is gone — and `applyUpdate` reads `registration.waiting`, finds nothing, and
+    // returns. A button that visibly does nothing at all.
+    //
+    // Assert the notice first, or this proves only that a page with no notice has no notice.
+    const second = await context.newPage();
+    await second.goto(`${BASE}?capture=1`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await second.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
+    await second.waitForTimeout(1000);
+    const secondBefore = await readAllText(second);
+    check(
+      'a client opened while an update waits raises the notice too',
+      secondBefore.some((text) => /New version ready/i.test(text)),
+      secondBefore.filter((text) => /version/i.test(text)).join(' / ') || 'nothing saying "version"',
+    );
+
     const applied = await page.evaluate(async () => {
       const registration = await navigator.serviceWorker.ready;
       registration.waiting?.postMessage({ type: 'SKIP_WAITING' });
@@ -234,6 +257,16 @@ try {
       return false;
     });
     check('the waiting worker takes over when asked', applied);
+
+    // …and the client that tapped nothing has to notice that it happened.
+    await second.waitForTimeout(1500);
+    const secondAfter = await readAllText(second);
+    check(
+      'the client that did not tap retracts its stale notice',
+      !secondAfter.some((text) => /New version ready/i.test(text)),
+      secondAfter.filter((text) => /version/i.test(text)).join(' / ') || 'nothing left saying "version"',
+    );
+    await second.close();
 
     // ── 6. And it still fits on the smallest sheet, in the longer language ────────────────────
     //
