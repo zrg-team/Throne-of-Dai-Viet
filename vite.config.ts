@@ -41,7 +41,7 @@ const buildDate = fromGit('git log -1 --format=%cs');
 
 export default defineConfig(({ command, isPreview }) => ({
   // `vite preview` runs with `command === 'serve'`, so a plain `command === 'build'` test served
-  // the built app from `/` while its own index.html pointed every asset at `/Throne-of-Dai-Viet/`:
+  // the built app from `/` while its own index.html pointed every asset at `/ten-thousand-victories/`:
   // a preview that 404'd its own bundle and fell through to the SPA fallback, which is not a
   // preview of anything. `isPreview` is the difference between the two serve modes.
   base: command === 'build' || isPreview ? homepagePath : '/',

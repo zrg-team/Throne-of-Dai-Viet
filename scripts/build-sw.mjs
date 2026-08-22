@@ -30,7 +30,7 @@ const argOf = (flag, fallback) => {
 
 const DIST = resolve(ROOT, argOf('--dist', 'dist'));
 
-/** The sub-path the game is served from — `/Throne-of-Dai-Viet/` on Pages, `/` anywhere else. */
+/** The sub-path the game is served from — `/ten-thousand-victories/` on Pages, `/` anywhere else. */
 const BASE = (() => {
   const override = argOf('--base', undefined);
   if (override) return override.endsWith('/') ? override : `${override}/`;

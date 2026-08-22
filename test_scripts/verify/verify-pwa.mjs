@@ -4,7 +4,7 @@
  * This is the one harness that cannot run against the dev server: service workers are a production
  * concern (`registerServiceWorker` unregisters in dev on purpose), and there is no `sw.js` until
  * `scripts/build-sw.mjs` has walked a finished build. So it drives `vite preview`, which serves
- * `dist/` at the same `/Throne-of-Dai-Viet/` sub-path GitHub Pages does.
+ * `dist/` at the same `/ten-thousand-victories/` sub-path GitHub Pages does.
  *
  *   yarn build                                  # emits dist/sw.js
  *   npx vite preview --port 4173                # in another shell
@@ -19,7 +19,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 
-const BASE = process.env.PREVIEW_URL ?? 'http://127.0.0.1:4173/Throne-of-Dai-Viet/';
+const BASE = process.env.PREVIEW_URL ?? 'http://127.0.0.1:4173/ten-thousand-victories/';
 const SW_PATH = process.env.SW_PATH ?? 'dist/sw.js';
 
 const checks = [];
