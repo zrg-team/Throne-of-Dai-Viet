@@ -1,15 +1,15 @@
 # The harnesses
 
 There is no test framework here. Every check drives the real game in headless Chromium, so a
-"test" is a standalone `.mjs` script run with bare `node`. There are 114 of them, and they are
+"test" is a standalone `.mjs` script run with bare `node`. There are 122 of them, and they are
 filed by **the question they answer** rather than by the feature they touch — a battle change
 usually means running something from `verify/`, then something from `playtest/`, and those are
 two different kinds of answer.
 
 | Folder | Count | Answers | Named |
 |---|---|---|---|
-| [`verify/`](verify/) | 51 | *Is it broken?* — pass/fail gates worth keeping | `verify-<topic>.mjs` |
-| [`shot/`](shot/) | 34 | *What does it look like?* — screenshot drivers | `shot-<topic>.mjs` |
+| [`verify/`](verify/) | 58 | *Is it broken?* — pass/fail gates worth keeping | `verify-<topic>.mjs` |
+| [`shot/`](shot/) | 35 | *What does it look like?* — screenshot drivers | `shot-<topic>.mjs` |
 | [`playtest/`](playtest/) | 9 | *Is it any good?* — metrics, sessions, full playthroughs | `playtest-*`, `play-*`, `battle-lab` |
 | [`perf/`](perf/) | 7 | *What does it cost?* — render, bake, beat, heap | `measure-*`, `perf-*` |
 | [`diag/`](diag/) | 11 | *Why is it doing that?* — prints, does not assert | `diag-<topic>.mjs`, `measure-*` |
@@ -24,6 +24,7 @@ A dev server must already be running — **no harness starts one** — and every
 ```bash
 node test_scripts/gate/smoke.mjs                    # every mode boots, ticks, draws — ~40 s
 node test_scripts/verify/verify-ascent.mjs          # the Dragon Ascent loop end to end
+node test_scripts/verify/verify-invasion-lifecycle.mjs  # every invasion announces its start and its end
 node test_scripts/playtest/playtest-metrics.mjs     # six measured preconditions of fun, /85
 node test_scripts/perf/perf-bench.mjs --label wip   # auto-diffs against perf-results/baseline.json
 node test_scripts/shot/shot-readme.mjs              # regenerates every picture in the root README

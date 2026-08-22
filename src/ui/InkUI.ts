@@ -3,7 +3,7 @@ import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { addPressFeedback } from './animations';
 import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from './CardIcons';
 import { UI_FONT } from './fonts';
-import { clipFiltersUsable } from './ink/clipFilters';
+import { RectClip } from './ink/clipRect';
 import { PIGMENT } from './ink/palette';
 import { inkPath, mulberry32, washFill, type Pt } from './ink/stroke';
 import { designLength, designPointer } from '../game/graphicsQuality';
@@ -283,8 +283,7 @@ export class InkScrollArea {
   readonly content: Phaser.GameObjects.Container;
   readonly hitZone: Phaser.GameObjects.Zone;
 
-  private readonly maskShape: Phaser.GameObjects.Graphics;
-  private readonly contentMask?: Phaser.Filters.Mask;
+  private readonly clip: RectClip;
   private readonly wheelStep: number;
   private contentHeight = 0;
   private scrollY = 0;
@@ -309,7 +308,19 @@ export class InkScrollArea {
     this.wheelStep = opts.wheelStep ?? 1;
     this.container = scene.add.container(bounds.x, bounds.y);
     this.content = scene.add.container(0, 0);
+
+    // The clip, bracketing the content in the container's child list. The rect is in container
+    // space, and the container already sits at the area's origin, so it starts at 0,0.
+    //
+    // This is a stencil layer rather than a mask or a filter, and `RectClip` is worth reading
+    // before touching it: v3's geometry mask is a no-op under Phaser 4's WebGL renderer, and the
+    // Mask filter that replaces it crops to the design surface, so above RENDER_SCALE 1 — the
+    // graphics tier nearly every phone gets — lists painted straight over the page title.
+    this.clip = new RectClip(scene, { x: 0, y: 0, width: bounds.width, height: bounds.height });
+    this.clip.begin(this.container);
     this.container.add(this.content);
+    this.clip.end(this.container);
+    this.clip.apply(this.content);
 
     // The zone still earns its place: it swallows taps that fall through the gaps between cards, so
     // the map underneath does not move while a list is open. It is no longer the scroll mechanism.
@@ -401,36 +412,6 @@ export class InkScrollArea {
     scene.input.on('pointerup', this.upHandler);
     scene.input.on('pointerupoutside', this.upHandler);
 
-    // The clip. Under Phaser 4 this is a Mask *filter*, not a geometry mask: `GeometryMask` still
-    // exists and still compiles, but it is a Canvas-only feature there and the WebGL renderer never
-    // consults it — a scroll list would quietly paint across the whole screen.
-    //
-    // `fillStyle` is load-bearing and was not needed before. A geometry mask is a stencil pass and
-    // only coverage counts; a Mask filter multiplies the content by the mask's *alpha*, so an
-    // unstyled rect (fill alpha 0) hides everything instead of showing it.
-    //
-    // `clipFiltersUsable` is the other half of the story: the filter compositor cannot cope with
-    // this game's zoomed cameras, so above RENDER_SCALE 1 there is no clip at all and the list
-    // overflows. Read that file before touching this.
-    this.maskShape = scene.make.graphics({}, false);
-    this.maskShape.fillStyle(0xffffff, 1);
-    this.maskShape.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-    if (clipFiltersUsable(scene)) {
-      this.content.enableFilters();
-    }
-    if (this.content.filters) {
-      this.contentMask = this.content.filters.internal.addMask(this.maskShape);
-      // The rect never moves or resizes for the life of the area, so there is no reason to
-      // re-render it to a DynamicTexture every frame — which is what `autoUpdate` would do, once
-      // per scroll area on screen. One render, at the first frame that needs it.
-      this.contentMask.autoUpdate = false;
-      this.contentMask.needsUpdate = true;
-    } else {
-      // Canvas, or a zoomed camera the filter compositor cannot cope with. The geometry mask is
-      // a no-op under WebGL in v4, but it costs nothing and it is the right answer on Canvas.
-      this.content.setMask(this.maskShape.createGeometryMask());
-    }
-
     this.wheelHandler = (pointer, _objects, _dx, dy) => {
       if (!this.containsPointer(pointer)) {
         return;
@@ -484,7 +465,7 @@ export class InkScrollArea {
     this.scene.input.off('pointerupoutside', this.upHandler);
     this.hitZone.destroy();
     this.container.destroy(true);
-    this.maskShape.destroy();
+    this.clip.destroy();
   }
 }
 

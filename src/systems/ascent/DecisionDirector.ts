@@ -23,7 +23,7 @@ import { offerRivalDemand, rivalDemandReady, tickRivalCooldowns } from './RivalD
 import { offerHeroSummon } from './SummonSystem';
 import { offerPowerDraft } from './PowerDraftSystem';
 import { doctrineReady, offerDoctrine } from './RealmDoctrineSystem';
-import { offerStoryBeat, storyBeatReady } from '../story/StorySystem';
+import { offerStoryBeat, storyBeatReady, storyCardsMuted } from '../story/StorySystem';
 import type { AscentPhase, AscentPromptKind, GameState } from '../../state/types';
 
 /**
@@ -257,6 +257,9 @@ function isReady(state: GameState, kind: AscentPromptKind): boolean {
       return rivalDemandReady(state);
 
     case 'story-beat': {
+      // The player has asked for these to wait in the Chronicle rather than stop the run. The
+      // story keeps holding its card; nothing is lost, it is simply answered somewhere else.
+      if (storyCardsMuted(state)) return false;
       if (!storyBeatReady(state)) return false;
       // Budget measured against prompts actually raised, not against ticks: a quiet run raises
       // few prompts of any kind, and the Chronicle should stay the same fraction of a busy run

@@ -24,10 +24,24 @@ const result = await page.evaluate(async () => {
   const { advanceAscentTick } = await import('/src/systems/ascent/AscentTick.ts');
   const { resolveAscentPrompt } = await import('/src/systems/ascent/AscentResolver.ts');
   const { storyTemplates } = await import('/src/data/stories/index.ts');
+  const { maxTimesFor } = await import('/src/systems/story/StorySystem.ts');
+  const { storyViolations, describeViolations } = await import('/src/systems/story/invariants.ts');
   const { hasStoryText } = await import('/src/i18n/story/index.ts');
   const { setLanguage } = await import('/src/i18n/index.ts');
 
   const out = { runs: [], coverage: { missing: [] }, ended: 0 };
+
+  // ── Structure: the decision trees, before a single tick is run ────────────
+  //
+  // INV-1..INV-10. A graph walk over the authored templates: an option with no destination, a
+  // node nothing reaches, a divergence that drops straight to an ending. All of it is invisible
+  // in a playthrough until a story stops dead in front of somebody.
+  out.violations = describeViolations(storyViolations());
+  out.trunked = storyTemplates.filter((tm) => tm.nodes?.length).map((tm) => ({
+    id: tm.id,
+    nodes: tm.nodes.length,
+    endings: tm.nodes.filter((n) => n.terminal).length,
+  }));
 
   // ── Text coverage: every fragment must have every string it can ever need ──
   //
@@ -183,9 +197,10 @@ const result = await page.evaluate(async () => {
       for (const id of new Set(story.spoken)) {
         const frag = tmpl?.fragments.find((f) => f.id === id);
         const times = story.spoken.filter((other) => other === id).length;
-        // `repeatable` is an authored property meaning "this may recur" — but it is capped, and
-        // exceeding the cap is a real failure.
-        const allowed = frag?.repeatable ? (frag.maxTimes ?? 3) : 1;
+        // The ceiling is whatever the engine itself would apply — authored `repeatable`/`maxTimes`,
+        // or the ambient-whisper rule it infers. Asking the engine rather than restating the rule
+        // is what stops this check quietly measuring a policy the game no longer has.
+        const allowed = frag ? maxTimesFor(frag) : 1;
         if (times > allowed) run.dupes.push(`${story.templateId}/${id} ×${times}`);
       }
     }
@@ -209,6 +224,16 @@ const check = (name, pass, detail = '') => {
   checks.push({ name, pass, detail });
   console.log(`${pass ? '  ok  ' : ' FAIL '} ${name}${detail ? ` — ${detail}` : ''}`);
 };
+
+console.log('\n── Structure ──');
+if (result.trunked.length === 0) {
+  console.log('  --   no template declares a trunk yet; INV-2..INV-10 have nothing to check');
+} else {
+  for (const t of result.trunked) console.log(`  ${t.id}: ${t.nodes} nodes, ${t.endings} endings`);
+}
+check('every decision tree is structurally sound (INV-1..INV-10)',
+  result.violations.length === 0,
+  result.violations.slice(0, 6).join(' | '));
 
 console.log('\n── Text coverage ──');
 check('every fragment has all the text it can need',
@@ -262,3 +287,4 @@ const failed = checks.filter((c) => !c.pass);
 console.log(`\n${checks.length - failed.length}/${checks.length} checks passed`);
 await browser.close();
 process.exit(failed.length === 0 ? 0 : 1);
+// probe

@@ -1,3 +1,4 @@
+import { BOSS_EVERY_N_WAVES, MUSTER_TICKS, WAVE_INTERVAL_TICKS } from '../../game/ascentConfig';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { applyResourceDelta, canSpend } from '../ResourceSystem';
 import { pushToast } from '../empire/notifications';
@@ -5,14 +6,17 @@ import { enqueueAscentPrompt } from '../ascent/AscentState';
 import { storyTemplate, storyTemplates } from '../../data/stories';
 import { storyText } from '../../i18n/story';
 import { findEcho, recordEcho } from './echoes';
+import { unlockStory } from '../../state/codex';
 import type {
   ActiveStory,
   ChronicleEntry,
   GameState,
   Hero,
+  Historicity,
   Kingdom,
   Land,
   ResourceBag,
+  StoryCast,
   StoryOpening,
   StoryVolume,
   StoryWatch,
@@ -65,8 +69,37 @@ const SEED_INTERVAL = 4;
 /** A story says nothing for at least this many seasons after speaking. */
 const MIN_QUIET = 3;
 
-/** Whispers per tick, across all stories. Two ambient lines at once reads as noise. */
-const WHISPERS_PER_TICK = 1;
+/**
+ * Whispers per tick, across all stories.
+ *
+ * Was 1, on the grounds that two ambient lines at once reads as noise — true of two lines about
+ * the *same* place, and the reason the second one is gated on a different province below.
+ * Measured at 1, a run heard twenty story lines in twenty minutes and the back two-thirds of it
+ * heard from the Chronicle only when the Chronicle stopped the game.
+ */
+const WHISPERS_PER_TICK = 2;
+
+/**
+ * Ticks a story may find nothing to say before it gives its slot back.
+ *
+ * Long enough that a story merely observing a `quiet` period, or waiting on a card the director
+ * has not raised, is never evicted — those cases are excluded explicitly as well.
+ */
+const DRY_TICKS_BEFORE_RETIRE = 12;
+
+/**
+ * Ticks a story may hold a card the director has not raised before it lets go of it.
+ *
+ * Only one story-beat may be queued at a time and the budget allows roughly `turn × 0.0375` of
+ * them in a whole run — eleven in a 300-tick run, measured. So a story that picks a card and waits
+ * for a slot can wait for the rest of the run: fifteen stories queued one and seven were still
+ * holding it at the end, mute, because a story holding a card may only whisper.
+ *
+ * Letting the card go is better than keeping it. The story stays alive, can speak again, and can
+ * re-pick the same fragment later — and `firstWaiting` sorts by temperature, so the one that has
+ * been waiting hardest is the one heard next.
+ */
+const STALE_WAITING_TICKS = 20;
 
 /** Temperature bleeds off on its own, so a story that is ignored cools rather than detonating. */
 const COOL_PER_TICK = 0.06;
@@ -90,12 +123,30 @@ function snapshot(state: GameState): StoryWatch {
     battlesWon: state.campaignScore?.armiesDefeated ?? 0,
     wavesSurvived: state.ascent?.wavesSurvived ?? 0,
     courtSeatsFilled: Object.values(state.court.seats).filter(Boolean).length,
+    captives: state.heroes.filter((hero) => hero.traits?.includes('Captive')).length,
   };
+}
+
+/**
+ * Ticks until the next Great Invasion, counting the ordinary waves in between.
+ *
+ * `bossTelegraphed` is a two-tick warning and is the right trigger for a hịch — a document the
+ * throne issues, which is worthless a season later. It is the wrong trigger for anything that has
+ * to be *built*: two ticks is not enough to feed a giant three times. A wager needs a horizon, so
+ * it gets one.
+ */
+function ticksToBoss(state: GameState): number {
+  const ascent = state.ascent;
+  if (!ascent) return Number.POSITIVE_INFINITY;
+  const cyclesLeft = (BOSS_EVERY_N_WAVES - 1 - (ascent.wave % BOSS_EVERY_N_WAVES)
+    + BOSS_EVERY_N_WAVES) % BOSS_EVERY_N_WAVES;
+  return ascent.ticksToWave + cyclesLeft * WAVE_INTERVAL_TICKS;
 }
 
 function worldDelta(state: GameState, before: StoryWatch): StoryWorldDelta {
   const now = snapshot(state);
   const foodRate = state.resourceRates.food;
+  const ascent = state.ascent;
   return {
     lostLand: now.lands < before.lands,
     gainedLand: now.lands > before.lands,
@@ -106,12 +157,61 @@ function worldDelta(state: GameState, before: StoryWatch): StoryWorldDelta {
     starving: foodRate < 0 && state.resources.food / Math.max(1, -foodRate) <= 4,
     hoarding: now.gold >= HOARD_GOLD,
     seatEmptied: now.courtSeatsFilled < before.courtSeatsFilled,
+
+    // The war. Before these the pool could only ever score against `waveBroken` — a story could
+    // react to a fight being over and to nothing else that mattered.
+    ticksToBoss: ticksToBoss(state),
+    bossTelegraphed: Boolean(ascent?.bossTelegraphed),
+    waveIncoming: (ascent?.ticksToWave ?? Number.POSITIVE_INFINITY) <= MUSTER_TICKS,
+    battleOpen: Boolean(ascent?.activeBattle && !ascent.activeBattle.over),
+    capitalThreatened: (ascent?.capitalLostTicks ?? 0) > 0,
+    heroCaptured: (now.captives ?? 0) > (before.captives ?? 0),
   };
+}
+
+// ── The trunk ───────────────────────────────────────────────────────────────
+
+/**
+ * The node a story is standing in.
+ *
+ * Also the entire save migration: a story written before nodes existed has no `node`, and
+ * resolving it to the template's entry here means there is no upgrade step to write, forget, or
+ * get wrong. A template with no `nodes` at all returns `''`, which no fragment's `in` can match —
+ * so `candidates` waves everything through and the flat pool behaves exactly as before.
+ */
+function nodeOf(story: ActiveStory, template: StoryTemplate): string {
+  return story.node ?? template.entry ?? template.nodes?.[0]?.id ?? '';
+}
+
+/** Less historical is a one-way trip. Used to keep `drift` a high-water mark. */
+const DRIFT_RANK: Record<Historicity, number> = { 'chinh-su': 0, 'da-su': 1, 'ngoai-truyen': 2 };
+
+/**
+ * Moves a story to another node, and books what that means.
+ *
+ * `drift` is deliberately *not* the node's own class: a divergent branch may rejoin the record at
+ * a `chinh-su` node — a confluence — and the tag still has to say the realm went the long way
+ * round. You can return to what happened; you cannot make it true that you never left.
+ */
+function enterNode(state: GameState, story: ActiveStory, template: StoryTemplate, nodeId: string): void {
+  const node = template.nodes?.find((candidate) => candidate.id === nodeId);
+  // An unknown id means an authoring typo that INV-8 should have caught. Stay put rather than
+  // strand the story in a node that does not exist.
+  if (!node) return;
+  story.node = nodeId;
+  story.path = [...(story.path ?? []), nodeId];
+  story.nodeSince = state.turn;
+  if (DRIFT_RANK[node.historicity] > DRIFT_RANK[story.drift ?? 'chinh-su']) {
+    story.drift = node.historicity;
+  }
+  // A story that has just turned a corner has something to say about it.
+  story.temperature += 2;
 }
 
 // ── Context ─────────────────────────────────────────────────────────────────
 
 function makeCtx(state: GameState, story: ActiveStory, world: StoryWorldDelta): StoryCtx {
+  const template = storyTemplate(story.templateId);
   return {
     state,
     story,
@@ -133,6 +233,9 @@ function makeCtx(state: GameState, story: ActiveStory, world: StoryWorldDelta): 
     sharing: () => (state.stories ?? []).filter((other) => other.id !== story.id && sharesSubject(other, story)).length,
     echoOf: (templateId, fragmentId) => findEcho(templateId, fragmentId)?.name,
     leaveEcho: (name) => recordEcho(story.templateId, story.spoken[story.spoken.length - 1] ?? '', name),
+    node: () => (template ? nodeOf(story, template) : ''),
+    goTo: (nodeId) => { if (template) enterNode(state, story, template, nodeId); },
+    drift: () => story.drift ?? 'chinh-su',
   };
 }
 
@@ -151,11 +254,14 @@ export function storyParams(state: GameState, story: ActiveStory): Record<string
   const other = state.heroes.find((candidate) => candidate.id === story.cast.otherHeroId);
   const land = state.lands.find((candidate) => candidate.id === story.cast.landId);
   const rival = state.kingdoms.find((candidate) => candidate.id === story.cast.kingdomId);
+  // Falling back to the frozen name rather than to '' — a general the world took away must still
+  // have a name in the record, or the story page renders "  was taken." See `ActiveStory.names`.
+  const frozen = story.names ?? {};
   return {
-    hero: hero?.name ?? '',
-    other: other?.name ?? '',
-    land: land?.name ?? '',
-    rival: rival?.name ?? '',
+    hero: hero?.name ?? frozen.hero ?? '',
+    other: other?.name ?? frozen.other ?? '',
+    land: land?.name ?? frozen.land ?? '',
+    rival: rival?.name ?? frozen.rival ?? '',
     // Echo: the season a thing happened, so a fragment can quote it back by name and date.
     season: story.memory.echoTurn ?? 0,
     year: Math.max(1, Math.round((story.memory.echoTurn ?? state.turn) / 4)),
@@ -222,14 +328,70 @@ function trySeed(state: GameState): void {
     // Counts as having "spoken" at seed so it observes the quiet period before its first line.
     lastSpokeTurn: state.turn,
     spoken: [],
+    // The names, frozen now, while everyone the story has bound is still alive to have one.
+    names: castNames(state, cast),
+    // Absent `node` would resolve through `nodeOf` anyway; setting it makes the path start
+    // complete, so the story page's spine has a first vertebra to draw.
+    node: chosen.entry ?? chosen.nodes?.[0]?.id,
+    path: chosen.nodes?.length ? [chosen.entry ?? chosen.nodes[0].id] : undefined,
+    nodeSince: state.turn,
   });
   state.stories = stories;
+}
+
+/** The cast's names at bind time. See `ActiveStory.names` for why this is worth storing. */
+function castNames(state: GameState, cast: StoryCast): ActiveStory['names'] {
+  return {
+    hero: state.heroes.find((candidate) => candidate.id === cast.heroId)?.name,
+    other: state.heroes.find((candidate) => candidate.id === cast.otherHeroId)?.name,
+    land: state.lands.find((candidate) => candidate.id === cast.landId)?.name,
+    rival: state.kingdoms.find((candidate) => candidate.id === cast.kingdomId)?.name,
+  };
 }
 
 // ── Choosing what to say ────────────────────────────────────────────────────
 
 /** Default ceiling on a repeatable fragment. Three of anything is already a lot to hear. */
 const DEFAULT_MAX_TIMES = 3;
+
+/**
+ * How often an ambient whisper may be heard, without the author having to say so.
+ *
+ * Expressed here rather than by marking two hundred fragments `repeatable`, for the same reason
+ * `VOLUME_BIAS` is: the authored fields express *fit*, and this file expresses *pacing*. A story's
+ * ambient lines are the first thing it runs out of, and a story that has run out of them goes
+ * silent for the rest of the run or speaks only when it stops the game — measured, the back
+ * two-thirds of a run heard from the Chronicle almost exclusively through interruptions.
+ *
+ * Only atmosphere qualifies: no ending, no offer on the table, nothing that asks. Those are events
+ * and happen once. And the score already divides by `1 + timesSaid`, so a second telling is worth
+ * half and fades out rather than nagging.
+ */
+const AMBIENT_MAX_TIMES = 2;
+
+/**
+ * How many times this fragment may be heard in one story, authored or inferred.
+ *
+ * Exported so `verify-chronicle` can assert against the rule the engine actually applies rather
+ * than a copy of it — the copy is how a harness comes to pass while testing something else.
+ */
+export function maxTimesFor(fragment: StoryFragment): number {
+  if (fragment.repeatable) return fragment.maxTimes ?? DEFAULT_MAX_TIMES;
+  // Narrow on purpose. The first cut treated any plain whisper as atmosphere and a story page
+  // came back reading "Le Quy Don was taken." at season 24 and again at season 27 - which is
+  // not weather, it is an event happening twice.
+  //
+  // A plot beat shows itself two ways: it changes the world, or it pushes the story on. Those
+  // happen once. A `when` gate is neither - it usually means no more than "this line is true
+  // in this situation", and a situation can come round again.
+  const ambient = fragment.volume === 'whisper'
+    && !fragment.terminal
+    && !fragment.opening
+    && !fragment.options?.length
+    && !fragment.effect
+    && !fragment.heat;
+  return ambient ? AMBIENT_MAX_TIMES : 1;
+}
 
 function timesSaid(ctx: StoryCtx, fragmentId: string): number {
   return ctx.story.spoken.filter((id) => id === fragmentId).length;
@@ -238,10 +400,12 @@ function timesSaid(ctx: StoryCtx, fragmentId: string): number {
 function candidates(template: StoryTemplate, ctx: StoryCtx, whispersOnly: boolean): StoryFragment[] {
   return template.fragments.filter((fragment) => {
     if (whispersOnly && (fragment.volume !== 'whisper' || fragment.opening)) return false;
-    if (!fragment.repeatable && ctx.said(fragment.id)) return false;
-    if (fragment.repeatable && timesSaid(ctx, fragment.id) >= (fragment.maxTimes ?? DEFAULT_MAX_TIMES)) return false;
+    if (timesSaid(ctx, fragment.id) >= maxTimesFor(fragment)) return false;
     // Already on the table; picking it again would replace the offer with itself.
     if (ctx.story.offer === fragment.id) return false;
+    // The trunk, and the whole cost of it inside the draw. A fragment with no `in` is ambient and
+    // speaks wherever the story is standing.
+    if (fragment.in && !fragment.in.includes(nodeOf(ctx.story, template))) return false;
     if (fragment.quiet !== undefined && ctx.quietFor < fragment.quiet) return false;
     if (fragment.when && !fragment.when(ctx)) return false;
     return true;
@@ -302,6 +466,16 @@ function record(state: GameState, story: ActiveStory, fragment: StoryFragment): 
     turn: state.turn,
     params: storyParams(state, story),
     tone: fragment.tone ?? 'info',
+    // From the path's high-water mark, not from the terminal's own node: an ending reached the
+    // long way round is still an ending reached the long way round.
+    //
+    // **Only for a template that has actually been classified.** Defaulting an untrunked story to
+    // `chinh-su` made forty-five templates that nobody has placed against the record claim to be
+    // in the annals — measured, every ending in six runs came back chính sử, most of them from
+    // stories carrying no source class at all. An absent tag is honest; a wrong one is not.
+    historicity: storyTemplate(story.templateId)?.nodes?.length
+      ? (story.drift ?? 'chinh-su')
+      : undefined,
   };
   chronicle.push(entry);
   if (chronicle.length > 60) chronicle.splice(0, chronicle.length - 60);
@@ -310,6 +484,10 @@ function record(state: GameState, story: ActiveStory, fragment: StoryFragment): 
 
 /** Applies a fragment's own effect and books the consequences of having spoken. */
 function fire(state: GameState, story: ActiveStory, fragment: StoryFragment, ctx: StoryCtx): void {
+  // The first time a story actually says something to this player it goes on the shelf. Recorded
+  // on speech rather than on seeding, because a story that seeded latent and never spoke is one
+  // the player has not met.
+  if (story.spoken.length === 0) unlockStory(story.templateId);
   story.spoken.push(fragment.id);
   // The dated record the story page reads back. `spoken` answers "has this been said";
   // history answers "what happened, and when" — which is the difference between a flag
@@ -356,6 +534,10 @@ export function tickStories(state: GameState): void {
 
   const stories = state.stories ?? [];
   let whispersLeft = WHISPERS_PER_TICK;
+  /** Provinces already whispered about this tick, so the second line is never about the first's. */
+  const whisperedLands: string[] = [];
+  /** Stories that have run dry and are giving their slot back at the end of the sweep. */
+  const retiring: string[] = [];
 
   // Collision. Two stories that have bound the same hero or province do not both get to talk
   // about him in the same season — the hotter one speaks and the other waits, which reads as the
@@ -374,6 +556,35 @@ export function tickStories(state: GameState): void {
       story.offerUntil = undefined;
     }
 
+    // A card the director never found room for. Holding it silences the story; letting it go does
+    // not lose it, because the pool will offer it again.
+    //
+    // Unless the player has muted beats, in which case holding it *is* the arrangement: the card
+    // is waiting for them in the Chronicle, and dropping it would quietly delete the thing they
+    // are going to go and answer.
+    if (story.waiting && !storyCardsMuted(state)
+      && state.turn - story.lastSpokeTurn > STALE_WAITING_TICKS) {
+      story.waiting = undefined;
+    }
+
+    // ── The patience clock ────────────────────────────────────────────────
+    //
+    // Cards are rationed to 15% of the run's prompts, so a story parked at a decision can wait
+    // for one forever: measured, only 5 of 13 seeded stories reached an ending, and 2–5 sat in a
+    // live slot having never said a word. Past patience the story gets louder — the only tell the
+    // player ever gets. Past twice patience the moment has simply gone, and it takes the door
+    // nobody chose, which is a different story rather than a worse one.
+    const node = template.nodes?.find((candidate) => candidate.id === nodeOf(story, template));
+    if (node && !node.terminal && node.patience) {
+      const waited = state.turn - (story.nodeSince ?? story.seededTurn);
+      if (waited >= node.patience) story.temperature += 0.4;
+      if (waited >= node.patience * 2 && node.onIgnored) {
+        story.waiting = undefined;
+        enterNode(state, story, template, node.onIgnored);
+        continue;
+      }
+    }
+
     const ctx = makeCtx(state, story, world);
     if (ctx.quietFor < MIN_QUIET) continue;
     if (spokenSubjects.some((other) => sharesSubject(other, story))) continue;
@@ -382,7 +593,16 @@ export function tickStories(state: GameState): void {
     // "A story heating up whispers more often, about smaller things" is the only tell the player
     // ever gets that something is coming, and going mute the moment a card is queued deletes it.
     const fragment = pickFragment(template, ctx, Boolean(story.waiting));
-    if (!fragment) continue;
+    if (!fragment) {
+      // Nothing left to say. Give the slot back rather than squat on it for the rest of the run —
+      // but only after long enough that a story merely waiting out a `quiet` is not evicted.
+      story.dryTicks = (story.dryTicks ?? 0) + 1;
+      if (story.dryTicks >= DRY_TICKS_BEFORE_RETIRE && !story.waiting && !story.offer) {
+        retiring.push(story.id);
+      }
+      continue;
+    }
+    story.dryTicks = 0;
     spokenSubjects.push(story);
 
     // An opening is not speech. It hangs an offer on a subject and stands there — but it does
@@ -398,6 +618,12 @@ export function tickStories(state: GameState): void {
 
     if (fragment.volume === 'whisper') {
       if (whispersLeft <= 0) continue;
+      // Two ambient lines in one season only when they are about different corners of the realm.
+      // "Two whispers at once reads as noise" was right about two lines describing *one* place;
+      // two provinces speaking in the same season is a realm rather than a narrator.
+      const land = story.cast.landId;
+      if (whispersLeft < WHISPERS_PER_TICK && (!land || whisperedLands.includes(land))) continue;
+      if (land) whisperedLands.push(land);
       whispersLeft -= 1;
       whisper(state, story, fragment, ctx);
       continue;
@@ -405,6 +631,10 @@ export function tickStories(state: GameState): void {
 
     // Cards and blows pause the world, so they go through the director's budget.
     story.waiting = fragment.id;
+  }
+
+  if (retiring.length > 0) {
+    state.stories = (state.stories ?? []).filter((story) => !retiring.includes(story.id));
   }
 }
 
@@ -416,15 +646,31 @@ interface Waiting {
   fragment: StoryFragment;
 }
 
+/**
+ * Whichever waiting story most deserves the queue's single story slot.
+ *
+ * **Deliberately not the first in the list, which is what it used to be.** Only one story-beat may
+ * be pending or queued at a time, so scanning in list order handed the slot to whoever happened to
+ * be earliest and starved everyone behind them *permanently*: measured over a 286-tick run,
+ * seventeen stories queued a card and seven were still frozen holding one when the run ended,
+ * having spoken between zero and two lines each. That is most of the reason only five of thirteen
+ * seeded stories ever reached an ending.
+ *
+ * Hottest first, then longest-held, which is the same ordering `tickStories` already speaks in —
+ * so a story that has been heating up and cannot get a word in is the next one heard.
+ */
 function firstWaiting(state: GameState): Waiting | undefined {
+  const held: Waiting[] = [];
   for (const story of state.stories ?? []) {
     if (!story.waiting) continue;
     const template = storyTemplate(story.templateId);
     const fragment = template?.fragments.find((candidate) => candidate.id === story.waiting);
     if (!template || !fragment) continue;
-    return { story, template, fragment };
+    held.push({ story, template, fragment });
   }
-  return undefined;
+  if (held.length === 0) return undefined;
+  return held.sort((a, b) => (b.story.temperature - a.story.temperature)
+    || (a.story.lastSpokeTurn - b.story.lastSpokeTurn))[0];
 }
 
 /** True when some story is holding a card or a blow the director could raise. */
@@ -513,6 +759,11 @@ export function resolveStoryBeat(state: GameState, storyId: string, fragmentId: 
 
   const ctx = makeCtx(state, story, worldDelta(state, state.storyWatch ?? snapshot(state)));
 
+  // Normally `offerStoryBeat` clears this when it builds the prompt. When beats are muted there is
+  // no prompt: the story is answered straight off its own page, and nothing else would ever let go
+  // of the card — so the page would keep showing a beat that had already been answered.
+  if (story.waiting === fragmentId) story.waiting = undefined;
+
   if (fragment.volume === 'blow' || !fragment.options?.length) {
     fire(state, story, fragment, ctx);
     return true;
@@ -537,7 +788,13 @@ export function resolveStoryBeat(state: GameState, storyId: string, fragmentId: 
   // Echo: remember *when* this was answered, so a later fragment can quote the season back.
   ctx.remember('echoTurn', state.turn);
   ctx.remember(`chose_${option.id}`, 1);
+  // How historical the run has been, as ordinary memory numbers, so a fragment can gate on it
+  // with the same `when` machinery as everything else rather than a second engine.
+  if (option.historicity) ctx.bump(option.historicity === 'annal' ? 'su' : 'lech');
   option.apply(ctx);
+  // The trunk moves *after* the effect, so an `apply` that reads the current node still sees the
+  // one the player was answering from.
+  if (option.to && template) enterNode(state, story, template, option.to);
   fire(state, story, fragment, ctx);
   return true;
 }
@@ -624,7 +881,11 @@ export function takeOpening(state: GameState, storyId: string, fragmentId: strin
       ));
     }
     ctx.remember('echoTurn', state.turn);
+    if (option.historicity) ctx.bump(option.historicity === 'annal' ? 'su' : 'lech');
     option.apply(ctx);
+    // A repeatable offering — Thánh Gióng's granary, say — names its own node in `to`, so taking
+    // it leaves the story exactly where it was and the door can be opened again.
+    if (option.to && template) enterNode(state, story, template, option.to);
   }
   story.offer = undefined;
   story.offerUntil = undefined;
@@ -649,15 +910,119 @@ export function storySpokenHistory(
   return story.spoken.map((fragmentId) => ({ fragmentId }));
 }
 
+/**
+ * True when the player has asked for story beats to wait rather than interrupt.
+ *
+ * See `AscentState.storyCardsMuted`. The Chronicle is the least time-critical thing the director
+ * raises, so it is the one feature whose pacing the player can reasonably be handed.
+ */
+export function storyCardsMuted(state: GameState): boolean {
+  return Boolean(state.ascent?.storyCardsMuted);
+}
+
+/**
+ * The card or blow a story is holding for the player to come and answer.
+ *
+ * Only while beats are muted: otherwise `waiting` is a transient thing the director is about to
+ * raise on its own, and showing it on the page would put the same beat in two places.
+ */
+export function heldBeat(
+  state: GameState,
+  story: ActiveStory,
+): { fragment: StoryFragment; params: Record<string, string | number> } | undefined {
+  if (!storyCardsMuted(state) || !story.waiting) return undefined;
+  const template = storyTemplate(story.templateId);
+  const fragment = template?.fragments.find((candidate) => candidate.id === story.waiting);
+  if (!fragment) return undefined;
+  return { fragment, params: storyParams(state, story) };
+}
+
+/**
+ * Whether a story's options can be afforded right now, for the page that draws them.
+ *
+ * The same three gates `offerStoryBeat` applies when it builds a prompt — cost, `enabled`, and the
+ * blocked-reason key — so a beat answered from the page cannot behave differently from the same
+ * beat answered from a card.
+ */
+export function heldBeatOptions(
+  state: GameState,
+  story: ActiveStory,
+  fragment: StoryFragment,
+): { id: string; cost?: Partial<ResourceBag>; affordable: boolean; blockedKey?: string }[] {
+  const ctx = makeCtx(state, story, worldDelta(state, state.storyWatch ?? snapshot(state)));
+  return (fragment.options ?? []).map((option) => ({
+    id: option.id,
+    cost: option.cost,
+    affordable: (!option.cost || canSpend(state, option.cost))
+      && (option.enabled ? option.enabled(ctx) : true),
+    blockedKey: option.blockedKey,
+  }));
+}
+
 /** True when this story is holding an offer the player could act on right now. */
 export function storyNeedsPlayer(story: ActiveStory): boolean {
   return Boolean(story.offer);
 }
 
+/**
+ * True when this story wants the player, either way it can: a door standing open, or a beat it is
+ * holding because beats are muted. What the Chronicle's "Needs you" group and the bar badge count.
+ */
+export function storyWantsPlayer(state: GameState, story: ActiveStory): boolean {
+  return storyNeedsPlayer(story) || Boolean(heldBeat(state, story));
+}
+
+/**
+ * The source class of a live story, for the chip at the head of its page.
+ *
+ * Read from the path's high-water mark rather than the current node, so a branch that has rejoined
+ * the record still reads as having left it.
+ */
+export function storyDrift(story: ActiveStory): Historicity {
+  return story.drift ?? 'chinh-su';
+}
+
+/**
+ * The spine: every node the story has passed through, with its class and whether it is the one
+ * standing now.
+ *
+ * This is the decision tree made visible, and it is the only screen that teaches the player the
+ * feature exists. Empty for a template with no trunk, and the page simply omits the section.
+ */
+export function storyPath(
+  state: GameState,
+  story: ActiveStory,
+): { nodeId: string; historicity: Historicity; current: boolean; diverged: boolean }[] {
+  const template = storyTemplate(story.templateId);
+  if (!template?.nodes?.length) return [];
+  const path = story.path?.length ? story.path : [nodeOf(story, template)];
+  const here = nodeOf(story, template);
+  let worst: Historicity = 'chinh-su';
+  return path.map((nodeId) => {
+    const node = template.nodes?.find((candidate) => candidate.id === nodeId);
+    const historicity = node?.historicity ?? 'chinh-su';
+    // The step where the realm first left the record is the one worth marking; every step after
+    // it is merely still away.
+    const diverged = DRIFT_RANK[historicity] > DRIFT_RANK[worst];
+    if (diverged) worst = historicity;
+    return { nodeId, historicity, current: nodeId === here, diverged };
+  });
+}
+
+/** How many endings of each class the run has recorded. The Reckoning's one line of identity. */
+export function chronicleTally(state: GameState): Record<Historicity, number> {
+  const tally: Record<Historicity, number> = { 'chinh-su': 0, 'da-su': 0, 'ngoai-truyen': 0 };
+  // Unclassified endings are not counted rather than counted as chính sử — see `record`.
+  for (const entry of state.chronicle ?? []) {
+    if (entry.historicity) tally[entry.historicity] += 1;
+  }
+  return tally;
+}
+
 /** How many stories are holding an open door — the number on the Chronicle button. */
 export function countOpenDoors(state: GameState): number {
   if (state.gameMode !== 'ascent') return 0;
-  return (state.stories ?? []).filter(storyNeedsPlayer).length;
+  return (state.stories ?? []).filter((story) => storyWantsPlayer(state, story)).length;
 }
 
 /**

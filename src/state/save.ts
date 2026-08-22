@@ -109,6 +109,12 @@ function normalizeSnapshotState(state: GameState): GameState {
   clone.pendingAscentPrompt = undefined;
   if (clone.ascent) {
     clone.ascent.promptQueue = [];
+    // Banner cues are announcements about a moment that has passed, and they belong with the
+    // prompt queue above rather than in the save: a run stored while a battle lane or an aftermath
+    // card held the screen keeps its undrained cues, and `ConquestUIScene.lastWaveCueId` starts at
+    // zero in a freshly created scene — so loading replayed the landing of an invasion the player
+    // had already fought. Dropped on load, exactly as a mid-decision prompt is.
+    clone.ascent.waveCues = [];
     ensureAscentLaneState(clone);
     // A run saved mid-engagement carries the retired stance ring — `hold` and `loose` are no longer
     // stances at all, and neither side had a formation. Without this the fight resumes on

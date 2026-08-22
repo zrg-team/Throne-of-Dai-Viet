@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
 import { applyPaperFX } from '../ui/ink/PaperFX';
-import { clipFiltersUsable } from '../ui/ink/clipFilters';
+import { RectClip } from '../ui/ink/clipRect';
 import { applyRenderScale } from '../game/graphicsQuality';
 import { battleTickMs } from '../game/battleOptions';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID } from '../game/constants';
-import { codexProgress, getCodex, isHeroUnlocked } from '../state/codex';
+import { codexProgress, storyProgress, getCodex, isHeroUnlocked } from '../state/codex';
 import { LEGACY_PERKS, ownsPerk } from '../state/legacy';
 import { doctrineBlurb, doctrineName } from '../systems/ascent/RealmDoctrineSystem';
 import { powerCardView, skipRefundAmount } from '../systems/ascent/PowerDraftSystem';
@@ -99,8 +99,9 @@ import { getEmpirePower, hasPact } from '../systems/DiplomacySystem';
 import { compactNumber } from '../utils/format';
 import { renderHeroFaceInBox } from '../ui/FaceRenderer';
 import { drawStoryBand } from '../ui/ink/storyBand';
-import { countOpenDoors, isMarked, openingFor, openingView, storyNeedsPlayer, storyOpening, storyParams, storyRegard, storySpokenHistory, takeOpening } from '../systems/story/StorySystem';
-import { storyText, storyTitle } from '../i18n/story';
+import { chronicleTally, countOpenDoors, heldBeat, heldBeatOptions, isMarked, openingFor, openingView, resolveStoryBeat, storyCardsMuted, storyNeedsPlayer, storyOpening, storyParams, storyDrift, storyPath, storyRegard, storySpokenHistory, storyWantsPlayer, takeOpening } from '../systems/story/StorySystem';
+import { storyCatalogIds, storyText, storyTitle } from '../i18n/story';
+import { chargeTrackerLines } from '../systems/story/charges';
 import { INK_UI, INK_UI_HEX, InkUI, scrollGestureConsumedTap, type InkScrollArea, type UIBounds } from '../ui/InkUI';
 import { heroTemplates } from '../data/heroes';
 import { arrivalPreview } from '../data/heroArrivals';
@@ -109,6 +110,7 @@ import { designLength } from '../game/graphicsQuality';
 import { sawtoothBand, seal } from '../ui/ink/devices';
 import { faceTravel } from '../ui/ink/life';
 import { playArrivalFanfare } from '../ui/ascent/arrivalFanfare';
+import { playWaveBanner } from '../ui/ascent/waveBanner';
 import { THRONE_HALL_HEIGHT, throneHallDiorama } from '../ui/ascent/throneHall';
 import { CARD_STACK_PEEK, CardStack } from '../ui/ascent/CardStack';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
@@ -151,6 +153,7 @@ import {
 } from '../i18n';
 import type {
   ActiveStory,
+  Historicity,
   Army,
   ArmyComposition,
   ArmyOrders,
@@ -161,6 +164,7 @@ import type {
   AscentLedgerLine,
   AscentPrompt,
   AscentRarity,
+  AscentWaveCue,
   BattleBeat,
   FieldStance,
   ConquestMethodOption,
@@ -535,6 +539,18 @@ export class ConquestUIScene extends Phaser.Scene {
    * battle's identity rather than on "is one live".
    */
   private lastAutoOpenedBattleKey = '';
+  /**
+   * The proclamation currently unrolled over the map, and the cue id it was raised for.
+   *
+   * Held so the scene's shutdown can take it down — a banner outliving its scene leaves tweens
+   * writing to destroyed text — and so a cue is played exactly once. The director raises a cue and
+   * the scene clears it, but `refresh` runs several times a tick (the battle clock drives it at
+   * `BATTLE_TICK_MS`), so "clear it as you play it" has to be atomic with the read.
+   */
+  private waveBanner?: { skip: () => void; destroy: () => void };
+  /** Cues taken off the director's queue and not yet played, in the order they were raised. */
+  private waveCueQueue: AscentWaveCue[] = [];
+  private lastWaveCueId = 0;
   /** True from the screen opening itself until the first order: the world is held meanwhile. */
   private battleAwaitingOrder = false;
   /**
@@ -618,6 +634,8 @@ export class ConquestUIScene extends Phaser.Scene {
       this.advisor.destroy();
       this.runTour?.destroy();
       this.runTour = undefined;
+      this.waveBanner?.destroy();
+      this.waveBanner = undefined;
     });
 
     this.modalLayer = this.add.container(0, 0).setDepth(500);
@@ -709,11 +727,63 @@ export class ConquestUIScene extends Phaser.Scene {
       return;
     }
 
+    // The proclamation, once the screen is its own again.
+    //
+    // Deferred rather than dropped when a lane or a card owns the screen: the banner draws at 470
+    // and the modal layer at 500, so playing it under a decision would spend the one moment the
+    // mode has to say "you won that" on a strip of paper nobody can see. It waits, and a newer cue
+    // overwrites an older one, so there is no backlog to drain.
+    this.playPendingWaveCue();
     // After the prompt key is reconciled, never before: both of these decide whether to show
     // themselves from it, and reading last tick's value left the bar hidden for a whole frame
     // after the final card of a chain was answered.
     this.renderActionBar();
     this.renderInspect();
+  }
+
+  /**
+   * Plays the wave director's banner cue, at most once each, and only onto a clear screen.
+   *
+   * The cue is cleared from state the instant it is read, before the banner is built: `refresh`
+   * runs several times a tick — the battle clock drives it at `BATTLE_TICK_MS` — so a read that
+   * left the cue standing would stack four proclamations on top of each other. `lastWaveCueId` is
+   * the belt to that braces. It is *not* what protects a reloaded save: a new scene starts the
+   * counter at zero, so a cue that survived into the save would play again — `sanitiseLoadedState`
+   * drops them for that reason.
+   */
+  private playPendingWaveCue(): void {
+    const ascent = this.state.ascent;
+    if (!ascent) return;
+
+    // Drained out of state on sight, whether or not one can be played now. The director's queue is
+    // capped at three and would otherwise keep the *oldest* three while the scene waited for a
+    // clear screen; taking them here and holding them in the scene keeps them in the order they
+    // were raised, and `lastWaveCueId` drops any a reloaded save has already shown.
+    const raised = ascent.waveCues;
+    if (raised && raised.length > 0) {
+      for (const cue of raised) {
+        if (cue.id > this.lastWaveCueId) {
+          this.lastWaveCueId = cue.id;
+          this.waveCueQueue.push(cue);
+        }
+      }
+      ascent.waveCues = [];
+    }
+
+    if (this.waveBanner || this.waveCueQueue.length === 0) return;
+    // Never over a decision. The banner draws at 470 and the modal layer at 500, so playing one
+    // under a card would spend the moment on a strip of paper nobody can see.
+    if (this.state.pendingAscentPrompt || this.openPromptKey !== '') return;
+
+    const cue = this.waveCueQueue.shift();
+    if (!cue) return;
+    this.waveBanner = playWaveBanner(this, cue, () => {
+      this.waveBanner = undefined;
+      // Straight into the next one. A wave the realm plainly holds is met without a card, so a
+      // result and the next landing are raised on the same tick and read as one sentence: this
+      // invasion ended, that one is beginning.
+      this.playPendingWaveCue();
+    });
   }
 
   /**
@@ -1103,6 +1173,14 @@ export class ConquestUIScene extends Phaser.Scene {
      * is what the check reported as an 85% difference, twice, before this existed.
      */
     groundSources: Phaser.GameObjects.GameObject[];
+    /**
+     * The clip holding the land inside the frame, kept so a field rebuild can dispose it.
+     *
+     * Under WebGL the stencil pair are children of `field` and `clearLayer` takes them with it,
+     * but the rectangle they are cut from lives off the display list — and on Canvas, where the
+     * fallback geometry mask is the live mechanism, that rectangle is all there is.
+     */
+    groundClip?: RectClip;
     /** Where the two exits sit at the foot, so `buildBattleExits` never has to guess. */
     exitBounds: UIBounds;
     /**
@@ -2452,6 +2530,34 @@ export class ConquestUIScene extends Phaser.Scene {
   // waiting for a card to offer the choice.
 
   /** Build / upgrade a district by hand, ahead of whatever the autopilot would have picked. */
+  /**
+   * Draws the offer a story is hanging on this surface, if one is.
+   *
+   * `openingFor` used to be called from exactly one place — the land panel — so an opening
+   * declared `on: 'treasury' | 'army' | 'rival'` existed in the catalogue and appeared nowhere in
+   * the world. The whole design of an opening is that it waits somewhere the player already goes.
+   */
+  private addStoryOpening(
+    on: 'land' | 'hero' | 'army' | 'rival' | 'treasury',
+    subjectId: string | undefined,
+    addHeading: (label: string) => void,
+    addRow: (opts: { title: string; subtitle: string; border: number }, onTap?: () => void) => void,
+  ): void {
+    const opening = openingFor(this.state, on, subjectId);
+    if (!opening) return;
+    addHeading(t('land.section.spokenOf'));
+    addRow(
+      {
+        title: storyText(opening.actionKey, opening.params),
+        subtitle: storyText(opening.textKey, opening.params),
+        border: INK_UI.gold,
+      },
+      () => {
+        if (takeOpening(this.state, opening.storyId, opening.fragmentId)) this.closeLane();
+      },
+    );
+  }
+
   private showBuildScreen(): void {
     const state = this.state;
     const lands = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
@@ -2547,6 +2653,8 @@ export class ConquestUIScene extends Phaser.Scene {
         onTap: () => this.showBuildOptions(land.id),
       };
     })));
+    this.addStoryOpening('treasury', undefined, addHeading, addRow);
+
     finish();
   }
 
@@ -3396,6 +3504,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         () => this.showArmyDetail(army.id),
       );
     }
+    this.addStoryOpening('army', undefined, addHeading, addRow);
+
     finish();
   }
 
@@ -4246,7 +4356,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const rivals = state.kingdoms.filter(
       (kingdom) => kingdom.id !== PLAYER_KINGDOM_ID && !kingdom.isDefeated,
     );
-    const { addWidget, finish } = this.laneList(t('action.affairs'), t('ascent.lane.worldBody'));
+    const { addWidget, addHeading, addRow, finish } = this.laneList(t('action.affairs'), t('ascent.lane.worldBody'));
 
     // Four neighbours, each a name, a temperature and two figures — a grid. As full-width cards
     // they filled the screen and the player still had to scroll to see the fourth realm, which on
@@ -4271,6 +4381,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         },
       };
     })));
+    // The rival a story has taken an interest in, on the screen where rivals live.
+    this.addStoryOpening('rival', undefined, addHeading, addRow);
+
     finish();
   }
 
@@ -5244,9 +5357,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const running = (state.stories ?? []).filter((story) => story.spoken.length > 0 || storyNeedsPlayer(story));
     const recorded = [...(state.chronicle ?? [])].reverse();
 
-    const need = running.filter((story) => storyNeedsPlayer(story));
+    const need = running.filter((story) => storyWantsPlayer(state, story));
     const waiting = running
-      .filter((story) => !storyNeedsPlayer(story))
+      .filter((story) => !storyWantsPlayer(state, story))
       .sort((a, b) => b.lastSpokeTurn - a.lastSpokeTurn);
 
     const { addRow, addHeading, finish } = this.laneList(
@@ -5267,6 +5380,53 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       return;
     }
 
+    // ── Oaths still outstanding ──
+    //
+    // `chargeTrackerLines` was written for exactly this and had no caller anywhere, so a player
+    // could swear an oath on a card and never see it again — which is most of the reason no charge
+    // resolved in six measured runs. Phrased as the undertaking rather than as a task, because the
+    // moment this reads as a quest log it has become the thing the Chronicle exists to avoid.
+    {
+      const charges = chargeTrackerLines(state);
+      if (charges.length > 0) {
+        addHeading(t('ascent.chronicle.sworn'));
+        for (const charge of charges) {
+          addRow({
+            title: charge.text,
+            subtitle: charge.seasonsLeft === undefined
+              ? ''
+              : t('ascent.chronicle.swornSeasons', { n: charge.seasonsLeft }),
+            border: INK_UI.gold,
+          });
+        }
+      }
+    }
+
+
+    // ── How loudly the Chronicle is allowed to speak ──
+    //
+    // The one pacing dial handed to the player, and it belongs to them: the Chronicle is the least
+    // time-critical thing the director raises, so someone who would rather read four stories in one
+    // sitting than be stopped four times should not have to take the second deal to get the first.
+    // Muted, nothing interrupts; stories hold what they have to say and this page is where it is
+    // answered.
+    {
+      const muted = storyCardsMuted(state);
+      addRow(
+        {
+          title: muted ? t('ascent.chronicle.muted') : t('ascent.chronicle.interrupt'),
+          subtitle: muted ? t('ascent.chronicle.mutedHint') : t('ascent.chronicle.interruptHint'),
+          border: muted ? INK_UI.gold : INK_UI.softBrush,
+          muted: !muted,
+        },
+        () => {
+          if (state.ascent) state.ascent.storyCardsMuted = !muted;
+          this.showChronicleScreen();
+        },
+      );
+    }
+
+
     /** One story as one person: name · want, then the latest line, then the state. */
     const storyRow = (story: ActiveStory, needsYou: boolean) => {
       const params = storyParams(state, story);
@@ -5278,9 +5438,13 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       const wantLine = want !== `${story.templateId}.want`
         ? t('ascent.story.wants', { want })
         : undefined;
-      const status = needsYou
-        ? t('ascent.story.doorsOpen')
-        : storyText(`${story.templateId}.waiting`, params);
+      // Two different kinds of "needs you", and the row says which: a door standing open on a
+      // subject, or a beat the story is holding because beats have been muted.
+      const status = heldBeat(state, story)
+        ? t('ascent.story.needsAnswer')
+        : needsYou
+          ? t('ascent.story.doorsOpen')
+          : storyText(`${story.templateId}.waiting`, params);
 
       addRow(
         {
@@ -5303,14 +5467,25 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     }
 
     if (recorded.length > 0) {
-      addHeading(t('ascent.chronicle.recorded'));
+      // Counted by class, because that one line is the reign's identity: a dynasty that mostly
+      // followed the record reads differently from one that mostly did not.
+      const tally = chronicleTally(state);
+      addHeading(`${t('ascent.chronicle.recorded')}  ·  ${t('ascent.chronicle.tally', tally)}`);
       for (const entry of recorded) {
+        // A story with no source class shows none. Only templates that have actually been
+        // placed against the record carry a tag; the rest keep the old tone colouring and say
+        // nothing they cannot back up.
+        const cls = entry.historicity;
         addRow({
-          title: storyTitle(entry.templateId),
-          subtitle: storyText(`${entry.templateId}.${entry.fragmentId}.chronicle`, entry.params),
-          border: entry.tone === 'threat'
-            ? INK_UI.cinnabar
-            : entry.tone === 'reward' ? INK_UI.jade : INK_UI.softBrush,
+          title: cls
+            ? storyTitle(entry.templateId) + '  ·  ' + t(('ascent.story.tag.' + cls) as Parameters<typeof t>[0])
+            : storyTitle(entry.templateId),
+          subtitle: storyText(entry.templateId + '.' + entry.fragmentId + '.chronicle', entry.params),
+          border: cls === 'chinh-su' ? INK_UI.jade
+            : cls === 'da-su' ? INK_UI.gold
+              : cls === 'ngoai-truyen' ? INK_UI.cinnabar
+                : entry.tone === 'threat' ? INK_UI.cinnabar
+                  : entry.tone === 'reward' ? INK_UI.jade : INK_UI.softBrush,
           muted: true,
         });
       }
@@ -5388,6 +5563,62 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       used += 18;
     };
 
+    // ── The spine: which way this went, and where it left the record ──
+    //
+    // The decision tree made visible, and the only screen that teaches the player the feature
+    // exists. `history` answers what was said; this answers which way it went, and they are not
+    // the same question. A template with no trunk returns an empty path and the section is
+    // simply omitted.
+    const spine = storyPath(state, story);
+    if (spine.length > 0) {
+      const chipFor = (h: Historicity) =>
+        (h === 'chinh-su' ? INK_UI.jade : h === 'da-su' ? INK_UI.gold : INK_UI.cinnabar);
+
+      // The class of the whole path, stated once at the top in words.
+      const drift = storyDrift(story);
+      const chip = this.ui.card(
+        { x: 0, y: used, width: bodyWidth, height: 38 },
+        {
+          title: '',
+          subtitle: t(`ascent.story.class.${drift}` as Parameters<typeof t>[0]),
+          border: chipFor(drift),
+        },
+      );
+      body.add(chip);
+      used += ((chip.getData('cardHeight') as number) ?? 38) + 8;
+
+      heading(t('ascent.story.path'));
+      for (const step of spine) {
+        const label = storyText(`${story.templateId}.node.${step.nodeId}`, params);
+        const rail = this.add.graphics();
+        rail.fillStyle(chipFor(step.historicity), step.current ? 1 : 0.55);
+        rail.fillRect(2, used + 4, 3, 14);
+        body.add(rail);
+        const text = this.ui.label(
+          14, used,
+          label !== `${story.templateId}.node.${step.nodeId}` ? label : step.nodeId,
+          'body',
+          {
+            fontSize: '11px',
+            wordWrap: { width: bodyWidth - 90 },
+            ...(step.current ? { fontStyle: '700' } : { color: INK_UI_HEX.mutedText }),
+          },
+        );
+        body.add(text);
+        // The step where the realm first left the record is the one worth marking. Every step
+        // after it is merely still away.
+        if (step.diverged) {
+          body.add(this.ui.label(bodyWidth, used, t('ascent.story.leftHere'), 'caption', {
+            fontSize: '9px',
+            color: `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`,
+          }).setOrigin(1, 0));
+        }
+        used += Math.max(20, text.height + 6);
+      }
+      used += 8;
+    }
+
+
     heading(t('ascent.story.happened'));
     const beats = storySpokenHistory(state, story);
     beats.forEach((beat, index) => {
@@ -5424,6 +5655,70 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       body.add(card);
       used += ((card.getData('cardHeight') as number) ?? 46) + 10;
     }
+
+    // ── The beat it is holding, when beats have been muted ──
+    //
+    // With `storyCardsMuted` the director never raises this as a card, so the story stands here
+    // holding it and this is the only place it can be answered. Drawn exactly like the prompt
+    // would have been — same options, same prices, same closed-when-unaffordable — because a beat
+    // answered here must not behave differently from the same beat answered mid-run.
+    const held = heldBeat(state, story);
+    if (held) {
+      heading(t('ascent.story.heldBeat'));
+      const key = (suffix: string) => `${story.templateId}.${held.fragment.id}.${suffix}`;
+      const intro = this.ui.card(
+        { x: 0, y: used, width: bodyWidth, height: 60 },
+        {
+          title: storyText(key('title'), held.params),
+          subtitle: storyText(key('body'), held.params),
+          border: INK_UI.cinnabar,
+        },
+      );
+      body.add(intro);
+      used += ((intro.getData('cardHeight') as number) ?? 60) + 8;
+
+      const options = heldBeatOptions(state, story, held.fragment);
+      if (options.length === 0) {
+        // A blow. There is nothing to choose; acknowledging it is the whole interaction.
+        const ack = this.optionCard(
+          { x: 0, y: used, width: bodyWidth, height: 52 },
+          {
+            title: storyText(key('ok'), held.params),
+            body: '',
+            accent: INK_UI.cinnabar,
+            parent: body,
+            onTap: () => {
+              resolveStoryBeat(state, story.id, held.fragment.id, 'ok');
+              this.showStoryPage(storyId);
+            },
+          },
+        );
+        used += ((ack.getData('cardHeight') as number) ?? 52) + 8;
+      } else {
+        for (const option of options) {
+          const card = this.optionCard(
+            { x: 0, y: used, width: bodyWidth, height: 64 },
+            {
+              title: storyText(key(option.id), held.params),
+              body: storyText(key(`${option.id}.d`), held.params),
+              note: option.cost ? formatResourceList(option.cost) : undefined,
+              noteColor: option.affordable ? undefined : `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`,
+              accent: INK_UI.cinnabar,
+              disabled: !option.affordable,
+              parent: body,
+              onTap: () => {
+                if (resolveStoryBeat(state, story.id, held.fragment.id, option.id)) {
+                  this.showStoryPage(storyId);
+                }
+              },
+            },
+          );
+          used += ((card.getData('cardHeight') as number) ?? 64) + 8;
+        }
+      }
+      used += 4;
+    }
+
 
     // ── Có thể làm / Đang chờ: exactly one of the two, never neither ──
     const opening = storyOpening(state, story);
@@ -5463,7 +5758,10 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       );
       body.add(noThing);
       used += ((noThing.getData('cardHeight') as number) ?? 44) + 10;
-    } else {
+    } else if (!held) {
+      // Only when the story is not already showing something to answer. Printing "waiting on the
+      // ransom price" directly under the card that sets the ransom price is the page arguing with
+      // itself.
       heading(t('ascent.story.waitingFor'));
       const watching = storyText(`${story.templateId}.waiting`, params);
       const card = this.ui.card(
@@ -5946,47 +6244,36 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // border — measured, a whole hill hung forty pixels off the right edge with the panel's own
     // rule cut behind it. Narrowing the span only moves the overhang inward. A mask is the only
     // thing that ends a shape exactly where the paper does.
-    const clip = this.add.graphics();
-    clip.fillStyle(0xffffff, 1);
-    clip.fillRect(content.x + 2, top + 2, content.width - 4, ui.fieldHeight - 4);
-    clip.setVisible(false);
-    field.add(clip);
-    // Phaser 4: a Mask filter, not a geometry mask — `GeometryMask` is Canvas-only there and the
-    // WebGL renderer ignores it, which would put the ridges back outside the frame. One helper
-    // rather than three copies of the same three lines.
-    const clipTo = (layer: Phaser.GameObjects.Graphics): void => {
-      if (clipFiltersUsable(this)) {
-        layer.enableFilters();
-      }
-      if (!layer.filters) {
-        // Canvas, or a zoomed camera the filter compositor cannot cope with — see `clipFilters`.
-        // The geometry mask is a no-op under WebGL in v4, but it is the right answer on Canvas.
-        layer.setMask(clip.createGeometryMask());
-        return;
-      }
-      const mask = layer.filters.internal.addMask(clip);
-      // The clip rect is fixed for the life of this field; re-rendering it to a DynamicTexture
-      // every frame, three times over, is three framebuffers a frame for a rectangle.
-      mask.autoUpdate = false;
-      mask.needsUpdate = true;
-    };
+    // A stencil layer, bracketing the three land layers in the field's child list. Phaser 4 made
+    // the v3 geometry mask a no-op under WebGL, and the Mask filter that was meant to replace it
+    // crops to the design surface, so it had to be gated off above RENDER_SCALE 1 — read
+    // `ui/ink/clipRect` for the measurement. The stencil clips in screen space and so is the same
+    // shape at every graphics tier.
+    const clip = new RectClip(this, {
+      x: content.x + 2, y: top + 2, width: content.width - 4, height: ui.fieldHeight - 4,
+    });
+    ui.groundClip = clip;
+    clip.begin(field);
 
     // Three layers, in the order a print is built: distance, then the ground over its feet, then
     // everything standing on the ground.
     const far = this.add.graphics();
     far.setAlpha(0.5);
     field.add(far);
-    clipTo(far);
+    clip.apply(far);
     const ground = this.add.graphics();
     field.add(ground);
-    clipTo(ground);
+    clip.apply(ground);
     const g = this.add.graphics();
     // The land is a backdrop, not a subject. Drawn at half strength as a whole, because at full
     // weight the scenery and the two armies carry the same emphasis and the fight — the thing the
     // screen exists to show — stops being the thing you look at.
     g.setAlpha(0.5);
     field.add(g);
-    clipTo(g);
+    clip.apply(g);
+    // Closes the bracket: everything added to `field` after this — the fallen, the camps, the
+    // hosts — is outside the clip, exactly as it was under the three-mask version.
+    clip.end(field);
 
     // ── 0. distance ────────────────────────────────────────────────────────
     // Two soft ridges at different depths, and no karst.
@@ -6433,6 +6720,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const { leftX, rightX, span, groundY } = ui.geometry;
 
     this.clearLayer(field);
+    ui.groundClip?.destroy();
+    ui.groundClip = undefined;
     ui.ourMarkers = [];
     ui.theirMarkers = [];
     ui.fieldSignature = this.battleFieldSignature(battle);
@@ -6546,9 +6835,19 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
 
     type Hideable = Phaser.GameObjects.GameObject & { visible: boolean; setVisible(v: boolean): unknown };
     const added = field.list.slice(from) as Hideable[];
-    // The mask's own source is an invisible white rectangle living in the same layer. `draw` does
-    // not consult `visible`, so baking it would fill the field with white paper.
-    const sources = added.filter((obj) => obj.visible !== false);
+    // Only the things that were drawn. Two kinds of passenger live in this slice and neither is
+    // art: `draw` does not consult `visible`, so an invisible layer baked in anyway; and the clip's
+    // stencil pair write to the stencil buffer rather than to the picture.
+    //
+    // `isStencilModifier` and not `type`, which is the trap: a `Stencil` extends Container and
+    // keeps *its* type string, so a name check catches the closing `StencilReference` and misses
+    // the opening half. Measured, that is what it costs — the Stencil was baked into the texture
+    // and then hidden along with the real layers, leaving a frame that subtracted a stencil layer
+    // it had never added. The buffer wrapped below zero and the readout under the field went with
+    // it: 14.5% of the field's pixels differed from the unbaked reference, against 5.4% before.
+    const sources = added.filter(
+      (obj) => obj.visible !== false && !(obj as { isStencilModifier?: boolean }).isStencilModifier,
+    );
     if (sources.length === 0) return;
 
     // Supersampled, because a texture made in game units is drawn onto a canvas that renders at the
@@ -6568,24 +6867,18 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     //
     // Under Phaser 3 the reason was that a geometry mask is a stencil pass and simply does not
     // survive `RenderTexture.draw` — the masked layers rendered as *nothing*, and the first attempt
-    // lost the horizon ridges, the pagoda and the whole settlement. Under Phaser 4 the mask is a
-    // filter, which *does* survive the draw, and that is the new problem: the sources are scaled up
-    // by SUPER and drawn at an offset, while the mask rect is not, so the clip would land in the
-    // wrong place and cut away most of the field.
+    // lost the horizon ridges, the pagoda and the whole settlement. That is still exactly true of
+    // the Canvas fallback, which is the only place a geometry mask is still live.
     //
-    // Either way the answer is the same, and safe for the same reason: the texture is created at
-    // exactly the rect the mask clipped to, so the RT's own bounds do the identical job. That
-    // equivalence is why this is a performance change and not an art change; `verify-battle-ground-bake`
-    // holds it to it.
-    type Filterable = Phaser.GameObjects.GameObject & {
-      filters?: { internal: Phaser.GameObjects.Components.FilterList } | null;
-      clearMask?(d?: boolean): unknown;
-    };
-    for (const source of sources as Filterable[]) {
-      for (const filter of source.filters?.internal.getActive() ?? []) filter.setActive(false);
-      // Canvas fallback: there are no filters there, and the geometry mask is the live one.
-      source.clearMask?.(false);
-    }
+    // Under WebGL the clip is now a stencil layer written by two objects of its own, and those are
+    // filtered out of `sources` above rather than cleared off each layer — a stencil belongs to the
+    // frame, not to the things it covers, so there is nothing on a source to drop.
+    //
+    // Either way the answer is safe for the same reason: the texture is created at exactly the rect
+    // the clip cut to, so the RT's own bounds do the identical job. That equivalence is why this is
+    // a performance change and not an art change; `verify-battle-ground-bake` holds it to it.
+    type Maskable = Phaser.GameObjects.GameObject & { clearMask?(d?: boolean): unknown };
+    for (const source of sources as Maskable[]) source.clearMask?.(false);
     try {
       baked.draw(sources, -x * SUPER, -y * SUPER);
       // Phaser 4 buffers the draw; `render` executes it. Before the sources are put back to
@@ -9258,6 +9551,15 @@ ${fall}` : fall,
       [t('ascent.over.heroes'), String(ascent?.heroesSummoned ?? 0)],
       [t('ascent.over.cards'), String(Object.values(ascent?.cardStacks ?? {}).reduce((a, b) => a + b, 0))],
     ];
+    // The Chronicle, at the one moment the run is being summed up. Five stories conclude in a
+    // typical run and the Reckoning used to mention none of them; a reign that mostly followed the
+    // record is a different reign from one that mostly did not, and this is the line that says so.
+    const storyTally = chronicleTally(this.state);
+    const endings = storyTally['chinh-su'] + storyTally['da-su'] + storyTally['ngoai-truyen'];
+    if (endings > 0) {
+      rows.push([t('ascent.over.stories'), String(endings)]);
+      rows.push(['', t('ascent.over.storyLine', storyTally)]);
+    }
     const bodyY = content.y + headHeight + 10;
     const bodyHeight = rows.length * 26 + 20;
     this.modalLayer.add(this.ui.panel(
@@ -9315,6 +9617,14 @@ ${fall}` : fall,
       t('ascent.codex.button', codex),
       () => this.showCodex(),
       { fontSize: '12px' },
+    ));
+    // The other shelf, beside the champions: how much of the Chronicle this player has actually
+    // met. The catalogue is several times larger than one run and nothing else says so.
+    const stories = storyProgress(storyCatalogIds.length);
+    this.modalLayer.add(this.ui.label(
+      content.x, buttonY + 100,
+      `${t('ascent.codex.stories')}  ${stories.met}/${stories.total}`,
+      'caption', { fontSize: '11px' },
     ));
     this.modalLayer.add(this.ui.button(
       { x: content.x + content.width / 2 + 5, y: buttonY + 54, width: content.width / 2 - 5, height: 40 },
