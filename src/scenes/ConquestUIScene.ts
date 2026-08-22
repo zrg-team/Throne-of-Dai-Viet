@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { applyPaperFX } from '../ui/ink/PaperFX';
+import { clipFiltersUsable } from '../ui/ink/clipFilters';
 import { applyRenderScale } from '../game/graphicsQuality';
 import { battleTickMs } from '../game/battleOptions';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID } from '../game/constants';
@@ -5954,9 +5955,12 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // WebGL renderer ignores it, which would put the ridges back outside the frame. One helper
     // rather than three copies of the same three lines.
     const clipTo = (layer: Phaser.GameObjects.Graphics): void => {
-      layer.enableFilters();
+      if (clipFiltersUsable(this)) {
+        layer.enableFilters();
+      }
       if (!layer.filters) {
-        // No WebGL, so no filters — and on Canvas the geometry mask is the one that works.
+        // Canvas, or a zoomed camera the filter compositor cannot cope with — see `clipFilters`.
+        // The geometry mask is a no-op under WebGL in v4, but it is the right answer on Canvas.
         layer.setMask(clip.createGeometryMask());
         return;
       }

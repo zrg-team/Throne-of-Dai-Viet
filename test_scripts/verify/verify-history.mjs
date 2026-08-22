@@ -264,8 +264,28 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
   if (afterTap.offset === 0 && afterDrag.offset > 0) fail(`${tag}  opening a row threw the list back to the top`);
   if (!afterDrag.expanded && afterTap.expanded) console.log(`PASS  ${tag}  drag scrolls, tap opens, position kept`);
 
-  // And back out again.
-  await page.mouse.click(44, 24);
+  // And back out again. Found by its label rather than by a coordinate: this used to be a chevron
+  // at (44, 24) and the harness still clicked there long after the exit moved to a button at the
+  // foot of the page, so "Back did not return to the menu" failed on every run. Not a Phaser 4
+  // change; found while migrating.
+  const back = await page.evaluate(() => {
+    const scene = window.__phaserGame.scene.getScene('HistoryScene');
+    const hit = (node) => {
+      const label = node.list?.find?.((k) => k.type === 'Text');
+      if (label && /Quay lại|Back/.test(label.text)) {
+        const m = label.getWorldTransformMatrix();
+        return { x: m.tx, y: m.ty };
+      }
+      return null;
+    };
+    for (const child of scene.children.list) {
+      const found = hit(child);
+      if (found) return found;
+    }
+    return null;
+  });
+  if (!back) fail(`${tag}  no Back control on the page`);
+  await page.mouse.click(back?.x ?? 44, back?.y ?? 24);
   await page.waitForFunction(() => window.__phaserGame.scene.isActive('MenuScene'), null, { timeout: 8000 })
     .catch(() => {});
   if (!(await page.evaluate(() => window.__phaserGame.scene.isActive('MenuScene')))) {

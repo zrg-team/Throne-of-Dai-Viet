@@ -14,18 +14,29 @@ The migration has been **carried out** on `feat/phaser-4`. What that branch is a
 | 1 — `Point` → `Vector2` | **done**, one declaration file instead of 62 call sites (§3.1) |
 | 2 — PaperFX + game config | **done**, `tsc` clean, paper pass renders (§3.2) |
 | 3a — `RenderTexture.render()` | **done**, all four bake sites (§4.2) |
-| 3b — masks → filters | **done but blocked at `RENDER_SCALE ≥ 2`** — see §4.1a |
+| 3b — masks → filters | **exact at `RENDER_SCALE` 1, gated off above it** — see §4.1a |
 | 4 — full regression + perf | **not started** |
 | 5 — Canvas decision | **not started** |
 
 **The game boots and runs on Phaser 4.** `test_scripts/gate/smoke.mjs` is 15/15: all four modes
 reach their world scene, tick live state, draw a non-blank frame, and log no console errors. The
-menu, the map, the diorama and the ink chrome all render correctly.
+menu, the map, the diorama, the Dragon Ascent prompts and the ink chrome all render correctly, and
+`verify-culling` and `verify-history` pass in full.
 
 **One regression is open**, and it is the mask half of Stage 3. It is not a mistake in the port —
 it is a Phaser 4 limitation this game's `RENDER_SCALE` trick walks straight into, measured in
-§4.1a. Everything else in this document held: 160 predicted type errors, 160 found; the four bakes
-went blank exactly as predicted until `render()` was added.
+§4.1a. It is gated behind `src/ui/ink/clipFilters.ts` so nothing is *deleted* at the higher graphics
+tiers; lists simply overflow their frames there until the camera-viewport rewrite lands.
+
+Everything else in this document held: 160 predicted type errors, 160 found; the four bakes went
+blank exactly as predicted until `render()` was added.
+
+**Three stale harnesses were fixed on the way**, none of them Phaser-related — they had been failing
+against the live game before any of this. `verify-history.mjs` and `shot-history.mjs` looked for a
+menu button reading "Real History"/"Sử thật" that is now "History"/"Lịch sử", and `verify-history.mjs`
+clicked Back at a hardcoded (44, 24) long after the exit moved to a button at the foot of the page.
+Both now find their control by label. Worth knowing that three checks in the gate set had been
+green-lighting nothing.
 
 Also on the branch, and unrelated to the engine: the 28 upstream Phaser skills are vendored into
 `.claude/skills/` by `yarn skills` (Appendix C.2), and `.mcp.json` carries an opt-in, tokenless
@@ -426,9 +437,20 @@ every camera by the same factor to get back to 390-wide design units (`src/game/
 3. **Do nothing and ship at `RENDER_SCALE` 1.** Rejected — that is the whole mobile-resolution
    feature (`docs`/memory: the "graphics look bad on mobile" fix) traded for a clip.
 
-**Why the filter port stays on the branch anyway:** the alternative is worse. A geometry mask is a
-no-op under WebGL in v4, so reverting leaves the lists painting across the entire screen. The
-filter at least clips — correctly at tier `low`, and to the wrong rectangle above it.
+**What the branch ships in the meantime.** `src/ui/ink/clipFilters.ts` gates the whole thing on
+`renderNodes && cameras.main.zoom === 1`. Where the filter is correct it is used; where it is not,
+both call sites fall through to `createGeometryMask()`, which is a no-op under WebGL and therefore
+means *no clip at all*.
+
+That is a deliberate choice between two bad states, and the screenshots made it obvious which is
+which. A cropped filter does not clip in the wrong place — it **deletes content**: Dragon Ascent's
+"What kind of realm is this?" prompt came up with its entire card list gone, a header and a "Decide
+later" button over blank paper, which is a game you cannot play. Unclipped, the same page is
+correct and the only symptom is that the History list runs *under* the footer button instead of
+stopping at the frame. Of the two failures, take the one the player can work with.
+
+So on `low` the clip is exact, and on `medium`/`high` lists overflow their frames until the camera
+viewport rewrite lands.
 
 Reproduce with the two probes kept in `test_scripts/scratch/` (gitignored): `_maskcal2.mjs` prints
 the table above, `QUALITY=low` / `QUALITY=medium` selects the tier.
