@@ -23,7 +23,7 @@ export const daiCaoEn: StoryCatalog = {
   'the-paper-goes-unused.dismiss-it.d': 'Some records are better unwritten.',
   title: 'The Great Proclamation',
   want: 'to write it down while it is still true',
-  waiting: 'Waiting: for a victory worth announcing to the world.',
+  waiting: 'For a victory worth announcing to the world.',
   stake: 'What the dynasty will be remembered as having been.',
   'regard.watching': 'He watches the wars and says nothing. He is deciding whether they add up to anything.',
   'regard.drafting': 'He writes at night now. He will not show anyone the drafts.',
@@ -62,7 +62,7 @@ export const daiCaoVi: StoryCatalog = {
   'the-paper-goes-unused.dismiss-it.d': 'Có những sử không chép còn hơn.',
   title: 'Bình Ngô Đại Cáo',
   want: 'chép lại, khi nó còn là sự thật',
-  waiting: 'Đang chờ: một chiến thắng đáng để bố cáo với thiên hạ.',
+  waiting: 'Một chiến thắng đáng để bố cáo với thiên hạ.',
   stake: 'Vương triều này rồi sẽ được nhớ là gì.',
   'regard.watching': 'Ông nhìn các cuộc chiến mà không nói gì. Ông đang cân xem chúng có cộng lại thành cái gì không.',
   'regard.drafting': 'Dạo này ông viết ban đêm. Bản thảo thì không cho ai xem.',
@@ -100,7 +100,7 @@ export const chieuDoiDoEn: StoryCatalog = {
   'the-dragon-rising.ok': 'Move the court',
   title: 'The Edict on Moving the Capital',
   want: 'a seat the country can grow out of',
-  waiting: 'Waiting: for {land} to be worth calling a capital.',
+  waiting: 'For {land} to be worth calling a capital.',
   stake: 'Where the dynasty sits, and therefore what it can become.',
   'regard.surveying': 'The surveyors are at {land} again. They have started calling it by a different name.',
 
@@ -128,7 +128,7 @@ export const chieuDoiDoVi: StoryCatalog = {
   'the-dragon-rising.ok': 'Dời triều đình',
   title: 'Chiếu Dời Đô',
   want: 'một kinh đô mà nước có thể lớn lên khỏi nó',
-  waiting: 'Đang chờ: {land} đủ tầm để gọi là kinh đô.',
+  waiting: '{land} đủ tầm để gọi là kinh đô.',
   stake: 'Vương triều ngồi ở đâu, và vì thế có thể trở thành cái gì.',
   'regard.surveying': 'Đám thợ đạc lại ra {land}. Họ đã bắt đầu gọi nơi ấy bằng một cái tên khác.',
 
@@ -162,7 +162,7 @@ export const namQuocEn: StoryCatalog = {
   'the-shrine-burns.ok': 'Note it',
   title: 'The Mountains and Rivers of the Southern Land',
   want: 'to be heard across the water',
-  waiting: 'Waiting: for a shrine on the bank at {land}, and for someone to come.',
+  waiting: 'For a shrine on the bank at {land}, and for someone to come.',
   stake: '{land}, and what an army believes when it hears its own defeat read aloud.',
   'regard.listening': 'The shrine is up. The old man sleeps in it now, and will not say why.',
 
@@ -198,7 +198,7 @@ export const namQuocVi: StoryCatalog = {
   'the-shrine-burns.ok': 'Ghi lại',
   title: 'Nam Quốc Sơn Hà',
   want: 'được nghe thấy từ bên kia sông',
-  waiting: 'Đang chờ: một cái miếu trên bờ {land}, và một kẻ nào đó kéo tới.',
+  waiting: 'Một cái miếu trên bờ {land}, và một kẻ nào đó kéo tới.',
   stake: '{land}, và điều một đạo quân tin khi nghe chính thất bại của mình đọc lên.',
   'regard.listening': 'Miếu dựng xong. Ông lão giờ ngủ luôn trong đó, hỏi cũng không nói vì sao.',
 
@@ -234,7 +234,7 @@ export const hichEn: StoryCatalog = {
   'the-officers-look-at-their-boots.ok': 'Say nothing',
   title: 'Proclamation to the Officers',
   want: 'officers who are ashamed of the right things',
-  waiting: 'Waiting: for three hosts in the field, each with a man at its head.',
+  waiting: 'For three hosts in the field, each with a man at its head.',
   stake: 'Whether the army is an army or a list of names.',
   'regard.expectant': 'He has read it once and will not read it again until there is someone to read it to.',
 
@@ -268,7 +268,7 @@ export const hichVi: StoryCatalog = {
   'the-officers-look-at-their-boots.ok': 'Không nói gì',
   title: 'Hịch Tướng Sĩ',
   want: 'những viên tướng biết xấu hổ đúng chỗ',
-  waiting: 'Đang chờ: ba đạo quân ngoài trận, mỗi đạo có một người cầm đầu.',
+  waiting: 'Ba đạo quân ngoài trận, mỗi đạo có một người cầm đầu.',
   stake: 'Quân đội này là quân đội, hay chỉ là một danh sách tên.',
   'regard.expectant': 'Ông đọc một lượt rồi thôi, và sẽ không đọc lại cho tới khi có người xứng để nghe.',
 
@@ -302,7 +302,7 @@ export const chiLangEn: StoryCatalog = {
   'lieu-thang-does-not-come-out.ok': 'Close the road behind them',
   title: 'The Chi Lăng Pass',
   want: 'to be underestimated once, at the right place',
-  waiting: 'Waiting: to hold {land}, and for a great host to take the road.',
+  waiting: 'To hold {land}, and for a great host to take the road.',
   stake: '{land}, and a relief column that thinks it is late.',
   'regard.waiting-in-the-pass': 'The scouts have stopped reporting. That is the arrangement.',
 
@@ -330,7 +330,7 @@ export const chiLangVi: StoryCatalog = {
   'lieu-thang-does-not-come-out.ok': 'Khép đường sau lưng chúng',
   title: 'Ải Chi Lăng',
   want: 'được coi thường một lần, đúng chỗ',
-  waiting: 'Đang chờ: giữ được {land}, và một đại quân chịu đi vào đường ấy.',
+  waiting: 'Giữ được {land}, và một đại quân chịu đi vào đường ấy.',
   stake: '{land}, và một đạo viện binh đang sốt ruột vì tới muộn.',
   'regard.waiting-in-the-pass': 'Thám mã thôi báo về. Đó là giao hẹn.',
 
@@ -362,7 +362,7 @@ export const thanTocEn: StoryCatalog = {
   'the-feast-is-eaten-cold.ok': 'Say nothing about it',
   title: 'The Lightning March',
   want: 'to arrive before anyone has finished celebrating',
-  waiting: 'Waiting: six provinces and a host of nine hundred, quickly.',
+  waiting: 'Six provinces and a host of nine hundred, quickly.',
   stake: 'Whether an army can be somewhere it cannot possibly be.',
   'regard.marching': 'They march in threes now, one carried while two walk. Nobody has slept properly in a week.',
 
@@ -396,7 +396,7 @@ export const thanTocVi: StoryCatalog = {
   'the-feast-is-eaten-cold.ok': 'Không nhắc tới nữa',
   title: 'Thần Tốc',
   want: 'tới nơi trước khi người ta ăn mừng xong',
-  waiting: 'Đang chờ: sáu trấn và một đạo chín trăm quân, thật nhanh.',
+  waiting: 'Sáu trấn và một đạo chín trăm quân, thật nhanh.',
   stake: 'Một đạo quân có thể có mặt ở nơi nó không thể nào có mặt hay không.',
   'regard.marching': 'Giờ họ đi theo bộ ba, hai khiêng một nằm. Cả tuần nay chẳng ai ngủ ra hồn.',
 
@@ -432,7 +432,7 @@ export const tienPhatEn: StoryCatalog = {
   'we-made-an-enemy-and-nothing-else.ok': 'Double the border garrisons',
   title: 'Strike First',
   want: 'to choose the year the war happens',
-  waiting: 'Waiting: for {kingdom} to be cold enough, and beaten twice.',
+  waiting: 'For {kingdom} to be cold enough, and beaten twice.',
   stake: 'Whether the war is fought on their ground or ours.',
   'regard.sharpening': 'The maps of the border have stopped being maps of our side of it.',
 
@@ -466,7 +466,7 @@ export const tienPhatVi: StoryCatalog = {
   'we-made-an-enemy-and-nothing-else.ok': 'Tăng gấp đôi quân đồn biên',
   title: 'Tiên Phát Chế Nhân',
   want: 'tự chọn lấy cái năm mà chiến tranh xảy ra',
-  waiting: 'Đang chờ: {kingdom} đủ lạnh nhạt, và bị đánh bại hai lần.',
+  waiting: '{kingdom} đủ lạnh nhạt, và bị đánh bại hai lần.',
   stake: 'Cuộc chiến này đánh trên đất chúng, hay trên đất ta.',
   'regard.sharpening': 'Bản đồ biên giới thôi không còn là bản đồ phía bên ta nữa.',
 
@@ -500,7 +500,7 @@ export const haiBaEn: StoryCatalog = {
   'sixty-five-citadels-answer.ok': 'Ride with them',
   title: 'The Trưng Sisters',
   want: 'a country that answers without being ordered',
-  waiting: 'Waiting: for two courts to think well of us at the same time.',
+  waiting: 'For two courts to think well of us at the same time.',
   stake: 'Whether anything can be built out of agreement rather than out of conquest.',
   'regard.gathering': 'They have not left. They talk to the district headmen in the evenings, and the headmen listen.',
 
@@ -528,7 +528,7 @@ export const haiBaVi: StoryCatalog = {
   'sixty-five-citadels-answer.ok': 'Cùng lên ngựa với hai bà',
   title: 'Hai Bà Trưng',
   want: 'một đất nước tự đáp lời, không cần ai ra lệnh',
-  waiting: 'Đang chờ: hai triều đình cùng lúc có thiện cảm với ta.',
+  waiting: 'Hai triều đình cùng lúc có thiện cảm với ta.',
   stake: 'Có dựng nổi cái gì bằng lòng người, thay vì bằng chinh phạt, hay không.',
   'regard.gathering': 'Hai bà chưa đi. Chiều chiều nói chuyện với các già làng, mà các già làng thì chịu nghe.',
 

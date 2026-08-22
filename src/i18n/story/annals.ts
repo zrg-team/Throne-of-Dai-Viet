@@ -11,7 +11,7 @@ import type { StoryCatalog } from './types';
 export const hoGuomEn: StoryCatalog = {
   title: 'The Lake of the Returned Sword',
   want: 'to be given the thing, and then to give it back',
-  waiting: 'Waiting: to see whether the blade is asked for again.',
+  waiting: 'To see whether the blade is asked for again.',
   stake: 'What a man is once the war he was lent a sword for is over.',
   'regard.armed': 'He wears it to court now, which nobody has mentioned.',
   'regard.at-peace': 'He is easier company since he gave it up. Considerably easier.',
@@ -44,7 +44,7 @@ export const hoGuomEn: StoryCatalog = {
 export const hoGuomVi: StoryCatalog = {
   title: 'Hồ Gươm',
   want: 'được trao vật ấy, rồi trả lại vật ấy',
-  waiting: 'Đang chờ: xem người ta có đòi lưỡi gươm về không.',
+  waiting: 'Xem người ta có đòi lưỡi gươm về không.',
   stake: 'Một người sẽ là gì, khi cuộc chiến mà người ta cho mượn gươm đã xong.',
   'regard.armed': 'Dạo này ông đeo gươm cả khi vào chầu, mà chẳng ai nhắc.',
   'regard.at-peace': 'Từ hôm trả gươm ông dễ chịu hẳn. Dễ chịu thấy rõ.',
@@ -77,7 +77,7 @@ export const hoGuomVi: StoryCatalog = {
 export const noThanEn: StoryCatalog = {
   title: 'The Divine Crossbow',
   want: 'a wall that does not need men on it',
-  waiting: 'Waiting: to see what the marriage was actually for.',
+  waiting: 'To see what the marriage was actually for.',
   stake: 'The walls of {land}, and who has been inside them.',
   'regard.trusting': 'They dine together now. He asks good questions about the workshops.',
   'regard.ruined': 'Nobody will say the word out loud. The workshops are shut.',
@@ -108,7 +108,7 @@ export const noThanEn: StoryCatalog = {
 export const noThanVi: StoryCatalog = {
   title: 'Nỏ Thần',
   want: 'một bức thành không cần người đứng trên',
-  waiting: 'Đang chờ: xem cuộc hôn nhân ấy thật ra là để làm gì.',
+  waiting: 'Xem cuộc hôn nhân ấy thật ra là để làm gì.',
   stake: 'Thành {land}, và những ai đã vào được bên trong.',
   'regard.trusting': 'Dạo này hai bên ăn cùng mâm. Chàng ta hỏi về xưởng thợ, toàn câu hỏi hay.',
   'regard.ruined': 'Không ai dám nói thành tiếng. Xưởng thợ đóng cửa.',
@@ -139,7 +139,7 @@ export const noThanVi: StoryCatalog = {
 export const yetKieuEn: StoryCatalog = {
   title: 'The Diver',
   want: 'to be sent, and not to be watched doing it',
-  waiting: 'Waiting: for a hull worth going under.',
+  waiting: 'For a hull worth going under.',
   stake: 'A fleet, and one man who does not float.',
   'regard.in-the-water': 'He sleeps in the day now. Nobody wakes him.',
   'a-man-who-can-stay-under.title': 'A man who can stay under',
@@ -171,7 +171,7 @@ export const yetKieuEn: StoryCatalog = {
 export const yetKieuVi: StoryCatalog = {
   title: 'Yết Kiêu',
   want: 'được sai đi, và đừng ai đứng nhìn',
-  waiting: 'Đang chờ: một đáy thuyền đáng để lặn xuống.',
+  waiting: 'Một đáy thuyền đáng để lặn xuống.',
   stake: 'Một hạm đội, và một người không nổi lên.',
   'regard.in-the-water': 'Dạo này anh ta ngủ ban ngày. Không ai đánh thức.',
   'a-man-who-can-stay-under.title': 'Người ở dưới nước được lâu',
@@ -203,7 +203,7 @@ export const yetKieuVi: StoryCatalog = {
 export const vanDonEn: StoryCatalog = {
   title: 'The Grain Fleet at Vân Đồn',
   want: 'to be judged after, not during',
-  waiting: 'Waiting: for the second fleet.',
+  waiting: 'For the second fleet.',
   stake: 'Everything the invasion intends to eat.',
   'regard.waiting-behind': 'He has been stripped of rank and has not appealed it. He is still at the anchorage.',
   'the-war-fleet-passes-first.title': 'The war fleet passes first',
@@ -222,7 +222,7 @@ export const vanDonEn: StoryCatalog = {
 export const vanDonVi: StoryCatalog = {
   title: 'Đoàn Thuyền Lương ở Vân Đồn',
   want: 'được xét sau, chứ không phải xét lúc đang làm',
-  waiting: 'Đang chờ: đoàn thuyền thứ hai.',
+  waiting: 'Đoàn thuyền thứ hai.',
   stake: 'Toàn bộ số lương mà cuộc xâm lăng ấy định ăn.',
   'regard.waiting-behind': 'Ông đã bị tước chức và không hề kêu oan. Ông vẫn ở lại bến.',
   'the-war-fleet-passes-first.title': 'Thuyền chiến qua trước',
@@ -241,7 +241,7 @@ export const vanDonVi: StoryCatalog = {
 export const paperMoneyEn: StoryCatalog = {
   title: 'Notes Instead of Coin',
   want: 'to be right about something the country hates',
-  waiting: 'Waiting: to see whether anyone will take the notes.',
+  waiting: 'To see whether anyone will take the notes.',
   stake: 'Whether a thing is worth what the throne says it is worth.',
   'regard.committed': 'He has stopped arguing for it and started enforcing it.',
   'a-note-instead-of-a-coin.title': 'A note instead of a coin',
@@ -271,7 +271,7 @@ export const paperMoneyEn: StoryCatalog = {
 export const paperMoneyVi: StoryCatalog = {
   title: 'Thông Bảo Hội Sao',
   want: 'được đúng, trong một việc cả nước ghét',
-  waiting: 'Đang chờ: xem có ai chịu nhận tiền giấy không.',
+  waiting: 'Xem có ai chịu nhận tiền giấy không.',
   stake: 'Một vật có đáng bằng cái giá mà triều đình bảo nó đáng hay không.',
   'regard.committed': 'Ông thôi biện luận cho nó, và bắt đầu cưỡng hành nó.',
   'a-note-instead-of-a-coin.title': 'Tờ giấy thay đồng tiền',
@@ -301,7 +301,7 @@ export const paperMoneyVi: StoryCatalog = {
 export const luyThayEn: StoryCatalog = {
   title: 'The Master’s Wall',
   want: 'to be used by somebody, finally',
-  waiting: 'Waiting: for a wall and a tower at {land}, and no province lost while they go up.',
+  waiting: 'For a wall and a tower at {land}, and no province lost while they go up.',
   stake: '{land}, and whether earth can settle an argument that armies cannot.',
   'regard.digging': 'He is at {land} every day. He does not appear to sleep at the site or anywhere else.',
   'the-strategist-who-came-late.title': 'The strategist who came late',
@@ -324,7 +324,7 @@ export const luyThayEn: StoryCatalog = {
 export const luyThayVi: StoryCatalog = {
   title: 'Lũy Thầy',
   want: 'rốt cuộc cũng có người dùng tới mình',
-  waiting: 'Đang chờ: một bức thành và một vọng lâu ở {land}, mà trong lúc ấy không mất tấc đất nào.',
+  waiting: 'Một bức thành và một vọng lâu ở {land}, mà trong lúc ấy không mất tấc đất nào.',
   stake: '{land}, và xem đất đắp có dàn xếp nổi cái việc mà quân đội không dàn xếp được không.',
   'regard.digging': 'Ngày nào ông cũng có mặt ở {land}. Xem chừng ông chẳng ngủ ở công trường, mà cũng chẳng ngủ ở đâu.',
   'the-strategist-who-came-late.title': 'Người mưu sĩ đến muộn',
@@ -347,7 +347,7 @@ export const luyThayVi: StoryCatalog = {
 export const vanMieuEn: StoryCatalog = {
   title: 'The Temple of Literature',
   want: 'to be staffed by people nobody’s father chose',
-  waiting: 'Waiting: for the first list to be posted.',
+  waiting: 'For the first list to be posted.',
   stake: 'Who is allowed to run the country.',
   'regard.teaching': 'The courtyard is full at dawn now, which the families have noticed.',
   'the-sons-of-nobody.title': 'The sons of nobody',
@@ -375,7 +375,7 @@ export const vanMieuEn: StoryCatalog = {
 export const vanMieuVi: StoryCatalog = {
   title: 'Văn Miếu',
   want: 'được dùng những người mà cha chẳng ai chọn cho',
-  waiting: 'Đang chờ: bảng đầu tiên được yết.',
+  waiting: 'Bảng đầu tiên được yết.',
   stake: 'Ai được phép cai trị đất nước này.',
   'regard.teaching': 'Giờ tờ mờ sáng sân đã chật, mà các nhà lớn thì để ý cả đấy.',
   'the-sons-of-nobody.title': 'Con nhà không ai biết',
@@ -403,7 +403,7 @@ export const vanMieuVi: StoryCatalog = {
 export const thuDoEn: StoryCatalog = {
   title: 'The Man Who Held the Court',
   want: 'a court that stops arguing and starts obeying',
-  waiting: 'Waiting: to be needed badly enough to be forgiven.',
+  waiting: 'To be needed badly enough to be forgiven.',
   stake: 'Whether order is worth the people it costs.',
   'regard.indispensable': 'Nobody likes him. Nobody has suggested a replacement either.',
   'the-court-is-full-of-cousins.title': 'The court is full of cousins',
@@ -433,7 +433,7 @@ export const thuDoEn: StoryCatalog = {
 export const thuDoVi: StoryCatalog = {
   title: 'Người Giữ Triều Đình',
   want: 'một triều đình thôi cãi và bắt đầu vâng lệnh',
-  waiting: 'Đang chờ: được cần tới đủ mức để được tha thứ.',
+  waiting: 'Được cần tới đủ mức để được tha thứ.',
   stake: 'Trật tự có đáng bằng những con người phải trả giá cho nó hay không.',
   'regard.indispensable': 'Chẳng ai ưa ông. Mà cũng chẳng ai đề cử người thay.',
   'the-court-is-full-of-cousins.title': 'Triều đình toàn anh em họ',
@@ -463,7 +463,7 @@ export const thuDoVi: StoryCatalog = {
 export const binhTrongEn: StoryCatalog = {
   title: 'The Rearguard',
   want: 'to buy the crossing with whatever is to hand',
-  waiting: 'Waiting: for word of what he answered them.',
+  waiting: 'For word of what he answered them.',
   stake: 'One commander, and what an army decides his answer meant.',
   'regard.held': 'They have not asked for gold. That is what is worrying about it.',
   'the-rearguard-does-not-come-back.title': 'The rearguard does not come back',
@@ -490,7 +490,7 @@ export const binhTrongEn: StoryCatalog = {
 export const binhTrongVi: StoryCatalog = {
   title: 'Đạo Quân Chặn Hậu',
   want: 'mua lấy khúc sông ấy bằng bất cứ thứ gì có trong tay',
-  waiting: 'Đang chờ: tin xem ông đã đáp lại chúng thế nào.',
+  waiting: 'Tin xem ông đã đáp lại chúng thế nào.',
   stake: 'Một viên tướng, và cái mà cả đạo quân hiểu từ câu trả lời của ông.',
   'regard.held': 'Chúng không hề đòi vàng. Chính chỗ đó mới đáng lo.',
   'the-rearguard-does-not-come-back.title': 'Quân chặn hậu không trở về',
@@ -517,7 +517,7 @@ export const binhTrongVi: StoryCatalog = {
 export const khucEn: StoryCatalog = {
   title: 'Simply Governing',
   want: 'to be left alone long enough for it to become normal',
-  waiting: 'Waiting: for nobody to arrive and object.',
+  waiting: 'For nobody to arrive and object.',
   stake: 'Whether a country can be taken by not making a speech about it.',
   'regard.negotiating': 'The letters still go out on the old schedule, in the old form, signed by us.',
   'nobody-is-coming-to-govern-us.title': 'Nobody is coming to govern us',
@@ -540,7 +540,7 @@ export const khucEn: StoryCatalog = {
 export const khucVi: StoryCatalog = {
   title: 'Cứ Thế Mà Cai Trị',
   want: 'được để yên đủ lâu cho tới khi thành lệ thường',
-  waiting: 'Đang chờ: chẳng ai tới mà phản đối.',
+  waiting: 'Chẳng ai tới mà phản đối.',
   stake: 'Một nước có giành được mà không cần tuyên bố gì hay không.',
   'regard.negotiating': 'Thư từ vẫn gửi đi đúng kỳ, đúng thể thức, và vẫn ký tên ta.',
   'nobody-is-coming-to-govern-us.title': 'Chẳng ai sang cai trị ta cả',
@@ -563,7 +563,7 @@ export const khucVi: StoryCatalog = {
 export const dykesEn: StoryCatalog = {
   title: 'The Dykes',
   want: 'the earth carried before the water comes, not after',
-  waiting: 'Waiting: for the river to decide.',
+  waiting: 'For the river to decide.',
   stake: 'A season’s harvest, and everyone who would have eaten it.',
   'regard.on-the-banks': 'Every basket in the district is on the banks. Nothing else is happening anywhere.',
   'the-river-is-higher-than-the-fields.title': 'The river is higher than the fields',
@@ -586,7 +586,7 @@ export const dykesEn: StoryCatalog = {
 export const dykesVi: StoryCatalog = {
   title: 'Đê Điều',
   want: 'gánh đất xong trước khi nước tới, chứ không phải sau',
-  waiting: 'Đang chờ: con sông định liệu.',
+  waiting: 'Con sông định liệu.',
   stake: 'Một mùa lúa, và tất cả những người lẽ ra được ăn nó.',
   'regard.on-the-banks': 'Cả huyện, có bao nhiêu quang gánh đều đã ra mặt đê. Chẳng còn việc gì khác diễn ra ở đâu nữa.',
   'the-river-is-higher-than-the-fields.title': 'Nước sông cao hơn mặt ruộng',
@@ -609,7 +609,7 @@ export const dykesVi: StoryCatalog = {
 export const cheEn: StoryCatalog = {
   title: 'The King Who Came Back',
   want: 'to be somewhere he cannot possibly be, repeatedly',
-  waiting: 'Waiting: for him to come a third time.',
+  waiting: 'For him to come a third time.',
   stake: 'The capital, on a night when nobody expects him.',
   'regard.hunted': 'The watch has been doubled twice. He has not come by the road either time.',
   'he-was-in-the-capital-before-anyone-knew.title': 'He was in the capital before anyone knew',
@@ -636,7 +636,7 @@ export const cheEn: StoryCatalog = {
 export const cheVi: StoryCatalog = {
   title: 'Vị Vua Trở Lại',
   want: 'có mặt ở nơi hắn không thể nào có mặt, hết lần này tới lần khác',
-  waiting: 'Đang chờ: hắn tới lần thứ ba.',
+  waiting: 'Hắn tới lần thứ ba.',
   stake: 'Kinh đô, vào một đêm chẳng ai ngờ hắn tới.',
   'regard.hunted': 'Quân canh đã tăng gấp đôi hai lượt. Cả hai lần hắn đều không đi đường bộ.',
   'he-was-in-the-capital-before-anyone-knew.title': 'Hắn vào kinh trước khi ai kịp hay',
