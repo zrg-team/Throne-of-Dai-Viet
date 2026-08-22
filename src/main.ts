@@ -5,6 +5,7 @@ import { scheduleCampaignEvents } from './systems/CampaignEventSystem';
 import type { GameState } from './state/types';
 import { getLanguage, heroName, politicsTitle, seasonLabel, t } from './i18n';
 import { registerServiceWorker } from './pwa/updates';
+import { usesServiceWorker } from './platform/shell';
 import { getMapTheme } from './ui/mapTheme';
 
 declare global {
@@ -23,12 +24,23 @@ declare global {
     render_game_to_text?: () => string;
     advanceTime?: (ms: number) => void;
     __startBenchGame?: (seed?: number, mode?: 'rival' | 'campaign' | 'empire' | 'ascent') => void;
+    /**
+     * The two halves of the launch splash, both declared inline in `index.html` so they exist
+     * before this bundle does. `__splashDone` takes the splash down — `MenuScene` calls it once
+     * the menu has genuinely been rendered — and `__fontsCss` resolves when the deferred
+     * @font-face stylesheet has applied, which `BootScene` waits on before it measures a face.
+     */
+    __splashDone?: () => void;
+    __fontsCss?: Promise<void>;
   }
 }
 
 // Before Phaser, so the first visit starts filling its offline cache while the loader is still
-// unpacking fonts. Does nothing in dev — see `registerServiceWorker`.
-registerServiceWorker();
+// unpacking fonts. Does nothing in dev — see `registerServiceWorker` — and nothing inside a
+// native shell, which already holds every byte in its binary: see `usesServiceWorker`.
+if (usesServiceWorker()) {
+  registerServiceWorker();
+}
 
 const game = new Phaser.Game(gameConfig);
 window.__phaserGame = game;

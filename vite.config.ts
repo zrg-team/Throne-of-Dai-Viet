@@ -39,25 +39,46 @@ const fromGit = (command: string): string => {
 const buildNumber = fromGit('git rev-list --count HEAD');
 const buildDate = fromGit('git log -1 --format=%cs');
 
-export default defineConfig(({ command, isPreview }) => ({
-  // `vite preview` runs with `command === 'serve'`, so a plain `command === 'build'` test served
-  // the built app from `/` while its own index.html pointed every asset at `/ten-thousand-victories/`:
-  // a preview that 404'd its own bundle and fell through to the SPA fallback, which is not a
-  // preview of anything. `isPreview` is the difference between the two serve modes.
-  base: command === 'build' || isPreview ? homepagePath : '/',
-  define: {
-    __APP_VERSION__: JSON.stringify(packageJson.version),
-    __BUILD_NUMBER__: JSON.stringify(buildNumber),
-    __BUILD_DATE__: JSON.stringify(buildDate),
-  },
-  publicDir: 'public',
-  build: {
-    copyPublicDir: true,
-  },
-  server: {
-    port: 5173,
-  },
-  preview: {
-    port: 4173,
-  },
-}));
+export default defineConfig(({ command, isPreview, mode }) => {
+  /**
+   * `vite build --mode shell` — the one build every cabinet in `apps/` serves.
+   *
+   * `--mode` rather than an environment variable because this repo is developed on Windows, where
+   * `VITE_SHELL=1 vite build` is not a thing any shell there understands and the fix would be a
+   * `cross-env` dependency for one flag.
+   *
+   * Two differences from the web build, and they are the whole of it: a relative `base`, because
+   * the shell serves this folder from its own root and a repository sub-path baked into the bundle
+   * URL points at nothing there; and `__SHELL_BUILD__`, which `src/platform/shell.ts` reads. The
+   * service worker is not disabled here — it is simply never built, because `build:shell` does not
+   * run `scripts/build-sw.mjs`.
+   */
+  const shell = mode === 'shell';
+
+  return {
+    // `vite preview` runs with `command === 'serve'`, so a plain `command === 'build'` test served
+    // the built app from `/` while its own index.html pointed every asset at `/ten-thousand-victories/`:
+    // a preview that 404'd its own bundle and fell through to the SPA fallback, which is not a
+    // preview of anything. `isPreview` is the difference between the two serve modes.
+    base: shell ? './' : command === 'build' || isPreview ? homepagePath : '/',
+    define: {
+      __APP_VERSION__: JSON.stringify(packageJson.version),
+      __BUILD_NUMBER__: JSON.stringify(buildNumber),
+      __BUILD_DATE__: JSON.stringify(buildDate),
+      __SHELL_BUILD__: JSON.stringify(shell),
+    },
+    publicDir: 'public',
+    build: {
+      copyPublicDir: true,
+      // Beside `dist/`, never on top of it. The two builds differ in every asset URL, and a shell
+      // build that overwrote the web one would be deployed to Pages by the next push.
+      outDir: shell ? 'dist-shell' : 'dist',
+    },
+    server: {
+      port: 5173,
+    },
+    preview: {
+      port: 4173,
+    },
+  };
+});

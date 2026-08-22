@@ -1,0 +1,40 @@
+{
+  "name": "van-thang-mobile",
+  "version": "0.2.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "sync": "node scripts/sync-web.mjs",
+    "start": "expo start --dev-client",
+    "link": "expo start --dev-client --tunnel",
+    "prebuild": "expo prebuild --clean",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "android:apk": "node scripts/gradle.mjs assembleRelease",
+    "android:aab": "node scripts/gradle.mjs bundleRelease",
+    "ios:eas": "eas build -p ios --profile preview",
+    "android:eas": "eas build -p android --profile preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "//": "Every expo-* version here is the one Expo SDK 57 bundles (bundledNativeModules.json). Do not bump them by hand — run `npx expo install --fix`, which is the only thing that knows what this SDK was tested against. react-native-webview is 13.16.1 for the same reason: 14.x exists on npm, but 13.16.1 is what SDK 57 pins.",
+  "dependencies": {
+    "@dr.pogodin/react-native-static-server": "^0.27.1",
+    "expo": "~57.0.0",
+    "expo-asset": "~57.0.13",
+    "expo-file-system": "~57.0.5",
+    "expo-keep-awake": "~57.0.1",
+    "expo-linking": "~57.0.7",
+    "expo-screen-orientation": "~57.0.1",
+    "expo-splash-screen": "~57.0.7",
+    "react": "19.2.3",
+    "react-native": "0.86.2",
+    "react-native-webview": "13.16.1",
+    "react-native-zip-archive": "^7.0.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.1",
+    "archiver": "^7.0.1",
+    "expo-build-properties": "~57.0.13",
+    "typescript": "~6.0.3"
+  }
+}

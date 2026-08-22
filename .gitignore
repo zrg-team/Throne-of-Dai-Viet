@@ -1,5 +1,8 @@
 node_modules/
 dist/
+# The shell build — `yarn build:shell`. Same status as dist/: a build artifact, and the one every
+# cabinet in apps/ serves.
+dist-shell/
 output/
 .vite/
 *.log

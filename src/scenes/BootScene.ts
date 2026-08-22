@@ -26,6 +26,13 @@ export class BootScene extends Phaser.Scene {
       return;
     }
     try {
+      // The @font-face rules are loaded off the critical path so the splash in `index.html` can
+      // paint one round trip sooner (see the comment on the `fonts-css` link). Until that
+      // stylesheet applies the document has never heard of these families, and `fonts.load` for a
+      // family it does not know resolves immediately having fetched nothing — which is a menu
+      // rasterised in Georgia. `index.html` resolves this promise when the sheet lands, and caps
+      // its own wait, so a blocked stylesheet still boots the game.
+      await window.__fontsCss;
       // Naming the sizes and weights matters: `document.fonts.ready` alone resolves before a face
       // that nothing has asked for yet is fetched.
       await Promise.all([

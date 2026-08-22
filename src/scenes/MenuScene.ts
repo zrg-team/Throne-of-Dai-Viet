@@ -35,6 +35,7 @@ import { drawHost, hostFootprint, hostShape, marchInPlace, type HostShape } from
 import { GRAPHICS_QUALITIES, applyRenderScale, getGraphicsQuality, setGraphicsQuality } from '../game/graphicsQuality';
 import { TRAFFIC_DENSITIES, getLifeSettings, setLifeSettings } from '../game/lifeSettings';
 import { SUPPORT, configuredSupportChannels, supportQrTextureKey, type SupportChannel } from '../data/support';
+import { allowsDonationLinks, notifyShellReady } from '../platform/shell';
 import { copyToClipboard, openExternalLink } from '../utils/browser';
 import { encodeQr, type QrMatrix } from '../utils/qr';
 
@@ -164,6 +165,19 @@ export class MenuScene extends Phaser.Scene {
     if (this.mode === 'main' && !hasSeenTour()) {
       this.startTour();
     }
+    // The launch splash comes down here and nowhere else, because this scene is the first thing
+    // the game ever draws. `postrender` rather than the end of `create`: `create` runs *before*
+    // the frame it just built reaches the canvas, so dismissing from here would cross-fade the
+    // splash into one frame of empty paper. The hook is declared inline in `index.html` and is
+    // gone by the time this fires a second time — `once` is belt to that braces.
+    //
+    // A native shell's splash comes down on the same frame and for the identical reason: it is
+    // holding a full-screen image over a web view that has not painted anything yet, and it wants
+    // the one frame that is genuinely the menu. Two splashes, one signal.
+    this.game.events.once(Phaser.Core.Events.POST_RENDER, () => {
+      window.__splashDone?.();
+      notifyShellReady();
+    });
   }
 
   /**
@@ -2032,8 +2046,40 @@ export class MenuScene extends Phaser.Scene {
   private renderSupportRow(): void {
     const row = this.add.container(GAME_WIDTH / 2, SUPPORT_TOP + SUPPORT_ROW_HEIGHT / 2);
 
+    /**
+     * On iOS the sentence loses its first half, because the App Store will not have it.
+     *
+     * Two separate rules, either one of which is a rejection on its own: guideline 3.2.1(vii)
+     * excludes tips and donations *in games* from the external-link allowance other categories
+     * get, and 4.7 says HTML5 game content may not provide access to charitable donations. A link
+     * to the repository is neither, so the second half stays — see `allowsDonationLinks`.
+     *
+     * It stays under a different string, though. `menu.support.improve` is a sentence fragment by
+     * design — "— or even better, help build the game" — and printed on its own it reads as one,
+     * lowercase h and all. `improveAlone` is the same link written to stand up by itself.
+     *
+     * The band stays too, at its full height. `SETTINGS_TOP` is measured up from `SUPPORT_TOP`,
+     * so a row that removed itself would leave 46 units of nothing at the foot of the menu and
+     * float everything above it.
+     */
+    const alone = !allowsDonationLinks();
+    const improve = this.ui.textLink(
+      0,
+      0,
+      t(alone ? 'menu.support.improveAlone' : 'menu.support.improve'),
+      () => openExternalLink(SUPPORT.github),
+      { icon: 'hammer' },
+    );
+    const improveWidth = improve.getData('linkWidth') as number;
+
+    if (alone) {
+      improve.x = -improveWidth / 2;
+      row.add(improve);
+      this.content.push(row);
+      return;
+    }
+
     const coffee = this.ui.textLink(0, 0, t('menu.support.coffee'), () => this.renderSupportModal(), { icon: 'cup' });
-    const improve = this.ui.textLink(0, 0, t('menu.support.improve'), () => openExternalLink(SUPPORT.github), { icon: 'hammer' });
     // Quieter than either phrase, and deliberately not pressable: it is the sentence's connective
     // tissue, and a player hunting for what is clickable must never land on it.
     const connective = this.ui.label(0, 0, t('menu.support.or'), 'caption', {
@@ -2043,7 +2089,6 @@ export class MenuScene extends Phaser.Scene {
 
     const gap = 6;
     const coffeeWidth = coffee.getData('linkWidth') as number;
-    const improveWidth = improve.getData('linkWidth') as number;
     const total = coffeeWidth + gap + connective.width + gap + improveWidth;
 
     /**
