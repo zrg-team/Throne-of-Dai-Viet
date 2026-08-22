@@ -7,7 +7,7 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { Asset } from 'expo-asset';
 import { Directory, File, Paths } from 'expo-file-system';
 import { unzip } from 'react-native-zip-archive';
-import Server, { STATES } from '@dr.pogodin/react-native-static-server';
+import Server, { ERROR_LOG_FILE, STATES } from '@dr.pogodin/react-native-static-server';
 
 import { shellDescriptorScript } from './src/descriptor';
 import version from './assets/web-version.json';
@@ -34,6 +34,42 @@ void SplashScreen.preventAutoHideAsync();
 
 /** `file:///a/b` → `/a/b`. Both the unzipper and the server want paths, not URLs. */
 const asPath = (uri: string): string => uri.replace(/^file:\/\//, '').replace(/\/$/, '');
+
+/** How many times to try the origin before calling it dead, and how long to wait between. */
+const KNOCKS = 10;
+const KNOCK_GAP_MS = 300;
+
+/**
+ * Ask the origin for the game's own index, from the JS thread.
+ *
+ * Deliberately `index.html` rather than `/`: a directory index can be answered by a server that
+ * cannot actually read the folder it was pointed at, and that is one of the failures worth
+ * catching here rather than as a blank canvas later.
+ */
+async function knock(origin: string, attempts: number = KNOCKS): Promise<boolean> {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch(`${origin}/index.html`, { method: 'GET' });
+      if (response.ok) return true;
+    } catch {
+      // Refused, reset, or unresolvable — all the same answer at this level: not yet.
+    }
+    await new Promise((wait) => setTimeout(wait, KNOCK_GAP_MS));
+  }
+  return false;
+}
+
+/** lighttpd's own account of why it would not serve, if it wrote one. */
+async function lighttpdLog(): Promise<string> {
+  try {
+    const log = new File(ERROR_LOG_FILE);
+    if (!log.exists) return 'lighttpd wrote no error log';
+    const tail = log.textSync().trim().split('\n').slice(-4).join(' / ');
+    return tail ? `lighttpd: ${tail}` : 'lighttpd error log is empty';
+  } catch (error) {
+    return `lighttpd log unreadable: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
 
 export default function App() {
   const [origin, setOrigin] = useState<string>();
@@ -128,6 +164,36 @@ export default function App() {
 
       server.current = instance;
       note(`server ${instance.state === STATES.ACTIVE ? 'active' : String(instance.state)} at ${url}`);
+
+      /**
+       * Knock on the door from this side before sending the web view to it.
+       *
+       * `ACTIVE` is lighttpd's own opinion, and the first build proved it can hold that opinion
+       * while the web view gets `ERR_CONNECTION_REFUSED` from the same address. A fetch from the
+       * JS thread separates the two cases: if it answers, the server is genuinely up and the
+       * problem belongs to the web view; if it does not, the server is not listening whatever its
+       * state says. Either way the diagnostic below can name it.
+       *
+       * It is also a fix rather than only a probe: a socket that needs a moment gets one, instead
+       * of the web view arriving early and turning a timing wobble into a permanent error page.
+       */
+      const reachable = await knock(url);
+      if (cancelled) return;
+      if (!reachable) {
+        /**
+         * Reported, never switched to.
+         *
+         * `http://localhost:PORT` and `http://127.0.0.1:PORT` are different origins, so a shell
+         * that silently preferred whichever answered would partition the save file by whichever
+         * name resolved that launch. Worth knowing which one the socket is on; not worth losing a
+         * reign to.
+         */
+        const viaName = await knock(`http://localhost:${PORT}`, 2);
+        note(`localhost:${PORT} ${viaName ? 'DOES answer — a name-resolution split' : 'also refuses'}`);
+        note(await lighttpdLog());
+        throw new Error(`${url} accepted no connection after ${KNOCKS} attempts`);
+      }
+
       setOrigin(url);
     };
 
