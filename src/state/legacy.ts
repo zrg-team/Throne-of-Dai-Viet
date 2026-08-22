@@ -151,12 +151,21 @@ export function computeRunScore(state: GameState): number {
     const ascent = state.ascent;
     const cardsTaken = Object.values(ascent.cardStacks).reduce((sum, stacks) => sum + stacks, 0);
     const peakLands = state.campaignScore?.peakLandsHeld ?? 0;
+    // Endings the Chronicle recorded. Weighted so a recorded ending is worth more than a
+    // divergent one — that is the permanence half of the reward asymmetry, expressed in the one
+    // number the player is actually chasing. Without it, following the annals paid nothing at all
+    // and the tag was decoration.
+    const endings = (state.chronicle ?? []).reduce(
+      (sum, entry) => sum + ((entry.historicity ?? 'chinh-su') === 'ngoai-truyen' ? 40 : 70),
+      0,
+    );
     return (
       ascent.wavesSurvived * 120 +
       Math.round(ascent.peakPower / 8) +
       peakLands * 15 +
       cardsTaken * 20 +
-      ascent.heroesSummoned * 40
+      ascent.heroesSummoned * 40 +
+      endings
     );
   }
 

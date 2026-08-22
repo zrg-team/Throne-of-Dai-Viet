@@ -13,6 +13,14 @@ interface CodexStore {
   unlocked: string[];
   /** Times each hero has been pulled, so duplicates still register as progress. */
   pulls: Record<string, number>;
+  /**
+   * Story template ids this player has ever actually met.
+   *
+   * The catalogue is several times larger than one run can walk — measured, seventeen of
+   * forty-eight templates never spoke once across eight runs — and nothing anywhere told the
+   * player that. A shelf that fills up is the cheapest possible way to say it.
+   */
+  storiesMet?: string[];
 }
 
 const EMPTY: CodexStore = { unlocked: [], pulls: {} };
@@ -30,6 +38,9 @@ export function getCodex(): CodexStore {
     return {
       unlocked: Array.isArray(parsed.unlocked) ? parsed.unlocked.filter((id) => typeof id === 'string') : [],
       pulls: typeof parsed.pulls === 'object' && parsed.pulls ? parsed.pulls : {},
+      storiesMet: Array.isArray(parsed.storiesMet)
+        ? parsed.storiesMet.filter((id) => typeof id === 'string')
+        : [],
     };
   } catch {
     return { ...EMPTY };
@@ -63,6 +74,29 @@ export function unlockHero(heroId: string): boolean {
 
 export function codexProgress(): { unlocked: number; total: number } {
   return { unlocked: getCodex().unlocked.length, total: heroTemplates.length };
+}
+
+/** Records that a story actually spoke to this player. Returns true the first time. */
+export function unlockStory(templateId: string): boolean {
+  const store = getCodex();
+  const met = store.storiesMet ?? [];
+  if (met.includes(templateId)) return false;
+  met.push(templateId);
+  store.storiesMet = met;
+  writeCodex(store);
+  return true;
+}
+
+/**
+ * How much of the Chronicle this player has met, for the shelf beside the champion count.
+ *
+ * The catalogue size is passed in rather than imported. `data/stories` pulls in every story file,
+ * each of which imports `StorySystem`, which imports this module — and this module is loaded by
+ * every mode at boot, so importing the catalogue here closed a cycle that left `storyTemplates`
+ * undefined at module init and took rival, campaign and empire down with it.
+ */
+export function storyProgress(total: number): { met: number; total: number } {
+  return { met: (getCodex().storiesMet ?? []).length, total };
 }
 
 /**

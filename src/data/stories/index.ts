@@ -21,13 +21,14 @@ import {
   ghostInTheSouth,
   mountainAndWater,
   saltRoad,
-  thanhGiong,
   theDelayer,
   theSickness,
   thirteenthWarlord,
   withoutSlaughter,
 } from './legends';
 import { gooseFeathers } from './gooseFeathers';
+import { thanhGiong } from './thanhGiong';
+import { tienPhat } from './tienPhat';
 import { granaries } from './granaries';
 import { reedBanner } from './reedBanner';
 import { riverStakes } from './riverStakes';
@@ -87,7 +88,10 @@ export const storyTemplates: StoryTemplate[] = [
   // The fourth wave: the eight that *ask*. Each carries a charge the player accepts or declines,
   // and pays in a card that exists nowhere else — see `data/stories/charges.ts` for why they are
   // deliberately a minority of the catalogue rather than the new default shape.
-  ...CHARGE_STORIES,
+  ...CHARGE_STORIES.filter((story) => story.id !== 'tien-phat'),
+  // Rebuilt as a full campaign in its own file; the charge-story version was the right event
+  // with no campaign around it.
+  tienPhat,
 
   // The fifth wave: the annals. Twelve middle-length histories, each built around a *verb* the
   // vocabulary did not have — a diver, a grain fleet, a paper currency, a wall, the examinations,

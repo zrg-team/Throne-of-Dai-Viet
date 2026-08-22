@@ -47,6 +47,8 @@ import { findFreeCommander } from './AutopilotSystem';
 import { heroName, t } from '../../i18n';
 import type {
   AscentPrompt,
+  AscentWaveCue,
+  AscentWaveOutcome,
   CourtPositionId,
   EmpireResponseOption,
   GameState,
@@ -523,6 +525,109 @@ function hireMercenaries(state: GameState, soldiers: number): void {
 }
 
 /**
+ * Queues a banner cue for the UI to play.
+ *
+ * Appended, never overwritten: a wave the realm plainly holds is met without a response card, so
+ * `startWave` closes the previous invasion and launches the next one in the same tick. A single
+ * slot lost the older of the two every time, and the older of the two is always the *result* —
+ * which is to say the win.
+ *
+ * Capped at three. A queue that outgrew the screen would be a backlog of proclamations about
+ * invasions several seasons behind the one the player is fighting, and the newest is always the
+ * one that matters most.
+ */
+function raiseWaveCue(state: GameState, cue: Omit<AscentWaveCue, 'id'>): void {
+  const ascent = state.ascent;
+  if (!ascent) return;
+  ascent.waveCueSeq = (ascent.waveCueSeq ?? 0) + 1;
+  ascent.waveCues ??= [];
+  ascent.waveCues.push({ ...cue, id: ascent.waveCueSeq });
+  if (ascent.waveCues.length > 3) ascent.waveCues.splice(0, ascent.waveCues.length - 3);
+}
+
+/**
+ * Pays and announces the result of the invasion that is standing on the map (or has just left it).
+ *
+ * Called from two places and it must run at most once per wave, which is what `pendingWave`
+ * guarantees: the clock calls it the tick the map clears, and `startWave` calls it as a fallback
+ * for a wave that never did. The figures are all differences against the snapshot taken when the
+ * hosts landed, so the banner can say what the invasion *cost* rather than what the realm happens
+ * to hold.
+ *
+ * The payout is unchanged from when it lived in `startWave` — same momentum, same spoils, same
+ * heat, because `waveHeat` is only reset by the next wave being raised. What moved is *when* the
+ * player is told, and that is the whole point: "wave 6 broken" arriving five seasons after the
+ * last host of wave 6 died is not a reward, it is a footnote.
+ */
+function resolveWaveResult(state: GameState): void {
+  const ascent = state.ascent;
+  if (!ascent) return;
+
+  // The snapshot **is** the "a result is owed for this wave" flag, and clearing it here is what
+  // makes the payout idempotent. Without this guard the two callers both paid: the map clearing
+  // paid once, and the next wave's clock paid again for a wave already settled — measured over a
+  // 337-tick run, 28 waves were paid 33 times, and every one of those was momentum and spoils the
+  // realm had not earned.
+  const snapshot = ascent.pendingWave;
+  if (!snapshot) return;
+  ascent.pendingWave = undefined;
+
+  ascent.wavesSurvived += 1;
+  // The other end of the dial: surviving a wave you made dangerous pays more than surviving
+  // one you hid from. Without this the counter is a pure tax and the correct play is always
+  // to take nothing — the reward has to ride the same number as the risk or the choice is
+  // not a choice.
+  const heat = liveWaveHeat(state);
+  const momentum = (XP_PER_WAVE_SURVIVED + (ascent.lastWaveBoss ? XP_PER_WAVE_SURVIVED : 0)) * heat;
+  addAscentXp(state, momentum);
+  payAmbitionSpoils(state, heat);
+
+  const capital = state.lands.find((land) => land.id === ascent.capitalLandId);
+  const heldCapital = !capital || capital.ownerId === PLAYER_KINGDOM_ID;
+
+  // Reported, not modal.
+  //
+  // A Great Invasion surviving deserves acknowledgement, but a full-screen pause whose only
+  // control was "Continue" accounted for nearly every remaining prompt in a run and had exactly
+  // one legal answer, four to six times each time. The header strip marks the moment in the log;
+  // the banner below marks it on the screen, and neither stops the game to collect a tap.
+  pushToast(
+    state,
+    ascent.lastWaveBoss
+      ? (heldCapital ? t('ascent.wave.bossTitle', { wave: ascent.wave }) : t('ascent.wave.bossTitleLost'))
+      : (heldCapital ? t('ascent.wave.title', { wave: ascent.wave }) : t('ascent.wave.titleLost', { wave: ascent.wave })),
+    heldCapital ? 'reward' : 'threat',
+  );
+
+  // A wave that never put a host on the map has nothing to report beyond the count — no landing
+  // was announced, so announcing its end would be a banner for an invasion the player never saw.
+  if (snapshot.hosts <= 0) return;
+
+  const landsHeld = ownedLandCount(state);
+  const landsLost = Math.max(0, snapshot.lands - landsHeld);
+  const hostsBroken = Math.max(0, (state.invasionsRepelled ?? 0) - snapshot.repelledAt);
+  const outcome: AscentWaveOutcome = !heldCapital
+    ? 'overrun'
+    : landsLost > 0 ? 'held' : 'triumph';
+
+  raiseWaveCue(state, {
+    phase: 'end',
+    wave: snapshot.wave,
+    boss: snapshot.boss,
+    hosts: snapshot.hosts,
+    power: snapshot.power,
+    outcome,
+    hostsBroken,
+    landsLost,
+    landsHeld,
+    momentum: Math.round(momentum),
+    survived: ascent.wavesSurvived,
+    seasons: Math.max(1, state.turn - snapshot.turn),
+    kingdomName: snapshot.kingdomName,
+  });
+}
+
+/**
  * Fires a wave: raises the counter, sets the threat, and asks the player how to meet it.
  * The hosts are not spawned here — they launch when the response resolves, so a preparation
  * actually lands before the enemy does.
@@ -531,49 +636,12 @@ function startWave(state: GameState): void {
   const ascent = state.ascent;
   if (!ascent) return;
 
-  // Reaching a new wave means the previous one is behind you. Reporting survival here
-  // rather than when the map clears keeps the count honest even when waves overlap.
-  if (ascent.wave > 0) {
-    ascent.wavesSurvived += 1;
-    // The other end of the dial: surviving a wave you made dangerous pays more than surviving
-    // one you hid from. Without this the counter is a pure tax and the correct play is always
-    // to take nothing — the reward has to ride the same number as the risk or the choice is
-    // not a choice.
-    const momentum = (XP_PER_WAVE_SURVIVED + (ascent.lastWaveBoss ? XP_PER_WAVE_SURVIVED : 0))
-      * liveWaveHeat(state);
-    addAscentXp(state, momentum);
-    payAmbitionSpoils(state, liveWaveHeat(state));
-
-    // Only Great Invasions get a result screen — stopping for a modal every forty seconds
-    // would wreck the pacing. Ordinary waves report through the header strip instead, so
-    // surviving one is still acknowledged.
-    const capital = state.lands.find((land) => land.id === ascent.capitalLandId);
-    const heldCapital = !capital || capital.ownerId === PLAYER_KINGDOM_ID;
-
-    if (ascent.lastWaveBoss) {
-      // Reported, not modal.
-      //
-      // A Great Invasion surviving deserves acknowledgement, but this was a full-screen pause
-      // whose only control was "Continue" — it accounted for nearly every remaining prompt in a
-      // run that had exactly one legal answer, four to six times each time. Announcing it in the
-      // header strip marks the moment without stopping the game to collect a tap.
-      pushToast(
-        state,
-        heldCapital
-          ? t('ascent.wave.bossTitle', { wave: ascent.wave })
-          : t('ascent.wave.bossTitleLost'),
-        heldCapital ? 'reward' : 'threat',
-      );
-    } else {
-      pushToast(
-        state,
-        heldCapital
-          ? t('ascent.wave.title', { wave: ascent.wave })
-          : t('ascent.wave.titleLost', { wave: ascent.wave }),
-        heldCapital ? 'reward' : 'threat',
-      );
-    }
-  }
+  // Reaching a new wave means the previous one is behind you. Normally the result was already
+  // paid and announced the tick its last host left the map; this is the fallback for the waves
+  // that never clear — an overlapping wave, or one whose hosts were still marching when the next
+  // clock ran out. `resolveWaveResult` is a no-op when the wave has already been settled, so the
+  // count stays honest either way and is never paid twice.
+  resolveWaveResult(state);
 
   // Recorded before the wave is sized, so this wave is measured against the realm as it
   // stood when the *previous* wave landed — see `laggedDefencePower`.
@@ -592,6 +660,20 @@ function startWave(state: GameState): void {
   recordAmbitionPeak(state);
   ascent.waveHeat = ambitionHeat(state);
   decayAmbition(state);
+
+  // The wave's ledger is opened here, the moment its number exists, and `launchWave` fills in what
+  // actually lands. Opening it here rather than at the landing is what lets one field answer "is a
+  // result owed for this wave" for every path through the director — including the wave whose
+  // spawn is skipped for want of budget, which is counted without ever being announced.
+  ascent.pendingWave = {
+    wave: ascent.wave,
+    boss: ascent.lastWaveBoss,
+    lands: ownedLandCount(state),
+    hosts: 0,
+    power: 0,
+    repelledAt: state.invasionsRepelled ?? 0,
+    turn: state.turn,
+  };
 
   const aggressor = pickAggressor(state);
   if (!aggressor) return;
@@ -634,6 +716,9 @@ function launchWave(state: GameState, kingdomId: string, warlordName?: string): 
   if (!ascent) return;
 
   const boss = ascent.lastWaveBoss;
+  // Counted before the spawn so hosts added by *this* wave can be told from whatever a raid or
+  // an overlapping wave already had walking in.
+  const hostsBefore = state.invasions?.length ?? 0;
   // The map is already carrying this wave's worth of pressure — adding to it would stack
   // hosts the realm has no way to answer. The wave counter still advanced, so the curve keeps
   // rising; what is skipped is the spawn, not the escalation.
@@ -672,6 +757,32 @@ function launchWave(state: GameState, kingdomId: string, warlordName?: string): 
   ascent.waveInFlight = true;
   // Now that the hosts exist, replace the projection with what is actually marching.
   ascent.threat = liveInvaderPower(state);
+
+  // The landing. Snapshotted here rather than when the counter advanced because the response
+  // card can sit open for a season, and a province taken while deciding belongs to the season
+  // before the invasion, not to it.
+  const landed = Math.max(1, (state.invasions?.length ?? 0) - hostsBefore);
+  const kingdom = state.kingdoms.find((candidate) => candidate.id === kingdomId);
+  // Re-measured at the landing, not left at what `startWave` opened the ledger with: the response
+  // card can stand for a season, and a province taken while the player was deciding belongs to the
+  // season before this invasion rather than to it.
+  const snapshot = ascent.pendingWave;
+  if (snapshot && snapshot.wave === ascent.wave) {
+    snapshot.kingdomName = kingdom?.name;
+    snapshot.lands = ownedLandCount(state);
+    snapshot.hosts = landed;
+    snapshot.power = ascent.threat;
+    snapshot.repelledAt = state.invasionsRepelled ?? 0;
+    snapshot.turn = state.turn;
+  }
+  raiseWaveCue(state, {
+    phase: 'start',
+    wave: ascent.wave,
+    boss,
+    kingdomName: kingdom?.name,
+    hosts: landed,
+    power: ascent.threat,
+  });
 }
 
 /**
@@ -792,8 +903,17 @@ export function tickWaveDirector(state: GameState): void {
   if (!ascent) return;
 
   const liveInvasions = state.invasions?.length ?? 0;
+  const wasInFlight = (ascent.invasionsLastTick ?? 0) > 0;
   ascent.waveInFlight = liveInvasions > 0;
   ascent.invasionsLastTick = liveInvasions;
+
+  // The map just cleared. This — not the next wave's clock — is the moment the invasion ended,
+  // and it is where the result is paid and the banner raised. Guarded on the wave having actually
+  // put hosts on the map, so a border raid withdrawing cannot cash a wave whose own hosts have not
+  // spawned yet: raids and waves share `state.invasions`, and a raid clears like anything else.
+  if (wasInFlight && liveInvasions === 0 && (ascent.pendingWave?.hosts ?? 0) > 0) {
+    resolveWaveResult(state);
+  }
 
   // THREAT tracks the hosts on the map while a wave is live; between waves it shows what
   // the next one is projected to bring, so the readout is never blank or stale.

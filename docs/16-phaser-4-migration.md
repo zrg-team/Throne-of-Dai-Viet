@@ -14,7 +14,7 @@ The migration has been **carried out** on `feat/phaser-4`. What that branch is a
 | 1 — `Point` → `Vector2` | **done**, one declaration file instead of 62 call sites (§3.1) |
 | 2 — PaperFX + game config | **done**, `tsc` clean, paper pass renders (§3.2) |
 | 3a — `RenderTexture.render()` | **done**, all four bake sites (§4.2) |
-| 3b — masks → filters | **exact at `RENDER_SCALE` 1, gated off above it** — see §4.1a |
+| 3b — masks → **stencils** | **done at every tier** — the filter port was a dead end; see §4.1a |
 | 4 — full regression + perf | **not started** |
 | 5 — Canvas decision | **not started** |
 
@@ -23,10 +23,22 @@ reach their world scene, tick live state, draw a non-blank frame, and log no con
 menu, the map, the diorama, the Dragon Ascent prompts and the ink chrome all render correctly, and
 `verify-culling` and `verify-history` pass in full.
 
-**One regression is open**, and it is the mask half of Stage 3. It is not a mistake in the port —
-it is a Phaser 4 limitation this game's `RENDER_SCALE` trick walks straight into, measured in
-§4.1a. It is gated behind `src/ui/ink/clipFilters.ts` so nothing is *deleted* at the higher graphics
-tiers; lists simply overflow their frames there until the camera-viewport rewrite lands.
+**The mask regression is closed** — 2026-08-22, and not by the camera-viewport rewrite §4.1a
+proposed. Phaser 4.2 added a `Stencil` game object, which is the real replacement for v3's
+`GeometryMask`: a stencil-buffer layer applied in screen space, with no framebuffer round-trip and
+therefore no design-size rectangle to fall out of. It clips identically at `RENDER_SCALE` 1, 2 and
+3, and costs one rectangle draw where the filter cost a full-screen shader pass per scroll area.
+`src/ui/ink/clipFilters.ts` is gone; `src/ui/ink/clipRect.ts` replaces it. Read §4.1a for what the
+filter did and why, since the measurement is what ruled the whole approach out.
+
+**The regression shipped**, which is worth recording. It was live on GitHub Pages and reported from
+a phone: the History and How to Play pages painting their lists straight over the page title and
+the tab row. It did not show in local development, and the reason was not the graphics tier — the
+dev server had been started before the upgrade and was still serving **Phaser 3.90.0** out of
+Vite's optimizer cache. `Phaser.Filters.Controller` is undefined there, so `PaperFX.ts` threw at
+module scope and the game never booted in a fresh tab; a long-lived tab kept running v3 quite
+happily. Restart the dev server after a dependency change, and check `Phaser.VERSION` in the page
+before trusting that local disagrees with production.
 
 Everything else in this document held: 160 predicted type errors, 160 found; the four bakes went
 blank exactly as predicted until `render()` was added.
@@ -379,7 +391,12 @@ Three things to get right while doing it:
 **Gated by:** `verify-scroll.mjs`, `verify-tap-after-scroll.mjs`, `verify-history.mjs`,
 `verify-guided-run.mjs`, `verify-arena.mjs`.
 
-### 4.1a The open regression: object filters ignore `RENDER_SCALE` — **Blocking**
+### 4.1a Why the clip is a stencil and not a filter — **closed 2026-08-22**
+
+> Kept in full because it is the measurement that ruled out object filters for this game. The
+> fix that shipped is `Phaser.GameObjects.Stencil` (Phaser 4.2), bracketed around the clipped
+> children by `src/ui/ink/clipRect.ts` — screen space, no framebuffer, correct at every tier.
+> Option 1 below (a camera viewport per scroll area) was never needed.
 
 The mask port above is written, compiles, and is **pixel-correct at `RENDER_SCALE` 1 and visibly
 wrong at 2 and 3** — which are the medium and high graphics tiers, i.e. what nearly every player

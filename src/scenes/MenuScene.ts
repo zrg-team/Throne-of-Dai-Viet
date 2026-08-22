@@ -1236,11 +1236,16 @@ export class MenuScene extends Phaser.Scene {
     //
     // The gaps are also counted here EXACTLY as they are spent below, or the slack piles up in
     // whichever one the arithmetic forgot.
-    // Continue is not drawn at all without a save behind it. A disabled button that says "no saved
-    // campaign" is a row of a phone screen spent telling a first-time player that something they
-    // have never done cannot be resumed; the tier below carries the same information by simply not
-    // being there. It is also one fewer thing to read on a page that had five buttons on it.
-    const rows = this.vh(58) + tagline.height + ROW + (saved ? ROW : 0);
+    // Continue holds its row whether or not there is a save behind it, greyed when there is not.
+    //
+    // It used to be dropped entirely on a first run, on the argument that a disabled row spends a
+    // line of a phone screen saying something can't be resumed that was never started. What that
+    // costs is a page whose shape changes under the player: the column ran two rows instead of
+    // three and left an obvious hole above the footer — see `menu-nosave-844` — and the row every
+    // returning player reaches for was somewhere different on their first visit from where it is
+    // on every visit after. A greyed row with the reason printed under it says what the missing
+    // row could not, and it says it in the place the answer will later appear.
+    const rows = this.vh(58) + tagline.height + ROW + ROW;
     // TWICE the gap for the break, not three times it. Three left an obvious hole between the last
     // row and Settings while the art above the column was being crowded — the page had its slack
     // in the one place nothing needed it. Doubling is still an unmissable break (the gaps inside
@@ -1249,9 +1254,9 @@ export class MenuScene extends Phaser.Scene {
     //
     // The budget, at the 620 floor where it is tightest: SETTINGS_TOP is 506 and ART_FLOOR 322, so
     // the column has 184. The rows come to 36 + 28 (the tagline wraps to two lines in Vietnamese)
-    // + 29 + 38 + 26 = 157, and six gaps at the 4-unit clamp are 24. It fits by three. The save
-    // label's row, now folded into Continue, is what buys History its own.
-    const inner = saved ? 3 : 2;
+    // + 38 + 38 = 140, and five gaps land at the 9-unit ceiling for 45. It runs one unit over, which
+    // the doubled break below absorbs — Continue still clears the footer row by eight.
+    const inner = 3;
     const GAPS = inner + 2;
     // The floor the column may not climb above: the rear host's feet stand at 488 in the design,
     // and the pair of them are the busiest thing on the page. At 844 the bottom-anchored column
@@ -1294,15 +1299,16 @@ export class MenuScene extends Phaser.Scene {
     }, { variant: 'secondary', fontSize: '15px' }));
     cursor += ROW + gap;
 
-    if (saved) {
-      this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: ROW }, t('menu.continue'), () => {
-        const snapshot = loadSnapshot();
-        if (snapshot) {
-          this.startGame(snapshot.state);
-        }
-      }, { variant: 'ghost', fontSize: '15px', subLabel: snapshotLabel() }));
-      cursor += ROW + gap;
-    }
+    // `snapshotLabel()` already answers both cases — the save's date, or "no saved campaign" — and
+    // the disabled variant greys the sub-label along with the label, so the row reads as one
+    // unavailable thing rather than as a live button with a warning under it.
+    this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: ROW }, t('menu.continue'), () => {
+      const snapshot = loadSnapshot();
+      if (snapshot) {
+        this.startGame(snapshot.state);
+      }
+    }, { variant: saved ? 'ghost' : 'disabled', fontSize: '15px', subLabel: snapshotLabel() }));
+    cursor += ROW + gap;
     // The group break, and the reason the footer reads as a different kind of thing from the
     // buttons above it.
     cursor += gap * 2;

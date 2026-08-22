@@ -135,6 +135,41 @@ export function defectHost(ctx: StoryCtx, toKingdomId?: string): Army | undefine
   return army;
 }
 
+/**
+ * The realm largest host marches over the border and is not here any more.
+ *
+ * The lever, as opposed to the wager: a wager spends resources you could have spent on the
+ * army, and this spends *the army*. The host is removed from the map outright - it cannot
+ * defend, cannot be recalled, and does not appear in defensePower - and its strength is
+ * remembered so a later beat can bring it home.
+ *
+ * Deliberately a removal rather than a flag on the army. Every system that counts our strength
+ * would otherwise have to learn about a new kind of absence, and each one that forgot would
+ * quietly hand the player back the defence they had just gambled.
+ *
+ * Returns the soldiers committed, or 0 when there was no host to send.
+ */
+export function commitHostAbroad(ctx: StoryCtx, key = 'abroad'): number {
+  const host = ourHosts(ctx).filter((army) => !army.isLevy)
+    .sort((a, b) => headcount(b) - headcount(a))[0];
+  if (!host) return 0;
+  const size = headcount(host);
+  ctx.remember(key, size);
+  ctx.remember(`${key}Level`, host.level ?? 1);
+  ctx.state.armies = ctx.state.armies.filter((army) => army.id !== host.id);
+  return size;
+}
+
+/** Brings home what `commitHostAbroad` sent, at whatever share of it survived. */
+export function returnHostFromAbroad(ctx: StoryCtx, share = 1, key = 'abroad'): number {
+  const size = Math.round(ctx.recall(key) * share);
+  ctx.remember(key, 0);
+  if (size <= 0) return 0;
+  const host = grantHost(ctx, size);
+  if (host) host.level = Math.max(1, ctx.recall(`${key}Level`));
+  return size;
+}
+
 /** The host is still ours and will not move. Not routed, not lost — refusing, and they know it. */
 export function mutinyHosts(ctx: StoryCtx, seasons: number): void {
   for (const army of ourHosts(ctx)) {

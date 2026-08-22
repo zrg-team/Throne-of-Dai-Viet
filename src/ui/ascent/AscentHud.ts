@@ -81,6 +81,9 @@ export class AscentHud {
    */
   private labelSpan = { left: 72, right: GAME_WIDTH - 54 };
 
+  /** The breath on the LIVE label. Held so it is started and stopped exactly once. */
+  private livePulse?: Phaser.Tweens.Tween;
+
   /** The band's permanent furniture. Undefined until the first render builds it. */
   private parts?: {
     panel: Phaser.GameObjects.Graphics;
@@ -101,6 +104,8 @@ export class AscentHud {
   }
 
   destroy(): void {
+    this.livePulse?.remove();
+    this.livePulse = undefined;
     const parts = this.parts;
     if (!parts) return;
     for (const object of [parts.panel, parts.powerValue, parts.threatValue, parts.threatVerdict,
@@ -159,15 +164,42 @@ export class AscentHud {
     // width, and neither is 420 and 12,480.
     let midRight = x - parts.threatValue.width - 6 - parts.threatVerdict.width - 10;
 
+    // While hosts are on the map the countdown is the wrong question.
+    //
+    // "Next wave in 7" printed over a live invasion is not merely uninformative, it actively
+    // misreads: the player is *in* one, and the band's only line about waves was counting down to
+    // a different one. The countdown yields the slot for as long as the invasion stands, and comes
+    // back the tick the map clears — which is also the tick the result banner unrolls, so the two
+    // halves of the lifecycle agree with each other.
+    const live = ascent.waveInFlight;
     const bossNext = (ascent.wave + 1) % 4 === 0;
     write(
       parts.countdown,
-      bossNext
-        ? t('ascent.hud.bossIn', { ticks: Math.max(0, ascent.ticksToWave) })
-        : t('ascent.hud.waveIn', { ticks: Math.max(0, ascent.ticksToWave) }),
-      bossNext ? '#a4402c' : '#5a4c39',
+      live
+        ? t('ascent.hud.live', { wave: ascent.wave })
+        : bossNext
+          ? t('ascent.hud.bossIn', { ticks: Math.max(0, ascent.ticksToWave) })
+          : t('ascent.hud.waveIn', { ticks: Math.max(0, ascent.ticksToWave) }),
+      live || bossNext ? '#a4402c' : '#5a4c39',
     );
-    parts.countdown.setFontStyle(bossNext ? '700' : 'normal');
+    parts.countdown.setFontStyle(live || bossNext ? '700' : 'normal');
+    // A slow breath on the label, started once and stopped once. Restarting it per render would
+    // reset the phase on every beat of the battle clock, which reads as a flicker rather than a
+    // pulse — the same fault the POWER counter had before it was given a life outside the render.
+    if (live && !this.livePulse) {
+      this.livePulse = this.scene.tweens.add({
+        targets: parts.countdown,
+        alpha: { from: 1, to: 0.42 },
+        duration: 620,
+        ease: 'Sine.easeInOut',
+        yoyo: true,
+        repeat: -1,
+      });
+    } else if (!live && this.livePulse) {
+      this.livePulse.remove();
+      this.livePulse = undefined;
+      parts.countdown.setAlpha(1);
+    }
 
     // The cause, printed beside its effect.
     //

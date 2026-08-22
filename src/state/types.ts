@@ -980,6 +980,19 @@ export type AscentLane = 'build' | 'heroes' | 'court' | 'army' | 'affairs' | 'ba
 export type StoryVolume = 'whisper' | 'card' | 'blow';
 
 /**
+ * Where a beat sits against the record — the Chronicle's source class.
+ *
+ * Three rather than two, because two would force a lie. `chinh-su` is the dynastic annals
+ * (Đại Việt sử ký toàn thư, Việt sử lược). `da-su` is legend and unofficial history — told, not
+ * recorded, which is what Thánh Gióng has always been and what Trần Quốc Toản's death is.
+ * `ngoai-truyen` is this realm's own variation: it did not happen.
+ *
+ * Lives here rather than in `systems/story/types.ts` because the saved shapes below need it and
+ * that file imports from this one.
+ */
+export type Historicity = 'chinh-su' | 'da-su' | 'ngoai-truyen';
+
+/**
  * The generic woodblock band behind a card. Chosen by tag, never by story.
  *
  * Deliberately not per-story art: a template binds a random hero and a random province, so a
@@ -1087,6 +1100,48 @@ export interface ActiveStory {
   offer?: string;
   /** Season the offer stops being available. It goes without announcing that it has. */
   offerUntil?: number;
+
+  // ── The trunk ─────────────────────────────────────────────────────────────
+  //
+  // All optional, so a save written before nodes existed loads without a migration step: see
+  // `nodeOf` in StorySystem, which resolves an absent `node` to the template's entry.
+
+  /** The node this story is standing in — see `StoryNode`. Ids are append-only. */
+  node?: string;
+  /**
+   * Every node passed through, in order.
+   *
+   * This is what the story page draws as a spine: where the story went, where it left the
+   * record, and where it is now. `history` answers "what was said"; this answers "which way it
+   * went", and they are not the same question.
+   */
+  path?: string[];
+  /** Least historical class the path has touched. Never decreases — see `StoryCtx.drift`. */
+  drift?: Historicity;
+  /** Turn the story entered its current node, for the patience clock. */
+  nodeSince?: number;
+
+  /**
+   * The cast's names, copied at bind time.
+   *
+   * The cast is held by id and the world is allowed to take people away: a general killed in a
+   * battle this story knows nothing about, exiled by another story, or lost with a province. When
+   * that happens every line already spoken about them re-renders with the subject missing —
+   * observed live on the story page as `S76  was taken.`
+   *
+   * An annal that forgets the name of the man it is about is not an annal, so the name is frozen
+   * when the story seeds and `storyParams` falls back to it. Not in `memory`, which is numbers.
+   */
+  names?: { hero?: string; other?: string; land?: string; rival?: string };
+
+  /**
+   * Consecutive ticks this story has had nothing it could say.
+   *
+   * A story whose pool is exhausted used to hold one of the eight live slots until the run ended:
+   * measured, two to five per run sat there having never spoken at all, and the catalogue is only
+   * large if a run walks around it. Past `DRY_TICKS_BEFORE_RETIRE` it lets go of the slot.
+   */
+  dryTicks?: number;
 }
 
 /**
@@ -1101,6 +1156,12 @@ export interface ChronicleEntry {
   params: Record<string, string | number>;
   /** Ended well, ended badly, or simply stopped. Drives the entry's accent only. */
   tone: NotificationKind;
+  /**
+   * Which record this ending belongs to, stamped from `story.drift` at the terminal.
+   *
+   * Absent on entries written before the tag existed; the page reads those as `chinh-su`.
+   */
+  historicity?: Historicity;
 }
 
 /**
@@ -1115,6 +1176,13 @@ export interface StoryWatch {
   battlesWon: number;
   wavesSurvived: number;
   courtSeatsFilled: number;
+  /**
+   * Heroes carrying the `Captive` trait, so a capture is something a story can *react* to.
+   *
+   * Optional because saves written before it exists have no count; those read as 0, which at
+   * worst reports one spurious capture on the first tick after loading.
+   */
+  captives?: number;
 }
 
 /**
@@ -1861,6 +1929,87 @@ export type AmbitionReason = 'province' | 'card' | 'host';
  */
 export type AscentPhase = 'aftermath' | 'court' | 'muster';
 
+/**
+ * How an invasion ended, graded rather than binary.
+ *
+ * "Did the capital fall?" is too coarse to be the only question the end banner can answer: a
+ * realm that broke four hosts without losing a field and one that was pushed off two provinces
+ * both read as "held", and the second is the one the player needs told. Three grades, in the
+ * order the run cares about them.
+ */
+export type AscentWaveOutcome = 'triumph' | 'held' | 'overrun';
+
+/**
+ * What the realm looked like when an invasion landed, so the end banner can report the
+ * difference rather than a bare state.
+ *
+ * Snapshotted at the moment the hosts spawn — not when the wave counter advances — because the
+ * response card can sit open for a season, and provinces taken while deciding belong to the
+ * season before the invasion, not to it.
+ */
+export interface AscentWaveSnapshot {
+  wave: number;
+  boss: boolean;
+  /** Who marched, so the end banner can name the crown that was broken. */
+  kingdomName?: string;
+  /** Provinces owned when the hosts landed. */
+  lands: number;
+  /**
+   * Hosts that actually spawned for this wave.
+   *
+   * **Zero until they land.** The snapshot is opened when the wave counter advances — that is what
+   * makes "a result is owed for this wave" a single fact with a single owner — and filled in when
+   * `launchWave` puts hosts on the map. A wave whose spawn was skipped for want of budget keeps a
+   * zero here and is counted without being announced: there was no invasion to see.
+   */
+  hosts: number;
+  /** Invader battle power on the map the tick it landed. */
+  power: number;
+  /** `state.invasionsRepelled` at landing, so hosts broken is a difference, not a guess. */
+  repelledAt: number;
+  /** `turn` at landing, so the banner can say how long the realm was under arms. */
+  turn: number;
+}
+
+/**
+ * One announcement the UI plays once and clears.
+ *
+ * The wave lifecycle used to reach the screen only as two lines in the header strip — the same
+ * strip that carries a granary finishing — so the single most consequential event in the mode
+ * was typographically identical to the least. This is the signal a full-screen banner is drawn
+ * from. It is a *cue*, not a log: the director raises it, the scene consumes it and sets it to
+ * undefined, and nothing else reads it.
+ *
+ * `id` is monotonic within a run so a scene that missed a frame can tell a fresh cue from the
+ * one it already played, and so a save reloaded mid-invasion does not replay the landing.
+ */
+export interface AscentWaveCue {
+  id: number;
+  phase: 'start' | 'end';
+  wave: number;
+  boss: boolean;
+  /** Who is marching. Named on the start cue; the end cue keeps it so the banner can credit it. */
+  kingdomName?: string;
+  /** Hosts that landed. */
+  hosts: number;
+  /** Invader power: what landed (start) or what was met (end). */
+  power: number;
+  // ── end only ──
+  outcome?: AscentWaveOutcome;
+  /** Hosts destroyed or routed off the map. */
+  hostsBroken?: number;
+  /** Provinces lost while the invasion stood on the map. */
+  landsLost?: number;
+  /** Provinces held at the end. */
+  landsHeld?: number;
+  /** Momentum paid for surviving it. */
+  momentum?: number;
+  /** Total invasions the realm has now outlived — the run's headline achievement counter. */
+  survived?: number;
+  /** Seasons the realm spent under arms. */
+  seasons?: number;
+}
+
 export interface AscentState {
   /** Wave counter. Threat scales as BASE * GROWTH^wave; every 4th wave is a Great Invasion. */
   wave: number;
@@ -1872,6 +2021,28 @@ export interface AscentState {
   lastWaveBoss: boolean;
   /** Invasion count at the end of the previous tick, to detect a wave finishing. */
   invasionsLastTick: number;
+  /**
+   * The wave whose result has not yet been reported, and the snapshot it is measured against.
+   *
+   * Survival used to be reported by the *next* wave's clock: the toast said "wave 6 broken" at
+   * the moment wave 7 was raised, which could be five seasons after the last host of wave 6 died
+   * and often landed in the same breath as the new threat. Held here instead, the result is paid
+   * and announced the tick the map clears — and `startWave` keeps the old behaviour as a fallback
+   * for the waves that never do clear, so the count stays honest when two overlap.
+   */
+  pendingWave?: AscentWaveSnapshot;
+  /**
+   * Banner cues the UI plays in order and clears. See `AscentWaveCue`.
+   *
+   * A queue rather than a slot, and that is not defensive: a wave the realm plainly holds is met
+   * without a response card, so `startWave` resolves the previous invasion and launches the next
+   * one **inside the same tick**. With one slot the landing overwrote the result, and the run's
+   * wins were the cues that went missing — measured over a 337-tick run, 25 landings were
+   * announced against 13 results.
+   */
+  waveCues?: AscentWaveCue[];
+  /** Monotonic id for the cues above. */
+  waveCueSeq?: number;
   /** Cached POWER and last tick's value, so the HUD can tween the delta ticker. */
   power: number;
   powerPrev: number;
@@ -1905,6 +2076,19 @@ export interface AscentState {
   capitalLandId?: string;
   /** Consecutive ticks the capital has been in enemy hands. Resets the moment it is retaken. */
   capitalLostTicks: number;
+  /**
+   * The player has asked for story beats to wait for them instead of interrupting play.
+   *
+   * Off by default. When set, the DecisionDirector never raises a story-beat prompt: the
+   * story keeps holding its card, the Chronicle lane marks it as wanting an answer, and the
+   * player goes and answers it on the story page when they feel like it.
+   *
+   * This is the pacing dial handed to the person it actually belongs to. The Chronicle is the
+   * least time-critical thing the director can raise, and a player who would rather read four
+   * stories in one sitting than be stopped four times should not have to take the second deal
+   * to get the first.
+   */
+  storyCardsMuted?: boolean;
   /** True when the front is too strong to storm, so hosts are holding at the border. */
   frontBlocked: boolean;
   /** Ticks before another Conquer prompt may be raised, so holding does not re-prompt at once. */

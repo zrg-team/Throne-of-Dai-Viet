@@ -9,8 +9,6 @@ import {
   gooseFeathersVi,
   granariesEn,
   granariesVi,
-  orangeEn,
-  orangeVi,
   riverStakesEn,
   riverStakesVi,
 } from './rest';
@@ -35,7 +33,6 @@ import {
   mountainWaterEn, mountainWaterVi,
   saltRoadEn, saltRoadVi,
   sicknessEn, sicknessVi,
-  thanhGiongEn, thanhGiongVi,
   thirteenthEn, thirteenthVi,
   withoutSlaughterEn, withoutSlaughterVi,
 } from './legends';
@@ -61,8 +58,10 @@ import {
   hichEn, hichVi,
   namQuocEn, namQuocVi,
   thanTocEn, thanTocVi,
-  tienPhatEn, tienPhatVi,
 } from './charges';
+import { thanhGiongEn, thanhGiongVi } from './thanhGiong';
+import { orangeEn, orangeVi } from './orange';
+import { tienPhatEn, tienPhatVi } from './tienPhat';
 import { depthEn, depthVi } from './depth';
 import { depth2En, depth2Vi } from './depth2';
 import type { StoryCatalog } from './types';

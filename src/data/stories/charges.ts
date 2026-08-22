@@ -195,61 +195,31 @@ export const chieuDoiDo: StoryTemplate = {
 // 1077 · Nam Quốc Sơn Hà — the poem on the Như Nguyệt
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Nam Quoc Son Ha - retired, and deliberately still here.
+ *
+ * The poem was read on the Nhu Nguyet line in 1077, which is the *same campaign* as
+ * `tien-phat`: Ly Thuong Kiet struck first at Ung Chau, withdrew, built that line, and held it.
+ * Two templates were telling one reign from different ends, so the beats live in `tienPhat.ts`
+ * now.
+ *
+ * It stays registered as a single terminal fragment rather than being deleted, because
+ * `storyTemplate(id)` returning undefined leaves a live save holding this story in the list
+ * forever - `tickStories` skips it, harmlessly and permanently. This way such a save resolves
+ * on the next tick and closes.
+ */
 export const namQuocSonHa: StoryTemplate = {
   id: 'nam-quoc',
-  seedWeight: 2,
-  minTurn: 18,
-  regard: (ctx) => (ctx.recall('sworn:shrine') === 1 ? 'listening' : undefined),
-  seed: (state) => {
-    const land = riverLand(state);
-    if (!land) return undefined;
-    return { landId: land.id, kingdomId: coldestRival(state)?.id };
-  },
+  // Never seeds again. Only an in-flight save can still be standing in it.
+  seedWeight: 0,
+  minTurn: Number.MAX_SAFE_INTEGER,
+  seed: () => undefined,
   fragments: [
     {
       id: 'a-voice-from-the-shrine',
-      volume: 'card',
-      band: 'river',
-      weight: 6,
-      options: [
-        {
-          id: 'raise-the-shrine',
-          apply: (ctx) => {
-            const land = ctx.land();
-            if (!land) return;
-            swearCharge(ctx, 'shrine', [
-              { kind: 'build', building: 'tower', landId: land.id },
-              { kind: 'hold', landId: land.id, seasons: 18 },
-            ]);
-          },
-        },
-        { id: 'the-river-is-only-a-river', apply: (ctx) => { ctx.heat(-1); } },
-      ],
-    },
-    {
-      id: 'the-southern-land-has-its-own-emperor',
-      volume: 'blow',
+      volume: 'whisper',
+      weight: 1,
       terminal: true,
-      tone: 'milestone',
-      weight: 100,
-      when: (ctx) => ctx.recall(keptKey('shrine')) === 1,
-      effect: (ctx) => {
-        grantPowerCard(ctx, 'tho-than');
-        // The poem was read at an army that was already across the river. It pays now, too.
-        disperseIncoming(ctx, 0.35);
-        ctx.leaveEcho(ctx.land()?.name ?? '');
-      },
-    },
-    {
-      id: 'the-shrine-burns',
-      volume: 'blow',
-      terminal: true,
-      tone: 'threat',
-      weight: 100,
-      when: (ctx) => ctx.recall(brokenKey('shrine')) === 1,
-      effect: (ctx) => {
-        raze(ctx, ctx.land());
-      },
     },
   ],
 };

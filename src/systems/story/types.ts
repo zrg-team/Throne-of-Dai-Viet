@@ -2,6 +2,7 @@ import type {
   ActiveStory,
   GameState,
   Hero,
+  Historicity,
   Kingdom,
   Land,
   NotificationKind,
@@ -11,12 +12,43 @@ import type {
   StoryVolume,
 } from '../../state/types';
 
+export type { Historicity };
+
 /**
  * Authoring types for the Chronicle. None of this is serialised — a save holds only the
  * `ActiveStory` instance (cast, memory, temperature, spoken ids) and rejoins it to the
  * template by id at load. That is why fragment ids are an append-only contract: rename one
  * and every save halfway through that story loads into a dangling reference.
  */
+
+/**
+ * A situation the story is standing in. The trunk of the decision tree.
+ *
+ * A node is not a line — it is a state several fragments can be about, which is what lets a
+ * salience pool and a decision tree coexist: the *trunk* is a graph the player's answers walk,
+ * and the *pool inside each node* still draws on fit, so two runs down the same branch do not
+ * read identically.
+ *
+ * **Node ids are an append-only contract exactly like fragment ids.** A live save holds the node
+ * it is standing in; rename one and that save loads into a dangling reference.
+ */
+export interface StoryNode {
+  id: string;
+  /** Inherited by every fragment fired here, and by the Chronicle entry via `story.drift`. */
+  historicity: Historicity;
+  /** Seasons before the engine starts pushing this node's exit card. */
+  patience?: number;
+  /**
+   * Where the story goes when the exit is never answered. Required unless `terminal`.
+   *
+   * **Never a punishment node.** Silence is a legitimate way to rule, and half this catalogue's
+   * best writing is about what happens when the throne does nothing. Ignoring leads somewhere
+   * *different*, not somewhere worse.
+   */
+  onIgnored?: string;
+  /** No exits. The story ends when a terminal fragment fires here. */
+  terminal?: boolean;
+}
 
 /** What changed in the world since last tick. Computed by diffing, so no other system has to push. */
 export interface StoryWorldDelta {
@@ -31,6 +63,31 @@ export interface StoryWorldDelta {
   /** Treasury sitting above the "somebody has started counting" line. */
   hoarding: boolean;
   seatEmptied: boolean;
+
+  // ── The war ───────────────────────────────────────────────────────────────
+  //
+  // Before these, the only signal about the fighting was `waveBroken` — so a story could only
+  // ever react *after* it was over. Nothing here is new state; all six read fields the engine
+  // already keeps.
+
+  /**
+   * Ticks until the next Great Invasion, across however many ordinary waves stand in between.
+   *
+   * `bossTelegraphed` is a **two-tick** warning (`BOSS_TELEGRAPH_TICKS`), which is fine for a
+   * document you issue and useless for anything you have to *build*. A story that wants to be
+   * fed three times needs a planning horizon, and this is it.
+   */
+  ticksToBoss: number;
+  /** The Great Invasion is two ticks out. The window the hịch already uses. */
+  bossTelegraphed: boolean;
+  /** A wave lands within the muster window — the last moment anything can still be raised. */
+  waveIncoming: boolean;
+  /** A watchable fight is open right now, so a story can act *inside* it. */
+  battleOpen: boolean;
+  /** The seat of the dynasty is in enemy hands. */
+  capitalThreatened: boolean;
+  /** One of ours was taken alive this tick. */
+  heroCaptured: boolean;
 }
 
 /** Everything a fragment can read and do. Deliberately narrow — fragments are not systems. */
@@ -77,6 +134,19 @@ export interface StoryCtx {
 
   /** Records a moment for later runs to mention. Only terminals should call this. */
   leaveEcho(name: string): void;
+
+  /** The node this story is standing in. */
+  node(): string;
+  /** Move the story to another node without a card — for effects that branch on the world. */
+  goTo(nodeId: string): void;
+  /**
+   * The least historical class the path has touched so far.
+   *
+   * A high-water mark, never decreasing: a branch may rejoin the record (a confluence) and the
+   * tag still remembers. You can return to what happened; you cannot make it true that you never
+   * left.
+   */
+  drift(): Historicity;
 }
 
 export interface StoryOption {
@@ -87,6 +157,25 @@ export interface StoryOption {
   enabled?: (ctx: StoryCtx) => boolean;
   /** Text key suffix explaining why it is closed. Rendered under the option. */
   blockedKey?: string;
+  /**
+   * The node the story moves to when this option is taken.
+   *
+   * **Required on any option in a template that declares `nodes`** — INV-1, checked at load. This
+   * single field is what makes "every answer leads somewhere" mechanical rather than aspirational:
+   * an option with nowhere to go is a story that stops because the player answered it wrong.
+   */
+  to?: string;
+  /**
+   * How this answer sits against the record.
+   *
+   * Drives `story.drift` and, through it, the tag on the Chronicle entry. It also decides the
+   * *kind* of reward the branch should pay: annal endings pay in permanence (a shrine, a loyalty
+   * floor, an echo), divergent ones in power (a card, a host, a treasury). If following the
+   * record simply paid more, the tag would stop being a choice and become a walkthrough.
+   *
+   * **Never shown on the option itself.** The class is a record, not a preview.
+   */
+  historicity?: 'annal' | 'divergent';
   apply: (ctx: StoryCtx) => void;
 }
 
@@ -95,6 +184,21 @@ export interface StoryFragment {
   id: string;
   volume: StoryVolume;
   band?: StoryBand;
+  /**
+   * Nodes this fragment may speak in. Absent means ambient — it speaks anywhere in the story.
+   *
+   * This is the whole cost of the trunk inside the draw: one line in `candidates()`. Everything
+   * else about salience is untouched.
+   */
+  in?: string[];
+  /**
+   * Nodes this fragment own effect may move the story to, via ctx.goTo.
+   *
+   * Declared rather than inferred because a static graph walk cannot see inside a closure, and
+   * a transition the checker cannot see is a node it reports as unreachable. Anything that
+   * branches on an *outcome* rather than an answer - the muster horn, the ride - belongs here.
+   */
+  leadsTo?: string[];
   /** Hard gate. A fragment whose `when` is false is not in the running at all. */
   when?: (ctx: StoryCtx) => boolean;
   /** Base weight in the salience draw. */
@@ -153,6 +257,13 @@ export interface StoryTemplate {
   minTurn?: number;
   /** Only one instance of a template at a time unless this is set. */
   allowMultiple?: boolean;
+  /**
+   * The trunk. Absent means the template is a flat pool and behaves exactly as it did before
+   * nodes existed — which is what lets the catalogue convert one story at a time.
+   */
+  nodes?: StoryNode[];
+  /** Node the story starts in. Defaults to `nodes[0].id`. */
+  entry?: string;
   fragments: StoryFragment[];
 }
 

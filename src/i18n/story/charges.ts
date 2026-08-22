@@ -151,6 +151,8 @@ export const chieuDoiDoVi: StoryCatalog = {
 // ── Nam Quốc Sơn Hà · 1077 ──────────────────────────────────────────────────
 
 export const namQuocEn: StoryCatalog = {
+  // The retired stub's one line: an in-flight save reads this once and the story closes.
+  'a-voice-from-the-shrine.line': 'Bốn câu ấy đã đọc ở phòng tuyến bên sông, và được chép ở đấy.',
   'a-voice-from-the-shrine.chronicle': 'An old man at {land} asked for somewhere to stand.',
   'a-voice-from-the-shrine.raise-the-shrine.d': 'On the bank, where the water carries.',
   'a-voice-from-the-shrine.the-river-is-only-a-river.d': 'Four lines win nothing.',
@@ -185,6 +187,8 @@ export const namQuocEn: StoryCatalog = {
 };
 
 export const namQuocVi: StoryCatalog = {
+  // The retired stub's one line: an in-flight save reads this once and the story closes.
+  'a-voice-from-the-shrine.line': 'The four lines were read on the river line, and are recorded there.',
   'a-voice-from-the-shrine.chronicle': 'Ông lão ở {land} xin một chỗ đứng.',
   'a-voice-from-the-shrine.raise-the-shrine.d': 'Trên bờ, chỗ nước đưa tiếng đi.',
   'a-voice-from-the-shrine.the-river-is-only-a-river.d': 'Bốn câu thì thắng được gì.',
