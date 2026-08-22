@@ -16,6 +16,8 @@
     "mobile:link": "npm --prefix apps/mobile run link",
     "mobile:android": "npm --prefix apps/mobile run android:apk",
     "mobile:android:aab": "npm --prefix apps/mobile run android:aab",
+    "mobile:ios:ipa": "yarn build:shell && npm --prefix apps/mobile run sync && npm --prefix apps/mobile run ios:ipa",
+    "mobile:ios:check": "npm --prefix apps/mobile run ios:check",
     "mobile:ios": "npm --prefix apps/mobile run ios:eas",
     "preview": "vite preview --host 0.0.0.0",
     "icon": "node scripts/build-icon.mjs",

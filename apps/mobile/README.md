@@ -42,12 +42,36 @@ npm run link              # dev server on a tunnel URL — reaches a phone on an
 Local Android builds need JDK 17 and the Android SDK. The first one is slow — Gradle downloads the
 NDK and compiles the React Native C++ from source; budget an hour, and minutes after that.
 
-iOS binaries need Apple hardware. From Windows that means EAS's hosted Macs:
+### iOS
+
+One command, run on a Mac, ending in a file you can upload:
+
+```bash
+# from the repository ROOT — builds the game, syncs it, then archives and exports
+yarn mobile:ios:ipa
+```
+
+It prints the path to `apps/mobile/build/ipa/*.ipa`, plus the two ways to upload it (`xcrun altool`
+or Transporter). Run `yarn mobile:ios:check` first — it is the same preflight without the two slow
+steps, and it catches every failure that otherwise appears twenty minutes into an archive.
+
+Two things it needs from you, neither of which lives in this repository:
+
+- **Xcode 26 or newer.** Apple has required the iOS 26 SDK for uploads since 28 April 2026; an
+  older Xcode archives happily and is rejected at upload.
+- **An Apple Team ID**, as `APPLE_TEAM_ID` in the environment or `{"teamId":"…"}` in
+  `~/.vanthang-ios.json`. Automatic signing cannot pick a team for you, and without it `xcodebuild`
+  fails with "No signing certificate found" — which sounds like a certificate problem and is not.
+
+Signing is automatic and `-allowProvisioningUpdates` is passed, so Xcode creates or refreshes the
+provisioning profile itself. The export uses `method: app-store-connect`.
+
+From Windows, the same build runs on EAS's hosted Macs instead:
 
 ```bash
 npm i -g eas-cli && eas login
-npm run ios:eas           # eas build -p ios --profile preview → TestFlight
-npm run android:eas       # same, on EAS rather than this machine
+npm run ios:eas           # → TestFlight
+npm run android:eas       # Android, on EAS rather than this machine
 ```
 
 ## Signing
@@ -109,6 +133,7 @@ holding yourself and the listing can never be updated again.
 | `plugins/withShortNativeBuildPath.js` | Moves the native build staging dir off the deep repo path — Windows `MAX_PATH`, see below |
 | `scripts/sync-web.mjs` | `dist-shell/` → `assets/web.zip` + a build stamp + the launcher marks |
 | `scripts/gradle.mjs` | Prebuild then Gradle, on either platform, failing loudly when prebuild silently did not |
+| `scripts/ios.mjs` | Preflight, prebuild, pods, archive, export — one command to a submittable .ipa |
 | `patches/` | Two CMake fixes to `react-native-static-server`, reapplied by `postinstall` — see below |
 | `plugins/withUploadSigning.js` | Signs release with your own key, falling back to debug when it is absent |
 
@@ -155,6 +180,12 @@ some process's working directory, and on Windows it prints `EBUSY`, carries on, 
 an Android 16 emulator fails on WSA: the server reports `ACTIVE`, and the web view still gets
 `ERR_CONNECTION_REFUSED` from the very address it is listening on. WSA was discontinued in March
 2025 and is not a store target, so this is not chased. Test on a real device or `emulator -avd`.
+
+**The system bars are the shell's problem, not the game's.** `index.html` asks for
+`viewport-fit=cover` and pads by `env(safe-area-inset-bottom)`, which Android's web view reports as
+zero — so the header printed under the clock and buttons sat beneath the gesture pill. `App.tsx`
+pads its container by the real insets instead, which works on both platforms and needs nothing from
+the game.
 
 **Test the first launch offline, from a cold install.** First launch is where the unpack happens,
 and it is the only moment a bundle that quietly wanted the network can fail.

@@ -55,7 +55,8 @@
       ],
       "./plugins/withLoopbackCleartext",
       "./plugins/withShortNativeBuildPath",
-      "./plugins/withUploadSigning"
+      "./plugins/withUploadSigning",
+      "expo-status-bar"
     ]
   }
 }

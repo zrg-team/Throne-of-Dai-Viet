@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 import * as SplashScreen from 'expo-splash-screen';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -71,7 +73,7 @@ async function lighttpdLog(): Promise<string> {
   }
 }
 
-export default function App() {
+function Shell() {
   const [origin, setOrigin] = useState<string>();
   const [ready, setReady] = useState(false);
   /**
@@ -83,6 +85,22 @@ export default function App() {
    */
   const [diary, setDiary] = useState<string[]>([]);
   const [failed, setFailed] = useState(false);
+
+  /**
+   * The status bar and the gesture pill, kept off the game.
+   *
+   * `index.html` asks for `viewport-fit=cover` and pads `#game-root` by
+   * `env(safe-area-inset-bottom)`, which is the right answer in Safari and no answer at all here:
+   * Android's web view reports every `safe-area-inset-*` as zero, so the header printed under the
+   * clock and "Choose this champion" sat beneath the home indicator. Only the shell knows the real
+   * numbers, so the shell is what applies them.
+   *
+   * Padding the container rather than injecting the values as CSS: the game lays out against a
+   * fixed 390-wide design surface and fits itself to whatever box it is handed, so handing it a
+   * box that is already safe needs nothing from the game at all — and works the same on iOS, where
+   * the insets are real but the game only ever compensated for the bottom one.
+   */
+  const insets = useSafeAreaInsets();
   // React 19 requires the initial value spelled out; `useRef<T>()` no longer implies undefined.
   const server = useRef<Server | undefined>(undefined);
 
@@ -240,7 +258,7 @@ export default function App() {
 
   if (failed) {
     return (
-      <View style={styles.root}>
+      <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <ScrollView contentContainerStyle={styles.diag}>
           <Text style={styles.heading}>Vạn Thắng could not start</Text>
           <Text style={styles.body}>
@@ -259,7 +277,17 @@ export default function App() {
   }
 
   return (
-    <View style={styles.root}>
+    <View
+      style={[
+        styles.root,
+        {
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
+          paddingLeft: insets.left,
+          paddingRight: insets.right,
+        },
+      ]}
+    >
       {origin ? (
         <WebView
           source={{ uri: origin }}
@@ -297,10 +325,25 @@ export default function App() {
   );
 }
 
+/**
+ * The provider has to be above whatever calls `useSafeAreaInsets`, so the shell is an inner
+ * component and this is what the app registers.
+ */
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      {/* Light glyphs. No backgroundColor — edge-to-edge keeps the bar transparent in SDK 57,
+          and the ink padding behind it is what the glyphs actually sit on. */}
+      <StatusBar style="light" />
+      <Shell />
+    </SafeAreaProvider>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: INK },
   web: { flex: 1, backgroundColor: INK },
-  diag: { padding: 28, paddingTop: 72 },
+  diag: { padding: 28 },
   heading: { color: PAPER, fontSize: 20, fontWeight: '700', marginBottom: 12 },
   body: { color: '#bcb29e', fontSize: 14, lineHeight: 21, marginBottom: 18 },
   line: { color: '#8fd2c1', fontSize: 12, lineHeight: 20, fontFamily: 'monospace' },
