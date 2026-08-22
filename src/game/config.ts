@@ -11,7 +11,6 @@ import { ConquestUIScene } from '../scenes/ConquestUIScene';
 import { MapScene } from '../scenes/MapScene';
 import { PreloadScene } from '../scenes/PreloadScene';
 import { UIScene } from '../scenes/UIScene';
-import { PAPER_FX_KEY, PaperFX } from '../ui/ink/PaperFX';
 import { RENDER_SCALE } from './graphicsQuality';
 
 // Retaining the WebGL drawing buffer forces the browser to preserve the
@@ -48,8 +47,10 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     roundPixels: true,
   },
   // One full-screen pass that ages the whole frame — world and chrome alike — so the two sit on
-  // the same sheet of paper. Registered here and attached per scene by `applyPaperFX`.
-  pipeline: { [PAPER_FX_KEY]: PaperFX } as unknown as Phaser.Types.Core.PipelineConfig,
+  // the same sheet of paper. Phaser 4 has no `pipeline` config key: the render node is registered
+  // with the renderer by `applyPaperFX`, which every scene that wants the paper already calls.
+  // Registering it here as well (`render.renderNodes`) would be a second source of truth for a
+  // thing that must not exist twice.
   // Only index 0 auto-starts; the rest are registered-but-stopped until started by name.
   scene: [BootScene, PreloadScene, MenuScene, GuideScene, HistoryScene, CampaignScene, BattleArenaScene, MapScene, UIScene, ConquestScene, ConquestUIScene],
 };

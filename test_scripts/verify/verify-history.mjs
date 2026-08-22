@@ -47,7 +47,10 @@ for (const [lang, height] of [['en', 844], ['vi', 844], ['vi', 620]]) {
     const scene = window.__phaserGame.scene.getScene('MenuScene');
     for (const child of scene.children.list) {
       const label = child.list?.find?.((k) => k.type === 'Text');
-      if (label && /Sử thật|Real History/.test(label.text)) {
+      // `history.menu.button` — "History" / "Lịch sử". It used to read "Real History" / "Sử thật"
+      // and this harness was still looking for that, so it reported "no History button on the front
+      // page" on every run regardless of the page. Not a Phaser 4 change; found while migrating.
+      if (label && /Lịch sử|History/.test(label.text)) {
         // The label's own centre, not the container's corner plus half a width that was measured
         // once. The front page has been relaid since — the button is 122 wide now, not 282 — and
         // the old arithmetic was pressing bare paper 20 units to the right of it.

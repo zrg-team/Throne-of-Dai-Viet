@@ -15,10 +15,18 @@ import { wantsPaperFX } from '../../game/graphicsQuality';
  *
  * One full-screen pass at 390×844. Gated off behind `?nofx=1`, alongside the existing `?nobake=1`,
  * so a device that cannot afford it — or a bug hunt that needs it out of the way — can drop it.
+ *
+ * Phaser 4 split what used to be one `PostFXPipeline` into two objects, and the split is the whole
+ * of this file's shape: a **RenderNode** owns the shader and is registered once with the renderer,
+ * and a **Controller** owns the state and is attached per camera. The GLSL below is unchanged from
+ * the v3 pipeline — v4 filter shaders still take `uMainSampler` and `outTexCoord`.
  */
 
+/** Registered with the renderer under this name; the controller asks for it by the same name. */
+export const PAPER_FX_KEY = 'PaperFX';
+
 const FRAGMENT = `
-#define SHADER_NAME PAPER_FX
+#pragma phaserTemplate(shaderName)
 
 precision mediump float;
 
@@ -70,24 +78,43 @@ void main() {
 }
 `;
 
-export class PaperFX extends Phaser.Renderer.WebGL.Pipelines.PostFXPipeline {
-  private elapsed = 0;
-  /** 0 disables the effect without removing the pipeline, so it can be toggled at runtime. */
+/**
+ * The state, one per camera wearing the paper.
+ *
+ * The clock lives here rather than on the node because the node is shared by every camera, and a
+ * shared clock would tick once per camera per frame — the tea-stain would drift at two or three
+ * times its intended speed the moment a second scene came up. Per-camera means each scene ages at
+ * the same rate, which is what v3's single pipeline instance did by accident.
+ */
+export class PaperFXController extends Phaser.Filters.Controller {
+  elapsed = 0;
+  /** 0 disables the effect without removing the filter, so it can be toggled at runtime. */
   strength = 1;
 
-  constructor(game: Phaser.Game) {
-    super({ game, fragShader: FRAGMENT } as Phaser.Types.Renderer.WebGL.WebGLPipelineConfig);
-  }
-
-  onPreRender(): void {
-    this.elapsed += 1;
-    this.set1f('uTime', this.elapsed);
-    this.set1f('uStrength', this.strength);
-    this.set2f('uResolution', this.renderer.width, this.renderer.height);
+  constructor(camera: Phaser.Cameras.Scene2D.Camera) {
+    super(camera, PAPER_FX_KEY);
   }
 }
 
-export const PAPER_FX_KEY = 'PaperFX';
+/** The shader. Registered once with the renderer; every controller above points at it by name. */
+export class PaperFXNode extends Phaser.Renderer.WebGL.RenderNodes.BaseFilterShader {
+  constructor(manager: Phaser.Renderer.WebGL.RenderNodes.RenderNodeManager) {
+    super(PAPER_FX_KEY, manager, undefined, FRAGMENT);
+  }
+
+  setupUniforms(
+    controller: PaperFXController,
+    drawingContext: Phaser.Renderer.WebGL.DrawingContext,
+  ): void {
+    controller.elapsed += 1;
+    const programManager = this.programManager;
+    programManager.setUniform('uTime', controller.elapsed);
+    programManager.setUniform('uStrength', controller.strength);
+    // The drawing context, not the renderer: a filter's input is the framebuffer it was handed,
+    // which for an external filter is the screen but need not be.
+    programManager.setUniform('uResolution', [drawingContext.width, drawingContext.height]);
+  }
+}
 
 /** True unless the run asked for the effect to be left off. */
 export function paperFxEnabled(): boolean {
@@ -102,7 +129,12 @@ export function paperFxEnabled(): boolean {
  *
  * Safe to call on a scene whose renderer is Canvas or whose context is gone — a post-effect that
  * throws during boot would take the whole game with it, and the game looks perfectly fine without
- * this pass.
+ * this pass. Under Canvas there is no `renderNodes` at all, which is the check below.
+ *
+ * `external` rather than `internal`: an external filter runs after the camera transform, over the
+ * whole screen, which is the entire point — the map and the chrome drawn over it have to come off
+ * the same sheet. An internal filter would age each camera's own region separately and the seam
+ * between MapScene and UIScene would show.
  */
 export function applyPaperFX(scene: Phaser.Scene): void {
   if (!paperFxEnabled()) {
@@ -110,15 +142,17 @@ export function applyPaperFX(scene: Phaser.Scene): void {
   }
   try {
     const renderer = scene.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
-    if (!renderer?.pipelines) {
+    const nodes = renderer?.renderNodes;
+    if (!nodes) {
       return;
     }
-    // `addPostPipeline` is idempotent per key, and registering it in the game config already
-    // covers the common path; this is the belt for a scene created before that ran.
-    if (!renderer.pipelines.has(PAPER_FX_KEY)) {
-      renderer.pipelines.addPostPipeline(PAPER_FX_KEY, PaperFX);
+    // Registration is per renderer, not per scene, so the first scene through does it and the
+    // rest find it already there.
+    if (!nodes.hasNode(PAPER_FX_KEY)) {
+      nodes.addNodeConstructor(PAPER_FX_KEY, PaperFXNode);
     }
-    scene.cameras.main.setPostPipeline(PaperFX);
+    const camera = scene.cameras.main;
+    camera.filters.external.add(new PaperFXController(camera));
   } catch (error) {
     console.warn('PaperFX unavailable; drawing without it:', error);
   }

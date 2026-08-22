@@ -5,6 +5,34 @@
 
 ---
 
+## Status — branch `feat/phaser-4`
+
+The migration has been **carried out** on `feat/phaser-4`. What that branch is at:
+
+| Stage | State |
+|---|---|
+| 1 — `Point` → `Vector2` | **done**, one declaration file instead of 62 call sites (§3.1) |
+| 2 — PaperFX + game config | **done**, `tsc` clean, paper pass renders (§3.2) |
+| 3a — `RenderTexture.render()` | **done**, all four bake sites (§4.2) |
+| 3b — masks → filters | **done but blocked at `RENDER_SCALE ≥ 2`** — see §4.1a |
+| 4 — full regression + perf | **not started** |
+| 5 — Canvas decision | **not started** |
+
+**The game boots and runs on Phaser 4.** `test_scripts/gate/smoke.mjs` is 15/15: all four modes
+reach their world scene, tick live state, draw a non-blank frame, and log no console errors. The
+menu, the map, the diorama and the ink chrome all render correctly.
+
+**One regression is open**, and it is the mask half of Stage 3. It is not a mistake in the port —
+it is a Phaser 4 limitation this game's `RENDER_SCALE` trick walks straight into, measured in
+§4.1a. Everything else in this document held: 160 predicted type errors, 160 found; the four bakes
+went blank exactly as predicted until `render()` was added.
+
+Also on the branch, and unrelated to the engine: the 28 upstream Phaser skills are vendored into
+`.claude/skills/` by `yarn skills` (Appendix C.2), and `.mcp.json` carries an opt-in, tokenless
+entry for Phaser's Game Agent MCP (Appendix C.1).
+
+---
+
 ## 0. The short version
 
 **There is no Phaser 5.** The `latest` dist-tag on npm is **4.2.1**. The published version list runs
@@ -142,22 +170,35 @@ fillPoints: function (points, closeShape, closePath, endIndex) {
 It reads `.x` and `.y` and nothing else. Constructing 62 arrays of real `Vector2` objects would
 allocate heavily in the map's redraw path for no benefit.
 
-**Fix:** one helper, then a mechanical rewrite of the call sites.
+**Fix, as shipped:** one declaration file — `src/phaser-v4-points.d.ts` — and no call-site changes
+at all.
 
 ```ts
-// src/ui/ink/points.ts
-/**
- * Phaser 4 types `fillPoints`/`strokePoints` as `Vector2[]`, but reads only `.x` and `.y`.
- * The map redraws thousands of polygons a frame from plain structs; boxing each one into a
- * real Vector2 would allocate for nothing. This is the cast, in one place, with the reason.
- */
-export const pts = (p: ReadonlyArray<{ x: number; y: number }>): Phaser.Math.Vector2[] =>
-  p as unknown as Phaser.Math.Vector2[];
+declare namespace Phaser {
+  namespace GameObjects {
+    interface Graphics {
+      fillPoints(points: ReadonlyArray<{ x: number; y: number }>, closeShape?: boolean, closePath?: boolean, endIndex?: number): this;
+      strokePoints(points: ReadonlyArray<{ x: number; y: number }>, closeShape?: boolean, closePath?: boolean, endIndex?: number): this;
+    }
+  }
+}
 ```
 
-Then `g.fillPoints(shape, true)` → `g.fillPoints(pts(shape), true)`. The two `Geom.Point` sites in
-`BattleArenaScene.ts:165,169` become `Phaser.Math.Vector2` outright — they are constructed there, so
-there is no reason to cast.
+Phaser's types declare a global ambient `Phaser` namespace, so an interface of the same name merges
+into the class and its members become additional overloads. The `Vector2` overload from Phaser's
+own types is untouched and still preferred when a real `Vector2` is passed. **160 errors drop to
+15**, and the diff is one new file.
+
+The original plan here was a `pts()` cast helper wrapped around all 62 call sites. Same runtime,
+sixty-two more places to get it wrong, and a cast at each one saying nothing about why it is safe.
+The merge says it once, in the place where the reason belongs.
+
+The two `Geom.Point` sites in `BattleArenaScene.ts:165,169` become `Phaser.Math.Vector2` outright —
+they are constructed there, so there is no reason to widen anything.
+
+> **Line endings.** This repo is CRLF with no `.gitattributes`. A whole-file rewrite through a
+> script that reads with universal newlines and writes `\n` turns a two-line edit into a 1,778-line
+> diff. Edit in place.
 
 > Watch for `Math.TAU` while you are in here: in v3 it was (wrongly) `PI / 2`, in v4 it is `PI * 2`,
 > and `Math.PI2` is gone. **This project uses neither** — checked, zero hits — but it is the classic
@@ -326,6 +367,71 @@ Three things to get right while doing it:
 
 **Gated by:** `verify-scroll.mjs`, `verify-tap-after-scroll.mjs`, `verify-history.mjs`,
 `verify-guided-run.mjs`, `verify-arena.mjs`.
+
+### 4.1a The open regression: object filters ignore `RENDER_SCALE` — **Blocking**
+
+The mask port above is written, compiles, and is **pixel-correct at `RENDER_SCALE` 1 and visibly
+wrong at 2 and 3** — which are the medium and high graphics tiers, i.e. what nearly every player
+gets. This was not predicted by §4.1 and is the one thing on the branch that still needs solving.
+
+**What it looks like.** The History page's list is clipped to a rectangle roughly the size of the
+*design surface in device pixels*: the content is cut off part-way across and part-way down, and
+what remains sits shifted. Turn the filter off and the page renders perfectly — so the layout, the
+scroll maths and the content are all fine. It is the filter composite that is wrong.
+
+**What was measured.** `?capture=1` preserves the drawing buffer, so the surviving pixels can be
+read directly. Baseline is a mask covering nothing (whole list hidden); "kept" is the bounding box
+of pixels that differ from that baseline. Asking for the real clip rect — design `(12, 108, 366,
+675)` — on a 390×844 design surface:
+
+| `RENDER_SCALE` | canvas | kept region | verdict |
+|---|---|---|---|
+| 1 (`low`) | 390×844 | x 14..374, y 112..782 | **exact** — 2px inside the rect, which is where the content's own edge is |
+| 2 (`medium`) | 780×1688 | x 24..354, y 216..824 | wrong |
+
+The top-left corner is right in both cases: at scale 2 the rect's origin `(12, 108)` lands at
+device `(24, 216)`, correctly multiplied by the camera zoom. The **far edge is the problem, and it
+does not move**. Four different mask rects, both `viewTransform` modes, internal and external, the
+rect drawn at design units and at device units — the kept region stops dead at 354×824 every time:
+
+```
+world  bounds  (12,108,366,675)   kept x 24..354  y 216..824
+local  bounds  (12,108,366,675)   kept x 24..354  y 216..824
+local  bounds×2(24,216,732,1350)  kept x 48..354  y 432..824
+local  buffer-full (0,0,780,1688) kept x  0..354  y   0..824
+world  buffer-full (0,0,780,1688) kept x  0..354  y   0..824
+```
+
+A mask covering the entire buffer still loses everything past ~390×844 device pixels. That is the
+**design** size, not the buffer size. The mask's `DynamicTexture` is correctly sized (probed: 780×1688,
+`scaleFactor` 1, filter camera 780×1688 at zoom 2) — so the mask is not what is cropping. The
+composite is.
+
+**The diagnosis.** Object-level filters size their framebuffer from the camera's design dimensions
+while drawing into it at the camera's zoomed scale, so everything beyond the design rectangle falls
+outside the framebuffer and is discarded. This game inflates `gameSize` by `RENDER_SCALE` and zooms
+every camera by the same factor to get back to 390-wide design units (`src/game/graphicsQuality.ts`)
+— which is exactly the configuration that trips it. Camera filters are unaffected: `PaperFX` is on
+`cameras.main` and renders correctly at every tier.
+
+**Options, in order of preference:**
+
+1. **Clip with a camera viewport instead of a filter.** A Phaser camera clips to its viewport
+   natively, in screen space, with no framebuffer round-trip — and it is *cheaper* than a
+   full-screen filter pass per scroll area. Cost: one camera per `InkScrollArea`, `camera.ignore`
+   lists to keep the content out of the main camera, and the scroll offset applied as camera
+   scroll. This is the real fix and it is a design change, not a port.
+2. **Report upstream and pin.** The behaviour looks like a defect rather than an intended limit;
+   worth a minimal reproduction against `phaserjs/phaser` before building around it.
+3. **Do nothing and ship at `RENDER_SCALE` 1.** Rejected — that is the whole mobile-resolution
+   feature (`docs`/memory: the "graphics look bad on mobile" fix) traded for a clip.
+
+**Why the filter port stays on the branch anyway:** the alternative is worse. A geometry mask is a
+no-op under WebGL in v4, so reverting leaves the lists painting across the entire screen. The
+filter at least clips — correctly at tier `low`, and to the wrong rectangle above it.
+
+Reproduce with the two probes kept in `test_scripts/scratch/` (gitignored): `_maskcal2.mjs` prints
+the table above, `QUALITY=low` / `QUALITY=medium` selects the tier.
 
 ### 4.2 `RenderTexture.draw()` no longer draws — **Critical**
 
@@ -578,7 +684,7 @@ rather than pixels.
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| A masked scroll area spills and no harness notices | **High** | High | Stage 3 gate is explicitly visual; shot every scroll screen |
+| ~~A masked scroll area spills and no harness notices~~ **— happened.** Every state assertion in `verify-scroll`, `verify-tap-after-scroll` and `verify-history` passed while the page was visibly cut in half | **Occurred** | High | Only the screenshot caught it. See §4.1a |
 | Graphics-heavy map is slower on the new renderer | Medium | High | `/perf` at Stage 0 and Stage 4; `pathDetailThreshold` as the first lever; the bake and culling work is unaffected either way |
 | Mask-as-filter costs a framebuffer per object and drops frames on low tier | Medium | Medium | Mask Containers, not individual layers; `autoUpdate = false` on static masks |
 | `roundPixels` drift softens the ink line at `RENDER_SCALE ≥ 2` | Medium | Medium | Baseline shots at all three tiers; `vertexRoundMode: 'full'` as the lever |

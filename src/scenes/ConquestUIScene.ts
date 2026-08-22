@@ -5950,24 +5950,39 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     clip.fillRect(content.x + 2, top + 2, content.width - 4, ui.fieldHeight - 4);
     clip.setVisible(false);
     field.add(clip);
-    const frameMask = clip.createGeometryMask();
+    // Phaser 4: a Mask filter, not a geometry mask — `GeometryMask` is Canvas-only there and the
+    // WebGL renderer ignores it, which would put the ridges back outside the frame. One helper
+    // rather than three copies of the same three lines.
+    const clipTo = (layer: Phaser.GameObjects.Graphics): void => {
+      layer.enableFilters();
+      if (!layer.filters) {
+        // No WebGL, so no filters — and on Canvas the geometry mask is the one that works.
+        layer.setMask(clip.createGeometryMask());
+        return;
+      }
+      const mask = layer.filters.internal.addMask(clip);
+      // The clip rect is fixed for the life of this field; re-rendering it to a DynamicTexture
+      // every frame, three times over, is three framebuffers a frame for a rectangle.
+      mask.autoUpdate = false;
+      mask.needsUpdate = true;
+    };
 
     // Three layers, in the order a print is built: distance, then the ground over its feet, then
     // everything standing on the ground.
     const far = this.add.graphics();
     far.setAlpha(0.5);
     field.add(far);
-    far.setMask(frameMask);
+    clipTo(far);
     const ground = this.add.graphics();
     field.add(ground);
-    ground.setMask(frameMask);
+    clipTo(ground);
     const g = this.add.graphics();
     // The land is a backdrop, not a subject. Drawn at half strength as a whole, because at full
     // weight the scenery and the two armies carry the same emphasis and the fight — the thing the
     // screen exists to show — stops being the thing you look at.
     g.setAlpha(0.5);
     field.add(g);
-    g.setMask(frameMask);
+    clipTo(g);
 
     // ── 0. distance ────────────────────────────────────────────────────────
     // Two soft ridges at different depths, and no karst.
@@ -6545,18 +6560,33 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       .setScale(1 / SUPER);
     const scalable = sources as unknown as Array<{ setScale(v: number): unknown }>;
     for (const source of scalable) source.setScale(SUPER);
-    // Drop the geometry masks before drawing, and this is load-bearing rather than tidy: a geometry
-    // mask is a stencil pass, and it simply does not survive `RenderTexture.draw` — the masked
-    // layers render as *nothing*. First attempt lost the horizon ridges, the pagoda and the whole
-    // settlement, and the field came back as bare paper with two camps on it.
+    // Drop the clip before drawing, and this is load-bearing rather than tidy.
     //
-    // Safe to drop because the texture is created at exactly the rect the mask clipped to, so the
-    // RT's own bounds do the identical job. That equivalence is the only reason this is a
-    // performance change and not an art change; `verify-battle-ground-bake` holds it to it.
-    const masked = sources as Array<Phaser.GameObjects.GameObject & { mask?: unknown; clearMask?(d?: boolean): unknown }>;
-    for (const source of masked) source.clearMask?.(false);
+    // Under Phaser 3 the reason was that a geometry mask is a stencil pass and simply does not
+    // survive `RenderTexture.draw` — the masked layers rendered as *nothing*, and the first attempt
+    // lost the horizon ridges, the pagoda and the whole settlement. Under Phaser 4 the mask is a
+    // filter, which *does* survive the draw, and that is the new problem: the sources are scaled up
+    // by SUPER and drawn at an offset, while the mask rect is not, so the clip would land in the
+    // wrong place and cut away most of the field.
+    //
+    // Either way the answer is the same, and safe for the same reason: the texture is created at
+    // exactly the rect the mask clipped to, so the RT's own bounds do the identical job. That
+    // equivalence is why this is a performance change and not an art change; `verify-battle-ground-bake`
+    // holds it to it.
+    type Filterable = Phaser.GameObjects.GameObject & {
+      filters?: { internal: Phaser.GameObjects.Components.FilterList } | null;
+      clearMask?(d?: boolean): unknown;
+    };
+    for (const source of sources as Filterable[]) {
+      for (const filter of source.filters?.internal.getActive() ?? []) filter.setActive(false);
+      // Canvas fallback: there are no filters there, and the geometry mask is the live one.
+      source.clearMask?.(false);
+    }
     try {
       baked.draw(sources, -x * SUPER, -y * SUPER);
+      // Phaser 4 buffers the draw; `render` executes it. Before the sources are put back to
+      // scale 1 and hidden below, or the buffer replays against layers that have already moved.
+      baked.render();
     } catch {
       for (const source of scalable) source.setScale(1);
       baked.destroy();
