@@ -1203,6 +1203,10 @@ export class MapScene extends Phaser.Scene {
     try {
       this.staticBakeRT.clear();
       this.staticBakeRT.draw(visible, 0, 0);
+      // Phaser 4 queues `clear`/`draw` into a command buffer; `render` is what executes them.
+      // It must happen here, before the loop below puts the sources back to scale 1 and hides
+      // them — a deferred flush would replay the buffer against layers that had already moved.
+      this.staticBakeRT.render();
     } catch (error) {
       // A context loss racing the guard above can still null the GL bindings mid-bake;
       // keep the live layers visible and recover on the next restore instead of throwing.

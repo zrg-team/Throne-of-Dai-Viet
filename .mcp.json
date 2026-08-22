@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "phaser-game-agent": {
+      "type": "http",
+      "url": "https://mcp.phaser.io/agent/mcp",
+      "headers": {
+        "Authorization": "Bearer ${PHASER_AGENT_TOKEN}"
+      }
+    }
+  }
+}

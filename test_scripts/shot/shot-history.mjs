@@ -22,7 +22,9 @@ for (const [lang, h] of [['vi', 844], ['vi', 620], ['en', 844]]) {
     const s = window.__phaserGame.scene.getScene('MenuScene');
     for (const c of s.children.list) {
       const label = c.list?.find?.((k) => k.type === 'Text');
-      if (label && /Sử thật|Real History/.test(label.text)) {
+      // `history.menu.button` — "History" / "Lịch sử". The old "Real History" / "Sử thật" wording
+      // is gone from the menu, so this never matched. Not a Phaser 4 change; found while migrating.
+      if (label && /Lịch sử|History/.test(label.text)) {
         const m = label.getWorldTransformMatrix();
         return { x: m.tx, y: m.ty };
       }

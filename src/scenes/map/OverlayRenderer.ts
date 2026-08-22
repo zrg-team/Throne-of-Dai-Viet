@@ -178,6 +178,9 @@ export class OverlayRenderer {
     try {
       this.fogBakeRT.clear();
       this.fogBakeRT.draw(sources, 0, 0);
+      // Phaser 4 buffers the draw commands; `render` executes them. Before the sources are put
+      // back to scale 1 and hidden below, or the buffer replays against the wrong geometry.
+      this.fogBakeRT.render();
     } catch (error) {
       console.warn('Fog bake skipped (renderer unavailable):', error);
       for (const source of sources) source.setScale(1);

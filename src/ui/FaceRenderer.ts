@@ -148,6 +148,10 @@ export function heroFaceTextureKey(scene: Phaser.Scene, hero: Hero): string | un
   // the whole extent lands inside the texture.
   const face = renderHeroFace(scene, hero, -HERO_FACE_EXTENT.left * BADGE_RASTER, -HERO_FACE_EXTENT.top * BADGE_RASTER, BADGE_RASTER);
   target.draw(face);
+  // Phaser 4 buffers the draw and executes it in `render`. This has to run before the face is
+  // destroyed on the next line, or the buffer flushes against a dead game object and the badge
+  // is saved blank — and a blank badge is cached forever, because `textures.exists` then hits.
+  target.render();
   face.destroy(true);
   target.saveTexture(key);
   badgeTextures.set(key, target);

@@ -25,10 +25,12 @@
     "faces": "node scripts/build-faces.mjs",
     "faces:check": "node scripts/build-faces.mjs --check",
     "fonts": "node scripts/fetch-fonts.mjs",
-    "sw": "node scripts/build-sw.mjs"
+    "sw": "node scripts/build-sw.mjs",
+    "skills": "node scripts/sync-phaser-skills.mjs",
+    "skills:check": "node scripts/sync-phaser-skills.mjs --check"
   },
   "dependencies": {
-    "phaser": "^3.90.0"
+    "phaser": "4.2.1"
   },
   "devDependencies": {
     "jsqr": "1.4.0",
