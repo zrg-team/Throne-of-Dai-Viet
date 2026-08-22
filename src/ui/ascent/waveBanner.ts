@@ -62,20 +62,40 @@ const ROW_PITCH = 17;
 /** How far the stat columns stand in from the plate's edges. */
 const STAT_X = 46;
 
-interface Timing {
-  /** How long the banner sits fully drawn before rolling away. */
-  hold: number;
-}
-
 /**
- * A landing reads in about a second; a result has figures on it that have to be read, and it is the
- * reward, so it is given longer. Both are skippable by tapping the plate — the hold is generous
- * precisely because it can be cut short.
+ * How long the plate stands still, and it is derived from what is printed on it.
+ *
+ * **The hold is not the reading time**, which is what made the first numbers wrong. The plate is
+ * not fully legible at t=0: the unroll runs 260 ms, the type fades up until 520, and the figures
+ * are still counting until 760. The hold then starts from a 560 ms lead-in. So a 2300 ms hold on a
+ * result gave a reader 2860 − 760 ≈ **2.1 seconds** to take in a title, a line of prose, four
+ * label/value rows and a headline counter — around thirty words and four numbers. Measured against
+ * ordinary careful reading that is roughly half of what it needs.
+ *
+ * Erring long is close to free here: a tap anywhere dismisses the banner, so an impatient player
+ * pays nothing for a generous hold, while a hurried one cannot get the time back. Every number
+ * below has been raised twice on that reasoning, both times because the plate still read as
+ * hurried in play - 2300, then 4200, now 6600 for the usual four-row result. Reading a small table
+ * is slower than reading prose of the same length, and this one arrives unannounced over a moving
+ * map, so the reader spends the first beat working out that it is there at all.
+ *
+ * A landing carries a title and one line and is sized flat. A result grows with its own stat block
+ * rather than taking a single number for every shape it can be.
+ *
+ * On screen, end to end (lead-in + hold + the 420 ms fall):
+ *
+ *   landing            560 + 3800 + 450 = 4.8 s
+ *   result, 2 rows     560 + 5200 + 450 = 6.2 s
+ *   result, 4 rows     560 + 6600 + 450 = 7.6 s
  */
-const TIMING: Record<AscentWaveCue['phase'], Timing> = {
-  start: { hold: 1450 },
-  end: { hold: 2300 },
-};
+const HOLD_START = 3800;
+const HOLD_END_BASE = 4000;
+/** Added per label/value row on a result. Four rows is the usual case, giving 6600. */
+const HOLD_END_PER_ROW = 650;
+
+function holdFor(cue: AscentWaveCue, rowCount: number): number {
+  return cue.phase === 'start' ? HOLD_START : HOLD_END_BASE + rowCount * HOLD_END_PER_ROW;
+}
 
 /** Vertical centre of the plate. Above the action bar, below the HUD, in the map's dead middle. */
 function bandCentre(): number {
@@ -713,8 +733,8 @@ export function playWaveBanner(
     scene.tweens.addCounter({
       from: 0,
       to: counter.row.value,
-      duration: 560,
-      delay: 400,
+      duration: 460,
+      delay: 300,
       ease: 'Cubic.easeOut',
       onUpdate: (tween) => {
         if (!counter.text.active) return;
@@ -728,7 +748,7 @@ export function playWaveBanner(
     });
   }
 
-  holdTimer = scene.time.delayedCall(560 + TIMING[cue.phase].hold, rollAway);
+  holdTimer = scene.time.delayedCall(560 + holdFor(cue, rows.length), rollAway);
 
   // Armed a beat late, so the tap that answered the card *before* the banner cannot dismiss the
   // banner in the same gesture — a pointerup can land on a zone that did not exist when the press

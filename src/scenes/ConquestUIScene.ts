@@ -368,6 +368,13 @@ const LANE_CLOSE_BUTTON_HEIGHT = 42;
 const LANE_FOOTER_HEIGHT = LANE_CLOSE_BUTTON_OFFSET - 8;
 /** The ghost "back" button a lane sub-page shows above its footer button. */
 const LANE_BACK_BUTTON_HEIGHT = 34;
+/**
+ * A checkbox strip pinned above the footer button: box, label, and a hint under it.
+ *
+ * Tall enough for the hint to wrap to two lines. At 34 it did not, and the second line ran
+ * under the Close button.
+ */
+const LANE_TOGGLE_HEIGHT = 54;
 /** Width of the portrait column beside a hero row. */
 const LANE_PORTRAIT_COLUMN = 62;
 
@@ -2132,6 +2139,15 @@ export class ConquestUIScene extends Phaser.Scene {
     laneOpts: {
       /** A primary action in the close button's slot, in place of Close. */
       footer?: { label: string; onTap: () => void; disabled?: boolean };
+      /**
+       * A checkbox pinned just above the footer button, in the same thumb reach.
+       *
+       * A setting the player toggles while reading belongs at the foot for the same reason
+       * the battle exits were moved there: the top of a phone is where a one-handed grip
+       * cannot go without shifting, and a control nobody can reach is a control nobody uses.
+       * The whole row is the hit area, label included.
+       */
+      footerToggle?: { label: string; hint?: string; checked: boolean; onToggle: () => void };
       /** A ghost "back" above the footer button, for pages one step inside a lane. */
       back?: () => void;
     } = {},
@@ -2150,7 +2166,8 @@ export class ConquestUIScene extends Phaser.Scene {
     finish: () => void;
   } {
     const content = this.promptFrame(title, subtitle);
-    const footerExtra = laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0;
+    const footerExtra = (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
+      + (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0);
     const scroll = this.ui.scrollArea({
       x: content.x,
       y: content.y,
@@ -2282,6 +2299,46 @@ export class ConquestUIScene extends Phaser.Scene {
 
     const finish = () => {
       scroll.setContentHeight(Math.max(content.height - LANE_FOOTER_HEIGHT - footerExtra, y));
+      if (laneOpts.footerToggle) {
+        const cfg = laneOpts.footerToggle;
+        const ty = GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET
+          - (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
+          - LANE_TOGGLE_HEIGHT - 8;
+        // The whole strip is the target, not the 13px box: a checkbox you have to hit exactly is
+        // a checkbox on a phone that misses.
+        const hit = this.add.rectangle(content.x, ty, content.width, LANE_TOGGLE_HEIGHT,
+          INK_UI.brush, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        hit.on('pointerup', cfg.onToggle);
+        this.modalLayer.add(hit);
+
+        const box = this.add.graphics();
+        box.lineStyle(1.2, cfg.checked ? INK_UI.gold : INK_UI.softBrush, 1);
+        box.strokeRect(content.x + 2, ty + 6, 14, 14);
+        if (cfg.checked) {
+          box.lineStyle(2, INK_UI.gold, 1);
+          box.beginPath();
+          box.moveTo(content.x + 5, ty + 13);
+          box.lineTo(content.x + 8, ty + 16);
+          box.lineTo(content.x + 14, ty + 8);
+          box.strokePath();
+        }
+        this.modalLayer.add(box);
+
+        // No `color: undefined` here. `InkUI.label` spreads these over the variant style, so an
+        // undefined colour erases the ink and Phaser falls back to white — invisible on parchment.
+        const style: Record<string, unknown> = { fontSize: '12px' };
+        if (cfg.checked) style.fontStyle = '700';
+        else style.color = INK_UI_HEX.mutedText;
+        this.modalLayer.add(this.ui.label(content.x + 24, ty + 4, cfg.label, 'body', style));
+
+        if (cfg.hint) {
+          this.modalLayer.add(this.ui.label(content.x + 24, ty + 20, cfg.hint, 'caption', {
+            fontSize: '10px',
+            wordWrap: { width: content.width - 26 },
+          }));
+        }
+      }
+
       if (laneOpts.back) {
         this.modalLayer.add(this.ui.button(
           {
@@ -5362,11 +5419,26 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       .filter((story) => !storyWantsPlayer(state, story))
       .sort((a, b) => b.lastSpokeTurn - a.lastSpokeTurn);
 
-    const { addRow, addHeading, finish } = this.laneList(
+    const { addRow, addHeading, addNote, addWidget, finish } = this.laneList(
       t('ascent.chronicle.title'),
       need.length > 0
         ? t('ascent.chronicle.needCount', { n: need.length })
         : t('ascent.chronicle.body', { year: state.year }),
+      {
+        // At the foot, where the thumb already is. This page is read one-handed, and this is the
+        // only control on it that is a setting rather than a story.
+        footerToggle: {
+          label: t('ascent.chronicle.muteLabel'),
+          hint: t(storyCardsMuted(state)
+            ? 'ascent.chronicle.mutedHint'
+            : 'ascent.chronicle.interruptHint'),
+          checked: storyCardsMuted(state),
+          onToggle: () => {
+            if (state.ascent) state.ascent.storyCardsMuted = !storyCardsMuted(state);
+            this.showChronicleScreen();
+          },
+        },
+      },
     );
 
     if (running.length === 0 && recorded.length === 0) {
@@ -5403,28 +5475,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     }
 
 
-    // ── How loudly the Chronicle is allowed to speak ──
-    //
-    // The one pacing dial handed to the player, and it belongs to them: the Chronicle is the least
-    // time-critical thing the director raises, so someone who would rather read four stories in one
-    // sitting than be stopped four times should not have to take the second deal to get the first.
-    // Muted, nothing interrupts; stories hold what they have to say and this page is where it is
-    // answered.
-    {
-      const muted = storyCardsMuted(state);
-      addRow(
-        {
-          title: muted ? t('ascent.chronicle.muted') : t('ascent.chronicle.interrupt'),
-          subtitle: muted ? t('ascent.chronicle.mutedHint') : t('ascent.chronicle.interruptHint'),
-          border: muted ? INK_UI.gold : INK_UI.softBrush,
-          muted: !muted,
-        },
-        () => {
-          if (state.ascent) state.ascent.storyCardsMuted = !muted;
-          this.showChronicleScreen();
-        },
-      );
-    }
+
 
 
     /** One story as one person: name · want, then the latest line, then the state. */
@@ -5622,7 +5673,17 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     heading(t('ascent.story.happened'));
     const beats = storySpokenHistory(state, story);
     beats.forEach((beat, index) => {
-      const line = storyText(`${story.templateId}.${beat.fragmentId}.chronicle`, params);
+      // The scene if the story has one, the annal line if it does not.
+      //
+      // These two keys are doing different jobs and this list wants the first. `chronicle` is
+      // the one-line entry a dynastic record would hold - deliberately flat, seven words, no
+      // room in it - and a page built from those reads as a stack of bulletins rather than as
+      // the story the player actually lived. `scene` is the room it happened in.
+      const stem = story.templateId + '.' + beat.fragmentId;
+      const scene = storyText(stem + '.scene', params);
+      const line = scene !== stem + '.scene'
+        ? scene
+        : storyText(stem + '.chronicle', params);
       const isLatest = index === beats.length - 1;
       const marker = beat.turn !== undefined ? t('ascent.story.season', { n: beat.turn }) : '·';
       const markerText = this.add.text(2, used, marker, {
