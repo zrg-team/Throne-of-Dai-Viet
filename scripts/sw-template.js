@@ -45,6 +45,40 @@ const SHELL = __SHELL_URL__;
  */
 const MATCH = { cacheName: CACHE, ignoreVary: true };
 
+/**
+ * Our own sub-path, computed once. Every request has to be checked against it — on GitHub Pages
+ * the scope is one project among many on the same origin — and a cold boot is 303 of them, so
+ * recomputing a constant in the handler is 606 URL parses to arrive at the same string.
+ */
+const SCOPE = new URL('./', self.location.href).pathname;
+
+/**
+ * How many art files are fetched at once while installing.
+ *
+ * Unbounded, the 267 portrait parts go out as a single burst — onto the same connections the page
+ * is using, at the exact moment a first-time player is waiting for the 3.4 MB bundle and the
+ * fonts. The offline copy is not worth making the first visit feel slow for.
+ */
+const ART_AT_ONCE = 8;
+
+/** The art pass: best-effort, bounded, and never allowed to fail the install. */
+async function cacheArt(cache) {
+  let next = 0;
+  const pump = async () => {
+    while (next < OPTIONAL.length) {
+      const url = OPTIONAL[next];
+      next += 1;
+      try {
+        await cache.add(new Request(url, { cache: 'reload' }));
+      } catch {
+        // One missing portrait must not cost the player their offline copy of the whole game.
+        // Whatever misses here is picked up by the runtime cache on the first run that draws it.
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(ART_AT_ONCE, OPTIONAL.length) }, pump));
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
@@ -52,7 +86,7 @@ self.addEventListener('install', (event) => {
     // an install a few minutes after a deploy can seal a stale copy of the shell into a cache
     // named after the new one — a version mismatch with no way to notice it.
     await cache.addAll(CRITICAL.map((url) => new Request(url, { cache: 'reload' })));
-    await Promise.allSettled(OPTIONAL.map((url) => cache.add(new Request(url, { cache: 'reload' }))));
+    await cacheArt(cache);
   })());
 });
 
@@ -85,7 +119,7 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
   // Outside our own sub-path the worker has no business answering — on GitHub Pages the scope is
   // one project among many on the same origin.
-  if (!url.pathname.startsWith(new URL('./', self.location.href).pathname)) return;
+  if (!url.pathname.startsWith(SCOPE)) return;
 
   // Every navigation is the same page. The game is one HTML file and a canvas; there is no route
   // to preserve, and answering from cache is what makes a cold launch work with no network.
