@@ -54,16 +54,6 @@ export const POWER_CARDS: PowerCardDef[] = [
     levels: [{ effect: { permanent: true }, display: { pct: 22 } }],
   },
   {
-    id: 'second-wind',
-    // A rule card for the watched battle: Xung phong recovers 1 wind a beat instead of 0, so a
-    // pressing dock dims instead of going dark. The verb test: "now I can keep pressing".
-    // Hook: DoctrineSystem.windRecoveryBonus -> BattleSystem.settleFormations.
-    weight: 2.0,
-    rarity: 'silver',
-    maxStacks: 1,
-    levels: [{ effect: { permanent: true }, display: {} }],
-  },
-  {
     id: 'feigned-retreat',
     // Rule cards are weighted up: the pool's percentage cards outnumber them three to one, and
     // a draft that offers three adjustments and one verb is still mostly adjustments.

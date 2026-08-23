@@ -856,50 +856,35 @@ export const BATTLE_FORMATION_TILT_SHARP = 0.42;
 export const BATTLE_FORMATION_TILT_BLUNT = 0.5;
 
 /**
- * Beats a shape needs to get its breath back after the host walks out of it.
+ * Stamina: two pips, and a change of formation costs one. The only restriction on the screen.
  *
- * The one restriction on the whole battle screen. It exists to stop the single best answer being
- * pressed on cooldown forever, so the *second*-best shape becomes something a player learns. The
- * clock is stamped on the shape being LEFT, at landing, and ticks down at the stance's recovery
- * rate below. The shape the enemy stands in never needs wind (the "match" floor), so a dead dock
- * is impossible.
- *
- * Six, up from three — and the reason is the screen's clock, not the maths. A beat is 560 ms of
- * watching, so three beats was a chip greyed for 1.7 s against an enemy that rotated only when
- * losing: ten real fights, and the player never once met a winded chip ("a mechanic that never
- * happens — what is it for?"). Six is 3.4 s, longer than every temper's rotation period, so the
- * shape you left is still resting when the invader swings back toward it. `verify-battle-wind`
- * counts the blocked decisions per fight and fails under two.
+ * Every shape is always on the dock; what limits the player is how often they can change. Two
+ * quick changes empty the meter, and then they wait — that wait is the whole penalty for chaining
+ * shapes too fast, and the smart move inside it (Cố thủ, to bleed less) is already on the screen.
+ * Same cost for every shape, and nothing but the clock refills it: not stance, not Moments, not
+ * cards. The two earlier rules this replaces — availability by army block (docs/18) and per-shape
+ * wind with stance-driven recovery (docs/19) — were each three rules too many for a screen read at
+ * speed. See docs/20.
  */
-export const BATTLE_FORMATION_WIND = 6;
+export const BATTLE_STAMINA_MAX = 2;
 
 /**
- * Wind recovered per beat, by stance — the rule that makes the two dials one loop.
+ * Beats until a spent pip comes back on its own. Seven is six seconds of watching.
  *
- * Pressing freezes the dock (men who are charging do not catch their breath), so aggression is
- * paid in the answers you will want three beats from now, not in blood. Defending refills at
- * double rate, which is what turns Cố thủ from "lose slower" into "buy your options back".
- * Simulated at wind 3: a press-holder keeps their strong answer 48% of the time, defend 99%.
+ * Measured against the invader's own cadence (he answers a counter about seven beats after it
+ * lands): at 5 the meter never bit — a careful player was never once stuck; at 8 a careful
+ * player was stuck five times a fight and rationing stopped paying. Seven is the edge: a player
+ * who answers every answer is stuck about four times, briefly; one who chases every rotation is
+ * refused seven times. The harness (`verify-battle-stamina`) holds the stuck count at one to four.
  */
-export const BATTLE_STANCE_RECOVERY: Record<FieldStance, number> = {
-  withdraw: 2,
-  defend: 2,
-  balanced: 1,
-  press: 0,
-};
-
-/**
- * Wind for a doctrine's signature shape — see `SIGNATURE_SHAPE`. One printed exception per army,
- * in place of the four hidden ones the availability rule used to be.
- */
-export const BATTLE_SIGNATURE_WIND = 4;
+export const BATTLE_STAMINA_REGEN_BEATS = 7;
 
 /** The commander tempers, keyed from `KingdomPersonality` (+ the `isGreat` flag → cunning). */
 export type CommanderTemper = 'hasty' | 'measured' | 'stubborn' | 'cunning';
 
 /**
- * What a temper changes: how long he waits before answering your shape, whether he rotates out of
- * an even matchup on his own clock, and whether he presses a winning tilt.
+ * What a temper changes: how long he waits before answering your shape, and whether he presses a
+ * winning tilt.
  *
  * Two numbers and a habit, all built from dials the fight already had — which is what keeps every
  * temper inside the telegraph's honesty contract. `hesitation` is added to the difficulty's
@@ -911,29 +896,21 @@ export type CommanderTemper = 'hasty' | 'measured' | 'stubborn' | 'cunning';
 export const BATTLE_TEMPER: Record<CommanderTemper, {
   /** Beats he stands countered before ordering, on top of the difficulty's. */
   hesitation: number;
-  /** Beats he stands content at even shape before rotating anyway (0 = never). */
-  restlessBeats: number;
   /** Whether a winning tilt is pressed. */
   presses: boolean;
-  /**
-   * Every Nth rotation he reads your dock and steers toward the shape whose answer you have
-   * winded (0 = never, 1 = always). This is the dial that decides how often a player actually
-   * MEETS the cooldown: measured with every invader reading every rotation, 16 of 19 decisions
-   * were blocked — a wall, not a mechanic. At every third, a measured invader blocks roughly a
-   * third of them, which is "sometimes you cannot get the best shape" and no more.
-   */
-  readsDock: number;
 }> = {
-  // Every temper rotates on its own clock now, not only when losing. An invader who stands
-  // content at even shape was the second half of why the wind never bit: he never asked the
-  // player a question the dock could refuse. The periods are all shorter than the wind (6), so
-  // the answer he pulls you toward is reliably the one you just left.
-  hasty: { hesitation: 0, restlessBeats: 3, presses: true, readsDock: 2 },
-  measured: { hesitation: 1, restlessBeats: 5, presses: true, readsDock: 3 },
-  stubborn: { hesitation: 2, restlessBeats: 7, presses: false, readsDock: 0 },
-  // The graduation exam, reserved for great waves: no patience at all, and he answers an even
-  // matchup inside two beats.
-  cunning: { hesitation: 0, restlessBeats: 2, presses: true, readsDock: 1 },
+  // He holds while he is winning — every temper. A temper only decides how fast he answers once
+  // he is losing, and whether he presses a winning tilt. Rotation on a timer and reading the
+  // player's dock were tried with the wind mechanic and retired with it (docs/20).
+  // Hesitation 2/3/4 (+ the difficulty's): he answers a counter about seven beats after it
+  // lands, which is six seconds of the player holding the advantage. Measured at 0/1/2 the
+  // duel ping-ponged every four beats — faster than any pip could return, so even a careful
+  // player was stuck after every exchange and a human was re-reading the field every 3.5 s.
+  hasty: { hesitation: 2, presses: true },
+  measured: { hesitation: 3, presses: true },
+  stubborn: { hesitation: 4, presses: false },
+  // The graduation exam, reserved for great waves: the quickest answer there is.
+  cunning: { hesitation: 1, presses: true },
 };
 
 /**

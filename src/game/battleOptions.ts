@@ -52,17 +52,23 @@ interface DifficultyProfile {
    * more thing on a screen that wants the eye on the men.
    */
   readonly bubbleMs: number;
+  /**
+   * Whether the chips are rimmed to show which shapes beat the enemy's. On hard and nightmare
+   * they are not: the player sees THAT they are losing (the loss numbers stay on every setting)
+   * and has two pips to find out WHICH shape fixes it. That inference is the game.
+   */
+  readonly rims: boolean;
 }
 
 const DIFFICULTY: Record<BattleDifficulty, DifficultyProfile> = {
   // Two extra beats is a long window — enough to counter, watch it land, and still spend a beat or
   // two inside the advantage before they answer.
-  easy: { reactDelay: 2, answersEven: false, bubbleMs: Infinity },
+  easy: { reactDelay: 2, answersEven: false, bubbleMs: Infinity, rims: true },
   // What the fight has always done. See the file's note on defaults.
-  medium: { reactDelay: 0, answersEven: false, bubbleMs: 2400 },
-  hard: { reactDelay: -1, answersEven: false, bubbleMs: 1100 },
+  medium: { reactDelay: 0, answersEven: false, bubbleMs: 2400, rims: true },
+  hard: { reactDelay: -1, answersEven: false, bubbleMs: 1100, rims: false },
   // Fastest they can be re-formed at all, never a beat of contentment, and no words on the field.
-  nightmare: { reactDelay: -2, answersEven: true, bubbleMs: 0 },
+  nightmare: { reactDelay: -2, answersEven: true, bubbleMs: 0, rims: false },
 };
 
 interface SpeedProfile {
@@ -140,6 +146,11 @@ export function battleReactDelay(): number {
 /** Whether the invader answers an even matchup as well as a losing one. */
 export function battleAnswersEven(): boolean {
   return DIFFICULTY[getBattleDifficulty()].answersEven;
+}
+
+/** Whether the dock shows which shapes beat the enemy's. See `DifficultyProfile.rims`. */
+export function battleRimsShown(): boolean {
+  return DIFFICULTY[getBattleDifficulty()].rims;
 }
 
 /** How long a speech bubble over a host lingers. See `DifficultyProfile.bubbleMs`. */

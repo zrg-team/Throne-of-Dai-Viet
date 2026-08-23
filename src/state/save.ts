@@ -137,8 +137,8 @@ function normalizeSnapshotState(state: GameState): GameState {
       fight.theirReformBeats = 0;
       fight.formationTarget = undefined;
       fight.theirFormationTarget = undefined;
-      fight.ourWind ??= {};
-      fight.theirWind ??= {};
+      fight.stamina = undefined;
+      fight.staminaClock = undefined;
     }
   }
   return clone;

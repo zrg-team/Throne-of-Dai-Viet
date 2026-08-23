@@ -312,19 +312,3 @@ export function formationTier(ours: BattleFormation, theirs: BattleFormation): n
   return 0;
 }
 
-/**
- * The one shape each doctrine keeps its breath for — wind 2 instead of 3 when it is left.
- *
- * The retired availability rule made doctrine decide what a host COULD form, invisibly and
- * permanently; this is that identity bought back as a single printed number. Yours says what you
- * can afford to lean on; the enemy's says what they will keep coming back to, which is one more
- * thing to read before the lines meet. `balanced` deliberately has none — its identity is having
- * no tell.
- */
-export const SIGNATURE_SHAPE: Partial<Record<ArmyComposition, BattleFormation>> = {
-  spears: 'chong',
-  archers: 'no',
-  shock: 'xung',
-  horse: 'xung',
-};
-

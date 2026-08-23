@@ -1702,33 +1702,17 @@ export interface AscentBattle {
   /** The next change of shape costs no beats at all, bought by a Moment. */
   freeReform?: boolean;
   /**
-   * Beats each shape still needs before this side can stand in it again — the wind clocks.
-   *
-   * Stamped `BATTLE_FORMATION_WIND` on the shape a host walks OUT of, at landing, and ticked
-   * down every beat at the side's stance recovery rate (`BATTLE_STANCE_RECOVERY`). Absent key =
-   * zero = takeable, which is also what makes old saves migrate for free. A `Partial<Record>`
-   * rather than an array so the save file is self-describing — a `number[]` would silently remap
-   * every shape if `FORMATION_RING` were ever reordered under a stored game.
+   * Stamina: pips in hand for changing shape. Two to start, one spent per change, one back every
+   * `BATTLE_STAMINA_REGEN_BEATS` on `staminaClock`. Absent = full (old saves). See docs/20.
    */
-  ourWind?: Partial<Record<BattleFormation, number>>;
-  theirWind?: Partial<Record<BattleFormation, number>>;
-  /**
-   * Each side's signature shape — wind 2 instead of 3 when left. Fixed at muster from the
-   * doctrine of the side's largest host; `balanced` hosts have none. See `SIGNATURE_SHAPE`.
-   */
-  ourSignature?: BattleFormation;
-  theirSignature?: BattleFormation;
+  stamina?: number;
+  staminaClock?: number;
   /**
    * The invader's temper, from his kingdom's personality (great waves are always `cunning`).
-   * Decides his hesitation, his restlessness at even shape, and whether he presses — printed
-   * beside his name on the strength rail, because a personality the player cannot see is just
-   * weather.
+   * Decides how fast he answers once losing and whether he presses — printed beside his name on
+   * the strength rail, because a personality the player cannot see is just weather.
    */
   commanderTemper?: 'hasty' | 'measured' | 'stubborn' | 'cunning';
-  /** Beats since the invader last changed shape — the restless tempers rotate off this clock. */
-  beatsSinceTheirShape?: number;
-  /** How many times the invader has changed shape this fight — the harnesses read the cadence. */
-  theirRotations?: number;
   /** Hosts that have broken and left the line, either side. */
   brokenHostIds: string[];
   /** Men of ours lost so far, so an orderly withdrawal can recover its stragglers. */

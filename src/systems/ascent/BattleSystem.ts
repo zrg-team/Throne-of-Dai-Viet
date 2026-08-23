@@ -12,7 +12,6 @@ import {
   BATTLE_COUNTER_MORALE,
   BATTLE_FORMATION_TILT,
   BATTLE_FORMATION_TILT_SHARP,
-  BATTLE_FORMATION_WIND,
   BATTLE_LOOSE_VOLLEY,
   BATTLE_MAX_ROUNDS,
   BATTLE_MOMENT_TICKS,
@@ -27,21 +26,20 @@ import {
   BATTLE_WITHDRAW_BEATS,
   BATTLE_ROUND_BITE,
   BATTLE_RALLY_DESPERATION,
-  BATTLE_STANCE_RECOVERY,
   BATTLE_ROUT_LOSS_SHARE,
   BATTLE_OVERTIME_MORALE,
   BATTLE_ROUT_MORALE,
   BATTLE_VOLLEY_BITE,
   BATTLE_WITHDRAW_RECOVERY,
-  BATTLE_SIGNATURE_WIND,
+  BATTLE_STAMINA_MAX,
+  BATTLE_STAMINA_REGEN_BEATS,
   BATTLE_TEMPER,
   type CommanderTemper,
 } from '../../game/ascentConfig';
 import { battleAnswersEven, battleBeatsPerTick, battleReactDelay } from '../../game/battleOptions';
-import { windRecoveryBonus } from './DoctrineSystem';
 import {
-  compositionOfUnits, formationBeats, formationTier, formationTiltSign,
-  FORMATION_RING, SIGNATURE_SHAPE, type BattleFormation,
+  formationBeats, formationTier, formationTiltSign,
+  FORMATION_RING, type BattleFormation,
 } from '../../data/ascent/formations';
 import { raiseEnemyGarrisonLevy, raiseGarrisonLevy, resolveBattleRecord } from '../empire/InvasionSystem';
 import { pushToast } from '../empire/notifications';
@@ -359,8 +357,6 @@ export function beginBattle(state: GameState): boolean {
     totalRounds,
     // Frozen at muster: a king who dies mid-fight does not change the man on the field.
     commanderTemper: temperOf(state, draft),
-    ourSignature: sideSignature(ours),
-    theirSignature: sideSignature(theirs),
     theirFormation: openingShape(draft, theirsTotal),
     ourStartMorale: defender.morale,
     ourMorale: defender.morale,
@@ -454,8 +450,6 @@ function beginAssault(state: GameState, pending: PendingBattle): boolean {
     ...draft,
     totalRounds,
     commanderTemper: temperOf(state, draft),
-    ourSignature: sideSignature(ours),
-    theirSignature: sideSignature(theirs),
     theirFormation: openingShape(draft, theirsTotal),
     ourStartMorale: line.morale,
     ourMorale: line.morale,
@@ -689,59 +683,36 @@ function reforming(beats?: number): boolean {
 }
 
 /**
- * The shape a side may always stand in regardless of wind: whatever the OTHER side is standing in,
- * or walking towards.
+ * Stamina: what a change of shape costs, and the only thing it costs.
  *
- * Tracks `target ?? formation` because that is what the telegraph and the chip rims already teach
- * — an exception keyed to the stood shape alone would have the UI recommending a refused chip for
- * the beat their walk is in the air. Matching zeroes the tilt, which is the floor of the fight:
- * a dead dock is a bug, and this is what makes one impossible.
- */
-function matchShapeFor(battle: AscentBattle, side: 'ours' | 'theirs'): BattleFormation {
-  return side === 'ours'
-    ? (battle.theirFormationTarget ?? battle.theirFormation)
-    : (battle.formationTarget ?? battle.ourFormation);
-}
-
-/** Beats this shape still needs before `side` can stand in it again. Absent key = ready. */
-function windOf(battle: AscentBattle, side: 'ours' | 'theirs', shape: BattleFormation): number {
-  const map = side === 'ours' ? battle.ourWind : battle.theirWind;
-  return map?.[shape] ?? 0;
-}
-
-/**
- * The one takeability rule, shared by the player, the delegated general and the invader:
- * the shape you hold, a shape with its breath back, or the match — nothing else.
- * `freeReform` (a Moment's gift) waives the wind too: the counter without the bill.
- */
-function shapeTakeable(battle: AscentBattle, side: 'ours' | 'theirs', shape: BattleFormation): boolean {
-  const held = side === 'ours' ? battle.ourFormation : battle.theirFormation;
-  if (shape === held) return true;
-  if (shape === matchShapeFor(battle, side)) return true;
-  if (side === 'ours' && battle.freeReform) return true;
-  return windOf(battle, side, shape) <= 0;
-}
-
-/**
- * Stamp the wind clock on the shape a host just walked out of.
+ * Two pips. Every change of formation spends one, whatever the shape, whatever the distance;
+ * a pip comes back on its own every `BATTLE_STAMINA_REGEN_BEATS`, whatever the stance. That is the
+ * whole rule — and it replaces the per-shape wind of docs/19, whose five clocks, stance-driven
+ * recovery and match exception were three rules too many for a screen read at speed: nobody knew
+ * why a chip was grey or what to do about it. With two pips the penalty for changing shape too
+ * fast is simply having no pip when the next answer is needed, and the smart move in that wait —
+ * Cố thủ, to bleed less until a pip returns — is on the screen already.
  *
- * At LANDING, never at order time — an order-time stamp would refuse the abort back to the shape
- * you are still standing in, which `setBattleFormation` deliberately allows mid-walk.
+ * Stance never touches stamina. Nothing but the clock refills it. Predictable on purpose.
  */
-function stampWind(battle: AscentBattle, side: 'ours' | 'theirs', left: BattleFormation): void {
-  const map = side === 'ours' ? (battle.ourWind ??= {}) : (battle.theirWind ??= {});
-  const signature = side === 'ours' ? battle.ourSignature : battle.theirSignature;
-  // A doctrine's signature shape keeps its breath: wind 2, and it is printed on the chip from the
-  // first beat, so it is an identity rather than a surprise. See SIGNATURE_SHAPE.
-  map[left] = left === signature ? BATTLE_SIGNATURE_WIND : BATTLE_FORMATION_WIND;
+function staminaOf(battle: AscentBattle): number {
+  return battle.stamina ?? BATTLE_STAMINA_MAX;
 }
 
-/** The signature shape of a side's largest host, if its doctrine has one. */
-function sideSignature(hosts: Army[]): BattleFormation | undefined {
-  const biggest = hosts.slice().sort((a, b) => totalUnits(b) - totalUnits(a))[0];
-  if (!biggest) return undefined;
-  return SIGNATURE_SHAPE[compositionOfUnits(biggest.units, biggest.composition)];
+/** A pip comes back on its own clock, and only while one is missing. */
+function regainStamina(battle: AscentBattle): void {
+  const pips = staminaOf(battle);
+  if (pips >= BATTLE_STAMINA_MAX) {
+    battle.staminaClock = undefined;
+    return;
+  }
+  battle.staminaClock = (battle.staminaClock ?? BATTLE_STAMINA_REGEN_BEATS) - 1;
+  if (battle.staminaClock <= 0) {
+    battle.stamina = pips + 1;
+    battle.staminaClock = battle.stamina < BATTLE_STAMINA_MAX ? BATTLE_STAMINA_REGEN_BEATS : undefined;
+  }
 }
+
 
 /**
  * The invader's temper: his kingdom's personality worn on the field, told to the player beside
@@ -820,16 +791,12 @@ function advanceStance(battle: AscentBattle): void {
  *
  * Order at beat N, walk through beat N+1 with no shape at all, stand in it from beat N+2.
  */
-function settleFormations(state: GameState, battle: AscentBattle): void {
+function settleFormations(battle: AscentBattle): void {
   if (reforming(battle.reformBeats)) {
     battle.reformBeats = (battle.reformBeats ?? 0) - 1;
     if (!reforming(battle.reformBeats) && battle.formationTarget) {
-      const left = battle.ourFormation;
       battle.ourFormation = battle.formationTarget;
       battle.formationTarget = undefined;
-      // The wind starts when the men are OUT of the old shape, and only if they actually left it
-      // — an abort back to the held shape must not wind the shape being stood in.
-      if (left !== battle.ourFormation) stampWind(battle, 'ours', left);
       markFormationLanded(battle);
       battle.log.push(t('ascent.battle.reformDone', {
         shape: t(`ascent.formation.${battle.ourFormation}.full` as Parameters<typeof t>[0]),
@@ -839,29 +806,14 @@ function settleFormations(state: GameState, battle: AscentBattle): void {
   if (reforming(battle.theirReformBeats)) {
     battle.theirReformBeats = (battle.theirReformBeats ?? 0) - 1;
     if (!reforming(battle.theirReformBeats) && battle.theirFormationTarget) {
-      const left = battle.theirFormation;
       battle.theirFormation = battle.theirFormationTarget;
       battle.theirFormationTarget = undefined;
-      if (left !== battle.theirFormation) stampWind(battle, 'theirs', left);
     }
   }
   if ((battle.theirShapeLockBeats ?? 0) > 0) {
     battle.theirShapeLockBeats = (battle.theirShapeLockBeats ?? 0) - 1;
   }
-  // Wind returns at the rate each side's stance allows — the rule that makes the two dials one
-  // loop. Pressing recovers nothing, defending recovers double; see BATTLE_STANCE_RECOVERY.
-  // Iterated over FORMATION_RING so key order is deterministic for every fingerprint.
-  // Đoản Hơi Thành Trường — the rule card: pressing recovers 1 instead of 0. Ours only; the
-  // invader's dock plays by the book.
-  const cardFloor = battle.stance === 'press' ? windRecoveryBonus(state) : 0;
-  const ourRate = Math.max(cardFloor, BATTLE_STANCE_RECOVERY[battle.stance] ?? 1);
-  const theirRate = BATTLE_STANCE_RECOVERY[battle.theirStance] ?? 1;
-  for (const shape of FORMATION_RING) {
-    const oursLeft = battle.ourWind?.[shape] ?? 0;
-    if (oursLeft > 0) (battle.ourWind ??= {})[shape] = Math.max(0, oursLeft - ourRate);
-    const theirsLeft = battle.theirWind?.[shape] ?? 0;
-    if (theirsLeft > 0) (battle.theirWind ??= {})[shape] = Math.max(0, theirsLeft - theirRate);
-  }
+  regainStamina(battle);
   const bonus = battle.momentBonus;
   if (bonus) {
     if ((bonus.sharpBeats ?? 0) > 0) bonus.sharpBeats = (bonus.sharpBeats ?? 0) - 1;
@@ -894,11 +846,12 @@ function advanceEnemyFormation(state: GameState, battle: AscentBattle, theirs: A
     */
   const temper = BATTLE_TEMPER[temperOf(state, battle)];
   const tilt = formationTier(battle.theirFormation, battle.ourFormation);
-  // The restless tempers do not need to be losing: stand at even shape long enough and they
-  // rotate anyway, spending their own wind to do it — which is exactly how you beat one.
-  const restless = temper.restlessBeats > 0 && tilt === 0
-    && (battle.beatsSinceTheirShape ?? 0) >= temper.restlessBeats;
-  if (tilt > 0 || (tilt === 0 && !restless && !battleAnswersEven())) return;
+  // He HOLDS while he is winning. That is the whole of his character as an opponent: while the
+  // matchup favours him he gives nothing away — no bubble, no walk, no tell — and the player has
+  // to notice from the losses alone that something must change. Restless rotation on a timer
+  // was tried and retired: it handed the player a prompt every few beats, and the game stopped
+  // being a read.
+  if (tilt > 0 || (tilt === 0 && !battleAnswersEven())) return;
 
   // Difficulty is how fast the enemy answers your shape, and nothing else — see `battleOptions`.
   // The walk itself is a flat beat now, so the dial moved from walk length to HESITATION: beats
@@ -907,7 +860,7 @@ function advanceEnemyFormation(state: GameState, battle: AscentBattle, theirs: A
   // a fresh one, and the tilt window that used to be spent watching them walk (tilt 0 for both)
   // is spent actually countering them.
   const hesitation = Math.max(0, 1 + temper.hesitation + battleReactDelay());
-  if (!restless && (battle.beatsSinceOurShape ?? 99) < hesitation) return;
+  if ((battle.beatsSinceOurShape ?? 99) < hesitation) return;
 
   void theirs;
   // They answer the shape we are **standing in**, never the one we are walking towards.
@@ -919,35 +872,9 @@ function advanceEnemyFormation(state: GameState, battle: AscentBattle, theirs: A
   //
   // Reading the arrived shape gives the player the window the whole design depends on: counter,
   // hold it while they walk, and spend the advantage before they get there.
-  //
-  // Their answers obey their own wind — a shape they left inside the last three beats is off
-  // their dock too, which is what makes counting their spent shapes a real read for the player.
-  // Every invader reads your dock: among his answers he prefers the one whose own strong answer
-  // you have winded — the shape you cannot punish until its breath is back. This is the half of
-  // the design that makes a cooldown something a player actually MEETS: without it the ring's
-  // geometry walks you backwards round the five shapes and you never want the chip you just
-  // left. Ordering the candidate list before the `.find` keeps the telegraph as honest as ever —
-  // he only re-orders his preferences. The cunning simply does it sooner (restless inside two
-  // beats); the others wait out their period.
-  const candidates = countersTo(battle.ourFormation);
-  const readsDock = temper.readsDock > 0
-    && ((battle.theirRotations ?? 0) + 1) % temper.readsDock === 0;
-  if (readsDock) {
-    const unanswerable = (shape: BattleFormation): number => {
-      const ourStrongAnswer = FORMATION_RING[
-        (FORMATION_RING.indexOf(shape) - 1 + FORMATION_RING.length) % FORMATION_RING.length];
-      return windOf(battle, 'ours', ourStrongAnswer) > 0 ? 0 : 1;
-    };
-    candidates.sort((a, b) => unanswerable(a) - unanswerable(b));
-  }
-  const wanted = candidates.find((shape) => shapeTakeable(battle, 'theirs', shape))
-    // Losing with both answers winded: take the mirror, which is never winded, and zero the tilt
-    // rather than stand in the counter. Without this an aggressive invader that pressed its own
-    // recovery to zero could wedge its dock shut and eat the full drip for the rest of the fight.
-    ?? (tilt < 0 ? matchShapeFor(battle, 'theirs') : undefined);
+  const wanted = countersTo(battle.ourFormation)[0];
   if (!wanted || wanted === battle.theirFormation) return;
-  battle.beatsSinceTheirShape = 0;
-  battle.theirRotations = (battle.theirRotations ?? 0) + 1;
+  //
 
   battle.theirFormationTarget = wanted;
   // Two, not one — and the difference is visibility, not speed. This order is placed INSIDE the
@@ -1218,10 +1145,6 @@ function applyMomentEffect(
   // Shape: the counter without the bill, or three beats of knowing what you are answering.
   if (effect.freeReform) battle.freeReform = true;
   if (effect.lockTheirShape) battle.theirShapeLockBeats = effect.lockTheirShape;
-  // The drum: every wind clock cleared at once — the whole dock lights up. Instant, never via
-  // momentBonus (which is wholesale-overwritten above), and ours alone: the drum is on our side
-  // of the field.
-  if (effect.refillWind) battle.ourWind = {};
 
   if (effect.morale) {
     battle.ourMorale = clampMorale(battle.ourMorale + gain(effect.morale, 0));
@@ -1479,7 +1402,7 @@ export function fightRound(state: GameState): void {
     // striking camp) was unreachable no matter what its trigger said. Measured across sixty
     // engagements, five of the thirty fired zero times for this reason alone.
     raiseMoment(state, battle, ours, theirs);
-    settleFormations(state, battle);
+    settleFormations(battle);
     recordBeat(battle, 'approach', ours, theirs, ourLoss, theirLoss, volleyLine);
     // Deliberately does not spend the round budget: the approach is the opening, not the fight.
     return;
@@ -1573,7 +1496,6 @@ export function fightRound(state: GameState): void {
     battle.lostRun = wonExchange ? 0 : (battle.lostRun ?? 0) + 1;
   }
   battle.beatsSinceOurShape = (battle.beatsSinceOurShape ?? 0) + 1;
-  battle.beatsSinceTheirShape = (battle.beatsSinceTheirShape ?? 0) + 1;
   // Applied to *every* host on the side, not just the one the maths treats as the line, so a
   // battered relief column carries its own heart rather than borrowing the vanguard's.
   // Being answered costs heart as well as men — keyed off the shape, and scaled by how hard the
@@ -1647,7 +1569,7 @@ export function fightRound(state: GameState): void {
 
   const exchangeLine = t('ascent.battle.exchange', { round: battle.round, ours: ourLoss, theirs: theirLoss });
   battle.log.push(exchangeLine);
-  settleFormations(state, battle);
+  settleFormations(battle);
   recordBeat(battle, 'clash', ours, theirs, ourLoss, theirLoss, exchangeLine, brokeThisBeat);
 
   // ── Does anyone break? ───────────────────────────────────────────────────
@@ -2128,16 +2050,27 @@ export function setBattleStance(state: GameState, stance: FieldStance): boolean 
 }
 
 /**
- * Can we stand in this shape right now — does it have its breath back?
+ * Can we change into this shape right now — is there a pip to pay for it?
  *
- * The shape we hold, the enemy's own shape (the match — never winded), a Moment's `freeReform`,
- * or any shape whose wind has run out. The block-based availability this replaced is archived in
- * `formationsClassic.ts` and `docs/18-formation-availability-by-blocks.md`.
+ * Every shape is always on the dock; the only question is stamina. A Moment's `freeReform` is the
+ * one exception, and it is a gift the fight hands over, not a rule. The two earlier availability
+ * rules — by army block (docs/18) and by per-shape wind (docs/19) — are retired; see `staminaOf`.
  */
 export function canFormFormation(state: GameState, formation: BattleFormation): boolean {
   const battle = state.ascent?.activeBattle;
   if (!battle) return false;
-  return shapeTakeable(battle, 'ours', formation);
+  if (formation === battle.ourFormation && !battle.formationTarget) return false;
+  return battle.freeReform === true || staminaOf(battle) >= 1;
+}
+
+/** The pips, for the dock and the harnesses. */
+export function battleStamina(battle: AscentBattle): { pips: number; max: number; nextIn: number } {
+  const pips = staminaOf(battle);
+  return {
+    pips,
+    max: BATTLE_STAMINA_MAX,
+    nextIn: pips >= BATTLE_STAMINA_MAX ? 0 : (battle.staminaClock ?? BATTLE_STAMINA_REGEN_BEATS),
+  };
 }
 
 /**
@@ -2169,6 +2102,12 @@ export function setBattleFormation(state: GameState, formation: BattleFormation)
   if (!canFormFormation(state, formation)) return false;
 
   const beats = reformBeatsFor(state, battle);
+  // The pip is spent at the order, never refunded: an order is a decision, and a decision that
+  // can be taken back for free is not one. `freeReform` pays for itself.
+  if (!battle.freeReform) {
+    battle.stamina = staminaOf(battle) - 1;
+    battle.staminaClock ??= BATTLE_STAMINA_REGEN_BEATS;
+  }
   // The order counts as noticing, whether or not it turns out to be the right one — the losing
   // banner exists to say *you are being countered and have not answered*, and this is an answer.
   battle.beatsSinceOurShape = 0;
@@ -2180,12 +2119,8 @@ export function setBattleFormation(state: GameState, formation: BattleFormation)
   // not know its own length finishes at the wrong time, which is worse than having no bar.
   battle.reformTotalBeats = Math.max(1, beats);
   if (beats <= 0) {
-    const left = battle.ourFormation;
     battle.ourFormation = formation;
     battle.formationTarget = undefined;
-    // A freeReform hop skips settleFormations' landing, so it stamps here — the counter comes
-    // without the walk, never without the wind, or the card would enable un-winded flapping.
-    if (left !== formation) stampWind(battle, 'ours', left);
     markFormationLanded(battle);
   }
   return true;
@@ -2211,32 +2146,4 @@ export function battleView(state: GameState): AscentBattle | undefined {
   return state.ascent?.activeBattle;
 }
 
-/** Everything the dock needs to draw one side's wind, in one read. */
-export interface BattleWindView {
-  /** Beats left per shape, ours. Zero = breath back. */
-  ours: Record<BattleFormation, number>;
-  /** Beats left per shape, theirs — the countable half of the duel. */
-  theirs: Record<BattleFormation, number>;
-  /** The shape that is never refused to us: theirs, or the one they walk towards. */
-  match: BattleFormation;
-  /** Which chips answer a tap right now, ours. */
-  takeable: Record<BattleFormation, boolean>;
-}
 
-/**
- * The wind state of both docks, for the strip and the harnesses.
- *
- * One function rather than per-shape getters so the redraw signature and the chips are guaranteed
- * to read the same beat.
- */
-export function battleWindView(battle: AscentBattle): BattleWindView {
-  const ours = {} as Record<BattleFormation, number>;
-  const theirs = {} as Record<BattleFormation, number>;
-  const takeable = {} as Record<BattleFormation, boolean>;
-  for (const shape of FORMATION_RING) {
-    ours[shape] = windOf(battle, 'ours', shape);
-    theirs[shape] = windOf(battle, 'theirs', shape);
-    takeable[shape] = shapeTakeable(battle, 'ours', shape);
-  }
-  return { ours, theirs, match: matchShapeFor(battle, 'ours'), takeable };
-}
