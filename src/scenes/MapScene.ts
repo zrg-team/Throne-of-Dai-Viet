@@ -2147,25 +2147,11 @@ export class MapScene extends Phaser.Scene {
       (Boolean(this.state.selectedLandId || this.state.latestBattlePreview) &&
         y >= SHEET_TOP &&
         y <= GAME_HEIGHT - ACTION_BAR_HEIGHT) ||
-      this.isPointInPublishedChrome(x, y) ||
+      (x > GAME_WIDTH - 74 &&
+        ((y > GAME_HEIGHT - ACTION_BAR_HEIGHT - 150 && y < GAME_HEIGHT - ACTION_BAR_HEIGHT) ||
+          (y > GAME_HEIGHT - ACTION_BAR_HEIGHT - 386 && y < GAME_HEIGHT - ACTION_BAR_HEIGHT - 236))) ||
       y > GAME_HEIGHT - ACTION_BAR_HEIGHT
     );
-  }
-
-  /**
-   * Chrome the HUD drew and told us about, rather than bands hand-copied from its layout.
-   *
-   * This replaced two fixed rectangles that tried to cover the zoom/mode stack. The stack moves —
-   * it floats above the inspect card when a province is selected and above the battle sheet when a
-   * preview is up — and the bands covered eight of its nine resting positions. On the ninth the
-   * canvas tap handler claimed the press, selected the land underneath, and the re-render
-   * destroyed the button before its release could land: the control was visible, pressable and
-   * inert. The HUD publishes what it actually drew, so there is nothing left to fall between.
-   */
-  private isPointInPublishedChrome(x: number, y: number): boolean {
-    return (window.__hudTapBounds ?? []).some((rect) => (
-      x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height
-    ));
   }
 
   private isPointInMinimapUi(x: number, y: number): boolean {

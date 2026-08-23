@@ -1785,30 +1785,11 @@ export class UIScene extends Phaser.Scene {
       : GAME_HEIGHT - 54;
     const x = GAME_WIDTH - 24;
 
-    const rows: Array<[number, 'zoom-in' | 'zoom-out' | 'mode', string]> = [
-      [104, 'zoom-in', 'zoom-in'],
-      [62, 'zoom-out', 'zoom-out'],
-      [20, 'mode', 'toggle-render-mode'],
+    this.mapControls = [
+      this.createMapIconButton(x, bottomAnchor - 104, 'zoom-in', () => this.handleAction('zoom-in')),
+      this.createMapIconButton(x, bottomAnchor - 62, 'zoom-out', () => this.handleAction('zoom-out')),
+      this.createMapIconButton(x, bottomAnchor - 20, 'mode', () => this.handleAction('toggle-render-mode')),
     ];
-
-    // Published, not guessed at from the other side.
-    //
-    // `MapScene.isScreenPointOverFixedUi` used to guard this stack with two fixed bands measured
-    // off the foot of the screen, and the stack does not stay in one place: it sits above the
-    // inspect card when a province is selected and above the battle sheet when a preview is up,
-    // three anchors in all. The bands covered eight of the nine resulting positions. The ninth —
-    // zoom-in with a battle preview open — fell between them, so the canvas-level tap handler
-    // claimed the press, selected the province underneath, and the re-render destroyed the button
-    // before Phaser could deliver the release. Visible, pressable, inert.
-    //
-    // ConquestUIScene already solved this by publishing the rectangles it actually drew; this is
-    // the same contract for the classic modes, and it cannot drift because nothing is duplicated.
-    window.__hudTapBounds = [];
-    this.mapControls = rows.map(([lift, icon, action]) => {
-      const y = bottomAnchor - lift;
-      window.__hudTapBounds!.push({ x: x - 22, y: y - 22, width: 44, height: 44 });
-      return this.createMapIconButton(x, y, icon, () => this.handleAction(action));
-    });
   }
 
   private createMapIconButton(
@@ -1877,8 +1858,6 @@ export class UIScene extends Phaser.Scene {
       item.destroy();
     }
     this.mapControls = [];
-    // Bounds go with the buttons. Left standing, they would guard a strip of empty map.
-    window.__hudTapBounds = [];
   }
 
   private renderGameMenuButton(): void {
