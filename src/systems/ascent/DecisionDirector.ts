@@ -369,16 +369,19 @@ export function tickDecisionDirector(state: GameState): void {
   //
   // Famine keeps its exemption above, for the reason given there.
   //
-  // The Chronicle keeps one of its own, in the aftermath only. It is the exception that proves
-  // the rule rather than a hole in it: the aftermath *is* reading what the last wave cost, and a
-  // story is the one kind whose whole job is to say what that cost meant. Measured, the phase
-  // gate alone accounted for 38% of the occasions a story held a card nobody raised — more than
-  // every competing prompt kind put together — and a run surfaced eight to thirteen story beats
-  // in nineteen minutes. Muster stays closed: two seasons before a host lands is not a moment to
-  // be reading.
-  const phase = ascentPhaseFor(ascent.ticksToWave);
-  if (phase === 'muster') return;
-  const windowKinds: AscentPromptKind[] | null = phase === 'court' ? null : ['story-beat'];
+  // The Chronicle was given a second window here — the aftermath, on the argument that reading
+  // what the last wave cost is exactly when a story should speak, and that the phase gate was
+  // costing 38% of the occasions a story held a card nobody raised. It was measured and taken
+  // back out, and the reason is worth keeping so it is not tried again:
+  //
+  // `AFTERMATH_TICKS` is 2, and the aftermath sits immediately *before* Court in the cycle. So a
+  // beat raised there always lands one or two seasons ahead of the Court window opening, stamps
+  // `lastPromptTurn` on its way through `drainAscentPrompts`, and the gap rule then swallows the
+  // first Court tick. Court is where the realm's growth is decided: `verify-economy` went from
+  // all-checks-passing to a realm that never reached four provinces, its provincial demand at
+  // 185% of gross. There is no safe placement — the window is two ticks wide and adjacent — so
+  // the phase gate stands, and the Chronicle's volume comes from the other two fixes instead.
+  if (ascentPhaseFor(ascent.ticksToWave) !== 'court') return;
 
   // Inside Court the gap tightens. The pacing target is not "fewer decisions" but decisions
   // that arrive together and then leave — a run measured at a flat 3.9 seasons between cards,
@@ -386,14 +389,11 @@ export function tickDecisionDirector(state: GameState): void {
   const starving = ascent.idleTicks >= STARVATION_TICKS;
   if (!starving && state.turn - ascent.lastPromptTurn < COURT_GAP_TICKS) return;
 
-  const inWindow = windowKinds ? ready.filter((kind) => windowKinds.includes(kind)) : ready;
-  if (inWindow.length === 0) return;
-
-  const overdue = inWindow
+  const overdue = ready
     .filter((kind) => (ascent.promptWaiting?.[kind] ?? 0) >= KIND_STARVATION_TICKS)
     .sort((a, b) => (ascent.promptWaiting?.[b] ?? 0) - (ascent.promptWaiting?.[a] ?? 0));
 
-  for (const kind of [...overdue, ...inWindow]) {
+  for (const kind of [...overdue, ...ready]) {
     if (!raise(state, kind)) continue;
     // `lastPromptTurn` is stamped by `drainAscentPrompts`, which every prompt passes through.
     delete ascent.promptWaiting[kind];
