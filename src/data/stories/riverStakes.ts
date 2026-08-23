@@ -118,7 +118,12 @@ export const riverStakes: StoryTemplate = {
       volume: 'card',
       weight: 4,
       quiet: 4,
-      when: (ctx) => ctx.recall('surveyed') === 1 && ctx.recall('stakes') === 0,
+      repeatable: true,
+      maxTimes: 3,
+      // `stakes` stays a flag — five other beats test it for equality — and `rows` counts how
+      // much of the bed has actually been staked. Three tides' work, and each row is in the
+      // riverbed from the day it is driven.
+      when: (ctx) => ctx.recall('surveyed') === 1 && ctx.recall('rows') < 3,
       salience: () => 3,
       opening: { on: 'land', actionKey: 'driveTheStakes' },
       options: [
@@ -127,6 +132,7 @@ export const riverStakes: StoryTemplate = {
           cost: { supplies: 180, gold: 90 },
           apply: (ctx) => {
             ctx.remember('stakes', 1);
+            ctx.bump('rows');
             ctx.remember('echoTurn', ctx.state.turn);
             // The stakes are in the riverbed from the day they are driven. The fleet that walks
             // onto them is fifty seasons away, and that beat still pays the large one.

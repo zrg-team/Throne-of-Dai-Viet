@@ -10,6 +10,7 @@ import {
   defectHost,
   exileHero,
   freeBuilding,
+  grantEdictPoints,
   grantPowerCard,
   grantStoryHero,
   heroLeaves,
@@ -627,6 +628,38 @@ export const vanMieu: StoryTemplate = {
             standing(ctx, -4);
             ctx.heat(-1);
             ctx.bump('refused');
+          },
+        },
+      ],
+    },
+    {
+      /**
+       * Another stele.
+       *
+       * The doctoral stelae at the Văn Miếu are a list that was added to for three hundred years,
+       * one stone per examination, and a story about them that could only be answered once was
+       * the wrong shape. Standing, and only once the examinations are open.
+       */
+      id: 'dung-them-mot-tam-bia',
+      volume: 'whisper',
+      weight: 5,
+      quiet: 6,
+      repeatable: true,
+      maxTimes: 3,
+      when: (ctx) => ctx.recall('opened') === 1,
+      opening: { on: 'land', actionKey: 'dungBia' },
+      options: [
+        {
+          id: 'dung-bia',
+          cost: { gold: 120, supplies: 40 },
+          apply: (ctx) => {
+            const stones = ctx.bump('stelae');
+            ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 6);
+            ctx.note('stability', 6);
+            const scholar = ctx.hero();
+            if (scholar) temper(ctx, 'administration', 3, scholar);
+            // A courtyard full of names is a reason to sit the examination.
+            if (stones >= 2) grantEdictPoints(ctx, 1);
           },
         },
       ],

@@ -505,14 +505,16 @@ export const reedBanner: StoryTemplate = {
       volume: 'card',
       weight: 3,
       quiet: 4,
-      when: (ctx) => Boolean(ctx.land()) && ctx.recall('builtForHim') === 0 && ctx.age >= 10,
+      repeatable: true,
+      maxTimes: 3,
+      when: (ctx) => Boolean(ctx.land()) && ctx.recall('builtForHim') < 3 && ctx.age >= 10,
       salience: (ctx) => (ctx.recall('trusted') ? 3 : 1),
       opening: { on: 'land', actionKey: 'letThemBuild' },
       options: [
         {
           id: 'let-them',
           apply: (ctx) => {
-            ctx.remember('builtForHim', 1);
+            ctx.bump('builtForHim');
             const land = ctx.land();
             if (land) {
               land.defense += 6;

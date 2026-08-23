@@ -859,6 +859,9 @@ export const chamEngineer: StoryTemplate = {
       volume: 'card',
       weight: 6,
       quiet: 2,
+      repeatable: true,
+      maxTimes: 3,
+      when: (ctx) => ctx.recall('materials') < 3,
       salience: (ctx) => (ctx.age >= 2 ? 6 : -20),
       opening: { on: 'treasury', actionKey: 'giveHimMaterials' },
       options: [
@@ -867,11 +870,15 @@ export const chamEngineer: StoryTemplate = {
           cost: { supplies: 140, gold: 80 },
           apply: (ctx) => {
             ctx.remember('freed', 1);
+            ctx.bump('materials');
             ctx.remember('echoTurn', ctx.state.turn);
             // He is given materials and he uses them the same week. Cost-only before this.
+            // `freeBuilding` refuses once the province is full, which is the right way for a
+            // standing door to run out: the ground says no before the story does.
             freeBuilding(ctx, 'workshop');
             const engineer = ctx.hero();
             if (engineer) temper(ctx, 'administration', 4, engineer);
+            terrainWork(ctx, { defense: 3 }, ctx.land());
           },
         },
       ],
@@ -1181,6 +1188,9 @@ export const noHeir: StoryTemplate = {
       band: 'border',
       weight: 7,
       quiet: 2,
+      repeatable: true,
+      maxTimes: 3,
+      when: (ctx) => ctx.recall('backing') < 3,
       salience: (ctx) => (ctx.age >= 2 ? 7 : -20),
       opening: { on: 'rival', actionKey: 'sendTheEnvoy' },
       options: [
@@ -1189,6 +1199,7 @@ export const noHeir: StoryTemplate = {
           cost: { gold: 240 },
           apply: (ctx) => {
             ctx.remember('backed', 1);
+            ctx.bump('backing');
             ctx.remember('echoTurn', ctx.state.turn);
             // Two hundred and forty gold went out and the card said nothing back. The house you
             // backed knows who backed it, from the day the money arrives.
@@ -1391,7 +1402,13 @@ export const unpaidHost: StoryTemplate = {
       volume: 'card',
       weight: 6,
       quiet: 3,
-      when: (ctx) => ctx.said('they-have-not-said-anything'),
+      repeatable: true,
+      maxTimes: 4,
+      // Standing, and honest about it: wages fall behind again, so the door opens again — but
+      // only while somebody is actually owed. A permanently-open "pay them" on a paid-up army is
+      // a button, not an offer.
+      when: (ctx) => ctx.said('they-have-not-said-anything')
+        && ourHosts(ctx).some((army) => (army.unpaidTicks ?? 0) > 0 || army.morale < 70),
       salience: (ctx) => 3 + ctx.story.temperature,
       opening: { on: 'army', actionKey: 'payThem' },
       options: [
@@ -1405,6 +1422,7 @@ export const unpaidHost: StoryTemplate = {
               army.morale = Math.min(100, army.morale + 18);
             }
             ctx.remember('paid', 1);
+            ctx.bump('payments');
             ctx.heat(-12);
           },
         },

@@ -38,6 +38,41 @@ export const granaries: StoryTemplate = {
 
   fragments: [
     {
+      /**
+       * The granaries, used as granaries.
+       *
+       * The reforms in this story build them; nothing ever put anything in them. A standing door
+       * on the treasury, priced in the season's surplus, so the reform the player voted for has
+       * a thing they can actually do with it — and so the famine, when it comes, arrives at a
+       * realm that either did or did not fill its stores.
+       */
+      id: 'thoc-vao-kho-nha-nuoc',
+      volume: 'whisper',
+      weight: 6,
+      quiet: 3,
+      repeatable: true,
+      maxTimes: 4,
+      when: (ctx) => ctx.recall('reforms') >= 1 && ctx.state.resources.food >= 200,
+      opening: { on: 'treasury', actionKey: 'guiThoc' },
+      options: [
+        {
+          id: 'gui-thoc',
+          cost: { food: 150 },
+          apply: (ctx) => {
+            const stored = ctx.bump('stored');
+            // Not a rate and not a stockpile the player can draw on: a floor under the province
+            // that gave the grain, and a court that can point at a full building.
+            for (const land of playerLands(ctx.state)) {
+              land.loyalty = Math.min(100, land.loyalty + 4);
+            }
+            ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 5);
+            ctx.note('stability', 5);
+            if (stored >= 3) ctx.heat(2);
+          },
+        },
+      ],
+    },
+    {
       id: 'a-proposal',
       volume: 'card',
       band: 'court',

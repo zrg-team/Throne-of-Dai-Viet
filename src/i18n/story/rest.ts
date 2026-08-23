@@ -123,6 +123,10 @@ export const gooseFeathersEn: StoryCatalog = {
 };
 
 export const granariesVi: StoryCatalog = {
+  'thoc-vao-kho-nha-nuoc.line': 'Kho nhà nước đã dựng xong, và trong kho chưa có gì cả.',
+  'thoc-vao-kho-nha-nuoc.guiThoc': 'Gửi thóc vào kho',
+  'thoc-vao-kho-nha-nuoc.scene': 'Viên coi kho mở cửa cho xem: nền lát gạch, mái mới lợp, bốn cái cột to bằng hai người ôm, và trống không. Ông ta bảo dựng thì đã dựng xong từ mùa trước, chỉ chưa ai bảo phải đổ gì vào. Ngày nào ông ta cũng quét nền. Ông ta nói thêm rằng chuột thì chưa có, vì chưa có gì cho chuột ăn.',
+  'thoc-vao-kho-nha-nuoc.chronicle': 'Thóc được chở vào kho nhà nước.',
   title: 'Kho Thóc Của Tể Tướng',
   'a-proposal.title': 'Một đề nghị',
   'a-proposal.body': '{hero} trình một phép mới: đo lại ruộng, hạn điền, và tiền giấy thay cho tiền đồng. Nó sẽ có tiền ngay. Không ai hỏi dân.',
@@ -178,6 +182,10 @@ export const granariesVi: StoryCatalog = {
 };
 
 export const granariesEn: StoryCatalog = {
+  'thoc-vao-kho-nha-nuoc.line': 'The state granary is finished, and there is nothing in it.',
+  'thoc-vao-kho-nha-nuoc.guiThoc': 'Send grain to the granary',
+  'thoc-vao-kho-nha-nuoc.scene': 'The keeper opens it to be looked at: brick floor, new thatch, four pillars each the width of two men, and empty. Built since last season, he says; nobody has told him yet what is to go in it. He sweeps the floor every day. He adds that there are no rats, because there is nothing for a rat to eat.',
+  'thoc-vao-kho-nha-nuoc.chronicle': 'Grain was carted into the state granary.',
   title: 'The Chancellor’s Granaries',
   'a-proposal.title': 'A Proposal',
   'a-proposal.body': '{hero} sets out a new measure: resurvey the fields, cap the estates, and paper money in place of copper. It will bring in coin at once. Nobody has asked the people.',
@@ -335,6 +343,10 @@ export const riverStakesEn: StoryCatalog = {
 };
 
 export const countingHouseVi: StoryCatalog = {
+  'tieu-cho-ai-cung-thay.line': 'Kho bạc dày lên, và có người vẫn chép con số ấy mỗi tháng.',
+  'tieu-cho-ai-cung-thay.tieuBot': 'Tiêu cho ai cũng thấy',
+  'tieu-cho-ai-cung-thay.scene': 'Sổ để ở gian ngoài, không khoá, ai qua cũng đọc được — mà chỉ có một người đọc. Tháng nào ông ta cũng chép lại con số ấy xuống cuối trang, cùng một nét, cùng một chỗ. Quan Hộ bộ bảo cứ để yên, tiền nằm im thì không đi đâu mất. Ông ta không nói thêm rằng nằm im thì ai cũng biết nó nằm ở đâu.',
+  'tieu-cho-ai-cung-thay.chronicle': 'Bạc trong kho được đem ra tiêu.',
   title: 'Chín Trăm Lượng',
   'somebody-is-counting.line': 'Có kẻ trong kho bạc đã bắt đầu chép con số ấy lại mỗi tháng.',
   'somebody-is-counting.chronicle': 'Có người bắt đầu đếm quốc khố.',
@@ -365,6 +377,10 @@ export const countingHouseVi: StoryCatalog = {
 };
 
 export const countingHouseEn: StoryCatalog = {
+  'tieu-cho-ai-cung-thay.line': 'The treasury is deepening, and somebody is still writing the figure down each month.',
+  'tieu-cho-ai-cung-thay.tieuBot': 'Spend it where it can be seen',
+  'tieu-cho-ai-cung-thay.scene': 'The ledger sits in the outer room, unlocked, where anyone passing could read it — and one man does. Each month he copies the figure to the foot of the page, same hand, same place. The Minister of Revenue says leave it be, money sitting still does not go anywhere. He does not add that money sitting still is also money everybody knows the location of.',
+  'tieu-cho-ai-cung-thay.chronicle': 'Gold from the treasury was put to use.',
   title: 'Nine Hundred Gold',
   'somebody-is-counting.line': 'Somebody in the treasury has begun writing the figure down each month.',
   'somebody-is-counting.chronicle': 'Someone started counting the treasury.',

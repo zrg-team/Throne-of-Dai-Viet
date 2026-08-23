@@ -28,6 +28,42 @@ export const countingHouse: StoryTemplate = {
 
   fragments: [
     {
+      /**
+       * Spend it, and be seen to.
+       *
+       * The story fires on a deep treasury and somebody quietly writing the figure down each
+       * month. Until now the only answers were on one card, and the obvious third — put the money
+       * to work where everybody can see it go — did not exist. Repeatable, because the hoard
+       * builds back up and so does the counting.
+       */
+      id: 'tieu-cho-ai-cung-thay',
+      volume: 'whisper',
+      weight: 6,
+      quiet: 3,
+      repeatable: true,
+      maxTimes: 4,
+      when: (ctx) => ctx.state.resources.gold >= 400,
+      opening: { on: 'treasury', actionKey: 'tieuBot' },
+      options: [
+        {
+          id: 'tieu-bot-di',
+          cost: { gold: 200 },
+          apply: (ctx) => {
+            ctx.bump('spentInPublic');
+            const seat = ctx.land();
+            if (seat) {
+              seat.defense += 4;
+              ctx.note('landDefense', 4, seat.name);
+            }
+            ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 4);
+            ctx.note('stability', 4);
+            // The man doing the counting has less to count, and less to say about it.
+            ctx.heat(-4);
+          },
+        },
+      ],
+    },
+    {
       id: 'somebody-is-counting',
       volume: 'whisper',
       weight: 6,

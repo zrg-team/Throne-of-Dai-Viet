@@ -391,6 +391,10 @@ export const luyThayVi: StoryCatalog = {
 };
 
 export const vanMieuEn: StoryCatalog = {
+  'dung-them-mot-tam-bia.line': 'There is room left in the courtyard, and this examination has produced graduates.',
+  'dung-them-mot-tam-bia.dungBia': 'Raise another stele',
+  'dung-them-mot-tam-bia.scene': 'The stonecutter measures the empty ground and reports that fourteen more tortoises will fit, after which the wall has to come down. He asks how many names. Told the number he nods, then asks again to be sure, because stone cut wrong does not go back. Outside the gate a few men are reading the older stones, and taking a long time over it.',
+  'dung-them-mot-tam-bia.chronicle': 'Another stele was raised at the Văn Miếu.',
   title: 'The Temple of Literature',
   want: 'to be staffed by people nobody’s father chose',
   waiting: 'For the first list to be posted.',
@@ -423,6 +427,10 @@ export const vanMieuEn: StoryCatalog = {
 };
 
 export const vanMieuVi: StoryCatalog = {
+  'dung-them-mot-tam-bia.line': 'Sân bia còn chỗ, và khoa này đã có người đỗ.',
+  'dung-them-mot-tam-bia.dungBia': 'Dựng thêm một tấm bia',
+  'dung-them-mot-tam-bia.scene': 'Người thợ đá đo chỗ trống trong sân rồi thưa rằng còn kê được mười bốn con rùa nữa, sau đấy thì phải dỡ tường. Ông ta hỏi khắc mấy tên. Nghe xong số, ông ta gật, rồi hỏi lại một lần nữa cho chắc, vì đá khắc sai thì không sửa lại được. Ngoài cổng có mấy người đứng đọc bia cũ, đọc rất lâu.',
+  'dung-them-mot-tam-bia.chronicle': 'Dựng thêm một tấm bia ở Văn Miếu.',
   title: 'Văn Miếu',
   want: 'được dùng những người mà cha chẳng ai chọn cho',
   waiting: 'Bảng đầu tiên được yết.',
