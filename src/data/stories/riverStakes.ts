@@ -1,5 +1,6 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { applyResourceDelta } from '../../systems/ResourceSystem';
+import { terrainWork } from '../../systems/story/effects';
 import { livingRivals, pick, playerLands } from '../../systems/story/StorySystem';
 import { pushToast } from '../../systems/empire/notifications';
 import { storyText } from '../../i18n/story';
@@ -32,6 +33,7 @@ function hostileNear(state: GameState, landId?: string): number {
 
 export const riverStakes: StoryTemplate = {
   id: 'river-stakes',
+  record: 'chinh-su',
   regard: (ctx) => {
     if (ctx.recall('walkedAway') === 1) return 'insulted';
     if (ctx.recall('stakes') === 1) return 'ready';
@@ -67,6 +69,10 @@ export const riverStakes: StoryTemplate = {
           apply: (ctx) => {
             ctx.remember('surveyed', 1);
             ctx.remember('echoTurn', ctx.state.turn);
+            // Forty gold to have a fisherman listened to, and until now the card said nothing
+            // back at all. He was listened to, and the district saw it.
+            const bank = ctx.land();
+            if (bank) bank.loyalty = Math.min(100, bank.loyalty + 6);
           },
         },
         {
@@ -122,6 +128,9 @@ export const riverStakes: StoryTemplate = {
           apply: (ctx) => {
             ctx.remember('stakes', 1);
             ctx.remember('echoTurn', ctx.state.turn);
+            // The stakes are in the riverbed from the day they are driven. The fleet that walks
+            // onto them is fifty seasons away, and that beat still pays the large one.
+            terrainWork(ctx, { defense: 8 }, ctx.land());
           },
         },
       ],

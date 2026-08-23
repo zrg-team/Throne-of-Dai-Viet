@@ -15,6 +15,7 @@ import type { StoryTemplate } from '../../systems/story/types';
  */
 export const countingHouse: StoryTemplate = {
   id: 'counting-house',
+  record: 'ngoai-truyen',
   seedWeight: 2,
   minTurn: 16,
   seed: (state) => {
@@ -61,6 +62,11 @@ export const countingHouse: StoryTemplate = {
           apply: (ctx) => {
             // Safe, and it earns nothing. The abbot is a careful man.
             ctx.remember('sheltered', 300);
+            // Cost-only before this: three hundred gold went out and the card said nothing back.
+            // What it buys is a ledger anybody may come and read, which is worth something in a
+            // court that has been counting the treasury behind your back.
+            ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 5);
+            ctx.note('stability', 5);
             ctx.heat(-6);
           },
         },
@@ -68,6 +74,11 @@ export const countingHouse: StoryTemplate = {
           id: 'the-treasury-is-mine',
           apply: (ctx) => {
             ctx.remember('refusedShelter', 1);
+            // R1. Where it is, is your business — and the man who has been counting it hears
+            // exactly that.
+            const clerk = ctx.hero();
+            if (clerk) clerk.stats.loyalty = Math.max(0, clerk.stats.loyalty - 8);
+            ctx.note('stability', 0);
             ctx.heat(2);
           },
         },

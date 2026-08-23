@@ -13,6 +13,19 @@ export const orangeVi: StoryCatalog = {
   waiting: 'Cậu ta vẫn đứng ngoài, và vẫn chưa đi.',
   stake: 'Một nghìn gia nô, một đứa trẻ mười lăm tuổi, và tất cả những gì ngươi đã gửi theo họ.',
 
+  // Rescued from the pre-trunk catalogue in `rest.ts`, which nothing has imported since
+  // orange got its own file. Three whole fragments, both languages, that no run could
+  // reach because the ids behind them had been dropped.
+  'six-hundred-of-his-household.line': 'Sáu trăm gia binh nhà nó tới, không ai gọi.',
+  'six-hundred-of-his-household.scene': 'Sáu trăm người tới cửa dinh trước lúc mở cổng, có cả người cày ruộng nhà nó, có cả hai ông đã bạc đầu. Họ mang gạo riêng, đủ ăn mười ngày, để khỏi phải xin ai. Viên quản quân hỏi ai cho phép, một người trong bọn đáp là cậu chủ gọi. Y hỏi cậu chủ bao nhiêu tuổi. Không ai trả lời câu ấy.',
+  'six-hundred-of-his-household.chronicle': 'Nó đem về sáu trăm người của chính nhà nó.',
+  'he-grows-into-it.line': 'Nó lớn nhanh hơn người ta tưởng.',
+  'he-grows-into-it.scene': 'Người thợ may trong dinh phải cắt lại cái áo giáp da lần thứ ba trong một năm, lần này nối thêm hai đốt ở vai. Bà bảo cứ đà này thì sang năm phải may mới. Nó đứng cho bà đo, im, một tay vẫn giữ lá cờ cuộn dựng ở góc phòng, cuộn ấy chưa mở ra lần nào. Đo xong, nó cảm ơn bà, rồi cầm cờ đi.',
+  'he-grows-into-it.chronicle': 'Nó lớn lên thành cái mà nó đã tự nhận là mình.',
+  'he-does-not-wait-for-orders.line': 'Cờ riêng đang đi về phía đạo quân lớn nhất trên bản đồ. Không ai ra lệnh cho nó.',
+  'he-does-not-wait-for-orders.scene': 'Người đưa tin đuổi hai ngày mới bắt kịp, trao tờ lệnh gọi về. Nó nhận bằng hai tay, đọc, gấp lại, giắt vào trong ngực áo rất cẩn thận. Rồi nó hỏi người đưa tin đường nào ra sông thì ngắn hơn. Sáu trăm người đã nhổ trại từ lúc trời chưa sáng và đang đi trước trên đúng con đường ấy, không đợi câu trả lời.',
+  'he-does-not-wait-for-orders.chronicle': 'Cờ riêng xông vào chỗ đông nhất.',
+
   'regard.fed': 'Họ ăn gạo của ngươi, và vẫn không nhận lệnh của ngươi.',
   'regard.swollen': 'Dưới lá cờ ấy giờ đông hơn dưới cờ ngươi.',
   'regard.gone': 'Không còn ai đứng dưới lá cờ ấy nữa.',
@@ -224,6 +237,19 @@ export const orangeEn: StoryCatalog = {
   want: 'a place in the line, even at the end of it',
   waiting: 'He is still outside, and he still has not gone home.',
   stake: 'A thousand of one household’s people, a boy of fifteen, and everything you have sent after them.',
+
+  // Rescued from the pre-trunk catalogue in `rest.ts`, which nothing has imported since
+  // orange got its own file. Three whole fragments, both languages, that no run could
+  // reach because the ids behind them had been dropped.
+  'six-hundred-of-his-household.line': 'Six hundred men of his household arrive. Nobody sent for them.',
+  'six-hundred-of-his-household.scene': 'Six hundred are at the gate before it is opened, among them men who farm his family\'s land and two whose hair has gone white. They have brought their own rice, ten days of it, so as not to have to ask anyone. The officer of the watch asks who authorised this, and one of them says the young master sent for them. He asks how old the young master is. Nobody answers that.',
+  'six-hundred-of-his-household.chronicle': 'He brought six hundred men of his own house.',
+  'he-grows-into-it.line': 'He grows faster than anyone expected.',
+  'he-grows-into-it.scene': 'The seamstress in the house lets the leather coat out for the third time in a year, this time adding two panels at the shoulder. At this rate, she says, next year it will have to be made new. He stands still to be measured, saying nothing, one hand keeping hold of a furled banner propped in the corner that has not been unrolled once. When she is done he thanks her and takes it with him.',
+  'he-grows-into-it.chronicle': 'He grew into the thing he had already decided he was.',
+  'he-does-not-wait-for-orders.line': 'The lone banner is moving toward the largest army on the map. Nobody is giving it orders.',
+  'he-does-not-wait-for-orders.scene': 'The messenger takes two days to catch them and hands over the order recalling him. The boy takes it in both hands, reads it, folds it, and puts it carefully inside his shirt. Then he asks the messenger which road to the river is shorter. The six hundred struck camp before it was light and are already ahead on that road, not waiting for his answer.',
+  'he-does-not-wait-for-orders.chronicle': 'The lone banner went for the thickest part of the line.',
 
   'regard.fed': 'They eat your rice, and they still do not take your orders.',
   'regard.swollen': 'There are more under that banner now than under yours.',

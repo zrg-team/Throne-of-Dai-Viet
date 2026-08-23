@@ -133,6 +133,7 @@ const result = await page.evaluate(async () => {
       seed,
       prompts: 0,
       storyPrompts: 0,
+      memoryStories: new Set(),
       whispers: 0,
       endings: 0,
       fragmentsFired: 0,
@@ -178,6 +179,13 @@ const result = await page.evaluate(async () => {
       // Openings: a story hanging an offer on a province the player already visits.
       for (const story of st.stories ?? []) {
         if (story.offer) run.openings += 1;
+        // Memory, counted as it is written rather than sampled at the end. A story that used its
+        // memory bag and then reached an ending is *deleted* from `st.stories`, so reading only
+        // the survivors at the final tick asks whether a story that happens to still be alive at
+        // season 320 has spoken yet — measured, twenty-three stories across these three runs
+        // wrote memory and none of the survivors had, so the check failed while the mechanism it
+        // is named after worked perfectly.
+        if (Object.keys(story.memory).length > 0) run.memoryStories.add(story.id);
       }
     }
 
@@ -187,7 +195,8 @@ const result = await page.evaluate(async () => {
     run.templatesSeen = [...run.templatesSeen];
     run.chronicle = (st.chronicle ?? []).map((c) => `${c.templateId}/${c.fragmentId}`);
     run.liveStories = (st.stories ?? []).length;
-    run.memoryWritten = (st.stories ?? []).some((story) => Object.keys(story.memory).length > 0);
+    run.memoryWritten = run.memoryStories.size > 0;
+    run.memoryStories = run.memoryStories.size;
     // Repetition is measured against what each story *said*, not against the Chronicle, which now
     // holds only endings. A pool that says the same thing twice in one run is the failure mode
     // this model is most exposed to, so it is checked at the source.
@@ -256,7 +265,8 @@ for (const run of result.runs) {
 const spoken = total.fragmentsFired;
 check('stories seed and speak across runs', spoken > 0, `${spoken} fragments fired`);
 check('stories reach an ending', total.endings > 0, `${total.endings} recorded endings`);
-check('stories write memory', result.runs.some((r) => r.memoryWritten));
+check('stories write memory', result.runs.some((r) => r.memoryWritten),
+  `${result.runs.reduce((n, r) => n + r.memoryStories, 0)} stories used their memory`);
 check('more than one story reaches play', allTemplates.size >= 2, [...allTemplates].join(', '));
 check('blows land — something happens without being asked', total.blows > 0, `${total.blows} blows`);
 check('cards are raised', total.cards > 0, `${total.cards} cards`);

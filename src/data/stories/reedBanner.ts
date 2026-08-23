@@ -86,6 +86,9 @@ export const reedBanner: StoryTemplate = {
           apply: (ctx) => {
             ctx.remember('tookIn', 1);
             ctx.remember('echoTurn', ctx.state.turn);
+            // Forty gold, and the card said nothing back. He is fifteen and somebody fed him.
+            const taken = ctx.hero();
+            if (taken) taken.stats.loyalty = Math.min(100, taken.stats.loyalty + 12);
             ctx.heat(-1);
           },
         },
@@ -247,6 +250,9 @@ export const reedBanner: StoryTemplate = {
           id: 'not-yet',
           apply: (ctx) => {
             ctx.bump('heHasAsked');
+            // R1. There will be other seasons, and he counts them.
+            const asked = ctx.hero();
+            if (asked) asked.stats.loyalty = Math.max(0, asked.stats.loyalty - 5);
             ctx.heat(1.5);
           },
         },
@@ -300,6 +306,12 @@ export const reedBanner: StoryTemplate = {
           apply: (ctx) => {
             ctx.bump('heHasAsked');
             ctx.bump('coldness');
+            // R1, and harder the second time: asking twice and being refused twice is a thing
+            // his own province hears about.
+            const twice = ctx.hero();
+            if (twice) twice.stats.loyalty = Math.max(0, twice.stats.loyalty - 12);
+            const home = ctx.land();
+            if (home) home.loyalty = Math.max(0, home.loyalty - 6);
             ctx.heat(3);
           },
         },

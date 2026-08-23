@@ -166,7 +166,14 @@ const run = await page.evaluate(async () => {
   }
   // The run may well have no standing host by now, and only army rations can drive the food
   // rate below zero (civilian demand withholds at source and floors at nothing). Conjure one.
-  const feedMe = stress.armies.find((a) => a.kingdomId === 'dai-viet' && !a.isLevy)
+  //
+  // It has to be a host the *realm* feeds. A garrison levy is fed by its province and an
+  // auxiliary (`Army.patron` — a host a story raised, which lives on what it was given) is fed
+  // by whoever raised it; neither draws on the granary, so inflating one by fifty thousand men
+  // produces fifty thousand men who eat nothing and a famine that never arrives. The levy was
+  // already excluded here for exactly that reason; the auxiliary is the same rule, and the
+  // conjured fallback has to clear the flag too or it inherits it from whatever it cloned.
+  const feedMe = stress.armies.find((a) => a.kingdomId === 'dai-viet' && !a.isLevy && !a.patron)
     ?? (() => {
       const proto = JSON.parse(JSON.stringify(stress.armies[0]));
       proto.id = 'stress-host';
@@ -174,6 +181,7 @@ const run = await page.evaluate(async () => {
       proto.landId = (stress.lands.find((l) => l.ownerId === 'dai-viet') ?? stress.lands[0]).id;
       proto.generalHeroId = undefined;
       proto.isLevy = undefined;
+      proto.patron = undefined;
       stress.armies.push(proto);
       return proto;
     })();

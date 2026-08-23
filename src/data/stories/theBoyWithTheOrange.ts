@@ -332,6 +332,15 @@ export const theBoyWithTheOrange: StoryTemplate = {
       },
     },
     {
+      // Rescued prose, given a node. Nobody sent for them; they are simply at the gate.
+      id: 'six-hundred-of-his-household',
+      volume: 'whisper',
+      in: ['la-co'],
+      weight: 6,
+      quiet: 1,
+      when: (ctx) => ctx.recall('banner') === 1,
+    },
+    {
       id: 'cong-nhan-hay-khong',
       volume: 'card',
       band: 'court',
@@ -444,6 +453,16 @@ export const theBoyWithTheOrange: StoryTemplate = {
       ],
     },
     {
+      // Rescued prose. He is measured for armour twice in a year, which is the requisition
+      // stretch seen from the one room in the house that is not about the war.
+      id: 'he-grows-into-it',
+      volume: 'whisper',
+      in: ['chinh-quy', 'co-rieng'],
+      weight: 5,
+      quiet: 3,
+      when: (ctx) => ctx.recall('patron:fed') >= 1,
+    },
+    {
       id: 'duoi-co-dong-hon-truoc',
       volume: 'whisper',
       in: ['chinh-quy', 'co-rieng'],
@@ -505,6 +524,17 @@ export const theBoyWithTheOrange: StoryTemplate = {
       weight: 5,
       quiet: 2,
       when: (ctx) => ctx.recall('ghost') === 1,
+    },
+    {
+      // Rescued prose. He takes the recall order in both hands, reads it, folds it away, and
+      // asks which road is shorter. On the record he was never forbidden — he simply went, and
+      // that is a different beat from `di-khong-xin-phep`, where he was told and went anyway.
+      id: 'he-does-not-wait-for-orders',
+      volume: 'whisper',
+      in: ['ham-tu'],
+      weight: 6,
+      quiet: 1,
+      tone: 'threat',
     },
     {
       id: 'ham-tu-quan',

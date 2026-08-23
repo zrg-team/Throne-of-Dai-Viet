@@ -18,6 +18,7 @@ import type { StoryTemplate } from '../../systems/story/types';
  */
 export const granaries: StoryTemplate = {
   id: 'granaries',
+  record: 'chinh-su',
   regard: (ctx) => {
     if (ctx.recall('dismissed') === 1) return 'dismissed';
     if (ctx.recall('stoodBy') === 1) return 'trusted';
@@ -90,6 +91,12 @@ export const granaries: StoryTemplate = {
           id: 'enough',
           apply: (ctx) => {
             ctx.remember('stopped', 1);
+            // R1. He is told to stop here, and he stops. The court is steadier for it and he
+            // is not.
+            const chancellor = ctx.hero();
+            if (chancellor) chancellor.stats.loyalty = Math.max(0, chancellor.stats.loyalty - 10);
+            ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 6);
+            ctx.note('stability', 6);
             ctx.heat(-4);
           },
         },
@@ -128,6 +135,12 @@ export const granaries: StoryTemplate = {
       salience: () => 10,
       effect: (ctx) => {
         ctx.remember('blamed', 1);
+        // The granaries were sold, so the granaries are empty and the district that paid for
+        // them stops paying. This pauses the whole run to say so and used to change nothing.
+        applyResourceDelta(ctx.state, { food: -Math.floor(ctx.state.resources.food * 0.25) });
+        const robbed = ctx.land();
+        if (robbed) robbed.loyalty = Math.max(0, robbed.loyalty - 14);
+        ctx.note('food', -Math.floor(ctx.state.resources.food * 0.25));
         ctx.heat(3);
       },
     },

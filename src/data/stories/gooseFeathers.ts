@@ -21,6 +21,7 @@ import type { StoryTemplate } from '../../systems/story/types';
  */
 export const gooseFeathers: StoryTemplate = {
   id: 'goose-feathers',
+  record: 'da-su',
   seedWeight: 2,
   minTurn: 14,
   seed: (state) => {
@@ -184,12 +185,21 @@ export const gooseFeathers: StoryTemplate = {
           id: 'feed-him-what-i-want',
           apply: (ctx) => {
             ctx.remember('counterspy', 1);
+            // R1. An enemy's ear is also yours, and they act on what you put in it.
+            const fed = ctx.rival();
+            if (fed) fed.relations = Math.min(100, (fed.relations ?? 50) + 10);
           },
         },
         {
           id: 'do-nothing',
           apply: (ctx) => {
             ctx.remember('ignored', 1);
+            // R4. Nothing is certain yet, and waiting costs a little standing and buys a little
+            // trust from the one person who told you.
+            const watched = ctx.rival();
+            if (watched) watched.relations = Math.max(0, (watched.relations ?? 50) - 6);
+            const informer = ctx.hero();
+            if (informer) informer.stats.loyalty = Math.min(100, informer.stats.loyalty + 4);
           },
         },
       ],

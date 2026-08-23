@@ -6,6 +6,7 @@ import { enqueueAscentPrompt } from '../ascent/AscentState';
 import { storyTemplate, storyTemplates } from '../../data/stories';
 import { storyText } from '../../i18n/story';
 import { dropCharges } from './charges';
+import { describeViolations, storyViolations } from './invariants';
 import { findEcho, recordEcho } from './echoes';
 import { unlockStory } from '../../state/codex';
 import type {
@@ -606,8 +607,36 @@ function whisper(state: GameState, story: ActiveStory, fragment: StoryFragment, 
  * Cards and blows are not spoken here — they are *marked* on the story and raised by the
  * decision director, which owns the pacing contract for everything that pauses the world.
  */
+/**
+ * The structural check, run once, where an author will actually see it.
+ *
+ * `invariants.ts` has claimed "checked at module load in dev" since it was written and never was:
+ * its only caller was `verify-chronicle`, so a typo'd node id shipped unless somebody remembered
+ * to run the harness — and a bad id is a hole a player falls into forty minutes into a run.
+ *
+ * Not at module load, though. `invariants.ts` imports the catalogue, so importing it back from
+ * `data/stories/index.ts` is a cycle, and running the check inside it executed before the
+ * catalogue existed: every mode failed to boot. From inside a function the same cycle is inert,
+ * because by the time anything calls this every module has finished initialising.
+ *
+ * `console.warn`, deliberately — not `throw`, which takes the game down over one authoring slip,
+ * and not `console.error`, which `gate/smoke` and every verify harness read as a failure, so one
+ * typo would turn every unrelated gate red. The harness keeps the hard assertion.
+ */
+let invariantsChecked = false;
+
+function checkInvariantsOnce(): void {
+  if (invariantsChecked || !import.meta.env?.DEV) return;
+  invariantsChecked = true;
+  const violations = storyViolations(storyTemplates);
+  if (violations.length > 0) {
+    console.warn(`[chronicle] ${violations.length} structural violations:\n${describeViolations(violations).join('\n')}`);
+  }
+}
+
 export function tickStories(state: GameState): void {
   if (state.gameMode !== 'ascent' || !state.ascent) return;
+  checkInvariantsOnce();
 
   const before = state.storyWatch ?? snapshot(state);
   const world = worldDelta(state, before);

@@ -9,6 +9,7 @@ import {
   defectHost,
   disperseIncoming,
   exactTribute,
+  freeBuilding,
   grantClaimSlot,
   grantDraft,
   grantEliteTier,
@@ -22,6 +23,7 @@ import {
   leaveEcho,
   loyaltyFloor,
   mutinyHosts,
+  opinion,
   ourHosts,
   reinforceHosts,
   seizeTreasury,
@@ -57,6 +59,7 @@ import type { StoryTemplate } from '../../systems/story/types';
  */
 export const sixtyFiveCitadels: StoryTemplate = {
   id: 'sixty-five-citadels',
+  record: 'chinh-su',
   regard: (ctx) => {
     if (ctx.recall('refused') === 1) return 'alone';
     if (ctx.recall('named') === 1) return 'named';
@@ -185,6 +188,7 @@ export const sixtyFiveCitadels: StoryTemplate = {
  */
 export const rideTheWind: StoryTemplate = {
   id: 'ride-the-wind',
+  record: 'chinh-su',
   seedWeight: 3,
   minTurn: 10,
   regard: (ctx) => {
@@ -321,6 +325,7 @@ export const rideTheWind: StoryTemplate = {
  */
 export const theSubstitution: StoryTemplate = {
   id: 'substitution',
+  record: 'chinh-su',
   regard: (ctx) => {
     if (ctx.recall('substituted') === 1) return 'remembered';
     if (ctx.recall('refusedToChoose') === 1) return 'unasked';
@@ -426,6 +431,7 @@ export const theSubstitution: StoryTemplate = {
  */
 export const borrowedSword: StoryTemplate = {
   id: 'borrowed-sword',
+  record: 'da-su',
   regard: (ctx) => {
     if (ctx.recall('kept') === 1) return 'kept';
     if (ctx.recall('returned') === 1) return 'lightened';
@@ -504,6 +510,9 @@ export const borrowedSword: StoryTemplate = {
           id: 'it-is-mine',
           apply: (ctx) => {
             ctx.remember('kept', 1);
+            // R3. You bled for it and you keep it — blade and edge both. What was lent is taken
+            // back later; that beat already exists and does the taking.
+            grantEliteTier(ctx);
             ctx.heat(5);
           },
         },
@@ -570,6 +579,7 @@ export const borrowedSword: StoryTemplate = {
  */
 export const slanderedGeneral: StoryTemplate = {
   id: 'slandered',
+  record: 'chinh-su',
   seedWeight: 2,
   minTurn: 22,
   regard: (ctx) => {
@@ -719,6 +729,7 @@ export const slanderedGeneral: StoryTemplate = {
  */
 export const trustedSubordinate: StoryTemplate = {
   id: 'trusted',
+  record: 'chinh-su',
   seedWeight: 2,
   minTurn: 30,
   regard: (ctx) => {
@@ -831,6 +842,7 @@ export const trustedSubordinate: StoryTemplate = {
  */
 export const chamEngineer: StoryTemplate = {
   id: 'cham-engineer',
+  record: 'ngoai-truyen',
   regard: (ctx) => (ctx.recall('freed') === 1 ? 'gone' : 'drawing'),
   seedWeight: 3,
   minTurn: 16,
@@ -856,6 +868,10 @@ export const chamEngineer: StoryTemplate = {
           apply: (ctx) => {
             ctx.remember('freed', 1);
             ctx.remember('echoTurn', ctx.state.turn);
+            // He is given materials and he uses them the same week. Cost-only before this.
+            freeBuilding(ctx, 'workshop');
+            const engineer = ctx.hero();
+            if (engineer) temper(ctx, 'administration', 4, engineer);
           },
         },
       ],
@@ -925,6 +941,7 @@ export const chamEngineer: StoryTemplate = {
  */
 export const theAssembly: StoryTemplate = {
   id: 'assembly',
+  record: 'chinh-su',
   seedWeight: 2,
   minTurn: 34,
   seed: (state) => {
@@ -974,6 +991,8 @@ export const theAssembly: StoryTemplate = {
           id: 'let-them-vote',
           apply: (ctx) => {
             ctx.remember('allowed', 1);
+            // R3. The bribe money stays in the treasury. The vote goes however the vote goes.
+            windfall(ctx, { gold: 180 });
             ctx.heat(4);
           },
         },
@@ -1026,6 +1045,7 @@ export const theAssembly: StoryTemplate = {
  */
 export const riceRiot: StoryTemplate = {
   id: 'rice-riot',
+  record: 'chinh-su',
   seedWeight: 2,
   minTurn: 28,
   seed: (state) => {
@@ -1086,6 +1106,9 @@ export const riceRiot: StoryTemplate = {
           id: 'they-will-tire-of-it',
           apply: (ctx) => {
             ctx.remember('ignored', 1);
+            // R3. Hunger sends people home, they say. The stores stay shut and full, and that
+            // is the whole of what this buys.
+            windfall(ctx, { food: 200 });
             ctx.heat(5);
           },
         },
@@ -1138,6 +1161,7 @@ export const riceRiot: StoryTemplate = {
  */
 export const noHeir: StoryTemplate = {
   id: 'no-heir',
+  record: 'chinh-su',
   regard: (ctx) => {
     if (ctx.recall('backed') === 1) return 'yours';
     if (ctx.recall('opportunist') === 1) return 'wary';
@@ -1166,6 +1190,9 @@ export const noHeir: StoryTemplate = {
           apply: (ctx) => {
             ctx.remember('backed', 1);
             ctx.remember('echoTurn', ctx.state.turn);
+            // Two hundred and forty gold went out and the card said nothing back. The house you
+            // backed knows who backed it, from the day the money arrives.
+            opinion(ctx, 18);
           },
         },
       ],
@@ -1181,7 +1208,8 @@ export const noHeir: StoryTemplate = {
       options: [
         {
           id: 'wait',
-          apply: (ctx) => { ctx.remember('waited', 1); },
+          // R4. Their business, their turn — and nobody is looking at you while it lasts.
+          apply: (ctx) => { ctx.remember('waited', 1); shiftWaveClock(ctx, 2); },
         },
         {
           id: 'take-the-border-while-they-argue',
@@ -1240,6 +1268,7 @@ export const noHeir: StoryTemplate = {
  */
 export const eatTogether: StoryTemplate = {
   id: 'eat-together',
+  record: 'chinh-su',
   regard: (ctx) => {
     if (ctx.said('one-of-them-is-gone')) return 'alone';
     if (ctx.recall('seasonsTogether') >= 4) return 'inseparable';
@@ -1336,6 +1365,7 @@ export const eatTogether: StoryTemplate = {
  */
 export const unpaidHost: StoryTemplate = {
   id: 'unpaid',
+  record: 'ngoai-truyen',
   regard: (ctx) => (ctx.recall('paid') === 1 ? 'squared' : 'patient'),
   seedWeight: 3,
   minTurn: 18,

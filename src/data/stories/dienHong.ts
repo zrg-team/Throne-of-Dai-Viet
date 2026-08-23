@@ -32,6 +32,7 @@ function realmResolve(state: GameState): number {
 
 export const dienHong: StoryTemplate = {
   id: 'dien-hong',
+  record: 'chinh-su',
   seedWeight: 2,
   minTurn: 22,
   seed: (state) => {
@@ -71,6 +72,14 @@ export const dienHong: StoryTemplate = {
           apply: (ctx) => {
             ctx.remember('convened', 1);
             ctx.remember('resolve', Math.round(realmResolve(ctx.state) * 100));
+            // R1, and it was backwards before: the *historical* answer did nothing while
+            // deciding alone moved stability, so putting the question to the elders read as the
+            // inert option. The realm was asked, and a realm notices being asked.
+            for (const land of playerLands(ctx.state)) {
+              land.loyalty = Math.min(100, land.loyalty + 8);
+            }
+            ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 6);
+            ctx.note('stability', 6);
           },
         },
         {

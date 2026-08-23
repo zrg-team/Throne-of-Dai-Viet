@@ -58,6 +58,7 @@ import type { StoryTemplate } from '../../systems/story/types';
  */
 export const fiveDays: StoryTemplate = {
   id: 'five-days',
+  record: 'chinh-su',
   regard: (ctx) => {
     if (ctx.recall('marching') === 1) return 'sworn';
     if (ctx.recall('waited') === 1) return 'rested';
@@ -116,6 +117,9 @@ export const fiveDays: StoryTemplate = {
           id: 'after-the-festival',
           apply: (ctx) => {
             ctx.remember('waited', 1);
+            // R4. The men keep the festival, and the march is a season later than it was.
+            for (const host of ourHosts(ctx)) host.morale = Math.min(100, host.morale + 10);
+            shiftWaveClock(ctx, -1);
             ctx.heat(-4);
           },
         },
@@ -188,6 +192,7 @@ export const fiveDays: StoryTemplate = {
  */
 export const ghostInTheSouth: StoryTemplate = {
   id: 'ghost-south',
+  record: 'chinh-su',
   regard: (ctx) => {
     if (ctx.recall('left') === 1) return 'gone';
     if (ctx.recall('rescued') === 1) return 'rescued';
@@ -275,7 +280,8 @@ export const ghostInTheSouth: StoryTemplate = {
         },
         {
           id: 'leave-him',
-          apply: (ctx) => { ctx.remember('left', 1); },
+          // R1. He knows why. So does every other man who holds a command under you.
+          apply: (ctx) => { ctx.remember('left', 1); loyaltyFloor(ctx, 60); },
         },
       ],
     },
@@ -325,6 +331,7 @@ export const ghostInTheSouth: StoryTemplate = {
  */
 export const withoutSlaughter: StoryTemplate = {
   id: 'without-slaughter',
+  record: 'chinh-su',
   regard: (ctx) => {
     if (ctx.recall('spared') === 1) return 'right';
     if (ctx.recall('stormed') === 1) return 'silent';
@@ -446,6 +453,7 @@ export const withoutSlaughter: StoryTemplate = {
  */
 export const theDelayer: StoryTemplate = {
   id: 'delayer',
+  record: 'chinh-su',
   regard: (ctx) => {
     if (ctx.said('the-delayer-was-right')) return 'vindicated';
     if (ctx.recall('gaveBattle') === 1) return 'overruled';
@@ -475,6 +483,8 @@ export const theDelayer: StoryTemplate = {
           apply: (ctx) => {
             ctx.remember('delaying', 1);
             ctx.remember('echoTurn', ctx.state.turn);
+            // R4. Follow, hold the high ground, wait. Following them costs them, every day.
+            disperseIncoming(ctx, 0.10);
           },
         },
         {
@@ -551,6 +561,7 @@ export const theDelayer: StoryTemplate = {
  */
 export const theSickness: StoryTemplate = {
   id: 'sickness',
+  record: 'ngoai-truyen',
   seedWeight: 2,
   minTurn: 22,
   seed: (state) => {
@@ -605,6 +616,12 @@ export const theSickness: StoryTemplate = {
           cost: { gold: 200, supplies: 80 },
           apply: (ctx) => {
             ctx.remember('treated', 1);
+            // Two hundred gold and eighty of stores, and the card said nothing back. The
+            // province can see the physicians arrive.
+            const treated = ctx.land();
+            if (treated) treated.loyalty = Math.min(100, treated.loyalty + 10);
+            ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 5);
+            ctx.note('stability', 5);
             ctx.heat(-6);
           },
         },
@@ -612,6 +629,8 @@ export const theSickness: StoryTemplate = {
           id: 'it-will-burn-itself-out',
           apply: (ctx) => {
             ctx.remember('ignored', 1);
+            // R3. Every plague ends, and nothing was spent on this one.
+            windfall(ctx, { gold: 120, supplies: 60 });
             ctx.heat(4);
           },
         },
@@ -661,6 +680,7 @@ export const theSickness: StoryTemplate = {
  */
 export const mountainAndWater: StoryTemplate = {
   id: 'mountain-water',
+  record: 'da-su',
   seedWeight: 3,
   minTurn: 12,
   seed: (state) => {
@@ -751,112 +771,6 @@ export const mountainAndWater: StoryTemplate = {
 
 // ── Thánh Gióng ─────────────────────────────────────────────────────────────
 
-/**
- * Thánh Gióng — The Boy Who Would Not Speak.
- *
- * He said nothing for three years, then asked for an iron horse and grew until his armour split.
- *
- * The one wholly mythic story in the set, and the only one that hands over a hero who cannot be
- * drafted at all. Its ending is deliberately not a reward you keep: he rides up the mountain and
- * does not come back, and what he leaves behind is a rule rather than a person.
- */
-export const thanhGiong: StoryTemplate = {
-  id: 'thanh-giong',
-  regard: (ctx) => {
-    if (ctx.recall('refused') === 1) return 'unanswered';
-    if (ctx.recall('grown') >= 1) return 'rising';
-    if (ctx.recall('forged') === 1) return 'fed';
-    return undefined;
-  },
-  seedWeight: 2,
-  minTurn: 24,
-  seed: (state) => {
-    const ascent = state.ascent;
-    if (!ascent || ascent.threat <= ascent.defensePower * 1.1) return undefined;
-    const village = pick(playerLands(state).filter((land) => land.hasVillage));
-    return village ? { landId: village.id } : undefined;
-  },
-
-  fragments: [
-    {
-      id: 'a-child-who-has-never-spoken',
-      volume: 'whisper',
-      weight: 5,
-      quiet: 2,
-      salience: (ctx) => (ctx.age >= 2 ? 5 : -20),
-    },
-    {
-      id: 'he-asked-for-an-iron-horse',
-      volume: 'card',
-      band: 'shrine',
-      weight: 7,
-      quiet: 4,
-      when: (ctx) => ctx.said('a-child-who-has-never-spoken'),
-      salience: () => 8,
-      options: [
-        {
-          id: 'make-it',
-          cost: { supplies: 220, gold: 180 },
-          apply: (ctx) => {
-            ctx.remember('forged', 1);
-            ctx.remember('echoTurn', ctx.state.turn);
-          },
-        },
-        {
-          id: 'a-child-is-a-child',
-          apply: (ctx) => { ctx.remember('refused', 1); },
-        },
-      ],
-    },
-    {
-      id: 'he-eats-everything-the-village-has',
-      volume: 'whisper',
-      weight: 5,
-      quiet: 3,
-      when: (ctx) => ctx.recall('forged') === 1 && ctx.recall('grown') < 2,
-      effect: (ctx) => {
-        ctx.bump('grown');
-        windfall(ctx, { food: -60 });
-      },
-    },
-    {
-      id: 'his-armour-splits',
-      volume: 'whisper',
-      weight: 5,
-      quiet: 3,
-      tone: 'reward',
-      when: (ctx) => ctx.recall('grown') >= 1,
-      effect: (ctx) => { ctx.bump('grown'); },
-    },
-    {
-      id: 'he-rides',
-      volume: 'blow',
-      band: 'fire',
-      weight: 9,
-      terminal: true,
-      tone: 'reward',
-      when: (ctx) => ctx.recall('grown') >= 2,
-      salience: () => 12,
-      effect: (ctx) => {
-        const scattered = disperseIncoming(ctx, 0.9);
-        // He does not come back, and what is left is a rule rather than a man.
-        grantPowerCard(ctx, 'village-muster');
-        tiltDraft(ctx, 'gold', 0.4);
-        loyaltyFloor(ctx, 78);
-        announce(ctx, storyText('thanh-giong.he-rides.toast', { count: scattered }), 'reward');
-      },
-    },
-    {
-      id: 'the-village-forgets-him',
-      volume: 'whisper',
-      weight: 3,
-      terminal: true,
-      tone: 'info',
-      when: (ctx) => ctx.recall('refused') === 1,
-      quiet: 6,
-    },
-  ],
-};
 
 // ── The salt road ───────────────────────────────────────────────────────────
 
@@ -868,6 +782,7 @@ export const thanhGiong: StoryTemplate = {
  */
 export const saltRoad: StoryTemplate = {
   id: 'salt-road',
+  record: 'ngoai-truyen',
   seedWeight: 3,
   minTurn: 14,
   seed: (state) => {
@@ -1001,6 +916,7 @@ function launchHostFromCamp(ctx: Parameters<NonNullable<StoryTemplate['fragments
  */
 export const thirteenthWarlord: StoryTemplate = {
   id: 'thirteenth',
+  record: 'ngoai-truyen',
   seedWeight: 2,
   minTurn: 40,
   seed: (state) => {
