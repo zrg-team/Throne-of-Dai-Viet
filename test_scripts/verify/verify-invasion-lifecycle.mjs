@@ -212,14 +212,23 @@ const settle = async (budget = 9000) => {
   }
 };
 
-/** Waits until the full-screen dismiss zone has actually been made interactive. */
+/**
+ * Waits until the banner has armed its dismissal.
+ *
+ * It listens on the scene's pointer rather than owning an interactive object, so what is waited on
+ * is the listener count rising above whatever the scene already had. The earlier version laid a
+ * full-screen interactive `Zone` over everything, which dismissed from anywhere and also swallowed
+ * every control underneath it — see the map-control check below.
+ */
 const zoneArmed = async () => {
+  const base = await page.evaluate(
+    () => window.__phaserGame.scene.getScene('ConquestUIScene').input.listenerCount('pointerup'),
+  );
   try {
-    await page.waitForFunction(() => {
-      const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
-      const root = ui.children.list.find((o) => o.depth === 470 && o.type === 'Container');
-      return Boolean(root?.list?.find((o) => o.type === 'Zone')?.input);
-    }, null, { timeout: 6000 });
+    await page.waitForFunction(
+      (was) => window.__phaserGame.scene.getScene('ConquestUIScene').input.listenerCount('pointerup') > was,
+      base, { timeout: 6000 },
+    );
     return true;
   } catch {
     return false;
@@ -230,6 +239,7 @@ const rendered = {
   raised: await raise(1), midFall: false, settled: false,
   reRaised: false, armed: false, byTap: false, tapMs: -1, mapFree: null, pageHeld: false,
   pausedForResult: false, clockReleased: false, pausedForLanding: null,
+  controlFound: false, controlLive: false,
 };
 
 // Start the exit by hand and watch it fall. Still up a fifth of a second in, gone within a second:
@@ -283,6 +293,35 @@ rendered.byTap = tapped.gone && tapped.ms < 2500;
 const paused = () => page.evaluate(
   () => window.__phaserGame.scene.getScene('ConquestScene').state.isStrategyPause === true,
 );
+
+// **The map controls must keep working while a banner stands over them.**
+//
+// This is the regression the scene-level listener exists to prevent. A full-screen interactive
+// zone at depth 470 outranks the map controls at 430, so Phaser delivered every pointer to the
+// banner and none to the buttons: the zoom pair and the terrain/control toggle were visible,
+// pressable and inert for the banner's whole life — nine seconds, once a result began holding the
+// world. Driven through the button's real coordinates, read off the display list.
+await raise(5);
+await zoneArmed();
+const control = await page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  const c = ui.mapControlObjects[ui.mapControlObjects.length - 1];
+  return c ? { x: c.x, y: c.y } : null;
+});
+rendered.controlFound = Boolean(control);
+if (control) {
+  const was = await page.evaluate(
+    () => window.__phaserGame.scene.getScene('ConquestScene').state.mapRenderMode,
+  );
+  await page.mouse.click(control.x, control.y);
+  await page.waitForTimeout(500);
+  rendered.controlLive = await page.evaluate(
+    (before) => window.__phaserGame.scene.getScene('ConquestScene').state.mapRenderMode !== before,
+    was,
+  );
+}
+await page.evaluate(() => window.__phaserGame.scene.getScene('ConquestUIScene').waveBanner?.skip());
+await settle();
 
 await raise(3);
 rendered.pausedForResult = await paused();
@@ -416,11 +455,13 @@ if (!rendered.pageHeld) {
   check('and it does finish', rendered.settled);
   check('the dismiss zone arms itself', rendered.reRaised && rendered.armed);
   check('a tap anywhere dismisses it', rendered.byTap === true,
-    `gone ${rendered.tapMs}ms after the tap; an untouched banner stands ~7600ms`);
+    `gone ${rendered.tapMs}ms after the tap; an untouched banner stands ~9400ms`);
   check('dismissing never blocks the map', rendered.mapFree === true);
   check('a result stops the world', rendered.pausedForResult === true);
   check('and the clock starts again when it leaves', rendered.clockReleased === true);
   check('a landing does not stop the world', rendered.pausedForLanding === false);
+  check('the map controls still work under a banner', rendered.controlFound && rendered.controlLive,
+    rendered.controlFound ? '' : 'no map control found to press');
 }
 
 // A reload tears down the page mid-probe, and the resulting "cannot read properties of undefined"
