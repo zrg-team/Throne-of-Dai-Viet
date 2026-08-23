@@ -36,7 +36,7 @@ await page.waitForFunction(
   null, { timeout: 20000 });
 await page.waitForTimeout(1200);
 
-const layout = await page.evaluate(() => {
+const layout = await page.evaluate(async () => {
   const game = window.__phaserGame;
   const ui = game.scene.getScene('ConquestUIScene');
   const design = game.scale.gameSize.height;
@@ -63,16 +63,15 @@ const layout = await page.evaluate(() => {
   // What the fight says should be on offer, so the count is a statement about the dock rather than
   // about this particular arena host's doctrine.
   const battle = window.__mandateState.ascent.activeBattle;
-  const gone = Object.entries(ui.ourFormationStates(battle))
-    .filter(([, v]) => v === 'gone').map(([k]) => k);
-  const stancesRefused = ['withdraw', 'defend', 'balanced', 'press']
-    .filter((st) => st !== (battle.stancePending ?? battle.stance)
-      && (battle.stanceLockBeats ?? 0) > 0 && st !== 'defend' && st !== 'withdraw').length;
+  const B = await import('/src/systems/ascent/BattleSystem.ts');
+  const wind = B.battleWindView(battle);
+  const winded = Object.entries(wind.takeable).filter(([, ok]) => !ok).map(([k]) => k);
+  // Since the lock's retirement every stance answers on every beat — four targets, always.
 
   return {
     design,
-    goneShapes: gone,
-    expectedTargets: (4 - stancesRefused) + (5 - gone.length),
+    windedShapes: winded,
+    expectedTargets: 4 + (5 - winded.length),
     fieldHeight: ui.battleUi.fieldHeight,
     dock: targets(ui.battleUi.orders, 'dock'),
     exits: targets(ui.battleUi.exits, 'exit'),
@@ -109,7 +108,7 @@ check(layout.design <= 640, 'measured on a short phone', `design height ${layout
 check(layout.dock.length === layout.expectedTargets,
   'every stance and shape that is offered is tappable',
   `${layout.dock.length} targets, expected ${layout.expectedTargets}`
-  + (layout.goneShapes.length ? ` (${layout.goneShapes.join(',')} spent)` : ''));
+  + (layout.windedShapes.length ? ` (${layout.windedShapes.join(',')} winded)` : ''));
 check(layout.exits.length === 2, 'two exits, and they are not on the dock', `${layout.exits.length} chips`);
 
 // The formation strip is the bottom band and the largest thing on it.

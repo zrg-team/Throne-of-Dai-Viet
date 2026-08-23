@@ -59,34 +59,33 @@ const dials = await page.evaluate(async () => {
   const out = {};
 
   // ── the slow dial: slow to order, instant to complete ──────────────────────
+  // Steer both dials so the host's own commander leaves the probe's writes alone.
+  b().steeredStance = true;
+  b().steeredFormation = true;
   b().stance = 'balanced';
-  b().stanceLockBeats = 0;
   b().stancePending = undefined;
   const ordered = B.setBattleStance(st, 'press');
   out.landsNextBeat = { ordered, stanceNow: b().stance, pending: b().stancePending ?? null };
   step(1);
-  out.landed = { stance: b().stance, lock: b().stanceLockBeats };
+  out.landed = { stance: b().stance };
 
-  out.lockedRefusals = ['press', 'balanced', 'defend', 'withdraw']
-    .map((s) => [s, B.stanceIsLocked(b(), s)]);
-  out.refusedWhileLocked = B.setBattleStance(st, 'balanced');
-  out.brakeWhileLocked = B.setBattleStance(st, 'defend');
-
-  // How long the lock actually holds, counted from a fresh one.
-  b().stance = 'press';
-  b().stancePending = undefined;
-  b().stanceLockBeats = 4;
-  let held = 0;
-  while (B.stanceIsLocked(b(), 'balanced') && held < 12) { step(1); held += 1; }
-  out.lockHeldBeats = held;
-  out.overAfterLock = b().over;
+  // The lock is retired: every stance must answer on every beat, in any order, forever. Cycle the
+  // full dial back-to-back — a single refusal here is the old cage growing back.
+  const cycle = ['balanced', 'defend', 'press', 'withdraw', 'defend', 'press'];
+  out.stanceCycle = cycle.map((sName) => {
+    const took = B.setBattleStance(st, sName);
+    step(1);
+    return { s: sName, took, now: b().stance };
+  });
 
   // ── the fast dial: instant to order, slow to complete ──────────────────────
   b().stancePending = undefined;
-  b().stanceLockBeats = 0;
+  b().stance = 'balanced';
   b().ourFormation = 'chong';
   b().formationTarget = undefined;
   b().reformBeats = 0;
+  b().ourWind = {};
+  b().theirWind = {};
   const window0 = B.reformBeatsFor(st, b());
   const gave = B.setBattleFormation(st, 'quy');
   out.ordered = { gave, target: b().formationTarget ?? null, beats: b().reformBeats, shapeNow: b().ourFormation };
@@ -102,12 +101,13 @@ const dials = await page.evaluate(async () => {
   out.transit = transit;
   out.window = window0;
 
-  // The re-form window by tier, with and without a commander.
+  // The walk is one flat beat for every host — tier and commander no longer touch it. Sweep the
+  // hosts through every tier/led pairing and the window must not move.
   const hosts = () => st.armies.filter((a) => (b().ourArmyIds ?? []).includes(a.id));
   const savedElite = hosts().map((h) => h.elite);
   const savedGeneral = hosts().map((h) => h.generalHeroId);
   const savedMorale = b().ourMorale;
-  b().ourMorale = 80; // above the rout line, so the punishment window is not what is measured
+  b().ourMorale = 80; // above the rout line, so the stumble is not what is measured
   const byTier = [];
   for (const tier of [0, 1, 2]) {
     for (const led of [false, true]) {
@@ -121,20 +121,48 @@ const dials = await page.evaluate(async () => {
   hosts().forEach((h, i) => { h.elite = savedElite[i]; h.generalHeroId = savedGeneral[i]; });
   out.byTier = byTier;
 
-  // ...and the punishment window, for a host whose heart has already gone.
+  // ...and the stumble, for a host whose heart has already gone.
   b().ourMorale = 5;
   out.brokenWindow = B.reformBeatsFor(st, b());
   b().ourMorale = savedMorale;
 
-  // A shape whose block is spent is refused outright; the tortoise never is.
-  // `ourMustered`, not `ourStart`: the reserve is standing at camp, and counting it as dead
-  // reads a fresh host as having already lost its whole screen block.
-  const states = B.sideFormations(hosts(), B.ourMustered(b()));
-  out.states = states;
-  const deadShape = Object.entries(states).find(([, v]) => v === 'gone')?.[0] ?? null;
-  out.deadShape = deadShape;
-  out.deadRefused = deadShape ? B.setBattleFormation(st, deadShape) : null;
-  out.floorOffered = B.canFormFormation(st, 'quy');
+  // ── the wind ───────────────────────────────────────────────────────────────
+  // The landing above walked chong→quy, so chong must now be winded — stamped at LANDING, at
+  // full BATTLE_FORMATION_WIND less the recovery ticks the walk itself paid. Pin the enemy's walk
+  // first: the match exception tracks their target, and these probes must not race their AI.
+  b().theirFormationTarget = undefined;
+  b().theirReformBeats = 0;
+  const wind = () => B.battleWindView(b());
+  out.afterLanding = { held: b().ourFormation, chongWind: wind().ours.chong };
+  out.windedRefused = wind().ours.chong > 0 && b().theirFormation !== 'chong'
+    ? B.setBattleFormation(st, 'chong') : null;
+
+  // Recovery rides the stance: frozen under press, double under defend.
+  b().ourWind = { chong: 3 };
+  b().stance = 'press';
+  b().stancePending = undefined;
+  step(1);
+  out.pressRecovery = wind().ours.chong;
+  b().stance = 'defend';
+  step(1);
+  out.defendRecovery = wind().ours.chong;
+
+  // The match is never refused: wind the enemy's own shape to the sky and it must still answer.
+  b().theirFormationTarget = undefined;
+  b().theirReformBeats = 0;
+  b().ourWind = { [b().theirFormation]: 9 };
+  out.matchOffered = B.canFormFormation(st, b().theirFormation);
+
+  // Aborting a walk back to the shape still being stood in is legal, wind or no wind.
+  b().ourWind = {};
+  b().formationTarget = undefined;
+  b().reformBeats = 0;
+  const from = b().ourFormation;
+  const away = ['chong', 'xung', 'tan', 'quy', 'no'].find((f) => f !== from && f !== b().theirFormation);
+  B.setBattleFormation(st, away);
+  out.abort = { from, walkingTo: b().formationTarget, took: B.setBattleFormation(st, from) };
+  step(2);
+  out.abortLanded = { held: b().ourFormation, fromWind: wind().ours[from] ?? 0 };
   return out;
 });
 
@@ -162,17 +190,13 @@ const p = dials;
 check(p.landsNextBeat.ordered && p.landsNextBeat.stanceNow === 'balanced' && p.landsNextBeat.pending === 'press',
   'a stance is ordered now and lands next beat',
   `now ${p.landsNextBeat.stanceNow}, pending ${p.landsNextBeat.pending}`);
-check(p.landed.stance === 'press' && p.landed.lock === 4,
-  'it lands on the next beat and arms a four-beat lock',
-  `${p.landed.stance}, lock ${p.landed.lock}`);
+check(p.landed.stance === 'press',
+  'it lands on the next beat, and arms nothing — the lock is retired',
+  p.landed.stance);
 
-const refusals = Object.fromEntries(p.lockedRefusals);
-check(refusals.press && refusals.balanced && !refusals.defend && !refusals.withdraw,
-  'the lock refuses press and balanced, never the brake',
-  p.lockedRefusals.map(([s, v]) => `${s}:${v ? 'locked' : 'free'}`).join(' '));
-check(p.refusedWhileLocked === false, 'a locked stance change is actually refused');
-check(p.brakeWhileLocked === true, 'Cố thủ answers even while the line is committed');
-check(p.lockHeldBeats === 4, 'the lock holds exactly four beats', `${p.lockHeldBeats} beats`);
+check(p.stanceCycle.every((r) => r.took && r.now === r.s),
+  'no stance is ever refused, on any beat, in any order',
+  p.stanceCycle.map((r) => `${r.s}:${r.took ? r.now : 'REFUSED'}`).join(' '));
 
 check(p.ordered.gave && p.ordered.shapeNow === 'chong' && p.ordered.target === 'quy',
   'a shape is ordered instantly and the host is still in the old one',
@@ -184,18 +208,27 @@ check(paid.length === p.window && paid.every((s) => s.shape === 'chong' && s.wal
   'the transit is paid in full before the new shape lands',
   `${p.window}-beat window · ` + p.transit.map((s) => `${s.shape}→${s.after}`).join(' '));
 
-check(p.byTier.every((r) => r.beats >= 1 && r.beats <= 2),
-  'a sound host re-forms in one or two beats, never three',
+check(p.byTier.every((r) => r.beats === 1),
+  'the walk is one flat beat for every host — tier and commander no longer touch it',
   p.byTier.map((r) => `t${r.tier}${r.led ? '+gen' : ''}:${r.beats}`).join(' '));
-const t = Object.fromEntries(p.byTier.map((r) => [`${r.tier}${r.led ? 'L' : ''}`, r.beats]));
-check(t['2'] <= t['0'] && t['0L'] <= t['0'],
-  'quality and a commander are both reaction time',
-  `levy ${t['0']} · levy+gen ${t['0L']} · guard ${t['2']}`);
-check(p.brokenWindow === 3, 'a host below the rout line takes three beats', `${p.brokenWindow} beats`);
+check(p.brokenWindow === 2, 'a host below the rout line stumbles for two', `${p.brokenWindow} beats`);
 
-check(p.deadShape === null || p.deadRefused === false,
-  'a shape whose block is spent is refused', p.deadShape ? `${p.deadShape} refused` : 'none spent yet');
-check(p.floorOffered === true, 'Thế Quy is always on offer');
+check(p.afterLanding.held === 'quy' && p.afterLanding.chongWind > 0,
+  'the shape left behind is winded at landing, not at order time',
+  `holding ${p.afterLanding.held}, chong wind ${p.afterLanding.chongWind}`);
+check(p.windedRefused !== true,
+  'a winded shape refuses the order', p.windedRefused === null ? 'match exempted it' : 'refused');
+check(p.pressRecovery === 3 && p.defendRecovery === 1,
+  'recovery rides the stance — frozen under press, double under defend',
+  `press kept ${p.pressRecovery}, defend took it to ${p.defendRecovery}`);
+check(p.matchOffered === true,
+  'the enemy\'s own shape is never refused, whatever its wind — the floor of the fight');
+check(p.abort.took === true && p.abortLanded.held === p.abort.from,
+  'a walk can be aborted back to the shape still being stood in',
+  `walking to ${p.abort.walkingTo}, abort ${p.abort.took ? 'accepted' : 'REFUSED'}, holding ${p.abortLanded.held}`);
+check(p.abortLanded.fromWind === 0,
+  'and the abort winds nothing — the men never left',
+  `wind ${p.abortLanded.fromWind}`);
 
 check(wire.promises.length > 0, 'the telegraph was read at least once', `${wire.promises.length} promises`);
 check(wire.broken.length === 0, 'the telegraph is always what actually happens',

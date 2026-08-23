@@ -804,29 +804,22 @@ export const BATTLE_BREAK_SHARE = 0.35;
  *
  * `withdraw` is the cold end rather than a button. Disengaging is something you survive — the line
  * still trades while it walks backwards, badly, for `BATTLE_WITHDRAW_BEATS`.
+ *
+ * `defend` deals 0.50 against 0.55 taken — a losing exchange, **on purpose**. At the old 0.62 its
+ * ratio was favourable, and a bot that only ever mirrored the enemy's shape and sat in Cố thủ beat
+ * an army 10% larger without making a single real decision. Three fixes killed the cheap win:
+ * this number, the proportional exchange-winner morale gain (`wonExchange`), and every doctrine
+ * pressing a passive line at even shape. Measured after all three: the same turtle drags itself
+ * over a +25% fight only in ruin — two thirds of its men gone, rally spent — where active play
+ * wins the identical fight keeping 59%. Defending pays in wind recovery and halved counter-drip,
+ * never in the exchange; `verify-battle-wind.mjs` holds that margin forever.
  */
 export const BATTLE_STANCE_TRADE: Record<FieldStance, { dealt: number; taken: number }> = {
   withdraw: { dealt: 0.35, taken: 0.75 },
-  defend: { dealt: 0.62, taken: 0.55 },
+  defend: { dealt: 0.50, taken: 0.55 },
   balanced: { dealt: 1.00, taken: 1.00 },
   press: { dealt: 1.55, taken: 1.40 },
 };
-
-/**
- * Beats a stance holds you before it can be changed again.
- *
- * The single most load-bearing number on this screen, because it is what produces the *cadence*:
- * formation is meant to be worked three to five times an engagement and stance once or twice, and
- * a dial with no commitment cost would simply be worked as often as the other one.
- *
- * Four, measured against an eighteen-beat fight: it allows three changes and bites about once, so
- * it is felt without being resented. At three it is barely a constraint; at six you commit once and
- * then only watch.
- *
- * `defend` and `withdraw` ignore it — see `stanceIsLocked`. A game may take your good options away;
- * it may not take away the brake.
- */
-export const BATTLE_STANCE_LOCK_BEATS = 4;
 
 /** Beats spent disengaging once the stance is `withdraw`, before the host is clear away. */
 export const BATTLE_WITHDRAW_BEATS = 3;
@@ -835,16 +828,82 @@ export const BATTLE_WITHDRAW_BEATS = 3;
  * Which way the exchange leans when one shape answers another.
  *
  * Deliberately modest. At 0.28 the counter is worth roughly two and a half beats of exchange, so a
- * two-beat re-form window makes changing shape *marginally* correct — which is the knife-edge the
- * whole fight is balanced on. Move this and `BATTLE_REFORM_BEATS` together or not at all.
+ * one-beat walk plus a three-beat wind makes changing shape *marginally* correct — which is the
+ * knife-edge the whole fight is balanced on. Move this and `BATTLE_FORMATION_WIND` together or
+ * not at all.
  */
 export const BATTLE_FORMATION_TILT = 0.28;
 
 /** What a Moment's `sharpen` raises the tilt to, whichever way it is already pointing. */
 export const BATTLE_FORMATION_TILT_SHARP = 0.42;
 
-/** A shape whose block is spent still forms, but only half the counter is worth anything. */
+/**
+ * The soft counter's share of the full tilt.
+ *
+ * This constant used to be the `blunt` availability state's penalty. It survived the retirement of
+ * that whole mechanic (docs/18) because the number was right and the job got better: one step
+ * round the ring is now a *strong* counter at full tilt, two steps a *soft* counter at half — see
+ * `formationTier`. A gradient, not a lock: nothing is refused, one answer is simply better.
+ */
 export const BATTLE_FORMATION_TILT_BLUNT = 0.5;
+
+/**
+ * Beats a shape needs to get its breath back after the host walks out of it.
+ *
+ * The one restriction on the whole battle screen. It exists to stop the single best answer being
+ * pressed on cooldown forever, so the *second*-best shape becomes something a player learns —
+ * measured at wind 3 against an enemy rotating every 2–3 beats, greedy play lands on the soft
+ * answer about one change in five. The clock is stamped on the shape being LEFT, at landing, and
+ * ticks down at the stance's recovery rate below. The shape the enemy stands in never needs wind
+ * (the "match" floor), so a dead dock is impossible.
+ */
+export const BATTLE_FORMATION_WIND = 3;
+
+/**
+ * Wind recovered per beat, by stance — the rule that makes the two dials one loop.
+ *
+ * Pressing freezes the dock (men who are charging do not catch their breath), so aggression is
+ * paid in the answers you will want three beats from now, not in blood. Defending refills at
+ * double rate, which is what turns Cố thủ from "lose slower" into "buy your options back".
+ * Simulated at wind 3: a press-holder keeps their strong answer 48% of the time, defend 99%.
+ */
+export const BATTLE_STANCE_RECOVERY: Record<FieldStance, number> = {
+  withdraw: 2,
+  defend: 2,
+  balanced: 1,
+  press: 0,
+};
+
+/**
+ * Wind for a doctrine's signature shape — see `SIGNATURE_SHAPE`. One printed exception per army,
+ * in place of the four hidden ones the availability rule used to be.
+ */
+export const BATTLE_SIGNATURE_WIND = 2;
+
+/** The commander tempers, keyed from `KingdomPersonality` (+ the `isGreat` flag → cunning). */
+export type CommanderTemper = 'hasty' | 'measured' | 'stubborn' | 'cunning';
+
+/**
+ * What a temper changes: how long he waits before answering your shape, whether he rotates out of
+ * an even matchup on his own clock, and whether he presses a winning tilt.
+ *
+ * Two numbers and a habit, all built from dials the fight already had — which is what keeps every
+ * temper inside the telegraph's honesty contract. `hesitation` is added to the difficulty's
+ * reactDelay (floor 0). `restlessBeats` is how long he stands content at even shape before
+ * rotating anyway (0 = never; the hasty cannot sit still, which spends his own wind — outlast
+ * him and he runs dry first). `presses` gates the press stance on a winning tilt: the stubborn
+ * never gambles, which hands you long windows and dares you to overspend into them.
+ */
+export const BATTLE_TEMPER: Record<CommanderTemper, {
+  hesitation: number; restlessBeats: number; presses: boolean;
+}> = {
+  hasty: { hesitation: 0, restlessBeats: 4, presses: true },
+  measured: { hesitation: 1, restlessBeats: 0, presses: true },
+  stubborn: { hesitation: 2, restlessBeats: 0, presses: false },
+  // The graduation exam, reserved for great waves: quick, restless, and he reads your dock —
+  // see `advanceEnemyFormation`, which lets him rotate toward the answers you have winded.
+  cunning: { hesitation: 0, restlessBeats: 5, presses: true },
+};
 
 /**
  * What a host deals and takes while it is walking between shapes.
@@ -891,9 +950,12 @@ export const BATTLE_REFORM_BEATS = {
  * also the truer reading — a wedge stopped dead by levelled spears does not lose a careful
  * exchange, it recoils.
  *
- * Keyed off the **formation** tilt now, not the retired stance ring.
+ * 0.4 down from 0.7, and this is the full-tier rate: the drip scales with how badly a side is
+ * countered — `(|tier| / 2) × this`, so a soft counter drips half — and Cố thủ halves whatever
+ * lands. Flat 0.7 was closing close fights before the ring had time to be interesting; the cut
+ * plus the scaling is what lets a losing side dig in and actually ride a bad window out.
  */
-export const BATTLE_COUNTER_MORALE = 0.7;
+export const BATTLE_COUNTER_MORALE = 0.4;
 /**
  * How many economy ticks a Moment holds the fight open for.
  *

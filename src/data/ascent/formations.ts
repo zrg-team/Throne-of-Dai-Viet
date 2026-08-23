@@ -5,14 +5,14 @@
  * both sides of the game need it and only one of them may import a renderer:
  *
  *   - `ui/ink/devices.ts` draws the four blocks and needs the doctrine weights;
- *   - `systems/ascent/BattleSystem.ts` resolves the fight and needs the same weights to know
- *     whether a block is still standing — and `src/systems/` must never import Phaser, or every
- *     headless harness in the repo stops booting.
+ *   - `systems/ascent/BattleSystem.ts` resolves the fight and needs the ring — and `src/systems/`
+ *     must never import Phaser, or every headless harness in the repo stops booting.
  *
  * Duplicating the table in both places would have worked until the first time somebody changed one
  * of them, so the table lives here once and `devices.ts` imports it back.
  *
- * See `docs/14-five-shapes-two-dials.html`, which is the specification for the ring.
+ * See `docs/14-five-shapes-two-dials.html` for the ring, `docs/19-five-shapes-one-clock.html` for
+ * the wind clock that retiered it, and `formationsClassic.ts` for the retired availability rules.
  */
 import type { ArmyComposition } from '../../state/types';
 
@@ -38,9 +38,11 @@ export const FORMATION_ORDER: FormationKey[] = ['screen', 'line', 'bows', 'horse
  * The numbers are the ones drawn in `docs/12-armies-of-dai-viet.html`, which plates a 44-mark host
  * — so at 44 marks this table reproduces that page file for file.
  *
- * The zeroes are load-bearing twice over now. They were the doctrine's silhouette; they are also
- * **which shapes a host never had** — a `spears` army has no horse, so Thế Xung is not merely
- * unavailable to it once the wing is spent, it was never on the dock at all.
+ * The zeroes are the doctrine's silhouette. They used to be load-bearing twice over — which
+ * shapes a host could never form — until the availability rule was retired for the wind clock
+ * (docs/18, docs/19): every host has all five shapes now, and a `spears` army standing in Thế
+ * Xung simply draws a wedge whose point block has no marks in it. The picture, not the dock,
+ * carries what an army is.
  */
 export const DOCTRINE: Record<ArmyComposition, Record<FormationKey, { weight: number; aspect: number }>> = {
   balanced: {
@@ -88,8 +90,8 @@ function marksFor(men: number): number {
 /**
  * How a host's marks are divided between its four blocks, and where its casualties have landed.
  *
- * The single source of truth for both the picture and the fight. `armyShape` draws what this
- * returns; `formationAvailability` reads it to decide which shapes a host can still form.
+ * The single source of truth for the picture. `armyShape` draws what this returns; the fight
+ * stopped reading it when availability-by-blocks was retired (`formationsClassic.ts`, docs/18).
  *
  * Casualties are spent **in formation order** — the screen first, then the line, then the bows, and
  * the horse last. That is the whole reason an army is several blocks: a mixed block loses a mark at
@@ -190,15 +192,6 @@ export type BattleFormation = 'chong' | 'xung' | 'tan' | 'quy' | 'no';
  */
 export const FORMATION_RING: BattleFormation[] = ['chong', 'xung', 'tan', 'quy', 'no'];
 
-/** The block each shape is built around, and therefore the block whose loss takes it away. */
-export const BLOCK_OF: Record<BattleFormation, FormationKey> = {
-  chong: 'line',
-  xung: 'horse',
-  tan: 'screen',
-  quy: 'line',
-  no: 'bows',
-};
-
 /** How one shape re-states one block: where it stands, how wide, how loose. */
 export interface FormationTweak {
   /** Toward the enemy, in file pitches. */
@@ -296,31 +289,39 @@ export function formationTiltSign(ours: BattleFormation, theirs: BattleFormation
 }
 
 /**
- * Whether a host can still form each shape.
+ * How hard one shape answers another, as a signed tier: the ring with its distances kept.
  *
- * - `gone` — the block it stands on was never in this doctrine, or has been spent. The chip is
- *   faded and refuses the tap.
- * - `blunt` — the shape can be taken but only half the counter is worth anything.
- * - `ready` — as intended.
+ * `formationBeats` says every shape beats the two that follow it. This says the *near* one of the
+ * two is the real answer: one step clockwise is a **strong** counter (±2, full tilt), two steps a
+ * **soft** counter (±1, half tilt via `BATTLE_FORMATION_TILT_BLUNT`), the mirror is 0. Encoded so
+ * that magnitude is strength — `tilt = (tier / 2) × size` — and `tier(a, b) === -tier(b, a)` by
+ * construction.
  *
- * **Thế Chông and Thế Quy are always `ready`.** The document is explicit that the line is the last
- * thing to die, and a dock on which every chip is dead is a bug rather than a hard moment: the
- * tortoise is the floor of the fight and there has to be a floor.
- *
- * The narrowing that gives a long engagement its shape therefore comes from the other three — the
- * screen dies first and takes Thế Tán with it, the horse is spent last and takes Thế Xung, and the
- * bows blunt Thế Nỏ rather than removing it. Open with five shapes, finish with two.
+ * This gradient is what makes a wind clock bite at all: with both answers equal, denying a player
+ * one of them meant they shrugged and took the other, and the second-best shape was never learned.
  */
-export function formationAvailability(
-  composition: ArmyComposition, men: number, mustered?: number,
-): Record<BattleFormation, 'ready' | 'blunt' | 'gone'> {
-  const shares = blockShares(composition, men, mustered);
-  const spent = (key: FormationKey): boolean => shares[key].full <= 0 || shares[key].standing <= 0;
-  return {
-    chong: 'ready',
-    quy: 'ready',
-    xung: spent('horse') ? 'gone' : 'ready',
-    tan: spent('screen') ? 'gone' : 'ready',
-    no: spent('bows') ? 'blunt' : 'ready',
-  };
+export function formationTier(ours: BattleFormation, theirs: BattleFormation): number {
+  const step = (ringIndex(theirs) - ringIndex(ours) + FORMATION_RING.length) % FORMATION_RING.length;
+  if (step === 1) return 2;
+  if (step === 2) return 1;
+  if (step === 3) return -1;
+  if (step === 4) return -2;
+  return 0;
 }
+
+/**
+ * The one shape each doctrine keeps its breath for — wind 2 instead of 3 when it is left.
+ *
+ * The retired availability rule made doctrine decide what a host COULD form, invisibly and
+ * permanently; this is that identity bought back as a single printed number. Yours says what you
+ * can afford to lean on; the enemy's says what they will keep coming back to, which is one more
+ * thing to read before the lines meet. `balanced` deliberately has none — its identity is having
+ * no tell.
+ */
+export const SIGNATURE_SHAPE: Partial<Record<ArmyComposition, BattleFormation>> = {
+  spears: 'chong',
+  archers: 'no',
+  shock: 'xung',
+  horse: 'xung',
+};
+

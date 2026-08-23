@@ -19,12 +19,17 @@ export const BATTLE_SPEEDS: BattleSpeed[] = ['slow', 'normal', 'fast'];
 
 interface DifficultyProfile {
   /**
-   * Added to the beats the invader takes to walk into a counter. Positive is slower.
+   * Added to the beats the invader hesitates before ordering its answer. Positive is slower.
    *
    * This is the whole of the difficulty axis, and deliberately so: the fight is a race between the
    * player spotting a matchup and the enemy answering it, so *how long the answer takes* is the one
    * number that changes how hard it is to play without changing what the rules are. Nothing here
    * touches damage, morale or the odds — a harder enemy is a quicker one, not a stronger one.
+   *
+   * It used to lengthen their walk instead. Since the wind rework every walk is one flat beat and
+   * the delay moved to hesitation — beats they stand countered before ordering — which is worth
+   * strictly more to the player: a hesitating invader is being countered at full tilt, where a
+   * walking one had zeroed the tilt for both sides. See `advanceEnemyFormation`.
    */
   readonly reactDelay: number;
   /**
@@ -113,7 +118,7 @@ export function setBattleSpeed(value: BattleSpeed): void {
   } catch { /* as above */ }
 }
 
-/** Beats added to the invader's walk into a counter. See `DifficultyProfile.reactDelay`. */
+/** Beats of hesitation before the invader orders its answer. See `DifficultyProfile.reactDelay`. */
 export function battleReactDelay(): number {
   return DIFFICULTY[getBattleDifficulty()].reactDelay;
 }

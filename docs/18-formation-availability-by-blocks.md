@@ -1,6 +1,6 @@
 # Formation availability by blocks — the retired mechanic
 
-**Status: retired.** Replaced by per-shape cooldowns (see `docs/19-the-cooldown-dock.md`).
+**Status: retired.** Replaced by per-shape cooldowns — see the design doc **Five Shapes, One Clock**.
 Kept here in full so the rule, its tuning and its reasoning can be re-instated without archaeology.
 
 This is a verbatim record of how `formationAvailability` decided which of the five shapes a host

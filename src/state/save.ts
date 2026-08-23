@@ -133,11 +133,12 @@ function normalizeSnapshotState(state: GameState): GameState {
       fight.ourFormation ??= 'chong';
       fight.theirFormation ??= 'chong';
       fight.stancePending = undefined;
-      fight.stanceLockBeats = 0;
       fight.reformBeats = 0;
       fight.theirReformBeats = 0;
       fight.formationTarget = undefined;
       fight.theirFormationTarget = undefined;
+      fight.ourWind ??= {};
+      fight.theirWind ??= {};
     }
   }
   return clone;

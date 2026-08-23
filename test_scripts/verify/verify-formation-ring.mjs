@@ -58,25 +58,33 @@ const probe = await page.evaluate(async () => {
     for (const b of ring) signs[`${a}>${b}`] = F.formationTiltSign(a, b);
   }
 
-  // The five doctrines, and which shapes each can form at full strength.
+  // The retier: one step is the strong counter (±2), two steps the soft one (±1), antisymmetric.
+  const tiers = {};
+  for (const a of ring) {
+    for (const b of ring) tiers[`${a}>${b}`] = F.formationTier(a, b);
+  }
+
+  // The CLASSIC availability rules live on in the archive — probe them there, so the archive is
+  // proven to still answer, not merely to still compile. See formationsClassic.ts and docs/18.
+  const C = await import('/src/data/ascent/formationsClassic.ts');
   const doctrines = ['balanced', 'spears', 'archers', 'shock', 'horse'].map((d) => ({
-    d, states: F.formationAvailability(d, 2420, 2420),
+    d, states: C.classicFormationAvailability(d, 2420, 2420),
   }));
 
-  // Bleed a balanced host to nothing and record the order the shapes close.
+  // Bleed a balanced host to nothing and record the order the shapes closed, classically.
   const closedAt = {};
   for (let men = 2420; men >= 0; men -= 20) {
-    const states = F.formationAvailability('balanced', Math.max(1, men), 2420);
+    const states = C.classicFormationAvailability('balanced', Math.max(1, men), 2420);
     for (const shape of ring) {
       if (states[shape] !== 'ready' && closedAt[shape] === undefined) closedAt[shape] = men;
     }
   }
-  const floor = F.formationAvailability('balanced', 1, 2420);
+  const floor = C.classicFormationAvailability('balanced', 1, 2420);
 
-  return { ring, beats, losesTo, contradictions, mutuallyBlind, selfBeats, signs, doctrines, closedAt, floor };
+  return { ring, beats, losesTo, contradictions, mutuallyBlind, selfBeats, signs, tiers, doctrines, closedAt, floor };
 });
 
-const { ring, beats, losesTo, contradictions, mutuallyBlind, selfBeats, signs, doctrines, closedAt, floor } = probe;
+const { ring, beats, losesTo, contradictions, mutuallyBlind, selfBeats, signs, tiers, doctrines, closedAt, floor } = probe;
 
 check(ring.length === 5, 'the ring holds five shapes', ring.join(' · '));
 
@@ -105,23 +113,33 @@ const signsOk = DOC.every(([a, b]) => signs[`${a}>${b}`] === 1 && signs[`${b}>${
   && ring.every((a) => signs[`${a}>${a}`] === 0);
 check(signsOk, 'the tilt sign follows the ring, and is zero against a mirror');
 
-// Doctrines that have no horse never had the wedge; the one with no screen never had the skirmish.
+// The retier. One step round the ring is the strong answer, two the soft one, and the relation is
+// antisymmetric — tier(a,b) === -tier(b,a) — so no ordered pair can be strong both ways.
+const near = ring.every((a, i) => tiers[`${a}>${ring[(i + 1) % 5]}`] === 2);
+const far = ring.every((a, i) => tiers[`${a}>${ring[(i + 2) % 5]}`] === 1);
+const anti = ring.every((a) => ring.every((b) => tiers[`${a}>${b}`] === -tiers[`${b}>${a}`]));
+check(near, 'one step round the ring is the strong counter (+2)',
+  ring.map((a, i) => `${a}>${ring[(i + 1) % 5]}:${tiers[`${a}>${ring[(i + 1) % 5]}`]}`).join(' '));
+check(far, 'two steps is the soft counter (+1)');
+check(anti, 'the tier is antisymmetric — tier(a,b) === -tier(b,a)');
+
+// The ARCHIVE: doctrines with no horse never had the wedge, the one with no screen no skirmish.
 const spears = doctrines.find((d) => d.d === 'spears').states;
 const archers = doctrines.find((d) => d.d === 'archers').states;
 const shock = doctrines.find((d) => d.d === 'shock').states;
 check(spears.xung === 'gone' && archers.xung === 'gone',
-  'a doctrine with no horse never had Thế Xung', `spears:${spears.xung} archers:${archers.xung}`);
-check(shock.tan === 'gone', 'a doctrine with no screen never had Thế Tán', `shock:${shock.tan}`);
+  'classic archive: a doctrine with no horse never had Thế Xung', `spears:${spears.xung} archers:${archers.xung}`);
+check(shock.tan === 'gone', 'classic archive: a doctrine with no screen never had Thế Tán', `shock:${shock.tan}`);
 
 // The narrowing arc: the screen dies first and takes the skirmish with it.
 check(closedAt.tan !== undefined && (closedAt.xung === undefined || closedAt.tan > closedAt.xung),
-  'Thế Tán closes before Thế Xung — the screen dies before the horse',
+  'classic archive: Thế Tán closed before Thế Xung',
   `tan at ${closedAt.tan ?? 'never'} · xung at ${closedAt.xung ?? 'never'}`);
 
 check(closedAt.chong === undefined && closedAt.quy === undefined,
-  'Thế Chông and Thế Quy never close', `chong ${closedAt.chong ?? 'never'} · quy ${closedAt.quy ?? 'never'}`);
+  'classic archive: Thế Chông and Thế Quy never closed', `chong ${closedAt.chong ?? 'never'} · quy ${closedAt.quy ?? 'never'}`);
 
-check(floor.quy === 'ready', 'the tortoise is the floor — a dock is never entirely dead', `quy:${floor.quy}`);
+check(floor.quy === 'ready', 'classic archive: the tortoise was the floor', `quy:${floor.quy}`);
 
 check(errors.length === 0, 'no console errors', errors.slice(0, 2).join(' | '));
 
