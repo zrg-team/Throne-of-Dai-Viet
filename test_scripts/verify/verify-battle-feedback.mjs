@@ -297,7 +297,7 @@ const fit = await page.evaluate(() => {
     exitCount: exits.length,
   };
 });
-check(fit.exitCount === 3 && fit.dockBottom <= fit.closeTop,
+check(fit.exitCount === 4 && fit.dockBottom <= fit.closeTop,
   'the dock clears the way out at 390×620',
   `dock ends ${Math.round(fit.dockBottom)}, exits start ${Math.round(fit.closeTop)}`);
 

@@ -50,6 +50,7 @@ import { lawCardView, seatedEffectSummary } from '../systems/ascent/CourtLaneSys
 import { envoyOptionDetail } from '../systems/ascent/EnvoySystem';
 import { realmStanding } from '../systems/ascent/RivalDirector';
 import { ourHosts, theirHosts } from '../systems/ascent/BattleSystem';
+import { reinforcementCandidates, reinforcementsEnRoute, sendReinforcement } from '../systems/ascent/reinforcement';
 import {
   ASCENT_TICK_MS, BATTLE_BEATS_PER_TICK, BATTLE_DEPTH_FAR, BATTLE_DEPTH_NEAR, BATTLE_HIT_STOP_MS,
   BATTLE_HOST_SCALE, BATTLE_PRESS_TRAVEL, BATTLE_STAMINA_REGEN_BEATS,
@@ -1002,6 +1003,45 @@ export class ConquestUIScene extends Phaser.Scene {
     this.state.isPaused = false;
   }
 
+  /**
+   * Whether the fight is standing still because the *world* is — the player's own Pause, or a
+   * pause the map was left in when the screen opened. Not the opening hold: that has its own drum
+   * and its own line, and ends on its own.
+   */
+  private get battleHalted(): boolean {
+    return !this.battleAwaitingOrder && (this.state.isStrategyPause || this.state.isPaused);
+  }
+
+  /**
+   * The fight's own Pause.
+   *
+   * The battle lane keeps whatever pause was in force when it opened — correct, because the fight
+   * is the world and a player who paused the world meant it — but it was the one lane with no
+   * control and no word for that state: open a running siege from a paused map and every dial
+   * accepted the tap while nothing moved. Resuming here clears both clocks and forgets the pause
+   * the lane was opened under, so closing the screen afterwards does not hand the map a pause the
+   * player already lifted (the same reasoning as `releaseBattleHold`). Pausing here is recorded
+   * the other way round: the map stays paused when the player steps out, because they paused it.
+   */
+  private toggleBattlePause(): void {
+    if (this.battleAwaitingOrder) return;
+    if (this.battleHalted) {
+      this.state.isStrategyPause = false;
+      this.state.isPaused = false;
+      this.lanePauseBeforeOpen = false;
+    } else {
+      this.state.isStrategyPause = true;
+      this.lanePauseBeforeOpen = true;
+    }
+    this.refresh();
+  }
+
+  /** An order given to a paused fight is an instruction to run it — the opening-hold rule, kept. */
+  private resumeBattleForOrder(): void {
+    this.releaseBattleHold();
+    if (this.battleHalted) this.toggleBattlePause();
+  }
+
   /** Identity of a prompt's *content*, so a reroll re-renders but a tick does not. */
   private promptSignature(prompt: AscentPrompt): string {
     switch (prompt.kind) {
@@ -1018,6 +1058,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'parliament': return prompt.cardId;
       case 'envoy': return `${prompt.kingdomId}:${prompt.relations}`;
       case 'famine': return `famine:${prompt.shortfall}`;
+      case 'muster-proposal': return `muster:${prompt.heroId}:${prompt.plan.soldiers}:${prompt.purpose}`;
       case 'rival-demand': return `${prompt.demand}:${prompt.kingdomId}`;
       case 'empire-response': return `${prompt.wave}`;
       case 'wave-result': return `${prompt.wave}`;
@@ -1043,6 +1084,7 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'parliament': this.showParliament(prompt); break;
       case 'envoy': this.showEnvoy(prompt); break;
       case 'famine': this.showFamine(prompt); break;
+      case 'muster-proposal': this.showMusterProposal(prompt); break;
       case 'rival-demand': this.showRivalDemand(prompt); break;
       case 'story-beat': this.showStoryBeat(prompt); break;
       case 'empire-response': this.showEmpireResponse(prompt); break;
@@ -1400,6 +1442,13 @@ export class ConquestUIScene extends Phaser.Scene {
      * the screen having moved.
      */
     exits: Phaser.GameObjects.Container;
+    /**
+     * The relief control, pinned to our corner of the field: "send a host" while nobody is on the
+     * road, and who is coming — how many, how soon — once someone is. Its own layer, rebuilt only
+     * when `reliefKey` changes, for the same reason as every other tappable thing on this screen.
+     */
+    relief: Phaser.GameObjects.Container;
+    reliefKey: string;
     rivalColor: number;
     /** Identity of the hosts drawn on the field, so relief and routs trigger a redraw. */
     fieldSignature: string;
@@ -2299,7 +2348,19 @@ export class ConquestUIScene extends Phaser.Scene {
       case 'heroes': this.showHeroesScreen(); break;
       case 'court': this.showCourtScreen(); break;
       case 'battle': this.showBattle(); break;
-      case 'army': this.musterDraft = undefined; this.showArmyScreen(); break;
+      case 'army':
+        // A plan handed over by the muster card opens on the form, filled in; any other entry
+        // starts the lane clean.
+        if (this.musterHandover) {
+          this.musterDraft = this.musterHandover;
+          this.musterHandover = undefined;
+          this.showArmyScreen();
+          this.showRaiseHostForm();
+        } else {
+          this.musterDraft = undefined;
+          this.showArmyScreen();
+        }
+        break;
       case 'affairs': this.showAffairsScreen(); break;
       case 'chronicle': this.showChronicleScreen(); break;
       case 'ledger': this.showLedgerScreen(); break;
@@ -3588,6 +3649,20 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         // beat the screen forward, so a battle opened here used to sit frozen at its first frame.
         () => { this.closeLane(); this.openLane('battle'); },
       );
+      // And the question the war section exists to put: who can be sent.
+      const relief = reinforcementsEnRoute(state, battle);
+      const sendable = reinforcementCandidates(state, battle).filter((row) => !row.blockedReason && !row.enRoute).length;
+      addRow(
+        {
+          title: t('ascent.reinforce.button', { n: sendable }),
+          subtitle: relief.hosts > 0
+            ? t('ascent.reinforce.coming', { men: relief.men, n: relief.etaTicks === Number.POSITIVE_INFINITY ? 0 : relief.etaTicks })
+            : sendable > 0 ? t('ascent.reinforce.hint') : t('ascent.reinforce.nobody'),
+          border: sendable > 0 ? INK_UI.jade : INK_UI.softBrush,
+          muted: sendable === 0,
+        },
+        sendable > 0 ? () => this.showReinforcePicker(() => this.showArmyScreen()) : undefined,
+      );
     }
 
     const nextWave = (ascent?.wave ?? 0) + 1;
@@ -3926,6 +4001,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
 
   /** The draft the raise-host form is editing; reset each time the lane opens. */
   private musterDraft?: MusterPlan;
+  /** A plan the muster card handed to the raise form — consumed by the next `openLane('army')`. */
+  private musterHandover?: MusterPlan;
 
   /**
    * Raising a host, on purpose.
@@ -4273,8 +4350,24 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       (candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID && !candidate.isLevy && candidate.id !== army.id,
     );
     const quarries = visibleHostileHosts(state);
+    // The live fight, if this host is not already in it: the one order that is about *now*.
+    const live = state.ascent?.activeBattle && !state.ascent.activeBattle.over ? state.ascent.activeBattle : undefined;
+    const relief = live ? reinforcementCandidates(state, live).find((row) => row.army.id === army.id) : undefined;
+    const reliefTile = live && relief ? [{
+      title: t('ascent.reinforce.tile', { land: live.landName }),
+      note: relief.blockedReason ?? (relief.enRoute ? t('ascent.reinforce.onRoad')
+        : relief.etaTicks === 0 ? t('ascent.reinforce.etaNow')
+          : t(relief.inTime ? 'ascent.reinforce.etaInTime' : 'ascent.reinforce.etaLate', { n: relief.etaTicks ?? 0 })),
+      border: relief.blockedReason || relief.enRoute ? INK_UI.softBrush : relief.inTime ? INK_UI.jade : INK_UI.cinnabar,
+      muted: Boolean(relief.blockedReason) || relief.enRoute,
+      onTap: relief.blockedReason || relief.enRoute ? undefined : () => {
+        sendReinforcement(state, live, armyId);
+        this.showArmyDetail(armyId);
+      },
+    }] : [];
     addWidget(0, (parent, width) => {
       const height = this.actionTiles(parent, width, [
+        ...reliefTile,
         {
           title: t('ascent.orders.defendHere'),
           note: t('ascent.orders.defendHereBody', { land: land?.name ?? '—' }),
@@ -5291,6 +5384,86 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
    * the treasury is deep: a realm that banked four hundred thousand gold with nothing to spend
    * it on was the other half of this same complaint.
    */
+  /**
+   * The autopilot asking before it raises a host.
+   *
+   * The card leads with the two facts a player wants before saying yes — who, and how many — and
+   * then the bill: people off the land, food and supplies into the baggage train, seasons to
+   * muster. The purpose line says why the general is asking now, and where the host will go once
+   * it stands. Three answers, never more: raise it, change it, not now.
+   */
+  private showMusterProposal(prompt: Extract<AscentPrompt, { kind: 'muster-proposal' }>): void {
+    const state = this.state;
+    const hero = state.heroes.find((candidate) => candidate.id === prompt.heroId);
+    const land = state.lands.find((candidate) => candidate.id === prompt.landId);
+    const front = prompt.frontLandId ? state.lands.find((candidate) => candidate.id === prompt.frontLandId) : undefined;
+    const who = hero ? heroName(hero) : t('ascent.screen.noGeneral');
+    const { body, bodyWidth, finish } = this.promptScrollBody(
+      t('ascent.muster.title', { hero: who }),
+      t(prompt.purpose === 'pressure' ? 'ascent.muster.whyPressure' : 'ascent.muster.whyTarget'),
+      0,
+    );
+
+    let used = 0;
+    // The commander and the number, as a band: a face on the left, the headcount in the largest
+    // type this card prints, the doctrine and the muster ground under it.
+    const bandH = 64;
+    const holder = this.add.container(0, used);
+    body.add(holder);
+    holder.add(this.ui.panel({ x: 0, y: 0, width: bodyWidth, height: bandH }, { border: INK_UI.gold, fillAlpha: 0.9 }));
+    if (hero) holder.add(renderHeroFaceInBox(this, hero, { x: 6, y: 6, width: bandH - 12, height: bandH - 12 }));
+    holder.add(this.ui.label(bandH + 4, 6, `${prompt.plan.soldiers}`, 'title', { fontSize: '24px' }).setOrigin(0, 0));
+    holder.add(this.ui.label(bandH + 4 + 74, 14, t('ascent.muster.men'), 'caption', {}).setOrigin(0, 0));
+    holder.add(this.ui.label(bandH + 4, 38, t('ascent.muster.where', {
+      doctrine: t(`comp.${prompt.plan.composition}` as Parameters<typeof t>[0]),
+      land: land?.name ?? '—',
+      ticks: prompt.ticks,
+    }), 'caption', { wordWrap: { width: bodyWidth - bandH - 12 } }).setOrigin(0, 0));
+    used += bandH + 10;
+
+    const bill = [
+      t('ascent.muster.billPeople', { n: prompt.plan.soldiers }),
+      t('ascent.muster.billBaggage', { food: prompt.plan.rations, supplies: prompt.plan.provisions + prompt.suppliesCost }),
+      front
+        ? t('ascent.muster.thenFront', { land: front.name })
+        : t('ascent.muster.thenHold', { land: land?.name ?? '—' }),
+    ].join('\n');
+    const note = this.ui.label(2, used, bill, 'caption', { wordWrap: { width: bodyWidth - 4 }, lineSpacing: 3 }).setOrigin(0, 0);
+    body.add(note);
+    used += note.height + 12;
+
+    const rowHeight = 58;
+    const answers: Array<{ id: string; accent: number; icon?: CardIconId }> = [
+      { id: 'accept', accent: INK_UI.gold },
+      { id: 'adjust', accent: INK_UI.jade },
+      { id: 'decline', accent: INK_UI.softBrush },
+    ];
+    for (const answer of answers) {
+      const card = this.optionCard(
+        { x: 0, y: used, width: bodyWidth, height: rowHeight },
+        {
+          title: t(`ascent.muster.${answer.id}` as Parameters<typeof t>[0]),
+          body: t(`ascent.muster.${answer.id}.d` as Parameters<typeof t>[0]),
+          accent: answer.accent,
+          parent: body,
+          onTap: () => {
+            if (answer.id === 'adjust') {
+              // The plan goes to the form, and the form opens once the card has closed — the
+              // choice resolves the prompt first, so the lane is not opened under a live card.
+              this.musterHandover = { ...prompt.plan, orders: { ...prompt.plan.orders } };
+              this.choose('adjust');
+              this.openLane('army');
+              return;
+            }
+            this.choose(answer.id);
+          },
+        },
+      );
+      used += ((card.getData('cardHeight') as number) ?? rowHeight) + 10;
+    }
+    finish(used);
+  }
+
   private showFamine(prompt: Extract<AscentPrompt, { kind: 'famine' }>): void {
     const { body, bodyWidth, finish } = this.promptScrollBody(
       t('ascent.famine.title'),
@@ -6231,9 +6404,10 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const orders = this.add.container(0, 0);
     const exits = this.add.container(0, 0);
     const moment = this.add.container(0, 0);
+    const relief = this.add.container(0, 0);
     const fallen = this.add.graphics();
     field.add(fallen);
-    this.modalLayer.add([field, bubbles, floaters, pips, readout, orders, exits, moment]);
+    this.modalLayer.add([field, bubbles, floaters, pips, readout, relief, orders, exits, moment]);
 
     this.battleUi = {
       content,
@@ -6259,6 +6433,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       fallenCount: 0,
       moment,
       momentKey: '',
+      relief,
+      reliefKey: '',
       groundSources: [],
       exitBounds: frame.exits,
       rivalColor,
@@ -7034,6 +7210,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       `${stamina.pips}/${stamina.max}@${stamina.nextIn}`,
       battleRimsShown() ? 'r1' : 'r0',
       battle.delegated ? 'd1' : 'd0',
+      // The world's clock. A fight opened onto a paused world used to look identical to one that
+      // was running — and the pause chip has to flip to Resume on the beat the player taps it.
+      this.battleHalted ? 'p1' : 'p0',
     ].join(':');
   }
 
@@ -7965,6 +8144,10 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       line = t('ascent.battle.openingDrum', { n: String(this.battleOpeningLeft) });
     } else if (this.battleAwaitingOrder) {
       line = t('ascent.battle.holdNote');
+    } else if (this.battleHalted) {
+      // Said in the one line the eye already reads for "what is happening": the answer is nothing,
+      // and here is how to make it happen.
+      line = t('ascent.battle.pausedNote');
     } else if (read?.next) {
       line = t('ascent.battle.theyForm', {
         kingdom: battle.kingdomName,
@@ -8114,7 +8297,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         .setInteractive({ useHandCursor: true });
       hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
         if (scrollGestureConsumedTap(pointer)) return;
-        this.releaseBattleHold();
+        this.resumeBattleForOrder();
         this.events.emit('ui:battle-order', `stance:${id}`);
       });
       orders.add(hit);
@@ -8406,7 +8589,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
         unpress();
         if (scrollGestureConsumedTap(pointer)) return;
-        this.releaseBattleHold();
+        this.resumeBattleForOrder();
         // Before the order, because the order rebuilds this strip: the mark has to be somewhere
         // that outlives the chip that raised it.
         this.stampFormationChip(bounds);
@@ -8647,6 +8830,105 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
    * cinnabar the dock uses, both say plainly what happens next, and the hand-over is reversible
    * from the same slot: the chip flips to "take the field back" the moment it is pressed.
    */
+  /**
+   * The way to call for help, on the screen where help is needed.
+   *
+   * The engine has enrolled relief since the membership rewrite — a host that reaches the
+   * province is in the line the next beat — but nothing on this screen, or the army screen, ever
+   * offered to send one. The control sits in our corner of the field, over the ground our camp
+   * stands on, and says one of two things: that a host can be sent, or who is on the road and
+   * when they arrive. Hidden once the fight is over or nobody could come.
+   */
+  private buildBattleRelief(battle: AscentBattle): void {
+    const ui = this.battleUi;
+    if (!ui?.relief?.active) return;
+    const coming = reinforcementsEnRoute(this.state, battle);
+    const candidates = battle.over ? [] : reinforcementCandidates(this.state, battle);
+    const sendable = candidates.filter((row) => !row.blockedReason && !row.enRoute).length;
+    const key = `${coming.hosts}:${coming.men}:${coming.etaTicks}:${sendable}:${battle.over ? 1 : 0}`;
+    if (key === ui.reliefKey) return;
+    ui.reliefKey = key;
+    this.clearLayer(ui.relief);
+    if (battle.over || (sendable === 0 && coming.hosts === 0)) return;
+
+    const { content } = ui;
+    const w = 118;
+    const h = 26;
+    const x = content.x + 6;
+    const y = content.y + ui.fieldHeight - h - 6;
+    const onRoad = coming.hosts > 0;
+    const label = onRoad
+      ? t('ascent.reinforce.coming', { men: coming.men, n: coming.etaTicks === Number.POSITIVE_INFINITY ? 0 : coming.etaTicks })
+      : t('ascent.reinforce.button', { n: sendable });
+    const plate = this.ui.panel({ x, y, width: w, height: h }, {
+      border: onRoad ? INK_UI.jade : INK_UI.gold, fillAlpha: 0.94, borderWidth: 1.5, radius: 5,
+    });
+    ui.relief.add(plate);
+    ui.relief.add(this.ui.label(x + w / 2, y + h / 2, label, 'label', {
+      fontSize: '9.5px', align: 'center', wordWrap: { width: w - 8 },
+    }).setOrigin(0.5));
+    const hit = this.add.zone(x, y, w, h).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    hit.on('pointerdown', () => { plate.setScale(0.97); plate.setPosition(x + w * 0.015, y + h * 0.015); });
+    const unpress = (): void => { plate.setScale(1); plate.setPosition(x, y); };
+    hit.on('pointerout', unpress);
+    hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      unpress();
+      if (scrollGestureConsumedTap(pointer)) return;
+      this.showReinforcePicker(() => { this.closeLane(); this.openLane('battle'); });
+    });
+    ui.relief.add(hit);
+  }
+
+  /**
+   * Who could come, how soon, and whether that is soon enough.
+   *
+   * One page for every entry point — the fight, the army screen's war section, a host's own
+   * detail — so the answer reads the same wherever the question was asked. Rows are sorted
+   * nearest-first; a host that would arrive after the clock runs out is still offered, in
+   * cinnabar, because a fight in overtime is still a fight and the player may know better.
+   */
+  private showReinforcePicker(onBack: () => void): void {
+    const state = this.state;
+    const battle = state.ascent?.activeBattle;
+    if (!battle || battle.over) { onBack(); return; }
+    this.replaceLanePage(() => {
+      const { addRow, addNote, finish } = this.laneList(
+        t('ascent.reinforce.title', { land: battle.landName }),
+        t('ascent.reinforce.subtitle', {
+          ours: Math.round(battle.ourNow), theirs: Math.round(battle.theirNow),
+          n: Math.max(1, Math.ceil((battle.totalRounds - battle.round) / battleBeatsPerTick())),
+        }),
+        { back: onBack },
+      );
+      const rows = reinforcementCandidates(state, battle);
+      if (rows.length === 0) addNote(t('ascent.reinforce.nobody'));
+      for (const row of rows) {
+        const at = state.lands.find((candidate) => candidate.id === row.army.landId);
+        const general = state.heroes.find((hero) => hero.id === row.army.generalHeroId);
+        const eta = row.etaTicks === undefined ? '' : row.etaTicks === 0
+          ? t('ascent.reinforce.etaNow')
+          : t(row.inTime ? 'ascent.reinforce.etaInTime' : 'ascent.reinforce.etaLate', { n: row.etaTicks });
+        const blocked = Boolean(row.blockedReason);
+        addRow(
+          {
+            title: `${row.army.name}  ·  ${row.men}${row.enRoute ? `  ·  ${t('ascent.reinforce.onRoad')}` : ''}`,
+            subtitle: [blocked ? row.blockedReason : eta, t('ascent.reinforce.row', {
+              land: at?.name ?? '—', order: hostOrderLabel(state, row.army),
+            })].filter(Boolean).join('\n'),
+            border: blocked || row.enRoute ? INK_UI.softBrush : row.inTime ? INK_UI.jade : INK_UI.cinnabar,
+            muted: blocked || row.enRoute,
+            portrait: general,
+          },
+          blocked || row.enRoute ? undefined : () => {
+            sendReinforcement(state, battle, row.army.id);
+            onBack();
+          },
+        );
+      }
+      finish();
+    });
+  }
+
   private buildBattleExits(battle: AscentBattle): void {
     const ui = this.battleUi;
     if (!ui) return;
@@ -8654,7 +8936,17 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     this.clearLayer(exits);
 
     const handedOver = Boolean(battle.delegated);
+    const halted = this.battleHalted;
     const chips: Array<{ label: string; sub: string; accent: number; order: string }> = [
+      {
+        // The world's clock, on the screen that is the world. Lit gold while the fight is standing
+        // still so a paused fight never again looks like a running one; dark during the opening
+        // drum, which is a hold of its own and ends on its own.
+        label: halted ? t('ascent.battle.resume') : t('ascent.battle.pause'),
+        sub: halted ? t('ascent.battle.resumeSub') : t('ascent.battle.pauseSub'),
+        accent: halted ? INK_UI.gold : INK_UI.softBrush,
+        order: 'pause',
+      },
       {
         // Breaking off: the cold end of what used to be the stance dial. It is an exit — the line
         // walks backwards for three beats and is clear away — so it stands with the exits, and
@@ -8692,10 +8984,14 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         border: chip.accent, fillAlpha: 0.97, borderWidth: 1.5, radius: 6,
       });
       exits.add(plate);
-      exits.add(this.ui.label(x + w / 2, y + 8, chip.label, 'label', {
-        fontSize: '11px', align: 'center', wordWrap: { width: w - 8 },
-      }).setOrigin(0.5, 0));
-      exits.add(this.ui.label(x + w / 2, y + 24, chip.sub, 'caption', {
+      // Four chips in the width three used to have: a two-word label wraps, so the caption sits
+      // under the label's measured height rather than at a fixed line — "Hand to generals" was
+      // printing straight through its own caption.
+      const label = this.ui.label(x + w / 2, y + 6, chip.label, 'label', {
+        fontSize: '10px', align: 'center', wordWrap: { width: w - 6 },
+      }).setOrigin(0.5, 0);
+      exits.add(label);
+      exits.add(this.ui.label(x + w / 2, y + 6 + label.height + 1, chip.sub, 'caption', {
         fontSize: '7.5px', align: 'center', wordWrap: { width: w - 8 },
       }).setOrigin(0.5, 0));
 
@@ -8711,6 +9007,10 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
         unpress();
         if (scrollGestureConsumedTap(pointer)) return;
+        if (chip.order === 'pause') {
+          this.toggleBattlePause();
+          return;
+        }
         this.releaseBattleHold();
         this.events.emit('ui:battle-order', chip.order);
         // Stepping away closes the screen; handing over keeps it open, which is the whole
@@ -8964,6 +9264,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
 
     this.updateBattleBubbles(battle);
     this.updateBattleNotice(battle);
+    this.buildBattleRelief(battle);
 
     // Rebuilt only when the question or its clock changes — never every beat, because a card
     // destroyed between press and release never fires.
@@ -10344,6 +10645,20 @@ ${fall}` : fall,
       () => {
         if (this.state.ascent) this.state.ascent.autoResolveBattles = !auto;
         // Redraw so the row states the new setting rather than the old one.
+        this.state.isStrategyPause = this.lanePauseBeforeOpen;
+        this.closeOverlay();
+        this.showSystemMenu();
+      },
+    );
+
+    // Musters: asked about, or left to the generals. Asking is the default — a host is a fifth of
+    // the population and a commander off a seat, and it used to appear unannounced.
+    const silent = this.state.ascent?.autoMusterSilently ?? false;
+    item(
+      silent ? t('ascent.sys.musterSilent') : t('ascent.sys.musterAsked'),
+      'secondary',
+      () => {
+        if (this.state.ascent) this.state.ascent.autoMusterSilently = !silent;
         this.state.isStrategyPause = this.lanePauseBeforeOpen;
         this.closeOverlay();
         this.showSystemMenu();

@@ -109,7 +109,7 @@ check(layout.dock.length === layout.expectedTargets,
   'every stance and shape that is offered is tappable',
   `${layout.dock.length} targets, expected ${layout.expectedTargets}`
   + (layout.windedShapes.length ? ` ${layout.windedShapes.join(',')}` : ''));
-check(layout.exits.length === 3, 'three exits — Lui binh among them — and none on the dock', `${layout.exits.length} chips`);
+check(layout.exits.length === 4, 'four exits — Pause and Lui binh among them — and none on the dock', `${layout.exits.length} chips`);
 
 // The formation strip is the bottom band and the largest thing on it.
 const byY = layout.dock.slice().sort((a, b) => a.y - b.y);

@@ -1493,6 +1493,36 @@ export type AscentPrompt =
   | { kind: 'parliament'; cardId: string }
   /** The granary is empty and still draining. What the realm does about it. */
   | { kind: 'famine'; shortfall: number; options: FamineOption[] }
+  /**
+   * The autopilot asks before it musters.
+   *
+   * A host raised on the player's behalf used to simply appear: a commander taken off a seat, a
+   * fifth of the population under arms, the granary emptied into a baggage train — announced by
+   * a toast, if at all. The plan is the exact one `raiseHostWithPlan` would run, so the number
+   * on the card is the number the muster costs. `Chỉnh lại` hands the same plan to the raise
+   * form; `Chưa cần` silences the autopilot for `MUSTER_DECLINE_TICKS`.
+   */
+  | {
+      kind: 'muster-proposal';
+      heroId: string;
+      plan: {
+        heroId?: string;
+        soldiers: number;
+        rations: number;
+        provisions: number;
+        composition: ArmyComposition;
+        orders: ArmyOrders;
+      };
+      landId: string;
+      /** Seasons until the host stands. */
+      ticks: number;
+      /** Supplies the muster itself burns, beside the baggage the plan carries. */
+      suppliesCost: number;
+      /** Why now: the realm is under its host target, or a wave is close. */
+      purpose: 'target' | 'pressure';
+      /** The front the host will press once raised, when a March Order stands. */
+      frontLandId?: string;
+    }
   /** A rival empire makes a demand of its own: tribute, coalition, or submission. */
   | {
       kind: 'rival-demand';
@@ -2160,6 +2190,10 @@ export interface AscentState {
   activeBattle?: AscentBattle;
   /** True while the player has handed battles back to their generals. Reversible from Settings. */
   autoResolveBattles: boolean;
+  /** True when the autopilot may muster without asking. Off by default; reversible from Settings. */
+  autoMusterSilently?: boolean;
+  /** The turn before which the autopilot will not propose another muster — a declined card. */
+  musterDeclinedUntil?: number;
   /**
    * This state exists to fight one battle and nothing else — see `BattleArenaScene`.
    *

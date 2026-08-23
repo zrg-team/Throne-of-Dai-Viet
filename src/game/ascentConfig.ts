@@ -1162,6 +1162,13 @@ export function recruitSoldiers(availableHumans: number): number {
   return Math.max(MIN_ARMY_SOLDIERS, Math.min(MAX_ARMY_SOLDIERS, Math.floor(availableHumans * 0.8)));
 }
 export const MIN_ARMY_SOLDIERS = 320;
+
+/**
+ * Seasons the autopilot stays quiet after the player turns a muster down. Long enough that the
+ * same card does not come straight back, short enough that a realm whose mind has changed is
+ * asked again within a wave.
+ */
+export const MUSTER_DECLINE_TICKS = 16;
 /** Below this share of a full host an army is a remnant: disbanded and recycled into manpower. */
 export const REMNANT_SHARE = 0.45;
 export const MAX_ARMY_SOLDIERS = 2200;
