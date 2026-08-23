@@ -5,6 +5,7 @@ import { applyRenderScale } from '../game/graphicsQuality';
 import { battleBeatsPerTick, battleBubbleMs, battleRimsShown, battleTickMs } from '../game/battleOptions';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID } from '../game/constants';
 import { codexProgress, storyProgress, getCodex, isHeroUnlocked } from '../state/codex';
+import { getMemorials } from '../systems/story/echoes';
 import { LEGACY_PERKS, ownsPerk } from '../state/legacy';
 import { doctrineBlurb, doctrineName } from '../systems/ascent/RealmDoctrineSystem';
 import { powerCardView, skipRefundAmount } from '../systems/ascent/PowerDraftSystem';
@@ -6055,6 +6056,26 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       for (const story of waiting) storyRow(story, false);
     }
 
+    // ── Đền thờ: the dead, and what they were remembered for ──
+    //
+    // Above the recorded endings rather than below them, because a shrine outlasts the entry that
+    // put it there: the Chronicle ring drops its oldest at sixty and this list never does.
+    {
+      const memorials = state.memorials ?? [];
+      if (memorials.length > 0) {
+        addHeading(t('ascent.chronicle.memorials'));
+        for (const entry of memorials) {
+          const key = `${entry.templateId}.memorial.${entry.key}`;
+          const line = storyText(key, { name: entry.name, land: entry.landId ?? '', n: entry.deeds ?? 0 });
+          addRow({
+            title: entry.name || storyTitle(entry.templateId),
+            subtitle: line !== key ? line : storyTitle(entry.templateId),
+            border: INK_UI.jade,
+          });
+        }
+      }
+    }
+
     if (recorded.length > 0) {
       // Counted by class, because that one line is the reign's identity: a dynasty that mostly
       // followed the record reads differently from one that mostly did not.
@@ -10695,6 +10716,14 @@ ${fall}` : fall,
       rows.push([t('ascent.over.stories'), String(endings)]);
       rows.push(['', t('ascent.over.storyLine', storyTally)]);
     }
+    // The dead this reign put up a shrine to, by name. `state.memorials` is not the Chronicle's
+    // sixty-entry ring and is never evicted — a shrine the record forgets is not a shrine — and
+    // until now nothing drew it at all.
+    const memorials = this.state.memorials ?? [];
+    if (memorials.length > 0) {
+      rows.push([t('ascent.over.memorials'), String(memorials.length)]);
+      rows.push(['', memorials.map((entry) => entry.name).filter(Boolean).join(' · ')]);
+    }
     const bodyY = content.y + headHeight + 10;
     const bodyHeight = rows.length * 26 + 20;
     this.modalLayer.add(this.ui.panel(
@@ -10758,7 +10787,10 @@ ${fall}` : fall,
     const stories = storyProgress(storyCatalogIds.length);
     this.modalLayer.add(this.ui.label(
       content.x, buttonY + 100,
-      `${t('ascent.codex.stories')}  ${stories.met}/${stories.total}`,
+      // The dead of *every* reign, not this one: `getMemorials` reads the cross-run echo ring, so
+      // a name enshrined three dynasties ago is still counted here beside the stories met.
+      `${t('ascent.codex.stories')}  ${stories.met}/${stories.total}`
+        + (getMemorials().length > 0 ? `   ·   ${t('ascent.chronicle.memorials')} ${getMemorials().length}` : ''),
       'caption', { fontSize: '11px' },
     ));
     this.modalLayer.add(this.ui.button(
