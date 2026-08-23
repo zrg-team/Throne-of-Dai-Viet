@@ -851,13 +851,19 @@ export const BATTLE_FORMATION_TILT_BLUNT = 0.5;
  * Beats a shape needs to get its breath back after the host walks out of it.
  *
  * The one restriction on the whole battle screen. It exists to stop the single best answer being
- * pressed on cooldown forever, so the *second*-best shape becomes something a player learns —
- * measured at wind 3 against an enemy rotating every 2–3 beats, greedy play lands on the soft
- * answer about one change in five. The clock is stamped on the shape being LEFT, at landing, and
- * ticks down at the stance's recovery rate below. The shape the enemy stands in never needs wind
- * (the "match" floor), so a dead dock is impossible.
+ * pressed on cooldown forever, so the *second*-best shape becomes something a player learns. The
+ * clock is stamped on the shape being LEFT, at landing, and ticks down at the stance's recovery
+ * rate below. The shape the enemy stands in never needs wind (the "match" floor), so a dead dock
+ * is impossible.
+ *
+ * Six, up from three — and the reason is the screen's clock, not the maths. A beat is 560 ms of
+ * watching, so three beats was a chip greyed for 1.7 s against an enemy that rotated only when
+ * losing: ten real fights, and the player never once met a winded chip ("a mechanic that never
+ * happens — what is it for?"). Six is 3.4 s, longer than every temper's rotation period, so the
+ * shape you left is still resting when the invader swings back toward it. `verify-battle-wind`
+ * counts the blocked decisions per fight and fails under two.
  */
-export const BATTLE_FORMATION_WIND = 3;
+export const BATTLE_FORMATION_WIND = 6;
 
 /**
  * Wind recovered per beat, by stance — the rule that makes the two dials one loop.
@@ -878,7 +884,7 @@ export const BATTLE_STANCE_RECOVERY: Record<FieldStance, number> = {
  * Wind for a doctrine's signature shape — see `SIGNATURE_SHAPE`. One printed exception per army,
  * in place of the four hidden ones the availability rule used to be.
  */
-export const BATTLE_SIGNATURE_WIND = 2;
+export const BATTLE_SIGNATURE_WIND = 4;
 
 /** The commander tempers, keyed from `KingdomPersonality` (+ the `isGreat` flag → cunning). */
 export type CommanderTemper = 'hasty' | 'measured' | 'stubborn' | 'cunning';
@@ -895,14 +901,31 @@ export type CommanderTemper = 'hasty' | 'measured' | 'stubborn' | 'cunning';
  * never gambles, which hands you long windows and dares you to overspend into them.
  */
 export const BATTLE_TEMPER: Record<CommanderTemper, {
-  hesitation: number; restlessBeats: number; presses: boolean;
+  /** Beats he stands countered before ordering, on top of the difficulty's. */
+  hesitation: number;
+  /** Beats he stands content at even shape before rotating anyway (0 = never). */
+  restlessBeats: number;
+  /** Whether a winning tilt is pressed. */
+  presses: boolean;
+  /**
+   * Every Nth rotation he reads your dock and steers toward the shape whose answer you have
+   * winded (0 = never, 1 = always). This is the dial that decides how often a player actually
+   * MEETS the cooldown: measured with every invader reading every rotation, 16 of 19 decisions
+   * were blocked — a wall, not a mechanic. At every third, a measured invader blocks roughly a
+   * third of them, which is "sometimes you cannot get the best shape" and no more.
+   */
+  readsDock: number;
 }> = {
-  hasty: { hesitation: 0, restlessBeats: 4, presses: true },
-  measured: { hesitation: 1, restlessBeats: 0, presses: true },
-  stubborn: { hesitation: 2, restlessBeats: 0, presses: false },
-  // The graduation exam, reserved for great waves: quick, restless, and he reads your dock —
-  // see `advanceEnemyFormation`, which lets him rotate toward the answers you have winded.
-  cunning: { hesitation: 0, restlessBeats: 5, presses: true },
+  // Every temper rotates on its own clock now, not only when losing. An invader who stands
+  // content at even shape was the second half of why the wind never bit: he never asked the
+  // player a question the dock could refuse. The periods are all shorter than the wind (6), so
+  // the answer he pulls you toward is reliably the one you just left.
+  hasty: { hesitation: 0, restlessBeats: 3, presses: true, readsDock: 2 },
+  measured: { hesitation: 1, restlessBeats: 5, presses: true, readsDock: 3 },
+  stubborn: { hesitation: 2, restlessBeats: 7, presses: false, readsDock: 0 },
+  // The graduation exam, reserved for great waves: no patience at all, and he answers an even
+  // matchup inside two beats.
+  cunning: { hesitation: 0, restlessBeats: 2, presses: true, readsDock: 1 },
 };
 
 /**
@@ -1040,8 +1063,6 @@ export const BATTLE_MORALE_WIN_GAIN = 0.35;
 export const BATTLE_ROUT_MORALE = 32;
 /** Men each archer accounts for per beat of the approach. */
 export const BATTLE_VOLLEY_BITE = 0.03;
-/** Share of the host held at camp, committable once mid-fight. */
-export const BATTLE_RESERVE_SHARE = 0.28;
 /** Morale a rally restores, before the general's martial is added on top. */
 export const BATTLE_RALLY_BASE = 10;
 /**

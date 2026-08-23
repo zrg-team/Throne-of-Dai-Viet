@@ -234,15 +234,18 @@ export const FORMATION_PLAN: Record<BattleFormation, Partial<Record<FormationKey
     horse: { dx: -6.56, dy: 7.17 },
   },
   // The wedge: the horse at the point, in ranks of one, two, three, and the foot behind it.
+  // The point stands nine files out, not seven: at seven it read as the line's own right edge on
+  // a phone, and the hardest setting has nothing but this silhouette to say "charge".
   xung: {
-    horse: { dx: 7.0, dy: -0.83, wedge: true },
+    horse: { dx: 9.0, dy: -0.83, wedge: true },
     line: { dx: 1.88, dy: 2.0, aspect: 2.33 },
     screen: { dx: -1.88, dy: -2.83 },
     bows: { dx: -5.94, dy: 3.33, aspect: 3 },
   },
   // The skirmish: the screen thrown forward and deliberately loose, the body massed behind.
+  // The screen likewise: further out and looser, so the gap between it and the body is the shape.
   tan: {
-    screen: { dx: 6.56, dy: -1.5, pitch: 2.38 },
+    screen: { dx: 8.25, dy: -1.5, pitch: 2.6 },
     line: { dx: 0.63, dy: 1.67, aspect: 2.33 },
     bows: { dx: -3.75, dy: 4.33, aspect: 3 },
     horse: { dx: -6.88, dy: 8.0 },

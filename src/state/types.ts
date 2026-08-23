@@ -1727,6 +1727,8 @@ export interface AscentBattle {
   commanderTemper?: 'hasty' | 'measured' | 'stubborn' | 'cunning';
   /** Beats since the invader last changed shape — the restless tempers rotate off this clock. */
   beatsSinceTheirShape?: number;
+  /** How many times the invader has changed shape this fight — the harnesses read the cadence. */
+  theirRotations?: number;
   /** Hosts that have broken and left the line, either side. */
   brokenHostIds: string[];
   /** Men of ours lost so far, so an orderly withdrawal can recover its stragglers. */
@@ -1874,6 +1876,15 @@ export interface BattleBeat {
   line?: string;
   /** Hosts that broke on this beat, either side — the moment worth a shake. */
   broke?: string[];
+  /**
+   * What each side stood in and how much of it was bows, at THIS beat. The screen replays beats
+   * a tick behind the fight, so the arrows it draws must come from the beat being shown, not from
+   * the battle's current state — or a volley would rain from a shape already walked out of.
+   */
+  ourShape?: BattleFormation;
+  theirShape?: BattleFormation;
+  ourBows?: number;
+  theirBows?: number;
 }
 
 export interface BattleBeatHost {

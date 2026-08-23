@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { applyPaperFX } from '../ui/ink/PaperFX';
 import { RectClip } from '../ui/ink/clipRect';
 import { applyRenderScale } from '../game/graphicsQuality';
-import { battleTickMs } from '../game/battleOptions';
+import { battleBubbleMs, battleTickMs } from '../game/battleOptions';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID } from '../game/constants';
 import { codexProgress, storyProgress, getCodex, isHeroUnlocked } from '../state/codex';
 import { LEGACY_PERKS, ownsPerk } from '../state/legacy';
@@ -326,7 +326,10 @@ function battleFieldBox(content: UIBounds, fieldHeight: number): UIBounds {
  * its shadow on the paper at that size, and still leaves the two lines 234 apart against the 202
  * they had when the field was a card inside a margin.
  */
-const BATTLE_FIELD_INSET = 48;
+// 58, up from 48: the silhouette loan (`devices.ts`) pushes a shape's lead block further out and
+// a shock host's horse sits eight ranks back of its line — at 48 the riders' outer file and the
+// banner stood off the left edge of a 3,000-man skirmish.
+const BATTLE_FIELD_INSET = 58;
 
 function battleFieldHeight(content: UIBounds): number {
   // `content.height` runs to 20px off the bottom of the screen, but the lane's Close button is
@@ -1278,6 +1281,12 @@ export class ConquestUIScene extends Phaser.Scene {
      * the *other* side had said something.
      */
     bubbleOf: { ours?: Phaser.GameObjects.Container; theirs?: Phaser.GameObjects.Container };
+    /**
+     * A bubble that has faded on the difficulty's clock stays gone until its side SAYS something
+     * new. Without this flag the next walk of the host would quietly redraw it — the liveness
+     * check below reads "no bubble" as "needs one".
+     */
+    bubbleFaded: { ours: boolean; theirs: boolean };
     /** The fight's one red line, in the header band. Written in place, never rebuilt. */
     notice: Phaser.GameObjects.Text;
     /** The newest line of `battle.log`, repeated in the header where it can actually be read. */
@@ -6137,6 +6146,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       bubbleAt: { ours: 0, theirs: 0 },
       bubbleShoutAt: 0,
       bubbleOf: {},
+      bubbleFaded: { ours: false, theirs: false },
       notice: frame.notice,
       logLine: frame.log,
       pipBounds: frame.pips,
@@ -6320,6 +6330,70 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
   }
 
   /**
+   * The arrows, as a picture of the exchange rather than a number.
+   *
+   * Each side's archers loose a volley every beat they are not walking, and the volley's density
+   * is the tell: a host in Thế Nỏ rains nearly three times the arrows of the same bows in any
+   * other shape, so the reading "they have gone to the volley" is on the field before — and on
+   * the hardest setting, instead of — any bubble saying so. One Graphics per volley, redrawn
+   * along one tween, so thirty arrows cost one object and one callback rather than thirty of
+   * each; destroyed on landing.
+   */
+  private spawnBattleArrows(beat: BattleBeat): void {
+    const ui = this.battleUi;
+    if (!ui) return;
+    const { groundY } = ui.geometry;
+    const { ourX, theirX } = this.battleLines(beat.ourAdvance, beat.theirAdvance);
+    const volley = (
+      from: number, to: number, bows: number, shape: BattleFormation | undefined, seed: number,
+      colour: number,
+    ): void => {
+      if (!shape || bows < 0.04) return;
+      const count = Math.min(36, Math.round((2 + 11 * bows) * (shape === 'no' ? 2.8 : 1)));
+      if (count <= 0) return;
+      const rand = mulberry32(seed);
+      const arrows = Array.from({ length: count }, () => ({
+        sx: from + (rand() - 0.5) * 46,
+        sy: groundY - 26 - rand() * 22,
+        tx: to + (rand() - 0.5) * 54,
+        ty: groundY - 4 - rand() * 18,
+        arc: 58 + rand() * 40,
+        lag: rand() * 0.25,
+      }));
+      const g = this.add.graphics();
+      ui.floaters.add(g);
+      const draw = (t: number): void => {
+        // The field can be torn down under a volley still in the air; a destroyed Graphics has
+        // no renderer to clear into.
+        if (!g.active) return;
+        g.clear();
+        g.lineStyle(1.4, colour, 0.9);
+        for (const a of arrows) {
+          const p = Math.max(0, Math.min(1, (t - a.lag) / (1 - a.lag)));
+          if (p <= 0 || p >= 1) continue;
+          const x = a.sx + (a.tx - a.sx) * p;
+          const lift = Math.sin(Math.PI * p) * a.arc;
+          const y = a.sy + (a.ty - a.sy) * p - lift;
+          // Tangent of the arc, so the shaft points where it is going.
+          const dx = (a.tx - a.sx) * 0.02;
+          const dy = (a.ty - a.sy) * 0.02 - Math.cos(Math.PI * p) * Math.PI * a.arc * 0.02;
+          const len = Math.hypot(dx, dy) || 1;
+          g.lineBetween(x, y, x - (dx / len) * 10, y - (dy / len) * 10);
+        }
+      };
+      const clock = { t: 0 };
+      this.tweens.add({
+        targets: clock, t: 1, duration: BATTLE_TICK_MS * 0.95, ease: 'Linear',
+        onUpdate: () => draw(clock.t),
+        onComplete: () => { if (g.active) g.destroy(); },
+      });
+    };
+    const seed = beat.round * 7919 + Math.round(beat.ourNow);
+    volley(ourX, theirX, beat.ourBows ?? 0, beat.ourShape, seed, INK_UI.cinnabarDark);
+    volley(theirX, ourX, beat.theirBows ?? 0, beat.theirShape, seed + 17, INK_UI.brush);
+  }
+
+  /**
    * Casualty numbers rising off the point of contact.
    *
    * Ours in sỏi son and theirs in ink, deliberately: the palette reserves that red for "your
@@ -6390,8 +6464,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
 
     const top = content.y;
     const bottom = top + ui.fieldHeight;
-    const x0 = 4;
-    const x1 = GAME_WIDTH - 4;
+    const x0 = 0;
+    const x1 = GAME_WIDTH;
     const horizon = top + ui.fieldHeight * 0.30;
     const land = findLand(this.state, battle.landId);
     const seed = Math.round((battle.landId.length * 977) + battle.totalRounds * 31);
@@ -6413,7 +6487,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // `ui/ink/clipRect` for the measurement. The stencil clips in screen space and so is the same
     // shape at every graphics tier.
     const clip = new RectClip(this, {
-      x: 2, y: top + 2, width: GAME_WIDTH - 4, height: ui.fieldHeight - 4,
+      x: 0, y: top, width: GAME_WIDTH, height: ui.fieldHeight,
     });
     ui.groundClip = clip;
     clip.begin(field);
@@ -6886,9 +6960,12 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     ui.theirMarkers = [];
     ui.fieldSignature = this.battleFieldSignature(battle);
 
+    // Square and full-bleed. The field is a view rather than a card (see `buildBattleUi`), and a
+    // radius on a view is a vignette: on a tall phone the rounded corners and the 2px inset read
+    // as the picture being cut short of its own frame.
     field.add(this.ui.panel(
       battleFieldBox(content, ui.fieldHeight),
-      { border: INK_UI.softBrush },
+      { border: INK_UI.softBrush, radius: 0 },
     ));
 
     // The ground itself, before anything stands on it — then flattened into one texture.
@@ -6987,10 +7064,15 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
 
     // Whole pixels. A texture landing on a half-pixel resamples everything inside it, which is a
     // broad, low-amplitude difference across the whole picture rather than an obvious fault.
-    const x = Math.round(content.x + 2);
-    const y = Math.round(content.y + 2);
-    const width = Math.ceil(content.width - 4);
-    const height = Math.ceil(ui.fieldHeight - 4);
+    // The field box — NOT `content`. The frame went full-bleed (`battleFieldBox`) and this bake
+    // kept the card column it used to sit in, so the ground was painted 20px short of the frame on
+    // either side and read as the picture being cut off. Measured on a 1206-wide phone: a bare
+    // parchment strip under the border, both sides, the whole height of the field.
+    const box = battleFieldBox(content, ui.fieldHeight);
+    const x = Math.round(box.x);
+    const y = Math.round(box.y);
+    const width = Math.ceil(box.width);
+    const height = Math.ceil(box.height);
     if (width <= 0 || height <= 0) return;
 
     type Hideable = Phaser.GameObjects.GameObject & { visible: boolean; setVisible(v: boolean): unknown };
@@ -7447,22 +7529,46 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       { side: 'ours' as const, text: ours, at: lines.ourX },
       { side: 'theirs' as const, text: theirs, at: lines.theirX },
     ];
+    // The difficulty's clock on the words. Infinity keeps them; 0 never draws them; anything
+    // between fades the bubble and leaves the drawn formation to carry the reading.
+    const linger = battleBubbleMs();
     for (const { side, text, at } of sides) {
       const spoke = ui.bubbleSaid[side] !== text;
       const walked = Math.abs(at - ui.bubbleAt[side]) > 10;
+      if (!spoke && ui.bubbleFaded[side]) continue;
       if (!spoke && (shouting || !walked) && ui.bubbleOf[side]?.active) continue;
       ui.bubbleSaid[side] = text;
       ui.bubbleAt[side] = at;
+      ui.bubbleFaded[side] = false;
       const previous = ui.bubbleOf[side];
       if (previous) {
         this.killTweensDeep(previous);
         previous.destroy();
+      }
+      if (linger <= 0) {
+        // Nightmare: the sentence is recorded so the side is not re-announced every beat, and
+        // nothing is drawn. The men are the telegraph.
+        ui.bubbleOf[side] = undefined;
+        ui.bubbleFaded[side] = true;
+        continue;
       }
       const made = this.battleBubble(
         at, side, text, spoke && !opening, side === 'ours' ? ourShape : theirShape,
       );
       ui.bubbles.add(made);
       ui.bubbleOf[side] = made;
+      if (Number.isFinite(linger)) {
+        this.tweens.add({
+          targets: made, alpha: 0, delay: linger, duration: 360, ease: 'Quad.easeIn',
+          onComplete: () => {
+            if (ui.bubbleOf[side] === made) {
+              ui.bubbleOf[side] = undefined;
+              ui.bubbleFaded[side] = true;
+            }
+            made.destroy();
+          },
+        });
+      }
     }
   }
 
@@ -8684,6 +8790,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     }
     if (ui.shown) {
       this.spawnBattleFloaters(ui.shown);
+      this.spawnBattleArrows(ui.shown);
       this.layFallen(ui.shown);
       this.reactToBeat(ui.shown);
     }

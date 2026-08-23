@@ -7,7 +7,7 @@
 //   auto           the skip button, the baseline to beat
 //   always-hold    does one standing order dominate?
 //   always-charge  the same question from the other side
-//   reserve-*      is any fixed one-shot timing always right?
+//   reserve-*      (retired with the reserve itself — these now play as `auto`)
 //   retreat-in-time  does pulling out before the break actually save men?
 //   adaptive       charge when out-shot, rally at the morale trough, reserve at contact
 //   general-N      the host's own commander at martial N, for the delegation question
@@ -153,16 +153,16 @@ const out = await page.evaluate(async (fights) => {
     while (!b.over && guard++ < 400) {
       // Fixed one-shot timings, to prove no single moment is always right.
       if (policy === 'reserve-at-contact') {
-        if (b.ourAdvance + b.theirAdvance >= 1 && !b.reserveSpent) B.commitReserve(st);
+        if (b.ourAdvance + b.theirAdvance >= 1 && !b.reserveSpent) B.commitReserve?.(st);
         if (!b.rallySpent && b.ourAdvance + b.theirAdvance >= 1) B.rally(st);
       }
       if (policy === 'reserve-at-half') {
-        if (b.ourNow <= b.ourStart * 0.6 && !b.reserveSpent) B.commitReserve(st);
+        if (b.ourNow <= b.ourStart * 0.6 && !b.reserveSpent) B.commitReserve?.(st);
         if (!b.rallySpent && b.ourMorale < 55) B.rally(st);
       }
       // Pull out before the line breaks, rather than being cut down running.
       if (policy === 'retreat-in-time') {
-        if (!b.reserveSpent && b.ourAdvance + b.theirAdvance >= 1) B.commitReserve(st);
+        if (!b.reserveSpent && b.ourAdvance + b.theirAdvance >= 1) B.commitReserve?.(st);
         // Outcome is left as `fighting` on purpose: the field was given up by choice, and that
         // is exactly the case `finishBattle` pays straggler recovery for.
         if (b.ourMorale <= CFG.BATTLE_ROUT_MORALE + 8) { decision = 'retreat'; b.over = true; break; }
@@ -178,7 +178,7 @@ const out = await page.evaluate(async (fights) => {
       if (policy === 'counter-ring') {
         answer(B.battleTelegraph(st));
         if (b.ourAdvance + b.theirAdvance >= 1) {
-          if (!b.reserveSpent) B.commitReserve(st);
+          if (!b.reserveSpent) B.commitReserve?.(st);
           else if (!b.rallySpent && b.ourMorale < CFG.BATTLE_ROUT_MORALE + 12) B.rally(st);
         }
       }
@@ -200,7 +200,7 @@ const out = await page.evaluate(async (fights) => {
               : 'balanced');
         }
         if (met) {
-          if (!b.reserveSpent) B.commitReserve(st);
+          if (!b.reserveSpent) B.commitReserve?.(st);
           else if (!b.rallySpent && b.ourMorale < CFG.BATTLE_ROUT_MORALE + 12) B.rally(st);
         }
       }

@@ -68,8 +68,6 @@ export interface MomentEffect {
   sharpen?: boolean;
   /** EDGE — the tilt cannot be turned *against* us for the same window. A floor, not a ceiling. */
   guard?: boolean;
-  /** Sends the reserve in now — the same commitment the dock's own button makes. */
-  reserve?: boolean;
   /** Spends the general's one steadying moment. */
   rally?: boolean;
   /** Ground given or taken, as a share of the field. */
@@ -108,7 +106,6 @@ export interface MomentContext {
   /** Share of the line we have already lost. */
   ourSpent: number;
   theirSpent: number;
-  reserveMen: number;
   /** An enemy column within reach of breaking, if there is one. */
   wavering?: Army;
   /** One of ours in the same state. */
@@ -211,12 +208,7 @@ export const BATTLE_MOMENTS: BattleMomentDef[] = [
     commit: { says: 'charged', stance: 'press', stanceNow: true, advance: 0.1, taken: 1.2, dealt: 1.25 },
     steady: { says: 'braced', taken: 0.7, rounds: -1 },
   },
-  {
-    id: 'reserve-called',
-    when: (c) => c.reserveMen > 0 && !c.battle.reserveSpent && c.ourMorale <= 62,
-    commit: { says: 'reserveIn', reserve: true, morale: 6 },
-    steady: { says: 'waited', dealt: 1.15, morale: 3 },
-  },
+
   {
     // The general's one steadying moment, which used to be a button on the dock. With that button
     // gone the deck is the *only* way to spend a rally, so this question has to be reachable in
