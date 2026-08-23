@@ -876,9 +876,15 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
       return;
     }
     if (variant === 'build') {
-      // A hammer, head-on: an iron head across the top of a timber haft, over the beam it is
-      // driving into. The shape it replaced was a mallet drawn at an angle - a brown wedge on a
-      // brown stick, which at twenty units read as a flag that had fallen over.
+      // A hammer, head-on: an iron head across the top of a timber haft. The shape it replaced was
+      // a mallet drawn at an angle - a brown wedge on a brown stick, which at twenty units read as
+      // a flag that had fallen over.
+      //
+      // Just the tool, with nothing under it. A beam was drawn beneath it at first, on the theory
+      // that a hammer wants something to hit; at this size it was a bar of dark pigment the width
+      // of the glyph, which reads as an underline rather than as timber - and the hammer swings
+      // while it stays put, so the eye takes it for a rule the icon is sitting on. None of the
+      // other four stand on anything either.
       //
       // Head and haft in different pigments on purpose. Both in nau made one silhouette, and the
       // whole reading of a hammer is that the heavy part is not made of the same thing as the
@@ -894,9 +900,6 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
       ], true);
       g.lineStyle(1.1, PIGMENT.diepHi, 0.5);
       g.strokePoints([{ x: -6.4, y: y - 8.4 }, { x: -6.4, y: y - 5.6 }], false, false);
-      // The beam under it, taking the blow.
-      g.fillStyle(PIGMENT.nauDark, 0.9);
-      g.fillRect(-11, y + 8, 22, 3);
       return;
     }
     if (variant === 'recruit') {
