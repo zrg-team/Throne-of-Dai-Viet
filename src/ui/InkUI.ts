@@ -177,7 +177,22 @@ export interface InkSurfaceOptions {
   border?: number;
   borderAlpha?: number;
   borderWidth?: number;
+  /**
+   * **Ignored.** The corner comes from `printedSurface`; pass `cut` to change it.
+   *
+   * Kept because four call sites pass it, and honouring it now would silently re-cut their
+   * corners - two of them ask for 12 against the 7 they have been drawn with since they were
+   * written.
+   */
   radius?: number;
+  /**
+   * Corner cut, in points. `0` is a plain rectangle.
+   *
+   * The default takes a small diagonal off each corner, which is what makes a panel read as a torn
+   * sheet of paper. A surface that runs to the edge of the screen is not a sheet on a table and
+   * should not be cut: the diagonals leave four notches of bare page at the corners.
+   */
+  cut?: number;
   muted?: boolean;
   ornaments?: boolean;
 }
@@ -507,6 +522,7 @@ export class InkUI {
       borderAlpha = 0.86,
       borderWidth = 2,
       radius = 8,
+      cut,
       muted = false,
       ornaments = false,
     } = opts;
@@ -517,7 +533,7 @@ export class InkUI {
 
     printedSurface(g, bounds.width, bounds.height, {
       fill, fillAlpha: alpha, border, borderAlpha: muted ? borderAlpha * 0.6 : borderAlpha,
-      borderWidth, seed: Math.round(bounds.x * 13 + bounds.y * 7 + bounds.width),
+      borderWidth, cut, seed: Math.round(bounds.x * 13 + bounds.y * 7 + bounds.width),
     });
     // A second rule just inside the edge, the way a printed plate is bordered twice.
     inkPath(

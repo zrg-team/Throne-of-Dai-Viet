@@ -676,6 +676,14 @@ export const BATTLE_TICK_MS = 560;
  * enough to read as "they broke and ran", short enough that a player dialling in matchups is not
  * kept waiting between them.
  */
+/**
+ * Seconds the opening drum beats while both sides choose their shape, unseen by each other.
+ *
+ * Five: long enough to read five chips and commit without hurrying, short enough that it reads as
+ * a drum roll before a fight rather than as a menu the fight is waiting behind.
+ */
+export const BATTLE_OPENING_SECONDS = 5;
+
 export const ARENA_ROUT_HOLD_MS = Math.round(BATTLE_TICK_MS * 3.4);
 /**
  * Beats resolved per economy tick.

@@ -53,7 +53,7 @@ import { ourHosts, theirHosts } from '../systems/ascent/BattleSystem';
 import {
   ASCENT_TICK_MS, BATTLE_BEATS_PER_TICK, BATTLE_DEPTH_FAR, BATTLE_DEPTH_NEAR, BATTLE_HIT_STOP_MS,
   BATTLE_FORMATION_WIND, BATTLE_HOST_SCALE, BATTLE_PRESS_TRAVEL, BATTLE_STANCE_RECOVERY,
-  ARENA_ROUT_HOLD_MS, BATTLE_ROUT_MORALE, BATTLE_TICK_MS,
+  ARENA_ROUT_HOLD_MS, BATTLE_OPENING_SECONDS, BATTLE_ROUT_MORALE, BATTLE_TICK_MS,
   TRIBUTE_REFUSE_TICKS,
 } from '../game/ascentConfig';
 import { battleTelegraph, battleWindView } from '../systems/ascent/BattleSystem';
@@ -602,6 +602,24 @@ export class ConquestUIScene extends Phaser.Scene {
   private lastWaveCueId = 0;
   /** True from the screen opening itself until the first order: the world is held meanwhile. */
   private battleAwaitingOrder = false;
+  /**
+   * The opening drum, while both sides are still choosing.
+   *
+   * **The fight used to be decided before it started.** The enemy's shape is drawn at `beginBattle`
+   * and was on screen — in their block, on the chip rims, in the telegraph line — while the player
+   * picked theirs, and the fight did not begin until they did. So the opening was a free look at
+   * the answer: read their shape, tap the one that beats it, start on a two-tier advantage every
+   * time. The five shapes are a rock-paper-scissors ring, and one side seeing the other's throw is
+   * not a ring at all.
+   *
+   * Both throws are now made blind. Their shape was always random — `openingShape` hashes the
+   * fight's own key — so nothing about the simulation changes; what changes is that it is *sealed*
+   * until the drum runs out. While it is, an order commits but does not start the fight: the clock
+   * does that, which is what stops the player buying information by simply waiting.
+   */
+  private battleOpeningTimer?: Phaser.Time.TimerEvent;
+  /** Whole seconds left on the drum, for the line in the field. */
+  private battleOpeningLeft = 0;
   /** The Skirmish's post-fight hold, while the beaten side runs off. See `holdArenaRout`. */
   private arenaRoutHold?: Phaser.Time.TimerEvent;
   /**
@@ -628,6 +646,8 @@ export class ConquestUIScene extends Phaser.Scene {
     this.battleUi = undefined;
     this.lastAutoOpenedBattleKey = '';
     this.battleAwaitingOrder = false;
+    this.battleOpeningTimer?.remove();
+    this.battleOpeningTimer = undefined;
     this.reopenBattleAfterPrompt = false;
     window.__hudTapBounds = [];
   }
@@ -892,8 +912,61 @@ export class ConquestUIScene extends Phaser.Scene {
     if (fresh) {
       this.battleAwaitingOrder = true;
       this.state.isStrategyPause = true;
+      this.startBattleOpeningDrum();
+      // The lane is already built by here, and it was built unsealed - so the telegraph line and
+      // the chip rims went up naming the shape the drum exists to hide, for as long as it took the
+      // first tick to overwrite them. Redrawn once, now that the seal is on.
+      const fight = this.state.ascent?.activeBattle;
+      if (fight) {
+        this.buildBattleField(fight);
+        this.buildBattleOrders(fight);
+        this.updateBattleBubbles(fight);
+        this.updateBattleNotice(fight);
+      }
     }
     return true;
+  }
+
+  /**
+   * Counts the opening down and then starts the fight, whatever either side has chosen.
+   *
+   * A scene timer rather than a simulation one, because the world is strategy-paused for the whole
+   * of it — the point of the hold is that no beat is resolved while the two sides are still
+   * choosing. `BATTLE_OPENING_BEATS` seconds is enough to read five chips and commit, and short
+   * enough that it reads as a drum roll rather than as a menu.
+   */
+  private startBattleOpeningDrum(): void {
+    this.battleOpeningTimer?.remove();
+    this.battleOpeningLeft = BATTLE_OPENING_SECONDS;
+    this.battleOpeningTimer = this.time.addEvent({
+      delay: 1000,
+      repeat: BATTLE_OPENING_SECONDS - 1,
+      callback: () => {
+        this.battleOpeningLeft = Math.max(0, this.battleOpeningLeft - 1);
+        if (this.battleOpeningLeft > 0) {
+          // Only the line moves. Rebuilding the dock every second would take the chip out from
+          // under a thumb already on its way down.
+          const battle = this.state.ascent?.activeBattle;
+          if (battle) this.updateBattleNotice(battle);
+          return;
+        }
+        this.battleOpeningTimer = undefined;
+        this.releaseBattleHold();
+        // The seal is off: the rims, the telegraph and their block all say what they are now.
+        const battle = this.state.ascent?.activeBattle;
+        if (battle && this.openPromptKey === 'lane:battle') {
+          this.buildBattleField(battle);
+          this.buildBattleOrders(battle);
+          this.updateBattleBubbles(battle);
+          this.updateBattleNotice(battle);
+        }
+      },
+    });
+  }
+
+  /** Whether the two sides are still choosing, and so cannot see each other's shape. */
+  private get battleOpeningSealed(): boolean {
+    return this.battleAwaitingOrder && this.battleOpeningTimer !== undefined;
   }
 
   /**
@@ -911,6 +984,11 @@ export class ConquestUIScene extends Phaser.Scene {
    */
   private releaseBattleHold(): void {
     if (!this.battleAwaitingOrder) return;
+    // An order given while the drum is still beating is *taken*, not acted on: the handler that
+    // called this goes on to emit it, and the shape changes. What it does not do is start the
+    // fight, because starting on your own tap is what let a player wait, read the enemy's shape and
+    // then commit. The clock starts the fight, for both sides, at the same moment.
+    if (this.battleOpeningTimer) return;
     this.battleAwaitingOrder = false;
     this.lanePauseBeforeOpen = false;
     this.state.isStrategyPause = false;
@@ -2649,6 +2727,10 @@ export class ConquestUIScene extends Phaser.Scene {
     // Leaving the battle screen unanswered is an answer: the generals fight on and the world
     // moves. The hold only ever lasts as long as the screen that asked for it.
     this.battleAwaitingOrder = false;
+    // The drum belongs to the screen that raised it. Left running, it would start a fight the
+    // player has walked away from — and call `buildBattleField` on a lane that no longer exists.
+    this.battleOpeningTimer?.remove();
+    this.battleOpeningTimer = undefined;
     this.state.isStrategyPause = this.lanePauseBeforeOpen;
 
     // In the arena there is nothing behind this screen. Closing it dropped the player onto a map
@@ -6965,7 +7047,11 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // as the picture being cut short of its own frame.
     field.add(this.ui.panel(
       battleFieldBox(content, ui.fieldHeight),
-      { border: INK_UI.softBrush, radius: 0 },
+      // `cut: 0`, and `radius` would not have done it: `panel` discards that option and the corner
+      // comes from `printedSurface`, which takes a diagonal off each one so a panel reads as a torn
+      // sheet. Right for a card lying on the page, wrong for a view that runs to both edges - the
+      // cuts left four notches of bare paper at the corners of the picture.
+      { border: INK_UI.softBrush, cut: 0 },
     ));
 
     // The ground itself, before anything stands on it — then flattened into one texture.
@@ -7008,7 +7094,14 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       const marker = this.battleItems!.createArmyMarker(
         hostSize(host), false, rivalColor,
         Math.max(0, this.state.kingdoms.findIndex((k) => k.id === battle.kingdomId)),
-        { ...hostKitFor(this.state, host), mustered: hostSize(host), shape: battle.theirFormation },
+        // Unshaped while the drum beats. `drawHost` takes `undefined` to mean "not standing in
+        // anything yet", which is exactly true here and is the same state a side is drawn in while
+        // it re-forms mid-fight — so the picture has a word for this already.
+        {
+          ...hostKitFor(this.state, host),
+          mustered: hostSize(host),
+          shape: this.battleOpeningSealed ? undefined : battle.theirFormation,
+        },
         this.battleBaseScale(),
       );
       marker.setPosition(lines.theirX, lane(index, theirs.length));
@@ -7496,8 +7589,13 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       : t(`ascent.formation.${battle.ourFormation}.ours` as Parameters<typeof t>[0]);
     // What they are *standing in*, not what they are walking into. The second is a warning and
     // belongs in the notice; a bubble says what the men under it are doing now.
+    // "their spears are set" names the shape in as many words, which is the leak the rims and the
+    // telegraph were already closed for. While the drum beats they are visibly *forming* and say
+    // so; the moment it falls they say what they formed into.
     const theirShape = read?.formation ?? battle.theirFormation;
-    const theirs = t(`ascent.formation.${theirShape}.threat` as Parameters<typeof t>[0]);
+    const theirs = this.battleOpeningSealed
+      ? t('ascent.battle.formingUp')
+      : t(`ascent.formation.${theirShape}.threat` as Parameters<typeof t>[0]);
 
     /**
      * Redrawn when the sentence changes — or when the host it points at has walked far enough that
@@ -7553,7 +7651,10 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         continue;
       }
       const made = this.battleBubble(
-        at, side, text, spoke && !opening, side === 'ours' ? ourShape : theirShape,
+        at, side, text, spoke && !opening,
+        // No glyph for them while sealed: the little grid or hedge beside the words is the shape
+        // spelled out in one mark, and hiding the sentence while keeping the picture hides nothing.
+        side === 'ours' ? ourShape : (this.battleOpeningSealed ? undefined : theirShape),
       );
       ui.bubbles.add(made);
       ui.bubbleOf[side] = made;
@@ -7793,9 +7894,11 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const ui = this.battleUi;
     if (!ui?.notice?.active) return;
 
-    const read = battleTelegraph(this.state);
+    const read = this.battleOpeningSealed ? undefined : battleTelegraph(this.state);
     let line = '';
-    if (this.battleAwaitingOrder) {
+    if (this.battleOpeningSealed) {
+      line = t('ascent.battle.openingDrum', { n: String(this.battleOpeningLeft) });
+    } else if (this.battleAwaitingOrder) {
       line = t('ascent.battle.holdNote');
     } else if (read?.next) {
       line = t('ascent.battle.theyForm', {
@@ -7959,7 +8062,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const reforming = (battle.reformBeats ?? 0) > 0;
     // Their *target* is what a shape has to answer — countering the thing they are walking out of
     // is the classic way to arrive one beat too late.
-    const answering = read ? (read.next ?? read.formation) : undefined;
+    // Nothing to answer while the drum is beating: the rims are drawn from the enemy's shape, and
+    // a jade rim on exactly the chip that beats them is the whole leak in one mark.
+    const answering = this.battleOpeningSealed ? undefined : (read ? (read.next ?? read.formation) : undefined);
     const chipGap = 5;
     const chipW = (content.width - chipGap * (FORMATION_RING.length - 1)) / FORMATION_RING.length;
 
@@ -9069,7 +9174,15 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       ours
         ? this.state.mapConfig.seed
         : Math.max(0, this.state.kingdoms.findIndex((k) => k.id === battle.kingdomId)),
-      { ...hostKitFor(this.state, host), mustered: entry.mustered, shape: ours ? battle.ourFormation : battle.theirFormation },
+      {
+        ...hostKitFor(this.state, host),
+        mustered: entry.mustered,
+        // Sealed the same way the first build is. Attrition redraws a block roughly every
+        // fifty-five men, so without this the enemy's shape came back the first time one of their
+        // columns crossed a mark boundary — the seal would have lasted until the first casualty.
+        shape: ours ? battle.ourFormation
+          : this.battleOpeningSealed ? undefined : battle.theirFormation,
+      },
       this.battleBaseScale(),
     );
     rebuilt.setPosition(x, y);
