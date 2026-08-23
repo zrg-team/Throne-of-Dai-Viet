@@ -25,7 +25,6 @@ import {
   BATTLE_MORALE_WIN_GAIN,
   BATTLE_RALLY_BASE,
   BATTLE_WITHDRAW_BEATS,
-  BATTLE_RESERVE_SHARE,
   BATTLE_ROUND_BITE,
   BATTLE_RALLY_DESPERATION,
   BATTLE_STANCE_RECOVERY,
@@ -111,6 +110,13 @@ function beatHosts(hosts: Army[]): BattleBeatHost[] {
  * never calls `Math.random`, so the simulation's RNG order is untouched and every mode's
  * regression fingerprint holds.
  */
+/** Share of a side's standing men that are archers, 0..1. */
+function bowShare(hosts: Army[]): number {
+  const men = hosts.reduce((total, host) => total + totalUnits(host), 0);
+  if (men <= 0) return 0;
+  return hosts.reduce((total, host) => total + host.units.archers, 0) / men;
+}
+
 function recordBeat(
   battle: AscentBattle,
   phase: 'approach' | 'clash',
@@ -137,6 +143,12 @@ function recordBeat(
     theirHosts: beatHosts(theirs),
     line,
     broke: broke && broke.length > 0 ? broke : undefined,
+    // For the arrows: a side walking between shapes looses nothing, which is part of the walk's
+    // price and a tell in its own right.
+    ourShape: reforming(battle.reformBeats) ? undefined : battle.ourFormation,
+    theirShape: reforming(battle.theirReformBeats) ? undefined : battle.theirFormation,
+    ourBows: bowShare(ours),
+    theirBows: bowShare(theirs),
   });
   if (beats.length > BEAT_QUEUE_CAP) beats.splice(0, beats.length - BEAT_QUEUE_CAP);
 }
@@ -277,19 +289,6 @@ const GREAT_WATCH_MIN = 0.5;
  */
 const ORDINARY_WATCH_WAVE_GAP = 1;
 
-/** Share of a host's strength held back at camp, available to commit mid-fight. */
-function splitReserve(army: Army): { spearmen: number; archers: number; heavyInfantry: number } {
-  const take = (n: number): number => Math.floor(n * BATTLE_RESERVE_SHARE);
-  const reserve = {
-    spearmen: take(army.units.spearmen),
-    archers: take(army.units.archers),
-    heavyInfantry: take(army.units.heavyInfantry),
-  };
-  army.units.spearmen -= reserve.spearmen;
-  army.units.archers -= reserve.archers;
-  army.units.heavyInfantry -= reserve.heavyInfantry;
-  return reserve;
-}
 
 export function beginBattle(state: GameState): boolean {
   const ascent = state.ascent;
@@ -341,11 +340,12 @@ export function beginBattle(state: GameState): boolean {
   ascent.lastWatchedKey = watchKey;
   ascent.lastWatchedWave = ascent.wave;
 
-  // The reserve is held back from a field host when there is one — men at camp, not walls —
-  // and the rally is whichever general is on the field, not whichever host happens to be largest.
+  // No reserve is held back any more: every man the side brought stands on the field from the
+  // first beat, and the count the player chose is the count they see. The 28% held at camp was
+  // a one-shot nobody could press — only a Moment or the general committed it — so to a player
+  // it was a number that did not match their muster and then mysteriously grew. The rally is
+  // whichever general is on the field, not whichever host happens to be largest.
   const fieldHosts = ours.filter((host) => !host.isLevy).sort((a, b) => totalUnits(b) - totalUnits(a));
-  const reserveHost = fieldHosts[0] ?? defender;
-  const reserve = splitReserve(reserveHost);
   const theirs = theirHosts(state, draft);
   const oursTotal = ours.reduce((n, h) => n + totalUnits(h), 0);
   const theirsTotal = theirs.reduce((n, h) => n + totalUnits(h), 0);
@@ -356,12 +356,12 @@ export function beginBattle(state: GameState): boolean {
 
   ascent.activeBattle = {
     ...draft,
-    reserveHostId: reserveHost.id,
     totalRounds,
     // Frozen at muster: a king who dies mid-fight does not change the man on the field.
     commanderTemper: temperOf(state, draft),
     ourSignature: sideSignature(ours),
     theirSignature: sideSignature(theirs),
+    theirFormation: openingShape(draft, theirsTotal),
     ourStartMorale: defender.morale,
     ourMorale: defender.morale,
     theirMorale: invader.morale,
@@ -369,11 +369,10 @@ export function beginBattle(state: GameState): boolean {
     theirHostCount: theirs.length,
     // Summed across every host present, not just the strongest. Reading these off one army made
     // a two-column defence open showing only its vanguard's numbers.
-    ourStart: oursTotal + reserve.spearmen + reserve.archers + reserve.heavyInfantry,
+    ourStart: oursTotal,
     theirStart: theirsTotal,
     ourNow: oursTotal,
     theirNow: theirsTotal,
-    reserve,
     // Rally is the general's, so a host with nobody at its head simply does not get one.
     rallySpent: !general,
     rallyPower: general ? Math.round(BATTLE_RALLY_BASE + general.stats.martial * 0.25) : 0,
@@ -443,8 +442,7 @@ function beginAssault(state: GameState, pending: PendingBattle): boolean {
 
   ascent.lastAssaultKey = key;
   const fieldHosts = ours.slice().sort((a, b) => totalUnits(b) - totalUnits(a));
-  const reserveHost = fieldHosts[0];
-  const reserve = splitReserve(reserveHost);
+
   const oursTotal = ours.reduce((n, h) => n + totalUnits(h), 0);
   const theirsTotal = theirs.reduce((n, h) => n + totalUnits(h), 0);
   const scale = Math.min(1, (theirsTotal + oursTotal) / 2400);
@@ -454,21 +452,20 @@ function beginAssault(state: GameState, pending: PendingBattle): boolean {
 
   ascent.activeBattle = {
     ...draft,
-    reserveHostId: reserveHost.id,
     totalRounds,
     commanderTemper: temperOf(state, draft),
     ourSignature: sideSignature(ours),
     theirSignature: sideSignature(theirs),
+    theirFormation: openingShape(draft, theirsTotal),
     ourStartMorale: line.morale,
     ourMorale: line.morale,
     theirMorale: theirs[0].morale,
     ourHostCount: ours.length,
     theirHostCount: theirs.length,
-    ourStart: oursTotal + reserve.spearmen + reserve.archers + reserve.heavyInfantry,
+    ourStart: oursTotal,
     theirStart: theirsTotal,
     ourNow: oursTotal,
     theirNow: theirsTotal,
-    reserve,
     rallySpent: !general,
     rallyPower: general ? Math.round(BATTLE_RALLY_BASE + general.stats.martial * 0.25) : 0,
     // The ground is theirs this time: the edge goes to the walls, not to us.
@@ -524,8 +521,10 @@ function emptyBattle(pending: PendingBattle): AscentBattle {
     theirStart: 0,
     ourNow: 0,
     theirNow: 0,
+    // Retired: nobody is held at camp any more. The fields stay for save compatibility and
+    // always read as empty and spent.
     reserve: { spearmen: 0, archers: 0, heavyInfantry: 0 },
-    reserveSpent: false,
+    reserveSpent: true,
     rallySpent: true,
     rallyPower: 0,
     terrainEdge: 1,
@@ -923,12 +922,17 @@ function advanceEnemyFormation(state: GameState, battle: AscentBattle, theirs: A
   //
   // Their answers obey their own wind — a shape they left inside the last three beats is off
   // their dock too, which is what makes counting their spent shapes a real read for the player.
-  // The cunning read your dock: among his answers he prefers the one whose own strong answer you
-  // have winded — the shape you cannot punish for three beats. Order the candidate list before
-  // the `.find`, and the telegraph stays as honest as ever: he only re-orders his preferences.
-  const prefersUnanswerable = temperOf(state, battle) === 'cunning';
+  // Every invader reads your dock: among his answers he prefers the one whose own strong answer
+  // you have winded — the shape you cannot punish until its breath is back. This is the half of
+  // the design that makes a cooldown something a player actually MEETS: without it the ring's
+  // geometry walks you backwards round the five shapes and you never want the chip you just
+  // left. Ordering the candidate list before the `.find` keeps the telegraph as honest as ever —
+  // he only re-orders his preferences. The cunning simply does it sooner (restless inside two
+  // beats); the others wait out their period.
   const candidates = countersTo(battle.ourFormation);
-  if (prefersUnanswerable) {
+  const readsDock = temper.readsDock > 0
+    && ((battle.theirRotations ?? 0) + 1) % temper.readsDock === 0;
+  if (readsDock) {
     const unanswerable = (shape: BattleFormation): number => {
       const ourStrongAnswer = FORMATION_RING[
         (FORMATION_RING.indexOf(shape) - 1 + FORMATION_RING.length) % FORMATION_RING.length];
@@ -943,6 +947,7 @@ function advanceEnemyFormation(state: GameState, battle: AscentBattle, theirs: A
     ?? (tilt < 0 ? matchShapeFor(battle, 'theirs') : undefined);
   if (!wanted || wanted === battle.theirFormation) return;
   battle.beatsSinceTheirShape = 0;
+  battle.theirRotations = (battle.theirRotations ?? 0) + 1;
 
   battle.theirFormationTarget = wanted;
   // Two, not one — and the difference is visibility, not speed. This order is placed INSIDE the
@@ -1111,7 +1116,6 @@ function momentContext(
     odds: theirNow / Math.max(1, ourNow),
     ourSpent: 1 - ourNow / Math.max(1, battle.ourStart),
     theirSpent: 1 - theirNow / Math.max(1, battle.theirStart),
-    reserveMen: battle.reserve.spearmen + battle.reserve.archers + battle.reserve.heavyInfantry,
     // The band has to be wide: a host breaks at `BATTLE_ROUT_MORALE` and one bad exchange can
     // carry it from fifty to thirty in a single beat, so a narrow window is simply stepped over.
     wavering: theirs.find((host) => host.morale <= BATTLE_ROUT_MORALE + 18),
@@ -1147,6 +1151,22 @@ function pickMoment(pool: BattleMomentDef[], seed: number): BattleMomentDef {
     if (cursor <= 0) return def;
   }
   return pool[pool.length - 1];
+}
+
+/**
+ * The shape the invader opens in — any of the five, never always the hedge.
+ *
+ * Both sides used to open in Thế Chông, so the enemy's first bubble said the same thing every
+ * fight and the opening order was a reflex rather than a read. Seeded off the fight, not drawn:
+ * `Math.random` here would shift the RNG order for every mode's regression fingerprint, and the
+ * same fight must open the same way twice for the lab to measure anything.
+ */
+function openingShape(draft: AscentBattle, salt: number): BattleFormation {
+  let hash = 2166136261;
+  for (const ch of `${draft.key ?? draft.landId}:${draft.kingdomId}:${salt}`) {
+    hash = Math.imul(hash ^ ch.charCodeAt(0), 16777619);
+  }
+  return FORMATION_RING[(hash >>> 0) % FORMATION_RING.length];
 }
 
 /** Varies per fight, per beat and per question already asked, so a run never repeats a draw. */
@@ -1221,7 +1241,6 @@ function applyMomentEffect(
   if (effect.loss) applyMomentLosses(ourHosts(state, battle), effect.loss);
   if (effect.theirLoss) applyMomentLosses(theirHosts(state, battle), effect.theirLoss * weight);
 
-  if (effect.reserve && !battle.reserveSpent) commitReserve(state);
   if (effect.rally && !battle.rallySpent) rally(state);
 }
 
@@ -1735,16 +1754,14 @@ function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
       }
     }
     if (met) {
-      if (!battle.reserveSpent) commitReserve(state);
-      else if (!battle.rallySpent && battle.ourMorale < BATTLE_ROUT_MORALE + 12) rally(state);
+      if (!battle.rallySpent && battle.ourMorale < BATTLE_ROUT_MORALE + 12) rally(state);
     }
     return;
   }
   // Their habit. Not a reset to `hold`: reverting the stance every beat they misread is worse than
   // standing still, and measured it cost a martial-90 commander fourteen points against skilled
   // play. They keep the line they are already in and spend the reserve late.
-  if (met && !battle.reserveSpent && battle.ourNow <= battle.ourStart * 0.55) commitReserve(state);
-  if (met && battle.reserveSpent && !battle.rallySpent && battle.ourMorale < BATTLE_ROUT_MORALE + 6) rally(state);
+  if (met && !battle.rallySpent && battle.ourMorale < BATTLE_ROUT_MORALE + 6) rally(state);
 }
 
 /**
@@ -1813,33 +1830,6 @@ export function advanceBattle(state: GameState): void {
 }
 
 /** Commits the host held back at camp. One-shot, and the reason to keep watching. */
-/** The host the reserve belongs to — the one it was drawn from, or the line if that host is gone. */
-function reserveHostOf(state: GameState, battle: AscentBattle): Army | undefined {
-  const own = state.armies.find((army) => army.id === battle.reserveHostId && totalUnits(army) > 0);
-  return own ?? battleLine(state, battle);
-}
-
-export function commitReserve(state: GameState): boolean {
-  const battle = state.ascent?.activeBattle;
-  if (!battle || battle.reserveSpent || battle.over) return false;
-  const defender = reserveHostOf(state, battle);
-  if (!defender) return false;
-
-  defender.units.spearmen += battle.reserve.spearmen;
-  defender.units.archers += battle.reserve.archers;
-  defender.units.heavyInfantry += battle.reserve.heavyInfantry;
-  battle.reserveSpent = true;
-  battle.ourNow = totalUnits(defender);
-  // Fresh troops steady the line as well as thicken it — and the more desperate the line, the
-  // more their arrival is worth. The counterweight is that a host which breaks before you commit
-  // takes the reserve down with it, so holding them back is a gamble in both directions.
-  const sag = Math.max(0, (battle.ourStartMorale - battle.ourMorale) / Math.max(1, battle.ourStartMorale));
-  battle.ourMorale = setMorale(defender, battle.ourMorale + BATTLE_CHARGE_MORALE * (1 + sag * 2));
-  battle.log.push(t('ascent.battle.reserveIn', {
-    n: battle.reserve.spearmen + battle.reserve.archers + battle.reserve.heavyInfantry,
-  }));
-  return true;
-}
 
 /** The general steadies the host. One-shot, scaled by their martial — see `rallyPower`. */
 export function rally(state: GameState): boolean {
@@ -1914,15 +1904,6 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
     // Nothing being watched: the shared code still owns whatever record is waiting.
     if (state.pendingBattle) resolveBattleRecord(state, takePending(state), decision === 'press' ? 'attack' : decision === 'retreat' ? 'retreat' : 'delegate');
     return;
-  }
-
-  if (!battle.reserveSpent) {
-    const defender = reserveHostOf(state, battle);
-    if (defender) {
-      defender.units.spearmen += battle.reserve.spearmen;
-      defender.units.archers += battle.reserve.archers;
-      defender.units.heavyInfantry += battle.reserve.heavyInfantry;
-    }
   }
 
   // `outcome` used to be computed and thrown away: routing them, being routed, and grinding to

@@ -41,17 +41,28 @@ interface DifficultyProfile {
    * a beat where they are content.
    */
   readonly answersEven: boolean;
+  /**
+   * How long the speech bubbles over the two hosts stay up, in ms. `Infinity` keeps them for as
+   * long as the sentence is true; `0` never draws them at all.
+   *
+   * The bubbles are the fight in words — "their spears are set", "we are spread loose" — and on
+   * the default setting they now fade, so the drawn formation is what a player learns to read.
+   * Hard fades faster; nightmare has no bubbles, only the picture. Both sides, deliberately: a
+   * player who ordered a shape knows what they ordered, and a bubble repeating it back was one
+   * more thing on a screen that wants the eye on the men.
+   */
+  readonly bubbleMs: number;
 }
 
 const DIFFICULTY: Record<BattleDifficulty, DifficultyProfile> = {
   // Two extra beats is a long window — enough to counter, watch it land, and still spend a beat or
   // two inside the advantage before they answer.
-  easy: { reactDelay: 2, answersEven: false },
+  easy: { reactDelay: 2, answersEven: false, bubbleMs: Infinity },
   // What the fight has always done. See the file's note on defaults.
-  medium: { reactDelay: 0, answersEven: false },
-  hard: { reactDelay: -1, answersEven: false },
-  // Fastest they can be re-formed at all, and never a beat of contentment.
-  nightmare: { reactDelay: -2, answersEven: true },
+  medium: { reactDelay: 0, answersEven: false, bubbleMs: 2400 },
+  hard: { reactDelay: -1, answersEven: false, bubbleMs: 1100 },
+  // Fastest they can be re-formed at all, never a beat of contentment, and no words on the field.
+  nightmare: { reactDelay: -2, answersEven: true, bubbleMs: 0 },
 };
 
 interface SpeedProfile {
@@ -72,9 +83,12 @@ interface SpeedProfile {
  * was written to keep.
  */
 const SPEED: Record<BattleSpeed, SpeedProfile> = {
-  slow: { beatsPerTick: 4, tickMs: 840 },
-  normal: { beatsPerTick: 6, tickMs: 560 },
-  fast: { beatsPerTick: 9, tickMs: 373 },
+  // A beat is shown for 875 ms now, up from 560. At 560 a 28-beat fight was over in 25 s and read
+  // as a dice roll — "no game feeling at all" — and every number on the rails stepped faster than
+  // the eye could settle on it. The product still matches the world tick.
+  slow: { beatsPerTick: 3, tickMs: 1166 },
+  normal: { beatsPerTick: 4, tickMs: 875 },
+  fast: { beatsPerTick: 6, tickMs: 583 },
 };
 
 const DIFFICULTY_KEY = 'mandate:battle:difficulty:v1';
@@ -126,6 +140,11 @@ export function battleReactDelay(): number {
 /** Whether the invader answers an even matchup as well as a losing one. */
 export function battleAnswersEven(): boolean {
   return DIFFICULTY[getBattleDifficulty()].answersEven;
+}
+
+/** How long a speech bubble over a host lingers. See `DifficultyProfile.bubbleMs`. */
+export function battleBubbleMs(): number {
+  return DIFFICULTY[getBattleDifficulty()].bubbleMs;
 }
 
 export function battleBeatsPerTick(): number {

@@ -834,6 +834,15 @@ const FORMATION: Record<FormationKey, FormationSlot> = {
   horse: { arm: 'mounted', dx: 1.125, dy: 7.17, pitch: 1.875, rank: 1.33, pri: 3 },
 };
 
+/** The block each shape's outline is built around — the one the eye finds the shape by. */
+const SILHOUETTE_BLOCK: Record<BattleFormation, FormationKey> = {
+  chong: 'line',
+  xung: 'horse',
+  tan: 'screen',
+  quy: 'line',
+  no: 'bows',
+};
+
 /** One block of a formation, and where it stands in the army's own coordinates. */
 export interface FormationBlock {
   key: FormationKey;
@@ -908,6 +917,27 @@ export function armyShape(
   // and the History plate out of this entirely.
   const tweaks = shape ? FORMATION_PLAN[shape] : undefined;
 
+  /**
+   * The silhouette must survive the doctrine.
+   *
+   * Every host can stand in every shape since the wind rework, and on the hardest setting the
+   * drawing is the ONLY telegraph — so a spear host in Thế Xung has to show a point and a shock
+   * host in Thế Tán has to show a loose screen, even though neither doctrine has a single mark in
+   * the block those shapes are built around. The block is borrowed: a share of the line steps
+   * into the empty slot and stands in that block's geometry, drawn as the line's own men (a
+   * wedge of spearmen, not phantom riders). The map marker never sees this — no shape, no loan.
+   */
+  const borrowedArm: Partial<Record<FormationKey, FigureArm>> = {};
+  if (shape) {
+    const lead = SILHOUETTE_BLOCK[shape];
+    if (lead !== 'line' && shares[lead].full <= 0 && shares.line.standing > 7) {
+      const take = Math.max(6, Math.round(shares.line.standing * 0.4));
+      shares[lead] = { full: take, standing: take };
+      shares.line = { full: Math.max(1, shares.line.full - take), standing: shares.line.standing - take };
+      borrowedArm[lead] = FORMATION.line.arm;
+    }
+  }
+
   const pitch = FILE_PITCH * s * spread;
   const rankPitch = RANK_PITCH * s * spread;
   const shear = RANK_SHEAR * s * spread;
@@ -943,7 +973,7 @@ export function armyShape(
     const by = slot.dy * rankPitch - ((rows - 1) * br) / 2;
     const feet = by + (rows - 1) * br;
     blocks.push({
-      key, arm: slot.arm, pri: slot.pri, marks, cols, rows,
+      key, arm: borrowedArm[key] ?? slot.arm, pri: slot.pri, marks, cols, rows,
       x: bx, y: by, pitch: bp, rankPitch: br, shear, feet, wedge: tweak?.wedge,
     });
     left = Math.min(left, bx);

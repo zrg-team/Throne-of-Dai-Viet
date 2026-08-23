@@ -629,8 +629,8 @@ export const ENEMY_SPOT_RADIUS = 2;
  * Beats a small engagement runs; a large one runs up to the maximum. These are now real-time
  * beats a few per second, not turns — see `fightRound` and the view's clock.
  */
-export const BATTLE_BASE_ROUNDS = 14;
-export const BATTLE_MAX_ROUNDS = 22;
+export const BATTLE_BASE_ROUNDS = 48;
+export const BATTLE_MAX_ROUNDS = 72;
 /**
  * Extra heart lost by **both** sides, per round, for every round past `totalRounds`.
  *
@@ -647,7 +647,7 @@ export const BATTLE_MAX_ROUNDS = 22;
  * Applied to both sides equally on purpose. A pressure that favoured either would decide fights
  * the shapes and the tempo are supposed to decide.
  */
-export const BATTLE_OVERTIME_MORALE = 1.2;
+export const BATTLE_OVERTIME_MORALE = 0.6;
 /**
  * Milliseconds a single beat is held on screen.
  *
@@ -661,7 +661,7 @@ export const BATTLE_OVERTIME_MORALE = 1.2;
  * interval. Sized so a tick's worth plays out just inside the tick that produced it —
  * 6 x 560 = 3.36s against ASCENT_TICK_MS of 3500 — leaving headroom rather than falling behind.
  */
-export const BATTLE_TICK_MS = 560;
+export const BATTLE_TICK_MS = 875;
 
 /**
  * How long the Skirmish holds the emptying field before it hands back to the setup screen.
@@ -676,6 +676,14 @@ export const BATTLE_TICK_MS = 560;
  * enough to read as "they broke and ran", short enough that a player dialling in matchups is not
  * kept waiting between them.
  */
+/**
+ * Seconds the opening drum beats while both sides choose their shape, unseen by each other.
+ *
+ * Five: long enough to read five chips and commit without hurrying, short enough that it reads as
+ * a drum roll before a fight rather than as a menu the fight is waiting behind.
+ */
+export const BATTLE_OPENING_SECONDS = 5;
+
 export const ARENA_ROUT_HOLD_MS = Math.round(BATTLE_TICK_MS * 3.4);
 /**
  * Beats resolved per economy tick.
@@ -686,7 +694,7 @@ export const ARENA_ROUT_HOLD_MS = Math.round(BATTLE_TICK_MS * 3.4);
  * 4 with fights that finally outlived their opening tick, a battle was live on more than half of
  * all ticks and the wave cycle was mostly siege.
  */
-export const BATTLE_BEATS_PER_TICK = 6;
+export const BATTLE_BEATS_PER_TICK = 4;
 
 /**
  * How large the hosts are drawn on the battle screen, against the map's `GROUND_SCALE` of 0.72.
@@ -769,9 +777,9 @@ export const LEVY_POWER_PER_MAN = 0.755;
  * this is a safety net rather than a pace: a defender that never leaves its walls cannot stall
  * the fight at the approach.
  */
-export const BATTLE_APPROACH_MAX_BEATS = 12;
+export const BATTLE_APPROACH_MAX_BEATS = 18;
 /** How much of the field a line crosses per beat, so the two meet in the middle in good time. */
-export const BATTLE_ADVANCE_PER_TICK = 0.115;
+export const BATTLE_ADVANCE_PER_TICK = 0.045;
 /**
  * Share of a host's strength at stake in one exchange, before the power ratio and *both*
  * postures scale it. Raised from 0.022 when the exchange became symmetric: each side's
@@ -785,7 +793,7 @@ export const BATTLE_ADVANCE_PER_TICK = 0.115;
  * collapses, and it was running out of rounds before it could. A heavier exchange lets the fight
  * conclude on the field, which is what `finishBattle` now scores it on.
  */
-export const BATTLE_ROUND_BITE = 0.0345;
+export const BATTLE_ROUND_BITE = 0.02;
 /** Fraction of its starting strength at which a host breaks and the engagement ends early. */
 export const BATTLE_BREAK_SHARE = 0.35;
 /**
@@ -851,13 +859,19 @@ export const BATTLE_FORMATION_TILT_BLUNT = 0.5;
  * Beats a shape needs to get its breath back after the host walks out of it.
  *
  * The one restriction on the whole battle screen. It exists to stop the single best answer being
- * pressed on cooldown forever, so the *second*-best shape becomes something a player learns —
- * measured at wind 3 against an enemy rotating every 2–3 beats, greedy play lands on the soft
- * answer about one change in five. The clock is stamped on the shape being LEFT, at landing, and
- * ticks down at the stance's recovery rate below. The shape the enemy stands in never needs wind
- * (the "match" floor), so a dead dock is impossible.
+ * pressed on cooldown forever, so the *second*-best shape becomes something a player learns. The
+ * clock is stamped on the shape being LEFT, at landing, and ticks down at the stance's recovery
+ * rate below. The shape the enemy stands in never needs wind (the "match" floor), so a dead dock
+ * is impossible.
+ *
+ * Six, up from three — and the reason is the screen's clock, not the maths. A beat is 560 ms of
+ * watching, so three beats was a chip greyed for 1.7 s against an enemy that rotated only when
+ * losing: ten real fights, and the player never once met a winded chip ("a mechanic that never
+ * happens — what is it for?"). Six is 3.4 s, longer than every temper's rotation period, so the
+ * shape you left is still resting when the invader swings back toward it. `verify-battle-wind`
+ * counts the blocked decisions per fight and fails under two.
  */
-export const BATTLE_FORMATION_WIND = 3;
+export const BATTLE_FORMATION_WIND = 6;
 
 /**
  * Wind recovered per beat, by stance — the rule that makes the two dials one loop.
@@ -878,7 +892,7 @@ export const BATTLE_STANCE_RECOVERY: Record<FieldStance, number> = {
  * Wind for a doctrine's signature shape — see `SIGNATURE_SHAPE`. One printed exception per army,
  * in place of the four hidden ones the availability rule used to be.
  */
-export const BATTLE_SIGNATURE_WIND = 2;
+export const BATTLE_SIGNATURE_WIND = 4;
 
 /** The commander tempers, keyed from `KingdomPersonality` (+ the `isGreat` flag → cunning). */
 export type CommanderTemper = 'hasty' | 'measured' | 'stubborn' | 'cunning';
@@ -895,14 +909,31 @@ export type CommanderTemper = 'hasty' | 'measured' | 'stubborn' | 'cunning';
  * never gambles, which hands you long windows and dares you to overspend into them.
  */
 export const BATTLE_TEMPER: Record<CommanderTemper, {
-  hesitation: number; restlessBeats: number; presses: boolean;
+  /** Beats he stands countered before ordering, on top of the difficulty's. */
+  hesitation: number;
+  /** Beats he stands content at even shape before rotating anyway (0 = never). */
+  restlessBeats: number;
+  /** Whether a winning tilt is pressed. */
+  presses: boolean;
+  /**
+   * Every Nth rotation he reads your dock and steers toward the shape whose answer you have
+   * winded (0 = never, 1 = always). This is the dial that decides how often a player actually
+   * MEETS the cooldown: measured with every invader reading every rotation, 16 of 19 decisions
+   * were blocked — a wall, not a mechanic. At every third, a measured invader blocks roughly a
+   * third of them, which is "sometimes you cannot get the best shape" and no more.
+   */
+  readsDock: number;
 }> = {
-  hasty: { hesitation: 0, restlessBeats: 4, presses: true },
-  measured: { hesitation: 1, restlessBeats: 0, presses: true },
-  stubborn: { hesitation: 2, restlessBeats: 0, presses: false },
-  // The graduation exam, reserved for great waves: quick, restless, and he reads your dock —
-  // see `advanceEnemyFormation`, which lets him rotate toward the answers you have winded.
-  cunning: { hesitation: 0, restlessBeats: 5, presses: true },
+  // Every temper rotates on its own clock now, not only when losing. An invader who stands
+  // content at even shape was the second half of why the wind never bit: he never asked the
+  // player a question the dock could refuse. The periods are all shorter than the wind (6), so
+  // the answer he pulls you toward is reliably the one you just left.
+  hasty: { hesitation: 0, restlessBeats: 3, presses: true, readsDock: 2 },
+  measured: { hesitation: 1, restlessBeats: 5, presses: true, readsDock: 3 },
+  stubborn: { hesitation: 2, restlessBeats: 7, presses: false, readsDock: 0 },
+  // The graduation exam, reserved for great waves: no patience at all, and he answers an even
+  // matchup inside two beats.
+  cunning: { hesitation: 0, restlessBeats: 2, presses: true, readsDock: 1 },
 };
 
 /**
@@ -955,7 +986,7 @@ export const BATTLE_REFORM_BEATS = {
  * lands. Flat 0.7 was closing close fights before the ring had time to be interesting; the cut
  * plus the scaling is what lets a losing side dig in and actually ride a bad window out.
  */
-export const BATTLE_COUNTER_MORALE = 0.4;
+export const BATTLE_COUNTER_MORALE = 0.3;
 /**
  * How many economy ticks a Moment holds the fight open for.
  *
@@ -968,7 +999,7 @@ export const BATTLE_COUNTER_MORALE = 0.4;
  */
 export const BATTLE_MOMENT_TICKS = 1;
 /** At most this many in one engagement. Above it the fight becomes whack-a-mole. */
-export const BATTLE_MOMENTS_PER_FIGHT = 2;
+export const BATTLE_MOMENTS_PER_FIGHT = 3;
 /**
  * A great battle gets the third question, and an ordinary engagement does not.
  *
@@ -978,9 +1009,9 @@ export const BATTLE_MOMENTS_PER_FIGHT = 2;
  * have a dial they touch three or four times. Keeping the third for `isGreat` also gives a great
  * battle a shape an ordinary one does not have.
  */
-export const BATTLE_MOMENTS_PER_GREAT_FIGHT = 3;
+export const BATTLE_MOMENTS_PER_GREAT_FIGHT = 4;
 /** Beats before the first one may be raised, so a fight never opens on a decision. */
-export const BATTLE_MOMENT_EARLIEST = 4;
+export const BATTLE_MOMENT_EARLIEST = 6;
 /**
  * Beats that must pass between one question and the next.
  *
@@ -996,7 +1027,7 @@ export const BATTLE_MOMENT_EARLIEST = 4;
  * running out, the light going, terms offered) was still unreachable, one layer further in. At
  * eight they land near beats 4, 12 and 20, which is the opening, the middle and the last third.
  */
-export const BATTLE_MOMENT_GAP = 8;
+export const BATTLE_MOMENT_GAP = 12;
 /** Beats a Moment's bonus lasts once taken. */
 export const BATTLE_MOMENT_BONUS_BEATS = 4;
 /** How much a loosing host multiplies its volley by, against a host that is closing. */
@@ -1019,7 +1050,7 @@ export const BATTLE_CHARGE_MORALE = 9;
  * multiplies by `morale / 100`, so this is what turns a bad exchange into a collapse rather
  * than a slow, even grind.
  */
-export const BATTLE_MORALE_PER_LOSS = 52;
+export const BATTLE_MORALE_PER_LOSS = 32;
 // Retuned from 74 when the drop stopped being diluted. It used to be divided by `ourStart`, which
 // counts the reserve standing at camp and grows again when relief arrives; it is now divided by
 // the line that is actually being shot at, so the same number bites far harder and compounds as a
@@ -1040,8 +1071,6 @@ export const BATTLE_MORALE_WIN_GAIN = 0.35;
 export const BATTLE_ROUT_MORALE = 32;
 /** Men each archer accounts for per beat of the approach. */
 export const BATTLE_VOLLEY_BITE = 0.03;
-/** Share of the host held at camp, committable once mid-fight. */
-export const BATTLE_RESERVE_SHARE = 0.28;
 /** Morale a rally restores, before the general's martial is added on top. */
 export const BATTLE_RALLY_BASE = 10;
 /**

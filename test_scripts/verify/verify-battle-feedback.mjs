@@ -108,8 +108,10 @@ const bubbles = await page.evaluate(() => {
   ui.battleUi.bubbles.list.forEach(walk);
   return { texts, said: ui.battleUi.bubbleSaid };
 });
+// Since the opening shape is seeded and every temper rotates on its own clock, the invader may
+// be mid-walk when the probe looks — and "still forming up" is exactly what they are doing then.
 const THREATS = ['their spears are set', 'their horse is coming', 'they are swarming loose',
-  'they are locked up tight', 'their arrows are falling'];
+  'they are locked up tight', 'their arrows are falling', 'they are still forming up'];
 check(bubbles.texts.some((line) => THREATS.includes(line)),
   'a bubble over their host says what they are doing',
   bubbles.texts.join(' | '));

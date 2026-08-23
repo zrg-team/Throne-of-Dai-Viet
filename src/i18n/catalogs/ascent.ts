@@ -748,7 +748,12 @@ export const enAscent = {
   "ascent.battle.auto": "Leave this one to my generals",
   "ascent.battle.autoD": "This fight resolves without you. Settings can hand them all back.",
   "ascent.battle.begins": "Battle joined at {land} — {kingdom} is at the gates. Take command.",
-  "ascent.battle.holdNote": "Pick a formation below — the fight starts when you do.",
+  // Both sides choose blind, and the drum - not the tap - starts the fight. See
+  // `startBattleOpeningDrum`: reading the enemy's shape and then answering it was a free two-tier
+  // advantage on every opening.
+  "ascent.battle.holdNote": "Pick a formation below — neither side can see the other yet.",
+  "ascent.battle.openingDrum": "Both hosts are forming — the drum falls in {n}.",
+  "ascent.battle.formingUp": "they are still forming up",
   "ascent.battle.assaultBegins": "Our host reaches the walls of {land}. Take command of the assault.",
   "ascent.battle.assaultTitle": "Assault on {land}",
   "ascent.battle.assaultSubtitle": "Against the walls of {kingdom}",
@@ -2064,7 +2069,9 @@ export const viAscent = {
   "ascent.battle.auto": "Giao trận này cho các tướng",
   "ascent.battle.autoD": "Trận này tự quyết, không hỏi vua. Vào Cài đặt để giao hết mọi trận.",
   "ascent.battle.begins": "Giao chiến tại {land} — {kingdom} đã đến cửa thành. Xin bệ hạ cầm quân.",
-  "ascent.battle.holdNote": "Chọn một thế trận bên dưới — bấm là trận bắt đầu.",
+  "ascent.battle.holdNote": "Chọn một thế trận bên dưới — hai bên chưa thấy thế của nhau.",
+  "ascent.battle.openingDrum": "Hai quân đang dàn trận — dứt trống còn {n}.",
+  "ascent.battle.formingUp": "giặc còn đang dàn trận",
   "ascent.battle.assaultBegins": "Quân ta đã tới chân thành {land}. Xin bệ hạ cầm quân công thành.",
   "ascent.battle.assaultTitle": "Công thành {land}",
   "ascent.battle.assaultSubtitle": "Trước tường thành của {kingdom}",
