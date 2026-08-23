@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { ASCENT_TICK_MS } from '../game/ascentConfig';
+import { ARENA_ROUT_HOLD_MS, ASCENT_TICK_MS } from '../game/ascentConfig';
 import { INK_UI } from '../ui/InkUI';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, HEADER_HEIGHT, NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../game/constants';
 import { MAP_SCALE, axialToPixel, hexCorners } from '../map/hex';
@@ -38,6 +38,14 @@ import type { ArmyOrders, FieldStance } from '../state/types';
  *  4. it answers the ascent prompt bus
  */
 export class ConquestScene extends MapScene {
+  /**
+   * Scene time at which the Skirmish may hand back to its setup screen.
+   *
+   * Stamped the first frame the fight is seen to be over, so the wait is measured from the end of
+   * the fight rather than from whenever the next tick happens to land.
+   */
+  private arenaExitAt?: number;
+
   private ascentAccumulator = 0;
   private frontMarker?: Phaser.GameObjects.Container;
   private ownershipTint?: Phaser.GameObjects.Graphics;
@@ -124,13 +132,23 @@ export class ConquestScene extends MapScene {
     // An arena fight is the whole session: once it resolves, hand the result back to the setup
     // screen rather than leaving the player on a map with one province and nothing to do. The
     // record `finishBattle` wrote is the honest account of what happened, so it is what travels.
+    //
+    // **But not on the same frame the fight ends.** A host that breaks is carried off the field
+    // over two beats, and when the last host on a side breaks the fight resolves inside that same
+    // tick — so this used to replace the whole scene while the runners were still three strides
+    // into a second of animation. The player saw a line of men, then a report, and never the thing
+    // in between that explains it. `ConquestUIScene.holdArenaRout` keeps the field up for the same
+    // window; this waits it out rather than trusting the two to agree by accident.
     if (this.state.ascent?.arena && !this.state.ascent.activeBattle && !this.state.pendingBattle) {
       const history = this.state.ascent.battleHistory ?? [];
       const result = history[history.length - 1];
       if (result) {
-        this.scene.stop(this.uiSceneKey());
-        this.scene.start('BattleArenaScene', { result });
-        return;
+        const exitAt = this.arenaExitAt ?? (this.arenaExitAt = this.time.now + ARENA_ROUT_HOLD_MS);
+        if (this.time.now >= exitAt) {
+          this.scene.stop(this.uiSceneKey());
+          this.scene.start('BattleArenaScene', { result });
+          return;
+        }
       }
     }
 
