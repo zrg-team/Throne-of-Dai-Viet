@@ -10,6 +10,9 @@ import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
 import {
   applyUpdate, buildStamp, checkForUpdate, getUpdateStatus, subscribeUpdateStatus,
 } from '../pwa/updates';
+import {
+  canOfferInstall, guideRoute, installRoute, promptInstall, subscribeInstall, type InstallRoute,
+} from '../pwa/install';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { BACK_BAR_HEIGHT, InkUI, INK_UI, INK_UI_HEX, type UIBounds } from '../ui/InkUI';
@@ -101,6 +104,18 @@ export class MenuScene extends Phaser.Scene {
   private content: Phaser.GameObjects.GameObject[] = [];
   /** The coffee modal, when open. Kept apart from `content` so a re-render underneath cannot orphan it. */
   private modalObjects: Phaser.GameObjects.GameObject[] = [];
+  /**
+   * Whether the install hint has already had its turn this visit.
+   *
+   * Once per page load, not once ever: somebody who has not installed after four visits has said
+   * no four times, but they have also possibly never seen it — the strip shows for six seconds in
+   * the corner of a page whose middle is a button they came to press. Shown again next launch,
+   * never twice in one, and never at all once the game is running from the home screen.
+   */
+  private installTipShown = false;
+  private installTipTimer?: Phaser.Time.TimerEvent;
+  /** Set while the install sheet is up, so the tip does not re-arm underneath it. */
+  private installModalOpen = false;
   private mode: MenuMode = 'main';
   private previewFlagSeed = 0;
   /**
@@ -178,8 +193,15 @@ export class MenuScene extends Phaser.Scene {
     // drawn. Redrawing on the change is what lets the front page raise its notice and the settings
     // page grow its Reload button without the player having to leave and come back.
     const unsubscribeUpdates = subscribeUpdateStatus(() => this.render());
+    // `beforeinstallprompt` lands whenever Chromium gets round to deciding the site is
+    // installable, which on a first visit is after this page is already drawn. Without this the
+    // corner mark would offer the written guide to a browser that has a real button.
+    const unsubscribeInstall = subscribeInstall(() => this.render());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       unsubscribeUpdates();
+      unsubscribeInstall();
+      this.installTipTimer?.remove();
+      this.installTipTimer = undefined;
       this.copilot?.destroy();
       this.copilot = undefined;
     });
@@ -1099,6 +1121,15 @@ export class MenuScene extends Phaser.Scene {
     }
     this.clearContent();
     this.renderTitle();
+    this.renderPage();
+    // Last, and on every mode rather than only the front page: it is app chrome, not a row of this
+    // screen. Last also because its caption is set in the footer's left margin and the support
+    // sentence is drawn into the same band — printed under the page, the caption would spend its
+    // three seconds behind "help build the game".
+    this.renderInstallMark();
+  }
+
+  private renderPage(): void {
     if (this.mode === 'settings') {
       this.renderSettings();
       return;
@@ -2370,6 +2401,248 @@ export class MenuScene extends Phaser.Scene {
       item.destroy();
     }
     this.modalObjects = [];
+    this.installModalOpen = false;
+  }
+
+  // ── Putting the game on the home screen ───────────────────────────────────
+
+  /**
+   * The install mark: a drawn glyph in the bottom-left corner, and nothing else.
+   *
+   * A corner mark rather than a row in the column, because installing is not one of the things the
+   * player came to this page to do — it is worth offering and not worth spending a button on. It
+   * is the one piece of chrome the front page carries, so it is drawn on every menu mode and
+   * disappears the moment the game is running from the home screen (`canOfferInstall`).
+   *
+   * **No tile, no border, no fill.** A bordered button in the corner of a page whose whole column
+   * is bordered buttons reads as a fifth thing to press; the ink alone reads as a mark, which is
+   * what it is. It is the quietest thing on the sheet on purpose — the caption below is what tells
+   * anybody it is there, and after three seconds the mark is meant to be furniture.
+   *
+   * The glyph is an arrow into a tray, drawn rather than typed: it has to read at 26 units on a
+   * phone, and a glyph from a font would arrive in whatever shape the device happened to have.
+   */
+  private renderInstallMark(): void {
+    if (!canOfferInstall()) {
+      return;
+    }
+
+    // The bottom-left corner of the sheet, flush with the colophon's own baseline band — not
+    // floating a footer-row above it. `VERSION_EDGE` is the margin every other thing on the last
+    // line keeps, and the colophon it shares the band with is centred type that ends well short
+    // of 45, so the corner is empty paper.
+    const box: UIBounds = { x: 10, y: GAME_HEIGHT - VERSION_EDGE - 32, width: 30, height: 30 };
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+
+    const glyph = this.add.graphics({ x: cx, y: cy });
+    // Thin, and well short of full strength. Ink at 0.95 in a corner reads as a control that has
+    // been disabled somewhere else and left behind; at 0.6 it reads as a mark on paper.
+    glyph.lineStyle(1.6, INK_UI.brush, 0.6);
+    glyph.beginPath();
+    glyph.moveTo(0, -9);
+    glyph.lineTo(0, 1);
+    glyph.strokePath();
+    glyph.beginPath();
+    glyph.moveTo(-4.5, -3.5);
+    glyph.lineTo(0, 2);
+    glyph.lineTo(4.5, -3.5);
+    glyph.strokePath();
+    glyph.beginPath();
+    glyph.moveTo(-7, 5);
+    glyph.lineTo(-7, 8);
+    glyph.lineTo(7, 8);
+    glyph.lineTo(7, 5);
+    glyph.strokePath();
+
+    // The tap target is bigger than the mark, because the mark is small on purpose and a thumb
+    // is not. 44 is the smallest square either platform's guidance will accept.
+    const hit = this.add
+      .rectangle(cx, cy, 44, 44, 0xffffff, 0.001)
+      .setInteractive({ useHandCursor: true });
+    hit.on('pointerup', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      this.openInstall();
+    });
+
+    this.content.push(glyph, hit);
+
+    // The hint, once per visit. A mark in a corner that has never been pressed is a mark nobody
+    // knows is pressable, and this one is offering the difference between a browser tab and an
+    // app — so it says what it is, briefly, and then gets out of the way.
+    if (!this.installTipShown && !this.installModalOpen) {
+      this.installTipShown = true;
+      this.showInstallTip(box);
+    }
+  }
+
+  /** The corner mark's own caption, set above it and gone in under two seconds. */
+  private showInstallTip(box: UIBounds): void {
+    // Measured first, then the sheet is cut to it — the same order `renderInstallModal` uses, and
+    // for the same reason: the line is one length in English and another in Vietnamese.
+    const label = this.add.text(0, 0, t('menu.install.tip'), {
+      color: INK_UI_HEX.inkText,
+      fontFamily: UI_FONT,
+      fontSize: '11px',
+    }).setOrigin(0, 0);
+
+    const PAD_X = 10;
+    const PAD_Y = 6;
+    const width = Math.round(label.width + PAD_X * 2);
+    const height = Math.round(label.height + PAD_Y * 2);
+    // Above the mark and aligned to its left edge. Beside it would run the caption straight across
+    // the support sentence, which is centred in this same band.
+    const bounds: UIBounds = { x: box.x, y: box.y - 8 - height, width, height };
+
+    // The game's own printed surface, not a text object with a background colour behind it. Every
+    // other thing on this page that sits *on top of* the page — a card, a modal, the coffee sheet
+    // — is an `InkUI` panel with its torn contour and its shade, and a plain rectangle among them
+    // reads as a browser tooltip that wandered in.
+    const panel = this.ui.panel(bounds, {
+      fill: INK_UI.parchment,
+      fillShade: INK_UI.parchmentDark,
+      border: INK_UI.brush,
+      radius: 8,
+      borderWidth: 1.6,
+    });
+    // The tail, pointing down at the mark it is about.
+    //
+    // A caption floating above an icon is a caption about the whole corner; a caption with a point
+    // on it is about that one thing. Drawn rather than taken from the panel because `InkUI.panel`
+    // has no notion of a tail — and it is three lines: fill the triangle in the panel's own
+    // parchment, then ink only its two sloping sides, so the panel's bottom border reads straight
+    // through the top of it instead of being crossed by a line.
+    const tailX = bounds.x + 14;
+    const tail = this.add.graphics();
+    tail.fillStyle(INK_UI.parchment, 1);
+    tail.fillTriangle(tailX - 6, bounds.y + height - 1, tailX + 6, bounds.y + height - 1, tailX, bounds.y + height + 7);
+    tail.lineStyle(1.6, INK_UI.brush, 0.9);
+    tail.beginPath();
+    tail.moveTo(tailX - 6, bounds.y + height - 1);
+    tail.lineTo(tailX, bounds.y + height + 7);
+    tail.lineTo(tailX + 6, bounds.y + height - 1);
+    tail.strokePath();
+
+    label.setPosition(bounds.x + PAD_X, bounds.y + PAD_Y);
+    // Built before the panel, so it is under it until told otherwise.
+    this.children.bringToTop(label);
+
+    const hit = this.add
+      .rectangle(bounds.x + width / 2, bounds.y + height / 2, width, height, 0xffffff, 0.001)
+      .setInteractive({ useHandCursor: true });
+    hit.on('pointerup', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      this.openInstall();
+    });
+
+    this.content.push(panel, tail, label, hit);
+
+    this.installTipTimer?.remove();
+    // Short on purpose. It is one line naming what the mark under it does, and anybody who wants
+    // it can press the mark — a caption that outstays that is a caption sitting on the footer.
+    this.installTipTimer = this.time.delayedCall(1800, () => {
+      this.installTipTimer = undefined;
+      // The page may have been re-rendered out from under it, which destroys these three.
+      if (!label.scene) {
+        return;
+      }
+      this.tweens.add({
+        targets: [panel, tail, label],
+        alpha: 0,
+        duration: 420,
+        ease: 'Sine.easeOut',
+        onComplete: () => {
+          panel.destroy();
+          tail.destroy();
+          label.destroy();
+          hit.destroy();
+        },
+      });
+    });
+  }
+
+  /**
+   * What the mark does, which is not the same thing on any two platforms.
+   *
+   * Chromium hands over a real prompt and one tap installs. Everybody else gets the sheet, because
+   * everybody else keeps the same command in a menu and there is no API that can reach it. A held
+   * prompt that fails falls through to the sheet rather than doing nothing — see `guideRoute`.
+   */
+  private openInstall(): void {
+    if (installRoute() !== 'native') {
+      this.renderInstallModal(guideRoute());
+      return;
+    }
+    void promptInstall().then((outcome) => {
+      if (!this.scene.isActive()) {
+        return;
+      }
+      if (outcome === 'unavailable') {
+        this.renderInstallModal(guideRoute());
+        return;
+      }
+      // Accepted: `canOfferInstall` is false from here and the mark leaves with the re-render.
+      // Dismissed: the mark stays, and nothing is said about it.
+      this.render();
+    });
+  }
+
+  private renderInstallModal(route: Exclude<InstallRoute, 'native' | 'installed'>): void {
+    this.closeModal();
+    this.installModalOpen = true;
+    this.installTipTimer?.remove();
+    this.installTipTimer = undefined;
+
+    const group: Record<typeof route, string> = {
+      'ios-safari': 'iosSafari',
+      'ios-other': 'iosOther',
+      'android-other': 'android',
+      desktop: 'desktop',
+    };
+    const steps = [1, 2, 3].map((n) => t(`menu.install.${group[route]}.step${n}` as Parameters<typeof t>[0]));
+
+    // Measured, then sized. A three-step sheet asked for a fixed height came out two-thirds empty
+    // paper — the steps wrap to one line or two depending on the language and the platform, and
+    // there is no number that is right for both. The bodies are built off-screen, their real
+    // heights added up, and the sheet cut to fit; then they are moved onto it.
+    const BODY_WIDTH = 362 - 28 - 40;
+    const bodies = steps.map((step) => this.add.text(-999, -999, step, {
+      color: '#2a2118',
+      fontFamily: UI_FONT,
+      fontSize: '13px',
+      lineSpacing: 3,
+      wordWrap: { width: BODY_WIDTH },
+    }).setOrigin(0, 0));
+    const stepHeights = bodies.map((body) => Math.max(28, body.height + 16));
+    const needed = stepHeights.reduce((sum, height) => sum + height, 0);
+
+    // 104 header + 20 the modal's own content inset + the steps + a footer band it does not use,
+    // because `contentBounds` is measured back off one whether anything is drawn in it or not.
+    const modal = this.ui.modal({
+      title: t('menu.install.title'),
+      subtitle: t('menu.install.subtitle'),
+      onClose: () => this.closeModal(),
+      height: 104 + 66 + 20 + needed,
+    });
+    this.modalObjects.push(...modal.objects);
+
+    const { contentBounds } = modal;
+    let cursor = contentBounds.y + 4;
+    bodies.forEach((body, index) => {
+      // The number is set in cinnabar on the margin, the way a printed instruction is — it is what
+      // makes three sentences read as an order to follow rather than as a paragraph.
+      const numeral = this.ui.label(contentBounds.x + 10, cursor + 2, `${index + 1}`, 'title', {
+        color: '#8a2a1b',
+        fontSize: '17px',
+        fontStyle: '700',
+      }).setOrigin(0.5, 0);
+      body.setPosition(contentBounds.x + 28, cursor);
+      // Built before the sheet was, so it is *under* the sheet. Nothing else in this scene needs
+      // depth sorting, so the one line that fixes it beats giving the whole modal a depth band.
+      this.children.bringToTop(body);
+      this.modalObjects.push(numeral, body);
+      cursor += stepHeights[index];
+    });
   }
 
 

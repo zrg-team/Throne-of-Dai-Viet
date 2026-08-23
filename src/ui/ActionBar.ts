@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, isCampaignMode } from '../game/constants';
 import type { GameState } from '../state/types';
-import { InkUI, INK_UI } from './InkUI';
+import { InkUI, INK_UI, INK_UI_HEX } from './InkUI';
+import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from './CardIcons';
 import { sawtoothBand } from './ink/devices';
 import { t } from '../i18n';
 
@@ -71,6 +72,15 @@ export const ACTION_BUTTON_HEIGHT = 36;
 const MAX_BAR_FONT = 11;
 const MIN_BAR_FONT = 9;
 /**
+ * How small the row will go to keep every lane on ONE line.
+ *
+ * Below the readable floor on purpose, and it is the right trade here: "Ngoại giao" needs 48 units
+ * at 9px against the 46 a lane has, so the whole row missing one line by two units is what put
+ * half the bar's words a line lower than the other half. 8 buys the alignment back, and the glyph
+ * over each word is carrying the identification now.
+ */
+const NOWRAP_BAR_FONT = 8;
+/**
  * The buttons' centre line — measured down from the band, not taken as the middle of the bar.
  *
  * `GAME_HEIGHT - ACTION_BAR_HEIGHT / 2` is what this was, and centring is exactly what went wrong:
@@ -97,6 +107,59 @@ export const ACTION_BUTTON_Y = GAME_HEIGHT - ACTION_BAR_HEIGHT
  */
 const SYSTEM_BUTTON_WIDTH = 28;
 const SYSTEM_CLUSTER_GAP = 10;
+
+/**
+ * One mark per lane, so the row can be read without reading it.
+ *
+ * The bar was six torn-paper buttons in a line, each with a border, a shade and a two-line
+ * Vietnamese label inside 47 units — six frames competing for the same corner of the eye, and the
+ * only way to tell one from another was to stop and read the type. A glyph is recognised where a
+ * word has to be read, so the glyph carries the identity and the word confirms it.
+ *
+ * Drawn from `CardIcons`, which is the game's existing icon vocabulary rather than a second one:
+ * the hammer over Build is the same hammer a build card prints.
+ */
+const LANE_ICONS: Record<string, CardIconId> = {
+  build: 'hammer',
+  heroes: 'person',
+  court: 'crown',
+  army: 'spears',
+  affairs: 'globe',
+  directives: 'banner',
+  chronicle: 'scroll',
+  battle: 'blade',
+  pause: 'hourglass',
+};
+
+/**
+ * The glyph's size on the bar: 26 × 0.68, so about 18 units.
+ *
+ * It went 0.46 → 0.42 → 0.68 across one afternoon, and the middle number is the interesting one.
+ * At 0.46 the Vietnamese lanes wrapped to two lines and the second was printed off the bottom
+ * edge, so the glyph was cut to buy the type its room. Setting the whole row at whatever size
+ * keeps *every* lane on one line then handed all of that room back at once — a single line is
+ * thirteen units where two were twenty-six — and a glyph sized for the crisis was left sitting in
+ * the middle of it. The mark carries the identification now, so it takes the space.
+ */
+const LANE_ICON_SCALE = 0.68;
+/**
+ * And the glyph the *crowded* row gets instead.
+ *
+ * One row in the game cannot be set on a single line at any size: Dragon Ascent in Vietnamese with
+ * a siege running, which is eight slots and lanes of 41 units. That row wraps, two lines are 22
+ * units of type, and the large glyph leaves 20 for them — so its second line printed one and a
+ * half units below the foot of the screen. The row that has to wrap gets the small mark back, and
+ * every other row keeps the large one.
+ */
+const LANE_ICON_SCALE_WRAPPED = 0.42;
+/** Air above the glyph, and between the glyph and the word under it. */
+const ICON_TOP_PAD = 1;
+const ICON_TEXT_GAP = 1;
+
+/** Where the label's first line starts, measured from the centre of the lane's box. */
+function laneTextTop(scale: number): number {
+  return -ACTION_BUTTON_HEIGHT / 2 + ICON_TOP_PAD + CARD_ICON_SIZE * scale + ICON_TEXT_GAP;
+}
 
 /** One button's place on the bar. Produced by `actionBarSlots`, which owns all bar geometry. */
 export interface ActionSlot {
@@ -280,12 +343,46 @@ export class ActionBar extends Phaser.GameObjects.Container {
    * wrap to two lines ("Ngoại giao") and the wrap decides the height, which is half of what has to
    * fit.
    */
-  private barFontSize(labels: string[], laneWidth: number): number {
-    const maxWidth = laneWidth - 12;
-    const maxHeight = ACTION_BUTTON_HEIGHT - 10;
-    const probe = this.ui.label(0, 0, '', 'button', { wordWrap: { width: maxWidth }, align: 'center' });
+  private barFontSize(labels: string[], laneWidth: number): { size: number; scale: number } {
+    // Four units of clearance rather than twelve: there is no border for the type to run through
+    // any more, only air, so the lane gets its own width back — which is what pays for the glyph
+    // above the word without the word shrinking to fit under it.
+    const maxWidth = laneWidth - 4;
+    // What is left under the glyph, derived from the same three numbers `buildLaneButton` places
+    // it with rather than restated as a constant — the two disagreeing is how a row gets chosen at
+    // a size it cannot actually be drawn at. The `BUTTON_CLEAR` below the box counts: the type
+    // sits in it by design.
+    const maxHeight = ACTION_BUTTON_HEIGHT / 2 + BUTTON_CLEAR - laneTextTop(LANE_ICON_SCALE_WRAPPED);
+    const probe = this.ui.label(0, 0, '', 'button', { align: 'center' });
     probe.setVisible(false);
 
+    /**
+     * **One line for every lane, if the row can be had at all.**
+     *
+     * The frames came off and the ragged edge they had been hiding came with them: "Xây" and "Sử
+     * Ký" stand one line tall while "Triều đình" and "Ngoại giao" stand two, so half the row's
+     * words ended a line lower than the other half and the bar read as six things at five
+     * different heights. Aligned type is worth more here than large type — the glyph above each
+     * word is what identifies the lane now, and the word underneath it only confirms.
+     *
+     * So the row is set at the largest size at which *nothing wraps*, down to 8. Only if even 8
+     * cannot hold the longest label does it fall back to the wrapping fit below, which is the
+     * seven-Vietnamese-lanes-with-a-siege case and is left slightly ragged rather than illegible.
+     */
+    probe.setWordWrapWidth(null);
+    for (let size = MAX_BAR_FONT; size >= NOWRAP_BAR_FONT; size -= 0.5) {
+      probe.setFontSize(size);
+      const fits = labels.every((text) => {
+        probe.setText(text);
+        return probe.width <= maxWidth;
+      });
+      if (fits) {
+        probe.destroy();
+        return { size, scale: LANE_ICON_SCALE };
+      }
+    }
+
+    probe.setWordWrapWidth(maxWidth);
     let chosen = MIN_BAR_FONT;
     for (let size = MAX_BAR_FONT; size >= MIN_BAR_FONT; size -= 0.5) {
       probe.setFontSize(size);
@@ -299,7 +396,7 @@ export class ActionBar extends Phaser.GameObjects.Container {
       }
     }
     probe.destroy();
-    return chosen;
+    return { size: chosen, scale: LANE_ICON_SCALE_WRAPPED };
   }
 
   private buildButtons(): void {
@@ -307,7 +404,7 @@ export class ActionBar extends Phaser.GameObjects.Container {
     const top = ACTION_BUTTON_Y - ACTION_BUTTON_HEIGHT / 2;
     const slots = actionBarSlots(this.gameMode, this.context());
     const laneWidth = slots.find((slot) => !slot.system)?.width ?? 0;
-    const fontSize = this.barFontSize(
+    const { size: fontSize, scale: iconScale } = this.barFontSize(
       slots.filter((slot) => !slot.system).map((slot) => this.slotLabel(slot.action, paused)),
       laneWidth,
     );
@@ -320,29 +417,140 @@ export class ActionBar extends Phaser.GameObjects.Container {
         continue;
       }
 
-      const label = this.slotLabel(slot.action, paused);
-      let variant: string;
-
-      if (slot.action === 'pause') {
-        // Classic modes keep the labelled Pause/Resume toggle.
-        variant = paused ? 'danger' : 'ghost';
-      } else if (slot.action === 'battle') {
-        // The siege is the loudest thing on the bar while it lasts.
-        variant = 'danger';
-      } else {
-        variant = 'secondary';
-      }
-
-      const button = this.ui.button(
-        bounds,
-        label,
-        () => this.onAction(slot.action),
-        { fontSize: `${fontSize}px`, variant: variant as 'secondary' | 'ghost' | 'danger' | 'primary' },
-      );
-      this.add(button);
-      this.buttonObjects.push(button);
-      this.addStatusDot(slot, top);
+      this.buildLaneButton(slot, bounds, this.slotLabel(slot.action, paused), fontSize, paused, iconScale);
+      this.addStatusDot(slot, top, iconScale);
     }
+
+    this.buildSeparator(slots, top);
+  }
+
+  /**
+   * One lane: a mark over a word, on open paper.
+   *
+   * **No surface at all.** Every lane used to be a torn sheet with its own border and shade, which
+   * is six printed boxes across the foot of a screen that is itself a printed sheet — the frames
+   * were most of the ink down there and none of the meaning. What tells a player this is pressable
+   * is that it is a row of marks in a bar at the bottom of the screen, and it always was; the
+   * borders were saying it a seventh and eighth time.
+   *
+   * Loudness is carried by the ink instead of by a fill: a live siege inks its lane in sỏi son
+   * rather than being printed white-on-red, and a paused clock does the same to Pause.
+   *
+   * Built here rather than through `InkUI.button` because that one sets its glyph *beside* the
+   * label as one centred group — right for a 200-unit sheet button, wrong for a 47-unit lane where
+   * the only way to fit both is to stack them.
+   */
+  private buildLaneButton(
+    slot: ActionSlot,
+    bounds: { x: number; y: number; width: number; height: number },
+    label: string,
+    fontSize: number,
+    paused: boolean,
+    iconScale: number,
+  ): void {
+    // The container is placed at the lane's *centre* so the press tween scales about the middle
+    // of the mark. Anchored top-left it would shrink towards the corner, which reads as the
+    // button sliding rather than being pushed.
+    const cx = bounds.x + bounds.width / 2;
+    const cy = bounds.y + bounds.height / 2;
+    const container = this.scene.add.container(cx, cy);
+
+    const loud = slot.action === 'battle' || (slot.action === 'pause' && paused);
+    const tone = loud ? INK_UI.cinnabar : INK_UI.brush;
+
+    const icon = drawCardIcon(this.scene, LANE_ICONS[slot.action] ?? 'scroll', tone);
+    icon.setScale(iconScale);
+    icon.setAlpha(loud ? 1 : 0.88);
+    const iconHeight = CARD_ICON_SIZE * iconScale;
+    icon.setPosition(0, -bounds.height / 2 + ICON_TOP_PAD + iconHeight / 2);
+
+    const text = this.ui.label(0, 0, label, 'button', {
+      color: loud ? '#8a2a1b' : INK_UI_HEX.inkText,
+      fontSize: `${fontSize}px`,
+      align: 'center',
+      wordWrap: { width: bounds.width - 4 },
+    }).setOrigin(0.5, 0);
+    text.setY(laneTextTop(iconScale));
+
+    const hit = this.scene.add
+      .rectangle(0, 0, bounds.width, bounds.height + 8, 0xffffff, 0.001)
+      .setInteractive({ useHandCursor: true });
+    this.wirePress(hit, container, () => this.onAction(slot.action));
+
+    container.add([icon, text, hit]);
+    this.add(container);
+    this.buttonObjects.push(container);
+  }
+
+  /**
+   * The press, as a movement rather than as a redrawn surface.
+   *
+   * A framed button could say "pressed" by reprinting itself a shade darker and a unit lower.
+   * With the frames gone there is nothing to reprint, so the mark itself takes the push: down to
+   * 0.86 under the finger, and back on a small overshoot when it lifts. The overshoot is the part
+   * that reads as a *button* and not as a fade — 1.06 for 90ms is enough to feel and too quick to
+   * look like an animation.
+   *
+   * `killTweensOf` first, because a second tap arriving mid-spring would otherwise compose two
+   * scales and leave the lane permanently small.
+   */
+  private wirePress(
+    hit: Phaser.GameObjects.Rectangle,
+    target: Phaser.GameObjects.Container,
+    onClick: () => void,
+  ): void {
+    const stop = (
+      _pointer: Phaser.Input.Pointer,
+      _localX: number,
+      _localY: number,
+      event: Phaser.Types.Input.EventData,
+    ) => event.stopPropagation();
+
+    const settle = (): void => {
+      this.scene.tweens.killTweensOf(target);
+      this.scene.tweens.add({
+        targets: target,
+        scale: { from: target.scale, to: 1 },
+        duration: 150,
+        ease: 'Back.easeOut',
+      });
+    };
+
+    hit.on('pointerdown', (p: Phaser.Input.Pointer, lx: number, ly: number, e: Phaser.Types.Input.EventData) => {
+      stop(p, lx, ly, e);
+      this.scene.tweens.killTweensOf(target);
+      this.scene.tweens.add({ targets: target, scale: 0.86, duration: 70, ease: 'Quad.easeOut' });
+    });
+    // A finger that slides off a lane must not leave it pressed — and on a bar this narrow,
+    // sliding off is how a mis-tap is corrected.
+    hit.on('pointerout', () => settle());
+    hit.on('pointerup', (p: Phaser.Input.Pointer, lx: number, ly: number, e: Phaser.Types.Input.EventData) => {
+      stop(p, lx, ly, e);
+      settle();
+      onClick();
+    });
+  }
+
+  /**
+   * The hairline between the lanes and the clock.
+   *
+   * With the frames on, the twelve units of air in front of Pause were enough to say "these two
+   * are not lanes" — a framed control ends at its own border and the eye finds the seam. With
+   * every frame gone the whole bar is marks on paper and that gap reads as one more gap, so the
+   * division has to be drawn. One hairline, inset from both edges of the bar's height, in the same
+   * soft ink as the drum band above it.
+   */
+  private buildSeparator(slots: ActionSlot[], top: number): void {
+    const firstSystem = slots.find((slot) => slot.system);
+    if (!firstSystem) {
+      return;
+    }
+    const rule = this.scene.add.graphics();
+    rule.lineStyle(1, INK_UI.softBrush, 0.32);
+    const x = firstSystem.x - SYSTEM_CLUSTER_GAP / 2;
+    rule.lineBetween(x, top + 5, x, top + ACTION_BUTTON_HEIGHT - 5);
+    this.add(rule);
+    this.buttonObjects.push(rule);
   }
 
   /**
@@ -365,21 +573,11 @@ export class ActionBar extends Phaser.GameObjects.Container {
    */
   private buildSystemButton(slot: ActionSlot, bounds: { x: number; y: number; width: number; height: number }, paused: boolean): void {
     const isPause = slot.action === 'pause';
-    const button = this.ui.button(
-      bounds,
-      '',
-      () => this.onAction(slot.action),
-      {
-        frameless: true,
-        // The smallest targets on the bar, so they get back in touch area what they gave up
-        // in width. 28 + 16 is the 44 units a fingertip actually needs.
-        extraHitPadding: 16,
-      },
-    );
+    // Centre-anchored like the lanes, and for the same reason: the press tween has to push the
+    // mark rather than drag it towards a corner.
+    const container = this.scene.add.container(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
 
     const glyph = this.scene.add.graphics();
-    const cx = bounds.width / 2;
-    const cy = bounds.height / 2;
     // A hair heavier than the framed pair carried: a mark on open paper has no border helping it
     // hold the eye, so it holds it alone.
     const lit = isPause && paused;
@@ -387,17 +585,24 @@ export class ActionBar extends Phaser.GameObjects.Container {
 
     if (lit) {
       // Paused → the control offers play.
-      glyph.fillTriangle(cx - 6, cy - 8, cx + 8, cy, cx - 6, cy + 8);
+      glyph.fillTriangle(-6, -8, 8, 0, -6, 8);
     } else if (isPause) {
-      glyph.fillRect(cx - 7, cy - 8, 5, 16);
-      glyph.fillRect(cx + 2, cy - 8, 5, 16);
+      glyph.fillRect(-7, -8, 5, 16);
+      glyph.fillRect(2, -8, 5, 16);
     } else {
-      for (const dy of [-6.5, 0, 6.5]) glyph.fillRect(cx - 9, cy + dy - 1.6, 18, 3.2);
+      for (const dy of [-6.5, 0, 6.5]) glyph.fillRect(-9, dy - 1.6, 18, 3.2);
     }
 
-    button.add(glyph);
-    this.add(button);
-    this.buttonObjects.push(button);
+    // The smallest targets on the bar, so they get back in touch area what they gave up in
+    // width. 28 + 16 is the 44 units a fingertip actually needs.
+    const hit = this.scene.add
+      .rectangle(0, 0, bounds.width + 16, bounds.height + 8, 0xffffff, 0.001)
+      .setInteractive({ useHandCursor: true });
+    this.wirePress(hit, container, () => this.onAction(slot.action));
+
+    container.add([glyph, hit]);
+    this.add(container);
+    this.buttonObjects.push(container);
     this.addStatusDot(slot, bounds.y);
   }
 
@@ -410,13 +615,22 @@ export class ActionBar extends Phaser.GameObjects.Container {
    * đình". Moved onto the corner itself it overlaps only the chamfer, which is paper, and the ring
    * behind it keeps it legible where it crosses the button's own border.
    */
-  private addStatusDot(slot: ActionSlot, top: number): void {
+  private addStatusDot(slot: ActionSlot, top: number, iconScale = LANE_ICON_SCALE): void {
     const dot = this.statusColor?.(slot.action);
     if (dot === undefined) return;
-    // Drawn as siblings rather than children of the button, so `ui.button`'s press
-    // tween (which scales the whole container) does not make the dot pulse with it.
-    const x = slot.x + slot.width - 4;
-    const y = top + 4;
+    // Drawn as siblings rather than children of the button, so the press tween (which scales the
+    // whole container) does not make the dot pulse with it.
+    //
+    // Beside the glyph, not on the lane's top-right corner. The corner was clear while the label
+    // was centred in a framed button; with the word set full-width under the mark, a dot at the
+    // corner is a dot on the last letter of "Triều đình" — `verify-action-bar` caught it on three
+    // of the eight rows. Level with the glyph and just outside it, there is nothing to land on:
+    // the type starts below the mark, and the mark is 18 units wide in a 47-unit lane.
+    const iconHalf = (CARD_ICON_SIZE * iconScale) / 2;
+    const x = slot.system
+      ? slot.x + slot.width - 4
+      : Math.min(slot.x + slot.width - 4, slot.x + slot.width / 2 + iconHalf + 4);
+    const y = top + ICON_TOP_PAD + 4;
     const ring = this.scene.add.circle(x, y, 4.6, INK_UI.parchment, 1);
     const marker = this.scene.add.circle(x, y, 3.2, dot, 0.95);
     this.add(ring);
