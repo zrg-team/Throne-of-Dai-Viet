@@ -51,10 +51,10 @@ export interface MomentEffect {
   /** Heart out of theirs, at once. */
   theirMorale?: number;
   /**
-   * TEMPO — sets the stance, the same way the dock does.
+   * TEMPO — sets the stance, landing at once rather than next beat.
    *
-   * With `stanceNow` it also ignores the four-beat lock, which is the one thing a Moment can do
-   * that the dock cannot: the fight offering you a way out of a commitment you have made.
+   * `stanceNow` is inert since the four-beat stance lock was retired (the wind clock carries the
+   * whole cadence now); kept so the three defs that set it still parse. Remove with them.
    */
   stance?: FieldStance;
   stanceNow?: boolean;

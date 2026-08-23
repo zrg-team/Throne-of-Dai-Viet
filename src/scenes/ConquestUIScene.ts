@@ -49,14 +49,14 @@ import { currentTaxRate, setTaxRate, taxGoldMult, taxGrowthDelta, taxStabilityBa
 import { lawCardView, seatedEffectSummary } from '../systems/ascent/CourtLaneSystem';
 import { envoyOptionDetail } from '../systems/ascent/EnvoySystem';
 import { realmStanding } from '../systems/ascent/RivalDirector';
-import { ourHosts, ourMustered, sideFormations, theirHosts } from '../systems/ascent/BattleSystem';
+import { ourHosts, theirHosts } from '../systems/ascent/BattleSystem';
 import {
   ASCENT_TICK_MS, BATTLE_BEATS_PER_TICK, BATTLE_DEPTH_FAR, BATTLE_DEPTH_NEAR, BATTLE_HIT_STOP_MS,
-  BATTLE_HOST_SCALE, BATTLE_PRESS_TRAVEL,
+  BATTLE_FORMATION_WIND, BATTLE_HOST_SCALE, BATTLE_PRESS_TRAVEL, BATTLE_STANCE_RECOVERY,
   ARENA_ROUT_HOLD_MS, BATTLE_ROUT_MORALE, BATTLE_TICK_MS,
   TRIBUTE_REFUSE_TICKS,
 } from '../game/ascentConfig';
-import { battleTelegraph, stanceIsLocked } from '../systems/ascent/BattleSystem';
+import { battleTelegraph, battleWindView } from '../systems/ascent/BattleSystem';
 import { ALL_COURT_POSITIONS, assignHeroToLand, getCourtPositionLabel } from '../systems/CourtSystem';
 import {
   ascentArmyUpkeep,
@@ -116,7 +116,7 @@ import { CARD_STACK_PEEK, CardStack } from '../ui/ascent/CardStack';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { armyShape, compositionFor, figureEraFor, hostKitFor, hostShapeAt } from '../ui/ink/devices';
 import {
-  BLOCK_OF, formationBeats, FORMATION_RING, type BattleFormation,
+  formationBeats, formationTier, FORMATION_RING, type BattleFormation,
 } from '../data/ascent/formations';
 import { areca, bamboo, buffalo, grassTuft, hayStack, softRidge, tree } from '../ui/ink/props';
 import { citadel, hamlet, village } from '../ui/ink/settlements';
@@ -6831,10 +6831,10 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
    */
   private battleOrderSignature(battle: AscentBattle): string {
     const read = battleTelegraph(this.state);
+    const wind = battleWindView(battle);
     return [
       battle.stance,
       battle.stancePending ?? '',
-      battle.stanceLockBeats ?? 0,
       battle.ourFormation,
       battle.formationTarget ?? '',
       battle.reformBeats ?? 0,
@@ -6845,15 +6845,12 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       Math.round(battle.lastBeatLoss?.theirs ?? -1),
       battle.landedBeat ?? -1,
       read ? `${read.formation}>${read.next ?? ''}:${read.beatsLeft}` : '',
-      // A shape whose block has just been spent must grey out on the beat it dies.
-      Object.entries(this.ourFormationStates(battle)).map(([k, v]) => `${k}${v[0]}`).join(''),
+      // Every wind clock, both docks, plus the match — a chip whose breath comes back must relight
+      // on that very beat, and the enemy-spent line must drop names the moment they recover.
+      FORMATION_RING.map((shape) => `${wind.ours[shape]},${wind.theirs[shape]}`).join('|'),
+      wind.match,
       battle.delegated ? 'd1' : 'd0',
     ].join(':');
-  }
-
-  /** Which shapes our side can still form — the faded chips, and the blunt one. */
-  private ourFormationStates(battle: AscentBattle): Record<BattleFormation, 'ready' | 'blunt' | 'gone'> {
-    return sideFormations(ourHosts(this.state, battle), ourMustered(battle));
   }
 
   /**
@@ -7729,16 +7726,20 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     this.buildBattleReadout(battle, dockY);
 
     // ── the slow dial ────────────────────────────────────────────────────
-    const locked = (battle.stanceLockBeats ?? 0) > 0;
-    if (locked) {
-      // A greyed control with no explanation is a bug; one that says how long it is greyed for is
-      // a rule. This is the only extra reading the stance strip carries that formation does not.
-      orders.add(this.ui.label(
-        content.x + content.width - 2, dockY + BATTLE_READOUT_HEIGHT - 1,
-        t('ascent.battle.locked', { n: String(battle.stanceLockBeats ?? 0) }), 'caption',
-        { fontSize: '8px', color: `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}` },
-      ).setOrigin(1, 1));
-    }
+    // The dock count, where the stance-lock counter used to sit. Wind is the resource the player
+    // is spending, so it gets a running number — and 2/5 in red is the tell that flips a player
+    // from pressing to steadying before the dock goes dark on them.
+    const wind = battleWindView(battle);
+    const readyShapes = FORMATION_RING.filter((shape) => wind.takeable[shape]).length;
+    orders.add(this.ui.label(
+      content.x + content.width - 2, dockY + BATTLE_READOUT_HEIGHT - 1,
+      t('ascent.battle.dockReady', { n: String(readyShapes) }), 'caption',
+      {
+        fontSize: '8px',
+        color: readyShapes <= 2
+          ? `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}` : INK_UI_HEX.mutedText,
+      },
+    ).setOrigin(1, 1));
 
     const stanceY = dockY + BATTLE_READOUT_HEIGHT + 3;
     // Recorded where they are computed. See `coachBounds`.
@@ -7767,22 +7768,35 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       const x = content.x + index * (segW + segGap);
       const bounds = { x, y: stanceY, width: segW, height: BATTLE_STANCE_HEIGHT };
       // What is *pending* reads as chosen: the player pressed it, and it lands next beat.
+      // No stance is ever refused — the four-beat lock is retired. The dial that exists to cut
+      // your losses must never be the dial the game takes away, and now that the stance carries
+      // the wind recovery rate, locking it would freeze the player out of their own dock.
       const chosen = (battle.stancePending ?? battle.stance) === id;
-      const refused = stanceIsLocked(battle, id) && !chosen;
       const tile = this.ui.crayonTile(bounds, { selected: chosen });
-      if (refused) tile.setAlpha(0.42);
       orders.add(tile);
       orders.add(this.ui.label(
-        x + segW / 2, stanceY + BATTLE_STANCE_HEIGHT / 2,
+        x + segW / 2, stanceY + BATTLE_STANCE_HEIGHT / 2 - 4,
         t(`ascent.stance.${id}` as Parameters<typeof t>[0]), 'label',
         {
           fontSize: '10.5px',
           align: 'center',
-          color: chosen ? `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`
-            : refused ? INK_UI_HEX.mutedText : INK_UI_HEX.inkText,
+          color: chosen ? `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}` : INK_UI_HEX.inkText,
         },
       ).setOrigin(0.5));
-      if (refused) return;
+      // The rate this stance lets the dock breathe at — since the retier, the most consequential
+      // number on this strip, so it is printed on every segment, always. Cinnabar on x0: pressing
+      // is the one stance that spends the dock without refilling any of it.
+      const rate = BATTLE_STANCE_RECOVERY[id] ?? 1;
+      orders.add(this.ui.label(
+        x + segW / 2, stanceY + BATTLE_STANCE_HEIGHT - 3,
+        t('ascent.battle.recovery', { n: String(rate) }), 'caption',
+        {
+          fontSize: '7px',
+          align: 'center',
+          color: rate === 0 ? `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`
+            : rate >= 2 ? '#4c5f45' : INK_UI_HEX.mutedText,
+        },
+      ).setOrigin(0.5, 1));
       const hit = this.add.zone(x, stanceY, segW, BATTLE_STANCE_HEIGHT).setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
       hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
@@ -7815,7 +7829,6 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         ease: 'Sine.easeInOut',
       });
     }
-    const states = this.ourFormationStates(battle);
     const reforming = (battle.reformBeats ?? 0) > 0;
     // Their *target* is what a shape has to answer — countering the thing they are walking out of
     // is the classic way to arrive one beat too late.
@@ -7824,29 +7837,41 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const chipW = (content.width - chipGap * (FORMATION_RING.length - 1)) / FORMATION_RING.length;
 
     // Laid out in ring order, so the two shapes that beat what they are forming are always
-    // adjacent. The counter rule is legible from the layout alone.
+    // adjacent. The counter rule is legible from the layout alone — with one honest caveat: the
+    // "one left of theirs" reading wraps at the strip's end, so the rims below are the real
+    // carrier of the rule, and they never wrap.
     FORMATION_RING.forEach((id, index) => {
       const x = content.x + index * (chipW + chipGap);
       const bounds = { x, y: formY, width: chipW, height: BATTLE_FORMATION_HEIGHT };
-      const state = states[id];
       const held = battle.ourFormation === id && !reforming;
       const walking = reforming && battle.formationTarget === id;
-      const gone = state === 'gone';
+      // Winded: the shape has no breath back yet and is not the match. The same fade and the same
+      // refused tap the retired `gone` state had — but with a countdown printed on it, and it
+      // always comes back. `docs/18` records what this replaced and why.
+      const gone = !wind.takeable[id] && !held && !walking;
 
       const tile = this.ui.crayonTile(bounds, { selected: held || walking });
       if (gone) tile.setAlpha(0.32);
       orders.add(tile);
 
-      // Four readings, no text: filled = held, green rim = beats their telegraph, red rim = loses
-      // to it, faded = the block it stands on is spent.
+      // Five readings, almost no text: filled = held, full jade rim = the STRONG answer to their
+      // telegraph, faint jade = the soft answer at half tilt, red rim = loses to it, faded = the
+      // shape is getting its breath back.
       let rim = 0;
+      let rimAlpha = 0.95;
       if (!gone && answering && id !== answering) {
-        if (formationBeats(id, answering)) rim = INK_UI.jade;
-        else if (formationBeats(answering, id)) rim = INK_UI.cinnabar;
+        const tier = formationTier(id, answering);
+        if (tier > 0) {
+          rim = INK_UI.jade;
+          rimAlpha = tier === 2 ? 0.95 : 0.5;
+        } else if (tier < 0) {
+          rim = INK_UI.cinnabar;
+          rimAlpha = tier === -2 ? 0.95 : 0.5;
+        }
       }
       if (rim) {
         const edge = this.add.graphics();
-        edge.lineStyle(2, rim, 0.95);
+        edge.lineStyle(2, rim, rimAlpha);
         edge.strokeRoundedRect(x + 1, formY + 1, chipW - 2, BATTLE_FORMATION_HEIGHT - 2, 6);
         orders.add(edge);
       }
@@ -7888,18 +7913,16 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       // `walking` is this one chip's. A player who has just ordered Thế Xung wants to know what Thế
       // Xung is good against; what the men are still standing in is on its way out.
       const mine = reforming && battle.formationTarget ? battle.formationTarget : battle.ourFormation;
-      const step = (FORMATION_RING.indexOf(id) - FORMATION_RING.indexOf(mine) + FORMATION_RING.length)
-        % FORMATION_RING.length;
+      // Positive: the shape I hold beats this chip; negative: this chip beats me. ±2 strong, ±1 soft.
+      const myTier = formationTier(mine, id);
       let noteColour: string | undefined;
       let note = '';
       if (walking) note = t('ascent.battle.reforming', { n: String(battle.reformBeats ?? 0) });
-      else if (gone) note = t('ascent.battle.shapeGone');
-      else if (state === 'blunt') note = t('ascent.battle.blunt');
-      else if (step === 1) { note = t('ascent.battle.weBeatIt'); noteColour = '#3f5a3a'; }
-      else if (step === FORMATION_RING.length - 1) {
-        note = t('ascent.battle.itBeatsUs');
-        noteColour = '#8a2a1b';
-      }
+      else if (gone) note = t('ascent.battle.winded', { n: String(wind.ours[id]) });
+      else if (myTier === 2) { note = t('ascent.battle.weBeatIt'); noteColour = '#3f5a3a'; }
+      else if (myTier === 1) { note = t('ascent.battle.weBeatItSoft'); noteColour = '#4c5f45'; }
+      else if (myTier === -2) { note = t('ascent.battle.itBeatsUs'); noteColour = '#8a2a1b'; }
+      else if (myTier === -1) { note = t('ascent.battle.itBeatsUsSoft'); noteColour = '#8a2a1b'; }
 
       /**
        * The order at the top, the glyph under it, the state line pinned to the floor.
@@ -8010,6 +8033,24 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         bar.fillStyle(INK_UI.cinnabar, 0.95);
         bar.fillRect(x + 2, formY + BATTLE_FORMATION_HEIGHT - 4, (chipW - 4) * done, 2.5);
         orders.add(bar);
+      }
+
+      // ── the breath coming back ─────────────────────────────────────────
+      //
+      // The same rail the walking bar rides, in the wind's own slate rather than an order's
+      // cinnabar, FILLING as the shape recovers. A countdown says the game forbids this; a bar
+      // filling says these men are getting their breath back — same rule, opposite feeling, and
+      // the whole reason the fiction is wind rather than a lock. Never on a walking chip: one
+      // rail, one bar, whichever story the chip is currently telling.
+      if (gone) {
+        const got = Math.max(0, Math.min(1,
+          1 - wind.ours[id] / Math.max(1, BATTLE_FORMATION_WIND)));
+        const breath = this.add.graphics();
+        breath.fillStyle(0x45606f, 0.25);
+        breath.fillRect(x + 2, formY + BATTLE_FORMATION_HEIGHT - 4, chipW - 4, 2.5);
+        breath.fillStyle(0x45606f, 0.9);
+        breath.fillRect(x + 2, formY + BATTLE_FORMATION_HEIGHT - 4, (chipW - 4) * got, 2.5);
+        orders.add(breath);
       }
 
       // The beat the men actually stood up in it. Two beats, then it stops mattering.
@@ -8171,6 +8212,11 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // How the two hosts' arms meet — spears against horse, bows against spears. Computed by the
     // fight, and until now printed in a loose line under the rails, where it sat beside the
     // telegraph and was read as part of it.
+    //
+    // When the arms have nothing to say, the slot carries the countable half of the duel instead:
+    // the shapes the enemy has spent and cannot re-form yet. Their wind is real, it obeys the same
+    // three-beat clock ours does, and printing it turns "remember what they left two beats ago"
+    // from a memory burden into a read — which is what opens the bait as a play.
     const arms = battle.ourMatchup ?? 1;
     if (Math.abs(arms - 1) > 0.03) {
       orders.add(this.ui.label(
@@ -8178,6 +8224,24 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
         arms > 1 ? t('ascent.battle.armsGood') : t('ascent.battle.armsBad'), 'caption',
         { fontSize: '9px', color: arms > 1 ? '#4c5f45' : '#8a2a1b' },
       ));
+    } else {
+      const wind = battleWindView(battle);
+      const spent = FORMATION_RING
+        .filter((shape) => shape !== battle.theirFormation && wind.theirs[shape] > 0)
+        .map((shape) => `${t(`ascent.formation.${shape}` as Parameters<typeof t>[0])} · ${wind.theirs[shape]}`);
+      if (spent.length) {
+        const line = this.ui.label(
+          content.x + 2, y + 13,
+          t('ascent.battle.cannotReform', { list: spent.join(',  ') }), 'caption',
+          { fontSize: '9px', color: '#45606f' },
+        );
+        // One line, shrunk to fit, never wrapped — the band's height is load-bearing
+        // (`verify-battle-dock` measures it on a 620-tall phone).
+        for (let size = 9; size >= 7 && line.width > content.width - 96; size -= 0.5) {
+          line.setFontSize(size);
+        }
+        orders.add(line);
+      }
     }
 
     /**

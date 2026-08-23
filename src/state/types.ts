@@ -1585,14 +1585,15 @@ export type AscentPromptKind = AscentPrompt['kind'];
  * the same trade delivered faster. Splitting them is the whole of `docs/14-five-shapes-two-dials`:
  * **the shape decides which way the men are spent, the stance decides how fast.**
  *
- * It is also the *slow* dial, and deliberately so. A stance is an order sent down the line rather
- * than a shape the men take: it lands on the **next** beat and then locks for
- * `BATTLE_STANCE_LOCK_BEATS`. That single constraint is what turns choosing aggression into a bet,
- * because in four beats the enemy can change shape — and if they do, you are pressing into a
- * counter with the dial that would fix it greyed out.
+ * It is also the dial that winds the dock. A stance is an order sent down the line rather than a
+ * shape the men take: it lands on the **next** beat, and from then on it sets how fast the wind
+ * clocks recover — `BATTLE_STANCE_RECOVERY`. Pressing freezes the dock and defending refills it
+ * at double rate, which is what turns choosing aggression into a bet: the price is not blood, it
+ * is the answers you will want three beats from now.
  *
- * Two of the four are never locked. `defend` is the brake and `withdraw` is the way out, and a game
- * may take your good options away but not those.
+ * No stance is ever locked. The four-beat lock this dial used to carry is retired — a game may
+ * take your good options away, it may not take away the brake, and now that the stance carries
+ * recovery a lock would freeze a player out of their own dock.
  */
 /**
  * Named `FieldStance` and not `BattleStance` because that name is already taken by the pre-battle
@@ -1622,8 +1623,6 @@ export interface AscentBattle {
    * two of the same one — see `FieldStance`.
    */
   stancePending?: FieldStance;
-  /** Beats before the stance can be changed again. `defend` and `withdraw` ignore it. */
-  stanceLockBeats?: number;
   /** Beats spent disengaging, once the stance is `withdraw`. */
   withdrawBeats?: number;
   /**
@@ -1702,6 +1701,17 @@ export interface AscentBattle {
   theirShapeLockBeats?: number;
   /** The next change of shape costs no beats at all, bought by a Moment. */
   freeReform?: boolean;
+  /**
+   * Beats each shape still needs before this side can stand in it again — the wind clocks.
+   *
+   * Stamped `BATTLE_FORMATION_WIND` on the shape a host walks OUT of, at landing, and ticked
+   * down every beat at the side's stance recovery rate (`BATTLE_STANCE_RECOVERY`). Absent key =
+   * zero = takeable, which is also what makes old saves migrate for free. A `Partial<Record>`
+   * rather than an array so the save file is self-describing — a `number[]` would silently remap
+   * every shape if `FORMATION_RING` were ever reordered under a stored game.
+   */
+  ourWind?: Partial<Record<BattleFormation, number>>;
+  theirWind?: Partial<Record<BattleFormation, number>>;
   /** Hosts that have broken and left the line, either side. */
   brokenHostIds: string[];
   /** Men of ours lost so far, so an orderly withdrawal can recover its stragglers. */

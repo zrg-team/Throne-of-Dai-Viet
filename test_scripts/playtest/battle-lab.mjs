@@ -192,7 +192,7 @@ const out = await page.evaluate(async (fights) => {
         // lab's model of *best* play, and a model that plays worse than the shipped commander
         // measures nothing. (It did, for one pass: adaptive 17.5% against general-90's 42.1%.)
         answer(B.battleTelegraph(st));
-        if (!B.stanceIsLocked(b, 'press')) {
+        { // the stance lock is retired — every stance answers on every beat
           const walking = (b.reformBeats > 0) || (b.theirReformBeats > 0);
           const sign = walking ? 0 : F.formationTiltSign(b.ourFormation, b.theirFormation);
           B.setBattleStance(st, sign > 0 && met ? 'press'
