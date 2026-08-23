@@ -34,11 +34,15 @@ import {
   BATTLE_ROUT_MORALE,
   BATTLE_VOLLEY_BITE,
   BATTLE_WITHDRAW_RECOVERY,
+  BATTLE_SIGNATURE_WIND,
+  BATTLE_TEMPER,
+  type CommanderTemper,
 } from '../../game/ascentConfig';
 import { battleAnswersEven, battleBeatsPerTick, battleReactDelay } from '../../game/battleOptions';
+import { windRecoveryBonus } from './DoctrineSystem';
 import {
-  formationBeats, formationTier, formationTiltSign,
-  FORMATION_RING, type BattleFormation,
+  compositionOfUnits, formationBeats, formationTier, formationTiltSign,
+  FORMATION_RING, SIGNATURE_SHAPE, type BattleFormation,
 } from '../../data/ascent/formations';
 import { raiseEnemyGarrisonLevy, raiseGarrisonLevy, resolveBattleRecord } from '../empire/InvasionSystem';
 import { pushToast } from '../empire/notifications';
@@ -354,6 +358,10 @@ export function beginBattle(state: GameState): boolean {
     ...draft,
     reserveHostId: reserveHost.id,
     totalRounds,
+    // Frozen at muster: a king who dies mid-fight does not change the man on the field.
+    commanderTemper: temperOf(state, draft),
+    ourSignature: sideSignature(ours),
+    theirSignature: sideSignature(theirs),
     ourStartMorale: defender.morale,
     ourMorale: defender.morale,
     theirMorale: invader.morale,
@@ -448,6 +456,9 @@ function beginAssault(state: GameState, pending: PendingBattle): boolean {
     ...draft,
     reserveHostId: reserveHost.id,
     totalRounds,
+    commanderTemper: temperOf(state, draft),
+    ourSignature: sideSignature(ours),
+    theirSignature: sideSignature(theirs),
     ourStartMorale: line.morale,
     ourMorale: line.morale,
     theirMorale: theirs[0].morale,
@@ -605,7 +616,9 @@ function enemyStance(state: GameState, battle: AscentBattle): FieldStance {
   // deterministic, visible, and stable across a run.
   if (!reforming(battle.reformBeats) && !reforming(battle.theirReformBeats)) {
     const sign = formationTiltSign(battle.theirFormation, battle.ourFormation);
-    if (sign > 0) return 'press';
+    // The stubborn never gambles, even on a winning tilt — which hands the player long windows
+    // and dares them to overspend their dock into them. Every other temper converts.
+    if (sign > 0) return BATTLE_TEMPER[temperOf(state, battle)].presses ? 'press' : 'balanced';
     if (sign < 0) return theirEdge > 25 ? 'balanced' : 'defend';
     // Even shape and the player has gone passive: EVERY doctrine presses. A line that has stopped
     // answering is not a stalemate, it is an opportunity — pressing into a defended mirror trades
@@ -718,7 +731,36 @@ function shapeTakeable(battle: AscentBattle, side: 'ours' | 'theirs', shape: Bat
  */
 function stampWind(battle: AscentBattle, side: 'ours' | 'theirs', left: BattleFormation): void {
   const map = side === 'ours' ? (battle.ourWind ??= {}) : (battle.theirWind ??= {});
-  map[left] = BATTLE_FORMATION_WIND;
+  const signature = side === 'ours' ? battle.ourSignature : battle.theirSignature;
+  // A doctrine's signature shape keeps its breath: wind 2, and it is printed on the chip from the
+  // first beat, so it is an identity rather than a surprise. See SIGNATURE_SHAPE.
+  map[left] = left === signature ? BATTLE_SIGNATURE_WIND : BATTLE_FORMATION_WIND;
+}
+
+/** The signature shape of a side's largest host, if its doctrine has one. */
+function sideSignature(hosts: Army[]): BattleFormation | undefined {
+  const biggest = hosts.slice().sort((a, b) => totalUnits(b) - totalUnits(a))[0];
+  if (!biggest) return undefined;
+  return SIGNATURE_SHAPE[compositionOfUnits(biggest.units, biggest.composition)];
+}
+
+/**
+ * The invader's temper: his kingdom's personality worn on the field, told to the player beside
+ * his name on the strength rail. Great waves are always `cunning` — the graduation exam.
+ */
+function temperOf(state: GameState, battle: AscentBattle): CommanderTemper {
+  if (battle.commanderTemper) return battle.commanderTemper;
+  if (battle.isGreat) return 'cunning';
+  const kingdom = state.kingdoms.find((candidate) => candidate.id === battle.kingdomId);
+  switch (kingdom?.personality) {
+    case 'aggressive':
+    case 'expansionist':
+      return 'hasty';
+    case 'defensive':
+      return 'stubborn';
+    default:
+      return 'measured';
+  }
 }
 
 /**
@@ -779,7 +821,7 @@ function advanceStance(battle: AscentBattle): void {
  *
  * Order at beat N, walk through beat N+1 with no shape at all, stand in it from beat N+2.
  */
-function settleFormations(battle: AscentBattle): void {
+function settleFormations(state: GameState, battle: AscentBattle): void {
   if (reforming(battle.reformBeats)) {
     battle.reformBeats = (battle.reformBeats ?? 0) - 1;
     if (!reforming(battle.reformBeats) && battle.formationTarget) {
@@ -810,7 +852,10 @@ function settleFormations(battle: AscentBattle): void {
   // Wind returns at the rate each side's stance allows — the rule that makes the two dials one
   // loop. Pressing recovers nothing, defending recovers double; see BATTLE_STANCE_RECOVERY.
   // Iterated over FORMATION_RING so key order is deterministic for every fingerprint.
-  const ourRate = BATTLE_STANCE_RECOVERY[battle.stance] ?? 1;
+  // Đoản Hơi Thành Trường — the rule card: pressing recovers 1 instead of 0. Ours only; the
+  // invader's dock plays by the book.
+  const cardFloor = battle.stance === 'press' ? windRecoveryBonus(state) : 0;
+  const ourRate = Math.max(cardFloor, BATTLE_STANCE_RECOVERY[battle.stance] ?? 1);
   const theirRate = BATTLE_STANCE_RECOVERY[battle.theirStance] ?? 1;
   for (const shape of FORMATION_RING) {
     const oursLeft = battle.ourWind?.[shape] ?? 0;
@@ -848,16 +893,22 @@ function advanceEnemyFormation(state: GameState, battle: AscentBattle, theirs: A
     * Nightmare takes the even case too — see `battleAnswersEven`. There is no beat on that setting
     * where the enemy is content to stand where they are.
     */
+  const temper = BATTLE_TEMPER[temperOf(state, battle)];
   const tilt = formationTier(battle.theirFormation, battle.ourFormation);
-  if (tilt > 0 || (tilt === 0 && !battleAnswersEven())) return;
+  // The restless tempers do not need to be losing: stand at even shape long enough and they
+  // rotate anyway, spending their own wind to do it — which is exactly how you beat one.
+  const restless = temper.restlessBeats > 0 && tilt === 0
+    && (battle.beatsSinceTheirShape ?? 0) >= temper.restlessBeats;
+  if (tilt > 0 || (tilt === 0 && !restless && !battleAnswersEven())) return;
 
   // Difficulty is how fast the enemy answers your shape, and nothing else — see `battleOptions`.
   // The walk itself is a flat beat now, so the dial moved from walk length to HESITATION: beats
-  // the invader stands countered before ordering. `beatsSinceOurShape` resets when we order, so
-  // easy invaders answer a settled shape and never a fresh one, and the tilt window that used to
-  // be spent watching them walk (tilt 0 for both) is spent actually countering them.
-  const hesitation = Math.max(0, 1 + battleReactDelay());
-  if ((battle.beatsSinceOurShape ?? 99) < hesitation) return;
+  // the invader stands countered before ordering, his temper's patience plus the difficulty's.
+  // `beatsSinceOurShape` resets when we order, so easy invaders answer a settled shape and never
+  // a fresh one, and the tilt window that used to be spent watching them walk (tilt 0 for both)
+  // is spent actually countering them.
+  const hesitation = Math.max(0, 1 + temper.hesitation + battleReactDelay());
+  if (!restless && (battle.beatsSinceOurShape ?? 99) < hesitation) return;
 
   void theirs;
   // They answer the shape we are **standing in**, never the one we are walking towards.
@@ -872,12 +923,26 @@ function advanceEnemyFormation(state: GameState, battle: AscentBattle, theirs: A
   //
   // Their answers obey their own wind — a shape they left inside the last three beats is off
   // their dock too, which is what makes counting their spent shapes a real read for the player.
-  const wanted = countersTo(battle.ourFormation).find((shape) => shapeTakeable(battle, 'theirs', shape))
+  // The cunning read your dock: among his answers he prefers the one whose own strong answer you
+  // have winded — the shape you cannot punish for three beats. Order the candidate list before
+  // the `.find`, and the telegraph stays as honest as ever: he only re-orders his preferences.
+  const prefersUnanswerable = temperOf(state, battle) === 'cunning';
+  const candidates = countersTo(battle.ourFormation);
+  if (prefersUnanswerable) {
+    const unanswerable = (shape: BattleFormation): number => {
+      const ourStrongAnswer = FORMATION_RING[
+        (FORMATION_RING.indexOf(shape) - 1 + FORMATION_RING.length) % FORMATION_RING.length];
+      return windOf(battle, 'ours', ourStrongAnswer) > 0 ? 0 : 1;
+    };
+    candidates.sort((a, b) => unanswerable(a) - unanswerable(b));
+  }
+  const wanted = candidates.find((shape) => shapeTakeable(battle, 'theirs', shape))
     // Losing with both answers winded: take the mirror, which is never winded, and zero the tilt
     // rather than stand in the counter. Without this an aggressive invader that pressed its own
     // recovery to zero could wedge its dock shut and eat the full drip for the rest of the fight.
     ?? (tilt < 0 ? matchShapeFor(battle, 'theirs') : undefined);
   if (!wanted || wanted === battle.theirFormation) return;
+  battle.beatsSinceTheirShape = 0;
 
   battle.theirFormationTarget = wanted;
   // Two, not one — and the difference is visibility, not speed. This order is placed INSIDE the
@@ -1133,6 +1198,10 @@ function applyMomentEffect(
   // Shape: the counter without the bill, or three beats of knowing what you are answering.
   if (effect.freeReform) battle.freeReform = true;
   if (effect.lockTheirShape) battle.theirShapeLockBeats = effect.lockTheirShape;
+  // The drum: every wind clock cleared at once — the whole dock lights up. Instant, never via
+  // momentBonus (which is wholesale-overwritten above), and ours alone: the drum is on our side
+  // of the field.
+  if (effect.refillWind) battle.ourWind = {};
 
   if (effect.morale) {
     battle.ourMorale = clampMorale(battle.ourMorale + gain(effect.morale, 0));
@@ -1391,7 +1460,7 @@ export function fightRound(state: GameState): void {
     // striking camp) was unreachable no matter what its trigger said. Measured across sixty
     // engagements, five of the thirty fired zero times for this reason alone.
     raiseMoment(state, battle, ours, theirs);
-    settleFormations(battle);
+    settleFormations(state, battle);
     recordBeat(battle, 'approach', ours, theirs, ourLoss, theirLoss, volleyLine);
     // Deliberately does not spend the round budget: the approach is the opening, not the fight.
     return;
@@ -1485,6 +1554,7 @@ export function fightRound(state: GameState): void {
     battle.lostRun = wonExchange ? 0 : (battle.lostRun ?? 0) + 1;
   }
   battle.beatsSinceOurShape = (battle.beatsSinceOurShape ?? 0) + 1;
+  battle.beatsSinceTheirShape = (battle.beatsSinceTheirShape ?? 0) + 1;
   // Applied to *every* host on the side, not just the one the maths treats as the line, so a
   // battered relief column carries its own heart rather than borrowing the vanguard's.
   // Being answered costs heart as well as men — keyed off the shape, and scaled by how hard the
@@ -1558,7 +1628,7 @@ export function fightRound(state: GameState): void {
 
   const exchangeLine = t('ascent.battle.exchange', { round: battle.round, ours: ourLoss, theirs: theirLoss });
   battle.log.push(exchangeLine);
-  settleFormations(battle);
+  settleFormations(state, battle);
   recordBeat(battle, 'clash', ours, theirs, ourLoss, theirLoss, exchangeLine, brokeThisBeat);
 
   // ── Does anyone break? ───────────────────────────────────────────────────

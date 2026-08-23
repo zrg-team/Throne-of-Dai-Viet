@@ -97,15 +97,87 @@ const drain = await page.evaluate(async () => {
     step(2); // one beat walking, one standing — press recovery is x0 throughout
     readiness.push(ready());
   }
-  return { opening, readiness, over: b().over };
+  const drained = { opening, readiness, over: b().over };
+
+  // ── the signature keeps its breath ─────────────────────────────────────────
+  // A doctrine's signature shape stamps wind 2, not 3. Probed under press (recovery x0) so the
+  // landing-beat tick cannot blur the number; the plain stamp under press already read 3 above.
+  b().stance = 'press';
+  b().stancePending = undefined;
+  b().theirFormationTarget = undefined;
+  b().theirReformBeats = 0;
+  b().ourWind = {};
+  b().freeReform = false;
+  b().ourSignature = 'chong';
+  if (b().ourFormation !== 'chong') {
+    b().ourFormation = 'chong';
+    b().formationTarget = undefined;
+    b().reformBeats = 0;
+  }
+  const off = ['xung', 'tan', 'quy', 'no'].find((f) => f !== b().theirFormation);
+  B.setBattleFormation(st, off);
+  step(2);
+  drained.signatureWind = B.battleWindView(b()).ours.chong;
+
+  // ── the drum refills the dock ──────────────────────────────────────────────
+  b().ourWind = { xung: 3, tan: 2, quy: 3 };
+  b().moment = {
+    id: 'the-drum', raisedAtBeat: b().round, ticksLeft: 1,
+    subject: b().kingdomName, generalName: 'Probe', generalMartial: 60,
+  };
+  const drummed = B.answerBattleMoment(st, 'commit');
+  const after = B.battleWindView(b());
+  drained.drum = {
+    took: drummed,
+    cleared: ['chong', 'xung', 'tan', 'quy', 'no'].every((f) => after.ours[f] === 0),
+  };
+  return drained;
 });
 
 check(drain.opening === 5, 'the dock opens full', `${drain.opening}/5`);
+check(drain.signatureWind === 2,
+  'the signature shape keeps its breath — wind 2, not 3',
+  `chong left at wind ${drain.signatureWind}`);
+check(drain.drum.took === true && drain.drum.cleared === true,
+  'the drum clears every wind clock at once',
+  drain.drum.took ? 'committed, dock refilled' : 'moment refused');
 check(!drain.over && drain.readiness.length >= 3
   && drain.readiness[drain.readiness.length - 1] <= 3
   && drain.readiness[drain.readiness.length - 1] < drain.opening,
   'holding Xung phong through the changes measurably drains the dock',
   drain.readiness.join(' → '));
+
+// ── fight one-and-a-half: tempers give different fights ──────────────────────
+// Same armies, same rules, a different man: the hasty rotates out of an even matchup on his own
+// clock, the stubborn never moves unless he is losing. Hold one shape, count their changes.
+const cadence = {};
+for (const temper of ['hasty', 'stubborn']) {
+  await openFight(9000, 9000);
+  cadence[temper] = await page.evaluate(async (who) => {
+    const B = await import('/src/systems/ascent/BattleSystem.ts');
+    const st = window.__mandateState;
+    const b = () => st.ascent.activeBattle;
+    b().steeredStance = true;
+    b().steeredFormation = true;
+    b().commanderTemper = who;
+    // Mirror them every beat (a direct write, no walk): the tilt is pinned at 0, so the ONLY
+    // thing that can move them is restlessness. A rotation they make into a counter would end
+    // the probe otherwise — a restless commander who finds a winning shape rightly keeps it.
+    let changes = 0;
+    let last = b().theirFormation;
+    for (let beat = 0; beat < 30 && !b().over; beat += 1) {
+      b().ourFormation = b().theirFormation;
+      b().formationTarget = undefined;
+      b().reformBeats = 0;
+      B.fightRound(st);
+      if (b().theirFormation !== last) { changes += 1; last = b().theirFormation; }
+    }
+    return changes;
+  }, temper);
+}
+check(cadence.hasty >= 2 && cadence.stubborn === 0,
+  'the hasty rotates on his own clock; the stubborn never moves at even shape',
+  `hasty changed ${cadence.hasty} times in 30 beats, stubborn ${cadence.stubborn}`);
 
 // ── fight two: the turtle must lose ──────────────────────────────────────────
 // Mirror their shape, always defend, never a counter — but the defence's structural one-shots

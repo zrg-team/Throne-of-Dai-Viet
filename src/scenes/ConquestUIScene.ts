@@ -1899,6 +1899,17 @@ export class ConquestUIScene extends Phaser.Scene {
               target: box('stance'),
             },
             {
+              // The wind, between the stance (which sets its rate) and the shapes (which spend
+              // it): the one rule of the rework a first fight must say out loud, because an
+              // aggressive player will feel punished before they understand why.
+              id: 'fight-wind',
+              heading: 'copilot.fight.wind.h',
+              body: 'copilot.fight.wind.b',
+              // The readout band, not the chips: the dock count and the enemy's spent shapes
+              // print there, and the shapes card right after this one already lights the strip.
+              target: box('readout'),
+            },
+            {
               /**
                * The one card in the game that carries a drawing, and the reason `CopilotStep.art`
                * exists at all.
@@ -7112,17 +7123,19 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // Chua Phuong Bac", which ran straight through its own four-digit strength and printed
     // "Phuong Ba1493"; measuring against the opening strength keeps the fit honest and lets the
     // trim happen once instead of on every exchange.
-    const rail = (x: number, widest: number, label: string): Phaser.GameObjects.Text => {
+    const rail = (x: number, widest: number, label: string, keep = ''): Phaser.GameObjects.Text => {
       const gauge = this.ui.label(0, -999, `${widest}`, 'label', { fontSize: '15px' });
       const room = barW - gauge.width - 6;
       gauge.destroy();
 
-      const name = this.ui.label(x, readoutY + 6, label, 'caption', {});
+      // `keep` survives any truncation — the commander's temper is the one word on this rail the
+      // player is meant to plan around, and the ellipsis was eating it before the name.
+      const name = this.ui.label(x, readoutY + 6, `${label}${keep}`, 'caption', {});
       if (name.width > room) {
         let cut = label;
         while (cut.length > 1 && name.width > room) {
           cut = cut.slice(0, -1);
-          name.setText(`${cut.trimEnd()}…`);
+          name.setText(`${cut.trimEnd()}…${keep}`);
         }
       }
       readout.add(name);
@@ -7142,7 +7155,15 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       return strength;
     };
     ui.ourStrength = rail(ui.railsGeom.ourX, battle.ourStart, t('ascent.battle.ours'));
-    ui.theirStrength = rail(ui.railsGeom.theirX, battle.theirStart, battle.kingdomName);
+    // The commander's temper rides beside his name, because a personality the player cannot see
+    // is just weather. One word — hasty, measured, stubborn, cunning — and the fight it predicts
+    // is the fight he actually gives; see BATTLE_TEMPER.
+    ui.theirStrength = rail(
+      ui.railsGeom.theirX, battle.theirStart, battle.kingdomName,
+      battle.commanderTemper
+        ? ` · ${t(`ascent.temper.${battle.commanderTemper}` as Parameters<typeof t>[0])}`
+        : '',
+    );
 
     // One graphics for all four measured lines, cleared and re-inked on the beat. Four containers
     // a beat was the single most expensive thing on this screen.
@@ -7937,6 +7958,15 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
        * Measured rather than placed at written-down offsets, for the same reason.
        */
       const GLYPH = 15;
+      // The signature tag: this doctrine's shape keeps its breath (wind 2), printed from the
+      // first beat so it reads as identity rather than surprise. Top corner, out of the way of
+      // the verb, the glyph and the state line.
+      if (battle.ourSignature === id) {
+        orders.add(this.ui.label(
+          x + chipW - 3, formY + 2, t('ascent.battle.signature'), 'caption',
+          { fontSize: '6.5px', color: '#8a6d3b' },
+        ).setOrigin(1, 0));
+      }
       const verb = this.ui.label(
         0, 0, t(`ascent.formation.${id}.verb` as Parameters<typeof t>[0]), 'label',
         {

@@ -1712,6 +1712,21 @@ export interface AscentBattle {
    */
   ourWind?: Partial<Record<BattleFormation, number>>;
   theirWind?: Partial<Record<BattleFormation, number>>;
+  /**
+   * Each side's signature shape — wind 2 instead of 3 when left. Fixed at muster from the
+   * doctrine of the side's largest host; `balanced` hosts have none. See `SIGNATURE_SHAPE`.
+   */
+  ourSignature?: BattleFormation;
+  theirSignature?: BattleFormation;
+  /**
+   * The invader's temper, from his kingdom's personality (great waves are always `cunning`).
+   * Decides his hesitation, his restlessness at even shape, and whether he presses — printed
+   * beside his name on the strength rail, because a personality the player cannot see is just
+   * weather.
+   */
+  commanderTemper?: 'hasty' | 'measured' | 'stubborn' | 'cunning';
+  /** Beats since the invader last changed shape — the restless tempers rotate off this clock. */
+  beatsSinceTheirShape?: number;
   /** Hosts that have broken and left the line, either side. */
   brokenHostIds: string[];
   /** Men of ours lost so far, so an orderly withdrawal can recover its stragglers. */

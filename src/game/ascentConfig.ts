@@ -875,6 +875,37 @@ export const BATTLE_STANCE_RECOVERY: Record<FieldStance, number> = {
 };
 
 /**
+ * Wind for a doctrine's signature shape — see `SIGNATURE_SHAPE`. One printed exception per army,
+ * in place of the four hidden ones the availability rule used to be.
+ */
+export const BATTLE_SIGNATURE_WIND = 2;
+
+/** The commander tempers, keyed from `KingdomPersonality` (+ the `isGreat` flag → cunning). */
+export type CommanderTemper = 'hasty' | 'measured' | 'stubborn' | 'cunning';
+
+/**
+ * What a temper changes: how long he waits before answering your shape, whether he rotates out of
+ * an even matchup on his own clock, and whether he presses a winning tilt.
+ *
+ * Two numbers and a habit, all built from dials the fight already had — which is what keeps every
+ * temper inside the telegraph's honesty contract. `hesitation` is added to the difficulty's
+ * reactDelay (floor 0). `restlessBeats` is how long he stands content at even shape before
+ * rotating anyway (0 = never; the hasty cannot sit still, which spends his own wind — outlast
+ * him and he runs dry first). `presses` gates the press stance on a winning tilt: the stubborn
+ * never gambles, which hands you long windows and dares you to overspend into them.
+ */
+export const BATTLE_TEMPER: Record<CommanderTemper, {
+  hesitation: number; restlessBeats: number; presses: boolean;
+}> = {
+  hasty: { hesitation: 0, restlessBeats: 4, presses: true },
+  measured: { hesitation: 1, restlessBeats: 0, presses: true },
+  stubborn: { hesitation: 2, restlessBeats: 0, presses: false },
+  // The graduation exam, reserved for great waves: quick, restless, and he reads your dock —
+  // see `advanceEnemyFormation`, which lets him rotate toward the answers you have winded.
+  cunning: { hesitation: 0, restlessBeats: 5, presses: true },
+};
+
+/**
  * What a host deals and takes while it is walking between shapes.
  *
  * This is the entire cost of the fast dial and it has to hurt, or the player simply mirror-counters
