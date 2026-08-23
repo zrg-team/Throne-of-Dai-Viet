@@ -175,4 +175,7 @@ export function drainAscentPrompts(state: GameState): void {
   // or a chained follow-up be immediately followed by a fresh card on the very next tick,
   // which is precisely the slideshow the gap rule exists to prevent.
   ascent.lastPromptTurn = state.turn;
+  // Same reasoning, same single choke point: this is the only honest count of what the player has
+  // actually been shown, and the Chronicle's share is measured against it.
+  ascent.promptsRaised = (ascent.promptsRaised ?? 0) + 1;
 }

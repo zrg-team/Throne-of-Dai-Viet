@@ -662,6 +662,21 @@ export const BATTLE_OVERTIME_MORALE = 1.2;
  * 6 x 560 = 3.36s against ASCENT_TICK_MS of 3500 — leaving headroom rather than falling behind.
  */
 export const BATTLE_TICK_MS = 560;
+
+/**
+ * How long the Skirmish holds the emptying field before it hands back to the setup screen.
+ *
+ * The rout animation already existed and was never once seen to finish. A host that breaks is
+ * carried off the field over `BATTLE_TICK_MS * 2`, but when the *last* host on a side breaks the
+ * fight resolves in that same tick, `finishBattle` clears `activeBattle`, the battle lane closes
+ * on the next frame and the arena replaces the whole scene with its report — so the men were
+ * killed off mid-stride, about 1.1 seconds of animation shown for perhaps 30 ms of it.
+ *
+ * Three and a bit beats: the two the runners need, plus one to see the ground they left. Long
+ * enough to read as "they broke and ran", short enough that a player dialling in matchups is not
+ * kept waiting between them.
+ */
+export const ARENA_ROUT_HOLD_MS = Math.round(BATTLE_TICK_MS * 3.4);
 /**
  * Beats resolved per economy tick.
  *

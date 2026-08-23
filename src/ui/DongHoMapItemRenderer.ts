@@ -5,7 +5,8 @@ import type { LandBuildingType } from '../state/types';
 import { UI_FONT } from './fonts';
 import { PIGMENT } from './ink/palette';
 import {
-  armyAnchor, armyFootprint, armyShape, compositionFor, drawArmy, figure, marchInPlace, seal, type HostKit,
+  armyAnchor, armyFootprint, armyShape, clashDevice, compositionFor, drawArmy, figure, marchInPlace, seal,
+  type HostKit,
 } from './ink/devices';
 import { drawFieldPlot } from './ink/settlements';
 import { citadel, drawnEra, GroundSpacer, hamlet, village } from './ink/settlements';
@@ -844,6 +845,77 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     return container;
   }
 
+  /**
+   * The mark above the scrap: **what this district is busy with**, read before the numbers.
+   *
+   * Four of the five had no glyph at all - a build, a purchase and a muster were the same blank
+   * scrap with different figures on it, so the map could tell you that something was 9/100 done
+   * without telling you what. Each is a silhouette at roughly twenty units, drawn in the pigment
+   * the thing itself would be: hoa hoe for coin, nau for timber, soi son for the player's own
+   * standard. The two fights keep the lacquer burst, because a fight is the one of the five that
+   * is urgent.
+   */
+  private orderGlyph(g: Phaser.GameObjects.Graphics, variant: ProgressBadgeVariant, y: number): void {
+    if (variant === 'acquisition') {
+      // A cash coin: round, with the square hole every Vietnamese coin was strung by.
+      g.fillStyle(PIGMENT.hoe, 0.95);
+      g.fillCircle(0, y, 10);
+      g.fillStyle(PIGMENT.diepHi, 1);
+      g.fillRect(-3.4, y - 3.4, 6.8, 6.8);
+      g.lineStyle(1.4, PIGMENT.muc, 0.85);
+      g.strokeCircle(0, y, 10);
+      g.strokeRect(-3.4, y - 3.4, 6.8, 6.8);
+      return;
+    }
+    if (variant === 'build') {
+      // A carpenter's mallet over the beam it is dressing.
+      g.fillStyle(PIGMENT.nau, 0.95);
+      g.fillPoints([
+        { x: -9, y: y - 9 }, { x: -1, y: y - 9 }, { x: -1, y: y - 3 }, { x: -9, y: y - 3 },
+      ], true);
+      g.fillPoints([
+        { x: -6.4, y: y - 3.4 }, { x: -3.6, y: y - 3.4 }, { x: 1.6, y: y + 7 }, { x: -1.2, y: y + 7 },
+      ], true);
+      g.fillStyle(PIGMENT.nauDark, 0.9);
+      g.fillRect(-11, y + 7, 22, 3);
+      g.lineStyle(1.2, PIGMENT.muc, 0.8);
+      g.strokeRect(-9, y - 9, 8, 6);
+      return;
+    }
+    if (variant === 'recruit') {
+      // A muster standard. Soi son, because the men being raised are the player's own.
+      g.lineStyle(2, PIGMENT.muc, 0.9);
+      g.lineBetween(-5, y - 10, -5, y + 9);
+      g.fillStyle(PIGMENT.son, 0.95);
+      g.fillPoints([
+        { x: -5, y: y - 10 }, { x: 9, y: y - 6 }, { x: -5, y: y - 1 },
+      ], true);
+      g.lineStyle(1.2, PIGMENT.muc, 0.8);
+      g.strokePoints([
+        { x: -5, y: y - 10 }, { x: 9, y: y - 6 }, { x: -5, y: y - 1 },
+      ], true, true);
+      g.fillStyle(PIGMENT.muc, 0.75);
+      g.fillRect(-9, y + 8, 8, 2.4);
+      return;
+    }
+
+    // Both fights carry the battle screen's own clash mark. A siege adds the wall it is being
+    // pressed against, which is the whole difference between the two.
+    if (variant === 'siege') {
+      // Dropped clear of the blades and given taller teeth. Tucked directly under the hilts the
+      // crenellation filled its own gaps and the wall read as one brown bar - which is to say, as
+      // nothing, and the siege and the field battle became the same picture.
+      g.fillStyle(PIGMENT.mucSoft, 0.9);
+      g.fillRect(-14, y + 12, 28, 5);
+      for (let merlon = -14; merlon < 14; merlon += 7) {
+        g.fillRect(merlon, y + 5, 4, 7.5);
+      }
+      clashDevice(g, 0, y - 4, 0.85);
+      return;
+    }
+    clashDevice(g, 0, y, 0.85);
+  }
+
   /** Work in progress, on a scrap of paper rather than a coloured ring. */
   override createProgressBadge(
     x: number,
@@ -856,7 +928,7 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     const container = scene.add.container(x, y);
     const g = scene.add.graphics();
     const ratio = Math.max(0, Math.min(1, progress / Math.max(1, required)));
-    const urgent = variant === 'acquisition' || variant === 'siege';
+    const urgent = variant === 'acquisition' || variant === 'siege' || variant === 'battle';
     const w = 30;
     const plate: Pt[] = [{ x: -w / 2, y: -9 }, { x: w / 2, y: -9 }, { x: w / 2, y: 5 }, { x: -w / 2, y: 5 }];
     washFill(g, plate, PIGMENT.diepHi, 501, 0.92, 1);
@@ -867,8 +939,17 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
         width: 2, alpha: 0.85, colour: urgent ? PIGMENT.son : PIGMENT.giDong, wobble: 0.3, step: 7,
       });
     }
+    // Every variant says what it is, above the scrap. The siege glyph in particular used to be
+    // nothing at all here, and a red ring with two straight strokes in the sibling renderer -
+    // which at this size reads as a cancel badge, not as swords.
+    const mark = scene.add.graphics();
+    this.orderGlyph(mark, variant, -27);
+    container.add(mark);
+
     container.add(g);
-    container.add(scene.add.text(0, -8, `${progress}/${required}`, {
+    // Rounded, always. `order.progress` is a running fractional total, and printed raw it put
+    // `9.31294468968111/100` across the middle of the map.
+    container.add(scene.add.text(0, -8, `${Math.round(progress)}/${Math.round(required)}`, {
       color: '#2a2118', fontFamily: UI_FONT, fontSize: '9px', fontStyle: '700',
     }).setOrigin(0.5, 0));
     return container;

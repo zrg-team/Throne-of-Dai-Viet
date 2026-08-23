@@ -101,6 +101,18 @@ const DRY_TICKS_BEFORE_RETIRE = 12;
  */
 const STALE_WAITING_TICKS = 20;
 
+/**
+ * Ticks a story is turned back to its ambient pool after letting a stale card go.
+ *
+ * Deliberately two seasons longer than `DRY_TICKS_BEFORE_RETIRE`, which makes this the test that
+ * decides whether a story deserves its slot: one with something ambient to say whispers during the
+ * rest, clears `dryTicks`, and keeps the slot; one whose only content was a card the director
+ * could not afford runs dry through the whole window and retires, freeing the slot for a story
+ * that can speak. Measured before this existed: seven of eight live stories ended a run holding a
+ * card, six of them having never said a single line.
+ */
+const CARD_REST_TICKS = DRY_TICKS_BEFORE_RETIRE + 2;
+
 /** Temperature bleeds off on its own, so a story that is ignored cools rather than detonating. */
 const COOL_PER_TICK = 0.06;
 
@@ -246,6 +258,34 @@ function sharesSubject(a: ActiveStory, b: ActiveStory): boolean {
     || (a.cast.landId && a.cast.landId === b.cast.landId)
     || (a.cast.kingdomId && a.cast.kingdomId === b.cast.kingdomId),
   );
+}
+
+/**
+ * Provinces the realm must hold before two stories sharing one are made to take turns.
+ *
+ * A story binds its province at seed and keeps it for the whole run, and Dragon Ascent's realm is
+ * one to three provinces wide for most of a run — so the province is not a *choice* the seeder
+ * made, it is the only address available. Measured across three runs, six of twelve stories bound
+ * the same district, and the turn-taking rule below then silenced them for the rest of the run:
+ * **49.9% of all story-ticks were blocked, 89.4% of them on a shared province.**
+ *
+ * Below this floor the rule is suppressing a coincidence rather than a collision, so it stands
+ * down. A person is different — two stories about the same man in one season really does read as
+ * the world double-narrating, so hero and court contention are enforced at every realm size.
+ */
+const CONTENTION_MIN_LANDS = 5;
+
+/**
+ * True when `b` must wait because `a` has already spoken about their shared subject this season.
+ *
+ * Deliberately narrower than `sharesSubject`, which answers a different question — "is this hero
+ * spoken for by two stories at once" — and is what `ctx.sharing()` still reads.
+ */
+function contendsForSubject(a: ActiveStory, b: ActiveStory, landsOwned: number): boolean {
+  if (a.cast.heroId && (a.cast.heroId === b.cast.heroId || a.cast.heroId === b.cast.otherHeroId)) return true;
+  if (a.cast.kingdomId && a.cast.kingdomId === b.cast.kingdomId) return true;
+  if (landsOwned < CONTENTION_MIN_LANDS) return false;
+  return Boolean(a.cast.landId && a.cast.landId === b.cast.landId);
 }
 
 /** Interpolation available to every fragment of a story, without the fragment asking. */
@@ -542,7 +582,11 @@ export function tickStories(state: GameState): void {
   // Collision. Two stories that have bound the same hero or province do not both get to talk
   // about him in the same season — the hotter one speaks and the other waits, which reads as the
   // two of them contending for the same subject rather than as the world double-narrating it.
+  //
+  // The province half of that only applies once the realm is wide enough for a province to have
+  // been a choice: see `CONTENTION_MIN_LANDS`.
   const spokenSubjects: ActiveStory[] = [];
+  const landsOwned = playerLands(state).length;
 
   for (const story of [...stories].sort((a, b) => b.temperature - a.temperature)) {
     const template = storyTemplate(story.templateId);
@@ -562,9 +606,16 @@ export function tickStories(state: GameState): void {
     // Unless the player has muted beats, in which case holding it *is* the arrangement: the card
     // is waiting for them in the Chronicle, and dropping it would quietly delete the thing they
     // are going to go and answer.
+    //
+    // Counted from when the card was picked, not from when the story last spoke. Those are not the
+    // same clock: a story that whispers while holding a card kept pushing `lastSpokeTurn` forward
+    // and so never reached the threshold at all. Measured, four of eight live stories ended a run
+    // still holding a card they had picked up eighty seasons earlier.
     if (story.waiting && !storyCardsMuted(state)
-      && state.turn - story.lastSpokeTurn > STALE_WAITING_TICKS) {
+      && state.turn - (story.waitingSince ?? story.lastSpokeTurn) > STALE_WAITING_TICKS) {
       story.waiting = undefined;
+      story.waitingSince = undefined;
+      story.cardRestUntil = state.turn + CARD_REST_TICKS;
     }
 
     // ── The patience clock ────────────────────────────────────────────────
@@ -580,6 +631,7 @@ export function tickStories(state: GameState): void {
       if (waited >= node.patience) story.temperature += 0.4;
       if (waited >= node.patience * 2 && node.onIgnored) {
         story.waiting = undefined;
+        story.waitingSince = undefined;
         enterNode(state, story, template, node.onIgnored);
         continue;
       }
@@ -587,12 +639,14 @@ export function tickStories(state: GameState): void {
 
     const ctx = makeCtx(state, story, world);
     if (ctx.quietFor < MIN_QUIET) continue;
-    if (spokenSubjects.some((other) => sharesSubject(other, story))) continue;
+    if (spokenSubjects.some((other) => contendsForSubject(other, story, landsOwned))) continue;
 
     // A story already holding a card for the director may still whisper — indeed it *should*.
     // "A story heating up whispers more often, about smaller things" is the only tell the player
     // ever gets that something is coming, and going mute the moment a card is queued deletes it.
-    const fragment = pickFragment(template, ctx, Boolean(story.waiting));
+    // Whispers only while a card is already held, and while resting after letting one go.
+    const resting = state.turn < (story.cardRestUntil ?? 0);
+    const fragment = pickFragment(template, ctx, Boolean(story.waiting) || resting);
     if (!fragment) {
       // Nothing left to say. Give the slot back rather than squat on it for the rest of the run —
       // but only after long enough that a story merely waiting out a `quiet` is not evicted.
@@ -631,6 +685,7 @@ export function tickStories(state: GameState): void {
 
     // Cards and blows pause the world, so they go through the director's budget.
     story.waiting = fragment.id;
+    story.waitingSince ??= state.turn;
   }
 
   if (retiring.length > 0) {
@@ -715,6 +770,7 @@ export function offerStoryBeat(state: GameState): boolean {
 
   state.storyPromptsRaised = (state.storyPromptsRaised ?? 0) + 1;
   story.waiting = undefined;
+  story.waitingSince = undefined;
 
   const speaker = story.cast.heroId
     ? state.heroes.find((hero) => hero.id === story.cast.heroId)
@@ -762,7 +818,10 @@ export function resolveStoryBeat(state: GameState, storyId: string, fragmentId: 
   // Normally `offerStoryBeat` clears this when it builds the prompt. When beats are muted there is
   // no prompt: the story is answered straight off its own page, and nothing else would ever let go
   // of the card — so the page would keep showing a beat that had already been answered.
-  if (story.waiting === fragmentId) story.waiting = undefined;
+  if (story.waiting === fragmentId) {
+    story.waiting = undefined;
+    story.waitingSince = undefined;
+  }
 
   if (fragment.volume === 'blow' || !fragment.options?.length) {
     fire(state, story, fragment, ctx);

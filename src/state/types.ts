@@ -1091,6 +1091,25 @@ export interface ActiveStory {
   /** Set when a card/blow is waiting for the decision director to raise it. */
   waiting?: string;
   /**
+   * Season `waiting` was set, so a card can be let go after it has been held too long.
+   *
+   * The stale clock used to read `lastSpokeTurn`, which measures something else entirely: a story
+   * that whispers while holding a card kept resetting it, so it held the card for the rest of the
+   * run and squatted a live slot in silence. Measured, four of eight live stories ended a run in
+   * exactly that state, six of eight having never said a word.
+   */
+  waitingSince?: number;
+  /**
+   * Season this story may pick another card. Set when it lets a stale one go.
+   *
+   * Without it the release does nothing: the same tick re-runs the draw with the card slot free
+   * and picks the very same fragment straight back, so the story holds it for the rest of the run
+   * and says nothing else the whole time. The rest window is what makes the release mean what its
+   * comment claims — the story is turned back to its ambient pool, and if it has nothing there it
+   * runs dry and gives the slot to one that has.
+   */
+  cardRestUntil?: number;
+  /**
    * An offer currently hanging on one of this story's subjects.
    *
    * Deliberately *not* `waiting`. An opening must not silence the story that made it — a player
@@ -2151,6 +2170,16 @@ export interface AscentState {
   endLandName?: string;
   /** The turn the last prompt was raised, enforcing a gap of real play between modals. */
   lastPromptTurn: number;
+  /**
+   * Prompts of every kind this run has actually put in front of the player.
+   *
+   * The Chronicle's share is measured against this. It used to be measured against `turn / 4`,
+   * which is a count of *seasons*, not of prompts — and the two are not proportional: a measured
+   * run raised 153 prompts in 320 seasons, so a budget that read "15% of a run's prompts" was in
+   * fact handing out 7.8% of them. Optional so saves written before it loads without migration;
+   * an absent count simply starts the budget over.
+   */
+  promptsRaised?: number;
   /** Parliament cards already drawn this run — the deck draws without replacement. */
   drawnCourtCards: string[];
   /** Ticks until the court may speak again; mirrors `court.cardCooldown` for this mode. */

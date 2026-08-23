@@ -53,7 +53,7 @@ import { ourHosts, ourMustered, sideFormations, theirHosts } from '../systems/as
 import {
   ASCENT_TICK_MS, BATTLE_BEATS_PER_TICK, BATTLE_DEPTH_FAR, BATTLE_DEPTH_NEAR, BATTLE_HIT_STOP_MS,
   BATTLE_HOST_SCALE, BATTLE_PRESS_TRAVEL,
-  BATTLE_ROUT_MORALE, BATTLE_TICK_MS,
+  ARENA_ROUT_HOLD_MS, BATTLE_ROUT_MORALE, BATTLE_TICK_MS,
   TRIBUTE_REFUSE_TICKS,
 } from '../game/ascentConfig';
 import { battleTelegraph, stanceIsLocked } from '../systems/ascent/BattleSystem';
@@ -461,6 +461,21 @@ const RARITY_WASH: Record<AscentRarity, number> = {
  * their own initiative. The cards set the rhythm; the bar means you are never stuck waiting
  * for one.
  */
+
+/**
+ * Takes the input off a container and everything under it, leaving the picture alone.
+ *
+ * `setVisible(false)` would also stop the input, and does not leave the picture alone: on the
+ * battle screen the controls are the lower half of the paper, so hiding them shows whatever scene
+ * is still resident behind this one.
+ */
+function disarm(object: Phaser.GameObjects.GameObject): void {
+  object.disableInteractive();
+  const children = (object as Phaser.GameObjects.Container).list;
+  if (Array.isArray(children)) {
+    for (const child of children) disarm(child);
+  }
+}
 export class ConquestUIScene extends Phaser.Scene {
   private state!: GameState;
   private ui!: InkUI;
@@ -557,9 +572,13 @@ export class ConquestUIScene extends Phaser.Scene {
   private waveBanner?: { skip: () => void; destroy: () => void };
   /** Cues taken off the director's queue and not yet played, in the order they were raised. */
   private waveCueQueue: AscentWaveCue[] = [];
+  /** The clock's state before a result banner stopped it, restored when the plate leaves. */
+  private wavePauseBefore = false;
   private lastWaveCueId = 0;
   /** True from the screen opening itself until the first order: the world is held meanwhile. */
   private battleAwaitingOrder = false;
+  /** The Skirmish's post-fight hold, while the beaten side runs off. See `holdArenaRout`. */
+  private arenaRoutHold?: Phaser.Time.TimerEvent;
   /**
    * How hard one side has been pushing the other, in [-1, 1]. Positive is ours.
    *
@@ -643,6 +662,9 @@ export class ConquestUIScene extends Phaser.Scene {
       this.runTour = undefined;
       this.waveBanner?.destroy();
       this.waveBanner = undefined;
+      this.waveCueQueue = [];
+      this.arenaRoutHold?.remove();
+      this.arenaRoutHold = undefined;
     });
 
     this.modalLayer = this.add.container(0, 0).setDepth(500);
@@ -784,8 +806,30 @@ export class ConquestUIScene extends Phaser.Scene {
 
     const cue = this.waveCueQueue.shift();
     if (!cue) return;
+
+    // **A result stops the world; a landing does not.**
+    //
+    // The two halves of the lifecycle are not the same kind of event. A landing is a warning about
+    // something that is now happening on the map, and the map should keep moving under it - freezing
+    // the game to say "you are being invaded" would be the game taking the news away from the
+    // player. A result is the opposite: the fight is over, the figures on the plate are final, and
+    // the only thing left is to read them. Letting the clock run through that meant the next tick's
+    // toast, the next card and the next wave's countdown all arrived over the top of the one moment
+    // in the run that exists to be looked at.
+    //
+    // Held as a *strategy* pause, the same lever the lane screens use, and released the instant the
+    // plate leaves - including when a tap cuts it short. The prior value is captured rather than
+    // assumed so the release cannot switch the clock back on under a player who had paused it
+    // themselves.
+    const holdsWorld = cue.phase === 'end';
+    if (holdsWorld) {
+      this.wavePauseBefore = this.state.isStrategyPause;
+      this.state.isStrategyPause = true;
+    }
+
     this.waveBanner = playWaveBanner(this, cue, () => {
       this.waveBanner = undefined;
+      if (holdsWorld) this.state.isStrategyPause = this.wavePauseBefore;
       // Straight into the next one. A wave the realm plainly holds is met without a card, so a
       // result and the next landing are raised on the same tick and read as one sentence: this
       // invasion ended, that one is beginning.
@@ -5307,10 +5351,18 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const held = record.outcome === 'they-rout'
       || (record.outcome === 'spent' && record.ourEnd / Math.max(1, record.ourStart) >= record.theirEnd / Math.max(1, record.theirStart));
 
+    // **Which side of the wall we were on.**
+    //
+    // Every line of this screen was written from the defender's chair, and the record has carried
+    // `role` all along. A siege the player ordered and lost therefore reported "The ground is held"
+    // and "{land} stays ours" over a jade border - the defender's good news, printed as the result
+    // of the player's own failed assault. Read literally it was even true, which is what made it so
+    // misleading: the province did hold, against us.
+    const offence = record.role === 'offence';
     const titleKey = record.outcome === 'they-rout' ? 'broke'
       : record.outcome === 'we-rout' ? 'broken'
         : record.outcome === 'retreat' ? 'withdrew'
-          : held ? 'held' : 'lost';
+          : held ? (offence ? 'stormed' : 'held') : (offence ? 'repulsed' : 'lost');
 
     const { addRow, addHeading, addNote, addWidget, finish } = this.laneList(
       t(`ascent.aftermath.title.${titleKey}` as Parameters<typeof t>[0]),
@@ -5348,8 +5400,10 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     if (record.levyFought) addNote(t('ascent.aftermath.levyHome', { land: record.landName }));
 
     addRow({
-      title: held ? t('ascent.aftermath.keptTitle', { land: record.landName })
-        : t('ascent.aftermath.lostTitle', { land: record.landName }),
+      title: t((offence
+        ? (held ? 'ascent.aftermath.tookTitle' : 'ascent.aftermath.failedTitle')
+        : (held ? 'ascent.aftermath.keptTitle' : 'ascent.aftermath.lostTitle')) as Parameters<typeof t>[0],
+      { land: record.landName }),
       subtitle: t('ascent.aftermath.keptNote', {
         ours: record.ourEnd, theirs: record.theirEnd, hosts: record.theirHosts,
       }),
@@ -5360,7 +5414,10 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // cost. This is the sentence a player will remember a fight by long after the numbers above it
     // have gone — and it is the same sentence the Đông Hồ prints of Hai Bà Trưng and Quang Trung
     // are captioned with, which is the register this whole mode is written in.
-    addNote(t(`ascent.aftermath.chronicle.${held ? 'won' : 'lost'}` as Parameters<typeof t>[0], {
+    const chronicleKey = offence
+      ? (held ? 'took' : 'repulsed')
+      : (held ? 'won' : 'lost');
+    addNote(t(`ascent.aftermath.chronicle.${chronicleKey}` as Parameters<typeof t>[0], {
       year: record.year ?? this.state.year,
       land: record.landName,
       kingdom: record.kingdomName ?? t('ascent.aftermath.theEnemy'),
@@ -5372,9 +5429,14 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       addHeading(t('ascent.aftermath.elsewhere'), t('ascent.aftermath.elsewhereHint'));
       for (const other of alsoFought) {
         const theirs = other.outcome === 'they-rout' || other.outcome === 'spent';
+        // Same correction, one level down: a general sent to take a province reports whether he
+        // carried it, not whether he held it.
+        const dispatchKey = other.role === 'offence'
+          ? (theirs ? 'took' : 'repulsed')
+          : (theirs ? 'won' : 'lost');
         addRow({
           title: other.landName,
-          subtitle: t(`ascent.aftermath.dispatch.${theirs ? 'won' : 'lost'}` as Parameters<typeof t>[0], {
+          subtitle: t(`ascent.aftermath.dispatch.${dispatchKey}` as Parameters<typeof t>[0], {
             name: other.generalName ?? t('ascent.aftermath.officers'),
             ours: Math.max(0, other.ourStart - other.ourEnd),
             theirs: Math.max(0, other.theirStart - other.theirEnd),
@@ -8390,7 +8452,11 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const ui = this.battleUi;
     const battle = this.state.ascent?.activeBattle;
     if (!ui) return;
-    if (!battle) { this.closeLane(); return; }
+    if (!battle) {
+      if (this.holdArenaRout()) return;
+      this.closeLane();
+      return;
+    }
 
     const frame = this.battleFrame(battle);
 
@@ -8595,6 +8661,81 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       duration: BATTLE_TICK_MS * 2,
       ease: 'Quad.easeIn',
     });
+  }
+
+  /**
+   * Keeps the Skirmish's field on screen while the beaten side runs off it.
+   *
+   * `routHostBlock` carries a broken host away over `BATTLE_TICK_MS * 2`, and until now nobody had
+   * ever seen it end: when the last host on a side breaks, the fight resolves inside the same tick,
+   * `finishBattle` clears `activeBattle`, and the very next `updateBattle` closed the lane and
+   * killed every tween on it. The arena then swapped the whole scene for its report. About a
+   * second of animation, shown for a frame or two of it.
+   *
+   * Only the arena holds. In a real run the fight is one thing happening among many — a wave is
+   * still walking in, the economy is still running, and the aftermath card is the thing that wants
+   * the player's attention next — so stopping the map to watch an animation would be the tail
+   * wagging the dog. The Skirmish exists to *look at the fight*, and it is the one place where the
+   * last second of one is the point.
+   *
+   * Returns true while the hold is running, which is the caller's signal not to close the lane.
+   * The dock goes with the fight: an orders card still standing over a finished battle is a set of
+   * buttons that resolve against nothing.
+   */
+  private holdArenaRout(): boolean {
+    if (!this.state.ascent?.arena) return false;
+    if (this.arenaRoutHold) return true;
+
+    // The dock is dimmed and disarmed, not hidden, and the Moment card is taken away entirely.
+    //
+    // Both are questions put to a battle that no longer exists: an orders card over a finished
+    // fight is a row of buttons that resolve against nothing, and a Moment still counting down
+    // "The King decides in 1" is worse, because it implies a choice the result has already made.
+    //
+    // Hiding them was the first attempt and it punched a hole in the page: the cards *are* the
+    // bottom half of this screen's paper, so with them gone the menu still resident behind the
+    // whole thing showed through — "Classic Modes" and "Buy me a coffee" reading faintly under a
+    // battlefield. Dimming keeps the sheet whole and still says plainly that the controls are
+    // spent.
+    const ui = this.battleUi;
+    if (ui) {
+      this.clearLayer(ui.moment);
+      for (const dock of [ui.orders, ui.exits]) {
+        // Shown again first: `buildBattleMoment` hides the orders dock while a Moment stands, and a
+        // fight that ends on one would otherwise hold a screen with its whole middle missing.
+        dock.setVisible(true);
+        // 0.7, not the 0.3 that reads as "disabled" on a normal page. These cards *are* the
+        // lower half of this sheet, and the lane behind them is translucent, so anything darker
+        // let the menu still resident behind the game show through between the rows.
+        dock.setAlpha(0.7);
+        disarm(dock);
+      }
+    }
+
+    // **Set the losers running, here, rather than waiting for a beat that will never arrive.**
+    //
+    // The flee is normally driven by `beat.broke`, and the screen runs behind the simulation:
+    // `BATTLE_BEATS_PER_TICK` beats are produced per tick and shown one per `BATTLE_TICK_MS`. So
+    // the beat that breaks the last host is still queued when `finishBattle` clears the battle out
+    // from under it, and the UI never sees the one beat the whole animation hangs on. Holding the
+    // field without this showed a frozen line for two seconds, which is worse than cutting away.
+    //
+    // Read off the record rather than the beats, because the record is what survived: the side
+    // named in `outcome` is the side that broke. A fight that ended `spent` or `retreat` had nobody
+    // rout, and correctly leaves both lines standing where they stopped.
+    const record = this.state.ascent.battleHistory?.[this.state.ascent.battleHistory.length - 1];
+    const routing = record?.outcome === 'we-rout' ? ui?.ourMarkers
+      : record?.outcome === 'they-rout' ? ui?.theirMarkers
+        : undefined;
+    for (const entry of routing ?? []) {
+      if (!entry.routed) this.routMarker(entry.hostId);
+    }
+
+    this.arenaRoutHold = this.time.delayedCall(ARENA_ROUT_HOLD_MS, () => {
+      this.arenaRoutHold = undefined;
+      if (this.openPromptKey === 'lane:battle') this.closeLane();
+    });
+    return true;
   }
 
   /**

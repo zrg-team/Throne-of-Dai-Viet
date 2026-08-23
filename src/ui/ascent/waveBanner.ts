@@ -85,13 +85,17 @@ const STAT_X = 46;
  * On screen, end to end (lead-in + hold + the 420 ms fall):
  *
  *   landing            560 + 3800 + 450 = 4.8 s
- *   result, 2 rows     560 + 5200 + 450 = 6.2 s
- *   result, 4 rows     560 + 6600 + 450 = 7.6 s
+ *   result, 2 rows     560 + 6800 + 450 = 7.8 s
+ *   result, 4 rows     560 + 8400 + 450 = 9.4 s
+ *
+ * The result may be this long because **the world stops for it** - see `playPendingWaveCue`. A
+ * landing does not stop anything and is still sized to be read at a glance while the map moves
+ * under it.
  */
 const HOLD_START = 3800;
-const HOLD_END_BASE = 4000;
-/** Added per label/value row on a result. Four rows is the usual case, giving 6600. */
-const HOLD_END_PER_ROW = 650;
+const HOLD_END_BASE = 5200;
+/** Added per label/value row on a result. Four rows is the usual case, giving 8400. */
+const HOLD_END_PER_ROW = 800;
 
 function holdFor(cue: AscentWaveCue, rowCount: number): number {
   return cue.phase === 'start' ? HOLD_START : HOLD_END_BASE + rowCount * HOLD_END_PER_ROW;
@@ -599,22 +603,29 @@ export function playWaveBanner(
 
   // ── dismissing ──────────────────────────────────────────────────────────────
   //
-  // Anywhere on the screen, and **it never eats the tap**.
+  // A **scene-level** pointer listener, not an interactive object.
   //
-  // Two rules pull against each other here. The banner has to be dismissible from anywhere — it
-  // stands in the middle of the map for two and a half seconds and a player who has read it wants
-  // it gone — but it is an *announcement*, not a decision, so the tap that dismisses it must also
-  // do whatever it was going to do to the world underneath. It must not stop the game, and it must
-  // not stop the event.
+  // The first version laid a full-screen `Zone` over the map and made it interactive. It dismissed
+  // the banner from anywhere, which is what was wanted, and it also swallowed every control
+  // underneath it: Phaser delivers a pointer to the topmost interactive object only, and at depth
+  // 470 the zone outranks the map controls at 430. So for the whole life of the banner the zoom
+  // buttons and the terrain/control toggle were visible, pressable and inert - and once a result
+  // began holding the world for nine seconds, that dead window was long enough to read as the
+  // buttons simply being broken.
   //
-  // Both hold because of how input is wired in this project: MapScene and ConquestUIScene run
-  // their own input plugins, so a pointer reaches both. The UI scene's zone here dismisses the
-  // banner; the map scene, on the same pointer, pans or selects exactly as it would have. What
-  // *would* have broken that is publishing this zone to `window.__hudTapBounds`, the list MapScene
-  // consults to ignore taps that landed on chrome — so it deliberately is not published, and the
-  // banner never registers a strategy pause either. Nothing about it stops the run.
-  const skipZone = scene.add.zone(halfW, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT).setOrigin(0.5, 0.5);
-  root.add(skipZone);
+  // `input.on(POINTER_UP)` fires for the pointer rather than for an object, so it competes with
+  // nothing. A tap on bare paper dismisses the plate; a tap on a real control works normally,
+  // because Phaser aborts the scene-level event when a game object calls `stopPropagation`, which
+  // every button in this scene does. That is the right split: pressing a button is not a request
+  // to dismiss an announcement, and the hold will take the banner away by itself anyway.
+  //
+  // The map keeps working underneath either way. MapScene runs its own input plugin and consults
+  // `window.__hudTapBounds` to decide what is chrome; the banner publishes nothing to it and never
+  // sets `__suppressMapInputUntil`, so a tap that dismisses the plate still pans or selects.
+  const dismissOnTap = (): void => {
+    holdTimer?.remove();
+    rollAway();
+  };
 
   const finish = (): void => {
     if (finished) return;
@@ -624,6 +635,7 @@ export function playWaveBanner(
     // 2.9 s and an arming timer for 600 ms, on a clock that outlives the object they refer to.
     holdTimer?.remove();
     armTimer?.remove();
+    scene.input.off(Phaser.Input.Events.POINTER_UP, dismissOnTap);
     scene.tweens.killTweensOf([root, stage, band, content, frieze, brush, chop, rays, backRays, scrim]);
     for (const counter of counters) scene.tweens.killTweensOf(counter.text);
     root.destroy(true);
@@ -751,15 +763,11 @@ export function playWaveBanner(
   holdTimer = scene.time.delayedCall(560 + holdFor(cue, rows.length), rollAway);
 
   // Armed a beat late, so the tap that answered the card *before* the banner cannot dismiss the
-  // banner in the same gesture — a pointerup can land on a zone that did not exist when the press
-  // began, and the proclamation would flash and vanish without ever being read.
+  // banner in the same gesture — a pointerup can land on a listener that did not exist when the
+  // press began, and the proclamation would flash and vanish without ever being read.
   armTimer = scene.time.delayedCall(SKIP_HINT_DELAY, () => {
-    if (finished || !skipZone.active) return;
-    skipZone.setInteractive({ useHandCursor: false });
-    skipZone.once('pointerup', () => {
-      holdTimer.remove();
-      rollAway();
-    });
+    if (finished) return;
+    scene.input.on(Phaser.Input.Events.POINTER_UP, dismissOnTap);
   });
 
   return {

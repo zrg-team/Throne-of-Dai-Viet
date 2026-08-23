@@ -29,7 +29,14 @@ import { getActiveMapTheme, type MapThemeDefinition, type MapThemeRendererId } f
 export const LABEL_KEEP_OUT = { y: 48, rx: 52, ry: 11 };
 
 
-export type ProgressBadgeVariant = 'acquisition' | 'build' | 'siege' | 'recruit';
+/**
+ * What a badge over a district is counting.
+ *
+ * `siege` is an assault on a walled place and `battle` is two hosts meeting in the open. They are
+ * separate because the map should say which one it is: the same crossed blades, with battlements
+ * under them for the siege.
+ */
+export type ProgressBadgeVariant = 'acquisition' | 'build' | 'siege' | 'recruit' | 'battle';
 export interface MapItemRenderer {
   addBuildingGroup(cluster: Phaser.GameObjects.Container, x: number, y: number, isShrine: boolean, houseCount: number): void;
   addCityCluster(cluster: Phaser.GameObjects.Container, centers: ReadonlyArray<{ x: number; y: number }>, isShrine: boolean, kind?: 'city' | 'market' | 'shrine'): void;
@@ -72,6 +79,14 @@ export interface MapItemRenderer {
   createPlayerLandFlag(isCapital?: boolean, styleSeed?: number): Phaser.GameObjects.Container;
   createCapitalHighlight(): Phaser.GameObjects.Graphics;
   createDestinationArrow(): Phaser.GameObjects.Container;
+  /**
+   * Work in progress over a district: a siege, a purchase, a build, a muster.
+   *
+   * **`progress` arrives raw and is frequently fractional.** Acquisition and siege orders
+   * accumulate a per-tick amount that is not a whole number, so a badge that interpolates it
+   * straight printed things like `9.31294468968111/100` across the map. Every implementation
+   * rounds for display; the caller is not expected to.
+   */
   createProgressBadge(x: number, y: number, progress: number, required: number, variant: ProgressBadgeVariant): Phaser.GameObjects.Container;
 }
 

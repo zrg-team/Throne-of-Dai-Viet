@@ -264,9 +264,12 @@ function isReady(state: GameState, kind: AscentPromptKind): boolean {
       // Budget measured against prompts actually raised, not against ticks: a quiet run raises
       // few prompts of any kind, and the Chronicle should stay the same fraction of a busy run
       // and a slow one.
+      // `promptsRaised` is stamped in `drainAscentPrompts`, the one place every prompt of every
+      // kind passes through. The floor keeps the opening seasons from being all Chronicle before
+      // the run has raised anything to take a share of.
       const raised = state.storyPromptsRaised ?? 0;
-      const totalish = Math.max(6, state.turn / 4);
-      return raised / totalish < STORY_PROMPT_SHARE;
+      const shown = Math.max(8, ascent.promptsRaised ?? 0);
+      return raised / shown < STORY_PROMPT_SHARE;
     }
 
     default:
@@ -365,6 +368,19 @@ export function tickDecisionDirector(state: GameState): void {
   // a kind that misses its window ages through `KIND_STARVATION_TICKS` and speaks in the next.
   //
   // Famine keeps its exemption above, for the reason given there.
+  //
+  // The Chronicle was given a second window here — the aftermath, on the argument that reading
+  // what the last wave cost is exactly when a story should speak, and that the phase gate was
+  // costing 38% of the occasions a story held a card nobody raised. It was measured and taken
+  // back out, and the reason is worth keeping so it is not tried again:
+  //
+  // `AFTERMATH_TICKS` is 2, and the aftermath sits immediately *before* Court in the cycle. So a
+  // beat raised there always lands one or two seasons ahead of the Court window opening, stamps
+  // `lastPromptTurn` on its way through `drainAscentPrompts`, and the gap rule then swallows the
+  // first Court tick. Court is where the realm's growth is decided: `verify-economy` went from
+  // all-checks-passing to a realm that never reached four provinces, its provincial demand at
+  // 185% of gross. There is no safe placement — the window is two ticks wide and adjacent — so
+  // the phase gate stands, and the Chronicle's volume comes from the other two fixes instead.
   if (ascentPhaseFor(ascent.ticksToWave) !== 'court') return;
 
   // Inside Court the gap tightens. The pacing target is not "fewer decisions" but decisions
