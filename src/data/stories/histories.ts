@@ -658,10 +658,78 @@ export const slanderedGeneral: StoryTemplate = {
     return best && best.stats.martial >= 55 ? { heroId: best.id } : undefined;
   },
 
+  entry: 'buc-thu',
+  nodes: [
+    { id: 'buc-thu', historicity: 'chinh-su', patience: 5, onIgnored: 'bi-cach' },
+    { id: 'bi-cach', historicity: 'chinh-su', patience: 8, onIgnored: 'muoi-ba-chiec' },
+    { id: 'muoi-ba-chiec', historicity: 'chinh-su', patience: 4, onIgnored: 'khong-goi-ve' },
+    { id: 'phuc-chuc', historicity: 'chinh-su', terminal: true },
+    { id: 'khong-goi-ve', historicity: 'da-su', terminal: true },
+    // Hunting the forger is not what the record did with this.
+    { id: 'tim-nguoi-viet', historicity: 'ngoai-truyen', patience: 6, onIgnored: 'khong-tim-ra' },
+    { id: 'tim-ra', historicity: 'ngoai-truyen', terminal: true },
+    { id: 'khong-tim-ra', historicity: 'ngoai-truyen', terminal: true },
+  ],
   fragments: [
+    {
+      id: 'muoi-ba-chiec-va-mot-nguoi',
+      volume: 'blow',
+      band: 'river',
+      in: ['phuc-chuc'],
+      weight: 10,
+      terminal: true,
+      tone: 'milestone',
+      effect: (ctx) => {
+        const hero = ctx.hero();
+        if (hero) { temper(ctx, 'martial', 12, hero); temper(ctx, 'renown', 20, hero); }
+        loyaltyFloor(ctx, 60);
+        leaveEcho(ctx, hero?.name ?? '');
+      },
+    },
+    {
+      /** Hunting the hand that wrote it. The one decision the divergence owes. */
+      id: 'tim-den-dau-thi-dung',
+      volume: 'card',
+      band: 'court',
+      in: ['tim-nguoi-viet'],
+      weight: 9,
+      quiet: 3,
+      salience: (ctx) => (ctx.age >= 3 ? 9 : -20),
+      options: [
+        {
+          id: 'hoi-cho-ra',
+          cost: { gold: 140 },
+          to: 'tim-ra',
+          historicity: 'divergent',
+          apply: (ctx) => { ctx.remember('hoi', 1); },
+        },
+        {
+          id: 'dung-o-day',
+          to: 'khong-tim-ra',
+          historicity: 'divergent',
+          apply: (ctx) => {
+            ctx.remember('dung', 1);
+            ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 6);
+            ctx.note('stability', 6);
+          },
+        },
+      ],
+    },
+    {
+      id: 'khong-tim-ra-ai-ca',
+      volume: 'whisper',
+      in: ['khong-tim-ra'],
+      weight: 8,
+      terminal: true,
+      effect: (ctx) => {
+        const hero = ctx.hero();
+        if (hero) temper(ctx, 'loyalty', -10, hero);
+      },
+    },
     {
       id: 'ong-ta-ve-cam-quan-lai',
       volume: 'whisper',
+      in: ['phuc-chuc'],
       weight: 4,
       quiet: 4,
       when: (ctx) => ctx.recall('chose_reinstate-him') === 1,
@@ -670,6 +738,7 @@ export const slanderedGeneral: StoryTemplate = {
     {
       id: 'buc-thu-ay-van-trong-cap',
       volume: 'whisper',
+      in: ['buc-thu', 'tim-nguoi-viet'],
       weight: 4,
       quiet: 4,
       when: (ctx) => ctx.recall('chose_find-out-who-wrote-it') === 1,
@@ -678,6 +747,7 @@ export const slanderedGeneral: StoryTemplate = {
     {
       id: 'a-letter-nobody-can-source',
       volume: 'card',
+      in: ['buc-thu'],
       band: 'court',
       weight: 7,
       quiet: 3,
@@ -687,6 +757,8 @@ export const slanderedGeneral: StoryTemplate = {
       options: [
         {
           id: 'believe-it',
+          to: 'bi-cach',
+          historicity: 'annal',
           apply: (ctx) => {
             captureHero(ctx);
             ctx.remember('imprisoned', 1);
@@ -697,6 +769,8 @@ export const slanderedGeneral: StoryTemplate = {
         },
         {
           id: 'protect-him',
+          to: 'bi-cach',
+          historicity: 'annal',
           apply: (ctx) => {
             ctx.remember('protected', 1);
             ctx.state.court.stability = Math.max(0, ctx.state.court.stability - 22);
@@ -706,6 +780,8 @@ export const slanderedGeneral: StoryTemplate = {
         },
         {
           id: 'find-out-who-wrote-it',
+          to: 'tim-nguoi-viet',
+          historicity: 'divergent',
           cost: { gold: 160 },
           apply: (ctx) => {
             ctx.remember('investigated', 1);
@@ -721,6 +797,7 @@ export const slanderedGeneral: StoryTemplate = {
     {
       id: 'the-fleet-is-lost-without-him',
       volume: 'blow',
+      in: ['bi-cach'],
       band: 'coast',
       weight: 8,
       tone: 'threat',
@@ -739,15 +816,17 @@ export const slanderedGeneral: StoryTemplate = {
     {
       id: 'thirteen-ships',
       volume: 'card',
+      in: ['muoi-ba-chiec'],
       band: 'coast',
       weight: 9,
-      terminal: true,
       tone: 'reward',
       when: (ctx) => ctx.recall('catastrophe') === 1,
       salience: () => 12,
       options: [
         {
           id: 'reinstate-him',
+          to: 'phuc-chuc',
+          historicity: 'annal',
           apply: (ctx) => {
             const hero = ctx.hero();
             if (hero) {
@@ -762,6 +841,8 @@ export const slanderedGeneral: StoryTemplate = {
         },
         {
           id: 'he-stays-where-he-is',
+          to: 'khong-goi-ve',
+          historicity: 'annal',
           apply: (ctx) => {
             killHero(ctx);
             coalition(ctx);
@@ -772,6 +853,7 @@ export const slanderedGeneral: StoryTemplate = {
     {
       id: 'the-court-does-not-forget',
       volume: 'whisper',
+      in: ['khong-goi-ve'],
       weight: 4,
       terminal: true,
       tone: 'threat',
@@ -784,6 +866,7 @@ export const slanderedGeneral: StoryTemplate = {
     {
       id: 'the-forger-is-found',
       volume: 'whisper',
+      in: ['tim-ra'],
       weight: 5,
       terminal: true,
       tone: 'reward',

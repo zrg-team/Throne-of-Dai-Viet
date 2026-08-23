@@ -303,6 +303,34 @@ export const borrowedSwordEn: StoryCatalog = {
 };
 
 export const slanderedVi: StoryCatalog = {
+  'node.buc-thu': 'Bức thư',
+  'node.bi-cach': 'Bị cách chức',
+  'node.muoi-ba-chiec': 'Mười ba chiếc',
+  'node.phuc-chuc': 'Phục chức',
+  'node.khong-goi-ve': 'Không gọi về',
+  'node.tim-nguoi-viet': 'Tìm người viết',
+  'node.tim-ra': 'Tìm ra',
+  'node.khong-tim-ra': 'Không tìm ra',
+
+  'tim-den-dau-thi-dung.title': 'Tìm đến đâu thì dừng',
+  'tim-den-dau-thi-dung.body': 'Nét chữ ấy đã lần ra tới một viên thư lại ở Lại bộ, và viên thư lại ấy thì chép thuê cho nhiều người. Hỏi tiếp thì phải hỏi tới những người thuê ông ta, mà trong đám ấy có hai người đang ngồi trong triều. Quan Hình bộ thưa rằng hỏi thì hỏi được, chỉ là hỏi xong thì không rút lại được.',
+  'tim-den-dau-thi-dung.advice': 'Hỏi hết thì biết hết, thưa bệ hạ. Biết hết thì phải xử.',
+  'tim-den-dau-thi-dung.hoi-cho-ra': 'Hỏi cho ra',
+  'tim-den-dau-thi-dung.hoi-cho-ra.d': 'Hỏi tới người cuối cùng trong danh sách.',
+  'tim-den-dau-thi-dung.dung-o-day': 'Dừng ở đây',
+  'tim-den-dau-thi-dung.dung-o-day.d': 'Đủ để biết là có, không đủ để phải xử ai.',
+  'tim-den-dau-thi-dung.chronicle': 'Ngươi đã quyết việc truy tìm người viết thư.',
+  'tim-den-dau-thi-dung.scene': 'Viên thư lại ấy nhận là mình chép, chép thuê, và đưa ra cuốn sổ ghi tên người thuê để chứng minh. Sổ ghi hai mươi mốt cái tên trong ba năm. Ông ta chỉ vào một dòng rồi rụt tay lại. Quan Hình bộ không hỏi dòng ấy là dòng nào, và cầm cả cuốn sổ về.',
+
+  'khong-tim-ra-ai-ca.line': 'Không tìm ra ai cả, và trong triều thì ai cũng biết là không tìm.',
+  'khong-tim-ra-ai-ca.chronicle': 'Việc truy tìm dừng lại, không ra ai.',
+  'khong-tim-ra-ai-ca.scene': 'Hồ sơ đóng lại, cột dây, cất vào tủ cùng với những hồ sơ đã đóng khác. Viên thư lại Hình bộ ghi vào bìa ba chữ theo lệ. Ông ta viết chậm hơn thường lệ. Buổi chầu hôm sau có hai người tới sớm hơn giờ, và cả hai đều đứng ở hàng sau.',
+
+  'muoi-ba-chiec-va-mot-nguoi.title': 'Mười ba chiếc, và một người',
+  'muoi-ba-chiec-va-mot-nguoi.body': 'Ông ta nhận lại ấn, không nói câu nào về việc cũ, và hỏi ngay hôm ấy còn bao nhiêu thuyền đi được. Người ta đáp mười ba. Ông ta gật, rồi hỏi tiếp về nước triều ở cửa sông, và cả buổi hôm ấy không ai nhắc lại bức thư.',
+  'muoi-ba-chiec-va-mot-nguoi.ok': 'Chép lại cho đúng',
+  'muoi-ba-chiec-va-mot-nguoi.chronicle': 'Ông ta phục chức, và hỏi ngay về thuyền.',
+  'muoi-ba-chiec-va-mot-nguoi.scene': 'Ấn trao lại ở sân, không có lễ. Ông ta cầm, xem mặt ấn một lúc như để nhận lại chữ, rồi bỏ vào ngực áo. Người trao ấn định nói một câu xin lỗi. Ông ta hỏi trước, hỏi về nước triều, và người kia phải đi tìm người biết trả lời.',
   'buc-thu-ay-van-trong-cap.line': 'Bức thư ấy vẫn ở trong cặp, và đã có ba người xem nét chữ.',
   'buc-thu-ay-van-trong-cap.scene': 'Ba người, xem riêng, không ai biết hai người kia. Một ông bảo chữ này của người quen viết đơn kiện. Một ông bảo giấy này là giấy của nhà quan. Ông thứ ba xem lâu nhất rồi trả lại, bảo không dám nói. Cả ba đều không hỏi bức thư ấy nói gì.',
   'buc-thu-ay-van-trong-cap.chronicle': 'Ba người đã xem nét chữ bức thư ấy.',
@@ -344,6 +372,34 @@ export const slanderedVi: StoryCatalog = {
 };
 
 export const slanderedEn: StoryCatalog = {
+  'node.buc-thu': 'The letter',
+  'node.bi-cach': 'Stripped of command',
+  'node.muoi-ba-chiec': 'Thirteen ships',
+  'node.phuc-chuc': 'Reinstated',
+  'node.khong-goi-ve': 'Not recalled',
+  'node.tim-nguoi-viet': 'Hunting the hand',
+  'node.tim-ra': 'Found',
+  'node.khong-tim-ra': 'Never found',
+
+  'tim-den-dau-thi-dung.title': 'How far to take it',
+  'tim-den-dau-thi-dung.body': 'The hand has been traced to a clerk in the Ministry of Personnel, and that clerk copies for hire, for many people. Going further means asking the people who hired him, and two of those are sitting in the court. The Minister of Justice says the asking can certainly be done; it is the unasking that cannot.',
+  'tim-den-dau-thi-dung.advice': 'Ask it all and you know it all, majesty. Knowing it all means acting on it.',
+  'tim-den-dau-thi-dung.hoi-cho-ra': 'Take it to the end',
+  'tim-den-dau-thi-dung.hoi-cho-ra.d': 'Down to the last name on the list.',
+  'tim-den-dau-thi-dung.dung-o-day': 'Stop here',
+  'tim-den-dau-thi-dung.dung-o-day.d': 'Enough to know it happened, not enough to have to try anybody.',
+  'tim-den-dau-thi-dung.chronicle': 'You decided how far to hunt the letter\'s author.',
+  'tim-den-dau-thi-dung.scene': 'The clerk admits the copying, says it was for hire, and produces his book of clients to prove it. Twenty-one names over three years. He points at one line and then takes his hand back. The Minister of Justice does not ask which line, and takes the whole book away with him.',
+
+  'khong-tim-ra-ai-ca.line': 'Nobody was found, and everyone at court knows nobody was looked for.',
+  'khong-tim-ra-ai-ca.chronicle': 'The hunt stopped, and found nobody.',
+  'khong-tim-ra-ai-ca.scene': 'The file is closed, tied, and put in the cabinet with the other closed files. The Justice clerk writes the three customary characters on the cover. He writes them more slowly than usual. At the next morning\'s audience two men arrive early, and both stand in the back row.',
+
+  'muoi-ba-chiec-va-mot-nguoi.title': 'Thirteen ships, and one man',
+  'muoi-ba-chiec-va-mot-nguoi.body': 'He takes the seal back, says nothing at all about what happened, and asks that same day how many hulls will still swim. They tell him thirteen. He nods, and asks next about the tide at the river mouth, and for the rest of that day nobody mentions the letter.',
+  'muoi-ba-chiec-va-mot-nguoi.ok': 'Have it written down correctly',
+  'muoi-ba-chiec-va-mot-nguoi.chronicle': 'He was reinstated, and asked about the ships.',
+  'muoi-ba-chiec-va-mot-nguoi.scene': 'The seal is handed over in the yard, without ceremony. He takes it, looks at the face of it for a moment as though reacquainting himself with the characters, and puts it inside his coat. The man handing it over means to say something like an apology. He asks first, about the tide, and the man has to go and find somebody who knows.',
   'buc-thu-ay-van-trong-cap.line': 'The letter is still in its case, and three men have now looked at the hand.',
   'buc-thu-ay-van-trong-cap.scene': 'Three, separately, none of them knowing about the other two. One says this is the hand of somebody who writes petitions for a living. One says this is official paper. The third looks longest, hands it back, and says he had better not say. None of the three asks what the letter says.',
   'buc-thu-ay-van-trong-cap.chronicle': 'Three men have looked at the hand in that letter.',

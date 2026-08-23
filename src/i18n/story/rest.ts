@@ -135,6 +135,28 @@ export const gooseFeathersEn: StoryCatalog = {
 };
 
 export const granariesVi: StoryCatalog = {
+  'node.de-nghi': 'Tờ đề nghị',
+  'node.de-nghi-hai': 'Tờ thứ hai',
+  'node.gia-gao': 'Giá gạo',
+  'node.bay-nam': 'Bảy năm',
+  'node.giu-duoc': 'Giữ được',
+  'node.dung-lai': 'Dừng lại',
+  'node.khong-lam-gi': 'Không làm gì',
+  'node.nua-voi': 'Nửa vời',
+
+  'nua-voi-thi-lam-gi.title': 'Nửa vời thì làm gì',
+  'nua-voi-thi-lam-gi.body': 'Tờ thứ nhất đã thành lệ, tờ thứ hai thì không. Thành ra có huyện chia lại ruộng rồi, có huyện chưa, và hai huyện ấy giáp nhau. Quan Hộ bộ thưa rằng giữ nguyên như thế cũng được, chỉ là mỗi năm phải trả lời cùng một câu hỏi ấy, và trả lời khác nhau tuỳ người hỏi.',
+  'nua-voi-thi-lam-gi.advice': 'Giữ nguyên thì yên được vài mùa, thưa bệ hạ. Bỏ hết thì yên lâu hơn, và mất cái đã làm.',
+  'nua-voi-thi-lam-gi.giu-nguyen-the': 'Giữ nguyên như thế',
+  'nua-voi-thi-lam-gi.giu-nguyen-the.d': 'Huyện nào đã chia thì thôi, huyện nào chưa thì để.',
+  'nua-voi-thi-lam-gi.bo-het-di': 'Bỏ hết, trả lại như cũ',
+  'nua-voi-thi-lam-gi.bo-het-di.d': 'Trả ruộng về chủ cũ, và đóng sổ.',
+  'nua-voi-thi-lam-gi.chronicle': 'Ngươi đã quyết việc cải cách dở dang.',
+  'nua-voi-thi-lam-gi.scene': 'Bản đồ trải trên bàn, huyện đã chia tô màu, huyện chưa thì để trắng, và hai màu ấy nằm cạnh nhau suốt một dải dài. Viên thư lại chỉ vào chỗ giáp ranh, bảo ở đấy có hai làng cùng cày một cánh đồng theo hai sổ khác nhau. Ông ta đã lên tận nơi. Ông ta không kể chuyện gì thêm về hai làng ấy.',
+
+  'mot-nua-cai-cach.line': 'Nửa nước chia ruộng, nửa nước không, và ranh giới thì nằm giữa đồng.',
+  'mot-nua-cai-cach.chronicle': 'Cải cách dừng nửa chừng, và nằm nguyên như thế.',
+  'mot-nua-cai-cach.scene': 'Ở chỗ giáp ranh, hai bờ ruộng cao thấp khác nhau, vì một bên đắp lại theo sổ mới còn một bên giữ bờ cũ. Người hai làng vẫn qua lại, vẫn đổi công cho nhau lúc gặt. Có đứa trẻ hỏi vì sao bờ bên kia cao hơn. Người lớn bảo tại người ta đắp thế, rồi thôi.',
   'ruong-do-lai-thanh-ba.line': 'Mấy đám ruộng ấy chia lại rồi, và có nhà được ba sào.',
   'ruong-do-lai-thanh-ba.scene': 'Chia theo sổ mới, cắm cọc tre, buộc lạt đỏ ở đầu cọc cho dễ nhìn. Nhà được chia là nhà trước nay đi làm thuê. Người đàn ông ra đứng ở đầu bờ một lúc lâu rồi về, hôm sau mới ra cày. Ông ta cày chậm, và cày rất kỹ ở chỗ giáp bờ.',
   'ruong-do-lai-thanh-ba.chronicle': 'Ruộng chia lại; có nhà được ba sào.',
@@ -200,6 +222,28 @@ export const granariesVi: StoryCatalog = {
 };
 
 export const granariesEn: StoryCatalog = {
+  'node.de-nghi': 'The proposal',
+  'node.de-nghi-hai': 'The second proposal',
+  'node.gia-gao': 'The price of rice',
+  'node.bay-nam': 'Seven years',
+  'node.giu-duoc': 'It held',
+  'node.dung-lai': 'Stopped halfway',
+  'node.khong-lam-gi': 'Nothing enacted',
+  'node.nua-voi': 'Half a reform',
+
+  'nua-voi-thi-lam-gi.title': 'What to do with half of it',
+  'nua-voi-thi-lam-gi.body': 'The first proposal is law and the second is not. So some districts have redivided their fields and some have not, and two such districts sit side by side. The Minister of Revenue says it can be left exactly as it is; only that the same question then has to be answered every year, and answered differently depending on who is asking.',
+  'nua-voi-thi-lam-gi.advice': 'Leave it and you get a few quiet seasons, majesty. Undo it and you get more, and lose what was done.',
+  'nua-voi-thi-lam-gi.giu-nguyen-the': 'Leave it exactly as it is',
+  'nua-voi-thi-lam-gi.giu-nguyen-the.d': 'Where it is done it stands; where it is not, it waits.',
+  'nua-voi-thi-lam-gi.bo-het-di': 'Undo all of it',
+  'nua-voi-thi-lam-gi.bo-het-di.d': 'Fields back to their old holders, and the register closed.',
+  'nua-voi-thi-lam-gi.chronicle': 'You decided what became of the half-finished reform.',
+  'nua-voi-thi-lam-gi.scene': 'The map is spread on the table, redivided districts washed in colour, the rest left white, the two lying against each other down a long band. The clerk points at the seam and says two villages there work one field off two different registers. He has been up to see it. He does not tell any further story about those two villages.',
+
+  'mot-nua-cai-cach.line': 'Half the country redivided its fields and half did not, and the seam runs through the middle of a field.',
+  'mot-nua-cai-cach.chronicle': 'The reform stopped halfway and stayed there.',
+  'mot-nua-cai-cach.scene': 'At the seam the bunds are different heights, because one side rebuilt to the new register and the other kept the old. People from both villages still cross over and still swap labour at harvest. A child asks why the far bund is higher. A grown-up says because that is how they built it, and leaves it there.',
   'ruong-do-lai-thanh-ba.line': 'Those fields have been redivided, and one household came out with three sào.',
   'ruong-do-lai-thanh-ba.scene': 'Divided off the new register, bamboo stakes driven, red twine at the heads to make them easy to see. The household that got them had always worked other people\'s land. The man stands at the edge for a long while and goes home; he does not plough until the next day. He ploughs slowly, and very carefully along the boundary.',
   'ruong-do-lai-thanh-ba.chronicle': 'The fields were redivided; one house got three sào.',
@@ -459,6 +503,35 @@ export const countingHouseEn: StoryCatalog = {
 };
 
 export const dienHongVi: StoryCatalog = {
+  'node.trieu-tap': 'Triệu tập',
+  'node.dien-hong': 'Điện Diên Hồng',
+  'node.tra-loi': 'Các cụ trả lời',
+  'node.tu-quyet': 'Tự quyết',
+  'node.khong-ai-hoi': 'Không ai hỏi ai',
+  'node.dan-tu-lo': 'Các lộ tự lo',
+
+  'hoi-cac-cu-cai-gi.title': 'Hỏi các cụ cái gì',
+  'hoi-cac-cu-cai-gi.body': 'Điện đã đầy. Các cụ ngồi chật cả hai bên, người ít tuổi nhất trong điện cũng đã bảy mươi. Quan Lễ bộ thưa rằng hỏi thế nào thì các cụ trả lời thế ấy: hỏi đánh hay hoà thì được một tiếng, mà hỏi giữ được hay không thì được cả một buổi bàn về thóc và về đê.',
+  'hoi-cac-cu-cai-gi.advice': 'Hỏi ngắn thì được tiếng hô, thưa bệ hạ. Hỏi dài thì được việc.',
+  'hoi-cac-cu-cai-gi.danh-hay-hoa': 'Hỏi: đánh hay hoà',
+  'hoi-cac-cu-cai-gi.danh-hay-hoa.d': 'Một câu, và một tiếng trả lời.',
+  'hoi-cac-cu-cai-gi.hoi-lieu-co-giu-duoc': 'Hỏi: liệu có giữ được',
+  'hoi-cac-cu-cai-gi.hoi-lieu-co-giu-duoc.d': 'Các cụ về làng còn bàn tiếp câu ấy.',
+  'hoi-cac-cu-cai-gi.chronicle': 'Ngươi đã chọn câu hỏi đem ra điện Diên Hồng.',
+  'hoi-cac-cu-cai-gi.scene': 'Quan Lễ bộ đứng ở bậc dưới, cầm tờ giấy đã viết sẵn hai câu, và chưa biết đọc câu nào. Trong điện có tiếng ho, tiếng gậy chống xuống nền đá, không có tiếng nói chuyện. Một cụ ngồi hàng đầu cởi nón ra đặt lên đùi, rồi ngồi thẳng lên. Cả điện làm theo, không ai bảo ai.',
+
+  'quyet-mot-minh-the-nao.title': 'Quyết một mình thì quyết thế nào',
+  'quyet-mot-minh-the-nao.body': 'Điện không họp. Lệnh thì vẫn phải xuống các lộ, và Quan Lại bộ hỏi xuống bằng cách nào: truyền một bản chung cho cả nước, hay để mỗi lộ tự liệu theo sức mình. Ông ta thưa thêm rằng cách thứ hai thì không ai cãi được lệnh, vì không có lệnh nào để mà cãi.',
+  'quyet-mot-minh-the-nao.cu-truyen-xuong': 'Truyền một bản chung',
+  'quyet-mot-minh-the-nao.cu-truyen-xuong.d': 'Một bản, mười lộ, một cách làm.',
+  'quyet-mot-minh-the-nao.de-cac-lo-tu-lieu': 'Để các lộ tự liệu',
+  'quyet-mot-minh-the-nao.de-cac-lo-tu-lieu.d': 'Ai gần giặc thì người ấy biết phải làm gì.',
+  'quyet-mot-minh-the-nao.chronicle': 'Ngươi đã quyết cách truyền lệnh xuống các lộ.',
+  'quyet-mot-minh-the-nao.scene': 'Điện Diên Hồng quét dọn xong từ hôm trước, chiếu trải sẵn, và không ai vào. Người quét điện đứng ở cửa nhìn vào một lúc rồi khép cửa lại. Ông ta không cuốn chiếu, vì chưa có lệnh cuốn. Chiếu ấy trải như thế thêm mười một ngày nữa.',
+
+  'moi-lo-lam-mot-kieu.line': 'Mỗi lộ làm một kiểu, và không lộ nào biết lộ bên cạnh làm gì.',
+  'moi-lo-lam-mot-kieu.chronicle': 'Các lộ mỗi nơi làm một kiểu.',
+  'moi-lo-lam-mot-kieu.scene': 'Lộ trên đắp thêm thành, lộ dưới chở thóc đi giấu, lộ giữa gọi trai tráng ra tập. Ba lộ giáp nhau, ba cách làm, và người đi buôn qua cả ba thì thấy hết. Ông ta kể lại ở chợ, kể như một chuyện lạ. Không có ai trong triều nghe ông ta kể.',
   'cac-cu-ay-ve-lang.line': 'Các cụ ấy về làng, và về đến đâu người ta hỏi đến đấy.',
   'cac-cu-ay-ve-lang.scene': 'Đi bộ, chống gậy, mỗi cụ một hướng. Về tới đầu làng thì đã có người đợi sẵn ở gốc đa. Cụ kể lại, kể ngắn, vì cụ chỉ hô có một tiếng. Người nghe hỏi trong điện có gì, cụ bảo có cột to lắm, và cụ không nhớ gì thêm ngoài cột.',
   'cac-cu-ay-ve-lang.chronicle': 'Các bô lão về làng, và kể lại.',
@@ -488,6 +561,35 @@ export const dienHongVi: StoryCatalog = {
 };
 
 export const dienHongEn: StoryCatalog = {
+  'node.trieu-tap': 'The summons',
+  'node.dien-hong': 'The Diên Hồng hall',
+  'node.tra-loi': 'The elders answer',
+  'node.tu-quyet': 'Decided alone',
+  'node.khong-ai-hoi': 'Nobody was asked',
+  'node.dan-tu-lo': 'Each province for itself',
+
+  'hoi-cac-cu-cai-gi.title': 'What to put to them',
+  'hoi-cac-cu-cai-gi.body': 'The hall is full. They are packed along both sides, and the youngest man in the room is seventy. The Minister of Rites says they will answer the question they are asked: ask fight or come to terms and you get one shouted word, ask whether it can be held and you get a whole morning about grain and dykes.',
+  'hoi-cac-cu-cai-gi.advice': 'A short question gets a shout, majesty. A long one gets work done.',
+  'hoi-cac-cu-cai-gi.danh-hay-hoa': 'Ask: fight, or come to terms',
+  'hoi-cac-cu-cai-gi.danh-hay-hoa.d': 'One question, and one word back.',
+  'hoi-cac-cu-cai-gi.hoi-lieu-co-giu-duoc': 'Ask: can it be held',
+  'hoi-cac-cu-cai-gi.hoi-lieu-co-giu-duoc.d': 'They will still be arguing it when they get home.',
+  'hoi-cac-cu-cai-gi.chronicle': 'You chose the question put to the Diên Hồng hall.',
+  'hoi-cac-cu-cai-gi.scene': 'The Minister of Rites stands on the lower step holding a sheet with both questions already written on it, and does not yet know which to read. There is coughing in the hall, and sticks knocking on the stone, and no talking. An old man in the front row takes off his hat, lays it on his knees, and sits up straight. The whole hall does the same, unprompted.',
+
+  'quyet-mot-minh-the-nao.title': 'Deciding alone still has to be decided',
+  'quyet-mot-minh-the-nao.body': 'The hall does not sit. The order still has to go down to the provinces, and the Minister of Personnel asks how: one text to the whole country, or each province left to judge by its own strength. He adds that nobody can argue with the second, because there is no order there to argue with.',
+  'quyet-mot-minh-the-nao.cu-truyen-xuong': 'One text to all of them',
+  'quyet-mot-minh-the-nao.cu-truyen-xuong.d': 'One text, ten provinces, one way of doing it.',
+  'quyet-mot-minh-the-nao.de-cac-lo-tu-lieu': 'Let each province judge',
+  'quyet-mot-minh-the-nao.de-cac-lo-tu-lieu.d': 'Whoever is nearest the enemy knows what to do about it.',
+  'quyet-mot-minh-the-nao.chronicle': 'You decided how the order went down to the provinces.',
+  'quyet-mot-minh-the-nao.scene': 'The Diên Hồng hall was swept the day before and the mats laid, and nobody came. The sweeper stands in the doorway looking in for a while and then closes it. He does not roll the mats up, having had no order to. They stay down for another eleven days.',
+
+  'moi-lo-lam-mot-kieu.line': 'Each province did it differently, and none of them knew what the next was doing.',
+  'moi-lo-lam-mot-kieu.chronicle': 'Each province did it its own way.',
+  'moi-lo-lam-mot-kieu.scene': 'The upper province adds to its walls, the lower carts its grain away to hide it, the middle one calls its young men out to drill. Three provinces side by side, three answers, and a trader passing through all three sees the lot. He tells it at market as a curiosity. Nobody at court is there to hear him.',
   'cac-cu-ay-ve-lang.line': 'The elders went home, and were asked about it in every village they passed.',
   'cac-cu-ay-ve-lang.scene': 'On foot, on sticks, each a different way. By the time one reaches his village there are already people waiting under the banyan. He tells it short, because he shouted one word. They ask what was in the hall; he says the pillars were very large, and remembers nothing beyond the pillars.',
   'cac-cu-ay-ve-lang.chronicle': 'The elders went home, and told it.',

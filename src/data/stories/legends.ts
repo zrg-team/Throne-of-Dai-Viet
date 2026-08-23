@@ -14,6 +14,7 @@ import {
   joinBloodlessly,
   killEnemyGeneral,
   killHero,
+  leaveEcho,
   loyaltyFloor,
   ourHosts,
   population,
@@ -225,10 +226,79 @@ export const ghostInTheSouth: StoryTemplate = {
     return hero ? { heroId: hero.id } : undefined;
   },
 
+  entry: 'mat-tich',
+  nodes: [
+    { id: 'mat-tich', historicity: 'chinh-su', patience: 5, onIgnored: 'chuoc' },
+    { id: 'chuoc', historicity: 'chinh-su', patience: 5, onIgnored: 'lam-ma' },
+    // The answer the annals record, and the one this story is named for.
+    { id: 'lam-ma', historicity: 'chinh-su', terminal: true },
+    { id: 've-gay', historicity: 'da-su', terminal: true },
+    // Going in after him is not in the record at all.
+    { id: 'danh-trai', historicity: 'ngoai-truyen', patience: 5, onIgnored: 'that-bai' },
+    { id: 'cuu-duoc', historicity: 'ngoai-truyen', terminal: true },
+    { id: 'that-bai', historicity: 'ngoai-truyen', terminal: true },
+  ],
   fragments: [
+    {
+      /** Going in after him. The decision the divergence owes, and the only one it gets. */
+      id: 'vao-trai-bang-loi-nao',
+      volume: 'card',
+      band: 'night',
+      in: ['danh-trai'],
+      weight: 9,
+      quiet: 2,
+      salience: () => 10,
+      options: [
+        {
+          id: 'danh-thang-vao',
+          to: 'that-bai',
+          historicity: 'divergent',
+          apply: (ctx) => { ctx.remember('thang', 1); ctx.heat(2); },
+        },
+        {
+          id: 'doi-troi-toi',
+          cost: { supplies: 60 },
+          to: 'cuu-duoc',
+          historicity: 'divergent',
+          apply: (ctx) => { ctx.remember('dem', 1); },
+        },
+      ],
+    },
+    {
+      id: 'cuu-duoc-ong-ay-ve',
+      volume: 'blow',
+      band: 'night',
+      in: ['cuu-duoc'],
+      weight: 10,
+      terminal: true,
+      tone: 'reward',
+      effect: (ctx) => {
+        const hero = ctx.hero();
+        if (hero) {
+          hero.traits = [...(hero.traits ?? []), 'Bảo Nghĩa'];
+          temper(ctx, 'loyalty', 20, hero);
+        }
+        loyaltyFloor(ctx, 58);
+      },
+    },
+    {
+      id: 'khong-ai-ve-ca',
+      volume: 'blow',
+      band: 'fire',
+      in: ['that-bai'],
+      weight: 10,
+      terminal: true,
+      tone: 'threat',
+      effect: (ctx) => {
+        killHero(ctx);
+        for (const land of playerLands(ctx.state)) land.loyalty = Math.max(10, land.loyalty - 8);
+        leaveEcho(ctx, ctx.story.names?.hero ?? '');
+      },
+    },
     {
       id: 'mot-cai-ten-khong-ai-goi',
       volume: 'whisper',
+      in: ['mat-tich', 'chuoc'],
       weight: 4,
       quiet: 4,
       when: (ctx) => ctx.recall('chose_leave-him') === 1,
@@ -237,6 +307,7 @@ export const ghostInTheSouth: StoryTemplate = {
     {
       id: 'cai-ghe-de-trong-o-tiec',
       volume: 'whisper',
+      in: ['chuoc', 'lam-ma'],
       weight: 4,
       quiet: 4,
       when: (ctx) => ctx.recall('chose_pay-the-ransom') === 1,
@@ -245,6 +316,7 @@ export const ghostInTheSouth: StoryTemplate = {
     {
       id: 'he-did-not-come-back-with-the-scouts',
       volume: 'whisper',
+      in: ['mat-tich'],
       weight: 5,
       quiet: 2,
       tone: 'threat',
@@ -259,6 +331,7 @@ export const ghostInTheSouth: StoryTemplate = {
     {
       id: 'they-have-offered-him-a-title',
       volume: 'whisper',
+      in: ['chuoc'],
       weight: 4,
       quiet: 4,
       tone: 'info',
@@ -268,6 +341,7 @@ export const ghostInTheSouth: StoryTemplate = {
     {
       id: 'what-is-he-worth',
       volume: 'card',
+      in: ['chuoc'],
       band: 'border',
       weight: 7,
       quiet: 3,
@@ -276,6 +350,8 @@ export const ghostInTheSouth: StoryTemplate = {
       options: [
         {
           id: 'pay-the-ransom',
+          to: 've-gay',
+          historicity: 'annal',
           cost: { gold: 280 },
           apply: (ctx) => {
             const hero = ctx.hero();
@@ -288,6 +364,8 @@ export const ghostInTheSouth: StoryTemplate = {
         },
         {
           id: 'storm-the-camp',
+          to: 'danh-trai',
+          historicity: 'divergent',
           enabled: (ctx) => ourHosts(ctx).length > 0,
           blockedKey: 'noHost',
           apply: (ctx) => {
@@ -312,6 +390,8 @@ export const ghostInTheSouth: StoryTemplate = {
         },
         {
           id: 'leave-him',
+          to: 'lam-ma',
+          historicity: 'annal',
           // R1. He knows why. So does every other man who holds a command under you.
           apply: (ctx) => { ctx.remember('left', 1); loyaltyFloor(ctx, 60); },
         },
@@ -320,6 +400,7 @@ export const ghostInTheSouth: StoryTemplate = {
     {
       id: 'rather-a-ghost-in-the-south',
       volume: 'blow',
+      in: ['lam-ma'],
       band: 'night',
       weight: 9,
       terminal: true,
@@ -340,6 +421,7 @@ export const ghostInTheSouth: StoryTemplate = {
     {
       id: 'he-comes-back-thinner',
       volume: 'whisper',
+      in: ['ve-gay'],
       weight: 5,
       terminal: true,
       tone: 'reward',
@@ -761,10 +843,123 @@ export const mountainAndWater: StoryTemplate = {
     return low ? { landId: low.id } : undefined;
   },
 
+  entry: 'nuoc-len',
+  nodes: [
+    { id: 'nuoc-len', historicity: 'da-su', patience: 6, onIgnored: 'dap-de' },
+    { id: 'dap-de', historicity: 'da-su', patience: 10, onIgnored: 'vo-de' },
+    { id: 'de-giu', historicity: 'da-su', terminal: true },
+    { id: 'vo-de', historicity: 'da-su', terminal: true },
+    // Leaving it to the year is not the story tradition tells.
+    { id: 'tin-troi', historicity: 'ngoai-truyen', patience: 8, onIgnored: 'mat-mua' },
+    { id: 'duoc-mua', historicity: 'ngoai-truyen', terminal: true },
+    { id: 'mat-mua', historicity: 'ngoai-truyen', terminal: true },
+  ],
   fragments: [
+    {
+      /** The year's first decision: is it dug, or is it trusted? */
+      id: 'nam-nay-co-dap-khong',
+      volume: 'card',
+      band: 'river',
+      in: ['nuoc-len'],
+      weight: 9,
+      quiet: 2,
+      salience: () => 10,
+      options: [
+        {
+          id: 'goi-nguoi-di-dap',
+          to: 'dap-de',
+          historicity: 'annal',
+          apply: (ctx) => {
+            ctx.remember('dap', 1);
+            population(ctx, 0.94);
+          },
+        },
+        {
+          id: 'nam-nay-chac-khong-len',
+          to: 'tin-troi',
+          historicity: 'divergent',
+          apply: (ctx) => { ctx.remember('tin', 1); ctx.heat(2); },
+        },
+      ],
+    },
+    {
+      /** How high. The second decision, and the one the flood answers. */
+      id: 'dap-den-dau-thi-du',
+      volume: 'card',
+      band: 'river',
+      in: ['dap-de'],
+      weight: 9,
+      quiet: 4,
+      when: (ctx) => ctx.recall('raised') >= 1 || ctx.recall('dap') === 1,
+      salience: (ctx) => (ctx.age >= 6 ? 9 : -20),
+      options: [
+        {
+          id: 'dap-cao-hon-nam-ngoai',
+          cost: { humans: 90 },
+          to: 'de-giu',
+          historicity: 'annal',
+          apply: (ctx) => {
+            ctx.remember('cao', 1);
+            terrainWork(ctx, { defense: 6 }, ctx.land());
+          },
+        },
+        {
+          id: 'the-nay-la-du',
+          to: 'vo-de',
+          historicity: 'annal',
+          apply: (ctx) => { ctx.remember('du', 1); ctx.heat(1); },
+        },
+      ],
+    },
+    {
+      id: 'de-nam-nay-giu-duoc',
+      volume: 'whisper',
+      in: ['de-giu'],
+      weight: 8,
+      terminal: true,
+      tone: 'milestone',
+      effect: (ctx) => {
+        stipend(ctx, { food: 8 }, 24, storyText('mountain-water.title'));
+        loyaltyFloor(ctx, 58, ctx.land());
+      },
+    },
+    {
+      /** Trusting the year, and then finding out about the year. */
+      id: 'nam-nay-nuoc-len-den-dau',
+      volume: 'card',
+      band: 'river',
+      in: ['tin-troi'],
+      weight: 9,
+      quiet: 4,
+      salience: (ctx) => (ctx.age >= 6 ? 9 : -20),
+      options: [
+        {
+          id: 'gat-som-di',
+          cost: { humans: 60 },
+          to: 'duoc-mua',
+          historicity: 'divergent',
+          apply: (ctx) => { ctx.remember('gat-som', 1); },
+        },
+        {
+          id: 'cu-de-den-vu',
+          to: 'mat-mua',
+          historicity: 'divergent',
+          apply: (ctx) => { ctx.remember('doi', 1); ctx.heat(2); },
+        },
+      ],
+    },
+    {
+      id: 'gat-som-duoc-mot-nua',
+      volume: 'whisper',
+      in: ['duoc-mua'],
+      weight: 8,
+      terminal: true,
+      effect: (ctx) => { windfall(ctx, { food: 120 }); },
+    },
     {
       id: 'the-water-comes-up-every-year',
       volume: 'whisper',
+      in: ['nuoc-len'],
       weight: 5,
       quiet: 2,
       salience: (ctx) => (ctx.age >= 2 ? 5 : -20),
@@ -773,6 +968,7 @@ export const mountainAndWater: StoryTemplate = {
     {
       id: 'higher-than-last-year',
       volume: 'whisper',
+      in: ['nuoc-len', 'dap-de'],
       weight: 4,
       repeatable: true,
       quiet: 9,
@@ -784,6 +980,7 @@ export const mountainAndWater: StoryTemplate = {
     {
       id: 'raise-the-dyke',
       volume: 'card',
+      in: ['dap-de'],
       weight: 6,
       quiet: 4,
       when: (ctx) => ctx.said('the-water-comes-up-every-year') && ctx.recall('dyke') === 0,
@@ -792,6 +989,8 @@ export const mountainAndWater: StoryTemplate = {
       options: [
         {
           id: 'raise-it',
+          to: 'dap-de',
+          historicity: 'annal',
           cost: { supplies: 160, humans: 200 },
           apply: (ctx) => {
             ctx.remember('dyke', 1);
@@ -805,6 +1004,7 @@ export const mountainAndWater: StoryTemplate = {
     {
       id: 'the-dyke-holds',
       volume: 'whisper',
+      in: ['dap-de', 'de-giu'],
       weight: 4,
       repeatable: true,
       tone: 'reward',
@@ -815,6 +1015,7 @@ export const mountainAndWater: StoryTemplate = {
     {
       id: 'the-year-it-does-not-hold',
       volume: 'blow',
+      in: ['vo-de'],
       band: 'river',
       weight: 8,
       terminal: true,
@@ -833,6 +1034,7 @@ export const mountainAndWater: StoryTemplate = {
     {
       id: 'nothing-came-up-that-year',
       volume: 'whisper',
+      in: ['mat-mua'],
       weight: 2,
       terminal: true,
       tone: 'info',
