@@ -6080,7 +6080,11 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       // Counted by class, because that one line is the reign's identity: a dynasty that mostly
       // followed the record reads differently from one that mostly did not.
       const tally = chronicleTally(state);
-      addHeading(`${t('ascent.chronicle.recorded')}  ·  ${t('ascent.chronicle.tally', tally)}`);
+      // The tally goes in the hint line, not the heading. Appended to the heading it is uppercased
+      // and letter-spaced, and "RECORDED · CHÍNH SỬ 1 · DÃ SỬ 0 · NGOẠI TRUYỆN 0" runs off the
+      // right edge of a 390px phone with the last figure cut in half — which is the one character
+      // that carries the information.
+      addHeading(t('ascent.chronicle.recorded'), t('ascent.chronicle.tally', tally));
       for (const entry of recorded) {
         // A story with no source class shows none. Only templates that have actually been
         // placed against the record carry a tag; the rest keep the old tone colouring and say
