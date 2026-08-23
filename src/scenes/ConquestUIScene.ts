@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { applyPaperFX } from '../ui/ink/PaperFX';
 import { RectClip } from '../ui/ink/clipRect';
 import { applyRenderScale } from '../game/graphicsQuality';
-import { battleBubbleMs, battleTickMs } from '../game/battleOptions';
+import { battleBeatsPerTick, battleBubbleMs, battleTickMs } from '../game/battleOptions';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID } from '../game/constants';
 import { codexProgress, storyProgress, getCodex, isHeroUnlocked } from '../state/codex';
 import { LEGACY_PERKS, ownsPerk } from '../state/legacy';
@@ -1085,8 +1085,15 @@ export class ConquestUIScene extends Phaser.Scene {
     log: Phaser.GameObjects.Text;
   } {
     const top = HEADER_HEIGHT + ASCENT_HUD_HEIGHT;
+    // Opaque, and only this screen is. `beginOverlay` hides the map for the battle lane and for
+    // nothing else, so the seven percent showing through at 0.93 was not the world - it was the
+    // six scenes this game keeps resident behind everything (MenuScene, GuideScene, HistoryScene,
+    // CampaignScene, MapScene, UIScene). The cards cover the middle of the page, so what a player
+    // actually saw was two strips of main menu down the left and right margins: "Classic Modes"
+    // and "Buy me a coffee" reading faintly beside a battlefield. The prompt frame below keeps
+    // 0.93 on purpose - a card is meant to sit *over* the map, and there the map is still there.
     const dim = this.add
-      .rectangle(0, top, GAME_WIDTH, GAME_HEIGHT - top, INK_UI.overlay, 0.93)
+      .rectangle(0, top, GAME_WIDTH, GAME_HEIGHT - top, INK_UI.overlay, 1)
       .setOrigin(0, 0)
       .setInteractive();
     this.modalLayer.add(dim);
@@ -1416,6 +1423,13 @@ export class ConquestUIScene extends Phaser.Scene {
     railsBars?: Phaser.GameObjects.Graphics;
     /** Where the rails were laid, so the beat can re-ink them without measuring anything. */
     railsGeom?: { barW: number; readoutY: number; ourX: number; theirX: number };
+    /**
+     * The rails as they are DRAWN, which trails the beat: numbers count and bars slide from the
+     * last beat's reading to this one's over the beat's own length, so the screen breathes
+     * between exchanges instead of stepping. Undefined until the first beat is shown.
+     */
+    railsEased?: { ourNow: number; theirNow: number; ourMorale: number; theirMorale: number };
+    railsTween?: Phaser.Tweens.Tween;
     ourStrength?: Phaser.GameObjects.Text;
     theirStrength?: Phaser.GameObjects.Text;
     /**
@@ -7384,14 +7398,45 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
   private updateBattleRails(battle: AscentBattle): void {
     const ui = this.battleUi;
     if (!ui?.railsBars?.active || !ui.railsGeom) return;
-    const { barW, readoutY, ourX, theirX } = ui.railsGeom;
     const frame = this.battleFrame(battle);
-
-    ui.ourStrength?.setText(`${Math.round(frame.ourNow)}`);
-    ui.theirStrength?.setText(`${Math.round(frame.theirNow)}`);
     if (ui.clashMark?.active) {
       ui.clashMark.x = this.battleLines(frame.ourAdvance, frame.theirAdvance).seam;
     }
+
+    // Ease from what is drawn to what the beat says, over one beat. The first reading lands at
+    // once — there is nothing to ease from — and a refresh that changes nothing is free.
+    const target = {
+      ourNow: frame.ourNow, theirNow: frame.theirNow,
+      ourMorale: frame.ourMorale, theirMorale: frame.theirMorale,
+    };
+    if (!ui.railsEased) {
+      ui.railsEased = { ...target };
+      this.drawBattleRails(battle, ui.railsEased);
+      return;
+    }
+    const eased = ui.railsEased;
+    const same = (Object.keys(target) as Array<keyof typeof target>)
+      .every((key) => Math.abs(eased[key] - target[key]) < 0.5);
+    if (same) { this.drawBattleRails(battle, eased); return; }
+    ui.railsTween?.stop();
+    ui.railsTween = this.tweens.add({
+      targets: eased, ...target,
+      duration: Math.round(battleTickMs() * 0.85), ease: 'Sine.easeOut',
+      onUpdate: () => { if (ui.railsBars?.active) this.drawBattleRails(battle, eased); },
+    });
+  }
+
+  /** The rails at one reading — the eased one, not the beat's. */
+  private drawBattleRails(
+    battle: AscentBattle,
+    frame: { ourNow: number; theirNow: number; ourMorale: number; theirMorale: number },
+  ): void {
+    const ui = this.battleUi;
+    if (!ui?.railsBars?.active || !ui.railsGeom) return;
+    const { barW, readoutY, ourX, theirX } = ui.railsGeom;
+
+    ui.ourStrength?.setText(`${Math.round(frame.ourNow)}`);
+    ui.theirStrength?.setText(`${Math.round(frame.theirNow)}`);
 
     const g = ui.railsBars;
     g.clear();
@@ -8887,12 +8932,9 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       ui.shown = undefined;
       return;
     }
-    // Falling behind is worse than skipping: a queue that keeps growing puts the picture further
-    // from the numbers every tick. Above a tick's worth in hand, take two.
-    const take = queue.length > BATTLE_BEATS_PER_TICK ? 2 : 1;
-    for (let i = 0; i < take && queue.length > 0; i += 1) {
-      ui.shown = queue.shift();
-    }
+    // One beat, always. A backlog is played faster by the clock (`startBattleClock`), never
+    // skipped: the skip was the visible jump on the rails.
+    ui.shown = queue.shift();
     if (ui.shown) {
       this.spawnBattleFloaters(ui.shown);
       this.spawnBattleArrows(ui.shown);
@@ -9460,17 +9502,20 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
    */
   private startBattleClock(): void {
     this.stopBattleClock();
-    this.battleClock = this.time.addEvent({
-      // The player's own dial. Paired with `battleBeatsPerTick` so the screen drains a season's
-      // beats inside the season that produced them — see `battleOptions`.
-      delay: battleTickMs(),
-      loop: true,
-      callback: () => {
-        // Beat first, then draw: the frame the rest of the refresh reads is the one just taken.
-        this.drainBattleBeat();
-        this.refresh();
-      },
-    });
+    // Self-rescheduling rather than a loop, so each beat can choose its own length. The player's
+    // dial sets the base (paired with `battleBeatsPerTick` so the screen drains a season's beats
+    // inside the season that produced them — see `battleOptions`); a screen that has fallen
+    // behind the fight plays the backlog FASTER instead of skipping beats. Skipping was the
+    // "jump": a loss number, a morale bar and a host's position all moving two steps in one.
+    const tick = (): void => {
+      // Beat first, then draw: the frame the rest of the refresh reads is the one just taken.
+      this.drainBattleBeat();
+      this.refresh();
+      const queued = this.state.ascent?.activeBattle?.beats?.length ?? 0;
+      const hurry = queued > battleBeatsPerTick() * 2 ? 0.55 : queued > battleBeatsPerTick() ? 0.75 : 1;
+      this.battleClock = this.time.delayedCall(Math.round(battleTickMs() * hurry), tick);
+    };
+    this.battleClock = this.time.delayedCall(battleTickMs(), tick);
   }
 
   private stopBattleClock(): void {

@@ -129,6 +129,14 @@ function smoothLoop(loop: Pt[]): Pt[] {
  *    than floating over it.
  *  · **ownership is a stamped seal**, in the only saturated red on the map.
  */
+/**
+ * How far above the paper scrap the order glyph stands.
+ *
+ * Its own constant because the glyph is now placed rather than drawn at an offset, and the bob on
+ * the hammer is written against it - two copies of -27 would drift the first time either moved.
+ */
+const GLYPH_Y = -27;
+
 export class DongHoMapItemRenderer extends InkMapItemRenderer {
   /**
    * A host, drawn as the number of men it contains.
@@ -868,18 +876,27 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
       return;
     }
     if (variant === 'build') {
-      // A carpenter's mallet over the beam it is dressing.
+      // A hammer, head-on: an iron head across the top of a timber haft, over the beam it is
+      // driving into. The shape it replaced was a mallet drawn at an angle - a brown wedge on a
+      // brown stick, which at twenty units read as a flag that had fallen over.
+      //
+      // Head and haft in different pigments on purpose. Both in nau made one silhouette, and the
+      // whole reading of a hammer is that the heavy part is not made of the same thing as the
+      // handle: muc for the iron, nau for the wood.
       g.fillStyle(PIGMENT.nau, 0.95);
+      g.fillRect(-1.8, y - 5, 3.6, 13);
+      g.fillStyle(PIGMENT.muc, 0.92);
+      // The head: a square face on the left, tapering to a peen on the right.
       g.fillPoints([
-        { x: -9, y: y - 9 }, { x: -1, y: y - 9 }, { x: -1, y: y - 3 }, { x: -9, y: y - 3 },
+        { x: -8.5, y: y - 10 }, { x: 3.5, y: y - 10 },
+        { x: 8.5, y: y - 7.6 }, { x: 8.5, y: y - 6 },
+        { x: 3.5, y: y - 4 }, { x: -8.5, y: y - 4 },
       ], true);
-      g.fillPoints([
-        { x: -6.4, y: y - 3.4 }, { x: -3.6, y: y - 3.4 }, { x: 1.6, y: y + 7 }, { x: -1.2, y: y + 7 },
-      ], true);
+      g.lineStyle(1.1, PIGMENT.diepHi, 0.5);
+      g.strokePoints([{ x: -6.4, y: y - 8.4 }, { x: -6.4, y: y - 5.6 }], false, false);
+      // The beam under it, taking the blow.
       g.fillStyle(PIGMENT.nauDark, 0.9);
-      g.fillRect(-11, y + 7, 22, 3);
-      g.lineStyle(1.2, PIGMENT.muc, 0.8);
-      g.strokeRect(-9, y - 9, 8, 6);
+      g.fillRect(-11, y + 8, 22, 3);
       return;
     }
     if (variant === 'recruit') {
@@ -916,6 +933,38 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     clashDevice(g, 0, y, 0.85);
   }
 
+  /**
+   * A small, slow life for each order glyph — what the district is *doing*, not merely what it is.
+   *
+   * One motion each, and each one is the verb: the fights breathe, the coin turns on its string,
+   * the hammer falls, the standard stirs. Deliberately slow and small; these sit over a live map
+   * beside armies that are themselves moving, and anything quicker reads as a fault in the paper.
+   *
+   * Killed with the badge. Badges are rebuilt whenever the order's progress changes — once a tick —
+   * so a tween left pointing at a destroyed `Graphics` would accumulate one per badge per tick.
+   */
+  private animateOrderGlyph(
+    container: Phaser.GameObjects.Container,
+    mark: Phaser.GameObjects.Graphics,
+    variant: ProgressBadgeVariant,
+  ): void {
+    const scene = this.scene as Phaser.Scene;
+    const spec = variant === 'acquisition'
+      // A cash coin hung on its string, turning edge-on and back.
+      ? { scaleX: 0.24, duration: 1500, ease: 'Sine.easeInOut' }
+      : variant === 'build'
+        // The hammer falls. `Back.easeIn` on the way down is the wind-up; the yoyo lifts it again.
+        ? { y: GLYPH_Y + 5, angle: 14, duration: 460, ease: 'Back.easeIn' }
+        : variant === 'recruit'
+          // The standard stirs. Small: a flag that swings reads as a windsock.
+          ? { angle: 6, duration: 1100, ease: 'Sine.easeInOut' }
+          // Both fights breathe, on the burst's own clock.
+          : { scale: 1.09, duration: 820, ease: 'Sine.easeInOut' };
+
+    const tween = scene.tweens.add({ targets: mark, yoyo: true, repeat: -1, ...spec });
+    container.once(Phaser.GameObjects.Events.DESTROY, () => tween.remove());
+  }
+
   /** Work in progress, on a scrap of paper rather than a coloured ring. */
   override createProgressBadge(
     x: number,
@@ -942,9 +991,13 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // Every variant says what it is, above the scrap. The siege glyph in particular used to be
     // nothing at all here, and a red ring with two straight strokes in the sibling renderer -
     // which at this size reads as a cancel badge, not as swords.
-    const mark = scene.add.graphics();
-    this.orderGlyph(mark, variant, -27);
+    // Drawn at its own origin and *placed*, rather than drawn at an offset. A glyph that carries
+    // its own y cannot be tweened: rotating or bobbing it would swing it about the badge's centre
+    // twenty-seven points below, which is a wheel and not a hammer falling.
+    const mark = scene.add.graphics().setPosition(0, GLYPH_Y);
+    this.orderGlyph(mark, variant, 0);
     container.add(mark);
+    this.animateOrderGlyph(container, mark, variant);
 
     container.add(g);
     // Rounded, always. `order.progress` is a running fractional total, and printed raw it put
