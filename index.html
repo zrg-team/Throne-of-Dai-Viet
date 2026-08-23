@@ -54,7 +54,16 @@
         height: 100dvh;
         margin: 0;
         overflow: hidden;
-        background: #201a12;
+        /* Diep, the shell-coated paper the whole game is printed on - not the near-black it used
+           to be.
+
+           Phaser fits a fixed 390-wide design surface into whatever window it is given, so on
+           anything wider than that aspect it letterboxes: measured at 900x450 the canvas is 283
+           wide with 308px of page showing on the left and 309 on the right. In portrait on a phone
+           the gaps are zero and nobody sees this; rotate the phone, or open it on a desktop, and
+           the sheet floats on two black slabs. The battle screen's own ground is this exact colour,
+           so the bars now read as the sheet simply continuing past the picture. */
+        background: #e9dfc2;
         touch-action: none;
         overscroll-behavior: none;
         font-family: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", Roboto,
