@@ -58,6 +58,14 @@ export const reedBanner: StoryTemplate = {
    * How the boy currently stands with the throne — the page's one-line relationship.
    * Words, never a number, and it moves only when the player actually did something.
    */
+  pressure: (ctx) => {
+    if (ctx.recall('wonUnderHim') >= 3) return 'ba-tran';
+    if (ctx.recall('heHasAsked') >= 2) return 'hoi-hai-lan';
+    if (ctx.recall('builtForHim') >= 1) return 'co-cho-dung';
+    if (ctx.recall('tookIn') === 1) return 'trong-nha';
+    return undefined;
+  },
+
   regard: (ctx) => {
     if (ctx.recall('humiliated') >= 1) return 'humiliated';
     if (ctx.recall('trusted') >= 1 || ctx.recall('gaveHost') >= 1) return 'trusted';

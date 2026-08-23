@@ -101,7 +101,7 @@ import { getEmpirePower, hasPact } from '../systems/DiplomacySystem';
 import { compactNumber } from '../utils/format';
 import { renderHeroFaceInBox } from '../ui/FaceRenderer';
 import { drawStoryBand } from '../ui/ink/storyBand';
-import { chronicleTally, countOpenDoors, heldBeat, heldBeatOptions, isMarked, openingFor, openingView, resolveStoryBeat, storyCardsMuted, storyNeedsPlayer, storyOpening, storyParams, storyDrift, storyPath, storyRegard, storySpokenHistory, storyWantsPlayer, takeOpening } from '../systems/story/StorySystem';
+import { chronicleTally, countOpenDoors, heldBeat, heldBeatOptions, isMarked, openingFor, openingView, resolveStoryBeat, storyCardsMuted, storyNeedsPlayer, storyOpening, storyParams, storyDrift, storyPath, storyPressure, storyRegard, storySpokenHistory, storyWantsPlayer, takeOpening } from '../systems/story/StorySystem';
 import { storyCatalogIds, storyText, storyTitle } from '../i18n/story';
 import { chargeTrackerLines } from '../systems/story/charges';
 import { INK_UI, INK_UI_HEX, InkUI, scrollGestureConsumedTap, type InkScrollArea, type UIBounds } from '../ui/InkUI';
@@ -157,6 +157,7 @@ import {
 import type {
   ActiveStory,
   Historicity,
+  StoryOutcome,
   Army,
   ArmyComposition,
   ArmyOrders,
@@ -504,6 +505,23 @@ function disarm(object: Phaser.GameObjects.GameObject): void {
     for (const child of children) disarm(child);
   }
 }
+/**
+ * A ledger figure, signed — except for the ones that are not deltas.
+ *
+ * Most lines are a change and read correctly with a sign: `−300 able men`, `+140 grain`.
+ * A few carry a *total* or a level instead, and signing those says the wrong thing entirely:
+ * `patron` is how many stand under the banner now, not how many joined, and "There are +1000
+ * under that banner" reads as a thousand more of them.
+ */
+const ABSOLUTE_OUTCOMES = new Set(['patron', 'loyaltyFloor', 'academy', 'stipend', 'debt', 'fed', 'draftTilt']);
+
+function formatOutcomeAmount(entry: StoryOutcome): string {
+  if (entry.amount === undefined) return '';
+  const size = Math.abs(Math.round(entry.amount));
+  if (ABSOLUTE_OUTCOMES.has(entry.kind)) return String(size);
+  return `${entry.amount > 0 ? '+' : entry.amount < 0 ? '−' : ''}${size}`;
+}
+
 export class ConquestUIScene extends Phaser.Scene {
   private state!: GameState;
   private ui!: InkUI;
@@ -4381,21 +4399,43 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       (candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID && !candidate.isLevy && candidate.id !== army.id,
     );
     const quarries = visibleHostileHosts(state);
-    // The live fight, if this host is not already in it: the one order that is about *now*.
+    // ── Send this host to the fight ──
+    //
+    // **Always drawn, even with no fight to send it to.** It used to appear only while a battle
+    // was live and this host could reach it, and vanish the rest of the time — so the one order
+    // that answers "there is a siege on my border, send this army" was invisible on every screen
+    // a player ever opened calmly, and nothing on the sheet said the order existed. Every other
+    // row here already states its own unavailability in place ("Truy đuổi một đạo quân — không
+    // thấy đạo quân địch nào"); this one disappeared instead, which is the only kind of missing
+    // control a player cannot learn from.
+    //
+    // Kept at the head of the list because it is the one order that is about *now*: a fight is
+    // running out of beats while the sheet is open, and the rows under it are all about later.
     const live = state.ascent?.activeBattle && !state.ascent.activeBattle.over ? state.ascent.activeBattle : undefined;
     const relief = live ? reinforcementCandidates(state, live).find((row) => row.army.id === army.id) : undefined;
-    const reliefTile = live && relief ? [{
-      title: t('ascent.reinforce.tile', { land: live.landName }),
-      note: relief.blockedReason ?? (relief.enRoute ? t('ascent.reinforce.onRoad')
-        : relief.etaTicks === 0 ? t('ascent.reinforce.etaNow')
-          : t(relief.inTime ? 'ascent.reinforce.etaInTime' : 'ascent.reinforce.etaLate', { n: relief.etaTicks ?? 0 })),
-      border: relief.blockedReason || relief.enRoute ? INK_UI.softBrush : relief.inTime ? INK_UI.jade : INK_UI.cinnabar,
-      muted: Boolean(relief.blockedReason) || relief.enRoute,
-      onTap: relief.blockedReason || relief.enRoute ? undefined : () => {
+    const alreadyIn = Boolean(live && (live.ourArmyIds ?? []).includes(army.id));
+    const reliefNote = (): string => {
+      if (!live) return t('ascent.reinforce.noBattle');
+      if (alreadyIn) return t('ascent.reinforce.already', { land: live.landName });
+      // No candidate row for a fight that is running means this host cannot join it at all — an
+      // empty host, or one the candidate list refused for a reason it does not name.
+      if (!relief) return t('ascent.reinforce.noRoad');
+      if (relief.blockedReason) return relief.blockedReason;
+      if (relief.enRoute) return t('ascent.reinforce.onRoad');
+      if (relief.etaTicks === 0) return t('ascent.reinforce.etaNow');
+      return t(relief.inTime ? 'ascent.reinforce.etaInTime' : 'ascent.reinforce.etaLate', { n: relief.etaTicks ?? 0 });
+    };
+    const canRelieve = Boolean(live && relief && !alreadyIn && !relief.blockedReason && !relief.enRoute);
+    const reliefTile = [{
+      title: live ? t('ascent.reinforce.tile', { land: live.landName }) : t('ascent.reinforce.tileIdle'),
+      note: reliefNote(),
+      border: !canRelieve ? INK_UI.softBrush : relief?.inTime ? INK_UI.jade : INK_UI.cinnabar,
+      muted: !canRelieve,
+      onTap: canRelieve && live ? () => {
         sendReinforcement(state, live, armyId);
         this.showArmyDetail(armyId);
-      },
-    }] : [];
+      } : undefined,
+    }];
     addWidget(0, (parent, width) => {
       const height = this.actionTiles(parent, width, [
         ...reliefTile,
@@ -5715,9 +5755,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       const key = `ascent.story.outcome.${entry.kind}` as Parameters<typeof t>[0];
       // A signed figure, because this is a ledger and the direction is the point. The key itself
       // carries no + or −, so a line that only ever moves one way still reads correctly.
-      const n = entry.amount === undefined
-        ? ''
-        : `${entry.amount > 0 ? '+' : entry.amount < 0 ? '−' : ''}${Math.abs(Math.round(entry.amount))}`;
+      const n = formatOutcomeAmount(entry);
       const line = t(key, { n, name: entry.name ?? '' });
       // An unknown kind resolves to its own key. Print nothing rather than `ascent.story.
       // outcome.whatever` — a missing string is a bug for the harness to catch, not a line of
@@ -6025,9 +6063,17 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       const line = lastId ? storyText(`${story.templateId}.${lastId}.chronicle`, params) : undefined;
       const hero = state.heroes.find((candidate) => candidate.id === story.cast.heroId);
       const want = storyText(`${story.templateId}.want`, params);
-      const wantLine = want !== `${story.templateId}.want`
-        ? t('ascent.story.wants', { want })
-        : undefined;
+      // A running instrument says how it stands, right here, so the lane answers "what is
+      // happening with him" without the player having to open anything. Falls back to what the
+      // person wants, which is what the row said before.
+      const pressure = storyPressure(state, story);
+      const pressureKey = `${story.templateId}.pressure.${pressure}`;
+      const standing = pressure ? storyText(pressureKey, params) : undefined;
+      const wantLine = (standing && standing !== pressureKey)
+        ? standing
+        : (want !== `${story.templateId}.want`
+          ? t('ascent.story.wants', { want })
+          : undefined);
       // Two different kinds of "needs you", and the row says which: a door standing open on a
       // subject, or a beat the story is holding because beats have been muted.
       const status = heldBeat(state, story)
@@ -6273,9 +6319,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       // only in a modal the player has already dismissed.
       for (const entry of beat.outcome ?? []) {
         const key = `ascent.story.outcome.${entry.kind}` as Parameters<typeof t>[0];
-        const n = entry.amount === undefined
-          ? ''
-          : `${entry.amount > 0 ? '+' : entry.amount < 0 ? '−' : ''}${Math.abs(Math.round(entry.amount))}`;
+        const n = formatOutcomeAmount(entry);
         const ledger = t(key, { n, name: entry.name ?? '' });
         if (ledger === key) continue;
         const row = this.ui.label(48, used, ledger, 'caption', {

@@ -135,6 +135,10 @@ export const gooseFeathersEn: StoryCatalog = {
 };
 
 export const granariesVi: StoryCatalog = {
+  'pressure.mot-to-le': 'Một tờ lệ đã thành lệ. Ngoài huyện người ta còn đang bàn tờ ấy.',
+  'pressure.hai-to-le': 'Hai tờ lệ đã thành lệ, và ruộng thì đã cắm cọc chia lại.',
+  'pressure.kho-co-thoc': 'Kho nhà nước đã có thóc, và người coi kho bắt đầu than chuyện chuột.',
+  'pressure.kho-day': 'Kho nhà nước đầy tới xà, và cửa kho thì khoá hai lần.',
   'node.de-nghi': 'Tờ đề nghị',
   'node.de-nghi-hai': 'Tờ thứ hai',
   'node.gia-gao': 'Giá gạo',
@@ -222,6 +226,10 @@ export const granariesVi: StoryCatalog = {
 };
 
 export const granariesEn: StoryCatalog = {
+  'pressure.mot-to-le': 'One measure is law. Out in the districts they are still arguing about that one.',
+  'pressure.hai-to-le': 'Two measures are law, and the fields have stakes in them for redividing.',
+  'pressure.kho-co-thoc': 'There is grain in the state granary, and the keeper has started complaining about rats.',
+  'pressure.kho-day': 'The state granary is full to the beam, and the door is double-locked.',
   'node.de-nghi': 'The proposal',
   'node.de-nghi-hai': 'The second proposal',
   'node.gia-gao': 'The price of rice',
@@ -309,6 +317,9 @@ export const granariesEn: StoryCatalog = {
 };
 
 export const riverStakesVi: StoryCatalog = {
+  'pressure.do-xong': 'Lòng sông đã đo xong, và chưa có cái cọc nào dưới nước.',
+  'pressure.mot-hang': 'Một hàng cọc đã đóng. Nước ròng thì thấy đầu cọc, còn nước lên thì không.',
+  'pressure.kin-long': 'Cọc đã kín lòng sông ở khúc ấy, và người trong vùng đều biết chỗ tránh.',
   'nuoc-rong-thay-dau-coc.line': 'Nước ròng, và trên mặt sông thấy đầu cọc.',
   'nuoc-rong-thay-dau-coc.scene': 'Chỉ thấy lúc thật ròng, chừng một canh giờ mỗi ngày, và chỉ thấy nếu đứng đúng chỗ. Mấy ông chài quen luồng thì tránh xa từ trước. Người lạ chở hàng qua đấy có hôm nghe tiếng gỗ chạm đáy thuyền, giật mình, rồi qua được. Không ai bảo họ.',
   'nuoc-rong-thay-dau-coc.chronicle': 'Nước ròng, và cọc nhô lên mặt sông.',
@@ -366,6 +377,9 @@ export const riverStakesVi: StoryCatalog = {
 };
 
 export const riverStakesEn: StoryCatalog = {
+  'pressure.do-xong': 'The bed is measured, and there is not a stake in the water yet.',
+  'pressure.mot-hang': 'One row is driven. At low water the tops show; at high water they do not.',
+  'pressure.kin-long': 'The bed is staked across at that reach, and everyone local knows where to steer.',
   'nuoc-rong-thay-dau-coc.line': 'The tide is out, and the tops of the stakes show above the water.',
   'nuoc-rong-thay-dau-coc.scene': 'Only at the lowest water, about an hour a day, and only if you are standing in the right place. The fishermen who know the channel keep well clear long before. A stranger carrying cargo through hears wood touch his hull one day, startles, and gets across. Nobody tells him.',
   'nuoc-rong-thay-dau-coc.chronicle': 'At low water the stakes show above the river.',
@@ -423,6 +437,9 @@ export const riverStakesEn: StoryCatalog = {
 };
 
 export const countingHouseVi: StoryCatalog = {
+  'pressure.van-ngoi-day': 'Bạc vẫn nằm im trong kho, và con số ấy vẫn được chép mỗi tháng.',
+  'pressure.day-len': 'Kho bạc dày thêm, và người chép sổ đã phải sang trang mới.',
+  'pressure.da-voi': 'Kho đã vơi, và con số cuối trang tháng này thấp hơn tháng trước.',
   'chua-ay-xay-them-gian.line': 'Chùa ấy xây thêm một gian, và xây bằng gỗ tốt.',
   'chua-ay-xay-them-gian.scene': 'Gian mới nối vào phía đông, cột lim, mái ngói mũi hài. Thợ làm bốn tháng. Nhà sư trụ trì không nói tiền ở đâu ra, và không ai trong làng hỏi. Trong gian mới có một cái tủ khoá, kê sát tường, và cái tủ ấy không phải để kinh.',
   'chua-ay-xay-them-gian.chronicle': 'Chùa xây thêm một gian bằng gỗ tốt.',
@@ -463,6 +480,9 @@ export const countingHouseVi: StoryCatalog = {
 };
 
 export const countingHouseEn: StoryCatalog = {
+  'pressure.van-ngoi-day': 'The gold is still sitting there, and the figure is still copied every month.',
+  'pressure.day-len': 'The treasury has deepened, and the man keeping the ledger has had to start a new page.',
+  'pressure.da-voi': 'It has gone down, and this month\'s figure at the foot is lower than last month\'s.',
   'chua-ay-xay-them-gian.line': 'The temple has added a bay, and added it in good timber.',
   'chua-ay-xay-them-gian.scene': 'The new bay joins on the east side — ironwood posts, curved-tile roof. Four months of work. The abbot does not say where the money came from, and nobody in the village asks. Inside the new bay there is a locked cabinet against the wall, and it is not for sutras.',
   'chua-ay-xay-them-gian.chronicle': 'The temple added a bay in good timber.',

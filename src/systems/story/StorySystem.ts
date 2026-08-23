@@ -212,14 +212,22 @@ function enterNode(state: GameState, story: ActiveStory, template: StoryTemplate
   // An unknown id means an authoring typo that INV-8 should have caught. Stay put rather than
   // strand the story in a node that does not exist.
   if (!node) return;
+  const path = story.path ?? [];
+  const reentered = path[path.length - 1] === nodeId;
   story.node = nodeId;
-  story.path = [...(story.path ?? []), nodeId];
-  story.nodeSince = state.turn;
+  // A repeatable door names its own node in `to` — that is what makes it repeatable — so
+  // re-entering must not lay the same step down again. Four gifts to the same banner read as
+  // four separate turns in the road on the story page, which is exactly what the spine is not.
+  story.path = reentered ? path : [...path, nodeId];
+  // The clock only restarts when the story has actually moved. Re-entering the node you are
+  // standing in should not buy another patience window.
+  if (!reentered) story.nodeSince = state.turn;
   if (DRIFT_RANK[node.historicity] > DRIFT_RANK[story.drift ?? 'chinh-su']) {
     story.drift = node.historicity;
   }
-  // A story that has just turned a corner has something to say about it.
-  story.temperature += 2;
+  // A story that has just turned a corner has something to say about it. Standing still is not
+  // turning a corner.
+  if (!reentered) story.temperature += 2;
 }
 
 // ── Context ─────────────────────────────────────────────────────────────────
@@ -1221,13 +1229,29 @@ export function storyPath(
 }
 
 /** How many endings of each class the run has recorded. The Reckoning's one line of identity. */
-export function chronicleTally(state: GameState): Record<Historicity, number> {
-  const tally: Record<Historicity, number> = { 'chinh-su': 0, 'da-su': 0, 'ngoai-truyen': 0 };
+export function chronicleTally(state: GameState): Record<Historicity, number> & { total: number } {
+  const tally = { 'chinh-su': 0, 'da-su': 0, 'ngoai-truyen': 0, total: 0 } as Record<Historicity, number> & { total: number };
   // Unclassified endings are not counted rather than counted as chính sử — see `record`.
   for (const entry of state.chronicle ?? []) {
     if (entry.historicity) tally[entry.historicity] += 1;
+    // Counted whether or not it carries a class, so the Reckoning can say a run concluded five
+    // stories even when some of them are templates nobody has placed against the record.
+    tally.total += 1;
   }
   return tally;
+}
+
+/**
+ * How the situation stands, for a story that has an answer to that.
+ *
+ * Same shape as `storyRegard` and read the same way: the template returns a suffix, the page
+ * resolves `<templateId>.pressure.<suffix>`, and an unresolved key renders nothing rather than a
+ * raw string. Only the instrument stories implement it.
+ */
+export function storyPressure(state: GameState, story: ActiveStory): string | undefined {
+  const template = storyTemplate(story.templateId);
+  if (!template?.pressure) return undefined;
+  return template.pressure(makeCtx(state, story, worldDelta(state, state.storyWatch ?? snapshot(state))));
 }
 
 /** How many stories are holding an open door — the number on the Chronicle button. */

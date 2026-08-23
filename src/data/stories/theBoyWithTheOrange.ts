@@ -140,6 +140,19 @@ export const theBoyWithTheOrange: StoryTemplate = {
   seedWeight: 3,
   minTurn: 14,
 
+  /**
+   * How it stands, which on this story is a fact about a host and not a fraction of anything.
+   * Read before `stake` on the page, because the moving sentence is the one worth reading first.
+   */
+  pressure: (ctx) => {
+    if (ctx.recall('patron:fell') === 1) return 'tan';
+    const men = ctx.recall('patron:men');
+    if (men <= 0) return undefined;
+    if (men >= 2000) return 'dong-hon-co-nguoi';
+    if (men >= 1400) return 'day-len';
+    return 'moi-dung';
+  },
+
   regard: (ctx) => {
     if (ctx.recall('patron:fell') === 1) return 'gone';
     if (ctx.recall('patron:fed') >= 4) return 'swollen';

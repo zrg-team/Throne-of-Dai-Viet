@@ -5,6 +5,10 @@ import type { StoryCatalog } from './types';
  * tới dự lễ tấn phong" has a register that does not survive a round trip through English.
  */
 export const reedBannerVi: StoryCatalog = {
+  'pressure.trong-nha': 'Nó ở trong nhà ngươi, ăn cơm nhà ngươi, và chưa được giao việc gì.',
+  'pressure.co-cho-dung': 'Nó có một chỗ đứng, và người trong vùng bắt đầu biết mặt.',
+  'pressure.hoi-hai-lan': 'Nó đã hỏi hai lần. Lần thứ hai nó không hỏi lại câu cũ.',
+  'pressure.ba-tran': 'Ba trận thắng dưới tay nó, và ba làng thêu cờ theo kiểu cờ của nó.',
   'node.bai-lau': 'Bãi lau',
   'node.duoi-truong': 'Dưới trướng',
   'node.xin-cam-quan': 'Xin cầm quân',
@@ -210,6 +214,10 @@ export const reedBannerVi: StoryCatalog = {
 };
 
 export const reedBannerEn: StoryCatalog = {
+  'pressure.trong-nha': 'He is under your roof, eating your rice, and has been given nothing to do.',
+  'pressure.co-cho-dung': 'He has somewhere to stand, and people in the district are learning his face.',
+  'pressure.hoi-hai-lan': 'He has asked twice. The second time he did not ask it the same way.',
+  'pressure.ba-tran': 'Three won under his hand, and three villages sewing banners in his pattern.',
   'node.bai-lau': 'The reed flats',
   'node.duoi-truong': 'Under your roof',
   'node.xin-cam-quan': 'He asks for a command',

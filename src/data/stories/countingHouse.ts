@@ -16,6 +16,12 @@ import type { StoryTemplate } from '../../systems/story/types';
 export const countingHouse: StoryTemplate = {
   id: 'counting-house',
   record: 'ngoai-truyen',
+  pressure: (ctx) => {
+    if (ctx.recall('spentInPublic') >= 2) return 'da-voi';
+    if (ctx.state.resources.gold >= 900) return 'day-len';
+    if (ctx.state.resources.gold >= 620) return 'van-ngoi-day';
+    return undefined;
+  },
   seedWeight: 2,
   minTurn: 16,
   seed: (state) => {

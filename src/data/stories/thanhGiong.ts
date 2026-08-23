@@ -68,6 +68,21 @@ export const thanhGiong: StoryTemplate = {
   seedWeight: 3,
   minTurn: 20,
 
+  /**
+   * The middle of the wager, said out loud. The player is deciding whether to pay a third time
+   * and had nothing to read but the door's price; this is the giant, in the doorway, measured
+   * against a clock nobody set.
+   */
+  pressure: (ctx) => {
+    if (ctx.recall('rode') >= 1) return undefined;
+    const fed = ctx.recall('nuoi');
+    if (fed >= 3) return 'san-sang';
+    if (fed >= 2) return 'cao-hon-cua';
+    if (fed >= 1) return 'an-mot-lan';
+    if (ctx.recall('forged') === 1) return 'chua-an';
+    return undefined;
+  },
+
   regard: (ctx) => {
     if (ctx.recall('rode') >= 1) return 'gone';
     if (ctx.recall('nuoi') >= 2) return 'rising';

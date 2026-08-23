@@ -34,6 +34,14 @@ function hostileNear(state: GameState, landId?: string): number {
 export const riverStakes: StoryTemplate = {
   id: 'river-stakes',
   record: 'chinh-su',
+  pressure: (ctx) => {
+    const rows = ctx.recall('rows');
+    if (rows >= 3) return 'kin-long';
+    if (rows >= 1) return 'mot-hang';
+    if (ctx.recall('surveyed') === 1) return 'do-xong';
+    return undefined;
+  },
+
   regard: (ctx) => {
     if (ctx.recall('walkedAway') === 1) return 'insulted';
     if (ctx.recall('stakes') === 1) return 'ready';

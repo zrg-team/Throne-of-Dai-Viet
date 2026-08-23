@@ -19,6 +19,15 @@ import type { StoryTemplate } from '../../systems/story/types';
 export const granaries: StoryTemplate = {
   id: 'granaries',
   record: 'chinh-su',
+  pressure: (ctx) => {
+    const stored = ctx.recall('stored');
+    if (stored >= 3) return 'kho-day';
+    if (stored >= 1) return 'kho-co-thoc';
+    if (ctx.recall('reforms') >= 2) return 'hai-to-le';
+    if (ctx.recall('reforms') >= 1) return 'mot-to-le';
+    return undefined;
+  },
+
   regard: (ctx) => {
     if (ctx.recall('dismissed') === 1) return 'dismissed';
     if (ctx.recall('stoodBy') === 1) return 'trusted';

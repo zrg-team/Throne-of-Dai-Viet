@@ -8,6 +8,10 @@ import type { StoryCatalog } from './types';
  * survival is `ngoai-truyen`. The endings say which is which; the card never does.
  */
 export const orangeVi: StoryCatalog = {
+  'pressure.moi-dung': 'Cờ mới dựng. Dưới cờ là người một nhà, và họ tự mang gạo theo.',
+  'pressure.day-len': 'Dưới lá cờ ấy đông lên trông thấy, và giáo thì mới cả.',
+  'pressure.dong-hon-co-nguoi': 'Dưới lá cờ ấy giờ đông hơn dưới cờ ngươi.',
+  'pressure.tan': 'Không còn ai đứng dưới lá cờ ấy nữa.',
   title: 'Quả Cam',
   want: 'được đứng trong hàng, dù chỉ ở cuối hàng',
   waiting: 'Cậu ta vẫn đứng ngoài, và vẫn chưa đi.',
@@ -233,6 +237,10 @@ export const orangeVi: StoryCatalog = {
 };
 
 export const orangeEn: StoryCatalog = {
+  'pressure.moi-dung': 'The banner is newly up. Under it is one household, and they brought their own rice.',
+  'pressure.day-len': 'There are visibly more under that banner, and the spears are all new.',
+  'pressure.dong-hon-co-nguoi': 'There are more under that banner now than under yours.',
+  'pressure.tan': 'Nobody stands under that banner any more.',
   title: 'The Boy With the Orange',
   want: 'a place in the line, even at the end of it',
   waiting: 'He is still outside, and he still has not gone home.',

@@ -287,6 +287,18 @@ export interface StoryTemplate {
    * this. Absent means the ending goes unclassified, which is honest but invisible.
    */
   record?: Historicity;
+  /**
+   * How the situation stands, as a text-key suffix (`<templateId>.pressure.<suffix>`).
+   *
+   * `regard` is what the bound person thinks of you; this is what has *changed* — and the two are
+   * different questions. A wager especially needs it: four offerings into Thánh Gióng's forge is
+   * a fact about a giant, and there is no honest way to show it as a number without turning the
+   * story into a quest with a completion state.
+   *
+   * So: a sentence, never a fraction, never a bar. Absent omits the line entirely, which is what
+   * the forty templates that are not instruments do.
+   */
+  pressure?: (ctx: StoryCtx) => string | undefined;
   /** Relative chance of being the one considered on a seeding tick. */
   seedWeight: number;
   /** Earliest turn this may seed. */
