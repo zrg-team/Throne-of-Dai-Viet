@@ -60,8 +60,6 @@ export interface MomentEffect {
   stanceNow?: boolean;
   /** SHAPE — the next change of shape costs zero beats. The counter without the bill. */
   freeReform?: boolean;
-  /** WIND — every one of our wind clocks cleared at once. The drum's answer. */
-  refillWind?: boolean;
   /** SHAPE — freezes their formation for this many beats. You know what you are answering. */
   lockTheirShape?: number;
   /** EDGE — the tilt runs at `BATTLE_FORMATION_TILT_SHARP` for `BATTLE_MOMENT_BONUS_BEATS`. */
@@ -395,9 +393,7 @@ export const BATTLE_MOMENTS: BattleMomentDef[] = [
     id: 'the-drum',
     weight: 0.6,
     when: (c) => c.round >= 4,
-    // The drum now also clears every wind clock — docs/15 built the drum, docs/19 gave it this
-    // job: the one Moment that answers "my dock is dark" rather than "my line is thin".
-    commit: { says: 'charged', morale: 7, dealt: 1.18, refillWind: true },
+    commit: { says: 'charged', morale: 7, dealt: 1.18 },
     steady: { says: 'braced', taken: 0.82, morale: 3 },
   },
   {

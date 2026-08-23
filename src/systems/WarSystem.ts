@@ -304,7 +304,7 @@ export function findLandPath(
 }
 
 /** Total ticks an army would need to march the given path, leg by leg. */
-function getTotalPathTicks(state: GameState, army: Army, path: string[]): number {
+export function getTotalPathTicks(state: GameState, army: Army, path: string[]): number {
   return path.reduce((sum, landId) => {
     const land = findLand(state, landId);
     return sum + (land ? getLegTicks(army, land) : 0);

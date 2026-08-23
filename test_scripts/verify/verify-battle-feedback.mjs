@@ -76,8 +76,8 @@ const dock = () => page.evaluate(() => {
 const opening = await dock();
 const stances = opening.zones.filter((z) => z.h === 30);
 const chips = opening.zones.filter((z) => z.h > 30);
-check(stances.length === 4 && chips.length === 5,
-  'the dock offers four tempos and five shapes',
+check(stances.length === 3 && chips.length === 5,
+  'the dock offers three postures and five shapes — Lui binh lives with the exits now',
   `${stances.length} stances, ${chips.length} chips`);
 
 // ── the chips say what they are, in words a player arrives with ────────────
@@ -297,7 +297,7 @@ const fit = await page.evaluate(() => {
     exitCount: exits.length,
   };
 });
-check(fit.exitCount === 2 && fit.dockBottom <= fit.closeTop,
+check(fit.exitCount === 4 && fit.dockBottom <= fit.closeTop,
   'the dock clears the way out at 390×620',
   `dock ends ${Math.round(fit.dockBottom)}, exits start ${Math.round(fit.closeTop)}`);
 

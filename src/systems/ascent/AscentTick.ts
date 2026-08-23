@@ -114,7 +114,13 @@ function settleOwnedLands(state: GameState): void {
     if (land.ownerId !== PLAYER_KINGDOM_ID) continue;
     if (colonies) {
       land.loyalty = 100;
-      land.defense = Math.max(land.defense, Math.round(land.defense * 1.5));
+      // Once. `Math.max(defense, defense * 1.5)` is always the right-hand side, so this line
+      // used to compound every tick: measured, a province's defense at 1.5e6 by tick 89 and the
+      // realm's POWER at 1e99 by tick 600, with the threat gauge reading "comfortable" throughout.
+      if (!land.colonised) {
+        land.colonised = true;
+        land.defense = Math.round(land.defense * 1.5);
+      }
       continue;
     }
     if (land.loyalty >= 100) continue;

@@ -84,8 +84,8 @@ const dials = await page.evaluate(async () => {
   b().ourFormation = 'chong';
   b().formationTarget = undefined;
   b().reformBeats = 0;
-  b().ourWind = {};
-  b().theirWind = {};
+  b().stamina = 2;
+  b().staminaClock = undefined;
   const window0 = B.reformBeatsFor(st, b());
   const gave = B.setBattleFormation(st, 'quy');
   out.ordered = { gave, target: b().formationTarget ?? null, beats: b().reformBeats, shapeNow: b().ourFormation };
@@ -126,43 +126,35 @@ const dials = await page.evaluate(async () => {
   out.brokenWindow = B.reformBeatsFor(st, b());
   b().ourMorale = savedMorale;
 
-  // ── the wind ───────────────────────────────────────────────────────────────
-  // The landing above walked chong→quy, so chong must now be winded — stamped at LANDING, at
-  // full BATTLE_FORMATION_WIND less the recovery ticks the walk itself paid. Pin the enemy's walk
-  // first: the match exception tracks their target, and these probes must not race their AI.
+  // ── stamina ────────────────────────────────────────────────────────────────
+  // Two pips. Two changes in a row are paid for; the third is refused until a pip returns.
   b().theirFormationTarget = undefined;
   b().theirReformBeats = 0;
-  const wind = () => B.battleWindView(b());
-  out.afterLanding = { held: b().ourFormation, chongWind: wind().ours.chong };
-  out.windedRefused = wind().ours.chong > 0 && b().theirFormation !== 'chong'
-    ? B.setBattleFormation(st, 'chong') : null;
-
-  // Recovery rides the stance: frozen under press, double under defend.
-  b().ourWind = { chong: 3 };
-  b().stance = 'press';
-  b().stancePending = undefined;
-  step(1);
-  out.pressRecovery = wind().ours.chong;
-  b().stance = 'defend';
-  step(1);
-  out.defendRecovery = wind().ours.chong;
-
-  // The match is never refused: wind the enemy's own shape to the sky and it must still answer.
-  b().theirFormationTarget = undefined;
-  b().theirReformBeats = 0;
-  b().ourWind = { [b().theirFormation]: 9 };
-  out.matchOffered = B.canFormFormation(st, b().theirFormation);
-
-  // Aborting a walk back to the shape still being stood in is legal, wind or no wind.
-  b().ourWind = {};
+  b().stamina = 2;
+  b().staminaClock = undefined;
   b().formationTarget = undefined;
   b().reformBeats = 0;
-  const from = b().ourFormation;
-  const away = ['chong', 'xung', 'tan', 'quy', 'no'].find((f) => f !== from && f !== b().theirFormation);
-  B.setBattleFormation(st, away);
-  out.abort = { from, walkingTo: b().formationTarget, took: B.setBattleFormation(st, from) };
-  step(2);
-  out.abortLanded = { held: b().ourFormation, fromWind: wind().ours[from] ?? 0 };
+  const others = ['chong', 'xung', 'tan', 'quy', 'no'].filter((f) => f !== b().ourFormation);
+  const first = B.setBattleFormation(st, others[0]);
+  step(1);
+  const second = B.setBattleFormation(st, others[1]);
+  step(1);
+  const third = B.setBattleFormation(st, others[2]);
+  out.spends = { first, second, third, pips: B.battleStamina(b()).pips };
+
+  // The pip comes back on its own clock — and the stance has nothing to do with it. Both waits
+  // start from a fresh clock, or the first inherits the beats the spends above already paid.
+  b().stance = 'press';
+  b().stancePending = undefined;
+  b().stamina = 0; b().staminaClock = undefined;
+  let waited = 0;
+  while (B.battleStamina(b()).pips < 1 && waited < 20) { step(1); waited += 1; }
+  out.regen = { beats: waited, pips: B.battleStamina(b()).pips };
+  b().stance = 'defend';
+  b().stamina = 0; b().staminaClock = undefined;
+  let waitedDefend = 0;
+  while (B.battleStamina(b()).pips < 1 && waitedDefend < 20) { step(1); waitedDefend += 1; }
+  out.regenDefend = waitedDefend;
   return out;
 });
 
@@ -213,22 +205,15 @@ check(p.byTier.every((r) => r.beats === 1),
   p.byTier.map((r) => `t${r.tier}${r.led ? '+gen' : ''}:${r.beats}`).join(' '));
 check(p.brokenWindow === 2, 'a host below the rout line stumbles for two', `${p.brokenWindow} beats`);
 
-check(p.afterLanding.held === 'quy' && p.afterLanding.chongWind > 0,
-  'the shape left behind is winded at landing, not at order time',
-  `holding ${p.afterLanding.held}, chong wind ${p.afterLanding.chongWind}`);
-check(p.windedRefused !== true,
-  'a winded shape refuses the order', p.windedRefused === null ? 'match exempted it' : 'refused');
-check(p.pressRecovery === 3 && p.defendRecovery === 1,
-  'recovery rides the stance — frozen under press, double under defend',
-  `press kept ${p.pressRecovery}, defend took it to ${p.defendRecovery}`);
-check(p.matchOffered === true,
-  'the enemy\'s own shape is never refused, whatever its wind — the floor of the fight');
-check(p.abort.took === true && p.abortLanded.held === p.abort.from,
-  'a walk can be aborted back to the shape still being stood in',
-  `walking to ${p.abort.walkingTo}, abort ${p.abort.took ? 'accepted' : 'REFUSED'}, holding ${p.abortLanded.held}`);
-check(p.abortLanded.fromWind === 0,
-  'and the abort winds nothing — the men never left',
-  `wind ${p.abortLanded.fromWind}`);
+check(p.spends.first && p.spends.second && p.spends.third === false && p.spends.pips === 0,
+  'two changes in a row are paid for, the third is refused — the meter is empty',
+  `first ${p.spends.first}, second ${p.spends.second}, third ${p.spends.third ? 'ACCEPTED' : 'refused'}, pips ${p.spends.pips}`);
+check(p.regen.pips >= 1 && p.regen.beats >= 5 && p.regen.beats <= 8,
+  'a pip comes back on its own after about seven beats',
+  `${p.regen.beats} beats under press`);
+check(Math.abs(p.regenDefend - p.regen.beats) <= 1,
+  'and the stance has nothing to do with it — the same wait under defend',
+  `${p.regen.beats} beats under press, ${p.regenDefend} under defend`);
 
 check(wire.promises.length > 0, 'the telegraph was read at least once', `${wire.promises.length} promises`);
 check(wire.broken.length === 0, 'the telegraph is always what actually happens',

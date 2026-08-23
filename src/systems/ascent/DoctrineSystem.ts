@@ -42,17 +42,6 @@ export function pursuitLossShare(state: GameState): number {
   return Math.min(0.3, doctrine(state, 'feigned-retreat') * 0.07);
 }
 
-/**
- * Đoản Hơi Thành Trường (Second Wind) — Xung phong recovers 1 wind a beat instead of 0.
- *
- * The first rule card to reach the WATCHED battle rather than the auto-resolved path (the header
- * note above predates the wind rework; the battle screen opens far more often now). "Now I can
- * keep pressing without my dock going dark" — one visible number on a strip the player is
- * already reading, which is the whole bar a battle card has to clear.
- */
-export function windRecoveryBonus(state: GameState): number {
-  return Math.min(1, doctrine(state, 'second-wind'));
-}
 
 /**
  * Bamboo Palisade — how much more militia every province turns out.

@@ -62,6 +62,7 @@ export function createAscentState(): AscentState {
     promptWaiting: {},
     famineCooldown: 0,
     autoResolveBattles: false,
+    autoMusterSilently: false,
     lastWatchedWave: -1,
     lastPromptTurn: 0,
     drawnCourtCards: [],
@@ -113,6 +114,9 @@ const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   // follows it, so it should not queue behind an edict it is about to change the value of.
   doctrine: 6.5,
   parliament: 8,
+  // Between the parliament and the envoy: a host is worth more than a letter and less than a law,
+  // and a muster the player has been asked about must not queue behind a draft.
+  'muster-proposal': 8.5,
   envoy: 9,
   'rival-demand': 3.5,
   // Above the rival demands: an empty granary is already costing the realm morale and

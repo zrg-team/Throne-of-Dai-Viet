@@ -81,6 +81,12 @@ export interface Land {
   x: number;
   y: number;
   defense: number;
+  /**
+   * Đồn điền has already stood this province up as a colony (defense ×1.5, once). Without the
+   * flag the colony bonus compounded every tick — measured: ×1.5 a tick from tick 82 of a run,
+   * power at 1e99 by tick 600, the threat gauge meaningless for the rest of the run.
+   */
+  colonised?: boolean;
   loyalty: number;
   neighbors: string[];
   buildings: LandBuildingInstance[];
@@ -1487,6 +1493,36 @@ export type AscentPrompt =
   | { kind: 'parliament'; cardId: string }
   /** The granary is empty and still draining. What the realm does about it. */
   | { kind: 'famine'; shortfall: number; options: FamineOption[] }
+  /**
+   * The autopilot asks before it musters.
+   *
+   * A host raised on the player's behalf used to simply appear: a commander taken off a seat, a
+   * fifth of the population under arms, the granary emptied into a baggage train — announced by
+   * a toast, if at all. The plan is the exact one `raiseHostWithPlan` would run, so the number
+   * on the card is the number the muster costs. `Chỉnh lại` hands the same plan to the raise
+   * form; `Chưa cần` silences the autopilot for `MUSTER_DECLINE_TICKS`.
+   */
+  | {
+      kind: 'muster-proposal';
+      heroId: string;
+      plan: {
+        heroId?: string;
+        soldiers: number;
+        rations: number;
+        provisions: number;
+        composition: ArmyComposition;
+        orders: ArmyOrders;
+      };
+      landId: string;
+      /** Seasons until the host stands. */
+      ticks: number;
+      /** Supplies the muster itself burns, beside the baggage the plan carries. */
+      suppliesCost: number;
+      /** Why now: the realm is under its host target, or a wave is close. */
+      purpose: 'target' | 'pressure';
+      /** The front the host will press once raised, when a March Order stands. */
+      frontLandId?: string;
+    }
   /** A rival empire makes a demand of its own: tribute, coalition, or submission. */
   | {
       kind: 'rival-demand';
@@ -1702,33 +1738,17 @@ export interface AscentBattle {
   /** The next change of shape costs no beats at all, bought by a Moment. */
   freeReform?: boolean;
   /**
-   * Beats each shape still needs before this side can stand in it again — the wind clocks.
-   *
-   * Stamped `BATTLE_FORMATION_WIND` on the shape a host walks OUT of, at landing, and ticked
-   * down every beat at the side's stance recovery rate (`BATTLE_STANCE_RECOVERY`). Absent key =
-   * zero = takeable, which is also what makes old saves migrate for free. A `Partial<Record>`
-   * rather than an array so the save file is self-describing — a `number[]` would silently remap
-   * every shape if `FORMATION_RING` were ever reordered under a stored game.
+   * Stamina: pips in hand for changing shape. Two to start, one spent per change, one back every
+   * `BATTLE_STAMINA_REGEN_BEATS` on `staminaClock`. Absent = full (old saves). See docs/20.
    */
-  ourWind?: Partial<Record<BattleFormation, number>>;
-  theirWind?: Partial<Record<BattleFormation, number>>;
-  /**
-   * Each side's signature shape — wind 2 instead of 3 when left. Fixed at muster from the
-   * doctrine of the side's largest host; `balanced` hosts have none. See `SIGNATURE_SHAPE`.
-   */
-  ourSignature?: BattleFormation;
-  theirSignature?: BattleFormation;
+  stamina?: number;
+  staminaClock?: number;
   /**
    * The invader's temper, from his kingdom's personality (great waves are always `cunning`).
-   * Decides his hesitation, his restlessness at even shape, and whether he presses — printed
-   * beside his name on the strength rail, because a personality the player cannot see is just
-   * weather.
+   * Decides how fast he answers once losing and whether he presses — printed beside his name on
+   * the strength rail, because a personality the player cannot see is just weather.
    */
   commanderTemper?: 'hasty' | 'measured' | 'stubborn' | 'cunning';
-  /** Beats since the invader last changed shape — the restless tempers rotate off this clock. */
-  beatsSinceTheirShape?: number;
-  /** How many times the invader has changed shape this fight — the harnesses read the cadence. */
-  theirRotations?: number;
   /** Hosts that have broken and left the line, either side. */
   brokenHostIds: string[];
   /** Men of ours lost so far, so an orderly withdrawal can recover its stragglers. */
@@ -2170,6 +2190,10 @@ export interface AscentState {
   activeBattle?: AscentBattle;
   /** True while the player has handed battles back to their generals. Reversible from Settings. */
   autoResolveBattles: boolean;
+  /** True when the autopilot may muster without asking. Off by default; reversible from Settings. */
+  autoMusterSilently?: boolean;
+  /** The turn before which the autopilot will not propose another muster — a declined card. */
+  musterDeclinedUntil?: number;
   /**
    * This state exists to fight one battle and nothing else — see `BattleArenaScene`.
    *

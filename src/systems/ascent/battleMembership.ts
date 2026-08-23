@@ -83,6 +83,16 @@ export function enrolArrivals(state: GameState, battle: AscentBattle): { ours: n
         // arrived elsewhere the next tick, and the field it had been counted on emptied — the
         // line "broke" at round zero with nobody having struck a blow.
         state.movementOrders = state.movementOrders.filter((order) => order.armyId !== army.id);
+      } else if (
+        battle.role === 'offence' && !ours.has(army.id) && neighbours.has(army.landId)
+        && army.orders?.kind === 'attack' && army.orders.landId === battle.landId
+      ) {
+        // Relief for an assault. The attackers stand on their origin and close on the walls, so
+        // a host sent to reinforce them is enrolled the moment it reaches a province next to the
+        // target under orders to storm it — and its march is dropped, or the standing order would
+        // launch it at the walls alone as a second assault the tick after it joined this one.
+        ours.add(army.id);
+        state.movementOrders = state.movementOrders.filter((order) => order.armyId !== army.id);
       }
       continue;
     }

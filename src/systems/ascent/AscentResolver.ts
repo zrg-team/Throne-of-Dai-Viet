@@ -17,6 +17,9 @@ import { reignName, reignSummary } from '../decree/SchoolSystem';
 import { resolveDoctrine } from './RealmDoctrineSystem';
 import { resolveEnvoy } from './EnvoySystem';
 import { resolveFamine } from './FamineSystem';
+import { raiseHostWithPlan } from './MusterSystem';
+import { MUSTER_DECLINE_TICKS } from '../../game/ascentConfig';
+import { pushToast } from '../empire/notifications';
 import { resolveRivalDemand } from './RivalDirector';
 import { resolveStoryBeat } from '../story/StorySystem';
 import { passHeroSummon, recruitSummonedHero } from './SummonSystem';
@@ -197,6 +200,26 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
 
     case 'famine': {
       handled = resolveFamine(state, choiceId);
+      break;
+    }
+
+    case 'muster-proposal': {
+      // Accepting runs the plan on the card; a muster that can no longer be afforded (the world
+      // moved while the card stood) says why rather than failing silently. Adjusting closes the
+      // card and leaves the plan to the raise form — the screen hands it over — with a short
+      // silence so the autopilot does not propose again while the form is open. Declining is
+      // the long silence.
+      if (choiceId === 'accept') {
+        const result = raiseHostWithPlan(state, prompt.plan);
+        if (!result.ok && result.reason) pushToast(state, result.reason, 'threat');
+        if (result.ok) ascent.autopilotStats.recruits += 1;
+        ascent.musterDeclinedUntil = state.turn + (result.ok ? 0 : 4);
+      } else if (choiceId === 'adjust') {
+        ascent.musterDeclinedUntil = state.turn + 4;
+      } else {
+        ascent.musterDeclinedUntil = state.turn + MUSTER_DECLINE_TICKS;
+      }
+      handled = true;
       break;
     }
 

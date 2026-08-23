@@ -58,6 +58,9 @@ import {
 } from './RealmDoctrineSystem';
 import { pushToast } from '../empire/notifications';
 import { t } from '../../i18n';
+import { enqueueAscentPrompt } from './AscentState';
+import { defaultMusterPlan, musterBlockedReason } from './MusterSystem';
+import { getMusterEstimate } from '../WarSystem';
 import type { GameState, Land, LandBuildingType } from '../../state/types';
 
 /**
@@ -340,7 +343,40 @@ function autoRecruit(state: GameState): boolean {
   // One muster at a time per land; bail early rather than spam a failing call.
   if (lands.some((land) => getRecruitmentOrder(state, land.id))) return false;
 
-  return raiseHostNow(state);
+  if (state.ascent?.autoMusterSilently) return raiseHostNow(state);
+  proposeMuster(state, underPressure(state) ? 'pressure' : 'target');
+  return false;
+}
+
+/**
+ * Puts the muster to the player instead of making it.
+ *
+ * The plan is `defaultMusterPlan` — the same sizing `raiseHostNow` uses, under the same free
+ * commander — so what the card shows is what accepting it raises. Nothing is queued while a
+ * card of this kind is already up or queued (`enqueueAscentPrompt` refuses a duplicate kind
+ * anyway), while the player's refusal still stands, or when the plan could not be mustered as it
+ * is: a card whose only answer is "you cannot afford this" is a toast with extra steps.
+ */
+export function proposeMuster(state: GameState, purpose: 'target' | 'pressure'): boolean {
+  const ascent = state.ascent;
+  if (!ascent) return false;
+  if (state.turn < (ascent.musterDeclinedUntil ?? 0)) return false;
+  if (state.pendingAscentPrompt || ascent.promptQueue.length > 0) return false;
+  const plan = defaultMusterPlan(state);
+  if (!plan.heroId || musterBlockedReason(state, plan)) return false;
+  const estimate = getMusterEstimate(state, plan.soldiers);
+  if (!estimate.land) return false;
+  enqueueAscentPrompt(state, {
+    kind: 'muster-proposal',
+    heroId: plan.heroId,
+    plan,
+    landId: estimate.land.id,
+    ticks: estimate.ticks,
+    suppliesCost: estimate.suppliesCost,
+    purpose,
+    frontLandId: ascent.frontLandId,
+  });
+  return true;
 }
 
 /**

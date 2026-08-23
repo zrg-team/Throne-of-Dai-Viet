@@ -64,14 +64,14 @@ const layout = await page.evaluate(async () => {
   // about this particular arena host's doctrine.
   const battle = window.__mandateState.ascent.activeBattle;
   const B = await import('/src/systems/ascent/BattleSystem.ts');
-  const wind = B.battleWindView(battle);
-  const winded = Object.entries(wind.takeable).filter(([, ok]) => !ok).map(([k]) => k);
-  // Since the lock's retirement every stance answers on every beat — four targets, always.
+  // Every chip has a hit zone now — a chip without a pip to pay for it answers the tap with a
+  // refusal rather than silence — and the stance row is three postures, not four.
+  const pips = B.battleStamina(battle).pips;
 
   return {
     design,
-    windedShapes: winded,
-    expectedTargets: 4 + (5 - winded.length),
+    windedShapes: pips === 0 ? ['(no pips)'] : [],
+    expectedTargets: 3 + 5,
     fieldHeight: ui.battleUi.fieldHeight,
     dock: targets(ui.battleUi.orders, 'dock'),
     exits: targets(ui.battleUi.exits, 'exit'),
@@ -108,13 +108,13 @@ check(layout.design <= 640, 'measured on a short phone', `design height ${layout
 check(layout.dock.length === layout.expectedTargets,
   'every stance and shape that is offered is tappable',
   `${layout.dock.length} targets, expected ${layout.expectedTargets}`
-  + (layout.windedShapes.length ? ` (${layout.windedShapes.join(',')} winded)` : ''));
-check(layout.exits.length === 2, 'two exits, and they are not on the dock', `${layout.exits.length} chips`);
+  + (layout.windedShapes.length ? ` ${layout.windedShapes.join(',')}` : ''));
+check(layout.exits.length === 4, 'four exits — Pause and Lui binh among them — and none on the dock', `${layout.exits.length} chips`);
 
 // The formation strip is the bottom band and the largest thing on it.
 const byY = layout.dock.slice().sort((a, b) => a.y - b.y);
-const stance = byY.slice(0, 4);
-const shapes = byY.slice(4);
+const stance = byY.slice(0, 3);
+const shapes = byY.slice(3);
 check(stance.every((s) => shapes.every((f) => f.y >= s.y + s.h)),
   'the formation strip sits below the stance strip',
   `stance at ${stance[0]?.y}, shapes at ${shapes[0]?.y}`);
