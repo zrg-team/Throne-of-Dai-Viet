@@ -140,8 +140,18 @@ const run = await page.evaluate(async () => {
   // Measured on a living realm. A long run can end annihilated — a roguelite is allowed to
   // lose — and a realm with no provinces has nobody to starve, so the stress falls back to a
   // fresh realm advanced sixty seasons rather than reading nothing off a dead one.
+  //
+  // The population floor is the same rule, honestly stated. "No provinces" was too narrow: a run
+  // that clung on at one battered province with fifty people in it still passed the guard, and
+  // then a six-season famine took nothing off fifty and logged nothing, so both starvation checks
+  // failed for want of anybody to starve rather than for want of working machinery. What the
+  // stress needs is a realm with something to lose, not merely a realm that exists.
+  const STRESS_MIN_POP = 150;
+  const livingPop = st.lands
+    .filter((l) => l.ownerId === 'dai-viet')
+    .reduce((n, l) => n + l.population, 0);
   let stress = st;
-  if (st.isDefeated || !st.lands.some((l) => l.ownerId === 'dai-viet')) {
+  if (st.isDefeated || livingPop < STRESS_MIN_POP) {
     stress = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
     stress.ascent.autoResolveBattles = true;
     for (let i = 0; i < 60 && !stress.isDefeated; i += 1) {

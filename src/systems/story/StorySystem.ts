@@ -5,6 +5,7 @@ import { pushToast } from '../empire/notifications';
 import { enqueueAscentPrompt } from '../ascent/AscentState';
 import { storyTemplate, storyTemplates } from '../../data/stories';
 import { storyText } from '../../i18n/story';
+import { dropCharges } from './charges';
 import { findEcho, recordEcho } from './echoes';
 import { unlockStory } from '../../state/codex';
 import type {
@@ -21,7 +22,7 @@ import type {
   StoryVolume,
   StoryWatch,
 } from '../../state/types';
-import type { StoryCtx, StoryFragment, StoryTemplate, StoryWorldDelta } from './types';
+import type { StoryCtx, StoryFragment, StoryOutcome, StoryTemplate, StoryWorldDelta } from './types';
 
 /**
  * The Chronicle.
@@ -224,7 +225,12 @@ function enterNode(state: GameState, story: ActiveStory, template: StoryTemplate
 
 function makeCtx(state: GameState, story: ActiveStory, world: StoryWorldDelta): StoryCtx {
   const template = storyTemplate(story.templateId);
-  return {
+  // What this beat did, collected as it happens. De-duplicated by (kind, name) so a verb called
+  // twice reads as one larger number rather than two lines saying half of it each.
+  const noted: StoryOutcome[] = [];
+  // Named rather than returned inline: `leaveEcho` has to read `ctx.speaking` back out at call
+  // time, and it is only set once the engine knows which fragment is talking.
+  const ctx: StoryCtx = {
     state,
     story,
     world,
@@ -244,11 +250,23 @@ function makeCtx(state: GameState, story: ActiveStory, world: StoryWorldDelta): 
     heat: (by) => { story.temperature = Math.max(0, story.temperature + by); },
     sharing: () => (state.stories ?? []).filter((other) => other.id !== story.id && sharesSubject(other, story)).length,
     echoOf: (templateId, fragmentId) => findEcho(templateId, fragmentId)?.name,
-    leaveEcho: (name) => recordEcho(story.templateId, story.spoken[story.spoken.length - 1] ?? '', name),
+    // `ctx.speaking` first, and the fallback only for a caller that never set it. Reading
+    // `spoken[last]` alone was wrong everywhere it mattered: inside a fragment's own `effect` the
+    // id has already been pushed and it happens to be right, but an option's `apply` runs before
+    // `fire`, so every echo left from an *answer* was filed under the previous beat and `echoOf`
+    // could never match it. That is the whole cross-run promise, and it had never worked.
+    leaveEcho: (name) => recordEcho(story.templateId, ctx.speaking ?? story.spoken[story.spoken.length - 1] ?? '', name),
+    note: (kind, amount, name) => {
+      const hit = noted.find((entry) => entry.kind === kind && entry.name === name);
+      if (hit && amount !== undefined) hit.amount = (hit.amount ?? 0) + amount;
+      else if (!hit) noted.push({ kind, amount, name });
+    },
+    noted,
     node: () => (template ? nodeOf(story, template) : ''),
     goTo: (nodeId) => { if (template) enterNode(state, story, template, nodeId); },
     drift: () => story.drift ?? 'chinh-su',
   };
+  return ctx;
 }
 
 /** True when two stories have taken an interest in the same person, place or court. */
@@ -496,7 +514,7 @@ function pickFragment(template: StoryTemplate, ctx: StoryCtx, whispersOnly = fal
 
 // ── Speaking ────────────────────────────────────────────────────────────────
 
-function record(state: GameState, story: ActiveStory, fragment: StoryFragment): void {
+function record(state: GameState, story: ActiveStory, fragment: StoryFragment, ctx: StoryCtx): void {
   const chronicle = state.chronicle ?? [];
   storySeq += 1;
   const entry: ChronicleEntry = {
@@ -513,9 +531,17 @@ function record(state: GameState, story: ActiveStory, fragment: StoryFragment): 
     // `chinh-su` made forty-five templates that nobody has placed against the record claim to be
     // in the annals — measured, every ending in six runs came back chính sử, most of them from
     // stories carrying no source class at all. An absent tag is honest; a wrong one is not.
+    //
+    // A flat template says so for itself with `record`, one authored word. Before that existed,
+    // forty-five of forty-eight templates wrote `undefined` here, `chronicleTally` skipped them
+    // all, and the Reckoning gated its whole story row on a count that was almost always zero —
+    // so a run that concluded five stories closed without mentioning one of them.
     historicity: storyTemplate(story.templateId)?.nodes?.length
       ? (story.drift ?? 'chinh-su')
-      : undefined,
+      : storyTemplate(story.templateId)?.record,
+    // What the ending did. Held here as well as on `story.history` because the `ActiveStory` is
+    // deleted the moment a terminal fires, and the record has to outlive it.
+    outcome: ctx.noted.length ? [...ctx.noted] : undefined,
   };
   chronicle.push(entry);
   if (chronicle.length > 60) chronicle.splice(0, chronicle.length - 60);
@@ -528,19 +554,32 @@ function fire(state: GameState, story: ActiveStory, fragment: StoryFragment, ctx
   // on speech rather than on seeding, because a story that seeded latent and never spoke is one
   // the player has not met.
   if (story.spoken.length === 0) unlockStory(story.templateId);
+  // Pushed before the effect runs, so `ctx.said(ownId)` inside that effect still reads true —
+  // several fragments rely on it. `ctx.speaking` is the separate, honest answer to "which beat
+  // is talking", and is what `leaveEcho` keys off.
   story.spoken.push(fragment.id);
-  // The dated record the story page reads back. `spoken` answers "has this been said";
-  // history answers "what happened, and when" — which is the difference between a flag
-  // check and a story.
-  story.history = [...(story.history ?? []), { fragmentId: fragment.id, turn: state.turn }];
+  ctx.speaking ??= fragment.id;
   story.lastSpokeTurn = state.turn;
   if (fragment.heat) ctx.heat(fragment.heat);
   fragment.effect?.(ctx);
+  // The dated record the story page reads back. `spoken` answers "has this been said";
+  // history answers "what happened, and when" — which is the difference between a flag check
+  // and a story. Booked *after* the effect so it can carry what the beat actually did, not
+  // merely that it happened.
+  story.history = [...(story.history ?? []), {
+    fragmentId: fragment.id,
+    turn: state.turn,
+    outcome: ctx.noted.length ? [...ctx.noted] : undefined,
+  }];
 
   if (fragment.terminal) {
-    record(state, story, fragment);
+    record(state, story, fragment, ctx);
     state.stories = (state.stories ?? []).filter((candidate) => candidate.id !== story.id);
     state.storiesEnded = [...(state.storiesEnded ?? []), story.templateId];
+    // An oath outlives its story otherwise: `tickStoryCharges` only drops a charge whose story has
+    // already vanished, and only on the next tick, so the Chronicle screen kept showing a vow
+    // sworn by somebody whose story had finished.
+    dropCharges(state, story.id);
   }
 }
 
@@ -551,6 +590,10 @@ function whisper(state: GameState, story: ActiveStory, fragment: StoryFragment, 
     state,
     storyText(`${story.templateId}.${fragment.id}.line`, params),
     fragment.tone ?? 'info',
+    // The reference is what turns a line that scrolls past into a door. Every whisper has a
+    // forty-to-ninety word `scene` written for it and, until the strip existed, no way at all to
+    // reach it: Ascent runs `ConquestUIScene`, which reads neither `state.message` nor the log.
+    { storyId: story.id, templateId: story.templateId, fragmentId: fragment.id },
   );
   fire(state, story, fragment, ctx);
 }
@@ -814,6 +857,9 @@ export function resolveStoryBeat(state: GameState, storyId: string, fragmentId: 
   if (!fragment) return true;
 
   const ctx = makeCtx(state, story, worldDelta(state, state.storyWatch ?? snapshot(state)));
+  // Set here rather than left to `fire`: an option's `apply` runs first, and anything it books —
+  // an echo above all — must be filed against the beat being answered.
+  ctx.speaking = fragment.id;
 
   // Normally `offerStoryBeat` clears this when it builds the prompt. When beats are muted there is
   // no prompt: the story is answered straight off its own page, and nothing else would ever let go
@@ -825,6 +871,7 @@ export function resolveStoryBeat(state: GameState, storyId: string, fragmentId: 
 
   if (fragment.volume === 'blow' || !fragment.options?.length) {
     fire(state, story, fragment, ctx);
+    publishOutcome(state, story, fragment, ctx);
     return true;
   }
 
@@ -834,6 +881,7 @@ export function resolveStoryBeat(state: GameState, storyId: string, fragmentId: 
     // the run sits on a card whose buttons do nothing — a far worse failure than a fragment that
     // resolves without applying anything.
     fire(state, story, fragment, ctx);
+    publishOutcome(state, story, fragment, ctx);
     return true;
   }
   if (option.cost && !canSpend(state, option.cost)) return false;
@@ -843,6 +891,7 @@ export function resolveStoryBeat(state: GameState, storyId: string, fragmentId: 
     applyResourceDelta(state, Object.fromEntries(
       Object.entries(option.cost).map(([key, value]) => [key, -(value ?? 0)]),
     ));
+    noteCost(ctx, option.cost);
   }
   // Echo: remember *when* this was answered, so a later fragment can quote the season back.
   ctx.remember('echoTurn', state.turn);
@@ -853,9 +902,70 @@ export function resolveStoryBeat(state: GameState, storyId: string, fragmentId: 
   option.apply(ctx);
   // The trunk moves *after* the effect, so an `apply` that reads the current node still sees the
   // one the player was answering from.
-  if (option.to && template) enterNode(state, story, template, option.to);
+  if (option.to && template) {
+    const from = nodeOf(story, template);
+    enterNode(state, story, template, option.to);
+    noteTurn(ctx, story, from, option.to);
+  }
   fire(state, story, fragment, ctx);
+  publishOutcome(state, story, fragment, ctx);
   return true;
+}
+
+/**
+ * Hands the ledger to the UI, once.
+ *
+ * Everything the beat did is already collected on `ctx.noted`; this is only the handover. A beat
+ * that changed nothing observable sets nothing, so the report card never appears to say "nothing
+ * happened" — silence is still a legitimate outcome and does not deserve a modal.
+ */
+function publishOutcome(state: GameState, story: ActiveStory, fragment: StoryFragment, ctx: StoryCtx): void {
+  if (!ctx.noted.length) return;
+  state.lastStoryOutcome = {
+    templateId: story.templateId,
+    fragmentId: fragment.id,
+    params: storyParams(state, story),
+    outcome: [...ctx.noted],
+    historicity: storyTemplate(story.templateId)?.nodes?.length ? (story.drift ?? 'chinh-su') : undefined,
+  };
+}
+
+/**
+ * The turn a trunked answer took, in the node's own authored words.
+ *
+ * Forty-three options across `orange`, `thanh-giong` and `tien-phat` route the trunk and do
+ * nothing else at the moment they are pressed — the destination beat pays, one card later. That
+ * is the right idiom and it stays, but it left the press itself reading as inert, which is most
+ * of "one question and then just story". The node names already exist and are already drawn on
+ * the story page's spine; this simply says out loud which way the answer went.
+ *
+ * Never for a self-loop: a repeatable door names its own node in `to`, and "the story turns
+ * toward the forge" is a lie when the story was already at the forge and has not moved.
+ */
+function noteTurn(ctx: StoryCtx, story: ActiveStory, from: string, to: string): void {
+  if (!to || to === from) return;
+  const key = `${story.templateId}.node.${to}`;
+  const name = storyText(key, storyParams(ctx.state, story));
+  if (name === key) return;
+  ctx.note('turned', undefined, name);
+  // Only when nothing else happened. A one-line report saying merely that the story moved is
+  // thin; beside a real consequence, restating the stake is noise.
+  if (ctx.noted.length === 1) {
+    const stake = storyText(`${story.templateId}.stake`, storyParams(ctx.state, story));
+    if (stake !== `${story.templateId}.stake`) ctx.note('stakeNow', undefined, stake);
+  }
+}
+
+/**
+ * Books an option's price into the same ledger as its result.
+ *
+ * A card that says only what it costs is the entire complaint this exists to answer, so the two
+ * halves belong in one record: what you paid, and what it bought.
+ */
+function noteCost(ctx: StoryCtx, cost: Partial<ResourceBag>): void {
+  for (const [key, value] of Object.entries(cost)) {
+    if (value) ctx.note(key, -value);
+  }
 }
 
 // ── Openings ────────────────────────────────────────────────────────────────
@@ -930,6 +1040,7 @@ export function takeOpening(state: GameState, storyId: string, fragmentId: strin
   if (!story || !fragment) return false;
 
   const ctx = makeCtx(state, story, worldDelta(state, state.storyWatch ?? snapshot(state)));
+  ctx.speaking = fragment.id;
   const option = fragment.options?.[0];
   if (option) {
     if (option.cost && !canSpend(state, option.cost)) return false;
@@ -938,17 +1049,29 @@ export function takeOpening(state: GameState, storyId: string, fragmentId: strin
       applyResourceDelta(state, Object.fromEntries(
         Object.entries(option.cost).map(([key, value]) => [key, -(value ?? 0)]),
       ));
+      noteCost(ctx, option.cost);
     }
     ctx.remember('echoTurn', state.turn);
+    // The card writes this and the door never did, so a fragment could not tell whether a
+    // standing offer had been taken or merely gone quiet.
+    ctx.remember(`chose_${option.id}`, 1);
     if (option.historicity) ctx.bump(option.historicity === 'annal' ? 'su' : 'lech');
     option.apply(ctx);
     // A repeatable offering — Thánh Gióng's granary, say — names its own node in `to`, so taking
     // it leaves the story exactly where it was and the door can be opened again.
-    if (option.to && template) enterNode(state, story, template, option.to);
+    if (option.to && template) {
+      const from = nodeOf(story, template);
+      enterNode(state, story, template, option.to);
+      noteTurn(ctx, story, from, option.to);
+    }
   }
   story.offer = undefined;
   story.offerUntil = undefined;
   fire(state, story, fragment, ctx);
+  // Taking a door used to produce no acknowledgement whatsoever: you gave two hundred of the
+  // granary and the sheet simply closed. That silence is most of "I cannot tell what my choices
+  // did", and it is why the ledger matters more here than on the card.
+  publishOutcome(state, story, fragment, ctx);
   return true;
 }
 
@@ -964,7 +1087,7 @@ export function takeOpening(state: GameState, storyId: string, fragmentId: strin
 export function storySpokenHistory(
   state: GameState,
   story: ActiveStory,
-): { fragmentId: string; turn?: number }[] {
+): { fragmentId: string; turn?: number; outcome?: StoryOutcome[] }[] {
   if (story.history?.length) return story.history;
   return story.spoken.map((fragmentId) => ({ fragmentId }));
 }

@@ -86,7 +86,7 @@ function stagingFor(state: GameState, army: Army, landId: string): string | unde
  */
 export function setArmyOrders(state: GameState, armyId: string, orders: ArmyOrders): boolean {
   const army = state.armies.find((candidate) => candidate.id === armyId && candidate.kingdomId === PLAYER_KINGDOM_ID);
-  if (!army || army.isLevy) return false;
+  if (!army || army.isLevy || army.patron) return false;
   if ((orders.kind === 'defend' || orders.kind === 'attack') && !findLand(state, orders.landId)) return false;
   if ((orders.kind === 'follow' || orders.kind === 'hunt')
     && (orders.armyId === army.id || !state.armies.some((candidate) => candidate.id === orders.armyId))) return false;
@@ -112,7 +112,7 @@ export function setArmyOrders(state: GameState, armyId: string, orders: ArmyOrde
  */
 export function recallHost(state: GameState, armyId: string): { ok: boolean; reason?: string } {
   const army = state.armies.find((candidate) => candidate.id === armyId && candidate.kingdomId === PLAYER_KINGDOM_ID);
-  if (!army || army.isLevy) return { ok: false };
+  if (!army || army.isLevy || army.patron) return { ok: false };
 
   // Out of the line first: a withdrawal is battle-wide, exactly as the screen's own Retreat is.
   if (isEngagedHost(state, army.id)) finishBattle(state, 'retreat');

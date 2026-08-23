@@ -564,13 +564,13 @@ function marchBestHostToTarget(state: GameState, landId: string): boolean {
 
 function bestReachableArmy(state: GameState, land: Land): Army | undefined {
   return state.armies
-    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && Boolean(findLandPath(state, army.landId, land.id)))
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && !army.patron && Boolean(findLandPath(state, army.landId, land.id)))
     .sort((a, b) => armyPower(state, b) - armyPower(state, a))[0];
 }
 
 function bestAdjacentOwnedArmy(state: GameState, land: Land): Army | undefined {
   return state.armies
-    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy)
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && !army.patron)
     .filter((army) => {
       const armyLand = findLand(state, army.landId);
       return Boolean(armyLand && armyLand.ownerId === PLAYER_KINGDOM_ID && armyLand.neighbors.includes(land.id));

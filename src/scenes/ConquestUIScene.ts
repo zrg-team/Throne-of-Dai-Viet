@@ -128,6 +128,7 @@ import { findLand } from '../systems/LandSystem';
 import { CARD_ICON_SIZE, drawCardIcon, iconForOption, type CardIconId } from '../ui/CardIcons';
 import { ASCENT_HUD_HEIGHT, AscentHud } from '../ui/ascent/AscentHud';
 import { AdvisorStrip } from '../ui/ascent/AdvisorStrip';
+import { WhisperLine } from '../ui/ascent/WhisperLine';
 import { Copilot, type CopilotStep } from '../ui/Copilot';
 import { drawFormationCounters } from '../ui/ascent/formationCounters';
 import { hasSeenRunTour, markRunTourSeen, takeGuidedRun } from '../state/tour';
@@ -521,6 +522,8 @@ export class ConquestUIScene extends Phaser.Scene {
   private pausedBadge?: Phaser.GameObjects.Container;
   /** The standing advisor under the readout band. Never rebuilt, only written into. */
   private advisor!: AdvisorStrip;
+  /** The Chronicle's ambient lines, which this mode had no surface for at all. */
+  private whispers!: WhisperLine;
   /**
    * The four cards a first run is shown, while they are up.
    *
@@ -691,6 +694,9 @@ export class ConquestUIScene extends Phaser.Scene {
     // advice names a lane and the bar already knows how to open every lane there is. A second
     // route into those screens is a second thing to keep correct.
     this.advisor = new AdvisorStrip(this, (lane) => this.handleBarAction(lane));
+    // Under the advisor, and a door rather than a notice: every whisper has a scene written for
+    // it that nothing in this mode could reach.
+    this.whispers = new WhisperLine(this, (storyId) => this.showStoryPage(storyId));
 
     // Taken once, here, rather than read where it is used: the flag is a one-shot handoff from the
     // manual and any second reader would find it already spent.
@@ -704,6 +710,7 @@ export class ConquestUIScene extends Phaser.Scene {
       this.stopBattleClock();
       window.__hudTapBounds = [];
       this.advisor.destroy();
+      this.whispers.destroy();
       this.runTour?.destroy();
       this.runTour = undefined;
       this.waveBanner?.destroy();
@@ -730,6 +737,7 @@ export class ConquestUIScene extends Phaser.Scene {
     // Written before the lane guards below: those can return early, and the one line on screen
     // that claims to be reading the run must never be a tick behind the band above it.
     this.advisor.render(this.state);
+    this.whispers.render(this.state, this.advisor.bottom());
 
     // A lane that renders nothing has stranded the player: the bar and the map controls are
     // torn down before the screen is built, so an empty modal layer means no UI at all and no
@@ -777,6 +785,27 @@ export class ConquestUIScene extends Phaser.Scene {
     const runEnding = prompt?.kind === 'run-over';
     if (runEnding && this.state.ascent?.pendingAftermath && !overlayOpen) {
       this.openAftermath();
+      return;
+    }
+
+    // What the last answer actually did, before the next question is asked.
+    //
+    // Ahead of the prompt block on purpose: a story that chains straight into another beat would
+    // otherwise overwrite `lastStoryOutcome` before it was ever read, and the one thing the player
+    // asked for — being able to tell what a choice was worth — would be the thing dropped. It
+    // yields only to the Reckoning, which nothing may sit in front of.
+    //
+    // Deliberately NOT an `AscentPrompt`: it would come out of `STORY_PROMPT_SHARE`'s fifteen per
+    // cent and be rationed against the story cards it is reporting on.
+    const outcome = this.state.lastStoryOutcome;
+    if (outcome && !overlayOpen && !runEnding) {
+      if (this.openPromptKey !== 'story-outcome') {
+        this.lanePauseBeforeOpen = this.state.isStrategyPause;
+        this.state.isStrategyPause = true;
+        this.beginOverlay('story-outcome');
+        this.showStoryOutcome(outcome);
+        if (this.modalLayer.length === 0) this.dismissStoryOutcome();
+      }
       return;
     }
 
@@ -1790,10 +1819,11 @@ export class ConquestUIScene extends Phaser.Scene {
     this.actionBar.setVisible(!hidden);
     if (!hidden) this.actionBar.refresh();
     this.advisor.setVisible(!hidden);
+    this.whispers.setVisible(!hidden);
     // AFTER `renderMapControls`, which rewrites `__hudTapBounds` wholesale — the advisor's own
     // rectangle has to be appended to that list rather than published before it and overwritten.
     this.renderMapControls(hidden);
-    if (!hidden) window.__hudTapBounds!.push(...this.advisor.tapBounds());
+    if (!hidden) window.__hudTapBounds!.push(...this.advisor.tapBounds(), ...this.whispers.tapBounds());
     this.renderPausedBadge(hidden);
     this.maybeRunTour(hidden);
   }
@@ -5620,6 +5650,110 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     finish(used);
   }
 
+  private dismissStoryOutcome(): void {
+    this.state.lastStoryOutcome = undefined;
+    this.state.isStrategyPause = this.lanePauseBeforeOpen;
+    this.closeOverlay();
+  }
+
+  /**
+   * What an answer did to the realm — afterwards, and only afterwards.
+   *
+   * **A report, never a preview.** The card the player just answered still shows nothing but its
+   * price, which is the design and stays the design: an option that prints its own consequence is
+   * a walkthrough, and a story you can solve is not a story. But a run in which six beats are
+   * answered and none of them visibly change anything is not restraint, it is silence — and that
+   * is what "I don't know how it affects my kingdom" was describing.
+   *
+   * So the class, the turn the story took and the arithmetic all land here, one tap later, when
+   * the decision is already irrevocable and nothing about knowing can be used to game it.
+   *
+   * The lines come from `ctx.note`, called by the verbs in `effects.ts` as they work. Anything a
+   * story deliberately conceals — a defection, a mutiny — simply never calls it, so there is no
+   * exclusion list here to fall out of step with the vocabulary.
+   */
+  private showStoryOutcome(report: NonNullable<GameState['lastStoryOutcome']>): void {
+    const stem = `${report.templateId}.${report.fragmentId}`;
+    const chronicle = storyText(`${stem}.chronicle`, report.params);
+    const { body, bodyWidth, finish } = this.promptScrollBody(
+      storyTitle(report.templateId),
+      chronicle !== `${stem}.chronicle` ? chronicle : '',
+      0,
+    );
+
+    let used = 0;
+
+    // The class of the path, where the story has one. Same three inks as the spine, so the two
+    // screens are legibly about the same thing.
+    if (report.historicity) {
+      const chip = this.ui.card(
+        { x: 0, y: used, width: bodyWidth, height: 34 },
+        {
+          title: '',
+          subtitle: t(`ascent.story.class.${report.historicity}` as Parameters<typeof t>[0]),
+          border: report.historicity === 'chinh-su'
+            ? INK_UI.jade
+            : report.historicity === 'da-su' ? INK_UI.gold : INK_UI.cinnabar,
+        },
+      );
+      body.add(chip);
+      used += ((chip.getData('cardHeight') as number) ?? 34) + 10;
+    }
+
+    const heading = this.add.text(2, used, t('ascent.story.outcome.changed').toLocaleUpperCase(), {
+      color: INK_UI_HEX.mutedText,
+      fontFamily: UI_FONT,
+      fontSize: '10px',
+      fontStyle: '700',
+    });
+    heading.setLetterSpacing?.(1.6);
+    body.add(heading);
+    used += 18;
+
+    for (const entry of report.outcome) {
+      const key = `ascent.story.outcome.${entry.kind}` as Parameters<typeof t>[0];
+      // A signed figure, because this is a ledger and the direction is the point. The key itself
+      // carries no + or −, so a line that only ever moves one way still reads correctly.
+      const n = entry.amount === undefined
+        ? ''
+        : `${entry.amount > 0 ? '+' : entry.amount < 0 ? '−' : ''}${Math.abs(Math.round(entry.amount))}`;
+      const line = t(key, { n, name: entry.name ?? '' });
+      // An unknown kind resolves to its own key. Print nothing rather than `ascent.story.
+      // outcome.whatever` — a missing string is a bug for the harness to catch, not a line of
+      // gibberish for the player to read.
+      if (line === key) continue;
+      const gain = (entry.amount ?? 0) > 0 || entry.amount === undefined;
+      const rail = this.add.graphics();
+      rail.fillStyle(gain ? INK_UI.jade : INK_UI.cinnabar, 0.7);
+      rail.fillRect(2, used + 3, 3, 13);
+      body.add(rail);
+      const text = this.ui.label(14, used, line, 'body', {
+        fontSize: '12px',
+        wordWrap: { width: bodyWidth - 20 },
+      });
+      body.add(text);
+      used += Math.max(20, text.height + 6);
+    }
+    used += 10;
+
+    const ack = this.optionCard(
+      { x: 0, y: used, width: bodyWidth, height: 48 },
+      {
+        title: t('ascent.story.outcome.ok'),
+        body: '',
+        accent: INK_UI.gold,
+        parent: body,
+        onTap: () => {
+          this.dismissStoryOutcome();
+          this.refresh();
+        },
+      },
+    );
+    used += ((ack.getData('cardHeight') as number) ?? 48) + 8;
+
+    finish(used);
+  }
+
   /**
    * Sử Ký — what has already happened, in past tense.
    *
@@ -5850,8 +5984,36 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       }
     }
 
-
-
+    // ── Đã nghe: the lines that went past ──
+    //
+    // The permanent half of the whisper strip. The strip is four and a half seconds and gone;
+    // this is where a player who was reading the map instead comes to find out what was said —
+    // and, because every row opens the story it came from, where the scene behind the line is
+    // finally reachable. Before both existed, forty-three per cent of the catalogue was written,
+    // translated, fired and discarded without ever being drawn.
+    {
+      const heard = (state.eventLog ?? []).filter((entry) => entry.ref).slice(-12).reverse();
+      if (heard.length > 0) {
+        addHeading(t('ascent.chronicle.heard'));
+        for (const entry of heard) {
+          const ref = entry.ref!;
+          const live = (state.stories ?? []).some((candidate) => candidate.id === ref.storyId);
+          addRow(
+            {
+              title: storyTitle(ref.templateId),
+              subtitle: entry.text,
+              border: entry.kind === 'threat' ? INK_UI.cinnabar
+                : entry.kind === 'reward' || entry.kind === 'milestone' ? INK_UI.gold : INK_UI.softBrush,
+              muted: true,
+            },
+            // A story that has since ended has no page to open. The line stays readable; it
+            // simply stops being a door, which is better than a door onto the Chronicle it is
+            // already sitting in.
+            live ? () => this.showStoryPage(ref.storyId) : undefined,
+          );
+        }
+      }
+    }
 
 
     /** One story as one person: name · want, then the latest line, then the state. */
@@ -6078,6 +6240,29 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       });
       body.add(beatText);
       used += Math.max(18, beatText.height + 7);
+
+      // What that beat cost and what it bought, under the beat itself.
+      //
+      // The report card says it once, on the way past; this is where it stays. Three seasons
+      // later, "what did giving him the grain actually do" has an answer on the page rather than
+      // only in a modal the player has already dismissed.
+      for (const entry of beat.outcome ?? []) {
+        const key = `ascent.story.outcome.${entry.kind}` as Parameters<typeof t>[0];
+        const n = entry.amount === undefined
+          ? ''
+          : `${entry.amount > 0 ? '+' : entry.amount < 0 ? '−' : ''}${Math.abs(Math.round(entry.amount))}`;
+        const ledger = t(key, { n, name: entry.name ?? '' });
+        if (ledger === key) continue;
+        const row = this.ui.label(48, used, ledger, 'caption', {
+          fontSize: '10px',
+          color: (entry.amount ?? 0) < 0
+            ? `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`
+            : INK_UI_HEX.mutedText,
+          wordWrap: { width: bodyWidth - 52 },
+        });
+        body.add(row);
+        used += Math.max(14, row.height + 3);
+      }
     });
     used += 8;
 

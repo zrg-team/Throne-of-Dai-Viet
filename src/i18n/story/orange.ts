@@ -11,7 +11,43 @@ export const orangeVi: StoryCatalog = {
   title: 'Quả Cam',
   want: 'được đứng trong hàng, dù chỉ ở cuối hàng',
   waiting: 'Cậu ta vẫn đứng ngoài, và vẫn chưa đi.',
-  stake: 'Một nghìn gia nô của một nhà, và một đứa trẻ mười lăm tuổi.',
+  stake: 'Một nghìn gia nô, một đứa trẻ mười lăm tuổi, và tất cả những gì ngươi đã gửi theo họ.',
+
+  'regard.fed': 'Họ ăn gạo của ngươi, và vẫn không nhận lệnh của ngươi.',
+  'regard.swollen': 'Dưới lá cờ ấy giờ đông hơn dưới cờ ngươi.',
+  'regard.gone': 'Không còn ai đứng dưới lá cờ ấy nữa.',
+
+  'patron.fell': 'Lá cờ sáu chữ ở {land} không còn ai đứng dưới.',
+  'memorial.ham-tu': '{name} — mất ở Hàm Tử, khi chưa đủ mười bảy tuổi.',
+
+  'xin-gao-va-sat.line': 'Quân ấy xin gạo và sắt, và lần này có đơn hẳn hoi.',
+  'xin-gao-va-sat.cap': 'Phê đơn, cấp cho họ',
+  'xin-gao-va-sat.scene': 'Viên thư lại Binh bộ mang tờ đơn tới, giấy tốt, chữ không phải chữ cậu ta — cậu ta chưa học lối viết đơn bao giờ. Trong đơn kê ba khoản: gạo, sắt rèn mũi giáo, và dây gai. Không có khoản nào là tiền. Ông thư lại thưa rằng đơn thế này thì phê cũng được mà bác cũng được, chỉ là bác thì phải viết lý do.',
+  'xin-gao-va-sat.chronicle': 'Quân ấy xin gạo và sắt.',
+
+  'lang-gui-gao.line': 'Một ông lý trưởng xin phép ngươi cho làng gửi gạo theo họ.',
+  'lang-gui-gao.gui': 'Cho làng gửi',
+  'lang-gui-gao.scene': 'Ông lý trưởng đi bộ hai ngày mới tới, mang theo một cái đòn gánh không, vì gạo thì đã để cả ở làng rồi. Ông thưa là làng gom được bảy chục thúng, bốn mươi trai tráng cũng sửa soạn xong, chỉ chờ một tiếng. Ông không xin gì cả. Ông chỉ muốn về mà nói lại với làng rằng đã có xin phép.',
+  'lang-gui-gao.chronicle': 'Một làng xin phép gửi gạo theo lá cờ.',
+
+  'xin-them-nguoi.line': 'Cậu ta xin thêm người, và xin ngay giữa buổi chầu.',
+  'xin-them-nguoi.them': 'Cấp thêm người cho cậu ta',
+  'xin-them-nguoi.scene': 'Cậu ta đứng lên khi chưa tới lượt, xin thêm ba trăm. Quan Binh bộ nhìn xuống sàn. Một ông tướng già ngồi hàng dưới húng hắng ho, đủ to để cả điện nghe thấy, rồi thôi. Cậu ta đợi hết tiếng ho mới nói nốt câu còn dở, không nhanh hơn mà cũng không chậm hơn lúc đầu.',
+  'xin-them-nguoi.chronicle': 'Cậu ta xin thêm quân giữa buổi chầu.',
+
+  'duoi-co-dong-hon-truoc.line': 'Dưới lá cờ ấy đông hơn tháng trước, và giáo thì mới.',
+  'duoi-co-dong-hon-truoc.scene': 'Người đi chợ về kể là đếm được bốn hàng, tháng trước mới có hai. Mũi giáo còn sáng, chưa gỉ chỗ nào. Trong hàng có mấy người nghe giọng không phải người vùng ấy, mãi đâu dưới bể. Không ai hỏi họ từ đâu tới, và họ cũng không nói.',
+  'duoi-co-dong-hon-truoc.chronicle': 'Dưới lá cờ ấy đông hơn trước.',
+
+  'nguoi-ta-con-nhac-mot-cai-ten.line': 'Ở bến đò người ta còn nhắc {other}. Cậu ta nghe, và không nói gì.',
+  'nguoi-ta-con-nhac-mot-cai-ten.scene': 'Chuyện kể ở bến đò chứ không phải trong trướng: một ông tướng bị bắt, giặc hứa cho tước vương, và ông ấy đáp lại một câu mà đến giờ ai cũng thuộc. Người kể đến đấy thì dừng, vì thấy cậu ta đứng sau lưng từ lúc nào. Cậu ta bảo kể nốt đi. Nghe hết rồi cậu ta mới xuống thuyền.',
+  'nguoi-ta-con-nhac-mot-cai-ten.chronicle': 'Ở bến đò người ta nhắc lại tên {other}.',
+
+  'di-khong-xin-phep.title': 'Đi mà không xin phép',
+  'di-khong-xin-phep.body': 'Lệnh giữ cậu ta lại đã truyền xuống, và đã tới nơi. Nhưng quân của cậu ta là gia nô nhà cậu ta, chưa từng có tên trong sổ của ngươi, cho nên lệnh ấy không ràng buộc được một ai. Đêm ấy họ nhổ trại. Sáng ra ở chỗ đóng quân chỉ còn cọc lều với tro bếp, và tin ngoài mặt trận về sau đó ba ngày.',
+  'di-khong-xin-phep.ok': 'Chép lại cho đúng',
+  'di-khong-xin-phep.scene': 'Viên quan mang lệnh tới lúc trời còn sáng, đọc xong, và cậu ta vâng. Cả trại nghe thấy tiếng vâng ấy. Đến canh ba thì người gác thấy cờ đã cuốn, mà không ai gọi ai. Viên quan ấy về sau khai rằng ông ta đã đọc đúng từng chữ, và không ai bảo ông ta là đọc sai.',
+  'di-khong-xin-phep.chronicle': 'Cậu ta đi, khi đã có lệnh giữ lại.',
 
   'regard.dismissed': 'Cậu ta đã về. Cậu ta không xin lần thứ hai.',
   'regard.seated': 'Cậu ta ngồi ở cuối hàng và không nói gì cả.',
@@ -187,7 +223,43 @@ export const orangeEn: StoryCatalog = {
   title: 'The Boy With the Orange',
   want: 'a place in the line, even at the end of it',
   waiting: 'He is still outside, and he still has not gone home.',
-  stake: 'A thousand of one household’s people, and a fifteen-year-old.',
+  stake: 'A thousand of one household’s people, a boy of fifteen, and everything you have sent after them.',
+
+  'regard.fed': 'They eat your rice, and they still do not take your orders.',
+  'regard.swollen': 'There are more under that banner now than under yours.',
+  'regard.gone': 'Nobody stands under that banner any more.',
+
+  'patron.fell': 'There is nobody left under the six-character banner at {land}.',
+  'memorial.ham-tu': '{name} — lost at Hàm Tử, not yet seventeen.',
+
+  'xin-gao-va-sat.line': 'They are asking for rice and iron, and this time there is a docket.',
+  'xin-gao-va-sat.cap': 'Sign it, and issue',
+  'xin-gao-va-sat.scene': 'The Ministry clerk brings the docket up, good paper, and the hand is not his — he has never been taught how a docket is written. Three items: rice, iron for spearheads, and hemp cord. No money anywhere on it. The clerk says a docket like this can be signed or refused equally well, only that refusing means writing down why.',
+  'xin-gao-va-sat.chronicle': 'They asked for rice and iron.',
+
+  'lang-gui-gao.line': 'A village headman is asking your leave to send them grain.',
+  'lang-gui-gao.gui': 'Let the village send it',
+  'lang-gui-gao.scene': 'The headman has walked two days to get here and is carrying an empty shoulder-pole, because the grain is already back at the village. Seventy baskets gathered, he says, and forty young men ready, waiting on a word. He asks for nothing. He only wants to go home and say that leave was asked for.',
+  'lang-gui-gao.chronicle': 'A village asked leave to send grain after the banner.',
+
+  'xin-them-nguoi.line': 'He is asking for more men, and asking in open court.',
+  'xin-them-nguoi.them': 'Give him the men',
+  'xin-them-nguoi.scene': 'He stands before his turn and asks for three hundred more. The Minister of War looks at the floor. An old general in the row behind coughs, loudly enough for the hall to hear, and then stops. He waits out the cough before finishing the sentence, no faster and no slower than he began it.',
+  'xin-them-nguoi.chronicle': 'He asked for more men in open court.',
+
+  'duoi-co-dong-hon-truoc.line': 'There are more under that banner than last month, and the spears are new.',
+  'duoi-co-dong-hon-truoc.scene': 'Somebody back from market counted four ranks; last month there were two. The spearheads are bright, no rust on any of them. Some of the men in the ranks do not sound like they are from the district — from down by the sea somewhere, by the vowels. Nobody asks where they came from, and they do not say.',
+  'duoi-co-dong-hon-truoc.chronicle': 'There are more under that banner than before.',
+
+  'nguoi-ta-con-nhac-mot-cai-ten.line': 'They are still telling {other} at the ferry landing. He listens, and says nothing.',
+  'nguoi-ta-con-nhac-mot-cai-ten.scene': 'The story goes round at the ferry landing, not in the command tent: a general taken alive, offered a princedom by the enemy, and the answer he gave that everyone can still recite. The teller stops there, having noticed the boy standing behind him. He tells him to finish it. He hears it out, and then he goes down to the boats.',
+  'nguoi-ta-con-nhac-mot-cai-ten.chronicle': 'At the ferry landing they said {other} name again.',
+
+  'di-khong-xin-phep.title': 'He went without leave',
+  'di-khong-xin-phep.body': 'The order holding him back went down, and it arrived. But his men are his own household, and no name of theirs has ever been in your books, so the order binds nobody at all. They struck camp that night. By morning the ground held tent pegs and cold ashes, and word came back from the front three days later.',
+  'di-khong-xin-phep.ok': 'Have it written down correctly',
+  'di-khong-xin-phep.scene': 'The officer brought the order up while it was still light, read it out, and the boy assented. The whole camp heard him assent. By the third watch the sentry saw the banner furled, and nobody had called to anybody. The officer later swore he had read every character correctly, and no one ever told him he had not.',
+  'di-khong-xin-phep.chronicle': 'He went, after the order to hold him back.',
 
   'regard.dismissed': 'He went home. He did not ask twice.',
   'regard.seated': 'He sits at the end of the row and says nothing.',

@@ -14,6 +14,11 @@ export function armyOrders(army: Army): ArmyOrders {
 
 /** True when the autopilot may move, commit or dissolve this host. */
 export function isAutoHost(army: Army): boolean {
+  // An auxiliary is nobody's: not the player's to give a standing order, and not the autopilot's
+  // to spend. It moves on `autoDefend` alone. This one line is also what keeps it out of
+  // `autoMarch`, `autoClaimWilderness`, `autoDefend`'s rewrite loop and the conquest lane's
+  // spearhead picker, all of which filter on exactly this.
+  if (army.patron) return false;
   return armyOrders(army).kind === 'auto';
 }
 
@@ -35,7 +40,7 @@ export function isEngagedHost(state: GameState, armyId: string): boolean {
 
 /** Every host of the player's that takes orders — no garrison levies. */
 export function commandableHosts(state: GameState): Army[] {
-  return state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy);
+  return state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && !army.patron);
 }
 
 /** The order as a line for a row: "Defend X — holding at Y", "Attack X — 34%, holding", … */

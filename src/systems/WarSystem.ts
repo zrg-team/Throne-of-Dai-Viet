@@ -204,10 +204,29 @@ function defenderPower(state: GameState, targetLand: Land): number {
   // turtling behind walls is no longer a win button (see WarSystem rebalance).
   // A province set to defend holds harder than its wall count says — the whole point of that focus
   // in Ascent. `getFocusDefenseMult` returns 1 in every other mode and for every other focus.
+  // A story's auxiliary standing on the ground fights too.
+  //
+  // Only ONE host has ever counted here — `.find`, not `filter` — because the roll was written
+  // when a province held at most one field army. That is a real defect, and fixing it in general
+  // would move battle odds in every mode and the conquest pace in this one, so it is deliberately
+  // left alone and gets its own measured pass. What is fixed is the single case the feature
+  // cannot survive: a watched battle enrols every host present, so an ally that visibly stands
+  // beside your line and then contributes nothing to the hidden roll is one fight told two
+  // different ways. Empty in every other mode and in any run with no auxiliary, so it needs no
+  // mode gate to be inert.
+  const auxiliary = state.armies.reduce((sum, army) => (
+    army.patron
+      && army.kingdomId === targetLand.ownerId
+      && army.landId === targetLand.id
+      && army.id !== defendingArmy?.id
+      ? sum + armyPower(state, army)
+      : sum
+  ), 0);
+
   const garrison = (targetLand.defense * 16 + targetLand.localSoldiers * 2.5)
     * terrainDefenseMultiplier(targetLand)
     * getFocusDefenseMult(state, targetLand);
-  return garrison + (defendingArmy ? armyPower(state, defendingArmy) : 0);
+  return garrison + (defendingArmy ? armyPower(state, defendingArmy) : 0) + auxiliary;
 }
 
 export function createBattlePreview(
@@ -873,7 +892,7 @@ export function progressArmyLogistics(state: GameState): boolean {
     // and it goes home the moment the fight ends. Wages and rations do not apply — counting
     // them disbanded the capital's own turnout for arrears in the middle of the siege it was
     // raised to fight.
-    if (army.isLevy) {
+    if (army.isLevy || army.patron) {
       continue;
     }
 
@@ -1094,7 +1113,7 @@ export function applyAttackOutcome(
 export function stageWatchedAssault(state: GameState, army: Army, land: Land): 'staged' | 'joined' | 'wait' | 'no' {
   const ascent = state.ascent;
   if (state.gameMode !== 'ascent' || !ascent || ascent.autoResolveBattles) return 'no';
-  if (army.kingdomId !== PLAYER_KINGDOM_ID || army.isLevy) return 'no';
+  if (army.kingdomId !== PLAYER_KINGDOM_ID || army.isLevy || army.patron) return 'no';
   // This host's own answer to "who fights its battles". The run-wide switch above still wins.
   if (army.autoResolve) return 'no';
   if (getSiegeOrder(state, land.id)) return 'no';

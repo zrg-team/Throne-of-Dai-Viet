@@ -33,6 +33,7 @@ import { detectConquests, ensureAscentLaneState, refreshAscentLaneState } from '
 import { tickDecisionDirector, tickPromptCooldowns } from './DecisionDirector';
 import { tickStories } from '../story/StorySystem';
 import { tickStoryCharges } from '../story/charges';
+import { tickStoryPatrons } from '../story/patrons';
 import { tickDecreeEffects } from '../decree/DecreeTick';
 import { courtInRefuge, militaryColonies } from '../decree/rules';
 import { tickEdictDiscovery } from './CourtLaneSystem';
@@ -285,6 +286,7 @@ export function advanceAscentTick(state: GameState): void {
   // against everything else competing for the player's attention.
   // Oaths are judged before the stories speak, so a charge kept this season is a thing the
   // Chronicle can talk about this season rather than next.
+  tickStoryPatrons(state);
   tickStoryCharges(state);
   tickStories(state);
   tickDecisionDirector(state);

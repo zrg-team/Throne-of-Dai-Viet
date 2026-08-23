@@ -238,6 +238,8 @@ function autoDisbandRemnants(state: GameState): void {
       // both used to be dissolved here at the top of the tick, and the field they were
       // standing on read as broken before a blow was struck.
       !army.isLevy &&
+      // An auxiliary is not ours to send home, however thin it has worn.
+      !army.patron &&
       !engaged.has(army.id) &&
       armySize(army) < MIN_ARMY_SOLDIERS * REMNANT_SHARE &&
       !state.siegeOrders.some((order) => order.armyId === army.id),
@@ -329,9 +331,13 @@ function autoRecruit(state: GameState): boolean {
   // has a standing host it is about to lose. Harmless while battles were rare; once they became
   // frequent it suppressed recruitment for a whole run, and the realm quietly stopped replacing
   // the armies it lost.
+  // The same trap as the levy below it, and a worse one: a well-fed auxiliary counted here would
+  // tell the autopilot the realm already has the hosts it needs, and the realm would quietly stop
+  // raising its own. Accepting help must not cost the player their army.
   const standing = state.armies.filter(
     (army) => army.kingdomId === PLAYER_KINGDOM_ID
       && !army.isLevy
+      && !army.patron
       && armySize(army) >= MIN_ARMY_SOLDIERS * REMNANT_SHARE,
   ).length;
   // The doctrine the player set moves the target: a realm at arms keeps more hosts standing, a
@@ -460,7 +466,7 @@ function autoClaimWilderness(state: GameState): boolean {
   // "autopilot marched" check went from passing to zero marches in a whole run. A realm that never
   // walks onto the empty ground beside it stops growing on the map, which is the most visible
   // thing the automation does.
-  const hosts = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy).length;
+  const hosts = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && !army.patron).length;
   const invadersLive = (state.invasions?.length ?? 0) > 0;
   if (idle.length === 0 || (hosts < 2 && invadersLive)) return false;
 
