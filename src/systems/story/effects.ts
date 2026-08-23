@@ -160,6 +160,7 @@ export function commitHostAbroad(ctx: StoryCtx, key = 'abroad'): number {
   ctx.remember(key, size);
   ctx.remember(`${key}Level`, host.level ?? 1);
   ctx.state.armies = ctx.state.armies.filter((army) => army.id !== host.id);
+  ctx.note('hostAbroad', size);
   return size;
 }
 
@@ -221,7 +222,9 @@ export function launchHostNow(ctx: StoryCtx, sizeMult = 1): boolean {
   const rival = ctx.rival()
     ?? ctx.state.kingdoms.find((k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated);
   if (!rival) return false;
-  return launchPunitiveHost(ctx.state, rival.id, { conquest: true, sizeMult });
+  const launched = launchPunitiveHost(ctx.state, rival.id, { conquest: true, sizeMult });
+  if (launched) ctx.note('hostLaunched', undefined, rival.name);
+  return launched;
 }
 
 // ── Rebellion ───────────────────────────────────────────────────────────────
@@ -355,6 +358,7 @@ export function bondHeroes(ctx: StoryCtx, a?: Hero, b?: Hero): boolean {
     label: `${first.name} · ${second.name}`,
     armyPowerModifier: 0.12,
   });
+  ctx.note('sworn', undefined, `${first.name} · ${second.name}`);
   return true;
 }
 
@@ -369,6 +373,7 @@ export function feudHeroes(ctx: StoryCtx, a?: Hero, b?: Hero): boolean {
   second.stats.loyalty = Math.max(0, second.stats.loyalty - 12);
   // One of them will not take an order from the other's province.
   if (second.assignedTo && second.assignedTo === first.assignedTo) second.assignedTo = undefined;
+  ctx.note('feud', undefined, `${first.name} · ${second.name}`);
   return true;
 }
 
@@ -385,7 +390,11 @@ export function captureHero(ctx: StoryCtx, hero?: Hero): Hero | undefined {
 export function temper(ctx: StoryCtx, stat: keyof Hero['stats'], by: number, hero?: Hero): void {
   const target = hero ?? ctx.hero();
   if (!target) return;
+  const before = target.stats[stat];
   target.stats[stat] = Math.max(0, Math.min(100, target.stats[stat] + by));
+  // The move that landed, not the one asked for: the stat clamps at both ends, and a card that
+  // claims +14 renown on a man already at 96 is lying about the only thing it did.
+  if (target.stats[stat] !== before) ctx.note(stat, target.stats[stat] - before, target.name);
 }
 
 // ── Land ────────────────────────────────────────────────────────────────────
@@ -425,6 +434,9 @@ export function terrainWork(ctx: StoryCtx, opts: { defense?: number; food?: numb
     target.outputs.food += opts.food ?? 0;
     target.outputs.gold += opts.gold ?? 0;
   }
+  if (opts.defense) ctx.note('landDefense', opts.defense, target.name);
+  if (opts.food) ctx.note('landFood', opts.food, target.name);
+  if (opts.gold) ctx.note('landGold', opts.gold, target.name);
 }
 
 /** A province is razed: people gone, buildings gone, and it stays yours. */
@@ -469,6 +481,7 @@ export function debt(ctx: StoryCtx, perSeason: number, seasons: number): void {
     remainingTicks: seasons,
     resourceRateModifier: { gold: -perSeason },
   });
+  ctx.note('debt', perSeason);
 }
 
 /** A standing gain for a while — a trade route, a tribute redirected, a good harvest. */
@@ -495,6 +508,7 @@ export function opinion(ctx: StoryCtx, by: number, kingdomId?: string): void {
     : ctx.rival();
   if (!target) return;
   target.relations = Math.max(0, Math.min(100, (target.relations ?? 50) + by));
+  ctx.note('opinion', by, target.name);
 }
 
 /** Every third party that was watching revises its opinion at once. */
@@ -503,6 +517,7 @@ export function standing(ctx: StoryCtx, by: number): void {
     if (kingdom.id === PLAYER_KINGDOM_ID || kingdom.isDefeated) continue;
     kingdom.relations = Math.max(0, Math.min(100, (kingdom.relations ?? 50) + by));
   }
+  ctx.note('standing', by);
 }
 
 /** A coalition: everyone who already disliked you decides together. */
@@ -574,6 +589,7 @@ export function suppressPowerCard(ctx: StoryCtx, cardId?: string): string | unde
   if (!target) return undefined;
   delete ascent.cardStacks[target];
   ascent.retiredCards.push(target);
+  ctx.note('cardLost', 1, target);
   return target;
 }
 
@@ -582,6 +598,7 @@ export function tiltDraft(ctx: StoryCtx, rarity: AscentRarity, by: number): void
   const ascent = ctx.state.ascent;
   if (!ascent) return;
   ascent.draftWeights[rarity] = Math.max(0.1, (ascent.draftWeights[rarity] ?? 1) + by);
+  ctx.note('draftTilt', by, rarity);
 }
 
 /** A level-up owed immediately — a draft the player did not earn by fighting. */
@@ -610,6 +627,7 @@ export function grantClaimSlot(ctx: StoryCtx, count = 1): void {
     label: 'Sứ đoàn',
     claimSlotBonus: count,
   });
+  ctx.note('claimSlot', count);
 }
 
 /** Edict points, so a story can hand the player a law they have not earned. */
@@ -856,6 +874,7 @@ export function academy(ctx: StoryCtx, seasons: number, label: string): void {
     courtCardSpeedModifier: 0.4,
     resourceRateModifier: { gold: 4 },
   });
+  ctx.note('academy', seasons, label);
 }
 
 /**

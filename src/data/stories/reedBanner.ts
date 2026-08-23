@@ -517,9 +517,13 @@ export const reedBanner: StoryTemplate = {
             if (land) {
               land.defense += 6;
               land.loyalty = Math.min(100, land.loyalty + 12);
+              ctx.note('landDefense', 6, land.name);
             }
             const hero = ctx.hero();
-            if (hero) hero.stats.loyalty = Math.min(100, hero.stats.loyalty + 10);
+            if (hero) {
+              hero.stats.loyalty = Math.min(100, hero.stats.loyalty + 10);
+              ctx.note('loyalty', 10, hero.name);
+            }
             ctx.heat(-2);
           },
         },

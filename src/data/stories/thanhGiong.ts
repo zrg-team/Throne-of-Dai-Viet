@@ -269,6 +269,10 @@ export const thanhGiong: StoryTemplate = {
             const fed = ctx.bump('nuoi');
             const land = ctx.land();
             if (land) land.loyalty = Math.min(100, land.loyalty + 5);
+            // Which sending this was. The door takes two hundred able men and ninety of stores
+            // and used to report nothing whatsoever, so the wager's whole middle — the part
+            // where you are deciding whether to pay again — was invisible.
+            ctx.note('fed', fed);
             // He is visibly bigger, and the province can see where this is going.
             if (fed >= 2) ctx.heat(1);
           },
