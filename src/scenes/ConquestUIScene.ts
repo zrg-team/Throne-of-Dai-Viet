@@ -306,6 +306,28 @@ const BATTLE_FALLEN_CAP = 40;
  */
 const BATTLE_SEAM_GAP = 34;
 
+/**
+ * The battlefield's rectangle: the full width of the sheet, at the content's own vertical place.
+ *
+ * Its own function because four things have to agree about it — the panel, the ground, the stencil
+ * that ends the ground at the paper's edge, and the bounds the coach points at — and when they were
+ * four copies of `content.x` arithmetic, widening the field meant finding all four.
+ */
+function battleFieldBox(content: UIBounds, fieldHeight: number): UIBounds {
+  return { x: 0, y: content.y, width: GAME_WIDTH, height: fieldHeight };
+}
+
+/**
+ * How far the two lines stand in from the edge of the sheet.
+ *
+ * Not zero. The men are drawn outward from their line, so the inset has to cover half a block, and
+ * a block grows with its host: measured against the arena at its largest dial, 4,000 men, 26 put
+ * the outer file through the left edge and 40 left it touching. 48 keeps the outermost figure and
+ * its shadow on the paper at that size, and still leaves the two lines 234 apart against the 202
+ * they had when the field was a card inside a margin.
+ */
+const BATTLE_FIELD_INSET = 48;
+
 function battleFieldHeight(content: UIBounds): number {
   // `content.height` runs to 20px off the bottom of the screen, but the lane's Close button is
   // pinned inside that band — so the field must pay for it too. Measured on a 620-high screen,
@@ -6068,8 +6090,15 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       * ridges and the paddy in it.
       */
      const groundY = fieldY + Math.round(fieldHeight * 0.78);
-    const leftX = content.x + 44;
-    const rightX = content.x + content.width - 44;
+    // **The field is full-bleed; the rows under it are not.**
+    //
+    // Everything else on this screen is a card inside a 20px margin, and the field was drawn as
+    // one of them and then inset another 44 on each side for the men — so of a 390-wide sheet the
+    // fight had 262 to happen in, a third of the width spent on paper either side of a picture
+    // that is the reason the screen exists. The rails, the dock and the exits keep the margin,
+    // because they are cards and read as cards. The field is a *view*, and a view wants the glass.
+    const leftX = BATTLE_FIELD_INSET;
+    const rightX = GAME_WIDTH - BATTLE_FIELD_INSET;
     // Full span, not half: the two meet when `ourAdvance + theirAdvance` reaches 1, so the
     // drawing has to use the same scale or the picture and the fight would disagree about where
     // everyone is standing.
@@ -6350,8 +6379,8 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
 
     const top = content.y;
     const bottom = top + ui.fieldHeight;
-    const x0 = content.x + 4;
-    const x1 = content.x + content.width - 4;
+    const x0 = 4;
+    const x1 = GAME_WIDTH - 4;
     const horizon = top + ui.fieldHeight * 0.30;
     const land = findLand(this.state, battle.landId);
     const seed = Math.round((battle.landId.length * 977) + battle.totalRounds * 31);
@@ -6373,7 +6402,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // `ui/ink/clipRect` for the measurement. The stencil clips in screen space and so is the same
     // shape at every graphics tier.
     const clip = new RectClip(this, {
-      x: content.x + 2, y: top + 2, width: content.width - 4, height: ui.fieldHeight - 4,
+      x: 2, y: top + 2, width: GAME_WIDTH - 4, height: ui.fieldHeight - 4,
     });
     ui.groundClip = clip;
     clip.begin(field);
@@ -6850,7 +6879,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     ui.fieldSignature = this.battleFieldSignature(battle);
 
     field.add(this.ui.panel(
-      { x: content.x, y: content.y, width: content.width, height: ui.fieldHeight },
+      battleFieldBox(content, ui.fieldHeight),
       { border: INK_UI.softBrush },
     ));
 
@@ -7718,12 +7747,7 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     ui.coachBounds.pips = ui.pipBounds;
     // The field, because the bubbles over the two hosts live on it and the coach has to be able
     // to point at what each side is saying.
-    ui.coachBounds.field = {
-      x: content.x,
-      y: content.y,
-      width: content.width,
-      height: ui.fieldHeight,
-    };
+    ui.coachBounds.field = battleFieldBox(content, ui.fieldHeight);
     ui.coachBounds.rails = {
       x: content.x,
       y: content.y + ui.fieldHeight + 8,
