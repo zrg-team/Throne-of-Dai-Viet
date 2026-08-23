@@ -1,0 +1,27 @@
+{
+  "_": "Divergences from the pristine file that are intended. verify.cjs fails on anything not listed here, so an accident cannot hide among them.",
+  "dropped": ["PORTRAIT_W", "PORTRAIT_TOP", "BATTLE_STRIP_LABEL"],
+  "deleted": ["showQuitConfirm"],
+  "changed": [
+    "battleHeaderFrame",
+    "buildBattleGround",
+    "buildBattleMoment",
+    "buildBattleOrders",
+    "buildBattlePips",
+    "buildBattleReadout",
+    "optionCard",
+    "releaseOverlay",
+    "replaceLanePage",
+    "showArmyDetail",
+    "showArmyScreen",
+    "showBuildOptions",
+    "showChronicleScreen",
+    "showClaimDetail",
+    "showClaimTargets",
+    "showFollowTargets",
+    "showHuntTargets",
+    "showMarchTargets",
+    "showStoryPage",
+    "spawnBattleFloaters"
+  ]
+}
