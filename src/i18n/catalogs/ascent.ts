@@ -944,6 +944,12 @@ export const enAscent = {
   "ascent.reinforce.etaLate": "Arrives in {n} season(s) — likely after the fight ends",
   "ascent.reinforce.row": "at {land} · {order}",
   "ascent.reinforce.tile": "Reinforce {land}",
+  // The same row with nothing to relieve. It is drawn on the host sheet whether or not a fight
+  // is running — a control that vanishes when it cannot be used is a control nobody learns
+  // exists — so it needs a name for the quiet case and a line saying why it is grey.
+  "ascent.reinforce.tileIdle": "Send to a fight",
+  "ascent.reinforce.noBattle": "No battle under way to send it to.",
+  "ascent.reinforce.already": "Already in the line at {land}",
   "ascent.reinforce.noRoad": "No road to the fight",
   "ascent.reinforce.pinned": "Holding a claim",
   "ascent.reinforce.besieging": "Laying a siege of its own",
@@ -2340,6 +2346,9 @@ export const viAscent = {
   "ascent.reinforce.etaLate": "Tới sau {n} mùa — có lẽ trận đã xong",
   "ascent.reinforce.row": "tại {land} · {order}",
   "ascent.reinforce.tile": "Tiếp viện {land}",
+  "ascent.reinforce.tileIdle": "Đưa vào trận",
+  "ascent.reinforce.noBattle": "Chưa có trận nào để đưa quân tới.",
+  "ascent.reinforce.already": "Đã ở trong trận tại {land}",
   "ascent.reinforce.noRoad": "Không có đường tới trận",
   "ascent.reinforce.pinned": "Đang giữ một yêu sách",
   "ascent.reinforce.besieging": "Đang vây thành khác",
