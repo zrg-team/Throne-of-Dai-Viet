@@ -29,7 +29,14 @@ import { getActiveMapTheme, type MapThemeDefinition, type MapThemeRendererId } f
 export const LABEL_KEEP_OUT = { y: 48, rx: 52, ry: 11 };
 
 
-export type ProgressBadgeVariant = 'acquisition' | 'build' | 'siege' | 'recruit';
+/**
+ * What a badge over a district is counting.
+ *
+ * `siege` is an assault on a walled place and `battle` is two hosts meeting in the open. They are
+ * separate because the map should say which one it is: the same crossed blades, with battlements
+ * under them for the siege.
+ */
+export type ProgressBadgeVariant = 'acquisition' | 'build' | 'siege' | 'recruit' | 'battle';
 export interface MapItemRenderer {
   addBuildingGroup(cluster: Phaser.GameObjects.Container, x: number, y: number, isShrine: boolean, houseCount: number): void;
   addCityCluster(cluster: Phaser.GameObjects.Container, centers: ReadonlyArray<{ x: number; y: number }>, isShrine: boolean, kind?: 'city' | 'market' | 'shrine'): void;

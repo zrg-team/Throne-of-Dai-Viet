@@ -89,6 +89,7 @@ export class MapScene extends Phaser.Scene {
   private buildMarkers: Phaser.GameObjects.GameObject[] = [];
   private siegeMarkers: Phaser.GameObjects.GameObject[] = [];
   private recruitMarkers: Phaser.GameObjects.GameObject[] = [];
+  private battleMarkers: Phaser.GameObjects.GameObject[] = [];
   private mapGraphics!: Phaser.GameObjects.Graphics;
   private terrainGraphics!: Phaser.GameObjects.Graphics;
   private terrainDecorationGraphics!: Phaser.GameObjects.Graphics;
@@ -244,6 +245,7 @@ export class MapScene extends Phaser.Scene {
     this.buildMarkers = [];
     this.siegeMarkers = [];
     this.recruitMarkers = [];
+    this.battleMarkers = [];
     this.fillerGraphics = undefined;
     this.fillerDecorationGraphics = undefined;
     this.fillerFogGraphics = undefined;
@@ -869,6 +871,7 @@ export class MapScene extends Phaser.Scene {
     this.drawBuildMarkers();
     this.drawSiegeMarkers();
     this.drawRecruitMarkers();
+    this.drawBattleMarkers();
     this.bakeStaticTerrain();
     // Created after the bake so the seasonal layers are added above it, and settled straight into
     // the current season with no opening fade.
@@ -1611,7 +1614,7 @@ export class MapScene extends Phaser.Scene {
   }
 
   /**
-   * Whether the four progress-badge layers need rebuilding.
+   * Whether the five progress-badge layers need rebuilding.
    *
    * They are destroyed and recreated wholesale on every `refresh()`, which on a quiet tick throws
    * away and rebuilds badges identical to the ones just discarded. The camera is part of the
@@ -1628,8 +1631,13 @@ export class MapScene extends Phaser.Scene {
     ]
       .map((list) => list.map((order) => `${order.landId}:${order.progress}/${order.required}`).join(','))
       .join('|');
+    // The live engagement is not an order and so is not in the list above, but it draws a badge
+    // and its round advances every beat. Left out, the mark would appear only when some *other*
+    // order happened to change and would then sit frozen on the round it was built at.
+    const fight = this.state.ascent?.activeBattle;
+    const battle = fight && !fight.over ? `${fight.landId}:${fight.round}/${fight.totalRounds}` : '';
     const view = `${Math.round(camera.scrollX / 8)}:${Math.round(camera.scrollY / 8)}:${camera.zoom.toFixed(2)}`;
-    return `${orders}|${view}|${this.state.selectedLandId ?? ''}`;
+    return `${orders}|${battle}|${view}|${this.state.selectedLandId ?? ''}`;
   }
 
   private drawAcquisitionMarkers(): void {
@@ -1689,6 +1697,46 @@ export class MapScene extends Phaser.Scene {
       marker.setDepth(72);
       this.siegeMarkers.push(marker);
     }
+  }
+
+  /**
+   * Shows the clash mark over a district where two hosts are actually fighting.
+   *
+   * A siege had a marker and an open engagement had none, so the one thing on the map that is
+   * happening *right now* was the one thing the map did not draw: an invader and a host of ours
+   * could be locked together in a province for four or five ticks with nothing over them but two
+   * army markers, which look exactly like two armies standing still.
+   *
+   * Skipped where a siege badge already stands on the same district - that badge carries the same
+   * blades with a wall under them, and it is the more specific statement of the two.
+   */
+  private drawBattleMarkers(): void {
+    for (const marker of this.battleMarkers) {
+      marker.destroy();
+    }
+    this.battleMarkers = [];
+
+    const fight = this.state.ascent?.activeBattle;
+    if (!fight || fight.over) {
+      return;
+    }
+    if (this.state.siegeOrders.some((order) => order.landId === fight.landId)) {
+      return;
+    }
+    const land = findLand(this.state, fight.landId);
+    if (!land?.isVisible) {
+      return;
+    }
+
+    const { x, y } = this.getVisibleLandMarkerPoint(land);
+    // Rounds fought against the rounds the engagement is expected to run: the same "how far
+    // through is this" the other four badges carry, for the one of them the player can still
+    // change the answer to.
+    const marker = this.mapItems.createProgressBadge(
+      x, y, fight.round, Math.max(1, fight.totalRounds), 'battle',
+    );
+    marker.setDepth(72);
+    this.battleMarkers.push(marker);
   }
 
   /** Shows a flag-and-progress badge over the capital while an army is being recruited. */
@@ -1855,6 +1903,7 @@ export class MapScene extends Phaser.Scene {
       this.drawBuildMarkers();
       this.drawSiegeMarkers();
       this.drawRecruitMarkers();
+      this.drawBattleMarkers();
     }
     this.syncCullables();
     this.events.emit('state-changed');

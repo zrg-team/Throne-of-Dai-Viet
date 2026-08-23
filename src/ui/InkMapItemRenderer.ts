@@ -234,7 +234,8 @@ export class InkMapItemRenderer implements MapItemRenderer {
   createProgressBadge(x: number, y: number, progress: number, required: number, variant: ProgressBadgeVariant): Phaser.GameObjects.Container {
     const container = this.scene.add.container(x, y);
     const ratio = Phaser.Math.Clamp(progress / required, 0, 1);
-    const ringColor = variant === 'acquisition' || variant === 'siege' ? INK.sealRed : INK.landForest;
+    const ringColor = variant === 'acquisition' || variant === 'siege' || variant === 'battle'
+      ? INK.sealRed : INK.landForest;
 
     const back = this.scene.add.circle(0, 0, 17, INK.ink, 0.78).setStrokeStyle(2, ringColor, 0.95);
     const wedge = this.scene.add.graphics();
@@ -247,7 +248,7 @@ export class InkMapItemRenderer implements MapItemRenderer {
     if (variant === 'acquisition') {
       const coin = this.scene.add.circle(0, 0, 6, INK.sealRed, 1).setStrokeStyle(1, INK.cloud, 0.8);
       container.add(coin);
-    } else if (variant === 'siege') {
+    } else if (variant === 'siege' || variant === 'battle') {
       // Two straight strokes in a red ring is the cancel glyph, not a fight. The battle screen's
       // own clash mark instead, at the size this ring can hold.
       const swords = this.scene.add.graphics();
