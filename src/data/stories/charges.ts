@@ -81,6 +81,22 @@ export const daiCao: StoryTemplate = {
   },
   fragments: [
     {
+      id: 'ong-ta-day-hoc-o-lang',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_not-yet') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'muc-mai-san-tren-ban',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-him-write') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'the-scholar-asks-for-paper',
       volume: 'card',
       weight: 7,
@@ -174,6 +190,22 @@ export const chieuDoiDo: StoryTemplate = {
     return { landId: land.id };
   },
   fragments: [
+    {
+      id: 'cai-cong-thanh-cu',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_hoa-lu-served-our-fathers') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'nguoi-do-dat-ngoai-bai',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_survey-the-plain') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'the-valley-is-too-narrow',
       volume: 'card',
@@ -278,6 +310,22 @@ export const hichTuongSi: StoryTemplate = {
   },
   fragments: [
     {
+      id: 'to-hich-con-trong-trap',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_the-men-are-tired') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'ban-sao-chep-tay',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-them-hear-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'he-reads-it-to-the-officers',
       volume: 'card',
       weight: 6,
@@ -350,6 +398,22 @@ export const aiChiLang: StoryTemplate = {
   },
   fragments: [
     {
+      id: 'canh-dong-ay-de-khong',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_meet-them-on-the-plain') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'co-nguoi-do-lai-cua-ai',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-them-come-in') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'the-pass-is-narrow-here',
       volume: 'card',
       band: 'mountain',
@@ -412,6 +476,22 @@ export const thanToc: StoryTemplate = {
     return { heroId: hero.id };
   },
   fragments: [
+    {
+      id: 'tet-nam-nay-yen-tinh',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_no-army-moves-that-fast') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'vong-khieng-van-treo',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_promise-the-feast') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'we-eat-tet-in-the-capital',
       volume: 'card',
@@ -554,6 +634,22 @@ export const haiBaTrung: StoryTemplate = {
     return { landId: pick(playerLands(state))?.id };
   },
   fragments: [
+    {
+      id: 'ho-khong-di-qua-day-nua',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_send-them-home') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'hai-con-voi-o-bai-song',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_hear-them-out') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'two-women-at-the-gate',
       volume: 'card',

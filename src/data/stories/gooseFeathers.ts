@@ -41,6 +41,22 @@ export const gooseFeathers: StoryTemplate = {
 
   fragments: [
     {
+      id: 'nguoi-do-tin-van-den',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_feed-him-what-i-want') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'cai-ao-cuoi-con-treo',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_accept') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'a-marriage-offered',
       volume: 'card',
       band: 'court',

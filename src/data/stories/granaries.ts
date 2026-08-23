@@ -38,6 +38,22 @@ export const granaries: StoryTemplate = {
 
   fragments: [
     {
+      id: 'ong-ta-ve-ngoi-o-nha',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_dismiss-him') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'ruong-do-lai-thanh-ba',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_enact') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       /**
        * The granaries, used as granaries.
        *

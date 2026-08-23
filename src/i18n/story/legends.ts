@@ -3,6 +3,12 @@ import type { StoryCatalog } from './types';
 /** Text for the third batch — the legends. Vietnamese is the source; English is derived. */
 
 export const fiveDaysVi: StoryCatalog = {
+  'com-nam-con-trong-tui.line': 'Trong túi mấy người lính vẫn còn nắm cơm gói lá, đã thiu.',
+  'com-nam-con-trong-tui.scene': 'Gói bằng lá chuối, buộc lạt, phát trước lúc nhổ trại. Đi nhanh quá, không ai kịp ăn, và đến nơi thì chua hết. Có người vẫn giữ, không ăn cũng không vứt, để trong túi thêm mấy hôm nữa. Sau rồi cũng vứt, và vứt lúc không có ai nhìn.',
+  'com-nam-con-trong-tui.chronicle': 'Cơm nắm phát trước lúc đi vẫn còn nguyên.',
+  'phao-dot-het-tu-hom-do.line': 'Pháo đốt hết từ hôm ấy, và không ai mua thêm.',
+  'phao-dot-het-tu-hom-do.scene': 'Hàng pháo ngoài chợ dọn sớm hơn mọi năm, vì hết hàng. Bà bán pháo bảo năm nay bán chạy lạ, ai cũng mua gấp đôi. Bà ta không hỏi vì sao. Sang tháng bà ta nhập thêm một chuyến nữa, và chuyến ấy nằm lại trong kho tới sang năm.',
+  'phao-dot-het-tu-hom-do.chronicle': 'Pháo Tết bán hết sạch năm ấy.',
   title: 'Năm Ngày',
   'they-are-keeping-the-new-year.line': 'Trại {rival} treo đèn. Họ ăn Tết.',
   'they-are-keeping-the-new-year.chronicle': 'Quân {rival} ăn Tết trong trại.',
@@ -37,6 +43,12 @@ export const fiveDaysVi: StoryCatalog = {
 };
 
 export const fiveDaysEn: StoryCatalog = {
+  'com-nam-con-trong-tui.line': 'Some of the men still have the leaf-wrapped rice in their bags, and it has turned.',
+  'com-nam-con-trong-tui.scene': 'Wrapped in banana leaf and tied with split bamboo, issued before the camp struck. The march was fast enough that nobody ate, and by the end it had gone sour. Some keep it anyway, neither eating it nor throwing it away, for a few days more. In the end they throw it away, and do it when nobody is looking.',
+  'com-nam-con-trong-tui.chronicle': 'The rice issued before the march was never eaten.',
+  'phao-dot-het-tu-hom-do.line': 'The firecrackers all went that night, and nobody bought more.',
+  'phao-dot-het-tu-hom-do.scene': 'The cracker stall at market packed up earlier than other years, sold out. Selling was strange this year, the woman says; everybody bought double. She does not ask why. The next month she brings in another consignment, and it sits in her store until the following year.',
+  'phao-dot-het-tu-hom-do.chronicle': 'The New Year crackers sold out entirely that year.',
   title: 'Five Days',
   'they-are-keeping-the-new-year.line': '{rival}’s camp has hung lanterns. They are keeping the new year.',
   'they-are-keeping-the-new-year.chronicle': '{rival}’s army kept the new year in camp.',
@@ -71,6 +83,12 @@ export const fiveDaysEn: StoryCatalog = {
 };
 
 export const ghostSouthVi: StoryCatalog = {
+  'cai-ghe-de-trong-o-tiec.line': 'Trong tiệc có một cái ghế để trống, và ai cũng biết là của ai.',
+  'cai-ghe-de-trong-o-tiec.scene': 'Ghế kê đúng chỗ cũ, có bát có đũa, không ai ngồi vào. Đến giữa tiệc thì một ông tướng già đặt chén rượu xuống trước cái bát ấy, không nói gì, rồi quay lại ăn tiếp. Cuối tiệc người dọn bàn bê cả bát lẫn chén đi cùng một lượt.',
+  'cai-ghe-de-trong-o-tiec.chronicle': 'Trong tiệc có một chỗ để trống.',
+  'mot-cai-ten-khong-ai-goi.line': 'Trong sổ quân có một cái tên không ai gọi tới nữa.',
+  'mot-cai-ten-khong-ai-goi.scene': 'Viên thư lại điểm danh mỗi tháng, đọc từ trên xuống, và tới cái tên ấy thì đọc lướt qua rồi đọc tiếp. Ông ta không gạch, vì chưa có lệnh gạch. Cột bên cạnh để trống. Cứ thế đã bảy tháng, và tháng nào ông ta cũng đọc lướt qua đúng chỗ ấy.',
+  'mot-cai-ten-khong-ai-goi.chronicle': 'Một cái tên trong sổ quân không ai gọi nữa.',
   title: 'Làm Quỷ Nước Nam',
   'he-did-not-come-back-with-the-scouts.line': '{hero} đi trinh sát và không về cùng đoàn.',
   'he-did-not-come-back-with-the-scouts.chronicle': '{hero} bị bắt.',
@@ -102,6 +120,12 @@ export const ghostSouthVi: StoryCatalog = {
 };
 
 export const ghostSouthEn: StoryCatalog = {
+  'cai-ghe-de-trong-o-tiec.line': 'One seat at the feast was left empty, and everyone knew whose.',
+  'cai-ghe-de-trong-o-tiec.scene': 'Set in its usual place, bowl and chopsticks laid, nobody sitting in it. Halfway through, an old general puts a cup of wine down in front of that bowl, says nothing, and goes back to eating. At the end the servants carry off the bowl and the cup together in one trip.',
+  'cai-ghe-de-trong-o-tiec.chronicle': 'One place at the feast was left empty.',
+  'mot-cai-ten-khong-ai-goi.line': 'There is a name on the muster roll that nobody calls any more.',
+  'mot-cai-ten-khong-ai-goi.scene': 'The clerk reads the roll each month from the top down, and at that name reads past it and carries on. He does not strike it out, having had no order to. The column beside it is blank. Seven months of this now, and every month he reads past the same place.',
+  'mot-cai-ten-khong-ai-goi.chronicle': 'A name on the roll goes uncalled.',
   title: 'A Ghost in the South',
   'he-did-not-come-back-with-the-scouts.line': '{hero} went out with the scouts and did not come back with them.',
   'he-did-not-come-back-with-the-scouts.chronicle': '{hero} was taken.',
@@ -133,6 +157,12 @@ export const ghostSouthEn: StoryCatalog = {
 };
 
 export const withoutSlaughterVi: StoryCatalog = {
+  'thanh-ay-van-mo-cong.line': 'Thành ấy vẫn mở cổng, và người ra vào không phải trình giấy.',
+  'thanh-ay-van-mo-cong.scene': 'Cổng mở từ sáng sớm tới chập tối, hai người gác ngồi trong bóng mát, không hỏi ai. Hàng quán mọc dọc chân tường, bán cho cả người trong thành lẫn người ngoài. Có ông lính cũ của bên kia giờ bán nước chè ở đấy, ngồi quay lưng vào tường thành.',
+  'thanh-ay-van-mo-cong.chronicle': 'Thành ấy vẫn mở cổng, không xét giấy.',
+  'to-cao-dan-o-cho.line': 'Tờ cáo dán ngoài chợ đã rách, và có người dán tờ khác đè lên.',
+  'to-cao-dan-o-cho.scene': 'Tờ đầu dán ở cột quán nước, mưa hai trận thì nhoè mất nửa. Người dán tờ sau là một ông đồ trong làng, tự đi chép lại rồi tự đi dán, không ai bảo. Ông ta chép thiếu một câu ở cuối vì tờ cũ chỗ ấy đã mất chữ. Không ai biết câu thiếu là câu gì.',
+  'to-cao-dan-o-cho.chronicle': 'Tờ cáo ở chợ được chép lại và dán đè.',
   title: 'Bình Ngô Đại Cáo',
   'he-writes-letters-instead-of-orders.line': '{hero} viết thư thay vì viết lệnh. Mỗi ngày một lá.',
   'he-writes-letters-instead-of-orders.chronicle': '{hero} viết thư cho thành địch.',
@@ -164,6 +194,12 @@ export const withoutSlaughterVi: StoryCatalog = {
 };
 
 export const withoutSlaughterEn: StoryCatalog = {
+  'thanh-ay-van-mo-cong.line': 'That citadel still has its gates open, and nobody going in shows a paper.',
+  'thanh-ay-van-mo-cong.scene': 'Open from first light to dusk, two guards sitting in the shade asking nobody anything. Stalls have grown along the foot of the wall, selling to people inside and outside alike. One of them is a former soldier of the other side, selling tea, sitting with his back to the wall.',
+  'thanh-ay-van-mo-cong.chronicle': 'That citadel keeps its gates open, unchecked.',
+  'to-cao-dan-o-cho.line': 'The notice at the market has torn, and somebody has pasted another over it.',
+  'to-cao-dan-o-cho.scene': 'The first was pasted to the tea-stall post and two rainstorms blurred half of it. The second was copied and pasted by the village schoolmaster, unasked. He left off the last line, because on the old sheet that part had lost its characters. Nobody knows what the missing line said.',
+  'to-cao-dan-o-cho.chronicle': 'The market notice was recopied and pasted over.',
   title: 'Victory Without Slaughter',
   'he-writes-letters-instead-of-orders.line': '{hero} writes letters instead of orders. One a day.',
   'he-writes-letters-instead-of-orders.chronicle': '{hero} wrote to the enemy garrison.',
@@ -195,6 +231,9 @@ export const withoutSlaughterEn: StoryCatalog = {
 };
 
 export const delayerVi: StoryCatalog = {
+  'ho-di-vong-mot-quang.line': 'Họ đi vòng một quãng dài để tránh chỗ cao, và mất thêm hai ngày.',
+  'ho-di-vong-mot-quang.scene': 'Đường vòng đi qua đầm, ngựa lún tới khoeo, xe phải bỏ lại ba cái. Người đi buôn theo sau đếm được ba cái xe bỏ dọc đường, còn nguyên bánh. Trên gò cao vẫn có người của ta ngồi, không xuống, và họ ngồi đấy suốt cả hai ngày ấy.',
+  'ho-di-vong-mot-quang.chronicle': 'Họ đi vòng qua đầm, bỏ lại ba cỗ xe.',
   title: 'Kẻ Trì Hoãn',
   'do-not-give-them-a-battle.title': 'Đừng cho họ một trận',
   'do-not-give-them-a-battle.body': 'Quân {rival} mạnh hơn ta ở chỗ trống. Họ cần một trận. Ta thì không.',
@@ -223,6 +262,9 @@ export const delayerVi: StoryCatalog = {
 };
 
 export const delayerEn: StoryCatalog = {
+  'ho-di-vong-mot-quang.line': 'They went a long way round to avoid the high ground, and lost two days.',
+  'ho-di-vong-mot-quang.scene': 'The detour runs through marsh; horses sink to the hock and three carts have to be left. A trader following behind counts three carts abandoned along the road, wheels still on. Our men are still sitting up on the rise, not coming down, and they sit there through both of those days.',
+  'ho-di-vong-mot-quang.chronicle': 'They went round through the marsh and abandoned three carts.',
   title: 'The Delayer',
   'do-not-give-them-a-battle.title': 'Do Not Give Them a Battle',
   'do-not-give-them-a-battle.body': '{rival} is stronger than us in open ground. They need a battle. We do not.',
@@ -251,6 +293,12 @@ export const delayerEn: StoryCatalog = {
 };
 
 export const sicknessVi: StoryCatalog = {
+  'nha-thuoc-o-dau-lang.line': 'Đầu làng dựng một cái nhà thuốc, và người ta xếp hàng từ sáng.',
+  'nha-thuoc-o-dau-lang.scene': 'Nhà tranh ba gian, trước cửa có cái chõng để người bệnh nằm chờ. Thầy thuốc là người mới tới, nói giọng lạ, bắt mạch nhanh và ít nói. Có bà cụ tới từ canh năm, ngồi đấy tới trưa mới tới lượt, và ngồi im suốt không kêu ca một tiếng.',
+  'nha-thuoc-o-dau-lang.chronicle': 'Dựng nhà thuốc ở đầu làng.',
+  'cai-cong-lang-van-dong.line': 'Cổng làng vẫn đóng, và người trong làng đã quen lối đi tắt.',
+  'cai-cong-lang-van-dong.scene': 'Cổng chính then cài, còn chỗ rào tre phía sau ao thì có một quãng thấp, ai cũng trèo qua đấy. Lý trưởng biết. Ông ta không sửa quãng rào ấy, và cũng không nói với ai là mình biết. Người gác cổng chính vẫn ngồi gác, mỗi ngày một buổi.',
+  'cai-cong-lang-van-dong.chronicle': 'Cổng làng vẫn đóng, và ai cũng đi lối sau.',
   title: 'Dịch',
   'a-fever-in-the-market.line': 'Có sốt ở chợ {land}. Ba nhà, rồi bảy nhà.',
   'a-fever-in-the-market.chronicle': 'Dịch bắt đầu ở {land}.',
@@ -280,6 +328,12 @@ export const sicknessVi: StoryCatalog = {
 };
 
 export const sicknessEn: StoryCatalog = {
+  'nha-thuoc-o-dau-lang.line': 'A physician\'s house has gone up at the head of the village, and there is a queue from dawn.',
+  'nha-thuoc-o-dau-lang.scene': 'Three bays of thatch, with a plank bed outside for the sick to wait on. The physician is newly arrived, speaks with an accent, takes a pulse quickly and says little. An old woman comes at the fifth watch and does not reach the front until noon, and sits there the whole time without a word of complaint.',
+  'nha-thuoc-o-dau-lang.chronicle': 'A physician\'s house was raised at the village head.',
+  'cai-cong-lang-van-dong.line': 'The village gate stays barred, and everyone has learned the way round.',
+  'cai-cong-lang-van-dong.scene': 'The main gate is bolted, but the bamboo fence behind the pond has a low stretch that everybody climbs. The headman knows. He does not mend that stretch, and does not tell anyone he knows. The gatekeeper still keeps the main gate, one shift a day.',
+  'cai-cong-lang-van-dong.chronicle': 'The gate stays barred, and everyone goes round the back.',
   title: 'The Sickness',
   'a-fever-in-the-market.line': 'There is a fever in the market at {land}. Three houses, then seven.',
   'a-fever-in-the-market.chronicle': 'A sickness began at {land}.',
@@ -437,6 +491,12 @@ export const saltRoadEn: StoryCatalog = {
 };
 
 export const thirteenthVi: StoryCatalog = {
+  'ho-tu-thu-thue-lay.line': 'Họ tự thu thuế lấy, và nộp lên đúng hạn.',
+  'ho-tu-thu-thue-lay.scene': 'Người mang thuế lên là một ông già, đi bộ, dắt theo hai con la chở tiền. Ông ta nộp đủ, xin biên lai, rồi hỏi đường về chợ mua muối. Viên thư lại hỏi ông ta chức gì trong huyện ấy. Ông ta bảo không có chức gì, ông ta chỉ là người được cử đi.',
+  'ho-tu-thu-thue-lay.chronicle': 'Họ tự thu thuế và nộp đủ, đúng hạn.',
+  'don-linh-o-cho-nga-ba.line': 'Đồn lính ở chỗ ngã ba đã dựng xong, và lính ở đấy học tiếng địa phương.',
+  'don-linh-o-cho-nga-ba.scene': 'Đồn nhỏ, hàng rào tre, một cái cột cờ. Lính phần lớn là người dưới xuôi, nói không ai hiểu, nên có một anh đội tự đi học tiếng, học của bà bán bún ngay cạnh đồn. Anh ta học được chừng ba chục câu. Ba chục câu ấy đủ để mua bán và không đủ để cãi nhau.',
+  'don-linh-o-cho-nga-ba.chronicle': 'Dựng đồn ở ngã ba, lính học tiếng bản xứ.',
   title: 'Sứ Quân Thứ Mười Ba',
   'the-realm-is-wider-than-the-roads.line': 'Nước rộng hơn đường sá của nó.',
   'the-realm-is-wider-than-the-roads.chronicle': 'Nước rộng hơn đường sá.',
@@ -470,6 +530,12 @@ export const thirteenthVi: StoryCatalog = {
 };
 
 export const thirteenthEn: StoryCatalog = {
+  'ho-tu-thu-thue-lay.line': 'They collect their own taxes now, and they send them up on time.',
+  'ho-tu-thu-thue-lay.scene': 'The man who brings it is old and on foot, leading two mules loaded with cash. He hands over the full amount, asks for a receipt, then asks the way to the market to buy salt. The clerk asks what office he holds in that district. He says none; he is just the one they sent.',
+  'ho-tu-thu-thue-lay.chronicle': 'They collected their own taxes and sent them up in full.',
+  'don-linh-o-cho-nga-ba.line': 'The post at the crossroads is finished, and the men there are learning the local speech.',
+  'don-linh-o-cho-nga-ba.scene': 'A small post, bamboo palisade, one flagstaff. Most of the men are from the lowlands and nobody understands them, so one sergeant has gone and learned the language himself, from the noodle-seller beside the gate. He has about thirty phrases. Thirty is enough to buy and sell with and not enough to argue with.',
+  'don-linh-o-cho-nga-ba.chronicle': 'A post was raised at the crossroads; the men learn the local speech.',
   title: 'The Thirteenth Warlord',
   'the-realm-is-wider-than-the-roads.line': 'The realm is wider than its roads.',
   'the-realm-is-wider-than-the-roads.chronicle': 'The realm outgrew its roads.',

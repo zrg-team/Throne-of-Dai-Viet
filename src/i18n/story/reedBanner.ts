@@ -5,6 +5,12 @@ import type { StoryCatalog } from './types';
  * tới dự lễ tấn phong" has a register that does not survive a round trip through English.
  */
 export const reedBannerVi: StoryCatalog = {
+  'dam-tre-o-bai-cu.line': 'Đám trẻ ở bãi cũ giờ chia phe bằng cờ lau thật.',
+  'dam-tre-o-bai-cu.scene': 'Cờ cắm bằng cán tre, bông lau buộc túm ở đầu, mỗi phe một màu lạt. Chúng đánh nhau bằng nắm đấm rồi lại thôi, và đứa nào thua thì phải khiêng cờ về. Có mấy đứa lớn hơn đứng ngoài xem, không chơi nữa. Chúng đứng đấy suốt buổi chiều.',
+  'dam-tre-o-bai-cu.chronicle': 'Trẻ con ở bãi cũ chia phe bằng cờ lau.',
+  'no-van-chan-trau.line': 'Nó vẫn chăn trâu ở bãi ấy, và giờ chăn cả trâu nhà khác.',
+  'no-van-chan-trau.scene': 'Bảy con, của bốn nhà, mỗi nhà trả nó bằng gạo. Nó dắt cả bảy con đi một lượt, đi hàng dọc, con đầu đàn thì nó không buộc dây. Có người bảo trâu nhà mình về sớm hơn từ khi giao cho nó. Nó nghe, và không nói gì cả.',
+  'no-van-chan-trau.chronicle': 'Nó chăn trâu cho bốn nhà.',
   title: 'Ngọn Cờ Lau',
 
   'reed-children.line': 'Có một thằng bé ở Hoa Lư bày trận cho lũ trẻ bằng cờ lau. Chúng nghe lời nó.',
@@ -130,6 +136,12 @@ export const reedBannerVi: StoryCatalog = {
 };
 
 export const reedBannerEn: StoryCatalog = {
+  'dam-tre-o-bai-cu.line': 'The children on the old flats are picking sides with real reed banners now.',
+  'dam-tre-o-bai-cu.scene': 'Bamboo staves with a bunch of reed flowers tied at the top, a different colour of twine for each side. They fight with fists and then stop, and the losing side has to carry the banners home. A few of the bigger ones stand at the edge watching and do not play any more. They stand there the whole afternoon.',
+  'dam-tre-o-bai-cu.chronicle': 'The children on the flats play under reed banners.',
+  'no-van-chan-trau.line': 'He is still herding on those flats, and now he herds other households\' buffalo too.',
+  'no-van-chan-trau.scene': 'Seven of them, from four houses, each paying him in rice. He takes all seven out at once, in single file, and does not put a rope on the lead animal. Somebody says their buffalo has come home earlier since he took it on. He hears that, and says nothing at all.',
+  'no-van-chan-trau.chronicle': 'He herds buffalo for four households.',
   title: 'The Reed Banner',
 
   'reed-children.line': 'A boy in Hoa Lư drills the other children with reed banners. They obey him.',

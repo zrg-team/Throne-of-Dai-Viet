@@ -76,6 +76,22 @@ export const sixtyFiveCitadels: StoryTemplate = {
 
   fragments: [
     {
+      id: 'ho-tu-lo-lay-mua-do',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_send-grain-not-men') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'cai-trong-dong-o-san-dinh',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_lead-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'the-whole-province-has-risen',
       volume: 'card',
       band: 'crowd',
@@ -204,6 +220,22 @@ export const rideTheWind: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'so-kho-ghi-tay-ba-ay',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_the-granary-needs-a-hand') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'ao-giap-may-lai-vua-nguoi',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_give-her-the-field') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'she-will-not-take-the-post',
       volume: 'card',
@@ -341,6 +373,22 @@ export const theSubstitution: StoryTemplate = {
 
   fragments: [
     {
+      id: 'khong-ai-biet-dung-o-dau',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_nobody-wears-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'la-co-cu-dot-sau-tran',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_someone-else-wears-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'they-know-which-banner-is-yours',
       volume: 'card',
       band: 'night',
@@ -448,6 +496,22 @@ export const borrowedSword: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'luoi-guom-phai-mai-lai',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_it-is-mine') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'nguoi-ta-ra-ho-xem-rua',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_give-it-back') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'a-blade-in-the-net',
       volume: 'card',
@@ -595,6 +659,22 @@ export const slanderedGeneral: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'ong-ta-ve-cam-quan-lai',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_reinstate-him') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'buc-thu-ay-van-trong-cap',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_find-out-who-wrote-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'a-letter-nobody-can-source',
       volume: 'card',
@@ -751,6 +831,22 @@ export const trustedSubordinate: StoryTemplate = {
 
   fragments: [
     {
+      id: 'khong-ai-dam-hoi-so-quan',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_he-has-earned-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'hai-cai-an-hai-cai-trap',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_split-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'he-holds-a-great-deal',
       volume: 'whisper',
       weight: 5,
@@ -854,6 +950,22 @@ export const chamEngineer: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'con-duong-moi-ra-ben',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_roads') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'may-cai-guong-o-xuong',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_ramparts') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'drawing-in-the-dirt',
       volume: 'card',
@@ -960,6 +1072,22 @@ export const theAssembly: StoryTemplate = {
 
   fragments: [
     {
+      id: 'cai-phong-ay-khoa-cua',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_dissolve-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'ho-hop-lai-vao-thang-sau',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-them-vote') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'they-are-meeting-without-you',
       volume: 'whisper',
       weight: 5,
@@ -1062,6 +1190,22 @@ export const riceRiot: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'linh-canh-cho-hai-ca',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_double-the-watch') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'kho-trong-va-cho-yen',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_give-it-away') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'the-price-in-the-capital',
       volume: 'whisper',
@@ -1183,6 +1327,22 @@ export const noHeir: StoryTemplate = {
 
   fragments: [
     {
+      id: 'bien-gioi-cam-lai-cot-moi',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_take-the-border-while-they-argue') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'nha-ay-gui-qua-moi-mua',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_back-the-eldest') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'three-armies-and-no-throne',
       volume: 'card',
       band: 'border',
@@ -1298,6 +1458,22 @@ export const eatTogether: StoryTemplate = {
 
   fragments: [
     {
+      id: 'hai-doanh-trai-cach-nhau',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_separate-them') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'hai-ong-ay-an-chung-mam',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-them-swear') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'they-have-started-eating-together',
       volume: 'whisper',
       weight: 5,
@@ -1388,6 +1564,14 @@ export const unpaidHost: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'linh-gui-tien-ve-nha',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_pay-them') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'they-have-not-said-anything',
       volume: 'whisper',

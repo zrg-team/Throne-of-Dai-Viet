@@ -56,6 +56,22 @@ export const riverStakes: StoryTemplate = {
 
   fragments: [
     {
+      id: 'ong-chai-thoi-ra-ben',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_send-him-home') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'nuoc-rong-thay-dau-coc',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_drive-them') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'the-fishermans-complaint',
       volume: 'card',
       band: 'river',

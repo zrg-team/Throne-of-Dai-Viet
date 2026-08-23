@@ -9,6 +9,12 @@ import type { StoryCatalog } from './types';
  */
 
 export const gooseFeathersVi: StoryCatalog = {
+  'cai-ao-cuoi-con-treo.line': 'Cái áo cưới ấy vẫn treo trong buồng, và chưa ai đem cất.',
+  'cai-ao-cuoi-con-treo.scene': 'Lụa đỏ, thêu chỉ vàng ở cổ và ở tay, treo trên cái sào ngang. Người hầu vào quét buồng mỗi sáng, quét xong thì phủi bụi trên vai áo bằng khăn khô. Cô ấy không mặc lại lần nào. Cũng chưa lần nào bảo đem đi.',
+  'cai-ao-cuoi-con-treo.chronicle': 'Cái áo cưới vẫn treo trong buồng.',
+  'nguoi-do-tin-van-den.line': 'Người đưa tin ấy vẫn tới, và tới đúng ngày như cũ.',
+  'nguoi-do-tin-van-den.scene': 'Cứ mười ngày một lần, vào lúc chợ tan, đi cửa sau, ở lại chừng một tuần trà. Y nhận thư, không đọc, giắt vào ống tre trong tay áo rồi đi. Người coi cửa sau quen mặt y đến mức không hỏi nữa. Có hôm y tới sớm hơn nửa buổi, và hôm ấy y đợi ngoài ngõ cho đúng giờ.',
+  'nguoi-do-tin-van-den.chronicle': 'Người đưa tin vẫn tới, đúng ngày.',
   title: 'Lông Ngỗng',
   'a-marriage-offered.title': 'Lời cầu thân',
   'a-marriage-offered.body': '{rival} xin kết thân, và gửi một người con trai sang triều. Hắn có duyên, hắn có tài, và lòng trung của hắn ghi là "không rõ".',
@@ -66,6 +72,12 @@ export const gooseFeathersVi: StoryCatalog = {
 };
 
 export const gooseFeathersEn: StoryCatalog = {
+  'cai-ao-cuoi-con-treo.line': 'The wedding robe still hangs in the room, and nobody has put it away.',
+  'cai-ao-cuoi-con-treo.scene': 'Red silk, gold thread at the collar and the cuffs, on a crossbar. The maid sweeps the room each morning and afterwards flicks the dust off the shoulders with a dry cloth. She has not worn it again. She has not once said to take it away either.',
+  'cai-ao-cuoi-con-treo.chronicle': 'The wedding robe still hangs in the room.',
+  'nguoi-do-tin-van-den.line': 'The messenger still comes, and comes on the same days as before.',
+  'nguoi-do-tin-van-den.scene': 'Once every ten days, as the market breaks up, by the back gate, staying about as long as it takes to drink tea. He takes the letter, does not read it, slides it into a bamboo tube in his sleeve and goes. The back-gate man knows his face too well to ask any more. One day he came half a morning early, and waited out in the lane until the hour.',
+  'nguoi-do-tin-van-den.chronicle': 'The messenger still comes, on the day.',
   title: 'Goose Feathers',
   'a-marriage-offered.title': 'A Marriage Offered',
   'a-marriage-offered.body': '{rival} offers a bond, and sends a son to your court. He is charming, he is competent, and his loyalty reads as "unknown".',
@@ -123,6 +135,12 @@ export const gooseFeathersEn: StoryCatalog = {
 };
 
 export const granariesVi: StoryCatalog = {
+  'ruong-do-lai-thanh-ba.line': 'Mấy đám ruộng ấy chia lại rồi, và có nhà được ba sào.',
+  'ruong-do-lai-thanh-ba.scene': 'Chia theo sổ mới, cắm cọc tre, buộc lạt đỏ ở đầu cọc cho dễ nhìn. Nhà được chia là nhà trước nay đi làm thuê. Người đàn ông ra đứng ở đầu bờ một lúc lâu rồi về, hôm sau mới ra cày. Ông ta cày chậm, và cày rất kỹ ở chỗ giáp bờ.',
+  'ruong-do-lai-thanh-ba.chronicle': 'Ruộng chia lại; có nhà được ba sào.',
+  'ong-ta-ve-ngoi-o-nha.line': 'Ông ta về nhà ngồi, và vẫn có người tới hỏi việc.',
+  'ong-ta-ve-ngoi-o-nha.scene': 'Nhà ở cuối phố, cửa mở, ông ta ngồi ở gian ngoài với một bộ ấm chén. Khách tới phần lớn là thư lại cũ, tới hỏi cách tính một khoản gì đó rồi về. Ông ta trả lời hết, không nhận quà. Sổ sách thì ông ta không giữ cuốn nào, đã nộp lại đủ.',
+  'ong-ta-ve-ngoi-o-nha.chronicle': 'Ông ta về nhà, và người ta vẫn tới hỏi.',
   'thoc-vao-kho-nha-nuoc.line': 'Kho nhà nước đã dựng xong, và trong kho chưa có gì cả.',
   'thoc-vao-kho-nha-nuoc.guiThoc': 'Gửi thóc vào kho',
   'thoc-vao-kho-nha-nuoc.scene': 'Viên coi kho mở cửa cho xem: nền lát gạch, mái mới lợp, bốn cái cột to bằng hai người ôm, và trống không. Ông ta bảo dựng thì đã dựng xong từ mùa trước, chỉ chưa ai bảo phải đổ gì vào. Ngày nào ông ta cũng quét nền. Ông ta nói thêm rằng chuột thì chưa có, vì chưa có gì cho chuột ăn.',
@@ -182,6 +200,12 @@ export const granariesVi: StoryCatalog = {
 };
 
 export const granariesEn: StoryCatalog = {
+  'ruong-do-lai-thanh-ba.line': 'Those fields have been redivided, and one household came out with three sào.',
+  'ruong-do-lai-thanh-ba.scene': 'Divided off the new register, bamboo stakes driven, red twine at the heads to make them easy to see. The household that got them had always worked other people\'s land. The man stands at the edge for a long while and goes home; he does not plough until the next day. He ploughs slowly, and very carefully along the boundary.',
+  'ruong-do-lai-thanh-ba.chronicle': 'The fields were redivided; one house got three sào.',
+  'ong-ta-ve-ngoi-o-nha.line': 'He sits at home now, and people still come to ask him things.',
+  'ong-ta-ve-ngoi-o-nha.scene': 'A house at the end of the street, door open, him in the outer room with a teapot. The visitors are mostly former clerks, who come to ask how some figure is worked out and then leave. He answers all of it and takes no gifts. He kept none of the registers; he handed every one back.',
+  'ong-ta-ve-ngoi-o-nha.chronicle': 'He went home, and they still come to ask.',
   'thoc-vao-kho-nha-nuoc.line': 'The state granary is finished, and there is nothing in it.',
   'thoc-vao-kho-nha-nuoc.guiThoc': 'Send grain to the granary',
   'thoc-vao-kho-nha-nuoc.scene': 'The keeper opens it to be looked at: brick floor, new thatch, four pillars each the width of two men, and empty. Built since last season, he says; nobody has told him yet what is to go in it. He sweeps the floor every day. He adds that there are no rats, because there is nothing for a rat to eat.',
@@ -241,6 +265,12 @@ export const granariesEn: StoryCatalog = {
 };
 
 export const riverStakesVi: StoryCatalog = {
+  'nuoc-rong-thay-dau-coc.line': 'Nước ròng, và trên mặt sông thấy đầu cọc.',
+  'nuoc-rong-thay-dau-coc.scene': 'Chỉ thấy lúc thật ròng, chừng một canh giờ mỗi ngày, và chỉ thấy nếu đứng đúng chỗ. Mấy ông chài quen luồng thì tránh xa từ trước. Người lạ chở hàng qua đấy có hôm nghe tiếng gỗ chạm đáy thuyền, giật mình, rồi qua được. Không ai bảo họ.',
+  'nuoc-rong-thay-dau-coc.chronicle': 'Nước ròng, và cọc nhô lên mặt sông.',
+  'ong-chai-thoi-ra-ben.line': 'Ông chài ấy thôi không ra bến nữa, và bán cả thuyền.',
+  'ong-chai-thoi-ra-ben.scene': 'Bán cho người cùng xóm, bán rẻ, kèm cả lưới. Người mua hỏi sao bán, ông ta bảo già rồi. Ông ta chưa già lắm. Về sau người ta thấy ông ta đi làm mướn ở lò gạch trên bờ, và từ lò gạch ấy nhìn xuống thì không thấy khúc sông ấy.',
+  'ong-chai-thoi-ra-ben.chronicle': 'Ông chài bán thuyền, thôi ra bến.',
   title: 'Cọc Bạch Đằng',
   'the-fishermans-complaint.title': 'Lời người đánh cá',
   'the-fishermans-complaint.body': 'Một người đánh cá ở {land} được đưa tới. Ông ta nói nước ở cửa sông rút xa và rút nhanh hơn bất cứ ai còn sống từng thấy, và mùa xuân năm ngoái có một chiếc thuyền lạ mắc cạn ở đó, phải chặt mới ra được.',
@@ -292,6 +322,12 @@ export const riverStakesVi: StoryCatalog = {
 };
 
 export const riverStakesEn: StoryCatalog = {
+  'nuoc-rong-thay-dau-coc.line': 'The tide is out, and the tops of the stakes show above the water.',
+  'nuoc-rong-thay-dau-coc.scene': 'Only at the lowest water, about an hour a day, and only if you are standing in the right place. The fishermen who know the channel keep well clear long before. A stranger carrying cargo through hears wood touch his hull one day, startles, and gets across. Nobody tells him.',
+  'nuoc-rong-thay-dau-coc.chronicle': 'At low water the stakes show above the river.',
+  'ong-chai-thoi-ra-ben.line': 'That fisherman has stopped going down to the landing, and has sold his boat.',
+  'ong-chai-thoi-ra-ben.scene': 'Sold to a neighbour, cheap, nets included. Asked why, he says he is old. He is not very old. Later he is seen hired at the brick kiln up the bank, and from the kiln you cannot see that stretch of the river.',
+  'ong-chai-thoi-ra-ben.chronicle': 'The fisherman sold his boat and left the landing.',
   title: 'The Stakes in the River',
   'the-fishermans-complaint.title': 'The Fisherman’s Complaint',
   'the-fishermans-complaint.body': 'A fisherman from {land} is brought before you. He says the tide at the river mouth falls further and faster than any man alive remembers, and that a foreign ship went aground on the mud last spring and had to be cut free.',
@@ -343,6 +379,12 @@ export const riverStakesEn: StoryCatalog = {
 };
 
 export const countingHouseVi: StoryCatalog = {
+  'chua-ay-xay-them-gian.line': 'Chùa ấy xây thêm một gian, và xây bằng gỗ tốt.',
+  'chua-ay-xay-them-gian.scene': 'Gian mới nối vào phía đông, cột lim, mái ngói mũi hài. Thợ làm bốn tháng. Nhà sư trụ trì không nói tiền ở đâu ra, và không ai trong làng hỏi. Trong gian mới có một cái tủ khoá, kê sát tường, và cái tủ ấy không phải để kinh.',
+  'chua-ay-xay-them-gian.chronicle': 'Chùa xây thêm một gian bằng gỗ tốt.',
+  'so-van-de-o-gian-ngoai.line': 'Cuốn sổ ấy vẫn để ở gian ngoài, và con số cuối trang vẫn được chép.',
+  'so-van-de-o-gian-ngoai.scene': 'Chép bằng bút lông nhỏ, chữ đều, mỗi tháng một dòng, không sai một chỗ. Ông ta chép xong thì gấp sổ lại đúng chỗ cũ và đi ra. Có người bảo ông ta chép cho ai. Có người bảo ông ta chép cho mình. Chưa ai hỏi ông ta câu ấy.',
+  'so-van-de-o-gian-ngoai.chronicle': 'Con số cuối trang vẫn được chép mỗi tháng.',
   'tieu-cho-ai-cung-thay.line': 'Kho bạc dày lên, và có người vẫn chép con số ấy mỗi tháng.',
   'tieu-cho-ai-cung-thay.tieuBot': 'Tiêu cho ai cũng thấy',
   'tieu-cho-ai-cung-thay.scene': 'Sổ để ở gian ngoài, không khoá, ai qua cũng đọc được — mà chỉ có một người đọc. Tháng nào ông ta cũng chép lại con số ấy xuống cuối trang, cùng một nét, cùng một chỗ. Quan Hộ bộ bảo cứ để yên, tiền nằm im thì không đi đâu mất. Ông ta không nói thêm rằng nằm im thì ai cũng biết nó nằm ở đâu.',
@@ -377,6 +419,12 @@ export const countingHouseVi: StoryCatalog = {
 };
 
 export const countingHouseEn: StoryCatalog = {
+  'chua-ay-xay-them-gian.line': 'The temple has added a bay, and added it in good timber.',
+  'chua-ay-xay-them-gian.scene': 'The new bay joins on the east side — ironwood posts, curved-tile roof. Four months of work. The abbot does not say where the money came from, and nobody in the village asks. Inside the new bay there is a locked cabinet against the wall, and it is not for sutras.',
+  'chua-ay-xay-them-gian.chronicle': 'The temple added a bay in good timber.',
+  'so-van-de-o-gian-ngoai.line': 'The ledger still sits in the outer room, and the figure at the foot is still copied.',
+  'so-van-de-o-gian-ngoai.scene': 'A fine brush, an even hand, one line a month, never out of place. When he has copied it he closes the book at the old page and walks out. Some say he is copying it for somebody. Some say he is copying it for himself. Nobody has yet asked him.',
+  'so-van-de-o-gian-ngoai.chronicle': 'The figure at the foot is still copied each month.',
   'tieu-cho-ai-cung-thay.line': 'The treasury is deepening, and somebody is still writing the figure down each month.',
   'tieu-cho-ai-cung-thay.tieuBot': 'Spend it where it can be seen',
   'tieu-cho-ai-cung-thay.scene': 'The ledger sits in the outer room, unlocked, where anyone passing could read it — and one man does. Each month he copies the figure to the foot of the page, same hand, same place. The Minister of Revenue says leave it be, money sitting still does not go anywhere. He does not add that money sitting still is also money everybody knows the location of.',
@@ -411,6 +459,12 @@ export const countingHouseEn: StoryCatalog = {
 };
 
 export const dienHongVi: StoryCatalog = {
+  'cac-cu-ay-ve-lang.line': 'Các cụ ấy về làng, và về đến đâu người ta hỏi đến đấy.',
+  'cac-cu-ay-ve-lang.scene': 'Đi bộ, chống gậy, mỗi cụ một hướng. Về tới đầu làng thì đã có người đợi sẵn ở gốc đa. Cụ kể lại, kể ngắn, vì cụ chỉ hô có một tiếng. Người nghe hỏi trong điện có gì, cụ bảo có cột to lắm, và cụ không nhớ gì thêm ngoài cột.',
+  'cac-cu-ay-ve-lang.chronicle': 'Các bô lão về làng, và kể lại.',
+  'khong-ai-hoi-y-ai.line': 'Lệnh truyền xuống các lộ, và không ai hỏi lại câu nào.',
+  'khong-ai-hoi-y-ai.scene': 'Viên thư lại chép ra mười bản, đóng dấu, giao cho mười người ngựa. Mười người đi mười hướng, đi trong đêm. Không có bản nào bị trả lại, không có lộ nào xin hỏi thêm. Đến mùa sau thì có hai lộ nộp thiếu, và cả hai đều nộp thiếu đúng một khoản.',
+  'khong-ai-hoi-y-ai.chronicle': 'Lệnh truyền đi, không lộ nào hỏi lại.',
   title: 'Hội Nghị Diên Hồng',
   'the-elders-are-summoned.title': 'Các bô lão',
   'the-elders-are-summoned.body': '{rival} đang tới. Có thể triệu các bô lão từ mọi trấn về, đặt câu hỏi trước mặt họ, và nghe họ trả lời. Hoặc không.',
@@ -434,6 +488,12 @@ export const dienHongVi: StoryCatalog = {
 };
 
 export const dienHongEn: StoryCatalog = {
+  'cac-cu-ay-ve-lang.line': 'The elders went home, and were asked about it in every village they passed.',
+  'cac-cu-ay-ve-lang.scene': 'On foot, on sticks, each a different way. By the time one reaches his village there are already people waiting under the banyan. He tells it short, because he shouted one word. They ask what was in the hall; he says the pillars were very large, and remembers nothing beyond the pillars.',
+  'cac-cu-ay-ve-lang.chronicle': 'The elders went home, and told it.',
+  'khong-ai-hoi-y-ai.line': 'The order went down to the provinces, and not one of them asked a question back.',
+  'khong-ai-hoi-y-ai.scene': 'The clerk copies it ten times, seals them, and hands them to ten riders. Ten riders, ten directions, riding at night. No copy comes back, no province asks for anything further. The next season two provinces are short in their returns, and both are short by exactly the same item.',
+  'khong-ai-hoi-y-ai.chronicle': 'The order went out; no province asked anything.',
   title: 'The Elders Answer',
   'the-elders-are-summoned.title': 'The Elders',
   'the-elders-are-summoned.body': '{rival} is coming. The elders of every province could be summoned, the question put to them in front of everyone, and their answer heard. Or not.',

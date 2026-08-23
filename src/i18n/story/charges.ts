@@ -13,6 +13,12 @@ import type { StoryCatalog } from './types';
 // ── Bình Ngô Đại Cáo · 1428 ─────────────────────────────────────────────────
 
 export const daiCaoEn: StoryCatalog = {
+  'muc-mai-san-tren-ban.line': 'He grinds his ink at dawn, and by dusk has written nothing.',
+  'muc-mai-san-tren-ban.scene': 'The inkstone sits in the middle of the table, ground enough for a morning, a bowl turned over it to keep it wet. Paper on the left under a river pebble. The boy brings tea three times and all three times he is sitting looking out at the yard. By evening the ink has dried, and the next day he grinds it again from the start.',
+  'muc-mai-san-tren-ban.chronicle': 'He ground his ink, and did not write.',
+  'ong-ta-day-hoc-o-lang.line': 'He went back to his village, opened a class, and teaches eleven children.',
+  'ong-ta-day-hoc-o-lang.scene': 'The school is the outer room of his house; the pupils sit on the floor and write on banana leaf to save paper. He teaches the characters first and the meanings after, and does not teach composition. Somebody asks why not. He says composition requires somebody to read it.',
+  'ong-ta-day-hoc-o-lang.chronicle': 'He went home to his village and taught.',
   'the-scholar-asks-for-paper.chronicle': 'A scholar asked leave to write the country down.',
   'the-scholar-asks-for-paper.scene': 'The record room keeps a lamp burning for him and the oil comes out of the clerks\' own allowance, which none of them has mentioned to anybody. There is one sheet squared on the desk already, the good mulberry kind, and he has not touched it in nine days. A junior asks whether he should file it back. Leave it where it is, he says. Then he asks how many provinces we hold this morning, and writes the number on the back of his hand.',
   'the-scholar-asks-for-paper.let-him-write.d': 'Only once, and only after it is true.',
@@ -55,6 +61,12 @@ export const daiCaoEn: StoryCatalog = {
 };
 
 export const daiCaoVi: StoryCatalog = {
+  'muc-mai-san-tren-ban.line': 'Ông ta mài mực sẵn từ sáng, và cả ngày chưa viết chữ nào.',
+  'muc-mai-san-tren-ban.scene': 'Nghiên mực để giữa bàn, mài đủ dùng cho một buổi, đậy bằng cái bát úp cho khỏi khô. Giấy xếp bên trái, chặn bằng hòn đá cuội. Thằng nhỏ hầu trà vào ba lần, cả ba lần ông ta đều đang ngồi nhìn ra sân. Đến chiều thì mực khô, và hôm sau ông ta mài lại từ đầu.',
+  'muc-mai-san-tren-ban.chronicle': 'Ông ta mài mực, và chưa viết.',
+  'ong-ta-day-hoc-o-lang.line': 'Ông ta về làng, mở lớp, dạy mười một đứa trẻ.',
+  'ong-ta-day-hoc-o-lang.scene': 'Lớp học là gian ngoài nhà ông ta, học trò ngồi bệt, viết lên tàu lá chuối cho đỡ tốn giấy. Ông ta dạy chữ trước, dạy nghĩa sau, và không dạy làm văn. Có người hỏi sao không dạy làm văn. Ông ta bảo làm văn thì phải có ai đọc.',
+  'ong-ta-day-hoc-o-lang.chronicle': 'Ông ta về làng dạy học.',
   'the-scholar-asks-for-paper.chronicle': 'Một người học trò xin được chép nước Nam xuống.',
   'the-scholar-asks-for-paper.scene': 'Tàng thư để đèn suốt cho ông, mà dầu thì trích từ phần của mấy viên thư lại, chuyện ấy không ai thưa lên. Trên bàn đã sẵn một tờ giấy dó loại tốt, xếp vuông, chín hôm nay ông chưa chạm vào. Có người hỏi nhỏ có nên cất lại không. Ông bảo cứ để đấy. Rồi ông hỏi sáng nay ta giữ được mấy trấn, và chấm bút ghi con số ấy lên mu bàn tay.',
   'the-scholar-asks-for-paper.let-him-write.d': 'Chỉ một lần, và phải chép sau.',
@@ -99,6 +111,12 @@ export const daiCaoVi: StoryCatalog = {
 // ── Chiếu Dời Đô · 1010 ─────────────────────────────────────────────────────
 
 export const chieuDoiDoEn: StoryCatalog = {
+  'nguoi-do-dat-ngoai-bai.line': 'Men were out on the flats driving measuring stakes for three days.',
+  'nguoi-do-dat-ngoai-bai.scene': 'Four of them, one coil of hemp line, bamboo stakes in a straight run from the waterline to the foot of the rise. Villagers come to watch and ask what it is for; they say they are only measuring. On the third evening they pull the stakes and carry them off, all but one in the middle of the flats, driven too deep.',
+  'nguoi-do-dat-ngoai-bai.chronicle': 'The flats were measured over three days.',
+  'cai-cong-thanh-cu.line': 'The old gate still shuts at the same hour, and the drum is the same.',
+  'cai-cong-thanh-cu.scene': 'The gatekeeper has done this twenty years — shut at the first watch drum, not early, not late. The hinge complains, and has for a long time, and he knows the sound well enough to hear damp weather in it. Inside, the streets are narrow: two carts meeting means one of them backs up.',
+  'cai-cong-thanh-cu.chronicle': 'The old citadel gate still shuts on the hour.',
   'the-valley-is-too-narrow.chronicle': 'A geomancer named {land} as a better seat.',
   'the-valley-is-too-narrow.scene': 'His granddaughter carries the map case because his hands shake now, and she has heard the speech about {land} eleven times on the road and could give it herself. When he unrolls it the dent from last time is still in the paper. The guards let him through without being told to. Somebody at the back of the hall says the valley has held for sixty years, and the old man agrees with him, pleasantly, and does not sit down.',
   'the-valley-is-too-narrow.survey-the-plain.d': 'A market, a wall, and twelve seasons.',
@@ -129,6 +147,12 @@ export const chieuDoiDoEn: StoryCatalog = {
 };
 
 export const chieuDoiDoVi: StoryCatalog = {
+  'nguoi-do-dat-ngoai-bai.line': 'Ngoài bãi có người cắm cọc đo đất, đo suốt ba hôm.',
+  'nguoi-do-dat-ngoai-bai.scene': 'Bốn người, một cuộn dây gai, cắm cọc tre theo hàng thẳng từ mép nước vào tới chân gò. Dân ra xem, hỏi đo để làm gì, họ bảo đo thôi. Chiều hôm thứ ba họ nhổ cọc mang về, trừ một cái ở giữa bãi, cái ấy đóng sâu quá.',
+  'nguoi-do-dat-ngoai-bai.chronicle': 'Người ta đo đất ngoài bãi ba ngày.',
+  'cai-cong-thanh-cu.line': 'Cổng thành cũ vẫn đóng đúng giờ ấy, và tiếng trống vẫn thế.',
+  'cai-cong-thanh-cu.scene': 'Người gác cổng đã làm việc này hai mươi năm, đóng cổng lúc trống canh một, không sớm không muộn. Bản lề kêu, đã kêu từ lâu, và ông ta quen tiếng đến mức nghe ra được hôm nào ẩm trời. Trong thành đường hẹp, hai xe tránh nhau phải có một xe lùi.',
+  'cai-cong-thanh-cu.chronicle': 'Cổng thành cũ vẫn đóng đúng giờ.',
   'the-valley-is-too-narrow.chronicle': 'Thầy địa lý chỉ {land} là chỗ đóng đô tốt hơn.',
   'the-valley-is-too-narrow.scene': 'Cháu gái ông cắp ống bản đồ vì tay ông giờ run, và dọc đường nó đã nghe bài về {land} tới lần thứ mười một, nghe đến thuộc lòng. Lúc trải ra, vết lõm lần trước vẫn còn hằn trên giấy. Lính gác cho ông vào, không đợi ai bảo. Cuối điện có người nói thung lũng này giữ được sáu chục năm rồi, ông lão vui vẻ nhận là phải, rồi vẫn đứng đấy, không chịu ngồi.',
   'the-valley-is-too-narrow.survey-the-plain.d': 'Một cái chợ, một bức thành, mười hai mùa.',
@@ -241,6 +265,12 @@ export const namQuocVi: StoryCatalog = {
 // ── Hịch Tướng Sĩ · ~1284 ───────────────────────────────────────────────────
 
 export const hichEn: StoryCatalog = {
+  'ban-sao-chep-tay.line': 'Somebody copied the proclamation out by hand, and the copy has travelled further than the original.',
+  'ban-sao-chep-tay.scene': 'A sergeant writes it out for his own men, drops two characters, and the faulty copy is copied again at the next camp. By the fourth camp somebody corrects it from memory into different characters again. Nobody checks against the original, because the original is in the command tent.',
+  'ban-sao-chep-tay.chronicle': 'The proclamation was copied by hand and passed on.',
+  'to-hich-con-trong-trap.line': 'The proclamation is still in its box, folded on the old creases.',
+  'to-hich-con-trong-trap.scene': 'A wooden box with a bronze lock, under the plank bed in the command tent. The clerk opens it once a season to air the paper against mould, then folds it back on exactly the old creases and puts it away. The edges have yellowed. The characters are still clear; it was written in good ink.',
+  'to-hich-con-trong-trap.chronicle': 'The proclamation is still in its box.',
   'he-reads-it-to-the-officers.chronicle': 'A marshal wrote to his officers, and did not raise his voice.',
   'he-reads-it-to-the-officers.scene': 'His scribe has copied the thing four times and has begun making small mistakes on purpose, to find out whether the marshal is still reading it. He is. The fifth copy comes back with one word struck out and nothing put in its place. Outside, an officer who was at the reading has sent his son to buy the sword back from whoever has it, above what he took for it, and has told the boy not to haggle.',
   'he-reads-it-to-the-officers.let-them-hear-it.d': 'Three hosts, three commanders.',
@@ -278,6 +308,12 @@ export const hichEn: StoryCatalog = {
 };
 
 export const hichVi: StoryCatalog = {
+  'ban-sao-chep-tay.line': 'Có người chép tay tờ hịch ấy, và bản chép đã đi xa hơn bản gốc.',
+  'ban-sao-chep-tay.scene': 'Một viên đội chép lại cho đội mình nghe, chép sai mất hai chữ, và bản sai ấy được chép lại lần nữa ở trại bên. Đến trại thứ tư thì có người sửa lại theo trí nhớ, sửa thành chữ khác. Không ai đối chiếu với bản gốc, vì bản gốc để trong trướng.',
+  'ban-sao-chep-tay.chronicle': 'Tờ hịch được chép tay và truyền đi.',
+  'to-hich-con-trong-trap.line': 'Tờ hịch ấy vẫn nằm trong tráp, gấp đúng nếp cũ.',
+  'to-hich-con-trong-trap.scene': 'Tráp gỗ, khoá đồng, để dưới gầm phản trong trướng. Viên thư lại mở ra một lần mỗi mùa để phơi cho khỏi mốc, phơi xong gấp lại đúng nếp cũ rồi cất. Giấy đã ngả vàng ở mép. Chữ thì vẫn rõ, chữ ấy viết bằng mực tốt.',
+  'to-hich-con-trong-trap.chronicle': 'Tờ hịch vẫn nằm trong tráp.',
   'he-reads-it-to-the-officers.chronicle': 'Quan Thái uý viết hịch cho các tướng, mà không hề cao giọng.',
   'he-reads-it-to-the-officers.scene': 'Viên thư lại chép bài ấy bốn lượt, rồi đâm ra cố tình sai vài chữ nhỏ, để dò xem quan Thái uý còn đọc lại hay không. Ông còn đọc. Bản thứ năm trả về, một chữ bị gạch, mà chỗ ấy bỏ trống, không thay chữ nào vào. Ngoài kia, một viên tướng có mặt hôm đọc đã sai con đi chuộc lại thanh gươm từ tay người mua, trả hơn cả giá đã bán, và dặn con đừng mặc cả.',
   'he-reads-it-to-the-officers.let-them-hear-it.d': 'Ba đạo quân, ba chủ tướng.',
@@ -317,6 +353,12 @@ export const hichVi: StoryCatalog = {
 // ── Ải Chi Lăng · 1427 ──────────────────────────────────────────────────────
 
 export const chiLangEn: StoryCatalog = {
+  'co-nguoi-do-lai-cua-ai.line': 'Somebody went up to the pass and measured its width in arm-spans.',
+  'co-nguoi-do-lai-cua-ai.scene': 'Eleven spans at the narrowest, twenty-three at the widest. The measurer is a salt trader measuring for himself, because he wants to know whether his carts can turn round in there. He records it by tying knots in a cord, and keeps the cord on him.',
+  'co-nguoi-do-lai-cua-ai.chronicle': 'Somebody measured the width of the pass again.',
+  'canh-dong-ay-de-khong.line': 'That field was left unplanted for a season.',
+  'canh-dong-ay-de-khong.scene': 'Fallow, the grass to mid-calf, though somebody still walks the bunds to keep them from collapsing. The owner says he could plant it perfectly well; he just does not this year want to be standing in the middle of it looking north. Then he laughs, and stops talking about it.',
+  'canh-dong-ay-de-khong.chronicle': 'That field was left fallow a season.',
   'the-pass-is-narrow-here.chronicle': 'A captain proposed losing a battle badly at {land}.',
   'the-pass-is-narrow-here.scene': 'His mother still lives four li below the bend, and he does not mention her once on the walk. What he mentions is a stone the size of a buffalo that three of them levered halfway up the east slope as boys and left there. It is still there. He wants two hundred more like it. He puts your hand flat on it so you can feel how little it would take, and then asks what the villages below are going to be told.',
   'the-pass-is-narrow-here.let-them-come-in.d': 'Look thin. Let the front get all the way in.',
@@ -347,6 +389,12 @@ export const chiLangEn: StoryCatalog = {
 };
 
 export const chiLangVi: StoryCatalog = {
+  'co-nguoi-do-lai-cua-ai.line': 'Có người lên ải đo lại chiều rộng, và đo bằng sải tay.',
+  'co-nguoi-do-lai-cua-ai.scene': 'Chỗ hẹp nhất đo được mười một sải, chỗ rộng nhất hai mươi ba. Người đo là một ông đi buôn muối, đo cho mình, vì ông ta muốn biết đoàn xe của ông ta có quay đầu được không. Ông ta ghi lại bằng cách buộc nút vào một sợi dây, và giữ sợi dây ấy trong người.',
+  'co-nguoi-do-lai-cua-ai.chronicle': 'Có người đo lại chiều rộng cửa ải.',
+  'canh-dong-ay-de-khong.line': 'Cánh đồng ấy để không một vụ, không ai cấy.',
+  'canh-dong-ay-de-khong.scene': 'Ruộng bỏ, cỏ lên tới bắp chân, và bờ vùng thì vẫn có người đi lại giữ cho khỏi lấp. Chủ ruộng bảo cấy thì cấy được, có điều năm nay ông ta không muốn đứng giữa đồng mà nhìn về phía bắc. Ông ta nói xong thì cười, rồi thôi không nói nữa.',
+  'canh-dong-ay-de-khong.chronicle': 'Cánh đồng ấy bỏ không một vụ.',
   'the-pass-is-narrow-here.chronicle': 'Một viên đội trưởng bày cách thua cho thảm ở {land}.',
   'the-pass-is-narrow-here.scene': 'Mẹ anh ta vẫn sống cách khúc quặt bốn dặm về phía dưới, mà suốt buổi đi anh không nhắc tới một lần. Cái anh nhắc là hòn đá to bằng con trâu, hồi nhỏ ba đứa bẩy được lên lưng chừng sườn đông rồi bỏ đấy. Giờ nó vẫn nằm đấy. Anh muốn thêm hai trăm hòn như thế. Anh kéo tay ngài đặt lên đá cho ngài thấy nó chực lăn tới mức nào, rồi hỏi sẽ nói gì với mấy làng phía dưới.',
   'the-pass-is-narrow-here.let-them-come-in.d': 'Để lộ ra mỏng. Cho khúc đầu vào thật sâu.',
@@ -379,6 +427,12 @@ export const chiLangVi: StoryCatalog = {
 // ── Thần Tốc · 1789 ─────────────────────────────────────────────────────────
 
 export const thanTocEn: StoryCatalog = {
+  'vong-khieng-van-treo.line': 'The carrying hammocks are still hanging in the store, cords not undone.',
+  'vong-khieng-van-treo.scene': 'Four hundred of them, hung in rows from the roof beam so they do not rot, still knotted the way they are knotted for carrying a man. The keeper counts them each season. Untying is easy, he says; retying is slow, and one knot wrong and the man in the hammock knows about it immediately.',
+  'vong-khieng-van-treo.chronicle': 'The carrying hammocks still hang in the store.',
+  'tet-nam-nay-yen-tinh.line': 'Tết was quiet this year, and nobody in camp mentioned the old promise.',
+  'tet-nam-nay-yen-tinh.scene': 'Cakes, rice wine, one pig for the whole camp. Late on, a few of them sit by the fire talking about home. One brings up the year they nearly had to march, then stops, because the man beside him is the one who had his kit packed that year.',
+  'tet-nam-nay-yen-tinh.chronicle': 'Tết was quiet, and the old promise went unmentioned.',
   'we-eat-tet-in-the-capital.chronicle': 'A feast was promised in a city we did not hold.',
   'we-eat-tet-in-the-capital.scene': 'The quartermaster does not argue about the hammocks. He argues about rice, standing there with a tally board, because three men to a hammock means the same mouths fed in a third of the time and nobody has costed it. He is told to buy along the road at whatever it costs. He writes that down and underlines it twice, which is as close as he comes to saying anything. After the twentieth his board is four columns of blank.',
   'we-eat-tet-in-the-capital.promise-the-feast.d': 'Three men to a hammock. Rotate on the walk.',
@@ -416,6 +470,12 @@ export const thanTocEn: StoryCatalog = {
 };
 
 export const thanTocVi: StoryCatalog = {
+  'vong-khieng-van-treo.line': 'Những cái võng khiêng quân vẫn treo ở kho, chưa tháo dây.',
+  'vong-khieng-van-treo.scene': 'Bốn trăm cái, treo thành hàng trên xà nhà kho cho khỏi mục, dây còn buộc nguyên kiểu buộc để khiêng. Viên coi kho đếm lại mỗi mùa. Ông ta bảo tháo ra thì dễ, buộc lại mới lâu, mà buộc sai một nút thì người nằm trong võng biết ngay.',
+  'vong-khieng-van-treo.chronicle': 'Võng khiêng quân vẫn treo trong kho.',
+  'tet-nam-nay-yen-tinh.line': 'Tết năm nay yên, và trong trại không ai nhắc tới lời hứa cũ.',
+  'tet-nam-nay-yen-tinh.scene': 'Có bánh, có rượu, có một con lợn cho cả trại. Đến khuya thì mấy người ngồi lại bên bếp, nói chuyện nhà. Một người nhắc tới cái năm suýt phải đi, rồi dừng, vì người ngồi cạnh là người năm ấy đã sửa soạn xong hành lý.',
+  'tet-nam-nay-yen-tinh.chronicle': 'Tết yên, và không ai nhắc lời hứa cũ.',
   'we-eat-tet-in-the-capital.chronicle': 'Một bữa tiệc được hứa ở toà thành ta chưa hề giữ.',
   'we-eat-tet-in-the-capital.scene': 'Quan coi lương không cãi chuyện cái võng. Ông cãi chuyện gạo, đứng đó cầm cái bảng tính, vì ba người một võng nghĩa là chừng ấy miệng ăn dồn vào một phần ba thời gian, mà chưa ai tính ra tiền. Người ta bảo ông cứ mua dọc đường, giá nào cũng mua. Ông ghi câu ấy xuống, gạch chân hai lần, ông chỉ nói được đến thế. Trên bảng của ông, sau ngày hai mươi là bốn cột bỏ trắng.',
   'we-eat-tet-in-the-capital.promise-the-feast.d': 'Ba người một võng. Đổi phiên ngay trên đường.',
@@ -455,6 +515,12 @@ export const thanTocVi: StoryCatalog = {
 // ── Tiên Phát Chế Nhân · 1075 ───────────────────────────────────────────────
 
 export const haiBaEn: StoryCatalog = {
+  'hai-con-voi-o-bai-song.line': 'There are two elephants on the river flats and nobody claims them.',
+  'hai-con-voi-o-bai-song.scene': 'Both cows, tethered at a kapok tree, fed by a man who does not say whose they are. Children come to look and stand well back, because the keeper waves them off. In the village some say they came down from the uplands and some say they did not. Nobody asks the keeper a single direct question.',
+  'hai-con-voi-o-bai-song.chronicle': 'Two elephants stand on the flats, unclaimed.',
+  'ho-khong-di-qua-day-nua.line': 'They do not come this way any more; they go round by the lower road.',
+  'ho-khong-di-qua-day-nua.scene': 'The lower road is half a day further and fords two streams. The ferryman here says their people used to cross every month, and now not at all. He still keeps the small boat drawn up in its usual place. He does not say who he keeps it for.',
+  'ho-khong-di-qua-day-nua.chronicle': 'They go round by the lower road now.',
   'two-women-at-the-gate.chronicle': 'Two sisters offered a country held by agreement.',
   'two-women-at-the-gate.scene': 'They have brought one thing between them: a length of cloth with a district\'s mark woven into the border, which the elder unrolls just far enough to show the mark and then folds again. Six districts sent it, she says, and does not say which six. The younger has not spoken since the door. She is looking at where the guards stand and how many there are, and the elder lets the silence run long enough that everyone else looks too.',
   'two-women-at-the-gate.hear-them-out.d': 'Two courts warm at once. That is the hard part.',
@@ -485,6 +551,12 @@ export const haiBaEn: StoryCatalog = {
 };
 
 export const haiBaVi: StoryCatalog = {
+  'hai-con-voi-o-bai-song.line': 'Ngoài bãi sông có hai con voi, và không ai nhận là voi của mình.',
+  'hai-con-voi-o-bai-song.scene': 'Voi cái, cả hai, buộc ở gốc gạo, có người cho ăn nhưng người ấy không nói của ai. Trẻ con ra xem, đứng xa, vì quản tượng đuổi. Trong làng có người bảo voi ấy từ mạn ngược xuống, có người bảo không phải. Không ai hỏi thẳng quản tượng câu nào.',
+  'hai-con-voi-o-bai-song.chronicle': 'Hai con voi đứng ở bãi sông, không ai nhận.',
+  'ho-khong-di-qua-day-nua.line': 'Họ không đi qua lối này nữa, và đi vòng đường dưới.',
+  'ho-khong-di-qua-day-nua.scene': 'Đường dưới xa hơn nửa ngày, lội hai con suối. Người coi đò trên bến này bảo trước nay tháng nào cũng có người của họ qua, giờ thì thôi hẳn. Ông ta vẫn để sẵn con đò nhỏ ở chỗ cũ. Ông ta không nói là để sẵn cho ai.',
+  'ho-khong-di-qua-day-nua.chronicle': 'Họ đi đường vòng, không qua lối này nữa.',
   'two-women-at-the-gate.chronicle': 'Hai chị em hiến kế giữ nước bằng lòng người.',
   'two-women-at-the-gate.scene': 'Hai bà mang theo đúng một thứ: một vuông vải dệt dấu của một huyện ở mép, mà bà chị chỉ mở vừa đủ để lộ cái dấu, rồi gấp lại ngay. Sáu huyện gửi cái này, bà nói, và không nói là những huyện nào. Bà em từ lúc bước qua cửa chưa hé môi. Bà nhìn chỗ lính đứng và đếm có mấy người, còn bà chị thì để yên lặng ấy kéo dài đủ lâu cho cả phòng cùng nhìn theo.',
   'two-women-at-the-gate.hear-them-out.d': 'Hai triều cùng ấm một lúc. Chỗ khó là đấy.',

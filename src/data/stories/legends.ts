@@ -77,6 +77,22 @@ export const fiveDays: StoryTemplate = {
 
   fragments: [
     {
+      id: 'phao-dot-het-tu-hom-do',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_after-the-festival') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'com-nam-con-trong-tui',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_march-tonight') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'they-are-keeping-the-new-year',
       volume: 'whisper',
       weight: 5,
@@ -210,6 +226,22 @@ export const ghostInTheSouth: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'mot-cai-ten-khong-ai-goi',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_leave-him') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'cai-ghe-de-trong-o-tiec',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_pay-the-ransom') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'he-did-not-come-back-with-the-scouts',
       volume: 'whisper',
@@ -350,6 +382,22 @@ export const withoutSlaughter: StoryTemplate = {
 
   fragments: [
     {
+      id: 'to-cao-dan-o-cho',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_have-it-read-everywhere') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'thanh-ay-van-mo-cong',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-them-go') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'he-writes-letters-instead-of-orders',
       volume: 'whisper',
       weight: 5,
@@ -471,6 +519,14 @@ export const theDelayer: StoryTemplate = {
 
   fragments: [
     {
+      id: 'ho-di-vong-mot-quang',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_refuse-battle') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'do-not-give-them-a-battle',
       volume: 'card',
       band: 'mountain',
@@ -570,6 +626,22 @@ export const theSickness: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'cai-cong-lang-van-dong',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_shut-them') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'nha-thuoc-o-dau-lang',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_send-physicians') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'a-fever-in-the-market',
       volume: 'whisper',
@@ -929,6 +1001,22 @@ export const thirteenthWarlord: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'don-linh-o-cho-nga-ba',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_send-a-garrison') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'ho-tu-thu-thue-lay',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-them-rule-themselves') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'the-realm-is-wider-than-the-roads',
       volume: 'whisper',

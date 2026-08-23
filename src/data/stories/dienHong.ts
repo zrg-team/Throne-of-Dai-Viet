@@ -44,6 +44,22 @@ export const dienHong: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'khong-ai-hoi-y-ai',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_decide-alone') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'cac-cu-ay-ve-lang',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_convene') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     // The scene before the question: patched coats, bare feet, three days on the road. The
     // shipped version opened cold on the card, which wasted the best image the story has.
     {

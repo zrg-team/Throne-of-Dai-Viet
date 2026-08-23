@@ -80,6 +80,22 @@ export const hoGuom: StoryTemplate = {
   },
   fragments: [
     {
+      id: 'ba-lai-do-thoi-ke',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_leave-it-in-the-water') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'guom-treo-tren-vach',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_take-it-up') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'a-blade-in-the-net',
       volume: 'card',
       band: 'river',
@@ -186,6 +202,22 @@ export const noThan: StoryTemplate = {
   },
   fragments: [
     {
+      id: 'khong-ai-nhac-cai-no-nua',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_it-is-a-story-for-children') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'tho-lam-no-van-ngoi-do',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_arm-the-walls') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'the-crossbow-that-fires-a-hundred',
       volume: 'card',
       weight: 6,
@@ -278,6 +310,22 @@ export const yetKieu: StoryTemplate = {
     return { landId: land.id };
   },
   fragments: [
+    {
+      id: 'cai-khoan-o-nha-kho',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_no-man-can-do-that') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'nguoi-ta-do-nhau-lan-nua',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_send-him-out-tonight') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'a-man-who-can-stay-under',
       volume: 'card',
@@ -389,6 +437,14 @@ export const vanDon: StoryTemplate = {
   },
   fragments: [
     {
+      id: 'thuyen-luong-ay-van-nhac',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_fight-them-at-the-mouth') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'the-war-fleet-passes-first',
       volume: 'card',
       weight: 7,
@@ -440,6 +496,22 @@ export const paperMoney: StoryTemplate = {
     return { heroId: hero.id };
   },
   fragments: [
+    {
+      id: 'dong-tien-cu-van-chay',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_bronze-has-always-been-bronze') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'to-giay-trong-tay-ao',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_issue-the-notes') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'a-note-instead-of-a-coin',
       volume: 'card',
@@ -538,6 +610,14 @@ export const luyThay: StoryTemplate = {
   },
   fragments: [
     {
+      id: 'buc-tuong-dat-mua-mua',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-him-draw-the-line') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'the-strategist-who-came-late',
       volume: 'card',
       weight: 6,
@@ -604,6 +684,22 @@ export const vanMieu: StoryTemplate = {
     return { landId: land.id };
   },
   fragments: [
+    {
+      id: 'cai-sao-van-de-trong',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_the-families-have-always-served') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'sam-cua-mot-nha-khac',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_open-the-examinations') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'the-sons-of-nobody',
       volume: 'card',
@@ -732,6 +828,22 @@ export const thuDo: StoryTemplate = {
   },
   fragments: [
     {
+      id: 'trieu-dinh-van-cai-nhau',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_a-court-is-supposed-to-argue') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'ban-danh-sach-da-ngan',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-him-clean-it-out') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'the-court-is-full-of-cousins',
       volume: 'card',
       weight: 6,
@@ -829,6 +941,14 @@ export const binhTrong: StoryTemplate = {
   },
   fragments: [
     {
+      id: 'cai-ten-o-ben-do',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-him-answer-them-himself') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'the-rearguard-does-not-come-back',
       volume: 'blow',
       weight: 7,
@@ -911,6 +1031,14 @@ export const khucThuaDu: StoryTemplate = {
   },
   fragments: [
     {
+      id: 'khong-ai-hoi-giay-to',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_simply-govern') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'nobody-is-coming-to-govern-us',
       volume: 'card',
       weight: 6,
@@ -979,6 +1107,14 @@ export const theDykes: StoryTemplate = {
     return { landId: land.id };
   },
   fragments: [
+    {
+      id: 'con-de-nam-do',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_call-the-corvee') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'the-river-is-higher-than-the-fields',
       volume: 'card',
@@ -1053,6 +1189,14 @@ export const cheBongNga: StoryTemplate = {
     return { kingdomId: rival.id, landId: state.ascent?.capitalLandId };
   },
   fragments: [
+    {
+      id: 'nguoi-ban-sung-di-roi',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_buy-the-deserter') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'he-was-in-the-capital-before-anyone-knew',
       volume: 'blow',

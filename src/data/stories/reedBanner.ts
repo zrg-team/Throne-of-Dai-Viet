@@ -66,6 +66,22 @@ export const reedBanner: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'no-van-chan-trau',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_not-yet') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'dam-tre-o-bai-cu',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_give-him-one') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     /**
      * Act I, as a scene rather than a mood: the buffalo, the courtyard, the boy who does not
      * kneel. The old opener ("a boy drills children with reed banners") was one line of

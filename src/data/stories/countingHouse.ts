@@ -28,6 +28,22 @@ export const countingHouse: StoryTemplate = {
 
   fragments: [
     {
+      id: 'so-van-de-o-gian-ngoai',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_the-treasury-is-mine') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'chua-ay-xay-them-gian',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-them-hold-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       /**
        * Spend it, and be seen to.
        *
