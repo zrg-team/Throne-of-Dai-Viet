@@ -85,13 +85,17 @@ const STAT_X = 46;
  * On screen, end to end (lead-in + hold + the 420 ms fall):
  *
  *   landing            560 + 3800 + 450 = 4.8 s
- *   result, 2 rows     560 + 5200 + 450 = 6.2 s
- *   result, 4 rows     560 + 6600 + 450 = 7.6 s
+ *   result, 2 rows     560 + 6800 + 450 = 7.8 s
+ *   result, 4 rows     560 + 8400 + 450 = 9.4 s
+ *
+ * The result may be this long because **the world stops for it** - see `playPendingWaveCue`. A
+ * landing does not stop anything and is still sized to be read at a glance while the map moves
+ * under it.
  */
 const HOLD_START = 3800;
-const HOLD_END_BASE = 4000;
-/** Added per label/value row on a result. Four rows is the usual case, giving 6600. */
-const HOLD_END_PER_ROW = 650;
+const HOLD_END_BASE = 5200;
+/** Added per label/value row on a result. Four rows is the usual case, giving 8400. */
+const HOLD_END_PER_ROW = 800;
 
 function holdFor(cue: AscentWaveCue, rowCount: number): number {
   return cue.phase === 'start' ? HOLD_START : HOLD_END_BASE + rowCount * HOLD_END_PER_ROW;

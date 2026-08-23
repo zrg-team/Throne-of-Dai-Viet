@@ -175,7 +175,7 @@ const CUE = {
   outcome: 'triumph', hostsBroken: 3, landsLost: 0, landsHeld: 11, momentum: 340, survived: 7, seasons: 5,
 };
 
-const raise = async (id) => page.evaluate((cue) => {
+const raise = async (id, phase = 'end') => page.evaluate((cue) => {
   const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
   ui.waveBanner?.destroy();
   ui.waveBanner = undefined;
@@ -184,7 +184,7 @@ const raise = async (id) => page.evaluate((cue) => {
   window.__phaserGame.scene.getScene('ConquestScene').state.ascent.waveCues = [cue];
   ui.refresh();
   return Boolean(ui.waveBanner);
-}, { ...CUE, id });
+}, { ...CUE, id, phase });
 
 const alive = () => page.evaluate(
   () => Boolean(window.__phaserGame.scene.getScene('ConquestUIScene').waveBanner),
@@ -229,6 +229,7 @@ const zoneArmed = async () => {
 const rendered = {
   raised: await raise(1), midFall: false, settled: false,
   reRaised: false, armed: false, byTap: false, tapMs: -1, mapFree: null, pageHeld: false,
+  pausedForResult: false, clockReleased: false, pausedForLanding: null,
 };
 
 // Start the exit by hand and watch it fall. Still up a fifth of a second in, gone within a second:
@@ -272,6 +273,28 @@ await page.mouse.click(60, 700);
 const tapped = await settle();
 rendered.tapMs = tapped.ms;
 rendered.byTap = tapped.gone && tapped.ms < 2500;
+/**
+ * The world stops for a result and does not stop for a landing - and, above all, it starts again.
+ *
+ * A pause taken by a transient is the kind of bug that ends a run: if the banner's release ever
+ * fails to fire, the clock never comes back and the only symptom is a game that has quietly
+ * stopped. Checked in all three states rather than just the middle one.
+ */
+const paused = () => page.evaluate(
+  () => window.__phaserGame.scene.getScene('ConquestScene').state.isStrategyPause === true,
+);
+
+await raise(3);
+rendered.pausedForResult = await paused();
+await page.evaluate(() => window.__phaserGame.scene.getScene('ConquestUIScene').waveBanner?.skip());
+await settle();
+rendered.clockReleased = !(await paused());
+
+await raise(4, 'start');
+rendered.pausedForLanding = await paused();
+await page.evaluate(() => window.__phaserGame.scene.getScene('ConquestUIScene').waveBanner?.skip());
+await settle();
+
 rendered.mapFree = await page.evaluate(() => {
   const bounds = window.__hudTapBounds ?? [];
   const covering = bounds.some((r) => r.width >= 380 && r.height >= 600);
@@ -395,6 +418,9 @@ if (!rendered.pageHeld) {
   check('a tap anywhere dismisses it', rendered.byTap === true,
     `gone ${rendered.tapMs}ms after the tap; an untouched banner stands ~7600ms`);
   check('dismissing never blocks the map', rendered.mapFree === true);
+  check('a result stops the world', rendered.pausedForResult === true);
+  check('and the clock starts again when it leaves', rendered.clockReleased === true);
+  check('a landing does not stop the world', rendered.pausedForLanding === false);
 }
 
 // A reload tears down the page mid-probe, and the resulting "cannot read properties of undefined"

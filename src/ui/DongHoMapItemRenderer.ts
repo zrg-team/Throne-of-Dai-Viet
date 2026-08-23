@@ -5,7 +5,8 @@ import type { LandBuildingType } from '../state/types';
 import { UI_FONT } from './fonts';
 import { PIGMENT } from './ink/palette';
 import {
-  armyAnchor, armyFootprint, armyShape, compositionFor, drawArmy, figure, marchInPlace, seal, type HostKit,
+  armyAnchor, armyFootprint, armyShape, clashDevice, compositionFor, drawArmy, figure, marchInPlace, seal,
+  type HostKit,
 } from './ink/devices';
 import { drawFieldPlot } from './ink/settlements';
 import { citadel, drawnEra, GroundSpacer, hamlet, village } from './ink/settlements';
@@ -867,8 +868,22 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
         width: 2, alpha: 0.85, colour: urgent ? PIGMENT.son : PIGMENT.giDong, wobble: 0.3, step: 7,
       });
     }
+    // A siege says so with the same mark the battle screen uses, standing above the scrap. The
+    // map used to have no glyph here at all, and its sibling renderer drew a red ring with two
+    // straight strokes through it - which at this size reads as a cancel badge, not as swords.
+    if (variant === 'siege') {
+      const mark = scene.add.graphics();
+      // 0.85, not the 0.5 the plate width suggests. The blades carry a hilt, a guard and a
+      // pommel, and below about 36 units across those three merge into one dark blob and the mark
+      // reads as a scribbled X - which is the glyph this replaced.
+      clashDevice(mark, 0, -27, 0.85);
+      container.add(mark);
+    }
+
     container.add(g);
-    container.add(scene.add.text(0, -8, `${progress}/${required}`, {
+    // Rounded, always. `order.progress` is a running fractional total, and printed raw it put
+    // `9.31294468968111/100` across the middle of the map.
+    container.add(scene.add.text(0, -8, `${Math.round(progress)}/${Math.round(required)}`, {
       color: '#2a2118', fontFamily: UI_FONT, fontSize: '9px', fontStyle: '700',
     }).setOrigin(0.5, 0));
     return container;

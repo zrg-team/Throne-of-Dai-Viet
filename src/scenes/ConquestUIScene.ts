@@ -557,6 +557,8 @@ export class ConquestUIScene extends Phaser.Scene {
   private waveBanner?: { skip: () => void; destroy: () => void };
   /** Cues taken off the director's queue and not yet played, in the order they were raised. */
   private waveCueQueue: AscentWaveCue[] = [];
+  /** The clock's state before a result banner stopped it, restored when the plate leaves. */
+  private wavePauseBefore = false;
   private lastWaveCueId = 0;
   /** True from the screen opening itself until the first order: the world is held meanwhile. */
   private battleAwaitingOrder = false;
@@ -643,6 +645,7 @@ export class ConquestUIScene extends Phaser.Scene {
       this.runTour = undefined;
       this.waveBanner?.destroy();
       this.waveBanner = undefined;
+      this.waveCueQueue = [];
     });
 
     this.modalLayer = this.add.container(0, 0).setDepth(500);
@@ -784,8 +787,30 @@ export class ConquestUIScene extends Phaser.Scene {
 
     const cue = this.waveCueQueue.shift();
     if (!cue) return;
+
+    // **A result stops the world; a landing does not.**
+    //
+    // The two halves of the lifecycle are not the same kind of event. A landing is a warning about
+    // something that is now happening on the map, and the map should keep moving under it - freezing
+    // the game to say "you are being invaded" would be the game taking the news away from the
+    // player. A result is the opposite: the fight is over, the figures on the plate are final, and
+    // the only thing left is to read them. Letting the clock run through that meant the next tick's
+    // toast, the next card and the next wave's countdown all arrived over the top of the one moment
+    // in the run that exists to be looked at.
+    //
+    // Held as a *strategy* pause, the same lever the lane screens use, and released the instant the
+    // plate leaves - including when a tap cuts it short. The prior value is captured rather than
+    // assumed so the release cannot switch the clock back on under a player who had paused it
+    // themselves.
+    const holdsWorld = cue.phase === 'end';
+    if (holdsWorld) {
+      this.wavePauseBefore = this.state.isStrategyPause;
+      this.state.isStrategyPause = true;
+    }
+
     this.waveBanner = playWaveBanner(this, cue, () => {
       this.waveBanner = undefined;
+      if (holdsWorld) this.state.isStrategyPause = this.wavePauseBefore;
       // Straight into the next one. A wave the realm plainly holds is met without a card, so a
       // result and the next landing are raised on the same tick and read as one sentence: this
       // invasion ended, that one is beginning.
@@ -5307,10 +5332,18 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     const held = record.outcome === 'they-rout'
       || (record.outcome === 'spent' && record.ourEnd / Math.max(1, record.ourStart) >= record.theirEnd / Math.max(1, record.theirStart));
 
+    // **Which side of the wall we were on.**
+    //
+    // Every line of this screen was written from the defender's chair, and the record has carried
+    // `role` all along. A siege the player ordered and lost therefore reported "The ground is held"
+    // and "{land} stays ours" over a jade border - the defender's good news, printed as the result
+    // of the player's own failed assault. Read literally it was even true, which is what made it so
+    // misleading: the province did hold, against us.
+    const offence = record.role === 'offence';
     const titleKey = record.outcome === 'they-rout' ? 'broke'
       : record.outcome === 'we-rout' ? 'broken'
         : record.outcome === 'retreat' ? 'withdrew'
-          : held ? 'held' : 'lost';
+          : held ? (offence ? 'stormed' : 'held') : (offence ? 'repulsed' : 'lost');
 
     const { addRow, addHeading, addNote, addWidget, finish } = this.laneList(
       t(`ascent.aftermath.title.${titleKey}` as Parameters<typeof t>[0]),
@@ -5348,8 +5381,10 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     if (record.levyFought) addNote(t('ascent.aftermath.levyHome', { land: record.landName }));
 
     addRow({
-      title: held ? t('ascent.aftermath.keptTitle', { land: record.landName })
-        : t('ascent.aftermath.lostTitle', { land: record.landName }),
+      title: t((offence
+        ? (held ? 'ascent.aftermath.tookTitle' : 'ascent.aftermath.failedTitle')
+        : (held ? 'ascent.aftermath.keptTitle' : 'ascent.aftermath.lostTitle')) as Parameters<typeof t>[0],
+      { land: record.landName }),
       subtitle: t('ascent.aftermath.keptNote', {
         ours: record.ourEnd, theirs: record.theirEnd, hosts: record.theirHosts,
       }),
@@ -5360,7 +5395,10 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // cost. This is the sentence a player will remember a fight by long after the numbers above it
     // have gone — and it is the same sentence the Đông Hồ prints of Hai Bà Trưng and Quang Trung
     // are captioned with, which is the register this whole mode is written in.
-    addNote(t(`ascent.aftermath.chronicle.${held ? 'won' : 'lost'}` as Parameters<typeof t>[0], {
+    const chronicleKey = offence
+      ? (held ? 'took' : 'repulsed')
+      : (held ? 'won' : 'lost');
+    addNote(t(`ascent.aftermath.chronicle.${chronicleKey}` as Parameters<typeof t>[0], {
       year: record.year ?? this.state.year,
       land: record.landName,
       kingdom: record.kingdomName ?? t('ascent.aftermath.theEnemy'),
@@ -5372,9 +5410,14 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       addHeading(t('ascent.aftermath.elsewhere'), t('ascent.aftermath.elsewhereHint'));
       for (const other of alsoFought) {
         const theirs = other.outcome === 'they-rout' || other.outcome === 'spent';
+        // Same correction, one level down: a general sent to take a province reports whether he
+        // carried it, not whether he held it.
+        const dispatchKey = other.role === 'offence'
+          ? (theirs ? 'took' : 'repulsed')
+          : (theirs ? 'won' : 'lost');
         addRow({
           title: other.landName,
-          subtitle: t(`ascent.aftermath.dispatch.${theirs ? 'won' : 'lost'}` as Parameters<typeof t>[0], {
+          subtitle: t(`ascent.aftermath.dispatch.${dispatchKey}` as Parameters<typeof t>[0], {
             name: other.generalName ?? t('ascent.aftermath.officers'),
             ours: Math.max(0, other.ourStart - other.ourEnd),
             theirs: Math.max(0, other.theirStart - other.theirEnd),

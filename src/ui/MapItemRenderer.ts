@@ -72,6 +72,14 @@ export interface MapItemRenderer {
   createPlayerLandFlag(isCapital?: boolean, styleSeed?: number): Phaser.GameObjects.Container;
   createCapitalHighlight(): Phaser.GameObjects.Graphics;
   createDestinationArrow(): Phaser.GameObjects.Container;
+  /**
+   * Work in progress over a district: a siege, a purchase, a build, a muster.
+   *
+   * **`progress` arrives raw and is frequently fractional.** Acquisition and siege orders
+   * accumulate a per-tick amount that is not a whole number, so a badge that interpolates it
+   * straight printed things like `9.31294468968111/100` across the map. Every implementation
+   * rounds for display; the caller is not expected to.
+   */
   createProgressBadge(x: number, y: number, progress: number, required: number, variant: ProgressBadgeVariant): Phaser.GameObjects.Container;
 }
 

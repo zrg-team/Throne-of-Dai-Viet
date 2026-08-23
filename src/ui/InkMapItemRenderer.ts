@@ -9,7 +9,7 @@
 import Phaser from 'phaser';
 import { COLORS } from '../game/constants';
 import { INK, brushStroke } from './inkTheme';
-import type { HostKit } from './ink/devices';
+import { clashDevice, type HostKit } from './ink/devices';
 import { compactNumber } from '../utils/format';
 import { IsoBuildingRenderer } from './IsoBuildingRenderer';
 import { SoldierRenderer } from './SoldierRenderer';
@@ -248,10 +248,10 @@ export class InkMapItemRenderer implements MapItemRenderer {
       const coin = this.scene.add.circle(0, 0, 6, INK.sealRed, 1).setStrokeStyle(1, INK.cloud, 0.8);
       container.add(coin);
     } else if (variant === 'siege') {
+      // Two straight strokes in a red ring is the cancel glyph, not a fight. The battle screen's
+      // own clash mark instead, at the size this ring can hold.
       const swords = this.scene.add.graphics();
-      swords.lineStyle(2, INK.cloud, 0.95);
-      swords.lineBetween(-6, -6, 6, 6);
-      swords.lineBetween(-6, 6, 6, -6);
+      clashDevice(swords, 0, 0, 0.6, false);
       container.add(swords);
     } else if (variant === 'recruit') {
       const flag = this.scene.add.graphics();
@@ -266,7 +266,7 @@ export class InkMapItemRenderer implements MapItemRenderer {
       container.add([head, handle]);
     }
 
-    const text = this.scene.add.text(0, 23, `${progress}/${required}`, {
+    const text = this.scene.add.text(0, 23, `${Math.round(progress)}/${Math.round(required)}`, {
       color: '#f3ede0',
       fontFamily: UI_FONT,
       fontSize: '10px',

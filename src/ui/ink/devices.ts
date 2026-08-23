@@ -1132,6 +1132,75 @@ export function marchInPlace(scene: Phaser.Scene, ranks: Phaser.GameObjects.Grap
 
 // ── seals ─────────────────────────────────────────────────────────────────────
 
+/**
+ * **The clash** - crossed blades in a burst of soi son, the one mark that says "a fight is here".
+ *
+ * Lifted out of the battle screen so the map can carry the same mark rather than an approximation
+ * of it. The map used to draw its own: a red ring with two straight white strokes across it, which
+ * at marker size reads as a cancel badge - the international "no" glyph - and not as swords. The
+ * two places in the game that mean the same thing now draw the same thing.
+ *
+ * Three pieces, each answering a different question, and the reason the blades are hung at -45 and
+ * -135 rather than at +-45 is that both points then stand up and both hilts hang down. At +-45 the
+ * points sit at opposite corners and the two hilts make a dark blob exactly where the eye lands.
+ *
+ * Everything is drawn into one `Graphics` at an explicit scale, so a caller can size it to a
+ * 26-unit map badge or to the 46-unit mark the battlefield wants without a nested container. The
+ * battle screen animates its own copy on top of this; nothing here moves.
+ */
+export function clashDevice(g: G, x: number, y: number, scale = 1, halo = true): void {
+  const s = scale;
+  /** A point in blade space, rotated by `turn` and dropped at the device origin. */
+  const at = (px: number, py: number, turn: number): Pt => ({
+    x: x + (px * Math.cos(turn) - py * Math.sin(turn)) * s,
+    y: y + (px * Math.sin(turn) + py * Math.cos(turn)) * s,
+  });
+  const quad = (left: number, top: number, w: number, h: number, turn: number): Pt[] => [
+    at(left, top, turn), at(left + w, top, turn),
+    at(left + w, top + h, turn), at(left, top + h, turn),
+  ];
+
+  // A soft ground first, so the mark has weight over pale paper and over a dark block of men
+  // alike. Without it the blades are a thin white scratch on whatever happens to be behind.
+  if (halo) {
+    g.fillStyle(PIGMENT.son, 0.16);
+    g.fillCircle(x, y, 19 * s);
+  }
+
+  // Eight rays, alternating long and short and turned off-axis so the star does not read as a
+  // compass. Uneven lengths because a cut mark on a print is never symmetrical.
+  g.fillStyle(PIGMENT.son, 0.9);
+  for (let ray = 0; ray < 8; ray += 1) {
+    const angle = (ray / 8) * Math.PI * 2 + 0.26;
+    const reach = ray % 2 === 0 ? 23 : 14.5;
+    g.fillTriangle(
+      x + Math.cos(angle) * reach * s, y + Math.sin(angle) * reach * s,
+      x + Math.cos(angle + 0.3) * 5.5 * s, y + Math.sin(angle + 0.3) * 5.5 * s,
+      x + Math.cos(angle - 0.3) * 5.5 * s, y + Math.sin(angle - 0.3) * 5.5 * s,
+    );
+  }
+
+  for (const turn of [-Math.PI / 4, -Math.PI * 0.75]) {
+    // Grip, pommel and guard in soot; the guard is a short bar rather than a full cross-piece
+    // because at this size a hilt drawn in detail is a smudge.
+    g.fillStyle(PIGMENT.muc, 1);
+    g.fillPoints(quad(-13, -1.3, 6.5, 2.6, turn), true);
+    const pommel = at(-13.2, 0, turn);
+    g.fillCircle(pommel.x, pommel.y, 1.9 * s);
+    g.fillPoints(quad(-6.8, -3.8, 2.2, 7.6, turn), true);
+
+    // Paper-bright, so the blade reads against the dark blocks of men it stands between.
+    const edge: Pt[] = [
+      at(-4.2, -2.4, turn), at(10, -2.1, turn), at(15.5, 0, turn),
+      at(10, 2.1, turn), at(-4.2, 2.4, turn),
+    ];
+    g.fillStyle(PIGMENT.diepHi, 1);
+    g.fillPoints(edge, true);
+    g.lineStyle(1.3 * s, PIGMENT.muc, 0.95);
+    g.strokePoints(edge, true, true);
+  }
+}
+
 export type SealMotif = 'star' | 'lotus' | 'bird' | 'stakes';
 
 /**
