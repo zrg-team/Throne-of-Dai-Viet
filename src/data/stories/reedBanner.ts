@@ -1,6 +1,7 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { applyResourceDelta } from '../../systems/ResourceSystem';
 import { pick, playerLands } from '../../systems/story/StorySystem';
+import { leaveEcho, reinforceHosts, windfall } from '../../systems/story/effects';
 import { pushToast } from '../../systems/empire/notifications';
 import { storyText } from '../../i18n/story';
 import type { StoryTemplate } from '../../systems/story/types';
@@ -65,10 +66,205 @@ export const reedBanner: StoryTemplate = {
     return 'hopeful';
   },
 
+  entry: 'bai-lau',
+  nodes: [
+    // ── The record: fed, raised, given a command, and a country founded ──
+    { id: 'bai-lau', historicity: 'chinh-su', patience: 5, onIgnored: 'duoi-truong' },
+    { id: 'duoi-truong', historicity: 'chinh-su', patience: 8, onIgnored: 'xin-cam-quan' },
+    { id: 'xin-cam-quan', historicity: 'chinh-su', patience: 6, onIgnored: 'ba-la-co' },
+    { id: 'cam-quan', historicity: 'chinh-su', patience: 8, onIgnored: 'chet-tran' },
+    { id: 'mo-nuoc', historicity: 'chinh-su', terminal: true },
+    // Tradition, not the annals: how he died is the part the record is thinnest on.
+    { id: 'chet-tran', historicity: 'da-su', terminal: true },
+
+    // ── Refused a command, he raises his own banners ──
+    { id: 'ba-la-co', historicity: 'da-su', patience: 5, onIgnored: 'mat-kinh-do' },
+    { id: 'dep-duoc', historicity: 'da-su', terminal: true },
+    { id: 'mat-kinh-do', historicity: 'da-su', terminal: true },
+
+    // ── Made to pay for the buffalo, which is not what happened ──
+    { id: 'no-mieng', historicity: 'ngoai-truyen', patience: 6, onIgnored: 'bo-di' },
+    { id: 'di-o-do', historicity: 'ngoai-truyen', patience: 6, onIgnored: 'bo-di' },
+    { id: 'tra-dan', historicity: 'ngoai-truyen', patience: 6, onIgnored: 'o-lai' },
+    { id: 'tra-xong', historicity: 'ngoai-truyen', terminal: true },
+    { id: 'o-lai', historicity: 'ngoai-truyen', terminal: true },
+    { id: 'bo-di', historicity: 'ngoai-truyen', terminal: true },
+  ],
   fragments: [
+    {
+      /**
+       * What he does while he is working it off. The middle decision the branch owes — and the
+       * one that decides whether the realm gets anything out of him at all.
+       */
+      id: 'no-lam-duoc-viec',
+      volume: 'card',
+      band: 'crowd',
+      in: ['di-o-do'],
+      weight: 9,
+      quiet: 3,
+      salience: (ctx) => (ctx.age >= 4 ? 9 : -20),
+      options: [
+        {
+          id: 'cho-no-giu-trau',
+          to: 'tra-dan',
+          historicity: 'divergent',
+          apply: (ctx) => {
+            ctx.remember('trau', 1);
+            const land = ctx.land();
+            if (land) land.loyalty = Math.min(100, land.loyalty + 5);
+          },
+        },
+        {
+          id: 'cho-no-theo-quan',
+          to: 'tra-dan',
+          historicity: 'divergent',
+          apply: (ctx) => {
+            ctx.remember('theo-quan', 1);
+            reinforceHosts(ctx, 60);
+          },
+        },
+      ],
+    },
+    {
+      /** The rebellion, once it is standing there. Answering it is the divergence's one decision. */
+      id: 'dep-hay-hoa',
+      volume: 'card',
+      band: 'march',
+      in: ['ba-la-co'],
+      weight: 9,
+      quiet: 2,
+      when: (ctx) => ctx.said('three-banners'),
+      salience: () => 11,
+      options: [
+        {
+          id: 'dep-di',
+          cost: { supplies: 120 },
+          to: 'dep-duoc',
+          historicity: 'divergent',
+          apply: (ctx) => {
+            ctx.remember('dep', 1);
+            reinforceHosts(ctx, 120);
+          },
+        },
+        {
+          id: 'goi-ong-ta-ve',
+          to: 'mat-kinh-do',
+          historicity: 'divergent',
+          apply: (ctx) => {
+            ctx.remember('goi-ve', 1);
+            ctx.heat(3);
+          },
+        },
+      ],
+    },
+    {
+      id: 'ba-la-co-ha-xuong',
+      volume: 'blow',
+      band: 'field',
+      in: ['dep-duoc'],
+      weight: 10,
+      terminal: true,
+      tone: 'milestone',
+      effect: (ctx) => {
+        for (const land of playerLands(ctx.state)) land.loyalty = Math.min(100, land.loyalty + 8);
+        ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 10);
+        ctx.note('stability', 10);
+      },
+    },
+    {
+      id: 'ong-ta-vao-kinh-do',
+      volume: 'blow',
+      band: 'fire',
+      in: ['mat-kinh-do'],
+      weight: 10,
+      terminal: true,
+      tone: 'threat',
+      effect: (ctx) => {
+        const hero = ctx.hero();
+        if (hero) hero.stats.loyalty = Math.max(0, hero.stats.loyalty - 40);
+        ctx.state.court.stability = Math.max(0, ctx.state.court.stability - 20);
+        ctx.note('stability', -20);
+        leaveEcho(ctx, hero?.name ?? '');
+      },
+    },
+    {
+      /** Made to pay: how, and in what. The first of the two decisions this branch owes. */
+      id: 'tra-the-nao',
+      volume: 'card',
+      band: 'crowd',
+      in: ['no-mieng'],
+      weight: 9,
+      quiet: 2,
+      salience: (ctx) => (ctx.age >= 3 ? 9 : -20),
+      options: [
+        {
+          id: 'tra-bang-cong',
+          to: 'di-o-do',
+          historicity: 'divergent',
+          apply: (ctx) => { ctx.remember('cong', 1); },
+        },
+        {
+          id: 'thoi-cho-no',
+          to: 'bo-di',
+          historicity: 'divergent',
+          apply: (ctx) => {
+            ctx.remember('leaving', 1);
+            ctx.heat(2);
+          },
+        },
+      ],
+    },
+    {
+      id: 'no-tra-xong-roi-thi-sao',
+      volume: 'card',
+      band: 'court',
+      in: ['tra-dan'],
+      weight: 9,
+      quiet: 3,
+      when: (ctx) => ctx.recall('cong') === 1,
+      options: [
+        {
+          id: 'cho-no-ve',
+          to: 'tra-xong',
+          historicity: 'divergent',
+          apply: (ctx) => { ctx.remember('ve', 1); },
+        },
+        {
+          id: 'giu-no-lai',
+          cost: { gold: 60 },
+          to: 'o-lai',
+          historicity: 'divergent',
+          apply: (ctx) => { ctx.remember('giu', 1); },
+        },
+      ],
+    },
+    {
+      id: 'so-no-da-xoa',
+      volume: 'whisper',
+      in: ['tra-xong'],
+      weight: 8,
+      terminal: true,
+      effect: (ctx) => {
+        const land = ctx.land();
+        if (land) land.loyalty = Math.min(100, land.loyalty + 8);
+      },
+    },
+    {
+      id: 'no-o-lai-lam-thue',
+      volume: 'whisper',
+      in: ['o-lai'],
+      weight: 8,
+      terminal: true,
+      effect: (ctx) => {
+        windfall(ctx, { humans: 60 });
+        ctx.state.court.stability = Math.max(0, ctx.state.court.stability - 4);
+        ctx.note('stability', -4);
+      },
+    },
     {
       id: 'no-van-chan-trau',
       volume: 'whisper',
+      in: ['bai-lau', 'duoi-truong'],
       weight: 4,
       quiet: 4,
       when: (ctx) => ctx.recall('chose_not-yet') === 1,
@@ -77,6 +273,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'dam-tre-o-bai-cu',
       volume: 'whisper',
+      in: ['duoi-truong', 'xin-cam-quan'],
       weight: 4,
       quiet: 4,
       when: (ctx) => ctx.recall('chose_give-him-one') === 1,
@@ -91,6 +288,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'the-buffalo-feast',
       volume: 'card',
+      in: ['bai-lau'],
       band: 'field',
       weight: 8,
       quiet: 0,
@@ -98,6 +296,8 @@ export const reedBanner: StoryTemplate = {
       options: [
         {
           id: 'take-him-in',
+          to: 'duoi-truong',
+          historicity: 'annal',
           cost: { gold: 40 },
           apply: (ctx) => {
             ctx.remember('tookIn', 1);
@@ -110,6 +310,8 @@ export const reedBanner: StoryTemplate = {
         },
         {
           id: 'send-with-rice',
+          to: 'duoi-truong',
+          historicity: 'annal',
           cost: { food: 60 },
           apply: (ctx) => {
             ctx.remember('sentBack', 1);
@@ -119,6 +321,8 @@ export const reedBanner: StoryTemplate = {
         },
         {
           id: 'make-him-repay',
+          to: 'no-mieng',
+          historicity: 'divergent',
           apply: (ctx) => {
             ctx.remember('punished', 1);
             const hero = ctx.hero();
@@ -134,6 +338,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'forty-men-mended-the-dyke',
       volume: 'whisper',
+      in: ['duoi-truong'],
       weight: 4,
       quiet: 4,
       when: (ctx) => ctx.said('the-buffalo-feast'),
@@ -149,6 +354,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'reed-children',
       volume: 'whisper',
+      in: ['bai-lau'],
       weight: 6,
       quiet: 0,
       salience: (ctx) => (ctx.age >= 2 ? 4 : -10),
@@ -159,6 +365,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'no-man-lost',
       volume: 'whisper',
+      in: ['cam-quan'],
       weight: 3,
       when: (ctx) => commanding(ctx.state, ctx.story.cast.heroId),
       salience: (ctx) => (ctx.world.wonBattle ? 6 : 0),
@@ -172,6 +379,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'given-a-host',
       volume: 'whisper',
+      in: ['cam-quan'],
       weight: 2,
       when: (ctx) => commanding(ctx.state, ctx.story.cast.heroId) && ctx.recall('noticedCommand') === 0,
       effect: (ctx) => {
@@ -183,6 +391,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'villages-raise-his-banner',
       volume: 'whisper',
+      in: ['duoi-truong', 'xin-cam-quan'],
       weight: 2,
       when: (ctx) => ctx.recall('wonUnderHim') >= 2,
       salience: (ctx) => ctx.recall('wonUnderHim'),
@@ -193,6 +402,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'an-office-that-does-not-exist',
       volume: 'card',
+      in: ['duoi-truong'],
       band: 'court',
       weight: 4,
       quiet: 5,
@@ -207,6 +417,8 @@ export const reedBanner: StoryTemplate = {
       options: [
         {
           id: 'invent-it',
+          to: 'xin-cam-quan',
+          historicity: 'annal',
           apply: (ctx) => {
             ctx.remember('trusted', 1);
             const hero = ctx.hero();
@@ -219,6 +431,8 @@ export const reedBanner: StoryTemplate = {
         },
         {
           id: 'refuse',
+          to: 'xin-cam-quan',
+          historicity: 'annal',
           apply: (ctx) => {
             ctx.bump('passedOver');
             const hero = ctx.hero();
@@ -228,6 +442,8 @@ export const reedBanner: StoryTemplate = {
         },
         {
           id: 'one-province',
+          to: 'xin-cam-quan',
+          historicity: 'annal',
           apply: (ctx) => {
             ctx.remember('halfTrusted', 1);
             const land = ctx.land();
@@ -242,6 +458,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'he-asks',
       volume: 'card',
+      in: ['xin-cam-quan'],
       band: 'court',
       weight: 4,
       quiet: 4,
@@ -250,6 +467,8 @@ export const reedBanner: StoryTemplate = {
       options: [
         {
           id: 'give-him-one',
+          to: 'cam-quan',
+          historicity: 'annal',
           cost: { humans: 400, gold: 60 },
           apply: (ctx) => {
             ctx.remember('gaveHost', 1);
@@ -264,6 +483,8 @@ export const reedBanner: StoryTemplate = {
         },
         {
           id: 'not-yet',
+          to: 'xin-cam-quan',
+          historicity: 'annal',
           apply: (ctx) => {
             ctx.bump('heHasAsked');
             // R1. There will be other seasons, and he counts them.
@@ -274,6 +495,8 @@ export const reedBanner: StoryTemplate = {
         },
         {
           id: 'herdsman-son',
+          to: 'ba-la-co',
+          historicity: 'divergent',
           apply: (ctx) => {
             // Real court stability, and it writes the flag that opens four fragments.
             ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 8);
@@ -289,6 +512,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'he-remembers-the-spring',
       volume: 'whisper',
+      in: ['cam-quan'],
       weight: 3,
       // Echo: quotes a specific thing the player did, by year. This is the cheapest defence
       // against a salience pool reading as random noise — the player sees the game citing them.
@@ -300,6 +524,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'he-asks-again',
       volume: 'card',
+      in: ['xin-cam-quan'],
       band: 'court',
       weight: 4,
       quiet: 6,
@@ -308,6 +533,8 @@ export const reedBanner: StoryTemplate = {
       options: [
         {
           id: 'give-him-one',
+          to: 'cam-quan',
+          historicity: 'annal',
           cost: { humans: 400, gold: 60 },
           apply: (ctx) => {
             ctx.remember('gaveHost', 1);
@@ -319,6 +546,8 @@ export const reedBanner: StoryTemplate = {
         },
         {
           id: 'not-yet',
+          to: 'ba-la-co',
+          historicity: 'divergent',
           apply: (ctx) => {
             ctx.bump('heHasAsked');
             ctx.bump('coldness');
@@ -338,6 +567,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'did-not-attend',
       volume: 'whisper',
+      in: ['xin-cam-quan'],
       weight: 3,
       when: (ctx) => unposted(ctx.state, ctx.story.cast.heroId) && ctx.recall('heHasAsked') >= 1,
       salience: (ctx) => (ctx.world.seatEmptied ? 0 : 2) + ctx.recall('coldness') * 2,
@@ -348,6 +578,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'drilling-elsewhere',
       volume: 'whisper',
+      in: ['xin-cam-quan'],
       weight: 2,
       when: (ctx) => ctx.recall('passedOver') >= 1 && ctx.story.temperature >= 4,
       salience: (ctx) => ctx.story.temperature,
@@ -357,6 +588,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'no-tax-this-season',
       volume: 'whisper',
+      in: ['xin-cam-quan'],
       weight: 2,
       when: (ctx) => ctx.story.temperature >= 6 && ctx.said('drilling-elsewhere'),
       salience: (ctx) => ctx.story.temperature,
@@ -372,9 +604,9 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'three-banners',
       volume: 'blow',
+      in: ['ba-la-co'],
       band: 'crowd',
       weight: 8,
-      terminal: true,
       tone: 'threat',
       // Two whispers have already run, and they are in the Chronicle. A story may never act
       // without having first spoken — that is the difference between surprise and unfairness.
@@ -407,6 +639,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'leave-to-visit-a-grave',
       volume: 'whisper',
+      in: ['cam-quan'],
       weight: 2,
       when: (ctx) => ctx.recall('lostUnderHim') >= 1 && ctx.recall('tookItBack') >= 1,
       salience: () => 4,
@@ -415,6 +648,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'he-does-not-come-back',
       volume: 'whisper',
+      in: ['bo-di'],
       weight: 3,
       terminal: true,
       tone: 'info',
@@ -472,6 +706,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'four-hundred-men',
       volume: 'card',
+      in: ['cam-quan'],
       band: 'march',
       weight: 3,
       quiet: 3,
@@ -480,6 +715,8 @@ export const reedBanner: StoryTemplate = {
       options: [
         {
           id: 'take-it-back',
+          to: 'chet-tran',
+          historicity: 'annal',
           apply: (ctx) => {
             ctx.bump('lostUnderHim');
             ctx.bump('tookItBack');
@@ -493,6 +730,8 @@ export const reedBanner: StoryTemplate = {
         },
         {
           id: 'leave-it-with-him',
+          to: 'mo-nuoc',
+          historicity: 'annal',
           apply: (ctx) => {
             ctx.bump('lostUnderHim');
             const hero = ctx.hero();
@@ -505,6 +744,8 @@ export const reedBanner: StoryTemplate = {
         },
         {
           id: 'ask-him-what-happened',
+          to: 'mo-nuoc',
+          historicity: 'annal',
           apply: (ctx) => {
             ctx.bump('lostUnderHim');
             ctx.remember('listened', 1);
@@ -519,6 +760,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'his-men-would-build-it',
       volume: 'card',
+      in: ['duoi-truong', 'xin-cam-quan'],
       weight: 3,
       quiet: 4,
       repeatable: true,
@@ -529,6 +771,8 @@ export const reedBanner: StoryTemplate = {
       options: [
         {
           id: 'let-them',
+          to: 'duoi-truong',
+          historicity: 'annal',
           apply: (ctx) => {
             ctx.bump('builtForHim');
             const land = ctx.land();
@@ -552,6 +796,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'dai-co-viet',
       volume: 'card',
+      in: ['mo-nuoc'],
       band: 'shrine',
       weight: 6,
       terminal: true,
@@ -562,6 +807,8 @@ export const reedBanner: StoryTemplate = {
       options: [
         {
           id: 'accept',
+          to: 'mo-nuoc',
+          historicity: 'annal',
           apply: (ctx) => {
             for (const land of playerLands(ctx.state)) {
               land.loyalty = Math.max(land.loyalty, 78);
@@ -580,6 +827,7 @@ export const reedBanner: StoryTemplate = {
     {
       id: 'the-loyal-death',
       volume: 'blow',
+      in: ['chet-tran'],
       band: 'fire',
       weight: 3,
       terminal: true,
