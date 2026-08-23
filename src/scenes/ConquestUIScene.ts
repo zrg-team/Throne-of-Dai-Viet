@@ -7059,14 +7059,31 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     // Square and full-bleed. The field is a view rather than a card (see `buildBattleUi`), and a
     // radius on a view is a vignette: on a tall phone the rounded corners and the 2px inset read
     // as the picture being cut short of its own frame.
-    field.add(this.ui.panel(
-      battleFieldBox(content, ui.fieldHeight),
-      // `cut: 0`, and `radius` would not have done it: `panel` discards that option and the corner
-      // comes from `printedSurface`, which takes a diagonal off each one so a panel reads as a torn
-      // sheet. Right for a card lying on the page, wrong for a view that runs to both edges - the
-      // cuts left four notches of bare paper at the corners of the picture.
-      { border: INK_UI.softBrush, cut: 0 },
-    ));
+    // **Two rules, top and bottom. No frame.**
+    //
+    // This was `ui.panel`, which draws a closed border — and a closed border on a box that spans
+    // the whole sheet puts a dark 2px rule hard against the left and right edges of the screen.
+    // Measured off the drawing buffer at three device pixels in: 109,97,78 against the 221,208,177
+    // of the paper beside it, the full height of the field, both sides. That is the strip that kept
+    // being reported, and squaring the corners and taking the backdrop to full opacity did nothing
+    // about it because it was never the backdrop — it was the picture's own frame drawn where the
+    // page ends.
+    //
+    // A view that runs to both edges has no left or right; it is bounded by the screen, and the
+    // only edges it owns are the two horizontal ones where the rails and the header meet it.
+    const box = battleFieldBox(content, ui.fieldHeight);
+    const ground = this.add.graphics();
+    ground.fillStyle(INK_UI.parchment, 1);
+    ground.fillRect(box.x, box.y, box.width, box.height);
+    for (const edgeY of [box.y + 0.5, box.y + box.height - 0.5]) {
+      inkPath(
+        ground,
+        [{ x: box.x - 2, y: edgeY }, { x: box.x + box.width + 2, y: edgeY }],
+        Math.round(box.width + edgeY),
+        { width: 2, alpha: 0.86, colour: INK_UI.softBrush, wobble: 0.5, step: 16 },
+      );
+    }
+    field.add(ground);
 
     // The ground itself, before anything stands on it — then flattened into one texture.
     const groundFrom = field.list.length;
