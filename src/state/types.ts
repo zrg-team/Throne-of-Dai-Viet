@@ -81,6 +81,12 @@ export interface Land {
   x: number;
   y: number;
   defense: number;
+  /**
+   * Đồn điền has already stood this province up as a colony (defense ×1.5, once). Without the
+   * flag the colony bonus compounded every tick — measured: ×1.5 a tick from tick 82 of a run,
+   * power at 1e99 by tick 600, the threat gauge meaningless for the rest of the run.
+   */
+  colonised?: boolean;
   loyalty: number;
   neighbors: string[];
   buildings: LandBuildingInstance[];
