@@ -91,6 +91,45 @@ const BY_OPTION: Record<string, CardIconId> = {
   hold_: 'shield',
 };
 
+/**
+ * The Chronicle's own option ids, matched a word at a time.
+ *
+ * `BY_OPTION` is a table of the mode's *system* options, and there are forty of them. A story
+ * option id is a phrase in one of two languages — `dot-kho-truoc-mat-chung`, `giu-lai`,
+ * `pay-the-ransom`, `send-them-home` — and there are a hundred and ninety-nine of them, of which
+ * exactly **one** (`refuse`) ever matched. Every story card in the game was an undifferentiated
+ * wall of text.
+ *
+ * Enumerating them would be a table nobody keeps in step with the catalogue, so this reads the
+ * words the id is already made of, Vietnamese and English alike. It is not a preview: the glyph
+ * only ever restates a word already printed on the card in the option's own title.
+ *
+ * First match wins, so the order is meaning-first — a refusal is a refusal whatever it is
+ * refusing, which is why the negatives sit at the top.
+ */
+const BY_TOKEN: Array<[RegExp, CardIconId]> = [
+  [/^(khong|no|not|refuse|dismiss|decline|de|bo|thoi|never)$/, 'retreat'],
+  [/^(rut|lui|ve|retreat|withdraw|back|home|que)$/, 'retreat'],
+  [/^(doi|wait|later|yet|cho|chua|hoan|hold|nothing|enough|du|quieter|quiet|festival)$/, 'hourglass'],
+  [/^(chet|kill|die|mat|slain|lost|hang|execute)$/, 'skull'],
+  [/^(danh|fight|attack|strike|storm|blade|sword|guom|chem|kiem|tien|vanguard|dau|cat|arrows|chan|hunt)$/, 'blade'],
+  [/^(giu|keep|defend|shield|thu|canh|guard|watch|double|stays|stay|shut)$/, 'shield'],
+  [/^(dot|burn|fire|lua|spark)$/, 'spark'],
+  [/^(coc|dyke|wall|walls|ramparts|fortify|thanh|luy|de|ai|pass)$/, 'wall'],
+  [/^(vang|gold|tien|pay|ransom|buy|mua|bribe|coin|bac|price|luong)$/, 'coin'],
+  [/^(kho|treasury|purse|hoard|shelter|cap|issue|give|grant|tang|gift)$/, 'purse'],
+  [/^(quan|host|army|muster|banner|co|dao|linh|lead|dan|corvee|march)$/, 'banner'],
+  [/^(gao|grain|rice|com|food|luong|harvest|granary|stores)$/, 'grain'],
+  [/^(hoa|peace|truce|letter|thu|proclamation|hich|write|chieu|sac|say|answer|noi|read|doc|declare|proclaim|believe|hear|listen|nghe|wrote|notice|print)$/, 'scroll'],
+  [/^(nguoi|hero|him|her|seat|phong|appoint|tuong|man|son|child|cau|goi|summon|trieu|physicians|thay)$/, 'person'],
+  [/^(lang|village|nha|home|settle|hut|dan)$/, 'hut'],
+  [/^(court|council|hoi|assembly|vote|elders|scales|law|le|convene|decide|enact|dissolve|quyet|accept|agree|nhan|match|allow|let)$/, 'scales'],
+  [/^(vua|king|crown|throne|ngoi|emperor|mine|earned|invent|claim|chiem|lay|take)$/, 'crown'],
+  [/^(xay|build|forge|ren|make|works|hammer)$/, 'hammer'],
+  [/^(trau|herd|buffalo|ngua|horse|thuyen)$/, 'herd'],
+  [/^(bien|border|sea|song|river|water|nuoc)$/, 'branch'],
+];
+
 /** Resolves an option id — including the `court:`/`governor:`/`general:`/`tax:` prefixes. */
 export function iconForOption(optionId: string): CardIconId | undefined {
   if (optionId.startsWith('court:')) return 'scales';
@@ -98,7 +137,14 @@ export function iconForOption(optionId: string): CardIconId | undefined {
   if (optionId.startsWith('general:')) return 'blade';
   if (optionId.startsWith('tax:')) return 'coin';
   if (optionId.startsWith('edict:')) return 'scroll';
-  return BY_OPTION[optionId];
+  const exact = BY_OPTION[optionId];
+  if (exact) return exact;
+  for (const part of optionId.split('-')) {
+    for (const [token, icon] of BY_TOKEN) {
+      if (token.test(part)) return icon;
+    }
+  }
+  return undefined;
 }
 
 /**

@@ -32,6 +32,7 @@ function realmResolve(state: GameState): number {
 
 export const dienHong: StoryTemplate = {
   id: 'dien-hong',
+  record: 'chinh-su',
   seedWeight: 2,
   minTurn: 22,
   seed: (state) => {
@@ -42,12 +43,119 @@ export const dienHong: StoryTemplate = {
     return { kingdomId: rival.id };
   },
 
+  entry: 'trieu-tap',
+  nodes: [
+    { id: 'trieu-tap', historicity: 'chinh-su', patience: 5, onIgnored: 'dien-hong' },
+    { id: 'dien-hong', historicity: 'chinh-su', patience: 4, onIgnored: 'tra-loi' },
+    { id: 'tra-loi', historicity: 'chinh-su', terminal: true },
+    // Deciding it alone is not what happened, and the hall stays empty.
+    { id: 'tu-quyet', historicity: 'ngoai-truyen', patience: 6, onIgnored: 'khong-ai-hoi' },
+    { id: 'khong-ai-hoi', historicity: 'ngoai-truyen', terminal: true },
+    { id: 'dan-tu-lo', historicity: 'ngoai-truyen', terminal: true },
+  ],
   fragments: [
+    {
+      /**
+       * The hall is full. What is actually put to it?
+       *
+       * The one card in the game the player does not answer is the *result* — `they-answer`
+       * computes the realm's own resolve. This is the question before it, which is theirs.
+       */
+      id: 'hoi-cac-cu-cai-gi',
+      volume: 'card',
+      band: 'crowd',
+      in: ['dien-hong'],
+      weight: 9,
+      quiet: 1,
+      salience: () => 12,
+      options: [
+        {
+          id: 'danh-hay-hoa',
+          to: 'tra-loi',
+          historicity: 'annal',
+          apply: (ctx) => { ctx.remember('hoi-danh', 1); },
+        },
+        {
+          id: 'hoi-lieu-co-giu-duoc',
+          to: 'tra-loi',
+          historicity: 'annal',
+          apply: (ctx) => {
+            ctx.remember('hoi-giu', 1);
+            // Asked whether it can be held rather than whether to fight, a hall answers about
+            // walls and grain, and goes home having thought about walls and grain.
+            for (const land of playerLands(ctx.state)) {
+              land.defense += 3;
+            }
+          },
+        },
+      ],
+    },
+    {
+      /** Deciding alone still has to be decided. */
+      id: 'quyet-mot-minh-the-nao',
+      volume: 'card',
+      band: 'court',
+      in: ['tu-quyet'],
+      weight: 9,
+      quiet: 3,
+      salience: (ctx) => (ctx.age >= 3 ? 9 : -20),
+      options: [
+        {
+          id: 'cu-truyen-xuong',
+          to: 'khong-ai-hoi',
+          historicity: 'divergent',
+          apply: (ctx) => { ctx.remember('truyen', 1); },
+        },
+        {
+          id: 'de-cac-lo-tu-lieu',
+          to: 'dan-tu-lo',
+          historicity: 'divergent',
+          apply: (ctx) => {
+            ctx.remember('tu-lieu', 1);
+            ctx.state.court.stability = Math.max(0, ctx.state.court.stability - 8);
+            ctx.note('stability', -8);
+          },
+        },
+      ],
+    },
+    {
+      id: 'moi-lo-lam-mot-kieu',
+      volume: 'whisper',
+      in: ['dan-tu-lo'],
+      weight: 8,
+      terminal: true,
+      effect: (ctx) => {
+        const lands = playerLands(ctx.state);
+        lands.forEach((land, i) => {
+          land.defense += i % 2 === 0 ? 8 : -2;
+          land.loyalty = Math.max(10, Math.min(100, land.loyalty + (i % 3 === 0 ? 6 : -6)));
+        });
+      },
+    },
+    {
+      id: 'khong-ai-hoi-y-ai',
+      volume: 'whisper',
+      in: ['tu-quyet'],
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_decide-alone') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'cac-cu-ay-ve-lang',
+      volume: 'whisper',
+      in: ['dien-hong', 'tra-loi'],
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_convene') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     // The scene before the question: patched coats, bare feet, three days on the road. The
     // shipped version opened cold on the card, which wasted the best image the story has.
     {
       id: 'the-elders-arrive',
       volume: 'whisper',
+      in: ['trieu-tap'],
       weight: 6,
       quiet: 1,
       when: (ctx) => (ctx.state.ascent?.threat ?? 0) > (ctx.state.ascent?.defensePower ?? 0) * 0.6,
@@ -57,6 +165,7 @@ export const dienHong: StoryTemplate = {
     {
       id: 'the-elders-are-summoned',
       volume: 'card',
+      in: ['trieu-tap'],
       band: 'crowd',
       weight: 7,
       quiet: 2,
@@ -68,13 +177,25 @@ export const dienHong: StoryTemplate = {
       options: [
         {
           id: 'convene',
+          to: 'dien-hong',
+          historicity: 'annal',
           apply: (ctx) => {
             ctx.remember('convened', 1);
             ctx.remember('resolve', Math.round(realmResolve(ctx.state) * 100));
+            // R1, and it was backwards before: the *historical* answer did nothing while
+            // deciding alone moved stability, so putting the question to the elders read as the
+            // inert option. The realm was asked, and a realm notices being asked.
+            for (const land of playerLands(ctx.state)) {
+              land.loyalty = Math.min(100, land.loyalty + 8);
+            }
+            ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 6);
+            ctx.note('stability', 6);
           },
         },
         {
           id: 'decide-alone',
+          to: 'tu-quyet',
+          historicity: 'divergent',
           apply: (ctx) => {
             // Faster, and the realm notices it was not asked.
             ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 6);
@@ -89,6 +210,7 @@ export const dienHong: StoryTemplate = {
     {
       id: 'the-realm-was-not-asked',
       volume: 'whisper',
+      in: ['khong-ai-hoi'],
       weight: 4,
       terminal: true,
       tone: 'info',
@@ -104,6 +226,7 @@ export const dienHong: StoryTemplate = {
     {
       id: 'they-answer',
       volume: 'blow',
+      in: ['tra-loi'],
       band: 'crowd',
       weight: 9,
       terminal: true,

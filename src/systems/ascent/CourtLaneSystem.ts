@@ -114,7 +114,9 @@ export function buildAppointmentOptions(state: GameState, hero: Hero): Appointme
 
   // A garrison levy has no general and takes none: it is the province's walls turned out for
   // one battle, not a host to be given a commander.
-  const leaderless = state.armies.find((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && !army.generalHeroId);
+  // Never an auxiliary: the court cannot appoint a commander over a host that does not take the
+  // court's orders, and offering to is how a player learns to distrust the lane.
+  const leaderless = state.armies.find((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && !army.patron && !army.generalHeroId);
   if (leaderless) {
     scored.push({
       option: {

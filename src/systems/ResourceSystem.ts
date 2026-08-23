@@ -868,7 +868,7 @@ function getConstructionLaborRequired(state: GameState): number {
  */
 export function getPlayerTroops(state: GameState): number {
   return state.armies
-    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy)
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && !army.patron)
     .reduce((sum, army) => sum + army.units.spearmen + army.units.archers + army.units.heavyInfantry, 0);
 }
 
@@ -879,7 +879,7 @@ export function getArmyGoldUpkeep(army: { units: { spearmen: number; archers: nu
 
 function getTotalArmyGoldUpkeep(state: GameState): number {
   return state.armies
-    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy)
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && !army.patron)
     .reduce((sum, army) => sum + getArmyGoldUpkeep(army), 0);
 }
 
@@ -907,7 +907,10 @@ export function ascentArmyUpkeep(state: GameState): { gold: number; food: number
   // otherwise feed. The bill comes due in `recalledHostPenalty` the season they are called back.
   let idleHosts = 0;
   for (const army of state.armies) {
-    if (army.kingdomId !== PLAYER_KINGDOM_ID || army.isLevy) continue;
+    // An auxiliary is fed by whoever raised it — `tickStoryPatrons` burns its own stores and
+    // starves it when they run out. Charging the realm for a host it cannot command would make
+    // accepting help a tax.
+    if (army.kingdomId !== PLAYER_KINGDOM_ID || army.isLevy || army.patron) continue;
     const size = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
     const marching = state.movementOrders.some((order) => order.armyId === army.id);
     const abroad = state.lands.find((land) => land.id === army.landId)?.ownerId !== PLAYER_KINGDOM_ID;

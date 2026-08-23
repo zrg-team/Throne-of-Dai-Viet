@@ -13,6 +13,10 @@ import type { StoryCatalog } from './types';
  *   annal line would destroy it.
  */
 export const thanhGiongVi: StoryCatalog = {
+  'pressure.chua-an': 'Ngựa sắt đang rèn. Nó chưa ăn gì của ai, và chưa lớn thêm chút nào.',
+  'pressure.an-mot-lan': 'Nó ăn hết phần của một làng, và áo giáp đã phải nới ở vai.',
+  'pressure.cao-hon-cua': 'Nó cao hơn cái cửa. Người thợ rèn bảo giáp chưa xong trước lúc nước tới.',
+  'pressure.san-sang': 'Ngựa sắt đứng ngoài sân, và nó đã cao hơn con ngựa.',
   title: 'Thánh Gióng',
   want: 'một con ngựa sắt, một cây roi sắt, một áo giáp sắt',
   waiting: 'Làng Phù Đổng đang đợi, và giặc thì không đợi.',
@@ -361,6 +365,10 @@ export const thanhGiongVi: StoryCatalog = {
 
 
 export const thanhGiongEn: StoryCatalog = {
+  'pressure.chua-an': 'The iron horse is at the forge. He has eaten nobody\'s rice yet, and has not grown at all.',
+  'pressure.an-mot-lan': 'He has eaten a village\'s share, and the armour has had to be let out at the shoulder.',
+  'pressure.cao-hon-cua': 'He is taller than the doorway. The smith says the armour will not be finished before the water comes.',
+  'pressure.san-sang': 'The iron horse is standing in the yard, and he is taller than the horse.',
   title: 'Thánh Gióng',
   want: 'an iron horse, an iron rod and iron armour',
   waiting: 'Phù Đổng is waiting, and the Ân are not.',

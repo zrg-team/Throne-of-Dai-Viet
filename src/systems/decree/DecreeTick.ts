@@ -135,7 +135,9 @@ const RECALL_SEASONS = 12;
 
 function tickRecalls(state: GameState): void {
   for (const army of state.armies) {
-    if (army.kingdomId !== PLAYER_KINGDOM_ID || army.isLevy) continue;
+    // Ngụ binh ư nông sends the realm's own men back to the fields. It has no claim on somebody
+    // else's household.
+    if (army.kingdomId !== PLAYER_KINGDOM_ID || army.isLevy || army.patron) continue;
     const marching = state.movementOrders.some((order) => order.armyId === army.id);
     const abroad = state.lands.find((land) => land.id === army.landId)?.ownerId !== PLAYER_KINGDOM_ID;
     if (marching || abroad) {

@@ -3,6 +3,7 @@ import type {
   GameState,
   Hero,
   Historicity,
+  StoryOutcome,
   Kingdom,
   Land,
   NotificationKind,
@@ -12,7 +13,7 @@ import type {
   StoryVolume,
 } from '../../state/types';
 
-export type { Historicity };
+export type { Historicity, StoryOutcome };
 
 /**
  * Authoring types for the Chronicle. None of this is serialised — a save holds only the
@@ -135,6 +136,32 @@ export interface StoryCtx {
   /** Records a moment for later runs to mention. Only terminals should call this. */
   leaveEcho(name: string): void;
 
+  /**
+   * The fragment being resolved right now.
+   *
+   * `leaveEcho` used to key off `story.spoken[last]`, which is only correct inside a fragment's
+   * own `effect` — an option's `apply` runs *before* `fire` pushes the id, so every echo left
+   * from an answer was filed under the previous beat and `echoOf` could never match it again.
+   */
+  speaking?: string;
+
+  /**
+   * Books what this answer actually did, so the player can be told.
+   *
+   * The story card has only ever printed a *price* (`option.cost`), never a result — which is why
+   * a player can answer six beats and not know what any of them were worth. Called by the verbs
+   * in `effects.ts` with the figures they already compute and used to discard; an author who
+   * reaches past the vocabulary and mutates state directly may call it themselves, and should.
+   *
+   * Deliberately silent for anything the player is not supposed to know yet: a defection, a
+   * mutiny, a rival quietly coming apart. **The absence of a note is the policy** — there is no
+   * exclusion list to keep in step, because the verb that does the thing is the verb that
+   * reports it, and one that represents a betrayal simply does not call this.
+   */
+  note(kind: string, amount?: number, name?: string): void;
+  /** What has been noted so far. Engine plumbing; fragments do not read this. */
+  noted: StoryOutcome[];
+
   /** The node this story is standing in. */
   node(): string;
   /** Move the story to another node without a card — for effects that branch on the world. */
@@ -251,6 +278,27 @@ export interface StoryTemplate {
    * salience pool legible as *reacting to you* rather than as weather.
    */
   regard?: (ctx: StoryCtx) => string | undefined;
+  /**
+   * Where this template's endings sit against the record, for a template with no trunk.
+   *
+   * One authored word, and a judgement rather than a default: `chinh-su` for what the annals
+   * record, `da-su` for what tradition holds and the annals do not, `ngoai-truyen` for the ones
+   * invented for this game. A trunked template derives it from `story.drift` instead and ignores
+   * this. Absent means the ending goes unclassified, which is honest but invisible.
+   */
+  record?: Historicity;
+  /**
+   * How the situation stands, as a text-key suffix (`<templateId>.pressure.<suffix>`).
+   *
+   * `regard` is what the bound person thinks of you; this is what has *changed* — and the two are
+   * different questions. A wager especially needs it: four offerings into Thánh Gióng's forge is
+   * a fact about a giant, and there is no honest way to show it as a number without turning the
+   * story into a quest with a completion state.
+   *
+   * So: a sentence, never a fraction, never a bar. Absent omits the line entirely, which is what
+   * the forty templates that are not instruments do.
+   */
+  pressure?: (ctx: StoryCtx) => string | undefined;
   /** Relative chance of being the one considered on a seeding tick. */
   seedWeight: number;
   /** Earliest turn this may seed. */

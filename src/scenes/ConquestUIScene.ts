@@ -5,6 +5,7 @@ import { applyRenderScale } from '../game/graphicsQuality';
 import { battleBeatsPerTick, battleBubbleMs, battleRimsShown, battleTickMs } from '../game/battleOptions';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID } from '../game/constants';
 import { codexProgress, storyProgress, getCodex, isHeroUnlocked } from '../state/codex';
+import { getMemorials } from '../systems/story/echoes';
 import { LEGACY_PERKS, ownsPerk } from '../state/legacy';
 import { doctrineBlurb, doctrineName } from '../systems/ascent/RealmDoctrineSystem';
 import { powerCardView, skipRefundAmount } from '../systems/ascent/PowerDraftSystem';
@@ -100,7 +101,7 @@ import { getEmpirePower, hasPact } from '../systems/DiplomacySystem';
 import { compactNumber } from '../utils/format';
 import { renderHeroFaceInBox } from '../ui/FaceRenderer';
 import { drawStoryBand } from '../ui/ink/storyBand';
-import { chronicleTally, countOpenDoors, heldBeat, heldBeatOptions, isMarked, openingFor, openingView, resolveStoryBeat, storyCardsMuted, storyNeedsPlayer, storyOpening, storyParams, storyDrift, storyPath, storyRegard, storySpokenHistory, storyWantsPlayer, takeOpening } from '../systems/story/StorySystem';
+import { chronicleTally, countOpenDoors, heldBeat, heldBeatOptions, isMarked, openingFor, openingView, resolveStoryBeat, storyCardsMuted, storyNeedsPlayer, storyOpening, storyParams, storyDrift, storyPath, storyPressure, storyRegard, storySpokenHistory, storyWantsPlayer, takeOpening } from '../systems/story/StorySystem';
 import { storyCatalogIds, storyText, storyTitle } from '../i18n/story';
 import { chargeTrackerLines } from '../systems/story/charges';
 import { INK_UI, INK_UI_HEX, InkUI, scrollGestureConsumedTap, type InkScrollArea, type UIBounds } from '../ui/InkUI';
@@ -128,6 +129,7 @@ import { findLand } from '../systems/LandSystem';
 import { CARD_ICON_SIZE, drawCardIcon, iconForOption, type CardIconId } from '../ui/CardIcons';
 import { ASCENT_HUD_HEIGHT, AscentHud } from '../ui/ascent/AscentHud';
 import { AdvisorStrip } from '../ui/ascent/AdvisorStrip';
+import { WhisperLine } from '../ui/ascent/WhisperLine';
 import { Copilot, type CopilotStep } from '../ui/Copilot';
 import { drawFormationCounters } from '../ui/ascent/formationCounters';
 import { hasSeenRunTour, markRunTourSeen, takeGuidedRun } from '../state/tour';
@@ -155,6 +157,7 @@ import {
 import type {
   ActiveStory,
   Historicity,
+  StoryOutcome,
   Army,
   ArmyComposition,
   ArmyOrders,
@@ -502,6 +505,23 @@ function disarm(object: Phaser.GameObjects.GameObject): void {
     for (const child of children) disarm(child);
   }
 }
+/**
+ * A ledger figure, signed — except for the ones that are not deltas.
+ *
+ * Most lines are a change and read correctly with a sign: `−300 able men`, `+140 grain`.
+ * A few carry a *total* or a level instead, and signing those says the wrong thing entirely:
+ * `patron` is how many stand under the banner now, not how many joined, and "There are +1000
+ * under that banner" reads as a thousand more of them.
+ */
+const ABSOLUTE_OUTCOMES = new Set(['patron', 'loyaltyFloor', 'academy', 'stipend', 'debt', 'fed', 'draftTilt']);
+
+function formatOutcomeAmount(entry: StoryOutcome): string {
+  if (entry.amount === undefined) return '';
+  const size = Math.abs(Math.round(entry.amount));
+  if (ABSOLUTE_OUTCOMES.has(entry.kind)) return String(size);
+  return `${entry.amount > 0 ? '+' : entry.amount < 0 ? '−' : ''}${size}`;
+}
+
 export class ConquestUIScene extends Phaser.Scene {
   private state!: GameState;
   private ui!: InkUI;
@@ -521,6 +541,8 @@ export class ConquestUIScene extends Phaser.Scene {
   private pausedBadge?: Phaser.GameObjects.Container;
   /** The standing advisor under the readout band. Never rebuilt, only written into. */
   private advisor!: AdvisorStrip;
+  /** The Chronicle's ambient lines, which this mode had no surface for at all. */
+  private whispers!: WhisperLine;
   /**
    * The four cards a first run is shown, while they are up.
    *
@@ -691,6 +713,9 @@ export class ConquestUIScene extends Phaser.Scene {
     // advice names a lane and the bar already knows how to open every lane there is. A second
     // route into those screens is a second thing to keep correct.
     this.advisor = new AdvisorStrip(this, (lane) => this.handleBarAction(lane));
+    // Under the advisor, and a door rather than a notice: every whisper has a scene written for
+    // it that nothing in this mode could reach.
+    this.whispers = new WhisperLine(this, (storyId) => this.showStoryPage(storyId));
 
     // Taken once, here, rather than read where it is used: the flag is a one-shot handoff from the
     // manual and any second reader would find it already spent.
@@ -704,6 +729,7 @@ export class ConquestUIScene extends Phaser.Scene {
       this.stopBattleClock();
       window.__hudTapBounds = [];
       this.advisor.destroy();
+      this.whispers.destroy();
       this.runTour?.destroy();
       this.runTour = undefined;
       this.waveBanner?.destroy();
@@ -730,6 +756,7 @@ export class ConquestUIScene extends Phaser.Scene {
     // Written before the lane guards below: those can return early, and the one line on screen
     // that claims to be reading the run must never be a tick behind the band above it.
     this.advisor.render(this.state);
+    this.whispers.render(this.state, this.advisor.bottom());
 
     // A lane that renders nothing has stranded the player: the bar and the map controls are
     // torn down before the screen is built, so an empty modal layer means no UI at all and no
@@ -777,6 +804,27 @@ export class ConquestUIScene extends Phaser.Scene {
     const runEnding = prompt?.kind === 'run-over';
     if (runEnding && this.state.ascent?.pendingAftermath && !overlayOpen) {
       this.openAftermath();
+      return;
+    }
+
+    // What the last answer actually did, before the next question is asked.
+    //
+    // Ahead of the prompt block on purpose: a story that chains straight into another beat would
+    // otherwise overwrite `lastStoryOutcome` before it was ever read, and the one thing the player
+    // asked for — being able to tell what a choice was worth — would be the thing dropped. It
+    // yields only to the Reckoning, which nothing may sit in front of.
+    //
+    // Deliberately NOT an `AscentPrompt`: it would come out of `STORY_PROMPT_SHARE`'s fifteen per
+    // cent and be rationed against the story cards it is reporting on.
+    const outcome = this.state.lastStoryOutcome;
+    if (outcome && !overlayOpen && !runEnding) {
+      if (this.openPromptKey !== 'story-outcome') {
+        this.lanePauseBeforeOpen = this.state.isStrategyPause;
+        this.state.isStrategyPause = true;
+        this.beginOverlay('story-outcome');
+        this.showStoryOutcome(outcome);
+        if (this.modalLayer.length === 0) this.dismissStoryOutcome();
+      }
       return;
     }
 
@@ -1790,10 +1838,11 @@ export class ConquestUIScene extends Phaser.Scene {
     this.actionBar.setVisible(!hidden);
     if (!hidden) this.actionBar.refresh();
     this.advisor.setVisible(!hidden);
+    this.whispers.setVisible(!hidden);
     // AFTER `renderMapControls`, which rewrites `__hudTapBounds` wholesale — the advisor's own
     // rectangle has to be appended to that list rather than published before it and overwritten.
     this.renderMapControls(hidden);
-    if (!hidden) window.__hudTapBounds!.push(...this.advisor.tapBounds());
+    if (!hidden) window.__hudTapBounds!.push(...this.advisor.tapBounds(), ...this.whispers.tapBounds());
     this.renderPausedBadge(hidden);
     this.maybeRunTour(hidden);
   }
@@ -4350,21 +4399,43 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       (candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID && !candidate.isLevy && candidate.id !== army.id,
     );
     const quarries = visibleHostileHosts(state);
-    // The live fight, if this host is not already in it: the one order that is about *now*.
+    // ── Send this host to the fight ──
+    //
+    // **Always drawn, even with no fight to send it to.** It used to appear only while a battle
+    // was live and this host could reach it, and vanish the rest of the time — so the one order
+    // that answers "there is a siege on my border, send this army" was invisible on every screen
+    // a player ever opened calmly, and nothing on the sheet said the order existed. Every other
+    // row here already states its own unavailability in place ("Truy đuổi một đạo quân — không
+    // thấy đạo quân địch nào"); this one disappeared instead, which is the only kind of missing
+    // control a player cannot learn from.
+    //
+    // Kept at the head of the list because it is the one order that is about *now*: a fight is
+    // running out of beats while the sheet is open, and the rows under it are all about later.
     const live = state.ascent?.activeBattle && !state.ascent.activeBattle.over ? state.ascent.activeBattle : undefined;
     const relief = live ? reinforcementCandidates(state, live).find((row) => row.army.id === army.id) : undefined;
-    const reliefTile = live && relief ? [{
-      title: t('ascent.reinforce.tile', { land: live.landName }),
-      note: relief.blockedReason ?? (relief.enRoute ? t('ascent.reinforce.onRoad')
-        : relief.etaTicks === 0 ? t('ascent.reinforce.etaNow')
-          : t(relief.inTime ? 'ascent.reinforce.etaInTime' : 'ascent.reinforce.etaLate', { n: relief.etaTicks ?? 0 })),
-      border: relief.blockedReason || relief.enRoute ? INK_UI.softBrush : relief.inTime ? INK_UI.jade : INK_UI.cinnabar,
-      muted: Boolean(relief.blockedReason) || relief.enRoute,
-      onTap: relief.blockedReason || relief.enRoute ? undefined : () => {
+    const alreadyIn = Boolean(live && (live.ourArmyIds ?? []).includes(army.id));
+    const reliefNote = (): string => {
+      if (!live) return t('ascent.reinforce.noBattle');
+      if (alreadyIn) return t('ascent.reinforce.already', { land: live.landName });
+      // No candidate row for a fight that is running means this host cannot join it at all — an
+      // empty host, or one the candidate list refused for a reason it does not name.
+      if (!relief) return t('ascent.reinforce.noRoad');
+      if (relief.blockedReason) return relief.blockedReason;
+      if (relief.enRoute) return t('ascent.reinforce.onRoad');
+      if (relief.etaTicks === 0) return t('ascent.reinforce.etaNow');
+      return t(relief.inTime ? 'ascent.reinforce.etaInTime' : 'ascent.reinforce.etaLate', { n: relief.etaTicks ?? 0 });
+    };
+    const canRelieve = Boolean(live && relief && !alreadyIn && !relief.blockedReason && !relief.enRoute);
+    const reliefTile = [{
+      title: live ? t('ascent.reinforce.tile', { land: live.landName }) : t('ascent.reinforce.tileIdle'),
+      note: reliefNote(),
+      border: !canRelieve ? INK_UI.softBrush : relief?.inTime ? INK_UI.jade : INK_UI.cinnabar,
+      muted: !canRelieve,
+      onTap: canRelieve && live ? () => {
         sendReinforcement(state, live, armyId);
         this.showArmyDetail(armyId);
-      },
-    }] : [];
+      } : undefined,
+    }];
     addWidget(0, (parent, width) => {
       const height = this.actionTiles(parent, width, [
         ...reliefTile,
@@ -5620,6 +5691,108 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
     finish(used);
   }
 
+  private dismissStoryOutcome(): void {
+    this.state.lastStoryOutcome = undefined;
+    this.state.isStrategyPause = this.lanePauseBeforeOpen;
+    this.closeOverlay();
+  }
+
+  /**
+   * What an answer did to the realm — afterwards, and only afterwards.
+   *
+   * **A report, never a preview.** The card the player just answered still shows nothing but its
+   * price, which is the design and stays the design: an option that prints its own consequence is
+   * a walkthrough, and a story you can solve is not a story. But a run in which six beats are
+   * answered and none of them visibly change anything is not restraint, it is silence — and that
+   * is what "I don't know how it affects my kingdom" was describing.
+   *
+   * So the class, the turn the story took and the arithmetic all land here, one tap later, when
+   * the decision is already irrevocable and nothing about knowing can be used to game it.
+   *
+   * The lines come from `ctx.note`, called by the verbs in `effects.ts` as they work. Anything a
+   * story deliberately conceals — a defection, a mutiny — simply never calls it, so there is no
+   * exclusion list here to fall out of step with the vocabulary.
+   */
+  private showStoryOutcome(report: NonNullable<GameState['lastStoryOutcome']>): void {
+    const stem = `${report.templateId}.${report.fragmentId}`;
+    const chronicle = storyText(`${stem}.chronicle`, report.params);
+    const { body, bodyWidth, finish } = this.promptScrollBody(
+      storyTitle(report.templateId),
+      chronicle !== `${stem}.chronicle` ? chronicle : '',
+      0,
+    );
+
+    let used = 0;
+
+    // The class of the path, where the story has one. Same three inks as the spine, so the two
+    // screens are legibly about the same thing.
+    if (report.historicity) {
+      const chip = this.ui.card(
+        { x: 0, y: used, width: bodyWidth, height: 34 },
+        {
+          title: '',
+          subtitle: t(`ascent.story.class.${report.historicity}` as Parameters<typeof t>[0]),
+          border: report.historicity === 'chinh-su'
+            ? INK_UI.jade
+            : report.historicity === 'da-su' ? INK_UI.gold : INK_UI.cinnabar,
+        },
+      );
+      body.add(chip);
+      used += ((chip.getData('cardHeight') as number) ?? 34) + 10;
+    }
+
+    const heading = this.add.text(2, used, t('ascent.story.outcome.changed').toLocaleUpperCase(), {
+      color: INK_UI_HEX.mutedText,
+      fontFamily: UI_FONT,
+      fontSize: '10px',
+      fontStyle: '700',
+    });
+    heading.setLetterSpacing?.(1.6);
+    body.add(heading);
+    used += 18;
+
+    for (const entry of report.outcome) {
+      const key = `ascent.story.outcome.${entry.kind}` as Parameters<typeof t>[0];
+      // A signed figure, because this is a ledger and the direction is the point. The key itself
+      // carries no + or −, so a line that only ever moves one way still reads correctly.
+      const n = formatOutcomeAmount(entry);
+      const line = t(key, { n, name: entry.name ?? '' });
+      // An unknown kind resolves to its own key. Print nothing rather than `ascent.story.
+      // outcome.whatever` — a missing string is a bug for the harness to catch, not a line of
+      // gibberish for the player to read.
+      if (line === key) continue;
+      const gain = (entry.amount ?? 0) > 0 || entry.amount === undefined;
+      const rail = this.add.graphics();
+      rail.fillStyle(gain ? INK_UI.jade : INK_UI.cinnabar, 0.7);
+      rail.fillRect(2, used + 3, 3, 13);
+      body.add(rail);
+      const text = this.ui.label(14, used, line, 'body', {
+        fontSize: '12px',
+        wordWrap: { width: bodyWidth - 20 },
+      });
+      body.add(text);
+      used += Math.max(20, text.height + 6);
+    }
+    used += 10;
+
+    const ack = this.optionCard(
+      { x: 0, y: used, width: bodyWidth, height: 48 },
+      {
+        title: t('ascent.story.outcome.ok'),
+        body: '',
+        accent: INK_UI.gold,
+        parent: body,
+        onTap: () => {
+          this.dismissStoryOutcome();
+          this.refresh();
+        },
+      },
+    );
+    used += ((ack.getData('cardHeight') as number) ?? 48) + 8;
+
+    finish(used);
+  }
+
   /**
    * Sử Ký — what has already happened, in past tense.
    *
@@ -5850,8 +6023,36 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       }
     }
 
-
-
+    // ── Đã nghe: the lines that went past ──
+    //
+    // The permanent half of the whisper strip. The strip is four and a half seconds and gone;
+    // this is where a player who was reading the map instead comes to find out what was said —
+    // and, because every row opens the story it came from, where the scene behind the line is
+    // finally reachable. Before both existed, forty-three per cent of the catalogue was written,
+    // translated, fired and discarded without ever being drawn.
+    {
+      const heard = (state.eventLog ?? []).filter((entry) => entry.ref).slice(-12).reverse();
+      if (heard.length > 0) {
+        addHeading(t('ascent.chronicle.heard'));
+        for (const entry of heard) {
+          const ref = entry.ref!;
+          const live = (state.stories ?? []).some((candidate) => candidate.id === ref.storyId);
+          addRow(
+            {
+              title: storyTitle(ref.templateId),
+              subtitle: entry.text,
+              border: entry.kind === 'threat' ? INK_UI.cinnabar
+                : entry.kind === 'reward' || entry.kind === 'milestone' ? INK_UI.gold : INK_UI.softBrush,
+              muted: true,
+            },
+            // A story that has since ended has no page to open. The line stays readable; it
+            // simply stops being a door, which is better than a door onto the Chronicle it is
+            // already sitting in.
+            live ? () => this.showStoryPage(ref.storyId) : undefined,
+          );
+        }
+      }
+    }
 
 
     /** One story as one person: name · want, then the latest line, then the state. */
@@ -5862,9 +6063,17 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       const line = lastId ? storyText(`${story.templateId}.${lastId}.chronicle`, params) : undefined;
       const hero = state.heroes.find((candidate) => candidate.id === story.cast.heroId);
       const want = storyText(`${story.templateId}.want`, params);
-      const wantLine = want !== `${story.templateId}.want`
-        ? t('ascent.story.wants', { want })
-        : undefined;
+      // A running instrument says how it stands, right here, so the lane answers "what is
+      // happening with him" without the player having to open anything. Falls back to what the
+      // person wants, which is what the row said before.
+      const pressure = storyPressure(state, story);
+      const pressureKey = `${story.templateId}.pressure.${pressure}`;
+      const standing = pressure ? storyText(pressureKey, params) : undefined;
+      const wantLine = (standing && standing !== pressureKey)
+        ? standing
+        : (want !== `${story.templateId}.want`
+          ? t('ascent.story.wants', { want })
+          : undefined);
       // Two different kinds of "needs you", and the row says which: a door standing open on a
       // subject, or a beat the story is holding because beats have been muted.
       const status = heldBeat(state, story)
@@ -5893,11 +6102,35 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       for (const story of waiting) storyRow(story, false);
     }
 
+    // ── Đền thờ: the dead, and what they were remembered for ──
+    //
+    // Above the recorded endings rather than below them, because a shrine outlasts the entry that
+    // put it there: the Chronicle ring drops its oldest at sixty and this list never does.
+    {
+      const memorials = state.memorials ?? [];
+      if (memorials.length > 0) {
+        addHeading(t('ascent.chronicle.memorials'));
+        for (const entry of memorials) {
+          const key = `${entry.templateId}.memorial.${entry.key}`;
+          const line = storyText(key, { name: entry.name, land: entry.landId ?? '', n: entry.deeds ?? 0 });
+          addRow({
+            title: entry.name || storyTitle(entry.templateId),
+            subtitle: line !== key ? line : storyTitle(entry.templateId),
+            border: INK_UI.jade,
+          });
+        }
+      }
+    }
+
     if (recorded.length > 0) {
       // Counted by class, because that one line is the reign's identity: a dynasty that mostly
       // followed the record reads differently from one that mostly did not.
       const tally = chronicleTally(state);
-      addHeading(`${t('ascent.chronicle.recorded')}  ·  ${t('ascent.chronicle.tally', tally)}`);
+      // The tally goes in the hint line, not the heading. Appended to the heading it is uppercased
+      // and letter-spaced, and "RECORDED · CHÍNH SỬ 1 · DÃ SỬ 0 · NGOẠI TRUYỆN 0" runs off the
+      // right edge of a 390px phone with the last figure cut in half — which is the one character
+      // that carries the information.
+      addHeading(t('ascent.chronicle.recorded'), t('ascent.chronicle.tally', tally));
       for (const entry of recorded) {
         // A story with no source class shows none. Only templates that have actually been
         // placed against the record carry a tag; the rest keep the old tone colouring and say
@@ -6078,6 +6311,27 @@ ${t('ascent.screen.payroll', { gold: heroPayroll(state) })}`,
       });
       body.add(beatText);
       used += Math.max(18, beatText.height + 7);
+
+      // What that beat cost and what it bought, under the beat itself.
+      //
+      // The report card says it once, on the way past; this is where it stays. Three seasons
+      // later, "what did giving him the grain actually do" has an answer on the page rather than
+      // only in a modal the player has already dismissed.
+      for (const entry of beat.outcome ?? []) {
+        const key = `ascent.story.outcome.${entry.kind}` as Parameters<typeof t>[0];
+        const n = formatOutcomeAmount(entry);
+        const ledger = t(key, { n, name: entry.name ?? '' });
+        if (ledger === key) continue;
+        const row = this.ui.label(48, used, ledger, 'caption', {
+          fontSize: '10px',
+          color: (entry.amount ?? 0) < 0
+            ? `#${INK_UI.cinnabar.toString(16).padStart(6, '0')}`
+            : INK_UI_HEX.mutedText,
+          wordWrap: { width: bodyWidth - 52 },
+        });
+        body.add(row);
+        used += Math.max(14, row.height + 3);
+      }
     });
     used += 8;
 
@@ -10510,6 +10764,14 @@ ${fall}` : fall,
       rows.push([t('ascent.over.stories'), String(endings)]);
       rows.push(['', t('ascent.over.storyLine', storyTally)]);
     }
+    // The dead this reign put up a shrine to, by name. `state.memorials` is not the Chronicle's
+    // sixty-entry ring and is never evicted — a shrine the record forgets is not a shrine — and
+    // until now nothing drew it at all.
+    const memorials = this.state.memorials ?? [];
+    if (memorials.length > 0) {
+      rows.push([t('ascent.over.memorials'), String(memorials.length)]);
+      rows.push(['', memorials.map((entry) => entry.name).filter(Boolean).join(' · ')]);
+    }
     const bodyY = content.y + headHeight + 10;
     const bodyHeight = rows.length * 26 + 20;
     this.modalLayer.add(this.ui.panel(
@@ -10573,7 +10835,10 @@ ${fall}` : fall,
     const stories = storyProgress(storyCatalogIds.length);
     this.modalLayer.add(this.ui.label(
       content.x, buttonY + 100,
-      `${t('ascent.codex.stories')}  ${stories.met}/${stories.total}`,
+      // The dead of *every* reign, not this one: `getMemorials` reads the cross-run echo ring, so
+      // a name enshrined three dynasties ago is still counted here beside the stories met.
+      `${t('ascent.codex.stories')}  ${stories.met}/${stories.total}`
+        + (getMemorials().length > 0 ? `   ·   ${t('ascent.chronicle.memorials')} ${getMemorials().length}` : ''),
       'caption', { fontSize: '11px' },
     ));
     this.modalLayer.add(this.ui.button(

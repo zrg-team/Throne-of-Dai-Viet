@@ -9,6 +9,12 @@ import type { StoryCatalog } from './types';
  */
 
 export const hoGuomEn: StoryCatalog = {
+  'guom-treo-tren-vach.line': 'The blade hangs on the wall, and nobody in the house touches it.',
+  'guom-treo-tren-vach.scene': 'The fisherman\'s house is rebuilt — tiled, with a door. The iron hangs on the middle-room wall above head height, unwrapped. His wife sweeps the house daily and sweeps around that spot. Visitors look up at it, and then stop looking. Nobody has yet asked why it is not put away, and he has not yet had to answer.',
+  'guom-treo-tren-vach.chronicle': 'The blade still hangs in his house.',
+  'ba-lai-do-thoi-ke.line': 'The ferrywoman has stopped telling the story of the sword.',
+  'ba-lai-do-thoi-ke.scene': 'The landing is as busy as ever and she still rows. Somebody new asks about the iron that came up in a net; she says it was a long time ago and she has forgotten. Then she poles out, a little earlier than usual. On the bank some children go on telling it, and get almost all of it wrong.',
+  'ba-lai-do-thoi-ke.chronicle': 'Nobody at the landing tells the sword story now.',
   title: 'The Lake of the Returned Sword',
   want: 'to be given the thing, and then to give it back',
   waiting: 'To see whether the blade is asked for again.',
@@ -47,6 +53,12 @@ export const hoGuomEn: StoryCatalog = {
 };
 
 export const hoGuomVi: StoryCatalog = {
+  'guom-treo-tren-vach.line': 'Thanh gươm ấy treo trên vách, và trong nhà không ai đụng vào.',
+  'guom-treo-tren-vach.scene': 'Nhà người đánh cá dựng lại rồi, mái ngói, có cửa. Thanh sắt treo trên vách gian giữa, cao hơn đầu người, không bao. Vợ ông ta quét nhà mỗi ngày và quét vòng qua chỗ ấy. Khách tới thì nhìn lên, rồi thôi. Chưa ai hỏi vì sao không cất đi, và ông ta cũng chưa phải trả lời.',
+  'guom-treo-tren-vach.chronicle': 'Thanh gươm ấy vẫn treo trong nhà ông ta.',
+  'ba-lai-do-thoi-ke.line': 'Bà lái đò thôi không kể chuyện thanh gươm nữa.',
+  'ba-lai-do-thoi-ke.scene': 'Bến vẫn đông, và bà vẫn chở. Có người mới tới hỏi chuyện lưỡi sắt nổi lên trong lưới, bà bảo lâu rồi, quên mất. Bà nói xong thì chống sào đẩy thuyền ra, sớm hơn thường lệ một chút. Trên bờ có mấy đứa trẻ vẫn kể tiếp câu chuyện ấy, và kể sai gần hết.',
+  'ba-lai-do-thoi-ke.chronicle': 'Chuyện thanh gươm không còn ai kể ở bến.',
   title: 'Hồ Gươm',
   want: 'được trao vật ấy, rồi trả lại vật ấy',
   waiting: 'Xem người ta có đòi lưỡi gươm về không.',
@@ -85,6 +97,12 @@ export const hoGuomVi: StoryCatalog = {
 };
 
 export const noThanEn: StoryCatalog = {
+  'tho-lam-no-van-ngoi-do.line': 'There are still men sitting in the crossbow works, and it has never been test-fired.',
+  'tho-lam-no-van-ngoi-do.scene': 'Four artificers, one furnace, and a bundle of bronze triggers laid in a wooden box on cloth. The master says the triggers can be made and the cord can be made; nobody has yet given leave to test one outside the walls, because of the noise. He has asked three times. He says he will ask a fourth.',
+  'tho-lam-no-van-ngoi-do.chronicle': 'The crossbow works finished the triggers, untested.',
+  'khong-ai-nhac-cai-no-nua.line': 'Nobody mentions the crossbow any more, not even the man who used to.',
+  'khong-ai-nhac-cai-no-nua.scene': 'The old man who told the crossbow story sits where he always sat, telling a different one. A child asks again about the bronze trigger; he says that is a tale from the old days and turns to the white buffalo across the river. The child hears it out, and asks the same question again the next day.',
+  'khong-ai-nhac-cai-no-nua.chronicle': 'The bronze crossbow stopped being spoken of.',
   title: 'The Divine Crossbow',
   want: 'a wall that does not need men on it',
   waiting: 'To see what the marriage was actually for.',
@@ -120,6 +138,12 @@ export const noThanEn: StoryCatalog = {
 };
 
 export const noThanVi: StoryCatalog = {
+  'tho-lam-no-van-ngoi-do.line': 'Xưởng nỏ vẫn còn người ngồi, và vẫn chưa bắn thử lần nào.',
+  'tho-lam-no-van-ngoi-do.scene': 'Bốn người thợ, một cái lò, và một bó lẫy đồng xếp trong hộp gỗ có lót vải. Người thợ cả bảo lẫy thì làm được, dây thì làm được, chỉ chưa ai cho phép bắn thử ngoài thành vì tiếng nó to. Ông ta đã xin ba lần. Ông ta nói là sẽ xin lần thứ tư.',
+  'tho-lam-no-van-ngoi-do.chronicle': 'Xưởng nỏ làm xong lẫy, và chưa bắn thử.',
+  'khong-ai-nhac-cai-no-nua.line': 'Không ai nhắc tới cái nỏ ấy nữa, kể cả người đã kể.',
+  'khong-ai-nhac-cai-no-nua.scene': 'Ông già kể chuyện cái nỏ giờ ngồi ở chỗ cũ, kể chuyện khác. Có đứa nhỏ hỏi lại chuyện lẫy đồng, ông bảo chuyện ấy là chuyện đời xưa, rồi quay sang chuyện con trâu trắng ở bên kia sông. Đứa nhỏ nghe hết, rồi hôm sau lại hỏi lại đúng câu ấy.',
+  'khong-ai-nhac-cai-no-nua.chronicle': 'Chuyện cái nỏ đồng thôi được nhắc tới.',
   title: 'Nỏ Thần',
   want: 'một bức thành không cần người đứng trên',
   waiting: 'Xem cuộc hôn nhân ấy thật ra là để làm gì.',
@@ -155,6 +179,12 @@ export const noThanVi: StoryCatalog = {
 };
 
 export const yetKieuEn: StoryCatalog = {
+  'nguoi-ta-do-nhau-lan-nua.line': 'The children at the landing are diving against each other, counting by knocking on a hull.',
+  'nguoi-ta-do-nhau-lan-nua.scene': 'One knock on the boat for each breath, and the longest gets eleven. None of them knows how long a man can really stay under, only that it is much longer than that. A fisherman mending a net tells them to come up, the water is cold, and then sits and counts out the last one.',
+  'nguoi-ta-do-nhau-lan-nua.chronicle': 'Children at the landing practise diving, counting for each other.',
+  'cai-khoan-o-nha-kho.line': 'The auger is still in the store, and has taken a coat of rust.',
+  'cai-khoan-o-nha-kho.scene': 'The keeper hauls it out to be looked at: wooden handle, steel bit, as long as a forearm, whole. Nobody drew it and nobody returned it, he says, so it stays. There are three notches cut into the handle, and nobody in the store knows what the three notches mean.',
+  'cai-khoan-o-nha-kho.chronicle': 'The auger lies in the store, undrawn.',
   title: 'The Diver',
   want: 'to be sent, and not to be watched doing it',
   waiting: 'For a hull worth going under.',
@@ -192,6 +222,12 @@ export const yetKieuEn: StoryCatalog = {
 };
 
 export const yetKieuVi: StoryCatalog = {
+  'nguoi-ta-do-nhau-lan-nua.line': 'Trẻ con ở bến đang thi nhau lặn, và đếm bằng cách gõ vào mạn thuyền.',
+  'nguoi-ta-do-nhau-lan-nua.scene': 'Chúng gõ mạn thuyền một tiếng cho mỗi hơi, và đứa lâu nhất được mười một tiếng. Không đứa nào biết người ta lặn được bao lâu thật, chỉ biết là lâu hơn thế nhiều. Một ông chài ngồi vá lưới bảo chúng lên, nước lạnh, rồi ngồi đếm nốt cho đứa cuối cùng.',
+  'nguoi-ta-do-nhau-lan-nua.chronicle': 'Trẻ con ở bến tập lặn, và đếm cho nhau.',
+  'cai-khoan-o-nha-kho.line': 'Cái khoan ấy vẫn ở nhà kho, và đã han một lớp.',
+  'cai-khoan-o-nha-kho.scene': 'Viên coi kho lôi nó ra cho xem: cán gỗ, mũi thép, dài bằng cánh tay, còn nguyên. Ông ta bảo không ai lĩnh, không ai trả, nên cứ để. Trên cán có khắc ba vạch, và không ai trong kho biết ba vạch ấy nghĩa là gì.',
+  'cai-khoan-o-nha-kho.chronicle': 'Cái khoan ấy nằm trong kho, không ai lĩnh.',
   title: 'Yết Kiêu',
   want: 'được sai đi, và đừng ai đứng nhìn',
   waiting: 'Một đáy thuyền đáng để lặn xuống.',
@@ -229,6 +265,9 @@ export const yetKieuVi: StoryCatalog = {
 };
 
 export const vanDonEn: StoryCatalog = {
+  'thuyen-luong-ay-van-nhac.line': 'People still talk about the grain fleet, and it grows a little each telling.',
+  'thuyen-luong-ay-van-nhac.scene': 'At the market one man says forty vessels were taken, another says sixty. A trader who was actually passing says seventeen — he counted them. Nobody argues with him, and nobody repeats his number to a third person.',
+  'thuyen-luong-ay-van-nhac.chronicle': 'The grain fleet at the river mouth is still spoken of.',
   title: 'The Grain Fleet at Vân Đồn',
   want: 'to be judged after, not during',
   waiting: 'For the second fleet.',
@@ -250,6 +289,9 @@ export const vanDonEn: StoryCatalog = {
 };
 
 export const vanDonVi: StoryCatalog = {
+  'thuyen-luong-ay-van-nhac.line': 'Người ta vẫn nhắc mẻ lương ấy, và mỗi lần nhắc lại nhiều lên một ít.',
+  'thuyen-luong-ay-van-nhac.scene': 'Ở chợ có người bảo bắt được bốn chục thuyền, người khác bảo sáu chục. Một ông đi buôn từng qua đấy nói là mười bảy, ông ta đếm. Không ai cãi ông ta, và cũng không ai kể lại con số của ông ta cho người thứ ba.',
+  'thuyen-luong-ay-van-nhac.chronicle': 'Mẻ lương ở cửa bể vẫn được nhắc lại.',
   title: 'Đoàn Thuyền Lương ở Vân Đồn',
   want: 'được xét sau, chứ không phải xét lúc đang làm',
   waiting: 'Đoàn thuyền thứ hai.',
@@ -271,6 +313,12 @@ export const vanDonVi: StoryCatalog = {
 };
 
 export const paperMoneyEn: StoryCatalog = {
+  'to-giay-trong-tay-ao.line': 'At the market somebody tore a paper note in half to wrap a fish.',
+  'to-giay-trong-tay-ao.scene': 'The fish-seller tears the note, wraps the fish in one half and pushes the other into a bamboo tube under the counter. Asked why she does not spend it, she says she can spend it perfectly well, she just likes to hold something with a weight to it. There are a dozen halves in that tube.',
+  'to-giay-trong-tay-ao.chronicle': 'At the market, paper money was used to wrap fish.',
+  'dong-tien-cu-van-chay.line': 'Bronze still moves, and people still bite it before they take it.',
+  'dong-tien-cu-van-chay.scene': 'At the rice stall a man bites the coin before it goes in his bag, a habit from his father. The seller asks why he bothers, they are all the king\'s. He agrees that they are, and bites the next one. Both of them know it settles nothing, and neither of them stops.',
+  'dong-tien-cu-van-chay.chronicle': 'The market goes on in bronze, as before.',
   title: 'Notes Instead of Coin',
   want: 'to be right about something the country hates',
   waiting: 'To see whether anyone will take the notes.',
@@ -305,6 +353,12 @@ export const paperMoneyEn: StoryCatalog = {
 };
 
 export const paperMoneyVi: StoryCatalog = {
+  'to-giay-trong-tay-ao.line': 'Ngoài chợ có người xé một tờ giấy bạc để gói cá.',
+  'to-giay-trong-tay-ao.scene': 'Bà hàng cá xé đôi tờ giấy, gói con cá vào nửa tờ, nửa còn lại nhét vào ống tre dưới quầy. Khách hỏi sao không tiêu, bà bảo tiêu thì tiêu được, có điều bà thích cầm cái nào nặng tay. Trong ống tre ấy có mười mấy nửa tờ như thế.',
+  'to-giay-trong-tay-ao.chronicle': 'Ngoài chợ, giấy bạc được dùng để gói cá.',
+  'dong-tien-cu-van-chay.line': 'Tiền đồng vẫn chạy, và người ta vẫn cắn thử trước khi nhận.',
+  'dong-tien-cu-van-chay.scene': 'Ở hàng gạo có người cắn đồng tiền rồi mới bỏ vào bị, thói quen từ đời trước. Bà bán gạo bảo cắn làm gì, tiền vua đúc cả. Ông khách bảo đúng thế, rồi vẫn cắn đồng sau. Cả hai đều biết là chẳng để làm gì, và cả hai đều không thôi.',
+  'dong-tien-cu-van-chay.chronicle': 'Chợ vẫn tiêu tiền đồng như cũ.',
   title: 'Thông Bảo Hội Sao',
   want: 'được đúng, trong một việc cả nước ghét',
   waiting: 'Xem có ai chịu nhận tiền giấy không.',
@@ -339,6 +393,9 @@ export const paperMoneyVi: StoryCatalog = {
 };
 
 export const luyThayEn: StoryCatalog = {
+  'buc-tuong-dat-mua-mua.line': 'The earth wall stood through a rainy season without giving anywhere.',
+  'buc-tuong-dat-mua-mua.scene': 'The warden walks the foot of it after the heavy rain, prodding every few paces with a stick. He spends the whole morning at it, finds nowhere soft, and then walks it once more to be sure. Grass has closed over the outer face. From a distance it does not read as a wall but as a long low hill.',
+  'buc-tuong-dat-mua-mua.chronicle': 'The earthwork held through the rains.',
   title: 'The Master’s Wall',
   want: 'to be used by somebody, finally',
   waiting: 'For a wall and a tower at {land}, and no province lost while they go up.',
@@ -365,6 +422,9 @@ export const luyThayEn: StoryCatalog = {
 };
 
 export const luyThayVi: StoryCatalog = {
+  'buc-tuong-dat-mua-mua.line': 'Bức tường đất ấy đứng qua một mùa mưa, và không lở chỗ nào.',
+  'buc-tuong-dat-mua-mua.scene': 'Người coi tường đi dọc chân tường sau trận mưa lớn, cầm que chọc từng quãng. Ông ta chọc hết một buổi, không tìm ra chỗ mềm nào, rồi đi thêm một lượt nữa cho chắc. Cỏ đã mọc kín mặt ngoài. Từ xa trông nó không giống tường, mà giống một cái gò dài.',
+  'buc-tuong-dat-mua-mua.chronicle': 'Luỹ đất đứng vững qua mùa mưa.',
   title: 'Lũy Thầy',
   want: 'rốt cuộc cũng có người dùng tới mình',
   waiting: 'Một bức thành và một vọng lâu ở {land}, mà trong lúc ấy không mất tấc đất nào.',
@@ -391,6 +451,16 @@ export const luyThayVi: StoryCatalog = {
 };
 
 export const vanMieuEn: StoryCatalog = {
+  'sam-cua-mot-nha-khac.line': 'A household in the hamlet sold its buffalo to send a son to study.',
+  'sam-cua-mot-nha-khac.scene': 'A bull, six years old, sold to the house beyond the dyke. The mother watches it led away, then goes in and lays paper and brush out on the plank bed. The boy is thirteen and does not know how to grind ink. Nobody in that house has ever read, and nobody in the hamlet asks her what she is thinking.',
+  'sam-cua-mot-nha-khac.chronicle': 'A household sold its buffalo to send a son to study.',
+  'cai-sao-van-de-trong.line': 'This year\'s list is identical to last year\'s.',
+  'cai-sao-van-de-trong.scene': 'The clerk copies out the old roll, changes only the year at the head, and is finished before noon. There is a blank at the foot of the old one that he does not understand the purpose of, so he copies the blank across too. His superior reads it, nods, and does not stop at the blank.',
+  'cai-sao-van-de-trong.chronicle': 'This year\'s roll of offices is unchanged.',
+  'dung-them-mot-tam-bia.line': 'There is room left in the courtyard, and this examination has produced graduates.',
+  'dung-them-mot-tam-bia.dungBia': 'Raise another stele',
+  'dung-them-mot-tam-bia.scene': 'The stonecutter measures the empty ground and reports that fourteen more tortoises will fit, after which the wall has to come down. He asks how many names. Told the number he nods, then asks again to be sure, because stone cut wrong does not go back. Outside the gate a few men are reading the older stones, and taking a long time over it.',
+  'dung-them-mot-tam-bia.chronicle': 'Another stele was raised at the Văn Miếu.',
   title: 'The Temple of Literature',
   want: 'to be staffed by people nobody’s father chose',
   waiting: 'For the first list to be posted.',
@@ -423,6 +493,16 @@ export const vanMieuEn: StoryCatalog = {
 };
 
 export const vanMieuVi: StoryCatalog = {
+  'sam-cua-mot-nha-khac.line': 'Một nhà trong xóm bán trâu để cho con đi học.',
+  'sam-cua-mot-nha-khac.scene': 'Con trâu đực, sáu tuổi, bán cho nhà bên kia đê. Người mẹ đứng xem người ta dắt đi, rồi vào nhà lấy giấy bút ra đặt lên chõng. Thằng con mười ba tuổi, chưa biết mài mực. Nhà ấy trước nay chưa ai biết chữ, và trong xóm không ai hỏi bà ta nghĩ gì.',
+  'sam-cua-mot-nha-khac.chronicle': 'Một nhà bán trâu để cho con đi học.',
+  'cai-sao-van-de-trong.line': 'Danh sách năm nay giống hệt danh sách năm ngoái.',
+  'cai-sao-van-de-trong.scene': 'Viên thư lại chép lại bản cũ, đổi mỗi cái năm ở đầu trang, và chép xong trước bữa trưa. Có một chỗ trống ở cuối bản cũ mà ông ta không hiểu để làm gì, nên chép luôn cả chỗ trống ấy. Quan trên đọc qua, gật, và không dừng ở chỗ trống.',
+  'cai-sao-van-de-trong.chronicle': 'Danh sách các chức năm nay không đổi.',
+  'dung-them-mot-tam-bia.line': 'Sân bia còn chỗ, và khoa này đã có người đỗ.',
+  'dung-them-mot-tam-bia.dungBia': 'Dựng thêm một tấm bia',
+  'dung-them-mot-tam-bia.scene': 'Người thợ đá đo chỗ trống trong sân rồi thưa rằng còn kê được mười bốn con rùa nữa, sau đấy thì phải dỡ tường. Ông ta hỏi khắc mấy tên. Nghe xong số, ông ta gật, rồi hỏi lại một lần nữa cho chắc, vì đá khắc sai thì không sửa lại được. Ngoài cổng có mấy người đứng đọc bia cũ, đọc rất lâu.',
+  'dung-them-mot-tam-bia.chronicle': 'Dựng thêm một tấm bia ở Văn Miếu.',
   title: 'Văn Miếu',
   want: 'được dùng những người mà cha chẳng ai chọn cho',
   waiting: 'Bảng đầu tiên được yết.',
@@ -455,6 +535,12 @@ export const vanMieuVi: StoryCatalog = {
 };
 
 export const thuDoEn: StoryCatalog = {
+  'ban-danh-sach-da-ngan.line': 'The roll is shorter, and nobody asks about the names that are gone.',
+  'ban-danh-sach-da-ngan.scene': 'The court register is a gathering thinner than it was. The clerk keeps the old cover because the cover is still good and pastes it onto the new one, so the outside is still the hand of the man who kept it before. The hall is emptier and rises earlier. Nobody says it is emptier.',
+  'ban-danh-sach-da-ngan.chronicle': 'The court register is a gathering shorter.',
+  'trieu-dinh-van-cai-nhau.line': 'The court argued past noon today about something small.',
+  'trieu-dinh-van-cai-nhau.scene': 'The matter is planking for a bridge in a far district. It runs from dawn, two sides, and both have a case. At noon the Minister of Works says issue the planks, and both sides stop at once. The bridge got its planks, a season late.',
+  'trieu-dinh-van-cai-nhau.chronicle': 'The court argued all morning over bridge planking.',
   title: 'The Man Who Held the Court',
   want: 'a court that stops arguing and starts obeying',
   waiting: 'To be needed badly enough to be forgiven.',
@@ -489,6 +575,12 @@ export const thuDoEn: StoryCatalog = {
 };
 
 export const thuDoVi: StoryCatalog = {
+  'ban-danh-sach-da-ngan.line': 'Bản danh sách ấy ngắn đi, và không ai hỏi những cái tên đã mất.',
+  'ban-danh-sach-da-ngan.scene': 'Sổ triều mỏng hơn trước một tập. Viên thư lại giữ lại tờ bìa cũ vì bìa còn tốt, dán vào tập mới, thành ra ngoài bìa vẫn là chữ của người chép trước. Buổi chầu vắng hơn và tan sớm hơn. Không ai nói là vắng.',
+  'ban-danh-sach-da-ngan.chronicle': 'Sổ triều đình ngắn đi một tập.',
+  'trieu-dinh-van-cai-nhau.line': 'Buổi chầu hôm nay cãi nhau đến quá trưa về một việc nhỏ.',
+  'trieu-dinh-van-cai-nhau.scene': 'Việc là cấp mấy tấm ván cho một cái cầu ở huyện xa. Cãi từ sáng, chia làm hai phe, phe nào cũng có lý. Đến trưa thì quan Công bộ bảo cứ cấp, rồi cả hai phe cùng thôi. Cái cầu ấy được cấp ván, chậm mất một mùa.',
+  'trieu-dinh-van-cai-nhau.chronicle': 'Triều đình cãi nhau cả buổi về mấy tấm ván.',
   title: 'Người Giữ Triều Đình',
   want: 'một triều đình thôi cãi và bắt đầu vâng lệnh',
   waiting: 'Được cần tới đủ mức để được tha thứ.',
@@ -523,6 +615,9 @@ export const thuDoVi: StoryCatalog = {
 };
 
 export const binhTrongEn: StoryCatalog = {
+  'cai-ten-o-ben-do.line': 'At the ferry landing they still repeat the answer he gave.',
+  'cai-ten-o-ben-do.scene': 'The teller is a boatman, telling it to passengers crossing, several times a day. He tells it short — one sentence, then stops, because everyone knows the rest. A passenger asks whether he was there. He says no, he heard it from somebody, and that somebody heard it from somebody.',
+  'cai-ten-o-ben-do.chronicle': 'That answer is still repeated at the ferry landing.',
   title: 'The Rearguard',
   want: 'to buy the crossing with whatever is to hand',
   waiting: 'For word of what he answered them.',
@@ -554,6 +649,9 @@ export const binhTrongEn: StoryCatalog = {
 };
 
 export const binhTrongVi: StoryCatalog = {
+  'cai-ten-o-ben-do.line': 'Ở bến đò người ta vẫn nhắc lại câu trả lời của ông ấy.',
+  'cai-ten-o-ben-do.scene': 'Người kể là một ông lái, kể cho khách sang sông nghe, mỗi ngày mấy lượt. Ông kể ngắn, đúng một câu, rồi thôi, vì phần sau thì ai cũng biết. Có khách hỏi ông có ở đấy không. Ông bảo không, ông nghe người khác kể, và người ấy cũng nghe người khác kể.',
+  'cai-ten-o-ben-do.chronicle': 'Câu trả lời ấy vẫn được kể ở bến đò.',
   title: 'Đạo Quân Chặn Hậu',
   want: 'mua lấy khúc sông ấy bằng bất cứ thứ gì có trong tay',
   waiting: 'Tin xem ông đã đáp lại chúng thế nào.',
@@ -585,6 +683,9 @@ export const binhTrongVi: StoryCatalog = {
 };
 
 export const khucEn: StoryCatalog = {
+  'khong-ai-hoi-giay-to.line': 'Three seasons now, and nobody has asked to see the letters of appointment.',
+  'khong-ai-hoi-giay-to.scene': 'The clerk still keeps the seal box, locked, on top of the cabinet. He dusts it once a month. Somebody newly posted asks what is in it. He says a seal. Asked whose seal, he has to think about it for a moment.',
+  'khong-ai-hoi-giay-to.chronicle': 'Nobody asks for the letters of appointment now.',
   title: 'Simply Governing',
   want: 'to be left alone long enough for it to become normal',
   waiting: 'For nobody to arrive and object.',
@@ -611,6 +712,9 @@ export const khucEn: StoryCatalog = {
 };
 
 export const khucVi: StoryCatalog = {
+  'khong-ai-hoi-giay-to.line': 'Đã ba mùa không ai hỏi tới giấy tờ bổ nhiệm nữa.',
+  'khong-ai-hoi-giay-to.scene': 'Viên thư lại vẫn giữ cái hộp đựng ấn tín, khoá, để trên nóc tủ. Ông ta lau hộp mỗi tháng một lần. Có người mới tới hỏi trong hộp có gì, ông ta bảo có ấn. Người kia hỏi ấn của ai, và ông ta phải nghĩ một lúc.',
+  'khong-ai-hoi-giay-to.chronicle': 'Không ai hỏi tới giấy bổ nhiệm nữa.',
   title: 'Cứ Thế Mà Cai Trị',
   want: 'được để yên đủ lâu cho tới khi thành lệ thường',
   waiting: 'Chẳng ai tới mà phản đối.',
@@ -637,6 +741,9 @@ export const khucVi: StoryCatalog = {
 };
 
 export const dykesEn: StoryCatalog = {
+  'con-de-nam-do.line': 'The dyke is where it was put, and the water has not reached its foot this season.',
+  'con-de-nam-do.scene': 'The top of it has become a road; porters cut across to save the walk. Last year\'s earth and this year\'s are different colours, a long visible seam. The dyke warden sits in the watch hut with nothing to do, and sits there all day.',
+  'con-de-nam-do.chronicle': 'The dyke held, and its top has become a road.',
   title: 'The Dykes',
   want: 'the earth carried before the water comes, not after',
   waiting: 'For the river to decide.',
@@ -663,6 +770,9 @@ export const dykesEn: StoryCatalog = {
 };
 
 export const dykesVi: StoryCatalog = {
+  'con-de-nam-do.line': 'Con đê ấy nằm đấy, và mùa này nước chưa lên tới chân.',
+  'con-de-nam-do.scene': 'Trên mặt đê đã thành đường, người gánh hàng đi tắt qua cho gần. Chỗ đắp năm ngoái và chỗ đắp năm nay khác màu đất, nhìn rõ một vệt dài. Ông coi đê ngồi ở điếm canh, không có việc gì làm, và vẫn ngồi đấy cả ngày.',
+  'con-de-nam-do.chronicle': 'Con đê giữ được, và trên mặt đê đã thành đường.',
   title: 'Đê Điều',
   want: 'gánh đất xong trước khi nước tới, chứ không phải sau',
   waiting: 'Con sông định liệu.',
@@ -689,6 +799,9 @@ export const dykesVi: StoryCatalog = {
 };
 
 export const cheEn: StoryCatalog = {
+  'nguoi-ban-sung-di-roi.line': 'The man who sold the gun has gone, and nobody knows where.',
+  'nguoi-ban-sung-di-roi.scene': 'He stayed three seasons, ate camp rations, never said more than a few words to anyone. Then one morning his place was empty, his blanket folded square and his pay untouched in its tube. The camp sergeant keeps the tube, in case he comes back. It has been a while, and the tube is still where it was.',
+  'nguoi-ban-sung-di-roi.chronicle': 'The gun-seller left, and left his pay behind.',
   title: 'The King Who Came Back',
   want: 'to be somewhere he cannot possibly be, repeatedly',
   waiting: 'For him to come a third time.',
@@ -720,6 +833,9 @@ export const cheEn: StoryCatalog = {
 };
 
 export const cheVi: StoryCatalog = {
+  'nguoi-ban-sung-di-roi.line': 'Người bán khẩu súng ấy đã đi khỏi, không ai biết đi đâu.',
+  'nguoi-ban-sung-di-roi.scene': 'Y ở lại ba mùa, ăn cơm trại, không nói chuyện với ai quá vài câu. Rồi một sáng chỗ nằm của y trống, chăn gấp vuông, tiền công còn nguyên trong ống. Viên cai trại giữ ống tiền ấy, phòng khi y quay lại. Đã lâu rồi, và cái ống vẫn ở chỗ cũ.',
+  'nguoi-ban-sung-di-roi.chronicle': 'Người bán súng bỏ đi, để lại tiền công.',
   title: 'Vị Vua Trở Lại',
   want: 'có mặt ở nơi hắn không thể nào có mặt, hết lần này tới lần khác',
   waiting: 'Hắn tới lần thứ ba.',

@@ -1,5 +1,6 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { applyResourceDelta } from '../../systems/ResourceSystem';
+import { terrainWork } from '../../systems/story/effects';
 import { livingRivals, pick, playerLands } from '../../systems/story/StorySystem';
 import { pushToast } from '../../systems/empire/notifications';
 import { storyText } from '../../i18n/story';
@@ -32,6 +33,15 @@ function hostileNear(state: GameState, landId?: string): number {
 
 export const riverStakes: StoryTemplate = {
   id: 'river-stakes',
+  record: 'chinh-su',
+  pressure: (ctx) => {
+    const rows = ctx.recall('rows');
+    if (rows >= 3) return 'kin-long';
+    if (rows >= 1) return 'mot-hang';
+    if (ctx.recall('surveyed') === 1) return 'do-xong';
+    return undefined;
+  },
+
   regard: (ctx) => {
     if (ctx.recall('walkedAway') === 1) return 'insulted';
     if (ctx.recall('stakes') === 1) return 'ready';
@@ -54,6 +64,22 @@ export const riverStakes: StoryTemplate = {
 
   fragments: [
     {
+      id: 'ong-chai-thoi-ra-ben',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_send-him-home') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'nuoc-rong-thay-dau-coc',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_drive-them') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'the-fishermans-complaint',
       volume: 'card',
       band: 'river',
@@ -67,6 +93,10 @@ export const riverStakes: StoryTemplate = {
           apply: (ctx) => {
             ctx.remember('surveyed', 1);
             ctx.remember('echoTurn', ctx.state.turn);
+            // Forty gold to have a fisherman listened to, and until now the card said nothing
+            // back at all. He was listened to, and the district saw it.
+            const bank = ctx.land();
+            if (bank) bank.loyalty = Math.min(100, bank.loyalty + 6);
           },
         },
         {
@@ -112,7 +142,12 @@ export const riverStakes: StoryTemplate = {
       volume: 'card',
       weight: 4,
       quiet: 4,
-      when: (ctx) => ctx.recall('surveyed') === 1 && ctx.recall('stakes') === 0,
+      repeatable: true,
+      maxTimes: 3,
+      // `stakes` stays a flag — five other beats test it for equality — and `rows` counts how
+      // much of the bed has actually been staked. Three tides' work, and each row is in the
+      // riverbed from the day it is driven.
+      when: (ctx) => ctx.recall('surveyed') === 1 && ctx.recall('rows') < 3,
       salience: () => 3,
       opening: { on: 'land', actionKey: 'driveTheStakes' },
       options: [
@@ -121,7 +156,11 @@ export const riverStakes: StoryTemplate = {
           cost: { supplies: 180, gold: 90 },
           apply: (ctx) => {
             ctx.remember('stakes', 1);
+            ctx.bump('rows');
             ctx.remember('echoTurn', ctx.state.turn);
+            // The stakes are in the riverbed from the day they are driven. The fleet that walks
+            // onto them is fifty seasons away, and that beat still pays the large one.
+            terrainWork(ctx, { defense: 8 }, ctx.land());
           },
         },
       ],

@@ -1,4 +1,4 @@
-import type { GameState, NotificationKind, Toast } from '../../state/types';
+import type { GameEventRef, GameState, NotificationKind, Toast } from '../../state/types';
 
 /** How many toasts to keep in the ring buffer; the UI shows the most recent few. */
 const MAX_TOASTS = 6;
@@ -12,7 +12,12 @@ let notifSeq = 0;
  * behind the notification bell/log. Safe to call from any system or game mode; it
  * lazily creates the log so older saves without the field still work.
  */
-export function logEvent(state: GameState, text: string, kind: NotificationKind = 'info'): void {
+export function logEvent(
+  state: GameState,
+  text: string,
+  kind: NotificationKind = 'info',
+  ref?: GameEventRef,
+): void {
   if (!state.eventLog) {
     state.eventLog = [];
   }
@@ -23,6 +28,7 @@ export function logEvent(state: GameState, text: string, kind: NotificationKind 
     kind,
     turn: state.turn,
     read: false,
+    ref,
   });
   if (state.eventLog.length > MAX_LOG) {
     state.eventLog.splice(0, state.eventLog.length - MAX_LOG);
@@ -35,8 +41,13 @@ export function logEvent(state: GameState, text: string, kind: NotificationKind 
  * log keeps the full history. A no-op on the toast side if the state has no toast
  * buffer (non-empire modes), but the log entry is still recorded.
  */
-export function pushToast(state: GameState, text: string, kind: Toast['kind'] = 'info'): void {
-  logEvent(state, text, kind);
+export function pushToast(
+  state: GameState,
+  text: string,
+  kind: Toast['kind'] = 'info',
+  ref?: GameEventRef,
+): void {
+  logEvent(state, text, kind, ref);
   // Notifications live in a single place: the header message strip (latest event) plus
   // the notification bell/log (history). Surfacing the newest toast in the strip keeps
   // it visible without a second floating overlay competing with on-map panels.

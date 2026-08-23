@@ -3,6 +3,12 @@ import type { StoryCatalog } from './types';
 /** Text for the second wave of stories. Vietnamese is the source; English is derived. */
 
 export const sixtyFiveCitadelsVi: StoryCatalog = {
+  'cai-trong-dong-o-san-dinh.line': 'Cái trống đồng ấy được khiêng ra sân đình, và đánh vào ngày rằm.',
+  'cai-trong-dong-o-san-dinh.scene': 'Trống to bằng cái nong, mặt có hình chim bay quanh ngôi sao, khiêng phải bốn người. Ngày thường thì úp trong đình, rằm mới lật lên. Ông từ giữ đình bảo trống này đánh không đúng cách thì tiếng đục, mà đúng cách thì nghe được tới bên kia sông. Ông ta không nói ai dạy ông ta cách đánh.',
+  'cai-trong-dong-o-san-dinh.chronicle': 'Trống đồng được đánh ở sân đình ngày rằm.',
+  'ho-tu-lo-lay-mua-do.line': 'Vụ ấy họ tự lo lấy, và gặt xong trước cả huyện bên.',
+  'ho-tu-lo-lay-mua-do.scene': 'Người mua thóc lên tới nơi thì sân nhà nào cũng đã phơi kín, thóc đổ tràn cả ra ngõ. Ông ta hỏi năm nay ai giúp. Một bà đang cào thóc bảo không ai cả, rồi cào tiếp. Ông ta mua được đủ hàng, và giá thì cao hơn ông ta tính.',
+  'ho-tu-lo-lay-mua-do.chronicle': 'Họ tự lo lấy, và gặt sớm hơn cả vùng.',
   title: 'Sáu Mươi Lăm Thành',
   'the-whole-province-has-risen.title': 'Cả một vùng đã nổi lên',
   'the-whole-province-has-risen.body': 'Cả một vùng đất của {rival} đã nổi lên chống chúng. Họ đang hỏi ai sẽ cầm đầu. Họ đang nhìn ngươi.',
@@ -36,6 +42,12 @@ export const sixtyFiveCitadelsVi: StoryCatalog = {
 };
 
 export const sixtyFiveCitadelsEn: StoryCatalog = {
+  'cai-trong-dong-o-san-dinh.line': 'The bronze drum was carried out to the communal yard, and beaten at the full moon.',
+  'cai-trong-dong-o-san-dinh.scene': 'A drum the width of a winnowing tray, birds circling a star on its face, four men to lift it. On ordinary days it lies face down in the hall; at the full moon it is turned up. The keeper says beaten wrong it sounds dull, and beaten right it carries to the far bank. He does not say who taught him how.',
+  'cai-trong-dong-o-san-dinh.chronicle': 'The bronze drum was beaten in the communal yard.',
+  'ho-tu-lo-lay-mua-do.line': 'They managed that harvest themselves, and were in before the next district.',
+  'ho-tu-lo-lay-mua-do.scene': 'The grain buyer arrives to find every yard already covered with drying rice, spilling out into the lanes. He asks who helped this year. A woman raking it over says nobody, and goes on raking. He gets his full load, and pays more than he had reckoned on.',
+  'ho-tu-lo-lay-mua-do.chronicle': 'They managed alone, and were in before the district.',
   title: 'Sixty-Five Citadels',
   'the-whole-province-has-risen.title': 'The Whole Province Has Risen',
   'the-whole-province-has-risen.body': 'A whole province of {rival} has risen against them. They are asking who will lead it. They are looking at you.',
@@ -69,6 +81,12 @@ export const sixtyFiveCitadelsEn: StoryCatalog = {
 };
 
 export const rideTheWindVi: StoryCatalog = {
+  'ao-giap-may-lai-vua-nguoi.line': 'Bộ giáp ấy được sửa lại cho vừa, và sửa ở hàng may chứ không phải lò rèn.',
+  'ao-giap-may-lai-vua-nguoi.scene': 'Người thợ may đo vai, đo eo, rồi bảo phải tháo hết lớp lót ra khâu lại từ đầu, vì giáp này cắt cho người khác. Bà ấy đứng cho đo, không nói gì, tay vẫn cầm cái nón. Sửa mất bốn ngày. Ngày thứ năm thì bộ giáp ấy ra khỏi làng và không thấy quay lại.',
+  'ao-giap-may-lai-vua-nguoi.chronicle': 'Bộ giáp được sửa lại cho vừa người.',
+  'so-kho-ghi-tay-ba-ay.line': 'Sổ kho giờ ghi bằng nét chữ khác, và ghi kín hơn trước.',
+  'so-kho-ghi-tay-ba-ay.scene': 'Trước mỗi tháng ghi một dòng, giờ ghi bốn: vào, ra, hao, còn. Viên thư lại cũ bảo ghi thế thì lâu. Bà ấy bảo lâu hơn mà biết thóc đi đâu. Cuối mùa đối chiếu, thiếu mất mười một thúng, và mười một thúng ấy tìm ra trong ba hôm.',
+  'so-kho-ghi-tay-ba-ay.chronicle': 'Sổ kho được ghi lại chặt hơn.',
   title: 'Cưỡi Cơn Gió Mạnh',
   'she-will-not-take-the-post.title': 'Bà không nhận chức ấy',
   'she-will-not-take-the-post.body': '"Tôi muốn cưỡi cơn gió mạnh, đạp luồng sóng dữ, chém cá kình ở Biển Đông. Tôi không muốn một cái kho thóc."',
@@ -102,6 +120,12 @@ export const rideTheWindVi: StoryCatalog = {
 };
 
 export const rideTheWindEn: StoryCatalog = {
+  'ao-giap-may-lai-vua-nguoi.line': 'The armour was altered to fit, and altered at a tailor\'s rather than a forge.',
+  'ao-giap-may-lai-vua-nguoi.scene': 'The tailor measures shoulder and waist and says the whole lining must come out and be sewn again, because this was cut for somebody else. She stands to be measured, saying nothing, still holding her hat. It takes four days. On the fifth the armour leaves the village and is not seen coming back.',
+  'ao-giap-may-lai-vua-nguoi.chronicle': 'The armour was altered to fit her.',
+  'so-kho-ghi-tay-ba-ay.line': 'The store ledger is in a different hand now, and closer written.',
+  'so-kho-ghi-tay-ba-ay.scene': 'It used to be one line a month; now it is four — in, out, wastage, remaining. The old clerk says that takes longer. She says it takes longer and you know where the grain went. At the season\'s end the count is eleven baskets short, and the eleven baskets are found within three days.',
+  'so-kho-ghi-tay-ba-ay.chronicle': 'The store ledger is kept more closely now.',
   title: 'Ride the Strong Winds',
   'she-will-not-take-the-post.title': 'She Will Not Take the Post',
   'she-will-not-take-the-post.body': '"I want to ride the strong winds, tread the fierce waves, and slay the great whales of the Eastern Sea. I do not want a granary."',
@@ -135,6 +159,12 @@ export const rideTheWindEn: StoryCatalog = {
 };
 
 export const substitutionVi: StoryCatalog = {
+  'la-co-cu-dot-sau-tran.line': 'Lá cờ cũ đã đốt sau trận ấy, đốt ngay tại chỗ.',
+  'la-co-cu-dot-sau-tran.scene': 'Đốt trong một cái chậu đồng, giữa sân, có mấy người đứng xem. Lụa cháy nhanh, còn cái cán gỗ thì để lại, cưa ngắn đi rồi làm cán giáo. Người cưa là một anh lính trẻ, cưa xong thì hỏi có phải giữ lại đoạn nào không. Không ai trả lời anh ta.',
+  'la-co-cu-dot-sau-tran.chronicle': 'Lá cờ cũ được đốt ngay sau trận.',
+  'khong-ai-biet-dung-o-dau.line': 'Trong trận vừa rồi không ai biết chắc ngươi đứng ở đâu.',
+  'khong-ai-biet-dung-o-dau.scene': 'Về sau hỏi lại, mỗi người chỉ một hướng khác nhau. Viên đội bên trái chắc chắn là cánh phải, viên đội cánh phải chắc chắn là ở gò. Người giữ ngựa thì bảo cả ngày không ai tới lấy ngựa. Giặc bắt được hai người của ta, hỏi cùng một câu ấy, và cũng nghe được hai câu trả lời khác nhau.',
+  'khong-ai-biet-dung-o-dau.chronicle': 'Không ai nói chắc được ngươi đứng ở đâu.',
   title: 'Lê Lai Đổi Áo',
   'they-know-which-banner-is-yours.title': 'Chúng biết cờ nào là của ngươi',
   'they-know-which-banner-is-yours.body': 'Chúng giữ bến đò và chúng biết lá cờ nào là của ngươi. Đêm nay có thể một người khác mặc áo ấy mà ra khỏi trại.',
@@ -155,6 +185,12 @@ export const substitutionVi: StoryCatalog = {
 };
 
 export const substitutionEn: StoryCatalog = {
+  'la-co-cu-dot-sau-tran.line': 'The old banner was burned after that battle, burned on the spot.',
+  'la-co-cu-dot-sau-tran.scene': 'In a bronze basin in the middle of the yard, with a few men standing round. The silk goes fast; the wooden staff is kept, cut down and made into a spear haft. The young soldier doing the cutting asks afterwards whether any length of it should be saved. Nobody answers him.',
+  'la-co-cu-dot-sau-tran.chronicle': 'The old banner was burned after the battle.',
+  'khong-ai-biet-dung-o-dau.line': 'In the last battle nobody could say for certain where you were standing.',
+  'khong-ai-biet-dung-o-dau.scene': 'Asked afterwards, each of them points somewhere different. The sergeant on the left is certain it was the right wing; the sergeant on the right is certain it was the rise. The man with the horses says nobody came for a horse all day. The enemy took two of ours and asked them the same question, and got two different answers.',
+  'khong-ai-biet-dung-o-dau.chronicle': 'Nobody could say where you had been standing.',
   title: 'The Substitution',
   'they-know-which-banner-is-yours.title': 'They Know Which Banner Is Yours',
   'they-know-which-banner-is-yours.body': 'They hold the ford and they know which banner is yours. Tonight someone else could wear it out of the camp.',
@@ -175,6 +211,12 @@ export const substitutionEn: StoryCatalog = {
 };
 
 export const borrowedSwordVi: StoryCatalog = {
+  'nguoi-ta-ra-ho-xem-rua.line': 'Người ta ra hồ đứng xem, và đứng lâu hơn cần thiết.',
+  'nguoi-ta-ra-ho-xem-rua.scene': 'Sáng nào cũng có dăm bảy người ngồi ở bậc đá, không câu, không giặt, chỉ nhìn mặt nước. Có hôm mặt nước động một cái ở giữa hồ, tất cả cùng quay lại, rồi lại thôi. Bà bán nước chè ở đấy bán được hơn trước, và bà ta không kể chuyện gì cả.',
+  'nguoi-ta-ra-ho-xem-rua.chronicle': 'Người ta ra hồ ngồi nhìn mặt nước.',
+  'luoi-guom-phai-mai-lai.line': 'Lưỡi gươm ấy đã phải mài lại, và mài mất nửa ngày.',
+  'luoi-guom-phai-mai-lai.scene': 'Người thợ đặt nó lên đá, kéo hai lượt, rồi dừng và nhìn kỹ. Ông ta bảo thép này tốt nhưng đã có một vết mẻ ở gần chuôi, mẻ mới. Mài xong ông ta lau bằng dầu rồi trả lại, và không lấy tiền công. Ông ta cũng không nói vì sao không lấy.',
+  'luoi-guom-phai-mai-lai.chronicle': 'Lưỡi gươm phải mài lại, có một vết mẻ.',
   title: 'Thuận Thiên',
   'a-blade-in-the-net.title': 'Lưỡi gươm trong lưới',
   'a-blade-in-the-net.body': 'Một người đánh cá ở {land} kéo lưới lên được một lưỡi gươm. Cái chuôi tìm thấy sau, trên một cây đa, và nó vừa khít.',
@@ -215,6 +257,12 @@ export const borrowedSwordVi: StoryCatalog = {
 };
 
 export const borrowedSwordEn: StoryCatalog = {
+  'nguoi-ta-ra-ho-xem-rua.line': 'People go and stand at the lake, and stay longer than they need to.',
+  'nguoi-ta-ra-ho-xem-rua.scene': 'Most mornings five or six sit on the stone steps — not fishing, not washing, just watching the water. One morning the surface moves once, out in the middle, and all of them turn at the same time, and then stop. The tea-seller there is doing better than she was, and tells no stories at all.',
+  'nguoi-ta-ra-ho-xem-rua.chronicle': 'People sit at the lake and watch the water.',
+  'luoi-guom-phai-mai-lai.line': 'The blade had to be reground, and it took half a day.',
+  'luoi-guom-phai-mai-lai.scene': 'The smith lays it on the stone, draws it twice, then stops and looks closely. Good steel, he says, but there is a nick near the hilt, and the nick is new. When he has finished he wipes it with oil and hands it back, and takes no payment. He does not say why not.',
+  'luoi-guom-phai-mai-lai.chronicle': 'The blade was reground; there was a fresh nick.',
   title: 'The Borrowed Sword',
   'a-blade-in-the-net.title': 'A Blade in the Net',
   'a-blade-in-the-net.body': 'A fisherman at {land} brings up a blade in his net. The hilt is found later, in a banyan tree, and it fits.',
@@ -255,6 +303,40 @@ export const borrowedSwordEn: StoryCatalog = {
 };
 
 export const slanderedVi: StoryCatalog = {
+  'node.buc-thu': 'Bức thư',
+  'node.bi-cach': 'Bị cách chức',
+  'node.muoi-ba-chiec': 'Mười ba chiếc',
+  'node.phuc-chuc': 'Phục chức',
+  'node.khong-goi-ve': 'Không gọi về',
+  'node.tim-nguoi-viet': 'Tìm người viết',
+  'node.tim-ra': 'Tìm ra',
+  'node.khong-tim-ra': 'Không tìm ra',
+
+  'tim-den-dau-thi-dung.title': 'Tìm đến đâu thì dừng',
+  'tim-den-dau-thi-dung.body': 'Nét chữ ấy đã lần ra tới một viên thư lại ở Lại bộ, và viên thư lại ấy thì chép thuê cho nhiều người. Hỏi tiếp thì phải hỏi tới những người thuê ông ta, mà trong đám ấy có hai người đang ngồi trong triều. Quan Hình bộ thưa rằng hỏi thì hỏi được, chỉ là hỏi xong thì không rút lại được.',
+  'tim-den-dau-thi-dung.advice': 'Hỏi hết thì biết hết, thưa bệ hạ. Biết hết thì phải xử.',
+  'tim-den-dau-thi-dung.hoi-cho-ra': 'Hỏi cho ra',
+  'tim-den-dau-thi-dung.hoi-cho-ra.d': 'Hỏi tới người cuối cùng trong danh sách.',
+  'tim-den-dau-thi-dung.dung-o-day': 'Dừng ở đây',
+  'tim-den-dau-thi-dung.dung-o-day.d': 'Đủ để biết là có, không đủ để phải xử ai.',
+  'tim-den-dau-thi-dung.chronicle': 'Ngươi đã quyết việc truy tìm người viết thư.',
+  'tim-den-dau-thi-dung.scene': 'Viên thư lại ấy nhận là mình chép, chép thuê, và đưa ra cuốn sổ ghi tên người thuê để chứng minh. Sổ ghi hai mươi mốt cái tên trong ba năm. Ông ta chỉ vào một dòng rồi rụt tay lại. Quan Hình bộ không hỏi dòng ấy là dòng nào, và cầm cả cuốn sổ về.',
+
+  'khong-tim-ra-ai-ca.line': 'Không tìm ra ai cả, và trong triều thì ai cũng biết là không tìm.',
+  'khong-tim-ra-ai-ca.chronicle': 'Việc truy tìm dừng lại, không ra ai.',
+  'khong-tim-ra-ai-ca.scene': 'Hồ sơ đóng lại, cột dây, cất vào tủ cùng với những hồ sơ đã đóng khác. Viên thư lại Hình bộ ghi vào bìa ba chữ theo lệ. Ông ta viết chậm hơn thường lệ. Buổi chầu hôm sau có hai người tới sớm hơn giờ, và cả hai đều đứng ở hàng sau.',
+
+  'muoi-ba-chiec-va-mot-nguoi.title': 'Mười ba chiếc, và một người',
+  'muoi-ba-chiec-va-mot-nguoi.body': 'Ông ta nhận lại ấn, không nói câu nào về việc cũ, và hỏi ngay hôm ấy còn bao nhiêu thuyền đi được. Người ta đáp mười ba. Ông ta gật, rồi hỏi tiếp về nước triều ở cửa sông, và cả buổi hôm ấy không ai nhắc lại bức thư.',
+  'muoi-ba-chiec-va-mot-nguoi.ok': 'Chép lại cho đúng',
+  'muoi-ba-chiec-va-mot-nguoi.chronicle': 'Ông ta phục chức, và hỏi ngay về thuyền.',
+  'muoi-ba-chiec-va-mot-nguoi.scene': 'Ấn trao lại ở sân, không có lễ. Ông ta cầm, xem mặt ấn một lúc như để nhận lại chữ, rồi bỏ vào ngực áo. Người trao ấn định nói một câu xin lỗi. Ông ta hỏi trước, hỏi về nước triều, và người kia phải đi tìm người biết trả lời.',
+  'buc-thu-ay-van-trong-cap.line': 'Bức thư ấy vẫn ở trong cặp, và đã có ba người xem nét chữ.',
+  'buc-thu-ay-van-trong-cap.scene': 'Ba người, xem riêng, không ai biết hai người kia. Một ông bảo chữ này của người quen viết đơn kiện. Một ông bảo giấy này là giấy của nhà quan. Ông thứ ba xem lâu nhất rồi trả lại, bảo không dám nói. Cả ba đều không hỏi bức thư ấy nói gì.',
+  'buc-thu-ay-van-trong-cap.chronicle': 'Ba người đã xem nét chữ bức thư ấy.',
+  'ong-ta-ve-cam-quan-lai.line': 'Ông ta về cầm quân, và buổi đầu tiên chỉ đi xem thuyền.',
+  'ong-ta-ve-cam-quan-lai.scene': 'Ông ta đi hết một lượt bến, xem từng chiếc, gõ vào ván, không nói câu nào với ai. Đến chiếc cuối cùng thì hỏi người thợ mộc một câu về gỗ. Nghe xong ông ta gật rồi đi về. Hôm sau có lệnh: sửa mười một chiếc, và chiếc cuối cùng ấy sửa trước.',
+  'ong-ta-ve-cam-quan-lai.chronicle': 'Ông ta về cầm quân, và đi xem thuyền trước.',
   title: 'Kẻ Bị Vu',
   'a-letter-nobody-can-source.title': 'Lá thư không rõ từ đâu',
   'a-letter-nobody-can-source.body': 'Có một lá thư trong triều nói {hero} đã hẹn với địch. Không ai biết nó từ đâu tới. Ai cũng đã đọc.',
@@ -290,6 +372,40 @@ export const slanderedVi: StoryCatalog = {
 };
 
 export const slanderedEn: StoryCatalog = {
+  'node.buc-thu': 'The letter',
+  'node.bi-cach': 'Stripped of command',
+  'node.muoi-ba-chiec': 'Thirteen ships',
+  'node.phuc-chuc': 'Reinstated',
+  'node.khong-goi-ve': 'Not recalled',
+  'node.tim-nguoi-viet': 'Hunting the hand',
+  'node.tim-ra': 'Found',
+  'node.khong-tim-ra': 'Never found',
+
+  'tim-den-dau-thi-dung.title': 'How far to take it',
+  'tim-den-dau-thi-dung.body': 'The hand has been traced to a clerk in the Ministry of Personnel, and that clerk copies for hire, for many people. Going further means asking the people who hired him, and two of those are sitting in the court. The Minister of Justice says the asking can certainly be done; it is the unasking that cannot.',
+  'tim-den-dau-thi-dung.advice': 'Ask it all and you know it all, majesty. Knowing it all means acting on it.',
+  'tim-den-dau-thi-dung.hoi-cho-ra': 'Take it to the end',
+  'tim-den-dau-thi-dung.hoi-cho-ra.d': 'Down to the last name on the list.',
+  'tim-den-dau-thi-dung.dung-o-day': 'Stop here',
+  'tim-den-dau-thi-dung.dung-o-day.d': 'Enough to know it happened, not enough to have to try anybody.',
+  'tim-den-dau-thi-dung.chronicle': 'You decided how far to hunt the letter\'s author.',
+  'tim-den-dau-thi-dung.scene': 'The clerk admits the copying, says it was for hire, and produces his book of clients to prove it. Twenty-one names over three years. He points at one line and then takes his hand back. The Minister of Justice does not ask which line, and takes the whole book away with him.',
+
+  'khong-tim-ra-ai-ca.line': 'Nobody was found, and everyone at court knows nobody was looked for.',
+  'khong-tim-ra-ai-ca.chronicle': 'The hunt stopped, and found nobody.',
+  'khong-tim-ra-ai-ca.scene': 'The file is closed, tied, and put in the cabinet with the other closed files. The Justice clerk writes the three customary characters on the cover. He writes them more slowly than usual. At the next morning\'s audience two men arrive early, and both stand in the back row.',
+
+  'muoi-ba-chiec-va-mot-nguoi.title': 'Thirteen ships, and one man',
+  'muoi-ba-chiec-va-mot-nguoi.body': 'He takes the seal back, says nothing at all about what happened, and asks that same day how many hulls will still swim. They tell him thirteen. He nods, and asks next about the tide at the river mouth, and for the rest of that day nobody mentions the letter.',
+  'muoi-ba-chiec-va-mot-nguoi.ok': 'Have it written down correctly',
+  'muoi-ba-chiec-va-mot-nguoi.chronicle': 'He was reinstated, and asked about the ships.',
+  'muoi-ba-chiec-va-mot-nguoi.scene': 'The seal is handed over in the yard, without ceremony. He takes it, looks at the face of it for a moment as though reacquainting himself with the characters, and puts it inside his coat. The man handing it over means to say something like an apology. He asks first, about the tide, and the man has to go and find somebody who knows.',
+  'buc-thu-ay-van-trong-cap.line': 'The letter is still in its case, and three men have now looked at the hand.',
+  'buc-thu-ay-van-trong-cap.scene': 'Three, separately, none of them knowing about the other two. One says this is the hand of somebody who writes petitions for a living. One says this is official paper. The third looks longest, hands it back, and says he had better not say. None of the three asks what the letter says.',
+  'buc-thu-ay-van-trong-cap.chronicle': 'Three men have looked at the hand in that letter.',
+  'ong-ta-ve-cam-quan-lai.line': 'He has his command back, and spent the first day looking at boats.',
+  'ong-ta-ve-cam-quan-lai.scene': 'He walks the whole landing, looks at each hull, knocks on the planking, says nothing to anyone. At the last one he asks the carpenter a single question about the timber. He listens, nods, and goes home. The next day an order: eleven to be repaired, and that last one first.',
+  'ong-ta-ve-cam-quan-lai.chronicle': 'He took his command back, and looked at the boats first.',
   title: 'The Slandered General',
   'a-letter-nobody-can-source.title': 'A Letter Nobody Can Source',
   'a-letter-nobody-can-source.body': 'There is a letter at court saying {hero} has been in contact with the enemy. Nobody knows where it came from. Everyone has read it.',
@@ -325,6 +441,12 @@ export const slanderedEn: StoryCatalog = {
 };
 
 export const trustedVi: StoryCatalog = {
+  'hai-cai-an-hai-cai-trap.line': 'Giờ có hai cái ấn, và hai cái tráp để ở hai gian khác nhau.',
+  'hai-cai-an-hai-cai-trap.scene': 'Viên thư lại phải đi từ gian này sang gian kia mỗi khi có giấy cần đóng cả hai dấu, và có giấy thì cần cả hai. Ông ta đi mỗi ngày chừng chục lượt. Ông ta không phàn nàn. Ông ta chỉ chuyển cái nghiên mực ra để ở giữa hành lang.',
+  'hai-cai-an-hai-cai-trap.chronicle': 'Ấn được chia làm hai, để ở hai nơi.',
+  'khong-ai-dam-hoi-so-quan.line': 'Sổ quân của ông ta không ai đòi xem, kể cả Binh bộ.',
+  'khong-ai-dam-hoi-so-quan.scene': 'Viên thư lại Binh bộ mang giấy tới hai lần, cả hai lần đều để lại ở nhà ngoài rồi về. Ông ta bảo với người trong bộ là đã trao tận nơi. Cột quân số của đạo ấy trong sổ chung vẫn ghi con số của ba mùa trước, và không ai sửa.',
+  'khong-ai-dam-hoi-so-quan.chronicle': 'Không ai đòi xem sổ quân của ông ta.',
   title: 'Người Được Tin Nhất',
   'he-holds-a-great-deal.line': '{hero} giữ nhiều thứ hơn bất cứ ai từng giữ.',
   'he-holds-a-great-deal.chronicle': '{hero} nắm rất nhiều trong tay.',
@@ -354,6 +476,12 @@ export const trustedVi: StoryCatalog = {
 };
 
 export const trustedEn: StoryCatalog = {
+  'hai-cai-an-hai-cai-trap.line': 'There are two seals now, in two boxes, in two different rooms.',
+  'hai-cai-an-hai-cai-trap.scene': 'The clerk walks from one room to the other whenever a paper needs both, and some papers need both. He does the walk a dozen times a day. He does not complain. He simply moves his inkstone out to the middle of the corridor.',
+  'hai-cai-an-hai-cai-trap.chronicle': 'The seal was split in two and kept apart.',
+  'khong-ai-dam-hoi-so-quan.line': 'Nobody asks to see his muster roll, not even the Ministry of War.',
+  'khong-ai-dam-hoi-so-quan.scene': 'The Ministry clerk goes up twice with the paperwork and both times leaves it in the outer room and comes away. He tells the Ministry he handed it over in person. The column for that host\'s strength in the general register still carries the figure from three seasons ago, and nobody corrects it.',
+  'khong-ai-dam-hoi-so-quan.chronicle': 'Nobody asks to see his muster roll.',
   title: 'The Trusted Subordinate',
   'he-holds-a-great-deal.line': '{hero} holds more than anyone here has ever held.',
   'he-holds-a-great-deal.chronicle': '{hero} held a great deal.',
@@ -383,6 +511,12 @@ export const trustedEn: StoryCatalog = {
 };
 
 export const chamEngineerVi: StoryCatalog = {
+  'may-cai-guong-o-xuong.line': 'Trong xưởng có mấy cái gióng gỗ mới, và chưa ai biết dùng làm gì.',
+  'may-cai-guong-o-xuong.scene': 'Bốn cái, gỗ lim, đục mộng rất khéo, xếp dựa vào tường. Người thợ mộc bảo ông ấy vẽ ra giấy rồi bảo đóng, đóng xong thì ông ấy đi. Có người thử ghép hai cái vào nhau, ghép được, nhưng ghép xong thì không biết đặt nó nằm hay đặt nó đứng.',
+  'may-cai-guong-o-xuong.chronicle': 'Trong xưởng có mấy bộ gióng gỗ chưa dùng.',
+  'con-duong-moi-ra-ben.line': 'Con đường mới ra bến đã có người đi, và đi cả lúc trời mưa.',
+  'con-duong-moi-ra-ben.scene': 'Đường rải đá dăm, rộng vừa hai xe, có rãnh thoát nước hai bên. Trước kia mưa thì phải nghỉ chợ, giờ thì không. Bà hàng cá bảo đi đường này ra bến nhanh hơn nửa buổi, và cá tới chợ còn tươi. Bà ta không biết ai làm con đường ấy.',
+  'con-duong-moi-ra-ben.chronicle': 'Con đường mới ra bến đi được cả mùa mưa.',
   title: 'Người Thợ Chăm',
   'drawing-in-the-dirt.line': 'Một tù binh từ cuộc chiến trước đã vẽ một thứ gì đó xuống nền đất ngục suốt một tháng.',
   'drawing-in-the-dirt.giveHimMaterials': 'Cấp vật liệu cho hắn',
@@ -411,6 +545,12 @@ export const chamEngineerVi: StoryCatalog = {
 };
 
 export const chamEngineerEn: StoryCatalog = {
+  'may-cai-guong-o-xuong.line': 'There are new wooden frames in the works, and nobody knows what they are for.',
+  'may-cai-guong-o-xuong.scene': 'Four of them, ironwood, the joints beautifully cut, stacked against the wall. The carpenter says the man drew them on paper and told him to make them, and then the man left. Somebody tries fitting two together; they fit, and then nobody can tell whether the result should stand up or lie down.',
+  'may-cai-guong-o-xuong.chronicle': 'Unused wooden frames stand in the works.',
+  'con-duong-moi-ra-ben.line': 'The new road to the landing is being used, and used in the rain.',
+  'con-duong-moi-ra-ben.scene': 'Broken stone, wide enough for two carts, a drain either side. It used to be that rain meant no market; now it does not. The fish-seller says it saves half a morning to the landing and the fish are still fresh at the stall. She does not know who had the road built.',
+  'con-duong-moi-ra-ben.chronicle': 'The new road to the landing carries the wet season.',
   title: 'The Cham Engineer',
   'drawing-in-the-dirt.line': 'A prisoner from the last war has been drawing something in the dirt of his cell for a month.',
   'drawing-in-the-dirt.giveHimMaterials': 'Give him materials',
@@ -439,6 +579,12 @@ export const chamEngineerEn: StoryCatalog = {
 };
 
 export const assemblyVi: StoryCatalog = {
+  'ho-hop-lai-vao-thang-sau.line': 'Họ lại họp vào tháng sáu, và lần này không ai phải gọi.',
+  'ho-hop-lai-vao-thang-sau.scene': 'Đến đủ mặt trước giờ, ngồi đúng chỗ cũ, mang theo giấy tờ của mình. Bàn từ sáng tới quá trưa về việc thuế muối, chia hai phe, rồi biểu quyết. Bên thua chấp nhận, không ai bỏ về giữa chừng. Người ghi biên bản là người ghi lần trước.',
+  'ho-hop-lai-vao-thang-sau.chronicle': 'Họ lại họp, và không ai phải triệu tập.',
+  'cai-phong-ay-khoa-cua.line': 'Cái phòng ấy khoá cửa, và bàn ghế vẫn để nguyên bên trong.',
+  'cai-phong-ay-khoa-cua.scene': 'Nhìn qua khe cửa thấy bàn dài, ghế xếp úp lên bàn, một cái bảng gỗ dựng ở góc. Người quét dọn có chìa khoá, mỗi tháng vào một lần, quét rồi khoá lại. Ông ta bảo trong ấy sạch, không có gì phải quét, nhưng đã có lệnh quét thì ông ta quét.',
+  'cai-phong-ay-khoa-cua.chronicle': 'Phòng họp bị khoá, bàn ghế để nguyên.',
   title: 'Nghị Viện',
   'they-are-meeting-without-you.line': 'Họ họp mà không mời ngươi. Không ai giấu việc ấy.',
   'they-are-meeting-without-you.chronicle': 'Triều thần họp riêng.',
@@ -469,6 +615,12 @@ export const assemblyVi: StoryCatalog = {
 };
 
 export const assemblyEn: StoryCatalog = {
+  'ho-hop-lai-vao-thang-sau.line': 'They met again in the sixth month, and this time nobody had to summon them.',
+  'ho-hop-lai-vao-thang-sau.scene': 'All present before the hour, in their old places, with their own papers. They argue the salt tax from morning to past noon, split two ways, and vote. The losing side accepts it, and nobody walks out. The man keeping the minutes is the man who kept them last time.',
+  'ho-hop-lai-vao-thang-sau.chronicle': 'They met again, unsummoned.',
+  'cai-phong-ay-khoa-cua.line': 'That room is locked, and the furniture is still inside it.',
+  'cai-phong-ay-khoa-cua.scene': 'Through the crack: the long table, the chairs upended on it, a wooden board propped in the corner. The sweeper has a key and goes in once a month, sweeps, and locks it again. He says it is clean in there, nothing to sweep, but he has an order to sweep it so he sweeps it.',
+  'cai-phong-ay-khoa-cua.chronicle': 'The assembly room is locked, its furniture inside.',
   title: 'The Assembly',
   'they-are-meeting-without-you.line': 'They are meeting without you. Nobody is hiding it.',
   'they-are-meeting-without-you.chronicle': 'The ministers met privately.',
@@ -499,6 +651,12 @@ export const assemblyEn: StoryCatalog = {
 };
 
 export const riceRiotVi: StoryCatalog = {
+  'kho-trong-va-cho-yen.line': 'Kho trống, và chợ thì yên hơn mọi năm.',
+  'kho-trong-va-cho-yen.scene': 'Viên coi kho đứng ở cửa nhìn vào trong, nền quét sạch, không còn bao nào. Ông ta đóng cửa rồi ra ngồi ngoài thềm. Ngoài chợ hàng gạo vẫn mở, giá không lên, và không ai xếp hàng. Có mấy đứa trẻ chạy qua sân kho, chạy tắt, vì sân giờ trống.',
+  'kho-trong-va-cho-yen.chronicle': 'Kho đã trống, và chợ yên.',
+  'linh-canh-cho-hai-ca.line': 'Chợ có lính canh hai ca, và hàng quán dọn sớm hơn trước.',
+  'linh-canh-cho-hai-ca.scene': 'Ca ngày sáu người, ca đêm bốn, đứng ở bốn góc chợ. Hàng quán trước dọn lúc tối mịt, giờ dọn lúc trời còn sáng. Bà hàng bún bảo bán được ít hơn, nhưng về nhà sớm hơn, và bà ta chưa quyết được thế là hơn hay kém.',
+  'linh-canh-cho-hai-ca.chronicle': 'Chợ được canh hai ca, và dọn sớm hơn.',
   title: 'Loạn Gạo',
   'the-price-in-the-capital.line': 'Giá gạo trong kinh cao hơn ngoài trấn. Không ai giải thích được vì sao.',
   'the-price-in-the-capital.chronicle': 'Giá gạo trong kinh lên cao.',
@@ -529,6 +687,12 @@ export const riceRiotVi: StoryCatalog = {
 };
 
 export const riceRiotEn: StoryCatalog = {
+  'kho-trong-va-cho-yen.line': 'The store is empty, and the market is quieter than other years.',
+  'kho-trong-va-cho-yen.scene': 'The keeper stands in the doorway looking in at a swept floor and not a sack left. He shuts it and goes to sit on the step. Out at the market the rice stalls are open, the price has not moved, and nobody is queuing. Some children cut across the store yard, because the yard is empty now.',
+  'kho-trong-va-cho-yen.chronicle': 'The store stands empty, and the market is quiet.',
+  'linh-canh-cho-hai-ca.line': 'The market is watched in two shifts, and the stalls pack up earlier than they did.',
+  'linh-canh-cho-hai-ca.scene': 'Six by day, four by night, one at each corner. Stalls that used to close at full dark now close while it is still light. The noodle-seller says she takes less and gets home earlier, and she has not yet decided which of those matters more.',
+  'linh-canh-cho-hai-ca.chronicle': 'The market is watched in two shifts and closes early.',
   title: 'The Rice Riot',
   'the-price-in-the-capital.line': 'Rice costs more in the capital than in the provinces. Nobody can account for it.',
   'the-price-in-the-capital.chronicle': 'The price of rice rose in the capital.',
@@ -559,6 +723,12 @@ export const riceRiotEn: StoryCatalog = {
 };
 
 export const noHeirVi: StoryCatalog = {
+  'nha-ay-gui-qua-moi-mua.line': 'Nhà ấy gửi quà mỗi mùa, và quà mỗi lần một ít đi.',
+  'nha-ay-gui-qua-moi-mua.scene': 'Lần đầu là hai con ngựa. Lần sau một tấm lụa. Lần này là một hộp trà, hộp gỗ, đóng dấu son ở nắp. Viên thư lại nhận, ghi vào sổ, và ghi cả ba lần vào cùng một trang cho tiện đối chiếu. Ông ta không viết gì thêm ở cột ghi chú.',
+  'nha-ay-gui-qua-moi-mua.chronicle': 'Nhà ấy vẫn gửi quà, và quà nhỏ dần.',
+  'bien-gioi-cam-lai-cot-moi.line': 'Ngoài biên có người cắm lại cột mốc, cắm vào ban đêm.',
+  'bien-gioi-cam-lai-cot-moi.scene': 'Cột đá, khắc chữ một mặt, chôn sâu, và chôn cách chỗ cũ chừng bốn trăm bước về phía bắc. Người làm là dân trong vùng, được thuê, và họ được dặn là làm xong thì về, đừng kể. Họ về. Trong vùng ai cũng biết trước cuối mùa.',
+  'bien-gioi-cam-lai-cot-moi.chronicle': 'Cột mốc ngoài biên được cắm lại về phía bắc.',
   title: 'Ông Vua Không Con',
   'three-armies-and-no-throne.line': 'Vua {rival} chết và các em ông ta không nói chuyện với nhau. Có ba đạo quân và không có ngai.',
   'three-armies-and-no-throne.sendTheEnvoy': 'Cử sứ sang',
@@ -591,6 +761,12 @@ export const noHeirVi: StoryCatalog = {
 };
 
 export const noHeirEn: StoryCatalog = {
+  'nha-ay-gui-qua-moi-mua.line': 'That house sends a gift each season, and each one is a little smaller.',
+  'nha-ay-gui-qua-moi-mua.scene': 'The first time, two horses. The next, a bolt of silk. This time a box of tea, wooden, with a vermilion seal on the lid. The clerk takes it in and enters it, and enters all three on the same page for ease of comparison. He writes nothing in the remarks column.',
+  'nha-ay-gui-qua-moi-mua.chronicle': 'That house still sends gifts, and they shrink.',
+  'bien-gioi-cam-lai-cot-moi.line': 'Somebody reset the boundary stones on the frontier, and did it at night.',
+  'bien-gioi-cam-lai-cot-moi.scene': 'Stone posts, characters on one face, buried deep, and buried some four hundred paces north of where they were. The men who did it are local and were hired, and were told to go home afterwards and not talk about it. They went home. Everyone in the district knew before the season was out.',
+  'bien-gioi-cam-lai-cot-moi.chronicle': 'The frontier stones were reset northward.',
   title: 'The King With No Heir',
   'three-armies-and-no-throne.line': 'The king of {rival} is dead and his brothers are not speaking. There are three armies and no throne.',
   'three-armies-and-no-throne.sendTheEnvoy': 'Send the envoy',
@@ -623,6 +799,12 @@ export const noHeirEn: StoryCatalog = {
 };
 
 export const eatTogetherVi: StoryCatalog = {
+  'hai-ong-ay-an-chung-mam.line': 'Hai ông ấy vẫn ăn chung một mâm, và ăn ở chỗ đông người.',
+  'hai-ong-ay-an-chung-mam.scene': 'Mâm dọn giữa sân trại, không phải trong trướng. Lính đi qua đều thấy. Hai người ngồi ăn, nói chuyện thường, có hôm cãi nhau về một việc nhỏ rồi lại thôi. Trong trại có người bảo hai ông ấy làm thế cho lính xem. Người khác bảo trước nay vẫn thế.',
+  'hai-ong-ay-an-chung-mam.chronicle': 'Hai người vẫn ăn chung, ở chỗ đông người.',
+  'hai-doanh-trai-cach-nhau.line': 'Hai doanh trại đóng cách nhau một quãng, và lính hai bên không sang chơi.',
+  'hai-doanh-trai-cach-nhau.scene': 'Cách nhau chừng nửa dặm, có một cái gò ở giữa, và trên gò không có gì cả. Lính hai bên đi lấy nước cùng một con suối, gặp nhau ở đấy, chào nhau, rồi mỗi bên xách nước về bên mình. Chưa ai đánh nhau. Cũng chưa ai ăn chung một bữa nào.',
+  'hai-doanh-trai-cach-nhau.chronicle': 'Hai trại đóng cách nhau, lính không qua lại.',
   title: 'Ăn Cùng Một Mâm',
   'they-have-started-eating-together.line': '{hero} và {other} đã bắt đầu ăn cùng một mâm.',
   'they-have-started-eating-together.chronicle': 'Hai người bắt đầu ăn cùng nhau.',
@@ -645,6 +827,12 @@ export const eatTogetherVi: StoryCatalog = {
 };
 
 export const eatTogetherEn: StoryCatalog = {
+  'hai-ong-ay-an-chung-mam.line': 'Those two still eat from one tray, and eat where everybody can see.',
+  'hai-ong-ay-an-chung-mam.scene': 'The tray is set out in the middle of the camp yard, not in a tent. Every man passing sees it. They eat and talk about ordinary things, and some days argue about something small and then stop. Some in camp say they do it for the men to see. Others say they have always done it.',
+  'hai-ong-ay-an-chung-mam.chronicle': 'The two still eat together, in the open.',
+  'hai-doanh-trai-cach-nhau.line': 'The two camps are pitched apart, and neither side visits the other.',
+  'hai-doanh-trai-cach-nhau.scene': 'Half a mile between them with a rise in the middle, and nothing on the rise. Both sides draw water from the same stream and meet there, and greet each other, and each carries its water back to its own side. Nobody has fought. Nobody has eaten a meal together either.',
+  'hai-doanh-trai-cach-nhau.chronicle': 'The camps stand apart; the men do not cross.',
   title: 'They Eat Together',
   'they-have-started-eating-together.line': '{hero} and {other} have started eating together.',
   'they-have-started-eating-together.chronicle': 'The two of them started eating together.',
@@ -667,6 +855,9 @@ export const eatTogetherEn: StoryCatalog = {
 };
 
 export const unpaidVi: StoryCatalog = {
+  'linh-gui-tien-ve-nha.line': 'Có mấy người lính gửi tiền về nhà, gửi theo người đi buôn.',
+  'linh-gui-tien-ve-nha.scene': 'Người đi buôn nhận chuyển, lấy một phần mười, và có sổ ghi tên từng người. Sổ ấy ghi mười bảy cái tên. Anh lính đứng cuối hàng gửi ít nhất, gửi xong thì hỏi bao lâu thì tới. Người đi buôn bảo trước Tết, nếu đường không có gì.',
+  'linh-gui-tien-ve-nha.chronicle': 'Lính gửi tiền về nhà theo người đi buôn.',
   title: 'Bốn Mùa Chưa Trả Lương',
   'they-have-not-said-anything.line': 'Quân chưa được trả lương bốn mùa. Họ không nói gì, và như thế mới đáng lo.',
   'they-have-not-said-anything.chronicle': 'Quân chưa được trả lương.',
@@ -692,6 +883,9 @@ export const unpaidVi: StoryCatalog = {
 };
 
 export const unpaidEn: StoryCatalog = {
+  'linh-gui-tien-ve-nha.line': 'Some of the men are sending money home, by a trader going that way.',
+  'linh-gui-tien-ve-nha.scene': 'The trader takes it on, keeps a tenth, and has a book with each man\'s name in it. Seventeen names in the book. The soldier at the end of the queue sends the least, and afterwards asks how long it takes. Before Tết, the trader says, if the road is clear.',
+  'linh-gui-tien-ve-nha.chronicle': 'The men sent pay home with a passing trader.',
   title: 'Four Seasons Unpaid',
   'they-have-not-said-anything.line': 'They have not been paid in four seasons. They have not said anything, which is worse.',
   'they-have-not-said-anything.chronicle': 'The army had not been paid.',

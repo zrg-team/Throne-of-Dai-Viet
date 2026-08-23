@@ -405,6 +405,23 @@ export interface Army {
    */
   isLevy?: boolean;
   /**
+   * A host that fights for the realm but is not the realm's to command — a story's auxiliary
+   * (Dragon Ascent). Holds the `templateId` of the story that raised it.
+   *
+   * `templateId` rather than the story's id, and for three reasons: a story may retire its slot
+   * and seed again, a terminal deletes the `ActiveStory` outright while the host is meant to
+   * outlive the ending, and the id itself is minted from a counter that resets on reload.
+   *
+   * It draws no wage and eats none of the realm's rations. It lives on what it was *given* and
+   * thins out when it was not, which is the only reason a gift to it is a decision rather than a
+   * button. It cannot be ordered, cannot be recalled, and the autopilot may neither march it nor
+   * dissolve it — see `systems/story/patrons.ts`.
+   *
+   * Absent on every host in every other mode, which is what makes every read of it inert outside
+   * Ascent without a single `gameMode` check.
+   */
+  patron?: string;
+  /**
    * Turn this host stops fighting at the recalled-from-the-fields penalty (ngụ binh ư nông).
    *
    * Only ever set while that decree stands. Read by `armyPower`, so a host called back off the
@@ -823,6 +840,18 @@ export interface Toast {
  * campaign event messages) is appended here so the player can open a paused log and
  * read the full history — the single source of truth behind the notification bell.
  */
+/**
+ * Where a notification came from, when it came from a running story.
+ *
+ * Present only on Chronicle lines. It is what lets a whisper be *tapped* — the one-line strip
+ * shows the headline, the story page behind it holds the scene the line was cut from.
+ */
+export interface GameEventRef {
+  storyId: string;
+  templateId: string;
+  fragmentId: string;
+}
+
 export interface GameEvent {
   id: string;
   text: string;
@@ -831,6 +860,8 @@ export interface GameEvent {
   turn: number;
   /** False until the player opens the log; drives the unread badge count. */
   read: boolean;
+  /** Set when a story said this, so the entry can be opened rather than only read. */
+  ref?: GameEventRef;
 }
 
 export type DirectiveTier = 'short' | 'medium' | 'epic';
@@ -1087,7 +1118,7 @@ export interface ActiveStory {
    * as "Đã xảy ra": the case the story has been building, finally on one screen. Optional so
    * saves from before the page load cleanly; those fall back to `spoken` without dates.
    */
-  history?: { fragmentId: string; turn: number }[];
+  history?: { fragmentId: string; turn: number; outcome?: StoryOutcome[] }[];
   /** Hidden closeness-to-acting. Never shown; the only tell is how often it whispers. */
   temperature: number;
   seededTurn: number;
@@ -1173,6 +1204,46 @@ export interface ActiveStory {
  * A line in the Chronicle. Stored as key + params rather than resolved text, so the record
  * re-translates when the player changes language.
  */
+/**
+ * Somebody the realm buried and did not forget.
+ *
+ * Distinct from a `ChronicleEntry`, which is ring-buffered at sixty and will be evicted by a long
+ * run — a shrine the record forgets is not a shrine. Stored as a key and params like every other
+ * player-visible string here, so it re-translates when the language changes; the *name* is the one
+ * thing kept as literal text, exactly as `ActiveStory.names` keeps it, because a memorial that
+ * forgets the name of the man it is for is not a memorial.
+ */
+export interface Memorial {
+  id: string;
+  /** The name, frozen. Never a lookup — the person is gone by definition. */
+  name: string;
+  templateId: string;
+  /** Text-key suffix: `<templateId>.memorial.<key>`. */
+  key: string;
+  turn: number;
+  /** Where the shrine stands, if anywhere. */
+  landId?: string;
+  /** A floor under that province's loyalty, held for the rest of the run. */
+  loyaltyFloor?: number;
+  /** Invasions the person actually stood through. The shrine is built to this scale. */
+  deeds?: number;
+}
+
+/**
+ * One thing an answer did to the realm — a key and a number, never resolved text.
+ *
+ * The same discipline as the rest of this record: nothing here has been rendered yet, so it
+ * re-translates when the player switches language. `kind` resolves against
+ * `ascent.story.outcome.<kind>` and is interpolated with `{n}` and `{name}`.
+ */
+export interface StoryOutcome {
+  kind: string;
+  /** Signed. Absent for a thing that has no count — a card, a decree, a name. */
+  amount?: number;
+  /** A name the line needs, frozen at the moment it happened. */
+  name?: string;
+}
+
 export interface ChronicleEntry {
   id: string;
   templateId: string;
@@ -1187,6 +1258,13 @@ export interface ChronicleEntry {
    * Absent on entries written before the tag existed; the page reads those as `chinh-su`.
    */
   historicity?: Historicity;
+  /**
+   * What the ending actually did to the realm.
+   *
+   * Kept here as well as on `ActiveStory.history` because the story is deleted the instant a
+   * terminal fires, and the record has to outlive it.
+   */
+  outcome?: StoryOutcome[];
 }
 
 /**
@@ -2364,6 +2442,23 @@ export interface GameState {
   selectedArmyId?: string;
   latestBattlePreview?: BattlePreview;
   latestBattleResult?: BattleResult;
+  /** The dead this reign put up a shrine to. Never evicted; the Chronicle's ring is. */
+  memorials?: Memorial[];
+  /**
+   * What the last story beat did, waiting to be shown once.
+   *
+   * The card the player answered printed a *price* and never a result, which is most of why a
+   * run of six beats can leave nobody any the wiser. Deliberately not an `AscentPrompt`: it would
+   * come out of `STORY_PROMPT_SHARE` and be rationed against the story cards themselves, so it
+   * is shown in the rectangle the player is already reading and costs the director nothing.
+   */
+  lastStoryOutcome?: {
+    templateId: string;
+    fragmentId: string;
+    params: Record<string, string | number>;
+    outcome: StoryOutcome[];
+    historicity?: Historicity;
+  };
   acquisitionOrders: AcquisitionOrder[];
   buildOrders: BuildOrder[];
   movementOrders: MovementOrder[];

@@ -9,6 +9,7 @@ import {
   defectHost,
   disperseIncoming,
   exactTribute,
+  freeBuilding,
   grantClaimSlot,
   grantDraft,
   grantEliteTier,
@@ -22,6 +23,7 @@ import {
   leaveEcho,
   loyaltyFloor,
   mutinyHosts,
+  opinion,
   ourHosts,
   reinforceHosts,
   seizeTreasury,
@@ -57,6 +59,7 @@ import type { StoryTemplate } from '../../systems/story/types';
  */
 export const sixtyFiveCitadels: StoryTemplate = {
   id: 'sixty-five-citadels',
+  record: 'chinh-su',
   regard: (ctx) => {
     if (ctx.recall('refused') === 1) return 'alone';
     if (ctx.recall('named') === 1) return 'named';
@@ -72,6 +75,22 @@ export const sixtyFiveCitadels: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'ho-tu-lo-lay-mua-do',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_send-grain-not-men') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'cai-trong-dong-o-san-dinh',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_lead-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'the-whole-province-has-risen',
       volume: 'card',
@@ -185,6 +204,7 @@ export const sixtyFiveCitadels: StoryTemplate = {
  */
 export const rideTheWind: StoryTemplate = {
   id: 'ride-the-wind',
+  record: 'chinh-su',
   seedWeight: 3,
   minTurn: 10,
   regard: (ctx) => {
@@ -200,6 +220,22 @@ export const rideTheWind: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'so-kho-ghi-tay-ba-ay',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_the-granary-needs-a-hand') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'ao-giap-may-lai-vua-nguoi',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_give-her-the-field') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'she-will-not-take-the-post',
       volume: 'card',
@@ -321,6 +357,7 @@ export const rideTheWind: StoryTemplate = {
  */
 export const theSubstitution: StoryTemplate = {
   id: 'substitution',
+  record: 'chinh-su',
   regard: (ctx) => {
     if (ctx.recall('substituted') === 1) return 'remembered';
     if (ctx.recall('refusedToChoose') === 1) return 'unasked';
@@ -335,6 +372,22 @@ export const theSubstitution: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'khong-ai-biet-dung-o-dau',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_nobody-wears-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'la-co-cu-dot-sau-tran',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_someone-else-wears-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'they-know-which-banner-is-yours',
       volume: 'card',
@@ -426,6 +479,7 @@ export const theSubstitution: StoryTemplate = {
  */
 export const borrowedSword: StoryTemplate = {
   id: 'borrowed-sword',
+  record: 'da-su',
   regard: (ctx) => {
     if (ctx.recall('kept') === 1) return 'kept';
     if (ctx.recall('returned') === 1) return 'lightened';
@@ -442,6 +496,22 @@ export const borrowedSword: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'luoi-guom-phai-mai-lai',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_it-is-mine') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'nguoi-ta-ra-ho-xem-rua',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_give-it-back') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'a-blade-in-the-net',
       volume: 'card',
@@ -504,6 +574,9 @@ export const borrowedSword: StoryTemplate = {
           id: 'it-is-mine',
           apply: (ctx) => {
             ctx.remember('kept', 1);
+            // R3. You bled for it and you keep it — blade and edge both. What was lent is taken
+            // back later; that beat already exists and does the taking.
+            grantEliteTier(ctx);
             ctx.heat(5);
           },
         },
@@ -570,6 +643,7 @@ export const borrowedSword: StoryTemplate = {
  */
 export const slanderedGeneral: StoryTemplate = {
   id: 'slandered',
+  record: 'chinh-su',
   seedWeight: 2,
   minTurn: 22,
   regard: (ctx) => {
@@ -584,10 +658,96 @@ export const slanderedGeneral: StoryTemplate = {
     return best && best.stats.martial >= 55 ? { heroId: best.id } : undefined;
   },
 
+  entry: 'buc-thu',
+  nodes: [
+    { id: 'buc-thu', historicity: 'chinh-su', patience: 5, onIgnored: 'bi-cach' },
+    { id: 'bi-cach', historicity: 'chinh-su', patience: 8, onIgnored: 'muoi-ba-chiec' },
+    { id: 'muoi-ba-chiec', historicity: 'chinh-su', patience: 4, onIgnored: 'khong-goi-ve' },
+    { id: 'phuc-chuc', historicity: 'chinh-su', terminal: true },
+    { id: 'khong-goi-ve', historicity: 'da-su', terminal: true },
+    // Hunting the forger is not what the record did with this.
+    { id: 'tim-nguoi-viet', historicity: 'ngoai-truyen', patience: 6, onIgnored: 'khong-tim-ra' },
+    { id: 'tim-ra', historicity: 'ngoai-truyen', terminal: true },
+    { id: 'khong-tim-ra', historicity: 'ngoai-truyen', terminal: true },
+  ],
   fragments: [
+    {
+      id: 'muoi-ba-chiec-va-mot-nguoi',
+      volume: 'blow',
+      band: 'river',
+      in: ['phuc-chuc'],
+      weight: 10,
+      terminal: true,
+      tone: 'milestone',
+      effect: (ctx) => {
+        const hero = ctx.hero();
+        if (hero) { temper(ctx, 'martial', 12, hero); temper(ctx, 'renown', 20, hero); }
+        loyaltyFloor(ctx, 60);
+        leaveEcho(ctx, hero?.name ?? '');
+      },
+    },
+    {
+      /** Hunting the hand that wrote it. The one decision the divergence owes. */
+      id: 'tim-den-dau-thi-dung',
+      volume: 'card',
+      band: 'court',
+      in: ['tim-nguoi-viet'],
+      weight: 9,
+      quiet: 3,
+      salience: (ctx) => (ctx.age >= 3 ? 9 : -20),
+      options: [
+        {
+          id: 'hoi-cho-ra',
+          cost: { gold: 140 },
+          to: 'tim-ra',
+          historicity: 'divergent',
+          apply: (ctx) => { ctx.remember('hoi', 1); },
+        },
+        {
+          id: 'dung-o-day',
+          to: 'khong-tim-ra',
+          historicity: 'divergent',
+          apply: (ctx) => {
+            ctx.remember('dung', 1);
+            ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 6);
+            ctx.note('stability', 6);
+          },
+        },
+      ],
+    },
+    {
+      id: 'khong-tim-ra-ai-ca',
+      volume: 'whisper',
+      in: ['khong-tim-ra'],
+      weight: 8,
+      terminal: true,
+      effect: (ctx) => {
+        const hero = ctx.hero();
+        if (hero) temper(ctx, 'loyalty', -10, hero);
+      },
+    },
+    {
+      id: 'ong-ta-ve-cam-quan-lai',
+      volume: 'whisper',
+      in: ['phuc-chuc'],
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_reinstate-him') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'buc-thu-ay-van-trong-cap',
+      volume: 'whisper',
+      in: ['buc-thu', 'tim-nguoi-viet'],
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_find-out-who-wrote-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'a-letter-nobody-can-source',
       volume: 'card',
+      in: ['buc-thu'],
       band: 'court',
       weight: 7,
       quiet: 3,
@@ -597,6 +757,8 @@ export const slanderedGeneral: StoryTemplate = {
       options: [
         {
           id: 'believe-it',
+          to: 'bi-cach',
+          historicity: 'annal',
           apply: (ctx) => {
             captureHero(ctx);
             ctx.remember('imprisoned', 1);
@@ -607,6 +769,8 @@ export const slanderedGeneral: StoryTemplate = {
         },
         {
           id: 'protect-him',
+          to: 'bi-cach',
+          historicity: 'annal',
           apply: (ctx) => {
             ctx.remember('protected', 1);
             ctx.state.court.stability = Math.max(0, ctx.state.court.stability - 22);
@@ -616,6 +780,8 @@ export const slanderedGeneral: StoryTemplate = {
         },
         {
           id: 'find-out-who-wrote-it',
+          to: 'tim-nguoi-viet',
+          historicity: 'divergent',
           cost: { gold: 160 },
           apply: (ctx) => {
             ctx.remember('investigated', 1);
@@ -631,6 +797,7 @@ export const slanderedGeneral: StoryTemplate = {
     {
       id: 'the-fleet-is-lost-without-him',
       volume: 'blow',
+      in: ['bi-cach'],
       band: 'coast',
       weight: 8,
       tone: 'threat',
@@ -649,15 +816,17 @@ export const slanderedGeneral: StoryTemplate = {
     {
       id: 'thirteen-ships',
       volume: 'card',
+      in: ['muoi-ba-chiec'],
       band: 'coast',
       weight: 9,
-      terminal: true,
       tone: 'reward',
       when: (ctx) => ctx.recall('catastrophe') === 1,
       salience: () => 12,
       options: [
         {
           id: 'reinstate-him',
+          to: 'phuc-chuc',
+          historicity: 'annal',
           apply: (ctx) => {
             const hero = ctx.hero();
             if (hero) {
@@ -672,6 +841,8 @@ export const slanderedGeneral: StoryTemplate = {
         },
         {
           id: 'he-stays-where-he-is',
+          to: 'khong-goi-ve',
+          historicity: 'annal',
           apply: (ctx) => {
             killHero(ctx);
             coalition(ctx);
@@ -682,6 +853,7 @@ export const slanderedGeneral: StoryTemplate = {
     {
       id: 'the-court-does-not-forget',
       volume: 'whisper',
+      in: ['khong-goi-ve'],
       weight: 4,
       terminal: true,
       tone: 'threat',
@@ -694,6 +866,7 @@ export const slanderedGeneral: StoryTemplate = {
     {
       id: 'the-forger-is-found',
       volume: 'whisper',
+      in: ['tim-ra'],
       weight: 5,
       terminal: true,
       tone: 'reward',
@@ -719,6 +892,7 @@ export const slanderedGeneral: StoryTemplate = {
  */
 export const trustedSubordinate: StoryTemplate = {
   id: 'trusted',
+  record: 'chinh-su',
   seedWeight: 2,
   minTurn: 30,
   regard: (ctx) => {
@@ -739,6 +913,22 @@ export const trustedSubordinate: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'khong-ai-dam-hoi-so-quan',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_he-has-earned-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'hai-cai-an-hai-cai-trap',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_split-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'he-holds-a-great-deal',
       volume: 'whisper',
@@ -831,6 +1021,7 @@ export const trustedSubordinate: StoryTemplate = {
  */
 export const chamEngineer: StoryTemplate = {
   id: 'cham-engineer',
+  record: 'ngoai-truyen',
   regard: (ctx) => (ctx.recall('freed') === 1 ? 'gone' : 'drawing'),
   seedWeight: 3,
   minTurn: 16,
@@ -843,10 +1034,29 @@ export const chamEngineer: StoryTemplate = {
 
   fragments: [
     {
+      id: 'con-duong-moi-ra-ben',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_roads') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'may-cai-guong-o-xuong',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_ramparts') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'drawing-in-the-dirt',
       volume: 'card',
       weight: 6,
       quiet: 2,
+      repeatable: true,
+      maxTimes: 3,
+      when: (ctx) => ctx.recall('materials') < 3,
       salience: (ctx) => (ctx.age >= 2 ? 6 : -20),
       opening: { on: 'treasury', actionKey: 'giveHimMaterials' },
       options: [
@@ -855,7 +1065,15 @@ export const chamEngineer: StoryTemplate = {
           cost: { supplies: 140, gold: 80 },
           apply: (ctx) => {
             ctx.remember('freed', 1);
+            ctx.bump('materials');
             ctx.remember('echoTurn', ctx.state.turn);
+            // He is given materials and he uses them the same week. Cost-only before this.
+            // `freeBuilding` refuses once the province is full, which is the right way for a
+            // standing door to run out: the ground says no before the story does.
+            freeBuilding(ctx, 'workshop');
+            const engineer = ctx.hero();
+            if (engineer) temper(ctx, 'administration', 4, engineer);
+            terrainWork(ctx, { defense: 3 }, ctx.land());
           },
         },
       ],
@@ -925,6 +1143,7 @@ export const chamEngineer: StoryTemplate = {
  */
 export const theAssembly: StoryTemplate = {
   id: 'assembly',
+  record: 'chinh-su',
   seedWeight: 2,
   minTurn: 34,
   seed: (state) => {
@@ -935,6 +1154,22 @@ export const theAssembly: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'cai-phong-ay-khoa-cua',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_dissolve-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'ho-hop-lai-vao-thang-sau',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-them-vote') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'they-are-meeting-without-you',
       volume: 'whisper',
@@ -974,6 +1209,8 @@ export const theAssembly: StoryTemplate = {
           id: 'let-them-vote',
           apply: (ctx) => {
             ctx.remember('allowed', 1);
+            // R3. The bribe money stays in the treasury. The vote goes however the vote goes.
+            windfall(ctx, { gold: 180 });
             ctx.heat(4);
           },
         },
@@ -1026,6 +1263,7 @@ export const theAssembly: StoryTemplate = {
  */
 export const riceRiot: StoryTemplate = {
   id: 'rice-riot',
+  record: 'chinh-su',
   seedWeight: 2,
   minTurn: 28,
   seed: (state) => {
@@ -1035,6 +1273,22 @@ export const riceRiot: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'linh-canh-cho-hai-ca',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_double-the-watch') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'kho-trong-va-cho-yen',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_give-it-away') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'the-price-in-the-capital',
       volume: 'whisper',
@@ -1086,6 +1340,9 @@ export const riceRiot: StoryTemplate = {
           id: 'they-will-tire-of-it',
           apply: (ctx) => {
             ctx.remember('ignored', 1);
+            // R3. Hunger sends people home, they say. The stores stay shut and full, and that
+            // is the whole of what this buys.
+            windfall(ctx, { food: 200 });
             ctx.heat(5);
           },
         },
@@ -1138,6 +1395,7 @@ export const riceRiot: StoryTemplate = {
  */
 export const noHeir: StoryTemplate = {
   id: 'no-heir',
+  record: 'chinh-su',
   regard: (ctx) => {
     if (ctx.recall('backed') === 1) return 'yours';
     if (ctx.recall('opportunist') === 1) return 'wary';
@@ -1152,11 +1410,30 @@ export const noHeir: StoryTemplate = {
 
   fragments: [
     {
+      id: 'bien-gioi-cam-lai-cot-moi',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_take-the-border-while-they-argue') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'nha-ay-gui-qua-moi-mua',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_back-the-eldest') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'three-armies-and-no-throne',
       volume: 'card',
       band: 'border',
       weight: 7,
       quiet: 2,
+      repeatable: true,
+      maxTimes: 3,
+      when: (ctx) => ctx.recall('backing') < 3,
       salience: (ctx) => (ctx.age >= 2 ? 7 : -20),
       opening: { on: 'rival', actionKey: 'sendTheEnvoy' },
       options: [
@@ -1165,7 +1442,11 @@ export const noHeir: StoryTemplate = {
           cost: { gold: 240 },
           apply: (ctx) => {
             ctx.remember('backed', 1);
+            ctx.bump('backing');
             ctx.remember('echoTurn', ctx.state.turn);
+            // Two hundred and forty gold went out and the card said nothing back. The house you
+            // backed knows who backed it, from the day the money arrives.
+            opinion(ctx, 18);
           },
         },
       ],
@@ -1181,7 +1462,8 @@ export const noHeir: StoryTemplate = {
       options: [
         {
           id: 'wait',
-          apply: (ctx) => { ctx.remember('waited', 1); },
+          // R4. Their business, their turn — and nobody is looking at you while it lasts.
+          apply: (ctx) => { ctx.remember('waited', 1); shiftWaveClock(ctx, 2); },
         },
         {
           id: 'take-the-border-while-they-argue',
@@ -1240,6 +1522,7 @@ export const noHeir: StoryTemplate = {
  */
 export const eatTogether: StoryTemplate = {
   id: 'eat-together',
+  record: 'chinh-su',
   regard: (ctx) => {
     if (ctx.said('one-of-them-is-gone')) return 'alone';
     if (ctx.recall('seasonsTogether') >= 4) return 'inseparable';
@@ -1257,6 +1540,22 @@ export const eatTogether: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'hai-doanh-trai-cach-nhau',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_separate-them') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'hai-ong-ay-an-chung-mam',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-them-swear') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'they-have-started-eating-together',
       volume: 'whisper',
@@ -1336,6 +1635,7 @@ export const eatTogether: StoryTemplate = {
  */
 export const unpaidHost: StoryTemplate = {
   id: 'unpaid',
+  record: 'ngoai-truyen',
   regard: (ctx) => (ctx.recall('paid') === 1 ? 'squared' : 'patient'),
   seedWeight: 3,
   minTurn: 18,
@@ -1347,6 +1647,14 @@ export const unpaidHost: StoryTemplate = {
   },
 
   fragments: [
+    {
+      id: 'linh-gui-tien-ve-nha',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_pay-them') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'they-have-not-said-anything',
       volume: 'whisper',
@@ -1361,7 +1669,13 @@ export const unpaidHost: StoryTemplate = {
       volume: 'card',
       weight: 6,
       quiet: 3,
-      when: (ctx) => ctx.said('they-have-not-said-anything'),
+      repeatable: true,
+      maxTimes: 4,
+      // Standing, and honest about it: wages fall behind again, so the door opens again — but
+      // only while somebody is actually owed. A permanently-open "pay them" on a paid-up army is
+      // a button, not an offer.
+      when: (ctx) => ctx.said('they-have-not-said-anything')
+        && ourHosts(ctx).some((army) => (army.unpaidTicks ?? 0) > 0 || army.morale < 70),
       salience: (ctx) => 3 + ctx.story.temperature,
       opening: { on: 'army', actionKey: 'payThem' },
       options: [
@@ -1375,6 +1689,7 @@ export const unpaidHost: StoryTemplate = {
               army.morale = Math.min(100, army.morale + 18);
             }
             ctx.remember('paid', 1);
+            ctx.bump('payments');
             ctx.heat(-12);
           },
         },

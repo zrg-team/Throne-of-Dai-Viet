@@ -5,6 +5,7 @@ import { scheduleCampaignEvents } from './systems/CampaignEventSystem';
 import type { GameState } from './state/types';
 import { getLanguage, heroName, politicsTitle, seasonLabel, t } from './i18n';
 import { registerServiceWorker } from './pwa/updates';
+import { watchInstall } from './pwa/install';
 import { usesServiceWorker } from './platform/shell';
 import { getMapTheme } from './ui/mapTheme';
 
@@ -41,6 +42,10 @@ declare global {
 if (usesServiceWorker()) {
   registerServiceWorker();
 }
+
+// Before Phaser for a second reason: `beforeinstallprompt` is fired at the window the moment
+// Chromium decides the site is installable, and a listener attached after that never hears it.
+watchInstall();
 
 const game = new Phaser.Game(gameConfig);
 window.__phaserGame = game;

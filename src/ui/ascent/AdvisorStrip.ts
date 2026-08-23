@@ -123,6 +123,17 @@ export class AdvisorStrip {
     }];
   }
 
+  /**
+   * Where the strip ends, so whatever sits under it can follow.
+   *
+   * Published rather than assumed for the same reason `tapBounds` is: the height follows the
+   * text and doubles when the sheet is open, so a fixed offset would put the next surface
+   * through the middle of this one.
+   */
+  bottom(): number {
+    return ADVISOR_TOP + this.stripHeight + this.sheetHeight;
+  }
+
   setVisible(visible: boolean): void {
     this.root.setVisible(visible);
     // An open sheet does not survive being hidden. A prompt takes the screen, and coming back to

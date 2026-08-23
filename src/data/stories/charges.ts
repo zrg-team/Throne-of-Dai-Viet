@@ -8,12 +8,17 @@ import {
   grantStoryHero,
   killEnemyGeneral,
   launchHostNow,
+  heroLeaves,
   loyaltyFloor,
   opinion,
+  ourHosts,
   raze,
   reinforceHosts,
+  shiftWaveClock,
   spoilRations,
   standing,
+  temper,
+  terrainWork,
   windfall,
 } from '../../systems/story/effects';
 import type { StoryTemplate } from '../../systems/story/types';
@@ -58,6 +63,7 @@ function coldestRival(state: GameState) {
 
 export const daiCao: StoryTemplate = {
   id: 'dai-cao',
+  record: 'chinh-su',
   seedWeight: 1.4,
   // Late. A proclamation of victory means nothing from a realm that has not won anything, and the
   // charge itself asks for a Great Invasion broken — so seeding it early only wastes a slot.
@@ -74,6 +80,22 @@ export const daiCao: StoryTemplate = {
     return { heroId: hero.id };
   },
   fragments: [
+    {
+      id: 'ong-ta-day-hoc-o-lang',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_not-yet') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'muc-mai-san-tren-ban',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-him-write') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'the-scholar-asks-for-paper',
       volume: 'card',
@@ -92,8 +114,14 @@ export const daiCao: StoryTemplate = {
           },
         },
         {
+          // R1. A boast now is a boast forever, and the man who would have written it waits.
           id: 'not-yet',
-          apply: (ctx) => { ctx.bump('refused'); ctx.heat(-1); },
+          apply: (ctx) => {
+            ctx.bump('refused');
+            const scholar = ctx.hero();
+            if (scholar) temper(ctx, 'loyalty', -6, scholar);
+            ctx.heat(-1);
+          },
         },
       ],
     },
@@ -118,8 +146,24 @@ export const daiCao: StoryTemplate = {
       weight: 4,
       quiet: 8,
       options: [
-        { id: 'reconsider', apply: (ctx) => { ctx.remember('refused', 0); ctx.heat(2); } },
-        { id: 'dismiss-it', apply: (ctx) => { ctx.heat(-2); } },
+        {
+          // R1. He may still have the words, and being asked twice is worth something.
+          id: 'reconsider',
+          apply: (ctx) => {
+            ctx.remember('refused', 0);
+            const scholar = ctx.hero();
+            if (scholar) temper(ctx, 'loyalty', 10, scholar);
+            ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 4);
+            ctx.note('stability', 4);
+            ctx.heat(2);
+          },
+        },
+        {
+          // R1. Some records are better unwritten, and the man who would have written this one
+          // does not stay to be told so twice. A later dynasty may say his name.
+          id: 'dismiss-it',
+          apply: (ctx) => { heroLeaves(ctx, ctx.hero(), true); ctx.heat(-2); },
+        },
       ],
     },
   ],
@@ -131,6 +175,7 @@ export const daiCao: StoryTemplate = {
 
 export const chieuDoiDo: StoryTemplate = {
   id: 'chieu-doi-do',
+  record: 'chinh-su',
   seedWeight: 1.6,
   minTurn: 30,
   regard: (ctx) => (ctx.recall('sworn:move') === 1 ? 'surveying' : undefined),
@@ -145,6 +190,22 @@ export const chieuDoiDo: StoryTemplate = {
     return { landId: land.id };
   },
   fragments: [
+    {
+      id: 'cai-cong-thanh-cu',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_hoa-lu-served-our-fathers') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'nguoi-do-dat-ngoai-bai',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_survey-the-plain') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'the-valley-is-too-narrow',
       volume: 'card',
@@ -163,7 +224,15 @@ export const chieuDoiDo: StoryTemplate = {
             ]);
           },
         },
-        { id: 'hoa-lu-served-our-fathers', apply: (ctx) => { ctx.heat(-2); ctx.bump('refused'); } },
+        {
+          // R2. Easy to hold, and there is nowhere in it to put a market.
+          id: 'hoa-lu-served-our-fathers',
+          apply: (ctx) => {
+            terrainWork(ctx, { defense: 10, gold: -1 }, ctx.land());
+            ctx.heat(-2);
+            ctx.bump('refused');
+          },
+        },
       ],
     },
     {
@@ -230,6 +299,7 @@ export const namQuocSonHa: StoryTemplate = {
 
 export const hichTuongSi: StoryTemplate = {
   id: 'hich-tuong-si',
+  record: 'chinh-su',
   seedWeight: 1.8,
   minTurn: 24,
   regard: (ctx) => (ctx.recall('sworn:muster') === 1 ? 'expectant' : undefined),
@@ -239,6 +309,22 @@ export const hichTuongSi: StoryTemplate = {
     return { heroId: hero.id, kingdomId: coldestRival(state)?.id };
   },
   fragments: [
+    {
+      id: 'to-hich-con-trong-trap',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_the-men-are-tired') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'ban-sao-chep-tay',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-them-hear-it') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'he-reads-it-to-the-officers',
       volume: 'card',
@@ -253,7 +339,15 @@ export const hichTuongSi: StoryTemplate = {
             ], { withinSeasons: 40 });
           },
         },
-        { id: 'the-men-are-tired', apply: (ctx) => { ctx.heat(-1); } },
+        {
+          // R4. Shame keeps, and so does the sword. A season bought off the clock, not off a stat.
+          id: 'the-men-are-tired',
+          apply: (ctx) => {
+            shiftWaveClock(ctx, 1);
+            for (const host of ourHosts(ctx)) host.morale = Math.min(100, host.morale + 5);
+            ctx.heat(-1);
+          },
+        },
       ],
     },
     {
@@ -293,6 +387,7 @@ export const hichTuongSi: StoryTemplate = {
 
 export const aiChiLang: StoryTemplate = {
   id: 'chi-lang',
+  record: 'chinh-su',
   seedWeight: 1.8,
   minTurn: 30,
   regard: (ctx) => (ctx.recall('sworn:ambush') === 1 ? 'waiting-in-the-pass' : undefined),
@@ -302,6 +397,22 @@ export const aiChiLang: StoryTemplate = {
     return { landId: land.id, kingdomId: coldestRival(state)?.id };
   },
   fragments: [
+    {
+      id: 'canh-dong-ay-de-khong',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_meet-them-on-the-plain') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'co-nguoi-do-lai-cua-ai',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-them-come-in') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'the-pass-is-narrow-here',
       volume: 'card',
@@ -321,7 +432,15 @@ export const aiChiLang: StoryTemplate = {
             ]);
           },
         },
-        { id: 'meet-them-on-the-plain', apply: (ctx) => { ctx.heat(-1); } },
+        {
+          // R2. Where we can see them coming, and where the pass is nobody's advantage.
+          id: 'meet-them-on-the-plain',
+          apply: (ctx) => {
+            reinforceHosts(ctx, 80);
+            terrainWork(ctx, { defense: -4 }, ctx.land());
+            ctx.heat(-1);
+          },
+        },
       ],
     },
     {
@@ -347,6 +466,7 @@ export const aiChiLang: StoryTemplate = {
 
 export const thanToc: StoryTemplate = {
   id: 'than-toc',
+  record: 'chinh-su',
   seedWeight: 1.6,
   minTurn: 40,
   regard: (ctx) => (ctx.recall('sworn:march') === 1 ? 'marching' : undefined),
@@ -356,6 +476,22 @@ export const thanToc: StoryTemplate = {
     return { heroId: hero.id };
   },
   fragments: [
+    {
+      id: 'tet-nam-nay-yen-tinh',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_no-army-moves-that-fast') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'vong-khieng-van-treo',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_promise-the-feast') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'we-eat-tet-in-the-capital',
       volume: 'card',
@@ -373,7 +509,16 @@ export const thanToc: StoryTemplate = {
             ], { withinSeasons: 24 });
           },
         },
-        { id: 'no-army-moves-that-fast', apply: (ctx) => { ctx.heat(-1); } },
+        {
+          // R1. Nobody is marched through Tết, and every man in the ranks hears that he was not.
+          id: 'no-army-moves-that-fast',
+          apply: (ctx) => {
+            for (const host of ourHosts(ctx)) host.morale = Math.min(100, host.morale + 8);
+            ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 4);
+            ctx.note('stability', 4);
+            ctx.heat(-1);
+          },
+        },
       ],
     },
     {
@@ -437,7 +582,11 @@ export const tienPhat: StoryTemplate = {
             launchHostNow(ctx, 0.85);
           },
         },
-        { id: 'wait-for-them', apply: (ctx) => { ctx.heat(-1); ctx.bump('waited'); } },
+        {
+          // R4. Letting them come to us is a season they spend walking.
+          id: 'wait-for-them',
+          apply: (ctx) => { shiftWaveClock(ctx, 1); ctx.heat(-1); ctx.bump('waited'); },
+        },
       ],
     },
     {
@@ -476,6 +625,7 @@ export const tienPhat: StoryTemplate = {
 
 export const haiBaTrung: StoryTemplate = {
   id: 'hai-ba-trung',
+  record: 'chinh-su',
   seedWeight: 1.4,
   minTurn: 34,
   regard: (ctx) => (ctx.recall('sworn:sisters') === 1 ? 'gathering' : undefined),
@@ -484,6 +634,22 @@ export const haiBaTrung: StoryTemplate = {
     return { landId: pick(playerLands(state))?.id };
   },
   fragments: [
+    {
+      id: 'ho-khong-di-qua-day-nua',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_send-them-home') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'hai-con-voi-o-bai-song',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_hear-them-out') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'two-women-at-the-gate',
       volume: 'card',
@@ -499,7 +665,16 @@ export const haiBaTrung: StoryTemplate = {
             ]);
           },
         },
-        { id: 'send-them-home', apply: (ctx) => { ctx.heat(-2); } },
+        {
+          // R1. Provinces are taken, not asked for — and the asking was done in public.
+          id: 'send-them-home',
+          apply: (ctx) => {
+            standing(ctx, -6);
+            const land = ctx.land();
+            if (land) land.loyalty = Math.max(0, land.loyalty - 8);
+            ctx.heat(-2);
+          },
+        },
       ],
     },
     {

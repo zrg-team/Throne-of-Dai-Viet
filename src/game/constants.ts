@@ -19,11 +19,30 @@ export const GAME_WIDTH = 390;
 const MIN_DESIGN_HEIGHT = 620;
 const MAX_DESIGN_HEIGHT = 1040;
 
+/**
+ * Measured off `#game-root`, not off the window.
+ *
+ * The two used to be the same box. They stopped being the same box when the root started
+ * subtracting the safe-area insets from its own height (see `index.html`), which an installed iOS
+ * app needs and Safari's toolbar was hiding: taking the aspect from `window.innerHeight` then
+ * describes a box 34 units taller than the one FIT actually has to fill, so FIT scales by *height*
+ * instead of width and hands back a letterboxed sheet with everything 4% small — precisely the
+ * failure the variable design height exists to avoid. The window is kept as the fallback for the
+ * headless case, where there is no element to measure.
+ */
 function designHeight(): number {
-  if (typeof window === 'undefined' || !window.innerWidth || !window.innerHeight) {
+  if (typeof window === 'undefined') {
     return 844;
   }
-  const ratio = window.innerHeight / window.innerWidth;
+  const box = typeof document !== 'undefined'
+    ? document.getElementById('game-root')?.getBoundingClientRect()
+    : undefined;
+  const width = box?.width || window.innerWidth;
+  const height = box?.height || window.innerHeight;
+  if (!width || !height) {
+    return 844;
+  }
+  const ratio = height / width;
   return Math.round(Math.max(MIN_DESIGN_HEIGHT, Math.min(MAX_DESIGN_HEIGHT, GAME_WIDTH * ratio)));
 }
 

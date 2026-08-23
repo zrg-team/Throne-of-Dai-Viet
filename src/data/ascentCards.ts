@@ -273,6 +273,25 @@ export const POWER_CARDS: PowerCardDef[] = [
     ],
   },
   {
+    // 1285. Phá cường địch, báo hoàng ân — destroy the strong foe, repay the imperial favour. Six
+    // characters a boy of fifteen had embroidered on a banner after he was turned away from the
+    // war council at Bình Than, and the thousand of his own household who fought under it.
+    //
+    // Granted only by the recorded ending, where he dies and his survivors go into the realm's
+    // hosts. So it pays the way the record pays: nothing immediate, and every army raised
+    // afterwards is a little harder than it would have been.
+    id: 'pha-cuong-dich',
+    rarity: 'jade',
+    maxStacks: 1,
+    storyOnly: true,
+    levels: [
+      {
+        effect: { permanent: true, armyPowerModifier: 0.15, nextArmyLevelBonus: 1, stabilityDelta: 10 },
+        display: { pct: 15 },
+      },
+    ],
+  },
+  {
     // 1077. On the Như Nguyệt river a poem is read aloud at night from a shrine, and the Song
     // army hears its own defeat foretold. Held to be the first declaration of independence — so
     // it works on the enemy's heart rather than on our walls.

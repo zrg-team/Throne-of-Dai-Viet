@@ -3,6 +3,12 @@ import type { StoryCatalog } from './types';
 /** Text for the third batch — the legends. Vietnamese is the source; English is derived. */
 
 export const fiveDaysVi: StoryCatalog = {
+  'com-nam-con-trong-tui.line': 'Trong túi mấy người lính vẫn còn nắm cơm gói lá, đã thiu.',
+  'com-nam-con-trong-tui.scene': 'Gói bằng lá chuối, buộc lạt, phát trước lúc nhổ trại. Đi nhanh quá, không ai kịp ăn, và đến nơi thì chua hết. Có người vẫn giữ, không ăn cũng không vứt, để trong túi thêm mấy hôm nữa. Sau rồi cũng vứt, và vứt lúc không có ai nhìn.',
+  'com-nam-con-trong-tui.chronicle': 'Cơm nắm phát trước lúc đi vẫn còn nguyên.',
+  'phao-dot-het-tu-hom-do.line': 'Pháo đốt hết từ hôm ấy, và không ai mua thêm.',
+  'phao-dot-het-tu-hom-do.scene': 'Hàng pháo ngoài chợ dọn sớm hơn mọi năm, vì hết hàng. Bà bán pháo bảo năm nay bán chạy lạ, ai cũng mua gấp đôi. Bà ta không hỏi vì sao. Sang tháng bà ta nhập thêm một chuyến nữa, và chuyến ấy nằm lại trong kho tới sang năm.',
+  'phao-dot-het-tu-hom-do.chronicle': 'Pháo Tết bán hết sạch năm ấy.',
   title: 'Năm Ngày',
   'they-are-keeping-the-new-year.line': 'Trại {rival} treo đèn. Họ ăn Tết.',
   'they-are-keeping-the-new-year.chronicle': 'Quân {rival} ăn Tết trong trại.',
@@ -37,6 +43,12 @@ export const fiveDaysVi: StoryCatalog = {
 };
 
 export const fiveDaysEn: StoryCatalog = {
+  'com-nam-con-trong-tui.line': 'Some of the men still have the leaf-wrapped rice in their bags, and it has turned.',
+  'com-nam-con-trong-tui.scene': 'Wrapped in banana leaf and tied with split bamboo, issued before the camp struck. The march was fast enough that nobody ate, and by the end it had gone sour. Some keep it anyway, neither eating it nor throwing it away, for a few days more. In the end they throw it away, and do it when nobody is looking.',
+  'com-nam-con-trong-tui.chronicle': 'The rice issued before the march was never eaten.',
+  'phao-dot-het-tu-hom-do.line': 'The firecrackers all went that night, and nobody bought more.',
+  'phao-dot-het-tu-hom-do.scene': 'The cracker stall at market packed up earlier than other years, sold out. Selling was strange this year, the woman says; everybody bought double. She does not ask why. The next month she brings in another consignment, and it sits in her store until the following year.',
+  'phao-dot-het-tu-hom-do.chronicle': 'The New Year crackers sold out entirely that year.',
   title: 'Five Days',
   'they-are-keeping-the-new-year.line': '{rival}’s camp has hung lanterns. They are keeping the new year.',
   'they-are-keeping-the-new-year.chronicle': '{rival}’s army kept the new year in camp.',
@@ -71,6 +83,41 @@ export const fiveDaysEn: StoryCatalog = {
 };
 
 export const ghostSouthVi: StoryCatalog = {
+  'node.mat-tich': 'Mất tích',
+  'node.chuoc': 'Chuộc',
+  'node.lam-ma': 'Làm ma nước Nam',
+  'node.ve-gay': 'Về, và gầy đi',
+  'node.danh-trai': 'Đánh trại',
+  'node.cuu-duoc': 'Cứu được',
+  'node.that-bai': 'Không ai về',
+
+  'vao-trai-bang-loi-nao.title': 'Vào trại bằng lối nào',
+  'vao-trai-bang-loi-nao.body': 'Trại giặc đóng ở bãi bồi, ba mặt là nước. Người do thám vẽ lại: cửa chính có hai vọng, mặt sau có một quãng lau cao quá đầu người, và quãng ấy thì đêm không ai canh vì bùn lún tới gối. Đi thẳng thì nhanh. Đi lối sau thì phải đợi tới canh ba, và phải bỏ lại ngựa.',
+  'vao-trai-bang-loi-nao.advice': 'Đi thẳng thì tối nay xong, thưa bệ hạ. Xong kiểu gì thì chưa biết.',
+  'vao-trai-bang-loi-nao.danh-thang-vao': 'Đánh thẳng vào cửa chính',
+  'vao-trai-bang-loi-nao.danh-thang-vao.d': 'Nhanh, và không phải lội bùn.',
+  'vao-trai-bang-loi-nao.doi-troi-toi': 'Đợi canh ba, đi lối lau',
+  'vao-trai-bang-loi-nao.doi-troi-toi.d': 'Bỏ ngựa lại, mang theo dao ngắn.',
+  'vao-trai-bang-loi-nao.chronicle': 'Ngươi đã chọn lối vào trại giặc.',
+  'vao-trai-bang-loi-nao.scene': 'Người do thám vẽ bằng đầu que trên nền đất trong trướng, vẽ xong thì xoá đi ngay. Y bảo quãng lau ấy y đã lội thử một lần, bùn tới gối, và đi hết một canh giờ mới qua được ba chục bước. Có người hỏi y sao biết đêm không ai canh. Y bảo vì y đã ngồi đấy suốt một đêm.',
+
+  'cuu-duoc-ong-ay-ve.title': 'Ông ấy về',
+  'cuu-duoc-ong-ay-ve.body': 'Về lúc gần sáng, đi giữa hai người dìu, chân không có giày. Không ai reo. Cả trại dậy cả, đứng dọc hai bên lối, và im. Ông ấy đi qua, dừng lại một lần ở chỗ cái chõng để trống của mình, rồi đi tiếp vào trướng.',
+  'cuu-duoc-ong-ay-ve.ok': 'Chép lại cho đúng',
+  'cuu-duoc-ong-ay-ve.chronicle': 'Cứu được ông ấy về, lúc gần sáng.',
+  'cuu-duoc-ong-ay-ve.scene': 'Người đi cứu về sau kể là tìm thấy ông ấy trong một cái lều dựng riêng, có lính canh, và ông ấy đang ngồi. Y hỏi ông ấy có đi được không. Ông ấy đứng dậy, đi được ba bước rồi phải vịn. Ra tới chỗ lau thì hai người phải cõng, và cõng đổi vai bốn lần.',
+
+  'khong-ai-ve-ca.title': 'Không ai về cả',
+  'khong-ai-ve-ca.body': 'Đánh vào lúc còn sáng trăng, và trong trại họ đã dậy sẵn từ trước. Sáng ra người ta đếm được ba mươi mấy người của ta nằm ở bãi bồi, và không đếm được ông ấy, vì ông ấy không ở đấy.',
+  'khong-ai-ve-ca.ok': 'Chép lại cho đúng',
+  'khong-ai-ve-ca.chronicle': 'Đánh trại thất bại, và ông ấy không về.',
+  'khong-ai-ve-ca.scene': 'Một người sống sót bơi được qua lạch, về tới trại lúc trưa, và kể được nửa câu thì thôi. Y bảo lúc xông vào thì trong trại tối om, mà tối om nghĩa là họ đã dập hết lửa từ trước. Y nói mỗi câu ấy. Về sau hỏi lại, y vẫn chỉ nói mỗi câu ấy.',
+  'cai-ghe-de-trong-o-tiec.line': 'Trong tiệc có một cái ghế để trống, và ai cũng biết là của ai.',
+  'cai-ghe-de-trong-o-tiec.scene': 'Ghế kê đúng chỗ cũ, có bát có đũa, không ai ngồi vào. Đến giữa tiệc thì một ông tướng già đặt chén rượu xuống trước cái bát ấy, không nói gì, rồi quay lại ăn tiếp. Cuối tiệc người dọn bàn bê cả bát lẫn chén đi cùng một lượt.',
+  'cai-ghe-de-trong-o-tiec.chronicle': 'Trong tiệc có một chỗ để trống.',
+  'mot-cai-ten-khong-ai-goi.line': 'Trong sổ quân có một cái tên không ai gọi tới nữa.',
+  'mot-cai-ten-khong-ai-goi.scene': 'Viên thư lại điểm danh mỗi tháng, đọc từ trên xuống, và tới cái tên ấy thì đọc lướt qua rồi đọc tiếp. Ông ta không gạch, vì chưa có lệnh gạch. Cột bên cạnh để trống. Cứ thế đã bảy tháng, và tháng nào ông ta cũng đọc lướt qua đúng chỗ ấy.',
+  'mot-cai-ten-khong-ai-goi.chronicle': 'Một cái tên trong sổ quân không ai gọi nữa.',
   title: 'Làm Quỷ Nước Nam',
   'he-did-not-come-back-with-the-scouts.line': '{hero} đi trinh sát và không về cùng đoàn.',
   'he-did-not-come-back-with-the-scouts.chronicle': '{hero} bị bắt.',
@@ -102,6 +149,41 @@ export const ghostSouthVi: StoryCatalog = {
 };
 
 export const ghostSouthEn: StoryCatalog = {
+  'node.mat-tich': 'Missing',
+  'node.chuoc': 'The ransom',
+  'node.lam-ma': 'A ghost in the south',
+  'node.ve-gay': 'Home, and thinner',
+  'node.danh-trai': 'Going in after him',
+  'node.cuu-duoc': 'Brought out',
+  'node.that-bai': 'Nobody came back',
+
+  'vao-trai-bang-loi-nao.title': 'Which way into the camp',
+  'vao-trai-bang-loi-nao.body': 'Their camp is on a sandbank with water on three sides. The scout draws it: two towers on the main gate, and at the back a stretch of reeds taller than a man that nobody watches at night, because the mud there is knee-deep. Straight in is fast. The back way means waiting for the third watch and leaving the horses.',
+  'vao-trai-bang-loi-nao.advice': 'Straight in and it is over tonight, majesty. How it is over is another matter.',
+  'vao-trai-bang-loi-nao.danh-thang-vao': 'Straight at the main gate',
+  'vao-trai-bang-loi-nao.danh-thang-vao.d': 'Fast, and nobody wades.',
+  'vao-trai-bang-loi-nao.doi-troi-toi': 'Wait for the third watch, go through the reeds',
+  'vao-trai-bang-loi-nao.doi-troi-toi.d': 'Horses left behind, short knives only.',
+  'vao-trai-bang-loi-nao.chronicle': 'You chose the way into their camp.',
+  'vao-trai-bang-loi-nao.scene': 'The scout draws it with a stick on the bare ground of the tent and rubs it out as soon as he has finished. He has waded that reed stretch once — knee-deep, and an hour to cover thirty paces. Somebody asks how he knows nobody watches it at night. Because he sat in it for a whole night, he says.',
+
+  'cuu-duoc-ong-ay-ve.title': 'He came back',
+  'cuu-duoc-ong-ay-ve.body': 'Near dawn, held up between two men, without shoes. Nobody cheers. The whole camp is up and standing along both sides of the path, and silent. He goes past, stops once at his own empty cot, and goes on into the tent.',
+  'cuu-duoc-ong-ay-ve.ok': 'Have it written down correctly',
+  'cuu-duoc-ong-ay-ve.chronicle': 'He was brought out, near dawn.',
+  'cuu-duoc-ong-ay-ve.scene': 'The man who went in says he found him in a tent set apart, with a guard, sitting up. He asked whether he could walk. He stood, took three steps, and had to hold on. At the reeds two of them carried him, and changed shoulders four times.',
+
+  'khong-ai-ve-ca.title': 'Nobody came back',
+  'khong-ai-ve-ca.body': 'They went in with the moon still up, and the camp had been awake and waiting. By morning some thirty of ours are counted on the sandbank, and he is not among them, because he was not there.',
+  'khong-ai-ve-ca.ok': 'Have it written down correctly',
+  'khong-ai-ve-ca.chronicle': 'The raid failed, and he did not come back.',
+  'khong-ai-ve-ca.scene': 'One survivor swims the channel and reaches camp by noon, and gets half a sentence out before he stops. He says that when they went in the camp was pitch dark, and pitch dark means they had put every fire out beforehand. That is the whole of what he says. Asked again later, it is still the whole of what he says.',
+  'cai-ghe-de-trong-o-tiec.line': 'One seat at the feast was left empty, and everyone knew whose.',
+  'cai-ghe-de-trong-o-tiec.scene': 'Set in its usual place, bowl and chopsticks laid, nobody sitting in it. Halfway through, an old general puts a cup of wine down in front of that bowl, says nothing, and goes back to eating. At the end the servants carry off the bowl and the cup together in one trip.',
+  'cai-ghe-de-trong-o-tiec.chronicle': 'One place at the feast was left empty.',
+  'mot-cai-ten-khong-ai-goi.line': 'There is a name on the muster roll that nobody calls any more.',
+  'mot-cai-ten-khong-ai-goi.scene': 'The clerk reads the roll each month from the top down, and at that name reads past it and carries on. He does not strike it out, having had no order to. The column beside it is blank. Seven months of this now, and every month he reads past the same place.',
+  'mot-cai-ten-khong-ai-goi.chronicle': 'A name on the roll goes uncalled.',
   title: 'A Ghost in the South',
   'he-did-not-come-back-with-the-scouts.line': '{hero} went out with the scouts and did not come back with them.',
   'he-did-not-come-back-with-the-scouts.chronicle': '{hero} was taken.',
@@ -133,6 +215,12 @@ export const ghostSouthEn: StoryCatalog = {
 };
 
 export const withoutSlaughterVi: StoryCatalog = {
+  'thanh-ay-van-mo-cong.line': 'Thành ấy vẫn mở cổng, và người ra vào không phải trình giấy.',
+  'thanh-ay-van-mo-cong.scene': 'Cổng mở từ sáng sớm tới chập tối, hai người gác ngồi trong bóng mát, không hỏi ai. Hàng quán mọc dọc chân tường, bán cho cả người trong thành lẫn người ngoài. Có ông lính cũ của bên kia giờ bán nước chè ở đấy, ngồi quay lưng vào tường thành.',
+  'thanh-ay-van-mo-cong.chronicle': 'Thành ấy vẫn mở cổng, không xét giấy.',
+  'to-cao-dan-o-cho.line': 'Tờ cáo dán ngoài chợ đã rách, và có người dán tờ khác đè lên.',
+  'to-cao-dan-o-cho.scene': 'Tờ đầu dán ở cột quán nước, mưa hai trận thì nhoè mất nửa. Người dán tờ sau là một ông đồ trong làng, tự đi chép lại rồi tự đi dán, không ai bảo. Ông ta chép thiếu một câu ở cuối vì tờ cũ chỗ ấy đã mất chữ. Không ai biết câu thiếu là câu gì.',
+  'to-cao-dan-o-cho.chronicle': 'Tờ cáo ở chợ được chép lại và dán đè.',
   title: 'Bình Ngô Đại Cáo',
   'he-writes-letters-instead-of-orders.line': '{hero} viết thư thay vì viết lệnh. Mỗi ngày một lá.',
   'he-writes-letters-instead-of-orders.chronicle': '{hero} viết thư cho thành địch.',
@@ -164,6 +252,12 @@ export const withoutSlaughterVi: StoryCatalog = {
 };
 
 export const withoutSlaughterEn: StoryCatalog = {
+  'thanh-ay-van-mo-cong.line': 'That citadel still has its gates open, and nobody going in shows a paper.',
+  'thanh-ay-van-mo-cong.scene': 'Open from first light to dusk, two guards sitting in the shade asking nobody anything. Stalls have grown along the foot of the wall, selling to people inside and outside alike. One of them is a former soldier of the other side, selling tea, sitting with his back to the wall.',
+  'thanh-ay-van-mo-cong.chronicle': 'That citadel keeps its gates open, unchecked.',
+  'to-cao-dan-o-cho.line': 'The notice at the market has torn, and somebody has pasted another over it.',
+  'to-cao-dan-o-cho.scene': 'The first was pasted to the tea-stall post and two rainstorms blurred half of it. The second was copied and pasted by the village schoolmaster, unasked. He left off the last line, because on the old sheet that part had lost its characters. Nobody knows what the missing line said.',
+  'to-cao-dan-o-cho.chronicle': 'The market notice was recopied and pasted over.',
   title: 'Victory Without Slaughter',
   'he-writes-letters-instead-of-orders.line': '{hero} writes letters instead of orders. One a day.',
   'he-writes-letters-instead-of-orders.chronicle': '{hero} wrote to the enemy garrison.',
@@ -195,6 +289,9 @@ export const withoutSlaughterEn: StoryCatalog = {
 };
 
 export const delayerVi: StoryCatalog = {
+  'ho-di-vong-mot-quang.line': 'Họ đi vòng một quãng dài để tránh chỗ cao, và mất thêm hai ngày.',
+  'ho-di-vong-mot-quang.scene': 'Đường vòng đi qua đầm, ngựa lún tới khoeo, xe phải bỏ lại ba cái. Người đi buôn theo sau đếm được ba cái xe bỏ dọc đường, còn nguyên bánh. Trên gò cao vẫn có người của ta ngồi, không xuống, và họ ngồi đấy suốt cả hai ngày ấy.',
+  'ho-di-vong-mot-quang.chronicle': 'Họ đi vòng qua đầm, bỏ lại ba cỗ xe.',
   title: 'Kẻ Trì Hoãn',
   'do-not-give-them-a-battle.title': 'Đừng cho họ một trận',
   'do-not-give-them-a-battle.body': 'Quân {rival} mạnh hơn ta ở chỗ trống. Họ cần một trận. Ta thì không.',
@@ -223,6 +320,9 @@ export const delayerVi: StoryCatalog = {
 };
 
 export const delayerEn: StoryCatalog = {
+  'ho-di-vong-mot-quang.line': 'They went a long way round to avoid the high ground, and lost two days.',
+  'ho-di-vong-mot-quang.scene': 'The detour runs through marsh; horses sink to the hock and three carts have to be left. A trader following behind counts three carts abandoned along the road, wheels still on. Our men are still sitting up on the rise, not coming down, and they sit there through both of those days.',
+  'ho-di-vong-mot-quang.chronicle': 'They went round through the marsh and abandoned three carts.',
   title: 'The Delayer',
   'do-not-give-them-a-battle.title': 'Do Not Give Them a Battle',
   'do-not-give-them-a-battle.body': '{rival} is stronger than us in open ground. They need a battle. We do not.',
@@ -251,6 +351,12 @@ export const delayerEn: StoryCatalog = {
 };
 
 export const sicknessVi: StoryCatalog = {
+  'nha-thuoc-o-dau-lang.line': 'Đầu làng dựng một cái nhà thuốc, và người ta xếp hàng từ sáng.',
+  'nha-thuoc-o-dau-lang.scene': 'Nhà tranh ba gian, trước cửa có cái chõng để người bệnh nằm chờ. Thầy thuốc là người mới tới, nói giọng lạ, bắt mạch nhanh và ít nói. Có bà cụ tới từ canh năm, ngồi đấy tới trưa mới tới lượt, và ngồi im suốt không kêu ca một tiếng.',
+  'nha-thuoc-o-dau-lang.chronicle': 'Dựng nhà thuốc ở đầu làng.',
+  'cai-cong-lang-van-dong.line': 'Cổng làng vẫn đóng, và người trong làng đã quen lối đi tắt.',
+  'cai-cong-lang-van-dong.scene': 'Cổng chính then cài, còn chỗ rào tre phía sau ao thì có một quãng thấp, ai cũng trèo qua đấy. Lý trưởng biết. Ông ta không sửa quãng rào ấy, và cũng không nói với ai là mình biết. Người gác cổng chính vẫn ngồi gác, mỗi ngày một buổi.',
+  'cai-cong-lang-van-dong.chronicle': 'Cổng làng vẫn đóng, và ai cũng đi lối sau.',
   title: 'Dịch',
   'a-fever-in-the-market.line': 'Có sốt ở chợ {land}. Ba nhà, rồi bảy nhà.',
   'a-fever-in-the-market.chronicle': 'Dịch bắt đầu ở {land}.',
@@ -280,6 +386,12 @@ export const sicknessVi: StoryCatalog = {
 };
 
 export const sicknessEn: StoryCatalog = {
+  'nha-thuoc-o-dau-lang.line': 'A physician\'s house has gone up at the head of the village, and there is a queue from dawn.',
+  'nha-thuoc-o-dau-lang.scene': 'Three bays of thatch, with a plank bed outside for the sick to wait on. The physician is newly arrived, speaks with an accent, takes a pulse quickly and says little. An old woman comes at the fifth watch and does not reach the front until noon, and sits there the whole time without a word of complaint.',
+  'nha-thuoc-o-dau-lang.chronicle': 'A physician\'s house was raised at the village head.',
+  'cai-cong-lang-van-dong.line': 'The village gate stays barred, and everyone has learned the way round.',
+  'cai-cong-lang-van-dong.scene': 'The main gate is bolted, but the bamboo fence behind the pond has a low stretch that everybody climbs. The headman knows. He does not mend that stretch, and does not tell anyone he knows. The gatekeeper still keeps the main gate, one shift a day.',
+  'cai-cong-lang-van-dong.chronicle': 'The gate stays barred, and everyone goes round the back.',
   title: 'The Sickness',
   'a-fever-in-the-market.line': 'There is a fever in the market at {land}. Three houses, then seven.',
   'a-fever-in-the-market.chronicle': 'A sickness began at {land}.',
@@ -309,6 +421,51 @@ export const sicknessEn: StoryCatalog = {
 };
 
 export const mountainWaterVi: StoryCatalog = {
+  'node.nuoc-len': 'Nước lên',
+  'node.dap-de': 'Đắp đê',
+  'node.de-giu': 'Đê giữ được',
+  'node.vo-de': 'Vỡ đê',
+  'node.tin-troi': 'Tin ở trời',
+  'node.duoc-mua': 'Gặt sớm',
+  'node.mat-mua': 'Mất mùa',
+
+  'nam-nay-co-dap-khong.title': 'Năm nay có đắp không',
+  'nam-nay-co-dap-khong.body': 'Nước năm nào cũng lên, và năm nào cũng có người bảo năm nay chắc không lên cao. Đắp thì phải gọi người ra khỏi ruộng đúng lúc đang cần người ở ruộng. Ông coi đê thưa rằng cứ theo cái vạch trên cột đá năm ngoái mà tính, còn tính đúng hay không thì phải sang tháng bảy mới biết.',
+  'nam-nay-co-dap-khong.advice': 'Đắp thì mất một vụ công, thưa bệ hạ. Không đắp thì có năm mất cả vụ.',
+  'nam-nay-co-dap-khong.goi-nguoi-di-dap': 'Gọi người đi đắp',
+  'nam-nay-co-dap-khong.goi-nguoi-di-dap.d': 'Ra khỏi ruộng, lên bờ, ngay bây giờ.',
+  'nam-nay-co-dap-khong.nam-nay-chac-khong-len': 'Năm nay chắc không lên',
+  'nam-nay-co-dap-khong.nam-nay-chac-khong-len.d': 'Để người ở lại ruộng, và trông trời.',
+  'nam-nay-co-dap-khong.chronicle': 'Ngươi đã quyết việc đắp đê năm nay.',
+  'nam-nay-co-dap-khong.scene': 'Trên cột đá ở chân đê có vạch của từng năm, khắc bằng đục, năm nào cũng khắc. Vạch năm ngoái cao hơn vạch năm kia một đốt ngón tay. Ông coi đê lấy tay đo, đo hai lần, rồi ngồi xuống nhìn ra sông. Nước hôm ấy còn thấp, và trong xanh, và chảy chậm.',
+
+  'dap-den-dau-thi-du.title': 'Đắp đến đâu thì đủ',
+  'dap-den-dau-thi-du.body': 'Đê đã đắp tới mức năm ngoái. Ông coi đê hỏi có đắp cao thêm một thước nữa không, vì đắp thêm thì phải gọi thêm người, mà người thì đang gặt. Ông ta nói thêm rằng cái vạch trên cột chỉ ghi những năm đã qua, chứ không ghi năm nay.',
+  'dap-den-dau-thi-du.advice': 'Thêm một thước là thêm chín chục người, thưa bệ hạ. Và có thể là thừa.',
+  'dap-den-dau-thi-du.dap-cao-hon-nam-ngoai': 'Đắp cao hơn năm ngoái một thước',
+  'dap-den-dau-thi-du.dap-cao-hon-nam-ngoai.d': 'Gọi thêm người, và gọi ngay.',
+  'dap-den-dau-thi-du.the-nay-la-du': 'Thế này là đủ',
+  'dap-den-dau-thi-du.the-nay-la-du.d': 'Bằng năm ngoái, và năm ngoái thì giữ được.',
+  'dap-den-dau-thi-du.chronicle': 'Ngươi đã quyết đắp đê cao đến đâu.',
+  'dap-den-dau-thi-du.scene': 'Người ta đắp bằng đất lấy ngay chân đê, thành ra bên trong đê có một cái rãnh dài chạy song song, sâu tới ngang hông. Ông coi đê bảo cái rãnh ấy cũng có ích, nước tràn thì nó hứng trước. Ông ta nói câu ấy với một người đang đứng dưới rãnh, và người ấy không ngẩng lên.',
+
+  'de-nam-nay-giu-duoc.line': 'Đê giữ được, và trên mặt đê năm nay có người đi lại.',
+  'de-nam-nay-giu-duoc.chronicle': 'Đê giữ được cả mùa nước.',
+  'de-nam-nay-giu-duoc.scene': 'Nước lên tới lưng chừng thân đê rồi dừng, dừng ba ngày, rồi rút. Ông coi đê ra đo lại bằng cái sào có khắc vạch, đo xong thì về khắc thêm một vạch lên cột đá. Vạch năm nay thấp hơn vạch năm ngoái nửa đốt. Ông ta khắc rất sâu.',
+
+  'nam-nay-nuoc-len-den-dau.title': 'Năm nay nước lên đến đâu',
+  'nam-nay-nuoc-len-den-dau.body': 'Đê không đắp, và nước thì đã lên tới chỗ năm ngoái từ đầu tháng. Lúa còn non, gặt bây giờ thì được một nửa, mà đợi thêm mười ngày thì được cả — nếu mười ngày ấy trời không mưa ở thượng nguồn.',
+  'nam-nay-nuoc-len-den-dau.advice': 'Gặt non thì chắc, thưa bệ hạ. Đợi thì hơn, hoặc không còn gì.',
+  'nam-nay-nuoc-len-den-dau.gat-som-di': 'Gặt sớm đi',
+  'nam-nay-nuoc-len-den-dau.gat-som-di.d': 'Lúa non, được một nửa, và được chắc.',
+  'nam-nay-nuoc-len-den-dau.cu-de-den-vu': 'Cứ để đến vụ',
+  'nam-nay-nuoc-len-den-dau.cu-de-den-vu.d': 'Mười ngày nữa thôi.',
+  'nam-nay-nuoc-len-den-dau.chronicle': 'Ngươi đã quyết gặt sớm hay đợi.',
+  'nam-nay-nuoc-len-den-dau.scene': 'Người ta ra bờ nhìn nước mỗi sáng, đứng thành từng nhóm, không ai nói to. Có ông cụ cắm một cái que xuống mép nước lúc sáng, đến chiều ra xem que ngập tới đâu. Ba hôm liền cái que ngập thêm. Hôm thứ tư ông cụ không ra cắm que nữa.',
+
+  'gat-som-duoc-mot-nua.line': 'Gặt non được một nửa, và một nửa ấy vào kho khô ráo.',
+  'gat-som-duoc-mot-nua.chronicle': 'Gặt sớm, được một nửa, và giữ được.',
+  'gat-som-duoc-mot-nua.scene': 'Gặt cả đêm, đốt đuốc, đàn bà trẻ con ra hết ngoài đồng. Lúa non thì hạt lép nhiều, xay ra hao hơn, ai cũng biết. Đến hôm thứ ba thì nước tràn qua bờ vùng, tràn vào chỗ đã gặt xong, và không ai nói gì cả.',
   title: 'Sơn Tinh Thủy Tinh',
   'the-water-comes-up-every-year.line': 'Nước ở {land} năm nào cũng lên. Năm nào cũng có người nói phải đắp đê.',
   'the-water-comes-up-every-year.chronicle': 'Nước ở {land} lại lên.',
@@ -339,6 +496,51 @@ export const mountainWaterVi: StoryCatalog = {
 };
 
 export const mountainWaterEn: StoryCatalog = {
+  'node.nuoc-len': 'The water rises',
+  'node.dap-de': 'Building the dyke',
+  'node.de-giu': 'It held',
+  'node.vo-de': 'It broke',
+  'node.tin-troi': 'Trusting the year',
+  'node.duoc-mua': 'Cut early',
+  'node.mat-mua': 'The harvest lost',
+
+  'nam-nay-co-dap-khong.title': 'Is it built this year',
+  'nam-nay-co-dap-khong.body': 'The water rises every year, and every year somebody says this one will not come up high. Building means calling people off the fields at exactly the moment the fields need them. The dyke warden says to go by the mark cut on the stone post last year — and that whether that is right will not be known until the seventh month.',
+  'nam-nay-co-dap-khong.advice': 'Build and you lose a season\'s labour, majesty. Don\'t, and some years you lose the season.',
+  'nam-nay-co-dap-khong.goi-nguoi-di-dap': 'Call them out to build',
+  'nam-nay-co-dap-khong.goi-nguoi-di-dap.d': 'Off the fields and onto the bank, now.',
+  'nam-nay-co-dap-khong.nam-nay-chac-khong-len': 'It will not come up high this year',
+  'nam-nay-co-dap-khong.nam-nay-chac-khong-len.d': 'Leave them in the fields and watch the sky.',
+  'nam-nay-co-dap-khong.chronicle': 'You decided whether the dyke was built this year.',
+  'nam-nay-co-dap-khong.scene': 'The stone post at the foot of the dyke carries a chisel mark for each year, cut every year without fail. Last year\'s is a finger-joint above the one before. The warden measures it with his hand, twice, then sits down and looks at the river. The water is low that day, and clear, and slow.',
+
+  'dap-den-dau-thi-du.title': 'How high is enough',
+  'dap-den-dau-thi-du.body': 'The dyke is up to last year\'s mark. The warden asks whether to add another foot, because another foot means more men, and the men are harvesting. He adds that the marks on the post record the years that have gone, and not this one.',
+  'dap-den-dau-thi-du.advice': 'A foot is ninety more men, majesty. And it may be a foot too many.',
+  'dap-den-dau-thi-du.dap-cao-hon-nam-ngoai': 'A foot above last year',
+  'dap-den-dau-thi-du.dap-cao-hon-nam-ngoai.d': 'More men, and called now.',
+  'dap-den-dau-thi-du.the-nay-la-du': 'This is enough',
+  'dap-den-dau-thi-du.the-nay-la-du.d': 'Level with last year, and last year held.',
+  'dap-den-dau-thi-du.chronicle': 'You decided how high the dyke was built.',
+  'dap-den-dau-thi-du.scene': 'They build it from earth taken at its own foot, so behind the dyke there is a long trench running parallel, hip deep. The warden says the trench is useful too — if it overtops, that catches it first. He says this to a man standing down in the trench, and the man does not look up.',
+
+  'de-nam-nay-giu-duoc.line': 'The dyke held, and this year there are people walking along the top of it.',
+  'de-nam-nay-giu-duoc.chronicle': 'The dyke held through the flood season.',
+  'de-nam-nay-giu-duoc.scene': 'The water came halfway up the body of it and stopped, stayed three days, and fell. The warden goes out and measures with a marked pole, then comes back and cuts another notch in the stone post. This year\'s is half a joint below last year\'s. He cuts it very deep.',
+
+  'nam-nay-nuoc-len-den-dau.title': 'How high will it come',
+  'nam-nay-nuoc-len-den-dau.body': 'No dyke was built, and the water has been at last year\'s mark since the start of the month. The rice is still green: cut now and you get half, wait ten days and you get all of it — provided it does not rain upriver in those ten days.',
+  'nam-nay-nuoc-len-den-dau.advice': 'Cutting green is certain, majesty. Waiting is more, or nothing.',
+  'nam-nay-nuoc-len-den-dau.gat-som-di': 'Cut it now',
+  'nam-nay-nuoc-len-den-dau.gat-som-di.d': 'Green, half a crop, and certain.',
+  'nam-nay-nuoc-len-den-dau.cu-de-den-vu': 'Let it stand to the season',
+  'nam-nay-nuoc-len-den-dau.cu-de-den-vu.d': 'Ten days, that is all.',
+  'nam-nay-nuoc-len-den-dau.chronicle': 'You decided whether to cut early or wait.',
+  'nam-nay-nuoc-len-den-dau.scene': 'People go to the bank each morning to look at the water, standing in groups, nobody speaking loudly. An old man drives a stick in at the edge in the morning and comes back at dusk to see how far it has gone under. Three days running it goes further under. On the fourth he does not go out to set the stick.',
+
+  'gat-som-duoc-mot-nua.line': 'Cut green, half a crop, and the half is in the store dry.',
+  'gat-som-duoc-mot-nua.chronicle': 'Cut early, half the crop, and it kept.',
+  'gat-som-duoc-mot-nua.scene': 'They cut through the night by torchlight, the women and children out in the fields too. Green rice means a lot of empty husk and worse milling, and everybody knows it. On the third day the water comes over the bunds into the ground already cut, and nobody says anything at all.',
   title: 'The Mountain and the Water',
   'the-water-comes-up-every-year.line': 'The water at {land} comes up every year. Every year somebody says a dyke is needed.',
   'the-water-comes-up-every-year.chronicle': 'The water at {land} rose again.',
@@ -366,68 +568,6 @@ export const mountainWaterEn: StoryCatalog = {
   'nothing-came-up-that-year.line': 'Nobody has mentioned the water at {land} for years.',
   'nothing-came-up-that-year.chronicle': 'The dyke at {land} still stands, and nobody mentions it.',
   'nothing-came-up-that-year.scene': 'The top of the dyke at {land} is the market road now, wide enough for two carrying poles to pass. Boys lie on it at midday minding the buffalo. There is one rectangle where the grass grows shorter than the rest, which is where the earth baskets used to be stacked; none of the boys knows that, and nobody is left who would think to tell them. Below it, the rice is good this year.',
-};
-
-export const thanhGiongVi: StoryCatalog = {
-  title: 'Thánh Gióng',
-  'a-child-who-has-never-spoken.line': 'Ở {land} có một đứa bé ba tuổi chưa nói câu nào. Hôm qua nó nói.',
-  'a-child-who-has-never-spoken.chronicle': 'Đứa bé ở {land} lên tiếng.',
-  'a-child-who-has-never-spoken.scene': 'Mẹ nó đang xay bột thì nó nói, và bà ấy đổ mất cả cối. Hàng xóm chạy sang thấy bà ngồi giữa đống bột trắng, không nhặt, không khóc, chỉ bảo mọi người im để nghe nó nói tiếp. Nó nói tiếp thật. Nó không hỏi mẹ câu nào, mà hỏi xem người đi rao mõ ngoài ngõ {land} sáng nay là người của ai.',
-  'he-asked-for-an-iron-horse.title': 'Nó xin một con ngựa sắt',
-  'he-asked-for-an-iron-horse.body': 'Câu đầu tiên nó nói là xin một con ngựa sắt, một cây roi sắt, và một bộ giáp sắt. Nó không xin gì thêm.',
-  'he-asked-for-an-iron-horse.advice': 'Sắt thì đắt, thưa bệ hạ. Và nó là trẻ con.',
-  'he-asked-for-an-iron-horse.make-it': 'Rèn cho nó',
-  'he-asked-for-an-iron-horse.make-it.d': 'Cả làng góp sắt.',
-  'he-asked-for-an-iron-horse.a-child-is-a-child': 'Trẻ con là trẻ con',
-  'he-asked-for-an-iron-horse.a-child-is-a-child.d': 'Cho nó cơm, đừng cho nó sắt.',
-  'he-asked-for-an-iron-horse.chronicle': 'Ngươi định đoạt lời xin của đứa bé ở {land}.',
-  'he-asked-for-an-iron-horse.scene': 'Ông thợ cả ở {land} đã tính ra rồi: ngựa sắt ấy ăn hết số sắt của cả tổng, kể cả lưỡi cày đang cắm ngoài ruộng. Ông ta không nói là không làm được. Ông ta hỏi mỗi một câu, hỏi hai lần, rằng đứa bé ấy có nói ngựa cao bao nhiêu không — vì đúc hụt một lần thì không còn sắt để đúc lại.',
-  'he-eats-everything-the-village-has.line': 'Nó ăn hết phần cơm của cả làng, và làng vẫn nấu thêm.',
-  'he-eats-everything-the-village-has.chronicle': 'Nó lớn nhanh hơn làng nuôi kịp.',
-  'he-eats-everything-the-village-has.scene': 'Nhà nào cũng góp, mỗi nhà một nồi, đổ chung vào nong. Đến bữa thứ ba thì phải kê thêm nong, và người ta bắt đầu đếm: bảy nong cơm, ba nong cà. Bà cụ nhà cuối xóm không còn gạo, mang sang một rổ khoai và ngồi lại xem nó ăn cho bằng hết. Không ai trong sân hôm ấy nhắc tới chỗ thóc giống.',
-  'his-armour-splits.line': 'Giáp rèn xong tuần trước đã chật. Thợ rèn lại từ đầu, lần này to hơn.',
-  'his-armour-splits.chronicle': 'Giáp của nó nứt ra.',
-  'his-armour-splits.scene': 'Tấm giáp cũ nứt dọc theo đường tán đinh, nứt thành hai mảnh gọn như quả cau bổ. Ông thợ rèn không nấu lại ngay. Ông ta dựng hai mảnh ấy vào vách lò, lùi ra ngắm, rồi lấy than vạch lên tường một cái bóng mới, cao hơn cái bóng tuần trước một khoảng bằng bàn tay. Vạch xong ông ta ngồi xuống, không gọi thợ phụ.',
-  'he-rides.title': 'Nó lên ngựa',
-  'he-rides.body': 'Nó đi thẳng vào chỗ đông nhất, và khi roi gãy thì nó nhổ tre bên đường. Xong, nó lên núi và không xuống nữa.',
-  'he-rides.ok': 'Lập đền ở chân núi',
-  'he-rides.toast': '{count} quân địch tan. Đứa bé lên núi và không trở lại.',
-  'he-rides.chronicle': 'Nó đánh xong rồi lên núi, và không ai gặp lại.',
-  'he-rides.scene': 'Người ở đê nhìn xuống thì không theo kịp bằng mắt, chỉ thấy chỗ nào bụi bốc lên thì chỗ ấy là ngài. Nửa cây roi sắt gãy văng xuống ruộng, cắm đứng, còn nóng, và đám trẻ con ra xem thì bị người lớn lôi về. Đến chiều nó vẫn cắm ở đấy. Không ai dám nhổ, và cũng không ai dám cấy quanh chỗ ấy.',
-  'the-village-forgets-him.line': 'Đứa bé ở {land} lại thôi nói. Người ta cũng thôi nhắc.',
-  'the-village-forgets-him.chronicle': 'Không ai rèn ngựa sắt cả.',
-  'the-village-forgets-him.scene': 'Đứa bé ở {land} vẫn ngồi ở bậc cửa, vẫn nhìn ra ngõ, nhưng đã thôi nói. Mẹ nó vẫn dọn cho nó bát cơm bằng bát người lớn suốt mấy tháng, rồi một hôm đổi sang bát nhỏ, và nó ăn hết bát nhỏ. Sắt trong kho ba làng đem ra làm lưỡi cày, cày xong một vụ, lưỡi mòn đi đúng như mọi lưỡi cày khác.',
-};
-
-export const thanhGiongEn: StoryCatalog = {
-  title: 'Thánh Gióng',
-  'a-child-who-has-never-spoken.line': 'At {land} there is a three-year-old who has never said a word. Yesterday he spoke.',
-  'a-child-who-has-never-spoken.chronicle': 'The child at {land} spoke.',
-  'a-child-who-has-never-spoken.scene': 'His mother was grinding rice flour when he spoke, and she tipped the whole quern over. The neighbours came in and found her sitting in the spilled white flour, not picking it up, not crying, telling everyone to be quiet so she could hear what he said next. He did say more. He did not ask her anything at all, he asked whose man it was who went down the lane at {land} that morning beating the clapper.',
-  'he-asked-for-an-iron-horse.title': 'He Asked for an Iron Horse',
-  'he-asked-for-an-iron-horse.body': 'His first words were a request for an iron horse, an iron rod and iron armour. He asked for nothing else.',
-  'he-asked-for-an-iron-horse.advice': 'Iron is dear, my lord. And he is a child.',
-  'he-asked-for-an-iron-horse.make-it': 'Forge it for him',
-  'he-asked-for-an-iron-horse.make-it.d': 'The whole village gives up its iron.',
-  'he-asked-for-an-iron-horse.a-child-is-a-child': 'A child is a child',
-  'he-asked-for-an-iron-horse.a-child-is-a-child.d': 'Give him rice, not iron.',
-  'he-asked-for-an-iron-horse.chronicle': 'You answered the child of {land}.',
-  'he-asked-for-an-iron-horse.scene': 'The master smith at {land} has done the arithmetic: that horse eats the iron of the whole canton, ploughshares included, and the ploughshares are still standing out in the fields. He does not say it cannot be done. He asks one question, and asks it twice — whether the child said how tall the horse should be. A bad casting cannot be poured again.',
-  'he-eats-everything-the-village-has.line': 'He eats the whole village’s rice, and the village cooks more.',
-  'he-eats-everything-the-village-has.chronicle': 'He outgrew what the village could feed.',
-  'he-eats-everything-the-village-has.scene': 'Every house sends a pot and they tip them all into flat baskets. By the third meal they have to set out more baskets, and people start counting: seven baskets of rice, three of aubergine. The old woman at the end of the lane has no rice left and brings sweet potato instead, then stays to watch him finish all of it. Nobody in the yard that day mentions the seed grain.',
-  'his-armour-splits.line': 'The armour finished last week no longer fits. The smith starts again, larger.',
-  'his-armour-splits.chronicle': 'His armour split.',
-  'his-armour-splits.scene': 'The old plate has split along the line of rivets, clean in two, like a betel nut halved. The smith does not melt it down straight away. He stands both halves against the forge wall, backs off to look at them, then draws a new outline on the wall in charcoal, a hand\'s width taller than last week\'s outline. Then he sits down and does not call his apprentice.',
-  'he-rides.title': 'He Rides',
-  'he-rides.body': 'He goes straight for the thickest part, and when the iron rod breaks he pulls up bamboo from the roadside. Afterwards he rides up the mountain and does not come down.',
-  'he-rides.ok': 'Build a shrine at the foot of it',
-  'he-rides.toast': '{count} of theirs scattered. The boy rode up the mountain and did not come back.',
-  'he-rides.chronicle': 'He finished it and went up the mountain, and nobody saw him again.',
-  'he-rides.scene': 'From the dyke the eye cannot keep up with him; you watch for where the dust goes up and that is where he is. Half the broken rod came down in a paddy and stuck upright, still hot, and the children who went to look at it were dragged home. It was still standing there in the evening. Nobody would pull it out, and nobody would plant near it.',
-  'the-village-forgets-him.line': 'The child at {land} has stopped speaking again. People have stopped mentioning it.',
-  'the-village-forgets-him.chronicle': 'No iron horse was ever forged.',
-  'the-village-forgets-him.scene': 'The child at {land} still sits on the doorstep and still watches the lane, but he has stopped speaking. His mother went on setting out an adult\'s rice bowl for him for months, then one day put down a small one instead, and he finished the small one. The iron in the three villages\' store went to ploughshares, ploughed a season, and wore down exactly like any other ploughshare.',
 };
 
 export const saltRoadVi: StoryCatalog = {
@@ -499,6 +639,12 @@ export const saltRoadEn: StoryCatalog = {
 };
 
 export const thirteenthVi: StoryCatalog = {
+  'ho-tu-thu-thue-lay.line': 'Họ tự thu thuế lấy, và nộp lên đúng hạn.',
+  'ho-tu-thu-thue-lay.scene': 'Người mang thuế lên là một ông già, đi bộ, dắt theo hai con la chở tiền. Ông ta nộp đủ, xin biên lai, rồi hỏi đường về chợ mua muối. Viên thư lại hỏi ông ta chức gì trong huyện ấy. Ông ta bảo không có chức gì, ông ta chỉ là người được cử đi.',
+  'ho-tu-thu-thue-lay.chronicle': 'Họ tự thu thuế và nộp đủ, đúng hạn.',
+  'don-linh-o-cho-nga-ba.line': 'Đồn lính ở chỗ ngã ba đã dựng xong, và lính ở đấy học tiếng địa phương.',
+  'don-linh-o-cho-nga-ba.scene': 'Đồn nhỏ, hàng rào tre, một cái cột cờ. Lính phần lớn là người dưới xuôi, nói không ai hiểu, nên có một anh đội tự đi học tiếng, học của bà bán bún ngay cạnh đồn. Anh ta học được chừng ba chục câu. Ba chục câu ấy đủ để mua bán và không đủ để cãi nhau.',
+  'don-linh-o-cho-nga-ba.chronicle': 'Dựng đồn ở ngã ba, lính học tiếng bản xứ.',
   title: 'Sứ Quân Thứ Mười Ba',
   'the-realm-is-wider-than-the-roads.line': 'Nước rộng hơn đường sá của nó.',
   'the-realm-is-wider-than-the-roads.chronicle': 'Nước rộng hơn đường sá.',
@@ -532,6 +678,12 @@ export const thirteenthVi: StoryCatalog = {
 };
 
 export const thirteenthEn: StoryCatalog = {
+  'ho-tu-thu-thue-lay.line': 'They collect their own taxes now, and they send them up on time.',
+  'ho-tu-thu-thue-lay.scene': 'The man who brings it is old and on foot, leading two mules loaded with cash. He hands over the full amount, asks for a receipt, then asks the way to the market to buy salt. The clerk asks what office he holds in that district. He says none; he is just the one they sent.',
+  'ho-tu-thu-thue-lay.chronicle': 'They collected their own taxes and sent them up in full.',
+  'don-linh-o-cho-nga-ba.line': 'The post at the crossroads is finished, and the men there are learning the local speech.',
+  'don-linh-o-cho-nga-ba.scene': 'A small post, bamboo palisade, one flagstaff. Most of the men are from the lowlands and nobody understands them, so one sergeant has gone and learned the language himself, from the noodle-seller beside the gate. He has about thirty phrases. Thirty is enough to buy and sell with and not enough to argue with.',
+  'don-linh-o-cho-nga-ba.chronicle': 'A post was raised at the crossroads; the men learn the local speech.',
   title: 'The Thirteenth Warlord',
   'the-realm-is-wider-than-the-roads.line': 'The realm is wider than its roads.',
   'the-realm-is-wider-than-the-roads.chronicle': 'The realm outgrew its roads.',

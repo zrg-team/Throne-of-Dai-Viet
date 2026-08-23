@@ -22,6 +22,14 @@ export interface ChronicleEcho {
   name: string;
   /** Run index, only so the oldest can be dropped first. */
   seq: number;
+  /**
+   * Set when this was a death the realm enshrined rather than merely a moment worth quoting.
+   *
+   * A separate store would have been the wrong shape: this ring already exists, already survives
+   * a run, already drops its oldest first, and a shrine is exactly the kind of thing a later
+   * dynasty should be able to say out loud.
+   */
+  kind?: 'memorial';
 }
 
 function canUseLocalStorage(): boolean {
@@ -45,6 +53,7 @@ export function getEchoes(): ChronicleEcho[] {
         fragmentId: entry.fragmentId,
         name: typeof entry.name === 'string' ? entry.name : '',
         seq: Number.isFinite(entry.seq) ? entry.seq : 0,
+        kind: entry.kind === 'memorial' ? 'memorial' : undefined,
       }));
   } catch {
     return [];
@@ -52,11 +61,11 @@ export function getEchoes(): ChronicleEcho[] {
 }
 
 /** Records a moment worth mentioning in a later run. Silently no-ops without storage. */
-export function recordEcho(templateId: string, fragmentId: string, name: string): void {
+export function recordEcho(templateId: string, fragmentId: string, name: string, kind?: 'memorial'): void {
   if (!canUseLocalStorage()) return;
   const echoes = getEchoes();
   const seq = echoes.reduce((max, entry) => Math.max(max, entry.seq), 0) + 1;
-  echoes.push({ templateId, fragmentId, name, seq });
+  echoes.push({ templateId, fragmentId, name, seq, kind });
   // Oldest first, so the runs a player actually remembers are the ones the game does.
   while (echoes.length > MAX_ECHOES) echoes.shift();
   try {
@@ -71,6 +80,11 @@ export function findEcho(templateId: string, fragmentId: string): ChronicleEcho 
   return getEchoes()
     .filter((entry) => entry.templateId === templateId && entry.fragmentId === fragmentId)
     .sort((a, b) => b.seq - a.seq)[0];
+}
+
+/** The dead a previous dynasty put up a shrine to, newest first. */
+export function getMemorials(): ChronicleEcho[] {
+  return getEchoes().filter((entry) => entry.kind === 'memorial').sort((a, b) => b.seq - a.seq);
 }
 
 /** Test seam. */

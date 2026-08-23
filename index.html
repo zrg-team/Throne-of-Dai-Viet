@@ -18,6 +18,12 @@
     <link rel="icon" href="./favicon-96.png" sizes="96x96" type="image/png" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="Vạn Thắng" />
+    <!-- iOS reads the manifest's `display` only from 16.4; before that this meta is the *only*
+         thing that makes an added-to-home-screen icon open without Safari's chrome. Harmless
+         where the manifest is honoured, and `mobile-web-app-capable` is the standard spelling
+         every other engine looks for. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <!-- Self-hosted so the game's Vietnamese renders the same on every device, and so an
          offline load never falls back to whatever the phone happened to have.
@@ -77,9 +83,21 @@
         image-rendering: auto;
       }
 
-      /* Keeps the action bar clear of the home indicator on a notched phone. */
+      /* Keeps the action bar clear of the home indicator on a notched phone.
+         **Padding cannot do this.** Phaser's `ScaleManager.getParentBounds` measures the parent
+         with `getBoundingClientRect()`, which returns the *border* box — padding included — so
+         the canvas was fitted to the whole 100dvh and then centred inside a content box 34px
+         shorter, which put its bottom edge under the home indicator. In Safari the toolbar hides
+         that strip and nobody sees it; installed to the home screen there is no toolbar, and the
+         action bar is simply cut off. The element itself has to be shorter, so it is.
+
+         Insets are subtracted rather than the box being positioned inside them, because
+         `viewport-fit=cover` is what lets the điệp paper reach the screen edges in the first
+         place: `body` keeps its background under both strips, and only the canvas moves. */
       #game-root {
-        padding-bottom: env(safe-area-inset-bottom, 0);
+        height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+        height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+        margin-top: env(safe-area-inset-top, 0px);
         box-sizing: border-box;
       }
 
@@ -120,7 +138,10 @@
         position: fixed;
         inset: 0;
         z-index: 10;
-        background: #201a12;
+        /* The same điệp as the page under it, not a dark surround. Outside the sheet this is the
+           letterbox, and the game's letterbox is paper — a black slab here means the handover
+           from splash to menu changes the colour of the whole screen edge. */
+        background: #e9dfc2;
         opacity: 1;
         transition: opacity 0.38s ease-out;
         /* Never takes a tap. There is nothing on this screen to press, and a full-screen overlay
@@ -143,8 +164,14 @@
         width: 100%;
         height: 100%;
         overflow: hidden;
-        /* Điệp is never evenly coated; this is the same warm ground the app icon is printed on. */
-        background: radial-gradient(120% 80% at 50% 34%, #f3ecd8 0%, #e9dfc2 58%, #d8c9a4 100%);
+        /* Flat điệp, and flat on purpose.
+           It was a radial gradient — diepHi in the middle falling to diepLo at the edges — on the
+           argument that điệp is never evenly coated. Measured against the menu it hands over to at
+           the same six points, the bottom corners came out #ddcfad against the game's #e9dfc2:
+           the splash was a third of a shade darker down every edge, and the handover read as the
+           background changing colour. The game paints flat #e9dfc2 and grains it in the paper
+           pass, so this does too. */
+        background: #e9dfc2;
         color: #2a2118;
       }
 
@@ -915,7 +942,10 @@
           }
           if (!box) {
             var rr = root.getBoundingClientRect();
-            var h = Math.round(Math.max(620, Math.min(1040, 390 * (window.innerHeight / window.innerWidth))));
+            // Off the root's own box, exactly as `designHeight()` in `src/game/constants.ts` now
+            // does — the root is shorter than the window by the safe-area insets, and a splash
+            // sized to the window would hand over to a canvas of a different shape.
+            var h = Math.round(Math.max(620, Math.min(1040, 390 * ((rr.height || window.innerHeight) / (rr.width || window.innerWidth)))));
             var s = Math.min(rr.width / 390, rr.height / h);
             box = {
               x: rr.left + (rr.width - 390 * s) / 2,

@@ -10,6 +10,7 @@ import {
   defectHost,
   exileHero,
   freeBuilding,
+  grantEdictPoints,
   grantPowerCard,
   grantStoryHero,
   heroLeaves,
@@ -22,6 +23,7 @@ import {
   reinforceHosts,
   sabotageIncoming,
   spoilGranary,
+  standing,
   stipend,
   temper,
   terrainWork,
@@ -61,6 +63,7 @@ const warmest = (state: GameState) =>
 
 export const hoGuom: StoryTemplate = {
   id: 'ho-guom',
+  record: 'da-su',
   seedWeight: 2.2,
   minTurn: 20,
   regard: (ctx) => {
@@ -77,13 +80,40 @@ export const hoGuom: StoryTemplate = {
   },
   fragments: [
     {
+      id: 'ba-lai-do-thoi-ke',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_leave-it-in-the-water') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'guom-treo-tren-vach',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_take-it-up') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'a-blade-in-the-net',
       volume: 'card',
       band: 'river',
       weight: 6,
       options: [
         { id: 'take-it-up', apply: (ctx) => { ctx.remember('taken', 1); temper(ctx, 'martial', 9); ctx.heat(2); } },
-        { id: 'leave-it-in-the-water', apply: (ctx) => { ctx.bump('refused'); ctx.heat(-1); } },
+        {
+          // R1. He threw it back twice on his own account; a throne that lets him is a throne he
+          // is still under in ten years.
+          id: 'leave-it-in-the-water',
+          apply: (ctx) => {
+            ctx.bump('refused');
+            const finder = ctx.hero();
+            if (finder) temper(ctx, 'loyalty', 8, finder);
+            loyaltyFloor(ctx, 55, ctx.land());
+            ctx.heat(-1);
+          },
+        },
       ],
     },
     {
@@ -131,7 +161,12 @@ export const hoGuom: StoryTemplate = {
       tone: 'milestone',
       weight: 90,
       when: (ctx) => ctx.recall('returned') === 1,
-      effect: (ctx) => { ctx.leaveEcho(ctx.hero()?.name ?? ''); },
+      effect: (ctx) => {
+        // The recorded ending pays in permanence, which is the contract the tag is under: the
+        // lake keeps the name, and the place keeps a shrine that nothing wears off.
+        monument(ctx, { defense: 6, stability: 10 }, ctx.land());
+        ctx.leaveEcho(ctx.hero()?.name ?? '');
+      },
     },
     {
       id: 'he-will-not-put-it-down',
@@ -151,6 +186,7 @@ export const hoGuom: StoryTemplate = {
 
 export const noThan: StoryTemplate = {
   id: 'no-than',
+  record: 'da-su',
   seedWeight: 1.9,
   minTurn: 26,
   regard: (ctx) => {
@@ -166,6 +202,22 @@ export const noThan: StoryTemplate = {
   },
   fragments: [
     {
+      id: 'khong-ai-nhac-cai-no-nua',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_it-is-a-story-for-children') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'tho-lam-no-van-ngoi-do',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_arm-the-walls') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
       id: 'the-crossbow-that-fires-a-hundred',
       volume: 'card',
       weight: 6,
@@ -177,7 +229,11 @@ export const noThan: StoryTemplate = {
             ctx.remember('armed', 1);
           },
         },
-        { id: 'it-is-a-story-for-children', apply: (ctx) => { ctx.heat(-2); } },
+        {
+          // R2. Walls are men, not machines — so the artificers go where men go.
+          id: 'it-is-a-story-for-children',
+          apply: (ctx) => { reinforceHosts(ctx, 90); ctx.heat(-2); },
+        },
       ],
     },
     {
@@ -244,6 +300,7 @@ export const noThan: StoryTemplate = {
 
 export const yetKieu: StoryTemplate = {
   id: 'yet-kieu',
+  record: 'da-su',
   seedWeight: 2.4,
   minTurn: 16,
   regard: (ctx) => (ctx.recall('sent') === 1 ? 'in-the-water' : undefined),
@@ -253,6 +310,22 @@ export const yetKieu: StoryTemplate = {
     return { landId: land.id };
   },
   fragments: [
+    {
+      id: 'cai-khoan-o-nha-kho',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_no-man-can-do-that') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'nguoi-ta-do-nhau-lan-nua',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_send-him-out-tonight') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'a-man-who-can-stay-under',
       volume: 'card',
@@ -268,7 +341,16 @@ export const yetKieu: StoryTemplate = {
             ctx.remember('holed', lost);
           },
         },
-        { id: 'no-man-can-do-that', apply: (ctx) => { ctx.heat(-1); } },
+        {
+          // R1. Nobody believes him, and he is kept anyway; the hulls get looked at instead.
+          id: 'no-man-can-do-that',
+          apply: (ctx) => {
+            const diver = ctx.hero();
+            if (diver) temper(ctx, 'loyalty', 6, diver);
+            terrainWork(ctx, { defense: 4 }, ctx.land());
+            ctx.heat(-1);
+          },
+        },
       ],
     },
     {
@@ -298,7 +380,15 @@ export const yetKieu: StoryTemplate = {
             else ctx.remember('survived', 1);
           },
         },
-        { id: 'call-him-in', apply: (ctx) => { ctx.remember('survived', 1); } },
+        {
+          // R1. Enough hulls. Keep the man, and he knows it.
+          id: 'call-him-in',
+          apply: (ctx) => {
+            ctx.remember('survived', 1);
+            const diver = ctx.hero();
+            if (diver) { temper(ctx, 'martial', 5, diver); temper(ctx, 'loyalty', 8, diver); }
+          },
+        },
       ],
     },
     {
@@ -308,7 +398,12 @@ export const yetKieu: StoryTemplate = {
       tone: 'threat',
       weight: 90,
       when: (ctx) => ctx.recall('drowned') === 1,
-      effect: (ctx) => { ctx.leaveEcho(storyText('yet-kieu.title')); },
+      effect: (ctx) => {
+        // He drowned under their hulls and the fleet still lost a night's sleep over it.
+        // Every court that hears of it thinks a little better of this one.
+        standing(ctx, 8);
+        ctx.leaveEcho(storyText('yet-kieu.title'));
+      },
     },
     {
       id: 'the-fleet-that-was-not-a-fleet',
@@ -330,6 +425,7 @@ export const yetKieu: StoryTemplate = {
 
 export const vanDon: StoryTemplate = {
   id: 'van-don',
+  record: 'chinh-su',
   seedWeight: 2,
   minTurn: 22,
   regard: (ctx) => (ctx.recall('let-them-pass') === 1 ? 'waiting-behind' : undefined),
@@ -340,6 +436,14 @@ export const vanDon: StoryTemplate = {
     return { landId: land.id, kingdomId: cold(state)?.id };
   },
   fragments: [
+    {
+      id: 'thuyen-luong-ay-van-nhac',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_fight-them-at-the-mouth') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'the-war-fleet-passes-first',
       volume: 'card',
@@ -382,6 +486,7 @@ export const vanDon: StoryTemplate = {
 
 export const paperMoney: StoryTemplate = {
   id: 'paper-money',
+  record: 'chinh-su',
   seedWeight: 1.8,
   minTurn: 24,
   regard: (ctx) => (ctx.recall('issued') === 1 ? 'committed' : undefined),
@@ -391,6 +496,22 @@ export const paperMoney: StoryTemplate = {
     return { heroId: hero.id };
   },
   fragments: [
+    {
+      id: 'dong-tien-cu-van-chay',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_bronze-has-always-been-bronze') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'to-giay-trong-tay-ao',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_issue-the-notes') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'a-note-instead-of-a-coin',
       volume: 'card',
@@ -403,7 +524,16 @@ export const paperMoney: StoryTemplate = {
             debaseCurrency(ctx, 900, 30, storyText('paper-money.title'));
           },
         },
-        { id: 'bronze-has-always-been-bronze', apply: (ctx) => { ctx.heat(-2); ctx.remember('refused', 1); } },
+        {
+          // R1. Nobody in the market was asking for paper, and a market notices being left alone.
+          id: 'bronze-has-always-been-bronze',
+          apply: (ctx) => {
+            ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 6);
+            ctx.note('stability', 6);
+            ctx.heat(-2);
+            ctx.remember('refused', 1);
+          },
+        },
       ],
     },
     {
@@ -462,6 +592,7 @@ export const paperMoney: StoryTemplate = {
 
 export const luyThay: StoryTemplate = {
   id: 'luy-thay',
+  record: 'chinh-su',
   seedWeight: 1.7,
   minTurn: 34,
   regard: (ctx) => (ctx.recall('sworn:wall') === 1 ? 'digging' : undefined),
@@ -478,6 +609,14 @@ export const luyThay: StoryTemplate = {
     return { landId: frontier.id };
   },
   fragments: [
+    {
+      id: 'buc-tuong-dat-mua-mua',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-him-draw-the-line') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'the-strategist-who-came-late',
       volume: 'card',
@@ -496,7 +635,12 @@ export const luyThay: StoryTemplate = {
             ]);
           },
         },
-        { id: 'we-do-not-hide-behind-earth', apply: (ctx) => { ctx.heat(-1); } },
+        {
+          // R2. He is sent politely on his way, and the men who would have moved the earth
+          // are put in the ranks instead.
+          id: 'we-do-not-hide-behind-earth',
+          apply: (ctx) => { reinforceHosts(ctx, 70); ctx.heat(-1); },
+        },
       ],
     },
     {
@@ -530,6 +674,7 @@ export const luyThay: StoryTemplate = {
 
 export const vanMieu: StoryTemplate = {
   id: 'van-mieu',
+  record: 'chinh-su',
   seedWeight: 2,
   minTurn: 20,
   regard: (ctx) => (ctx.recall('opened') === 1 ? 'teaching' : undefined),
@@ -539,6 +684,22 @@ export const vanMieu: StoryTemplate = {
     return { landId: land.id };
   },
   fragments: [
+    {
+      id: 'cai-sao-van-de-trong',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_the-families-have-always-served') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'sam-cua-mot-nha-khac',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_open-the-examinations') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'the-sons-of-nobody',
       volume: 'card',
@@ -554,7 +715,49 @@ export const vanMieu: StoryTemplate = {
             ctx.state.court.stability = Math.max(0, ctx.state.court.stability - 8);
           },
         },
-        { id: 'the-families-have-always-served', apply: (ctx) => { ctx.heat(-1); ctx.bump('refused'); } },
+        {
+          // R1. The houses keep the offices. Everyone outside them hears about that too.
+          id: 'the-families-have-always-served',
+          apply: (ctx) => {
+            ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 8);
+            ctx.note('stability', 8);
+            standing(ctx, -4);
+            ctx.heat(-1);
+            ctx.bump('refused');
+          },
+        },
+      ],
+    },
+    {
+      /**
+       * Another stele.
+       *
+       * The doctoral stelae at the Văn Miếu are a list that was added to for three hundred years,
+       * one stone per examination, and a story about them that could only be answered once was
+       * the wrong shape. Standing, and only once the examinations are open.
+       */
+      id: 'dung-them-mot-tam-bia',
+      volume: 'whisper',
+      weight: 5,
+      quiet: 6,
+      repeatable: true,
+      maxTimes: 3,
+      when: (ctx) => ctx.recall('opened') === 1,
+      opening: { on: 'land', actionKey: 'dungBia' },
+      options: [
+        {
+          id: 'dung-bia',
+          cost: { gold: 120, supplies: 40 },
+          apply: (ctx) => {
+            const stones = ctx.bump('stelae');
+            ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 6);
+            ctx.note('stability', 6);
+            const scholar = ctx.hero();
+            if (scholar) temper(ctx, 'administration', 3, scholar);
+            // A courtyard full of names is a reason to sit the examination.
+            if (stones >= 2) grantEdictPoints(ctx, 1);
+          },
+        },
       ],
     },
     {
@@ -612,6 +815,7 @@ export const vanMieu: StoryTemplate = {
 
 export const thuDo: StoryTemplate = {
   id: 'thu-do',
+  record: 'chinh-su',
   seedWeight: 1.8,
   minTurn: 28,
   regard: (ctx) => (ctx.recall('backed') === 1 ? 'indispensable' : undefined),
@@ -623,6 +827,22 @@ export const thuDo: StoryTemplate = {
     return { heroId: minister.id, otherHeroId: other?.id };
   },
   fragments: [
+    {
+      id: 'trieu-dinh-van-cai-nhau',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_a-court-is-supposed-to-argue') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
+    {
+      id: 'ban-danh-sach-da-ngan',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-him-clean-it-out') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'the-court-is-full-of-cousins',
       volume: 'card',
@@ -636,7 +856,18 @@ export const thuDo: StoryTemplate = {
             exileHero(ctx, ctx.otherHero(), 16);
           },
         },
-        { id: 'a-court-is-supposed-to-argue', apply: (ctx) => { ctx.heat(-1); ctx.bump('refused'); } },
+        {
+          // R1. He is told to put the list away, and he puts the list away.
+          id: 'a-court-is-supposed-to-argue',
+          apply: (ctx) => {
+            const reformer = ctx.hero();
+            if (reformer) temper(ctx, 'loyalty', -8, reformer);
+            ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 5);
+            ctx.note('stability', 5);
+            ctx.heat(-1);
+            ctx.bump('refused');
+          },
+        },
       ],
     },
     {
@@ -698,6 +929,7 @@ export const thuDo: StoryTemplate = {
 
 export const binhTrong: StoryTemplate = {
   id: 'binh-trong',
+  record: 'chinh-su',
   seedWeight: 1.9,
   minTurn: 30,
   regard: (ctx) => (ctx.recall('captured') === 1 ? 'held' : undefined),
@@ -708,6 +940,14 @@ export const binhTrong: StoryTemplate = {
     return { heroId: hero.id, kingdomId: rival.id };
   },
   fragments: [
+    {
+      id: 'cai-ten-o-ben-do',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_let-him-answer-them-himself') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'the-rearguard-does-not-come-back',
       volume: 'blow',
@@ -737,8 +977,9 @@ export const binhTrong: StoryTemplate = {
           },
         },
         {
+          // R4. They wrote to you about him and you did not write back. They mark it down.
           id: 'let-him-answer-them-himself',
-          apply: (ctx) => { ctx.remember('left-him', 1); },
+          apply: (ctx) => { ctx.remember('left-him', 1); opinion(ctx, -10); },
         },
       ],
     },
@@ -779,6 +1020,7 @@ export const binhTrong: StoryTemplate = {
 
 export const khucThuaDu: StoryTemplate = {
   id: 'khuc-thua-du',
+  record: 'chinh-su',
   seedWeight: 1.7,
   minTurn: 18,
   regard: (ctx) => (ctx.recall('sworn:quiet') === 1 ? 'negotiating' : undefined),
@@ -788,6 +1030,14 @@ export const khucThuaDu: StoryTemplate = {
     return { kingdomId: rival.id };
   },
   fragments: [
+    {
+      id: 'khong-ai-hoi-giay-to',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_simply-govern') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'nobody-is-coming-to-govern-us',
       volume: 'card',
@@ -845,6 +1095,7 @@ export const khucThuaDu: StoryTemplate = {
 
 export const theDykes: StoryTemplate = {
   id: 'the-dykes',
+  record: 'chinh-su',
   seedWeight: 2.3,
   minTurn: 14,
   allowMultiple: false,
@@ -856,6 +1107,14 @@ export const theDykes: StoryTemplate = {
     return { landId: land.id };
   },
   fragments: [
+    {
+      id: 'con-de-nam-do',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_call-the-corvee') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'the-river-is-higher-than-the-fields',
       volume: 'card',
@@ -873,8 +1132,15 @@ export const theDykes: StoryTemplate = {
           },
         },
         {
+          // R3. Four dry days and the whole crop is in. The upside was simply missing: the beat
+          // that follows already carries the flood, so the gamble read as a loss with a delay
+          // on it rather than as a gamble.
           id: 'the-harvest-comes-first',
-          apply: (ctx) => { ctx.remember('gambled', 1); ctx.heat(2); },
+          apply: (ctx) => {
+            ctx.remember('gambled', 1);
+            windfall(ctx, { food: 140, gold: 60 });
+            ctx.heat(2);
+          },
         },
       ],
     },
@@ -913,6 +1179,7 @@ export const theDykes: StoryTemplate = {
 
 export const cheBongNga: StoryTemplate = {
   id: 'che-bong-nga',
+  record: 'chinh-su',
   seedWeight: 1.6,
   minTurn: 40,
   regard: (ctx) => (ctx.recall('raids') >= 2 ? 'hunted' : undefined),
@@ -922,6 +1189,14 @@ export const cheBongNga: StoryTemplate = {
     return { kingdomId: rival.id, landId: state.ascent?.capitalLandId };
   },
   fragments: [
+    {
+      id: 'nguoi-ban-sung-di-roi',
+      volume: 'whisper',
+      weight: 4,
+      quiet: 4,
+      when: (ctx) => ctx.recall('chose_buy-the-deserter') === 1,
+      salience: (ctx) => (ctx.age >= 5 ? 5 : -20),
+    },
     {
       id: 'he-was-in-the-capital-before-anyone-knew',
       volume: 'blow',
@@ -955,7 +1230,11 @@ export const cheBongNga: StoryTemplate = {
             ctx.remember('bought', 1);
           },
         },
-        { id: 'meet-him-in-the-field', apply: (ctx) => { ctx.remember('field', 1); } },
+        {
+          // R2. Fight him properly, like a king, in front of everybody.
+          id: 'meet-him-in-the-field',
+          apply: (ctx) => { ctx.remember('field', 1); reinforceHosts(ctx, 80); standing(ctx, 6); },
+        },
       ],
     },
     {

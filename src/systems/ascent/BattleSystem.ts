@@ -559,7 +559,9 @@ export function summonAdjacentRelief(state: GameState, landId: string): void {
       && army.landId !== capitalId
       // Only hosts the autopilot may move, or one whose own standing order is to defend this very
       // province: a host told to hold its ground, or to go somewhere else, is not pulled off it.
-      && (isAutoHost(army) || (army.orders?.kind === 'defend' && army.orders.landId === landId))
+      // An auxiliary is never an auto host — see `isAutoHost` — but running at the nearest
+      // fighting is the whole of what it does, so it is named here explicitly.
+      && (isAutoHost(army) || Boolean(army.patron) || (army.orders?.kind === 'defend' && army.orders.landId === landId))
       && totalUnits(army) > 0
       && !state.movementOrders.some((order) => order.armyId === army.id)
       && !state.siegeOrders.some((order) => order.armyId === army.id),

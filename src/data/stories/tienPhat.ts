@@ -464,7 +464,13 @@ export const tienPhat: StoryTemplate = {
       weight: 10,
       terminal: true,
       tone: 'threat',
-      effect: (ctx) => { ctx.remember('abroad', 0); },
+      effect: (ctx) => {
+        ctx.remember('abroad', 0);
+        // The host was lost seasons ago, in `commitHostAbroad`, so the ledger has nothing to
+        // report here and the ending had no present tense at all. What is happening *now* is
+        // that everybody has been told.
+        standing(ctx, -10);
+      },
     },
 
     // ══ cho-giac-toi — the conservative line ═══════════════════════════════

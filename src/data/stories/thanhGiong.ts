@@ -68,6 +68,21 @@ export const thanhGiong: StoryTemplate = {
   seedWeight: 3,
   minTurn: 20,
 
+  /**
+   * The middle of the wager, said out loud. The player is deciding whether to pay a third time
+   * and had nothing to read but the door's price; this is the giant, in the doorway, measured
+   * against a clock nobody set.
+   */
+  pressure: (ctx) => {
+    if (ctx.recall('rode') >= 1) return undefined;
+    const fed = ctx.recall('nuoi');
+    if (fed >= 3) return 'san-sang';
+    if (fed >= 2) return 'cao-hon-cua';
+    if (fed >= 1) return 'an-mot-lan';
+    if (ctx.recall('forged') === 1) return 'chua-an';
+    return undefined;
+  },
+
   regard: (ctx) => {
     if (ctx.recall('rode') >= 1) return 'gone';
     if (ctx.recall('nuoi') >= 2) return 'rising';
@@ -269,6 +284,10 @@ export const thanhGiong: StoryTemplate = {
             const fed = ctx.bump('nuoi');
             const land = ctx.land();
             if (land) land.loyalty = Math.min(100, land.loyalty + 5);
+            // Which sending this was. The door takes two hundred able men and ninety of stores
+            // and used to report nothing whatsoever, so the wager's whole middle — the part
+            // where you are deciding whether to pay again — was invisible.
+            ctx.note('fed', fed);
             // He is visibly bigger, and the province can see where this is going.
             if (fed >= 2) ctx.heat(1);
           },

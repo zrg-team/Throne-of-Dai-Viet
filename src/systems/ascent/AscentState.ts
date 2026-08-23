@@ -131,24 +131,72 @@ const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
 };
 
 /**
- * Queues a decision. Only one prompt of a kind can be outstanding — a second conquest prompt
- * while one is already pending would be stale by the time it showed. Power drafts are the
- * exception: they stack as a counter so a level-up earned mid-prompt is never lost.
+/**
+ * Kinds where a second prompt is *the same question asked again with fresher numbers*, not a
+ * second thing to decide.
+ *
+ * A conquest target list, a wave response, a founding gift — each is recomputed from live state
+ * every time it is raised, so two of them are one decision, and the newer one is strictly the
+ * truer one. These supersede in place: the stale copy goes, the question stays.
+ *
+ * `power-draft` is here for a different reason and it matters: the draft is backed by the
+ * `pendingLevelUps` counter, so a level earned while one is open is already banked and a second
+ * card would open the same draft twice for one level.
+ *
+ * **Everything not in this set stacks.** A second court appointment, a second envoy, a second
+ * famine, a second beat of a story is a *different* thing being asked, and dropping it is the
+ * game deciding something needed the player and then quietly deciding it did not.
+ */
+const SUPERSEDED: ReadonlySet<AscentPromptKind> = new Set<AscentPromptKind>([
+  'conquer-target', 'conquer-method', 'empire-response', 'wave-result', 'mandate', 'founder',
+  'power-draft',
+]);
+
+/**
+ * How many of one kind may wait at once.
+ *
+ * Not unbounded: a run that banks eleven court appointments through a long siege hands the player
+ * eleven cards the moment it ends, which is its own kind of losing them. Past the cap the *oldest*
+ * of that kind gives way, so what survives is what is still true.
+ */
+const MAX_QUEUED_PER_KIND = 3;
+
+/**
+ * Queues a decision.
+ *
+ * The rule this used to follow was "only one prompt of a kind can be outstanding", and a second
+ * was simply dropped on the floor. From the throne that reads as a card removing another card:
+ * two champions arrive and you are asked about one, a second province revolts and nobody tells
+ * you. Distinct requests now stack; only genuinely-recomputed ones supersede.
  */
 export function enqueueAscentPrompt(state: GameState, prompt: AscentPrompt): void {
   const ascent = state.ascent;
   if (!ascent) return;
 
   if (prompt.kind === 'run-over') {
+    // The one card that is allowed to take the screen from everything else, because there is
+    // nothing left to answer.
     ascent.promptQueue = [prompt];
     state.pendingAscentPrompt = undefined;
     return;
   }
 
-  const alreadyLive = state.pendingAscentPrompt?.kind === prompt.kind;
-  const alreadyQueued = ascent.promptQueue.some((queued) => queued.kind === prompt.kind);
-  if (alreadyLive || alreadyQueued) return;
+  if (SUPERSEDED.has(prompt.kind)) {
+    // Already on screen: the player is looking at this exact question and the answer they give
+    // is applied against live state anyway. Leave it alone rather than swapping the card under
+    // their hand mid-read.
+    if (state.pendingAscentPrompt?.kind === prompt.kind) return;
+    const at = ascent.promptQueue.findIndex((queued) => queued.kind === prompt.kind);
+    if (at >= 0) ascent.promptQueue[at] = prompt;
+    else ascent.promptQueue.push(prompt);
+    return;
+  }
 
+  const waiting = ascent.promptQueue.filter((queued) => queued.kind === prompt.kind).length;
+  if (waiting >= MAX_QUEUED_PER_KIND) {
+    const oldest = ascent.promptQueue.findIndex((queued) => queued.kind === prompt.kind);
+    ascent.promptQueue.splice(oldest, 1);
+  }
   ascent.promptQueue.push(prompt);
 }
 

@@ -77,7 +77,11 @@ export function t(key: TranslationKey, params: TranslationParams = {}): string {
 }
 
 export function interpolate(template: string, params: TranslationParams = {}): string {
-  return template.replace(/\{(\w+)\}/g, (match, name) => {
+  // Hyphens count. `\w` does not include one, so `{chinh-su}` never substituted and the
+  // Chronicle's identity line rendered as `Chính sử {chinh-su} · Dã sử {da-su}` — at the head of
+  // the recorded endings and again at the Reckoning. The only hyphenated tokens in the whole
+  // catalogue are those three source classes, so nothing else changes shape.
+  return template.replace(/\{([\w-]+)\}/g, (match, name) => {
     const value = params[name];
     return typeof value === 'undefined' ? match : String(value);
   });

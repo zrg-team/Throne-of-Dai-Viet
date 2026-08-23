@@ -87,6 +87,7 @@ export function grantHost(ctx: StoryCtx, size: number, at?: Land): Army | undefi
     experienceToNextLevel: 140,
   };
   ctx.state.armies.push(army);
+  ctx.note('soldiers', size);
   return army;
 }
 
@@ -101,6 +102,7 @@ export function reinforceHosts(ctx: StoryCtx, soldiers: number): void {
     army.units.heavyInfantry += Math.round(each * 0.1);
     army.morale = Math.min(100, army.morale + 6);
   }
+  ctx.note('soldiers', each * hosts.length);
 }
 
 /** A free elite tier on every host. Small number, large felt difference. */
@@ -108,6 +110,7 @@ export function grantEliteTier(ctx: StoryCtx): void {
   for (const army of ourHosts(ctx)) {
     army.elite = Math.min(2, (army.elite ?? 0) + 1);
   }
+  ctx.note('elite', 1);
 }
 
 /**
@@ -157,6 +160,7 @@ export function commitHostAbroad(ctx: StoryCtx, key = 'abroad'): number {
   ctx.remember(key, size);
   ctx.remember(`${key}Level`, host.level ?? 1);
   ctx.state.armies = ctx.state.armies.filter((army) => army.id !== host.id);
+  ctx.note('hostAbroad', size);
   return size;
 }
 
@@ -195,6 +199,7 @@ export function killEnemyGeneral(ctx: StoryCtx): boolean {
   if (!army) return false;
   army.generalHeroId = undefined;
   army.morale = Math.max(15, army.morale - 25);
+  ctx.note('enemyGeneral', 1);
   return true;
 }
 
@@ -208,6 +213,7 @@ export function disperseIncoming(ctx: StoryCtx, share = 1): number {
     ctx.state.armies = ctx.state.armies.filter((candidate) => candidate.id !== army.id);
     ctx.state.invasions = (ctx.state.invasions ?? []).filter((rec) => rec.armyId !== army.id);
   }
+  if (gone > 0) ctx.note('enemySoldiers', -gone);
   return gone;
 }
 
@@ -216,7 +222,9 @@ export function launchHostNow(ctx: StoryCtx, sizeMult = 1): boolean {
   const rival = ctx.rival()
     ?? ctx.state.kingdoms.find((k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated);
   if (!rival) return false;
-  return launchPunitiveHost(ctx.state, rival.id, { conquest: true, sizeMult });
+  const launched = launchPunitiveHost(ctx.state, rival.id, { conquest: true, sizeMult });
+  if (launched) ctx.note('hostLaunched', undefined, rival.name);
+  return launched;
 }
 
 // ── Rebellion ───────────────────────────────────────────────────────────────
@@ -283,6 +291,7 @@ export function withholdTax(ctx: StoryCtx, seasons: number, land?: Land): void {
 export function loyaltyFloor(ctx: StoryCtx, floor: number, only?: Land): void {
   const lands = only ? [only] : ourLands(ctx);
   for (const land of lands) land.loyalty = Math.max(land.loyalty, floor);
+  ctx.note('loyaltyFloor', floor, only ? only.name : undefined);
 }
 
 // ── Heroes ──────────────────────────────────────────────────────────────────
@@ -307,6 +316,7 @@ export function grantStoryHero(
   hero.stats.renown = opts.renown ?? hero.stats.renown;
   hero.traits = [...(hero.traits ?? []), opts.trait];
   ctx.state.heroes.push(hero);
+  ctx.note('hero', 1, hero.name);
   return hero;
 }
 
@@ -316,6 +326,7 @@ export function killHero(ctx: StoryCtx, hero?: Hero): Hero | undefined {
   if (!target) return undefined;
   unseat(ctx, target);
   ctx.state.heroes = ctx.state.heroes.filter((candidate) => candidate.id !== target.id);
+  ctx.note('heroLost', 1, target.name);
   return target;
 }
 
@@ -326,7 +337,10 @@ export function heroLeaves(ctx: StoryCtx, hero?: Hero, leaveEcho = true): Hero |
   unseat(ctx, target);
   ctx.state.heroes = ctx.state.heroes.filter((candidate) => candidate.id !== target.id);
   ctx.state.heroDeck.push(target);
-  if (leaveEcho) recordEcho(ctx.story.templateId, ctx.story.spoken[ctx.story.spoken.length - 1] ?? '', target.name);
+  // `ctx.speaking` for the same reason as in `StorySystem.makeCtx`: called from an option's
+  // `apply` the id has not been pushed yet, and the echo would be filed under the previous beat.
+  if (leaveEcho) recordEcho(ctx.story.templateId, ctx.speaking ?? ctx.story.spoken[ctx.story.spoken.length - 1] ?? '', target.name);
+  ctx.note('heroLeft', 1, target.name);
   return target;
 }
 
@@ -344,6 +358,7 @@ export function bondHeroes(ctx: StoryCtx, a?: Hero, b?: Hero): boolean {
     label: `${first.name} · ${second.name}`,
     armyPowerModifier: 0.12,
   });
+  ctx.note('sworn', undefined, `${first.name} · ${second.name}`);
   return true;
 }
 
@@ -358,6 +373,7 @@ export function feudHeroes(ctx: StoryCtx, a?: Hero, b?: Hero): boolean {
   second.stats.loyalty = Math.max(0, second.stats.loyalty - 12);
   // One of them will not take an order from the other's province.
   if (second.assignedTo && second.assignedTo === first.assignedTo) second.assignedTo = undefined;
+  ctx.note('feud', undefined, `${first.name} · ${second.name}`);
   return true;
 }
 
@@ -374,7 +390,11 @@ export function captureHero(ctx: StoryCtx, hero?: Hero): Hero | undefined {
 export function temper(ctx: StoryCtx, stat: keyof Hero['stats'], by: number, hero?: Hero): void {
   const target = hero ?? ctx.hero();
   if (!target) return;
+  const before = target.stats[stat];
   target.stats[stat] = Math.max(0, Math.min(100, target.stats[stat] + by));
+  // The move that landed, not the one asked for: the stat clamps at both ends, and a card that
+  // claims +14 renown on a man already at 96 is lying about the only thing it did.
+  if (target.stats[stat] !== before) ctx.note(stat, target.stats[stat] - before, target.name);
 }
 
 // ── Land ────────────────────────────────────────────────────────────────────
@@ -389,6 +409,7 @@ export function joinBloodlessly(ctx: StoryCtx, land?: Land): Land | undefined {
   target.ownerId = PLAYER_KINGDOM_ID;
   target.loyalty = Math.max(target.loyalty, 70);
   applyResourceDelta(ctx.state, { humans: Math.round(target.population * 0.2) });
+  ctx.note('land', 1, target.name);
   return target;
 }
 
@@ -397,6 +418,7 @@ export function freeBuilding(ctx: StoryCtx, type: LandBuildingType, land?: Land)
   const target = land ?? ctx.land();
   if (!target || target.buildings.length >= target.buildingCapacity) return false;
   target.buildings.push({ type, level: 1 });
+  ctx.note('building', 1, target.name);
   return true;
 }
 
@@ -412,6 +434,9 @@ export function terrainWork(ctx: StoryCtx, opts: { defense?: number; food?: numb
     target.outputs.food += opts.food ?? 0;
     target.outputs.gold += opts.gold ?? 0;
   }
+  if (opts.defense) ctx.note('landDefense', opts.defense, target.name);
+  if (opts.food) ctx.note('landFood', opts.food, target.name);
+  if (opts.gold) ctx.note('landGold', opts.gold, target.name);
 }
 
 /** A province is razed: people gone, buildings gone, and it stays yours. */
@@ -435,12 +460,16 @@ export function population(ctx: StoryCtx, factor: number, land?: Land): void {
 
 export function windfall(ctx: StoryCtx, bag: Partial<ResourceBag>): void {
   applyResourceDelta(ctx.state, bag);
+  for (const [key, value] of Object.entries(bag)) {
+    if (value) ctx.note(key, value);
+  }
 }
 
 /** The treasury is seized. All of it, which is the only version of this worth writing. */
 export function seizeTreasury(ctx: StoryCtx): number {
   const taken = Math.floor(ctx.state.resources.gold);
   applyResourceDelta(ctx.state, { gold: -taken });
+  ctx.note('gold', -taken);
   return taken;
 }
 
@@ -452,6 +481,7 @@ export function debt(ctx: StoryCtx, perSeason: number, seasons: number): void {
     remainingTicks: seasons,
     resourceRateModifier: { gold: -perSeason },
   });
+  ctx.note('debt', perSeason);
 }
 
 /** A standing gain for a while — a trade route, a tribute redirected, a good harvest. */
@@ -462,6 +492,7 @@ export function stipend(ctx: StoryCtx, bag: Partial<ResourceBag>, seasons: numbe
     remainingTicks: seasons,
     resourceRateModifier: bag,
   });
+  ctx.note('stipend', seasons, label);
 }
 
 /** The granary spoils. Not a rate change — the stores themselves. */
@@ -477,6 +508,7 @@ export function opinion(ctx: StoryCtx, by: number, kingdomId?: string): void {
     : ctx.rival();
   if (!target) return;
   target.relations = Math.max(0, Math.min(100, (target.relations ?? 50) + by));
+  ctx.note('opinion', by, target.name);
 }
 
 /** Every third party that was watching revises its opinion at once. */
@@ -485,6 +517,7 @@ export function standing(ctx: StoryCtx, by: number): void {
     if (kingdom.id === PLAYER_KINGDOM_ID || kingdom.isDefeated) continue;
     kingdom.relations = Math.max(0, Math.min(100, (kingdom.relations ?? 50) + by));
   }
+  ctx.note('standing', by);
 }
 
 /** A coalition: everyone who already disliked you decides together. */
@@ -497,6 +530,7 @@ export function coalition(ctx: StoryCtx): number {
     kingdom.relations = Math.max(0, (kingdom.relations ?? 50) - 15);
     joined += 1;
   }
+  if (joined > 0) ctx.note('coalition', joined);
   return joined;
 }
 
@@ -542,6 +576,7 @@ export function grantPowerCard(ctx: StoryCtx, cardId: string): boolean {
   const card = findPowerCard(cardId);
   if (!card || ascent.retiredCards.includes(cardId)) return false;
   ascent.cardStacks[cardId] = (ascent.cardStacks[cardId] ?? 0) + 1;
+  ctx.note('card', 1, card.id);
   return true;
 }
 
@@ -554,6 +589,7 @@ export function suppressPowerCard(ctx: StoryCtx, cardId?: string): string | unde
   if (!target) return undefined;
   delete ascent.cardStacks[target];
   ascent.retiredCards.push(target);
+  ctx.note('cardLost', 1, target);
   return target;
 }
 
@@ -562,6 +598,7 @@ export function tiltDraft(ctx: StoryCtx, rarity: AscentRarity, by: number): void
   const ascent = ctx.state.ascent;
   if (!ascent) return;
   ascent.draftWeights[rarity] = Math.max(0.1, (ascent.draftWeights[rarity] ?? 1) + by);
+  ctx.note('draftTilt', by, rarity);
 }
 
 /** A level-up owed immediately — a draft the player did not earn by fighting. */
@@ -569,13 +606,18 @@ export function grantDraft(ctx: StoryCtx, count = 1): void {
   const ascent = ctx.state.ascent;
   if (!ascent) return;
   ascent.pendingLevelUps += count;
+  ctx.note('draft', count);
 }
 
 /** The wave clock moves. Slower is a reprieve; faster is a story acting against you. */
 export function shiftWaveClock(ctx: StoryCtx, seasons: number): void {
   const ascent = ctx.state.ascent;
   if (!ascent) return;
+  const before = ascent.ticksToWave;
   ascent.ticksToWave = Math.max(1, ascent.ticksToWave + seasons);
+  // The move the clock actually made, not the one that was asked for — it floors at one season,
+  // and a story that bought four when three were left must not claim four.
+  if (ascent.ticksToWave !== before) ctx.note('waveClock', ascent.ticksToWave - before);
 }
 
 /** An extra province the realm may court at once, permanently. */
@@ -585,12 +627,14 @@ export function grantClaimSlot(ctx: StoryCtx, count = 1): void {
     label: 'Sứ đoàn',
     claimSlotBonus: count,
   });
+  ctx.note('claimSlot', count);
 }
 
 /** Edict points, so a story can hand the player a law they have not earned. */
 export function grantEdictPoints(ctx: StoryCtx, count = 1): void {
   if (!ctx.state.mandate) return;
   ctx.state.mandate.edictPoints = (ctx.state.mandate.edictPoints ?? 0) + count;
+  ctx.note('edictPoints', count);
 }
 
 /**
@@ -611,6 +655,7 @@ export function grantDecree(ctx: StoryCtx, decreeId: string): boolean {
   mandate.taughtDecrees ??= [];
   if (mandate.taughtDecrees.includes(decreeId)) return false;
   mandate.taughtDecrees.push(decreeId);
+  ctx.note('decree', 1);
   return true;
 }
 
@@ -618,13 +663,65 @@ export function grantDecree(ctx: StoryCtx, decreeId: string): boolean {
 
 /** Something a later run gets to mention by name. */
 export function leaveEcho(ctx: StoryCtx, name: string): void {
-  recordEcho(ctx.story.templateId, ctx.story.spoken[ctx.story.spoken.length - 1] ?? '', name);
+  // See `StorySystem.makeCtx`: an option's `apply` runs before `fire` pushes the id, so keying
+  // off `spoken[last]` filed every echo left from an *answer* under the previous beat, where
+  // `echoOf` could never find it again.
+  recordEcho(ctx.story.templateId, ctx.speaking ?? ctx.story.spoken[ctx.story.spoken.length - 1] ?? '', name);
+}
+
+/**
+ * A death the realm writes down.
+ *
+ * Three things at once, because a memorial that is only one of them is a trophy. It goes in the
+ * reign's own record (`state.memorials`, which nothing evicts, unlike the sixty-entry Chronicle
+ * ring). It becomes a standing court modifier every host feels for the rest of the run — the
+ * mechanical half, and free, because `addCourtModifier` with no `remainingTicks` is already
+ * permanent and already read by `armyPower`. And it goes into the cross-run echo ring marked as a
+ * memorial, so a later dynasty can say the name aloud.
+ *
+ * Deliberately **not** a hero a later run inherits: `getFounderPool` reads authored hero
+ * templates, and a person a story made up has no template to unlock. A name that comes back is
+ * the honest version of that promise; a stat block is not.
+ */
+export function enshrine(
+  ctx: StoryCtx,
+  opts: { name: string; key: string; land?: Land; armyPower?: number; loyaltyFloor?: number; deeds?: number },
+): void {
+  const { state } = ctx;
+  const id = `memorial-${ctx.story.templateId}-${opts.key}`;
+  state.memorials = [...(state.memorials ?? []).filter((entry) => entry.id !== id), {
+    id,
+    name: opts.name,
+    templateId: ctx.story.templateId,
+    key: opts.key,
+    turn: state.turn,
+    landId: opts.land?.id,
+    loyaltyFloor: opts.loyaltyFloor,
+    deeds: opts.deeds,
+  }];
+  addCourtModifier(state, {
+    id,
+    label: opts.name,
+    armyPowerModifier: opts.armyPower ?? 0.05,
+  });
+  recordEcho(ctx.story.templateId, ctx.speaking ?? ctx.story.spoken[ctx.story.spoken.length - 1] ?? '', opts.name, 'memorial');
+  ctx.note('memorial', undefined, opts.name);
 }
 
 /** Says it out loud, in the header strip, in the story's own voice. */
 export function announce(ctx: StoryCtx, text: string, kind: 'info' | 'reward' | 'threat' = 'info'): void {
-  pushToast(ctx.state, text, kind);
+  pushToast(ctx.state, text, kind, {
+    storyId: ctx.story.id,
+    templateId: ctx.story.templateId,
+    fragmentId: ctx.speaking ?? ctx.story.spoken[ctx.story.spoken.length - 1] ?? '',
+  });
 }
+
+// ── The auxiliary ────────────────────────────────────────────────────
+//
+// Re-exported rather than reimplemented, so an author reaching for a host still has one
+// vocabulary to look in. The mechanics and the reasoning live in `patrons.ts`.
+export { patronHost, patronStrength, raisePatronHost, reinforcePatron } from './patrons';
 
 // ── The annals layer ────────────────────────────────────────────────────────
 //
@@ -647,6 +744,7 @@ export function truce(ctx: StoryCtx, kingdomId: string | undefined, warmth = 45)
   if (!kingdom) return false;
   kingdom.relations = Math.min(100, (kingdom.relations ?? 50) + warmth);
   kingdom.warAppetite = Math.max(0, (kingdom.warAppetite ?? 0) - 60);
+  ctx.note('truce', undefined, kingdom.name);
   return true;
 }
 
@@ -663,6 +761,7 @@ export function conscript(ctx: StoryCtx, soldiers: number, at?: Land): Army | un
   const taken = Math.min(soldiers, available);
   if (taken < 60) return undefined;
   applyResourceDelta(ctx.state, { humans: -taken });
+  ctx.note('humans', -taken);
   return grantHost(ctx, taken, at);
 }
 
@@ -682,6 +781,7 @@ export function sabotageIncoming(ctx: StoryCtx, share = 0.3): number {
     army.supply = Math.max(10, army.supply - 25);
     lost += before - headcount(army);
   }
+  if (lost > 0) ctx.note('enemySoldiers', -lost);
   return lost;
 }
 
@@ -700,7 +800,11 @@ export function plunderSupply(ctx: StoryCtx): number {
     army.supply = Math.max(5, army.supply - 35);
     army.morale = Math.max(15, army.morale - 18);
   }
-  if (food > 0) applyResourceDelta(ctx.state, { food, supplies: Math.floor(food * 0.4) });
+  if (food > 0) {
+    applyResourceDelta(ctx.state, { food, supplies: Math.floor(food * 0.4) });
+    ctx.note('food', food);
+    ctx.note('supplies', Math.floor(food * 0.4));
+  }
   return food;
 }
 
@@ -716,6 +820,7 @@ export function monument(ctx: StoryCtx, opts: { defense: number; stability: numb
   if (!land) return undefined;
   land.defense += opts.defense;
   ctx.state.court.stability = Math.min(100, ctx.state.court.stability + opts.stability);
+  ctx.note('monument', undefined, land.name);
   return land;
 }
 
@@ -732,6 +837,7 @@ export function exileHero(ctx: StoryCtx, hero?: Hero, stability = 12): Hero | un
   unseat(ctx, target);
   ctx.state.heroes = ctx.state.heroes.filter((candidate) => candidate.id !== target.id);
   ctx.state.court.stability = Math.min(100, ctx.state.court.stability + stability);
+  ctx.note('heroExiled', 1, target.name);
   return target;
 }
 
@@ -747,6 +853,7 @@ export function amnesty(ctx: StoryCtx, by = 18): void {
     land.loyalty = Math.min(100, land.loyalty + by);
   }
   ctx.state.court.stability = Math.min(100, ctx.state.court.stability + 6);
+  ctx.note('amnesty', by);
 }
 
 /**
@@ -767,6 +874,7 @@ export function academy(ctx: StoryCtx, seasons: number, label: string): void {
     courtCardSpeedModifier: 0.4,
     resourceRateModifier: { gold: 4 },
   });
+  ctx.note('academy', seasons, label);
 }
 
 /**

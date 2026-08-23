@@ -140,8 +140,18 @@ const run = await page.evaluate(async () => {
   // Measured on a living realm. A long run can end annihilated — a roguelite is allowed to
   // lose — and a realm with no provinces has nobody to starve, so the stress falls back to a
   // fresh realm advanced sixty seasons rather than reading nothing off a dead one.
+  //
+  // The population floor is the same rule, honestly stated. "No provinces" was too narrow: a run
+  // that clung on at one battered province with fifty people in it still passed the guard, and
+  // then a six-season famine took nothing off fifty and logged nothing, so both starvation checks
+  // failed for want of anybody to starve rather than for want of working machinery. What the
+  // stress needs is a realm with something to lose, not merely a realm that exists.
+  const STRESS_MIN_POP = 150;
+  const livingPop = st.lands
+    .filter((l) => l.ownerId === 'dai-viet')
+    .reduce((n, l) => n + l.population, 0);
   let stress = st;
-  if (st.isDefeated || !st.lands.some((l) => l.ownerId === 'dai-viet')) {
+  if (st.isDefeated || livingPop < STRESS_MIN_POP) {
     stress = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
     stress.ascent.autoResolveBattles = true;
     for (let i = 0; i < 60 && !stress.isDefeated; i += 1) {
@@ -156,7 +166,14 @@ const run = await page.evaluate(async () => {
   }
   // The run may well have no standing host by now, and only army rations can drive the food
   // rate below zero (civilian demand withholds at source and floors at nothing). Conjure one.
-  const feedMe = stress.armies.find((a) => a.kingdomId === 'dai-viet' && !a.isLevy)
+  //
+  // It has to be a host the *realm* feeds. A garrison levy is fed by its province and an
+  // auxiliary (`Army.patron` — a host a story raised, which lives on what it was given) is fed
+  // by whoever raised it; neither draws on the granary, so inflating one by fifty thousand men
+  // produces fifty thousand men who eat nothing and a famine that never arrives. The levy was
+  // already excluded here for exactly that reason; the auxiliary is the same rule, and the
+  // conjured fallback has to clear the flag too or it inherits it from whatever it cloned.
+  const feedMe = stress.armies.find((a) => a.kingdomId === 'dai-viet' && !a.isLevy && !a.patron)
     ?? (() => {
       const proto = JSON.parse(JSON.stringify(stress.armies[0]));
       proto.id = 'stress-host';
@@ -164,6 +181,7 @@ const run = await page.evaluate(async () => {
       proto.landId = (stress.lands.find((l) => l.ownerId === 'dai-viet') ?? stress.lands[0]).id;
       proto.generalHeroId = undefined;
       proto.isLevy = undefined;
+      proto.patron = undefined;
       stress.armies.push(proto);
       return proto;
     })();
