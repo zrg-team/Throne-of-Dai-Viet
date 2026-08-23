@@ -83,9 +83,12 @@ interface SpeedProfile {
  * was written to keep.
  */
 const SPEED: Record<BattleSpeed, SpeedProfile> = {
-  slow: { beatsPerTick: 4, tickMs: 840 },
-  normal: { beatsPerTick: 6, tickMs: 560 },
-  fast: { beatsPerTick: 9, tickMs: 373 },
+  // A beat is shown for 875 ms now, up from 560. At 560 a 28-beat fight was over in 25 s and read
+  // as a dice roll — "no game feeling at all" — and every number on the rails stepped faster than
+  // the eye could settle on it. The product still matches the world tick.
+  slow: { beatsPerTick: 3, tickMs: 1166 },
+  normal: { beatsPerTick: 4, tickMs: 875 },
+  fast: { beatsPerTick: 6, tickMs: 583 },
 };
 
 const DIFFICULTY_KEY = 'mandate:battle:difficulty:v1';

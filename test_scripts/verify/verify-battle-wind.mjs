@@ -163,9 +163,13 @@ for (const temper of ['hasty', 'stubborn']) {
     // Mirror them every beat (a direct write, no walk): the tilt is pinned at 0, so the ONLY
     // thing that can move them is restlessness. A rotation they make into a counter would end
     // the probe otherwise — a restless commander who finds a winning shape rightly keeps it.
+    // Lines met from the first beat: the invader only rotates in the melee, and the approach is
+    // eleven beats long now.
+    b().ourAdvance = 0.5;
+    b().theirAdvance = 0.5;
     let changes = 0;
     let last = b().theirFormation;
-    for (let beat = 0; beat < 30 && !b().over; beat += 1) {
+    for (let beat = 0; beat < 40 && !b().over; beat += 1) {
       b().ourFormation = b().theirFormation;
       b().formationTarget = undefined;
       b().reformBeats = 0;
@@ -175,9 +179,9 @@ for (const temper of ['hasty', 'stubborn']) {
     return changes;
   }, temper);
 }
-check(cadence.hasty >= 4 && cadence.stubborn <= 3 && cadence.hasty > cadence.stubborn * 2,
+check(cadence.hasty >= 8 && cadence.stubborn <= 7 && cadence.hasty >= cadence.stubborn * 2,
   'the hasty rotates on his own clock, far more often than the stubborn',
-  `hasty changed ${cadence.hasty} times in 30 beats, stubborn ${cadence.stubborn}`);
+  `hasty changed ${cadence.hasty} times in 40 beats, stubborn ${cadence.stubborn}`);
 
 // ── fight one-and-three-quarters: the cooldown actually happens ──────────────
 // "I played ten times and never saw a cooldown — a mechanic that never happens, what is it for?"
@@ -196,15 +200,26 @@ const met = await page.evaluate(async () => {
   const ring = F.FORMATION_RING;
   const strongAnswer = (shape) => ring[(ring.indexOf(shape) - 1 + ring.length) % ring.length];
   const softAnswer = (shape) => ring[(ring.indexOf(shape) - 2 + ring.length) % ring.length];
+  b().ourAdvance = 0.5;
+  b().theirAdvance = 0.5;
   let decisions = 0, blocked = 0, beats = 0;
-  for (let beat = 0; beat < 60 && !b().over; beat += 1) {
+  let lastTarget = null;
+  for (let beat = 0; beat < 80 && !b().over; beat += 1) {
     beats += 1;
     const read = B.battleTelegraph(st);
     const target = read ? (read.next ?? read.formation) : b().theirFormation;
     const want = strongAnswer(target);
+    // ONE decision per telegraph change. Counting every beat the strong chip was still winded
+    // scored the same refusal six times over and read 81% blocked for a fight that asked the
+    // question a dozen times.
+    if (target !== lastTarget) {
+      lastTarget = target;
+      if (want !== b().ourFormation) {
+        decisions += 1;
+        if (!B.canFormFormation(st, want)) blocked += 1;
+      }
+    }
     if (want !== b().ourFormation && (b().formationTarget ?? '') !== want && (b().reformBeats ?? 0) === 0) {
-      decisions += 1;
-      if (!B.canFormFormation(st, want)) blocked += 1;
       const wish = [want, softAnswer(target), target].find((s) => B.canFormFormation(st, s));
       if (wish && wish !== b().ourFormation) B.setBattleFormation(st, wish);
     }

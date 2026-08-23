@@ -629,8 +629,8 @@ export const ENEMY_SPOT_RADIUS = 2;
  * Beats a small engagement runs; a large one runs up to the maximum. These are now real-time
  * beats a few per second, not turns — see `fightRound` and the view's clock.
  */
-export const BATTLE_BASE_ROUNDS = 14;
-export const BATTLE_MAX_ROUNDS = 22;
+export const BATTLE_BASE_ROUNDS = 48;
+export const BATTLE_MAX_ROUNDS = 72;
 /**
  * Extra heart lost by **both** sides, per round, for every round past `totalRounds`.
  *
@@ -647,7 +647,7 @@ export const BATTLE_MAX_ROUNDS = 22;
  * Applied to both sides equally on purpose. A pressure that favoured either would decide fights
  * the shapes and the tempo are supposed to decide.
  */
-export const BATTLE_OVERTIME_MORALE = 1.2;
+export const BATTLE_OVERTIME_MORALE = 0.6;
 /**
  * Milliseconds a single beat is held on screen.
  *
@@ -661,7 +661,7 @@ export const BATTLE_OVERTIME_MORALE = 1.2;
  * interval. Sized so a tick's worth plays out just inside the tick that produced it —
  * 6 x 560 = 3.36s against ASCENT_TICK_MS of 3500 — leaving headroom rather than falling behind.
  */
-export const BATTLE_TICK_MS = 560;
+export const BATTLE_TICK_MS = 875;
 
 /**
  * How long the Skirmish holds the emptying field before it hands back to the setup screen.
@@ -694,7 +694,7 @@ export const ARENA_ROUT_HOLD_MS = Math.round(BATTLE_TICK_MS * 3.4);
  * 4 with fights that finally outlived their opening tick, a battle was live on more than half of
  * all ticks and the wave cycle was mostly siege.
  */
-export const BATTLE_BEATS_PER_TICK = 6;
+export const BATTLE_BEATS_PER_TICK = 4;
 
 /**
  * How large the hosts are drawn on the battle screen, against the map's `GROUND_SCALE` of 0.72.
@@ -777,9 +777,9 @@ export const LEVY_POWER_PER_MAN = 0.755;
  * this is a safety net rather than a pace: a defender that never leaves its walls cannot stall
  * the fight at the approach.
  */
-export const BATTLE_APPROACH_MAX_BEATS = 12;
+export const BATTLE_APPROACH_MAX_BEATS = 18;
 /** How much of the field a line crosses per beat, so the two meet in the middle in good time. */
-export const BATTLE_ADVANCE_PER_TICK = 0.115;
+export const BATTLE_ADVANCE_PER_TICK = 0.045;
 /**
  * Share of a host's strength at stake in one exchange, before the power ratio and *both*
  * postures scale it. Raised from 0.022 when the exchange became symmetric: each side's
@@ -793,7 +793,7 @@ export const BATTLE_ADVANCE_PER_TICK = 0.115;
  * collapses, and it was running out of rounds before it could. A heavier exchange lets the fight
  * conclude on the field, which is what `finishBattle` now scores it on.
  */
-export const BATTLE_ROUND_BITE = 0.0345;
+export const BATTLE_ROUND_BITE = 0.02;
 /** Fraction of its starting strength at which a host breaks and the engagement ends early. */
 export const BATTLE_BREAK_SHARE = 0.35;
 /**
@@ -986,7 +986,7 @@ export const BATTLE_REFORM_BEATS = {
  * lands. Flat 0.7 was closing close fights before the ring had time to be interesting; the cut
  * plus the scaling is what lets a losing side dig in and actually ride a bad window out.
  */
-export const BATTLE_COUNTER_MORALE = 0.4;
+export const BATTLE_COUNTER_MORALE = 0.3;
 /**
  * How many economy ticks a Moment holds the fight open for.
  *
@@ -999,7 +999,7 @@ export const BATTLE_COUNTER_MORALE = 0.4;
  */
 export const BATTLE_MOMENT_TICKS = 1;
 /** At most this many in one engagement. Above it the fight becomes whack-a-mole. */
-export const BATTLE_MOMENTS_PER_FIGHT = 2;
+export const BATTLE_MOMENTS_PER_FIGHT = 3;
 /**
  * A great battle gets the third question, and an ordinary engagement does not.
  *
@@ -1009,9 +1009,9 @@ export const BATTLE_MOMENTS_PER_FIGHT = 2;
  * have a dial they touch three or four times. Keeping the third for `isGreat` also gives a great
  * battle a shape an ordinary one does not have.
  */
-export const BATTLE_MOMENTS_PER_GREAT_FIGHT = 3;
+export const BATTLE_MOMENTS_PER_GREAT_FIGHT = 4;
 /** Beats before the first one may be raised, so a fight never opens on a decision. */
-export const BATTLE_MOMENT_EARLIEST = 4;
+export const BATTLE_MOMENT_EARLIEST = 6;
 /**
  * Beats that must pass between one question and the next.
  *
@@ -1027,7 +1027,7 @@ export const BATTLE_MOMENT_EARLIEST = 4;
  * running out, the light going, terms offered) was still unreachable, one layer further in. At
  * eight they land near beats 4, 12 and 20, which is the opening, the middle and the last third.
  */
-export const BATTLE_MOMENT_GAP = 8;
+export const BATTLE_MOMENT_GAP = 12;
 /** Beats a Moment's bonus lasts once taken. */
 export const BATTLE_MOMENT_BONUS_BEATS = 4;
 /** How much a loosing host multiplies its volley by, against a host that is closing. */
@@ -1050,7 +1050,7 @@ export const BATTLE_CHARGE_MORALE = 9;
  * multiplies by `morale / 100`, so this is what turns a bad exchange into a collapse rather
  * than a slow, even grind.
  */
-export const BATTLE_MORALE_PER_LOSS = 52;
+export const BATTLE_MORALE_PER_LOSS = 32;
 // Retuned from 74 when the drop stopped being diluted. It used to be divided by `ourStart`, which
 // counts the reserve standing at camp and grows again when relief arrives; it is now divided by
 // the line that is actually being shot at, so the same number bites far harder and compounds as a
