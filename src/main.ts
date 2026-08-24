@@ -105,7 +105,7 @@ window.render_game_to_text = () => {
       lotusGestures: getMapTheme() === 'dong-ho'
         ? ['hover', 'drag', 'water-wake'] : undefined,
       ambientMotion: getMapTheme() === 'dong-ho'
-        ? ['mountain-drift', 'mountain-mist', 'bamboo-breeze', 'lotus-sway', 'river-surface-drift'] : undefined,
+        ? ['mountain-drift', 'mountain-mist', 'bamboo-breeze', 'lotus-sway', 'river-surface-flow'] : undefined,
     });
   }
 

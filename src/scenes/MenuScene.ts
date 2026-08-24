@@ -398,7 +398,7 @@ export class MenuScene extends Phaser.Scene {
         version: 9,
         layers: ['ground', 'mountains', 'mountain-mist', 'river-fx', 'bamboo', 'lotus'],
         composition: ['karst-mountains', 's-curve-river', 'foreground-lotus', 'right-bank-paddies', 'right-bank-bamboo-grove'],
-        motion: ['mountain-drift', 'mountain-mist', 'bamboo-breeze', 'lotus-sway', 'pointer-lotus-spring', 'river-surface-drift', 'lotus-water-wakes', 'tap-and-drag-wakes'],
+        motion: ['mountain-drift', 'mountain-mist', 'bamboo-breeze', 'lotus-sway', 'pointer-lotus-spring', 'river-surface-flow', 'lotus-water-wakes', 'tap-and-drag-wakes'],
         width,
         height,
       });
@@ -598,6 +598,22 @@ export class MenuScene extends Phaser.Scene {
       at(0.15, 0.64), at(0.22, 0.71), at(0.38, 0.80), at(0.53, 0.90),
       at(0.60, 0.97),
     ]);
+    // The channel opens toward the viewer. All ambient effects use a signed lane within that
+    // perspective width instead of collapsing onto the centre spline (the artificial single rail
+    // visible in the previous build). `lane = -1..1` means left bank through right bank.
+    const riverHalfWidthAt = (t: number): number => width * Phaser.Math.Linear(0.012, 0.16, t);
+    const riverLaneAt = (t: number, lane: number): {
+      point: Phaser.Math.Vector2;
+      tangent: Phaser.Math.Vector2;
+    } => {
+      const centre = river.getPointAt(t);
+      const tangent = river.getTangentAt(t).normalize();
+      const normal = new Phaser.Math.Vector2(-tangent.y, tangent.x);
+      return {
+        point: centre.clone().add(normal.scale(riverHalfWidthAt(t) * Phaser.Math.Clamp(lane, -0.78, 0.78))),
+        tangent,
+      };
+    };
 
     // The authored river already contains dense engraved water lines. A translucent paper glaze
     // calms those marks without covering the banks, then a few LOCAL highlights breathe in place.
@@ -626,52 +642,150 @@ export class MenuScene extends Phaser.Scene {
 
     const currentCount = getGraphicsQuality() === 'low' ? 6 : 8;
     const shimmerAnchors = [0.18, 0.3, 0.43, 0.56, 0.68, 0.79, 0.88, 0.95];
+    const shimmerLanes = [-0.68, 0.18, 0.66, -0.28, 0.46, -0.58, 0.06, 0.72];
     for (let index = 0; index < currentCount; index += 1) {
       const anchor = shimmerAnchors[index];
-      const point = river.getPointAt(anchor);
-      const tangent = river.getTangentAt(anchor).normalize();
-      // A phone-size canvas needs several pixels of total travel before a slow reflection reads as
-      // motion. This remains an order of magnitude slower than the rejected fast-current version:
-      // roughly 0.3px per 260ms, with sine easing, rather than 3px in the same interval.
-      const travel = 7 + (index % 3) * 1.2;
-      const span = 7 + anchor * 8;
+      const lane = shimmerLanes[index];
+      const { point, tangent } = riverLaneAt(anchor, lane);
+      // The earlier cream-on-cream glints were moving, but disappeared into the paper grain at
+      // phone size. These are broad indigo-watercolour pools with a paper-bright inner reflection:
+      // large enough to read, still far slower than the rejected sliding-scratch current.
+      const travel = 12 + (index % 3) * 2;
+      const span = 10 + anchor * 10;
       const baseScale = 0.58 + anchor * 0.66;
-      const duration = 7_200 + index * 460;
+      const duration = 8_500 + index * 400;
+      const flow = { clock: 0 };
+      const phaseOffset = (index / currentCount) * 0.86;
       const current = this.add.graphics()
         .setData('menuAmbient', 'river-current')
-        .setData('menuCurrentMotion', 'local-surface-drift')
-        .setData('menuCurrentVisibility', 'readable-gentle')
-        .setData('menuCurrentGraphic', 'broken-light-reflections')
-        .setData('menuCurrentInterpolation', 'anchored-sine')
+        .setData('menuCurrentMotion', 'forward-surface-flow')
+        .setData('menuCurrentVisibility', 'phone-readable')
+        .setData('menuCurrentGraphic', 'layered-watercolour-ripples')
+        .setData('menuCurrentInterpolation', 'forward-fade-loop')
         .setData('menuCurrentAnchor', anchor)
+        .setData('menuCurrentLane', lane)
         .setData('menuCurrentTravel', travel)
-        .setData('menuCurrentDuration', duration);
+        .setData('menuCurrentDuration', duration)
+        .setData('menuCurrentMotionProxy', flow);
       layers.waterFx.add(current);
-      // Broken pools of reflected paper replace drawn contour strokes. The authored base already
-      // has ink lines; animation should modulate light across them, not add a second illustration.
-      const glintHeight = 2.4 + anchor * 1.25;
-      current.fillStyle(PIGMENT.diepHi, 0.78);
-      current.fillEllipse(-span * 0.58, 0.15, span * 0.72, glintHeight);
-      current.fillEllipse(span * 0.02, -0.3, span * 0.88, glintHeight * 0.78);
-      current.fillEllipse(span * 0.69, 0.42, span * 0.46, glintHeight * 0.62);
-      current.fillStyle(PIGMENT.chamPale, 0.22);
-      current.fillEllipse(-span * 0.05, 1.05, span * 0.58, Math.max(0.8, glintHeight * 0.3));
+      const glintHeight = 3.4 + anchor * 1.8;
+      current.fillStyle(PIGMENT.chamWash, 0.64);
+      current.fillEllipse(-span * 0.18, 0.2, span * 0.72, glintHeight);
+      current.fillStyle(PIGMENT.chamPale, 0.42);
+      current.fillEllipse(span * 0.36, -0.15, span * 0.58, glintHeight * 0.78);
+      current.fillStyle(PIGMENT.diepHi, 0.82);
+      current.fillEllipse(-span * 0.14, -0.28, span * 0.36, glintHeight * 0.28);
+      current.fillEllipse(span * 0.38, -0.36, span * 0.26, glintHeight * 0.22);
       current
-        .setPosition(point.x, point.y)
+        .setPosition(point.x - tangent.x * travel * 0.5, point.y - tangent.y * travel * 0.5)
         .setRotation(Math.atan2(tangent.y, tangent.x))
         .setScale(baseScale)
-        .setAlpha(0.44 + (index % 2) * 0.04);
+        .setAlpha(0.2);
       this.tweens.add({
-        targets: current,
-        x: point.x + tangent.x * travel,
-        y: point.y + tangent.y * travel,
-        alpha: { from: 0.38 + (index % 2) * 0.03, to: 0.68 + (index % 2) * 0.03 },
-        scaleX: { from: baseScale * 0.92, to: baseScale * 1.08 },
-        scaleY: { from: baseScale * 0.97, to: baseScale * 1.03 },
+        targets: flow,
+        clock: { from: 0, to: 1 },
         duration,
-        yoyo: true,
         repeat: -1,
-        ease: 'Sine.easeInOut',
+        ease: 'Linear',
+        onUpdate: () => {
+          const phase = (flow.clock + phaseOffset) % 1;
+          const envelope = Math.sin(Math.PI * phase);
+          current
+            .setPosition(
+              point.x + tangent.x * travel * (phase - 0.5),
+              point.y + tangent.y * travel * (phase - 0.5),
+            )
+            .setScale(
+              baseScale * (0.94 + envelope * 0.12),
+              baseScale * (0.98 + envelope * 0.04),
+            )
+            .setAlpha(0.16 + envelope * (0.62 + (index % 2) * 0.04));
+        },
+      });
+    }
+
+    // A moving current can still read as static in a single glance, so the channel also carries
+    // staggered surface pulses. These are compact water rings, never long strokes: each quietly
+    // opens and disappears before another one answers farther downstream.
+    const pulseAnchors = getGraphicsQuality() === 'low'
+      ? [0.24, 0.42, 0.6, 0.78, 0.94]
+      : [0.2, 0.32, 0.44, 0.56, 0.69, 0.82, 0.94];
+    const pulseLanes = [-0.62, 0.44, -0.16, 0.68, -0.7, 0.12, 0.58];
+    for (let index = 0; index < pulseAnchors.length; index += 1) {
+      const anchor = pulseAnchors[index];
+      const lane = pulseLanes[index];
+      const { point } = riverLaneAt(anchor, lane);
+      const pulse = this.add.graphics({ x: point.x, y: point.y })
+        .setData('menuAmbient', 'river-pulse')
+        .setData('menuRiverPulse', 'expanding-water-ring')
+        .setData('menuRiverPulseAnchor', anchor)
+        .setData('menuRiverPulseLane', lane);
+      const ringWidth = 22 + anchor * 20;
+      const ringHeight = 5 + anchor * 3;
+      pulse.lineStyle(1.15, PIGMENT.chamPale, 0.9);
+      pulse.strokeEllipse(0, 0, ringWidth, ringHeight);
+      pulse.lineStyle(0.78, PIGMENT.diepHi, 0.9);
+      pulse.strokeEllipse(0, 0.4, ringWidth * 0.68, ringHeight * 0.68);
+      pulse.setScale(0.52).setAlpha(0.76);
+      layers.waterFx.add(pulse);
+      this.tweens.add({
+        targets: pulse,
+        scaleX: 1.32,
+        scaleY: 1.18,
+        alpha: 0.04,
+        duration: 2_400 + (index % 3) * 360,
+        delay: index * 220,
+        repeat: -1,
+        repeatDelay: 160 + (index % 2) * 140,
+        ease: 'Sine.easeOut',
+      });
+    }
+
+    // Direction is carried by a sparse set of paper-light flecks following the actual spline.
+    // They are intentionally tiny, not lines, and take close to a minute to cross the illustration;
+    // this makes the river unmistakably alive without returning to the fast sliding-current look.
+    const flowMoteCount = getGraphicsQuality() === 'low' ? 6 : 9;
+    const flowMoteLanes = [-0.72, -0.34, 0.12, 0.58, 0.76, -0.52, 0.36, 0.68, -0.12];
+    for (let index = 0; index < flowMoteCount; index += 1) {
+      const lane = flowMoteLanes[index];
+      const mote = this.add.graphics()
+        .setData('menuAmbient', 'river-flow-mote')
+        .setData('menuRiverMoteMotion', 'smooth-spline-downstream')
+        .setData('menuRiverMoteLane', lane);
+      const length = 3.2 + (index % 3) * 1.2;
+      const thickness = 1.2 + (index % 2) * 0.45;
+      mote.fillStyle(PIGMENT.chamPale, 0.58);
+      mote.fillEllipse(0, 0.35, length * 1.28, thickness * 1.35);
+      mote.fillStyle(PIGMENT.diepHi, 0.92);
+      mote.fillEllipse(-length * 0.08, 0, length, thickness);
+      layers.waterFx.add(mote);
+
+      const flow = { clock: 0 };
+      const offset = (index + 0.35) / flowMoteCount;
+      const duration = 46_000 + (index % 4) * 3_200;
+      mote
+        .setData('menuRiverMoteDuration', duration)
+        .setData('menuRiverMoteProxy', flow);
+      const placeMote = (): void => {
+        const phase = (offset + flow.clock) % 1;
+        const t = Phaser.Math.Linear(0.1, 0.98, phase);
+        const laneWander = lane + Math.sin((flow.clock + index * 0.17) * Math.PI * 2) * 0.055;
+        const { point, tangent } = riverLaneAt(t, laneWander);
+        const edgeFade = Phaser.Math.Clamp(Math.min(phase / 0.07, (1 - phase) / 0.07), 0, 1);
+        mote
+          .setPosition(point.x, point.y)
+          .setRotation(Math.atan2(tangent.y, tangent.x))
+          .setScale(0.72 + t * 0.52)
+          .setAlpha(edgeFade * (0.52 + (index % 3) * 0.08));
+      };
+      placeMote();
+      this.tweens.add({
+        targets: flow,
+        clock: { from: 0, to: 1 },
+        duration,
+        repeat: -1,
+        ease: 'Linear',
+        onUpdate: placeMote,
       });
     }
 

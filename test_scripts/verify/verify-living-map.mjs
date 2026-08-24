@@ -176,6 +176,20 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
       ripple: waterLayer?.list?.filter((c) => c.getData?.('menuRipple')).length ?? 0,
       wakes: waterLayer?.list?.filter((c) => c.getData?.('menuWaterWake')).length ?? 0,
       currents: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current').length ?? 0,
+      riverPulses: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-pulse').length ?? 0,
+      riverPulsesAnimated: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-pulse')
+        .every((c) => scene.tweens.getTweensOf(c).some((t) => t.isPlaying())) ?? false,
+      riverPulseLanes: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-pulse')
+        .map((c) => c.getData?.('menuRiverPulseLane')) ?? [],
+      riverMotes: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-flow-mote').length ?? 0,
+      riverMotesAnimated: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-flow-mote')
+        .every((c) => scene.tweens.getTweensOf(c.getData?.('menuRiverMoteProxy')).some((t) => t.isPlaying())) ?? false,
+      riverMoteDurations: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-flow-mote')
+        .map((c) => c.getData?.('menuRiverMoteDuration')) ?? [],
+      riverMoteLanes: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-flow-mote')
+        .map((c) => c.getData?.('menuRiverMoteLane')) ?? [],
+      riverMotePositions: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-flow-mote')
+        .map((c) => ({ x: c.x, y: c.y, alpha: c.alpha })) ?? [],
       currentDurations: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
         .map((c) => c.getData?.('menuCurrentDuration')) ?? [],
       currentInterpolations: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
@@ -184,6 +198,8 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
         .map((c) => c.getData?.('menuCurrentMotion')) ?? [],
       currentAnchors: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
         .map((c) => c.getData?.('menuCurrentAnchor')) ?? [],
+      currentLanes: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => c.getData?.('menuCurrentLane')) ?? [],
       currentVisibilities: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
         .map((c) => c.getData?.('menuCurrentVisibility')) ?? [],
       currentGraphics: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
@@ -284,6 +300,8 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
     return {
       currents: water?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
         .map((c) => ({ x: c.x, y: c.y })) ?? [],
+      riverMotes: water?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-flow-mote')
+        .map((c) => ({ x: c.x, y: c.y, alpha: c.alpha })) ?? [],
       mist: mist?.list?.filter((c) => c.getData?.('menuMistLayer') === 'mountains')
         .map((c) => ({ x: c.x, y: c.y })) ?? [],
       bambooWind: art?.list?.filter((c) => c.getData?.('menuBambooWindPart'))
@@ -299,6 +317,15 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
     const after = motionLater.currents[index];
     return after ? Math.hypot(after.x - before.x, after.y - before.y) : 0;
   });
+  const riverMoteTravel = menu.riverMotePositions.map((before, index) => {
+    const after = motionLater.riverMotes[index];
+    // The loop reset happens while the fleck is fully faded at the source/mouth. Do not report
+    // that invisible teleport as surface speed; measure only flecks visible at both sample times.
+    return after && before.alpha >= 0.12 && after.alpha >= 0.12
+      ? Math.hypot(after.x - before.x, after.y - before.y)
+      : 0;
+  });
+  const movingRiverMotes = riverMoteTravel.filter((distance) => distance >= 1.2).length;
   const movingMist = menu.art.mountainMist.positions.filter((before, index) => {
     const after = motionLater.mist[index];
     return after && Math.hypot(after.x - before.x, after.y - before.y) > 0.35;
@@ -326,21 +353,28 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
     && ['upper-culms', 'leaf-canopy'].every((part) => menu.art.bambooWind.parts.includes(part))
     && movingBambooWind === 2,
   `${movingBambooWind}/2 wind layers moved over 900ms: ${JSON.stringify(menu.art.bambooWind)}`);
-  check(`${label}: water uses a soft veil and local shimmer rather than traveling scratches`, menu.interaction === 'river-ripple'
+  check(`${label}: water has readable, one-way watercolour surface flow`, menu.interaction === 'river-ripple'
     && menu.ripple > 0 && menu.wakes > 0 && menu.currents >= 6
+    && menu.riverPulses >= 5 && menu.riverPulsesAnimated
+    && menu.riverMotes >= 6 && menu.riverMotesAnimated
+    && Math.min(...menu.currentLanes) <= -0.58 && Math.max(...menu.currentLanes) >= 0.65
+    && Math.min(...menu.riverPulseLanes) <= -0.6 && Math.max(...menu.riverPulseLanes) >= 0.55
+    && Math.min(...menu.riverMoteLanes) <= -0.7 && Math.max(...menu.riverMoteLanes) >= 0.68
+    && menu.riverMoteDurations.every((duration) => duration >= 46_000 && duration <= 56_000)
+    && movingRiverMotes >= 5 && riverMoteTravel.every((distance) => distance < 8)
     && menu.waterVeilBands === 3 && menu.waterGraphic === 'two-tone-reflection-wash'
     && menu.currentMaxAlpha >= 0.26 && movingCurrents >= 5
     && Math.min(...menu.currentAnchors) <= 0.2 && Math.max(...menu.currentAnchors) >= 0.94
-    && menu.currentDurations.every((duration) => duration >= 7_000 && duration <= 10_500)
-    && menu.currentInterpolations.every((mode) => mode === 'anchored-sine')
-    && menu.currentMotions.every((mode) => mode === 'local-surface-drift')
-    && menu.currentVisibilities.every((mode) => mode === 'readable-gentle')
-    && menu.currentGraphics.every((mode) => mode === 'broken-light-reflections')
-    && menu.currentTravelLimits.every((distance) => distance >= 7 && distance <= 9.5)
-    && Math.max(...currentTravel) >= 0.55
-    && currentTravel.every((distance) => distance < 2)
+    && menu.currentDurations.every((duration) => duration >= 8_500 && duration <= 11_500)
+    && menu.currentInterpolations.every((mode) => mode === 'forward-fade-loop')
+    && menu.currentMotions.every((mode) => mode === 'forward-surface-flow')
+    && menu.currentVisibilities.every((mode) => mode === 'phone-readable')
+    && menu.currentGraphics.every((mode) => mode === 'layered-watercolour-ripples')
+    && menu.currentTravelLimits.every((distance) => distance >= 12 && distance <= 16)
+    && Math.max(...currentTravel) >= 0.8
+    && currentTravel.every((distance) => distance < 3)
     && ['tap', 'drag', 'hover-wake'].every((gesture) => menu.gestures.includes(gesture)),
-  `${menu.currents} shimmers (${movingCurrents} moving, max ${Math.max(...currentTravel).toFixed(2)}px/900ms, alpha ${menu.currentMaxAlpha.toFixed(2)}), ${menu.ripple} ripple(s), ${menu.wakes} wake(s), ${menu.tweens} tweens playing`);
+  `${menu.currents} drifting pools (${movingCurrents} moving, max ${Math.max(...currentTravel).toFixed(2)}px/900ms), ${menu.riverPulses} pulse rings, ${movingRiverMotes}/${menu.riverMotes} downstream flecks moving (max ${Math.max(...riverMoteTravel).toFixed(2)}px/900ms), alpha ${menu.currentMaxAlpha.toFixed(2)}, ${menu.ripple} touch ripple(s), ${menu.wakes} wake(s), ${menu.tweens} tweens playing`);
   const lotusWake = menu.lotusWakeDetails?.[0];
   const lotusWakeNormalized = lotusWake?.base ? {
     x: (lotusWake.base.x - (menu.art.x - menu.art.width / 2)) / menu.art.width,
