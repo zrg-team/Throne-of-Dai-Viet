@@ -375,7 +375,7 @@ export class MenuScene extends Phaser.Scene {
     return art;
   }
 
-  /** The approved farm scene, registered as four real image layers instead of one static plate. */
+  /** The approved river scene, registered as four real image layers instead of one static plate. */
   private drawDongHoIllustration(): void {
     const texture = this.textures.get('menu-layer-ground-v3').getSourceImage() as { width: number; height: number };
     // The art lane loses height much faster than width on short browser-chrome viewports. Shrink
@@ -388,15 +388,16 @@ export class MenuScene extends Phaser.Scene {
     const width = GAME_WIDTH * Math.min(1.08, Phaser.Math.Linear(0.8, 1.2, fitted));
     const height = width * (texture.height / texture.width);
     const top = this.vy(190) + Math.round(16 * fitted);
+    const left = (GAME_WIDTH - width) / 2;
     const centreY = top + height / 2;
     const artwork = this.add.container(0, 0)
       .setDepth(-8)
       .setData('menuLandscapeRole', 'illustration')
       .setData('menuArtwork', {
-        version: 5,
-        layers: ['ground', 'mountains', 'mountain-mist', 'river-fx', 'farm', 'lotus'],
-        composition: ['karst-mountains', 's-curve-river', 'foreground-lotus', 'right-bank-paddies', 'connected-dry-hamlet-verge', 'two-farmhouses'],
-        motion: ['mountain-drift', 'mountain-mist', 'farmstead-breathe', 'lotus-sway', 'river-currents', 'hearth-smoke', 'tap-and-drag-wakes'],
+        version: 7,
+        layers: ['ground', 'mountains', 'mountain-mist', 'river-fx', 'bamboo', 'lotus'],
+        composition: ['karst-mountains', 's-curve-river', 'foreground-lotus', 'right-bank-paddies', 'right-bank-bamboo-grove'],
+        motion: ['mountain-drift', 'mountain-mist', 'bamboo-breeze', 'lotus-sway', 'pointer-lotus-spring', 'river-currents', 'lotus-water-wakes', 'tap-and-drag-wakes'],
         width,
         height,
       });
@@ -420,24 +421,47 @@ export class MenuScene extends Phaser.Scene {
       .setData('menuArtworkLayer', 'mountain-mist')
       .setData('menuLayerMotion', 'valley-drift');
     artwork.add(mountainMist);
-    // Every live water mark belongs inside the illustration, before the architecture and lotus.
+    // Every live water mark belongs inside the illustration, before the bamboo and lotus.
     // Scene-level depth cannot interleave with children of a Container: the old currents were
     // therefore painted over the entire plate, including the foreground flowers.
     const waterFx = this.add.container(0, 0)
       .setData('menuArtworkLayer', 'river-fx')
-      .setData('menuCompositing', 'below-farm-and-lotus');
+      .setData('menuCompositing', 'below-bamboo-and-lotus');
     artwork.add(waterFx);
-    const farm = layer('menu-layer-farm-v3', 'farm', 0.86)
-      .setData('menuSettlementPlacement', 'connected-dry-hamlet-verge')
-      .setData('menuSettlementBand', 'lower-right-below-horizon')
-      .setData('menuHouseCount', 2);
+    const bamboo = layer('menu-layer-bamboo-v1', 'bamboo', 0.76)
+      .setData('menuBambooPlacement', 'right-bank-dry-verge')
+      .setData('menuBambooBand', 'lower-right-below-horizon')
+      .setData('menuBambooStyle', 'dong-ho-natural-pigment')
+      .setData('menuBambooCulmCount', 14);
+    // The isolated grove keeps the registered 1536x1024 frame. Its measured ink bounds are
+    // transformed onto the dry right-bank verge so the leaves begin below the mountain feet and
+    // the roots remain outside the planted plots. The low scale keeps bamboo as quiet scenery.
+    const bambooScale = 0.48;
+    const bambooSourceBounds = { left: 586, top: 449, right: 1498, bottom: 970 };
+    const bambooSourceCentre = {
+      x: (bambooSourceBounds.left + bambooSourceBounds.right) / 2,
+      y: (bambooSourceBounds.top + bambooSourceBounds.bottom) / 2,
+    };
+    const bambooTargetCentre = { x: 1235, y: 650 };
+    const bambooX = left + width * (bambooTargetCentre.x / 1536)
+      - width * bambooScale * (bambooSourceCentre.x / 1536 - 0.5);
+    const bambooY = top + height * (bambooTargetCentre.y / 1024)
+      - height * bambooScale * (bambooSourceCentre.y / 1024 - 0.5);
+    bamboo
+      .setDisplaySize(width * bambooScale, height * bambooScale)
+      .setPosition(bambooX, bambooY)
+      .setData('menuBambooHome', { x: bambooX, y: bambooY })
+      .setData('menuBambooTransform', {
+        scale: bambooScale,
+        sourceBounds: bambooSourceBounds,
+        targetCentre: bambooTargetCentre,
+      });
     const lotus = layer('menu-layer-lotus-v1', 'lotus', 0.98);
-    const layers = { ground, mountains, mountainMist, waterFx, farm, lotus };
+    const layers = { ground, mountains, mountainMist, waterFx, bamboo, lotus };
 
     // The illustration carries its own softly stained paper. Feathering that paper back into the
     // scene's điệp sheet avoids a pasted rectangular edge without erasing the pale river and mist
     // inside the composition. This stays above the plate and below every word or control.
-    const left = (GAME_WIDTH - width) / 2;
     const edge = Math.max(12, Math.min(22, width * 0.055));
     const feather = this.add.graphics().setDepth(-7.9);
     feather.fillGradientStyle(PIGMENT.diep, PIGMENT.diep, PIGMENT.diep, PIGMENT.diep, 1, 1, 0, 0);
@@ -454,8 +478,8 @@ export class MenuScene extends Phaser.Scene {
 
   /**
    * Each registered image plate owns a different movement range: distant mountains barely drift,
-   * the farmstead breathes one pixel with the haze, and the close lotus has the most visible sway.
-   * Water, mist, smoke and a touch ripple then add local motion without moving the stable river base.
+   * the bamboo follows a very small breeze, and the close lotus has the most visible sway.
+   * Water, mist and touch ripples then add local motion without moving the stable river base.
    */
   private animateDongHoIllustration(
     bounds: { left: number; top: number; width: number; height: number },
@@ -464,7 +488,7 @@ export class MenuScene extends Phaser.Scene {
       mountains: Phaser.GameObjects.Image;
       mountainMist: Phaser.GameObjects.Container;
       waterFx: Phaser.GameObjects.Container;
-      farm: Phaser.GameObjects.Image;
+      bamboo: Phaser.GameObjects.Image;
       lotus: Phaser.GameObjects.Image;
     },
   ): void {
@@ -478,7 +502,7 @@ export class MenuScene extends Phaser.Scene {
     const centreY = top + height / 2;
     layers.ground.setData('menuLayerMotion', 'stable-river-base');
     layers.mountains.setData('menuLayerMotion', 'distant-drift');
-    layers.farm.setData('menuLayerMotion', 'farmstead-breathe');
+    layers.bamboo.setData('menuLayerMotion', 'bamboo-breeze');
     layers.lotus.setData('menuLayerMotion', 'foreground-sway');
 
     this.tweens.add({
@@ -490,25 +514,42 @@ export class MenuScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Sine.easeInOut',
     });
+    const bambooHome = layers.bamboo.getData('menuBambooHome') as { x: number; y: number };
     this.tweens.add({
-      targets: layers.farm,
-      x: { from: centreX - 0.8, to: centreX + 0.8 },
-      y: { from: centreY + 1.1, to: centreY - 1.1 },
-      duration: 6_800,
+      targets: layers.bamboo,
+      x: { from: bambooHome.x - 0.35, to: bambooHome.x + 0.35 },
+      angle: { from: -0.08, to: 0.08 },
+      duration: 11_800,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
     });
+    // Ambient drift and pointer bending use separate proxies, then combine once onto the image.
+    // Competing tweens on the image's x/y/angle caused pointer motion either to snap or to vanish
+    // on the next ambient frame; two inputs into one transform behave like wind plus a soft stem.
+    const lotusAmbient = { x: -1.1, y: 1.4, angle: -0.1 };
+    const lotusReaction = { x: 0, y: 0, angle: 0 };
+    const applyLotusMotion = (): void => {
+      layers.lotus
+        .setPosition(centreX + lotusAmbient.x + lotusReaction.x, centreY + lotusAmbient.y + lotusReaction.y)
+        .setAngle(lotusAmbient.angle + lotusReaction.angle)
+        .setData('menuLotusReaction', { ...lotusReaction });
+    };
+    layers.lotus
+      .setData('menuMotionProxy', lotusAmbient)
+      .setData('menuLotusResponse', 'damped-pointer-spring');
     this.tweens.add({
-      targets: layers.lotus,
-      x: { from: centreX - 1.1, to: centreX + 1.4 },
-      y: { from: centreY + 1.4, to: centreY - 1.4 },
+      targets: lotusAmbient,
+      x: { from: -1.1, to: 1.4 },
+      y: { from: 1.4, to: -1.4 },
       angle: { from: -0.1, to: 0.1 },
       duration: 4_900,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
+      onUpdate: applyLotusMotion,
     });
+    applyLotusMotion();
 
     // The centre of the painted river, read from the generated plate in normalized coordinates.
     // Effects and hit feedback share this curve, so a ripple cannot appear in a rice plot.
@@ -518,50 +559,53 @@ export class MenuScene extends Phaser.Scene {
       at(0.60, 0.97),
     ]);
 
-    // Currents do not all occupy the centre line or travel at one speed. Each mark follows the
-    // river tangent on its own lateral lane, widens downstream with the painted channel, then
-    // dissolves before cycling back to the distant bend.
-    const currentCount = getGraphicsQuality() === 'low' ? 6 : 9;
+    // Sparse, long current strokes travel by arc length rather than raw spline parameter. That
+    // removes the old acceleration through tight bends, while an 18–24 second passage reads as
+    // an unhurried stream instead of little marks racing down a track.
+    const currentCount = getGraphicsQuality() === 'low' ? 5 : 8;
     for (let index = 0; index < currentCount; index += 1) {
       const current = this.add.graphics()
         .setData('menuAmbient', 'river-current')
-        .setData('menuCurrentLane', index % 3 - 1);
+        .setData('menuCurrentLane', index % 3 - 1)
+        .setData('menuCurrentVisibility', 'readable')
+        .setData('menuCurrentInterpolation', 'arc-length')
+        .setData('menuCurrentDuration', 18_000 + index * 720 + (index % 2) * 1_400);
       layers.waterFx.add(current);
-      inkPath(current, [{ x: -9, y: 0 }, { x: -2, y: -0.6 }, { x: 5, y: 0.45 }, { x: 11, y: 0 }], 7200 + index, {
-        width: 0.58,
-        alpha: 0.56,
+      inkPath(current, [{ x: -13, y: 0 }, { x: -5, y: -0.35 }, { x: 4, y: 0.28 }, { x: 14, y: 0 }], 7200 + index, {
+        width: 0.64,
+        alpha: 0.62,
         colour: PIGMENT.cham,
-        wobble: 0.28,
-        step: 4,
+        wobble: 0.16,
+        step: 5,
       });
-      inkPath(current, [{ x: -5, y: 2.2 }, { x: 1, y: 1.65 }, { x: 7, y: 2.1 }], 7250 + index, {
-        width: 0.42,
-        alpha: 0.4,
+      inkPath(current, [{ x: -9, y: 2 }, { x: 0, y: 1.72 }, { x: 10, y: 2 }], 7250 + index, {
+        width: 0.44,
+        alpha: 0.48,
         colour: PIGMENT.chamPale,
-        wobble: 0.2,
-        step: 4,
+        wobble: 0.12,
+        step: 5,
       });
 
       const lane = (index % 3 - 1) * (0.62 + ((index * 37) % 5) * 0.07);
       const phase = { t: index / currentCount };
       const place = (): void => {
-        const t = phase.t % 1;
-        const point = river.getPoint(t);
-        const tangent = river.getTangent(t).normalize();
-        const laneWidth = width * (0.006 + t * 0.012);
+        const progress = phase.t % 1;
+        const point = river.getPointAt(progress);
+        const tangent = river.getTangentAt(progress).normalize();
+        const laneWidth = width * (0.006 + progress * 0.012);
         current.setPosition(
           point.x - tangent.y * lane * laneWidth,
           point.y + tangent.x * lane * laneWidth,
         );
         current.setRotation(Math.atan2(tangent.y, tangent.x));
-        current.setScale(0.45 + t * 0.68);
-        current.setAlpha(Math.sin(t * Math.PI) * (0.42 + (index % 3) * 0.08));
+        current.setScale(0.5 + progress * 0.72);
+        current.setAlpha(Math.sin(progress * Math.PI) * (0.5 + (index % 3) * 0.05));
       };
       place();
       this.tweens.add({
         targets: phase,
         t: phase.t + 1,
-        duration: 8_400 + index * 430 + (index % 2) * 1_300,
+        duration: current.getData('menuCurrentDuration') as number,
         repeat: -1,
         ease: 'Linear',
         onUpdate: place,
@@ -571,26 +615,43 @@ export class MenuScene extends Phaser.Scene {
     // Three feathered banks are real children of the mountain depth layer. Rendering order is
     // ground -> mountain -> mist -> village -> lotus, so the haze sits in the valley instead of
     // becoming a translucent white sticker across the roofs and foreground flowers.
-    const mistStarts = [at(0.24, 0.40), at(0.54, 0.425), at(0.78, 0.39)];
+    const mistStarts = [at(0.18, 0.44), at(0.40, 0.455), at(0.64, 0.44), at(0.82, 0.43)];
     for (let index = 0; index < mistStarts.length; index += 1) {
       const mist = this.add.graphics()
         .setData('menuAmbient', 'mountain-mist')
-        .setData('menuMistLayer', 'mountains');
+        .setData('menuMistLayer', 'mountains')
+        .setData('menuMistVisibility', 'readable');
       const span = width * (0.3 + (index % 2) * 0.08);
       const bandHeight = Math.max(8, height * (0.042 + index * 0.004));
-      mist.fillStyle(PIGMENT.diepHi, 0.16);
+      mist.fillStyle(PIGMENT.diepHi, 0.58);
       mist.fillEllipse(-span * 0.17, 0, span * 0.7, bandHeight);
-      mist.fillStyle(PIGMENT.diep, 0.2);
+      mist.fillStyle(PIGMENT.diep, 0.7);
       mist.fillEllipse(span * 0.14, 1, span * 0.82, bandHeight * 0.78);
-      mist.fillStyle(PIGMENT.diepHi, 0.11);
+      mist.fillStyle(PIGMENT.diepHi, 0.48);
       mist.fillEllipse(0, -1, span, bandHeight * 0.5);
+      mist.fillStyle(PIGMENT.chamPale, 0.16);
+      mist.fillEllipse(span * 0.04, bandHeight * 0.18, span * 0.86, bandHeight * 0.34);
+      inkPath(mist, [
+        { x: -span * 0.43, y: -bandHeight * 0.06 },
+        { x: -span * 0.19, y: bandHeight * 0.08 },
+        { x: span * 0.04, y: -bandHeight * 0.04 },
+        { x: span * 0.24, y: bandHeight * 0.07 },
+        { x: span * 0.44, y: -bandHeight * 0.03 },
+      ], 7_350 + index, {
+        width: 0.66,
+        alpha: 0.32,
+        colour: PIGMENT.chamPale,
+        wobble: 0.55,
+        step: 5,
+      });
       layers.mountainMist.add(mist);
       const start = mistStarts[index];
-      mist.setPosition(start.x, start.y).setAlpha(0.2);
+      mist.setPosition(start.x, start.y).setAlpha(0.58);
       this.tweens.add({
         targets: mist,
         x: start.x + width * (index % 2 === 0 ? 0.055 : -0.045),
-        alpha: { from: 0.14, to: 0.34 },
+        y: start.y + (index % 2 === 0 ? -1.2 : 1.1),
+        alpha: { from: 0.48, to: 0.78 },
         scaleX: { from: 0.94, to: 1.09 },
         duration: 10_200 + index * 1_900,
         yoyo: true,
@@ -598,35 +659,6 @@ export class MenuScene extends Phaser.Scene {
         ease: 'Sine.easeInOut',
       });
     }
-
-    // Cooking smoke from the two rural houses. It is a warm domestic cue, not a chimney stack:
-    // each wisp begins behind a thatched roof and disappears before it reaches the mountains.
-    const hearths = [at(0.74, 0.59), at(0.86, 0.60)];
-    hearths.forEach((start, index) => {
-      const smoke = this.add.graphics().setDepth(-7.68).setData('menuAmbient', 'hearth-smoke');
-      inkPath(smoke, [
-        { x: 0, y: 0 }, { x: index === 0 ? -2 : 2, y: -5 },
-        { x: index === 0 ? 2 : -2, y: -10 }, { x: 0, y: -15 },
-      ], 7300 + index, {
-        width: 0.7,
-        alpha: 0.5,
-        colour: PIGMENT.mucFaint,
-        wobble: 0.3,
-        step: 4,
-      });
-      smoke.setPosition(start.x, start.y).setAlpha(0).setData('menuSmokeAnchor', 'connected-dry-hamlet-verge');
-      this.tweens.add({
-        targets: smoke,
-        x: { from: start.x, to: start.x + (index === 0 ? 5 : -4) },
-        y: { from: start.y, to: start.y - 18 },
-        alpha: { from: 0.42, to: 0 },
-        scale: { from: 0.72, to: 1.18 },
-        duration: 5_800 + index * 900,
-        delay: 1_000 + index * 2_400,
-        repeat: -1,
-        ease: 'Quad.easeOut',
-      });
-    });
 
     // Decorative interaction sits below all real menu controls. Even where the art safely
     // overscans beneath the first plate, that plate wins the input sort and keeps its route.
@@ -678,6 +710,81 @@ export class MenuScene extends Phaser.Scene {
         this.spawnDongHoRipple(layers.waterFx, nearest.point.x, nearest.point.y, width / GAME_WIDTH * 0.72);
       }
     });
+
+    // The foreground lotus owns the top-left water region. A local hit zone keeps this gesture
+    // separate from the river wake zone underneath it, while a soft overshooting return gives the
+    // cluster the feel of stems bending and settling instead of a sprite following the cursor.
+    const lotusTouch = this.add.zone(
+      left + width * 0.02,
+      top + height * 0.53,
+      width * 0.51,
+      height * 0.45,
+    )
+      .setOrigin(0, 0)
+      .setDepth(-5.8)
+      .setInteractive()
+      .setData('menuLandscapeInteraction', 'lotus-sway')
+      .setData('menuLotusGestures', ['hover', 'drag', 'water-wake']);
+    layers.lotus.setData('menuLotusWaterResponse', 'wake-and-ripple');
+    let lastLotusPointer: { x: number; y: number } | undefined;
+    let lastLotusWakeAt = -1_000;
+    let lastLotusRippleAt = -1_000;
+    const wakeBelowLotus = (
+      pointer: Phaser.Input.Pointer,
+      localX: number,
+      localY: number,
+      initial = false,
+    ): void => {
+      if (!initial && this.time.now - lastLotusWakeAt < 110) return;
+      lastLotusWakeAt = this.time.now;
+      const nearest = nearestOnRiver(lotusTouch.x + localX, lotusTouch.y + localY);
+      const angle = Math.atan2(nearest.tangent.y, nearest.tangent.x);
+      this.spawnDongHoWake(
+        layers.waterFx,
+        nearest.point.x,
+        nearest.point.y,
+        angle,
+        width / GAME_WIDTH,
+        pointer.isDown ? 0.86 : 0.38,
+        'lotus',
+      );
+      if (pointer.isDown && this.time.now - lastLotusRippleAt >= 260) {
+        lastLotusRippleAt = this.time.now;
+        this.spawnDongHoRipple(layers.waterFx, nearest.point.x, nearest.point.y, width / GAME_WIDTH * 0.65);
+      }
+    };
+    const bendLotus = (pointer: Phaser.Input.Pointer, localX: number, localY: number): void => {
+      const fallbackX = (localX / lotusTouch.width - 0.5) * 5;
+      const fallbackY = (localY / lotusTouch.height - 0.5) * 2;
+      const dx = lastLotusPointer ? localX - lastLotusPointer.x : fallbackX;
+      const dy = lastLotusPointer ? localY - lastLotusPointer.y : fallbackY;
+      lastLotusPointer = { x: localX, y: localY };
+      const strength = pointer.isDown ? 1 : 0.52;
+      wakeBelowLotus(pointer, localX, localY);
+      this.tweens.killTweensOf(lotusReaction);
+      lotusReaction.x = Phaser.Math.Clamp(lotusReaction.x + dx * 0.22 * strength, -4.8, 4.8);
+      lotusReaction.y = Phaser.Math.Clamp(lotusReaction.y + dy * 0.12 * strength, -2.4, 2.4);
+      lotusReaction.angle = Phaser.Math.Clamp(lotusReaction.angle + dx * 0.09 * strength, -1.8, 1.8);
+      applyLotusMotion();
+      this.tweens.add({
+        targets: lotusReaction,
+        x: 0,
+        y: 0,
+        angle: 0,
+        duration: pointer.isDown ? 940 : 720,
+        ease: 'Back.easeOut',
+        onUpdate: applyLotusMotion,
+      });
+    };
+    lotusTouch.on('pointerover', (pointer: Phaser.Input.Pointer, localX: number, localY: number) => {
+      lastLotusPointer = { x: localX, y: localY };
+      wakeBelowLotus(pointer, localX, localY, true);
+    });
+    lotusTouch.on('pointermove', bendLotus);
+    lotusTouch.on('pointerdown', bendLotus);
+    lotusTouch.on('pointerout', () => {
+      lastLotusPointer = undefined;
+    });
   }
 
   /** One touch answer, gone before it can become another permanent object in the composition. */
@@ -686,9 +793,9 @@ export class MenuScene extends Phaser.Scene {
       .setScale(0.35)
       .setData('menuRipple', true);
     parent.add(ripple);
-    ripple.lineStyle(0.75, PIGMENT.cham, 0.62);
+    ripple.lineStyle(0.95, PIGMENT.cham, 0.78);
     ripple.strokeEllipse(0, 0, 20 * artScale, 5.5 * artScale);
-    ripple.lineStyle(0.5, PIGMENT.chamPale, 0.48);
+    ripple.lineStyle(0.65, PIGMENT.chamPale, 0.66);
     ripple.strokeEllipse(0, 0, 30 * artScale, 8 * artScale);
     this.tweens.add({
       targets: ripple,
@@ -709,24 +816,26 @@ export class MenuScene extends Phaser.Scene {
     angle: number,
     artScale: number,
     strength: number,
+    source: 'river' | 'lotus' = 'river',
   ): void {
     const wake = this.add.graphics({ x, y })
       .setRotation(angle)
-      .setAlpha(0.64 * strength)
+      .setAlpha(0.82 * strength)
       .setScale(0.7)
-      .setData('menuWaterWake', true);
+      .setData('menuWaterWake', true)
+      .setData('menuWakeSource', source);
     parent.add(wake);
     const seed = 7_400 + Math.round(this.time.now) % 997;
     inkPath(wake, [{ x: -7, y: -2 }, { x: -1, y: -1.4 }, { x: 6, y: -2.2 }], seed, {
-      width: 0.52,
-      alpha: 0.58,
+      width: 0.74,
+      alpha: 0.74,
       colour: PIGMENT.cham,
       wobble: 0.24,
       step: 4,
     });
     inkPath(wake, [{ x: -6, y: 2 }, { x: 0, y: 1.4 }, { x: 7, y: 2.2 }], seed + 1, {
-      width: 0.42,
-      alpha: 0.46,
+      width: 0.58,
+      alpha: 0.62,
       colour: PIGMENT.chamPale,
       wobble: 0.2,
       step: 4,

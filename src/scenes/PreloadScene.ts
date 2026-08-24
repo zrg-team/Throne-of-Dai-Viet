@@ -13,12 +13,12 @@ export class PreloadScene extends Phaser.Scene {
   preload(): void {
     const size = { width: RESOURCE_ICON_SIZE, height: RESOURCE_ICON_SIZE };
     const baseUrl = import.meta.env.BASE_URL;
-    // The front-page landscape is a registered four-plate illustration. Mountains, farmstead and
+    // The front-page landscape is a registered four-plate illustration. Mountains, bamboo and
     // lotus retain a shared 1536x1024 frame so MenuScene can move them independently without the
     // perspective drift that comes from rebuilding the scene out of map tokens.
     this.load.image('menu-layer-ground-v3', `${baseUrl}art/menu-layer-ground-v3.png`);
     this.load.image('menu-layer-mountains-v1', `${baseUrl}art/menu-layer-mountains-v1.png`);
-    this.load.image('menu-layer-farm-v3', `${baseUrl}art/menu-layer-farm-v3.png`);
+    this.load.image('menu-layer-bamboo-v1', `${baseUrl}art/menu-layer-bamboo-v1.png`);
     this.load.image('menu-layer-lotus-v1', `${baseUrl}art/menu-layer-lotus-v1.png`);
     for (const icon of Object.values(RESOURCE_ICONS)) {
       this.load.svg(icon.key, `${baseUrl}icons/${icon.file}.svg`, size);

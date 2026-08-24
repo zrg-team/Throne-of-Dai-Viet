@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import { GAME_HEIGHT, GAME_WIDTH } from './constants';
 
 /**
  * How much resolution and detail the game spends on a frame.
@@ -60,6 +61,25 @@ function devicePixelRatioSafe(): number {
     return 1;
   }
   return Math.max(1, window.devicePixelRatio || 1);
+}
+
+/**
+ * How many buffer pixels one design unit needs on THIS display, right now.
+ *
+ * The FIT scaler stretches the canvas past its design size whenever the window is larger than
+ * the design sheet - most desktop windows - and the display's pixel ratio multiplies that again.
+ * Clamping the render scale to `devicePixelRatio` alone starved exactly that case: a 434-CSS-px
+ * canvas on a DPR-2 display draws 2.23 physical px per design unit, the clamp handed the buffer
+ * 2, and the whole game - text included - was upscaled soft. "High" that ships fewer pixels
+ * than the glass has is not high.
+ */
+function displayNeed(): number {
+  const ratio = devicePixelRatioSafe();
+  if (typeof window === 'undefined' || !window.innerWidth || !window.innerHeight) {
+    return ratio;
+  }
+  const stretch = Math.min(window.innerWidth / GAME_WIDTH, window.innerHeight / GAME_HEIGHT);
+  return Math.max(1, stretch) * ratio;
 }
 
 /**
@@ -144,7 +164,8 @@ function profile(): QualityProfile {
  * extra samples have nowhere to land.
  */
 export function renderScale(): number {
-  return Math.min(profile().renderScale, devicePixelRatioSafe());
+  // Rounded up so the buffer always meets or beats the glass; see `displayNeed`.
+  return Math.min(profile().renderScale, Math.ceil(displayNeed()));
 }
 
 /** Whether the paper post-pass should run. The URL escape hatch still overrides this. */
@@ -223,7 +244,7 @@ export function renderScaleNow(): number {
 
 /** Asks for a new buffer scale; nothing changes until a scene boundary applies it. */
 export function requestRenderScale(scale: number): void {
-  const wanted = Math.min(scale, devicePixelRatioSafe());
+  const wanted = Math.min(scale, Math.ceil(displayNeed()));
   pendingScale = wanted === appliedScale ? undefined : wanted;
 }
 

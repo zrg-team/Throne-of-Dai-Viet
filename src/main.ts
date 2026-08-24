@@ -99,11 +99,13 @@ window.render_game_to_text = () => {
       mapTheme: getMapTheme(),
       landscapeInteraction: getMapTheme() === 'dong-ho' ? 'tap-river-ripple' : undefined,
       artLayers: getMapTheme() === 'dong-ho'
-        ? ['ground', 'mountains', 'mountain-mist', 'river-fx', 'farm', 'lotus'] : undefined,
+        ? ['ground', 'mountains', 'mountain-mist', 'river-fx', 'bamboo', 'lotus'] : undefined,
       riverGestures: getMapTheme() === 'dong-ho'
         ? ['tap', 'drag', 'hover-wake'] : undefined,
+      lotusGestures: getMapTheme() === 'dong-ho'
+        ? ['hover', 'drag', 'water-wake'] : undefined,
       ambientMotion: getMapTheme() === 'dong-ho'
-        ? ['mountain-drift', 'mountain-mist', 'farmstead-breathe', 'lotus-sway', 'river-currents', 'hearth-smoke'] : undefined,
+        ? ['mountain-drift', 'mountain-mist', 'bamboo-breeze', 'lotus-sway', 'river-currents'] : undefined,
     });
   }
 
