@@ -7,8 +7,9 @@
  * Every row with a live story behind it is a door onto `showStoryPage`, and that page's Back
  * comes straight back here — the two files are one screen and move together.
  *
- * The mute toggle at the foot is the only control that redraws this page, and it redraws by
- * re-entering `showChronicleScreen`; `laneList` only ever appends to `modalLayer`.
+ * The mute toggle at the foot and the story page's Back both redraw this page by re-entering
+ * `showChronicleScreen`, so the redraw tears the page down first — `laneList` only ever appends to
+ * `modalLayer`, and one mute toggle used to double the lane's draw cost (93 objects to 186).
  */
 import {
   chronicleTally,
@@ -23,6 +24,7 @@ import { storyText, storyTitle } from '../../../i18n/story';
 import { chargeTrackerLines } from '../../../systems/story/charges';
 import { INK_UI } from '../../../ui/InkUI';
 import { heroName, t } from '../../../i18n';
+import { clearLanePage } from '../layers';
 import type { ActiveStory } from '../../../state/types';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
@@ -52,6 +54,7 @@ import type { ConquestUIScene } from '../../ConquestUIScene';
  * name, want, and the most recent line, so a scan of the list is a scan of situations.
  */
 export function showChronicleScreen(self: ConquestUIScene): void {
+  clearLanePage(self);
   const state = self.state;
   // A latent story does not exist yet as far as the player is concerned — unless it is
   // holding an open door. An opening is deliberately not "spoken" (an offer is not a line),

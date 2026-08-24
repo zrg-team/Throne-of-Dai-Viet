@@ -228,7 +228,12 @@ function showClaimDetail(self: ConquestUIScene, landId: string): void {
     },
     () => {
       cancelAcquisition(state, landId);
-      showBuildScreen(self);
+      self.replaceLanePage(() => showBuildScreen(self));
+      // The refund has to be repainted from here, because nothing else will: opening a lane
+      // holds the world, and a held world never emits `state-changed` — the one signal that runs
+      // `refresh` behind an open overlay. Without this the supplies figure the sheet just
+      // promised sits unmoved in the strip above until the player closes the lane.
+      self.refresh();
     },
   );
 

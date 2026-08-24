@@ -3,10 +3,10 @@
  * the readout, the orders, the moment, the relief strip, the exits and the pips in containers of
  * their own so each can be rebuilt on its own clock.
  *
- * Every one of those rebuilds must come through `clearLayer` rather than `removeAll(true)`: the
- * layers torn down most often are the ones holding endless tweens, and Phaser keeps updating a
- * tween whose target has been destroyed. The pair live up here rather than in `battle/` — where
- * every caller is — because a shared helper has to sit in a file that imports no sibling back.
+ * Every one of those rebuilds comes through `clearLayer` rather than `removeAll(true)`, because the
+ * layers torn down most often are the ones holding endless tweens. The pair live up here rather
+ * than in `battle/` — where every caller is — because a shared helper has to sit in a file that
+ * imports no sibling back.
  *
  * `clearLanePage` is the lane's equivalent, and lives here for the same reason.
  */
@@ -17,15 +17,22 @@ import type { ConquestUIScene } from '../ConquestUIScene';
  * Empties a layer, and takes its tweens with it.
  *
  * `Container.removeAll(true)` destroys the children; it does **not** touch the tweens pointing at
- * them, and Phaser's tween manager keeps updating a tween whose target is destroyed until the
- * tween ends on its own. One with `repeat: -1` never does.
+ * them. On Phaser 3 that meant the manager went on updating a tween whose target was gone until
+ * the tween ended by itself, and one with `repeat: -1` never did: measured across a single 26-beat
+ * engagement it climbed from 11 live tweens to 73 and was still rising — sixty updates a second
+ * each, every one writing to an object that no longer existed.
  *
- * The battle screen has two of those. The clash mark over the seam pulses forever and lives in
- * the readout, which is rebuilt on every beat; `marchInPlace` gives every rank of every host
- * block an endless step, and a block is rebuilt each time its strength drops a mark. Measured
- * across a single 26-beat engagement the manager climbed from 11 live tweens to 73 and was still
- * rising — sixty updates a second each, every one of them writing to an object that no longer
- * existed.
+ * **On 4.2.1 that particular leak is gone.** `TweenData.update` bails on `target.isDestroyed` and
+ * calls `setCompleteState()`, so an orphaned tween now retires itself a tick later. Left here
+ * because the paragraph above is the reason this function exists and a reader who does not know
+ * the engine moved will re-derive the bug from the shape of the code — as a review of this very
+ * file did, reporting the gold-card glow in `prompts/run.ts` as a live leak. It is not.
+ *
+ * What the pair still buys is the *tick before* that, and depth. The layers here are rebuilt on
+ * every beat — the clash mark over the seam, `marchInPlace` on every rank of every host block —
+ * so "retires itself a tick later" is a frame of tweens writing to dead objects, sixty times a
+ * second, for the length of a siege. Killing them first costs one walk of a container that is
+ * about to be destroyed anyway.
  */
 export function clearLayer(self: ConquestUIScene, target: Phaser.GameObjects.Container): void {
   for (const child of target.list) killTweensDeep(self, child);

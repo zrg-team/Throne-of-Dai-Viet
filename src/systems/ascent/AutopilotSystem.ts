@@ -8,6 +8,7 @@ import {
   AUTO_CLAIM_MAX_ORDERS,
   AUTO_CLAIM_MIN_CHANCE,
   AUTO_CLAIM_TREASURY_SHARE,
+  COURT_GAP_TICKS,
   DEFENSIVE_POSTURE_RATIO,
   GOLD_GLUT_SEASONS,
   MARCH_MIN_WIN_CHANCE,
@@ -368,6 +369,16 @@ export function proposeMuster(state: GameState, purpose: 'target' | 'pressure'):
   if (!ascent) return false;
   if (state.turn < (ascent.musterDeclinedUntil ?? 0)) return false;
   if (state.pendingAscentPrompt || ascent.promptQueue.length > 0) return false;
+  // The pacing contract — which this was the only card in the mode to break.
+  //
+  // Every other scheduled decision is raised by `DecisionDirector`, which will not put one up
+  // inside `COURT_GAP_TICKS` of the last. The muster is raised here instead, by the autopilot, and
+  // had no such gate: "no card is up" is true again the instant the previous one is answered, so a
+  // muster landed on the very next tick. `verify-ascent` asserts that scheduled cards never land on
+  // consecutive ticks and named exactly one offender — `backToBackKinds: ["muster-proposal"]` — for
+  // as long as the card has existed. Two decisions on two consecutive seasons is the thing the
+  // whole gap rule exists to stop; a muster is in no more of a hurry than a law is.
+  if (state.turn - ascent.lastPromptTurn < COURT_GAP_TICKS) return false;
   const plan = defaultMusterPlan(state);
   if (!plan.heroId || musterBlockedReason(state, plan)) return false;
   const estimate = getMusterEstimate(state, plan.soldiers);

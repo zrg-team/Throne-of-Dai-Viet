@@ -94,7 +94,25 @@ const held = await page.evaluate(async () => {
   const texts = [];
   ui.battleUi.moment.list.forEach((o) => { if (o.type === 'Text') texts.push(o.text); });
   const answers = ui.battleUi.moment.list.filter((o) => o.type === 'Container').length;
-  return { ordersVisible: ui.battleUi.orders.visible, exitsAlpha: ui.battleUi.exits.alpha, texts, answers };
+
+  // And it is not rebuilt out from under the thumb on the next beat.
+  //
+  // `buildBattleMoment` stamps `ui.momentKey`; `updateBattle` recomputes it and rebuilds the card
+  // when the two differ. They differed for as long as the card existed — `updateBattle` carried a
+  // third component, `battle.round` — so a fight opened onto a standing question tore the card down
+  // and restarted its 3500 ms drain bar from full one beat later, swallowing any answer tapped at
+  // that moment. Nothing saw it: `verify-battle-moments` is engine-level and reads `battle.momentIds`.
+  const wrote = ui.battleUi.momentKey;
+  const card = ui.battleUi.moment.list[0];
+  const drawn = ui.battleUi.moment.list.length;
+  ui.updateBattle();
+  const heldCard = ui.battleUi.moment.list[0] === card && ui.battleUi.moment.list.length === drawn;
+  const want = `${b.moment.id}:${b.moment.raisedAtBeat}`;
+
+  return {
+    ordersVisible: ui.battleUi.orders.visible, exitsAlpha: ui.battleUi.exits.alpha, texts, answers,
+    wrote, want, heldCard, drawn,
+  };
 });
 
 await browser.close();
@@ -163,6 +181,9 @@ check(layout.exits.every((z) => z.h >= 40), 'each exit clears a thumb-sized targ
   `${Math.min(...layout.exits.map((z) => z.h))} smallest`);
 
 check(held.ordersVisible === false, 'a Moment takes the dock away entirely');
+check(held.drawn > 0 && held.wrote === held.want && held.heldCard,
+  'and survives the next beat — the rebuild latch agrees with what wrote it',
+  `wrote "${held.wrote}" want "${held.want}", ${held.drawn} object(s), same card ${held.heldCard}`);
 check(held.exitsAlpha < 1, 'and dims the exits too', `alpha ${held.exitsAlpha}`);
 check(held.texts.some((tx) => /H\s?E\s?L\s?D|D\s?Ừ\s?N\s?G/.test(tx)),
   'the field says it is held', held.texts.slice(0, 3).join(' / '));

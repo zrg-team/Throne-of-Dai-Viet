@@ -110,7 +110,9 @@ export function showArmyScreen(self: ConquestUIScene): void {
         border: sendable > 0 ? INK_UI.jade : INK_UI.softBrush,
         muted: sendable === 0,
       },
-      sendable > 0 ? () => self.showReinforcePicker(() => showArmyScreen(self)) : undefined,
+      sendable > 0
+        ? () => self.showReinforcePicker(() => self.replaceLanePage(() => showArmyScreen(self)))
+        : undefined,
     );
   }
 

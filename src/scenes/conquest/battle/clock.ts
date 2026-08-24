@@ -129,9 +129,13 @@ export function updateBattle(self: ConquestUIScene): void {
 
   // Rebuilt only when the question or its clock changes — never every beat, because a card
   // destroyed between press and release never fires.
-  const momentKey = battle.moment
-    ? `${battle.moment.id}:${battle.moment.raisedAtBeat}:${battle.round}`
-    : '';
+  //
+  // Exactly the two parts `buildBattleMoment` writes, and no more: it seeds `ui.momentKey` itself,
+  // so a third part here missed on every fight opened onto a Moment already standing — the card was
+  // torn down and its 3500 ms drain bar restarted from full one beat (875 ms) after the screen came
+  // up. `battle.round` was that third part and could never move anyway: `advanceBattle` holds the
+  // fight for as long as the question stands.
+  const momentKey = battle.moment ? `${battle.moment.id}:${battle.moment.raisedAtBeat}` : '';
   if (momentKey !== ui.momentKey) {
     self.buildBattleMoment(battle);
     ui.momentKey = momentKey;

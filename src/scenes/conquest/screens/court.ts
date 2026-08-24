@@ -224,8 +224,13 @@ export function showCourtScreen(self: ConquestUIScene): void {
           () => {
             if (takeCapstone(state, school)) {
               refreshAllLandOutputs(state);
-              self.closeLane();
-              showCourtScreen(self);
+              // Redrawn in place, not closed and reopened: `closeLane` hands the pause back and
+              // clears `openPromptKey`, so the run would restart under a sheet the player is still
+              // reading and the next tick (3500ms) could pull it away for a card or a fight. The
+              // refresh is what `closeLane` used to do for the resource strip above the dim, whose
+              // rates a capstone moves.
+              self.replaceLanePage(() => showCourtScreen(self));
+              self.refresh();
             }
           },
         );
@@ -275,8 +280,10 @@ export function showCourtScreen(self: ConquestUIScene): void {
         ? () => {
           if (repealProject(state, edictId)) {
             refreshAllLandOutputs(state);
-            self.closeLane();
-            showCourtScreen(self);
+            // Redrawn in place for the same reason as the capstone above: closing the lane here
+            // would set the run running again under the sheet the player is reading.
+            self.replaceLanePage(() => showCourtScreen(self));
+            self.refresh();
           }
         }
         : undefined,

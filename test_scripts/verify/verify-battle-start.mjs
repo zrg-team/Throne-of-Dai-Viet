@@ -60,23 +60,31 @@ const before = await page.evaluate(() => {
     if (o.type === 'Zone' && o.input) zones.push({ x: o.x, y: o.y, w: o.width, h: o.height });
   });
   zones.sort((a, c) => a.y - c.y);
-  const chips = zones.slice(4);
+  // Grouped by row rather than by a hardcoded count. `slice(4)` assumed four postures, and the dial
+  // has three: `withdraw` is the cold end rather than a button (see BATTLE_STANCE_TRADE) — the line
+  // still trades while it walks backwards, so disengaging is something you survive, not something
+  // you pick. The slice therefore ate the first shape and reported four of the five, while
+  // `zones.length - chips.length` fed the count back its own arithmetic and always said "4".
+  const rows = [...new Set(zones.map((z) => Math.round(z.y)))].sort((a, c) => a - c);
+  const stanceRow = zones.filter((z) => Math.round(z.y) === rows[0]);
+  const chips = zones.filter((z) => Math.round(z.y) === rows[rows.length - 1]);
   const pick = chips[2] ?? chips[0];
   return {
     awaiting: ui.battleAwaitingOrder,
     strategyPause: st.isStrategyPause,
     paused: st.isPaused,
     beat: (b.approachBeats ?? 0) + b.round,
-    stances: zones.length - chips.length,
+    rows: rows.length,
+    stances: stanceRow.length,
     chips: chips.length,
     tap: pick ? { x: (pick.x + pick.w / 2) / d.x, y: (pick.y + pick.h / 2) / d.y } : null,
   };
 });
 
 check(before.awaiting === true, 'the fight opens held, waiting for an order');
-check(before.stances === 4 && before.chips === 5,
-  'the dock offers four stances and five shapes to give it with',
-  `${before.stances} stances, ${before.chips} shapes`);
+check(before.rows === 2 && before.stances === 3 && before.chips === 5,
+  'the dock offers three postures and five shapes to give it with',
+  `${before.rows} row(s), ${before.stances} stances, ${before.chips} shapes`);
 check(Boolean(before.tap), 'a formation chip is there to be tapped');
 
 if (before.tap) await page.mouse.click(before.tap.x, before.tap.y);

@@ -714,6 +714,42 @@ const orders = await page.evaluate(async () => {
 
   return { defendHeld, keptRemnant, autoRemnantGone, listIsBorder, promptCapped, borderSize: border.size, listSize: all.length, attackTook, assaultWatched, recallOk, autoLeftItHungry, resupplyDipped, reliefRespects, orderCarried, hostHasOrder, label };
 });
+/**
+ * The general left to muster on his own.
+ *
+ * Its own run, and last, on purpose. The main run answers every card with its first option, and a
+ * `muster-proposal` answered that way is a refusal — so with the card in place the autopilot's
+ * recruit and march counters read zero there for reasons that say nothing about the autopilot.
+ * Accepting them instead is not the same test and is not free: measured, a run that raises every
+ * host it is offered takes `the first battle lands inside one sitting` down with it. So the silent
+ * path gets a run of its own, where it is the only thing being asked about.
+ */
+const delegated = await page.evaluate(async () => {
+  const { createAscentGameState } = await import('/src/state/GameState.ts');
+  const { advanceAscentTick } = await import('/src/systems/ascent/AscentTick.ts');
+  const { resolveAscentPrompt } = await import('/src/systems/ascent/AscentResolver.ts');
+  let s = 90210 >>> 0;
+  Math.random = () => { s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const st = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
+  st.ascent.autoMusterSilently = true;
+  window.__mandateState = st;
+  for (let tick = 0; tick < 220; tick += 1) {
+    let guard = 0;
+    while (st.pendingAscentPrompt && guard++ < 8) {
+      const p = st.pendingAscentPrompt;
+      const first = p.options?.[0]?.id ?? p.options?.[0] ?? p.heroIds?.[0] ?? p.cards?.[0]
+        ?? p.targets?.[0]?.landId ?? p.projectIds?.[0] ?? 'ok';
+      if (!resolveAscentPrompt(st, String(first))) { st.pendingAscentPrompt = undefined; }
+      st.isPaused = false;
+    }
+    advanceAscentTick(st);
+  }
+  const cardsRaised = st.ascent.promptCounts?.['muster-proposal'] ?? 0;
+  return { ...st.ascent.autopilotStats, cardsRaised, hosts: st.armies.filter((a) => a.kingdomId === 'dai-viet').length };
+});
+console.log('=== DELEGATED MUSTER ===');
+console.log(JSON.stringify(delegated));
+
 console.log('=== STANDING ORDERS ===');
 console.log(JSON.stringify(orders));
 
@@ -844,8 +880,12 @@ const checks = {
   // survived, not that a one-button prompt appears.
   'boss waves are survived and reported': result.bossWaves > 0 && (kinds['wave-result'] ?? 0) === 0,
   'autopilot built': result.autopilot.builds > 0,
-  'autopilot recruited': result.autopilot.recruits > 0,
-  'autopilot marched': result.autopilot.marches > 0,
+  // Both from the delegated run: see the note above it. What the main run must still show is that
+  // the card replaced the silent muster rather than sitting beside it — no host is raised behind
+  // the player's back there, because every proposal is refused.
+  'the autopilot raises no host behind a refusal': result.autopilot.recruits === 0,
+  'autopilot recruited': delegated.recruits > 0,
+  'autopilot marched': delegated.marches > 0,
   'at least 2 boss waves': result.bossWaves >= 2,
   'bosses telegraphed': result.sawTelegraphBeforeBoss >= result.bossWaves,
   // Held at any point, not at the end: with fought battles a run can end small, or end.
