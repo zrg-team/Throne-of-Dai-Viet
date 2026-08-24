@@ -1,0 +1,36 @@
+{
+ "_": "Divergences from the pristine file that are intended: the split's own cleanups, plus the bug fixes made on top of it. verify.cjs fails on anything not listed here, so an accident cannot hide among them.",
+ "dropped": [
+  "PORTRAIT_W",
+  "PORTRAIT_TOP",
+  "BATTLE_STRIP_LABEL"
+ ],
+ "deleted": [
+  "showQuitConfirm"
+ ],
+ "changed": [
+  "bakeBattleGround",
+  "battleHeaderFrame",
+  "buildBattleGround",
+  "buildBattleMoment",
+  "buildBattleOrders",
+  "buildBattlePips",
+  "buildBattleReadout",
+  "optionCard",
+  "releaseOverlay",
+  "replaceLanePage",
+  "showArmyDetail",
+  "showArmyScreen",
+  "showBuildOptions",
+  "showChronicleScreen",
+  "showClaimDetail",
+  "showClaimTargets",
+  "showCourtScreen",
+  "showFollowTargets",
+  "showHuntTargets",
+  "showMarchTargets",
+  "showStoryPage",
+  "spawnBattleFloaters",
+  "updateBattle"
+ ]
+}

@@ -1,0 +1,71 @@
+/**
+ * Teardown for the battle screen's layers — the other half of the arrangement that keeps the field,
+ * the readout, the orders, the moment, the relief strip, the exits and the pips in containers of
+ * their own so each can be rebuilt on its own clock.
+ *
+ * Every one of those rebuilds comes through `clearLayer` rather than `removeAll(true)`, because the
+ * layers torn down most often are the ones holding endless tweens. The pair live up here rather
+ * than in `battle/` — where every caller is — because a shared helper has to sit in a file that
+ * imports no sibling back.
+ *
+ * `clearLanePage` is the lane's equivalent, and lives here for the same reason.
+ */
+import Phaser from 'phaser';
+import type { ConquestUIScene } from '../ConquestUIScene';
+
+/**
+ * Empties a layer, and takes its tweens with it.
+ *
+ * `Container.removeAll(true)` destroys the children; it does **not** touch the tweens pointing at
+ * them. On Phaser 3 that meant the manager went on updating a tween whose target was gone until
+ * the tween ended by itself, and one with `repeat: -1` never did: measured across a single 26-beat
+ * engagement it climbed from 11 live tweens to 73 and was still rising — sixty updates a second
+ * each, every one writing to an object that no longer existed.
+ *
+ * **On 4.2.1 that particular leak is gone.** `TweenData.update` bails on `target.isDestroyed` and
+ * calls `setCompleteState()`, so an orphaned tween now retires itself a tick later. Left here
+ * because the paragraph above is the reason this function exists and a reader who does not know
+ * the engine moved will re-derive the bug from the shape of the code — as a review of this very
+ * file did, reporting the gold-card glow in `prompts/run.ts` as a live leak. It is not.
+ *
+ * What the pair still buys is the *tick before* that, and depth. The layers here are rebuilt on
+ * every beat — the clash mark over the seam, `marchInPlace` on every rank of every host block —
+ * so "retires itself a tick later" is a frame of tweens writing to dead objects, sixty times a
+ * second, for the length of a siege. Killing them first costs one walk of a container that is
+ * about to be destroyed anyway.
+ */
+export function clearLayer(self: ConquestUIScene, target: Phaser.GameObjects.Container): void {
+  for (const child of target.list) killTweensDeep(self, child);
+  target.removeAll(true);
+}
+
+/**
+ * Kills every tween pointing at an object *or at anything inside it*.
+ *
+ * The depth is the whole point. `marchInPlace` tweens each rank of a host block, and a rank is a
+ * `Graphics` child of the marker container — so `killTweensOf(marker)` finds nothing at all and
+ * every rebuilt block left its old ranks stepping in place forever, invisible and still costing.
+ */
+export function killTweensDeep(self: ConquestUIScene, object: Phaser.GameObjects.GameObject): void {
+  self.tweens.killTweensOf(object);
+  const nested = object as Phaser.GameObjects.Container;
+  if (Array.isArray(nested.list)) for (const child of nested.list) killTweensDeep(self, child);
+}
+
+/**
+ * Takes down whatever page is currently in the lane, so another can be built into it.
+ *
+ * Nine copies of these three lines were spread across six files, and the one that mattered was the
+ * one that had already been forgotten: cancelling a claim repainted the build screen without them,
+ * leaving the outgoing page's scroll areas alive. An `InkScrollArea` registers a *global* wheel
+ * handler, so a leaked one goes on eating the wheel over a page it no longer draws — and a mask
+ * does not clip input, so its dead rows stay tappable underneath the live ones.
+ *
+ * The modal layer is emptied with `removeAll(true)` rather than `clearLayer`: a lane page holds no
+ * endless tweens, and paying a deep tween sweep on every page turn is not free.
+ */
+export function clearLanePage(self: ConquestUIScene): void {
+  for (const scroll of self.activeScrollAreas) scroll.destroy();
+  self.activeScrollAreas = [];
+  self.modalLayer.removeAll(true);
+}

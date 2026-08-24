@@ -1,0 +1,234 @@
+/**
+ * Everything round the dials that is not a dial: the readout band above them, the four exit chips
+ * along the foot — pause, break off, hand over, step away — and the call for help over our camp.
+ *
+ * Two clocks and no third. The readout is drawn into the `orders` layer, so it exists only while
+ * `buildBattleOrders` is rebuilding — called from anywhere else, the next order erases it; the
+ * exits ride that same signature, because the hand-over chip is two chips wearing one slot.
+ * Relief gates itself on `ui.reliefKey`, and `showReinforcePicker` is a lane page rather than part
+ * of this screen — opened from here and from the army screen's war section.
+ */
+import Phaser from 'phaser';
+import { battleBeatsPerTick } from '../../../game/battleOptions';
+import {
+  reinforcementCandidates,
+  reinforcementsEnRoute,
+  sendReinforcement,
+} from '../../../systems/ascent/reinforcement';
+import { hostOrderLabel } from '../../../systems/ascent/armyOrders';
+import { INK_UI, scrollGestureConsumedTap } from '../../../ui/InkUI';
+import { t } from '../../../i18n';
+import type { AscentBattle } from '../../../state/types';
+import { clearLayer } from '../layers';
+import type { ConquestUIScene } from '../../ConquestUIScene';
+
+
+/**
+ * Hand over and leave, along the foot of the screen.
+ *
+ * **They were in the header, and the header is the one place on this screen a thumb cannot
+ * reach.** Everything else here is built around a one-handed grip — the formation strip owns the
+ * bottom band precisely because it is worked three to five times a fight — and the two controls
+ * that end a player's involvement in it sat about seven hundred points up a phone held in one
+ * hand. The justification was that they are semi-final and should be hard to hit by accident;
+ * what it actually bought was two controls that had to be hunted for with the other hand.
+ *
+ * So they take the foot, where the lane's Close button stood on its own. That is not a lost exit:
+ * closing the screen and leaving the field already did the same thing to the fight — the general
+ * takes the remainder either way — and one button that says so beats two that differ in a way
+ * nothing on the screen explained.
+ *
+ * Accident is guarded by size and by wording instead of by distance. Neither is the loud
+ * cinnabar the dock uses, both say plainly what happens next, and the hand-over is reversible
+ * from the same slot: the chip flips to "take the field back" the moment it is pressed.
+ */
+/**
+ * The way to call for help, on the screen where help is needed.
+ *
+ * The engine has enrolled relief since the membership rewrite — a host that reaches the
+ * province is in the line the next beat — but nothing on this screen, or the army screen, ever
+ * offered to send one. The control sits in our corner of the field, over the ground our camp
+ * stands on, and says one of two things: that a host can be sent, or who is on the road and
+ * when they arrive. Hidden once the fight is over or nobody could come.
+ */
+export function buildBattleRelief(self: ConquestUIScene, battle: AscentBattle): void {
+  const ui = self.battleUi;
+  if (!ui?.relief?.active) return;
+  const coming = reinforcementsEnRoute(self.state, battle);
+  const candidates = battle.over ? [] : reinforcementCandidates(self.state, battle);
+  const sendable = candidates.filter((row) => !row.blockedReason && !row.enRoute).length;
+  const key = `${coming.hosts}:${coming.men}:${coming.etaTicks}:${sendable}:${battle.over ? 1 : 0}`;
+  if (key === ui.reliefKey) return;
+  ui.reliefKey = key;
+  clearLayer(self, ui.relief);
+  if (battle.over || (sendable === 0 && coming.hosts === 0)) return;
+
+  const { content } = ui;
+  const w = 118;
+  const h = 26;
+  const x = content.x + 6;
+  const y = content.y + ui.fieldHeight - h - 6;
+  const onRoad = coming.hosts > 0;
+  const label = onRoad
+    ? t('ascent.reinforce.coming', { men: coming.men, n: coming.etaTicks === Number.POSITIVE_INFINITY ? 0 : coming.etaTicks })
+    : t('ascent.reinforce.button', { n: sendable });
+  const plate = self.ui.panel({ x, y, width: w, height: h }, {
+    border: onRoad ? INK_UI.jade : INK_UI.gold, fillAlpha: 0.94, borderWidth: 1.5, radius: 5,
+  });
+  ui.relief.add(plate);
+  ui.relief.add(self.ui.label(x + w / 2, y + h / 2, label, 'label', {
+    fontSize: '9.5px', align: 'center', wordWrap: { width: w - 8 },
+  }).setOrigin(0.5));
+  const hit = self.add.zone(x, y, w, h).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+  hit.on('pointerdown', () => { plate.setScale(0.97); plate.setPosition(x + w * 0.015, y + h * 0.015); });
+  const unpress = (): void => { plate.setScale(1); plate.setPosition(x, y); };
+  hit.on('pointerout', unpress);
+  hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+    unpress();
+    if (scrollGestureConsumedTap(pointer)) return;
+    showReinforcePicker(self, () => { self.closeLane(); self.openLane('battle'); });
+  });
+  ui.relief.add(hit);
+}
+
+/**
+ * Who could come, how soon, and whether that is soon enough.
+ *
+ * One page for every entry point — the fight, the army screen's war section, a host's own
+ * detail — so the answer reads the same wherever the question was asked. Rows are sorted
+ * nearest-first; a host that would arrive after the clock runs out is still offered, in
+ * cinnabar, because a fight in overtime is still a fight and the player may know better.
+ */
+export function showReinforcePicker(self: ConquestUIScene, onBack: () => void): void {
+  const state = self.state;
+  const battle = state.ascent?.activeBattle;
+  if (!battle || battle.over) { onBack(); return; }
+  self.replaceLanePage(() => {
+    const { addRow, addNote, finish } = self.laneList(
+      t('ascent.reinforce.title', { land: battle.landName }),
+      t('ascent.reinforce.subtitle', {
+        ours: Math.round(battle.ourNow), theirs: Math.round(battle.theirNow),
+        n: Math.max(1, Math.ceil((battle.totalRounds - battle.round) / battleBeatsPerTick())),
+      }),
+      { back: onBack },
+    );
+    const rows = reinforcementCandidates(state, battle);
+    if (rows.length === 0) addNote(t('ascent.reinforce.nobody'));
+    for (const row of rows) {
+      const at = state.lands.find((candidate) => candidate.id === row.army.landId);
+      const general = state.heroes.find((hero) => hero.id === row.army.generalHeroId);
+      const eta = row.etaTicks === undefined ? '' : row.etaTicks === 0
+        ? t('ascent.reinforce.etaNow')
+        : t(row.inTime ? 'ascent.reinforce.etaInTime' : 'ascent.reinforce.etaLate', { n: row.etaTicks });
+      const blocked = Boolean(row.blockedReason);
+      addRow(
+        {
+          title: `${row.army.name}  ·  ${row.men}${row.enRoute ? `  ·  ${t('ascent.reinforce.onRoad')}` : ''}`,
+          subtitle: [blocked ? row.blockedReason : eta, t('ascent.reinforce.row', {
+            land: at?.name ?? '—', order: hostOrderLabel(state, row.army),
+          })].filter(Boolean).join('\n'),
+          border: blocked || row.enRoute ? INK_UI.softBrush : row.inTime ? INK_UI.jade : INK_UI.cinnabar,
+          muted: blocked || row.enRoute,
+          portrait: general,
+        },
+        blocked || row.enRoute ? undefined : () => {
+          sendReinforcement(state, battle, row.army.id);
+          onBack();
+        },
+      );
+    }
+    finish();
+  });
+}
+
+export function buildBattleExits(self: ConquestUIScene, battle: AscentBattle): void {
+  const ui = self.battleUi;
+  if (!ui) return;
+  const { exits } = ui;
+  clearLayer(self, exits);
+
+  const handedOver = Boolean(battle.delegated);
+  const halted = self.battleHalted;
+  const chips: Array<{ label: string; sub: string; accent: number; order: string }> = [
+    {
+      // The world's clock, on the screen that is the world. Lit gold while the fight is standing
+      // still so a paused fight never again looks like a running one; dark during the opening
+      // drum, which is a hold of its own and ends on its own.
+      label: halted ? t('ascent.battle.resume') : t('ascent.battle.pause'),
+      sub: halted ? t('ascent.battle.resumeSub') : t('ascent.battle.pauseSub'),
+      accent: halted ? INK_UI.gold : INK_UI.softBrush,
+      order: 'pause',
+    },
+    {
+      // Breaking off: the cold end of what used to be the stance dial. It is an exit — the line
+      // walks backwards for three beats and is clear away — so it stands with the exits, and
+      // the stance row is left with the three postures that actually trade.
+      label: t('ascent.stance.withdraw'),
+      sub: t('ascent.stance.withdraw.note'),
+      accent: INK_UI.cinnabar,
+      order: 'stance:withdraw',
+    },
+    {
+      label: handedOver ? t('ascent.battle.takeField') : t('ascent.battle.autoShort'),
+      sub: handedOver ? t('ascent.battle.takeFieldNote') : t('ascent.battle.autoSub'),
+      accent: handedOver ? INK_UI.gold : INK_UI.softBrush,
+      order: handedOver ? 'take-field' : 'auto',
+    },
+    {
+      // Not a retreat and not a concession: the engagement keeps running on the world clock with
+      // the general on both dials, and the aftermath card finds the player wherever they are.
+      // This is the button for the eleventh battle of a session and it must never read as giving
+      // up — breaking off is `Lui binh`, the cold end of the stance dial.
+      label: t('ascent.battle.leaveShort'),
+      sub: t('ascent.battle.leaveSub'),
+      accent: INK_UI.softBrush,
+      order: 'leave',
+    },
+  ];
+
+  const { x: baseX, y, height: h } = ui.exitBounds;
+  const gap = 6;
+  const w = (ui.exitBounds.width - gap * (chips.length - 1)) / chips.length;
+  chips.forEach((chip, index) => {
+    const x = baseX + index * (w + gap);
+    const bounds = { x, y, width: w, height: h };
+    const plate = self.ui.panel(bounds, {
+      border: chip.accent, fillAlpha: 0.97, borderWidth: 1.5, radius: 6,
+    });
+    exits.add(plate);
+    // Four chips in the width three used to have: a two-word label wraps, so the caption sits
+    // under the label's measured height rather than at a fixed line — "Hand to generals" was
+    // printing straight through its own caption.
+    const label = self.ui.label(x + w / 2, y + 6, chip.label, 'label', {
+      fontSize: '10px', align: 'center', wordWrap: { width: w - 6 },
+    }).setOrigin(0.5, 0);
+    exits.add(label);
+    exits.add(self.ui.label(x + w / 2, y + 6 + label.height + 1, chip.sub, 'caption', {
+      fontSize: '7.5px', align: 'center', wordWrap: { width: w - 8 },
+    }).setOrigin(0.5, 0));
+
+    const hit = self.add.zone(x, y, w, h).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    // The same dip every other control on this screen gives. A bare zone over a panel is the one
+    // shape in this codebase that looks pressable and never acknowledges a press.
+    hit.on('pointerdown', () => {
+      plate.setScale(0.97);
+      plate.setPosition(x + w * 0.015, y + h * 0.015);
+    });
+    const unpress = (): void => { plate.setScale(1); plate.setPosition(x, y); };
+    hit.on('pointerout', unpress);
+    hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      unpress();
+      if (scrollGestureConsumedTap(pointer)) return;
+      if (chip.order === 'pause') {
+        self.toggleBattlePause();
+        return;
+      }
+      self.releaseBattleHold();
+      self.events.emit('ui:battle-order', chip.order);
+      // Stepping away closes the screen; handing over keeps it open, which is the whole
+      // difference between the two chips.
+      if (chip.order === 'leave') self.closeLane();
+    });
+    exits.add(hit);
+  });
+}

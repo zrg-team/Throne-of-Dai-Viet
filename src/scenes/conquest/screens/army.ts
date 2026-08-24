@@ -1,0 +1,601 @@
+/**
+ * The Army lane: its front page, and the sheet for one host.
+ *
+ * `showArmyScreen` is what the Army button opens — defence against threat, the war as it stands
+ * (the live battle, every invader we can see, our own sieges, the front), musters under way, and
+ * a row per standing host. `showArmyDetail` is where a host row leads and where every order is
+ * given, so it belongs here: it is that list's tap target, and each order it issues redraws by
+ * calling it again.
+ *
+ * Neither page runs on a clock — `refresh` leaves a non-battle lane alone — so anything that
+ * lands back on one must tear the old page down first, as `showArmyDetail` does at its head.
+ */
+import { PLAYER_KINGDOM_ID } from '../../../game/constants';
+import { isBossWave } from '../../../systems/ascent/WaveDirector';
+import { buildAllConquestTargets, frontWinChance } from '../../../systems/ascent/ConquestSystem';
+import { landGarrisonPower } from '../../../systems/ascent/PowerSystem';
+import { armyPower, getArmyUpgradeOptions, upgradeArmy } from '../../../systems/WarSystem';
+import { getCourtBonuses } from '../../../systems/CourtSystem';
+import {
+  reinforcementCandidates,
+  reinforcementsEnRoute,
+  sendReinforcement,
+} from '../../../systems/ascent/reinforcement';
+import { ascentArmyUpkeep, getPlayerTroops } from '../../../systems/ResourceSystem';
+import { findFreeCommander } from '../../../systems/ascent/AutopilotSystem';
+import { armyOrders, hostOrderLabel, isAutoHost } from '../../../systems/ascent/armyOrders';
+import { resupplyPreview } from '../../../systems/ascent/StandingOrders';
+import { musterRows } from '../../../systems/ascent/MusterSystem';
+import {
+  MIN_ARMY_SOLDIERS,
+  RECRUIT_HUMAN_RESERVE,
+  REMNANT_SHARE,
+  recruitSoldiers,
+} from '../../../game/ascentConfig';
+import { INK_UI, INK_UI_HEX } from '../../../ui/InkUI';
+import { UI_FONT } from '../../../ui/fonts';
+import { formatResourceList, heroName, t } from '../../../i18n';
+import type { ArmyOrders, InvasionRecord } from '../../../state/types';
+import { ARMY_RATION_USE_PER_100 } from '../../../game/gameplayConfig';
+import { cssHex, hostSize, visibleHostileHosts } from '../constants';
+import { clearLanePage } from '../layers';
+import type { ConquestUIScene } from '../../ConquestUIScene';
+
+
+/** Standing hosts, and the levy the player can raise without waiting for the autopilot. */
+export function showArmyScreen(self: ConquestUIScene): void {
+  const state = self.state;
+  const ascent = state.ascent;
+  const mine = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID);
+  const { addRow, addHeading, addNote, addWidget, finish } = self.laneList(
+    t('action.army'),
+    t('ascent.screen.armyBody', {
+      defense: Math.round(ascent?.defensePower ?? 0),
+      threat: Math.round(ascent?.threat ?? 0),
+    }),
+  );
+
+  // What the realm can bring against what is coming — the comparison the whole screen exists to
+  // inform, and previously a subtitle the eye skips on the way to the rows.
+  const defence = Math.round(ascent?.defensePower ?? 0);
+  const threat = Math.round(ascent?.threat ?? 0);
+  const troops = mine.reduce(
+    (sum, army) => sum + army.units.spearmen + army.units.archers + army.units.heavyInfantry,
+    0,
+  );
+  addHeading(t('army.section.state'));
+  addWidget(0, (parent, width) => self.statPanel(parent, width, [
+    {
+      label: t('army.stat.defence'),
+      value: String(defence),
+      accent: threat > defence ? cssHex(INK_UI.cinnabar) : undefined,
+    },
+    { label: t('army.stat.threat'), value: String(threat) },
+    { label: t('army.stat.hosts'), value: String(mine.length) },
+    { label: t('army.stat.soldiers'), value: String(troops) },
+  ]));
+
+  // The war as it stands. The header strip says how much danger is coming; this section says
+  // where it already is: the live battle, each invader the realm can see and what it is
+  // marching on, our own sieges, and the front the autopilot is pressing.
+  addHeading(t('army.section.war'));
+  const battle = ascent?.activeBattle;
+  if (battle && !battle.over) {
+    addRow(
+      {
+        title: t('ascent.war.battleRow', {
+          land: battle.landName,
+          round: battle.round,
+          total: battle.totalRounds,
+        }),
+        subtitle: t('ascent.war.battleBody', {
+          ours: Math.round(battle.ourNow),
+          theirs: Math.round(battle.theirNow),
+        }),
+        border: INK_UI.cinnabar,
+      },
+      // Through the lane, not `showBattle` directly: the lane key is what makes `refresh`
+      // beat the screen forward, so a battle opened here used to sit frozen at its first frame.
+      () => { self.closeLane(); self.openLane('battle'); },
+    );
+    // And the question the war section exists to put: who can be sent.
+    const relief = reinforcementsEnRoute(state, battle);
+    const sendable = reinforcementCandidates(state, battle).filter((row) => !row.blockedReason && !row.enRoute).length;
+    addRow(
+      {
+        title: t('ascent.reinforce.button', { n: sendable }),
+        subtitle: relief.hosts > 0
+          ? t('ascent.reinforce.coming', { men: relief.men, n: relief.etaTicks === Number.POSITIVE_INFINITY ? 0 : relief.etaTicks })
+          : sendable > 0 ? t('ascent.reinforce.hint') : t('ascent.reinforce.nobody'),
+        border: sendable > 0 ? INK_UI.jade : INK_UI.softBrush,
+        muted: sendable === 0,
+      },
+      sendable > 0
+        ? () => self.showReinforcePicker(() => self.replaceLanePage(() => showArmyScreen(self)))
+        : undefined,
+    );
+  }
+
+  const nextWave = (ascent?.wave ?? 0) + 1;
+  const waveTicks = Math.max(0, ascent?.ticksToWave ?? 0);
+  const loud = isBossWave(nextWave) || Boolean(ascent?.coalitionPending);
+  addNote(
+    [
+      isBossWave(nextWave)
+        ? t('ascent.war.nextWaveBoss', { ticks: waveTicks })
+        : t('ascent.war.nextWave', { wave: nextWave, ticks: waveTicks }),
+      ascent?.coalitionPending ? t('ascent.war.coalition') : '',
+    ].filter(Boolean).join('  ·  '),
+    loud ? INK_UI.cinnabar : undefined,
+  );
+
+  const planLabel: Record<NonNullable<InvasionRecord['plan']>, string> = {
+    spearhead: t('ascent.war.planSpearhead'),
+    flanker: t('ascent.war.planFlanker'),
+    raider: t('ascent.war.planRaider'),
+    withdrawing: t('ascent.war.planWithdrawing'),
+  };
+  let unseen = 0;
+  let seen = 0;
+  for (const record of state.invasions ?? []) {
+    const invader = state.armies.find((candidate) => candidate.id === record.armyId);
+    if (!invader) continue;
+    const at = state.lands.find((candidate) => candidate.id === invader.landId);
+    // Same honesty gate as the hunt list: a host standing in the dark stays a rumour.
+    if (!at?.isVisible) {
+      unseen += 1;
+      continue;
+    }
+    seen += 1;
+    const kingdom = state.kingdoms.find((candidate) => candidate.id === record.kingdomId);
+    const target = state.lands.find((candidate) => candidate.id === record.targetLandId);
+    const size = hostSize(invader);
+    const attack = Math.round(armyPower(state, invader));
+    const holding = target
+      ? Math.round(
+          landGarrisonPower(state, target) +
+            mine
+              .filter((army) => army.landId === target.id)
+              .reduce((sum, army) => sum + armyPower(state, army), 0),
+        )
+      : 0;
+    const withdrawing = record.plan === 'withdrawing';
+    addRow({
+      title:
+        (record.great ? t('ascent.war.great') : '') +
+        t('ascent.war.invaderRow', { kingdom: kingdom?.name ?? '—', size }),
+      subtitle: t('ascent.war.invaderBody', {
+        plan: planLabel[record.plan ?? 'spearhead'],
+        target: target?.name ?? at.name,
+        attack,
+        defence: holding,
+      }),
+      border: withdrawing ? INK_UI.softBrush : INK_UI.cinnabar,
+      muted: withdrawing,
+    });
+  }
+  if (unseen > 0) {
+    addNote(t('ascent.war.unseenCount', { n: unseen }));
+  }
+
+  for (const order of state.siegeOrders.filter((candidate) => candidate.attackerKingdomId === PLAYER_KINGDOM_ID)) {
+    const land = state.lands.find((candidate) => candidate.id === order.landId);
+    const besieger = state.armies.find((candidate) => candidate.id === order.armyId);
+    addRow({
+      title: t('ascent.war.siegeRow', {
+        land: land?.name ?? '—',
+        pct: Math.round((order.progress / Math.max(1, order.required)) * 100),
+      }),
+      subtitle: besieger ? t('ascent.war.siegeBody', { army: besieger.name }) : '',
+      border: INK_UI.gold,
+    });
+  }
+
+  const front = state.lands.find((candidate) => candidate.id === ascent?.frontLandId);
+  if (front) {
+    addRow({
+      title: t('ascent.war.frontRow', { land: front.name }),
+      subtitle: t('ascent.war.frontBody', { pct: Math.round(frontWinChance(state) * 100) }),
+      border: INK_UI.jade,
+    });
+  }
+
+  if (!battle && seen === 0 && unseen === 0) {
+    addNote(t('ascent.war.quiet'));
+  }
+
+  addHeading(t('army.section.muster'));
+  // Every muster under way. `state.recruitmentOrders` was never read by this mode's screens:
+  // "raise a host" closed the lane and nothing anywhere said a muster had begun.
+  for (const muster of musterRows(state)) {
+    const orders = muster.orders;
+    const landName = (id: string): string => state.lands.find((land) => land.id === id)?.name ?? '';
+    const orderLabel = orders?.kind === 'defend'
+      ? t('ascent.orders.defend', { land: landName(orders.landId) })
+      : orders?.kind === 'attack'
+        ? t('ascent.orders.attack', { land: landName(orders.landId) })
+        : orders?.kind === 'follow'
+          ? t('ascent.orders.follow', { army: state.armies.find((army) => army.id === orders.armyId)?.name ?? '' })
+          : t('ascent.orders.auto');
+    addRow({
+      title: t('ascent.muster.row', { n: muster.soldiers, land: muster.land?.name ?? '—' }),
+      subtitle: t('ascent.muster.body', {
+        hero: muster.heroName,
+        progress: muster.progress,
+        required: muster.required,
+        left: Math.max(0, muster.required - muster.progress),
+        comp: t(`comp.${muster.composition}` as Parameters<typeof t>[0]),
+        order: orderLabel,
+      }),
+      border: INK_UI.gold,
+    });
+  }
+  const commanderId = findFreeCommander(state);
+  const spare = state.resources.humans - RECRUIT_HUMAN_RESERVE;
+  const canRaise = state.heroes.length > 0;
+  addWidget(0, (parent, width) => self.actionTiles(parent, width, [
+    {
+      title: t('ascent.screen.raiseHost'),
+      note: commanderId && spare >= MIN_ARMY_SOLDIERS
+        ? t('ascent.screen.raiseHostBody', { n: recruitSoldiers(spare) })
+        : commanderId
+          ? t('ascent.screen.raiseNoPeople')
+          : t('ascent.conquer.needHero'),
+      border: canRaise ? INK_UI.jade : INK_UI.softBrush,
+      muted: !canRaise,
+      onTap: canRaise ? () => self.showRaiseHostForm() : undefined,
+    },
+  ]));
+
+  // Standing hosts only: a garrison levy is the province's own walls turned out for one
+  // battle (see `raiseGarrisonLevy`) — it takes no orders and goes home when the fight ends.
+  const hosts = mine.filter((army) => !army.isLevy);
+  if (hosts.length > 0) {
+    addHeading(t('army.section.hosts'));
+  }
+  for (const army of hosts) {
+    const land = state.lands.find((candidate) => candidate.id === army.landId);
+    const general = state.heroes.find((candidate) => candidate.id === army.generalHeroId);
+    const size = hostSize(army);
+    const remnant = !isAutoHost(army) && size < MIN_ARMY_SOLDIERS * REMNANT_SHARE;
+    addRow(
+      {
+        title: `${army.name}  ·  ${size}`,
+        subtitle: `${t('ascent.screen.armyRow', {
+          land: land?.name ?? '—',
+          general: general ? heroName(general) : t('ascent.screen.noGeneral'),
+          morale: Math.round(army.morale),
+          supply: Math.round(army.supply),
+        })}\n${remnant ? t('ascent.orders.remnantRow', { n: size }) : hostOrderLabel(state, army)}`,
+        border: remnant || army.morale < 40 || army.supply < 30 ? INK_UI.cinnabar : INK_UI.jade,
+      },
+      () => showArmyDetail(self, army.id),
+    );
+  }
+  self.addStoryOpening('army', undefined, addHeading, addRow);
+
+  finish();
+}
+
+/**
+ * One host, and what can be done with it.
+ *
+ * Exists because a shattered army could not be sent home: `disbandArmy` has always worked and
+ * the autopilot uses it on remnants, but nothing in this mode's UI ever called it, so a host
+ * that had lost its war sat on the map drawing upkeep forever with no way to release it. That
+ * matters far more now that upkeep scales with size — a player has to be able to *choose* the
+ * treasury over the field, which is the whole point of charging for an army.
+ */
+export function showArmyDetail(self: ConquestUIScene, armyId: string): void {
+  const state = self.state;
+  const army = state.armies.find((candidate) => candidate.id === armyId);
+  if (!army) return;
+
+  // The lane key stays `lane:army`: giving this page its own key made every `state-changed`
+  // (which each order raises) read as "no overlay open" and tear the page down under the tap.
+  clearLanePage(self);
+
+  const size = hostSize(army);
+  const general = state.heroes.find((candidate) => candidate.id === army.generalHeroId);
+  const land = state.lands.find((candidate) => candidate.id === army.landId);
+
+  const { addRow, addHeading, addWidget, finish } = self.laneList(
+    army.name,
+    t('ascent.army.detailBody', {
+      land: land?.name ?? '—',
+      general: general ? heroName(general) : t('ascent.screen.noGeneral'),
+      morale: Math.round(army.morale),
+      supply: Math.round(army.supply),
+    }),
+  );
+
+  // ── The host ──
+  //
+  // Everything that describes it, under one heading and in two surfaces instead of three cards:
+  // the figures read across a strip, the multipliers that produced the field power sit under it
+  // as a line of text, and what the host costs is one line rather than a card of its own. The
+  // commander sits here too — who leads is a *fact about the host*, not an order — with the one
+  // control that changes it, instead of a full-width card that only says his name.
+  const upkeep = ascentArmyUpkeep(state);
+  const troops = Math.max(1, getPlayerTroops(state));
+  const shareGold = Math.round(upkeep.gold * (size / troops));
+  const shareFood = Math.round(upkeep.food * (size / troops));
+  const rationRunway = Math.floor((army.rations ?? 0) / Math.max(1, size / 100 * ARMY_RATION_USE_PER_100));
+  const starving = (army.rations ?? 0) <= 0;
+  const bonuses = getCourtBonuses(state);
+  const eliteTier = army.elite ?? 0;
+  const multipliers = [
+    t('ascent.army.mulLevel', { level: army.level, pct: Math.round(Math.max(0, army.level - 1) * 8) }),
+    eliteTier > 0 ? t('ascent.army.mulElite', { tier: eliteTier, pct: Math.round(eliteTier * 18) }) : '',
+    general ? t('ascent.army.mulGeneral', { pct: Math.round((general.stats.martial / 100) * 25) }) : '',
+    bonuses.armyPowerMult !== 1
+      ? t('ascent.army.mulDraft', { pct: Math.round((bonuses.armyPowerMult - 1) * 100) })
+      : '',
+  ].filter(Boolean);
+
+  addHeading(t('ascent.army.groupHost'));
+  addWidget(0, (parent, width) => {
+    let y = self.statPanel(parent, width, [
+      { label: t('ascent.army.statPower'), value: String(Math.round(armyPower(state, army))) },
+      { label: t('ascent.army.statMen'), value: String(size) },
+      { label: t('ascent.army.statMorale'), value: String(Math.round(army.morale)) },
+      {
+        label: t('ascent.army.statSupply'),
+        value: String(Math.round(army.supply)),
+        accent: starving ? cssHex(INK_UI.cinnabar) : undefined,
+      },
+    ]);
+    const detail = self.add.text(2, y + 5, [
+      multipliers.join('  ·  '),
+      `${t('ascent.army.upkeepLine', { gold: shareGold, food: shareFood })}  ·  ${
+        starving ? t('ascent.army.runwayOut') : t('ascent.army.runwayShort', { ticks: rationRunway })
+      }`,
+    ].join('\n'), {
+      color: starving ? cssHex(INK_UI.cinnabar) : INK_UI_HEX.mutedText,
+      fontFamily: UI_FONT,
+      fontSize: '9px',
+      lineSpacing: 2,
+      wordWrap: { width: width - 4 },
+    }).setOrigin(0, 0);
+    parent.add(detail);
+    return y + 5 + detail.height;
+  });
+  // `addWidget` takes a height up front, which a measured widget cannot know. Rather than change
+  // its contract for one caller, the host block is laid out as a row with a portrait — the one
+  // shape in the list that already carries a face — and the figures above it are given their own
+  // pass. The commander row keeps `addRow` because a face IS the row here.
+  addRow(
+    {
+      title: general ? heroName(general) : t('ascent.army.noCommander'),
+      subtitle: t('ascent.orders.commanderBody'),
+      border: general ? INK_UI.gold : INK_UI.cinnabar,
+      portrait: general,
+    },
+    () => self.showCommanderPicker(armyId),
+  );
+
+  // ── Orders ──
+  //
+  // What the host is doing until told otherwise, the one question about how its fights are
+  // resolved, and every way to change either. The autopilot used to move and dissolve every
+  // host on its own judgement; a host under any order but `auto` is now moved by that order
+  // alone (see `StandingOrders`).
+  addHeading(t('ascent.orders.heading'));
+  const orders = armyOrders(army);
+  addWidget(0, (parent, width) => {
+    const line = self.add.text(2, 0, t('ascent.orders.current', { order: hostOrderLabel(state, army) }), {
+      color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '12px', fontStyle: '700',
+      wordWrap: { width: width - 4 },
+    }).setOrigin(0, 0);
+    parent.add(line);
+    return line.height;
+  });
+
+  const command = (next: ArmyOrders): void => {
+    self.events.emit('ui:ascent-army-orders', { armyId, orders: next });
+    showArmyDetail(self, armyId);
+  };
+  const defendingHere = orders.kind === 'defend' && orders.landId === army.landId;
+  const owned = state.lands.filter(
+    (candidate) => candidate.ownerId === PLAYER_KINGDOM_ID && candidate.id !== army.landId,
+  );
+  const attackable = buildAllConquestTargets(state);
+  const others = state.armies.filter(
+    (candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID && !candidate.isLevy && candidate.id !== army.id,
+  );
+  const quarries = visibleHostileHosts(state);
+  // ── Send this host to the fight ──
+  //
+  // **Always drawn, even with no fight to send it to.** It used to appear only while a battle
+  // was live and this host could reach it, and vanish the rest of the time — so the one order
+  // that answers "there is a siege on my border, send this army" was invisible on every screen
+  // a player ever opened calmly, and nothing on the sheet said the order existed. Every other
+  // row here already states its own unavailability in place ("Truy đuổi một đạo quân — không
+  // thấy đạo quân địch nào"); this one disappeared instead, which is the only kind of missing
+  // control a player cannot learn from.
+  //
+  // Kept at the head of the list because it is the one order that is about *now*: a fight is
+  // running out of beats while the sheet is open, and the rows under it are all about later.
+  const live = state.ascent?.activeBattle && !state.ascent.activeBattle.over ? state.ascent.activeBattle : undefined;
+  const relief = live ? reinforcementCandidates(state, live).find((row) => row.army.id === army.id) : undefined;
+  const alreadyIn = Boolean(live && (live.ourArmyIds ?? []).includes(army.id));
+  const reliefNote = (): string => {
+    if (!live) return t('ascent.reinforce.noBattle');
+    if (alreadyIn) return t('ascent.reinforce.already', { land: live.landName });
+    // No candidate row for a fight that is running means this host cannot join it at all — an
+    // empty host, or one the candidate list refused for a reason it does not name.
+    if (!relief) return t('ascent.reinforce.noRoad');
+    if (relief.blockedReason) return relief.blockedReason;
+    if (relief.enRoute) return t('ascent.reinforce.onRoad');
+    if (relief.etaTicks === 0) return t('ascent.reinforce.etaNow');
+    return t(relief.inTime ? 'ascent.reinforce.etaInTime' : 'ascent.reinforce.etaLate', { n: relief.etaTicks ?? 0 });
+  };
+  const canRelieve = Boolean(live && relief && !alreadyIn && !relief.blockedReason && !relief.enRoute);
+  const reliefTile = [{
+    title: live ? t('ascent.reinforce.tile', { land: live.landName }) : t('ascent.reinforce.tileIdle'),
+    note: reliefNote(),
+    border: !canRelieve ? INK_UI.softBrush : relief?.inTime ? INK_UI.jade : INK_UI.cinnabar,
+    muted: !canRelieve,
+    onTap: canRelieve && live ? () => {
+      sendReinforcement(state, live, armyId);
+      showArmyDetail(self, armyId);
+    } : undefined,
+  }];
+  addWidget(0, (parent, width) => {
+    const height = self.actionTiles(parent, width, [
+      ...reliefTile,
+      {
+        title: t('ascent.orders.defendHere'),
+        note: t('ascent.orders.defendHereBody', { land: land?.name ?? '—' }),
+        border: defendingHere ? INK_UI.gold : INK_UI.jade,
+        muted: defendingHere,
+        onTap: defendingHere ? undefined : () => command({ kind: 'defend', landId: army.landId }),
+      },
+      {
+        title: t('ascent.army.marchTo'),
+        note: owned.length > 0 ? t('ascent.army.marchToBody') : t('ascent.army.noOwnedLand'),
+        border: owned.length > 0 ? INK_UI.jade : INK_UI.softBrush,
+        muted: owned.length === 0,
+        onTap: owned.length > 0 ? () => self.showMarchTargets(armyId) : undefined,
+      },
+      {
+        title: t('ascent.orders.attackPick'),
+        note: attackable.length > 0 ? t('ascent.orders.attackPickBody') : t('ascent.army.noOwnedLand'),
+        border: attackable.length > 0 ? INK_UI.cinnabar : INK_UI.softBrush,
+        muted: attackable.length === 0,
+        onTap: attackable.length > 0 ? () => self.showAttackTargets(armyId) : undefined,
+      },
+      {
+        title: t('ascent.orders.followPick'),
+        note: t('ascent.orders.followPickBody'),
+        border: others.length > 0 ? INK_UI.jade : INK_UI.softBrush,
+        muted: others.length === 0,
+        onTap: others.length > 0 ? () => self.showFollowTargets(armyId) : undefined,
+      },
+      {
+        title: t('ascent.army.hunt'),
+        note: quarries.length > 0 ? t('ascent.army.huntBody', { n: quarries.length }) : t('ascent.army.huntNone'),
+        border: quarries.length > 0 ? INK_UI.cinnabar : INK_UI.softBrush,
+        muted: quarries.length === 0,
+        onTap: quarries.length > 0 ? () => self.showHuntTargets(armyId) : undefined,
+      },
+      {
+        title: t('ascent.orders.autoRow'),
+        note: t('ascent.orders.autoBody'),
+        border: isAutoHost(army) ? INK_UI.gold : INK_UI.softBrush,
+        muted: isAutoHost(army),
+        onTap: isAutoHost(army) ? undefined : () => command({ kind: 'auto' }),
+      },
+    ]);
+    return height;
+  });
+
+  // Who fights this host's battles. The run-wide switch in Settings answers it for every host at
+  // once, which is the wrong grain: a border garrison should be left to its general and the royal
+  // host should not be.
+  addWidget(0, (parent, width) => {
+    const height = self.segmentedRow(parent, width, {
+      label: t('ascent.battle.whoCommands'),
+      options: [t('ascent.battle.commandMine'), t('ascent.battle.commandGeneral')],
+      note: army.autoResolve ? t('ascent.battle.commandGeneralBody') : t('ascent.battle.commandMineBody'),
+      selected: army.autoResolve ? 1 : 0,
+      onPick: (index) => {
+        army.autoResolve = index === 1;
+        showArmyDetail(self, armyId);
+      },
+    });
+    return height;
+  });
+
+  // Recall: out of the fight, off the siege, home. Confirmed, because it can abandon both.
+  const siege = state.siegeOrders.find((order) => order.armyId === army.id);
+  const engaged = Boolean(state.ascent?.activeBattle && !state.ascent.activeBattle.over
+    && (state.ascent.activeBattle.ourArmyIds ?? []).includes(army.id));
+  const recall = (): void => {
+    const consequences = [
+      siege ? t('ascent.orders.recallSiege', { land: state.lands.find((l) => l.id === siege.landId)?.name ?? '' }) : '',
+      engaged ? t('ascent.orders.recallBattle', { land: state.ascent?.activeBattle?.landName ?? '' }) : '',
+    ].filter(Boolean);
+    self.showConfirmPage({
+      title: t('ascent.orders.recall'),
+      subtitle: army.name,
+      lines: [t('ascent.orders.recallBody'), ...consequences],
+      confirmLabel: t('ascent.orders.recall'),
+      danger: consequences.length > 0,
+      onConfirm: () => {
+        self.events.emit('ui:ascent-army-recall', armyId);
+        showArmyDetail(self, armyId);
+      },
+      onBack: () => showArmyDetail(self, armyId),
+    });
+  };
+
+  // ── Reinforcement ──
+  //
+  // Everything that spends on the host: fresh men, better kit, more drill, full baggage — and,
+  // at the end and apart from them, the two ways to take it off the board.
+  addHeading(t('ascent.army.groupSupply'));
+  const supply = resupplyPreview(state, armyId);
+  const upgrades = getArmyUpgradeOptions(state, armyId).map((option) => ({
+    title: t(`ascent.army.${option.kind}` as Parameters<typeof t>[0]),
+    note: option.available
+      ? `${
+          option.kind === 'equip'
+            ? t('ascent.army.equipBody', { tier: option.gain })
+            : option.kind === 'reinforce'
+              ? t('ascent.army.reinforceBody', { n: option.gain })
+              : t('ascent.army.drillBody', { level: option.gain })
+        }\n${formatResourceList(option.cost)}`
+      : option.reason ?? '',
+    border: option.available ? INK_UI.gold : INK_UI.softBrush,
+    muted: !option.available,
+    onTap: option.available
+      ? () => {
+          upgradeArmy(state, armyId, option.kind);
+          showArmyDetail(self, armyId);
+        }
+      : undefined,
+  }));
+  addWidget(0, (parent, width) => {
+    const height = self.actionTiles(parent, width, [
+      ...upgrades,
+      {
+        title: t('ascent.orders.resupply'),
+        note: supply.blocked ?? t('ascent.orders.resupplyBody', {
+          r: Math.round(army.rations),
+          wantR: supply.wantRations,
+          p: Math.round(army.provisions),
+          wantP: supply.wantProvisions,
+          food: supply.food,
+          supplies: supply.supplies,
+        }),
+        border: supply.blocked ? INK_UI.softBrush : INK_UI.jade,
+        muted: Boolean(supply.blocked),
+        onTap: supply.blocked
+          ? undefined
+          : () => {
+              self.events.emit('ui:ascent-army-resupply', armyId);
+              showArmyDetail(self, armyId);
+            },
+      },
+      {
+        title: t('ascent.orders.recall'),
+        note: t('ascent.orders.recallBody'),
+        border: INK_UI.gold,
+        onTap: recall,
+      },
+      {
+        title: t('ascent.army.disband'),
+        note: t('ascent.army.disbandBody', { n: size, gold: shareGold, food: shareFood }),
+        border: INK_UI.cinnabar,
+        onTap: () => {
+          self.closeLane();
+          self.events.emit('ui:ascent-disband-army', armyId);
+        },
+      },
+    ]);
+    return height;
+  });
+
+  finish();
+}

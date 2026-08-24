@@ -64,7 +64,18 @@ check(Boolean(first.card) && first.silentRecruits === 0 && first.silentOrders ==
   'the autopilot raises a card, not a host', first.card ? `after ${first.ticks} tick(s): ${first.card.soldiers} men, ${first.card.ticks} season(s), ${first.card.purpose}` : 'no card in 120 ticks');
 
 // The card on screen: the headcount and the three answers.
-await page.evaluate(() => window.__phaserGame.scene.getScene('ConquestUIScene').refresh());
+// Two things legitimately sit in front of a card, and the loop above raises both: a siege that
+// opened its own lane owns the screen until `refresh` hands it back (one call closes the lane and
+// returns, the next draws), and `lastStoryOutcome` — what the previous answer was worth — is shown
+// ahead of the next question on purpose. Both are correct. Neither is what this is testing, and
+// with a single `refresh` this check passed or failed on which of them the run happened to raise.
+await page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  for (let i = 0; i < 8 && !ui.openPromptKey.startsWith('muster-proposal:'); i += 1) {
+    if (window.__mandateState.lastStoryOutcome) ui.dismissStoryOutcome();
+    ui.refresh();
+  }
+});
 await page.waitForTimeout(400);
 const seen = await page.evaluate(() => {
   const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
@@ -93,7 +104,10 @@ check(declined.ok && declined.until === declined.turn + declined.want && !quiet.
 
 // ── 3. accept: exactly the host on the card ─────────────────────────────────────────────────
 await page.evaluate(() => { window.__mandateState.ascent.musterDeclinedUntil = 0; });
-const second = await untilCard(60);
+// 160, not 60. The trigger is "fewer hosts than its provinces warrant", so every host this script
+// raises pushes the next card further out — measured, the first card lands around tick 50 and the
+// third took past 60 often enough to fail one run in three on the budget alone.
+const second = await untilCard(160);
 const accepted = await page.evaluate(async () => {
   const A = await import('/src/systems/ascent/AscentResolver.ts');
   const st = window.__mandateState;
@@ -106,11 +120,12 @@ const accepted = await page.evaluate(async () => {
 });
 console.log('  accept', JSON.stringify(accepted));
 check(Boolean(second.card) && accepted.ok && Boolean(accepted.order),
-  'accepting musters the host on the card, under its commander', JSON.stringify(accepted));
+  'accepting musters the host on the card, under its commander',
+  second.card ? JSON.stringify(accepted) : `no second card in ${second.ticks} tick(s)`);
 
 // ── 4. adjust: the plan reaches the raise form ──────────────────────────────────────────────
 await page.evaluate(() => { const st = window.__mandateState; st.recruitmentOrders = []; st.ascent.musterDeclinedUntil = 0; });
-const third = await untilCard(60);
+const third = await untilCard(160);
 const adjusted = await page.evaluate(async () => {
   const st = window.__mandateState;
   const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
@@ -129,7 +144,8 @@ const adjusted = await page.evaluate(async () => {
 });
 console.log('  adjust', JSON.stringify(adjusted));
 check(Boolean(third.card) && adjusted.lane === 'lane:army' && adjusted.draft === adjusted.soldiers && adjusted.prompt === '',
-  'adjusting closes the card and opens the raise form with the plan filled in', JSON.stringify({ lane: adjusted.lane, draft: adjusted.draft, soldiers: adjusted.soldiers }));
+  'adjusting closes the card and opens the raise form with the plan filled in',
+  third.card ? JSON.stringify({ lane: adjusted.lane, draft: adjusted.draft, soldiers: adjusted.soldiers }) : `no third card in ${third.ticks} tick(s)`);
 await page.evaluate(() => window.__phaserGame.scene.getScene('ConquestUIScene').closeLane());
 
 // ── 5. the switch: left to the general, it musters without asking ──────────────────────────

@@ -1,0 +1,477 @@
+/**
+ * The land the Dragon Ascent fight stands on: everything in the battle screen's field view that is
+ * not a man — five bands painted far to near, the dead piling up on them, and the bake.
+ *
+ * The three run as one sequence and in this order only. `buildBattleField` records
+ * `field.list.length`, calls `buildBattleGround`, then `bakeBattleGround` with that index — and the
+ * bake flattens and *hides* every child added since it, so anything that has to keep drawing once
+ * the fight is under way has no business being added before it. Worth 33.5 ms a frame down to 16.7.
+ *
+ * `layFallen` is the exception to "static": it writes into `ui.fallen`, never clears, and stops at
+ * 40. The clip the layers hang off (`ui.groundClip`) is destroyed by the field's rebuild, not here.
+ */
+import Phaser from 'phaser';
+import { RectClip } from '../../../ui/ink/clipRect';
+import { GAME_WIDTH } from '../../../game/constants';
+import { figureEraFor } from '../../../ui/ink/devices';
+import { areca, bamboo, grassTuft, hayStack, softRidge, tree } from '../../../ui/ink/props';
+import { citadel, hamlet, village } from '../../../ui/ink/settlements';
+import { groundTone, inkPath, mulberry32 } from '../../../ui/ink/stroke';
+import { PIGMENT } from '../../../ui/ink/palette';
+import { findLand } from '../../../systems/LandSystem';
+import type { AscentBattle, BattleBeat } from '../../../state/types';
+import { battleFieldBox } from '../constants';
+import { battleLines, battleRearY, battleScaleAt } from './geometry';
+import type { ConquestUIScene } from '../../ConquestUIScene';
+
+/**
+ * The fight's own account used to be printed along the foot of the field, on a plate over the
+ * hatching. It is one line in the header now — see `updateBattleLogLine` — because that is where it
+ * can be read, and because a plate of type across the bottom third of the picture was covering the
+ * one thing this screen exists to show. Nothing draws inside the field any more except the field.
+ */
+/**
+ * The round pips used to be a full-width band between the header and the field, and they are in
+ * the header's own top-right corner now — see `battleHeaderFrame`. The band is gone; the field
+ * kept the twenty-four points.
+ */
+/**
+ * Most bodies the killing floor will hold.
+ *
+ * Capped because they are never cleared — the point of them is that they accumulate — and an
+ * engagement can run forty beats. Forty marks is a covered field at this size; beyond that it is
+ * a texture, and the two armies stop reading against it.
+ */
+const BATTLE_FALLEN_CAP = 40;
+
+
+/**
+ * The land the fight is happening on.
+ *
+ * The field was a cream rectangle with two clusters of tents on it — the thing the screen exists
+ * to show, drawn as nothing. None of this needs new art: the Đông Hồ renderers already draw
+ * villages, citadels, paddy, karst, bamboo and buffalo for the map, and the battle screen used
+ * exactly one of them.
+ *
+ * Five bands, painted far to near, because the eye reads a scene bottom-up and Phaser does not
+ * depth-sort a container's children:
+ *
+ *   0  distance — karst and a soft ridge along the horizon. Nothing here ever moves.
+ *   1  ground   — a tone under the whole killing floor.
+ *   2  ours     — the province being defended: its settlement, its paddy, its bamboo hedge.
+ *   3  theirs   — what came for it.
+ *   4  scatter  — trees and grass drawn from the province's *real* terrain.
+ *
+ * Static for the length of the fight, so it is drawn once per field rebuild rather than per beat.
+ */
+export function buildBattleGround(self: ConquestUIScene, battle: AscentBattle): void {
+  const ui = self.battleUi;
+  if (!ui) return;
+  const { content, field } = ui;
+  const { groundY } = ui.geometry;
+
+  const top = content.y;
+  const bottom = top + ui.fieldHeight;
+  const x0 = 0;
+  const x1 = GAME_WIDTH;
+  const horizon = top + ui.fieldHeight * 0.30;
+  const land = findLand(self.state, battle.landId);
+  const seed = Math.round((battle.landId.length * 977) + battle.totalRounds * 31);
+  const rand = mulberry32(seed);
+  // One scale for everything standing on this field, and the only thing allowed to change it
+  // is how far back the thing stands. See `battleScaleAt`.
+  const scale = (at: number): number => battleScaleAt(self, at);
+
+  // Everything the land is made of is clipped to the frame.
+  //
+  // `planSoftRidge` places peaks along the span it is given and each peak is wider than its
+  // centre, so a range asked to end at the frame still puts a summit and its skirt out past the
+  // border — measured, a whole hill hung forty pixels off the right edge with the panel's own
+  // rule cut behind it. Narrowing the span only moves the overhang inward. A mask is the only
+  // thing that ends a shape exactly where the paper does.
+  // A stencil layer, bracketing the three land layers in the field's child list. Phaser 4 made
+  // the v3 geometry mask a no-op under WebGL, and the Mask filter that was meant to replace it
+  // crops to the design surface, so it had to be gated off above RENDER_SCALE 1 — read
+  // `ui/ink/clipRect` for the measurement. The stencil clips in screen space and so is the same
+  // shape at every graphics tier.
+  const clip = new RectClip(self, {
+    x: 0, y: top, width: GAME_WIDTH, height: ui.fieldHeight,
+  });
+  ui.groundClip = clip;
+  clip.begin(field);
+
+  // Three layers, in the order a print is built: distance, then the ground over its feet, then
+  // everything standing on the ground.
+  const far = self.add.graphics();
+  far.setAlpha(0.5);
+  field.add(far);
+  clip.apply(far);
+  const ground = self.add.graphics();
+  field.add(ground);
+  clip.apply(ground);
+  const g = self.add.graphics();
+  // The land is a backdrop, not a subject. Drawn at half strength as a whole, because at full
+  // weight the scenery and the two armies carry the same emphasis and the fight — the thing the
+  // screen exists to show — stops being the thing you look at.
+  g.setAlpha(0.5);
+  field.add(g);
+  clip.apply(g);
+  // Closes the bracket: everything added to `field` after this — the fallen, the camps, the
+  // hosts — is outside the clip, exactly as it was under the three-mask version.
+  clip.end(field);
+
+  // ── 0. distance ────────────────────────────────────────────────────────
+  // Two soft ridges at different depths, and no karst.
+  //
+  // `karstRange` is drawn for a map, where a limestone tower is a few pixels and the range reads
+  // as a country's spine. Squeezed into a hundred-pixel band it repeats its arcs at even
+  // intervals and the horizon becomes a scalloped border — a caterpillar laid across the top of
+  // the field. Ridges have no repeating unit, so they thin out into distance instead.
+  //
+  // Both stand on nearly the same line, and both lines sit *above* where the near ground starts.
+  // A ridge's own base is a hard edge; the only thing that hides one is the ground in front of
+  // it, so anything the ground does not reach up to stays visible as a rule across the field.
+  // The first pass missed this one by eleven pixels and it was still perfectly obvious.
+  //
+  // Both on the same base. Two ridges at two heights meant two flat wash bottoms and two ruled
+  // lines across the field; standing them on one line leaves one seam, and one seam can be given
+  // a contour and a treeline and become the horizon. See the ground band below.
+  // Run past the frame on purpose: the mask ends them, so the range reads as continuing behind
+  // the border rather than as a row of hills that happens to stop at it.
+  softRidge(far, x0 - 20, x1 + 20, horizon + 8, ui.fieldHeight * 0.13, seed + 5);
+  softRidge(far, x0 - 20, x1 + 20, horizon + 8, ui.fieldHeight * 0.07, seed + 41);
+
+  // ── 1. the ground ──────────────────────────────────────────────────────
+  //
+  // `softRidge` fills its slopes down to a flat `baseY`, and on this screen that showed: measured
+  // off a frame, 97–100% of sampled columns stepped at exactly the two base rows, a seven-per-
+  // channel difference holding dead straight for 670 px. On the map the same fill is invisible
+  // because terrain is already toned underneath it; here there was bare paper below.
+  //
+  // Two attempts at hiding it both failed and both are worth recording. A translucent wash over
+  // the top adds the same amount on either side of a step, so the step survives exactly as it
+  // was. An opaque block of `parchment` laid over the lower half does remove it — and reads as a
+  // sheet of white paper pasted across the picture, because flat parchment is brighter than the
+  // panel's own printed, textured, washed surface. There is nothing to paint the ground *with*
+  // that matches the paper, because the paper is not one colour.
+  //
+  // So the seam is not hidden. Both ridges are put on the same base line, which turns two seams
+  // into one, and that one is *drawn* — an inked ground line with a treeline standing on it.
+  // A landscape print has a horizon in it. An artefact that is given a contour stops being an
+  // artefact and becomes the thing it was accidentally imitating.
+  const baseY = horizon + 8;
+  const horizonPts: Array<{ x: number; y: number }> = [];
+  const skyX0 = content.x + 5;
+  const skyX1 = content.x + content.width - 5;
+  for (let i = 0; i <= 14; i += 1) {
+    const t = i / 14;
+    horizonPts.push({ x: skyX0 + (skyX1 - skyX0) * t, y: baseY + Math.sin(t * Math.PI * 1.7 + seed) * 2.5 });
+  }
+  inkPath(ground, horizonPts, seed + 71, { colour: PIGMENT.mucFaint, width: 0.8, alpha: 0.5, wobble: 0.8, step: 12 });
+
+  // A broken treeline on the line, at the far distance's weight. Something irregular growing out
+  // of a horizon is most of what stops it reading as a border.
+  for (let i = 0; i < 34; i += 1) {
+    const t = (i + rand() * 0.9) / 34;
+    const tx = skyX0 + (skyX1 - skyX0) * t;
+    const ty = baseY + Math.sin(t * Math.PI * 1.7 + seed) * 2.5 + 1;
+    const th = 3.5 + rand() * 5;
+    ground.fillStyle(PIGMENT.tram, 0.16 + rand() * 0.14);
+    ground.fillEllipse(tx, ty - th * 0.55, 3.4 + rand() * 3.4, th);
+  }
+
+  // Tone on the near ground, so the field is a place and not bare paper — the complaint that
+  // started this was literally "no blank screen, make it look like a fight on a land".
+  //
+  // Every centre jittered and no two radii alike. `groundTone` is rings of hard circles, edgeless
+  // only because the map's cells never share a step; laid out as an even row at one height they
+  // draw a fresh ruled line straight back in, which is the same fault one layer up.
+  const plane = ui.fieldHeight;
+  for (let i = 0; i <= 10; i += 1) {
+    const px = x0 + ((x1 - x0) * i) / 10 + (rand() - 0.5) * 20;
+    groundTone(ground, px, baseY + 30 + (rand() - 0.5) * plane * 0.10,
+      plane * (0.16 + rand() * 0.09), PIGMENT.diepLo, 0.09, 6);
+  }
+
+  // Barely there: a wash under the men's feet, not a pool of colour the eye lands in.
+  groundTone(ground, (x0 + x1) / 2, groundY + 22, content.width * 0.42, PIGMENT.diepDeep, 0.1, 6);
+
+  // The dead, re-laid onto the rebuilt field: on the ground, under everything that stands on it.
+  ui.fallen = self.add.graphics();
+  field.add(ui.fallen);
+  for (const pt of ui.fallenPts) inkFallen(self, pt.x, pt.y);
+
+  // ── 2. the middle distance ─────────────────────────────────────────────
+  //
+  // The band between the horizon and the line the hosts stand on was bare paper — sixty units
+  // of nothing across the whole width, directly behind the only thing the screen is about. All
+  // the scenery this field had was crammed into the bottom-left corner and along the near edge,
+  // along the near edge, where the log ribbon then printed over half of it.
+  //
+  // What fills it is what is actually there: the bờ ruộng. A delta province is a mosaic of
+  // banked paddy, and the banks are long shallow curves running away from the eye and closing up
+  // as they recede. Three strokes and the ground has depth, without one thing standing between
+  // the player and the two lines.
+  const ts = land?.terrainSummary;
+  const wooded = ts ? ts.forest + ts.mountains + ts.hills : 0;
+  const wet = ts ? ts.riceFields + ts.fields + ts.water : 0;
+  const bunds = 5;
+  for (let i = 0; i < bunds; i += 1) {
+    // Squared so they crowd toward the horizon, which is what perspective does to even spacing.
+    const t = ((i + 1) / (bunds + 1)) ** 1.7;
+    const by = horizon + 10 + t * (groundY - horizon - 16);
+    const sag = 3 + t * 5;
+    // Each one a stretch of bank rather than a line across the world. Drawn full width at an
+    // even weight they stopped reading as the edges of paddy and started reading as wires strung
+    // over the battlefield — a bund is a boundary between two fields, and fields end.
+    const from = x0 - 10 + rand() * (x1 - x0) * 0.34;
+    const to = from + (x1 - x0) * (0.4 + rand() * 0.5);
+    inkPath(
+      far,
+      [{ x: from, y: by }, { x: (from + to) / 2, y: by + sag }, { x: Math.min(x1 + 10, to), y: by }],
+      seed + 101 + i,
+      { colour: PIGMENT.mucFaint, width: 0.7, alpha: 0.16 + t * 0.12, wobble: 1.1, step: 14 },
+    );
+  }
+  // No treeline here. There is already one — thirty-four small tram ellipses standing on the
+  // drawn horizon, a few lines further down — and it is the better of the two: irregular,
+  // low, and at the far distance's own weight. A second row of full `tree()` props at ten
+  // metres apiece put evenly spaced canopies across the skyline, which read as boulders rather
+  // than as woodland and reached back over the hills.
+
+  // ── 3. the province being defended ─────────────────────────────────────
+  //
+  // Drawn from the province's own record: the seat gets its citadel, a settled district gets a
+  // village, and bare ground gets a hamlet. The stake of the fight, stated as a picture.
+  //
+  // Behind our own line and to the left of it — not on it. Drawn beside the camp it belongs to,
+  // the settlement sat exactly where our block stands and where an advancing enemy comes to meet
+  // it, so at contact the village, our host and theirs were one unreadable clump.
+  const era = figureEraFor(self.state);
+  // Set back the same distance as their camp, and for the same reason: a settlement drawn on the
+  // line the armies stand on is a settlement our own front rank is standing inside. `village()`
+  // is a composite — houses, a pond, its own cây đa — so at the field's scale it reaches a
+  // hundred units to the right of its anchor, which put our block in the middle of it.
+  const homeX = x0 + 22;
+  const homeY = battleRearY(self);
+  if (land && self.state.ascent?.capitalLandId === land.id) citadel(g, homeX, homeY, scale(homeY), era, seed + 3);
+  else if (land?.hasVillage) village(g, homeX, homeY, scale(homeY), seed + 3);
+  else hamlet(g, homeX, homeY, scale(homeY), seed + 3, 4);
+
+  // The bamboo hedge that is a delta village's real boundary — not a palisade, which this
+  // screen had no business drawing. It runs along the village's own edge, between it and the
+  // fight.
+  //
+  // No paddy plots: `drawFieldPlot` is drawn for map scale, where a plot is a few pixels of
+  // texture. Blown up to a close-up they are big pale rectangles that read as scraps of paper
+  // lying on the field, and a wrong mark is worse than a missing one — hence the bunds above,
+  // which are the same idea drawn as lines instead of as fills.
+  for (let i = 0; i < 4; i += 1) {
+    // Along the village's own edge, between it and the fight.
+    const hedgeY = homeY + 10 + (i % 2) * 3;
+    bamboo(g, x0 + 4 + i * 9, hedgeY, scale(hedgeY), seed + 11 + i);
+  }
+  // No buffalo. It is the right animal for a province at peace and the wrong one for the near
+  // edge of a battlefield: drawn at the ground scale it is the largest single object on the
+  // field, it stands between the player and the fight, and it is grazing through a battle.
+  hayStack(g, homeX + 26, homeY + 6, scale(homeY + 6), seed + 19);
+
+  // ── 4. what came for it ────────────────────────────────────────────────
+  //
+  // The tents themselves are `battleCamp`; this is the baggage behind them. Drawing a hamlet on
+  // top of the camp put two settlements in the same place.
+  hayStack(g, x1 - 26, groundY - 6, scale(groundY - 6), seed + 21);
+  hayStack(g, x1 - 46, groundY - 2, scale(groundY - 2), seed + 23);
+
+  // ── 5. the killing floor ───────────────────────────────────────────────
+  //
+  // Scatter chosen by what the province actually is. A fight on rice ground and a fight in the
+  // hills are the same two blocks of men on two different pieces of the country. Near the eye
+  // and along the edges: anything in the middle stands between the player and the two lines
+  // meeting, which is the one thing on this screen that must stay legible.
+  // Two corner pieces first, big and near, one each side. A picture with nothing in its
+  // foreground has no depth to read the middle against — and the near band under the lines was
+  // a third of the field with nothing on it at all. These are the only things on the screen
+  // drawn larger than the men, which is what puts the men at a distance.
+  if (wet > wooded) {
+    areca(g, x0 + 14, bottom - 4, scale(bottom - 4), seed + 61);
+    areca(g, x0 + 30, bottom + 2, scale(bottom + 2), seed + 63);
+  } else {
+    tree(g, x0 + 20, bottom - 2, scale(bottom - 2), seed + 61);
+  }
+  for (let i = 0; i < 3; i += 1) {
+    const py = bottom + 2 - i * 3;
+    bamboo(g, x1 - 10 - i * 11, py, scale(py), seed + 65 + i);
+  }
+
+  // And the rest scattered across the near ground. Below the line rather than beside it: the two
+  // lines meet *on* the ground line, so anything under it is behind the player's eye rather than
+  // between the player and the fight, and the old rule that kept the middle clear was costing
+  // the whole apron for a clearance the composition no longer needs.
+  const nearTop = groundY + 26;
+  const nearDepth = Math.max(12, bottom - nearTop - 8);
+  for (let i = 0; i < 11; i += 1) {
+    const px = x0 + 16 + rand() * (x1 - x0 - 32);
+    const py = nearTop + rand() * nearDepth;
+    if (wooded > wet && i < 2) tree(g, px, py, scale(py), seed + 33 + i);
+    else if (wet > wooded && i === 0) areca(g, px, py, scale(py), seed + 39);
+    else grassTuft(g, px, py, scale(py), seed + 41 + i);
+  }
+}
+
+/**
+ * Lays out the men who fell this beat, where they fell.
+ *
+ * One mark per figure's worth of loss, capped — a beat that kills sixty men lays about one body
+ * down, so the floor fills at the same rate the ranks thin. Drawn into a graphics that is never
+ * cleared, because the dead do not get up: the field carries the whole fight's cost by the end,
+ * which is what makes a won battle look like it cost something.
+ */
+export function layFallen(self: ConquestUIScene, beat: BattleBeat): void {
+  const ui = self.battleUi;
+  if (!ui || ui.fallenCount >= BATTLE_FALLEN_CAP) return;
+  const { groundY } = ui.geometry;
+  const { seam } = battleLines(self, beat.ourAdvance, beat.theirAdvance);
+
+  // One mark per twenty men, so an ordinary exchange — measured, eight to thirty a side — lays
+  // one or two down. At one per forty-five a whole fight passed without a single body, which is
+  // a threshold set from a guess about how hard fights hit rather than from watching one.
+  const lost = beat.ourLoss + beat.theirLoss;
+  const wanted = Math.min(3, Math.round(lost / 20));
+  if (wanted <= 0) return;
+
+  for (let i = 0; i < wanted && ui.fallenCount < BATTLE_FALLEN_CAP; i += 1) {
+    const rand = mulberry32(ui.fallenCount * 2654435761);
+    // Scattered along the seam rather than dropped on it: a line of bodies in a row reads as a
+    // fence. Spread wider across the line than through it, the way a front is shaped.
+    const fx = seam + (rand() - 0.5) * 58;
+    const fy = groundY + (rand() - 0.5) * 64;
+    ui.fallenPts.push({ x: fx, y: fy });
+    inkFallen(self, fx, fy);
+    ui.fallenCount += 1;
+  }
+}
+
+/** One body on the ground. Two marks: the man, and what he dropped. */
+function inkFallen(self: ConquestUIScene, x: number, y: number): void {
+  const g = self.battleUi?.fallen;
+  if (!g?.active) return;
+  g.fillStyle(PIGMENT.muc, 0.55);
+  g.fillEllipse(x, y, 8.5, 3);
+  g.lineStyle(1.1, PIGMENT.mucSoft, 0.5);
+  g.lineBetween(x - 5, y + 2, x + 4, y - 1.6);
+}
+
+/**
+ * The ground, flattened into a single texture once the fight opens.
+ *
+ * `buildBattleGround`'s own comment already says it is "static for the length of the fight" — and
+ * it was, as far as *building* went. It was still three `Graphics` full of ridges, paddy, bamboo
+ * and scatter being re-tessellated and re-uploaded on **every frame**, for a picture that never
+ * changes between one beat and the next.
+ *
+ * Measured at 390x844 with everything else on screen: the fight ran at 33.5 ms a frame, and
+ * hiding the ground alone took it to 16.7. Hiding both armies changed nothing at all — the
+ * soldiers were never the cost.
+ *
+ * Lossless, which is the whole reason this is safe to do: those layers are already clipped by a
+ * geometry mask to exactly `(content.x + 2, top + 2, width - 4, fieldHeight - 4)`, so a texture of
+ * that rect holds precisely what was on screen and no more. Each source keeps its own alpha as it
+ * is drawn in, and the texture composites at full strength, which is the same order of operations
+ * the live layers had. Verified by pixel diff, not by argument.
+ *
+ * This is the same trick `MapScene.bakeStaticTerrain` plays for the world, for the same reason.
+ */
+export function bakeBattleGround(self: ConquestUIScene, from: number): void {
+  const ui = self.battleUi;
+  if (!ui) return;
+  // The A/B switch `verify-battle-ground-bake` flips to rebuild the same field unbaked. It cannot
+  // get its reference by un-hiding the sources: the bake clears their geometry masks, and without
+  // those the ridges, the pond and the bamboo all spill past the frame — which is the very thing
+  // the masks were added for. The only honest reference is a field that never went through here.
+  if (self.skipGroundBake) return;
+  const { content, field } = ui;
+  // A lost context nulls the GL bindings mid-draw; leave the live layers up and cost the frames
+  // rather than throw. `MapScene` learned this one the hard way.
+  const renderer = self.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
+  if (renderer?.contextLost) return;
+
+  // Whole pixels. A texture landing on a half-pixel resamples everything inside it, which is a
+  // broad, low-amplitude difference across the whole picture rather than an obvious fault.
+  // The field box — NOT `content`. The frame went full-bleed (`battleFieldBox`) and this bake
+  // kept the card column it used to sit in, so the ground was painted 20px short of the frame on
+  // either side and read as the picture being cut off. Measured on a 1206-wide phone: a bare
+  // parchment strip under the border, both sides, the whole height of the field.
+  const box = battleFieldBox(content, ui.fieldHeight);
+  const x = Math.round(box.x);
+  const y = Math.round(box.y);
+  const width = Math.ceil(box.width);
+  const height = Math.ceil(box.height);
+  if (width <= 0 || height <= 0) return;
+
+  type Hideable = Phaser.GameObjects.GameObject & { visible: boolean; setVisible(v: boolean): unknown };
+  const added = field.list.slice(from) as Hideable[];
+  // Only the things that were drawn, and only the ones that never draw again. Three kinds of
+  // passenger live in this slice and none of them is static art: `draw` does not consult
+  // `visible`, so an invisible layer baked in anyway; the clip's stencil pair write to the stencil
+  // buffer rather than to the picture; and `ui.fallen` is the one layer built before the bake that
+  // keeps drawing after it, so flattening it hid the killing floor for the rest of the fight.
+  // Measured with the full forty bodies down: 0 of 105350 field pixels differed, 1057 once live.
+  //
+  // `isStencilModifier` and not `type`, which is the trap: a `Stencil` extends Container and
+  // keeps *its* type string, so a name check catches the closing `StencilReference` and misses
+  // the opening half. Measured, that is what it costs — the Stencil was baked into the texture
+  // and then hidden along with the real layers, leaving a frame that subtracted a stencil layer
+  // it had never added. The buffer wrapped below zero and the readout under the field went with
+  // it: 14.5% of the field's pixels differed from the unbaked reference, against 5.4% before.
+  const sources = added.filter(
+    (obj) => obj !== ui.fallen && obj.visible !== false && !(obj as { isStencilModifier?: boolean }).isStencilModifier,
+  );
+  if (sources.length === 0) return;
+
+  // Supersampled, because a texture made in game units is drawn onto a canvas that renders at the
+  // device ratio — every hairline in the ridges, the paddy bunds and the bamboo came back softer.
+  // Measured against an unbaked rebuild of the same field: 14.2% of pixels differed at 1x and the
+  // worst was 132/255, which is a visible change and not one anybody asked for.
+  //
+  // Same trick as `MapScene.bakeStaticTerrain`: scale the sources up, bake big, display small. A
+  // Graphics scales its stroke widths with its geometry, so the lines land back at their own width.
+  const SUPER = 2;
+  const baked = self.add.renderTexture(x, y, width * SUPER, height * SUPER)
+    .setOrigin(0, 0)
+    .setScale(1 / SUPER);
+  const scalable = sources as unknown as Array<{ setScale(v: number): unknown }>;
+  for (const source of scalable) source.setScale(SUPER);
+  // Drop the clip before drawing, and this is load-bearing rather than tidy.
+  //
+  // Under Phaser 3 the reason was that a geometry mask is a stencil pass and simply does not
+  // survive `RenderTexture.draw` — the masked layers rendered as *nothing*, and the first attempt
+  // lost the horizon ridges, the pagoda and the whole settlement. That is still exactly true of
+  // the Canvas fallback, which is the only place a geometry mask is still live.
+  //
+  // Under WebGL the clip is now a stencil layer written by two objects of its own, and those are
+  // filtered out of `sources` above rather than cleared off each layer — a stencil belongs to the
+  // frame, not to the things it covers, so there is nothing on a source to drop.
+  //
+  // Either way the answer is safe for the same reason: the texture is created at exactly the rect
+  // the clip cut to, so the RT's own bounds do the identical job. That equivalence is why this is
+  // a performance change and not an art change; `verify-battle-ground-bake` holds it to it.
+  type Maskable = Phaser.GameObjects.GameObject & { clearMask?(d?: boolean): unknown };
+  for (const source of sources as Maskable[]) source.clearMask?.(false);
+  try {
+    baked.draw(sources, -x * SUPER, -y * SUPER);
+    // Phaser 4 buffers the draw; `render` executes it. Before the sources are put back to
+    // scale 1 and hidden below, or the buffer replays against layers that have already moved.
+    baked.render();
+  } catch {
+    for (const source of scalable) source.setScale(1);
+    baked.destroy();
+    return;
+  }
+  for (const source of scalable) source.setScale(1);
+  for (const source of sources) source.setVisible?.(false);
+  ui.groundSources = sources;
+  // At `from`, so it sits exactly where the layers it replaces stood — under the camps, the
+  // fallen and the men.
+  field.addAt(baked, from);
+}

@@ -109,7 +109,17 @@ const probe = await page.evaluate(async () => {
     if (d > 8) differing += 1;
     if (d > worst) worst = d;
   }
-  return { ok: true, differing, worst, noise, total: baked.length / 4, rect };
+  // The killing floor must survive the bake.
+  //
+  // `ui.fallen` is created inside `buildBattleGround`, so it sat in the range `bakeBattleGround`
+  // flattens and hides — every body `inkFallen` drew afterwards went into a hidden Graphics and no
+  // corpse laid after the opening ever appeared. The pixel diff above cannot see it, because the
+  // layer is empty at the moment this harness shoots and is now live on both sides of the A/B.
+  return {
+    ok: true, differing, worst, noise, total: baked.length / 4, rect,
+    fallenVisible: ui.battleUi.fallen?.visible === true,
+    fallenBaked: (ui.battleUi.groundSources ?? []).includes(ui.battleUi.fallen),
+  };
 });
 
 await browser.close();
@@ -133,6 +143,12 @@ if (probe.ok) {
   // 16.7 ms a frame instead of 50.
   check(share < 10 && probe.worst < 64, 'the baked ground is structurally the same picture',
     `${probe.differing} of ${probe.total} pixels differ by more than 8/255 (${share.toFixed(3)}%), worst ${probe.worst}/255`);
+}
+
+if (probe.ok) {
+  check(probe.fallenVisible && !probe.fallenBaked,
+    'the dead stay on the field — the bake does not swallow the killing floor',
+    `visible ${probe.fallenVisible}, in the baked sources ${probe.fallenBaked}`);
 }
 
 check(errors.length === 0, 'no console errors', errors.slice(0, 2).join(' | '));
