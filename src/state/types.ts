@@ -2171,6 +2171,12 @@ export interface AscentWaveCue {
 }
 
 export interface AscentState {
+  /**
+   * Skirmish only: the setup page's pin on the speech bubbles' linger, in ms. `-1` keeps them
+   * forever, `0` silences them; absent, the fight follows the difficulty profile and the wave
+   * escalation caps. See `battleOptions.battleBubbleMs`.
+   */
+  arenaBubbleMs?: number;
   /** Wave counter. Threat scales as BASE * GROWTH^wave; every 4th wave is a Great Invasion. */
   wave: number;
   ticksToWave: number;

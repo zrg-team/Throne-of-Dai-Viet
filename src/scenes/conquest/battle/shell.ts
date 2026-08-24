@@ -32,7 +32,7 @@ import {
 } from '../constants';
 import { clearLayer } from '../layers';
 import type { ConquestUIScene } from '../../ConquestUIScene';
-import { setBattleEscalationWave } from '../../../game/battleOptions';
+import { setBattleBubbleOverride, setBattleEscalationWave } from '../../../game/battleOptions';
 
 /**
  * How far the two lines stand in from the edge of the sheet.
@@ -405,6 +405,8 @@ export function showBattle(self: ConquestUIScene): void {
 
   // The escalation floors read this run's wave; everything outside Dragon Ascent stays at 0.
   setBattleEscalationWave(self.state.ascent?.wave ?? 0);
+  // The Skirmish page's bubble pin rides its state; every other mode clears it here.
+  setBattleBubbleOverride(self.state.ascent?.arenaBubbleMs);
 
   self.battleItems ??= createMapItemRenderer(self);
   // A fresh field starts even: the press belongs to this engagement, not the last one.

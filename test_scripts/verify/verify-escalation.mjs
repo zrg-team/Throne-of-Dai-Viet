@@ -58,6 +58,18 @@ const out = await page.evaluate(async () => {
     cap: C.WAVE_MATCH_PLAYER.cap,
   };
 
+  // The Skirmish pin beats both the profile and the wave caps - and clears clean.
+  O.setBattleDifficulty('easy');
+  O.setBattleEscalationWave(20);
+  O.setBattleBubbleOverride(6000);
+  r.pinBeatsCaps = O.battleBubbleMs();
+  O.setBattleBubbleOverride(-1);
+  r.pinAlways = O.battleBubbleMs();
+  O.setBattleBubbleOverride(0);
+  r.pinNone = O.battleBubbleMs();
+  O.setBattleBubbleOverride(undefined);
+  r.pinCleared = O.battleBubbleMs();
+
   O.setBattleEscalationWave(0);
   O.setBattleDifficulty('medium');
   O.setBattleSpeed('normal');
@@ -82,5 +94,9 @@ report([
   ['strength above threshold is answered, monotonically', out.curve.above > 1
     && out.curve.higher > out.curve.above, JSON.stringify(out.curve)],
   ['the answer is capped', out.curve.capped === out.curve.cap, `${out.curve.capped} vs cap ${out.curve.cap}`],
+  ['the Skirmish pin beats profile and wave caps', out.pinBeatsCaps === 6000, `got ${out.pinBeatsCaps}`],
+  ['pin -1 keeps the words forever', out.pinAlways === Infinity, `got ${out.pinAlways}`],
+  ['pin 0 silences the field', out.pinNone === 0, `got ${out.pinNone}`],
+  ['clearing the pin restores the ladder', out.pinCleared === 0, `wave 20 nightmare floor -> ${out.pinCleared}`],
   ['no console errors', errors.length === 0, errors.slice(0, 3).join(' | ')],
 ]);

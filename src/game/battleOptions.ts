@@ -149,6 +149,17 @@ export function setBattleSpeed(value: BattleSpeed): void {
 // arena, the classic siege and every harness keep the exact behaviour the profiles promise.
 
 let escalationWave = 0;
+let bubbleOverride: number | undefined;
+
+/**
+ * A fight-scoped pin on the bubbles' linger — the Skirmish page's own dial. `-1` keeps the
+ * words forever, `0` silences them, `undefined` follows the difficulty profile (and the wave
+ * caps). An explicit pin beats both: it exists exactly so a practice fight can be set up with
+ * more or fewer words than the player's real campaign gives them.
+ */
+export function setBattleBubbleOverride(ms?: number): void {
+  bubbleOverride = ms;
+}
 
 /** The current run's wave, for the escalation floors. 0 = no escalation. */
 export function setBattleEscalationWave(wave: number): void {
@@ -185,6 +196,7 @@ export function battleRimsShown(): boolean {
 
 /** How long a speech bubble over a host lingers, capped by the wave escalation. */
 export function battleBubbleMs(): number {
+  if (bubbleOverride !== undefined) return bubbleOverride === -1 ? Infinity : bubbleOverride;
   const eff = escalated();
   return Math.min(DIFFICULTY[eff.difficulty].bubbleMs, eff.bubbleCap);
 }
