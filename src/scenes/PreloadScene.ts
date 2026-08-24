@@ -16,7 +16,7 @@ export class PreloadScene extends Phaser.Scene {
     // The front-page landscape is a registered four-plate illustration. Mountains, bamboo and
     // lotus retain a shared 1536x1024 frame so MenuScene can move them independently without the
     // perspective drift that comes from rebuilding the scene out of map tokens.
-    this.load.image('menu-layer-ground-v3', `${baseUrl}art/menu-layer-ground-v3.png`);
+    this.load.image('menu-layer-ground-v4', `${baseUrl}art/menu-layer-ground-v4.png`);
     this.load.image('menu-layer-mountains-v1', `${baseUrl}art/menu-layer-mountains-v1.png`);
     this.load.image('menu-layer-bamboo-v1', `${baseUrl}art/menu-layer-bamboo-v1.png`);
     this.load.image('menu-layer-lotus-v1', `${baseUrl}art/menu-layer-lotus-v1.png`);

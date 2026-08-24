@@ -378,7 +378,7 @@ export class MenuScene extends Phaser.Scene {
 
   /** The approved river scene, registered as four real image layers instead of one static plate. */
   private drawDongHoIllustration(): void {
-    const texture = this.textures.get('menu-layer-ground-v3').getSourceImage() as { width: number; height: number };
+    const texture = this.textures.get('menu-layer-ground-v4').getSourceImage() as { width: number; height: number };
     // The art lane loses height much faster than width on short browser-chrome viewports. Shrink
     // uniformly instead of squashing the landscape: full bleed on the 844 sheet, a quiet paper
     // margin on the compact sheet, and the lotus/roofs keep their authored proportions on both.
@@ -395,10 +395,10 @@ export class MenuScene extends Phaser.Scene {
       .setDepth(-8)
       .setData('menuLandscapeRole', 'illustration')
       .setData('menuArtwork', {
-        version: 7,
+        version: 9,
         layers: ['ground', 'mountains', 'mountain-mist', 'river-fx', 'bamboo', 'lotus'],
         composition: ['karst-mountains', 's-curve-river', 'foreground-lotus', 'right-bank-paddies', 'right-bank-bamboo-grove'],
-        motion: ['mountain-drift', 'mountain-mist', 'bamboo-breeze', 'lotus-sway', 'pointer-lotus-spring', 'river-currents', 'lotus-water-wakes', 'tap-and-drag-wakes'],
+        motion: ['mountain-drift', 'mountain-mist', 'bamboo-breeze', 'lotus-sway', 'pointer-lotus-spring', 'river-surface-shimmer', 'lotus-water-wakes', 'tap-and-drag-wakes'],
         width,
         height,
       });
@@ -414,7 +414,8 @@ export class MenuScene extends Phaser.Scene {
       return image;
     };
 
-    const ground = layer('menu-layer-ground-v3', 'ground', 0.95);
+    const ground = layer('menu-layer-ground-v4', 'ground', 0.95)
+      .setData('menuFieldContinuity', 'fully-planted-rice');
     const mountains = layer('menu-layer-mountains-v1', 'mountains', 0.86);
     // This container is deliberately inserted between mountains and village. Mist can cross the
     // feet of the karst without whitening the houses or close lotus in front of it.
@@ -429,21 +430,21 @@ export class MenuScene extends Phaser.Scene {
       .setData('menuArtworkLayer', 'river-fx')
       .setData('menuCompositing', 'below-bamboo-and-lotus');
     artwork.add(waterFx);
-    const bamboo = layer('menu-layer-bamboo-v1', 'bamboo', 0.76)
-      .setData('menuBambooPlacement', 'right-bank-dry-verge')
-      .setData('menuBambooBand', 'lower-right-below-horizon')
+    const bamboo = layer('menu-layer-bamboo-v1', 'bamboo', 0.7)
+      .setData('menuBambooPlacement', 'rear-field-edge-windbreak')
+      .setData('menuBambooBand', 'rear-right-dike')
       .setData('menuBambooStyle', 'dong-ho-natural-pigment')
       .setData('menuBambooCulmCount', 14);
     // The isolated grove keeps the registered 1536x1024 frame. Its measured ink bounds are
-    // transformed onto the dry right-bank verge so the leaves begin below the mountain feet and
-    // the roots remain outside the planted plots. The low scale keeps bamboo as quiet scenery.
-    const bambooScale = 0.48;
+    // transformed onto the distant outer dike. At one fifth scale the roots sit on the bank line,
+    // not inside a planted plot, and the grove reads as a rear windbreak rather than foreground art.
+    const bambooScale = 0.2;
     const bambooSourceBounds = { left: 590, top: 448, right: 1494, bottom: 970 };
     const bambooSourceCentre = {
       x: (bambooSourceBounds.left + bambooSourceBounds.right) / 2,
       y: (bambooSourceBounds.top + bambooSourceBounds.bottom) / 2,
     };
-    const bambooTargetCentre = { x: 1235, y: 650 };
+    const bambooTargetCentre = { x: 1400, y: 480 };
     const bambooX = left + width * (bambooTargetCentre.x / 1536)
       - width * bambooScale * (bambooSourceCentre.x / 1536 - 0.5);
     const bambooY = top + height * (bambooTargetCentre.y / 1024)
@@ -560,101 +561,121 @@ export class MenuScene extends Phaser.Scene {
       at(0.60, 0.97),
     ]);
 
-    // Sparse, long current strokes travel by arc length rather than raw spline parameter. That
-    // removes the old acceleration through tight bends, while a 48–58 second passage reads as
-    // an unhurried stream instead of little marks racing down a track.
-    const currentCount = getGraphicsQuality() === 'low' ? 5 : 8;
+    // The authored river already contains dense engraved water lines. A translucent paper glaze
+    // calms those marks without covering the banks, then a few LOCAL highlights breathe in place.
+    // Nothing travels the whole channel: that motion looked like loose scratches sliding over art.
+    const riverVeil = this.add.graphics()
+      .setData('menuWaterTreatment', 'soft-paper-glaze')
+      .setData('menuWaterCoverage', 'river-only');
+    layers.waterFx.add(riverVeil);
+    const glazeBands = [
+      { from: 0, to: 0.38, width: width * 0.024, alpha: 0.26 },
+      { from: 0.32, to: 0.68, width: width * 0.052, alpha: 0.25 },
+      { from: 0.62, to: 1, width: width * 0.105, alpha: 0.23 },
+    ];
+    for (const band of glazeBands) {
+      const points = Array.from({ length: 21 }, (_, sample) => (
+        river.getPointAt(Phaser.Math.Linear(band.from, band.to, sample / 20))
+      ));
+      riverVeil.lineStyle(Math.max(4, band.width), PIGMENT.diepHi, band.alpha);
+      riverVeil.strokePoints(points, false, false);
+    }
+    riverVeil.setData('menuRiverVeilBands', glazeBands.length);
+
+    const currentCount = getGraphicsQuality() === 'low' ? 4 : 6;
+    const shimmerAnchors = [0.5, 0.61, 0.73, 0.84, 0.91, 0.96];
     for (let index = 0; index < currentCount; index += 1) {
+      const anchor = shimmerAnchors[index];
+      const point = river.getPointAt(anchor);
+      const tangent = river.getTangentAt(anchor).normalize();
+      const travel = 1.2 + (index % 3) * 0.35;
       const current = this.add.graphics()
         .setData('menuAmbient', 'river-current')
-        .setData('menuCurrentLane', index % 3 - 1)
-        .setData('menuCurrentVisibility', 'readable')
-        .setData('menuCurrentInterpolation', 'arc-length')
-        .setData('menuCurrentDuration', 48_000 + index * 1_800 + (index % 2) * 2_400);
+        .setData('menuCurrentMotion', 'local-surface-shimmer')
+        .setData('menuCurrentVisibility', 'quiet')
+        .setData('menuCurrentInterpolation', 'anchored-sine')
+        .setData('menuCurrentTravel', travel)
+        .setData('menuCurrentDuration', 3_800 + index * 430);
       layers.waterFx.add(current);
-      inkPath(current, [{ x: -13, y: 0 }, { x: -5, y: -0.35 }, { x: 4, y: 0.28 }, { x: 14, y: 0 }], 7200 + index, {
-        width: 0.64,
-        alpha: 0.62,
+      inkPath(current, [{ x: -8, y: 0 }, { x: -2, y: -0.22 }, { x: 5, y: 0.18 }, { x: 9, y: 0 }], 7200 + index, {
+        width: 0.52,
+        alpha: 0.5,
         colour: PIGMENT.cham,
-        wobble: 0.16,
-        step: 5,
+        wobble: 0.08,
+        step: 4,
       });
-      inkPath(current, [{ x: -9, y: 2 }, { x: 0, y: 1.72 }, { x: 10, y: 2 }], 7250 + index, {
-        width: 0.44,
-        alpha: 0.48,
+      inkPath(current, [{ x: -5, y: 1.7 }, { x: 0, y: 1.5 }, { x: 6, y: 1.7 }], 7250 + index, {
+        width: 0.38,
+        alpha: 0.42,
         colour: PIGMENT.chamPale,
-        wobble: 0.12,
-        step: 5,
+        wobble: 0.06,
+        step: 4,
       });
-
-      const lane = (index % 3 - 1) * (0.62 + ((index * 37) % 5) * 0.07);
-      const phase = { t: index / currentCount };
-      const place = (): void => {
-        const progress = phase.t % 1;
-        const point = river.getPointAt(progress);
-        const tangent = river.getTangentAt(progress).normalize();
-        const laneWidth = width * (0.006 + progress * 0.012);
-        current.setPosition(
-          point.x - tangent.y * lane * laneWidth,
-          point.y + tangent.x * lane * laneWidth,
-        );
-        current.setRotation(Math.atan2(tangent.y, tangent.x));
-        current.setScale(0.5 + progress * 0.72);
-        current.setAlpha(Math.sin(progress * Math.PI) * (0.5 + (index % 3) * 0.05));
-      };
-      place();
+      current
+        .setPosition(point.x, point.y)
+        .setRotation(Math.atan2(tangent.y, tangent.x))
+        .setScale(0.64 + anchor * 0.44)
+        .setAlpha(0.18 + (index % 2) * 0.04);
       this.tweens.add({
-        targets: phase,
-        t: phase.t + 1,
+        targets: current,
+        x: point.x + tangent.x * travel,
+        y: point.y + tangent.y * travel,
+        alpha: { from: 0.14 + (index % 2) * 0.03, to: 0.29 + (index % 2) * 0.03 },
         duration: current.getData('menuCurrentDuration') as number,
+        yoyo: true,
         repeat: -1,
-        ease: 'Linear',
-        onUpdate: place,
+        ease: 'Sine.easeInOut',
       });
     }
 
-    // Three feathered banks are real children of the mountain depth layer. Rendering order is
-    // ground -> mountain -> mist -> village -> lotus, so the haze sits in the valley instead of
-    // becoming a translucent white sticker across the roofs and foreground flowers.
-    const mistStarts = [at(0.18, 0.44), at(0.40, 0.455), at(0.64, 0.44), at(0.82, 0.43)];
+    // Separate wisps cross the actual mountain feet. The previous large paper-coloured ellipses
+    // merged with the baked horizon haze, so their 20px tween was technically running but visually
+    // unknowable. These narrower blue-grey-bottomed strands keep a readable moving edge.
+    const mistStarts = [
+      at(0.12, 0.405), at(0.31, 0.435), at(0.5, 0.405), at(0.7, 0.43), at(0.87, 0.4),
+    ];
     for (let index = 0; index < mistStarts.length; index += 1) {
       const mist = this.add.graphics()
         .setData('menuAmbient', 'mountain-mist')
         .setData('menuMistLayer', 'mountains')
-        .setData('menuMistVisibility', 'readable');
-      const span = width * (0.3 + (index % 2) * 0.08);
-      const bandHeight = Math.max(8, height * (0.042 + index * 0.004));
-      mist.fillStyle(PIGMENT.diepHi, 0.58);
-      mist.fillEllipse(-span * 0.17, 0, span * 0.7, bandHeight);
-      mist.fillStyle(PIGMENT.diep, 0.7);
-      mist.fillEllipse(span * 0.14, 1, span * 0.82, bandHeight * 0.78);
-      mist.fillStyle(PIGMENT.diepHi, 0.48);
-      mist.fillEllipse(0, -1, span, bandHeight * 0.5);
-      mist.fillStyle(PIGMENT.chamPale, 0.16);
-      mist.fillEllipse(span * 0.04, bandHeight * 0.18, span * 0.86, bandHeight * 0.34);
+        .setData('menuMistVisibility', 'distinct-wisp');
+      const span = width * (0.2 + (index % 2) * 0.035);
+      const bandHeight = Math.max(7, height * (0.032 + (index % 3) * 0.004));
+      const travel = width * (0.045 + (index % 2) * 0.012);
+      const direction = index % 2 === 0 ? 1 : -1;
+      const duration = 6_600 + index * 780;
+      mist
+        .setData('menuMistTravel', travel)
+        .setData('menuMistDuration', duration);
+      mist.fillStyle(PIGMENT.diepHi, 0.72);
+      mist.fillEllipse(-span * 0.13, 0, span * 0.72, bandHeight);
+      mist.fillStyle(PIGMENT.diep, 0.66);
+      mist.fillEllipse(span * 0.17, 0.7, span * 0.7, bandHeight * 0.72);
+      mist.fillStyle(PIGMENT.chamPale, 0.25);
+      mist.fillEllipse(span * 0.03, bandHeight * 0.22, span * 0.84, bandHeight * 0.28);
       inkPath(mist, [
-        { x: -span * 0.43, y: -bandHeight * 0.06 },
-        { x: -span * 0.19, y: bandHeight * 0.08 },
-        { x: span * 0.04, y: -bandHeight * 0.04 },
-        { x: span * 0.24, y: bandHeight * 0.07 },
-        { x: span * 0.44, y: -bandHeight * 0.03 },
+        { x: -span * 0.39, y: -bandHeight * 0.04 },
+        { x: -span * 0.17, y: bandHeight * 0.07 },
+        { x: span * 0.05, y: -bandHeight * 0.03 },
+        { x: span * 0.24, y: bandHeight * 0.06 },
+        { x: span * 0.4, y: -bandHeight * 0.02 },
       ], 7_350 + index, {
-        width: 0.66,
-        alpha: 0.32,
+        width: 0.6,
+        alpha: 0.4,
         colour: PIGMENT.chamPale,
-        wobble: 0.55,
+        wobble: 0.32,
         step: 5,
       });
       layers.mountainMist.add(mist);
       const start = mistStarts[index];
-      mist.setPosition(start.x, start.y).setAlpha(0.58);
+      mist.setPosition(start.x, start.y).setAlpha(0.72);
       this.tweens.add({
         targets: mist,
-        x: start.x + width * (index % 2 === 0 ? 0.055 : -0.045),
-        y: start.y + (index % 2 === 0 ? -1.2 : 1.1),
-        alpha: { from: 0.48, to: 0.78 },
-        scaleX: { from: 0.94, to: 1.09 },
-        duration: 10_200 + index * 1_900,
+        x: start.x + direction * travel,
+        y: start.y + (index % 2 === 0 ? -1.6 : 1.4),
+        alpha: { from: 0.58, to: 0.9 },
+        scaleX: { from: 0.92, to: 1.1 },
+        duration,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut',

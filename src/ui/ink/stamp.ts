@@ -370,6 +370,27 @@ function renderDesign(scene: Phaser.Scene, dt: Phaser.Textures.DynamicTexture,
 }
 
 /**
+ * The stamp's texture, guaranteed live: if it was removed while a caller still held the `Stamp`
+ * (an eviction racing a cached handle, a hot-reload generation), the retained draw closure
+ * re-bakes it in place. The check is one Map lookup per placement; the heal almost never runs -
+ * but the alternative is Phaser's green-crossed missing-texture box in the player's face.
+ */
+function ensureLive(scene: Phaser.Scene, st: Stamp): void {
+  if (scene.textures.exists(st.texture)) return;
+  const e = entries.get(st.key);
+  if (!e) return;
+  if (e.backend === 'dynamic') {
+    const dt = scene.textures.addDynamicTexture(st.texture, st.width, st.height);
+    if (dt) renderDesign(scene, dt, e.box, e.pad, e.raster, e.draw as unknown as (g: G, x: number, y: number) => void);
+  } else {
+    const g = drawIntoGraphics(scene, e.box, e.pad, e.raster, e.draw);
+    g.generateTexture(st.texture, st.width, st.height);
+    g.destroy();
+  }
+  stats.restamps += 1;
+}
+
+/**
  * One instance of a stamp, positioned by its anchor and sized back into design units. Refcounted:
  * the stamp stays resident while any placed image lives, and `evictIdleStamps` may reclaim it
  * after the last one is destroyed.
@@ -381,11 +402,14 @@ export function placeStamp(
   y: number,
   scale = 1,
 ): Phaser.GameObjects.Image {
+  ensureLive(scene, st);
   const size = st.scale * scale;
   const image = scene.add.image(x, y, st.texture, st.frame)
     .setOrigin(st.originX, st.originY)
     .setScale(size)
-    .setData(BASE_SCALE_KEY, size);
+    .setData(BASE_SCALE_KEY, size)
+    // Provenance, so a missing-texture box on screen can name the stamp that let it down.
+    .setData('stampKey', st.key);
   const entry = entries.get(st.key);
   if (entry) {
     entry.refs += 1;
@@ -403,6 +427,7 @@ export function placeStamp(
  * touching its position or its facing — the horizontal flip sign survives the scale write.
  */
 export function applyStamp(image: Phaser.GameObjects.Image, st: Stamp, scale = 1): void {
+  ensureLive(image.scene, st);
   if (image.texture.key !== st.texture || (st.frame !== undefined && image.frame.name !== st.frame)) {
     image.setTexture(st.texture, st.frame);
   }
@@ -413,6 +438,7 @@ export function applyStamp(image: Phaser.GameObjects.Image, st: Stamp, scale = 1
   const sign = image.scaleX < 0 ? -1 : 1;
   image.setScale(base * sign, base);
   image.setData(BASE_SCALE_KEY, base);
+  image.setData('stampKey', st.key);
   const entry = entries.get(st.key);
   if (entry) entry.lastUse = Date.now();
 }

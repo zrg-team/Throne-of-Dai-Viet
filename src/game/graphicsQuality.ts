@@ -92,10 +92,10 @@ function displayNeed(): number {
  * launch generally does not go looking for a menu.
  */
 export function defaultGraphicsQuality(): GraphicsQuality {
-  const ratio = devicePixelRatioSafe();
-  if (ratio <= 1.25) {
-    return 'low';
-  }
+  // Medium is the floor for a first impression. A low pixel ratio used to mean 'low', which put
+  // every ordinary desktop monitor on the muddiest tier by default - but a weak GPU is what the
+  // quality ladder exists to catch, and it steps down in seconds. Starting soft on strong
+  // hardware is a first impression nothing can step back up.
   const nav = typeof navigator === 'undefined' ? undefined : (navigator as Navigator & { deviceMemory?: number });
   const cores = nav?.hardwareConcurrency ?? 4;
   const memory = nav?.deviceMemory ?? 4;

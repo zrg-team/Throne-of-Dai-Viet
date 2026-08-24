@@ -138,6 +138,12 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
             .map((c) => c.alpha) ?? [])),
           animated: mistLayer?.list?.filter((c) => c.getData?.('menuMistLayer') === 'mountains')
             .every((c) => scene.tweens.getTweensOf(c).some((t) => t.isPlaying())) ?? false,
+          positions: mistLayer?.list?.filter((c) => c.getData?.('menuMistLayer') === 'mountains')
+            .map((c) => ({ x: c.x, y: c.y })) ?? [],
+          travels: mistLayer?.list?.filter((c) => c.getData?.('menuMistLayer') === 'mountains')
+            .map((c) => c.getData?.('menuMistTravel')) ?? [],
+          durations: mistLayer?.list?.filter((c) => c.getData?.('menuMistLayer') === 'mountains')
+            .map((c) => c.getData?.('menuMistDuration')) ?? [],
         },
         waterCompositing: {
           marker: waterLayer?.getData?.('menuCompositing') ?? null,
@@ -158,11 +164,17 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
         .map((c) => c.getData?.('menuCurrentDuration')) ?? [],
       currentInterpolations: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
         .map((c) => c.getData?.('menuCurrentInterpolation')) ?? [],
+      currentMotions: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => c.getData?.('menuCurrentMotion')) ?? [],
+      currentTravelLimits: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => c.getData?.('menuCurrentTravel')) ?? [],
       currentMaxAlpha: Math.max(0, ...(waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
         .map((c) => c.alpha) ?? [])),
       currentPositions: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
         .map((c) => ({ x: c.x, y: c.y })) ?? [],
       lotusWakes: waterLayer?.list?.filter((c) => c.getData?.('menuWakeSource') === 'lotus').length ?? 0,
+      waterVeilBands: waterLayer?.list?.find((c) => c.getData?.('menuWaterTreatment') === 'soft-paper-glaze')
+        ?.getData?.('menuRiverVeilBands') ?? 0,
       grazing: scene.children.list.filter((c) => c.getData?.('grazing')).length,
       military: scene.children.list.filter((c) => c.type === 'Container' && c.depth === -7).length,
     };
@@ -195,19 +207,19 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
     ?.filter((layer) => layer.name !== 'ground').every((layer) => layer.animated)
     && menu.art.layers.find((layer) => layer.name === 'ground')?.animated === false,
   JSON.stringify(menu.art?.layers));
-  check(`${label}: mist is visibly present in the mountain depth layer`, menu.art?.mountainMist?.count === 4
-    && menu.art.mountainMist.maxAlpha >= 0.48
+  check(`${label}: distinct mist wisps are visibly present in the mountain depth layer`, menu.art?.mountainMist?.count === 5
+    && menu.art.mountainMist.maxAlpha >= 0.58
     && menu.art.mountainMist.animated,
   JSON.stringify(menu.art?.mountainMist));
-  check(`${label}: bamboo occupies the low dry right-bank verge`, menu.art?.layers
+  check(`${label}: bamboo is a small rear-dike windbreak rather than a foreground field object`, menu.art?.layers
     ?.some((layer) => layer.name === 'bamboo'
-      && layer.bambooPlacement === 'right-bank-dry-verge'
-      && layer.bambooBand === 'lower-right-below-horizon'
+      && layer.bambooPlacement === 'rear-field-edge-windbreak'
+      && layer.bambooBand === 'rear-right-dike'
       && layer.bambooStyle === 'dong-ho-natural-pigment'
-      && Math.abs(layer.bambooTransform?.scale - 0.48) < 1e-6
-      && layer.bambooTransform?.targetCentre?.x >= 1200
-      && layer.bambooTransform?.targetCentre?.y >= 620
-      && layer.bambooTransform?.targetCentre?.y <= 680
+      && Math.abs(layer.bambooTransform?.scale - 0.2) < 1e-6
+      && layer.bambooTransform?.targetCentre?.x >= 1360
+      && layer.bambooTransform?.targetCentre?.y >= 450
+      && layer.bambooTransform?.targetCentre?.y <= 510
       && layer.bambooCulmCount >= 12
       && layer.tinted === false),
   JSON.stringify(menu.art?.layers?.find((layer) => layer.name === 'bamboo')));
@@ -226,32 +238,48 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
     && menu.art.waterCompositing.waterIndex < menu.art.waterCompositing.bambooIndex
     && menu.art.waterCompositing.waterIndex < menu.art.waterCompositing.lotusIndex,
   JSON.stringify(menu.art?.waterCompositing));
-  await page.waitForTimeout(260);
-  const currentPositionsLater = await page.evaluate(() => {
+  await page.waitForTimeout(900);
+  const motionLater = await page.evaluate(() => {
     const scene = window.__phaserGame.scene.getScene('MenuScene');
     const art = scene.children.list.find((c) => c.type === 'Container'
       && c.getData?.('menuLandscapeRole') === 'illustration');
     const water = art?.list?.find((c) => c.type === 'Container'
       && c.getData?.('menuArtworkLayer') === 'river-fx');
-    return water?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
-      .map((c) => ({ x: c.x, y: c.y })) ?? [];
+    const mist = art?.list?.find((c) => c.type === 'Container'
+      && c.getData?.('menuArtworkLayer') === 'mountain-mist');
+    return {
+      currents: water?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => ({ x: c.x, y: c.y })) ?? [],
+      mist: mist?.list?.filter((c) => c.getData?.('menuMistLayer') === 'mountains')
+        .map((c) => ({ x: c.x, y: c.y })) ?? [],
+    };
   });
   const movingCurrents = menu.currentPositions.filter((before, index) => {
-    const after = currentPositionsLater[index];
-    return after && Math.hypot(after.x - before.x, after.y - before.y) > 0.15;
+    const after = motionLater.currents[index];
+    return after && Math.hypot(after.x - before.x, after.y - before.y) > 0.03;
   }).length;
   const currentTravel = menu.currentPositions.map((before, index) => {
-    const after = currentPositionsLater[index];
+    const after = motionLater.currents[index];
     return after ? Math.hypot(after.x - before.x, after.y - before.y) : 0;
   });
-  check(`${label}: water has slow arc-length currents and touch/drag wakes`, menu.interaction === 'river-ripple'
-    && menu.ripple > 0 && menu.wakes > 0 && menu.currents >= 5
-    && menu.currentMaxAlpha >= 0.34 && movingCurrents >= 3
-    && menu.currentDurations.every((duration) => duration >= 48_000)
-    && menu.currentInterpolations.every((mode) => mode === 'arc-length')
-    && currentTravel.every((distance) => distance < 4)
+  const movingMist = menu.art.mountainMist.positions.filter((before, index) => {
+    const after = motionLater.mist[index];
+    return after && Math.hypot(after.x - before.x, after.y - before.y) > 0.35;
+  }).length;
+  check(`${label}: mountain mist visibly drifts instead of only pulsing`, movingMist >= 4
+    && menu.art.mountainMist.travels.every((travel) => travel >= menu.art.width * 0.04)
+    && menu.art.mountainMist.durations.every((duration) => duration <= 10_000),
+  `${movingMist}/${menu.art.mountainMist.count} wisps moved over 900ms`);
+  check(`${label}: water uses a soft veil and local shimmer rather than traveling scratches`, menu.interaction === 'river-ripple'
+    && menu.ripple > 0 && menu.wakes > 0 && menu.currents >= 4
+    && menu.waterVeilBands === 3 && menu.currentMaxAlpha >= 0.12 && movingCurrents >= 3
+    && menu.currentDurations.every((duration) => duration >= 3_800 && duration <= 6_500)
+    && menu.currentInterpolations.every((mode) => mode === 'anchored-sine')
+    && menu.currentMotions.every((mode) => mode === 'local-surface-shimmer')
+    && menu.currentTravelLimits.every((distance) => distance <= 2)
+    && currentTravel.every((distance) => distance < 1.5)
     && ['tap', 'drag', 'hover-wake'].every((gesture) => menu.gestures.includes(gesture)),
-  `${menu.currents} currents (${movingCurrents} moving, max ${Math.max(...currentTravel).toFixed(2)}px/260ms, alpha ${menu.currentMaxAlpha.toFixed(2)}), ${menu.ripple} ripple(s), ${menu.wakes} wake(s), ${menu.tweens} tweens playing`);
+  `${menu.currents} shimmers (${movingCurrents} moving, max ${Math.max(...currentTravel).toFixed(2)}px/900ms, alpha ${menu.currentMaxAlpha.toFixed(2)}), ${menu.ripple} ripple(s), ${menu.wakes} wake(s), ${menu.tweens} tweens playing`);
   const lotusLayer = menu.art?.layers?.find((layer) => layer.name === 'lotus');
   check(`${label}: lotus bends and makes water wakes under hover/drag`, lotusLayer?.lotusResponse === 'damped-pointer-spring'
     && lotusLayer?.lotusWaterResponse === 'wake-and-ripple'
