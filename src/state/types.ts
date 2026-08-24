@@ -2273,6 +2273,13 @@ export interface AscentState {
   /** The turn before which the autopilot will not propose another muster — a declined card. */
   musterDeclinedUntil?: number;
   /**
+   * True when the court may take a province without asking. Off by default; reversible from the
+   * Build screen, where the claim slots it spends are already on show.
+   */
+  autoClaimSilently?: boolean;
+  /** The turn before which the autopilot will not propose another claim — a declined sheet. */
+  claimDeclinedUntil?: number;
+  /**
    * This state exists to fight one battle and nothing else — see `BattleArenaScene`.
    *
    * `advanceAscentTick` runs only the fight when it is set, so a matchup can be watched without

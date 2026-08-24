@@ -47,7 +47,7 @@ import {
   getPlayerClaimCount,
 } from '../AcquisitionSystem';
 import { disbandArmy, getRecruitmentOrder, issueMoveOrder, queueRecruitment } from '../WarSystem';
-import { frontWinChance } from './ConquestSystem';
+import { frontWinChance, offerConquestMethods } from './ConquestSystem';
 import { chargeAmbition } from './AmbitionSystem';
 import { isAutoHost, isPinnedByClaim } from './armyOrders';
 import { canDismissHero, dismissHero } from './CourtLaneSystem';
@@ -569,9 +569,39 @@ function autoPurchaseVillage(state: GameState): boolean {
     const cost = getGoldBribeCost(state, land);
     if (cost > state.resources.gold * share) continue;
     if (getBribeSuccessChance(land) < AUTO_CLAIM_MIN_CHANCE) continue;
+    // Asked, not taken. Only the first affordable province is ever put up — a proposal the
+    // pacing gates turn down is the whole tick's answer, because the next candidate would meet
+    // exactly the same gates.
+    if (!state.ascent?.autoClaimSilently) return proposeClaim(state, land);
     if (bribeLand(state, land.id)) return true;
   }
   return false;
+}
+
+/**
+ * Puts the routine claim to the player instead of making it.
+ *
+ * A province appearing in the realm unannounced is the same complaint the muster card was built
+ * to answer — see `proposeMuster`, whose gates this mirrors — and it is worse here, because a
+ * claim also spends the realm's one claim slot and the gold in the treasury. So the default is
+ * that the court points at the province and the player decides; `autoClaimSilently` hands routine
+ * expansion back, from the Build screen where the slot it spends is already on show.
+ *
+ * The sheet raised is the *existing* method sheet, not a yes/no on the bribe the autopilot had in
+ * mind. It costs no new card and it is a better question: the player sees every way into that
+ * province, priced, and can send an envoy where the court would have spent coin. Leaving it by
+ * the Back button is a real answer, and `CLAIM_DECLINE_TICKS` makes it stick.
+ */
+export function proposeClaim(state: GameState, land: Land): boolean {
+  const ascent = state.ascent;
+  if (!ascent) return false;
+  if (state.turn < (ascent.claimDeclinedUntil ?? 0)) return false;
+  if (state.pendingAscentPrompt || ascent.promptQueue.length > 0) return false;
+  // The pacing contract. Routine expansion must not be the reason two cards land on two
+  // consecutive seasons — that is the slideshow `COURT_GAP_TICKS` exists to stop, and the muster
+  // card cost a release for breaking it.
+  if (state.turn - ascent.lastPromptTurn < COURT_GAP_TICKS) return false;
+  return offerConquestMethods(state, land.id);
 }
 
 /**

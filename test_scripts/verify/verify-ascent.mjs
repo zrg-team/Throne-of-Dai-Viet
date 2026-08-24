@@ -580,6 +580,14 @@ const orders = await page.evaluate(async () => {
   // treasury, so no host is dissolved for arrears under the test.
   st.ascent.autoResolveBattles = true;
   st.resources.gold = 5000;
+  // Routine expansion left to the court, for the same reason as the two lines above: `settle()`
+  // below answers every conquest card with "not this one", and since claims became a card the
+  // player is *asked* about, a driver that refuses them all leaves the realm on its founding
+  // province forever. Measured: the royal host starved out by season 27 and four checks that
+  // have nothing to do with claims — hold your post, take empty ground, storm a wall, resupply —
+  // failed together because there was no host left to give an order to. This scenario is about
+  // what a standing order does in a realm that is running; it is not the claim card's test.
+  st.ascent.autoClaimSilently = true;
   // A quiet world: no wave lands and no raider crosses, so every march below is the order's own.
   const quiet = () => {
     st.ascent.ticksToWave = 999;

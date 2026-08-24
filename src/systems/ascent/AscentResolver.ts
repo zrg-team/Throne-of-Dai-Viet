@@ -18,7 +18,7 @@ import { resolveDoctrine } from './RealmDoctrineSystem';
 import { resolveEnvoy } from './EnvoySystem';
 import { resolveFamine } from './FamineSystem';
 import { raiseHostWithPlan } from './MusterSystem';
-import { MUSTER_DECLINE_TICKS } from '../../game/ascentConfig';
+import { CLAIM_DECLINE_TICKS, MUSTER_DECLINE_TICKS } from '../../game/ascentConfig';
 import { pushToast } from '../empire/notifications';
 import { resolveRivalDemand } from './RivalDirector';
 import { resolveStoryBeat } from '../story/StorySystem';
@@ -41,6 +41,22 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
   const prompt = state.pendingAscentPrompt;
   const ascent = state.ascent;
   if (!prompt || !ascent) return false;
+
+  // The card leaves the screen the moment it is answered, not at the end of the dispatch.
+  //
+  // `enqueueAscentPrompt` refuses a superseded kind that is *already on screen* — the player is
+  // reading it and it must not be swapped under their hand. While the answered card still sat in
+  // `pendingAscentPrompt`, that guard also swallowed every re-raise a handler makes against its
+  // own kind, and `conquer-method` is one: a refused bribe spends the gold, builds the reason,
+  // and asks for the sheet back with the refusal banner on it. That ask was dropped on the floor
+  // — the sheet closed, the treasury was lighter, and the mode said nothing, which from the
+  // throne is indistinguishable from a tap that never registered. Measured on seed 20260824:
+  // `conquestPlans` recorded `status: 'blocked'` with the nobles' refusal in `reason`, and the
+  // prompt queue was empty.
+  //
+  // Restored below if nothing handled the choice, because a prompt whose resolver returns false
+  // has to stay up — see the note in `resolveDoctrine` about what an unclearable card costs.
+  state.pendingAscentPrompt = undefined;
 
   let handled = false;
 
@@ -126,6 +142,10 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
 
     case 'conquer-method': {
       if (choiceId === 'back') {
+        // Leaving the sheet without taking the province is an answer, and the court has to hear
+        // it: routine expansion raises this same sheet on its own initiative, so without a
+        // cooldown "not this one" would be met by the same proposal a season or two later.
+        ascent.claimDeclinedUntil = state.turn + CLAIM_DECLINE_TICKS;
         handled = true;
         break;
       }
@@ -250,10 +270,14 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
     }
   }
 
-  if (!handled) return false;
+  if (!handled) {
+    // Nobody took the choice, so the card is still the live question — unless the dispatch put
+    // something more urgent up on its way past, which is allowed to keep the slot.
+    state.pendingAscentPrompt ??= prompt;
+    return false;
+  }
 
   startPromptCooldown(state, prompt.kind);
-  state.pendingAscentPrompt = undefined;
   drainAscentPrompts(state);
   return true;
 }

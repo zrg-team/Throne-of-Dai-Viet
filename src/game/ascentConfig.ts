@@ -1258,6 +1258,16 @@ export const AUTO_CLAIM_MAX_ORDERS = 2;
  * letting most runs reach an ending.
  */
 export const AUTO_CLAIM_INTERVAL_TICKS = 12;
+/**
+ * Seasons the court stays quiet after the player leaves a claim sheet without taking a province.
+ *
+ * Sits between two failure modes. Too short and declining the sheet is meaningless: the same
+ * province is proposed again within a season or two, which is the pattern the muster card was
+ * given `MUSTER_DECLINE_TICKS` to escape. Too long and a realm that said "not this one" is left
+ * without a claim for the rest of a wave — routine expansion is only offered once per
+ * `AUTO_CLAIM_INTERVAL_TICKS` to begin with, so this is spent on top of that gap, not inside it.
+ */
+export const CLAIM_DECLINE_TICKS = 10;
 
 /** Gold kept back so a reroll is usually affordable. */
 export const AUTOBUILD_GOLD_RESERVE = 30;
