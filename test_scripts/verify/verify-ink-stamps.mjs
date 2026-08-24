@@ -221,4 +221,54 @@ for (const mode of process.argv.includes('--only-fallen') ? [] : ['canvas', 'atl
   await browser.close();
 }
 
+// ── The user's own gesture: change the tier, start a run, reach the founder page ──────────
+// Shipped broken twice before this existed (a green missing-texture box on the founder button
+// and on a fog cloud): "refs 0" and "not on screen" are only the same when every count is
+// perfect, and mid-scene eviction found the imperfect ones. Nothing may show __MISSING here.
+{
+  const { browser, page, errors } = await boot({ dpr: 3, quality: 'high', query: '?capture=1' });
+  await page.waitForFunction(() => window.__phaserGame?.scene?.isActive('MenuScene'), null, { timeout: 30000 });
+  // A tier change on the live menu (the settings row's own code path), then a fresh run.
+  await page.evaluate(async () => {
+    const { setGraphicsQuality, requestRenderScale, renderScale, applyPendingRenderScale } = await import('/src/game/graphicsQuality.ts');
+    const { qualityLadder } = await import('/src/game/qualityLadder.ts');
+    const { rungForTier } = await import('/src/game/qualityRungs.ts');
+    setGraphicsQuality('medium');
+    qualityLadder()?.force(rungForTier('medium').id);
+    requestRenderScale(renderScale());
+    applyPendingRenderScale(window.__phaserGame);
+    window.__phaserGame.scene.getScene('MenuScene').scene.restart();
+  });
+  await page.waitForTimeout(1200);
+  await startWorld(page, { mode: 'ascent', seed: 20260812 });
+  await page.evaluate(async () => {
+    const st = window.__mandateState;
+    const { resolveAscentPrompt } = await import('/src/systems/ascent/AscentResolver.ts');
+    if (st?.pendingAscentPrompt?.kind === 'mandate') {
+      resolveAscentPrompt(st, st.pendingAscentPrompt.options?.[0]?.id ?? st.pendingAscentPrompt.options?.[0]);
+      window.__phaserGame.scene.getScene('ConquestUIScene').events.emit('state-changed');
+    }
+  });
+  await page.waitForTimeout(1500);
+  const missing = await page.evaluate(() => {
+    const out = [];
+    for (const scene of window.__phaserGame.scene.getScenes(true)) {
+      const walk = (root) => {
+        for (const c of root.list ?? []) {
+          if (c.texture && (c.texture.key === '__MISSING' || c.texture.key === '__DEFAULT'))
+            out.push(`${scene.scene.key}:${c.getData?.('stampKey') ?? c.type}`);
+          if (c.list) walk(c);
+        }
+      };
+      walk({ list: scene.children.list });
+    }
+    return { boxes: out, prompt: window.__mandateState?.pendingAscentPrompt?.kind ?? null };
+  });
+  checks.push(['tier change then founder page shows no missing texture', missing.boxes.length === 0,
+    missing.boxes.slice(0, 4).join(', ')]);
+  checks.push(['the founder page was actually reached', missing.prompt === 'founder', `prompt ${missing.prompt}`]);
+  checks.push(['tier-change run: no console errors', errors.length === 0, errors.slice(0, 3).join(' | ')]);
+  await browser.close();
+}
+
 report(checks);

@@ -124,6 +124,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
           bambooTransform: layer.getData('menuBambooTransform') ?? null,
           bambooStyle: layer.getData('menuBambooStyle') ?? null,
           bambooCulmCount: layer.getData('menuBambooCulmCount') ?? null,
+          fieldContinuity: layer.getData('menuFieldContinuity') ?? null,
           lotusResponse: layer.getData('menuLotusResponse') ?? null,
           lotusWaterResponse: layer.getData('menuLotusWaterResponse') ?? null,
           lotusReaction: layer.getData('menuLotusReaction') ?? null,
@@ -173,6 +174,13 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
       currentPositions: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
         .map((c) => ({ x: c.x, y: c.y })) ?? [],
       lotusWakes: waterLayer?.list?.filter((c) => c.getData?.('menuWakeSource') === 'lotus').length ?? 0,
+      lotusWakeDetails: waterLayer?.list?.filter((c) => c.getData?.('menuWakeSource') === 'lotus')
+        .map((c) => ({
+          origin: c.getData?.('menuWakeOrigin') ?? null,
+          stem: c.getData?.('menuWakeStem') ?? null,
+          base: c.getData?.('menuWakeBase') ?? null,
+          animated: scene.tweens.getTweensOf(c).some((t) => t.isPlaying()),
+        })) ?? [],
       waterVeilBands: waterLayer?.list?.find((c) => c.getData?.('menuWaterTreatment') === 'soft-paper-glaze')
         ?.getData?.('menuRiverVeilBands') ?? 0,
       grazing: scene.children.list.filter((c) => c.getData?.('grazing')).length,
@@ -186,7 +194,8 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
   check(`${label}: four registered artwork plates are loaded`, menu.art?.layers?.length === 4
     && ['ground', 'mountains', 'bamboo', 'lotus'].every((name) => menu.art.layers.some((layer) => layer.name === name))
     && new Set(menu.art.layers.map((layer) => layer.texture)).size === 4
-    && menu.art.layers.find((layer) => layer.name === 'ground')?.texture === 'menu-layer-ground-v3'
+    && menu.art.layers.find((layer) => layer.name === 'ground')?.texture === 'menu-layer-ground-v4'
+    && menu.art.layers.find((layer) => layer.name === 'ground')?.fieldContinuity === 'fully-planted-rice'
     && menu.art.layers.find((layer) => layer.name === 'bamboo')?.texture === 'menu-layer-bamboo-v1'
     && menu.art.sourceSize?.width >= 1500 && menu.art.sourceSize?.height >= 1000,
   JSON.stringify(menu.art));
@@ -281,12 +290,27 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
     && ['tap', 'drag', 'hover-wake'].every((gesture) => menu.gestures.includes(gesture)),
   `${menu.currents} shimmers (${movingCurrents} moving, max ${Math.max(...currentTravel).toFixed(2)}px/900ms, alpha ${menu.currentMaxAlpha.toFixed(2)}), ${menu.ripple} ripple(s), ${menu.wakes} wake(s), ${menu.tweens} tweens playing`);
   const lotusLayer = menu.art?.layers?.find((layer) => layer.name === 'lotus');
+  const lotusWake = menu.lotusWakeDetails?.[0];
+  const lotusWakeNormalized = lotusWake?.base ? {
+    x: (lotusWake.base.x - (menu.art.x - menu.art.width / 2)) / menu.art.width,
+    y: (lotusWake.base.y - menu.art.top) / menu.art.height,
+  } : null;
   check(`${label}: lotus bends and makes water wakes under hover/drag`, lotusLayer?.lotusResponse === 'damped-pointer-spring'
-    && lotusLayer?.lotusWaterResponse === 'wake-and-ripple'
+    && lotusLayer?.lotusWaterResponse === 'stem-waterline-ripples'
     && ['hover', 'drag', 'water-wake'].every((gesture) => menu.lotusGestures.includes(gesture))
     && menu.lotusWakes > 0
+    && lotusWake?.origin === 'stem-waterline'
+    && lotusWake?.animated === true
+    && lotusWakeNormalized?.x >= 0.15 && lotusWakeNormalized.x <= 0.38
+    && lotusWakeNormalized?.y >= 0.88 && lotusWakeNormalized.y <= 0.94
     && Math.abs(lotusLayer.lotusReaction?.x ?? 0) + Math.abs(lotusLayer.lotusReaction?.angle ?? 0) > 0.2,
-  JSON.stringify({ gestures: menu.lotusGestures, reaction: lotusLayer?.lotusReaction, lotusWakes: menu.lotusWakes }));
+  JSON.stringify({
+    gestures: menu.lotusGestures,
+    reaction: lotusLayer?.lotusReaction,
+    lotusWakes: menu.lotusWakes,
+    wake: lotusWake,
+    normalized: lotusWakeNormalized,
+  }));
 
   await page.screenshot({ path: `${OUT}/menu-${viewport.height}.png` });
   await page.close();

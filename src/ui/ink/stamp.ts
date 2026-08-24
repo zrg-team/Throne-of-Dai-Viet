@@ -115,7 +115,7 @@ interface AtlasPage {
 
 const entries = new Map<string, Entry>();
 const pages: AtlasPage[] = [];
-const stats = { evictions: 0, restamps: 0 };
+const stats = { evictions: 0, restamps: 0, overCap: 0 };
 let textures: Phaser.Textures.TextureManager | undefined;
 let restoreHooked = false;
 
@@ -414,9 +414,12 @@ export function placeStamp(
   if (entry) {
     entry.refs += 1;
     entry.lastUse = Date.now();
+    // Decrement whatever stamp the image holds WHEN it dies, not the one it was born with:
+    // `applyStamp` swaps the texture and moves the count with it.
     image.once(Phaser.GameObjects.Events.DESTROY, () => {
-      entry.refs = Math.max(0, entry.refs - 1);
-      entry.lastUse = Date.now();
+      const held = entries.get(image.getData('stampKey') as string) ?? entry;
+      held.refs = Math.max(0, held.refs - 1);
+      held.lastUse = Date.now();
     });
   }
   return image;
@@ -428,6 +431,21 @@ export function placeStamp(
  */
 export function applyStamp(image: Phaser.GameObjects.Image, st: Stamp, scale = 1): void {
   ensureLive(image.scene, st);
+  // The refcount follows the swap. Without this, a mote turned to petals, a chip flipped to its
+  // held face, a button to its pressed state - every swapped image DISPLAYED a texture whose
+  // count still sat on the stamp it was born with, so the pool cap saw the visible one as idle
+  // and evicted it mid-scene: Phaser's green-crossed missing-texture box, on screen, in a
+  // player's founder pick. Only tracked images (placed via `placeStamp`) transfer.
+  const prevKey = image.getData('stampKey') as string | undefined;
+  if (prevKey !== undefined && prevKey !== st.key) {
+    const prev = entries.get(prevKey);
+    if (prev) {
+      prev.refs = Math.max(0, prev.refs - 1);
+      prev.lastUse = Date.now();
+      const next = entries.get(st.key);
+      if (next) next.refs += 1;
+    }
+  }
   if (image.texture.key !== st.texture || (st.frame !== undefined && image.frame.name !== st.frame)) {
     image.setTexture(st.texture, st.frame);
   }
@@ -476,16 +494,20 @@ function dropEntry(key: string, entry: Entry): void {
   textures?.remove(entry.stamp.texture);
 }
 
+/**
+ * The pool cap is a boundary policy, never a mid-scene act.
+ *
+ * This used to evict refs-0 textures the moment a pool crossed its cap - and twice shipped
+ * Phaser's green-crossed missing-texture box onto a live screen (a founder-page button, a fog
+ * cloud), because "refs 0" and "not on screen" are only the same thing when every consumer's
+ * count is perfect, and one imperfect count is all it takes. Mid-scene, nothing is reclaimed:
+ * the overshoot is noted and the render-scale boundary sweep (`notifyRenderScale` ->
+ * `evictIdleStamps`) - where scenes are being torn down anyway and `ensureLive` re-bakes any
+ * survivor - is the one place textures die.
+ */
 function enforcePoolCap(pool: StampPool): void {
   const cap = POOL_CAPS[pool][qualityIndex()] * 1024 * 1024;
-  if (poolBytes(pool) <= cap) return;
-  const idle = [...entries.entries()]
-    .filter(([, e]) => e.pool === pool && e.refs === 0 && e.backend !== 'atlas')
-    .sort((a, b) => a[1].lastUse - b[1].lastUse);
-  for (const [key, e] of idle) {
-    if (poolBytes(pool) <= cap) break;
-    dropEntry(key, e);
-  }
+  if (poolBytes(pool) > cap) stats.overCap += 1;
 }
 
 /**

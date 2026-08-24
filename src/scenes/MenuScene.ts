@@ -569,9 +569,9 @@ export class MenuScene extends Phaser.Scene {
       .setData('menuWaterCoverage', 'river-only');
     layers.waterFx.add(riverVeil);
     const glazeBands = [
-      { from: 0, to: 0.38, width: width * 0.024, alpha: 0.26 },
-      { from: 0.32, to: 0.68, width: width * 0.052, alpha: 0.25 },
-      { from: 0.62, to: 1, width: width * 0.105, alpha: 0.23 },
+      { from: 0, to: 0.38, width: width * 0.024, alpha: 0.17 },
+      { from: 0.32, to: 0.68, width: width * 0.052, alpha: 0.16 },
+      { from: 0.62, to: 1, width: width * 0.105, alpha: 0.14 },
     ];
     for (const band of glazeBands) {
       const points = Array.from({ length: 21 }, (_, sample) => (
@@ -582,45 +582,57 @@ export class MenuScene extends Phaser.Scene {
     }
     riverVeil.setData('menuRiverVeilBands', glazeBands.length);
 
-    const currentCount = getGraphicsQuality() === 'low' ? 4 : 6;
-    const shimmerAnchors = [0.5, 0.61, 0.73, 0.84, 0.91, 0.96];
+    const currentCount = getGraphicsQuality() === 'low' ? 6 : 8;
+    const shimmerAnchors = [0.18, 0.3, 0.43, 0.56, 0.68, 0.79, 0.88, 0.95];
     for (let index = 0; index < currentCount; index += 1) {
       const anchor = shimmerAnchors[index];
       const point = river.getPointAt(anchor);
       const tangent = river.getTangentAt(anchor).normalize();
-      const travel = 1.2 + (index % 3) * 0.35;
+      const travel = 2.2 + (index % 3) * 0.6;
+      const span = 8 + anchor * 11;
       const current = this.add.graphics()
         .setData('menuAmbient', 'river-current')
         .setData('menuCurrentMotion', 'local-surface-shimmer')
-        .setData('menuCurrentVisibility', 'quiet')
+        .setData('menuCurrentVisibility', 'readable-soft')
         .setData('menuCurrentInterpolation', 'anchored-sine')
+        .setData('menuCurrentAnchor', anchor)
         .setData('menuCurrentTravel', travel)
-        .setData('menuCurrentDuration', 3_800 + index * 430);
+        .setData('menuCurrentDuration', 6_000 + index * 430);
       layers.waterFx.add(current);
-      inkPath(current, [{ x: -8, y: 0 }, { x: -2, y: -0.22 }, { x: 5, y: 0.18 }, { x: 9, y: 0 }], 7200 + index, {
-        width: 0.52,
-        alpha: 0.5,
+      // A pale reflected patch and two broken contour lines read as moving water at phone scale.
+      // Their container only shifts locally, so the marks breathe instead of sliding downstream.
+      current.fillStyle(PIGMENT.diepHi, 0.52);
+      current.fillEllipse(0, 0.4, span * 1.85, 2.4 + anchor * 1.5);
+      inkPath(current, [
+        { x: -span, y: 0 }, { x: -span * 0.35, y: -0.48 },
+        { x: span * 0.3, y: 0.34 }, { x: span, y: -0.12 },
+      ], 7200 + index, {
+        width: 0.78,
+        alpha: 0.78,
         colour: PIGMENT.cham,
-        wobble: 0.08,
+        wobble: 0.14,
         step: 4,
       });
-      inkPath(current, [{ x: -5, y: 1.7 }, { x: 0, y: 1.5 }, { x: 6, y: 1.7 }], 7250 + index, {
-        width: 0.38,
-        alpha: 0.42,
+      inkPath(current, [
+        { x: -span * 0.72, y: 2.1 }, { x: -span * 0.08, y: 1.55 },
+        { x: span * 0.62, y: 1.9 },
+      ], 7250 + index, {
+        width: 0.58,
+        alpha: 0.7,
         colour: PIGMENT.chamPale,
-        wobble: 0.06,
+        wobble: 0.11,
         step: 4,
       });
       current
         .setPosition(point.x, point.y)
         .setRotation(Math.atan2(tangent.y, tangent.x))
-        .setScale(0.64 + anchor * 0.44)
-        .setAlpha(0.18 + (index % 2) * 0.04);
+        .setScale(0.58 + anchor * 0.66)
+        .setAlpha(0.32 + (index % 2) * 0.04);
       this.tweens.add({
         targets: current,
         x: point.x + tangent.x * travel,
         y: point.y + tangent.y * travel,
-        alpha: { from: 0.14 + (index % 2) * 0.03, to: 0.29 + (index % 2) * 0.03 },
+        alpha: { from: 0.28 + (index % 2) * 0.03, to: 0.48 + (index % 2) * 0.03 },
         duration: current.getData('menuCurrentDuration') as number,
         yoyo: true,
         repeat: -1,
@@ -747,7 +759,11 @@ export class MenuScene extends Phaser.Scene {
       .setInteractive()
       .setData('menuLandscapeInteraction', 'lotus-sway')
       .setData('menuLotusGestures', ['hover', 'drag', 'water-wake']);
-    layers.lotus.setData('menuLotusWaterResponse', 'wake-and-ripple');
+    layers.lotus.setData('menuLotusWaterResponse', 'stem-waterline-ripples');
+    const lotusStemAnchors = [
+      { id: 'large-flower', touchX: left + width * 0.22, x: left + width * 0.19, y: top + height * 0.915 },
+      { id: 'small-flower', touchX: left + width * 0.36, x: left + width * 0.345, y: top + height * 0.902 },
+    ] as const;
     let lastLotusPointer: { x: number; y: number } | undefined;
     let lastLotusWakeAt = -1_000;
     let lastLotusRippleAt = -1_000;
@@ -759,20 +775,24 @@ export class MenuScene extends Phaser.Scene {
     ): void => {
       if (!initial && this.time.now - lastLotusWakeAt < 110) return;
       lastLotusWakeAt = this.time.now;
-      const nearest = nearestOnRiver(lotusTouch.x + localX, lotusTouch.y + localY);
-      const angle = Math.atan2(nearest.tangent.y, nearest.tangent.x);
-      this.spawnDongHoWake(
+      const pointerX = lotusTouch.x + localX;
+      const stem = lotusStemAnchors.reduce((closest, candidate) => (
+        Math.abs(candidate.touchX - pointerX) < Math.abs(closest.touchX - pointerX) ? candidate : closest
+      ));
+      // A touch can land on a wide leaf or flower head, but its disturbance belongs where that
+      // plant enters the water. Keep a tiny directional nudge so dragging still feels connected.
+      const nudgeX = Phaser.Math.Clamp((pointerX - stem.touchX) * 0.16, -width * 0.012, width * 0.012);
+      this.spawnLotusWaterlineWake(
         layers.waterFx,
-        nearest.point.x,
-        nearest.point.y,
-        angle,
+        stem.x + nudgeX,
+        stem.y,
         width / GAME_WIDTH,
-        pointer.isDown ? 0.86 : 0.38,
-        'lotus',
+        pointer.isDown ? 1 : 0.72,
+        stem.id,
       );
       if (pointer.isDown && this.time.now - lastLotusRippleAt >= 260) {
         lastLotusRippleAt = this.time.now;
-        this.spawnDongHoRipple(layers.waterFx, nearest.point.x, nearest.point.y, width / GAME_WIDTH * 0.65);
+        this.spawnDongHoRipple(layers.waterFx, stem.x + nudgeX, stem.y, width / GAME_WIDTH * 0.8);
       }
     };
     const bendLotus = (pointer: Phaser.Input.Pointer, localX: number, localY: number): void => {
@@ -872,6 +892,42 @@ export class MenuScene extends Phaser.Scene {
       alpha: 0,
       duration: 720 + Math.round(180 * strength),
       ease: 'Quad.easeOut',
+      onComplete: () => wake.destroy(),
+    });
+  }
+
+  /** Lotus feedback expands from the stems' waterline, never from the distant river centre. */
+  private spawnLotusWaterlineWake(
+    parent: Phaser.GameObjects.Container,
+    x: number,
+    y: number,
+    artScale: number,
+    strength: number,
+    stem: 'large-flower' | 'small-flower',
+  ): void {
+    const wake = this.add.graphics({ x, y })
+      .setScale(0.42)
+      .setAlpha(0.68 + strength * 0.2)
+      .setData('menuWaterWake', true)
+      .setData('menuWakeSource', 'lotus')
+      .setData('menuWakeOrigin', 'stem-waterline')
+      .setData('menuWakeStem', stem)
+      .setData('menuWakeBase', { x, y });
+    parent.add(wake);
+    wake.lineStyle(1.05, PIGMENT.cham, 0.82);
+    wake.strokeEllipse(0, 0, 25 * artScale, 6.2 * artScale);
+    wake.lineStyle(0.72, PIGMENT.chamPale, 0.76);
+    wake.strokeEllipse(0, 0.8 * artScale, 38 * artScale, 9 * artScale);
+    wake.lineStyle(0.5, PIGMENT.diepHi, 0.72);
+    wake.strokeEllipse(0, 1.6 * artScale, 50 * artScale, 11 * artScale);
+    this.tweens.add({
+      targets: wake,
+      scaleX: 1.55 + strength * 0.12,
+      scaleY: 1.18 + strength * 0.08,
+      y: y + 1.4 * artScale,
+      alpha: 0,
+      duration: 980,
+      ease: 'Sine.easeOut',
       onComplete: () => wake.destroy(),
     });
   }
