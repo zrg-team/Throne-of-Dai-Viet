@@ -24,6 +24,8 @@ import { battleFieldBox, hostSize, type BattleMarker } from '../constants';
 import { clearLayer, killTweensDeep } from '../layers';
 import { battleBaseScale, battleLines, battleRearY, battleScaleAt } from './geometry';
 import type { ConquestUIScene } from '../../ConquestUIScene';
+import { warmFigureStamps } from '../../../ui/ink/figureStamps';
+import { PIGMENT } from '../../../ui/ink/palette';
 
 /** Pairs a drawn marker with its host, finding the strength label to keep current. */
 function trackMarker(hostId: string, marker: Phaser.GameObjects.Container, mustered?: number): BattleMarker {
@@ -109,6 +111,12 @@ export function buildBattleField(self: ConquestUIScene, battle: AscentBattle): v
 
   const ours = ourHosts(self.state, battle);
   const theirs = theirHosts(self.state, battle);
+  // Bake both sides' wardrobes before a single marker is built: a first-seen figure kind
+  // rasterises through the canvas API, and that cost belongs here, not under a mid-fight redraw.
+  for (const host of [...ours, ...theirs]) {
+    warmFigureStamps(self, hostKitFor(self.state, host),
+      ours.includes(host) ? PIGMENT.muc : PIGMENT.mucSoft, 'f');
+  }
   const lane = (index: number, count: number): number => groundY + (index - (count - 1) / 2) * 32;
 
   const lines = battleLines(self, battle.ourAdvance, battle.theirAdvance);

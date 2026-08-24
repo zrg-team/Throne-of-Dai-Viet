@@ -11,6 +11,7 @@ import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { applyPaperFX } from '../ui/ink/PaperFX';
 import { PIGMENT } from '../ui/ink/palette';
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
+import { attachPaperSheet } from '../ui/ink/paperSheet';
 
 const SIDE = 12;
 const LIST_WIDTH = GAME_WIDTH - SIDE * 2;
@@ -71,6 +72,7 @@ export class GuideScene extends Phaser.Scene {
   create(): void {
     applyRenderScale(this);
     applyPaperFX(this);
+    attachPaperSheet(this);
     this.ui = new InkUI(this);
     this.mapRenderer = createMapRenderer(this);
     // The sheet and nothing else. The menu's diorama is a fine thing to arrive at and a poor thing

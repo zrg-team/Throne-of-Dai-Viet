@@ -471,6 +471,13 @@ const pressOnMenu = (pattern) => handoff.evaluate((source) => {
 // control cannot be reached.
 const pickLanguage = (label) => handoff.evaluate((want) => {
   const scene = window.__phaserGame.scene.getScene('MenuScene');
+  const languageId = want === 'Tiếng Việt' ? 'vi' : 'en';
+  const semanticHit = scene.children.list.find((child) => child.getData?.('languageOption') === languageId
+    && child.depth >= 900);
+  if (semanticHit) {
+    semanticHit.emit('pointerup', { id: 21, downTime: 0 }, 0, 0, { stopPropagation() {} });
+    return true;
+  }
   for (const child of scene.children.list) {
     if (child.type !== 'Text' || child.text !== want || child.depth < 900) continue;
     const m = child.getWorldTransformMatrix();

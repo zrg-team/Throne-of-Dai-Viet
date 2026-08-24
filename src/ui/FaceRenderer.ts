@@ -5,6 +5,7 @@ import { getActiveMapTheme } from './mapTheme';
 import { PIGMENT } from './ink/palette';
 import { hatchPoly, inkPath, washFill } from './ink/stroke';
 import type { Hero } from '../state/types';
+import { placeStamp, stamp } from './ink/stamp';
 
 /**
  * Hero portraits, composed from a library of SVG parts.
@@ -76,26 +77,38 @@ export const HERO_FACE_H = HERO_FACE_EXTENT.bottom - HERO_FACE_EXTENT.top;
  * The frame a printed portrait sits in: hatched paper with a hand-pulled contour, weighted by rank
  * so a Legendary still announces itself without a slab of lacquer behind the face.
  */
-function drawCartouche(scene: Phaser.Scene, rank: number): Phaser.GameObjects.Graphics {
-  const g = scene.add.graphics();
-  const left = HERO_FACE_EXTENT.left + 2;
-  const right = HERO_FACE_EXTENT.right - 2;
-  const top = HERO_FACE_EXTENT.top + 2;
-  const bottom = HERO_FACE_EXTENT.bottom - 2;
+function drawCartouche(scene: Phaser.Scene, rank: number): Phaser.GameObjects.GameObject {
+  // Five ranks, five stamps: the frame is a wash, a hatch and a contour that never change, and
+  // hero lists put a dozen of them on screen — as live Graphics each re-tessellated per frame.
+  const st = stamp(scene, `ui:cartouche:${rank}`, {
+    left: HERO_FACE_EXTENT.left, right: HERO_FACE_EXTENT.right,
+    top: HERO_FACE_EXTENT.top, bottom: HERO_FACE_EXTENT.bottom,
+  }, (g, x, y, raster) => {
+    g.translateCanvas(x, y);
+    cartoucheInk(g, rank, raster);
+    g.translateCanvas(-x, -y);
+  }, { raster: 'super', pool: 'ui', pad: 2 });
+  return placeStamp(scene, st, 0, 0);
+}
+
+function cartoucheInk(g: Phaser.GameObjects.Graphics, rank: number, k = 1): void {
+  const left = (HERO_FACE_EXTENT.left + 2) * k;
+  const right = (HERO_FACE_EXTENT.right - 2) * k;
+  const top = (HERO_FACE_EXTENT.top + 2) * k;
+  const bottom = (HERO_FACE_EXTENT.bottom - 2) * k;
   const box = [
     { x: left, y: top }, { x: right, y: top }, { x: right, y: bottom }, { x: left, y: bottom },
   ];
   washFill(g, box, PIGMENT.diepLo, rank * 31 + 7, 0.55, 1.2);
-  hatchPoly(g, box, 0.8, 6, PIGMENT.mucSoft, 0.07, 0.7);
+  hatchPoly(g, box, 0.8 * k, 6 * k, PIGMENT.mucSoft, 0.07, 0.7);
   inkPath(g, box, rank * 17 + 3, {
-    width: 1 + rank * 0.35,
+    width: (1 + rank * 0.35) * k,
     alpha: 0.5 + rank * 0.1,
     colour: rank >= 3 ? PIGMENT.son : PIGMENT.muc,
     wobble: 0.9,
     step: 12,
     closed: true,
   });
-  return g;
 }
 
 /**

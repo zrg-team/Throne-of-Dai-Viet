@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="UTF-8" />
     <meta
@@ -409,7 +409,7 @@
   <body>
     <div id="game-root"></div>
 
-    <div id="splash" role="status" aria-live="polite" aria-label="Vạn Thắng — loading">
+    <div id="splash" role="status" aria-live="polite" aria-label="Vạn Thắng — đang tải">
       <div class="sp-sheet" id="sp-sheet">
         <div class="sp-page" id="sp-page">
           <!-- The mark: the face of the Ngọc Lũ drum, the same device as the app icon and the same
@@ -442,7 +442,7 @@
           </div>
 
           <div class="sp-status">
-            <p class="sp-caption" id="sp-caption">Mustering the host…</p>
+            <p class="sp-caption" id="sp-caption">Đang tập hợp quân…</p>
             <div class="sp-bar"><i></i></div>
           </div>
         </div>
@@ -992,9 +992,10 @@
         // chose. It cannot come from `src/i18n` — those catalogs are inside the bundle this screen
         // exists to cover — so the two lines live here, and only here.
         try {
-          if (localStorage.getItem('mandate:language:v1') === 'vi') {
-            document.getElementById('sp-caption').textContent = 'Đang tập hợp quân…';
-            document.getElementById('splash').setAttribute('aria-label', 'Vạn Thắng — đang tải');
+          if (localStorage.getItem('mandate:language:v1') === 'en') {
+            document.documentElement.lang = 'en';
+            document.getElementById('sp-caption').textContent = 'Mustering the host…';
+            document.getElementById('splash').setAttribute('aria-label', 'Vạn Thắng — loading');
           }
         } catch (e) {
           // Storage blocked. The splash still prints; it just prints the default line.

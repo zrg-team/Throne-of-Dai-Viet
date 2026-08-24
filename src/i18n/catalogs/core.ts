@@ -227,7 +227,6 @@ export const enCore = {
   "menu.install.desktop.step2": "Or open the browser menu and choose Install — Safari calls it “Add to Dock”.",
   "menu.install.desktop.step3": "Firefox cannot install a site; bookmark this page instead.",
   "menu.support.coffee": "Buy me a coffee",
-  "menu.support.or": "— or even better,",
   "menu.support.improve": "help build the game",
   // The same link where the coffee half of the sentence is gone and this has to stand on its own —
   // iOS, where the App Store will not have a donation link. `improve` is a sentence fragment by
@@ -751,7 +750,6 @@ export const viCore = {
   "menu.install.desktop.step2": "Hoặc mở menu trình duyệt rồi chọn Cài đặt — Safari gọi là “Add to Dock”.",
   "menu.install.desktop.step3": "Firefox không cài được trang web; hãy lưu dấu trang thay vào đó.",
   "menu.support.coffee": "Mời mình ly cà phê",
-  "menu.support.or": "— hay hơn nữa,",
   "menu.support.improve": "chung tay làm game",
   "menu.support.improveAlone": "Chung tay làm game",
   "menu.support.title": "Mời mình ly cà phê",

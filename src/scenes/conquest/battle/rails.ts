@@ -165,10 +165,20 @@ export function updateBattleRails(self: ConquestUIScene, battle: AscentBattle): 
     .every((key) => Math.abs(eased[key] - target[key]) < 0.5);
   if (same) { drawBattleRails(self, battle, eased); return; }
   ui.railsTween?.stop();
-  ui.railsTween = self.tweens.add({
-    targets: eased, ...target,
+  // One counter driving all four values in a single onUpdate. A four-property tween dispatches
+  // its onUpdate once per property per frame, so the whole band was re-inked up to four times a
+  // frame for the length of the ease — measured at 2.4 redraws per frame across a fight.
+  const from = { ...eased };
+  ui.railsTween = self.tweens.addCounter({
+    from: 0, to: 1,
     duration: Math.round(battleTickMs() * 0.85), ease: 'Sine.easeOut',
-    onUpdate: () => { if (ui.railsBars?.active) drawBattleRails(self, battle, eased); },
+    onUpdate: (tween) => {
+      const k = tween.getValue() ?? 1;
+      for (const key of Object.keys(target) as Array<keyof typeof target>) {
+        eased[key] = from[key] + (target[key] - from[key]) * k;
+      }
+      if (ui.railsBars?.active) drawBattleRails(self, battle, eased);
+    },
   });
 }
 

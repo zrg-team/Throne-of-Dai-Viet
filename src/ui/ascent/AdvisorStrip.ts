@@ -189,12 +189,24 @@ export class AdvisorStrip {
     this.sheetHeight = 0;
   }
 
+  /** What the strip was last drawn from, so a tick that changes nothing re-inks nothing. */
+  private drawnKey = '';
+
   private draw(): void {
     const advice = this.current;
     if (!advice) return;
     const tone = TONE[advice.tone];
 
-    this.line.setText(t(advice.line, advice.params));
+    // The line, the tone and the open state are everything below reads. The figures inside the
+    // sentence move every tick, so the key is the *rendered* text — a fresh treasury number is a
+    // new key, an identical sentence is a skipped redraw (which used to be one unguarded
+    // `setColor` re-raster plus three Graphics re-inks per economy tick, and per beat in a fight).
+    const text = t(advice.line, advice.params);
+    const key = `${text}|${advice.tone}|${this.open ? 1 : 0}`;
+    if (key === this.drawnKey) return;
+    this.drawnKey = key;
+
+    this.line.setText(text);
     this.line.setColor(tone.text);
     this.stripHeight = Math.max(26, this.line.height + 14);
     this.line.setY(ADVISOR_TOP + (this.stripHeight - this.line.height) / 2);

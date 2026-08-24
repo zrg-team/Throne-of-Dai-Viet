@@ -246,22 +246,36 @@ export class AscentHud {
     // A bar chart from 500 BCE, and it earns the slot because the meter speaks in the narrator's
     // register — bronze — while the world it is counting down over is dated to a dynasty.
     const toWave = 1 - Math.max(0, Math.min(1, ascent.ticksToWave / Math.max(1, WAVE_INTERVAL_TICKS)));
-    parts.meter.clear();
-    heronMeter(parts.meter, barX, y, barWidth, 11, toWave, true);
+    // Re-inked only when the frieze visibly moves: the meter is ~1,250 recorded path segments,
+    // and re-recording them on every refresh was the band's single biggest line item.
+    const meterKey = `${barX}:${barWidth}:${Math.round(toWave * barWidth)}`;
+    if (this.meterKey !== meterKey) {
+      this.meterKey = meterKey;
+      parts.meter.clear();
+      heronMeter(parts.meter, barX, y, barWidth, 11, toWave, true);
+    }
 
     // Level progress keeps its own thin rule beneath the frieze: two different quantities, and
     // stacking them beat merging them into one ambiguous bar.
     const filled = Math.max(0, Math.min(1, ascent.xp / Math.max(1, ascent.xpToNext)));
-    parts.xp.clear();
-    parts.xp.fillStyle(INK_UI.brush, 0.2);
-    parts.xp.fillRect(barX, y + 13, barWidth, 3);
-    if (filled > 0) {
-      parts.xp.fillStyle(INK_UI.gold, 0.88);
-      parts.xp.fillRect(barX, y + 13, Math.max(1.5, barWidth * filled), 3);
+    const xpKey = `${barX}:${barWidth}:${Math.round(filled * barWidth)}`;
+    if (this.xpKey !== xpKey) {
+      this.xpKey = xpKey;
+      parts.xp.clear();
+      parts.xp.fillStyle(INK_UI.brush, 0.2);
+      parts.xp.fillRect(barX, y + 13, barWidth, 3);
+      if (filled > 0) {
+        parts.xp.fillStyle(INK_UI.gold, 0.88);
+        parts.xp.fillRect(barX, y + 13, Math.max(1.5, barWidth * filled), 3);
+      }
     }
   }
 
   /** The furniture, made once: everything whose position and content the band keeps re-writing. */
+  /** What the frieze last drew, so a quiet refresh re-records none of its ~1,250 segments. */
+  private meterKey = '';
+  private xpKey = '';
+
   private build(): NonNullable<AscentHud['parts']> {
     const labels: Phaser.GameObjects.GameObject[] = [];
 

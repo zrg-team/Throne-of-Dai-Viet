@@ -86,6 +86,7 @@ const MENU_TEXT = () => {
 };
 
 const COFFEE = 'Buy me a coffee';
+const CONNECTIVE = '— or even better,';
 // Two cuts of the same link: the sentence fragment, and the one written to stand alone. Which one
 // is drawn is itself the assertion — a lowercase fragment centred by itself is the bug.
 const IMPROVE = 'help build the game';
@@ -110,6 +111,9 @@ async function boot(descriptor) {
   });
 
   await page.addInitScript((shell) => {
+    // This verifier names the English support strings above. Language is test setup here, not a
+    // product fallback: fresh installs correctly default to Vietnamese.
+    localStorage.setItem('mandate:language:v1', 'en');
     // The cabinet's callback, standing in for postMessage. Read back after the menu paints.
     window.__readyFired = false;
     if (shell) {
@@ -190,12 +194,14 @@ try {
   check('Android fires the ready callback', android.readyFired);
   check('Android keeps the donation link', android.text.includes(COFFEE), 'Play has no equivalent rule');
   check('Android keeps the repository link', android.text.includes(IMPROVE), 'the sentence half');
+  check('Android omits the old connective phrase', !android.text.includes(CONNECTIVE));
 
   // ── 5. Desktop: a cabinet that answers to no store ──────────────────────────────────────────
   const desktop = await boot({ kind: 'desktop', os: 'windows', version: '0.2.0' });
   check('desktop boots', desktop.booted, desktop.errors.slice(0, 2).join(' | '));
   check('desktop registers no service worker', desktop.swRegistrations === 0, `${desktop.swRegistrations} registrations`);
   check('desktop keeps the donation link', desktop.text.includes(COFFEE));
+  check('desktop omits the old connective phrase', !desktop.text.includes(CONNECTIVE));
 } finally {
   await browser.close();
   server.close();

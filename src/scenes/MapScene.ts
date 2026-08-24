@@ -35,7 +35,9 @@ import { BAKE_SEASON, foliagePalette, seasonVisualsEnabled, setFoliageSeason, se
 import { UI_FONT } from '../ui/fonts';
 import { t } from '../i18n';
 import { MINIMAP_H, MINIMAP_W } from '../ui/MinimapRenderer';
-import { RENDER_SCALE, bakeScale, designPointer, lodDropsLabels, lodZoomThreshold } from '../game/graphicsQuality';
+import { applyPendingRenderScale, bakeScale, designPointer, lodDropsLabels, lodZoomThreshold, renderScaleNow } from '../game/graphicsQuality';
+import { fitBakeScale } from '../ui/ink/textureLimits';
+import { figureEraFor } from '../ui/ink/devices';
 
 /** How big a province's standard is drawn against the ground it stands on. See `drawFlags`. */
 const MAP_LAND_FLAG_SCALE = 0.55;
@@ -84,6 +86,8 @@ export class MapScene extends Phaser.Scene {
   private foreignHazeGraphics?: Phaser.GameObjects.Graphics;
   /** Each node's name plate, held separately so the zoom LOD can drop type without dropping towns. */
   private landLabels = new Map<string, Phaser.GameObjects.Container>();
+  /** Settlement ink harvested out of each node into the static-bake band; dies with its node. */
+  private landInk = new Map<string, Phaser.GameObjects.Graphics[]>();
   private flagMarkers = new Map<string, Phaser.GameObjects.Container>();
   private acquisitionMarkers: Phaser.GameObjects.GameObject[] = [];
   private buildMarkers: Phaser.GameObjects.GameObject[] = [];
@@ -240,6 +244,7 @@ export class MapScene extends Phaser.Scene {
   private resetRuntimeState(): void {
     this.landNodes = new Map<string, Phaser.GameObjects.Container>();
     this.landLabels = new Map<string, Phaser.GameObjects.Container>();
+    this.landInk = new Map<string, Phaser.GameObjects.Graphics[]>();
     this.flagMarkers = new Map<string, Phaser.GameObjects.Container>();
     this.acquisitionMarkers = [];
     this.buildMarkers = [];
@@ -278,15 +283,17 @@ export class MapScene extends Phaser.Scene {
    * different question than the one every clamp in this file is asking.
    */
   protected get mapZoom(): number {
-    return this.cameras.main.zoom / RENDER_SCALE;
+    return this.cameras.main.zoom / renderScaleNow();
   }
 
   /** Sets the map's zoom in design units, leaving the render scale where it is. */
   protected setMapZoom(value: number): void {
-    this.cameras.main.setZoom(value * RENDER_SCALE);
+    this.cameras.main.setZoom(value * renderScaleNow());
   }
 
   create(): void {
+    // A pending ladder step lands here, at the scene boundary, before any camera is set up.
+    applyPendingRenderScale(this.game);
     // The map camera carries the render scale on top of the map's own zoom, so it starts at the
     // scale rather than at 1 — without this the world draws at design size inside a buffer several
     // times larger, which reads as the map having silently zoomed out.
@@ -297,7 +304,9 @@ export class MapScene extends Phaser.Scene {
     this.mapRenderer = createMapRenderer(this);
     this.mapItems = createMapItemRenderer(this);
     // Ages the world camera — the HUD scene gets its own pass, so chrome and map share one sheet.
-    applyPaperFX(this);
+    // The paper lives on the UI scene as a multiply sheet (paperSheet.ts): the UI camera
+    // renders last over this same canvas, so one sheet ages world and chrome together and
+    // this scene needs no pass of its own. (?fx=shader restores the old filter, UI-side.)
     this.settlements = new SettlementRenderer(this, this.mapItems, this.mapRenderer.palette);
     this.traffic = new TrafficRenderer(this, this.mapRenderer, this.mapItems);
     this.birds = new BirdRenderer(this);
@@ -332,11 +341,9 @@ export class MapScene extends Phaser.Scene {
     this.events.emit('state-changed');
   }
 
-  shutdown(): void {
-    this.cleanup();
-  }
-
   private cleanup(): void {
+    // First, before anything else: the handlers this scene hung on the UI scene's emitter.
+    this.offUi();
     this.game.canvas.removeEventListener('pointerdown', this.domPointerDown);
     this.game.canvas.removeEventListener('pointermove', this.domPointerMove);
     this.game.canvas.removeEventListener('pointerup', this.domPointerUp);
@@ -346,6 +353,7 @@ export class MapScene extends Phaser.Scene {
     this.game.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
     this.seasons?.destroy();
     this.birds?.destroy();
+    this.armies?.destroy();
     // The bake belongs to the display list, which Phaser tears down on shutdown — but the *scene
     // instance* is reused across `scene.start`, so this field survived pointing at a destroyed
     // RenderTexture. On the second entry `bakeStaticTerrain` saw a truthy handle, skipped
@@ -371,76 +379,99 @@ export class MapScene extends Phaser.Scene {
     });
   };
 
-  protected registerUiEvents(): void {
+  /**
+   * Handlers this scene has hung on the UI scene's emitter, so `cleanup` can take them off again.
+   *
+   * The UI scene's `events` emitter survives `scene.stop()` (Phaser only clears it on `destroy`),
+   * and both scene instances are reused across runs — so a handler registered here without being
+   * removed is registered *again* by the next run's `create`. Measured: after three runs every
+   * `state-changed` rebuilt the HUD three times and every land action ran three times.
+   */
+  private uiHandlers: Array<[string, (...args: unknown[]) => void]> = [];
+
+  /** Registers on the UI scene's emitter and remembers the pair so `cleanup` can undo it. */
+  protected onUi<T extends unknown[]>(key: string, fn: (...args: T) => void): void {
+    this.scene.get(this.uiSceneKey()).events.on(key, fn);
+    this.uiHandlers.push([key, fn as unknown as (...args: unknown[]) => void]);
+  }
+
+  private offUi(): void {
     const ui = this.scene.get(this.uiSceneKey());
-    ui.events.on('ui:land-action', (action: string, landId: string, heroId?: string) => {
+    for (const [key, fn] of this.uiHandlers) {
+      ui.events.off(key, fn);
+    }
+    this.uiHandlers = [];
+  }
+
+  protected registerUiEvents(): void {
+    this.onUi('ui:land-action', (action: string, landId: string, heroId?: string) => {
       this.handleLandAction(action, landId, heroId);
     });
-    ui.events.on('ui:hero-pick', (heroId: string) => {
+    this.onUi('ui:hero-pick', (heroId: string) => {
       recruitHero(this.state, heroId);
       this.refresh();
     });
-    ui.events.on('ui:hero-mission', (heroId: string, targetKingdomId?: string) => {
+    this.onUi('ui:hero-mission', (heroId: string, targetKingdomId?: string) => {
       dispatchHeroMission(this.state, heroId, targetKingdomId);
       this.refresh();
     });
-    ui.events.on('ui:hero-ability', (heroId: string) => {
+    this.onUi('ui:hero-ability', (heroId: string) => {
       useHeroAbility(this.state, heroId);
       this.refresh();
     });
-    ui.events.on('ui:hero-event-choice', (choiceId: string) => {
+    this.onUi('ui:hero-event-choice', (choiceId: string) => {
       resolveHeroEvent(this.state, choiceId);
       this.refresh();
     });
-    ui.events.on('ui:politics-choice', (choiceId: string) => {
+    this.onUi('ui:politics-choice', (choiceId: string) => {
       choosePoliticsCard(this.state, choiceId);
       this.refresh();
     });
-    ui.events.on('ui:foreign-choice', (choiceId: string) => {
+    this.onUi('ui:foreign-choice', (choiceId: string) => {
       resolveForeignChoice(this.state, choiceId);
       this.refresh();
     });
-    ui.events.on('ui:battle-decision', (decision: 'attack' | 'delegate' | 'retreat') => {
+    this.onUi('ui:battle-decision', (decision: 'attack' | 'delegate' | 'retreat') => {
       resolvePendingBattle(this.state, decision);
       this.refresh();
     });
-    ui.events.on('ui:attack-land', (armyId: string, landId: string, stance: 'assault' | 'balanced' | 'cautious') => {
+    this.onUi('ui:attack-land', (armyId: string, landId: string, stance: 'assault' | 'balanced' | 'cautious') => {
       attackLand(this.state, armyId, landId, stance);
       this.refresh();
     });
-    ui.events.on('ui:retreat-siege', (armyId: string, landId: string) => {
+    this.onUi('ui:retreat-siege', (armyId: string, landId: string) => {
       cancelSiege(this.state, armyId, landId);
       this.refresh();
     });
-    ui.events.on('ui:create-army', (heroId: string, soldiers: number, food: number, supplies: number, composition: 'balanced' | 'spears' | 'archers' | 'shock') => {
+    this.onUi('ui:create-army', (heroId: string, soldiers: number, food: number, supplies: number, composition: 'balanced' | 'spears' | 'archers' | 'shock') => {
       queueRecruitment(this.state, heroId, soldiers, food, supplies, composition);
       this.refresh();
     });
-    ui.events.on('ui:disband-army', (armyId: string) => {
+    this.onUi('ui:disband-army', (armyId: string) => {
       disbandArmy(this.state, armyId);
       this.refresh();
     });
-    ui.events.on('ui:zoom-map', (direction: number) => {
+    this.onUi('ui:zoom-map', (direction: number) => {
       this.zoomMap(direction);
     });
-    ui.events.on('ui:toggle-render-mode', () => {
+    this.onUi('ui:toggle-render-mode', () => {
       this.state.mapRenderMode = this.state.mapRenderMode === 'terrain' ? 'control' : 'terrain';
       this.applyRenderMode();
       this.scene.get(this.uiSceneKey()).events.emit('state-changed');
     });
-    ui.events.on('ui:save-snapshot', () => {
+    this.onUi('ui:save-snapshot', () => {
       const snapshot = saveSnapshot(this.state);
       this.state.message = snapshot ? t('msg.snapshotSaved') : t('msg.saveUnavailable');
       this.refresh();
     });
-    ui.events.on('ui:exit-to-menu', (saveFirst: boolean) => {
+    this.onUi('ui:exit-to-menu', (saveFirst: boolean) => {
       if (saveFirst) {
         saveSnapshot(this.state);
       }
       this.scene.stop(this.uiSceneKey());
       this.scene.start('MenuScene');
     });
-    ui.events.on('ui:pan-camera', (worldX: number, worldY: number) => {
+    this.onUi('ui:pan-camera', (worldX: number, worldY: number) => {
       const cam = this.cameras.main;
       const zoom = this.mapZoom;
       cam.scrollX = Phaser.Math.Clamp(
@@ -454,7 +485,7 @@ export class MapScene extends Phaser.Scene {
         Math.max(0, this.worldHeight - GAME_HEIGHT / zoom),
       );
     });
-    ui.events.on('ui:clear-selection', () => {
+    this.onUi('ui:clear-selection', () => {
       this.state.selectedLandId = undefined;
       this.state.latestBattlePreview = undefined;
       this.refresh();
@@ -640,7 +671,9 @@ export class MapScene extends Phaser.Scene {
     this.realtimeAccumulator += delta;
 
     if (this.realtimeAccumulator >= REALTIME_TICK_MS) {
-      this.realtimeAccumulator = 0;
+      // Carry the remainder (capped at one tick) instead of zeroing: dropped slack made the
+      // month clock drift behind wall time by up to a tick's worth on every slow frame.
+      this.realtimeAccumulator = Math.min(this.realtimeAccumulator - REALTIME_TICK_MS, REALTIME_TICK_MS);
       const arrivals = this.state.movementOrders
         .filter((order) => order.progress + 1 >= order.legRequired)
         .map((order) => {
@@ -1164,14 +1197,17 @@ export class MapScene extends Phaser.Scene {
     }
     // `scene` is nulled by `GameObject.destroy()`, so this catches a handle that outlived its
     // display list even if something else forgets to clear the field.
+    // The wanted scale, stepped down only if the world texture would pass the device's
+    // MAX_TEXTURE_SIZE - past it the GL call fails and the whole ground renders black.
+    const bake = fitBakeScale(this, this.worldWidth, this.worldHeight, BAKE_SCALE);
     if (this.staticBakeRT && !this.staticBakeRT.scene) {
       this.staticBakeRT = undefined;
     }
     if (!this.staticBakeRT) {
       // Texture is baked at BAKE_SCALE resolution then displayed scaled up to full world size.
-      this.staticBakeRT = this.add.renderTexture(0, 0, Math.ceil(this.worldWidth * BAKE_SCALE), Math.ceil(this.worldHeight * BAKE_SCALE))
+      this.staticBakeRT = this.add.renderTexture(0, 0, Math.ceil(this.worldWidth * bake), Math.ceil(this.worldHeight * bake))
         .setOrigin(0, 0)
-        .setScale(1 / BAKE_SCALE)
+        .setScale(1 / bake)
         .setDepth(1.9);
     }
 
@@ -1199,10 +1235,22 @@ export class MapScene extends Phaser.Scene {
       return;
     }
 
-    // Sources are all Graphics anchored at world origin (0,0), so scaling them by
-    // BAKE_SCALE for the draw shrinks their geometry into the reduced-res texture.
-    const scalable = visible as unknown as Array<{ setScale(v: number): unknown }>;
-    for (const source of scalable) source.setScale(BAKE_SCALE);
+    // Most sources are Graphics anchored at world origin, where a scale is enough; the harvested
+    // settlement ink is *positioned*, and `RenderTexture.draw` on WebGL offsets by the object's
+    // own x/y — so a positioned source must also stand at its scaled position for the draw, and
+    // be put back afterwards whatever happens.
+    const scalable = visible as unknown as Array<{ x: number; y: number; setScale(v: number): unknown; setPosition(x: number, y: number): unknown }>;
+    const homes = scalable.map((source) => ({ x: source.x, y: source.y }));
+    const restore = (): void => {
+      for (let i = 0; i < scalable.length; i += 1) {
+        scalable[i].setScale(1);
+        scalable[i].setPosition(homes[i].x, homes[i].y);
+      }
+    };
+    for (const source of scalable) {
+      source.setScale(bake);
+      if (source.x !== 0 || source.y !== 0) source.setPosition(source.x * bake, source.y * bake);
+    }
     try {
       this.staticBakeRT.clear();
       this.staticBakeRT.draw(visible, 0, 0);
@@ -1214,10 +1262,10 @@ export class MapScene extends Phaser.Scene {
       // A context loss racing the guard above can still null the GL bindings mid-bake;
       // keep the live layers visible and recover on the next restore instead of throwing.
       console.warn('Static terrain bake skipped (renderer unavailable):', error);
-      for (const source of scalable) source.setScale(1);
+      restore();
       return;
     }
-    for (const source of scalable) source.setScale(1);
+    restore();
 
     for (const source of band) source.setVisible(false);
     this.lastBakedRenderMode = this.state.mapRenderMode;
@@ -1500,6 +1548,69 @@ export class MapScene extends Phaser.Scene {
     // lowest tier without dropping the town under them — each is a `Text` carrying its own canvas.
     this.landLabels.set(land.id, label);
     this.landNodes.set(land.id, container);
+    this.harvestSettlementInk(land, container, label);
+  }
+
+  /**
+   * Lifts a settlement's drawn ink out of its live node and into the static-bake band.
+   *
+   * A town cluster is hundreds of ink-path segments that never change between rebuilds, and as
+   * live `Graphics` Phaser 4 re-triangulates all of them every frame. Everything drawn is moved
+   * to scene level inside [1.40, 1.50) — under the `depth <= 1.5` bake sweep — so the next
+   * `bakeStaticTerrain` flattens it into the cached texture; what must stay alive stays in the
+   * node: the animals (Images, wandering), the name `Text`, and — on tiers whose zoom LOD drops
+   * labels — the plate under the name, so the LOD can hide both together.
+   *
+   * The paint order inside a cluster is preserved exactly: `paintByGround` ordered the layers,
+   * and the harvest walks the same list order, stepping depth per piece. The one accepted art
+   * change: the animals, staying live above the bake, now stand in front of every roof — the
+   * compromise this design chose over a third RenderTexture.
+   */
+  private harvestSettlementInk(
+    land: Land,
+    node: Phaser.GameObjects.Container,
+    label: Phaser.GameObjects.Container,
+  ): void {
+    // The rollback switch: live settlement nodes exactly as before the harvest existed.
+    if (typeof window !== 'undefined' && window.location.search.indexOf('noharvest=1') >= 0) {
+      return;
+    }
+    const ink: Phaser.GameObjects.Graphics[] = [];
+    const base = 1.41 + Phaser.Math.Clamp(node.y / Math.max(1, this.worldHeight), 0, 1) * 0.08;
+    let step = 0;
+    const walk = (root: Phaser.GameObjects.Container, ox: number, oy: number, depth: () => number): void => {
+      for (const child of [...root.list]) {
+        if (child instanceof Phaser.GameObjects.Graphics) {
+          root.remove(child);
+          child.setPosition(ox + child.x, oy + child.y);
+          child.setDepth(depth());
+          this.add.existing(child);
+          ink.push(child);
+        } else if (child instanceof Phaser.GameObjects.Container) {
+          walk(child, ox + child.x, oy + child.y, depth);
+        }
+        // Images (the herd), Text and everything else stay live in the node.
+      }
+    };
+    for (const child of [...node.list]) {
+      if (child === label) continue;
+      if (child instanceof Phaser.GameObjects.Graphics) {
+        // The capital ring and any directly-held ink open the band.
+        node.remove(child);
+        child.setPosition(node.x + child.x, node.y + child.y);
+        child.setDepth(1.4 + (step += 1) * 0.0001);
+        this.add.existing(child);
+        ink.push(child);
+      } else if (child instanceof Phaser.GameObjects.Container) {
+        walk(child, node.x + child.x, node.y + child.y, () => base + (step += 1) * 0.0001);
+      }
+    }
+    if (!lodDropsLabels()) {
+      walk(label, node.x + label.x, node.y + label.y, () => 1.495 + (step += 1) * 0.0001);
+    }
+    if (ink.length > 0) {
+      this.landInk.set(land.id, ink);
+    }
   }
 
   private createLandLabel(land: Land, isPlayerCapital: boolean): Phaser.GameObjects.Container {
@@ -1875,22 +1986,22 @@ export class MapScene extends Phaser.Scene {
       this.drawTravelers();
     }
 
-    // The node signature already carries ownership and visibility along with buildings, so this
-    // needs no help from the bands above.
-    if (nodeChanged) {
-      this.redrawLandNodes();
-    }
-
-    // The fog keeps its own texture, so it is deliberately absent here: re-inking the fog must not
-    // drag the ground, the ranges and the roads through a re-composite with it.
-    if (terrainChanged || controlChanged || roadsChanged) {
-      this.bakeStaticTerrain();
-    }
+    // The per-land signatures inside are the real gate; the sweep is cheap when nothing changed.
+    const inkChanged = this.redrawLandNodes();
+    void nodeChanged;
 
     if (terrainChanged) {
       // The accents are drawn per visible tile, so land coming out of the fog has to be given its
-      // own — this layer is otherwise painted only when the season turns.
+      // own. BEFORE the bake below: the accents live in the bake band now, so a repaint that
+      // landed after the composite would stay invisible until the next one.
       this.seasons.setScape(this.landscapeGeometry());
+    }
+
+    // The fog keeps its own texture, so it is deliberately absent here: re-inking the fog must not
+    // drag the ground, the ranges and the roads through a re-composite with it. Settlement ink
+    // lives in the band too now, so a town rebuilding re-composites once, here.
+    if (terrainChanged || controlChanged || roadsChanged || inkChanged) {
+      this.bakeStaticTerrain();
     }
 
     this.syncSeasonVisuals();
@@ -1961,6 +2072,9 @@ export class MapScene extends Phaser.Scene {
     if (this.terrainDecorationGraphics && this.mapRenderer.repaintScatter) {
       this.mapRenderer.repaintScatter(this.terrainDecorationGraphics);
     }
+    // At full strength, into the bake band, before the one composite below — the cross-fade
+    // went with the layer's liveness (a woodblock print does not dissolve either; see above).
+    this.seasons.bakeAccents(this.state.season);
     this.redrawLandNodes();
     this.bakeStaticTerrain();
   }
@@ -2030,7 +2144,10 @@ export class MapScene extends Phaser.Scene {
    */
   private landNodeSignature(land: Land): string {
     const buildings = land.buildings.map((building) => `${building.type}${building.level}`).join(',');
-    return `${land.ownerId}:${land.isVisible ? 1 : 0}:${buildings}:${this.state.season}`;
+    // The era dresses the citadel (`setDrawnEra` inside the cluster build), so a dynasty turning
+    // must re-ink the seat — without it the walls stayed fifteenth-century while the host outside
+    // advanced through four dynasties.
+    return `${land.ownerId}:${land.isVisible ? 1 : 0}:${buildings}:${this.state.season}:${figureEraFor(this.state)}`;
   }
 
   /** Signature of the live settlement nodes: visibility, ownership, buildings and season. */
@@ -2047,13 +2164,15 @@ export class MapScene extends Phaser.Scene {
    * is skipped whether or not it currently has a node, which is what keeps fogged lands (where
    * `createLandNode` returns early) from rebuilding on every pass.
    */
-  private redrawLandNodes(): void {
+  private redrawLandNodes(): boolean {
+    let changed = false;
     for (const land of this.state.lands) {
       const signature = this.landNodeSignature(land);
       if (this.nodeSignatures.get(land.id) === signature) {
         continue;
       }
       this.nodeSignatures.set(land.id, signature);
+      changed = true;
 
       const existing = this.landNodes.get(land.id);
       if (existing) {
@@ -2063,8 +2182,12 @@ export class MapScene extends Phaser.Scene {
         // the LOD would keep toggling a destroyed object.
         this.landLabels.delete(land.id);
       }
+      // The harvested ink is scene-level now, so the node's destroy cannot reach it.
+      for (const g of this.landInk.get(land.id) ?? []) g.destroy();
+      this.landInk.delete(land.id);
       this.createLandNode(land);
     }
+    return changed;
   }
 
   private drawFlagMarkers(): void {

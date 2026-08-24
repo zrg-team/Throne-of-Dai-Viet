@@ -8,6 +8,7 @@ import { PIGMENT } from './ink/palette';
 import { inkPath, mulberry32, washFill, type Pt } from './ink/stroke';
 import { designLength, designPointer } from '../game/graphicsQuality';
 import { t } from '../i18n';
+import { applyStamp, placeStamp, stampDesign, type Stamp } from './ink/stamp';
 
 /**
  * A printed surface: a sheet of paper with a hand-pulled contour round it.
@@ -504,13 +505,13 @@ export class InkUI {
    * and an interactive hit area on top. Selected tiles use a gold fill + cinnabar
    * outline so the active choice pops on both the light atlas and dark ink themes.
    */
-  crayonTile(bounds: UIBounds, opts: { selected?: boolean; fill?: number; accent?: number } = {}): Phaser.GameObjects.Graphics {
+  crayonTile(bounds: UIBounds, opts: { selected?: boolean; fill?: number; accent?: number } = {}): Phaser.GameObjects.Image {
     const { selected = false } = opts;
     // Segmented selectors reuse the exact button surface so tiles, buttons, and cards read
     // as one visual family: selected = primary (gold), unselected = secondary (parchment).
-    const g = this.scene.add.graphics({ x: bounds.x, y: bounds.y });
-    drawButtonSurface(g, bounds.width, bounds.height, 6, selected ? 'primary' : 'secondary', false);
-    return g;
+    // Stamped, not drawn: a fight screen holds five of these and repaints them per order.
+    const st = buttonSurfaceStamp(this.scene, bounds.width, bounds.height, selected ? 'primary' : 'secondary', false);
+    return placeStamp(this.scene, st, bounds.x, bounds.y);
   }
 
   panel(bounds: UIBounds, opts: InkSurfaceOptions = {}): Phaser.GameObjects.Graphics {
@@ -664,15 +665,32 @@ export class InkUI {
     const { variant = 'secondary', fontSize = '13px', radius = 8, extraHitPadding = 0 } = opts;
     const disabled = variant === 'disabled';
     const container = this.scene.add.container(bounds.x, bounds.y);
-    const graphics = this.scene.add.graphics();
-    // The frameless control keeps its Graphics rather than skipping it: the press handlers below
-    // call `draw` unconditionally, and a surface that draws nothing is a smaller thing to be right
-    // about than four call sites that have to remember there is no surface.
-    const draw = opts.frameless
-      ? () => {}
-      : (pressed: boolean) => drawButtonSurface(graphics, bounds.width, bounds.height, radius, variant, pressed);
-    draw(false);
+    // The surface is a baked stamp placed as an image — a button used to be ~40 live Graphics
+    // commands re-tessellated every frame it stood on screen, times every button on the sheet.
+    // Both states are baked up front so the first press never rasterises under the finger; the
+    // press-drop offset is inside the pressed drawing (`drawButtonSurface` translates), so the
+    // swap is the whole gesture. `radius` stays in the signature for its callers; the surface
+    // never used it (`void radius` in drawButtonSurface).
+    const surface = opts.frameless
+      ? undefined
+      : placeStamp(this.scene, buttonSurfaceStamp(this.scene, bounds.width, bounds.height, variant, false), 0, 0);
+    const pressedStamp = opts.frameless || disabled
+      ? undefined
+      : buttonSurfaceStamp(this.scene, bounds.width, bounds.height, variant, true);
+    const draw = (pressed: boolean): void => {
+      if (!surface) return;
+      applyStamp(surface, pressed && pressedStamp
+        ? pressedStamp
+        : buttonSurfaceStamp(this.scene, bounds.width, bounds.height, variant, false));
+    };
+    void radius;
 
+    // Frameless controls have no contour, corner cut, or ornament to protect the label from. Give
+    // their inline group the space that border padding would otherwise waste; the glyph itself is
+    // 26 × 0.62 plus a seven-unit gap, so 24 units is its real reservation rather than 30.
+    const labelWidth = bounds.width
+      - (opts.frameless ? 4 : 12)
+      - (opts.icon ? (opts.frameless ? 24 : 30) : 0);
     const text = this.label(bounds.width / 2, bounds.height / 2, label, 'button', {
       color: variant === 'danger' ? INK_UI_HEX.lightText
         : variant === 'primary' ? colorToCss(INK_UI.cinnabar)
@@ -681,7 +699,7 @@ export class InkUI {
       align: 'center',
       // A glyph and its gap come out of the label's line before it wraps, or a long label wraps to
       // the full width and then the group is centred as if it had not.
-      wordWrap: { width: bounds.width - 12 - (opts.icon ? 30 : 0) },
+      wordWrap: { width: labelWidth },
     }).setOrigin(0.5);
     text.setAlpha(disabled ? 0.55 : 1);
 
@@ -705,7 +723,7 @@ export class InkUI {
       }).setOrigin(0.5);
       sub.setAlpha(disabled ? 0.55 : 0.82);
     }
-    fitTextToButton(text, bounds, fontSize, Boolean(opts.icon), sub ? sub.height + 1 : 0);
+    fitTextToButton(text, bounds, fontSize, Boolean(opts.icon), sub ? sub.height + 1 : 0, Boolean(opts.frameless));
 
     // Both lines are re-centred as a block rather than the label staying put and the note hanging
     // off the bottom — a button whose type sits high with a gap under it reads as a button with
@@ -794,7 +812,7 @@ export class InkUI {
       }
     });
 
-    const parts: Phaser.GameObjects.GameObject[] = [graphics];
+    const parts: Phaser.GameObjects.GameObject[] = surface ? [surface] : [];
     if (glyph) parts.push(glyph);
     parts.push(text);
     if (sub) parts.push(sub);
@@ -1182,11 +1200,14 @@ function fitTextToButton(
   hasIcon: boolean,
   /** Height already spoken for by a second line under this one. */
   reserved = 0,
+  frameless = false,
 ): void {
   const base = Number.parseFloat(fontSize) || 13;
   // 12 units of side padding is the border (1.6) plus its wobble plus the cut corner, doubled;
   // 10 vertical keeps a two-line label off the top corner where the status dot is stamped.
-  const maxWidth = bounds.width - 12 - (hasIcon ? 30 : 0);
+  const maxWidth = bounds.width
+    - (frameless ? 4 : 12)
+    - (hasIcon ? (frameless ? 24 : 30) : 0);
   const maxHeight = bounds.height - 10 - reserved;
   if (text.width <= maxWidth && text.height <= maxHeight) return;
 
@@ -1196,6 +1217,32 @@ function fitTextToButton(
     if (text.width <= maxWidth && text.height <= maxHeight) return;
   }
   text.setFontSize(floor);
+}
+
+/**
+ * One baked button face per (variant, state, size). Sizes repeat heavily — a modal's buttons
+ * share a width — so the working set is small; the `ui` pool cap holds the rest. Rendered
+ * through `stampDesign` (transform-respecting) because the drawing is in design units.
+ *
+ * The box leaves room for what the drawing does outside [0..w]x[0..h]: the shadow at +2.5, the
+ * pressed drop at +2, and the border wobble either side.
+ */
+function buttonSurfaceStamp(
+  scene: Phaser.Scene,
+  width: number,
+  height: number,
+  variant: InkButtonVariant,
+  pressed: boolean,
+): Stamp {
+  const w = Math.round(width);
+  const h = Math.round(height);
+  return stampDesign(scene, `ui:btn:${variant}:${pressed ? 1 : 0}:${w}x${h}`,
+    { left: -6, right: w + 6, top: -6, bottom: h + 8 },
+    (g, x, y) => {
+      g.translateCanvas(x, y);
+      drawButtonSurface(g, w, h, 8, variant, pressed);
+      g.translateCanvas(-x, -y);
+    }, { pool: 'ui' });
 }
 
 function drawButtonSurface(
@@ -1214,7 +1261,6 @@ function drawButtonSurface(
   const seed = Math.round(width * 17 + height * 5 + (pressed ? 1 : 0));
   void radius;
 
-  g.clear();
   g.translateCanvas(0, drop);
   if (variant === 'ghost') {
     printedSurface(g, width, height, {
@@ -1285,4 +1331,3 @@ function buttonPalette(variant: InkButtonVariant, pressed: boolean): { top: numb
 function colorToCss(color: number): string {
   return `#${color.toString(16).padStart(6, '0')}`;
 }
-

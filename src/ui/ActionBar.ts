@@ -5,6 +5,7 @@ import { InkUI, INK_UI, INK_UI_HEX } from './InkUI';
 import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from './CardIcons';
 import { sawtoothBand } from './ink/devices';
 import { t } from '../i18n';
+import { placeStamp, stampDesign } from './ink/stamp';
 
 const EMPIRE_KEYS = ['build', 'heroes', 'court', 'army', 'affairs', 'directives', 'pause'] as const;
 const CAMPAIGN_KEYS = ['build', 'heroes', 'court', 'army', 'affairs', 'pause'] as const;
@@ -301,17 +302,42 @@ export class ActionBar extends Phaser.GameObjects.Container {
     const top = GAME_HEIGHT - ACTION_BAR_HEIGHT;
     this.add(scene.add.rectangle(0, top, GAME_WIDTH, ACTION_BAR_HEIGHT, INK_UI.backgroundInk, 0.97).setOrigin(0, 0));
     // The same drum band as the resource strip, so the two ends of the screen are one frame.
-    const band = scene.add.graphics();
-    band.lineStyle(1, INK_UI.softBrush, 0.35);
-    band.lineBetween(0, top + 0.5, GAME_WIDTH, top + 0.5);
-    sawtoothBand(band, 10, top + BAND_TOP, GAME_WIDTH - 20, BAND_HEIGHT, 0.45);
-    this.add(band);
+    // Baked for the same reason as the header's frieze: static teeth, every frame, all game.
+    const bandStamp = stampDesign(scene, `ui:band:foot:${GAME_WIDTH}x${ACTION_BAR_HEIGHT}`,
+      { left: 0, right: GAME_WIDTH, top: 0, bottom: ACTION_BAR_HEIGHT },
+      (g, x, y) => {
+        g.translateCanvas(x, y - top);
+        g.lineStyle(1, INK_UI.softBrush, 0.35);
+        g.lineBetween(0, top + 0.5, GAME_WIDTH, top + 0.5);
+        sawtoothBand(g, 10, top + BAND_TOP, GAME_WIDTH - 20, BAND_HEIGHT, 0.45);
+        g.translateCanvas(-x, -(y - top));
+      }, { pool: 'ui' });
+    this.add(placeStamp(scene, bandStamp, 0, top));
 
     scene.add.existing(this);
     this.buildButtons();
   }
 
+  /** What the bar was last built from, so a refresh that changes nothing rebuilds nothing. */
+  private refreshKey = '';
+
+  /** Measured row layouts, keyed by the labels and lane width that decide them. The probe-Text
+   *  search costs a dozen canvas measures; the same label set always lands on the same answer. */
+  private readonly fontMemo = new Map<string, { size: number; scale: number }>();
+
   refresh(): void {
+    // The bar was cleared and rebuilt — five to nine buttons, each a Graphics surface, a Text
+    // and listeners — on every state-changed emit, which is every tick and every battle beat.
+    // Everything it prints is in this key; a quiet refresh is now a string compare.
+    const paused = this.gameState.isStrategyPause;
+    const slots = actionBarSlots(this.gameMode, this.context());
+    const key = [
+      paused ? 1 : 0,
+      ...slots.map((slot) => `${slot.action}:${slot.x}:${slot.width}:${slot.system ? 1 : 0}`
+        + `:${this.slotLabel(slot.action, paused)}:${this.statusColor?.(slot.action) ?? ''}`),
+    ].join('|');
+    if (key === this.refreshKey) return;
+    this.refreshKey = key;
     this.clearButtons();
     this.buildButtons();
   }
@@ -404,10 +430,14 @@ export class ActionBar extends Phaser.GameObjects.Container {
     const top = ACTION_BUTTON_Y - ACTION_BUTTON_HEIGHT / 2;
     const slots = actionBarSlots(this.gameMode, this.context());
     const laneWidth = slots.find((slot) => !slot.system)?.width ?? 0;
-    const { size: fontSize, scale: iconScale } = this.barFontSize(
-      slots.filter((slot) => !slot.system).map((slot) => this.slotLabel(slot.action, paused)),
-      laneWidth,
-    );
+    const labels = slots.filter((slot) => !slot.system).map((slot) => this.slotLabel(slot.action, paused));
+    const fontKey = `${labels.join('')}|${laneWidth}`;
+    let fit = this.fontMemo.get(fontKey);
+    if (!fit) {
+      fit = this.barFontSize(labels, laneWidth);
+      this.fontMemo.set(fontKey, fit);
+    }
+    const { size: fontSize, scale: iconScale } = fit;
 
     for (const slot of slots) {
       const bounds = { x: slot.x, y: top, width: slot.width, height: ACTION_BUTTON_HEIGHT };

@@ -83,23 +83,23 @@ export function maybeAutoOpenBattle(self: ConquestUIScene): boolean {
   if (!fresh && !self.reopenBattleAfterPrompt) return false;
   self.reopenBattleAfterPrompt = false;
   self.lastAutoOpenedBattleKey = key;
+  // Sealed *before* the lane is built, so the first build is the only build. It used to open
+  // unsealed and be rebuilt sealed a frame later — a full second field, ground bake and dock
+  // whose only purpose was un-naming the shape the first one had leaked.
+  self.battleSealPending = fresh;
   self.openLane('battle');
   // `openLane` bails on a race (the fight ended between the tick and this frame).
-  if ((self.openPromptKey as string) !== 'lane:battle') return false;
+  if ((self.openPromptKey as string) !== 'lane:battle') {
+    self.battleSealPending = false;
+    return false;
+  }
   if (fresh) {
     self.battleAwaitingOrder = true;
     self.state.isStrategyPause = true;
     startBattleOpeningDrum(self);
-    // The lane is already built by here, and it was built unsealed - so the telegraph line and
-    // the chip rims went up naming the shape the drum exists to hide, for as long as it took the
-    // first tick to overwrite them. Redrawn once, now that the seal is on.
-    const fight = self.state.ascent?.activeBattle;
-    if (fight) {
-      self.buildBattleField(fight);
-      self.buildBattleOrders(fight);
-      self.updateBattleBubbles(fight);
-      updateBattleNotice(self, fight);
-    }
+    // The drum's timer now carries the seal (see `battleOpeningSealed`), so the pending flag
+    // has done its job the moment the timer exists.
+    self.battleSealPending = false;
   }
   return true;
 }
@@ -129,13 +129,13 @@ function startBattleOpeningDrum(self: ConquestUIScene): void {
       }
       self.battleOpeningTimer = undefined;
       releaseBattleHold(self);
-      // The seal is off: the rims, the telegraph and their block all say what they are now.
-      const battle = self.state.ascent?.activeBattle;
-      if (battle && self.openPromptKey === 'lane:battle') {
-        self.buildBattleField(battle);
-        self.buildBattleOrders(battle);
-        self.updateBattleBubbles(battle);
-        updateBattleNotice(self, battle);
+      // The seal is off, and everything that hid behind it follows from that one flag flipping:
+      // the dock's signature includes it (rims, telegraph), `shapeShown.theirs` moves off '?'
+      // (their block stands up in its true shape), and the bubbles and notice re-read it. One
+      // `updateBattle` redraws exactly those — the ground, the camps and our own host stand
+      // still, where this used to rebuild the whole field a third time.
+      if (self.state.ascent?.activeBattle && self.openPromptKey === 'lane:battle') {
+        self.updateBattle();
       }
     },
   });
@@ -488,7 +488,8 @@ export function showBattle(self: ConquestUIScene): void {
     rivalColor,
     fieldSignature: '',
     orderSignature: '',
-    shapeSignature: '',
+    exitsKey: '',
+    shapeShown: { ours: '', theirs: '' },
     railsSignature: '',
     ourMarkers: [],
     theirMarkers: [],

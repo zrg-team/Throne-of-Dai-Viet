@@ -141,7 +141,12 @@ if (probe.ok) {
   // a lost layer measured 85%, an unclipped ground 36%. A backdrop that is deliberately drawn at
   // half strength shifting by up to 55/255 on 7% of its pixels is the price of a screen that runs at
   // 16.7 ms a frame instead of 50.
-  check(share < 10 && probe.worst < 64, 'the baked ground is structurally the same picture',
+  // Recalibrated 2026-08-24: the global `pathDetailThreshold: 2 x renderScale` (config.ts) cut
+  // curve tessellation everywhere, and the bake (drawn at SUPER scale) now subdivides hairlines
+  // differently from the scale-1 live reference - worst rose 55 -> ~126 at unchanged share
+  // (6.5%), all of it on wobbled edges. The structural failures this check exists for measure
+  // 36-85% share; the share bound is the real guard, the worst bound just tracks the blend.
+  check(share < 10 && probe.worst < 150, 'the baked ground is structurally the same picture',
     `${probe.differing} of ${probe.total} pixels differ by more than 8/255 (${share.toFixed(3)}%), worst ${probe.worst}/255`);
 }
 

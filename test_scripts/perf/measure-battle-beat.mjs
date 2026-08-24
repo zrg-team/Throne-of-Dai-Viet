@@ -84,6 +84,7 @@ const out = await page.evaluate(async () => {
   const parts = {};
   const calls = {};
   for (const name of ['buildBattleRails', 'updateBattleRails', 'buildBattlePips', 'buildBattleOrders',
+    'drawBattleDock', 'buildBattleExits', 'bakeBattleGround',
     'updateBattle', 'spawnBattleFloaters', 'layFallen', 'slideMarkers', 'redrawHostBlock', 'buildBattleField']) {
     const original = ui[name];
     if (typeof original !== 'function') continue;

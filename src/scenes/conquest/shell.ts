@@ -36,6 +36,7 @@ import type { AscentLane } from '../../state/types';
 import { promptSignature } from './constants';
 import { clearLanePage } from './layers';
 import type { ConquestUIScene } from '../ConquestUIScene';
+import { attachPaperSheet } from '../../ui/ink/paperSheet';
 
 
 /** The three map controls stacked at the right edge, matching the classic modes. */
@@ -56,6 +57,7 @@ export function create(self: ConquestUIScene): void {
   applyRenderScale(self);
   // The chrome is printed on the same sheet as the world, so it takes the same paper pass.
   applyPaperFX(self);
+  attachPaperSheet(self);
   self.ui = new InkUI(self);
   self.resourceBar = new ResourceBar(self, self.state);
   self.add.existing(self.resourceBar);
@@ -114,11 +116,15 @@ export function create(self: ConquestUIScene): void {
     self.waveCueQueue = [];
     self.arenaRoutHold?.remove();
     self.arenaRoutHold = undefined;
+    // The emitter and the scroll areas survive scene.stop(); everything above dies with the
+    // display list, these two do not.
+    self.events.off('state-changed', self.onStateChanged);
+    clearLanePage(self);
   });
 
   self.modalLayer = self.add.container(0, 0).setDepth(500);
 
-  self.events.on('state-changed', () => refresh(self));
+  self.events.on('state-changed', self.onStateChanged);
   refresh(self);
 }
 
@@ -131,8 +137,11 @@ export function refresh(self: ConquestUIScene): void {
   self.resourceBar.refresh();
   self.hud.render(self.state.ascent);
   // Written before the lane guards below: those can return early, and the one line on screen
-  // that claims to be reading the run must never be a tick behind the band above it.
-  self.advisor.render(self.state);
+  // that claims to be reading the run must never be a tick behind the band above it — but not
+  // while an overlay covers it: `renderActionBar` hides the strip under every lane and prompt,
+  // and re-reading the whole run per beat for an invisible line was pure cost. The overlay's
+  // close runs `refresh` again, which brings it straight back up to date.
+  if (!self.state.pendingAscentPrompt && self.openPromptKey === '') self.advisor.render(self.state);
   self.whispers.render(self.state, self.advisor.bottom());
 
   // A lane that renders nothing has stranded the player: the bar and the map controls are
@@ -320,10 +329,13 @@ export function renderActionBar(self: ConquestUIScene): void {
   if (!hidden) self.actionBar.refresh();
   self.advisor.setVisible(!hidden);
   self.whispers.setVisible(!hidden);
-  // AFTER `renderMapControls`, which rewrites `__hudTapBounds` wholesale — the advisor's own
-  // rectangle has to be appended to that list rather than published before it and overwritten.
   renderMapControls(self, hidden);
-  if (!hidden) window.__hudTapBounds!.push(...self.advisor.tapBounds(), ...self.whispers.tapBounds());
+  // Composed wholesale on every refresh, from the stack's recorded rectangles plus whatever the
+  // advisor and the whisper strip currently occupy. The controls themselves are keyed and only
+  // rebuilt when they move; the published guard list is cheap and must always be current.
+  window.__hudTapBounds = hidden
+    ? [{ x: 0, y: 0, width: GAME_WIDTH, height: GAME_HEIGHT }]
+    : [...self.mapControlBounds, ...self.advisor.tapBounds(), ...self.whispers.tapBounds()];
   renderPausedBadge(self, hidden);
   self.maybeRunTour(hidden);
 }
@@ -338,9 +350,12 @@ export function renderActionBar(self: ConquestUIScene): void {
  * indicator that only reports does not earn that cost.
  */
 function renderPausedBadge(self: ConquestUIScene, hidden: boolean): void {
+  const key = hidden || !self.state.isStrategyPause ? '' : 'paused';
+  if (key === self.pausedBadgeKey && (key === '') === (self.pausedBadge === undefined)) return;
+  self.pausedBadgeKey = key;
   self.pausedBadge?.destroy();
   self.pausedBadge = undefined;
-  if (hidden || !self.state.isStrategyPause) return;
+  if (key === '') return;
 
   const width = 128;
   const height = 24;
@@ -371,17 +386,19 @@ function renderPausedBadge(self: ConquestUIScene, hidden: boolean): void {
  * which is the one view that answers "who holds what" across the whole board at once.
  */
 function renderMapControls(self: ConquestUIScene, hidden: boolean): void {
+  // Keyed on everything the stack is drawn from. It was destroyed and rebuilt on every refresh
+  // — every beat, during a fight — to draw the same three buttons in the same three places.
+  const key = hidden ? 'hidden' : `${inspectCardTop(self) ?? '-'}:${self.state.mapRenderMode}`;
+  if (key === self.mapControlsKey) return;
+  self.mapControlsKey = key;
   for (const object of self.mapControlObjects) object.destroy();
   self.mapControlObjects = [];
+  self.mapControlBounds = [];
   if (hidden) {
-    // A prompt or lane overlay covers the map, so nothing below it is a map tap. The world
-    // scene's canvas-level tap handler is not part of Phaser's input system and so is not
-    // stopped by the overlay's own hit areas — without this, pressing a button on a
-    // full-screen card also selected whatever province happened to be behind it.
-    window.__hudTapBounds = [{ x: 0, y: 0, width: GAME_WIDTH, height: GAME_HEIGHT }];
+    // A prompt or lane overlay covers the map, so nothing below it is a map tap; the guard
+    // itself is published by `renderActionBar`'s composition below.
     return;
   }
-  window.__hudTapBounds = [];
 
   const x = GAME_WIDTH - 30;
   // The inspect card spans the full width, so when one is up the stack sits above it
@@ -410,7 +427,10 @@ function renderMapControls(self: ConquestUIScene, hidden: boolean): void {
     // canvas-level tap handler underneath treated a press on + / − as a tap on the province
     // behind it, selected that land, and the re-render destroyed the button before Phaser
     // could deliver the release — so the zoom controls never fired at all.
-    window.__hudTapBounds!.push({ x: x - 22, y: y - 22, width: 44, height: 44 });
+    //
+    // Recorded on the scene rather than pushed straight into `__hudTapBounds`: the stack is
+    // keyed now, so `renderActionBar` recomposes the published list every refresh from this.
+    self.mapControlBounds.push({ x: x - 22, y: y - 22, width: 44, height: 44 });
   });
 }
 
@@ -614,11 +634,21 @@ function inspectCardTop(self: ConquestUIScene): number | undefined {
 }
 
 function renderInspect(self: ConquestUIScene): void {
+  const land = self.state.lands.find((candidate) => candidate.id === self.state.selectedLandId);
+  // Keyed on everything the card prints. It was destroyed and rebuilt on every refresh — every
+  // beat, while a fight held a province selected — to show the same four numbers. An overlay
+  // covering it empties the key, and the overlay's close rebuilds it fresh.
+  const key = !land || self.state.pendingAscentPrompt || self.openPromptKey !== ''
+    ? ''
+    : [land.id, land.ownerId, Math.round(land.outputs.gold), Math.round(land.outputs.food),
+      Math.round(land.defense * 16 + land.localSoldiers * 2.5)].join(':');
+  if (key === self.inspectKey) return;
+  self.inspectKey = key;
   for (const object of self.inspectObjects) object.destroy();
   self.inspectObjects = [];
 
-  const land = self.state.lands.find((candidate) => candidate.id === self.state.selectedLandId);
-  if (!land || self.state.pendingAscentPrompt) return;
+  if (key === '') return;
+  if (!land) return;
 
   const mine = land.ownerId === PLAYER_KINGDOM_ID;
   const cardY = inspectCardTop(self) ?? 0;

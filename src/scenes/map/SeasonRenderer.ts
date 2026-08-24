@@ -24,6 +24,7 @@ import Phaser from 'phaser';
 import { PIGMENT } from '../../ui/ink/palette';
 import { mulberry32 } from '../../ui/ink/stroke';
 import { bakeProp, propImage, type BakedProp } from '../../ui/ink/sprites';
+import { applyStamp } from '../../ui/ink/stamp';
 import { SEASON_PALETTES, lerpWash } from '../../ui/ink/season';
 import { scatterDensity } from '../../game/graphicsQuality';
 import type { LandscapeTile } from '../../ui/MapRenderer';
@@ -35,7 +36,10 @@ const CROSS_FADE_MS = 1200;
 
 /** Depths: the bake RT sits at 1.9 and settlement containers at 2, markers from 68, fog at 77.5. */
 const WASH_DEPTH = 3;
-const ACCENT_DEPTH = 3.05;
+// Inside the static-bake band (depth <= 1.5): the accents are a few dozen fills that turn only
+// with the calendar, and as a live layer above the bake they were re-submitted every frame. The
+// bake sweep flattens and hides them; `bakeAccents` repaints them just before each seasonal bake.
+const ACCENT_DEPTH = 1.45;
 const WEATHER_DEPTH = 78;
 
 /** The most motes ever allocated. Pooled once; the active count varies by season and quality. */
@@ -93,6 +97,8 @@ export class SeasonRenderer {
 
   private scape?: SeasonScape;
   private current: Season = 'Spring';
+  /** The season `bakeAccents` last painted, so `sync` knows the bake already carries it. */
+  private accentSeason?: Season;
   private previous: Season = 'Spring';
   private blend = 1;
   private fade?: Phaser.Tweens.Tween;
@@ -143,6 +149,23 @@ export class SeasonRenderer {
    * Follows a scene's world geometry when it is rebuilt — a new map, a resize, or land coming out
    * of the fog, which is the common one: the accents are drawn per *visible* tile.
    */
+  /**
+   * Paints the current front accent buffer in `season` at full strength, for a caller about to
+   * bake it into the static texture. The back buffer is cleared - nothing fades any more.
+   */
+  bakeAccents(season: Season): void {
+    if (!this.enabled) {
+      return;
+    }
+    const front = this.accents[this.front];
+    if (front) {
+      this.paintAccents(front, season);
+      front.setAlpha(1);
+    }
+    this.accents[this.front === 0 ? 1 : 0]?.clear();
+    this.accentSeason = season;
+  }
+
   setScape(scape: SeasonScape): void {
     this.scape = scape;
     if (this.enabled) {
@@ -165,14 +188,17 @@ export class SeasonRenderer {
     this.previous = this.current;
     this.current = season;
 
-    // The incoming season is painted into the back buffer, which then fades in over the front.
-    const back = this.front === 0 ? 1 : 0;
-    const incoming = this.accents[back];
-    if (incoming) {
-      this.paintAccents(incoming, season);
-      incoming.setAlpha(0);
+    // The accents live in the static bake now: `bakeAccents` painted them at full strength just
+    // before the seasonal re-composite, so the fade below carries the wash and the weather only.
+    if (this.accentSeason !== season) {
+      const back = this.front === 0 ? 1 : 0;
+      const incoming = this.accents[back];
+      if (incoming) {
+        this.paintAccents(incoming, season);
+        incoming.setAlpha(0);
+      }
+      this.front = back;
     }
-    this.front = back;
 
     this.applyWeather(season);
 
@@ -360,11 +386,10 @@ export class SeasonRenderer {
     const rand = mulberry32(season.length * 7717 + wanted);
     for (let index = 0; index < wanted; index += 1) {
       const mote = this.motes[index];
-      mote.image
-        .setTexture(baked.key)
-        .setOrigin(baked.originX, baked.originY)
-        .setVisible(true)
-        .setActive(true);
+      // Through `applyStamp`, not `setTexture(baked.key)`: under the atlas backend the pixels
+      // live in a shared page and the stamp's `texture`/`frame` say where.
+      applyStamp(mote.image, baked);
+      mote.image.setVisible(true).setActive(true);
       mote.fallSpeed = spec.fall[0] + rand() * (spec.fall[1] - spec.fall[0]);
       mote.driftSpeed = (rand() - 0.35) * spec.drift;
       mote.swayRate = 0.6 + rand() * 1.8;

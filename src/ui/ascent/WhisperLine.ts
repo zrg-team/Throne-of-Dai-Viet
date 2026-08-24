@@ -98,7 +98,7 @@ export class WhisperLine {
     this.root.add([this.skin, this.line, this.hit]);
     // Its own clock, because the economy tick is far too coarse for a hold-and-fade — a season
     // can be several seconds and the strip has to come and go inside one.
-    scene.time.addEvent({ delay: 120, loop: true, callback: () => this.pump() });
+    this.clock = scene.time.addEvent({ delay: 120, loop: true, callback: () => this.pump() });
   }
 
   /** The rectangle the world scene underneath must not read as a tap on the map. */
@@ -138,7 +138,12 @@ export class WhisperLine {
     if (this.showing) this.draw();
   }
 
+  /** The 120 ms pump above — stored because the scene clock does not die with this widget. */
+  private clock?: Phaser.Time.TimerEvent;
+
   destroy(): void {
+    this.clock?.remove();
+    this.clock = undefined;
     this.root.destroy();
   }
 

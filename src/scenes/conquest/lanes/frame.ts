@@ -32,6 +32,9 @@ const LANE_BACK_BUTTON_HEIGHT = 34;
  * under the Close button.
  */
 const LANE_TOGGLE_HEIGHT = 54;
+/** A fixed tab strip between the page heading and its scrolling body. */
+const LANE_TABS_HEIGHT = 32;
+const LANE_TABS_GAP = 8;
 /** Width of the portrait column beside a hero row. */
 const LANE_PORTRAIT_COLUMN = 62;
 
@@ -98,6 +101,12 @@ export function laneList(self: ConquestUIScene,
      * The whole row is the hit area, label included.
      */
     footerToggle?: { label: string; hint?: string; checked: boolean; onToggle: () => void };
+    /** A fixed tab strip for long screens that are easier to scan as separate shelves. */
+    tabs?: {
+      items: Array<{ label: string; count?: number }>;
+      active: number;
+      onSelect: (index: number) => void;
+    };
     /** A ghost "back" above the footer button, for pages one step inside a lane. */
     back?: () => void;
   } = {},
@@ -118,14 +127,56 @@ export function laneList(self: ConquestUIScene,
   const content = self.promptFrame(title, subtitle);
   const footerExtra = (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
     + (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0);
+  const tabsExtra = laneOpts.tabs ? LANE_TABS_HEIGHT + LANE_TABS_GAP : 0;
   const scroll = self.ui.scrollArea({
     x: content.x,
-    y: content.y,
+    y: content.y + tabsExtra,
     width: content.width,
-    height: content.height - LANE_FOOTER_HEIGHT - footerExtra,
+    height: content.height - LANE_FOOTER_HEIGHT - footerExtra - tabsExtra,
   });
   scroll.addTo(self.modalLayer);
   self.activeScrollAreas.push(scroll);
+
+  if (laneOpts.tabs) {
+    const cfg = laneOpts.tabs;
+    const gap = 4;
+    const width = (content.width - gap * Math.max(0, cfg.items.length - 1)) / Math.max(1, cfg.items.length);
+    cfg.items.forEach((item, index) => {
+      const selected = index === cfg.active;
+      const x = content.x + index * (width + gap);
+      self.modalLayer.add(self.ui.panel({ x, y: content.y, width, height: LANE_TABS_HEIGHT }, selected
+        ? {
+            fill: INK_UI.goldLight,
+            fillShade: INK_UI.gold,
+            border: INK_UI.cinnabar,
+            borderWidth: 1.6,
+          }
+        : {
+            fill: INK_UI.parchment,
+            fillAlpha: 0.35,
+            border: INK_UI.softBrush,
+            borderWidth: 1,
+            muted: true,
+          }));
+      const count = item.count ?? 0;
+      const label = count > 0 ? `${item.label} ${count}` : item.label;
+      self.modalLayer.add(self.add.text(x + width / 2, content.y + LANE_TABS_HEIGHT / 2, label, {
+        color: selected ? cssHex(INK_UI.cinnabarDark) : INK_UI_HEX.mutedText,
+        fontFamily: UI_FONT,
+        fontSize: '9px',
+        fontStyle: selected ? '700' : '600',
+        align: 'center',
+        wordWrap: { width: width - 6 },
+      }).setOrigin(0.5));
+      if (!selected) {
+        const hit = self.add.rectangle(x, content.y, width, LANE_TABS_HEIGHT, INK_UI.brush, 0.001)
+          .setOrigin(0, 0)
+          .setInteractive({ useHandCursor: true });
+        hit.on('pointerup', () => cfg.onSelect(index));
+        self.modalLayer.add(hit);
+      }
+    });
+  }
 
   const rowWidth = content.width - 6;
   let y = 0;
@@ -248,7 +299,7 @@ export function laneList(self: ConquestUIScene,
   };
 
   const finish = () => {
-    scroll.setContentHeight(Math.max(content.height - LANE_FOOTER_HEIGHT - footerExtra, y));
+    scroll.setContentHeight(Math.max(content.height - LANE_FOOTER_HEIGHT - footerExtra - tabsExtra, y));
     if (laneOpts.footerToggle) {
       const cfg = laneOpts.footerToggle;
       const ty = GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET

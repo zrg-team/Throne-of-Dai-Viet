@@ -64,8 +64,8 @@ const found = await page.evaluate(async () => {
       if (prompt.kind === 'run-over' || st.isDefeated) break;
       ui.events.emit('state-changed');
       // `activeScrollAreas` is private only to TypeScript; at runtime it is a plain field.
-      const area = (ui.activeScrollAreas ?? []).find((a) => a.maxScroll > 0);
-      if (area) {
+      const area = (ui.activeScrollAreas ?? []).find((a) => a.maxScroll > 60);
+      if (area && prompt.kind === 'power-draft') {
         return {
           kind: prompt.kind,
           seen,
@@ -207,6 +207,30 @@ check(
   `prompt ${atBottom.promptKind} -> ${afterWobble.promptKind}`,
 );
 
+// Choosing the draft consumed the prompt, so the still-press contract needs a prompt of its
+// own - walk the sim forward to the next one before pressing.
+await page.evaluate(async () => {
+  const TICK = await import('/src/systems/ascent/AscentTick.ts');
+  const RES = await import('/src/systems/ascent/AscentResolver.ts');
+  const st = window.__mandateState;
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  // The next prompt of ANY kind is not enough - a rival's demand lays its card elsewhere and
+  // does not hold-to-choose. The power draft is the layout every press contract targets.
+  for (let step = 0; step < 300; step += 1) {
+    const prompt = st.pendingAscentPrompt;
+    if (prompt?.kind === 'power-draft') break;
+    if (prompt) {
+      const id = prompt.options?.[0]?.id ?? prompt.cards?.[0] ?? prompt.targets?.[0]?.landId ?? 'skip';
+      if (!RES.resolveAscentPrompt(st, id)) st.pendingAscentPrompt = undefined;
+      continue;
+    }
+    TICK.advanceAscentTick(st);
+  }
+  ui.events.emit('state-changed');
+});
+await page.waitForTimeout(250);
+const reArmed = await readState();
+
 // And a clean, still press — held, no travel — must choose on whatever screen the last one landed.
 const tap = toPage(found.bounds.x + found.bounds.width / 2, found.bounds.y + 40);
 await page.mouse.move(tap.x, tap.y);
@@ -218,8 +242,8 @@ await page.waitForTimeout(300);
 const afterTap = await readState();
 check(
   'a still, held press chooses',
-  afterTap.promptKind !== afterWobble.promptKind,
-  `prompt ${afterWobble.promptKind} -> ${afterTap.promptKind}`,
+  reArmed.promptKind !== null && afterTap.promptKind !== reArmed.promptKind,
+  `prompt ${reArmed.promptKind} -> ${afterTap.promptKind}`,
 );
 
 check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));

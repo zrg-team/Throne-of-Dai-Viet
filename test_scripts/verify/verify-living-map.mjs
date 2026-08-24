@@ -1,9 +1,9 @@
-// The Đông Hồ UI/UX defects, checked rather than eyeballed. Every assertion here failed before the
-// fix, so the file doubles as the bug report.
+// The Đông Hồ UI/UX contracts, checked rather than eyeballed.
 //
-//   menu · the hosts stand on dry ground, not in the river
+//   menu · a calm farmstead replaces the miniature battlefield
+//   menu · every broad paddy stays on the right bank
 //   menu · the seal is a circle on any sheet, not an ellipse on a short one
-//   menu · the picture is alive rather than a still print
+//   menu · mountains, farmstead and lotus move as registered depth layers
 //   map  · every buffalo cart faces the way it is going, on BOTH legs of its round trip
 //   map  · the herds graze a small patch instead of standing frozen
 //   map  · a host has a cadence, and its shadow is under the men rather than below them
@@ -43,53 +43,151 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
     // The seal is the one graphics object drawn at the top of the sheet outside the art layer.
     const loose = scene.children.list.filter((c) => c.type === 'Graphics' && c.y < 140 && c.y > 10);
     const seal = loose[0];
+    const art = scene.children.list.find((c) => c.type === 'Container'
+      && c.getData?.('menuLandscapeRole') === 'illustration');
+    const layers = art?.list?.filter((c) => c.type === 'Image'
+      && c.getData?.('menuArtworkLayer')) ?? [];
+    const mistLayer = art?.list?.find((c) => c.type === 'Container'
+      && c.getData?.('menuArtworkLayer') === 'mountain-mist');
+    const waterLayer = art?.list?.find((c) => c.type === 'Container'
+      && c.getData?.('menuArtworkLayer') === 'river-fx');
+    const ground = layers.find((c) => c.getData('menuArtworkLayer') === 'ground');
+    const farm = layers.find((c) => c.getData('menuArtworkLayer') === 'farm');
+    const lotus = layers.find((c) => c.getData('menuArtworkLayer') === 'lotus');
+    const sourceSize = ground?.getData?.('sourceSize') ?? null;
+    const artwork = art?.getData?.('menuArtwork') ?? null;
+    let farmPixels = null;
+    if (farm?.texture?.getSourceImage) {
+      const source = farm.texture.getSourceImage();
+      const canvas = document.createElement('canvas');
+      canvas.width = source.width;
+      canvas.height = source.height;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      context?.drawImage(source, 0, 0);
+      const pixels = context?.getImageData(0, 0, canvas.width, canvas.height).data;
+      if (pixels) {
+        let minY = canvas.height;
+        let maxY = -1;
+        let opaque = 0;
+        const corners = [
+          pixels[3],
+          pixels[(canvas.width - 1) * 4 + 3],
+          pixels[((canvas.height - 1) * canvas.width) * 4 + 3],
+          pixels[(canvas.width * canvas.height - 1) * 4 + 3],
+        ];
+        for (let y = 0; y < canvas.height; y += 2) {
+          for (let x = 0; x < canvas.width; x += 2) {
+            if (pixels[(y * canvas.width + x) * 4 + 3] <= 16) continue;
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
+            opaque += 1;
+          }
+        }
+        farmPixels = { minY, maxY, opaque, corners, width: canvas.width, height: canvas.height };
+      }
+    }
+    const interaction = scene.children.list.find((c) => c.getData?.('menuLandscapeInteraction') === 'river-ripple');
+    interaction?.emit('pointerdown', null, interaction.displayWidth * 0.28, interaction.displayHeight * 0.66);
+    interaction?.emit('pointermove', { isDown: true }, interaction.displayWidth * 0.31, interaction.displayHeight * 0.72);
     return {
       vScale: scene.vScale,
       sealScaleX: seal?.scaleX ?? null,
       sealScaleY: seal?.scaleY ?? null,
-      aspectSafe: (() => {
-        const art = scene.children.list.find((c) => c.type === 'Container' && c.depth === -8);
-        if (!art) return [];
-        return art.list.filter((c) => c.getData?.('menuAspectSafe')).map((c) => ({
-          worldX: c.scaleX * art.scaleX,
-          worldY: c.scaleY * art.scaleY,
-        }));
-      })(),
+      art: art ? {
+        x: ground?.x,
+        top: ground ? ground.y - ground.displayHeight / 2 : null,
+        width: ground?.displayWidth,
+        height: ground?.displayHeight,
+        aspectError: sourceSize
+          ? Math.abs((ground.displayWidth / ground.displayHeight) - (sourceSize.width / sourceSize.height))
+          : null,
+        sourceSize,
+        artwork,
+        layers: layers.map((layer) => ({
+          name: layer.getData('menuArtworkLayer'),
+          texture: layer.texture?.key,
+          motion: layer.getData('menuLayerMotion'),
+          placement: layer.getData('menuSettlementPlacement') ?? null,
+          settlementBand: layer.getData('menuSettlementBand') ?? null,
+          houseCount: layer.getData('menuHouseCount') ?? null,
+          tinted: layer.isTinted ?? false,
+          animated: scene.tweens.getTweensOf(layer).some((t) => t.isPlaying()),
+        })),
+        mountainMist: {
+          count: mistLayer?.list?.filter((c) => c.getData?.('menuMistLayer') === 'mountains').length ?? 0,
+          animated: mistLayer?.list?.filter((c) => c.getData?.('menuMistLayer') === 'mountains')
+            .every((c) => scene.tweens.getTweensOf(c).some((t) => t.isPlaying())) ?? false,
+        },
+        waterCompositing: {
+          marker: waterLayer?.getData?.('menuCompositing') ?? null,
+          waterIndex: art?.list?.indexOf(waterLayer) ?? -1,
+          farmIndex: art?.list?.indexOf(farm) ?? -1,
+          lotusIndex: art?.list?.indexOf(lotus) ?? -1,
+        },
+        farmPixels,
+      } : null,
       tweens: scene.tweens.getTweens().filter((t) => t.isPlaying()).length,
+      interaction: interaction?.getData?.('menuLandscapeInteraction') ?? null,
+      gestures: interaction?.getData?.('menuRiverGestures') ?? [],
+      ripple: waterLayer?.list?.filter((c) => c.getData?.('menuRipple')).length ?? 0,
+      wakes: waterLayer?.list?.filter((c) => c.getData?.('menuWaterWake')).length ?? 0,
+      currents: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current').length ?? 0,
       grazing: scene.children.list.filter((c) => c.getData?.('grazing')).length,
+      military: scene.children.list.filter((c) => c.type === 'Container' && c.depth === -7).length,
     };
   });
 
   // A circle drawn into a container squashed vertically is an ellipse. The seal must not be in one.
   check(`${label}: seal keeps its aspect`, menu.sealScaleX !== null && Math.abs(menu.sealScaleX - menu.sealScaleY) < 1e-6,
     `scale ${menu.sealScaleX}x${menu.sealScaleY}, sheet squash ${menu.vScale.toFixed(3)}`);
-  check(`${label}: recognizable scenery keeps its aspect`, menu.aspectSafe.length >= 12
-    && menu.aspectSafe.every((item) => Math.abs(item.worldX - item.worldY) < 1e-6),
-  `${menu.aspectSafe.length} objects, layout factor ${menu.vScale.toFixed(3)}`);
-  check(`${label}: the picture moves`, menu.tweens >= 15, `${menu.tweens} tweens playing`);
-  check(`${label}: the herd is out`, menu.grazing >= 2, `${menu.grazing} grazing animals`);
-
-  // No host may overlap the water. Host containers are the ones holding the rank graphics.
-  const wet = await page.evaluate(() => {
-    const scene = window.__phaserGame.scene.getScene('MenuScene');
-    const river = scene.__menuRiver;
-    if (!river) return ['no river exposed'];
-    const offenders = [];
-    for (const child of scene.children.list) {
-      if (child.type !== 'Container' || child.depth !== -7) continue;
-      const bounds = child.getBounds();
-      for (let y = bounds.top; y <= bounds.bottom; y += 3) {
-        const span = river(y);
-        if (!span) continue;
-        if (bounds.right > span.left && bounds.left < span.right) {
-          offenders.push({ left: Math.round(bounds.left), right: Math.round(bounds.right), y: Math.round(y) });
-          break;
-        }
-      }
-    }
-    return offenders;
-  });
-  check(`${label}: no host is standing in the river`, wet.length === 0, JSON.stringify(wet).slice(0, 200));
+  check(`${label}: four registered artwork plates are loaded`, menu.art?.layers?.length === 4
+    && ['ground', 'mountains', 'farm', 'lotus'].every((name) => menu.art.layers.some((layer) => layer.name === name))
+    && new Set(menu.art.layers.map((layer) => layer.texture)).size === 4
+    && menu.art.layers.find((layer) => layer.name === 'ground')?.texture === 'menu-layer-ground-v3'
+    && menu.art.layers.find((layer) => layer.name === 'farm')?.texture === 'menu-layer-farm-v3'
+    && menu.art.sourceSize?.width >= 1500 && menu.art.sourceSize?.height >= 1000,
+  JSON.stringify(menu.art));
+  check(`${label}: the illustration keeps its authored aspect`, menu.art?.aspectError !== null
+    && menu.art.aspectError < 1e-6,
+  `aspect error ${menu.art?.aspectError}, layout factor ${menu.vScale.toFixed(3)}`);
+  check(`${label}: the approved farm composition is declared`, [
+    'karst-mountains', 's-curve-river', 'foreground-lotus', 'right-bank-paddies', 'connected-dry-hamlet-verge', 'two-farmhouses',
+  ].every((part) => menu.art?.artwork?.composition?.includes(part)),
+  JSON.stringify(menu.art?.artwork));
+  check(`${label}: the art is centred and fills its responsive lane`, menu.art?.x === 195
+    && menu.art.width >= (viewport.height <= 664 ? 310 : 360)
+    && menu.art.width <= 422 && menu.art.top < 200 && menu.art.top + menu.art.height < 480,
+  JSON.stringify(menu.art));
+  check(`${label}: armies, banners and herd are gone`, menu.military === 0 && menu.grazing === 0,
+    `${menu.military} military containers, ${menu.grazing} grazing animals`);
+  check(`${label}: distance controls the layer motion`, menu.art?.layers
+    ?.filter((layer) => layer.name !== 'ground').every((layer) => layer.animated)
+    && menu.art.layers.find((layer) => layer.name === 'ground')?.animated === false,
+  JSON.stringify(menu.art?.layers));
+  check(`${label}: mist belongs to the mountain depth layer`, menu.art?.mountainMist?.count === 3
+    && menu.art.mountainMist.animated,
+  JSON.stringify(menu.art?.mountainMist));
+  check(`${label}: houses occupy a low connected dry village verge`, menu.art?.layers
+    ?.some((layer) => layer.name === 'farm'
+      && layer.placement === 'connected-dry-hamlet-verge'
+      && layer.settlementBand === 'lower-right-below-horizon'
+      && layer.houseCount === 2
+      && layer.tinted === false),
+  JSON.stringify(menu.art?.layers?.find((layer) => layer.name === 'farm')));
+  check(`${label}: house plate is truly transparent and stays below the mountain band`, menu.art?.farmPixels
+    && menu.art.farmPixels.corners.every((alpha) => alpha === 0)
+    && menu.art.farmPixels.opaque > 100
+    && menu.art.farmPixels.minY >= menu.art.farmPixels.height * 0.54,
+  JSON.stringify(menu.art?.farmPixels));
+  check(`${label}: all water motion is composited below houses and lotus`, menu.art?.waterCompositing?.marker === 'below-farm-and-lotus'
+    && menu.art.waterCompositing.waterIndex >= 0
+    && menu.art.waterCompositing.waterIndex < menu.art.waterCompositing.farmIndex
+    && menu.art.waterCompositing.waterIndex < menu.art.waterCompositing.lotusIndex,
+  JSON.stringify(menu.art?.waterCompositing));
+  check(`${label}: water has ambient current and touch/drag wakes`, menu.interaction === 'river-ripple'
+    && menu.ripple > 0 && menu.wakes > 0 && menu.currents >= 6
+    && ['tap', 'drag', 'hover-wake'].every((gesture) => menu.gestures.includes(gesture)),
+  `${menu.currents} currents, ${menu.ripple} ripple(s), ${menu.wakes} wake(s), ${menu.tweens} tweens playing`);
 
   await page.screenshot({ path: `${OUT}/menu-${viewport.height}.png` });
   await page.close();
@@ -100,6 +198,7 @@ const page = await browser.newPage({ viewport: { width: 390, height: 844 }, devi
 page.on('pageerror', (e) => errors.push(`PAGEERROR ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE ${m.text()}`); });
 await openMenu(page);
+await page.waitForFunction(() => typeof window.__startBenchGame === 'function', null, { timeout: 30000 });
 await page.evaluate(() => window.__startBenchGame(1337, 'empire'));
 await page.waitForFunction(() => window.__phaserGame.scene.isActive('MapScene'), null, { timeout: 30000 });
 await page.evaluate(() => {
@@ -254,6 +353,10 @@ const shadow = await page.evaluate(async () => {
       feet,
       get ellipse() { return ellipse; },
       lineStyle() {}, fillStyle() {}, fillCircle() {}, fillTriangle() {}, fillPoints() {},
+      // Phaser Graphics uses a temporary canvas translation to create the hand-registered wash.
+      // It does not affect the outline points this recorder measures, but the production drawing
+      // path still expects the method to exist.
+      translateCanvas() {},
       beginPath() {}, strokePath() {}, fillPath() {}, moveTo() {}, lineTo() {}, arc() {}, closePath() {},
       strokePoints(points) {
         if (!points?.length) return;

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { writeText } from './textWrite';
 import { GAME_WIDTH, HEADER_HEIGHT } from '../game/constants';
 import type { GameState, ResourceKey } from '../state/types';
 import { compactNumber } from '../utils/format';
@@ -7,6 +8,7 @@ import { InkUI, INK_UI, INK_UI_HEX } from './InkUI';
 import { RESOURCE_ICONS } from './theme';
 import { sawtoothBand } from './ink/devices';
 import { PIGMENT } from './ink/palette';
+import { placeStamp, stampDesign } from './ink/stamp';
 
 const RESOURCE_ORDER: ResourceKey[] = ['food', 'supplies', 'gold', 'humans'];
 const ICON_DISPLAY_SIZE = 15;
@@ -60,13 +62,19 @@ export class ResourceBar extends Phaser.GameObjects.Container {
     // Đông Sơn bronze — the narrator's register, kept distinct from the world's. The răng cưa
     // sawtooth is the drum band that still reads at seven pixels tall; a meander at this size
     // renders as the letter P repeated across the screen.
-    const band = scene.add.graphics();
-    band.setDefaultStyles({});
-    sawtoothBand(band, 8, TOP_BAND_Y, GAME_WIDTH - 16, BAND_HEIGHT, 0.45);
-    sawtoothBand(band, 8, BOTTOM_BAND_Y, GAME_WIDTH - 16, BAND_HEIGHT, 0.4);
-    band.lineStyle(1, PIGMENT.mucSoft, 0.35);
-    band.lineBetween(0, HEADER_HEIGHT - 0.5, GAME_WIDTH, HEADER_HEIGHT - 0.5);
-    this.add(band);
+    // Baked: the frieze is ~200 sawteeth that never change, and as a live Graphics they were
+    // re-tessellated every frame the header stood on screen — which is every frame of the game.
+    const bandStamp = stampDesign(scene, `ui:band:header:${GAME_WIDTH}x${HEADER_HEIGHT}`,
+      { left: 0, right: GAME_WIDTH, top: 0, bottom: HEADER_HEIGHT + 1 },
+      (g, x, y) => {
+        g.translateCanvas(x, y);
+        sawtoothBand(g, 8, TOP_BAND_Y, GAME_WIDTH - 16, BAND_HEIGHT, 0.45);
+        sawtoothBand(g, 8, BOTTOM_BAND_Y, GAME_WIDTH - 16, BAND_HEIGHT, 0.4);
+        g.lineStyle(1, PIGMENT.mucSoft, 0.35);
+        g.lineBetween(0, HEADER_HEIGHT - 0.5, GAME_WIDTH, HEADER_HEIGHT - 0.5);
+        g.translateCanvas(-x, -y);
+      }, { pool: 'ui' });
+    this.add(placeStamp(scene, bandStamp, 0, 0));
 
     this.seasonText = ui.label(12, TITLE_Y, '', 'title', { color: INK_UI_HEX.inkText, fontSize: '15px' });
     this.add(this.seasonText);
@@ -165,12 +173,17 @@ export class ResourceBar extends Phaser.GameObjects.Container {
   }
 
   refresh(): void {
-    this.seasonText.setText(t('time.yearSeason', { year: this.gameState.year, season: seasonLabel(this.gameState.season) }));
+    // Tracked so `reflow` — up to sixteen canvas measures — runs only when a label moved.
+    // `setText` is guarded by Phaser; `setColor` is not, and re-rasterised four labels per tick
+    // for colours that had not changed.
+    let changed = false;
+    changed = writeText(this.seasonText,
+      t('time.yearSeason', { year: this.gameState.year, season: seasonLabel(this.gameState.season) })) || changed;
     RESOURCE_ORDER.forEach((resource) => {
       const rate = this.gameState.resourceRates[resource];
       const signedRate = rate > 0 ? `+${compactNumber(rate)}` : compactNumber(rate);
       const text = this.resourceTexts[resource];
-      text.setText(`${compactNumber(this.gameState.resources[resource])} (${signedRate})`);
+      changed = writeText(text, `${compactNumber(this.gameState.resources[resource])} (${signedRate})`) || changed;
 
       // A store that is merely shrinking gets the old pink; one that is about to run dry gets
       // escalated, because the two are not remotely the same situation and used to look it.
@@ -186,15 +199,21 @@ export class ResourceBar extends Phaser.GameObjects.Container {
       this.alertChips[resource].setVisible(crisis);
       // Read on paper, not on the old near-black: ink for the ordinary case, sỏi son only when a
       // store is actually running out.
-      text.setColor(
-        crisis ? '#8a2a1b'
-          : warning ? '#9a6b16'
-            : rate < 0 ? '#a4522f'
-              : rate > 0 ? '#4c6b46' : INK_UI_HEX.inkText,
-      );
-      text.setFontStyle(crisis || warning ? 'bold' : 'normal');
+      const colour = crisis ? '#8a2a1b'
+        : warning ? '#9a6b16'
+          : rate < 0 ? '#a4522f'
+            : rate > 0 ? '#4c6b46' : INK_UI_HEX.inkText;
+      if (text.style.color !== colour) {
+        text.setColor(colour);
+        changed = true;
+      }
+      const style = crisis || warning ? 'bold' : 'normal';
+      if (text.style.fontStyle !== style) {
+        text.setFontStyle(style);
+        changed = true;
+      }
     });
 
-    this.reflow();
+    if (changed) this.reflow();
   }
 }

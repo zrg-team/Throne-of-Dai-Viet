@@ -29,6 +29,8 @@ import { GROUND_SCALE } from './ink/proportion';
 const MAP_HOST_SPREAD = 4.6 / (16 / 9.46);
 import { LABEL_KEEP_OUT } from './MapItemRenderer';
 import { createPlayerLandFlag } from './playerFlag';
+import { stampedArmy } from './ink/figureStamps';
+import { placeStamp, stamp, stampsEnabled } from './ink/stamp';
 
 /**
  * Chains loose segments back into the loops they were cut from.
@@ -206,20 +208,32 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
 
     // Each rank on its own object so the block has a cadence. A host that never moves is the
     // largest still object on a map where the roads, the herds and the water all move.
-    const ranks: Phaser.GameObjects.Graphics[] = [];
-    drawArmy(
-      graphics, at.x, at.y, Math.max(1, total), Math.round(total) + 17, colour, scale,
-      mapKit,
-      (index) => {
-        while (ranks.length <= index) {
-          const layer = scene.add.graphics();
-          ranks.push(layer);
-          container.add(layer);
-        }
-        return ranks[index];
-      },
-    );
-    marchInPlace(scene, ranks, scale);
+    //
+    // Stamped by default: one baked image per man instead of ~150 live path segments that
+    // Phaser 4 re-triangulates every frame the marker stands. `?nostamp=1` keeps the live-ink
+    // path below alive for A/B — the two draw the same men from the same `planArmy` walk.
+    if (stampsEnabled()) {
+      const army = stampedArmy(
+        scene, at.x, at.y, Math.max(1, total), Math.round(total) + 17, colour, scale, mapKit,
+      );
+      container.add(army.container);
+      marchInPlace(scene, army.ranks, scale);
+    } else {
+      const ranks: Phaser.GameObjects.Graphics[] = [];
+      drawArmy(
+        graphics, at.x, at.y, Math.max(1, total), Math.round(total) + 17, colour, scale,
+        mapKit,
+        (index) => {
+          while (ranks.length <= index) {
+            const layer = scene.add.graphics();
+            ranks.push(layer);
+            container.add(layer);
+          }
+          return ranks[index];
+        },
+      );
+      marchInPlace(scene, ranks, scale);
+    }
 
     // The standard rides with the host and multiplies with it, so size reads twice over.
     //
@@ -750,9 +764,13 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
   override createTraveler(): Phaser.GameObjects.Container {
     const scene = this.scene as Phaser.Scene;
     const container = scene.add.container(0, 0);
-    const g = scene.add.graphics();
-    farmer(g, -2, 4, GROUND_SCALE, 4711);
-    container.add(g);
+    // Stamped: the roads keep a dozen of these walking, and as live Graphics each was ~80 path
+    // segments re-tessellated per frame for a figure that never changes shape.
+    const st = stamp(scene, 'world:traveler', { left: -10, right: 8, top: -14, bottom: 6 },
+      (g, x, y, raster) => {
+        farmer(g, x + -2 * raster, y + 4 * raster, GROUND_SCALE * raster, 4711);
+      }, { raster: 'super', pool: 'world', pad: 2 });
+    container.add(placeStamp(scene, st, 0, 0));
     return container;
   }
 
@@ -778,8 +796,12 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     const scene = this.scene as Phaser.Scene;
     const container = scene.add.container(0, 0);
     setNativeFacing(container, -1);
-    const g = scene.add.graphics();
-    const s = GROUND_SCALE;
+    // The rig is baked whole - animal, yoke, shafts, bed and wheel - because no part of it ever
+    // moves relative to another; TrafficRenderer moves and flips the container exactly as before.
+    const st = stamp(scene, 'world:cart', { left: -14, right: 10, top: -14, bottom: 6 },
+      (g, x, y, raster) => {
+        g.translateCanvas(x, y);
+        const s = GROUND_SCALE * raster;
 
     // Where the animal stands, and where its body ends.
     //
@@ -839,8 +861,10 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
       width: 0.7 * s, alpha: 0.75, colour: PIGMENT.nau, wobble: 0.08 * s, step: 3,
     });
 
-    buffalo(g, oxAnchor, 3.4 * s, s, 90, false);
-    container.add(g);
+        buffalo(g, oxAnchor, 3.4 * s, s, 90, false);
+        g.translateCanvas(-x, -y);
+      }, { raster: 'super', pool: 'world', pad: 2 });
+    container.add(placeStamp(scene, st, 0, 0));
     return container;
   }
 

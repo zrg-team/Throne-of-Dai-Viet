@@ -82,22 +82,59 @@ export function defaultGraphicsQuality(): GraphicsQuality {
   return cores >= 8 && memory >= 8 ? 'high' : 'medium';
 }
 
+/**
+ * Cached: `profile()` sits under `scatterDensity()`/`lodZoomThreshold()`, which run per paint and
+ * per frame, and each call was a synchronous localStorage read. `setGraphicsQuality` is the only
+ * writer (and today it reloads the page anyway), so the cache cannot go stale in a session.
+ */
+let cachedQuality: GraphicsQuality | undefined;
+
 export function getGraphicsQuality(): GraphicsQuality {
+  if (cachedQuality !== undefined) {
+    return cachedQuality;
+  }
   if (typeof localStorage === 'undefined') {
     return defaultGraphicsQuality();
   }
   const stored = localStorage.getItem(STORAGE_KEY);
-  return GRAPHICS_QUALITIES.includes(stored as GraphicsQuality) ? (stored as GraphicsQuality) : defaultGraphicsQuality();
+  cachedQuality = GRAPHICS_QUALITIES.includes(stored as GraphicsQuality)
+    ? (stored as GraphicsQuality)
+    : defaultGraphicsQuality();
+  return cachedQuality;
 }
 
 export function setGraphicsQuality(quality: GraphicsQuality): void {
+  cachedQuality = quality;
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem(STORAGE_KEY, quality);
   }
 }
 
+/**
+ * The quality ladder's current rung, when one is standing in for the tier. The ladder sets it
+ * (qualityLadder.ts); everything that reads `profile()` — scatter, LOD, bake scale, the paper
+ * gate — follows the rung without knowing the ladder exists.
+ */
+interface RungProfileOverride {
+  renderScale: number;
+  paperFX: boolean;
+  scatter: number;
+  bakeScale: number;
+  lodZoomBelow?: number;
+  lodDropsLabels: boolean;
+}
+
+let activeRungProfile: RungProfileOverride | undefined;
+
+export function setActiveRung(rung: { scale: number; paper: boolean; scatter: number; bakeScale: number; lodZoomBelow?: number; lodDropsLabels: boolean } | undefined): void {
+  activeRungProfile = rung === undefined ? undefined : {
+    renderScale: rung.scale, paperFX: rung.paper, scatter: rung.scatter,
+    bakeScale: rung.bakeScale, lodZoomBelow: rung.lodZoomBelow, lodDropsLabels: rung.lodDropsLabels,
+  };
+}
+
 function profile(): QualityProfile {
-  return PROFILES[getGraphicsQuality()];
+  return activeRungProfile ?? PROFILES[getGraphicsQuality()];
 }
 
 /**
@@ -126,12 +163,16 @@ export function scatterDensity(): number {
  * `?bakescale=N` still overrides it, because A/B-ing the map's memory against its sharpness is a
  * thing worth being able to do without changing a setting and reloading.
  */
+/** The `?bakescale=` override, read once — the URL cannot change under a running page. */
+const BAKESCALE_OVERRIDE: number | undefined = (() => {
+  if (typeof window === 'undefined') return undefined;
+  const override = /[?&]bakescale=([0-9.]+)/.exec(window.location.search);
+  return override ? Math.min(1, Math.max(0.25, parseFloat(override[1]))) : undefined;
+})();
+
 export function bakeScale(): number {
-  if (typeof window !== 'undefined') {
-    const override = /[?&]bakescale=([0-9.]+)/.exec(window.location.search);
-    if (override) {
-      return Math.min(1, Math.max(0.25, parseFloat(override[1])));
-    }
+  if (BAKESCALE_OVERRIDE !== undefined) {
+    return BAKESCALE_OVERRIDE;
   }
   const chosen = profile().bakeScale;
 
@@ -166,13 +207,58 @@ export function lodDropsLabels(): boolean {
 }
 
 /**
- * The render scale fixed for this session.
+ * The render scale actually applied to the drawing buffer right now.
  *
- * Read once: the drawing buffer is sized at boot and every camera divides by the same number, so a
- * value that could change under them mid-frame would only ever be a bug. Changing the setting
- * reloads the page.
+ * It starts at the profile's answer and changes ONLY at `applyPendingRenderScale`, which runs at
+ * scene boundaries — the buffer is resized and every camera re-zoomed in the same breath, so no
+ * frame ever sees two answers. (`renderScale()` above stays the profile's *wish*; this is what
+ * the buffer is doing.)
  */
-export const RENDER_SCALE = renderScale();
+let appliedScale = renderScale();
+let pendingScale: number | undefined;
+
+export function renderScaleNow(): number {
+  return appliedScale;
+}
+
+/** Asks for a new buffer scale; nothing changes until a scene boundary applies it. */
+export function requestRenderScale(scale: number): void {
+  const wanted = Math.min(scale, devicePixelRatioSafe());
+  pendingScale = wanted === appliedScale ? undefined : wanted;
+}
+
+export function pendingRenderScale(): number | undefined {
+  return pendingScale;
+}
+
+const scaleListeners: Array<(scale: number) => void> = [];
+
+/** Registers for live scale changes (the stamp registry evicts its old generation on one). */
+export function subscribeRenderScale(fn: (scale: number) => void): void {
+  scaleListeners.push(fn);
+}
+
+/**
+ * Applies a requested scale at a scene boundary: resizes the FIT-mode buffer, refreshes the
+ * global curve-detail floor, and tells the listeners. Returns whether anything changed. Every
+ * camera must be re-zoomed after this — which scene `create()` does via `applyRenderScale`.
+ */
+export function applyPendingRenderScale(game: Phaser.Game): boolean {
+  if (pendingScale === undefined) {
+    return false;
+  }
+  const designWidth = game.scale.width / appliedScale;
+  const designHeight = game.scale.height / appliedScale;
+  appliedScale = pendingScale;
+  pendingScale = undefined;
+  game.scale.setGameSize(designWidth * appliedScale, designHeight * appliedScale);
+  const rendererConfig = (game.renderer as unknown as { config?: { pathDetailThreshold?: number } }).config;
+  if (rendererConfig && typeof rendererConfig.pathDetailThreshold === 'number') {
+    rendererConfig.pathDetailThreshold = 2 * appliedScale;
+  }
+  for (const fn of scaleListeners) fn(appliedScale);
+  return true;
+}
 
 /**
  * Puts a scene's camera into design units.
@@ -193,7 +279,7 @@ export function applyRenderScale(scene: Phaser.Scene): void {
   // one design unit is RENDER_SCALE pixels measured from 0,0, which is also the convention every
   // scroll clamp in MapScene was already written against.
   camera.setOrigin(0, 0);
-  camera.setZoom(RENDER_SCALE);
+  camera.setZoom(renderScaleNow());
   makeTextCrisp(scene);
 }
 
@@ -220,7 +306,9 @@ function makeTextCrisp(scene: Phaser.Scene): void {
   factory.__crispText = true;
 
   const originalText = factory.text.bind(factory);
-  factory.text = (x, y, text, style) => originalText(x, y, text, { resolution: RENDER_SCALE, ...style });
+  // `renderScaleNow()` at CALL time, so a label built after a live scale change rasterises
+  // at the resolution the buffer actually has.
+  factory.text = (x, y, text, style) => originalText(x, y, text, { resolution: renderScaleNow(), ...style });
 }
 
 /**
@@ -232,12 +320,12 @@ function makeTextCrisp(scene: Phaser.Scene): void {
  * scale is above 1 — which is how panning the map stopped working the moment the buffer grew.
  */
 export function designPointer(pointer: { x: number; y: number }): { x: number; y: number } {
-  return { x: pointer.x / RENDER_SCALE, y: pointer.y / RENDER_SCALE };
+  return { x: pointer.x / renderScaleNow(), y: pointer.y / renderScaleNow() };
 }
 
 /** A pointer distance in design units. */
 export function designLength(value: number): number {
-  return value / RENDER_SCALE;
+  return value / renderScaleNow();
 }
 
 /**
@@ -262,4 +350,6 @@ export function designLength(value: number): number {
  * A little over life is enough to carry the weight; the rest was the blur's softness, which is not
  * something a wider line can supply.
  */
-export const INK_WEIGHT = RENDER_SCALE <= 1 ? 1 : 1.22;
+export function inkWeight(): number {
+  return renderScaleNow() <= 1 ? 1 : 1.22;
+}

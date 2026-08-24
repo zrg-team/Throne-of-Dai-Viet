@@ -2,17 +2,27 @@
  * The two dials at the foot of the fight — the three-posture stance strip, the five formation
  * chips in ring order, the stamina pips beside them, and the marks a press leaves behind.
  *
- * One file because they are one rebuild. `battleOrderSignature` covers all of it, and the strip is
- * torn down and built whole when it changes — never on the beat, because a card destroyed between
- * press and release never fires. That is why the press marks hang off `modalLayer` rather than the
- * chip: ordering a shape changes the signature, so anything left on the chip is destroyed a
- * millisecond after the tap. `ui.coachBounds` is recorded here, where the boxes are computed.
+ * Two clocks, split on purpose. `battleOrderSignature` names what the strips *offer* — the
+ * shapes, the postures, the rims — and the dock is torn down and rebuilt whole only when that
+ * changes: an order given, a re-form starting or landing, the telegraph naming a new shape.
+ * Everything a beat moves — the price line, the pips, the re-form countdown, the landing flare,
+ * a chip greying as stamina runs out — is written into retained handles by `drawBattleDock`,
+ * which runs on every beat and costs two or three guarded `setText`s and one small `clear()`.
+ *
+ * It was one clock, and the one clock was the single most expensive thing on this screen: the
+ * signature deliberately included the per-beat readings, so seventeen of every thirty beats
+ * rebuilt 60-odd objects and rasterised up to a hundred labels to move three numbers. Worse than
+ * the cost was the hazard the file has always warned about: a card destroyed between press and
+ * release never fires. The press marks hang off `modalLayer` for that reason, and now the chips
+ * themselves stand still under the thumb too. `ui.coachBounds` is recorded here, where the boxes
+ * are computed.
  */
 import Phaser from 'phaser';
 import { battleRimsShown } from '../../../game/battleOptions';
 import { BATTLE_STAMINA_REGEN_BEATS } from '../../../game/ascentConfig';
 import { battleStamina, battleTelegraph, canFormFormation } from '../../../systems/ascent/BattleSystem';
 import { INK_UI, INK_UI_HEX, scrollGestureConsumedTap, type UIBounds } from '../../../ui/InkUI';
+import { writeText } from '../../../ui/textWrite';
 import { formationTier, FORMATION_RING } from '../../../data/ascent/formations';
 import { CARD_ICON_SIZE, drawCardIcon } from '../../../ui/CardIcons';
 import { t } from '../../../i18n';
@@ -32,38 +42,31 @@ import type { ConquestUIScene } from '../../ConquestUIScene';
 
 
 /**
- * What the two strips currently offer.
+ * What the two strips currently offer — and nothing a beat moves.
  *
  * Rebuilt when — and only when — this changes. **Never on the beat:** a card destroyed between
- * press and release never fires, which this screen has already been bitten by once.
+ * press and release never fires, which this screen has already been bitten by once. The per-beat
+ * readings that used to sit in here (last beat's losses, the stamina clock, the telegraph's
+ * countdown, the landing stamp) belong to `drawBattleDock` now.
  *
- * The telegraph is in here because the chip edges are drawn from it: a green rim under a shape
- * that no longer answers what they are forming is worse than no rim at all.
+ * The telegraph's *shape* is in here because the chip edges are drawn from it: a green rim under
+ * a shape that no longer answers what they are forming is worse than no rim at all. Its beat
+ * countdown is not — a rim does not change colour as the clock runs down.
  */
 export function battleOrderSignature(self: ConquestUIScene, battle: AscentBattle): string {
   const read = battleTelegraph(self.state);
-  const stamina = battleStamina(battle);
   return [
     battle.stance,
     battle.stancePending ?? '',
     battle.ourFormation,
     battle.formationTarget ?? '',
-    battle.reformBeats ?? 0,
-    // The readout band lives in this layer, so its readings belong in the signature: the price
-    // moves every beat and the landing stamp has two beats to live. Without these the band would
-    // print one stale beat behind the fight it is describing.
-    Math.round(battle.lastBeatLoss?.ours ?? -1),
-    Math.round(battle.lastBeatLoss?.theirs ?? -1),
-    battle.landedBeat ?? -1,
-    read ? `${read.formation}>${read.next ?? ''}:${read.beatsLeft}` : '',
-    // The pips and the clock on the next one: a pip returning must relight the dock on that
-    // beat, and the filling pip is redrawn every beat it fills.
-    `${stamina.pips}/${stamina.max}@${stamina.nextIn}`,
+    (battle.reformBeats ?? 0) > 0 ? 'w1' : 'w0',
+    read ? `${read.formation}>${read.next ?? ''}` : '',
     battleRimsShown() ? 'r1' : 'r0',
-    battle.delegated ? 'd1' : 'd0',
-    // The world's clock. A fight opened onto a paused world used to look identical to one that
-    // was running — and the pause chip has to flip to Resume on the beat the player taps it.
-    self.battleHalted ? 'p1' : 'p0',
+    // The seal decides whether the rims answer anything at all.
+    self.battleOpeningSealed ? 's1' : 's0',
+    // The pulsing "give the first order" frame exists only while the fight waits for one.
+    self.battleAwaitingOrder ? 'a1' : 'a0',
   ].join(':');
 }
 
@@ -81,8 +84,8 @@ export function battleOrderSignature(self: ConquestUIScene, battle: AscentBattle
  * shifting — and stance sits above it, smaller, further away, with a lock counter in its label.
  * The two exits are not here at all; see `buildBattleExits`.
  *
- * Rebuilt only when `battleOrderSignature` changes, never on the beat: a card destroyed between
- * press and release never fires.
+ * Builds the structure and the retained handles; `drawBattleDock` (called at the end, and on
+ * every beat after) writes the readings into them.
  */
 export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): void {
   const ui = self.battleUi;
@@ -97,10 +100,22 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
   const dockY = content.y + ui.fieldHeight + 8 + BATTLE_RAILS_HEIGHT + 10;
   const read = battleTelegraph(self.state);
 
-  // ── the readout ──────────────────────────────────────────────────────
-  buildBattleReadout(self, battle, dockY);
+  const dock: NonNullable<typeof ui.dock> = {
+    price: undefined as unknown as Phaser.GameObjects.Text,
+    arms: undefined as unknown as Phaser.GameObjects.Text,
+    verdict: undefined as unknown as Phaser.GameObjects.Text,
+    verdictKey: '',
+    pips: undefined as unknown as Phaser.GameObjects.Graphics,
+    pipsKey: '',
+    pipGeom: { px: 0, topY: 0 },
+    defendChosen: false,
+    lastFlareBeat: ui.dock?.lastFlareBeat ?? -1,
+    chips: {},
+  };
+  ui.dock = dock;
 
-  const stamina = battleStamina(battle);
+  // ── the readout: three retained labels the beat writes into ──────────
+  buildBattleReadout(self, battle, dockY);
 
   const stanceY = dockY + BATTLE_READOUT_HEIGHT + 3;
   // Recorded where they are computed. See `coachBounds`.
@@ -132,28 +147,14 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
   const PIP_COLUMN = 26;
   const segW = (content.width - PIP_COLUMN - segGap * stances.length) / stances.length;
   {
-    const pipR = 4.4;
     const px = content.x + content.width - PIP_COLUMN / 2 + 2;
-    const pips = self.add.container(0, 0);
-    for (let i = 0; i < stamina.max; i += 1) {
-      const py = stanceY + 8 + (stamina.max - 1 - i) * 14;
-      const pip = self.add.graphics();
-      pip.lineStyle(1.4, INK_UI.brush, 0.9);
-      pip.strokeCircle(px, py, pipR);
-      if (i < stamina.pips) {
-        pip.fillStyle(INK_UI.brush, 0.92);
-        pip.fillCircle(px, py, pipR - 0.9);
-      } else if (i === stamina.pips && stamina.nextIn > 0) {
-        // The pip on its way back: a brush stroke growing round the ring as the clock runs down.
-        const done = 1 - stamina.nextIn / Math.max(1, BATTLE_STAMINA_REGEN_BEATS);
-        pip.lineStyle(2.2, INK_UI.brush, 0.7);
-        pip.beginPath();
-        pip.arc(px, py, pipR - 1.2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * done, false);
-        pip.strokePath();
-      }
-      pips.add(pip);
-    }
+    // One graphics for the whole column, cleared and re-inked by `drawBattleDock` when a pip is
+    // spent, returns, or ticks toward returning. It used to be one graphics per pip, rebuilt
+    // with the dock — on most beats, to redraw an arc a few degrees longer.
+    const pips = self.add.graphics();
     orders.add(pips);
+    dock.pips = pips;
+    dock.pipGeom = { px, topY: stanceY + 8 };
     ui.staminaPips = pips;
     ui.staminaAt = { x: px, y: stanceY + 8 };
   }
@@ -166,20 +167,11 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
     const chosen = (battle.stancePending ?? battle.stance) === id;
     const tile = self.ui.crayonTile(bounds, { selected: chosen });
     orders.add(tile);
-    // Stuck — no pip, and standing in a shape they beat: every chip is dim and this is the one
-    // lit thing on the strip. A screen where one control glows says what to do louder than any
-    // sentence, and it is the move the whole stamina rule exists to teach.
-    const countered = (battle.reformBeats ?? 0) === 0 && (battle.theirReformBeats ?? 0) === 0
-      && formationTier(battle.ourFormation, battle.theirFormation) < 0;
-    if (id === 'defend' && !chosen && stamina.pips === 0 && countered) {
-      const glow = self.add.graphics();
-      glow.lineStyle(2.4, INK_UI.jade, 0.95);
-      glow.strokeRoundedRect(x + 1, stanceY + 1, segW - 2, BATTLE_STANCE_HEIGHT - 2, 6);
-      orders.add(glow);
-      self.tweens.add({
-        targets: glow, alpha: { from: 1, to: 0.3 }, duration: 650, yoyo: true, repeat: -1,
-        ease: 'Sine.easeInOut',
-      });
+    if (id === 'defend') {
+      // The glow that answers "stuck with no pip in a beaten shape" is a *reading*, not part of
+      // the offer: stamina moves on the beat, so the mark is drawn by `drawBattleDock`.
+      dock.defendBounds = bounds;
+      dock.defendChosen = chosen;
     }
     orders.add(self.ui.label(
       x + segW / 2, stanceY + BATTLE_STANCE_HEIGHT / 2,
@@ -209,7 +201,8 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
   };
   // While the fight is held waiting for its first order, say which strip is the one to touch.
   // The note in the field tells the player to pick a formation; this is the strip it means, and
-  // without it "give the first order" is a sentence with no object.
+  // without it "give the first order" is a sentence with no object. `battleAwaitingOrder` is in
+  // the signature, so the frame is built and torn down with the dock.
   if (self.battleAwaitingOrder) {
     const call = self.add.graphics();
     call.lineStyle(2, INK_UI.cinnabar, 0.9);
@@ -240,12 +233,8 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
     const bounds = { x, y: formY, width: chipW, height: BATTLE_FORMATION_HEIGHT };
     const held = battle.ourFormation === id && !reforming;
     const walking = reforming && battle.formationTarget === id;
-    // Out of stamina: every other chip dims together, which says "you cannot change anything"
-    // without a word, and the tap is answered by the pips flashing red rather than by silence.
-    const gone = !held && !walking && !canFormFormation(self.state, id);
 
     const tile = self.ui.crayonTile(bounds, { selected: held || walking });
-    if (gone) tile.setAlpha(0.45);
     orders.add(tile);
 
     // Four readings, no text: filled = held, full jade rim = the STRONG answer to their shape,
@@ -271,42 +260,20 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
       orders.add(edge);
     }
 
-    // The arrangement the shape puts its men in, drawn. A word has to be read and recognised;
-    // a shape only has to be recognised, so the icon is what carries the chip at a glance and
-    // the two names underneath are what the glance turns into knowledge over a few fights.
-    const ink = held || walking ? INK_UI.cinnabar
-      : gone ? INK_UI.softBrush
-        : rim === INK_UI.jade ? INK_UI.jade : INK_UI.brush;
-    /**
-     * The second line is a *state*, not a name — and only when there is one.
-     *
-     * The Vietnamese name used to live here permanently, on the theory that a player picks the
-     * vocabulary up by association. In practice it put a word nobody could read directly under
-     * every word they could, five times across the busiest strip on the screen, and it did it
-     * while the line beneath the chip was trying to say "re-forming · 2". Two lines of type on a
-     * 52-point chip, and the one that mattered was the one that only sometimes appeared.
-     *
-     * So the shape's name is the icon and the verb, and this line is kept clear for the three
-     * things that are true only sometimes and change what the player should press. The chip
-     * shifts up when it has nothing to say, so an ordinary chip is a glyph and a word centred in
-     * their own box rather than a heading over an empty line.
-     */
-    // The only words left on a chip: how far the men are from standing in it. Every other note
-    // this line used to carry — strong/soft, winded, spent — explained a number; the rims and
-    // the pips explain the thing.
-    const note = walking ? t('ascent.battle.reforming', { n: String(battle.reformBeats ?? 0) }) : '';
+    // The base ink for a chip that is *available*: what `drawBattleDock` restores when stamina
+    // comes back. `gone` swaps it for `softBrush` live, because stamina moves on the beat.
+    const baseInk = held || walking ? INK_UI.cinnabar
+      : rim === INK_UI.jade ? INK_UI.jade : INK_UI.brush;
+    const baseVerbColour = held || walking ? cssHex(INK_UI.cinnabar) : INK_UI_HEX.inkText;
 
     /**
      * The order at the top, the glyph under it, the state line pinned to the floor.
      *
-     * Glyph-first read better in English, where every verb is one short word: the eye landed on
-     * a picture and the word underneath confirmed it. In Vietnamese the same verb is two words
-     * that wrap, so the picture was pushed down onto the state line and `đang chuyển thế · 1`
-     * printed out of the bottom of the chip. The word a player is looking *for* now starts at a
-     * fixed y on every chip in the row, whatever language it is in and however many lines it
-     * takes, and the line that only sometimes appears has the floor to itself.
-     *
-     * Measured rather than placed at written-down offsets, for the same reason.
+     * The word a player is looking *for* starts at a fixed y on every chip in the row, whatever
+     * language it is in and however many lines it takes, and the line that only sometimes
+     * appears (the re-form countdown) has the floor to itself. Whether that line exists is
+     * structural — a re-form starting or landing changes the signature — so the glyph's band is
+     * fixed for the life of this build; only the countdown's *text* moves per beat.
      */
     const GLYPH = 15;
     const verb = self.ui.label(
@@ -315,156 +282,110 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
         fontSize: '10px',
         align: 'center',
         wordWrap: { width: chipW - 2 },
-        color: held || walking ? cssHex(INK_UI.cinnabar)
-          : gone ? INK_UI_HEX.mutedText : INK_UI_HEX.inkText,
+        color: baseVerbColour,
       },
     ).setOrigin(0.5, 0);
-    /**
-     * One line, shrunk to fit — never wrapped.
-     *
-     * Wrapping was the whole of the remaining overlap. `đang chuyển thế · 1` is 66 points at 8px
-     * in a 66-point chip, so it took two lines, and two lines of state under two lines of a
-     * Vietnamese order left the glyph nowhere to be but on top of one of them. A state note is a
-     * glance, not a sentence: it can afford to be small, and it cannot afford to be tall.
-     */
-    const noteLabel = note
-      ? self.ui.label(0, 0, note, 'caption', {
+    // One line, shrunk to fit — never wrapped. A state note is a glance, not a sentence: it can
+    // afford to be small, and it cannot afford to be tall. Created empty when the shape is
+    // walking; `drawBattleDock` writes the countdown into it.
+    const noteLabel = walking
+      ? self.ui.label(0, 0, '', 'caption', {
         fontSize: '8px',
         align: 'center',
-        color: (held || walking ? '#8a2a1b'
-          : rim === INK_UI.jade ? '#4c5f45'
-            : rim === INK_UI.cinnabar ? '#8a2a1b' : INK_UI_HEX.mutedText),
+        color: '#8a2a1b',
       }).setOrigin(0.5, 0)
       : undefined;
-    if (noteLabel) {
-      for (let size = 8; size >= 6.5 && noteLabel.width > chipW - 6; size -= 0.5) {
-        noteLabel.setFontSize(size);
-      }
-    }
 
     // The floor the state line keeps for itself. Thirteen when there is nothing to print, so the
-    // glyph does not hop up and down the chip as a shape starts and finishes re-forming — and
-    // measured off the label itself when there is, because a shrunk line is shorter than 13.
-    const FLOOR = noteLabel ? Math.max(13, noteLabel.height + 5) : 13;
-    // The order starts at the same y on every chip in the row — that is the whole point of
-    // putting it first, and centring the pair instead would set `DỰNG GIÁO` a line lower than
-    // `XUNG PHONG` beside it. The glyph then takes the middle of whatever is left under it, so a
-    // one-line chip does not end up with a hole in its floor.
+    // glyph does not hop up and down the chip as a shape starts and finishes re-forming.
+    const FLOOR = 13;
     const top = formY + 5;
     const glyphBand = { from: top + verb.height + 1, to: formY + BATTLE_FORMATION_HEIGHT - FLOOR };
 
     verb.setPosition(x + chipW / 2, top);
     orders.add(verb);
 
-    // Drawn at 15 where there is 15 to draw it in, and at whatever is left where there is not.
-    // A Vietnamese order that wraps to two lines over a state line leaves about fourteen points
-    // between them, and a glyph that insisted on its full size took the difference out of the
-    // note underneath it.
-    const glyphSize = Math.min(GLYPH, Math.max(9, glyphBand.to - glyphBand.from));
-    const glyph = drawCardIcon(self, FORMATION_ICON[id], ink);
-    glyph.setPosition(x + chipW / 2, (glyphBand.from + glyphBand.to) / 2)
-      .setScale(glyphSize / CARD_ICON_SIZE);
-    if (gone) glyph.setAlpha(0.5);
+    const glyphScale = Math.min(GLYPH, Math.max(9, glyphBand.to - glyphBand.from)) / CARD_ICON_SIZE;
+    const glyphX = x + chipW / 2;
+    const glyphY = (glyphBand.from + glyphBand.to) / 2;
+    const glyph = drawCardIcon(self, FORMATION_ICON[id], baseInk);
+    glyph.setPosition(glyphX, glyphY).setScale(glyphScale);
     orders.add(glyph);
 
     if (noteLabel) {
-      noteLabel.setPosition(
-        x + chipW / 2, formY + BATTLE_FORMATION_HEIGHT - 3 - noteLabel.height,
-      );
+      noteLabel.setPosition(x + chipW / 2, formY + BATTLE_FORMATION_HEIGHT - 3 - noteLabel.height);
       orders.add(noteLabel);
     }
 
-    // ── the order in flight ────────────────────────────────────────────
-    //
-    // A formation is instant to order and slow to arrive, and until now the screen said neither.
-    // Three marks, because three different things are true at three different moments and
-    // merging them tells the player the wrong one:
-    //
-    //   the bar   — it is walking, and this is how much of the walk is left.
-    //   the flare — it arrived. The one that means the shape has actually changed.
-    //
-    // There used to be a third, a small sỏi son square in the chip's top corner meaning "the
-    // order was issued". It went, and the question that killed it was a player's: *what is the
-    // red square?* By the time it appeared the chip already said `chuyển thế · 2` in words, one
-    // line below it, and `stampFormationChip` had already answered the same thing far more
-    // loudly on the tap itself. Three marks, two of them saying what a sentence was saying.
-    if (walking) {
-      const total = Math.max(1, battle.reformTotalBeats ?? battle.reformBeats ?? 1);
-      const done = Math.max(0, Math.min(1, 1 - (battle.reformBeats ?? 0) / total));
+    // The re-form bar rides the chip's floor while the shape is walking; the fill is written by
+    // the beat, the object's life belongs to the build (walking is in the signature).
+    const bar = walking ? self.add.graphics() : undefined;
+    if (bar) orders.add(bar);
 
-      // Drawn from `reformBeats`, never tweened. `battleOrderSignature` includes that clock, so
-      // this strip is torn down and rebuilt on every beat of a re-form and a tween would restart
-      // each time — a bar that runs the wrong length is worse than no bar at all.
-      //
-      // Track first, then fill. A trained host re-forms in a single beat, where the fill is zero
-      // wide for the whole of the walk: without the track there would be nothing on the chip at
-      // all in the commonest case, which is the exact complaint this is here to answer.
-      const bar = self.add.graphics();
-      bar.fillStyle(INK_UI.cinnabar, 0.22);
-      bar.fillRect(x + 2, formY + BATTLE_FORMATION_HEIGHT - 4, chipW - 4, 2.5);
-      bar.fillStyle(INK_UI.cinnabar, 0.95);
-      bar.fillRect(x + 2, formY + BATTLE_FORMATION_HEIGHT - 4, (chipW - 4) * done, 2.5);
-      orders.add(bar);
-    }
-
-
-    // The beat the men actually stood up in it. Two beats, then it stops mattering.
-    const beatNow = (battle.approachBeats ?? 0) + battle.round;
-    if (held && battle.landedBeat !== undefined && beatNow - battle.landedBeat <= 1) {
-      const flare = self.add.graphics();
-      flare.lineStyle(2, battle.landedCountered ? INK_UI.jade : INK_UI.gold, 0.95);
-      flare.strokeRoundedRect(x - 1, formY - 1, chipW + 2, BATTLE_FORMATION_HEIGHT + 2, 7);
-      orders.add(flare);
-      self.tweens.add({
-        targets: flare, alpha: { from: 1, to: 0 }, duration: 520, ease: 'Quad.easeOut',
-      });
-    }
-
-    const hit = self.add.zone(x, formY, chipW, BATTLE_FORMATION_HEIGHT).setOrigin(0, 0)
-      .setInteractive({ useHandCursor: !gone });
-    if (gone) {
-      // A tap with nothing to spend: the pips flash red, the chip shivers. Every game does this
-      // and nobody has to be taught it.
-      hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-        if (scrollGestureConsumedTap(pointer)) return;
-        refuseForStamina(self, tile);
-      });
-      orders.add(hit);
-      return;
-    }
-    // The press itself. Every other button in this game dips under the thumb — `InkUI.button`
-    // redraws on `pointerdown` — and these chips were a bare zone with a `pointerup` handler and
-    // nothing else, so the one control the fight is built around was the one control that gave
-    // no sign of having been touched.
     /**
-     * The **whole chip** dips, not just the tile under it.
-     *
-     * It was the tile alone, which is worse than no feedback at all: the paper moved and the word
-     * printed on it did not, so the chip read as a card sliding out from under its own label. The
-     * order, the glyph and the state line go with it now, all scaled about the chip's centre —
-     * which is what `bounds.x + chipW * 0.03` was always secretly doing for the tile.
+     * The **whole chip** dips, not just the tile under it — the paper and the word printed on it
+     * move together. `parts` is mutable because the glyph is *replaced* when its ink changes
+     * (a Graphics-drawn icon cannot be recoloured), and the press must scale the current one.
      */
     const cx = bounds.x + chipW / 2;
     const cy = formY + BATTLE_FORMATION_HEIGHT / 2;
-    const parts: Array<{ o: Phaser.GameObjects.Components.Transform; hx: number; hy: number; hs: number }> = [
-      { o: tile, hx: bounds.x, hy: bounds.y, hs: 1 },
-      { o: glyph, hx: glyph.x, hy: glyph.y, hs: glyphSize / CARD_ICON_SIZE },
-      { o: verb, hx: verb.x, hy: verb.y, hs: 1 },
-    ];
-    if (noteLabel) parts.push({ o: noteLabel, hx: noteLabel.x, hy: noteLabel.y, hs: 1 });
+    const chip: NonNullable<NonNullable<ConquestUIScene['battleUi']>['dock']>['chips'][string] = {
+      bounds,
+      tile,
+      verb,
+      glyph,
+      glyphX,
+      glyphY,
+      glyphScale,
+      baseInk,
+      baseVerbColour,
+      held,
+      walking,
+      note: noteLabel,
+      noteKey: '',
+      bar,
+      barBeats: -1,
+      gone: false,
+      parts: [
+        // The tile's OWN rest scale, never a literal 1: a stamped tile is a raster image whose
+        // natural scale is 1/renderScale, and the press restoring `hs` wrote 1 over it — one
+        // click and the chip stood at three times its size for the rest of the fight.
+        { o: tile, hx: bounds.x, hy: bounds.y, hs: tile.scaleX },
+        { o: glyph, hx: glyphX, hy: glyphY, hs: glyphScale },
+        { o: verb, hx: verb.x, hy: verb.y, hs: 1 },
+      ],
+    };
+    if (noteLabel) chip.parts.push({ o: noteLabel, hx: noteLabel.x, hy: noteLabel.y, hs: 1 });
+    dock.chips[id] = chip;
+
     const press = (k: number): void => {
-      for (const part of parts) {
+      for (const part of chip.parts) {
         part.o.setScale(part.hs * k);
         part.o.setPosition(cx + (part.hx - cx) * k, cy + (part.hy - cy) * k);
       }
     };
 
-    hit.on('pointerdown', () => press(0.93));
+    /**
+     * One zone, one handler, and `gone` is decided at tap time.
+     *
+     * The dock no longer rebuilds when stamina moves, so a chip that greyed out between builds
+     * must refuse from its *current* state, not the state it was built in — a handler frozen at
+     * build time would happily order a shape there is no pip to pay for.
+     */
+    const hit = self.add.zone(x, formY, chipW, BATTLE_FORMATION_HEIGHT).setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+    hit.on('pointerdown', () => { if (!chip.gone) press(0.93); });
     const unpress = (): void => press(1);
     hit.on('pointerout', unpress);
     hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       unpress();
       if (scrollGestureConsumedTap(pointer)) return;
+      if (chip.gone) {
+        // A tap with nothing to spend: the pips flash red, the chip shivers. Every game does
+        // this and nobody has to be taught it.
+        refuseForStamina(self, tile);
+        return;
+      }
       self.resumeBattleForOrder();
       // Before the order, because the order rebuilds this strip: the mark has to be somewhere
       // that outlives the chip that raised it.
@@ -474,6 +395,197 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
     });
     orders.add(hit);
   });
+
+  // First readings, so the dock never shows a frame of empty handles.
+  drawBattleDock(self, battle);
+}
+
+/**
+ * The per-beat readings, written into the standing dock.
+ *
+ * Runs on every beat and on every refresh; everything in here is either guarded (`writeText`
+ * skips an unchanged string, and `setColor` is only called when the colour moved) or keyed on
+ * the reading it draws, so a quiet beat costs a handful of string compares. This is the half of
+ * the old rebuild that actually changed 1.2–2.1 times a second; the structure it writes into
+ * changes a handful of times per fight.
+ */
+export function drawBattleDock(self: ConquestUIScene, battle: AscentBattle): void {
+  const ui = self.battleUi;
+  const dock = ui?.dock;
+  if (!ui || !dock) return;
+
+  const stamina = battleStamina(battle);
+  const walking = (battle.reformBeats ?? 0) > 0;
+  const beatNow = (battle.approachBeats ?? 0) + battle.round;
+
+  // ── the readout ──────────────────────────────────────────────────────
+  const loss = battle.lastBeatLoss;
+  const price = walking ? t('ascent.battle.walkingWhy')
+    : loss ? `${t('ascent.battle.priceOurs', { ours: String(Math.round(loss.ours)) })}  ·  `
+      + t('ascent.battle.priceTheirs', { theirs: String(Math.round(loss.theirs)) })
+      : t('ascent.battle.priceOpening');
+  const losing = !walking && loss !== undefined && loss.ours > loss.theirs;
+  writeText(dock.price, price, walking ? INK_UI_HEX.mutedText
+    : losing ? '#8a2a1b'
+      : loss ? '#4c5f45' : INK_UI_HEX.mutedText);
+
+  const arms = battle.ourMatchup ?? 1;
+  const armsText = Math.abs(arms - 1) > 0.03
+    ? (arms > 1 ? t('ascent.battle.armsGood') : t('ascent.battle.armsBad'))
+    : '';
+  writeText(dock.arms, armsText, arms > 1 ? '#4c5f45' : '#8a2a1b');
+
+  // One slot on the right, three claimants, ranked by how narrow a span of time each is about.
+  // Winning is announced the moment it is true; losing waits for three unanswered rounds.
+  const landed = battle.landedBeat !== undefined && beatNow - battle.landedBeat <= 1 && !walking;
+  const adrift = (battle.lostRun ?? 0) >= 3 && (battle.beatsSinceOurShape ?? 0) >= 3;
+  const verdict = landed
+    ? (battle.landedCountered === true
+      ? { text: t('ascent.battle.landedGood'), colour: cssHex(INK_UI.jade), loud: true }
+      : { text: t('ascent.battle.landedEven'), colour: INK_UI_HEX.mutedText, loud: false })
+    : battle.wonLast === true
+      ? { text: t('ascent.battle.winning'), colour: cssHex(INK_UI.jade), loud: true }
+      : adrift
+        ? {
+          text: stamina.pips > 0
+            ? t('ascent.battle.losing') : t('ascent.battle.losingNoPips'),
+          colour: cssHex(INK_UI.cinnabar), loud: true,
+        }
+        : undefined;
+  writeText(dock.verdict, verdict?.text ?? '', verdict?.colour);
+  dock.verdict.setFontSize(verdict?.loud ? '10.5px' : '9px');
+  if (verdict && verdict.text !== dock.verdictKey && verdict.loud) {
+    self.tweens.add({
+      targets: dock.verdict, scale: { from: 1.28, to: 1 }, duration: 260, ease: 'Back.easeOut',
+    });
+  }
+  dock.verdictKey = verdict?.text ?? '';
+
+  // ── the pips ─────────────────────────────────────────────────────────
+  const pipsKey = `${stamina.pips}/${stamina.max}@${stamina.nextIn}`;
+  if (pipsKey !== dock.pipsKey && dock.pips.active) {
+    dock.pipsKey = pipsKey;
+    const g = dock.pips;
+    const { px, topY } = dock.pipGeom;
+    const pipR = 4.4;
+    g.clear();
+    for (let i = 0; i < stamina.max; i += 1) {
+      const py = topY + (stamina.max - 1 - i) * 14;
+      g.lineStyle(1.4, INK_UI.brush, 0.9);
+      g.strokeCircle(px, py, pipR);
+      if (i < stamina.pips) {
+        g.fillStyle(INK_UI.brush, 0.92);
+        g.fillCircle(px, py, pipR - 0.9);
+      } else if (i === stamina.pips && stamina.nextIn > 0) {
+        // The pip on its way back: a brush stroke growing round the ring as the clock runs down.
+        const done = 1 - stamina.nextIn / Math.max(1, BATTLE_STAMINA_REGEN_BEATS);
+        g.lineStyle(2.2, INK_UI.brush, 0.7);
+        g.beginPath();
+        g.arc(px, py, pipR - 1.2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * done, false);
+        g.strokePath();
+      }
+    }
+  }
+
+  // ── the stuck-glow on Defend ─────────────────────────────────────────
+  // No pip, and standing in a shape they beat: the one lit thing on the strip is the move the
+  // whole stamina rule exists to teach. Stamina moves on the beat, so the mark lives here.
+  const countered = (battle.reformBeats ?? 0) === 0 && (battle.theirReformBeats ?? 0) === 0
+    && formationTier(battle.ourFormation, battle.theirFormation) < 0;
+  const wantGlow = Boolean(dock.defendBounds) && !dock.defendChosen
+    && stamina.pips === 0 && countered;
+  if (wantGlow && !dock.defendGlow && dock.defendBounds) {
+    const b = dock.defendBounds;
+    const glow = self.add.graphics();
+    glow.lineStyle(2.4, INK_UI.jade, 0.95);
+    glow.strokeRoundedRect(b.x + 1, b.y + 1, b.width - 2, b.height - 2, 6);
+    ui.orders.add(glow);
+    self.tweens.add({
+      targets: glow, alpha: { from: 1, to: 0.3 }, duration: 650, yoyo: true, repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+    dock.defendGlow = glow;
+  } else if (!wantGlow && dock.defendGlow) {
+    self.tweens.killTweensOf(dock.defendGlow);
+    dock.defendGlow.destroy();
+    dock.defendGlow = undefined;
+  }
+
+  // ── the chips' live readings ─────────────────────────────────────────
+  for (const id of FORMATION_RING) {
+    const chip = dock.chips[id];
+    if (!chip) continue;
+
+    const gone = !chip.held && !chip.walking && !canFormFormation(self.state, id);
+    if (gone !== chip.gone) {
+      chip.gone = gone;
+      chip.tile.setAlpha(gone ? 0.45 : 1);
+      // A Graphics-drawn icon cannot be recoloured; swap it for one in the right ink and point
+      // the press parts at the replacement.
+      const ink = gone ? INK_UI.softBrush : chip.baseInk;
+      const replacement = drawCardIcon(self, FORMATION_ICON[id], ink);
+      replacement.setPosition(chip.glyphX, chip.glyphY).setScale(chip.glyphScale);
+      replacement.setAlpha(gone ? 0.5 : 1);
+      ui.orders.add(replacement);
+      chip.glyph.destroy();
+      chip.glyph = replacement;
+      chip.parts[1].o = replacement;
+      writeText(chip.verb, chip.verb.text, gone ? INK_UI_HEX.mutedText : chip.baseVerbColour);
+    }
+
+    if (chip.note && chip.walking) {
+      const note = t('ascent.battle.reforming', { n: String(battle.reformBeats ?? 0) });
+      if (note !== chip.noteKey) {
+        chip.noteKey = note;
+        chip.note.setFontSize(8);
+        chip.note.setText(note);
+        for (let size = 8; size >= 6.5 && chip.note.width > chip.bounds.width - 6; size -= 0.5) {
+          chip.note.setFontSize(size);
+        }
+        chip.note.setPosition(
+          chip.bounds.x + chip.bounds.width / 2,
+          chip.bounds.y + chip.bounds.height - 3 - chip.note.height,
+        );
+      }
+    }
+
+    if (chip.bar && chip.walking) {
+      const beats = battle.reformBeats ?? 0;
+      if (beats !== chip.barBeats) {
+        chip.barBeats = beats;
+        const total = Math.max(1, battle.reformTotalBeats ?? (beats || 1));
+        const done = Math.max(0, Math.min(1, 1 - beats / total));
+        const { x, y, width: w, height: h } = chip.bounds;
+        const g = chip.bar;
+        // Track first, then fill. A trained host re-forms in a single beat, where the fill is
+        // zero wide for the whole of the walk: without the track there would be nothing on the
+        // chip at all in the commonest case.
+        g.clear();
+        g.fillStyle(INK_UI.cinnabar, 0.22);
+        g.fillRect(x + 2, y + h - 4, w - 4, 2.5);
+        g.fillStyle(INK_UI.cinnabar, 0.95);
+        g.fillRect(x + 2, y + h - 4, (w - 4) * done, 2.5);
+      }
+    }
+
+    // The beat the men actually stood up in it. Two beats, then it stops mattering. Drawn on the
+    // modal layer — the dock stands still now, but the mark must survive even the structural
+    // rebuild the landing itself causes.
+    if (chip.held && battle.landedBeat !== undefined && beatNow - battle.landedBeat <= 1
+      && battle.landedBeat !== dock.lastFlareBeat) {
+      dock.lastFlareBeat = battle.landedBeat;
+      const { x, y, width: w, height: h } = chip.bounds;
+      const flare = self.add.graphics();
+      flare.lineStyle(2, battle.landedCountered ? INK_UI.jade : INK_UI.gold, 0.95);
+      flare.strokeRoundedRect(-w / 2 - 1, -h / 2 - 1, w + 2, h + 2, 7);
+      flare.setPosition(x + w / 2, y + h / 2);
+      self.modalLayer.add(flare);
+      self.tweens.add({
+        targets: flare, alpha: { from: 1, to: 0 }, duration: 520, ease: 'Quad.easeOut',
+        onComplete: () => flare.destroy(),
+      });
+    }
+  }
 }
 
 /**
@@ -589,100 +701,35 @@ export function stampFormationChip(self: ConquestUIScene, bounds: UIBounds): voi
 }
 
 /**
- * What they are doing, what it is costing, and whether the last order was worth making.
+ * The readout band: three retained labels the beat writes into.
  *
- * The three readings a player actually needs, in the band the two strip labels used to occupy.
- * The old dock named the enemy's shape — `họ: Thế Nỏ` — which is a fact about vocabulary, not a
- * situation anybody can act on. Written plainly the ring turns out to be common sense: spears
- * stop horses, shields stop arrows, spread out and the arrows miss. The names were the barrier.
+ * The three readings a player actually needs, in the band the two strip labels used to occupy —
+ * what the last exchange cost, whether the arms favour us, and the one-slot verdict on the
+ * right. Built empty here; `drawBattleDock` fills them, because every one of them moves on the
+ * beat and none of them should cost a rebuild.
  */
 function buildBattleReadout(self: ConquestUIScene, battle: AscentBattle, y: number): void {
   const ui = self.battleUi;
-  if (!ui) return;
+  const dock = ui?.dock;
+  if (!ui || !dock) return;
   const { content, orders } = ui;
-  const walking = (battle.reformBeats ?? 0) > 0;
+  void battle;
 
-  /**
-   * The band is the *price* now. What the enemy is doing left it for the bubble over their own
-   * men, which is where it always belonged — a caption in the dock naming a shape, a hundred and
-   * eighty points below the two blocks of figures it was about, made the reader take on trust
-   * which of them it referred to.
-   *
-   * What is left is the pair of readings that genuinely belong beside the dials, because both
-   * are about the order last given: what this beat cost, and whether the arms in the two hosts
-   * favour us.
-   */
-  const loss = battle.lastBeatLoss;
-  const price = walking ? t('ascent.battle.walkingWhy')
-    : loss ? `${t('ascent.battle.priceOurs', { ours: String(Math.round(loss.ours)) })}  ·  `
-      + t('ascent.battle.priceTheirs', { theirs: String(Math.round(loss.theirs)) })
-      : t('ascent.battle.priceOpening');
-  const losing = !walking && loss !== undefined && loss.ours > loss.theirs;
-  orders.add(self.ui.label(content.x + 2, y, price, 'label', {
+  dock.price = self.ui.label(content.x + 2, y, '', 'label', {
     fontSize: '11px',
-    color: walking ? INK_UI_HEX.mutedText
-      : losing ? '#8a2a1b'
-        : loss ? '#4c5f45' : INK_UI_HEX.mutedText,
-  }));
+    color: INK_UI_HEX.mutedText,
+  });
+  orders.add(dock.price);
 
-  // How the two hosts' arms meet — spears against horse, bows against spears. Computed by the
-  // fight, and until now printed in a loose line under the rails, where it sat beside the
-  // telegraph and was read as part of it.
-  const arms = battle.ourMatchup ?? 1;
-  if (Math.abs(arms - 1) > 0.03) {
-    orders.add(self.ui.label(
-      content.x + 2, y + 13,
-      arms > 1 ? t('ascent.battle.armsGood') : t('ascent.battle.armsBad'), 'caption',
-      { fontSize: '9px', color: arms > 1 ? '#4c5f45' : '#8a2a1b' },
-    ));
-  }
+  dock.arms = self.ui.label(content.x + 2, y + 13, '', 'caption', {
+    fontSize: '9px',
+    color: '#4c5f45',
+  });
+  orders.add(dock.arms);
 
-
-  /**
-   * One slot on the right, and three things that might want it.
-   *
-   * Ranked, because they are about narrowing spans of time and the narrowest is the most useful:
-   * *the order you just gave landed and it counters* beats *this round went your way* beats *the
-   * last three did not and you have not answered*.
-   *
-   * Winning is announced the moment it is true. Losing is not its mirror — one bad exchange is
-   * noise, and a banner that flickers on every other beat is a banner a player learns to ignore
-   * inside one fight. It waits for three rounds against us with no order given in them, which is
-   * the case actually worth interrupting for: somebody being countered who has not noticed.
-   */
-  const beatNow = (battle.approachBeats ?? 0) + battle.round;
-  const landed = battle.landedBeat !== undefined && beatNow - battle.landedBeat <= 1 && !walking;
-  const adrift = (battle.lostRun ?? 0) >= 3 && (battle.beatsSinceOurShape ?? 0) >= 3;
-  const verdict = landed
-    ? (battle.landedCountered === true
-      ? { text: t('ascent.battle.landedGood'), colour: INK_UI.jade, loud: true }
-      : { text: t('ascent.battle.landedEven'), colour: undefined, loud: false })
-    : battle.wonLast === true
-      ? { text: t('ascent.battle.winning'), colour: INK_UI.jade, loud: true }
-      : adrift
-        // The verb follows the meter: with a pip in hand the answer is a shape, with none it is
-        // the one button that cuts the bleed while a pip comes back.
-        ? {
-          text: battleStamina(battle).pips > 0
-            ? t('ascent.battle.losing') : t('ascent.battle.losingNoPips'),
-          colour: INK_UI.cinnabar, loud: true,
-        }
-        : undefined;
-  if (!verdict) return;
-
-  const stamp = self.ui.label(
-    content.x + content.width - 2, y + 4, verdict.text, 'label',
-    {
-      fontSize: verdict.loud ? '10.5px' : '9px',
-      color: verdict.colour
-        ? cssHex(verdict.colour)
-        : INK_UI_HEX.mutedText,
-    },
+  dock.verdict = self.ui.label(
+    content.x + content.width - 2, y + 4, '', 'label',
+    { fontSize: '9px', color: INK_UI_HEX.mutedText },
   ).setOrigin(1, 0);
-  orders.add(stamp);
-  if (verdict.loud) {
-    self.tweens.add({
-      targets: stamp, scale: { from: 1.28, to: 1 }, duration: 260, ease: 'Back.easeOut',
-    });
-  }
+  orders.add(dock.verdict);
 }

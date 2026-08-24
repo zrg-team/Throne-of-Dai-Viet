@@ -32,6 +32,9 @@ const page = await browser.newPage({ viewport: { width: 390, height: 620 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+// Pinned: every literal this file asserts (‘Next’, ‘re-forming’, the bubble lines) is the
+// English catalog's. The game's default language is the player's business; the harness's is not.
+await page.addInitScript(() => localStorage.setItem('mandate:language:v1', 'en'));
 
 await page.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
