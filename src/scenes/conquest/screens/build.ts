@@ -112,6 +112,31 @@ export function showBuildScreen(self: ConquestUIScene): void {
     canClaim ? () => showClaimTargets(self) : undefined,
   );
 
+  // Who decides the routine claims — the only automation in this mode that spends the player's
+  // gold and their one claim slot without being asked.
+  //
+  // It is here rather than in Settings because this is the screen that already shows the slot it
+  // takes and the claims it has running; a switch that governs the heading two rows above it is
+  // read in the place its effect is visible. Asking is the default: a province appearing in the
+  // realm unannounced is the same complaint `autoMusterSilently` was added to answer.
+  const autoClaim = state.ascent?.autoClaimSilently ?? false;
+  addRow(
+    {
+      title: autoClaim ? t('ascent.claim.autoSilent') : t('ascent.claim.autoAsk'),
+      subtitle: autoClaim ? t('ascent.claim.autoSilentHint') : t('ascent.claim.autoAskHint'),
+      border: autoClaim ? INK_UI.gold : INK_UI.softBrush,
+      muted: !autoClaim,
+    },
+    () => {
+      if (state.ascent) state.ascent.autoClaimSilently = !autoClaim;
+      // Repaint in place so the row states the setting the player just chose. `refresh` for the
+      // same reason `showClaimDetail` needs it: an open lane holds the world, and a held world
+      // never emits `state-changed`.
+      self.replaceLanePage(() => showBuildScreen(self));
+      self.refresh();
+    },
+  );
+
   // **Every province opens, always.**
   //
   // This row used to pass no handler at all while a building was going up — `order ? undefined :

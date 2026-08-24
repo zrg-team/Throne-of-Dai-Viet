@@ -1,5 +1,10 @@
 import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../../game/constants';
-import { MARCH_HOLD_TICKS, MARCH_REPROMPT_TICKS, XP_PER_LAND_TAKEN } from '../../game/ascentConfig';
+import {
+  CLAIM_DECLINE_TICKS,
+  MARCH_HOLD_TICKS,
+  MARCH_REPROMPT_TICKS,
+  XP_PER_LAND_TAKEN,
+} from '../../game/ascentConfig';
 import {
   bribeLand,
   claimBlockedReason,
@@ -54,6 +59,7 @@ export function ensureAscentLaneState(state: GameState): void {
   ascent.promptWaiting ??= {};
   ascent.famineCooldown ??= 0;
   ascent.autoResolveBattles ??= false;
+  ascent.autoClaimSilently ??= false;
   ascent.lastWatchedWave ??= -1;
   ascent.drawnCourtCards ??= [];
   ascent.lastPromptTurn ??= 0;
@@ -488,6 +494,9 @@ export function holdConquest(state: GameState): void {
   ascent.frontBlocked = false;
   ascent.frontLandId = undefined;
   ascent.marchCooldown = MARCH_HOLD_TICKS;
+  // A realm that has just said "not yet" to taking ground must not be shown the court's own
+  // claim proposal on the next tick. `marchCooldown` governs the march; this governs the ask.
+  ascent.claimDeclinedUntil = state.turn + CLAIM_DECLINE_TICKS;
   ascent.laneState.lastDecisionTurn.conquer = state.turn;
 }
 

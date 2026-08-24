@@ -63,6 +63,7 @@ export function createAscentState(): AscentState {
     famineCooldown: 0,
     autoResolveBattles: false,
     autoMusterSilently: false,
+    autoClaimSilently: false,
     lastWatchedWave: -1,
     lastPromptTurn: 0,
     drawnCourtCards: [],
