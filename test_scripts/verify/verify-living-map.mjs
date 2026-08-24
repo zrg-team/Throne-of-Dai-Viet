@@ -167,6 +167,10 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
         .map((c) => c.getData?.('menuCurrentInterpolation')) ?? [],
       currentMotions: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
         .map((c) => c.getData?.('menuCurrentMotion')) ?? [],
+      currentAnchors: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => c.getData?.('menuCurrentAnchor')) ?? [],
+      currentVisibilities: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => c.getData?.('menuCurrentVisibility')) ?? [],
       currentTravelLimits: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
         .map((c) => c.getData?.('menuCurrentTravel')) ?? [],
       currentMaxAlpha: Math.max(0, ...(waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
@@ -280,13 +284,15 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
     && menu.art.mountainMist.durations.every((duration) => duration <= 10_000),
   `${movingMist}/${menu.art.mountainMist.count} wisps moved over 900ms`);
   check(`${label}: water uses a soft veil and local shimmer rather than traveling scratches`, menu.interaction === 'river-ripple'
-    && menu.ripple > 0 && menu.wakes > 0 && menu.currents >= 4
-    && menu.waterVeilBands === 3 && menu.currentMaxAlpha >= 0.12 && movingCurrents >= 3
-    && menu.currentDurations.every((duration) => duration >= 3_800 && duration <= 6_500)
+    && menu.ripple > 0 && menu.wakes > 0 && menu.currents >= 6
+    && menu.waterVeilBands === 3 && menu.currentMaxAlpha >= 0.26 && movingCurrents >= 5
+    && Math.min(...menu.currentAnchors) <= 0.2 && Math.max(...menu.currentAnchors) >= 0.94
+    && menu.currentDurations.every((duration) => duration >= 6_000 && duration <= 9_500)
     && menu.currentInterpolations.every((mode) => mode === 'anchored-sine')
     && menu.currentMotions.every((mode) => mode === 'local-surface-shimmer')
-    && menu.currentTravelLimits.every((distance) => distance <= 2)
-    && currentTravel.every((distance) => distance < 1.5)
+    && menu.currentVisibilities.every((mode) => mode === 'readable-soft')
+    && menu.currentTravelLimits.every((distance) => distance <= 4.1)
+    && currentTravel.every((distance) => distance < 2)
     && ['tap', 'drag', 'hover-wake'].every((gesture) => menu.gestures.includes(gesture)),
   `${menu.currents} shimmers (${movingCurrents} moving, max ${Math.max(...currentTravel).toFixed(2)}px/900ms, alpha ${menu.currentMaxAlpha.toFixed(2)}), ${menu.ripple} ripple(s), ${menu.wakes} wake(s), ${menu.tweens} tweens playing`);
   const lotusLayer = menu.art?.layers?.find((layer) => layer.name === 'lotus');

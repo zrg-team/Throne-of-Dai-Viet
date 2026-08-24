@@ -278,6 +278,16 @@ export function applyPendingRenderScale(game: Phaser.Game): boolean {
     rendererConfig.pathDetailThreshold = 2 * appliedScale;
   }
   for (const fn of scaleListeners) fn(appliedScale);
+  // EVERY live scene, not just the ones about to run create(): a run kept alive behind the menu
+  // (exit -> settings -> continue) wakes with whatever zoom it fell asleep at, and a stale zoom
+  // on a resized buffer shows a magnified corner of the sheet. Measured on a player's screen
+  // before it was measured here.
+  for (const scene of game.scene.getScenes(false)) {
+    try {
+      applyRenderScale(scene);
+    } catch { /* a scene mid-teardown has no camera to fix */ }
+  }
+
   return true;
 }
 

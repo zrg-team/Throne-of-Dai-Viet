@@ -588,8 +588,9 @@ export class MenuScene extends Phaser.Scene {
       const anchor = shimmerAnchors[index];
       const point = river.getPointAt(anchor);
       const tangent = river.getTangentAt(anchor).normalize();
-      const travel = 2.2 + (index % 3) * 0.6;
-      const span = 8 + anchor * 11;
+      const travel = 2.8 + (index % 3) * 0.6;
+      const span = 7 + anchor * 8;
+      const baseScale = 0.58 + anchor * 0.66;
       const current = this.add.graphics()
         .setData('menuAmbient', 'river-current')
         .setData('menuCurrentMotion', 'local-surface-shimmer')
@@ -601,38 +602,47 @@ export class MenuScene extends Phaser.Scene {
       layers.waterFx.add(current);
       // A pale reflected patch and two broken contour lines read as moving water at phone scale.
       // Their container only shifts locally, so the marks breathe instead of sliding downstream.
-      current.fillStyle(PIGMENT.diepHi, 0.52);
-      current.fillEllipse(0, 0.4, span * 1.85, 2.4 + anchor * 1.5);
+      current.fillStyle(PIGMENT.diepHi, 0.62);
+      current.fillEllipse(0, 0.5, span * 2.05, 2.8 + anchor * 1.5);
       inkPath(current, [
-        { x: -span, y: 0 }, { x: -span * 0.35, y: -0.48 },
-        { x: span * 0.3, y: 0.34 }, { x: span, y: -0.12 },
+        { x: -span, y: 0 }, { x: -span * 0.66, y: -0.42 }, { x: -span * 0.32, y: -0.08 },
       ], 7200 + index, {
-        width: 0.78,
-        alpha: 0.78,
-        colour: PIGMENT.cham,
-        wobble: 0.14,
-        step: 4,
-      });
-      inkPath(current, [
-        { x: -span * 0.72, y: 2.1 }, { x: -span * 0.08, y: 1.55 },
-        { x: span * 0.62, y: 1.9 },
-      ], 7250 + index, {
-        width: 0.58,
+        width: 0.68,
         alpha: 0.7,
         colour: PIGMENT.chamPale,
-        wobble: 0.11,
-        step: 4,
+        wobble: 0.14,
+        step: 3,
+      });
+      inkPath(current, [
+        { x: -span * 0.15, y: 0.08 }, { x: span * 0.18, y: -0.3 }, { x: span * 0.48, y: 0.05 },
+      ], 7225 + index, {
+        width: 0.72,
+        alpha: 0.74,
+        colour: PIGMENT.cham,
+        wobble: 0.12,
+        step: 3,
+      });
+      inkPath(current, [
+        { x: span * 0.59, y: 1.65 }, { x: span * 0.8, y: 1.35 }, { x: span, y: 1.62 },
+      ], 7250 + index, {
+        width: 0.55,
+        alpha: 0.66,
+        colour: PIGMENT.chamPale,
+        wobble: 0.1,
+        step: 3,
       });
       current
         .setPosition(point.x, point.y)
         .setRotation(Math.atan2(tangent.y, tangent.x))
-        .setScale(0.58 + anchor * 0.66)
+        .setScale(baseScale)
         .setAlpha(0.32 + (index % 2) * 0.04);
       this.tweens.add({
         targets: current,
         x: point.x + tangent.x * travel,
         y: point.y + tangent.y * travel,
         alpha: { from: 0.28 + (index % 2) * 0.03, to: 0.48 + (index % 2) * 0.03 },
+        scaleX: { from: baseScale * 0.9, to: baseScale * 1.1 },
+        scaleY: { from: baseScale * 0.96, to: baseScale * 1.04 },
         duration: current.getData('menuCurrentDuration') as number,
         yoyo: true,
         repeat: -1,
