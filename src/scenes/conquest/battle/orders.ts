@@ -61,6 +61,8 @@ export function battleOrderSignature(self: ConquestUIScene, battle: AscentBattle
     battle.ourFormation,
     battle.formationTarget ?? '',
     (battle.reformBeats ?? 0) > 0 ? 'w1' : 'w0',
+    // The wager is a structural mark on the held chip - double rim, note line.
+    battle.committed ? 'c1' : 'c0',
     read ? `${read.formation}>${read.next ?? ''}` : '',
     battleRimsShown() ? 'r1' : 'r0',
     // The seal decides whether the rims answer anything at all.
@@ -259,6 +261,15 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
       edge.strokeRoundedRect(x + 1, formY + 1, chipW - 2, BATTLE_FORMATION_HEIGHT - 2, 6);
       orders.add(edge);
     }
+    // Dồn sức stands on the chip it was wagered on: a second rim inside the first, the mark of
+    // a seal pressed twice.
+    const committedHere = held && battle.committed === true;
+    if (committedHere) {
+      const inner = self.add.graphics();
+      inner.lineStyle(2, INK_UI.cinnabar, 0.9);
+      inner.strokeRoundedRect(x + 5, formY + 5, chipW - 10, BATTLE_FORMATION_HEIGHT - 10, 4);
+      orders.add(inner);
+    }
 
     // The base ink for a chip that is *available*: what `drawBattleDock` restores when stamina
     // comes back. `gone` swaps it for `softBrush` live, because stamina moves on the beat.
@@ -288,8 +299,8 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
     // One line, shrunk to fit — never wrapped. A state note is a glance, not a sentence: it can
     // afford to be small, and it cannot afford to be tall. Created empty when the shape is
     // walking; `drawBattleDock` writes the countdown into it.
-    const noteLabel = walking
-      ? self.ui.label(0, 0, '', 'caption', {
+    const noteLabel = walking || committedHere
+      ? self.ui.label(0, 0, committedHere ? t('ascent.battle.committed') : '', 'caption', {
         fontSize: '8px',
         align: 'center',
         color: '#8a2a1b',
@@ -386,6 +397,21 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
         refuseForStamina(self, tile);
         return;
       }
+      // Dồn sức: tapping the shape already held wagers a second pip on it. This tap used to be
+      // dead (ordering what you hold is refused by the system) yet still played the spend
+      // animation - now it is the gamble, and the seal only lands when the wager is taken.
+      if (chip.held && !chip.walking) {
+        const live = self.state.ascent?.activeBattle;
+        if (!live || live.committed || battleStamina(live).pips < 1) {
+          refuseForStamina(self, tile);
+          return;
+        }
+        self.resumeBattleForOrder();
+        stampFormationChip(self, bounds);
+        spendPipInto(self, bounds);
+        self.events.emit('ui:battle-order', 'commit');
+        return;
+      }
       self.resumeBattleForOrder();
       // Before the order, because the order rebuilds this strip: the mark has to be somewhere
       // that outlives the chip that raised it.
@@ -425,15 +451,18 @@ export function drawBattleDock(self: ConquestUIScene, battle: AscentBattle): voi
       + t('ascent.battle.priceTheirs', { theirs: String(Math.round(loss.theirs)) })
       : t('ascent.battle.priceOpening');
   const losing = !walking && loss !== undefined && loss.ours > loss.theirs;
-  writeText(dock.price, price, walking ? INK_UI_HEX.mutedText
+  const priceChanged = writeText(dock.price, price, walking ? INK_UI_HEX.mutedText
     : losing ? '#8a2a1b'
       : loss ? '#4c5f45' : INK_UI_HEX.mutedText);
+  if (priceChanged) fitLabel(dock.price, ui.content.width - VERDICT_COLUMN - 8, 10.5, 8.5);
 
   const arms = battle.ourMatchup ?? 1;
   const armsText = Math.abs(arms - 1) > 0.03
     ? (arms > 1 ? t('ascent.battle.armsGood') : t('ascent.battle.armsBad'))
     : '';
-  writeText(dock.arms, armsText, arms > 1 ? '#4c5f45' : '#8a2a1b');
+  if (writeText(dock.arms, armsText, arms > 1 ? '#4c5f45' : '#8a2a1b')) {
+    fitLabel(dock.arms, ui.content.width - VERDICT_COLUMN - 8, 9, 7.5);
+  }
 
   // One slot on the right, three claimants, ranked by how narrow a span of time each is about.
   // Winning is announced the moment it is true; losing waits for three unanswered rounds.
@@ -452,8 +481,9 @@ export function drawBattleDock(self: ConquestUIScene, battle: AscentBattle): voi
           colour: cssHex(INK_UI.cinnabar), loud: true,
         }
         : undefined;
-  writeText(dock.verdict, verdict?.text ?? '', verdict?.colour);
-  dock.verdict.setFontSize(verdict?.loud ? '10.5px' : '9px');
+  if (writeText(dock.verdict, verdict?.text ?? '', verdict?.colour)) {
+    fitLabel(dock.verdict, VERDICT_COLUMN, verdict?.loud ? 10.5 : 9, 8);
+  }
   if (verdict && verdict.text !== dock.verdictKey && verdict.loud) {
     self.tweens.add({
       targets: dock.verdict, scale: { from: 1.28, to: 1 }, duration: 260, ease: 'Back.easeOut',
@@ -716,7 +746,7 @@ function buildBattleReadout(self: ConquestUIScene, battle: AscentBattle, y: numb
   void battle;
 
   dock.price = self.ui.label(content.x + 2, y, '', 'label', {
-    fontSize: '11px',
+    fontSize: '10.5px',
     color: INK_UI_HEX.mutedText,
   });
   orders.add(dock.price);
@@ -728,8 +758,25 @@ function buildBattleReadout(self: ConquestUIScene, battle: AscentBattle, y: numb
   orders.add(dock.arms);
 
   dock.verdict = self.ui.label(
-    content.x + content.width - 2, y + 4, '', 'label',
+    content.x + content.width - 2, y + 1, '', 'caption',
     { fontSize: '9px', color: INK_UI_HEX.mutedText },
   ).setOrigin(1, 0);
   orders.add(dock.verdict);
+}
+
+/** The right-hand column the verdict owns; the price and arms lines stop short of it. */
+const VERDICT_COLUMN = 118;
+
+/**
+ * One line, shrunk to fit its column - never wrapped, never printed over its neighbour. The
+ * readout band holds two Vietnamese sentences and a verdict on 350 design px, and at their
+ * longest they used to meet in the middle.
+ */
+function fitLabel(label: Phaser.GameObjects.Text, maxWidth: number, base: number, floor: number): void {
+  label.setFontSize(`${base}px`);
+  let size = base;
+  while (label.width > maxWidth && size > floor) {
+    size -= 0.5;
+    label.setFontSize(`${size}px`);
+  }
 }

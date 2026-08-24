@@ -869,6 +869,15 @@ export const BATTLE_FORMATION_TILT_BLUNT = 0.5;
 export const BATTLE_STAMINA_MAX = 2;
 
 /**
+ * How much dồn sức (a second pip wagered on the held shape) multiplies the formation tilt —
+ * in BOTH directions. 1.6 turns the standard ±0.21 tilt into ±0.34: enough that cashing a
+ * confident read visibly accelerates the fight, and enough that doubling into a counter is a
+ * mistake the player feels. Applied inside `formationTilt`, so the fight, the telegraph and
+ * the dock's price line all read the same amplified number.
+ */
+export const BATTLE_COMMIT_AMPLIFY = 1.6;
+
+/**
  * Beats until a spent pip comes back on its own. Seven is six seconds of watching.
  *
  * Measured against the invader's own cadence (he answers a counter about seven beats after it

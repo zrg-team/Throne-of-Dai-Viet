@@ -430,11 +430,13 @@ export class MenuScene extends Phaser.Scene {
       .setData('menuArtworkLayer', 'river-fx')
       .setData('menuCompositing', 'below-bamboo-and-lotus');
     artwork.add(waterFx);
-    const bamboo = layer('menu-layer-bamboo-v1', 'bamboo', 0.7)
+    const bamboo = layer('menu-layer-bamboo-v1', 'bamboo', 0.58)
       .setData('menuBambooPlacement', 'rear-field-edge-windbreak')
       .setData('menuBambooBand', 'rear-right-dike')
       .setData('menuBambooStyle', 'dong-ho-natural-pigment')
-      .setData('menuBambooCulmCount', 14);
+      .setData('menuBambooCulmCount', 14)
+      .setData('menuBambooWindMode', 'segmented-canopy-lag')
+      .setData('menuBambooWindLayers', 2);
     // The isolated grove keeps the registered 1536x1024 frame. Its measured ink bounds are
     // transformed onto the distant outer dike. At one fifth scale the roots sit on the bank line,
     // not inside a planted plot, and the grove reads as a rear windbreak rather than foreground art.
@@ -458,8 +460,24 @@ export class MenuScene extends Phaser.Scene {
         sourceBounds: bambooSourceBounds,
         targetCentre: bambooTargetCentre,
       });
+    // Wind needs parallax inside the grove, not a rigid translation of the full plate. These two
+    // cropped copies retain exact registration with the base but let upper culms and leaves lag.
+    // The roots remain only in the stable base, so the wind never slides bamboo across the dike.
+    const bambooWind = [
+      { part: 'upper-culms', crop: { x: 590, y: 590, width: 904, height: 245 }, alpha: 0.28 },
+      { part: 'leaf-canopy', crop: { x: 590, y: 448, width: 904, height: 250 }, alpha: 0.44 },
+    ].map(({ part, crop, alpha }) => {
+      const wind = this.add.image(bambooX, bambooY, 'menu-layer-bamboo-v1')
+        .setDisplaySize(width * bambooScale, height * bambooScale)
+        .setAlpha(alpha)
+        .setCrop(crop.x, crop.y, crop.width, crop.height)
+        .setData('menuBambooWindPart', part)
+        .setData('menuBambooWindHome', { x: bambooX, y: bambooY });
+      artwork.add(wind);
+      return wind;
+    });
     const lotus = layer('menu-layer-lotus-v1', 'lotus', 0.98);
-    const layers = { ground, mountains, mountainMist, waterFx, bamboo, lotus };
+    const layers = { ground, mountains, mountainMist, waterFx, bamboo, bambooWind, lotus };
 
     // The illustration carries its own softly stained paper. Feathering that paper back into the
     // scene's điệp sheet avoids a pasted rectangular edge without erasing the pale river and mist
@@ -491,6 +509,7 @@ export class MenuScene extends Phaser.Scene {
       mountainMist: Phaser.GameObjects.Container;
       waterFx: Phaser.GameObjects.Container;
       bamboo: Phaser.GameObjects.Image;
+      bambooWind: Phaser.GameObjects.Image[];
       lotus: Phaser.GameObjects.Image;
     },
   ): void {
@@ -519,17 +538,33 @@ export class MenuScene extends Phaser.Scene {
     const bambooHome = layers.bamboo.getData('menuBambooHome') as { x: number; y: number };
     this.tweens.add({
       targets: layers.bamboo,
-      x: { from: bambooHome.x - 0.35, to: bambooHome.x + 0.35 },
-      angle: { from: -0.08, to: 0.08 },
-      duration: 11_800,
+      x: { from: bambooHome.x - 0.55, to: bambooHome.x + 0.55 },
+      angle: { from: -0.16, to: 0.16 },
+      duration: 7_600,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
     });
+    layers.bambooWind.forEach((wind, index) => {
+      const home = wind.getData('menuBambooWindHome') as { x: number; y: number };
+      const amplitude = index === 0 ? 0.95 : 1.65;
+      const angle = index === 0 ? 0.42 : 0.78;
+      this.tweens.add({
+        targets: wind,
+        x: { from: home.x - amplitude, to: home.x + amplitude },
+        y: { from: home.y + 0.15, to: home.y - 0.35 - index * 0.18 },
+        angle: { from: -angle, to: angle },
+        duration: 4_500 + index * 850,
+        delay: 260 + index * 360,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    });
     // Ambient drift and pointer bending use separate proxies, then combine once onto the image.
     // Competing tweens on the image's x/y/angle caused pointer motion either to snap or to vanish
     // on the next ambient frame; two inputs into one transform behave like wind plus a soft stem.
-    const lotusAmbient = { x: -1.1, y: 1.4, angle: -0.1 };
+    const lotusAmbient = { x: -0.45, y: 0.6, angle: -0.045 };
     const lotusReaction = { x: 0, y: 0, angle: 0 };
     const applyLotusMotion = (): void => {
       layers.lotus
@@ -539,13 +574,15 @@ export class MenuScene extends Phaser.Scene {
     };
     layers.lotus
       .setData('menuMotionProxy', lotusAmbient)
-      .setData('menuLotusResponse', 'damped-pointer-spring');
+      .setData('menuLotusResponse', 'soft-damped-pointer-spring')
+      .setData('menuLotusMotionProfile', 'gentle-breeze')
+      .setData('menuLotusMaxResponse', { x: 2.2, y: 1.1, angle: 0.7 });
     this.tweens.add({
       targets: lotusAmbient,
-      x: { from: -1.1, to: 1.4 },
-      y: { from: 1.4, to: -1.4 },
-      angle: { from: -0.1, to: 0.1 },
-      duration: 4_900,
+      x: { from: -0.45, to: 0.55 },
+      y: { from: 0.6, to: -0.6 },
+      angle: { from: -0.045, to: 0.045 },
+      duration: 6_500,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
@@ -577,10 +614,14 @@ export class MenuScene extends Phaser.Scene {
       const points = Array.from({ length: 21 }, (_, sample) => (
         river.getPointAt(Phaser.Math.Linear(band.from, band.to, sample / 20))
       ));
-      riverVeil.lineStyle(Math.max(4, band.width), PIGMENT.diepHi, band.alpha);
+      riverVeil.lineStyle(Math.max(5, band.width * 1.08), PIGMENT.chamPale, band.alpha * 0.78);
+      riverVeil.strokePoints(points, false, false);
+      riverVeil.lineStyle(Math.max(3, band.width * 0.78), PIGMENT.diepHi, band.alpha);
       riverVeil.strokePoints(points, false, false);
     }
-    riverVeil.setData('menuRiverVeilBands', glazeBands.length);
+    riverVeil
+      .setData('menuRiverVeilBands', glazeBands.length)
+      .setData('menuWaterGraphic', 'two-tone-reflection-wash');
 
     const currentCount = getGraphicsQuality() === 'low' ? 6 : 8;
     const shimmerAnchors = [0.18, 0.3, 0.43, 0.56, 0.68, 0.79, 0.88, 0.95];
@@ -595,52 +636,31 @@ export class MenuScene extends Phaser.Scene {
         .setData('menuAmbient', 'river-current')
         .setData('menuCurrentMotion', 'local-surface-shimmer')
         .setData('menuCurrentVisibility', 'readable-soft')
+        .setData('menuCurrentGraphic', 'broken-light-reflections')
         .setData('menuCurrentInterpolation', 'anchored-sine')
         .setData('menuCurrentAnchor', anchor)
         .setData('menuCurrentTravel', travel)
         .setData('menuCurrentDuration', 6_000 + index * 430);
       layers.waterFx.add(current);
-      // A pale reflected patch and two broken contour lines read as moving water at phone scale.
-      // Their container only shifts locally, so the marks breathe instead of sliding downstream.
-      current.fillStyle(PIGMENT.diepHi, 0.62);
-      current.fillEllipse(0, 0.5, span * 2.05, 2.8 + anchor * 1.5);
-      inkPath(current, [
-        { x: -span, y: 0 }, { x: -span * 0.66, y: -0.42 }, { x: -span * 0.32, y: -0.08 },
-      ], 7200 + index, {
-        width: 0.68,
-        alpha: 0.7,
-        colour: PIGMENT.chamPale,
-        wobble: 0.14,
-        step: 3,
-      });
-      inkPath(current, [
-        { x: -span * 0.15, y: 0.08 }, { x: span * 0.18, y: -0.3 }, { x: span * 0.48, y: 0.05 },
-      ], 7225 + index, {
-        width: 0.72,
-        alpha: 0.74,
-        colour: PIGMENT.cham,
-        wobble: 0.12,
-        step: 3,
-      });
-      inkPath(current, [
-        { x: span * 0.59, y: 1.65 }, { x: span * 0.8, y: 1.35 }, { x: span, y: 1.62 },
-      ], 7250 + index, {
-        width: 0.55,
-        alpha: 0.66,
-        colour: PIGMENT.chamPale,
-        wobble: 0.1,
-        step: 3,
-      });
+      // Broken pools of reflected paper replace drawn contour strokes. The authored base already
+      // has ink lines; animation should modulate light across them, not add a second illustration.
+      const glintHeight = 2.4 + anchor * 1.25;
+      current.fillStyle(PIGMENT.diepHi, 0.78);
+      current.fillEllipse(-span * 0.58, 0.15, span * 0.72, glintHeight);
+      current.fillEllipse(span * 0.02, -0.3, span * 0.88, glintHeight * 0.78);
+      current.fillEllipse(span * 0.69, 0.42, span * 0.46, glintHeight * 0.62);
+      current.fillStyle(PIGMENT.chamPale, 0.22);
+      current.fillEllipse(-span * 0.05, 1.05, span * 0.58, Math.max(0.8, glintHeight * 0.3));
       current
         .setPosition(point.x, point.y)
         .setRotation(Math.atan2(tangent.y, tangent.x))
         .setScale(baseScale)
-        .setAlpha(0.32 + (index % 2) * 0.04);
+        .setAlpha(0.38 + (index % 2) * 0.04);
       this.tweens.add({
         targets: current,
         x: point.x + tangent.x * travel,
         y: point.y + tangent.y * travel,
-        alpha: { from: 0.28 + (index % 2) * 0.03, to: 0.48 + (index % 2) * 0.03 },
+        alpha: { from: 0.32 + (index % 2) * 0.03, to: 0.58 + (index % 2) * 0.03 },
         scaleX: { from: baseScale * 0.9, to: baseScale * 1.1 },
         scaleY: { from: baseScale * 0.96, to: baseScale * 1.04 },
         duration: current.getData('menuCurrentDuration') as number,
@@ -811,20 +831,20 @@ export class MenuScene extends Phaser.Scene {
       const dx = lastLotusPointer ? localX - lastLotusPointer.x : fallbackX;
       const dy = lastLotusPointer ? localY - lastLotusPointer.y : fallbackY;
       lastLotusPointer = { x: localX, y: localY };
-      const strength = pointer.isDown ? 1 : 0.52;
+      const strength = pointer.isDown ? 0.68 : 0.32;
       wakeBelowLotus(pointer, localX, localY);
       this.tweens.killTweensOf(lotusReaction);
-      lotusReaction.x = Phaser.Math.Clamp(lotusReaction.x + dx * 0.22 * strength, -4.8, 4.8);
-      lotusReaction.y = Phaser.Math.Clamp(lotusReaction.y + dy * 0.12 * strength, -2.4, 2.4);
-      lotusReaction.angle = Phaser.Math.Clamp(lotusReaction.angle + dx * 0.09 * strength, -1.8, 1.8);
+      lotusReaction.x = Phaser.Math.Clamp(lotusReaction.x + dx * 0.12 * strength, -2.2, 2.2);
+      lotusReaction.y = Phaser.Math.Clamp(lotusReaction.y + dy * 0.055 * strength, -1.1, 1.1);
+      lotusReaction.angle = Phaser.Math.Clamp(lotusReaction.angle + dx * 0.035 * strength, -0.7, 0.7);
       applyLotusMotion();
       this.tweens.add({
         targets: lotusReaction,
         x: 0,
         y: 0,
         angle: 0,
-        duration: pointer.isDown ? 940 : 720,
-        ease: 'Back.easeOut',
+        duration: pointer.isDown ? 1_180 : 980,
+        ease: 'Sine.easeOut',
         onUpdate: applyLotusMotion,
       });
     };

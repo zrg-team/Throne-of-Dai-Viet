@@ -16,7 +16,7 @@ import { raiseHostWithPlan, type MusterPlan } from '../systems/ascent/MusterSyst
 import { pushToast } from '../systems/empire/notifications';
 import { disbandArmy } from '../systems/WarSystem';
 import {
-  answerBattleMoment, delegateBattle, finishBattle, markPlayerSteered, setBattleFormation,
+  answerBattleMoment, delegateBattle, finishBattle, markPlayerSteered, commitBattleFormation, setBattleFormation,
   setBattleStance,
 } from '../systems/ascent/BattleSystem';
 import { createAscentGameState } from '../state/GameState';
@@ -409,6 +409,10 @@ export class ConquestScene extends MapScene {
       } else if (order.startsWith('formation:')) {
         markPlayerSteered(this.state, 'formation');
         setBattleFormation(this.state, order.slice(10) as BattleFormation);
+      } else if (order === 'commit') {
+        // Dồn sức: a second pip wagered on the held shape. Steering, by any name.
+        markPlayerSteered(this.state, 'formation');
+        commitBattleFormation(this.state);
       } else if (order === 'leave') {
         // Hand the rest of it over and step away. `delegateBattle` hands over the *remainder* —
         // the battlefield keeps running and the player can take the field back at any point — so

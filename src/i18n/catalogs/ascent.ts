@@ -930,6 +930,7 @@ export const enAscent = {
   "ascent.battle.priceOpening": "the lines have not met",
   "ascent.battle.walkingThreat": "our men are re-forming",
   "ascent.battle.walkingWhy": "no shape yet — this is what the change costs",
+  "ascent.battle.committed": "all-in ×2",
   "ascent.battle.landedGood": "ĐÚNG THẾ · GOOD CALL",
   // The exchange, as it stands. Winning the moment it is true; losing only after three rounds
   // against us with no order given — see `buildBattleReadout`.
@@ -2348,6 +2349,7 @@ export const viAscent = {
   "ascent.battle.priceOpening": "hai bên chưa giáp trận",
   "ascent.battle.walkingThreat": "quân ta đang chuyển thế",
   "ascent.battle.walkingWhy": "chưa vào thế — đây là cái giá của việc đổi",
+  "ascent.battle.committed": "dồn sức ×2",
   "ascent.battle.landedGood": "ĐÚNG THẾ",
   "ascent.battle.winning": "ĐANG THẮNG",
   "ascent.battle.losing": "ĐANG THUA · ĐỔI THẾ",

@@ -35,6 +35,7 @@ import {
   BATTLE_STAMINA_REGEN_BEATS,
   BATTLE_TEMPER,
   type CommanderTemper,
+  BATTLE_COMMIT_AMPLIFY,
 } from '../../game/ascentConfig';
 import { battleAnswersEven, battleBeatsPerTick, battleReactDelay } from '../../game/battleOptions';
 import {
@@ -762,7 +763,10 @@ function formationTilt(battle: AscentBattle): number {
   if (tier < 0 && (bonus?.guardBeats ?? 0) > 0) return 0;
 
   const size = (bonus?.sharpBeats ?? 0) > 0 ? BATTLE_FORMATION_TILT_SHARP : BATTLE_FORMATION_TILT;
-  return (tier / 2) * size;
+  // Dồn sức amplifies the tilt both ways — here, at the single source, so the exchange, the
+  // telegraph and the dock's price line cannot disagree about what the wager is doing.
+  const wager = battle.committed ? BATTLE_COMMIT_AMPLIFY : 1;
+  return (tier / 2) * size * wager;
 }
 
 /**
@@ -2115,6 +2119,8 @@ export function setBattleFormation(state: GameState, formation: BattleFormation)
   battle.beatsSinceOurShape = 0;
   battle.lostRun = 0;
   battle.freeReform = false;
+  // The wager rides one stand: changing shape folds it.
+  battle.committed = false;
   battle.formationTarget = formation;
   battle.reformBeats = beats;
   // What it counted down from, so the dock can show how far the order has walked. A bar that does
@@ -2125,6 +2131,27 @@ export function setBattleFormation(state: GameState, formation: BattleFormation)
     battle.formationTarget = undefined;
     markFormationLanded(battle);
   }
+  return true;
+}
+
+/**
+ * Dồn sức: wager a second pip on the shape already held.
+ *
+ * The pip buys amplitude, not direction — `formationTilt` swings harder BOTH ways while the
+ * wager stands, so this is the confident player's tool and the impatient player's trap. One
+ * wager per stand; a change of shape folds it (see `setBattleFormation`); a walk cannot be
+ * wagered on because a walking host has no shape to bet on.
+ */
+export function commitBattleFormation(state: GameState): boolean {
+  const battle = state.ascent?.activeBattle;
+  if (!battle || battle.over) return false;
+  if (reforming(battle.reformBeats)) return false;
+  if (battle.committed) return false;
+  if (staminaOf(battle) < 1) return false;
+  battle.stamina = staminaOf(battle) - 1;
+  battle.staminaClock ??= BATTLE_STAMINA_REGEN_BEATS;
+  battle.committed = true;
+  battle.beatsSinceOurShape = 0;
   return true;
 }
 
