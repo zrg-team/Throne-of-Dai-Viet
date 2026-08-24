@@ -742,7 +742,7 @@ export class MenuScene extends Phaser.Scene {
     }
 
     // Direction is carried by a sparse set of paper-light flecks following the actual spline.
-    // They are intentionally tiny, not lines, and take close to a minute to cross the illustration;
+    // They are intentionally tiny, not lines, and take well over a minute to cross the illustration;
     // this makes the river unmistakably alive without returning to the fast sliding-current look.
     const flowMoteCount = getGraphicsQuality() === 'low' ? 6 : 9;
     const flowMoteLanes = [-0.72, -0.34, 0.12, 0.58, 0.76, -0.52, 0.36, 0.68, -0.12];
@@ -762,7 +762,7 @@ export class MenuScene extends Phaser.Scene {
 
       const flow = { clock: 0 };
       const offset = (index + 0.35) / flowMoteCount;
-      const duration = 46_000 + (index % 4) * 3_200;
+      const duration = Math.round((110_000 + (index % 4) * 7_000) * (width / 326));
       mote
         .setData('menuRiverMoteDuration', duration)
         .setData('menuRiverMoteProxy', flow);

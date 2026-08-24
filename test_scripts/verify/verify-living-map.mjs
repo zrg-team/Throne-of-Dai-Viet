@@ -360,7 +360,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
     && Math.min(...menu.currentLanes) <= -0.58 && Math.max(...menu.currentLanes) >= 0.65
     && Math.min(...menu.riverPulseLanes) <= -0.6 && Math.max(...menu.riverPulseLanes) >= 0.55
     && Math.min(...menu.riverMoteLanes) <= -0.7 && Math.max(...menu.riverMoteLanes) >= 0.68
-    && menu.riverMoteDurations.every((duration) => duration >= 46_000 && duration <= 56_000)
+    && menu.riverMoteDurations.every((duration) => duration >= 108_000 && duration <= 172_000)
     && movingRiverMotes >= 5 && riverMoteTravel.every((distance) => distance < 8)
     && menu.waterVeilBands === 3 && menu.waterGraphic === 'two-tone-reflection-wash'
     && menu.currentMaxAlpha >= 0.26 && movingCurrents >= 5

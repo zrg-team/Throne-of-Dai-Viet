@@ -32,6 +32,7 @@ import {
 } from '../constants';
 import { clearLayer } from '../layers';
 import type { ConquestUIScene } from '../../ConquestUIScene';
+import { setBattleEscalationWave } from '../../../game/battleOptions';
 
 /**
  * How far the two lines stand in from the edge of the sheet.
@@ -401,6 +402,9 @@ function battleHeaderFrame(self: ConquestUIScene, battle: AscentBattle): {
 export function showBattle(self: ConquestUIScene): void {
   const battle = self.state.ascent?.activeBattle;
   if (!battle) return;
+
+  // The escalation floors read this run's wave; everything outside Dragon Ascent stays at 0.
+  setBattleEscalationWave(self.state.ascent?.wave ?? 0);
 
   self.battleItems ??= createMapItemRenderer(self);
   // A fresh field starts even: the press belongs to this engagement, not the last one.
