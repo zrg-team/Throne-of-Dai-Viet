@@ -398,7 +398,7 @@ export class MenuScene extends Phaser.Scene {
         version: 9,
         layers: ['ground', 'mountains', 'mountain-mist', 'river-fx', 'bamboo', 'lotus'],
         composition: ['karst-mountains', 's-curve-river', 'foreground-lotus', 'right-bank-paddies', 'right-bank-bamboo-grove'],
-        motion: ['mountain-drift', 'mountain-mist', 'bamboo-breeze', 'lotus-sway', 'pointer-lotus-spring', 'river-surface-shimmer', 'lotus-water-wakes', 'tap-and-drag-wakes'],
+        motion: ['mountain-drift', 'mountain-mist', 'bamboo-breeze', 'lotus-sway', 'pointer-lotus-spring', 'river-surface-drift', 'lotus-water-wakes', 'tap-and-drag-wakes'],
         width,
         height,
       });
@@ -564,7 +564,7 @@ export class MenuScene extends Phaser.Scene {
     // Ambient drift and pointer bending use separate proxies, then combine once onto the image.
     // Competing tweens on the image's x/y/angle caused pointer motion either to snap or to vanish
     // on the next ambient frame; two inputs into one transform behave like wind plus a soft stem.
-    const lotusAmbient = { x: -0.45, y: 0.6, angle: -0.045 };
+    const lotusAmbient = { x: -0.95, y: 0.8, angle: -0.09 };
     const lotusReaction = { x: 0, y: 0, angle: 0 };
     const applyLotusMotion = (): void => {
       layers.lotus
@@ -575,14 +575,15 @@ export class MenuScene extends Phaser.Scene {
     layers.lotus
       .setData('menuMotionProxy', lotusAmbient)
       .setData('menuLotusResponse', 'soft-damped-pointer-spring')
-      .setData('menuLotusMotionProfile', 'gentle-breeze')
+      .setData('menuLotusMotionProfile', 'visible-gentle-breeze')
+      .setData('menuLotusAmbientRange', { x: 2, y: 1.6, angle: 0.18, duration: 5_800 })
       .setData('menuLotusMaxResponse', { x: 2.2, y: 1.1, angle: 0.7 });
     this.tweens.add({
       targets: lotusAmbient,
-      x: { from: -0.45, to: 0.55 },
-      y: { from: 0.6, to: -0.6 },
-      angle: { from: -0.045, to: 0.045 },
-      duration: 6_500,
+      x: { from: -0.95, to: 1.05 },
+      y: { from: 0.8, to: -0.8 },
+      angle: { from: -0.09, to: 0.09 },
+      duration: 5_800,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
@@ -629,18 +630,22 @@ export class MenuScene extends Phaser.Scene {
       const anchor = shimmerAnchors[index];
       const point = river.getPointAt(anchor);
       const tangent = river.getTangentAt(anchor).normalize();
-      const travel = 2.8 + (index % 3) * 0.6;
+      // A phone-size canvas needs several pixels of total travel before a slow reflection reads as
+      // motion. This remains an order of magnitude slower than the rejected fast-current version:
+      // roughly 0.3px per 260ms, with sine easing, rather than 3px in the same interval.
+      const travel = 7 + (index % 3) * 1.2;
       const span = 7 + anchor * 8;
       const baseScale = 0.58 + anchor * 0.66;
+      const duration = 7_200 + index * 460;
       const current = this.add.graphics()
         .setData('menuAmbient', 'river-current')
-        .setData('menuCurrentMotion', 'local-surface-shimmer')
-        .setData('menuCurrentVisibility', 'readable-soft')
+        .setData('menuCurrentMotion', 'local-surface-drift')
+        .setData('menuCurrentVisibility', 'readable-gentle')
         .setData('menuCurrentGraphic', 'broken-light-reflections')
         .setData('menuCurrentInterpolation', 'anchored-sine')
         .setData('menuCurrentAnchor', anchor)
         .setData('menuCurrentTravel', travel)
-        .setData('menuCurrentDuration', 6_000 + index * 430);
+        .setData('menuCurrentDuration', duration);
       layers.waterFx.add(current);
       // Broken pools of reflected paper replace drawn contour strokes. The authored base already
       // has ink lines; animation should modulate light across them, not add a second illustration.
@@ -655,15 +660,15 @@ export class MenuScene extends Phaser.Scene {
         .setPosition(point.x, point.y)
         .setRotation(Math.atan2(tangent.y, tangent.x))
         .setScale(baseScale)
-        .setAlpha(0.38 + (index % 2) * 0.04);
+        .setAlpha(0.44 + (index % 2) * 0.04);
       this.tweens.add({
         targets: current,
         x: point.x + tangent.x * travel,
         y: point.y + tangent.y * travel,
-        alpha: { from: 0.32 + (index % 2) * 0.03, to: 0.58 + (index % 2) * 0.03 },
-        scaleX: { from: baseScale * 0.9, to: baseScale * 1.1 },
-        scaleY: { from: baseScale * 0.96, to: baseScale * 1.04 },
-        duration: current.getData('menuCurrentDuration') as number,
+        alpha: { from: 0.38 + (index % 2) * 0.03, to: 0.68 + (index % 2) * 0.03 },
+        scaleX: { from: baseScale * 0.92, to: baseScale * 1.08 },
+        scaleY: { from: baseScale * 0.97, to: baseScale * 1.03 },
+        duration,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut',

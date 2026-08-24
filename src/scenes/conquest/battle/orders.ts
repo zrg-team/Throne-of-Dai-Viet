@@ -111,6 +111,7 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
     pipsKey: '',
     pipGeom: { px: 0, topY: 0 },
     defendChosen: false,
+    committedShown: ui.dock?.committedShown ?? false,
     lastFlareBeat: ui.dock?.lastFlareBeat ?? -1,
     chips: {},
   };
@@ -269,6 +270,12 @@ export function buildBattleOrders(self: ConquestUIScene, battle: AscentBattle): 
       inner.lineStyle(2, INK_UI.cinnabar, 0.9);
       inner.strokeRoundedRect(x + 5, formY + 5, chipW - 10, BATTLE_FORMATION_HEIGHT - 10, 4);
       orders.add(inner);
+      // The wager BREATHES while it stands - a held bet under tension, not a label. The strip's
+      // own clear kills this with the rim, the same as the awaiting-order pulse.
+      self.tweens.add({
+        targets: inner, alpha: { from: 0.9, to: 0.4 }, duration: 620,
+        yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      });
     }
 
     // The base ink for a chip that is *available*: what `drawBattleDock` restores when stamina
@@ -439,6 +446,13 @@ export function drawBattleDock(self: ConquestUIScene, battle: AscentBattle): voi
   const ui = self.battleUi;
   const dock = ui?.dock;
   if (!ui || !dock) return;
+
+  // The men answer the wager the moment it is taken, whichever path took it.
+  const committedNow = battle.committed === true;
+  if (committedNow !== dock.committedShown) {
+    if (committedNow) surgeCommittedLine(self);
+    dock.committedShown = committedNow;
+  }
 
   const stamina = battleStamina(battle);
   const walking = (battle.reformBeats ?? 0) > 0;
@@ -660,6 +674,23 @@ function spendPipInto(self: ConquestUIScene, bounds: UIBounds): void {
     ease: 'Quad.easeIn',
     onComplete: () => dot.destroy(),
   });
+}
+
+/**
+ * The line answers the wager: every column of ours leans a step toward the enemy and settles
+ * back. One-shot and shorter than a beat, so `slideMarkers`' per-beat tween kill never catches
+ * it mid-flight and the line's true position is never contested.
+ */
+function surgeCommittedLine(self: ConquestUIScene): void {
+  const ui = self.battleUi;
+  if (!ui) return;
+  for (const entry of ui.ourMarkers) {
+    if (!entry.marker?.active || entry.routed) continue;
+    self.tweens.add({
+      targets: entry.marker, x: entry.marker.x + 6, duration: 160,
+      yoyo: true, ease: 'Quad.easeOut',
+    });
+  }
 }
 
 /** Nothing to spend: the pips flash red and the chip shivers. */

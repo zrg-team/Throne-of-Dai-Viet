@@ -490,6 +490,8 @@ export class ConquestUIScene extends Phaser.Scene {
       pipGeom: { px: number; topY: number };
       defendBounds?: UIBounds;
       defendChosen: boolean;
+      /** Whether the field has already answered the current wager (see drawBattleDock). */
+      committedShown: boolean;
       defendGlow?: Phaser.GameObjects.Graphics;
       lastFlareBeat: number;
       chips: Record<string, {

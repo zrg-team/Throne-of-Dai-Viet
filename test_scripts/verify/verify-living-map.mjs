@@ -130,6 +130,10 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
           fieldContinuity: layer.getData('menuFieldContinuity') ?? null,
           lotusResponse: layer.getData('menuLotusResponse') ?? null,
           lotusMotionProfile: layer.getData('menuLotusMotionProfile') ?? null,
+          lotusAmbientRange: layer.getData('menuLotusAmbientRange') ?? null,
+          lotusAmbientPosition: layer.getData('menuMotionProxy')
+            ? { ...layer.getData('menuMotionProxy') }
+            : null,
           lotusMaxResponse: layer.getData('menuLotusMaxResponse') ?? null,
           lotusWaterResponse: layer.getData('menuLotusWaterResponse') ?? null,
           lotusReaction: layer.getData('menuLotusReaction') ?? null,
@@ -275,6 +279,8 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
       && c.getData?.('menuArtworkLayer') === 'river-fx');
     const mist = art?.list?.find((c) => c.type === 'Container'
       && c.getData?.('menuArtworkLayer') === 'mountain-mist');
+    const lotus = art?.list?.find((c) => c.getData?.('menuArtworkLayer') === 'lotus');
+    const lotusAmbient = lotus?.getData?.('menuMotionProxy');
     return {
       currents: water?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
         .map((c) => ({ x: c.x, y: c.y })) ?? [],
@@ -282,6 +288,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
         .map((c) => ({ x: c.x, y: c.y })) ?? [],
       bambooWind: art?.list?.filter((c) => c.getData?.('menuBambooWindPart'))
         .map((c) => ({ x: c.x, y: c.y, angle: c.angle })) ?? [],
+      lotusAmbient: lotusAmbient ? { ...lotusAmbient } : null,
     };
   });
   const movingCurrents = menu.currentPositions.filter((before, index) => {
@@ -301,6 +308,13 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
     return after && (Math.hypot(after.x - before.x, after.y - before.y) > 0.08
       || Math.abs(after.angle - before.angle) > 0.04);
   }).length;
+  const lotusLayer = menu.art?.layers?.find((layer) => layer.name === 'lotus');
+  const lotusAmbientTravel = lotusLayer?.lotusAmbientPosition && motionLater.lotusAmbient
+    ? Math.hypot(
+      motionLater.lotusAmbient.x - lotusLayer.lotusAmbientPosition.x,
+      motionLater.lotusAmbient.y - lotusLayer.lotusAmbientPosition.y,
+    )
+    : 0;
   check(`${label}: mountain mist visibly drifts instead of only pulsing`, movingMist >= 4
     && menu.art.mountainMist.travels.every((travel) => travel >= menu.art.width * 0.04)
     && menu.art.mountainMist.durations.every((duration) => duration <= 10_000),
@@ -317,23 +331,28 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
     && menu.waterVeilBands === 3 && menu.waterGraphic === 'two-tone-reflection-wash'
     && menu.currentMaxAlpha >= 0.26 && movingCurrents >= 5
     && Math.min(...menu.currentAnchors) <= 0.2 && Math.max(...menu.currentAnchors) >= 0.94
-    && menu.currentDurations.every((duration) => duration >= 6_000 && duration <= 9_500)
+    && menu.currentDurations.every((duration) => duration >= 7_000 && duration <= 10_500)
     && menu.currentInterpolations.every((mode) => mode === 'anchored-sine')
-    && menu.currentMotions.every((mode) => mode === 'local-surface-shimmer')
-    && menu.currentVisibilities.every((mode) => mode === 'readable-soft')
+    && menu.currentMotions.every((mode) => mode === 'local-surface-drift')
+    && menu.currentVisibilities.every((mode) => mode === 'readable-gentle')
     && menu.currentGraphics.every((mode) => mode === 'broken-light-reflections')
-    && menu.currentTravelLimits.every((distance) => distance <= 4.1)
+    && menu.currentTravelLimits.every((distance) => distance >= 7 && distance <= 9.5)
+    && Math.max(...currentTravel) >= 0.55
     && currentTravel.every((distance) => distance < 2)
     && ['tap', 'drag', 'hover-wake'].every((gesture) => menu.gestures.includes(gesture)),
   `${menu.currents} shimmers (${movingCurrents} moving, max ${Math.max(...currentTravel).toFixed(2)}px/900ms, alpha ${menu.currentMaxAlpha.toFixed(2)}), ${menu.ripple} ripple(s), ${menu.wakes} wake(s), ${menu.tweens} tweens playing`);
-  const lotusLayer = menu.art?.layers?.find((layer) => layer.name === 'lotus');
   const lotusWake = menu.lotusWakeDetails?.[0];
   const lotusWakeNormalized = lotusWake?.base ? {
     x: (lotusWake.base.x - (menu.art.x - menu.art.width / 2)) / menu.art.width,
     y: (lotusWake.base.y - menu.art.top) / menu.art.height,
   } : null;
   check(`${label}: lotus bends softly and makes water wakes under hover/drag`, lotusLayer?.lotusResponse === 'soft-damped-pointer-spring'
-    && lotusLayer?.lotusMotionProfile === 'gentle-breeze'
+    && lotusLayer?.lotusMotionProfile === 'visible-gentle-breeze'
+    && lotusLayer?.lotusAmbientRange?.x === 2
+    && lotusLayer?.lotusAmbientRange?.y === 1.6
+    && lotusLayer?.lotusAmbientRange?.angle === 0.18
+    && lotusLayer?.lotusAmbientRange?.duration === 5_800
+    && lotusAmbientTravel >= 0.12
     && lotusLayer?.lotusMaxResponse?.x === 2.2
     && lotusLayer?.lotusMaxResponse?.y === 1.1
     && lotusLayer?.lotusMaxResponse?.angle === 0.7
@@ -351,6 +370,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
   JSON.stringify({
     gestures: menu.lotusGestures,
     reaction: lotusLayer?.lotusReaction,
+    ambientTravelOver900ms: lotusAmbientTravel,
     lotusWakes: menu.lotusWakes,
     wake: lotusWake,
     normalized: lotusWakeNormalized,
