@@ -102,8 +102,11 @@ export function spawnBattleFloaters(self: ConquestUIScene, beat: BattleBeat): vo
   const float = (x: number, value: number, dy: number, colour: string): void => {
     if (value <= 0) return;
     const spare = pool.pop();
+    // `setColor` is unguarded in Phaser — it re-rasterises the canvas even for the same colour —
+    // and the pool mixes both sides' labels, so only recolour a reused one that actually changed.
+    if (spare?.active && spare.style.color !== colour) spare.setColor(colour);
     const label = spare?.active
-      ? spare.setText(`−${value}`).setColor(colour).setPosition(x, groundY - 44 + dy).setAlpha(1)
+      ? spare.setText(`−${value}`).setPosition(x, groundY - 44 + dy).setAlpha(1)
         .setVisible(true)
       : self.ui.label(x, groundY - 44 + dy, `−${value}`, 'label', {
         fontSize: '13px', align: 'center', color: colour,

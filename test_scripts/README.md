@@ -57,3 +57,19 @@ outside this tree `import 'playwright'` will not resolve.
 The `game-harness` skill in [`.claude/skills/`](../.claude/skills/game-harness/) carries the
 bootstrap boilerplate, the window hooks, the prompt-option shapes, and the traps that make a
 harness silently pass while testing nothing.
+
+## The FPS-playbook harnesses (2026-08)
+
+- `perf/_boot.mjs` — shared bootstrap: `boot` (DSF 3 / high by default, pins `noladder=1` unless
+  `ladder: true`), `startWorld`, `revealAll`, `driveToBattle`, GL counters, `report`.
+- `perf/gl-gates.mjs` (`yarn perf:gates`) — the per-screen GL submission thresholds. Counts
+  transfer across GPUs; the ms in headless runs do not.
+- `perf/measure-ui.mjs` / `perf/measure-battle-beat.mjs` / `perf/measure-bake.mjs` — quiet-emit
+  raster counts, the fight beat's cost ledger, and the bake/season-turn regression guards.
+- `verify/verify-listeners.mjs` — scene-event listeners must not stack across runs.
+- `verify/verify-ink-stamps.mjs` — the stamp registry on both backends, context loss included.
+- `verify/verify-ladder.mjs` — the quality ladder steps down under heat and climbs back on calm
+  (run WITHOUT `?capture=1`, which pins the ladder for every other harness).
+- `verify/verify-fps-cap.mjs`, `verify/verify-tick-clock.mjs` — pacing and clock-carry contracts.
+- `diag/diag-army-hash.mjs` (`--save` baseline) — command-stream identity for `drawArmy`;
+  `diag/diag-figure-reach.mjs` — no soldier's ink clipped by his stamp box.

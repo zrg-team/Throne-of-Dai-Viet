@@ -20,6 +20,7 @@ import { enWorld, viWorld } from './catalogs/world';
 export type LanguageCode = 'en' | 'vi';
 
 export const LANGUAGE_STORAGE_KEY = 'mandate:language:v1';
+export const DEFAULT_LANGUAGE: LanguageCode = 'vi';
 
 type TranslationParams = Record<string, string | number>;
 
@@ -50,17 +51,33 @@ const listeners = new Set<(language: LanguageCode) => void>();
 
 validateCatalogs();
 
+/**
+ * Cached, because `t()` calls this on every translation and it read localStorage every time —
+ * measured at 191–566 synchronous storage reads per simulation tick, and one per label on every
+ * HUD refresh. `localStorage.getItem` is a synchronous IPC on some browsers. `setLanguage` below
+ * is the only writer, so the cache can never go stale inside a session.
+ */
+let cachedLanguage: LanguageCode | undefined;
+
 export function getLanguage(): LanguageCode {
+  if (cachedLanguage !== undefined) {
+    return cachedLanguage;
+  }
   if (typeof localStorage === 'undefined') {
-    return 'en';
+    return DEFAULT_LANGUAGE;
   }
   const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-  return stored === 'vi' || stored === 'en' ? stored : 'en';
+  cachedLanguage = stored === 'vi' || stored === 'en' ? stored : DEFAULT_LANGUAGE;
+  return cachedLanguage;
 }
 
 export function setLanguage(language: LanguageCode): void {
+  cachedLanguage = language;
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+  }
+  if (typeof document !== 'undefined') {
+    document.documentElement.lang = language;
   }
   for (const listener of listeners) {
     listener(language);

@@ -11,7 +11,11 @@ import { ConquestUIScene } from '../scenes/ConquestUIScene';
 import { MapScene } from '../scenes/MapScene';
 import { PreloadScene } from '../scenes/PreloadScene';
 import { UIScene } from '../scenes/UIScene';
-import { RENDER_SCALE } from './graphicsQuality';
+import { renderScale } from './graphicsQuality';
+
+// The scale the buffer BOOTS at. The quality ladder can change the live scale later through
+// `applyPendingRenderScale`, which resizes this same FIT-mode surface in place.
+const RENDER_SCALE = renderScale();
 
 // Retaining the WebGL drawing buffer forces the browser to preserve the
 // framebuffer every frame — a real GPU-bandwidth/memory cost on mobile tiled
@@ -41,10 +45,19 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     activePointers: 3,
     touch: true,
   },
+  // Pace the loop at 60 whatever the panel refreshes at, and keep long stalls honest: `min: 2`
+  // makes the clamp floor 500 ms, so a 400 ms map rebuild reaches the game clock as 400 ms of
+  // real time instead of being silently swallowed by the default 20-fps floor.
+  fps: { limit: 60, min: 2 },
   render: {
     preserveDrawingBuffer: needsCapture,
     powerPreference: 'high-performance',
     roundPixels: true,
+    // Curve subdivision floor for every Graphics path. Phaser resolves per-object thresholds as
+    // max(object, config), and at render scale 3 the default of 1 tessellates hairline wobble the
+    // buffer cannot even show: measured on the revealed map at DSF 3, threshold 2x scale alone
+    // cuts indices 24.3k -> 17.9k and vertex upload 334 -> 247 KB with no visible change.
+    pathDetailThreshold: 2 * RENDER_SCALE,
   },
   // One full-screen pass that ages the whole frame — world and chrome alike — so the two sit on
   // the same sheet of paper. Phaser 4 has no `pipeline` config key: the render node is registered

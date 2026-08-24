@@ -1,9 +1,9 @@
-// The Đông Hồ UI/UX defects, checked rather than eyeballed. Every assertion here failed before the
-// fix, so the file doubles as the bug report.
+// The Đông Hồ UI/UX contracts, checked rather than eyeballed.
 //
-//   menu · the hosts stand on dry ground, not in the river
+//   menu · a calm bamboo-and-lotus river replaces the miniature battlefield
+//   menu · every broad paddy stays on the right bank
 //   menu · the seal is a circle on any sheet, not an ellipse on a short one
-//   menu · the picture is alive rather than a still print
+//   menu · mountains, bamboo and lotus move as registered depth layers
 //   map  · every buffalo cart faces the way it is going, on BOTH legs of its round trip
 //   map  · the herds graze a small patch instead of standing frozen
 //   map  · a host has a cadence, and its shadow is under the men rather than below them
@@ -43,53 +43,372 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
     // The seal is the one graphics object drawn at the top of the sheet outside the art layer.
     const loose = scene.children.list.filter((c) => c.type === 'Graphics' && c.y < 140 && c.y > 10);
     const seal = loose[0];
+    const art = scene.children.list.find((c) => c.type === 'Container'
+      && c.getData?.('menuLandscapeRole') === 'illustration');
+    const layers = art?.list?.filter((c) => c.type === 'Image'
+      && c.getData?.('menuArtworkLayer')) ?? [];
+    const mistLayer = art?.list?.find((c) => c.type === 'Container'
+      && c.getData?.('menuArtworkLayer') === 'mountain-mist');
+    const waterLayer = art?.list?.find((c) => c.type === 'Container'
+      && c.getData?.('menuArtworkLayer') === 'river-fx');
+    const bambooWind = art?.list?.filter((c) => c.getData?.('menuBambooWindPart')) ?? [];
+    const ground = layers.find((c) => c.getData('menuArtworkLayer') === 'ground');
+    const bamboo = layers.find((c) => c.getData('menuArtworkLayer') === 'bamboo');
+    const lotus = layers.find((c) => c.getData('menuArtworkLayer') === 'lotus');
+    const sourceSize = ground?.getData?.('sourceSize') ?? null;
+    const artwork = art?.getData?.('menuArtwork') ?? null;
+    let bambooPixels = null;
+    if (bamboo?.texture?.getSourceImage) {
+      const source = bamboo.texture.getSourceImage();
+      const canvas = document.createElement('canvas');
+      canvas.width = source.width;
+      canvas.height = source.height;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      context?.drawImage(source, 0, 0);
+      const pixels = context?.getImageData(0, 0, canvas.width, canvas.height).data;
+      if (pixels) {
+        let minY = canvas.height;
+        let maxY = -1;
+        let minX = canvas.width;
+        let maxX = -1;
+        let opaque = 0;
+        const corners = [
+          pixels[3],
+          pixels[(canvas.width - 1) * 4 + 3],
+          pixels[((canvas.height - 1) * canvas.width) * 4 + 3],
+          pixels[(canvas.width * canvas.height - 1) * 4 + 3],
+        ];
+        for (let y = 0; y < canvas.height; y += 2) {
+          for (let x = 0; x < canvas.width; x += 2) {
+            if (pixels[(y * canvas.width + x) * 4 + 3] <= 16) continue;
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
+            minX = Math.min(minX, x);
+            maxX = Math.max(maxX, x);
+            opaque += 1;
+          }
+        }
+        bambooPixels = { minX, maxX, minY, maxY, opaque, corners, width: canvas.width, height: canvas.height };
+      }
+    }
+    const interaction = scene.children.list.find((c) => c.getData?.('menuLandscapeInteraction') === 'river-ripple');
+    const lotusInteraction = scene.children.list.find((c) => c.getData?.('menuLandscapeInteraction') === 'lotus-sway');
+    interaction?.emit('pointerdown', null, interaction.displayWidth * 0.28, interaction.displayHeight * 0.66);
+    interaction?.emit('pointermove', { isDown: true }, interaction.displayWidth * 0.31, interaction.displayHeight * 0.72);
+    lotusInteraction?.emit('pointerover', { isDown: false }, lotusInteraction.displayWidth * 0.35, lotusInteraction.displayHeight * 0.45);
+    lotusInteraction?.emit('pointermove', { isDown: false }, lotusInteraction.displayWidth * 0.46, lotusInteraction.displayHeight * 0.42);
+    lotusInteraction?.emit('pointermove', { isDown: true }, lotusInteraction.displayWidth * 0.58, lotusInteraction.displayHeight * 0.5);
     return {
       vScale: scene.vScale,
       sealScaleX: seal?.scaleX ?? null,
       sealScaleY: seal?.scaleY ?? null,
-      aspectSafe: (() => {
-        const art = scene.children.list.find((c) => c.type === 'Container' && c.depth === -8);
-        if (!art) return [];
-        return art.list.filter((c) => c.getData?.('menuAspectSafe')).map((c) => ({
-          worldX: c.scaleX * art.scaleX,
-          worldY: c.scaleY * art.scaleY,
-        }));
-      })(),
+      art: art ? {
+        x: ground?.x,
+        top: ground ? ground.y - ground.displayHeight / 2 : null,
+        width: ground?.displayWidth,
+        height: ground?.displayHeight,
+        aspectError: sourceSize
+          ? Math.abs((ground.displayWidth / ground.displayHeight) - (sourceSize.width / sourceSize.height))
+          : null,
+        sourceSize,
+        artwork,
+        layers: layers.map((layer) => ({
+          name: layer.getData('menuArtworkLayer'),
+          texture: layer.texture?.key,
+          motion: layer.getData('menuLayerMotion'),
+          placement: layer.getData('menuSettlementPlacement') ?? null,
+          settlementBand: layer.getData('menuSettlementBand') ?? null,
+          settlementTransform: layer.getData('menuSettlementTransform') ?? null,
+          artStyle: layer.getData('menuArtStyle') ?? null,
+          bambooPlacement: layer.getData('menuBambooPlacement') ?? null,
+          bambooBand: layer.getData('menuBambooBand') ?? null,
+          bambooTransform: layer.getData('menuBambooTransform') ?? null,
+          bambooStyle: layer.getData('menuBambooStyle') ?? null,
+          bambooCulmCount: layer.getData('menuBambooCulmCount') ?? null,
+          bambooWindMode: layer.getData('menuBambooWindMode') ?? null,
+          bambooWindLayers: layer.getData('menuBambooWindLayers') ?? null,
+          fieldContinuity: layer.getData('menuFieldContinuity') ?? null,
+          lotusResponse: layer.getData('menuLotusResponse') ?? null,
+          lotusMotionProfile: layer.getData('menuLotusMotionProfile') ?? null,
+          lotusAmbientRange: layer.getData('menuLotusAmbientRange') ?? null,
+          lotusAmbientPosition: layer.getData('menuMotionProxy')
+            ? { ...layer.getData('menuMotionProxy') }
+            : null,
+          lotusMaxResponse: layer.getData('menuLotusMaxResponse') ?? null,
+          lotusWaterResponse: layer.getData('menuLotusWaterResponse') ?? null,
+          lotusReaction: layer.getData('menuLotusReaction') ?? null,
+          houseCount: layer.getData('menuHouseCount') ?? null,
+          tinted: layer.isTinted ?? false,
+          animated: scene.tweens.getTweensOf(layer).some((t) => t.isPlaying())
+            || scene.tweens.getTweensOf(layer.getData('menuMotionProxy')).some((t) => t.isPlaying()),
+        })),
+        mountainMist: {
+          count: mistLayer?.list?.filter((c) => c.getData?.('menuMistLayer') === 'mountains').length ?? 0,
+          maxAlpha: Math.max(0, ...(mistLayer?.list?.filter((c) => c.getData?.('menuMistLayer') === 'mountains')
+            .map((c) => c.alpha) ?? [])),
+          animated: mistLayer?.list?.filter((c) => c.getData?.('menuMistLayer') === 'mountains')
+            .every((c) => scene.tweens.getTweensOf(c).some((t) => t.isPlaying())) ?? false,
+          positions: mistLayer?.list?.filter((c) => c.getData?.('menuMistLayer') === 'mountains')
+            .map((c) => ({ x: c.x, y: c.y })) ?? [],
+          travels: mistLayer?.list?.filter((c) => c.getData?.('menuMistLayer') === 'mountains')
+            .map((c) => c.getData?.('menuMistTravel')) ?? [],
+          durations: mistLayer?.list?.filter((c) => c.getData?.('menuMistLayer') === 'mountains')
+            .map((c) => c.getData?.('menuMistDuration')) ?? [],
+        },
+        waterCompositing: {
+          marker: waterLayer?.getData?.('menuCompositing') ?? null,
+          waterIndex: art?.list?.indexOf(waterLayer) ?? -1,
+          bambooIndex: art?.list?.indexOf(bamboo) ?? -1,
+          lotusIndex: art?.list?.indexOf(lotus) ?? -1,
+        },
+        bambooPixels,
+        bambooWind: {
+          count: bambooWind.length,
+          parts: bambooWind.map((part) => part.getData?.('menuBambooWindPart')),
+          positions: bambooWind.map((part) => ({ x: part.x, y: part.y, angle: part.angle })),
+          animated: bambooWind.every((part) => scene.tweens.getTweensOf(part).some((t) => t.isPlaying())),
+        },
+      } : null,
       tweens: scene.tweens.getTweens().filter((t) => t.isPlaying()).length,
+      interaction: interaction?.getData?.('menuLandscapeInteraction') ?? null,
+      gestures: interaction?.getData?.('menuRiverGestures') ?? [],
+      lotusGestures: lotusInteraction?.getData?.('menuLotusGestures') ?? [],
+      ripple: waterLayer?.list?.filter((c) => c.getData?.('menuRipple')).length ?? 0,
+      wakes: waterLayer?.list?.filter((c) => c.getData?.('menuWaterWake')).length ?? 0,
+      currents: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current').length ?? 0,
+      riverPulses: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-pulse').length ?? 0,
+      riverPulsesAnimated: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-pulse')
+        .every((c) => scene.tweens.getTweensOf(c).some((t) => t.isPlaying())) ?? false,
+      riverPulseLanes: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-pulse')
+        .map((c) => c.getData?.('menuRiverPulseLane')) ?? [],
+      riverMotes: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-flow-mote').length ?? 0,
+      riverMotesAnimated: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-flow-mote')
+        .every((c) => scene.tweens.getTweensOf(c.getData?.('menuRiverMoteProxy')).some((t) => t.isPlaying())) ?? false,
+      riverMoteDurations: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-flow-mote')
+        .map((c) => c.getData?.('menuRiverMoteDuration')) ?? [],
+      riverMoteLanes: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-flow-mote')
+        .map((c) => c.getData?.('menuRiverMoteLane')) ?? [],
+      riverMotePositions: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-flow-mote')
+        .map((c) => ({ x: c.x, y: c.y, alpha: c.alpha })) ?? [],
+      currentDurations: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => c.getData?.('menuCurrentDuration')) ?? [],
+      currentInterpolations: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => c.getData?.('menuCurrentInterpolation')) ?? [],
+      currentMotions: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => c.getData?.('menuCurrentMotion')) ?? [],
+      currentAnchors: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => c.getData?.('menuCurrentAnchor')) ?? [],
+      currentLanes: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => c.getData?.('menuCurrentLane')) ?? [],
+      currentVisibilities: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => c.getData?.('menuCurrentVisibility')) ?? [],
+      currentGraphics: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => c.getData?.('menuCurrentGraphic')) ?? [],
+      currentTravelLimits: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => c.getData?.('menuCurrentTravel')) ?? [],
+      currentMaxAlpha: Math.max(0, ...(waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => c.alpha) ?? [])),
+      currentPositions: waterLayer?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => ({ x: c.x, y: c.y })) ?? [],
+      lotusWakes: waterLayer?.list?.filter((c) => c.getData?.('menuWakeSource') === 'lotus').length ?? 0,
+      lotusWakeDetails: waterLayer?.list?.filter((c) => c.getData?.('menuWakeSource') === 'lotus')
+        .map((c) => ({
+          origin: c.getData?.('menuWakeOrigin') ?? null,
+          stem: c.getData?.('menuWakeStem') ?? null,
+          base: c.getData?.('menuWakeBase') ?? null,
+          animated: scene.tweens.getTweensOf(c).some((t) => t.isPlaying()),
+        })) ?? [],
+      waterVeilBands: waterLayer?.list?.find((c) => c.getData?.('menuWaterTreatment') === 'soft-paper-glaze')
+        ?.getData?.('menuRiverVeilBands') ?? 0,
+      waterGraphic: waterLayer?.list?.find((c) => c.getData?.('menuWaterTreatment') === 'soft-paper-glaze')
+        ?.getData?.('menuWaterGraphic') ?? null,
       grazing: scene.children.list.filter((c) => c.getData?.('grazing')).length,
+      military: scene.children.list.filter((c) => c.type === 'Container' && c.depth === -7).length,
     };
   });
 
   // A circle drawn into a container squashed vertically is an ellipse. The seal must not be in one.
   check(`${label}: seal keeps its aspect`, menu.sealScaleX !== null && Math.abs(menu.sealScaleX - menu.sealScaleY) < 1e-6,
     `scale ${menu.sealScaleX}x${menu.sealScaleY}, sheet squash ${menu.vScale.toFixed(3)}`);
-  check(`${label}: recognizable scenery keeps its aspect`, menu.aspectSafe.length >= 12
-    && menu.aspectSafe.every((item) => Math.abs(item.worldX - item.worldY) < 1e-6),
-  `${menu.aspectSafe.length} objects, layout factor ${menu.vScale.toFixed(3)}`);
-  check(`${label}: the picture moves`, menu.tweens >= 15, `${menu.tweens} tweens playing`);
-  check(`${label}: the herd is out`, menu.grazing >= 2, `${menu.grazing} grazing animals`);
-
-  // No host may overlap the water. Host containers are the ones holding the rank graphics.
-  const wet = await page.evaluate(() => {
+  check(`${label}: four registered artwork plates are loaded`, menu.art?.layers?.length === 4
+    && ['ground', 'mountains', 'bamboo', 'lotus'].every((name) => menu.art.layers.some((layer) => layer.name === name))
+    && new Set(menu.art.layers.map((layer) => layer.texture)).size === 4
+    && menu.art.layers.find((layer) => layer.name === 'ground')?.texture === 'menu-layer-ground-v4'
+    && menu.art.layers.find((layer) => layer.name === 'ground')?.fieldContinuity === 'fully-planted-rice'
+    && menu.art.layers.find((layer) => layer.name === 'bamboo')?.texture === 'menu-layer-bamboo-v1'
+    && menu.art.sourceSize?.width >= 1500 && menu.art.sourceSize?.height >= 1000,
+  JSON.stringify(menu.art));
+  check(`${label}: the illustration keeps its authored aspect`, menu.art?.aspectError !== null
+    && menu.art.aspectError < 1e-6,
+  `aspect error ${menu.art?.aspectError}, layout factor ${menu.vScale.toFixed(3)}`);
+  check(`${label}: the approved bamboo-river composition is declared`, [
+    'karst-mountains', 's-curve-river', 'foreground-lotus', 'right-bank-paddies', 'right-bank-bamboo-grove',
+  ].every((part) => menu.art?.artwork?.composition?.includes(part)),
+  JSON.stringify(menu.art?.artwork));
+  check(`${label}: the art is centred and fills its responsive lane`, menu.art?.x === 195
+    && menu.art.width >= (viewport.height <= 664 ? 310 : 360)
+    && menu.art.width <= 422 && menu.art.top < 200 && menu.art.top + menu.art.height < 480,
+  JSON.stringify(menu.art));
+  check(`${label}: armies, banners and herd are gone`, menu.military === 0 && menu.grazing === 0,
+    `${menu.military} military containers, ${menu.grazing} grazing animals`);
+  check(`${label}: distance controls the layer motion`, menu.art?.layers
+    ?.filter((layer) => layer.name !== 'ground').every((layer) => layer.animated)
+    && menu.art.layers.find((layer) => layer.name === 'ground')?.animated === false,
+  JSON.stringify(menu.art?.layers));
+  check(`${label}: distinct mist wisps are visibly present in the mountain depth layer`, menu.art?.mountainMist?.count === 5
+    && menu.art.mountainMist.maxAlpha >= 0.58
+    && menu.art.mountainMist.animated,
+  JSON.stringify(menu.art?.mountainMist));
+  check(`${label}: bamboo is a small rear-dike windbreak rather than a foreground field object`, menu.art?.layers
+    ?.some((layer) => layer.name === 'bamboo'
+      && layer.bambooPlacement === 'rear-field-edge-windbreak'
+      && layer.bambooBand === 'rear-right-dike'
+      && layer.bambooStyle === 'dong-ho-natural-pigment'
+      && Math.abs(layer.bambooTransform?.scale - 0.2) < 1e-6
+      && layer.bambooTransform?.targetCentre?.x >= 1360
+      && layer.bambooTransform?.targetCentre?.y >= 450
+      && layer.bambooTransform?.targetCentre?.y <= 510
+      && layer.bambooCulmCount >= 12
+      && layer.tinted === false),
+  JSON.stringify(menu.art?.layers?.find((layer) => layer.name === 'bamboo')));
+  const bambooLayer = menu.art?.layers?.find((layer) => layer.name === 'bamboo');
+  check(`${label}: bamboo plate is truly transparent and its measured bounds drive placement`, menu.art?.bambooPixels
+    && menu.art.bambooPixels.corners.every((alpha) => alpha === 0)
+    && menu.art.bambooPixels.opaque > 100
+    && menu.art.bambooPixels.minY >= menu.art.bambooPixels.height * 0.4
+    && Math.abs(bambooLayer?.bambooTransform?.sourceBounds?.left - menu.art.bambooPixels.minX) <= 2
+    && Math.abs(bambooLayer?.bambooTransform?.sourceBounds?.right - menu.art.bambooPixels.maxX) <= 2
+    && Math.abs(bambooLayer?.bambooTransform?.sourceBounds?.top - menu.art.bambooPixels.minY) <= 2
+    && Math.abs(bambooLayer?.bambooTransform?.sourceBounds?.bottom - menu.art.bambooPixels.maxY) <= 2,
+  JSON.stringify(menu.art?.bambooPixels));
+  check(`${label}: all water motion is composited below bamboo and lotus`, menu.art?.waterCompositing?.marker === 'below-bamboo-and-lotus'
+    && menu.art.waterCompositing.waterIndex >= 0
+    && menu.art.waterCompositing.waterIndex < menu.art.waterCompositing.bambooIndex
+    && menu.art.waterCompositing.waterIndex < menu.art.waterCompositing.lotusIndex,
+  JSON.stringify(menu.art?.waterCompositing));
+  await page.waitForTimeout(900);
+  const motionLater = await page.evaluate(() => {
     const scene = window.__phaserGame.scene.getScene('MenuScene');
-    const river = scene.__menuRiver;
-    if (!river) return ['no river exposed'];
-    const offenders = [];
-    for (const child of scene.children.list) {
-      if (child.type !== 'Container' || child.depth !== -7) continue;
-      const bounds = child.getBounds();
-      for (let y = bounds.top; y <= bounds.bottom; y += 3) {
-        const span = river(y);
-        if (!span) continue;
-        if (bounds.right > span.left && bounds.left < span.right) {
-          offenders.push({ left: Math.round(bounds.left), right: Math.round(bounds.right), y: Math.round(y) });
-          break;
-        }
-      }
-    }
-    return offenders;
+    const art = scene.children.list.find((c) => c.type === 'Container'
+      && c.getData?.('menuLandscapeRole') === 'illustration');
+    const water = art?.list?.find((c) => c.type === 'Container'
+      && c.getData?.('menuArtworkLayer') === 'river-fx');
+    const mist = art?.list?.find((c) => c.type === 'Container'
+      && c.getData?.('menuArtworkLayer') === 'mountain-mist');
+    const lotus = art?.list?.find((c) => c.getData?.('menuArtworkLayer') === 'lotus');
+    const lotusAmbient = lotus?.getData?.('menuMotionProxy');
+    return {
+      currents: water?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-current')
+        .map((c) => ({ x: c.x, y: c.y })) ?? [],
+      riverMotes: water?.list?.filter((c) => c.getData?.('menuAmbient') === 'river-flow-mote')
+        .map((c) => ({ x: c.x, y: c.y, alpha: c.alpha })) ?? [],
+      mist: mist?.list?.filter((c) => c.getData?.('menuMistLayer') === 'mountains')
+        .map((c) => ({ x: c.x, y: c.y })) ?? [],
+      bambooWind: art?.list?.filter((c) => c.getData?.('menuBambooWindPart'))
+        .map((c) => ({ x: c.x, y: c.y, angle: c.angle })) ?? [],
+      lotusAmbient: lotusAmbient ? { ...lotusAmbient } : null,
+    };
   });
-  check(`${label}: no host is standing in the river`, wet.length === 0, JSON.stringify(wet).slice(0, 200));
+  const movingCurrents = menu.currentPositions.filter((before, index) => {
+    const after = motionLater.currents[index];
+    return after && Math.hypot(after.x - before.x, after.y - before.y) > 0.03;
+  }).length;
+  const currentTravel = menu.currentPositions.map((before, index) => {
+    const after = motionLater.currents[index];
+    return after ? Math.hypot(after.x - before.x, after.y - before.y) : 0;
+  });
+  const riverMoteTravel = menu.riverMotePositions.map((before, index) => {
+    const after = motionLater.riverMotes[index];
+    // The loop reset happens while the fleck is fully faded at the source/mouth. Do not report
+    // that invisible teleport as surface speed; measure only flecks visible at both sample times.
+    return after && before.alpha >= 0.12 && after.alpha >= 0.12
+      ? Math.hypot(after.x - before.x, after.y - before.y)
+      : 0;
+  });
+  const movingRiverMotes = riverMoteTravel.filter((distance) => distance >= 1.2).length;
+  const movingMist = menu.art.mountainMist.positions.filter((before, index) => {
+    const after = motionLater.mist[index];
+    return after && Math.hypot(after.x - before.x, after.y - before.y) > 0.35;
+  }).length;
+  const movingBambooWind = menu.art.bambooWind.positions.filter((before, index) => {
+    const after = motionLater.bambooWind[index];
+    return after && (Math.hypot(after.x - before.x, after.y - before.y) > 0.08
+      || Math.abs(after.angle - before.angle) > 0.04);
+  }).length;
+  const lotusLayer = menu.art?.layers?.find((layer) => layer.name === 'lotus');
+  const lotusAmbientTravel = lotusLayer?.lotusAmbientPosition && motionLater.lotusAmbient
+    ? Math.hypot(
+      motionLater.lotusAmbient.x - lotusLayer.lotusAmbientPosition.x,
+      motionLater.lotusAmbient.y - lotusLayer.lotusAmbientPosition.y,
+    )
+    : 0;
+  check(`${label}: mountain mist visibly drifts instead of only pulsing`, movingMist >= 4
+    && menu.art.mountainMist.travels.every((travel) => travel >= menu.art.width * 0.04)
+    && menu.art.mountainMist.durations.every((duration) => duration <= 10_000),
+  `${movingMist}/${menu.art.mountainMist.count} wisps moved over 900ms`);
+  check(`${label}: bamboo bends in layered wind while its roots stay on the dike`, bambooLayer?.bambooWindMode === 'segmented-canopy-lag'
+    && bambooLayer?.bambooWindLayers === 2
+    && menu.art.bambooWind.count === 2
+    && menu.art.bambooWind.animated
+    && ['upper-culms', 'leaf-canopy'].every((part) => menu.art.bambooWind.parts.includes(part))
+    && movingBambooWind === 2,
+  `${movingBambooWind}/2 wind layers moved over 900ms: ${JSON.stringify(menu.art.bambooWind)}`);
+  check(`${label}: water has readable, one-way watercolour surface flow`, menu.interaction === 'river-ripple'
+    && menu.ripple > 0 && menu.wakes > 0 && menu.currents >= 6
+    && menu.riverPulses >= 5 && menu.riverPulsesAnimated
+    && menu.riverMotes >= 6 && menu.riverMotesAnimated
+    && Math.min(...menu.currentLanes) <= -0.58 && Math.max(...menu.currentLanes) >= 0.65
+    && Math.min(...menu.riverPulseLanes) <= -0.6 && Math.max(...menu.riverPulseLanes) >= 0.55
+    && Math.min(...menu.riverMoteLanes) <= -0.7 && Math.max(...menu.riverMoteLanes) >= 0.68
+    && menu.riverMoteDurations.every((duration) => duration >= 108_000 && duration <= 172_000)
+    && movingRiverMotes >= 5 && riverMoteTravel.every((distance) => distance < 8)
+    && menu.waterVeilBands === 3 && menu.waterGraphic === 'two-tone-reflection-wash'
+    && menu.currentMaxAlpha >= 0.26 && movingCurrents >= 5
+    && Math.min(...menu.currentAnchors) <= 0.2 && Math.max(...menu.currentAnchors) >= 0.94
+    && menu.currentDurations.every((duration) => duration >= 8_500 && duration <= 11_500)
+    && menu.currentInterpolations.every((mode) => mode === 'forward-fade-loop')
+    && menu.currentMotions.every((mode) => mode === 'forward-surface-flow')
+    && menu.currentVisibilities.every((mode) => mode === 'phone-readable')
+    && menu.currentGraphics.every((mode) => mode === 'layered-watercolour-ripples')
+    && menu.currentTravelLimits.every((distance) => distance >= 12 && distance <= 16)
+    && Math.max(...currentTravel) >= 0.8
+    && currentTravel.every((distance) => distance < 3)
+    && ['tap', 'drag', 'hover-wake'].every((gesture) => menu.gestures.includes(gesture)),
+  `${menu.currents} drifting pools (${movingCurrents} moving, max ${Math.max(...currentTravel).toFixed(2)}px/900ms), ${menu.riverPulses} pulse rings, ${movingRiverMotes}/${menu.riverMotes} downstream flecks moving (max ${Math.max(...riverMoteTravel).toFixed(2)}px/900ms), alpha ${menu.currentMaxAlpha.toFixed(2)}, ${menu.ripple} touch ripple(s), ${menu.wakes} wake(s), ${menu.tweens} tweens playing`);
+  const lotusWake = menu.lotusWakeDetails?.[0];
+  const lotusWakeNormalized = lotusWake?.base ? {
+    x: (lotusWake.base.x - (menu.art.x - menu.art.width / 2)) / menu.art.width,
+    y: (lotusWake.base.y - menu.art.top) / menu.art.height,
+  } : null;
+  check(`${label}: lotus bends softly and makes water wakes under hover/drag`, lotusLayer?.lotusResponse === 'soft-damped-pointer-spring'
+    && lotusLayer?.lotusMotionProfile === 'visible-gentle-breeze'
+    && lotusLayer?.lotusAmbientRange?.x === 2
+    && lotusLayer?.lotusAmbientRange?.y === 1.6
+    && lotusLayer?.lotusAmbientRange?.angle === 0.18
+    && lotusLayer?.lotusAmbientRange?.duration === 5_800
+    && lotusAmbientTravel >= 0.12
+    && lotusLayer?.lotusMaxResponse?.x === 2.2
+    && lotusLayer?.lotusMaxResponse?.y === 1.1
+    && lotusLayer?.lotusMaxResponse?.angle === 0.7
+    && lotusLayer?.lotusWaterResponse === 'stem-waterline-ripples'
+    && ['hover', 'drag', 'water-wake'].every((gesture) => menu.lotusGestures.includes(gesture))
+    && menu.lotusWakes > 0
+    && lotusWake?.origin === 'stem-waterline'
+    && lotusWake?.animated === true
+    && lotusWakeNormalized?.x >= 0.15 && lotusWakeNormalized.x <= 0.38
+    && lotusWakeNormalized?.y >= 0.88 && lotusWakeNormalized.y <= 0.94
+    && Math.abs(lotusLayer.lotusReaction?.x ?? 0) <= 2.2
+    && Math.abs(lotusLayer.lotusReaction?.y ?? 0) <= 1.1
+    && Math.abs(lotusLayer.lotusReaction?.angle ?? 0) <= 0.7
+    && Math.abs(lotusLayer.lotusReaction?.x ?? 0) + Math.abs(lotusLayer.lotusReaction?.angle ?? 0) > 0.2,
+  JSON.stringify({
+    gestures: menu.lotusGestures,
+    reaction: lotusLayer?.lotusReaction,
+    ambientTravelOver900ms: lotusAmbientTravel,
+    lotusWakes: menu.lotusWakes,
+    wake: lotusWake,
+    normalized: lotusWakeNormalized,
+  }));
 
   await page.screenshot({ path: `${OUT}/menu-${viewport.height}.png` });
   await page.close();
@@ -100,6 +419,7 @@ const page = await browser.newPage({ viewport: { width: 390, height: 844 }, devi
 page.on('pageerror', (e) => errors.push(`PAGEERROR ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE ${m.text()}`); });
 await openMenu(page);
+await page.waitForFunction(() => typeof window.__startBenchGame === 'function', null, { timeout: 30000 });
 await page.evaluate(() => window.__startBenchGame(1337, 'empire'));
 await page.waitForFunction(() => window.__phaserGame.scene.isActive('MapScene'), null, { timeout: 30000 });
 await page.evaluate(() => {
@@ -254,6 +574,10 @@ const shadow = await page.evaluate(async () => {
       feet,
       get ellipse() { return ellipse; },
       lineStyle() {}, fillStyle() {}, fillCircle() {}, fillTriangle() {}, fillPoints() {},
+      // Phaser Graphics uses a temporary canvas translation to create the hand-registered wash.
+      // It does not affect the outline points this recorder measures, but the production drawing
+      // path still expects the method to exist.
+      translateCanvas() {},
       beginPath() {}, strokePath() {}, fillPath() {}, moveTo() {}, lineTo() {}, arc() {}, closePath() {},
       strokePoints(points) {
         if (!points?.length) return;

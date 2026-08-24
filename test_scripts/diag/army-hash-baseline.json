@@ -1,0 +1,20 @@
+{
+  "small-line": {
+    "hash": "b49e20a4",
+    "commands": 3837,
+    "marks": 4,
+    "blocks": "line:2:2x1 bows:1:1x1 horse:1:1x1"
+  },
+  "big-mixed": {
+    "hash": "b70160c5",
+    "commands": 55851,
+    "marks": 55,
+    "blocks": "line:21:9x3 bows:15:8x2 horse:8:4x2"
+  },
+  "shaped-ranks": {
+    "hash": "d229875c",
+    "commands": 16695,
+    "marks": 15,
+    "blocks": "screen:2:2x1 horse:2:2x1 line:7:4x2 bows:4:4x1"
+  }
+}

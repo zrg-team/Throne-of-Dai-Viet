@@ -14,7 +14,7 @@
  */
 import { chromium } from 'playwright';
 
-const BASE = process.env.BASE_URL || 'http://127.0.0.1:5173';
+const BASE = process.env.BASE_URL || `${process.env.DEV_URL ?? process.env.BASE_URL ?? 'http://127.0.0.1:5179'}`;
 const results = [];
 
 function check(name, pass, detail) {

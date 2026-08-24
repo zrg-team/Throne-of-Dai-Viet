@@ -121,6 +121,10 @@ export function paperFxEnabled(): boolean {
   if (typeof window === 'undefined') {
     return false;
   }
+  // The multiply-sheet (paperSheet.ts) is the default paper now; this camera filter - a
+  // full-screen framebuffer round-trip per filtered camera per frame - stays reachable at
+  // ?fx=shader for A/B, and nowhere else.
+  if (!/[?&]fx=shader\b/.test(window.location.search)) return false;
   return wantsPaperFX() && !/[?&]nofx=1\b/.test(window.location.search);
 }
 

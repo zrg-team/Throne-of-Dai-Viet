@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { INK_WEIGHT } from '../../game/graphicsQuality';
+import { inkWeight } from '../../game/graphicsQuality';
 import { PIGMENT } from './palette';
 
 /**
@@ -91,7 +91,7 @@ export function inkPath(
   // stroke considerably; drawn into a full-resolution buffer the same number arrives thin, and the
   // higher quality settings looked *worse* because the outlines went away. Applied here rather than
   // at the call sites so the map, the props and the chrome all keep step with each other.
-  const width = (options.width ?? 1.4) * INK_WEIGHT;
+  const width = (options.width ?? 1.4) * inkWeight();
   const alpha = options.alpha ?? 0.92;
   const colour = options.colour ?? PIGMENT.muc;
   const zoom = options.zoom ?? 1;

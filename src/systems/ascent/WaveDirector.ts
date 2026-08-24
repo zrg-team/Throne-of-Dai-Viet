@@ -26,6 +26,7 @@ import {
   WAVE_LAG,
   WAVE_OPENING_SHARE,
   XP_PER_WAVE_SURVIVED,
+ waveMatchFactor,
 } from '../../game/ascentConfig';
 import { MIN_ARMY_SOLDIERS, recruitSoldiers, SUPPLY_TICKS_HELD, waveHostCount } from '../../game/ascentConfig';
 import { weightedPick } from '../../utils/math';
@@ -215,7 +216,12 @@ export function waveTargetPower(
   heat = ambitionHeat(state),
 ): number {
   const baseline = WAVE_BASELINE_POWER * Math.pow(WAVE_BASELINE_GROWTH, Math.max(0, wave - 1));
-  return baseline * heat * (boss ? BOSS_PRESSURE_MULT : 1);
+  const target = baseline * heat * (boss ? BOSS_PRESSURE_MULT : 1);
+  // The run answers strength: a realm marching ahead of the calendar is quoted a wave sized to
+  // IT, not to the wave number. Applied at the single source — the soldier budget, the
+  // budget-spent skip and the HUD's projection all read this — so the quote on the strength
+  // rail can never disagree with the host that lands.
+  return target * waveMatchFactor(state.ascent?.power ?? 0, target);
 }
 
 /** The multiplier the wave on the map was sized with, for everything that must match its quote. */

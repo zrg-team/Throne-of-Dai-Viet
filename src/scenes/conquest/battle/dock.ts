@@ -149,6 +149,9 @@ export function buildBattleExits(self: ConquestUIScene, battle: AscentBattle): v
 
   const handedOver = Boolean(battle.delegated);
   const halted = self.battleHalted;
+  // The exits' own clock: they used to ride the dock's signature and were rebuilt with it —
+  // four panels and eight wrapped labels torn down on most beats to change nothing.
+  ui.exitsKey = `${handedOver ? 1 : 0}:${halted ? 1 : 0}`;
   const chips: Array<{ label: string; sub: string; accent: number; order: string }> = [
     {
       // The world's clock, on the screen that is the world. Lit gold while the fight is standing

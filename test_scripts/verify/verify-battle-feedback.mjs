@@ -32,6 +32,9 @@ const page = await browser.newPage({ viewport: { width: 390, height: 620 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+// Pinned: every literal this file asserts (‘Next’, ‘re-forming’, the bubble lines) is the
+// English catalog's. The game's default language is the player's business; the harness's is not.
+await page.addInitScript(() => localStorage.setItem('mandate:language:v1', 'en'));
 
 await page.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
@@ -168,7 +171,13 @@ await page.mouse.down();
 await page.waitForTimeout(90);
 const pressed = await page.evaluate(() => {
   const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
-  return ui.battleUi.orders.list.some((o) => o.type === 'Graphics' && o.scaleX < 1);
+  // Implementation-neutral: a dip is a chip tile standing BELOW its own rest scale. The old
+  // form looked for a Graphics under scale 1, which stopped meaning anything once the tile
+  // became a stamped Image whose rest scale is 1/renderScale.
+  return Object.values(ui.battleUi.dock?.chips ?? {}).some((c) => {
+    const rest = c.tile.getData?.('baseScale') ?? 1;
+    return c.tile.scaleX < rest - 0.001;
+  });
 });
 check(pressed, 'and dips under it while it is held down');
 await page.mouse.up();

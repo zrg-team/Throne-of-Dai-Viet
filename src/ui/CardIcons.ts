@@ -20,7 +20,7 @@ export type CardIconId =
   | 'coin' | 'purse' | 'scroll' | 'blade' | 'shield' | 'banner'
   | 'hut' | 'ladder' | 'crown' | 'scales' | 'person' | 'grain'
   | 'herd' | 'cart' | 'branch' | 'retreat' | 'spark' | 'wall'
-  | 'hourglass' | 'skull' | 'cup' | 'hammer' | 'gear' | 'globe' | 'phone'
+  | 'hourglass' | 'book' | 'skull' | 'cup' | 'hammer' | 'gear' | 'globe' | 'phone' | 'install'
   // The five shapes of the fight screen's fast dial. `shield` and `blade` are spoken for
   // elsewhere, and a formation chip that shared a glyph with a conquest method would read as
   // the same thing twice, so these are their own.
@@ -347,6 +347,18 @@ export function drawCardIcon(
       fill(); g.fillCircle(0, 7, 1.8);
       break;
 
+    case 'install':
+      // Arrow into a tray. Kept inside the same 20-unit visual box as the footer's book, scroll,
+      // and gear so installing does not look like a fourth, larger class of navigation control.
+      line(2);
+      g.lineBetween(0, -10, 0, 2);
+      g.lineBetween(-5, -3, 0, 2);
+      g.lineBetween(5, -3, 0, 2);
+      g.beginPath();
+      g.moveTo(-9, 6); g.lineTo(-9, 10); g.lineTo(9, 10); g.lineTo(9, 6);
+      g.strokePath();
+      break;
+
     case 'gear':
       // Eight spokes off a ring rather than a toothed outline: a real cog's teeth are a 1px
       // sawtooth at this size and print as a fuzzy circle.
@@ -362,6 +374,19 @@ export function drawCardIcon(
       line(2);
       g.lineBetween(-8, -10, 8, -10); g.lineBetween(-8, 10, 8, 10);
       g.lineBetween(-8, -10, 8, 10); g.lineBetween(8, -10, -8, 10);
+      break;
+
+    case 'book':
+      // An open book rather than a closed rectangle: the centre crease and the two rising page
+      // edges survive the small footer scale, so this reads as a record instead of another menu.
+      line(2);
+      g.beginPath();
+      g.moveTo(0, -7); g.lineTo(-4, -9); g.lineTo(-10, -8);
+      g.lineTo(-10, 8); g.lineTo(-4, 7); g.lineTo(0, 9);
+      g.lineTo(4, 7); g.lineTo(10, 8); g.lineTo(10, -8);
+      g.lineTo(4, -9); g.lineTo(0, -7);
+      g.strokePath();
+      line(1.4); g.lineBetween(0, -7, 0, 9);
       break;
 
     // The two footer links. Not option glyphs — they carry the support row, where a phrase with a

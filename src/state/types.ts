@@ -1822,6 +1822,13 @@ export interface AscentBattle {
   stamina?: number;
   staminaClock?: number;
   /**
+   * Dồn sức: a second pip wagered on the shape currently held. While it stands, the formation
+   * tilt is amplified BOTH ways — a winning matchup wins bigger, a losing one bleeds worse — so
+   * it is a dice roll a confident read cashes in and a wrong read pays for. Cleared the moment
+   * the shape changes: the wager rides one stand.
+   */
+  committed?: boolean;
+  /**
    * The invader's temper, from his kingdom's personality (great waves are always `cunning`).
    * Decides how fast he answers once losing and whether he presses — printed beside his name on
    * the strength rail, because a personality the player cannot see is just weather.
@@ -2164,6 +2171,12 @@ export interface AscentWaveCue {
 }
 
 export interface AscentState {
+  /**
+   * Skirmish only: the setup page's pin on the speech bubbles' linger, in ms. `-1` keeps them
+   * forever, `0` silences them; absent, the fight follows the difficulty profile and the wave
+   * escalation caps. See `battleOptions.battleBubbleMs`.
+   */
+  arenaBubbleMs?: number;
   /** Wave counter. Threat scales as BASE * GROWTH^wave; every 4th wave is a Great Invasion. */
   wave: number;
   ticksToWave: number;

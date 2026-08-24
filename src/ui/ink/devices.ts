@@ -183,6 +183,12 @@ export interface FigureKit {
   arm?: FigureArm;
   /** The realm's colour, for the sash. The player's is sỏi son; a rival's is muted. */
   accent?: number;
+  /**
+   * The wobble seed, when the caller wants the same drawing back every time. Absent, the seed is
+   * derived from `x, y` as it always was — which is right for figures inked in place, and useless
+   * for a figure baked once and stamped at forty positions.
+   */
+  seed?: number;
 }
 
 /**
@@ -193,7 +199,7 @@ export interface FigureKit {
  * once, and every number below is literally the number printed in the document — which is the only
  * way a drawing this long stays checkable against it.
  */
-const DOC_UNIT = 42 / 4.44;
+export const DOC_UNIT = 42 / 4.44;
 
 /**
  * Body geometry per faction, in document units. `hem` is where the robe stops, `top` where it
@@ -234,9 +240,9 @@ const BODY: Record<FigureFaction, { hem: number; top: number; hw: number; sw: nu
 export function figure(g: G, x: number, y: number, scale: number, colour: number, kit: FigureKit | boolean = {}): void {
   const s = unitScale('figure', scale);
   const u = s / DOC_UNIT;
-  const seed = Math.round(x * 31 + y * 17);
   // A bare boolean is the old sixth argument — "does this one carry a spear".
   const spec: FigureKit = typeof kit === 'boolean' ? { arm: kit ? 'spear' : undefined } : kit;
+  const seed = spec.seed ?? Math.round(x * 31 + y * 17);
   const theme: FigureTheme = spec.theme ?? spec.era ?? 'le';
   const T = FIGURE_THEMES[theme] ?? FIGURE_THEMES.le;
   const tier = spec.tier ?? 1;
@@ -999,6 +1005,80 @@ export function armyShape(
  * `rankTarget` is handed a running index across every block, so a caller that wants each rank in
  * its own object (which is what lets a host move at all) gets one flat list back.
  */
+/** One soldier's place in a formation: where he stands, which rank layer he draws into, what he carries. */
+export interface FigurePlacement {
+  x: number;
+  y: number;
+  /** Running rank index across every block — the same index `drawArmy` hands `rankTarget`. */
+  rank: number;
+  block: FormationKey;
+  arm?: FigureArm;
+}
+
+/** A whole army as data: the shape, and every man's position in paint order. */
+export interface ArmyPlan {
+  shape: ArmyShape;
+  figures: FigurePlacement[];
+}
+
+/**
+ * The placement walk `drawArmy` has always made, separated from the inking — so the same plan can
+ * be drawn as live ink (`drawArmy` below, pixel-identical, held to it by `diag-army-hash`) or
+ * placed as stamped images (`stampedArmy` in figureStamps.ts).
+ *
+ * Every `rand()` call happens in the exact order `drawBlock` made it, or the wobble changes and
+ * the identity oracle fails: one stream per block, seeded `seed + block.pri * 131`, consumed
+ * twice per figure in file order.
+ */
+export function planArmy(
+  x: number,
+  y: number,
+  men: number,
+  seed: number,
+  s = 1,
+  kit: HostKit = {},
+): ArmyPlan {
+  const shape = armyShape(men, compositionFor(kit), s, kit.mustered, kit.spread ?? 1, kit.shape);
+  const figures: FigurePlacement[] = [];
+  let index = 0;
+  for (const block of shape.blocks) {
+    const rand = mulberry32(seed + block.pri * 131);
+    const bx = x + block.x;
+    const by = y + block.y;
+    const shear = block.shear;
+    let drawn = 0;
+    if (block.wedge) {
+      let rank = 0;
+      while (drawn < block.marks) {
+        const wide = rank + 1;
+        for (let file = 0; file < wide && drawn < block.marks; file += 1) {
+          const offset = (block.cols - 1) / 2 - rank / 2 + file;
+          figures.push({
+            x: bx + offset * block.pitch + (rand() - 0.5) * 0.32 * block.pitch + rank * shear,
+            y: by + rank * block.rankPitch + (rand() - 0.5) * 0.3 * block.rankPitch,
+            rank: index + rank, block: block.key, arm: block.arm,
+          });
+          drawn += 1;
+        }
+        rank += 1;
+      }
+    } else {
+      for (let rank = 0; rank < block.rows && drawn < block.marks; rank += 1) {
+        for (let file = 0; file < block.cols && drawn < block.marks; file += 1) {
+          figures.push({
+            x: bx + file * block.pitch + (rand() - 0.5) * 0.32 * block.pitch + rank * shear,
+            y: by + rank * block.rankPitch + (rand() - 0.5) * 0.3 * block.rankPitch,
+            rank: index + rank, block: block.key, arm: block.arm,
+          });
+          drawn += 1;
+        }
+      }
+    }
+    index += block.rows;
+  }
+  return { shape, figures };
+}
+
 export function drawArmy(
   g: G,
   x: number,
@@ -1010,65 +1090,15 @@ export function drawArmy(
   kit: HostKit = {},
   rankTarget?: (index: number) => G,
 ): ArmyShape {
-  const shape = armyShape(men, compositionFor(kit), s, kit.mustered, kit.spread ?? 1, kit.shape);
-  let index = 0;
-  for (const block of shape.blocks) {
-    const target = rankTarget ? (rank: number) => rankTarget(index + rank) : undefined;
-    drawBlock(g, x + block.x, y + block.y, block, seed + block.pri * 131, colour, s, kit, target);
-    index += block.rows;
+  const plan = planArmy(x, y, men, seed, s, kit);
+  for (const man of plan.figures) {
+    figure(
+      rankTarget ? rankTarget(man.rank) : g,
+      man.x, man.y, s, colour,
+      { theme: kit.theme ?? kit.era, tier: kit.tier, accent: kit.accent, arm: man.arm },
+    );
   }
-  return shape;
-}
-
-/** One block of the formation: `cols x rows` marks of a single arm, at that block's own pitch. */
-function drawBlock(
-  g: G, x: number, y: number, block: FormationBlock, seed: number, colour: number, s: number,
-  kit: HostKit, rankTarget?: (rank: number) => G,
-): void {
-  const rand = mulberry32(seed);
-  // The block's own shear, not the constant: it carries `spread` and the constant does not.
-  const shear = block.shear;
-  let drawn = 0;
-
-  // Thế Xung's horse stands as a point, not a column: ranks of one, two, three. It is the one
-  // shape whose whole meaning is its outline, and drawn as a rectangle it is a wedge in name only.
-  if (block.wedge) {
-    let rank = 0;
-    while (drawn < block.marks) {
-      const wide = rank + 1;
-      const target = rankTarget?.(rank) ?? g;
-      for (let file = 0; file < wide && drawn < block.marks; file += 1) {
-        // Centred on the block's middle file, so the point sits over the men behind it.
-        const offset = (block.cols - 1) / 2 - rank / 2 + file;
-        figure(
-          target,
-          x + offset * block.pitch + (rand() - 0.5) * 0.32 * block.pitch + rank * shear,
-          y + rank * block.rankPitch + (rand() - 0.5) * 0.3 * block.rankPitch,
-          s,
-          colour,
-          { theme: kit.theme ?? kit.era, tier: kit.tier, accent: kit.accent, arm: block.arm },
-        );
-        drawn += 1;
-      }
-      rank += 1;
-    }
-    return;
-  }
-
-  for (let rank = 0; rank < block.rows && drawn < block.marks; rank += 1) {
-    const target = rankTarget?.(rank) ?? g;
-    for (let file = 0; file < block.cols && drawn < block.marks; file += 1) {
-      figure(
-        target,
-        x + file * block.pitch + (rand() - 0.5) * 0.32 * block.pitch + rank * shear,
-        y + rank * block.rankPitch + (rand() - 0.5) * 0.3 * block.rankPitch,
-        s,
-        colour,
-        { theme: kit.theme ?? kit.era, tier: kit.tier, accent: kit.accent, arm: block.arm },
-      );
-      drawn += 1;
-    }
-  }
+  return plan.shape;
 }
 
 /**
@@ -1146,7 +1176,7 @@ export function hostSpan(shape: HostShape, s = 1): { spanX: number; spanY: numbe
  * Per *rank* rather than per figure on purpose. A busy map carries dozens of these markers, and four
  * tweens per host instead of forty is the difference between free and a frame budget.
  */
-export function marchInPlace(scene: Phaser.Scene, ranks: Phaser.GameObjects.Graphics[], s = 1): void {
+export function marchInPlace(scene: Phaser.Scene, ranks: ReadonlyArray<{ y: number }>, s = 1): void {
   ranks.forEach((rank, index) => {
     scene.tweens.add({
       targets: rank,
@@ -1178,7 +1208,14 @@ export function marchInPlace(scene: Phaser.Scene, ranks: Phaser.GameObjects.Grap
  * 26-unit map badge or to the 46-unit mark the battlefield wants without a nested container. The
  * battle screen animates its own copy on top of this; nothing here moves.
  */
-export function clashDevice(g: G, x: number, y: number, scale = 1, halo = true): void {
+export function clashDevice(
+  g: G,
+  x: number,
+  y: number,
+  scale = 1,
+  halo = true,
+  accent = PIGMENT.son,
+): void {
   const s = scale;
   /** A point in blade space, rotated by `turn` and dropped at the device origin. */
   const at = (px: number, py: number, turn: number): Pt => ({
@@ -1193,13 +1230,13 @@ export function clashDevice(g: G, x: number, y: number, scale = 1, halo = true):
   // A soft ground first, so the mark has weight over pale paper and over a dark block of men
   // alike. Without it the blades are a thin white scratch on whatever happens to be behind.
   if (halo) {
-    g.fillStyle(PIGMENT.son, 0.16);
+    g.fillStyle(accent, 0.16);
     g.fillCircle(x, y, 19 * s);
   }
 
   // Eight rays, alternating long and short and turned off-axis so the star does not read as a
   // compass. Uneven lengths because a cut mark on a print is never symmetrical.
-  g.fillStyle(PIGMENT.son, 0.9);
+  g.fillStyle(accent, 0.9);
   for (let ray = 0; ray < 8; ray += 1) {
     const angle = (ray / 8) * Math.PI * 2 + 0.26;
     const reach = ray % 2 === 0 ? 23 : 14.5;

@@ -1,6 +1,6 @@
 {
   "name": "van-thang",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "private": true,
   "homepage": "https://zrg-team.github.io/ten-thousand-victories/",
   "repository": {
@@ -10,6 +10,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5179",
+    "perf:gates": "node test_scripts/perf/gl-gates.mjs",
+    "perf:ui": "node test_scripts/perf/measure-ui.mjs",
+    "perf:beat": "node test_scripts/perf/measure-battle-beat.mjs",
+    "perf:bake": "node test_scripts/perf/measure-bake.mjs",
+    "verify:listeners": "node test_scripts/verify/verify-listeners.mjs",
+    "verify:ladder": "node test_scripts/verify/verify-ladder.mjs",
+    "verify:perf": "node test_scripts/verify/verify-listeners.mjs && node test_scripts/verify/verify-fps-cap.mjs && node test_scripts/verify/verify-tick-clock.mjs",
     "build": "tsc && vite build && node scripts/build-sw.mjs",
     "build:shell": "tsc && vite build --mode shell",
     "mobile:sync": "yarn build:shell && npm --prefix apps/mobile run sync",

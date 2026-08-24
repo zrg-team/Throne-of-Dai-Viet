@@ -3,7 +3,7 @@
 import { chromium } from 'playwright';
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-await page.goto('http://127.0.0.1:5173/?capture=1', { waitUntil: 'domcontentloaded' });
+await page.goto(`${process.env.DEV_URL ?? 'http://127.0.0.1:5179'}/?capture=1`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => typeof window.__startBenchGame === 'function'
   && window.__phaserGame && window.__phaserGame.scene.isActive('MenuScene'), null, { timeout: 30000 });
 await page.evaluate(() => window.__startBenchGame(1337));

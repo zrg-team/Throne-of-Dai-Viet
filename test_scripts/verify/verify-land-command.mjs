@@ -32,6 +32,8 @@ await page.addInitScript(() => {
     ?? window.__phaserGame?.scene?.getScene('ConquestScene')?.state
     ?? window.__phaserGame?.scene?.getScene('ConquestUIScene')?.state;
 });
+// Pinned: the section headings and status lines this file asserts are the English catalog's.
+await page.addInitScript(() => localStorage.setItem('mandate:language:v1', 'en'));
 
 await page.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => typeof window.__startBenchGame === 'function', null, { timeout: 30000 });

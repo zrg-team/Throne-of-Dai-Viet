@@ -40,6 +40,9 @@ const press = (source) => page.evaluate((pattern) => {
 
 // `?tour=1` throughout: every tour here is suppressed under `navigator.webdriver`, which is what
 // keeps the other hundred-odd scripts working.
+// This script's labels and tour controls are intentionally asserted in English; Vietnamese is the
+// product default now, so make the fixture language explicit instead of inheriting that fallback.
+await page.addInitScript(() => localStorage.setItem('mandate:language:v1', 'en'));
 await page.goto(`${BASE}/?capture=1&tour=1`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
 await page.waitForTimeout(1400);

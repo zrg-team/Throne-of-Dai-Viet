@@ -111,8 +111,27 @@ export class ConquestUIScene extends Phaser.Scene {
 
   mapControlObjects: Phaser.GameObjects.GameObject[] = [];
 
+  /** What the inspect card currently shows, so a refresh that changes nothing rebuilds nothing. */
+  inspectKey = '';
+
+  /** Whether the paused badge is up, so it is not destroyed and redrawn by every refresh. */
+  pausedBadgeKey = '';
+
+  /** What the map-control stack was drawn for (`hidden:floor:mode`). */
+  mapControlsKey = '';
+
+  /** The controls' published tap-guards, so `renderActionBar` can recompose `__hudTapBounds`
+   *  every refresh without the stack itself being rebuilt. */
+  mapControlBounds: Array<{ x: number; y: number; width: number; height: number }> = [];
+
   /** Scroll areas register a global wheel handler, so they must be destroyed explicitly. */
   activeScrollAreas: InkScrollArea[] = [];
+
+  /** Stored so the SHUTDOWN handler can take it off: the emitter survives `scene.stop()`, and a
+   *  leaked copy runs the whole refresh once more per run — and per beat during a fight. */
+  readonly onStateChanged = (): void => {
+    this.refresh();
+  };
 
   openPromptKey = '';
 
@@ -129,6 +148,9 @@ export class ConquestUIScene extends Phaser.Scene {
 
   /** The Chronicle's ambient lines, which this mode had no surface for at all. */
   whispers!: WhisperLine;
+
+  /** The Chronicle shelf currently open; kept while a story page is inspected and revisited. */
+  chronicleTab: 'actions' | 'ongoing' | 'heard' | 'recorded' = 'actions';
 
   /**
    * The four cards a first run is shown, while they are up.
@@ -390,13 +412,17 @@ export class ConquestUIScene extends Phaser.Scene {
     fieldSignature: string;
     /** Identity of what the order cards offer, so a spent one-shot greys out. */
     orderSignature: string;
+    /** Identity of what the exit chips say (`delegated:halted`), so they rebuild on that alone. */
+    exitsKey: string;
     /**
-     * The shape each side is *standing in*, so the blocks re-arrange on the beat an order lands.
+     * The shape each side is *drawn standing in*, so the blocks re-arrange on the beat an order
+     * lands — and only the side whose shape moved is redrawn. A formation change used to redraw
+     * both hosts; the other side's block flickering for our order was pure waste.
      *
      * Separate from `fieldSignature` on purpose: that one rebuilds the ground, the camps and the
      * banners, and none of them should flicker because a block moved.
      */
-    shapeSignature: string;
+    shapeShown: { ours: string; theirs: string };
     /**
      * Identity of the half of the rails a beat does not move, so it is built once per fight.
      *
@@ -415,7 +441,7 @@ export class ConquestUIScene extends Phaser.Scene {
      */
     railsEased?: { ourNow: number; theirNow: number; ourMorale: number; theirMorale: number };
     /** The stamina pips, kept so a spend can fly out of them and a refusal can flash them. */
-    staminaPips?: Phaser.GameObjects.Container;
+    staminaPips?: Phaser.GameObjects.Container | Phaser.GameObjects.Graphics;
     staminaAt?: { x: number; y: number };
     railsTween?: Phaser.Tweens.Tween;
     ourStrength?: Phaser.GameObjects.Text;
@@ -450,6 +476,49 @@ export class ConquestUIScene extends Phaser.Scene {
     shown?: BattleBeat;
     /** The last log line shown, so the same sentence is not re-inked every beat. */
     lastLine?: string;
+    /**
+     * The dock's retained handles — everything `drawBattleDock` writes per beat, so the dock
+     * itself is rebuilt only when what it *offers* changes. See `battleOrderSignature`.
+     */
+    dock?: {
+      price: Phaser.GameObjects.Text;
+      arms: Phaser.GameObjects.Text;
+      verdict: Phaser.GameObjects.Text;
+      verdictKey: string;
+      pips: Phaser.GameObjects.Graphics;
+      pipsKey: string;
+      pipGeom: { px: number; topY: number };
+      defendBounds?: UIBounds;
+      defendChosen: boolean;
+      /** Whether the field has already answered the current wager (see drawBattleDock). */
+      committedShown: boolean;
+      defendGlow?: Phaser.GameObjects.Graphics;
+      lastFlareBeat: number;
+      chips: Record<string, {
+        bounds: UIBounds;
+        tile: Phaser.GameObjects.Image;
+        verb: Phaser.GameObjects.Text;
+        glyph: Phaser.GameObjects.Container;
+        glyphX: number;
+        glyphY: number;
+        glyphScale: number;
+        baseInk: number;
+        baseVerbColour: string;
+        held: boolean;
+        walking: boolean;
+        note?: Phaser.GameObjects.Text;
+        noteKey: string;
+        bar?: Phaser.GameObjects.Graphics;
+        barBeats: number;
+        gone: boolean;
+        parts: Array<{
+          o: Phaser.GameObjects.Components.Transform;
+          hx: number;
+          hy: number;
+          hs: number;
+        }>;
+      }>;
+    };
   };
 
   /** The draft the raise-host form is editing; reset each time the lane opens. */
@@ -458,9 +527,16 @@ export class ConquestUIScene extends Phaser.Scene {
   /** A plan the muster card handed to the raise form — consumed by the next `openLane('army')`. */
   musterHandover?: MusterPlan;
 
+  /**
+   * Set before `openLane('battle')` on a fresh fight, so the very first build is already sealed.
+   * The screen used to build unsealed and be rebuilt sealed a frame later — a whole second
+   * field-and-dock build whose only purpose was un-naming a shape the first build had leaked.
+   */
+  battleSealPending = false;
+
   /** Whether the two sides are still choosing, and so cannot see each other's shape. */
   get battleOpeningSealed(): boolean {
-    return this.battleAwaitingOrder && this.battleOpeningTimer !== undefined;
+    return this.battleSealPending || (this.battleAwaitingOrder && this.battleOpeningTimer !== undefined);
   }
 
   /**
@@ -488,6 +564,11 @@ export class ConquestUIScene extends Phaser.Scene {
     this.battleUi = undefined;
     this.lastAutoOpenedBattleKey = '';
     this.battleAwaitingOrder = false;
+    this.battleSealPending = false;
+    this.inspectKey = '';
+    this.pausedBadgeKey = '';
+    this.mapControlsKey = '';
+    this.mapControlBounds = [];
     this.battleOpeningTimer?.remove();
     this.battleOpeningTimer = undefined;
     this.reopenBattleAfterPrompt = false;
@@ -539,6 +620,12 @@ export class ConquestUIScene extends Phaser.Scene {
        * The whole row is the hit area, label included.
        */
       footerToggle?: { label: string; hint?: string; checked: boolean; onToggle: () => void };
+      /** A compact, fixed tab strip above the scrolling body. */
+      tabs?: {
+        items: Array<{ label: string; count?: number }>;
+        active: number;
+        onSelect: (index: number) => void;
+      };
       /** A ghost "back" above the footer button, for pages one step inside a lane. */
       back?: () => void;
     } = {},
@@ -895,6 +982,8 @@ export class ConquestUIScene extends Phaser.Scene {
   battleOrderSignature(battle: AscentBattle): string { return battleOrders.battleOrderSignature(this, battle); }
 
   buildBattleOrders(battle: AscentBattle): void { battleOrders.buildBattleOrders(this, battle); }
+
+  drawBattleDock(battle: AscentBattle): void { battleOrders.drawBattleDock(this, battle); }
 
   stampFormationChip(bounds: UIBounds): void { battleOrders.stampFormationChip(this, bounds); }
 

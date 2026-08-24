@@ -389,6 +389,22 @@ export class BattleArenaScene extends Phaser.Scene {
     }));
   }
 
+  /**
+   * The words over the men, pinned for this skirmish. "By foe" follows the enemy dial above
+   * (which is what the campaign does, wave caps and all); the rest pin the linger outright —
+   * the practice screen is exactly where a player teaches themselves to read the drawn
+   * formation with fewer and fewer words.
+   */
+  private bubbleChoices(): Array<Choice<number | undefined>> {
+    return [
+      { value: undefined, label: t('arena.bubbles.follow') },
+      { value: -1, label: t('arena.bubbles.always') },
+      { value: 6000, label: t('arena.bubbles.slow') },
+      { value: 1500, label: t('arena.bubbles.quick') },
+      { value: 0, label: t('arena.bubbles.none') },
+    ];
+  }
+
   /** How long a round is held on screen, and how many of them a season is worth. */
   private speeds(): Array<Choice<BattleSpeed>> {
     return BATTLE_SPEEDS.map((value) => ({
@@ -492,6 +508,9 @@ export class BattleArenaScene extends Phaser.Scene {
     by = this.row(body, by, t('arena.speed'), this.speeds(),
       (c) => c.value === getBattleSpeed(),
       (c) => { setBattleSpeed(c.value); this.render(); });
+    by = this.row(body, by, t('arena.bubbles'), this.bubbleChoices(),
+      (c) => c.value === this.bubbleChoice,
+      (c) => { this.bubbleChoice = c.value; this.render(); });
 
     if (this.last) by = this.renderLastFight(body, by);
 
@@ -780,6 +799,9 @@ export class BattleArenaScene extends Phaser.Scene {
    * kingdom personalities, terrain helpers and the hero roster, and a hand-rolled state would
    * quietly differ from a real one in exactly the places that decide a battle.
    */
+  /** The bubble pin for this skirmish; undefined follows the difficulty dial. */
+  private bubbleChoice?: number;
+
   private buildArenaState(): GameState {
     const state = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
     state.ascent!.arena = true;
@@ -872,7 +894,9 @@ export class BattleArenaScene extends Phaser.Scene {
   private startFight(): void {
     this.dismissResult();
     this.fightStartedAt = Date.now();
-    this.scene.start('ConquestScene', { state: this.buildArenaState() });
+    const state = this.buildArenaState();
+    if (state.ascent) state.ascent.arenaBubbleMs = this.bubbleChoice;
+    this.scene.start('ConquestScene', { state });
   }
 
   private push(item: Phaser.GameObjects.GameObject): void {

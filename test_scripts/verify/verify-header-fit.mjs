@@ -43,7 +43,7 @@ for (const mode of ['empire', 'ascent']) {
       // The resource bar is the one container at depth 80.
       const bar = scene.children.list.find((c) => c.type === 'Container' && c.depth === 80);
       const texts = bar.list.filter((c) => c.type === 'Text');
-      const icons = bar.list.filter((c) => c.type === 'Image');
+      const icons = bar.list.filter((c) => c.type === 'Image' && !(c.texture?.key ?? '').startsWith('ui:band'));
       const title = texts[0];
       const numbers = texts.slice(1);
       const bounds = (o) => { const b = o.getBounds(); return { top: b.top, bottom: b.bottom }; };

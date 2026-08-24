@@ -20,48 +20,41 @@
  *  - **It can be replaced by real art.** The repo already ships hero portraits as authored SVGs
  *    rasterised at load (`FaceRenderer`); a baked prop is the same shape of thing, so any of these
  *    can become a drawn file later without the callers changing.
+ *
+ * The bake itself now lives in `stamp.ts` — the registry that keys textures by render scale,
+ * refcounts placements, and caps each pool's bytes. This file keeps the prop-shaped API on top of
+ * it (`bakeProp` / `propImage`), so the forty-odd existing call sites read as they always did.
  */
-import Phaser from 'phaser';
-import { RENDER_SCALE } from '../../game/graphicsQuality';
+import type Phaser from 'phaser';
+import { placeStamp, stamp, type Stamp, type StampBox } from './stamp';
 import { buffalo } from './props';
-import { UNIT, whileRasterising } from './proportion';
+import { UNIT } from './proportion';
+
+export { BASE_SCALE_KEY } from './stamp';
 
 type G = Phaser.GameObjects.Graphics;
 
-/**
- * How many texture pixels one design unit gets.
- *
- * The camera is already zoomed by `RENDER_SCALE`, and the map camera zooms up to about 2× on top of
- * that, so a texture baked at one pixel per unit is magnified and soft exactly where the player
- * leans in to look. Two design pixels of headroom is what `FaceRenderer` uses for the same reason.
- */
-const RASTER = RENDER_SCALE * 2;
-
 /** The box a prop occupies around its anchor, in design units. */
-export interface PropBox {
-  left: number;
-  right: number;
-  top: number;
-  bottom: number;
-}
+export type PropBox = StampBox;
 
-export interface BakedProp {
-  key: string;
-  /** Origin fractions that put the prop's anchor back under the image's position. */
-  originX: number;
-  originY: number;
-  /** Scale that returns the raster to design units. */
-  scale: number;
-}
+/**
+ * A baked prop is a `Stamp`: origin fractions that put the prop's anchor back under the image's
+ * position, and the scale that returns the raster to design units. (`texture`/`frame` say where
+ * the pixels physically live — the stamp's own texture, or a shared atlas page.)
+ */
+export type BakedProp = Stamp;
 
 /**
  * Bakes one prop into a texture, or returns the existing bake.
  *
  * `draw` receives the anchor position **already in raster pixels** and the raster factor to
  * multiply its own scale by — rather than the graphics being scaled as an object, because
- * `generateTexture` rasterises through the browser's Canvas API and the safest thing to hand it is
- * geometry that is already the size it should end up. (The same Canvas route is why nothing baked
- * here may use `fillGradientStyle`; none of the ink helpers do.)
+ * the canvas rasteriser is handed geometry that is already the size it should end up. (The same
+ * Canvas route is why nothing baked here may use `fillGradientStyle`; none of the ink helpers do.)
+ *
+ * Props raster at `'super'` — two texture pixels per design unit on top of the render scale,
+ * because the map camera zooms up to about 2× exactly where the player leans in to look. Same
+ * headroom `FaceRenderer` uses, for the same reason.
  */
 export function bakeProp(
   scene: Phaser.Scene,
@@ -69,33 +62,8 @@ export function bakeProp(
   box: PropBox,
   draw: (g: G, x: number, y: number, raster: number) => void,
 ): BakedProp {
-  const width = box.right - box.left;
-  const height = box.bottom - box.top;
-  const baked: BakedProp = {
-    key,
-    originX: -box.left / width,
-    originY: -box.top / height,
-    scale: 1 / RASTER,
-  };
-  if (scene.textures.exists(key)) {
-    return baked;
-  }
-
-  const graphics = scene.make.graphics({ x: 0, y: 0 }, false);
-  // Drawn at the anchor's offset inside the box, so the texture holds the whole prop with no
-  // clipping and the origin above puts it back where the caller asked for it.
-  whileRasterising(RASTER, () => draw(graphics, -box.left * RASTER, -box.top * RASTER, RASTER));
-  graphics.generateTexture(key, Math.ceil(width * RASTER), Math.ceil(height * RASTER));
-  graphics.destroy();
-  return baked;
+  return stamp(scene, key, box, draw, { raster: 'super', pool: 'prop' });
 }
-
-/**
- * Data key carrying an object's own scale, so anything that flips it — facing, a walk — multiplies
- * by that rather than overwriting it. A baked prop is drawn at raster size and scaled down to
- * design units; `setScale(-1, 1)` on one of those would show it at four times the size, mirrored.
- */
-export const BASE_SCALE_KEY = 'baseScale';
 
 /** How many different buffalo drawings exist. Kept small on purpose — see below. */
 const BUFFALO_LOOKS = 4;
@@ -147,9 +115,5 @@ export function propImage(
   y: number,
   scale = 1,
 ): Phaser.GameObjects.Image {
-  const size = baked.scale * scale;
-  return scene.add.image(x, y, baked.key)
-    .setOrigin(baked.originX, baked.originY)
-    .setScale(size)
-    .setData(BASE_SCALE_KEY, size);
+  return placeStamp(scene, baked, x, y, scale);
 }

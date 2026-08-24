@@ -190,6 +190,30 @@ const rimsOff = await hard.page.evaluate(async () => {
 check(rimsOn === true && rimsOff === false, 'the dock rims the counter on normal and hides it on hard',
   `normal ${rimsOn}, hard ${rimsOff}`);
 
+// ── 5. dồn sức: the wager's whole contract ─────────────────────────────────
+const wager = await normal.page.evaluate(async () => {
+  const B = await import('/src/systems/ascent/BattleSystem.ts');
+  const state = { ascent: { activeBattle: {
+    round: 1, ourFormation: 'chong', theirFormation: 'tan', stance: 'balanced', theirStance: 'balanced',
+    stamina: 2,
+  } } };
+  const b = state.ascent.activeBattle;
+  const first = B.commitBattleFormation(state);
+  const afterFirst = { pips: b.stamina, committed: !!b.committed };
+  const second = B.commitBattleFormation(state);          // one wager per stand
+  B.setBattleFormation(state, 'quy');                      // changing shape folds it
+  const afterChange = { committed: !!b.committed, pips: b.stamina };
+  b.reformBeats = 0; b.formationTarget = undefined; b.ourFormation = 'quy';
+  b.stamina = 0;
+  const broke = B.commitBattleFormation(state);            // no pip, no wager
+  return { first, afterFirst, second, afterChange, broke };
+});
+check(wager.first === true && wager.afterFirst.pips === 1 && wager.afterFirst.committed,
+  'a wager spends one pip and stands on the held shape', JSON.stringify(wager.afterFirst));
+check(wager.second === false, 'one wager per stand — the second is refused', '');
+check(wager.afterChange.committed === false, 'changing shape folds the wager', '');
+check(wager.broke === false, 'no pip, no wager', '');
+
 check(normal.errors.length === 0 && hard.errors.length === 0, 'no console errors',
   [...normal.errors, ...hard.errors].slice(0, 2).join(' | '));
 

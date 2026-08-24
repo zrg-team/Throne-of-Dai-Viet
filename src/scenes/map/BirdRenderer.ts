@@ -14,6 +14,7 @@
  */
 import Phaser from 'phaser';
 import { bakeLacBirds, type WingBeat } from '../../ui/ink/birds';
+import { applyStamp, BASE_SCALE_KEY } from '../../ui/ink/stamp';
 import { propImage } from '../../ui/ink/sprites';
 import { birdsEnabled } from '../../game/lifeSettings';
 import { mulberry32 } from '../../ui/ink/stroke';
@@ -204,7 +205,10 @@ export class BirdRenderer {
         beat = beat === 'down' ? 'up' : 'down';
         const pose = this.poses![beat];
         for (const bird of skein.birds) {
-          bird.setTexture(pose.key);
+          // Each bird was placed at its own size; the swap keeps it (both poses share one
+          // raster, so the stored base scale over the pose's own scale is that placement size).
+          const base = (bird.getData(BASE_SCALE_KEY) as number | undefined) ?? pose.scale;
+          applyStamp(bird, pose, base / pose.scale);
         }
       },
     });

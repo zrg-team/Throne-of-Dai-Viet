@@ -20,39 +20,37 @@ import {
   BATTLE_DIFFICULTIES, BATTLE_SPEEDS, getBattleDifficulty, getBattleSpeed,
   setBattleDifficulty, setBattleSpeed,
 } from '../game/battleOptions';
-import { CARD_ICON_SIZE, drawCardIcon } from '../ui/CardIcons';
+import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from '../ui/CardIcons';
 import { Copilot, type CopilotStep } from '../ui/Copilot';
+import { drawLanguageFlag } from '../ui/languageFlags';
 import { PIGMENT } from '../ui/ink/palette';
 import { INK, brushStroke, inkOutline, shade, washFill, waveLine } from '../ui/inkTheme';
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
 import { getMapTheme, MAP_THEME_OPTIONS, setMapTheme } from '../ui/mapTheme';
 import { applyPaperFX } from '../ui/ink/PaperFX';
 import { inkPath, mulberry32, thickPath, washFill as washInk, type Pt } from '../ui/ink/stroke';
-import { areca, bamboo, banyan, farmer, karstRange, softRidge, tree as treeProp } from '../ui/ink/props';
-import { seasonForDate, setFoliageSeason, setRenderSeason } from '../ui/ink/season';
-import { grazeInSmallArea, livingSprite } from '../ui/ink/life';
-import { bakedBuffalo } from '../ui/ink/sprites';
-import { drawFieldPlot, hamlet, paddyLattice } from '../ui/ink/settlements';
-import { drawHost, hostFootprint, hostShape, marchInPlace, type HostShape } from '../ui/ink/devices';
-import { GRAPHICS_QUALITIES, applyRenderScale, getGraphicsQuality, setGraphicsQuality } from '../game/graphicsQuality';
+import { house, karstRange, softRidge } from '../ui/ink/props';
+import { drawFieldPlot, type FieldPlot } from '../ui/ink/settlements';
+import { GRAPHICS_QUALITIES, applyPendingRenderScale, applyRenderScale, getGraphicsQuality, renderScale, requestRenderScale, setGraphicsQuality } from '../game/graphicsQuality';
 import { TRAFFIC_DENSITIES, getLifeSettings, setLifeSettings } from '../game/lifeSettings';
 import { SUPPORT, configuredSupportChannels, supportQrTextureKey, type SupportChannel } from '../data/support';
 import { allowsDonationLinks, notifyShellReady } from '../platform/shell';
 import { copyToClipboard, openExternalLink } from '../utils/browser';
 import { encodeQr, type QrMatrix } from '../utils/qr';
+import { attachPaperSheet } from '../ui/ink/paperSheet';
+import { qualityLadder } from '../game/qualityLadder';
+import { rungForTier } from '../game/qualityRungs';
 
 type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy' | 'settings';
 
 /**
  * The front page's footer, measured up from the bottom edge.
  *
- * The support row — one sentence offering a coffee and a pull request — sits on the sheet's edge,
- * and the settings button just above it. The row holds pressable phrases rather than buttons, so
- * its height is the band they are centred in, not the height of anything drawn.
+ * The support row — two independent links offering a coffee or a pull request — sits on the
+ * sheet's edge, with the settings button just above it. The row holds pressable phrases rather
+ * than buttons, so its height is the touch band they are centred in, not the type's visual height.
  *
- * 46 rather than 32 because the sentence wraps to two lines in Vietnamese, and two pressable
- * phrases need real space between them before a thumb can tell them apart. A band sized for one
- * line puts both of them inside a single fingertip.
+ * 46 leaves both links their full touch height and separates them from the build stamp below.
  *
  * The button column stops at `SETTINGS_TOP`; the three settings rows that used to live there have
  * their own page now, and what is left above the footer is breathing room for the art.
@@ -71,10 +69,9 @@ const SUPPORT_ROW_HEIGHT = 46;
  * that is left under it, and it is not zero because a descender on the last line of a page needs
  * somewhere to go, and because a phone with rounded corners eats the last few rows.
  *
- * 30 is the 9px line plus the air above it, and the air is most of it: the support sentence wraps
- * to two lines in both languages and its lower line ends 15 below that band's centre, so a band
- * sized to the type alone printed the stamp hard against "help build the game" and the two read as
- * one paragraph.
+ * 30 is the 9px line plus the air above it, and the air is most of it: the support actions keep
+ * full-size touch areas even though their type is quiet, so a band sized to the type alone would
+ * put the build stamp inside the links' hit region.
  *
  * The whole footer stack moves up by what this band takes and the art lane above it loses the
  * same, which is slack it had.
@@ -82,7 +79,7 @@ const SUPPORT_ROW_HEIGHT = 46;
 const VERSION_ROW_HEIGHT = 30;
 const VERSION_EDGE = 6;
 const SUPPORT_TOP = GAME_HEIGHT - VERSION_ROW_HEIGHT - SUPPORT_ROW_HEIGHT;
-/** The language line under the settings button: two words and the space to tap one. */
+/** The language line under the utility buttons: two small flags, two labels, and thumb-sized hits. */
 const LANGUAGE_ROW_HEIGHT = 20;
 /**
  * Settings and the language line are ONE block, and they are spaced like one.
@@ -162,7 +159,7 @@ export class MenuScene extends Phaser.Scene {
    * already had whenever the legacy-shop button was showing.
    */
   private get vScale(): number {
-    const BOTTOM_ROWS = 148;   // the footer: settings, the language line, and the support row
+    const BOTTOM_ROWS = 148;   // the footer: utility buttons, flagged language row, and support
     const DESIGN_BOTTOM = 790; // lowest content y in the 844 design
     return Math.max(0.62, Math.min(1, (GAME_HEIGHT - BOTTOM_ROWS) / DESIGN_BOTTOM));
   }
@@ -178,9 +175,15 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create(): void {
+    applyPendingRenderScale(this.game);
+    // The front page is a still image with a ripple: pacing it at 30 halves the idle battery
+    // cost of leaving the game open on the menu. Cleared the moment any world starts.
+    qualityLadder()?.setSceneCap(30);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => qualityLadder()?.setSceneCap(undefined));
     applyRenderScale(this);
     // The chrome is printed on the same sheet as the world, so it takes the same paper pass.
     applyPaperFX(this);
+    attachPaperSheet(this);
     window.__mandateState = undefined;
     this.registry.remove('gameState');
     this.ui = new InkUI(this);
@@ -283,29 +286,7 @@ export class MenuScene extends Phaser.Scene {
     const menu = this.mapRenderer.theme.renderers.menu;
 
     if (menu === 'dongho') {
-      // The title screen wears the player's own month. It is drawn once per launch and never
-      // re-baked, so unlike the map it can afford the full seasonal treatment of the props: bare
-      // branches in January, gold paddy in October. `MapScene` pins itself back to `BAKE_SEASON`
-      // on the way in, so this cannot leak into the world's terrain fill.
-      //
-      // Both halves of the pair, or the diorama draws January ground under Spring canopy: the map
-      // splits these deliberately (pinned fill, live scenery) and the menu is the one place that
-      // wants them together.
-      const month = seasonForDate();
-      setRenderSeason(month);
-      setFoliageSeason(month);
-
-      // The hosts are planned before the land is drawn, because the land has to leave their ground
-      // clear: fields drawn first and men placed into them afterwards is how a host ends up
-      // standing in a paddy, and the same reasoning put one of them in the river.
-      const river = createMenuRiver();
-      const hosts = planDongHoHosts(river);
-      // Exposed so a driver script can assert nothing is standing in the water; a host in the river
-      // is exactly the kind of defect that is invisible until somebody looks at the right screen.
-      (this as unknown as { __menuRiver: (y: number) => unknown }).__menuRiver = (y: number) => river.spanAt(y / this.vScale);
-      this.fitLandscapeLayer(() => this.drawDongHoLandscape(river, hosts));
-      this.drawDongHoLife(hosts);
-      this.drawDongHoWeather(river);
+      this.drawDongHoIllustration();
     } else if (menu === 'atlas') {
       this.fitLandscapeLayer(() => {
         this.drawAtlasLandscape();
@@ -329,12 +310,9 @@ export class MenuScene extends Phaser.Scene {
   /**
    * A wash of điệp laid back over the lower half of the diorama.
    *
-   * The menu's landscape is the same art the map is drawn with — two hosts under standards, a
-   * river, paddies, a village, a buffalo — and at full strength every one of those competes with
-   * the one thing this page exists for, which is pressing a button. The scene is not thinned to
-   * fix that, because it is the map's own code and thinning it here would fork it. The sheet is
-   * simply laid back down over it, gaining opacity down the page, so the button column sits on
-   * calm paper and the art reads as what is behind the page rather than what is on it.
+   * The landscape is deliberately sparse — mountains, one river, six broad paddies, two houses and
+   * a lotus cluster — but the lower wash still gives the button column a calm sheet to stand on.
+   * It gains opacity down the page, making the illustration recede before it reaches the actions.
    *
    * Graded slices with no overlap, for the same reason the horizon haze uses them: sheets that
    * each run from a shared top accumulate their opacity and arrive as a curtain, with a seam
@@ -369,8 +347,8 @@ export class MenuScene extends Phaser.Scene {
    * Runs `draw` and collects everything it created into a landscape fitted onto the device's sheet.
    *
    * Large ground washes and the river may compress vertically; they are the layout. Recognizable
-   * objects tagged `menuAspectSafe` counter-scale inside the container, so mountains, trees,
-   * houses and people keep their authored proportions while their anchor positions still fit the
+   * objects tagged `menuAspectSafe` counter-scale inside the container, so mountains, houses and
+   * lotus flowers keep their authored proportions while their anchor positions still fit the
    * short sheet. This is the difference between moving a tree closer and flattening the tree.
    *
    * Live objects remain outside this container so they can move and use `vy` for the same fitted
@@ -398,6 +376,711 @@ export class MenuScene extends Phaser.Scene {
     return art;
   }
 
+  /** The approved river scene, registered as four real image layers instead of one static plate. */
+  private drawDongHoIllustration(): void {
+    const texture = this.textures.get('menu-layer-ground-v4').getSourceImage() as { width: number; height: number };
+    // The art lane loses height much faster than width on short browser-chrome viewports. Shrink
+    // uniformly instead of squashing the landscape: full bleed on the 844 sheet, a quiet paper
+    // margin on the compact sheet, and the lotus/roofs keep their authored proportions on both.
+    const fitted = Phaser.Math.Clamp((this.vScale - 0.62) / 0.38, 0, 1);
+    // A tall sheet can carry a small, safe overscan; the source keeps clear outer margins around
+    // the lotus and roofs. That closes the dead parchment band above the first plate without
+    // cropping a focal object. Compact sheets remain at their existing contained width.
+    const width = GAME_WIDTH * Math.min(1.08, Phaser.Math.Linear(0.8, 1.2, fitted));
+    const height = width * (texture.height / texture.width);
+    const top = this.vy(190) + Math.round(16 * fitted);
+    const left = (GAME_WIDTH - width) / 2;
+    const centreY = top + height / 2;
+    const artwork = this.add.container(0, 0)
+      .setDepth(-8)
+      .setData('menuLandscapeRole', 'illustration')
+      .setData('menuArtwork', {
+        version: 9,
+        layers: ['ground', 'mountains', 'mountain-mist', 'river-fx', 'bamboo', 'lotus'],
+        composition: ['karst-mountains', 's-curve-river', 'foreground-lotus', 'right-bank-paddies', 'right-bank-bamboo-grove'],
+        motion: ['mountain-drift', 'mountain-mist', 'bamboo-breeze', 'lotus-sway', 'pointer-lotus-spring', 'river-surface-flow', 'lotus-water-wakes', 'tap-and-drag-wakes'],
+        width,
+        height,
+      });
+
+    const layer = (key: string, name: string, alpha: number): Phaser.GameObjects.Image => {
+      const source = this.textures.get(key).getSourceImage() as { width: number; height: number };
+      const image = this.add.image(GAME_WIDTH / 2, centreY, key)
+        .setDisplaySize(width, height)
+        .setAlpha(alpha)
+        .setData('menuArtworkLayer', name)
+        .setData('sourceSize', { width: source.width, height: source.height });
+      artwork.add(image);
+      return image;
+    };
+
+    const ground = layer('menu-layer-ground-v4', 'ground', 0.95)
+      .setData('menuFieldContinuity', 'fully-planted-rice');
+    const mountains = layer('menu-layer-mountains-v1', 'mountains', 0.86);
+    // This container is deliberately inserted between mountains and village. Mist can cross the
+    // feet of the karst without whitening the houses or close lotus in front of it.
+    const mountainMist = this.add.container(0, 0)
+      .setData('menuArtworkLayer', 'mountain-mist')
+      .setData('menuLayerMotion', 'valley-drift');
+    artwork.add(mountainMist);
+    // Every live water mark belongs inside the illustration, before the bamboo and lotus.
+    // Scene-level depth cannot interleave with children of a Container: the old currents were
+    // therefore painted over the entire plate, including the foreground flowers.
+    const waterFx = this.add.container(0, 0)
+      .setData('menuArtworkLayer', 'river-fx')
+      .setData('menuCompositing', 'below-bamboo-and-lotus');
+    artwork.add(waterFx);
+    const bamboo = layer('menu-layer-bamboo-v1', 'bamboo', 0.58)
+      .setData('menuBambooPlacement', 'rear-field-edge-windbreak')
+      .setData('menuBambooBand', 'rear-right-dike')
+      .setData('menuBambooStyle', 'dong-ho-natural-pigment')
+      .setData('menuBambooCulmCount', 14)
+      .setData('menuBambooWindMode', 'segmented-canopy-lag')
+      .setData('menuBambooWindLayers', 2);
+    // The isolated grove keeps the registered 1536x1024 frame. Its measured ink bounds are
+    // transformed onto the distant outer dike. At one fifth scale the roots sit on the bank line,
+    // not inside a planted plot, and the grove reads as a rear windbreak rather than foreground art.
+    const bambooScale = 0.2;
+    const bambooSourceBounds = { left: 590, top: 448, right: 1494, bottom: 970 };
+    const bambooSourceCentre = {
+      x: (bambooSourceBounds.left + bambooSourceBounds.right) / 2,
+      y: (bambooSourceBounds.top + bambooSourceBounds.bottom) / 2,
+    };
+    const bambooTargetCentre = { x: 1400, y: 480 };
+    const bambooX = left + width * (bambooTargetCentre.x / 1536)
+      - width * bambooScale * (bambooSourceCentre.x / 1536 - 0.5);
+    const bambooY = top + height * (bambooTargetCentre.y / 1024)
+      - height * bambooScale * (bambooSourceCentre.y / 1024 - 0.5);
+    bamboo
+      .setDisplaySize(width * bambooScale, height * bambooScale)
+      .setPosition(bambooX, bambooY)
+      .setData('menuBambooHome', { x: bambooX, y: bambooY })
+      .setData('menuBambooTransform', {
+        scale: bambooScale,
+        sourceBounds: bambooSourceBounds,
+        targetCentre: bambooTargetCentre,
+      });
+    // Wind needs parallax inside the grove, not a rigid translation of the full plate. These two
+    // cropped copies retain exact registration with the base but let upper culms and leaves lag.
+    // The roots remain only in the stable base, so the wind never slides bamboo across the dike.
+    const bambooWind = [
+      { part: 'upper-culms', crop: { x: 590, y: 590, width: 904, height: 245 }, alpha: 0.28 },
+      { part: 'leaf-canopy', crop: { x: 590, y: 448, width: 904, height: 250 }, alpha: 0.44 },
+    ].map(({ part, crop, alpha }) => {
+      const wind = this.add.image(bambooX, bambooY, 'menu-layer-bamboo-v1')
+        .setDisplaySize(width * bambooScale, height * bambooScale)
+        .setAlpha(alpha)
+        .setCrop(crop.x, crop.y, crop.width, crop.height)
+        .setData('menuBambooWindPart', part)
+        .setData('menuBambooWindHome', { x: bambooX, y: bambooY });
+      artwork.add(wind);
+      return wind;
+    });
+    const lotus = layer('menu-layer-lotus-v1', 'lotus', 0.98);
+    const layers = { ground, mountains, mountainMist, waterFx, bamboo, bambooWind, lotus };
+
+    // The illustration carries its own softly stained paper. Feathering that paper back into the
+    // scene's điệp sheet avoids a pasted rectangular edge without erasing the pale river and mist
+    // inside the composition. This stays above the plate and below every word or control.
+    const edge = Math.max(12, Math.min(22, width * 0.055));
+    const feather = this.add.graphics().setDepth(-7.9);
+    feather.fillGradientStyle(PIGMENT.diep, PIGMENT.diep, PIGMENT.diep, PIGMENT.diep, 1, 1, 0, 0);
+    feather.fillRect(left - 1, top - 1, width + 2, edge + 1);
+    feather.fillGradientStyle(PIGMENT.diep, PIGMENT.diep, PIGMENT.diep, PIGMENT.diep, 0, 0, 1, 1);
+    feather.fillRect(left - 1, top + height - edge, width + 2, edge + 1);
+    feather.fillGradientStyle(PIGMENT.diep, PIGMENT.diep, PIGMENT.diep, PIGMENT.diep, 1, 0, 1, 0);
+    feather.fillRect(left - 1, top - 1, edge + 1, height + 2);
+    feather.fillGradientStyle(PIGMENT.diep, PIGMENT.diep, PIGMENT.diep, PIGMENT.diep, 0, 1, 0, 1);
+    feather.fillRect(left + width - edge, top - 1, edge + 1, height + 2);
+
+    this.animateDongHoIllustration({ left, top, width, height }, layers);
+  }
+
+  /**
+   * Each registered image plate owns a different movement range: distant mountains barely drift,
+   * the bamboo follows a very small breeze, and the close lotus has the most visible sway.
+   * Water, mist and touch ripples then add local motion without moving the stable river base.
+   */
+  private animateDongHoIllustration(
+    bounds: { left: number; top: number; width: number; height: number },
+    layers: {
+      ground: Phaser.GameObjects.Image;
+      mountains: Phaser.GameObjects.Image;
+      mountainMist: Phaser.GameObjects.Container;
+      waterFx: Phaser.GameObjects.Container;
+      bamboo: Phaser.GameObjects.Image;
+      bambooWind: Phaser.GameObjects.Image[];
+      lotus: Phaser.GameObjects.Image;
+    },
+  ): void {
+    const { left, top, width, height } = bounds;
+    const at = (x: number, y: number): Phaser.Math.Vector2 => new Phaser.Math.Vector2(
+      left + width * x,
+      top + height * y,
+    );
+
+    const centreX = GAME_WIDTH / 2;
+    const centreY = top + height / 2;
+    layers.ground.setData('menuLayerMotion', 'stable-river-base');
+    layers.mountains.setData('menuLayerMotion', 'distant-drift');
+    layers.bamboo.setData('menuLayerMotion', 'bamboo-breeze');
+    layers.lotus.setData('menuLayerMotion', 'foreground-sway');
+
+    this.tweens.add({
+      targets: layers.mountains,
+      x: { from: centreX - 1.2, to: centreX + 1.2 },
+      y: { from: centreY + 0.4, to: centreY - 0.4 },
+      duration: 16_000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+    const bambooHome = layers.bamboo.getData('menuBambooHome') as { x: number; y: number };
+    this.tweens.add({
+      targets: layers.bamboo,
+      x: { from: bambooHome.x - 0.55, to: bambooHome.x + 0.55 },
+      angle: { from: -0.16, to: 0.16 },
+      duration: 7_600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+    layers.bambooWind.forEach((wind, index) => {
+      const home = wind.getData('menuBambooWindHome') as { x: number; y: number };
+      const amplitude = index === 0 ? 0.95 : 1.65;
+      const angle = index === 0 ? 0.42 : 0.78;
+      this.tweens.add({
+        targets: wind,
+        x: { from: home.x - amplitude, to: home.x + amplitude },
+        y: { from: home.y + 0.15, to: home.y - 0.35 - index * 0.18 },
+        angle: { from: -angle, to: angle },
+        duration: 4_500 + index * 850,
+        delay: 260 + index * 360,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    });
+    // Ambient drift and pointer bending use separate proxies, then combine once onto the image.
+    // Competing tweens on the image's x/y/angle caused pointer motion either to snap or to vanish
+    // on the next ambient frame; two inputs into one transform behave like wind plus a soft stem.
+    const lotusAmbient = { x: -0.95, y: 0.8, angle: -0.09 };
+    const lotusReaction = { x: 0, y: 0, angle: 0 };
+    const applyLotusMotion = (): void => {
+      layers.lotus
+        .setPosition(centreX + lotusAmbient.x + lotusReaction.x, centreY + lotusAmbient.y + lotusReaction.y)
+        .setAngle(lotusAmbient.angle + lotusReaction.angle)
+        .setData('menuLotusReaction', { ...lotusReaction });
+    };
+    layers.lotus
+      .setData('menuMotionProxy', lotusAmbient)
+      .setData('menuLotusResponse', 'soft-damped-pointer-spring')
+      .setData('menuLotusMotionProfile', 'visible-gentle-breeze')
+      .setData('menuLotusAmbientRange', { x: 2, y: 1.6, angle: 0.18, duration: 5_800 })
+      .setData('menuLotusMaxResponse', { x: 2.2, y: 1.1, angle: 0.7 });
+    this.tweens.add({
+      targets: lotusAmbient,
+      x: { from: -0.95, to: 1.05 },
+      y: { from: 0.8, to: -0.8 },
+      angle: { from: -0.09, to: 0.09 },
+      duration: 5_800,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+      onUpdate: applyLotusMotion,
+    });
+    applyLotusMotion();
+
+    // The centre of the painted river, read from the generated plate in normalized coordinates.
+    // Effects and hit feedback share this curve, so a ripple cannot appear in a rice plot.
+    const river = new Phaser.Curves.Spline([
+      at(0.52, 0.43), at(0.46, 0.47), at(0.34, 0.51), at(0.20, 0.57),
+      at(0.15, 0.64), at(0.22, 0.71), at(0.38, 0.80), at(0.53, 0.90),
+      at(0.60, 0.97),
+    ]);
+    // The channel opens toward the viewer. All ambient effects use a signed lane within that
+    // perspective width instead of collapsing onto the centre spline (the artificial single rail
+    // visible in the previous build). `lane = -1..1` means left bank through right bank.
+    const riverHalfWidthAt = (t: number): number => width * Phaser.Math.Linear(0.012, 0.16, t);
+    const riverLaneAt = (t: number, lane: number): {
+      point: Phaser.Math.Vector2;
+      tangent: Phaser.Math.Vector2;
+    } => {
+      const centre = river.getPointAt(t);
+      const tangent = river.getTangentAt(t).normalize();
+      const normal = new Phaser.Math.Vector2(-tangent.y, tangent.x);
+      return {
+        point: centre.clone().add(normal.scale(riverHalfWidthAt(t) * Phaser.Math.Clamp(lane, -0.78, 0.78))),
+        tangent,
+      };
+    };
+
+    // The authored river already contains dense engraved water lines. A translucent paper glaze
+    // calms those marks without covering the banks, then a few LOCAL highlights breathe in place.
+    // Nothing travels the whole channel: that motion looked like loose scratches sliding over art.
+    const riverVeil = this.add.graphics()
+      .setData('menuWaterTreatment', 'soft-paper-glaze')
+      .setData('menuWaterCoverage', 'river-only');
+    layers.waterFx.add(riverVeil);
+    const glazeBands = [
+      { from: 0, to: 0.38, width: width * 0.024, alpha: 0.17 },
+      { from: 0.32, to: 0.68, width: width * 0.052, alpha: 0.16 },
+      { from: 0.62, to: 1, width: width * 0.105, alpha: 0.14 },
+    ];
+    for (const band of glazeBands) {
+      const points = Array.from({ length: 21 }, (_, sample) => (
+        river.getPointAt(Phaser.Math.Linear(band.from, band.to, sample / 20))
+      ));
+      riverVeil.lineStyle(Math.max(5, band.width * 1.08), PIGMENT.chamPale, band.alpha * 0.78);
+      riverVeil.strokePoints(points, false, false);
+      riverVeil.lineStyle(Math.max(3, band.width * 0.78), PIGMENT.diepHi, band.alpha);
+      riverVeil.strokePoints(points, false, false);
+    }
+    riverVeil
+      .setData('menuRiverVeilBands', glazeBands.length)
+      .setData('menuWaterGraphic', 'two-tone-reflection-wash');
+
+    const currentCount = getGraphicsQuality() === 'low' ? 6 : 8;
+    const shimmerAnchors = [0.18, 0.3, 0.43, 0.56, 0.68, 0.79, 0.88, 0.95];
+    const shimmerLanes = [-0.68, 0.18, 0.66, -0.28, 0.46, -0.58, 0.06, 0.72];
+    for (let index = 0; index < currentCount; index += 1) {
+      const anchor = shimmerAnchors[index];
+      const lane = shimmerLanes[index];
+      const { point, tangent } = riverLaneAt(anchor, lane);
+      // The earlier cream-on-cream glints were moving, but disappeared into the paper grain at
+      // phone size. These are broad indigo-watercolour pools with a paper-bright inner reflection:
+      // large enough to read, still far slower than the rejected sliding-scratch current.
+      const travel = 12 + (index % 3) * 2;
+      const span = 10 + anchor * 10;
+      const baseScale = 0.58 + anchor * 0.66;
+      const duration = 8_500 + index * 400;
+      const flow = { clock: 0 };
+      const phaseOffset = (index / currentCount) * 0.86;
+      const current = this.add.graphics()
+        .setData('menuAmbient', 'river-current')
+        .setData('menuCurrentMotion', 'forward-surface-flow')
+        .setData('menuCurrentVisibility', 'phone-readable')
+        .setData('menuCurrentGraphic', 'layered-watercolour-ripples')
+        .setData('menuCurrentInterpolation', 'forward-fade-loop')
+        .setData('menuCurrentAnchor', anchor)
+        .setData('menuCurrentLane', lane)
+        .setData('menuCurrentTravel', travel)
+        .setData('menuCurrentDuration', duration)
+        .setData('menuCurrentMotionProxy', flow);
+      layers.waterFx.add(current);
+      const glintHeight = 3.4 + anchor * 1.8;
+      current.fillStyle(PIGMENT.chamWash, 0.64);
+      current.fillEllipse(-span * 0.18, 0.2, span * 0.72, glintHeight);
+      current.fillStyle(PIGMENT.chamPale, 0.42);
+      current.fillEllipse(span * 0.36, -0.15, span * 0.58, glintHeight * 0.78);
+      current.fillStyle(PIGMENT.diepHi, 0.82);
+      current.fillEllipse(-span * 0.14, -0.28, span * 0.36, glintHeight * 0.28);
+      current.fillEllipse(span * 0.38, -0.36, span * 0.26, glintHeight * 0.22);
+      current
+        .setPosition(point.x - tangent.x * travel * 0.5, point.y - tangent.y * travel * 0.5)
+        .setRotation(Math.atan2(tangent.y, tangent.x))
+        .setScale(baseScale)
+        .setAlpha(0.2);
+      this.tweens.add({
+        targets: flow,
+        clock: { from: 0, to: 1 },
+        duration,
+        repeat: -1,
+        ease: 'Linear',
+        onUpdate: () => {
+          const phase = (flow.clock + phaseOffset) % 1;
+          const envelope = Math.sin(Math.PI * phase);
+          current
+            .setPosition(
+              point.x + tangent.x * travel * (phase - 0.5),
+              point.y + tangent.y * travel * (phase - 0.5),
+            )
+            .setScale(
+              baseScale * (0.94 + envelope * 0.12),
+              baseScale * (0.98 + envelope * 0.04),
+            )
+            .setAlpha(0.16 + envelope * (0.62 + (index % 2) * 0.04));
+        },
+      });
+    }
+
+    // A moving current can still read as static in a single glance, so the channel also carries
+    // staggered surface pulses. These are compact water rings, never long strokes: each quietly
+    // opens and disappears before another one answers farther downstream.
+    const pulseAnchors = getGraphicsQuality() === 'low'
+      ? [0.24, 0.42, 0.6, 0.78, 0.94]
+      : [0.2, 0.32, 0.44, 0.56, 0.69, 0.82, 0.94];
+    const pulseLanes = [-0.62, 0.44, -0.16, 0.68, -0.7, 0.12, 0.58];
+    for (let index = 0; index < pulseAnchors.length; index += 1) {
+      const anchor = pulseAnchors[index];
+      const lane = pulseLanes[index];
+      const { point } = riverLaneAt(anchor, lane);
+      const pulse = this.add.graphics({ x: point.x, y: point.y })
+        .setData('menuAmbient', 'river-pulse')
+        .setData('menuRiverPulse', 'expanding-water-ring')
+        .setData('menuRiverPulseAnchor', anchor)
+        .setData('menuRiverPulseLane', lane);
+      const ringWidth = 22 + anchor * 20;
+      const ringHeight = 5 + anchor * 3;
+      pulse.lineStyle(1.15, PIGMENT.chamPale, 0.9);
+      pulse.strokeEllipse(0, 0, ringWidth, ringHeight);
+      pulse.lineStyle(0.78, PIGMENT.diepHi, 0.9);
+      pulse.strokeEllipse(0, 0.4, ringWidth * 0.68, ringHeight * 0.68);
+      pulse.setScale(0.52).setAlpha(0.76);
+      layers.waterFx.add(pulse);
+      this.tweens.add({
+        targets: pulse,
+        scaleX: 1.32,
+        scaleY: 1.18,
+        alpha: 0.04,
+        duration: 2_400 + (index % 3) * 360,
+        delay: index * 220,
+        repeat: -1,
+        repeatDelay: 160 + (index % 2) * 140,
+        ease: 'Sine.easeOut',
+      });
+    }
+
+    // Direction is carried by a sparse set of paper-light flecks following the actual spline.
+    // They are intentionally tiny, not lines, and take well over a minute to cross the illustration;
+    // this makes the river unmistakably alive without returning to the fast sliding-current look.
+    const flowMoteCount = getGraphicsQuality() === 'low' ? 6 : 9;
+    const flowMoteLanes = [-0.72, -0.34, 0.12, 0.58, 0.76, -0.52, 0.36, 0.68, -0.12];
+    for (let index = 0; index < flowMoteCount; index += 1) {
+      const lane = flowMoteLanes[index];
+      const mote = this.add.graphics()
+        .setData('menuAmbient', 'river-flow-mote')
+        .setData('menuRiverMoteMotion', 'smooth-spline-downstream')
+        .setData('menuRiverMoteLane', lane);
+      const length = 3.2 + (index % 3) * 1.2;
+      const thickness = 1.2 + (index % 2) * 0.45;
+      mote.fillStyle(PIGMENT.chamPale, 0.58);
+      mote.fillEllipse(0, 0.35, length * 1.28, thickness * 1.35);
+      mote.fillStyle(PIGMENT.diepHi, 0.92);
+      mote.fillEllipse(-length * 0.08, 0, length, thickness);
+      layers.waterFx.add(mote);
+
+      const flow = { clock: 0 };
+      const offset = (index + 0.35) / flowMoteCount;
+      const duration = Math.round((110_000 + (index % 4) * 7_000) * (width / 326));
+      mote
+        .setData('menuRiverMoteDuration', duration)
+        .setData('menuRiverMoteProxy', flow);
+      const placeMote = (): void => {
+        const phase = (offset + flow.clock) % 1;
+        const t = Phaser.Math.Linear(0.1, 0.98, phase);
+        const laneWander = lane + Math.sin((flow.clock + index * 0.17) * Math.PI * 2) * 0.055;
+        const { point, tangent } = riverLaneAt(t, laneWander);
+        const edgeFade = Phaser.Math.Clamp(Math.min(phase / 0.07, (1 - phase) / 0.07), 0, 1);
+        mote
+          .setPosition(point.x, point.y)
+          .setRotation(Math.atan2(tangent.y, tangent.x))
+          .setScale(0.72 + t * 0.52)
+          .setAlpha(edgeFade * (0.52 + (index % 3) * 0.08));
+      };
+      placeMote();
+      this.tweens.add({
+        targets: flow,
+        clock: { from: 0, to: 1 },
+        duration,
+        repeat: -1,
+        ease: 'Linear',
+        onUpdate: placeMote,
+      });
+    }
+
+    // Separate wisps cross the actual mountain feet. The previous large paper-coloured ellipses
+    // merged with the baked horizon haze, so their 20px tween was technically running but visually
+    // unknowable. These narrower blue-grey-bottomed strands keep a readable moving edge.
+    const mistStarts = [
+      at(0.12, 0.405), at(0.31, 0.435), at(0.5, 0.405), at(0.7, 0.43), at(0.87, 0.4),
+    ];
+    for (let index = 0; index < mistStarts.length; index += 1) {
+      const mist = this.add.graphics()
+        .setData('menuAmbient', 'mountain-mist')
+        .setData('menuMistLayer', 'mountains')
+        .setData('menuMistVisibility', 'distinct-wisp');
+      const span = width * (0.2 + (index % 2) * 0.035);
+      const bandHeight = Math.max(7, height * (0.032 + (index % 3) * 0.004));
+      const travel = width * (0.045 + (index % 2) * 0.012);
+      const direction = index % 2 === 0 ? 1 : -1;
+      const duration = 6_600 + index * 780;
+      mist
+        .setData('menuMistTravel', travel)
+        .setData('menuMistDuration', duration);
+      mist.fillStyle(PIGMENT.diepHi, 0.72);
+      mist.fillEllipse(-span * 0.13, 0, span * 0.72, bandHeight);
+      mist.fillStyle(PIGMENT.diep, 0.66);
+      mist.fillEllipse(span * 0.17, 0.7, span * 0.7, bandHeight * 0.72);
+      mist.fillStyle(PIGMENT.chamPale, 0.25);
+      mist.fillEllipse(span * 0.03, bandHeight * 0.22, span * 0.84, bandHeight * 0.28);
+      inkPath(mist, [
+        { x: -span * 0.39, y: -bandHeight * 0.04 },
+        { x: -span * 0.17, y: bandHeight * 0.07 },
+        { x: span * 0.05, y: -bandHeight * 0.03 },
+        { x: span * 0.24, y: bandHeight * 0.06 },
+        { x: span * 0.4, y: -bandHeight * 0.02 },
+      ], 7_350 + index, {
+        width: 0.6,
+        alpha: 0.4,
+        colour: PIGMENT.chamPale,
+        wobble: 0.32,
+        step: 5,
+      });
+      layers.mountainMist.add(mist);
+      const start = mistStarts[index];
+      mist.setPosition(start.x, start.y).setAlpha(0.72);
+      this.tweens.add({
+        targets: mist,
+        x: start.x + direction * travel,
+        y: start.y + (index % 2 === 0 ? -1.6 : 1.4),
+        alpha: { from: 0.58, to: 0.9 },
+        scaleX: { from: 0.92, to: 1.1 },
+        duration,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
+
+    // Decorative interaction sits below all real menu controls. Even where the art safely
+    // overscans beneath the first plate, that plate wins the input sort and keeps its route.
+    const touch = this.add.zone(left, top, width, height)
+      .setOrigin(0, 0)
+      .setDepth(-6)
+      .setInteractive()
+      .setData('menuLandscapeInteraction', 'river-ripple');
+    touch.setData('menuRiverGestures', ['tap', 'drag', 'hover-wake']);
+    const nearestOnRiver = (targetX: number, targetY: number): {
+      point: Phaser.Math.Vector2;
+      tangent: Phaser.Math.Vector2;
+      distance: number;
+    } => {
+      let nearest = river.getPoint(0);
+      let nearestT = 0;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+      for (let sample = 0; sample <= 96; sample += 1) {
+        const t = sample / 96;
+        const point = river.getPoint(t);
+        const distance = Phaser.Math.Distance.Squared(targetX, targetY, point.x, point.y);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearest = point;
+          nearestT = t;
+        }
+      }
+      return { point: nearest, tangent: river.getTangent(nearestT).normalize(), distance: nearestDistance };
+    };
+
+    touch.on('pointerdown', (_pointer: Phaser.Input.Pointer, localX: number, localY: number) => {
+      const nearest = nearestOnRiver(left + localX, top + localY);
+      const angle = Math.atan2(nearest.tangent.y, nearest.tangent.x);
+      this.spawnDongHoWake(layers.waterFx, nearest.point.x, nearest.point.y, angle, width / GAME_WIDTH, 1);
+      this.spawnDongHoRipple(layers.waterFx, nearest.point.x, nearest.point.y, width / GAME_WIDTH);
+    });
+
+    let lastWakeAt = -1_000;
+    let lastDragRippleAt = -1_000;
+    touch.on('pointermove', (pointer: Phaser.Input.Pointer, localX: number, localY: number) => {
+      const nearest = nearestOnRiver(left + localX, top + localY);
+      const closeToWater = nearest.distance <= (width * 0.075) ** 2;
+      if (!closeToWater || this.time.now - lastWakeAt < 90) return;
+      lastWakeAt = this.time.now;
+      const angle = Math.atan2(nearest.tangent.y, nearest.tangent.x);
+      this.spawnDongHoWake(layers.waterFx, nearest.point.x, nearest.point.y, angle, width / GAME_WIDTH, pointer.isDown ? 0.9 : 0.42);
+      if (pointer.isDown && this.time.now - lastDragRippleAt >= 260) {
+        lastDragRippleAt = this.time.now;
+        this.spawnDongHoRipple(layers.waterFx, nearest.point.x, nearest.point.y, width / GAME_WIDTH * 0.72);
+      }
+    });
+
+    // The foreground lotus owns the top-left water region. A local hit zone keeps this gesture
+    // separate from the river wake zone underneath it, while a soft overshooting return gives the
+    // cluster the feel of stems bending and settling instead of a sprite following the cursor.
+    const lotusTouch = this.add.zone(
+      left + width * 0.02,
+      top + height * 0.53,
+      width * 0.51,
+      height * 0.45,
+    )
+      .setOrigin(0, 0)
+      .setDepth(-5.8)
+      .setInteractive()
+      .setData('menuLandscapeInteraction', 'lotus-sway')
+      .setData('menuLotusGestures', ['hover', 'drag', 'water-wake']);
+    layers.lotus.setData('menuLotusWaterResponse', 'stem-waterline-ripples');
+    const lotusStemAnchors = [
+      { id: 'large-flower', touchX: left + width * 0.22, x: left + width * 0.19, y: top + height * 0.915 },
+      { id: 'small-flower', touchX: left + width * 0.36, x: left + width * 0.345, y: top + height * 0.902 },
+    ] as const;
+    let lastLotusPointer: { x: number; y: number } | undefined;
+    let lastLotusWakeAt = -1_000;
+    let lastLotusRippleAt = -1_000;
+    const wakeBelowLotus = (
+      pointer: Phaser.Input.Pointer,
+      localX: number,
+      localY: number,
+      initial = false,
+    ): void => {
+      if (!initial && this.time.now - lastLotusWakeAt < 110) return;
+      lastLotusWakeAt = this.time.now;
+      const pointerX = lotusTouch.x + localX;
+      const stem = lotusStemAnchors.reduce((closest, candidate) => (
+        Math.abs(candidate.touchX - pointerX) < Math.abs(closest.touchX - pointerX) ? candidate : closest
+      ));
+      // A touch can land on a wide leaf or flower head, but its disturbance belongs where that
+      // plant enters the water. Keep a tiny directional nudge so dragging still feels connected.
+      const nudgeX = Phaser.Math.Clamp((pointerX - stem.touchX) * 0.16, -width * 0.012, width * 0.012);
+      this.spawnLotusWaterlineWake(
+        layers.waterFx,
+        stem.x + nudgeX,
+        stem.y,
+        width / GAME_WIDTH,
+        pointer.isDown ? 1 : 0.72,
+        stem.id,
+      );
+      if (pointer.isDown && this.time.now - lastLotusRippleAt >= 260) {
+        lastLotusRippleAt = this.time.now;
+        this.spawnDongHoRipple(layers.waterFx, stem.x + nudgeX, stem.y, width / GAME_WIDTH * 0.8);
+      }
+    };
+    const bendLotus = (pointer: Phaser.Input.Pointer, localX: number, localY: number): void => {
+      const fallbackX = (localX / lotusTouch.width - 0.5) * 5;
+      const fallbackY = (localY / lotusTouch.height - 0.5) * 2;
+      const dx = lastLotusPointer ? localX - lastLotusPointer.x : fallbackX;
+      const dy = lastLotusPointer ? localY - lastLotusPointer.y : fallbackY;
+      lastLotusPointer = { x: localX, y: localY };
+      const strength = pointer.isDown ? 0.68 : 0.32;
+      wakeBelowLotus(pointer, localX, localY);
+      this.tweens.killTweensOf(lotusReaction);
+      lotusReaction.x = Phaser.Math.Clamp(lotusReaction.x + dx * 0.12 * strength, -2.2, 2.2);
+      lotusReaction.y = Phaser.Math.Clamp(lotusReaction.y + dy * 0.055 * strength, -1.1, 1.1);
+      lotusReaction.angle = Phaser.Math.Clamp(lotusReaction.angle + dx * 0.035 * strength, -0.7, 0.7);
+      applyLotusMotion();
+      this.tweens.add({
+        targets: lotusReaction,
+        x: 0,
+        y: 0,
+        angle: 0,
+        duration: pointer.isDown ? 1_180 : 980,
+        ease: 'Sine.easeOut',
+        onUpdate: applyLotusMotion,
+      });
+    };
+    lotusTouch.on('pointerover', (pointer: Phaser.Input.Pointer, localX: number, localY: number) => {
+      lastLotusPointer = { x: localX, y: localY };
+      wakeBelowLotus(pointer, localX, localY, true);
+    });
+    lotusTouch.on('pointermove', bendLotus);
+    lotusTouch.on('pointerdown', bendLotus);
+    lotusTouch.on('pointerout', () => {
+      lastLotusPointer = undefined;
+    });
+  }
+
+  /** One touch answer, gone before it can become another permanent object in the composition. */
+  private spawnDongHoRipple(parent: Phaser.GameObjects.Container, x: number, y: number, artScale: number): void {
+    const ripple = this.add.graphics({ x, y })
+      .setScale(0.35)
+      .setData('menuRipple', true);
+    parent.add(ripple);
+    ripple.lineStyle(0.95, PIGMENT.cham, 0.78);
+    ripple.strokeEllipse(0, 0, 20 * artScale, 5.5 * artScale);
+    ripple.lineStyle(0.65, PIGMENT.chamPale, 0.66);
+    ripple.strokeEllipse(0, 0, 30 * artScale, 8 * artScale);
+    this.tweens.add({
+      targets: ripple,
+      scaleX: 1.7,
+      scaleY: 1.7,
+      alpha: { from: 0.88, to: 0 },
+      duration: 760,
+      ease: 'Quad.easeOut',
+      onComplete: () => ripple.destroy(),
+    });
+  }
+
+  /** A brief current-aligned answer to hover or drag, carried downstream instead of expanding in place. */
+  private spawnDongHoWake(
+    parent: Phaser.GameObjects.Container,
+    x: number,
+    y: number,
+    angle: number,
+    artScale: number,
+    strength: number,
+    source: 'river' | 'lotus' = 'river',
+  ): void {
+    const wake = this.add.graphics({ x, y })
+      .setRotation(angle)
+      .setAlpha(0.82 * strength)
+      .setScale(0.7)
+      .setData('menuWaterWake', true)
+      .setData('menuWakeSource', source);
+    parent.add(wake);
+    const seed = 7_400 + Math.round(this.time.now) % 997;
+    inkPath(wake, [{ x: -7, y: -2 }, { x: -1, y: -1.4 }, { x: 6, y: -2.2 }], seed, {
+      width: 0.74,
+      alpha: 0.74,
+      colour: PIGMENT.cham,
+      wobble: 0.24,
+      step: 4,
+    });
+    inkPath(wake, [{ x: -6, y: 2 }, { x: 0, y: 1.4 }, { x: 7, y: 2.2 }], seed + 1, {
+      width: 0.58,
+      alpha: 0.62,
+      colour: PIGMENT.chamPale,
+      wobble: 0.2,
+      step: 4,
+    });
+    const travel = 14 * artScale;
+    this.tweens.add({
+      targets: wake,
+      x: x + Math.cos(angle) * travel,
+      y: y + Math.sin(angle) * travel,
+      scaleX: 1.25,
+      scaleY: 1.05,
+      alpha: 0,
+      duration: 720 + Math.round(180 * strength),
+      ease: 'Quad.easeOut',
+      onComplete: () => wake.destroy(),
+    });
+  }
+
+  /** Lotus feedback expands from the stems' waterline, never from the distant river centre. */
+  private spawnLotusWaterlineWake(
+    parent: Phaser.GameObjects.Container,
+    x: number,
+    y: number,
+    artScale: number,
+    strength: number,
+    stem: 'large-flower' | 'small-flower',
+  ): void {
+    const wake = this.add.graphics({ x, y })
+      .setScale(0.42)
+      .setAlpha(0.68 + strength * 0.2)
+      .setData('menuWaterWake', true)
+      .setData('menuWakeSource', 'lotus')
+      .setData('menuWakeOrigin', 'stem-waterline')
+      .setData('menuWakeStem', stem)
+      .setData('menuWakeBase', { x, y });
+    parent.add(wake);
+    wake.lineStyle(1.05, PIGMENT.cham, 0.82);
+    wake.strokeEllipse(0, 0, 25 * artScale, 6.2 * artScale);
+    wake.lineStyle(0.72, PIGMENT.chamPale, 0.76);
+    wake.strokeEllipse(0, 0.8 * artScale, 38 * artScale, 9 * artScale);
+    wake.lineStyle(0.5, PIGMENT.diepHi, 0.72);
+    wake.strokeEllipse(0, 1.6 * artScale, 50 * artScale, 11 * artScale);
+    this.tweens.add({
+      targets: wake,
+      scaleX: 1.55 + strength * 0.12,
+      scaleY: 1.18 + strength * 0.08,
+      y: y + 1.4 * artScale,
+      alpha: 0,
+      duration: 980,
+      ease: 'Sine.easeOut',
+      onComplete: () => wake.destroy(),
+    });
+  }
+
   /** Draw one recognizable landscape object around its anchor, preserving its world aspect. */
   private aspectProp(x: number, y: number, draw: (g: Phaser.GameObjects.Graphics) => void): Phaser.GameObjects.Graphics {
     const graphics = this.add.graphics({ x, y });
@@ -409,16 +1092,17 @@ export class MenuScene extends Phaser.Scene {
   /**
    * The menu, drawn in the same hand as the map.
    *
-   * The shared ink landscape here is flat vector: banded polygons, a ribbon river, grey triangles
-   * with snow on them. It is the first screen anybody sees, and under this theme it was announcing
-   * a different game from the one behind it. Same idea — two hosts facing across a river — drawn
-   * with the props the world uses, and kept inside a band that leaves the button column clear.
+   * A quiet Lý–Trần ceramic composition rather than a miniature strategy map: the mountains stay,
+   * while the armies, standards, buffalo, field grid and scattered villages give way to a river,
+   * broad right-bank paddies, two farmhouses and lotus. Four ideas can be read at phone scale;
+   * forty little objects can only be counted.
    */
-  private drawDongHoLandscape(river: MenuRiver, hosts: MenuHost[]): void {
-    const g = this.add.graphics();
+  private drawDongHoLandscape(river: MenuRiver): void {
+    const g = this.add.graphics()
+      .setData('menuLandscapeRole', 'ground');
     const rand = mulberry32(1307);
     const HORIZON = 292;
-    const FLOOR = 556;
+    const FLOOR = 500;
 
     // Limestone at the horizon with soft earth hills tucked in front of it. Two landforms, because
     // one of them used for both gives a row of teeth.
@@ -432,7 +1116,7 @@ export class MenuScene extends Phaser.Scene {
       // they can stand close and the tone does the separating.
       karstRange(landforms, -24, 200, 0, 88, 4118, false, 1.0);
       karstRange(landforms, 186, GAME_WIDTH + 24, -4, 78, 4119, false, 1.0);
-    });
+    }).setData('menuLandscapeRole', 'mountains');
 
     // Mist at the foot of the range. Towers are seated at varying depths, so their base fills stop
     // on a stepped line — invisible on the map, where ground tone covers it, and a row of pale
@@ -479,11 +1163,12 @@ export class MenuScene extends Phaser.Scene {
       );
     }
 
-    // The near ground, so the props stand on something rather than floating on bare paper.
-    for (let band = 0; band < 7; band += 1) {
-      const y = HORIZON + band * ((FLOOR - HORIZON) / 7);
-      g.fillStyle(band % 2 === 0 ? PIGMENT.diepLo : PIGMENT.hoePale, 0.1 - band * 0.008);
-      g.fillEllipse(GAME_WIDTH / 2 + (rand() - 0.5) * 90, y + 20, GAME_WIDTH * 1.5, 130);
+    // Three nearly transparent ground washes, not seven competing terrain bands. They give the
+    // houses somewhere to stand without turning the illustration back into a map.
+    for (let band = 0; band < 3; band += 1) {
+      const y = HORIZON + band * ((FLOOR - HORIZON) / 3);
+      g.fillStyle(band % 2 === 0 ? PIGMENT.diepLo : PIGMENT.hoePale, 0.07 - band * 0.012);
+      g.fillEllipse(GAME_WIDTH / 2 + (rand() - 0.5) * 45, y + 28, GAME_WIDTH * 1.6, 170);
     }
 
     // The river as a course rather than a stripe: a band that narrows upstream, with its own inked
@@ -491,52 +1176,34 @@ export class MenuScene extends Phaser.Scene {
     washInk(g, river.banks, PIGMENT.chamWash, 3007, 0.55);
     inkPath(g, river.banks, 3008, { width: 0.85, alpha: 0.36, colour: PIGMENT.cham, wobble: 1.2, step: 13 });
 
-    // Paddy on the far bank, from the same lattice the map's delta is drawn with: bund lines run the
-    // width of the field system and every plot is cut from the strip between two of them, so
-    // neighbours share their banks. The sixteen independently-placed rectangles this replaces had
-    // their own outlines, their own random sizes and their own gaps — sixteen paper scraps dropped
-    // on the grass, which is what "the fields look very bad" is looking at.
-    // Kept to a handful of field systems around the hamlets that work them, the way the map keeps
-    // its plots to the paddy tiles. Filling the whole bank edge to edge — which a lattice will
-    // happily do — turns the far side of the river into a course of masonry.
-    const farms = [
-      { x: 272, y: 334, reach: 34 },
-      { x: 352, y: 322, reach: 30 },
-      { x: 318, y: 410, reach: 36 },
+    // Six large plots sharing their boundaries. The old eleven-unit lattice made a hundred little
+    // tiles; these read as one cultivated river plain before they read as individual rectangles.
+    const paddies: FieldPlot[] = [
+      { points: [{ x: 246, y: 330 }, { x: 310, y: 326 }, { x: 304, y: 359 }, { x: 234, y: 365 }], stage: 0.84, seed: 4201 },
+      { points: [{ x: 310, y: 326 }, { x: 402, y: 332 }, { x: 394, y: 361 }, { x: 304, y: 359 }], stage: 0.22, seed: 4202 },
+      { points: [{ x: 234, y: 365 }, { x: 304, y: 359 }, { x: 300, y: 400 }, { x: 218, y: 409 }], stage: 0.62, seed: 4203 },
+      { points: [{ x: 304, y: 359 }, { x: 394, y: 361 }, { x: 390, y: 402 }, { x: 300, y: 400 }], stage: 0.86, seed: 4204 },
+      { points: [{ x: 218, y: 409 }, { x: 300, y: 400 }, { x: 294, y: 449 }, { x: 196, y: 462 }], stage: 0.58, seed: 4205 },
+      { points: [{ x: 300, y: 400 }, { x: 390, y: 402 }, { x: 398, y: 448 }, { x: 294, y: 449 }], stage: 0.9, seed: 4206 },
     ];
-    for (const plot of paddyLattice({
-      // Matched to the plot size the map draws at, so the two read as the same country. Bigger and
-      // the bunds start to look like mortar courses.
-      // Started BELOW the haze band, not six pixels under the horizon. The towers are seated
-      // at varying depths and their feet run as much as a third of the range height below
-      // `HORIZON`, so a lattice beginning at +6 lays paddy over the bottom of the mountains.
-      x0: 214, x1: GAME_WIDTH + 16, y0: HORIZON + 40, y1: 480, cell: 11, seed: 4200,
-      keep: (x, y) => {
-        const span = river.spanAt(y);
-        // Dry ground only: never over the water, never under a host's feet.
-        if (span && x < span.right + 9) return false;
-        if (hosts.some((host) => host.covers(x, y, 8))) return false;
-        return farms.some((farm) => (farm.x - x) ** 2 + (farm.y - y) ** 2 < farm.reach ** 2);
-      },
-    })) {
+    for (const plot of paddies) {
       drawFieldPlot(g, plot);
     }
-    // The far bank is a place, not a texture: the hamlet whose fields those are, the people working
-    // them, and trees breaking the field system up so it reads as farmland rather than as tiling.
-    this.aspectProp(318, 366, (prop) => hamlet(prop, 0, 0, 0.42, 4300, 3));
-    this.aspectProp(288, 372, (prop) => farmer(prop, 0, 0, 0.7, 4310));
-    this.aspectProp(356, 400, (prop) => farmer(prop, 0, 0, 0.62, 4311));
-    this.aspectProp(340, 352, (prop) => areca(prop, 0, 0, 0.42, 4320));
-    // Nothing stands above `HORIZON + 40`. A tree planted at 300 is eight pixels under the
-    // horizon and lands halfway up a tower — it reads as growing out of the rock face.
-    this.aspectProp(246, 344, (prop) => treeProp(prop, 0, 0, 0.5, 4321));
-    this.aspectProp(384, 372, (prop) => treeProp(prop, 0, 0, 0.46, 4322));
-    this.aspectProp(300, 452, (prop) => treeProp(prop, 0, 0, 0.44, 4323));
-    this.aspectProp(372, 338, (prop) => treeProp(prop, 0, 0, 0.4, 4324));
+    g.setData('menuRiceFields', paddies.map((plot) => ({
+      x: plot.points.reduce((sum, point) => sum + point.x, 0) / plot.points.length,
+      y: plot.points.reduce((sum, point) => sum + point.y, 0) / plot.points.length,
+    })));
+
+    // Exactly two homes, because this is a farmstead rather than a village icon cluster. They use
+    // the map's nhà ba gian renderer: packed-earth walls and low rice-straw roofs, no temple finial.
+    this.aspectProp(290, 385, (prop) => house(prop, -23, 0, 1.58, 4301))
+      .setData('menuLandscapeRole', 'farmhouse');
+    this.aspectProp(337, 417, (prop) => house(prop, -21, 0, 1.42, 4302))
+      .setData('menuLandscapeRole', 'farmhouse');
 
     // Ripples ride the surface rather than being scratched onto it at random. Level strokes only:
     // randomising both ends put crossed scratches on the water.
-    for (let ripple = 0; ripple < 10; ripple += 1) {
+    for (let ripple = 0; ripple < 6; ripple += 1) {
       const y = HORIZON + 20 + rand() * 220;
       const span = river.spanAt(y);
       if (!span) continue;
@@ -545,83 +1212,79 @@ export class MenuScene extends Phaser.Scene {
         { width: 0.6, alpha: 0.26, colour: PIGMENT.cham, wobble: 0.4, step: 6 });
     }
 
-    // The near bank: a village under its banyan. The herd is drawn in `drawDongHoLife`, because an
-    // animal baked into this buffer can never take a step.
-    this.aspectProp(52, 356, (prop) => banyan(prop, 0, 0, 0.75, 5001));
-    this.aspectProp(112, 366, (prop) => hamlet(prop, 0, 0, 0.58, 5002, 5));
-    this.aspectProp(20, 392, (prop) => bamboo(prop, 0, 0, 0.62, 5003));
-    this.aspectProp(158, 344, (prop) => areca(prop, 0, 0, 0.5, 5004));
-    for (let index = 0; index < 8; index += 1) {
-      const x = 8 + rand() * 190;
-      const y = 334 + rand() * 84;
-      if (hosts.some((host) => host.covers(x, y, 12))) continue;
-      const scale = 0.42 + rand() * 0.26;
-      this.aspectProp(x, y, (prop) => treeProp(prop, 0, 0, scale, 5100 + index));
+    this.aspectProp(26, 486, (prop) => this.drawMenuLotusCluster(prop))
+      .setData('menuLandscapeRole', 'lotus');
+  }
+
+  /** Two open lotus flowers and three leaves, large enough to read as the foreground at phone size. */
+  private drawMenuLotusCluster(g: Phaser.GameObjects.Graphics): void {
+    const leaf = (cx: number, cy: number, rx: number, ry: number, seed: number): void => {
+      const points: Pt[] = [];
+      for (let index = 0; index < 28; index += 1) {
+        const angle = (index / 28) * Math.PI * 2;
+        points.push({ x: cx + Math.cos(angle) * rx, y: cy + Math.sin(angle) * ry });
+      }
+      washInk(g, points, PIGMENT.tramPale, seed, 0.42, 0.35);
+      inkPath(g, [...points, points[0]], seed + 1, {
+        width: 0.8, alpha: 0.55, colour: PIGMENT.tramDeep, wobble: 0.3, step: 5,
+      });
+      for (const angle of [-2.55, -2.05, -1.55, -1.05, -0.55]) {
+        inkPath(g, [
+          { x: cx, y: cy },
+          { x: cx + Math.cos(angle) * rx * 0.86, y: cy + Math.sin(angle) * ry * 0.86 },
+        ], seed + 4 + Math.round(angle * 10), {
+          width: 0.45, alpha: 0.28, colour: PIGMENT.tramDeep, wobble: 0.15, step: 4,
+        });
+      }
+    };
+    const flower = (cx: number, cy: number, scale: number, seed: number, petals: number): void => {
+      for (let index = 0; index < petals; index += 1) {
+        const t = petals === 1 ? 0.5 : index / (petals - 1);
+        const angle = -Math.PI + 0.32 + t * (Math.PI - 0.64);
+        const length = scale * (11.5 - Math.abs(t - 0.5) * 5);
+        const width = scale * 3.4;
+        const dx = Math.cos(angle);
+        const dy = Math.sin(angle);
+        const px = -dy;
+        const py = dx;
+        const petal: Pt[] = [
+          { x: cx, y: cy + scale * 2 },
+          { x: cx + dx * length * 0.46 + px * width, y: cy + dy * length * 0.46 + py * width },
+          { x: cx + dx * length, y: cy + dy * length },
+          { x: cx + dx * length * 0.46 - px * width, y: cy + dy * length * 0.46 - py * width },
+        ];
+        washInk(g, petal, PIGMENT.diepHi, seed + index, 0.88, 0.18);
+        inkPath(g, [...petal, petal[0]], seed + 20 + index, {
+          width: 0.7, alpha: 0.68, colour: PIGMENT.nau, wobble: 0.18, step: 4,
+        });
+      }
+      inkPath(g, [{ x: cx - scale * 8, y: cy + scale * 2 }, { x: cx, y: cy + scale * 5 }, { x: cx + scale * 8, y: cy + scale * 2 }], seed + 40, {
+        width: 0.8, alpha: 0.58, colour: PIGMENT.nau, wobble: 0.22, step: 4,
+      });
+    };
+
+    // Still water first, then stems behind the leaves and flowers.
+    for (let line = 0; line < 3; line += 1) {
+      inkPath(g, [{ x: -4 + line * 6, y: line * 3 }, { x: 92 - line * 4, y: line * 3 + 1 }], 5000 + line, {
+        width: 0.55, alpha: 0.24, colour: PIGMENT.cham, wobble: 0.5, step: 9,
+      });
     }
+    inkPath(g, [{ x: 28, y: 2 }, { x: 30, y: -52 }], 5010, { width: 0.9, alpha: 0.62, colour: PIGMENT.tramDeep, wobble: 0.25, step: 6 });
+    inkPath(g, [{ x: 70, y: 2 }, { x: 69, y: -33 }], 5011, { width: 0.8, alpha: 0.58, colour: PIGMENT.tramDeep, wobble: 0.22, step: 6 });
+    leaf(12, -8, 20, 8, 5020);
+    leaf(47, -9, 17, 7, 5030);
+    leaf(76, -5, 19, 8, 5040);
+    flower(30, -49, 1.8, 5050, 7);
+    flower(69, -31, 1.05, 5060, 5);
   }
 
   /**
-   * Everything on the menu that is alive: the two hosts with their standards, and the herd.
-   *
-   * Drawn outside the fitted landscape layer so each object can animate independently. Their
-   * positions go through `vy` to stay registered with the compressed ground.
-   */
-  private drawDongHoLife(hosts: MenuHost[]): void {
-    for (const host of hosts) {
-      const container = this.add.container(host.x, this.vy(host.y)).setDepth(-7);
-      const ground = this.add.graphics();
-      // The same footprint the map's own markers use, given the same anchor as the `drawHost` call
-      // below, so the menu cannot drift back to a blob sitting beside the men.
-      hostFootprint(ground, -host.shape.width / 2, -host.shape.height, host.shape, MENU_HOST_SCALE);
-      container.add(ground);
-
-      const ranks: Phaser.GameObjects.Graphics[] = [];
-      drawHost(
-        ground, -host.shape.width / 2, -host.shape.height, host.men, host.men + 17,
-        host.player ? PIGMENT.muc : PIGMENT.mucSoft, MENU_HOST_SCALE, true,
-        (rank) => {
-          while (ranks.length <= rank) {
-            const layer = this.add.graphics();
-            ranks.push(layer);
-            container.add(layer);
-          }
-          return ranks[rank];
-        },
-      );
-      marchInPlace(this, ranks, MENU_HOST_SCALE);
-
-      const flag = this.mapItems.createPlayerLandFlag(
-        false,
-        host.player ? this.previewFlagSeed : this.previewFlagSeed + 777,
-      );
-      // Planted on the outward side, so the cloth streams away from its own ranks rather than
-      // across the front of them.
-      flag.setPosition(host.player ? host.shape.width / 2 + 11 : -host.shape.width / 2 - 11, 3);
-      // 0.57, not 0.78. The menu draws its men at `MENU_HOST_SCALE` 0.74 — a soldier 8.4 px tall —
-      // and a flag at 0.78 is 42 px finial to base, **five times his height**, which is why the
-      // banners were the loudest thing on a screen that is mostly buttons. This is the map's own
-      // `MAP_LAND_FLAG_SCALE` carried across, adjusted for the menu's slightly larger ground.
-      flag.setScale(host.player ? 0.57 : -0.57, 0.57);
-      container.add(flag);
-    }
-
-    // The herd in front of the village, each animal on its own object and grazing its own patch.
-    // Baked to a texture like the map's, so the menu is not rebuilding several hundred path
-    // segments per animal per frame behind a screen that is mostly buttons.
-    for (const beast of MENU_HERD) {
-      const home = { x: beast.x, y: this.vy(beast.y) };
-      const animal = livingSprite(this, bakedBuffalo(this, beast.seed, beast.rider), home.x, home.y, beast.scale);
-      animal.setDepth(-7);
-      grazeInSmallArea(this, animal, home.x, home.y, beast.rider ? 9 : 15, beast.seed, -1);
-    }
-  }
-
-  /**
-   * What moves on the front page: the water, and the birds over it.
+   * What moves on the front page: only a handful of water strokes.
    *
    * The Đông Hồ menu had four banners twitching and nothing else — a printed picture with a corner
    * flapping. The river is the largest thing on the sheet and was the most obviously frozen, so it
-   * carries the load: strokes ride the surface downstream and fade at each end of their run.
+   * carries the load: strokes ride the surface downstream and fade at each end of their run. The
+   * farm itself stays still, which is part of the calm the composition is meant to create.
    */
   private drawDongHoWeather(river: MenuRiver): void {
     const rand = mulberry32(6100);
@@ -657,9 +1320,7 @@ export class MenuScene extends Phaser.Scene {
       });
     }
 
-    // No birds. Two herons were tried here and cut: this composition has no sky to fly in — the
-    // karst reaches the title's own rule — so they crossed the rock face, and a filled `heron` at
-    // the size that fits reads unmistakably as a fish. The water and the herd carry the motion.
+    // No birds, people, animals or banners. Motion belongs to the water and nowhere else.
   }
 
   /** Illustrated parchment landscape matching the selectable atlas map style. */
@@ -1242,14 +1903,14 @@ export class MenuScene extends Phaser.Scene {
     // greys out with the button and hands its row back to the column — which is what pays for the
     // History button below.
     //
-    // ONE height for both rows of this tier, not one per row.
-    //
-    // Continue carries a second line and so needs 38 (font sizes here are fixed px and do NOT scale
-    // with vScale, so at 0.62 a vh(46) button is 29 units and cannot hold a 15px line over a 10px
-    // one). It used to be the only row that took it, which made it visibly taller than the button
-    // directly above it — the odd one out in a stack whose whole job is to look like a stack. The
-    // taller of the two heights now sets both.
-    const ROW = Math.max(38, this.vh(46));
+    // These are doors beside the run, not rival calls to action. Their printed plates are narrower
+    // and less than two thirds as tall as Dragon Ascent's; the invisible hit rectangle grows back
+    // to 44 units so the visual hierarchy costs no touchability. Continue still owns two lines, so
+    // 30 is the floor below which its save note would become cramped even in the smaller type.
+    const SECONDARY_WIDTH = 240;
+    const SECONDARY_X = Math.round((GAME_WIDTH - SECONDARY_WIDTH) / 2);
+    const ROW = Math.max(30, this.vh(32));
+    const SECONDARY_HIT_PADDING = Math.max(0, 44 - ROW);
 
     // The column sits against the settings button rather than at a fixed height, so the art above
     // it keeps whatever room is left over instead of the page ending in a hole.
@@ -1285,8 +1946,8 @@ export class MenuScene extends Phaser.Scene {
     //
     // The budget, at the 620 floor where it is tightest: SETTINGS_TOP is 506 and ART_FLOOR 322, so
     // the column has 184. The rows come to 36 + 28 (the tagline wraps to two lines in Vietnamese)
-    // + 38 + 38 = 140, and five gaps land at the 9-unit ceiling for 45. It runs one unit over, which
-    // the doubled break below absorbs — Continue still clears the footer row by eight.
+    // + 30 + 30 = 124, and five gaps land at the 9-unit ceiling for 45. The smaller secondary tier
+    // leaves enough air for its hierarchy to read without pushing the primary action into the art.
     const inner = 3;
     const GAPS = inner + 2;
     // The floor the column may not climb above: the rear host's feet stand at 488 in the design,
@@ -1323,22 +1984,31 @@ export class MenuScene extends Phaser.Scene {
     this.content.push(tagline);
     cursor += tagline.height + gap;
 
-    this.tourTargets.classic = { x: 54, y: cursor, width: 282, height: ROW };
+    this.tourTargets.classic = { x: SECONDARY_X, y: cursor, width: SECONDARY_WIDTH, height: ROW };
     this.content.push(this.ui.button(this.tourTargets.classic, t('ascent.menu.classic'), () => {
       this.mode = 'classic';
       this.render();
-    }, { variant: 'secondary', fontSize: '15px' }));
+    }, { variant: 'secondary', fontSize: '12px', extraHitPadding: SECONDARY_HIT_PADDING })
+      .setData('menuSecondary', 'classic')
+      .setData('visualBounds', { width: SECONDARY_WIDTH, height: ROW }));
     cursor += ROW + gap;
 
     // `snapshotLabel()` already answers both cases — the save's date, or "no saved campaign" — and
     // the disabled variant greys the sub-label along with the label, so the row reads as one
     // unavailable thing rather than as a live button with a warning under it.
-    this.content.push(this.ui.button({ x: 54, y: cursor, width: 282, height: ROW }, t('menu.continue'), () => {
+    this.content.push(this.ui.button({ x: SECONDARY_X, y: cursor, width: SECONDARY_WIDTH, height: ROW }, t('menu.continue'), () => {
       const snapshot = loadSnapshot();
       if (snapshot) {
         this.startGame(snapshot.state);
       }
-    }, { variant: saved ? 'ghost' : 'disabled', fontSize: '15px', subLabel: snapshotLabel() }));
+    }, {
+      variant: saved ? 'ghost' : 'disabled',
+      fontSize: '11px',
+      subLabel: snapshotLabel(),
+      extraHitPadding: SECONDARY_HIT_PADDING,
+    })
+      .setData('menuSecondary', 'continue')
+      .setData('visualBounds', { width: SECONDARY_WIDTH, height: ROW }));
     cursor += ROW + gap;
     // The group break, and the reason the footer reads as a different kind of thing from the
     // buttons above it.
@@ -1619,7 +2289,7 @@ export class MenuScene extends Phaser.Scene {
    * drifted to three different tile heights.
    */
   /**
-   * The language switch: two words under the settings button, the one you are not using tappable.
+   * The language switch: two flags and names under the utility row, the inactive one tappable.
    *
    * On the front page at all because it was three taps in — main, settings, then the row — and that
    * is three taps too many for the one control a player needs *before* they can read the rest of
@@ -1631,56 +2301,53 @@ export class MenuScene extends Phaser.Scene {
    * status bar and nowhere near a thumb. Under the settings button it is where the eye already is
    * when it is looking for settings, inside the column, and the last thing above the footer.
    *
-   * BOTH languages are shown, with the current one inked and the other in muted type. A single
+   * BOTH languages are shown, Vietnamese first, with the current one inked and the other in muted
+   * type. A single
    * button naming only the other language has to be understood before it can be used; a pair says
    * "these are the two, this is the one you are on" at a glance, and the tap target is unambiguous.
    */
   private renderLanguageSwitch(): void {
     const current = getLanguage();
     const options: Array<{ id: LanguageCode; label: string }> = [
-      { id: 'en', label: 'English' },
       { id: 'vi', label: 'Tiếng Việt' },
+      { id: 'en', label: 'English' },
     ];
-    // Sat on the top of its row rather than centred in it: the row's own height was adding a
-    // third of the gap this block is trying not to have.
-    const y = LANGUAGE_TOP + 8;
+    const y = LANGUAGE_TOP + LANGUAGE_ROW_HEIGHT / 2;
+    const FLAG_WIDTH = 22;
+    const FLAG_GAP = 6;
+    const OPTION_GAP = 20;
 
     const labels = options.map((option) => this.ui.label(0, y, option.label, 'button', {
       color: option.id === current ? '#3a2a14' : INK_UI_HEX.mutedText,
       fontSize: '11px',
       fontStyle: option.id === current ? '700' : '400',
     }).setOrigin(0, 0.5));
-    const dot = this.ui.label(0, y, '·', 'caption', {
-      color: INK_UI_HEX.mutedText,
-      fontSize: '12px',
-    }).setOrigin(0, 0.5);
-
-    const GAP = 7;
-    const total = labels[0].width + GAP + dot.width + GAP + labels[1].width;
+    const widths = labels.map((label) => FLAG_WIDTH + FLAG_GAP + label.width);
+    const total = widths[0] + OPTION_GAP + widths[1];
     let cursor = (GAME_WIDTH - total) / 2;
-    labels[0].setX(cursor);
-    cursor += labels[0].width + GAP;
-    dot.setX(cursor);
-    cursor += dot.width + GAP;
-    labels[1].setX(cursor);
-
-    this.content.push(labels[0], dot, labels[1]);
 
     labels.forEach((label, index) => {
       const option = options[index];
-      if (option.id === current) {
-        return;
-      }
-      // Padded well past the type: eleven-pixel words are a tap target only if the box around them
-      // is not.
+      const width = widths[index];
+      const flag = drawLanguageFlag(this, option.id, FLAG_WIDTH, 14)
+        .setPosition(cursor + FLAG_WIDTH / 2, y);
+      label.setX(cursor + FLAG_WIDTH + FLAG_GAP);
+      this.content.push(flag, label);
+
+      // The whole flag-and-name group is the target; neither the star nor a short word has to be
+      // hit exactly. The current language remains inert so the selected state is unambiguous.
       const hit = this.add
-        .rectangle(label.x + label.width / 2, y, label.width + 20, LANGUAGE_ROW_HEIGHT + 14, 0xffffff, 0.001)
-        .setInteractive({ useHandCursor: true });
-      hit.on('pointerup', () => {
-        setLanguage(option.id);
-        this.render();
-      });
+        .rectangle(cursor + width / 2, y, width + 12, LANGUAGE_ROW_HEIGHT + 12, 0xffffff, 0.001)
+        .setData('languageOption', option.id);
+      if (option.id !== current) {
+        hit.setInteractive({ useHandCursor: true });
+        hit.on('pointerup', () => {
+          setLanguage(option.id);
+          this.render();
+        });
+      }
       this.content.push(hit);
+      cursor += width + OPTION_GAP;
     });
   }
 
@@ -1776,7 +2443,14 @@ export class MenuScene extends Phaser.Scene {
               return;
             }
             setGraphicsQuality(id);
-            window.location.reload();
+            // The ladder's rung override shadows the tier inside `profile()` — without re-pointing
+            // it, `renderScale()` keeps answering from the old rung and this tap changes nothing.
+            qualityLadder()?.force(rungForTier(id).id);
+            // No reload: the new tier's scale is applied to the live buffer at this boundary
+            // and the menu rebuilds itself — labels re-rasterise at the new resolution.
+            requestRenderScale(renderScale());
+            applyPendingRenderScale(this.game);
+            this.scene.restart();
           },
         ),
       },
@@ -1886,7 +2560,7 @@ export class MenuScene extends Phaser.Scene {
         build: (y) => this.renderSettingRow(
           { x: contentX, y, width: contentWidth, height: ROW_HEIGHT },
           t('menu.language'),
-          [{ id: 'en' as LanguageCode, label: 'English' }, { id: 'vi' as LanguageCode, label: 'Tiếng Việt' }],
+          [{ id: 'vi' as LanguageCode, label: 'Tiếng Việt' }, { id: 'en' as LanguageCode, label: 'English' }],
           getLanguage(),
           (code) => {
             setLanguage(code);
@@ -2063,14 +2737,13 @@ export class MenuScene extends Phaser.Scene {
    * button would have been. Anyone who skipped the tour finds it where a manual belongs: with the
    * other reference material, at the foot of the page.
    *
-   * Three at 104 rather than two at 122, and the row is 22 units NARROWER overall than the pair
-   * was. A footer that grows with each door added is the failure mode here; this one gets tighter,
-   * and the inset from the column's 282 is the whole point — a footer row as wide as the primary
-   * button is just another row of the same thing.
+   * Ninety units per hit target keeps each control generous under a thumb while bringing the
+   * visible icon-label groups into one coherent utility row. The old 104 + 7 rhythm left more air
+   * between neighbouring words than inside each control, so the three links looked unrelated.
    */
   private renderFooterPair(): void {
-    const WIDTH = 104;
-    const GAP = 7;
+    const WIDTH = 90;
+    const GAP = 0;
     const left = Math.round((GAME_WIDTH - (WIDTH * 3 + GAP * 2)) / 2);
     const height = this.vh(34);
     // Remembered as one rectangle rather than three: the tour's card is about the footer as a
@@ -2081,23 +2754,34 @@ export class MenuScene extends Phaser.Scene {
     // 12px, not 13. "How to Play" is three words where the other two are two and one, and at 13 it
     // wraps to a second line inside a 34-unit button — which centres the pair of lines and leaves
     // the row looking like one button broke.
-    const doors: Array<{ label: string; onPress: () => void }> = [
-      { label: t('guide.menu.button'), onPress: () => this.scene.start('GuideScene') },
-      { label: t('history.menu.button'), onPress: () => this.scene.start('HistoryScene') },
-      { label: t('menu.settings'), onPress: () => { this.mode = 'settings'; this.render(); } },
+    const doors: Array<{ id: string; label: string; icon: CardIconId; onPress: () => void }> = [
+      { id: 'guide', label: t('guide.menu.button'), icon: 'scroll', onPress: () => this.scene.start('GuideScene') },
+      { id: 'history', label: t('history.menu.button'), icon: 'book', onPress: () => this.scene.start('HistoryScene') },
+      { id: 'settings', label: t('menu.settings'), icon: 'gear', onPress: () => { this.mode = 'settings'; this.render(); } },
     ];
     doors.forEach((door, index) => {
-      this.content.push(this.ui.button(
+      const button = this.ui.button(
         { x: left + index * (WIDTH + GAP), y: SETTINGS_TOP, width: WIDTH, height },
         door.label,
         door.onPress,
-        { variant: 'ghost', fontSize: '12px' },
-      ));
+        {
+          variant: 'ghost',
+          frameless: true,
+          icon: door.icon,
+          fontSize: '11px',
+          extraHitPadding: 4,
+        },
+      )
+        .setData('menuUtility', door.id)
+        .setData('utilityIcon', door.icon)
+        .setData('ghostWithIcon', true);
+      this.content.push(button);
     });
   }
 
   private renderSupportRow(): void {
-    const row = this.add.container(GAME_WIDTH / 2, SUPPORT_TOP + SUPPORT_ROW_HEIGHT / 2);
+    const row = this.add.container(GAME_WIDTH / 2, SUPPORT_TOP + SUPPORT_ROW_HEIGHT / 2)
+      .setData('menuSupportRow', true);
 
     /**
      * On iOS the sentence loses its first half, because the App Store will not have it.
@@ -2107,9 +2791,8 @@ export class MenuScene extends Phaser.Scene {
      * get, and 4.7 says HTML5 game content may not provide access to charitable donations. A link
      * to the repository is neither, so the second half stays — see `allowsDonationLinks`.
      *
-     * It stays under a different string, though. `menu.support.improve` is a sentence fragment by
-     * design — "— or even better, help build the game" — and printed on its own it reads as one,
-     * lowercase h and all. `improveAlone` is the same link written to stand up by itself.
+     * It stays under a different string, though. Beside the coffee link the short lowercase label
+     * reads as a peer action; on its own it needs `improveAlone` to stand up as a complete line.
      *
      * The band stays too, at its full height. `SETTINGS_TOP` is measured up from `SUPPORT_TOP`,
      * so a row that removed itself would leave 46 units of nothing at the foot of the menu and
@@ -2122,7 +2805,7 @@ export class MenuScene extends Phaser.Scene {
       t(alone ? 'menu.support.improveAlone' : 'menu.support.improve'),
       () => openExternalLink(SUPPORT.github),
       { icon: 'hammer' },
-    );
+    ).setData('menuSupportLink', 'improve');
     const improveWidth = improve.getData('linkWidth') as number;
 
     if (alone) {
@@ -2132,51 +2815,34 @@ export class MenuScene extends Phaser.Scene {
       return;
     }
 
-    const coffee = this.ui.textLink(0, 0, t('menu.support.coffee'), () => this.renderSupportModal(), { icon: 'cup' });
-    // Quieter than either phrase, and deliberately not pressable: it is the sentence's connective
-    // tissue, and a player hunting for what is clickable must never land on it.
-    const connective = this.ui.label(0, 0, t('menu.support.or'), 'caption', {
-      color: INK_UI_HEX.mutedText,
-      fontSize: '11px',
-    }).setOrigin(0, 0.5);
+    const coffee = this.ui.textLink(
+      0,
+      0,
+      t('menu.support.coffee'),
+      () => this.renderSupportModal(),
+      { icon: 'cup' },
+    ).setData('menuSupportLink', 'coffee');
 
-    const gap = 6;
+    // `textLink` grows its invisible hit area seven units beyond each visual edge. Eighteen visual
+    // units therefore leave four real units between the two touch rectangles: close enough to read
+    // as one row, but never one merged target.
+    const gap = 18;
     const coffeeWidth = coffee.getData('linkWidth') as number;
-    const total = coffeeWidth + gap + connective.width + gap + improveWidth;
+    const total = coffeeWidth + gap + improveWidth;
 
     /**
-     * One line if it fits with margins to spare; two if it does not.
-     *
-     * The sentence is a comfortable single line in English and runs the full width of the sheet in
-     * Vietnamese, where it was printing edge to edge and shrinking itself to do it — a footer aside
-     * laid out like a banner, in type a size smaller than the aside above it. Broken after the
-     * connective it is two short centred lines at full size, with the same margins as everything
-     * else on the page.
+     * These are sibling actions, not a sentence: keep them on one centred line in every language.
+     * The scale guard is only for a future translation longer than today's English or Vietnamese;
+     * it preserves the one-line contract without allowing either edge to leave the sheet.
      */
     const maxWidth = GAME_WIDTH - 64;
-    if (total <= maxWidth) {
-      let cursor = -total / 2;
-      coffee.x = cursor;
-      cursor += coffeeWidth + gap;
-      connective.x = cursor;
-      cursor += connective.width + gap;
-      improve.x = cursor;
-    } else {
-      const second = connective.width + gap + improveWidth;
-      // 15 apart, not 9. Two pressable phrases nine units either side of a centre line are two
-      // tap targets sharing an edge, and a thumb aiming for one of them lands between both. This
-      // is also why SUPPORT_ROW_HEIGHT grew: the band has to be tall enough to hold the gap.
-      coffee.setPosition(-coffeeWidth / 2, -15);
-      connective.setPosition(-second / 2, 15);
-      improve.setPosition(-second / 2 + connective.width + gap, 15);
-      // Only if a single one of the two lines still overruns, which no language does today.
-      const widest = Math.max(coffeeWidth, second);
-      if (widest > maxWidth) {
-        row.setScale(maxWidth / widest);
-      }
+    coffee.x = -total / 2;
+    improve.x = coffee.x + coffeeWidth + gap;
+    if (total > maxWidth) {
+      row.setScale(maxWidth / total);
     }
 
-    row.add([coffee, connective, improve]);
+    row.add([coffee, improve]);
     this.content.push(row);
   }
 
@@ -2201,7 +2867,7 @@ export class MenuScene extends Phaser.Scene {
     const line = this.ui.label(GAME_WIDTH / 2, GAME_HEIGHT - VERSION_EDGE, stamp, 'caption', {
       color: INK_UI_HEX.mutedText,
       fontSize: '9px',
-    }).setOrigin(0.5, 1);
+    }).setOrigin(0.5, 1).setData('menuVersionLine', true);
     const maxWidth = GAME_WIDTH - 32;
     if (line.width > maxWidth) {
       line.setScale(maxWidth / line.width);
@@ -2407,58 +3073,72 @@ export class MenuScene extends Phaser.Scene {
   // ── Putting the game on the home screen ───────────────────────────────────
 
   /**
-   * The install mark: a drawn glyph in the bottom-left corner, and nothing else.
+   * The install mark: the shared install glyph beside the build stamp, and nothing else.
    *
-   * A corner mark rather than a row in the column, because installing is not one of the things the
-   * player came to this page to do — it is worth offering and not worth spending a button on. It
-   * is the one piece of chrome the front page carries, so it is drawn on every menu mode and
-   * disappears the moment the game is running from the home screen (`canOfferInstall`).
+   * An inline colophon mark rather than a row in the column, because installing is not one of the
+   * things the player came to this page to do — it is worth offering and not worth spending a
+   * button on. It disappears the moment the game is running from the home screen
+   * (`canOfferInstall`). On menu pages without the front-page build stamp it retains a quiet
+   * bottom-left fallback rather than inventing a line that page does not otherwise carry.
    *
    * **No tile, no border, no fill.** A bordered button in the corner of a page whose whole column
    * is bordered buttons reads as a fifth thing to press; the ink alone reads as a mark, which is
    * what it is. It is the quietest thing on the sheet on purpose — the caption below is what tells
    * anybody it is there, and after three seconds the mark is meant to be furniture.
    *
-   * The glyph is an arrow into a tray, drawn rather than typed: it has to read at 26 units on a
-   * phone, and a glyph from a font would arrive in whatever shape the device happened to have.
+   * The glyph comes from `CardIcons` and uses the exact 0.62 scale of the three utility icons.
+   * The previous one-off drawing occupied a 30-unit box against their 16-unit marks, which is the
+   * inconsistency this shared source removes.
    */
   private renderInstallMark(): void {
     if (!canOfferInstall()) {
       return;
     }
 
-    // The bottom-left corner of the sheet, flush with the colophon's own baseline band — not
-    // floating a footer-row above it. `VERSION_EDGE` is the margin every other thing on the last
-    // line keeps, and the colophon it shares the band with is centred type that ends well short
-    // of 45, so the corner is empty paper.
-    const box: UIBounds = { x: 10, y: GAME_HEIGHT - VERSION_EDGE - 32, width: 30, height: 30 };
-    const cx = box.x + box.width / 2;
-    const cy = box.y + box.height / 2;
+    const ICON_SCALE = 0.62;
+    const ICON_SIZE = CARD_ICON_SIZE * ICON_SCALE;
+    const INLINE_GAP = 6;
+    const versionLine = this.children.list.find(
+      (child) => child.getData?.('menuVersionLine') === true,
+    ) as Phaser.GameObjects.Text | undefined;
 
-    const glyph = this.add.graphics({ x: cx, y: cy });
-    // Thin, and well short of full strength. Ink at 0.95 in a corner reads as a control that has
-    // been disabled somewhere else and left behind; at 0.6 it reads as a mark on paper.
-    glyph.lineStyle(1.6, INK_UI.brush, 0.6);
-    glyph.beginPath();
-    glyph.moveTo(0, -9);
-    glyph.lineTo(0, 1);
-    glyph.strokePath();
-    glyph.beginPath();
-    glyph.moveTo(-4.5, -3.5);
-    glyph.lineTo(0, 2);
-    glyph.lineTo(4.5, -3.5);
-    glyph.strokePath();
-    glyph.beginPath();
-    glyph.moveTo(-7, 5);
-    glyph.lineTo(-7, 8);
-    glyph.lineTo(7, 8);
-    glyph.lineTo(7, 5);
-    glyph.strokePath();
+    // Default for pages without the front-page colophon: still on the last band, but now at the
+    // same visual size as every other footer icon.
+    let cx = 18;
+    let cy = GAME_HEIGHT - VERSION_EDGE - ICON_SIZE / 2;
+    if (versionLine) {
+      // Icon + gap + stamp are one centred group. Aligning their visual centres, rather than their
+      // object origins, puts the arrow on the text's actual line despite the text being
+      // bottom-anchored and the icon being centre-anchored.
+      const groupWidth = ICON_SIZE + INLINE_GAP + versionLine.displayWidth;
+      const left = (GAME_WIDTH - groupWidth) / 2;
+      cx = left + ICON_SIZE / 2;
+      cy = versionLine.y - versionLine.displayHeight / 2;
+      versionLine.setX(left + ICON_SIZE + INLINE_GAP + versionLine.displayWidth / 2);
+    }
+    const box: UIBounds = {
+      x: cx - ICON_SIZE / 2,
+      y: cy - ICON_SIZE / 2,
+      width: ICON_SIZE,
+      height: ICON_SIZE,
+    };
+
+    const glyph = drawCardIcon(this, 'install', INK_UI.brush)
+      .setPosition(cx, cy)
+      .setScale(ICON_SCALE)
+      .setAlpha(0.64)
+      .setData('menuInstallMark', true)
+      .setData('footerInline', Boolean(versionLine))
+      .setData('visualSize', ICON_SIZE);
 
     // The tap target is bigger than the mark, because the mark is small on purpose and a thumb
     // is not. 44 is the smallest square either platform's guidance will accept.
+    // The colophon sits eleven units above the lower edge. Centre the hit area higher than the ink
+    // so all 44 units remain on the canvas while still covering the mark.
+    const hitCenterY = Math.min(cy, GAME_HEIGHT - 22);
     const hit = this.add
-      .rectangle(cx, cy, 44, 44, 0xffffff, 0.001)
+      .rectangle(cx, hitCenterY, 44, 44, 0xffffff, 0.001)
+      .setData('menuInstallHit', true)
       .setInteractive({ useHandCursor: true });
     hit.on('pointerup', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
       event.stopPropagation();
@@ -2696,32 +3376,11 @@ function linkHost(link: string): string {
   }
 }
 
-/** The figure scale the menu's hosts are drawn at. */
-const MENU_HOST_SCALE = 0.74;
-
-/** The herd in front of the near-bank village, in landscape design coordinates. */
-/**
- * The herd, at the ground scale the rest of the diorama is drawn at.
- *
- * These were 1.05 and 0.85 while the hosts beside them were `MENU_HOST_SCALE` 0.74 — and the map
- * itself passes `GROUND_SCALE` to the very same buffalo. A 1.5 m animal was therefore drawn 10 px
- * tall next to an 8.4 px man, which is the one thing `verify-ground-scale` names outright: *a
- * buffalo does not out-stand a soldier*. The menu is not covered by that harness, so it drifted.
- *
- * Kept as two different sizes, because a herd of identical animals is a pattern rather than a herd.
- */
-const MENU_HERD: ReadonlyArray<{ x: number; y: number; scale: number; seed: number; rider: boolean }> = [
-  { x: 74, y: 424, scale: 0.76, seed: 5005, rider: true },
-  { x: 152, y: 410, scale: 0.61, seed: 5006, rider: false },
-];
-
 /**
  * The menu river, as a shape that can be asked questions.
  *
- * The course used to be an array of points inside the drawing routine and the hosts' positions were
- * four hand-typed pairs somewhere else — so when the course was last re-drawn, one host was left
- * standing in the water and nothing in the code could notice. Everything that must keep off the
- * water now asks the river where it is.
+ * It remains queryable after the armies are gone because the paddy contract is just as important:
+ * every field belongs on the right bank, never painted across the water.
  */
 interface MenuRiver {
   /** The bank polygon, exactly as drawn. */
@@ -2741,7 +3400,7 @@ function createMenuRiver(): MenuRiver {
     banks,
     // Read off the drawn polygon rather than recomputed from the centre line: the band is offset
     // perpendicular to a course that runs diagonally, so its horizontal extent at a given height is
-    // markedly wider than its width, and an army placed against the width alone stands in the water.
+    // markedly wider than its nominal width.
     spanAt(y: number) {
       let left = Infinity;
       let right = -Infinity;
@@ -2758,53 +3417,6 @@ function createMenuRiver(): MenuRiver {
       return left === Infinity ? undefined : { left, right };
     },
   };
-}
-
-/** One host drawn up on the menu, with the ground it occupies. */
-interface MenuHost {
-  x: number;
-  y: number;
-  men: number;
-  player: boolean;
-  shape: HostShape;
-  /** Whether a point falls on this host's ground, with `pad` units of clearance. */
-  covers(x: number, y: number, pad?: number): boolean;
-}
-
-/** Dry ground left between the water's edge and the nearest file of a host. */
-const BANK_MARGIN = 13;
-
-/**
- * Draws the two sides up on opposite banks, each one placed off the water's actual edge.
- *
- * Their positions were literal coordinates before, and the far-left pair had ended up inside the
- * river band — a host standing in the water on the first screen of the game. Deriving x from
- * `spanAt` means that cannot come back whatever the course does next.
- */
-function planDongHoHosts(river: MenuRiver): MenuHost[] {
-  const plan: Array<{ y: number; men: number; player: boolean }> = [
-    { y: 442, men: 1900, player: true },
-    { y: 488, men: 1100, player: true },
-    { y: 442, men: 1500, player: false },
-    { y: 488, men: 900, player: false },
-  ];
-
-  return plan.map(({ y, men, player }) => {
-    // The shape `drawHost` will actually draw, at the scale it will actually draw it. Measuring the
-    // block with one spacing and drawing it with another is what left the old menu's shadow sitting
-    // a third of a block below the men it belonged to.
-    const shape = hostShape(men, 4.6 * MENU_HOST_SCALE, 4 * MENU_HOST_SCALE);
-    const span = river.spanAt(y) ?? { left: GAME_WIDTH / 2, right: GAME_WIDTH / 2 };
-    const x = player
-      ? span.right + BANK_MARGIN + shape.width / 2
-      : span.left - BANK_MARGIN - shape.width / 2;
-    return {
-      x, y, men, player, shape,
-      covers(px: number, py: number, pad = 0) {
-        return Math.abs(px - x) <= shape.width / 2 + pad && py >= y - shape.height - pad && py <= y + pad;
-      },
-    };
-  });
 }
 
 /** Polygon ring of wall edges around a centre, used to fortify the menu citadel. */

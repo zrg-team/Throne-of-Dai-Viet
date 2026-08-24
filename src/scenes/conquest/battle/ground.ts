@@ -23,6 +23,8 @@ import type { AscentBattle, BattleBeat } from '../../../state/types';
 import { battleFieldBox } from '../constants';
 import { battleLines, battleRearY, battleScaleAt } from './geometry';
 import type { ConquestUIScene } from '../../ConquestUIScene';
+import { maxTextureSize } from '../../../ui/ink/textureLimits';
+import { renderScale } from '../../../game/graphicsQuality';
 
 /**
  * The fight's own account used to be printed along the foot of the field, on a plate over the
@@ -436,7 +438,12 @@ export function bakeBattleGround(self: ConquestUIScene, from: number): void {
   //
   // Same trick as `MapScene.bakeStaticTerrain`: scale the sources up, bake big, display small. A
   // Graphics scales its stroke widths with its geometry, so the lines land back at their own width.
-  const SUPER = 2;
+  // At render scale 3 a 2x supersample still lands *below* the buffer's own resolution, so
+  // the baked field was softer than the live one on exactly the phones the bake is for.
+  // Follow the render scale (never below the original 2), clamped so the texture cannot
+  // exceed the device's MAX_TEXTURE_SIZE - past it the GL call fails and the field goes black.
+  const SUPER = Math.max(1, Math.min(Math.max(2, renderScale()),
+    Math.floor(maxTextureSize(self) / Math.max(width, height))));
   const baked = self.add.renderTexture(x, y, width * SUPER, height * SUPER)
     .setOrigin(0, 0)
     .setScale(1 / SUPER);

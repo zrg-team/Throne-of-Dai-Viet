@@ -1,3 +1,4 @@
+import { attachPaperSheet } from '../ui/ink/paperSheet';
 import Phaser from 'phaser';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import {
@@ -169,7 +170,19 @@ export class UIScene extends Phaser.Scene {
   private modalContentBounds: UIBounds = { x: 28, y: 102, width: 334, height: 636 };
   private modalFooterBounds: UIBounds = { x: 28, y: 748, width: 334, height: 48 };
   private activeScrollAreas: InkScrollArea[] = [];
+
+  /** One key per piece of standing chrome; see `syncChrome`. */
+  private chromeKeys: Record<string, string> = {};
+
+  /** Forces the open minimap to redraw each refresh (its viewport rides the camera). */
+  private minimapNonce = 0;
   private compactCard: Phaser.GameObjects.GameObject[] = [];
+  /** Stored so `cleanup` can take it off: the scene's emitter survives `scene.stop()`, and an
+   *  anonymous handler left behind stacks once per run — N runs meant N full HUD rebuilds per tick. */
+  private readonly onStateChanged = (): void => {
+    this.refresh();
+  };
+
   private readonly domPointerUp = (event: PointerEvent): void => {
     const point = this.toGamePoint(event);
     if (!point) {
@@ -214,6 +227,7 @@ export class UIScene extends Phaser.Scene {
     this.courtPicker = undefined;
     this.lastCourtView = undefined;
     this.activeScrollAreas = [];
+    this.chromeKeys = {};
     this.compactCard = [];
     this.mapControls = [];
     this.gameMenuButton = [];
@@ -225,6 +239,7 @@ export class UIScene extends Phaser.Scene {
     applyRenderScale(this);
     // The chrome is printed on the same sheet as the world, so it takes the same paper pass.
     applyPaperFX(this);
+    attachPaperSheet(this);
     this.input.setTopOnly(true);
     this.ui = new InkUI(this);
     this.resourceBar = new ResourceBar(this, this.state);
@@ -255,7 +270,7 @@ export class UIScene extends Phaser.Scene {
     }).setDepth(110);
     this.messageText.setMaxLines(2);
 
-    this.events.on('state-changed', () => this.refresh());
+    this.events.on('state-changed', this.onStateChanged);
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => this.handlePointerUp(pointer));
     this.game.canvas.addEventListener('pointerup', this.domPointerUp);
     this.game.canvas.addEventListener('mouseup', this.domMouseUp);
@@ -263,13 +278,20 @@ export class UIScene extends Phaser.Scene {
     this.refresh();
   }
 
-  shutdown(): void {
-    this.cleanup();
-  }
-
   private cleanup(): void {
+    this.events.off('state-changed', this.onStateChanged);
+    this.destroyScrollAreas();
     this.game.canvas.removeEventListener('pointerup', this.domPointerUp);
     this.game.canvas.removeEventListener('mouseup', this.domMouseUp);
+  }
+
+  /** The one owner of scroll-area teardown: each holds a global wheel handler and a scene UPDATE
+   *  listener, and Phaser clears neither on shutdown. */
+  private destroyScrollAreas(): void {
+    for (const scrollArea of this.activeScrollAreas) {
+      scrollArea.destroy();
+    }
+    this.activeScrollAreas = [];
   }
 
   private handlePointerUp(rawPointer: Phaser.Input.Pointer): void {
@@ -533,13 +555,12 @@ export class UIScene extends Phaser.Scene {
     this.resourceBar.refresh();
     this.actionBar.refresh();
     this.messageText.setText(this.state.message);
-    this.clearRequestBadge();
-    this.clearAffairsBadge();
-    this.clearEmpireBanners();
-    this.clearTelegraphBanner();
+    // The standing chrome — bell, badges, banners, bars, controls — is keyed now, not swept:
+    // each `syncChrome` below rebuilds its widget only when what it prints has changed. This
+    // ran on every state-changed emit (every tick, and every beat during a fight) and rebuilt
+    // ~20 objects with 8–17 fresh Text canvases to draw the same pixels. Toasts stay swept —
+    // they are transient by design.
     this.clearToastFeed();
-    this.clearNotifBell();
-    this.clearMandateBar();
 
     // A brief cinematic when the year turns — the survival clock advancing is the
     // heartbeat of the campaign, so make each new year land as a moment.
@@ -551,12 +572,8 @@ export class UIScene extends Phaser.Scene {
         this.playYearTransition(this.state.year);
       }
     }
-    this.clearMapControls();
-    this.clearGameMenuButton();
-    this.clearCompactCard();
-    this.clearMinimap();
-
     if (this.state.victory) {
+      this.hideChrome();
       this.showVictory();
       return;
     }
@@ -598,6 +615,7 @@ export class UIScene extends Phaser.Scene {
     }
 
     if (this.modalScreen !== 'none') {
+      this.hideChrome();
       this.bottomSheet.hide();
       this.renderModal();
       return;
@@ -605,25 +623,47 @@ export class UIScene extends Phaser.Scene {
 
     this.clearModalLayer();
     this.modalLayer.setVisible(false);
-    this.renderGameMenuButton();
-    this.renderNotifBell();
-    this.renderMapControls();
-    this.renderMinimap();
-
-    if (this.state.pendingCourtRequest) {
-      this.renderCourtRequestBadge(this.state.pendingCourtRequest);
+    this.syncChrome('menu', 'on', () => this.clearGameMenuButton(), () => this.renderGameMenuButton());
+    {
+      const unread = (this.state.eventLog ?? []).reduce((n, e) => (e.read ? n : n + 1), 0);
+      this.syncChrome('bell', unread > 9 ? '9+' : String(unread),
+        () => this.clearNotifBell(), () => this.renderNotifBell());
     }
+    {
+      // The same anchor arithmetic `renderMapControls` uses — the stack only moves when the
+      // thing it floats above changes.
+      const bottomAnchor = this.state.latestBattlePreview ? SHEET_TOP - 10
+        : this.state.selectedLandId ? COMPACT_CARD_Y - 10
+          : GAME_HEIGHT - 54;
+      this.syncChrome('controls', `${bottomAnchor}:${this.state.mapRenderMode}`,
+        () => this.clearMapControls(), () => this.renderMapControls());
+    }
+    // The open minimap redraws every refresh (the viewport rectangle rides the camera); the
+    // closed toggle — the usual state — is built once.
+    this.syncChrome('minimap',
+      this.state.selectedLandId || this.state.latestBattlePreview ? 'hidden'
+        : this.minimapOpen ? `open:${(this.minimapNonce += 1)}` : 'toggle',
+      () => this.clearMinimap(), () => this.renderMinimap());
+
+    this.syncChrome('request',
+      this.state.pendingCourtRequest ? `card:${this.state.pendingCourtRequest.id ?? 'pending'}` : 'hidden',
+      () => this.clearRequestBadge(),
+      () => this.renderCourtRequestBadge(this.state.pendingCourtRequest!));
 
     if (this.state.gameMode === 'empire') {
-      this.renderMandateBar();
-      this.renderEmpireBanners();
-      this.renderTelegraphBanner();
+      this.syncChrome('mandate', this.mandateBarKey(),
+        () => this.clearMandateBar(), () => this.renderMandateBar());
+      this.syncChrome('empire', this.empireBannersKey(),
+        () => this.clearEmpireBanners(), () => this.renderEmpireBanners());
+      this.syncChrome('telegraph', this.telegraphKey(),
+        () => this.clearTelegraphBanner(), () => this.renderTelegraphBanner());
       // Toasts are surfaced in the header message strip (+ notification bell), not as a
       // floating feed that overlaps on-map panels — one place for notifications.
     }
 
     if (isCampaignMode(this.state.gameMode)) {
-      this.renderDynastyStability();
+      this.syncChrome('affairs', this.dynastyKey(),
+        () => this.clearAffairsBadge(), () => this.renderDynastyStability());
       const newReports = this.state.spyReports.length > this.lastSpyReportCount;
       if (newReports) {
         this.lastSpyReportCount = this.state.spyReports.length;
@@ -636,24 +676,104 @@ export class UIScene extends Phaser.Scene {
     }
 
     if (this.state.latestBattlePreview) {
-      const panel = new BattlePreviewPanel(this, this.state, this.battleStance, (stance) => {
-        this.battleStance = stance;
-        this.refresh();
-      }, (armyId, landId, stance) => {
-        this.events.emit('ui:attack-land', armyId, landId, stance);
-      });
-      this.bottomSheet.show(panel.render(this.state.latestBattlePreview));
+      this.syncChrome('compact', 'hidden', () => this.clearCompactCard(), () => {});
+      // The whole preview is the key: it is a small plain object, and any field it prints
+      // changing is exactly when the sheet's content must be rebuilt.
+      const previewKey = `${JSON.stringify(this.state.latestBattlePreview)}|${this.battleStance}`;
+      if (this.chromeKeys.preview !== previewKey) {
+        this.chromeKeys.preview = previewKey;
+        const panel = new BattlePreviewPanel(this, this.state, this.battleStance, (stance) => {
+          this.battleStance = stance;
+          this.refresh();
+        }, (armyId, landId, stance) => {
+          this.events.emit('ui:attack-land', armyId, landId, stance);
+        });
+        this.bottomSheet.show(panel.render(this.state.latestBattlePreview));
+      }
       return;
     }
+    this.chromeKeys.preview = 'hidden';
 
     const selectedLand = this.state.lands.find((land) => land.id === this.state.selectedLandId);
     if (selectedLand) {
       this.bottomSheet.hide();
-      this.compactCard = this.makeLandPanel(selectedLand).render(selectedLand);
+      // Rebuilt once per tick while a province is selected (`turn` is in the key — the card
+      // quotes order progress that moves on the tick), never on the quiet emits between.
+      const compactKey = [selectedLand.id, selectedLand.ownerId, selectedLand.defense,
+        selectedLand.buildings.length, selectedLand.population, selectedLand.localSoldiers,
+        this.state.selectedArmyId ?? '', this.state.turn].join(':');
+      this.syncChrome('compact', compactKey, () => this.clearCompactCard(), () => {
+        this.compactCard = this.makeLandPanel(selectedLand).render(selectedLand);
+      });
       return;
     }
+    this.syncChrome('compact', 'hidden', () => this.clearCompactCard(), () => {});
 
     this.bottomSheet.hide();
+  }
+
+  /**
+   * Rebuilds one piece of standing chrome only when its key changes.
+   *
+   * The key is everything the widget prints; 'hidden' clears without rebuilding. Hidden-or-kept
+   * beats destroy-and-recreate here because most emits change nothing: before this, every tick
+   * tore down and rebuilt the bell, the menu button, the map controls, the minimap toggle and —
+   * in empire mode — the mandate bar and every banner, to draw the same pixels.
+   */
+  private syncChrome(slot: string, key: string, clear: () => void, render: () => void): void {
+    if (this.chromeKeys[slot] === key) {
+      return;
+    }
+    this.chromeKeys[slot] = key;
+    clear();
+    if (key !== 'hidden') {
+      render();
+    }
+  }
+
+  /** Puts every keyed widget away — the victory and modal paths, where no chrome shows. */
+  private hideChrome(): void {
+    this.syncChrome('menu', 'hidden', () => this.clearGameMenuButton(), () => {});
+    this.syncChrome('bell', 'hidden', () => this.clearNotifBell(), () => {});
+    this.syncChrome('controls', 'hidden', () => this.clearMapControls(), () => {});
+    this.syncChrome('minimap', 'hidden', () => this.clearMinimap(), () => {});
+    this.syncChrome('request', 'hidden', () => this.clearRequestBadge(), () => {});
+    this.syncChrome('mandate', 'hidden', () => this.clearMandateBar(), () => {});
+    this.syncChrome('empire', 'hidden', () => this.clearEmpireBanners(), () => {});
+    this.syncChrome('telegraph', 'hidden', () => this.clearTelegraphBanner(), () => {});
+    this.syncChrome('affairs', 'hidden', () => this.clearAffairsBadge(), () => {});
+    this.syncChrome('compact', 'hidden', () => this.clearCompactCard(), () => {});
+    this.chromeKeys.preview = 'hidden';
+  }
+
+  private mandateBarKey(): string {
+    if (!this.state.mandate) return 'hidden';
+    const prog = eraProgress(this.state);
+    return `${prog.era}:${prog.atMax ? 1 : 0}:${Math.round(prog.points)}:${prog.nextThreshold}`;
+  }
+
+  private empireBannersKey(): string {
+    if (this.state.selectedLandId || this.state.latestBattlePreview) return 'hidden';
+    const rows = this.state.kingdoms
+      .filter((k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated)
+      .map((k) => `${k.id}:${Math.round((k.relations ?? 50) / 5)}`
+        + `:${(this.state.invasions ?? []).some((r) => r.kingdomId === k.id) ? 1 : 0}`);
+    return rows.length > 0 ? rows.join('|') : 'hidden';
+  }
+
+  private telegraphKey(): string {
+    const u = this.state.pendingUltimatum;
+    if (!u || u.defused || this.state.selectedLandId || this.state.latestBattlePreview) return 'hidden';
+    return `${u.kingdomId}:${u.isGreatInvasion ? 1 : 0}:${Math.max(0, u.dueTurn - this.state.turn)}`;
+  }
+
+  private dynastyKey(): string {
+    const ds = this.state.dynastyStatus;
+    if (!ds) return 'hidden';
+    const value = Math.round(
+      this.state.court.stability * 0.4 + (100 - ds.farmerUnrest) * 0.35 + ds.nobleRelations * 0.25,
+    );
+    return String(value);
   }
 
   private renderModal(): void {
@@ -714,10 +834,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private clearModalLayer(): void {
-    for (const scrollArea of this.activeScrollAreas) {
-      scrollArea.destroy();
-    }
-    this.activeScrollAreas = [];
+    this.destroyScrollAreas();
     this.modalLayer.removeAll(true);
   }
 

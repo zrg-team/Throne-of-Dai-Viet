@@ -48,6 +48,11 @@ function tickMs(state: GameState): number {
 export class ArmyRenderer {
   private markers = new Map<string, Phaser.GameObjects.Container>();
   private moveLegs = new Map<string, string>();
+  /** The march tween per army. Its target is a plain `{t}` counter, so `killTweensOf(marker)`
+   *  can never find it — this handle is the only way to stop one. Without it, a leg change left
+   *  two tweens fighting over `setPosition`, and a destroyed marker kept walking and kicking up
+   *  dust until the orphan ran out on its own. */
+  private moveTweens = new Map<string, Phaser.Tweens.Tween>();
   private destinationMarkers: Phaser.GameObjects.GameObject[] = [];
   /** Signature (`total|isPlayer`) of each marker's current visual content, so we
    *  only rebuild the expensive seal+formation when it actually changes. */
@@ -139,7 +144,7 @@ export class ArmyRenderer {
       // whether to redraw one. Without it an era turning, or a host being re-equipped, would
       // leave the old wardrobe on the map until the headcount happened to change.
       const sig = `${total}|${isPlayer ? 1 : 0}|${kingdomColor ?? 0}|${flagSeed}`
-        + `|${kit.era}|${kit.tier}|${Math.round((kit.units?.archers ?? 0) / Math.max(1, total) * 8)}`
+        + `|${kit.theme ?? kit.era}|${kit.tier}|${Math.round((kit.units?.archers ?? 0) / Math.max(1, total) * 8)}`
         + `|${Math.round((kit.units?.heavyInfantry ?? 0) / Math.max(1, total) * 8)}`;
       if (this.contentSig.get(army.id) !== sig) {
         // Kill the old formation's looping tween before destroying its container,
@@ -204,6 +209,7 @@ export class ArmyRenderer {
 
         if (this.moveLegs.get(army.id) !== legKey) {
           this.moveLegs.set(army.id, legKey);
+          this.stopMarch(army.id);
           this.scene.tweens.killTweensOf(marker);
 
           const start = curve.getPoint(0);
@@ -211,7 +217,7 @@ export class ArmyRenderer {
 
           const activeMarker = marker;
           const progress = { t: 0 };
-          this.scene.tweens.add({
+          const marchTween = this.scene.tweens.add({
             targets: progress,
             t: 1,
             // Timed to the clock this mode actually ticks on. Dragon Ascent runs at
@@ -223,6 +229,7 @@ export class ArmyRenderer {
             // Columns set off and pull up; they do not travel at a constant rate.
             ease: 'Sine.easeInOut',
             onUpdate: () => {
+              if (!activeMarker.active) return;
               const point = curve.getPoint(progress.t);
               activeMarker.setPosition(point.x + MARKER_OFFSET_X, point.y + MARKER_OFFSET_Y);
               // Dust, rather than making the marker itself jiggle.
@@ -237,6 +244,7 @@ export class ArmyRenderer {
               this.spawnDust(point.x + MARKER_OFFSET_X, point.y + MARKER_OFFSET_Y);
             },
           });
+          this.moveTweens.set(army.id, marchTween);
         }
 
         const destLand = findLand(state, order.path[order.path.length - 1]);
@@ -311,6 +319,7 @@ export class ArmyRenderer {
         const restY = wy(center.y) + MARKER_OFFSET_Y;
         const wasMarching = this.moveLegs.has(army.id);
         this.moveLegs.delete(army.id);
+        this.stopMarch(army.id);
 
         const far = Math.abs(marker.x - restX) > 1 || Math.abs(marker.y - restY) > 1;
         if (wasMarching && far) {
@@ -337,6 +346,7 @@ export class ArmyRenderer {
 
     for (const [armyId, marker] of this.markers) {
       if (!activeIds.has(armyId)) {
+        this.stopMarch(armyId);
         this.killTweensDeep(marker);
         marker.destroy();
         this.markers.delete(armyId);
@@ -388,6 +398,23 @@ export class ArmyRenderer {
   }
 
   /** Clears every live puff — used when the map is torn down or redrawn wholesale. */
+  /** Removes an army's march tween — the `{t}` counter tween no marker-keyed kill can reach. */
+  private stopMarch(armyId: string): void {
+    const tween = this.moveTweens.get(armyId);
+    if (tween) {
+      tween.remove();
+      this.moveTweens.delete(armyId);
+    }
+  }
+
+  /** Scene teardown: the scene's TweenManager dies with it, but the handles must not dangle. */
+  destroy(): void {
+    for (const armyId of [...this.moveTweens.keys()]) {
+      this.stopMarch(armyId);
+    }
+    this.clearDust();
+  }
+
   clearDust(): void {
     for (const puff of this.dust) {
       this.scene.tweens.killTweensOf(puff);

@@ -11,6 +11,8 @@ import type { HexTile } from '../../map/hexMapGenerator';
 import { hashString } from '../../utils/math';
 import type { GameState, Land } from '../../state/types';
 import type { MapRenderer } from '../../ui/MapRenderer';
+import { fitBakeScale } from '../../ui/ink/textureLimits';
+import { placeStamp, stamp } from '../../ui/ink/stamp';
 
 type WorldTransform = (value: number) => number;
 type OwnerColorLookup = (ownerId: string) => number;
@@ -19,7 +21,7 @@ export class OverlayRenderer {
   private zoneGraphics = new Map<string, Phaser.GameObjects.Graphics>();
   /** Merged-region outlines, per land. Rebuilt with the zone layers, so ownership flips pick up. */
   private readonly boundaryLoopCache = new Map<string, Array<Array<{ x: number; y: number }>>>();
-  private cloudGraphics = new Map<string, Phaser.GameObjects.Graphics>();
+  private cloudGraphics = new Map<string, Phaser.GameObjects.Image>();
   /** Each cloud's drift loop, kept so the view index can stop one that has left the screen. */
   private cloudTweens = new Map<string, Phaser.Tweens.Tween>();
   /** Where each cloud sits and how far it paints, for the view index. */
@@ -157,6 +159,9 @@ export class OverlayRenderer {
    * single textured quad. Re-run whenever visibility changes (the static signature).
    */
   bakeFog(worldWidth: number, worldHeight: number, extra: Phaser.GameObjects.Graphics[] = [], scale = 1): void {
+    // A world-sized texture past MAX_TEXTURE_SIZE fails silently and renders black - clamp
+    // first, so a huge revealed world on a small GPU gets a softer fog, not a missing one.
+    scale = fitBakeScale(this.scene, worldWidth, worldHeight, scale);
     if (!this.fogBakeRT) {
       // Baked at `scale` resolution then displayed scaled up; fog is a soft tint so the
       // reduced resolution is imperceptible and it cuts the cached-texture memory.
@@ -319,12 +324,25 @@ export class OverlayRenderer {
     const baseX = wx(land.x);
     const baseY = wy(land.y);
 
-    let graphics = this.cloudGraphics.get(land.id);
-    if (!graphics) {
-      graphics = this.scene.add.graphics();
-      graphics.setDepth(78);
-      graphics.setPosition(baseX, baseY);
-      this.cloudGraphics.set(land.id, graphics);
+    // A cloud is ~15 filled circles that never change shape, and a fresh map keeps dozens of
+    // them drifting — as live Graphics that was hundreds of re-tessellated fills per frame for
+    // pictures identical to the last frame. Eight looks per renderer theme, baked once, and a
+    // cloud is one image: the drift tween and the culling ride the Image exactly as they rode
+    // the Graphics. Radius is an instance scale; explored-vs-hidden is the image's alpha.
+    const CANON = 56;
+    const look = seed % 8;
+    const theme = (this.mapRenderer as unknown as { theme?: { id?: string } }).theme?.id ?? 'x';
+    const st = stamp(this.scene, `world:cloud:${theme}:v${look}`, {
+      left: -CANON * 1.8, right: CANON * 1.8, top: -CANON * 1.5, bottom: CANON * 1.5,
+    }, (g, x, y, raster) => {
+      this.mapRenderer.drawCloud(g, x, y, CANON * raster, look * 977 + 31, 1);
+    }, { raster: 'plain', pool: 'world', pad: 4 });
+
+    let image = this.cloudGraphics.get(land.id);
+    if (!image) {
+      image = placeStamp(this.scene, st, baseX, baseY);
+      image.setDepth(78);
+      this.cloudGraphics.set(land.id, image);
 
       const driftX = 5 + (seed % 5);
       const driftY = 3 + ((seed >> 3) % 4);
@@ -332,7 +350,7 @@ export class OverlayRenderer {
       this.cloudTweens.set(
         land.id,
         this.scene.tweens.add({
-          targets: graphics,
+          targets: image,
           x: baseX + driftX,
           y: baseY + driftY,
           duration,
@@ -344,8 +362,8 @@ export class OverlayRenderer {
     }
 
     this.cloudAnchors.set(land.id, { x: baseX, y: baseY, radius: baseRadius + 24 });
-    graphics.clear();
-    this.mapRenderer.drawCloud(graphics, 0, 0, baseRadius, seed, alpha);
+    image.setAlpha(alpha);
+    image.setScale(st.scale * (baseRadius / CANON));
   }
 
   /** Every fog cloud with where it sits, for the view index. */

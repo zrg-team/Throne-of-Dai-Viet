@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import type { TranslationKey } from '../i18n';
 import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
+import { drawLanguageFlag } from './languageFlags';
 import { InkUI, INK_UI, INK_UI_HEX, type UIBounds } from './InkUI';
 import { TITLE_FONT, UI_FONT } from './fonts';
 
@@ -379,7 +380,7 @@ export class Copilot {
   }
 
   /**
-   * English · Tiếng Việt, centred on the card.
+   * Tiếng Việt · English, centred on the card, with platform-independent flags.
    *
    * Drawn as two pressable words rather than as buttons, the same way the front page draws the
    * same choice — this is a preference, not an action the tour is asking for, and two more
@@ -393,8 +394,8 @@ export class Copilot {
   private renderLanguagePicker(cardX: number, y: number): void {
     const current = getLanguage();
     const options: Array<{ id: LanguageCode; label: string }> = [
-      { id: 'en', label: 'English' },
       { id: 'vi', label: 'Tiếng Việt' },
+      { id: 'en', label: 'English' },
     ];
 
     const labels = options.map((option) => this.scene.add.text(0, y, option.label, {
@@ -403,44 +404,45 @@ export class Copilot {
       fontSize: '12px',
       fontStyle: option.id === current ? '700' : '400',
     }).setOrigin(0, 0).setDepth(DEPTH + 2));
-    const dot = this.scene.add.text(0, y, '·', {
-      color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '12px',
-    }).setOrigin(0, 0).setDepth(DEPTH + 2);
-
-    const GAP = 8;
-    const total = labels[0].width + GAP + dot.width + GAP + labels[1].width;
+    const FLAG_WIDTH = 22;
+    const FLAG_GAP = 6;
+    const OPTION_GAP = 18;
+    const widths = labels.map((label) => FLAG_WIDTH + FLAG_GAP + label.width);
+    const total = widths[0] + OPTION_GAP + widths[1];
     let cursor = cardX + CARD_WIDTH / 2 - total / 2;
-    labels[0].setX(cursor);
-    cursor += labels[0].width + GAP;
-    dot.setX(cursor);
-    cursor += dot.width + GAP;
-    labels[1].setX(cursor);
-    this.objects.push(labels[0], dot, labels[1]);
 
     labels.forEach((label, index) => {
       const option = options[index];
-      if (option.id === current) return;
-      // Padded well past the type: a twelve-pixel word is a tap target only if the box around it
-      // is not.
-      const hit = this.scene.add
-        .rectangle(label.x + label.width / 2, y + label.height / 2, label.width + 24, 32, 0xffffff, 0.001)
-        .setInteractive({ useHandCursor: true })
+      const width = widths[index];
+      const flag = drawLanguageFlag(this.scene, option.id, FLAG_WIDTH, 14)
+        .setPosition(cursor + FLAG_WIDTH / 2, y + label.height / 2)
         .setDepth(DEPTH + 2);
-      hit.on('pointerup', (
-        _pointer: Phaser.Input.Pointer,
-        _localX: number,
-        _localY: number,
-        event: Phaser.Types.Input.EventData,
-      ) => {
-        event.stopPropagation();
-        setLanguage(option.id);
-        // The page first, then the card on top of it — the scene's re-render tears down its own
-        // content, and the card is not part of that content, so the order only matters for what
-        // the player sees flash.
-        this.opts.onLanguage?.();
-        this.renderStep();
-      });
+      label.setX(cursor + FLAG_WIDTH + FLAG_GAP);
+      this.objects.push(flag, label);
+
+      const hit = this.scene.add
+        .rectangle(cursor + width / 2, y + label.height / 2, width + 12, 34, 0xffffff, 0.001)
+        .setData('languageOption', option.id)
+        .setDepth(DEPTH + 2);
+      if (option.id !== current) {
+        hit.setInteractive({ useHandCursor: true });
+        hit.on('pointerup', (
+          _pointer: Phaser.Input.Pointer,
+          _localX: number,
+          _localY: number,
+          event: Phaser.Types.Input.EventData,
+        ) => {
+          event.stopPropagation();
+          setLanguage(option.id);
+          // The page first, then the card on top of it — the scene's re-render tears down its own
+          // content, and the card is not part of that content, so the order only matters for what
+          // the player sees flash.
+          this.opts.onLanguage?.();
+          this.renderStep();
+        });
+      }
       this.objects.push(hit);
+      cursor += width + OPTION_GAP;
     });
   }
 }

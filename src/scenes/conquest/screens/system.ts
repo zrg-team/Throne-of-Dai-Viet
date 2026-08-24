@@ -1,13 +1,12 @@
 /**
- * The chrome around a run, none of it gameplay: the ☰ sheet (leave, the two delegation
- * switches, save-and-exit, exit), the Codex over the whole `heroTemplates` roster, and a quit
+ * The chrome around a run, none of it gameplay: the ☰ sheet (leave, battle delegation switch,
+ * save-and-exit, exit), the Codex over the whole `heroTemplates` roster, and a quit
  * confirm that nothing currently calls.
  *
  * These open outside `openLane`, so each captures `lanePauseBeforeOpen` and holds the clock by
- * hand before `beginOverlay`, then closes through `closeLane` to hand it back. The two
- * delegation rows state their current setting in their own label, so a toggle has to redraw —
- * they do it by closing the overlay and re-entering `showSystemMenu`, which is what tears the
- * old page down.
+ * hand before `beginOverlay`, then closes through `closeLane` to hand it back. Battle delegation
+ * states its current setting in its own label, so a toggle redraws by closing the overlay and
+ * re-entering `showSystemMenu`, which is what tears the old page down.
  */
 import { codexProgress, getCodex } from '../../../state/codex';
 import { tierForHero } from '../../../systems/ascent/SummonSystem';
@@ -79,20 +78,6 @@ export function showSystemMenu(self: ConquestUIScene): void {
     () => {
       if (self.state.ascent) self.state.ascent.autoResolveBattles = !auto;
       // Redraw so the row states the new setting rather than the old one.
-      self.state.isStrategyPause = self.lanePauseBeforeOpen;
-      self.closeOverlay();
-      showSystemMenu(self);
-    },
-  );
-
-  // Musters: asked about, or left to the generals. Asking is the default — a host is a fifth of
-  // the population and a commander off a seat, and it used to appear unannounced.
-  const silent = self.state.ascent?.autoMusterSilently ?? false;
-  item(
-    silent ? t('ascent.sys.musterSilent') : t('ascent.sys.musterAsked'),
-    'secondary',
-    () => {
-      if (self.state.ascent) self.state.ascent.autoMusterSilently = !silent;
       self.state.isStrategyPause = self.lanePauseBeforeOpen;
       self.closeOverlay();
       showSystemMenu(self);

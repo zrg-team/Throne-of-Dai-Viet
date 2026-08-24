@@ -68,12 +68,31 @@ export function showChronicleScreen(self: ConquestUIScene): void {
     .filter((story) => !storyWantsPlayer(state, story))
     .sort((a, b) => b.lastSpokeTurn - a.lastSpokeTurn);
 
+  const charges = chargeTrackerLines(state);
+  const heard = (state.eventLog ?? []).filter((entry) => entry.ref).slice(-12).reverse();
+  const memorials = state.memorials ?? [];
+  const tabs = [
+    { id: 'actions', label: t('ascent.chronicle.tab.actions'), count: need.length },
+    { id: 'ongoing', label: t('ascent.chronicle.tab.ongoing'), count: charges.length + waiting.length },
+    { id: 'heard', label: t('ascent.chronicle.tab.heard'), count: heard.length },
+    { id: 'recorded', label: t('ascent.chronicle.tab.recorded'), count: memorials.length + recorded.length },
+  ] as const;
+  const activeTab = Math.max(0, tabs.findIndex((tab) => tab.id === self.chronicleTab));
+
   const { addRow, addHeading, finish } = self.laneList(
     t('ascent.chronicle.title'),
     need.length > 0
       ? t('ascent.chronicle.needCount', { n: need.length })
       : t('ascent.chronicle.body', { year: state.year }),
     {
+      tabs: {
+        items: tabs.map(({ label, count }) => ({ label, count })),
+        active: activeTab,
+        onSelect: (index) => {
+          self.chronicleTab = tabs[index]?.id ?? 'actions';
+          showChronicleScreen(self);
+        },
+      },
       // At the foot, where the thumb already is. This page is read one-handed, and this is the
       // only control on it that is a setting rather than a story.
       footerToggle: {
@@ -90,69 +109,18 @@ export function showChronicleScreen(self: ConquestUIScene): void {
     },
   );
 
-  if (running.length === 0 && recorded.length === 0) {
+  const addEmpty = (key:
+    | 'ascent.chronicle.emptyActions'
+    | 'ascent.chronicle.emptyOngoing'
+    | 'ascent.chronicle.emptyHeard'
+    | 'ascent.chronicle.emptyRecorded') => {
     addRow({
       title: t('ascent.chronicle.emptyTitle'),
-      subtitle: t('ascent.chronicle.emptyBody'),
+      subtitle: t(key),
       border: INK_UI.softBrush,
       muted: true,
     });
-    finish();
-    return;
-  }
-
-  // ── Oaths still outstanding ──
-  //
-  // `chargeTrackerLines` was written for exactly this and had no caller anywhere, so a player
-  // could swear an oath on a card and never see it again — which is most of the reason no charge
-  // resolved in six measured runs. Phrased as the undertaking rather than as a task, because the
-  // moment this reads as a quest log it has become the thing the Chronicle exists to avoid.
-  {
-    const charges = chargeTrackerLines(state);
-    if (charges.length > 0) {
-      addHeading(t('ascent.chronicle.sworn'));
-      for (const charge of charges) {
-        addRow({
-          title: charge.text,
-          subtitle: charge.seasonsLeft === undefined
-            ? ''
-            : t('ascent.chronicle.swornSeasons', { n: charge.seasonsLeft }),
-          border: INK_UI.gold,
-        });
-      }
-    }
-  }
-
-  // ── Đã nghe: the lines that went past ──
-  //
-  // The permanent half of the whisper strip. The strip is four and a half seconds and gone;
-  // this is where a player who was reading the map instead comes to find out what was said —
-  // and, because every row opens the story it came from, where the scene behind the line is
-  // finally reachable. Before both existed, forty-three per cent of the catalogue was written,
-  // translated, fired and discarded without ever being drawn.
-  {
-    const heard = (state.eventLog ?? []).filter((entry) => entry.ref).slice(-12).reverse();
-    if (heard.length > 0) {
-      addHeading(t('ascent.chronicle.heard'));
-      for (const entry of heard) {
-        const ref = entry.ref!;
-        const live = (state.stories ?? []).some((candidate) => candidate.id === ref.storyId);
-        addRow(
-          {
-            title: storyTitle(ref.templateId),
-            subtitle: entry.text,
-            border: entry.kind === 'threat' ? INK_UI.cinnabar
-              : entry.kind === 'reward' || entry.kind === 'milestone' ? INK_UI.gold : INK_UI.softBrush,
-            muted: true,
-          },
-          // A story that has since ended has no page to open. The line stays readable; it
-          // simply stops being a door, which is better than a door onto the Chronicle it is
-          // already sitting in.
-          live ? () => self.showStoryPage(ref.storyId) : undefined,
-        );
-      }
-    }
-  }
+  };
 
 
   /** One story as one person: name · want, then the latest line, then the state. */
@@ -192,22 +160,57 @@ export function showChronicleScreen(self: ConquestUIScene): void {
     );
   };
 
-  if (need.length > 0) {
-    addHeading(t('ascent.chronicle.need'));
-    for (const story of need) storyRow(story, true);
+  if (self.chronicleTab === 'actions') {
+    if (need.length === 0) addEmpty('ascent.chronicle.emptyActions');
+    else for (const story of need) storyRow(story, true);
   }
 
-  if (waiting.length > 0) {
-    addHeading(t('ascent.chronicle.waitingHdr'));
-    for (const story of waiting) storyRow(story, false);
+  if (self.chronicleTab === 'ongoing') {
+    // `chargeTrackerLines` gives an oath a permanent home without turning the Chronicle into one
+    // vast list. Oaths and stories waiting on the world share this shelf because neither asks for
+    // a tap now, but both are still alive.
+    if (charges.length > 0) {
+      addHeading(t('ascent.chronicle.sworn'));
+      for (const charge of charges) {
+        addRow({
+          title: charge.text,
+          subtitle: charge.seasonsLeft === undefined
+            ? ''
+            : t('ascent.chronicle.swornSeasons', { n: charge.seasonsLeft }),
+          border: INK_UI.gold,
+        });
+      }
+    }
+    if (waiting.length > 0) {
+      addHeading(t('ascent.chronicle.waitingHdr'));
+      for (const story of waiting) storyRow(story, false);
+    }
+    if (charges.length === 0 && waiting.length === 0) addEmpty('ascent.chronicle.emptyOngoing');
   }
 
-  // ── Đền thờ: the dead, and what they were remembered for ──
-  //
-  // Above the recorded endings rather than below them, because a shrine outlasts the entry that
-  // put it there: the Chronicle ring drops its oldest at sixty and this list never does.
-  {
-    const memorials = state.memorials ?? [];
+  if (self.chronicleTab === 'heard') {
+    // The permanent half of the whisper strip. Only the latest twelve are kept here; a live story
+    // remains a door onto its page, while an ended one stays readable without pretending to open.
+    if (heard.length === 0) addEmpty('ascent.chronicle.emptyHeard');
+    for (const entry of heard) {
+      const ref = entry.ref!;
+      const live = (state.stories ?? []).some((candidate) => candidate.id === ref.storyId);
+      addRow(
+        {
+          title: storyTitle(ref.templateId),
+          subtitle: entry.text,
+          border: entry.kind === 'threat' ? INK_UI.cinnabar
+            : entry.kind === 'reward' || entry.kind === 'milestone' ? INK_UI.gold : INK_UI.softBrush,
+          muted: true,
+        },
+        live ? () => self.showStoryPage(ref.storyId) : undefined,
+      );
+    }
+  }
+
+  if (self.chronicleTab === 'recorded') {
+    // Shrines outlast the ring-buffered ending that raised them, so they sit first on the archive
+    // shelf; the tally below remains attached specifically to story endings.
     if (memorials.length > 0) {
       addHeading(t('ascent.chronicle.memorials'));
       for (const entry of memorials) {
@@ -220,35 +223,26 @@ export function showChronicleScreen(self: ConquestUIScene): void {
         });
       }
     }
-  }
-
-  if (recorded.length > 0) {
-    // Counted by class, because that one line is the reign's identity: a dynasty that mostly
-    // followed the record reads differently from one that mostly did not.
-    const tally = chronicleTally(state);
-    // The tally goes in the hint line, not the heading. Appended to the heading it is uppercased
-    // and letter-spaced, and "RECORDED · CHÍNH SỬ 1 · DÃ SỬ 0 · NGOẠI TRUYỆN 0" runs off the
-    // right edge of a 390px phone with the last figure cut in half — which is the one character
-    // that carries the information.
-    addHeading(t('ascent.chronicle.recorded'), t('ascent.chronicle.tally', tally));
-    for (const entry of recorded) {
-      // A story with no source class shows none. Only templates that have actually been
-      // placed against the record carry a tag; the rest keep the old tone colouring and say
-      // nothing they cannot back up.
-      const cls = entry.historicity;
-      addRow({
-        title: cls
-          ? storyTitle(entry.templateId) + '  ·  ' + t(('ascent.story.tag.' + cls) as Parameters<typeof t>[0])
-          : storyTitle(entry.templateId),
-        subtitle: storyText(entry.templateId + '.' + entry.fragmentId + '.chronicle', entry.params),
-        border: cls === 'chinh-su' ? INK_UI.jade
-          : cls === 'da-su' ? INK_UI.gold
-            : cls === 'ngoai-truyen' ? INK_UI.cinnabar
-              : entry.tone === 'threat' ? INK_UI.cinnabar
-                : entry.tone === 'reward' ? INK_UI.jade : INK_UI.softBrush,
-        muted: true,
-      });
+    if (recorded.length > 0) {
+      const tally = chronicleTally(state);
+      addHeading(t('ascent.chronicle.recorded'), t('ascent.chronicle.tally', tally));
+      for (const entry of recorded) {
+        const cls = entry.historicity;
+        addRow({
+          title: cls
+            ? storyTitle(entry.templateId) + '  ·  ' + t(('ascent.story.tag.' + cls) as Parameters<typeof t>[0])
+            : storyTitle(entry.templateId),
+          subtitle: storyText(entry.templateId + '.' + entry.fragmentId + '.chronicle', entry.params),
+          border: cls === 'chinh-su' ? INK_UI.jade
+            : cls === 'da-su' ? INK_UI.gold
+              : cls === 'ngoai-truyen' ? INK_UI.cinnabar
+                : entry.tone === 'threat' ? INK_UI.cinnabar
+                  : entry.tone === 'reward' ? INK_UI.jade : INK_UI.softBrush,
+          muted: true,
+        });
+      }
     }
+    if (memorials.length === 0 && recorded.length === 0) addEmpty('ascent.chronicle.emptyRecorded');
   }
 
   finish();

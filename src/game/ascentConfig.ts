@@ -869,6 +869,60 @@ export const BATTLE_FORMATION_TILT_BLUNT = 0.5;
 export const BATTLE_STAMINA_MAX = 2;
 
 /**
+ * How much dồn sức (a second pip wagered on the held shape) multiplies the formation tilt —
+ * in BOTH directions. 1.6 turns the standard ±0.21 tilt into ±0.34: enough that cashing a
+ * confident read visibly accelerates the fight, and enough that doubling into a counter is a
+ * mistake the player feels. Applied inside `formationTilt`, so the fight, the telegraph and
+ * the dock's price line all read the same amplified number.
+ */
+export const BATTLE_COMMIT_AMPLIFY = 1.6;
+
+// ── Escalation: the run answers a strong player ──────────────────────────────
+
+/**
+ * One row per threshold: from `wave` on, these floors apply on top of whatever the player set
+ * in Settings. A floor can only RAISE the effective dial — a player already on nightmare feels
+ * nothing — and later rows stack over earlier ones. Tune the campaign's difficulty curve here
+ * and nowhere else.
+ */
+export interface AscentBattleEscalationStep {
+  /** From this wave (inclusive) onward. */
+  wave: number;
+  /** The battle pace will not run below this ('slow' < 'normal' < 'fast'). */
+  paceFloor?: 'slow' | 'normal' | 'fast';
+  /** The invader will not think below this tier ('easy' < 'medium' < 'hard' < 'nightmare'). */
+  enemyFloor?: 'easy' | 'medium' | 'hard' | 'nightmare';
+  /** Longest the field's speech bubbles may linger, ms. 0 = the words leave the field entirely. */
+  bubbleCapMs?: number;
+}
+
+export const ASCENT_BATTLE_ESCALATION: AscentBattleEscalationStep[] = [
+  { wave: 6, paceFloor: 'normal' },
+  { wave: 8, bubbleCapMs: 6000 },
+  { wave: 10, enemyFloor: 'medium', bubbleCapMs: 3500 },
+  { wave: 13, paceFloor: 'fast', bubbleCapMs: 1800 },
+  { wave: 16, enemyFloor: 'hard', bubbleCapMs: 900 },
+  { wave: 20, enemyFloor: 'nightmare', bubbleCapMs: 0 },
+];
+
+/**
+ * The wave curve answers the realm's own strength: a player whose power runs ahead of the
+ * calendar is quoted a bigger wave, up to a cap. `threshold` is how far ahead is free (a small
+ * lead is the reward for playing well), `slope` is how hard the excess is answered, `cap` keeps
+ * a runaway economy from summoning an unanswerable horde.
+ */
+export const WAVE_MATCH_PLAYER = { threshold: 1.15, slope: 0.55, cap: 1.7 };
+
+/** Pure, so the harness can hold the curve to its promises. */
+export function waveMatchFactor(playerPower: number, targetPower: number): number {
+  if (targetPower <= 0 || playerPower <= 0) return 1;
+  const { threshold, slope, cap } = WAVE_MATCH_PLAYER;
+  const ratio = playerPower / targetPower;
+  if (ratio <= threshold) return 1;
+  return Math.min(cap, 1 + (ratio - threshold) * slope);
+}
+
+/**
  * Beats until a spent pip comes back on its own. Seven is six seconds of watching.
  *
  * Measured against the invader's own cadence (he answers a counter about seven beats after it

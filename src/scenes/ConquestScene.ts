@@ -16,11 +16,12 @@ import { raiseHostWithPlan, type MusterPlan } from '../systems/ascent/MusterSyst
 import { pushToast } from '../systems/empire/notifications';
 import { disbandArmy } from '../systems/WarSystem';
 import {
-  answerBattleMoment, delegateBattle, finishBattle, markPlayerSteered, setBattleFormation,
+  answerBattleMoment, delegateBattle, finishBattle, markPlayerSteered, commitBattleFormation, setBattleFormation,
   setBattleStance,
 } from '../systems/ascent/BattleSystem';
 import { createAscentGameState } from '../state/GameState';
 import { ASCENT_HUD_HEIGHT } from '../ui/ascent/AscentHud';
+import { clashDevice } from '../ui/ink/devices';
 import { MapScene } from './MapScene';
 import type { BattleFormation } from '../data/ascent/formations';
 import type { ArmyOrders, FieldStance } from '../state/types';
@@ -69,15 +70,6 @@ export class ConquestScene extends MapScene {
     // ownership wash would not appear until the player had already answered several cards.
     this.repaintOwnershipTint();
 
-    // Straight from the summary back into a fresh run, without a round trip through the menu.
-    // A roguelite is judged on the run *after* the one you lost, and making the player walk
-    // back out to the title screen to take it is the cheapest possible way to lose them.
-    this.scene.get(this.uiSceneKey()).events.on('ui:restart-ascent', () => {
-      this.scene.stop(this.uiSceneKey());
-      this.scene.start('ConquestScene', {
-        state: createAscentGameState({ seaSides: 1, difficulty: 'normal' }),
-      });
-    });
   }
 
   /** This mode ends in defeat rather than victory; otherwise the clock stops for the same reasons. */
@@ -86,6 +78,9 @@ export class ConquestScene extends MapScene {
   }
 
   update(time: number, delta: number): void {
+    // The classic map re-culls in its own update; this override never called it, so a pan on the
+    // Ascent map kept drawing everything that had ever been on screen.
+    this.syncViewCulling();
     // Deliberately not `super.update`: that drives the classic month tick, which this mode
     // replaces outright. Only the ambient-motion sync is shared.
     this.syncWorldMotion();
@@ -101,7 +96,9 @@ export class ConquestScene extends MapScene {
     if (this.ascentAccumulator < ASCENT_TICK_MS) {
       return;
     }
-    this.ascentAccumulator = 0;
+    // Carry the remainder (capped at one tick) instead of zeroing: dropping it made every tick
+    // late by the accumulated slack, and the season clock drifted behind wall time on slow frames.
+    this.ascentAccumulator = Math.min(this.ascentAccumulator - ASCENT_TICK_MS, ASCENT_TICK_MS);
 
     // Snapshot where each host stands so arrivals can be animated after the tick, matching
     // the marching-column effect MapScene plays for the classic modes.
@@ -281,15 +278,18 @@ export class ConquestScene extends MapScene {
     const seat = this.getSettlementAnchor(land);
     const marker = this.add.container(this.wx(seat.x), this.wy(seat.y)).setDepth(60);
 
-    // Crossed blades, not a reticle.
+    // The game's full clash device, not two diagonal strokes.
     //
     // This was two concentric rings with four ticks outside them, pulsing — which is a *gunsight*,
     // and it put an FPS crosshair on a fourteenth-century woodblock map. It also said nothing about
     // what the ring meant: the same mark would have served for "inspect this", "select this" or
     // "shoot this".
     //
-    // Two crossed sabres say the one thing this marker exists to say — a fight is being taken to
-    // this province — in a language the rest of the sheet already speaks.
+    // The first crossed-sabre pass still reduced to a thick red X at map scale: its blades were
+    // single-colour lines with no points, grips or contrast. That is the universal cancel/error
+    // mark, so it communicated the opposite of an order being carried out. The shared clash device
+    // keeps the same military meaning but gives each weapon a pale blade, dark outline, guard and
+    // pommel, backed by a small impact burst. It is also the mark the battle screen already uses.
     const wash = this.add.graphics();
     wash.fillStyle(color, 0.13);
     wash.fillCircle(0, 0, 27);
@@ -298,23 +298,11 @@ export class ConquestScene extends MapScene {
     marker.add(wash);
 
     const blades = this.add.graphics();
-    const blade = (x1: number, y1: number, x2: number, y2: number): void => {
-      const dx = x2 - x1;
-      const dy = y2 - y1;
-      const len = Math.hypot(dx, dy) || 1;
-      const ux = dx / len;
-      const uy = dy / len;
-      blades.lineStyle(3, color, 0.95);
-      blades.lineBetween(x1, y1, x2, y2);
-      // The guard, a short bar across the blade a third of the way up from the grip.
-      const gx = x1 + ux * len * 0.3;
-      const gy = y1 + uy * len * 0.3;
-      blades.lineStyle(2.5, color, 0.95);
-      blades.lineBetween(gx - uy * 4.5, gy + ux * 4.5, gx + uy * 4.5, gy - ux * 4.5);
-    };
-    blade(-13, 13, 13, -13);
-    blade(13, 13, -13, -13);
+    clashDevice(blades, 0, 0, 0.88, false, color);
     marker.add(blades);
+    marker.setData('mapMarkerRole', 'attack-front');
+    marker.setData('attackIcon', 'clash-device');
+    marker.setData('blocked', blocked);
 
     // The province breathes rather than the sight pulsing. Alpha only: a mark that changes *size*
     // is a mark that is aiming at something.
@@ -336,14 +324,27 @@ export class ConquestScene extends MapScene {
 
     const ui = this.scene.get(this.uiSceneKey());
 
-    ui.events.on('ui:ascent-choice', (choiceId: string) => {
+    // Straight from the summary back into a fresh run, without a round trip through the menu.
+    // A roguelite is judged on the run *after* the one you lost, and making the player walk
+    // back out to the title screen to take it is the cheapest possible way to lose them.
+    //
+    // Registered through `onUi` like everything else here: this handler starts the scene that
+    // registers it, so a leaked copy multiplies restarts geometrically (run N fired N of them).
+    this.onUi('ui:restart-ascent', () => {
+      this.scene.stop(this.uiSceneKey());
+      this.scene.start('ConquestScene', {
+        state: createAscentGameState({ seaSides: 1, difficulty: 'normal' }),
+      });
+    });
+
+    this.onUi('ui:ascent-choice', (choiceId: string) => {
       if (resolveAscentPrompt(this.state, choiceId)) {
         this.refresh();
         ui.events.emit('state-changed');
       }
     });
 
-    ui.events.on('ui:ascent-reroll', () => {
+    this.onUi('ui:ascent-reroll', () => {
       if (rerollAscentDraft(this.state)) {
         ui.events.emit('state-changed');
       }
@@ -351,7 +352,7 @@ export class ConquestScene extends MapScene {
 
     // "Select a province, then choose how to take it" — reached directly from the map or the
     // Conquer lane, rather than waiting for the scheduler to raise the prompt on its own.
-    ui.events.on('ui:ascent-conquer', (landId: string) => {
+    this.onUi('ui:ascent-conquer', (landId: string) => {
       if (this.state.pendingAscentPrompt) return;
       if (offerConquestMethods(this.state, landId)) {
         drainAscentPrompts(this.state);
@@ -360,7 +361,7 @@ export class ConquestScene extends MapScene {
       }
     });
 
-    ui.events.on('ui:ascent-envoy', (kingdomId: string) => {
+    this.onUi('ui:ascent-envoy', (kingdomId: string) => {
       if (this.state.pendingAscentPrompt) return;
       if (offerEnvoyTo(this.state, kingdomId)) {
         drainAscentPrompts(this.state);
@@ -371,7 +372,7 @@ export class ConquestScene extends MapScene {
 
     // Raised from the Court lane: post a champion, or spend the throne's authority — the same
     // cards the decision director raises on its own clock, reached on demand instead.
-    ui.events.on('ui:ascent-appoint', (heroId: string) => {
+    this.onUi('ui:ascent-appoint', (heroId: string) => {
       if (this.state.pendingAscentPrompt) return;
       if (offerAppointment(this.state, heroId)) {
         drainAscentPrompts(this.state);
@@ -387,18 +388,18 @@ export class ConquestScene extends MapScene {
     // A Moment is answered on its own channel: it is not a standing order, it is one decision
     // taken once, and it must not be confused with the stance the host is holding.
     // Leaving an arena fight goes back to the setup rather than to the map behind it.
-    ui.events.on('ui:arena-leave', () => {
+    this.onUi('ui:arena-leave', () => {
       const history = this.state.ascent?.battleHistory ?? [];
       this.scene.stop(this.uiSceneKey());
       this.scene.start('BattleArenaScene', { result: history[history.length - 1] });
     });
-    ui.events.on('ui:battle-moment', (answer: 'commit' | 'steady') => {
+    this.onUi('ui:battle-moment', (answer: 'commit' | 'steady') => {
       answerBattleMoment(this.state, answer);
       ui.events.emit('state-changed');
     });
     // Two dials on two clocks, plus the two exits. Reserve and rally left this channel entirely:
     // with their buttons gone from the dock they are questions the fight asks, not orders it takes.
-    ui.events.on('ui:battle-order', (order: string) => {
+    this.onUi('ui:battle-order', (order: string) => {
       if (order.startsWith('stance:')) {
         // The commander hands over the tempo — and only the tempo. See `markPlayerSteered`: one
         // flag for both dials meant a single tap cost the player their shape play, their reserve
@@ -408,6 +409,10 @@ export class ConquestScene extends MapScene {
       } else if (order.startsWith('formation:')) {
         markPlayerSteered(this.state, 'formation');
         setBattleFormation(this.state, order.slice(10) as BattleFormation);
+      } else if (order === 'commit') {
+        // Dồn sức: a second pip wagered on the held shape. Steering, by any name.
+        markPlayerSteered(this.state, 'formation');
+        commitBattleFormation(this.state);
       } else if (order === 'leave') {
         // Hand the rest of it over and step away. `delegateBattle` hands over the *remainder* —
         // the battlefield keeps running and the player can take the field back at any point — so
@@ -426,35 +431,35 @@ export class ConquestScene extends MapScene {
     });
     // Standing orders, recall and resupply act on one host and refresh at once — an order given
     // is a march started, not a wish recorded for the next tick.
-    ui.events.on('ui:ascent-army-orders', (payload: { armyId: string; orders: ArmyOrders }) => {
+    this.onUi('ui:ascent-army-orders', (payload: { armyId: string; orders: ArmyOrders }) => {
       if (this.state.pendingAscentPrompt) return;
       if (setArmyOrders(this.state, payload.armyId, payload.orders)) {
         this.refresh();
         ui.events.emit('state-changed');
       }
     });
-    ui.events.on('ui:ascent-army-recall', (armyId: string) => {
+    this.onUi('ui:ascent-army-recall', (armyId: string) => {
       if (this.state.pendingAscentPrompt) return;
       const result = recallHost(this.state, armyId);
       if (!result.ok && result.reason) pushToast(this.state, result.reason, 'threat');
       this.refresh();
       ui.events.emit('state-changed');
     });
-    ui.events.on('ui:ascent-army-resupply', (armyId: string) => {
+    this.onUi('ui:ascent-army-resupply', (armyId: string) => {
       if (this.state.pendingAscentPrompt) return;
       const result = resupplyHost(this.state, armyId);
       if (!result.ok && result.reason) pushToast(this.state, result.reason, 'threat');
       this.refresh();
       ui.events.emit('state-changed');
     });
-    ui.events.on('ui:ascent-disband-army', (armyId: string) => {
+    this.onUi('ui:ascent-disband-army', (armyId: string) => {
       if (this.state.pendingAscentPrompt) return;
       if (disbandArmy(this.state, armyId)) {
         this.refresh();
         ui.events.emit('state-changed');
       }
     });
-    ui.events.on('ui:ascent-raise-host', (plan?: MusterPlan) => {
+    this.onUi('ui:ascent-raise-host', (plan?: MusterPlan) => {
       if (this.state.pendingAscentPrompt) return;
       // With a plan the form's figures are mustered as given; without one (the old one-tap
       // path) the autopilot's own sizing applies.
@@ -466,14 +471,14 @@ export class ConquestScene extends MapScene {
 
     // A posting chosen on the hero picker: a seat, a province, the command of a host, or the
     // bench. The same `applyAppointment` the appointment card resolves through.
-    ui.events.on('ui:ascent-assign', (payload: { heroId: string; optionId: string }) => {
+    this.onUi('ui:ascent-assign', (payload: { heroId: string; optionId: string }) => {
       if (this.state.pendingAscentPrompt) return;
       applyAppointment(this.state, payload.heroId, payload.optionId);
       this.refresh();
       ui.events.emit('state-changed');
     });
 
-    ui.events.on('ui:ascent-law', () => {
+    this.onUi('ui:ascent-law', () => {
       if (this.state.pendingAscentPrompt) return;
       if (offerLawChoice(this.state)) {
         drainAscentPrompts(this.state);

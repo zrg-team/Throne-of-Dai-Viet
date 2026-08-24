@@ -32,6 +32,7 @@ import { PIGMENT } from '../ui/ink/palette';
 import type { ArmyComposition, ArmyWardrobe } from '../state/types';
 import { RULE_COLOUR } from '../ui/ink/eraRule';
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
+import { attachPaperSheet } from '../ui/ink/paperSheet';
 
 type HistoryTab = 'dynasties' | 'figures' | 'stories' | 'army' | 'terms';
 
@@ -192,6 +193,7 @@ export class HistoryScene extends Phaser.Scene {
   create(): void {
     applyRenderScale(this);
     applyPaperFX(this);
+    attachPaperSheet(this);
     this.ui = new InkUI(this);
     this.mapRenderer = createMapRenderer(this);
     // The sheet, and nothing else. The menu's diorama is a fine thing to arrive at and a poor

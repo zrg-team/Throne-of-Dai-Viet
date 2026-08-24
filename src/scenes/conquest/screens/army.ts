@@ -53,6 +53,20 @@ export function showArmyScreen(self: ConquestUIScene): void {
       defense: Math.round(ascent?.defensePower ?? 0),
       threat: Math.round(ascent?.threat ?? 0),
     }),
+    {
+      footerToggle: {
+        label: t('ascent.sys.musterAsked'),
+        hint: t((ascent?.autoMusterSilently ?? false)
+          ? 'ascent.muster.autoSilentHint'
+          : 'ascent.muster.autoAskHint'),
+        checked: !(ascent?.autoMusterSilently ?? false),
+        onToggle: () => {
+          if (state.ascent) state.ascent.autoMusterSilently = !(state.ascent.autoMusterSilently ?? false);
+          self.replaceLanePage(() => showArmyScreen(self));
+          self.refresh();
+        },
+      },
+    },
   );
 
   // What the realm can bring against what is coming — the comparison the whole screen exists to

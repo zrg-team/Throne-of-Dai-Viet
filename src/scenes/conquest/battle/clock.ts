@@ -105,23 +105,38 @@ export function updateBattle(self: ConquestUIScene): void {
   // Per host through `redrawHostBlock` rather than by rebuilding the field: the field carries the
   // ground, the camps and the banners, and none of those have any business flickering because a
   // block moved.
-  const standing = `${battle.ourFormation}|${battle.theirFormation}`;
-  if (standing !== ui.shapeSignature) {
-    ui.shapeSignature = standing;
-    [...ui.ourMarkers, ...ui.theirMarkers].forEach((entry) => {
+  // Per side, not both: our order re-arranging *their* block was pure churn. While the opening
+  // drum seals the field, their drawn shape is '?', and the seal lifting is itself the change
+  // that redraws them — `redrawHostBlock` picks the sealed/unsealed shape at call time.
+  const oursShape = battle.ourFormation;
+  const theirsShape = self.battleOpeningSealed ? '?' : battle.theirFormation;
+  const redrawSide = (entries: typeof ui.ourMarkers): void => {
+    entries.forEach((entry) => {
       if (entry.routed) return;
       const host = self.state.armies.find((army) => army.id === entry.hostId);
       if (host) self.redrawHostBlock(entry, hostSize(host));
     });
+  };
+  if (oursShape !== ui.shapeShown.ours) {
+    ui.shapeShown.ours = oursShape;
+    redrawSide(ui.ourMarkers);
+  }
+  if (theirsShape !== ui.shapeShown.theirs) {
+    ui.shapeShown.theirs = theirsShape;
+    redrawSide(ui.theirMarkers);
   }
 
   if (self.battleOrderSignature(battle) !== ui.orderSignature) {
     self.buildBattleOrders(battle);
-    // The exits are their own layer but not their own clock: the hand-over chip is two chips
-    // wearing one slot, and without this it kept offering "hand it over" to a player who already
-    // had — which is the way back to the fight, greyed into nothing.
+  }
+  // The exits' own clock: the hand-over chip is two chips wearing one slot and the pause chip
+  // flips to Resume — those two flags are all four panels ever change for.
+  if (`${battle.delegated ? 1 : 0}:${self.battleHalted ? 1 : 0}` !== ui.exitsKey) {
     self.buildBattleExits(battle);
   }
+  // The per-beat readings — price, pips, notes, bars, the landing flare — write into the
+  // standing dock rather than rebuilding it. See `drawBattleDock`.
+  self.drawBattleDock(battle);
 
   self.updateBattleBubbles(battle);
   self.updateBattleNotice(battle);
@@ -331,6 +346,11 @@ export function startBattleClock(self: ConquestUIScene): void {
     // Beat first, then draw: the frame the rest of the refresh reads is the one just taken.
     drainBattleBeat(self);
     self.refresh();
+    // The refresh above can close the lane (fight resolved, a prompt arrived). `stopBattleClock`
+    // removed the *stored* handle — which is this very timer, already executing — so without this
+    // check the re-arm below installs a fresh clock on a lane that is gone, and it beats a full
+    // refresh against nothing until the next overlay replaces it.
+    if (!self.battleUi || self.openPromptKey !== 'lane:battle') return;
     const queued = self.state.ascent?.activeBattle?.beats?.length ?? 0;
     const hurry = queued > battleBeatsPerTick() * 2 ? 0.55 : queued > battleBeatsPerTick() ? 0.75 : 1;
     self.battleClock = self.time.delayedCall(Math.round(battleTickMs() * hurry), tick);

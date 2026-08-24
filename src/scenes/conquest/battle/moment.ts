@@ -18,6 +18,7 @@ import type { AscentBattle } from '../../../state/types';
 import { BATTLE_DOCK_HEIGHT, BATTLE_RAILS_HEIGHT, cssHex } from '../constants';
 import { clearLayer } from '../layers';
 import type { ConquestUIScene } from '../../ConquestUIScene';
+import { battleFieldBox } from '../constants';
 
 
 /**
@@ -58,7 +59,11 @@ export function buildBattleMoment(self: ConquestUIScene, battle: AscentBattle): 
   // no-op: the only thing that puts this above the men is being in a later container.
   const wash = self.add.graphics();
   wash.fillStyle(INK_UI.parchment, 0.55);
-  wash.fillRect(content.x, content.y, content.width, ui.fieldHeight);
+  // The field went full-bleed (battleFieldBox) while this wash kept the card column, so a
+  // Moment left two undimmed strips of battlefield at the edges - the frame said "held" and
+  // the margins said "live". The wash covers what the field covers.
+  const fieldBox = battleFieldBox(content, ui.fieldHeight);
+  wash.fillRect(fieldBox.x, fieldBox.y, fieldBox.width, fieldBox.height);
   layer.add(wash);
   layer.add(self.ui.label(
     content.x + content.width / 2, content.y + ui.fieldHeight * 0.32,

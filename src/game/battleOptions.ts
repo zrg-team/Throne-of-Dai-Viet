@@ -11,6 +11,8 @@
  * baseline turns every regression fingerprint into a question about which dial was set.
  */
 
+import { ASCENT_BATTLE_ESCALATION } from './ascentConfig';
+
 export type BattleDifficulty = 'easy' | 'medium' | 'hard' | 'nightmare';
 export type BattleSpeed = 'slow' | 'normal' | 'fast';
 
@@ -138,30 +140,71 @@ export function setBattleSpeed(value: BattleSpeed): void {
   } catch { /* as above */ }
 }
 
+// ── Wave escalation: floors under the player's own dials ────────────────────
+//
+// From `ASCENT_BATTLE_ESCALATION` (ascentConfig): as a run's waves mount, the EFFECTIVE
+// difficulty and pace stop going below the table's floors, and the bubbles' linger is capped —
+// whatever the Settings rows say. Floors only ever raise; a player already above one feels
+// nothing. The wave is handed in by `showBattle` (0 outside a Dragon Ascent fight), so the
+// arena, the classic siege and every harness keep the exact behaviour the profiles promise.
+
+let escalationWave = 0;
+let bubbleOverride: number | undefined;
+
+/**
+ * A fight-scoped pin on the bubbles' linger — the Skirmish page's own dial. `-1` keeps the
+ * words forever, `0` silences them, `undefined` follows the difficulty profile (and the wave
+ * caps). An explicit pin beats both: it exists exactly so a practice fight can be set up with
+ * more or fewer words than the player's real campaign gives them.
+ */
+export function setBattleBubbleOverride(ms?: number): void {
+  bubbleOverride = ms;
+}
+
+/** The current run's wave, for the escalation floors. 0 = no escalation. */
+export function setBattleEscalationWave(wave: number): void {
+  escalationWave = wave;
+}
+
+function escalated(): { difficulty: BattleDifficulty; speed: BattleSpeed; bubbleCap: number } {
+  let diffIdx = BATTLE_DIFFICULTIES.indexOf(getBattleDifficulty());
+  let speedIdx = BATTLE_SPEEDS.indexOf(getBattleSpeed());
+  let bubbleCap = Infinity;
+  for (const step of ASCENT_BATTLE_ESCALATION) {
+    if (escalationWave < step.wave) continue;
+    if (step.enemyFloor) diffIdx = Math.max(diffIdx, BATTLE_DIFFICULTIES.indexOf(step.enemyFloor));
+    if (step.paceFloor) speedIdx = Math.max(speedIdx, BATTLE_SPEEDS.indexOf(step.paceFloor));
+    if (step.bubbleCapMs !== undefined) bubbleCap = Math.min(bubbleCap, step.bubbleCapMs);
+  }
+  return { difficulty: BATTLE_DIFFICULTIES[diffIdx], speed: BATTLE_SPEEDS[speedIdx], bubbleCap };
+}
+
 /** Beats of hesitation before the invader orders its answer. See `DifficultyProfile.reactDelay`. */
 export function battleReactDelay(): number {
-  return DIFFICULTY[getBattleDifficulty()].reactDelay;
+  return DIFFICULTY[escalated().difficulty].reactDelay;
 }
 
 /** Whether the invader answers an even matchup as well as a losing one. */
 export function battleAnswersEven(): boolean {
-  return DIFFICULTY[getBattleDifficulty()].answersEven;
+  return DIFFICULTY[escalated().difficulty].answersEven;
 }
 
 /** Whether the dock shows which shapes beat the enemy's. See `DifficultyProfile.rims`. */
 export function battleRimsShown(): boolean {
-  return DIFFICULTY[getBattleDifficulty()].rims;
+  return DIFFICULTY[escalated().difficulty].rims;
 }
 
-/** How long a speech bubble over a host lingers. See `DifficultyProfile.bubbleMs`. */
+/** How long a speech bubble over a host lingers, capped by the wave escalation. */
 export function battleBubbleMs(): number {
-  return DIFFICULTY[getBattleDifficulty()].bubbleMs;
+  if (bubbleOverride !== undefined) return bubbleOverride === -1 ? Infinity : bubbleOverride;
+  const eff = escalated();
+  return Math.min(DIFFICULTY[eff.difficulty].bubbleMs, eff.bubbleCap);
 }
 
 export function battleBeatsPerTick(): number {
-  return SPEED[getBattleSpeed()].beatsPerTick;
+  return SPEED[escalated().speed].beatsPerTick;
 }
 
 export function battleTickMs(): number {
-  return SPEED[getBattleSpeed()].tickMs;
+  return SPEED[escalated().speed].tickMs;
 }

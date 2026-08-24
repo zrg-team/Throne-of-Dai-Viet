@@ -73,8 +73,11 @@ export function renderMinimap(
   }
 
   // Army dots
+  // One map instead of a linear scan per army: with a dozen hosts over forty-two lands the old
+  // find() was an O(n²) walk on every minimap redraw.
+  const landById = new Map(state.lands.map((entry) => [entry.id, entry]));
   for (const army of state.armies) {
-    const land = state.lands.find((l) => l.id === army.landId);
+    const land = landById.get(army.landId);
     if (!land?.isVisible) continue;
     const wx = (land.x - hexOffsetX) * MAP_SCALE;
     const wy = (land.y - hexOffsetY) * MAP_SCALE;

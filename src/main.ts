@@ -8,10 +8,24 @@ import { registerServiceWorker } from './pwa/updates';
 import { watchInstall } from './pwa/install';
 import { usesServiceWorker } from './platform/shell';
 import { getMapTheme } from './ui/mapTheme';
+import { stampStats } from './ui/ink/stamp';
+import { installQualityLadder } from './game/qualityLadder';
+import { renderScaleNow } from './game/graphicsQuality';
 
 declare global {
   interface Window {
     __mandateState?: GameState;
+    /** Live census of the ink-stamp registry - backend, count, bytes, pools. */
+    __inkStamps?: typeof stampStats;
+    /** The quality ladder: state(), force(id), hold(ms) — see qualityLadder.ts. */
+    __ladder?: ReturnType<typeof installQualityLadder>;
+    /** The render scale the buffer is actually using right now. */
+    __renderScale?: () => number;
+    /** rAF histogram over N seconds: p50/p95/p99/worst and over-budget counts. */
+    __fpsProbe?: (seconds?: number) => Promise<{
+      frames: number; p50: number; p95: number; p99: number; worst: number;
+      over16: number; over33: number; over50: number;
+    }>;
     __phaserGame?: Phaser.Game;
     __suppressMapInputUntil?: number;
     __minimapInputBounds?: Array<{ x: number; y: number; width: number; height: number }>;
@@ -49,10 +63,50 @@ watchInstall();
 
 const game = new Phaser.Game(gameConfig);
 window.__phaserGame = game;
+window.__inkStamps = stampStats;
+window.__ladder = installQualityLadder(game);
+window.__renderScale = renderScaleNow;
+window.__fpsProbe = (seconds = 3) => new Promise((resolve) => {
+  // A rAF histogram: what the browser actually presented, not what the loop believes.
+  const gaps: number[] = [];
+  let last = performance.now();
+  const until = last + seconds * 1000;
+  const tick = (now: number): void => {
+    gaps.push(now - last);
+    last = now;
+    if (now < until) { requestAnimationFrame(tick); return; }
+    const sorted = [...gaps].sort((a, b) => a - b);
+    const at = (p: number) => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))] ?? 0;
+    resolve({
+      frames: gaps.length,
+      p50: +at(0.5).toFixed(2), p95: +at(0.95).toFixed(2), p99: +at(0.99).toFixed(2),
+      worst: +(sorted[sorted.length - 1] ?? 0).toFixed(2),
+      over16: gaps.filter((g) => g > 16.7).length,
+      over33: gaps.filter((g) => g > 33.4).length,
+      over50: gaps.filter((g) => g > 50).length,
+    });
+  };
+  requestAnimationFrame(tick);
+});
 
 window.render_game_to_text = () => {
   if (window.__phaserGame?.scene.isActive('MenuScene')) {
-    return JSON.stringify({ mode: 'menu', language: getLanguage(), mapTheme: getMapTheme() });
+    return JSON.stringify({
+      mode: 'menu',
+      language: getLanguage(),
+      languageOptions: ['vi', 'en'],
+      actions: ['guide', 'history', 'settings'],
+      mapTheme: getMapTheme(),
+      landscapeInteraction: getMapTheme() === 'dong-ho' ? 'tap-river-ripple' : undefined,
+      artLayers: getMapTheme() === 'dong-ho'
+        ? ['ground', 'mountains', 'mountain-mist', 'river-fx', 'bamboo', 'lotus'] : undefined,
+      riverGestures: getMapTheme() === 'dong-ho'
+        ? ['tap', 'drag', 'hover-wake'] : undefined,
+      lotusGestures: getMapTheme() === 'dong-ho'
+        ? ['hover', 'drag', 'water-wake'] : undefined,
+      ambientMotion: getMapTheme() === 'dong-ho'
+        ? ['mountain-drift', 'mountain-mist', 'bamboo-breeze', 'lotus-sway', 'river-surface-flow'] : undefined,
+    });
   }
 
   const state = window.__mandateState;
@@ -63,6 +117,12 @@ window.render_game_to_text = () => {
 
   const selectedLand = state.selectedLandId
     ? state.lands.find((land) => land.id === state.selectedLandId)
+    : undefined;
+  const ascentUi = window.__phaserGame?.scene.isActive('ConquestUIScene')
+    ? window.__phaserGame.scene.getScene('ConquestUIScene') as Phaser.Scene & {
+        openPromptKey?: string;
+        chronicleTab?: 'actions' | 'ongoing' | 'heard' | 'recorded';
+      }
     : undefined;
 
   return JSON.stringify({
@@ -180,6 +240,15 @@ window.render_game_to_text = () => {
                 options: describeAscentPromptOptions(state, state.pendingAscentPrompt),
               }
             : null,
+          ui: {
+            screen: ascentUi?.openPromptKey || 'map',
+            chronicleTab: ascentUi?.openPromptKey === 'lane:chronicle'
+              ? ascentUi.chronicleTab ?? 'actions'
+              : null,
+            claimsAskFirst: !(state.ascent.autoClaimSilently ?? false),
+            mustersAskFirst: !(state.ascent.autoMusterSilently ?? false),
+            storiesWait: state.ascent.storyCardsMuted ?? false,
+          },
         }
       : undefined,
     message: state.message,
