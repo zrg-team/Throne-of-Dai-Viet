@@ -50,7 +50,7 @@ function query(name: string): string | undefined {
 
 export class QualityLadder {
   private rung: Rung;
-  private readonly ceiling: Rung;
+  private ceiling: Rung;
   private readonly tuning: LadderTuning;
   private readonly enabled: boolean;
 
@@ -111,10 +111,16 @@ export class QualityLadder {
     };
   }
 
+  /**
+   * An explicit choice — the settings row, a harness. Moves the ceiling with the rung, so the
+   * sampler can never climb a session above what the player deliberately picked (or step "down"
+   * from a pick the pinned-dev guard would otherwise leave standing).
+   */
   force(id: RungId): void {
     const rung = RUNGS.find((r) => r.id === id);
     if (rung) {
       this.rung = rung;
+      this.ceiling = rung;
       this.apply(rung, {});
     }
   }

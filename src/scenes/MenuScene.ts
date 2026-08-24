@@ -39,6 +39,7 @@ import { copyToClipboard, openExternalLink } from '../utils/browser';
 import { encodeQr, type QrMatrix } from '../utils/qr';
 import { attachPaperSheet } from '../ui/ink/paperSheet';
 import { qualityLadder } from '../game/qualityLadder';
+import { rungForTier } from '../game/qualityRungs';
 
 type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy' | 'settings';
 
@@ -437,7 +438,7 @@ export class MenuScene extends Phaser.Scene {
     // transformed onto the dry right-bank verge so the leaves begin below the mountain feet and
     // the roots remain outside the planted plots. The low scale keeps bamboo as quiet scenery.
     const bambooScale = 0.48;
-    const bambooSourceBounds = { left: 586, top: 449, right: 1498, bottom: 970 };
+    const bambooSourceBounds = { left: 590, top: 448, right: 1494, bottom: 970 };
     const bambooSourceCentre = {
       x: (bambooSourceBounds.left + bambooSourceBounds.right) / 2,
       y: (bambooSourceBounds.top + bambooSourceBounds.bottom) / 2,
@@ -560,7 +561,7 @@ export class MenuScene extends Phaser.Scene {
     ]);
 
     // Sparse, long current strokes travel by arc length rather than raw spline parameter. That
-    // removes the old acceleration through tight bends, while an 18–24 second passage reads as
+    // removes the old acceleration through tight bends, while a 48–58 second passage reads as
     // an unhurried stream instead of little marks racing down a track.
     const currentCount = getGraphicsQuality() === 'low' ? 5 : 8;
     for (let index = 0; index < currentCount; index += 1) {
@@ -569,7 +570,7 @@ export class MenuScene extends Phaser.Scene {
         .setData('menuCurrentLane', index % 3 - 1)
         .setData('menuCurrentVisibility', 'readable')
         .setData('menuCurrentInterpolation', 'arc-length')
-        .setData('menuCurrentDuration', 18_000 + index * 720 + (index % 2) * 1_400);
+        .setData('menuCurrentDuration', 48_000 + index * 1_800 + (index % 2) * 2_400);
       layers.waterFx.add(current);
       inkPath(current, [{ x: -13, y: 0 }, { x: -5, y: -0.35 }, { x: 4, y: 0.28 }, { x: 14, y: 0 }], 7200 + index, {
         width: 0.64,
@@ -2216,6 +2217,9 @@ export class MenuScene extends Phaser.Scene {
               return;
             }
             setGraphicsQuality(id);
+            // The ladder's rung override shadows the tier inside `profile()` — without re-pointing
+            // it, `renderScale()` keeps answering from the old rung and this tap changes nothing.
+            qualityLadder()?.force(rungForTier(id).id);
             // No reload: the new tier's scale is applied to the live buffer at this boundary
             // and the menu rebuilds itself — labels re-rasterise at the new resolution.
             requestRenderScale(renderScale());

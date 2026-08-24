@@ -247,7 +247,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
   check(`${label}: water has slow arc-length currents and touch/drag wakes`, menu.interaction === 'river-ripple'
     && menu.ripple > 0 && menu.wakes > 0 && menu.currents >= 5
     && menu.currentMaxAlpha >= 0.34 && movingCurrents >= 3
-    && menu.currentDurations.every((duration) => duration >= 18_000)
+    && menu.currentDurations.every((duration) => duration >= 48_000)
     && menu.currentInterpolations.every((mode) => mode === 'arc-length')
     && currentTravel.every((distance) => distance < 4)
     && ['tap', 'drag', 'hover-wake'].every((gesture) => menu.gestures.includes(gesture)),
