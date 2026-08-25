@@ -2,15 +2,16 @@
  * The README's pictures, produced from the live game so they never drift from it.
  *
  * Every image under docs/readme/ comes out of this script: portrait shots of the screens that
- * explain the game, a four-season strip, a three-theme strip, a row of champion portraits, and the
- * wide banner. Screenshots are taken as PNG and re-encoded to WebP *inside Chromium* — this
+ * explain the game, a four-season strip, a three-theme strip, a row of champion portraits, two
+ * crops (the battle field band, the shape-counter ring), and the wide banner. Screenshots are taken as PNG and re-encoded to WebP *inside Chromium* — this
  * machine has no image tools, and a 2× PNG of the sheet weighs 1.1 MB where the WebP weighs a
  * tenth of that. Strips are composed the same way, on a canvas, with transparent gutters so they
  * sit on GitHub's light and dark pages alike.
  *
  *   DEV_URL=http://127.0.0.1:5199 node test_scripts/shot/shot-readme.mjs [section...]
  *
- * Sections: menu ascent battle chronicle empire seasons themes skirmish history portraits banner.
+ * Sections: menu ascent battle chronicle empire seasons themes skirmish history portraits graphics
+ * banner.
  * With no arguments every section runs. `banner` composes frames taken by `menu`, `ascent` and
  * `battle`, so it only runs when those three ran in the same invocation.
  */
@@ -356,6 +357,34 @@ if (want('ascent')) {
   const conquerPng = await shot(page);
   await save('conquer', [conquerPng]);
 
+  // The Build lane: the works a province can raise, priced by the economy that will pay for them.
+  await page.evaluate(() => {
+    const st = window.__mandateState;
+    st.pendingAscentPrompt = undefined;
+    st.ascent.promptQueue = [];
+    const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+    ui.events.emit('state-changed');
+    ui.openLane('build');
+  });
+  await page.waitForTimeout(900);
+  await save('build', [await shot(page)]);
+
+  // The summon: the gacha card, drawn over the same realm so the header vouches for the price.
+  await page.evaluate(async () => {
+    const st = window.__mandateState;
+    const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+    try { ui.closeLane?.(); } catch { /* nothing open */ }
+    const { offerHeroSummon } = await import('/src/systems/ascent/SummonSystem.ts');
+    const { drainAscentPrompts } = await import('/src/systems/ascent/AscentState.ts');
+    st.pendingAscentPrompt = undefined;
+    st.ascent.promptQueue = [];
+    offerHeroSummon(st);
+    drainAscentPrompts(st);
+    ui.events.emit('state-changed');
+  });
+  await page.waitForTimeout(900);
+  await save('summon', [await shot(page)]);
+
   await page.close();
 }
 
@@ -371,6 +400,10 @@ if (want('battle')) {
   await page.waitForTimeout(1200);
   battlePng = await shot(page);
   await save('battle', [battlePng]);
+  // The field alone, wide: how a host is drawn — ranked figures in their shape, the banner, the
+  // camp behind. Same held frame as the full shot, cropped to the band between the commander
+  // card and the strength bars.
+  await save('armies', [await shot(page, { x: 0, y: 186, width: 390, height: 296 })]);
   await page.close();
 }
 
@@ -486,6 +519,8 @@ if (want('skirmish')) {
   await page.waitForFunction(() => window.__phaserGame.scene.isActive('BattleArenaScene'), null, { timeout: 15000 });
   await page.waitForTimeout(1200);
   await save('skirmish', [await shot(page)]);
+  // The counter ring the muster form teaches — cropped out as the fight section's diagram.
+  await save('shapes-ring', [await shot(page, { x: 40, y: 608, width: 310, height: 134 })]);
   await page.close();
 }
 
@@ -581,7 +616,96 @@ if (want('portraits')) {
   await page.close();
 }
 
-// ── 11 · the banner: four screens in a row ──────────────────────────────────────────────────────
+// ── 11 · the graphics section: invented champions, and the hosts of five kingdoms ───────────────
+if (want('graphics')) {
+  console.log('graphics');
+  const page = await newPage();
+  await boot(page, 1337, 'ascent');
+
+  // Ten champions who exist in no roster: the generator invents the person — name, era, office —
+  // and the wardrobe dresses them like anyone real. Same layout as the roster strip.
+  const genRows = [];
+  for (const half of [0, 1]) {
+    const rowH = await page.evaluate(async ({ half }) => {
+      const { renderHeroFace, HERO_FACE_W } = await import('/src/ui/FaceRenderer.ts');
+      const { generateHero } = await import('/src/data/heroFactory.ts');
+      const { UI_FONT } = await import('/src/ui/fonts.ts');
+      const row = Array.from({ length: 5 }, (_, i) => generateHero(90210 + (half * 5 + i) * 7919));
+      const scene = window.__phaserGame.scene.getScene('ConquestUIScene');
+      scene.children.removeAll(true);
+      const cellW = 390 / 5;
+      const scale = (cellW - 10) / HERO_FACE_W;
+      const faces = row.map((hero, i) => {
+        const face = renderHeroFace(scene, hero, i * cellW + cellW / 2, 0, scale);
+        scene.add.existing(face);
+        return { hero, face };
+      });
+      let bottom = 0;
+      for (const { face } of faces) {
+        const b = face.getBounds();
+        face.y = 8 - b.top;
+        bottom = Math.max(bottom, 8 + b.height);
+      }
+      // No name captions here: a generated name arrives with its office attached — "Sư Đề Đốc
+      // Chu Nữ Thái" — and five of those in 78px cells print over each other. The roster strip
+      // carries the names; this one is about the wardrobe.
+      void UI_FONT;
+      const rowH = Math.ceil(bottom + 10);
+      scene.add.graphics().fillStyle(0xe8ddc4, 1).fillRect(0, 0, 390, rowH).setDepth(-1);
+      return rowH;
+    }, { half });
+    await page.waitForTimeout(400);
+    genRows.push(await shot(page, { x: 0, y: 0, width: 390, height: rowH }));
+  }
+  await save('faces-generated', genRows, { gap: 16 });
+
+  // Five kingdoms, five shapes: the same host drawing that stands on the battlefield, one realm
+  // per frame — the men in the shape they hold, the standard carrying the ownership. The kingdom
+  // colour is deliberately not on the men (see MapItemRenderer); the banner is the flag.
+  const SHAPES = ['chong', 'xung', 'tan', 'quy', 'no'];
+  const HOST_H = 200;
+  const hostShots = [];
+  for (const [k, shape] of SHAPES.entries()) {
+    const info = await page.evaluate(async ({ k, shape, HOST_H }) => {
+      const st = window.__mandateState;
+      const scene = window.__phaserGame.scene.getScene('ConquestUIScene');
+      scene.children.removeAll(true);
+      const { createMapItemRenderer } = await import('/src/ui/MapItemRenderer.ts');
+      const { hostKitFor } = await import('/src/ui/ink/devices.ts');
+      const { BATTLE_HOST_SCALE } = await import('/src/game/ascentConfig.ts');
+      const { t } = await import('/src/i18n/index.ts');
+      const { UI_FONT } = await import('/src/ui/fonts.ts');
+      const kingdom = st.kingdoms[k];
+      // A real army is the honest template — its units and composition come from the run — and
+      // the clone only moves it under another banner.
+      const template = st.armies.find((a) => a.kingdomId === 'dai-viet') ?? st.armies[0];
+      const clone = { ...template, kingdomId: kingdom.id };
+      const items = createMapItemRenderer(scene);
+      scene.add.graphics().fillStyle(0xe8ddc4, 1).fillRect(0, 0, 390, HOST_H).setDepth(-1);
+      // At the battlefield's own scale — the first cut passed 1 and photographed five smudges
+      // with flags in a desert of paper.
+      const marker = items.createArmyMarker(
+        1400, kingdom.id === 'dai-viet', undefined, Math.max(0, k),
+        { ...hostKitFor(st, clone), mustered: 1400, shape },
+        BATTLE_HOST_SCALE,
+      );
+      marker.setPosition(195, 100);
+      const gloss = t(`ascent.formation.${shape}.gloss`);
+      const name = t(`ascent.formation.${shape}`);
+      scene.add.text(195, HOST_H - 30, `${kingdom.name}  ·  Thế ${name} — ${gloss}`, {
+        fontFamily: UI_FONT, fontSize: '11px', fontStyle: '700', color: '#2a2118', align: 'center',
+      }).setOrigin(0.5, 0);
+      return { kingdom: kingdom.name };
+    }, { k, shape, HOST_H });
+    console.log('   host:', info.kingdom, shape);
+    await page.waitForTimeout(700);
+    hostShots.push(await shot(page, { x: 0, y: 0, width: 390, height: HOST_H }));
+  }
+  await save('kingdom-armies', hostShots, { gap: 14, scale: 0.62 });
+  await page.close();
+}
+
+// ── 12 · the banner: four screens in a row ──────────────────────────────────────────────────────
 if (want('banner')) {
   if (menuPng && ascentMapPng && founderPng && battlePng) {
     console.log('banner');

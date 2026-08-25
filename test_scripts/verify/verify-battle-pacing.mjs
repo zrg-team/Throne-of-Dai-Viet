@@ -17,7 +17,13 @@ const WATCH_MS = Number(process.argv[2] ?? 20) * 1000;
 // One beat, plus the deliberate hold on contact and on a host breaking, plus a frame of slack.
 // The hit-stop is the screen *choosing* to sit still for 110ms; scoring it as a stall would be
 // grading a feature as a fault. See `BATTLE_HIT_STOP_MS`.
-const GAP_BUDGET = 560 + 110 + 90;
+//
+// 875 is the NORMAL speed profile's beat (`battleOptions` SPEED.normal.tickMs) — the budget was
+// written as 560 when that was `BATTLE_TICK_MS`, and slept through the speed-dial rework: at an
+// 875ms cadence a perfectly regular screen showed fourteen "stalls" a fight while the actual
+// regression (whole ticks of dead air at the opening and after every Moment) hid inside them.
+const BEAT_MS = 875;
+const GAP_BUDGET = BEAT_MS + 110 + 90;
 const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 
 const browser = await chromium.launch();
@@ -224,7 +230,7 @@ const line = (ok, label, detail) => console.log(`${ok ? 'PASS' : 'FAIL'}  ${labe
 // jumps shows *many* — before the beat buffer every gap was a full economy tick.
 const overBudget = gaps.filter((g) => g > GAP_BUDGET).length;
 line(overBudget <= 1, `at most one gap over ${GAP_BUDGET}ms`, `${overBudget} of ${gaps.length}, longest ${longest.toFixed(0)}ms`);
-line(median < 700, 'median gap under one beat', `${median.toFixed(0)}ms`);
+line(median <= BEAT_MS + 25, 'median gap within a frame of one beat', `${median.toFixed(0)}ms of ${BEAT_MS}`);
 line(gaps.length >= 4, 'enough un-starved intervals to judge', `${gaps.length} intervals`);
 line(out.maxQueued <= 12, 'the view keeps up with the simulation', `${out.maxQueued} beats deep`);
 

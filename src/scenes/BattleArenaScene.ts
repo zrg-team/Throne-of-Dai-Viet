@@ -2,14 +2,22 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH, PLAYER_KINGDOM_ID } from '../game/constants';
 import { createAscentGameState } from '../state/GameState';
 import { beginBattle } from '../systems/ascent/BattleSystem';
-import type {
-  Army, AscentBattleRecord, GameState, KingdomPersonality, Land, TerrainSummary,
+import {
+  ENEMY_WARDROBES, VIET_WARDROBES,
+  type Army, type ArmyWardrobe, type AscentBattleRecord, type GameState, type KingdomPersonality,
+  type Land, type TerrainSummary,
 } from '../state/types';
 import {
   BACK_BAR_WIDTH, InkUI, INK_UI, scrollGestureConsumedTap, type InkScrollArea,
 } from '../ui/InkUI';
 import { createLabel } from '../ui/theme';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
+import { bucketFor, figureStamp } from '../ui/ink/figureStamps';
+import { placeStamp } from '../ui/ink/stamp';
+import { faceTravel } from '../ui/ink/life';
+import { PIGMENT } from '../ui/ink/palette';
+import { BATTLE_HOST_SCALE } from '../game/ascentConfig';
+import type { FigureArm } from '../ui/ink/devices';
 import { t } from '../i18n';
 import { applyRenderScale } from '../game/graphicsQuality';
 import { drawFormationRing } from '../ui/ascent/formationCounters';
@@ -67,13 +75,34 @@ export class BattleArenaScene extends Phaser.Scene {
   // Defaults must be steps the dials actually offer, or the row opens with nothing lit and the
   // player cannot tell whether the setting is unset or simply invisible. Moved up with the dial
   // itself: 900 and 1,500 are not on it any more.
+  //
+  // Equal on purpose. The page opened at 2,400 against 4,000 and the very first fight a player
+  // set up was one they were expected to lose — a fair fight is the honest default, and the
+  // stepper is right there for anyone who wants the odds against them.
   private ourMen = 2400;
-  private theirMen = 4000;
+  private theirMen = 2400;
   private ourArms: ArmSpread = { archers: 0.25, heavy: 0.15 };
   private theirArms: ArmSpread = { archers: 0.25, heavy: 0.15 };
+  /**
+   * What the two hosts LOOK like — the dynasty wardrobe the figures are drawn in (user request).
+   * Pure picture, no numbers: it flows through `muster.dynasty` / `kingdom.wardrobe`, the same
+   * channel a run's own roll uses, so the battle screen dresses the men without a special case.
+   * Ours picks from the seven Việt wardrobes; the enemy from the five invading powers plus the
+   * three lord periods a rival Việt realm can wear. Defaults are the classic matchup.
+   */
+  private ourStyle: ArmyWardrobe = 'le';
+  private theirStyle: ArmyWardrobe = 'ming';
   private ground: keyof TerrainSummary = 'plains';
   private doctrine: KingdomPersonality = 'aggressive';
-  private martial = 70;
+  /**
+   * 40, not 70, and the number is a difficulty ladder held by `probe-noclick`/`battle-lab`:
+   * a general's aura multiplies `armyPower`, and at 70 the even default fight opened at 1.18-to-1
+   * in power — measured, EVERY policy including touching nothing won 100 of 100, because the
+   * overtime grind hands the field to the stronger side almost deterministically. At 40 the same
+   * fight is 1.10-to-1: hands-off wins 25%, answering their shapes wins reliably, and working
+   * both dials wins keeping a third of the host. Doing nothing loses; doing the taught thing wins.
+   */
+  private martial = 40;
   /** The last fight fought here, so the arena is a loop rather than a one-shot. */
   private last?: AscentBattleRecord;
   /**
@@ -481,38 +510,50 @@ export class BattleArenaScene extends Phaser.Scene {
      */
     const fightY = pinnedBackY - FIGHT_BUTTON - 8;
 
+    /**
+     * Three tabs, one screen (user request, 2026-08-25): nine rows of dials stacked down one
+     * scroll made the page a settings form, and most visits change one thing. The matchup, the
+     * field, and the player's preferences are three different questions, so each gets a page:
+     * Armies (the two hosts and their arms), Battle (ground, enemy doctrine, our general), and
+     * Difficulty (the `battleOptions` preferences). Armies opens first — it is the thing the
+     * screen is named for.
+     */
+    y = this.renderTabs(y);
+
     const body = this.add.container(0, 0);
     let by = 0;
 
-    by = this.renderForces(body, by);
-    by = this.renderOdds(body, by);
-
-    by = this.row(body, by, t('arena.ground'), this.grounds(), (c) => c.value === this.ground,
-      (c) => { this.ground = c.value; this.render(); });
-    by = this.row(body, by, t('arena.doctrine'), this.doctrines(), (c) => c.value === this.doctrine,
-      (c) => { this.doctrine = c.value; this.render(); });
-    by = this.row(body, by, t('arena.general'), this.generals(), (c) => c.value === this.martial,
-      (c) => { this.martial = c.value; this.render(); });
-
-    /**
-     * The two dials that are not about this matchup but about every fight.
-     *
-     * They are preferences, kept in `battleOptions` beside the language and the map theme, and the
-     * settings sheet on the front page offers the same two. They are repeated here because this is
-     * the screen built for trying a fight out — sending somebody to the front page and back to find
-     * out whether a quicker enemy is more fun is the sort of round trip that stops people trying.
-     */
-    by = this.row(body, by, t('arena.difficulty'), this.difficulties(),
-      (c) => c.value === getBattleDifficulty(),
-      (c) => { setBattleDifficulty(c.value); this.render(); });
-    by = this.row(body, by, t('arena.speed'), this.speeds(),
-      (c) => c.value === getBattleSpeed(),
-      (c) => { setBattleSpeed(c.value); this.render(); });
-    by = this.row(body, by, t('arena.bubbles'), this.bubbleChoices(),
-      (c) => c.value === this.bubbleChoice,
-      (c) => { this.bubbleChoice = c.value; this.render(); });
-
-    if (this.last) by = this.renderLastFight(body, by);
+    if (this.tab === 'army') {
+      by = this.renderForces(body, by);
+      by = this.renderOdds(body, by);
+      if (this.last) by = this.renderLastFight(body, by);
+    } else if (this.tab === 'battle') {
+      by = this.row(body, by, t('arena.ground'), this.grounds(), (c) => c.value === this.ground,
+        (c) => { this.ground = c.value; this.render(); });
+      by = this.row(body, by, t('arena.doctrine'), this.doctrines(), (c) => c.value === this.doctrine,
+        (c) => { this.doctrine = c.value; this.render(); });
+      by = this.row(body, by, t('arena.general'), this.generals(), (c) => c.value === this.martial,
+        (c) => { this.martial = c.value; this.render(); });
+    } else {
+      /**
+       * The dials that are not about this matchup but about every fight.
+       *
+       * They are preferences, kept in `battleOptions` beside the language and the map theme, and
+       * the settings sheet on the front page offers the same two. They are repeated here because
+       * this is the screen built for trying a fight out — sending somebody to the front page and
+       * back to find out whether a quicker enemy is more fun is the round trip that stops people
+       * trying.
+       */
+      by = this.row(body, by, t('arena.difficulty'), this.difficulties(),
+        (c) => c.value === getBattleDifficulty(),
+        (c) => { setBattleDifficulty(c.value); this.render(); });
+      by = this.row(body, by, t('arena.speed'), this.speeds(),
+        (c) => c.value === getBattleSpeed(),
+        (c) => { setBattleSpeed(c.value); this.render(); });
+      by = this.row(body, by, t('arena.bubbles'), this.bubbleChoices(),
+        (c) => c.value === this.bubbleChoice,
+        (c) => { this.bubbleChoice = c.value; this.render(); });
+    }
 
     /**
      * The ring is pinned, and the dials scroll under it.
@@ -572,17 +613,81 @@ export class BattleArenaScene extends Phaser.Scene {
    * the body, where reference belongs. The table is still the right drawing on the coach card
    * inside a fight, where the reader is under time; both are read off `formationBeats`.
    */
+  /**
+   * Collapsed to one line by default (user verdict, 2026-08-25: a reference diagram pinned open
+   * on every visit "is not good UI/UX"). The rules do not change between fights, so after the
+   * first reading the ring was a hundred-odd points of paper the dials could be using. The choice
+   * lives on the scene instance, so it holds across fights in a sitting and resets with the app —
+   * a newcomer's first visit always offers the full drawing one tap away.
+   */
+  private ringOpen = false;
+
+  /** The three setup pages. Armies is the default — it is what the screen is named for. */
+  private tab: 'army' | 'battle' | 'difficulty' = 'army';
+
+  private renderTabs(y: number): number {
+    const tabs: Array<{ id: 'army' | 'battle' | 'difficulty'; label: string }> = [
+      { id: 'army', label: t('arena.tab.army') },
+      { id: 'battle', label: t('arena.tab.battle') },
+      { id: 'difficulty', label: t('arena.tab.difficulty') },
+    ];
+    const gap = 6;
+    const width = Math.floor((GAME_WIDTH - 40 - gap * (tabs.length - 1)) / tabs.length);
+    const height = 26;
+    tabs.forEach((entry, index) => {
+      const x = 20 + index * (width + gap);
+      const selected = this.tab === entry.id;
+      this.push(this.ui.crayonTile({ x, y, width, height }, { selected }));
+      const text = createLabel(this, x + width / 2, y + 7, entry.label, 'caption', {
+        fontSize: '11px', align: 'center', color: selected ? '#b33a26' : '#2a2118',
+      }).setOrigin(0.5, 0);
+      text.setData('tileWidth', width);
+      this.push(text);
+      const hit = this.add.zone(x, y, width, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        if (scrollGestureConsumedTap(pointer)) return;
+        this.tab = entry.id;
+        this.render();
+      });
+      this.push(hit);
+    });
+    return y + height + 10;
+  }
+
   private renderRing(bottom: number): number {
+    /**
+     * The one-line header IS the button, in both states. The chevron used to fold into the
+     * drawing's own centre when open, and the user's verdict was exact: "no button to hide" —
+     * an affordance inside the picture reads as part of the picture. The line stays put above
+     * the ring, says ▸ or ▾, and tapping either it or the drawing toggles.
+     */
+    const rowH = 18;
+    const toggle = (open: boolean, x: number, y: number, w: number, h: number): void => {
+      const hit = this.add.zone(x, y, w, h).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => { this.ringOpen = open; this.render(); });
+      this.push(hit);
+    };
+    const header = (top: number, glyph: string): void => {
+      this.push(createLabel(this, GAME_WIDTH / 2, top + rowH / 2, `${glyph} ${t('arena.howTitle')}`, 'caption', {
+        fontSize: '10px', fontStyle: '700', align: 'center', color: '#a8873c',
+      }).setOrigin(0.5));
+    };
+    if (!this.ringOpen) {
+      const top = bottom - rowH;
+      header(top, '▸');
+      toggle(true, 20, top, GAME_WIDTH - 40, rowH);
+      return top;
+    }
     // Drawn at the origin and measured, then moved: its height is the five labels' own heights and
-    // those change with the language, so where it starts can only be known after it exists.
-    //
-    // The heading goes *inside* the loop rather than on a row above it — a ring is the one diagram
-    // that comes with its own empty middle, and paying a line of the page for a title while leaving
-    // that hole blank is paying twice for one idea.
-    const ring = drawFormationRing(this, 20, 0, GAME_WIDTH - 40, t('arena.howTitle'));
-    const top = bottom - ring.height;
-    ring.container.setY(top);
+    // those change with the language, so where it starts can only be known after it exists. No
+    // centre title — the header line above carries it, and two copies of the same words four
+    // lines apart is one too many.
+    const ring = drawFormationRing(this, 20, 0, GAME_WIDTH - 40);
+    const top = bottom - ring.height - rowH;
+    header(top, '▾');
+    ring.container.setY(top + rowH);
     this.push(ring.container);
+    toggle(false, 20, top, GAME_WIDTH - 40, rowH + ring.height);
     return top;
   }
 
@@ -671,8 +776,60 @@ export class BattleArenaScene extends Phaser.Scene {
       });
       parent.add(hit);
     });
+    cursor += cellH * 2 + 8;
 
-    return cursor + cellH * 2 + 5;
+    // ── attire: what these men are drawn as, cycled like the headcount ─────
+    const styleCaption = createLabel(this, x + width / 2, cursor, t('arena.style').toUpperCase(),
+      'caption', { fontSize: '9px', fontStyle: '700', align: 'center' }).setOrigin(0.5, 0);
+    parent.add(styleCaption);
+    cursor += styleCaption.height + 2;
+    const styles: readonly ArmyWardrobe[] = ours
+      ? VIET_WARDROBES
+      : [...ENEMY_WARDROBES, 'trinh', 'nguyenLord', 'tayson'];
+    const chosenStyle = ours ? this.ourStyle : this.theirStyle;
+    const styleIndex = Math.max(0, styles.indexOf(chosenStyle));
+    const styleH = 24;
+    const stepStyle = (delta: number): void => {
+      const next = styles[(styleIndex + delta + styles.length) % styles.length];
+      if (ours) this.ourStyle = next; else this.theirStyle = next;
+      this.render();
+    };
+    this.stepButton(parent, x, cursor, stepW, styleH, '‹', true, () => stepStyle(-1));
+    parent.add(this.ui.panel({ x: x + stepW + 4, y: cursor, width: valueW, height: styleH }, {
+      border: INK_UI.softBrush,
+    }));
+    parent.add(createLabel(this, x + stepW + 4 + valueW / 2, cursor + 6,
+      t(`arena.style.${chosenStyle}` as Parameters<typeof t>[0]), 'caption', {
+        fontSize: '11px', align: 'center',
+      }).setOrigin(0.5, 0));
+    this.stepButton(parent, x + stepW + valueW + 8, cursor, stepW, styleH, '›', true, () => stepStyle(1));
+    cursor += styleH + 6;
+
+    // ── and the men themselves, so the pick can be SEEN (user request). ────
+    //
+    // One of each arm, drawn through the exact stamp pipeline the battlefield uses — same
+    // wardrobe spec, same figure drawings — so what stands here is what will stand on the field,
+    // not an approximation that can drift from it. Enemy figures take the softer ink and no sỏi
+    // son accent, the same rule `hostKitFor` applies.
+    const PREVIEW_SCALE = 2.6;
+    const PREVIEW_H = 44;
+    const feetY = cursor + PREVIEW_H - 8;
+    const previewArms: FigureArm[] = ['spear', 'sword', 'bow', 'mounted'];
+    const slot = width / previewArms.length;
+    previewArms.forEach((arm, index) => {
+      const stampRef = figureStamp(this, {
+        theme: chosenStyle, tier: 1, arm,
+        colour: ours ? PIGMENT.muc : PIGMENT.mucSoft,
+        accent: ours ? PIGMENT.son : PIGMENT.mucSoft,
+        variant: index % 3, bucket: bucketFor(PREVIEW_SCALE),
+      });
+      const image = placeStamp(this, stampRef, x + slot * (index + 0.5), feetY,
+        PREVIEW_SCALE / BATTLE_HOST_SCALE);
+      if (!ours) faceTravel(image, -1);
+      parent.add(image);
+    });
+
+    return cursor + PREVIEW_H + 4;
   }
 
   /** A − or + beside the headcount. Greyed at the ends of the range rather than removed. */
@@ -817,6 +974,12 @@ export class BattleArenaScene extends Phaser.Scene {
 
     const rival = state.kingdoms.find((kingdom) => kingdom.id !== PLAYER_KINGDOM_ID);
     if (rival) rival.personality = this.doctrine;
+
+    // The attire dials, written onto the same channels a run's own muster roll fills, so
+    // `hostKitFor` dresses the two hosts with no arena special case anywhere in the drawing.
+    if (state.muster) state.muster.dynasty = this.ourStyle;
+    else state.muster = { dynasty: this.ourStyle, composition: 'balanced' };
+    if (rival) rival.wardrobe = this.theirStyle;
 
     // Nobody else on the field: relief marching in from a neighbouring province would answer a
     // question the player did not ask.

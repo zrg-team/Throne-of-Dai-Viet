@@ -35,12 +35,14 @@ for (const lang of ['en', 'vi']) {
     await page.evaluate(() => window.__phaserGame.scene.start('BattleArenaScene'));
     await page.waitForTimeout(1200);
 
+    // The setup is three tabbed pages now (armies / battle / difficulty), so every measurement
+    // walks all three: a tile that overflows on the page nobody happened to open is still an
+    // overflow, and the fits check has to hold for the tallest of the three bodies.
     const probe = await page.evaluate(() => {
       const scene = window.__phaserGame.scene.getScene('BattleArenaScene');
       // Every text the screen drew, with the tile it belongs to where there is one. Read off the
       // live display list rather than from the source, so this measures what is on the glass.
-      const texts = [];
-      const walk = (obj, ox, oy) => {
+      const walk = (obj, ox, oy, texts) => {
         for (const child of obj.list ?? []) {
           const x = ox + (child.x ?? 0);
           const y = oy + (child.y ?? 0);
@@ -51,43 +53,65 @@ for (const lang of ['en', 'vi']) {
               tileWidth: child.getData ? child.getData('tileWidth') : undefined,
             });
           }
-          if (child.list) walk(child, x, y);
+          if (child.list) walk(child, x, y, texts);
         }
       };
-      walk(scene.children, 0, 0);
-      const buttons = [];
-      for (const item of scene.content ?? []) {
-        if (item.type === 'Container' && item.list?.some((c) => c.type === 'Text')) {
-          const label = item.list.find((c) => c.type === 'Text');
-          buttons.push({ label: label.text, y: item.y, height: 50 });
+      const perTab = {};
+      let buttons = [];
+      for (const tab of ['army', 'battle', 'difficulty']) {
+        scene.tab = tab;
+        scene.render();
+        const texts = [];
+        walk(scene.children, 0, 0, texts);
+        buttons = [];
+        for (const item of scene.content ?? []) {
+          if (item.type === 'Container' && item.list?.some((c) => c.type === 'Text')) {
+            const label = item.list.find((c) => c.type === 'Text');
+            buttons.push({ label: label.text, y: item.y, height: 50 });
+          }
         }
+        perTab[tab] = {
+          texts,
+          scrollTop: scene.scroll?.bounds?.y ?? null,
+          scrollHeight: scene.scroll?.bounds?.height ?? null,
+          // What the dials actually need against the window the ring left them. On a short screen
+          // the body is ALLOWED to scroll — the ring and both buttons are pinned, and the scroll
+          // is the design there, not a safety net.
+          contentHeight: scene.scroll?.contentHeight ?? null,
+        };
       }
-      return {
-        texts,
-        buttons,
-        scrollTop: scene.scroll?.bounds?.y ?? null,
-        scrollHeight: scene.scroll?.bounds?.height ?? null,
-        gameHeight: window.__phaserGame.scale.height,
-      };
+      scene.tab = 'army';
+      scene.render();
+      return { perTab, buttons, gameHeight: window.__phaserGame.scale.height };
     });
 
-    // 1. Nothing the screen drew may sit under the pinned action buttons.
+    // 1. Nothing the screen drew may sit under the pinned action buttons, on any tab.
     const buttonTop = probe.buttons.length
       ? Math.min(...probe.buttons.map((b) => b.y))
       : probe.gameHeight;
-    const bodyBottom = (probe.scrollTop ?? 0) + (probe.scrollHeight ?? 0);
+    const bodyBottom = Math.max(...Object.values(probe.perTab)
+      .map((p) => (p.scrollTop ?? 0) + (p.scrollHeight ?? 0)));
     const bodyClears = bodyBottom <= buttonTop + 1;
 
     // 2. Every tile label must fit inside the tile it was drawn into — each one carries the
     //    width it was given, so this compares against the real tile rather than a guess.
-    const tiles = probe.texts.filter((entry) => typeof entry.tileWidth === 'number');
-    const overflowing = tiles
-      .filter((entry) => entry.w > entry.tileWidth)
-      .map((entry) => `${entry.text} (${Math.round(entry.w)}px > ${entry.tileWidth}px)`);
+    const overflowing = [];
+    const tiles = {};
+    for (const [tab, page1] of Object.entries(probe.perTab)) {
+      const labelled = page1.texts.filter((entry) => typeof entry.tileWidth === 'number');
+      tiles[tab] = labelled.length;
+      overflowing.push(...labelled
+        .filter((entry) => entry.w > entry.tileWidth)
+        .map((entry) => `${tab}: ${entry.text} (${Math.round(entry.w)}px > ${entry.tileWidth}px)`));
+    }
 
     results.push({
-      lang, height, bodyClears, bodyBottom, buttonTop, overflowing,
-      texts: probe.texts.length, tiles: tiles.length,
+      lang, height, bodyClears, bodyBottom, buttonTop, overflowing, tiles,
+      // Per tab, because each tab's scroll view is sized to its own body — comparing one tab's
+      // content against another tab's window asserts nothing about either.
+      fits: Object.entries(probe.perTab).map(([tab, p]) => ({
+        tab, content: p.contentHeight ?? 0, view: p.scrollHeight ?? 0,
+      })),
     });
     await page.screenshot({ path: `output/web-game/arena-${lang}-${height}.png` });
     await page.close();
@@ -150,16 +174,26 @@ line(clears, 'the dials never run under the action buttons',
   results.filter((r) => !r.bodyClears).map((r) => `${r.lang}/${r.height}`).join(', ') || 'all four fit');
 line(noOverflow, 'no tile label is wider than its tile',
   results.flatMap((r) => r.overflowing).join(' ; ') || 'none overflow');
-// 4 + 4 arms, then 4 ground + 3 doctrine + 4 general. The two headcounts are steppers now,
-// so they are not tiles.
-line(results.every((r) => r.tiles === 19), 'every dial drew its tiles',
-  results.map((r) => `${r.tiles} tiles`).join(' / '));
-// The body is the same height on a 620 screen as on an 844 one, which can only be true if the
-// whole setup fits without scrolling. The scroll behind it is a safety net, not the layout.
-const fitsUnscrolled = results.every((r) => r.height === 844
-  || r.bodyBottom === results.find((o) => o.lang === r.lang && o.height === 844).bodyBottom);
-line(fitsUnscrolled, 'the setup fits on a short screen without scrolling',
-  results.map((r) => `${r.lang}/${r.height}: ${Math.round(r.bodyBottom)}`).join('  '));
+// Per tab, plus the 3 tab tiles each page carries: armies is 4 + 4 arms (the headcounts are
+// steppers, not tiles); battle is 4 ground + 3 doctrine + 4 general; difficulty is 4 + 3 speed
+// + 5 bubbles. A count that drifts means a dial stopped drawing — the pre-tab version of this
+// check slept through the battleOptions rows arriving and failed on the wrong total for weeks.
+const TILES = { army: 11, battle: 14, difficulty: 15 };
+line(results.every((r) => Object.entries(TILES).every(([tab, n]) => r.tiles[tab] === n)),
+  'every dial drew its tiles',
+  results.map((r) => `${r.tiles.army}/${r.tiles.battle}/${r.tiles.difficulty}`).join(' · ')
+  + ` (want ${TILES.army}/${TILES.battle}/${TILES.difficulty})`);
+// On a TALL screen the whole setup fits without scrolling. On a short one it deliberately does
+// not any more: the ring and both buttons are pinned and the dials scroll under them — that is
+// the layout since the difficulty/speed/bubble rows arrived, not a safety net that failed.
+// The old check asserted equal body height at both sizes, which the pinned-ring design cannot
+// satisfy and was never meant to.
+const fitsTall = results.every((r) => r.height !== 844
+  || r.fits.every((f) => f.content <= f.view + 1));
+line(fitsTall, 'every tab fits a tall screen without scrolling',
+  results.filter((r) => r.height === 844)
+    .map((r) => `${r.lang}: ${r.fits.map((f) => `${f.tab} ${Math.round(f.content)}/${Math.round(f.view)}`).join(' ')}`)
+    .join('  '));
 console.log('');
 console.log(`the fight opened as   ${fight.ourStart} against ${fight.theirStart}`);
 console.log(`dialled in as         ${dialled.ours} against ${dialled.theirs}`);

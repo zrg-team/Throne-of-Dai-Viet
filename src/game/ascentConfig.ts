@@ -11,6 +11,15 @@ import type { FieldStance } from '../state/types';
 /** Economy tick length. Shorter than the classic 5500ms — this mode wants a brisker pulse. */
 export const ASCENT_TICK_MS = 3500;
 
+/**
+ * Beats (approach + clash) an open RUN battle stands uncommanded before the general assumes the
+ * field — the implicit hand-over for a player who never took the screen. Ten is past the whole
+ * approach and a few exchanges: enough to have started commanding on purpose, short enough that
+ * an ignored defence is fought by somebody rather than slaughtered standing flat. The Skirmish
+ * never auto-delegates — doing nothing there is supposed to lose. See `AscentTick`.
+ */
+export const ASCENT_AUTO_DELEGATE_BEATS = 10;
+
 // ── Waves ───────────────────────────────────────────────────────────────────
 export const WAVE_INTERVAL_TICKS = 12;
 /**

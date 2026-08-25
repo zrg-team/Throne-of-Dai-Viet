@@ -83,14 +83,24 @@ check(rates.every((r, i) => i === 0 || r > rates[i - 1]),
 //
 // Driven through the real resolver rather than read off the profile table, because a setting that
 // is stored and never consulted looks identical to one that works.
-await page.evaluate(() => window.__phaserGame.scene.start('BattleArenaScene'));
-await page.waitForTimeout(700);
-const reach = await page.evaluate(async () => {
-  const B = await import('/src/systems/ascent/BattleSystem.ts');
-  const O = await import('/src/game/battleOptions.ts');
-  const arena = window.__phaserGame.scene.getScene('BattleArenaScene');
-  const walk = (tier) => {
-    O.setBattleDifficulty(tier);
+//
+// ONE PAGE PER TIER, set through localStorage before the page loads. Setting it in-page through a
+// harness-imported `battleOptions` is not reliable: the scene's own chain can hold a second module
+// instance whose lazy `difficulty ??=` cached at first read, and then every tier measures whatever
+// that first read saw — this check read 7/7/7 that way. localStorage is the one channel both
+// instances agree on, provided it is set before either has read it.
+const reach = {};
+for (const tier of ['easy', 'medium', 'nightmare']) {
+  const tierPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  tierPage.on('pageerror', (e) => errors.push(String(e)));
+  await tierPage.addInitScript((d) => { try { localStorage.setItem('mandate:battle:difficulty:v1', d); } catch { /* ignore */ } }, tier);
+  await tierPage.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
+  await tierPage.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
+  await tierPage.evaluate(() => window.__phaserGame.scene.start('BattleArenaScene'));
+  await tierPage.waitForTimeout(700);
+  reach[tier] = await tierPage.evaluate(async () => {
+    const B = await import('/src/systems/ascent/BattleSystem.ts');
+    const arena = window.__phaserGame.scene.getScene('BattleArenaScene');
     arena.ourMen = 1400; arena.theirMen = 1400; arena.martial = 60;
     const st = arena.buildArenaState();
     const b = st.ascent.activeBattle;
@@ -112,21 +122,34 @@ const reach = await page.evaluate(async () => {
     }
     b.theirReformBeats = 0;
     b.theirFormationTarget = undefined;
-    for (let i = 0; i < 12 && !b.over; i += 1) {
-      const was = b.theirFormation;
+    /**
+     * A held counter is the PLAYER's counter, and it was just taken.
+     *
+     * Both stamps matter, and this check silently measured nothing without them. Unsteered, the
+     * covering officer re-orders our shape underneath the experiment; and `beatsSinceOurShape`
+     * left undefined reads as long-settled (`?? 99`), so every tier answered on the very first
+     * beat and the old walk-clock readout returned the flat reform length — 2, 2, 2 — whatever
+     * the dial said. Stamped fresh, the hesitation gate is the thing actually on the clock.
+     */
+    B.markPlayerSteered(st);
+    b.beatsSinceOurShape = 0;
+    // At contact, because the hesitation clock only runs while the two are trading — during the
+    // approach `beatsSinceOurShape` stands still and no tier answers anything, so a measurement
+    // that starts at range times the walk-in, not the dial.
+    b.ourAdvance = 0.5;
+    b.theirAdvance = 0.5;
+    const was = b.theirFormation;
+    for (let i = 1; i <= 24 && !b.over; i += 1) {
       B.fightRound(st);
-      // A walk longer than one beat is still in flight and can be read off the clock. A one-beat
-      // walk is ordered, spent and landed inside the same beat, so the only trace it leaves is the
-      // shape having changed — which is exactly what the fastest tier does.
-      if (b.theirFormationTarget) return (b.theirReformBeats ?? 0) + 1;
-      if (b.theirFormation !== was) return 1;
+      // Counted to the LANDING, not the order: hesitation plus the walk is the whole of what a
+      // player holding the counter gets to spend, and the landing is the one event every tier
+      // leaves a trace of — a one-beat walk is ordered and settled inside a single round.
+      if (b.theirFormation !== was) return i;
     }
     return -1;
-  };
-  const out = { easy: walk('easy'), medium: walk('medium'), nightmare: walk('nightmare') };
-  O.setBattleDifficulty('medium');
-  return out;
-});
+  });
+  await tierPage.close();
+}
 check(reach.easy > reach.medium && reach.medium > reach.nightmare && reach.nightmare >= 1,
   'the dial reaches the fight: each tier answers a held counter in fewer beats',
   `beats to answer — easy ${reach.easy}, medium ${reach.medium}, nightmare ${reach.nightmare}`);

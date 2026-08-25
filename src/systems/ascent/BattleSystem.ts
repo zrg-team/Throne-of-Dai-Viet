@@ -38,7 +38,9 @@ import {
   BATTLE_COMMIT_AMPLIFY,
   BATTLE_STANCE_RISK,
 } from '../../game/ascentConfig';
-import { battleAnswersEven, battleBeatsPerTick, battleReactDelay } from '../../game/battleOptions';
+import {
+  battleAnswersEven, battleBeatsPerTick, battleEnemyWagerAfter, battleReactDelay,
+} from '../../game/battleOptions';
 import {
   formationBeats, formationTier, formationTiltSign,
   FORMATION_RING, type BattleFormation,
@@ -595,6 +597,11 @@ function enemyStance(state: GameState, battle: AscentBattle): FieldStance {
   const personality = kingdom?.personality ?? 'aggressive';
   const theirEdge = battle.theirMorale - battle.ourMorale;
 
+  // Dồn sức plays to kill: while his wager stands he presses, whatever his doctrine says — the
+  // whole point of doubling down is spending men faster while the shape is his. Read here, in
+  // the one function the telegraph shares with the beat, so the screen's promise stays honest.
+  if (battle.theirCommitted) return 'press';
+
   // Every branch is deterministic on state the player can see. That is what keeps the ring a read
   // rather than a guessing game: `battleTelegraph` shows this same value before the beat resolves,
   // and it must be the stance actually taken or the whole thing collapses into a coin flip.
@@ -623,7 +630,12 @@ function enemyStance(state: GameState, battle: AscentBattle): FieldStance {
     // a phase you pay for rather than a policy you retire on: the wind harness's mirror-turtle
     // out-shot a passive invader with its bows and won on heart until this branch existed.
     // Deterministic on the stance the screen already prints, so the telegraph stays honest.
-    if (battle.stance === 'defend' || battle.stance === 'withdraw') return 'press';
+    //
+    // A player who has NEVER ordered a shape is the passive line at its most absolute — measured,
+    // mirror openings against an untouched dock were a fuzz coin-flip the sleeping player won
+    // often enough to matter, because the invader sat content at even shape all fight.
+    if (battle.stance === 'defend' || battle.stance === 'withdraw'
+      || battle.beatsSinceOurShape === undefined) return 'press';
     // Even shape against an active player buys nothing by spending faster. Aggressive powers still
     // press once they are ahead on heart, which is what keeps a personality learnable across a run.
     if (personality === 'aggressive' || personality === 'expansionist') {
@@ -770,13 +782,21 @@ export function formationTilt(battle: AscentBattle): number {
   // Dồn sức amplifies the tilt both ways — here, at the single source, so the exchange, the
   // telegraph and the dock's price line cannot disagree about what the wager is doing.
   const wager = battle.committed ? BATTLE_COMMIT_AMPLIFY : 1;
+  // The invader's own wager, same coin, same both-ways honesty: doubling onto a shape that gets
+  // countered mid-stand pays the counter out amplified. See `advanceEnemyWager` for when he dares.
+  const foeWager = battle.theirCommitted ? BATTLE_COMMIT_AMPLIFY : 1;
   // The stance's risk dial — the same bet made persistent. Press lets the matchup's whole
   // verdict through amplified: your winning counter AND the one standing against you. Digging in
   // blunts both, honestly — the turtle trades its shield for its sword. OUR stance only: the
   // enemy's aggression reaches the exchange through his tempo trade (`BATTLE_STANCE_TRADE`),
   // and two risk factors on one shared tilt would breach the `(1 ± tilt) > 0` bound.
   const risk = BATTLE_STANCE_RISK[battle.stance] ?? 1;
-  return (tier / 2) * size * wager * risk;
+  // Clamped because the exchange carries `(1 ± tilt)` and it must never go negative — the old
+  // bound (sharp × wager × press = 0.907) held by construction until the enemy's wager could
+  // stack on the player's. Two simultaneous wagers on a sharpened press are the one case that
+  // breaches it, and a hard stop at the source beats every caller re-deriving the safety.
+  const raw = (tier / 2) * size * wager * foeWager * risk;
+  return Math.max(-0.92, Math.min(0.92, raw));
 }
 
 /**
@@ -867,7 +887,14 @@ function advanceEnemyFormation(state: GameState, battle: AscentBattle, theirs: A
   // to notice from the losses alone that something must change. Restless rotation on a timer
   // was tried and retired: it handed the player a prompt every few beats, and the game stopped
   // being a read.
-  if (tilt > 0 || (tilt === 0 && !battleAnswersEven())) return;
+  //
+  // An even shape against a dock NOBODY HAS TOUCHED is not a stalemate he respects on any
+  // difficulty — the mirror was the sleeping player's best friend: measured, every chong-v-chong
+  // opening against an idle dock ground out an auto win on the general's aura alone, because the
+  // invader pressed but never re-formed. A player who has ordered even once keeps medium's
+  // even-shape rest; the difficulty dial is untouched for anyone actually playing.
+  const idleDock = battle.beatsSinceOurShape === undefined;
+  if (tilt > 0 || (tilt === 0 && !battleAnswersEven() && !idleDock)) return;
 
   // Difficulty is how fast the enemy answers your shape, and nothing else — see `battleOptions`.
   // The walk itself is a flat beat now, so the dial moved from walk length to HESITATION: beats
@@ -900,6 +927,47 @@ function advanceEnemyFormation(state: GameState, battle: AscentBattle, theirs: A
   // readable boundary, which is the same one visible walking beat the player's own orders get
   // (theirs are placed BETWEEN beats). verify-battle-dials fight two watches this promise land.
   battle.theirReformBeats = 2;
+}
+
+/**
+ * The invader's dồn sức — the user's own words for it: "sometimes they see us not change
+ * formation, they push into the winning formation to have more kill."
+ *
+ * Deterministic on state the player can see, like every enemy decision, so the telegraph and the
+ * price line stay honest. He dares it only when ALL of these hold:
+ *   · the shape is his (`tier > 0` for him) and neither side is walking;
+ *   · his temper gambles at all — the stubborn never wagers, exactly as he never presses;
+ *   · the difficulty allows it (`battleEnemyWagerAfter`, null on easy) and the player has stood
+ *     idle on the formation dial that long — an answering player never sees it;
+ *   · his last wager is off cooldown (`theirWagerClock`, the same regen rhythm as a player pip).
+ *
+ * It folds like the player's: either side re-forming ends it, and so does his own heart failing —
+ * a line that is starting to lose does not double down, it pulls back to `defend` through
+ * `enemyStance`'s ordinary reads.
+ */
+function advanceEnemyWager(state: GameState, battle: AscentBattle): void {
+  const walking = reforming(battle.reformBeats) || reforming(battle.theirReformBeats);
+  const theirEdge = battle.theirMorale - battle.ourMorale;
+  if (battle.theirCommitted) {
+    if (walking || theirEdge < -15 || formationTier(battle.theirFormation, battle.ourFormation) <= 0) {
+      battle.theirCommitted = false;
+      battle.theirWagerClock = BATTLE_STAMINA_REGEN_BEATS;
+    }
+    return;
+  }
+  if ((battle.theirWagerClock ?? 0) > 0) {
+    battle.theirWagerClock = (battle.theirWagerClock ?? 0) - 1;
+    return;
+  }
+  const after = battleEnemyWagerAfter();
+  if (after === null || walking) return;
+  if (!BATTLE_TEMPER[temperOf(state, battle)].presses) return;
+  if (formationTier(battle.theirFormation, battle.ourFormation) <= 0) return;
+  // A dial never touched reads as endlessly idle — the wager exists precisely for the player who
+  // is not answering, and the untouched fight is that player at their most absolute.
+  if ((battle.beatsSinceOurShape ?? 99) < after) return;
+  battle.theirCommitted = true;
+  battle.log.push(t('ascent.battle.enemyCommits'));
 }
 
 /** What share of the invader's strength is bowmen — the thing that decides whether they stand off. */
@@ -1219,8 +1287,13 @@ export function answerBattleMoment(state: GameState, answer: BattleMomentAnswer,
   // — 5.5 points below skilled play before, 6.0 after, against a gate of 8 to 15 — because most of
   // what a delegated fight decides is `generalPlaysBeat`'s stance each beat, not the two or three
   // Moments. The gate is still unmet and the lever that would meet it is that one, not this.
+  //
+  // A question nobody was GIVEN does not earn the general's judgement. In an undelegated fight a
+  // timed-out Moment gets the floor weight — the officers do the timid minimum — because a player
+  // ignoring the screen was collecting near-general-quality answers for free, one more channel by
+  // which doing nothing quietly played well. Handing the fight over is what buys his number.
   const skill = 0.35 + (moment.generalMartial ?? 0) / 100 * 0.55;
-  const weight = byGeneral ? skill : 1;
+  const weight = byGeneral ? (battle.delegated ? skill : 0.35) : 1;
 
   const def = BATTLE_MOMENTS.find((candidate) => candidate.id === moment.id);
   if (!def) { battle.moment = undefined; return false; }
@@ -1251,8 +1324,10 @@ function ageMoment(state: GameState, battle: AscentBattle): boolean {
   moment.ticksLeft -= 1;
   if (moment.ticksLeft > 0) return true;
   // A cautious commander steadies the line; a bold one commits. Their martial decides which they
-  // are as well as how well it goes, so a host's commander is a real appointment.
-  const bold = (moment.generalMartial ?? 0) >= 60;
+  // are as well as how well it goes, so a host's commander is a real appointment. An UNDELEGATED
+  // fight always steadies: nobody chose to gamble, so nobody gambles — the answer is the timid
+  // default at the floor weight (see `answerBattleMoment`).
+  const bold = battle.delegated && (moment.generalMartial ?? 0) >= 60;
   answerBattleMoment(state, bold ? 'commit' : 'steady', true);
   return false;
 }
@@ -1262,28 +1337,27 @@ export function fightRound(state: GameState): void {
   const battle = ascent?.activeBattle;
   if (!ascent || !battle || battle.over) return;
 
-  // The commander gives their orders for this beat, if the field is theirs — **or if nobody else
-  // is giving any**.
+  // The commander gives their orders for this beat — **only if the field was handed to him.**
   //
-  // The second half is the whole reason this reads the way it does. Under the retired ring the dock
-  // opened on `hold` and the invader's doctrine opened on `press`, and hold countered press: an
-  // engagement nobody touched was a free 2.71-to-1 win. Measured in `battle-lab`, the player side
-  // won 48.8% of fights and **routed in none of them**.
+  // The dials belong to the player until `delegateBattle` says otherwise. This has been walked
+  // both directions and each end of the spectrum failed in its own way:
   //
-  // Tempo cannot be countered any more, only shape can, so that accident is gone — and the invader
-  // reads the board every beat while an untouched host stands flat and does nothing. Measured, that
-  // put the player at a 17.5% win rate and a 63% rout rate: not a harder fight, a broken one.
+  //  · Nobody plays an untouched fight — the original rule. An untouched host stood flat while
+  //    the invader read the board every beat: 17.5% win rate, 63% routed. Felt broken, so —
+  //  · The host's own officer covered any dial the player had not taken. At full martial that
+  //    made DOING NOTHING win the arena's even default 100 times in 100; capped, it still moved
+  //    the player's own controls, and the user's verdict was the deciding one: "I did not press
+  //    hand-over, but the formation changed itself." A hidden helper on your own dials reads as
+  //    the game overriding your orders, whatever it does for the win rate.
   //
-  // A host whose commander is standing right there does not simply stand flat. `generalPlaysBeat`
-  // reads the telegraph and answers with shape, which is what the player would do — earned, rather
-  // than free. The moment the player touches either dial the fight is theirs and the general stops.
+  // So: manual means manual, and losing an ignored fight is the honest price — delegation is one
+  // tap away and buys the general's whole skill, rally included. No exceptions: the "shout, not
+  // a dial" rally exception was tried and measured as part of why doing nothing still won.
   //
   // Here rather than in `advanceBattle` because the beat is the unit a commander acts on, and
   // because `advanceBattle` is not the only thing that runs a beat — `battle-lab` drives
   // `fightRound` directly, so a general placed one level up simply never played and every martial
   // value scored identically. A harness that cannot reach the code it is grading is not grading it.
-  // Always. What he is allowed to touch is decided inside, per dial: he is not an autopilot
-  // that switches off, he is the officer standing next to you who works whatever you are not.
   generalPlaysBeat(state, battle);
 
   // The tempo dial ticks first, so a stance ordered last beat is in force for this one — which is
@@ -1334,6 +1408,8 @@ export function fightRound(state: GameState): void {
   // could not state it during the approach and the deck could not ask about it.
   battle.ourMatchup = matchupAcross(ours, theirs);
   battle.theirMatchup = matchupAcross(theirs, ours);
+  // His wager first, because his stance reads it — dồn sức presses by definition.
+  advanceEnemyWager(state, battle);
   // Walls do not sally: a garrison-only defence holds its ground and shoots.
   battle.theirStance = offence && theirs.every((host) => host.isLevy) ? 'defend' : enemyStance(state, battle);
   // Their shape is chosen from the same function the telegraph prints, so what the screen promised
@@ -1342,11 +1418,13 @@ export function fightRound(state: GameState): void {
   advanceEnemyFormation(state, battle, theirs);
 
   if (offence) {
-    // We are the ones coming. Holding is closing under shields — slower, and under fewer arrows;
-    // pressing is the rush. Either way the assault reaches the walls; a defender that never
-    // sallies cannot stall it at the approach forever.
+    // We are the ones coming. Pressing is the rush, the march is the march, and Cố thủ is
+    // closing under shields — half pace, the same walk-speed language the defence speaks.
+    // Either way the assault reaches the walls; a defender that never sallies cannot stall it
+    // at the approach forever, which is what the cap below is for.
     battle.approachBeats = (battle.approachBeats ?? 0) + 1;
-    battle.ourAdvance = Math.min(1, battle.ourAdvance + BATTLE_ADVANCE_PER_TICK * (charging ? 1.5 : 1));
+    battle.ourAdvance = Math.min(1, battle.ourAdvance
+      + BATTLE_ADVANCE_PER_TICK * (charging ? 1.5 : battle.stance === 'defend' ? 0.5 : 1));
     if (battle.approachBeats >= BATTLE_APPROACH_MAX_BEATS) battle.ourAdvance = 1;
   } else {
     // The invader is always coming; we advance only when told to. Charging also closes faster,
@@ -1358,11 +1436,20 @@ export function fightRound(state: GameState): void {
     // about a defensive approach sat behind a counter that was permanently zero.
     battle.approachBeats = (battle.approachBeats ?? 0) + 1;
     battle.theirAdvance = Math.min(1, battle.theirAdvance + BATTLE_ADVANCE_PER_TICK);
-    // Loosing opens the range rather than merely refusing to close: a host that means to shoot
-    // wants the ground between it and them, which is what makes it lose to a charge.
+    // The stance IS the walk (user design, 2026-08-25): Thúc quân closes at speed, Cân bằng
+    // closes at the march, Cố thủ stands its ground and lets them come. Every non-press stance
+    // used to fall BACK, so a balanced line drifted away from the enemy it was supposedly
+    // holding against and the dial read as nothing on the field. Two exceptions keep their
+    // reasons: Thế Nỏ opens the range whenever it is not charging — a host that means to shoot
+    // wants the ground between it and them, which is what makes it lose to a charge — and Lui
+    // binh backs off (the withdraw block below adds the rest of the walk out).
     battle.ourAdvance = charging
       ? Math.min(1, battle.ourAdvance + BATTLE_ADVANCE_PER_TICK * 1.5)
-      : Math.max(0, battle.ourAdvance - BATTLE_ADVANCE_PER_TICK * (loosing ? 0.6 : 0.5));
+      : loosing || withdrawing
+        ? Math.max(0, battle.ourAdvance - BATTLE_ADVANCE_PER_TICK * (loosing ? 0.6 : 0.5))
+        : battle.stance === 'defend'
+          ? battle.ourAdvance
+          : Math.min(1, battle.ourAdvance + BATTLE_ADVANCE_PER_TICK);
   }
 
   // Disengaging is something you survive, not a button you press. The line keeps trading — badly,
@@ -1511,7 +1598,13 @@ export function fightRound(state: GameState): void {
     battle.wonLast = wonExchange;
     battle.lostRun = wonExchange ? 0 : (battle.lostRun ?? 0) + 1;
   }
-  battle.beatsSinceOurShape = (battle.beatsSinceOurShape ?? 0) + 1;
+  // Counts only once the player has ORDERED a shape (`setBattleFormation` stamps it to 0) —
+  // undefined stays undefined, which `advanceEnemyFormation` reads as long-settled (`?? 99`).
+  // The unconditional `?? 0` increment quietly re-armed the enemy's whole hesitation window for a
+  // player who had never touched the dial: an untouched opening that happened to counter his got
+  // the same free beats a real order earns, and that lottery was most of why doing nothing still
+  // won a fifth of even fights. Hesitation is a reaction to a decision; no decision, no window.
+  if (battle.beatsSinceOurShape !== undefined) battle.beatsSinceOurShape += 1;
   // Applied to *every* host on the side, not just the one the maths treats as the line, so a
   // battered relief column carries its own heart rather than borrowing the vanguard's.
   // Being answered costs heart as well as men — keyed off the shape, and scaled by how hard the
@@ -1651,18 +1744,37 @@ function generalReadsBeat(battle: AscentBattle, martial: number): boolean {
  * only later when the read fails.
  */
 function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
-  // Delegation stamps `generalMartial`; a fight the player simply has not touched has not been
-  // stamped, so the commander actually standing with the host answers for it. No commander at all
-  // means a middling one, the same figure `delegateBattle` falls back to.
+  const met = battle.ourAdvance + battle.theirAdvance >= 1;
+  // The dials are the player's until they are handed over. The officer no longer covers an
+  // unclaimed dial at any skill — a helper moving the player's own controls read as the game
+  // overriding orders (see the note at the call site).
+  //
+  // The last-ditch rally is for a fight somebody is FIGHTING. The player has no rally verb of
+  // their own — it has always been the general's shout — so stripping it from every undelegated
+  // fight quietly nerfed manual play itself: measured, a player answering every shape fell from
+  // ~96% to ~38% at the default, while the untouched fight barely moved. The honest line is
+  // steering: the general backs a commander who is commanding; an empty throne gets nothing.
+  if (!battle.delegated) {
+    const fighting = battle.steeredFormation || battle.steeredStance;
+    if (fighting && met && !battle.rallySpent && battle.ourMorale < BATTLE_ROUT_MORALE + 6) rally(state);
+    return;
+  }
+  // Delegation stamps `generalMartial`; the fallback covers a stamp that predates a save. No
+  // commander at all means a middling one, the same figure `delegateBattle` falls back to.
   const martial = battle.generalMartial ?? (() => {
     const led = ourHosts(state, battle).find((host) => host.generalHeroId)?.generalHeroId;
     const hero = led ? state.heroes.find((candidate) => candidate.id === led) : undefined;
     return hero ? hero.stats.martial : 45;
   })();
-  const met = battle.ourAdvance + battle.theirAdvance >= 1;
-  // A delegated fight is entirely his. Otherwise he works what has not been taken from him.
-  const takeShape = battle.delegated || !battle.steeredFormation;
-  const takeTempo = battle.delegated || !battle.steeredStance;
+  // The approach is an archery decision, and the general makes it the way the invader's own
+  // doctrine does: a bow-backed host stands off and shoots (Cố thủ holds its ground now — the
+  // stance IS the walk), everyone else closes at the march. Without this the walk rework quietly
+  // gutted every delegated defence in a run: balanced closes since 2026-08-25, so a militia line
+  // that lived on its volleys marched itself into melee — measured on the seeded long run, the
+  // realm fell to one province and the late-game never came.
+  if (!met && !reforming(battle.reformBeats)) {
+    setBattleStance(state, bowShare(ourHosts(state, battle)) >= 0.22 ? 'defend' : 'balanced');
+  }
   if (generalReadsBeat(battle, martial)) {
     const read = battleTelegraph(state);
     if (read) {
@@ -1670,7 +1782,7 @@ function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
       // beat reads the walk, not just the stand.
       const target = read.next ?? read.formation;
       const answer = countersTo(target).find((shape) => canFormFormation(state, shape));
-      if (takeShape && answer && answer !== battle.ourFormation && !reforming(battle.reformBeats)) {
+      if (answer && answer !== battle.ourFormation && !reforming(battle.reformBeats)) {
         setBattleFormation(state, answer);
       }
       // Tempo second, by **the same rule the invader plays** — press while the shape is ours,
@@ -1685,10 +1797,10 @@ function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
       // no new state: no stance orders while either side is walking (the read is about to be
       // stale), and on an even shape hold whatever is set rather than resetting to balanced —
       // unless the line is close to breaking, where the brake is always correct.
-      if (takeTempo && !reforming(battle.reformBeats) && !reforming(battle.theirReformBeats)) {
+      if (!reforming(battle.reformBeats) && !reforming(battle.theirReformBeats)) {
         const sign = formationTiltSign(battle.ourFormation, battle.theirFormation);
         // Logged when it actually lands (setBattleStance refuses a repeat): the general presses
-        // the very beat the player's new shape wins the tilt, and an unattributed flip right
+        // the very beat the fight's new shape wins the tilt, and an unattributed flip right
         // after a formation tap read as the TAP changing the stance (user-reported, worsened by
         // the two dials once sharing the word "Xung phong").
         if (sign > 0) {
@@ -2035,17 +2147,10 @@ function takePending(state: GameState): PendingBattle {
 }
 
 /**
- * The player has taken the field, so the commander stops playing it for them.
- *
- * Deliberately **not** set inside `setBattleStance` / `setBattleFormation`. It was, and the effect
- * was silent and total: `generalPlaysBeat` calls those same two functions, so the commander marked
- * the fight as player-steered with its own first order and never ran again. Traced on an even
- * 1,500-a-side fight under a martial-95 general — the host moved to Thế Quy on beat one and then
- * stood in it for twelve beats while the invader formed the wedge that beats it, losing 1,266 men
- * to 479.
- *
- * Only the order channel calls this, which is the only place that knows a *person* pressed
- * something.
+ * Records that a *person* took a dial. The officer no longer plays unclaimed dials at all — only
+ * delegation hands him the field — but steering still gates his one supporting act: the
+ * last-ditch rally goes only to a fight somebody is visibly fighting (see `generalPlaysBeat`).
+ * Kept on the order channel alone, which is the only place that knows a person pressed something.
  */
 export function markPlayerSteered(state: GameState, dial?: 'formation' | 'stance'): void {
   const battle = state.ascent?.activeBattle;

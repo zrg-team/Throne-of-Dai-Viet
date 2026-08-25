@@ -56,7 +56,7 @@ export function updateBattleBubbles(self: ConquestUIScene, battle: AscentBattle)
     : t(`ascent.formation.${battle.ourFormation}.ours` as Parameters<typeof t>[0]);
   // What they are *standing in*, not what they are walking into. The second is a warning and
   // belongs in the notice; a bubble says what the men under it are doing now.
-  // "their spears are set" names the shape in as many words, which is the leak the rims and the
+  // "All ranks, level spears!" names the shape in as many words, which is the leak the rims and the
   // telegraph were already closed for. While the drum beats they are visibly *forming* and say
   // so; the moment it falls they say what they formed into.
   const theirShape = read?.formation ?? battle.theirFormation;

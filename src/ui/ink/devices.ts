@@ -680,6 +680,13 @@ export interface HostKit {
   mustered?: number;
   /** The old boolean, kept so callers that only ever said "spears or not" still work. */
   spear?: boolean;
+  /**
+   * Whether the block carries its own standards. Default true — a host crossing the map flies
+   * its banner. The battle screen sets false and plants each side's standard at its own edge of
+   * the field instead: a carried flag slid across the ground with every walk of the block, and
+   * the realm's great banner pacing around mid-fight read as wrong to anyone watching.
+   */
+  standards?: boolean;
 }
 
 /**

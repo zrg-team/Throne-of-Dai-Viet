@@ -16,7 +16,7 @@ import { raiseHostWithPlan, type MusterPlan } from '../systems/ascent/MusterSyst
 import { pushToast } from '../systems/empire/notifications';
 import { disbandArmy } from '../systems/WarSystem';
 import {
-  answerBattleMoment, delegateBattle, finishBattle, markPlayerSteered, commitBattleFormation, setBattleFormation,
+  advanceBattle, answerBattleMoment, delegateBattle, finishBattle, markPlayerSteered, commitBattleFormation, setBattleFormation,
   setBattleStance,
 } from '../systems/ascent/BattleSystem';
 import { createAscentGameState } from '../state/GameState';
@@ -395,6 +395,12 @@ export class ConquestScene extends MapScene {
     });
     this.onUi('ui:battle-moment', (answer: 'commit' | 'steady') => {
       answerBattleMoment(this.state, answer);
+      // Resume at once. The Moment holds `advanceBattle`, so after the answer the fight used to
+      // stand still until the NEXT economy tick came round — up to 3.5 seconds of a frozen field
+      // right after a decision, several times a fight (user report: "small delays, frequently").
+      // The beats this produces are the very ones the hold was owing; the view still drains them
+      // one per interval, so nothing jumps.
+      advanceBattle(this.state);
       ui.events.emit('state-changed');
     });
     // Two dials on two clocks, plus the two exits. Reserve and rally left this channel entirely:
