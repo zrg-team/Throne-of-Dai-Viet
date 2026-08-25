@@ -162,6 +162,28 @@ The game also teaches itself: a **How to Play** page, guided tours of the first 
   </tr>
 </table>
 
+## 🖌️ A graphic perspective
+
+The game ships almost no sprites. The people, the hosts and the country are procedural drawing in the manner of a **Đông Hồ folk woodblock print**, and this is the same ink seen close up.
+
+### The heroes
+
+Ten champions who exist in no roster: the generator invents the person — name, era, office — and the wardrobe dresses them by who they are, from the same **267 drawn parts** that dress the real figures above. No two courts look alike:
+
+<img src="docs/readme/faces-generated.webp" alt="Ten generated champions — armor, court robes, scholar's caps, coronets — none of whom exist in the roster" width="100%">
+
+### The armies of the kingdoms
+
+Every realm's host is built from one figure vocabulary — the ranks, the standard riding with them, the camp behind — and stands in the shape it is actually holding. The men stay in ink on purpose: painting a rival's ranks in its banner hue made every garrison the loudest thing on the map, so ownership is carried by the standard, never by the soldiers. Five realms of one run, five shapes:
+
+<img src="docs/readme/kingdom-armies.webp" alt="The hosts of five kingdoms, each under its own standard, each holding a different shape — hedge, wedge, skirmish, tortoise, volley" width="100%">
+
+### Đông Hồ
+
+The print itself: shell-coated điệp paper, a colour block pulled first and a soot-black contour pulled second, never quite in register, in a palette of real pigments — điệp, mực, sỏi son, chàm, gỉ đồng, hoè, nâu — with the saturated red spent on the player alone. Nothing seasonal is a colour filter over the screen; the leaves change, the paddies flood, ripen and are cut, the winter is bare. The same square of country, four times a year:
+
+<img src="docs/readme/seasons.webp" alt="The same paddy country in spring, summer, autumn and winter" width="100%">
+
 ## 📱 Play
 
 **[▶ zrg-team.github.io/ten-thousand-victories](https://zrg-team.github.io/ten-thousand-victories/)** — no install, no account, nothing leaves your device.
