@@ -8,6 +8,9 @@
  * toward a step up. Hysteresis on both sides, a cap of two steps per session in each direction,
  * and a rung left twice is never climbed back into — the device already said no.
  *
+ * All of that applies to AUTO sessions only. A tier the player picked by hand pins the ladder
+ * outright — see `pinned` below for the phone that taught us why.
+ *
  * What a rung changes immediately: the paper sheet's visibility, the fps limit, the LOD/scatter
  * answers (`setActiveRung` slots under `profile()`). The buffer scale is requested here and lands
  * at the next scene boundary (`applyPendingRenderScale`) — a mid-run buffer resize under a live
@@ -53,6 +56,16 @@ export class QualityLadder {
   private ceiling: Rung;
   private readonly tuning: LadderTuning;
   private readonly enabled: boolean;
+  /**
+   * An explicitly chosen tier pins the ladder: the sampler never moves the rung, in either
+   * direction. The ladder exists to protect the DEFAULT experience on a device nobody measured;
+   * a hand-picked tier is a promise. Before this, a phone that ran high hot stepped down
+   * mid-run, the step landed at the next scene boundary, and the player's NEXT run baked a
+   * whole tier softer than the one they were just enjoying — "start game, sharp; leave, start
+   * new game, blurry", 100% of the time, from an explicit Cao. If an explicit tier is too heavy
+   * for the device, the honest answer is the settings row, one tap away — not a silent overrule.
+   */
+  private pinned: boolean;
 
   private stepT0 = 0;
   private stepSamples: number[] = [];
@@ -89,6 +102,7 @@ export class QualityLadder {
     this.warmupLeft = this.tuning.warmupMs;
 
     const explicitStored = typeof localStorage !== 'undefined' ? localStorage.getItem('mandate:graphics:v1') : null;
+    this.pinned = Boolean(explicitStored);
     const start = startingRung({
       explicitTier: explicitStored ? getGraphicsQuality() : undefined,
       defaultTier: defaultGraphicsQuality(),
@@ -111,22 +125,24 @@ export class QualityLadder {
     }
   }
 
-  state(): { rung: RungId; ceiling: RungId; scale: number; hot: number; calm: number; stepsDown: number; stepsUp: number; enabled: boolean } {
+  state(): { rung: RungId; ceiling: RungId; scale: number; hot: number; calm: number; stepsDown: number; stepsUp: number; enabled: boolean; pinned: boolean } {
     return {
       rung: this.rung.id, ceiling: this.ceiling.id, scale: renderScaleNow(),
       hot: this.hotWindows, calm: this.calmWindows,
       stepsDown: this.stepsDown, stepsUp: this.stepsUp, enabled: this.enabled,
+      pinned: this.pinned,
     };
   }
 
   /**
-   * An explicit choice — the settings row, a harness. Moves the ceiling with the rung, so the
-   * sampler can never climb a session above what the player deliberately picked (or step "down"
-   * from a pick the pinned-dev guard would otherwise leave standing).
+   * An explicit choice — the settings row, a harness. Moves the ceiling with the rung, and pins
+   * the ladder from here on: a session where the player has spoken is no longer the ladder's to
+   * steer (see `pinned`).
    */
   force(id: RungId): void {
     const rung = RUNGS.find((r) => r.id === id);
     if (rung) {
+      this.pinned = true;
       this.rung = rung;
       this.ceiling = rung;
       this.apply(rung, {});
@@ -153,6 +169,7 @@ export class QualityLadder {
 
   private onPreStep(_time: number, delta: number): void {
     this.stepT0 = performance.now();
+    if (this.pinned) return;
     // The event's own delta, not `loop.rawDelta`: a manually-stepped loop (every harness, and
     // the resume path) never refreshes rawDelta, and the ladder would keep judging stale gaps.
     const gap = delta;
@@ -170,7 +187,7 @@ export class QualityLadder {
   }
 
   private onPostRender(): void {
-    if (this.holdLeft > 0 || this.warmupLeft > 0) return;
+    if (this.pinned || this.holdLeft > 0 || this.warmupLeft > 0) return;
     this.stepSamples.push(performance.now() - this.stepT0);
   }
 
