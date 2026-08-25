@@ -2,8 +2,10 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH, PLAYER_KINGDOM_ID } from '../game/constants';
 import { createAscentGameState } from '../state/GameState';
 import { beginBattle } from '../systems/ascent/BattleSystem';
-import type {
-  Army, AscentBattleRecord, GameState, KingdomPersonality, Land, TerrainSummary,
+import {
+  ENEMY_WARDROBES, VIET_WARDROBES,
+  type Army, type ArmyWardrobe, type AscentBattleRecord, type GameState, type KingdomPersonality,
+  type Land, type TerrainSummary,
 } from '../state/types';
 import {
   BACK_BAR_WIDTH, InkUI, INK_UI, scrollGestureConsumedTap, type InkScrollArea,
@@ -75,6 +77,15 @@ export class BattleArenaScene extends Phaser.Scene {
   private theirMen = 2400;
   private ourArms: ArmSpread = { archers: 0.25, heavy: 0.15 };
   private theirArms: ArmSpread = { archers: 0.25, heavy: 0.15 };
+  /**
+   * What the two hosts LOOK like — the dynasty wardrobe the figures are drawn in (user request).
+   * Pure picture, no numbers: it flows through `muster.dynasty` / `kingdom.wardrobe`, the same
+   * channel a run's own roll uses, so the battle screen dresses the men without a special case.
+   * Ours picks from the seven Việt wardrobes; the enemy from the five invading powers plus the
+   * three lord periods a rival Việt realm can wear. Defaults are the classic matchup.
+   */
+  private ourStyle: ArmyWardrobe = 'le';
+  private theirStyle: ArmyWardrobe = 'ming';
   private ground: keyof TerrainSummary = 'plains';
   private doctrine: KingdomPersonality = 'aggressive';
   /**
@@ -759,8 +770,35 @@ export class BattleArenaScene extends Phaser.Scene {
       });
       parent.add(hit);
     });
+    cursor += cellH * 2 + 8;
 
-    return cursor + cellH * 2 + 5;
+    // ── attire: what these men are drawn as, cycled like the headcount ─────
+    const styleCaption = createLabel(this, x + width / 2, cursor, t('arena.style').toUpperCase(),
+      'caption', { fontSize: '9px', fontStyle: '700', align: 'center' }).setOrigin(0.5, 0);
+    parent.add(styleCaption);
+    cursor += styleCaption.height + 2;
+    const styles: readonly ArmyWardrobe[] = ours
+      ? VIET_WARDROBES
+      : [...ENEMY_WARDROBES, 'trinh', 'nguyenLord', 'tayson'];
+    const chosenStyle = ours ? this.ourStyle : this.theirStyle;
+    const styleIndex = Math.max(0, styles.indexOf(chosenStyle));
+    const styleH = 24;
+    const stepStyle = (delta: number): void => {
+      const next = styles[(styleIndex + delta + styles.length) % styles.length];
+      if (ours) this.ourStyle = next; else this.theirStyle = next;
+      this.render();
+    };
+    this.stepButton(parent, x, cursor, stepW, styleH, '‹', true, () => stepStyle(-1));
+    parent.add(this.ui.panel({ x: x + stepW + 4, y: cursor, width: valueW, height: styleH }, {
+      border: INK_UI.softBrush,
+    }));
+    parent.add(createLabel(this, x + stepW + 4 + valueW / 2, cursor + 6,
+      t(`arena.style.${chosenStyle}` as Parameters<typeof t>[0]), 'caption', {
+        fontSize: '11px', align: 'center',
+      }).setOrigin(0.5, 0));
+    this.stepButton(parent, x + stepW + valueW + 8, cursor, stepW, styleH, '›', true, () => stepStyle(1));
+
+    return cursor + styleH + 5;
   }
 
   /** A − or + beside the headcount. Greyed at the ends of the range rather than removed. */
@@ -905,6 +943,12 @@ export class BattleArenaScene extends Phaser.Scene {
 
     const rival = state.kingdoms.find((kingdom) => kingdom.id !== PLAYER_KINGDOM_ID);
     if (rival) rival.personality = this.doctrine;
+
+    // The attire dials, written onto the same channels a run's own muster roll fills, so
+    // `hostKitFor` dresses the two hosts with no arena special case anywhere in the drawing.
+    if (state.muster) state.muster.dynasty = this.ourStyle;
+    else state.muster = { dynasty: this.ourStyle, composition: 'balanced' };
+    if (rival) rival.wardrobe = this.theirStyle;
 
     // Nobody else on the field: relief marching in from a neighbouring province would answer a
     // question the player did not ask.

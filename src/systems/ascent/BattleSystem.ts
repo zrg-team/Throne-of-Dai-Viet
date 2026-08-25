@@ -630,7 +630,12 @@ function enemyStance(state: GameState, battle: AscentBattle): FieldStance {
     // a phase you pay for rather than a policy you retire on: the wind harness's mirror-turtle
     // out-shot a passive invader with its bows and won on heart until this branch existed.
     // Deterministic on the stance the screen already prints, so the telegraph stays honest.
-    if (battle.stance === 'defend' || battle.stance === 'withdraw') return 'press';
+    //
+    // A player who has NEVER ordered a shape is the passive line at its most absolute — measured,
+    // mirror openings against an untouched dock were a fuzz coin-flip the sleeping player won
+    // often enough to matter, because the invader sat content at even shape all fight.
+    if (battle.stance === 'defend' || battle.stance === 'withdraw'
+      || battle.beatsSinceOurShape === undefined) return 'press';
     // Even shape against an active player buys nothing by spending faster. Aggressive powers still
     // press once they are ahead on heart, which is what keeps a personality learnable across a run.
     if (personality === 'aggressive' || personality === 'expansionist') {
@@ -882,7 +887,14 @@ function advanceEnemyFormation(state: GameState, battle: AscentBattle, theirs: A
   // to notice from the losses alone that something must change. Restless rotation on a timer
   // was tried and retired: it handed the player a prompt every few beats, and the game stopped
   // being a read.
-  if (tilt > 0 || (tilt === 0 && !battleAnswersEven())) return;
+  //
+  // An even shape against a dock NOBODY HAS TOUCHED is not a stalemate he respects on any
+  // difficulty — the mirror was the sleeping player's best friend: measured, every chong-v-chong
+  // opening against an idle dock ground out an auto win on the general's aura alone, because the
+  // invader pressed but never re-formed. A player who has ordered even once keeps medium's
+  // even-shape rest; the difficulty dial is untouched for anyone actually playing.
+  const idleDock = battle.beatsSinceOurShape === undefined;
+  if (tilt > 0 || (tilt === 0 && !battleAnswersEven() && !idleDock)) return;
 
   // Difficulty is how fast the enemy answers your shape, and nothing else — see `battleOptions`.
   // The walk itself is a flat beat now, so the dial moved from walk length to HESITATION: beats
@@ -951,7 +963,9 @@ function advanceEnemyWager(state: GameState, battle: AscentBattle): void {
   if (after === null || walking) return;
   if (!BATTLE_TEMPER[temperOf(state, battle)].presses) return;
   if (formationTier(battle.theirFormation, battle.ourFormation) <= 0) return;
-  if ((battle.beatsSinceOurShape ?? 0) < after) return;
+  // A dial never touched reads as endlessly idle — the wager exists precisely for the player who
+  // is not answering, and the untouched fight is that player at their most absolute.
+  if ((battle.beatsSinceOurShape ?? 99) < after) return;
   battle.theirCommitted = true;
   battle.log.push(t('ascent.battle.enemyCommits'));
 }
@@ -1337,8 +1351,8 @@ export function fightRound(state: GameState): void {
   //    the game overriding your orders, whatever it does for the win rate.
   //
   // So: manual means manual, and losing an ignored fight is the honest price — delegation is one
-  // tap away and buys the general's whole skill. The rally is the one exception (inside), because
-  // a shout is not a dial and leaves no control in a state the player did not choose.
+  // tap away and buys the general's whole skill, rally included. No exceptions: the "shout, not
+  // a dial" rally exception was tried and measured as part of why doing nothing still won.
   //
   // Here rather than in `advanceBattle` because the beat is the unit a commander acts on, and
   // because `advanceBattle` is not the only thing that runs a beat — `battle-lab` drives
@@ -1573,7 +1587,13 @@ export function fightRound(state: GameState): void {
     battle.wonLast = wonExchange;
     battle.lostRun = wonExchange ? 0 : (battle.lostRun ?? 0) + 1;
   }
-  battle.beatsSinceOurShape = (battle.beatsSinceOurShape ?? 0) + 1;
+  // Counts only once the player has ORDERED a shape (`setBattleFormation` stamps it to 0) —
+  // undefined stays undefined, which `advanceEnemyFormation` reads as long-settled (`?? 99`).
+  // The unconditional `?? 0` increment quietly re-armed the enemy's whole hesitation window for a
+  // player who had never touched the dial: an untouched opening that happened to counter his got
+  // the same free beats a real order earns, and that lottery was most of why doing nothing still
+  // won a fifth of even fights. Hesitation is a reaction to a decision; no decision, no window.
+  if (battle.beatsSinceOurShape !== undefined) battle.beatsSinceOurShape += 1;
   // Applied to *every* host on the side, not just the one the maths treats as the line, so a
   // battered relief column carries its own heart rather than borrowing the vanguard's.
   // Being answered costs heart as well as men — keyed off the shape, and scaled by how hard the
@@ -1716,12 +1736,16 @@ function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
   const met = battle.ourAdvance + battle.theirAdvance >= 1;
   // The dials are the player's until they are handed over. The officer no longer covers an
   // unclaimed dial at any skill — a helper moving the player's own controls read as the game
-  // overriding orders (see the note at the call site) — but he will still steady a line about
-  // to break: a rally is a shout, not a dial, and it leaves nothing in a state the player did
-  // not choose. Same threshold as his habit path below, so delegation cannot be WORSE at the
-  // one thing he does uninvited.
+  // overriding orders (see the note at the call site).
+  //
+  // The last-ditch rally is for a fight somebody is FIGHTING. The player has no rally verb of
+  // their own — it has always been the general's shout — so stripping it from every undelegated
+  // fight quietly nerfed manual play itself: measured, a player answering every shape fell from
+  // ~96% to ~38% at the default, while the untouched fight barely moved. The honest line is
+  // steering: the general backs a commander who is commanding; an empty throne gets nothing.
   if (!battle.delegated) {
-    if (met && !battle.rallySpent && battle.ourMorale < BATTLE_ROUT_MORALE + 6) rally(state);
+    const fighting = battle.steeredFormation || battle.steeredStance;
+    if (fighting && met && !battle.rallySpent && battle.ourMorale < BATTLE_ROUT_MORALE + 6) rally(state);
     return;
   }
   // Delegation stamps `generalMartial`; the fallback covers a stamp that predates a save. No
@@ -2104,9 +2128,9 @@ function takePending(state: GameState): PendingBattle {
 
 /**
  * Records that a *person* took a dial. The officer no longer plays unclaimed dials at all — only
- * delegation hands him the field — so this is bookkeeping now (the screen's verdict slot and the
- * harnesses read it), not the switch that used to silence him. Kept on the order channel alone,
- * which is the only place that knows a person pressed something.
+ * delegation hands him the field — but steering still gates his one supporting act: the
+ * last-ditch rally goes only to a fight somebody is visibly fighting (see `generalPlaysBeat`).
+ * Kept on the order channel alone, which is the only place that knows a person pressed something.
  */
 export function markPlayerSteered(state: GameState, dial?: 'formation' | 'stance'): void {
   const battle = state.ascent?.activeBattle;
