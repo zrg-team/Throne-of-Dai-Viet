@@ -112,14 +112,29 @@ const reach = await page.evaluate(async () => {
     }
     b.theirReformBeats = 0;
     b.theirFormationTarget = undefined;
-    for (let i = 0; i < 12 && !b.over; i += 1) {
-      const was = b.theirFormation;
+    /**
+     * A held counter is the PLAYER's counter, and it was just taken.
+     *
+     * Both stamps matter, and this check silently measured nothing without them. Unsteered, the
+     * covering officer re-orders our shape underneath the experiment; and `beatsSinceOurShape`
+     * left undefined reads as long-settled (`?? 99`), so every tier answered on the very first
+     * beat and the old walk-clock readout returned the flat reform length — 2, 2, 2 — whatever
+     * the dial said. Stamped fresh, the hesitation gate is the thing actually on the clock.
+     */
+    B.markPlayerSteered(st);
+    b.beatsSinceOurShape = 0;
+    // At contact, because the hesitation clock only runs while the two are trading — during the
+    // approach `beatsSinceOurShape` stands still and no tier answers anything, so a measurement
+    // that starts at range times the walk-in, not the dial.
+    b.ourAdvance = 0.5;
+    b.theirAdvance = 0.5;
+    const was = b.theirFormation;
+    for (let i = 1; i <= 24 && !b.over; i += 1) {
       B.fightRound(st);
-      // A walk longer than one beat is still in flight and can be read off the clock. A one-beat
-      // walk is ordered, spent and landed inside the same beat, so the only trace it leaves is the
-      // shape having changed — which is exactly what the fastest tier does.
-      if (b.theirFormationTarget) return (b.theirReformBeats ?? 0) + 1;
-      if (b.theirFormation !== was) return 1;
+      // Counted to the LANDING, not the order: hesitation plus the walk is the whole of what a
+      // player holding the counter gets to spend, and the landing is the one event every tier
+      // leaves a trace of — a one-beat walk is ordered and settled inside a single round.
+      if (b.theirFormation !== was) return i;
     }
     return -1;
   };

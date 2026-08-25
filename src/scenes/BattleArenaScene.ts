@@ -67,13 +67,25 @@ export class BattleArenaScene extends Phaser.Scene {
   // Defaults must be steps the dials actually offer, or the row opens with nothing lit and the
   // player cannot tell whether the setting is unset or simply invisible. Moved up with the dial
   // itself: 900 and 1,500 are not on it any more.
+  //
+  // Equal on purpose. The page opened at 2,400 against 4,000 and the very first fight a player
+  // set up was one they were expected to lose — a fair fight is the honest default, and the
+  // stepper is right there for anyone who wants the odds against them.
   private ourMen = 2400;
-  private theirMen = 4000;
+  private theirMen = 2400;
   private ourArms: ArmSpread = { archers: 0.25, heavy: 0.15 };
   private theirArms: ArmSpread = { archers: 0.25, heavy: 0.15 };
   private ground: keyof TerrainSummary = 'plains';
   private doctrine: KingdomPersonality = 'aggressive';
-  private martial = 70;
+  /**
+   * 40, not 70, and the number is a difficulty ladder held by `probe-noclick`/`battle-lab`:
+   * a general's aura multiplies `armyPower`, and at 70 the even default fight opened at 1.18-to-1
+   * in power — measured, EVERY policy including touching nothing won 100 of 100, because the
+   * overtime grind hands the field to the stronger side almost deterministically. At 40 the same
+   * fight is 1.10-to-1: hands-off wins 25%, answering their shapes wins reliably, and working
+   * both dials wins keeping a third of the host. Doing nothing loses; doing the taught thing wins.
+   */
+  private martial = 40;
   /** The last fight fought here, so the arena is a loop rather than a one-shot. */
   private last?: AscentBattleRecord;
   /**

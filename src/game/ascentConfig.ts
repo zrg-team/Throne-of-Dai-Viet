@@ -992,6 +992,20 @@ export const BATTLE_TEMPER: Record<CommanderTemper, {
 };
 
 /**
+ * The most martial an officer covering an UNCOMMANDED fight is allowed to play at.
+ *
+ * A fight the player has neither steered nor delegated is covered by the host's own commander so
+ * the line never stands flat — but covering is not commanding. Uncapped, a martial-70 general won
+ * the arena's default even fight **100 times in 100** with the player touching nothing, and 90 of
+ * 100 outnumbered 2,400 against 4,000 — a screen whose skip-everything policy wins is a cutscene.
+ * The cap only binds while the fight is unclaimed: tapping either dial takes that dial, and
+ * "hand to the general" (`delegateBattle`) is the deliberate act that buys his full martial.
+ * The caretaker also never orders `press` — cashing a winning matchup in is the player's verb;
+ * the officer's job is the brake (`defend`), the rally and a slow answer, not the killing blow.
+ */
+export const BATTLE_CARETAKER_MARTIAL = 35;
+
+/**
  * What a host deals and takes while it is walking between shapes.
  *
  * This is the entire cost of the fast dial and it has to hurt, or the player simply mirror-counters

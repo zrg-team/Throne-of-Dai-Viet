@@ -867,8 +867,9 @@ export const enAscent = {
   // ── the two dials ──────────────────────────────────────────────────────────
   // Five shapes and four tempos. See docs/14-five-shapes-two-dials.html — the shape decides which
   // way the men are spent, the stance decides how fast.
-  // `.verb` is the order the player gives; `.threat` is what the same shape looks like when the
-  // *enemy* is standing in it, which is the only form of it anyone has to read under time. The
+  // `.verb` is the order the player gives; `.threat` is the same shape as the ENEMY commander's
+  // own order — the bubble it fills hangs over his men with the tail on him, so he shouts a
+  // command ("All ranks, level spears!"), he does not narrate himself in the third person. The
   // ring is common sense once it is said out loud — spears stop horses, shields stop arrows — and
   // the Vietnamese name was the whole of what made it look like homework.
   // The wrap-around, which a row of five cannot draw: the fifth follows round to the first.
@@ -877,35 +878,35 @@ export const enAscent = {
   "ascent.formation.chong.full": "Thế Chông",
   "ascent.formation.chong.gloss": "Hedge",
   "ascent.formation.chong.verb": "SPEARS",
-  "ascent.formation.chong.threat": "their spears are set",
+  "ascent.formation.chong.threat": "All ranks, level spears!",
   "ascent.formation.chong.note": "The line wide and two deep, spears levelled.",
   "ascent.formation.chong.ours": "our spears are set",
   "ascent.formation.xung": "Xung",
   "ascent.formation.xung.full": "Thế Xung",
   "ascent.formation.xung.gloss": "Wedge",
   "ascent.formation.xung.verb": "CHARGE",
-  "ascent.formation.xung.threat": "their horse is coming",
+  "ascent.formation.xung.threat": "All ranks, charge!",
   "ascent.formation.xung.note": "The horse gathered at the point, everything behind it.",
   "ascent.formation.xung.ours": "our horse is massing",
   "ascent.formation.tan": "Tán",
   "ascent.formation.tan.full": "Thế Tán",
   "ascent.formation.tan.gloss": "Skirmish",
   "ascent.formation.tan.verb": "SPREAD",
-  "ascent.formation.tan.threat": "they are swarming loose",
+  "ascent.formation.tan.threat": "All ranks, spread out!",
   "ascent.formation.tan.note": "The screen wide and forward in open order.",
   "ascent.formation.tan.ours": "we are spread loose",
   "ascent.formation.quy": "Quy",
   "ascent.formation.quy.full": "Thế Quy",
   "ascent.formation.quy.gloss": "Tortoise",
   "ascent.formation.quy.verb": "SHIELDS",
-  "ascent.formation.quy.threat": "they are locked up tight",
+  "ascent.formation.quy.threat": "All ranks, lock shields!",
   "ascent.formation.quy.note": "The line packed narrow, shields locked over it.",
   "ascent.formation.quy.ours": "we are locked up tight",
   "ascent.formation.no": "Nỏ",
   "ascent.formation.no.full": "Thế Nỏ",
   "ascent.formation.no.gloss": "Volley",
   "ascent.formation.no.verb": "VOLLEY",
-  "ascent.formation.no.threat": "their arrows are falling",
+  "ascent.formation.no.threat": "All ranks, loose arrows!",
   "ascent.formation.no.note": "The bows banked deep behind a thin fence.",
   "ascent.formation.no.ours": "our arrows are falling",
 
@@ -2322,43 +2323,44 @@ export const viAscent = {
   "ascent.battle.counters": "khắc chế địch",
 
   // ── hai vòng điều khiển ────────────────────────────────────────────────────
-  // `.verb` là lệnh người chơi bấm; `.threat` là chính thế ấy khi *địch* đứng trong nó — dạng duy
-  // nhất mà người chơi phải đọc kịp trong lúc đánh. Vòng khắc chế vốn đã hợp lẽ thường: giáo chặn
+  // `.verb` là lệnh người chơi bấm; `.threat` là chính thế ấy dưới dạng LỆNH của tướng địch —
+  // bóng thoại treo trên đầu quân hắn, đuôi chỉ vào hắn, nên hắn hô lệnh ("Toàn quân dựng giáo!")
+  // chứ không tự thuật về mình ở ngôi thứ ba. Vòng khắc chế vốn đã hợp lẽ thường: giáo chặn
   // ngựa, khiên chắn tên. Cái tên chữ mới là thứ làm nó giống bài tập.
   "ascent.formation.ringNote": "Mỗi thế khắc hai thế đứng sau nó, vòng quanh.",
   "ascent.formation.chong": "Chông",
   "ascent.formation.chong.full": "Thế Chông",
   "ascent.formation.chong.gloss": "Hàng chông",
   "ascent.formation.chong.verb": "DỰNG GIÁO",
-  "ascent.formation.chong.threat": "địch dàn giáo chờ ta",
+  "ascent.formation.chong.threat": "Toàn quân dựng giáo!",
   "ascent.formation.chong.note": "Hàng quân dàn rộng, hai lớp, giáo chĩa ra.",
   "ascent.formation.chong.ours": "quân ta dàn giáo",
   "ascent.formation.xung": "Xung",
   "ascent.formation.xung.full": "Thế Xung",
   "ascent.formation.xung.gloss": "Mũi nhọn",
   "ascent.formation.xung.verb": "XUNG PHONG",
-  "ascent.formation.xung.threat": "kỵ binh địch đang xông tới",
+  "ascent.formation.xung.threat": "Toàn quân xung phong!",
   "ascent.formation.xung.note": "Kỵ binh dồn thành mũi nhọn, bộ binh theo sau.",
   "ascent.formation.xung.ours": "kỵ binh ta dồn mũi",
   "ascent.formation.tan": "Tán",
   "ascent.formation.tan.full": "Thế Tán",
   "ascent.formation.tan.gloss": "Tản quân",
   "ascent.formation.tan.verb": "TẢN RA",
-  "ascent.formation.tan.threat": "địch tản ra vây quanh",
+  "ascent.formation.tan.threat": "Toàn quân tản ra!",
   "ascent.formation.tan.note": "Quân khinh binh dàn rộng, tiến trước, thưa hàng.",
   "ascent.formation.tan.ours": "quân ta tản rộng",
   "ascent.formation.quy": "Quy",
   "ascent.formation.quy.full": "Thế Quy",
   "ascent.formation.quy.gloss": "Mai rùa",
   "ascent.formation.quy.verb": "GIƯƠNG KHIÊN",
-  "ascent.formation.quy.threat": "địch khép khiên kín mít",
+  "ascent.formation.quy.threat": "Toàn quân giương khiên!",
   "ascent.formation.quy.note": "Hàng quân co hẹp, khiên khép kín trên đầu.",
   "ascent.formation.quy.ours": "quân ta khép khiên",
   "ascent.formation.no": "Nỏ",
   "ascent.formation.no.full": "Thế Nỏ",
   "ascent.formation.no.gloss": "Dàn nỏ",
   "ascent.formation.no.verb": "BẮN",
-  "ascent.formation.no.threat": "tên địch đang trút xuống",
+  "ascent.formation.no.threat": "Toàn quân bắn tên!",
   "ascent.formation.no.note": "Cung nỏ xếp dày sau một hàng rào mỏng.",
   "ascent.formation.no.ours": "tên quân ta đang trút xuống",
 

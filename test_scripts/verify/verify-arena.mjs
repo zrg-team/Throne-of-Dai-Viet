@@ -67,6 +67,10 @@ for (const lang of ['en', 'vi']) {
         buttons,
         scrollTop: scene.scroll?.bounds?.y ?? null,
         scrollHeight: scene.scroll?.bounds?.height ?? null,
+        // What the dials actually need against the window the ring left them. On a short screen
+        // the body is ALLOWED to scroll — the ring and both buttons are pinned, and the scroll
+        // is the design there, not a safety net.
+        contentHeight: scene.scroll?.contentHeight ?? null,
         gameHeight: window.__phaserGame.scale.height,
       };
     });
@@ -88,6 +92,7 @@ for (const lang of ['en', 'vi']) {
     results.push({
       lang, height, bodyClears, bodyBottom, buttonTop, overflowing,
       texts: probe.texts.length, tiles: tiles.length,
+      contentHeight: probe.contentHeight, viewHeight: probe.scrollHeight,
     });
     await page.screenshot({ path: `output/web-game/arena-${lang}-${height}.png` });
     await page.close();
@@ -150,16 +155,21 @@ line(clears, 'the dials never run under the action buttons',
   results.filter((r) => !r.bodyClears).map((r) => `${r.lang}/${r.height}`).join(', ') || 'all four fit');
 line(noOverflow, 'no tile label is wider than its tile',
   results.flatMap((r) => r.overflowing).join(' ; ') || 'none overflow');
-// 4 + 4 arms, then 4 ground + 3 doctrine + 4 general. The two headcounts are steppers now,
-// so they are not tiles.
-line(results.every((r) => r.tiles === 19), 'every dial drew its tiles',
+// 4 + 4 arms, then 4 ground + 3 doctrine + 4 general + 4 difficulty + 3 speed + 5 bubbles.
+// The two headcounts are steppers, so they are not tiles. The count was 19 until the
+// difficulty, speed and word dials moved onto this page (battleOptions round) — the check
+// slept through that and failed on 31 for weeks.
+line(results.every((r) => r.tiles === 31), 'every dial drew its tiles',
   results.map((r) => `${r.tiles} tiles`).join(' / '));
-// The body is the same height on a 620 screen as on an 844 one, which can only be true if the
-// whole setup fits without scrolling. The scroll behind it is a safety net, not the layout.
-const fitsUnscrolled = results.every((r) => r.height === 844
-  || r.bodyBottom === results.find((o) => o.lang === r.lang && o.height === 844).bodyBottom);
-line(fitsUnscrolled, 'the setup fits on a short screen without scrolling',
-  results.map((r) => `${r.lang}/${r.height}: ${Math.round(r.bodyBottom)}`).join('  '));
+// On a TALL screen the whole setup fits without scrolling. On a short one it deliberately does
+// not any more: the ring and both buttons are pinned and the dials scroll under them — that is
+// the layout since the difficulty/speed/bubble rows arrived, not a safety net that failed.
+// The old check asserted equal body height at both sizes, which the pinned-ring design cannot
+// satisfy and was never meant to.
+const fitsTall = results.every((r) => r.height !== 844
+  || (r.contentHeight ?? 0) <= (r.viewHeight ?? 0) + 1);
+line(fitsTall, 'the setup fits a tall screen without scrolling',
+  results.map((r) => `${r.lang}/${r.height}: needs ${Math.round(r.contentHeight ?? 0)} of ${Math.round(r.viewHeight ?? 0)}`).join('  '));
 console.log('');
 console.log(`the fight opened as   ${fight.ourStart} against ${fight.theirStart}`);
 console.log(`dialled in as         ${dialled.ours} against ${dialled.theirs}`);

@@ -34,6 +34,7 @@ import {
   BATTLE_STAMINA_MAX,
   BATTLE_STAMINA_REGEN_BEATS,
   BATTLE_TEMPER,
+  BATTLE_CARETAKER_MARTIAL,
   type CommanderTemper,
   BATTLE_COMMIT_AMPLIFY,
   BATTLE_STANCE_RISK,
@@ -1663,7 +1664,13 @@ function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
   // A delegated fight is entirely his. Otherwise he works what has not been taken from him.
   const takeShape = battle.delegated || !battle.steeredFormation;
   const takeTempo = battle.delegated || !battle.steeredStance;
-  if (generalReadsBeat(battle, martial)) {
+  // Covering is not commanding. An unclaimed fight is played at the caretaker's cap, whatever
+  // the man's real martial — measured uncapped, a martial-70 general won the default even fight
+  // 100/100 with nobody touching anything, which made the whole dock a decoration. Delegating
+  // is the tap that buys his full skill; see `BATTLE_CARETAKER_MARTIAL`.
+  const caretaker = !battle.delegated;
+  const skill = caretaker ? Math.min(martial, BATTLE_CARETAKER_MARTIAL) : martial;
+  if (generalReadsBeat(battle, skill)) {
     const read = battleTelegraph(state);
     if (read) {
       // The shape they are heading for, if they are heading anywhere — a commander who can read a
@@ -1691,7 +1698,9 @@ function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
         // the very beat the player's new shape wins the tilt, and an unattributed flip right
         // after a formation tap read as the TAP changing the stance (user-reported, worsened by
         // the two dials once sharing the word "Xung phong").
-        if (sign > 0) {
+        // The caretaker never presses. Cashing a winning matchup in is the player's verb (or a
+        // delegated general's); an officer nobody appointed keeps only the brake and the rally.
+        if (sign > 0 && !caretaker) {
           if (setBattleStance(state, 'press')) battle.log.push(t('ascent.battle.generalTempo', { s: t('ascent.stance.press') }));
         } else if (sign < 0 || battle.ourMorale < BATTLE_ROUT_MORALE + 20) {
           if (setBattleStance(state, 'defend')) battle.log.push(t('ascent.battle.generalTempo', { s: t('ascent.stance.defend') }));

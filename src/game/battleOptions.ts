@@ -47,7 +47,7 @@ interface DifficultyProfile {
    * How long the speech bubbles over the two hosts stay up, in ms. `Infinity` keeps them for as
    * long as the sentence is true; `0` never draws them at all.
    *
-   * The bubbles are the fight in words — "their spears are set", "we are spread loose" — and on
+   * The bubbles are the fight in words — "All ranks, level spears!", "we are spread loose" — and on
    * the default setting they now fade, so the drawn formation is what a player learns to read.
    * Hard fades faster; nightmare has no bubbles, only the picture. Both sides, deliberately: a
    * player who ordered a shape knows what they ordered, and a bubble repeating it back was one
