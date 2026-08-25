@@ -103,26 +103,47 @@ export function drawFormationRing(
    * unbeatable at one end and `VOLLEY` beating nothing at the other, which is the opposite of the
    * rule. Nothing in a ring is best.
    */
-  // No drawn ellipse. It was added to give the arrowheads a path to sit on, and it turned the
-  // diagram into a wheel with a rim — five words trapped inside a circle rather than five shapes
-  // with arrows running between them. Five arrowheads on an ellipse are a ring; the rim was the
-  // only part of it doing no work.
+  // Directed ARCS, not a rim and not floating heads. The full ellipse was tried and rejected — a
+  // closed rim turns five shapes into words trapped in a wheel — and the bare arrowheads that
+  // replaced it were tried too and read as five triangles scattered on the paper ("this renders
+  // pretty bad"): an arrow with no shaft has no from and no to. An arc that leaves one shape and
+  // ends in a head short of the next is the honest middle: each edge says A beats B, and the gaps
+  // at the nodes keep it from closing back into a rim.
   const arrows = scene.add.graphics();
+  const step = (Math.PI * 2) / FORMATION_RING.length;
   for (let i = 0; i < FORMATION_RING.length; i += 1) {
-    const angle = -Math.PI / 2 + ((i + 0.5) / FORMATION_RING.length) * Math.PI * 2;
-    const px = cx + Math.cos(angle) * RX;
-    const py = cy + Math.sin(angle) * RY;
-    // The tangent of the ellipse at this angle, normalised — the direction of travel.
-    let tx = -Math.sin(angle) * RX;
-    let ty = Math.cos(angle) * RY;
+    const a0 = -Math.PI / 2 + i * step;
+    // Trimmed at both ends so the stroke clears the glyph it leaves and the one it points at —
+    // the arc length per radian is RX at the top of the loop and only RY at its sides, so the
+    // same angular trim clears more paper exactly where the glyphs stand widest.
+    const start = a0 + step * 0.26;
+    const end = a0 + step * 0.72;
+    const points: Array<{ x: number; y: number }> = [];
+    for (let k = 0; k <= 10; k += 1) {
+      const a = start + ((end - start) * k) / 10;
+      points.push({ x: cx + Math.cos(a) * RX, y: cy + Math.sin(a) * RY });
+    }
+    // Two passes — a soft wide stroke under a firm thin one — the cheap echo of `inkPath`'s
+    // print registration, so the edge sits on the paper instead of on top of it.
+    for (const [width2, alpha] of [[2.8, 0.16], [1.4, 0.85]] as const) {
+      arrows.lineStyle(width2, INK_UI.jade, alpha);
+      arrows.beginPath();
+      arrows.moveTo(points[0].x, points[0].y);
+      for (const p of points.slice(1)) arrows.lineTo(p.x, p.y);
+      arrows.strokePath();
+    }
+    // The head, on the tangent at the arc's end: this shape beats the one it points at.
+    let tx = -Math.sin(end) * RX;
+    let ty = Math.cos(end) * RY;
     const len = Math.hypot(tx, ty) || 1;
     tx /= len;
     ty /= len;
-    arrows.fillStyle(INK_UI.jade, 0.9);
+    const tip = points[points.length - 1];
+    arrows.fillStyle(INK_UI.jade, 0.95);
     arrows.fillTriangle(
-      px + tx * 6, py + ty * 6,
-      px - tx * 4 + ty * 4.2, py - ty * 4 - tx * 4.2,
-      px - tx * 4 - ty * 4.2, py - ty * 4 + tx * 4.2,
+      tip.x + tx * 7, tip.y + ty * 7,
+      tip.x - ty * 3.6, tip.y + tx * 3.6,
+      tip.x + ty * 3.6, tip.y - tx * 3.6,
     );
   }
   container.add(arrows);
@@ -131,15 +152,18 @@ export function drawFormationRing(
   let bottom = cy + RY + 8;
   FORMATION_RING.forEach((id, index) => {
     const node = at(index);
+    // 17, up from 14. The chip glyphs are drawn for a 26-unit box; at 0.54x the skirmish dots
+    // and the wedge's rear rank collapsed below a pixel and two of the five shapes read as
+    // smudges. 0.65x is the floor at which every glyph still says what it is.
     const glyph = drawCardIcon(scene, ICON[id], INK_UI.brush);
-    glyph.setPosition(node.x, node.y).setScale(14 / CARD_ICON_SIZE);
+    glyph.setPosition(node.x, node.y).setScale(17 / CARD_ICON_SIZE);
     container.add(glyph);
 
     const label = scene.add.text(
       node.x, 0, t(`ascent.formation.${id}.verb` as Parameters<typeof t>[0]),
-      { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '7px', fontStyle: '700' },
+      { color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '7.5px', fontStyle: '700' },
     );
-    for (let size = 7; size >= 5.5 && label.width > 58; size -= 0.5) label.setFontSize(size);
+    for (let size = 7.5; size >= 5.5 && label.width > 60; size -= 0.5) label.setFontSize(size);
 
     /**
      * Each label is pushed **radially outward**, and the two at the sides go out sideways.
@@ -155,12 +179,12 @@ export function drawFormationRing(
      */
     const side = index === 1 || index === FORMATION_RING.length - 1;
     if (index === 0) {
-      label.setOrigin(0.5, 1).setPosition(node.x, node.y - 8);
+      label.setOrigin(0.5, 1).setPosition(node.x, node.y - 10);
     } else if (side) {
       const right = node.x > cx;
-      label.setOrigin(right ? 0 : 1, 0.5).setPosition(node.x + (right ? 11 : -11), node.y);
+      label.setOrigin(right ? 0 : 1, 0.5).setPosition(node.x + (right ? 13 : -13), node.y);
     } else {
-      label.setOrigin(0.5, 0).setPosition(node.x, node.y + 8);
+      label.setOrigin(0.5, 0).setPosition(node.x, node.y + 10);
     }
     container.add(label);
     const bounds = label.getBounds();
