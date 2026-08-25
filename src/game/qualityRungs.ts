@@ -35,7 +35,11 @@ export interface Rung {
 /** Top to bottom — index + 1 is one step down. */
 export const RUNGS: Rung[] = [
   { id: 'high', scale: 3, paper: true, bakeScale: 2, liveSettlementInk: true, scatter: 1.25, lodDropsLabels: false, fps: 60 },
-  { id: 'medium', scale: 2, paper: true, bakeScale: 0.75, liveSettlementInk: false, scatter: 1, lodZoomBelow: 0.85, lodDropsLabels: false, fps: 60 },
+  { id: 'medium', scale: 2, paper: true, bakeScale: 1.25, liveSettlementInk: false, scatter: 1, lodZoomBelow: 0.85, lodDropsLabels: false, fps: 60 },
+  // The first step down is now a real one. Its old job — dropping the paper sheet — went vacuous
+  // the day the sheet stopped shipping by default, so this rung stood at medium's exact cost and
+  // bought the ladder nothing. It gives back the dense bake instead: same buffer, 0.75 texels,
+  // which is the old medium and still a coherent picture.
   { id: 'medium-lite', scale: 2, paper: false, bakeScale: 0.75, liveSettlementInk: false, scatter: 0.8, lodZoomBelow: 0.85, lodDropsLabels: false, fps: 60 },
   { id: 'low', scale: 1, paper: false, bakeScale: 0.5, liveSettlementInk: false, scatter: 0.6, lodZoomBelow: 0.85, lodDropsLabels: true, fps: 60 },
   { id: 'low-30', scale: 1, paper: false, bakeScale: 0.5, liveSettlementInk: false, scatter: 0.6, lodZoomBelow: 0.85, lodDropsLabels: true, fps: 30 },

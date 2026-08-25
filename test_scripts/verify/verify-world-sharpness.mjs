@@ -11,7 +11,7 @@
  * never guessed.
  *
  * A rung flip mid-run must NOT move the bake density: the buffer only resizes at a scene
- * boundary, and a 0.75-texel bake under a still-3x buffer is the iPhone blur (user-reported,
+ * boundary, and a medium-density bake under a still-3x buffer is the iPhone blur (user-reported,
  * 100% within a minute of every high run — the ladder stepped down, the next season turn rebaked
  * soft). The bake density follows the flip only when the boundary lands the buffer with it.
  *
@@ -104,9 +104,9 @@ const landed = await page.evaluate(() => {
     scale: window.__renderScale(),
   };
 });
-checks.push(['the boundary lands the flip: buffer at 2, bake at 0.75 texels',
-  landed.rt !== null && landed.scale === 2 && near(landed.rt.w, landed.world[0] * 0.75)
-    && near(landed.rt.h, landed.world[1] * 0.75), `scale ${landed.scale} ${JSON.stringify(landed.rt)}`]);
+checks.push(['the boundary lands the flip: buffer at 2, bake at 1.25 texels',
+  landed.rt !== null && landed.scale === 2 && near(landed.rt.w, landed.world[0] * 1.25)
+    && near(landed.rt.h, landed.world[1] * 1.25), `scale ${landed.scale} ${JSON.stringify(landed.rt)}`]);
 checks.push(['and the settlement ink goes back into the bake', landed.inkVisible === 0,
   `${landed.inkVisible} ink pieces still live`]);
 

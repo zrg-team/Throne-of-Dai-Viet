@@ -58,7 +58,15 @@ interface QualityProfile {
 const PROFILES: Record<GraphicsQuality, QualityProfile> = {
   // 1:1 with the design surface — what the game did before this existed.
   low: { renderScale: 1, paperFX: false, scatter: 0.6, bakeScale: 0.5, liveSettlementInk: false, lodZoomBelow: 0.85, lodDropsLabels: true },
-  medium: { renderScale: 2, paperFX: true, scatter: 1, bakeScale: 0.75, liveSettlementInk: false, lodZoomBelow: 0.85, lodDropsLabels: false },
+  // 1.25 is not arbitrary: the world is 2244x3030 design units, so 1.25 texels per unit is the
+  // densest bake that still fits inside a 4096 MAX_TEXTURE_SIZE (3788 on the long side) — the
+  // floor limit on the phones this game targets, and the point past which `fitBakeScale` starts
+  // quietly stepping the number back down again. At 0.75 the ground arrived 2.7x upscaled under
+  // the 2x buffer, which is 'medium looks bad' in one number; at 1.25 it is 1.6x.
+  // The price: the ground RT goes 15 MB -> 42 MB, and the fog RT reaches its own `min(_, 1)` cap
+  // at 27 MB instead of 15 — 70 MB of cached world against high's 136, on a tier every device
+  // starts on. Under frame pressure the ladder's 'medium-lite' rung hands the density back.
+  medium: { renderScale: 2, paperFX: true, scatter: 1, bakeScale: 1.25, liveSettlementInk: false, lodZoomBelow: 0.85, lodDropsLabels: false },
   // 3 is not a typo: it is the ratio of every current flagship phone, and anything above it is
   // spending fill rate on detail the panel cannot resolve. High is the explicit "spend for
   // beauty" tier: the world bake carries 2 texels per design unit (1.5x upscale at default zoom
