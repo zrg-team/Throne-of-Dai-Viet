@@ -242,6 +242,9 @@ export class MenuScene extends Phaser.Scene {
 
   create(): void {
     applyPendingRenderScale(this.game);
+    // A scene build is not the frame rate: without this hold the ladder counted the menu's own
+    // construction as the device running hot and stepped an explicit tier down for it.
+    qualityLadder()?.markSceneStart();
     // No scene cap here: the front page carries live animation now, and a 30-fps pin made it
     // visibly chop against a 60–120 Hz panel. Battery pacing, if it returns, must come from a
     // real idle detector — not from capping the first thing the player sees.

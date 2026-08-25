@@ -59,7 +59,13 @@ export class QualityLadder {
   private gapSamples: number[] = [];
   private windowGapMs = 0;
   private warmupLeft: number;
-  private holdUntil = 0;
+  /**
+   * Remaining GAP time to ignore, not a wall-clock deadline. A hold covers "the next N ms of
+   * frames" — and frame time is what the sampler judges, so it is what the hold must be spent
+   * in. A wall-clock deadline also swallowed verify-ladder whole: the harness steps the loop by
+   * hand faster than real time, and a 1.5 s deadline outlived its entire synthetic heat phase.
+   */
+  private holdLeft = 0;
   private hotWindows = 0;
   private calmWindows = 0;
   private stepsDown = 0;
@@ -127,9 +133,9 @@ export class QualityLadder {
     }
   }
 
-  /** Ignore the next `ms` of samples — a bake or a scene build is not the frame rate. */
+  /** Ignore the next `ms` of frame time — a bake or a scene build is not the frame rate. */
   hold(ms: number): void {
-    this.holdUntil = performance.now() + ms;
+    this.holdLeft = Math.max(this.holdLeft, ms);
   }
 
   markSceneStart(): void {
@@ -150,7 +156,10 @@ export class QualityLadder {
     // The event's own delta, not `loop.rawDelta`: a manually-stepped loop (every harness, and
     // the resume path) never refreshes rawDelta, and the ladder would keep judging stale gaps.
     const gap = delta;
-    if (performance.now() < this.holdUntil) return;
+    if (this.holdLeft > 0) {
+      this.holdLeft -= gap;
+      return;
+    }
     if (this.warmupLeft > 0) {
       this.warmupLeft -= gap;
       return;
@@ -161,7 +170,7 @@ export class QualityLadder {
   }
 
   private onPostRender(): void {
-    if (performance.now() < this.holdUntil || this.warmupLeft > 0) return;
+    if (this.holdLeft > 0 || this.warmupLeft > 0) return;
     this.stepSamples.push(performance.now() - this.stepT0);
   }
 

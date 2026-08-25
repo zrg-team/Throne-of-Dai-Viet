@@ -13,6 +13,7 @@
 import Phaser from 'phaser';
 import { applyPaperFX } from '../../ui/ink/PaperFX';
 import { applyRenderScale } from '../../game/graphicsQuality';
+import { qualityLadder } from '../../game/qualityLadder';
 import {
   ACTION_BAR_HEIGHT,
   GAME_HEIGHT,
@@ -588,6 +589,9 @@ function setMapVisible(self: ConquestUIScene, visible: boolean): void {
 }
 
 export function beginOverlay(self: ConquestUIScene, key: string): void {
+  // Building a full-screen overlay costs a burst of heavy frames; the ladder must not read
+  // that burst as the device failing — a step down here is what blurred iPhones at high.
+  qualityLadder()?.hold(800);
   releaseOverlay(self);
   self.openPromptKey = key;
   // The battle screen is a full sheet of parchment with nothing showing through it.
@@ -607,6 +611,8 @@ function releaseOverlay(self: ConquestUIScene): void {
 
 /** Closes a chrome overlay (Codex / menu / quit) without touching the prompt queue. */
 export function closeOverlay(self: ConquestUIScene): void {
+  // The close rebuilds the map chrome in one frame — held for the same reason as the open.
+  qualityLadder()?.hold(800);
   releaseOverlay(self);
   self.openPromptKey = '';
   refresh(self);
