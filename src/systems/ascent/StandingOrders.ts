@@ -1,5 +1,5 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
-import { MARCH_MIN_WIN_CHANCE, SUPPLY_TICKS_HELD } from '../../game/ascentConfig';
+import { ARMY_RESUPPLY_TICKS, MARCH_MIN_WIN_CHANCE, SUPPLY_TICKS_HELD } from '../../game/ascentConfig';
 import { applyResourceDelta } from '../ResourceSystem';
 import {
   armyPower,
@@ -87,6 +87,12 @@ function stagingFor(state: GameState, army: Army, landId: string): string | unde
 export function setArmyOrders(state: GameState, armyId: string, orders: ArmyOrders): boolean {
   const army = state.armies.find((candidate) => candidate.id === armyId && candidate.kingdomId === PLAYER_KINGDOM_ID);
   if (!army || army.isLevy || army.patron) return false;
+  // A host mid-refit takes no orders — the order surfaces all say so; this is the backstop for
+  // anything that reaches the system directly.
+  if (army.refit) {
+    state.message = t('ascent.army.refitBusy');
+    return false;
+  }
   if ((orders.kind === 'defend' || orders.kind === 'attack') && !findLand(state, orders.landId)) return false;
   if ((orders.kind === 'follow' || orders.kind === 'hunt')
     && (orders.armyId === army.id || !state.armies.some((candidate) => candidate.id === orders.armyId))) return false;
@@ -113,6 +119,7 @@ export function setArmyOrders(state: GameState, armyId: string, orders: ArmyOrde
 export function recallHost(state: GameState, armyId: string): { ok: boolean; reason?: string } {
   const army = state.armies.find((candidate) => candidate.id === armyId && candidate.kingdomId === PLAYER_KINGDOM_ID);
   if (!army || army.isLevy || army.patron) return { ok: false };
+  if (army.refit) return { ok: false, reason: t('ascent.army.refitBusy') };
 
   // Out of the line first: a withdrawal is battle-wide, exactly as the screen's own Retreat is.
   if (isEngagedHost(state, army.id)) finishBattle(state, 'retreat');
@@ -158,7 +165,11 @@ export function resupplyPreview(state: GameState, armyId: string): {
   const food = Math.min(Math.max(0, wantRations - army.rations), Math.max(0, Math.floor(state.resources.food)));
   const supplies = Math.min(Math.max(0, wantProvisions - army.provisions), Math.max(0, Math.floor(state.resources.supplies)));
   let blocked: string | undefined;
-  if (army.rations >= wantRations && army.provisions >= wantProvisions) blocked = t('ascent.orders.resupplyFull');
+  // A refitting host takes no orders, a resupply among them; and one column at a time — a
+  // second tap while the first is on the road would double-bill the stores.
+  if (army.refit) blocked = t('ascent.army.refitBusy');
+  else if (army.resupplyRun) blocked = t('ascent.orders.resupplyEnRoute', { n: army.resupplyRun.ticksLeft });
+  else if (army.rations >= wantRations && army.provisions >= wantProvisions) blocked = t('ascent.orders.resupplyFull');
   else if (food <= 0 && supplies <= 0) blocked = t('ascent.orders.resupplyNone');
   return { wantRations, wantProvisions, food, supplies, blocked };
 }
@@ -169,10 +180,14 @@ export function resupplyHost(state: GameState, armyId: string): { ok: boolean; f
   if (!army) return { ok: false, food: 0, supplies: 0 };
   const preview = resupplyPreview(state, armyId);
   if (preview.blocked) return { ok: false, food: 0, supplies: 0, reason: preview.blocked };
+  // The stores are debited on the tap; the baggage arrives over the column's ticks
+  // (`tickArmyRefits`). The host acts freely while it comes — a resupply costs patience, not
+  // the host's freedom, which is what separates it from a refit.
   applyResourceDelta(state, { food: -preview.food, supplies: -preview.supplies });
-  army.rations += preview.food;
-  army.provisions += preview.supplies;
-  pushToast(state, t('ascent.orders.resupplied', { army: army.name, food: preview.food, supplies: preview.supplies }), 'info');
+  army.resupplyRun = { ticksLeft: ARMY_RESUPPLY_TICKS, food: preview.food, supplies: preview.supplies };
+  pushToast(state, t('ascent.orders.resupplySent', {
+    army: army.name, food: preview.food, supplies: preview.supplies, n: ARMY_RESUPPLY_TICKS,
+  }), 'info');
   return { ok: true, food: preview.food, supplies: preview.supplies };
 }
 
@@ -186,6 +201,9 @@ function settle(state: GameState, army: Army, key: 'ascent.orders.taken' | 'asce
 
 /** One host, one season: the step `tickStandingOrders` takes and `setArmyOrders` takes at once. */
 function applyOrdersNow(state: GameState, army: Army): void {
+  // A refit freezes the standing order where it stands: the host neither marches nor storms
+  // until the work is done. It resumes its old order on the tick the refit completes.
+  if (army.refit) return;
   const orders = armyOrders(army);
   if (orders.kind === 'auto') return;
   const here = findLand(state, army.landId);

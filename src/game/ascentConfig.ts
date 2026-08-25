@@ -1422,3 +1422,16 @@ export const ARRIVAL_HOST_MIN = 220;
 export const ARRIVAL_TREASURY_SEASONS = 14;
 export const ARRIVAL_WALL_DEFENCE = 26;
 export const ARRIVAL_TRUCE_SEASONS = 6;
+
+/**
+ * Seasons a host stands down for each refit. The order was instant, which made "a few strong
+ * hosts" free of the one cost that should shape it: time off the line. Drill is the longest
+ * because it is the one that compounds; the gain lands only when the clock runs out.
+ */
+export const ARMY_REFIT_TICKS: Record<'equip' | 'reinforce' | 'drill', number> = {
+  reinforce: 3,
+  equip: 3,
+  drill: 4,
+};
+/** Seasons a manual supply column takes to reach its host. The host may act while it comes. */
+export const ARMY_RESUPPLY_TICKS = 2;

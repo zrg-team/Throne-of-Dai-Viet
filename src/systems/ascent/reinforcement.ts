@@ -86,7 +86,8 @@ export function reinforcementCandidates(state: GameState, battle: AscentBattle):
     const etaTicks = rally ? getTotalPathTicks(state, army, rally.path) : undefined;
     const enRoute = isMarchingToBattle(army, battle);
     let blockedReason: string | undefined;
-    if (!rally) blockedReason = t('ascent.reinforce.noRoad');
+    if (army.refit) blockedReason = t('ascent.army.refitBusy');
+    else if (!rally) blockedReason = t('ascent.reinforce.noRoad');
     else if (isPinnedByClaim(state, army)) blockedReason = t('ascent.reinforce.pinned');
     else if (state.siegeOrders.some((order) => order.armyId === army.id)) blockedReason = t('ascent.reinforce.besieging');
     rows.push({

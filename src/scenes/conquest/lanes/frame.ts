@@ -32,6 +32,12 @@ const LANE_BACK_BUTTON_HEIGHT = 34;
  * under the Close button.
  */
 const LANE_TOGGLE_HEIGHT = 54;
+/**
+ * A segmented picker pinned in the same footer band the toggle uses: heading, a row of tiles,
+ * and a note under them. The court's standing course lives here — a choice the player changes
+ * while reading belongs in the same thumb reach the consent checkboxes taught.
+ */
+const LANE_PICKER_HEIGHT = 78;
 /** A fixed tab strip between the page heading and its scrolling body. */
 const LANE_TABS_HEIGHT = 32;
 const LANE_TABS_GAP = 8;
@@ -101,6 +107,11 @@ export function laneList(self: ConquestUIScene,
      * The whole row is the hit area, label included.
      */
     footerToggle?: { label: string; hint?: string; checked: boolean; onToggle: () => void };
+    /**
+     * A segmented choice pinned above the footer button, in the toggle's slot — for the one
+     * standing setting on a page that has more than two answers.
+     */
+    footerPicker?: { label: string; options: string[]; note: string; selected: number; onPick: (index: number) => void };
     /** A fixed tab strip for long screens that are easier to scan as separate shelves. */
     tabs?: {
       items: Array<{ label: string; count?: number }>;
@@ -126,7 +137,8 @@ export function laneList(self: ConquestUIScene,
 } {
   const content = self.promptFrame(title, subtitle);
   const footerExtra = (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
-    + (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0);
+    + (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
+    + (laneOpts.footerPicker ? LANE_PICKER_HEIGHT + 8 : 0);
   const tabsExtra = laneOpts.tabs ? LANE_TABS_HEIGHT + LANE_TABS_GAP : 0;
   const scroll = self.ui.scrollArea({
     x: content.x,
@@ -300,6 +312,24 @@ export function laneList(self: ConquestUIScene,
 
   const finish = () => {
     scroll.setContentHeight(Math.max(content.height - LANE_FOOTER_HEIGHT - footerExtra - tabsExtra, y));
+    if (laneOpts.footerPicker) {
+      const cfg = laneOpts.footerPicker;
+      // Stacked above whatever else the footer band holds: close at the bottom, then back,
+      // then the toggle, then this — the same order the heights were spent in.
+      const py = GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET
+        - (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
+        - (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
+        - LANE_PICKER_HEIGHT - 8;
+      const holder = self.add.container(content.x, py);
+      self.segmentedRow(holder, content.width, {
+        label: cfg.label,
+        options: cfg.options,
+        note: cfg.note,
+        selected: cfg.selected,
+        onPick: cfg.onPick,
+      });
+      self.modalLayer.add(holder);
+    }
     if (laneOpts.footerToggle) {
       const cfg = laneOpts.footerToggle;
       const ty = GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET

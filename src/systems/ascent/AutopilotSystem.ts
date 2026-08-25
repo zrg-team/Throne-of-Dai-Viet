@@ -242,6 +242,8 @@ function autoDisbandRemnants(state: GameState): void {
       // An auxiliary is not ours to send home, however thin it has worn.
       !army.patron &&
       !engaged.has(army.id) &&
+      // A remnant mid-refit is about to stop being one — the men it paid for are marching in.
+      !army.refit &&
       armySize(army) < MIN_ARMY_SOLDIERS * REMNANT_SHARE &&
       !state.siegeOrders.some((order) => order.armyId === army.id),
   );
@@ -464,6 +466,7 @@ function autoClaimWilderness(state: GameState): boolean {
       army.kingdomId === PLAYER_KINGDOM_ID &&
       !army.isLevy &&
       isAutoHost(army) &&
+      !army.refit &&
       !isPinnedByClaim(state, army) &&
       !state.movementOrders.some((order) => order.armyId === army.id) &&
       !state.siegeOrders.some((order) => order.armyId === army.id),
@@ -644,8 +647,10 @@ function autoMarch(state: GameState): boolean {
       army.kingdomId === PLAYER_KINGDOM_ID &&
       !army.isLevy &&
       // Only the hosts left to the autopilot: a host under the player's own standing order is
-      // moved by that order and nothing else (see `StandingOrders`).
+      // moved by that order and nothing else (see `StandingOrders`) — and a host mid-refit is
+      // nobody's to march at all.
       isAutoHost(army) &&
+      !army.refit &&
       !isPinnedByClaim(state, army) &&
       !state.movementOrders.some((order) => order.armyId === army.id) &&
       !state.siegeOrders.some((order) => order.armyId === army.id),

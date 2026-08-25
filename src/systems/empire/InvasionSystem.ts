@@ -298,6 +298,8 @@ export function tickAutoDefend(state: GameState): void {
 
   for (const army of state.armies) {
     if (army.kingdomId !== PLAYER_KINGDOM_ID || !army.autoDefend || totalUnits(army) <= 0) continue;
+    // A host mid-refit is off the board: it holds its ground until the work is done.
+    if (army.refit) continue;
     // Busy marching or besieging — leave the current order be.
     if (state.movementOrders.some((o) => o.armyId === army.id)) continue;
     if (state.siegeOrders.some((o) => o.armyId === army.id)) continue;

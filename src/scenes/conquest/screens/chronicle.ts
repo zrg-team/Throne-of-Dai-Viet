@@ -95,12 +95,17 @@ export function showChronicleScreen(self: ConquestUIScene): void {
       },
       // At the foot, where the thumb already is. This page is read one-handed, and this is the
       // only control on it that is a setting rather than a story.
+      //
+      // Phrased the way every other lane's foot-of-page consent reads — "[việc]: [ai] hỏi
+      // trước" beside Build's "Thu phục: triều đình hỏi trước" and Army's "Lập quân: tướng hỏi
+      // trước" — so CHECKED means the same thing on all three pages: they come and ask.
+      // The stored flag is still `storyCardsMuted`; only the box's polarity flips.
       footerToggle: {
-        label: t('ascent.chronicle.muteLabel'),
+        label: t('ascent.chronicle.askFirst'),
         hint: t(storyCardsMuted(state)
           ? 'ascent.chronicle.mutedHint'
           : 'ascent.chronicle.interruptHint'),
-        checked: storyCardsMuted(state),
+        checked: !storyCardsMuted(state),
         onToggle: () => {
           if (state.ascent) state.ascent.storyCardsMuted = !storyCardsMuted(state);
           showChronicleScreen(self);

@@ -34,6 +34,7 @@ import {
   ARMY_EQUIP_PER_SOLDIER,
   ARMY_EQUIP_SUPPLIES_BASE,
   ARMY_EQUIP_TIER_ESCALATION,
+  ARMY_REFIT_TICKS,
   ARMY_REINFORCE_GOLD_PER_SOLDIER,
   ARMY_REINFORCE_SOLDIERS,
   ARMY_REINFORCE_SUPPLY_GAIN,
@@ -413,6 +414,8 @@ export function getArmyUpgradeOptions(state: GameState, armyId: string): ArmyUpg
   const army = state.armies.find((candidate) => candidate.id === armyId);
   if (!army) return [];
 
+  // One refit at a time, and no orders in between: a host being refitted is off the board.
+  const refitting = Boolean(army.refit);
   const size = totalUnits(army);
   const tier = army.elite ?? 0;
   const equipCost: Partial<ResourceBag> = {
@@ -437,29 +440,35 @@ export function getArmyUpgradeOptions(state: GameState, armyId: string): ArmyUpg
       kind: 'equip',
       cost: equipCost,
       gain: tier + 1,
-      available: tier < MAX_ELITE_TIER && canSpend(state, equipCost),
-      reason: tier >= MAX_ELITE_TIER
-        ? t('ascent.army.equipMaxed')
-        : !canSpend(state, equipCost) ? t('ascent.army.cannotAfford') : undefined,
+      available: !refitting && tier < MAX_ELITE_TIER && canSpend(state, equipCost),
+      reason: refitting
+        ? t('ascent.army.refitBusy')
+        : tier >= MAX_ELITE_TIER
+          ? t('ascent.army.equipMaxed')
+          : !canSpend(state, equipCost) ? t('ascent.army.cannotAfford') : undefined,
     },
     {
       kind: 'reinforce',
       cost: reinforceCost,
       gain: recruits,
-      available: recruits > 0 && canSpend(state, reinforceCost),
-      reason: recruits <= 0
-        ? t('ascent.army.noPeople')
-        : !canSpend(state, reinforceCost) ? t('ascent.army.cannotAfford') : undefined,
+      available: !refitting && recruits > 0 && canSpend(state, reinforceCost),
+      reason: refitting
+        ? t('ascent.army.refitBusy')
+        : recruits <= 0
+          ? t('ascent.army.noPeople')
+          : !canSpend(state, reinforceCost) ? t('ascent.army.cannotAfford') : undefined,
     },
     {
       kind: 'drill',
       cost: drillCost,
       gain: army.level + 1,
-      available: army.level < levelCap && canSpend(state, drillCost),
+      available: !refitting && army.level < levelCap && canSpend(state, drillCost),
       // The barracks gate the ceiling, so drill cannot outrun the buildings that justify it.
-      reason: army.level >= levelCap
-        ? t('ascent.army.drillCapped', { cap: levelCap })
-        : !canSpend(state, drillCost) ? t('ascent.army.cannotAfford') : undefined,
+      reason: refitting
+        ? t('ascent.army.refitBusy')
+        : army.level >= levelCap
+          ? t('ascent.army.drillCapped', { cap: levelCap })
+          : !canSpend(state, drillCost) ? t('ascent.army.cannotAfford') : undefined,
     },
   ];
 }
@@ -488,15 +497,41 @@ export function upgradeArmy(state: GameState, armyId: string, kind: ArmyUpgradeK
   }
   applyResourceDelta(state, spend);
 
+  // Dragon Ascent: the coin leaves now, the gain lands later. A refit takes the host off the
+  // board for its duration (`tickArmyRefits` progresses it, StandingOrders and the autopilot
+  // skip it) — instant upgrades made "a few strong hosts" free of the one cost that should
+  // shape the choice: time off the line.
+  if (state.gameMode === 'ascent') {
+    const ticks = ARMY_REFIT_TICKS[kind];
+    army.refit = { kind, ticksLeft: ticks, total: ticks, gain: option.gain };
+    state.message = t('msg.armyRefitBegun', {
+      army: army.name,
+      action: t(`ascent.army.${kind}` as Parameters<typeof t>[0]),
+      n: ticks,
+    });
+    return true;
+  }
+
+  state.message = applyArmyUpgradeGain(state, army, kind, option.gain);
+  return true;
+}
+
+/**
+ * Lands one paid-for upgrade on a host and returns the sentence that announces it.
+ *
+ * Split from `upgradeArmy` because the gain now has two arrival times: immediately in the
+ * classic modes, and at the end of a refit in ascent (`tickArmyRefits`) — one place for the
+ * arithmetic, whichever clock it lands on.
+ */
+export function applyArmyUpgradeGain(state: GameState, army: Army, kind: ArmyUpgradeKind, gain: number): string {
   if (kind === 'equip') {
     army.elite = Math.min(MAX_ELITE_TIER, (army.elite ?? 0) + 1);
-    state.message = t('msg.armyEquipped', { army: army.name, tier: army.elite });
-    return true;
+    return t('msg.armyEquipped', { army: army.name, tier: army.elite });
   }
 
   if (kind === 'reinforce') {
     // Fresh men join in the host's own proportions, so a cavalry-heavy army stays one.
-    const added = option.gain;
+    const added = gain;
     const size = Math.max(1, totalUnits(army));
     const archers = Math.round(added * (army.units.archers / size));
     const heavy = Math.round(added * (army.units.heavyInfantry / size));
@@ -506,8 +541,7 @@ export function upgradeArmy(state: GameState, armyId: string, kind: ArmyUpgradeK
     // They arrive with their own baggage, which lifts a starving host off the floor.
     army.supply = Math.min(100, army.supply + ARMY_REINFORCE_SUPPLY_GAIN);
     army.rations = Math.min(100, (army.rations ?? 0) + ARMY_REINFORCE_SUPPLY_GAIN);
-    state.message = t('msg.armyReinforced', { army: army.name, n: added });
-    return true;
+    return t('msg.armyReinforced', { army: army.name, n: added });
   }
 
   army.experience += Math.round(army.experienceToNextLevel * ARMY_DRILL_XP_SHARE);
@@ -516,8 +550,7 @@ export function upgradeArmy(state: GameState, armyId: string, kind: ArmyUpgradeK
     army.level += 1;
     army.experienceToNextLevel = getArmyExperienceToNext(army.level);
   }
-  state.message = t('msg.armyDrilled', { army: army.name, level: army.level });
-  return true;
+  return t('msg.armyDrilled', { army: army.name, level: army.level });
 }
 
 /**

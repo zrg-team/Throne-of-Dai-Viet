@@ -687,6 +687,11 @@ const orders = await page.evaluate(async () => {
   AP.tickAscentAutopilot(st);
   const autoLeftItHungry = royal.rations === 0;
   const rs = SO.resupplyHost(st, royal.id);
+  // The column takes time now: the tap debits the stores and the baggage lands over the next
+  // ticks (`tickArmyRefits`), while the host stays free to act. Two ticks empties any column.
+  const RF = await import('/src/systems/ascent/refit.ts');
+  RF.tickArmyRefits(st);
+  RF.tickArmyRefits(st);
   const resupplyDipped = rs.ok && rs.food > 0 && royal.rations > 0;
 
   reseed(1008);

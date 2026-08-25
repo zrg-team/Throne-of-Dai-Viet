@@ -93,7 +93,7 @@ export const enAscent = {
   "ascent.chronicle.heard": "What was said",
   "ascent.chronicle.memorials": "Shrines",
   "ascent.over.memorials": "Enshrined",
-  "ascent.chronicle.muteLabel": "Let stories wait for me",
+  "ascent.chronicle.askFirst": "Memorials: the officials ask first",
   "ascent.chronicle.sworn": "Sworn, and still standing",
   "ascent.chronicle.swornSeasons": "{n} seasons left",
   "ascent.story.tag.chinh-su": "Chính sử",
@@ -201,6 +201,8 @@ export const enAscent = {
   "ascent.card.che-bong-nga.d": "The king who came back three times, and then did not. +14% army, +14 defence, a warmer world.",
 
   // ── Doctrine: what kind of realm this is ─────────────────────────────────
+  "ascent.court.course": "The realm's course",
+  "ascent.court.courseNone": "No course set — the ministers build as they see fit.",
   "ascent.doctrine.title": "What kind of realm is this?",
   "ascent.doctrine.subtitle": "{era} — your ministers will build to this until you say otherwise",
   "ascent.doctrine.standing": "The realm's present course",
@@ -378,6 +380,8 @@ export const enAscent = {
 
   "ascent.army.cannotAfford": "The treasury cannot cover it",
   "ascent.army.equipMaxed": "Already the finest kit the realm can make",
+  "ascent.army.refitBusy": "Refitting — the host takes no orders until it is done",
+  "ascent.army.refitStatus": "{action} — {n} more season(s)",
   "ascent.army.noPeople": "No one left to call up",
   "ascent.army.drillCapped": "Level {cap} is the ceiling your barracks allow",
   "ascent.army.equip": "Re-equip",
@@ -1233,6 +1237,9 @@ export const enAscent = {
   "ascent.orders.recalled": "{army} breaks off and marches for {land}.",
   "ascent.orders.noRoadHome": "{army} has no road home.",
   "ascent.orders.resupply": "Resupply now",
+  "ascent.orders.resupplySent": "{army}: a supply column sets out — {food} food and {supplies} supplies over {n} seasons",
+  "ascent.orders.resupplyEnRoute": "A supply column is on the road — {n} more season(s)",
+  "ascent.orders.resupplyArrived": "{army}'s column has arrived — the baggage is full",
   "ascent.orders.resupplyBody": "Rations {r}/{wantR} · provisions {p}/{wantP} — takes {food} food and {supplies} supplies from the stores.",
   "ascent.orders.resupplyNone": "Nothing to give — the stores are empty.",
   "ascent.orders.resupplyFull": "Fully provisioned.",
@@ -1587,7 +1594,7 @@ export const viAscent = {
   "ascent.chronicle.heard": "Đã nghe",
   "ascent.chronicle.memorials": "Đền thờ",
   "ascent.over.memorials": "Được lập đền",
-  "ascent.chronicle.muteLabel": "Để truyện đợi ta",
+  "ascent.chronicle.askFirst": "Tấu chương: quan lại hỏi trước",
   "ascent.chronicle.sworn": "Đã thề, và vẫn còn đó",
   "ascent.chronicle.swornSeasons": "Còn {n} mùa",
   "ascent.story.tag.chinh-su": "Chính sử",
@@ -1695,6 +1702,8 @@ export const viAscent = {
   "ascent.card.che-bong-nga.d": "Vị vua trở lại ba lần, rồi thôi. +14% sức chiến, +14 phòng thủ, thiên hạ bớt lạnh nhạt.",
 
   // ── Quốc sách: giang sơn này là loại giang sơn gì ─────────────────────────
+  "ascent.court.course": "Đường lối trị quốc",
+  "ascent.court.courseNone": "Chưa định đường lối — quần thần tự liệu mà xây.",
   "ascent.doctrine.title": "Giang sơn này sẽ là loại giang sơn gì?",
   "ascent.doctrine.subtitle": "{era} — quần thần sẽ theo đó mà dựng, cho tới khi ngài đổi ý",
   "ascent.doctrine.standing": "Đường lối hiện tại của triều đình",
@@ -1866,6 +1875,8 @@ export const viAscent = {
 
   "ascent.army.cannotAfford": "Ngân khố không kham nổi",
   "ascent.army.equipMaxed": "Đã là trang bị tốt nhất triều đình có thể rèn",
+  "ascent.army.refitBusy": "Đang chỉnh đốn — chưa xong thì quân không nhận lệnh",
+  "ascent.army.refitStatus": "Đang {action} — còn {n} mùa",
   "ascent.army.noPeople": "Không còn ai để gọi nhập ngũ",
   "ascent.army.drillCapped": "Cấp {cap} là trần mà doanh trại cho phép",
   "ascent.army.equip": "Trang bị lại",
@@ -2694,6 +2705,9 @@ export const viAscent = {
   "ascent.orders.recalled": "{army} rút lui, kéo về {land}.",
   "ascent.orders.noRoadHome": "{army} không có đường về.",
   "ascent.orders.resupply": "Tiếp tế ngay",
+  "ascent.orders.resupplySent": "{army}: đoàn tiếp tế lên đường — {food} lương, {supplies} vật tư trong {n} mùa",
+  "ascent.orders.resupplyEnRoute": "Đoàn tiếp tế đang trên đường — còn {n} mùa",
+  "ascent.orders.resupplyArrived": "Đoàn tiếp tế đã tới — {army} đầy đủ quân nhu",
   "ascent.orders.resupplyBody": "Lương {r}/{wantR} · quân nhu {p}/{wantP} — lấy {food} lương và {supplies} vật tư từ kho.",
   "ascent.orders.resupplyNone": "Không còn gì để cấp — kho trống.",
   "ascent.orders.resupplyFull": "Đã đủ đầy.",

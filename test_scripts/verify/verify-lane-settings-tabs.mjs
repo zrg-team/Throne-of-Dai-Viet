@@ -13,6 +13,9 @@ mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+// The game defaults to Vietnamese now; the first half of this file asserts the English labels,
+// so pin the language — the Vietnamese passes below switch with setLanguage('vi') as before.
+await page.addInitScript(() => localStorage.setItem('mandate:language:v1', 'en'));
 const errors = [];
 const checks = [];
 const check = (pass, label, detail = '') => {
@@ -302,7 +305,7 @@ const shortBounds = await shortPage.evaluate(() => {
   return rows;
 });
 const shortClose = shortBounds.find((row) => row.text === 'Đóng');
-const shortToggle = shortBounds.find((row) => row.text === 'Để truyện đợi ta');
+const shortToggle = shortBounds.find((row) => row.text === 'Tấu chương: quan lại hỏi trước');
 check(Boolean(shortClose && shortToggle && shortToggle.bottom < shortClose.top && shortClose.bottom <= 620),
   'tabs, checkbox, and Close remain separated at 390×620',
   JSON.stringify({ toggle: shortToggle, close: shortClose }));

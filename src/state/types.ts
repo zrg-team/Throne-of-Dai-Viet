@@ -390,6 +390,21 @@ export interface Army {
   /** Elite tier (0 = levy, 1 = trained, 2 = royal guard); each tier adds battle power. */
   elite?: number;
   /**
+   * A refit under way (Dragon Ascent): fresh men marching in, new kit being fitted, or drill.
+   *
+   * While it stands the host takes NO orders — the standing-order tick skips it, the autopilot
+   * leaves it be, and every order surface says why. It still defends the ground it stands on:
+   * being attacked is not an action. The paid-for gain lands when `ticksLeft` runs out
+   * (`tickArmyRefits`), not in the instant the coin left the treasury.
+   */
+  refit?: { kind: 'equip' | 'reinforce' | 'drill'; ticksLeft: number; total: number; gain: number };
+  /**
+   * A supply column on the road (Dragon Ascent). The baggage arrives spread over the column's
+   * remaining ticks rather than on the tap; the host acts freely while it comes. `food` and
+   * `supplies` are what is still to deliver.
+   */
+  resupplyRun?: { ticksLeft: number; food: number; supplies: number };
+  /**
    * Full command delegated to this army's hero: the general autonomously marches to
    * intercept the nearest incoming invasion, so the player can let a trusted hero run the
    * frontier instead of micro-managing every march.
