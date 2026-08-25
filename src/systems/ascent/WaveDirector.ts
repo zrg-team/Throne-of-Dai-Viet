@@ -25,6 +25,11 @@ import {
   WAVE_INTERVAL_TICKS,
   WAVE_LAG,
   WAVE_OPENING_SHARE,
+  WAVE_SHADOW_BASE,
+  WAVE_SHADOW_CEIL,
+  WAVE_SHADOW_HEAT_SHARE,
+  WAVE_SHADOW_MAX,
+  WAVE_SHADOW_RAMP,
   XP_PER_WAVE_SURVIVED,
  waveMatchFactor,
 } from '../../game/ascentConfig';
@@ -163,13 +168,13 @@ export function isBossWave(wave: number): boolean {
 }
 
 /**
- * The realm's defensive power as raids and mercenary companies see it: what it could field
- * `WAVE_LAG` waves ago, not what it can field now.
+ * The realm's defensive power as raids, mercenary companies and the wave's shadow see it: what
+ * it could field `WAVE_LAG` waves ago, not what it can field now.
  *
- * Waves no longer read this — they are sized from ambition (see `waveTargetPower`) precisely
- * because sizing them against the realm's own strength made every pick self-cancelling. The
- * things that *should* scale with the player still do: a border raid is a neighbour testing
- * whatever you have, and a mercenary company is priced as a real answer to it.
+ * The pure mirror (`lagged × pressure`, ratio pinned near 1) was removed for making every pick
+ * self-cancelling; the shadow in `waveTargetPower` reads this again, but only ever as a
+ * SUB-mirror share — the lag is what makes consolidating between waves worth something, and the
+ * share below one is where the player's edge lives.
  */
 export function laggedDefencePower(state: GameState): number {
   const ascent = state.ascent;
@@ -221,7 +226,18 @@ export function waveTargetPower(
   // IT, not to the wave number. Applied at the single source — the soldier budget, the
   // budget-spent skip and the HUD's projection all read this — so the quote on the strength
   // rail can never disagree with the host that lands.
-  return target * waveMatchFactor(state.ascent?.power ?? 0, target);
+  const curve = target * waveMatchFactor(state.ascent?.power ?? 0, target);
+
+  // The realm's shadow (see the WAVE_SHADOW_* block in ascentConfig): the curve above still
+  // owns the floor for a realm that has done nothing, but a compounding economy laps any
+  // calendar — measured, defence at 17,800 against waves of a few hundred men — so the wave is
+  // also floored at a growing, sub-mirror share of what the realm could field WAVE_LAG waves
+  // ago. Under the share the fight is always real; over it, the player's edge is their own.
+  const rampShare = Math.min(WAVE_SHADOW_MAX, WAVE_SHADOW_BASE + WAVE_SHADOW_RAMP * Math.max(0, wave - 1));
+  const heatedShare = Math.min(WAVE_SHADOW_CEIL, rampShare * (1 + (heat - 1) * WAVE_SHADOW_HEAT_SHARE));
+  const shadow = laggedDefencePower(state) * heatedShare * (boss ? BOSS_PRESSURE_MULT : 1);
+
+  return Math.max(curve, shadow);
 }
 
 /** The multiplier the wave on the map was sized with, for everything that must match its quote. */

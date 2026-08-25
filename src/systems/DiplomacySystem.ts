@@ -1,4 +1,4 @@
-import { isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
+import { isCampaignMode, isEndlessMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import type { Difficulty, GameState, Kingdom, KingdomPersonality, OpinionModifier } from '../state/types';
 import { t } from '../i18n';
 
@@ -180,10 +180,18 @@ export function getEmpirePower(state: GameState, kingdom: Kingdom): number {
   // Off-map empires: their strength is the evolving `power` index (see GreatPowersSystem),
   // so a realm that grows powerful over the years is genuinely more dangerous. Falls back
   // to a personality/turn estimate before the sim seeds the value.
-  if (typeof kingdom.power === 'number') {
-    return kingdom.power * 10 * militaryWeight(kingdom.personality) * difficultyScale(state.campaignConfig?.difficulty);
+  const indexed = typeof kingdom.power === 'number'
+    ? kingdom.power * 10 * militaryWeight(kingdom.personality) * difficultyScale(state.campaignConfig?.difficulty)
+    : 460 * militaryWeight(kingdom.personality) * (1 + state.turn * 0.03) * difficultyScale(state.campaignConfig?.difficulty);
+  // Dragon Ascent: the crown that keeps fielding wave-sized hosts is, by demonstration, at
+  // least that strong. The index above is clamped at 122 by GreatPowersSystem — a backdrop
+  // figure — so against a realm whose own POWER reads in the thousands the world page called
+  // every rival a village (user-reported). THREAT is what their armies actually measure at, so
+  // it is the floor of what they are said to have, spread by personality.
+  if (isEndlessMode(state.gameMode) && state.ascent) {
+    return Math.max(indexed, Math.round((state.ascent.threat ?? 0) * militaryWeight(kingdom.personality)));
   }
-  return 460 * militaryWeight(kingdom.personality) * (1 + state.turn * 0.03) * difficultyScale(state.campaignConfig?.difficulty);
+  return indexed;
 }
 
 export function getPlayerMilitary(state: GameState): number {

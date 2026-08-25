@@ -152,6 +152,36 @@ export const WAVE_BASELINE_POWER = 420;
  */
 export const WAVE_BASELINE_GROWTH = 1.11;
 
+// ── The realm's shadow: the wave never falls far behind what it attacks ──────
+//
+// The baseline curve alone lost to arithmetic: an economy that compounds at ~9% a wave laps a
+// curve growing at 11% off a tiny base — measured over a 260-tick run, the realm's defence
+// climbed 3,000 → 17,800 while waves lingered at a few hundred men that died to the garrison
+// roll on arrival. Twenty minutes of play with no fight in it, from a mode whose whole point is
+// the fight (user-reported, with the screenshots to match).
+//
+// The pure mirror was tried before and removed for the opposite failure — threat pinned at
+// ~0.95× of defence made every choice self-cancelling. The shadow keeps the mirror's honesty
+// and returns the player their edge by staying UNDER them: a wave is floored at a share of what
+// the realm could field WAVE_LAG waves ago, the share climbing with the wave number but never
+// reaching a full mirror. Optimising still pays — the margin between the share and your true
+// strength is yours, and consolidation still helps because the shadow lags — but the fight is
+// always real, which is the challenge contract this mode was missing.
+/** Share of lagged defence the first wave's shadow stands at. */
+export const WAVE_SHADOW_BASE = 0.55;
+/** How much of the realm's defence each further wave adds to the shadow. */
+export const WAVE_SHADOW_RAMP = 0.02;
+/** The share's ceiling before heat: never a full mirror — the optimiser keeps their edge. */
+export const WAVE_SHADOW_MAX = 0.92;
+/** Ambition bites the shadow at half strength; its full weight stays on the baseline curve. */
+export const WAVE_SHADOW_HEAT_SHARE = 0.5;
+/**
+ * Hard ceiling on the shadow's share, heat included. An ordinary wave never exceeds what the
+ * realm could actually field two waves ago — bosses pierce it with BOSS_PRESSURE_MULT, which is
+ * exactly what a telegraphed Great Invasion is for.
+ */
+export const WAVE_SHADOW_CEIL = 1.0;
+
 // ── Wave pressure: sizing a wave against what actually defends ───────────────
 /**
  * Battle power one invader soldier is worth, derived from the spawn profile in
