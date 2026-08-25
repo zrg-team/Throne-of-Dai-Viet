@@ -2,8 +2,8 @@
  * The README's pictures, produced from the live game so they never drift from it.
  *
  * Every image under docs/readme/ comes out of this script: portrait shots of the screens that
- * explain the game, a four-season strip, a three-theme strip, a row of champion portraits, and the
- * wide banner. Screenshots are taken as PNG and re-encoded to WebP *inside Chromium* — this
+ * explain the game, a four-season strip, a three-theme strip, a row of champion portraits, two
+ * crops (the battle field band, the shape-counter ring), and the wide banner. Screenshots are taken as PNG and re-encoded to WebP *inside Chromium* — this
  * machine has no image tools, and a 2× PNG of the sheet weighs 1.1 MB where the WebP weighs a
  * tenth of that. Strips are composed the same way, on a canvas, with transparent gutters so they
  * sit on GitHub's light and dark pages alike.
@@ -356,6 +356,34 @@ if (want('ascent')) {
   const conquerPng = await shot(page);
   await save('conquer', [conquerPng]);
 
+  // The Build lane: the works a province can raise, priced by the economy that will pay for them.
+  await page.evaluate(() => {
+    const st = window.__mandateState;
+    st.pendingAscentPrompt = undefined;
+    st.ascent.promptQueue = [];
+    const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+    ui.events.emit('state-changed');
+    ui.openLane('build');
+  });
+  await page.waitForTimeout(900);
+  await save('build', [await shot(page)]);
+
+  // The summon: the gacha card, drawn over the same realm so the header vouches for the price.
+  await page.evaluate(async () => {
+    const st = window.__mandateState;
+    const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+    try { ui.closeLane?.(); } catch { /* nothing open */ }
+    const { offerHeroSummon } = await import('/src/systems/ascent/SummonSystem.ts');
+    const { drainAscentPrompts } = await import('/src/systems/ascent/AscentState.ts');
+    st.pendingAscentPrompt = undefined;
+    st.ascent.promptQueue = [];
+    offerHeroSummon(st);
+    drainAscentPrompts(st);
+    ui.events.emit('state-changed');
+  });
+  await page.waitForTimeout(900);
+  await save('summon', [await shot(page)]);
+
   await page.close();
 }
 
@@ -371,6 +399,10 @@ if (want('battle')) {
   await page.waitForTimeout(1200);
   battlePng = await shot(page);
   await save('battle', [battlePng]);
+  // The field alone, wide: how a host is drawn — ranked figures in their shape, the banner, the
+  // camp behind. Same held frame as the full shot, cropped to the band between the commander
+  // card and the strength bars.
+  await save('armies', [await shot(page, { x: 0, y: 186, width: 390, height: 296 })]);
   await page.close();
 }
 
@@ -486,6 +518,8 @@ if (want('skirmish')) {
   await page.waitForFunction(() => window.__phaserGame.scene.isActive('BattleArenaScene'), null, { timeout: 15000 });
   await page.waitForTimeout(1200);
   await save('skirmish', [await shot(page)]);
+  // The counter ring the muster form teaches — cropped out as the fight section's diagram.
+  await save('shapes-ring', [await shot(page, { x: 40, y: 608, width: 310, height: 134 })]);
   await page.close();
 }
 

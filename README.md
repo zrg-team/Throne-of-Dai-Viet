@@ -8,7 +8,7 @@
 
 ### Vietnamese history, played one-handed on a phone.
 
-**A grand-strategy game printed like a Đông Hồ woodblock — free, ad-free, in English and Tiếng Việt.**
+**A grand-strategy roguelite printed like a Đông Hồ woodblock — free, ad-free, in English and Tiếng Việt.**
 
 [![Play in the browser](https://img.shields.io/badge/▶%20%20Play%20now-zrg--team.github.io-b33a26?style=for-the-badge)](https://zrg-team.github.io/ten-thousand-victories/)
 &nbsp;
@@ -33,74 +33,96 @@ Outside Việt Nam almost nobody knows them. Inside, they arrive as paragraphs i
 
 **Vạn Thắng** is an attempt to make that history *playable* — to have Yết Kiêu the diver, Lê Lai's borrowed coat and the Temple of Literature turn up as decisions on your screen, in a game good enough that people play it for the game. It is written for the phone in your pocket, in both languages as equals, and it is free.
 
-## 🐉 How it plays
+## 🐉 How it plays — Dragon Ascent · *Rồng Thăng Long*
 
-You are a small lord with one citadel on a map of forty-two provinces, generated fresh for every run. The map is the whole progression tree: a paddy province solves food, an iron mountain hardens your infantry, a port pays for expansion, a temple steadies your court, and a rival's walls are the problem you are building towards. Time is real-time — the realm ticks whether you are watching or not — and every choice is a card you can answer with a thumb.
-
-<table>
-  <tr>
-    <td align="center" width="33%"><img src="docs/readme/ascent-map.webp" alt="The Dragon Ascent realm in autumn: hamlets, banners, an invasion live, the court whispering" width="100%"><br><sub>The realm, mid-run</sub></td>
-    <td align="center" width="33%"><img src="docs/readme/conquer.webp" alt="A conquest card: where do we press?" width="100%"><br><sub>Where do we press?</sub></td>
-    <td align="center" width="33%"><img src="docs/readme/battle.webp" alt="A battle at the drum: speech bubbles over both hosts, the five shapes, the tempo dial" width="100%"><br><sub>A battle you can command — or leave to your generals</sub></td>
-  </tr>
-</table>
-
-### 🔥 Dragon Ascent · *Rồng Thăng Long*
-
-The headline mode, and a roguelite: **the realm marches itself; you choose its power.**
+You are a small lord with one citadel on a map of forty-two provinces, generated fresh for every run. **The realm marches itself; you choose its power.** Time is real-time — the country ticks whether you are watching or not — and every choice arrives as a card you can answer with a thumb.
 
 - **Waves.** Every year and a half an invading host arrives, bigger than the last; every fourth is a boss, telegraphed a season ahead. Survive as many as you can — there is no win, only how far you got.
 - **Ambition is the dial.** Every province you take, every card you draft, every host you raise, raises the heat of what comes back at you. Expansion is never free.
 - **Power draft.** Level up and choose one of four cards — bronze, silver, gold, jade — that stack permanently. Two cards you have maxed can *evolve* into something neither was.
-- **Champions.** Summon heroes from a gacha with pity, or draft them from your court's Favor. Each has six stats, a portrait, and a name that might be real.
 - **Doctrine.** Once an era, tell your ministers what kind of realm this is — *Fortify, Expand, Enrich, Arm* — and the autopilot builds towards it until you say otherwise.
-- **Battles.** A fight worth watching opens itself — the whole battle system below, with your general on the plate and the run at stake. Or *leave this one to my generals*.
 - **The end of a run banks Legacy**, which buys permanent perks for the next.
 
-### ⚔️ Skirmish · one fight, on its own
+<table>
+  <tr>
+    <td align="center" width="33%"><img src="docs/readme/ascent-map.webp" alt="The realm in autumn: hamlets, banners, an invasion live, the court whispering" width="100%"><br><sub>The realm, mid-run</sub></td>
+    <td align="center" width="33%"><img src="docs/readme/conquer.webp" alt="A conquest card: where do we press?" width="100%"><br><sub>Where do we press?</sub></td>
+    <td align="center" width="33%"><img src="docs/readme/power-draft.webp" alt="Level 16 — choose your power: four cards that stack permanently" width="100%"><br><sub>Choose your power</sub></td>
+  </tr>
+</table>
+
+Underneath that loop the game runs on four systems — an economy, a court of heroes, a battle screen, and a story engine — and the rest of this page is what they are and why. *(Three classic modes — Skirmish, Throne of Empires, Campaign — ship alongside; Dragon Ascent is the game.)*
+
+## 🌾 The economy — what the realm runs on
 
 <table>
   <tr>
     <td valign="top">
 
-*Set the matchup and fight it. No map, no economy — the battle alone.*
+Four resources — **food, supplies, gold, humans** — flow from provinces whose yields come from their actual hexes: paddies and rivers feed, hills and mountains arm, ports trade. Seasons move the harvest (autumn ×1.25, winter ×0.8). Armies eat rations, burn provisions on the march, and desert when they starve; heroes draw wages; income past five hundred gold is taxed by diminishing returns, and a hoard past four thousand starts leaking to graft — the advisor will tell you exactly how much of your pile rots this season.
 
-Every battle in the game is fought with **five shapes and a drum**. The shapes are *thế* — postures an army takes: **Chông** the hedge of spears, **Xung** the wedge, **Tán** the loose swarm, **Quy** the tortoise, **Nỏ** the massed volley — and each beats the two that follow it, round a ring the page draws for you. On top of them sits a tempo dial from *pull back* to *press*, a reserve you commit once, and *dồn sức* — wagering a second pip on the shape you already hold. Reading the enemy's shape through the dust and answering it in time is the whole craft.
+**Build is how you steer it.** Each province holds a few works; what you raise decides what the realm can do — walls buy defence, farms buy runway, markets buy the next summon. Work takes seasons, and the claims row at the top rations expansion itself: the realm can court only so many provinces at once, and *the court asks first* — a province within reach is put to you before a coin is spent on it.
 
-Skirmish is that system on its own page: pick both hosts, their composition, the ground, the enemy's temper and your general's skill, and take command. It is over in minutes, and the odds line is computed by the same code that will resolve it. The long modes hand you these battles mid-run; this page is where you learn to win them.
+**Why it is built this way.** A roguelite about expansion needs a brake that is not a timer, and the economy is it: every province taken and host raised feeds Ambition, which sizes the next wave — so the build screen is really a risk dial. And every number the interface quotes — the odds on a card, the rot on the hoard — is computed by the same code that will resolve it, so reading the screen *is* reading the simulation.
 
 </td>
-    <td width="40%"><img src="docs/readme/skirmish.webp" alt="The Skirmish muster form: both hosts, the ground, the enemy's temper, and the ring of five shapes" width="100%"></td>
+    <td width="38%"><img src="docs/readme/build.webp" alt="The Build lane: claims rationed at the top, provinces with works built and defence, work under way" width="100%"></td>
   </tr>
 </table>
 
-### 👑 Throne of Empires · *Ngai Vàng Các Đế Quốc*
-
-Endless survival on the hand-played map. Four empires press from *off* the map; you climb through eras — Founding, Rivalry, Empires, Mandate — with directives to fulfil, edicts and wonders to build, crises to weather, and a court of heroes with missions and abilities. The only victory is to *ascend*.
-
-### 🏯 Campaign
-
-The classic: expand province by province against three rival kingdoms on the same map, and take their capitals.
+## 🎎 The heroes — a court worth paying
 
 <table>
   <tr>
-    <td align="center" width="33%"><img src="docs/readme/founder.webp" alt="A new sovereign ascends: choose what the throne already holds" width="100%"><br><sub>Found your dynasty</sub></td>
-    <td align="center" width="33%"><img src="docs/readme/power-draft.webp" alt="Choose your power — four cards of different rarity" width="100%"><br><sub>Choose your power</sub></td>
-    <td align="center" width="33%"><img src="docs/readme/empire-map.webp" alt="Throne of Empires: the map with the empire roster and mandate bar" width="100%"><br><sub>Throne of Empires</sub></td>
+    <td width="38%"><img src="docs/readme/summon.webp" alt="Summon a Champion: three answer the call, one will serve — a portrait, six stats, a character line, wages" width="100%"></td>
+    <td valign="top">
+
+Champions arrive by **summon** — a gacha with pity, *three answer the call, one will serve* — or are drafted from your court's Favor. Each carries six stats (martial, logistics, administration, diplomacy, loyalty, renown), a wage the treasury feels every season, a character line worth reading, and a portrait; a first meeting is recorded in the Codex for good.
+
+**How they move the game.** A hero is not a stat sheet in a menu: they govern provinces, carry missions, and above all *command* — the general on the battle plate moves the odds, and an unled host fights like one. They have lives of their own too: rivals start eating together, someone asks for a command, someone walks out — and the Chronicle casts its stories from exactly these people, so the general in your next legend is the one you summoned, paid, and nearly lost.
+
+**Why it is built this way.** The history this game cares about is people, so the run needs a cast things can happen *to*. A gacha gives each run different company; wages tie the court to the economy; and the stats mean the question "who leads?" is a real decision, not flavour.
+
+</td>
   </tr>
 </table>
 
-### 🌾 The economy underneath
+The portraits are not stock art. They are composed from a library of **267 drawn parts** — heads, hair, hats, collars, robes, marks — chosen by **who the person is** (era, office, rank, sex, vows) before a seed picks within that wardrobe, so an official of the Lê court does not wear a Nguyễn collar and a general in the field does not wear a scholar's cap. The roster runs to 127 champions, and many of them are real:
 
-Four resources — **food, supplies, gold, humans** — flow from provinces whose yields come from their actual hexes: paddies and rivers feed, hills and mountains arm, ports trade. Seasons move the harvest (autumn ×1.25, winter ×0.8). Armies eat rations and burn provisions on the march and desert when they starve; heroes draw pay; income past five hundred gold is taxed by diminishing returns and a hoard past four thousand starts leaking to graft. Every number the interface quotes — the odds on a battle card, the demand on a province — is computed by the same code that will resolve it.
+<img src="docs/readme/portraits.webp" alt="Ten champions from the roster, Ngô Quyền to Lê Quý Đôn — era, office and sex decide the clothes" width="100%">
 
-## 📜 The Chronicle
-
-The stories are not cutscenes. They are **forty-eight templates** that bind themselves to *your* heroes and *your* provinces when the moment fits — a whisper on the map, a card in your hand, or a blow that changes the run — and each one is a piece of Vietnamese history or legend, told at the length a run has room for.
+## 🥁 The fight screen — five shapes and a drum
 
 <table>
   <tr>
-    <td width="40%"><img src="docs/readme/chronicle.webp" alt="A story card: A Blade in the Net — a fisherman pulls up the same length of iron three nights running" width="100%"></td>
+    <td valign="top">
+
+A fight worth watching opens itself: both hosts form up, the drum falls in five, and from then on you are reading the field. Every battle is fought with **five shapes** — *thế*, the postures an army takes: **Chông** the hedge of spears, **Xung** the wedge, **Tán** the loose swarm, **Quy** the tortoise, **Nỏ** the massed volley — and each beats the two that follow it, round the ring:
+
+<div align="center"><img src="docs/readme/shapes-ring.webp" alt="Which shape beats which — the counter ring" width="82%"></div>
+
+The enemy telegraphs what they hold and what they are re-forming into, in words over their line — *their spears are set*, *they form Quy · 3* — and you answer. On top of the shapes sits a **tempo dial** from *pull back* to *press*, which decides how fast men are spent and multiplies your read — leaning on the right shape wins bigger, leaning on the wrong one bleeds worse. **Dồn sức** wagers a second pip on the shape you already hold; the **reserve** is committed once; relief can be sent for; or hand the whole thing to your generals — their judgement is worth something, never as much as being there.
+
+**Why it is built this way.** No unit micromanagement survives a phone held in one hand. The fight is instead one legible question — *what are they holding, and what answers it?* — asked under a clock, with everything readable at arm's length. And it is never separate from the run: the hosts are the ones your economy raised, the commander is the hero you paid, and the outcome moves the ground held, the momentum, and the heat of the next wave.
+
+</td>
+    <td width="38%"><img src="docs/readme/battle.webp" alt="A battle at the drum: a named commander, speech bubbles over both hosts, the five shapes, the tempo dial" width="100%"></td>
+  </tr>
+</table>
+
+### The armies on the field
+
+Nothing on the field is a sprite sheet. A host is drawn as ranked figures standing in the shape it is actually holding — spears two deep, horse gathered at the point, shields locked — under its own banner, with its camp behind it, from the same procedural ink that draws the paddies and the citadels. What you can read at a glance — *their line is still forming, ours is a set hedge* — **is** the state of the fight:
+
+<img src="docs/readme/armies.webp" alt="Both hosts drawn on the field: ranked figures in their shapes, banners, camps, speech bubbles" width="100%">
+
+## 📜 The Chronicle — the stories are the engine
+
+The stories are not cutscenes. They are **forty-eight templates** that bind themselves to *your* heroes and *your* provinces when the moment fits — a whisper on the map between decisions, a card in your hand, or a blow that changes the run — and each one is a piece of Vietnamese history or legend, told at the length a run has room for.
+
+<table>
+  <tr>
+    <td width="40%"><img src="docs/readme/chronicle.webp" alt="A story card in play: a rival lord's offer, three answers with real costs, and an advisor's counsel beneath" width="100%"></td>
     <td valign="top">
 
 **A few of the pages**
@@ -110,16 +132,16 @@ The stories are not cutscenes. They are **forty-eight templates** that bind them
 - *Cọc Bạch Đằng* · The Stakes in the River
 - *Hội Nghị Diên Hồng* · The Elders Answer
 - *Quả Cam* · The Orange — Trần Quốc Toản
-- *Hịch Tướng Sĩ* · Proclamation to the Officers
 - *Nam Quốc Sơn Hà* · The Mountains and Rivers of the Southern Land
-- *Chiếu Dời Đô* · The Edict on Moving the Capital
 - *Bình Ngô Đại Cáo* · The Great Proclamation
 - *Hai Bà Trưng* · The Trưng Sisters, and *Sáu Mươi Lăm Thành*
 - *Lê Lai Đổi Áo* · The Substitution
 - *Hồ Gươm* · The Lake of the Returned Sword
-- *Yết Kiêu* · The Diver · *Ải Chi Lăng* · *Thần Tốc* · *Văn Miếu* · *Lũy Thầy* · *Đê Điều* · *Thánh Gióng* · *Sơn Tinh Thủy Tinh* …
+- *Yết Kiêu* · The Diver · *Ải Chi Lăng* · *Thần Tốc* · *Văn Miếu* · *Thánh Gióng* · *Sơn Tinh Thủy Tinh* …
 
-Some stories ask you to **swear a charge** — hold a province, keep the peace, build what you promised — and remember whether you kept it. Some leave **echoes** in the browser, so a hero who walked out on you in one run can be named in the next. Every telling is tagged for what it is — *chính sử*, what the annals record; *dã sử*, what is told; *ngoại truyện*, what is only ours — and all of it lands in a Chronicle you can read back at the end.
+**How they move the game.** A story is played with real pieces: it casts the general you actually summoned and the province you actually hold, its choices spend real gold and real men, and when it resolves, the card says exactly what it changed — *−400 able men, −60 gold, the story turns toward a command*. Some ask you to **swear a charge** — hold a province, keep the peace — and remember whether you kept it. Some leave **echoes** in the browser, so a hero who walked out on you in one run can be named in the next.
+
+**Why it is built this way.** The stories are the point of the whole project — but a story you can skip is a cutscene, and a cutscene teaches nothing. Binding them to the run's own heroes, land and treasury makes the history something that *happens to you*. Every telling is tagged for what it is — *chính sử*, what the annals record; *dã sử*, what is told; *ngoại truyện*, what is only ours — and all of it lands in a Chronicle you can read back at the end.
 
 </td>
   </tr>
@@ -129,7 +151,6 @@ Some stories ask you to **swear a charge** — hold a province, keep the peace, 
 
 <table>
   <tr>
-    <td width="40%"><img src="docs/readme/history.webp" alt="The History page, open on the People tab: real people with portraits, dates and what they did" width="100%"></td>
     <td valign="top">
 
 The game dramatises; this page does not. **History**, one tap from the front page, states its own terms: *what actually happened, and what this game made of it*. Five tabs in both languages — the dynasties in order, the people with their portraits and dates, every story the Chronicle tells set against the record, how the armies of each era fought, and the terms a newcomer meets — a reference a curious player can fall into for an hour.
@@ -137,24 +158,9 @@ The game dramatises; this page does not. **History**, one tap from the front pag
 The game also teaches itself: a **How to Play** page, guided tours of the first run, and an advisor strip that reads *your* live run and says what it would do next — so the strategy genre's usual wall of numbers is somebody's actual advice instead.
 
 </td>
+    <td width="38%"><img src="docs/readme/history.webp" alt="The History page, open on the People tab: real people with portraits, dates and what they did" width="100%"></td>
   </tr>
 </table>
-
-## 🖌️ The look
-
-The whole game is drawn like a **Đông Hồ folk woodblock print**: shell-coated điệp paper, a colour block pulled first and a soot-black contour pulled second, never quite in register. There are almost no sprites — the paddies, banyans, buffalo, citadels, hosts and portraits are procedural drawing, in a palette of real pigments (điệp, mực, sỏi son, chàm, gỉ đồng, hoè, nâu). The saturated red is spent on the player alone.
-
-The country turns with the calendar. Nothing is a colour filter over the screen — the leaves change, the paddies flood, ripen and are cut, the winter is bare:
-
-<img src="docs/readme/seasons.webp" alt="The same paddy country in spring, summer, autumn and winter" width="100%">
-
-Two other art directions ship in Settings — an ink-wash and an illustrated atlas — but Đông Hồ is the game:
-
-<img src="docs/readme/themes.webp" alt="The same country in the Đông Hồ, ink-wash and illustrated-atlas themes" width="100%">
-
-Portraits are composed from a library of **267 drawn parts** — heads, hair, hats, collars, robes, marks — chosen by **who the person is** (era, office, rank, sex, vows) before a seed picks within that wardrobe, so an official of the Lê court does not wear a Nguyễn collar and a general in the field does not wear a scholar's cap. The roster runs to 127 champions, and many of them are real:
-
-<img src="docs/readme/portraits.webp" alt="Ten champions from the roster, Ngô Quyền to Lê Quý Đôn — era, office and sex decide the clothes" width="100%">
 
 ## 📱 Play
 
