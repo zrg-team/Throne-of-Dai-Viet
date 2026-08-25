@@ -10,6 +10,8 @@
 
 **A grand-strategy roguelite printed like a Đông Hồ woodblock — free, ad-free, in English and Tiếng Việt.**
 
+**[🇻🇳 Đọc trang này bằng tiếng Việt](README.vi.md)**
+
 [![Play in the browser](https://img.shields.io/badge/▶%20%20Play%20now-zrg--team.github.io-b33a26?style=for-the-badge)](https://zrg-team.github.io/ten-thousand-victories/)
 &nbsp;
 [![Deploy](https://github.com/zrg-team/ten-thousand-victories/actions/workflows/deploy-github-pages.yml/badge.svg)](https://github.com/zrg-team/ten-thousand-victories/actions/workflows/deploy-github-pages.yml)
