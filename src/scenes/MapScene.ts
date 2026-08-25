@@ -36,6 +36,7 @@ import { UI_FONT } from '../ui/fonts';
 import { t } from '../i18n';
 import { MINIMAP_H, MINIMAP_W } from '../ui/MinimapRenderer';
 import { applyPendingRenderScale, bakeScale, designPointer, liveSettlementInk, lodDropsLabels, lodZoomThreshold, renderScaleNow } from '../game/graphicsQuality';
+import { qualityLadder } from '../game/qualityLadder';
 import { fitBakeScale } from '../ui/ink/textureLimits';
 import { figureEraFor } from '../ui/ink/devices';
 
@@ -295,6 +296,9 @@ export class MapScene extends Phaser.Scene {
   create(): void {
     // A pending ladder step lands here, at the scene boundary, before any camera is set up.
     applyPendingRenderScale(this.game);
+    // The map build and its bakes take real frames; the ladder must not read them as the
+    // device failing to keep up — that misread is what stepped iPhones off an explicit high.
+    qualityLadder()?.markSceneStart();
     // The map camera carries the render scale on top of the map's own zoom, so it starts at the
     // scale rather than at 1 — without this the world draws at design size inside a buffer several
     // times larger, which reads as the map having silently zoomed out.

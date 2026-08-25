@@ -169,6 +169,26 @@ function profile(): QualityProfile {
 }
 
 /**
+ * The bake-affecting half of the profile, snapshotted in step with the BUFFER scale — never with
+ * the rung's wish.
+ *
+ * The rung override lands the moment the ladder moves, but the buffer only resizes at a scene
+ * boundary (`applyPendingRenderScale`), and mid-run on a phone that boundary can be minutes away.
+ * In between, the first season turn or fog reveal rebaked the world at the NEW rung's density
+ * under the OLD buffer: a 0.75-texel bake magnified by a 3x buffer — the whole map turned soft
+ * while every label stayed crisp, one minute into every run on an iPhone at high, 100% of the
+ * time. So the two bake answers below follow this snapshot, which moves only where the buffer
+ * moves: immediately when a request changes nothing (same scale, no boundary coming), otherwise
+ * at the boundary that lands the resize.
+ */
+let appliedBakeProfile = bakeTarget();
+
+function bakeTarget(): { bakeScale: number; liveSettlementInk: boolean } {
+  const current = profile();
+  return { bakeScale: current.bakeScale, liveSettlementInk: current.liveSettlementInk };
+}
+
+/**
  * The factor between design units and drawing-buffer pixels.
  *
  * Capped by the device's own ratio, because rendering above it is invisible by definition — the
@@ -206,7 +226,8 @@ export function bakeScale(): number {
   if (BAKESCALE_OVERRIDE !== undefined) {
     return BAKESCALE_OVERRIDE;
   }
-  const chosen = profile().bakeScale;
+  // The snapshot, not the live profile — see `appliedBakeProfile`.
+  const chosen = appliedBakeProfile.bakeScale;
 
   // An explicit choice is honoured as given: a player who picked Low asked for the cheap map and
   // should get the memory back.
@@ -230,7 +251,8 @@ export function bakeScale(): number {
 
 /** Whether this tier keeps the settlement band's ink live (vector-crisp) instead of baked. */
 export function liveSettlementInk(): boolean {
-  return profile().liveSettlementInk;
+  // The snapshot, not the live profile — see `appliedBakeProfile`.
+  return appliedBakeProfile.liveSettlementInk;
 }
 
 /** The map zoom below which small live detail is dropped, or `undefined` if this tier keeps it all. */
@@ -262,6 +284,12 @@ export function renderScaleNow(): number {
 export function requestRenderScale(scale: number): void {
   const wanted = Math.min(scale, Math.ceil(displayNeed()));
   pendingScale = wanted === appliedScale ? undefined : wanted;
+  if (pendingScale === undefined) {
+    // No resize coming, so no boundary will sync the bake half — sync it here. This is the
+    // device-capped case (a desktop where high and medium both cap at the same scale): the bake
+    // may change density under an unchanged buffer, which is safe in both directions.
+    appliedBakeProfile = bakeTarget();
+  }
 }
 
 export function pendingRenderScale(): number | undefined {
@@ -288,6 +316,9 @@ export function applyPendingRenderScale(game: Phaser.Game): boolean {
   const designHeight = game.scale.height / appliedScale;
   appliedScale = pendingScale;
   pendingScale = undefined;
+  // The buffer just moved; the bake density moves with it, in the same breath. The scene whose
+  // create() called this is about to build (and bake) fresh, so the two can never disagree.
+  appliedBakeProfile = bakeTarget();
   game.scale.setGameSize(designWidth * appliedScale, designHeight * appliedScale);
   const rendererConfig = (game.renderer as unknown as { config?: { pathDetailThreshold?: number } }).config;
   if (rendererConfig && typeof rendererConfig.pathDetailThreshold === 'number') {

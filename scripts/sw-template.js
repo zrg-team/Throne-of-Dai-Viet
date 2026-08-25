@@ -19,6 +19,13 @@
 const VERSION = '__CACHE_VERSION__';
 const CACHE = `vanthang-${VERSION}`;
 
+/**
+ * The package.json version this worker was built from. The cache VERSION above is a content hash —
+ * meaningless to a player — so when the page asks a downloading worker who it is (`GET_VERSION`),
+ * this is the number the menu prints: "Downloading version 0.3.1 (current 0.3.0)".
+ */
+const APP_VERSION = '__APP_VERSION__';
+
 /** The shell. If any one of these fails to cache, the install fails and the old version stays. */
 const CRITICAL = __PRECACHE_CRITICAL__;
 
@@ -107,7 +114,7 @@ self.addEventListener('message', (event) => {
     return;
   }
   if (type === 'GET_VERSION' && event.ports && event.ports[0]) {
-    event.ports[0].postMessage(VERSION);
+    event.ports[0].postMessage({ cache: VERSION, version: APP_VERSION });
   }
 });
 

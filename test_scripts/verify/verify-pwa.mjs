@@ -57,6 +57,10 @@ check(
 
 const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+// The game defaults to Vietnamese (DEFAULT_LANGUAGE in src/i18n). Every text assertion below reads
+// the English catalog, so pin the language rather than asserting against whichever default ships —
+// without this, "settings prints the package version" fails on "Phiên bản 0.3.1".
+await context.addInitScript(() => localStorage.setItem('mandate:language:v1', 'en'));
 const page = await context.newPage();
 const errors = [];
 page.on('pageerror', (err) => errors.push(`PAGEERROR: ${err.message}`));
@@ -149,9 +153,14 @@ try {
   await bootedToMenu();
   await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, { timeout: 30000 });
 
-  const bumped = original.replace(/const VERSION = "[0-9a-f]+";/, 'const VERSION = "deadbeefcafe";');
-  if (bumped === original) {
-    check('the harness can stamp a new version into sw.js', false, 'VERSION constant not found');
+  // Both constants, because they answer different questions: the cache hash is what makes the
+  // browser treat the file as a new worker at all, and the semver is what the version line prints
+  // once that worker has answered GET_VERSION.
+  const bumped = original
+    .replace(/const VERSION = "[0-9a-f]+";/, 'const VERSION = "deadbeefcafe";')
+    .replace(/const APP_VERSION = "[^"]*";/, 'const APP_VERSION = "9.9.9";');
+  if (bumped === original || !bumped.includes('"9.9.9"')) {
+    check('the harness can stamp a new version into sw.js', false, 'VERSION or APP_VERSION constant not found');
   } else {
     writeFileSync(SW_PATH, bumped);
     const outcome = await page.evaluate(async () => {
@@ -184,10 +193,13 @@ try {
       return found;
     });
 
+    // The notice is the version line itself now: the incoming worker's semver, next to the one
+    // running. Matching the whole sentence, numbers included, is what proves the GET_VERSION
+    // round trip happened — /New version ready/ would pass on the numberless fallback.
     const front = await readAllText();
     check(
-      'the front page raises the notice',
-      front.some((text) => /New version ready/i.test(text)),
+      'the version line becomes the reload-to-update notice',
+      front.some((text) => /Reload to update to version 9\.9\.9 \(current \d+\.\d+\.\d+\)/.test(text)),
       front.filter((text) => /version/i.test(text)).join(' / '),
     );
 
@@ -243,7 +255,7 @@ try {
     const secondBefore = await readAllText(second);
     check(
       'a client opened while an update waits raises the notice too',
-      secondBefore.some((text) => /New version ready/i.test(text)),
+      secondBefore.some((text) => /Reload to update to version 9\.9\.9/.test(text)),
       secondBefore.filter((text) => /version/i.test(text)).join(' / ') || 'nothing saying "version"',
     );
 
@@ -263,7 +275,7 @@ try {
     const secondAfter = await readAllText(second);
     check(
       'the client that did not tap retracts its stale notice',
-      !secondAfter.some((text) => /New version ready/i.test(text)),
+      !secondAfter.some((text) => /9\.9\.9|New version ready/i.test(text)),
       secondAfter.filter((text) => /version/i.test(text)).join(' / ') || 'nothing left saying "version"',
     );
     await second.close();

@@ -8,7 +8,8 @@ import {
 import { getLegacy, LEGACY_PERKS, purchaseLegacyPerk, rankForScore } from '../state/legacy';
 import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
 import {
-  applyUpdate, buildStamp, checkForUpdate, getUpdateStatus, subscribeUpdateStatus,
+  applyUpdate, BUILD_VERSION, buildStamp, checkForUpdate, getIncomingVersion, getUpdateStatus,
+  subscribeUpdateStatus,
 } from '../pwa/updates';
 import {
   canOfferInstall, guideRoute, installRoute, promptInstall, subscribeInstall, type InstallRoute,
@@ -241,6 +242,9 @@ export class MenuScene extends Phaser.Scene {
 
   create(): void {
     applyPendingRenderScale(this.game);
+    // A scene build is not the frame rate: without this hold the ladder counted the menu's own
+    // construction as the device running hot and stepped an explicit tier down for it.
+    qualityLadder()?.markSceneStart();
     // No scene cap here: the front page carries live animation now, and a 30-fps pin made it
     // visibly chop against a 60–120 Hz panel. Battery pacing, if it returns, must come from a
     // real idle detector — not from capping the first thing the player sees.
@@ -2349,8 +2353,6 @@ export class MenuScene extends Phaser.Scene {
   private renderMain(): void {
     const saved = hasSnapshot();
 
-    this.renderUpdateNotice();
-
     // The settings block is pinned to the bottom of the sheet, so the column above it has a hard
     // floor. The tagline is built first because only Phaser knows how many lines it wraps to, and
     // then the gaps are shared out of whatever room is left — which is how the page fits at any
@@ -2509,59 +2511,6 @@ export class MenuScene extends Phaser.Scene {
         this.render();
       }, { variant: 'ghost', fontSize: '12px' }));
     }
-  }
-
-  /**
-   * The one line the front page will interrupt itself for: there is a newer game than this one.
-   *
-   * It hangs under the gold rule, on the sky above the karst, and it is an overlay — nothing below
-   * it moves. That is deliberate. The button column's gaps are already clamped at their floor on a
-   * 620-tall sheet (`renderMain` shares out whatever is left between the art and the footer), so a
-   * notice that took a row would have taken it out of the landscape, on every page load, for a
-   * state that is true for about a minute a month.
-   *
-   * Under the rule rather than over the top of the sheet: the first pass put it at vy(112), which
-   * on every height printed it straight across the bottom third of the drum. The mark and the
-   * wordmark own everything from the top edge down to the rule at 206, and the only paper this
-   * page has spare is the sky between that rule and the mountain tops.
-   *
-   * Only the two states that are news are shown — one on its way down, one waiting to be taken.
-   * "Saving for offline play" and "ready to play offline" are the settings page's business: the
-   * front page is not the place to narrate housekeeping that needs no decision.
-   */
-  private renderUpdateNotice(): void {
-    const status = getUpdateStatus();
-    if (status !== 'ready' && status !== 'installing') {
-      return;
-    }
-
-    const ready = status === 'ready';
-    const label = this.ui.label(
-      GAME_WIDTH / 2,
-      this.vy(224),
-      ready ? t('menu.update.readyHint') : t('menu.update.installing'),
-      'caption',
-      {
-        color: ready ? '#8a2a1b' : INK_UI_HEX.mutedText,
-        fontSize: '11px',
-        fontStyle: ready ? '700' : '400',
-        align: 'center',
-        // The paper behind it is a landscape; small type straight onto a mountain is unreadable.
-        backgroundColor: 'rgba(243,230,196,0.86)',
-        padding: { x: 9, y: 4 },
-      },
-    ).setOrigin(0.5);
-    this.content.push(label);
-
-    if (!ready) {
-      return;
-    }
-
-    const hit = this.add
-      .rectangle(GAME_WIDTH / 2, label.y, label.width + 20, label.height + 12, 0xffffff, 0.001)
-      .setInteractive({ useHandCursor: true });
-    hit.on('pointerup', () => applyUpdate());
-    this.content.push(hit);
   }
 
   /**
@@ -3323,32 +3272,73 @@ export class MenuScene extends Phaser.Scene {
   }
 
   /**
-   * The build stamp, centred on the bottom edge.
+   * The build stamp, centred on the bottom edge — and, while a newer game exists than this one,
+   * the line that says so.
    *
-   * Same string as the settings page prints — one `buildStamp()`, so the two can never disagree
-   * about what is running — and the same size and colour as the quietest caption on the page, which
-   * is what keeps it from competing with the sentence above it. Never pressable: it is a fact about
-   * the page, not a way off it.
+   * The update notice used to be its own pill under the gold rule, which parked a red badge on
+   * the landscape and read as a second, competing headline under the wordmark. But the page
+   * already has a line whose whole job is "which version is this" — so the news lives there
+   * instead: while the download is on its way it reads "Downloading version 0.3.1 (current
+   * 0.3.0)", and once it has landed it becomes the tap that takes it. The incoming number comes
+   * from asking the downloading worker itself (`getIncomingVersion`); a worker that never
+   * answers, or answers with the version already running — a redeploy that bumped nothing —
+   * falls back to the same words without a number.
+   *
+   * In the resting state it is the same string the settings page prints — one `buildStamp()`, so
+   * the two can never disagree about what is running — and never pressable: a fact about the
+   * page, not a way off it.
    *
    * Shrinks rather than wraps in the unlikely event it outgrows the sheet, because there is exactly
    * one line of room here and a wrapped colophon would push itself off the bottom edge.
    */
   private renderVersionLine(): void {
-    const stamp = buildStamp();
-    if (!stamp) {
+    const status = getUpdateStatus();
+    const incoming = getIncomingVersion();
+    const versioned = incoming !== undefined && incoming !== BUILD_VERSION;
+    const ready = status === 'ready';
+    let text: string;
+    if (status === 'installing') {
+      text = versioned
+        ? t('menu.update.downloadingVersion', { version: incoming, current: BUILD_VERSION })
+        : t('menu.update.installing');
+    } else if (ready) {
+      text = versioned
+        ? t('menu.update.reloadVersion', { version: incoming, current: BUILD_VERSION })
+        : t('menu.update.readyHint');
+    } else {
+      text = buildStamp();
+    }
+    if (!text) {
       return;
     }
     // Anchored to the bottom edge by its own baseline rather than centred in the band, so the air
     // in the band is all above it and the line lands where the sheet ends.
-    const line = this.ui.label(GAME_WIDTH / 2, GAME_HEIGHT - VERSION_EDGE, stamp, 'caption', {
-      color: INK_UI_HEX.mutedText,
+    const line = this.ui.label(GAME_WIDTH / 2, GAME_HEIGHT - VERSION_EDGE, text, 'caption', {
+      color: ready ? '#8a2a1b' : INK_UI_HEX.mutedText,
       fontSize: '9px',
+      fontStyle: ready ? '700' : '400',
     }).setOrigin(0.5, 1).setData('menuVersionLine', true);
     const maxWidth = GAME_WIDTH - 32;
     if (line.width > maxWidth) {
       line.setScale(maxWidth / line.width);
     }
     this.content.push(line);
+
+    if (ready) {
+      // 9px type on the very edge of the sheet; a finger needs more paper than the glyphs cover.
+      const hit = this.add
+        .rectangle(
+          GAME_WIDTH / 2,
+          line.y - line.displayHeight / 2,
+          Math.max(line.displayWidth + 24, 200),
+          line.displayHeight + 18,
+          0xffffff,
+          0.001,
+        )
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => applyUpdate());
+      this.content.push(hit);
+    }
   }
 
   /**

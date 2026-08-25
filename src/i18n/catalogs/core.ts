@@ -202,6 +202,8 @@ export const enCore = {
   "menu.update.installing": "New version installing…",
   "menu.update.ready": "New version ready",
   "menu.update.readyHint": "New version ready — reload",
+  "menu.update.downloadingVersion": "Downloading version {version} (current {current})",
+  "menu.update.reloadVersion": "Reload to update to version {version} (current {current})",
   "menu.update.reload": "Reload to update",
   "menu.update.check": "Check for updates",
   // ── Adding the game to the home screen ──
@@ -732,6 +734,8 @@ export const viCore = {
   "menu.update.installing": "Đang cài bản mới…",
   "menu.update.ready": "Đã có bản mới",
   "menu.update.readyHint": "Đã có bản mới — tải lại",
+  "menu.update.downloadingVersion": "Đang tải phiên bản {version} (hiện tại {current})",
+  "menu.update.reloadVersion": "Tải lại để cập nhật phiên bản {version} (hiện tại {current})",
   "menu.update.reload": "Tải lại để cập nhật",
   "menu.update.check": "Kiểm tra bản mới",
   "menu.install.tip": "Cài game vào màn hình chính",

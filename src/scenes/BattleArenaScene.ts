@@ -20,6 +20,7 @@ import { BATTLE_HOST_SCALE } from '../game/ascentConfig';
 import type { FigureArm } from '../ui/ink/devices';
 import { t } from '../i18n';
 import { applyRenderScale } from '../game/graphicsQuality';
+import { qualityLadder } from '../game/qualityLadder';
 import { drawFormationRing } from '../ui/ascent/formationCounters';
 import {
   BATTLE_DIFFICULTIES, BATTLE_SPEEDS, getBattleDifficulty, getBattleSpeed,
@@ -134,6 +135,9 @@ export class BattleArenaScene extends Phaser.Scene {
 
   create(): void {
     applyRenderScale(this);
+    // The arena builds a whole screen in one frame; hold the ladder so that frame is not
+    // read as the device running hot.
+    qualityLadder()?.markSceneStart();
     this.ui = new InkUI(this);
     this.mapRenderer = createMapRenderer(this);
     this.mapRenderer.drawBackground(GAME_WIDTH, GAME_HEIGHT);
