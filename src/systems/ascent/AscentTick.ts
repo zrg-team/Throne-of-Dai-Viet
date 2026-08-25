@@ -163,8 +163,13 @@ export function advanceAscentTick(state: GameState): void {
   // Deliberately the *same* `beginBattle` and `advanceBattle` the real mode uses, on the same
   // clock. An arena that ran its own copy of the fight would verify a copy.
   if (state.ascent.arena) {
+    // Begin AND advance on the same tick. Opening without a single beat left the screen a full
+    // economy tick — 3.5 seconds — of two armies standing in silence before anything moved
+    // (user report: "small delay, nothing happens, before the two armies fight"). The facing-
+    // lines opening survives: the view drains the burst one beat per interval, so the first
+    // beat still arrives at the drain clock's pace, not in a jump.
     if (state.pendingBattle && !state.ascent.activeBattle) beginBattle(state);
-    else advanceBattle(state);
+    advanceBattle(state);
     return;
   }
 
@@ -240,10 +245,14 @@ export function advanceAscentTick(state: GameState): void {
 
   // A siege runs across seasons, not seconds. Several beats a tick keeps an engagement to a
   // handful of turns while leaving the player time to raise a host and march it in — which is
-  // the whole point of the battle no longer freezing the world. A fight that opened this very
-  // tick is left at its first beat, so the screen opens on two lines facing each other rather
-  // than a round in.
-  if (!openedThisTick) advanceBattle(state);
+  // the whole point of the battle no longer freezing the world.
+  //
+  // A fight that opened this tick is advanced too. It used to be "left at its first beat, so
+  // the screen opens on two lines facing each other" — but the beats are a QUEUE the view
+  // drains at its own pace, so the facing-lines opening was already guaranteed, and what the
+  // rule actually bought was a full tick of dead air before the first arrow.
+  void openedThisTick;
+  advanceBattle(state);
 
   // Once nothing is being fought, any province that turned its garrison out takes it back in.
   // A levy is a host for the length of one battle and no longer — see `raiseGarrisonLevy`.

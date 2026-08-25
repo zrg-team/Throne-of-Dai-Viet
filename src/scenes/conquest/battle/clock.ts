@@ -344,6 +344,7 @@ export function startBattleClock(self: ConquestUIScene): void {
   // "jump": a loss number, a morale bar and a host's position all moving two steps in one.
   const tick = (): void => {
     // Beat first, then draw: the frame the rest of the refresh reads is the one just taken.
+    const hadBeat = (self.state.ascent?.activeBattle?.beats?.length ?? 0) > 0;
     drainBattleBeat(self);
     self.refresh();
     // The refresh above can close the lane (fight resolved, a prompt arrived). `stopBattleClock`
@@ -353,7 +354,12 @@ export function startBattleClock(self: ConquestUIScene): void {
     if (!self.battleUi || self.openPromptKey !== 'lane:battle') return;
     const queued = self.state.ascent?.activeBattle?.beats?.length ?? 0;
     const hurry = queued > battleBeatsPerTick() * 2 ? 0.55 : queued > battleBeatsPerTick() ? 0.75 : 1;
-    self.battleClock = self.time.delayedCall(Math.round(battleTickMs() * hurry), tick);
+    // A dry pump polls, it does not sleep. Production and drain run at exactly the same rate, so
+    // any timer jitter leaves the queue empty for a moment — and a pump that then waited a whole
+    // beat showed the late-arriving burst up to 875 ms after it existed. Checking again quickly
+    // costs a timer; the still frame it prevents was the visible hitch.
+    const wait = hadBeat ? battleTickMs() * hurry : battleTickMs() * 0.3;
+    self.battleClock = self.time.delayedCall(Math.round(wait), tick);
   };
   self.battleClock = self.time.delayedCall(battleTickMs(), tick);
 }
