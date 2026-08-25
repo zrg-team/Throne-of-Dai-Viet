@@ -213,9 +213,15 @@ export function buildBattleExits(self: ConquestUIScene, battle: AscentBattle): v
     icon.setScale(0.55);
     icon.setPosition(0, -h / 2 + 12);
     const label = self.ui.label(0, -h / 2 + 22, chip.label, 'label', {
-      fontSize: '10px', align: 'center', wordWrap: { width: w - 8 },
+      fontSize: '10px', align: 'center',
       ...(chip.tint !== undefined ? { color: cssHex(chip.tint) } : {}),
     }).setOrigin(0.5, 0);
+    // One line, shrunk to fit — never wrapped. "Giao cho tướng" broke into two stacked lines
+    // under its icon and the row read as two different heights of control (user report). The
+    // captions themselves were shortened to fit at full size; the shrink is insurance, and the
+    // scale floor below it means even a hostile translation cannot push past the chip.
+    for (let size = 10; size >= 8 && label.width > w - 8; size -= 0.5) label.setFontSize(size);
+    if (label.width > w - 8) label.setScale((w - 8) / label.width);
     group.add([icon, label]);
     exits.add(group);
 

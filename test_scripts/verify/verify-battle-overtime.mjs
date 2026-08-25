@@ -50,6 +50,13 @@ const runs = await page.evaluate(async () => {
     if (!st) break;
     const battle = st.ascent.activeBattle;
     if (!battle) break;
+    // The officer no longer plays an unclaimed fight (2026-08-25: dials move only when a person
+    // moves them, or after a hand-over). Unsteered, our side stands flat, is countered every
+    // beat and breaks well before the reference rounds — so no engagement could reach overtime
+    // and the "allowed past the cap" half went dark. The rule under test is about CLOSE fights
+    // between two commanded hosts, so hand ours to its general: the shipped path for a fight
+    // nobody is steering by hand.
+    B.delegateBattle(st, true);
     let guard = 0;
     while (!battle.over && guard < 400) { B.fightRound(st); guard += 1; }
     out.push({

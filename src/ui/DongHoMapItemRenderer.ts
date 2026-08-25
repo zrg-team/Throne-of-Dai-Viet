@@ -264,14 +264,17 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // which changed as the host bled and let two realms' hosts share a design. Every standard a
     // large host carries is the same standard: several of one banner reads as one realm.
     const seed = flagSeed ?? Math.round(total);
-    for (let index = 0; index < standards; index += 1) {
-      const flag = isPlayer
-        ? createPlayerLandFlag(scene, false, seed)
-        : createPlayerLandFlag(scene, false, seed, true);
-      // Inside the block's left edge, stepping right so several standards read as several.
-      flag.setPosition(at.x + shape.left + index * FLAG_STEP, frontRankY - FLAG_FOOT);
-      flag.setScale(FLAG_SCALE);
-      container.add(flag);
+    // The battle screen plants standards at the field's edges instead — see `HostKit.standards`.
+    if (mapKit.standards !== false) {
+      for (let index = 0; index < standards; index += 1) {
+        const flag = isPlayer
+          ? createPlayerLandFlag(scene, false, seed)
+          : createPlayerLandFlag(scene, false, seed, true);
+        // Inside the block's left edge, stepping right so several standards read as several.
+        flag.setPosition(at.x + shape.left + index * FLAG_STEP, frontRankY - FLAG_FOOT);
+        flag.setScale(FLAG_SCALE);
+        container.add(flag);
+      }
     }
     return container;
   }

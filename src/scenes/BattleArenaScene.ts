@@ -493,38 +493,50 @@ export class BattleArenaScene extends Phaser.Scene {
      */
     const fightY = pinnedBackY - FIGHT_BUTTON - 8;
 
+    /**
+     * Three tabs, one screen (user request, 2026-08-25): nine rows of dials stacked down one
+     * scroll made the page a settings form, and most visits change one thing. The matchup, the
+     * field, and the player's preferences are three different questions, so each gets a page:
+     * Armies (the two hosts and their arms), Battle (ground, enemy doctrine, our general), and
+     * Difficulty (the `battleOptions` preferences). Armies opens first — it is the thing the
+     * screen is named for.
+     */
+    y = this.renderTabs(y);
+
     const body = this.add.container(0, 0);
     let by = 0;
 
-    by = this.renderForces(body, by);
-    by = this.renderOdds(body, by);
-
-    by = this.row(body, by, t('arena.ground'), this.grounds(), (c) => c.value === this.ground,
-      (c) => { this.ground = c.value; this.render(); });
-    by = this.row(body, by, t('arena.doctrine'), this.doctrines(), (c) => c.value === this.doctrine,
-      (c) => { this.doctrine = c.value; this.render(); });
-    by = this.row(body, by, t('arena.general'), this.generals(), (c) => c.value === this.martial,
-      (c) => { this.martial = c.value; this.render(); });
-
-    /**
-     * The two dials that are not about this matchup but about every fight.
-     *
-     * They are preferences, kept in `battleOptions` beside the language and the map theme, and the
-     * settings sheet on the front page offers the same two. They are repeated here because this is
-     * the screen built for trying a fight out — sending somebody to the front page and back to find
-     * out whether a quicker enemy is more fun is the sort of round trip that stops people trying.
-     */
-    by = this.row(body, by, t('arena.difficulty'), this.difficulties(),
-      (c) => c.value === getBattleDifficulty(),
-      (c) => { setBattleDifficulty(c.value); this.render(); });
-    by = this.row(body, by, t('arena.speed'), this.speeds(),
-      (c) => c.value === getBattleSpeed(),
-      (c) => { setBattleSpeed(c.value); this.render(); });
-    by = this.row(body, by, t('arena.bubbles'), this.bubbleChoices(),
-      (c) => c.value === this.bubbleChoice,
-      (c) => { this.bubbleChoice = c.value; this.render(); });
-
-    if (this.last) by = this.renderLastFight(body, by);
+    if (this.tab === 'army') {
+      by = this.renderForces(body, by);
+      by = this.renderOdds(body, by);
+      if (this.last) by = this.renderLastFight(body, by);
+    } else if (this.tab === 'battle') {
+      by = this.row(body, by, t('arena.ground'), this.grounds(), (c) => c.value === this.ground,
+        (c) => { this.ground = c.value; this.render(); });
+      by = this.row(body, by, t('arena.doctrine'), this.doctrines(), (c) => c.value === this.doctrine,
+        (c) => { this.doctrine = c.value; this.render(); });
+      by = this.row(body, by, t('arena.general'), this.generals(), (c) => c.value === this.martial,
+        (c) => { this.martial = c.value; this.render(); });
+    } else {
+      /**
+       * The dials that are not about this matchup but about every fight.
+       *
+       * They are preferences, kept in `battleOptions` beside the language and the map theme, and
+       * the settings sheet on the front page offers the same two. They are repeated here because
+       * this is the screen built for trying a fight out — sending somebody to the front page and
+       * back to find out whether a quicker enemy is more fun is the round trip that stops people
+       * trying.
+       */
+      by = this.row(body, by, t('arena.difficulty'), this.difficulties(),
+        (c) => c.value === getBattleDifficulty(),
+        (c) => { setBattleDifficulty(c.value); this.render(); });
+      by = this.row(body, by, t('arena.speed'), this.speeds(),
+        (c) => c.value === getBattleSpeed(),
+        (c) => { setBattleSpeed(c.value); this.render(); });
+      by = this.row(body, by, t('arena.bubbles'), this.bubbleChoices(),
+        (c) => c.value === this.bubbleChoice,
+        (c) => { this.bubbleChoice = c.value; this.render(); });
+    }
 
     /**
      * The ring is pinned, and the dials scroll under it.
@@ -584,17 +596,81 @@ export class BattleArenaScene extends Phaser.Scene {
    * the body, where reference belongs. The table is still the right drawing on the coach card
    * inside a fight, where the reader is under time; both are read off `formationBeats`.
    */
+  /**
+   * Collapsed to one line by default (user verdict, 2026-08-25: a reference diagram pinned open
+   * on every visit "is not good UI/UX"). The rules do not change between fights, so after the
+   * first reading the ring was a hundred-odd points of paper the dials could be using. The choice
+   * lives on the scene instance, so it holds across fights in a sitting and resets with the app —
+   * a newcomer's first visit always offers the full drawing one tap away.
+   */
+  private ringOpen = false;
+
+  /** The three setup pages. Armies is the default — it is what the screen is named for. */
+  private tab: 'army' | 'battle' | 'difficulty' = 'army';
+
+  private renderTabs(y: number): number {
+    const tabs: Array<{ id: 'army' | 'battle' | 'difficulty'; label: string }> = [
+      { id: 'army', label: t('arena.tab.army') },
+      { id: 'battle', label: t('arena.tab.battle') },
+      { id: 'difficulty', label: t('arena.tab.difficulty') },
+    ];
+    const gap = 6;
+    const width = Math.floor((GAME_WIDTH - 40 - gap * (tabs.length - 1)) / tabs.length);
+    const height = 26;
+    tabs.forEach((entry, index) => {
+      const x = 20 + index * (width + gap);
+      const selected = this.tab === entry.id;
+      this.push(this.ui.crayonTile({ x, y, width, height }, { selected }));
+      const text = createLabel(this, x + width / 2, y + 7, entry.label, 'caption', {
+        fontSize: '11px', align: 'center', color: selected ? '#b33a26' : '#2a2118',
+      }).setOrigin(0.5, 0);
+      text.setData('tileWidth', width);
+      this.push(text);
+      const hit = this.add.zone(x, y, width, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        if (scrollGestureConsumedTap(pointer)) return;
+        this.tab = entry.id;
+        this.render();
+      });
+      this.push(hit);
+    });
+    return y + height + 10;
+  }
+
   private renderRing(bottom: number): number {
+    /**
+     * The one-line header IS the button, in both states. The chevron used to fold into the
+     * drawing's own centre when open, and the user's verdict was exact: "no button to hide" —
+     * an affordance inside the picture reads as part of the picture. The line stays put above
+     * the ring, says ▸ or ▾, and tapping either it or the drawing toggles.
+     */
+    const rowH = 18;
+    const toggle = (open: boolean, x: number, y: number, w: number, h: number): void => {
+      const hit = this.add.zone(x, y, w, h).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      hit.on('pointerup', () => { this.ringOpen = open; this.render(); });
+      this.push(hit);
+    };
+    const header = (top: number, glyph: string): void => {
+      this.push(createLabel(this, GAME_WIDTH / 2, top + rowH / 2, `${glyph} ${t('arena.howTitle')}`, 'caption', {
+        fontSize: '10px', fontStyle: '700', align: 'center', color: '#a8873c',
+      }).setOrigin(0.5));
+    };
+    if (!this.ringOpen) {
+      const top = bottom - rowH;
+      header(top, '▸');
+      toggle(true, 20, top, GAME_WIDTH - 40, rowH);
+      return top;
+    }
     // Drawn at the origin and measured, then moved: its height is the five labels' own heights and
-    // those change with the language, so where it starts can only be known after it exists.
-    //
-    // The heading goes *inside* the loop rather than on a row above it — a ring is the one diagram
-    // that comes with its own empty middle, and paying a line of the page for a title while leaving
-    // that hole blank is paying twice for one idea.
-    const ring = drawFormationRing(this, 20, 0, GAME_WIDTH - 40, t('arena.howTitle'));
-    const top = bottom - ring.height;
-    ring.container.setY(top);
+    // those change with the language, so where it starts can only be known after it exists. No
+    // centre title — the header line above carries it, and two copies of the same words four
+    // lines apart is one too many.
+    const ring = drawFormationRing(this, 20, 0, GAME_WIDTH - 40);
+    const top = bottom - ring.height - rowH;
+    header(top, '▾');
+    ring.container.setY(top + rowH);
     this.push(ring.container);
+    toggle(false, 20, top, GAME_WIDTH - 40, rowH + ring.height);
     return top;
   }
 

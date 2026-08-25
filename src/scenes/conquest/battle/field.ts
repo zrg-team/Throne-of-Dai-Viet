@@ -19,6 +19,8 @@ import { faceTravel } from '../../../ui/ink/life';
 import { armyShape, compositionFor, hostKitFor, hostShapeAt } from '../../../ui/ink/devices';
 import { type BattleFormation } from '../../../data/ascent/formations';
 import { inkPath } from '../../../ui/ink/stroke';
+import { createPlayerLandFlag } from '../../../ui/playerFlag';
+import { GROUND_SCALE } from '../../../ui/ink/proportion';
 import type { Army, AscentBattle } from '../../../state/types';
 import { battleFieldBox, hostSize, type BattleMarker } from '../constants';
 import { clearLayer, killTweensDeep } from '../layers';
@@ -109,6 +111,24 @@ export function buildBattleField(self: ConquestUIScene, battle: AscentBattle): v
   const campY = battleRearY(self);
   field.add(self.battleCamp(rightX - 4, campY, rivalColor, 23, battleScaleAt(self, campY)));
 
+  // The standards stand their ground (user report, 2026-08-25: the flag walked with the block,
+  // so every advance dragged the realm's great banner pacing across the field). The blocks carry
+  // no standard on this screen — `standards: false` in every kit below — and each side's flag is
+  // planted once at its own edge instead: ours over the ground we fight from, theirs before
+  // their camp. Only the soldiers move.
+  const flagScale = 0.37 * (battleBaseScale(self) / GROUND_SCALE);
+  const plant = (x: number, seed: number, enemy: boolean): void => {
+    const flag = createPlayerLandFlag(self, false, seed, enemy);
+    // `createPlayerLandFlag` carries its own foot offset (pole base at +8, ground ellipse at
+    // +10) — the same 10-unit correction the carried flags applied, so the foot lands on the
+    // ground line rather than floating past it.
+    flag.setPosition(x, groundY - 10 * flagScale);
+    flag.setScale(flagScale);
+    field.add(flag);
+  };
+  plant(leftX + 4, self.state.mapConfig.seed, false);
+  plant(rightX - 4, Math.max(0, self.state.kingdoms.findIndex((k) => k.id === battle.kingdomId)), true);
+
   const ours = ourHosts(self.state, battle);
   const theirs = theirHosts(self.state, battle);
   // Bake both sides' wardrobes before a single marker is built: a first-seen figure kind
@@ -123,7 +143,7 @@ export function buildBattleField(self: ConquestUIScene, battle: AscentBattle): v
   ours.forEach((host, index) => {
     const marker = self.battleItems!.createArmyMarker(
       hostSize(host), true, undefined, self.state.mapConfig.seed,
-      { ...hostKitFor(self.state, host), mustered: hostSize(host), shape: battle.ourFormation },
+      { ...hostKitFor(self.state, host), mustered: hostSize(host), shape: battle.ourFormation, standards: false },
       battleBaseScale(self),
     );
     marker.setPosition(lines.ourX, lane(index, ours.length));
@@ -144,6 +164,7 @@ export function buildBattleField(self: ConquestUIScene, battle: AscentBattle): v
         ...hostKitFor(self.state, host),
         mustered: hostSize(host),
         shape: self.battleOpeningSealed ? undefined : battle.theirFormation,
+        standards: false,
       },
       battleBaseScale(self),
     );
@@ -305,6 +326,9 @@ export function redrawHostBlock(self: ConquestUIScene, entry: BattleMarker, men:
       // columns crossed a mark boundary — the seal would have lasted until the first casualty.
       shape: ours ? battle.ourFormation
         : self.battleOpeningSealed ? undefined : battle.theirFormation,
+      // Planted at the field's edge, not carried — the same rule as the first build, or the
+      // banner marched back into the block at the first attrition redraw.
+      standards: false,
     },
     battleBaseScale(self),
   );

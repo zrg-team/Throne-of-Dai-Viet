@@ -34,7 +34,6 @@ import {
   BATTLE_STAMINA_MAX,
   BATTLE_STAMINA_REGEN_BEATS,
   BATTLE_TEMPER,
-  BATTLE_CARETAKER_MARTIAL,
   type CommanderTemper,
   BATTLE_COMMIT_AMPLIFY,
   BATTLE_STANCE_RISK,
@@ -1263,28 +1262,27 @@ export function fightRound(state: GameState): void {
   const battle = ascent?.activeBattle;
   if (!ascent || !battle || battle.over) return;
 
-  // The commander gives their orders for this beat, if the field is theirs — **or if nobody else
-  // is giving any**.
+  // The commander gives their orders for this beat — **only if the field was handed to him.**
   //
-  // The second half is the whole reason this reads the way it does. Under the retired ring the dock
-  // opened on `hold` and the invader's doctrine opened on `press`, and hold countered press: an
-  // engagement nobody touched was a free 2.71-to-1 win. Measured in `battle-lab`, the player side
-  // won 48.8% of fights and **routed in none of them**.
+  // The dials belong to the player until `delegateBattle` says otherwise. This has been walked
+  // both directions and each end of the spectrum failed in its own way:
   //
-  // Tempo cannot be countered any more, only shape can, so that accident is gone — and the invader
-  // reads the board every beat while an untouched host stands flat and does nothing. Measured, that
-  // put the player at a 17.5% win rate and a 63% rout rate: not a harder fight, a broken one.
+  //  · Nobody plays an untouched fight — the original rule. An untouched host stood flat while
+  //    the invader read the board every beat: 17.5% win rate, 63% routed. Felt broken, so —
+  //  · The host's own officer covered any dial the player had not taken. At full martial that
+  //    made DOING NOTHING win the arena's even default 100 times in 100; capped, it still moved
+  //    the player's own controls, and the user's verdict was the deciding one: "I did not press
+  //    hand-over, but the formation changed itself." A hidden helper on your own dials reads as
+  //    the game overriding your orders, whatever it does for the win rate.
   //
-  // A host whose commander is standing right there does not simply stand flat. `generalPlaysBeat`
-  // reads the telegraph and answers with shape, which is what the player would do — earned, rather
-  // than free. The moment the player touches either dial the fight is theirs and the general stops.
+  // So: manual means manual, and losing an ignored fight is the honest price — delegation is one
+  // tap away and buys the general's whole skill. The rally is the one exception (inside), because
+  // a shout is not a dial and leaves no control in a state the player did not choose.
   //
   // Here rather than in `advanceBattle` because the beat is the unit a commander acts on, and
   // because `advanceBattle` is not the only thing that runs a beat — `battle-lab` drives
   // `fightRound` directly, so a general placed one level up simply never played and every martial
   // value scored identically. A harness that cannot reach the code it is grading is not grading it.
-  // Always. What he is allowed to touch is decided inside, per dial: he is not an autopilot
-  // that switches off, he is the officer standing next to you who works whatever you are not.
   generalPlaysBeat(state, battle);
 
   // The tempo dial ticks first, so a stance ordered last beat is in force for this one — which is
@@ -1652,32 +1650,32 @@ function generalReadsBeat(battle: AscentBattle, martial: number): boolean {
  * only later when the read fails.
  */
 function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
-  // Delegation stamps `generalMartial`; a fight the player simply has not touched has not been
-  // stamped, so the commander actually standing with the host answers for it. No commander at all
-  // means a middling one, the same figure `delegateBattle` falls back to.
+  const met = battle.ourAdvance + battle.theirAdvance >= 1;
+  // The dials are the player's until they are handed over. The officer no longer covers an
+  // unclaimed dial at any skill — a helper moving the player's own controls read as the game
+  // overriding orders (see the note at the call site) — but he will still steady a line about
+  // to break: a rally is a shout, not a dial, and it leaves nothing in a state the player did
+  // not choose. Same threshold as his habit path below, so delegation cannot be WORSE at the
+  // one thing he does uninvited.
+  if (!battle.delegated) {
+    if (met && !battle.rallySpent && battle.ourMorale < BATTLE_ROUT_MORALE + 6) rally(state);
+    return;
+  }
+  // Delegation stamps `generalMartial`; the fallback covers a stamp that predates a save. No
+  // commander at all means a middling one, the same figure `delegateBattle` falls back to.
   const martial = battle.generalMartial ?? (() => {
     const led = ourHosts(state, battle).find((host) => host.generalHeroId)?.generalHeroId;
     const hero = led ? state.heroes.find((candidate) => candidate.id === led) : undefined;
     return hero ? hero.stats.martial : 45;
   })();
-  const met = battle.ourAdvance + battle.theirAdvance >= 1;
-  // A delegated fight is entirely his. Otherwise he works what has not been taken from him.
-  const takeShape = battle.delegated || !battle.steeredFormation;
-  const takeTempo = battle.delegated || !battle.steeredStance;
-  // Covering is not commanding. An unclaimed fight is played at the caretaker's cap, whatever
-  // the man's real martial — measured uncapped, a martial-70 general won the default even fight
-  // 100/100 with nobody touching anything, which made the whole dock a decoration. Delegating
-  // is the tap that buys his full skill; see `BATTLE_CARETAKER_MARTIAL`.
-  const caretaker = !battle.delegated;
-  const skill = caretaker ? Math.min(martial, BATTLE_CARETAKER_MARTIAL) : martial;
-  if (generalReadsBeat(battle, skill)) {
+  if (generalReadsBeat(battle, martial)) {
     const read = battleTelegraph(state);
     if (read) {
       // The shape they are heading for, if they are heading anywhere — a commander who can read a
       // beat reads the walk, not just the stand.
       const target = read.next ?? read.formation;
       const answer = countersTo(target).find((shape) => canFormFormation(state, shape));
-      if (takeShape && answer && answer !== battle.ourFormation && !reforming(battle.reformBeats)) {
+      if (answer && answer !== battle.ourFormation && !reforming(battle.reformBeats)) {
         setBattleFormation(state, answer);
       }
       // Tempo second, by **the same rule the invader plays** — press while the shape is ours,
@@ -1692,15 +1690,13 @@ function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
       // no new state: no stance orders while either side is walking (the read is about to be
       // stale), and on an even shape hold whatever is set rather than resetting to balanced —
       // unless the line is close to breaking, where the brake is always correct.
-      if (takeTempo && !reforming(battle.reformBeats) && !reforming(battle.theirReformBeats)) {
+      if (!reforming(battle.reformBeats) && !reforming(battle.theirReformBeats)) {
         const sign = formationTiltSign(battle.ourFormation, battle.theirFormation);
         // Logged when it actually lands (setBattleStance refuses a repeat): the general presses
-        // the very beat the player's new shape wins the tilt, and an unattributed flip right
+        // the very beat the fight's new shape wins the tilt, and an unattributed flip right
         // after a formation tap read as the TAP changing the stance (user-reported, worsened by
         // the two dials once sharing the word "Xung phong").
-        // The caretaker never presses. Cashing a winning matchup in is the player's verb (or a
-        // delegated general's); an officer nobody appointed keeps only the brake and the rally.
-        if (sign > 0 && !caretaker) {
+        if (sign > 0) {
           if (setBattleStance(state, 'press')) battle.log.push(t('ascent.battle.generalTempo', { s: t('ascent.stance.press') }));
         } else if (sign < 0 || battle.ourMorale < BATTLE_ROUT_MORALE + 20) {
           if (setBattleStance(state, 'defend')) battle.log.push(t('ascent.battle.generalTempo', { s: t('ascent.stance.defend') }));
@@ -2044,17 +2040,10 @@ function takePending(state: GameState): PendingBattle {
 }
 
 /**
- * The player has taken the field, so the commander stops playing it for them.
- *
- * Deliberately **not** set inside `setBattleStance` / `setBattleFormation`. It was, and the effect
- * was silent and total: `generalPlaysBeat` calls those same two functions, so the commander marked
- * the fight as player-steered with its own first order and never ran again. Traced on an even
- * 1,500-a-side fight under a martial-95 general — the host moved to Thế Quy on beat one and then
- * stood in it for twelve beats while the invader formed the wedge that beats it, losing 1,266 men
- * to 479.
- *
- * Only the order channel calls this, which is the only place that knows a *person* pressed
- * something.
+ * Records that a *person* took a dial. The officer no longer plays unclaimed dials at all — only
+ * delegation hands him the field — so this is bookkeeping now (the screen's verdict slot and the
+ * harnesses read it), not the switch that used to silence him. Kept on the order channel alone,
+ * which is the only place that knows a person pressed something.
  */
 export function markPlayerSteered(state: GameState, dial?: 'formation' | 'stance'): void {
   const battle = state.ascent?.activeBattle;
