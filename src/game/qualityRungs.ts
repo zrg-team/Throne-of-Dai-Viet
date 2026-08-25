@@ -55,7 +55,8 @@ export function rungForTier(tier: GraphicsQuality): Rung {
 /**
  * Where a session starts, and how high the ladder may ever climb.
  *
- * An explicit player tier is a promise: start there, cap there. Without one, the ceiling comes
+ * An explicit player tier is a promise: start there, stay there — the ladder is pinned for the
+ * whole session (see `QualityLadder.pinned`). Without one, the ceiling comes
  * from the device's own ratio (a dense screen may deserve `high`) but the ladder STARTS a step
  * conservative and climbs on evidence — a stutter on first launch loses more players than a
  * briefly-soft first minute. A persisted rung from an earlier session wins if it is not above
