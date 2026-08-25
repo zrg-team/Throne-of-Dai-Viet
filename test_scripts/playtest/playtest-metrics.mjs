@@ -12,7 +12,7 @@
  * watches the actual screen, and `playtest-play.mjs`, which lets a strategy be tuned and retried.
  *
  * Usage: node test_scripts/playtest/playtest-metrics.mjs [--seeds 8] [--ticks 600] [--json]
- * Env:   PLAYTEST_URL to point at a dev server other than localhost:5173.
+ * Env:   PLAYTEST_URL to point at a dev server other than 127.0.0.1:5179.
  */
 import { chromium } from 'playwright';
 import { mkdirSync, writeFileSync } from 'node:fs';

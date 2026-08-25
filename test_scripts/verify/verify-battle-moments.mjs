@@ -13,7 +13,7 @@
  * does not exist. Two of the old three were exactly that.
  *
  * Usage: node test_scripts/verify/verify-battle-moments.mjs [seeds] [ticks]
- * Env:   PLAYTEST_URL to point at a dev server other than localhost:5173.
+ * Env:   PLAYTEST_URL to point at a dev server other than 127.0.0.1:5179.
  */
 import { chromium } from 'playwright';
 import { BASE_URL, DECLINE, ENGINE_BOOT, READ_OPTIONS } from '../playtest/playtest-lib.mjs';

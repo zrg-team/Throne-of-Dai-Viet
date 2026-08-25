@@ -36,6 +36,7 @@ import {
   BATTLE_TEMPER,
   type CommanderTemper,
   BATTLE_COMMIT_AMPLIFY,
+  BATTLE_STANCE_RISK,
 } from '../../game/ascentConfig';
 import { battleAnswersEven, battleBeatsPerTick, battleReactDelay } from '../../game/battleOptions';
 import {
@@ -753,8 +754,11 @@ function counterTier(battle: AscentBattle): number {
  * with. The near answer (one step round the ring) leans at full size, the far one (two steps) at
  * half — `tier / 2` — so a Moment's `sharpen` raises the *size* and a sharpened soft counter is
  * 0.21, not 0.42. A Moment's `guard` still floors a losing tilt at zero.
+ *
+ * Exported for the harnesses: this is the ONE place the wager and the stance's risk dial land,
+ * so the exchange, the telegraph and the dock's price line cannot disagree about either.
  */
-function formationTilt(battle: AscentBattle): number {
+export function formationTilt(battle: AscentBattle): number {
   const tier = counterTier(battle);
   if (tier === 0) return 0;
 
@@ -766,7 +770,13 @@ function formationTilt(battle: AscentBattle): number {
   // Dồn sức amplifies the tilt both ways — here, at the single source, so the exchange, the
   // telegraph and the dock's price line cannot disagree about what the wager is doing.
   const wager = battle.committed ? BATTLE_COMMIT_AMPLIFY : 1;
-  return (tier / 2) * size * wager;
+  // The stance's risk dial — the same bet made persistent. Press lets the matchup's whole
+  // verdict through amplified: your winning counter AND the one standing against you. Digging in
+  // blunts both, honestly — the turtle trades its shield for its sword. OUR stance only: the
+  // enemy's aggression reaches the exchange through his tempo trade (`BATTLE_STANCE_TRADE`),
+  // and two risk factors on one shared tilt would breach the `(1 ± tilt) > 0` bound.
+  const risk = BATTLE_STANCE_RISK[battle.stance] ?? 1;
+  return (tier / 2) * size * wager * risk;
 }
 
 /**
@@ -1677,8 +1687,15 @@ function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
       // unless the line is close to breaking, where the brake is always correct.
       if (takeTempo && !reforming(battle.reformBeats) && !reforming(battle.theirReformBeats)) {
         const sign = formationTiltSign(battle.ourFormation, battle.theirFormation);
-        if (sign > 0) setBattleStance(state, 'press');
-        else if (sign < 0 || battle.ourMorale < BATTLE_ROUT_MORALE + 20) setBattleStance(state, 'defend');
+        // Logged when it actually lands (setBattleStance refuses a repeat): the general presses
+        // the very beat the player's new shape wins the tilt, and an unattributed flip right
+        // after a formation tap read as the TAP changing the stance (user-reported, worsened by
+        // the two dials once sharing the word "Xung phong").
+        if (sign > 0) {
+          if (setBattleStance(state, 'press')) battle.log.push(t('ascent.battle.generalTempo', { s: t('ascent.stance.press') }));
+        } else if (sign < 0 || battle.ourMorale < BATTLE_ROUT_MORALE + 20) {
+          if (setBattleStance(state, 'defend')) battle.log.push(t('ascent.battle.generalTempo', { s: t('ascent.stance.defend') }));
+        }
       }
     }
     if (met) {

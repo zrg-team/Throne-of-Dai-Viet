@@ -13,7 +13,7 @@
 // Usage: DEV_URL=http://127.0.0.1:5199 node test_scripts/verify/verify-auto-claim.mjs
 import { chromium } from 'playwright';
 
-const URL = process.env.PLAYTEST_URL || process.env.DEV_URL || 'http://localhost:5173';
+const URL = process.env.PLAYTEST_URL || process.env.DEV_URL || 'http://127.0.0.1:5179';
 const results = [];
 const check = (ok, label, detail = '') => {
   results.push(ok);

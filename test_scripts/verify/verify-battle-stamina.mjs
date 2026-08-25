@@ -14,7 +14,7 @@
 // Usage: DEV_URL=http://127.0.0.1:5199 node test_scripts/verify/verify-battle-stamina.mjs
 import { chromium } from 'playwright';
 
-const URL = process.env.PLAYTEST_URL || process.env.DEV_URL || 'http://localhost:5173';
+const URL = process.env.PLAYTEST_URL || process.env.DEV_URL || 'http://127.0.0.1:5179';
 const results = [];
 const check = (ok, label, detail = '') => {
   results.push(ok);
@@ -213,6 +213,43 @@ check(wager.first === true && wager.afterFirst.pips === 1 && wager.afterFirst.co
 check(wager.second === false, 'one wager per stand — the second is refused', '');
 check(wager.afterChange.committed === false, 'changing shape folds the wager', '');
 check(wager.broke === false, 'no pip, no wager', '');
+
+// ── 6. the stance risk dial: how much of the matchup's verdict each stance lets through ──
+// Pure contract on `formationTilt`, the single source the wager also lands on: press amplifies
+// the tilt BOTH ways (a winning counter kills more, a losing one bleeds you more), holding
+// blunts both, and the dồn sức wager compounds on top. Plus the tuning bound: the worst
+// possible tilt must stay under 1.0 or `(1 - tilt)` goes negative and a hard-countered charge
+// heals the winner.
+const risk = await normal.page.evaluate(async () => {
+  const B = await import('/src/systems/ascent/BattleSystem.ts');
+  const C = await import('/src/game/ascentConfig.ts');
+  const F = await import('/src/data/ascent/formations.ts');
+  const ring = F.FORMATION_RING;
+  const theirs = ring[0];
+  const winning = ring[ring.length - 1];   // the strong answer to their shape (section 1's rule)
+  const losing = ring[1];                   // the shape their own answer beats
+  const tilt = (ours, stance, committed = false) => B.formationTilt({
+    ourFormation: ours, theirFormation: theirs, stance, committed,
+    reformBeats: 0, theirReformBeats: 0,
+  });
+  return {
+    winPress: tilt(winning, 'press'), winBal: tilt(winning, 'balanced'), winHold: tilt(winning, 'defend'),
+    losePress: tilt(losing, 'press'), loseBal: tilt(losing, 'balanced'), loseHold: tilt(losing, 'defend'),
+    pressWager: tilt(winning, 'press', true),
+    amplify: C.BATTLE_COMMIT_AMPLIFY,
+    worst: C.BATTLE_FORMATION_TILT_SHARP * C.BATTLE_COMMIT_AMPLIFY * C.BATTLE_STANCE_RISK.press,
+  };
+});
+check(risk.winPress > risk.winBal && risk.winBal > risk.winHold && risk.winHold > 0,
+  'press sharpens a winning counter, holding blunts it',
+  `press ${risk.winPress.toFixed(3)} > steady ${risk.winBal.toFixed(3)} > hold ${risk.winHold.toFixed(3)}`);
+check(risk.losePress < risk.loseBal && risk.loseBal < risk.loseHold && risk.loseHold < 0,
+  'press deepens a losing counter, holding shields against it',
+  `press ${risk.losePress.toFixed(3)} < steady ${risk.loseBal.toFixed(3)} < hold ${risk.loseHold.toFixed(3)}`);
+check(Math.abs(risk.pressWager - risk.winPress * risk.amplify) < 1e-9,
+  'the don suc wager compounds on the stance risk', `${risk.pressWager.toFixed(3)} vs ${(risk.winPress * risk.amplify).toFixed(3)}`);
+check(risk.worst < 1, 'the worst charge still cannot heal the winner (tuning bound)',
+  `sharp x wager x press = ${risk.worst.toFixed(3)}`);
 
 check(normal.errors.length === 0 && hard.errors.length === 0, 'no console errors',
   [...normal.errors, ...hard.errors].slice(0, 2).join(' | '));

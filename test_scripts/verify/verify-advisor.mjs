@@ -8,7 +8,7 @@
 // Each scenario forces a situation into the live state, ticks the UI, and reads the line.
 import { chromium } from 'playwright';
 
-const BASE = process.env.DEV_URL ?? process.env.PLAYTEST_URL ?? 'http://localhost:5173';
+const BASE = process.env.DEV_URL ?? process.env.PLAYTEST_URL ?? 'http://127.0.0.1:5179';
 const DWELL = 4; // > DWELL_TICKS in AdvisorStrip, so a lower-priority rule may take the strip
 
 let passed = 0;

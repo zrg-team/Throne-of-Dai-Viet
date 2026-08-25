@@ -1,9 +1,9 @@
 // Verifies the front-page utility controls and language picker through real canvas taps.
-// Usage: DEV_URL=http://localhost:5173 node test_scripts/verify/verify-menu-icons-flags.mjs
+// Usage: DEV_URL=http://127.0.0.1:5179 node test_scripts/verify/verify-menu-icons-flags.mjs
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 
-const URL = process.env.DEV_URL ?? 'http://localhost:5173';
+const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 const OUT = 'output/web-game/menu-icons-flags';
 mkdirSync(OUT, { recursive: true });
 
@@ -182,6 +182,26 @@ check(Boolean(install)
     && Math.abs(install.groupCenter - 195) <= 1
     && install.hitWidth === 44 && install.hitHeight === 44,
   'install uses the shared footer-icon size and sits inline with the centred build stamp', JSON.stringify(install));
+
+// The mark only ever rides a build stamp. A page carrying none — the settings plate in dev, where
+// there is no service worker and so no version line — used to get a lone download arrow dropped in
+// the bottom-left corner of the sheet, attached to nothing and captioned by nothing.
+const orphan = await page.evaluate(() => {
+  const scene = window.__phaserGame.scene.getScene('MenuScene');
+  scene.mode = 'settings';
+  scene.render();
+  const drawn = {
+    stamp: Boolean(scene.children.list.find((c) => c.getData?.('menuVersionLine') === true
+      || c.getData?.('menuInstallAnchor'))),
+    mark: Boolean(scene.children.list.find((c) => c.getData?.('menuInstallMark') === true)),
+    hit: Boolean(scene.children.list.find((c) => c.getData?.('menuInstallHit') === true)),
+  };
+  scene.mode = 'main';
+  scene.render();
+  return drawn;
+});
+check(orphan.stamp ? orphan.mark : (!orphan.mark && !orphan.hit),
+  'a page with no build stamp draws no orphan install mark', JSON.stringify(orphan));
 // Let the one-visit install hint retract before judging the footer itself.
 await page.waitForTimeout(2300);
 await page.screenshot({ path: `${OUT}/menu-install-inline-en-844.png` });

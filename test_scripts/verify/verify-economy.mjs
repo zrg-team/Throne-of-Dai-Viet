@@ -13,13 +13,13 @@
 //  - The coin ratchet is survivable: never more than three provinces unpaid, and a starved
 //    treasury that heals must get its provinces back.
 //
-// Needs a live Vite dev server on http://localhost:5173.
+// Needs a live Vite dev server on http://127.0.0.1:5179.
 import { chromium } from 'playwright';
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 700 } });
 page.on('pageerror', (e) => console.log('PAGEERROR', e.message));
-await page.goto((process.env.DEV_URL ?? 'http://127.0.0.1:5173') + '/?seed=1337', { waitUntil: 'networkidle' });
+await page.goto((process.env.DEV_URL ?? 'http://127.0.0.1:5179') + '/?seed=1337', { waitUntil: 'networkidle' });
 
 // ── One seeded autopilot run, sampled at a small and a grown realm ───────────
 const run = await page.evaluate(async () => {

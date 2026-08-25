@@ -8,7 +8,7 @@
 // Usage: DEV_URL=http://127.0.0.1:5199 node test_scripts/verify/verify-delegation.mjs
 import { chromium } from 'playwright';
 
-const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5173';
+const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const errors = [];

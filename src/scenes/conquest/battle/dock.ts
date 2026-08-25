@@ -17,8 +17,10 @@ import {
 } from '../../../systems/ascent/reinforcement';
 import { hostOrderLabel } from '../../../systems/ascent/armyOrders';
 import { INK_UI, scrollGestureConsumedTap } from '../../../ui/InkUI';
+import { drawCardIcon, type CardIconId } from '../../../ui/CardIcons';
 import { t } from '../../../i18n';
 import type { AscentBattle } from '../../../state/types';
+import { cssHex } from '../constants';
 import { clearLayer } from '../layers';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
@@ -152,14 +154,18 @@ export function buildBattleExits(self: ConquestUIScene, battle: AscentBattle): v
   // The exits' own clock: they used to ride the dock's signature and were rebuilt with it —
   // four panels and eight wrapped labels torn down on most beats to change nothing.
   ui.exitsKey = `${handedOver ? 1 : 0}:${halted ? 1 : 0}`;
-  const chips: Array<{ label: string; sub: string; accent: number; order: string }> = [
+  // A tab bar, not a rack of chips (user verdict, 2026-08-25): four bordered panels each carrying
+  // a wrapped caption read as one more dock of controls fighting the real one above. The exits
+  // are secondary — icon over word, a hairline between neighbours, and the STATE carried by
+  // colour alone: gold for the dial currently held (paused, or the general commanding), cinnabar
+  // for the one exit that spends blood to take (breaking off).
+  const chips: Array<{ label: string; icon: CardIconId; tint?: number; order: string }> = [
     {
       // The world's clock, on the screen that is the world. Lit gold while the fight is standing
-      // still so a paused fight never again looks like a running one; dark during the opening
-      // drum, which is a hold of its own and ends on its own.
+      // still so a paused fight never again looks like a running one.
       label: halted ? t('ascent.battle.resume') : t('ascent.battle.pause'),
-      sub: halted ? t('ascent.battle.resumeSub') : t('ascent.battle.pauseSub'),
-      accent: halted ? INK_UI.gold : INK_UI.softBrush,
+      icon: halted ? 'play' : 'pause',
+      tint: halted ? INK_UI.gold : undefined,
       order: 'pause',
     },
     {
@@ -167,24 +173,21 @@ export function buildBattleExits(self: ConquestUIScene, battle: AscentBattle): v
       // walks backwards for three beats and is clear away — so it stands with the exits, and
       // the stance row is left with the three postures that actually trade.
       label: t('ascent.stance.withdraw'),
-      sub: t('ascent.stance.withdraw.note'),
-      accent: INK_UI.cinnabar,
+      icon: 'retreat',
+      tint: INK_UI.cinnabar,
       order: 'stance:withdraw',
     },
     {
       label: handedOver ? t('ascent.battle.takeField') : t('ascent.battle.autoShort'),
-      sub: handedOver ? t('ascent.battle.takeFieldNote') : t('ascent.battle.autoSub'),
-      accent: handedOver ? INK_UI.gold : INK_UI.softBrush,
+      icon: handedOver ? 'crown' : 'banner',
+      tint: handedOver ? INK_UI.gold : undefined,
       order: handedOver ? 'take-field' : 'auto',
     },
     {
       // Not a retreat and not a concession: the engagement keeps running on the world clock with
       // the general on both dials, and the aftermath card finds the player wherever they are.
-      // This is the button for the eleventh battle of a session and it must never read as giving
-      // up — breaking off is `Lui binh`, the cold end of the stance dial.
       label: t('ascent.battle.leaveShort'),
-      sub: t('ascent.battle.leaveSub'),
-      accent: INK_UI.softBrush,
+      icon: 'globe',
       order: 'leave',
     },
   ];
@@ -194,30 +197,33 @@ export function buildBattleExits(self: ConquestUIScene, battle: AscentBattle): v
   const w = (ui.exitBounds.width - gap * (chips.length - 1)) / chips.length;
   chips.forEach((chip, index) => {
     const x = baseX + index * (w + gap);
-    const bounds = { x, y, width: w, height: h };
-    const plate = self.ui.panel(bounds, {
-      border: chip.accent, fillAlpha: 0.97, borderWidth: 1.5, radius: 6,
-    });
-    exits.add(plate);
-    // Four chips in the width three used to have: a two-word label wraps, so the caption sits
-    // under the label's measured height rather than at a fixed line — "Hand to generals" was
-    // printing straight through its own caption.
-    const label = self.ui.label(x + w / 2, y + 6, chip.label, 'label', {
-      fontSize: '10px', align: 'center', wordWrap: { width: w - 6 },
+
+    // The hairline between neighbours — inset from both edges so it reads as a separator, never
+    // as a wall of its own.
+    if (index > 0) {
+      const sep = self.add.graphics();
+      sep.lineStyle(1, INK_UI.softBrush, 0.55);
+      sep.lineBetween(x - gap / 2, y + 5, x - gap / 2, y + h - 5);
+      exits.add(sep);
+    }
+
+    // Grouped so the press dip moves icon and word as one thing.
+    const group = self.add.container(x + w / 2, y + h / 2);
+    const icon = drawCardIcon(self, chip.icon, chip.tint ?? INK_UI.brush);
+    icon.setScale(0.55);
+    icon.setPosition(0, -h / 2 + 12);
+    const label = self.ui.label(0, -h / 2 + 22, chip.label, 'label', {
+      fontSize: '10px', align: 'center', wordWrap: { width: w - 8 },
+      ...(chip.tint !== undefined ? { color: cssHex(chip.tint) } : {}),
     }).setOrigin(0.5, 0);
-    exits.add(label);
-    exits.add(self.ui.label(x + w / 2, y + 6 + label.height + 1, chip.sub, 'caption', {
-      fontSize: '7.5px', align: 'center', wordWrap: { width: w - 8 },
-    }).setOrigin(0.5, 0));
+    group.add([icon, label]);
+    exits.add(group);
 
     const hit = self.add.zone(x, y, w, h).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-    // The same dip every other control on this screen gives. A bare zone over a panel is the one
-    // shape in this codebase that looks pressable and never acknowledges a press.
-    hit.on('pointerdown', () => {
-      plate.setScale(0.97);
-      plate.setPosition(x + w * 0.015, y + h * 0.015);
-    });
-    const unpress = (): void => { plate.setScale(1); plate.setPosition(x, y); };
+    // The same dip every other control on this screen gives — on the group, since there is no
+    // plate left to dip.
+    hit.on('pointerdown', () => group.setScale(0.92));
+    const unpress = (): void => { group.setScale(1); };
     hit.on('pointerout', unpress);
     hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       unpress();

@@ -45,10 +45,13 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     activePointers: 3,
     touch: true,
   },
-  // Pace the loop at 60 whatever the panel refreshes at, and keep long stalls honest: `min: 2`
-  // makes the clamp floor 500 ms, so a 400 ms map rebuild reaches the game clock as 400 ms of
-  // real time instead of being silently swallowed by the default 20-fps floor.
-  fps: { limit: 60, min: 2 },
+  // Vsync paces the loop: a 120 Hz panel runs (and shows) 120. No `limit` here — Phaser's
+  // limiter accumulates delta against a fixed rate, so a limit AT the panel's own rate beats
+  // against rAF jitter and skips real frames (measured: limit 60 halved a 120 Hz desktop, and
+  // the beat judders a 60 Hz one). The ladder engages a limiter only for a true 30-fps rung.
+  // `min: 2` keeps long stalls honest: the clamp floor is 500 ms, so a 400 ms map rebuild
+  // reaches the game clock as 400 ms of real time instead of the default 20-fps swallow.
+  fps: { min: 2 },
   render: {
     preserveDrawingBuffer: needsCapture,
     powerPreference: 'high-performance',

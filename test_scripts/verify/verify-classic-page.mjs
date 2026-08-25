@@ -8,7 +8,7 @@
 // thing joining it to the card it describes is that mark.
 import { chromium } from 'playwright';
 
-const BASE = process.env.DEV_URL ?? process.env.PLAYTEST_URL ?? 'http://localhost:5173';
+const BASE = process.env.DEV_URL ?? process.env.PLAYTEST_URL ?? 'http://127.0.0.1:5179';
 
 let passed = 0;
 let failed = 0;

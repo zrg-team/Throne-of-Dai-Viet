@@ -2,7 +2,7 @@
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 mkdirSync('output/props', { recursive: true });
-const BASE = 'http://localhost:5173';
+const BASE = 'http://127.0.0.1:5179';
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 4 });
 const errs = [];

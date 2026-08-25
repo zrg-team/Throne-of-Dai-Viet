@@ -6,7 +6,7 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 page.on('pageerror', (e) => console.log('PAGEERROR', e.message));
 
-await page.goto('http://127.0.0.1:5173/?capture=1', { waitUntil: 'domcontentloaded' });
+await page.goto('http://127.0.0.1:5179/?capture=1', { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame && window.__phaserGame.scene.isActive('MenuScene'),
   null, { timeout: 30000 });
 

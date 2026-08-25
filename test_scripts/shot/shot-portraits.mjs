@@ -6,7 +6,7 @@
 //        DEV_URL=http://127.0.0.1:5179 node test_scripts/shot/shot-portraits.mjs
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
-const URL = process.env.DEV_URL ?? process.env.PLAYTEST_URL ?? 'http://127.0.0.1:5173';
+const URL = process.env.DEV_URL ?? process.env.PLAYTEST_URL ?? 'http://127.0.0.1:5179';
 const WHICH = process.argv[2] ?? 'both';
 mkdirSync('output/web-game', { recursive: true });
 const browser = await chromium.launch();

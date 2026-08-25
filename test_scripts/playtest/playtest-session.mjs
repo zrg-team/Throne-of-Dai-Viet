@@ -13,7 +13,7 @@
  *   NN-<kind>.png   the first sighting of each distinct screen, for a human or a model to read
  *
  * Usage: node test_scripts/playtest/playtest-session.mjs [--minutes 8] [--seed 1337] [--policy engaged]
- * Env:   PLAYTEST_URL to point at a dev server other than localhost:5173.
+ * Env:   PLAYTEST_URL to point at a dev server other than 127.0.0.1:5179.
  */
 import { chromium } from 'playwright';
 import { mkdirSync, writeFileSync } from 'node:fs';

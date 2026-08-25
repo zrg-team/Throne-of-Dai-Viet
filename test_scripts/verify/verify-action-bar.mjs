@@ -9,7 +9,7 @@
 // that renders wider than it was laid out for still fails.
 import { chromium } from 'playwright';
 
-const BASE = process.env.DEV_URL ?? 'http://localhost:5173';
+const BASE = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 
 const browser = await chromium.launch();
 const errors = [];

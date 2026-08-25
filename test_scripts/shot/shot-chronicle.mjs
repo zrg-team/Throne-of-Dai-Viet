@@ -13,7 +13,7 @@ const page = await browser.newPage({ viewport: { width: 390, height: 844 }, devi
 const errors = [];
 page.on('pageerror', (err) => errors.push(err.message));
 
-await page.goto('http://localhost:5173/?capture=1', { waitUntil: 'domcontentloaded' });
+await page.goto('http://127.0.0.1:5179/?capture=1', { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
 
 // Build a run that has a story card open, then hand it to the live scene.

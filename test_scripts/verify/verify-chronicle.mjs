@@ -6,7 +6,7 @@
 // screen whose rows were dead, because every test called the screen's methods instead of pressing
 // its buttons.
 //
-// Run against a dev server on http://localhost:5173.
+// Run against a dev server on http://127.0.0.1:5179.
 import { chromium } from 'playwright';
 
 const browser = await chromium.launch();
@@ -15,7 +15,7 @@ const errors = [];
 page.on('pageerror', (err) => errors.push(`PAGEERROR: ${err.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE: ${m.text()}`); });
 
-await page.goto((process.env.DEV_URL ?? 'http://127.0.0.1:5173') + '/?capture=1', { waitUntil: 'domcontentloaded' });
+await page.goto((process.env.DEV_URL ?? 'http://127.0.0.1:5179') + '/?capture=1', { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame && window.__phaserGame.scene.isActive('MenuScene'),
   null, { timeout: 30000 });
 

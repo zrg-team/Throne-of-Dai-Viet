@@ -200,6 +200,10 @@ export class HistoryScene extends Phaser.Scene {
     // thing to read a page of prose over.
     this.mapRenderer.drawBackground(GAME_WIDTH, GAME_HEIGHT).setDepth(-10);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.clear());
+    // The page develops onto the paper rather than replacing it. Fading in from the sheet's own
+    // colour (`#e9dfc2`) means only the ink arrives: no black flash, no white one, and the
+    // parchment under it never appears to change.
+    this.cameras.main.fadeIn(190, 0xe9, 0xdf, 0xc2);
     // People opens on the first age anybody is actually filed under. Three of the eleven headings
     // have no written-up champion at all, so opening on `HISTORY_ERAS[0]` would greet the reader
     // with an empty drawer and no reason given for it.

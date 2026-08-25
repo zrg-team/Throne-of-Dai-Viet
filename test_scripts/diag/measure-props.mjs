@@ -13,7 +13,7 @@
 // Usage: node test_scripts/scratch/_measure-props.mjs [prop ...]
 import { chromium } from 'playwright';
 
-const BASE = process.env.DEV_URL ?? 'http://127.0.0.1:5173';
+const BASE = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 const ONLY = process.argv.slice(2);
 
 const browser = await chromium.launch();

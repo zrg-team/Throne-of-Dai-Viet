@@ -29,6 +29,16 @@ const GATES = {
   // headroom, and the 15k figure stays in the playbook as the target for the deferred work.
   fight: { indices: 40000, uploadKB: 600, draws: 90 },
 };
+
+// On HIGH the settlement band renders live by design — vector-crisp towns are the tier's whole
+// promise (2026-08-25) — so the map screens carry its tessellation and per-frame vertex upload:
+// measured 40.6k / 557 KB revealed classic, 118k / 1.6 MB ascent at min zoom, gated +~25%.
+// Every other quality still bakes; run `--quality medium` to hold the baked design to the
+// original numbers above.
+const HIGH_GATES = {
+  'map-revealed': { indices: 52000, uploadKB: 720, draws: 70 },
+  'ascent-map': { indices: 148000, uploadKB: 2000, draws: 80 },
+};
 const FB_BINDS_MAX = 2;
 
 const screens = SCREEN === 'all' ? Object.keys(GATES) : [SCREEN];
@@ -64,7 +74,7 @@ for (const screen of screens) {
   await installGlCounters(page);
   const frame = await glFrame(page, { frames: 12, warm: 4 });
 
-  const gate = GATES[screen];
+  const gate = (QUALITY === 'high' && HIGH_GATES[screen]) || GATES[screen];
   checks.push([`${screen}: indices/frame ≤ ${gate.indices}`, frame.indices <= gate.indices,
     `${Math.round(frame.indices)}`]);
   checks.push([`${screen}: upload ≤ ${gate.uploadKB} KB/frame`, frame.uploadKB <= gate.uploadKB,

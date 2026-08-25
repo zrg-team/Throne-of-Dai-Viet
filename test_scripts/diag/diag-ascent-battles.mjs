@@ -13,7 +13,7 @@ const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(`PAGEERROR ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE ${m.text()}`); });
-await page.goto(`http://localhost:5173/?capture=1&rng=${process.argv[4] ?? 20260808}&auto=${process.env.AUTO ?? '0'}`, { waitUntil: 'domcontentloaded' });
+await page.goto(`http://127.0.0.1:5179/?capture=1&rng=${process.argv[4] ?? 20260808}&auto=${process.env.AUTO ?? '0'}`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => typeof window.__startBenchGame === 'function' && window.__phaserGame.scene.isActive('MenuScene'), null, { timeout: 30000 });
 await page.evaluate((s) => window.__startBenchGame(s, 'ascent'), SEED);
 await page.waitForFunction(() => window.__phaserGame.scene.isActive('ConquestScene'), null, { timeout: 30000 });

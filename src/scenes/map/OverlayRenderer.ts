@@ -162,13 +162,23 @@ export class OverlayRenderer {
     // A world-sized texture past MAX_TEXTURE_SIZE fails silently and renders black - clamp
     // first, so a huge revealed world on a small GPU gets a softer fog, not a missing one.
     scale = fitBakeScale(this.scene, worldWidth, worldHeight, scale);
+    // The quality rung can change mid-run, and with it the wanted scale — an RT sized for the
+    // old one would silently bake at the wrong density. Compared through the size ASKED for:
+    // Phaser rounds RT dimensions up, so `rt.width` cannot hold this guard.
+    const wantW = Math.ceil(worldWidth * scale);
+    const wantH = Math.ceil(worldHeight * scale);
+    if (this.fogBakeRT && this.fogBakeRT.getData('bakeSize') !== `${wantW}x${wantH}`) {
+      this.fogBakeRT.destroy();
+      this.fogBakeRT = undefined;
+    }
     if (!this.fogBakeRT) {
       // Baked at `scale` resolution then displayed scaled up; fog is a soft tint so the
       // reduced resolution is imperceptible and it cuts the cached-texture memory.
-      this.fogBakeRT = this.scene.add.renderTexture(0, 0, Math.ceil(worldWidth * scale), Math.ceil(worldHeight * scale))
+      this.fogBakeRT = this.scene.add.renderTexture(0, 0, wantW, wantH)
         .setOrigin(0, 0)
         .setScale(1 / scale)
-        .setDepth(77.5);
+        .setDepth(77.5)
+        .setData('bakeSize', `${wantW}x${wantH}`);
     }
     // Skip if the WebGL context is lost — clearing/drawing the RenderTexture would
     // dereference a null GL binding. The bake re-runs on the next visibility change.

@@ -829,6 +829,30 @@ export const BATTLE_STANCE_TRADE: Record<FieldStance, { dealt: number; taken: nu
   press: { dealt: 1.55, taken: 1.40 },
 };
 
+/**
+ * How much of the formation matchup a stance lets through — the risk dial.
+ *
+ * The tempo trade above decides how FAST the men are spent; this decides how much of the SHAPE'S
+ * verdict reaches them. Press into a losing matchup and it hits you harder; dig in under one and
+ * it hits you less — and the same scaling honestly cuts your winning counter when you turtle, so
+ * the stance is a risk dial, not a free shield. Multiplies `formationTilt` at its single source,
+ * compounding with the dồn sức wager (`BATTLE_COMMIT_AMPLIFY`) the way pushing a second pip
+ * does: stance is the free persistent lean, the wager the paid spike on one stand.
+ *
+ * Deliberately OUR stance only — the enemy's aggression already reaches the exchange through his
+ * tempo trade, and two stances multiplying one shared tilt would breach the bound below.
+ *
+ * Tuning bound, held by `verify-battle-stamina`: the worst tilt is
+ * (tier 2 / 2) x SHARP x COMMIT_AMPLIFY x press, and the exchange shares carry `(1 ± tilt)` —
+ * that product must stay under 1.0 or a hard-countered charge starts HEALING the winner.
+ */
+export const BATTLE_STANCE_RISK: Record<FieldStance, number> = {
+  withdraw: 0.35,
+  defend: 0.6,
+  balanced: 1,
+  press: 1.35,
+};
+
 /** Beats spent disengaging once the stance is `withdraw`, before the host is clear away. */
 export const BATTLE_WITHDRAW_BEATS = 3;
 

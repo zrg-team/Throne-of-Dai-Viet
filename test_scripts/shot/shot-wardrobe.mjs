@@ -13,7 +13,7 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 
-const URL = process.env.PLAYTEST_URL || process.env.DEV_URL || 'http://localhost:5173';
+const URL = process.env.PLAYTEST_URL || process.env.DEV_URL || 'http://127.0.0.1:5179';
 const MODE = process.argv[2] ?? 'themes';
 const OUT = 'test_scripts/shots';
 
