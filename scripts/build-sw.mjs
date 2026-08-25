@@ -30,11 +30,13 @@ const argOf = (flag, fallback) => {
 
 const DIST = resolve(ROOT, argOf('--dist', 'dist'));
 
+const PKG = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+
 /** The sub-path the game is served from — `/ten-thousand-victories/` on Pages, `/` anywhere else. */
 const BASE = (() => {
   const override = argOf('--base', undefined);
   if (override) return override.endsWith('/') ? override : `${override}/`;
-  const { homepage } = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+  const { homepage } = PKG;
   if (typeof homepage !== 'string' || homepage.length === 0) return '/';
   const { pathname } = new URL(homepage);
   return pathname.endsWith('/') ? pathname : `${pathname}/`;
@@ -112,6 +114,7 @@ const list = (urls) => `[\n${urls.map((entry) => `  ${JSON.stringify(entry)},`).
 // find out that had changed.
 const worker = [
   ["'__CACHE_VERSION__'", JSON.stringify(version)],
+  ["'__APP_VERSION__'", JSON.stringify(PKG.version ?? '')],
   ['__PRECACHE_CRITICAL__', list(critical)],
   ['__PRECACHE_OPTIONAL__', list(optional)],
   ['__SHELL_URL__', JSON.stringify(BASE)],

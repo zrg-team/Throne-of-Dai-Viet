@@ -88,6 +88,48 @@ export function getUpdateStatus(): UpdateStatus {
   return status;
 }
 
+/**
+ * The package.json version of the incoming worker — the number in "Downloading version 0.3.1
+ * (current 0.3.0)" — or undefined until it has answered, or forever if it never does (a worker
+ * built before `GET_VERSION` carried the semver). The menu falls back to words without a number.
+ */
+let incomingVersion: string | undefined;
+
+export function getIncomingVersion(): string | undefined {
+  return incomingVersion;
+}
+
+/**
+ * Ask a downloading or waiting worker which version it is.
+ *
+ * Asked on every `refresh` rather than once per worker: a message posted while the script is
+ * still spinning up can be lost, and the same worker object is the one that later reaches
+ * `waiting`. Replies are idempotent and refresh fires a handful of times per update, so the
+ * repeat costs nothing.
+ */
+function askIncomingVersion(worker: ServiceWorker | null): void {
+  if (!worker) {
+    incomingVersion = undefined;
+    return;
+  }
+  try {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = (event) => {
+      const version = typeof event.data?.version === 'string' ? event.data.version : undefined;
+      if (version && version !== incomingVersion) {
+        incomingVersion = version;
+        // Not a status change, but the line printing the status now has a number to add.
+        for (const listener of listeners) {
+          listener(status);
+        }
+      }
+    };
+    worker.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
+  } catch {
+    // Nothing to do: the menu simply says "new version" without saying which.
+  }
+}
+
 export function subscribeUpdateStatus(listener: (status: UpdateStatus) => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -174,15 +216,24 @@ function refresh(): void {
     return;
   }
   if (registration.waiting && navigator.serviceWorker.controller) {
+    askIncomingVersion(registration.waiting);
     setStatus('ready');
     return;
   }
   if (registration.installing) {
     // A first install is not an update. Without the controller check the very first visit reads
     // "new version installing", which is a lie about a game the player has never run before.
-    setStatus(navigator.serviceWorker.controller ? 'installing' : 'caching');
+    if (navigator.serviceWorker.controller) {
+      askIncomingVersion(registration.installing);
+      setStatus('installing');
+    } else {
+      setStatus('caching');
+    }
     return;
   }
+  // No incoming worker any more — another client may have taken the update out from under the
+  // notice, and a number left over from it would caption the wrong state next time.
+  askIncomingVersion(null);
   setStatus(navigator.serviceWorker.controller ? 'offlineReady' : 'caching');
 }
 
