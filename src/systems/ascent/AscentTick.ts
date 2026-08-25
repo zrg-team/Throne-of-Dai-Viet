@@ -1,6 +1,8 @@
 import { tickVassals } from './VassalSystem';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
-import { CAPITAL_GRACE_TICKS, LOYALTY_SETTLE_PER_TICK, SUMMON_EVERY_N_WAVES } from '../../game/ascentConfig';
+import {
+  ASCENT_AUTO_DELEGATE_BEATS, CAPITAL_GRACE_TICKS, LOYALTY_SETTLE_PER_TICK, SUMMON_EVERY_N_WAVES,
+} from '../../game/ascentConfig';
 import { pushToast } from '../empire/notifications';
 import { progressAcquisitions } from '../AcquisitionSystem';
 import {
@@ -25,7 +27,7 @@ import { ensureHeroDeck } from '../../data/heroFactory';
 import { drainAscentPrompts } from './AscentState';
 import { tickAscentAutopilot } from './AutopilotSystem';
 import { tickStandingOrders } from './StandingOrders';
-import { advanceBattle, beginBattle } from './BattleSystem';
+import { advanceBattle, beginBattle, delegateBattle } from './BattleSystem';
 import { tickAscentProgress } from './PowerSystem';
 import { tickRaids, tickWaveDirector } from './WaveDirector';
 import { tickEnemyCommand } from './EnemyCommandDirector';
@@ -252,6 +254,20 @@ export function advanceAscentTick(state: GameState): void {
   // drains at its own pace, so the facing-lines opening was already guaranteed, and what the
   // rule actually bought was a full tick of dead air before the first arrow.
   void openedThisTick;
+
+  // In a RUN, an uncommanded field is an implicitly delegated one. The dials stay the player's
+  // for a grace window — long enough to take the screen in and start commanding — and then the
+  // general assumes them, with the hand-over in the log and the take-back chip one tap away.
+  // Without this, "manual means manual" (built for the Skirmish, where doing nothing must lose)
+  // quietly gutted every campaign defence the player did not personally fight: measured on the
+  // seeded long run, fights the officers used to hold became routs, provinces fell early, and
+  // the run died before its own late-game checks could fire. The arena never does this — it is
+  // the practice yard, and an unclaimed fight losing there is the lesson.
+  const live = state.ascent.activeBattle;
+  if (live && !live.delegated && !live.steeredFormation && !live.steeredStance
+    && (live.approachBeats ?? 0) + live.round >= ASCENT_AUTO_DELEGATE_BEATS) {
+    delegateBattle(state, true);
+  }
   advanceBattle(state);
 
   // Once nothing is being fought, any province that turned its garrison out takes it back in.

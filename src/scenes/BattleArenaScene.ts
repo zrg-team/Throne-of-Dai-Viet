@@ -12,6 +12,12 @@ import {
 } from '../ui/InkUI';
 import { createLabel } from '../ui/theme';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
+import { bucketFor, figureStamp } from '../ui/ink/figureStamps';
+import { placeStamp } from '../ui/ink/stamp';
+import { faceTravel } from '../ui/ink/life';
+import { PIGMENT } from '../ui/ink/palette';
+import { BATTLE_HOST_SCALE } from '../game/ascentConfig';
+import type { FigureArm } from '../ui/ink/devices';
 import { t } from '../i18n';
 import { applyRenderScale } from '../game/graphicsQuality';
 import { drawFormationRing } from '../ui/ascent/formationCounters';
@@ -797,8 +803,33 @@ export class BattleArenaScene extends Phaser.Scene {
         fontSize: '11px', align: 'center',
       }).setOrigin(0.5, 0));
     this.stepButton(parent, x + stepW + valueW + 8, cursor, stepW, styleH, '›', true, () => stepStyle(1));
+    cursor += styleH + 6;
 
-    return cursor + styleH + 5;
+    // ── and the men themselves, so the pick can be SEEN (user request). ────
+    //
+    // One of each arm, drawn through the exact stamp pipeline the battlefield uses — same
+    // wardrobe spec, same figure drawings — so what stands here is what will stand on the field,
+    // not an approximation that can drift from it. Enemy figures take the softer ink and no sỏi
+    // son accent, the same rule `hostKitFor` applies.
+    const PREVIEW_SCALE = 2.6;
+    const PREVIEW_H = 44;
+    const feetY = cursor + PREVIEW_H - 8;
+    const previewArms: FigureArm[] = ['spear', 'sword', 'bow', 'mounted'];
+    const slot = width / previewArms.length;
+    previewArms.forEach((arm, index) => {
+      const stampRef = figureStamp(this, {
+        theme: chosenStyle, tier: 1, arm,
+        colour: ours ? PIGMENT.muc : PIGMENT.mucSoft,
+        accent: ours ? PIGMENT.son : PIGMENT.mucSoft,
+        variant: index % 3, bucket: bucketFor(PREVIEW_SCALE),
+      });
+      const image = placeStamp(this, stampRef, x + slot * (index + 0.5), feetY,
+        PREVIEW_SCALE / BATTLE_HOST_SCALE);
+      if (!ours) faceTravel(image, -1);
+      parent.add(image);
+    });
+
+    return cursor + PREVIEW_H + 4;
   }
 
   /** A − or + beside the headcount. Greyed at the ends of the range rather than removed. */
