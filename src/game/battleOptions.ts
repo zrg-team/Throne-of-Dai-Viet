@@ -23,10 +23,10 @@ interface DifficultyProfile {
   /**
    * Added to the beats the invader hesitates before ordering its answer. Positive is slower.
    *
-   * This is the whole of the difficulty axis, and deliberately so: the fight is a race between the
-   * player spotting a matchup and the enemy answering it, so *how long the answer takes* is the one
-   * number that changes how hard it is to play without changing what the rules are. Nothing here
-   * touches damage, morale or the odds — a harder enemy is a quicker one, not a stronger one.
+   * Difficulty is how fast and how fully the enemy PLAYS — never how hard he hits. Nothing in
+   * this profile touches damage, morale or the odds: a harder enemy answers sooner
+   * (`reactDelay`), refuses to rest (`answersEven`) and plays more of the game's own verbs at
+   * you (`wagerAfter`) — the same verbs the player has, at the same prices.
    *
    * It used to lengthen their walk instead. Since the wind rework every walk is one flat beat and
    * the delay moved to hesitation — beats they stand countered before ordering — which is worth
@@ -34,6 +34,13 @@ interface DifficultyProfile {
    * walking one had zeroed the tilt for both sides. See `advanceEnemyFormation`.
    */
   readonly reactDelay: number;
+  /**
+   * Clash beats the player must stand IDLE on the formation dial before the invader dares his
+   * own dồn sức on a winning shape — piling everything onto a counter nobody is answering.
+   * `null` never wagers (easy: the pattern simply does not exist there). The player's answer is
+   * the player's own verb: re-form and the wager folds on the spot. See `advanceEnemyWager`.
+   */
+  readonly wagerAfter: number | null;
   /**
    * Whether they re-form out of an even matchup as well as a losing one.
    *
@@ -64,13 +71,15 @@ interface DifficultyProfile {
 
 const DIFFICULTY: Record<BattleDifficulty, DifficultyProfile> = {
   // Two extra beats is a long window — enough to counter, watch it land, and still spend a beat or
-  // two inside the advantage before they answer.
-  easy: { reactDelay: 2, answersEven: false, bubbleMs: Infinity, rims: true },
-  // What the fight has always done. See the file's note on defaults.
-  medium: { reactDelay: 0, answersEven: false, bubbleMs: 2400, rims: true },
-  hard: { reactDelay: -1, answersEven: false, bubbleMs: 1100, rims: false },
-  // Fastest they can be re-formed at all, never a beat of contentment, and no words on the field.
-  nightmare: { reactDelay: -2, answersEven: true, bubbleMs: 0, rims: false },
+  // two inside the advantage before they answer. And no wager: easy is for learning the shapes.
+  easy: { reactDelay: 2, answersEven: false, bubbleMs: Infinity, rims: true, wagerAfter: null },
+  // Six idle beats is roughly two seasons of sitting still — long enough that a player merely
+  // between decisions never sees it, short enough that a player who has stopped playing does.
+  medium: { reactDelay: 0, answersEven: false, bubbleMs: 2400, rims: true, wagerAfter: 6 },
+  hard: { reactDelay: -1, answersEven: false, bubbleMs: 1100, rims: false, wagerAfter: 4 },
+  // Fastest they can be re-formed at all, never a beat of contentment, no words on the field,
+  // and the wager comes almost at once.
+  nightmare: { reactDelay: -2, answersEven: true, bubbleMs: 0, rims: false, wagerAfter: 3 },
 };
 
 interface SpeedProfile {
@@ -187,6 +196,11 @@ export function battleReactDelay(): number {
 /** Whether the invader answers an even matchup as well as a losing one. */
 export function battleAnswersEven(): boolean {
   return DIFFICULTY[escalated().difficulty].answersEven;
+}
+
+/** Idle beats before the invader wagers on a winning shape, or null to never. */
+export function battleEnemyWagerAfter(): number | null {
+  return DIFFICULTY[escalated().difficulty].wagerAfter;
 }
 
 /** Whether the dock shows which shapes beat the enemy's. See `DifficultyProfile.rims`. */

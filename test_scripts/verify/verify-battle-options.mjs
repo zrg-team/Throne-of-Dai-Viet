@@ -83,14 +83,24 @@ check(rates.every((r, i) => i === 0 || r > rates[i - 1]),
 //
 // Driven through the real resolver rather than read off the profile table, because a setting that
 // is stored and never consulted looks identical to one that works.
-await page.evaluate(() => window.__phaserGame.scene.start('BattleArenaScene'));
-await page.waitForTimeout(700);
-const reach = await page.evaluate(async () => {
-  const B = await import('/src/systems/ascent/BattleSystem.ts');
-  const O = await import('/src/game/battleOptions.ts');
-  const arena = window.__phaserGame.scene.getScene('BattleArenaScene');
-  const walk = (tier) => {
-    O.setBattleDifficulty(tier);
+//
+// ONE PAGE PER TIER, set through localStorage before the page loads. Setting it in-page through a
+// harness-imported `battleOptions` is not reliable: the scene's own chain can hold a second module
+// instance whose lazy `difficulty ??=` cached at first read, and then every tier measures whatever
+// that first read saw — this check read 7/7/7 that way. localStorage is the one channel both
+// instances agree on, provided it is set before either has read it.
+const reach = {};
+for (const tier of ['easy', 'medium', 'nightmare']) {
+  const tierPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  tierPage.on('pageerror', (e) => errors.push(String(e)));
+  await tierPage.addInitScript((d) => { try { localStorage.setItem('mandate:battle:difficulty:v1', d); } catch { /* ignore */ } }, tier);
+  await tierPage.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
+  await tierPage.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
+  await tierPage.evaluate(() => window.__phaserGame.scene.start('BattleArenaScene'));
+  await tierPage.waitForTimeout(700);
+  reach[tier] = await tierPage.evaluate(async () => {
+    const B = await import('/src/systems/ascent/BattleSystem.ts');
+    const arena = window.__phaserGame.scene.getScene('BattleArenaScene');
     arena.ourMen = 1400; arena.theirMen = 1400; arena.martial = 60;
     const st = arena.buildArenaState();
     const b = st.ascent.activeBattle;
@@ -137,11 +147,9 @@ const reach = await page.evaluate(async () => {
       if (b.theirFormation !== was) return i;
     }
     return -1;
-  };
-  const out = { easy: walk('easy'), medium: walk('medium'), nightmare: walk('nightmare') };
-  O.setBattleDifficulty('medium');
-  return out;
-});
+  });
+  await tierPage.close();
+}
 check(reach.easy > reach.medium && reach.medium > reach.nightmare && reach.nightmare >= 1,
   'the dial reaches the fight: each tier answers a held counter in fewer beats',
   `beats to answer — easy ${reach.easy}, medium ${reach.medium}, nightmare ${reach.nightmare}`);

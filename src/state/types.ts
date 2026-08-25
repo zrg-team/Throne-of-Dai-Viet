@@ -1813,6 +1813,14 @@ export interface AscentBattle {
   theirReformBeats?: number;
   /** Beats their shape is frozen for, bought by a Moment. Their re-form clock does not run. */
   theirShapeLockBeats?: number;
+  /**
+   * The invader's own dồn sức: he has doubled down on a winning shape against a player who has
+   * stopped answering. Amplifies the tilt both ways while it stands and folds the moment either
+   * side re-forms or his heart collapses — see `advanceEnemyWager`. Difficulty-gated; easy never.
+   */
+  theirCommitted?: boolean;
+  /** Beats before he may wager again after one folds — his pip regen, in effect. */
+  theirWagerClock?: number;
   /** The next change of shape costs no beats at all, bought by a Moment. */
   freeReform?: boolean;
   /**

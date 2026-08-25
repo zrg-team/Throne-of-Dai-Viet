@@ -38,7 +38,9 @@ import {
   BATTLE_COMMIT_AMPLIFY,
   BATTLE_STANCE_RISK,
 } from '../../game/ascentConfig';
-import { battleAnswersEven, battleBeatsPerTick, battleReactDelay } from '../../game/battleOptions';
+import {
+  battleAnswersEven, battleBeatsPerTick, battleEnemyWagerAfter, battleReactDelay,
+} from '../../game/battleOptions';
 import {
   formationBeats, formationTier, formationTiltSign,
   FORMATION_RING, type BattleFormation,
@@ -595,6 +597,11 @@ function enemyStance(state: GameState, battle: AscentBattle): FieldStance {
   const personality = kingdom?.personality ?? 'aggressive';
   const theirEdge = battle.theirMorale - battle.ourMorale;
 
+  // Dồn sức plays to kill: while his wager stands he presses, whatever his doctrine says — the
+  // whole point of doubling down is spending men faster while the shape is his. Read here, in
+  // the one function the telegraph shares with the beat, so the screen's promise stays honest.
+  if (battle.theirCommitted) return 'press';
+
   // Every branch is deterministic on state the player can see. That is what keeps the ring a read
   // rather than a guessing game: `battleTelegraph` shows this same value before the beat resolves,
   // and it must be the stance actually taken or the whole thing collapses into a coin flip.
@@ -770,13 +777,21 @@ export function formationTilt(battle: AscentBattle): number {
   // Dồn sức amplifies the tilt both ways — here, at the single source, so the exchange, the
   // telegraph and the dock's price line cannot disagree about what the wager is doing.
   const wager = battle.committed ? BATTLE_COMMIT_AMPLIFY : 1;
+  // The invader's own wager, same coin, same both-ways honesty: doubling onto a shape that gets
+  // countered mid-stand pays the counter out amplified. See `advanceEnemyWager` for when he dares.
+  const foeWager = battle.theirCommitted ? BATTLE_COMMIT_AMPLIFY : 1;
   // The stance's risk dial — the same bet made persistent. Press lets the matchup's whole
   // verdict through amplified: your winning counter AND the one standing against you. Digging in
   // blunts both, honestly — the turtle trades its shield for its sword. OUR stance only: the
   // enemy's aggression reaches the exchange through his tempo trade (`BATTLE_STANCE_TRADE`),
   // and two risk factors on one shared tilt would breach the `(1 ± tilt) > 0` bound.
   const risk = BATTLE_STANCE_RISK[battle.stance] ?? 1;
-  return (tier / 2) * size * wager * risk;
+  // Clamped because the exchange carries `(1 ± tilt)` and it must never go negative — the old
+  // bound (sharp × wager × press = 0.907) held by construction until the enemy's wager could
+  // stack on the player's. Two simultaneous wagers on a sharpened press are the one case that
+  // breaches it, and a hard stop at the source beats every caller re-deriving the safety.
+  const raw = (tier / 2) * size * wager * foeWager * risk;
+  return Math.max(-0.92, Math.min(0.92, raw));
 }
 
 /**
@@ -900,6 +915,45 @@ function advanceEnemyFormation(state: GameState, battle: AscentBattle, theirs: A
   // readable boundary, which is the same one visible walking beat the player's own orders get
   // (theirs are placed BETWEEN beats). verify-battle-dials fight two watches this promise land.
   battle.theirReformBeats = 2;
+}
+
+/**
+ * The invader's dồn sức — the user's own words for it: "sometimes they see us not change
+ * formation, they push into the winning formation to have more kill."
+ *
+ * Deterministic on state the player can see, like every enemy decision, so the telegraph and the
+ * price line stay honest. He dares it only when ALL of these hold:
+ *   · the shape is his (`tier > 0` for him) and neither side is walking;
+ *   · his temper gambles at all — the stubborn never wagers, exactly as he never presses;
+ *   · the difficulty allows it (`battleEnemyWagerAfter`, null on easy) and the player has stood
+ *     idle on the formation dial that long — an answering player never sees it;
+ *   · his last wager is off cooldown (`theirWagerClock`, the same regen rhythm as a player pip).
+ *
+ * It folds like the player's: either side re-forming ends it, and so does his own heart failing —
+ * a line that is starting to lose does not double down, it pulls back to `defend` through
+ * `enemyStance`'s ordinary reads.
+ */
+function advanceEnemyWager(state: GameState, battle: AscentBattle): void {
+  const walking = reforming(battle.reformBeats) || reforming(battle.theirReformBeats);
+  const theirEdge = battle.theirMorale - battle.ourMorale;
+  if (battle.theirCommitted) {
+    if (walking || theirEdge < -15 || formationTier(battle.theirFormation, battle.ourFormation) <= 0) {
+      battle.theirCommitted = false;
+      battle.theirWagerClock = BATTLE_STAMINA_REGEN_BEATS;
+    }
+    return;
+  }
+  if ((battle.theirWagerClock ?? 0) > 0) {
+    battle.theirWagerClock = (battle.theirWagerClock ?? 0) - 1;
+    return;
+  }
+  const after = battleEnemyWagerAfter();
+  if (after === null || walking) return;
+  if (!BATTLE_TEMPER[temperOf(state, battle)].presses) return;
+  if (formationTier(battle.theirFormation, battle.ourFormation) <= 0) return;
+  if ((battle.beatsSinceOurShape ?? 0) < after) return;
+  battle.theirCommitted = true;
+  battle.log.push(t('ascent.battle.enemyCommits'));
 }
 
 /** What share of the invader's strength is bowmen — the thing that decides whether they stand off. */
@@ -1219,8 +1273,13 @@ export function answerBattleMoment(state: GameState, answer: BattleMomentAnswer,
   // — 5.5 points below skilled play before, 6.0 after, against a gate of 8 to 15 — because most of
   // what a delegated fight decides is `generalPlaysBeat`'s stance each beat, not the two or three
   // Moments. The gate is still unmet and the lever that would meet it is that one, not this.
+  //
+  // A question nobody was GIVEN does not earn the general's judgement. In an undelegated fight a
+  // timed-out Moment gets the floor weight — the officers do the timid minimum — because a player
+  // ignoring the screen was collecting near-general-quality answers for free, one more channel by
+  // which doing nothing quietly played well. Handing the fight over is what buys his number.
   const skill = 0.35 + (moment.generalMartial ?? 0) / 100 * 0.55;
-  const weight = byGeneral ? skill : 1;
+  const weight = byGeneral ? (battle.delegated ? skill : 0.35) : 1;
 
   const def = BATTLE_MOMENTS.find((candidate) => candidate.id === moment.id);
   if (!def) { battle.moment = undefined; return false; }
@@ -1251,8 +1310,10 @@ function ageMoment(state: GameState, battle: AscentBattle): boolean {
   moment.ticksLeft -= 1;
   if (moment.ticksLeft > 0) return true;
   // A cautious commander steadies the line; a bold one commits. Their martial decides which they
-  // are as well as how well it goes, so a host's commander is a real appointment.
-  const bold = (moment.generalMartial ?? 0) >= 60;
+  // are as well as how well it goes, so a host's commander is a real appointment. An UNDELEGATED
+  // fight always steadies: nobody chose to gamble, so nobody gambles — the answer is the timid
+  // default at the floor weight (see `answerBattleMoment`).
+  const bold = battle.delegated && (moment.generalMartial ?? 0) >= 60;
   answerBattleMoment(state, bold ? 'commit' : 'steady', true);
   return false;
 }
@@ -1333,6 +1394,8 @@ export function fightRound(state: GameState): void {
   // could not state it during the approach and the deck could not ask about it.
   battle.ourMatchup = matchupAcross(ours, theirs);
   battle.theirMatchup = matchupAcross(theirs, ours);
+  // His wager first, because his stance reads it — dồn sức presses by definition.
+  advanceEnemyWager(state, battle);
   // Walls do not sally: a garrison-only defence holds its ground and shoots.
   battle.theirStance = offence && theirs.every((host) => host.isLevy) ? 'defend' : enemyStance(state, battle);
   // Their shape is chosen from the same function the telegraph prints, so what the screen promised
