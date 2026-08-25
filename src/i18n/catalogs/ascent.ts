@@ -268,7 +268,9 @@ export const enAscent = {
   "arena.doctrine.defensive": "Defensive",
   "arena.doctrine.cautious": "Cautious",
   "arena.general.none": "None",
-  "arena.oddsLine": "Odds {odds} against us — {verdict}",
+  // Neutral on purpose: the number is theirs-to-ours, and the old "against us" read as if the
+  // page itself leaned enemy — at an even 1.00 a player took it to mean the armies were unequal.
+  "arena.oddsLine": "One of ours to {odds} of theirs — {verdict}",
   "arena.odds.easy": "we should win this",
   "arena.odds.close": "genuinely in doubt",
   "arena.odds.hard": "we are outmatched",
@@ -1738,7 +1740,9 @@ export const viAscent = {
   "arena.doctrine.defensive": "Thủ vững",
   "arena.doctrine.cautious": "Thận trọng",
   "arena.general.none": "Không có",
-  "arena.oddsLine": "Tương quan {odds} nghiêng về địch — {verdict}",
+  // Trung lập có chủ ý: con số là địch-trên-ta, còn "nghiêng về địch" cũ làm trận 1.00 cân bằng
+  // đọc như thể trang tự thiên vị địch — người chơi tưởng hai quân không bằng nhau.
+  "arena.oddsLine": "Ta 1 chọi {odds} — {verdict}",
   "arena.odds.easy": "ta nắm phần thắng",
   "arena.odds.close": "thật sự khó lường",
   "arena.odds.hard": "ta yếu thế",
