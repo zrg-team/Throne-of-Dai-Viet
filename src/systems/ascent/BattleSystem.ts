@@ -1418,11 +1418,13 @@ export function fightRound(state: GameState): void {
   advanceEnemyFormation(state, battle, theirs);
 
   if (offence) {
-    // We are the ones coming. Holding is closing under shields — slower, and under fewer arrows;
-    // pressing is the rush. Either way the assault reaches the walls; a defender that never
-    // sallies cannot stall it at the approach forever.
+    // We are the ones coming. Pressing is the rush, the march is the march, and Cố thủ is
+    // closing under shields — half pace, the same walk-speed language the defence speaks.
+    // Either way the assault reaches the walls; a defender that never sallies cannot stall it
+    // at the approach forever, which is what the cap below is for.
     battle.approachBeats = (battle.approachBeats ?? 0) + 1;
-    battle.ourAdvance = Math.min(1, battle.ourAdvance + BATTLE_ADVANCE_PER_TICK * (charging ? 1.5 : 1));
+    battle.ourAdvance = Math.min(1, battle.ourAdvance
+      + BATTLE_ADVANCE_PER_TICK * (charging ? 1.5 : battle.stance === 'defend' ? 0.5 : 1));
     if (battle.approachBeats >= BATTLE_APPROACH_MAX_BEATS) battle.ourAdvance = 1;
   } else {
     // The invader is always coming; we advance only when told to. Charging also closes faster,
@@ -1434,11 +1436,20 @@ export function fightRound(state: GameState): void {
     // about a defensive approach sat behind a counter that was permanently zero.
     battle.approachBeats = (battle.approachBeats ?? 0) + 1;
     battle.theirAdvance = Math.min(1, battle.theirAdvance + BATTLE_ADVANCE_PER_TICK);
-    // Loosing opens the range rather than merely refusing to close: a host that means to shoot
-    // wants the ground between it and them, which is what makes it lose to a charge.
+    // The stance IS the walk (user design, 2026-08-25): Thúc quân closes at speed, Cân bằng
+    // closes at the march, Cố thủ stands its ground and lets them come. Every non-press stance
+    // used to fall BACK, so a balanced line drifted away from the enemy it was supposedly
+    // holding against and the dial read as nothing on the field. Two exceptions keep their
+    // reasons: Thế Nỏ opens the range whenever it is not charging — a host that means to shoot
+    // wants the ground between it and them, which is what makes it lose to a charge — and Lui
+    // binh backs off (the withdraw block below adds the rest of the walk out).
     battle.ourAdvance = charging
       ? Math.min(1, battle.ourAdvance + BATTLE_ADVANCE_PER_TICK * 1.5)
-      : Math.max(0, battle.ourAdvance - BATTLE_ADVANCE_PER_TICK * (loosing ? 0.6 : 0.5));
+      : loosing || withdrawing
+        ? Math.max(0, battle.ourAdvance - BATTLE_ADVANCE_PER_TICK * (loosing ? 0.6 : 0.5))
+        : battle.stance === 'defend'
+          ? battle.ourAdvance
+          : Math.min(1, battle.ourAdvance + BATTLE_ADVANCE_PER_TICK);
   }
 
   // Disengaging is something you survive, not a button you press. The line keeps trading — badly,
@@ -1755,6 +1766,15 @@ function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
     const hero = led ? state.heroes.find((candidate) => candidate.id === led) : undefined;
     return hero ? hero.stats.martial : 45;
   })();
+  // The approach is an archery decision, and the general makes it the way the invader's own
+  // doctrine does: a bow-backed host stands off and shoots (Cố thủ holds its ground now — the
+  // stance IS the walk), everyone else closes at the march. Without this the walk rework quietly
+  // gutted every delegated defence in a run: balanced closes since 2026-08-25, so a militia line
+  // that lived on its volleys marched itself into melee — measured on the seeded long run, the
+  // realm fell to one province and the late-game never came.
+  if (!met && !reforming(battle.reformBeats)) {
+    setBattleStance(state, bowShare(ourHosts(state, battle)) >= 0.22 ? 'defend' : 'balanced');
+  }
   if (generalReadsBeat(battle, martial)) {
     const read = battleTelegraph(state);
     if (read) {
