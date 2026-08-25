@@ -55,6 +55,7 @@ import type {
 } from '../state/types';
 import { heroName, t, tickLabel } from '../i18n';
 import { pushToast } from './empire/notifications';
+import { isEngagedHost } from './ascent/armyOrders';
 
 const MAX_ARMY_LEVEL = 5;
 
@@ -905,6 +906,7 @@ export function progressRecruitmentOrders(state: GameState): boolean {
 /** Consumes rations/provisions for every player-owned army each tick, applying morale penalties, starvation attrition, and disbandment. */
 export function progressArmyLogistics(state: GameState): boolean {
   const disbanded: Army[] = [];
+  const arrearsRipe: Army[] = [];
   const unpaidDisbanded = new Set<string>();
   const moraleRegen = getCourtBonuses(state).armyMoraleRegen;
   // Wages bite when the treasury cannot cover the season's bill — not only once it hits zero.
@@ -967,21 +969,56 @@ export function progressArmyLogistics(state: GameState): boolean {
         army.units.archers = Math.floor(army.units.archers * 0.85);
         army.units.heavyInfantry = Math.floor(army.units.heavyInfantry * 0.85);
       }
-      if (army.unpaidTicks >= 5) {
-        disbanded.push(army);
-        unpaidDisbanded.add(army.id);
-        continue;
+      if (army.unpaidTicks >= 5 && !isEngagedHost(state, army.id)) {
+        // Ripe, not gone. The whole muster used to reach five together and dissolve in the same
+        // tick, because they all march under one treasury — a realm went from four hosts to none
+        // between one season and the next. One host goes home a season (the smallest, below),
+        // which is the difference between a wage crisis you can still answer and a wipe.
+        arrearsRipe.push(army);
       }
     } else {
-      army.unpaidTicks = Math.max(0, (army.unpaidTicks ?? 0) - 1);
+      // Reset, not decrement. The clock is meant to be five CONSECUTIVE seasons in arrears —
+      // that is what the warning toast promises ("{ticks} more seasons and it disbands"). Shaving
+      // one off instead made it a net counter, and a realm pinned at nothing (which in this mode
+      // is the normal state — the autopilot spends to a wage reserve and the provinces draw the
+      // rest) unpaid on 57% of seasons ratchets to five no matter how often it pays. Measured on
+      // seed 4242: 230 arrears seasons in 401, thirteen hosts dissolved, and the treasury visibly
+      // in surplus at the moment nine of them went.
+      army.unpaidTicks = 0;
     }
 
     army.morale += moraleRegen + Math.max(0, army.level - 1) * 0.25;
     army.morale = Math.min(100, Math.max(0, army.morale));
 
     const remaining = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
-    if (remaining <= 0 || army.morale <= 0) {
+    // A host in the line is never dissolved by the bookkeeping: the field decides it. Arrears and
+    // spent morale both used to delete a host mid-exchange, and a staged assault whose attacker
+    // vanished here left `beginAssault` with nobody to open the fight for — the player's order
+    // went in, the army was gone, and no battle screen ever came up.
+    if ((remaining <= 0 || army.morale <= 0) && !(remaining > 0 && isEngagedHost(state, army.id))) {
       disbanded.push(army);
+    }
+  }
+
+  // The smallest ripe host goes home; the rest keep their arrears and take their turn.
+  //
+  // They all used to go together. Every host marches under one treasury, so they reach five
+  // seasons in arrears on the same season and dissolved in the same tick — measured, a realm went
+  // from four hosts to none between one season and the next, eleven to thirteen times a run, and
+  // the wave that landed the following season met an empty map. Losing one host a season is a
+  // wage crisis the player can still answer; losing all of them is the run ending in the ledger.
+  //
+  // Deliberately NOT "never the last host": that was tried, and shackling a permanently broke
+  // realm to a host it cannot pay stalls it outright — verify-ascent's long run stopped enacting
+  // edicts, drafting cards or expanding at all, because the one lever that ever freed its books
+  // had been taken away. The pressure has to be able to land.
+  if (arrearsRipe.length > 0) {
+    const going = arrearsRipe
+      .filter((army) => !disbanded.includes(army))
+      .sort((a, b) => totalUnits(a) - totalUnits(b))[0];
+    if (going) {
+      disbanded.push(going);
+      unpaidDisbanded.add(going.id);
     }
   }
 
@@ -1006,9 +1043,15 @@ export function progressArmyLogistics(state: GameState): boolean {
       state.selectedArmyId = undefined;
     }
 
-    state.message = unpaidDisbanded.has(army.id)
+    const said = unpaidDisbanded.has(army.id)
       ? t('msg.unpaidDisbanded', { army: army.name, humans: returnedHumans })
       : t('msg.starvedDisbanded', { army: army.name, humans: returnedHumans });
+    state.message = said;
+    // And on the strip, where it survives the rest of the tick. `state.message` is written a
+    // dozen more times before this tick ends — measured, the line on screen when a host dissolved
+    // read "the raiders withdrew across the border" — so the one event the player most needs
+    // explained was the one nothing explained.
+    pushToast(state, said, 'threat');
   }
 
   state.armies = state.armies.filter((army) => !disbanded.includes(army));

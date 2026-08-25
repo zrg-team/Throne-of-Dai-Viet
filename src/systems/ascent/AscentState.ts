@@ -221,6 +221,28 @@ export function drainAscentPrompts(state: GameState): void {
   }
 
   ascent.promptQueue.sort((a, b) => PROMPT_PRIORITY[a.kind] - PROMPT_PRIORITY[b.kind]);
+  // A card is dropped if the world has already answered it.
+  //
+  // Only the muster so far, and it is the one that matters: the plan names a *free* commander,
+  // chosen when the card was queued, but the card is answered later — and by then that champion
+  // may already be at the head of a host or mid-muster with another. The player then reads "the
+  // king asks to raise a host" about a king who is standing with his army, which is a question
+  // the game has no business asking. (Answering it was worse still: `raiseHostWithPlan` releases
+  // the commander, so accepting quietly took the general off the host he was already leading.)
+  while (ascent.promptQueue.length > 0) {
+    const next = ascent.promptQueue[0];
+    if (next.kind !== 'muster-proposal') break;
+    const hero = state.heroes.find((candidate) => candidate.id === next.heroId);
+    const busy = !hero
+      || state.armies.some((army) => army.generalHeroId === hero.id)
+      || state.recruitmentOrders.some((order) => order.heroId === hero.id);
+    if (!busy) break;
+    ascent.promptQueue.shift();
+  }
+  if (ascent.promptQueue.length === 0) {
+    state.isPaused = false;
+    return;
+  }
   state.pendingAscentPrompt = ascent.promptQueue.shift();
   state.isPaused = true;
   // Stamped here rather than in the decision director, because this is the one place *every*

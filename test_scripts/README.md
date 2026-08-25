@@ -25,6 +25,7 @@ A dev server must already be running — **no harness starts one** — and every
 node test_scripts/gate/smoke.mjs                    # every mode boots, ticks, draws — ~40 s
 node test_scripts/verify/verify-ascent.mjs          # the Dragon Ascent loop end to end
 node test_scripts/verify/verify-invasion-lifecycle.mjs  # every invasion announces its start and its end
+node test_scripts/verify/verify-invasion-reach.mjs      # a wave that is sent can walk to the realm, and does
 node test_scripts/playtest/playtest-metrics.mjs     # six measured preconditions of fun, /85
 node test_scripts/perf/perf-bench.mjs --label wip   # auto-diffs against perf-results/baseline.json
 node test_scripts/shot/shot-readme.mjs              # regenerates every picture in the root README
