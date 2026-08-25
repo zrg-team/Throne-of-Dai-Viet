@@ -114,6 +114,13 @@ export function musterBlockedReason(state: GameState, plan: MusterPlan): string 
   if (at && (at.startsWith('diplomacy-') || at.startsWith('ambassador:') || state.recruitmentOrders.some((order) => order.id === at))) {
     return t('ascent.raise.blocked.commanderBusy', { hero: heroName(hero) });
   }
+  // A champion already at the head of a host is not free to raise another. `releaseHeroAssignment`
+  // below would happily take them off it — the host keeps its men and loses its general, and the
+  // player is never told. A seat or a governorship is different: those are postings a muster is
+  // *meant* to be able to call someone back from, which is why only the field is blocked here.
+  if (state.armies.some((army) => army.generalHeroId === hero.id)) {
+    return t('ascent.raise.blocked.commanderHost', { hero: heroName(hero) });
+  }
   if (!estimate.land) return t('msg.noOwnedCityArmy');
   if (estimate.alreadyTraining) {
     return t('ascent.raise.blocked.training', { land: estimate.land.name, n: estimate.trainingTicksLeft });

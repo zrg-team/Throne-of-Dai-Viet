@@ -112,6 +112,28 @@ function findInvasionStep(state: GameState, fromId: string, toId: string): strin
   return undefined;
 }
 
+/**
+ * Every land walkable from `fromId`, by the same edges `findInvasionStep` walks.
+ *
+ * The map is not always one piece. `generateMap` can leave a district group with no land bridge
+ * to the rest — an island, or a range the roads never crossed — and an invader dropped in one of
+ * those can never reach the player. Anything that *sends* a host somewhere has to ask this first.
+ */
+function reachableFrom(state: GameState, fromId: string): Set<string> {
+  const seen = new Set<string>([fromId]);
+  const queue: string[] = [fromId];
+  while (queue.length > 0) {
+    const land = findLand(state, queue.shift() as string);
+    if (!land) continue;
+    for (const neighborId of land.neighbors) {
+      if (seen.has(neighborId)) continue;
+      seen.add(neighborId);
+      queue.push(neighborId);
+    }
+  }
+  return seen;
+}
+
 function applyInvaderLosses(army: Army, rate: number): void {
   army.units.spearmen = Math.max(0, Math.floor(army.units.spearmen * (1 - rate)));
   army.units.archers = Math.max(0, Math.floor(army.units.archers * (1 - rate)));
@@ -192,9 +214,23 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
     return;
   }
 
-  // Frontier staging grounds: neutral districts far from the capital.
-  const neutralEdges = state.lands
-    .filter((l) => l.ownerId === 'neutral')
+  // Frontier staging grounds: neutral districts far from the capital — and on the player's side
+  // of any water.
+  //
+  // Sorting by distance descending and taking the far edge put every host on whichever neutral
+  // district was geometrically furthest away, which on a map whose district graph comes in more
+  // than one piece is exactly the island the player cannot be reached from. Measured on seed 99:
+  // all five hosts staged on `district-18`, whose component held 20 of 42 districts and **none**
+  // of the player's, so they stood still for 380 seasons, filled `MAX_LIVE_INVADER_HOSTS`, and
+  // the wave director stopped sending anything at all. The run played 31 waves and the battle
+  // screen opened zero times — "I played six rounds and there was no fight."
+  //
+  // The far edge is still the muster (see the note below on why the approach march matters); it
+  // is now the far edge of the ground that connects to the realm.
+  const reach = reachableFrom(state, capital.id);
+  const allNeutral = state.lands.filter((l) => l.ownerId === 'neutral');
+  const connected = allNeutral.filter((l) => reach.has(l.id));
+  const neutralEdges = (connected.length > 0 ? connected : allNeutral)
     .sort((a, b) => ((b.x - capital.x) ** 2 + (b.y - capital.y) ** 2) - ((a.x - capital.x) ** 2 + (a.y - capital.y) ** 2));
   if (neutralEdges.length === 0) {
     return;
@@ -386,9 +422,32 @@ export function tickInvasions(state: GameState): void {
     }
 
     // March one land closer.
-    const step = findInvasionStep(state, army.landId, target.id);
+    let step = findInvasionStep(state, army.landId, target.id);
     if (!step) {
-      continue;
+      // No road to the province it was told to take. This used to `continue`, and a host with no
+      // road simply stood where it was for the rest of the run — drawing no upkeep, fighting
+      // nobody, and holding one of the `MAX_LIVE_INVADER_HOSTS` slots the wave director counts
+      // before it sends the next wave. Five of them deadlocked a whole run.
+      //
+      // So: take any province of theirs this host can actually walk to, and if there is none —
+      // the realm is across water from where this host stands — go home and free the slot for a
+      // wave that can land.
+      const reach = reachableFrom(state, army.landId);
+      const alternative = nearestLand(
+        findLand(state, army.landId) ?? target,
+        playerLands(state).filter((land) => reach.has(land.id)),
+      );
+      if (!alternative) {
+        state.message = t('empire.invade.withdraw', { kingdom: kingdomName(state, record.kingdomId) });
+        despawnInvasion(state, record);
+        continue;
+      }
+      record.targetLandId = alternative.id;
+      step = findInvasionStep(state, army.landId, alternative.id);
+      if (!step) {
+        despawnInvasion(state, record);
+        continue;
+      }
     }
     const stepLand = findLand(state, step);
     if (stepLand?.ownerId === PLAYER_KINGDOM_ID) {
