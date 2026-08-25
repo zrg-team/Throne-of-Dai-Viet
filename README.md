@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/readme/banner.webp" alt="Vạn Thắng — the front page, the map, a champion draft, and a battle" width="100%">
+<img src="docs/readme/banner.webp" alt="Vạn Thắng — the front page, the realm mid-run, a founder's mandate, and a battle" width="100%">
 
 # Vạn Thắng
 
@@ -14,11 +14,12 @@
 &nbsp;
 [![Deploy](https://github.com/zrg-team/ten-thousand-victories/actions/workflows/deploy-github-pages.yml/badge.svg)](https://github.com/zrg-team/ten-thousand-victories/actions/workflows/deploy-github-pages.yml)
 
-![Phaser 3](https://img.shields.io/badge/Phaser-3.90-2a2118?style=flat-square)
+![Phaser 4](https://img.shields.io/badge/Phaser-4-2a2118?style=flat-square)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-42596b?style=flat-square&logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-6-7b9271?style=flat-square&logo=vite&logoColor=white)
 ![Languages](https://img.shields.io/badge/languages-English%20·%20Tiếng%20Việt-c08a2e?style=flat-square)
 ![No backend](https://img.shields.io/badge/backend-none%20·%20saves%20in%20your%20browser-8c7e67?style=flat-square)
+![Offline](https://img.shields.io/badge/offline-installs%20from%20the%20browser-6f6250?style=flat-square)
 
 </div>
 
@@ -38,9 +39,9 @@ You are a small lord with one citadel on a map of forty-two provinces, generated
 
 <table>
   <tr>
-    <td align="center" width="33%"><img src="docs/readme/ascent-map.webp" alt="The Dragon Ascent map: paddies, hamlets, hosts under the player's banner" width="100%"><br><sub>The realm, mid-run</sub></td>
+    <td align="center" width="33%"><img src="docs/readme/ascent-map.webp" alt="The Dragon Ascent realm in autumn: hamlets, banners, an invasion live, the court whispering" width="100%"><br><sub>The realm, mid-run</sub></td>
     <td align="center" width="33%"><img src="docs/readme/conquer.webp" alt="A conquest card: where do we press?" width="100%"><br><sub>Where do we press?</sub></td>
-    <td align="center" width="33%"><img src="docs/readme/battle.webp" alt="A battle screen with orders: fight them all, press, hold, commit the reserve, retreat" width="100%"><br><sub>A battle you can command — or leave to your generals</sub></td>
+    <td align="center" width="33%"><img src="docs/readme/battle.webp" alt="A battle at the drum: speech bubbles over both hosts, the five shapes, the tempo dial" width="100%"><br><sub>A battle you can command — or leave to your generals</sub></td>
   </tr>
 </table>
 
@@ -53,21 +54,38 @@ The headline mode, and a roguelite: **the realm marches itself; you choose its p
 - **Power draft.** Level up and choose one of four cards — bronze, silver, gold, jade — that stack permanently. Two cards you have maxed can *evolve* into something neither was.
 - **Champions.** Summon heroes from a gacha with pity, or draft them from your court's Favor. Each has six stats, a portrait, and a name that might be real.
 - **Doctrine.** Once an era, tell your ministers what kind of realm this is — *Fortify, Expand, Enrich, Arm* — and the autopilot builds towards it until you say otherwise.
-- **Battles.** A fight worth watching opens itself. Set the posture, pick a focus, commit the reserve, rally, retreat — or *leave this one to my generals*.
+- **Battles.** A fight worth watching opens itself — the whole battle system below, with your general on the plate and the run at stake. Or *leave this one to my generals*.
 - **The end of a run banks Legacy**, which buys permanent perks for the next.
+
+### ⚔️ Skirmish · one fight, on its own
+
+<table>
+  <tr>
+    <td valign="top">
+
+*Set the matchup and fight it. No map, no economy — the battle alone.*
+
+Every battle in the game is fought with **five shapes and a drum**. The shapes are *thế* — postures an army takes: **Chông** the hedge of spears, **Xung** the wedge, **Tán** the loose swarm, **Quy** the tortoise, **Nỏ** the massed volley — and each beats the two that follow it, round a ring the page draws for you. On top of them sits a tempo dial from *pull back* to *press*, a reserve you commit once, and *dồn sức* — wagering a second pip on the shape you already hold. Reading the enemy's shape through the dust and answering it in time is the whole craft.
+
+Skirmish is that system on its own page: pick both hosts, their composition, the ground, the enemy's temper and your general's skill, and take command. It is over in minutes, and the odds line is computed by the same code that will resolve it. The long modes hand you these battles mid-run; this page is where you learn to win them.
+
+</td>
+    <td width="40%"><img src="docs/readme/skirmish.webp" alt="The Skirmish muster form: both hosts, the ground, the enemy's temper, and the ring of five shapes" width="100%"></td>
+  </tr>
+</table>
 
 ### 👑 Throne of Empires · *Ngai Vàng Các Đế Quốc*
 
 Endless survival on the hand-played map. Four empires press from *off* the map; you climb through eras — Founding, Rivalry, Empires, Mandate — with directives to fulfil, edicts and wonders to build, crises to weather, and a court of heroes with missions and abilities. The only victory is to *ascend*.
 
-### ⚔️ Campaign
+### 🏯 Campaign
 
 The classic: expand province by province against three rival kingdoms on the same map, and take their capitals.
 
 <table>
   <tr>
-    <td align="center" width="33%"><img src="docs/readme/founder.webp" alt="Found your dynasty: choose your first champion" width="100%"><br><sub>Found your dynasty</sub></td>
-    <td align="center" width="33%"><img src="docs/readme/power-draft.webp" alt="Level 12: choose your power — four cards of different rarity" width="100%"><br><sub>Choose your power</sub></td>
+    <td align="center" width="33%"><img src="docs/readme/founder.webp" alt="A new sovereign ascends: choose what the throne already holds" width="100%"><br><sub>Found your dynasty</sub></td>
+    <td align="center" width="33%"><img src="docs/readme/power-draft.webp" alt="Choose your power — four cards of different rarity" width="100%"><br><sub>Choose your power</sub></td>
     <td align="center" width="33%"><img src="docs/readme/empire-map.webp" alt="Throne of Empires: the map with the empire roster and mandate bar" width="100%"><br><sub>Throne of Empires</sub></td>
   </tr>
 </table>
@@ -82,7 +100,7 @@ The stories are not cutscenes. They are **forty-eight templates** that bind them
 
 <table>
   <tr>
-    <td width="40%"><img src="docs/readme/chronicle.webp" alt="A story card: His Uncle's Buffalo — the boy who herded buffalo and played war with reed banners" width="100%"></td>
+    <td width="40%"><img src="docs/readme/chronicle.webp" alt="A story card: A Blade in the Net — a fisherman pulls up the same length of iron three nights running" width="100%"></td>
     <td valign="top">
 
 **A few of the pages**
@@ -101,7 +119,22 @@ The stories are not cutscenes. They are **forty-eight templates** that bind them
 - *Hồ Gươm* · The Lake of the Returned Sword
 - *Yết Kiêu* · The Diver · *Ải Chi Lăng* · *Thần Tốc* · *Văn Miếu* · *Lũy Thầy* · *Đê Điều* · *Thánh Gióng* · *Sơn Tinh Thủy Tinh* …
 
-Some stories ask you to **swear a charge** — hold a province, keep the peace, build what you promised — and remember whether you kept it. Some leave **echoes** in the browser, so a hero who walked out on you in one run can be named in the next. All of it lands in a Chronicle you can read back at the end.
+Some stories ask you to **swear a charge** — hold a province, keep the peace, build what you promised — and remember whether you kept it. Some leave **echoes** in the browser, so a hero who walked out on you in one run can be named in the next. Every telling is tagged for what it is — *chính sử*, what the annals record; *dã sử*, what is told; *ngoại truyện*, what is only ours — and all of it lands in a Chronicle you can read back at the end.
+
+</td>
+  </tr>
+</table>
+
+## 🏮 The real history, one tap deep
+
+<table>
+  <tr>
+    <td width="40%"><img src="docs/readme/history.webp" alt="The History page, open on the People tab: real people with portraits, dates and what they did" width="100%"></td>
+    <td valign="top">
+
+The game dramatises; this page does not. **History**, one tap from the front page, states its own terms: *what actually happened, and what this game made of it*. Five tabs in both languages — the dynasties in order, the people with their portraits and dates, every story the Chronicle tells set against the record, how the armies of each era fought, and the terms a newcomer meets — a reference a curious player can fall into for an hour.
+
+The game also teaches itself: a **How to Play** page, guided tours of the first run, and an advisor strip that reads *your* live run and says what it would do next — so the strategy genre's usual wall of numbers is somebody's actual advice instead.
 
 </td>
   </tr>
@@ -113,19 +146,22 @@ The whole game is drawn like a **Đông Hồ folk woodblock print**: shell-coate
 
 The country turns with the calendar. Nothing is a colour filter over the screen — the leaves change, the paddies flood, ripen and are cut, the winter is bare:
 
-<img src="docs/readme/seasons.webp" alt="The same capital in spring, summer, autumn and winter" width="100%">
+<img src="docs/readme/seasons.webp" alt="The same paddy country in spring, summer, autumn and winter" width="100%">
 
 Two other art directions ship in Settings — an ink-wash and an illustrated atlas — but Đông Hồ is the game:
 
-<img src="docs/readme/themes.webp" alt="The same capital in the Đông Hồ, ink-wash and illustrated-atlas themes" width="100%">
+<img src="docs/readme/themes.webp" alt="The same country in the Đông Hồ, ink-wash and illustrated-atlas themes" width="100%">
 
-Portraits are composed from a library of seventy-four drawn parts — collars, hats, hair, marks — chosen by **who the person is** (era, office, rank, sex, vows) before a seed picks within that wardrobe, so an official of the Lê court does not wear a Nguyễn collar and a general in the field does not wear a scholar's cap.
+Portraits are composed from a library of **267 drawn parts** — heads, hair, hats, collars, robes, marks — chosen by **who the person is** (era, office, rank, sex, vows) before a seed picks within that wardrobe, so an official of the Lê court does not wear a Nguyễn collar and a general in the field does not wear a scholar's cap. The roster runs to 127 champions, and many of them are real:
+
+<img src="docs/readme/portraits.webp" alt="Ten champions from the roster, Ngô Quyền to Lê Quý Đôn — era, office and sex decide the clothes" width="100%">
 
 ## 📱 Play
 
 **[▶ zrg-team.github.io/ten-thousand-victories](https://zrg-team.github.io/ten-thousand-victories/)** — no install, no account, nothing leaves your device.
 
 - Built for a **portrait phone in one hand**; works with a mouse too.
+- **Installs** from the browser menu and **plays offline** — a hand-rolled service worker, no store between you and the game.
 - **Drag** to pan, **+ / −** to zoom, **tap** a province, **tap** a card to answer it.
 - **English / Tiếng Việt** in Settings, along with graphics quality and the map theme.
 - One save slot, kept in your browser.
@@ -133,15 +169,15 @@ Portraits are composed from a library of seventy-four drawn parts — collars, h
 ## 🛠️ Develop
 
 ```bash
-corepack enable          # the repo uses Yarn 4 (Berry); Corepack provides it
-yarn install --immutable
-yarn dev                 # http://localhost:5173
-yarn build               # tsc && vite build — the CI gate
+corepack enable          # provides the pinned Yarn
+yarn install
+yarn dev                 # http://localhost:5179
+yarn build               # tsc && vite build + the service worker — the CI gate
 ```
 
-Vite + TypeScript (strict) + Phaser 3, no backend, no framework beyond that. Content is data: units, heroes, cards, edicts, provinces and every story live under `src/data/`, systems are plain functions over one `GameState`, and every player-facing string has an English and a Vietnamese entry — the game refuses to boot if one is missing.
+Vite + TypeScript (strict) + Phaser 4, no backend, no framework beyond that. Content is data: units, heroes, cards, edicts, provinces and every story live under `src/data/`, systems are plain functions over one `GameState`, and every player-facing string has an English and a Vietnamese entry — the game refuses to boot if one is missing.
 
-There is no test framework. The game is proven by **driving it in a real headless browser**: `test_scripts/` holds some 130 Playwright harnesses — filed by the question they answer: `verify/` asserts, `shot/` photographs, `perf/` measures, `playtest/` judges, `diag/` investigates — that boot every mode, tick the economy for hundreds of seasons across many seeds, tap the real buttons, screenshot every screen, and score how *fun* a build is out of 100 before and after a balance change.
+There is no test framework. The game is proven by **driving it in a real headless browser**: `test_scripts/` holds some 140 Playwright harnesses — filed by the question they answer: `verify/` asserts, `shot/` photographs, `perf/` measures, `playtest/` judges, `diag/` investigates — that boot every mode, tick the economy for hundreds of seasons across many seeds, tap the real buttons, screenshot every screen, and score how *fun* a build is out of 100 before and after a balance change.
 
 ```bash
 node test_scripts/gate/smoke.mjs              # every mode boots, ticks, draws — ~40 s
@@ -159,7 +195,7 @@ src/
 ├── state/       GameState, save, legacy, codex
 ├── map/         hex maths, generation, terrain, boundaries, roads
 ├── ui/          renderers and panels; ui/ink/ is the Đông Hồ drawing vocabulary
-├── scenes/      Boot → Preload → Menu → Map+UI · Conquest+ConquestUI
+├── scenes/      Boot → Preload → Menu · Guide · History · Skirmish → Map+UI · Conquest+ConquestUI
 └── i18n/        catalogs — en and vi, side by side
 apps/            platform shells; the game is built once and served by each
 ├── mobile/      Expo — iOS and Android
@@ -210,7 +246,7 @@ Or star the repository — it is how the next person finds the game.
 
 - The Đông Hồ printmakers of Bắc Ninh, whose pigments and register this game is trying to be worthy of.
 - Fonts: [Be Vietnam Pro](https://fonts.google.com/specimen/Be+Vietnam+Pro) and [Source Serif 4](https://fonts.google.com/specimen/Source+Serif+4), SIL Open Font License, self-hosted so the diacritics render the same on every device.
-- Built on [Phaser 3](https://phaser.io), [Vite](https://vite.dev) and [Playwright](https://playwright.dev).
+- Built on [Phaser 4](https://phaser.io), [Vite](https://vite.dev) and [Playwright](https://playwright.dev).
 - The history belongs to everyone; the mistakes in telling it are the author's.
 
 <div align="center">
