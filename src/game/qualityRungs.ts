@@ -19,8 +19,10 @@ export interface Rung {
   scale: 1 | 2 | 3;
   /** Whether the paper sheet shows. */
   paper: boolean;
-  /** Resolution of the two world RenderTextures, as a fraction of world size. */
+  /** Resolution of the two world RenderTextures, in texels per design unit (device-capped). */
   bakeScale: number;
+  /** Whether settlement ink renders live (vector-crisp) instead of baked. */
+  liveSettlementInk: boolean;
   /** Multiplier on landscape scatter counts. */
   scatter: number;
   /** Below this map zoom the small live detail drops; undefined keeps it all. */
@@ -32,11 +34,11 @@ export interface Rung {
 
 /** Top to bottom — index + 1 is one step down. */
 export const RUNGS: Rung[] = [
-  { id: 'high', scale: 3, paper: true, bakeScale: 1, scatter: 1.25, lodDropsLabels: false, fps: 60 },
-  { id: 'medium', scale: 2, paper: true, bakeScale: 0.75, scatter: 1, lodZoomBelow: 0.85, lodDropsLabels: false, fps: 60 },
-  { id: 'medium-lite', scale: 2, paper: false, bakeScale: 0.75, scatter: 0.8, lodZoomBelow: 0.85, lodDropsLabels: false, fps: 60 },
-  { id: 'low', scale: 1, paper: false, bakeScale: 0.5, scatter: 0.6, lodZoomBelow: 0.85, lodDropsLabels: true, fps: 60 },
-  { id: 'low-30', scale: 1, paper: false, bakeScale: 0.5, scatter: 0.6, lodZoomBelow: 0.85, lodDropsLabels: true, fps: 30 },
+  { id: 'high', scale: 3, paper: true, bakeScale: 2, liveSettlementInk: true, scatter: 1.25, lodDropsLabels: false, fps: 60 },
+  { id: 'medium', scale: 2, paper: true, bakeScale: 0.75, liveSettlementInk: false, scatter: 1, lodZoomBelow: 0.85, lodDropsLabels: false, fps: 60 },
+  { id: 'medium-lite', scale: 2, paper: false, bakeScale: 0.75, liveSettlementInk: false, scatter: 0.8, lodZoomBelow: 0.85, lodDropsLabels: false, fps: 60 },
+  { id: 'low', scale: 1, paper: false, bakeScale: 0.5, liveSettlementInk: false, scatter: 0.6, lodZoomBelow: 0.85, lodDropsLabels: true, fps: 60 },
+  { id: 'low-30', scale: 1, paper: false, bakeScale: 0.5, liveSettlementInk: false, scatter: 0.6, lodZoomBelow: 0.85, lodDropsLabels: true, fps: 30 },
 ];
 
 export const RUNG_STORAGE_KEY = 'mandate:graphics:rung:v1';
@@ -69,7 +71,10 @@ export function startingRung(args: {
     const chosen = rungForTier(args.explicitTier);
     return { rung: chosen, ceiling: chosen };
   }
-  const ceiling = args.devicePixelRatio >= 2.5 ? rungForTier('high') : rungForTier(args.defaultTier);
+  // No pixel-ratio promotion: a dense screen says nothing about the GPU behind it, and 'high'
+  // now spends real VRAM (the dense bake) on top of fill rate. Default sessions cap at the
+  // default tier; 'high' is only ever an explicit choice.
+  const ceiling = rungForTier(args.defaultTier);
   const remembered = rungById(args.persisted);
   if (remembered && RUNGS.indexOf(remembered) >= RUNGS.indexOf(ceiling)) {
     return { rung: remembered, ceiling };

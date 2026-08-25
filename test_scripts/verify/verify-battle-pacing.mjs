@@ -18,7 +18,7 @@ const WATCH_MS = Number(process.argv[2] ?? 20) * 1000;
 // The hit-stop is the screen *choosing* to sit still for 110ms; scoring it as a stall would be
 // grading a feature as a fault. See `BATTLE_HIT_STOP_MS`.
 const GAP_BUDGET = 560 + 110 + 90;
-const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5173';
+const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 
 const browser = await chromium.launch();
 // GAME_HEIGHT is derived from the aspect and clamps as low as 620, so the short screen is a real

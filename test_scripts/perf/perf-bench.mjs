@@ -10,7 +10,7 @@
  *   - fps        : Phaser actualFps under a short real-loop run
  *
  * Usage:
- *   node test_scripts/perf/perf-bench.mjs [--label baseline] [--cpu 4] [--url http://localhost:5173]
+ *   node test_scripts/perf/perf-bench.mjs [--label baseline] [--cpu 4] [--url http://127.0.0.1:5179]
  *                                    [--mode rival|campaign|empire|ascent]
  *
  * `--mode` matters: the four modes do not share a world scene, and a bench that only ever measured
@@ -33,7 +33,7 @@ function arg(name, fallback) {
 }
 
 const LABEL = arg('label', 'baseline');
-const URL = arg('url', 'http://localhost:5173');
+const URL = arg('url', 'http://127.0.0.1:5179');
 const CPU_THROTTLE = Number(arg('cpu', '4')); // mid-tier Android ~= 4x slowdown
 const SEED = Number(arg('seed', '1337'));
 const TICKS = Number(arg('ticks', '80'));

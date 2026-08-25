@@ -14,7 +14,7 @@
 // Usage: node test_scripts/verify/verify-battle-motion.mjs      (DEV_URL to point elsewhere)
 import { chromium } from 'playwright';
 
-const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5173';
+const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 const SEED = Number(process.env.SEED ?? 20260812);
 // One economy tick's worth of beats and no more. `drainBattleBeat` takes *two* per interval once
 // the queue is longer than a tick's worth — it would rather skip than fall further behind — and a

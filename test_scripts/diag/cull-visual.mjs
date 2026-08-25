@@ -12,7 +12,7 @@
  */
 import { chromium } from 'playwright';
 
-const BASE = process.env.BASE_URL || 'http://127.0.0.1:5173';
+const BASE = process.env.BASE_URL || 'http://127.0.0.1:5179';
 
 async function sample(browser, query, reveal, pan) {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });

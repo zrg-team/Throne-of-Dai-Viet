@@ -10,7 +10,7 @@
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 
-const URL_BASE = process.env.DEV_URL ?? 'http://127.0.0.1:5173';
+const URL_BASE = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 const OUT = 'output/web-game';
 mkdirSync(OUT, { recursive: true });
 

@@ -16,7 +16,7 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 
-await page.goto((process.env.DEV_URL ?? 'http://127.0.0.1:5173') + '/?capture=1', { waitUntil: 'domcontentloaded' });
+await page.goto((process.env.DEV_URL ?? 'http://127.0.0.1:5179') + '/?capture=1', { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
 
 const out = await page.evaluate(async () => {

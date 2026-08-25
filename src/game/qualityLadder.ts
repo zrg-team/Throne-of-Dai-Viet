@@ -66,6 +66,8 @@ export class QualityLadder {
   private stepsUp = 0;
   private readonly leftTwice = new Map<RungId, number>();
   private sceneCap: number | undefined;
+  private appliedLimit = 0;
+  private fpsTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private readonly game: Phaser.Game) {
     // `?capture=1` marks every harness run: a CPU-throttled measurement that stepped the
@@ -221,9 +223,23 @@ export class QualityLadder {
   }
 
   private applyFps(): void {
-    const limit = Math.min(this.rung.fps, this.sceneCap ?? 60);
-    const loop = this.game.loop as unknown as { setFPSLimit?: (fps: number) => void };
-    loop.setFPSLimit?.(limit);
+    const cap = Math.min(this.rung.fps, this.sceneCap ?? Infinity);
+    // 60 means "vsync paces us", not a limiter at 60: Phaser's limiter accumulates delta
+    // against a fixed rate, so a limit at (or above) the panel's own rate skips real frames on
+    // jitter and halves a 120 Hz panel outright. Only a true sub-60 cap engages it.
+    const limit = cap >= 60 ? 0 : cap;
+    if (limit === this.appliedLimit) return;
+    this.appliedLimit = limit;
+    // One macrotask later, never mid-step: `setFPSLimit` stops and restarts the rAF loop, and a
+    // restart from INSIDE a step (scene create, any game event) re-arms `isRunning` before the
+    // still-running step closure checks it — both then reschedule, and the game double-steps
+    // forever after. Deferring puts the swap between frames, where stop() cancels cleanly.
+    if (this.fpsTimer !== undefined) clearTimeout(this.fpsTimer);
+    this.fpsTimer = setTimeout(() => {
+      this.fpsTimer = undefined;
+      const loop = this.game.loop as unknown as { setFPSLimit?: (fps: number) => void } | undefined;
+      loop?.setFPSLimit?.(limit);
+    }, 0);
   }
 }
 

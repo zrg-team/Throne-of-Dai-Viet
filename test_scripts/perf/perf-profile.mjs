@@ -4,7 +4,7 @@
  * then prints the functions with the most self-time. Identifies the real hotspots
  * instead of guessing which renderer dominates.
  *
- * Usage: node test_scripts/perf/perf-profile.mjs [--url http://127.0.0.1:5173] [--ticks 120] [--cpu 1]
+ * Usage: node test_scripts/perf/perf-profile.mjs [--url http://127.0.0.1:5179] [--ticks 120] [--cpu 1]
  */
 import { chromium } from 'playwright';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +13,7 @@ function arg(name, fallback) {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 }
-const URL = arg('url', 'http://127.0.0.1:5173');
+const URL = arg('url', 'http://127.0.0.1:5179');
 const TICKS = Number(arg('ticks', '120'));
 const CPU = Number(arg('cpu', '1'));
 const SEED = Number(arg('seed', '1337'));

@@ -17,7 +17,7 @@
 // Usage: node test_scripts/verify/verify-ground-scale.mjs
 import { chromium } from 'playwright';
 
-const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5173';
+const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 
 /** How far a prop may sit from the median of its class before it counts as a different scale. */
 const TOLERANCE = 1.35;

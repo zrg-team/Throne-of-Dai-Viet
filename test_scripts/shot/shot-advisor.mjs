@@ -5,7 +5,7 @@
 // for the steady reading — plus the opened sheet and the four tour cards.
 import { chromium } from 'playwright';
 
-const BASE = process.env.DEV_URL ?? process.env.PLAYTEST_URL ?? 'http://localhost:5173';
+const BASE = process.env.DEV_URL ?? process.env.PLAYTEST_URL ?? 'http://127.0.0.1:5179';
 const browser = await chromium.launch();
 let failures = 0;
 const fail = (message) => { failures += 1; console.log(`FAIL ${message}`); };

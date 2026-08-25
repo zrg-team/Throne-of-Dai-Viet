@@ -8,7 +8,7 @@
  */
 
 /** Dev server the harnesses drive. Override when the default port is taken. */
-export const BASE_URL = process.env.PLAYTEST_URL ?? 'http://localhost:5173';
+export const BASE_URL = process.env.PLAYTEST_URL ?? 'http://127.0.0.1:5179';
 
 /**
  * Real option ids for whatever prompt is open, keyed by kind.

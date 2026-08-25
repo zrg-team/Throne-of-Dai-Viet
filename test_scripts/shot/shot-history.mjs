@@ -1,7 +1,7 @@
 // The front page and the History page it leads to, in both languages and at the shortest sheet
 // the design surface allows. Pairs with verify-history.mjs, which asserts; this one is for looking.
 import { chromium } from 'playwright';
-const BASE = process.env.DEV_URL ?? process.env.PLAYTEST_URL ?? 'http://localhost:5173';
+const BASE = process.env.DEV_URL ?? process.env.PLAYTEST_URL ?? 'http://127.0.0.1:5179';
 const browser = await chromium.launch();
 for (const [lang, h] of [['vi', 844], ['vi', 620], ['en', 844]]) {
   const page = await browser.newPage({ viewport: { width: 390, height: h }, deviceScaleFactor: 2 });

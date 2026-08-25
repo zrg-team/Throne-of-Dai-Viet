@@ -4,13 +4,14 @@
 //   menu · every broad paddy stays on the right bank
 //   menu · the seal is a circle on any sheet, not an ellipse on a short one
 //   menu · mountains, bamboo and lotus move as registered depth layers
+//   menu · the water under the lotus swells on its own, without being touched
 //   map  · every buffalo cart faces the way it is going, on BOTH legs of its round trip
 //   map  · the herds graze a small patch instead of standing frozen
 //   map  · a host has a cadence, and its shadow is under the men rather than below them
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 
-const BASE = process.env.DEV_URL ?? 'http://localhost:5173';
+const BASE = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 const OUT = process.env.SHOT_OUT ?? 'output/dongho-life';
 mkdirSync(OUT, { recursive: true });
 
@@ -409,6 +410,66 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 664 }
     wake: lotusWake,
     normalized: lotusWakeNormalized,
   }));
+
+  // The pond has to move when nobody is touching it. One swell is scheduled within the first
+  // couple of seconds, so this resolves at once in practice; the timeout is only there so a
+  // regression fails with a readable count instead of hanging the run.
+  const readIdleWaves = () => page.evaluate(() => {
+    const scene = window.__phaserGame.scene.getScene('MenuScene');
+    const art = scene.children.list.find((c) => c.type === 'Container'
+      && c.getData?.('menuLandscapeRole') === 'illustration');
+    const water = art?.list?.find((c) => c.getData?.('menuArtworkLayer') === 'river-fx');
+    const lotus = art?.list?.find((c) => c.getData?.('menuArtworkLayer') === 'lotus');
+    const log = lotus?.getData?.('menuLotusIdleWaveLog') ?? [];
+    // A Container has no measurable size of its own; the ground plate is the illustration's frame.
+    const ground = art?.list?.find((c) => c.getData?.('menuArtworkLayer') === 'ground');
+    const frame = {
+      left: ground.x - ground.displayWidth / 2,
+      top: ground.y - ground.displayHeight / 2,
+      width: ground.displayWidth,
+      height: ground.displayHeight,
+    };
+    return {
+      declared: lotus?.getData?.('menuLotusIdleWater') ?? null,
+      gap: lotus?.getData?.('menuLotusIdleWaveGap') ?? null,
+      log: log.map((wave) => ({
+        ...wave,
+        normX: (wave.x - frame.left) / frame.width,
+        normY: (wave.y - frame.top) / frame.height,
+      })),
+      shapes: water?.list?.filter((c) => c.getData?.('menuAmbient') === 'lotus-idle-wave')
+        .map((c) => ({
+          origin: c.getData('menuIdleWaveOrigin'),
+          shape: c.getData('menuIdleWaveShape'),
+          alpha: c.alpha,
+        })) ?? [],
+    };
+  });
+  await page.waitForFunction(
+    () => {
+      const scene = window.__phaserGame.scene.getScene('MenuScene');
+      const art = scene.children.list.find((c) => c.getData?.('menuLandscapeRole') === 'illustration');
+      const lotus = art?.list?.find((c) => c.getData?.('menuArtworkLayer') === 'lotus');
+      return (lotus?.getData?.('menuLotusIdleWaveLog') ?? []).length > 0;
+    },
+    null,
+    { timeout: 8_000 },
+  ).catch(() => {});
+  const idle = await readIdleWaves();
+  const idleWave = idle.log[0];
+  check(`${label}: the water under the lotus swells on its own`, idle.declared === 'random-waterline-swell'
+    && idle.gap?.min >= 3_000 && idle.gap?.max > idle.gap?.min
+    && idle.log.length > 0
+    && idle.log.every((wave) => wave.duration >= 2_600 && wave.duration <= 4_200)
+    // Quieter than the 0.88 a finger gets, or the pond would be answering a touch nobody made.
+    && idle.log.every((wave) => wave.peak > 0.3 && wave.peak <= 0.75)
+    && idle.log.every((wave) => wave.normX >= 0.1 && wave.normX <= 0.45)
+    && idle.log.every((wave) => wave.normY >= 0.86 && wave.normY <= 0.96)
+    && idle.shapes.every((shape) => shape.origin === 'stem-waterline')
+    // The pond has one water vocabulary: the idle swell opens the same rounded rings the touch
+    // answer does, rather than inventing a second kind of wave on the same plate.
+    && idle.shapes.every((shape) => shape.shape === 'stem-waterline-rings'),
+  JSON.stringify({ declared: idle.declared, gap: idle.gap, waves: idle.log.length, first: idleWave }));
 
   await page.screenshot({ path: `${OUT}/menu-${viewport.height}.png` });
   await page.close();

@@ -3,11 +3,11 @@
 // - Army's muster policy is a fixed footer checkbox and no longer lives in the system menu.
 // - The Chronicle is split into four fixed tabs which can be reached without scrolling.
 //
-// Usage: DEV_URL=http://127.0.0.1:5173 node test_scripts/verify/verify-lane-settings-tabs.mjs
+// Usage: DEV_URL=http://127.0.0.1:5179 node test_scripts/verify/verify-lane-settings-tabs.mjs
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 
-const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5173';
+const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 const OUT = 'output/web-game/lane-settings-tabs';
 mkdirSync(OUT, { recursive: true });
 

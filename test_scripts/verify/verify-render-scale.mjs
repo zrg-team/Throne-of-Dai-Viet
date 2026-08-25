@@ -2,7 +2,7 @@
 // onto the buffer, and pan, zoom and tap must behave identically at every device pixel ratio.
 // Buffer-space pointers compared against design-space bounds is the failure this exists to catch.
 import { chromium } from 'playwright';
-const BASE = process.env.DEV_URL ?? 'http://localhost:5173';
+const BASE = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 const browser = await chromium.launch();
 let failures = 0;
 const check = (name, ok, detail) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  ' + detail : ''}`); if (!ok) failures += 1; };

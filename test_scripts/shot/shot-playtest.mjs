@@ -7,7 +7,7 @@ import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 
 // Dev server port. Defaults to Vite's, overridable when 5173 is taken by something else.
-const BASE = process.env.DEV_URL ?? 'http://localhost:5173';
+const BASE = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 
 const OUT = process.env.SHOT_OUT ?? 'output/playtest';
 mkdirSync(OUT, { recursive: true });

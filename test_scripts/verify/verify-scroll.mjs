@@ -19,7 +19,7 @@
 import { chromium } from 'playwright';
 
 const SEED = Number(process.argv[2] ?? 1337);
-const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5173';
+const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 
 // GAME_HEIGHT clamps to its 620 minimum here — the case where the lists overflow.
 const VIEWPORT = { width: 1512, height: 900 };

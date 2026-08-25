@@ -35,7 +35,7 @@ import { BAKE_SEASON, foliagePalette, seasonVisualsEnabled, setFoliageSeason, se
 import { UI_FONT } from '../ui/fonts';
 import { t } from '../i18n';
 import { MINIMAP_H, MINIMAP_W } from '../ui/MinimapRenderer';
-import { applyPendingRenderScale, bakeScale, designPointer, lodDropsLabels, lodZoomThreshold, renderScaleNow } from '../game/graphicsQuality';
+import { applyPendingRenderScale, bakeScale, designPointer, liveSettlementInk, lodDropsLabels, lodZoomThreshold, renderScaleNow } from '../game/graphicsQuality';
 import { fitBakeScale } from '../ui/ink/textureLimits';
 import { figureEraFor } from '../ui/ink/devices';
 
@@ -69,14 +69,15 @@ const CAMERA_ZOOM_STEP = 0.16;
 const WORLD_PADDING = 300;
 
 /**
- * Resolution the static map layers are baked at (then displayed scaled back up).
+ * The settlement band: harvested town ink, the capital ring, name plates, seasonal accents —
+ * depths [1.40, 1.50), under the `depth <= 1.5` bake sweep. On tiers with `liveSettlementInk()`
+ * these render live (vector-crisp at any zoom) and the sweep must leave them alone; the floor
+ * sits just under 1.40 so the exact-1.40 capital ring is included.
  *
- * Now the player's own Graphics setting rather than a second device sniff living down here with
- * different thresholds from the one in `graphicsQuality.ts` — a player who picked Low was still
- * paying for a full-resolution map, which was the opposite of what they asked for. `?bakescale=N`
- * still overrides. Read once: the setting reloads the page when it changes.
+ * `bakeScale()` is read at each bake, not once: the quality ladder can change the rung mid-run,
+ * and the bake must follow it (the RT is rebuilt when its size stops matching).
  */
-const BAKE_SCALE = bakeScale();
+const SETTLEMENT_BAND_FLOOR = 1.395;
 
 export class MapScene extends Phaser.Scene {
   protected state!: GameState;
@@ -540,6 +541,27 @@ export class MapScene extends Phaser.Scene {
         radius: 140,
         setCulled: (culled) => node.setVisible(!culled),
       });
+    }
+
+    // Live settlement ink (the high tier) is scene-level Graphics, not part of the node — the
+    // camera reaches maybe a tenth of the world, so the other nine tenths must not replay their
+    // town clusters every frame. Same anchor and reach as the node whose ink it is.
+    if (liveSettlementInk()) {
+      for (const [landId, ink] of this.landInk) {
+        const node = this.landNodes.get(landId);
+        if (!node) continue;
+        const id = `ink::${landId}`;
+        live.add(id);
+        this.viewIndex.set(id, {
+          kind: 'node',
+          x: node.x,
+          y: node.y,
+          radius: 140,
+          setCulled: (culled) => {
+            for (const g of ink) g.setVisible(!culled);
+          },
+        });
+      }
     }
 
     for (const [landId, label] of this.landLabels) {
@@ -1199,27 +1221,55 @@ export class MapScene extends Phaser.Scene {
     // display list even if something else forgets to clear the field.
     // The wanted scale, stepped down only if the world texture would pass the device's
     // MAX_TEXTURE_SIZE - past it the GL call fails and the whole ground renders black.
-    const bake = fitBakeScale(this, this.worldWidth, this.worldHeight, BAKE_SCALE);
+    const bake = fitBakeScale(this, this.worldWidth, this.worldHeight, bakeScale());
     if (this.staticBakeRT && !this.staticBakeRT.scene) {
       this.staticBakeRT = undefined;
     }
+    const bakeW = Math.ceil(this.worldWidth * bake);
+    const bakeH = Math.ceil(this.worldHeight * bake);
+    // A rung change mid-run changes the bake density; an RT sized for the old one would silently
+    // bake soft (or waste the memory the step down was meant to reclaim). Compared through the
+    // size that was ASKED for: Phaser rounds RT dimensions up (1683 comes back 1684), so holding
+    // the guard against `rt.width` would destroy and rebuild the texture on every single bake.
+    if (this.staticBakeRT && this.staticBakeRT.getData('bakeSize') !== `${bakeW}x${bakeH}`) {
+      this.staticBakeRT.destroy();
+      this.staticBakeRT = undefined;
+    }
     if (!this.staticBakeRT) {
-      // Texture is baked at BAKE_SCALE resolution then displayed scaled up to full world size.
-      this.staticBakeRT = this.add.renderTexture(0, 0, Math.ceil(this.worldWidth * bake), Math.ceil(this.worldHeight * bake))
+      // Texture is baked at the density above, then displayed scaled back to world size.
+      // Depth 1.3: UNDER the settlement band [1.40, 1.50), which renders live on tiers with
+      // `liveSettlementInk()` and must draw over the baked ground (at 1.9 the fresh bake
+      // painted straight over the live towns — measured as "the buildings vanished"). On
+      // baking tiers the band is hidden, so 1.3 and the old 1.9 are indistinguishable.
+      this.staticBakeRT = this.add.renderTexture(0, 0, bakeW, bakeH)
         .setOrigin(0, 0)
         .setScale(1 / bake)
-        .setDepth(1.9);
+        .setDepth(1.3)
+        .setData('bakeSize', `${bakeW}x${bakeH}`);
     }
 
+    const settlementsLive = liveSettlementInk();
     type BandLayer = Phaser.GameObjects.GameObject & { depth: number; visible: boolean; setVisible(v: boolean): unknown };
     const band = this.children.list.filter((obj): obj is BandLayer => {
       const depth = (obj as unknown as { depth?: unknown }).depth;
-      return obj !== this.staticBakeRT && typeof depth === 'number' && depth <= 1.5;
+      return obj !== this.staticBakeRT && typeof depth === 'number' && depth <= 1.5
+        && !(settlementsLive && depth >= SETTLEMENT_BAND_FLOOR);
     });
 
     // Show every candidate source, then hide the layers that belong to the inactive
     // render mode so the composite matches what the live layers used to show.
     for (const source of band) source.setVisible(true);
+    // A live settlement band is excluded from the sweep above, so nothing below re-shows it —
+    // and a rung that just stepped UP into live ink inherits pieces a previous bake hid.
+    if (settlementsLive) {
+      for (const obj of this.children.list) {
+        const depth = (obj as unknown as { depth?: unknown }).depth;
+        if (obj !== this.staticBakeRT && typeof depth === 'number'
+          && depth >= SETTLEMENT_BAND_FLOOR && depth <= 1.5) {
+          (obj as unknown as { setVisible(v: boolean): unknown }).setVisible(true);
+        }
+      }
+    }
     this.applyRenderModeVisibility();
 
     const visible = band
@@ -1326,7 +1376,9 @@ export class MapScene extends Phaser.Scene {
       if (this.foreignHazeGraphics) {
         extra.push(this.foreignHazeGraphics);
       }
-      this.overlays.bakeFog(this.worldWidth, this.worldHeight, extra, BAKE_SCALE);
+      // The fog is soft-edged cloud by design — density above 1 would spend the dense bake's
+      // whole VRAM budget again on blur that cannot be seen. Capped, whatever the tier asks.
+      this.overlays.bakeFog(this.worldWidth, this.worldHeight, extra, Math.min(bakeScale(), 1));
     }
   }
 

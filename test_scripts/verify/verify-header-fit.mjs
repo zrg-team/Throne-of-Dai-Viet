@@ -6,7 +6,7 @@
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 
-const BASE = process.env.DEV_URL ?? 'http://localhost:5173';
+const BASE = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 const OUT = process.env.SHOT_OUT ?? 'output/header';
 mkdirSync(OUT, { recursive: true });
 

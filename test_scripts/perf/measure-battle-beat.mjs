@@ -31,7 +31,7 @@
  * Usage: node test_scripts/perf/measure-battle-beat.mjs      (DEV_URL to point elsewhere)
  */
 import { chromium } from 'playwright';
-const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5173';
+const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const cdp = await page.context().newCDPSession(page);

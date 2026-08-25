@@ -12,7 +12,7 @@ const errors = [];
 page.on('pageerror', (err) => errors.push(`PAGEERROR: ${err.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE: ${m.text()}`); });
 
-await page.goto('http://localhost:5173/?capture=1', { waitUntil: 'domcontentloaded' });
+await page.goto('http://127.0.0.1:5179/?capture=1', { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame && window.__phaserGame.scene.isActive('MenuScene'),
   null, { timeout: 30000 });
 

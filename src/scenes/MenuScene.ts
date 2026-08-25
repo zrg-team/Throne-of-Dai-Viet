@@ -78,6 +78,32 @@ const SUPPORT_ROW_HEIGHT = 46;
  */
 const VERSION_ROW_HEIGHT = 30;
 const VERSION_EDGE = 6;
+/**
+ * The install mark's size, and the gap between it and the build stamp it rides.
+ *
+ * Module-level because two pages lay the pair out and they have to agree: the front page centres
+ * icon and colophon as one group, and the settings plate reserves the same slot to the left of its
+ * own stamp. The scale is the one the three footer utility icons use — see `renderInstallMark`.
+ */
+/**
+ * The two pages that play an arrival, and the shape of it.
+ *
+ * `PAGE_ARRIVAL_BAND` is what counts as the same line: settings rows are 30 units tall on a
+ * 12 gap, so eight units of slack groups a row's parts without ever swallowing the row under it.
+ */
+const ARRIVING_PAGES = new Set<MenuMode>(['settings', 'classic']);
+const PAGE_ARRIVAL_RISE = 6;
+const PAGE_ARRIVAL_BAND = 8;
+/**
+ * The wind: how far from the hand a gust is still felt, how fast a leaf may be carried, and how
+ * far past the edge one drifts before it comes back on the other side.
+ */
+const WIND_REACH = 132;
+const WIND_TOP_SPEED = 3.4;
+const WIND_MARGIN = 26;
+const INSTALL_MARK_SCALE = 0.62;
+const INSTALL_MARK_SIZE = CARD_ICON_SIZE * INSTALL_MARK_SCALE;
+const INSTALL_MARK_GAP = 6;
 const SUPPORT_TOP = GAME_HEIGHT - VERSION_ROW_HEIGHT - SUPPORT_ROW_HEIGHT;
 /** The language line under the utility buttons: two small flags, two labels, and thumb-sized hits. */
 const LANGUAGE_ROW_HEIGHT = 20;
@@ -114,7 +140,46 @@ export class MenuScene extends Phaser.Scene {
   /** Set while the install sheet is up, so the tip does not re-arm underneath it. */
   private installModalOpen = false;
   private mode: MenuMode = 'main';
+  /**
+   * The page currently drawn, which is not always the page `render` is about to draw.
+   *
+   * `render` runs for four reasons that are not navigation — a setting toggled, a language
+   * switched, the service worker changing its mind, an install prompt arriving — and a page that
+   * replayed its arrival on each of those would flinch every time it was touched.
+   */
+  private shownMode?: MenuMode;
+  /**
+   * The leaves adrift over the sheet, and the last place a hand was.
+   *
+   * Not one leaf chasing a cursor: a handful of them on their own slow currents, and a pointer
+   * that moves is a gust the nearest of them feel. Which is the difference between a page with a
+   * pet on it and a page with weather.
+   */
+  private leaves: Array<{
+    blade: Phaser.GameObjects.Graphics;
+    vx: number; vy: number; spin: number; phase: number; sway: number; flutter: number;
+  }> = [];
+  private windLast = { x: GAME_WIDTH / 2, y: GAME_HEIGHT / 2 };
   private previewFlagSeed = 0;
+  /**
+   * The next unprompted swell under the lotus, while one is pending.
+   *
+   * Each wave schedules the one after it, so this holds a single live timer rather than a queue.
+   * Kept on the scene only so the chain can be cut on the way out: a delayed call that fired into
+   * a torn-down water layer would be spawning graphics into nothing.
+   */
+  private lotusIdleWaveTimer?: Phaser.Time.TimerEvent;
+  /**
+   * The last few unprompted swells, newest last.
+   *
+   * Ambient motion is the one kind of thing a screenshot cannot prove: a wave that opens once
+   * every several seconds is either absent or mid-fade in any single frame. The ledger lets the
+   * living-map harness read what the water actually did instead of catching it at the right
+   * instant. Bounded, because nothing here is worth growing for the life of the page.
+   */
+  private readonly lotusIdleWaveLog: Array<{
+    stem: string; x: number; y: number; duration: number; peak: number;
+  }> = [];
   /**
    * The front-page tour, while it is running.
    *
@@ -176,10 +241,9 @@ export class MenuScene extends Phaser.Scene {
 
   create(): void {
     applyPendingRenderScale(this.game);
-    // The front page is a still image with a ripple: pacing it at 30 halves the idle battery
-    // cost of leaving the game open on the menu. Cleared the moment any world starts.
-    qualityLadder()?.setSceneCap(30);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => qualityLadder()?.setSceneCap(undefined));
+    // No scene cap here: the front page carries live animation now, and a 30-fps pin made it
+    // visibly chop against a 60–120 Hz panel. Battery pacing, if it returns, must come from a
+    // real idle detector — not from capping the first thing the player sees.
     applyRenderScale(this);
     // The chrome is printed on the same sheet as the world, so it takes the same paper pass.
     applyPaperFX(this);
@@ -191,6 +255,7 @@ export class MenuScene extends Phaser.Scene {
     this.mapItems = createMapItemRenderer(this);
     this.previewFlagSeed = loadSnapshot()?.state.mapConfig.seed ?? Math.floor(Math.random() * 1_000_000);
     this.drawBackground();
+    this.drawDriftingLeaves();
     this.render();
     // The service worker finishes caching, or a new build lands, minutes after this page was
     // drawn. Redrawing on the change is what lets the front page raise its notice and the settings
@@ -205,6 +270,8 @@ export class MenuScene extends Phaser.Scene {
       unsubscribeInstall();
       this.installTipTimer?.remove();
       this.installTipTimer = undefined;
+      this.lotusIdleWaveTimer?.remove();
+      this.lotusIdleWaveTimer = undefined;
       this.copilot?.destroy();
       this.copilot = undefined;
     });
@@ -398,7 +465,7 @@ export class MenuScene extends Phaser.Scene {
         version: 9,
         layers: ['ground', 'mountains', 'mountain-mist', 'river-fx', 'bamboo', 'lotus'],
         composition: ['karst-mountains', 's-curve-river', 'foreground-lotus', 'right-bank-paddies', 'right-bank-bamboo-grove'],
-        motion: ['mountain-drift', 'mountain-mist', 'bamboo-breeze', 'lotus-sway', 'pointer-lotus-spring', 'river-surface-flow', 'lotus-water-wakes', 'tap-and-drag-wakes'],
+        motion: ['mountain-drift', 'mountain-mist', 'bamboo-breeze', 'lotus-sway', 'pointer-lotus-spring', 'river-surface-flow', 'lotus-water-wakes', 'lotus-idle-swell', 'tap-and-drag-wakes'],
         width,
         height,
       });
@@ -976,6 +1043,55 @@ export class MenuScene extends Phaser.Scene {
     lotusTouch.on('pointerout', () => {
       lastLotusPointer = undefined;
     });
+
+    // Nobody is touching the pond most of the time, and water that only answers a pointer reads as
+    // a printed picture between taps. Wind, fish and the stems themselves keep real water working,
+    // so a slow swell opens at a flower base every few seconds on its own — never on a beat, never
+    // at quite the same place, and always quieter than the answer a finger gets, so a real touch
+    // still reads as the louder of the two.
+    const idleWaveGap = getGraphicsQuality() === 'low'
+      ? { min: 7_000, max: 13_000 }
+      : { min: 4_200, max: 9_400 };
+    layers.lotus
+      .setData('menuLotusIdleWater', 'random-waterline-swell')
+      .setData('menuLotusIdleWaveGap', idleWaveGap)
+      .setData('menuLotusIdleWaveLog', this.lotusIdleWaveLog);
+    const scheduleLotusIdleWave = (first = false): void => {
+      // The first one lands early: a front page whose water holds still for eight seconds has
+      // already told the player it is a still image, and nothing after that undoes it.
+      const gap = first
+        ? Phaser.Math.Between(900, 2_200)
+        : Phaser.Math.Between(idleWaveGap.min, idleWaveGap.max);
+      this.lotusIdleWaveTimer = this.time.delayedCall(gap, () => {
+        this.lotusIdleWaveTimer = undefined;
+        const lead = lotusStemAnchors[Phaser.Math.Between(0, lotusStemAnchors.length - 1)];
+        this.spawnLotusIdleWave(
+          layers.waterFx,
+          lead.x + Phaser.Math.FloatBetween(-width * 0.024, width * 0.024),
+          lead.y + Phaser.Math.FloatBetween(-height * 0.005, height * 0.007),
+          width / GAME_WIDTH,
+          Phaser.Math.FloatBetween(0.62, 1),
+          lead.id,
+          0,
+        );
+        // Sometimes — not every time, or the pair would become a rhythm — the other stem answers a
+        // moment later, the way one disturbance crosses a pond and reaches the next plant.
+        const echo = lotusStemAnchors.find((candidate) => candidate.id !== lead.id);
+        if (echo && getGraphicsQuality() !== 'low' && Phaser.Math.FloatBetween(0, 1) < 0.38) {
+          this.spawnLotusIdleWave(
+            layers.waterFx,
+            echo.x + Phaser.Math.FloatBetween(-width * 0.018, width * 0.018),
+            echo.y,
+            width / GAME_WIDTH,
+            Phaser.Math.FloatBetween(0.4, 0.66),
+            echo.id,
+            Phaser.Math.Between(520, 1_260),
+          );
+        }
+        scheduleLotusIdleWave();
+      });
+    };
+    scheduleLotusIdleWave(true);
   }
 
   /** One touch answer, gone before it can become another permanent object in the composition. */
@@ -1045,6 +1161,22 @@ export class MenuScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * The rounded rings a disturbance makes at the lotus waterline.
+   *
+   * Three nested ellipses, flattened hard, because the pond is seen at a low angle: a circle here
+   * would be a hoop standing up out of the water. Shared by the touch answer and the pond's own
+   * idle swell so the water has one vocabulary — whatever moves it, it moves the same way.
+   */
+  private drawWaterlineRings(g: Phaser.GameObjects.Graphics, artScale: number): void {
+    g.lineStyle(1.05, PIGMENT.cham, 0.82);
+    g.strokeEllipse(0, 0, 25 * artScale, 6.2 * artScale);
+    g.lineStyle(0.72, PIGMENT.chamPale, 0.76);
+    g.strokeEllipse(0, 0.8 * artScale, 38 * artScale, 9 * artScale);
+    g.lineStyle(0.5, PIGMENT.diepHi, 0.72);
+    g.strokeEllipse(0, 1.6 * artScale, 50 * artScale, 11 * artScale);
+  }
+
   /** Lotus feedback expands from the stems' waterline, never from the distant river centre. */
   private spawnLotusWaterlineWake(
     parent: Phaser.GameObjects.Container,
@@ -1063,12 +1195,7 @@ export class MenuScene extends Phaser.Scene {
       .setData('menuWakeStem', stem)
       .setData('menuWakeBase', { x, y });
     parent.add(wake);
-    wake.lineStyle(1.05, PIGMENT.cham, 0.82);
-    wake.strokeEllipse(0, 0, 25 * artScale, 6.2 * artScale);
-    wake.lineStyle(0.72, PIGMENT.chamPale, 0.76);
-    wake.strokeEllipse(0, 0.8 * artScale, 38 * artScale, 9 * artScale);
-    wake.lineStyle(0.5, PIGMENT.diepHi, 0.72);
-    wake.strokeEllipse(0, 1.6 * artScale, 50 * artScale, 11 * artScale);
+    this.drawWaterlineRings(wake, artScale);
     this.tweens.add({
       targets: wake,
       scaleX: 1.55 + strength * 0.12,
@@ -1078,6 +1205,64 @@ export class MenuScene extends Phaser.Scene {
       duration: 980,
       ease: 'Sine.easeOut',
       onComplete: () => wake.destroy(),
+    });
+  }
+
+  /**
+   * The pond's own movement under the flowers: the same rounded rings, opening slowly.
+   *
+   * An earlier version drew its own travelling sine crests here. They were a wave in the physics
+   * sense and wrong in the picture: two different water vocabularies on one plate, and the finer
+   * one lost against the printed lines it sat on. The rings the touch already makes are the
+   * shape this water uses, so the idle swell borrows it and changes only the pacing — a long fade
+   * up instead of an instant strike, three times the time to open, and never as loud.
+   */
+  private spawnLotusIdleWave(
+    parent: Phaser.GameObjects.Container,
+    x: number,
+    y: number,
+    artScale: number,
+    strength: number,
+    stem: 'large-flower' | 'small-flower',
+    delay: number,
+  ): void {
+    const wave = this.add.graphics({ x, y })
+      .setScale(0.38)
+      .setAlpha(0)
+      .setData('menuAmbient', 'lotus-idle-wave')
+      .setData('menuIdleWaveOrigin', 'stem-waterline')
+      .setData('menuIdleWaveShape', 'stem-waterline-rings')
+      .setData('menuIdleWaveStem', stem)
+      .setData('menuIdleWaveBase', { x, y });
+    parent.add(wave);
+    this.drawWaterlineRings(wave, artScale * (0.9 + strength * 0.3));
+
+    // One proxy clock rather than a fade-in tween chained to a fade-out: the envelope has to peak
+    // in the middle of the spread, and two tweens would put the brightest frame at the wrong size.
+    const swell = { clock: 0 };
+    const peak = 0.34 + strength * 0.26;
+    const duration = Phaser.Math.Between(2_600, 4_200);
+    this.lotusIdleWaveLog.push({ stem, x, y, duration, peak });
+    if (this.lotusIdleWaveLog.length > 6) this.lotusIdleWaveLog.shift();
+    wave
+      .setData('menuIdleWaveDuration', duration)
+      .setData('menuIdleWaveMotionProxy', swell);
+    this.tweens.add({
+      targets: swell,
+      clock: { from: 0, to: 1 },
+      duration,
+      delay,
+      ease: 'Linear',
+      onUpdate: () => {
+        // Opening eases out while the envelope stays symmetrical, so the rings are widest as they
+        // fade rather than snapping back to nothing at full size.
+        const spread = Math.sin(swell.clock * Math.PI * 0.5);
+        wave
+          .setScale(0.38 + spread * 1.05, 0.38 + spread * 0.82)
+          .setY(y + spread * 1.8 * artScale)
+          .setAlpha(peak * Math.sin(Math.PI * swell.clock));
+      },
+      onComplete: () => wave.destroy(),
     });
   }
 
@@ -1761,6 +1946,217 @@ export class MenuScene extends Phaser.Scene {
     seal.strokeCircle(0, 0, 9);
   }
 
+  /**
+   * A few leaves adrift over the sheet, and a hand that moves them.
+   *
+   * The first version was one leaf that steered towards the pointer, which is a pet: it looked
+   * like something obeying, and a thing that obeys is a thing you then have to play with. Leaves
+   * do not take instructions. These have their own slow currents and their own idea of where they
+   * are going; what a moving pointer does is displace the air near it, and the ones close enough
+   * to that are carried a little way before their own drift takes them back.
+   *
+   * Behind everything the page draws (`-1`) and above the whole landscape, so they cross the sky
+   * and the parchment margins and pass *under* the button column rather than over anybody's words.
+   *
+   * Outside `content`: that is destroyed and rebuilt on every page change, and leaves that started
+   * again from their corners each time somebody opened Settings would be a page transition rather
+   * than weather.
+   */
+  private drawDriftingLeaves(): void {
+    // Quality buys leaves and nothing else — each is static geometry moved by a transform, so the
+    // per-frame cost is the same three numbers whatever it looks like.
+    const count = getGraphicsQuality() === 'low' ? 3 : 6;
+    for (let index = 0; index < count; index += 1) {
+      const random = mulberry32(4_700 + index * 613);
+      const blade = this.add.graphics()
+        .setDepth(-1)
+        .setAlpha(0.52 + random() * 0.16)
+        .setData('menuLeaf', 'wind-drift')
+        .setData('menuLeafIndex', index);
+      this.paintLeaf(blade, 4_700 + index * 613, 15 + random() * 7, index % 3);
+      blade
+        .setPosition(GAME_WIDTH * (0.1 + random() * 0.8), GAME_HEIGHT * (0.12 + random() * 0.72))
+        .setRotation(random() * Math.PI * 2);
+      this.leaves.push({
+        blade,
+        // A drift each, so they never travel as a flock.
+        vx: (random() - 0.45) * 0.24,
+        vy: (random() - 0.55) * 0.18,
+        spin: (random() - 0.5) * 0.004,
+        phase: random() * Math.PI * 2,
+        sway: 2_600 + random() * 2_600,
+        flutter: 1_100 + random() * 1_400,
+      });
+    }
+
+    // Scene-level rather than a zone: every button on the page swallows its own pointer events,
+    // and leaves that stopped feeling the hand the moment it crossed a card would look broken.
+    // Registered in `create` and nowhere else — `render` runs many times a visit, and a listener
+    // added per render is a listener stack.
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => this.gust(pointer));
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      // A tap that never moves still displaces air. Small, and outward from the point pressed.
+      this.windLast.x = pointer.worldX;
+      this.windLast.y = pointer.worldY;
+      for (const leaf of this.leaves) {
+        const offsetX = leaf.blade.x - pointer.worldX;
+        const offsetY = leaf.blade.y - pointer.worldY;
+        const reach = this.windFalloff(offsetX, offsetY);
+        const distance = Math.max(6, Math.hypot(offsetX, offsetY));
+        leaf.vx += (offsetX / distance) * 1.4 * reach;
+        leaf.vy += (offsetY / distance) * 1.4 * reach;
+        leaf.spin += (offsetX / distance) * 0.01 * reach;
+      }
+    });
+  }
+
+  /** How much of a gust reaches something this far from the hand that made it. */
+  private windFalloff(offsetX: number, offsetY: number): number {
+    const spread = (offsetX * offsetX + offsetY * offsetY) / (WIND_REACH * WIND_REACH);
+    return 1 / (1 + spread * spread);
+  }
+
+  /**
+   * The air a moving hand pushes.
+   *
+   * An impulse per pointer event rather than a wind field kept between frames: `pointermove`
+   * arrives many times a second while a hand is moving, so the impulses run together into
+   * something continuous, and the moment the hand stops the wind stops with it — which is what
+   * makes it read as displaced air rather than a force following the cursor around.
+   */
+  private gust(pointer: Phaser.Input.Pointer): void {
+    // Clamped, because a mouse flung across the sheet in one frame is not a hurricane.
+    const dx = Phaser.Math.Clamp(pointer.worldX - this.windLast.x, -36, 36);
+    const dy = Phaser.Math.Clamp(pointer.worldY - this.windLast.y, -36, 36);
+    this.windLast.x = pointer.worldX;
+    this.windLast.y = pointer.worldY;
+    if (Math.abs(dx) + Math.abs(dy) < 0.6) {
+      return;
+    }
+    for (const leaf of this.leaves) {
+      const reach = this.windFalloff(leaf.blade.x - pointer.worldX, leaf.blade.y - pointer.worldY);
+      leaf.vx += dx * 0.15 * reach;
+      leaf.vy += dy * 0.15 * reach;
+      leaf.spin += dx * 0.0018 * reach;
+    }
+  }
+
+  /**
+   * The drift, and the only per-frame work this scene does.
+   *
+   * Frame-rate independent throughout: `delta` scales every step and the drag is raised to it, so
+   * the same leaf crosses the same sheet in the same time on a 60Hz panel and a 120Hz one.
+   * Everything else on this page is a tween, which Phaser already paces.
+   */
+  update(time: number, delta: number): void {
+    if (this.leaves.length === 0) {
+      return;
+    }
+    const step = delta / 16.67;
+    const drag = 0.972 ** step;
+    for (const leaf of this.leaves) {
+      // Its own slow current, which is what it returns to once a gust has passed.
+      leaf.vx += Math.sin(time / leaf.sway + leaf.phase) * 0.016 * step;
+      leaf.vy += Math.cos(time / (leaf.sway * 1.37) + leaf.phase) * 0.011 * step;
+      leaf.vx *= drag;
+      leaf.vy *= drag;
+      const speed = Math.hypot(leaf.vx, leaf.vy);
+      if (speed > WIND_TOP_SPEED) {
+        leaf.vx *= WIND_TOP_SPEED / speed;
+        leaf.vy *= WIND_TOP_SPEED / speed;
+      }
+      leaf.spin *= drag;
+      const blade = leaf.blade;
+      blade.x += leaf.vx * step;
+      blade.y += leaf.vy * step;
+      blade.rotation += leaf.spin * step;
+      // Turning edge-on and back: the one thing that says leaf rather than petal, and it costs a
+      // scale write. Never all the way to nothing, which reads as a flicker rather than a turn.
+      blade.setScale(1, 0.58 + Math.abs(Math.sin(time / leaf.flutter + leaf.phase)) * 0.42);
+      // Off one edge, on at the other. A leaf that stopped at the margin would be a leaf in a box.
+      if (blade.x < -WIND_MARGIN) blade.x = GAME_WIDTH + WIND_MARGIN;
+      if (blade.x > GAME_WIDTH + WIND_MARGIN) blade.x = -WIND_MARGIN;
+      if (blade.y < -WIND_MARGIN) blade.y = GAME_HEIGHT + WIND_MARGIN;
+      if (blade.y > GAME_HEIGHT + WIND_MARGIN) blade.y = -WIND_MARGIN;
+    }
+  }
+
+  /**
+   * One leaf, drawn once.
+   *
+   * A pointed lens with a fold down it: the blade is asymmetric — the upper edge bows harder than
+   * the lower — and the whole thing is bent into a shallow arc, because a flat symmetrical lens is
+   * a petal. The lower half carries a deeper wash so the fold reads at fifteen units, the midrib
+   * runs past the base into a stem, and five pairs of veins leave it swept towards the tip.
+   *
+   * Three tones in rotation: two cajuput greens and one sophora-and-iron brown, so a handful of
+   * these looks like leaves off more than one tree without any of them leaving the palette.
+   */
+  private paintLeaf(g: Phaser.GameObjects.Graphics, seed: number, length: number, tone: number): void {
+    const random = mulberry32(seed);
+    const width = length * (0.3 + random() * 0.07);
+    const bend = length * 0.05;
+    // The veins carry their own colour rather than reusing the edge ink: on the deep cajuput green
+    // a `tramDeep` vein is the same value as the blade it is drawn on, and the leaf comes out a
+    // blob with an outline. Light veins on the dark tone, dark on the two light ones.
+    const tones = [
+      { fill: PIGMENT.tram, shade: PIGMENT.tramDeep, ink: PIGMENT.tramDeep, vein: PIGMENT.tramPale },
+      { fill: PIGMENT.tramPale, shade: PIGMENT.tram, ink: PIGMENT.tramDeep, vein: PIGMENT.tramDeep },
+      { fill: PIGMENT.hoePale, shade: PIGMENT.nau, ink: PIGMENT.nauDark, vein: PIGMENT.nau },
+    ];
+    const paint = tones[tone % tones.length];
+    const SAMPLES = 18;
+    const spine = (u: number): number => -Math.sin(Math.PI * u) * bend;
+    const rib = (from: number, to: number): Pt[] => {
+      const points: Pt[] = [];
+      for (let sample = 0; sample <= SAMPLES; sample += 1) {
+        const u = Phaser.Math.Linear(from, to, sample / SAMPLES);
+        points.push({ x: -length / 2 + u * length, y: spine(u) });
+      }
+      return points;
+    };
+    const upper: Pt[] = [];
+    const lower: Pt[] = [];
+    for (let sample = 0; sample <= SAMPLES; sample += 1) {
+      const u = sample / SAMPLES;
+      // Fullest a third of the way up from the base, not halfway: that is where a leaf carries.
+      const taper = Math.sin(Math.PI * u ** 0.82) ** 0.9;
+      const x = -length / 2 + u * length;
+      upper.push({ x, y: spine(u) - taper * width * 0.62 });
+      lower.push({ x, y: spine(u) + taper * width * 0.44 });
+    }
+    const outline = [...upper, ...[...lower].reverse()];
+    g.fillStyle(paint.fill, 0.94);
+    g.fillPoints(outline, true, true);
+    // The fold: everything under the midrib, a shade deeper.
+    g.fillStyle(paint.shade, 0.5);
+    g.fillPoints([...lower, ...rib(1, 0)], true, true);
+    inkPath(g, outline, seed + 1, {
+      width: 0.55, alpha: 0.8, colour: paint.ink, wobble: 0.3, step: 4,
+    });
+    // Midrib, run out past the base into a stem.
+    g.lineStyle(0.62, paint.vein, 0.85);
+    g.strokePoints([
+      { x: -length / 2 - length * 0.11, y: spine(0) + width * 0.06 },
+      ...rib(0, 1),
+    ], false, false);
+    g.lineStyle(0.42, paint.vein, 0.66);
+    for (let vein = 1; vein <= 5; vein += 1) {
+      const u = 0.16 + vein * 0.13;
+      const reach = Math.sin(Math.PI * u ** 0.82) ** 0.9;
+      const x = -length / 2 + u * length;
+      // Swept towards the tip on both sides, which is what stops it looking like a fish bone.
+      g.strokePoints([
+        { x, y: spine(u) },
+        { x: x + length * 0.1, y: spine(u) - reach * width * 0.46 },
+      ], false, false);
+      g.strokePoints([
+        { x, y: spine(u) },
+        { x: x + length * 0.09, y: spine(u) + reach * width * 0.33 },
+      ], false, false);
+    }
+  }
+
   private render(): void {
     // The tour ends when the page it is touring does.
     //
@@ -1782,12 +2178,82 @@ export class MenuScene extends Phaser.Scene {
     }
     this.clearContent();
     this.renderTitle();
+    // The wordmark is outside the arrival on purpose: it is the same block of type on every page,
+    // and a title that re-landed on each navigation would be the one thing on the sheet that never
+    // holds still.
+    const pageStart = this.content.length;
     this.renderPage();
     // Last, and on every mode rather than only the front page: it is app chrome, not a row of this
     // screen. Last also because its caption is set in the footer's left margin and the support
     // sentence is drawn into the same band — printed under the page, the caption would spend its
     // three seconds behind "help build the game".
     this.renderInstallMark();
+    if (this.mode !== this.shownMode && ARRIVING_PAGES.has(this.mode)) {
+      // Inside the arrival rather than outside it: on the settings plate the mark rides the build
+      // stamp, and a glyph left standing still while its own line slid down onto it would come
+      // apart for the length of the tween.
+      this.revealPage(this.content.slice(pageStart));
+    }
+    this.shownMode = this.mode;
+  }
+
+  /**
+   * A page that arrives rather than one that is simply there.
+   *
+   * Settings and the mode list are the two doors off the front page, and a full sheet of controls
+   * swapped for another in a single frame reads as a redraw — the eye is told the picture changed
+   * without being shown anything move. The front page is left out: it is the page the game opens
+   * on, it is already behind an animated landscape, and it is the one you come *back* to.
+   *
+   * The gesture is the history page's, unchanged: six units, 170ms, `Quad.easeOut`, and a 26ms
+   * stagger capped at six steps. Two different arrival animations in one game reads as two games.
+   *
+   * Upwards into place, which is the direction the history page's rows already arrive from and
+   * the one a list wants: the reader's eye is at the top of the sheet when the page changes, so
+   * the movement happens where it is not being stared at and settles *under* the gaze rather than
+   * away from it.
+   */
+  private revealPage(items: Phaser.GameObjects.GameObject[]): void {
+    type Arriving = Phaser.GameObjects.GameObject & {
+      y: number; alpha: number; setY(value: number): unknown; setAlpha(value: number): unknown;
+    };
+    const arriving = items.filter((item): item is Arriving => {
+      const candidate = item as Partial<Arriving>;
+      return typeof candidate.y === 'number' && typeof candidate.setAlpha === 'function';
+    });
+    // Sorted down the page, and stepped only where a real gap opens. A settings row is a name and
+    // two choices sitting on one line: they are one thing arriving, not three in a queue.
+    const ordered = arriving.slice().sort((first, second) => first.y - second.y);
+    let step = 0;
+    let bandY = ordered.length > 0 ? ordered[0].y : 0;
+    for (const item of ordered) {
+      if (item.y - bandY > PAGE_ARRIVAL_BAND) {
+        step = Math.min(step + 1, 6);
+        bandY = item.y;
+      }
+      const settledY = item.y;
+      // Whatever alpha the page authored, not 1: an invisible hit rectangle carries its own, and
+      // the version stamp is quiet on purpose.
+      const settledAlpha = item.alpha;
+      // A full-sheet veil only fades. Six units of travel on a rectangle cut to the sheet would
+      // uncover a bright band along one edge for the length of the tween.
+      const covering = item as { displayHeight?: number };
+      if (!(typeof covering.displayHeight === 'number' && covering.displayHeight >= GAME_HEIGHT * 0.9)) {
+        item.setY(settledY + PAGE_ARRIVAL_RISE);
+      }
+      item.setAlpha(0);
+      // Tagged rather than inferred, exactly as the history page tags its rows: a harness can
+      // assert the arrival ran without having to catch a 170ms tween mid-flight.
+      item.setData('pageArrival', step);
+      this.tweens.add({
+        targets: item,
+        y: settledY,
+        alpha: settledAlpha,
+        duration: 170,
+        delay: step * 26,
+        ease: 'Quad.easeOut',
+      });
+    }
   }
 
   private renderPage(): void {
@@ -2623,10 +3089,20 @@ export class MenuScene extends Phaser.Scene {
     if (updateHeight > 0) {
       cursor += 14;
 
-      const version = this.ui.label(contentX, cursor, buildStamp(), 'caption', {
+      // The install mark rides this stamp the way it rides the front page's colophon. The slot is
+      // reserved here rather than filled in afterwards because the plate owns its own measurements:
+      // a glyph dropped in later would land on the serial number.
+      const markSlot = canOfferInstall() ? INSTALL_MARK_SIZE + INSTALL_MARK_GAP : 0;
+      const version = this.ui.label(contentX + markSlot, cursor, buildStamp(), 'caption', {
         color: INK_UI_HEX.mutedText,
         fontSize: '9px',
       }).setOrigin(0, 0);
+      if (markSlot > 0) {
+        version.setData('menuInstallAnchor', {
+          x: contentX + INSTALL_MARK_SIZE / 2,
+          y: cursor + version.displayHeight / 2,
+        });
+      }
       this.content.push(version);
 
       // The manual check is offered only at rest. While anything is in flight the game is already
@@ -2648,7 +3124,7 @@ export class MenuScene extends Phaser.Scene {
         // Both halves share one line, and the stamp is the longer half in Vietnamese. If they would
         // meet, the link goes — the version is the thing that has to be readable, and the check it
         // offers happens on its own every half hour anyway.
-        if (version.width + 10 + linkWidth <= contentWidth) {
+        if (markSlot + version.width + 10 + linkWidth <= contentWidth) {
           this.content.push(check);
         } else {
           check.destroy();
@@ -2889,6 +3365,10 @@ export class MenuScene extends Phaser.Scene {
    * moves what is under it and the code takes whatever room is left. Nothing sits at a hard y.
    */
   private renderSupportModal(activeId?: SupportChannel['id']): void {
+    // An id means a channel tile was pressed and this sheet is redrawing itself in place. Only the
+    // first call — the one from the coffee link — is an arrival; replaying it on every tile tap
+    // would make the sheet flinch each time somebody compared two of them.
+    const arriving = activeId === undefined;
     this.closeModal();
     const channels = configuredSupportChannels();
     const active = channels.find((c) => c.id === activeId) ?? channels[0];
@@ -3047,6 +3527,13 @@ export class MenuScene extends Phaser.Scene {
       color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '11px', align: 'center', fontStyle: 'italic',
       wordWrap: { width: footerBounds.width - 16 },
     }).setOrigin(0.5));
+
+    // Last, once every piece is where it belongs: the sheet's two captions are only given their
+    // final line once the code above them has taken the height it wants, and an arrival measured
+    // before that would carry half the sheet back to the wrong place.
+    if (arriving) {
+      this.revealPage(this.modalObjects);
+    }
   }
 
   /** A small "Copied ✓" that rises off the button and fades. */
@@ -3078,8 +3565,13 @@ export class MenuScene extends Phaser.Scene {
    * An inline colophon mark rather than a row in the column, because installing is not one of the
    * things the player came to this page to do — it is worth offering and not worth spending a
    * button on. It disappears the moment the game is running from the home screen
-   * (`canOfferInstall`). On menu pages without the front-page build stamp it retains a quiet
-   * bottom-left fallback rather than inventing a line that page does not otherwise carry.
+   * (`canOfferInstall`).
+   *
+   * It only ever rides a build stamp: the front page's colophon, or the settings plate's own
+   * version line, which reserves the slot for it. A page carrying neither gets no mark. The
+   * previous rule kept a bottom-left fallback for those pages, and a 16-unit arrow alone on empty
+   * parchment is not a quiet mark but an unexplained one — on the settings page it sat below the
+   * plate, attached to nothing, captioned by nothing, and read as a printing fault.
    *
    * **No tile, no border, no fill.** A bordered button in the corner of a page whose whole column
    * is bordered buttons reads as a fifth thing to press; the ink alone reads as a mark, which is
@@ -3095,41 +3587,47 @@ export class MenuScene extends Phaser.Scene {
       return;
     }
 
-    const ICON_SCALE = 0.62;
-    const ICON_SIZE = CARD_ICON_SIZE * ICON_SCALE;
-    const INLINE_GAP = 6;
     const versionLine = this.children.list.find(
       (child) => child.getData?.('menuVersionLine') === true,
     ) as Phaser.GameObjects.Text | undefined;
 
-    // Default for pages without the front-page colophon: still on the last band, but now at the
-    // same visual size as every other footer icon.
-    let cx = 18;
-    let cy = GAME_HEIGHT - VERSION_EDGE - ICON_SIZE / 2;
+    let anchor: { x: number; y: number } | undefined;
     if (versionLine) {
       // Icon + gap + stamp are one centred group. Aligning their visual centres, rather than their
       // object origins, puts the arrow on the text's actual line despite the text being
       // bottom-anchored and the icon being centre-anchored.
-      const groupWidth = ICON_SIZE + INLINE_GAP + versionLine.displayWidth;
+      const groupWidth = INSTALL_MARK_SIZE + INSTALL_MARK_GAP + versionLine.displayWidth;
       const left = (GAME_WIDTH - groupWidth) / 2;
-      cx = left + ICON_SIZE / 2;
-      cy = versionLine.y - versionLine.displayHeight / 2;
-      versionLine.setX(left + ICON_SIZE + INLINE_GAP + versionLine.displayWidth / 2);
+      anchor = {
+        x: left + INSTALL_MARK_SIZE / 2,
+        y: versionLine.y - versionLine.displayHeight / 2,
+      };
+      versionLine.setX(left + INSTALL_MARK_SIZE + INSTALL_MARK_GAP + versionLine.displayWidth / 2);
+    } else {
+      // Any page that keeps its own stamp says where the slot it left is. Today that is the
+      // settings plate and nothing else.
+      anchor = this.children.list
+        .find((child) => child.getData?.('menuInstallAnchor'))
+        ?.getData('menuInstallAnchor') as { x: number; y: number } | undefined;
     }
+    if (!anchor) {
+      return;
+    }
+    const { x: cx, y: cy } = anchor;
     const box: UIBounds = {
-      x: cx - ICON_SIZE / 2,
-      y: cy - ICON_SIZE / 2,
-      width: ICON_SIZE,
-      height: ICON_SIZE,
+      x: cx - INSTALL_MARK_SIZE / 2,
+      y: cy - INSTALL_MARK_SIZE / 2,
+      width: INSTALL_MARK_SIZE,
+      height: INSTALL_MARK_SIZE,
     };
 
     const glyph = drawCardIcon(this, 'install', INK_UI.brush)
       .setPosition(cx, cy)
-      .setScale(ICON_SCALE)
+      .setScale(INSTALL_MARK_SCALE)
       .setAlpha(0.64)
       .setData('menuInstallMark', true)
       .setData('footerInline', Boolean(versionLine))
-      .setData('visualSize', ICON_SIZE);
+      .setData('visualSize', INSTALL_MARK_SIZE);
 
     // The tap target is bigger than the mark, because the mark is small on purpose and a thumb
     // is not. 44 is the smallest square either platform's guidance will accept.

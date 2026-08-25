@@ -30,7 +30,7 @@ for (const vp of VIEWPORTS) {
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   page.on('pageerror', (e) => errors.push(String(e)));
 
-  await page.goto('http://127.0.0.1:5173', { waitUntil: 'domcontentloaded' });
+  await page.goto('http://127.0.0.1:5179', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof window.__startBenchGame === 'function'
     && window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
   await page.evaluate((s) => window.__startBenchGame(s, 'ascent'), SEED);

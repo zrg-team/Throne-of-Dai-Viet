@@ -1,7 +1,7 @@
 // The front page has to fit at any sheet height, in either language, under any theme.
 // Overlapping menu text was reported from a real phone twice; this is what catches it.
 import { chromium } from 'playwright';
-const BASE = process.env.DEV_URL ?? 'http://localhost:5173';
+const BASE = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 const browser = await chromium.launch();
 let bad = 0;
 for (const theme of ['dong-ho', 'ink-wash', 'illustrated-atlas']) {

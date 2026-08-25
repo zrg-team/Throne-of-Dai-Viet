@@ -80,6 +80,10 @@ export class GuideScene extends Phaser.Scene {
     this.mapRenderer.drawBackground(GAME_WIDTH, GAME_HEIGHT).setDepth(-10);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.clear());
     this.render();
+    // The page develops onto the paper rather than replacing it. Fading in from the sheet's own
+    // colour (`#e9dfc2`) means only the ink arrives: no black flash, no white one, and the
+    // parchment under it never appears to change.
+    this.cameras.main.fadeIn(190, 0xe9, 0xdf, 0xc2);
   }
 
   private clear(): void {

@@ -17,7 +17,7 @@
  *   node test_scripts/playtest/playtest-play.mjs --strategy my-plan.json [--seeds 8] [--ticks 600]
  *   node test_scripts/playtest/playtest-play.mjs --leaderboard
  *   node test_scripts/playtest/playtest-play.mjs --template > my-plan.json
- * Env: PLAYTEST_URL to point at a dev server other than localhost:5173.
+ * Env: PLAYTEST_URL to point at a dev server other than 127.0.0.1:5179.
  */
 import { chromium } from 'playwright';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';

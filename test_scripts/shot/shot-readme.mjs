@@ -12,7 +12,7 @@
 import { mkdirSync, writeFileSync, statSync } from 'node:fs';
 import { chromium } from 'playwright';
 
-const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5173';
+const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 const OUT = 'docs/readme';
 const QUALITY = 0.82;
 mkdirSync(OUT, { recursive: true });

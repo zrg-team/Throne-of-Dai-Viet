@@ -30,14 +30,22 @@ interface QualityProfile {
   /** Multiplier on how many trees, tufts and figures the landscape scatters. */
   readonly scatter: number;
   /**
-   * Resolution of the cached map textures, as a fraction of world size.
+   * Resolution of the cached map textures, in texels per design unit.
    *
-   * The map holds two of these — the static terrain composite and the fog tint — and at full scale
-   * over a 2244x3030 world they are about 27 MB each. Halving the scale quarters that. It used to be
-   * picked by a device sniff of its own inside `MapScene`, with different thresholds from this file's,
-   * so a player who chose Low still paid for a full-resolution map. One tier system, one answer.
+   * The map holds two of these — the static terrain composite and the fog tint — and at scale 1
+   * over a 2244x3030 world they are about 27 MB each; the cost is quadratic in this number. It can
+   * exceed 1: the camera magnifies the bake by `renderScale x mapZoom`, so a scale-1 bake under a
+   * scale-3 buffer arrives 3x upscaled — the whole of "high is still blurry" — and `fitBakeScale`
+   * caps whatever is asked here to the device's MAX_TEXTURE_SIZE.
    */
   readonly bakeScale: number;
+  /**
+   * Whether settlement ink — the harvested town clusters, capital ring, name plates, and the
+   * seasonal accents sharing depths [1.40, 1.50) — renders live instead of baked. Live ink is
+   * vector-crisp at any zoom; the bake is a raster the camera magnifies. Measured on a revealed
+   * ascent world at high: ~2-3 ms a frame, view-culled — affordable exactly where it is wanted.
+   */
+  readonly liveSettlementInk: boolean;
   /**
    * Below this map zoom, the small live detail is dropped: name plates, ox-carts and travellers,
    * weather motes. `undefined` means never — a device with the fill rate to spare keeps everything.
@@ -49,11 +57,14 @@ interface QualityProfile {
 
 const PROFILES: Record<GraphicsQuality, QualityProfile> = {
   // 1:1 with the design surface — what the game did before this existed.
-  low: { renderScale: 1, paperFX: false, scatter: 0.6, bakeScale: 0.5, lodZoomBelow: 0.85, lodDropsLabels: true },
-  medium: { renderScale: 2, paperFX: true, scatter: 1, bakeScale: 0.75, lodZoomBelow: 0.85, lodDropsLabels: false },
+  low: { renderScale: 1, paperFX: false, scatter: 0.6, bakeScale: 0.5, liveSettlementInk: false, lodZoomBelow: 0.85, lodDropsLabels: true },
+  medium: { renderScale: 2, paperFX: true, scatter: 1, bakeScale: 0.75, liveSettlementInk: false, lodZoomBelow: 0.85, lodDropsLabels: false },
   // 3 is not a typo: it is the ratio of every current flagship phone, and anything above it is
-  // spending fill rate on detail the panel cannot resolve.
-  high: { renderScale: 3, paperFX: true, scatter: 1.25, bakeScale: 1, lodDropsLabels: false },
+  // spending fill rate on detail the panel cannot resolve. High is the explicit "spend for
+  // beauty" tier: the world bake carries 2 texels per design unit (1.5x upscale at default zoom
+  // instead of 3x — VRAM is the price, and fitBakeScale still bows to the device limit), and the
+  // settlement ink stays live, so towns and plates are vector-crisp at any zoom.
+  high: { renderScale: 3, paperFX: true, scatter: 1.25, bakeScale: 2, liveSettlementInk: true, lodDropsLabels: false },
 };
 
 function devicePixelRatioSafe(): number {
@@ -92,14 +103,12 @@ function displayNeed(): number {
  * launch generally does not go looking for a menu.
  */
 export function defaultGraphicsQuality(): GraphicsQuality {
-  // Medium is the floor for a first impression. A low pixel ratio used to mean 'low', which put
-  // every ordinary desktop monitor on the muddiest tier by default - but a weak GPU is what the
-  // quality ladder exists to catch, and it steps down in seconds. Starting soft on strong
-  // hardware is a first impression nothing can step back up.
-  const nav = typeof navigator === 'undefined' ? undefined : (navigator as Navigator & { deviceMemory?: number });
-  const cores = nav?.hardwareConcurrency ?? 4;
-  const memory = nav?.deviceMemory ?? 4;
-  return cores >= 8 && memory >= 8 ? 'high' : 'medium';
+  // Always medium. High is a deliberate spend — extra VRAM for the dense bake, live settlement
+  // ink — and no device sniff (cores, memory, pixel ratio) actually promises the GPU can carry
+  // it; the sniff that used to sit here put strong-looking laptops on a tier they never chose.
+  // Medium is the honest default, the ladder catches the weak devices below it, and a player who
+  // wants the crisp world raises it in one tap.
+  return 'medium';
 }
 
 /**
@@ -140,16 +149,18 @@ interface RungProfileOverride {
   paperFX: boolean;
   scatter: number;
   bakeScale: number;
+  liveSettlementInk: boolean;
   lodZoomBelow?: number;
   lodDropsLabels: boolean;
 }
 
 let activeRungProfile: RungProfileOverride | undefined;
 
-export function setActiveRung(rung: { scale: number; paper: boolean; scatter: number; bakeScale: number; lodZoomBelow?: number; lodDropsLabels: boolean } | undefined): void {
+export function setActiveRung(rung: { scale: number; paper: boolean; scatter: number; bakeScale: number; liveSettlementInk: boolean; lodZoomBelow?: number; lodDropsLabels: boolean } | undefined): void {
   activeRungProfile = rung === undefined ? undefined : {
     renderScale: rung.scale, paperFX: rung.paper, scatter: rung.scatter,
-    bakeScale: rung.bakeScale, lodZoomBelow: rung.lodZoomBelow, lodDropsLabels: rung.lodDropsLabels,
+    bakeScale: rung.bakeScale, liveSettlementInk: rung.liveSettlementInk,
+    lodZoomBelow: rung.lodZoomBelow, lodDropsLabels: rung.lodDropsLabels,
   };
 }
 
@@ -188,7 +199,7 @@ export function scatterDensity(): number {
 const BAKESCALE_OVERRIDE: number | undefined = (() => {
   if (typeof window === 'undefined') return undefined;
   const override = /[?&]bakescale=([0-9.]+)/.exec(window.location.search);
-  return override ? Math.min(1, Math.max(0.25, parseFloat(override[1]))) : undefined;
+  return override ? Math.min(3, Math.max(0.25, parseFloat(override[1]))) : undefined;
 })();
 
 export function bakeScale(): number {
@@ -215,6 +226,11 @@ export function bakeScale(): number {
     return 0.5;
   }
   return Math.max(chosen, 0.75);
+}
+
+/** Whether this tier keeps the settlement band's ink live (vector-crisp) instead of baked. */
+export function liveSettlementInk(): boolean {
+  return profile().liveSettlementInk;
 }
 
 /** The map zoom below which small live detail is dropped, or `undefined` if this tier keeps it all. */

@@ -10,7 +10,7 @@
 // path is supposed to bypass that refusal because the player explicitly asked for it.
 import { chromium } from 'playwright';
 
-const BASE = process.env.DEV_URL ?? process.env.PLAYTEST_URL ?? 'http://localhost:5173';
+const BASE = process.env.DEV_URL ?? process.env.PLAYTEST_URL ?? 'http://127.0.0.1:5179';
 
 let passed = 0;
 let failed = 0;

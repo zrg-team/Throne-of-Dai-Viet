@@ -1,6 +1,6 @@
 // Verifies the Dragon Ascent march target uses the shared battle clash device instead of the old
 // two-line red X. Captures the active attack marker at the same mobile scale players see.
-// Needs Vite on http://localhost:5173.
+// Needs Vite on http://127.0.0.1:5179.
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 
@@ -14,7 +14,7 @@ page.on('console', (message) => {
   if (message.type() === 'error') errors.push(`CONSOLE ${message.text()}`);
 });
 
-await page.goto('http://localhost:5173/?capture=1', { waitUntil: 'domcontentloaded' });
+await page.goto('http://127.0.0.1:5179/?capture=1', { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(
   () => typeof window.__startBenchGame === 'function' && window.__phaserGame.scene.isActive('MenuScene'),
   null,

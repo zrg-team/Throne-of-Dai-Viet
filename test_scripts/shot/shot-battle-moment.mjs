@@ -3,7 +3,7 @@
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 mkdirSync('output/web-game', { recursive: true });
-const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5173';
+const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 const browser = await chromium.launch();
 // HEIGHT shoots it on the short screen the design clamps to, which is where reachability is
 // actually a question — the card sits in the order dock's band, and that band moves with the field.

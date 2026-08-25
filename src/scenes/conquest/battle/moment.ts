@@ -11,8 +11,9 @@
  * release never fires. The countdown is a tween on real time — one `ASCENT_TICK_MS` per
  * `ticksLeft` — because the fight is held and there is no beat to drain against.
  */
-import { ASCENT_TICK_MS } from '../../../game/ascentConfig';
-import { INK_UI } from '../../../ui/InkUI';
+import { ASCENT_TICK_MS, BATTLE_MOMENT_BONUS_BEATS } from '../../../game/ascentConfig';
+import { BATTLE_MOMENTS, type MomentEffect } from '../../../data/ascent/battleMoments';
+import { INK_UI, INK_UI_HEX } from '../../../ui/InkUI';
 import { t } from '../../../i18n';
 import type { AscentBattle } from '../../../state/types';
 import { BATTLE_DOCK_HEIGHT, BATTLE_RAILS_HEIGHT, cssHex } from '../constants';
@@ -37,6 +38,41 @@ import { battleFieldBox } from '../constants';
  * are hidden while the question stands rather than left showing through: the question *is* the
  * order for this beat, and two sets of controls in one place is worse than either.
  */
+/**
+ * The answer's real levers, written short — DERIVED from the effect object, never hand-written.
+ *
+ * The cards' flavour tells the player what the choice is about; this line tells them what it
+ * does to the fight (user ask, 2026-08-25: "the moment design is good but we do not clarify the
+ * effect on the match"). Sixty hand-written effect strings would be sixty chances to drift from
+ * `fightRound`; a formatter over `MomentEffect` cannot lie, and a new Moment def gets its line
+ * for free. Numbers where the effect is a number, short words where it is a named lever, and the
+ * shared window appended once when any timed term is present.
+ */
+function momentEffectLine(effect: MomentEffect): string {
+  const parts: string[] = [];
+  const pct = (mult: number): string =>
+    `${mult > 1 ? '+' : '−'}${Math.round(Math.abs(mult - 1) * 100)}%`;
+  const signed = (value: number): string => `${value > 0 ? '+' : '−'}${Math.abs(value)}`;
+  if (effect.dealt !== undefined && effect.dealt !== 1) parts.push(t('ascent.moment.fx.dealt', { n: pct(effect.dealt) }));
+  if (effect.taken !== undefined && effect.taken !== 1) parts.push(t('ascent.moment.fx.taken', { n: pct(effect.taken) }));
+  if (effect.sharpen) parts.push(t('ascent.moment.fx.sharpen'));
+  if (effect.guard) parts.push(t('ascent.moment.fx.guard'));
+  if (effect.freeReform) parts.push(t('ascent.moment.fx.freeReform'));
+  if (effect.lockTheirShape) parts.push(t('ascent.moment.fx.lock', { n: effect.lockTheirShape }));
+  if (effect.morale) parts.push(t('ascent.moment.fx.morale', { n: signed(effect.morale) }));
+  if (effect.theirMorale) parts.push(t('ascent.moment.fx.theirMorale', { n: Math.abs(effect.theirMorale) }));
+  if (effect.loss) parts.push(t('ascent.moment.fx.loss', { n: Math.round(effect.loss * 100) }));
+  if (effect.theirLoss) parts.push(t('ascent.moment.fx.theirLoss', { n: Math.round(effect.theirLoss * 100) }));
+  if (effect.advance) parts.push(t(effect.advance > 0 ? 'ascent.moment.fx.advance' : 'ascent.moment.fx.giveGround'));
+  if (effect.rounds) parts.push(t(effect.rounds < 0 ? 'ascent.moment.fx.shorter' : 'ascent.moment.fx.longer'));
+  if (effect.rally) parts.push(t('ascent.moment.fx.rally'));
+  if (effect.stance) parts.push(t('ascent.moment.fx.stance', { s: t(`ascent.stance.${effect.stance}` as Parameters<typeof t>[0]) }));
+  const timed = (effect.dealt !== undefined && effect.dealt !== 1)
+    || (effect.taken !== undefined && effect.taken !== 1) || effect.sharpen || effect.guard;
+  if (timed) parts.push(t('ascent.moment.fx.beats', { n: BATTLE_MOMENT_BONUS_BEATS }));
+  return parts.join(' · ');
+}
+
 export function buildBattleMoment(self: ConquestUIScene, battle: AscentBattle): void {
   const ui = self.battleUi;
   if (!ui) return;
@@ -126,10 +162,18 @@ export function buildBattleMoment(self: ConquestUIScene, battle: AscentBattle): 
   const rowY = y + 16 + Math.max(16, title.height) + 6;
   const gap = 8;
   const buttonW = (content.width - 24 - gap) / 2;
-  const buttonH = Math.max(44, height - (rowY - y) - FOOTER);
+  // The strip under each answer where its derived effect line prints — see `momentEffectLine`.
+  // Two caption lines when the band affords them; on a band too short for buttons AND captions
+  // the buttons win the room (they are the controls) and the strip narrows, or goes entirely —
+  // an effect line printed over the timer bar is worse than none.
+  const bandFree = height - (rowY - y) - FOOTER;
+  const EFFECT_H = Math.min(24, Math.max(0, bandFree - 44));
+  const buttonH = Math.max(44, bandFree - EFFECT_H);
+  const def = BATTLE_MOMENTS.find((candidate) => candidate.id === moment.id);
   const answer = (index: number, id: 'commit' | 'steady'): void => {
+    const bx = content.x + 12 + index * (buttonW + gap);
     layer.add(self.ui.button(
-      { x: content.x + 12 + index * (buttonW + gap), y: rowY, width: buttonW, height: buttonH },
+      { x: bx, y: rowY, width: buttonW, height: buttonH },
       t(`ascent.moment.${moment.id}.${id}` as Parameters<typeof t>[0]),
       () => {
         // No gesture guard here: `InkUI.button` has already refused the tap if it was the tail
@@ -146,6 +190,25 @@ export function buildBattleMoment(self: ConquestUIScene, battle: AscentBattle): 
         subLabel: t(`ascent.moment.${moment.id}.${id}D` as Parameters<typeof t>[0]),
       },
     ));
+    // What this answer does to the fight, under the card it belongs to. Skipped when the band
+    // could not reserve a strip, and shrunk to fit the strip it got — never printed over the bar.
+    const effect = def?.[id];
+    if (effect && EFFECT_H >= 11) {
+      const line = momentEffectLine(effect);
+      if (line) {
+        const fx = self.ui.label(
+          bx + buttonW / 2, rowY + buttonH + 2, line,
+          'caption', {
+            fontSize: '8px', align: 'center', wordWrap: { width: buttonW - 6 },
+            color: INK_UI_HEX.mutedText,
+          },
+        ).setOrigin(0.5, 0);
+        for (let size = 7.5; size >= 6.5 && fx.height > EFFECT_H - 2; size -= 0.5) {
+          fx.setFontSize(size);
+        }
+        layer.add(fx);
+      }
+    }
   };
   answer(0, 'commit');
   answer(1, 'steady');

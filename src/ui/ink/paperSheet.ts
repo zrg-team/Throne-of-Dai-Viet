@@ -15,7 +15,7 @@
  */
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../../game/constants';
-import { renderScale, wantsPaperFX } from '../../game/graphicsQuality';
+import { renderScale } from '../../game/graphicsQuality';
 import { PIGMENT } from './palette';
 import { mulberry32 } from './stroke';
 
@@ -52,11 +52,21 @@ function query(name: string): string | undefined {
   }
 }
 
-/** The sheet steps aside for the old shader pass (`?fx=shader`) and for `?nofx=1`. */
+/**
+ * OFF by default at every tier — `?paper=N` is the only way to lay the sheet.
+ *
+ * The user's verdict (2026-08-25, with side-by-side front-page screenshots): the sheet reads as
+ * "a gray filter", and the tier without it "looks better — no filter at all". Measured on the
+ * menu: 14% mean brightness lost overall, 22% in the corners (the tone plate's vignette at full
+ * alpha plus the grain multiply). The aging the sheet was tuned to add is already IN the art —
+ * the paper ground, the điệp washes — so doubling it grays the sheet instead of aging it. The
+ * old shader pass stays at `?fx=shader`; both remain A/B switches, not defaults.
+ */
 export function paperSheetEnabled(): boolean {
   if (typeof window === 'undefined') return false;
   if (query('nofx') === '1' || query('fx') === 'shader') return false;
-  return wantsPaperFX();
+  const asked = Number(query('paper'));
+  return Number.isFinite(asked) && asked > 0;
 }
 
 /**

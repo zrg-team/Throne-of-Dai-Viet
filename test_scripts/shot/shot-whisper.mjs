@@ -14,7 +14,7 @@ const page = await browser.newPage({ viewport: { width: 390, height: 844 }, devi
 const errors = [];
 page.on('pageerror', (err) => errors.push(err.message));
 
-await page.goto((process.env.DEV_URL ?? 'http://localhost:5173') + '/?capture=1', { waitUntil: 'domcontentloaded' });
+await page.goto((process.env.DEV_URL ?? 'http://127.0.0.1:5179') + '/?capture=1', { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
 
 // A run far enough in to have live stories, with no card owning the screen.

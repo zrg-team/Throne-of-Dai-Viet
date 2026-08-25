@@ -16,7 +16,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 
-const URL = process.env.DEV_URL ?? process.env.PLAYTEST_URL ?? 'http://127.0.0.1:5173';
+const URL = process.env.DEV_URL ?? process.env.BASE_URL ?? process.env.PLAYTEST_URL ?? 'http://127.0.0.1:5179';
 const argOf = (flag, fallback) => {
   const i = process.argv.indexOf(flag);
   return i === -1 ? fallback : process.argv[i + 1];

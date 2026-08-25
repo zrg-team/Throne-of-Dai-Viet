@@ -17,7 +17,7 @@ import { chromium } from 'playwright';
 const require = createRequire(import.meta.url);
 const JSQR_PATH = require.resolve('jsqr/dist/jsQR.js');
 
-const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5173';
+const URL = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
 const OUT = process.env.SHOT_OUT ?? 'output/support';
 mkdirSync(OUT, { recursive: true });
 

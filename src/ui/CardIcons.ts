@@ -21,6 +21,9 @@ export type CardIconId =
   | 'hut' | 'ladder' | 'crown' | 'scales' | 'person' | 'grain'
   | 'herd' | 'cart' | 'branch' | 'retreat' | 'spark' | 'wall'
   | 'hourglass' | 'book' | 'skull' | 'cup' | 'hammer' | 'gear' | 'globe' | 'phone' | 'install'
+  // The world clock's two faces. Not the hourglass: its crossed strokes are mud at the exits
+  // row's 14-unit scale, and pause/play are the two glyphs nobody has ever had to learn.
+  | 'pause' | 'play'
   // The five shapes of the fight screen's fast dial. `shield` and `blade` are spoken for
   // elsewhere, and a formation chip that shared a glyph with a conquest method would read as
   // the same thing twice, so these are their own.
@@ -374,6 +377,17 @@ export function drawCardIcon(
       line(2);
       g.lineBetween(-8, -10, 8, -10); g.lineBetween(-8, 10, 8, 10);
       g.lineBetween(-8, -10, 8, 10); g.lineBetween(8, -10, -8, 10);
+      break;
+
+    case 'pause':
+      fill();
+      g.fillRoundedRect(-8, -9, 6, 18, 2);
+      g.fillRoundedRect(2, -9, 6, 18, 2);
+      break;
+
+    case 'play':
+      fill();
+      g.fillTriangle(-6, -9, -6, 9, 10, 0);
       break;
 
     case 'book':

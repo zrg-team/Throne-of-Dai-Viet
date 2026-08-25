@@ -3,7 +3,7 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(e.message));
-await page.goto('http://127.0.0.1:5173/?capture=1', { waitUntil: 'domcontentloaded' });
+await page.goto('http://127.0.0.1:5179/?capture=1', { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => typeof window.__startBenchGame === 'function' && window.__phaserGame.scene.isActive('MenuScene'), null, { timeout: 30000 });
 await page.evaluate(() => window.__startBenchGame(7, 'empire'));
 await page.waitForFunction(() => window.__phaserGame.scene.isActive('MapScene'), null, { timeout: 30000 });

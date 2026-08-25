@@ -734,6 +734,16 @@ export class InkUI {
       for (let size = 9.5; size >= 7.5 && text.height + 1 + sub.height > budget; size -= 0.5) {
         sub.setFontSize(size);
       }
+      // Still too tall at the floor size: give words, not the box. A note that has shrunk to 7.5
+      // and still does not fit used to print straight through whatever stood under the button
+      // (user report: the Moment card's timer bar) — trimmed tail-first with an ellipsis instead.
+      if (text.height + 1 + sub.height > budget) {
+        const words = (opts.subLabel ?? '').split(' ');
+        while (words.length > 1 && text.height + 1 + sub.height > budget) {
+          words.pop();
+          sub.setText(`${words.join(' ')}…`);
+        }
+      }
       const block = text.height + 1 + sub.height;
       text.setY(bounds.height / 2 - block / 2 + text.height / 2);
       sub.setY(bounds.height / 2 + block / 2 - sub.height / 2);
