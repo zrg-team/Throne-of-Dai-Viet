@@ -272,6 +272,14 @@ export function showArmyScreen(self: ConquestUIScene): void {
     const general = state.heroes.find((candidate) => candidate.id === army.generalHeroId);
     const size = hostSize(army);
     const remnant = !isAutoHost(army) && size < MIN_ARMY_SOLDIERS * REMNANT_SHARE;
+    // A refit outranks the order line: the host is not doing what it was told, it is standing
+    // down until the work finishes, and this row is where that has to be readable.
+    const statusLine = army.refit
+      ? t('ascent.army.refitStatus', {
+          action: t(`ascent.army.${army.refit.kind}` as Parameters<typeof t>[0]),
+          n: army.refit.ticksLeft,
+        })
+      : remnant ? t('ascent.orders.remnantRow', { n: size }) : hostOrderLabel(state, army);
     addRow(
       {
         title: `${army.name}  ·  ${size}`,
@@ -280,8 +288,9 @@ export function showArmyScreen(self: ConquestUIScene): void {
           general: general ? heroName(general) : t('ascent.screen.noGeneral'),
           morale: Math.round(army.morale),
           supply: Math.round(army.supply),
-        })}\n${remnant ? t('ascent.orders.remnantRow', { n: size }) : hostOrderLabel(state, army)}`,
-        border: remnant || army.morale < 40 || army.supply < 30 ? INK_UI.cinnabar : INK_UI.jade,
+        })}\n${statusLine}`,
+        border: army.refit ? INK_UI.gold
+          : remnant || army.morale < 40 || army.supply < 30 ? INK_UI.cinnabar : INK_UI.jade,
       },
       () => showArmyDetail(self, army.id),
     );
@@ -378,14 +387,18 @@ export function showArmyDetail(self: ConquestUIScene, armyId: string): void {
   // its contract for one caller, the host block is laid out as a row with a portrait — the one
   // shape in the list that already carries a face — and the figures above it are given their own
   // pass. The commander row keeps `addRow` because a face IS the row here.
+  // A host mid-refit takes no orders at all: every order surface below goes quiet together,
+  // with the one sentence that says why, rather than each tile inventing its own excuse.
+  const locked = Boolean(army.refit);
   addRow(
     {
       title: general ? heroName(general) : t('ascent.army.noCommander'),
       subtitle: t('ascent.orders.commanderBody'),
-      border: general ? INK_UI.gold : INK_UI.cinnabar,
+      border: locked ? INK_UI.softBrush : general ? INK_UI.gold : INK_UI.cinnabar,
+      muted: locked,
       portrait: general,
     },
-    () => self.showCommanderPicker(armyId),
+    locked ? undefined : () => self.showCommanderPicker(armyId),
   );
 
   // ── Orders ──
@@ -397,8 +410,15 @@ export function showArmyDetail(self: ConquestUIScene, armyId: string): void {
   addHeading(t('ascent.orders.heading'));
   const orders = armyOrders(army);
   addWidget(0, (parent, width) => {
-    const line = self.add.text(2, 0, t('ascent.orders.current', { order: hostOrderLabel(state, army) }), {
-      color: INK_UI_HEX.inkText, fontFamily: UI_FONT, fontSize: '12px', fontStyle: '700',
+    const heading = locked && army.refit
+      ? `${t('ascent.army.refitStatus', {
+          action: t(`ascent.army.${army.refit.kind}` as Parameters<typeof t>[0]),
+          n: army.refit.ticksLeft,
+        })}\n${t('ascent.army.refitBusy')}`
+      : t('ascent.orders.current', { order: hostOrderLabel(state, army) });
+    const line = self.add.text(2, 0, heading, {
+      color: locked ? cssHex(INK_UI.gold) : INK_UI_HEX.inkText,
+      fontFamily: UI_FONT, fontSize: '12px', fontStyle: '700',
       wordWrap: { width: width - 4 },
     }).setOrigin(0, 0);
     parent.add(line);
@@ -455,52 +475,56 @@ export function showArmyDetail(self: ConquestUIScene, armyId: string): void {
       showArmyDetail(self, armyId);
     } : undefined,
   }];
+  const orderTiles = [
+    ...reliefTile,
+    {
+      title: t('ascent.orders.defendHere'),
+      note: t('ascent.orders.defendHereBody', { land: land?.name ?? '—' }),
+      border: defendingHere ? INK_UI.gold : INK_UI.jade,
+      muted: defendingHere,
+      onTap: defendingHere ? undefined : () => command({ kind: 'defend', landId: army.landId }),
+    },
+    {
+      title: t('ascent.army.marchTo'),
+      note: owned.length > 0 ? t('ascent.army.marchToBody') : t('ascent.army.noOwnedLand'),
+      border: owned.length > 0 ? INK_UI.jade : INK_UI.softBrush,
+      muted: owned.length === 0,
+      onTap: owned.length > 0 ? () => self.showMarchTargets(armyId) : undefined,
+    },
+    {
+      title: t('ascent.orders.attackPick'),
+      note: attackable.length > 0 ? t('ascent.orders.attackPickBody') : t('ascent.army.noOwnedLand'),
+      border: attackable.length > 0 ? INK_UI.cinnabar : INK_UI.softBrush,
+      muted: attackable.length === 0,
+      onTap: attackable.length > 0 ? () => self.showAttackTargets(armyId) : undefined,
+    },
+    {
+      title: t('ascent.orders.followPick'),
+      note: t('ascent.orders.followPickBody'),
+      border: others.length > 0 ? INK_UI.jade : INK_UI.softBrush,
+      muted: others.length === 0,
+      onTap: others.length > 0 ? () => self.showFollowTargets(armyId) : undefined,
+    },
+    {
+      title: t('ascent.army.hunt'),
+      note: quarries.length > 0 ? t('ascent.army.huntBody', { n: quarries.length }) : t('ascent.army.huntNone'),
+      border: quarries.length > 0 ? INK_UI.cinnabar : INK_UI.softBrush,
+      muted: quarries.length === 0,
+      onTap: quarries.length > 0 ? () => self.showHuntTargets(armyId) : undefined,
+    },
+    {
+      title: t('ascent.orders.autoRow'),
+      note: t('ascent.orders.autoBody'),
+      border: isAutoHost(army) ? INK_UI.gold : INK_UI.softBrush,
+      muted: isAutoHost(army),
+      onTap: isAutoHost(army) ? undefined : () => command({ kind: 'auto' }),
+    },
+  ];
   addWidget(0, (parent, width) => {
-    const height = self.actionTiles(parent, width, [
-      ...reliefTile,
-      {
-        title: t('ascent.orders.defendHere'),
-        note: t('ascent.orders.defendHereBody', { land: land?.name ?? '—' }),
-        border: defendingHere ? INK_UI.gold : INK_UI.jade,
-        muted: defendingHere,
-        onTap: defendingHere ? undefined : () => command({ kind: 'defend', landId: army.landId }),
-      },
-      {
-        title: t('ascent.army.marchTo'),
-        note: owned.length > 0 ? t('ascent.army.marchToBody') : t('ascent.army.noOwnedLand'),
-        border: owned.length > 0 ? INK_UI.jade : INK_UI.softBrush,
-        muted: owned.length === 0,
-        onTap: owned.length > 0 ? () => self.showMarchTargets(armyId) : undefined,
-      },
-      {
-        title: t('ascent.orders.attackPick'),
-        note: attackable.length > 0 ? t('ascent.orders.attackPickBody') : t('ascent.army.noOwnedLand'),
-        border: attackable.length > 0 ? INK_UI.cinnabar : INK_UI.softBrush,
-        muted: attackable.length === 0,
-        onTap: attackable.length > 0 ? () => self.showAttackTargets(armyId) : undefined,
-      },
-      {
-        title: t('ascent.orders.followPick'),
-        note: t('ascent.orders.followPickBody'),
-        border: others.length > 0 ? INK_UI.jade : INK_UI.softBrush,
-        muted: others.length === 0,
-        onTap: others.length > 0 ? () => self.showFollowTargets(armyId) : undefined,
-      },
-      {
-        title: t('ascent.army.hunt'),
-        note: quarries.length > 0 ? t('ascent.army.huntBody', { n: quarries.length }) : t('ascent.army.huntNone'),
-        border: quarries.length > 0 ? INK_UI.cinnabar : INK_UI.softBrush,
-        muted: quarries.length === 0,
-        onTap: quarries.length > 0 ? () => self.showHuntTargets(armyId) : undefined,
-      },
-      {
-        title: t('ascent.orders.autoRow'),
-        note: t('ascent.orders.autoBody'),
-        border: isAutoHost(army) ? INK_UI.gold : INK_UI.softBrush,
-        muted: isAutoHost(army),
-        onTap: isAutoHost(army) ? undefined : () => command({ kind: 'auto' }),
-      },
-    ]);
+    const height = self.actionTiles(parent, width, locked
+      // One sentence above already said why; the tiles just go quiet together.
+      ? orderTiles.map((tile) => ({ ...tile, muted: true, border: INK_UI.softBrush, onTap: undefined }))
+      : orderTiles);
     return height;
   });
 
@@ -594,9 +618,10 @@ export function showArmyDetail(self: ConquestUIScene, armyId: string): void {
       },
       {
         title: t('ascent.orders.recall'),
-        note: t('ascent.orders.recallBody'),
-        border: INK_UI.gold,
-        onTap: recall,
+        note: locked ? t('ascent.army.refitBusy') : t('ascent.orders.recallBody'),
+        border: locked ? INK_UI.softBrush : INK_UI.gold,
+        muted: locked,
+        onTap: locked ? undefined : recall,
       },
       {
         title: t('ascent.army.disband'),

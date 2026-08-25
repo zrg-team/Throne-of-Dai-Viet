@@ -194,12 +194,13 @@ try {
     });
 
     // The notice is the version line itself now: the incoming worker's semver, next to the one
-    // running. Matching the whole sentence, numbers included, is what proves the GET_VERSION
-    // round trip happened — /New version ready/ would pass on the numberless fallback.
+    // running, and an instruction — the line that only stated a fact left players not knowing
+    // what to do. Matching the whole sentence, numbers included, is what proves the GET_VERSION
+    // round trip happened — a generic match would pass on the numberless fallback.
     const front = await readAllText();
     check(
-      'the version line becomes the reload-to-update notice',
-      front.some((text) => /Reload to update to version 9\.9\.9 \(current \d+\.\d+\.\d+\)/.test(text)),
+      'the version line becomes the tap-to-update notice',
+      front.some((text) => /Version 9\.9\.9 is downloaded \(current \d+\.\d+\.\d+\) — Tap here to update/.test(text)),
       front.filter((text) => /version/i.test(text)).join(' / '),
     );
 
@@ -255,7 +256,7 @@ try {
     const secondBefore = await readAllText(second);
     check(
       'a client opened while an update waits raises the notice too',
-      secondBefore.some((text) => /Reload to update to version 9\.9\.9/.test(text)),
+      secondBefore.some((text) => /Version 9\.9\.9 is downloaded/.test(text)),
       secondBefore.filter((text) => /version/i.test(text)).join(' / ') || 'nothing saying "version"',
     );
 

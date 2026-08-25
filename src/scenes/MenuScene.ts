@@ -3296,15 +3296,18 @@ export class MenuScene extends Phaser.Scene {
     const incoming = getIncomingVersion();
     const versioned = incoming !== undefined && incoming !== BUILD_VERSION;
     const ready = status === 'ready';
+    const installing = status === 'installing';
     let text: string;
-    if (status === 'installing') {
+    if (installing) {
       text = versioned
         ? t('menu.update.downloadingVersion', { version: incoming, current: BUILD_VERSION })
         : t('menu.update.installing');
     } else if (ready) {
-      text = versioned
-        ? t('menu.update.reloadVersion', { version: incoming, current: BUILD_VERSION })
-        : t('menu.update.readyHint');
+      // The sentence carries its own instruction — "no one knew what to do" with a line that
+      // only stated a fact, however red it was.
+      text = `${versioned
+        ? t('menu.update.readyLine', { version: incoming, current: BUILD_VERSION })
+        : t('menu.update.ready')} — ${t('menu.update.tapHere')}`;
     } else {
       text = buildStamp();
     }
@@ -3316,21 +3319,75 @@ export class MenuScene extends Phaser.Scene {
     const line = this.ui.label(GAME_WIDTH / 2, GAME_HEIGHT - VERSION_EDGE, text, 'caption', {
       color: ready ? '#8a2a1b' : INK_UI_HEX.mutedText,
       fontSize: '9px',
-      fontStyle: ready ? '700' : '400',
+      fontStyle: ready || installing ? '700' : '400',
     }).setOrigin(0.5, 1).setData('menuVersionLine', true);
-    const maxWidth = GAME_WIDTH - 32;
+    // Both update states carry an icon at the line's left; the room is spent before the
+    // shrink-to-fit so icon and glyphs scale as one thing.
+    const maxWidth = GAME_WIDTH - 32 - (ready || installing ? 18 : 0);
     if (line.width > maxWidth) {
       line.setScale(maxWidth / line.width);
     }
     this.content.push(line);
 
+    const iconX = line.x - line.displayWidth / 2 - 11;
+    const iconY = line.y - line.displayHeight / 2 - 1;
+
+    if (installing) {
+      // A little arrow dropping into a tray, on a loop — the universally-read "downloading",
+      // so the line is understood before it is read.
+      const ink = 0x6f6250;
+      const tray = this.add.graphics({ x: iconX, y: iconY });
+      tray.lineStyle(1.4, ink, 0.9);
+      tray.beginPath();
+      tray.moveTo(-5, 3);
+      tray.lineTo(-5, 5.5);
+      tray.lineTo(5, 5.5);
+      tray.lineTo(5, 3);
+      tray.strokePath();
+      const arrow = this.add.graphics({ x: iconX, y: iconY - 2 });
+      arrow.lineStyle(1.6, ink, 1);
+      arrow.beginPath();
+      arrow.moveTo(0, -5);
+      arrow.lineTo(0, 2);
+      arrow.moveTo(-2.8, -0.6);
+      arrow.lineTo(0, 2.2);
+      arrow.lineTo(2.8, -0.6);
+      arrow.strokePath();
+      const drop = this.tweens.add({
+        targets: arrow, y: arrow.y + 3, alpha: { from: 1, to: 0.35 },
+        duration: 640, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      });
+      arrow.once('destroy', () => drop.stop());
+      this.content.push(tray, arrow);
+    }
+
     if (ready) {
+      // A checked circle — the download is done — and a slow breathing pulse on the whole
+      // line, because a call to action on the quietest strip of the page has to move to be
+      // seen at all.
+      const red = 0x8a2a1b;
+      const icon = this.add.graphics({ x: iconX, y: iconY });
+      icon.lineStyle(1.5, red, 1);
+      icon.strokeCircle(0, 0, 6);
+      icon.lineStyle(1.8, red, 1);
+      icon.beginPath();
+      icon.moveTo(-2.6, 0.2);
+      icon.lineTo(-0.7, 2.2);
+      icon.lineTo(3, -2.2);
+      icon.strokePath();
+      const pulse = this.tweens.add({
+        targets: [line, icon], alpha: { from: 1, to: 0.55 },
+        duration: 780, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      });
+      icon.once('destroy', () => pulse.stop());
+      this.content.push(icon);
+
       // 9px type on the very edge of the sheet; a finger needs more paper than the glyphs cover.
       const hit = this.add
         .rectangle(
           GAME_WIDTH / 2,
           line.y - line.displayHeight / 2,
-          Math.max(line.displayWidth + 24, 200),
+          Math.max(line.displayWidth + 44, 200),
           line.displayHeight + 18,
           0xffffff,
           0.001,

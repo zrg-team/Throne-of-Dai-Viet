@@ -152,10 +152,23 @@ export function resolveDoctrine(state: GameState, choiceId: string): boolean {
     return true;
   }
 
-  ascent.doctrine = choiceId as AscentDoctrine;
-  ascent.laneState.lastDecisionTurn.court = state.turn;
-  pushToast(state, t('ascent.doctrine.set', { name: doctrineName(ascent.doctrine) }), 'milestone');
+  adoptDoctrine(state, choiceId as AscentDoctrine);
   return true;
+}
+
+/**
+ * Turns the realm to a doctrine, from wherever the order is given.
+ *
+ * Two doors reach it: the once-an-era card, and the standing picker at the foot of the court
+ * lane — the king may re-brief the ministers whenever he is reading their page, not only when
+ * the era turns. Same mutation, same announcement, whichever door.
+ */
+export function adoptDoctrine(state: GameState, doctrine: AscentDoctrine): void {
+  const ascent = state.ascent;
+  if (!ascent || ascent.doctrine === doctrine) return;
+  ascent.doctrine = doctrine;
+  ascent.laneState.lastDecisionTurn.court = state.turn;
+  pushToast(state, t('ascent.doctrine.set', { name: doctrineName(doctrine) }), 'milestone');
 }
 
 export function doctrineName(doctrine: AscentDoctrine): string {

@@ -39,6 +39,7 @@ import {
   taxStabilityBase,
 } from '../../../systems/TaxSystem';
 import { lawCardView, seatedEffectSummary } from '../../../systems/ascent/CourtLaneSystem';
+import { ALL_DOCTRINES, adoptDoctrine, doctrineBlurb, doctrineName } from '../../../systems/ascent/RealmDoctrineSystem';
 import { heroPayroll, refreshAllLandOutputs } from '../../../systems/ResourceSystem';
 import { buildHeroPickerRows, heroPostingLabel } from '../../../ui/heroPickerRows';
 import { eraLabel } from '../../../systems/empire/MandateSystem';
@@ -103,6 +104,7 @@ function heroPosting(self: ConquestUIScene, hero: Hero): string {
 export function showCourtScreen(self: ConquestUIScene): void {
   const state = self.state;
   const mandate = state.mandate;
+  const doctrine = state.ascent?.doctrine;
   const { addRow, addHeading, addNote, addWidget, finish } = self.laneList(
     t('action.court'),
     t('ascent.lane.courtBody', {
@@ -110,6 +112,25 @@ export function showCourtScreen(self: ConquestUIScene): void {
       stability: Math.round(state.court.stability),
       points: mandate?.edictPoints ?? 0,
     }),
+    {
+      // The realm's standing course, in the same footer slot the other lanes keep their
+      // standing setting. The era card still asks on its own clock; this is the king turning
+      // to the ministers whenever he is already reading their page — same `adoptDoctrine`
+      // underneath, so both doors move the same autopilot weights.
+      footerPicker: {
+        label: t('ascent.court.course'),
+        options: ALL_DOCTRINES.map((candidate) => doctrineName(candidate)),
+        note: doctrine ? doctrineBlurb(doctrine) : t('ascent.court.courseNone'),
+        selected: doctrine ? ALL_DOCTRINES.indexOf(doctrine) : -1,
+        onPick: (index) => {
+          const next = ALL_DOCTRINES[index];
+          if (!next) return;
+          adoptDoctrine(state, next);
+          self.replaceLanePage(() => showCourtScreen(self));
+          self.refresh();
+        },
+      },
+    },
   );
 
   const seated = ALL_COURT_POSITIONS.filter((seat) => state.court.seats[seat]).length;

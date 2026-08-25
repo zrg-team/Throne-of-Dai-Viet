@@ -620,6 +620,11 @@ export class ConquestUIScene extends Phaser.Scene {
        * The whole row is the hit area, label included.
        */
       footerToggle?: { label: string; hint?: string; checked: boolean; onToggle: () => void };
+      /**
+       * A segmented choice pinned above the footer button, in the toggle's slot — for the one
+       * standing setting on a page that has more than two answers.
+       */
+      footerPicker?: { label: string; options: string[]; note: string; selected: number; onPick: (index: number) => void };
       /** A compact, fixed tab strip above the scrolling body. */
       tabs?: {
         items: Array<{ label: string; count?: number }>;
