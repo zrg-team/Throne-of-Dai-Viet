@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/readme/banner.webp" alt="Vạn Thắng — trang chủ, giang sơn giữa một lượt chơi, thiên mệnh của vị khai quốc, và một trận đánh" width="100%">
+<img src="docs/readme/banner.webp" alt="Vạn Thắng — trang chủ, giang sơn giữa một ván chơi, thiên mệnh của vị khai quốc, và một trận đánh" width="100%">
 
 # Vạn Thắng
 
@@ -8,7 +8,7 @@
 
 ### Lịch sử Việt Nam, cầm điện thoại một tay là chơi được.
 
-**Game đại chiến lược roguelite, vẽ theo lối tranh khắc gỗ Đông Hồ. Miễn phí, không quảng cáo, tiếng Việt và tiếng Anh song song.**
+**Game chiến lược roguelite, vẽ theo lối tranh khắc gỗ Đông Hồ. Miễn phí, không quảng cáo, đủ cả tiếng Việt lẫn tiếng Anh.**
 
 **[🇬🇧 Read this page in English](README.md)**
 
@@ -29,31 +29,31 @@
 
 ## 🎯 Vì sao có game này
 
-Người Việt nào lớn lên cũng thuộc mấy chuyện ấy: cậu bé chăn trâu bẻ cờ lau tập trận, sau thành hoàng đế; chiếc nỏ thần và vệt lông ngỗng dẫn đường cho giặc; bãi cọc cắm ngầm dưới lòng sông Bạch Đằng; các bô lão ở điện Diên Hồng cùng hô một tiếng *Đánh!*; chàng thiếu niên đứng ngoài cửa hội nghị, bóp nát quả cam trong tay lúc nào không hay.
+Mình lớn lên với mấy câu chuyện ấy, chắc bạn cũng vậy: cậu bé chăn trâu bẻ cờ lau tập trận, về sau lên ngôi hoàng đế; chiếc nỏ thần và vệt lông ngỗng dẫn giặc theo sau; bãi cọc nằm im dưới lòng sông Bạch Đằng; điện Diên Hồng vang một tiếng *Đánh!*; và cậu thiếu niên đứng ngoài cửa hội nghị, bóp nát quả cam trong tay lúc nào không hay.
 
-Ra khỏi Việt Nam, gần như chẳng ai biết những chuyện đó. Còn ở nhà, chúng hay nằm im trong sách giáo khoa.
+Ra nước ngoài mà kể, gần như không ai biết. Còn ở nhà, chúng nằm im trong sách giáo khoa — học để thi, thi xong thì thôi.
 
-**Vạn Thắng** muốn biến kho chuyện ấy thành thứ *chơi được* thật sự: để Yết Kiêu, tấm áo bào của Lê Lai hay Văn Miếu hiện ra thành từng quyết định ngay trên màn hình của bạn — trong một game đủ hay để người ta chơi vì nó hay, chứ không phải vì nó "bổ ích". Game làm cho chiếc điện thoại trong túi bạn, hai thứ tiếng ngang hàng nhau, và không tốn một đồng.
+**Vạn Thắng** là cách mình trả lời một câu hỏi cứ lởn vởn mãi: nếu kho sử ấy *chơi được* thì sao? Nếu Yết Kiêu, tấm áo bào của Lê Lai hay Văn Miếu không phải bài học thuộc lòng, mà là những quyết định hiện ra ngay trên màn hình — trong một game đủ hay để bạn chơi vì nó hay, chứ không phải vì nó "bổ ích"? Game làm cho chiếc điện thoại trong túi bạn, hai thứ tiếng ngang hàng nhau, và không tốn của bạn đồng nào.
 
 ## 🐉 Chơi thế nào — Rồng Thăng Long · *Dragon Ascent*
 
-Bạn là một tiểu vương, có đúng một tòa kinh thành giữa bản đồ bốn mươi hai trấn, lượt nào cũng sinh bản đồ mới. **Giang sơn tự vận hành. Ngươi chọn sức mạnh cho nó.** Thời gian chạy thật: bạn không nhìn thì đất nước vẫn chuyển. Còn mọi lựa chọn thì hiện lên thành lá bài, chạm ngón cái một cái là xong.
+Bạn là một tiểu vương với vỏn vẹn một tòa kinh thành, giữa bản đồ bốn mươi hai trấn — ván nào cũng sinh bản đồ mới. **Giang sơn tự vận hành. Ngươi chọn sức mạnh cho nó.** Thời gian trôi thật: bạn rời mắt thì đất nước vẫn chạy. Còn mọi lựa chọn đều hiện lên thành lá bài, ngón cái chạm một cái là xong.
 
-- **Giặc đến theo đợt.** Chừng năm rưỡi một đợt, đợt sau đông hơn đợt trước; cứ đợt thứ tư là trùm, báo trước hẳn một mùa. Không có màn thắng — chỉ đếm xem bạn trụ được bao xa.
-- **Tham vọng là cái giá.** Chiếm thêm trấn, rút thêm bài, mộ thêm quân — làm gì cũng hun nóng đợt giặc sắp tới. Mở cõi chưa bao giờ miễn phí.
-- **Chọn sức mạnh.** Lên cấp là được chọn một trong bốn lá — đồng, bạc, vàng, ngọc — cộng dồn vĩnh viễn. Hai lá đã nâng kịch trần còn *tiến hóa* được thành một lá mới hẳn.
-- **Đường lối.** Mỗi thời đại một lần, bạn bảo quần thần giang sơn này là loại giang sơn gì — *Cố Thủ*, *Mở Mang*, *Làm Giàu* hay *Dựng Binh* — rồi bộ máy cứ thế mà xây, tới khi bạn đổi ý.
-- **Thua cũng không trắng tay:** cuối lượt, mọi thứ tích vào **Di sản** — mua đặc quyền vĩnh viễn cho lượt sau.
+- **Giặc đến theo đợt.** Chừng năm rưỡi một đợt, đợt sau đông hơn đợt trước; cứ đợt thứ tư là một trận trùm, báo trước hẳn một mùa. Không có màn "thắng" — chỉ có bạn trụ được tới đâu.
+- **Tham vọng có giá của nó.** Chiếm thêm trấn, rút thêm bài, mộ thêm quân — làm gì cũng khiến đợt giặc sau hung hơn. Muốn mở cõi thì phải chịu nóng.
+- **Lên cấp, chọn sức mạnh.** Bốn lá — đồng, bạc, vàng, ngọc — chọn một, cộng dồn vĩnh viễn. Hai lá đã nâng kịch trần còn *tiến hóa* được thành một lá mới toanh.
+- **Định đường lối.** Mỗi thời đại một lần, bạn nói với quần thần: giang sơn này *Cố Thủ*, *Mở Mang*, *Làm Giàu* hay *Dựng Binh*. Nói xong, bộ máy cứ thế mà xây — tới khi bạn đổi ý.
+- **Thua cũng không về tay trắng.** Hết ván, mọi thứ quy ra **Di sản** — mua đặc quyền vĩnh viễn cho ván sau.
 
 <table>
   <tr>
-    <td align="center" width="33%"><img src="docs/readme/ascent-map.webp" alt="Giang sơn vào thu: xóm làng, cờ xí, một cuộc xâm lược đang diễn ra, triều đình thì thầm" width="100%"><br><sub>Giang sơn, giữa một lượt chơi</sub></td>
+    <td align="center" width="33%"><img src="docs/readme/ascent-map.webp" alt="Giang sơn vào thu: xóm làng, cờ xí, một cuộc xâm lược đang diễn ra, triều đình thì thầm" width="100%"><br><sub>Giang sơn, giữa một ván chơi</sub></td>
     <td align="center" width="33%"><img src="docs/readme/conquer.webp" alt="Lá bài chinh phạt: ta đánh vào đâu?" width="100%"><br><sub>Ta đánh vào đâu?</sub></td>
     <td align="center" width="33%"><img src="docs/readme/power-draft.webp" alt="Cấp 16 — chọn sức mạnh: bốn lá bài cộng dồn vĩnh viễn" width="100%"><br><sub>Chọn sức mạnh</sub></td>
   </tr>
 </table>
 
-Dưới vòng lặp ấy là bốn hệ thống: kinh tế, triều đình, trận mạc, và một cỗ máy kể chuyện. Phần còn lại của trang này kể về chúng — và giải thích vì sao lại làm như thế. *(Ba chế độ cổ điển — Giao Tranh, Ngai Vàng Các Đế Quốc, Chiến dịch — vẫn có đủ; nhưng Rồng Thăng Long mới là món chính.)*
+Đỡ bên dưới vòng lặp ấy là bốn hệ thống: kinh tế, triều đình, trận mạc, và chuyện kể. Phần còn lại của trang này kể về từng thứ — và lý do mình làm nó như thế. *(Ba chế độ cổ điển — Giao Tranh, Ngai Vàng Các Đế Quốc, Chiến dịch — vẫn có đủ, nhưng món chính là Rồng Thăng Long.)*
 
 ## 🌾 Kinh tế — giang sơn sống bằng gì
 
@@ -61,11 +61,11 @@ Dưới vòng lặp ấy là bốn hệ thống: kinh tế, triều đình, tr�
   <tr>
     <td valign="top">
 
-Bốn thứ nuôi giang sơn — **lương thực, vật tư, vàng, nhân khẩu** — chảy ra từ các trấn, mà trấn thì ăn theo chính mảnh đất của nó: ruộng nước với sông thì nuôi người, đồi núi thì rèn giáp, cửa cảng thì buôn bán. Mùa nào thức nấy: vụ thu được ×1,25, mùa đông tụt còn ×0,8. Quân ăn lương, hành quân đốt vật tư, đói quá thì bỏ trốn. Tướng lĩnh bổng lộc từng mùa. Thu vàng quá năm trăm bắt đầu bị thuế lũy thoái ăn dần, kho chất quá bốn nghìn thì của cải bắt đầu thất thoát vì tham nhũng — quân sư sẽ nói thẳng cho bạn biết mùa này kho mục mất bao nhiêu.
+Giang sơn sống nhờ bốn thứ: **lương thực, vật tư, vàng, nhân khẩu**. Chúng chảy ra từ các trấn, mà trấn thì ăn theo đúng mảnh đất của nó — ruộng nước, sông ngòi nuôi người; đồi núi rèn giáp; cửa cảng buôn bán. Mùa nào thức nấy: vụ thu bội thu (×1,25), mùa đông đói kém (×0,8). Quân thì ăn lương, hành quân thì đốt vật tư, để đói là trốn sạch. Tướng lĩnh nhận bổng lộc đều đặn từng mùa. Mà giàu quá cũng khổ: thu vàng vượt năm trăm là thuế lũy thoái bắt đầu gặm, kho chất quá bốn nghìn là của cải âm thầm bốc hơi vì tham nhũng — quân sư sẽ nói thẳng cho bạn biết mùa này kho mục mất bao nhiêu.
 
-**Muốn lái giang sơn thì xây.** Mỗi trấn chứa được vài công trình, và bạn dựng gì thì giang sơn làm được nấy: thành lũy để giữ, ruộng để sống lâu, chợ để có tiền triệu hồi. Xây mất nhiều mùa. Còn hàng "yêu sách" trên đầu màn hình thì ghìm chính chuyện mở cõi: triều đình chỉ ve vãn được chừng ấy trấn một lúc, và *triều đình hỏi bạn trước* — trấn nào trong tầm với sẽ được đặt lên bàn cho bạn gật hay lắc, rồi mới tiêu tiền.
+**Muốn lái giang sơn thì cầm lấy việc xây.** Mỗi trấn dựng được vài công trình, và dựng gì thì được nấy: thành để giữ, ruộng để sống, chợ để có tiền triệu hồi tướng. Xây thì lâu, vài mùa một công trình. Còn muốn lấn đất, cứ nhìn hàng "yêu sách" trên đầu màn hình: triều đình mỗi lúc chỉ ve vãn được chừng ấy trấn, và *họ sẽ hỏi bạn trước* — trấn nào vừa tầm sẽ được trình lên để bạn gật hay lắc, xong xuôi mới tiêu tiền.
 
-**Vì sao làm thế.** Một roguelite về mở cõi cần một cái phanh, mà phanh không được là đồng hồ đếm ngược — nên kinh tế chính là phanh: mỗi trấn chiếm, mỗi đạo quân mộ đều nuôi Tham vọng, mà Tham vọng thì định cỡ đợt giặc sau. Màn hình xây, nói cho cùng, là cái núm vặn liều. Và mọi con số trên giao diện — tỉ lệ trên lá bài, phần kho mục đi — đều do đúng đoạn mã sẽ phân xử chuyện đó tính ra. Đọc màn hình *chính là* đọc cỗ máy mô phỏng, không phải đọc lời quảng cáo của nó.
+Sao phải lằng nhằng vậy? Vì một roguelite về mở cõi cần cái phanh, mà phanh tử tế thì không thể là đồng hồ đếm ngược. Ở đây kinh tế chính là phanh: mỗi trấn chiếm, mỗi đạo quân mộ đều đổ thêm vào Tham vọng, mà Tham vọng thì quyết định đợt giặc sau to cỡ nào — nên màn hình xây, nói trắng ra, là cái núm chỉnh độ liều. Còn mọi con số trên giao diện — tỉ lệ thắng trên lá bài, phần kho sắp mục — đều do chính đoạn code sẽ phân xử chuyện đó tính ra. Đọc màn hình là đọc thẳng vào ruột game, không phải đọc lời quảng cáo của nó.
 
 </td>
     <td width="38%"><img src="docs/readme/build.webp" alt="Làn Xây: yêu sách ghìm trên đầu, các trấn với công trình đã dựng và phòng thủ, việc đang làm dở" width="100%"></td>
@@ -79,17 +79,17 @@ Bốn thứ nuôi giang sơn — **lương thực, vật tư, vàng, nhân khẩ
     <td width="38%"><img src="docs/readme/summon.webp" alt="Triệu Hồi Danh Tướng: ba người ứng mệnh, một người sẽ phò tá — chân dung, sáu chỉ số, một câu tính cách, bổng lộc" width="100%"></td>
     <td valign="top">
 
-Danh tướng đến bằng **triệu hồi** — gacha có bảo hiểm, *ba người ứng mệnh, một người sẽ phò tá* — hoặc do triều đình tiến cử khi Ân sủng đủ đầy. Mỗi người mang sáu chỉ số (võ lược, hậu cần, nội trị, bang giao, trung thành, danh vọng), một khoản bổng lộc mà quốc khố cảm nhận rõ từng mùa, một câu tính cách đáng dừng lại đọc, và một bức chân dung. Gặp ai lần đầu là Codex ghi tên người ấy, mãi mãi.
+Tướng về với bạn qua **triệu hồi** — gacha có bảo hiểm hẳn hoi, *ba người ứng mệnh, một người sẽ phò tá* — hoặc do triều đình tiến cử khi Ân sủng đủ dày. Mỗi người một bộ sáu chỉ số (võ lược, hậu cần, nội trị, bang giao, trung thành, danh vọng), một khoản bổng lộc mà quốc khố thấm đòn từng mùa, một câu cửa miệng đáng đọc chậm, và một bức chân dung. Ai gặp lần đầu là được ghi tên vào Codex, vĩnh viễn.
 
-**Họ làm gì trong game.** Tướng không phải bảng chỉ số nằm trong menu. Họ trấn thủ, đi sứ mệnh, và trên hết là *cầm quân*: có chủ tướng trên trận thì cán cân lệch hẳn, còn đạo quân vô chủ thì đánh đúng kiểu vô chủ. Họ cũng có đời riêng: hai kẻ ghét nhau bỗng ngồi chung mâm, người này xin cầm quân, người kia dứt áo bỏ đi. Và Sử Ký chọn vai cho các câu chuyện từ đúng đám người ấy — vị tướng trong truyền kỳ sắp tới của bạn chính là người bạn đã triệu về, trả lương, và suýt nữa thì để mất.
+**Trong game họ làm gì?** Đủ thứ, trừ việc nằm im trong menu. Họ trấn thủ, đi sứ, và trên hết là *cầm quân*: trận có chủ tướng với trận vô chủ là hai câu chuyện khác hẳn nhau. Họ còn có đời sống riêng: hai kẻ vốn ghét nhau bỗng ngồi chung mâm, người này xin binh quyền, kẻ kia dứt áo ra đi. Và các câu chuyện trong Sử Ký lấy diễn viên từ chính đám người này — nhân vật chính trong truyền kỳ sắp tới của bạn là vị tướng bạn đã triệu về, nuôi cơm, và suýt nữa để mất.
 
-**Vì sao làm thế.** Thứ lịch sử game này quý là con người, nên mỗi lượt chơi cần một dàn nhân vật để chuyện còn có chỗ mà xảy ra. Gacha cho mỗi lượt một đám bạn đồng hành khác nhau; bổng lộc buộc triều đình vào túi tiền; còn chỉ số khiến câu "ai cầm quân đây?" thành một quyết định thật chứ không phải để làm màu.
+Sao phải cầu kỳ vậy? Vì thứ lịch sử game này quý nhất là con người, nên mỗi ván cần một dàn nhân vật để chuyện còn có chỗ mà xảy ra. Gacha cho mỗi ván một đám bạn đồng hành khác nhau; bổng lộc trói triều đình vào túi tiền; còn chỉ số khiến câu "ai cầm quân trận này?" thành chuyện phải cân nhắc thật, không phải để trang trí.
 
 </td>
   </tr>
 </table>
 
-Chân dung không phải ảnh mua sẵn. Mỗi khuôn mặt ghép từ thư viện **267 bộ phận vẽ tay** — đầu, tóc, mũ mão, cổ áo, y phục, dấu vết — mà chọn bộ nào là do **người đó là ai** (thời nào, chức gì, phẩm hàm nào, nam hay nữ, có lời thề gì) quyết trước, rồi mới tới lượt ngẫu nhiên chọn trong đúng tủ áo ấy. Thế nên quan triều Lê không mặc nhầm cổ áo nhà Nguyễn, tướng ngoài trận không đội mũ nhà nho. Danh sách có 127 danh tướng, phần nhiều là người thật:
+Chân dung không phải ảnh mua sẵn. Mỗi khuôn mặt ghép từ **267 mảnh vẽ tay** — đầu, tóc, mũ mão, cổ áo, y phục — và chọn mảnh nào là do **thân phận** quyết trước: sống thời nào, giữ chức gì, phẩm hàm nào, nam hay nữ, có xuất gia không. Xong xuôi mới tới lượt random chọn trong đúng tủ áo ấy. Nhờ vậy quan nhà Lê không mặc nhầm cổ áo nhà Nguyễn, tướng ngoài trận không đội mũ nhà nho. Danh sách có 127 danh tướng, phần nhiều là người thật:
 
 <img src="docs/readme/portraits.webp" alt="Mười danh tướng trong danh sách, từ Ngô Quyền tới Lê Quý Đôn — thời đại, chức phận và giới tính quyết định y phục" width="100%">
 
@@ -99,13 +99,13 @@ Chân dung không phải ảnh mua sẵn. Mỗi khuôn mặt ghép từ thư vi�
   <tr>
     <td valign="top">
 
-Trận nào đáng xem là tự nó mở màn: hai bên dàn quân, trống điểm năm nhịp, và từ đó việc của bạn là đọc chiến trường. Đánh nhau trong game này là đánh bằng **năm thế** — năm tư thế một đạo quân có thể đứng: **Chông** rừng giáo cắm chặt, **Xung** mũi dùi, **Tán** tản ra như ong vỡ tổ, **Quy** rùa rút vào mai, **Nỏ** dàn hàng bắn loạt — thế nào cũng khắc hai thế đứng sau nó, xoay tròn:
+Trận nào đáng xem là tự nó mở ra: hai bên dàn quân, trống điểm năm nhịp, rồi từ đó việc của bạn là đọc chiến trường. Đánh nhau trong Vạn Thắng là đấu bằng **năm thế** — năm kiểu đứng của một đạo quân: **Chông** rừng giáo cắm chặt, **Xung** mũi dùi, **Tán** tản như ong vỡ tổ, **Quy** rùa rút vào mai, **Nỏ** dàn hàng bắn loạt. Thế nào cũng khắc được hai thế đứng sau nó, xoay thành vòng:
 
 <div align="center"><img src="docs/readme/shapes-ring.webp" alt="Thế nào khắc thế nào — vòng tương khắc" width="82%"></div>
 
-Địch tự lộ bài bằng lời hiện trên hàng quân của chúng — *giáo chúng đã cắm*, *chúng chuyển Quy · 3* — việc của bạn là đáp cho trúng. Chồng lên các thế là **núm nhịp độ**, kéo từ *thu quân* tới *dồn ép*: đánh càng rát, quân hao càng nhanh, và cái giá của việc bạn đọc trận đúng hay sai càng nhân lên — tựa đúng thế thì thắng đậm, tựa nhầm thì chảy máu gấp bội. **Dồn sức** là đặt cược thêm một nấc vào chính thế đang giữ; **quân dự bị** tung ra được đúng một lần; kẹt quá thì gọi viện binh; hoặc khoán trắng cho các tướng — họ đánh cũng được, nhưng chẳng bao giờ bằng chính bạn ngồi đó.
+Địch không giấu bài: hàng quân của chúng hiện chữ — *giáo chúng đã cắm*, *chúng chuyển Quy · 3* — việc của bạn là đáp cho trúng. Bên trên còn một **núm nhịp độ**, kéo từ *thu quân* tới *dồn ép*: đánh càng rát, quân hao càng nhanh, và đọc trận đúng hay sai càng ăn thua đậm — tựa đúng thế thì thắng lớn, tựa nhầm thì trả giá gấp bội. **Dồn sức** để đặt cược thêm vào chính thế đang giữ; **quân dự bị** chỉ tung ra được một lần; bí quá thì hô viện binh; lười thì khoán hết cho các tướng — họ đánh cũng ổn, nhưng chẳng bao giờ bằng chính tay bạn.
 
-**Vì sao làm thế.** Cầm điện thoại một tay thì đừng mơ vi quản từng đơn vị. Nên trận đánh rút lại thành một câu hỏi đọc được — *chúng đang giữ gì, và cái gì trị được nó?* — hỏi dưới sức ép đồng hồ, mọi thứ nhìn rõ từ khoảng cách một sải tay. Và trận không bao giờ tách khỏi lượt chơi: quân là quân do kinh tế của bạn nuôi, chủ tướng là người bạn trả lương, thắng thua thì xoay chuyển đất đai, khí thế, và độ nóng của đợt giặc sau.
+Sao trận đánh lại gọn vậy? Vì cầm điện thoại một tay thì đừng mơ vi quản từng tốp lính. Nên cả trận rút về một câu hỏi duy nhất, nhìn xa vẫn đọc được: *chúng đang giữ gì, và cái gì trị được nó?* — hỏi dưới áp lực đồng hồ. Và trận không bao giờ tách rời ván chơi: quân là quân bạn nuôi, tướng là người bạn trả lương, thắng thua đổi luôn đất đai, khí thế, và độ hung của đợt giặc sau.
 
 </td>
     <td width="38%"><img src="docs/readme/battle.webp" alt="Một trận đánh theo nhịp trống: chủ tướng có tên tuổi, lời trận trên cả hai đạo quân, năm thế, núm nhịp độ" width="100%"></td>
@@ -114,17 +114,17 @@ Trận nào đáng xem là tự nó mở màn: hai bên dàn quân, trống đi�
 
 ### Những đạo quân trên chiến trường
 
-Trên chiến trường không có sprite sheet nào cả. Một đạo quân được vẽ thành từng hàng người đứng đúng cái thế nó đang giữ — giáo hai lớp, ngựa dồn ở mũi, khiên khóa vào nhau — dưới quân kỳ của nó, doanh trại sau lưng, bằng đúng thứ mực thủ tục đã vẽ ruộng vẽ thành. Liếc một cái là biết — *bên kia còn đang dàn hàng, bên mình giáo đã cắm xong* — và cái bạn nhìn thấy **chính là** cục diện:
+Ngoài chiến trường không có sprite sheet nào hết. Mỗi đạo quân được vẽ thành từng hàng người, đứng đúng cái thế nó đang giữ — giáo hai lớp, ngựa dồn ở mũi, khiên khóa vào nhau — dưới lá quân kỳ của mình, doanh trại phía sau, bằng đúng thứ mực đã vẽ ruộng vẽ thành. Liếc một cái là nắm được cục diện — *bên kia còn đang dàn hàng, bên mình giáo đã cắm xong* — vì thứ bạn nhìn thấy chính là dữ liệu trận đánh, không phải hoạt cảnh trang trí:
 
 <img src="docs/readme/armies.webp" alt="Hai đạo quân vẽ trên chiến trường: hàng ngũ theo thế, quân kỳ, doanh trại, lời trận" width="100%">
 
 ## 📜 Sử Ký — chuyện kể chính là cỗ máy
 
-Chuyện trong game không phải cutscene. Là **bốn mươi tám khuôn truyện**, nằm chờ, gặp đúng thời điểm thì tự gắn mình vào tướng *của bạn*, đất *của bạn* — khi là lời thì thầm trên bản đồ, khi là lá bài trong tay, khi là một đòn xoay cả lượt chơi. Mỗi truyện là một mảnh sử hay truyền thuyết Việt Nam, kể vừa vặn trong quãng thở của một lượt.
+Chuyện trong game không phải cutscene. Có **bốn mươi tám khuôn chuyện** nằm chờ sẵn; gặp đúng thời cơ, chuyện tự tìm đến tướng *của bạn*, đất *của bạn* — khi là lời xì xào trên bản đồ, khi là lá bài dúi vào tay, khi là một cú xoay cả ván. Mỗi chuyện là một mảnh sử hay truyền thuyết Việt, kể vừa gọn trong nhịp thở của một ván chơi.
 
 <table>
   <tr>
-    <td width="40%"><img src="docs/readme/chronicle.webp" alt="Một lá bài truyện đang diễn: lời đề nghị của một lãnh chúa đối địch, ba cách đáp với cái giá thật, lời bàn của quân sư bên dưới" width="100%"></td>
+    <td width="40%"><img src="docs/readme/chronicle.webp" alt="Một lá bài chuyện đang diễn: lời đề nghị của một lãnh chúa đối địch, ba cách đáp với cái giá thật, lời bàn của quân sư bên dưới" width="100%"></td>
     <td valign="top">
 
 **Vài trang trong số đó**
@@ -141,9 +141,9 @@ Chuyện trong game không phải cutscene. Là **bốn mươi tám khuôn truy�
 - *Hồ Gươm*
 - *Yết Kiêu* · *Ải Chi Lăng* · *Thần Tốc* · *Văn Miếu* · *Thánh Gióng* · *Sơn Tinh Thủy Tinh* …
 
-**Chuyện làm gì trong game.** Một câu chuyện diễn bằng quân cờ thật: vai chính là vị tướng bạn triệu về thật, bối cảnh là trấn đất bạn đang giữ thật, lựa chọn nào cũng tiêu vàng thật, người thật. Ngã ngũ rồi, lá bài nói rõ nó vừa đổi những gì — *−400 tráng đinh, −60 vàng, câu chuyện ngả về một chức chỉ huy*. Có truyện bắt bạn **thề** — giữ một trấn, giữ hòa khí — rồi nhớ dai xem bạn có giữ lời không. Có truyện để lại **dư âm** trong trình duyệt: vị tướng dứt áo bỏ bạn ở lượt này, lượt sau còn có kẻ nhắc tên.
+**Và chuyện diễn bằng quân cờ thật.** Vai chính là vị tướng bạn triệu về thật, bối cảnh là trấn đất bạn đang giữ thật; chọn phương án nào cũng tốn vàng thật, người thật. Ngã ngũ rồi, lá bài kê khai rành mạch: *−400 tráng đinh, −60 vàng, câu chuyện ngả về một chức chỉ huy*. Có chuyện bắt bạn **thề** — giữ trấn này, giữ hòa khí kia — rồi nhớ rất dai xem bạn có giữ lời. Có chuyện để lại **dư âm** trong trình duyệt: viên tướng dứt áo bỏ đi ở ván này, ván sau vẫn có kẻ nhắc tên.
 
-**Vì sao làm thế.** Mấy câu chuyện là lý do cả dự án này tồn tại — nhưng chuyện bấm bỏ qua được thì là cutscene, mà cutscene chẳng dạy được ai. Buộc chuyện vào tướng, vào đất, vào quốc khố của chính lượt chơi thì lịch sử mới thành thứ *xảy đến với bạn*. Và lời kể nào cũng dán nhãn đàng hoàng — *chính sử*: sử sách chép vậy; *dã sử*: dân gian kể vậy; *ngoại truyện*: riêng game này bịa — tất cả đọng vào một cuốn Sử Ký, cuối lượt mở ra đọc lại được.
+Sao không làm cutscene cho khỏe? Vì chuyện mà bấm bỏ qua được thì chẳng đọng lại gì. Trói chuyện vào tướng, vào đất, vào quốc khố của chính bạn thì lịch sử mới thành thứ *xảy đến với mình*, chứ không phải thứ xem cho xong. Và lời kể nào cũng dán nhãn phân minh — *chính sử*: sử chép vậy; *dã sử*: dân gian kể vậy; *ngoại truyện*: game này bịa — tất cả gom vào một cuốn Sử Ký, hết ván mở ra đọc lại được.
 
 </td>
   </tr>
@@ -155,9 +155,9 @@ Chuyện trong game không phải cutscene. Là **bốn mươi tám khuôn truy�
   <tr>
     <td valign="top">
 
-Game thì được phép kịch hóa; trang này thì không. **Lịch sử**, cách trang chủ đúng một lần chạm, nói rõ luật của nó: *chuyện thật ra sao, và game đã phóng tác chỗ nào*. Năm thẻ, đủ hai thứ tiếng: các triều đại theo dòng, những con người thật với chân dung và niên đại, từng câu chuyện trong Sử Ký đặt cạnh chính sử, binh chế mỗi thời, và các thuật ngữ người mới hay vấp. Ai tò mò sa vào đây, ngẩng lên là mất một tiếng.
+Game thì được phép phóng tác, nhưng trang này thì không. Bấm **Lịch sử** ngay trang chủ, bạn có một trang tra cứu nói rõ luật của nó: *chuyện thật ra sao, và game đã chế chỗ nào*. Năm thẻ, đủ hai thứ tiếng: các triều đại theo dòng thời gian, những con người thật kèm chân dung và niên đại, từng câu chuyện trong game đặt cạnh chính sử, binh chế mỗi thời, và mớ thuật ngữ người mới hay vấp. Định vào xem một chút thôi mà ngẩng lên đã mất một tiếng — mình cảnh báo trước rồi đấy.
 
-Game cũng tự dạy chính nó: có trang **Cách chơi**, có tour dắt tay lượt đầu, và có dải quân sư đọc ván *đang chơi dở của bạn* rồi mách nước nó sẽ làm gì tiếp — để bức tường số liệu quen thuộc của dòng game chiến lược biến thành lời khuyên của một người cụ thể.
+Game cũng biết tự dạy: có trang **Cách chơi**, có tour dắt tay ở ván đầu, và có dải quân sư đọc đúng ván *bạn đang chơi dở* rồi mách nên làm gì tiếp — thay bức tường số liệu quen thuộc của dòng game chiến lược bằng lời khuyên của một người có tên có mặt.
 
 </td>
     <td width="38%"><img src="docs/readme/history.webp" alt="Trang Lịch sử, mở ở thẻ Nhân vật: người thật với chân dung, niên đại và hành trạng" width="100%"></td>
@@ -166,23 +166,23 @@ Game cũng tự dạy chính nó: có trang **Cách chơi**, có tour dắt tay 
 
 ## 🖌️ Chuyện vẽ vời
 
-Game gần như không chở theo sprite nào. Người, quân, đất nước — tất cả là nét vẽ thủ tục theo lối **tranh khắc gỗ Đông Hồ**, và dưới đây là chính thứ mực ấy, nhìn thật gần.
+Game gần như không mang theo sprite nào. Người, quân, sông núi — tất cả vẽ bằng code, theo lối **tranh khắc gỗ Đông Hồ**. Dưới đây là chính thứ mực ấy, soi thật gần.
 
 ### Danh tướng
 
-Mười vị tướng không có trong bất cứ danh sách nào: máy tự bịa ra con người — tên, thời đại, chức phận — rồi tủ áo mặc cho họ theo đúng thân phận, từ chính **267 bộ phận vẽ tay** đã mặc cho các nhân vật thật bên trên. Không có hai triều đình nào giống nhau:
+Mười vị tướng này không nằm trong danh sách nào: máy tự nghĩ ra con người — tên, thời đại, chức phận — rồi tủ áo cứ theo thân phận ấy mà mặc, từ đúng bộ **267 mảnh vẽ tay** đã mặc cho các nhân vật thật phía trên. Không có hai triều đình nào giống nhau:
 
 <img src="docs/readme/faces-generated.webp" alt="Mười danh tướng sinh tự động — giáp trụ, triều phục, mũ nho sĩ, mũ miện — không ai trong số họ có trong danh sách" width="100%">
 
 ### Quân đội các vương quốc
 
-Quân của vương quốc nào cũng dựng từ một bộ hình người chung — hàng ngũ, quân kỳ đi kèm, doanh trại phía sau — và đứng đúng thế nó đang giữ. Lính để nguyên màu mực là có chủ ý: từng thử nhuộm quân địch theo màu cờ, thế là đội đồn trú nào cũng thành thứ ồn nhất bản đồ — nên phe nào cờ nấy, còn người lính thì cứ là mực. Năm vương quốc trong một lượt chơi, năm thế trận:
+Quân nước nào cũng dựng từ chung một bộ hình người — hàng ngũ, quân kỳ đi kèm, doanh trại phía sau — và đứng đúng cái thế đang giữ. Người lính để nguyên màu mực là cố ý: mình từng thử nhuộm quân địch theo màu cờ của nó, kết quả là đội đồn trú nào cũng thành thứ ồn nhất bản đồ. Rút kinh nghiệm: phe nằm ở lá cờ, còn người lính cứ là mực. Năm vương quốc trong một ván, năm thế trận:
 
 <img src="docs/readme/kingdom-armies.webp" alt="Quân đội của năm vương quốc, mỗi đạo dưới quân kỳ riêng, mỗi đạo giữ một thế — rừng giáo, mũi dùi, tản mát, mai rùa, loạt nỏ" width="100%">
 
 ### Đông Hồ
 
-Chính bức tranh: giấy điệp quét vỏ sò, bản màu in trước, bản nét mực đen in sau, cố tình lệch nhau một chút như tranh in tay vẫn lệch. Bảng màu là pigment thật — điệp, mực, sỏi son, chàm, gỉ đồng, hoè, nâu — và sắc đỏ rực để dành riêng cho người chơi. Bốn mùa không phải một lớp lọc màu đè lên màn hình: lá đổi màu thật, ruộng ngập nước rồi chín vàng rồi gặt, mùa đông trơ gốc rạ. Cùng một khoảnh đất nước, bốn lần trong năm:
+Và chính bức tranh: giấy điệp quét vỏ sò, bản màu in trước, bản nét mực đen in sau — cố tình lệch nhau một chút, như tranh in tay vẫn lệch. Bảng màu lấy từ chất liệu thật: điệp, mực, sỏi son, chàm, gỉ đồng, hoè, nâu — và sắc đỏ rực chỉ để dành cho người chơi. Bốn mùa không phải một lớp filter đè lên màn hình: lá đổi màu thật, ruộng ngập nước, chín vàng, rồi gặt; mùa đông trơ gốc rạ. Cùng một khoảnh đất, bốn lần một năm:
 
 <img src="docs/readme/seasons.webp" alt="Cùng một vùng ruộng nước qua xuân, hạ, thu, đông" width="100%">
 
@@ -191,10 +191,10 @@ Chính bức tranh: giấy điệp quét vỏ sò, bản màu in trước, bản
 **[▶ zrg-team.github.io/ten-thousand-victories](https://zrg-team.github.io/ten-thousand-victories/)** — không cần cài, không tài khoản, không gì rời khỏi máy của bạn.
 
 - Làm cho **điện thoại dọc, cầm một tay**; ngồi máy tính chơi chuột cũng ngon lành.
-- **Cài được** từ menu trình duyệt, **chơi ngoại tuyến** được — service worker tự viết, không app store nào đứng giữa bạn và game.
+- **Cài được** từ menu trình duyệt, **chơi ngoại tuyến** vô tư — service worker tự viết, không app store nào đứng giữa bạn và game.
 - **Kéo** để dời bản đồ, **+ / −** để thu phóng, **chạm** vào trấn, **chạm** vào lá bài để trả lời.
 - **Tiếng Việt / English** đổi trong Thiết lập, cùng chỗ với chất lượng đồ họa và kiểu bản đồ.
-- Một ô lưu, nằm ngay trong trình duyệt.
+- Một ô lưu, nằm ngay trong trình duyệt của bạn.
 
 ## 🛠️ Phát triển
 
@@ -205,9 +205,9 @@ yarn dev                 # http://localhost:5179
 yarn build               # tsc && vite build + service worker — cổng CI
 ```
 
-Vite + TypeScript (strict) + Phaser 4. Không backend, không framework nào khác. Nội dung là dữ liệu: quân, tướng, lá bài, chiếu chỉ, trấn đất và toàn bộ câu chuyện nằm dưới `src/data/`; hệ thống là hàm thuần trên một `GameState` duy nhất; và chuỗi chữ nào người chơi nhìn thấy cũng phải có đủ bản Việt lẫn bản Anh — thiếu một bên là game từ chối khởi động luôn.
+Vite + TypeScript (strict) + Phaser 4. Không backend, không framework nào khác. Nội dung là dữ liệu: quân, tướng, lá bài, chiếu chỉ, trấn đất và toàn bộ câu chuyện nằm dưới `src/data/`; hệ thống là hàm thuần trên một `GameState` duy nhất; và câu chữ nào người chơi nhìn thấy cũng phải có đủ bản Việt lẫn bản Anh — thiếu một bên là game dỗi, không chịu khởi động.
 
-Không có framework test. Game được chứng minh bằng cách **lái nó trong trình duyệt headless thật**: `test_scripts/` có khoảng 140 harness Playwright, xếp theo câu hỏi chúng trả lời — `verify/` khẳng định, `shot/` chụp ảnh, `perf/` đo, `playtest/` chấm điểm, `diag/` điều tra. Chúng khởi động đủ mọi chế độ, quay kinh tế hàng trăm mùa qua nhiều seed, bấm nút thật, chụp từng màn hình, và chấm xem một bản build *vui* được bao nhiêu trên 100 — trước và sau mỗi lần chỉnh cân bằng.
+Không có framework test. Game được kiểm chứng bằng cách **lái nó trong trình duyệt thật**: `test_scripts/` có khoảng 140 harness Playwright, xếp theo câu hỏi chúng trả lời — `verify/` khẳng định, `shot/` chụp ảnh, `perf/` đo, `playtest/` chấm điểm, `diag/` điều tra. Chúng khởi động đủ mọi chế độ, quay kinh tế hàng trăm mùa qua nhiều seed, bấm những nút thật, chụp từng màn hình, và chấm xem một bản build *vui* được bao nhiêu trên 100 — trước và sau mỗi lần chỉnh cân bằng.
 
 ```bash
 node test_scripts/gate/smoke.mjs              # mọi chế độ khởi động, chạy, vẽ hình — ~40 giây
@@ -235,19 +235,19 @@ test_scripts/    các harness Playwright
 ├── verify/      cổng đạt/trượt
 ├── shot/        trình chụp màn hình
 ├── perf/        chi phí vẽ, nướng texture và bộ nhớ
-├── playtest/    có vui không — số liệu, phiên chơi, lượt chơi trọn vẹn
+├── playtest/    có vui không — số liệu, phiên chơi, ván chơi trọn vẹn
 ├── diag/        các cuộc điều tra một lần
 └── gate/        smoke và soát lỗi console
 ```
 
 ## 🤝 Cùng làm game hay hơn
 
-Issue và pull request đều mở cửa. Những thứ quý nhất bạn có thể mang tới, xếp theo thứ tự:
+Issue với pull request đều mở cửa. Những thứ quý nhất bạn có thể mang tới, xếp theo thứ tự:
 
 1. **Chơi thử, rồi kể lại chỗ nào làm bạn khựng.** Một tấm ảnh chụp màn hình kèm một câu là quý lắm rồi.
 2. **Lịch sử.** Chuyện kể sai, tên viết sai, chi tiết nào đọc mà thấy sượng — cứ mở issue. Chuyện trong game được phép phóng tác, nhưng tuyệt đối không được phép *sai*.
-3. **Câu chữ tiếng Việt.** Hai thứ tiếng sinh ra để ngang hàng; chỗ nào tiếng Việt đọc lên thấy mùi văn dịch thì nên viết lại hẳn, đừng vá.
-4. **Một câu chuyện mới.** `src/data/stories/countingHouse.ts` là khuôn truyện hoàn chỉnh nhỏ nhất; còn `src/systems/story/effects.ts` là tất cả những gì một câu chuyện được phép làm với thế giới.
+3. **Câu chữ tiếng Việt.** Hai thứ tiếng sinh ra để ngang hàng; chỗ nào tiếng Việt đọc lên còn mùi văn dịch thì nên viết lại hẳn, đừng vá.
+4. **Một câu chuyện mới.** `src/data/stories/countingHouse.ts` là khuôn chuyện hoàn chỉnh nhỏ nhất; còn `src/systems/story/effects.ts` là tất cả những gì một câu chuyện được phép làm với thế giới.
 
 Trước khi mở pull request: `yarn build` phải qua, và `node test_scripts/gate/smoke.mjs` nên xanh trên dev server của bạn.
 
@@ -277,7 +277,7 @@ Hoặc thả cho repo một ngôi sao — người sau tìm thấy game là nh�
 - Các nghệ nhân làng tranh Đông Hồ, Bắc Ninh — mong màu và nét của game này xứng được phần nào với các cụ.
 - Phông chữ: [Be Vietnam Pro](https://fonts.google.com/specimen/Be+Vietnam+Pro) và [Source Serif 4](https://fonts.google.com/specimen/Source+Serif+4), giấy phép SIL Open Font License, tự host để dấu tiếng Việt hiển thị giống nhau trên mọi máy.
 - Dựng trên [Phaser 4](https://phaser.io), [Vite](https://vite.dev) và [Playwright](https://playwright.dev).
-- Lịch sử là của chung tất cả mọi người; kể sai chỗ nào, lỗi ấy thuộc về riêng tác giả.
+- Lịch sử là của chung tất cả mọi người; kể sai chỗ nào, lỗi ấy thuộc về riêng mình.
 
 <div align="center">
 <sub><i>Nam quốc sơn hà Nam đế cư.</i></sub>
