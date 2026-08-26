@@ -180,13 +180,21 @@ part('guard-shoulder-gilt', 24, 'none',
 // Thôn kiên thú — the beast that swallows the shoulder. A *mask*, not a plate: two eyes and a
 // jaw line are the whole read at 42 px, and the same gilt shape without them is a shoulder pad.
 // Fixed colour, because cast bronze is not one of the run's dyes.
+// The first pass drew two dots and an upcurved jaw, which is a **smiley face** long before it is
+// a beast — the eye finds that arrangement whether or not it was meant. What separates a mask
+// from an emoticon at this size is that the jaw bulges *up* in the middle and hangs two fangs
+// off it, and that a brow ridge sits over the eyes so the top of the shape is not empty.
 part('guard-beastmask', 24, 'none',
-  `<path d="M -50 ${SHY + 14} C -50 ${SHY - 10}, -24 ${SHY - 16}, -20 ${SHY + 2} C -28 ${SHY + 8}, -40 ${SHY + 12}, -42 ${SHY + 22} Z" fill="${GOLD}" stroke="${GOLD_DEEP}" stroke-width="1.2"/>
-   <path d="M 50 ${SHY + 14} C 50 ${SHY - 10}, 24 ${SHY - 16}, 20 ${SHY + 2} C 28 ${SHY + 8}, 40 ${SHY + 12}, 42 ${SHY + 22} Z" fill="${GOLD}" stroke="${GOLD_DEEP}" stroke-width="1.2"/>
-   <circle cx="-41" cy="${SHY + 3}" r="2.4" fill="#2b2318"/><circle cx="-31" cy="${SHY - 2}" r="2.4" fill="#2b2318"/>
-   <circle cx="41" cy="${SHY + 3}" r="2.4" fill="#2b2318"/><circle cx="31" cy="${SHY - 2}" r="2.4" fill="#2b2318"/>
-   <path d="M -46 ${SHY + 12} q 10 5 19 -2" stroke="#2b2318" stroke-width="1.5" fill="none"/>
-   <path d="M 46 ${SHY + 12} q -10 5 -19 -2" stroke="#2b2318" stroke-width="1.5" fill="none"/>`);
+  `<path d="M -50 ${SHY + 15} C -51 ${SHY - 9}, -26 ${SHY - 15}, -23 ${SHY + 3} C -30 ${SHY + 10}, -40 ${SHY + 14}, -42 ${SHY + 23} Z" fill="${GOLD}" stroke="${GOLD_DEEP}" stroke-width="1.2"/>
+   <path d="M 50 ${SHY + 15} C 51 ${SHY - 9}, 26 ${SHY - 15}, 23 ${SHY + 3} C 30 ${SHY + 10}, 40 ${SHY + 14}, 42 ${SHY + 23} Z" fill="${GOLD}" stroke="${GOLD_DEEP}" stroke-width="1.2"/>
+   <path d="M -47 ${SHY + 2} q 9 -7 17 -2" stroke="#2b2318" stroke-width="2.1" fill="none"/>
+   <path d="M 47 ${SHY + 2} q -9 -7 -17 -2" stroke="#2b2318" stroke-width="2.1" fill="none"/>
+   <circle cx="-44" cy="${SHY + 6}" r="1.9" fill="#2b2318"/><circle cx="-33.5" cy="${SHY + 1.5}" r="1.9" fill="#2b2318"/>
+   <circle cx="44" cy="${SHY + 6}" r="1.9" fill="#2b2318"/><circle cx="33.5" cy="${SHY + 1.5}" r="1.9" fill="#2b2318"/>
+   <path d="M -47 ${SHY + 15} q 10 -6 19 -4" stroke="#2b2318" stroke-width="1.6" fill="none"/>
+   <path d="M 47 ${SHY + 15} q -10 -6 -19 -4" stroke="#2b2318" stroke-width="1.6" fill="none"/>
+   <path d="M -43 ${SHY + 13.4} l 1 3.4 M -32 ${SHY + 11.2} l 1 3.4" stroke="#2b2318" stroke-width="1.4"/>
+   <path d="M 43 ${SHY + 13.4} l -1 3.4 M 32 ${SHY + 11.2} l -1 3.4" stroke="#2b2318" stroke-width="1.4"/>`);
 
 // 25 · neck
 part('neck', 25, 'skinShadow', `<rect x="-9" y="${NECK - 12}" width="18" height="22" fill="#ffffff"/>`);
@@ -315,10 +323,11 @@ part('belt-gold', 38, 'none', plaqueBelt(GOLD, GOLD_DEEP));
 // or four turns over a leather band. It sits at the same waist the plaque belt does, and it is
 // the cheapest legible mark in the library — three arcs, and it survives every crop.
 part('belt-rope-coil', 38, 'none',
-  `<rect x="-30" y="${NECK + 41}" width="60" height="5" rx="1.5" fill="#4a3a28"/>` +
+  // No leather band under it: drawn first it covered the middle turn, and three coils that
+  // touch are a strap. The gap between them is the whole part.
   [0, 1, 2].map((i) =>
-    `<path d="M -28 ${NECK + 42 + i * 4.4} q 28 ${i % 2 ? 4 : -3.4} 56 0" stroke="${STRAW}" stroke-width="3.2" fill="none" stroke-linecap="round"/>`).join('')
-  + `<path d="M -28 ${NECK + 42} q 28 -3.4 56 0" stroke="${STRAW_DEEP}" stroke-width="1" fill="none" opacity=".65"/>`);
+    `<path d="M -28 ${NECK + 42 + i * 5.2} q 28 ${i % 2 ? 4.4 : -3.6} 56 0" stroke="${STRAW}" stroke-width="2.9" fill="none" stroke-linecap="round"/>`
+    + `<path d="M -28 ${NECK + 42 + i * 5.2} q 28 ${i % 2 ? 4.4 : -3.6} 56 0" stroke="${STRAW_DEEP}" stroke-width="0.9" fill="none" opacity=".55"/>`).join(''));
 
 // Áo ngũ thân — the 1744 reform: a standing collar closing to the right, five buttons.
 part('collar-nguthan', 35, 'robeLight',
@@ -458,8 +467,8 @@ part('topknot-side', 41, 'hair', `<ellipse cx="-11" cy="${TOP - 3}" rx="9" ry="7
 // edge because that is where it actually shows on a frontal bust; put on the crown it is just
 // `topknot` again.
 part('knot-nape', 41, 'hair',
-  `<ellipse cx="25" cy="${CHIN - 5}" rx="8" ry="7" fill="#ffffff"/>
-   <path d="M 18 ${CHIN - 13} q 9 -3 12 3" stroke="#ffffff" stroke-width="3.4" fill="none" stroke-linecap="round"/>`);
+  `<ellipse cx="25" cy="${CHIN - 4}" rx="9.5" ry="8.5" fill="#ffffff"/>
+   <path d="M 16 ${CHIN - 14} q 11 -3 14 4" stroke="#ffffff" stroke-width="4" fill="none" stroke-linecap="round"/>`);
 part('topknot-wrapped', 41, 'hair',
   `<ellipse cx="0" cy="${TOP - 7}" rx="11" ry="9" fill="#ffffff"/>
    <path d="M -11 ${TOP - 7} q 11 5 22 0" stroke="#b8b8b8" stroke-width="2" fill="none" opacity=".65"/>`);
@@ -479,8 +488,10 @@ part('bun-wrapped', 41, 'hair',
 // family is wider than it is tall and sits *on* the head; this one stands off it, which is the
 // silhouette that separates a woman of the older courts from the delta's coil at any size.
 part('bun-tall-fore', 41, 'hair',
-  `<path d="M -12 ${TOP - 1} C -15 ${TOP - 18}, 13 ${TOP - 20}, 11 ${TOP - 2} Z" fill="#ffffff"/>
-   <ellipse cx="-1" cy="${TOP - 15}" rx="12.5" ry="7.5" fill="#ffffff"/>`);
+  // Taller than it is wide, which is the entire distinction from `bun-high` — the first pass
+  // was 12.5 × 7.5 and came out a loaf of bread sitting on the crown.
+  `<ellipse cx="0.5" cy="${TOP - 13}" rx="9.5" ry="13" fill="#ffffff"/>
+   <path d="M -9 ${TOP - 1} q 9.5 5 19 -1 Z" fill="#ffffff"/>`);
 
 // 42 · what goes into the hair. Trâm cài — the pin — is the one piece of jewellery a woman of
 // any class might own, so it is the ornament that carries rank least and character most.
@@ -641,8 +652,8 @@ part('hat-helm-dinh', 50, 'none',
   helmBowl('#5a4a34', '#3b2f20')
   + `<rect x="-32" y="${TOP + 8}" width="64" height="4" rx="1.5" fill="${GOLD}" opacity=".92"/>
      <path d="M -29 ${TOP + 1} q 29 -7 58 0" stroke="${GOLD_DEEP}" stroke-width="1.4" fill="none"/>
-     <path d="M -31 ${TOP + 15} q 4 12 1 20 l 7 -1 q -4 -10 -2 -19 Z" fill="#4a3a28"/>
-     <path d="M 31 ${TOP + 15} q -4 12 -1 20 l -7 -1 q 4 -10 2 -19 Z" fill="#4a3a28"/>
+     <path d="M -31 ${TOP + 15} q 5 10 4 17 l 7 -2 q -4 -8 -4 -15 Z" fill="#4a3a28"/>
+     <path d="M 31 ${TOP + 15} q -5 10 -4 17 l -7 -2 q 4 -8 4 -15 Z" fill="#4a3a28"/>
      <path d="M -5 ${TOP - 12} q 5 -7 10 0 q -5 4 -10 0 Z" fill="${GOLD}"/>
      <path d="M 0 ${TOP - 15} q -7 -12 -2 -21 q 7 9 5 21 Z" fill="${STRAW}"/>
      <path d="M 0 ${TOP - 15} q 8 -11 4 -19" stroke="${STRAW_DEEP}" stroke-width="1.5" fill="none"/>`);

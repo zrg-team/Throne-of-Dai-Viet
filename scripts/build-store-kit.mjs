@@ -487,9 +487,9 @@ const frame = async (shots, w, h, file, seed) => {
         { width: Math.max(1.6, unit / 640), colour: P.muc, amp: unit * 0.0018, step: unit * 0.085, closed: true },
       );
 
-      const pad = Math.round(unit * 0.095);
+      const pad = Math.round(unit * 0.082);
       const boxW = w - pad * 2;
-      let y = m + Math.round(unit * 0.062);
+      let y = m + Math.round(unit * 0.042);
 
       x.textAlign = 'center';
       x.textBaseline = 'alphabetic';
@@ -505,7 +505,7 @@ const frame = async (shots, w, h, file, seed) => {
       x.fillText(kicker, w / 2, y);
       x.globalAlpha = 1;
       x.letterSpacing = '0px';
-      y += Math.round(kickSize * 2.3);
+      y += Math.round(kickSize * 1.95);
 
       // ── headline ──────────────────────────────────────────────────────────────────────────
       // Source Serif, the game's own TITLE_FONT. It wraps rather than shrinking away: two lines at
@@ -533,37 +533,61 @@ const frame = async (shots, w, h, file, seed) => {
       x.fillStyle = P.muc;
       for (const line of lines) {
         x.fillText(line, w / 2, y + headSize);
-        y += Math.round(headSize * 1.2);
+        y += Math.round(headSize * 1.12);
       }
 
       // ── rang cua ──────────────────────────────────────────────────────────────────────────
       // The drum's own register, standing in for a rule. Centred and short, so it reads as a
       // device rather than as a border, and comfortably inside the plate mark.
-      y += Math.round(unit * 0.028);
+      y += Math.round(unit * 0.02);
       const bandW = Math.round(Math.min(boxW * 0.34, unit * 0.3));
       const bandH = Math.round(unit * 0.016);
       sawtooth(x, Math.round((w - bandW) / 2), y, bandW, bandH, P.muc, 0.42);
-      y += bandH + Math.round(unit * 0.05);
+      y += bandH + Math.round(unit * 0.034);
 
       // ── the seal ──────────────────────────────────────────────────────────────────────────
       // Bottom right, inside the plate mark, the way a print is signed. The only red on the sheet.
-      const sealSize = Math.round(unit * 0.072);
-      const sealX = w - m - Math.round(unit * 0.045) - sealSize / 2;
-      const sealY = h - m - Math.round(unit * 0.045) - sealSize / 2;
+      const sealSize = Math.round(unit * 0.062);
+      const sealX = w - m - Math.round(unit * 0.032) - sealSize / 2;
+      const sealY = h - m - Math.round(unit * 0.032) - sealSize / 2;
       seal(x, sealX, sealY, sealSize, P);
 
       // ── the prints ────────────────────────────────────────────────────────────────────────
-      const footTop = sealY - sealSize / 2 - Math.round(unit * 0.03);
+      const footTop = sealY - sealSize / 2 - Math.round(unit * 0.016);
       const boxH = footTop - y;
       const gap = imgs.length > 1 ? Math.round(unit * 0.038) : 0;
       const cell = (boxW - gap * (imgs.length - 1)) / imgs.length;
 
       x.imageSmoothingQuality = 'high';
 
+      /**
+       * How much of a shot's height may be cropped so it fills the cell's width.
+       *
+       * Every source is 780x1688 - 2.16:1, taller than any canvas here. Fitted by height on a
+       * 16:9 Play phone it lands at about 58% of the width, adrift in paper. Filling the width
+       * instead would cost 28% of the shot, which takes the action bar with it. 15% is where the
+       * frame reads as full without losing either the header or the bar, and it is a ceiling
+       * rather than a target: the 6.9" iPhone needs no crop at all and gets none.
+       */
+      const CROP_MAX = 0.15;
+
       imgs.forEach((img, i) => {
-        const scale = Math.min(cell / img.width, boxH / img.height);
+        let sy = 0;
+        let sh = img.height;
+        const fillH = img.height * (cell / img.width);
+        if (fillH > boxH) {
+          const keep = Math.max(1 - CROP_MAX, boxH / fillH);
+          sh = Math.round(img.height * keep);
+          // Anchored to the top, not centred. Every source is a phone screen whose first rows are
+          // the status header - the one horizontal band that is always whole at y = 0. A centred
+          // crop takes half of it and half of the action bar, and a headline sliced through the
+          // middle of a text row reads as a broken image rather than as a chosen frame.
+          sy = 0;
+        }
+
+        const scale = Math.min(cell / img.width, boxH / sh);
         const dw = Math.round(img.width * scale);
-        const dh = Math.round(img.height * scale);
+        const dh = Math.round(sh * scale);
         const dx = Math.round(pad + i * (cell + gap) + (cell - dw) / 2);
         const dy = Math.round(y + (boxH - dh) / 2);
 
@@ -576,7 +600,7 @@ const frame = async (shots, w, h, file, seed) => {
         x.fillRect(dx + reg, dy + reg, dw, dh);
         x.restore();
 
-        x.drawImage(img, dx, dy, dw, dh);
+        x.drawImage(img, 0, sy, img.width, sh, dx, dy, dw, dh);
 
         // The soot contour, pulled last.
         inkPath(

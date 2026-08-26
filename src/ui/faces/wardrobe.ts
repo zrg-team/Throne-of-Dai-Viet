@@ -216,7 +216,11 @@ export function garmentsFor(
       { key: 'collar-twoflap', tint: 'robeDark' },
       { key: 'collar-twoflap-over', tint: 'robeLight' },
     ];
-    if (type === 'general' && rank >= 2) dinh.push({ key: 'guard-beastmask', tint: 'none' });
+    // A pick, not a rule: the roster's Đinh entries are mostly Legendary generals, so an
+    // unconditional beast-mask put it on six of the ten and the sheet read as a uniform.
+    if (type === 'general' && rank >= 2 && pick([true, true, false])) {
+      dinh.push({ key: 'guard-beastmask', tint: 'none' });
+    }
     if (rank >= 1 && pick([true, true, false])) {
       dinh.push({ key: pick(['collar-band-brocade', 'collar-band-brocade', 'collar-band-oxblood']), tint: 'none' });
     }

@@ -212,9 +212,9 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "key": "guard-beastmask",
     "layer": 24,
     "tint": "none",
-    "cx": 0,
-    "cy": 73.5,
-    "w": 104,
+    "cx": -0.5,
+    "cy": 74.5,
+    "w": 105,
     "h": 35
   },
   {
@@ -663,9 +663,9 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "layer": 38,
     "tint": "none",
     "cx": 0,
-    "cy": 82.5,
-    "w": 64,
-    "h": 15
+    "cy": 83.5,
+    "w": 60,
+    "h": 17
   },
   {
     "key": "collar-nguthan",
@@ -1076,10 +1076,10 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "key": "knot-nape",
     "layer": 41,
     "tint": "hair",
-    "cx": 25,
-    "cy": 21,
-    "w": 20,
-    "h": 20
+    "cx": 24.5,
+    "cy": 22,
+    "w": 23,
+    "h": 24
   },
   {
     "key": "topknot-wrapped",
@@ -1148,10 +1148,10 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "key": "bun-tall-fore",
     "layer": 41,
     "tint": "hair",
-    "cx": -1.5,
+    "cx": 0.5,
     "cy": -63,
-    "w": 29,
-    "h": 26
+    "w": 23,
+    "h": 32
   },
   {
     "key": "hairpin",
@@ -1473,9 +1473,9 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "layer": 50,
     "tint": "none",
     "cx": 0,
-    "cy": -51.5,
+    "cy": -53,
     "w": 68,
-    "h": 75
+    "h": 72
   },
   {
     "key": "hat-non",

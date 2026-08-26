@@ -153,8 +153,11 @@ interface ThemeSpec {
 
 export const FIGURE_THEMES: Record<FigureTheme, ThemeSpec> = {
   // Đinh: undyed and hide, because there was no dye monopoly to enforce anything else, and the
-  // one gilt thing on the field was on the man commanding it.
-  dinh: { faction: 'viet', robe: PIGMENT.nau, crown: PIGMENT.hide, gun: false },
+  // one gilt thing on the field was on the man commanding it. The helm is `nauDark` rather
+  // than `hide` — at plate scale the darker leather closed up with the hair under it and the
+  // head came out a single black mass, which is also what hides the gọrget drawn in `hide`
+  // just below it.
+  dinh: { faction: 'viet', robe: PIGMENT.nau, crown: PIGMENT.nauDark, gun: false },
   ly: { faction: 'viet', robe: PIGMENT.tram, crown: PIGMENT.hoePale, gun: false },
   tran: { faction: 'viet', robe: PIGMENT.nau, crown: PIGMENT.hoe, gun: false },
   le: { faction: 'viet', robe: PIGMENT.tram, crown: PIGMENT.son, gun: true },
