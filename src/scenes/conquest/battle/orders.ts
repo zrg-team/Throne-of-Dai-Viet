@@ -774,7 +774,6 @@ function buildBattleReadout(self: ConquestUIScene, battle: AscentBattle, y: numb
   const dock = ui?.dock;
   if (!ui || !dock) return;
   const { content, orders } = ui;
-  void battle;
 
   dock.price = self.ui.label(content.x + 2, y, '', 'label', {
     fontSize: '10.5px',
@@ -793,6 +792,21 @@ function buildBattleReadout(self: ConquestUIScene, battle: AscentBattle, y: numb
     { fontSize: '9px', color: INK_UI_HEX.mutedText },
   ).setOrigin(1, 0);
   orders.add(dock.verdict);
+
+  // The ground's edge, under the verdict, in the verdict's own column — moved here out of the
+  // seven unowned points between the rails band and this one, where it printed through the price
+  // line. Static for the whole fight, so it is written once here rather than on the beat, and it
+  // is fitted to `VERDICT_COLUMN` like everything else on this row: `Địa lợi nghiêng về ta ×1.30`
+  // is 26 characters and the column is 118 wide.
+  if (battle.terrainEdge > 1.01) {
+    const terrain = self.ui.label(
+      content.x + content.width - 2, y + 12,
+      t('ascent.battle.terrain', { mult: battle.terrainEdge.toFixed(2) }), 'caption',
+      { fontSize: '9px', color: cssHex(INK_UI.jade) },
+    ).setOrigin(1, 0);
+    fitLabel(terrain, VERDICT_COLUMN, 9, 7);
+    orders.add(terrain);
+  }
 }
 
 /** The right-hand column the verdict owns; the price and arms lines stop short of it. */

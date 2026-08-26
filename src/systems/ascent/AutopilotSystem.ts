@@ -50,6 +50,7 @@ import { disbandArmy, getRecruitmentOrder, issueMoveOrder, queueRecruitment } fr
 import { frontWinChance, offerConquestMethods } from './ConquestSystem';
 import { chargeAmbition } from './AmbitionSystem';
 import { isAutoHost, isPinnedByClaim } from './armyOrders';
+import { liveBattles } from './fronts';
 import { canDismissHero, dismissHero } from './CourtLaneSystem';
 import {
   doctrineClaimIntervalMult,
@@ -230,8 +231,10 @@ function armySize(army: { units: { spearmen: number; archers: number; heavyInfan
  * levy going home is also how manpower gets recycled into the next real host.
  */
 function autoDisbandRemnants(state: GameState): void {
-  const live = state.ascent?.activeBattle;
-  const engaged = new Set(live && !live.over ? [...(live.ourArmyIds ?? []), ...(live.theirArmyIds ?? [])] : []);
+  // Across every live field: a host holding a second front is still in a line, and sending it
+  // home as a "remnant" mid-fight is how a defence read as broken before a blow was struck.
+  const engaged = new Set(liveBattles(state)
+    .flatMap((live) => [...(live.ourArmyIds ?? []), ...(live.theirArmyIds ?? [])]));
   const small = state.armies.filter(
     (army) =>
       army.kingdomId === PLAYER_KINGDOM_ID &&

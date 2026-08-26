@@ -33,10 +33,10 @@ Verified on an Android 16 (API 36) emulator: menu, tour and a Dragon Ascent run 
 loopback origin with no network.
 
 ```bash
-npm run android:apk       # release APK, built locally with Gradle
-npm run android:aab       # release AAB for Play
-npm run android           # build and install onto a connected device
-npm run link              # dev server on a tunnel URL — reaches a phone on another network
+npm run apk           # release APK, built locally with Gradle
+npm run aab           # release AAB for Play
+npm run run:android   # build and install onto a connected device
+npm run link          # dev server on a tunnel URL — reaches a phone on another network
 ```
 
 Local Android builds need JDK 17 and the Android SDK. The first one is slow — Gradle downloads the
@@ -48,7 +48,7 @@ One command, run on a Mac, ending in a file you can upload:
 
 ```bash
 # from the repository ROOT — builds the game, syncs it, then archives and exports
-yarn mobile:ios:ipa
+yarn mobile:ios
 ```
 
 It prints the path to `apps/mobile/build/ipa/*.ipa`, plus the two ways to upload it (`xcrun altool`
@@ -72,13 +72,19 @@ contains.
 
 ```bash
 npm i -g eas-cli && eas login
-npm run ios:eas           # ad-hoc .ipa; --profile production for TestFlight
-npm run android:eas       # Android, on EAS rather than this machine
+npm run eas:ios           # store build → App Store Connect
+npm run eas:android       # store build → Play
+npm run eas:all           # both at once
+npm run eas:ios:preview   # ad-hoc .ipa for testers instead
 ```
 
-`ios:eas` uses the `preview` profile, which is `distribution: internal` — an **ad-hoc** build, so
-every test device's UDID has to be registered first with `eas device:create`. For TestFlight use
-`--profile production` and then `eas submit -p ios`.
+`eas:ios` is the release channel — the `production` profile, `distribution: store`. Follow it with
+`npm run eas:ios:submit` to upload. `eas:ios:preview` is the `preview` profile instead, which is
+`distribution: internal` — an **ad-hoc** build, so every test device's UDID has to be registered
+first with `eas device:create`.
+
+Run these from the repository root as `yarn mobile:eas:ios` and friends, which sync the game first.
+See [`../../docs/development/mobile-builds.md`](../../docs/development/mobile-builds.md).
 
 `.easignore` is why the build has a game in it. The EAS CLI otherwise uploads what git would
 archive, and `assets/` is gitignored in its entirety — the archive, the icon and the splash are

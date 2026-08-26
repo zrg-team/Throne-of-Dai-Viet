@@ -31,11 +31,29 @@
  *   --mark   drum · drum-plain · drum-full · drum-bronze · drum-ink (default: drum)
  *   --out    where to write (default: public) — point it elsewhere to preview an alternate mark
  *   --check  verify the committed output matches what this script would emit, and fail if not
+ *   --mobile cut the 1024 store marks into <dir> instead of the web set — see MOBILE below
  */
 import { chromium } from 'playwright';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
-const OUT = (() => {
+/**
+ * `--mobile <dir>` cuts the store sizes instead of the web set.
+ *
+ * One thing separates the two lists and it is 1024 rather than 512. Apple's marketing slot is
+ * 1024x1024, and Expo's prebuild upscales whatever it is handed rather than refusing it — so a
+ * 512 source ships soft instead of failing, which is the worse outcome because nothing anywhere
+ * reports it.
+ *
+ * They are a separate list rather than three more entries in the web one because `build-sw.mjs`
+ * sweeps everything in `public/` into the service worker's *critical* precache. A 1024 cut that
+ * no browser ever asks for would be a megabyte every installed player must fetch before the game
+ * is allowed to boot.
+ */
+const MOBILE = (() => {
+  const at = process.argv.indexOf('--mobile');
+  return at >= 0 ? process.argv[at + 1] : undefined;
+})();
+const OUT = MOBILE ?? (() => {
   const at = process.argv.indexOf('--out');
   return at >= 0 ? process.argv[at + 1] : 'public';
 })();
@@ -388,7 +406,7 @@ const MANIFEST = `${JSON.stringify(
 
 const SOURCES = { icon: ICON, favicon: FAVICON, maskable: MASKABLE };
 
-const PNGS = [
+const WEB_PNGS = [
   ['favicon-32.png', 'favicon', 32],
   ['favicon-96.png', 'favicon', 96],
   ['apple-touch-icon.png', 'icon', 180],
@@ -397,7 +415,28 @@ const PNGS = [
   ['icon-maskable-512.png', 'maskable', 512],
 ];
 
-const TEXT = new Map([
+/**
+ * The three marks `apps/mobile` bundles, under the names `app.json` already points at.
+ *
+ * `adaptive-icon.png` is the maskable cut and not the plain one: an Android launcher crops the
+ * foreground to whatever shape the phone uses, and the plain mark loses its rim to that crop.
+ * iOS takes `icon.png` and cuts every slot it needs from it, so 1024 is the only size that has
+ * to exist here.
+ *
+ * Both sources are drawn on paper, so neither carries an alpha channel out of the screenshot —
+ * which is not incidental. App Store Connect rejects an icon that has one.
+ */
+const MOBILE_PNGS = [
+  ['icon.png', 'icon', 1024],
+  ['adaptive-icon.png', 'maskable', 1024],
+  // On the ink of the splash, the drum on its sheet of paper reads as a print rather than a logo.
+  ['splash.png', 'icon', 1024],
+];
+
+const PNGS = MOBILE ? MOBILE_PNGS : WEB_PNGS;
+
+// The manifest and the SVGs are the web's half of the mark; a cabinet has no use for any of them.
+const TEXT = MOBILE ? new Map() : new Map([
   ['icon.svg', ICON],
   ['favicon.svg', FAVICON],
   ['icon-maskable.svg', MASKABLE],
@@ -438,4 +477,6 @@ if (CHECK && drift > 0) {
   console.error(`${drift} file(s) differ — re-run \`node scripts/build-icon.mjs\``);
   process.exit(1);
 }
-console.log(CHECK ? 'icon output is current' : `icon set built from mark "${MARK}"`);
+console.log(
+  CHECK ? 'icon output is current' : `${MOBILE ? 'store' : 'icon'} set built from mark "${MARK}"`,
+);

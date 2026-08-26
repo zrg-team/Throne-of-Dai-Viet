@@ -119,16 +119,16 @@ export function hostShapeAt(men: number, s = 1): HostShape {
 export type FigureFaction = 'viet' | 'han' | 'champa';
 
 /**
- * The twelve wardrobes.
+ * The thirteen wardrobes.
  *
- * Seven Việt — the four on the Mandate ladder plus the three lord periods, which never enter it
- * because they are what a *rival* Việt kingdom wears. Four northern, paired to the era they
- * historically came in. One Chăm.
+ * Eight Việt — the four on the Mandate ladder, the three lord periods, which never enter it
+ * because they are what a *rival* Việt kingdom wears, and Đinh, which is where the ladder now
+ * starts. Four northern, paired to the era they historically came in. One Chăm.
  */
 export type FigureTheme = ArmyWardrobe;
 
-/** The four Mandate eras. Kept as a narrowing of `FigureTheme` so old call sites still read. */
-export type FigureEra = 'ly' | 'tran' | 'le' | 'nguyen';
+/** The Mandate eras. Kept as a narrowing of `FigureTheme` so old call sites still read. */
+export type FigureEra = 'dinh' | 'ly' | 'tran' | 'le' | 'nguyen';
 
 /** levy → trained → royal guard, straight off `army.elite`. */
 export type FigureTier = 0 | 1 | 2;
@@ -152,6 +152,12 @@ interface ThemeSpec {
 }
 
 export const FIGURE_THEMES: Record<FigureTheme, ThemeSpec> = {
+  // Đinh: undyed and hide, because there was no dye monopoly to enforce anything else, and the
+  // one gilt thing on the field was on the man commanding it. The helm is `nauDark` rather
+  // than `hide` — at plate scale the darker leather closed up with the hair under it and the
+  // head came out a single black mass, which is also what hides the gọrget drawn in `hide`
+  // just below it.
+  dinh: { faction: 'viet', robe: PIGMENT.nau, crown: PIGMENT.nauDark, gun: false },
   ly: { faction: 'viet', robe: PIGMENT.tram, crown: PIGMENT.hoePale, gun: false },
   tran: { faction: 'viet', robe: PIGMENT.nau, crown: PIGMENT.hoe, gun: false },
   le: { faction: 'viet', robe: PIGMENT.tram, crown: PIGMENT.son, gun: true },
@@ -347,6 +353,18 @@ export function figure(g: G, x: number, y: number, scale: number, colour: number
       const heart = [P(-2.6, -26.6), P(2.6, -26.6), P(2.6, -22), P(-2.6, -22)];
       solid(heart, PIGMENT.horn);
       stroke(heart, seed + 33, 1, 0.8, true);
+    } else if (theme === 'dinh') {
+      // Giáp phiến — the shell lame, hung in two courses that overlap downward. Two arcs, and
+      // they are the only marks in this function that are *curved*: the mirror plate is a
+      // rectangle, the Trần disc a circle, the northern lamellar two straight bands, so a
+      // scalloped course is the one shape on the chest still unclaimed at this size.
+      for (let row = 0; row < 2; row += 1) {
+        const y = -27.6 + row * 3.6;
+        for (let i = -2; i <= 1; i += 1) {
+          const x = i * 2.6 + (row % 2) * 1.3;
+          stroke([P(x, y), P(x + 1.3, y + 1.5), P(x + 2.6, y)], seed + 31 + row * 4 + i, 1, 0.72);
+        }
+      }
     } else {
       // Hộ tâm kính, the mirror plate — the commonest armour the northern record knows.
       const plate = [P(-4.5, -28), P(4.5, -28), P(4.5, -20.4), P(-4.5, -20.4)];
@@ -356,6 +374,16 @@ export function figure(g: G, x: number, y: number, scale: number, colour: number
     if (tier > 1) {
       stroke([P(-6.5, -29.4), P(-9.3, -27.4), P(-9.5, -24)], seed + 34, 1.5, 0.75);
       stroke([P(6.5, -29.4), P(9.3, -27.4), P(9.5, -24)], seed + 35, 1.5, 0.75);
+      if (theme === 'dinh') {
+        // Hộ hạng — the studded gorget flaring over the shoulders, above the shoulder strokes
+        // rather than instead of them. It is what makes a Đinh guard read as armoured when the
+        // chest itself carries no plate: a filled collar has weight the two strokes do not.
+        const gorget = [P(-7.4, -30.8), P(7.4, -30.8), P(6, -28.2), P(-6, -28.2)];
+        solid(gorget, PIGMENT.hide, 0.9);
+        stroke(gorget, seed + 36, 1.2, 0.8, true);
+        solid(ring(-3.4, -29.6, 0.7, 5), PIGMENT.hoe, 0.9);
+        solid(ring(3.4, -29.6, 0.7, 5), PIGMENT.hoe, 0.9);
+      }
     }
   }
 
@@ -482,6 +510,15 @@ function drawCrown(
   ];
 
   switch (theme) {
+    case 'dinh': {                                 // a low bowl, a gilt brow band, and a plume
+      const d = domed(6.6, -46);
+      solid(d, T.crown, 0.92); stroke(d, seed + 42, 1.55, 0.85, true);
+      stroke([P(-7.4, -39.6), P(7.4, -39.6)], seed + 43, 1.6, 0.9);
+      // The plume is the whole silhouette at map size, so it is drawn taller than the helm and
+      // is the one thing on a Đinh officer that survives the zoom-out.
+      stroke([P(0, -46), P(-1.6, -52), P(0.8, -56.4)], seed + 44, 1.5, 0.85);
+      break;
+    }
     case 'ly': {                                   // dome, and a crest swept back and up off it
       const d = domed(7, -47);
       solid(d, T.crown, 0.9); stroke(d, seed + 42, 1.55, 0.85, true);
@@ -701,7 +738,9 @@ export interface HostKit {
  */
 export function figureEraFor(state: GameState): FigureEra {
   switch (state.mandate?.era) {
-    case 'founding': return 'ly';
+    // The founding era *is* the tenth century, and drew as Lý for as long as Đinh had no
+    // wardrobe. It has one now, so the ladder starts where the history does.
+    case 'founding': return 'dinh';
     case 'rivalry': return 'tran';
     case 'mandate': return 'nguyen';
     default: return 'le';

@@ -1,5 +1,6 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { t } from '../../i18n';
+import { liveBattles } from './fronts';
 import type { Army, ArmyOrders, GameState } from '../../state/types';
 
 /**
@@ -33,9 +34,10 @@ export function isPinnedByClaim(state: GameState, army: Army): boolean {
  */
 export function isEngagedHost(state: GameState, armyId: string): boolean {
   if (state.pendingBattle?.attackerArmyIds?.includes(armyId)) return true;
-  const live = state.ascent?.activeBattle;
-  if (!live || live.over) return false;
-  return (live.ourArmyIds ?? []).includes(armyId) || (live.theirArmyIds ?? []).includes(armyId);
+  // Every live field, not only the one on screen: a host holding a front for its general is just
+  // as engaged as one under the player's own hand, and marching it away mid-fight is the bug.
+  return liveBattles(state).some((live) => (
+    (live.ourArmyIds ?? []).includes(armyId) || (live.theirArmyIds ?? []).includes(armyId)));
 }
 
 /** Every host of the player's that takes orders — no garrison levies. */

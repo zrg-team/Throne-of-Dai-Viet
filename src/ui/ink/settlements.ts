@@ -15,7 +15,7 @@ import { seasonalStage } from './season';
 
 type G = Phaser.GameObjects.Graphics;
 
-export type Era = 'ly' | 'tran' | 'le' | 'nguyen';
+export type Era = 'dinh' | 'ly' | 'tran' | 'le' | 'nguyen';
 
 /**
  * The century the map is being drawn in.
@@ -240,16 +240,19 @@ export function village(g: G, x: number, y: number, s: number, seed: number): vo
 /**
  * Thành — a walled seat in oblique. The dynasties do not differ by a label:
  *
+ *  · Đinh strings a short **earth-and-timber** rampart between the karst, with a plain beam
+ *    over the gate and no tower at all — Hoa Lư was built in ten years by a state that had
+ *    just finished a civil war, and it is the only seat here narrower than its own village
  *  · Lý and Trần raise **rammed-earth** ramparts with a tower over the gate
  *  · Lê builds a **brick** rectangle with a two-tier gatehouse
  *  · Nguyễn builds **Huế** — a low, broad Vauban work with an angled bastion and the long,
  *    three-arched Ngọ Môn carrying a pavilion
  *
- * If the four read the same, the drawing has failed.
+ * If they read the same, the drawing has failed.
  */
 export function citadel(g: G, x: number, y: number, s: number, era: Era, seed: number): void {
   const brick = era === 'le' || era === 'nguyen';
-  const w = (era === 'nguyen' ? 104 : era === 'le' ? 86 : 74) * s;
+  const w = (era === 'nguyen' ? 104 : era === 'le' ? 86 : era === 'dinh' ? 62 : 74) * s;
   const depth = 30 * s;
   const wallH = (era === 'nguyen' ? 8 : era === 'tran' ? 14 : 11) * s;
   const dx = depth * 0.62;
@@ -363,7 +366,18 @@ export function citadel(g: G, x: number, y: number, s: number, era: Era, seed: n
   }
 
   const gy = y - wallH - gateH;
-  if (era === 'ly') {
+  if (era === 'dinh') {
+    // A beam, not a gatehouse. Every other era here puts a roof over the gate; the one that
+    // cannot is what says "this was raised in a hurry, by soldiers".
+    printedShape(
+      g,
+      [
+        { x: gx - 5 * s, y: gy }, { x: gx + gateW + 5 * s, y: gy },
+        { x: gx + gateW + 5 * s, y: gy - 2.6 * s }, { x: gx - 5 * s, y: gy - 2.6 * s },
+      ],
+      PIGMENT.nau, seed + 91, { width: 1.0 * s, alpha: 0.8, wobble: 0.12 * s, step: 5, fillAlpha: 0.9 },
+    );
+  } else if (era === 'ly') {
     printedShape(
       g,
       [
@@ -398,7 +412,7 @@ export function citadel(g: G, x: number, y: number, s: number, era: Era, seed: n
 
 /** Where the gate's standard should be planted, so a caller can hang a live flag off it. */
 export function citadelStandardAnchor(x: number, y: number, s: number, era: Era): Pt {
-  const w = (era === 'nguyen' ? 104 : era === 'le' ? 86 : 74) * s;
+  const w = (era === 'nguyen' ? 104 : era === 'le' ? 86 : era === 'dinh' ? 62 : 74) * s;
   const wallH = (era === 'nguyen' ? 8 : era === 'tran' ? 14 : 11) * s;
   const gateW = (era === 'nguyen' ? 44 : era === 'le' ? 24 : 20) * s;
   const gateH = (era === 'le' ? 20 : era === 'nguyen' ? 12 : 15) * s;

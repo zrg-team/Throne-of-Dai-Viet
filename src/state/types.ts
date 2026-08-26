@@ -208,6 +208,19 @@ export interface CampaignScore {
   armiesDefeated: number;
   largestArmyDefeated: number;
   peakLandsHeld: number;
+  /**
+   * The butcher's bill of the whole reign, both ways, in men rather than in hosts.
+   *
+   * All four are optional because a save written before the Reckoning asked for them has none of
+   * them; every reader defaults to 0. Kept by `recordEngagement`, which every settled fight now
+   * passes through — watched or delegated, defence or assault.
+   */
+  enemySoldiersSlain?: number;
+  ownSoldiersLost?: number;
+  /** Engagements settled, of any kind. `armiesDefeated` counts only hosts wiped out entirely. */
+  engagements?: number;
+  /** Defences that ended with the ground still ours. */
+  defencesHeld?: number;
 }
 
 export interface DynastyStatus {
@@ -765,19 +778,25 @@ export type ArmyComposition = 'balanced' | 'spears' | 'archers' | 'shock' | 'hor
  * saved with the game and read back on load. `devices.ts` re-exports it as `FigureTheme` and does
  * the drawing; nothing else needs to know the list.
  *
- * Seven Việt — the four on the Mandate ladder plus the three lord periods, which are what a rival
- * Việt kingdom wears. Four northern, each paired to the era it historically came in. One Chăm.
+ * Eight Việt — the four on the Mandate ladder, the three lord periods, which are what a rival
+ * Việt kingdom wears, and Đinh at the head of the line. Four northern, each paired to the era it
+ * historically came in. One Chăm.
+ *
+ * Đinh was missing for as long as this list existed, and the cost was specific: the roster names
+ * seventeen champions of the tenth century — Đinh Bộ Lĩnh, Ngô Quyền, Lê Đại Hành among them — and
+ * `song` sat here the whole time, so the game could dress the army that invaded in 981 but not
+ * the one that met it.
  */
 export type ArmyWardrobe =
-  | 'ly' | 'tran' | 'le' | 'trinh' | 'nguyenLord' | 'tayson' | 'nguyen'
+  | 'dinh' | 'ly' | 'tran' | 'le' | 'trinh' | 'nguyenLord' | 'tayson' | 'nguyen'
   | 'song' | 'yuan' | 'ming' | 'qing'
   | 'champa';
 
 /** The five powers a rival can be drawn from. Chăm is the only one that is not northern. */
 export const ENEMY_WARDROBES = ['song', 'yuan', 'ming', 'qing', 'champa'] as const;
 
-/** The seven a Việt realm — the player's, or a rival lord's — can be dressed in. */
-export const VIET_WARDROBES = ['ly', 'tran', 'le', 'trinh', 'nguyenLord', 'tayson', 'nguyen'] as const;
+/** The eight a Việt realm — the player's, or a rival lord's — can be dressed in. */
+export const VIET_WARDROBES = ['dinh', 'ly', 'tran', 'le', 'trinh', 'nguyenLord', 'tayson', 'nguyen'] as const;
 
 /**
  * What this run's armies look like, rolled once at muster from the map seed.
@@ -2300,8 +2319,33 @@ export interface AscentState {
   promptWaiting: Partial<Record<AscentPromptKind, number>>;
   /** Seasons before the realm will raise the famine card again. */
   famineCooldown: number;
-  /** The engagement currently being watched, if any. */
+  /**
+   * The engagement the player is **commanding** — the one the battle screen shows and the one
+   * every dial on it moves. Its meaning is unchanged; what changed is that it is no longer the
+   * only fight that can be running.
+   */
   activeBattle?: AscentBattle;
+  /**
+   * The other live fronts. Always delegated: one pair of hands, one field.
+   *
+   * A wave that strikes three provinces used to fight one of them and settle the rest as hidden
+   * dice, because `maybeRequestBattleDecision` refused outright while anything was live — the
+   * alternative on offer at the time was *queuing*, which froze the second invader for the length
+   * of the first fight and made a three-host wave take three fights' worth of seasons to land.
+   * Running them side by side is the third answer: nobody waits, the generals hold the fronts the
+   * player is not standing on, and `focusBattle` moves the player between them.
+   *
+   * Capped at `MAX_LIVE_BATTLES - 1`. Past that the war stops being something a thumb can hold.
+   */
+  sideBattles?: AscentBattle[];
+  /**
+   * Set on the tick a *second* front goes live, and cleared by the screen that answers it.
+   *
+   * The world stops for it. Two fights at once is the one event in this mode that changes what
+   * the player should be doing rather than merely how well it is going, and it used to be the
+   * event that could not happen at all.
+   */
+  frontsOpened?: number;
   /** True while the player has handed battles back to their generals. Reversible from Settings. */
   autoResolveBattles: boolean;
   /** True when the autopilot may muster without asking. Off by default; reversible from Settings. */

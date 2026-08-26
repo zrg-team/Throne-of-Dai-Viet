@@ -146,6 +146,18 @@ part('robe-armour-brigandine', 20, 'robe',
 part('robe-armour-leather', 20, 'robe',
   `<path d="${ARMOUR_BASE}" fill="#ffffff"/>
    <path d="M -40 ${SHY + 6} q 40 -7 80 0 M -40 ${SHY + 16} q 40 -7 80 0" stroke="#9a9a9a" stroke-width="2" fill="none" opacity=".8"/>`);
+// A sixth weave, and the tenth century's: a shell-shaped lame, wider than it is deep, hung in
+// courses that overlap downward. It is what separates a Đinh harness from the fish-scale of a
+// Trần one, and it is *filled* rather than stroked — `robe-armour-scale` proves the point in
+// the other direction, where nine rows of outline average to grey at 42 px and the chest loses
+// its weave entirely.
+part('robe-armour-fanscale', 20, 'robe',
+  `<path d="${ARMOUR_BASE}" fill="#ffffff"/>` +
+  [0, 1, 2, 3].map((row) => Array.from({ length: 9 }, (_, i) => {
+    const x = -40 + i * 10 + (row % 2) * 5, y = SHY + 1 + row * 6.4;
+    return `<path d="M ${x} ${y} a 5 4.6 0 0 0 10 0 Z" fill="#9a9a9a" opacity=".55"/>`
+      + `<path d="M ${x} ${y} a 5 4.6 0 0 0 10 0" fill="none" stroke="#787878" stroke-width="1"/>`;
+  }).join('')).join(''));
 
 // 21 · hem trim, one band along the bottom of the bust — the cheapest way to say "this robe
 // was expensive" without adding a colour the palette does not own.
@@ -165,6 +177,24 @@ part('guard-shoulder', 24, 'robeDark',
 part('guard-shoulder-gilt', 24, 'none',
   `<path d="M -50 ${SHY + 14} C -50 ${SHY - 8}, -26 ${SHY - 14}, -22 ${SHY + 2}" stroke="${GOLD}" stroke-width="1.8" fill="none"/>
    <path d="M 50 ${SHY + 14} C 50 ${SHY - 8}, 26 ${SHY - 14}, 22 ${SHY + 2}" stroke="${GOLD}" stroke-width="1.8" fill="none"/>`);
+// Thôn kiên thú — the beast that swallows the shoulder. A *mask*, not a plate: two eyes and a
+// jaw line are the whole read at 42 px, and the same gilt shape without them is a shoulder pad.
+// Fixed colour, because cast bronze is not one of the run's dyes.
+// The first pass drew two dots and an upcurved jaw, which is a **smiley face** long before it is
+// a beast — the eye finds that arrangement whether or not it was meant. What separates a mask
+// from an emoticon at this size is that the jaw bulges *up* in the middle and hangs two fangs
+// off it, and that a brow ridge sits over the eyes so the top of the shape is not empty.
+part('guard-beastmask', 24, 'none',
+  `<path d="M -50 ${SHY + 15} C -51 ${SHY - 9}, -26 ${SHY - 15}, -23 ${SHY + 3} C -30 ${SHY + 10}, -40 ${SHY + 14}, -42 ${SHY + 23} Z" fill="${GOLD}" stroke="${GOLD_DEEP}" stroke-width="1.2"/>
+   <path d="M 50 ${SHY + 15} C 51 ${SHY - 9}, 26 ${SHY - 15}, 23 ${SHY + 3} C 30 ${SHY + 10}, 40 ${SHY + 14}, 42 ${SHY + 23} Z" fill="${GOLD}" stroke="${GOLD_DEEP}" stroke-width="1.2"/>
+   <path d="M -47 ${SHY + 2} q 9 -7 17 -2" stroke="#2b2318" stroke-width="2.1" fill="none"/>
+   <path d="M 47 ${SHY + 2} q -9 -7 -17 -2" stroke="#2b2318" stroke-width="2.1" fill="none"/>
+   <circle cx="-44" cy="${SHY + 6}" r="1.9" fill="#2b2318"/><circle cx="-33.5" cy="${SHY + 1.5}" r="1.9" fill="#2b2318"/>
+   <circle cx="44" cy="${SHY + 6}" r="1.9" fill="#2b2318"/><circle cx="33.5" cy="${SHY + 1.5}" r="1.9" fill="#2b2318"/>
+   <path d="M -47 ${SHY + 15} q 10 -6 19 -4" stroke="#2b2318" stroke-width="1.6" fill="none"/>
+   <path d="M 47 ${SHY + 15} q -10 -6 -19 -4" stroke="#2b2318" stroke-width="1.6" fill="none"/>
+   <path d="M -43 ${SHY + 13.4} l 1 3.4 M -32 ${SHY + 11.2} l 1 3.4" stroke="#2b2318" stroke-width="1.4"/>
+   <path d="M 43 ${SHY + 13.4} l -1 3.4 M 32 ${SHY + 11.2} l -1 3.4" stroke="#2b2318" stroke-width="1.4"/>`);
 
 // 25 · neck
 part('neck', 25, 'skinShadow', `<rect x="-9" y="${NECK - 12}" width="18" height="22" fill="#ffffff"/>`);
@@ -222,6 +252,23 @@ part('collar-twoflap', 35, 'robeDark',
   `<path d="M -30 ${NECK + 2} L 0 ${NECK + 26} L 0 ${NECK + 40} L -34 ${NECK + 14} Z" fill="#ffffff"/>`);
 part('collar-twoflap-over', 36, 'robeLight',
   `<path d="M 30 ${NECK + 2} L 0 ${NECK + 26} L 0 ${NECK + 40} L 34 ${NECK + 14} Z" fill="#ffffff"/>`);
+// The broad brocade band laid down the leading edge of a wrap. Before the courts wrote rank
+// into a cap or a badge, this is where it was carried — the band is wide, contrasting and
+// full-length, which is the one garment mark that still reads when the head is too small to
+// see. Sits over either the giao lĩnh or the two-flap, so it is one part rather than two.
+part('collar-band-brocade', 37, 'none',
+  `<path d="M 27 ${NECK - 5} L -2 ${NECK + 22} L -2 ${NECK + 33} L 32 ${NECK + 3} Z" fill="${GOLD}" opacity=".92"/>
+   <path d="M 25 ${NECK - 1} L 0 ${NECK + 22}" stroke="${GOLD_DEEP}" stroke-width="1.1" fill="none" opacity=".8"/>`);
+part('collar-band-oxblood', 37, 'none',
+  `<path d="M 27 ${NECK - 5} L -2 ${NECK + 22} L -2 ${NECK + 33} L 32 ${NECK + 3} Z" fill="#7d4a52"/>
+   <path d="M 25 ${NECK - 1} L 0 ${NECK + 22}" stroke="${GOLD_DEEP}" stroke-width="1.1" fill="none" opacity=".7"/>`);
+// The placket of square medallions that runs between the two parallel bands of an áo đối khâm.
+// Three ô vuông and no more: a fourth pushes the lowest one off the bottom of the bust, and at
+// portrait scale four small squares stop being countable anyway.
+part('collar-placket-square', 37, 'none',
+  `<rect x="-9" y="${NECK + 3}" width="18" height="45" fill="#2f2a21" opacity=".82"/>` +
+  [0, 1, 2].map((i) =>
+    `<rect x="-5.5" y="${NECK + 8 + i * 14}" width="11" height="10" rx="1" fill="none" stroke="${GOLD}" stroke-width="1.6"/>`).join(''));
 
 // Áo viên lĩnh — the round-collar court robe of the Lý and Trần. A ring at the throat, which
 // is precisely what leaves the chest clear for a rank badge.
@@ -272,6 +319,15 @@ const plaqueBelt = (fill, edge) =>
     `<rect x="${-28 + i * 16}" y="${NECK + 45.5}" width="11" height="5" rx="1.5" fill="${fill}" stroke="${edge}" stroke-width="0.7"/>`).join('');
 part('belt-jade', 38, 'none', plaqueBelt(JADE, '#4d6b45'));
 part('belt-gold', 38, 'none', plaqueBelt(GOLD, GOLD_DEEP));
+// What a person with no court to grant them a plaque wears instead: hemp rope, coiled three
+// or four turns over a leather band. It sits at the same waist the plaque belt does, and it is
+// the cheapest legible mark in the library — three arcs, and it survives every crop.
+part('belt-rope-coil', 38, 'none',
+  // No leather band under it: drawn first it covered the middle turn, and three coils that
+  // touch are a strap. The gap between them is the whole part.
+  [0, 1, 2].map((i) =>
+    `<path d="M -28 ${NECK + 42 + i * 5.2} q 28 ${i % 2 ? 4.4 : -3.6} 56 0" stroke="${STRAW}" stroke-width="2.9" fill="none" stroke-linecap="round"/>`
+    + `<path d="M -28 ${NECK + 42 + i * 5.2} q 28 ${i % 2 ? 4.4 : -3.6} 56 0" stroke="${STRAW_DEEP}" stroke-width="0.9" fill="none" opacity=".55"/>`).join(''));
 
 // Áo ngũ thân — the 1744 reform: a standing collar closing to the right, five buttons.
 part('collar-nguthan', 35, 'robeLight',
@@ -406,6 +462,13 @@ part('topknot', 41, 'hair', `<ellipse cx="0" cy="${TOP - 6}" rx="10" ry="8" fill
 part('topknot-tall', 41, 'hair', `<ellipse cx="0" cy="${TOP - 9}" rx="12" ry="10" fill="#ffffff"/>`);
 part('topknot-small', 41, 'hair', `<ellipse cx="0" cy="${TOP - 4}" rx="7.5" ry="6" fill="#ffffff"/>`);
 part('topknot-side', 41, 'hair', `<ellipse cx="-11" cy="${TOP - 3}" rx="9" ry="7.5" fill="#ffffff" transform="rotate(-16 -11 ${TOP - 3})"/>`);
+// The knot tied low at the nape rather than on the crown — a soldier's, not a scholar's, and
+// the form the tenth century wore before a court had an opinion about it. Drawn at the jaw's
+// edge because that is where it actually shows on a frontal bust; put on the crown it is just
+// `topknot` again.
+part('knot-nape', 41, 'hair',
+  `<ellipse cx="25" cy="${CHIN - 4}" rx="9.5" ry="8.5" fill="#ffffff"/>
+   <path d="M 16 ${CHIN - 14} q 11 -3 14 4" stroke="#ffffff" stroke-width="4" fill="none" stroke-linecap="round"/>`);
 part('topknot-wrapped', 41, 'hair',
   `<ellipse cx="0" cy="${TOP - 7}" rx="11" ry="9" fill="#ffffff"/>
    <path d="M -11 ${TOP - 7} q 11 5 22 0" stroke="#b8b8b8" stroke-width="2" fill="none" opacity=".65"/>`);
@@ -421,6 +484,14 @@ part('bun-wide', 41, 'hair', `<ellipse cx="0" cy="${TOP - 5}" rx="18" ry="8" fil
 part('bun-wrapped', 41, 'hair',
   `<ellipse cx="0" cy="${TOP - 6}" rx="15" ry="10" fill="#ffffff"/>
    <path d="M -15 ${TOP - 4} q 15 7 30 0" stroke="#b8b8b8" stroke-width="2.4" fill="none" opacity=".6"/>`);
+// The tall knot set high and carried slightly forward of the crown. Every other bun in this
+// family is wider than it is tall and sits *on* the head; this one stands off it, which is the
+// silhouette that separates a woman of the older courts from the delta's coil at any size.
+part('bun-tall-fore', 41, 'hair',
+  // Taller than it is wide, which is the entire distinction from `bun-high` — the first pass
+  // was 12.5 × 7.5 and came out a loaf of bread sitting on the crown.
+  `<ellipse cx="0.5" cy="${TOP - 13}" rx="9.5" ry="13" fill="#ffffff"/>
+   <path d="M -9 ${TOP - 1} q 9.5 5 19 -1 Z" fill="#ffffff"/>`);
 
 // 42 · what goes into the hair. Trâm cài — the pin — is the one piece of jewellery a woman of
 // any class might own, so it is the ornament that carries rank least and character most.
@@ -431,6 +502,12 @@ part('hairpin-jade', 42, 'none',
 part('hairpin-long', 42, 'none',
   `<path d="M -16 ${TOP - 12} L 16 ${TOP - 6}" stroke="${GOLD}" stroke-width="2.2" stroke-linecap="round"/>
    <circle cx="-16" cy="${TOP - 12}" r="2.4" fill="${SON}"/>`);
+// A plain straight pin driven right through a tall knot and out the other side — one small
+// finial at the far end and nothing else. What a woman wore before a court had jade to grant,
+// and what the tenth century's men wore too.
+part('hairpin-plain', 42, 'none',
+  `<path d="M -17 ${TOP - 13} L 17 ${TOP - 17}" stroke="${GOLD}" stroke-width="2" stroke-linecap="round"/>
+   <circle cx="18" cy="${TOP - 17}" r="2.4" fill="${GOLD}"/>`);
 part('hair-comb', 42, 'none',
   `<path d="M -10 ${TOP - 10} L 10 ${TOP - 10} L 10 ${TOP - 5} L -10 ${TOP - 5} Z" fill="${GOLD_DEEP}"/>
    ${[0, 1, 2, 3].map((i) => `<rect x="${-8 + i * 5}" y="${TOP - 16}" width="1.6" height="6" fill="${GOLD_DEEP}"/>`).join('')}`);
@@ -567,6 +644,19 @@ part('hat-helm-crest', 50, 'none',
   helmBowl(STEEL, CHAM)
   + `<path d="M -8 ${TOP - 15} q 8 -16 16 0 Z" fill="${SON}"/>
      <path d="M 0 ${TOP - 22} l 0 -8" stroke="${GOLD}" stroke-width="2"/>`);
+// The tenth century's war helm: a leather-and-bronze bowl under a gilt brow band, a lotus-bud
+// finial carrying a straw plume, and lames hanging past the jaw. The wings the 2026
+// reconstruction gives it are deliberately left off — swept up as a pair they are exactly the
+// cat-ear silhouette this library already had to take back out of `hat-helm-horned` once.
+part('hat-helm-dinh', 50, 'none',
+  helmBowl('#5a4a34', '#3b2f20')
+  + `<rect x="-32" y="${TOP + 8}" width="64" height="4" rx="1.5" fill="${GOLD}" opacity=".92"/>
+     <path d="M -29 ${TOP + 1} q 29 -7 58 0" stroke="${GOLD_DEEP}" stroke-width="1.4" fill="none"/>
+     <path d="M -31 ${TOP + 15} q 5 10 4 17 l 7 -2 q -4 -8 -4 -15 Z" fill="#4a3a28"/>
+     <path d="M 31 ${TOP + 15} q -5 10 -4 17 l -7 -2 q 4 -8 4 -15 Z" fill="#4a3a28"/>
+     <path d="M -5 ${TOP - 12} q 5 -7 10 0 q -5 4 -10 0 Z" fill="${GOLD}"/>
+     <path d="M 0 ${TOP - 15} q -7 -12 -2 -21 q 7 9 5 21 Z" fill="${STRAW}"/>
+     <path d="M 0 ${TOP - 15} q 8 -11 4 -19" stroke="${STRAW_DEEP}" stroke-width="1.5" fill="none"/>`);
 
 // Nón — the leaf hats. The wide flat nón quai thao with its silk chin cords is a woman's; the
 // small nón dấu is a soldier's; the tall nón chóp is what a traveller wore in the rain.

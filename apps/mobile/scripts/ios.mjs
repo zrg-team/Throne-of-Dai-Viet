@@ -1,11 +1,11 @@
 /**
  * One command from a clean checkout to a file you can upload to App Store Connect.
  *
- *   npm run ios:check    everything below except the two slow steps — run this first
- *   npm run ios:ipa      the whole thing, ending in a signed .ipa
+ *   npm run ipa:check    everything below except the two slow steps — run this first
+ *   npm run ipa      the whole thing, ending in a signed .ipa
  *
  * macOS only, and not because of Expo: `xcodebuild` and the iOS SDK exist nowhere else. From
- * Windows the equivalent is `npm run ios:eas`, which does all of this on EAS's hosted Macs.
+ * Windows the equivalent is `npm run eas:ios`, which does all of this on EAS's hosted Macs.
  *
  * The preflight is deliberately long and deliberately first. Every check below is something that
  * otherwise fails twenty minutes into an archive, and several of them fail in ways that read as a
@@ -49,7 +49,7 @@ console.log('Preflight');
 if (process.platform !== 'darwin') {
   fail(
     `iOS builds need macOS; this is ${process.platform}.`,
-    'From Windows or Linux: npm run ios:eas — the same build on EAS\'s hosted Macs.',
+    'From Windows or Linux: npm run eas:ios — the same build on EAS\'s hosted Macs.',
   );
 }
 ok(`macOS ${probe('sw_vers', ['-productVersion']) ?? '(version unknown)'}`);
@@ -136,7 +136,7 @@ if (!teamId) {
 ok(`team ${teamId}`);
 
 if (checkOnly) {
-  console.log('\nPreflight passed. Run `npm run ios:ipa` to archive and export.\n');
+  console.log('\nPreflight passed. Run `npm run ipa` to archive and export.\n');
   process.exit(0);
 }
 

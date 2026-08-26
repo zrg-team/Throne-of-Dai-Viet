@@ -55,6 +55,7 @@ import * as screensChronicle from './conquest/screens/chronicle';
 import * as screensCourt from './conquest/screens/court';
 import * as screensRaiseHost from './conquest/screens/raiseHost';
 import * as screensStoryPage from './conquest/screens/storyPage';
+import * as warBoard from './conquest/screens/warBoard';
 import * as screensSystem from './conquest/screens/system';
 import * as shell from './conquest/shell';
 import * as tour from './conquest/tour';
@@ -1009,6 +1010,8 @@ export class ConquestUIScene extends Phaser.Scene {
   resumeBattleForOrder(): void { battleShell.resumeBattleForOrder(this); }
 
   showBattle(): void { battleShell.showBattle(this); }
+  /** The fronts board on its own — the Battle lane's other half. See `warBoard`. */
+  showWarBoard(): void { warBoard.showWarBoard(this); }
 
   buildBattlePips(battle: AscentBattle): void { battleShell.buildBattlePips(this, battle); }
 

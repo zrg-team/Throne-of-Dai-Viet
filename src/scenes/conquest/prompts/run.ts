@@ -10,14 +10,11 @@
  */
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../../../game/constants';
-import { codexProgress, storyProgress } from '../../../state/codex';
-import { getMemorials } from '../../../systems/story/echoes';
-import { LEGACY_PERKS, ownsPerk } from '../../../state/legacy';
+import { codexProgress } from '../../../state/codex';
 import { powerCardView } from '../../../systems/ascent/PowerDraftSystem';
 import { tierForHero } from '../../../systems/ascent/SummonSystem';
 import { renderHeroFaceInBox } from '../../../ui/FaceRenderer';
 import { chronicleTally } from '../../../systems/story/StorySystem';
-import { storyCatalogIds } from '../../../i18n/story';
 import { INK_UI, INK_UI_HEX, scrollGestureConsumedTap } from '../../../ui/InkUI';
 import { arrivalPreview } from '../../../data/heroArrivals';
 import { sawtoothBand, seal } from '../../../ui/ink/devices';
@@ -25,10 +22,11 @@ import { THRONE_HALL_HEIGHT, throneHallDiorama } from '../../../ui/ascent/throne
 import { CARD_STACK_PEEK, CardStack } from '../../../ui/ascent/CardStack';
 import { drawCardIcon, iconForOption } from '../../../ui/CardIcons';
 import { staggerIn } from '../../../ui/animations';
+import { captureScreen } from '../../../ui/captureScreen';
 import { TITLE_FONT, UI_FONT } from '../../../ui/fonts';
 import { heroBio, heroName, heroTypeLabel, rarityLabel, t } from '../../../i18n';
 import type { AscentPrompt, Hero } from '../../../state/types';
-import { PROMPT_FOOTER_HEIGHT, RARITY_COLOR, RARITY_WASH, heroStatLine } from '../constants';
+import { PROMPT_FOOTER_HEIGHT, RARITY_COLOR, RARITY_WASH, cssHex, heroStatLine } from '../constants';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
 /**
@@ -401,18 +399,34 @@ export function heroDeckPrompt(self: ConquestUIScene, opts: {
 }
 
 /**
- * The summary. This is the screen that has to sell the *next* run, and it was the least
- * readable screen in the game: seven dim rows of brown-on-brown sitting directly on the
- * dimmed map, ending in one button back to the menu. Nothing named what had killed you,
- * nothing compared the run to your best, and nothing hinted that banked Legacy buys
- * permanent upgrades — so a loss taught the player nothing and offered them nothing.
+ * The Reckoning, written as a **chiếu chỉ** — the edict a court promulgates when a reign closes.
  *
- * Now: a panel so the text has its own ground, the cause of death in plain words, the score
- * against the record you are chasing, what the run banked and what that is nearly enough to
- * buy, and a one-tap way back in.
+ * It was a stack of admin: a score plate, seven label-and-number rows, and a gold panel selling
+ * the meta-shop. Correct, and nothing anyone would keep. This is the last thing a run says and
+ * the only screen a player has any reason to show somebody else, so it is now the one page in
+ * the game built to be *looked at*: the double rule and the sawtooth register the drum uses, the
+ * decree line down the middle, and a seal pressed crooked in the corner the way a hand presses
+ * one.
+ *
+ * **What it counts changed with it.** The old rows summed the realm — power, provinces, cards —
+ * which is the state of a machine and not the story of a reign. A war is remembered by its dead,
+ * and the numbers were already being spent and thrown away: `recordEngagement` now keeps them
+ * (`battleReport`), so the edict can say how many of the enemy fell, how many of ours did, and
+ * how many hosts were broken.
+ *
+ * **No Legacy panel.** It was the loudest thing on the page and it was an advertisement — a gold
+ * border, a progress bar and a line about what is nearly affordable, on the screen commemorating
+ * a dynasty that just ended. Legacy still banks exactly as before and the front page still spends
+ * it; it is simply not what this page is for.
+ *
+ * **It can be kept.** `captureScreen` takes the frame and hands it to the share sheet, which on
+ * a phone means Photos. The layout is deliberately fixed rather than scrolling for this reason —
+ * a snapshot photographs what is on the glass, so a page that scrolls is a page that saves half
+ * of itself.
  */
 export function showRunOver(self: ConquestUIScene, prompt: Extract<AscentPrompt, { kind: 'run-over' }>): void {
   const ascent = self.state.ascent;
+  const score = self.state.campaignScore;
   const beatBest = prompt.score > prompt.previousBest;
 
   // The reign leads the subtitle when it has a name. The Reckoning previously said only how the
@@ -427,90 +441,155 @@ export function showRunOver(self: ConquestUIScene, prompt: Extract<AscentPrompt,
 ${fall}` : fall,
   );
 
-  // ── The headline: this run against the record ───────────────────────────
-  const headHeight = 78;
-  const head = self.ui.panel(
-    { x: content.x, y: content.y, width: content.width, height: headHeight },
-    { border: beatBest ? INK_UI.gold : INK_UI.softBrush, borderWidth: 2 },
-  );
-  self.modalLayer.add(head);
-  self.modalLayer.add(self.ui.label(content.x + 16, content.y + 12,
-    beatBest ? t('ascent.over.newBest') : t('ascent.over.scoreLabel'), 'caption', {}));
-  self.modalLayer.add(self.ui.label(content.x + 16, content.y + 30,
-    prompt.score.toLocaleString('en-US'), 'label', { fontSize: '30px' }));
-  self.modalLayer.add(self.ui.label(content.x + content.width - 16, content.y + 34,
-    t('ascent.over.best', { best: Math.max(prompt.previousBest, prompt.score).toLocaleString('en-US') }),
-    'caption', { align: 'right' }).setOrigin(1, 0));
+  // Every band on this page is paid for out of one budget, because the page must not scroll and
+  // `GAME_HEIGHT` clamps as low as 620 — where the frame above has already spent most of it on a
+  // two-line reign name. It is a *document*: a decree that stops two thirds of the way down with a
+  // drift of blank paper under it is a form, not an edict, so the slack — nothing at 620, two
+  // hundred points at 1040 — is spent on the plate, the tiles and the air between the bands.
+  // `tight` is the one hard branch: at the clamp the shelf line goes and the tiles drop to 38.
+  const BUTTONS = 40 + 8 + 46 + 8 + 40;
+  const FLOOR = 92 + 10 + 3 * 38 + 2 * 8 + 10 + 12 + BUTTONS;
+  const tight = content.height < FLOOR + 34;
+  const slack = Math.max(0, content.height - (FLOOR + (tight ? 0 : 34)));
+  const plateH = 92 + Math.min(38, Math.round(slack * 0.26));
+  const shelfH = tight ? 0 : 34;
+  // The controls take the foot and never move; everything above is measured back from them.
+  const buttonY = content.y + content.height - BUTTONS - 2;
+  const air = Math.min(20, Math.max(6, Math.round(slack * 0.12)));
+  /**
+   * The tiles are what *fills* the page, so their height is derived from the room left rather
+   * than picked and then padded around. Clamped both ways: 38 is the floor at the 620 clamp, and
+   * past 78 a six-tile grid stops reading as a ledger and starts reading as six buttons.
+   */
+  const gridRoom = buttonY - (content.y + plateH + 10 + air) - air - shelfH - 10;
+  const tileH = Math.max(38, Math.min(78, Math.floor((gridRoom - 16) / 3)));
 
-  // ── What the run was made of ────────────────────────────────────────────
-  const rows: Array<[string, string]> = [
-    [t('ascent.over.waves'), String(ascent?.wavesSurvived ?? 0)],
-    [t('ascent.over.peakPower'), Math.round(ascent?.peakPower ?? 0).toLocaleString('en-US')],
-    [t('ascent.over.lands'), String(self.state.campaignScore?.peakLandsHeld ?? 0)],
-    [t('ascent.over.heroes'), String(ascent?.heroesSummoned ?? 0)],
-    [t('ascent.over.cards'), String(Object.values(ascent?.cardStacks ?? {}).reduce((a, b) => a + b, 0))],
-  ];
-  // The Chronicle, at the one moment the run is being summed up. Five stories conclude in a
-  // typical run and the Reckoning used to mention none of them; a reign that mostly followed the
-  // record is a different reign from one that mostly did not, and this is the line that says so.
-  const storyTally = chronicleTally(self.state);
-  const endings = storyTally['chinh-su'] + storyTally['da-su'] + storyTally['ngoai-truyen'];
-  if (endings > 0) {
-    rows.push([t('ascent.over.stories'), String(endings)]);
-    rows.push(['', t('ascent.over.storyLine', storyTally)]);
-  }
-  // The dead this reign put up a shrine to, by name. `state.memorials` is not the Chronicle's
-  // sixty-entry ring and is never evicted — a shrine the record forgets is not a shrine — and
-  // until now nothing drew it at all.
-  const memorials = self.state.memorials ?? [];
-  if (memorials.length > 0) {
-    rows.push([t('ascent.over.memorials'), String(memorials.length)]);
-    rows.push(['', memorials.map((entry) => entry.name).filter(Boolean).join(' · ')]);
-  }
-  const bodyY = content.y + headHeight + 10;
-  const bodyHeight = rows.length * 26 + 20;
-  self.modalLayer.add(self.ui.panel(
-    { x: content.x, y: bodyY, width: content.width, height: bodyHeight },
-    { border: INK_UI.softBrush },
-  ));
-  rows.forEach(([label, value], index) => {
-    self.modalLayer.add(self.ui.infoRow(
-      { x: content.x + 14, y: bodyY + 12 + index * 26, width: content.width - 28, height: 22 },
-      label, value,
-    ));
+  // ── The edict plate ─────────────────────────────────────────────────────
+  const plate = self.add.graphics();
+  self.modalLayer.add(plate);
+  // Two rules, the outer heavy and the inner hairline, with the drum's sawtooth between them at
+  // the head. This is the register the whole game's chrome is drawn in — see `devices.ts` — and
+  // it is the difference between a panel and a document.
+  plate.fillStyle(INK_UI.parchment, 0.96);
+  plate.fillRect(content.x, content.y, content.width, plateH);
+  plate.lineStyle(2.2, beatBest ? INK_UI.gold : INK_UI.brush, 0.95);
+  plate.strokeRect(content.x, content.y, content.width, plateH);
+  plate.lineStyle(0.9, INK_UI.brush, 0.5);
+  plate.strokeRect(content.x + 4, content.y + 4, content.width - 8, plateH - 8);
+  sawtoothBand(plate, content.x + 8, content.y + 8, content.width - 16, 5, 0.5);
+
+  const edict = self.add.text(content.x + 14, content.y + 20, t('ascent.over.edict'), {
+    color: cssHex(INK_UI.cinnabarDark),
+    fontFamily: TITLE_FONT,
+    fontSize: '13px',
+    fontStyle: '700',
   });
+  edict.setLetterSpacing?.(2.4);
+  self.modalLayer.add(edict);
 
-  // ── Legacy: the reason to press the button ──────────────────────────────
-  const legacyY = bodyY + bodyHeight + 10;
-  const nextPerk = LEGACY_PERKS
-    .filter((perk) => !ownsPerk(perk.id))
-    .sort((a, b) => a.cost - b.cost)[0];
-  const legacyHeight = nextPerk ? 74 : 50;
-  self.modalLayer.add(self.ui.panel(
-    { x: content.x, y: legacyY, width: content.width, height: legacyHeight },
-    { border: INK_UI.gold, borderWidth: 2 },
-  ));
-  self.modalLayer.add(self.ui.label(content.x + 14, legacyY + 10,
-    t('ascent.over.legacyEarned', { earned: prompt.legacyEarned, total: prompt.legacyTotal }), 'label', {
-      fontSize: '13px', wordWrap: { width: content.width - 28 },
-    }));
-  if (nextPerk) {
-    const short = Math.max(0, nextPerk.cost - prompt.legacyTotal);
-    self.modalLayer.add(self.ui.label(content.x + 14, legacyY + 32,
-      short > 0
-        ? t('ascent.over.perkShort', { perk: t(`empire.legacy.perk.${nextPerk.id}` as Parameters<typeof t>[0]), short })
-        : t('ascent.over.perkReady', { perk: t(`empire.legacy.perk.${nextPerk.id}` as Parameters<typeof t>[0]) }),
-      'caption', { wordWrap: { width: content.width - 28 } }));
-    self.modalLayer.add(self.ui.statBar(
-      { x: content.x + 14, y: legacyY + legacyHeight - 14, width: content.width - 28, height: 6 },
-      Math.min(prompt.legacyTotal, nextPerk.cost), nextPerk.cost, INK_UI.gold,
-    ));
+  // A hand-ruled line under the head, the way a decree separates its formula from its substance.
+  plate.lineStyle(0.9, INK_UI.brush, 0.35);
+  plate.lineBetween(content.x + 14, content.y + 36, content.x + content.width - 14, content.y + 36);
+
+  const scoreY = content.y + 36 + Math.max(6, Math.round((plateH - 36 - 48) / 2));
+  self.modalLayer.add(self.ui.label(content.x + 14, scoreY,
+    beatBest ? t('ascent.over.newBest') : t('ascent.over.scoreLabel'), 'caption', { fontSize: '10px' }));
+  self.modalLayer.add(self.ui.label(content.x + 14, scoreY + 12,
+    prompt.score.toLocaleString('en-US'), 'label', { fontSize: '32px' }));
+  self.modalLayer.add(self.ui.label(content.x + content.width - 64, scoreY + 24,
+    t('ascent.over.best', { best: Math.max(prompt.previousBest, prompt.score).toLocaleString('en-US') }),
+    'caption', { align: 'right', fontSize: '10px' }).setOrigin(1, 0));
+
+  // Pressed, not printed: the seal rides the corner and overhangs the rule, because that is what
+  // a seal does to a document and it is the one mark on the page that says somebody signed this.
+  const stamp = self.add.graphics();
+  self.modalLayer.add(stamp);
+  seal(stamp, content.x + content.width - 32, content.y + plateH - 32, 46,
+    beatBest ? 'star' : 'lotus');
+
+  // ── The ledger: what the reign spent and what it took ───────────────────
+  const gridY = content.y + plateH + 10 + air;
+  const colW = (content.width - 8) / 2;
+  const tiles: Array<[string, string, number]> = [
+    [t('ascent.over.waves'), String(ascent?.wavesSurvived ?? 0), INK_UI.gold],
+    // The two headline numbers this page exists to add. Both were spent by every fight in the
+    // run and neither was ever added up until `recordEngagement`.
+    [t('ascent.over.slain'), (score?.enemySoldiersSlain ?? 0).toLocaleString('en-US'), INK_UI.cinnabar],
+    [t('ascent.over.hostsBroken'), String(score?.armiesDefeated ?? 0), INK_UI.cinnabar],
+    [t('ascent.over.ourDead'), (score?.ownSoldiersLost ?? 0).toLocaleString('en-US'), INK_UI.softBrush],
+    [t('ascent.over.peakPower'), Math.round(ascent?.peakPower ?? 0).toLocaleString('en-US'), INK_UI.jade],
+    [t('ascent.over.lands'), String(score?.peakLandsHeld ?? 0), INK_UI.jade],
+  ];
+  tiles.forEach(([label, value, accent], index) => {
+    const x = content.x + (index % 2) * (colW + 8);
+    const y = gridY + Math.floor(index / 2) * (tileH + 8);
+    self.modalLayer.add(self.ui.panel({ x, y, width: colW, height: tileH },
+      { border: INK_UI.softBrush, fillAlpha: 0.5 }));
+    // A hairline of the tile's own ink down its left edge — the same rule the option cards use
+    // to say what class a row belongs to, at a sixth of the width.
+    const edge = self.add.graphics();
+    edge.fillStyle(accent, 0.9);
+    edge.fillRect(x + 1.5, y + 5, 2.5, tileH - 10);
+    self.modalLayer.add(edge);
+    // The caption sits on the tile's head and the figure on its foot, so the pair reads as a
+    // ledger entry at any height the grid takes. Both offsets are `tight`-aware: at the 38-point
+    // floor a 9px caption and a 20px figure are 33 points of type in a 38-point box, and the
+    // caption printed straight through the number.
+    self.modalLayer.add(self.ui.label(x + 12, y + (tight ? 4 : 7), label, 'caption',
+      { fontSize: tight ? '8px' : '9px' }));
+    self.modalLayer.add(self.ui.label(x + 12, y + tileH - (tight ? 21 : 28), value, 'label',
+      { fontSize: tight ? '15px' : '20px' }));
+  });
+  let cursor = gridY + 3 * (tileH + 8) - 8 + air;
+
+  // ── The shelf, in one line ──────────────────────────────────────────────
+  // Champions, powers and stories were three rows of a table each; they are counts, not a
+  // reckoning, and they belong under the ledger rather than in it.
+  if (!tight) {
+    const storyTally = chronicleTally(self.state);
+    const endings = storyTally['chinh-su'] + storyTally['da-su'] + storyTally['ngoai-truyen'];
+    const cards = Object.values(ascent?.cardStacks ?? {}).reduce((a, b) => a + b, 0);
+    self.modalLayer.add(self.ui.label(content.x + content.width / 2, cursor,
+      t('ascent.over.shelf', { heroes: ascent?.heroesSummoned ?? 0, cards, stories: endings }),
+      'caption', { fontSize: '10px', align: 'center', wordWrap: { width: content.width - 8 } })
+      .setOrigin(0.5, 0));
+    cursor += 16;
+
+    // The dead this reign put up a shrine to, by name. `state.memorials` is not the Chronicle's
+    // sixty-entry ring and is never evicted — a shrine the record forgets is not a shrine. It is
+    // the one line here whose height nothing bounds (a long reign enshrines several names and it
+    // wraps), so it is only printed when there is room above the controls for it to wrap into.
+    const named = (self.state.memorials ?? []).map((entry) => entry.name).filter(Boolean);
+    if (named.length > 0 && cursor + 24 < buttonY) {
+      const line = self.ui.label(content.x + content.width / 2, cursor,
+        t('ascent.over.enshrined', { names: named.join(' · ') }), 'caption',
+        { fontSize: '9px', align: 'center', wordWrap: { width: content.width - 8 } })
+        .setOrigin(0.5, 0);
+      self.modalLayer.add(line);
+      cursor += line.height + 4;
+    }
   }
 
-  // ── Back in, or out to spend ────────────────────────────────────────────
-  const buttonY = legacyY + legacyHeight + 14;
+  // ── Keep it, then go again ──────────────────────────────────────────────
+  const keep = self.ui.button(
+    { x: content.x, y: buttonY, width: content.width, height: 40 },
+    t('ascent.over.keep'),
+    () => {
+      // The label is the whole feedback channel: there is no toast on this screen and a share
+      // sheet that is still opening looks exactly like a button that did nothing.
+      const face = keep.list.find((part): part is Phaser.GameObjects.Text => (
+        part instanceof Phaser.GameObjects.Text));
+      face?.setText(t('ascent.over.keeping'));
+      void captureScreen(self.game, prompt.reign ?? t('ascent.over.title')).then((result) => {
+        face?.setText(t(result === 'failed' ? 'ascent.over.keepFailed' : 'ascent.over.kept'));
+      });
+    },
+    { fontSize: '13px' },
+  );
+  self.modalLayer.add(keep);
+
   self.modalLayer.add(self.ui.button(
-    { x: content.x, y: buttonY, width: content.width, height: 46 },
+    { x: content.x, y: buttonY + 48, width: content.width, height: 46 },
     t('ascent.over.again'),
     () => self.events.emit('ui:restart-ascent'),
     { variant: 'primary', fontSize: '15px' },
@@ -520,24 +599,13 @@ ${fall}` : fall,
   // action bar it was a button promising something to do about a list of "???" rows.
   const codex = codexProgress();
   self.modalLayer.add(self.ui.button(
-    { x: content.x, y: buttonY + 54, width: content.width / 2 - 5, height: 40 },
+    { x: content.x, y: buttonY + 102, width: content.width / 2 - 5, height: 40 },
     t('ascent.codex.button', codex),
     () => self.showCodex(),
     { fontSize: '12px' },
   ));
-  // The other shelf, beside the champions: how much of the Chronicle this player has actually
-  // met. The catalogue is several times larger than one run and nothing else says so.
-  const stories = storyProgress(storyCatalogIds.length);
-  self.modalLayer.add(self.ui.label(
-    content.x, buttonY + 100,
-    // The dead of *every* reign, not this one: `getMemorials` reads the cross-run echo ring, so
-    // a name enshrined three dynasties ago is still counted here beside the stories met.
-    `${t('ascent.codex.stories')}  ${stories.met}/${stories.total}`
-      + (getMemorials().length > 0 ? `   ·   ${t('ascent.chronicle.memorials')} ${getMemorials().length}` : ''),
-    'caption', { fontSize: '11px' },
-  ));
   self.modalLayer.add(self.ui.button(
-    { x: content.x + content.width / 2 + 5, y: buttonY + 54, width: content.width / 2 - 5, height: 40 },
+    { x: content.x + content.width / 2 + 5, y: buttonY + 102, width: content.width / 2 - 5, height: 40 },
     t('ascent.over.return'),
     () => self.events.emit('ui:exit-to-menu'),
     { fontSize: '13px' },

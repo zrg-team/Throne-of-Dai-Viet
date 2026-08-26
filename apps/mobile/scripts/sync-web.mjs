@@ -12,7 +12,7 @@
  * Run from `apps/mobile`: `yarn sync`.
  */
 import { createWriteStream } from 'node:fs';
-import { copyFile, mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,21 +76,22 @@ const bytes = (await stat(archive)).size;
 console.log(`web.zip  ${(bytes / 1024 / 1024).toFixed(2)} MB  build ${build}`);
 
 /**
- * The launcher marks, copied rather than drawn again.
+ * The launcher marks, cut rather than drawn again.
  *
- * `scripts/build-icon.mjs` in the repository root cuts every size of the drum from one drawing, so
- * the app icon has a source already and a second one would be a second thing to keep in step. The
- * maskable cut is what Android's adaptive icon wants: it carries the safe margin the launcher
- * needs before it crops to whatever shape the phone uses.
+ * `scripts/build-icon.mjs` in the repository root draws the drum once and rasterises it at any
+ * size asked for, so the app icon has a source already and a second one would be a second thing
+ * to keep in step. Its `--mobile` mode cuts the three marks this cabinet bundles, straight into
+ * `assets/`, under the names `app.json` points at.
+ *
+ * These used to be copies of the 512s out of `public/`. They are cut at 1024 now because Apple's
+ * marketing slot is 1024x1024 and Expo's prebuild upscales a smaller source rather than refusing
+ * it — so the old copy shipped a soft icon and said nothing about it. The size lives over there
+ * with the drawing, not here.
+ *
+ * Spawned rather than imported: this script runs under `apps/mobile`'s npm tree, and playwright
+ * is in the repository root's. `cwd` is what puts the right `node_modules` in scope.
  */
-const marks = [
-  ['icon-512.png', 'icon.png'],
-  ['icon-maskable-512.png', 'adaptive-icon.png'],
-  // On the ink of the splash, the drum on its sheet of paper reads as a print rather than a logo.
-  ['icon-512.png', 'splash.png'],
-];
-
-for (const [from, to] of marks) {
-  await copyFile(join(root, 'public', from), join(assets, to));
-}
-console.log(`marks    ${marks.map(([, to]) => to).join('  ')}`);
+execFileSync(process.execPath, [join(root, 'scripts', 'build-icon.mjs'), '--mobile', assets], {
+  cwd: root,
+  stdio: 'inherit',
+});

@@ -23,6 +23,7 @@ import {
 } from '../../game/constants';
 import { refreshAscentLaneState } from '../../systems/ascent/ConquestSystem';
 import { countOpenDoors } from '../../systems/story/StorySystem';
+import { contestedFronts } from '../../systems/ascent/battleReport';
 import { INK_UI, InkUI } from '../../ui/InkUI';
 import { playWaveBanner } from '../../ui/ascent/waveBanner';
 import { AscentHud } from '../../ui/ascent/AscentHud';
@@ -228,6 +229,21 @@ export function refresh(self: ConquestUIScene): void {
   // A fight that has just begun brings its own screen up. After the prompt key is reconciled,
   // so a card that arrived on the same tick is answered first and the battle follows it.
   if (self.maybeAutoOpenBattle()) return;
+
+  // The war spreading to a second province brings the board up, ahead of the Reckoning for a
+  // fight that has just ended: one is news about what happened, the other is a decision about
+  // what to do next, and the decision does not wait behind the news. `addSideBattle` has already
+  // stopped the world; `showWarBoard` clears the flag and hands the pause back on the way out.
+  //
+  // `!overlayOpen` would be wrong here and it is the case that matters most: the player is very
+  // often *already on the battle screen* when the war spreads, and that is precisely the moment
+  // they need telling. The battle lane is the one overlay this may replace, because it is the
+  // same lane — it re-renders as the board and its own Close still leads home.
+  if (self.state.ascent?.frontsOpened && !prompt
+    && (!overlayOpen || self.openPromptKey === 'lane:battle')) {
+    self.openLane('battle');
+    return;
+  }
 
   // A fight that has just ended brings its own screen up too. After the battle, obviously, and
   // after any card that arrived with it — the world is held while it is read, exactly as every
@@ -532,9 +548,17 @@ function barStatusColor(self: ConquestUIScene, action: string): number | undefin
   if (!ascent) return undefined;
 
   switch (action) {
-    // A live siege is the loudest thing the bar can say.
-    case 'battle':
-      return ascent.activeBattle ? INK_UI.cinnabar : undefined;
+    // A live siege is the loudest thing the bar can say — and a province under attack that the
+    // screen did not open for is the second loudest. It used to say nothing at all about the
+    // second, which is most of the 20–96 engagements a measured run settles.
+    case 'battle': {
+      if (ascent.activeBattle) return INK_UI.cinnabar;
+      const fronts = contestedFronts(state);
+      if (fronts.length === 0) return undefined;
+      return fronts.some((front) => front.besieged || front.theirMen > front.ourMen)
+        ? INK_UI.cinnabar
+        : INK_UI.gold;
+    }
     case 'heroes':
       return state.heroes.some((hero) => !hero.assignedTo) ? INK_UI.jade : undefined;
     case 'court':

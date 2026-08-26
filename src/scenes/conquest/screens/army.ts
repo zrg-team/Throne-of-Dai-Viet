@@ -25,6 +25,7 @@ import { ascentArmyUpkeep, getPlayerTroops } from '../../../systems/ResourceSyst
 import { findFreeCommander } from '../../../systems/ascent/AutopilotSystem';
 import { armyOrders, hostOrderLabel, isAutoHost } from '../../../systems/ascent/armyOrders';
 import { resupplyPreview } from '../../../systems/ascent/StandingOrders';
+import { focusBattle, liveBattles } from '../../../systems/ascent/fronts';
 import { musterRows } from '../../../systems/ascent/MusterSystem';
 import {
   MIN_ARMY_SOLDIERS,
@@ -93,26 +94,46 @@ export function showArmyScreen(self: ConquestUIScene): void {
   // where it already is: the live battle, each invader the realm can see and what it is
   // marching on, our own sieges, and the front the autopilot is pressing.
   addHeading(t('army.section.war'));
-  const battle = ascent?.activeBattle;
-  if (battle && !battle.over) {
+  /**
+   * **Every** field, not the one on screen.
+   *
+   * This row was `ascent.activeBattle` and nothing else, which was true of a war that could only
+   * have one field. A general holding a second front is doing the most consequential thing in the
+   * realm and the army screen — the screen about where the realm's soldiers are — said nothing
+   * about it. Each row is a door: the commanded field opens the fight, a held one walks you onto
+   * it first. Ours first, then worst odds; see `liveBattles`.
+   */
+  const fields = liveBattles(state);
+  const commandedLand = ascent?.activeBattle?.landId;
+  const battle = fields[0];
+  for (const field of fields) {
+    const commanded = field.landId === commandedLand;
     addRow(
       {
-        title: t('ascent.war.battleRow', {
-          land: battle.landName,
-          round: battle.round,
-          total: battle.totalRounds,
+        title: (commanded ? '▸ ' : '') + t('ascent.war.battleRow', {
+          land: field.landName,
+          round: field.round,
+          total: field.totalRounds,
         }),
-        subtitle: t('ascent.war.battleBody', {
-          ours: Math.round(battle.ourNow),
-          theirs: Math.round(battle.theirNow),
+        subtitle: t(commanded ? 'ascent.war.battleBody' : 'ascent.war.battleBodyHeld', {
+          ours: Math.round(field.ourNow),
+          theirs: Math.round(field.theirNow),
+          name: field.generalName ?? t('ascent.aftermath.officers'),
         }),
-        border: INK_UI.cinnabar,
+        border: commanded ? INK_UI.cinnabar : INK_UI.gold,
       },
       // Through the lane, not `showBattle` directly: the lane key is what makes `refresh`
       // beat the screen forward, so a battle opened here used to sit frozen at its first frame.
-      () => { self.closeLane(); self.openLane('battle'); },
+      () => {
+        if (!commanded) focusBattle(state, field.landId);
+        self.closeLane();
+        self.openLane('battle');
+      },
     );
-    // And the question the war section exists to put: who can be sent.
+  }
+  if (battle) {
+    // And the question the war section exists to put: who can be sent. Asked of the field the
+    // player is standing on — relief marches to one province, not to "the war".
     const relief = reinforcementsEnRoute(state, battle);
     const sendable = reinforcementCandidates(state, battle).filter((row) => !row.blockedReason && !row.enRoute).length;
     addRow(

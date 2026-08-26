@@ -122,16 +122,17 @@ export function buildBattleRails(self: ConquestUIScene, battle: AscentBattle): v
    * that strip was already doing the pointing.
    */
 
-  // The ground's edge, computed since the day the screen shipped and printed nowhere. A player
-  // deciding whether to intercept on high ground could not see what it bought them. It belongs
-  // to the ground, not the beat, so it is written once.
-  if (battle.terrainEdge > 1.01) {
-    readout.add(self.ui.label(
-      content.x + content.width / 2, readoutY + BATTLE_RAILS_HEIGHT + 3,
-      t('ascent.battle.terrain', { mult: battle.terrainEdge.toFixed(2) }), 'caption',
-      { fontSize: '10px', align: 'center' },
-    ).setOrigin(0.5, 0));
-  }
+  /**
+   * The ground's edge is **not** drawn here any more — it is the readout band's right column,
+   * under the verdict (`buildBattleReadout`).
+   *
+   * It used to hang centred at `readoutY + BATTLE_RAILS_HEIGHT + 3`, in the gap between this band
+   * and the dock. There is no gap: `dockY` is `readoutY + 66` and a 10px line starting at
+   * `readoutY + 59` runs to 72, so the edge printed straight through the price line — user
+   * report with a screenshot of `Địa lợi nghiêng về ta ×1.30` inked over
+   * `−3 quân mỗi nhịp`. Nothing owned the seven points between the two bands, which is why
+   * nothing ever measured them.
+   */
 }
 
 /**

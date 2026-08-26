@@ -1,0 +1,69 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "copyright": "2026 zrg team",
+    "info": {
+      "en-US": {
+        "title": "Vạn Thắng",
+        "subtitle": "Grand strategy in ink",
+        "description": "One castle. One small army. One ruler with more ambition than land.\n\nVạn Thắng is a grand strategy game drawn in the ink of Đông Hồ woodblock prints — the folk art of northern Vietnam, cut by hand and printed on shell-coated paper. Every hex of the map, every hero's face, every banner is drawn in that tradition rather than rendered.\n\nYou begin as a minor lord on a Vietnam-inspired map. A farm answers hunger. An iron mountain arms your infantry. A port pays for the next campaign. A temple steadies a court that would otherwise turn on you. Every neighbouring land is a visible want, and every one of them belongs to somebody.\n\nFOUR WAYS TO PLAY\n\n• Conquest — take the map one province at a time, by war, marriage or coin\n• Throne of Empires — an endless reign, with prestige and a dynasty that outlives you\n• Dragon Ascent — a roguelite of endless waves; pause, pick a card, and hold the line\n• Battle Lab — the combat system alone, to learn its edges\n\nWAR IS A CONVERSATION\n\nFormations answer formations. Terrain answers both. A general's temper decides what he does with an order you gave an hour ago. Battles resolve in three breaths, and you may take command of any of them or let your marshals handle it.\n\nA COURT THAT REMEMBERS\n\nHeroes are people, not stat blocks — 125 of them drawn from real Vietnamese history, each with a life before you found them. Ministers argue. Generals sulk. The chronicle writes down what actually happened, including the parts you would rather it forgot.\n\nNO INTERNET. NO ACCOUNT. NO ADS.\n\nThe entire game runs on your device. There is no login, no server, no telemetry, and nothing to buy. Turn off the network and it plays exactly the same.\n\nFree and open source.",
+        "keywords": [
+          "strategy",
+          "grand strategy",
+          "vietnam",
+          "history",
+          "kingdom",
+          "empire",
+          "war",
+          "roguelite",
+          "offline",
+          "turn based"
+        ],
+        "releaseNotes": "First release.",
+        "marketingUrl": "https://zrg-team.github.io/ten-thousand-victories/",
+        "supportUrl": "https://github.com/zrg-team/ten-thousand-victories",
+        "privacyPolicyUrl": "https://zrg-team.github.io/ten-thousand-victories/privacy.html"
+      }
+    },
+    "categories": [
+      [
+        "GAMES",
+        "GAMES_STRATEGY"
+      ],
+      [
+        "GAMES",
+        "GAMES_SIMULATION"
+      ]
+    ],
+    "review": {
+      "firstName": "REPLACE_ME",
+      "lastName": "REPLACE_ME",
+      "email": "you@example.com",
+      "phone": "REPLACE_ME",
+      "demoRequired": false,
+      "notes": "The game is fully offline and needs no account. All content is reachable from the main menu immediately: Conquest and Throne of Empires start a campaign, Dragon Ascent is the roguelite mode, Battle Lab demonstrates combat alone. There is no login, no network access at runtime, and no purchases. The app serves itself from a local server on the device (127.0.0.1), which is why it works with the network switched off."
+    },
+    "release": {
+      "automaticRelease": false
+    },
+    "advisory": {
+      "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+      "contests": "NONE",
+      "gamblingSimulated": "INFREQUENT_OR_MILD",
+      "horrorOrFearThemes": "NONE",
+      "matureOrSuggestiveThemes": "NONE",
+      "medicalOrTreatmentInformation": "NONE",
+      "profanityOrCrudeHumor": "NONE",
+      "sexualContentGraphicAndNudity": "NONE",
+      "sexualContentOrNudity": "NONE",
+      "violenceCartoonOrFantasy": "INFREQUENT_OR_MILD",
+      "violenceRealistic": "NONE",
+      "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+      "gambling": false,
+      "unrestrictedWebAccess": false,
+      "kidsAgeBand": null,
+      "ageRatingOverride": "NONE",
+      "koreaAgeRatingOverride": "NONE"
+    }
+  }
+}

@@ -1,6 +1,5 @@
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-
-import appJson from '../app.json';
 
 /**
  * The cabinet's half of the contract in `apps/README.md`: the `window.__shell` descriptor, built
@@ -20,7 +19,12 @@ export function shellDescriptorScript(): string {
     // The two stores' rules differ and one build serves both, so this is the field that decides
     // whether the menu may show a donation link. See `allowsDonationLinks` in the game.
     os: Platform.OS === 'ios' ? ('ios' as const) : ('android' as const),
-    version: appJson.expo.version,
+    /**
+     * The resolved config, not `app.json`. The version is supplied by `app.config.js` out of the
+     * repository root's `package.json`, so it does not exist in the static file at all — reading
+     * it from there would report whatever was last hand-typed, or nothing.
+     */
+    version: Constants.expoConfig?.version ?? '',
   };
 
   // JSON.stringify, not a template literal with the values dropped in: the version string comes

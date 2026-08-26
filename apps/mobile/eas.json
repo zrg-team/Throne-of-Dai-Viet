@@ -10,10 +10,17 @@
       "android": { "buildType": "apk" },
       "ios": { "simulator": false }
     },
+    "simulator": {
+      "extends": "preview",
+      "ios": { "simulator": true }
+    },
     "production": {
-      "autoIncrement": true,
       "android": { "buildType": "app-bundle" }
     }
   },
-  "submit": { "production": {} }
+  "submit": {
+    "production": {
+      "android": { "track": "internal" }
+    }
+  }
 }
