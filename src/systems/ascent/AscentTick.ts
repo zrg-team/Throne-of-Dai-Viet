@@ -276,7 +276,7 @@ export function advanceAscentTick(state: GameState): void {
   const live = state.ascent.activeBattle;
   if (live && !live.delegated && !live.steeredFormation && !live.steeredStance
     && (live.approachBeats ?? 0) + live.round >= ASCENT_AUTO_DELEGATE_BEATS) {
-    delegateBattle(state, true);
+    delegateBattle(state, true, false);
   }
   advanceBattle(state);
 

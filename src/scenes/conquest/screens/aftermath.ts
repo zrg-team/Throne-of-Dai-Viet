@@ -11,11 +11,12 @@
  * layer afterwards and dismisses itself.
  */
 import { storyText, storyTitle } from '../../../i18n/story';
+import { renderHeroFaceInBox } from '../../../ui/FaceRenderer';
 import { INK_UI, INK_UI_HEX } from '../../../ui/InkUI';
-import { UI_FONT } from '../../../ui/fonts';
+import { TITLE_FONT, UI_FONT } from '../../../ui/fonts';
 import { t } from '../../../i18n';
 import type { GameState } from '../../../state/types';
-import { formatOutcomeAmount } from '../constants';
+import { cssHex, formatOutcomeAmount } from '../constants';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
 export function dismissStoryOutcome(self: ConquestUIScene): void {
@@ -121,16 +122,20 @@ export function showStoryOutcome(self: ConquestUIScene, report: NonNullable<Game
 }
 
 /**
- * The Reckoning: what the fight cost, what it bought, and who else was fighting.
+ * The Reckoning: where it was fought, who held it, what it cost, and what it bought.
  *
  * Every figure here was already being written down and then discarded. `battleHistory` carries
  * the butcher's bill, `grantRepelSpoils` and `XP_PER_BATTLE_WON` carry what it paid for, and
  * `levyFought` carries whether the province turned its own people out — and the screen closed on
  * one line of message strip, so the most consequential thing in the mode ended by vanishing.
  *
- * The dispatch below it is the other half of making delegation legitimate. A run-wide switch
- * that hands two thirds of the war to the generals is a way of playing; the same switch when it
- * makes those fights silent is a way of turning the game off.
+ * **And then it was five bordered boxes in a column.** A card is a surface you press; a report
+ * has nothing on it to press, so a report drawn as five cards reads as a menu that ignores every
+ * tap. Reported verbatim: *battle result too bad UI/UX — stop using card everywhere; show hero,
+ * show army info, show result, show place clearly.* So: the verdict is set large against the
+ * paper under a rule of its own ink, the commander is a face and a name, the bill is a table,
+ * and the dispatches are lines with a rail. The only pressable thing on the page is the one
+ * button at the foot, which is the honest count of what the player can do here.
  */
 function showAftermathScreen(self: ConquestUIScene): void {
   const pending = self.state.ascent?.pendingAftermath;
@@ -153,8 +158,9 @@ function showAftermathScreen(self: ConquestUIScene): void {
     : record.outcome === 'we-rout' ? 'broken'
       : record.outcome === 'retreat' ? 'withdrew'
         : held ? (offence ? 'stormed' : 'held') : (offence ? 'repulsed' : 'lost');
+  const ink = held ? INK_UI.jade : INK_UI.cinnabar;
 
-  const { addRow, addHeading, addNote, addWidget, finish } = self.laneList(
+  const { addHeading, addNote, addWidget, finish } = self.laneList(
     t(`ascent.aftermath.title.${titleKey}` as Parameters<typeof t>[0]),
     // `rounds: 0` is the mark of a fight nobody stood on the field for — `resolveInvaderBattle`
     // settles it as an odds roll and files the record honestly rather than inventing a beat
@@ -165,45 +171,107 @@ function showAftermathScreen(self: ConquestUIScene): void {
     { footer: { label: t('ascent.aftermath.continue'), onTap: () => dismissAftermath(self) } },
   );
 
-  // The bill, as two bars against the same scale — the only honest way to show a trade.
-  const worst = Math.max(1, record.ourStart, record.theirStart);
-  addWidget(64, (parent, width) => {
-    const bar = (y: number, label: string, lost: number, of: number, colour: number): void => {
-      parent.add(self.ui.label(0, y, label, 'caption', {}));
-      parent.add(self.ui.label(width, y, t('ascent.aftermath.fell', { n: lost, of }), 'caption',
-        { align: 'right' }).setOrigin(1, 0));
-      parent.add(self.ui.statBar({ x: 0, y: y + 16, width, height: 7 }, lost, worst, colour));
-    };
-    bar(0, t('ascent.aftermath.ourDead'), ourLost, record.ourStart, INK_UI.cinnabar);
-    bar(32, t('ascent.aftermath.theirDead'), theirLost, record.theirStart, INK_UI.softBrush);
+  // The verdict: the province, named, and what became of it. The one thing the player opened
+  // this screen to learn, so it is the largest thing on it and it is at the top.
+  addWidget(58, (parent, width) => {
+    const verdict = self.add.text(12, 0, t((offence
+      ? (held ? 'ascent.aftermath.tookTitle' : 'ascent.aftermath.failedTitle')
+      : (held ? 'ascent.aftermath.keptTitle' : 'ascent.aftermath.lostTitle')) as Parameters<typeof t>[0],
+    { land: record.landName }), {
+      color: cssHex(ink),
+      fontFamily: TITLE_FONT,
+      fontSize: '19px',
+      fontStyle: '700',
+      wordWrap: { width: width - 14 },
+    });
+    const under = self.ui.label(12, verdict.height + 4, t('ascent.aftermath.keptNote', {
+      ours: Math.round(record.ourEnd), theirs: Math.round(record.theirEnd), hosts: record.theirHosts,
+    }), 'caption', { fontSize: '11px', wordWrap: { width: width - 14 } });
+    const rule = self.add.graphics();
+    rule.fillStyle(ink, 0.85);
+    rule.fillRect(0, 2, 3, verdict.height + under.height + 2);
+    parent.add(rule);
+    parent.add(verdict);
+    parent.add(under);
+    return verdict.height + 4 + under.height;
   });
 
-  // Who held the field. A delegated fight names its commander, because an appointment the
-  // player made is the reason the fight went the way it did.
-  if (record.delegated) {
-    addRow({
-      title: record.generalName
-        ? t('ascent.aftermath.generalFought', { name: record.generalName })
-        : t('ascent.aftermath.officersFought'),
-      subtitle: t('ascent.aftermath.generalNote'),
-      border: INK_UI.gold,
-    });
-  }
+  // Who held it, with their face on. `generalHeroId` is stamped at the moment the record is
+  // filed, because by the time this is read the hosts have been dissolved and there is nothing
+  // left on the state to look a portrait up from.
+  const hero = record.generalHeroId
+    ? self.state.heroes.find((candidate) => candidate.id === record.generalHeroId)
+    : undefined;
+  addHeading(t('ascent.aftermath.commander'));
+  addWidget(48, (parent, width) => {
+    const face = 44;
+    if (hero) {
+      const plate = self.add.graphics();
+      plate.fillStyle(INK_UI.parchmentShade, 1);
+      plate.fillRoundedRect(0, 0, face, face, 4);
+      plate.lineStyle(1, INK_UI.softBrush, 1);
+      plate.strokeRoundedRect(0, 0, face, face, 4);
+      parent.add(plate);
+      parent.add(renderHeroFaceInBox(self, hero, { x: 0, y: 0, width: face, height: face }));
+    }
+    const left = hero ? face + 10 : 0;
+    const name = self.ui.label(left, 2, record.generalName
+      ?? hero?.name
+      ?? t(record.delegated ? 'ascent.aftermath.commanderOfficers' : 'ascent.aftermath.commanderYou'),
+    'body', { fontSize: '13px', fontStyle: '700', wordWrap: { width: width - left } });
+    parent.add(name);
+    const note = self.ui.label(left, name.height + 4, t(record.delegated
+      ? 'ascent.aftermath.generalNote'
+      : 'ascent.aftermath.commanderYouNote'), 'caption',
+    { fontSize: '11px', wordWrap: { width: width - left } });
+    parent.add(note);
+    return Math.max(hero ? face : 0, name.height + 4 + note.height);
+  });
+
+  /**
+   * The butcher's bill as a table.
+   *
+   * Two bars against one scale was the honest way to show the trade and it was *only* the trade:
+   * a player reading "0 of 727 fell" against "385 of 960 fell" still had to do the subtraction to
+   * learn what they had left to meet the next wave with, which is the figure that decides what
+   * they do next. Four rows, two columns, and no bars: drawn under the table they read as one
+   * grey smudge across the page, and a fight the player took no losses in drew a full-width empty
+   * track that looked like a loading bar.
+   */
+  addHeading(t('ascent.aftermath.count'));
+  addWidget(90, (parent, width) => {
+    const col = Math.round(width * 0.27);
+    const oursX = width - col - 8;
+    const theirsX = width;
+    const head = (x: number, label: string): void => {
+      parent.add(self.ui.label(x, 0, label, 'caption',
+        { fontSize: '10px', fontStyle: '700', align: 'right' }).setOrigin(1, 0));
+    };
+    head(oursX, t('ascent.aftermath.ourDead'));
+    head(theirsX, t('ascent.aftermath.theirDead'));
+
+    let y = 16;
+    const row = (label: string, ours: number, theirs: number, tone?: number): void => {
+      parent.add(self.ui.label(0, y, label, 'caption', { fontSize: '11px' }));
+      const cell = (x: number, value: number): void => {
+        const style: Record<string, unknown> = { fontSize: '12px', align: 'right' };
+        if (tone) style.color = cssHex(tone);
+        parent.add(self.ui.label(x, y - 1, `${Math.round(value)}`, 'body', style).setOrigin(1, 0));
+      };
+      cell(oursX, ours);
+      cell(theirsX, theirs);
+      y += 18;
+    };
+    row(t('ascent.aftermath.marched'), record.ourStart, record.theirStart);
+    row(t('ascent.aftermath.fellRow'), ourLost, theirLost, INK_UI.cinnabar);
+    row(t('ascent.aftermath.leftRow'), record.ourEnd, record.theirEnd);
+    row(t('ascent.aftermath.columns'), record.ourHosts, record.theirHosts);
+    return y;
+  });
 
   // Historically literal under ngụ binh ư nông: the levy is farmers, and they go home to the
   // fields rather than back to a wall they never lived on.
   if (record.levyFought) addNote(t('ascent.aftermath.levyHome', { land: record.landName }));
-
-  addRow({
-    title: t((offence
-      ? (held ? 'ascent.aftermath.tookTitle' : 'ascent.aftermath.failedTitle')
-      : (held ? 'ascent.aftermath.keptTitle' : 'ascent.aftermath.lostTitle')) as Parameters<typeof t>[0],
-    { land: record.landName }),
-    subtitle: t('ascent.aftermath.keptNote', {
-      ours: record.ourEnd, theirs: record.theirEnd, hosts: record.theirHosts,
-    }),
-    border: held ? INK_UI.jade : INK_UI.cinnabar,
-  });
 
   // One line of chronicle, in the voice the annals use: when, where, against whom, and what it
   // cost. This is the sentence a player will remember a fight by long after the numbers above it
@@ -218,8 +286,10 @@ function showAftermathScreen(self: ConquestUIScene): void {
     kingdom: record.kingdomName ?? t('ascent.aftermath.theEnemy'),
     dead: ourLost,
     leader: record.generalName ?? t('ascent.aftermath.theHost'),
-  }), held ? INK_UI.jade : INK_UI.cinnabar);
+  }), ink);
 
+  // The fights the generals settled while this one ran. Lines with a rail, not cards: they are
+  // news, and there is nothing to press on any of them.
   if (alsoFought.length > 0) {
     addHeading(t('ascent.aftermath.elsewhere'), t('ascent.aftermath.elsewhereHint'));
     for (const other of alsoFought) {
@@ -229,15 +299,22 @@ function showAftermathScreen(self: ConquestUIScene): void {
       const dispatchKey = other.role === 'offence'
         ? (theirs ? 'took' : 'repulsed')
         : (theirs ? 'won' : 'lost');
-      addRow({
-        title: other.landName,
-        subtitle: t(`ascent.aftermath.dispatch.${dispatchKey}` as Parameters<typeof t>[0], {
-          name: other.generalName ?? t('ascent.aftermath.officers'),
-          ours: Math.max(0, other.ourStart - other.ourEnd),
-          theirs: Math.max(0, other.theirStart - other.theirEnd),
-        }),
-        border: theirs ? INK_UI.softBrush : INK_UI.cinnabar,
-        muted: true,
+      addWidget(34, (parent, width) => {
+        const where = self.ui.label(12, 0, other.landName, 'body',
+          { fontSize: '12px', fontStyle: '700' });
+        const said = self.ui.label(12, where.height + 1,
+          t(`ascent.aftermath.dispatch.${dispatchKey}` as Parameters<typeof t>[0], {
+            name: other.generalName ?? t('ascent.aftermath.officers'),
+            ours: Math.max(0, Math.round(other.ourStart - other.ourEnd)),
+            theirs: Math.max(0, Math.round(other.theirStart - other.theirEnd)),
+          }), 'caption', { fontSize: '11px', wordWrap: { width: width - 14 } });
+        const rail = self.add.graphics();
+        rail.fillStyle(theirs ? INK_UI.jade : INK_UI.cinnabar, 0.7);
+        rail.fillRect(0, 2, 3, where.height + said.height);
+        parent.add(rail);
+        parent.add(where);
+        parent.add(said);
+        return where.height + 1 + said.height;
       });
     }
   }

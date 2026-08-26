@@ -114,7 +114,7 @@ const before = await page.evaluate(() => {
   const r = window.__phaserGame.canvas.getBoundingClientRect();
   const k = r.width / 390;
   const zones = ui.battleUi.orders.list
-    .filter((o) => o.type === 'Zone' && o.input && o.height > 30)
+    .filter((o) => o.type === 'Zone' && o.input && o.height > 40)
     .sort((a, c) => a.x - c.x);
   // A shape we are not already standing in, so the order is a real change.
   const idx = zones.findIndex((_, i) => i !== ['chong', 'xung', 'tan', 'quy', 'no'].indexOf(b.ourFormation));
@@ -131,7 +131,11 @@ await page.mouse.move(before.x, before.y);
 await page.mouse.down();
 await page.waitForTimeout(80);
 await page.mouse.up();
-await page.waitForTimeout(2500);
+// Past the opening drum, not merely past the tap. `BATTLE_OPENING_SECONDS` is 5, and an order
+// given while the drum is still beating is *taken* and does not start the fight — deliberate,
+// so that a player cannot wait, read the enemy's shape and then commit (see `releaseBattleHold`).
+// At 2500 this measured the hold rather than the order and read as a deadened screen.
+await page.waitForTimeout(6500);
 
 const after = await page.evaluate(() => {
   const ui = window.__phaserGame.scene.getScene('ConquestUIScene');

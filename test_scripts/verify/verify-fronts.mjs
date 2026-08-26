@@ -186,7 +186,10 @@ line(a.sides.length === 1 && a.focus && !a.sides.includes(a.focus),
   'one is the player\'s, the other a side front', `focus ${a.focus}, sides ${a.sides.join(',') || '-'}`);
 line(a.sideHeldByGeneral, 'the side front opens under a general', String(a.sideHeldByGeneral));
 line(a.alerted >= 2, 'the count is announced', `frontsOpened=${a.alerted}`);
-line(a.stopped, 'and the world stops for it', `isStrategyPause=${a.stopped}`);
+// Announced, not frozen: stopping a running battle to report another one is the stall reported
+// as "fight stop in middle, nothing to do". The hold is kept only when nobody is on a field, and
+// then the board comes up to choose from — see `addSideBattle`.
+line(!a.stopped, 'and the world does NOT stop for it while a fight is under way', `isStrategyPause=${a.stopped}`);
 
 console.log('');
 const stalled = out.moved.filter((m) => !m.gone && m.to <= m.from);

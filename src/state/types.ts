@@ -2096,6 +2096,14 @@ export interface AscentBattleRecord {
   levyFought: boolean;
   /** The commander who held the field, when the player handed it over. */
   generalName?: string;
+  /**
+   * And who they were, so the Reckoning can put a face on the report.
+   *
+   * The name alone is what the chronicle line needs and it is not enough for a portrait — two
+   * heroes may share one, and by the time the card is read the hosts have already been dissolved,
+   * so there is nothing left on the state to look the face up from.
+   */
+  generalHeroId?: string;
   /** Who it was fought against, and when, so the chronicle line can name them. */
   kingdomName?: string;
   year?: number;
@@ -2338,6 +2346,19 @@ export interface AscentState {
    * Capped at `MAX_LIVE_BATTLES - 1`. Past that the war stops being something a thumb can hold.
    */
   sideBattles?: AscentBattle[];
+  /**
+   * The standing answer to *who holds the dials* — remembered across fights.
+   *
+   * **Default: the generals.** A run is a realm, not a duel: waves land on three provinces at
+   * once and most of them are held by somebody the player appointed. Opening every field under
+   * the player's own hand meant a fight nobody had asked for stopped the world for a first
+   * order, and a player who had already handed the war over had to hand it over again, fight
+   * after fight. Reported verbatim: *by default fight will automatically control.*
+   *
+   * Set by the take-back and hand-over chips, so the last thing the player did is what the next
+   * field opens as. Undefined reads as true, which keeps old saves on the same rule.
+   */
+  handToGenerals?: boolean;
   /**
    * Set on the tick a *second* front goes live, and cleared by the screen that answers it.
    *

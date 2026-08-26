@@ -22,6 +22,7 @@ import { famineReady, offerFamine, tickFamineCooldown } from './FamineSystem';
 import { offerRivalDemand, rivalDemandReady, tickRivalCooldowns } from './RivalDirector';
 import { offerHeroSummon } from './SummonSystem';
 import { offerPowerDraft } from './PowerDraftSystem';
+import { inAnyBattle } from './fronts';
 import { doctrineReady, offerDoctrine } from './RealmDoctrineSystem';
 import { offerStoryBeat, storyBeatReady, storyCardsMuted } from '../story/StorySystem';
 import type { AscentPhase, AscentPromptKind, GameState } from '../../state/types';
@@ -212,9 +213,18 @@ function isReady(state: GameState, kind: AscentPromptKind): boolean {
       if (ascent.marchCooldown > 0) return false;
       // Only worth asking when a host is actually free to act on the answer, or when a
       // bloodless method (bribe, claim, settle) is affordable regardless of armies.
+      //
+      // **A host, not a headcount.** This used to accept any army with no march or siege order
+      // against its name — which is every garrison levy standing on a wall, and every column
+      // already in a battle line. So with all the claim slots committed and every real host in
+      // the field, *Which way shall we expand?* still came up over a sheet on which nothing at
+      // all could be pressed. Reported verbatim: *no need to show it, it is meaningless.*
       const idleHost = state.armies.some(
         (army) =>
           army.kingdomId === PLAYER_KINGDOM_ID &&
+          !army.isLevy &&
+          army.units.spearmen + army.units.archers + army.units.heavyInfantry > 0 &&
+          !inAnyBattle(state, army.id) &&
           !state.movementOrders.some((order) => order.armyId === army.id) &&
           !state.siegeOrders.some((order) => order.armyId === army.id),
       );

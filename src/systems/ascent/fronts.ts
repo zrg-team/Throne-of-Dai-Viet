@@ -70,13 +70,20 @@ export function inAnyBattle(state: GameState, armyId: string): boolean {
 export function addSideBattle(state: GameState, battle: AscentBattle): boolean {
   const ascent = state.ascent;
   if (!ascent) return false;
-  if (!hasRoomForAnotherFront(state)) return false;
+  // By name, so the dynasty's seat gets the slot past the cap here too. Checked without it, a
+  // capital contact that arrived while a field was already open was refused the extra slot
+  // `beginBattle` had just granted it and went back to being a die roll.
+  if (!hasRoomForAnotherFront(state, battle.landId)) return false;
   battle.delegated = true;
   (ascent.sideBattles ??= []).push(battle);
-  // The world stops. Two fights at once changes what the player should be *doing*, not merely how
-  // well it is going, and the count is what the screen needs to say so.
+  // Two fights at once changes what the player should be *doing*, not merely how well it is
+  // going, and the count is what the screen needs to say so.
   ascent.frontsOpened = liveBattleCount(state);
-  state.isStrategyPause = true;
+  // The world stops only when there is nobody on a field — then the board comes up and the whole
+  // question is which one to hold. A player already in a fight is *told* (the fronts chip on the
+  // near corner names the others) and not stopped: freezing a running battle to announce another
+  // one is the stall that reads as the fight having died.
+  if (!ascent.activeBattle || ascent.activeBattle.over) state.isStrategyPause = true;
   return true;
 }
 

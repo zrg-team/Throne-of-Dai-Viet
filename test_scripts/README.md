@@ -27,6 +27,7 @@ node test_scripts/verify/verify-ascent.mjs          # the Dragon Ascent loop end
 node test_scripts/verify/verify-invasion-lifecycle.mjs  # every invasion announces its start and its end
 node test_scripts/verify/verify-invasion-reach.mjs      # a wave that is sent can walk to the realm, and does
 node test_scripts/verify/verify-war-visibility.mjs      # the war reaches the bar, the map and the advisor — nothing falls silently
+node test_scripts/verify/verify-war-board.mjs           # every front on the board is a door; the Reckoning is a report, not a stack of cards
 node test_scripts/playtest/playtest-metrics.mjs     # six measured preconditions of fun, /85
 node test_scripts/perf/perf-bench.mjs --label wip   # auto-diffs against perf-results/baseline.json
 node test_scripts/shot/shot-readme.mjs              # regenerates every picture in the root README

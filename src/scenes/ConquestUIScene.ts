@@ -283,19 +283,6 @@ export class ConquestUIScene extends Phaser.Scene {
   /** A prompt interrupted the battle screen; reopen it once the prompt is answered. */
   reopenBattleAfterPrompt = false;
 
-  /**
-   * The next open of the battle lane goes to the *field*, not to the board.
-   *
-   * The lane is two screens, and which one it should show depends on what the player just did —
-   * which is not a fact any state on `GameState` knows. Tapping a front on the board, or the
-   * other-fronts chip, or a fight's row on the army screen, is a request for a specific field;
-   * the bar button, with the war on more than one province, is a request for the list. Without
-   * the distinction the board could not be reached from the bar at all (`showBattle` jumped past
-   * it to `activeBattle`) and, once it could, a front tapped on it re-opened the board forever.
-   *
-   * Consumed by `showBattle` — one open, one intent.
-   */
-  battleFieldRequested = false;
 
   /** A tappable prompt option. Everything the player can do is one of these. */
   /** Draws the two hosts on the battle screen, reusing the map's own marker art. */
@@ -587,7 +574,6 @@ export class ConquestUIScene extends Phaser.Scene {
     this.battleOpeningTimer?.remove();
     this.battleOpeningTimer = undefined;
     this.reopenBattleAfterPrompt = false;
-    this.battleFieldRequested = false;
     window.__hudTapBounds = [];
   }
 

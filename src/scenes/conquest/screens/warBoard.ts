@@ -1,27 +1,91 @@
 /**
- * The war, when there is no battle screen to open.
+ * The war, listed — and made enterable.
  *
  * The Battle button had exactly one state worth pressing — a live watched engagement — and the
  * screen opens for 6–15 of the 20–96 fights a measured run settles. The rest happened to provinces
  * the player owned, on a map that showed nothing, reported to two channels this mode does not
  * render. *Sometimes the enemy attacks my land but no fight is shown.*
  *
- * So the button always leads somewhere while the realm is under attack: the fronts standing right
- * now, worst first, and under them the last engagements the generals settled. It is a board, not
- * a fight — there is nothing to steer here — and the one front that *can* be walked into carries
- * the door to it.
+ * So the button always leads somewhere while the realm is under attack: every province the enemy
+ * is standing on or beside, worst first.
+ *
+ * **Every row is a door, and that is the whole of the second round of this screen.** The first
+ * version made a door of the live fields only and left the rest as text — which is exactly
+ * backwards, because a province with no fight on it is the one the player can do nothing about
+ * from anywhere else in the game. Reported verbatim: *some battle i can not click to it — really
+ * critical because some battle i still can not control.* A live field walks straight onto its
+ * ground; anything else opens the front sheet below, which says who is there, how long the walls
+ * have, and offers the two orders that change it.
+ *
+ * What is deliberately **not** here any more is the ledger of finished fights. It was half the
+ * length of the page and none of it was actionable, under a heading — *Trận đã đánh* — that read
+ * as the point of the screen. The Reckoning reports a fight when it ends; this page is for the
+ * war still being fought.
  */
 import { contestedFronts } from '../../../systems/ascent/battleReport';
-import { focusBattle } from '../../../systems/ascent/fronts';
+import { fieldCandidateAt, openFieldAt, summonAdjacentRelief } from '../../../systems/ascent/BattleSystem';
+import { battleAt, focusBattle, hasRoomForAnotherFront } from '../../../systems/ascent/fronts';
+import { MAX_LIVE_BATTLES } from '../../../game/ascentConfig';
+import { PLAYER_KINGDOM_ID } from '../../../game/constants';
 import { INK_UI } from '../../../ui/InkUI';
 import { t } from '../../../i18n';
+import type { AscentFront } from '../../../systems/ascent/battleReport';
 import type { ConquestUIScene } from '../../ConquestUIScene';
+
+/** How the row reads at a glance: the odds said as a word, not as a ratio to do arithmetic on. */
+function standingOf(front: AscentFront): string {
+  const odds = front.theirMen / Math.max(1, front.ourMen);
+  if (front.commanded) return 'live';
+  if (front.live) return 'held';
+  if (front.besieged) return 'besieged';
+  return odds >= 1.6 ? 'losing' : odds >= 0.9 ? 'even' : 'holding';
+}
+
+/**
+ * The ink is the *odds*, not the standing.
+ *
+ * A field a general is holding reads `held`, which never matched the losing clause — so the board
+ * drew a general 400 against 1,600 in the same gold as one at even numbers, which is the whole
+ * thing this board exists to say.
+ */
+function frontInk(front: AscentFront): number {
+  const odds = front.theirMen / Math.max(1, front.ourMen);
+  if (front.commanded || front.besieged || odds >= 1.6) return INK_UI.cinnabar;
+  return front.live || odds >= 0.9 ? INK_UI.gold : INK_UI.jade;
+}
+
+/** Seasons left before a siege takes the province, or undefined when nobody is under the walls. */
+function siegeLeft(self: ConquestUIScene, landId: string): number | undefined {
+  const order = self.state.siegeOrders.find((siege) => siege.landId === landId);
+  return order ? Math.max(0, order.required - order.progress) : undefined;
+}
+
+/**
+ * Walks the player onto a field that is already being fought.
+ *
+ * **In place, not out and back in.** `closeLane` runs `refresh`, which is allowed to re-enter
+ * this lane on its own — so a tap that closed and reopened could have the lane rebuilt under it
+ * and land back on the board with nothing changed but the row order. That is the reported fault
+ * word for word: *click battle, nothing happens, it just changes the colour*. The page is
+ * replaced where it stands, so there is exactly one rebuild and it is this one.
+ */
+function takeField(self: ConquestUIScene, landId: string): void {
+  const state = self.state;
+  if (!battleAt(state, landId)) return;
+  focusBattle(state, landId);
+  // Choosing a field is an instruction to fight on it — the board's hold ends here rather than
+  // being handed back when the lane eventually closes.
+  self.lanePauseBeforeOpen = false;
+  state.isStrategyPause = false;
+  state.isPaused = false;
+  self.replaceLanePage(() => self.showBattle());
+}
 
 export function showWarBoard(self: ConquestUIScene): void {
   const state = self.state;
   const fronts = contestedFronts(state);
-  const fighting = fronts.filter((front) => front.live).length;
-  const history = [...(state.ascent?.battleHistory ?? [])].reverse().slice(0, 8);
+  const live = fronts.filter((front) => front.live);
+  const pressed = fronts.filter((front) => !front.live);
 
   /**
    * The board raised *at* the player, rather than opened by them.
@@ -39,88 +103,166 @@ export function showWarBoard(self: ConquestUIScene): void {
   if (state.ascent?.frontsOpened) {
     state.ascent.frontsOpened = undefined;
     self.lanePauseBeforeOpen = false;
+    // Only the announcement holds the world, and only for as long as it is on the screen. Held
+    // unconditionally — as it was for one round — the hold leaked out through the battle lane's
+    // `lanePauseBeforeOpen` and reopened running fights frozen mid-beat.
+    state.isStrategyPause = true;
   }
 
   const { addRow, addHeading, addNote, finish } = self.laneList(
     alerted > 1 ? t('ascent.war.alertTitle') : t('ascent.war.title'),
     alerted > 1
       ? t('ascent.war.alertSubtitle', { n: alerted })
-      : fighting > 0
-        ? t('ascent.war.subtitleFighting', { n: fighting, all: fronts.length })
+      : live.length > 0
+        ? t('ascent.war.subtitleFighting', { n: live.length, all: fronts.length })
         : fronts.length > 0
           ? t('ascent.war.subtitle', { n: fronts.length })
           : t('ascent.war.subtitleQuiet'),
     {},
   );
 
-  if (fronts.length > 0) {
-    addHeading(t('ascent.war.frontsHeading'), t('ascent.war.frontsHint'));
-    for (const front of fronts) {
-      // The odds, said as a word rather than as a ratio: the board is read at a glance while a
-      // wave is landing, and "2.4×" is a number the player has to do arithmetic on first.
-      const odds = front.theirMen / Math.max(1, front.ourMen);
-      const standing = front.commanded ? 'live'
-        : front.live ? 'held'
-          : front.besieged ? 'besieged'
-            : odds >= 1.6 ? 'losing'
-              : odds >= 0.9 ? 'even' : 'holding';
-      // The ink is the *odds*, not the standing. A field a general is holding reads `held`, which
-      // never matched the losing clause below — so the board drew a general 400 against 1,600 in
-      // the same gold as one at even numbers, which is the whole thing this board exists to say.
-      const dire = front.commanded || front.besieged || odds >= 1.6;
+  if (live.length > 0) {
+    addHeading(t('ascent.war.liveHeading'), t('ascent.war.liveHint'));
+    for (const front of live) {
+      const fight = battleAt(state, front.landId);
       addRow(
         {
-          title: front.commanded
-            ? `▸ ${front.landName}`
-            : front.landName,
+          title: front.commanded ? `▸ ${front.landName}` : front.landName,
+          subtitle: t('ascent.war.liveLine', {
+            kingdom: front.kingdomName,
+            ours: Math.round(front.ourMen),
+            theirs: Math.round(front.theirMen),
+            round: fight ? fight.round + 1 : 1,
+            total: fight?.totalRounds ?? 0,
+            standing: t(`ascent.war.standing.${standingOf(front)}` as Parameters<typeof t>[0]),
+          }),
+          border: frontInk(front),
+        },
+        () => takeField(self, front.landId),
+      );
+    }
+  }
+
+  if (pressed.length > 0) {
+    addHeading(t('ascent.war.pressedHeading'), t('ascent.war.pressedHint'));
+    for (const front of pressed) {
+      const left = siegeLeft(self, front.landId);
+      addRow(
+        {
+          title: front.landName,
           subtitle: t('ascent.war.frontLine', {
             kingdom: front.kingdomName,
             theirs: Math.round(front.theirMen),
             ours: Math.round(front.ourMen),
-            standing: t(`ascent.war.standing.${standing}` as Parameters<typeof t>[0]),
+            standing: left !== undefined
+              ? t('ascent.war.standingSiege', { ticks: left })
+              : t(`ascent.war.standing.${standingOf(front)}` as Parameters<typeof t>[0]),
           }),
-          border: dire
-            ? INK_UI.cinnabar
-            : front.live || standing === 'even' ? INK_UI.gold : INK_UI.jade,
+          border: frontInk(front),
         },
-        // **Every live front is a door.** The one under your hand opens the fight you are already
-        // in; a front a general is holding takes you onto that field first — which is the whole
-        // point of the board, and the thing the mode could not do at all until the war was allowed
-        // more than one field. Ground with no fight on it is not a door: there is nothing to
-        // stand on there yet.
-        front.live
-          ? () => {
-            if (!front.commanded) focusBattle(state, front.landId);
-            self.battleFieldRequested = true;
-            self.closeLane();
-            self.openLane('battle');
-          }
-          : undefined,
+        () => self.replaceLanePage(() => showFrontSheet(self, front.landId)),
       );
     }
-  } else {
-    addNote(t('ascent.war.noFronts'));
   }
 
-  if (history.length > 0) {
-    addHeading(t('ascent.war.recentHeading'), t('ascent.war.recentHint'));
-    for (const record of history) {
-      const theirs = record.outcome === 'they-rout' || record.outcome === 'spent';
-      const key = record.role === 'offence'
-        ? (theirs ? 'took' : 'repulsed')
-        : (theirs ? 'won' : 'lost');
-      addRow({
-        title: `${record.landName}  ·  ${t('ascent.war.wave', { n: record.wave ?? 0 })}`,
-        subtitle: t(`ascent.war.past.${key}` as Parameters<typeof t>[0], {
-          kingdom: record.kingdomName ?? t('ascent.aftermath.theEnemy'),
-          ours: Math.max(0, Math.round(record.ourStart - record.ourEnd)),
-          theirs: Math.max(0, Math.round(record.theirStart - record.theirEnd)),
-        }),
-        border: theirs ? INK_UI.softBrush : INK_UI.cinnabar,
-        muted: true,
-      });
-    }
+  if (fronts.length === 0) addNote(t('ascent.war.noFronts'));
+
+  finish();
+}
+
+/**
+ * One province, and the orders that change what is happening on it.
+ *
+ * The sheet a row opens when there is no field to walk onto. Everything on it was already known
+ * to the state and shown nowhere: who is standing there, what they brought, how many seasons the
+ * walls have left, and whether the realm can afford to stand a fight up at all.
+ */
+export function showFrontSheet(self: ConquestUIScene, landId: string): void {
+  const state = self.state;
+  const front = contestedFronts(state).find((candidate) => candidate.landId === landId);
+  // The war moved while the page was open — the host marched off, or a general settled it. Back
+  // to the board, rather than a sheet about nobody.
+  if (!front) {
+    showWarBoard(self);
+    return;
   }
+  const left = siegeLeft(self, landId);
+  const candidate = fieldCandidateAt(state, landId);
+  const room = hasRoomForAnotherFront(state, landId);
+
+  const { addRow, addHeading, addNote, addWidget, finish } = self.laneList(
+    front.landName,
+    t('ascent.war.frontSub', { kingdom: front.kingdomName }),
+    { back: () => self.replaceLanePage(() => showWarBoard(self)) },
+  );
+
+  // The two headcounts against one scale — the only honest way to show a trade, and the same
+  // widget the Reckoning uses, so the two screens are legibly about the same war.
+  const worst = Math.max(1, front.ourMen, front.theirMen);
+  addWidget(64, (parent, width) => {
+    const bar = (y: number, label: string, men: number, colour: number): void => {
+      parent.add(self.ui.label(0, y, label, 'caption', {}));
+      parent.add(self.ui.label(width, y, `${Math.round(men)}`, 'caption', { align: 'right' })
+        .setOrigin(1, 0));
+      parent.add(self.ui.statBar({ x: 0, y: y + 16, width, height: 7 }, men, worst, colour));
+    };
+    bar(0, t('ascent.war.ourMen'), front.ourMen, INK_UI.jade);
+    bar(32, t('ascent.war.theirMen'), front.theirMen, INK_UI.cinnabar);
+  });
+
+  if (left !== undefined) addNote(t('ascent.war.siegeClock', { ticks: left }), INK_UI.cinnabar);
+
+  addHeading(t('ascent.war.ordersHeading'));
+
+  if (!candidate) {
+    addNote(t('ascent.war.noEnemyHere'));
+  } else if (!room) {
+    // Said, not hidden. A control that vanishes when it cannot be used is a control the player
+    // concludes does not exist — which is how this screen earned its report in the first place.
+    addRow({
+      title: t('ascent.war.takeFieldFull'),
+      subtitle: t('ascent.war.takeFieldFullNote', { n: MAX_LIVE_BATTLES }),
+      border: INK_UI.softBrush,
+      muted: true,
+    });
+  } else {
+    addRow(
+      {
+        title: t('ascent.war.takeField'),
+        subtitle: t('ascent.war.takeFieldNote', { land: front.landName }),
+        border: INK_UI.cinnabar,
+      },
+      () => {
+        if (!openFieldAt(state, landId)) {
+          self.replaceLanePage(() => showFrontSheet(self, landId));
+          return;
+        }
+        takeField(self, landId);
+      },
+    );
+  }
+
+  // How many hosts are already on the road here. An order with no visible consequence is an
+  // order the player presses twice and then stops trusting, and `summonAdjacentRelief` is
+  // silent by design — it writes movement orders and a toast this mode does not render.
+  const marching = state.movementOrders.filter((order) => {
+    if (order.path[order.path.length - 1] !== landId) return false;
+    const army = state.armies.find((candidate) => candidate.id === order.armyId);
+    return army?.kingdomId === PLAYER_KINGDOM_ID;
+  }).length;
+  addRow(
+    {
+      title: t('ascent.war.relief'),
+      subtitle: marching > 0
+        ? t('ascent.war.reliefMarching', { n: marching, land: front.landName })
+        : t('ascent.war.reliefNote', { land: front.landName }),
+      border: marching > 0 ? INK_UI.jade : INK_UI.gold,
+    },
+    () => {
+      summonAdjacentRelief(state, landId);
+      self.replaceLanePage(() => showFrontSheet(self, landId));
+    },
+  );
 
   finish();
 }

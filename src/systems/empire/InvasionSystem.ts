@@ -830,6 +830,7 @@ function resolveInvaderBattle(
       ourHosts: state.armies.filter((a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id && !a.isLevy).length,
       levyFought: !state.armies.some((a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id && !a.isLevy),
       generalName: generalOf(state, land),
+      generalHeroId: generalIdOf(state, land),
       kingdomName: kingdomName(state, record.kingdomId),
       year: state.year,
       season: state.season,
@@ -946,6 +947,12 @@ function generalOf(state: GameState, land: Land): string | undefined {
     && army.landId === land.id && !army.isLevy && army.generalHeroId);
   if (!host?.generalHeroId) return undefined;
   return state.heroes.find((hero) => hero.id === host.generalHeroId)?.name;
+}
+
+/** The same commander, by id, so the Reckoning can draw their face rather than name them. */
+function generalIdOf(state: GameState, land: Land): string | undefined {
+  return state.armies.find((army) => army.kingdomId === PLAYER_KINGDOM_ID
+    && army.landId === land.id && !army.isLevy && army.generalHeroId)?.generalHeroId;
 }
 
 function retreatDefenders(state: GameState, land: Land): void {
