@@ -58,6 +58,16 @@ const out = await page.evaluate(async () => {
   for (let i = 0; i < 40; i += 1) { advanceAscentTick(st); settle(); if (st.ascent.pendingAftermath) st.ascent.pendingAftermath = undefined; }
   st.ascent.activeBattle = undefined;
   st.ascent.sideBattles = [];
+  // One watched engagement per province per wave is a ration on *screens*, and the forty seasons
+  // above spend it wherever they like. This is testing the multi-field machinery, not the ration,
+  // so the stamp is cleared before the probes go in — left standing, a probe whose province the
+  // warm-up already fought on is refused and the second field never opens.
+  st.ascent.lastWatchedKey = undefined;
+  // And the standing hand-over is off for these probes. This section is about the player moving
+  // between fields, which needs a field the player is actually holding; under the default
+  // (`handToGenerals`) both open delegated and the general fought the first one to a finish
+  // before the walk-onto test could run.
+  st.ascent.handToGenerals = false;
 
   // A realm of one province cannot be attacked in two places, and how fast the autopilot expands
   // is not what this is testing. Hand it a neighbour if forty seasons did not win one.
@@ -129,7 +139,12 @@ const out = await page.evaluate(async () => {
   const beatOf = (b) => (b.approachBeats ?? 0) + b.round;
   const before = F.liveBattles(st).map((b) => ({ land: b.landId, beat: beatOf(b) }));
   st.isStrategyPause = false;
-  for (let i = 0; i < 3; i += 1) { advanceAscentTick(st); settle(); if (st.ascent.pendingAftermath) st.ascent.pendingAftermath = undefined; }
+  // One tick, not three. All this has to show is that both fields moved on the same clock — and
+  // three ticks is long enough for a 700-man column to finish reducing a province, which leaves
+  // the walk-between-fields checks below with nothing to walk from. How long that takes depends
+  // on forty seasons of autopilot before it, so it is not a thing to tune against.
+  advanceAscentTick(st); settle();
+  if (st.ascent.pendingAftermath) st.ascent.pendingAftermath = undefined;
   const moved = before.map((was) => {
     const now = F.liveBattles(st).find((b) => b.landId === was.land);
     return { land: was.land, gone: !now, from: was.beat, to: now ? beatOf(now) : -1 };
@@ -150,6 +165,18 @@ const out = await page.evaluate(async () => {
 
   // Ending the commanded fight must hand the player the field a general is still holding, rather
   // than dropping them back on a map with a war on it and no door into the war.
+  // The field left behind has been taking losses since it opened, and promotion has nothing to
+  // promote if it settles on the same tick. Reinforced here so the thing under test is the
+  // promotion and not how long a probe column lasts.
+  const survivor = (st.ascent.sideBattles ?? [])[0];
+  if (survivor) {
+    for (const id of survivor.ourArmyIds ?? []) {
+      const host = st.armies.find((army) => army.id === id);
+      if (host) host.units = { spearmen: 900, archers: 300, heavyInfantry: 150 };
+    }
+    survivor.ourNow = 1350;
+    survivor.ourMorale = 95;
+  }
   const held = st.ascent.activeBattle;
   if (held) held.over = true;
   advanceAscentTick(st); settle();

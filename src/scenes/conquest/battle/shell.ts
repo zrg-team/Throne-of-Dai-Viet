@@ -99,20 +99,27 @@ export function maybeAutoOpenBattle(self: ConquestUIScene): boolean {
   // Sealed *before* the lane is built, so the first build is the only build. It used to open
   // unsealed and be rebuilt sealed a frame later — a full second field, ground bake and dock
   // whose only purpose was un-naming the shape the first one had leaked.
-  // Only a fight that is going to be *held* for a first order opens sealed. Without a drum there
-  // is nothing to un-seal it, and the enemy's shape would read '?' for the whole engagement.
-  self.battleSealPending = fresh && opening && !battle.delegated;
+  self.battleSealPending = fresh && opening;
   self.openLane('battle');
   // `openLane` bails on a race (the fight ended between the tick and this frame).
   if ((self.openPromptKey as string) !== 'lane:battle') {
     self.battleSealPending = false;
     return false;
   }
-  // The opening hold is a hold *for a first order*, so a fight nobody is going to order does not
-  // get one. Under the standing hand-over (`handToGenerals`) the general is already on the dials
-  // and the drum was simply a five-second stop with nothing to do in it — the "fight stopped in
-  // the middle, nothing to do" report, at the other end of the fight.
-  if (fresh && opening && !battle.delegated) {
+  /**
+   * **A fight that begins stops the world and says so — delegated or not.**
+   *
+   * Tried the other way for one round, on the reasoning that a fight nobody is going to order
+   * has nothing to hold *for*. That was wrong about what the hold is for: it is not a wait for
+   * an order, it is the moment the player is told a battle has started, on the screen where they
+   * can take it over. Reported verbatim: *when battle start it must pause for information —
+   * this fight, I don't know it happened.* It ends on its own after
+   * `BATTLE_OPENING_SECONDS`, and "Tiếp tục" or any order ends it sooner.
+   *
+   * The mid-fight freeze this looked like is a different thing and is fixed where it lived: the
+   * lane no longer inherits a stray pause (`openLane`).
+   */
+  if (fresh && opening) {
     self.battleAwaitingOrder = true;
     self.state.isStrategyPause = true;
     startBattleOpeningDrum(self);

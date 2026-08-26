@@ -199,7 +199,12 @@ export function startPromptCooldown(state: GameState, kind: AscentPromptKind): v
 
 // ── Readiness ───────────────────────────────────────────────────────────────
 
-/** True when a kind has something real to say — not merely that its timer elapsed. */
+/**
+ * True when a kind has something real to say — not merely that its timer elapsed.
+ *
+ * Exported as `isAscentPromptReady` below, so a harness can ask the question directly instead of
+ * running a hundred ticks and hoping the card it is testing for comes up.
+ */
 function isReady(state: GameState, kind: AscentPromptKind): boolean {
   const ascent = state.ascent;
   if (!ascent) return false;
@@ -331,6 +336,11 @@ function raise(state: GameState, kind: AscentPromptKind): boolean {
  * gap rule (a host arriving cannot wait two seasons for a polite pause), which is why they are
  * not in `CONSIDER_ORDER`; everything scheduled here does respect it.
  */
+/** `isReady`, for the harnesses. */
+export function isAscentPromptReady(state: GameState, kind: AscentPromptKind): boolean {
+  return isReady(state, kind);
+}
+
 export function tickDecisionDirector(state: GameState): void {
   const ascent = state.ascent;
   if (!ascent) return;

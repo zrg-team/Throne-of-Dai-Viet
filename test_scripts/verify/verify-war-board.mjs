@@ -34,7 +34,9 @@ console.log('=== A FIELD THE PLAYER ASKS FOR ===');
 
 const sys = await page.evaluate(async () => {
   const { createAscentGameState } = await import('/src/state/GameState.ts');
-  const { openFieldAt, fieldCandidateAt } = await import('/src/systems/ascent/BattleSystem.ts');
+  const {
+    openFieldAt, fieldCandidateAt, beginBattle, delegateBattle,
+  } = await import('/src/systems/ascent/BattleSystem.ts');
   const { liveBattles } = await import('/src/systems/ascent/fronts.ts');
   const { PLAYER_KINGDOM_ID: PLAYER } = await import('/src/game/constants.ts');
 
@@ -46,17 +48,21 @@ const sys = await page.evaluate(async () => {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 
+  // `supply`/`rations`/`provisions`, not `supplies` — the war system's own field names. A host
+  // built with the wrong ones has no battle preview and `beginBattle` quietly declines it.
   const host = (id, kingdomId, landId, men) => ({
     id,
     name: id,
     kingdomId,
     landId,
     units: { spearmen: men, archers: Math.round(men / 3), heavyInfantry: Math.round(men / 6) },
-    morale: 80,
-    supplies: 100,
+    morale: 85,
+    supply: 90,
+    rations: 999,
+    provisions: 999,
     level: 1,
     experience: 0,
-    experienceToNextLevel: 100,
+    experienceToNextLevel: 120,
   });
 
   const build = () => {
@@ -120,7 +126,72 @@ const sys = await page.evaluate(async () => {
   const firstLand = st2.ascent.activeBattle?.landId;
   openFieldAt(st2, cap2);
 
+  // ── who holds the dials when a fight opens at the player rather than by them ──
+  //
+  // The standing order (`handToGenerals`, default on): a wave that lands on a province opens
+  // under whoever is holding it, and the take-back chip is one tap. Reported as *by default in
+  // conquest mode, fight will automatically control.*
+  const auto = build();
+  const autoCap = auto.ascent.capitalLandId;
+  const autoFoe = auto.kingdoms.find((k) => k.id !== PLAYER).id;
+  // Big enough to clear `worthWatching`'s floor against the seat's own walls — the gates are
+  // measured and tuned, and a fixture that sneaks under them proves nothing about delegation.
+  auto.armies.push(host('auto-inv', autoFoe, autoCap, 4000), host('auto-ours', PLAYER, autoCap, 400));
+  // Enrolment reads the invasion register to decide who is closing on the province — a host with
+  // no record against it is a neighbour standing on its own ground, not an attacker.
+  (auto.invasions ??= []).push({
+    armyId: 'auto-inv', kingdomId: autoFoe, targetLandId: autoCap, intent: 'conquest', plan: 'spearhead',
+  });
+  auto.pendingBattle = {
+    invaderArmyId: 'auto-inv',
+    landId: autoCap,
+    landName: auto.lands.find((l) => l.id === autoCap).name,
+    kingdomId: autoFoe,
+    kingdomName: 'Foe',
+    isGreat: false,
+    attackerPower: 0,
+    defenderPower: 0,
+  };
+  const autoOpened = beginBattle(auto);
+  const autoDelegated = auto.ascent.activeBattle?.delegated === true;
+
+  // ── a defence the odds roll would simply lose us ──
+  //
+  // Above the watch band, so the gates decline it: eight hundred against twelve on a province we
+  // hold. It must open anyway, or the province changes hands with no field, no notice and
+  // nothing to answer — the card the report arrived with.
+  const doomed = build();
+  const doomedLand = doomed.lands.find((l) => l.id !== doomed.ascent.capitalLandId);
+  doomedLand.ownerId = PLAYER;
+  doomedLand.localSoldiers = 12;
+  const doomedFoe = doomed.kingdoms.find((k) => k.id !== PLAYER).id;
+  doomed.armies.push(host('doom-inv', doomedFoe, doomedLand.id, 800));
+  (doomed.invasions ??= []).push({
+    armyId: 'doom-inv', kingdomId: doomedFoe, targetLandId: doomedLand.id,
+    intent: 'conquest', plan: 'spearhead',
+  });
+  doomed.pendingBattle = {
+    invaderArmyId: 'doom-inv',
+    landId: doomedLand.id,
+    landName: doomedLand.name,
+    kingdomId: doomedFoe,
+    kingdomName: 'Foe',
+    isGreat: false,
+    attackerPower: 0,
+    defenderPower: 0,
+  };
+  const doomedOpened = beginBattle(doomed);
+  const doomedLive = doomed.ascent.activeBattle?.landId === doomedLand.id;
+  // …and the player's own answer is remembered for the next one.
+  delegateBattle(auto, false);
+  const afterTakeBack = auto.ascent.handToGenerals;
+
   return {
+    autoOpened,
+    autoDelegated,
+    afterTakeBack,
+    doomedOpened,
+    doomedLive,
     candidate,
     opened,
     openedLand: standing?.landId,
@@ -149,6 +220,12 @@ check('ground with nobody on it opens nothing', sys.openedOnQuiet === false);
 check('a second field asked for takes the focus', sys.secondIsCapital === true, `${sys.firstLand} → ${sys.secondLand}`);
 check('the field left behind goes to its general', sys.handedBack === true, `${sys.liveAfter} live`);
 check('asking for a field raises no second-front alert', sys.noAlert === true);
+check('a fight that opens AT the player opens under its general', sys.autoOpened === true
+  && sys.autoDelegated === true, `opened=${sys.autoOpened} delegated=${sys.autoDelegated}`);
+check('and taking it back is remembered for the next fight', sys.afterTakeBack === false);
+check('a defence the odds would simply lose is never settled off-screen',
+  sys.doomedOpened === true && sys.doomedLive === true,
+  `opened=${sys.doomedOpened} live=${sys.doomedLive}`);
 
 console.log('=== THE BOARD ===');
 

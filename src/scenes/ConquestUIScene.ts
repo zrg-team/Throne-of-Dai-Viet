@@ -732,7 +732,9 @@ export class ConquestUIScene extends Phaser.Scene {
 
   /* ------------------------------- the prompt card, and the answer coming back */
 
-  promptFrame(title: string, subtitle: string): UIBounds { return promptsFrame.promptFrame(this, title, subtitle); }
+  promptFrame(title: string, subtitle: string, opts?: { coverReadout?: boolean }): UIBounds {
+    return promptsFrame.promptFrame(this, title, subtitle, opts);
+  }
 
   choose(choiceId: string): void { promptsFrame.choose(this, choiceId); }
 

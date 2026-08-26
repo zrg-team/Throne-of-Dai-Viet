@@ -21,6 +21,7 @@
  * commented where it happens; nothing else in the codebase has to learn a new way to read a fight.
  */
 import { MAX_LIVE_BATTLES } from '../../game/ascentConfig';
+import { t } from '../../i18n';
 import type { AscentBattle, GameState } from '../../state/types';
 
 /** Every fight still being fought, the player's own first. */
@@ -83,7 +84,14 @@ export function addSideBattle(state: GameState, battle: AscentBattle): boolean {
   // question is which one to hold. A player already in a fight is *told* (the fronts chip on the
   // near corner names the others) and not stopped: freezing a running battle to announce another
   // one is the stall that reads as the fight having died.
-  if (!ascent.activeBattle || ascent.activeBattle.over) state.isStrategyPause = true;
+  if (!ascent.activeBattle || ascent.activeBattle.over) {
+    state.isStrategyPause = true;
+  } else {
+    // Told instead: the band above the field prints the newest line of the fight's own log, so
+    // the news arrives where the player is already looking and the fronts chip on the near
+    // corner is the door to it.
+    ascent.activeBattle.log.push(t('ascent.battle.frontOpened', { land: battle.landName }));
+  }
   return true;
 }
 

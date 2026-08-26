@@ -75,6 +75,10 @@ export function openLane(self: ConquestUIScene, lane: AscentLane): void {
   if (lane === 'battle') {
     self.lanePauseBeforeOpen = false;
     self.state.isStrategyPause = false;
+    // And the hard clock with it. `isWorldHalted` reads both, so clearing only the strategy
+    // pause still opened the fight frozen — for a player who had pressed Pause on the map, or
+    // for one whose last card left `isPaused` set. This screen has its own Pause.
+    self.state.isPaused = false;
   } else {
     self.state.isStrategyPause = true;
   }
@@ -155,7 +159,10 @@ export function laneList(self: ConquestUIScene,
   ) => void;
   finish: () => void;
 } {
-  const content = self.promptFrame(title, subtitle);
+  // A lane takes the readout band too — see `promptFrame`. A page you opened to work in has no
+  // use for the between-decisions numbers, and forty-eight points is the difference between four
+  // rows and five on a 620-high screen.
+  const content = self.promptFrame(title, subtitle, { coverReadout: true });
   const footerExtra = (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
     + (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
     + (laneOpts.footerPicker ? LANE_PICKER_HEIGHT + 8 : 0);

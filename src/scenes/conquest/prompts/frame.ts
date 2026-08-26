@@ -26,11 +26,37 @@ import type { ConquestUIScene } from '../../ConquestUIScene';
  * player chooses, so the "▲ POWER +7%" badge on a card has the number it refers to sitting
  * right above it — and the count-up is visible the moment the choice lands.
  */
-export function promptFrame(self: ConquestUIScene, title: string, subtitle: string): UIBounds {
-  const top = HEADER_HEIGHT + ASCENT_HUD_HEIGHT;
+export function promptFrame(
+  self: ConquestUIScene,
+  title: string,
+  subtitle: string,
+  opts: {
+    /**
+     * Take the run's readout band as well — for a **lane**, never for a decision card.
+     *
+     * POWER, the level, the wave countdown and the threat figure are what you read *between*
+     * decisions; a card's "▲ POWER +7%" badge points straight up at the number it is talking
+     * about, so a prompt must leave that band lit. A lane is a page you have opened to work in,
+     * and there the same band is forty-eight points of chrome above a list — reported as *too
+     * much space for header; compact it and give the bottom more room for buttons.* Covered
+     * opaquely while the page is up, and lit again the moment it closes.
+     */
+    coverReadout?: boolean;
+  } = {},
+): UIBounds {
+  const top = opts.coverReadout ? HEADER_HEIGHT : HEADER_HEIGHT + ASCENT_HUD_HEIGHT;
 
+  if (opts.coverReadout) {
+    // Opaque over the readout, and only over it: the 0.93 below is what makes a sheet read as
+    // *over* the map, and a band of it laid over the lit HUD would show the figures through.
+    self.modalLayer.add(self.add
+      .rectangle(0, top, GAME_WIDTH, ASCENT_HUD_HEIGHT, INK_UI.overlay, 1)
+      .setOrigin(0, 0)
+      .setInteractive());
+  }
+  const dimTop = opts.coverReadout ? top + ASCENT_HUD_HEIGHT : top;
   const dim = self.add
-    .rectangle(0, top, GAME_WIDTH, GAME_HEIGHT - top, INK_UI.overlay, 0.93)
+    .rectangle(0, dimTop, GAME_WIDTH, GAME_HEIGHT - dimTop, INK_UI.overlay, 0.93)
     .setOrigin(0, 0)
     .setInteractive();
   self.modalLayer.add(dim);

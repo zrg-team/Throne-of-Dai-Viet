@@ -138,8 +138,11 @@ export function visibleHostileHosts(state: GameState): Army[] {
 }
 
 /** The lane browser's close button: how far its top sits above the foot of the screen, and its height. */
-export const LANE_CLOSE_BUTTON_OFFSET = 66;
-export const LANE_CLOSE_BUTTON_HEIGHT = 42;
+// 70/46, up from 66/42: the button keeps the same 24 points of margin under it and gains four
+// of height, out of the readout band the lane now covers. "Make the bottom have more space for
+// the buttons" — the one control on most of these pages is the one that gets you out.
+export const LANE_CLOSE_BUTTON_OFFSET = 70;
+export const LANE_CLOSE_BUTTON_HEIGHT = 46;
 
 /**
  * Room a lane browser keeps clear at its foot, derived from the button that sits there.

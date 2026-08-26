@@ -287,6 +287,30 @@ function worthWatching(state: GameState, landId: string, isGreat: boolean, asSid
 }
 
 /**
+ * True when the odds roll this defence is about to be handed to would take the province.
+ *
+ * The watch gates ration *screens*, and they are tuned: a fight decided before the first
+ * exchange is not worth stopping the game for. That reasoning holds right up to the point where
+ * what the fight decides is whether a province is still ours — and then the thing being rationed
+ * away is not a screen, it is the news. Reported with the card for it in hand: *Vân Trại Thượng
+ * đã mất*, twelve men against eight hundred, `rounds: 0` — settled by dispatch, on a province
+ * the player held, with no field, no notice and nothing to answer.
+ *
+ * So a defence above the band on ground of ours opens anyway. It opens under its general like
+ * any other, which means it costs no attention; what it buys is that the fight is *announced*
+ * (see `maybeAutoOpenBattle`) and the player may walk onto it while there is still time to
+ * march relief. Below the band nothing changes: a raid the walls brush off is still not news.
+ */
+function wouldCostUsTheProvince(state: GameState, landId: string): boolean {
+  const land = findLand(state, landId);
+  if (!land || land.ownerId !== PLAYER_KINGDOM_ID) return false;
+  if (state.ascent?.arena) return false;
+  const { defence, attack } = watchOdds(state, land);
+  if (defence <= 0 || attack <= 0) return false;
+  return attack / defence > WATCH_ODDS_BAND_MAX;
+}
+
+/**
  * The band of attacker-to-defender power in which a defence is worth watching.
  *
  * Narrowed from 0.55-2.20. The old floor admitted a fight the province wins by a factor of two,
@@ -357,7 +381,8 @@ export function beginBattle(state: GameState): boolean {
   // Already holding a field: this one opens as a side front, under looser gates — see
   // `worthWatching`. The gates ration the player's attention, and a side front costs none.
   const asSide = Boolean(ascent.activeBattle && !ascent.activeBattle.over);
-  if (!worthWatching(state, pending.landId, pending.isGreat, asSide)) return false;
+  if (!worthWatching(state, pending.landId, pending.isGreat, asSide)
+    && !wouldCostUsTheProvince(state, pending.landId)) return false;
 
   // One watched engagement per province per wave.
   //

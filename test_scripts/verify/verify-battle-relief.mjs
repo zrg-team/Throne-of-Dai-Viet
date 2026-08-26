@@ -100,22 +100,29 @@ const texts = () => page.evaluate(() => {
   walk(ui.modalLayer);
   return out;
 });
-await page.evaluate(() => {
+// **A fight never opens onto a paused world any more.** The lane used to carry whatever hold was
+// in force when it opened, and the failure that produced was not academic: a running battle
+// reopened frozen at beat 15 with "Tiếp tục" the only control that did anything — reported as
+// *fight stop in middle, nothing to do.* Walking into a fight is an instruction to fight it, so
+// the lane clears both clocks on the way in and the screen keeps its own Pause for afterwards.
+const opened = await page.evaluate(() => {
   const st = window.__mandateState;
   const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
   st.isStrategyPause = true; // the player paused the map
+  st.isPaused = true;        // …and the hard clock too
   ui.refresh();
   ui.openLane('battle');
   ui.battleAwaitingOrder = false; // not a fresh fight: the opening drum is not what we test
   ui.battleOpeningTimer?.remove(); ui.battleOpeningTimer = undefined;
   ui.refresh();
+  return { strategy: st.isStrategyPause, hard: st.isPaused, before: ui.lanePauseBeforeOpen };
 });
 await page.waitForTimeout(400);
 let seen = await texts();
 const pausedShown = seen.some((s) => /PAUSED|TẠM DỪNG/.test(s));
-const resumeChip = seen.some((s) => /^(Resume|Tiếp tục)$/.test(s));
-check(pausedShown && resumeChip, 'a fight opened onto a paused world says PAUSED and offers Resume',
-  `banner ${pausedShown}, chip ${resumeChip}`);
+check(!opened.strategy && !opened.hard && opened.before === false && !pausedShown,
+  'a fight opens running, whatever hold the map was under',
+  `${JSON.stringify(opened)} banner ${pausedShown}`);
 
 // Any order resumes it.
 const afterOrder = await page.evaluate(async () => {
@@ -127,7 +134,7 @@ const afterOrder = await page.evaluate(async () => {
 });
 seen = await texts();
 check(!afterOrder.strategy && !afterOrder.hard && afterOrder.before === false && !seen.some((s) => /PAUSED|TẠM DỪNG/.test(s)),
-  'an order resumes the world and forgets the pause the lane opened under', JSON.stringify(afterOrder));
+  'and an order still leaves it running', JSON.stringify(afterOrder));
 
 // Pause from inside, then step out: the map stays paused, because the player paused it.
 const afterPause = await page.evaluate(() => {
