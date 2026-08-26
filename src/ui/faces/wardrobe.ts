@@ -10,6 +10,10 @@ import { ROBES } from './palette';
  * file is the only place that answers *what they wear*, era by era. Adding a dynasty, or
  * giving an office a new hat, touches this file and the part library and nothing else.
  *
+ * The Đinh pools, and the ten parts they draw on, are sourced frame by frame in
+ * `docs/23-the-thirteenth-wardrobe.html` — every one is set beside the still it came from, with
+ * what was taken from it and what was refused.
+ *
  * Đại Việt did not dress the same way for a thousand years, which is why these are keyed on
  * era first: Nguyễn Phúc Khoát's 1744 reform replaced the crossed lapel of the áo giao lĩnh
  * with the standing collar of the áo ngũ thân, so an official of the wrong century is as

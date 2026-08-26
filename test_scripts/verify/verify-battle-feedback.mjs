@@ -77,8 +77,14 @@ const dock = () => page.evaluate(() => {
 });
 
 const opening = await dock();
-const stances = opening.zones.filter((z) => z.h === 30);
-const chips = opening.zones.filter((z) => z.h > 30);
+// By the band's own height, read from the source. Hardcoded at 30 this silently reported "0
+// stances, 8 chips" the first time the dials were given more room for a thumb.
+const bands = await page.evaluate(async () => {
+  const c = await import('/src/scenes/conquest/constants.ts');
+  return { stance: c.BATTLE_STANCE_HEIGHT };
+});
+const stances = opening.zones.filter((z) => z.h === bands.stance);
+const chips = opening.zones.filter((z) => z.h > bands.stance);
 check(stances.length === 3 && chips.length === 5,
   'the dock offers three postures and five shapes — Lui binh lives with the exits now',
   `${stances.length} stances, ${chips.length} chips`);
@@ -138,7 +144,7 @@ check(notice.text.length > 0 && notice.y < 160,
 // ── the press ──────────────────────────────────────────────────────────────
 const wired = await page.evaluate(() => {
   const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
-  const zones = ui.battleUi.orders.list.filter((o) => o.type === 'Zone' && o.input && o.height > 30);
+  const zones = ui.battleUi.orders.list.filter((o) => o.type === 'Zone' && o.input && o.height > 40);
   // A chip that only listens for `pointerup` cannot dip under the thumb, which is the whole bug.
   return zones.every((z) => z.listenerCount('pointerdown') > 0 && z.listenerCount('pointerup') > 0);
 });
@@ -155,7 +161,7 @@ const tap = await page.evaluate(() => {
     return (d === 1 || d === 2) && id !== b.ourFormation;
   }) ?? RING.find((id) => id !== b.ourFormation);
   const zones = ui.battleUi.orders.list
-    .filter((o) => o.type === 'Zone' && o.input && o.height > 30)
+    .filter((o) => o.type === 'Zone' && o.input && o.height > 40)
     .sort((a, c) => a.x - c.x);
   const z = zones[RING.indexOf(want)];
   const rect = window.__phaserGame.canvas.getBoundingClientRect();

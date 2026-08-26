@@ -19,7 +19,6 @@ import { BATTLE_OPENING_SECONDS } from '../../../game/ascentConfig';
 import { renderHeroFaceInBox } from '../../../ui/FaceRenderer';
 import { INK_UI, INK_UI_HEX, type UIBounds } from '../../../ui/InkUI';
 import { createMapItemRenderer } from '../../../ui/MapItemRenderer';
-import { ASCENT_HUD_HEIGHT } from '../../../ui/ascent/AscentHud';
 import { TITLE_FONT, UI_FONT } from '../../../ui/fonts';
 import { t } from '../../../i18n';
 import type { AscentBattle } from '../../../state/types';
@@ -34,7 +33,7 @@ import { clearLayer } from '../layers';
 import { showWarBoard } from '../screens/warBoard';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 import { setBattleBubbleOverride, setBattleEscalationWave } from '../../../game/battleOptions';
-import { liveBattleCount } from '../../../systems/ascent/fronts';
+import { liveBattleCount, promoteNextFront } from '../../../systems/ascent/fronts';
 
 /**
  * How far the two lines stand in from the edge of the sheet.
@@ -101,16 +100,25 @@ export function maybeAutoOpenBattle(self: ConquestUIScene): boolean {
   // unsealed and be rebuilt sealed a frame later — a full second field, ground bake and dock
   // whose only purpose was un-naming the shape the first one had leaked.
   self.battleSealPending = fresh && opening;
-  // A fight that has just begun opens *itself*, not the list — the board is what the bar button
-  // asks for. (A fight that opened as a second front does not reach here: `addSideBattle` raises
-  // `frontsOpened`, and the board wins over everything while that stands.)
-  self.battleFieldRequested = true;
   self.openLane('battle');
   // `openLane` bails on a race (the fight ended between the tick and this frame).
   if ((self.openPromptKey as string) !== 'lane:battle') {
     self.battleSealPending = false;
     return false;
   }
+  /**
+   * **A fight that begins stops the world and says so — delegated or not.**
+   *
+   * Tried the other way for one round, on the reasoning that a fight nobody is going to order
+   * has nothing to hold *for*. That was wrong about what the hold is for: it is not a wait for
+   * an order, it is the moment the player is told a battle has started, on the screen where they
+   * can take it over. Reported verbatim: *when battle start it must pause for information —
+   * this fight, I don't know it happened.* It ends on its own after
+   * `BATTLE_OPENING_SECONDS`, and "Tiếp tục" or any order ends it sooner.
+   *
+   * The mid-fight freeze this looked like is a different thing and is fixed where it lived: the
+   * lane no longer inherits a stray pause (`openLane`).
+   */
   if (fresh && opening) {
     self.battleAwaitingOrder = true;
     self.state.isStrategyPause = true;
@@ -248,7 +256,17 @@ function battleHeaderFrame(self: ConquestUIScene, battle: AscentBattle): {
   notice: Phaser.GameObjects.Text;
   log: Phaser.GameObjects.Text;
 } {
-  const top = HEADER_HEIGHT + ASCENT_HUD_HEIGHT;
+  /**
+   * The fight starts under the resource strip, not under the run's readout as well.
+   *
+   * POWER, the level, the wave countdown and the threat figure are what you read *between*
+   * fights; on a battlefield they are forty-eight points of chrome above the one picture the
+   * screen exists to show, and this screen already carries three bands of its own. Reported
+   * verbatim: *too much space for header — compact it and give the bottom more room for the
+   * buttons.* The band below is opaque, so the readout is simply covered while the fight is up
+   * and is back the moment it closes.
+   */
+  const top = HEADER_HEIGHT;
   // Opaque, and only this screen is. `beginOverlay` hides the map for the battle lane and for
   // nothing else, so the seven percent showing through at 0.93 was not the world - it was the
   // six scenes this game keeps resident behind everything (MenuScene, GuideScene, HistoryScene,
@@ -416,29 +434,38 @@ function battleHeaderFrame(self: ConquestUIScene, battle: AscentBattle): {
  * long as the player watched, while the real fight ran to its end underneath. A battle screen
  * that cannot show the battle is the whole feature.
  */
+/**
+ * **If there is a fight, this screen is the fight.** No list, no interstitial, no exceptions.
+ *
+ * The board briefly stood in front of it whenever the war was on more than one field, so that
+ * the bar button could reach the other two — and that was wrong twice over. It put a menu
+ * between the player and the one screen the button names; and because tapping a row on it went
+ * out through `closeLane` (which calls `refresh`, which can re-enter this lane on its own and
+ * eat the request), a tap could land back on the board with nothing changed but the row order.
+ * Reported verbatim, and fairly: *a page I click open battle, no other reason than to show the
+ * battle screen* — *make click move to top, what logic is that?*
+ *
+ * The other fields are reached from inside the fight (the fronts chip on the near corner) and
+ * from the army screen's war section. The board is what the lane shows when there is nothing to
+ * fight yet: a siege, or a host standing on our ground that no engagement has opened over.
+ */
 export function showBattle(self: ConquestUIScene): void {
-  const battle = self.state.ascent?.activeBattle;
-  // One open, one intent — see `battleFieldRequested`. Read here whatever happens next, so a
-  // request never survives into the following open of the lane.
-  const wantsField = self.battleFieldRequested;
-  self.battleFieldRequested = false;
-  // No fight to steer: the lane shows the war instead — every province under attack right now,
-  // and the engagements the generals settled without stopping the game. See `warBoard`.
-  //
-  // And the board wins over a live fight while `frontsOpened` stands: the war has just spread to
-  // a second province and the question in front of the player is *which field do I hold*, which
-  // is not a question any single battlefield can put. The board clears the flag as it reads it,
-  // so the next tap on this lane opens the fight normally.
-  //
-  // **And whenever the war is on more than one field.** The button went straight to
-  // `activeBattle` and there was no way from the bar to the other two, which is the reported
-  // fault: *Giao chiến cannot list all the battles.* With one field the board would be a list of
-  // one thing between the player and the only fight there is, so it is still skipped there.
-  const fields = liveBattleCount(self.state);
-  if (!battle || self.state.ascent?.frontsOpened || (fields > 1 && !wantsField)) {
+  const state = self.state;
+  let battle = state.ascent?.activeBattle;
+  // A general holding a field with nobody in the chair is not a reason to show a list either:
+  // seat the player on it. `promoteNextFront` picks the field that most needs a pair of hands.
+  if ((!battle || battle.over) && liveBattleCount(state) > 0) {
+    promoteNextFront(state);
+    battle = state.ascent?.activeBattle;
+  }
+  if (!battle || battle.over) {
     showWarBoard(self);
     return;
   }
+  // Read here, whichever page was drawn. It is an announcement about a moment, and a flag that
+  // outlives the screen it was raised for re-raises that screen every frame — `shell.ts`'s
+  // refresh opens this lane while it stands.
+  if (state.ascent?.frontsOpened) state.ascent.frontsOpened = undefined;
 
   // The escalation floors read this run's wave; everything outside Dragon Ascent stays at 0.
   setBattleEscalationWave(self.state.ascent?.wave ?? 0);

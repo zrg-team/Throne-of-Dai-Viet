@@ -45,7 +45,9 @@ export const BATTLE_RAILS_HEIGHT = 56;
  * more room and every extra point comes straight out of the one control that gets you out of a
  * fight. `verify-battle-dock` measures it at 620 for exactly this reason.
  */
-export const BATTLE_STANCE_HEIGHT = 30;
+// 36, up from 30: the forty-eight points the battle header gave back (see `battleHeaderFrame`)
+// are spent on the two dials, which is where a thumb actually lands.
+export const BATTLE_STANCE_HEIGHT = 36;
 /**
  * 64, up from 52.
  *
@@ -55,7 +57,8 @@ export const BATTLE_STANCE_HEIGHT = 30;
  * bottom of the chip and into the exits below it. Measured against the longest pair the catalog
  * has, not against the English.
  */
-export const BATTLE_FORMATION_HEIGHT = 64;
+// 72, up from 64, out of the same forty-eight.
+export const BATTLE_FORMATION_HEIGHT = 72;
 /**
  * The band above both dials: what the enemy is doing, what this beat is costing, and — when an
  * order has just landed — whether it was worth making.
@@ -66,7 +69,7 @@ export const BATTLE_FORMATION_HEIGHT = 64;
  * 122 → 112 because it printed through the lane's Close button at 620, and the field is at its 150
  * floor there and cannot give any back. Two labels out, one band in, same 112.
  */
-export const BATTLE_READOUT_HEIGHT = 24;
+export const BATTLE_READOUT_HEIGHT = 26;
 /**
  * Ten points between the two dials, three above the top one.
  *
@@ -135,8 +138,11 @@ export function visibleHostileHosts(state: GameState): Army[] {
 }
 
 /** The lane browser's close button: how far its top sits above the foot of the screen, and its height. */
-export const LANE_CLOSE_BUTTON_OFFSET = 66;
-export const LANE_CLOSE_BUTTON_HEIGHT = 42;
+// 70/46, up from 66/42: the button keeps the same 24 points of margin under it and gains four
+// of height, out of the readout band the lane now covers. "Make the bottom have more space for
+// the buttons" — the one control on most of these pages is the one that gets you out.
+export const LANE_CLOSE_BUTTON_OFFSET = 70;
+export const LANE_CLOSE_BUTTON_HEIGHT = 46;
 
 /**
  * Room a lane browser keeps clear at its foot, derived from the button that sits there.

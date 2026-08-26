@@ -110,8 +110,11 @@ line(found, 'a fight finishes and leaves a card waiting', String(found));
 line(seen.lane === 'lane:aftermath', 'the card takes the screen', seen.lane);
 // The butcher's bill, what it bought, and the chronicle line — the three things the card exists
 // for. Matched on shape rather than on wording so a translation edit does not fail the gate.
-line(has(/\d+ of \d+ fell|\d+ trên \d+/), "the butcher's bill is on it",
-  seen.texts.find((x) => /fell|ngã xuống/.test(x)) ?? '-');
+// The bill is a table now — four labelled rows against two columns — not a pair of bar captions
+// reading "N of M fell". A card is a surface you press, and a report has nothing on it to press.
+line(has(/^(Marched|Ra trận)$/) && has(/^(Fell|Ngã xuống)$/) && has(/^(Left standing|Còn lại)$/),
+  "the butcher's bill is on it",
+  seen.texts.filter((x) => /^(Marched|Ra trận|Fell|Ngã xuống|Left standing|Còn lại)$/.test(x)).join(' / ') || '-');
 line(has(/still standing|còn/), 'what it bought is on it',
   seen.texts.find((x) => /still standing|còn/.test(x)) ?? '-');
 line(has(/^Year \d+:|^Năm \d+:/), 'one line of chronicle names the place and the enemy',

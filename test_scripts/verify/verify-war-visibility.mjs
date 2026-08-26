@@ -316,36 +316,52 @@ const ui = await page.evaluate(async () => {
     .map((o) => o.text)
     .filter(Boolean);
 
-  ui.battleFieldRequested = false;
+  // Two fields live: the button opens the *fight*, never a list in front of it.
   ui.openLane('battle');
   const twoFieldTitles = titleOf();
+  const twoFieldsOpenFight = ui.battleUi !== undefined;
   ui.closeLane();
 
-  // Asked for the field explicitly — the way the board's own rows ask for it.
-  ui.battleFieldRequested = true;
-  ui.openLane('battle');
-  const askedForField = ui.battleUi !== undefined;
-  ui.closeLane();
-
-  // One field only: the board would be a list of one, so the fight opens.
+  // One field only, same answer.
   st.ascent.sideBattles = [];
-  ui.battleFieldRequested = false;
   ui.openLane('battle');
   const oneFieldOpensFight = ui.battleUi !== undefined;
   ui.closeLane();
 
+  // Nothing live at all, and ground of ours with an enemy on it: *now* the lane is the board.
+  st.ascent.activeBattle = undefined;
+  const mine = st.lands.find((l) => l.ownerId === PLAYER) ?? st.lands[0];
+  mine.ownerId = PLAYER;
+  st.armies.push({
+    id: 'board-probe', name: 'Probe',
+    kingdomId: st.kingdoms.find((k) => k.id !== PLAYER).id,
+    landId: mine.id,
+    units: { spearmen: 400, archers: 0, heavyInfantry: 0 },
+    morale: 80, supplies: 100, level: 1, experience: 0, experienceToNextLevel: 100,
+  });
+  const boardTitles = (() => {
+    ui.openLane('battle');
+    const seen = titleOf();
+    const drew = ui.openPromptKey === 'lane:battle';
+    ui.closeLane();
+    return { seen, drew };
+  })();
+
   st.ascent.activeBattle = undefined;
   st.ascent.sideBattles = [];
-  return { quietKeys, loudKeys, twoFieldTitles, askedForField, oneFieldOpensFight };
+  return {
+    quietKeys, loudKeys, twoFieldTitles, twoFieldsOpenFight, oneFieldOpensFight, boardTitles,
+  };
 });
 
 check('the bar has no Battle slot when nothing is happening', !ui.quietKeys.includes('battle'), ui.quietKeys.join(','));
 check('the bar grows a Battle slot while the realm is under attack', ui.loudKeys.includes('battle'));
-check('two live fields open the war board, not one of them',
-  ui.twoFieldTitles.some((s) => /chiến sự|The war|Mặt trận|fields|front/i.test(s)),
-  ui.twoFieldTitles.slice(0, 4).join(' | '));
-check('a field asked for by name opens the fight', ui.askedForField === true);
-check('a lone field opens the fight, not a list of one', ui.oneFieldOpensFight === true);
+check('two live fields still open the FIGHT, never a list in front of it',
+  ui.twoFieldsOpenFight === true, ui.twoFieldTitles.slice(0, 3).join(' | '));
+check('a lone field opens the fight too', ui.oneFieldOpensFight === true);
+check('with nothing live, the lane is the board', ui.boardTitles.drew === true
+  && ui.boardTitles.seen.some((s) => /chiến sự|the war/i.test(s)),
+  ui.boardTitles.seen.slice(0, 3).join(' | '));
 
 console.log('=== THE RECKONING ===');
 

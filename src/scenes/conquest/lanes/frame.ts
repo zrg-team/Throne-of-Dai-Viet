@@ -51,9 +51,12 @@ export function openLane(self: ConquestUIScene, lane: AscentLane): void {
   // is not. It used to be one screen and a dead button — and the screen opens for a measured
   // 6–15 of the 20–96 engagements a run settles, so for most of a wave the one control with
   // anything to say about the war refused to open at all. `showBattle` picks between them.
+  //
+  // The finished-fight ledger used to keep this door open on its own, and the board is not a
+  // ledger any more — the page is the war being fought, so with no fight and no front there is
+  // nothing behind the button but a heading.
   if (lane === 'battle' && !self.state.ascent?.activeBattle
-    && contestedFronts(self.state).length === 0
-    && (self.state.ascent?.battleHistory?.length ?? 0) === 0) return;
+    && contestedFronts(self.state).length === 0) return;
 
   self.lanePauseBeforeOpen = self.state.isStrategyPause;
   // Every lane freezes the world so the player can read it — except the battle, which *is* the
@@ -61,7 +64,24 @@ export function openLane(self: ConquestUIScene, lane: AscentLane): void {
   // which froze the siege at beat 0 for as long as anyone watched it: the exact freeze this
   // whole design removed, reintroduced through the lane mechanism. Only caught by finally
   // opening the screen and waiting sixteen seconds.
-  self.state.isStrategyPause = lane === 'battle' ? self.lanePauseBeforeOpen : true;
+  //
+  // **And the battle lane does not merely decline to pause — it un-pauses.** It used to carry
+  // whatever hold was in force when it opened, which is right for a screen you are reading and
+  // wrong for the one screen that *is* the world: any stray strategy pause (a lane closed onto
+  // it, a board, a card) reopened the fight frozen at beat 15 with the only working control
+  // reading "Tiếp tục". Reported verbatim: *fight stop in middle, nothing to do.* Walking into a
+  // fight is an instruction to fight it; the opening drum sets its own hold a moment later
+  // (`maybeAutoOpenBattle`), and the player's own Pause is still theirs to press.
+  if (lane === 'battle') {
+    self.lanePauseBeforeOpen = false;
+    self.state.isStrategyPause = false;
+    // And the hard clock with it. `isWorldHalted` reads both, so clearing only the strategy
+    // pause still opened the fight frozen — for a player who had pressed Pause on the map, or
+    // for one whose last card left `isPaused` set. This screen has its own Pause.
+    self.state.isPaused = false;
+  } else {
+    self.state.isStrategyPause = true;
+  }
   self.beginOverlay(`lane:${lane}`);
 
   switch (lane) {
@@ -139,7 +159,10 @@ export function laneList(self: ConquestUIScene,
   ) => void;
   finish: () => void;
 } {
-  const content = self.promptFrame(title, subtitle);
+  // A lane takes the readout band too — see `promptFrame`. A page you opened to work in has no
+  // use for the between-decisions numbers, and forty-eight points is the difference between four
+  // rows and five on a 620-high screen.
+  const content = self.promptFrame(title, subtitle, { coverReadout: true });
   const footerExtra = (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
     + (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
     + (laneOpts.footerPicker ? LANE_PICKER_HEIGHT + 8 : 0);

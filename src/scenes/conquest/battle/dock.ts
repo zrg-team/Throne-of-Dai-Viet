@@ -23,6 +23,7 @@ import { t } from '../../../i18n';
 import type { AscentBattle } from '../../../state/types';
 import { cssHex } from '../constants';
 import { clearLayer } from '../layers';
+import { showWarBoard } from '../screens/warBoard';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
 
@@ -95,12 +96,9 @@ export function buildBattleRelief(self: ConquestUIScene, battle: AscentBattle): 
     unpress();
     if (scrollGestureConsumedTap(pointer)) return;
     // Back to the field it was opened from, not to the board: the picker is a page *of* this
-    // fight.
-    showReinforcePicker(self, () => {
-      self.battleFieldRequested = true;
-      self.closeLane();
-      self.openLane('battle');
-    });
+    // fight. Rebuilt in place — going out through `closeLane` lets `refresh` re-enter the lane
+    // first and the page can end up somewhere neither of them chose.
+    showReinforcePicker(self, () => self.replaceLanePage(() => self.showBattle()));
   });
   ui.relief.add(hit);
 }
@@ -150,16 +148,16 @@ function buildOtherFronts(self: ConquestUIScene, battle: AscentBattle, elsewhere
   hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
     unpress();
     if (scrollGestureConsumedTap(pointer)) return;
-    // Straight across to the other field when there is only one — the board would be a list of
-    // one thing standing between the player and the fight they can already see named on the chip.
-    // Two or more and the chip opens the board, which is what its label promises; it used to
-    // re-open the same fight, because `showBattle` had no way to be asked for the list.
+    // Straight across to the other field when there is only one — a list of one thing standing
+    // between the player and the fight they can already see named on the chip. Two or more and
+    // the chip opens the board, which is what its label promises and the only place it is
+    // reached from now that the bar button always opens the fight itself.
     if (only) {
       focusBattle(self.state, only.landId);
-      self.battleFieldRequested = true;
+      self.replaceLanePage(() => self.showBattle());
+      return;
     }
-    self.closeLane();
-    self.openLane('battle');
+    self.replaceLanePage(() => showWarBoard(self));
   });
   ui.relief.add(hit);
   void battle;

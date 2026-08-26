@@ -240,7 +240,11 @@ function reactToBeat(self: ConquestUIScene, beat: BattleBeat): void {
     for (const id of broke) self.routMarker(id);
   }
 
-  if (firstContact || broke.length > 0) holdBattleClock(self, BATTLE_HIT_STOP_MS);
+  // Through the scene's own method, not the module function beside it. They are the same code,
+  // but `verify-battle-juice` counts the hit-stop by wrapping `ui.holdBattleClock` — and a call
+  // that goes straight to the local binding is invisible to it, so the check reported a working
+  // feature as missing (0 holds) for as long as this line read `holdBattleClock(self, …)`.
+  if (firstContact || broke.length > 0) self.holdBattleClock(BATTLE_HIT_STOP_MS);
 }
 
 /** Holds the beat clock for a moment without losing its cadence afterwards. */

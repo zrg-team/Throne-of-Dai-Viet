@@ -180,21 +180,25 @@ part('guard-shoulder-gilt', 24, 'none',
 // Thôn kiên thú — the beast that swallows the shoulder. A *mask*, not a plate: two eyes and a
 // jaw line are the whole read at 42 px, and the same gilt shape without them is a shoulder pad.
 // Fixed colour, because cast bronze is not one of the run's dyes.
-// The first pass drew two dots and an upcurved jaw, which is a **smiley face** long before it is
-// a beast — the eye finds that arrangement whether or not it was meant. What separates a mask
-// from an emoticon at this size is that the jaw bulges *up* in the middle and hangs two fangs
-// off it, and that a brow ridge sits over the eyes so the top of the shape is not empty.
-part('guard-beastmask', 24, 'none',
+// Thôn kiên thú — the beast that swallows the shoulder.
+//
+// Two passes were wrong before this one, and both failures came from drawing a *face* instead of
+// copying the object. Pass one — two dots and an upcurved jaw — was a smiley. Pass two added
+// fangs hanging below the jaw and they read as a tongue stuck out. Going back to the frame
+// (hlts-1, the Hữu tướng quân's pauldron) says what actually dominates a cast one: a big
+// scrolled **snout** in the middle, eyes small and tucked beside it, teeth as a zigzag *inside*
+// the jaw, and curls of mane filling the top. Density is the read, not expression.
+//
+// Drawn once for the left shoulder and mirrored, so the two can never drift apart.
+const beastMaskHalf =
   `<path d="M -50 ${SHY + 15} C -51 ${SHY - 9}, -26 ${SHY - 15}, -23 ${SHY + 3} C -30 ${SHY + 10}, -40 ${SHY + 14}, -42 ${SHY + 23} Z" fill="${GOLD}" stroke="${GOLD_DEEP}" stroke-width="1.2"/>
-   <path d="M 50 ${SHY + 15} C 51 ${SHY - 9}, 26 ${SHY - 15}, 23 ${SHY + 3} C 30 ${SHY + 10}, 40 ${SHY + 14}, 42 ${SHY + 23} Z" fill="${GOLD}" stroke="${GOLD_DEEP}" stroke-width="1.2"/>
-   <path d="M -47 ${SHY + 2} q 9 -7 17 -2" stroke="#2b2318" stroke-width="2.1" fill="none"/>
-   <path d="M 47 ${SHY + 2} q -9 -7 -17 -2" stroke="#2b2318" stroke-width="2.1" fill="none"/>
-   <circle cx="-44" cy="${SHY + 6}" r="1.9" fill="#2b2318"/><circle cx="-33.5" cy="${SHY + 1.5}" r="1.9" fill="#2b2318"/>
-   <circle cx="44" cy="${SHY + 6}" r="1.9" fill="#2b2318"/><circle cx="33.5" cy="${SHY + 1.5}" r="1.9" fill="#2b2318"/>
-   <path d="M -47 ${SHY + 15} q 10 -6 19 -4" stroke="#2b2318" stroke-width="1.6" fill="none"/>
-   <path d="M 47 ${SHY + 15} q -10 -6 -19 -4" stroke="#2b2318" stroke-width="1.6" fill="none"/>
-   <path d="M -43 ${SHY + 13.4} l 1 3.4 M -32 ${SHY + 11.2} l 1 3.4" stroke="#2b2318" stroke-width="1.4"/>
-   <path d="M 43 ${SHY + 13.4} l -1 3.4 M 32 ${SHY + 11.2} l -1 3.4" stroke="#2b2318" stroke-width="1.4"/>`);
+   <path d="M -46 ${SHY - 1} q 5 -7 11 -5 M -34 ${SHY - 7} q 5 -2 9 2" stroke="${GOLD_DEEP}" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+   <ellipse cx="-37.5" cy="${SHY + 6.5}" rx="6.6" ry="4.4" fill="${GOLD_DEEP}" transform="rotate(-20 -37.5 ${SHY + 6.5})"/>
+   <circle cx="-40" cy="${SHY + 6}" r="1" fill="#2b2318"/><circle cx="-35" cy="${SHY + 4}" r="1" fill="#2b2318"/>
+   <circle cx="-45.4" cy="${SHY + 2.4}" r="1.6" fill="#2b2318"/>
+   <circle cx="-32.6" cy="${SHY - 1.8}" r="1.6" fill="#2b2318"/>
+   <path d="M -45.5 ${SHY + 13.4} l 3 -2.2 l 3 1.8 l 3 -2.2 l 3 1.8 l 3 -2.2" stroke="#2b2318" stroke-width="1.25" fill="none" stroke-linejoin="round"/>`;
+part('guard-beastmask', 24, 'none', beastMaskHalf + `<g transform="scale(-1,1)">${beastMaskHalf}</g>`);
 
 // 25 · neck
 part('neck', 25, 'skinShadow', `<rect x="-9" y="${NECK - 12}" width="18" height="22" fill="#ffffff"/>`);

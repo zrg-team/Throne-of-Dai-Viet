@@ -21,6 +21,7 @@
  * commented where it happens; nothing else in the codebase has to learn a new way to read a fight.
  */
 import { MAX_LIVE_BATTLES } from '../../game/ascentConfig';
+import { t } from '../../i18n';
 import type { AscentBattle, GameState } from '../../state/types';
 
 /** Every fight still being fought, the player's own first. */
@@ -70,13 +71,27 @@ export function inAnyBattle(state: GameState, armyId: string): boolean {
 export function addSideBattle(state: GameState, battle: AscentBattle): boolean {
   const ascent = state.ascent;
   if (!ascent) return false;
-  if (!hasRoomForAnotherFront(state)) return false;
+  // By name, so the dynasty's seat gets the slot past the cap here too. Checked without it, a
+  // capital contact that arrived while a field was already open was refused the extra slot
+  // `beginBattle` had just granted it and went back to being a die roll.
+  if (!hasRoomForAnotherFront(state, battle.landId)) return false;
   battle.delegated = true;
   (ascent.sideBattles ??= []).push(battle);
-  // The world stops. Two fights at once changes what the player should be *doing*, not merely how
-  // well it is going, and the count is what the screen needs to say so.
+  // Two fights at once changes what the player should be *doing*, not merely how well it is
+  // going, and the count is what the screen needs to say so.
   ascent.frontsOpened = liveBattleCount(state);
-  state.isStrategyPause = true;
+  // The world stops only when there is nobody on a field — then the board comes up and the whole
+  // question is which one to hold. A player already in a fight is *told* (the fronts chip on the
+  // near corner names the others) and not stopped: freezing a running battle to announce another
+  // one is the stall that reads as the fight having died.
+  if (!ascent.activeBattle || ascent.activeBattle.over) {
+    state.isStrategyPause = true;
+  } else {
+    // Told instead: the band above the field prints the newest line of the fight's own log, so
+    // the news arrives where the player is already looking and the fronts chip on the near
+    // corner is the door to it.
+    ascent.activeBattle.log.push(t('ascent.battle.frontOpened', { land: battle.landName }));
+  }
   return true;
 }
 

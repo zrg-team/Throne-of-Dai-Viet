@@ -48,7 +48,8 @@ import {
 import { raiseEnemyGarrisonLevy, raiseGarrisonLevy, resolveBattleRecord } from '../empire/InvasionSystem';
 import { recordEngagement } from './battleReport';
 import {
-  addSideBattle, battleAt, hasRoomForAnotherFront, liveBattles, promoteNextFront, withFocus,
+  addSideBattle, battleAt, focusBattle, hasRoomForAnotherFront, liveBattles, promoteNextFront,
+  withFocus,
 } from './fronts';
 import { pushToast } from '../empire/notifications';
 import {
@@ -286,6 +287,30 @@ function worthWatching(state: GameState, landId: string, isGreat: boolean, asSid
 }
 
 /**
+ * True when the odds roll this defence is about to be handed to would take the province.
+ *
+ * The watch gates ration *screens*, and they are tuned: a fight decided before the first
+ * exchange is not worth stopping the game for. That reasoning holds right up to the point where
+ * what the fight decides is whether a province is still ours — and then the thing being rationed
+ * away is not a screen, it is the news. Reported with the card for it in hand: *Vân Trại Thượng
+ * đã mất*, twelve men against eight hundred, `rounds: 0` — settled by dispatch, on a province
+ * the player held, with no field, no notice and nothing to answer.
+ *
+ * So a defence above the band on ground of ours opens anyway. It opens under its general like
+ * any other, which means it costs no attention; what it buys is that the fight is *announced*
+ * (see `maybeAutoOpenBattle`) and the player may walk onto it while there is still time to
+ * march relief. Below the band nothing changes: a raid the walls brush off is still not news.
+ */
+function wouldCostUsTheProvince(state: GameState, landId: string): boolean {
+  const land = findLand(state, landId);
+  if (!land || land.ownerId !== PLAYER_KINGDOM_ID) return false;
+  if (state.ascent?.arena) return false;
+  const { defence, attack } = watchOdds(state, land);
+  if (defence <= 0 || attack <= 0) return false;
+  return attack / defence > WATCH_ODDS_BAND_MAX;
+}
+
+/**
  * The band of attacker-to-defender power in which a defence is worth watching.
  *
  * Narrowed from 0.55-2.20. The old floor admitted a fight the province wins by a factor of two,
@@ -356,7 +381,8 @@ export function beginBattle(state: GameState): boolean {
   // Already holding a field: this one opens as a side front, under looser gates — see
   // `worthWatching`. The gates ration the player's attention, and a side front costs none.
   const asSide = Boolean(ascent.activeBattle && !ascent.activeBattle.over);
-  if (!worthWatching(state, pending.landId, pending.isGreat, asSide)) return false;
+  if (!worthWatching(state, pending.landId, pending.isGreat, asSide)
+    && !wouldCostUsTheProvince(state, pending.landId)) return false;
 
   // One watched engagement per province per wave.
   //
@@ -369,6 +395,102 @@ export function beginBattle(state: GameState): boolean {
   // two fronts be fought on both.
   const watchKey = `${ascent.wave}:${pending.landId}`;
   if (ascent.lastWatchedKey === watchKey) return false;
+  return raiseDefenceField(state, pending, watchKey, asSide);
+}
+
+/**
+ * Whoever is nearest to being inside the walls of a province of ours, or nobody.
+ *
+ * The besieger first — a siege is the one attack that makes no contact and therefore raises no
+ * fight of its own — then a host standing on the ground, then a column one province off that is
+ * under invasion orders. Shared by the door below and by the war board, so a row the board draws
+ * as enterable is enterable.
+ */
+export function fieldCandidateAt(state: GameState, landId: string): Army | undefined {
+  const land = findLand(state, landId);
+  if (!land || land.ownerId !== PLAYER_KINGDOM_ID) return undefined;
+  const hostile = (army: Army): boolean => army.kingdomId !== PLAYER_KINGDOM_ID
+    && !army.isLevy && totalUnits(army) > 0;
+  const siege = state.siegeOrders.find((order) => order.landId === landId);
+  const besieger = siege
+    ? state.armies.find((army) => army.id === siege.armyId && hostile(army))
+    : undefined;
+  if (besieger) return besieger;
+  const standingHere = state.armies.find((army) => hostile(army) && army.landId === landId);
+  if (standingHere) return standingHere;
+  const invading = new Set((state.invasions ?? []).map((record) => record.armyId));
+  return state.armies.find((army) => hostile(army) && invading.has(army.id)
+    && land.neighbors.includes(army.landId));
+}
+
+/**
+ * Opens a field on a province the player has pointed at.
+ *
+ * **The door the gates never had.** `worthWatching` and `lastWatchedKey` ration the fights that
+ * open *at* the player — deliberately, and that stays — but they were also the only way a fight
+ * could exist at all, so ground the gates declined had no fight and therefore nothing to walk
+ * onto. A siege is the worst case of it: the besieger stops making contact the moment it sits
+ * down, so the one attack that can end the run was the one attack with no door. Reported
+ * verbatim: *some battle i still can not control.*
+ *
+ * A ration on what the game interrupts you with is not a ration on what you may choose to do.
+ * The cap still holds (three fields, four at the seat) because that one is about how many fights
+ * a thumb can hold at once, and it is the player's own tap that spends it.
+ */
+export function openFieldAt(state: GameState, landId: string): boolean {
+  const ascent = state.ascent;
+  if (!ascent) return false;
+  const land = findLand(state, landId);
+  if (!land) return false;
+  // Already being fought: this is the same request as the board's other door, so answer it the
+  // same way rather than refusing a tap that plainly means "put me on that field".
+  if (battleAt(state, landId)) {
+    focusBattle(state, landId);
+    return true;
+  }
+  if (!hasRoomForAnotherFront(state, landId)) return false;
+  const invader = fieldCandidateAt(state, landId);
+  if (!invader) return false;
+
+  const pending: PendingBattle = {
+    role: 'defence',
+    invaderArmyId: invader.id,
+    landId: land.id,
+    landName: land.name,
+    kingdomId: invader.kingdomId,
+    kingdomName: state.kingdoms.find((kingdom) => kingdom.id === invader.kingdomId)?.name
+      ?? invader.kingdomId,
+    isGreat: false,
+    attackerPower: 0,
+    defenderPower: 0,
+  };
+  // Keyed on the turn, not the wave. The wave key is the ration on fights raised *at* the
+  // player, and stamping it here would spend a ration this fight did not draw on — and would
+  // then refuse the next contact on the same ground, handing it to the odds roll.
+  const asSide = Boolean(ascent.activeBattle && !ascent.activeBattle.over);
+  if (!raiseDefenceField(state, pending, `hold:${state.turn}:${land.id}`, asSide, true)) return false;
+  return true;
+}
+
+/**
+ * Stands a defence up on a province: enrols who is there, turns the walls out, files the field.
+ *
+ * Split out of `beginBattle` unchanged, so that the gates above it and the door beside it can
+ * both reach it. `commanded` marks the field the player asked for by name: it takes the focus
+ * instead of opening under a general, and it raises no second-front alert, because there is
+ * nothing to announce to somebody about a thing they just pressed.
+ */
+function raiseDefenceField(
+  state: GameState,
+  pending: PendingBattle,
+  watchKey: string,
+  asSide: boolean,
+  commanded = false,
+): boolean {
+  const ascent = state.ascent;
+  if (!ascent) return false;
+  const invader = state.armies.find((army) => army.id === pending.invaderArmyId);
+  if (!invader) return false;
   // Who is actually on the field. Rolled explicitly, because the invader that made contact is
   // standing on the *adjacent* province — keyed on the ground itself, every watched defence used
   // to open against nobody and end, as a hidden roll, inside the tick that opened it.
@@ -394,11 +516,12 @@ export function beginBattle(state: GameState): boolean {
   const defender = battleLine(state, draft);
   if (!defender) return false;
 
-  ascent.lastWatchedKey = watchKey;
+  // Neither ration is spent by a field the player opened themselves — see `openFieldAt`.
+  if (!commanded) ascent.lastWatchedKey = watchKey;
   // The wave gap is the ration on *screens taken*, so only a fight that takes one spends it. A
   // side front stamping this would make the next wave's opening fight — the one the player is
   // actually meant to be in the room for — fail the gap it never used.
-  if (!asSide) ascent.lastWatchedWave = ascent.wave;
+  if (!asSide && !commanded) ascent.lastWatchedWave = ascent.wave;
 
   // No reserve is held back any more: every man the side brought stands on the field from the
   // first beat, and the count the player chose is the count they see. The 28% held at camp was
@@ -438,10 +561,32 @@ export function beginBattle(state: GameState): boolean {
     // screen here so intercepting on high ground becomes a decision back on the map.
     terrainEdge: land ? terrainDefenseMultiplier(land) : 1,
   };
-  // The player's hands are already on a field, so this one opens under a general and the world
-  // stops to say so — see `addSideBattle`. Otherwise it is theirs, exactly as it always was.
-  if (ascent.activeBattle && !ascent.activeBattle.over) addSideBattle(state, opened);
-  else ascent.activeBattle = opened;
+  // Who holds the dials, by standing order — see `handToGenerals`. A side front ignores this and
+  // is always delegated (`addSideBattle`): there is nobody to grant a grace window to on a field
+  // the player is not looking at.
+  // …except a field the player pressed a button labelled *hold this one yourself* to open — and
+  // except the arena, which is the practice yard: an unclaimed fight losing there is the lesson,
+  // and the same reason `AscentTick`'s grace window skips it.
+  opened.delegated = !commanded && !ascent.arena && ascent.handToGenerals !== false;
+  if (opened.delegated) {
+    const led = ourHosts(state, opened).find((host) => host.generalHeroId)?.generalHeroId;
+    const officer = state.heroes.find((hero) => hero.id === led);
+    opened.generalName = officer?.name;
+    opened.generalMartial = officer ? officer.stats.martial : 45;
+  }
+  if (ascent.activeBattle && !ascent.activeBattle.over) {
+    if (!addSideBattle(state, opened)) return false;
+    // Asked for by name: the player is put on the field they pressed and the fight they were
+    // watching steps back to its general. No alert and no hold either — the announcement exists
+    // to tell somebody the war has spread, and they are the reason it just did.
+    if (commanded) {
+      ascent.frontsOpened = undefined;
+      state.isStrategyPause = false;
+      focusBattle(state, opened.landId);
+    }
+  } else {
+    ascent.activeBattle = opened;
+  }
 
   // The engagement now owns its own record: `finishBattle` rebuilds what the invasion code needs
   // from the battle itself. Leaving the pending record in place let the next tick "resolve" the
@@ -534,6 +679,13 @@ function beginAssault(state: GameState, pending: PendingBattle): boolean {
     // The ground is theirs this time: the edge goes to the walls, not to us.
     terrainEdge: terrainDefenseMultiplier(land),
   };
+  // The same standing order the defences open under: an assault is still a fight, and a player
+  // who has handed the war to their generals has handed this one over too.
+  if (ascent.activeBattle) {
+    ascent.activeBattle.delegated = !ascent.arena && ascent.handToGenerals !== false;
+    ascent.activeBattle.generalName = general?.name;
+    ascent.activeBattle.generalMartial = general ? general.stats.martial : 45;
+  }
   if (standing && !standing.over) {
     standing.delegated = true;
     (ascent.sideBattles ??= []).push(standing);
@@ -1897,10 +2049,17 @@ function generalPlaysBeat(state: GameState, battle: AscentBattle): void {
  * a player who hands over because they are bored of a fight they are winning must be able to take
  * the field back the moment it turns.
  */
-export function delegateBattle(state: GameState, delegated: boolean): void {
+export function delegateBattle(state: GameState, delegated: boolean, standing = true): void {
   const battle = state.ascent?.activeBattle;
   if (!battle || battle.over) return;
   battle.delegated = delegated;
+  // And it is a *standing* order: the next field opens the way the last one was left. Handing
+  // the war over once and having to hand it over again every fight is the thing the report
+  // "by default fight will automatically control" is about.
+  //
+  // `standing: false` for the grace-window hand-over in `AscentTick` — a player who walked away
+  // from one fight has not told the realm anything about the next one.
+  if (standing && state.ascent) state.ascent.handToGenerals = delegated;
   if (!delegated) {
     battle.log.push(t('ascent.battle.tookBack'));
     return;
@@ -2089,6 +2248,11 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
 
   // Written down before the shared code moves anyone: the chronicle and the harness both read it.
   const ourIds = battle.ourArmyIds ?? [];
+  // And who led, while there is still a host to ask. The Reckoning draws the face, and the
+  // hosts are dissolved by the time it is read.
+  const ledBy = ourIds
+    .map((id) => state.armies.find((army) => army.id === id))
+    .find((army) => army?.generalHeroId)?.generalHeroId;
   // The field is cleared *before* the record is filed, not after, because `raiseAftermath` now
   // refuses to raise a dispatch over a live fight (a silent engagement three provinces away must
   // not take the screen off the one the player is standing on). Filed while `activeBattle` was
@@ -2111,6 +2275,7 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
     ourHosts: ourIds.length,
     levyFought: state.armies.some((army) => army.isLevy && ourIds.includes(army.id)),
     generalName: battle.delegated ? battle.generalName : undefined,
+    generalHeroId: ledBy,
     kingdomName: battle.kingdomName,
     year: state.year,
     season: state.season,
@@ -2149,6 +2314,7 @@ function finishAssault(state: GameState, battle: AscentBattle, decision: 'press'
     landId: battle.landId,
     landName: battle.landName,
     generalName: battle.delegated ? battle.generalName : undefined,
+    generalHeroId: attackers.find((host) => host.generalHeroId)?.generalHeroId,
     kingdomName: battle.kingdomName,
     year: state.year,
     season: state.season,

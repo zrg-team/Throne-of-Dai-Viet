@@ -22,6 +22,7 @@ import { famineReady, offerFamine, tickFamineCooldown } from './FamineSystem';
 import { offerRivalDemand, rivalDemandReady, tickRivalCooldowns } from './RivalDirector';
 import { offerHeroSummon } from './SummonSystem';
 import { offerPowerDraft } from './PowerDraftSystem';
+import { inAnyBattle } from './fronts';
 import { doctrineReady, offerDoctrine } from './RealmDoctrineSystem';
 import { offerStoryBeat, storyBeatReady, storyCardsMuted } from '../story/StorySystem';
 import type { AscentPhase, AscentPromptKind, GameState } from '../../state/types';
@@ -198,7 +199,12 @@ export function startPromptCooldown(state: GameState, kind: AscentPromptKind): v
 
 // ── Readiness ───────────────────────────────────────────────────────────────
 
-/** True when a kind has something real to say — not merely that its timer elapsed. */
+/**
+ * True when a kind has something real to say — not merely that its timer elapsed.
+ *
+ * Exported as `isAscentPromptReady` below, so a harness can ask the question directly instead of
+ * running a hundred ticks and hoping the card it is testing for comes up.
+ */
 function isReady(state: GameState, kind: AscentPromptKind): boolean {
   const ascent = state.ascent;
   if (!ascent) return false;
@@ -212,9 +218,18 @@ function isReady(state: GameState, kind: AscentPromptKind): boolean {
       if (ascent.marchCooldown > 0) return false;
       // Only worth asking when a host is actually free to act on the answer, or when a
       // bloodless method (bribe, claim, settle) is affordable regardless of armies.
+      //
+      // **A host, not a headcount.** This used to accept any army with no march or siege order
+      // against its name — which is every garrison levy standing on a wall, and every column
+      // already in a battle line. So with all the claim slots committed and every real host in
+      // the field, *Which way shall we expand?* still came up over a sheet on which nothing at
+      // all could be pressed. Reported verbatim: *no need to show it, it is meaningless.*
       const idleHost = state.armies.some(
         (army) =>
           army.kingdomId === PLAYER_KINGDOM_ID &&
+          !army.isLevy &&
+          army.units.spearmen + army.units.archers + army.units.heavyInfantry > 0 &&
+          !inAnyBattle(state, army.id) &&
           !state.movementOrders.some((order) => order.armyId === army.id) &&
           !state.siegeOrders.some((order) => order.armyId === army.id),
       );
@@ -321,6 +336,11 @@ function raise(state: GameState, kind: AscentPromptKind): boolean {
  * gap rule (a host arriving cannot wait two seasons for a polite pause), which is why they are
  * not in `CONSIDER_ORDER`; everything scheduled here does respect it.
  */
+/** `isReady`, for the harnesses. */
+export function isAscentPromptReady(state: GameState, kind: AscentPromptKind): boolean {
+  return isReady(state, kind);
+}
+
 export function tickDecisionDirector(state: GameState): void {
   const ascent = state.ascent;
   if (!ascent) return;
