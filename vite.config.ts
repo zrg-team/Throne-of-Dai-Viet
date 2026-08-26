@@ -12,6 +12,23 @@ const homepagePath = (() => {
 })();
 
 /**
+ * The site's own address, absolute, for `%SITE_URL%` in index.html.
+ *
+ * The canonical link and the share card's `og:image` are the only URLs in this project that may
+ * not be relative: a crawler unfurling a link has no document to resolve `./share/og-card.jpg`
+ * against, and Facebook, X and Slack all drop a relative one without saying so — which is a link
+ * preview that silently loses its picture. Absolute means this address, which is already written
+ * down once in `homepage` and derived from there by `base` above and by `build-sw.mjs`. Writing it
+ * out a fourth time by hand is how a moved site ships a card pointing at where it used to live.
+ */
+const siteUrl = (() => {
+  if (typeof packageJson.homepage !== 'string' || packageJson.homepage.length === 0) {
+    return '/';
+  }
+  return packageJson.homepage.endsWith('/') ? packageJson.homepage : `${packageJson.homepage}/`;
+})();
+
+/**
  * What the settings page prints under "Version".
  *
  * `package.json` is the headline and the thing to bump. The other two exist because it alone
@@ -67,6 +84,17 @@ export default defineConfig(({ command, isPreview, mode }) => {
       __BUILD_DATE__: JSON.stringify(buildDate),
       __SHELL_BUILD__: JSON.stringify(shell),
     },
+    plugins: [
+      {
+        name: 'van-thang-site-url',
+        // `pre`, because vite's own `%KEY%` pass runs after this one and warns about any
+        // placeholder it cannot find in the loaded env. By then this one is already a URL.
+        transformIndexHtml: {
+          order: 'pre',
+          handler: (html: string) => html.split('%SITE_URL%').join(siteUrl),
+        },
+      },
+    ],
     publicDir: 'public',
     build: {
       copyPublicDir: true,

@@ -46,12 +46,17 @@ const BASE = (() => {
  * Not precached, and each for its own reason:
  *   · `sw.js` — a worker that caches itself can never be replaced.
  *   · dotfiles — `.nojekyll` and friends are for the server, not the client.
+ *   · `share/` — the link-preview card (`scripts/build-share.mjs`). It is 170 kB drawn for
+ *     Facebook, X, Discord and Zalo; nothing inside the game ever requests it, so precaching it
+ *     would be 170 kB every installed player must fetch before the game is allowed to boot, to
+ *     hold a picture only a crawler will ever see.
  *
  * Everything else in `dist/` is the game, and all of it is sealed. (The deploy workflow used to
  * copy `public/` a second time into `dist/public/`, which this skipped; that copy was a duplicate
  * of files already at the root of `dist/` and nothing ever loaded from it, so it is gone.)
  */
-const skip = (rel) => rel === 'sw.js' || rel.split('/').some((part) => part.startsWith('.'));
+const skip = (rel) =>
+  rel === 'sw.js' || rel.startsWith('share/') || rel.split('/').some((part) => part.startsWith('.'));
 
 /** The art: fetched by the Phaser loader at runtime, and survivable if one is missing. */
 const isOptional = (rel) => rel.startsWith('faces/') || rel.startsWith('support/');

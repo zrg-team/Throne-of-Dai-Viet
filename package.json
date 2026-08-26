@@ -40,6 +40,8 @@
     "store:kit": "node scripts/build-store-kit.mjs",
     "store:builds": "node scripts/fetch-builds.mjs",
     "brand": "node scripts/build-brand.mjs",
+    "share": "node scripts/build-share.mjs",
+    "share:check": "node scripts/build-share.mjs --check",
     "icon": "node scripts/build-icon.mjs",
     "icon:check": "node scripts/build-icon.mjs --check",
     "faces": "node scripts/build-faces.mjs",
