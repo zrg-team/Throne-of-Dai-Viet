@@ -71,7 +71,13 @@ function siegeLeft(self: ConquestUIScene, landId: string): number | undefined {
  */
 function takeField(self: ConquestUIScene, landId: string): void {
   const state = self.state;
-  if (!battleAt(state, landId)) return;
+  // The fight ended between the board being drawn and this row being pressed. Redraw the war as
+  // it now stands rather than swallowing the tap — a row that does nothing is the whole reason
+  // this screen was rewritten.
+  if (!battleAt(state, landId)) {
+    self.replaceLanePage(() => showWarBoard(self));
+    return;
+  }
   focusBattle(state, landId);
   // Choosing a field is an instruction to fight on it — the board's hold ends here rather than
   // being handed back when the lane eventually closes.
@@ -81,9 +87,25 @@ function takeField(self: ConquestUIScene, landId: string): void {
   self.replaceLanePage(() => self.showBattle());
 }
 
+/**
+ * What the board is a picture of — the shape of the war, not its arithmetic.
+ *
+ * `refresh` redraws the board when this changes and leaves it alone otherwise, so a fight ending
+ * or a new province coming under attack reaches the screen, and a beat of casualties does not
+ * destroy the row under the player's thumb.
+ */
+export function warBoardSignature(self: ConquestUIScene): string {
+  const state = self.state;
+  const commanded = state.ascent?.activeBattle?.over === false ? state.ascent.activeBattle.landId : '';
+  return `${commanded}|${contestedFronts(state)
+    .map((front) => `${front.landId}${front.live ? '!' : ''}${front.besieged ? '#' : ''}`)
+    .join(',')}`;
+}
+
 export function showWarBoard(self: ConquestUIScene): void {
   const state = self.state;
   const fronts = contestedFronts(state);
+  self.warBoardKey = warBoardSignature(self);
   const live = fronts.filter((front) => front.live);
   const pressed = fronts.filter((front) => !front.live);
 

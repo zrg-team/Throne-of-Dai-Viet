@@ -598,8 +598,28 @@ export const ARMY_EQUIP_TIER_ESCALATION = 1.85;
 /** Gold and supplies per soldier in the host, so equipping a large host costs more. */
 export const ARMY_EQUIP_PER_SOLDIER = 0.06;
 
-/** Soldiers added by one reinforcement, before the humans available cap it. */
+/**
+ * The reinforcement dial: how many men a host calls up, what they cost, and how long it stands
+ * down to take them in.
+ *
+ * It was one number — 220 men, always, for a flat three seasons — so the one order in the game
+ * that makes an army grow had nothing to decide. Reported verbatim: *current reinforcement only
+ * 200 men; click, slide how much I want; as more as numbers it will slower and cost more.* The
+ * count is now the player's, the gold is charged per man, and the seasons off the line are the
+ * count divided by `ARMY_REINFORCE_PER_TICK` — so calling up a thousand men is a real decision
+ * about a host that will not be there for the next wave.
+ */
+/** Where the dial opens: the old flat reinforcement, so the default order is the familiar one. */
 export const ARMY_REINFORCE_SOLDIERS = 220;
+/** The fewest worth marching out to a host, and the most one order may call up. */
+export const ARMY_REINFORCE_MIN_SOLDIERS = 40;
+export const ARMY_REINFORCE_MAX_SOLDIERS = 1100;
+/**
+ * Men one season of the refit brings in. 220 over 75 is three seasons — exactly what the flat
+ * order used to take — so the dial's default is the old behaviour to the tick, and every step
+ * above it is paid for in time.
+ */
+export const ARMY_REINFORCE_PER_TICK = 75;
 export const ARMY_REINFORCE_GOLD_PER_SOLDIER = 0.55;
 /** Supply and rations a reinforcement restores, in points toward the 100 ceiling. */
 export const ARMY_REINFORCE_SUPPLY_GAIN = 22;
@@ -1474,6 +1494,8 @@ export const ARRIVAL_TRUCE_SEASONS = 6;
  * because it is the one that compounds; the gain lands only when the clock runs out.
  */
 export const ARMY_REFIT_TICKS: Record<'equip' | 'reinforce' | 'drill', number> = {
+  // Reinforce reads its own clock off the count called up (`reinforcementTicks`); this entry is
+  // the floor it starts from and what a caller that names no count gets.
   reinforce: 3,
   equip: 3,
   drill: 4,

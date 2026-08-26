@@ -298,10 +298,22 @@ function getTotalArmyGoldUpkeepAscent(state: GameState): number {
     .reduce((sum, army) => sum + getArmyGoldUpkeep(army), 0);
 }
 
-/** A hero with no posting, best martial first — the natural commander for a new host. */
+/**
+ * A hero with no posting, best martial first — the natural commander for a new host.
+ *
+ * **A general at the head of a host is not free, whatever `assignedTo` says.** The two are set
+ * together on every ordinary path, but not on all of them — a story that hands a champion a
+ * column writes `generalHeroId` alone, and so does the arena — so this could pick a hero standing
+ * with an army, and the muster card came up asking the realm to raise a second one under him.
+ * `musterBlockedReason` refuses that plan, so the card either proposed a commander it could not
+ * use or never arrived at all. Reported verbatim: *if hero is in a army they must not create "Lập
+ * quân".* Same predicate here as there, so the plan and the block cannot disagree.
+ */
 export function findFreeCommander(state: GameState): string | undefined {
   return state.heroes
     .filter((hero) => !hero.assignedTo)
+    .filter((hero) => !state.armies.some((army) => army.generalHeroId === hero.id))
+    .filter((hero) => !state.recruitmentOrders.some((order) => order.heroId === hero.id))
     .sort((a, b) => b.stats.martial - a.stats.martial)[0]?.id;
 }
 
