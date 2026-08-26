@@ -320,11 +320,39 @@ export function beginBattle(state: GameState): boolean {
   // `hasRoomForAnotherFront`, not `!ascent.activeBattle`. That one clause is what made a wave
   // striking three provinces a fight at one of them and hidden dice at the other two; a second
   // contact now opens a second field, held by its general until the player walks onto it.
-  if (!ascent || !pending || !hasRoomForAnotherFront(state)) return false;
+  if (!ascent || !pending) return false;
+  // The province is asked about by name: the dynasty's seat is allowed one field past the cap,
+  // because past the cap a contact is a die roll and the seat must never change hands on one.
+  if (!hasRoomForAnotherFront(state, pending.landId)) return false;
   if (pending.role === 'offence') return beginAssault(state, pending);
 
   const invader = state.armies.find((army) => army.id === pending.invaderArmyId);
   if (!invader) return false;
+  // **One field per province**, whatever the wave says — and a second column arriving where a
+  // fight is already running **joins it** rather than getting its own roll for the same ground.
+  //
+  // This used to `return false`, and the caller answers false with `resolvePendingBattle(…,
+  // 'delegate')` — a hidden odds roll that can take the province outright. So a wave converging on
+  // one place had its lead column fought on screen while the ones behind it quietly rolled dice
+  // for the same walls, and the ground could be captured out from under a battle still being
+  // fought over it. Enrolment already knows how to seat an arrival (`enrolArrivals` runs every
+  // beat); all that was missing was saying so instead of rolling.
+  //
+  // Ahead of every gate below, because none of them are asking the right question once a fight
+  // is standing there: `lastWatchedKey` would refuse this contact and hand it straight to the
+  // roll, which is the same defect one line further down.
+  const standing = battleAt(state, pending.landId);
+  if (standing) {
+    const theirs = new Set(standing.theirArmyIds ?? []);
+    theirs.add(pending.invaderArmyId);
+    standing.theirArmyIds = [...theirs];
+    enrolArrivals(state, standing);
+    state.pendingBattle = undefined;
+    state.isPaused = false;
+    // True, so the caller does not settle it as a roll — the fight it just joined settles it.
+    return true;
+  }
+
   // Already holding a field: this one opens as a side front, under looser gates — see
   // `worthWatching`. The gates ration the player's attention, and a side front costs none.
   const asSide = Boolean(ascent.activeBattle && !ascent.activeBattle.over);
@@ -341,15 +369,6 @@ export function beginBattle(state: GameState): boolean {
   // two fronts be fought on both.
   const watchKey = `${ascent.wave}:${pending.landId}`;
   if (ascent.lastWatchedKey === watchKey) return false;
-  // **One field per province**, whatever the wave says.
-  //
-  // `lastWatchedKey` is a single slot and it is keyed on the wave, so once the war could hold more
-  // than one field the same province opened a *second* battle the moment the wave counter moved —
-  // observed immediately: focus and side both reading `Thanh Châu Hạ`, two fights over one piece
-  // of ground, each enrolling the same hosts. The province, not the slot, is the thing that can
-  // only be fought over once at a time.
-  if (battleAt(state, pending.landId)) return false;
-
   // Who is actually on the field. Rolled explicitly, because the invader that made contact is
   // standing on the *adjacent* province — keyed on the ground itself, every watched defence used
   // to open against nobody and end, as a hidden roll, inside the tick that opened it.

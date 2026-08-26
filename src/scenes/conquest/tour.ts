@@ -18,6 +18,7 @@ import { drawFormationCounters } from '../../ui/ascent/formationCounters';
 import { markRunTourSeen } from '../../state/tour';
 import { ACTION_BUTTON_HEIGHT, ACTION_BUTTON_Y, actionBarSlots } from '../../ui/ActionBar';
 import type { ConquestUIScene } from '../ConquestUIScene';
+import { realmUnderAttack } from '../../systems/ascent/battleReport';
 
 
 /**
@@ -197,7 +198,7 @@ export function tourStages(self: ConquestUIScene): Array<{
       id: 'bar',
       when: () => true,
       steps: () => {
-        const context = { battleLive: Boolean(self.state.ascent?.activeBattle) };
+        const context = { battleLive: realmUnderAttack(self.state) };
         const slots = actionBarSlots(self.state.gameMode, context);
         const known = ['battle', 'build', 'heroes', 'court', 'army', 'affairs', 'chronicle', 'pause', 'menu'];
         return slots

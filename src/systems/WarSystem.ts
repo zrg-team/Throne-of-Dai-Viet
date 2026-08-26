@@ -56,6 +56,7 @@ import type {
 import { heroName, t, tickLabel } from '../i18n';
 import { pushToast } from './empire/notifications';
 import { isEngagedHost } from './ascent/armyOrders';
+import { liveBattles } from './ascent/fronts';
 
 const MAX_ARMY_LEVEL = 5;
 
@@ -1280,11 +1281,23 @@ export function progressSiegeOrders(state: GameState): boolean {
   // watched engagement on the province (Dragon Ascent) contests it. Measured before this, the
   // capital was captured mid-battle by a host that was itself in the line, three beats before
   // the defenders routed it. Inert elsewhere — no other mode has a live battle.
-  const live = state.ascent?.activeBattle;
-  const engaged = new Set(live && !live.over ? [...(live.ourArmyIds ?? []), ...(live.theirArmyIds ?? [])] : []);
+  //
+  // **Every** live field, not only `activeBattle`. That single read was written when the war
+  // could hold one field; once `addSideBattle` landed, a province held for the player by one of
+  // their generals was not a "watched engagement" by this test, so its siege clock kept running
+  // underneath the fight. The reported case is the worst one it can produce: the seat besieged at
+  // 5/6, a general holding it, and the dynasty ending mid-beat with the battle still on screen.
+  // Keyed on province + besieger, so the lookup below is one Set read per order rather than a
+  // scan of every field for every siege on the map.
+  const fought = new Set<string>();
+  for (const battle of liveBattles(state)) {
+    for (const id of [...(battle.ourArmyIds ?? []), ...(battle.theirArmyIds ?? [])]) {
+      fought.add(`${battle.landId}:${id}`);
+    }
+  }
 
   for (const order of state.siegeOrders) {
-    if (engaged.has(order.armyId) && live?.landId === order.landId) continue;
+    if (fought.has(`${order.landId}:${order.armyId}`)) continue;
     order.progress += 1;
     if (order.progress >= order.required) {
       completed.push(order);

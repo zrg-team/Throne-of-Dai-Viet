@@ -39,6 +39,7 @@ import { applyPendingRenderScale, bakeScale, designPointer, liveSettlementInk, l
 import { qualityLadder } from '../game/qualityLadder';
 import { fitBakeScale } from '../ui/ink/textureLimits';
 import { figureEraFor } from '../ui/ink/devices';
+import { liveBattles } from '../systems/ascent/fronts';
 
 /** How big a province's standard is drawn against the ground it stands on. See `drawFlags`. */
 const MAP_LAND_FLAG_SCALE = 0.55;
@@ -1801,8 +1802,10 @@ export class MapScene extends Phaser.Scene {
     // The live engagement is not an order and so is not in the list above, but it draws a badge
     // and its round advances every beat. Left out, the mark would appear only when some *other*
     // order happened to change and would then sit frozen on the round it was built at.
-    const fight = this.state.ascent?.activeBattle;
-    const battle = fight && !fight.over ? `${fight.landId}:${fight.round}/${fight.totalRounds}` : '';
+    // Every live field, not only the one under the player's hand — a general holding a province
+    // draws the same mark, and its round advances on the same beat clock.
+    const battle = liveBattles(this.state)
+      .map((fight) => `${fight.landId}:${fight.round}/${fight.totalRounds}`).join(',');
     const view = `${Math.round(camera.scrollX / 8)}:${Math.round(camera.scrollY / 8)}:${camera.zoom.toFixed(2)}`;
     return `${orders}|${battle}|${view}|${this.state.selectedLandId ?? ''}`;
   }
@@ -1867,12 +1870,16 @@ export class MapScene extends Phaser.Scene {
   }
 
   /**
-   * Shows the clash mark over a district where two hosts are actually fighting.
+   * Shows the clash mark over every district where two hosts are actually fighting.
    *
    * A siege had a marker and an open engagement had none, so the one thing on the map that is
    * happening *right now* was the one thing the map did not draw: an invader and a host of ours
    * could be locked together in a province for four or five ticks with nothing over them but two
    * army markers, which look exactly like two armies standing still.
+   *
+   * **Every** live field. It read `activeBattle` alone, which was the whole war when it was
+   * written; since `addSideBattle` the second and third fields are held by generals, and those
+   * were exactly the fights the player had no way of seeing.
    *
    * Skipped where a siege badge already stands on the same district - that badge carries the same
    * blades with a wall under them, and it is the more specific statement of the two.
@@ -1883,27 +1890,25 @@ export class MapScene extends Phaser.Scene {
     }
     this.battleMarkers = [];
 
-    const fight = this.state.ascent?.activeBattle;
-    if (!fight || fight.over) {
-      return;
-    }
-    if (this.state.siegeOrders.some((order) => order.landId === fight.landId)) {
-      return;
-    }
-    const land = findLand(this.state, fight.landId);
-    if (!land?.isVisible) {
-      return;
-    }
+    for (const fight of liveBattles(this.state)) {
+      if (this.state.siegeOrders.some((order) => order.landId === fight.landId)) {
+        continue;
+      }
+      const land = findLand(this.state, fight.landId);
+      if (!land?.isVisible) {
+        continue;
+      }
 
-    const { x, y } = this.getVisibleLandMarkerPoint(land);
-    // Rounds fought against the rounds the engagement is expected to run: the same "how far
-    // through is this" the other four badges carry, for the one of them the player can still
-    // change the answer to.
-    const marker = this.mapItems.createProgressBadge(
-      x, y, fight.round, Math.max(1, fight.totalRounds), 'battle',
-    );
-    marker.setDepth(72);
-    this.battleMarkers.push(marker);
+      const { x, y } = this.getVisibleLandMarkerPoint(land);
+      // Rounds fought against the rounds the engagement is expected to run: the same "how far
+      // through is this" the other four badges carry, for the one of them the player can still
+      // change the answer to.
+      const marker = this.mapItems.createProgressBadge(
+        x, y, fight.round, Math.max(1, fight.totalRounds), 'battle',
+      );
+      marker.setDepth(72);
+      this.battleMarkers.push(marker);
+    }
   }
 
   /** Shows a flag-and-progress badge over the capital while an army is being recruited. */

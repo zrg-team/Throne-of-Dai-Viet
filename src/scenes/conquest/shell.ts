@@ -23,7 +23,7 @@ import {
 } from '../../game/constants';
 import { refreshAscentLaneState } from '../../systems/ascent/ConquestSystem';
 import { countOpenDoors } from '../../systems/story/StorySystem';
-import { contestedFronts } from '../../systems/ascent/battleReport';
+import { contestedFronts, realmUnderAttack } from '../../systems/ascent/battleReport';
 import { INK_UI, InkUI } from '../../ui/InkUI';
 import { playWaveBanner } from '../../ui/ascent/waveBanner';
 import { AscentHud } from '../../ui/ascent/AscentHud';
@@ -83,7 +83,10 @@ export function create(self: ConquestUIScene): void {
   // objects a second for a bar whose labels change only when the run's state does.
   self.actionBar = new ActionBar(self, self.state, (action) => handleBarAction(self, action));
   self.actionBar.statusColor = (action) => barStatusColor(self, action);
-  self.actionBar.context = () => ({ battleLive: Boolean(self.state.ascent?.activeBattle) });
+  // Not `Boolean(activeBattle)`. See `realmUnderAttack`: a siege raises no watched battle, so the
+  // one control that leads to the war used to leave the bar at the exact moment the war became
+  // unwinnable without it.
+  self.actionBar.context = () => ({ battleLive: realmUnderAttack(self.state) });
   self.actionBar.refresh();
 
   // The advisor. Built here beside the bar rather than per render for the same reason: it is

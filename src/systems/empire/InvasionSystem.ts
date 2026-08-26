@@ -700,7 +700,7 @@ function maybeRequestBattleDecision(state: GameState, army: Army, record: Invasi
   // invader for the length of the first fight. Running the fields side by side freezes nobody:
   // the second contact opens its own battle under a general and `focusBattle` walks the player
   // between them. Past the cap a contact is still settled by the odds roll, and now reported.
-  if (!hasRoomForAnotherFront(state)) return false;
+  if (!hasRoomForAnotherFront(state, land.id)) return false;
   const defender = state.armies.find((a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id && totalUnits(a) > 0);
   // `autoDefend` means two different things: 'march home to intercept' (tickAutoDefend) and
   // 'fight without asking' (here). Dragon Ascent needs the first and not the second, so it

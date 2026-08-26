@@ -36,9 +36,18 @@ export function liveBattleCount(state: GameState): number {
   return liveBattles(state).length;
 }
 
-/** True when another front would still fit under the cap. */
-export function hasRoomForAnotherFront(state: GameState): boolean {
-  return liveBattleCount(state) < MAX_LIVE_BATTLES;
+/**
+ * True when another front would still fit under the cap.
+ *
+ * `landId` buys the dynasty's seat one slot past it. The cap is a budget on the player's
+ * *attention* — three fields is the most a thumb can hold — and past it a contact is settled by
+ * `resolveInvaderBattle`'s die roll. That is a fair trade for a border province and not one for
+ * the capital: losing the seat ends the run, and a run must not end on a roll nobody was shown.
+ * The extra field opens delegated like every other side front, so it costs no attention either.
+ */
+export function hasRoomForAnotherFront(state: GameState, landId?: string): boolean {
+  const seat = Boolean(landId) && landId === state.ascent?.capitalLandId;
+  return liveBattleCount(state) < MAX_LIVE_BATTLES + (seat ? 1 : 0);
 }
 
 /** The fight on a given province, wherever it is being held. */
