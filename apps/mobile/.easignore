@@ -1,0 +1,22 @@
+# What EAS uploads to its build machines.
+#
+# By default the EAS CLI uploads what git would archive, which is wrong for this project: every
+# asset the app needs — the game itself, the icon, the splash — is gitignored, because
+# `npm run sync` writes them out of the repository root's build rather than committing them. A
+# cloud build without this file arrives with no icon, no splash and no game, and fails or ships a
+# diagnostic screen.
+#
+# .easignore REPLACES .gitignore entirely for uploads — it is not additive. So this is a copy of
+# .gitignore with the five `assets/` lines removed. Keep the two in step when either changes.
+
+node_modules/
+.expo/
+dist/
+
+# Regenerated in the cloud by `expo prebuild` on every build. This is a Continuous Native
+# Generation project; uploading a local copy is pointless at best and stale at worst.
+android/
+ios/
+
+# Local output of scripts/ios.mjs — the archive and .ipa from a Mac build. Never needed remotely.
+build/

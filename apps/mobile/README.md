@@ -66,13 +66,25 @@ Two things it needs from you, neither of which lives in this repository:
 Signing is automatic and `-allowProvisioningUpdates` is passed, so Xcode creates or refreshes the
 provisioning profile itself. The export uses `method: app-store-connect`.
 
-From Windows, the same build runs on EAS's hosted Macs instead:
+From Windows — or from a Mac with no Xcode — the same build runs on EAS's hosted Macs instead.
+`npm run sync` still has to happen first: EAS builds what you upload, not what the repository
+contains.
 
 ```bash
 npm i -g eas-cli && eas login
-npm run ios:eas           # → TestFlight
+npm run ios:eas           # ad-hoc .ipa; --profile production for TestFlight
 npm run android:eas       # Android, on EAS rather than this machine
 ```
+
+`ios:eas` uses the `preview` profile, which is `distribution: internal` — an **ad-hoc** build, so
+every test device's UDID has to be registered first with `eas device:create`. For TestFlight use
+`--profile production` and then `eas submit -p ios`.
+
+`.easignore` is why the build has a game in it. The EAS CLI otherwise uploads what git would
+archive, and `assets/` is gitignored in its entirety — the archive, the icon and the splash are
+all written by `npm run sync` rather than committed. `.easignore` **replaces** `.gitignore` for
+uploads rather than adding to it, so it is a copy of that file with the `assets/` lines removed.
+Change one and change the other.
 
 ## Signing
 
