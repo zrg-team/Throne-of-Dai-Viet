@@ -21,6 +21,7 @@ import type { Army, AscentBattle, GameState } from '../../state/types';
 import { findLand } from '../LandSystem';
 import { findLandPath, getTotalPathTicks } from '../WarSystem';
 import { isEngagedHost, isPinnedByClaim } from './armyOrders';
+import { liveBattles } from './fronts';
 import { hostHeadcount } from './battleMembership';
 import { setArmyOrders } from './StandingOrders';
 
@@ -73,20 +74,36 @@ export function isMarchingToBattle(army: Army, battle: AscentBattle): boolean {
   return orders.kind === 'defend' && orders.landId === battle.landId;
 }
 
-/** Every host of ours not already in the line, nearest first. */
+/**
+ * Every host of ours, nearest first — the ones that can come, and the ones that cannot with the
+ * reason written on them.
+ *
+ * **A host already in a line is listed, not dropped.** It used to `continue` past every engaged
+ * host, which is silent and exactly backwards: relief is asked for when the realm is fighting on
+ * three fronts, so the one moment the page is opened is the moment every host is engaged and the
+ * list came back empty — and the chip that opens it hid itself. Reported verbatim: *in battle
+ * screen, fast reinforcement feature does not show any more.* The men are not available; that is
+ * an answer, and the page's job is to give it.
+ */
 export function reinforcementCandidates(state: GameState, battle: AscentBattle): ReinforcementCandidate[] {
   const ticksLeft = battleTicksLeft(battle);
   const rows: ReinforcementCandidate[] = [];
   for (const army of state.armies) {
     if (army.kingdomId !== PLAYER_KINGDOM_ID || army.isLevy) continue;
-    if (isEngagedHost(state, army.id)) continue;
     const men = hostHeadcount(army);
     if (men <= 0) continue;
+    // The line it is standing in, if it is standing in one — its own is not a blocker, it is
+    // already here.
+    const holding = liveBattles(state).find((live) => (live.ourArmyIds ?? []).includes(army.id)
+      || (live.theirArmyIds ?? []).includes(army.id));
+    if (holding && holding.landId === battle.landId) continue;
     const rally = rallyPointFor(state, army, battle);
     const etaTicks = rally ? getTotalPathTicks(state, army, rally.path) : undefined;
     const enRoute = isMarchingToBattle(army, battle);
     let blockedReason: string | undefined;
-    if (army.refit) blockedReason = t('ascent.army.refitBusy');
+    if (holding || isEngagedHost(state, army.id)) {
+      blockedReason = t('ascent.reinforce.already', { land: holding?.landName ?? battle.landName });
+    } else if (army.refit) blockedReason = t('ascent.army.refitBusy');
     else if (!rally) blockedReason = t('ascent.reinforce.noRoad');
     else if (isPinnedByClaim(state, army)) blockedReason = t('ascent.reinforce.pinned');
     else if (state.siegeOrders.some((order) => order.armyId === army.id)) blockedReason = t('ascent.reinforce.besieging');

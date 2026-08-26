@@ -229,6 +229,23 @@ export class ConquestUIScene extends Phaser.Scene {
   lastAutoOpenedBattleKey = '';
 
   /**
+   * The war the board was drawn from, while the board is the page in the battle lane.
+   *
+   * The Battle lane holds one of two screens, and only one of them keeps itself current: the
+   * fight updates in place off its own clock, while the board — the *war in progress* — was drawn
+   * once and then left. Nothing rebuilt it, so a fight that ended left its row standing, and the
+   * row's tap looked up a battle that was no longer there and returned. That is a dead control on
+   * the one screen the player opens when they cannot find the war.
+   *
+   * Coarse on purpose: which provinces are contested, which are being fought, and which one the
+   * player is standing on. Rebuilding on the headcounts would tear the rows down between press
+   * and release, which is the same bug wearing the opposite coat. Empty while any other page of
+   * the lane is up (the fight, the front sheet, the relief picker) — those are never rebuilt
+   * under the player.
+   */
+  warBoardKey = '';
+
+  /**
    * The proclamation currently unrolled over the map, and the cue id it was raised for.
    *
    * Held so the scene's shutdown can take it down — a banner outliving its scene leaves tweens
@@ -565,6 +582,7 @@ export class ConquestUIScene extends Phaser.Scene {
     this.lanePauseBeforeOpen = false;
     this.battleUi = undefined;
     this.lastAutoOpenedBattleKey = '';
+    this.warBoardKey = '';
     this.battleAwaitingOrder = false;
     this.battleSealPending = false;
     this.inspectKey = '';

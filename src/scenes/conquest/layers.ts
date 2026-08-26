@@ -61,10 +61,25 @@ export function killTweensDeep(self: ConquestUIScene, object: Phaser.GameObjects
  * handler, so a leaked one goes on eating the wheel over a page it no longer draws — and a mask
  * does not clip input, so its dead rows stay tappable underneath the live ones.
  *
+ * **And the battle screen has to be taken down with them.** `battleUi` holds nine containers that
+ * live in the modal layer, so emptying the layer destroys them — but the handle stayed, and
+ * `openPromptKey` is still `lane:battle` while a page *of* the fight (the war board reached from
+ * the fronts chip, the relief picker) stands in its place. `refresh` reads that key and calls
+ * `updateBattle` on every beat, which rebuilt the dock, the exits and the relief plate into the
+ * destroyed containers: nothing drawn, and a fresh set of interactive zones registered with the
+ * input plugin each time, invisible, stacked over the page that *is* on screen. The bottom of
+ * that stack is where the lane's Close button lives. Reported verbatim: *Chiến sự page crash
+ * sometime — I can do nothing.* `releaseOverlay` already did this pair; page turns went round it.
+ *
  * The modal layer is emptied with `removeAll(true)` rather than `clearLayer`: a lane page holds no
  * endless tweens, and paying a deep tween sweep on every page turn is not free.
  */
 export function clearLanePage(self: ConquestUIScene): void {
+  self.stopBattleClock();
+  self.battleUi = undefined;
+  // Only the war board sets this again, on its way in — so every other page of the lane is
+  // automatically one that `refresh` will not redraw under the player.
+  self.warBoardKey = '';
   for (const scroll of self.activeScrollAreas) scroll.destroy();
   self.activeScrollAreas = [];
   self.modalLayer.removeAll(true);

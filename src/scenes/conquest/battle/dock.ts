@@ -53,7 +53,7 @@ import type { ConquestUIScene } from '../../ConquestUIScene';
  * province is in the line the next beat — but nothing on this screen, or the army screen, ever
  * offered to send one. The control sits in our corner of the field, over the ground our camp
  * stands on, and says one of two things: that a host can be sent, or who is on the road and
- * when they arrive. Hidden once the fight is over or nobody could come.
+ * when they arrive. It stands for as long as the fight does, even when the answer is nobody.
  */
 export function buildBattleRelief(self: ConquestUIScene, battle: AscentBattle): void {
   const ui = self.battleUi;
@@ -69,8 +69,8 @@ export function buildBattleRelief(self: ConquestUIScene, battle: AscentBattle): 
   if (key === ui.reliefKey) return;
   ui.reliefKey = key;
   clearLayer(self, ui.relief);
-  if (!battle.over) buildOtherFronts(self, battle, elsewhere);
-  if (battle.over || (sendable === 0 && coming.hosts === 0)) return;
+  if (battle.over) return;
+  buildOtherFronts(self, battle, elsewhere);
 
   const { content } = ui;
   const w = 118;
@@ -78,11 +78,23 @@ export function buildBattleRelief(self: ConquestUIScene, battle: AscentBattle): 
   const x = content.x + 6;
   const y = content.y + ui.fieldHeight - h - 6;
   const onRoad = coming.hosts > 0;
+  /**
+   * **Standing while the fight is, whatever the answer turns out to be.**
+   *
+   * It used to hide itself when no host was free — and the moment no host is free is the moment
+   * the realm is fighting on three fronts, which is the only moment anybody looks for it.
+   * Reported verbatim: *in battle screen, fast reinforcement feature does not show any more.* The
+   * page behind it now names every host and why it cannot come (`reinforcementCandidates`), and
+   * carries the call-up that needs no host at all, so there is always something on it.
+   */
   const label = onRoad
     ? t('ascent.reinforce.coming', { men: coming.men, n: coming.etaTicks === Number.POSITIVE_INFINITY ? 0 : coming.etaTicks })
-    : t('ascent.reinforce.button', { n: sendable });
+    : sendable > 0
+      ? t('ascent.reinforce.button', { n: sendable })
+      : t('ascent.reinforce.buttonNone');
   const plate = self.ui.panel({ x, y, width: w, height: h }, {
-    border: onRoad ? INK_UI.jade : INK_UI.gold, fillAlpha: 0.94, borderWidth: 1.5, radius: 5,
+    border: onRoad ? INK_UI.jade : sendable > 0 ? INK_UI.gold : INK_UI.softBrush,
+    fillAlpha: 0.94, borderWidth: 1.5, radius: 5,
   });
   ui.relief.add(plate);
   ui.relief.add(self.ui.label(x + w / 2, y + h / 2, label, 'label', {

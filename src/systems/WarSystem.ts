@@ -36,6 +36,9 @@ import {
   ARMY_EQUIP_TIER_ESCALATION,
   ARMY_REFIT_TICKS,
   ARMY_REINFORCE_GOLD_PER_SOLDIER,
+  ARMY_REINFORCE_MAX_SOLDIERS,
+  ARMY_REINFORCE_MIN_SOLDIERS,
+  ARMY_REINFORCE_PER_TICK,
   ARMY_REINFORCE_SOLDIERS,
   ARMY_REINFORCE_SUPPLY_GAIN,
 } from '../game/ascentConfig';
@@ -400,9 +403,35 @@ export interface ArmyUpgradeOption {
   reason?: string;
 }
 
-/** Soldiers a reinforcement would actually add, capped by the people available. */
-function reinforcementSize(state: GameState): number {
-  return Math.max(0, Math.min(ARMY_REINFORCE_SOLDIERS, Math.floor(state.resources.humans)));
+/**
+ * The most men one reinforcement could call up right now — the ceiling of the dial.
+ *
+ * Capped by the people the realm has and by what the treasury can pay the bounty on, because both
+ * are charged in full the moment the order is given. Quoted rather than merely enforced: the form
+ * runs its slider to exactly this number, so the dial cannot be moved somewhere unaffordable.
+ */
+export function reinforcementLimit(state: GameState): number {
+  const byPeople = Math.floor(state.resources.humans);
+  const byPurse = Math.floor(state.resources.gold / Math.max(0.01, ARMY_REINFORCE_GOLD_PER_SOLDIER));
+  return Math.max(0, Math.min(ARMY_REINFORCE_MAX_SOLDIERS, byPeople, byPurse));
+}
+
+/**
+ * Seasons a host stands down to take `men` in.
+ *
+ * The whole of "more men, slower": a call-up is a queue at the muster ground, and a longer queue
+ * is a host that is not on the line when the next wave lands.
+ */
+export function reinforcementTicks(men: number): number {
+  return Math.max(1, Math.ceil(Math.max(1, men) / ARMY_REINFORCE_PER_TICK));
+}
+
+/** The count a reinforcement would call up: what was asked for, inside the dial's own bounds. */
+function reinforcementSize(state: GameState, wanted?: number): number {
+  const limit = reinforcementLimit(state);
+  if (limit <= 0) return 0;
+  const asked = Math.round(wanted ?? ARMY_REINFORCE_SOLDIERS);
+  return Math.max(Math.min(ARMY_REINFORCE_MIN_SOLDIERS, limit), Math.min(limit, asked));
 }
 
 /**
@@ -412,7 +441,12 @@ function reinforcementSize(state: GameState): number {
  * the choice between "more men", "better kit" and "more drill" is only a choice if their prices
  * are visible together.
  */
-export function getArmyUpgradeOptions(state: GameState, armyId: string): ArmyUpgradeOption[] {
+export function getArmyUpgradeOptions(
+  state: GameState,
+  armyId: string,
+  /** How many men the reinforcement should call up; the dial's default when not named. */
+  reinforceMen?: number,
+): ArmyUpgradeOption[] {
   const army = state.armies.find((candidate) => candidate.id === armyId);
   if (!army) return [];
 
@@ -425,7 +459,7 @@ export function getArmyUpgradeOptions(state: GameState, armyId: string): ArmyUpg
     supplies: Math.round((ARMY_EQUIP_SUPPLIES_BASE + size * ARMY_EQUIP_PER_SOLDIER) * ARMY_EQUIP_TIER_ESCALATION ** tier),
   };
 
-  const recruits = reinforcementSize(state);
+  const recruits = reinforcementSize(state, reinforceMen);
   const reinforceCost: Partial<ResourceBag> = {
     gold: Math.round(recruits * ARMY_REINFORCE_GOLD_PER_SOLDIER),
     humans: recruits,
@@ -483,11 +517,17 @@ export function getArmyUpgradeOptions(state: GameState, armyId: string): ArmyUpg
  * and it is what makes "a few strong hosts" a real alternative to "many weak ones" rather than a
  * strategy the rules quietly forbid.
  */
-export function upgradeArmy(state: GameState, armyId: string, kind: ArmyUpgradeKind): boolean {
+export function upgradeArmy(
+  state: GameState,
+  armyId: string,
+  kind: ArmyUpgradeKind,
+  /** For `reinforce`: how many men to call up. Ignored by the other two. */
+  reinforceMen?: number,
+): boolean {
   const army = state.armies.find((candidate) => candidate.id === armyId);
   if (!army || army.kingdomId !== PLAYER_KINGDOM_ID) return false;
 
-  const option = getArmyUpgradeOptions(state, armyId).find((candidate) => candidate.kind === kind);
+  const option = getArmyUpgradeOptions(state, armyId, reinforceMen).find((candidate) => candidate.kind === kind);
   if (!option || !option.available) {
     if (option?.reason) state.message = option.reason;
     return false;
@@ -504,7 +544,9 @@ export function upgradeArmy(state: GameState, armyId: string, kind: ArmyUpgradeK
   // skip it) — instant upgrades made "a few strong hosts" free of the one cost that should
   // shape the choice: time off the line.
   if (state.gameMode === 'ascent') {
-    const ticks = ARMY_REFIT_TICKS[kind];
+    // Reinforce reads its clock off the count called up; the other two are flat, because what
+    // they buy does not come in units.
+    const ticks = kind === 'reinforce' ? reinforcementTicks(option.gain) : ARMY_REFIT_TICKS[kind];
     army.refit = { kind, ticksLeft: ticks, total: ticks, gain: option.gain };
     state.message = t('msg.armyRefitBegun', {
       army: army.name,

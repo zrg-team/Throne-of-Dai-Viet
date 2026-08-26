@@ -14,7 +14,13 @@ import { PLAYER_KINGDOM_ID } from '../../../game/constants';
 import { isBossWave } from '../../../systems/ascent/WaveDirector';
 import { buildAllConquestTargets, frontWinChance } from '../../../systems/ascent/ConquestSystem';
 import { landGarrisonPower } from '../../../systems/ascent/PowerSystem';
-import { armyPower, getArmyUpgradeOptions, upgradeArmy } from '../../../systems/WarSystem';
+import {
+  armyPower,
+  getArmyUpgradeOptions,
+  reinforcementLimit,
+  reinforcementTicks,
+  upgradeArmy,
+} from '../../../systems/WarSystem';
 import { getCourtBonuses } from '../../../systems/CourtSystem';
 import {
   reinforcementCandidates,
@@ -28,6 +34,8 @@ import { resupplyPreview } from '../../../systems/ascent/StandingOrders';
 import { focusBattle, liveBattles } from '../../../systems/ascent/fronts';
 import { musterRows } from '../../../systems/ascent/MusterSystem';
 import {
+  ARMY_REINFORCE_GOLD_PER_SOLDIER,
+  ARMY_REINFORCE_MIN_SOLDIERS,
   MIN_ARMY_SOLDIERS,
   RECRUIT_HUMAN_RESERVE,
   REMNANT_SHARE,
@@ -602,17 +610,21 @@ export function showArmyDetail(self: ConquestUIScene, armyId: string): void {
           option.kind === 'equip'
             ? t('ascent.army.equipBody', { tier: option.gain })
             : option.kind === 'reinforce'
-              ? t('ascent.army.reinforceBody', { n: option.gain })
+              ? t('ascent.army.reinforceTile', { n: option.gain, ticks: reinforcementTicks(option.gain) })
               : t('ascent.army.drillBody', { level: option.gain })
         }\n${formatResourceList(option.cost)}`
       : option.reason ?? '',
     border: option.available ? INK_UI.gold : INK_UI.softBrush,
     muted: !option.available,
+    // Reinforce is the one of the three with a *number* in it, so it asks for the number. The
+    // other two buy a tier and a level — there is nothing to dial.
     onTap: option.available
-      ? () => {
-          upgradeArmy(state, armyId, option.kind);
-          showArmyDetail(self, armyId);
-        }
+      ? option.kind === 'reinforce'
+        ? () => showReinforceForm(self, armyId, option.gain)
+        : () => {
+            upgradeArmy(state, armyId, option.kind);
+            showArmyDetail(self, armyId);
+          }
       : undefined,
   }));
   addWidget(0, (parent, width) => {
@@ -658,4 +670,88 @@ export function showArmyDetail(self: ConquestUIScene, armyId: string): void {
   });
 
   finish();
+}
+
+
+/**
+ * How many men to call up, and what that buys against what it costs.
+ *
+ * The order used to be a tile with no question on it: a flat two hundred and twenty men, a flat
+ * three seasons. Reported verbatim: *current reinforcement only 200 men; click, slide how much I
+ * want; as more as numbers it will slower and cost more.* Both halves of that trade are quoted
+ * live off the arithmetic the order will actually run — `getArmyUpgradeOptions` for the bill,
+ * `reinforcementTicks` for the seasons — so the line under the slider is what pressing Call up
+ * does.
+ *
+ * The count lives in the argument rather than on the scene. The page is rebuilt on every change
+ * (the bill and the clock both move with it), and a draft that outlived the page would have to be
+ * cleared on every other way out of the lane — which is the trap `musterDraft` already pays for.
+ */
+export function showReinforceForm(self: ConquestUIScene, armyId: string, men: number): void {
+  const state = self.state;
+  const army = state.armies.find((candidate) => candidate.id === armyId);
+  if (!army) { showArmyDetail(self, armyId); return; }
+  const limit = reinforcementLimit(state);
+  const floor = Math.min(ARMY_REINFORCE_MIN_SOLDIERS, limit);
+  const wanted = Math.max(floor, Math.min(limit, Math.round(men)));
+  const option = getArmyUpgradeOptions(state, armyId, wanted).find((row) => row.kind === 'reinforce');
+  const gain = option?.gain ?? 0;
+
+  self.replaceLanePage(() => {
+    const { addNote, addWidget, finish } = self.laneList(
+      t('ascent.army.reinforceTitle'),
+      t('ascent.army.reinforceSub', { army: army.name, size: hostSize(army) }),
+      {
+        back: () => showArmyDetail(self, armyId),
+        footer: {
+          label: t('ascent.army.reinforceDo', { n: gain }),
+          disabled: !option?.available,
+          onTap: () => {
+            upgradeArmy(state, armyId, 'reinforce', gain);
+            showArmyDetail(self, armyId);
+          },
+        },
+      },
+    );
+
+    addWidget(64, (holder, width) => {
+      holder.add(self.ui.panel({ x: 0, y: 0, width, height: 64 }, {
+        border: INK_UI.brush, borderWidth: 1.2, borderAlpha: 0.52,
+      }));
+      const line = (n: number): string => t('ascent.army.reinforceLine', {
+        n,
+        ticks: reinforcementTicks(n),
+        gold: Math.round(n * ARMY_REINFORCE_GOLD_PER_SOLDIER),
+      });
+      const label = self.ui.label(14, 10, line(gain), 'caption', { fontSize: '11px' });
+      holder.add(label);
+      const span = Math.max(1, limit - floor);
+      // Rounded to tens, so the thumb lands on a number a player would say out loud.
+      const fromValue = (v: number): number => Math.max(
+        floor, Math.min(limit, Math.round((floor + v * span) / 10) * 10),
+      );
+      holder.add(self.ui.slider(
+        { x: 10, y: 30, width: width - 20, height: 22 },
+        {
+          value: limit > floor ? (gain - floor) / span : 0,
+          color: INK_UI.jade,
+          // Previewed on the drag and committed on release: the page rebuild is too heavy to run
+          // per pixel, and the label alone is what the thumb is reading anyway.
+          onPreview: (v) => label.setText(line(fromValue(v))),
+          onChange: (v) => showReinforceForm(self, armyId, fromValue(v)),
+        },
+      ));
+    });
+
+    // No second copy of the bill: the line above the slider already carries it, and it is the
+    // one that moves with the thumb.
+    if (option && !option.available && option.reason) addNote(option.reason, INK_UI.cinnabar);
+    else {
+      addNote(t('ascent.army.reinforceResult', {
+        army: army.name, before: hostSize(army), after: hostSize(army) + gain,
+      }), INK_UI.jade);
+    }
+    addNote(t('ascent.army.reinforceHint'));
+    finish();
+  });
 }

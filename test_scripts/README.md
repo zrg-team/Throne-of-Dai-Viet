@@ -28,6 +28,7 @@ node test_scripts/verify/verify-invasion-lifecycle.mjs  # every invasion announc
 node test_scripts/verify/verify-invasion-reach.mjs      # a wave that is sent can walk to the realm, and does
 node test_scripts/verify/verify-war-visibility.mjs      # the war reaches the bar, the map and the advisor — nothing falls silently
 node test_scripts/verify/verify-war-board.mjs           # every front on the board is a door; the Reckoning is a report, not a stack of cards
+node test_scripts/verify/verify-reinforce.mjs           # a lane page turn tears the fight down; relief always on the field; the call-up is a dial
 node test_scripts/verify/verify-expansion-prompt.mjs    # the expansion card only asks when something on it can be pressed
 node test_scripts/playtest/playtest-metrics.mjs     # six measured preconditions of fun, /85
 node test_scripts/perf/perf-bench.mjs --label wip   # auto-diffs against perf-results/baseline.json

@@ -37,6 +37,7 @@ import { t } from '../../i18n';
 import type { AscentLane } from '../../state/types';
 import { promptSignature } from './constants';
 import { clearLanePage } from './layers';
+import { showWarBoard, warBoardSignature } from './screens/warBoard';
 import type { ConquestUIScene } from '../ConquestUIScene';
 import { attachPaperSheet } from '../../ui/ink/paperSheet';
 
@@ -174,6 +175,12 @@ export function refresh(self: ConquestUIScene): void {
     // A fight that ended closes its own screen, which re-enters `refresh` — let that pass
     // finish the frame rather than carrying on against a key that no longer applies.
     if (self.openPromptKey !== 'lane:battle') return;
+    // The lane's other screen is the war board, and it is the only page here with no clock of
+    // its own. Redrawn when the *shape* of the war changes — see `warBoardSignature`.
+    if (!self.battleUi && self.warBoardKey && self.warBoardKey !== warBoardSignature(self)) {
+      self.replaceLanePage(() => showWarBoard(self));
+      return;
+    }
   }
 
   const prompt = self.state.pendingAscentPrompt;
