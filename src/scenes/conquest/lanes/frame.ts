@@ -84,28 +84,30 @@ export function openLane(self: ConquestUIScene, lane: AscentLane): void {
   }
   self.beginOverlay(`lane:${lane}`);
 
-  switch (lane) {
-    case 'build': self.showBuildScreen(); break;
-    case 'heroes': self.showHeroesScreen(); break;
-    case 'court': self.showCourtScreen(); break;
-    case 'battle': self.showBattle(); break;
-    case 'army':
-      // A plan handed over by the muster card opens on the form, filled in; any other entry
-      // starts the lane clean.
-      if (self.musterHandover) {
-        self.musterDraft = self.musterHandover;
-        self.musterHandover = undefined;
-        self.showArmyScreen();
-        self.showRaiseHostForm();
-      } else {
-        self.musterDraft = undefined;
-        self.showArmyScreen();
-      }
-      break;
-    case 'affairs': self.showAffairsScreen(); break;
-    case 'chronicle': self.showChronicleScreen(); break;
-    case 'ledger': self.showLedgerScreen(); break;
-  }
+  buildLanePage(self, () => {
+    switch (lane) {
+      case 'build': self.showBuildScreen(); break;
+      case 'heroes': self.showHeroesScreen(); break;
+      case 'court': self.showCourtScreen(); break;
+      case 'battle': self.showBattle(); break;
+      case 'army':
+        // A plan handed over by the muster card opens on the form, filled in; any other entry
+        // starts the lane clean.
+        if (self.musterHandover) {
+          self.musterDraft = self.musterHandover;
+          self.musterHandover = undefined;
+          self.showArmyScreen();
+          self.showRaiseHostForm();
+        } else {
+          self.musterDraft = undefined;
+          self.showArmyScreen();
+        }
+        break;
+      case 'affairs': self.showAffairsScreen(); break;
+      case 'chronicle': self.showChronicleScreen(); break;
+      case 'ledger': self.showLedgerScreen(); break;
+    }
+  });
 
   // Checked here as well as in `refresh` so a lane that declines to draw costs the player a
   // wasted tap rather than a blank screen until the next tick.
@@ -502,5 +504,39 @@ export function addStoryOpening(self: ConquestUIScene,
 /** Replaces the current lane page with another, keeping the lane (and its pause) open. */
 export function replaceLanePage(self: ConquestUIScene, build: () => void): void {
   clearLanePage(self);
-  build();
+  buildLanePage(self, build);
+}
+
+/**
+ * Builds a lane page, and guarantees a way out of whatever gets built.
+ *
+ * **A page has no Close button until `finish()` runs.** So anything that throws while a page is
+ * filling itself in — one bad row out of nine, a hero the portrait code cannot resolve, a land
+ * that marched out from under a lookup — leaves rows on the screen, `openPromptKey` still
+ * `lane:…`, the world held by the lane, and no control that ends any of it. `refresh`'s recovery
+ * cannot see it either: that guard fires on an *empty* modal layer, and this layer is not empty,
+ * it is half a page. Reported verbatim: *Chiến sự page crash sometime — I can do nothing*, and
+ * again for Tiếp viện.
+ *
+ * The throw is still reported to the console, so the harnesses' `no console errors` check catches
+ * it and it gets fixed properly — this is a floor under the player, not a way of not knowing.
+ */
+function buildLanePage(self: ConquestUIScene, build: () => void): void {
+  try {
+    build();
+    return;
+  } catch (error) {
+    console.error('[lane] page failed to build', error);
+    try {
+      clearLanePage(self);
+      const { addNote, finish } = laneList(self, t('ascent.lane.brokenTitle'), t('ascent.lane.brokenBody'), {});
+      addNote(String((error as { message?: string })?.message ?? error));
+      finish();
+    } catch (fallbackError) {
+      // Even the apology would not draw. Leaving is the only thing left that helps.
+      console.error('[lane] recovery page failed too', fallbackError);
+      clearLanePage(self);
+      closeLane(self);
+    }
+  }
 }

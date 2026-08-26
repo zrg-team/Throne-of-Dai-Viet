@@ -279,7 +279,46 @@ check('a field that has ended is on it before', stale.listedBefore === true, sta
 check('and off it the moment the fight is settled', stale.listedAfter === false,
   `${stale.goneName} still listed`);
 
-check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
+// ── a page that breaks is still a page you can leave ───────────────────────
+console.log('=== A LANE PAGE THAT THROWS MID-BUILD ===');
+const broke = await page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  ui.state.pendingAscentPrompt = undefined;
+  ui.state.ascent.promptQueue = [];
+  ui.closeLane?.();
+  const real = ui.showArmyScreen.bind(ui);
+  // Throw where a bad row would: after the frame and a row, before `finish()` adds Close.
+  ui.showArmyScreen = () => {
+    const { addRow } = ui.laneList('probe', 'probe', {});
+    addRow({ title: 'a row', subtitle: 'then it breaks', border: 0x000000 });
+    throw new Error('PROBE_LANE_THROW');
+  };
+  ui.openLane('army');
+  ui.showArmyScreen = real;
+  let close;
+  const walk = (o) => {
+    if (o.type === 'Text' && (o.text === 'Close' || o.text === 'Đóng')) close = o;
+    if (Array.isArray(o.list)) o.list.forEach(walk);
+  };
+  ui.modalLayer.list.forEach(walk);
+  return { key: ui.openPromptKey, hasClose: Boolean(close), modal: ui.modalLayer.length };
+});
+check('a half-built page is replaced, not left standing', broke.modal > 0 && broke.key === 'lane:army',
+  `${broke.modal} objects, key ${broke.key}`);
+check('and it carries the way out that the build never reached', broke.hasClose === true);
+const left = await page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  ui.closeLane();
+  return { key: ui.openPromptKey, hold: ui.state.isStrategyPause };
+});
+check('closing it hands the world back', left.key === '' && left.hold === false, JSON.stringify(left));
+
+// The throw is still reported — this is a floor under the player, not a way of not knowing.
+const deliberate = errors.filter((e) => e.includes('PROBE_LANE_THROW'));
+check('the failure is still shouted at the console', deliberate.length > 0);
+
+const unexpected = errors.filter((e) => !e.includes('PROBE_LANE_THROW'));
+check('no console errors', unexpected.length === 0, unexpected.slice(0, 3).join(' | '));
 
 await browser.close();
 const failed = checks.filter((c) => !c.pass);
