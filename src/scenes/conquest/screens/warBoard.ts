@@ -64,6 +64,10 @@ export function showWarBoard(self: ConquestUIScene): void {
           : front.besieged ? 'besieged'
             : odds >= 1.6 ? 'losing'
               : odds >= 0.9 ? 'even' : 'holding';
+      // The ink is the *odds*, not the standing. A field a general is holding reads `held`, which
+      // never matched the losing clause below — so the board drew a general 400 against 1,600 in
+      // the same gold as one at even numbers, which is the whole thing this board exists to say.
+      const dire = front.commanded || front.besieged || odds >= 1.6;
       addRow(
         {
           title: front.commanded
@@ -75,7 +79,7 @@ export function showWarBoard(self: ConquestUIScene): void {
             ours: Math.round(front.ourMen),
             standing: t(`ascent.war.standing.${standing}` as Parameters<typeof t>[0]),
           }),
-          border: front.commanded || standing === 'losing' || standing === 'besieged'
+          border: dire
             ? INK_UI.cinnabar
             : front.live || standing === 'even' ? INK_UI.gold : INK_UI.jade,
         },
@@ -87,6 +91,7 @@ export function showWarBoard(self: ConquestUIScene): void {
         front.live
           ? () => {
             if (!front.commanded) focusBattle(state, front.landId);
+            self.battleFieldRequested = true;
             self.closeLane();
             self.openLane('battle');
           }

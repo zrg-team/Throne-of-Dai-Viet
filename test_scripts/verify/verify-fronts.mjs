@@ -78,7 +78,7 @@ const out = await page.evaluate(async () => {
   const rival = st.kingdoms.find((k) => k.id !== 'dai-viet');
   const openOn = (land, n) => {
     const army = {
-      id: `probe-${land.id}`, kingdomId: rival.id, name: `Probe ${n}`, landId: land.id,
+      id: `probe-${land.id}-${n}`, kingdomId: rival.id, name: `Probe ${n}`, landId: land.id,
       units: { spearmen: 420, archers: 180, heavyInfantry: 100 },
       morale: 85, supply: 90, rations: 999, provisions: 999,
       level: 1, experience: 0, experienceToNextLevel: 120,
@@ -104,11 +104,17 @@ const out = await page.evaluate(async () => {
   // A province can only be fought over once at a time. `lastWatchedKey` is keyed on the wave, so
   // before this was checked the same ground opened a second field the moment the wave counter
   // moved — two fights over one province, each enrolling the same hosts.
+  //
+  // And the second column is *absorbed*, not refused. `beginBattle` used to answer this contact
+  // with `false`, which the tick answers with `resolvePendingBattle(…, 'delegate')` — a hidden
+  // odds roll that could take the province out from under the battle still being fought over it.
+  // It now joins the standing fight and reports the contact as handled.
   st.ascent.wave += 1;
   const duplicate = openOn(mine[0], 3);
+  const absorbed = (F.battleAt(st, mine[0].id)?.theirArmyIds ?? []).includes(`probe-${mine[0].id}-3`);
 
   const afterOpen = {
-    first, second, duplicate,
+    first, second, duplicate, absorbed,
     oneFieldPerProvince: new Set(F.liveBattles(st).map((b) => b.landId)).size === F.liveBattles(st).length,
     live: F.liveBattles(st).length,
     focus: st.ascent.activeBattle?.landId,
@@ -171,8 +177,10 @@ if (out.fatal) {
 console.log('═══ TWO FIELDS AT ONCE ═══\n');
 const a = out.afterOpen;
 line(a.first && a.second, 'both contacts open a battle', `first=${a.first} second=${a.second}`);
-line(!a.duplicate && a.oneFieldPerProvince, 'one field per province, whatever the wave says',
-  `second attempt on the same ground opened=${a.duplicate}`);
+line(a.oneFieldPerProvince, 'one field per province, whatever the wave says',
+  `${a.live} field(s) over ${new Set([a.focus, ...a.sides]).size} province(s)`);
+line(a.duplicate && a.absorbed, 'a second column joins the fight instead of rolling for the ground',
+  `handled=${a.duplicate} enrolled=${a.absorbed}`);
 line(a.live === 2, 'two fields are live at once', `${a.live} live`);
 line(a.sides.length === 1 && a.focus && !a.sides.includes(a.focus),
   'one is the player\'s, the other a side front', `focus ${a.focus}, sides ${a.sides.join(',') || '-'}`);

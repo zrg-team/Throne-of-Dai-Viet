@@ -84,6 +84,16 @@ export function showSystemMenu(self: ConquestUIScene): void {
     },
   );
 
+  // The collection. It used to be a button on the Reckoning, sharing the last row with the way
+  // out of the run — a list of "???" rows competing for the foot of the one page a run has to say
+  // what the reign did. It is chrome, so it lives with the chrome; without this row it would be
+  // reachable from nowhere at all.
+  item(t('ascent.codex.button', codexProgress()), 'secondary', () => {
+    self.state.isStrategyPause = self.lanePauseBeforeOpen;
+    self.closeOverlay();
+    self.showCodex();
+  });
+
   item(t('action.saveAndExit'), 'secondary', () => self.events.emit('ui:exit-to-menu', true));
   item(t('action.exitWithoutSaving'), 'danger', () => self.events.emit('ui:exit-to-menu', false));
 }

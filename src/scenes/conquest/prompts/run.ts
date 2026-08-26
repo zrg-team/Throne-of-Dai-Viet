@@ -447,7 +447,15 @@ ${fall}` : fall,
   // drift of blank paper under it is a form, not an edict, so the slack — nothing at 620, two
   // hundred points at 1040 — is spent on the plate, the tiles and the air between the bands.
   // `tight` is the one hard branch: at the clamp the shelf line goes and the tiles drop to 38.
-  const BUTTONS = 40 + 8 + 46 + 8 + 40;
+  // Keep (40) + air + Go again (46) + air + Back to the menu (28).
+  //
+  // The Codex used to take half of that last row and the return took the other half at the same
+  // 40. Two faults: the Codex is a *collection* screen and this page is the one moment a run has
+  // to say what the reign did, so a list of things not yet unlocked was competing with the
+  // Reckoning for the foot of the page; and the way out of the run was drawn at the same weight
+  // as the way back into it. The return is now one quiet full-width rule under the two controls
+  // that matter, which also hands 12 points back to the ledger above.
+  const BUTTONS = 40 + 8 + 46 + 8 + 28;
   const FLOOR = 92 + 10 + 3 * 38 + 2 * 8 + 10 + 12 + BUTTONS;
   const tight = content.height < FLOOR + 34;
   const slack = Math.max(0, content.height - (FLOOR + (tight ? 0 : 34)));
@@ -594,20 +602,12 @@ ${fall}` : fall,
     () => self.events.emit('ui:restart-ascent'),
     { variant: 'primary', fontSize: '15px' },
   ));
-  // The Codex belongs here and nowhere else in a run: this is the moment the collection actually
-  // changed, and the only moment a player has a reason to look at what they have recorded. On the
-  // action bar it was a button promising something to do about a list of "???" rows.
-  const codex = codexProgress();
+  // The way out, said quietly. `ghost` rather than a second panelled button: leaving is not one of
+  // the two things this page is for, and drawn at the same weight as "go again" it read as one.
   self.modalLayer.add(self.ui.button(
-    { x: content.x, y: buttonY + 102, width: content.width / 2 - 5, height: 40 },
-    t('ascent.codex.button', codex),
-    () => self.showCodex(),
-    { fontSize: '12px' },
-  ));
-  self.modalLayer.add(self.ui.button(
-    { x: content.x + content.width / 2 + 5, y: buttonY + 102, width: content.width / 2 - 5, height: 40 },
+    { x: content.x, y: buttonY + 102, width: content.width, height: 28 },
     t('ascent.over.return'),
     () => self.events.emit('ui:exit-to-menu'),
-    { fontSize: '13px' },
+    { variant: 'ghost', fontSize: '12px' },
   ));
 }

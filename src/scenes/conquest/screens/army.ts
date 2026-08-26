@@ -126,6 +126,7 @@ export function showArmyScreen(self: ConquestUIScene): void {
       // beat the screen forward, so a battle opened here used to sit frozen at its first frame.
       () => {
         if (!commanded) focusBattle(state, field.landId);
+        self.battleFieldRequested = true;
         self.closeLane();
         self.openLane('battle');
       },

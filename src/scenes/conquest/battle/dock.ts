@@ -94,7 +94,13 @@ export function buildBattleRelief(self: ConquestUIScene, battle: AscentBattle): 
   hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
     unpress();
     if (scrollGestureConsumedTap(pointer)) return;
-    showReinforcePicker(self, () => { self.closeLane(); self.openLane('battle'); });
+    // Back to the field it was opened from, not to the board: the picker is a page *of* this
+    // fight.
+    showReinforcePicker(self, () => {
+      self.battleFieldRequested = true;
+      self.closeLane();
+      self.openLane('battle');
+    });
   });
   ui.relief.add(hit);
 }
@@ -146,7 +152,12 @@ function buildOtherFronts(self: ConquestUIScene, battle: AscentBattle, elsewhere
     if (scrollGestureConsumedTap(pointer)) return;
     // Straight across to the other field when there is only one — the board would be a list of
     // one thing standing between the player and the fight they can already see named on the chip.
-    if (only) focusBattle(self.state, only.landId);
+    // Two or more and the chip opens the board, which is what its label promises; it used to
+    // re-open the same fight, because `showBattle` had no way to be asked for the list.
+    if (only) {
+      focusBattle(self.state, only.landId);
+      self.battleFieldRequested = true;
+    }
     self.closeLane();
     self.openLane('battle');
   });

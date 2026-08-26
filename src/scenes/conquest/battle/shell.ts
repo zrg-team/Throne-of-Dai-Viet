@@ -34,6 +34,7 @@ import { clearLayer } from '../layers';
 import { showWarBoard } from '../screens/warBoard';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 import { setBattleBubbleOverride, setBattleEscalationWave } from '../../../game/battleOptions';
+import { liveBattleCount } from '../../../systems/ascent/fronts';
 
 /**
  * How far the two lines stand in from the edge of the sheet.
@@ -100,6 +101,10 @@ export function maybeAutoOpenBattle(self: ConquestUIScene): boolean {
   // unsealed and be rebuilt sealed a frame later — a full second field, ground bake and dock
   // whose only purpose was un-naming the shape the first one had leaked.
   self.battleSealPending = fresh && opening;
+  // A fight that has just begun opens *itself*, not the list — the board is what the bar button
+  // asks for. (A fight that opened as a second front does not reach here: `addSideBattle` raises
+  // `frontsOpened`, and the board wins over everything while that stands.)
+  self.battleFieldRequested = true;
   self.openLane('battle');
   // `openLane` bails on a race (the fight ended between the tick and this frame).
   if ((self.openPromptKey as string) !== 'lane:battle') {
@@ -413,6 +418,10 @@ function battleHeaderFrame(self: ConquestUIScene, battle: AscentBattle): {
  */
 export function showBattle(self: ConquestUIScene): void {
   const battle = self.state.ascent?.activeBattle;
+  // One open, one intent — see `battleFieldRequested`. Read here whatever happens next, so a
+  // request never survives into the following open of the lane.
+  const wantsField = self.battleFieldRequested;
+  self.battleFieldRequested = false;
   // No fight to steer: the lane shows the war instead — every province under attack right now,
   // and the engagements the generals settled without stopping the game. See `warBoard`.
   //
@@ -420,7 +429,16 @@ export function showBattle(self: ConquestUIScene): void {
   // a second province and the question in front of the player is *which field do I hold*, which
   // is not a question any single battlefield can put. The board clears the flag as it reads it,
   // so the next tap on this lane opens the fight normally.
-  if (!battle || self.state.ascent?.frontsOpened) { showWarBoard(self); return; }
+  //
+  // **And whenever the war is on more than one field.** The button went straight to
+  // `activeBattle` and there was no way from the bar to the other two, which is the reported
+  // fault: *Giao chiến cannot list all the battles.* With one field the board would be a list of
+  // one thing between the player and the only fight there is, so it is still skipped there.
+  const fields = liveBattleCount(self.state);
+  if (!battle || self.state.ascent?.frontsOpened || (fields > 1 && !wantsField)) {
+    showWarBoard(self);
+    return;
+  }
 
   // The escalation floors read this run's wave; everything outside Dragon Ascent stays at 0.
   setBattleEscalationWave(self.state.ascent?.wave ?? 0);

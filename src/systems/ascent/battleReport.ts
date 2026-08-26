@@ -127,6 +127,44 @@ export interface AscentFront {
 }
 
 /**
+ * Is the realm being attacked *right now*?
+ *
+ * The cheap form of `contestedFronts`, for the one caller that only needs the yes/no: the action
+ * bar, which asks it on every state-changed emit. It early-returns on the first hostile thing it
+ * finds instead of building a row for every one of them.
+ *
+ * **The defect it was written for.** The Battle button existed exactly while `ascent.activeBattle`
+ * did — and `warBoard` was built on the premise that *"the button always leads somewhere while the
+ * realm is under attack"*, which was never true, because the button was not on the bar to lead
+ * anywhere. Reported verbatim: *the enemy attacked my capital, there was no Giao chiến icon, I
+ * lost and do not know why.* A siege raises no watched battle — the besieger stops making contact
+ * the moment it sits down under the walls — so from the bar's point of view the war had ended.
+ *
+ * Deliberately narrower than a front: a rival's standing army on its own ground next door is not
+ * an attack, and lighting the bar for it would leave the button permanently on and permanently
+ * meaningless. What counts is a hostile host on ground we hold, a siege on ground we hold, or a
+ * host under invasion orders within one province of it.
+ */
+export function realmUnderAttack(state: GameState): boolean {
+  if (liveBattles(state).length > 0) return true;
+  const ours = new Set(state.lands
+    .filter((land) => land.ownerId === PLAYER_KINGDOM_ID)
+    .map((land) => land.id));
+  if (ours.size === 0) return false;
+  if (state.siegeOrders.some((order) => ours.has(order.landId))) return true;
+  const invading = new Set((state.invasions ?? []).map((record) => record.armyId));
+  for (const army of state.armies) {
+    if (army.kingdomId === PLAYER_KINGDOM_ID || army.isLevy) continue;
+    if (army.units.spearmen + army.units.archers + army.units.heavyInfantry <= 0) continue;
+    if (ours.has(army.landId)) return true;
+    if (!invading.has(army.id)) continue;
+    const here = state.lands.find((land) => land.id === army.landId);
+    if (here?.neighbors.some((id) => ours.has(id))) return true;
+  }
+  return false;
+}
+
+/**
  * Provinces the enemy is standing on or beside right now, worst first.
  *
  * The other half of the same defect. The dispatch says what *has* happened; nothing said what is

@@ -5,11 +5,14 @@ import {
   AMBITION_HEAT_MAX,
   TREASURY_GRAFT_FROM,
   TREASURY_GRAFT_RATE,
+  CAPITAL_GRACE_TICKS,
   WAVE_BASELINE_GROWTH,
   WAVE_GRACE_TICKS,
 } from '../../game/ascentConfig';
 import { formatNumber } from '../../utils/format';
+import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { heatFor } from './AmbitionSystem';
+import { contestedFronts } from './battleReport';
 
 /**
  * The in-run advisor: what the numbers mean, and what to do about them.
@@ -80,6 +83,58 @@ export function adviseAscent(state: GameState): Advice[] {
   const advice: Advice[] = [];
   const add = (entry: Advice) => advice.push(entry);
 
+  // ── The seat is gone, and the clock is running ───────────────────────────
+  // Above everything, including a fight, because it is the only reading in the mode with a
+  // *terminal* deadline: `checkAscentDefeat` ends the run when the grace expires. It used to
+  // announce itself through `pushToast` alone — and `WhisperLine`, this mode's only reader of
+  // that channel, renders nothing without a story `ref`. So the dynasty's last seasons were
+  // literally unannounced: the reported case, verbatim, *I lost and do not know why*.
+  if ((ascent.capitalLostTicks ?? 0) > 0) {
+    const seat = state.lands.find((candidate) => candidate.id === ascent.capitalLandId);
+    add({
+      id: 'capital-lost',
+      tone: 'urgent',
+      priority: 106,
+      line: 'advice.capitalLost.line',
+      body: 'advice.capitalLost.body',
+      params: {
+        land: seat?.name ?? '',
+        ticks: Math.max(0, CAPITAL_GRACE_TICKS - ascent.capitalLostTicks),
+      },
+      lane: 'army',
+    });
+  }
+
+  // ── A siege is running on ground we still hold ───────────────────────────
+  // A siege raises no watched battle: the besieger sits down under the walls and stops making
+  // contact, so `beginBattle` is never asked and nothing on the map moves. The badge over the
+  // province was the only thing that said so, and it says it in two digits — the seat was taken
+  // at 5/6 with the run's owner watching a different field.
+  const sieges = state.siegeOrders.filter((order) => (
+    state.lands.some((land) => land.id === order.landId && land.ownerId === PLAYER_KINGDOM_ID)));
+  if (sieges.length > 0) {
+    // The seat first, whatever the clocks say: losing it ends the run and losing anything else
+    // does not.
+    const worst = sieges.slice().sort((a, b) => (
+      (Number(b.landId === ascent.capitalLandId) - Number(a.landId === ascent.capitalLandId))
+      || ((b.required - b.progress) - (a.required - a.progress))))[0];
+    const land = state.lands.find((candidate) => candidate.id === worst.landId);
+    const seat = worst.landId === ascent.capitalLandId;
+    add({
+      id: seat ? 'capital-besieged' : 'besieged',
+      tone: 'urgent',
+      priority: seat ? 104 : 96,
+      line: seat ? 'advice.capitalSiege.line' : 'advice.besieged.line',
+      body: seat ? 'advice.capitalSiege.body' : 'advice.besieged.body',
+      params: {
+        land: land?.name ?? '',
+        ticks: Math.max(1, worst.required - worst.progress),
+        n: sieges.length,
+      },
+      lane: 'army',
+    });
+  }
+
   // ── A fight is happening ─────────────────────────────────────────────────
   // Above everything, and it is the one piece of advice with a deadline: the beats run on the
   // world's clock whether or not anybody is watching, so a player reading this later has already
@@ -95,6 +150,32 @@ export function adviseAscent(state: GameState): Advice[] {
       params: { land: land?.name ?? '' },
       lane: 'battle',
     });
+  }
+
+  // ── An enemy is on our ground and nobody is fighting them ────────────────
+  // The other half of the same silence. `contestedFronts` has always known about these — the war
+  // board is built out of it — but nothing ever said the board had something in it, so a wave
+  // that struck a province the odds roll settled looked, from the map, like a quiet season.
+  if (!ascent.activeBattle) {
+    const fronts = contestedFronts(state).filter((front) => !front.besieged);
+    const front = fronts[0];
+    if (front) {
+      add({
+        id: 'front',
+        tone: front.theirMen > front.ourMen ? 'urgent' : 'chance',
+        priority: 94,
+        line: 'advice.front.line',
+        body: 'advice.front.body',
+        params: {
+          land: front.landName,
+          kingdom: front.kingdomName,
+          theirs: formatNumber(front.theirMen),
+          ours: formatNumber(front.ourMen),
+          n: fronts.length,
+        },
+        lane: 'battle',
+      });
+    }
   }
 
   // ── The opening ──────────────────────────────────────────────────────────

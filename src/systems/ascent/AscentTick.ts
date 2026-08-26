@@ -247,7 +247,7 @@ export function advanceAscentTick(state: GameState): void {
   // delegation still covers it, reported through `battleReport`. `beginBattle` takes the record
   // off the state itself, so the fight it opens is never resolved a second time underneath it.
   let openedThisTick = false;
-  if (state.pendingBattle && hasRoomForAnotherFront(state)) {
+  if (state.pendingBattle && hasRoomForAnotherFront(state, state.pendingBattle.landId)) {
     const watched = !state.ascent.autoResolveBattles && beginBattle(state);
     if (!watched) resolvePendingBattle(state, 'delegate');
     openedThisTick = watched;
