@@ -156,7 +156,12 @@ function showAftermathScreen(self: ConquestUIScene): void {
 
   const { addRow, addHeading, addNote, addWidget, finish } = self.laneList(
     t(`ascent.aftermath.title.${titleKey}` as Parameters<typeof t>[0]),
-    t('ascent.aftermath.subtitle', { land: record.landName, rounds: record.rounds }),
+    // `rounds: 0` is the mark of a fight nobody stood on the field for — `resolveInvaderBattle`
+    // settles it as an odds roll and files the record honestly rather than inventing a beat
+    // count. Printing it as "0 exchanges" read as a bug in the report of a real battle.
+    record.rounds > 0
+      ? t('ascent.aftermath.subtitle', { land: record.landName, rounds: record.rounds })
+      : t('ascent.aftermath.subtitleDispatch', { land: record.landName }),
     { footer: { label: t('ascent.aftermath.continue'), onTap: () => dismissAftermath(self) } },
   );
 

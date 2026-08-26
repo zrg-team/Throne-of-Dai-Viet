@@ -146,6 +146,15 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 58
   },
   {
+    "key": "robe-armour-fanscale",
+    "layer": 20,
+    "tint": "robe",
+    "cx": 2.5,
+    "cy": 66,
+    "w": 109,
+    "h": 58
+  },
+  {
     "key": "robe-hem-gold",
     "layer": 21,
     "tint": "none",
@@ -198,6 +207,15 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cy": 70,
     "w": 104,
     "h": 26
+  },
+  {
+    "key": "guard-beastmask",
+    "layer": 24,
+    "tint": "none",
+    "cx": 0,
+    "cy": 73.5,
+    "w": 104,
+    "h": 35
   },
   {
     "key": "neck",
@@ -452,6 +470,33 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 42
   },
   {
+    "key": "collar-band-brocade",
+    "layer": 37,
+    "tint": "none",
+    "cx": 15,
+    "cy": 51,
+    "w": 38,
+    "h": 42
+  },
+  {
+    "key": "collar-band-oxblood",
+    "layer": 37,
+    "tint": "none",
+    "cx": 15,
+    "cy": 51,
+    "w": 38,
+    "h": 42
+  },
+  {
+    "key": "collar-placket-square",
+    "layer": 37,
+    "tint": "none",
+    "cx": 0,
+    "cy": 62.5,
+    "w": 22,
+    "h": 49
+  },
+  {
     "key": "collar-vienlinh",
     "layer": 35,
     "tint": "robeDark",
@@ -612,6 +657,15 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cy": 85,
     "w": 72,
     "h": 12
+  },
+  {
+    "key": "belt-rope-coil",
+    "layer": 38,
+    "tint": "none",
+    "cx": 0,
+    "cy": 82.5,
+    "w": 64,
+    "h": 15
   },
   {
     "key": "collar-nguthan",
@@ -1019,6 +1073,15 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 24
   },
   {
+    "key": "knot-nape",
+    "layer": 41,
+    "tint": "hair",
+    "cx": 25,
+    "cy": 21,
+    "w": 20,
+    "h": 20
+  },
+  {
     "key": "topknot-wrapped",
     "layer": 41,
     "tint": "hair",
@@ -1082,6 +1145,15 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 24
   },
   {
+    "key": "bun-tall-fore",
+    "layer": 41,
+    "tint": "hair",
+    "cx": -1.5,
+    "cy": -63,
+    "w": 29,
+    "h": 26
+  },
+  {
     "key": "hairpin",
     "layer": 42,
     "tint": "none",
@@ -1107,6 +1179,15 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cy": -61.5,
     "w": 39,
     "h": 13
+  },
+  {
+    "key": "hairpin-plain",
+    "layer": 42,
+    "tint": "none",
+    "cx": 2,
+    "cy": -67.5,
+    "w": 42,
+    "h": 11
   },
   {
     "key": "hair-comb",
@@ -1386,6 +1467,15 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cy": -58.5,
     "w": 68,
     "h": 49
+  },
+  {
+    "key": "hat-helm-dinh",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0,
+    "cy": -51.5,
+    "w": 68,
+    "h": 75
   },
   {
     "key": "hat-non",

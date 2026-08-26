@@ -123,12 +123,18 @@ function normalizeSnapshotState(state: GameState): GameState {
     //
     // `loose` becomes `defend` rather than anything cleverer: standing off and shooting is a
     // *shape* now (Thế Nỏ), and the host it described was a cautious one.
-    const fight = clone.ascent.activeBattle;
-    if (fight) {
-      const stance = (value: unknown): FieldStance => (
-        value === 'press' || value === 'balanced' || value === 'defend' || value === 'withdraw'
-          ? value : 'defend'
-      );
+    //
+    // Every live field, not only the watched one: a run saved with two fronts open restores both,
+    // and a side fight resumed on an `undefined` stance is the same NaN as the watched one was.
+    const stance = (value: unknown): FieldStance => (
+      value === 'press' || value === 'balanced' || value === 'defend' || value === 'withdraw'
+        ? value : 'defend'
+    );
+    // A save written before the war could have more than one field has no `sideBattles` at all,
+    // which is exactly the empty list this wants.
+    clone.ascent.sideBattles = (clone.ascent.sideBattles ?? []).filter((side) => side && !side.over);
+    for (const fight of [clone.ascent.activeBattle, ...clone.ascent.sideBattles]) {
+      if (!fight) continue;
       fight.stance = stance(fight.stance);
       fight.theirStance = stance(fight.theirStance);
       fight.ourFormation ??= 'chong';
@@ -141,6 +147,10 @@ function normalizeSnapshotState(state: GameState): GameState {
       fight.stamina = undefined;
       fight.staminaClock = undefined;
     }
+    // The alert is an announcement about a moment that has passed, like the banner cues above:
+    // a run reloaded onto two live fronts should show the board because the fronts are there,
+    // not because a flag survived the save.
+    clone.ascent.frontsOpened = undefined;
   }
   return clone;
 }

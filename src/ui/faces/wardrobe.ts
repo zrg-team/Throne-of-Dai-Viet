@@ -32,8 +32,12 @@ type Pick = <T>(items: readonly T[]) => T;
 export function headwearFor(era: HeroEra, type: Hero['type'], woman: boolean, rank: number): string[] {
   if (woman) return womenHeadwear(era, rank);
   if (era === 'dinh') {
-    if (type === 'general') return ['hat-helm', 'hat-helm-leather', 'hat-band-warrior', ''];
-    return ['', 'hat-khanvan-low', 'hat-khanvuong', 'hat-band-cloth'];
+    // Weighted to the war helm rather than merely offering it: the Đinh state was a võ trị —
+    // the army was the government — and the pool used to be the shortest in this file for want
+    // of a source. The 2026 Hoa Lư reconstruction is not a source, but it is a coherent
+    // proposal, and one specific helm beats three generic ones.
+    if (type === 'general') return ['hat-helm-dinh', 'hat-helm-dinh', 'hat-helm', 'hat-helm-leather', 'hat-band-warrior', ''];
+    return ['', '', 'hat-khanvan-low', 'hat-khanvuong', 'hat-band-cloth', 'hat-non'];
   }
   if (era === 'ly') {
     if (type === 'general') return ['hat-helm', 'hat-helm-plume', 'hat-helm-daumau', 'hat-khanvan', 'hat-band-warrior'];
@@ -108,7 +112,10 @@ export function manHairFor(era: HeroEra, age: 'young' | 'prime' | 'elder'): stri
 
 /** A man's knot, worn under a wound turban or on its own. */
 export function manKnotFor(era: HeroEra): string[] {
-  if (era === 'dinh') return ['topknot-tall', 'topknot-wrapped', 'topknot'];
+  // The nape knot is a soldier's and the crown knot a scholar's, so it belongs to the two eras
+  // that had more of the first than the second.
+  if (era === 'dinh') return ['topknot-tall', 'knot-nape', 'knot-nape', 'topknot-wrapped', 'topknot'];
+  if (era === 'ly') return ['topknot', 'topknot-small', 'knot-nape', 'topknot-wrapped', 'topknot-side'];
   return ['topknot', 'topknot-small', 'topknot-wrapped', 'topknot-side'];
 }
 
@@ -119,18 +126,26 @@ export function womanHairFor(era: HeroEra, covered: boolean): string[] {
   return ['hair-long', 'hair-long-short', 'hair-braid', 'hair-long-full', 'hair-tail'];
 }
 
-/** A woman's knot. The coil and the wrapped knot are the delta forms; twin buns read young. */
-export function womanKnotFor(age: 'young' | 'prime' | 'elder'): string[] {
-  if (age === 'young') return ['bun-high', 'bun-double', 'bun-low', 'bun-coil'];
-  if (age === 'elder') return ['bun-low', 'bun-wrapped', 'bun-wide', 'bun-coil'];
+/**
+ * A woman's knot. The coil and the wrapped knot are the delta forms; twin buns read young.
+ *
+ * Era gates the tall forward knot, which is the older courts' and not the delta's — the same
+ * rule the hats are under, for the same reason. Before this the four hundred years between
+ * Hoa Lư and Thăng Long had one hairstyle between them.
+ */
+export function womanKnotFor(era: HeroEra, age: 'young' | 'prime' | 'elder'): string[] {
+  const early = era === 'dinh' || era === 'ly';
+  if (age === 'young') return early ? ['bun-tall-fore', 'bun-high', 'bun-double', 'bun-coil'] : ['bun-high', 'bun-double', 'bun-low', 'bun-coil'];
+  if (age === 'elder') return early ? ['bun-tall-fore', 'bun-low', 'bun-wrapped', 'bun-coil'] : ['bun-low', 'bun-wrapped', 'bun-wide', 'bun-coil'];
+  if (early) return ['bun-tall-fore', 'bun-tall-fore', 'bun-high', 'bun-coil', 'bun-wrapped'];
   return ['bun-high', 'bun-low', 'bun-coil', 'bun-wrapped', 'bun-wide'];
 }
 
 /** What may be pinned into it. An empty entry means nothing at all, which is most people. */
 export function hairOrnamentFor(rank: number): string[] {
-  if (rank >= 3) return ['hairpin-jade', 'hairpin-long', 'hair-comb', 'hair-flower'];
-  if (rank >= 1) return ['hairpin', 'hairpin-jade', 'hair-ribbon', '', 'hair-cord'];
-  return ['', '', 'hairpin', 'hair-cord', 'hair-ribbon'];
+  if (rank >= 3) return ['hairpin-jade', 'hairpin-long', 'hair-comb', 'hair-flower', 'hairpin-plain'];
+  if (rank >= 1) return ['hairpin', 'hairpin-jade', 'hairpin-plain', 'hair-ribbon', '', 'hair-cord'];
+  return ['', '', 'hairpin', 'hairpin-plain', 'hair-cord', 'hair-ribbon'];
 }
 
 /** The robe, its collar, and whatever fastens it — one coherent set per era and sex. */
@@ -152,7 +167,11 @@ export function garmentsFor(
   if (woman) return womenGarments(era, rank, pick);
 
   const shape = type === 'general'
-    ? pick(['robe-armour', 'robe-armour-lamellar', 'robe-armour-scale', 'robe-armour-brigandine', 'robe-armour-leather'])
+    ? pick(era === 'dinh'
+      // Brigandine is a studded coat and lamellar a laced one; neither is tenth-century. The
+      // shell lame and plain hardened leather are, so a Đinh harness draws from its own list.
+      ? ['robe-armour-fanscale', 'robe-armour-fanscale', 'robe-armour-leather', 'robe-armour', 'robe-armour-scale']
+      : ['robe-armour', 'robe-armour-lamellar', 'robe-armour-scale', 'robe-armour-brigandine', 'robe-armour-leather'])
     : pick(['robe-body', 'robe-body', 'robe-slim', 'robe-sloped', 'robe-broad']);
   const body: HeroLookPart[] = [
     { key: shape, tint: 'robe' },
@@ -176,13 +195,34 @@ export function garmentsFor(
     ];
   }
   if (era === 'dinh') {
+    // A court that has not yet regulated a cap has to carry rank on the body, which is why
+    // this era gets its distinctions from the garment rather than from the head. Three marks,
+    // in ascending order of office: the rope belt on a man with none, the brocade band down
+    // the lapel on a man with some, the beast-mask shoulder on a man who commands armies.
+    if ((type === 'minister' || type === 'governor') && rank >= 1) {
+      // Áo đối khâm — two parallel bands hanging open, with the placket of ô vuông between
+      // them. The round-collar áo viên lĩnh and its bổ tử are both Lê inventions and stay out.
+      return [
+        ...body,
+        { key: 'collar-doikham', tint: 'robeDark' },
+        { key: 'collar-doikham-over', tint: 'robeLight' },
+        { key: 'collar-placket-square', tint: 'none' },
+        { key: pick(['sash-cord', 'sash-silk', 'sash-ochre']), tint: 'none' },
+      ];
+    }
     // The two-flap wrap the Đông Sơn drums show, closed with a sash.
-    return [
+    const dinh: HeroLookPart[] = [
       ...body,
       { key: 'collar-twoflap', tint: 'robeDark' },
       { key: 'collar-twoflap-over', tint: 'robeLight' },
-      { key: pick(['sash-ochre', 'sash-cord', 'sash-silk']), tint: 'none' },
     ];
+    if (type === 'general' && rank >= 2) dinh.push({ key: 'guard-beastmask', tint: 'none' });
+    if (rank >= 1 && pick([true, true, false])) {
+      dinh.push({ key: pick(['collar-band-brocade', 'collar-band-brocade', 'collar-band-oxblood']), tint: 'none' });
+    }
+    dinh.push({ key: pick(['sash-ochre', 'sash-cord', 'sash-silk']), tint: 'none' });
+    if (rank === 0) dinh.push({ key: 'belt-rope-coil', tint: 'none' });
+    return dinh;
   }
 
   // Lý · Trần · Lê · Tây Sơn. A court officer of standing wears the round-collar áo viên lĩnh
@@ -229,6 +269,18 @@ function womenGarments(era: HeroEra, rank: number, pick: Pick): HeroLookPart[] {
       { key: 'collar-nguthan-body', tint: 'robe' },
       { key: 'collar-nguthan', tint: 'robeLight' },
       { key: pick(['buttons-knot', 'buttons-jade']), tint: 'none' },
+    ];
+  }
+  // Before the delta's tứ thân and the Nguyễn court's nhật bình, a woman of rank wore the same
+  // crossed lapel a man did and the rank went into the band down it, not into the cut. Without
+  // this the older centuries dressed every woman in the yếm wrap regardless of who she was.
+  if ((era === 'dinh' || era === 'ly') && rank >= 2) {
+    return [
+      ...body,
+      { key: 'collar-giaolinh', tint: 'robeDark' },
+      { key: 'collar-giaolinh-over', tint: 'robeLight' },
+      { key: pick(['collar-band-oxblood', 'collar-band-brocade']), tint: 'none' },
+      { key: pick(['sash-silk', 'sash-waist']), tint: 'none' },
     ];
   }
   const yem = pick(['yem', 'yem', 'yem-cream', 'yem-indigo', 'yem-jade']);

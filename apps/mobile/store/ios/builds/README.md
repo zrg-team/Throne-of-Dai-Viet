@@ -1,0 +1,6 @@
+# ios builds
+
+Downloaded by `yarn store:builds`, named by version and build.
+Gitignored — they are tens of megabytes and reproducible from a commit.
+
+- `van-thang-0.3.5-393.ipa` — App Store Connect, via `yarn mobile:eas:ios:submit` or Transporter

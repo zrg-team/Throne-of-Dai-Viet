@@ -29,6 +29,7 @@ import { tickAscentAutopilot } from './AutopilotSystem';
 import { tickStandingOrders } from './StandingOrders';
 import { tickArmyRefits } from './refit';
 import { advanceBattle, beginBattle, delegateBattle } from './BattleSystem';
+import { hasRoomForAnotherFront, liveBattleCount } from './fronts';
 import { tickAscentProgress } from './PowerSystem';
 import { tickRaids, tickWaveDirector } from './WaveDirector';
 import { tickEnemyCommand } from './EnemyCommandDirector';
@@ -238,12 +239,15 @@ export function advanceAscentTick(state: GameState): void {
   // ours actually present), and the old silent delegation still covers that case and any run
   // where the player has handed battles back to their generals.
   //
-  // Only when nothing is already being fought: a second contact made while a battle is live is
-  // left waiting on the state (its invader stands still — see `maybeRequestBattleDecision`) and
-  // is taken up the tick after the current fight ends. `beginBattle` takes the record off the
-  // state itself, so the fight it opens is never resolved a second time underneath it.
+  // Whenever there is room for another field — not only when nothing at all is being fought.
+  //
+  // That single condition used to be `!state.ascent.activeBattle`, and it is most of why a wave
+  // striking three provinces was one battle and two hidden dice rolls. `beginBattle` now opens a
+  // second and third front under their generals (`MAX_LIVE_BATTLES`); past the cap the old silent
+  // delegation still covers it, reported through `battleReport`. `beginBattle` takes the record
+  // off the state itself, so the fight it opens is never resolved a second time underneath it.
   let openedThisTick = false;
-  if (state.pendingBattle && !state.ascent.activeBattle) {
+  if (state.pendingBattle && hasRoomForAnotherFront(state)) {
     const watched = !state.ascent.autoResolveBattles && beginBattle(state);
     if (!watched) resolvePendingBattle(state, 'delegate');
     openedThisTick = watched;
@@ -267,6 +271,8 @@ export function advanceAscentTick(state: GameState): void {
   // seeded long run, fights the officers used to hold became routs, provinces fell early, and
   // the run died before its own late-game checks could fire. The arena never does this — it is
   // the practice yard, and an unclaimed fight losing there is the lesson.
+  // Only the field the player is standing on can be *un*commanded — the side fights open
+  // delegated, because there is nobody to grant a grace window to on a field nobody is watching.
   const live = state.ascent.activeBattle;
   if (live && !live.delegated && !live.steeredFormation && !live.steeredStance
     && (live.approachBeats ?? 0) + live.round >= ASCENT_AUTO_DELEGATE_BEATS) {
@@ -274,9 +280,11 @@ export function advanceAscentTick(state: GameState): void {
   }
   advanceBattle(state);
 
-  // Once nothing is being fought, any province that turned its garrison out takes it back in.
-  // A levy is a host for the length of one battle and no longer — see `raiseGarrisonLevy`.
-  if (!state.ascent.activeBattle && !state.pendingBattle) {
+  // Once nothing is being fought *anywhere*, any province that turned its garrison out takes it
+  // back in. A levy is a host for the length of one battle and no longer — see
+  // `raiseGarrisonLevy`. Reading only `activeBattle` here would send home the militia standing in
+  // a general's line on another front, mid-fight.
+  if (liveBattleCount(state) === 0 && !state.pendingBattle) {
     dissolveGarrisonLevies(state);
   }
 

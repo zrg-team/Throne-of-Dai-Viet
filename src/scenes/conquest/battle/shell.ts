@@ -31,6 +31,7 @@ import {
   cssHex,
 } from '../constants';
 import { clearLayer } from '../layers';
+import { showWarBoard } from '../screens/warBoard';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 import { setBattleBubbleOverride, setBattleEscalationWave } from '../../../game/battleOptions';
 
@@ -80,21 +81,32 @@ export function maybeAutoOpenBattle(self: ConquestUIScene): boolean {
   }
   if (self.state.pendingAscentPrompt || self.openPromptKey !== '') return false;
   const key = battle.key ?? `${battle.landId}:${battle.invaderArmyId}`;
+  /**
+   * New to *this screen* is not the same as new to the war.
+   *
+   * `promoteNextFront` moves the player onto a field a general has been holding for forty beats
+   * when their own fight ends, and that field's key has never been auto-opened — so it read as
+   * fresh, and the screen answered a running siege with the opening drum: the enemy's shape sealed
+   * back to `?`, the world held for a first order, and a notice reading *the fight begins* over a
+   * line that had been in contact since the wave landed. The drum belongs to a fight that has not
+   * started, so it is gated on the fight, not on the key.
+   */
   const fresh = key !== self.lastAutoOpenedBattleKey;
+  const opening = ((battle.approachBeats ?? 0) + battle.round) === 0;
   if (!fresh && !self.reopenBattleAfterPrompt) return false;
   self.reopenBattleAfterPrompt = false;
   self.lastAutoOpenedBattleKey = key;
   // Sealed *before* the lane is built, so the first build is the only build. It used to open
   // unsealed and be rebuilt sealed a frame later — a full second field, ground bake and dock
   // whose only purpose was un-naming the shape the first one had leaked.
-  self.battleSealPending = fresh;
+  self.battleSealPending = fresh && opening;
   self.openLane('battle');
   // `openLane` bails on a race (the fight ended between the tick and this frame).
   if ((self.openPromptKey as string) !== 'lane:battle') {
     self.battleSealPending = false;
     return false;
   }
-  if (fresh) {
+  if (fresh && opening) {
     self.battleAwaitingOrder = true;
     self.state.isStrategyPause = true;
     startBattleOpeningDrum(self);
@@ -401,7 +413,14 @@ function battleHeaderFrame(self: ConquestUIScene, battle: AscentBattle): {
  */
 export function showBattle(self: ConquestUIScene): void {
   const battle = self.state.ascent?.activeBattle;
-  if (!battle) return;
+  // No fight to steer: the lane shows the war instead — every province under attack right now,
+  // and the engagements the generals settled without stopping the game. See `warBoard`.
+  //
+  // And the board wins over a live fight while `frontsOpened` stands: the war has just spread to
+  // a second province and the question in front of the player is *which field do I hold*, which
+  // is not a question any single battlefield can put. The board clears the flag as it reads it,
+  // so the next tap on this lane opens the fight normally.
+  if (!battle || self.state.ascent?.frontsOpened) { showWarBoard(self); return; }
 
   // The escalation floors read this run's wave; everything outside Dragon Ascent stays at 0.
   setBattleEscalationWave(self.state.ascent?.wave ?? 0);

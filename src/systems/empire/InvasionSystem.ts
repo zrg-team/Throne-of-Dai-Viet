@@ -12,6 +12,8 @@ import {
 import { getPlayerMilitary } from '../DiplomacySystem';
 import { addMandate } from './MandateSystem';
 import { enemyColumnsAt } from '../ascent/BattleSystem';
+import { recordEngagement } from '../ascent/battleReport';
+import { hasRoomForAnotherFront, liveBattles } from '../ascent/fronts';
 import {
   openingVolleyShare,
   pursuitLossShare,
@@ -19,7 +21,9 @@ import {
   tryReformBrokenHost,
 } from '../ascent/DoctrineSystem';
 import { pushToast } from './notifications';
-import type { Army, Difficulty, GameState, InvasionRecord, Kingdom, Land, PendingBattle } from '../../state/types';
+import type {
+  Army, AscentBattleRecord, Difficulty, GameState, InvasionRecord, Kingdom, Land, PendingBattle,
+} from '../../state/types';
 import { t } from '../../i18n';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -382,9 +386,9 @@ export function tickInvasions(state: GameState): void {
 
     // A host already in the line of a watched engagement is fought there, on the battle's own
     // beats. Contacting it again here would resolve the same fight a second time underneath the
-    // one being watched. (Read off the state directly: this file must not import the battle.)
-    const live = state.ascent?.activeBattle;
-    if (live && !live.over && (live.theirArmyIds ?? []).includes(army.id)) {
+    // one being watched — and with more than one field live, "the" engagement is not one battle
+    // any more, so every live line is checked.
+    if (liveBattles(state).some((live) => (live.theirArmyIds ?? []).includes(army.id))) {
       continue;
     }
 
@@ -689,12 +693,14 @@ function maybeRequestBattleDecision(state: GameState, army: Army, record: Invasi
     if (!held || enemyColumnsAt(state, land) <= enemyColumnsAt(state, held)) return true;
     state.pendingBattle = undefined;
   }
-  // One watched engagement at a time. A contact made elsewhere while a fight is live is settled
-  // the old way, by the odds roll, rather than queued: queuing froze the second invader for the
-  // length of the first fight, and a three-host wave took three fights' worth of seasons to
-  // land — battles filled seven ticks in ten and the next wave arrived on top of the last.
-  const live = state.ascent?.activeBattle;
-  if (live && !live.over) return false;
+  // Up to `MAX_LIVE_BATTLES` fields, not one.
+  //
+  // This clause used to read `if (live && !live.over) return false` — one watched engagement at a
+  // time — with the note that queuing had been tried and rejected because it froze the second
+  // invader for the length of the first fight. Running the fields side by side freezes nobody:
+  // the second contact opens its own battle under a general and `focusBattle` walks the player
+  // between them. Past the cap a contact is still settled by the odds roll, and now reported.
+  if (!hasRoomForAnotherFront(state)) return false;
   const defender = state.armies.find((a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id && totalUnits(a) > 0);
   // `autoDefend` means two different things: 'march home to intercept' (tickAutoDefend) and
   // 'fight without asking' (here). Dragon Ascent needs the first and not the second, so it
@@ -754,6 +760,8 @@ export function resolveBattleRecord(
   pb: PendingBattle,
   decision: 'attack' | 'delegate' | 'retreat',
   forced?: 'defence' | 'invader',
+  /** True when a watched fight has already filed its own record; suppresses the second one. */
+  reported = false,
 ): void {
   const army = state.armies.find((a) => a.id === pb.invaderArmyId);
   const land = findLand(state, pb.landId);
@@ -762,11 +770,11 @@ export function resolveBattleRecord(
   if (decision === 'retreat') {
     // Pull the field army to safety; the district falls to whatever garrison remains.
     retreatDefenders(state, land);
-    resolveInvaderBattle(state, army, record, land, 1, forced);
+    resolveInvaderBattle(state, army, record, land, 1, forced, reported);
     return;
   }
   // Attack: seize the initiative for a real defender edge. Delegate: a steady hero-led stand.
-  resolveInvaderBattle(state, army, record, land, decision === 'attack' ? 1.22 : 1.06, forced);
+  resolveInvaderBattle(state, army, record, land, decision === 'attack' ? 1.22 : 1.06, forced, reported);
 }
 
 function resolveInvaderBattle(
@@ -776,7 +784,60 @@ function resolveInvaderBattle(
   land: Land,
   defenderBonus = 1,
   forced?: 'defence' | 'invader',
+  reported = false,
 ): void {
+  /**
+   * **Every engagement is written down here.**
+   *
+   * This is the one function every settlement passes through, and until now the 97% of them the
+   * battle screen never opened for reported themselves to `state.message` and `logEvent` — two
+   * channels Dragon Ascent's HUD does not read. Measured on a seeded 400-tick run: 261 fights,
+   * 7 of them visible. See `battleReport` for the whole account.
+   *
+   * The headcounts are snapshotted before anything is applied and read again at the end, so the
+   * record is what the field actually cost rather than what the odds roll intended.
+   */
+  // **By id, not by tile.** `retreatDefenders` moves a beaten host to a neighbouring province, so
+  // counting who stands here afterwards reports a host that withdrew in good order with 18% losses
+  // as one annihilated to the last man. The walls are counted with them because in this mode they
+  // are most of the defence most of the time — `raiseGarrisonLevy` exists precisely because the
+  // field hosts are usually somewhere else.
+  const defenders = state.armies
+    .filter((a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id)
+    .map((a) => a.id);
+  const headcount = (): number => defenders
+    .reduce((n, id) => n + totalUnits(state.armies.find((a) => a.id === id) ?? EMPTY_HOST), 0)
+    + Math.max(0, Math.round(land.ownerId === PLAYER_KINGDOM_ID ? land.localSoldiers : 0));
+  const openingUs = headcount();
+  const openingThem = totalUnits(army);
+  const filed = (outcome: AscentBattleRecord['outcome']): void => {
+    if (reported || state.gameMode !== 'ascent' || !state.ascent) return;
+    recordEngagement(state, {
+      turn: state.turn,
+      key: `${state.ascent.wave}:${land.id}:${state.turn}`,
+      landId: land.id,
+      landName: land.name,
+      role: 'defence',
+      outcome,
+      // Not a beat count: nobody stood on this field. The rounds column is what the watched
+      // screen counted, and a dispatch that invents one would be claiming a fight was played.
+      rounds: 0,
+      ourStart: openingUs,
+      theirStart: openingThem,
+      ourEnd: headcount(),
+      theirEnd: totalUnits(army),
+      theirHosts: 1,
+      ourHosts: state.armies.filter((a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id && !a.isLevy).length,
+      levyFought: !state.armies.some((a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id && !a.isLevy),
+      generalName: generalOf(state, land),
+      kingdomName: kingdomName(state, record.kingdomId),
+      year: state.year,
+      season: state.season,
+      // Always: by definition the player did not watch this one.
+      delegated: true,
+      wave: state.ascent.wave,
+    });
+  };
   // Fire Arrows: the volley lands before the lines meet, so it is spent on the approach whether
   // the defence then holds or breaks. Applied ahead of the preview so the odds the battle
   // resolves on are the odds after the arrows have fallen.
@@ -806,6 +867,9 @@ function resolveInvaderBattle(
       recordArmyDefeated(state, preTotal);
       grantRepelSpoils(state, preTotal, record);
       state.message = t('empire.invade.repelled', { kingdom: kingdomName(state, record.kingdomId), land: land.name });
+      // Filed before the host is despawned — `theirEnd` reads the army, and a despawned one
+      // reads as its opening strength, which would report a wiped-out invasion as a stalemate.
+      filed('they-rout');
       despawnInvasion(state, record);
       return;
     }
@@ -831,7 +895,13 @@ function resolveInvaderBattle(
         state.siegeOrders = state.siegeOrders.filter((order) => order !== siege);
         army.landId = siege.fromLandId;
       }
+      filed('they-rout');
+      return;
     }
+    // The line held and the host is still out there. Not a rout — `spent` is the honest word
+    // for a defence that stopped an assault without breaking the army that made it, and it is
+    // the outcome the Reckoning reads as "the ground is held".
+    filed('spent');
     return;
   }
 
@@ -848,6 +918,7 @@ function resolveInvaderBattle(
     record.pillaged = true;
     record.exitLandId = farthestNeutralFromCapital(state)?.id;
     state.message = t('empire.invade.raidHit', { kingdom: kingdomName(state, record.kingdomId), land: land.name });
+    filed('we-rout');
     return;
   }
 
@@ -863,6 +934,18 @@ function resolveInvaderBattle(
     required: getAcquisitionTicksRequired(land),
   });
   state.message = t('empire.invade.besiege', { kingdom: kingdomName(state, record.kingdomId), land: land.name });
+  filed('we-rout');
+}
+
+/** Stands in for a host that has been despawned, so a headcount reads 0 rather than throwing. */
+const EMPTY_HOST = { units: { spearmen: 0, archers: 0, heavyInfantry: 0 } } as Army;
+
+/** Who was nominally in charge here, so a dispatch can name somebody. */
+function generalOf(state: GameState, land: Land): string | undefined {
+  const host = state.armies.find((army) => army.kingdomId === PLAYER_KINGDOM_ID
+    && army.landId === land.id && !army.isLevy && army.generalHeroId);
+  if (!host?.generalHeroId) return undefined;
+  return state.heroes.find((hero) => hero.id === host.generalHeroId)?.name;
 }
 
 function retreatDefenders(state: GameState, land: Land): void {

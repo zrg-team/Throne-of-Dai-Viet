@@ -16,6 +16,7 @@ import {
   sendReinforcement,
 } from '../../../systems/ascent/reinforcement';
 import { hostOrderLabel } from '../../../systems/ascent/armyOrders';
+import { focusBattle, liveBattles } from '../../../systems/ascent/fronts';
 import { INK_UI, scrollGestureConsumedTap } from '../../../ui/InkUI';
 import { drawCardIcon, type CardIconId } from '../../../ui/CardIcons';
 import { t } from '../../../i18n';
@@ -59,10 +60,15 @@ export function buildBattleRelief(self: ConquestUIScene, battle: AscentBattle): 
   const coming = reinforcementsEnRoute(self.state, battle);
   const candidates = battle.over ? [] : reinforcementCandidates(self.state, battle);
   const sendable = candidates.filter((row) => !row.blockedReason && !row.enRoute).length;
-  const key = `${coming.hosts}:${coming.men}:${coming.etaTicks}:${sendable}:${battle.over ? 1 : 0}`;
+  // The other fields ride the same key, because they share the layer and a stale key would leave
+  // yesterday's front chip sitting over today's battlefield.
+  const elsewhere = liveBattles(self.state).filter((other) => other.landId !== battle.landId);
+  const key = `${coming.hosts}:${coming.men}:${coming.etaTicks}:${sendable}:${battle.over ? 1 : 0}`
+    + `:${elsewhere.map((other) => `${other.landId}@${Math.round(other.ourNow)}/${Math.round(other.theirNow)}`).join('|')}`;
   if (key === ui.reliefKey) return;
   ui.reliefKey = key;
   clearLayer(self, ui.relief);
+  if (!battle.over) buildOtherFronts(self, battle, elsewhere);
   if (battle.over || (sendable === 0 && coming.hosts === 0)) return;
 
   const { content } = ui;
@@ -91,6 +97,61 @@ export function buildBattleRelief(self: ConquestUIScene, battle: AscentBattle): 
     showReinforcePicker(self, () => { self.closeLane(); self.openLane('battle'); });
   });
   ui.relief.add(hit);
+}
+
+/**
+ * The war's other fields, on the near corner of this one.
+ *
+ * Mirrors the relief plate across the field — same band, same size, opposite corner — because it
+ * answers the mirrored question: relief is *who can come here*, and this is *where else is being
+ * fought*. It is on the field rather than in the dock because the dock is at its height budget on
+ * a 620-high screen (`BATTLE_DOCK_HEIGHT` was already trimmed 122 → 112 for printing through the
+ * lane's Close button) and because the field is where the eye already is.
+ *
+ * One other field names it and its odds, and the tap walks you onto it. Two or more and the chip
+ * counts them and opens the board instead, which is the screen built to rank them.
+ */
+function buildOtherFronts(self: ConquestUIScene, battle: AscentBattle, elsewhere: AscentBattle[]): void {
+  const ui = self.battleUi;
+  if (!ui?.relief?.active || elsewhere.length === 0) return;
+  const { content } = ui;
+  const w = 118;
+  const h = 26;
+  const x = content.x + content.width - w - 6;
+  const y = content.y + ui.fieldHeight - h - 6;
+
+  const only = elsewhere.length === 1 ? elsewhere[0] : undefined;
+  // Losing somewhere else is the whole reason to look up from the field you are on, so the chip
+  // is inked by the worst news it carries rather than by how many fields there are.
+  const losing = elsewhere.some((other) => other.theirNow > other.ourNow);
+  const label = only
+    ? t('ascent.war.otherFront', {
+      land: only.landName, ours: Math.round(only.ourNow), theirs: Math.round(only.theirNow),
+    })
+    : t('ascent.war.otherFronts', { n: elsewhere.length });
+
+  const plate = self.ui.panel({ x, y, width: w, height: h }, {
+    border: losing ? INK_UI.cinnabar : INK_UI.gold, fillAlpha: 0.94, borderWidth: 1.5, radius: 5,
+  });
+  ui.relief.add(plate);
+  ui.relief.add(self.ui.label(x + w / 2, y + h / 2, label, 'label', {
+    fontSize: '9.5px', align: 'center', wordWrap: { width: w - 8 },
+  }).setOrigin(0.5));
+  const hit = self.add.zone(x, y, w, h).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+  hit.on('pointerdown', () => { plate.setScale(0.97); plate.setPosition(x + w * 0.015, y + h * 0.015); });
+  const unpress = (): void => { plate.setScale(1); plate.setPosition(x, y); };
+  hit.on('pointerout', unpress);
+  hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+    unpress();
+    if (scrollGestureConsumedTap(pointer)) return;
+    // Straight across to the other field when there is only one — the board would be a list of
+    // one thing standing between the player and the fight they can already see named on the chip.
+    if (only) focusBattle(self.state, only.landId);
+    self.closeLane();
+    self.openLane('battle');
+  });
+  ui.relief.add(hit);
+  void battle;
 }
 
 /**

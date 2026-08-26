@@ -15,8 +15,13 @@ dist/
 
 # Regenerated in the cloud by `expo prebuild` on every build. This is a Continuous Native
 # Generation project; uploading a local copy is pointless at best and stale at worst.
-android/
-ios/
+/android/
+/ios/
+
+# The store submission kit: screenshots, icons and listing text for the two consoles. Generated
+# by `yarn store:kit`, uploaded by hand to Play and App Store Connect, and of no use whatsoever
+# to a build machine. This is the one line that is deliberately NOT in .gitignore.
+store/
 
 # Local output of scripts/ios.mjs — the archive and .ipa from a Mac build. Never needed remotely.
 build/

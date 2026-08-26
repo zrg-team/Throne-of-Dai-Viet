@@ -128,9 +128,20 @@ self.addEventListener('fetch', (event) => {
   // one project among many on the same origin.
   if (!url.pathname.startsWith(SCOPE)) return;
 
-  // Every navigation is the same page. The game is one HTML file and a canvas; there is no route
-  // to preserve, and answering from cache is what makes a cold launch work with no network.
-  if (request.mode === 'navigate') {
+  /**
+   * Every navigation is the same page. The game is one HTML file and a canvas; there is no route
+   * to preserve, and answering from cache is what makes a cold launch work with no network.
+   *
+   * The privacy policy is the one exception, and it has to be. It is a genuine second document,
+   * and its URL is what gets typed into App Store Connect and the Play Console — so it is the one
+   * link on this origin a reviewer is certain to open. Without this clause an installed player
+   * (or a reviewer who had opened the game first) navigates to `privacy.html` and is served the
+   * game instead, which reads as a missing policy rather than as a caching rule.
+   *
+   * It falls through to the handler below, so it is still answered from the precache and still
+   * works with no network.
+   */
+  if (request.mode === 'navigate' && !url.pathname.endsWith('/privacy.html')) {
     event.respondWith((async () => {
       const cached = await caches.match(SHELL, MATCH);
       if (cached) return cached;

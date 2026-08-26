@@ -1,4 +1,5 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
+import { liveBattles } from './fronts';
 import type { Army, AscentBattle, GameState } from '../../state/types';
 
 /**
@@ -43,11 +44,10 @@ export function battleLine(state: GameState, battle: AscentBattle): Army | undef
   return ourHosts(state, battle).sort((a, b) => hostHeadcount(b) - hostHeadcount(a))[0];
 }
 
-/** True while `armyId` is fighting in the live engagement, on either side. */
+/** True while `armyId` is fighting in any live engagement, on either side. */
 export function isEngaged(state: GameState, armyId: string): boolean {
-  const battle = state.ascent?.activeBattle;
-  if (!battle || battle.over) return false;
-  return (battle.ourArmyIds ?? []).includes(armyId) || (battle.theirArmyIds ?? []).includes(armyId);
+  return liveBattles(state).some((battle) => (
+    (battle.ourArmyIds ?? []).includes(armyId) || (battle.theirArmyIds ?? []).includes(armyId)));
 }
 
 /**

@@ -49,7 +49,6 @@ import {
 } from './AmbitionSystem';
 import { waveDelayTicks, warPurchaseDiscount } from './DoctrineSystem';
 import { addAscentXp, contestedDefencePower, ownedLandCount } from './PowerSystem';
-import { findFreeCommander } from './AutopilotSystem';
 import { heroName, t } from '../../i18n';
 import type {
   AscentPrompt,
@@ -384,30 +383,6 @@ function projectedWinChance(state: GameState, threat: number, bonus = 0): number
 }
 
 /**
- * Who would lead the new host.
- *
- * Prefers an unposted hero, but falls back to the best court-seated one — a minister can be
- * pulled from their desk in an emergency. Without the fallback the option degrades to a
- * nameless "Raise a host" exactly when the roster is full, which is the common case and
- * loses the point of naming the commander on the card at all.
- */
-function pickResponseCommander(state: GameState): string | undefined {
-  const free = findFreeCommander(state);
-  if (free) return free;
-
-  // Then a minister, pulled from their desk — a real but recoverable cost.
-  //
-  // Deliberately NOT a hero already commanding a host: raising a new army under them
-  // leaves the existing one leaderless, and an autopilot that takes this option every wave
-  // spends the whole run churning generals between armies and conquers nothing. If nobody
-  // is spare, the option is simply unavailable and the player fortifies or endures.
-  const byMartial = (a: Hero, b: Hero) => b.stats.martial - a.stats.martial;
-  return state.heroes
-    .filter((hero) => hero.assignedTo?.startsWith('court:'))
-    .sort(byMartial)[0]?.id;
-}
-
-/**
  * Size of the host raised by the emergency levy.
  *
  * Scaled off available manpower like any other muster, and never below a full host. A fixed
@@ -435,12 +410,10 @@ function releaseHero(state: GameState, heroId: string): void {
 }
 
 /**
- * Builds the counter-play menu. Everything the player might want to do about an incoming
- * wave is on this one modal, including *which hero* leads the new host — so responding never
- * means visiting a hero screen and then an army screen.
+ * Builds the counter-play menu: everything the player might want to *buy* about an incoming
+ * wave, on one modal. Raising a host is not on it — see the note in the return below.
  */
 export function buildResponseOptions(state: GameState, threat: number): EmpireResponseOption[] {
-  const commanderId = pickResponseCommander(state);
   const wave = state.ascent?.wave ?? 1;
   const fortify = fortifyCost(state, wave);
   const buyOff = buyOffCost(state, wave);
@@ -459,26 +432,22 @@ export function buildResponseOptions(state: GameState, threat: number): EmpireRe
   const wallsGain = (fortifyDefenceGain(state) * 16) / defence;
   const mercGain = (mercenarySize(state) * INVADER_POWER_PER_SOLDIER) / defence;
 
+  /**
+   * **No `send-host` row.** It was the emergency levy — *Phái {tướng} và mộ binh* — and it is
+   * the same act as Lập quân, which the player already has a whole screen for, reachable from
+   * the bar at any time and with every dial the muster form offers: how many men, which arms,
+   * which commander, what standing order.
+   *
+   * Two rows for one act is not two choices. This one asked for a commander the realm might not
+   * have spare, spent supplies rather than gold, capped itself against `MAX_STANDING_HOSTS`, and
+   * — by its own comment above — was worth nothing at all against the host already marching,
+   * because the levy it raises is still mustering when that host lands. So the card carried a
+   * row that duplicated a better screen and did nothing about the wave it was answering.
+   *
+   * `applyResponse` still handles `'send-host'`, because a save written before this change can
+   * hold a pending prompt that offers it.
+   */
   return [
-    {
-      id: 'send-host',
-      heroId: commanderId,
-      cost: { supplies: SEND_HOST_SUPPLIES },
-      // No odds at all, not merely no bonus.
-      //
-      // Quoting the base chance here made this a verbatim duplicate of Endure — two rows on the
-      // same card promising the identical outcome for different prices, which is worse than an
-      // option that is merely weak. The levy is still mustering when this host arrives, so its
-      // value is the wave *after* this one, and the card now says that instead of a number that
-      // would be true of doing nothing.
-      soldiers: emergencyLevySize(state),
-      // Capped: without a ceiling the realm can answer every single wave with another
-      // levy and end up fielding a dozen half-fed hosts it cannot supply or command.
-      affordable:
-        Boolean(commanderId) &&
-        canSpend(state, { supplies: SEND_HOST_SUPPLIES }) &&
-        state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID).length < MAX_STANDING_HOSTS,
-    },
     {
       id: 'fortify',
       cost: { gold: fortify },

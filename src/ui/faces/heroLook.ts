@@ -172,7 +172,7 @@ export function resolveHeroLook(hero: Hero): HeroLook {
     const covered = COVERING_HATS.has(hat);
     parts.push({ key: pick(womanHairFor(era, covered), next), tint: 'hair' });
     if (!covered) {
-      parts.push({ key: pick(womanKnotFor(age), next), tint: 'hair' });
+      parts.push({ key: pick(womanKnotFor(era, age), next), tint: 'hair' });
       const ornament = pick(hairOrnamentFor(rank), next);
       if (ornament) parts.push({ key: ornament, tint: 'none' });
     }

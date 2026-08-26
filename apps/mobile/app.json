@@ -1,8 +1,7 @@
 {
   "expo": {
     "name": "Vạn Thắng",
-    "slug": "van-thang",
-    "version": "0.2.0",
+    "slug": "ten-thousand-victories",
     "orientation": "portrait",
     "scheme": "vanthang",
     "userInterfaceStyle": "automatic",
@@ -13,7 +12,6 @@
     "icon": "./assets/icon.png",
     "ios": {
       "bundleIdentifier": "zrg.team.vanthang",
-      "buildNumber": "1",
       "supportsTablet": true,
       "requireFullScreen": true,
       "infoPlist": {
@@ -23,7 +21,6 @@
     },
     "android": {
       "package": "zrg.team.vanthang",
-      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#201a12"
@@ -57,6 +54,12 @@
       "./plugins/withShortNativeBuildPath",
       "./plugins/withUploadSigning",
       "expo-status-bar"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "dc75f332-8091-4337-a308-7f82a51aee13"
+      }
+    },
+    "owner": "zerglingno2s-team"
   }
 }

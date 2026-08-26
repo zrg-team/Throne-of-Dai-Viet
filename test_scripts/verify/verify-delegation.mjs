@@ -33,9 +33,17 @@ const read = () => page.evaluate(() => {
   // Both containers: the hand-over chip left the dock for the field's top-right corner when the
   // dock became two dials, and looking only at `orders` reported "no way back" for a chip that was
   // sitting on screen the whole time.
+  //
+  // And *recursively*: each exit is a container of its own now, so the icon and the word dip
+  // together under a press. A one-level scan finds nothing in `exits` and reported "no way back"
+  // for a chip sitting on screen the whole time — which is exactly what it had been doing.
   const labels = [];
-  ui.battleUi?.orders?.list?.forEach((o) => { if (o.text) labels.push(o.text); });
-  ui.battleUi?.exits?.list?.forEach((o) => { if (o.text) labels.push(o.text); });
+  const walk = (o) => {
+    if (typeof o.text === 'string' && o.text) labels.push(o.text);
+    if (Array.isArray(o.list)) o.list.forEach(walk);
+  };
+  ui.battleUi?.orders?.list?.forEach(walk);
+  ui.battleUi?.exits?.list?.forEach(walk);
   const st = window.__mandateState;
   return b ? {
     paused: Boolean(st.isPaused), strat: Boolean(st.isStrategyPause), defeated: Boolean(st.isDefeated),
@@ -88,7 +96,11 @@ line(!later.gone && (later.key !== handed.key || later.beat > handed.beat),
   'the fight kept running without the player',
   later.key !== handed.key ? `it finished; the next one is at beat ${later.beat}`
     : `beat ${handed.beat} -> ${later.beat} (exchange ${handed.round} -> ${later.round})`);
-line(later.labels.some((s) => /Take the field|Thu lại quyền/.test(s)), 'the chip offers the way back',
+// Matched on the strings the catalog actually holds. The old pair — "Take the field" /
+// "Thu lại quyền" — had not existed since the chip was reworded to `ascent.battle.takeField`,
+// so this line had been failing on a chip that was there and worked (the assertion under it
+// takes the field back successfully every run).
+line(later.labels.some((s) => /Take back|Cầm quân lại/.test(s)), 'the chip offers the way back',
   later.labels.filter((s) => s.length < 24).join(' | '));
 line(back.delegated === false, 'taking the field back works', `delegated=${back.delegated}`);
 line(!back.gone && !back.over, 'and the fight is still there afterwards', `round ${back.round}`);

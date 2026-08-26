@@ -14,6 +14,7 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT } from '../../../game/constants';
 import { renderHeroFaceInBox } from '../../../ui/FaceRenderer';
 import { openingFor, takeOpening } from '../../../systems/story/StorySystem';
+import { contestedFronts } from '../../../systems/ascent/battleReport';
 import { storyText } from '../../../i18n/story';
 import { INK_UI, INK_UI_HEX, scrollGestureConsumedTap, type UIBounds } from '../../../ui/InkUI';
 import { UI_FONT } from '../../../ui/fonts';
@@ -46,10 +47,13 @@ const LANE_PORTRAIT_COLUMN = 62;
 
 export function openLane(self: ConquestUIScene, lane: AscentLane): void {
   if (self.state.pendingAscentPrompt) return;
-  // The bar only offers Battle while a siege is live, but the siege can end between the bar
-  // being drawn and the button being released. Checking here as well means that race costs a
-  // wasted tap rather than the whole screen.
-  if (lane === 'battle' && !self.state.ascent?.activeBattle) return;
+  // The Battle lane is two screens: the fight, when there is one, and the war board when there
+  // is not. It used to be one screen and a dead button — and the screen opens for a measured
+  // 6–15 of the 20–96 engagements a run settles, so for most of a wave the one control with
+  // anything to say about the war refused to open at all. `showBattle` picks between them.
+  if (lane === 'battle' && !self.state.ascent?.activeBattle
+    && contestedFronts(self.state).length === 0
+    && (self.state.ascent?.battleHistory?.length ?? 0) === 0) return;
 
   self.lanePauseBeforeOpen = self.state.isStrategyPause;
   // Every lane freezes the world so the player can read it — except the battle, which *is* the

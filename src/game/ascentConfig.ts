@@ -20,6 +20,21 @@ export const ASCENT_TICK_MS = 3500;
  */
 export const ASCENT_AUTO_DELEGATE_BEATS = 10;
 
+/**
+ * How many fields the realm may hold at once — one the player commands, the rest with generals.
+ *
+ * Three, and the number is about the *screen*, not the simulation. A wave lands one to three
+ * columns and can split across two provinces, so two is the common case and three is the bad
+ * night; past that the fronts board stops being a thing a thumb can hold and the war becomes a
+ * list to administer. A fourth contact is settled the way all of them used to be — an odds roll,
+ * now at least reported (see `battleReport`).
+ *
+ * One was not a design so much as a limit nobody had got round to lifting: `maybeRequestBattle-
+ * Decision` refused while anything was live, which is most of why a measured run settled 20–96
+ * engagements and showed the player between four and fifteen of them.
+ */
+export const MAX_LIVE_BATTLES = 3;
+
 // ── Waves ───────────────────────────────────────────────────────────────────
 export const WAVE_INTERVAL_TICKS = 12;
 /**
