@@ -8,6 +8,82 @@
     />
     <meta name="theme-color" content="#2a2118" />
     <title>Vạn Thắng — Ten Thousand Victories</title>
+
+    <!-- ── what a link to this page turns into ──────────────────────────────────────────────────
+         A share card is the only part of this game most people will ever see. Pasted into Discord,
+         Zalo, iMessage or a group chat without this block, the game was a grey rectangle with
+         `zrg-team.github.io` under it and no words at all — an unfurler reads none of the manifest
+         and cannot run the bundle, so everything it knows has to be here in the served HTML.
+
+         `%SITE_URL%` is filled by vite from `homepage` in package.json (see vite.config.ts). It is
+         absolute, and it has to be: a crawler has no document to resolve `./share/og-card.jpg`
+         against, and Facebook, X and Slack drop a relative one without reporting it. The card
+         itself is cut by `scripts/build-share.mjs` and lives outside the service worker's precache,
+         so it costs an installed player nothing. -->
+    <meta
+      name="description"
+      content="Vietnamese history, played one-handed on a phone. A grand-strategy roguelite drawn in Đông Hồ woodblock ink — free, no ads, plays offline, in English and Tiếng Việt."
+    />
+    <link rel="canonical" href="%SITE_URL%" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Vạn Thắng" />
+    <meta property="og:title" content="Vạn Thắng — Ten Thousand Victories" />
+    <meta
+      property="og:description"
+      content="Vietnamese history, played one-handed on a phone. A grand-strategy roguelite drawn in Đông Hồ woodblock ink — free, no ads, plays offline, in English and Tiếng Việt."
+    />
+    <meta property="og:url" content="%SITE_URL%" />
+    <meta property="og:image" content="%SITE_URL%share/og-card.jpg" />
+    <!-- Stated rather than left to be discovered. An unfurler that has not fetched the image yet
+         lays the card out from these two numbers; without them the first render of a preview is a
+         collapsed box that fills in a beat later, and some clients never re-lay it out at all. -->
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="The Vạn Thắng wordmark on điệp paper beside two phone screens — a woodblock-ink map of the realm, and a battle."
+    />
+    <!-- The page's own default is Vietnamese, which is what `lang` above says and what the game
+         boots into; English is the other half of the audience, not a fallback. -->
+    <meta property="og:locale" content="vi_VN" />
+    <meta property="og:locale:alternate" content="en_US" />
+
+    <!-- X reads og:* for everything except the card shape, which only this tag can set. Without it
+         the same picture is cropped to a small square thumbnail beside the text. -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Vạn Thắng — Ten Thousand Victories" />
+    <meta
+      name="twitter:description"
+      content="Vietnamese history, played one-handed on a phone. A grand-strategy roguelite drawn in Đông Hồ woodblock ink — free, no ads, plays offline, in English and Tiếng Việt."
+    />
+    <meta name="twitter:image" content="%SITE_URL%share/og-card.jpg" />
+    <meta
+      name="twitter:image:alt"
+      content="The Vạn Thắng wordmark on điệp paper beside two phone screens — a woodblock-ink map of the realm, and a battle."
+    />
+
+    <!-- For the one reader that is not a person: schema.org is how a search result gets the name,
+         the price and the platform rather than guessing them out of the prose. Every field here is
+         a fact the game can be held to — no rating, no review count, nothing invented. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "VideoGame",
+        "name": "Vạn Thắng",
+        "alternateName": "Ten Thousand Victories",
+        "url": "%SITE_URL%",
+        "image": "%SITE_URL%share/og-card.jpg",
+        "description": "A grand-strategy roguelite of Vietnamese history, drawn in the ink of Đông Hồ woodblock prints and played one-handed on a phone.",
+        "inLanguage": ["vi", "en"],
+        "genre": ["Strategy", "Roguelite"],
+        "gamePlatform": ["Web browser", "Android", "iOS"],
+        "applicationCategory": "GameApplication",
+        "operatingSystem": "Any",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
     <!-- The drum, from `node scripts/build-icon.mjs`. Every href is relative: the game is served
          from a repository sub-path on GitHub Pages, where a leading slash points at nothing.
          The tab marks are transparent and the install icons are not — `favicon.svg` is the disc on
