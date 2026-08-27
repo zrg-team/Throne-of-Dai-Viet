@@ -445,7 +445,12 @@ export function openFieldAt(state: GameState, landId: string): boolean {
   if (!land) return false;
   // Already being fought: this is the same request as the board's other door, so answer it the
   // same way rather than refusing a tap that plainly means "put me on that field".
+  //
+  // Ownership is checked *first*, though. This branch short-circuited before any gate, so a fight
+  // left standing on a province we no longer hold stayed enterable from the war board for as long
+  // as it existed — the front half of the same defect `reconcileFronts` closes.
   if (battleAt(state, landId)) {
+    if (land.ownerId !== PLAYER_KINGDOM_ID && battleAt(state, landId)?.role !== 'offence') return false;
     focusBattle(state, landId);
     return true;
   }
@@ -2089,6 +2094,62 @@ export function delegateBattle(state: GameState, delegated: boolean, standing = 
  * fight that finishes is dropped from the list by `withFocus` returning false; if the watched one
  * finished, `promoteNextFront` moves the player onto whichever remaining field most needs hands.
  */
+/**
+ * Ends any fight whose ground is no longer ours, before the beat clock touches it.
+ *
+ * **The reported bug, and it had no code at all.** `land.ownerId` is read by exactly three gates in
+ * this file — `worthWatching`, `wouldCostUsTheProvince`, `fieldCandidateAt` — and all three run
+ * when a field *opens*. Nothing looks again. `fronts.ts` does not read `state.lands` once, and
+ * neither does `battleMembership`. So a province that changed hands mid-fight left the engagement
+ * running on ground the enemy already held: the screen kept beating, the enemy kept arriving, and
+ * the player was defending a place they had lost. Reported verbatim — *somehow i lose my land in
+ * battle but enemy can still attack and battle screen still happen in that land during users
+ * capture*.
+ *
+ * The ordering is the whole fix. `progressSiegeOrders` flips the owner at `AscentTick`'s movement
+ * step, eighty-odd lines before `advanceBattle`, so the flip lands mid-tick with the fight
+ * untouched. This runs in the gap.
+ *
+ * Ended as a **retreat** rather than deleted: retreat is what actually happened — the ground went,
+ * the men pulled off it — and it is the verb that pays `BATTLE_WITHDRAW_RECOVERY`, files a record
+ * through `recordEngagement`, and lets the Reckoning say so. A fight that simply vanished would be
+ * the silent-loss defect this mode has been bitten by twice before.
+ *
+ * Offence is exempt: an assault is *supposed* to be fought on ground that is not ours.
+ */
+export function reconcileFronts(state: GameState): void {
+  const ascent = state.ascent;
+  if (!ascent) return;
+  const lost = (battle: AscentBattle): boolean => battle.role !== 'offence'
+    && findLand(state, battle.landId)?.ownerId !== PLAYER_KINGDOM_ID;
+  const said = (battle: AscentBattle): void => {
+    battle.over = true;
+    pushToast(state, t('ascent.battle.groundLost', { land: battle.landName }), 'threat');
+  };
+
+  // Structured exactly like `advanceBattle`, and for the same reason: `finishBattle` ends whatever
+  // is *in focus*, so the watched fight and the side fights are reached differently. A side front
+  // additionally has to be dropped from the list — `withFocus` reports whether the beat ended it,
+  // which is the signal the filter below is built on.
+  const active = ascent.activeBattle;
+  if (active && !active.over && lost(active)) {
+    finishBattle(state, 'retreat');
+    said(active);
+  }
+  const sides = ascent.sideBattles ?? [];
+  if (sides.length > 0) {
+    ascent.sideBattles = sides.filter((side) => {
+      if (side.over || !lost(side)) return !side.over;
+      withFocus(state, side, () => finishBattle(state, 'retreat'));
+      said(side);
+      return false;
+    });
+  }
+  // The player was standing on the field that just went. Put them on another one rather than on a
+  // battle screen with no battle behind it.
+  if (!ascent.activeBattle) promoteNextFront(state);
+}
+
 export function advanceBattle(state: GameState): void {
   const ascent = state.ascent;
   if (!ascent) return;

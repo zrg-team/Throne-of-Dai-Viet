@@ -73,10 +73,15 @@ export function enrolArrivals(state: GameState, battle: AscentBattle): { ours: n
   const neighbours = new Set(land?.neighbors ?? []);
   const invasions = state.invasions ?? [];
 
+  // Ground we no longer hold conscripts nobody. `reconcileFronts` ends a defence whose province
+  // has changed hands, but this runs from `fightRound` too, so a beat resolved in the same tick as
+  // the flip must not sweep a relief column that has just walked in into the fight it came to undo.
+  const stillOurs = !land || land.ownerId === PLAYER_KINGDOM_ID || battle.role === 'offence';
+
   for (const army of state.armies) {
     if (hostHeadcount(army) <= 0) continue;
     if (army.kingdomId === PLAYER_KINGDOM_ID) {
-      if (army.landId === battle.landId && !ours.has(army.id)) {
+      if (stillOurs && army.landId === battle.landId && !ours.has(army.id)) {
         ours.add(army.id);
         // A host caught on the province stands and fights. Its march is dropped here rather
         // than left to complete: a column that was mid-leg when contact came kept walking,
@@ -113,7 +118,27 @@ export function enrolArrivals(state: GameState, battle: AscentBattle): { ours: n
     if (record && record.targetLandId === battle.landId) theirs.add(army.id);
   }
 
+  // And the men who are no longer standing here leave the line (defence only).
+  //
+  // This function was purely additive: the two sets are seeded from the battle's own lists and
+  // nothing was ever taken out. So a host driven off by `retreatDefenders`, or handed away by a
+  // secession, stayed in `ourArmyIds` and went on fighting a battle it was not standing in — its
+  // strength still counted, its casualties still taken, on a field a province away.
+  //
+  // Only our own hosts, and only in a defence. Their side is enrolled by intent rather than by
+  // position (a besieger stands on the *adjacent* province, which is the whole reason
+  // `raiseDefenceField` rolls the roster explicitly), so pruning theirs by tile would empty the
+  // enemy line on the first beat.
+  if (battle.role !== 'offence') {
+    for (const id of [...ours]) {
+      const army = state.armies.find((candidate) => candidate.id === id);
+      if (!army) continue;
+      if (army.isLevy) continue;
+      if (army.landId !== battle.landId) ours.delete(id);
+    }
+  }
+
   battle.ourArmyIds = [...ours];
   battle.theirArmyIds = [...theirs];
-  return { ours: ours.size - oursBefore, theirs: theirs.size - theirsBefore };
+  return { ours: Math.max(0, ours.size - oursBefore), theirs: Math.max(0, theirs.size - theirsBefore) };
 }

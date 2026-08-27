@@ -24,7 +24,9 @@
  */
 import { contestedFronts } from '../../../systems/ascent/battleReport';
 import { fieldCandidateAt, openFieldAt, summonAdjacentRelief } from '../../../systems/ascent/BattleSystem';
-import { battleAt, focusBattle, hasRoomForAnotherFront } from '../../../systems/ascent/fronts';
+import {
+  battleAt, focusBattle, hasRoomForAnotherFront, liveBattleCount,
+} from '../../../systems/ascent/fronts';
 import { MAX_LIVE_BATTLES } from '../../../game/ascentConfig';
 import { PLAYER_KINGDOM_ID } from '../../../game/constants';
 import { INK_UI } from '../../../ui/InkUI';
@@ -129,6 +131,20 @@ export function showWarBoard(self: ConquestUIScene): void {
     // unconditionally — as it was for one round — the hold leaked out through the battle lane's
     // `lanePauseBeforeOpen` and reopened running fights frozen mid-beat.
     state.isStrategyPause = true;
+  } else if (liveBattleCount(state) > 0) {
+    /**
+     * The war waits while the player is reading about it.
+     *
+     * `clearLanePage` stops the beat *drain* clock when the battle view is torn down, and that is
+     * only the presentation: `advanceBattle` runs from the economy tick whether or not anyone is
+     * watching, and the battle lane is the one lane that deliberately un-pauses the world. So
+     * stepping off a field to look at the list left every fight beating behind the page, and a
+     * player came back to a battle several exchanges further on than the one they left.
+     *
+     * Reported as *pause battle screen if move from fight list page*. Released again by
+     * `takeField`, which already writes all three flags on the way back onto a field.
+     */
+    state.isStrategyPause = true;
   }
 
   const { addRow, addHeading, addNote, finish } = self.laneList(
@@ -182,7 +198,25 @@ export function showWarBoard(self: ConquestUIScene): void {
           }),
           border: frontInk(front),
         },
-        () => self.replaceLanePage(() => showFrontSheet(self, front.landId)),
+        /**
+         * A row about a fight opens the fight.
+         *
+         * It used to open a sheet, and the sheet's first row then opened the fight — two taps and a
+         * page in between to reach the one thing the row is named after. Reported verbatim: *click
+         * show list of fight, click a fight, show battle screen directly, no need a middle screen.*
+         *
+         * The sheet is not gone: it carries the relief order and the reasons a field cannot be
+         * stood up, and it is still what a row falls back to when `openFieldAt` refuses — no room
+         * under the front cap, or nobody actually standing on the province. So the tap always does
+         * the most it can, and only explains itself when it cannot do the main thing.
+         */
+        () => {
+          if (openFieldAt(state, front.landId)) {
+            takeField(self, front.landId);
+            return;
+          }
+          self.replaceLanePage(() => showFrontSheet(self, front.landId));
+        },
       );
     }
   }

@@ -9,6 +9,7 @@ import {
   collectPlayerIncome,
   getFocusLoyaltyBonus,
   growProvincialMilitia,
+  growProvincialPopulation,
   progressBuildOrders,
   repairProvincialDefence,
 } from '../ResourceSystem';
@@ -22,6 +23,7 @@ import { progressCourt } from '../CourtSystem';
 import { tickDiplomacy } from '../DiplomacySystem';
 import { refreshPlayerVisibility } from '../LandSystem';
 import { dissolveGarrisonLevies, tickAutoDefend, tickInvasions, resolvePendingBattle } from '../empire/InvasionSystem';
+import { reconcileFronts } from './BattleSystem';
 import { addMandate } from '../empire/MandateSystem';
 import { tickGreatPowersYear } from '../empire/GreatPowersSystem';
 import { ensureHeroDeck } from '../../data/heroFactory';
@@ -279,6 +281,10 @@ export function advanceAscentTick(state: GameState): void {
     && (live.approachBeats ?? 0) + live.round >= ASCENT_AUTO_DELEGATE_BEATS) {
     delegateBattle(state, true, false);
   }
+  // Before the beat clock touches anything: `progressSiegeOrders` flipped owners back at the
+  // movement step, and a fight standing on ground that changed hands this tick must end rather
+  // than be advanced. See `reconcileFronts`.
+  reconcileFronts(state);
   advanceBattle(state);
 
   // Once nothing is being fought *anywhere*, any province that turned its garrison out takes it
@@ -293,6 +299,10 @@ export function advanceAscentTick(state: GameState): void {
   // Ground that defends itself. Militia is raised from each province's own people rather than
   // from the national pool, so holding territory no longer competes with fielding an army — see
   // `growProvincialMilitia`. After `settleOwnedLands`, because the ceiling reads loyalty.
+  // People arrive before the watch they will be drawn from: `militiaCapacity` reads
+  // `land.population`, so growing the district first means this season's arrivals count toward
+  // this season's militia rather than next season's.
+  growProvincialPopulation(state);
   growProvincialMilitia(state);
   // And the masonry the last fight knocked down, rebuilt a course at a time. Beside the militia
   // because they are the two halves of the same recovery: a province that held a wave is short of

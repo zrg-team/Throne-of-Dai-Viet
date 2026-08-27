@@ -19,6 +19,9 @@ import {
   HERO_RESERVE_UPKEEP_SHARE,
   MILITIA_REGROW_DELAY,
   POP_CAPACITY_CAPITAL_MULT,
+  POP_CROWDING_FOOD,
+  POP_GROWTH_MIN_PER_TICK,
+  POP_GROWTH_SEASONS_TO_FILL,
   POP_CAPACITY_LOYALTY_FLOOR,
   POP_CAPACITY_PER_BUILDING_LEVEL,
   POP_CAPACITY_PER_LAND,
@@ -388,7 +391,21 @@ export function realmPopulationCapacity(state: GameState): number {
     if (land.ownerId !== PLAYER_KINGDOM_ID) continue;
     total += landPopulationCapacity(state, land);
   }
-  return Math.max(1, total);
+  // Zero, not one. The floor was a divide-by-zero guard and it lied on the one screen anybody
+  // reads: a realm with no ground left showed `8.8k/1` on the resource strip and was billed
+  // emigration against a ceiling of a single person. Callers guard the division instead.
+  return total;
+}
+
+/**
+ * How full the realm's ground is, 0..1+ — the one figure crowding, the growth taper and the strip
+ * all read, so they can never disagree about what "full" means. A realm with no land is full by
+ * definition; there is nowhere for anybody to be.
+ */
+export function realmPopulationFill(state: GameState): number {
+  const capacity = realmPopulationCapacity(state);
+  if (capacity <= 0) return 1;
+  return state.resources.humans / capacity;
 }
 
 export function militiaCapacity(state: GameState, land: Land): number {
@@ -433,6 +450,47 @@ export function growProvincialMilitia(state: GameState): void {
     }
     const step = Math.max(2, Math.ceil(cap / MILITIA_SEASONS_TO_FULL));
     land.localSoldiers = Math.min(cap, land.localSoldiers + step);
+  }
+}
+
+/**
+ * People arrive in a district until it is as full as its ground and its buildings allow.
+ *
+ * **`land.population` could only ever go down.** It was set once at world generation and
+ * touched afterwards only by famine, a sacking or a story; `getLandPopulationGrowth` returns a flat 1 and
+ * is read by the build sheet and by nothing else. So the per-district ceiling added last round was
+ * decorative — a limit on a number that never moved — and the only quantity that could actually be
+ * limited was the national pool. Reported as: *why not limited people of a land?*
+ *
+ * Growing it is what makes the whole thing real, and it pays for itself three ways with no extra
+ * mechanism: `militiaCapacity` reads `population * 0.12`, so a developed district raises a
+ * bigger watch; `ascentProvincialDemand` charges food at `DEMAND_FOOD_PER_POP`, so a district that fills
+ * up **eats more**, which is the stress the ceiling is supposed to express; and the build sheet's
+ * line finally moves.
+ *
+ * Gated on the realm's grain, because that is the honest rule — people do not arrive somewhere that
+ * cannot feed them, and a realm in deficit should not be quietly compounding its own food bill.
+ * Tapered as the district fills, so the last quarter takes as long as the first half.
+ */
+export function growProvincialPopulation(state: GameState): void {
+  if (state.gameMode !== 'ascent') return;
+  // A realm that cannot feed the people it has does not gain more. `resourceRates` is last tick's
+  // net, which is exactly the figure the player is looking at when they wonder why growth stopped.
+  if (state.resourceRates.food < 0) return;
+  for (const land of state.lands) {
+    if (land.ownerId !== PLAYER_KINGDOM_ID) continue;
+    const cap = landPopulationCapacity(state, land);
+    if (land.population >= cap) {
+      // Over capacity: a district that has been razed, lost loyalty or had buildings destroyed.
+      // People leave at the same gentle rate the realm pool sheds them.
+      land.population = Math.max(cap, land.population - POP_GROWTH_MIN_PER_TICK);
+      continue;
+    }
+    const room = cap - land.population;
+    const step = Math.max(POP_GROWTH_MIN_PER_TICK, Math.ceil(cap / POP_GROWTH_SEASONS_TO_FILL));
+    // Tapered on the room left rather than flat, so a district slows as it fills instead of
+    // slamming into its ceiling — the same shape as the realm pool's own taper.
+    land.population = Math.min(cap, land.population + Math.max(1, Math.round(step * (room / cap))));
   }
 }
 
@@ -1213,7 +1271,22 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
   // three — the population it keeps alive rose with it, and food went from short in a fifth of all
   // seasons to short in better than a third. Hunger is meant to be a pressure the player manages,
   // not the default state of a successful realm.
-  const foodPerHead = state.gameMode === 'ascent' ? 240 : 200;
+  const baseFoodPerHead = state.gameMode === 'ascent' ? 240 : 200;
+  /**
+   * A full district feeds its people worse than an empty one (ascent).
+   *
+   * **This is what the ceiling is meant to feel like.** A clamp that stops a number is a rule the
+   * player has to be told; land that grows crowded and starts eating harder is a thing they can
+   * watch happen — and because growth is driven by `foodNet / 7`, the crowding slows the growth on
+   * its own, ahead of the taper, without either mechanism having to know about the other.
+   *
+   * Squared, so the bill arrives late: an empty realm pays nothing, a half-full one pays 15% of
+   * `POP_CROWDING_FOOD`, and only a realm pressed against its ground pays the whole of it.
+   */
+  const crowding = state.gameMode === 'ascent'
+    ? 1 + POP_CROWDING_FOOD * Math.min(1.5, realmPopulationFill(state)) ** 2
+    : 1;
+  const foodPerHead = baseFoodPerHead / crowding;
   const populationFoodUpkeep = Math.ceil((state.resources.humans / foodPerHead) * getPopulationFoodMultiplier(state.season));
   const armyRealmFoodPressure = Math.ceil(playerTroops / 300);
   const suppliesUpkeep = Math.ceil(playerTroops / 650);
@@ -1290,8 +1363,7 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
   if (state.gameMode === 'ascent') {
     const capacity = realmPopulationCapacity(state);
     if (rates.humans > 0) {
-      const filled = state.resources.humans / capacity;
-      rates.humans = Math.round(rates.humans * Math.max(0, 1 - filled));
+      rates.humans = Math.round(rates.humans * Math.max(0, 1 - realmPopulationFill(state)));
     }
     // Over the ceiling — usually a realm that has just lost ground — people leave rather than
     // starve. Gentle enough (2% of the excess) that taking the land back inside a wave or two

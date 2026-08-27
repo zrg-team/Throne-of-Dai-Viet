@@ -1322,6 +1322,19 @@ export interface ChronicleEntry {
    * terminal fires, and the record has to outlive it.
    */
   outcome?: StoryOutcome[];
+  /**
+   * Every beat the story spoke, in the order it spoke them — copied off `ActiveStory.history` at
+   * the terminal, because the story itself is deleted the instant one fires.
+   *
+   * This is what lets a finished story be *read* rather than merely listed. Sử ký's recorded tab
+   * had one line per ending and no way in; the beats were kept for the length of the telling and
+   * then thrown away, so the one thing a chronicle is for — going back and reading what happened —
+   * was the one thing it could not do.
+   *
+   * Optional, so a save written before this shipped simply shows its ending without a timeline and
+   * nothing has to be migrated.
+   */
+  history?: { fragmentId: string; turn: number; outcome?: StoryOutcome[] }[];
 }
 
 /**

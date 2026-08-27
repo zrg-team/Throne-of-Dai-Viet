@@ -52,6 +52,7 @@ import * as screensArmy from './conquest/screens/army';
 import * as screensArmyTargets from './conquest/screens/armyTargets';
 import * as screensBuild from './conquest/screens/build';
 import * as screensChronicle from './conquest/screens/chronicle';
+import * as screensChronicleEntry from './conquest/screens/chronicleEntry';
 import * as screensCourt from './conquest/screens/court';
 import * as screensRaiseHost from './conquest/screens/raiseHost';
 import * as screensStoryPage from './conquest/screens/storyPage';
@@ -374,6 +375,13 @@ export class ConquestUIScene extends Phaser.Scene {
      * appends its replacement to the end. See `keepForegroundOnTop`.
      */
     foreground?: Phaser.GameObjects.RenderTexture;
+    /**
+     * The hosts have filled the field, so the settlement and the camp are not drawn at all.
+     *
+     * Decided once per rebuild in `buildBattleField` and read by `buildBattleGround`, because the
+     * ground is drawn before the men and cannot ask the markers how large they came out.
+     */
+    sceneryHidden?: boolean;
     /** Where the two exits sit at the foot, so `buildBattleExits` never has to guess. */
     exitBounds: UIBounds;
     /**
@@ -921,6 +929,8 @@ export class ConquestUIScene extends Phaser.Scene {
   /* --------------------------------------------------------- screens chronicle */
 
   showChronicleScreen(): void { screensChronicle.showChronicleScreen(this); }
+
+  showChronicleEntry(entryId: string): void { screensChronicleEntry.showChronicleEntry(this, entryId); }
 
   /* ------------------------------------------------------------- screens court */
 

@@ -354,11 +354,22 @@ const square = async (source, size, file) => {
   writeFileSync(file, Buffer.from(url.split(',')[1], 'base64'));
 };
 
-/** Play's feature graphic: 1024x500, opaque, cropped hard on some surfaces — so the mark is small. */
-const featureGraphic = async (source, file) => {
+/**
+ * Play's feature graphic: 1024x500, opaque.
+ *
+ * It hangs directly above the app icon on the listing, so a card carrying the mark and nothing
+ * else spends the one banner the store gives you on a second copy of something already on screen
+ * — and says nothing about what the game is. This is a printed sheet instead: the mark held left,
+ * the name set in the game's own serif beside it, and sỏi son spent exactly once, as the seal.
+ *
+ * Play crops this on some surfaces, so nothing that carries meaning goes near an edge — the mark
+ * and every line of type sit inside the middle four fifths, and the seal is the only thing allowed
+ * out towards a corner, being the one element the card can lose without losing its sense.
+ */
+const featureGraphic = async (source, file, words) => {
   const [w, h] = [1024, 500];
   await page.setViewportSize({ width: w, height: h });
-  await page.evaluate(async ({ src, w, h, P }) => {
+  await page.evaluate(async ({ src, w, h, P, words }) => {
     const img = new Image();
     img.src = src;
     await img.decode();
@@ -377,14 +388,60 @@ const featureGraphic = async (source, file) => {
       { width: 1.6, colour: P.muc, amp: 0.9, step: 46, closed: true },
     );
 
-    const size = Math.round(h * 0.58);
+    // The mark, held left rather than centred: the type wants the other half of the sheet.
+    const size = Math.round(h * 0.6);
+    const markCx = Math.round(w * 0.235);
     x.imageSmoothingQuality = 'high';
-    x.drawImage(img, (w - size) / 2, (h - size) / 2, size, size);
+    x.drawImage(img, markCx - size / 2, Math.round((h - size) / 2), size, size);
+
+    const left = Math.round(w * 0.435);
+
+    /**
+     * Shrinks until it fits. "Vạn Thắng" is two short words and would never need this; a rename to
+     * something longer is exactly the change that silently runs a wordmark off the sheet.
+     */
+    const fit = (text, weight, family, start, limit) => {
+      let s = start;
+      for (; s > 12; s -= 1) {
+        x.font = weight + ' ' + s + 'px ' + family;
+        if (x.measureText(text).width <= limit) break;
+      }
+      return s;
+    };
+
+    // The name, in Source Serif — the game's own TITLE_FONT.
+    const titleLimit = Math.round(w * 0.88) - left;
+    const titleSize = fit(words.title, '700', 'Serif, Georgia, serif', Math.round(h * 0.21), titleLimit);
+    x.font = '700 ' + titleSize + 'px Serif, Georgia, serif';
+    x.fillStyle = P.muc;
+    x.textBaseline = 'alphabetic';
+    x.fillText(words.title, left, Math.round(h * 0.423));
+    const titleW = Math.min(titleLimit, Math.round(x.measureText(words.title).width));
+
+    // Rằng cưa, the drum's own register, doing the work a rule would do on any other card.
+    sawtooth(x, left, Math.round(h * 0.483), titleW, Math.max(7, Math.round(h * 0.026)), P.muc, 0.42);
+
+    // The English name under it, small and letterspaced, where a sans is doing signage work.
+    const subSize = Math.round(h * 0.052);
+    x.font = '600 ' + subSize + 'px BVP, sans-serif';
+    x.letterSpacing = Math.round(subSize * 0.22) + 'px';
+    x.fillStyle = P.mucSoft;
+    x.fillText(words.sub.toUpperCase(), left, Math.round(h * 0.613));
+    x.letterSpacing = '0px';
+
+    // The one line that says what the thing actually is. Stops short of the seal.
+    const tagLimit = Math.round(w * 0.875) - left;
+    const tagSize = fit(words.tag, '600', 'Serif, Georgia, serif', Math.round(h * 0.056), tagLimit);
+    x.font = '600 ' + tagSize + 'px Serif, Georgia, serif';
+    x.fillStyle = P.mucFaint;
+    x.fillText(words.tag, left, Math.round(h * 0.713));
+
+    seal(x, Math.round(w * 0.925), Math.round(h * 0.815), Math.round(h * 0.1), P);
 
     c.style.cssText = 'display:block;width:100%;height:100%';
     document.body.innerHTML = '';
     document.body.appendChild(c);
-  }, { src: dataUri(source, 'image/svg+xml'), w, h, P: PIG });
+  }, { src: dataUri(source, 'image/svg+xml'), w, h, P: PIG, words });
   writeFileSync(file, await page.screenshot({ omitBackground: false }));
 };
 
@@ -414,7 +471,11 @@ note(playIcon, '512x512, 32-bit');
  * visible square patch behind the drum. The SVG carries the mark alone, and scales exactly.
  */
 const feature = join(dir('android', 'graphics'), 'feature-graphic-1024x500.png');
-await featureGraphic(join(root, 'public', 'favicon.svg'), feature);
+await featureGraphic(join(root, 'public', 'favicon.svg'), feature, {
+  title: (S.wordmark && S.wordmark.title) || S.name,
+  sub: (S.wordmark && S.wordmark.sub) || S.subtitle,
+  tag: (S.wordmark && S.wordmark.tag) || S.subtitle,
+});
 assertPng(feature, 1024, 500, false);
 note(feature, '1024x500, opaque');
 
@@ -433,7 +494,10 @@ const SHOTS = [
   ['ios', 'iphone-6.9', 1320, 2868, 'Required. 3-10 images.'],
   ['ios', 'ipad-13', 2064, 2752, 'Required, because app.json sets supportsTablet: true.'],
   ['android', 'phone', 1080, 1920, 'Required. At least 2, up to 8.'],
-  ['android', 'tablet-10', 1920, 1200, 'Only if you declare tablet support on Play.'],
+  // Play states 16:9 or 9:16 for both tablet slots and rejects 16:10, which is what a laptop
+  // aspect looks like and why 1920x1200 is the wrong guess to make here.
+  ['android', 'tablet-7', 1280, 720, 'Required. 16:9, each side 320-3840 px.'],
+  ['android', 'tablet-10', 1920, 1080, 'Required. 16:9, each side 1080-7680 px.'],
 ];
 
 const shotSource = join(root, 'docs', 'readme');

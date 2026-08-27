@@ -17,6 +17,7 @@ import { landGarrisonPower } from '../../../systems/ascent/PowerSystem';
 import {
   armyPower,
   getArmyUpgradeOptions,
+  musterLimit,
   reinforcementLimit,
   reinforcementTicks,
   upgradeArmy,
@@ -280,7 +281,7 @@ export function showArmyScreen(self: ConquestUIScene): void {
     {
       title: t('ascent.screen.raiseHost'),
       note: commanderId && spare >= MIN_ARMY_SOLDIERS
-        ? t('ascent.screen.raiseHostBody', { n: recruitSoldiers(spare) })
+        ? t('ascent.screen.raiseHostBody', { n: Math.min(recruitSoldiers(spare), musterLimit(state)) })
         : commanderId
           ? t('ascent.screen.raiseNoPeople')
           : t('ascent.conquer.needHero'),

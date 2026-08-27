@@ -21,16 +21,35 @@
  * saved a transparent rectangle.
  */
 import Phaser from 'phaser';
+import { renderScale } from '../game/graphicsQuality';
 
 export type CaptureResult = 'shared' | 'downloaded' | 'opened' | 'failed';
 
-/** Grabs the current frame as a PNG blob. Resolves `undefined` if the renderer will not give one. */
-function snapshotBlob(game: Phaser.Game): Promise<Blob | undefined> {
+/**
+ * Grabs the current frame as a PNG blob, or a band of it. Resolves `undefined` if the renderer
+ * will not give one.
+ *
+ * `heightInDesignUnits` crops to the top of the frame — everything above the controls, for the
+ * Reckoning, which is a document rather than a screenshot of a menu. The renderer works in
+ * drawing-buffer pixels and the caller thinks in the 390-wide design surface, so the conversion
+ * happens here and exactly once: `renderScale` is the factor between the two.
+ */
+function snapshotBlob(game: Phaser.Game, heightInDesignUnits?: number): Promise<Blob | undefined> {
   return new Promise((resolve) => {
     // A snapshot that never fires must not leave the caller's button spinning forever.
     const bail = window.setTimeout(() => resolve(undefined), 4000);
+    const take = (callback: Phaser.Types.Renderer.Snapshot.SnapshotCallback): void => {
+      const renderer = game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
+      const height = Math.round((heightInDesignUnits ?? 0) * renderScale());
+      // `snapshotArea` is WebGL-only; the Canvas fallback and a zero crop both take the whole frame.
+      if (height > 0 && typeof renderer.snapshotArea === 'function') {
+        renderer.snapshotArea(0, 0, renderer.width, Math.min(renderer.height, height), callback);
+        return;
+      }
+      game.renderer.snapshot(callback);
+    };
     try {
-      game.renderer.snapshot((image) => {
+      take((image) => {
         window.clearTimeout(bail);
         if (!(image instanceof HTMLImageElement) || !image.src.startsWith('data:')) {
           resolve(undefined);
@@ -52,8 +71,10 @@ function snapshotBlob(game: Phaser.Game): Promise<Blob | undefined> {
  *
  * `title` becomes the file name and the share sheet's caption.
  */
-export async function captureScreen(game: Phaser.Game, title: string): Promise<CaptureResult> {
-  const blob = await snapshotBlob(game);
+export async function captureScreen(
+  game: Phaser.Game, title: string, heightInDesignUnits?: number,
+): Promise<CaptureResult> {
+  const blob = await snapshotBlob(game, heightInDesignUnits);
   if (!blob) return 'failed';
   const safe = title.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').slice(0, 48) || 'van-thang';
   const name = `${safe}.png`;

@@ -33,7 +33,9 @@ import {
   XP_PER_WAVE_SURVIVED,
  waveMatchFactor,
 } from '../../game/ascentConfig';
-import { MIN_ARMY_SOLDIERS, recruitSoldiers, SUPPLY_TICKS_HELD, waveHostCount } from '../../game/ascentConfig';
+import {
+  EMERGENCY_LEVY_CAP, MIN_ARMY_SOLDIERS, recruitSoldiers, SUPPLY_TICKS_HELD, waveHostCount,
+} from '../../game/ascentConfig';
 import { weightedPick } from '../../utils/math';
 import { difficultyArmyScale, launchOffMapInvasion } from '../empire/InvasionSystem';
 import { applyResourceDelta, canSpend } from '../ResourceSystem';
@@ -391,7 +393,12 @@ function projectedWinChance(state: GameState, threat: number, bonus = 0): number
  * already defended and it stops raising the real one.
  */
 function emergencyLevySize(state: GameState): number {
-  return Math.max(MIN_ARMY_SOLDIERS, recruitSoldiers(Math.max(0, state.resources.humans - 60)));
+  // Bounded on its own, because nothing is charged for it — see `EMERGENCY_LEVY_CAP`. Every other
+  // muster is bounded by what the realm can pay; this one has to be bounded by decree.
+  return Math.max(MIN_ARMY_SOLDIERS, Math.min(
+    EMERGENCY_LEVY_CAP,
+    recruitSoldiers(Math.max(0, state.resources.humans - 60)),
+  ));
 }
 
 /** Frees a hero from whatever posting they hold so they can take a new command. */

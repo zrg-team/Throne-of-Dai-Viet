@@ -551,6 +551,15 @@ function record(state: GameState, story: ActiveStory, fragment: StoryFragment, c
     // What the ending did. Held here as well as on `story.history` because the `ActiveStory` is
     // deleted the moment a terminal fires, and the record has to outlive it.
     outcome: ctx.noted.length ? [...ctx.noted] : undefined,
+    // The whole telling, so the ending can be read back as the story it was.
+    //
+    // `story.history` is deleted with the story a few lines after this fires, and it was the only
+    // record of the order things happened in — which is why Sử ký's recorded tab could only ever
+    // be a list of last lines. Copied rather than referenced, and the terminal is appended here
+    // because `fire` records it after `record` runs.
+    history: story.history?.length
+      ? [...story.history, { fragmentId: fragment.id, turn: state.turn, outcome: ctx.noted.length ? [...ctx.noted] : undefined }]
+      : undefined,
   };
   chronicle.push(entry);
   if (chronicle.length > 60) chronicle.splice(0, chronicle.length - 60);

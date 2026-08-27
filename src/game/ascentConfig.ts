@@ -500,9 +500,35 @@ export const ARMY_UPKEEP_SCALE = 2000;
  * and a wide realm cost differently, and "build up Trường Yên" versus "take one more
  * province" become different economic decisions rather than two spellings of growth.
  */
-export const DEMAND_FOOD_PER_POP = 70;
+/**
+ * **Rebased from 70 the season `land.population` started moving.**
+ *
+ * 70 was calibrated against a figure that was set at world generation and never changed — a
+ * capital of 300 souls billed 4 food a season, for ever. Now that a district fills toward its own
+ * ceiling (`growProvincialPopulation`) the same divisor charged that district 57 once it was
+ * full: a fourteen-fold rise in one term of the demand bag, against an output that did not move
+ * with it. Measured on a pinned one-province realm, food ran negative every season from the first
+ * hundred and the realm ate itself down from 473 people to 33.
+ *
+ * At 260 a founding district bills about 1 and a full one about 15 — the growth is still felt,
+ * and it is felt as a slope rather than as a cliff. The rest of the crowding pressure lives on the
+ * realm pool, where `POP_CROWDING_FOOD` charges up to 60% more per head as the ground fills; two
+ * gentle terms that compound read as a country getting harder to feed, which is the intent, where
+ * one savage one just reads as a bug.
+ */
+export const DEMAND_FOOD_PER_POP = 260;
 export const DEMAND_SUPPLIES_BASE = 2;
-export const DEMAND_SUPPLIES_PER_POP = 260;
+/**
+ * **Rebased from 260 alongside `DEMAND_FOOD_PER_POP`, and for exactly the same reason.**
+ *
+ * Both divisors were calibrated against a `land.population` that never moved. Food was caught
+ * first and this was missed, which is the more instructive half of the story: measured over 200
+ * seasons the realm ended holding 73 supplies against the branch point's 4,815, because a district
+ * filling from 300 to 3,000 people quietly took its stores demand from 1 to 12 with nothing on the
+ * output side moving to meet it. A population that grows has to be re-priced in *every* term that
+ * reads it, not the one that was noticed.
+ */
+export const DEMAND_SUPPLIES_PER_POP = 950;
 export const DEMAND_GOLD_BASE = 3;
 export const DEMAND_GOLD_PER_BUILDING = 2;
 export const DEMAND_GOLD_GARRISON = 4;
@@ -557,10 +583,47 @@ export const DEMAND_TOAST_COOLDOWN = 8;
  * split `DEMAND_GOLD_PER_BUILDING` draws on the demand side).
  */
 export const POP_CAPACITY_PER_LAND = 1200;
-export const POP_CAPACITY_CAPITAL_MULT = 3;
-export const POP_CAPACITY_PER_BUILDING_LEVEL = 180;
+/**
+ * The seat and its development, **retuned down from 3 and 180**.
+ *
+ * Reported after the first pass: one district still carrying 8.4k of a 9.3k ceiling. The arithmetic
+ * says why — a fully built capital is about 31 build points, so at 180 apiece development was
+ * supplying 5,580 of that 9,300 and *land* only 3,600. The ceiling was nominally about ground and
+ * actually about buildings, which is the opposite of what it is for.
+ *
+ * At 2.5 and 95 a maxed lone capital lands near 5,950 — the figure asked for — and the larger term
+ * is the one you have to take more provinces to raise.
+ */
+export const POP_CAPACITY_CAPITAL_MULT = 2.5;
+export const POP_CAPACITY_PER_BUILDING_LEVEL = 95;
 /** A disloyal province holds fewer: nobody stays where the throne is not obeyed. */
 export const POP_CAPACITY_LOYALTY_FLOOR = 0.5;
+/**
+ * Seasons a district takes to fill its empty half, and the floor under that pace.
+ *
+ * `land.population` was set once at worldgen and could only ever go *down* — famine, a story, a
+ * sacked province. `getLandPopulationGrowth` returns a flat 1 and is read by the build sheet and by
+ * nothing else, so the per-district figure was decorative and the only real quantity was the realm
+ * pool. A ceiling on a number that never moves is not a mechanic.
+ *
+ * Slow on purpose: forty seasons is several wave cycles, so a province taken now is worth more
+ * later and razing one costs something that takes real time to rebuild.
+ */
+export const POP_GROWTH_SEASONS_TO_FILL = 40;
+export const POP_GROWTH_MIN_PER_TICK = 2;
+/**
+ * How much harder a full realm is to feed, as a multiple on its own food upkeep.
+ *
+ * **This is what the ceiling is supposed to feel like.** A clamp that simply stops a number is a
+ * rule the player is told about; a district that eats worse as it crowds is a reason they can watch
+ * happening. Applied as `foodPerHead / (1 + POP_CROWDING_FOOD * filled^2)`, so an empty realm feels
+ * nothing at all, a half-full one pays 15%, and a full one pays the whole 60% — and because growth
+ * is driven by `foodNet / 7`, the crowding slows the growth by itself, before the taper does.
+ *
+ * Squared rather than linear so the cost arrives late. A realm should get most of the way to its
+ * ceiling before the land starts complaining about it.
+ */
+export const POP_CROWDING_FOOD = 0.6;
 /**
  * Share of the excess shed each season above the ceiling. Emigration, not famine — and gentle,
  * because the number a player watches falling has to read as people leaving rather than as a
@@ -1426,7 +1489,65 @@ export const MIN_ARMY_SOLDIERS = 320;
 export const MUSTER_DECLINE_TICKS = 16;
 /** Below this share of a full host an army is a remnant: disbanded and recycled into manpower. */
 export const REMNANT_SHARE = 0.45;
-export const MAX_ARMY_SOLDIERS = 2200;
+/**
+ * **There is no size cap any more.** What bounds a host is what the realm can pay for it.
+ *
+ * 2,200 was a flat number with nothing behind it, and it was reported exactly as it reads:
+ * *why only limited 2k army even i have 7.4k people?* The muster charged no gold at all and its
+ * arming supplies came to seventeen for a full host, so the number could not be a *price* — it had
+ * to be a wall, and a wall is the thing a player argues with.
+ *
+ * This is the ceiling the reinforcement dial has always used (`reinforcementLimit`): people first,
+ * then purse, then stores. A realm with seven thousand subjects and a full treasury can raise a
+ * host of several thousand; one with the same subjects and no coin cannot raise much at all. The
+ * kept constant is a sanity bound far above anything an economy will reach, so a divide-by-zero or
+ * a story that grants a million people cannot ask the renderer for a host of a million men.
+ */
+export const MAX_ARMY_SOLDIERS = 60000;
+/**
+ * What one soldier costs to raise, before the size multiplier below.
+ *
+ * Gold is the new term and the important one — there was none, which is why a muster was the one
+ * large decision in the mode that the treasury never noticed. Priced against
+ * `ARMY_REINFORCE_GOLD_PER_SOLDIER` (0.55): raising a man from nothing costs a little less per head
+ * than marching a replacement out to an existing host, because the host is the thing that took the
+ * effort to build.
+ */
+export const MUSTER_GOLD_PER_SOLDIER = 0.16;
+export const MUSTER_FOOD_PER_SOLDIER = 0.10;
+export const MUSTER_SUPPLIES_PER_SOLDIER = 0.08;
+/**
+ * Troop count at which a muster costs twice per man what a tiny one does.
+ *
+ * The same superlinear shape `ascentArmyUpkeep` uses (`1 + troops / ARMY_UPKEEP_SCALE`), and for
+ * the same reason: *more army must cost more*, and linear pricing does not say that — at a flat
+ * rate a host of four thousand is exactly two hosts of two thousand and the choice is empty.
+ *
+ * Bent at 1,800, and the bend does all the work, because the base rate has to stay low enough that
+ * the *first* host of a run is affordable. Measured the other way first and it broke the opening:
+ * at 0.42 gold a man a minimum host of 320 cost 151 against a starting treasury of 70, so the
+ * autopilot could not afford its first army, never raised the muster card, and
+ * `verify-muster-proposal` went from 7/7 to 6/7 with *the muster is not being asked about*. A price
+ * that stops the game beginning is not a price, it is the same wall as the 2,200 cap this replaced,
+ * moved one step earlier.
+ *
+ * At 0.16 and 1,800 an opening host costs about 60 gold and a four-thousand-man army about 2,100 —
+ * a rate per man running 0.19 to 0.87 across the range, which is the four-and-a-half-fold rise that
+ * says *more army costs more*, with none of it landing before the player has a realm.
+ */
+export const MUSTER_COST_SCALE = 900;
+/**
+ * Ceiling on the host the emergency levy conjures.
+ *
+ * The levy is a crisis *grant*, not a purchase — nothing is charged for it — so it is the one
+ * muster that removing `MAX_ARMY_SOLDIERS` would have set free. Without its own bound a realm of
+ * seven thousand subjects could answer every wave by pressing the panic button for a host of five
+ * and a half thousand men it never paid a coin for, which is a better deal than governing.
+ *
+ * 2,200 deliberately: the number the old flat cap used to hold, so the levy grants exactly what a
+ * full host has always been worth and nothing about this crisis has changed.
+ */
+export const EMERGENCY_LEVY_CAP = 2200;
 // ── Famine ──────────────────────────────────────────────────────────────────
 /**
  * The one gap rule famine *does* respect. It is exempt from `MIN_GAP_TICKS` because the crisis
@@ -1524,8 +1645,19 @@ export const AUTO_CLAIM_INTERVAL_TICKS = 12;
  */
 export const CLAIM_DECLINE_TICKS = 10;
 
-/** Gold kept back so a reroll is usually affordable. */
-export const AUTOBUILD_GOLD_RESERVE = 30;
+/**
+ * Gold the autopilot will not spend on buildings — a reroll's worth, and now a host's.
+ *
+ * **Raised from 30 the season a muster started costing coin.** The autopilot builds down to this
+ * floor every time it can afford to, so the treasury sat at nought to five gold for whole runs;
+ * that was harmless while an army cost only people and stores, and the moment `musterCost` added a
+ * gold term it meant the realm could never raise one again. Measured over 200 seasons: gold 0-5,
+ * `musterLimit` 0-30 against a minimum host of 320, and not one muster card in the whole run.
+ *
+ * 140 is a minimum host (about 60) with a reroll and a season's slack behind it. The realm builds a
+ * little slower and can always answer a wave, which is the right way round.
+ */
+export const AUTOBUILD_GOLD_RESERVE = 140;
 /** Seasons of rations and provisions the autopilot keeps in each host's baggage train. */
 export const SUPPLY_TICKS_HELD = 18;
 /** Realm stores kept back so feeding the army never starves the provinces. */

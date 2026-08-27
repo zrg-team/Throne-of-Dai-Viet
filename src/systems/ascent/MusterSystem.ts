@@ -11,7 +11,7 @@ import {
 } from '../../game/ascentConfig';
 import { releaseHeroAssignment } from '../CourtSystem';
 import { refreshAllLandOutputs } from '../ResourceSystem';
-import { getMusterEstimate, getRecruitmentLand, queueRecruitment } from '../WarSystem';
+import { getMusterEstimate, getRecruitmentLand, musterLimit, queueRecruitment } from '../WarSystem';
 import { pushToast } from '../empire/notifications';
 import { chargeAmbition } from './AmbitionSystem';
 import { findFreeCommander } from './AutopilotSystem';
@@ -51,11 +51,14 @@ export interface MusterLimits {
 }
 
 export function musterLimits(state: GameState): MusterLimits {
-  const affordable = Math.max(0, Math.floor(state.resources.humans - RECRUIT_HUMAN_RESERVE));
+  // What the realm can pay for, not a flat number. `musterLimit` reads people, purse and stores
+  // through the same superlinear price `queueRecruitment` charges — see `musterCost`. The old
+  // ceiling was `MAX_ARMY_SOLDIERS`, a constant of 2,200 with nothing behind it, and it was
+  // reported as exactly the wall it was.
   return {
     land: getRecruitmentLand(state),
     minSoldiers: MIN_ARMY_SOLDIERS,
-    maxSoldiers: Math.max(MIN_ARMY_SOLDIERS, Math.min(MAX_ARMY_SOLDIERS, affordable)),
+    maxSoldiers: Math.max(MIN_ARMY_SOLDIERS, musterLimit(state)),
     foodSpare: Math.max(0, Math.floor(state.resources.food - SUPPLY_FOOD_RESERVE)),
     suppliesSpare: Math.max(0, Math.floor(state.resources.supplies - SUPPLY_STORE_RESERVE)),
     foodHeld: Math.max(0, Math.floor(state.resources.food)),

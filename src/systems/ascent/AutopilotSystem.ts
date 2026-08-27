@@ -46,7 +46,9 @@ import {
   getGoldBribeCost,
   getPlayerClaimCount,
 } from '../AcquisitionSystem';
-import { disbandArmy, getRecruitmentOrder, issueMoveOrder, queueRecruitment } from '../WarSystem';
+import {
+  disbandArmy, getRecruitmentOrder, issueMoveOrder, musterLimit, queueRecruitment,
+} from '../WarSystem';
 import { frontWinChance, offerConquestMethods } from './ConquestSystem';
 import { chargeAmbition } from './AmbitionSystem';
 import { isAutoHost, isPinnedByClaim } from './armyOrders';
@@ -446,7 +448,10 @@ export function raiseHostNow(state: GameState): boolean {
   const spareFood = Math.max(0, Math.floor(state.resources.food - SUPPLY_FOOD_RESERVE));
   const rationsPerSoldier = (SUPPLY_TICKS_HELD / 100) * MIN_MUSTER_SUPPLY_SHARE;
   const soldiersTheFarmsCanFeed = Math.floor(spareFood / rationsPerSoldier);
-  const soldiers = Math.min(recruitSoldiers(affordable), soldiersTheFarmsCanFeed);
+  // ...and what the treasury can actually pay for. Since `MAX_ARMY_SOLDIERS` stopped being a cap,
+  // `recruitSoldiers` is simply four fifths of the realm's people — which the autopilot would
+  // happily try to muster and be refused for want of coin, every season, for ever.
+  const soldiers = Math.min(recruitSoldiers(affordable), soldiersTheFarmsCanFeed, musterLimit(state));
   if (soldiers < MIN_ARMY_SOLDIERS) return false;
 
   const wantRations = Math.max(1, Math.ceil(soldiers / 100)) * SUPPLY_TICKS_HELD;

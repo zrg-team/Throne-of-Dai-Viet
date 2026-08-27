@@ -41,6 +41,12 @@ import {
   ARMY_REINFORCE_PER_TICK,
   ARMY_REINFORCE_SOLDIERS,
   ARMY_REINFORCE_SUPPLY_GAIN,
+  MAX_ARMY_SOLDIERS,
+  MUSTER_COST_SCALE,
+  MUSTER_FOOD_PER_SOLDIER,
+  MUSTER_GOLD_PER_SOLDIER,
+  MUSTER_SUPPLIES_PER_SOLDIER,
+  RECRUIT_HUMAN_RESERVE,
 } from '../game/ascentConfig';
 import type {
   Army,
@@ -760,6 +766,61 @@ export function getRecruitmentOrder(state: GameState, landId: string) {
  * that gathers soldiers over several ticks. Barracks at the recruiting
  * district reduce the time required - see `progressRecruitmentOrders`.
  */
+/**
+ * What raising a host of `n` costs, over and above the men themselves.
+ *
+ * **A muster used to charge no gold at all**, and its arming supplies came to `n / 130` — seventeen
+ * for a full host, against a treasury in the thousands. So the one decision in the mode that turns
+ * people into power was, economically, free; the only thing standing between a player and an
+ * unlimited army was a flat cap of 2,200, which is a wall rather than a price and was reported as
+ * one: *why only limited 2k army even i have 7.4k people?*
+ *
+ * Superlinear in `n`, the same `1 + n / SCALE` shape `ascentArmyUpkeep` charges to keep a host,
+ * because *more army must cost more* is not said by a linear rate — at a flat price per man a host
+ * of four thousand is exactly two hosts of two thousand and there is no decision in the dial.
+ *
+ * Ascent only. The classic modes keep the numbers they were balanced against.
+ */
+export function musterCost(state: GameState, soldiers: number): { gold: number; food: number; supplies: number } {
+  const n = Math.max(0, Math.floor(soldiers));
+  if (state.gameMode !== 'ascent' || n <= 0) return { gold: 0, food: 0, supplies: 0 };
+  const scale = 1 + n / MUSTER_COST_SCALE;
+  return {
+    gold: Math.ceil(n * MUSTER_GOLD_PER_SOLDIER * scale),
+    food: Math.ceil(n * MUSTER_FOOD_PER_SOLDIER * scale),
+    supplies: Math.ceil(n * MUSTER_SUPPLIES_PER_SOLDIER * scale),
+  };
+}
+
+/**
+ * The largest host the realm could actually pay for right now.
+ *
+ * The counterpart to `reinforcementLimit` below, and deliberately the same shape: people first,
+ * then purse, then stores. This is what replaced `MAX_ARMY_SOLDIERS` as the thing that bounds a
+ * muster — a limit the player can lift by governing well rather than a number they can only
+ * resent. Solved rather than iterated: the cost is `k * n * (1 + n / S)`, so the largest affordable
+ * `n` for a purse `P` is the positive root of `k*n^2/S + k*n - P = 0`.
+ */
+export function musterLimit(state: GameState): number {
+  const people = Math.floor(Math.max(0, state.resources.humans) - RECRUIT_HUMAN_RESERVE);
+  if (state.gameMode !== 'ascent') return Math.max(0, Math.min(MAX_ARMY_SOLDIERS, people));
+  const afford = (purse: number, perSoldier: number): number => {
+    if (perSoldier <= 0) return MAX_ARMY_SOLDIERS;
+    const s = MUSTER_COST_SCALE;
+    // n = S/2 * (sqrt(1 + 4P/(k*S)) - 1)
+    return Math.floor((s / 2) * (Math.sqrt(1 + (4 * Math.max(0, purse)) / (perSoldier * s)) - 1));
+  };
+  return Math.max(0, Math.min(
+    MAX_ARMY_SOLDIERS,
+    people,
+    afford(state.resources.gold, MUSTER_GOLD_PER_SOLDIER),
+    // Rations and provisions are charged on top of these, so the stores a muster may spend on
+    // arming alone are only a share of what is in the granary.
+    afford(state.resources.food * 0.6, MUSTER_FOOD_PER_SOLDIER),
+    afford(state.resources.supplies * 0.6, MUSTER_SUPPLIES_PER_SOLDIER),
+  ));
+}
+
 export function queueRecruitment(
   state: GameState,
   heroId: string,
@@ -778,8 +839,14 @@ export function queueRecruitment(
   const available = Math.max(0, state.resources.humans);
   const total = clamp(Math.floor(soldiers), 100, Math.max(100, available));
   const courtBonuses = getCourtBonuses(state);
-  const suppliesCost = Math.max(5, Math.ceil((total / 130) * courtBonuses.recruitmentSupplyCostMult));
-  const rationsCost = Math.max(0, Math.floor(rations));
+  // The arming bill. In ascent this is the superlinear `musterCost`; everywhere else it stays the
+  // `n / 130` it has always been, so the classic economies do not move.
+  const priced = musterCost(state, total);
+  const suppliesCost = state.gameMode === 'ascent'
+    ? Math.ceil(priced.supplies * courtBonuses.recruitmentSupplyCostMult)
+    : Math.max(5, Math.ceil((total / 130) * courtBonuses.recruitmentSupplyCostMult));
+  const goldCost = priced.gold;
+  const rationsCost = Math.max(0, Math.floor(rations)) + priced.food;
   const provisionsCost = Math.max(0, Math.floor(provisions));
 
   if (total > state.resources.humans) {
@@ -794,6 +861,11 @@ export function queueRecruitment(
 
   if (!canSpend(state, { supplies: suppliesCost + provisionsCost })) {
     state.message = t('msg.needSuppliesArmy', { amount: suppliesCost + provisionsCost });
+    return false;
+  }
+
+  if (goldCost > 0 && !canSpend(state, { gold: goldCost })) {
+    state.message = t('msg.needGoldArmy', { amount: goldCost });
     return false;
   }
 
@@ -812,7 +884,9 @@ export function queueRecruitment(
   const perTick = RECRUIT_BASE_PER_TICK * (1 + barracksLevel * RECRUIT_BARRACKS_BONUS) * courtBonuses.recruitSpeedMult;
   const required = Math.max(1, Math.ceil(total / perTick));
 
-  applyResourceDelta(state, { humans: -total, food: -rationsCost, supplies: -(suppliesCost + provisionsCost) });
+  applyResourceDelta(state, {
+    humans: -total, food: -rationsCost, supplies: -(suppliesCost + provisionsCost), gold: -goldCost,
+  });
 
   const id = `army-${state.armies.length + state.recruitmentOrders.length + 1}-${state.turn}`;
   state.recruitmentOrders.push({
@@ -848,13 +922,21 @@ export function getMusterEstimate(state: GameState, soldiers: number): {
   land?: Land;
   ticks: number;
   suppliesCost: number;
+  /** The muster's own gold and food, on top of the baggage the plan carries. Ascent only. */
+  goldCost: number;
+  foodCost: number;
   alreadyTraining: boolean;
   trainingTicksLeft: number;
 } {
   const land = findRecruitmentLand(state);
   const courtBonuses = getCourtBonuses(state);
   const total = Math.max(100, Math.floor(soldiers));
-  const suppliesCost = Math.max(5, Math.ceil((total / 130) * courtBonuses.recruitmentSupplyCostMult));
+  // Exactly what `queueRecruitment` will charge — one arithmetic, so the form cannot quote a
+  // price the muster then disagrees with.
+  const priced = musterCost(state, total);
+  const suppliesCost = state.gameMode === 'ascent'
+    ? Math.ceil(priced.supplies * courtBonuses.recruitmentSupplyCostMult)
+    : Math.max(5, Math.ceil((total / 130) * courtBonuses.recruitmentSupplyCostMult));
   const barracksLevel = land ? getBarracksLevel(land) : 0;
   const perTick = RECRUIT_BASE_PER_TICK * (1 + barracksLevel * RECRUIT_BARRACKS_BONUS) * courtBonuses.recruitSpeedMult;
   const ticks = Math.max(1, Math.ceil(total / perTick));
@@ -863,6 +945,8 @@ export function getMusterEstimate(state: GameState, soldiers: number): {
     land,
     ticks,
     suppliesCost,
+    goldCost: priced.gold,
+    foodCost: priced.food,
     alreadyTraining: Boolean(training),
     trainingTicksLeft: training ? Math.max(0, training.required - training.progress) : 0,
   };
