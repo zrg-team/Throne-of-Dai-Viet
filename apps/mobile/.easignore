@@ -15,8 +15,14 @@ dist/
 
 # Regenerated in the cloud by `expo prebuild` on every build. This is a Continuous Native
 # Generation project; uploading a local copy is pointless at best and stale at worst.
-/android/
-/ios/
+#
+# **Not anchored**, unlike the same two lines in .gitignore, and that difference is load-bearing.
+# A leading slash anchors a pattern to the root of the tree being walked — which for git is this
+# folder, but for an EAS upload is the repository root. Written as `/android/` the pattern matched
+# nothing during a build, and 1.6 GB of local Gradle output went up with every one. Unanchored, it
+# matches at any depth and is correct either way.
+android/
+ios/
 
 # The store submission kit: screenshots, icons and listing text for the two consoles. Generated
 # by `yarn store:kit`, uploaded by hand to Play and App Store Connect, and of no use whatsoever
@@ -25,3 +31,17 @@ store/
 
 # Local output of scripts/ios.mjs — the archive and .ipa from a Mac build. Never needed remotely.
 build/
+
+# Signing material. Never in the repository, on any branch, ever: an upload keystore or an App
+# Store Connect key in a commit is a rotation at best and a hijacked listing at worst. The keys
+# themselves live outside the tree (~/.android-keys, ~/.appstore-keys) — these patterns exist so
+# that a copy landing here by accident is invisible to `git add .` rather than merely discouraged.
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+
+# Read by the CLI on this machine, never needed on a build machine — and it carries the p12
+# password, so it must not travel inside the project archive.
+credentials.json

@@ -1,6 +1,6 @@
 {
   "name": "van-thang",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "private": true,
   "homepage": "https://zrg-team.github.io/ten-thousand-victories/",
   "repository": {
@@ -36,9 +36,10 @@
     "mobile:android:aab": "yarn mobile:sync && npm --prefix apps/mobile run aab",
     "mobile:link": "npm --prefix apps/mobile run link",
     "preview": "vite preview --host 0.0.0.0",
+    "mobile:eas:update": "yarn mobile:sync && npm --prefix apps/mobile run eas:update",
     "mobile:eas:release": "yarn mobile:sync && yarn store:kit && npm --prefix apps/mobile run eas:all && yarn store:builds",
     "mobile:eas:release:android": "yarn mobile:sync && yarn store:kit && npm --prefix apps/mobile run eas:android && yarn store:builds:android",
-    "mobile:eas:release:ios": "yarn mobile:sync && yarn store:kit && npm --prefix apps/mobile run eas:ios && yarn store:builds:ios",
+    "mobile:eas:release:ios": "yarn mobile:sync && yarn store:kit && npm --prefix apps/mobile run eas:ios && yarn store:builds:ios && npm --prefix apps/mobile run eas:ios:submit",
     "store:kit": "node scripts/build-store-kit.mjs",
     "store:builds": "node scripts/fetch-builds.mjs",
     "store:builds:android": "node scripts/fetch-builds.mjs --platform android",

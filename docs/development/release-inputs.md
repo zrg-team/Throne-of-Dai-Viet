@@ -24,9 +24,9 @@ Everything below is per-store, and the two stores overlap far less than you woul
 | What | When | Where it goes |
 |---|---|---|
 | **Apple Developer Program membership**, US$99/yr | once, renews yearly | Individual enrollment: legal name and address matching a government photo ID, a credit card **in your own name**, and 2FA on the Apple Account |
-| Apple ID + password + a 2FA code | first build, then occasionally | Typed into the `eas build` prompt. EAS uses it to create credentials, then holds them |
+| **App Store Connect API key** (`.p8` + Key ID + Issuer ID) | once | App Store Connect → Users and Access → Integrations → Team Keys. Upload with `eas credentials -p ios`. **Use this instead of your Apple ID password** — it reaches App Store Connect and nothing else, and revokes in one click. Apple serves the `.p8` once; keep it outside the repository |
 | Distribution certificate, provisioning profile | — | **You provide nothing.** EAS has Apple issue them under your team and stores them |
-| App Store Connect access | each release | Same Apple ID. `eas submit` offers to create the app record if it does not exist |
+| App Store Connect access | each release | The API key above. `eas submit` offers to create the app record if it does not exist |
 
 ### Listing — App Store Connect
 

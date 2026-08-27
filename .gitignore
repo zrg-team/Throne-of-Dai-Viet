@@ -31,3 +31,18 @@ test_scripts/perf-results/
 # Native build staging, moved out of the deep apps/mobile/android path so Windows MAX_PATH is
 # not hit. Build output, same status as dist/. See apps/mobile/plugins/withShortNativeBuildPath.js
 .ncxx/
+
+# Signing material. Never in the repository, on any branch, ever: an upload keystore or an App
+# Store Connect key in a commit is a rotation at best and a hijacked listing at worst. The keys
+# themselves live outside the tree (~/.android-keys, ~/.appstore-keys) — these patterns exist so
+# that a copy landing here by accident is invisible to `git add .` rather than merely discouraged.
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+
+# Local iOS credentials: absolute paths to a .p12 and .mobileprovision, plus the p12 password in
+# clear. Machine-specific and secret on both counts — it is written by hand on each machine that
+# builds, and never travels.
+credentials.json

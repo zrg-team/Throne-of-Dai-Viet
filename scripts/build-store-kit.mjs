@@ -757,6 +757,7 @@ const storeConfig = {
       'en-US': {
         title: S.name,
         subtitle: S.subtitle,
+        promoText: S.promotionalText,
         description: S.description,
         keywords: S.keywords,
         releaseNotes: S.releaseNotes,
@@ -799,6 +800,7 @@ ${generatedFrom}
 
 ${field('Name', S.name, 30)}
 ${field('Subtitle', S.subtitle, 30)}
+${field('Promotional Text', S.promotionalText, 170)}
 ${field('Description', S.description, 4000)}
 ${field("What's New in This Version", S.releaseNotes, 4000)}
 ${field('Keywords', S.keywords.join(','), 100)}
@@ -916,7 +918,7 @@ ios/                              android/
 \`\`\`bash
 yarn mobile:eas:release            # both platforms
 yarn mobile:eas:release:android    # one platform, same four steps
-yarn mobile:eas:release:ios
+yarn mobile:eas:release:ios        # iOS also submits to App Store Connect
 \`\`\`
 
 Sync the game, regenerate this kit, build **both** platforms on EAS, wait, then download each
