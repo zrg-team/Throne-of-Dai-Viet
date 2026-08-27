@@ -1612,13 +1612,27 @@ export interface RivalDemandOption {
 }
 
 /** One action offered on the Envoy prompt. */
+export type EnvoyOptionId =
+  | 'gift' | 'gift-lavish' | 'grain' | 'trade' | 'exchange-buy' | 'exchange-sell'
+  | 'tribute' | 'ambassador' | 'pact' | 'aid' | 'buyoff' | 'denounce'
+  | 'vassalize' | 'release' | 'ignore';
+
 export interface EnvoyOption {
-  id: 'gift' | 'trade' | 'tribute' | 'ambassador' | 'vassalize' | 'release' | 'ignore';
+  id: EnvoyOptionId;
   cost?: Partial<ResourceBag>;
   influenceCost?: number;
   /** For `ambassador`: the hero posted to that court. */
   heroId?: string;
   affordable: boolean;
+  /**
+   * Why an option cannot be taken, when the reason is a *standing* the player could have built
+   * rather than a price they could have paid.
+   *
+   * Shown on the card instead of hiding the row. An option that vanishes teaches nothing; one
+   * that says "needs standing of 70" tells the player what a warmer neighbour would have been
+   * worth, which is the whole argument this mode has to make for diplomacy being worth playing.
+   */
+  blockedBy?: 'standing' | 'cooling' | 'no-battle' | 'no-host' | 'no-charter';
 }
 
 /** Every pausing decision Dragon Ascent can raise. Exactly one is live at a time. */

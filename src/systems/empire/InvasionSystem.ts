@@ -1138,7 +1138,7 @@ function pillage(state: GameState, land: Land): void {
   refreshAllLandOutputs(state);
 }
 
-function farthestNeutralFromCapital(state: GameState): Land | undefined {
+export function farthestNeutralFromCapital(state: GameState): Land | undefined {
   const capital = playerCapital(state) ?? playerLands(state)[0];
   if (!capital) {
     return undefined;

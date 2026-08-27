@@ -251,6 +251,9 @@ export function denounce(state: GameState, kingdomId: string): boolean {
   return true;
 }
 
+/** Id of the standing charter a trade agreement writes. The exchange gates on this. */
+export const TRADE_CHARTER_ID = 'trade-charter';
+
 export function proposeTrade(state: GameState, kingdomId: string): boolean {
   if (!canConductForeignAffairs(state.gameMode)) return false;
   const kingdom = state.kingdoms.find((k) => k.id === kingdomId);
@@ -261,13 +264,17 @@ export function proposeTrade(state: GameState, kingdomId: string): boolean {
   }
   state.court.influence -= 10;
   state.resources.gold += 20;
+  // **Standing, not decaying.** A charter is a thing that is either in force or is not, and the
+  // exchange (see `CourtBargains.canTrade`) reads exactly this. `addOpinionModifier` replaces a
+  // standing modifier of the same id rather than stacking it, so signing twice is not a stacking
+  // exploit — it renews.
   addOpinionModifier(kingdom, {
-    id: `trade-${state.turn}-${Math.floor(Math.random() * 100000)}`,
+    id: TRADE_CHARTER_ID,
     label: t('diplo.mod.trade'),
     value: 8,
-    decay: 0.7,
     source: 'trade',
   });
+  applyEnvy(state, kingdom, 8);
   state.message = t('diplo.trade', { kingdom: kingdom.name });
   return true;
 }

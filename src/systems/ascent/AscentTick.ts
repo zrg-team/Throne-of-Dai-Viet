@@ -21,6 +21,7 @@ import {
 } from '../WarSystem';
 import { progressCourt } from '../CourtSystem';
 import { tickDiplomacy } from '../DiplomacySystem';
+import { tickAllyColumns } from './AllySupport';
 import { refreshPlayerVisibility } from '../LandSystem';
 import { dissolveGarrisonLevies, tickAutoDefend, tickInvasions, resolvePendingBattle } from '../empire/InvasionSystem';
 import { reconcileFronts } from './BattleSystem';
@@ -203,6 +204,8 @@ export function advanceAscentTick(state: GameState): void {
   // Opinion modifiers decay and relations drift back toward each empire's baseline. Normally
   // reached through the campaign-gated `tickForeignAffairs`; called directly here.
   tickDiplomacy(state);
+  // Allied relief goes home when the fight it came for is over and its larder is out.
+  tickAllyColumns(state);
   tickVassals(state);
 
   state.turn += 1;
