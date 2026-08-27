@@ -193,6 +193,11 @@ export function showChronicleScreen(self: ConquestUIScene): void {
     if (charges.length === 0 && waiting.length === 0) addEmpty('ascent.chronicle.emptyOngoing');
   }
 
+  // Which templates have a finished record to open, newest first — so a whisper from a story that
+  // has since concluded is a door onto how it concluded.
+  const archived = new Map<string, string>();
+  for (const written of recorded) if (!archived.has(written.templateId)) archived.set(written.templateId, written.id);
+
   if (self.chronicleTab === 'heard') {
     // The permanent half of the whisper strip. Only the latest twelve are kept here; a live story
     // remains a door onto its page, while an ended one stays readable without pretending to open.
@@ -208,7 +213,21 @@ export function showChronicleScreen(self: ConquestUIScene): void {
             : entry.kind === 'reward' || entry.kind === 'milestone' ? INK_UI.gold : INK_UI.softBrush,
           muted: true,
         },
-        live ? () => self.showStoryPage(ref.storyId) : undefined,
+        /**
+         * A whisper always opens something.
+         *
+         * It used to open a page only while the story behind it was still running, which is the
+         * wrong way round: a line from a story still in flight is one the player has just been
+         * told, and a line from one that ended is the one they have to go back for. So a live
+         * story opens its own page and a finished one opens its record — matched by template,
+         * because the ended story's id is gone with the story and the archive entry is keyed on
+         * what it was, not on which instance said it.
+         */
+        live
+          ? () => self.showStoryPage(ref.storyId)
+          : archived.get(ref.templateId)
+            ? () => self.showChronicleEntry(archived.get(ref.templateId)!)
+            : undefined,
       );
     }
   }
@@ -243,8 +262,13 @@ export function showChronicleScreen(self: ConquestUIScene): void {
               : cls === 'ngoai-truyen' ? INK_UI.cinnabar
                 : entry.tone === 'threat' ? INK_UI.cinnabar
                   : entry.tone === 'reward' ? INK_UI.jade : INK_UI.softBrush,
-          muted: true,
-        });
+          // No longer greyed: every one of these opens now, and a muted row says the opposite.
+          muted: false,
+        },
+        // The archive is a thing to read, not a list to look at. `showChronicleEntry` draws the
+        // whole telling from `entry.history`; an entry written before those were kept shows its
+        // ending and its ledger, which is everything that save has.
+        () => self.showChronicleEntry(entry.id));
       }
     }
     if (memorials.length === 0 && recorded.length === 0) addEmpty('ascent.chronicle.emptyRecorded');

@@ -196,6 +196,9 @@ export class ResourceBar extends Phaser.GameObjects.Container {
        * and steps the type down to 9px when they will not fit, so a second number carried at all
        * times would cost the whole row a size for information that is usually irrelevant.
        */
+      // `realmPopulationCapacity` returns 0 for a realm with no ground left, which is the honest
+      // answer and the one this guard needs: it used to floor at 1 and the last screen of a lost
+      // run read `8.8k/1`.
       const capped = resource === 'humans' && this.gameState.gameMode === 'ascent'
         ? realmPopulationCapacity(this.gameState)
         : 0;

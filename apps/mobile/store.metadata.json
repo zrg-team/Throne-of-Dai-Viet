@@ -28,7 +28,13 @@
       "email": "you@example.com",
       "phone": "REPLACE_ME"
     },
-    "reviewNotes": "The game is fully offline and needs no account. All content is reachable from the main menu immediately: Conquest and Throne of Empires start a campaign, Dragon Ascent is the roguelite mode, Battle Lab demonstrates combat alone. There is no login, no network access at runtime, and no purchases. The app serves itself from a local server on the device (127.0.0.1), which is why it works with the network switched off."
+    "reviewNotes": "The game is fully offline and needs no account. All content is reachable from the main menu immediately: Conquest and Throne of Empires start a campaign, Dragon Ascent is the roguelite mode, Battle Lab demonstrates combat alone. There is no login, no network access at runtime, and no purchases. The app serves itself from a local server on the device (127.0.0.1), which is why it works with the network switched off.",
+    "wordmark": {
+      "//": "What the feature graphic prints. The Play title is the English name; the card carries the real one, so the two together say what the listing alone cannot.",
+      "title": "Vạn Thắng",
+      "sub": "Ten Thousand Victories",
+      "tag": "Historical grand strategy, drawn in ink"
+    }
   },
   "//screenshots": "Cut from docs/readme/. `kicker` is the small red line above the headline; `caption` is the headline itself. Order is the order they appear in the stores.",
   "screenshots": [

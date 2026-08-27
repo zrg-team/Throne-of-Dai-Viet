@@ -19,13 +19,18 @@ import { faceTravel } from '../../../ui/ink/life';
 import { armyShape, compositionFor, hostKitFor, hostShapeAt } from '../../../ui/ink/devices';
 import { type BattleFormation } from '../../../data/ascent/formations';
 import { inkPath } from '../../../ui/ink/stroke';
-import { keepForegroundOnTop } from './ground';
+import { keepForegroundOnTop, SETTLEMENT_X } from './ground';
+import { citadelStandardAnchor } from '../../../ui/ink/settlements';
+import { figureEraFor } from '../../../ui/ink/devices';
+import { findLand } from '../../../systems/LandSystem';
 import { createPlayerLandFlag } from '../../../ui/playerFlag';
 import { GROUND_SCALE } from '../../../ui/ink/proportion';
 import type { Army, AscentBattle } from '../../../state/types';
 import { battleFieldBox, hostSize, type BattleMarker } from '../constants';
 import { clearLayer, killTweensDeep } from '../layers';
-import { battleBaseScale, battleLines, battleRearY, battleScaleAt } from './geometry';
+import {
+  battleBaseScale, battleHostsCrowdField, battleLines, battleRearY, battleScaleAt,
+} from './geometry';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 import { warmFigureStamps } from '../../../ui/ink/figureStamps';
 import { PIGMENT } from '../../../ui/ink/palette';
@@ -98,6 +103,16 @@ export function buildBattleField(self: ConquestUIScene, battle: AscentBattle): v
   }
   field.add(ground);
 
+  /**
+   * Do the hosts leave room for a village and a camp?
+   *
+   * Asked *before* the ground is drawn, because the ground is drawn first and cannot see the men.
+   * The blocks are measured the same way `hostHalfWidth` measures their frontage — `armyShape` at
+   * the same scale and mark cap the markers will use — and the tallest one decides. See
+   * `battleHostsCrowdField`.
+   */
+  ui.sceneryHidden = battleHostsCrowdField(battle);
+
   // The ground itself, before anything stands on it — then flattened into one texture.
   const groundFrom = field.list.length;
   self.buildBattleGround(battle);
@@ -114,25 +129,60 @@ export function buildBattleField(self: ConquestUIScene, battle: AscentBattle): v
   // rather than as a line with its camp behind it. Set well back, it takes the depth scale with
   // everything else and the men occlude it, which is what "behind" looks like.
   const campY = battleRearY(self);
-  field.add(self.battleCamp(rightX - 4, campY, rivalColor, 23, battleScaleAt(self, campY)));
+  if (!ui.sceneryHidden) {
+    field.add(self.battleCamp(rightX - 4, campY, rivalColor, 23, battleScaleAt(self, campY)));
+  }
 
   // The standards stand their ground (user report, 2026-08-25: the flag walked with the block,
   // so every advance dragged the realm's great banner pacing across the field). The blocks carry
   // no standard on this screen — `standards: false` in every kit below — and each side's flag is
   // planted once at its own edge instead: ours over the ground we fight from, theirs before
   // their camp. Only the soldiers move.
-  const flagScale = 0.37 * (battleBaseScale(self) / GROUND_SCALE);
-  const plant = (x: number, seed: number, enemy: boolean): void => {
+  /**
+   * The colours stand over the places they belong to, not in the middle of the men.
+   *
+   * Ours was planted at `leftX + 4` and theirs at `rightX - 4`, both on the line of battle — which
+   * is precisely where the two blocks stand, so each side's own standard was drawn under its own
+   * front rank and every screenshot showed a flag with an army on top of it. Reported as: *show
+   * flag in castle and camp instead of middle of army to avoid graphic overlay issue.*
+   *
+   * So ours goes over the settlement it is defending and theirs over the camp it marched from —
+   * both set back, both taking the depth scale with everything else standing there, and both clear
+   * of the line entirely. When the hosts have crowded the scenery off the field there is nothing to
+   * fly them from, so they take the sky at the top corners instead: a picture still has to say
+   * whose men are which way round.
+   */
+  const rearScale = battleScaleAt(self, battleRearY(self));
+  const flagScale = 0.37 * (battleBaseScale(self) / GROUND_SCALE)
+    * (ui.sceneryHidden ? 0.62 : rearScale / battleBaseScale(self));
+  const plant = (x: number, y: number, seed: number, enemy: boolean): void => {
     const flag = createPlayerLandFlag(self, false, seed, enemy);
-    // `createPlayerLandFlag` carries its own foot offset (pole base at +8, ground ellipse at
-    // +10) — the same 10-unit correction the carried flags applied, so the foot lands on the
-    // ground line rather than floating past it.
-    flag.setPosition(x, groundY - 10 * flagScale);
+    // `createPlayerLandFlag` carries its own foot offset (pole base at +8, ground ellipse at +10),
+    // so the correction puts the foot on whatever line it is standing on.
+    flag.setPosition(x, y - 10 * flagScale);
     flag.setScale(flagScale);
     field.add(flag);
   };
-  plant(leftX + 4, self.state.mapConfig.seed, false);
-  plant(rightX - 4, Math.max(0, self.state.kingdoms.findIndex((k) => k.id === battle.kingdomId)), true);
+  const rivalSeed = Math.max(0, self.state.kingdoms.findIndex((k) => k.id === battle.kingdomId));
+  if (ui.sceneryHidden) {
+    // No village and no camp: the standards go up in the corners, small, well above the men.
+    const skyY = content.y + ui.fieldHeight * 0.22;
+    plant(leftX - 26, skyY, self.state.mapConfig.seed, false);
+    plant(rightX + 10, skyY, rivalSeed, true);
+  } else {
+    // Over the seat's own gate where there is a citadel to hang it from — `citadelStandardAnchor`
+    // has existed for this since the citadel was drawn and had never once been called — and over
+    // the settlement's roofline otherwise.
+    const homeY = battleRearY(self);
+    const land = findLand(self.state, battle.landId);
+    const capital = Boolean(land && self.state.ascent?.capitalLandId === land.id);
+    const anchor = capital
+      ? citadelStandardAnchor(SETTLEMENT_X, homeY, rearScale, figureEraFor(self.state))
+      : { x: SETTLEMENT_X + 18 * rearScale, y: homeY - 12 * rearScale };
+    plant(anchor.x, anchor.y, self.state.mapConfig.seed, false);
+    // Theirs is the camp's own đại kỳ (`battleCamp` draws it over the gate), so nothing is planted
+    // for them at all — a second enemy standard beside it was the duplicate nobody asked for.
+  }
 
   const ours = ourHosts(self.state, battle);
   const theirs = theirHosts(self.state, battle);
@@ -313,6 +363,8 @@ export function slideMarkers(self: ConquestUIScene,
  * deployment, not the shield wall in the middle of it. Measured off one block, a screen thrown
  * forward of the line stands inside the enemy's rear ranks.
  */
+
+
 function hostHalfWidth(self: ConquestUIScene,
   host: Army, men?: number, mustered?: number, shape?: BattleFormation,
 ): number {

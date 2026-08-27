@@ -18,6 +18,8 @@ import {
 } from '../../../game/ascentConfig';
 import type { AscentBattle } from '../../../state/types';
 import type { BattleMarker } from '../constants';
+import { BATTLE_HOST_MARK_CAP } from '../../../game/ascentConfig';
+import { MEN_PER_MARK } from '../../../data/ascent/formations';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
 /**
@@ -147,9 +149,39 @@ export function battleBaseScale(self: ConquestUIScene): number {
  * number that decides how far. Ten points back takes the citadel and the camp from a caller scale
  * of 0.76 to 0.70, and it widens the band the men have to themselves by the same amount.
  */
+/**
+ * Whether the two hosts have taken the whole field, so the scenery should stand aside.
+ *
+ * **Nothing on this screen has ever read how large a block comes out.** `hostHalfWidth` measures a
+ * frontage and hands it to `battleSeamGap`, which uses it to space the two lines and nothing else;
+ * no caller has ever compared the result against the room available. So two hosts of twenty-five
+ * thousand were drawn four hundred and nineteen units wide on a field three hundred and ninety
+ * wide, running off both edges and straight through the village on one side and the camp on the
+ * other — every one of the reported screenshots. *Too many army, example 25k 30k, no need to render
+ * camp, village, etc — just keep space for render army.*
+ *
+ * Measured on frontage rather than on headcount, because the headcount stops mattering: the mark
+ * cap means a host of ten thousand and one of thirty thousand are drawn identically, and what
+ * decides whether the picture is crowded is how much paper the two blocks cover. Measured against
+ * `GAME_WIDTH` rather than the span, because the overflow the player sees is the block leaving the
+ * screen, not the block leaving its own inset.
+ */
+export function battleHostsCrowdField(battle: AscentBattle): boolean {
+  // The muster counts, frozen when the field opened — never the live ones, and never the drawn
+  // frontage.
+  //
+  // Both of those move. Frontage moves *with the formation*: measured on the same 27,000-man fight,
+  // a block came out 210 units wide in one shape and 158 in another, so a threshold on it would
+  // have taken the village away and given it back every time the player touched the dock. A picture
+  // that flickers is worse than a picture that is too busy. Losses move too, so a headcount would
+  // hand the scenery back halfway through the slaughter it is meant to make room for.
+  const full = MEN_PER_MARK * BATTLE_HOST_MARK_CAP;
+  return Math.min(battle.ourStart, battle.theirStart) >= full;
+}
+
 export function battleRearY(self: ConquestUIScene): number {
   const { horizon, groundY } = battleBands(self);
-  return Math.round(horizon + (groundY - horizon) * 0.46);
+  return Math.round(horizon + (groundY - horizon) * 0.34);
 }
 
 /**

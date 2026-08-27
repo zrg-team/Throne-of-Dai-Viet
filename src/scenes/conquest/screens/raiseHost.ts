@@ -98,7 +98,9 @@ export function showRaiseHostForm(self: ConquestUIScene): void {
       holder.add(self.ui.panel({ x: 0, y: 0, width, height: 64 }, { border: INK_UI.brush, borderWidth: 1.2, borderAlpha: 0.52 }));
       const line = (n: number) => {
         const est = getMusterEstimate(state, n);
-        return t('ascent.raise.soldiersLine', { n, ticks: est.ticks, supplies: est.suppliesCost });
+        return t('ascent.raise.soldiersLine', {
+          n, ticks: est.ticks, gold: est.goldCost, supplies: est.suppliesCost,
+        });
       };
       const label = self.ui.label(14, 10, line(draft.soldiers), 'caption', { fontSize: '11px' });
       holder.add(label);
@@ -238,11 +240,19 @@ export function showRaiseHostForm(self: ConquestUIScene): void {
     addRow({
       title: blocked ?? t('ascent.raise.cost', {
         humans: draft.soldiers,
-        food: draft.rations,
+        gold: estimate.goldCost,
+        // The baggage the plan carries plus the muster's own rations — the same sum
+        // `queueRecruitment` will charge, so the quote and the bill cannot disagree.
+        food: draft.rations + estimate.foodCost,
         supplies: estimate.suppliesCost + draft.provisions,
         ticks: estimate.ticks,
       }),
-      subtitle: blocked ? '' : t('ascent.raise.body', { land: estimate.land?.name ?? '—', ticks: estimate.ticks }),
+      // Said in words as well as in numbers: the price per man rises with the size of the host, and
+      // a player watching one figure move cannot see a curve in it.
+      subtitle: blocked
+        ? ''
+        : `${t('ascent.raise.body', { land: estimate.land?.name ?? '—', ticks: estimate.ticks })}
+${t('ascent.raise.costScale')}`,
       border: blocked ? INK_UI.cinnabar : INK_UI.jade,
       muted: Boolean(blocked),
     });

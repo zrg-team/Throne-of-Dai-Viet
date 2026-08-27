@@ -66,6 +66,12 @@ const BATTLE_FALLEN_CAP = 40;
  *
  * Static for the length of the fight, so it is drawn once per field rebuild rather than per beat.
  */
+/**
+ * Where the province being defended stands, shared with `field.ts` so our standard flies over the
+ * settlement rather than near it. It was a bare `x0 + 22` written in one place and needed in two.
+ */
+export const SETTLEMENT_X = 22;
+
 export function buildBattleGround(self: ConquestUIScene, battle: AscentBattle): void {
   const ui = self.battleUi;
   if (!ui) return;
@@ -254,11 +260,22 @@ export function buildBattleGround(self: ConquestUIScene, battle: AscentBattle): 
   // line the armies stand on is a settlement our own front rank is standing inside. `village()`
   // is a composite — houses, a pond, its own cây đa — so at the field's scale it reaches a
   // hundred units to the right of its anchor, which put our block in the middle of it.
-  const homeX = x0 + 22;
+  const homeX = SETTLEMENT_X;
   const homeY = battleRearY(self);
-  if (land && self.state.ascent?.capitalLandId === land.id) citadel(g, homeX, homeY, scale(homeY), era, seed + 3);
-  else if (land?.hasVillage) village(g, homeX, homeY, scale(homeY), seed + 3);
-  else hamlet(g, homeX, homeY, scale(homeY), seed + 3, 4);
+  /**
+   * Two hosts of twenty-five thousand leave no room for a village, so it is not drawn.
+   *
+   * Decided in `buildBattleField` from the blocks' own measured extents — see
+   * `battleHostsCrowdField`. The alternative is what the reported screenshots show: a citadel and a
+   * war camp with an army standing inside both of them, which reads as a rendering fault rather
+   * than as a big battle. When the men have taken the field, the field is what the screen shows.
+   */
+  const roomForScenery = !ui.sceneryHidden;
+  if (roomForScenery) {
+    if (land && self.state.ascent?.capitalLandId === land.id) citadel(g, homeX, homeY, scale(homeY), era, seed + 3);
+    else if (land?.hasVillage) village(g, homeX, homeY, scale(homeY), seed + 3);
+    else hamlet(g, homeX, homeY, scale(homeY), seed + 3, 4);
+  }
 
   // The bamboo hedge that is a delta village's real boundary — not a palisade, which this
   // screen had no business drawing. It runs along the village's own edge, between it and the
@@ -268,7 +285,7 @@ export function buildBattleGround(self: ConquestUIScene, battle: AscentBattle): 
   // texture. Blown up to a close-up they are big pale rectangles that read as scraps of paper
   // lying on the field, and a wrong mark is worse than a missing one — hence the bunds above,
   // which are the same idea drawn as lines instead of as fills.
-  for (let i = 0; i < 4; i += 1) {
+  for (let i = 0; roomForScenery && i < 4; i += 1) {
     // Along the village's own edge, between it and the fight.
     const hedgeY = homeY + 10 + (i % 2) * 3;
     bamboo(g, x0 + 4 + i * 9, hedgeY, scale(hedgeY), seed + 11 + i);
@@ -276,14 +293,16 @@ export function buildBattleGround(self: ConquestUIScene, battle: AscentBattle): 
   // No buffalo. It is the right animal for a province at peace and the wrong one for the near
   // edge of a battlefield: drawn at the ground scale it is the largest single object on the
   // field, it stands between the player and the fight, and it is grazing through a battle.
-  hayStack(g, homeX + 26, homeY + 6, scale(homeY + 6), seed + 19);
+  if (roomForScenery) hayStack(g, homeX + 26, homeY + 6, scale(homeY + 6), seed + 19);
 
   // ── 4. what came for it ────────────────────────────────────────────────
   //
   // The tents themselves are `battleCamp`; this is the baggage behind them. Drawing a hamlet on
   // top of the camp put two settlements in the same place.
-  hayStack(g, x1 - 26, groundY - 6, scale(groundY - 6), seed + 21);
-  hayStack(g, x1 - 46, groundY - 2, scale(groundY - 2), seed + 23);
+  if (roomForScenery) {
+    hayStack(g, x1 - 26, groundY - 6, scale(groundY - 6), seed + 21);
+    hayStack(g, x1 - 46, groundY - 2, scale(groundY - 2), seed + 23);
+  }
 
   // ── 5. the killing floor ───────────────────────────────────────────────
   //

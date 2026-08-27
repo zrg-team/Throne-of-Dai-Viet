@@ -588,9 +588,22 @@ ${fall}` : fall,
       const face = keep.list.find((part): part is Phaser.GameObjects.Text => (
         part instanceof Phaser.GameObjects.Text));
       face?.setText(t('ascent.over.keeping'));
-      void captureScreen(self.game, prompt.reign ?? t('ascent.over.title')).then((result) => {
-        face?.setText(t(result === 'failed' ? 'ascent.over.keepFailed' : 'ascent.over.kept'));
-      });
+      /**
+       * The picture is the edict, not the buttons under it.
+       *
+       * `captureScreen` photographed the whole frame, so what reached the player's camera roll was
+       * a decree with three controls and a half-pressed *Đang đóng ấn…* along the bottom of it —
+       * the one thing on the page that is chrome rather than record. Reported as: *game result
+       * capture image must not included buttons*.
+       *
+       * Cropped rather than hidden, because hiding leaves the document floating over a third of a
+       * page of blank parchment. `buttonY` is already the line the layout measures the controls
+       * back from, so it is exactly the bottom of the document by construction.
+       */
+      void captureScreen(self.game, prompt.reign ?? t('ascent.over.title'), buttonY - 4)
+        .then((result) => {
+          face?.setText(t(result === 'failed' ? 'ascent.over.keepFailed' : 'ascent.over.kept'));
+        });
     },
     { fontSize: '13px' },
   );

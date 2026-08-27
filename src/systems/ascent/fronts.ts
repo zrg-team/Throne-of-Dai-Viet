@@ -47,6 +47,22 @@ export function liveBattleCount(state: GameState): number {
  * The extra field opens delegated like every other side front, so it costs no attention either.
  */
 export function hasRoomForAnotherFront(state: GameState, landId?: string): boolean {
+  // A province already being fought over always has room — because joining a fight is not opening
+  // a front, and `beginBattle` absorbs the arriving column into the battle already standing there.
+  //
+  // This asked only about the count, and the omission had teeth. Every caller treats a false here
+  // as *settle it the old way*: `maybeRequestBattleDecision` returns false and the tick answers
+  // with `resolveInvaderBattle`'s hidden die roll. So once the cap was full, a second column
+  // walking into a province the player was **actively fighting on** was resolved behind their
+  // back — and a win there calls `retreatDefenders` and pushes a fresh siege order underneath the
+  // battle still being watched. That is the other half of *enemy can still attack* in the report.
+  //
+  // Returning true rather than false is the whole correction, and the direction matters: refusing
+  // was tried first and it re-opened the very defect `beginBattle`'s absorb branch was written to
+  // close, because that branch sits *below* this gate and never got the chance to run.
+  // `verify-fronts` holds that contract — "a second column joins the fight instead of rolling for
+  // the ground".
+  if (landId && liveBattles(state).some((battle) => battle.landId === landId)) return true;
   const seat = Boolean(landId) && landId === state.ascent?.capitalLandId;
   return liveBattleCount(state) < MAX_LIVE_BATTLES + (seat ? 1 : 0);
 }
