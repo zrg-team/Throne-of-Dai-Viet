@@ -101,18 +101,26 @@ export function usesServiceWorker(): boolean {
 /**
  * Whether the menu may show a link that sends the developer money.
  *
- * Off on iOS, where two separate App Store rules forbid it: guideline 3.2.1(vii) excludes tips and
- * donations *in games* from the external-link allowance that other app categories get, and
- * guideline 4.7 says HTML5 game content may not provide access to charitable donations. Either one
- * on its own is a rejection.
+ * Off in both app stores, for two unrelated reasons that happen to land on the same answer.
  *
- * On by default everywhere else. Google Play has no equivalent rule, Tauri builds answer to no
- * store at all, and the web build is the version the link was written for. A shell that cannot
- * report its OS keeps the link — the failure mode of showing it on Android is nothing, and the
- * failure mode of hiding it on the web is a feature silently disappearing.
+ * On iOS it is forbidden outright, by two rules either of which is a rejection on its own:
+ * guideline 3.2.1(vii) excludes tips and donations *in games* from the external-link allowance
+ * that other app categories get, and 4.7 says HTML5 game content may not provide access to
+ * charitable donations.
+ *
+ * On Android it is permitted — Play's payments policy exempts voluntary donations — and it comes
+ * out anyway, because the store build is **sold**. Asking somebody who has just paid for the game
+ * to also buy you a coffee reads as a second ask, and the store listing already promises that one
+ * price is the whole of it. The rule is therefore the cabinet, not the OS: anything that reached
+ * the player through a store leaves the link out.
+ *
+ * On everywhere else. The web build is free and is the version the link was written for, and a
+ * desktop shell answers to no store. A mobile shell that cannot report its OS still loses the
+ * link, which is the safe direction now that both stores are covered — the old gate kept it in
+ * that case, when Android was the only store that allowed it.
  */
 export function allowsDonationLinks(): boolean {
-  return shellOS() !== 'ios';
+  return shellKind() !== 'mobile';
 }
 
 /**

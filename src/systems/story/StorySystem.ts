@@ -557,6 +557,8 @@ function record(state: GameState, story: ActiveStory, fragment: StoryFragment, c
     // record of the order things happened in — which is why Sử ký's recorded tab could only ever
     // be a list of last lines. Copied rather than referenced, and the terminal is appended here
     // because `fire` records it after `record` runs.
+    // Who it was about, so the record can draw them. `cast` dies with the story a few lines below.
+    heroId: story.cast.heroId,
     history: story.history?.length
       ? [...story.history, { fragmentId: fragment.id, turn: state.turn, outcome: ctx.noted.length ? [...ctx.noted] : undefined }]
       : undefined,

@@ -29,7 +29,7 @@ export class PreloadScene extends Phaser.Scene {
     // A support channel's QR is fetched here, not when the coffee modal opens, so the modal
     // never shows a hole while a fetch is in flight. Only configured images are requested — an
     // unconfigured build must not 404 on every launch — and none at all where the modal cannot be
-    // reached, which on iOS it cannot: see `allowsDonationLinks`.
+    // reached, which in either store's build it cannot: see `allowsDonationLinks`.
     if (allowsDonationLinks()) {
       for (const channel of configuredSupportChannels()) {
         if (channel.qrImage) {

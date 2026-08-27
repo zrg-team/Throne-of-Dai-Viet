@@ -105,6 +105,18 @@ export function warBoardSignature(self: ConquestUIScene): string {
 }
 
 export function showWarBoard(self: ConquestUIScene): void {
+  /**
+   * The board is a page over the world, so the world has to be under it.
+   *
+   * `beginOverlay` hides the map for `lane:battle` because the *field* is a full sheet of
+   * parchment — and this is the other page that lane opens, drawn over the ordinary 0.93 lane
+   * dim. With the map hidden the 0.93 showed the six scenes the game keeps resident behind
+   * everything: photographed, the board's lower half was the **main menu**, lotus, version line
+   * and all. Reached from `showBattle` when no field is live, and from the fight's own fronts
+   * chip through `replaceLanePage`, which is why the restore belongs here rather than at either
+   * of those call sites.
+   */
+  self.setMapVisible(true);
   const state = self.state;
   const fronts = contestedFronts(state);
   self.warBoardKey = warBoardSignature(self);

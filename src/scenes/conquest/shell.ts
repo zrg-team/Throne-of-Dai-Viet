@@ -617,7 +617,7 @@ function barStatusColor(self: ConquestUIScene, action: string): number | undefin
  * Only for screens that really do cover it. A prompt card with the map showing round its edges
  * would simply lose its background.
  */
-function setMapVisible(self: ConquestUIScene, visible: boolean): void {
+export function setMapVisible(self: ConquestUIScene, visible: boolean): void {
   const parent = self.scene.manager.getScene('ConquestScene') ?? self.scene.manager.getScene('MapScene');
   if (parent && parent !== (self as Phaser.Scene) && parent.scene.isActive()) {
     parent.scene.setVisible(visible);
@@ -630,8 +630,16 @@ export function beginOverlay(self: ConquestUIScene, key: string): void {
   qualityLadder()?.hold(800);
   releaseOverlay(self);
   self.openPromptKey = key;
-  // The battle screen is a full sheet of parchment with nothing showing through it.
-  if (key === 'lane:battle') setMapVisible(self, false);
+  // **The map is not hidden here any more.** It used to be, for `lane:battle`, on the reasoning
+  // that the battle screen is a full sheet of parchment with nothing showing through it — which is
+  // true of the *fight* and false of the other page that lane opens. `showBattle` falls back to the
+  // war board when no field is live, and the board is an ordinary lane list drawn over the lane's
+  // 0.93 dim; with the map hidden underneath it, what showed through was the six scenes this game
+  // keeps resident, chief among them the main menu. Photographed: the board's lower half was the
+  // title screen, lotus and version line and all.
+  //
+  // So the decision moves to the one place that knows which page is about to be drawn — see
+  // `showBattle`, which hides the map for the field and hands it back for the board.
   // Immediately, not on the next tick: an overlay opened while the world is held would
   // otherwise leave the bar and the zoom stack floating over it until something else moved.
   renderActionBar(self);
@@ -671,20 +679,31 @@ export function closeOverlay(self: ConquestUIScene): void {
 function inspectCardTop(self: ConquestUIScene): number | undefined {
   const land = self.state.lands.find((candidate) => candidate.id === self.state.selectedLandId);
   if (!land || self.state.pendingAscentPrompt) return undefined;
-  const mine = land.ownerId === PLAYER_KINGDOM_ID;
-  // Ours is the taller card: it prints two more rows — who holds the province and what it works at
-  // — under the garrison line, and a card sized for a rival's two clipped its own border through
-  // them. A province of ours used to carry no controls at all.
-  return GAME_HEIGHT - ACTION_BAR_HEIGHT - (mine ? INSPECT_MINE_HEIGHT : INSPECT_RIVAL_HEIGHT);
+  // Measured on the last render — a card sizes itself to its own text, so nothing can predict this
+  // without building it. One frame stale at worst, and the only reader is the map controls' floor.
+  return GAME_HEIGHT - ACTION_BAR_HEIGHT - (self.inspectBlockHeight ?? INSPECT_FALLBACK_HEIGHT);
 }
 
-/** Card, gap, controls — the two shapes the inspect card takes, measured from the action bar. */
-const INSPECT_CARD_MINE = 96;
-const INSPECT_CARD_RIVAL = 78;
-const INSPECT_GAP = 8;
+/**
+ * Gap and controls. **The card's own height is not set here, and that is the point.**
+ *
+ * `InkUI.card` treats the height it is given as a *minimum* and grows to fit its text, so two
+ * cards asked for different fixed heights end up with different amounts of air under their last
+ * line — ours tight against the rule, a rival's with a finger of blank paper. Reported as: *why
+ * our land detail and other land padding different, make it consistent.*
+ *
+ * So neither is given one. Both are built, measured (`cardHeight`), and *then* positioned from
+ * the foot of the screen, which makes the padding identical by construction and each card
+ * exactly as tall as what is in it.
+ *
+ * 14 between the card and the controls, not 8: a button's ink border is drawn a few points proud
+ * of its box, so at eight the row sat on the card's bottom rule and the card read as unclosed.
+ */
+const INSPECT_GAP = 14;
 const INSPECT_BUTTON_HEIGHT = 38;
-const INSPECT_MINE_HEIGHT = INSPECT_CARD_MINE + INSPECT_GAP + INSPECT_BUTTON_HEIGHT + 10;
-const INSPECT_RIVAL_HEIGHT = INSPECT_CARD_RIVAL + INSPECT_GAP + INSPECT_BUTTON_HEIGHT + 10;
+const INSPECT_FLOOR_GAP = 10;
+/** Used before the first render has measured a card. */
+const INSPECT_FALLBACK_HEIGHT = 134;
 
 function renderInspect(self: ConquestUIScene): void {
   const land = self.state.lands.find((candidate) => candidate.id === self.state.selectedLandId);
@@ -710,17 +729,22 @@ function renderInspect(self: ConquestUIScene): void {
   if (!land) return;
 
   const mine = land.ownerId === PLAYER_KINGDOM_ID;
-  const cardY = inspectCardTop(self) ?? 0;
 
+  // Built at nought, measured, then moved — see the note on `INSPECT_GAP`.
   const card = self.ui.card(
-    { x: 14, y: cardY, width: GAME_WIDTH - 28, height: mine ? INSPECT_CARD_MINE : INSPECT_CARD_RIVAL },
+    { x: 14, y: 0, width: GAME_WIDTH - 28, height: 0 },
     {
       title: land.name,
       subtitle: `${t('ascent.march.garrison', { value: Math.round(land.defense * 16 + land.localSoldiers * 2.5) })}`,
       rows: mine
         ? [
-            // Who holds it, on the card. A governor is the one thing about a province of ours that
-            // is a *decision* rather than a number, and it was readable nowhere on the map.
+            // All three stores, not the two that happened to fit. A focus is chosen against what
+            // the province currently yields, and supplies was the one the card left out.
+            { label: t('resource.food'), value: String(Math.round(land.outputs.food)) },
+            { label: t('resource.supplies'), value: String(Math.round(land.outputs.supplies)) },
+            { label: t('resource.gold'), value: String(Math.round(land.outputs.gold)) },
+            // Who holds it. A governor is the one thing about a province of ours that is a
+            // *decision* rather than a number, and it was readable nowhere on the map.
             {
               label: t('land.section.assignment'),
               value: governor ? heroName(governor) : t('gov.none'),
@@ -739,6 +763,10 @@ function renderInspect(self: ConquestUIScene): void {
       border: mine ? INK_UI.jade : INK_UI.softBrush,
     },
   );
+  const cardHeight = Math.round((card.getData('cardHeight') as number) ?? INSPECT_FALLBACK_HEIGHT);
+  self.inspectBlockHeight = cardHeight + INSPECT_GAP + INSPECT_BUTTON_HEIGHT + INSPECT_FLOOR_GAP;
+  const cardY = GAME_HEIGHT - ACTION_BAR_HEIGHT - self.inspectBlockHeight;
+  card.setPosition(14, cardY);
   card.setDepth(120);
   self.inspectObjects.push(card);
 
@@ -753,26 +781,34 @@ function renderInspect(self: ConquestUIScene): void {
    * They open the lane already on the right page (see `landHandover`), so the button is the whole
    * journey rather than the start of one.
    */
-  const open = (page: 'governor' | 'focus') => () => {
+  const open = (page: 'options' | 'governor' | 'focus') => () => {
     self.landHandover = { landId: land.id, page };
     self.openLane('build');
   };
 
-  const buttonY = cardY + (mine ? INSPECT_CARD_MINE : INSPECT_CARD_RIVAL) + INSPECT_GAP;
-  const half = (GAME_WIDTH - 34) / 2;
+  const buttonY = cardY + cardHeight + INSPECT_GAP;
+  // Three across for a province of ours: post a governor, set what it works at, put something up.
+  // Building was the one of the three that still had to be found inside a lane by name.
+  const third = (GAME_WIDTH - 40) / 3;
   const controls: Phaser.GameObjects.GameObject[] = mine
     ? [
         self.ui.button(
-          { x: 14, y: buttonY, width: half, height: INSPECT_BUTTON_HEIGHT },
+          { x: 14, y: buttonY, width: third, height: INSPECT_BUTTON_HEIGHT },
           governor ? t('ascent.inspect.changeGovernor') : t('ascent.inspect.postGovernor'),
           open('governor'),
-          { variant: 'primary', fontSize: '12px' },
+          { variant: 'primary', fontSize: '11px' },
         ),
         self.ui.button(
-          { x: 14 + half + 6, y: buttonY, width: half, height: INSPECT_BUTTON_HEIGHT },
+          { x: 14 + third + 6, y: buttonY, width: third, height: INSPECT_BUTTON_HEIGHT },
           t('ascent.inspect.changeFocus'),
           open('focus'),
-          { fontSize: '12px' },
+          { fontSize: '11px' },
+        ),
+        self.ui.button(
+          { x: 14 + (third + 6) * 2, y: buttonY, width: third, height: INSPECT_BUTTON_HEIGHT },
+          t('ascent.inspect.build'),
+          open('options'),
+          { fontSize: '11px' },
         ),
       ]
     : [

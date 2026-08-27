@@ -165,10 +165,17 @@ export function buildBattleField(self: ConquestUIScene, battle: AscentBattle): v
   };
   const rivalSeed = Math.max(0, self.state.kingdoms.findIndex((k) => k.id === battle.kingdomId));
   if (ui.sceneryHidden) {
-    // No village and no camp: the standards go up in the corners, small, well above the men.
-    const skyY = content.y + ui.fieldHeight * 0.22;
-    plant(leftX - 26, skyY, self.state.mapConfig.seed, false);
-    plant(rightX + 10, skyY, rivalSeed, true);
+    /**
+     * No village and no camp, so the standards are planted at the foot of the hills.
+     *
+     * They were put in the sky at a fifth of the field's height, which is *above* the horizon —
+     * two flags floating over the mountains with nothing holding them up. Reported exactly that
+     * way. The horizon line is where the ridges stand and where the ground begins; a pole with its
+     * foot on it reads as planted, which is the whole of what a standard has to do.
+     */
+    const footY = content.y + ui.fieldHeight * 0.30 + 8;
+    plant(leftX - 18, footY, self.state.mapConfig.seed, false);
+    plant(rightX + 6, footY, rivalSeed, true);
   } else {
     // Over the seat's own gate where there is a citadel to hang it from — `citadelStandardAnchor`
     // has existed for this since the citadel was drawn and had never once been called — and over

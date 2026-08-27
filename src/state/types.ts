@@ -1335,6 +1335,14 @@ export interface ChronicleEntry {
    * nothing has to be migrated.
    */
   history?: { fragmentId: string; turn: number; outcome?: StoryOutcome[] }[];
+  /**
+   * The champion the story was about, if it had one — stamped at the terminal from `story.cast`.
+   *
+   * `params` carries their *name* because the fragment text interpolates it, and a name is not
+   * enough to draw a face. The archive page wants the face: a story is about somebody, and a page
+   * that only names them reads as a report where the live story page reads as a life.
+   */
+  heroId?: string;
 }
 
 /**
