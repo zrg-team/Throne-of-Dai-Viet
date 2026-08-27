@@ -23,9 +23,11 @@ import {
   getBuildOptions,
   getLandPopulationGrowth,
   getUpgradeOptions,
+  landPopulationCapacity,
   setLandSpecialization,
   upgradeDistrictBuilding,
 } from '../../../systems/ResourceSystem';
+import { MILITIA_REGROW_DELAY } from '../../../game/ascentConfig';
 import { buildFocusRows } from '../../../ui/focusPanel';
 import { buildGovernorRows } from '../../../ui/governorPanel';
 import { buildHeroPickerRows } from '../../../ui/heroPickerRows';
@@ -283,16 +285,42 @@ export function showBuildOptions(self: ConquestUIScene, landId: string): void {
   addHeading(t('land.section.status'));
   const outputs = land.outputs;
   const growth = getLandPopulationGrowth(state, land);
+  /**
+   * What this district is short of, when it is short of something.
+   *
+   * Both notes are new consequences and both are invisible without a line saying so. A wave held
+   * now costs the walls masonry that takes seasons to replace, and the militia does not begin
+   * raising again the moment the levy walks home — so a player reading a lower defence figure than
+   * they remember has to be told it is a breach being rebuilt rather than a number that changed on
+   * its own. See `dissolveGarrisonLevies` and `repairProvincialDefence`.
+   */
+  const notes: string[] = [];
+  if (state.gameMode === 'ascent') {
+    notes.push(t('ascent.land.peopleCap', {
+      held: Math.round(land.population),
+      cap: landPopulationCapacity(state, land),
+    }));
+    const breach = Math.round(land.wallsBreached ?? 0);
+    if (breach > 0) notes.push(t('ascent.land.wallsBreached', { n: breach }));
+    const rested = state.turn - (land.levyReturnedTurn ?? -MILITIA_REGROW_DELAY);
+    if (rested < MILITIA_REGROW_DELAY) {
+      notes.push(t('ascent.land.militiaResting', { n: MILITIA_REGROW_DELAY - rested }));
+    }
+  }
   addRow({
     title: t('land.status.people', { people: Math.round(land.population), growth }),
-    subtitle: `${t('land.status.yield', {
-      food: Math.round(outputs?.food ?? 0),
-      supplies: Math.round(outputs?.supplies ?? 0),
-      gold: Math.round(outputs?.gold ?? 0),
-    })}\n${t('land.status.hold', {
-      defense: Math.round(land.defense),
-      loyalty: Math.round(land.loyalty),
-    })}`,
+    subtitle: [
+      t('land.status.yield', {
+        food: Math.round(outputs?.food ?? 0),
+        supplies: Math.round(outputs?.supplies ?? 0),
+        gold: Math.round(outputs?.gold ?? 0),
+      }),
+      t('land.status.hold', {
+        defense: Math.round(land.defense),
+        loyalty: Math.round(land.loyalty),
+      }),
+      ...notes,
+    ].join('\n'),
     border: INK_UI.jade,
   });
 

@@ -83,8 +83,8 @@ export interface BlockShare {
   standing: number;
 }
 
-function marksFor(men: number): number {
-  return Math.max(4, Math.min(HOST_MARK_CAP, Math.round(men / MEN_PER_MARK)));
+function marksFor(men: number, cap = HOST_MARK_CAP): number {
+  return Math.max(4, Math.min(cap, Math.round(men / MEN_PER_MARK)));
 }
 
 /**
@@ -99,10 +99,15 @@ function marksFor(men: number): number {
  * picture has said the front has collapsed without a word of text.
  */
 export function blockShares(
-  composition: ArmyComposition, men: number, mustered?: number,
+  composition: ArmyComposition, men: number, mustered?: number, markCap?: number,
 ): Record<FormationKey, BlockShare> {
-  const total = marksFor(Math.max(mustered ?? men, men));
-  const standing = marksFor(men);
+  // `markCap` overrides the density ceiling for callers with less room than the map has. The
+  // battle screen is the only one — see `BATTLE_HOST_MARK_CAP`, where 420 marks come out 208 px
+  // wide on a 390 px field and two hosts cannot both be on the screen. Applied to `total` and
+  // `standing` alike so the block still empties in formation order as men fall.
+  const cap = markCap ?? HOST_MARK_CAP;
+  const total = marksFor(Math.max(mustered ?? men, men), cap);
+  const standing = marksFor(men, cap);
   const plan = DOCTRINE[composition] ?? DOCTRINE.balanced;
   const weightSum = FORMATION_ORDER.reduce((sum, key) => sum + plan[key].weight, 0) || 1;
 

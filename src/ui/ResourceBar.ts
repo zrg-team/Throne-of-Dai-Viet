@@ -3,6 +3,7 @@ import { writeText } from './textWrite';
 import { GAME_WIDTH, HEADER_HEIGHT } from '../game/constants';
 import type { GameState, ResourceKey } from '../state/types';
 import { compactNumber } from '../utils/format';
+import { realmPopulationCapacity } from '../systems/ResourceSystem';
 import { seasonLabel, t } from '../i18n';
 import { InkUI, INK_UI, INK_UI_HEX } from './InkUI';
 import { RESOURCE_ICONS } from './theme';
@@ -183,7 +184,25 @@ export class ResourceBar extends Phaser.GameObjects.Container {
       const rate = this.gameState.resourceRates[resource];
       const signedRate = rate > 0 ? `+${compactNumber(rate)}` : compactNumber(rate);
       const text = this.resourceTexts[resource];
-      changed = writeText(text, `${compactNumber(this.gameState.resources[resource])} (${signedRate})`) || changed;
+      /**
+       * People are the one store with a ceiling, and the ceiling has to show or it reads as a bug.
+       *
+       * Growth tapers as the realm's districts fill (see `realmPopulationCapacity`), so a player
+       * whose rate has quietly fallen to +3 has no way to tell a carrying capacity from a broken
+       * economy. Swapping the rate for `held/cap` on the last tenth says which it is, in the place
+       * they are already looking.
+       *
+       * Only near the ceiling, and only in Ascent: the strip packs four stores by measured width
+       * and steps the type down to 9px when they will not fit, so a second number carried at all
+       * times would cost the whole row a size for information that is usually irrelevant.
+       */
+      const capped = resource === 'humans' && this.gameState.gameMode === 'ascent'
+        ? realmPopulationCapacity(this.gameState)
+        : 0;
+      const label = capped > 0 && this.gameState.resources.humans >= capped * 0.9
+        ? `${compactNumber(this.gameState.resources[resource])}/${compactNumber(capped)}`
+        : `${compactNumber(this.gameState.resources[resource])} (${signedRate})`;
+      changed = writeText(text, label) || changed;
 
       // A store that is merely shrinking gets the old pink; one that is about to run dry gets
       // escalated, because the two are not remotely the same situation and used to look it.

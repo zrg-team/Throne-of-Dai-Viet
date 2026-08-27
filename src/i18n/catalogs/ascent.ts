@@ -912,6 +912,14 @@ export const enAscent = {
   "ascent.battle.auto": "Leave this one to my generals",
   "ascent.battle.autoD": "This fight resolves without you. Settings can hand them all back.",
   "ascent.battle.begins": "Battle joined at {land} — {kingdom} is at the gates. Take command.",
+  // Ground lost, and what it costs. See `detectConquests`: an acquisition pays the realm that
+  // province's people and, until now, nothing ever took them back.
+  "ascent.land.lost": "{land} is lost. {people} of its people stay behind under a new lord.",
+  "ascent.land.people": "People",
+  "ascent.land.peopleCap": "{held} of {cap} this land can hold",
+  "ascent.land.wallsBreached": "Walls breached — {n} still to rebuild",
+  "ascent.land.militiaResting": "The levy is still coming home; no new watch for {n} more seasons",
+  "ascent.hud.peopleCapacity": "People: {held} — the realm's land holds {cap}",
   // Both sides choose blind, and the drum - not the tap - starts the fight. See
   // `startBattleOpeningDrum`: reading the enemy's shape and then answering it was a free two-tier
   // advantage on every opening.
@@ -2482,6 +2490,12 @@ export const viAscent = {
   "ascent.battle.auto": "Giao trận này cho các tướng",
   "ascent.battle.autoD": "Trận này tự quyết, không hỏi vua. Vào Cài đặt để giao hết mọi trận.",
   "ascent.battle.begins": "Giao chiến tại {land} — {kingdom} đã đến cửa thành. Xin bệ hạ cầm quân.",
+  "ascent.land.lost": "Mất {land}. {people} dân ở lại, theo về chủ mới.",
+  "ascent.land.people": "Dân",
+  "ascent.land.peopleCap": "{held} trên {cap} đất này nuôi nổi",
+  "ascent.land.wallsBreached": "Thành lũy sứt mẻ — còn {n} chưa đắp lại",
+  "ascent.land.militiaResting": "Dân binh còn về ruộng; {n} mùa nữa mới chiêu lại",
+  "ascent.hud.peopleCapacity": "Dân: {held} — đất của ta nuôi nổi {cap}",
   "ascent.battle.holdNote": "Chọn một thế trận bên dưới — hai bên chưa thấy thế của nhau.",
   "ascent.battle.openingDrum": "Hai quân đang dàn trận — dứt trống còn {n}.",
   "ascent.battle.formingUp": "giặc còn đang dàn trận",

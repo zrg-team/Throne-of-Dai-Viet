@@ -118,6 +118,21 @@ export interface Land {
    * `landCompliance()` in `DecreeSystem`, which defaults it to `BASE_COMPLIANCE`.
    */
   compliance?: number;
+  /**
+   * Walls knocked down in a fought defence, waiting to be rebuilt (ascent only).
+   *
+   * A breach counter rather than a stored undamaged figure, because `defense` has a dozen additive
+   * writers — fortify purchases, hero arrivals, decrees, stories — and every one of them has to
+   * keep composing. `dissolveGarrisonLevies` subtracts the breach from `defense` and records it
+   * here; `repairProvincialDefence` walks it back a little each season.
+   */
+  wallsBreached?: number;
+  /**
+   * The turn this province's garrison levy last went home (ascent only). Militia does not begin
+   * regrowing until `MILITIA_REGROW_DELAY` seasons after that — a district that has just been
+   * fought over is not raising a fresh watch the same afternoon.
+   */
+  levyReturnedTurn?: number;
 }
 
 /** Authored land data before hex-map generation fills in position/adjacency. */
@@ -472,6 +487,14 @@ export interface Army {
    * what it took — the walls' share of the turnout must not become standing militia.
    */
   levyDrawn?: number;
+  /**
+   * Men this levy mustered with, so what is left of it can be read as a *share*.
+   *
+   * Recorded rather than inferred: `dissolveGarrisonLevies` needs to know how badly the turnout was
+   * mauled in order to charge the walls for it, and by then the only other number in reach is
+   * `levyDrawn`, which is the militia share alone and says nothing about the walls'.
+   */
+  levyMustered?: number;
   /**
    * The host's standing order (Dragon Ascent). Absent means `auto`: the autopilot may march it,
    * send it home, or leave it — the original behaviour, kept for old saves, the royal host and

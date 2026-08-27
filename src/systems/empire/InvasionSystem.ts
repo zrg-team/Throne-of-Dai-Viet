@@ -1,6 +1,11 @@
 import { isEndlessMode, PLAYER_KINGDOM_ID } from '../../game/constants';
 import { getLegTicks } from '../../game/movementConfig';
-import { GARRISON_LEVY_FLOOR, LEVY_POWER_PER_MAN } from '../../game/ascentConfig';
+import {
+  GARRISON_LEVY_FLOOR,
+  LEVY_POWER_PER_MAN,
+  WALL_ATTRITION_SHARE,
+  WALL_DEFENCE_FLOOR,
+} from '../../game/ascentConfig';
 import { findLand, getAcquisitionTicksRequired } from '../LandSystem';
 import { attackLand, createBattlePreview, grantGeneralExperience, issueMoveOrder } from '../WarSystem';
 import {
@@ -12,6 +17,7 @@ import {
 import { getPlayerMilitary } from '../DiplomacySystem';
 import { addMandate } from './MandateSystem';
 import { enemyColumnsAt } from '../ascent/BattleSystem';
+import { defenceCommanderOf } from '../ascent/landCommand';
 import { recordEngagement } from '../ascent/battleReport';
 import { hasRoomForAnotherFront, liveBattles } from '../ascent/fronts';
 import {
@@ -613,6 +619,7 @@ export function raiseGarrisonLevy(state: GameState, land: Land): Army | undefine
     experienceToNextLevel: 120,
     isLevy: true,
     levyDrawn: land.localSoldiers,
+    levyMustered: muster,
   };
   land.localSoldiers = 0;
   state.armies.push(levy);
@@ -654,20 +661,50 @@ export function raiseEnemyGarrisonLevy(state: GameState, land: Land): Army | und
 }
 
 /**
- * Sends every surviving levy home. Called once no engagement is live, so a levy exists for exactly
- * the battle it was raised for.
+ * Sends home what is left of every levy, and charges the province for the rest.
+ *
+ * This function used to be purely restorative, and that is the whole of the reported defect: *we win
+ * but lost army — but now it immediately full number in next attack*. The turnout is
+ * `defense * 16 + localSoldiers * 2.5` conjured into a host at the start of a fight and deleted at
+ * the end, and **nothing in combat ever touched `land.defense`** — so the walls' share, which is
+ * eighty-five to ninety-five per cent of a province's defence, was created out of nothing and
+ * destroyed undamaged every single time. The militia share fared no better: `min(survivors,
+ * levyDrawn)` restores it whole for as long as more men survive than the province originally lent,
+ * which against a `levyDrawn` of tens is very nearly always.
+ *
+ * So the casualties are read as a *share* of what mustered, and both halves of the turnout pay it.
+ * The militia takes it directly; the walls take `WALL_ATTRITION_SHARE` of it as a breach that
+ * `repairProvincialDefence` rebuilds over the following seasons. A second wave landing on a mauled
+ * province now meets a mauled province.
  */
 export function dissolveGarrisonLevies(state: GameState): void {
   const levies = state.armies.filter((army) => army.isLevy);
   if (levies.length === 0) return;
   for (const levy of levies) {
     const land = findLand(state, levy.landId);
-    // Only what is left, and only if the province is still ours — a levy that lost its home has
-    // nowhere to go back to.
-    if (land && land.ownerId === PLAYER_KINGDOM_ID) {
-      // At most what the province gave: the walls' share of the turnout goes back to the walls.
-      land.localSoldiers += Math.min(totalUnits(levy), levy.levyDrawn ?? totalUnits(levy));
+    // Only if the province is still ours — a levy that lost its home has nowhere to go back to,
+    // and walls that changed hands are the new owner's problem.
+    if (!land || land.ownerId !== PLAYER_KINGDOM_ID) continue;
+    const survivors = totalUnits(levy);
+    const mustered = Math.max(1, levy.levyMustered ?? survivors);
+    const lostShare = Math.max(0, Math.min(1, 1 - survivors / mustered));
+
+    // At most what the province gave, and only the share of it that walked back. The militia is
+    // real men and dies like real men; it is not a number that resets.
+    const drawn = Math.min(levy.levyDrawn ?? survivors, survivors);
+    land.localSoldiers += Math.round(drawn * (1 - lostShare));
+
+    // And the masonry that stood in for the rest of the turnout. Floored rather than allowed to
+    // reach nothing: a province with no walls left is a province that cannot be held at all, which
+    // turns one bad night into the run.
+    const breach = Math.round(land.defense * lostShare * WALL_ATTRITION_SHARE);
+    if (breach > 0) {
+      const taken = Math.max(0, Math.min(breach, land.defense - WALL_DEFENCE_FLOOR));
+      land.defense -= taken;
+      if (taken > 0) land.wallsBreached = (land.wallsBreached ?? 0) + taken;
     }
+    // The clock the militia waits out before it starts raising again.
+    land.levyReturnedTurn = state.turn;
   }
   state.armies = state.armies.filter((army) => !army.isLevy);
 }
@@ -941,18 +978,21 @@ function resolveInvaderBattle(
 /** Stands in for a host that has been despawned, so a headcount reads 0 rather than throwing. */
 const EMPTY_HOST = { units: { spearmen: 0, archers: 0, heavyInfantry: 0 } } as Army;
 
-/** Who was nominally in charge here, so a dispatch can name somebody. */
+/**
+ * Who was nominally in charge here, so a dispatch can name somebody.
+ *
+ * The hidden-roll twin of the watched fight's commander, and it has to agree with it or the same
+ * defence is credited to a governor on the screen and to nobody in the dispatch. `defenceCommanderOf`
+ * is the one answer both read: the general of a host standing here first, the province's own
+ * governor when the hosts are elsewhere.
+ */
 function generalOf(state: GameState, land: Land): string | undefined {
-  const host = state.armies.find((army) => army.kingdomId === PLAYER_KINGDOM_ID
-    && army.landId === land.id && !army.isLevy && army.generalHeroId);
-  if (!host?.generalHeroId) return undefined;
-  return state.heroes.find((hero) => hero.id === host.generalHeroId)?.name;
+  return defenceCommanderOf(state, land)?.name;
 }
 
 /** The same commander, by id, so the Reckoning can draw their face rather than name them. */
 function generalIdOf(state: GameState, land: Land): string | undefined {
-  return state.armies.find((army) => army.kingdomId === PLAYER_KINGDOM_ID
-    && army.landId === land.id && !army.isLevy && army.generalHeroId)?.generalHeroId;
+  return defenceCommanderOf(state, land)?.id;
 }
 
 function retreatDefenders(state: GameState, land: Land): void {

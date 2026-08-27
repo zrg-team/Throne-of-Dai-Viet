@@ -287,10 +287,65 @@ export function buildBattleGround(self: ConquestUIScene, battle: AscentBattle): 
 
   // ── 5. the killing floor ───────────────────────────────────────────────
   //
-  // Scatter chosen by what the province actually is. A fight on rice ground and a fight in the
-  // hills are the same two blocks of men on two different pieces of the country. Near the eye
-  // and along the edges: anything in the middle stands between the player and the two lines
-  // meeting, which is the one thing on this screen that must stay legible.
+  // Everything that stands between the player and the fight has moved out of this function
+  // entirely — see `buildBattleForeground`, which is drawn *after* the men rather than under them.
+}
+
+/**
+ * The near foreground: the two corner pieces and the scatter across the apron.
+ *
+ * Split out of `buildBattleGround` for one reason, and it is the reported one — *tree in front
+ * should be over the army not behind*. Every band of this screen is drawn into one of three
+ * Graphics that `bakeBattleGround` flattens into a single texture and inserts at `groundFrom`,
+ * which is **below** the camp, the fallen and both host markers. So a tree standing four pixels
+ * from the bottom edge of the field, in front of the near line by every rule of the picture, was
+ * composited behind two thousand men. The depth model said one thing and the child order said
+ * another.
+ *
+ * Building it separately and baking it at the *end* of the field's child list is all it takes: the
+ * scale is still `battleScaleAt`, so nothing about how large these are drawn changes, and
+ * `verify-battle-scale` still measures them at the same one caller scale as everything else.
+ *
+ * Scatter chosen by what the province actually is. A fight on rice ground and a fight in the hills
+ * are the same two blocks of men on two different pieces of the country.
+ */
+export function buildBattleForeground(self: ConquestUIScene, battle: AscentBattle): void {
+  const ui = self.battleUi;
+  if (!ui) return;
+  const { content, field } = ui;
+  const { groundY } = ui.geometry;
+
+  const top = content.y;
+  const bottom = top + ui.fieldHeight;
+  const x0 = 0;
+  const x1 = GAME_WIDTH;
+  const land = findLand(self.state, battle.landId);
+  // The same seed the ground was drawn from, so the two halves of one picture agree about which
+  // province this is and the foreground does not reshuffle when only it is rebuilt.
+  const seed = Math.round((battle.landId.length * 977) + battle.totalRounds * 31);
+  const rand = mulberry32(seed + 7);
+  const scale = (at: number): number => battleScaleAt(self, at);
+
+  const ts = land?.terrainSummary;
+  const wooded = ts ? ts.forest + ts.mountains + ts.hills : 0;
+  const wet = ts ? ts.riceFields + ts.fields + ts.water : 0;
+
+  // Its own clip bracket. The ground's closed at the end of `buildBattleGround`, and anything
+  // added to `field` after that is unclipped — which for props drawn at the field's own edges
+  // means a bamboo hanging past the frame onto the rails below it.
+  const clip = new RectClip(self, {
+    x: 0, y: top, width: GAME_WIDTH, height: ui.fieldHeight,
+  });
+  ui.foregroundClip = clip;
+  clip.begin(field);
+  const g = self.add.graphics();
+  // The same half strength the land is drawn at. The foreground frames the fight; it does not
+  // compete with it, and at full weight a tree in the near corner carries more ink than the men.
+  g.setAlpha(0.5);
+  field.add(g);
+  clip.apply(g);
+  clip.end(field);
+
   // Two corner pieces first, big and near, one each side. A picture with nothing in its
   // foreground has no depth to read the middle against — and the near band under the lines was
   // a third of the field with nothing on it at all. These are the only things on the screen
@@ -319,6 +374,23 @@ export function buildBattleGround(self: ConquestUIScene, battle: AscentBattle): 
     else if (wet > wooded && i === 0) areca(g, px, py, scale(py), seed + 39);
     else grassTuft(g, px, py, scale(py), seed + 41 + i);
   }
+}
+
+/**
+ * Puts the near foreground back on top of the men.
+ *
+ * Z-order on this screen is child order and nothing else — `setDepth` is a no-op inside a Container
+ * — so anything that re-adds a marker appends it past the foreground. `redrawHostBlock` does
+ * exactly that, roughly once per fifty-five men lost, so without this the trees were correctly in
+ * front for the opening of every fight and behind for the rest of it, which is a worse bug than the
+ * one being fixed because it looks intermittent.
+ */
+export function keepForegroundOnTop(self: ConquestUIScene): void {
+  const ui = self.battleUi;
+  const foreground = ui?.foreground;
+  if (!ui || !foreground || !foreground.active) return;
+  if (ui.field.list.indexOf(foreground) === ui.field.list.length - 1) return;
+  ui.field.bringToTop(foreground);
 }
 
 /**
@@ -384,7 +456,7 @@ function inkFallen(self: ConquestUIScene, x: number, y: number): void {
  *
  * This is the same trick `MapScene.bakeStaticTerrain` plays for the world, for the same reason.
  */
-export function bakeBattleGround(self: ConquestUIScene, from: number): void {
+export function bakeBattleGround(self: ConquestUIScene, from: number, isForeground = false): void {
   const ui = self.battleUi;
   if (!ui) return;
   // The A/B switch `verify-battle-ground-bake` flips to rebuild the same field unbaked. It cannot
@@ -477,8 +549,19 @@ export function bakeBattleGround(self: ConquestUIScene, from: number): void {
   }
   for (const source of scalable) source.setScale(1);
   for (const source of sources) source.setVisible?.(false);
-  ui.groundSources = sources;
-  // At `from`, so it sits exactly where the layers it replaces stood — under the camps, the
-  // fallen and the men.
+  // Appended, not assigned: the bake runs twice per field now — once for the land under the men
+  // and once for the foreground over them — and `verify-battle-ground-bake` restores this list to
+  // rebuild the picture unbaked. Overwriting it left half the field missing from the reference.
+  ui.groundSources = [...ui.groundSources, ...sources];
+  // At `from`, so it sits exactly where the layers it replaces stood. For the land that is under
+  // the camps, the fallen and the men; for the near foreground — baked from an index past the last
+  // marker — that is above all of them.
   field.addAt(baked, from);
+  // Told rather than inferred. The obvious test — *did it land last?* — is wrong here: the sources
+  // are hidden rather than removed, so the graphics and the clip's stencil pair are still sitting
+  // in the list after the texture that replaced them, and a foreground bake never looks last even
+  // when it is on top of everything that draws. Measured: `ui.foreground` stayed undefined, so
+  // `keepForegroundOnTop` did nothing and the trees sank behind the men on the first attrition
+  // redraw.
+  if (isForeground) ui.foreground = baked;
 }

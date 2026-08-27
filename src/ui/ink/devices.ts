@@ -726,6 +726,16 @@ export interface HostKit {
    * the realm's great banner pacing around mid-fight read as wrong to anyone watching.
    */
   standards?: boolean;
+  /**
+   * Density ceiling for this host's block, overriding `HOST_MARK_CAP`.
+   *
+   * The map's cap is about density: past 420 marks another figure adds nothing to a marker forty
+   * pixels across. On the battle screen the same number is a *frontage*, and it was never checked
+   * against the room — 420 marks is 33 files at `FILE_PITCH x BATTLE_HOST_SCALE`, which is 208 px a
+   * side on a 390 px field, so both hosts ran off the edges and stood on the village and the camp.
+   * See `BATTLE_HOST_MARK_CAP`; every other caller leaves this alone and keeps 420.
+   */
+  markCap?: number;
 }
 
 /**
@@ -959,12 +969,12 @@ export function compositionFor(kit: HostKit): ArmyComposition {
  */
 export function armyShape(
   men: number, composition: ArmyComposition, s = 1, mustered?: number, spread = 1,
-  shape?: BattleFormation,
+  shape?: BattleFormation, markCap?: number,
 ): ArmyShape {
   // The allocation — shares by doctrine, casualties spent in formation order — is `blockShares`,
   // which the fight resolver reads too. One table, one arithmetic, so the dock can never offer a
   // shape the exchange thinks has no block left to stand on.
-  const shares = blockShares(composition, men, mustered);
+  const shares = blockShares(composition, men, mustered, markCap);
   const plan = DOCTRINE[composition] ?? DOCTRINE.balanced;
   // The five shapes, when a host is standing in one. Absent — every caller that is not the fight
   // screen — the base table draws exactly what it always has, which is what keeps the map marker
@@ -1086,7 +1096,7 @@ export function planArmy(
   s = 1,
   kit: HostKit = {},
 ): ArmyPlan {
-  const shape = armyShape(men, compositionFor(kit), s, kit.mustered, kit.spread ?? 1, kit.shape);
+  const shape = armyShape(men, compositionFor(kit), s, kit.mustered, kit.spread ?? 1, kit.shape, kit.markCap);
   const figures: FigurePlacement[] = [];
   let index = 0;
   for (const block of shape.blocks) {

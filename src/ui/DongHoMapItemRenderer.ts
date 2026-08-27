@@ -197,7 +197,7 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
      */
     const shape = armyShape(
       Math.max(1, total), compositionFor(mapKit), scale, kit?.mustered, mapKit.spread ?? 1,
-      mapKit.shape,
+      mapKit.shape, mapKit.markCap,
     );
     const at = armyAnchor(shape);
 
