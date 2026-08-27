@@ -17,14 +17,16 @@
       "infoPlist": {
         "NSAllowsLocalNetworking": true,
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "buildNumber": "419"
     },
     "android": {
       "package": "zrg.team.vanthang",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#201a12"
-      }
+      },
+      "versionCode": 419
     },
     "plugins": [
       [
@@ -60,6 +62,12 @@
         "projectId": "dc75f332-8091-4337-a308-7f82a51aee13"
       }
     },
-    "owner": "zerglingno2s-team"
+    "owner": "zerglingno2s-team",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/dc75f332-8091-4337-a308-7f82a51aee13"
+    }
   }
 }

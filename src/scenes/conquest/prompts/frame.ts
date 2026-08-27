@@ -10,6 +10,7 @@
  * the ends of one question. A scroll area pushed onto `activeScrollAreas` is destroyed by
  * `releaseOverlay`, and one that misses that list leaves a global wheel handler on a dead scene.
  */
+import { t } from '../../../i18n';
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT } from '../../../game/constants';
 import { INK_UI, type UIBounds } from '../../../ui/InkUI';
@@ -142,6 +143,34 @@ export function promptScrollBody(self: ConquestUIScene,
     bodyWidth: content.width - 6,
     finish: (usedHeight: number) => {
       scroll.setContentHeight(Math.max(viewportHeight, usedHeight));
+      drawHoldHint(self, content, footerHeight);
     },
   };
+}
+
+/**
+ * "Hold to choose", printed only on pages where holding is actually required.
+ *
+ * `optionCard` is the one control in the game that wants a press held (see `CARD_HOLD_MS`), and it
+ * is a *silent* requirement: a card that refuses a tap reads as broken rather than as careful. The
+ * complaint was exactly that — the cards still had to be held, with nothing anywhere saying so.
+ *
+ * Drawn from `finish` rather than from the frame, because the frame is built before anybody knows
+ * what the page contains. `optionCard` raises a flag as it draws; a page of plain rows or a lane
+ * never raises it and never gets the line. Nothing has to be told which pages have cards on them,
+ * which is the only version of this that stays true as pages are added.
+ *
+ * Sits under the scroll viewport and above the footer buttons — outside the scrolling content, so
+ * it cannot scroll away from the cards it is describing.
+ */
+function drawHoldHint(self: ConquestUIScene, content: UIBounds, footerHeight: number): void {
+  if (!self.promptUsedHoldCards) return;
+  self.promptUsedHoldCards = false;
+  const y = content.y + Math.max(80, content.height - footerHeight) + 3;
+  // Never over the footer's own buttons: on the shortest screen the viewport already reaches them.
+  if (y > content.y + content.height - 10) return;
+  const hint = self.ui.label(content.x + content.width / 2, y, t('ascent.card.holdHint'), 'caption', {
+    fontSize: '9px', align: 'center', wordWrap: { width: content.width - 8 },
+  }).setOrigin(0.5, 0);
+  self.modalLayer.add(hint);
 }

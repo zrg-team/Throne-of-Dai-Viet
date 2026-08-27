@@ -285,20 +285,41 @@ export function grassTuft(g: G, x: number, y: number, scale: number, seed: numbe
   const s = unitScale('grassTuft', scale);
   const rand = mulberry32(seed);
   const palette = foliagePalette();
-  const blades = 4 + Math.floor(rand() * 2);
+  /**
+   * A tussock, not four blades.
+   *
+   * Bulk, and **not height**. This file's header records the trap twice: the grass has been made
+   * taller before to fix "plains read as bare paper", and both times it put the country knee-deep
+   * in grass standing as tall as the people walking through it. So the nominal 0.9 m is untouched
+   * and the body comes from **count and spread** instead — eighteen blades across roughly twice
+   * the height, leaning out from a common root, a third of them a shade darker for depth.
+   *
+   * Five faint blades registered as nothing at map size; a clump reads as ground cover.
+   */
+  const blades = 16 + Math.floor(rand() * 5);
+  const dark = shadePigment(palette.foliage, 0.78);
   for (let blade = 0; blade < blades; blade += 1) {
     // Splayed from a common root rather than offset sideways, so a tuft reads as one plant.
-    const lean = (blade / (blades - 1) - 0.5) * 2;
+    const t = blade / (blades - 1) - 0.5;
+    const lean = t * 2;
+    // Shorter toward the edges of the clump: a tussock is a dome, not a fan.
+    const height = (3.4 + rand() * 2.6) * (1 - Math.abs(t) * 0.34) * (palette.snow ? 0.66 : 1);
     inkPath(
       g,
       [
-        { x: x + lean * 0.7 * s, y },
+        { x: x + t * 1.9 * s + (rand() - 0.5) * 0.5 * s, y },
         // Winter grass is cut back to two thirds: dead grass lies down, and the shorter blade is
         // what stops a snowed field reading as a green one someone put a pale rectangle over.
-        { x: x + lean * 3.2 * s, y: y - (3.4 + rand() * 2.6) * s * (palette.snow ? 0.66 : 1) },
+        { x: x + t * 1.9 * s + lean * 2.2 * s, y: y - height * s },
       ],
       seed + blade,
-      { width: 0.55 * s, alpha: 0.62, colour: palette.foliage, wobble: 0.12 * s, step: 4 },
+      {
+        width: 0.5 * s,
+        alpha: 0.6,
+        colour: rand() < 0.3 ? dark : palette.foliage,
+        wobble: 0.1 * s,
+        step: 4,
+      },
     );
   }
   if (palette.snow) {
@@ -827,6 +848,206 @@ export function thap(g: G, x: number, y: number, s: number, seed: number, tiers 
     d *= 0.87;
   }
   inkPath(g, [{ x, y: yy }, { x, y: yy - 5 * s }], seed + 99, { width: 1 * s, alpha: 0.72, wobble: 0.12 * s, step: 4 });
+}
+
+
+/**
+ * Bếp — the kitchen, a low thatched lean-to set off the main house.
+ *
+ * Separate because of the cooking fire, which is why a Bắc Bộ compound has two roofs rather than
+ * one: a nhà tranh at five metres and a bếp at three, and the difference in height between them is
+ * what says they are two buildings rather than one drawn twice.
+ */
+export function bep(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = unitScale('bep', scale);
+  const w = 13 * s;
+  const wallH = 4.6 * s;
+  const roofH = 5.2 * s;
+  const d = 6.5 * s;
+  const dx = d * OBLIQUE.x;
+  const dy = d * OBLIQUE.y;
+
+  printedShape(
+    g,
+    [{ x: x + w, y }, { x: x + w + dx, y: y + dy }, { x: x + w + dx, y: y + dy - wallH }, { x: x + w, y: y - wallH }],
+    PIGMENT.diepLo, seed + 1, { width: 0.6 * s, alpha: 0.55, wobble: 0.12 * s, step: 5, fillAlpha: 0.9 },
+  );
+  printedShape(
+    g,
+    [{ x, y }, { x: x + w, y }, { x: x + w, y: y - wallH }, { x, y: y - wallH }],
+    PIGMENT.diepHi, seed + 2, { width: 0.65 * s, alpha: 0.7, wobble: 0.12 * s, step: 6, fillAlpha: 0.95 },
+  );
+  const ridgeY = y - wallH - roofH + dy / 2;
+  const ridgeL = { x: x + dx / 2, y: ridgeY };
+  const ridgeR = { x: x + w + dx / 2, y: ridgeY };
+  printedShape(
+    g,
+    [ridgeL, ridgeR, { x: x + w + dx + 1.4 * s, y: y + dy - wallH + 0.7 * s }, { x: x + dx - 1.4 * s, y: y + dy - wallH + 0.7 * s }],
+    PIGMENT.nauDark, seed + 3, { width: 0.6 * s, alpha: 0.65, wobble: 0.14 * s, step: 5, fillAlpha: 0.9 },
+  );
+  printedShape(
+    g,
+    [{ x: x - 1.6 * s, y: y - wallH + 0.8 * s }, { x: x + w + 1.6 * s, y: y - wallH + 0.8 * s }, ridgeR, ridgeL],
+    PIGMENT.nau, seed + 4, { width: 0.7 * s, alpha: 0.78, wobble: 0.14 * s, step: 5, fillAlpha: 0.95 },
+  );
+  inkPath(g, [ridgeL, ridgeR], seed + 5, { width: 0.85 * s, alpha: 0.78, wobble: 0.1 * s, step: 6 });
+}
+
+/**
+ * Chuồng trâu — the byre. Open-sided: posts, a low thatch, and shade under it.
+ *
+ * The shade is the whole point. A walled shed at this size is indistinguishable from a small
+ * house; a dark gap between posts is not, and it is also what a byre actually is.
+ */
+export function chuongTrau(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = unitScale('chuongTrau', scale);
+  const w = 16 * s;
+  const postH = 5.6 * s;
+  const roofH = 4.2 * s;
+
+  washFill(
+    g,
+    [{ x: x + 1 * s, y: y - 0.6 * s }, { x: x + w - 1 * s, y: y - 0.6 * s },
+      { x: x + w - 1 * s, y: y - postH }, { x: x + 1 * s, y: y - postH }],
+    PIGMENT.hideLo, seed + 1, 0.45,
+  );
+  for (const post of [1.1, w / (2 * s), (w / s) - 1.1]) {
+    printedShape(
+      g,
+      thickPath([{ x: x + post * s, y }, { x: x + post * s, y: y - postH }], [1.1 * s, 0.9 * s]),
+      PIGMENT.nau, seed + 10 + Math.round(post), { width: 0.5 * s, alpha: 0.8, wobble: 0.06 * s, step: 3, fillAlpha: 0.95 },
+    );
+  }
+  const ridgeL = { x: x - 1.6 * s, y: y - postH - roofH };
+  const ridgeR = { x: x + w + 1.6 * s, y: y - postH - roofH + 0.4 * s };
+  printedShape(
+    g,
+    [{ x: x - 2.4 * s, y: y - postH + 0.7 * s }, { x: x + w + 2.4 * s, y: y - postH + 0.7 * s }, ridgeR, ridgeL],
+    PIGMENT.nau, seed + 2, { width: 0.65 * s, alpha: 0.76, wobble: 0.16 * s, step: 5, fillAlpha: 0.94 },
+  );
+  inkPath(g, [ridgeL, ridgeR], seed + 3, { width: 0.8 * s, alpha: 0.7, wobble: 0.1 * s, step: 5 });
+}
+
+/**
+ * Bồ thóc — the woven rice bin with its conical thatch cap.
+ *
+ * A drum of plaited bamboo under a cone. It is in the yard of every house that had a harvest, and
+ * its silhouette — round body, pointed hat — is unlike anything else standing in a village, which
+ * is what earns it a place at map size.
+ */
+export function boThoc(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = unitScale('boThoc', scale);
+  const rx = 3.4 * s;
+  const ry = rx * 0.32;
+  const top = y - 6.2 * s;
+  const capH = 4.2 * s;
+
+  const arcAt = (cy: number): Pt[] => {
+    const points: Pt[] = [];
+    for (let index = 0; index <= 8; index += 1) {
+      const angle = (index / 8) * Math.PI;
+      points.push({ x: x + Math.cos(angle) * rx, y: cy + Math.sin(angle) * ry });
+    }
+    return points;
+  };
+
+  groundShadow(g, x + rx * 0.2, y + 0.4 * s, rx * 1.5, 0.085);
+  washFill(g, [...arcAt(top), ...arcAt(y).reverse()], PIGMENT.hoePale, seed + 1, 0.95, 0.8);
+  // Plaited bamboo reads as bands round the drum, not as a smooth wall.
+  for (let band = 1; band <= 3; band += 1) {
+    inkPath(g, arcAt(top + (y - top) * (band / 4)), seed + 10 + band, {
+      width: 0.28 * s, alpha: 0.3, colour: PIGMENT.nauDark, wobble: 0.1 * s, step: 4,
+    });
+  }
+  printedShape(
+    g,
+    [{ x: x - rx * 1.18, y: top + ry * 0.4 }, { x, y: top - capH }, { x: x + rx * 1.18, y: top + ry * 0.4 }],
+    PIGMENT.nau, seed + 2, { width: 0.5 * s, alpha: 0.74, wobble: 0.16 * s, step: 4, fillAlpha: 0.94 },
+  );
+  inkPath(g, [{ x: x - rx * 1.18, y: top + ry * 0.4 }, { x: x + rx * 1.18, y: top + ry * 0.4 }], seed + 3, {
+    width: 0.4 * s, alpha: 0.45, colour: PIGMENT.nauDark, wobble: 0.08 * s, step: 4,
+  });
+}
+
+/**
+ * Giếng — the village well, đá ong.
+ *
+ * A **squat cylinder**, about twice as wide as it is tall. Drawn as a wide shallow disc it reads as
+ * a lid lying on the ground; the wall has to be a real band with courses in it before it reads as
+ * something built. Laterite is dug rather than fired, so every block is a slightly different
+ * colour, and that variance — not the joint lines — is what says stone instead of barrel staves.
+ *
+ * The read at map size is a **pale stone ring around a dark shaft**. Nothing else on this map is a
+ * bullseye, which is what keeps a well identifiable when it is six pixels across.
+ */
+export function gieng(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = unitScale('gieng', scale);
+  const rand = mulberry32(seed);
+  const rx = 4.1 * s;
+  const ry = rx * 0.34;
+  const rise = 3.1 * s;
+  const top = y - rise;
+
+  const ring = (cy: number, ex: number, ey: number, count = 16): Pt[] => {
+    const points: Pt[] = [];
+    for (let index = 0; index < count; index += 1) {
+      const angle = (index / count) * Math.PI * 2;
+      const wob = 1 + (rand() - 0.5) * 0.06;
+      points.push({ x: x + Math.cos(angle) * ex * wob, y: cy + Math.sin(angle) * ey * wob });
+    }
+    return points;
+  };
+  const nearArc = (cy: number): Pt[] => {
+    const points: Pt[] = [];
+    for (let index = 0; index <= 9; index += 1) {
+      const angle = (index / 9) * Math.PI;
+      points.push({ x: x + Math.cos(angle) * rx, y: cy + Math.sin(angle) * ry });
+    }
+    return points;
+  };
+
+  groundShadow(g, x + rx * 0.22, y + 0.4 * s, rx * 1.6, 0.09);
+  // the worn apron the village stands on to draw water
+  washFill(g, ring(y - ry * 0.15, rx * 1.3, ry * 1.35, 14), PIGMENT.diepDeep, seed + 1, 0.24, 1.0);
+  washFill(g, [...nearArc(top), ...nearArc(y).reverse()], PIGMENT.nau, seed + 2, 0.96, 0.9);
+
+  // đá ong laid as blocks, each its own shade, staggered course to course.
+  for (let row = 0; row < 3; row += 1) {
+    const y0 = top + (rise * row) / 3;
+    const y1 = top + (rise * (row + 1)) / 3;
+    const offset = row % 2 ? 0.5 : 0;
+    for (let block = -1; block <= 5; block += 1) {
+      const a0 = Math.max(0, ((block + offset) / 5) * Math.PI);
+      const a1 = Math.min(Math.PI, ((block + 1 + offset) / 5) * Math.PI);
+      if (a1 <= a0) {
+        continue;
+      }
+      const quad: Pt[] = [];
+      for (let step = 0; step <= 3; step += 1) {
+        const angle = a0 + (a1 - a0) * (step / 3);
+        quad.push({ x: x + Math.cos(angle) * rx, y: y0 + Math.sin(angle) * ry });
+      }
+      for (let step = 3; step >= 0; step -= 1) {
+        const angle = a0 + (a1 - a0) * (step / 3);
+        quad.push({ x: x + Math.cos(angle) * rx, y: y1 + Math.sin(angle) * ry });
+      }
+      washFill(g, quad, shadePigment(PIGMENT.nau, 0.86 + rand() * 0.36), seed + 40 + row * 13 + block, 0.95, 0.6);
+      inkPath(g, quad, seed + 80 + row * 13 + block, {
+        width: 0.22 * s, alpha: 0.3, colour: PIGMENT.nauDark, wobble: 0.06 * s, step: 3,
+      });
+    }
+  }
+
+  // the pale coping, then the dark shaft sunk inside it
+  const cap = ring(top, rx, ry);
+  washFill(g, cap, PIGMENT.diepHi, seed + 3, 0.97, 0.5);
+  washFill(g, ring(top + ry * 0.08, rx * 0.62, ry * 0.62, 12), PIGMENT.cham, seed + 4, 0.9, 0.35);
+  inkPath(g, nearArc(y).reverse(), seed + 5, {
+    width: 0.26 * s, alpha: 0.45, colour: PIGMENT.muc, wobble: 0.06 * s, step: 4,
+  });
+  inkPath(g, [...cap, cap[0]], seed + 6, {
+    width: 0.26 * s, alpha: 0.55, colour: PIGMENT.muc, wobble: 0.06 * s, step: 4,
+  });
 }
 
 /** Cây rơm — the straw stack built round a pole, in every yard after harvest. */

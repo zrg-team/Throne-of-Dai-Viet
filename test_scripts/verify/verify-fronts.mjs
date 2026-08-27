@@ -30,7 +30,8 @@ const out = await page.evaluate(async () => {
   const { resolveAscentPrompt } = await import('/src/systems/ascent/AscentResolver.ts');
   const { beginBattle } = await import('/src/systems/ascent/BattleSystem.ts');
   const F = await import('/src/systems/ascent/fronts.ts');
-  const { createBattlePreview } = await import('/src/systems/WarSystem.ts');
+  const { armyPower, createBattlePreview } = await import('/src/systems/WarSystem.ts');
+  const { landGarrisonPower } = await import('/src/systems/ascent/PowerSystem.ts');
   const { MAX_LIVE_BATTLES } = await import('/src/game/ascentConfig.ts');
 
   let s = 20260826 >>> 0;
@@ -86,10 +87,34 @@ const out = await page.evaluate(async () => {
   // Put a hostile host on each of two provinces of ours, and open a battle on each the way the
   // tick does — through `beginBattle`, off a `pendingBattle`, so nothing here bypasses the gates.
   const rival = st.kingdoms.find((k) => k.id !== 'dai-viet');
+  // The probe is sized against the province it is probing, not fixed at 700 men.
+  //
+  // A constant host is a constant only in headcount: `worthWatching` refuses a contact outside
+  // the 0.65-1.8 odds band, so what the probe actually has to be is *a fight*. Fixed at 700 it
+  // was one against the realm this file's forty warm-up seasons used to leave behind — measured,
+  // 24 militia and 462 of garrison power — and a walkover against a healthier one. When the wave
+  // curve was corrected the same probe started landing at 0.38 against 1,647 of defence, the gate
+  // correctly refused it as a walkover, and this file failed for testing the odds band by
+  // accident while believing it was testing the multi-field machinery.
+  //
+  // Sized to ~1.2 the defence standing there, it is inside the band by construction and stays a
+  // real fight whatever the balance does next.
+  const probeMen = (land) => {
+    const defence = landGarrisonPower(st, land)
+      + st.armies.filter((a) => a.kingdomId === 'dai-viet' && a.landId === land.id)
+        .reduce((sum, a) => sum + armyPower(st, a), 0);
+    // ~0.9 battle power per man at the profile below; 260 keeps a bare province a real contact.
+    return Math.max(260, Math.round((defence * 1.2) / 0.9));
+  };
   const openOn = (land, n) => {
+    const men = probeMen(land);
     const army = {
       id: `probe-${land.id}-${n}`, kingdomId: rival.id, name: `Probe ${n}`, landId: land.id,
-      units: { spearmen: 420, archers: 180, heavyInfantry: 100 },
+      units: {
+        spearmen: Math.round(men * 0.6),
+        archers: Math.round(men * 0.26),
+        heavyInfantry: Math.round(men * 0.14),
+      },
       morale: 85, supply: 90, rations: 999, provisions: 999,
       level: 1, experience: 0, experienceToNextLevel: 120,
     };

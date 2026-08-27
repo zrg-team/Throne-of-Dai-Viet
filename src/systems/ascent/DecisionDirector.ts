@@ -18,6 +18,7 @@ import {
   progressAscentCourtCooldown,
 } from './CourtLaneSystem';
 import { offerEnvoy, pickEnvoyTarget } from './EnvoySystem';
+import { maybeOfferWorldEvent } from './WorldEventSystem';
 import { famineReady, offerFamine, tickFamineCooldown } from './FamineSystem';
 import { offerRivalDemand, rivalDemandReady, tickRivalCooldowns } from './RivalDirector';
 import { offerHeroSummon } from './SummonSystem';
@@ -265,6 +266,7 @@ function isReady(state: GameState, kind: AscentPromptKind): boolean {
     case 'envoy':
       return Boolean(pickEnvoyTarget(state));
 
+
     case 'famine':
       return famineReady(state);
 
@@ -316,6 +318,7 @@ function raise(state: GameState, kind: AscentPromptKind): boolean {
       return offerParliament(state);
     case 'envoy':
       return offerEnvoy(state);
+
     case 'famine':
       return offerFamine(state);
     case 'story-beat':
@@ -412,6 +415,23 @@ export function tickDecisionDirector(state: GameState): void {
   const overdue = ready
     .filter((kind) => (ascent.promptWaiting?.[kind] ?? 0) >= KIND_STARVATION_TICKS)
     .sort((a, b) => (ascent.promptWaiting?.[b] ?? 0) - (ascent.promptWaiting?.[a] ?? 0));
+
+  // **An event fills a slot nobody else wanted, or it does not happen.**
+  //
+  // World events were in `CONSIDER_ORDER` at first, and being last in it was not enough. A kind in
+  // that list *competes*: it ages through `KIND_STARVATION_TICKS` like everything else and
+  // eventually takes a Court slot from a card that was ready, which pushes that card into the next
+  // window and lands it beside something else. Measured across six seeds, that took back-to-back
+  // scheduled cards from 6 to 13 — and the flat 3.9-season metronome is exactly what this whole
+  // phase machinery exists to break.
+  //
+  // Raised here instead, only on a Court tick where the gap has elapsed and **nothing else is
+  // ready**, it can never displace anything. Its own grace, gap, quiet and draw live in
+  // `WorldEventSystem`, so a quiet realm still does not get one every window.
+  if (ready.length === 0) {
+    if (maybeOfferWorldEvent(state)) ascent.idleTicks = 0;
+    return;
+  }
 
   for (const kind of [...overdue, ...ready]) {
     if (!raise(state, kind)) continue;

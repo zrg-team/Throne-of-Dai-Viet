@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { PIGMENT } from './palette';
 import { hatchPoly, inkPath, mulberry32, printedShape, washFill, type Pt } from './stroke';
-import { areca, bamboo, banyan, dinh, groundShadow, hayStack, house, thap, tree } from './props';
+import {
+  areca, bamboo, banyan, bep, boThoc, chuongTrau, dinh, gieng, groundShadow, hayStack, house, thap, tree,
+} from './props';
 import { seasonalStage } from './season';
 
 /**
@@ -178,17 +180,25 @@ export function village(g: G, x: number, y: number, s: number, seed: number): vo
   washFill(g, yard, PIGMENT.diepLo, seed + 2, 0.4);
   inkPath(g, yard, seed + 3, { width: 0.6, alpha: 0.28, wobble: 0.5, step: 10, closed: true });
 
-  const pond: Pt[] = [];
-  for (let index = 0; index <= 14; index += 1) {
-    const angle = (index / 14) * Math.PI * 2;
-    pond.push({
-      x: x - 2 * s + Math.cos(angle) * 17 * s * (0.9 + rand() * 0.2),
-      y: y + 25 * s + Math.sin(angle) * 7 * s,
+  // The ao. Where it sits and how big it is varies, and a village on high ground has none at all —
+  // it used to be the same ellipse in the same place in every village in the country.
+  const hasPond = rand() > 0.22;
+  const pondX = x + (rand() - 0.5) * 26 * s;
+  const pondR = 12 * s + rand() * 7 * s;
+  const pondY = y + 25 * s;
+  if (hasPond) {
+    const pond: Pt[] = [];
+    for (let index = 0; index <= 14; index += 1) {
+      const angle = (index / 14) * Math.PI * 2;
+      pond.push({
+        x: pondX + Math.cos(angle) * pondR * (0.9 + rand() * 0.2),
+        y: pondY + Math.sin(angle) * pondR * 0.42,
+      });
+    }
+    printedShape(g, pond, PIGMENT.chamWash, seed + 4, {
+      width: 0.75, alpha: 0.5, colour: PIGMENT.cham, wobble: 0.4, step: 7, fillAlpha: 0.62,
     });
   }
-  printedShape(g, pond, PIGMENT.chamWash, seed + 4, {
-    width: 0.75, alpha: 0.5, colour: PIGMENT.cham, wobble: 0.4, step: 7, fillAlpha: 0.62,
-  });
 
   // ── then everything standing on it, back to front. The lũy tre closes the back at −26·s, the
   // cây đa stands at −7·s, the roofs at +7·s, the cau and the cây rơm at +24·s. Painted in the
@@ -196,20 +206,67 @@ export function village(g: G, x: number, y: number, s: number, seed: number): vo
   // the banyan, the largest prop on the map, covers three houses standing in front of it.
   const standing: Standing[] = [];
 
+  /**
+   * Every village used to be the same picture.
+   *
+   * Three roofs on one line at a fixed 34·s pitch, all thatch, all one size, behind a five-clump
+   * hedge at a fixed 31·s — so the only thing a seed decided was whether the edge tree was a cây đa
+   * or a clump of cau. Forty-two provinces of that reads as one village drawn forty-two times.
+   *
+   * The spacer is the same one `hamlet()` has always used: a prop asks the ground for room and is
+   * **dropped** rather than forced in, because four roofs that read beat six where two are a smear.
+   * `village()` simply never asked for it.
+   */
+  const spacer = new GroundSpacer();
+  // The pond and the hedge are ground that is already spoken for; claiming them is what stops a
+  // roof being planted in the water or inside the bamboo.
+  if (hasPond) {
+    spacer.claim(pondX, pondY, pondR, pondR * 0.42);
+  }
+
   // Everything standing here is drawn at the settlement's own `s` and nothing else. The per-prop
   // multipliers that used to sit here — bamboo 0.72, areca 0.72, banyan 0.85, cây rơm 0.9 — were
   // each other's neighbours being talked down to fit, and they fought the corrections in `UNIT`
   // that already carry how big these things really are. A lũy tre is twelve metres because bamboo
   // is twelve metres, not because a village looks tidier that way.
-  for (let index = 0; index < 5; index += 1) {
-    const bx = x - 62 * s + index * 31 * s;
-    const by = y - 26 * s + (index % 2) * 5 * s;
+  // The lũy tre closes the back. Kept as a HEDGE — evenly pitched, full-size clumps — with only a
+  // little play in the step and the standing line. An earlier pass gave it random gaps and a size
+  // jitter and it stopped being a hedge: thin, patchy, and no longer the wall a làng sits behind.
+  const clumps = 5;
+  for (let index = 0; index < clumps; index += 1) {
+    const bx = x - 62 * s + index * 31 * s + (rand() - 0.5) * 5 * s;
+    const by = y - 26 * s + (index % 2) * 5 * s + (rand() - 0.5) * 3 * s;
+    spacer.claim(bx, by, 7 * s, 4 * s);
     standing.push({ y: by, draw: () => bamboo(g, bx, by, s, seed + 20 + index) });
   }
-  for (let index = 0; index < 3; index += 1) {
-    const hx = x - 34 * s + index * 34 * s;
-    const hy = baseY + (index === 1 ? 3 * s : 0);
-    standing.push({ y: hy, draw: () => house(g, hx, hy, s, seed + 10 + index) });
+
+  /**
+   * The roofs, in a ROW facing the yard — which is what this file's header says a village is, and
+   * what an earlier pass of mine threw away.
+   *
+   * Scattering the houses over the yard with a random offset does not read as a natural village; it
+   * reads as litter, because a row of roofs along a lane is the arrangement a real làng has and the
+   * eye knows it. So the arrangement is kept and the VARIATION happens inside it: how many roofs,
+   * how wide the street is, which of them are tiled, how big each is, and a small stagger off the
+   * line. Same grammar, different sentence.
+   */
+  const roofs = 3 + Math.floor(rand() * 2);
+  const pitch = (30 + rand() * 8) * s;
+  const rowX = x - pitch * (roofs - 1) * 0.5;
+  for (let index = 0; index < roofs; index += 1) {
+    const hs = s * (0.9 + rand() * 0.22);
+    const tiled = rand() < 0.32;
+    const hseed = seed + 10 + index;
+    // A street is not a ruler: a few units of stagger off the line, and no more.
+    const hx = rowX + index * pitch + (rand() - 0.5) * 5 * s;
+    const hy = baseY + (index % 2 === 1 ? 3 * s : 0) + (rand() - 0.5) * 3 * s;
+    // The spacer is a backstop here rather than the placement rule — the row already clears itself,
+    // and this only catches a roof that would land in the ao or the hedge.
+    if (!spacer.free(hx, hy, 14 * s, 6 * s)) {
+      continue;
+    }
+    spacer.claim(hx, hy, 14 * s, 6 * s);
+    standing.push({ y: hy, draw: () => house(g, hx, hy, hs, hseed, tiled) });
   }
   // The stand at the village's edge: a cây đa OR a clump of cau, never both. They were drawn at
   // +46 and +54 — inside the last roof at +34 and on top of each other — so a village came out
@@ -217,22 +274,63 @@ export function village(g: G, x: number, y: number, s: number, seed: number): vo
   // at the edge, and it starts clear of the last house rather than in it.
   // +76, not +62: the lũy tre's last clump stands at +62, so the edge tree was being planted in
   // the hedge as well as in the houses.
-  const edgeX = x + 76 * s;
-  // Rolled where the banyan used to be, after the pond's fifteen draws, so the seed still decides
-  // the same villages.
+  // The rest of a làng. Each is rolled per village, so no two hold the same set — a village with a
+  // byre and no well is a different place from one with a well and no byre, and that difference is
+  // most of what stops forty-two provinces reading as one settlement drawn forty-two times.
+  /**
+   * The outbuildings take DELIBERATE stations, not random ones — a kitchen sits behind the row, a
+   * byre and a bin at the ends of it, the well out on the yard. Rolled for presence, placed by
+   * rule: which of them a village has is what varies, not where they land.
+   */
+  const outbuilding = (
+    chance: number,
+    ox: number,
+    oy: number,
+    rx: number,
+    ry: number,
+    draw: (ax: number, ay: number) => void,
+  ): void => {
+    if (rand() > chance) {
+      return;
+    }
+    const ax = x + ox + (rand() - 0.5) * 6 * s;
+    const ay = baseY + oy + (rand() - 0.5) * 3 * s;
+    if (!spacer.free(ax, ay, rx, ry)) {
+      return;
+    }
+    spacer.claim(ax, ay, rx, ry);
+    standing.push({ y: ay, draw: () => draw(ax, ay) });
+  };
+  const endSign = rand() < 0.5 ? -1 : 1;
+  // The kitchen stands off the main house because of the cooking fire, so it sits behind the row.
+  outbuilding(0.7, endSign * 22 * s, -11 * s, 9 * s, 5 * s, (ax, ay) => bep(g, ax, ay, s, seed + 60));
+  outbuilding(0.55, -endSign * 62 * s, 4 * s, 11 * s, 5 * s, (ax, ay) => chuongTrau(g, ax, ay, s, seed + 70));
+  outbuilding(0.6, endSign * 58 * s, 1 * s, 5 * s, 4 * s, (ax, ay) => boThoc(g, ax, ay, s, seed + 80));
+  outbuilding(0.45, -endSign * 30 * s, 12 * s, 6 * s, 4 * s, (ax, ay) => gieng(g, ax, ay, s, seed + 90));
+
+  // The edge stand sits outside the yard, so it is placed rather than fitted — but it claims its
+  // ground all the same, in case anything else ever wants to stand out there.
+  const edgeX = x + 82 * s;
   const hasBanyan = rand() > 0.5;
   if (hasBanyan) {
     const banyanY = y - 7 * s;
+    spacer.claim(edgeX, banyanY, 20 * s, 9 * s);
     standing.push({ y: banyanY, draw: () => banyan(g, edgeX, banyanY, s, seed + 50) });
   } else {
     for (let index = 0; index < 3; index += 1) {
       const ax = edgeX + index * 8 * s;
       const ay = y + 24 * s - index * 9 * s;
+      spacer.claim(ax, ay, 6 * s, 5 * s);
       standing.push({ y: ay, draw: () => areca(g, ax, ay, s, seed + 30 + index) });
     }
   }
-  const stackY = y + 24 * s;
-  standing.push({ y: stackY, draw: () => hayStack(g, x - 50 * s, stackY, s, seed + 40) });
+  // The cây rơm keeps its station at the end of the yard, with a little play.
+  const stackY = y + 24 * s + (rand() - 0.5) * 4 * s;
+  const stackX = x - 50 * s + (rand() - 0.5) * 10 * s;
+  if (spacer.free(stackX, stackY, 5 * s, 4 * s)) {
+    spacer.claim(stackX, stackY, 5 * s, 4 * s);
+    standing.push({ y: stackY, draw: () => hayStack(g, stackX, stackY, s, seed + 40) });
+  }
 
   paintStanding(standing);
 }
@@ -257,8 +355,16 @@ export function citadel(g: G, x: number, y: number, s: number, era: Era, seed: n
   const wallH = (era === 'nguyen' ? 8 : era === 'tran' ? 14 : 11) * s;
   const dx = depth * 0.62;
   const dy = depth * -0.42;
-  const faceLight = brick ? PIGMENT.diepLo : PIGMENT.diepHi;
-  const faceDark = brick ? PIGMENT.nau : PIGMENT.diepLo;
+  /**
+   * The rampart, a step down from where it was.
+   *
+   * `diepHi` is the lightest pigment on the palette, so an earth wall was drawn *paler than the
+   * paper it stands on* and a seat came out the faintest thing in its own province — the roofs were
+   * carrying the whole building. It is still a wash rather than a mass; it is simply no longer
+   * invisible. The hatch comes up with it, because a wall reads as courses before it reads as tone.
+   */
+  const faceLight = brick ? PIGMENT.diepDeep : PIGMENT.diepLo;
+  const faceDark = brick ? PIGMENT.nau : PIGMENT.diepDeep;
   const hatchGap = brick ? 3.4 : 5;
 
   groundShadow(g, x + w * 0.5, y + 3 * s, w * 0.62, 0.09);
@@ -282,7 +388,7 @@ export function citadel(g: G, x: number, y: number, s: number, era: Era, seed: n
     { x: x + w + dx, y: y + dy - wallH }, { x: x + w, y: y - wallH },
   ];
   washFill(g, side, faceDark, seed + 1, 0.9);
-  hatchPoly(g, side, 0.95, hatchGap, PIGMENT.mucSoft, brick ? 0.2 : 0.13, 0.55);
+  hatchPoly(g, side, 0.95, hatchGap, PIGMENT.mucSoft, brick ? 0.26 : 0.19, 0.55);
   inkPath(g, side, seed + 2, { width: 1.0 * s, alpha: 0.68, wobble: 0.12 * s, step: 7, closed: true });
 
   if (era === 'nguyen') {
@@ -297,7 +403,7 @@ export function citadel(g: G, x: number, y: number, s: number, era: Era, seed: n
 
   const front: Pt[] = [{ x, y }, { x: x + w, y }, { x: x + w, y: y - wallH }, { x, y: y - wallH }];
   washFill(g, front, faceLight, seed + 3, 0.95);
-  hatchPoly(g, front, 0.95, hatchGap, PIGMENT.mucSoft, brick ? 0.17 : 0.11, 0.55);
+  hatchPoly(g, front, 0.95, hatchGap, PIGMENT.mucSoft, brick ? 0.23 : 0.17, 0.55);
   inkPath(g, front, seed + 4, { width: 1.2 * s, alpha: 0.85, wobble: 0.16 * s, step: 9, closed: true });
   inkPath(g, [{ x: x + 1 * s, y: y - wallH * 0.28 }, { x: x + w - 1 * s, y: y - wallH * 0.3 }], seed + 7, {
     width: 0.7 * s, alpha: 0.3, wobble: 0.1 * s, step: 9,
@@ -408,9 +514,46 @@ export function citadel(g: G, x: number, y: number, s: number, era: Era, seed: n
   } else {
     dinh(g, gx + 1 * s, gy, s * 0.62, seed + 96);
   }
+
+  gateStandard(g, x, y, s, era, seed);
 }
 
 /** Where the gate's standard should be planted, so a caller can hang a live flag off it. */
+/**
+ * The standard over the gate.
+ *
+ * A seat of power flew one, and the map's did not: `citadelStandardAnchor` has existed since the
+ * battle screen needed somewhere to hang a banner from, and nothing on the MAP ever used it — so
+ * the player's own capital was a pale walled shape with no mark on it at all.
+ *
+ * Deliberately **not** in sỏi son. The map already says who owns a province with its own land
+ * flags, and this file has no idea whose seat it is drawing; a red pennant here would be a second,
+ * unsourced claim of ownership and would spend the player's red on every rival capital too. Drawn
+ * in hoè over soot, it says *this is a seat* — which is the thing a capital was failing to say.
+ */
+function gateStandard(g: G, x: number, y: number, s: number, era: Era, seed: number): void {
+  const at = citadelStandardAnchor(x, y, s, era);
+  const poleH = 13 * s;
+  const flyW = 8 * s;
+  inkPath(g, [{ x: at.x, y: at.y }, { x: at.x, y: at.y - poleH }], seed + 400, {
+    width: 1.0 * s, alpha: 0.85, colour: PIGMENT.muc, wobble: 0.1 * s, step: 5,
+  });
+  printedShape(
+    g,
+    [
+      { x: at.x, y: at.y - poleH },
+      { x: at.x + flyW, y: at.y - poleH + 1.7 * s },
+      { x: at.x + flyW * 0.78, y: at.y - poleH + 4.6 * s },
+      { x: at.x, y: at.y - poleH + 5.4 * s },
+    ],
+    PIGMENT.hoe, seed + 401,
+    { width: 0.6 * s, alpha: 0.88, wobble: 0.14 * s, step: 4, fillAlpha: 0.95 },
+  );
+  // A finial, so the pole ends rather than stops.
+  g.fillStyle(PIGMENT.muc, 0.9);
+  g.fillCircle(at.x, at.y - poleH - 0.9 * s, 1.0 * s);
+}
+
 export function citadelStandardAnchor(x: number, y: number, s: number, era: Era): Pt {
   const w = (era === 'nguyen' ? 104 : era === 'le' ? 86 : era === 'dinh' ? 62 : 74) * s;
   const wallH = (era === 'nguyen' ? 8 : era === 'tran' ? 14 : 11) * s;

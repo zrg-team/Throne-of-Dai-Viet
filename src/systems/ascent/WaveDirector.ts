@@ -6,8 +6,14 @@ import {
   COALITION_WAVE_MULT,
   BOSS_TELEGRAPH_TICKS,
   INVADER_POWER_PER_SOLDIER,
+  MAX_HOSTS_PER_KINGDOM,
   MAX_LIVE_INVADER_HOSTS,
   MIN_WAVE_SOLDIERS,
+  PEACE_FLOOR_EARLY,
+  PEACE_FLOOR_JITTER,
+  PEACE_FLOOR_LATE,
+  PEACE_FLOOR_RAMP_WAVES,
+  RELATIONS_WAVE_DIAL,
   RAID_INTERVAL_TICKS,
   MERCENARY_GOLD_BASE,
   MERCENARY_INCOME_MULT,
@@ -24,6 +30,8 @@ import {
   WAVE_BASELINE_POWER,
   WAVE_INTERVAL_TICKS,
   WAVE_LAG,
+  WAVE_FIELD_CEILING,
+  WAVE_OPENING_RAMP_WAVES,
   WAVE_OPENING_SHARE,
   WAVE_SHADOW_BASE,
   WAVE_SHADOW_CEIL,
@@ -50,7 +58,9 @@ import {
   recordAmbitionPeak,
 } from './AmbitionSystem';
 import { waveDelayTicks, warPurchaseDiscount } from './DoctrineSystem';
-import { addAscentXp, contestedDefencePower, ownedLandCount } from './PowerSystem';
+import {
+  addAscentXp, computeFieldDefencePower, contestedDefencePower, ownedLandCount,
+} from './PowerSystem';
 import { heroName, t } from '../../i18n';
 import type {
   AscentPrompt,
@@ -184,13 +194,27 @@ export function laggedDefencePower(state: GameState): number {
 
   const samples = ascent.defenceSamples ?? [];
   const lagged = samples[samples.length - WAVE_LAG];
+
+  // The opening share hands off to the real sample over `WAVE_OPENING_RAMP_WAVES` waves rather
+  // than in one step, and that ramp is half the fix for the reported Year-4 spike.
+  //
+  // What it replaces: this returned `live * 0.55` while no sample existed and the raw sample the
+  // instant one did. Wave 1's shadow therefore stood at an effective 0.55 x 0.55 = **0.3025** of
+  // live defence and wave 2's at **0.57** — an 88% step from the lag machinery alone, before any
+  // growth was counted. A player who had done nothing between the two waves still met one nearly
+  // twice the size, which reads exactly like the game cheating, because it is.
+  const wave = Math.max(1, ascent.wave);
+  const openingWeight = Math.max(0, 1 - (wave - 1) / WAVE_OPENING_RAMP_WAVES);
+  const opening = live * WAVE_OPENING_SHARE;
+
   // Early on there is no history to lag against, so quote a share of the live figure — the
   // opening waves are meant to be winnable while the realm is still one province and one host.
-  if (lagged === undefined) return live * WAVE_OPENING_SHARE;
+  if (lagged === undefined) return opening;
 
   // Never *more* than the live figure: a realm that just lost its army should not keep facing
   // waves sized for the army it no longer has, or a single bad battle ends the run outright.
-  return Math.min(lagged, live);
+  const sample = Math.min(lagged, live);
+  return sample + (opening - sample) * openingWeight;
 }
 
 /**
@@ -227,7 +251,14 @@ export function waveTargetPower(
   // IT, not to the wave number. Applied at the single source — the soldier budget, the
   // budget-spent skip and the HUD's projection all read this — so the quote on the strength
   // rail can never disagree with the host that lands.
-  const curve = target * waveMatchFactor(state.ascent?.power ?? 0, target);
+  //
+  // **Battle power on both sides.** This read `state.ascent.power` — the composite POWER scalar
+  // the HUD shows, which folds in treasury, grain and stores at x1.5 — against a target measured
+  // in raw battle power. The two are not the same unit and never were: at the opening board the
+  // ratio is about 3.9, so the factor pinned to its `cap: 1.7` on the first tick and stayed
+  // there for the whole run. The `threshold: 1.15` grace, which exists so a small lead is free,
+  // never engaged once — every wave in every run was quoted 70% larger than the curve intended.
+  const curve = target * waveMatchFactor(contestedDefencePower(state), target);
 
   // The realm's shadow (see the WAVE_SHADOW_* block in ascentConfig): the curve above still
   // owns the floor for a realm that has done nothing, but a compounding economy laps any
@@ -238,7 +269,22 @@ export function waveTargetPower(
   const heatedShare = Math.min(WAVE_SHADOW_CEIL, rampShare * (1 + (heat - 1) * WAVE_SHADOW_HEAT_SHARE));
   const shadow = laggedDefencePower(state) * heatedShare * (boss ? BOSS_PRESSURE_MULT : 1);
 
-  return Math.max(curve, shadow);
+  // The shadow may not outgrow what the realm can actually put in the field.
+  //
+  // The other half of the Year-4 report, and the subtler half. `contestedDefencePower` is the
+  // right denominator for *odds* — a wave really does have to pass walls and reinforcements — but
+  // `waveSoldierBudget` turns this number into **bodies**, and for a young realm three quarters
+  // of it is capital masonry standing somewhere the host is not going. Measured on the reported
+  // run: 460 field soldiers, a floor of 1,505 power, ~1,450 men delivered to a district that
+  // could raise 556.
+  //
+  // Capping only the shadow, and flooring the cap at the baseline, is what keeps this honest in
+  // both directions. The baseline curve is the world's own schedule and is never capped, so
+  // disbanding the army to shrink the wave does not work — passivity stays fatal. The mirror is
+  // capped, because a mirror that outgrows the thing it reflects was never a mirror.
+  const ceiling = Math.max(target, computeFieldDefencePower(state) * WAVE_FIELD_CEILING);
+
+  return Math.min(Math.max(curve, shadow), Math.max(curve, ceiling));
 }
 
 /** The multiplier the wave on the map was sized with, for everything that must match its quote. */
@@ -341,6 +387,68 @@ function pickAggressor(state: GameState): Kingdom | undefined {
   });
 }
 
+/**
+ * **What the realm's standing with one court actually buys.**
+ *
+ * The answer used to be: whose name is on the wave, and nothing else. `pickAggressor` weighs a
+ * rival at `max(5, hostility + power * 0.5)`, so a court you have perfected weighs 25 against a
+ * hateful one's 125 — measured, that moves it from about a quarter of waves to about a fifteenth,
+ * and the other three courts absorb every wave it declines to send. Same tick, same size, a
+ * different flag on it. The player's report was simply accurate: *relations do nothing.*
+ *
+ * Now standing moves the clock, the budget and the host count, on the bands in
+ * `RELATIONS_WAVE_DIAL` — and read from the court that *actually marched*, never an average of
+ * the four. That is the part that makes it a strategy rather than a tax: cultivating the wrong
+ * neighbour buys nothing at all, so the player has to read the board and choose.
+ *
+ * What it deliberately cannot do is stop a war. See `peaceFloorTicks`.
+ */
+export function relationsDial(
+  state: GameState,
+  kingdomId: string | undefined,
+): { clock: number; budget: number; hosts: number } {
+  const kingdom = state.kingdoms.find((candidate) => candidate.id === kingdomId);
+  const relations = kingdom?.relations ?? 50;
+  const band = RELATIONS_WAVE_DIAL.find((entry) => relations >= entry.atLeast)
+    ?? RELATIONS_WAVE_DIAL[RELATIONS_WAVE_DIAL.length - 1];
+  return { clock: band.clock, budget: band.budget, hosts: band.hosts };
+}
+
+/**
+ * **How long the courts may stay quiet before one marches regardless.**
+ *
+ * The promise that keeps this a siege. Every multiplier above delays and shrinks a war; none of
+ * them cancels one, and this is where that is enforced — if no hostile host has stood on owned
+ * ground for this many ticks, the next wave lands at full size whatever the diplomacy screen says.
+ *
+ * Two properties, both asked for, both load-bearing:
+ *
+ *  - **Long early, short late.** Forty ticks is five played years for a realm in its first waves,
+ *    which is what makes an opening spent on the courts a real strategy; fourteen is barely more
+ *    than the ordinary cadence by the late game, when the realm has armies, walls and gold and
+ *    "nobody is attacking me because I was polite in Year 2" would be an answer worth nothing.
+ *  - **Random.** A guarantee the player can count to the season is an appointment, not a war. The
+ *    jitter band is what keeps the realm having to stay ready.
+ */
+export function peaceFloorTicks(state: GameState): number {
+  const wave = Math.max(1, state.ascent?.wave ?? 1);
+  const progress = Math.min(1, (wave - 1) / PEACE_FLOOR_RAMP_WAVES);
+  const base = PEACE_FLOOR_EARLY + (PEACE_FLOOR_LATE - PEACE_FLOOR_EARLY) * progress;
+  const [lo, hi] = PEACE_FLOOR_JITTER;
+  return Math.max(1, Math.round(base * (lo + Math.random() * (hi - lo))));
+}
+
+/** Whether the courts have been quiet long enough that the next wave ignores the dial entirely. */
+export function peaceFloorBreached(state: GameState): boolean {
+  const ascent = state.ascent;
+  if (!ascent) return false;
+  const since = state.turn - (ascent.lastContactTurn ?? 0);
+  // Rolled once per wave and remembered, so the threshold cannot be re-rolled every tick into
+  // effectively its own minimum — the classic way a jittered guard degenerates into a constant.
+  ascent.peaceFloor ??= peaceFloorTicks(state);
+  return since >= ascent.peaceFloor;
+}
+
 function playerCapital(state: GameState): Land | undefined {
   const owned = state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID);
   return owned.find((land) => land.type === 'castle') ?? owned[0];
@@ -369,7 +477,21 @@ function playerCapital(state: GameState): Land | undefined {
  * outcome — and a wave that is simply unwinnable, or simply won, now says so.
  */
 function projectedWinChance(state: GameState, threat: number, bonus = 0): number {
-  const power = contestedDefencePower(state) * (1 + bonus);
+  // Quoted against what will actually stand at the point of contact — never more.
+  //
+  // `contestedDefencePower` is the right denominator for *sizing* a wave: a host really does
+  // have to cut through a realm's depth. It is the wrong one for *odds* on a young realm, where
+  // the blend is dominated by capital masonry and the wave lands on a district holding none of
+  // it. On the reported run this returned 100%, which put the number above `RESPONSE_ASK_BELOW_WIN`
+  // and suppressed the response card entirely — so the player was told the wave was a certainty,
+  // given no options, and then shown a rout. Being beaten is a difficulty problem; being told you
+  // could not lose and then losing is a trust problem, and the second one is worse.
+  //
+  // A realm with real depth is unaffected: with several provinces the two figures converge, and
+  // the min simply picks the honest one.
+  const contested = contestedDefencePower(state);
+  const field = computeFieldDefencePower(state);
+  const power = Math.min(contested, ownedLandCount(state) < 3 ? field : contested) * (1 + bonus);
   if (power <= 0) return 0;
 
   // Great hosts bring siege engines and negate more of the walls; `resolveInvaderBattle` picks
@@ -647,10 +769,45 @@ function startWave(state: GameState): void {
 
   ascent.wave += 1;
   ascent.lastWaveBoss = isBossWave(ascent.wave);
+
+  // The aggressor is chosen *before* the clock, because the clock now reads their standing.
+  //
+  // Which court marched is the feedback loop the mode was missing. Warm the crown that just came
+  // at you and the next war is further off and smaller; ignore them and it is sooner and heavier.
+  // Reading an average of all four instead would make every gift equally useful and none of them
+  // a decision — the whole point is that the player has to read the board.
+  const aggressor = pickAggressor(state);
+
+  // **The floor takes the dial away entirely.**
+  //
+  // Every multiplier in `RELATIONS_WAVE_DIAL` delays and shrinks a war; none of them cancels one,
+  // and this is the line that enforces it. Once the courts have been quiet longer than
+  // `peaceFloorTicks`, the wave that follows is quoted at full strength on the ordinary clock, no
+  // matter how beloved the realm is — and it is announced, so a diplomacy run reads it as a
+  // deadline rather than as the game changing its mind.
+  //
+  // Without this the promise was only half-kept: `EnemyCommandDirector` sent a *raid* when the
+  // floor tripped, and a raid is contact, not a war. A realm that had bought 80+ standing with
+  // every court sat on a x1.6 clock and a x0.75 budget for the rest of the run, which is exactly
+  // the no-lose strategy the floor exists to rule out.
+  const forced = peaceFloorBreached(state);
+  const dial = forced
+    ? { clock: 1, budget: 1, hosts: 0 }
+    : relationsDial(state, aggressor?.id);
+  if (forced) {
+    ascent.quietWarned = false;
+    pushToast(state, t('ascent.wave.floorBroken'), 'threat');
+  }
+
   // Mountain Pass buys seasons: waves from beyond the passes arrive late, and the extra Court
   // phase it grants is the whole card.
-  ascent.ticksToWave = WAVE_INTERVAL_TICKS + waveDelayTicks(state);
+  ascent.ticksToWave = Math.round((WAVE_INTERVAL_TICKS + waveDelayTicks(state)) * dial.clock);
   ascent.bossTelegraphed = false;
+  // Re-rolled once a wave, so the guarantee is never the same number twice and never decays into
+  // its own minimum by being re-rolled every tick.
+  ascent.peaceFloor = peaceFloorTicks(state);
+  ascent.waveDialBudget = dial.budget;
+  ascent.waveDialHosts = dial.hosts;
 
   // The bill for the season the player just spent. Locked here and read by everything that
   // sizes or quotes this wave, then shed — so the wave arrives at exactly the price shown
@@ -673,8 +830,8 @@ function startWave(state: GameState): void {
     turn: state.turn,
   };
 
-  const aggressor = pickAggressor(state);
   if (!aggressor) return;
+  ascent.waveAggressorId = aggressor.id;
 
   // Before the hosts exist there is nothing to measure, so the modal quotes the projection.
   ascent.threat = projectedWaveThreat(state, ascent.wave, ascent.waveHeat);
@@ -730,22 +887,29 @@ function launchWave(state: GameState, kingdomId: string, warlordName?: string): 
   // intent, and a heavier budget. Enduring has to be visibly worse than buying it off.
   const coalition = ascent.coalitionPending;
   ascent.coalitionPending = false;
-  const hosts = Math.min(4, waveHostCount(ascent.wave, boss) + (coalition ? 2 : 0));
-  // The one difficulty dial this mode actually honours.
-  //
-  // `difficultyArmyScale` exists and is applied inside `launchOffMapInvasion` — but only to the
-  // per-host `rawSizes`, which the `clampFactor = totalSoldiers / rawTotal` normalisation then
-  // divides straight back out. Passing an explicit `totalSoldiers`, as this call always does,
-  // therefore cancelled difficulty exactly: easy and ironman spawned identical waves. Scaling the
-  // budget itself is what makes the setting mean something.
-  const difficulty = difficultyArmyScale(state.campaignConfig?.difficulty);
+  // Host count answers the board. A hateful court sends one more; a sworn friend one fewer, and
+  // never fewer than one — a wave that arrives with nothing is a wave that did not happen, and
+  // the floor below exists precisely so that cannot be bought.
+  // Locked at `startWave`, not re-read here. The response card can stand for a whole season and
+  // relations move while it does — a wave must land at the size it was quoted at, or the card is
+  // lying about what it is asking the player to pay for.
+  const dialHosts = ascent.waveDialHosts ?? 0;
+  const dialBudget = ascent.waveDialBudget ?? 1;
+  const hosts = Math.max(1, Math.min(
+    MAX_HOSTS_PER_KINGDOM,
+    waveHostCount(ascent.wave, boss) + (coalition ? 2 : 0) + dialHosts,
+  ));
+  // Difficulty is applied once, centrally, inside `launchOffMapInvasion` — it used to be
+  // compensated for here because the normalisation there divided it back out, which left every
+  // caller *without* a local fix (the contact floor, story strikes, raids) silently running at
+  // normal difficulty whatever the player had chosen. Fixed at the source, removed here.
   launchOffMapInvasion(state, kingdomId, {
     forceCoalition: hosts,
     // An explicit budget, sized from the realm's lagged defensive power. Without it the
     // spawn is clamped against `getPlayerMilitary` — a headcount blind to every multiplier
     // the Power Draft stacks — and the wave arrives a fraction of the size it should be.
     totalSoldiers: Math.round(
-      waveSoldierBudget(state, ascent.wave, boss) * (coalition ? COALITION_WAVE_MULT : 1) * difficulty,
+      waveSoldierBudget(state, ascent.wave, boss) * (coalition ? COALITION_WAVE_MULT : 1) * dialBudget,
     ),
     forceConquest: boss || coalition,
     // A named warlord is what flags the record as `great`, which drives the harder siege
@@ -924,6 +1088,17 @@ export function tickWaveDirector(state: GameState): void {
     ascent.bossTelegraphed = true;
     pushToast(state, t('ascent.wave.telegraph', { ticks: Math.max(0, ascent.ticksToWave) }), 'threat');
   }
+
+  // The peace floor says so before it fires.
+  //
+  // A guarantee the player only learns about by being hit is a punishment; one they are warned of
+  // is a deadline. This is the moment a diplomacy run is told that the quiet it bought is running
+  // out and it is time to spend the seasons it saved.
+  if (!ascent.quietWarned && peaceFloorBreached(state) && liveInvasions === 0) {
+    ascent.quietWarned = true;
+    pushToast(state, t('ascent.wave.quietTooLong'), 'threat');
+  }
+  if (liveInvasions > 0) ascent.quietWarned = false;
 
   if (ascent.ticksToWave <= 0) {
     startWave(state);

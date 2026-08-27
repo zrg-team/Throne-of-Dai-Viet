@@ -64,6 +64,55 @@ export function showEnvoy(self: ConquestUIScene, prompt: Extract<AscentPrompt, {
 }
 
 /**
+ * Something that happened between two courts, and what we do about it.
+ *
+ * Built on the same scaffold as the envoy sheet because it is the same *kind* of decision seen
+ * from the other side — but the body line names both courts by name wherever an event has two, so
+ * the player can see who they are choosing between without having to remember the feud map.
+ */
+export function showWorldEvent(
+  self: ConquestUIScene,
+  prompt: Extract<AscentPrompt, { kind: 'world-event' }>,
+): void {
+  const key = (suffix: string) => `ascent.event.${prompt.eventId}.${suffix}` as Parameters<typeof t>[0];
+  const { body, bodyWidth, finish } = self.promptScrollBody(
+    t(key('title'), { kingdom: prompt.kingdomName, other: prompt.otherKingdomName ?? '' }),
+    t(key('body'), { kingdom: prompt.kingdomName, other: prompt.otherKingdomName ?? '' }),
+    0,
+  );
+
+  const rowHeight = 84;
+  const cards: Phaser.GameObjects.Container[] = [];
+  let used = 0;
+  prompt.options.forEach((option) => {
+    const price = option.cost && Object.keys(option.cost).length > 0
+      ? formatResourceList(option.cost)
+      : t('ascent.conquer.free');
+    const card = self.optionCard(
+      { x: 0, y: used, width: bodyWidth, height: rowHeight },
+      {
+        title: t(key(`${option.id}.label`), {
+          kingdom: prompt.kingdomName, other: prompt.otherKingdomName ?? '',
+        }),
+        body: t(key(`${option.id}.fx`), {
+          kingdom: prompt.kingdomName, other: prompt.otherKingdomName ?? '',
+        }),
+        note: option.affordable ? price : t('ascent.response.cantAfford'),
+        noteColor: option.affordable ? undefined : '#a4402c',
+        accent: option.affordable ? INK_UI.gold : INK_UI.softBrush,
+        disabled: !option.affordable,
+        parent: body,
+        onTap: () => self.choose(option.id),
+      },
+    );
+    cards.push(card);
+    used += ((card.getData('cardHeight') as number) ?? rowHeight) + 9;
+  });
+  staggerIn(self, cards);
+  finish(used);
+}
+
+/**
  * A rival's demand. The half of foreign affairs the player does not start — and the one
  * place where refusing has to visibly cost something, or the card is flavour.
  */

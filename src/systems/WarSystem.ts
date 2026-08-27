@@ -13,6 +13,8 @@ import {
   RECRUIT_BARRACKS_BONUS,
 } from '../game/gameplayConfig';
 import { occupyEmptyLand } from './AcquisitionSystem';
+import { CAMPAIGN_TICKS_ON_CAPTURE } from '../game/ascentConfig';
+import { extendCampaign } from './empire/InvasionSystem';
 import { checkVictory, findLand, getAcquisitionTicksRequired, getSiegeOrder, isAdjacent, refreshPlayerVisibility } from './LandSystem';
 import {
   applyResourceDelta,
@@ -1443,6 +1445,11 @@ export function progressSiegeOrders(state: GameState): boolean {
     land.ownerId = order.attackerKingdomId;
     land.loyalty = Math.max(45, land.loyalty - 15);
     state.message = t('msg.landFalls', { land: land.name });
+    // The province feeds the host that took it, which is the historical shape and the reason the
+    // supply clock is a pressure rather than a timer the player can simply outwait: a war that is
+    // winning sustains itself. A war stalled at the walls does not.
+    const taker = (state.invasions ?? []).find((record) => record.armyId === order.armyId);
+    if (taker) extendCampaign(taker, CAMPAIGN_TICKS_ON_CAPTURE);
   }
 
   state.siegeOrders = state.siegeOrders.filter((order) => !completed.includes(order));

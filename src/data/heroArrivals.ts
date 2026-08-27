@@ -10,7 +10,7 @@ import { PLAYER_KINGDOM_ID } from '../game/constants';
 import { applyResourceDelta, refreshAllLandOutputs } from '../systems/ResourceSystem';
 import { contestedDefencePower } from '../systems/ascent/PowerSystem';
 import { grantVassalage, sovereignRivals } from '../systems/ascent/VassalSystem';
-import { getEmpirePower } from '../systems/DiplomacySystem';
+import { addOpinionModifier, getEmpirePower } from '../systems/DiplomacySystem';
 import { refreshPlayerVisibility } from '../systems/LandSystem';
 import { t } from '../i18n';
 import type { GameState, Hero, HeroArrivalId, Land } from '../state/types';
@@ -125,7 +125,17 @@ export const HERO_ARRIVALS: Record<HeroArrivalId, HeroArrival> = {
         .filter((k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated && !k.vassalage)
         .sort((a, b) => (b.warAppetite ?? 0) - (a.warAppetite ?? 0))[0];
       if (!angriest) return false;
-      angriest.relations = Math.min(100, (angriest.relations ?? 50) + 45);
+      // Through the ledger. Written straight onto `relations` this was the single most
+      // expensive thing in the game to lose silently: the next `recomputeOpinion` — a gift, an
+      // ambassador year, a politics card — rebuilt the field from baseline + modifiers and threw
+      // all forty-five points away, often inside the same game year the arrival granted them.
+      addOpinionModifier(angriest, {
+        id: 'arrival-truce',
+        label: t('diplo.mod.truce'),
+        value: 45,
+        decay: 0.5,
+        source: 'event',
+      });
       angriest.warAppetite = Math.max(0, (angriest.warAppetite ?? 0) - 60);
       angriest.hostilityTimer = 0;
       const ascent = state.ascent;

@@ -225,6 +225,37 @@ export const INVADER_POWER_PER_SOLDIER = 0.963;
 export const WAVE_LAG = 2;
 /** Share of current defence used before enough history exists to lag against. */
 export const WAVE_OPENING_SHARE = 0.55;
+/**
+ * Waves over which the opening share hands off to the real lagged sample.
+ *
+ * Without this the handoff is a cliff, and it was half the Year-4 report. `laggedDefencePower`
+ * quotes `live x WAVE_OPENING_SHARE` while there is no history to lag against, so wave 1's shadow
+ * stands at an effective 0.55 x 0.55 = **0.3025** of live defence. The instant two samples exist
+ * it returns the raw sample and the effective share jumps to **0.57** — wave 2's floor is 88%
+ * larger than wave 1's from the lag machinery alone, before a single point of growth is counted.
+ *
+ * Ramping the share out over three waves turns that step into a curve. It is deliberately the
+ * *share* that ramps rather than the sample: the sample is the honest figure, and the opening
+ * share exists only to be gentle while the realm is one province and one host.
+ */
+export const WAVE_OPENING_RAMP_WAVES = 3;
+/**
+ * Hard ceiling on the **shadow** term, as a multiple of what the realm can actually put in the field.
+ *
+ * The other half of the Year-4 report. The shadow reads `contestedDefencePower` — the whole
+ * realm, walls included — and for a one-province realm three quarters of that figure is capital
+ * masonry. `waveSoldierBudget` then converts it into **bodies** at 0.963 and marches them at a
+ * frontier district. Measured on the reported run: a realm with 460 field soldiers was quoted a
+ * floor of 1,505 power and met ~1,450 men with a 556-man levy.
+ *
+ * A wave sized against your walls and paid out in men is not a difficulty curve, it is a units
+ * error with a hit rate. So the shadow may never exceed twice what the realm could field.
+ *
+ * The cap floors at the baseline curve, which is what stops it becoming an exploit: disbanding
+ * the army does not buy a smaller wave, because the calendar's own curve is never capped. Only
+ * the mirror is — and a mirror that outgrows the thing it mirrors was never a mirror.
+ */
+export const WAVE_FIELD_CEILING = 2.0;
 
 /**
  * How much of the realm *beyond* the point of contact counts toward the defence a wave is
@@ -275,8 +306,22 @@ export const MIN_WAVE_SOLDIERS = 260;
  * skipped the *following* wave outright every time, spawning nothing while the counter and the
  * difficulty curve both advanced. A ceiling below what the spawner can emit in one go silences
  * the next wave by construction.
+ *
+ * **Six, up from four**, now that a court may commit at most `MAX_HOSTS_PER_KINGDOM`: six is
+ * exactly two courts fully committed, so a war on two fronts is expressible and a third court
+ * joining is capped out — which is itself the signal that the world has ganged up. Four could
+ * never show a grand coalition as anything but a slightly larger ordinary wave.
  */
-export const MAX_LIVE_INVADER_HOSTS = 4;
+export const MAX_LIVE_INVADER_HOSTS = 6;
+/**
+ * Hosts one court may have in the field at once.
+ *
+ * A war should read as *that kingdom's* war, with a limit to what it can spend on you — and a
+ * wave of four hosts should therefore be legible as more than one crown having decided the same
+ * thing in the same season. Three is the cap `launchOffMapInvasion` already rolls toward at very
+ * cold relations; this makes it a rule instead of a coincidence.
+ */
+export const MAX_HOSTS_PER_KINGDOM = 3;
 /**
  * Best affordable odds at or above which an ordinary wave does not raise the response modal
  * at all — the realm simply meets it and the header strip reports the result.
@@ -814,6 +859,193 @@ export const ENEMY_LAUNCH_DRAW = 0.004;
  * guarantee is worth anything.
  */
 export const ENEMY_CONTACT_FLOOR_TICKS = 30;
+
+// ── The four courts: relations as the difficulty dial ────────────────────────
+//
+// Reported, and true: *"other kingdom relation not affected to gameplay at all."*
+//
+// All relations did was route the wave. `WaveDirector.pickAggressor` weighs a rival at
+// `max(5, hostility + power x 0.5)`, so a court you have perfected weighs 25 against a hateful
+// one's 125 — perfect diplomacy moves that court from about a quarter of waves to about a
+// fifteenth, and the other three absorb the difference. Same tick, same size, a different flag.
+//
+// The rule below is the inverse, and it is the whole design:
+//
+//   **Relations move the wave clock and the wave's size. They never move its existence.**
+//
+// A warm world buys seasons and smaller hosts; a cold one brings them early and heavy. The floor
+// further down is what keeps this a siege rather than a puzzle with a solved state.
+
+/**
+ * What a realm's standing with the *chosen aggressor* buys, banded by opinion.
+ *
+ * Read from the court `pickAggressor` actually picked rather than an average of the four, so
+ * cultivating the wrong neighbour buys nothing and the player has to read the board. Bands rather
+ * than a curve because the player has to be able to *feel* which one they are in from the World
+ * lane's own colouring, which already breaks at 35 and 55.
+ *
+ * Multiplicative on the existing curve, so none of this touches the late game: at wave 20 a
+ * `clock: 1.6` is still a wave every five years.
+ */
+export const RELATIONS_WAVE_DIAL: { atLeast: number; clock: number; budget: number; hosts: number }[] = [
+  { atLeast: 80, clock: 1.6, budget: 0.75, hosts: -1 },
+  { atLeast: 60, clock: 1.25, budget: 0.9, hosts: 0 },
+  { atLeast: 40, clock: 1.0, budget: 1.0, hosts: 0 },
+  { atLeast: 20, clock: 0.85, budget: 1.15, hosts: 0 },
+  { atLeast: 0, clock: 0.7, budget: 1.3, hosts: 1 },
+];
+
+/**
+ * Ticks of quiet a *young* realm may buy before a war is sent regardless of standing.
+ *
+ * Long on purpose. The complaint that started this work was a 1,450-man host in Year 4, and a
+ * realm four years old has one province, one host and no answer to a wave it did not earn. Forty
+ * ticks is five played years — enough that an opening spent on the courts is a strategy rather
+ * than a delaying tactic.
+ */
+export const PEACE_FLOOR_EARLY = 40;
+/**
+ * And what an *old* realm may buy. Fourteen ticks is under two years — barely more than the
+ * ordinary `WAVE_INTERVAL_TICKS` cadence.
+ *
+ * The floor tightening as the run ages is the point: diplomacy is a young realm's shield and an
+ * old realm's rounding error. A twenty-province empire has armies, walls and gold, and the answer
+ * to "why is nobody attacking me" must never be "because I was polite in Year 2".
+ */
+export const PEACE_FLOOR_LATE = 14;
+/** Waves over which the floor slides from `PEACE_FLOOR_EARLY` to `PEACE_FLOOR_LATE`. */
+export const PEACE_FLOOR_RAMP_WAVES = 20;
+/**
+ * Random spread on the floor, as a multiplier band.
+ *
+ * Without it the guarantee becomes a metronome the player can count on, and a war you can see
+ * coming to the season is not a war, it is a scheduled appointment — the exact failure the wave
+ * cycle in `AFTERMATH_TICKS` was written to fix. A quarter either way is enough that the realm
+ * has to stay ready without the number feeling arbitrary.
+ */
+export const PEACE_FLOOR_JITTER: [number, number] = [0.8, 1.25];
+
+/**
+ * Ticks a spawned invasion can keep the field before its court calls it home.
+ *
+ * Today there is no such clock at all: `progressArmyLogistics` opens with
+ * `if (army.kingdomId !== PLAYER_KINGDOM_ID) continue;`, so the `rations: 350` and
+ * `provisions: 250` written onto every invader are decorative. Invaders eat nothing, take no
+ * attrition, lose no morale to supply, and are never disbanded for arrears — a conquest host
+ * strong enough to win besieges, takes a province, and marches on for ever at zero upkeep.
+ *
+ * Fourteen is a little under two played years, which is roughly what a medieval campaign season
+ * could actually be sustained for away from its own granaries.
+ */
+export const CAMPAIGN_TICKS_BASE = 14;
+/** Taking a province refills the larder — a campaign lives on what it takes. */
+export const CAMPAIGN_TICKS_ON_CAPTURE = 8;
+/** Sacking one is worth less than holding it. */
+export const CAMPAIGN_TICKS_ON_SACK = 4;
+/** And a won field battle is worth a season of confidence. */
+export const CAMPAIGN_TICKS_ON_WIN = 2;
+/**
+ * Ceiling on the refilled clock, so a host that is winning cannot become permanent.
+ *
+ * This is what keeps "hold four more seasons" a real objective rather than a hope: even a host
+ * taking a province every time it swings has a horizon, and the player can see it.
+ */
+export const CAMPAIGN_TICKS_MAX = 28;
+
+/** Standing at or above which a court will send a relief column to a battle we are fighting. */
+export const ALLY_AID_MIN_RELATIONS = 70;
+/** What asking costs, in opinion — spent on the asking, whether or not the battle is won. */
+export const ALLY_AID_STANDING_COST = 15;
+/**
+ * Ticks before the same court will hear the request again.
+ *
+ * Long enough that asking twice in a run is a plan and asking every wave is not an option. A
+ * relief column the player can summon on demand is just a bigger army with extra steps.
+ */
+export const ALLY_AID_COOLDOWN_TICKS = 30;
+/** Share of the asking court's own strength that turns up, as a share of the wave it answers. */
+export const ALLY_AID_POWER_SHARE = 0.45;
+
+/** Standing at or above which a court will hear an offer to call one of its hosts home. */
+export const BUYOFF_MIN_RELATIONS = 45;
+/** Gold per remaining campaign tick, per hundred men, to buy a host off the field. */
+export const BUYOFF_GOLD_PER_TICK_PER_HUNDRED = 26;
+
+/**
+ * How much of a warming lands on the warmed court's feud partner, negatively.
+ *
+ * The mechanism behind *"cannot have good relation with all kingdoms"*. Gift the North sixteen
+ * points and the South loses eight — so the arithmetic itself, with no tutorial anywhere, says
+ * that two friends and two enemies is the best board available and which two is the question.
+ *
+ * A half rather than a full mirror because a full one makes diplomacy zero-sum, and a zero-sum
+ * system is one the player correctly stops touching.
+ */
+export const FEUD_ENVY_SHARE = 0.5;
+
+// ── A second crown joins a war already being fought ─────────────────────────
+/** Standing below which a court will consider piling onto someone else's invasion. */
+export const COALITION_JOIN_BELOW_RELATIONS = 40;
+/**
+ * How badly the realm must be losing before anyone piles on, as invader power over
+ * `contestedDefencePower`.
+ *
+ * Above one on purpose: nobody joins a war the defender is winning, and a pile-on that fires while
+ * the realm is comfortable is just a second wave wearing a coalition's name. This is what makes a
+ * joined war read as opportunism — the courts smelling blood — rather than as weather.
+ */
+export const COALITION_JOIN_RATIO = 1.15;
+/** Per-tick draw on the angriest eligible court, scaled by its own aggression pressure. */
+export const COALITION_JOIN_DRAW = 0.06;
+/** Share of a full wave budget the joining court commits. Help for the war, not a second war. */
+export const COALITION_JOIN_SHARE = 0.6;
+
+/**
+ * Standing a court wants before it will trade grain against coin with us, charter or no charter.
+ *
+ * Sits above the `40-59` indifferent band's floor so the exchange is a *cordial* court's privilege
+ * — the same threshold the World lane already colours green at 55.
+ */
+export const EXCHANGE_MIN_RELATIONS = 55;
+
+// ── The world speaking on its own ───────────────────────────────────────────
+/**
+ * Ticks before the first world event. The opening is already three cards deep — the mandate, the
+ * founding, the first draft — and a border incident on top of that is noise before the player has
+ * a border to have incidents on.
+ */
+export const WORLD_EVENT_GRACE_TICKS = 16;
+/**
+ * Minimum ticks between events. Deliberately longer than the wave cycle: this is the world
+ * *talking*, and something that speaks every season is something the player learns to tap through
+ * without reading.
+ */
+export const WORLD_EVENT_MIN_GAP_TICKS = 34;
+/**
+ * Per-tick draw once the gap has elapsed.
+ *
+ * Tuned down from 0.22 at a 14-tick gap, and the reason is the pacing contract rather than taste.
+ * A new prompt kind does not only add its own cards, it *displaces* everyone else's: at the
+ * original rate `verify-ascent` saw `conquer-method` and `rival-demand` pushed onto consecutive
+ * ticks, which is precisely the "a card every 3.9 seasons, forever" metronome the wave cycle in
+ * `AFTERMATH_TICKS` was written to break. The world talking has to leave room for the realm.
+ *
+ * At these numbers an event is roughly one every eight or nine seasons — often enough that the
+ * board is never static, rare enough that each one is read.
+ */
+export const WORLD_EVENT_DRAW = 0.10;
+/**
+ * Ticks of silence the realm must have had before the world speaks.
+ *
+ * Six is a season and a half with nothing on screen — comfortably inside the Aftermath and Court
+ * stretches the wave cycle already carves out, and long enough that an event can never be the
+ * thing that turns two cards into a chain.
+ */
+export const WORLD_EVENT_QUIET_TICKS = 6;
+/** Opinion lost with a court whose claimed ground we take. Standing, slow to fade. */
+export const CLAIM_SEIZURE_OPINION = -30;
+/** Opinion lost everywhere else when a pact is broken — oathbreaking is public. */
+export const OATHBREAK_BYSTANDER_OPINION = -10;
 
 /**
  * How far below a province's defence a host must fall before it starts thinking about leaving.

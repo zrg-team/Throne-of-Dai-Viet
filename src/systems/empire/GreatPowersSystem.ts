@@ -1,6 +1,6 @@
 import { isEndlessMode, PLAYER_KINGDOM_ID } from '../../game/constants';
 import type { GameState, Kingdom, KingdomPersonality } from '../../state/types';
-import { addOpinionModifier, naturalBaseline, recomputeOpinion } from '../DiplomacySystem';
+import { addOpinionModifier, applyEnvy, naturalBaseline, recomputeOpinion } from '../DiplomacySystem';
 import { pushToast } from './notifications';
 import { reconcileRivalDecrees, tickRivalDecrees } from '../decree/RivalDecreeSystem';
 import { t } from '../../i18n';
@@ -143,12 +143,48 @@ export function tickGreatPowersYear(state: GameState): void {
     }
     k.stability = clamp(stab, 0, 100);
 
+    // **A new king owes us nothing.**
+    //
+    // Asked for as *"some hard actions totally lost relation -> new king, etc"*, and the machinery
+    // was already here: `rebirthEmpire` clears every modifier and re-rolls the personality. It
+    // just only fired on total collapse, which in a normal run is rare enough that a player never
+    // sees it. A succession does the same to *one* relationship without destroying the realm.
+    //
+    // This is the sharpest edge in the diplomacy system on purpose. Twenty years of gifts can be
+    // erased by an old man dying, and there is no way to prevent it — which is what stops a
+    // maxed relationship being a solved problem and keeps the courts worth re-reading.
+    if (k.king && state.gameMode === 'ascent') {
+      k.king.age += 1;
+      const deathChance = 0.02 + k.king.age * 0.012;
+      if (Math.random() < deathChance) {
+        const personality = PERSONALITIES[rand(PERSONALITIES.length)];
+        const heir = ROYAL_NAMES[rand(ROYAL_NAMES.length)];
+        const old = k.king.name;
+        k.king = { name: heir, personality, age: 0 };
+        k.personality = personality;
+        // The ledger is wiped, but the ambassador stays: an embassy outlives a reign, and losing
+        // the hero as well would make this purely punitive rather than a thing to rebuild from.
+        k.opinionModifiers = [];
+        k.giftFatigue = 0;
+        k.treaties = [];
+        recomputeOpinion(k);
+        pushToast(state, t('ascent.king.dies', { king: old, kingdom: k.name, heir }), 'threat');
+      }
+    }
+
     // A posted ambassador steadily warms relations and cools war appetite.
     if (k.ambassadorHeroId) {
       const existing = (k.opinionModifiers ?? []).find((m) => m.id === `ambassador-${k.id}`);
       const nextValue = Math.min(28, (existing?.value ?? 0) + 5);
       addOpinionModifier(k, { id: `ambassador-${k.id}`, label: t('empire.world.mod.ambassador'), value: nextValue, source: 'treaty' });
       k.warAppetite = Math.max(0, (k.warAppetite ?? 0) - 8);
+      // And the court they feud with sees whose hall our champion is sitting in.
+      //
+      // This was the one warming that carried no envy, and it is the one the player was told to
+      // expect it from: *"send a hero to other kingdom to maintain relation. Noted: it not best
+      // method everywhere — increase relation this kingdom might affect to relations other
+      // kingdom."* An embassy is the most visible thing on the list and it was the only silent one.
+      applyEnvy(state, k, nextValue - (existing?.value ?? 0));
     }
   }
 
@@ -171,7 +207,11 @@ function resolveInterEmpireWar(state: GameState, alive: Kingdom[]): void {
   // Aggressor = strongest × most ambitious; target = the weakest other empire.
   const attacker = [...alive].sort((a, b) => (b.power ?? 0) * ambition(b.personality) - (a.power ?? 0) * ambition(a.personality))[0];
   const others = alive.filter((k) => k.id !== attacker.id);
-  const defender = [...others].sort((a, b) => (a.power ?? 0) - (b.power ?? 0))[0];
+  // A standing feud is who you go for first. The pairing set at worldgen is what makes the
+  // player's *"each kingdom can conflict with other"* visible in the world's own behaviour rather
+  // than only in the arithmetic of their gifts — the courts act on it too.
+  const feudPartner = others.find((k) => k.id === attacker.feudWith);
+  const defender = feudPartner ?? [...others].sort((a, b) => (a.power ?? 0) - (b.power ?? 0))[0];
   if (!attacker || !defender || ambition(attacker.personality) < 0.7 || (attacker.power ?? 0) < 22) {
     return;
   }

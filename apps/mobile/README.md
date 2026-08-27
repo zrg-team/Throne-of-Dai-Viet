@@ -137,9 +137,39 @@ The key you upload with is the **upload key**. Google re-signs with an **app sig
 holds. Lose the upload key and Play support can reset it; lose an app signing key you insisted on
 holding yourself and the listing can never be updated again.
 
+### Apple: a key, not your password
+
+`eas build -p ios` will offer to take your **Apple ID, password and a 2FA code**. It works, and it
+is Expo's documented flow, but it hands a third party a session with the run of your Apple account
+— payments, iCloud, devices, all of it — to accomplish something that needs none of them.
+
+Use an **App Store Connect API key** instead. It reaches App Store Connect and nothing else, it
+carries no password, and it is revoked with one click without touching your Apple account.
+
+App Store Connect → **Users and Access → Integrations → App Store Connect API → Team Keys → ＋**
+
+- Name it `EAS`, access **App Manager**
+- **Download the `.p8` immediately.** Apple serves it exactly once and will not serve it again
+- Note the **Key ID** and the **Issuer ID** printed on that page
+
+Then hand it over once, and never again:
+
+```bash
+cd apps/mobile
+eas credentials --platform ios      # App Store Connect API Key → upload the .p8
+```
+
+EAS holds it from then on, exactly as it holds the Android upload keystore — which is why
+`eas.json` names no path. A private key does not belong in a committed file, and a path to one is
+true on exactly one machine.
+
+Keep the `.p8` where you keep the keystore: outside the repository, backed up somewhere you will
+still have it in a year. Apple will not re-issue it. A lost key is replaced by generating a new one
+and revoking the old.
+
 ### Never commit
 
-`*.jks`, `*.keystore`, and any file containing a password.
+`*.jks`, `*.keystore`, `*.p8`, and any file containing a password.
 
 ## How it fits together
 

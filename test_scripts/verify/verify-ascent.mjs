@@ -59,6 +59,7 @@ const result = await page.evaluate(async () => {
         return affordable ? affordable.id : 'decline';
       }
       case 'envoy': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
+      case 'world-event': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
       // A rich realm buys its way out of a famine; a poor one endures. Either way the card
       // must always resolve — a prompt this policy cannot answer stalls the whole run.
       // Fight it out rather than retreating, so the assertions see engagements resolve.
@@ -590,6 +591,20 @@ const orders = await page.evaluate(async () => {
   st.ascent.autoClaimSilently = true;
   // A quiet world: no wave lands and no raider crosses, so every march below is the order's own.
   const quiet = () => {
+    // Fed as well as paid.
+    //
+    // `st.resources.gold = 5000` above says "no host is dissolved for arrears under the test",
+    // and that intent was only half-implemented: a host starves on **rations**, not wages, and
+    // rations come from the realm's food. On a stream where the autopilot's third claim lands a
+    // few seasons late the granary empties, the royal host wastes to nothing around season 30,
+    // and five checks that are about *standing orders* fail because there is no host left to
+    // give one to — the same failure this file's own comment records having chased once before.
+    // Measured across five seed offsets: the same build passed four and failed one, and the
+    // baseline failed a different one. That is a coin toss, not a gate.
+    //
+    // Topping up food here makes the scenario say what it means: a realm that can sustain a host,
+    // so that what is being measured is the order and nothing else.
+    if (st.resources.food < 400) st.resources.food = 400;
     st.ascent.ticksToWave = 999;
     st.ascent.bossTelegraphed = false;
     st.armies = st.armies.filter((a) => a.kingdomId === 'dai-viet');

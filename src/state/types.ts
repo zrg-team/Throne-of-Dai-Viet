@@ -203,6 +203,24 @@ export interface InvasionRecord {
   exitLandId?: string;
   /** Part of a telegraphed Great Invasion (boss coalition); yields larger spoils. */
   great?: boolean;
+  /**
+   * Ticks this host's court can keep it in the field before calling it home.
+   *
+   * The mechanism that makes an invasion an *event* rather than a permanent condition. Counted
+   * down every tick the host is on the map and refilled by success — taking a province is worth
+   * `CAMPAIGN_TICKS_ON_CAPTURE`, sacking one less, a won field battle less again — so a war that
+   * is going well sustains itself and one that stalls at the walls starves. At zero the host sets
+   * `plan = 'withdrawing'` and leaves by the path a spent raider already uses.
+   *
+   * Before this, nothing anywhere read an invader's supply: `progressArmyLogistics` opens with
+   * `if (army.kingdomId !== PLAYER_KINGDOM_ID) continue;`, so the `rations` and `provisions`
+   * written onto every spawned host were decorative and a conquest host that could win simply
+   * marched for ever at zero upkeep.
+   *
+   * Optional so it round-trips through an old save; a record without one is topped up on its
+   * first tick rather than being treated as already spent.
+   */
+  campaignTicks?: number;
 }
 
 export interface KingdomKing {
@@ -269,7 +287,11 @@ export type OpinionSource =
   | 'war'
   | 'raid'
   | 'trait'
-  | 'reputation';
+  | 'reputation'
+  /** A story beat, an arrival, a border incident — something that happened, and is remembered. */
+  | 'event'
+  /** Warming one court cools the court it feuds with. See `FEUD_ENVY_SHARE`. */
+  | 'envy';
 
 /**
  * A single reason an empire's opinion of the player is higher or lower. Opinion
@@ -348,6 +370,18 @@ export interface Kingdom {
   vassalage?: Vassalage;
   /** Cumulative years this empire has existed under its current identity (reset on rebirth). */
   age?: number;
+  /**
+   * The court this one is in a hereditary feud with. Symmetric, fixed at worldgen.
+   *
+   * The mechanism behind *"cannot have good relation with all kingdoms"*. Warming a court cools
+   * its feud partner by `FEUD_ENVY_SHARE` of the same amount, so the arithmetic itself — with no
+   * tutorial anywhere — says two friends and two enemies is the best board available, and which
+   * two is the strategic question.
+   *
+   * Optional: an in-flight save from before this existed simply has no feuds, and `applyEnvy`
+   * is a no-op for it.
+   */
+  feudWith?: string;
 }
 
 /** One option on a foreign-affairs event card. */
@@ -1578,13 +1612,27 @@ export interface RivalDemandOption {
 }
 
 /** One action offered on the Envoy prompt. */
+export type EnvoyOptionId =
+  | 'gift' | 'gift-lavish' | 'grain' | 'trade' | 'exchange-buy' | 'exchange-sell'
+  | 'tribute' | 'ambassador' | 'pact' | 'aid' | 'buyoff' | 'denounce'
+  | 'vassalize' | 'release' | 'ignore';
+
 export interface EnvoyOption {
-  id: 'gift' | 'trade' | 'tribute' | 'ambassador' | 'vassalize' | 'release' | 'ignore';
+  id: EnvoyOptionId;
   cost?: Partial<ResourceBag>;
   influenceCost?: number;
   /** For `ambassador`: the hero posted to that court. */
   heroId?: string;
   affordable: boolean;
+  /**
+   * Why an option cannot be taken, when the reason is a *standing* the player could have built
+   * rather than a price they could have paid.
+   *
+   * Shown on the card instead of hiding the row. An option that vanishes teaches nothing; one
+   * that says "needs standing of 70" tells the player what a warmer neighbour would have been
+   * worth, which is the whole argument this mode has to make for diplomacy being worth playing.
+   */
+  blockedBy?: 'standing' | 'cooling' | 'no-battle' | 'no-host' | 'no-charter';
 }
 
 /** Every pausing decision Dragon Ascent can raise. Exactly one is live at a time. */
@@ -1692,6 +1740,22 @@ export type AscentPrompt =
     }
   /** A rival empire, and what to do about it. */
   | { kind: 'envoy'; kingdomId: string; kingdomName: string; relations: number; power: number; options: EnvoyOption[] }
+  /**
+   * Something that happened between two courts, and what the realm does about it.
+   *
+   * The only diplomacy card the player does not start. See `WorldEventSystem` for why most of them
+   * name a second court: the interesting question in this mode is never whether to be liked, it is
+   * by whom — and an event that forces a side is the cheapest way to make that concrete.
+   */
+  | {
+      kind: 'world-event';
+      eventId: string;
+      kingdomId: string;
+      kingdomName: string;
+      otherKingdomId?: string;
+      otherKingdomName?: string;
+      options: { id: string; cost?: Partial<ResourceBag>; affordable: boolean }[];
+    }
   | {
       kind: 'empire-response';
       wave: number;
@@ -2520,6 +2584,38 @@ export interface AscentState {
    * from before this existed reads as 0, which simply forces contact on the next tick.
    */
   lastContactTurn?: number;
+  /**
+   * Ticks of quiet this wave allows before a war is sent regardless of standing.
+   *
+   * Re-rolled once per wave by `startWave` (see `peaceFloorTicks`): long while the realm is
+   * young, tightening as the run ages, and jittered so the guarantee is never a number the player
+   * can count to. Held on the state rather than recomputed on demand because a jittered threshold
+   * re-rolled every tick collapses into its own minimum.
+   */
+  peaceFloor?: number;
+  /** Whether the "quiet too long" warning has already been given for this stretch of peace. */
+  quietWarned?: boolean;
+  /**
+   * The relations dial the wave now in flight was *quoted* with, locked at `startWave`.
+   *
+   * Read back by `launchWave` rather than recomputed, because the response card can stand open for
+   * a season and relations move while it does. A wave has to land at the size the card said it
+   * would, or the price the player was asked to pay was for a different war.
+   */
+  waveDialBudget?: number;
+  waveDialHosts?: number;
+  /** The court that sent the wave now in flight, so the dial and the World lane agree on who. */
+  waveAggressorId?: string;
+  /** Turn each court last sent us a relief column, for the ask's cooldown. Keyed by kingdom id. */
+  allyAidTurn?: Record<string, number>;
+  /** Turn the last world event was raised, so they keep a minimum gap. */
+  lastWorldEventTurn?: number;
+  /**
+   * Consecutive refusals per prompt kind, so a card nothing can answer is dropped rather than
+   * holding the queue for the rest of the run. Cleared the moment that kind resolves. See the
+   * note in `resolveAscentPrompt`.
+   */
+  promptRefusals?: Partial<Record<string, number>>;
   /** Whether the "capital left ungarrisoned" strike has already fired for this exposure. */
   capitalExposedFired?: boolean;
   /** Live rival count last tick, so an empire collapsing is seen as a transition. */

@@ -119,6 +119,16 @@ const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   // and a muster the player has been asked about must not queue behind a draft.
   'muster-proposal': 8.5,
   envoy: 9,
+  // **Last of everything.** An event is the world *reporting*; every other card is the realm being
+  // asked to act, and an act outranks a report every time.
+  //
+  // It was tried at 9.2 — just under the envoy — on the reasoning that a stale event is worthless.
+  // Measured, that reasoning was wrong in the way that matters: the mode's card budget is
+  // contended, and a new kind does not merely add its own cards, it *displaces* everyone else's.
+  // At 9.2 a run stopped expanding and stopped building a deck, because the conquest and draft
+  // cards that drive both were the ones giving way. A feature that makes the run worse to add
+  // texture to it has the trade backwards.
+  'world-event': 12,
   'rival-demand': 3.5,
   // Above the rival demands: an empty granary is already costing the realm morale and
   // population every single tick it goes unanswered.

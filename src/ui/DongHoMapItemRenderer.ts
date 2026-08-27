@@ -359,11 +359,25 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // going into the settlement's buffer with the houses: a buffalo baked into the same graphics as
     // the roofs behind it can never take a step, and a herd standing perfectly still is the one
     // thing on a drawn map that reads as the picture having frozen.
+    // Every animal in the country used to be exactly the same height, because every call site
+    // passed a bare `GROUND_SCALE` — so a herd read as a rank of counters rather than as livestock.
+    // Size is an INSTANCE scale here, not part of the texture key (see `bakedBuffalo`), so a spread
+    // costs nothing: the same four textures serve however many animals at whatever sizes.
+    const beastScale = (): number => GROUND_SCALE * (0.9 + rand() * 0.22);
     spacer.claim(anchor.x - 34 * spread, anchor.y + 34, 16 * GROUND_SCALE, 7 * GROUND_SCALE);
-    parts.push({ y: anchor.y + 34, object: () => this.grazingBuffalo(anchor.x - 34 * spread, anchor.y + 34, GROUND_SCALE, seed + 700, rand() > 0.55) });
+    const leadScale = beastScale();
+    parts.push({ y: anchor.y + 34, object: () => this.grazingBuffalo(anchor.x - 34 * spread, anchor.y + 34, leadScale, seed + 700, rand() > 0.55) });
+    // A calf beside its dam: the same texture at a little over half, which is what turns two
+    // animals into a herd rather than two animals.
+    if (rand() > 0.5) {
+      const calfScale = GROUND_SCALE * 0.58;
+      spacer.claim(anchor.x - 20 * spread, anchor.y + 38, 10 * GROUND_SCALE, 5 * GROUND_SCALE);
+      parts.push({ y: anchor.y + 38, object: () => this.grazingBuffalo(anchor.x - 20 * spread, anchor.y + 38, calfScale, seed + 710, false) });
+    }
     if (sorted.length > 3) {
       spacer.claim(anchor.x + 30 * spread, anchor.y + 40, 16 * GROUND_SCALE, 7 * GROUND_SCALE);
-      parts.push({ y: anchor.y + 40, object: () => this.grazingBuffalo(anchor.x + 30 * spread, anchor.y + 40, GROUND_SCALE, seed + 720, false) });
+      const secondScale = beastScale();
+      parts.push({ y: anchor.y + 40, object: () => this.grazingBuffalo(anchor.x + 30 * spread, anchor.y + 40, secondScale, seed + 720, false) });
     }
 
     for (const centre of sorted) {
@@ -609,7 +623,9 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
       { y: 6 * scale, draw: (g) => hayStack(g, -26 * scale, 6 * scale, GROUND_SCALE, seed + 200) },
       { y: 16 * scale, draw: (g) => farmer(g, 26 * scale, 16 * scale, GROUND_SCALE, seed + 400) },
       // The farm's own animal, working rather than posed.
-      { y: 20 * scale, object: () => this.grazingBuffalo(-30 * scale, 20 * scale, GROUND_SCALE, seed + 300, rand() > 0.5) },
+      // The farm's animal takes the same size spread as the herd — one bare GROUND_SCALE
+      // everywhere is what made every trâu on the map identical.
+      { y: 20 * scale, object: () => this.grazingBuffalo(-30 * scale, 20 * scale, GROUND_SCALE * (0.9 + rand() * 0.22), seed + 300, rand() > 0.5) },
     ];
     if (upgradeLevel > 0) {
       parts.push({ y: 6 * scale, draw: (g) => areca(g, 34 * scale, 6 * scale, GROUND_SCALE, seed + 500) });

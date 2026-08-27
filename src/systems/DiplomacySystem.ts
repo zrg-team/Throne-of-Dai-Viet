@@ -1,4 +1,5 @@
 import { isCampaignMode, isEndlessMode, PLAYER_KINGDOM_ID } from '../game/constants';
+import { FEUD_ENVY_SHARE, OATHBREAK_BYSTANDER_OPINION } from '../game/ascentConfig';
 import type { Difficulty, GameState, Kingdom, KingdomPersonality, OpinionModifier } from '../state/types';
 import { t } from '../i18n';
 
@@ -64,6 +65,31 @@ export function addOpinionModifier(kingdom: Kingdom, mod: OpinionModifier): void
   recomputeOpinion(kingdom);
 }
 
+/**
+ * **Warming one court cools the court it feuds with.**
+ *
+ * Called by every action that deliberately improves a relationship. Half strength rather than a
+ * full mirror, on purpose: a full one makes diplomacy zero-sum, and a zero-sum system is one the
+ * player correctly stops touching. At a half, four courts can be moved — but not all four up, and
+ * the ceiling arrives on its own without a rule anywhere saying so out loud.
+ *
+ * Silent on cooling: souring a relationship does *not* warm its rival. A court does not befriend
+ * you for insulting its enemy — that is what `denounce` is for, and denouncing is a deliberate,
+ * public act with its own price rather than a side effect of every setback.
+ */
+export function applyEnvy(state: GameState, warmed: Kingdom, by: number): void {
+  if (by <= 0 || !warmed.feudWith) return;
+  const partner = state.kingdoms.find((k) => k.id === warmed.feudWith);
+  if (!partner || partner.isDefeated) return;
+  addOpinionModifier(partner, {
+    id: `envy-${warmed.id}-${state.turn}-${Math.floor(Math.random() * 100000)}`,
+    label: t('diplo.mod.envy'),
+    value: -Math.round(by * FEUD_ENVY_SHARE),
+    decay: 0.5,
+    source: 'envy',
+  });
+}
+
 export function removeOpinionModifier(kingdom: Kingdom, id: string): void {
   if (!kingdom.opinionModifiers) {
     return;
@@ -83,9 +109,18 @@ function moveToZero(value: number, step: number): number {
 }
 
 /** Cost of the next gift to this empire — rises with gift fatigue (anti gift-spam). */
-export function giftCost(kingdom: Kingdom): number {
+export function giftCost(kingdom: Kingdom, state?: GameState): number {
   const fatigue = kingdom.giftFatigue ?? 0;
-  return Math.ceil(30 * (1 + fatigue * 0.45));
+  const flat = 30 * (1 + fatigue * 0.45);
+  if (!state) return Math.ceil(flat);
+  // Priced off income, the way `vassalOathGold` and `tributeDemandGold` already are.
+  //
+  // Thirty gold is a real decision in the first minutes of a run and a rounding error by Year 20,
+  // so the only action that reliably moves opinion became free at exactly the point the wave
+  // curve stops forgiving anything. Two seasons of income keeps a gift feeling like a gift for
+  // the whole run; the flat figure stays as the floor so the opening is unchanged.
+  const byIncome = Math.max(0, state.resourceRates.gold) * 2 * (1 + fatigue * 0.45);
+  return Math.ceil(Math.max(flat, byIncome));
 }
 
 /** Opinion a gift to this empire would grant — shrinks with gift fatigue. */
@@ -94,9 +129,23 @@ export function giftOpinionGain(kingdom: Kingdom): number {
   return Math.max(3, Math.round(16 / (1 + fatigue * 0.6)));
 }
 
+/**
+ * Which modes keep a living opinion ledger.
+ *
+ * Ascent belongs here and never was. `isCampaignMode` is campaign-or-empire, so in Dragon Ascent
+ * `tickDiplomacy` returned on its first line and **nothing about a relationship ever moved**: a
+ * gift was permanent, gift fatigue never faded, trust never drifted, treaties never expired, and
+ * neglecting a court cost exactly nothing. Every modifier's `decay` field was dead data. That is
+ * the mechanical form of the report *"other kingdom relation not affected to gameplay at all"* —
+ * the ledger existed, the screen rendered it, and the clock behind it was stopped.
+ */
+function keepsOpinionLedger(mode: string): boolean {
+  return isCampaignMode(mode) || mode === 'ascent';
+}
+
 /** One economy tick of relationship upkeep: decay temporary modifiers, gift fatigue, trust drift, treaty expiry, recache. */
 export function tickDiplomacy(state: GameState): void {
-  if (!isCampaignMode(state.gameMode)) {
+  if (!keepsOpinionLedger(state.gameMode)) {
     return;
   }
   for (const kingdom of state.kingdoms) {
@@ -266,7 +315,11 @@ const PACT_DURATION_TURNS = 12;
 
 /** Attempts to seal a non-aggression pact; succeeds only if the empire's acceptance score is non-negative. */
 export function proposePact(state: GameState, kingdomId: string, sweetenerGold: number): boolean {
-  if (!isCampaignMode(state.gameMode)) return false;
+  // Gated the same way `tickDiplomacy` was, with the same consequence: every `hasPact(kingdom)`
+  // branch in the envoy sheet, `isWorthVisiting` and `envoyUrgency` was permanently false in
+  // ascent, so the one instrument that can actually buy peace was unreachable in the one mode
+  // whose whole difficulty is the war.
+  if (!keepsOpinionLedger(state.gameMode)) return false;
   const kingdom = state.kingdoms.find((k) => k.id === kingdomId);
   if (!kingdom || kingdom.isDefeated || hasPact(kingdom)) return false;
 
@@ -336,7 +389,7 @@ export function breakPact(state: GameState, kingdomId: string, byPlayer: boolean
       addOpinionModifier(other, {
         id: `oathbreaker-${state.turn}-${other.id}`,
         label: t('diplo.mod.oathbreaker'),
-        value: -10,
+        value: OATHBREAK_BYSTANDER_OPINION,
         decay: 0.15,
         source: 'reputation',
       });

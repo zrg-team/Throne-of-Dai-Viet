@@ -24,20 +24,27 @@
 import { isVassal } from './VassalSystem';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
-  ENEMY_CONTACT_FLOOR_TICKS,
   ENEMY_LAUNCH_DRAW,
   ENEMY_PRESSURE_DIVISOR,
   ENEMY_RETREAT_HYSTERESIS_TICKS,
   ENEMY_RETREAT_POWER_RATIO,
   MAX_LIVE_INVADER_HOSTS,
+  MIN_RAID_SOLDIERS,
+  RAID_POWER_SHARE,
+  INVADER_POWER_PER_SOLDIER,
+  COALITION_JOIN_BELOW_RELATIONS,
+  COALITION_JOIN_DRAW,
+  COALITION_JOIN_RATIO,
+  COALITION_JOIN_SHARE,
 } from '../../game/ascentConfig';
 import { launchOffMapInvasion } from '../empire/InvasionSystem';
 import { pushToast } from '../empire/notifications';
 import { getPlayerTroops } from '../ResourceSystem';
+import { getEmpirePower } from '../DiplomacySystem';
 import { armyPower } from '../WarSystem';
 import { ambitionHeat } from './AmbitionSystem';
-import { landGarrisonPower } from './PowerSystem';
-import { waveSoldierBudget } from './WaveDirector';
+import { contestedDefencePower, landGarrisonPower } from './PowerSystem';
+import { laggedDefencePower, peaceFloorBreached, waveSoldierBudget } from './WaveDirector';
 import { t } from '../../i18n';
 import type { GameState, InvasionRecord, Kingdom, Land } from '../../state/types';
 
@@ -139,8 +146,10 @@ function maybeLaunch(state: GameState): void {
   const candidates = aggressors(state);
   if (candidates.length === 0) return;
 
-  const sinceContact = state.turn - (ascent.lastContactTurn ?? 0);
-  const forced = sinceContact >= ENEMY_CONTACT_FLOOR_TICKS;
+  // The floor is now the *peace floor* — long while the realm is young, tightening as the run
+  // ages, and jittered so it is never a number the player can count to. `WaveDirector` owns it
+  // because the same threshold decides whether the scheduled wave ignores the relations dial.
+  const forced = peaceFloorBreached(state);
 
   let chosen: Kingdom | undefined;
   if (forced) {
@@ -164,8 +173,18 @@ function maybeLaunch(state: GameState): void {
   }
   if (!chosen) return;
 
-  const budget = waveSoldierBudget(state, ascent.wave, false);
-  launchOffMapInvasion(state, chosen.id, { totalSoldiers: budget });
+  // **A raid, not a wave.**
+  //
+  // This sent a full `waveSoldierBudget` — the whole scheduled wave, spawned outside the schedule,
+  // with no response card, no wave counter and nothing telling the player it had happened. On the
+  // reported run it fired in Year 4 alongside the wave-2 host, which is how a realm with 460 field
+  // soldiers ended up facing two full-sized invasions in the same year.
+  //
+  // The floor exists to guarantee *contact*, not to double the difficulty curve. A raid-sized host
+  // is contact: it is a real battle, it is survivable, and it resets the clock — which is all the
+  // guarantee was ever for.
+  const budget = Math.round(laggedDefencePower(state) * RAID_POWER_SHARE / INVADER_POWER_PER_SOLDIER);
+  launchOffMapInvasion(state, chosen.id, { totalSoldiers: Math.max(MIN_RAID_SOLDIERS, budget) });
   ascent.lastContactTurn = state.turn;
   if (forced) {
     pushToast(state, t('ascent.enemy.marchForced', { kingdom: chosen.name }), 'threat');
@@ -247,6 +266,22 @@ function storyStrikes(state: GameState): void {
     pushToast(state, t('ascent.enemy.borderAlarm', { kingdom: borderRival.name }), 'threat');
   }
 
+  // **A second crown joins a war already being fought.**
+  //
+  // Asked for as *"war can happen by 1 or many kingdom at the time"*, and the machinery only ever
+  // half-allowed it: two courts could end up on the map together by coincidence — a border alarm
+  // here, an exposed capital there — but nothing ever *decided* to pile on. A war was always one
+  // kingdom's war, whatever the diplomacy screen said.
+  //
+  // Now a cold court watching a war go badly for the realm takes its chance, and the whole gate is
+  // read off relations: the joiner must be hostile, it must not be feuding with the crown already
+  // in the field (two courts that hate each other do not march together — that is what makes the
+  // feud map worth reading), and the fight must be visibly going the invader's way. That last
+  // clause is what stops this being noise: nobody piles onto a war the defender is winning.
+  //
+  // Deliberately rarer than the wave clock and capped by the same per-court and map-wide ceilings,
+  // so "many kingdoms at once" stays a thing that happens to a realm that has made enemies, rather
+  // than the default weather.
   // An undefended seat is an invitation. Checked against a flag so it fires once per exposure
   // rather than every tick the capital happens to be empty.
   const capital = state.lands.find((land) => land.id === ascent.capitalLandId);
@@ -270,6 +305,53 @@ function storyStrikes(state: GameState): void {
       ascent.capitalExposedFired = false;
     }
   }
+}
+
+/**
+ * A second court piling onto a war the realm is already losing.
+ *
+ * See the call site for why this exists. The conditions, in the order they cost least to check:
+ * a war is live, the map has room, this court is not the one fighting it, it is not feuding with
+ * the court that is, it is genuinely cold, and the realm is measurably losing.
+ */
+function maybeJoinTheWar(state: GameState): void {
+  const ascent = state.ascent;
+  if (!ascent) return;
+
+  const live = state.invasions ?? [];
+  if (live.length === 0) return;
+  if (live.length >= MAX_LIVE_INVADER_HOSTS) return;
+
+  // Only against a realm that is actually being beaten. `contestedDefencePower` is the same
+  // denominator the wave director sizes against, so "losing" here means the same thing it means
+  // everywhere else in the mode.
+  const invaderPower = live.reduce((sum, record) => {
+    const army = state.armies.find((candidate) => candidate.id === record.armyId);
+    return sum + (army ? armyPower(state, army) : 0);
+  }, 0);
+  if (invaderPower < contestedDefencePower(state) * COALITION_JOIN_RATIO) return;
+
+  const fighting = new Set(live.map((record) => record.kingdomId));
+  const feuding = new Set(
+    state.kingdoms.filter((k) => fighting.has(k.id)).map((k) => k.feudWith).filter(Boolean) as string[],
+  );
+  const candidates = aggressors(state).filter((kingdom) => (
+    !fighting.has(kingdom.id)
+    && !feuding.has(kingdom.id)
+    && (kingdom.relations ?? 50) < COALITION_JOIN_BELOW_RELATIONS
+  ));
+  if (candidates.length === 0) return;
+
+  // The angriest of them, and one draw — the pile-on is a risk the player has run, not a schedule.
+  const joiner = candidates.reduce((worst, kingdom) => (
+    aggressionPressure(state, kingdom) > aggressionPressure(state, worst) ? kingdom : worst
+  ), candidates[0]);
+  if (Math.random() > aggressionPressure(state, joiner) * COALITION_JOIN_DRAW) return;
+
+  const budget = Math.round(waveSoldierBudget(state, ascent.wave, false) * COALITION_JOIN_SHARE);
+  launchOffMapInvasion(state, joiner.id, { totalSoldiers: budget, forceConquest: true });
+  ascent.lastContactTurn = state.turn;
+  pushToast(state, t('ascent.enemy.joinsTheWar', { kingdom: joiner.name }), 'threat');
 }
 
 // ─── Hosts that march with a plan ─────────────────────────────────────────────
@@ -440,20 +522,35 @@ function tickRivalRealms(state: GameState): void {
     // A sworn crown keeps building its own provinces, but it stops wanting a war with you.
     if (isVassal(rival)) { rival.warAppetite = 0; continue; }
     if (rival.id === PLAYER_KINGDOM_ID || rival.isDefeated) continue;
+    // **The courts hold no ground in this mode, and this whole director was dead because of it.**
+    //
+    // Ascent builds from `createEmpireGameState`, where the rivals are off-map Great Powers that
+    // own no territory at all. So `holdings.length === 0` was true for every court on every pass,
+    // this loop `continue`d four times a tick, and the entire dominance mirror below — the one
+    // that makes the world notice a realm twelve times anyone's size — never once executed. The
+    // player's report that relations and the rival empires do nothing was, again, literally true.
+    //
+    // Off-map courts arm through `GreatPowersSystem.tickGreatPowersYear` instead, so the fortify
+    // pass is skipped for them and only the dominance read applies. On-map rivals (campaign,
+    // where this file is also reachable) keep both.
     const holdings = state.lands.filter((land) => land.ownerId === rival.id);
-    if (holdings.length === 0) continue;
+    const offMap = holdings.length === 0;
 
-    // Fortify: one province a pass raises its walls and drills its militia. Slow on purpose —
-    // this is a curve, not a jump — but it compounds, which is exactly what was missing.
-    const fortifying = holdings[state.turn % holdings.length];
-    fortifying.defense = Math.min(90, fortifying.defense + 1);
-    fortifying.localSoldiers = Math.min(1200, fortifying.localSoldiers + 12 + ascent.wavesSurvived * 2);
+    if (!offMap) {
+      // Fortify: one province a pass raises its walls and drills its militia. Slow on purpose —
+      // this is a curve, not a jump — but it compounds, which is exactly what was missing.
+      const fortifying = holdings[state.turn % holdings.length];
+      fortifying.defense = Math.min(90, fortifying.defense + 1);
+      fortifying.localSoldiers = Math.min(1200, fortifying.localSoldiers + 12 + ascent.wavesSurvived * 2);
+    }
 
     // Dominance. `getEmpirePower`-shaped units on both sides: troops plus walls-at-ten.
     const rivalOnMap = state.armies
       .filter((army) => army.kingdomId === rival.id)
       .reduce((sum, army) => sum + army.units.spearmen + army.units.archers + army.units.heavyInfantry, 0)
-      + holdings.reduce((sum, land) => sum + land.defense * 10, 0);
+      // A court with no provinces still has a realm; `getEmpirePower` is the figure the World lane
+      // already shows the player, so the comparison they can see is the comparison being made.
+      + (offMap ? getEmpirePower(state, rival) : holdings.reduce((sum, land) => sum + land.defense * 10, 0));
     const ratio = playerOnMap / Math.max(120, rivalOnMap);
 
     if (ratio > 2) {
@@ -492,6 +589,7 @@ export function tickEnemyCommand(state: GameState): void {
 
   tickRivalRealms(state);
   storyStrikes(state);
+  maybeJoinTheWar(state);
   maybeLaunch(state);
   assignPlans(state);
   reconsider(state);

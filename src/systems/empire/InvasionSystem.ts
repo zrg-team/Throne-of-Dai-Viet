@@ -1,8 +1,13 @@
 import { isEndlessMode, PLAYER_KINGDOM_ID } from '../../game/constants';
 import { getLegTicks } from '../../game/movementConfig';
 import {
+  CAMPAIGN_TICKS_BASE,
+  CAMPAIGN_TICKS_MAX,
+  CAMPAIGN_TICKS_ON_SACK,
+  CAMPAIGN_TICKS_ON_WIN,
   GARRISON_LEVY_FLOOR,
   LEVY_POWER_PER_MAN,
+  MAX_HOSTS_PER_KINGDOM,
   WALL_ATTRITION_SHARE,
   WALL_DEFENCE_FLOOR,
 } from '../../game/ascentConfig';
@@ -271,6 +276,21 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
     else if (relations < 40 && Math.random() < 0.5) armyCount = 2;
   }
 
+  // **One court, three hosts.** What a crown can spend on you has a limit.
+  //
+  // The roll above was already relations-driven; this makes it a rule rather than a coincidence,
+  // and the rule is what gives a four-host wave its meaning. Over three hosts on the map is now
+  // *necessarily* more than one kingdom having decided the same thing in the same season — so a
+  // coalition reads as a coalition instead of as a slightly larger ordinary wave.
+  //
+  // Ascent only: empire mode's pressure is budgeted per wave rather than per crown, and capping
+  // its hosts silences invasions the mode counts on.
+  if (state.gameMode === 'ascent') {
+    const committed = (state.invasions ?? []).filter((record) => record.kingdomId === kingdomId).length;
+    armyCount = Math.min(armyCount, Math.max(0, MAX_HOSTS_PER_KINGDOM - committed));
+    if (armyCount <= 0) return;
+  }
+
   const scale = difficultyArmyScale(state.campaignConfig?.difficulty) * personalityWeight(kingdom) * (opts.sizeMult ?? 1);
   const growth = 1 + Math.min(1.4, state.turn * 0.02); // later invasions hit harder, but the ramp is bounded
 
@@ -283,7 +303,27 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
   // wave against something more honest than a headcount (see `totalSoldiers`).
   let clampFactor: number;
   if (opts.totalSoldiers !== undefined) {
-    clampFactor = rawTotal > 0 ? opts.totalSoldiers / rawTotal : 1;
+    // **Difficulty has to be reapplied here, or it is cancelled.**
+    //
+    // `rawSizes` above are rolled with `scale`, which contains `difficultyArmyScale`. Dividing
+    // a fixed budget by `rawTotal` therefore divides that same factor straight back out, exactly:
+    //
+    //     size = rawSizes[i] * (totalSoldiers / rawTotal)      // scale appears above and below
+    //
+    // Every wave, every raid and every forced march passes `totalSoldiers` — so on the shipped
+    // build Easy (0.7) and Ironman (1.7) spawn **byte-identical hosts**. The difficulty a player
+    // chose on the setup screen has never once changed the size of anything that attacked them,
+    // which is the most direct form the "unfair" report could possibly take.
+    //
+    // Ascent only, deliberately. This spawner is shared with Throne of Empires, whose threat
+    // curve and difficulty budget were tuned against the cancelled behaviour — correcting it
+    // there is a separate change with its own measurement, and `verify-modes-regression` holds
+    // empire byte-identical. The bug is the same in both; the fix is scoped to the mode that
+    // reported it.
+    const wanted = state.gameMode === 'ascent'
+      ? opts.totalSoldiers * difficultyArmyScale(state.campaignConfig?.difficulty)
+      : opts.totalSoldiers;
+    clampFactor = rawTotal > 0 ? wanted / rawTotal : 1;
   } else {
     const capFloor = 260 * armyCount * difficultyArmyScale(state.campaignConfig?.difficulty);
     const totalCap = Math.max(capFloor, getPlayerMilitary(state) * defensibleCapRatio(state.campaignConfig?.difficulty));
@@ -368,6 +408,20 @@ export function tickAutoDefend(state: GameState): void {
   }
 }
 
+/**
+ * A campaign lives on what it takes.
+ *
+ * Success buys a host more time in the field — and the ceiling is what stops that becoming
+ * permanence. A host winning every fight it picks still has a horizon, which is what keeps
+ * "hold out" a strategy the player can actually plan rather than a hope they cannot price.
+ */
+export function extendCampaign(record: InvasionRecord, ticks: number): void {
+  record.campaignTicks = Math.min(
+    CAMPAIGN_TICKS_MAX,
+    (record.campaignTicks ?? CAMPAIGN_TICKS_BASE) + ticks,
+  );
+}
+
 export function tickInvasions(state: GameState): void {
   if (!isEndlessMode(state.gameMode) || !state.invasions || state.invasions.length === 0) {
     return;
@@ -383,6 +437,36 @@ export function tickInvasions(state: GameState): void {
         state.invasions = (state.invasions ?? []).filter((r) => r !== record);
       }
       continue;
+    }
+
+    // **The campaign season.** A court can only keep a host in the field for so long.
+    //
+    // Nothing anywhere used to read an invader's supply: `progressArmyLogistics` opens with
+    // `if (army.kingdomId !== PLAYER_KINGDOM_ID) continue;`, so the `rations` and `provisions`
+    // written onto every spawned host were decorative. Invaders ate nothing, took no attrition,
+    // and were never disbanded for arrears — a conquest host strong enough to win besieged, took
+    // a province, and marched on for ever at zero upkeep. That is the mechanical form of "the
+    // enemy never leaves", and it is what makes losing ground feel unrecoverable rather than bad.
+    //
+    // Counted here, before the siege check, so a host parked under a wall is spending its season
+    // like any other. Refilled by success in `resolveInvaderBattle` and `progressSiegeOrders` —
+    // a campaign lives on what it takes, so a war that is going well sustains itself and one that
+    // stalls at the walls starves. "Hold four more seasons" becomes a real objective.
+    if (state.gameMode === 'ascent' && !record.pillaged) {
+      record.campaignTicks = (record.campaignTicks ?? CAMPAIGN_TICKS_BASE) - 1;
+      if (record.campaignTicks <= 0) {
+        record.plan = 'withdrawing';
+        record.pillaged = true; // the existing withdraw-and-despawn path
+        record.exitLandId = farthestNeutralFromCapital(state)?.id;
+        // Lifting the siege with it, or a host called home keeps taking the province it left.
+        const siege = state.siegeOrders.find((order) => order.armyId === army.id);
+        if (siege) {
+          state.siegeOrders = state.siegeOrders.filter((order) => order !== siege);
+          army.landId = siege.fromLandId;
+        }
+        pushToast(state, t('ascent.invade.supplyOut', { kingdom: kingdomName(state, record.kingdomId) }), 'reward');
+        continue;
+      }
     }
 
     // A host mid-siege stays put until progressSiegeOrders resolves it.
@@ -545,7 +629,21 @@ function chooseTarget(state: GameState, army: Army, record: InvasionRecord): Lan
     // Ascent only, deliberately. Empire mode shares this spawner but not this design: its threat
     // curve, its province count and its whole difficulty budget were tuned against war hosts that
     // march at the seat, and `verify-modes-regression` holds that behaviour byte-identical.
-    if (state.gameMode === 'ascent') return nearestLand(here, owned);
+    //
+    // With one exception, and it is the last piece of the Year-4 report. The frontier rule assumes
+    // the frontier is *somewhere else* — but a realm holding one or two provinces has no depth to
+    // absorb anything, and `nearestLand` then picks the outlying district precisely because it is
+    // the weakest, while the royal host sits under `defend` orders at the seat it is not attacking.
+    // Measured on the reported run: ~1,450 men against a 556-man levy on a district with 420
+    // defence, with the standing 460-man host a province away and never in the fight.
+    //
+    // Under three provinces the host marches at the seat, where the walls and the army already
+    // are. The player gets the battle they built for; the moment there is a frontier worth the
+    // name, the frontier rule takes over again.
+    if (state.gameMode === 'ascent') {
+      if (owned.length < 3) return playerCapital(state) ?? nearestLand(here, owned);
+      return nearestLand(here, owned);
+    }
     return playerCapital(state) ?? nearestLand(here, owned);
   }
   return nearestLand(here, owned);
@@ -943,7 +1041,8 @@ function resolveInvaderBattle(
     return;
   }
 
-  // Invader wins the field.
+  // Invader wins the field. A won battle is worth a season of confidence to the campaign clock.
+  extendCampaign(record, CAMPAIGN_TICKS_ON_WIN);
   applyInvaderLosses(army, 0.16);
   // Feigned Retreat: a pursuit out of formation costs the attacker more than the ground was
   // worth. This is the card that makes losing a province a move rather than only a loss.
@@ -953,6 +1052,7 @@ function resolveInvaderBattle(
 
   if (record.intent === 'raid') {
     pillage(state, land);
+    extendCampaign(record, CAMPAIGN_TICKS_ON_SACK);
     record.pillaged = true;
     record.exitLandId = farthestNeutralFromCapital(state)?.id;
     state.message = t('empire.invade.raidHit', { kingdom: kingdomName(state, record.kingdomId), land: land.name });
@@ -1049,7 +1149,7 @@ function pillage(state: GameState, land: Land): void {
   refreshAllLandOutputs(state);
 }
 
-function farthestNeutralFromCapital(state: GameState): Land | undefined {
+export function farthestNeutralFromCapital(state: GameState): Land | undefined {
   const capital = playerCapital(state) ?? playerLands(state)[0];
   if (!capital) {
     return undefined;
