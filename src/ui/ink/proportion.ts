@@ -10,28 +10,48 @@
  *
  * | prop      | drawn | is                        | m  | UNIT  | at GROUND_SCALE |
  * |-----------|-------|---------------------------|----|-------|-----------------|
- * | grassTuft |   6.0 | a tuft of grass           |0.9 | 0.465 |   2.0 px        |
- * | buffalo   |  28.6 | a trâu at the shoulder    |1.5 | 0.293 |   6.0 px        |
+ * | grassTuft |   5.6 | a tuft of grass           |0.9 | 0.498 |   2.0 px        |
+ * | buffalo   |  30.1 | a trâu at the shoulder    |1.5 | 0.332 |   7.2 px        |
  * | figure    |   6.7 | a soldier                 |1.7 | 0.786 |   6.8 px        |
- * | farmer    |  15.3 | a farmer                  |1.7 | 0.344 |   6.8 px        |
- * | hayStack  |  26.0 | a cây rơm                 |3   | 0.358 |   6.7 px        |
- * | banana    |  18.6 | a chuối                   |4   | 0.667 |   8.9 px        |
- * | house     |  18.4 | a nhà tranh ridge         |5   | 0.842 |  11.2 px        |
- * | tree      |  17.3 | a village tree            |8   | 1.434 |  17.9 px        |
- * | bamboo    |  44.6 | a lũy tre hedge           |8   | 0.556 |  17.9 px        |
- * | dinh      |  29.7 | an đình                   |8   | 0.835 |  17.9 px        |
- * | areca     |  34.1 | a cau                     |10  | 0.909 |  22.3 px        |
+ * | farmer    |  16.2 | a farmer                  |1.7 | 0.325 |   8.2 px        |
+ * | hayStack  |  27.0 | a cây rơm                 |3   | 0.344 |   6.7 px        |
+ * | gieng     |   6.9 | a giếng làng              |1.26| 0.566 |   2.8 px        |
+ * | boThoc    |  12.3 | a bồ thóc                 |2   | 0.504 |   4.5 px        |
+ * | chuongTrau|  11.1 | a chuồng trâu             |2.8 | 0.782 |   6.2 px        |
+ * | bep       |  12.0 | a bếp                     |3.2 | 0.827 |   7.1 px        |
+ * | banana    |  19.4 | a chuối                   |4   | 0.639 |   8.9 px        |
+ * | house     |  19.3 | a nhà tranh ridge         |5   | 0.803 |  11.2 px        |
+ * | tree      |  15.4 | a village tree            |8   | 1.610 |  17.9 px        |
+ * | bamboo    |  46.2 | a lũy tre hedge           |8   | 0.537 |  17.9 px        |
+ * | dinh      |  30.4 | an đình                   |8   | 0.816 |  17.9 px        |
+ * | areca     |  39.8 | a cau                     |10  | 0.779 |  22.3 px        |
  * | banyan    |  33.3 | a cây đa                  |14  | 1.303 |  31.2 px        |
- * | thap      |  49.4 | a tháp                    |16  | 1.004 |  35.7 px        |
+ * | thap      |  50.4 | a tháp                    |16  | 0.984 |  35.7 px        |
+ *
+ * ## Re-measured, and why the table drifted
+ *
+ * `diag/measure-props.mjs` re-run against today's geometry: **every** `DRAWN` figure above had
+ * moved since it was last written down, because a prop's extents change whenever anyone touches
+ * its outline and nothing re-derived the correction. Two had drifted far enough to see:
+ *
+ *  · **tree** was drawn 15.4 against a recorded 17.3, so `UNIT` was 11% low and a village tree came
+ *    out **shorter than the lũy tre beside it** — both are declared 8 m, and the bamboo stood 16%
+ *    over the tree. This is the one people notice.
+ *  · **areca** was drawn 39.8 against a recorded 34.1, so a cau stood 17% **over** its ten metres
+ *    and out-topped the đình it stands beside.
+ *
+ * The rest were within 6%. All of them are reconciled here rather than only the two that showed,
+ * because a half-corrected table is how this drifts again.
  *
  * ## Why it kept going wrong
  *
  * Three separate faults, each of which hid the others:
  *
- * 1. **The drawn heights were guessed, not measured.** The previous table claimed bamboo was 31
- *    when it is 44.6, buffalo 20 when it is 28.6, house 15.5 when it is 18.4. Every correction
+ * 1. **The drawn heights were guessed, not measured.** An older table claimed bamboo was 31 and
+ *    house 15.5, against the mid-forties and the high teens they actually draw at. Every correction
  *    built on those numbers was wrong by the same margin — which is why a lũy tre came out half
- *    again the height of the tree beside it and read as three times.
+ *    again the height of the tree beside it and read as three times. The lesson is the one above:
+ *    re-run the measurement whenever a prop's outline moves, and reconcile the **whole** table.
  * 2. **The real heights were specimen heights.** Bamboo at 12 m, cau at 15 m, cây đa at 20 m are
  *    true of a mature grove in the wild and false of what stands in a village. A hedge is kept at
  *    about the height of the trees it grows beside, and it now is.
@@ -78,15 +98,27 @@ const LIVING = 2.15;
  */
 export const UNIT = {
   // ── Buildings ──
-  house: 0.842,
-  dinh: 0.835,
-  thap: 1.004,
-  hayStack: 0.358,
+  house: 0.803,
+  dinh: 0.816,
+  thap: 0.984,
+  hayStack: 0.344,
+  // ── The rest of a làng. A village is not four copies of one roof: the kitchen stands off the
+  // main house because of the cooking fire, the trâu has a byre, the rice has a bin, and the
+  // water has a well. Provisional until `diag/measure-props.mjs` reports them; reconciled below.
+  bep: 0.827,
+  chuongTrau: 0.782,
+  boThoc: 0.504,
+  gieng: 0.566,
   // ── Plants ──
-  tree: 1.434,
-  bamboo: 0.556,
-  banana: 0.667,
-  areca: 0.909,
+  // 1.610, not 1.434: re-measured at 15.4 drawn against the 17.3 the table used to claim, which
+  // is why a village tree stood 11% short of its own eight metres and the lũy tre beside it — the
+  // same declared height — came out 16% taller.
+  tree: 1.610,
+  bamboo: 0.537,
+  banana: 0.639,
+  // 0.779, not 0.909: measured at 39.8 drawn against a recorded 34.1, so a cau was standing
+  // 11.7 m and out-topping the đình.
+  areca: 0.779,
   // Re-measured with `diag/measure-props.mjs` when the đa was redrawn as an actual banyan: 33.3 at
   // `s = 1` against the old stamp's 30.8, because it grew a bole, a fringe of aerial root and two
   // pillars down to the ground. The correction comes down to match, so it still stands fourteen
@@ -101,7 +133,7 @@ export const UNIT = {
    * put the country knee-deep in grass standing as tall as the people walking through it. Coverage
    * is a question of **how many**, not how big; `SCATTER.plains` carries the count instead.
    */
-  grassTuft: 0.465,
+  grassTuft: 0.498,
   // ── Living things ──
   // People carry one exaggeration between them, so the farmer in the paddy and the soldier in the
   // rank are the same height, and both stand lower than a roof.
@@ -116,10 +148,10 @@ export const UNIT = {
   // system, so it inherits this correction and comes out at the right height by construction;
   // giving it a row of its own would apply the correction twice.
   figure: 0.786 * LIVING,
-  farmer: 0.344 * LIVING,
+  farmer: 0.325 * LIVING,
   // A trâu is 1.5 m at the shoulder against a man's 1.7, so at the same exaggeration it lands just
   // under him — which is where it belongs, and nowhere near over him.
-  buffalo: 0.163 * LIVING,
+  buffalo: 0.154 * LIVING,
 };
 
 /**
@@ -198,15 +230,29 @@ export interface PropScaleSample {
 /** Real height of each prop, so a sample can be expressed as a rate rather than a raw size. */
 const METRES: Record<keyof typeof UNIT, number> = {
   house: 5, dinh: 8, thap: 16, hayStack: 3,
+  bep: 3.2, chuongTrau: 2.8, boThoc: 2.0,
+  /**
+   * 1.26, and the number is chosen for the WIDTH.
+   *
+   * This table governs height only, and a well is the one thing on the map where that is the wrong
+   * axis: its rim stands about 0.9 m, which at map scale is two pixels and nothing at all. What
+   * identifies a well from the map's viewpoint is the ring and the dark shaft inside it — the
+   * across-measure. The drawing runs 1.9 wide to 1 tall, so declaring 1.26 m puts it at the 2.4 m
+   * across a giếng làng actually is, and its 0.9 m rim then falls out correctly underneath.
+   *
+   * If a width column is ever added here, this is the entry that should move to it.
+   */
+  gieng: 1.26,
   tree: 8, bamboo: 8, banana: 4, areca: 10, banyan: 14,
   grassTuft: 0.9, figure: 1.7, farmer: 1.7, buffalo: 1.5,
 };
 
 /** Drawn height at `s = 1`, measured off each prop by `diag/measure-props.mjs`, not estimated. */
 const DRAWN: Record<keyof typeof UNIT, number> = {
-  house: 18.4, dinh: 29.7, thap: 49.4, hayStack: 26,
-  tree: 17.3, bamboo: 44.6, banana: 18.6, areca: 34.1, banyan: 33.3,
-  grassTuft: 6, figure: 6.7, farmer: 15.3, buffalo: 28.6,
+  house: 19.3, dinh: 30.4, thap: 50.4, hayStack: 27,
+  bep: 12, chuongTrau: 11.1, boThoc: 12.3, gieng: 6.9,
+  tree: 15.4, bamboo: 46.2, banana: 19.4, areca: 39.8, banyan: 33.3,
+  grassTuft: 5.6, figure: 6.7, farmer: 16.2, buffalo: 30.1,
 };
 
 /**

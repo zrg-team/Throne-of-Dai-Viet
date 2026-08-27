@@ -1063,6 +1063,17 @@ export function tickWaveDirector(state: GameState): void {
     pushToast(state, t('ascent.wave.telegraph', { ticks: Math.max(0, ascent.ticksToWave) }), 'threat');
   }
 
+  // The peace floor says so before it fires.
+  //
+  // A guarantee the player only learns about by being hit is a punishment; one they are warned of
+  // is a deadline. This is the moment a diplomacy run is told that the quiet it bought is running
+  // out and it is time to spend the seasons it saved.
+  if (!ascent.quietWarned && peaceFloorBreached(state) && liveInvasions === 0) {
+    ascent.quietWarned = true;
+    pushToast(state, t('ascent.wave.quietTooLong'), 'threat');
+  }
+  if (liveInvasions > 0) ascent.quietWarned = false;
+
   if (ascent.ticksToWave <= 0) {
     startWave(state);
   }

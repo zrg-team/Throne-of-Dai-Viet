@@ -1,5 +1,5 @@
 import { isCampaignMode, isEndlessMode, PLAYER_KINGDOM_ID } from '../game/constants';
-import { FEUD_ENVY_SHARE } from '../game/ascentConfig';
+import { FEUD_ENVY_SHARE, OATHBREAK_BYSTANDER_OPINION } from '../game/ascentConfig';
 import type { Difficulty, GameState, Kingdom, KingdomPersonality, OpinionModifier } from '../state/types';
 import { t } from '../i18n';
 
@@ -389,7 +389,7 @@ export function breakPact(state: GameState, kingdomId: string, byPlayer: boolean
       addOpinionModifier(other, {
         id: `oathbreaker-${state.turn}-${other.id}`,
         label: t('diplo.mod.oathbreaker'),
-        value: -10,
+        value: OATHBREAK_BYSTANDER_OPINION,
         decay: 0.15,
         source: 'reputation',
       });

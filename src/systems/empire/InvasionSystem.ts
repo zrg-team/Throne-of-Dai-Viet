@@ -282,9 +282,14 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
   // and the rule is what gives a four-host wave its meaning. Over three hosts on the map is now
   // *necessarily* more than one kingdom having decided the same thing in the same season — so a
   // coalition reads as a coalition instead of as a slightly larger ordinary wave.
-  const committed = (state.invasions ?? []).filter((record) => record.kingdomId === kingdomId).length;
-  armyCount = Math.min(armyCount, Math.max(0, MAX_HOSTS_PER_KINGDOM - committed));
-  if (armyCount <= 0) return;
+  //
+  // Ascent only: empire mode's pressure is budgeted per wave rather than per crown, and capping
+  // its hosts silences invasions the mode counts on.
+  if (state.gameMode === 'ascent') {
+    const committed = (state.invasions ?? []).filter((record) => record.kingdomId === kingdomId).length;
+    armyCount = Math.min(armyCount, Math.max(0, MAX_HOSTS_PER_KINGDOM - committed));
+    if (armyCount <= 0) return;
+  }
 
   const scale = difficultyArmyScale(state.campaignConfig?.difficulty) * personalityWeight(kingdom) * (opts.sizeMult ?? 1);
   const growth = 1 + Math.min(1.4, state.turn * 0.02); // later invasions hit harder, but the ramp is bounded
@@ -310,8 +315,14 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
     // chose on the setup screen has never once changed the size of anything that attacked them,
     // which is the most direct form the "unfair" report could possibly take.
     //
-    // The caller's budget is the normal-difficulty budget; difficulty scales it here, once.
-    const wanted = opts.totalSoldiers * difficultyArmyScale(state.campaignConfig?.difficulty);
+    // Ascent only, deliberately. This spawner is shared with Throne of Empires, whose threat
+    // curve and difficulty budget were tuned against the cancelled behaviour — correcting it
+    // there is a separate change with its own measurement, and `verify-modes-regression` holds
+    // empire byte-identical. The bug is the same in both; the fix is scoped to the mode that
+    // reported it.
+    const wanted = state.gameMode === 'ascent'
+      ? opts.totalSoldiers * difficultyArmyScale(state.campaignConfig?.difficulty)
+      : opts.totalSoldiers;
     clampFactor = rawTotal > 0 ? wanted / rawTotal : 1;
   } else {
     const capFloor = 260 * armyCount * difficultyArmyScale(state.campaignConfig?.difficulty);

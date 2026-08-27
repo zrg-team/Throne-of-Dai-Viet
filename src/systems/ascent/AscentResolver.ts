@@ -1,4 +1,5 @@
 import { bankLegacy, computeRunScore, getLegacy } from '../../state/legacy';
+import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { findPowerCard } from '../../data/ascentCards';
 import { applyCourtEffect } from '../PoliticsSystem';
 import { fireHeroArrival } from './ArrivalSystem';
@@ -159,7 +160,6 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
           : { armyId: actorId, force: flag === 'force' }
         : undefined;
       const attempt = executeConquestMethod(state, prompt.target.landId, method, actor);
-      handled = attempt.attempted;
       // An attempt that was made and refused still answers the prompt — the gold is gone either
       // way — but it must not vanish. Re-raise the sheet against the world as it now stands,
       // carrying the reason, so the player learns what their tap bought them.
@@ -173,6 +173,23 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
           });
         }
       }
+      // **A method that could not even be attempted still closes the card.**
+      //
+      // `handled = attempt.attempted` alone deadlocks the run. The sheet carries a *snapshot* of
+      // the methods; `executeConquestMethod` re-reads them from `buildMethodOptions` and refuses
+      // outright — `attempted: false` — when the chosen one is no longer open, which happens
+      // whenever the province changes hands, is claimed, or the purse moves while the card
+      // stands. An unhandled prompt is put straight back by the dispatcher, the stale snapshot
+      // still lists that method as open, and the same choice is refused for ever. Reproduced
+      // from a full run: `stuckPrompts: ['conquer-method']`, and every card queued behind it —
+      // the Power Draft included — never fired again for the rest of that run.
+      //
+      // Nothing is re-raised in that case, deliberately. The refusal above re-raises because the
+      // player *spent* something and is owed the reason; this one costs nothing, and the routine
+      // claim cadence will offer the province again on its own if it is still worth having.
+      // Re-raising here instead put a second sheet up on the very next tick, which is the
+      // back-to-back pacing the mode is explicit about not doing.
+      handled = true;
       break;
     }
 

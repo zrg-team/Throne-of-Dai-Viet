@@ -36,6 +36,7 @@ import {
 import { launchOffMapInvasion } from '../empire/InvasionSystem';
 import { pushToast } from '../empire/notifications';
 import { getPlayerTroops } from '../ResourceSystem';
+import { getEmpirePower } from '../DiplomacySystem';
 import { armyPower } from '../WarSystem';
 import { ambitionHeat } from './AmbitionSystem';
 import { landGarrisonPower } from './PowerSystem';
@@ -454,20 +455,35 @@ function tickRivalRealms(state: GameState): void {
     // A sworn crown keeps building its own provinces, but it stops wanting a war with you.
     if (isVassal(rival)) { rival.warAppetite = 0; continue; }
     if (rival.id === PLAYER_KINGDOM_ID || rival.isDefeated) continue;
+    // **The courts hold no ground in this mode, and this whole director was dead because of it.**
+    //
+    // Ascent builds from `createEmpireGameState`, where the rivals are off-map Great Powers that
+    // own no territory at all. So `holdings.length === 0` was true for every court on every pass,
+    // this loop `continue`d four times a tick, and the entire dominance mirror below — the one
+    // that makes the world notice a realm twelve times anyone's size — never once executed. The
+    // player's report that relations and the rival empires do nothing was, again, literally true.
+    //
+    // Off-map courts arm through `GreatPowersSystem.tickGreatPowersYear` instead, so the fortify
+    // pass is skipped for them and only the dominance read applies. On-map rivals (campaign,
+    // where this file is also reachable) keep both.
     const holdings = state.lands.filter((land) => land.ownerId === rival.id);
-    if (holdings.length === 0) continue;
+    const offMap = holdings.length === 0;
 
-    // Fortify: one province a pass raises its walls and drills its militia. Slow on purpose —
-    // this is a curve, not a jump — but it compounds, which is exactly what was missing.
-    const fortifying = holdings[state.turn % holdings.length];
-    fortifying.defense = Math.min(90, fortifying.defense + 1);
-    fortifying.localSoldiers = Math.min(1200, fortifying.localSoldiers + 12 + ascent.wavesSurvived * 2);
+    if (!offMap) {
+      // Fortify: one province a pass raises its walls and drills its militia. Slow on purpose —
+      // this is a curve, not a jump — but it compounds, which is exactly what was missing.
+      const fortifying = holdings[state.turn % holdings.length];
+      fortifying.defense = Math.min(90, fortifying.defense + 1);
+      fortifying.localSoldiers = Math.min(1200, fortifying.localSoldiers + 12 + ascent.wavesSurvived * 2);
+    }
 
     // Dominance. `getEmpirePower`-shaped units on both sides: troops plus walls-at-ten.
     const rivalOnMap = state.armies
       .filter((army) => army.kingdomId === rival.id)
       .reduce((sum, army) => sum + army.units.spearmen + army.units.archers + army.units.heavyInfantry, 0)
-      + holdings.reduce((sum, land) => sum + land.defense * 10, 0);
+      // A court with no provinces still has a realm; `getEmpirePower` is the figure the World lane
+      // already shows the player, so the comparison they can see is the comparison being made.
+      + (offMap ? getEmpirePower(state, rival) : holdings.reduce((sum, land) => sum + land.defense * 10, 0));
     const ratio = playerOnMap / Math.max(120, rivalOnMap);
 
     if (ratio > 2) {

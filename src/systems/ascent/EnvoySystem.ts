@@ -211,7 +211,20 @@ export function resolveEnvoy(state: GameState, kingdomId: string, optionId: stri
   const kingdom = state.kingdoms.find((candidate) => candidate.id === kingdomId);
   if (!kingdom) return false;
 
+  // **Understood is not the same as achieved, and only the first one closes the card.**
+  //
+  // `resolveAscentPrompt` puts the prompt straight back when a resolver returns false, so an
+  // action the realm simply could not pay for used to leave the envoy card standing as the live
+  // question for ever. The screen hides that — unaffordable rows are drawn `disabled` — but the
+  // autopilot and the harnesses choose by id, and a run that picks a gift it cannot afford stalls
+  // on the same card until something else displaces it. It surfaced the moment relations started
+  // moving, because that is when this card began firing at a realm with an empty treasury.
+  //
+  // So: an id this function knows about closes the card whether or not it succeeded — the envoy
+  // rode out and came back with nothing, which is an outcome. Only an id it does not recognise
+  // returns false, which is the case the re-arming behaviour was written for.
   let ok = false;
+  let known = true;
   switch (optionId) {
     case 'gift':
       ok = sendGift(state, kingdomId, 'standard');
@@ -274,13 +287,20 @@ export function resolveEnvoy(state: GameState, kingdomId: string, optionId: stri
     case 'ignore':
       ok = true;
       break;
+    default:
+      known = false;
+      break;
+  }
+
+  if (!ok && known) {
+    state.message = t('ascent.envoy.nothingCameOfIt', { kingdom: kingdom.name });
   }
 
   if (ok && ascent) {
     ascent.laneStats.envoyActions[optionId] = (ascent.laneStats.envoyActions[optionId] ?? 0) + 1;
     ascent.laneState.lastDecisionTurn.world = state.turn;
   }
-  return ok;
+  return known;
 }
 
 /** Card-ready numbers for one envoy option, so the modal never invents its own maths. */

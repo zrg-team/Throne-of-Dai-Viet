@@ -268,10 +268,13 @@ export function proposeTrade(state: GameState, kingdomId: string): boolean {
   // exchange (see `CourtBargains.canTrade`) reads exactly this. `addOpinionModifier` replaces a
   // standing modifier of the same id rather than stacking it, so signing twice is not a stacking
   // exploit — it renews.
+  const charter = state.gameMode === 'ascent';
   addOpinionModifier(kingdom, {
-    id: TRADE_CHARTER_ID,
+    id: charter ? TRADE_CHARTER_ID : `trade-${state.turn}-${Math.floor(Math.random() * 100000)}`,
     label: t('diplo.mod.trade'),
     value: 8,
+    // Standing in ascent, where it gates the exchange; decaying elsewhere, as it always was.
+    decay: charter ? undefined : 0.7,
     source: 'trade',
   });
   applyEnvy(state, kingdom, 8);

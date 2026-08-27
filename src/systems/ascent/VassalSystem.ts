@@ -12,6 +12,7 @@ import {
 } from '../../game/ascentConfig';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { addCourtModifier } from '../CourtSystem';
+import { CLAIM_SEIZURE_OPINION } from '../../game/ascentConfig';
 import { addOpinionModifier, getEmpirePower, getFear } from '../DiplomacySystem';
 import { pushToast } from '../empire/notifications';
 import { chargeAmbition } from './AmbitionSystem';
@@ -117,6 +118,25 @@ export function grantVassalage(state: GameState, kingdom: Kingdom, source: Vassa
     value: 25,
     source: 'treaty',
   });
+  // **Every other crown watches one bend the knee.**
+  //
+  // Asked for as *"some hard actions totally lost relation"*, and this is the hardest action the
+  // player can take short of war: a sovereign court reduced to a tributary is exactly the outcome
+  // the remaining sovereigns are trying not to become. Standing, not decaying — it does not fade
+  // while the oath holds, because the thing they object to is still true.
+  //
+  // It is also what stops vassalage being a pure gain. `VASSAL_MAX` bounded how many oaths could
+  // be taken; nothing priced taking them.
+  for (const other of state.kingdoms) {
+    if (other.id === PLAYER_KINGDOM_ID || other.isDefeated || other.id === kingdom.id) continue;
+    if (other.vassalage) continue;
+    addOpinionModifier(other, {
+      id: `saw-oath-${kingdom.id}`,
+      label: t('diplo.mod.seizure'),
+      value: CLAIM_SEIZURE_OPINION,
+      source: 'reputation',
+    });
+  }
 
   // Durable growth costs heat everywhere else in this mode; it should here too. Charged once,
   // visible on the ambition dial, and decaying — rather than a permanent hidden tax on the curve.

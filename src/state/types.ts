@@ -2577,6 +2577,8 @@ export interface AscentState {
    * re-rolled every tick collapses into its own minimum.
    */
   peaceFloor?: number;
+  /** Whether the "quiet too long" warning has already been given for this stretch of peace. */
+  quietWarned?: boolean;
   /** The court that sent the wave now in flight, so the dial and the World lane agree on who. */
   waveAggressorId?: string;
   /** Turn each court last sent us a relief column, for the ask's cooldown. Keyed by kingdom id. */
