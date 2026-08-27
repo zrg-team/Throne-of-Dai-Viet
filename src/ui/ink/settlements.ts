@@ -355,8 +355,16 @@ export function citadel(g: G, x: number, y: number, s: number, era: Era, seed: n
   const wallH = (era === 'nguyen' ? 8 : era === 'tran' ? 14 : 11) * s;
   const dx = depth * 0.62;
   const dy = depth * -0.42;
-  const faceLight = brick ? PIGMENT.diepLo : PIGMENT.diepHi;
-  const faceDark = brick ? PIGMENT.nau : PIGMENT.diepLo;
+  /**
+   * The rampart, a step down from where it was.
+   *
+   * `diepHi` is the lightest pigment on the palette, so an earth wall was drawn *paler than the
+   * paper it stands on* and a seat came out the faintest thing in its own province — the roofs were
+   * carrying the whole building. It is still a wash rather than a mass; it is simply no longer
+   * invisible. The hatch comes up with it, because a wall reads as courses before it reads as tone.
+   */
+  const faceLight = brick ? PIGMENT.diepDeep : PIGMENT.diepLo;
+  const faceDark = brick ? PIGMENT.nau : PIGMENT.diepDeep;
   const hatchGap = brick ? 3.4 : 5;
 
   groundShadow(g, x + w * 0.5, y + 3 * s, w * 0.62, 0.09);
@@ -380,7 +388,7 @@ export function citadel(g: G, x: number, y: number, s: number, era: Era, seed: n
     { x: x + w + dx, y: y + dy - wallH }, { x: x + w, y: y - wallH },
   ];
   washFill(g, side, faceDark, seed + 1, 0.9);
-  hatchPoly(g, side, 0.95, hatchGap, PIGMENT.mucSoft, brick ? 0.2 : 0.13, 0.55);
+  hatchPoly(g, side, 0.95, hatchGap, PIGMENT.mucSoft, brick ? 0.26 : 0.19, 0.55);
   inkPath(g, side, seed + 2, { width: 1.0 * s, alpha: 0.68, wobble: 0.12 * s, step: 7, closed: true });
 
   if (era === 'nguyen') {
@@ -395,7 +403,7 @@ export function citadel(g: G, x: number, y: number, s: number, era: Era, seed: n
 
   const front: Pt[] = [{ x, y }, { x: x + w, y }, { x: x + w, y: y - wallH }, { x, y: y - wallH }];
   washFill(g, front, faceLight, seed + 3, 0.95);
-  hatchPoly(g, front, 0.95, hatchGap, PIGMENT.mucSoft, brick ? 0.17 : 0.11, 0.55);
+  hatchPoly(g, front, 0.95, hatchGap, PIGMENT.mucSoft, brick ? 0.23 : 0.17, 0.55);
   inkPath(g, front, seed + 4, { width: 1.2 * s, alpha: 0.85, wobble: 0.16 * s, step: 9, closed: true });
   inkPath(g, [{ x: x + 1 * s, y: y - wallH * 0.28 }, { x: x + w - 1 * s, y: y - wallH * 0.3 }], seed + 7, {
     width: 0.7 * s, alpha: 0.3, wobble: 0.1 * s, step: 9,
@@ -506,9 +514,46 @@ export function citadel(g: G, x: number, y: number, s: number, era: Era, seed: n
   } else {
     dinh(g, gx + 1 * s, gy, s * 0.62, seed + 96);
   }
+
+  gateStandard(g, x, y, s, era, seed);
 }
 
 /** Where the gate's standard should be planted, so a caller can hang a live flag off it. */
+/**
+ * The standard over the gate.
+ *
+ * A seat of power flew one, and the map's did not: `citadelStandardAnchor` has existed since the
+ * battle screen needed somewhere to hang a banner from, and nothing on the MAP ever used it — so
+ * the player's own capital was a pale walled shape with no mark on it at all.
+ *
+ * Deliberately **not** in sỏi son. The map already says who owns a province with its own land
+ * flags, and this file has no idea whose seat it is drawing; a red pennant here would be a second,
+ * unsourced claim of ownership and would spend the player's red on every rival capital too. Drawn
+ * in hoè over soot, it says *this is a seat* — which is the thing a capital was failing to say.
+ */
+function gateStandard(g: G, x: number, y: number, s: number, era: Era, seed: number): void {
+  const at = citadelStandardAnchor(x, y, s, era);
+  const poleH = 13 * s;
+  const flyW = 8 * s;
+  inkPath(g, [{ x: at.x, y: at.y }, { x: at.x, y: at.y - poleH }], seed + 400, {
+    width: 1.0 * s, alpha: 0.85, colour: PIGMENT.muc, wobble: 0.1 * s, step: 5,
+  });
+  printedShape(
+    g,
+    [
+      { x: at.x, y: at.y - poleH },
+      { x: at.x + flyW, y: at.y - poleH + 1.7 * s },
+      { x: at.x + flyW * 0.78, y: at.y - poleH + 4.6 * s },
+      { x: at.x, y: at.y - poleH + 5.4 * s },
+    ],
+    PIGMENT.hoe, seed + 401,
+    { width: 0.6 * s, alpha: 0.88, wobble: 0.14 * s, step: 4, fillAlpha: 0.95 },
+  );
+  // A finial, so the pole ends rather than stops.
+  g.fillStyle(PIGMENT.muc, 0.9);
+  g.fillCircle(at.x, at.y - poleH - 0.9 * s, 1.0 * s);
+}
+
 export function citadelStandardAnchor(x: number, y: number, s: number, era: Era): Pt {
   const w = (era === 'nguyen' ? 104 : era === 'le' ? 86 : era === 'dinh' ? 62 : 74) * s;
   const wallH = (era === 'nguyen' ? 8 : era === 'tran' ? 14 : 11) * s;
