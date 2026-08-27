@@ -3,6 +3,7 @@ import {
   CLAIM_DECLINE_TICKS,
   MARCH_HOLD_TICKS,
   MARCH_REPROMPT_TICKS,
+  REFUGEE_SHARE,
   XP_PER_LAND_TAKEN,
 } from '../../game/ascentConfig';
 import {
@@ -27,7 +28,8 @@ import { chargeAmbition } from './AmbitionSystem';
 import { isAutoHost } from './armyOrders';
 import { setArmyOrders } from './StandingOrders';
 import { releaseHeroAssignment } from '../CourtSystem';
-import { refreshAllLandOutputs } from '../ResourceSystem';
+import { pushToast } from '../empire/notifications';
+import { applyResourceDelta, refreshAllLandOutputs } from '../ResourceSystem';
 import { addAscentXp, landGarrisonPower } from './PowerSystem';
 import { heroName, t } from '../../i18n';
 import type {
@@ -524,7 +526,9 @@ export function frontWinChance(state: GameState): number {
   return front ? bestBattle(state, front).chance : 0;
 }
 
-/** Awards momentum for provinces that changed hands into the realm this tick. */
+/**
+ * Momentum for provinces that joined the realm this tick — and the bill for those that left.
+ */
 export function detectConquests(state: GameState, ownedBefore: Set<string>): void {
   const ascent = state.ascent;
   if (!ascent) return;
@@ -538,6 +542,27 @@ export function detectConquests(state: GameState, ownedBefore: Set<string>): voi
       ascent.frontLandId = undefined;
       ascent.frontBlocked = false;
     }
+  }
+
+  // And the other direction, which had no code at all.
+  //
+  // `completeLandAcquisition` pays `+land.population` into the realm's people the moment a province
+  // joins it, and nothing anywhere took it back — so a province taken, lost and retaken paid out
+  // twice, and losing ground cost the realm nothing beyond that district's income. Territory churn
+  // was a ratchet that only turned upward, which is most of why the map had stopped mattering.
+  //
+  // The inverse is deliberately not the whole figure. A throne that leaves takes people with it:
+  // `REFUGEE_SHARE` follow it out and stay in the national pool, and the rest are on their own land
+  // and are counted by whoever holds it now.
+  for (const land of state.lands) {
+    if (!ownedBefore.has(land.id) || land.ownerId === PLAYER_KINGDOM_ID) continue;
+    const stayed = Math.round(land.population * (1 - REFUGEE_SHARE));
+    if (stayed > 0) applyResourceDelta(state, { humans: -stayed });
+    // The watch it kept belongs to the new owner, bar the few who walked out with everyone else.
+    land.localSoldiers = Math.round(land.localSoldiers * 0.25);
+    // Said out loud. Two fifths of a province's people vanishing in silence is indistinguishable
+    // from a bug, and being able to feel this is the entire point of charging for it.
+    pushToast(state, t('ascent.land.lost', { land: land.name, people: stayed }), 'threat');
   }
 
   // Ambition is charged here rather than at the order, and deliberately regardless of *who*

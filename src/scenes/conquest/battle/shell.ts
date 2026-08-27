@@ -15,6 +15,8 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT } from '../../../game/constants';
 import { ourHosts, battleTelegraph } from '../../../systems/ascent/BattleSystem';
+import { defenceCommanderOf } from '../../../systems/ascent/landCommand';
+import { findLand } from '../../../systems/LandSystem';
 import { BATTLE_OPENING_SECONDS } from '../../../game/ascentConfig';
 import { renderHeroFaceInBox } from '../../../ui/FaceRenderer';
 import { INK_UI, INK_UI_HEX, type UIBounds } from '../../../ui/InkUI';
@@ -286,9 +288,13 @@ function battleHeaderFrame(self: ConquestUIScene, battle: AscentBattle): {
   const bandY = top + 8;
 
   // Whoever is actually holding the field. `generalName` is only stamped on delegation, so an
-  // unsteered fight has to look its commander up the same way `generalPlaysBeat` does.
+  // unsteered fight has to look its commander up the same way the fight itself does — which now
+  // means `defenceCommanderOf`: the general of a host standing here, or the governor the player
+  // posted to the province when the hosts are elsewhere. Reading only `generalHeroId` is why every
+  // levy-fought defence said *chưa có chủ tướng* over a rally the maths was already granting.
   const led = ourHosts(self.state, battle).find((host) => host.generalHeroId)?.generalHeroId;
-  const hero = led ? self.state.heroes.find((candidate) => candidate.id === led) : undefined;
+  const hero = (led ? self.state.heroes.find((candidate) => candidate.id === led) : undefined)
+    ?? (battle.role === 'offence' ? undefined : defenceCommanderOf(self.state, findLand(self.state, battle.landId)));
 
   const plate = self.add.graphics();
   plate.fillStyle(INK_UI.parchmentShade, 1);
@@ -307,6 +313,29 @@ function battleHeaderFrame(self: ConquestUIScene, battle: AscentBattle): {
       { fontSize: '8px', align: 'center', wordWrap: { width: face - 6 } },
     ).setOrigin(0.5));
   }
+
+  /**
+   * The commander's name under their own face, and the *place* takes the title.
+   *
+   * It was the other way round: the hero at 15px in the title face, the province underneath at
+   * 10.5. Reported verbatim — *battle screen title is place of battle; name of hero small and under
+   * the image* — and it is the right call for a reason beyond taste. This screen is opened from a
+   * war board that lists fronts by province and from a toast that names one; the first thing the
+   * player has to confirm is *which fight am I looking at*. A name is who, and who is already drawn
+   * six points to the left.
+   */
+  const underName = self.add.text(
+    left + face / 2, bandY + face + 2,
+    hero ? hero.name : t('ascent.battle.noCommanderName'),
+    {
+      color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '8.5px',
+      align: 'center', wordWrap: { width: face + 12 },
+    },
+  ).setOrigin(0.5, 0);
+  self.modalLayer.add(underName);
+  // What the portrait column now costs in height, which `bandHeight` below has to clear or the
+  // field's top edge is drawn straight through the name.
+  const faceColumn = face + 2 + underName.height;
 
   const textX = left + face + 10;
   /**
@@ -334,15 +363,6 @@ function battleHeaderFrame(self: ConquestUIScene, battle: AscentBattle): {
   // Only the two rows that sit beside the clock are held off it. The notice and the log line run
   // the full width underneath, where there is nothing to collide with.
   const topW = textW - pipsW - 10;
-  const name = self.add.text(
-    textX, bandY + 1, hero ? hero.name : t('ascent.battle.noCommanderName'),
-    {
-      color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '15px', fontStyle: '700',
-      wordWrap: { width: topW },
-    },
-  ).setOrigin(0, 0);
-  self.modalLayer.add(name);
-
   const offence = battle.role === 'offence';
   // The place, and not the rival with it. The rails name the rival under their own strength bar
   // — in the size that band deserves — so repeating it here bought nothing and wrapped the line
@@ -352,8 +372,8 @@ function battleHeaderFrame(self: ConquestUIScene, battle: AscentBattle): {
     : battle.isGreat
       ? t('ascent.battle.greatTitle', { land: battle.landName })
       : t('ascent.battle.title', { land: battle.landName });
-  const desc = self.add.text(textX, name.y + name.height + ROW_GAP, where, {
-    color: '#5a4c39', fontFamily: UI_FONT, fontSize: '10.5px', lineSpacing: 1,
+  const desc = self.add.text(textX, bandY + 1, where, {
+    color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '15px', fontStyle: '700', lineSpacing: 1,
     wordWrap: { width: topW },
   }).setOrigin(0, 0);
   self.modalLayer.add(desc);
@@ -396,7 +416,9 @@ function battleHeaderFrame(self: ConquestUIScene, battle: AscentBattle): {
   self.modalLayer.add(log);
   const LOG_ROOM = 13;
 
-  const bandHeight = Math.max(face, noticeY - bandY + NOTICE_ROOM + LOG_ROOM);
+  // `faceColumn`, not `face`: the commander's name hangs below the portrait now, and a band sized
+  // to the plate alone draws the field's top rule through it.
+  const bandHeight = Math.max(faceColumn, noticeY - bandY + NOTICE_ROOM + LOG_ROOM);
   const cursor = bandY + bandHeight + 6;
   return {
     content: { x: left, y: cursor, width: GAME_WIDTH - 40, height: GAME_HEIGHT - cursor - 20 },

@@ -10,6 +10,7 @@ import {
   getFocusLoyaltyBonus,
   growProvincialMilitia,
   progressBuildOrders,
+  repairProvincialDefence,
 } from '../ResourceSystem';
 import {
   progressArmyLogistics,
@@ -293,6 +294,10 @@ export function advanceAscentTick(state: GameState): void {
   // from the national pool, so holding territory no longer competes with fielding an army — see
   // `growProvincialMilitia`. After `settleOwnedLands`, because the ceiling reads loyalty.
   growProvincialMilitia(state);
+  // And the masonry the last fight knocked down, rebuilt a course at a time. Beside the militia
+  // because they are the two halves of the same recovery: a province that held a wave is short of
+  // both men and walls until it has had the seasons to make them good.
+  repairProvincialDefence(state);
   detectConquests(state, ownedBefore);
   tickAscentProgress(state);
 

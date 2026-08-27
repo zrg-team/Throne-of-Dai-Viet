@@ -12,13 +12,14 @@
  */
 import Phaser from 'phaser';
 import { ourHosts, theirHosts } from '../../../systems/ascent/BattleSystem';
-import { BATTLE_TICK_MS } from '../../../game/ascentConfig';
+import { BATTLE_HOST_MARK_CAP, BATTLE_TICK_MS } from '../../../game/ascentConfig';
 import { compactNumber } from '../../../utils/format';
 import { INK_UI } from '../../../ui/InkUI';
 import { faceTravel } from '../../../ui/ink/life';
 import { armyShape, compositionFor, hostKitFor, hostShapeAt } from '../../../ui/ink/devices';
 import { type BattleFormation } from '../../../data/ascent/formations';
 import { inkPath } from '../../../ui/ink/stroke';
+import { keepForegroundOnTop } from './ground';
 import { createPlayerLandFlag } from '../../../ui/playerFlag';
 import { GROUND_SCALE } from '../../../ui/ink/proportion';
 import type { Army, AscentBattle } from '../../../state/types';
@@ -60,6 +61,10 @@ export function buildBattleField(self: ConquestUIScene, battle: AscentBattle): v
   clearLayer(self, field);
   ui.groundClip?.destroy();
   ui.groundClip = undefined;
+  ui.foregroundClip?.destroy();
+  ui.foregroundClip = undefined;
+  ui.foreground = undefined;
+  ui.groundSources = [];
   ui.ourMarkers = [];
   ui.theirMarkers = [];
   ui.fieldSignature = battleFieldSignature(self, battle);
@@ -143,7 +148,13 @@ export function buildBattleField(self: ConquestUIScene, battle: AscentBattle): v
   ours.forEach((host, index) => {
     const marker = self.battleItems!.createArmyMarker(
       hostSize(host), true, undefined, self.state.mapConfig.seed,
-      { ...hostKitFor(self.state, host), mustered: hostSize(host), shape: battle.ourFormation, standards: false },
+      {
+        ...hostKitFor(self.state, host),
+        mustered: hostSize(host),
+        shape: battle.ourFormation,
+        standards: false,
+        markCap: BATTLE_HOST_MARK_CAP,
+      },
       battleBaseScale(self),
     );
     marker.setPosition(lines.ourX, lane(index, ours.length));
@@ -165,6 +176,7 @@ export function buildBattleField(self: ConquestUIScene, battle: AscentBattle): v
         mustered: hostSize(host),
         shape: self.battleOpeningSealed ? undefined : battle.theirFormation,
         standards: false,
+        markCap: BATTLE_HOST_MARK_CAP,
       },
       battleBaseScale(self),
     );
@@ -183,6 +195,15 @@ export function buildBattleField(self: ConquestUIScene, battle: AscentBattle): v
     // game whose whole language is standing orders — see `docs/14-five-shapes-two-dials.html`.
     // The cinnabar ring that marked the target goes with the order it belonged to.
   });
+
+  // Last, and that is the whole of the fix for *tree in front should be over the army*. The near
+  // foreground used to be drawn into the land's own Graphics, which the bake flattens and inserts
+  // at `groundFrom` — under the camp, the fallen and both hosts — so a tree standing at the very
+  // bottom edge of the field was composited behind two thousand men. Built here it takes the index
+  // it is baked at, which is now above everything on the field.
+  const foregroundFrom = field.list.length;
+  self.buildBattleForeground(battle);
+  self.bakeBattleGround(foregroundFrom, true);
 }
 
 /**
@@ -298,6 +319,7 @@ function hostHalfWidth(self: ConquestUIScene,
   const size = Math.max(1, men ?? hostSize(host));
   return armyShape(
     size, compositionFor(hostKitFor(self.state, host)), battleBaseScale(self), mustered, 1, shape,
+    BATTLE_HOST_MARK_CAP,
   ).width / 2;
 }
 
@@ -329,6 +351,9 @@ export function redrawHostBlock(self: ConquestUIScene, entry: BattleMarker, men:
       // Planted at the field's edge, not carried — the same rule as the first build, or the
       // banner marched back into the block at the first attrition redraw.
       standards: false,
+      // Same ceiling as the first build, or the block would jump to its uncapped size the first
+      // time attrition redrew it.
+      markCap: BATTLE_HOST_MARK_CAP,
     },
     battleBaseScale(self),
   );
@@ -348,5 +373,8 @@ export function redrawHostBlock(self: ConquestUIScene, entry: BattleMarker, men:
   entry.count = rebuilt.list.find((child) => child.type === 'Text') as Phaser.GameObjects.Text | undefined;
   if (parent) parent.add(rebuilt);
   else ui.field.add(rebuilt);
+  // A rebuilt block is appended to the end of the container, which is above the baked foreground.
+  // Put the trees back in front of the men.
+  keepForegroundOnTop(self);
 
 }

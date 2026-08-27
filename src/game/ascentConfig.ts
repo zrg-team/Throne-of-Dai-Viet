@@ -539,6 +539,87 @@ export const DEMAND_RAMP_TICKS = 24;
 /** Seasons between repeats of any one shortfall announcement, so the header does not nag. */
 export const DEMAND_TOAST_COOLDOWN = 8;
 
+// ── Carrying capacity: the ground is what holds the people ──────────────────
+/**
+ * How many people a province can hold, and what the seat is worth on top of it.
+ *
+ * There was no ceiling at all. Growth is `ownedLands + foodNet/7 + humans/700` and the last of
+ * those compounds, so a realm that never took a second province still climbed for ever: reported
+ * with the screenshots, **one district holding 46,400 people at +229 a season, in Year 74**. Land
+ * was worth income and nothing else, so the map had stopped being the thing the run is about.
+ *
+ * 1,200 to an ordinary district and three times that to the seat, which puts a one-province realm
+ * near four thousand — enough to raise `MAX_ARMY_SOLDIERS` once and keep a workforce, and nowhere
+ * near enough to raise six hosts. That is the intended reading of `targetArmyCount`: a realm that
+ * wants more armies has to go and take the ground that feeds them.
+ *
+ * Development counts, so a tall province and a wide realm are still different strategies (the same
+ * split `DEMAND_GOLD_PER_BUILDING` draws on the demand side).
+ */
+export const POP_CAPACITY_PER_LAND = 1200;
+export const POP_CAPACITY_CAPITAL_MULT = 3;
+export const POP_CAPACITY_PER_BUILDING_LEVEL = 180;
+/** A disloyal province holds fewer: nobody stays where the throne is not obeyed. */
+export const POP_CAPACITY_LOYALTY_FLOOR = 0.5;
+/**
+ * Share of the excess shed each season above the ceiling. Emigration, not famine — and gentle,
+ * because the number a player watches falling has to read as people leaving rather than as a
+ * punishment landing. A realm that loses half its land sheds the difference over about thirty
+ * seasons, which is long enough to go and take the land back.
+ */
+export const POP_DECAY_ABOVE_CAP = 0.02;
+/**
+ * Share of a lost province's people who follow the throne out rather than stay under its new
+ * owner. The deliberate inverse of the `+population` an acquisition pays
+ * (`completeLandAcquisition`), which had no counterpart at all — so take, lose and retake was a
+ * pure ratchet upward and losing ground cost the realm nothing but its income.
+ */
+export const REFUGEE_SHARE = 0.4;
+
+// ── What a fought defence costs the walls ───────────────────────────────────
+/**
+ * The province's turnout is `defense * 16 + localSoldiers * 2.5` conjured into a levy at the start
+ * of a fight and deleted at the end (`raiseGarrisonLevy` / `dissolveGarrisonLevies`), and **nothing
+ * in combat ever touched `land.defense`**. So a wave repelled at the cost of two thirds of the
+ * garrison met the identical number on its next contact: reported verbatim, *we win but lost army —
+ * but now it immediately full number in next attack*.
+ *
+ * The walls now take a share of whatever the levy took, tracked as a breach that repairs itself
+ * over `WALL_REPAIR_SEASONS`. A breach rather than a stored "true" defence, because `land.defense`
+ * has a dozen additive writers — fortify purchases, arrivals, decrees, stories — and every one of
+ * them has to keep composing.
+ *
+ * **0.18, and 0.45 was measured and rejected.** A garrison is `defense * 16 + militia * 2.5`, so
+ * `defense` is most of a province's power *and* most of what `contestedDefencePower` reports — this
+ * dial is therefore not a flavour term, it is a difficulty lever with the whole realm hanging off
+ * it. At 0.45, with repair over twelve seasons against a wave every twelve, a breach never closed
+ * before the next wave opened another: measured across 8 seeds, the engaged policy fell from 2.1
+ * held provinces to 0.9 and from 79k peak power to 35k, every seed died, and the objective score
+ * went 56.4 → 47.6 with agency at zero. A cost that compounds faster than it heals is not a
+ * challenge, it is a countdown.
+ *
+ * At 0.18 over six seasons the breach is real for the wave that follows it and gone by the wave
+ * after — which is the shape asked for: *take time to restore defend structure and army*. Measured
+ * at 16 seeds against the same build without any of this: score 52.2 against 50.7, engaged waves
+ * 26.1 against 27.3, and the agency ratio actually up, 0.85 → 1.10. Parity on difficulty, with the
+ * defence no longer resetting.
+ */
+export const WALL_ATTRITION_SHARE = 0.18;
+/** Walls never fall below this: a province with nothing left is a province that cannot be held. */
+export const WALL_DEFENCE_FLOOR = 6;
+/** Seasons a breach takes to be rebuilt in full. Half a wave cycle, so the damage has a horizon. */
+export const WALL_REPAIR_SEASONS = 6;
+/**
+ * Seasons after a levy goes home before the province starts raising militia again.
+ *
+ * Two, not four. Militia is about 40% of a garrison's power and already takes
+ * `MILITIA_SEASONS_TO_FULL` (22) seasons to fill from nothing, so a long delay on top of the
+ * proportional casualties the levy now takes was charging the same loss twice — measured, the pair
+ * cost the engaged policy about a fifth of its run length on their own. The walls are the thing
+ * that is supposed to take time; a village re-forms its watch quickly.
+ */
+export const MILITIA_REGROW_DELAY = 2;
+
 // ── An empty treasury: pressure, not a trapdoor ─────────────────────────────
 /**
  * Share of its gold output an unpaid province still sends on. It used to withhold *all* of it,
@@ -807,6 +888,28 @@ export const BATTLE_BEATS_PER_TICK = 4;
  * and nobody had taken it. Raised until the harness says the field is full rather than by eye.
  */
 export const BATTLE_HOST_SCALE = 2.2;
+
+/**
+ * Most marks one host is drawn with **on the battle screen**, against `HOST_MARK_CAP`'s 420.
+ *
+ * The map's cap is a density limit — past it another figure adds nothing to a marker forty pixels
+ * across. Here it is a *frontage* limit, and 420 was never checked against the room: the block is
+ * `round(sqrt(marks * 2.6))` files at `FILE_PITCH x BATTLE_HOST_SCALE`, which comes out at 33 files
+ * and **208 px a side on a 390-wide field**. Two of those cannot both be on the screen, so the
+ * hosts ran off both edges and stood on top of the village and the camp — reported with the
+ * screenshots, *army too large and overlap building*.
+ *
+ * 150, measured rather than reasoned: `armyShape(...).width` is the real frontage, and driving the
+ * reported matchup (136,000 against 67,000) through The Field reads it back off the drawing. At the
+ * old cap the larger block came out 252 px across and ran 35 px off the left edge of the screen,
+ * standing on the village; at 170 it was 192 px, still a hair over the half-field; at 150 it clears.
+ * Deliberately not lower: a block's area is how a player reads one host against another without
+ * counting anything, and a cap that bites at every size stops carrying that information at all.
+ *
+ * The map keeps 420 — `HOST_MARK_CAP` is shared with `MapItemRenderer`, and a marker on the world
+ * map is drawn at a third of this scale with no such crowding.
+ */
+export const BATTLE_HOST_MARK_CAP = 150;
 
 /**
  * How far winning the exchanges can walk the contact line, as a fraction of the field.

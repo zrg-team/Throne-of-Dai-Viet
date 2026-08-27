@@ -30,6 +30,7 @@ node test_scripts/verify/verify-war-visibility.mjs      # the war reaches the ba
 node test_scripts/verify/verify-war-board.mjs           # every front on the board is a door; the Reckoning is a report, not a stack of cards
 node test_scripts/verify/verify-reinforce.mjs           # a lane page turn tears the fight down; relief always on the field; the call-up is a dial
 node test_scripts/verify/verify-expansion-prompt.mjs    # the expansion card only asks when something on it can be pressed
+node test_scripts/verify/verify-land-consequences.mjs   # ground is the ceiling on people; losing it costs; a held wave leaves the walls down; the governor commands
 node test_scripts/playtest/playtest-metrics.mjs     # six measured preconditions of fun, /85
 node test_scripts/perf/perf-bench.mjs --label wip   # auto-diffs against perf-results/baseline.json
 node test_scripts/shot/shot-readme.mjs              # regenerates every picture in the root README

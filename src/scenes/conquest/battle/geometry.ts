@@ -133,16 +133,23 @@ export function battleBaseScale(self: ConquestUIScene): number {
  * A fraction of the *band* rather than of the field height: it is the distance between the
  * horizon and the line of battle that has to hold a camp, a gap, and a block of men.
  *
- * Just over half, and both halves of that are load-bearing. Nearer than this and a host block
- * stands in its own camp, which is where this started. Further and the tall things that come
- * with a settlement — a lũy tre is eight metres, a cây đa fourteen — reach back over the
- * skyline, and a bamboo hedge crossing a mountain reads as a mistake even though a real village
- * at the foot of real hills does exactly that. The hills are drawn as a pale wash with no ink in
- * them, so anything dark in front of them looks like it is *on* them.
+ * Both halves of that are load-bearing. Nearer and a host block stands in its own camp, which is
+ * where this started. Further and the tall things that come with a settlement — a lũy tre is eight
+ * metres, a cây đa fourteen — reach back over the skyline, and a bamboo hedge crossing a mountain
+ * reads as a mistake even though a real village at the foot of real hills does exactly that. The
+ * hills are drawn as a pale wash with no ink in them, so anything dark in front of them looks like
+ * it is *on* them.
+ *
+ * **0.46, down from 0.56.** Reported with the screenshots: *make building and camp smaller and we
+ * have space to show army*. Depth is the only lever this screen allows — `verify-battle-scale`
+ * holds every prop to one caller scale and permits nothing to change it but where the thing
+ * stands — so a settlement that should read smaller has to stand further off, and this is the
+ * number that decides how far. Ten points back takes the citadel and the camp from a caller scale
+ * of 0.76 to 0.70, and it widens the band the men have to themselves by the same amount.
  */
 export function battleRearY(self: ConquestUIScene): number {
   const { horizon, groundY } = battleBands(self);
-  return Math.round(horizon + (groundY - horizon) * 0.56);
+  return Math.round(horizon + (groundY - horizon) * 0.46);
 }
 
 /**

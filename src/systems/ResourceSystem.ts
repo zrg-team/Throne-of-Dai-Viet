@@ -17,6 +17,12 @@ import {
   GOLD_SOFTCAP_EXPONENT,
   GOLD_SOFTCAP_FROM,
   HERO_RESERVE_UPKEEP_SHARE,
+  MILITIA_REGROW_DELAY,
+  POP_CAPACITY_CAPITAL_MULT,
+  POP_CAPACITY_LOYALTY_FLOOR,
+  POP_CAPACITY_PER_BUILDING_LEVEL,
+  POP_CAPACITY_PER_LAND,
+  POP_DECAY_ABOVE_CAP,
   TREASURY_GRAFT_FROM,
   TREASURY_GRAFT_RATE,
   UNPAID_LOYALTY_FLOOR,
@@ -25,6 +31,7 @@ import {
   UNPAID_RECOVER_TREASURY,
   UNPAID_WITHHOLD_SHARE,
   UNPAID_WRITEOFF_TICKS,
+  WALL_REPAIR_SEASONS,
   demandDifficultyScale,
 } from '../game/ascentConfig';
 import { palisadeMilitiaBonus } from './ascent/DoctrineSystem';
@@ -345,6 +352,45 @@ export function getFocusGarrisonMult(state: GameState, land: Land): number {
  * holding it are both worth something, and a disloyal province turns out fewer men — which gives
  * the loyalty a conquest method stamps on a province a second, military consequence.
  */
+/**
+ * How many people one province can hold — the district's share of the realm's ceiling.
+ *
+ * Ascent only, and the counterpart to `militiaCapacity` above: that one bounds the men a province
+ * turns out, this one bounds the people it turns them out of. Same shape on purpose — a base for
+ * simply being ground, a term for how developed it is, and a loyalty factor, so the three levers a
+ * player has over a province all read the same way whichever number they are looking at.
+ */
+export function landPopulationCapacity(state: GameState, land: Land): number {
+  const built = land.buildings.reduce((sum, building) => sum + 1 + building.level * 0.5, 0);
+  const seat = state.ascent?.capitalLandId === land.id ? POP_CAPACITY_CAPITAL_MULT : 1;
+  const base = POP_CAPACITY_PER_LAND * seat + built * POP_CAPACITY_PER_BUILDING_LEVEL;
+  return Math.floor(
+    base
+    * (POP_CAPACITY_LOYALTY_FLOOR + (land.loyalty / 100) * (1 - POP_CAPACITY_LOYALTY_FLOOR))
+    * (getLandSpecialization(land) === 'populous' ? 1.35 : 1),
+  );
+}
+
+/**
+ * Everyone the realm's ground can hold, which is what `state.resources.humans` grows toward.
+ *
+ * **The ceiling that did not exist.** Growth is `ownedLands + foodNet/7 + humans/700` and that last
+ * term compounds off the pool itself, so a realm that never took a second province still climbed
+ * without limit — measured from the reported run, one district holding 46,400 people at +229 a
+ * season in Year 74, with `applyResourceDelta`'s clamp at zero the only bound anywhere in the file.
+ *
+ * Summed per province rather than `lands * constant` so that the ways a player can raise it are the
+ * ways they already know: take more ground, build on the ground they have, keep it loyal.
+ */
+export function realmPopulationCapacity(state: GameState): number {
+  let total = 0;
+  for (const land of state.lands) {
+    if (land.ownerId !== PLAYER_KINGDOM_ID) continue;
+    total += landPopulationCapacity(state, land);
+  }
+  return Math.max(1, total);
+}
+
 export function militiaCapacity(state: GameState, land: Land): number {
   const built = land.buildings.reduce((sum, building) => sum + 1 + building.level * 0.5, 0);
   const base = land.defense * 2.2 + built * 16 + land.population * 0.12;
@@ -375,6 +421,10 @@ export function growProvincialMilitia(state: GameState): void {
   if (state.gameMode !== 'ascent') return;
   for (const land of state.lands) {
     if (land.ownerId !== PLAYER_KINGDOM_ID) continue;
+    // A district the war has just walked over is not raising a fresh watch the same afternoon.
+    // Without this the militia stepped back up on the very next tick after a levy went home, which
+    // is half of why a repelled wave cost the province nothing at all.
+    if (state.turn - (land.levyReturnedTurn ?? -MILITIA_REGROW_DELAY) < MILITIA_REGROW_DELAY) continue;
     const cap = militiaCapacity(state, land);
     if (land.localSoldiers >= cap) {
       // Over capacity only happens when a province is lost and retaken, or its loyalty falls.
@@ -383,6 +433,32 @@ export function growProvincialMilitia(state: GameState): void {
     }
     const step = Math.max(2, Math.ceil(cap / MILITIA_SEASONS_TO_FULL));
     land.localSoldiers = Math.min(cap, land.localSoldiers + step);
+  }
+}
+
+/**
+ * Rebuilds what a fought defence knocked down, a little each season.
+ *
+ * The other half of `dissolveGarrisonLevies`, which is where the walls are charged. Kept as a
+ * separate counter (`land.wallsBreached`) rather than as a remembered undamaged figure, so that
+ * every other writer of `land.defense` — a fortify purchase, a hero's arrival, a decree, a story —
+ * still composes: masonry bought while a breach stands raises the wall and leaves the breach to be
+ * repaired on its own clock.
+ *
+ * Called once per Ascent tick, beside the militia.
+ */
+export function repairProvincialDefence(state: GameState): void {
+  if (state.gameMode !== 'ascent') return;
+  for (const land of state.lands) {
+    const breach = land.wallsBreached ?? 0;
+    if (breach <= 0) continue;
+    // A province in enemy hands rebuilds nothing for us. Left standing rather than cleared, so
+    // retaking it does not hand back walls the fight knocked down.
+    if (land.ownerId !== PLAYER_KINGDOM_ID) continue;
+    const step = Math.min(breach, Math.max(1, Math.ceil(breach / WALL_REPAIR_SEASONS)));
+    land.defense += step;
+    land.wallsBreached = breach - step;
+    if (land.wallsBreached <= 0) land.wallsBreached = undefined;
   }
 }
 
@@ -1199,6 +1275,30 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
     const troops = getPlayerTroops(state);
     const civShare = state.resources.humans / Math.max(1, state.resources.humans + troops);
     rates.humans = Math.round(rates.humans * Math.min(1, Math.max(0.3, civShare)));
+  }
+
+  // And the ground itself is the ceiling (ascent).
+  //
+  // The throttle above prices the hole an army makes; this prices the land. Nothing anywhere bounded
+  // the pool before it — the compounding term alone guaranteed growth for ever — and the reported
+  // run shows what that means once a player stops expanding: one district, Year 74, 46,400 people,
+  // still climbing at +229 a season. Territory was worth income and nothing else.
+  //
+  // A taper rather than a clamp, deliberately. A number that simply stops reads as a bug; a number
+  // whose growth thins out as the districts fill reads as what it is, and the player can watch the
+  // rate recover the season after they take another province.
+  if (state.gameMode === 'ascent') {
+    const capacity = realmPopulationCapacity(state);
+    if (rates.humans > 0) {
+      const filled = state.resources.humans / capacity;
+      rates.humans = Math.round(rates.humans * Math.max(0, 1 - filled));
+    }
+    // Over the ceiling — usually a realm that has just lost ground — people leave rather than
+    // starve. Gentle enough (2% of the excess) that taking the land back inside a wave or two
+    // undoes it, which is the whole point of making it recoverable.
+    if (state.resources.humans > capacity) {
+      rates.humans = -Math.ceil((state.resources.humans - capacity) * POP_DECAY_ABOVE_CAP);
+    }
   }
 
   // Dragon Ascent: a sprawling realm keeps less of what it earns.

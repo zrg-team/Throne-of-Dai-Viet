@@ -57,6 +57,7 @@ import {
 } from '../WarSystem';
 import { occupyEmptyLand } from '../AcquisitionSystem';
 import { findLand } from '../LandSystem';
+import { defenceCommanderOf } from './landCommand';
 import { landGarrisonPower } from './PowerSystem';
 import { battleLine, enrolArrivals, hostHeadcount, ourHosts, theirHosts } from './battleMembership';
 import { isAutoHost } from './armyOrders';
@@ -534,8 +535,12 @@ function raiseDefenceField(
   const theirsTotal = theirs.reduce((n, h) => n + totalUnits(h), 0);
   const scale = Math.min(1, (theirsTotal + oursTotal) / 2400);
   const totalRounds = Math.round(BATTLE_BASE_ROUNDS + (BATTLE_MAX_ROUNDS - BATTLE_BASE_ROUNDS) * scale);
-  const generalId = fieldHosts.find((host) => host.generalHeroId)?.generalHeroId;
-  const general = state.heroes.find((hero) => hero.id === generalId);
+  // Whoever actually commands here: the general of a host standing on the ground, or — when the
+  // hosts are elsewhere and the province is turning out its own walls — the governor the player
+  // posted to it. `fieldHosts` is kept as the first term so a relieving general still outranks the
+  // resident, and `defenceCommanderOf` says the same thing to the header, the AI and the Reckoning.
+  const general = defenceCommanderOf(state, land)
+    ?? state.heroes.find((hero) => hero.id === fieldHosts.find((host) => host.generalHeroId)?.generalHeroId);
 
   const opened: AscentBattle = {
     ...draft,
@@ -569,8 +574,10 @@ function raiseDefenceField(
   // and the same reason `AscentTick`'s grace window skips it.
   opened.delegated = !commanded && !ascent.arena && ascent.handToGenerals !== false;
   if (opened.delegated) {
-    const led = ourHosts(state, opened).find((host) => host.generalHeroId)?.generalHeroId;
-    const officer = state.heroes.find((hero) => hero.id === led);
+    // Same resolver as the maths above, or the screen would credit a defence to nobody while the
+    // rally and the general AI were quietly using the governor's martial.
+    const officer = defenceCommanderOf(state, land)
+      ?? state.heroes.find((hero) => hero.id === ourHosts(state, opened).find((host) => host.generalHeroId)?.generalHeroId);
     opened.generalName = officer?.name;
     opened.generalMartial = officer ? officer.stats.martial : 45;
   }
@@ -2252,7 +2259,12 @@ export function finishBattle(state: GameState, decision: 'press' | 'hold' | 'ret
   // hosts are dissolved by the time it is read.
   const ledBy = ourIds
     .map((id) => state.armies.find((army) => army.id === id))
-    .find((army) => army?.generalHeroId)?.generalHeroId;
+    .find((army) => army?.generalHeroId)?.generalHeroId
+    // A defence fought by the province's own walls is still fought by somebody: the governor. Without
+    // this the Reckoning credited every levy-only victory to `tướng lĩnh dưới quyền`. This function
+    // is the defence half only — `finishAssault` is the offence twin, and a province we are storming
+    // has no governor of ours to credit.
+    ?? defenceCommanderOf(state, findLand(state, battle.landId))?.id;
   // The field is cleared *before* the record is filed, not after, because `raiseAftermath` now
   // refuses to raise a dispatch over a live fight (a silent engagement three provinces away must
   // not take the screen off the one the player is standing on). Filed while `activeBattle` was

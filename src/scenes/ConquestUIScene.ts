@@ -361,6 +361,19 @@ export class ConquestUIScene extends Phaser.Scene {
      * fallback geometry mask is the live mechanism, that rectangle is all there is.
      */
     groundClip?: RectClip;
+    /**
+     * The same, for the near foreground — which is a second bracket because it is drawn after the
+     * men rather than under them (see `buildBattleForeground`). Two clips, two rectangles to
+     * dispose, and `clearLayer` cannot be trusted to take either.
+     */
+    foregroundClip?: RectClip;
+    /**
+     * The baked near foreground, kept so it can be lifted back above a rebuilt host block.
+     *
+     * Z-order here is child order — `setDepth` is inert inside a Container — and `redrawHostBlock`
+     * appends its replacement to the end. See `keepForegroundOnTop`.
+     */
+    foreground?: Phaser.GameObjects.RenderTexture;
     /** Where the two exits sit at the foot, so `buildBattleExits` never has to guess. */
     exitBounds: UIBounds;
     /**
@@ -996,9 +1009,11 @@ export class ConquestUIScene extends Phaser.Scene {
 
   buildBattleGround(battle: AscentBattle): void { battleGround.buildBattleGround(this, battle); }
 
+  buildBattleForeground(battle: AscentBattle): void { battleGround.buildBattleForeground(this, battle); }
+
   layFallen(beat: BattleBeat): void { battleGround.layFallen(this, beat); }
 
-  bakeBattleGround(from: number): void { battleGround.bakeBattleGround(this, from); }
+  bakeBattleGround(from: number, isForeground = false): void { battleGround.bakeBattleGround(this, from, isForeground); }
 
   /* ------------------------------------------------------------- battle moment */
 
