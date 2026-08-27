@@ -36,10 +36,10 @@
       ]
     ],
     "review": {
-      "firstName": "REPLACE_ME",
-      "lastName": "REPLACE_ME",
-      "email": "you@example.com",
-      "phone": "REPLACE_ME",
+      "firstName": "Hung",
+      "lastName": "Duong Tan",
+      "email": "zerglingno2@outlook.com",
+      "phone": "+84353863553",
       "demoRequired": false,
       "notes": "The game is fully offline and needs no account. All content is reachable from the main menu immediately: Conquest and Throne of Empires start a campaign, Dragon Ascent is the roguelite mode, Battle Lab demonstrates combat alone. There is no login, no network access at runtime, and no purchases. The app serves itself from a local server on the device (127.0.0.1), which is why it works with the network switched off."
     },

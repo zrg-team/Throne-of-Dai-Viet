@@ -215,7 +215,7 @@ export class MapScene extends Phaser.Scene {
       return;
     }
 
-    const landId = this.findLandIdAt(
+    const landId = this.resolveTapLand(
       this.cameras.main.scrollX + point.x / this.mapZoom,
       this.cameras.main.scrollY + point.y / this.mapZoom,
     );
@@ -771,7 +771,7 @@ export class MapScene extends Phaser.Scene {
       }
 
       if (!this.isDraggingMap && this.dragDistance < 12) {
-        const landId = this.findLandIdAt(pointer.worldX, pointer.worldY);
+        const landId = this.resolveTapLand(pointer.worldX, pointer.worldY);
         if (landId) {
           this.selectLand(landId);
         }
@@ -1710,7 +1710,81 @@ export class MapScene extends Phaser.Scene {
     backing.lineBetween(-width / 2 + 5, -height / 2 + 3, width / 2 - 5, -height / 2 + 3);
 
     container.add([backing, label]);
+
+    // Sized so `labelWorldRect` can read the plate back without re-deriving the text metrics.
+    container.setSize(width, height);
     return container;
+  }
+
+  /**
+   * Which province a tap at this point selects.
+   *
+   * The ground, by default. A mode overrides it to narrow the target — see `ConquestScene`, where
+   * the name plate is the target and the ground is only the map.
+   *
+   * Deliberately a step in the *existing* tap path rather than a new interactive object on the
+   * plate. This scene hit-tests at DOM level (`handleDomUp`) and drags the camera itself, so a
+   * Phaser `setInteractive` on a label never receives the pointer at all: it was written that way
+   * first, the plate reported `input` set with a 108x57 hit area, and the tap still did nothing.
+   * One input path, one place to reason about it.
+   */
+  protected resolveTapLand(worldX: number, worldY: number): string | undefined {
+    return this.findLandIdAt(worldX, worldY);
+  }
+
+  /**
+   * The province whose name plate covers this point, if any.
+   *
+   * **Not the province under the point.** A plate is drawn below the settlement it names — 58
+   * units down for a walled seat — which routinely puts it over a *neighbour's* hexes, so
+   * resolving the tap through `findLandIdAt` selected the wrong province or none at all. That was
+   * the whole of why the first attempt at this appeared to do nothing: the plate was being hit and
+   * the answer was somebody else's land.
+   *
+   * Nearest centre wins where two plates overlap, so a tap in the seam goes to the name it is
+   * closest to rather than to whichever province the map generator happened to emit first.
+   */
+  protected landAtLabel(worldX: number, worldY: number): string | undefined {
+    let best: string | undefined;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (const landId of this.landLabels.keys()) {
+      if (!this.hasVisibleLabel(landId)) continue;
+      const rect = this.labelWorldRect(landId);
+      if (!rect || !Phaser.Geom.Rectangle.Contains(rect, worldX, worldY)) continue;
+      const dx = worldX - (rect.x + rect.width / 2);
+      const dy = worldY - (rect.y + rect.height / 2);
+      const distance = dx * dx + dy * dy;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = landId;
+      }
+    }
+    return best;
+  }
+
+  /** True while this province's name plate is drawn and not culled. */
+  protected hasVisibleLabel(landId: string): boolean {
+    const label = this.landLabels.get(landId);
+    return Boolean(label?.visible && this.landNodes.get(landId)?.visible);
+  }
+
+  /**
+   * The plate's rectangle in world units, padded to something a thumb can hit.
+   *
+   * The drawn plate is about sixteen points tall, which is a target barely better than the fault it
+   * is meant to fix, so the hit area is grown well past the ink on every side.
+   */
+  protected labelWorldRect(landId: string): Phaser.Geom.Rectangle | undefined {
+    const label = this.landLabels.get(landId);
+    const node = this.landNodes.get(landId);
+    if (!label || !node) return undefined;
+    const padX = 14;
+    const padY = 16;
+    const cx = node.x + label.x;
+    const cy = node.y + label.y;
+    const w = (label.width || 60) + padX * 2;
+    const h = (label.height || 18) + padY * 2;
+    return new Phaser.Geom.Rectangle(cx - w / 2, cy - h / 2, w, h);
   }
 
   /** Average pixel position of a land's city/shrine hexes, or undefined if it has none. */

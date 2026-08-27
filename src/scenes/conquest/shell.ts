@@ -33,7 +33,9 @@ import { hasSeenRunTour, takeGuidedRun } from '../../state/tour';
 import { ActionBar } from '../../ui/ActionBar';
 import { ResourceBar } from '../../ui/ResourceBar';
 import { UI_FONT } from '../../ui/fonts';
-import { t } from '../../i18n';
+import { heroName, t } from '../../i18n';
+import { buildFocusRows } from '../../ui/focusPanel';
+import { getLandSpecialization } from '../../systems/ResourceSystem';
 import type { AscentLane } from '../../state/types';
 import { promptSignature } from './constants';
 import { clearLanePage } from './layers';
@@ -670,18 +672,35 @@ function inspectCardTop(self: ConquestUIScene): number | undefined {
   const land = self.state.lands.find((candidate) => candidate.id === self.state.selectedLandId);
   if (!land || self.state.pendingAscentPrompt) return undefined;
   const mine = land.ownerId === PLAYER_KINGDOM_ID;
-  return GAME_HEIGHT - ACTION_BAR_HEIGHT - (mine ? 90 : 134);
+  // Ours is the taller card: it prints two more rows — who holds the province and what it works at
+  // — under the garrison line, and a card sized for a rival's two clipped its own border through
+  // them. A province of ours used to carry no controls at all.
+  return GAME_HEIGHT - ACTION_BAR_HEIGHT - (mine ? INSPECT_MINE_HEIGHT : INSPECT_RIVAL_HEIGHT);
 }
+
+/** Card, gap, controls — the two shapes the inspect card takes, measured from the action bar. */
+const INSPECT_CARD_MINE = 96;
+const INSPECT_CARD_RIVAL = 78;
+const INSPECT_GAP = 8;
+const INSPECT_BUTTON_HEIGHT = 38;
+const INSPECT_MINE_HEIGHT = INSPECT_CARD_MINE + INSPECT_GAP + INSPECT_BUTTON_HEIGHT + 10;
+const INSPECT_RIVAL_HEIGHT = INSPECT_CARD_RIVAL + INSPECT_GAP + INSPECT_BUTTON_HEIGHT + 10;
 
 function renderInspect(self: ConquestUIScene): void {
   const land = self.state.lands.find((candidate) => candidate.id === self.state.selectedLandId);
   // Keyed on everything the card prints. It was destroyed and rebuilt on every refresh — every
   // beat, while a fight held a province selected — to show the same four numbers. An overlay
   // covering it empties the key, and the overlay's close rebuilds it fresh.
+  const governor = land
+    ? self.state.heroes.find((candidate) => candidate.assignedTo === land.id)
+    : undefined;
   const key = !land || self.state.pendingAscentPrompt || self.openPromptKey !== ''
     ? ''
     : [land.id, land.ownerId, Math.round(land.outputs.gold), Math.round(land.outputs.food),
-      Math.round(land.defense * 16 + land.localSoldiers * 2.5)].join(':');
+      Math.round(land.defense * 16 + land.localSoldiers * 2.5),
+      // Both are printed now, so both have to be in the key or the card goes stale the moment the
+      // player changes either from the very buttons it draws.
+      governor?.id ?? '-', getLandSpecialization(land)].join(':');
   if (key === self.inspectKey) return;
   self.inspectKey = key;
   for (const object of self.inspectObjects) object.destroy();
@@ -694,28 +713,78 @@ function renderInspect(self: ConquestUIScene): void {
   const cardY = inspectCardTop(self) ?? 0;
 
   const card = self.ui.card(
-    { x: 14, y: cardY, width: GAME_WIDTH - 28, height: 78 },
+    { x: 14, y: cardY, width: GAME_WIDTH - 28, height: mine ? INSPECT_CARD_MINE : INSPECT_CARD_RIVAL },
     {
       title: land.name,
       subtitle: `${t('ascent.march.garrison', { value: Math.round(land.defense * 16 + land.localSoldiers * 2.5) })}`,
-      rows: [
-        { label: t('resource.gold'), value: String(Math.round(land.outputs.gold)) },
-        { label: t('resource.food'), value: String(Math.round(land.outputs.food)) },
-      ],
+      rows: mine
+        ? [
+            // Who holds it, on the card. A governor is the one thing about a province of ours that
+            // is a *decision* rather than a number, and it was readable nowhere on the map.
+            {
+              label: t('land.section.assignment'),
+              value: governor ? heroName(governor) : t('gov.none'),
+            },
+            {
+              label: t('focus.heading'),
+              // Off `buildFocusRows`, so the card and the picker it opens can never disagree
+              // about what a focus is called.
+              value: buildFocusRows(self.state, land).find((row) => row.isCurrent)?.title ?? '—',
+            },
+          ]
+        : [
+            { label: t('resource.gold'), value: String(Math.round(land.outputs.gold)) },
+            { label: t('resource.food'), value: String(Math.round(land.outputs.food)) },
+          ],
       border: mine ? INK_UI.jade : INK_UI.softBrush,
     },
   );
   card.setDepth(120);
   self.inspectObjects.push(card);
 
-  if (mine) return;
+  /**
+   * What a tapped province affords.
+   *
+   * A province of ours afforded **nothing** — the card returned early and the two things worth
+   * doing to it, posting a governor and setting what it works at, were three taps deep inside the
+   * Build lane and had to be found there by name. Reported alongside the tap itself: *if our land,
+   * can see hero assigned, one button to change assign, one button to change focus.*
+   *
+   * They open the lane already on the right page (see `landHandover`), so the button is the whole
+   * journey rather than the start of one.
+   */
+  const open = (page: 'governor' | 'focus') => () => {
+    self.landHandover = { landId: land.id, page };
+    self.openLane('build');
+  };
 
-  const claim = self.ui.button(
-    { x: 14, y: cardY + 86, width: GAME_WIDTH - 28, height: 38 },
-    t('ascent.conquer.claimThis', { land: land.name }),
-    () => self.events.emit('ui:ascent-conquer', land.id),
-    { variant: 'primary', fontSize: '13px' },
-  );
-  claim.setDepth(120);
-  self.inspectObjects.push(claim);
+  const buttonY = cardY + (mine ? INSPECT_CARD_MINE : INSPECT_CARD_RIVAL) + INSPECT_GAP;
+  const half = (GAME_WIDTH - 34) / 2;
+  const controls: Phaser.GameObjects.GameObject[] = mine
+    ? [
+        self.ui.button(
+          { x: 14, y: buttonY, width: half, height: INSPECT_BUTTON_HEIGHT },
+          governor ? t('ascent.inspect.changeGovernor') : t('ascent.inspect.postGovernor'),
+          open('governor'),
+          { variant: 'primary', fontSize: '12px' },
+        ),
+        self.ui.button(
+          { x: 14 + half + 6, y: buttonY, width: half, height: INSPECT_BUTTON_HEIGHT },
+          t('ascent.inspect.changeFocus'),
+          open('focus'),
+          { fontSize: '12px' },
+        ),
+      ]
+    : [
+        self.ui.button(
+          { x: 14, y: buttonY, width: GAME_WIDTH - 28, height: INSPECT_BUTTON_HEIGHT },
+          t('ascent.conquer.claimThis', { land: land.name }),
+          () => self.events.emit('ui:ascent-conquer', land.id),
+          { variant: 'primary', fontSize: '13px' },
+        ),
+      ];
+  for (const control of controls) {
+    (control as Phaser.GameObjects.Container).setDepth(120);
+    self.inspectObjects.push(control as Phaser.GameObjects.Container);
+  }
 }

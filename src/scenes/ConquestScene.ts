@@ -500,6 +500,33 @@ export class ConquestScene extends MapScene {
    * no manual marching. Tapping focuses a province so the HUD can describe it — and, for
    * ground the realm does not hold, offers the way into its acquisition methods.
    */
+  /**
+   * The name plate is the target here, because nothing in this mode marches by tap.
+   *
+   * Reported: *click to land UI/UX very bad and hard to click.* Selecting by hex sounds generous
+   * and is not — the target is an irregular patch with no edge the eye can see, it fights the pan
+   * gesture over every pixel of the map, and on a phone it is guesswork which of two neighbours a
+   * thumb landed in. The plate is the one mark on the map that is unambiguously *about* one
+   * province, and it has a border drawn round it.
+   *
+   * The classic modes keep the ground, and that is not timidity: there, tapping a province is half
+   * of *tap the army, then tap where it marches*, so the ground has to stay the target or the
+   * order cannot be given. This mode's `selectLand` is a read-only inspect and owes it nothing.
+   *
+   * The ground still answers for a province whose plate is **not on the screen** — fog hides one,
+   * and so does the low tier's zoom LOD, which drops labels wholesale (`lodDropsLabels`). A rule
+   * that left some provinces with no way in at all would be a worse fault than the one it fixes.
+   */
+  protected resolveTapLand(worldX: number, worldY: number): string | undefined {
+    // The name first, and the name means the province it names — a plate sits below its settlement
+    // and is very often standing on a neighbour's hexes, so the ground under it is the wrong answer.
+    const named = this.landAtLabel(worldX, worldY);
+    if (named) return named;
+    // Ground only where the plate the player is meant to aim at is not on the screen at all.
+    const beneath = this.findLandIdAt(worldX, worldY);
+    return beneath && !this.hasVisibleLabel(beneath) ? beneath : undefined;
+  }
+
   protected selectLand(landId: string): void {
     this.state.selectedLandId = this.state.selectedLandId === landId ? undefined : landId;
     this.state.selectedArmyId = undefined;
