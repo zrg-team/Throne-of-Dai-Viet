@@ -233,7 +233,7 @@ export const enCore = {
   "menu.support.coffee": "Buy me a coffee",
   "menu.support.improve": "help build the game",
   // The same link where the coffee half of the sentence is gone and this has to stand on its own —
-  // iOS, where the App Store will not have a donation link. `improve` is a sentence fragment by
+  // the store builds, neither of which carries a donation link. `improve` is a sentence fragment by
   // design ("or even better, help build the game"); alone it reads as one, hence the second cut.
   "menu.support.improveAlone": "Help build the game",
   "menu.support.title": "Buy me a coffee",

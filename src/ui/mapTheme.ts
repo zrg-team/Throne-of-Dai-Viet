@@ -180,11 +180,34 @@ export const MAP_THEMES: Record<MapThemeId, MapThemeDefinition> = {
 
 export const MAP_THEME_OPTIONS = Object.values(MAP_THEMES);
 
+/**
+ * The themes the settings page actually offers.
+ *
+ * All three still exist and still work — this is a shipping decision, not a deletion. Đông Hồ is
+ * the one the game is drawn for: the battle screen's proportion contract, the settlement ink and
+ * every prop in `ui/ink` are tuned against it, and the other two have not kept pace. Offering a
+ * choice that makes the game look worse is not a choice worth offering.
+ *
+ * Re-enabling is this one array. `getMapTheme` clamps to it, so a device that had picked one of
+ * the others comes back to Đông Hồ rather than being stranded on a theme with no way out of it.
+ */
+export const OFFERED_MAP_THEMES: MapThemeId[] = ['dong-ho'];
+
+/** Whether the settings page should draw the theme row at all. */
+export function mapThemeIsChoosable(): boolean {
+  return OFFERED_MAP_THEMES.length > 1;
+}
+
 /** Đông Hồ is the default for new devices; the chosen style is an application preference, not save data. */
 export function getMapTheme(): MapThemeId {
   if (typeof localStorage === 'undefined') return 'dong-ho';
   const stored = localStorage.getItem(MAP_THEME_STORAGE_KEY);
-  return stored === 'ink-wash' || stored === 'illustrated-atlas' || stored === 'dong-ho' ? stored : 'dong-ho';
+  const known = stored === 'ink-wash' || stored === 'illustrated-atlas' || stored === 'dong-ho'
+    ? stored
+    : 'dong-ho';
+  // Clamped to what is offered: a device that chose a theme before it was withdrawn must not be
+  // left on one whose row no longer exists to change it back.
+  return OFFERED_MAP_THEMES.includes(known) ? known : OFFERED_MAP_THEMES[0];
 }
 
 export function getActiveMapTheme(): MapThemeDefinition {

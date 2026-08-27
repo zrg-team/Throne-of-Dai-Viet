@@ -33,6 +33,24 @@ export interface CalendarTurn {
   yearTurned: boolean;
 }
 
+/**
+ * The date a given tick fell on, for anything reading a turn back out of the record.
+ *
+ * The Chronicle stamps a raw `turn` on every beat it keeps, and the story page printed it as
+ * `M31` — a number in a unit the game never explains anywhere. A run is read in years and
+ * seasons everywhere else, including the header two inches above it, so a record of it should be
+ * too. Derived from the same two constants the live clock advances by, so the two cannot drift.
+ *
+ * Both loops start at Year 1, Spring, tick 0.
+ */
+export function dateOfTurn(turn: number): { year: number; season: Season } {
+  const seasons = Math.floor(Math.max(0, turn) / SEASON_TICKS);
+  return {
+    year: 1 + Math.floor(seasons / SEASONS_PER_YEAR),
+    season: SEASONS[seasons % SEASONS_PER_YEAR],
+  };
+}
+
 /** Advances the calendar by one economy tick. Call after `state.turn` has been incremented. */
 export function advanceSeasonClock(state: GameState): CalendarTurn {
   const held = (state.seasonTick ?? 0) + 1;

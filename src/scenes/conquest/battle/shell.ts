@@ -33,6 +33,7 @@ import {
 } from '../constants';
 import { clearLayer } from '../layers';
 import { showWarBoard } from '../screens/warBoard';
+import { setMapVisible } from '../shell';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 import { setBattleBubbleOverride, setBattleEscalationWave } from '../../../game/battleOptions';
 import { liveBattleCount, promoteNextFront } from '../../../systems/ascent/fronts';
@@ -59,8 +60,19 @@ function battleFieldHeight(content: UIBounds): number {
   const closeBand = BATTLE_EXITS_OFFSET - 20 + 12;
   const room = content.height
     - BATTLE_RAILS_HEIGHT - BATTLE_DOCK_HEIGHT - closeBand - 24;
-  // A shade under square: wide enough for two camps and a killing ground between them.
-  return Math.round(Math.max(150, Math.min(content.width * 0.86, room)));
+  /**
+   * A shade under square was the *floor* of a picture, and it was being used as the ceiling.
+   *
+   * At 0.86 the field came out 301 units tall on an 844-high phone while `room` offered 398, and
+   * the ninety-seven it declined became a band of blank parchment between the order dock and the
+   * exits — reported as *battle screen look weird with space between bottom section*. Measured at
+   * both clamps: 844 leaves the slack, 620 has none to leave (room binds at 191).
+   *
+   * 1.15 lets a tall screen spend what it has. Nothing about the men changes: `battleBaseScale`
+   * clamps at a depth band of 114 and the band here is 167, so the extra height is ground, which
+   * is what a battlefield should do with spare paper.
+   */
+  return Math.round(Math.max(150, Math.min(content.width * 1.15, room)));
 }
 
 /**
@@ -481,9 +493,12 @@ export function showBattle(self: ConquestUIScene): void {
     battle = state.ascent?.activeBattle;
   }
   if (!battle || battle.over) {
+    // `showWarBoard` restores the map itself — it is reached from more doors than this one.
     showWarBoard(self);
     return;
   }
+  // ...and the field *is* a sheet instead of it: full-bleed parchment with nothing behind it.
+  setMapVisible(self, false);
   // Read here, whichever page was drawn. It is an announcement about a moment, and a flag that
   // outlives the screen it was raised for re-raises that screen every frame — `shell.ts`'s
   // refresh opens this lane while it stands.
@@ -521,7 +536,17 @@ export function showBattle(self: ConquestUIScene): void {
     * where the eye rests and hands the space it takes back to the middle distance, which has the
     * ridges and the paddy in it.
     */
-   const groundY = fieldY + Math.round(fieldHeight * 0.78);
+   /**
+   * Where the two lines stand, as a share of the field.
+   *
+   * **0.72, up from 0.78.** The hosts sat low enough that the apron beneath them was a third of
+   * the picture doing nothing while the men were crowded against the readout — reported as *can
+   * the army up a bit in this fight*. Six points of the field is about twenty units on a tall
+   * screen: enough that the blocks sit in the middle of the ground rather than at the bottom of
+   * it, and short of the range where `battleBaseScale` starts shrinking the men (the depth band
+   * stays clear of its 114-unit floor at every screen height the game supports).
+   */
+  const groundY = fieldY + Math.round(fieldHeight * 0.72);
   // **The field is full-bleed; the rows under it are not.**
   //
   // Everything else on this screen is a card inside a 20px margin, and the field was drawn as

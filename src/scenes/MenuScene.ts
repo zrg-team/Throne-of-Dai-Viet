@@ -27,7 +27,10 @@ import { drawLanguageFlag } from '../ui/languageFlags';
 import { PIGMENT } from '../ui/ink/palette';
 import { INK, brushStroke, inkOutline, shade, washFill, waveLine } from '../ui/inkTheme';
 import { TITLE_FONT, UI_FONT } from '../ui/fonts';
-import { getMapTheme, MAP_THEME_OPTIONS, setMapTheme } from '../ui/mapTheme';
+import {
+  getMapTheme, MAP_THEME_OPTIONS, mapThemeIsChoosable, OFFERED_MAP_THEMES, setMapTheme,
+  type MapThemeId,
+} from '../ui/mapTheme';
 import { applyPaperFX } from '../ui/ink/PaperFX';
 import { inkPath, mulberry32, thickPath, washFill as washInk, type Pt } from '../ui/ink/stroke';
 import { house, karstRange, softRidge } from '../ui/ink/props';
@@ -2535,16 +2538,19 @@ export class MenuScene extends Phaser.Scene {
     cursor += title.height + 16;
 
     /**
-     * Skirmish first, and the two long games under it.
+     * The Skirmish, and only the Skirmish.
      *
-     * The order is by how much of an evening each one asks for, not by how much game is in it.
-     * Skirmish is one fight: set both hosts, pick the ground, take command, and it is over in
-     * minutes. The other two are runs. Somebody arriving on this page who has not decided what
-     * they want should meet the cheapest thing to try first — and it is also the only one here
-     * that teaches the battle system, which both of the others eventually hand you.
+     * Throne of Empires and the Campaign are still built, still reachable by code, and still held
+     * to their fingerprints by `verify-modes-regression` — they are simply not offered here any
+     * more. Dragon Ascent is the game this is now, and the two long classic runs had drifted into
+     * being older, slower versions of it that nothing was being tuned against.
      *
-     * Called Skirmish rather than "The Field" for the reason the genre already settled: it is what
-     * a one-off fight outside a campaign is called, in this kind of game, everywhere.
+     * The Skirmish stays because it is not a rival to Ascent: it is one fight, set up and taken
+     * command of in minutes, and it is the only place the battle system can be learned without a
+     * run around it. Called Skirmish rather than "The Field" for the reason the genre settled long
+     * ago — that is what a one-off fight outside a campaign is called, everywhere.
+     *
+     * Restoring either is putting its entry back in this list.
      */
     for (const mode of [
       {
@@ -2553,20 +2559,6 @@ export class MenuScene extends Phaser.Scene {
         border: INK_UI.cinnabar,
         variant: 'primary' as const,
         start: 'arena' as const,
-      },
-      {
-        title: t('empire.menu.title'),
-        body: t('ascent.menu.empireBlurb'),
-        border: INK_UI.gold,
-        variant: 'secondary' as const,
-        start: 'empire' as const,
-      },
-      {
-        title: t('menu.startCampaign'),
-        body: t('ascent.menu.campaignBlurb'),
-        border: INK_UI.softBrush,
-        variant: 'secondary' as const,
-        start: 'campaign' as const,
       },
     ]) {
       const card = this.ui.card({ x: 28, y: cursor, width: GAME_WIDTH - 56, height: this.vh(88) }, {
@@ -2869,19 +2861,24 @@ export class MenuScene extends Phaser.Scene {
           },
         ),
       },
-      {
+      // The map style is not offered any more — see `OFFERED_MAP_THEMES`. The row is dropped
+      // rather than drawn with a single choice in it, because a picker with one option is a
+      // control that does nothing.
+      ...(mapThemeIsChoosable() ? [{
         name: t('menu.mapTheme'),
-        build: (y) => this.renderSettingRow(
+        build: (y: number) => this.renderSettingRow(
           { x: contentX, y, width: contentWidth, height: ROW_HEIGHT },
           t('menu.mapTheme'),
-          MAP_THEME_OPTIONS.map((option) => ({ id: option.id, label: t(option.labelKey) })),
+          MAP_THEME_OPTIONS
+            .filter((option) => OFFERED_MAP_THEMES.includes(option.id))
+            .map((option) => ({ id: option.id, label: t(option.labelKey) })),
           getMapTheme(),
-          (id) => {
+          (id: MapThemeId) => {
             setMapTheme(id);
             this.scene.restart();
           },
         ),
-      },
+      }] : []),
       /**
        * ── The fight itself ──
        *
@@ -3209,12 +3206,10 @@ export class MenuScene extends Phaser.Scene {
       .setData('menuSupportRow', true);
 
     /**
-     * On iOS the sentence loses its first half, because the App Store will not have it.
-     *
-     * Two separate rules, either one of which is a rejection on its own: guideline 3.2.1(vii)
-     * excludes tips and donations *in games* from the external-link allowance other categories
-     * get, and 4.7 says HTML5 game content may not provide access to charitable donations. A link
-     * to the repository is neither, so the second half stays — see `allowsDonationLinks`.
+     * In a store build the sentence loses its first half, because neither store will have it —
+     * iOS forbids it, and the Play build is sold, so a second ask does not belong there. A link to
+     * the repository is neither a tip nor a purchase, so the second half stays in both cases; see
+     * `allowsDonationLinks` for which rule bites where.
      *
      * It stays under a different string, though. Beside the coffee link the short lowercase label
      * reads as a peer action; on its own it needs `improveAlone` to stand up as a complete line.

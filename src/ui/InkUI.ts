@@ -786,6 +786,24 @@ export class InkUI {
       event: Phaser.Types.Input.EventData,
     ) => event.stopPropagation();
 
+    /**
+     * A button fires when it is **pressed**, not when it is released.
+     *
+     * Reported: *click hold look bad, please make it faster and almost touch.* Waiting for the
+     * release is a whole gesture of latency on a phone — the finger lands, the ink darkens, and
+     * nothing happens until it lifts, which reads as the control needing to be held down.
+     *
+     * Firing on the press also settles the other half of the report — *only prevent too quick or
+     * drag on to button* — for free, and more honestly than a guard could: a drag that *ends* on a
+     * button never generated a press on it, so it cannot fire it. Nothing has to detect the drag.
+     *
+     * Safe here specifically because `InkUI.button` is chrome — footers, cards, the action bar —
+     * and never a row inside a scrolling list. Rows carry their own `pointerup` handler and consult
+     * `scrollGestureConsumedTap` (see `laneList.addRow`), which is the right rule for something you
+     * scroll past. The scroll guard is still asked here: a fresh gesture can never match a claimed
+     * one, so it costs nothing and covers a button that ever does end up inside a list.
+     */
+    let firedAt = 0;
     hitArea.on('pointerdown', (
       pointer: Phaser.Input.Pointer,
       localX: number,
@@ -793,9 +811,16 @@ export class InkUI {
       event: Phaser.Types.Input.EventData,
     ) => {
       stop(pointer, localX, localY, event);
-      if (!disabled) {
-        draw(true);
-      }
+      if (disabled) return;
+      draw(true);
+      if (scrollGestureConsumedTap(pointer)) return;
+      // Two presses inside a frame or two of each other are one press the platform delivered twice
+      // — a WebView sending both `pointerdown` and `mousedown`, most often. Cheaper and more
+      // reliable than trying to identify the duplicate by its type.
+      const now = pointer.downTime || performance.now();
+      if (now - firedAt < 120) return;
+      firedAt = now;
+      onClick();
     });
     hitArea.on('pointerup', (
       pointer: Phaser.Input.Pointer,
@@ -804,17 +829,8 @@ export class InkUI {
       event: Phaser.Types.Input.EventData,
     ) => {
       stop(pointer, localX, localY, event);
-      if (disabled) {
-        return;
-      }
-      draw(false);
-      // A button sitting inside a scrolling list must not fire because the finger happened to lift
-      // over it at the end of a drag. Buttons outside a list are unaffected: only the gesture that
-      // actually scrolled a list is ever claimed.
-      if (scrollGestureConsumedTap(pointer)) {
-        return;
-      }
-      onClick();
+      // Nothing but the ink: the press already did the work.
+      if (!disabled) draw(false);
     });
     hitArea.on('pointerout', () => {
       if (!disabled) {

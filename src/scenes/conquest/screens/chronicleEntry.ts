@@ -26,7 +26,10 @@ import {
 import { storyText, storyTitle } from '../../../i18n/story';
 import { INK_UI, INK_UI_HEX } from '../../../ui/InkUI';
 import { UI_FONT } from '../../../ui/fonts';
-import { t } from '../../../i18n';
+import { heroName, seasonLabel, t } from '../../../i18n';
+import { renderHeroFaceInBox } from '../../../ui/FaceRenderer';
+import { heroStatsLine } from '../../../ui/heroPickerRows';
+import { dateOfTurn } from '../../../systems/seasonClock';
 import { clearLanePage } from '../layers';
 import type { ChronicleEntry } from '../../../state/types';
 import type { ConquestUIScene } from '../../ConquestUIScene';
@@ -59,6 +62,32 @@ export function showChronicleEntry(self: ConquestUIScene, entryId: string): void
   };
 
   /**
+   * The person it happened to, face first.
+   *
+   * The live story page opens on them (`storyPage`) and the record did not, which made the archive
+   * read as a report about an incident rather than as what became of somebody. Drawn only when the
+   * story had a champion in it at all — plenty are about a province or the treasury.
+   */
+  const hero = entry.heroId
+    ? state.heroes.find((candidate) => candidate.id === entry.heroId)
+    : undefined;
+  if (hero) {
+    const faceSize = 52;
+    const holder = self.add.container(0, used);
+    holder.add(renderHeroFaceInBox(self, hero, { x: 0, y: 0, width: faceSize, height: faceSize }));
+    const frame = self.add.graphics();
+    frame.lineStyle(1.2, INK_UI.brush, 0.5);
+    frame.strokeRect(0, 0, faceSize, faceSize);
+    holder.add(frame);
+    holder.add(self.ui.label(faceSize + 12, 8, heroName(hero), 'label', { fontSize: '14px' }));
+    holder.add(self.ui.label(faceSize + 12, 28, heroStatsLine(hero), 'body', {
+      fontSize: '10px', color: INK_UI_HEX.mutedText, wordWrap: { width: bodyWidth - faceSize - 16 },
+    }));
+    body.add(holder);
+    used += faceSize + 12;
+  }
+
+  /**
    * The beats, in the order they were spoken.
    *
    * `scene` before `chronicle` for the same reason `storyPage` prefers it: the annal line is seven
@@ -70,17 +99,41 @@ export function showChronicleEntry(self: ConquestUIScene, entryId: string): void
   const beats = entry.history ?? [];
   if (beats.length > 0) {
     heading(t('ascent.chronicle.howItWent'));
+
+    /**
+     * An actual line down the page, with a node on every beat.
+     *
+     * The dates alone were a column of numbers beside a column of prose and read as a table; a
+     * chronicle is a *sequence*, and the one mark that says so is a rail. Drawn after the beats are
+     * laid out, because it has to know where the last one ended — the graphics object is added to
+     * the body now so it sits under the type rather than over it.
+     */
+    const rail = self.add.graphics();
+    body.add(rail);
+    // Wide enough for `Năm 12` set at 9px. The column was 22 and clipped `Đông` to `Đôn`; it then
+    // carried a bare number over a season, which reads as neither — reported as *what is 4 Đông?*
+    const railX = 48;
+    const nodes: Array<{ y: number; last: boolean }> = [];
+    const railTop = used + 6;
+
     beats.forEach((beat, index) => {
       const stem = `${entry.templateId}.${beat.fragmentId}`;
       const scene = storyText(`${stem}.scene`, entry.params);
       const line = scene !== `${stem}.scene` ? scene : storyText(`${stem}.chronicle`, entry.params);
       const isLast = index === beats.length - 1;
-      body.add(self.add.text(2, used, t('ascent.story.season', { n: beat.turn }), {
-        color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '10px',
+      const when = dateOfTurn(beat.turn);
+      // The year and the season, as the header says them — not the raw tick the record stamps.
+      // `M31` was a number in a unit the game explains nowhere.
+      body.add(self.add.text(2, used, t('ascent.chronicle.beatDate', {
+        year: when.year, season: seasonLabel(when.season),
+      }), {
+        color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '9px',
+        align: 'right', fixedWidth: 40, lineSpacing: -1,
       }));
-      const beatText = self.ui.label(40, used, line, 'body', {
+      nodes.push({ y: used + 6, last: isLast });
+      const beatText = self.ui.label(railX + 14, used, line, 'body', {
         fontSize: isLast ? '12px' : '11px',
-        wordWrap: { width: bodyWidth - 44 },
+        wordWrap: { width: bodyWidth - railX - 18 },
         ...(isLast ? { fontStyle: '700' } : { color: INK_UI_HEX.mutedText }),
       });
       body.add(beatText);
@@ -90,15 +143,27 @@ export function showChronicleEntry(self: ConquestUIScene, entryId: string): void
         const key = `ascent.story.outcome.${change.kind}` as Parameters<typeof t>[0];
         const ledger = t(key, { n: formatOutcomeAmount(change), name: change.name ?? '' });
         if (ledger === key) continue;
-        const row = self.ui.label(48, used, ledger, 'caption', {
+        const row = self.ui.label(railX + 22, used, ledger, 'caption', {
           fontSize: '10px',
           color: (change.amount ?? 0) < 0 ? cssHex(INK_UI.cinnabar) : INK_UI_HEX.mutedText,
-          wordWrap: { width: bodyWidth - 52 },
+          wordWrap: { width: bodyWidth - railX - 26 },
         });
         body.add(row);
         used += Math.max(14, row.height + 3);
       }
     });
+
+    // The rail itself, and its beads. The terminal's is filled and larger: it is the one beat that
+    // ended the thing, and the page should say so before a word of it is read.
+    const railBottom = nodes.length ? nodes[nodes.length - 1].y : railTop;
+    rail.lineStyle(1.4, INK_UI.softBrush, 0.75);
+    rail.lineBetween(railX, railTop, railX, railBottom);
+    for (const node of nodes) {
+      rail.fillStyle(node.last ? INK_UI.cinnabar : INK_UI.parchment, 1);
+      rail.fillCircle(railX, node.y, node.last ? 4.5 : 3.5);
+      rail.lineStyle(1.4, node.last ? INK_UI.cinnabar : INK_UI.softBrush, 1);
+      rail.strokeCircle(railX, node.y, node.last ? 4.5 : 3.5);
+    }
     used += 8;
   }
 

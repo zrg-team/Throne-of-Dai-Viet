@@ -635,6 +635,23 @@ export class ConquestUIScene extends Phaser.Scene {
 
   beginOverlay(key: string): void { shell.beginOverlay(this, key); }
 
+  /**
+   * Whether the world is drawn behind the current page.
+   *
+   * On the facade because the one screen that has to *restore* it — the war board — lives in
+   * `screens/warBoard`, which `conquest/shell` already imports; reaching back the other way for
+   * the function would close an import cycle for the sake of one line.
+   */
+  setMapVisible(visible: boolean): void { shell.setMapVisible(this, visible); }
+
+  /**
+   * How tall the province inspect block came out last render — card, gap and controls.
+   *
+   * A card grows to fit its own text (`InkUI.card`), so this cannot be predicted; the map controls
+   * read it to keep clear of the block's top edge.
+   */
+  inspectBlockHeight?: number;
+
   closeOverlay(): void { shell.closeOverlay(this); }
 
   /* ------------------------------------------------- the first-run walkthrough */

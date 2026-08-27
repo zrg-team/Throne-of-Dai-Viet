@@ -168,6 +168,33 @@ export function buildBattleGround(self: ConquestUIScene, battle: AscentBattle): 
   // A landscape print has a horizon in it. An artefact that is given a contour stops being an
   // artefact and becomes the thing it was accidentally imitating.
   const baseY = horizon + 8;
+
+  /**
+   * Mist at the feet of the karst, the same trick the front page plays.
+   *
+   * The ridges stood on a hard line with bare paper under them, so the hills read as a cut-out
+   * pasted onto the field rather than as distance. Asked for by name: *can mountains in battle
+   * screen also have fog like menu?*
+   *
+   * Soft ellipses in the same pigments `MenuScene` drifts across its own karst — `diepHi` over
+   * `diep` with a breath of `chamPale` under them — but **static**, because this whole band is
+   * flattened into one texture by `bakeBattleGround` and a tween on a baked layer animates
+   * nothing. Drawn into `far`, so it sits behind everything that stands on the ground.
+   */
+  // Laid with `groundTone` — rings of jittered circles — rather than as flat ellipses.
+  //
+  // The first pass used the menu's own ellipse stack and it cost the bake its fidelity: a large
+  // translucent ellipse tessellates differently at the supersample the texture is drawn at than at
+  // screen scale, and `verify-battle-ground-bake` went from 6.2% of pixels differing to 10.6%,
+  // past the bar. `groundTone` is what every other soft wash on this screen is made of and is
+  // already proven through that check.
+  for (let i = 0; i < 6; i += 1) {
+    const mx = x0 + (x1 - x0) * (0.06 + (i / 5) * 0.88) + (rand() - 0.5) * 26;
+    const my = baseY - 3 + (rand() - 0.5) * 6;
+    groundTone(far, mx, my, ui.fieldHeight * (0.085 + rand() * 0.05), PIGMENT.diepHi, 0.1, 6);
+    groundTone(far, mx + 10, my + 3, ui.fieldHeight * (0.055 + rand() * 0.03), PIGMENT.diep, 0.07, 5);
+  }
+
   const horizonPts: Array<{ x: number; y: number }> = [];
   const skyX0 = content.x + 5;
   const skyX1 = content.x + content.width - 5;
@@ -365,19 +392,52 @@ export function buildBattleForeground(self: ConquestUIScene, battle: AscentBattl
   clip.apply(g);
   clip.end(field);
 
-  // Two corner pieces first, big and near, one each side. A picture with nothing in its
-  // foreground has no depth to read the middle against — and the near band under the lines was
-  // a third of the field with nothing on it at all. These are the only things on the screen
-  // drawn larger than the men, which is what puts the men at a distance.
+  /**
+   * Two corner pieces, and they are rooted *below* the frame on purpose.
+   *
+   * They used to stand on the near edge, where their canopies stopped short of the line of battle
+   * — so although the foreground is composited above the men (`keepForegroundOnTop`, and the child
+   * order is asserted at build and after every redraw), it never actually covered any of them, and
+   * the depth it is there to create could not be read. Reported as: *tree in front, why army over
+   * it?* — the answer being that nothing was ever in front of anything.
+   *
+   * Anchored past `bottom`, their trunks run off the foot of the picture and their crowns rise into
+   * the band the hosts stand in, which is what a tree in the immediate foreground does. The clip
+   * ends them at the frame.
+   */
+  const rooted = bottom - 2;
   if (wet > wooded) {
-    areca(g, x0 + 14, bottom - 4, scale(bottom - 4), seed + 61);
-    areca(g, x0 + 30, bottom + 2, scale(bottom + 2), seed + 63);
+    areca(g, x0 + 14, rooted, scale(rooted), seed + 61);
+    areca(g, x0 + 30, rooted + 4, scale(rooted + 4), seed + 63);
   } else {
-    tree(g, x0 + 20, bottom - 2, scale(bottom - 2), seed + 61);
+    tree(g, x0 + 20, rooted, scale(rooted), seed + 61);
   }
   for (let i = 0; i < 3; i += 1) {
-    const py = bottom + 2 - i * 3;
+    const py = rooted + 4 - i * 3;
     bamboo(g, x1 - 10 - i * 11, py, scale(py), seed + 65 + i);
+  }
+
+  /**
+   * ...and two pieces standing *among* the men, at the outer edges of the line.
+   *
+   * The corner pieces above are rooted on the near edge, and a canopy that tall still stops some
+   * fifty units short of the rank line — so although the foreground layer is composited above the
+   * hosts (`keepForegroundOnTop`; the child order is asserted at build and after every redraw), it
+   * never actually covered a single soldier and the depth it exists to create could not be read.
+   * Reported as *tree in front, why army over it?* — and the honest answer was that nothing had
+   * ever been in front of anything.
+   *
+   * Rooted a little below the line of battle rather than at the frame's foot, and pushed hard to
+   * the two edges: the seam where the hosts meet is the one thing on this screen that must stay
+   * legible, so the overlap is bought at the flanks and nowhere near the middle.
+   */
+  const amongY = groundY + 10;
+  if (wooded >= wet) {
+    tree(g, x0 + 6, amongY, scale(amongY), seed + 71);
+    tree(g, x1 - 4, amongY + 14, scale(amongY + 14), seed + 73);
+  } else {
+    areca(g, x0 + 6, amongY, scale(amongY), seed + 71);
+    areca(g, x1 - 4, amongY + 14, scale(amongY + 14), seed + 73);
   }
 
   // And the rest scattered across the near ground. Below the line rather than beside it: the two
