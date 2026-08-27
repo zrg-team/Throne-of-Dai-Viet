@@ -32,6 +32,7 @@ node test_scripts/verify/verify-reinforce.mjs           # a lane page turn tears
 node test_scripts/verify/verify-expansion-prompt.mjs    # the expansion card only asks when something on it can be pressed
 node test_scripts/verify/verify-land-consequences.mjs   # ground is the ceiling on people; losing it costs; a held wave leaves the walls down; the governor commands
 node test_scripts/verify/verify-crowding-and-price.mjs   # districts fill and then eat badly; a host is priced, not capped; lost ground ends its battle
+node test_scripts/verify/verify-land-tap.mjs             # the name plate is the province's tap target, and the ground answers only where no plate is drawn
 node test_scripts/playtest/playtest-metrics.mjs     # six measured preconditions of fun, /85
 node test_scripts/perf/perf-bench.mjs --label wip   # auto-diffs against perf-results/baseline.json
 node test_scripts/shot/shot-readme.mjs              # regenerates every picture in the root README

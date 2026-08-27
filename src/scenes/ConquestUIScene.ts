@@ -568,6 +568,15 @@ export class ConquestUIScene extends Phaser.Scene {
   musterHandover?: MusterPlan;
 
   /**
+   * A province the map's inspect card handed to the Build lane, and which page to open on.
+   *
+   * The same shape as `musterHandover` above and for the same reason: the two actions a province
+   * affords live inside a lane, and a button on the map has to be able to say *open that lane,
+   * already on this province's governor list* without the lane needing to know who asked.
+   */
+  landHandover?: { landId: string; page: 'options' | 'governor' | 'focus' };
+
+  /**
    * Set before `openLane('battle')` on a fresh fight, so the very first build is already sealed.
    * The screen used to build unsealed and be rebuilt sealed a frame later — a whole second
    * field-and-dock build whose only purpose was un-naming a shape the first build had leaked.
@@ -921,6 +930,8 @@ export class ConquestUIScene extends Phaser.Scene {
   showClaimTargets(): void { screensBuild.showClaimTargets(this); }
 
   showBuildOptions(landId: string): void { screensBuild.showBuildOptions(this, landId); }
+
+  showFocusPicker(landId: string): void { screensBuild.showFocusPicker(this, landId); }
 
   showGovernorPicker(landId: string): void { screensBuild.showGovernorPicker(this, landId); }
 

@@ -432,6 +432,50 @@ export function showBuildOptions(self: ConquestUIScene, landId: string): void {
  * answer moves with the focus, and a recommendation the player cannot check is one they cannot
  * learn from. Reuses `assignHeroToLand`, which already handles releasing a previous posting.
  */
+/**
+ * The focus list on a page of its own, so the map can send the player straight to it.
+ *
+ * The rows are the same `buildFocusRows` the province sheet prints — one table, so the two screens
+ * can never recommend different things — and the page exists because the map's inspect card now
+ * offers changing a province's focus as one of its two actions. Reported: a tapped province showed
+ * four numbers and afforded nothing, and everything worth doing to it was three taps into a lane.
+ */
+export function showFocusPicker(self: ConquestUIScene, landId: string): void {
+  const state = self.state;
+  const land = state.lands.find((candidate) => candidate.id === landId);
+  if (!land) return;
+
+  clearLanePage(self);
+  const { addRow, addHeading, finish } = self.laneList(
+    t('ascent.pick.title.focus', { land: land.name }),
+    t('focus.headingHint'),
+    { back: () => self.replaceLanePage(() => showBuildOptions(self, landId)) },
+  );
+
+  addHeading(t('land.section.focus'));
+  for (const row of buildFocusRows(state, land)) {
+    addRow(
+      {
+        title: row.isBest ? `${row.title}  ·  ${t('focus.best')}` : row.title,
+        subtitle: `${row.effect}${row.extra ? `
+${row.extra}` : ''}
+${row.suitLine}`,
+        border: row.isCurrent
+          ? INK_UI.gold
+          : row.suitability === 'high' ? INK_UI.jade : INK_UI.softBrush,
+        muted: row.suitability === 'low' && !row.isCurrent,
+      },
+      row.isCurrent
+        ? undefined
+        : () => {
+            setLandSpecialization(state, land.id, row.focus);
+            self.replaceLanePage(() => showBuildOptions(self, landId));
+          },
+    );
+  }
+  finish();
+}
+
 export function showGovernorPicker(self: ConquestUIScene, landId: string): void {
   const state = self.state;
   const land = state.lands.find((candidate) => candidate.id === landId);

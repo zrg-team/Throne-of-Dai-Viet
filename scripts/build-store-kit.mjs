@@ -914,7 +914,9 @@ ios/                              android/
 ## The whole release
 
 \`\`\`bash
-yarn mobile:eas:release
+yarn mobile:eas:release            # both platforms
+yarn mobile:eas:release:android    # one platform, same four steps
+yarn mobile:eas:release:ios
 \`\`\`
 
 Sync the game, regenerate this kit, build **both** platforms on EAS, wait, then download each

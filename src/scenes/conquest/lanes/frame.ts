@@ -86,7 +86,18 @@ export function openLane(self: ConquestUIScene, lane: AscentLane): void {
 
   buildLanePage(self, () => {
     switch (lane) {
-      case 'build': self.showBuildScreen(); break;
+      case 'build': {
+        // Opened from the map's inspect card, the lane starts on the province that was tapped —
+        // and on the picker the button named, rather than on the realm-wide list the player would
+        // then have to find that province in again.
+        const handover = self.landHandover;
+        self.landHandover = undefined;
+        if (handover?.page === 'governor') self.showGovernorPicker(handover.landId);
+        else if (handover?.page === 'focus') self.showFocusPicker(handover.landId);
+        else if (handover) self.showBuildOptions(handover.landId);
+        else self.showBuildScreen();
+        break;
+      }
       case 'heroes': self.showHeroesScreen(); break;
       case 'court': self.showCourtScreen(); break;
       case 'battle': self.showBattle(); break;
