@@ -10,6 +10,7 @@ import {
   CAMPAIGN_TICKS_BASE,
 } from '../../game/ascentConfig';
 import { hasModifier } from '../DiplomacySystem';
+import { EXCHANGE_MIN_RELATIONS } from '../../game/ascentConfig';
 import { TRADE_CHARTER_ID } from '../ForeignAffairsSystem';
 import { pushToast } from '../empire/notifications';
 import { farthestNeutralFromCapital } from '../empire/InvasionSystem';
@@ -111,7 +112,15 @@ export function exchangeRate(kingdom: Kingdom): { buy: number; sell: number } {
  * the option nobody took. Now it opens the exchange for as long as it holds.
  */
 export function canTrade(kingdom: Kingdom): boolean {
-  return hasModifier(kingdom, TRADE_CHARTER_ID);
+  // **A charter and a warm court, not one or the other.**
+  //
+  // Asked for as *"can convert from good to food ... but relation must high"*. A charter alone was
+  // the wrong gate: it can be signed with a court that despises us, and a realm that could buy
+  // grain from its worst enemy has a food problem with a purely administrative solution. Requiring
+  // standing as well is what makes the exchange something a *relationship* buys — and what makes
+  // it worth losing when the relationship sours, which is the half that gives it teeth.
+  return hasModifier(kingdom, TRADE_CHARTER_ID)
+    && (kingdom.relations ?? 50) >= EXCHANGE_MIN_RELATIONS;
 }
 
 /** Sells grain for coin (`'sell'`) or buys it with coin (`'buy'`), a hundred at a time. */

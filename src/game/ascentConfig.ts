@@ -982,6 +982,58 @@ export const BUYOFF_GOLD_PER_TICK_PER_HUNDRED = 26;
  * system is one the player correctly stops touching.
  */
 export const FEUD_ENVY_SHARE = 0.5;
+
+// ── A second crown joins a war already being fought ─────────────────────────
+/** Standing below which a court will consider piling onto someone else's invasion. */
+export const COALITION_JOIN_BELOW_RELATIONS = 40;
+/**
+ * How badly the realm must be losing before anyone piles on, as invader power over
+ * `contestedDefencePower`.
+ *
+ * Above one on purpose: nobody joins a war the defender is winning, and a pile-on that fires while
+ * the realm is comfortable is just a second wave wearing a coalition's name. This is what makes a
+ * joined war read as opportunism — the courts smelling blood — rather than as weather.
+ */
+export const COALITION_JOIN_RATIO = 1.15;
+/** Per-tick draw on the angriest eligible court, scaled by its own aggression pressure. */
+export const COALITION_JOIN_DRAW = 0.06;
+/** Share of a full wave budget the joining court commits. Help for the war, not a second war. */
+export const COALITION_JOIN_SHARE = 0.6;
+
+/**
+ * Standing a court wants before it will trade grain against coin with us, charter or no charter.
+ *
+ * Sits above the `40-59` indifferent band's floor so the exchange is a *cordial* court's privilege
+ * — the same threshold the World lane already colours green at 55.
+ */
+export const EXCHANGE_MIN_RELATIONS = 55;
+
+// ── The world speaking on its own ───────────────────────────────────────────
+/**
+ * Ticks before the first world event. The opening is already three cards deep — the mandate, the
+ * founding, the first draft — and a border incident on top of that is noise before the player has
+ * a border to have incidents on.
+ */
+export const WORLD_EVENT_GRACE_TICKS = 16;
+/**
+ * Minimum ticks between events. Deliberately longer than the wave cycle: this is the world
+ * *talking*, and something that speaks every season is something the player learns to tap through
+ * without reading.
+ */
+export const WORLD_EVENT_MIN_GAP_TICKS = 26;
+/**
+ * Per-tick draw once the gap has elapsed.
+ *
+ * Tuned down from 0.22 at a 14-tick gap, and the reason is the pacing contract rather than taste.
+ * A new prompt kind does not only add its own cards, it *displaces* everyone else's: at the
+ * original rate `verify-ascent` saw `conquer-method` and `rival-demand` pushed onto consecutive
+ * ticks, which is precisely the "a card every 3.9 seasons, forever" metronome the wave cycle in
+ * `AFTERMATH_TICKS` was written to break. The world talking has to leave room for the realm.
+ *
+ * At these numbers an event is roughly one every eight or nine seasons — often enough that the
+ * board is never static, rare enough that each one is read.
+ */
+export const WORLD_EVENT_DRAW = 0.12;
 /** Opinion lost with a court whose claimed ground we take. Standing, slow to fade. */
 export const CLAIM_SEIZURE_OPINION = -30;
 /** Opinion lost everywhere else when a pact is broken — oathbreaking is public. */

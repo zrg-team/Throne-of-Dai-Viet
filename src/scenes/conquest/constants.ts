@@ -259,6 +259,7 @@ export function promptSignature(prompt: AscentPrompt): string {
     case 'doctrine': return `doctrine:${prompt.era}`;
     case 'parliament': return prompt.cardId;
     case 'envoy': return `${prompt.kingdomId}:${prompt.relations}`;
+    case 'world-event': return `${prompt.eventId}:${prompt.kingdomId}:${prompt.otherKingdomId ?? ''}`;
     case 'famine': return `famine:${prompt.shortfall}`;
     case 'muster-proposal': return `muster:${prompt.heroId}:${prompt.plan.soldiers}:${prompt.purpose}`;
     case 'rival-demand': return `${prompt.demand}:${prompt.kingdomId}`;

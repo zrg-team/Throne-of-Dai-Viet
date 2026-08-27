@@ -1740,6 +1740,22 @@ export type AscentPrompt =
     }
   /** A rival empire, and what to do about it. */
   | { kind: 'envoy'; kingdomId: string; kingdomName: string; relations: number; power: number; options: EnvoyOption[] }
+  /**
+   * Something that happened between two courts, and what the realm does about it.
+   *
+   * The only diplomacy card the player does not start. See `WorldEventSystem` for why most of them
+   * name a second court: the interesting question in this mode is never whether to be liked, it is
+   * by whom — and an event that forces a side is the cheapest way to make that concrete.
+   */
+  | {
+      kind: 'world-event';
+      eventId: string;
+      kingdomId: string;
+      kingdomName: string;
+      otherKingdomId?: string;
+      otherKingdomName?: string;
+      options: { id: string; cost?: Partial<ResourceBag>; affordable: boolean }[];
+    }
   | {
       kind: 'empire-response';
       wave: number;
@@ -2579,10 +2595,27 @@ export interface AscentState {
   peaceFloor?: number;
   /** Whether the "quiet too long" warning has already been given for this stretch of peace. */
   quietWarned?: boolean;
+  /**
+   * The relations dial the wave now in flight was *quoted* with, locked at `startWave`.
+   *
+   * Read back by `launchWave` rather than recomputed, because the response card can stand open for
+   * a season and relations move while it does. A wave has to land at the size the card said it
+   * would, or the price the player was asked to pay was for a different war.
+   */
+  waveDialBudget?: number;
+  waveDialHosts?: number;
   /** The court that sent the wave now in flight, so the dial and the World lane agree on who. */
   waveAggressorId?: string;
   /** Turn each court last sent us a relief column, for the ask's cooldown. Keyed by kingdom id. */
   allyAidTurn?: Record<string, number>;
+  /** Turn the last world event was raised, so they keep a minimum gap. */
+  lastWorldEventTurn?: number;
+  /**
+   * Consecutive refusals per prompt kind, so a card nothing can answer is dropped rather than
+   * holding the queue for the rest of the run. Cleared the moment that kind resolves. See the
+   * note in `resolveAscentPrompt`.
+   */
+  promptRefusals?: Partial<Record<string, number>>;
   /** Whether the "capital left ungarrisoned" strike has already fired for this exposure. */
   capitalExposedFired?: boolean;
   /** Live rival count last tick, so an empire collapsing is seen as a transition. */

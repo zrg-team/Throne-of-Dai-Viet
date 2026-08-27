@@ -18,6 +18,7 @@ import {
   progressAscentCourtCooldown,
 } from './CourtLaneSystem';
 import { offerEnvoy, pickEnvoyTarget } from './EnvoySystem';
+import { maybeOfferWorldEvent } from './WorldEventSystem';
 import { famineReady, offerFamine, tickFamineCooldown } from './FamineSystem';
 import { offerRivalDemand, rivalDemandReady, tickRivalCooldowns } from './RivalDirector';
 import { offerHeroSummon } from './SummonSystem';
@@ -137,6 +138,11 @@ const CONSIDER_ORDER: AscentPromptKind[] = [
   'law-choice',
   'parliament',
   'envoy',
+  // Directly after the envoy, and for the same reason it sits there: a world event is the same
+  // conversation seen from the other side. Below it, because an event is the world reporting and
+  // the envoy is the realm acting, and a card the player can *do* something with outranks one
+  // that is telling them what has already happened.
+  'world-event',
   // Last of the scheduled kinds on purpose. A story is the least time-critical thing the
   // director can raise — it has waited seasons already and can wait one more — and putting it
   // ahead of the realm's actual business is how a narrative feature starts feeling like homework.
@@ -265,6 +271,11 @@ function isReady(state: GameState, kind: AscentPromptKind): boolean {
     case 'envoy':
       return Boolean(pickEnvoyTarget(state));
 
+    // Its own grace, gap and draw live in `WorldEventSystem` — the readiness question here is only
+    // whether there is a court left to have an incident with.
+    case 'world-event':
+      return state.kingdoms.some((k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated);
+
     case 'famine':
       return famineReady(state);
 
@@ -316,6 +327,9 @@ function raise(state: GameState, kind: AscentPromptKind): boolean {
       return offerParliament(state);
     case 'envoy':
       return offerEnvoy(state);
+
+    case 'world-event':
+      return maybeOfferWorldEvent(state);
     case 'famine':
       return offerFamine(state);
     case 'story-beat':

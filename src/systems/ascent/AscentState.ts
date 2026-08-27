@@ -119,6 +119,11 @@ const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   // and a muster the player has been asked about must not queue behind a draft.
   'muster-proposal': 8.5,
   envoy: 9,
+  // Below the envoy it is a cousin of, and above the reward draft. An event is the world speaking
+  // rather than the realm being asked for something, so it yields to every card that costs the
+  // player a resource — but it must not sit behind a Power Draft, because by the time the player
+  // has spent a level the courts have moved on and the card is reporting history.
+  'world-event': 9.2,
   'rival-demand': 3.5,
   // Above the rival demands: an empty granary is already costing the realm morale and
   // population every single tick it goes unanswered.

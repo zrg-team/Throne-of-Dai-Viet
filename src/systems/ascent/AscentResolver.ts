@@ -1,5 +1,6 @@
 import { bankLegacy, computeRunScore, getLegacy } from '../../state/legacy';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
+import { resolveWorldEvent } from './WorldEventSystem';
 import { findPowerCard } from '../../data/ascentCards';
 import { applyCourtEffect } from '../PoliticsSystem';
 import { fireHeroArrival } from './ArrivalSystem';
@@ -235,6 +236,13 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
       break;
     }
 
+    case 'world-event': {
+      handled = resolveWorldEvent(
+        state, prompt.eventId, prompt.kingdomId, prompt.otherKingdomId, choiceId,
+      );
+      break;
+    }
+
     case 'famine': {
       handled = resolveFamine(state, choiceId);
       break;
@@ -288,12 +296,34 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
   }
 
   if (!handled) {
+    // **A card that cannot be answered is dropped rather than left standing for ever.**
+    //
+    // Re-arming an unhandled prompt is the right default — a refused bribe must not read as a tap
+    // that never registered — but on its own it is also an unbounded loop, and it has produced a
+    // hung run three times now: `conquer-method` against a province that changed hands, `envoy`
+    // against an empty treasury, and a prompt kind whose answerer did not know it. In every case
+    // the queue behind it stopped for the rest of the run, so the failure is never local: the
+    // Power Draft, the appointments and the law cards all go silent together.
+    //
+    // Three refusals of the *same* card is past the point where re-asking can be the right answer,
+    // so it is dropped, counted, and the run goes on. The counter is keyed by kind, cleared on any
+    // success, and small enough that a legitimate re-ask — the refusal sheet, which re-raises with
+    // a notice — is never touched by it.
+    ascent.promptRefusals ??= {};
+    const refused = (ascent.promptRefusals[prompt.kind] ?? 0) + 1;
+    ascent.promptRefusals[prompt.kind] = refused;
+    if (refused >= 3) {
+      ascent.promptRefusals[prompt.kind] = 0;
+      drainAscentPrompts(state);
+      return false;
+    }
     // Nobody took the choice, so the card is still the live question — unless the dispatch put
     // something more urgent up on its way past, which is allowed to keep the slot.
     state.pendingAscentPrompt ??= prompt;
     return false;
   }
 
+  if (ascent.promptRefusals) ascent.promptRefusals[prompt.kind] = 0;
   startPromptCooldown(state, prompt.kind);
   drainAscentPrompts(state);
   return true;

@@ -1,6 +1,6 @@
 import { isEndlessMode, PLAYER_KINGDOM_ID } from '../../game/constants';
 import type { GameState, Kingdom, KingdomPersonality } from '../../state/types';
-import { addOpinionModifier, naturalBaseline, recomputeOpinion } from '../DiplomacySystem';
+import { addOpinionModifier, applyEnvy, naturalBaseline, recomputeOpinion } from '../DiplomacySystem';
 import { pushToast } from './notifications';
 import { reconcileRivalDecrees, tickRivalDecrees } from '../decree/RivalDecreeSystem';
 import { t } from '../../i18n';
@@ -178,6 +178,13 @@ export function tickGreatPowersYear(state: GameState): void {
       const nextValue = Math.min(28, (existing?.value ?? 0) + 5);
       addOpinionModifier(k, { id: `ambassador-${k.id}`, label: t('empire.world.mod.ambassador'), value: nextValue, source: 'treaty' });
       k.warAppetite = Math.max(0, (k.warAppetite ?? 0) - 8);
+      // And the court they feud with sees whose hall our champion is sitting in.
+      //
+      // This was the one warming that carried no envy, and it is the one the player was told to
+      // expect it from: *"send a hero to other kingdom to maintain relation. Noted: it not best
+      // method everywhere — increase relation this kingdom might affect to relations other
+      // kingdom."* An embassy is the most visible thing on the list and it was the only silent one.
+      applyEnvy(state, k, nextValue - (existing?.value ?? 0));
     }
   }
 

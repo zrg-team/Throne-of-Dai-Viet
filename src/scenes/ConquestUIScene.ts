@@ -874,6 +874,7 @@ export class ConquestUIScene extends Phaser.Scene {
   /* ------------------------------------------------------------- prompts realm */
 
   showEnvoy(prompt: Extract<AscentPrompt, { kind: 'envoy' }>): void { promptsRealm.showEnvoy(this, prompt); }
+  showWorldEvent(prompt: Extract<AscentPrompt, { kind: 'world-event' }>): void { promptsRealm.showWorldEvent(this, prompt); }
 
   showMusterProposal(prompt: Extract<AscentPrompt, { kind: 'muster-proposal' }>): void { promptsRealm.showMusterProposal(this, prompt); }
 

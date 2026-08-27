@@ -59,6 +59,7 @@ const result = await page.evaluate(async () => {
         return affordable ? affordable.id : 'decline';
       }
       case 'envoy': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
+      case 'world-event': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
       // A rich realm buys its way out of a famine; a poor one endures. Either way the card
       // must always resolve — a prompt this policy cannot answer stalls the whole run.
       // Fight it out rather than retreating, so the assertions see engagements resolve.

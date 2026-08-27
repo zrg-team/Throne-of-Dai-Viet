@@ -777,7 +777,27 @@ function startWave(state: GameState): void {
   // Reading an average of all four instead would make every gift equally useful and none of them
   // a decision — the whole point is that the player has to read the board.
   const aggressor = pickAggressor(state);
-  const dial = relationsDial(state, aggressor?.id);
+
+  // **The floor takes the dial away entirely.**
+  //
+  // Every multiplier in `RELATIONS_WAVE_DIAL` delays and shrinks a war; none of them cancels one,
+  // and this is the line that enforces it. Once the courts have been quiet longer than
+  // `peaceFloorTicks`, the wave that follows is quoted at full strength on the ordinary clock, no
+  // matter how beloved the realm is — and it is announced, so a diplomacy run reads it as a
+  // deadline rather than as the game changing its mind.
+  //
+  // Without this the promise was only half-kept: `EnemyCommandDirector` sent a *raid* when the
+  // floor tripped, and a raid is contact, not a war. A realm that had bought 80+ standing with
+  // every court sat on a x1.6 clock and a x0.75 budget for the rest of the run, which is exactly
+  // the no-lose strategy the floor exists to rule out.
+  const forced = peaceFloorBreached(state);
+  const dial = forced
+    ? { clock: 1, budget: 1, hosts: 0 }
+    : relationsDial(state, aggressor?.id);
+  if (forced) {
+    ascent.quietWarned = false;
+    pushToast(state, t('ascent.wave.floorBroken'), 'threat');
+  }
 
   // Mountain Pass buys seasons: waves from beyond the passes arrive late, and the extra Court
   // phase it grants is the whole card.
@@ -786,6 +806,8 @@ function startWave(state: GameState): void {
   // Re-rolled once a wave, so the guarantee is never the same number twice and never decays into
   // its own minimum by being re-rolled every tick.
   ascent.peaceFloor = peaceFloorTicks(state);
+  ascent.waveDialBudget = dial.budget;
+  ascent.waveDialHosts = dial.hosts;
 
   // The bill for the season the player just spent. Locked here and read by everything that
   // sizes or quotes this wave, then shed — so the wave arrives at exactly the price shown
@@ -868,10 +890,14 @@ function launchWave(state: GameState, kingdomId: string, warlordName?: string): 
   // Host count answers the board. A hateful court sends one more; a sworn friend one fewer, and
   // never fewer than one — a wave that arrives with nothing is a wave that did not happen, and
   // the floor below exists precisely so that cannot be bought.
-  const dial = relationsDial(state, kingdomId);
+  // Locked at `startWave`, not re-read here. The response card can stand for a whole season and
+  // relations move while it does — a wave must land at the size it was quoted at, or the card is
+  // lying about what it is asking the player to pay for.
+  const dialHosts = ascent.waveDialHosts ?? 0;
+  const dialBudget = ascent.waveDialBudget ?? 1;
   const hosts = Math.max(1, Math.min(
     MAX_HOSTS_PER_KINGDOM,
-    waveHostCount(ascent.wave, boss) + (coalition ? 2 : 0) + dial.hosts,
+    waveHostCount(ascent.wave, boss) + (coalition ? 2 : 0) + dialHosts,
   ));
   // Difficulty is applied once, centrally, inside `launchOffMapInvasion` — it used to be
   // compensated for here because the normalisation there divided it back out, which left every
@@ -883,7 +909,7 @@ function launchWave(state: GameState, kingdomId: string, warlordName?: string): 
     // spawn is clamped against `getPlayerMilitary` — a headcount blind to every multiplier
     // the Power Draft stacks — and the wave arrives a fraction of the size it should be.
     totalSoldiers: Math.round(
-      waveSoldierBudget(state, ascent.wave, boss) * (coalition ? COALITION_WAVE_MULT : 1) * dial.budget,
+      waveSoldierBudget(state, ascent.wave, boss) * (coalition ? COALITION_WAVE_MULT : 1) * dialBudget,
     ),
     forceConquest: boss || coalition,
     // A named warlord is what flags the record as `great`, which drives the harder siege
