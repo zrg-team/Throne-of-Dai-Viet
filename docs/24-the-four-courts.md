@@ -141,6 +141,46 @@ The headline is the first two rows: engaged play now outlives declining play, wh
 before, and lasts about three waves longer. The objective total is flat inside a metric that swings
 ±4 at 8 seeds.
 
+## Five gaps a second review found
+
+The first pass shipped nine of the eleven requests and left two half-done. Read again against the
+code rather than against the summary:
+
+| Gap | What was actually true |
+|---|---|
+| the war floor | `peaceFloorBreached` only forced a **raid**, and `startWave` applied the relations dial unconditionally — so a realm at 80+ standing with every court sat on a ×1.6 clock and a ×0.75 budget for the rest of the run. The floor now takes the dial away entirely and says so. |
+| one or many kingdoms | Two courts could end up on the map together by coincidence; nothing ever *decided* to pile on. `maybeJoinTheWar` now lets a cold, non-feuding court join a war the realm is visibly losing. |
+| random events | Not implemented at all. Six now exist, each naming two courts wherever it can, because the question this mode asks is never *do I want to be liked* but *by whom*. |
+| the exchange | Gated on a charter alone, which can be signed with a court that despises us. Now needs standing too. |
+| sending a hero | The one warming that carried no envy — and the one the request explicitly named. |
+
+Verified by `verify-foreign-relations.mjs`: **31 checks**, each driving the real function and
+asserting the world moved, so a change that quietly disconnects one fails there rather than in a run.
+
+## A third prompt that could stall a run
+
+`resolveWorldEvent` refuses an id it does not define, which is correct — but it means any answerer
+that does not know a kind hangs the queue for the rest of the run, and that has now happened three
+times. So the dispatcher drops a card after **three** consecutive refusals rather than re-arming it
+for ever. The failure is never local: the Power Draft, the appointments and the law cards all go
+silent together behind it.
+
+## What the pacing cost, and what it did not
+
+Adding a tenth prompt kind looked like it was starving the decision budget: back-to-back scheduled
+cards went from 6 to 13 across six seeds. Four mitigations later — lowest priority, a longer gap, a
+required quiet stretch, and raising events only into a Court slot nothing else wanted — it sat at 9.
+
+Then the feature was switched off entirely and **the numbers did not move**. World events were never
+the cause; the difference is the wave and relations work changing what a run does, which is the
+point of the round. The mitigations are kept because an event genuinely should not outrank the
+realm's business, but the diagnosis they were built on was wrong.
+
+`verify-ascent` lands ~3.5 failures a seed against the baseline's ~2.5, in a harness whose own
+baseline ranges 1–5. Those are the soft *did this card fire in this run* checks rather than
+correctness ones, and the round's own metrics — agency, waves survived, the 31 promises — all moved
+the right way.
+
 ## Two harnesses that were measuring the wrong thing
 
 - `verify-fronts` sized its probe at a fixed 700 men. That was a fight against the realm the old

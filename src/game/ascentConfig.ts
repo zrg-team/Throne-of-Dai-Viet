@@ -1034,6 +1034,14 @@ export const WORLD_EVENT_MIN_GAP_TICKS = 34;
  * board is never static, rare enough that each one is read.
  */
 export const WORLD_EVENT_DRAW = 0.10;
+/**
+ * Ticks of silence the realm must have had before the world speaks.
+ *
+ * Six is a season and a half with nothing on screen — comfortably inside the Aftermath and Court
+ * stretches the wave cycle already carves out, and long enough that an event can never be the
+ * thing that turns two cards into a chain.
+ */
+export const WORLD_EVENT_QUIET_TICKS = 6;
 /** Opinion lost with a court whose claimed ground we take. Standing, slow to fade. */
 export const CLAIM_SEIZURE_OPINION = -30;
 /** Opinion lost everywhere else when a pact is broken — oathbreaking is public. */

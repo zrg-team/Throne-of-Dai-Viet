@@ -143,9 +143,6 @@ const CONSIDER_ORDER: AscentPromptKind[] = [
   // ahead of the realm's actual business is how a narrative feature starts feeling like homework.
   // Ageing through KIND_STARVATION_TICKS still guarantees it is eventually heard.
   'story-beat',
-  // Behind even the chronicle. The world talking about itself is the least urgent thing in the
-  // mode, and it is the first thing that should give way when the realm has business.
-  'world-event',
 ];
 
 /**
@@ -269,10 +266,6 @@ function isReady(state: GameState, kind: AscentPromptKind): boolean {
     case 'envoy':
       return Boolean(pickEnvoyTarget(state));
 
-    // Its own grace, gap and draw live in `WorldEventSystem` — the readiness question here is only
-    // whether there is a court left to have an incident with.
-    case 'world-event':
-      return state.kingdoms.some((k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated);
 
     case 'famine':
       return famineReady(state);
@@ -326,8 +319,6 @@ function raise(state: GameState, kind: AscentPromptKind): boolean {
     case 'envoy':
       return offerEnvoy(state);
 
-    case 'world-event':
-      return maybeOfferWorldEvent(state);
     case 'famine':
       return offerFamine(state);
     case 'story-beat':
@@ -424,6 +415,23 @@ export function tickDecisionDirector(state: GameState): void {
   const overdue = ready
     .filter((kind) => (ascent.promptWaiting?.[kind] ?? 0) >= KIND_STARVATION_TICKS)
     .sort((a, b) => (ascent.promptWaiting?.[b] ?? 0) - (ascent.promptWaiting?.[a] ?? 0));
+
+  // **An event fills a slot nobody else wanted, or it does not happen.**
+  //
+  // World events were in `CONSIDER_ORDER` at first, and being last in it was not enough. A kind in
+  // that list *competes*: it ages through `KIND_STARVATION_TICKS` like everything else and
+  // eventually takes a Court slot from a card that was ready, which pushes that card into the next
+  // window and lands it beside something else. Measured across six seeds, that took back-to-back
+  // scheduled cards from 6 to 13 — and the flat 3.9-season metronome is exactly what this whole
+  // phase machinery exists to break.
+  //
+  // Raised here instead, only on a Court tick where the gap has elapsed and **nothing else is
+  // ready**, it can never displace anything. Its own grace, gap, quiet and draw live in
+  // `WorldEventSystem`, so a quiet realm still does not get one every window.
+  if (ready.length === 0) {
+    if (maybeOfferWorldEvent(state)) ascent.idleTicks = 0;
+    return;
+  }
 
   for (const kind of [...overdue, ...ready]) {
     if (!raise(state, kind)) continue;

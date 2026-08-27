@@ -23,6 +23,7 @@ import {
   WORLD_EVENT_DRAW,
   WORLD_EVENT_GRACE_TICKS,
   WORLD_EVENT_MIN_GAP_TICKS,
+  WORLD_EVENT_QUIET_TICKS,
 } from '../../game/ascentConfig';
 import { addOpinionModifier, applyEnvy } from '../DiplomacySystem';
 import { applyResourceDelta, canSpend } from '../ResourceSystem';
@@ -153,6 +154,17 @@ export function maybeOfferWorldEvent(state: GameState): boolean {
   if (!ascent) return false;
   if (state.turn < WORLD_EVENT_GRACE_TICKS) return false;
   if (state.turn - (ascent.lastWorldEventTurn ?? -99) < WORLD_EVENT_MIN_GAP_TICKS) return false;
+  // **The world talks when the realm has nothing else to say.**
+  //
+  // The director's own gap rule keeps this off the tick after a card, but that is not enough on
+  // its own: a new kind does not merely add cards, it takes a Court slot from another and pushes
+  // *that* one onto a tick where it lands next to something else. Measured across three seeds,
+  // adding events at the ordinary cadence took back-to-back scheduled cards from 1 to 4 — and a
+  // card every tick is the exact metronome the wave cycle exists to break.
+  //
+  // Requiring a genuinely quiet stretch is what makes an event additive rather than competitive:
+  // it can only ever appear where nothing else wanted the slot.
+  if (state.turn - (ascent.lastPromptTurn ?? 0) < WORLD_EVENT_QUIET_TICKS) return false;
   if (Math.random() > WORLD_EVENT_DRAW) return false;
 
   const courts = livingCourts(state);
