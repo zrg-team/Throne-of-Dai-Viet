@@ -1020,7 +1020,7 @@ export const WORLD_EVENT_GRACE_TICKS = 16;
  * *talking*, and something that speaks every season is something the player learns to tap through
  * without reading.
  */
-export const WORLD_EVENT_MIN_GAP_TICKS = 26;
+export const WORLD_EVENT_MIN_GAP_TICKS = 34;
 /**
  * Per-tick draw once the gap has elapsed.
  *
@@ -1033,7 +1033,7 @@ export const WORLD_EVENT_MIN_GAP_TICKS = 26;
  * At these numbers an event is roughly one every eight or nine seasons — often enough that the
  * board is never static, rare enough that each one is read.
  */
-export const WORLD_EVENT_DRAW = 0.12;
+export const WORLD_EVENT_DRAW = 0.10;
 /** Opinion lost with a court whose claimed ground we take. Standing, slow to fade. */
 export const CLAIM_SEIZURE_OPINION = -30;
 /** Opinion lost everywhere else when a pact is broken — oathbreaking is public. */

@@ -138,16 +138,14 @@ const CONSIDER_ORDER: AscentPromptKind[] = [
   'law-choice',
   'parliament',
   'envoy',
-  // Directly after the envoy, and for the same reason it sits there: a world event is the same
-  // conversation seen from the other side. Below it, because an event is the world reporting and
-  // the envoy is the realm acting, and a card the player can *do* something with outranks one
-  // that is telling them what has already happened.
-  'world-event',
   // Last of the scheduled kinds on purpose. A story is the least time-critical thing the
   // director can raise — it has waited seasons already and can wait one more — and putting it
   // ahead of the realm's actual business is how a narrative feature starts feeling like homework.
   // Ageing through KIND_STARVATION_TICKS still guarantees it is eventually heard.
   'story-beat',
+  // Behind even the chronicle. The world talking about itself is the least urgent thing in the
+  // mode, and it is the first thing that should give way when the realm has business.
+  'world-event',
 ];
 
 /**
