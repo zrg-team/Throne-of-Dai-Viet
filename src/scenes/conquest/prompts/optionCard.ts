@@ -24,12 +24,21 @@ import type { ConquestUIScene } from '../../ConquestUIScene';
  * press never feels like waiting. The card draws the hold filling along its foot, so the
  * requirement is visible rather than a button that mysteriously ignored you.
  *
- * Down from 260, which was past the point where a guard stops feeling like protection and starts
- * feeling like lag — the press was finished before the game agreed it had happened. 140 ms is
- * still roughly twice a brush and comfortably inside the time a finger rests on something it means
- * to press.
+ * **70, down from 140 and 260 before that.** Each cut has been the same complaint, and the last
+ * one arrived with a reason the earlier ones did not have: `InkUI.button` now acts on the *press*,
+ * so a footer button on the same screen fires the instant a finger lands while the cards above it
+ * still wanted a seventh of a second on release. Two feels on one page reads as the cards being
+ * broken, not as the cards being careful.
+ *
+ * Seventy is about four frames. A deliberate tap rests 80–150 ms, so it clears comfortably; the
+ * brush this exists to stop — a finger passing over a card on its way to a flick — does not, and
+ * neither does the tail of a scroll, which `scrollGestureConsumedTap` refuses on its own anyway.
+ *
+ * It is not zero, and that is a decision rather than an oversight. These cards spend a Power Draft,
+ * appoint a seat, sign a law — irreversible, one tap, in a list the finger is already moving
+ * through. The guard is what the hint below now says out loud.
  */
-const CARD_HOLD_MS = 140;
+const CARD_HOLD_MS = 70;
 
 
 export function optionCard(self: ConquestUIScene,
@@ -190,9 +199,17 @@ export function optionCard(self: ConquestUIScene,
       if (progress <= 0) return;
       // A line growing along the foot of the card. It reads as the choice being made rather than
       // as a loading bar, and it tells the player the hold is the point.
-      fill.fillStyle(opts.accent, 0.55);
-      fill.fillRect(1, height - 3.5, (bounds.width - 2) * Math.min(1, progress), 2.5);
+      //
+      // Four points tall rather than two and a half, and at full strength: at seventy milliseconds
+      // the line is on screen for four frames, and a 2.5px hairline at 55% has no chance of being
+      // seen in that time. If the guard is going to refuse a press it has to be visibly refusing.
+      fill.fillStyle(opts.accent, 0.8);
+      fill.fillRect(1, height - 5, (bounds.width - 2) * Math.min(1, progress), 4);
     };
+
+    // Tell the page it contains something that has to be held — `drawHoldHint` prints the line
+    // once, from `finish`, and only where a card like this was actually drawn.
+    self.promptUsedHoldCards = true;
 
     hit.on('pointerdown', () => {
       armedAt = self.time.now;

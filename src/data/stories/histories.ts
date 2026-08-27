@@ -787,7 +787,7 @@ export const slanderedGeneral: StoryTemplate = {
             ctx.remember('investigated', 1);
             // It was them. Everyone can see it now.
             const rival = ctx.rival() ?? pick(livingRivals(ctx.state));
-            if (rival) rival.relations = Math.max(0, (rival.relations ?? 50) - 30);
+            if (rival) opinion(ctx, -30, rival.id);
             temper(ctx, 'loyalty', 18);
             standing(ctx, 6);
           },

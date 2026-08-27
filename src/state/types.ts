@@ -203,6 +203,24 @@ export interface InvasionRecord {
   exitLandId?: string;
   /** Part of a telegraphed Great Invasion (boss coalition); yields larger spoils. */
   great?: boolean;
+  /**
+   * Ticks this host's court can keep it in the field before calling it home.
+   *
+   * The mechanism that makes an invasion an *event* rather than a permanent condition. Counted
+   * down every tick the host is on the map and refilled by success — taking a province is worth
+   * `CAMPAIGN_TICKS_ON_CAPTURE`, sacking one less, a won field battle less again — so a war that
+   * is going well sustains itself and one that stalls at the walls starves. At zero the host sets
+   * `plan = 'withdrawing'` and leaves by the path a spent raider already uses.
+   *
+   * Before this, nothing anywhere read an invader's supply: `progressArmyLogistics` opens with
+   * `if (army.kingdomId !== PLAYER_KINGDOM_ID) continue;`, so the `rations` and `provisions`
+   * written onto every spawned host were decorative and a conquest host that could win simply
+   * marched for ever at zero upkeep.
+   *
+   * Optional so it round-trips through an old save; a record without one is topped up on its
+   * first tick rather than being treated as already spent.
+   */
+  campaignTicks?: number;
 }
 
 export interface KingdomKing {
@@ -269,7 +287,11 @@ export type OpinionSource =
   | 'war'
   | 'raid'
   | 'trait'
-  | 'reputation';
+  | 'reputation'
+  /** A story beat, an arrival, a border incident — something that happened, and is remembered. */
+  | 'event'
+  /** Warming one court cools the court it feuds with. See `FEUD_ENVY_SHARE`. */
+  | 'envy';
 
 /**
  * A single reason an empire's opinion of the player is higher or lower. Opinion
@@ -2520,6 +2542,19 @@ export interface AscentState {
    * from before this existed reads as 0, which simply forces contact on the next tick.
    */
   lastContactTurn?: number;
+  /**
+   * Ticks of quiet this wave allows before a war is sent regardless of standing.
+   *
+   * Re-rolled once per wave by `startWave` (see `peaceFloorTicks`): long while the realm is
+   * young, tightening as the run ages, and jittered so the guarantee is never a number the player
+   * can count to. Held on the state rather than recomputed on demand because a jittered threshold
+   * re-rolled every tick collapses into its own minimum.
+   */
+  peaceFloor?: number;
+  /** The court that sent the wave now in flight, so the dial and the World lane agree on who. */
+  waveAggressorId?: string;
+  /** Turn each court last sent us a relief column, for the ask's cooldown. Keyed by kingdom id. */
+  allyAidTurn?: Record<string, number>;
   /** Whether the "capital left ungarrisoned" strike has already fired for this exposure. */
   capitalExposedFired?: boolean;
   /** Live rival count last tick, so an empire collapsing is seen as a transition. */

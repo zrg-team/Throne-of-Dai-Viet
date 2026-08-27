@@ -283,7 +283,21 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
   // wave against something more honest than a headcount (see `totalSoldiers`).
   let clampFactor: number;
   if (opts.totalSoldiers !== undefined) {
-    clampFactor = rawTotal > 0 ? opts.totalSoldiers / rawTotal : 1;
+    // **Difficulty has to be reapplied here, or it is cancelled.**
+    //
+    // `rawSizes` above are rolled with `scale`, which contains `difficultyArmyScale`. Dividing
+    // a fixed budget by `rawTotal` therefore divides that same factor straight back out, exactly:
+    //
+    //     size = rawSizes[i] * (totalSoldiers / rawTotal)      // scale appears above and below
+    //
+    // Every wave, every raid and every forced march passes `totalSoldiers` — so on the shipped
+    // build Easy (0.7) and Ironman (1.7) spawn **byte-identical hosts**. The difficulty a player
+    // chose on the setup screen has never once changed the size of anything that attacked them,
+    // which is the most direct form the "unfair" report could possibly take.
+    //
+    // The caller's budget is the normal-difficulty budget; difficulty scales it here, once.
+    const wanted = opts.totalSoldiers * difficultyArmyScale(state.campaignConfig?.difficulty);
+    clampFactor = rawTotal > 0 ? wanted / rawTotal : 1;
   } else {
     const capFloor = 260 * armyCount * difficultyArmyScale(state.campaignConfig?.difficulty);
     const totalCap = Math.max(capFloor, getPlayerMilitary(state) * defensibleCapRatio(state.campaignConfig?.difficulty));
@@ -545,7 +559,21 @@ function chooseTarget(state: GameState, army: Army, record: InvasionRecord): Lan
     // Ascent only, deliberately. Empire mode shares this spawner but not this design: its threat
     // curve, its province count and its whole difficulty budget were tuned against war hosts that
     // march at the seat, and `verify-modes-regression` holds that behaviour byte-identical.
-    if (state.gameMode === 'ascent') return nearestLand(here, owned);
+    //
+    // With one exception, and it is the last piece of the Year-4 report. The frontier rule assumes
+    // the frontier is *somewhere else* — but a realm holding one or two provinces has no depth to
+    // absorb anything, and `nearestLand` then picks the outlying district precisely because it is
+    // the weakest, while the royal host sits under `defend` orders at the seat it is not attacking.
+    // Measured on the reported run: ~1,450 men against a 556-man levy on a district with 420
+    // defence, with the standing 460-man host a province away and never in the fight.
+    //
+    // Under three provinces the host marches at the seat, where the walls and the army already
+    // are. The player gets the battle they built for; the moment there is a frontier worth the
+    // name, the frontier rule takes over again.
+    if (state.gameMode === 'ascent') {
+      if (owned.length < 3) return playerCapital(state) ?? nearestLand(here, owned);
+      return nearestLand(here, owned);
+    }
     return playerCapital(state) ?? nearestLand(here, owned);
   }
   return nearestLand(here, owned);

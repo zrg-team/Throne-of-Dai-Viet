@@ -652,6 +652,13 @@ export class ConquestUIScene extends Phaser.Scene {
    */
   inspectBlockHeight?: number;
 
+  /**
+   * Raised by `optionCard` while a prompt page is being built, read and cleared by that page's
+   * `finish`. It is what lets the *page* know it contains a control that must be held without
+   * every renderer having to declare it — see `drawHoldHint`.
+   */
+  promptUsedHoldCards?: boolean;
+
   closeOverlay(): void { shell.closeOverlay(this); }
 
   /* ------------------------------------------------- the first-run walkthrough */

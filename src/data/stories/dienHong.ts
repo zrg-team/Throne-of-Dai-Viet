@@ -2,6 +2,7 @@ import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { addCourtModifier } from '../../systems/CourtSystem';
 import { livingRivals, pick, playerLands } from '../../systems/story/StorySystem';
 import { pushToast } from '../../systems/empire/notifications';
+import { opinion } from '../../systems/story/effects';
 import { storyText } from '../../i18n/story';
 import type { StoryTemplate } from '../../systems/story/types';
 import type { GameState } from '../../state/types';
@@ -256,7 +257,7 @@ export const dienHong: StoryTemplate = {
         } else {
           // Hoà. The realm is tired, and it says so in front of everyone.
           const rival = ctx.rival();
-          if (rival) rival.relations = Math.min(100, (rival.relations ?? 50) + 30);
+          if (rival) opinion(ctx, 30, rival.id);
           ctx.state.court.stability = Math.max(0, ctx.state.court.stability - 12);
           for (const land of playerLands(ctx.state)) {
             land.loyalty = Math.min(100, land.loyalty + 4);

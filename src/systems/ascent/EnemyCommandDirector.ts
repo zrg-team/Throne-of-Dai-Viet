@@ -24,12 +24,14 @@
 import { isVassal } from './VassalSystem';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
-  ENEMY_CONTACT_FLOOR_TICKS,
   ENEMY_LAUNCH_DRAW,
   ENEMY_PRESSURE_DIVISOR,
   ENEMY_RETREAT_HYSTERESIS_TICKS,
   ENEMY_RETREAT_POWER_RATIO,
   MAX_LIVE_INVADER_HOSTS,
+  MIN_RAID_SOLDIERS,
+  RAID_POWER_SHARE,
+  INVADER_POWER_PER_SOLDIER,
 } from '../../game/ascentConfig';
 import { launchOffMapInvasion } from '../empire/InvasionSystem';
 import { pushToast } from '../empire/notifications';
@@ -37,7 +39,7 @@ import { getPlayerTroops } from '../ResourceSystem';
 import { armyPower } from '../WarSystem';
 import { ambitionHeat } from './AmbitionSystem';
 import { landGarrisonPower } from './PowerSystem';
-import { waveSoldierBudget } from './WaveDirector';
+import { laggedDefencePower, peaceFloorBreached, waveSoldierBudget } from './WaveDirector';
 import { t } from '../../i18n';
 import type { GameState, InvasionRecord, Kingdom, Land } from '../../state/types';
 
@@ -139,8 +141,10 @@ function maybeLaunch(state: GameState): void {
   const candidates = aggressors(state);
   if (candidates.length === 0) return;
 
-  const sinceContact = state.turn - (ascent.lastContactTurn ?? 0);
-  const forced = sinceContact >= ENEMY_CONTACT_FLOOR_TICKS;
+  // The floor is now the *peace floor* — long while the realm is young, tightening as the run
+  // ages, and jittered so it is never a number the player can count to. `WaveDirector` owns it
+  // because the same threshold decides whether the scheduled wave ignores the relations dial.
+  const forced = peaceFloorBreached(state);
 
   let chosen: Kingdom | undefined;
   if (forced) {
@@ -164,8 +168,18 @@ function maybeLaunch(state: GameState): void {
   }
   if (!chosen) return;
 
-  const budget = waveSoldierBudget(state, ascent.wave, false);
-  launchOffMapInvasion(state, chosen.id, { totalSoldiers: budget });
+  // **A raid, not a wave.**
+  //
+  // This sent a full `waveSoldierBudget` — the whole scheduled wave, spawned outside the schedule,
+  // with no response card, no wave counter and nothing telling the player it had happened. On the
+  // reported run it fired in Year 4 alongside the wave-2 host, which is how a realm with 460 field
+  // soldiers ended up facing two full-sized invasions in the same year.
+  //
+  // The floor exists to guarantee *contact*, not to double the difficulty curve. A raid-sized host
+  // is contact: it is a real battle, it is survivable, and it resets the clock — which is all the
+  // guarantee was ever for.
+  const budget = Math.round(laggedDefencePower(state) * RAID_POWER_SHARE / INVADER_POWER_PER_SOLDIER);
+  launchOffMapInvasion(state, chosen.id, { totalSoldiers: Math.max(MIN_RAID_SOLDIERS, budget) });
   ascent.lastContactTurn = state.turn;
   if (forced) {
     pushToast(state, t('ascent.enemy.marchForced', { kingdom: chosen.name }), 'threat');

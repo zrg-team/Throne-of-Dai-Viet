@@ -2,6 +2,7 @@ import { applyResourceDelta } from '../../systems/ResourceSystem';
 import { livingRivals, pick, playerLands } from '../../systems/story/StorySystem';
 import { pushToast } from '../../systems/empire/notifications';
 import { launchPunitiveHost } from '../../systems/ascent/EnemyCommandDirector';
+import { opinion } from '../../systems/story/effects';
 import { storyText } from '../../i18n/story';
 import { generateHero } from '../heroFactory';
 import type { StoryTemplate } from '../../systems/story/types';
@@ -77,7 +78,7 @@ export const gooseFeathers: StoryTemplate = {
             ctx.story.cast.heroId = son.id;
             ctx.remember('poison', 1);
             const rival = ctx.rival();
-            if (rival) rival.relations = Math.min(100, (rival.relations ?? 50) + 22);
+            if (rival) opinion(ctx, 22, rival.id);
           },
         },
         {
@@ -92,14 +93,14 @@ export const gooseFeathers: StoryTemplate = {
             ctx.remember('poison', 1);
             ctx.remember('guarded', 1);
             const rival = ctx.rival();
-            if (rival) rival.relations = Math.min(100, (rival.relations ?? 50) + 14);
+            if (rival) opinion(ctx, 14, rival.id);
           },
         },
         {
           id: 'refuse',
           apply: (ctx) => {
             const rival = ctx.rival();
-            if (rival) rival.relations = Math.max(0, (rival.relations ?? 50) - 12);
+            if (rival) opinion(ctx, -12, rival.id);
             // A third party was watching, and liked what they saw.
             const watcher = pick(livingRivals(ctx.state).filter((k) => k.id !== rival?.id));
             if (watcher) watcher.trust = Math.min(100, (watcher.trust ?? 40) + 10);
@@ -194,7 +195,7 @@ export const gooseFeathers: StoryTemplate = {
               hero.assignedTo = undefined;
             }
             const rival = ctx.rival();
-            if (rival) rival.relations = Math.max(0, (rival.relations ?? 50) - 40);
+            if (rival) opinion(ctx, -40, rival.id);
           },
         },
         {
@@ -203,7 +204,7 @@ export const gooseFeathers: StoryTemplate = {
             ctx.remember('counterspy', 1);
             // R1. An enemy's ear is also yours, and they act on what you put in it.
             const fed = ctx.rival();
-            if (fed) fed.relations = Math.min(100, (fed.relations ?? 50) + 10);
+            if (fed) opinion(ctx, 10, fed.id);
           },
         },
         {
@@ -213,7 +214,7 @@ export const gooseFeathers: StoryTemplate = {
             // R4. Nothing is certain yet, and waiting costs a little standing and buys a little
             // trust from the one person who told you.
             const watched = ctx.rival();
-            if (watched) watched.relations = Math.max(0, (watched.relations ?? 50) - 6);
+            if (watched) opinion(ctx, -6, watched.id);
             const informer = ctx.hero();
             if (informer) informer.stats.loyalty = Math.min(100, informer.stats.loyalty + 4);
           },

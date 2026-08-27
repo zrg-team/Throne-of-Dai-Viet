@@ -1571,12 +1571,15 @@ export const enAscent = {
   "ascent.founder.confirm": "Choose this champion",
   // The deck of champions: how it is worked, said under it every time it opens.
   "ascent.pick.hint": "Swipe ◀ ▶ to see another  ·  swipe ▲ to choose this one",
+  // Printed by `drawHoldHint`, and only on a page that actually drew an `optionCard`.
+  "ascent.card.holdHint": "Hold a card to choose it",
   // ── vassalage ──
   "ascent.vassal.tribute": "Tribute from {name}",
   "ascent.vassal.oath": "Oath of vassalage",
   "ascent.vassal.sworn": "{name} bends the knee and swears tribute.",
   "ascent.vassal.revolt": "{name} tears up the oath and marches.",
   "ascent.vassal.released": "{name} is released from the oath.",
+  "ascent.vassal.releasedMod": "We let their crown go",
   "ascent.vassal.already": "Already sworn to you",
   "ascent.vassal.capped": "No more than {n} crowns may be held",
   "ascent.vassal.lastRival": "The last free crown cannot be taken",
@@ -3135,12 +3138,14 @@ export const viAscent = {
   "ascent.mandate.subtitle": "Ngai vàng đã thuộc về bạn. Hãy chọn thứ triều đình sẵn có.",
   "ascent.founder.confirm": "Chọn người này",
   "ascent.pick.hint": "Vuốt ◀ ▶ để xem người khác  ·  vuốt ▲ để chọn người này",
+  "ascent.card.holdHint": "Giữ thẻ để chọn",
   // ── vassalage ──
   "ascent.vassal.tribute": "Cống nạp từ {name}",
   "ascent.vassal.oath": "Lời thề thần phục",
   "ascent.vassal.sworn": "{name} quy phục và xin nộp cống.",
   "ascent.vassal.revolt": "{name} xé bỏ lời thề và cất quân.",
   "ascent.vassal.released": "{name} được giải trừ lời thề.",
+  "ascent.vassal.releasedMod": "Ta đã trả lại ngôi cho họ",
   "ascent.vassal.already": "Đã thần phục bạn",
   "ascent.vassal.capped": "Không thể giữ quá {n} vương triều",
   "ascent.vassal.lastRival": "Không thể thu phục vương triều tự chủ cuối cùng",

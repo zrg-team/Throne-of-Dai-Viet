@@ -140,7 +140,14 @@ export function breakVassalage(
     kingdom.warAppetite = 100;
     pushToast(state, t('ascent.vassal.revolt', { name: kingdom.name }), 'threat');
   } else if (cause === 'released') {
-    kingdom.relations = Math.min(100, (kingdom.relations ?? 50) + 15);
+    // Standing, not decaying: a crown released willingly remembers it. Through the ledger for
+    // the usual reason — a raw write here was erased by the next recompute.
+    addOpinionModifier(kingdom, {
+      id: 'released-freely',
+      label: t('ascent.vassal.releasedMod'),
+      value: 15,
+      source: 'treaty',
+    });
     pushToast(state, t('ascent.vassal.released', { name: kingdom.name }), 'info');
   }
 }

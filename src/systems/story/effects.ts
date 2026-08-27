@@ -1,5 +1,7 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { addCourtModifier } from '../CourtSystem';
+import { addOpinionModifier } from '../DiplomacySystem';
+import { t } from '../../i18n';
 import { applyResourceDelta } from '../ResourceSystem';
 import { pushToast } from '../empire/notifications';
 import { launchPunitiveHost } from '../ascent/EnemyCommandDirector';
@@ -8,7 +10,9 @@ import { getProject as findProject } from '../../data/edicts';
 import { generateHero } from '../../data/heroFactory';
 import { recordEcho } from './echoes';
 import type { StoryCtx } from './types';
-import type { Army, AscentRarity, Hero, Land, LandBuildingType, ResourceBag } from '../../state/types';
+import type {
+  Army, AscentRarity, Hero, Kingdom, Land, LandBuildingType, ResourceBag,
+} from '../../state/types';
 
 /**
  * The outcome vocabulary.
@@ -502,12 +506,40 @@ export function spoilGranary(ctx: StoryCtx, share = 0.6): void {
 
 // ── Diplomacy ───────────────────────────────────────────────────────────────
 
+/**
+ * Move a court's opinion **through the ledger**, which is the only place it survives.
+ *
+ * `Kingdom.relations` is a cache: `recomputeOpinion` rebuilds it from
+ * `naturalBaseline(personality) + sumModifiers(...)` and throws away whatever was there. Every
+ * story verb below used to assign it directly, so a truce worth +45 lasted exactly until the next
+ * gift, ambassador year or politics card — measured, often inside the same game year that granted
+ * it. The stories were writing to a whiteboard the ledger wipes.
+ *
+ * Decays slowly rather than standing for ever: a story is a *memory* of something, and the courts
+ * forgetting is what keeps the board moving.
+ */
+type StoryOpinionLabel =
+  | 'diplo.mod.story'
+  | 'diplo.mod.standing'
+  | 'diplo.mod.coalition'
+  | 'diplo.mod.truce';
+
+function moveOpinion(kingdom: Kingdom, turn: number, by: number, labelKey: StoryOpinionLabel): void {
+  addOpinionModifier(kingdom, {
+    id: `story-${labelKey}-${turn}-${Math.floor(Math.random() * 100000)}`,
+    label: t(labelKey),
+    value: Math.max(-100, Math.min(100, by)),
+    decay: 0.6,
+    source: 'event',
+  });
+}
+
 export function opinion(ctx: StoryCtx, by: number, kingdomId?: string): void {
   const target = kingdomId
     ? ctx.state.kingdoms.find((k) => k.id === kingdomId)
     : ctx.rival();
   if (!target) return;
-  target.relations = Math.max(0, Math.min(100, (target.relations ?? 50) + by));
+  moveOpinion(target, ctx.state.turn, by, 'diplo.mod.story');
   ctx.note('opinion', by, target.name);
 }
 
@@ -515,7 +547,7 @@ export function opinion(ctx: StoryCtx, by: number, kingdomId?: string): void {
 export function standing(ctx: StoryCtx, by: number): void {
   for (const kingdom of ctx.state.kingdoms) {
     if (kingdom.id === PLAYER_KINGDOM_ID || kingdom.isDefeated) continue;
-    kingdom.relations = Math.max(0, Math.min(100, (kingdom.relations ?? 50) + by));
+    moveOpinion(kingdom, ctx.state.turn, by, 'diplo.mod.standing');
   }
   ctx.note('standing', by);
 }
@@ -527,7 +559,7 @@ export function coalition(ctx: StoryCtx): number {
     if (kingdom.id === PLAYER_KINGDOM_ID || kingdom.isDefeated) continue;
     if ((kingdom.relations ?? 50) > 45) continue;
     kingdom.warAppetite = Math.min(100, (kingdom.warAppetite ?? 0) + 45);
-    kingdom.relations = Math.max(0, (kingdom.relations ?? 50) - 15);
+    moveOpinion(kingdom, ctx.state.turn, -15, 'diplo.mod.coalition');
     joined += 1;
   }
   if (joined > 0) ctx.note('coalition', joined);
@@ -742,7 +774,7 @@ export { patronHost, patronStrength, raisePatronHost, reinforcePatron } from './
 export function truce(ctx: StoryCtx, kingdomId: string | undefined, warmth = 45): boolean {
   const kingdom = ctx.state.kingdoms.find((candidate) => candidate.id === kingdomId);
   if (!kingdom) return false;
-  kingdom.relations = Math.min(100, (kingdom.relations ?? 50) + warmth);
+  moveOpinion(kingdom, ctx.state.turn, warmth, 'diplo.mod.truce');
   kingdom.warAppetite = Math.max(0, (kingdom.warAppetite ?? 0) - 60);
   ctx.note('truce', undefined, kingdom.name);
   return true;
