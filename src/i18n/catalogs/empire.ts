@@ -190,6 +190,11 @@ export const enEmpire = {
   "diplo.mod.envy": "We favour their rival",
   "diplo.mod.seizure": "We took ground they claimed",
   "diplo.mod.oathwitness": "They saw us break an oath",
+  "diplo.mod.grain": "A shipment of rice",
+  "diplo.mod.denounced": "We denounced them",
+  "diplo.mod.tookOurSide": "We denounced their rival",
+  "diplo.grain": "{kingdom} accepts the rice. Standing +{gain}.",
+  "diplo.denounce": "The court denounces {kingdom} before the world.",
 
   "fcard.from": "Envoy of {kingdom}",
   "fcard.arrive": "An envoy from {kingdom} seeks audience.",
@@ -1035,6 +1040,11 @@ export const viEmpire: Record<keyof typeof enEmpire, string> = {
   "diplo.mod.envy": "Ta thân với kẻ thù của họ",
   "diplo.mod.seizure": "Ta chiếm đất họ nhận",
   "diplo.mod.oathwitness": "Họ thấy ta bội ước",
+  "diplo.mod.grain": "Một chuyến gạo",
+  "diplo.mod.denounced": "Ta đã lên án họ",
+  "diplo.mod.tookOurSide": "Ta lên án kẻ thù của họ",
+  "diplo.grain": "{kingdom} nhận gạo. Bang giao +{gain}.",
+  "diplo.denounce": "Triều đình lên án {kingdom} trước thiên hạ.",
 
   "fcard.from": "Sứ giả của {kingdom}",
   "fcard.arrive": "Sứ giả từ {kingdom} xin yết kiến.",

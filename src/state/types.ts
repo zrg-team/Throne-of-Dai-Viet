@@ -370,6 +370,18 @@ export interface Kingdom {
   vassalage?: Vassalage;
   /** Cumulative years this empire has existed under its current identity (reset on rebirth). */
   age?: number;
+  /**
+   * The court this one is in a hereditary feud with. Symmetric, fixed at worldgen.
+   *
+   * The mechanism behind *"cannot have good relation with all kingdoms"*. Warming a court cools
+   * its feud partner by `FEUD_ENVY_SHARE` of the same amount, so the arithmetic itself — with no
+   * tutorial anywhere — says two friends and two enemies is the best board available, and which
+   * two is the strategic question.
+   *
+   * Optional: an in-flight save from before this existed simply has no feuds, and `applyEnvy`
+   * is a no-op for it.
+   */
+  feudWith?: string;
 }
 
 /** One option on a foreign-affairs event card. */

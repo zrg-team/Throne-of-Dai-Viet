@@ -1,4 +1,5 @@
 import { isCampaignMode, isEndlessMode, PLAYER_KINGDOM_ID } from '../game/constants';
+import { FEUD_ENVY_SHARE } from '../game/ascentConfig';
 import type { Difficulty, GameState, Kingdom, KingdomPersonality, OpinionModifier } from '../state/types';
 import { t } from '../i18n';
 
@@ -62,6 +63,31 @@ export function addOpinionModifier(kingdom: Kingdom, mod: OpinionModifier): void
     kingdom.opinionModifiers.push(mod);
   }
   recomputeOpinion(kingdom);
+}
+
+/**
+ * **Warming one court cools the court it feuds with.**
+ *
+ * Called by every action that deliberately improves a relationship. Half strength rather than a
+ * full mirror, on purpose: a full one makes diplomacy zero-sum, and a zero-sum system is one the
+ * player correctly stops touching. At a half, four courts can be moved — but not all four up, and
+ * the ceiling arrives on its own without a rule anywhere saying so out loud.
+ *
+ * Silent on cooling: souring a relationship does *not* warm its rival. A court does not befriend
+ * you for insulting its enemy — that is what `denounce` is for, and denouncing is a deliberate,
+ * public act with its own price rather than a side effect of every setback.
+ */
+export function applyEnvy(state: GameState, warmed: Kingdom, by: number): void {
+  if (by <= 0 || !warmed.feudWith) return;
+  const partner = state.kingdoms.find((k) => k.id === warmed.feudWith);
+  if (!partner || partner.isDefeated) return;
+  addOpinionModifier(partner, {
+    id: `envy-${warmed.id}-${state.turn}-${Math.floor(Math.random() * 100000)}`,
+    label: t('diplo.mod.envy'),
+    value: -Math.round(by * FEUD_ENVY_SHARE),
+    decay: 0.5,
+    source: 'envy',
+  });
 }
 
 export function removeOpinionModifier(kingdom: Kingdom, id: string): void {

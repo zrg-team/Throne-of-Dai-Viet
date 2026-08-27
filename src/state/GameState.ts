@@ -644,10 +644,36 @@ export function createEmpireGameState(config: CampaignConfig): GameState {
  * Directives are deliberately omitted: this mode's goals are the wave counter and the
  * power curve, not an objectives board.
  */
+/**
+ * Pairs the courts off into hereditary feuds, two and two.
+ *
+ * This is the whole of *"cannot have good relation with all kingdoms"*, and it is deliberately a
+ * property of the world rather than a rule the player is told. Warming one court cools its partner
+ * by half as much (see `applyEnvy`), so a player who simply gifts everyone finds the board
+ * refusing to move and works out why from the numbers — which is a better lesson than a tooltip.
+ *
+ * Fixed at worldgen and symmetric, so the map is learnable within a run: the pairing never shifts
+ * under the player, and a run's shape can be planned around it from the first envoy card.
+ *
+ * Shuffled, so *which* courts hate each other is this run's question rather than a memorised fact.
+ * With four rivals this is two pairs; an odd count leaves the last court unfeuding, which is
+ * correct — someone has to be the one everybody can afford to like.
+ */
+function pairFeuds(state: GameState): void {
+  const courts = shuffled(
+    state.kingdoms.filter((kingdom) => kingdom.id !== PLAYER_KINGDOM_ID && !kingdom.isDefeated),
+  );
+  for (let i = 0; i + 1 < courts.length; i += 2) {
+    courts[i].feudWith = courts[i + 1].id;
+    courts[i + 1].feudWith = courts[i].id;
+  }
+}
+
 export function createAscentGameState(config: CampaignConfig): GameState {
   const state = createEmpireGameState(config);
   state.gameMode = 'ascent';
   state.ascent = createAscentState();
+  pairFeuds(state);
   state.directives = undefined;
   state.directiveDeckCursor = undefined;
 
