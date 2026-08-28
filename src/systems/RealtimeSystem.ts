@@ -1,6 +1,6 @@
 import { progressAcquisitions } from './AcquisitionSystem';
 import { checkVictory, refreshPlayerVisibility } from './LandSystem';
-import { collectPlayerIncome, progressBuildOrders } from './ResourceSystem';
+import { collectPlayerIncome, growProvincialMilitia, progressBuildOrders } from './ResourceSystem';
 import { progressArmyLogistics, progressMovementOrders, progressRecruitmentOrders, progressSiegeOrders } from './WarSystem';
 import { runBotTurns } from './BotSystem';
 import { progressCourt } from './CourtSystem';
@@ -55,6 +55,10 @@ export function advanceRealtimeMonth(state: GameState): void {
     tickAutoDefend(state);
     tickInvasions(state);
     if (state.gameMode === 'empire') {
+      // The provinces raise their own watch. Placed before the threat director so a wave landing
+      // this season meets the garrison the season before it grew, and after `tickInvasions` so a
+      // province that has just been fought over is not reinforced inside the same tick.
+      growProvincialMilitia(state);
       if (greatPowersDue(state)) {
         tickGreatPowersYear(state);
       }

@@ -1,18 +1,18 @@
 # The harnesses
 
 There is no test framework here. Every check drives the real game in headless Chromium, so a
-"test" is a standalone `.mjs` script run with bare `node`. There are 122 of them, and they are
+"test" is a standalone `.mjs` script run with bare `node`. There are 168 of them, and they are
 filed by **the question they answer** rather than by the feature they touch — a battle change
 usually means running something from `verify/`, then something from `playtest/`, and those are
 two different kinds of answer.
 
 | Folder | Count | Answers | Named |
 |---|---|---|---|
-| [`verify/`](verify/) | 58 | *Is it broken?* — pass/fail gates worth keeping | `verify-<topic>.mjs` |
-| [`shot/`](shot/) | 35 | *What does it look like?* — screenshot drivers | `shot-<topic>.mjs` |
+| [`verify/`](verify/) | 89 | *Is it broken?* — pass/fail gates worth keeping | `verify-<topic>.mjs` |
+| [`shot/`](shot/) | 44 | *What does it look like?* — screenshot drivers | `shot-<topic>.mjs` |
 | [`playtest/`](playtest/) | 9 | *Is it any good?* — metrics, sessions, full playthroughs | `playtest-*`, `play-*`, `battle-lab` |
-| [`perf/`](perf/) | 7 | *What does it cost?* — render, bake, beat, heap | `measure-*`, `perf-*` |
-| [`diag/`](diag/) | 11 | *Why is it doing that?* — prints, does not assert | `diag-<topic>.mjs`, `measure-*` |
+| [`perf/`](perf/) | 9 | *What does it cost?* — render, bake, beat, heap | `measure-*`, `perf-*` |
+| [`diag/`](diag/) | 15 | *Why is it doing that?* — prints, does not assert | `diag-<topic>.mjs`, `measure-*` |
 | [`gate/`](gate/) | 2 | *Does it still boot?* — the cheapest checks | `smoke`, `check-console` |
 | `scratch/` | — | throwaway probes, **gitignored** | `_<topic>.mjs` |
 
@@ -34,6 +34,7 @@ node test_scripts/verify/verify-land-consequences.mjs   # ground is the ceiling 
 node test_scripts/verify/verify-crowding-and-price.mjs   # districts fill and then eat badly; a host is priced, not capped; lost ground ends its battle
 node test_scripts/verify/verify-land-tap.mjs             # the name plate is the province's tap target, and the ground answers only where no plate is drawn
 node test_scripts/verify/verify-button-press.mjs         # a button acts on the press, once — not on the release
+node test_scripts/verify/verify-empire-fairness.mjs      # Throne of Empires is a war the realm can fight: supply, agency, waves that end, ground worth holding
 node test_scripts/playtest/playtest-metrics.mjs     # six measured preconditions of fun, /85
 node test_scripts/perf/perf-bench.mjs --label wip   # auto-diffs against perf-results/baseline.json
 node test_scripts/shot/shot-readme.mjs              # regenerates every picture in the root README
@@ -66,6 +67,29 @@ outside this tree `import 'playwright'` will not resolve.
 The `game-harness` skill in [`.claude/skills/`](../.claude/skills/game-harness/) carries the
 bootstrap boilerplate, the window hooks, the prompt-option shapes, and the traps that make a
 harness silently pass while testing nothing.
+
+## The Year-4 fairness harnesses (2026-08)
+
+Written for the report *"the enemy invasion is far higher than my empire by year four"* in Throne
+of Empires. The gate is `verify/verify-empire-fairness.mjs`; the two `diag/` scripts are how the
+numbers behind it were found, and are the ones to re-run when tuning.
+
+- `verify/verify-empire-fairness.mjs` — the keeper. Five properties on a played realm (hosts are
+  supplied, defences are decisions, waves end, lost ground comes back, holding pays) plus the
+  spawner's own curve by tenure and by difficulty. Fails 10/15 on the build before the pass.
+- `diag/diag-empire-pressure.mjs` — plays empire headless with a policy and prints the whole
+  pressure curve per turn: field power, the province being attacked, the wave, ration runway.
+  `--expand tall|balanced|wide`, `--difficulty`, `--fix fed,clock` (counterfactuals), `--verbose`.
+- `diag/diag-invasion-curve.mjs` — the *rule* rather than an outcome: builds realms of an exact
+  shape, launches one real wave, and reports the chance the seat / the median province / the
+  weakest province falls. Two tables — turn × tenure, and turn × province count.
+- `shot/shot-garrison-defence.mjs` — the battle sheet a province with no field host puts up, and
+  the same sheet with a host on the tile, so the two sets of words can be read side by side.
+
+**The trap that cost the most here:** `getBuildOptions` returns `{ type, canBuild, reason }` and
+upgrades come from a separate `getUpgradeOptions` (`{ index, canUpgrade }`). A driver reading
+`.building` / `.affordable` builds *nothing at all*, silently — four measured runs said the
+empire economy was food-negative when in fact the harness had never constructed a single farm.
 
 ## The FPS-playbook harnesses (2026-08)
 

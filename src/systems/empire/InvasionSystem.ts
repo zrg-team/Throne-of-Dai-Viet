@@ -10,9 +10,10 @@ import {
   MAX_HOSTS_PER_KINGDOM,
   WALL_ATTRITION_SHARE,
   WALL_DEFENCE_FLOOR,
+  waveMatchFactor,
 } from '../../game/ascentConfig';
 import { findLand, getAcquisitionTicksRequired } from '../LandSystem';
-import { attackLand, createBattlePreview, grantGeneralExperience, issueMoveOrder } from '../WarSystem';
+import { armyPower, attackLand, createBattlePreview, grantGeneralExperience, issueMoveOrder, terrainDefenseMultiplier } from '../WarSystem';
 import {
   applyResourceDelta,
   getFocusDefenseMult,
@@ -33,7 +34,7 @@ import {
 } from '../ascent/DoctrineSystem';
 import { pushToast } from './notifications';
 import type {
-  Army, AscentBattleRecord, Difficulty, GameState, InvasionRecord, Kingdom, Land, PendingBattle,
+  Army, AscentBattleRecord, Difficulty, EraId, GameState, InvasionRecord, Kingdom, Land, PendingBattle,
 } from '../../state/types';
 import { t } from '../../i18n';
 
@@ -63,6 +64,56 @@ function defensibleCapRatio(difficulty: Difficulty | undefined): number {
   if (difficulty === 'hard') return 2.1;
   if (difficulty === 'ironman') return 2.6;
   return 1.7;
+}
+
+/**
+ * What a host walking onto this realm actually has to beat.
+ *
+ * `getPlayerMilitary` — which is what sized a wave before — is every soldier plus **every** wall
+ * in the realm, summed. A wave is then spent against one province. So the figure the clamp was
+ * reasoning about and the figure the fight was decided by differed by the province count, and the
+ * gap grew every time the player expanded. Measured: at sixteen provinces the clamp was sizing
+ * against ~9,600 and the province that got attacked defended with ~330.
+ *
+ * The honest reading is what a single host meets: the realm's field hosts, because they can march
+ * to the fight, plus the garrison of the *median* province, because that is the ground it will
+ * have to stand on. Median rather than mean so one heavily-walled seat does not speak for a dozen
+ * frontier villages — which is the exact error the old figure made.
+ */
+function defensibleStrength(state: GameState): number {
+  const field = state.armies.reduce((sum, army) => (
+    army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy ? sum + armyPower(state, army) : sum
+  ), 0);
+  const held = playerLands(state);
+  // The seat is excluded whenever there is anything else, because it is not a typical province
+  // and never was: `createCampaignLands` forces it to `defense >= 52` against a generated median
+  // of 17, so a two-province realm's "median" was its own capital and it drew a wave sized
+  // against the one province a host cannot take.
+  const sample = held.length > 1 ? held.filter((land) => land.type !== 'castle') : held;
+  const garrisons = (sample.length > 0 ? sample : held)
+    .map((land) => (land.defense * 16 + land.localSoldiers * 2.5) * terrainDefenseMultiplier(land))
+    .sort((a, b) => a - b);
+  const median = garrisons.length > 0 ? garrisons[Math.floor(garrisons.length / 2)] : 0;
+  return field + median;
+}
+
+/**
+ * What the calendar expects a realm to be able to field by now.
+ *
+ * The reference `defensibleStrength` is measured against, so that being *ahead* of it is what
+ * draws a heavier wave — and being at or below it draws the ordinary one. Calibrated against
+ * played runs: a realm at turn 16 measures ~720, at turn 32 ~1,170, at turn 56 ~2,090, against
+ * this curve's 754 / 987 / 1,337. So an ordinarily-played realm sits at or a little under the
+ * line early and pulls ahead of it as its provinces mature, which is exactly when the wave should
+ * start answering back.
+ *
+ * Sizing the wave *directly* on the realm was tried here first and is the trap: when the target
+ * is a multiple of what the player has, investment cancels out of the arithmetic entirely and a
+ * province held for thirty seasons falls at the same rate as one claimed last week. Measured, it
+ * put P(the median province falls) at 100% across every tenure at turn 40 and beyond.
+ */
+function expectedDefensibleStrength(turn: number): number {
+  return 520 * (1 + Math.min(3.0, turn * 0.028));
 }
 
 function personalityWeight(kingdom: Kingdom): number {
@@ -325,9 +376,33 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
       : opts.totalSoldiers;
     clampFactor = rawTotal > 0 ? wanted / rawTotal : 1;
   } else {
+    /**
+     * Throne of Empires: the calendar sets the band, the realm sets the number inside it.
+     *
+     * `rawTotal` above is a pure function of the turn — `(180..320) x personality x difficulty x
+     * (1 + min(1.4, turn * 0.02))` — and the clamp beneath it was `getPlayerMilitary * 1.7`,
+     * which measured (over a 1-to-16-province sweep, 30 samples a cell) **never once bound**:
+     * every wave from turn 16 to turn 56 came out at exactly the calendar's 523 to 841 men
+     * whatever the realm looked like. So a wave answered nothing about the player at all. Against
+     * a seat forced to `defense >= 52` that is a 0% chance of taking it, at every turn tested;
+     * against the median province the map generated (defence 17), 87-100%. Both halves of the
+     * report — "it does not care what I have built" and "it takes everything but the capital" —
+     * are that one line.
+     *
+     * `defensibleStrength` is the honest target, and the calendar becomes a band around it so
+     * neither end runs away: a realm cannot be hit harder than the year can field, and cannot
+     * make itself safe by staying small.
+     */
+    // The calendar still sets the wave; the realm decides whether it is answered upward. Same
+    // curve Dragon Ascent uses (`waveMatchFactor`): a lead of up to 15% is free — the reward for
+    // playing well — and past that the excess is answered at slope 0.55, capped at 1.7, so a
+    // realm that has invested faces a real war and never an unanswerable one. `difficultyArmyScale`
+    // is already inside `rawTotal` and is deliberately not reapplied: nothing here divides by it.
+    const match = waveMatchFactor(defensibleStrength(state), expectedDefensibleStrength(state.turn));
     const capFloor = 260 * armyCount * difficultyArmyScale(state.campaignConfig?.difficulty);
     const totalCap = Math.max(capFloor, getPlayerMilitary(state) * defensibleCapRatio(state.campaignConfig?.difficulty));
-    clampFactor = rawTotal > totalCap ? totalCap / rawTotal : 1;
+    const target = Math.min(totalCap, Math.max(capFloor, rawTotal * match));
+    clampFactor = rawTotal > 0 ? target / rawTotal : 1;
   }
 
   state.invasions ??= [];
@@ -355,7 +430,7 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
       experienceToNextLevel: 160,
     };
     state.armies.push(army);
-    state.invasions.push({ armyId: army.id, kingdomId, intent, great: Boolean(opts.warlordName) });
+    state.invasions.push({ armyId: army.id, kingdomId, intent, great: Boolean(opts.warlordName), mustered: size });
   }
 
   state.message = t('empire.invade.muster', { kingdom: kingdom.name, armies: armyCount });
@@ -439,6 +514,47 @@ export function tickInvasions(state: GameState): void {
       continue;
     }
 
+    /**
+     * A host that has been beaten does not charge the same gate again in the morning.
+     *
+     * Two rules, and both exist because of the same measurement. Before the player was asked to
+     * decide a garrison defence, a repulsed conquest host simply re-contacted the province it had
+     * just lost in front of, every single tick, until it was annihilated — six assaults on one
+     * province at 796, 387, 178, 74, 25 and 14 battle power. Silent, so nobody saw it. The moment
+     * those became prompts (`empireAsks`) it turned into six pauses for one decided fight, which
+     * is worse than the problem it was fixing.
+     *
+     * So: a thrown-back host regroups for two seasons, and one reduced to a quarter of what it
+     * mustered with turns for home the way a bloodied raider already does. Both read as what an
+     * army would actually do, and together they leave one prompt per real assault.
+     */
+    // Empire only, deliberately. Dragon Ascent's pressure was tuned against hosts that grind
+    // until they break, and it already has an enemy director that withdraws them on its own
+    // judgement; changing that here would be a balance pass on a mode nobody reported.
+    if (state.gameMode === 'empire' && !record.pillaged && record.mustered && totalUnits(army) < record.mustered * 0.25) {
+      record.plan = 'withdrawing';
+      record.pillaged = true;
+      record.exitLandId = farthestNeutralFromCapital(state)?.id;
+      const siege = state.siegeOrders.find((order) => order.armyId === army.id);
+      if (siege) {
+        state.siegeOrders = state.siegeOrders.filter((order) => order !== siege);
+        army.landId = siege.fromLandId;
+      }
+      // A host ground down to a quarter of its muster has been beaten, and beating one is how
+      // this mode pays for defence — Mandate, loot and freed prisoners. Without this the rule
+      // above silently deleted the reward: hosts that used to be annihilated (and paid out) now
+      // turn for home first, and a measured five-run sweep repelled **zero** in seventy-two
+      // seasons where the old build repelled five. Scaled to what the defence actually took off
+      // it, exactly as the broken-in-the-field path already does.
+      recordArmyDefeated(state, record.mustered);
+      grantRepelSpoils(state, Math.max(40, record.mustered - totalUnits(army)), record);
+      pushToast(state, t('empire.invade.spent', { kingdom: kingdomName(state, record.kingdomId) }), 'reward');
+      continue;
+    }
+    if (state.gameMode === 'empire' && record.regroupUntil !== undefined && state.turn < record.regroupUntil) {
+      continue;
+    }
+
     // **The campaign season.** A court can only keep a host in the field for so long.
     //
     // Nothing anywhere used to read an invader's supply: `progressArmyLogistics` opens with
@@ -452,7 +568,16 @@ export function tickInvasions(state: GameState): void {
     // like any other. Refilled by success in `resolveInvaderBattle` and `progressSiegeOrders` —
     // a campaign lives on what it takes, so a war that is going well sustains itself and one that
     // stalls at the walls starves. "Hold four more seasons" becomes a real objective.
-    if (state.gameMode === 'ascent' && !record.pillaged) {
+    //
+    // **Throne of Empires needs this at least as much and never had it.** Nothing there removed a
+    // host except beating it: invaders draw no upkeep (`progressArmyLogistics` skips them on its
+    // first line), there was no host cap, and this clock was gated to Ascent — so every wave the
+    // threat director paid for simply added to the last one. Measured across four played 64-turn
+    // runs: one host on the map at turn 20, three at turn 32, and **nine** by turn 56, carrying
+    // more soldiers between them than a single wave's own ceiling allows. Pressure that only
+    // accumulates is not a wave the player can weather; it is a tide, and the difference is the
+    // whole of whether losing ground is recoverable.
+    if (isEndlessMode(state.gameMode) && !record.pillaged) {
       record.campaignTicks = (record.campaignTicks ?? CAMPAIGN_TICKS_BASE) - 1;
       if (record.campaignTicks <= 0) {
         record.plan = 'withdrawing';
@@ -640,11 +765,22 @@ function chooseTarget(state: GameState, army: Army, record: InvasionRecord): Lan
     // Under three provinces the host marches at the seat, where the walls and the army already
     // are. The player gets the battle they built for; the moment there is a frontier worth the
     // name, the frontier rule takes over again.
-    if (state.gameMode === 'ascent') {
-      if (owned.length < 3) return playerCapital(state) ?? nearestLand(here, owned);
-      return nearestLand(here, owned);
-    }
-    return playerCapital(state) ?? nearestLand(here, owned);
+    //
+    // **Throne of Empires marches on the frontier now too.** The note above says its threat curve
+    // and difficulty budget were tuned against war hosts that walk at the seat — and they were,
+    // right up until this pass re-tuned all three. Keeping the seat rule after it was actively
+    // harmful: `createCampaignLands` forces the capital to `defense >= 52` and the realm keeps a
+    // field host there, so every conquest host in the mode converged on the one province it could
+    // not take. Measured after the garrison and supply work, over four played 64-turn runs: 42
+    // battles, nearly all of them at the capital, and **one province lost in total**. A war that
+    // is always the same fight in the same place, and always won, is not a war.
+    //
+    // The frontier rule is what makes width into depth: a host reduces what it meets first, so a
+    // province's own garrison — the thing this pass gave the mode — is what decides whether the
+    // realm has depth or only a hard centre. Under three provinces there is no frontier to speak
+    // of and the host goes for the seat, where the walls and the army already are.
+    if (owned.length < 3) return playerCapital(state) ?? nearestLand(here, owned);
+    return nearestLand(here, owned);
   }
   return nearestLand(here, owned);
 }
@@ -842,12 +978,32 @@ function maybeRequestBattleDecision(state: GameState, army: Army, record: Invasi
   // asks regardless unless the player has handed battles back to their generals. Inert in
   // every other mode.
   const ascentWatches = state.gameMode === 'ascent' && !state.ascent?.autoResolveBattles;
-  // Nobody in the field. In Dragon Ascent the province turns out its own garrison — see
-  // `raiseGarrisonLevy`, mustered by `beginBattle` once every other gate has passed, so a fight
-  // that is not opened after all is still rolled against the walls counted once. Without a levy,
-  // every province the hosts happened not to be standing on resolved its defence as a silent
-  // dice roll, and a measured 320-tick run opened the battle screen exactly zero times.
-  if (!defender && !ascentWatches) return false;
+  /**
+   * Throne of Empires asks too, and did not.
+   *
+   * The clause below used to be `if (!defender && !ascentWatches) return false` for every mode, so
+   * a province with no field host standing on it changed hands on a hidden dice roll. In empire
+   * that is nearly every province: the realm has one or two hosts and a dozen provinces. Measured
+   * across four played 64-turn runs, the game asked the player to decide **two** battles in total
+   * while five to nine invading hosts walked the map and fifteen provinces changed hands. Losing
+   * a realm province by province without ever being offered the fight is the reported complaint
+   * in its purest form — not that the numbers were wrong, but that nothing was ever asked.
+   *
+   * There is a real decision to make even with no army there: the garrison can sally (better
+   * odds, and `resolveInvaderBattle` now charges the militia for a failed one), hold the walls,
+   * or open the gates and save the people. One prompt at a time is already enforced above.
+   */
+  const empireAsks = state.gameMode === 'empire' && land.ownerId === PLAYER_KINGDOM_ID;
+  if (!defender && !ascentWatches && !empireAsks) return false;
+  // A decision needs two plausible answers. A host that cannot carry the walls whatever the
+  // garrison is ordered to do — the 1.22 sally does not close a gap this size — is settled by the
+  // roll and reported in the header, rather than stopping the game to ask a question with one
+  // answer. Measured before this: a spent host generated prompts at 0.02 and 0.01 of the
+  // defender's power, which read as the game malfunctioning rather than as a war.
+  if (!defender && empireAsks && !ascentWatches) {
+    const look = createBattlePreview(state, army.id, land.id);
+    if (!look || look.attackerPower < look.defenderPower * 0.55) return false;
+  }
   if (defender?.autoDefend && !ascentWatches) return false;
   // The host standing here was told its general fights its own battles. Same question the sheet
   // asks, answered per host rather than per run.
@@ -863,6 +1019,7 @@ function maybeRequestBattleDecision(state: GameState, army: Army, record: Invasi
     isGreat: Boolean(record.great),
     attackerPower: preview.attackerPower,
     defenderPower: preview.defenderPower,
+    ...(defender ? {} : { garrisonOnly: true, militia: Math.round(land.localSoldiers) }),
   };
   state.isPaused = true;
   return true;
@@ -994,9 +1151,30 @@ function resolveInvaderBattle(
     ? forced === 'invader'
     : preview.attackerPower >= preview.defenderPower * defenderBonus * siegeMult * fuzz;
 
+  /**
+   * A sally is a decision, so it has to be able to cost something.
+   *
+   * `defenderBonus` is 1.22 for "attack", 1.06 for "hold" and 1 for "withdraw". With a field host
+   * on the tile the trade is already real — that host takes the extra losses. With only a
+   * garrison there was nothing on the other side of the choice at all, so ordering the walls to
+   * sally was strictly better than holding them, which is not a decision but a button that should
+   * have been pressed for you. Now the men who go out are the province's own: they are spent
+   * whether the line holds or not, and the next wave meets a thinner watch. The masonry is
+   * untouched either way, because walls do not charge.
+   */
+  const garrisonAlone = !state.armies.some(
+    (a) => a.kingdomId === PLAYER_KINGDOM_ID && a.landId === land.id && !a.isLevy && totalUnits(a) > 0,
+  );
+  if (!forced && defenderBonus > 1.1 && garrisonAlone && land.ownerId === PLAYER_KINGDOM_ID) {
+    land.localSoldiers = Math.max(0, Math.round(land.localSoldiers * (victory ? 0.6 : 0.82)));
+  }
+
   if (!victory) {
     applyInvaderLosses(army, 0.4);
     army.morale = Math.max(20, army.morale - 16);
+    // Thrown back: two seasons to re-form before it comes on again (see the regroup note in
+    // `tickInvasions`, which is the only reader and is gated to empire for the same reason).
+    record.regroupUntil = state.turn + 2;
     awardDefenderXp(state, land, preview.defenderPower);
 
     if (totalUnits(army) < 40) {

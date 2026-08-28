@@ -21,6 +21,7 @@ const result = await page.evaluate(async () => {
   const st = window.__mandateState;
   const mod = await import('/src/systems/RealtimeSystem.ts');
   const advance = mod.advanceRealtimeMonth;
+  const { resolvePendingBattle } = await import('/src/systems/empire/InvasionSystem.ts');
 
   // Deterministic RNG for the tick loop so the check is reproducible.
   let s = 20260703 >>> 0;
@@ -59,7 +60,16 @@ const result = await page.evaluate(async () => {
 
   for (let i = 0; i < 240; i += 1) {
     feed();
+    // **Fight the battles.** This loop used to leave `pendingBattle` standing, and a deferred
+    // contact is never resolved — so across 240 seasons the realm fought nothing, repelled
+    // nothing, earned no Mandate, never left the founding era, and ended with seventeen invading
+    // hosts parked on the map. Every unmet expectation this harness reported was that, not the
+    // systems it claims to be checking. A realm that answers its own battles is the minimum a
+    // "the revamp is active" gate has to simulate.
+    let guard = 0;
+    while (st.pendingBattle && guard++ < 8) resolvePendingBattle(st, 'attack');
     advance(st);
+    while (st.pendingBattle && guard++ < 16) resolvePendingBattle(st, 'attack');
     if (st.pendingUltimatum) {
       anyUltimatum = true;
       if (st.pendingUltimatum.isGreatInvasion) anyGreat = true;
