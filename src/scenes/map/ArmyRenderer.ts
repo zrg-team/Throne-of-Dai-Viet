@@ -36,9 +36,22 @@ const FACE_BADGE_SIZE = 19;
 /** How long a host takes to settle onto its destination once the leg resolves. */
 const ARRIVE_MS = 320;
 /** Milliseconds between dust puffs behind a marching column. */
-const DUST_INTERVAL_MS = 90;
+/** How far the block rises on a step, and how long a step takes. */
+const MARCH_TREAD = -0.9;
+const MARCH_TREAD_MS = 340;
+const DUST_INTERVAL_MS = 45;
+/** The same pigment the ground shadow uses, so a puff reads as dust and not as sage paint. */
+const DUST_INK = 0x2a2118;
 /** How long one puff lingers before it has faded entirely. */
-const DUST_LIFE_MS = 620;
+/**
+ * How long a puff lasts — and therefore how long the trail is.
+ *
+ * A column crosses about a hundred and fifty points a second, so at half a second of life the
+ * trail stretched ninety points behind the men and every puff in it was most of the way faded:
+ * a long grey smear detached from the host rather than dust at its heels. Measured, not guessed
+ * (`shot-march-map.mjs` prints the distance from the marker to each live puff).
+ */
+const DUST_LIFE_MS = 300;
 
 /** The economy clock the current mode runs on — marches are paced against it. */
 function tickMs(state: GameState): number {
@@ -62,7 +75,14 @@ export class ArmyRenderer {
   private faceBadges = new Map<string, { heroId: string; badge: Phaser.GameObjects.GameObject }>();
   /** Live dust puffs, so they can be cleared without leaking tweens. */
   private dust: Phaser.GameObjects.Ellipse[] = [];
-  private lastDustAt = 0;
+  /**
+   * When each host last kicked up dust — **per host**, not one clock for the whole map.
+   *
+   * A single shared timestamp meant two columns on the road split one puff budget between them
+   * and each got half a trail; three got a third each. The rate limit is about how often *a
+   * column* kicks up dust, so it belongs to the column.
+   */
+  private lastDustAt = new Map<string, number>();
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -139,13 +159,28 @@ export class ArmyRenderer {
       // Only rebuild the seal + 12-soldier formation (~40 objects + a looping bob
       // tween) when the troop count or owner actually changes. On a normal tick
       // these are unchanged, so we skip the destroy/recreate churn entirely.
-      const kit = hostKitFor(state, army);
+      // Whether this host is on the road, which decides both how it is *drawn* — in column, see
+      // `MARCH_PLAN` — and whether it carries its general's portrait. Read once, above the
+      // signature, because the arrangement is part of what the marker is.
+      const order = state.movementOrders.find((candidate) => candidate.armyId === army.id);
+      const marching = Boolean(order);
+      // Which way the road runs, from this province to the next one on the path — the column is
+      // drawn filed along it. Quantised to eight points of the compass: the heading is part of the
+      // marker's redraw signature, and a column that rebuilt every time the road bent a degree
+      // would rebuild every frame it walked.
+      const heading = order && order.path.length > 0
+        ? headingBetween(state, land, findLand(state, order.path[0]) ?? land, getAnchor, wx, wy)
+        : 0;
+      const kit = { ...hostKitFor(state, army), marching, marchHeading: heading };
       // The kit is part of what the marker *is*, so it belongs in the signature that decides
       // whether to redraw one. Without it an era turning, or a host being re-equipped, would
       // leave the old wardrobe on the map until the headcount happened to change.
       const sig = `${total}|${isPlayer ? 1 : 0}|${kingdomColor ?? 0}|${flagSeed}`
         + `|${kit.theme ?? kit.era}|${kit.tier}|${Math.round((kit.units?.archers ?? 0) / Math.max(1, total) * 8)}`
-        + `|${Math.round((kit.units?.heavyInfantry ?? 0) / Math.max(1, total) * 8)}`;
+        + `|${Math.round((kit.units?.heavyInfantry ?? 0) / Math.max(1, total) * 8)}`
+        // Falling in and breaking ranks each redraw the host exactly once — twice a journey, plus
+        // once more wherever the road turns a corner sharp enough to change the compass point.
+        + `|${marching ? `march:${heading.toFixed(2)}` : 'stand'}`;
       if (this.contentSig.get(army.id) !== sig) {
         // Kill the old formation's looping tween before destroying its container,
         // otherwise it keeps ticking against a dead object (CPU leak).
@@ -153,16 +188,36 @@ export class ArmyRenderer {
         marker.removeAll(true);
         this.selectionFlags.delete(army.id);
         this.faceBadges.delete(army.id);
-        marker.add(this.mapItems.createArmyMarker(
+        const body = this.mapItems.createArmyMarker(
           total, isPlayer, kingdomColor, flagSeed, kit,
-        ));
+        );
+        marker.add(body);
+        // **The tread.**
+        //
+        // The men themselves cannot move: a Đông Hồ host is drawn into one Graphics, so there are
+        // no individual figures to animate. What can move is the block, and a column on the road
+        // rises and falls at a step's tempo. Applied to the host's own container rather than to
+        // the marker, because the marker's position is written every frame by the march tween and
+        // a second tween on the same property would fight it.
+        //
+        // Small on purpose — under a point. An earlier pass bounced the whole marker and it read
+        // as hopping rather than marching.
+        if (marching) {
+          this.scene.tweens.add({
+            targets: body,
+            y: MARCH_TREAD,
+            duration: MARCH_TREAD_MS,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut',
+          });
+        }
         this.contentSig.set(army.id, sig);
       }
 
       // The general's face beside a standing host, so "who is where" reads off the map. Only
       // while the host stands — a marching column carries its standard, not a portrait — and
       // only for the player's own hosts, whose generals are the ones with faces.
-      const marching = state.movementOrders.some((candidate) => candidate.armyId === army.id);
       const general = isPlayer && !marching && !army.isLevy
         ? state.heroes.find((hero) => hero.id === army.generalHeroId)
         : undefined;
@@ -194,7 +249,6 @@ export class ArmyRenderer {
         this.selectionFlags.delete(army.id);
       }
 
-      const order = state.movementOrders.find((candidate) => candidate.armyId === army.id);
       if (order && order.path.length > 0) {
         const nextLand = findLand(state, order.path[0]);
         const curve = buildRoadCurve(
@@ -226,8 +280,13 @@ export class ArmyRenderer {
             // the road — which is most of why movement "looked bad", and it was a wrong number
             // rather than a missing effect.
             duration: Math.max(1, order.legRequired - order.progress) * tickMs(state),
-            // Columns set off and pull up; they do not travel at a constant rate.
-            ease: 'Sine.easeInOut',
+            // **A column sets off once and pulls up once — not at every waypoint.**
+            //
+            // Every leg eased in *and* out, so a host crossing four provinces came to a dead stop
+            // and started again three times on the way. That stutter is most of what made a march
+            // read as a series of hops rather than a journey. Only the last leg of a path has
+            // somewhere to stop.
+            ease: order.path.length > 1 ? 'Sine.easeIn' : 'Sine.easeOut',
             onUpdate: () => {
               if (!activeMarker.active) return;
               const point = curve.getPoint(progress.t);
@@ -241,7 +300,28 @@ export class ArmyRenderer {
               // each other — the "many circles moving" this replaces. The column now travels
               // steadily and kicks up dust behind it, which reads as movement without
               // animating the thing that was already animated.
-              this.spawnDust(point.x + MARKER_OFFSET_X, point.y + MARKER_OFFSET_Y);
+              //
+              // **At the men's heels, and behind them.**
+              //
+              // Two different wrong places, one after the other. It was first offset a fixed ten
+              // points to the *left* of the marker whichever way the host was walking; correcting
+              // that to the curve point then put it on the bare road — and the men do not stand on
+              // the bare road. `MARKER_OFFSET` lifts the marker twenty-eight points above the
+              // curve and eighteen across, and the marker's origin is the block's ground line, so
+              // the feet are at the *marker*, not at the point. Spawning on the curve dropped every
+              // puff a clear twenty-eight points below the column: the detached smudge reported
+              // here.
+              //
+              // So: the marker's own position, walked back along the direction of travel.
+              const ahead = curve.getPoint(Math.min(1, progress.t + 0.02));
+              const hx = ahead.x - point.x;
+              const hy = ahead.y - point.y;
+              const len = Math.hypot(hx, hy) || 1;
+              this.spawnDust(
+                army.id,
+                point.x + MARKER_OFFSET_X - (hx / len) * 8,
+                point.y + MARKER_OFFSET_Y - (hy / len) * 8,
+              );
             },
           });
           this.moveTweens.set(army.id, marchTween);
@@ -364,20 +444,33 @@ export class ArmyRenderer {
    * Rate-limited rather than emitted per frame: `onUpdate` runs every tick of the tween, and one
    * puff per frame is both a performance problem and a solid smear rather than a trail.
    */
-  private spawnDust(x: number, y: number): void {
+  private spawnDust(armyId: string, x: number, y: number): void {
     const now = this.scene.time.now;
-    if (now - this.lastDustAt < DUST_INTERVAL_MS) return;
-    this.lastDustAt = now;
+    if (now - (this.lastDustAt.get(armyId) ?? 0) < DUST_INTERVAL_MS) return;
+    this.lastDustAt.set(armyId, now);
 
+    // **Scaled to the men, not to the map.**
+    //
+    // A puff was eight to fourteen points across and grew to twice that, which on a host drawn
+    // ten points wide is a grey ellipse larger than the column that raised it — reported as blobs
+    // beside the men rather than dust behind them. A boot lifts a little dust, and there is more
+    // of it than there is of any one puff: these are a third the size, half as dark, live a third
+    // as long, and come twice as often.
     const puff = this.scene.add.ellipse(
-      x - 10 + Math.random() * 6,
-      // Kicked up at the men's heels, not twenty pixels in front of them. The marker's origin is
-      // already the ground the host stands on.
-      y + 2 + Math.random() * 4,
-      8 + Math.random() * 6,
-      4 + Math.random() * 3,
-      INK.mountain,
-      0.5,
+      x - 2 + Math.random() * 4,
+      // Kept low. Dust hangs at the ankles for a moment before it lifts.
+      y - 0.5 + Math.random() * 2,
+      4.5 + Math.random() * 3,
+      2.2 + Math.random() * 1.4,
+      // **Ink, not mountain.**
+      //
+      // `INK.mountain` is a muted sage (0x8a9883) laid over a cream map: correcting a puff that
+      // was too big by also making it fainter left dust the same value as the ground it sat on,
+      // which is invisible rather than subtle. The ground shadow under a host is `muc` at 0.07,
+      // so dust is the same pigment at rather more than double — a warm smudge that reads on
+      // parchment without becoming a blot.
+      DUST_INK,
+      0.28,
     );
     puff.setDepth(69);
     this.dust.push(puff);
@@ -385,9 +478,10 @@ export class ArmyRenderer {
     this.scene.tweens.add({
       targets: puff,
       alpha: 0,
-      scaleX: 2.1,
-      scaleY: 1.7,
-      y: puff.y - 6,
+      // Spreads as it settles rather than billowing: a marching column is not a cavalry charge.
+      scaleX: 1.9,
+      scaleY: 1.45,
+      y: puff.y - 2.8,
       duration: DUST_LIFE_MS,
       ease: 'Quad.easeOut',
       onComplete: () => {
@@ -432,4 +526,28 @@ export class ArmyRenderer {
       for (const child of list) this.killTweensDeep(child);
     }
   }
+}
+
+/**
+ * The compass point the road takes from one province to the next, in radians.
+ *
+ * Eight points, not a continuous angle: this feeds the marker's redraw signature, so it has to be
+ * a value that changes rarely. A host walking a curve keeps one heading for the whole leg.
+ */
+function headingBetween(
+  state: GameState,
+  from: Land,
+  to: Land,
+  getAnchor: SettlementAnchor,
+  wx: WorldTransform,
+  wy: WorldTransform,
+): number {
+  void state;
+  const a = getAnchor(from);
+  const b = getAnchor(to);
+  const dx = wx(b.x) - wx(a.x);
+  const dy = wy(b.y) - wy(a.y);
+  if (dx === 0 && dy === 0) return 0;
+  const step = Math.PI / 4;
+  return Math.round(Math.atan2(dy, dx) / step) * step;
 }

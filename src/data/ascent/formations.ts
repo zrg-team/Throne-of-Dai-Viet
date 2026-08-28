@@ -272,6 +272,59 @@ export const FORMATION_PLAN: Record<BattleFormation, Partial<Record<FormationKey
   },
 };
 
+/**
+ * **Hành quân — the host on the road.**
+ *
+ * Not a battle shape and deliberately not a member of `BattleFormation`: nothing resolves a fight
+ * against it, it has no place on the counter ring, and adding a sixth member there would change
+ * every matchup in the mode. It is a *drawing*, used only by the map marker while a host is
+ * between provinces.
+ *
+ * A host at rest stands in its doctrine's arrangement — a line, a screen thrown forward, the bows
+ * banked behind, the horse off the flank — which is a wide, loose thing that reads as men holding
+ * ground. A host on the march is the opposite: the blocks close up and fall in one behind another,
+ * narrow at the front and long from front to back. Every `aspect` here is below one, which is what
+ * makes each block deeper than it is wide, and every `pitch` is under one, which closes the ranks.
+ * The `dy` values file the blocks in marching order: screen out ahead, then the line, the bows,
+ * and the horse bringing up the rear.
+ */
+export const MARCH_PLAN: Partial<Record<FormationKey, FormationTweak>> = {
+  screen: { dx: 0.5, dy: -1.3, pitch: 0.5, aspect: 2.6 },
+  line: { dx: 0, dy: 0, pitch: 0.5, aspect: 2.6 },
+  bows: { dx: -0.5, dy: 1.2, pitch: 0.5, aspect: 2.6 },
+  horse: { dx: -1.0, dy: 2.3, pitch: 0.55, aspect: 2.2 },
+};
+
+/**
+ * The march column, turned to face the way the host is walking.
+ *
+ * `MARCH_PLAN` files its blocks front-to-back along one axis, which is right for a host walking
+ * that way and wrong for every other heading — a column marching east that is drawn stacked
+ * north-to-south is a queue standing side-on to its own road. The block offsets rotate; the blocks
+ * themselves stay square, which at a host drawn ten points wide is all the eye can resolve anyway.
+ *
+ * `dx` is counted in file pitches and `dy` in rank pitches, and those are not the same distance —
+ * so the depth is converted to file pitches before the turn and back afterwards. Without that a
+ * column heading north-east comes out sheared.
+ */
+export function marchPlanFacing(radians: number, rankPerFile: number): Partial<Record<FormationKey, FormationTweak>> {
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const out: Partial<Record<FormationKey, FormationTweak>> = {};
+  for (const key of Object.keys(MARCH_PLAN) as FormationKey[]) {
+    const tweak = MARCH_PLAN[key];
+    if (!tweak) continue;
+    const dx = tweak.dx ?? 0;
+    const dy = (tweak.dy ?? 0) * rankPerFile;
+    out[key] = {
+      ...tweak,
+      dx: dx * cos - dy * sin,
+      dy: (dx * sin + dy * cos) / rankPerFile,
+    };
+  }
+  return out;
+}
+
 function ringIndex(formation: BattleFormation): number {
   return FORMATION_RING.indexOf(formation);
 }
