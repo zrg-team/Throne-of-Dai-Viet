@@ -8,6 +8,11 @@
 #
 # .easignore REPLACES .gitignore entirely for uploads — it is not additive. So this is a copy of
 # .gitignore with the five `assets/` lines removed. Keep the two in step when either changes.
+#
+# "`.gitignore`" there means **both** of them. The CLI walks from the repository root, not from
+# this folder, so everything the root file excludes has to be repeated here or it is uploaded:
+# `output/` is 238 MB and `scripts/promo/out/` is over a gigabyte of rendered video. Neither has
+# ever been near a build machine and neither should be.
 
 node_modules/
 .expo/
@@ -45,3 +50,15 @@ build/
 # Read by the CLI on this machine, never needed on a build machine — and it carries the p12
 # password, so it must not travel inside the project archive.
 credentials.json
+
+# From the repository root's .gitignore. Build output, rendered promo footage, harness
+# screenshots and perf runs: large, regenerable, and of no use to a build machine.
+dist-shell/
+output/
+scripts/promo/out/
+.vite/
+.ncxx/
+test_scripts/shots/
+test_scripts/scratch/
+test_scripts/perf-results/
+*.log
