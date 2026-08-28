@@ -17,6 +17,7 @@ import { INK_UI, type UIBounds } from '../../../ui/InkUI';
 import { playArrivalFanfare } from '../../../ui/ascent/arrivalFanfare';
 import { ASCENT_HUD_HEIGHT } from '../../../ui/ascent/AscentHud';
 import { TITLE_FONT, UI_FONT } from '../../../ui/fonts';
+import { PROMPT_FOOTER_HEIGHT, PROMPT_HINT_ROOM, footerSplit } from '../constants';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
 
@@ -124,7 +125,13 @@ export function promptScrollBody(self: ConquestUIScene,
   // Measured once and used for both the mask and the content floor below. Deriving them separately
   // let a very short sheet floor the viewport at 80 while the content height stayed under it, which
   // pinned `maxScroll` to 0 and made the sheet unscrollable exactly when it needed to scroll most.
-  const viewportHeight = Math.max(80, content.height - footerHeight);
+  // Down to the footer band, which is measured from the bottom of the *screen* — the content box
+  // stops short of it, and sizing the viewport by the box left the last card ending twenty points
+  // higher than it needed to for no reason the player could see.
+  const viewportHeight = Math.max(80, Math.min(
+    content.height,
+    GAME_HEIGHT - footerHeight - content.y,
+  ));
   const scroll = self.ui.scrollArea({
     x: content.x,
     y: content.y,
@@ -149,6 +156,51 @@ export function promptScrollBody(self: ConquestUIScene,
 }
 
 /**
+ * The pinned foot of a prompt: the way back, and the way out.
+ *
+ * Reported over and over, and it was true of nearly every prompt in the mode: a page reached from
+ * another page offered one button, and which one it was depended on who wrote the page. The
+ * province sheet could only be abandoned, the edict sheet could only be deferred, and neither
+ * could return to the list it was opened from.
+ *
+ * Both stand in the row the single button used to have, so no page grows and nothing moves: the
+ * way back takes the left and about two thirds of the width, the way out sits beside it. A page
+ * with nowhere to go back to passes no `back` and keeps the full-width dismiss it always had.
+ */
+export function promptFoot(
+  self: ConquestUIScene,
+  content: UIBounds,
+  foot: {
+    back?: { label?: string; onTap: () => void };
+    close: { label: string; onTap: () => void };
+  },
+): void {
+  const y = GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + PROMPT_HINT_ROOM;
+  if (!foot.back) {
+    self.modalLayer.add(self.ui.button(
+      { x: content.x, y, width: content.width, height: 40 },
+      foot.close.label,
+      foot.close.onTap,
+      { variant: 'ghost', fontSize: '12px' },
+    ));
+    return;
+  }
+  const split = footerSplit(content.x, content.width, foot.close.label);
+  self.modalLayer.add(self.ui.button(
+    { x: split.leftX, y, width: split.leftWidth, height: 40 },
+    foot.back.label ?? t('ascent.pick.back'),
+    foot.back.onTap,
+    { variant: 'ghost', fontSize: '12px' },
+  ));
+  self.modalLayer.add(self.ui.button(
+    { x: split.rightX, y, width: split.rightWidth, height: 40 },
+    foot.close.label,
+    foot.close.onTap,
+    { variant: 'secondary', fontSize: '12px' },
+  ));
+}
+
+/**
  * "Hold to choose", printed only on pages where holding is actually required.
  *
  * `optionCard` is the one control in the game that wants a press held (see `CARD_HOLD_MS`), and it
@@ -166,7 +218,17 @@ export function promptScrollBody(self: ConquestUIScene,
 function drawHoldHint(self: ConquestUIScene, content: UIBounds, footerHeight: number): void {
   if (!self.promptUsedHoldCards) return;
   self.promptUsedHoldCards = false;
-  const y = content.y + Math.max(80, content.height - footerHeight) + 3;
+  // **In the footer's own hint lane — not in the cards, and not on the buttons.**
+  //
+  // It printed three points below the viewport's end, which is where the fixed buttons stand, so
+  // it struck through them. Hanging it *above* the viewport end instead only moved the collision
+  // into the last card. The band itself carries room for it now (`PROMPT_HINT_ROOM`), and this
+  // draws into that room: below the cards, above the buttons, touching neither.
+  const viewportEnd = content.y + Math.max(80, Math.min(
+    content.height,
+    GAME_HEIGHT - footerHeight - content.y,
+  ));
+  const y = viewportEnd + 2;
   // Never over the footer's own buttons: on the shortest screen the viewport already reaches them.
   if (y > content.y + content.height - 10) return;
   const hint = self.ui.label(content.x + content.width / 2, y, t('ascent.card.holdHint'), 'caption', {

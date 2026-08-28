@@ -45,7 +45,7 @@ import { buildHeroPickerRows, heroPostingLabel } from '../../../ui/heroPickerRow
 import { eraLabel } from '../../../systems/empire/MandateSystem';
 import { INK_UI } from '../../../ui/InkUI';
 import { heroBio, heroName, rarityLabel, t } from '../../../i18n';
-import { type CourtPositionId, type Hero, ESTATE_IDS } from '../../../state/types';
+import { type CourtPositionId, type GameState, type Hero, ESTATE_IDS } from '../../../state/types';
 import { cssHex, heroStatLine } from '../constants';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
@@ -101,6 +101,62 @@ function heroPosting(self: ConquestUIScene, hero: Hero): string {
 }
 
 /** Seats, the realm's standing, and the laws in force — plus the throne's unspent authority. */
+/** The tax dial's height, spent once by the page body and once by the bottom sheet. */
+const TAX_DIAL_HEIGHT = 72;
+
+/**
+ * The tax dial, as a builder both the court page and its bottom sheet can call.
+ *
+ * The rate is a standing policy, so it belongs beside the realm's other standing choices in the
+ * sheet — asked for directly — and it stays on the page for anyone reading top-down. One builder,
+ * so the two can never drift; each reads live state as it draws, so whichever is touched last is
+ * what both show on the next repaint.
+ */
+function buildTaxDial(
+  self: ConquestUIScene,
+  state: GameState,
+): (holder: Phaser.GameObjects.Container, width: number) => void {
+  return (holder, width) => {
+    holder.add(self.ui.panel(
+      { x: 0, y: 0, width, height: TAX_DIAL_HEIGHT },
+      { border: INK_UI.brush, borderWidth: 1.2, borderAlpha: 0.52 },
+    ));
+
+    const effectLine = (rate: number): string => {
+      const fatiguePenalty = (state.taxFatigue ?? 0) * 0.16;
+      const drift = Number((taxStabilityBase(rate) - fatiguePenalty).toFixed(1));
+      return t('ascent.tax.effects', {
+        mult: taxGoldMult(rate).toFixed(2),
+        drift: `${drift >= 0 ? '+' : ''}${drift.toFixed(1)}`,
+        growth: `${taxGrowthDelta(rate) >= 0 ? '+' : ''}${taxGrowthDelta(rate).toFixed(1)}`,
+      });
+    };
+    const detail = self.ui.label(14, 10, effectLine(currentTaxRate(state)), 'caption', {
+      fontSize: '11px',
+    });
+    holder.add(detail);
+
+    holder.add(self.ui.label(14, 52, t('ascent.tax.light'), 'caption', { fontSize: '10px' }));
+    holder.add(
+      self.ui.label(width - 14, 52, t('ascent.tax.heavy'), 'caption', { fontSize: '10px' })
+        .setOrigin(1, 0),
+    );
+
+    holder.add(self.ui.slider(
+      { x: 10, y: 24, width: width - 20, height: 22 },
+      {
+        value: currentTaxRate(state),
+        onPreview: (rate) => detail.setText(effectLine(rate)),
+        onChange: (rate) => {
+          setTaxRate(state, rate);
+          refreshAllLandOutputs(state);
+          detail.setText(effectLine(rate));
+        },
+      },
+    ));
+  };
+}
+
 export function showCourtScreen(self: ConquestUIScene): void {
   const state = self.state;
   const mandate = state.mandate;
@@ -141,6 +197,7 @@ export function showCourtScreen(self: ConquestUIScene): void {
         items: waiting,
         rebuild: () => showCourtScreen(self),
       },
+      footerWidget: { height: TAX_DIAL_HEIGHT, build: buildTaxDial(self, state) },
       // The realm's standing course, in the same footer slot the other lanes keep their
       // standing setting. The era card still asks on its own clock; this is the king turning
       // to the ministers whenever he is already reading their page — same `adoptDoctrine`
@@ -345,47 +402,7 @@ export function showCourtScreen(self: ConquestUIScene): void {
   // policy feel like a random event: you set it when the prompt happened to come up, and could
   // not find it again when you wanted it. A dial the player owns lives on the court screen.
   addHeading(t('court.section.tax'));
-  addWidget(72, (holder, width) => {
-    const panel = self.ui.panel(
-      { x: 0, y: 0, width, height: 72 },
-      { border: INK_UI.brush, borderWidth: 1.2, borderAlpha: 0.52 },
-    );
-    holder.add(panel);
-
-    const effectLine = (rate: number): string => {
-      const fatiguePenalty = (state.taxFatigue ?? 0) * 0.16;
-      const drift = Number((taxStabilityBase(rate) - fatiguePenalty).toFixed(1));
-      return t('ascent.tax.effects', {
-        mult: taxGoldMult(rate).toFixed(2),
-        drift: `${drift >= 0 ? '+' : ''}${drift.toFixed(1)}`,
-        growth: `${taxGrowthDelta(rate) >= 0 ? '+' : ''}${taxGrowthDelta(rate).toFixed(1)}`,
-      });
-    };
-    const detail = self.ui.label(14, 10, effectLine(currentTaxRate(state)), 'caption', {
-      fontSize: '11px',
-    });
-    holder.add(detail);
-
-    holder.add(self.ui.label(14, 52, t('ascent.tax.light'), 'caption', { fontSize: '10px' }));
-    holder.add(
-      self.ui.label(width - 14, 52, t('ascent.tax.heavy'), 'caption', { fontSize: '10px' }).setOrigin(1, 0),
-    );
-
-    holder.add(
-      self.ui.slider(
-        { x: 10, y: 24, width: width - 20, height: 22 },
-        {
-          value: currentTaxRate(state),
-          onPreview: (rate) => detail.setText(effectLine(rate)),
-          onChange: (rate) => {
-            setTaxRate(state, rate);
-            refreshAllLandOutputs(state);
-            detail.setText(effectLine(rate));
-          },
-        },
-      ),
-    );
-  });
+  addWidget(TAX_DIAL_HEIGHT, buildTaxDial(self, state));
 
   // ── Seats, ordered by what wants attention ──
   //

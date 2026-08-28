@@ -82,27 +82,34 @@ const clickText = async (startsWith) => {
   await page.waitForTimeout(160);
 };
 
-// Build: asking is the default and the entire fixed checkbox strip is tappable.
-await page.evaluate(() => window.__phaserGame.scene.getScene('ConquestUIScene').openLane('build'));
+// A standing setting lives in the page's bottom sheet now, which is shut until it is asked for.
+// Every check below therefore raises the sheet first, exactly as a player does.
+const openLaneSheet = async (lane) => {
+  await page.evaluate((l) => {
+    const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+    ui.closeLane();
+    ui.dockExpanded = true;
+    ui.openLane(l);
+  }, lane);
+  await page.waitForTimeout(220);
+};
+
+// Build: asking is the default and the entire checkbox strip is tappable.
+await openLaneSheet('build');
 await page.waitForTimeout(180);
 let texts = await textSnapshot();
 check(texts.filter((line) => line === 'Claims: the court asks first').length === 1,
-  'Build shows the claim policy once, in the footer');
+  'Build shows the claim policy once, in its sheet');
 await page.screenshot({ path: `${OUT}/build-checked.png` });
 await clickText('Claims: the court asks first');
 check(await page.evaluate(() => window.__mandateState.ascent.autoClaimSilently === true),
   'tapping Build footer hands routine claims to the court');
 
 // Army: the same control shape, governing the muster it sits beside.
-await page.evaluate(() => {
-  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
-  ui.closeLane();
-  ui.openLane('army');
-});
-await page.waitForTimeout(180);
+await openLaneSheet('army');
 texts = await textSnapshot();
 check(texts.filter((line) => line === 'Musters: your general asks first').length === 1,
-  'Army shows the muster policy once, in the footer');
+  'Army shows the muster policy once, in its sheet');
 await page.screenshot({ path: `${OUT}/army-checked.png` });
 await clickText('Musters: your general asks first');
 check(await page.evaluate(() => window.__mandateState.ascent.autoMusterSilently === true),
@@ -125,6 +132,7 @@ await page.evaluate(() => {
   const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
   ui.closeLane();
   ui.chronicleTab = 'actions';
+  ui.dockExpanded = false;
   ui.openLane('chronicle');
 });
 await page.waitForTimeout(180);
@@ -150,19 +158,13 @@ await page.evaluate(async () => {
   state.ascent.autoMusterSilently = false;
   const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
   ui.closeLane();
-  ui.openLane('build');
 });
-await page.waitForTimeout(180);
+await openLaneSheet('build');
 texts = await textSnapshot();
 check(texts.includes('Thu phục: triều đình hỏi trước'), 'Vietnamese claim checkbox label fits');
 await page.screenshot({ path: `${OUT}/build-vi.png` });
 
-await page.evaluate(() => {
-  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
-  ui.closeLane();
-  ui.openLane('army');
-});
-await page.waitForTimeout(180);
+await openLaneSheet('army');
 texts = await textSnapshot();
 check(texts.includes('Lập quân: tướng hỏi trước'), 'Vietnamese muster checkbox label fits');
 await page.screenshot({ path: `${OUT}/army-vi.png` });
@@ -287,9 +289,12 @@ await shortPage.evaluate(() => {
   const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
   ui.closeLane();
   ui.chronicleTab = 'actions';
+  // The shelf preference is sheet content, so the sheet is up for the crowding pass — this is
+  // the tallest the foot of the page ever gets, which is the case worth measuring.
+  ui.dockExpanded = true;
   ui.openLane('chronicle');
 });
-await shortPage.waitForTimeout(160);
+await shortPage.waitForTimeout(220);
 await shortPage.screenshot({ path: `${OUT}/chronicle-vi-short.png` });
 const shortBounds = await shortPage.evaluate(() => {
   const ui = window.__phaserGame.scene.getScene('ConquestUIScene');

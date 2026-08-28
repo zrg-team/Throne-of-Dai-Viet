@@ -15,6 +15,8 @@ import { realmStanding } from '../../../systems/ascent/RivalDirector';
 import { TRIBUTE_REFUSE_TICKS } from '../../../game/ascentConfig';
 import { renderHeroFaceInBox } from '../../../ui/FaceRenderer';
 import { INK_UI } from '../../../ui/InkUI';
+import { PROMPT_FOOTER_HEIGHT } from '../constants';
+import { promptFoot } from './frame';
 import { iconForOption, type CardIconId } from '../../../ui/CardIcons';
 import { staggerIn } from '../../../ui/animations';
 import { formatResourceList, heroName, t } from '../../../i18n';
@@ -25,10 +27,20 @@ import type { ConquestUIScene } from '../../ConquestUIScene';
 /** One rival empire, and everything the realm can do about it. */
 export function showEnvoy(self: ConquestUIScene, prompt: Extract<AscentPrompt, { kind: 'envoy' }>): void {
   const kingdom = self.state.kingdoms.find((candidate) => candidate.id === prompt.kingdomId);
-  const { body, bodyWidth, finish } = self.promptScrollBody(
+  // **A way back and a way out, pinned, like every other child page's.**
+  //
+  // This is the page the Ngoại giao list opens, so it is a child page and it gets a child page's
+  // foot. Every answer used to be a card in the scroll, "say nothing" among them — so on a court
+  // offering eight the only way to leave was to scroll to the bottom and find it, and there was
+  // no way at all back to the list you came from. Both stand at the foot now, in the order the
+  // lanes use: the way back above, the way out below.
+  const leave = prompt.options.find((option) => option.id === 'ignore');
+  const offers = prompt.options.filter((option) => option !== leave);
+  const footHeight = leave ? PROMPT_FOOTER_HEIGHT : 0;
+  const { content, body, bodyWidth, finish } = self.promptScrollBody(
     t('ascent.envoy.title', { kingdom: prompt.kingdomName }),
     t('ascent.envoy.subtitle', { relations: prompt.relations, power: prompt.power }),
-    0,
+    footHeight,
   );
 
   // Tall enough for a two-line body: the ambassador option names the hero, which wraps for
@@ -36,7 +48,7 @@ export function showEnvoy(self: ConquestUIScene, prompt: Extract<AscentPrompt, {
   const rowHeight = 84;
   const cards: Phaser.GameObjects.Container[] = [];
   let used = 0;
-  prompt.options.forEach((option) => {
+  offers.forEach((option) => {
     const price = option.cost && Object.keys(option.cost).length > 0
       ? formatResourceList(option.cost)
       : option.influenceCost
@@ -60,6 +72,14 @@ export function showEnvoy(self: ConquestUIScene, prompt: Extract<AscentPrompt, {
     used += ((card.getData('cardHeight') as number) ?? rowHeight) + 9;
   });
   staggerIn(self, cards);
+  if (leave) {
+    // Back means the list of courts, which is where this page was opened from. Saying nothing is
+    // the answer either way — the difference is only where the player is left standing.
+    promptFoot(self, content, {
+      back: { onTap: () => { self.choose(leave.id); self.openLane('affairs'); } },
+      close: { label: t('ascent.envoy.ignore'), onTap: () => self.choose(leave.id) },
+    });
+  }
   finish(used);
 }
 

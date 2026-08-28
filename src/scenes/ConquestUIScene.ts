@@ -146,6 +146,25 @@ export class ConquestUIScene extends Phaser.Scene {
    */
   dockExpanded = false;
 
+  /**
+   * How far the sheet has to travel on the page about to be drawn, in points, or undefined for
+   * no movement at all.
+   *
+   * Folding rebuilds the page, so by the time the sheet is drawn in its new state the old one is
+   * already gone and there is nothing left to animate *from*. The toggle therefore records the
+   * distance as it flips, and `finish` starts the new sheet that far out of place and tweens it
+   * home — which is the same picture as the old sheet sliding away, for a fraction of the work.
+   */
+  dockSlideFrom: number | undefined = undefined;
+
+  /**
+   * How the lane page now on screen was built, so the bottom sheet can rebuild it to fold.
+   *
+   * Set by `buildLanePage` for every lane page there is, which is why the sheet works on pages
+   * that never asked for it.
+   */
+  lanePageBuild: (() => void) | undefined = undefined;
+
   /** Test-only: skip the ground bake so a harness can diff the baked field against a live one. */
   skipGroundBake = false;
 
@@ -693,7 +712,24 @@ export class ConquestUIScene extends Phaser.Scene {
     subtitle: string,
     laneOpts: {
       /** A primary action in the close button's slot, in place of Close. */
-      footer?: { label: string; onTap: () => void; disabled?: boolean };
+      footer?: {
+        label: string;
+        onTap: () => void;
+        disabled?: boolean;
+        /**
+         * This button *is* the way out — do not pair a close beside it.
+         *
+         * Only true where closing the lane any other way would leave state behind: the aftermath
+         * report clears `pendingAftermath` as it dismisses, so a plain close there would put the
+         * same screen straight back on the player.
+         */
+        soleAction?: boolean;
+      };
+      /** A free-form control the bottom sheet carries — the court's tax dial. */
+      footerWidget?: {
+        height: number;
+        build: (parent: Phaser.GameObjects.Container, width: number) => void;
+      };
       /**
        * A checkbox pinned just above the footer button, in the same thumb reach.
        *
@@ -771,8 +807,9 @@ export class ConquestUIScene extends Phaser.Scene {
     parent: Phaser.GameObjects.Container,
     width: number,
     tiles: Array<{ title: string; note?: string; border: number; muted?: boolean; onTap?: () => void }>,
+    opts: { columns?: 1 | 2 } = {},
   ): number {
-    return lanesWidgets.actionTiles(this, parent, width, tiles);
+    return lanesWidgets.actionTiles(this, parent, width, tiles, opts);
   }
 
   segmentedRow(

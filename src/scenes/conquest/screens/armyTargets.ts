@@ -19,6 +19,8 @@ import { MARCH_MIN_WIN_CHANCE } from '../../../game/ascentConfig';
 import { INK_UI } from '../../../ui/InkUI';
 import { heroName, t } from '../../../i18n';
 import type { Land } from '../../../state/types';
+import { armyPower } from '../../../systems/WarSystem';
+import { showArmyDetail, showArmyScreen } from './army';
 import { hostSize, visibleHostileHosts } from '../constants';
 import { clearLanePage } from '../layers';
 import type { ConquestUIScene } from '../../ConquestUIScene';
@@ -53,7 +55,9 @@ export function showMarchTargets(self: ConquestUIScene, armyId: string): void {
 
   clearLanePage(self);
 
-  const { addRow, finish } = self.laneList(t('ascent.army.marchTo'), t('ascent.army.marchToBody'));
+  const { addRow, finish } = self.laneList(t('ascent.army.marchTo'), t('ascent.army.marchToBody'),
+    { back: () => showArmyDetail(self, armyId) },
+  );
 
   const targets = state.lands
     .filter((land) => land.ownerId === PLAYER_KINGDOM_ID && land.id !== army.landId)
@@ -93,7 +97,9 @@ export function showAttackTargets(self: ConquestUIScene, armyId: string): void {
   const army = state.armies.find((candidate) => candidate.id === armyId);
   if (!army) return;
   self.replaceLanePage(() => {
-    const { addRow, finish } = self.laneList(t('ascent.orders.attackPick'), t('ascent.orders.targetHint'));
+    const { addRow, finish } = self.laneList(t('ascent.orders.attackPick'), t('ascent.orders.targetHint'),
+    { back: () => showArmyDetail(self, armyId) },
+  );
     const targets = buildAllConquestTargets(state)
       .map((target) => {
         const land = state.lands.find((candidate) => candidate.id === target.landId);
@@ -130,7 +136,9 @@ export function showAttackTargets(self: ConquestUIScene, armyId: string): void {
 export function showFollowTargets(self: ConquestUIScene, armyId: string): void {
   const state = self.state;
   self.replaceLanePage(() => {
-    const { addRow, finish } = self.laneList(t('ascent.orders.followPick'), t('ascent.orders.followHint'));
+    const { addRow, finish } = self.laneList(t('ascent.orders.followPick'), t('ascent.orders.followHint'),
+    { back: () => showArmyDetail(self, armyId) },
+  );
     const others = state.armies.filter(
       (candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID && !candidate.isLevy && candidate.id !== armyId,
     );
@@ -154,13 +162,82 @@ export function showFollowTargets(self: ConquestUIScene, armyId: string): void {
 }
 
 /** Enemy hosts in sight, and the order to go after one. */
+/**
+ * The hunt, asked the other way round: here is the enemy host — who goes after it?
+ *
+ * `showHuntTargets` starts from one of ours and lists the quarry. That is the right question when
+ * you are already reading a host's orders, and the wrong one when you are reading the war: the
+ * invaders on the army screen were rows you could only look at, so seeing a host marching on a
+ * province told you nothing you could act on without first guessing which of your own hosts to
+ * open. Same order underneath — `hunt`, at the same event — asked from the end the player is
+ * standing at.
+ */
+export function showHunters(self: ConquestUIScene, quarryId: string): void {
+  const state = self.state;
+  clearLanePage(self);
+
+  const quarry = state.armies.find((candidate) => candidate.id === quarryId);
+  const at = state.lands.find((candidate) => candidate.id === quarry?.landId);
+  const ours = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID
+    && !army.isLevy && !army.patron);
+
+  const { addRow, addNote, finish } = self.laneList(
+    t('ascent.army.hunters'),
+    quarry
+      ? t('ascent.army.huntRow', { size: hostSize(quarry), land: at?.name ?? '—' })
+      : '',
+    { back: () => self.replaceLanePage(() => showArmyScreen(self)) },
+  );
+
+  if (!quarry || ours.length === 0) {
+    addNote(t('ascent.army.huntNobody'));
+    finish();
+    return;
+  }
+
+  for (const army of ours) {
+    const standing = state.lands.find((candidate) => candidate.id === army.landId);
+    // A host mid-refit takes no orders at all, and one already chasing this quarry has nothing
+    // to be told. Both stay on the list, greyed, so the page answers "why not" without a guess.
+    const already = army.orders?.kind === 'hunt' && army.orders.armyId === quarryId;
+    const busy = Boolean(army.refit);
+    addRow(
+      {
+        title: `${army.name}  ·  ${hostSize(army)}`,
+        subtitle: busy
+          ? t('ascent.army.refitBusy')
+          : already
+            ? t('ascent.army.huntAlready')
+            : t('ascent.army.hunterRow', {
+              land: standing?.name ?? '—',
+              power: Math.round(armyPower(state, army)),
+            }),
+        border: busy || already ? INK_UI.softBrush : INK_UI.gold,
+        muted: busy || already,
+        portrait: state.heroes.find((hero) => hero.id === army.generalHeroId),
+      },
+      busy || already ? undefined : () => {
+        self.events.emit('ui:ascent-army-orders', {
+          armyId: army.id,
+          orders: { kind: 'hunt', armyId: quarryId },
+        });
+        self.replaceLanePage(() => showArmyScreen(self));
+      },
+    );
+  }
+
+  finish();
+}
+
 export function showHuntTargets(self: ConquestUIScene, armyId: string): void {
   const state = self.state;
   clearLanePage(self);
 
   const { addRow, finish } = self.laneList(t('ascent.army.hunt'), t('ascent.army.huntBody', {
     n: visibleHostileHosts(state).length,
-  }));
+  }),
+    { back: () => showArmyDetail(self, armyId) },
+  );
 
   for (const quarry of visibleHostileHosts(state)) {
     const at = state.lands.find((candidate) => candidate.id === quarry.landId);
