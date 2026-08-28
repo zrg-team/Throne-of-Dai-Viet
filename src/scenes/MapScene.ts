@@ -1360,6 +1360,12 @@ export class MapScene extends Phaser.Scene {
 
     for (const source of band) source.setVisible(false);
     this.lastBakedRenderMode = this.state.mapRenderMode;
+
+    // Whatever that cost, it was not the frame rate. `create()` already holds the ladder for the
+    // first bake, but on a fixed 1500 ms guess — and the bake runs again on a season turn, a
+    // render-mode switch and a context restore, none of which `create()` covers. Saying it here
+    // covers all of them, and says it after the work rather than in the hope of outlasting it.
+    qualityLadder()?.forgetWindow(1200);
   }
 
   /** Sets terrain-vs-control source-layer visibility for the active render mode. */

@@ -154,11 +154,23 @@ export class QualityLadder {
     this.holdLeft = Math.max(this.holdLeft, ms);
   }
 
-  markSceneStart(): void {
-    this.hold(1500);
+  /**
+   * Throw away what has been measured so far and stop measuring for a moment.
+   *
+   * For work the ladder must not read as the device failing: a scene build, a bake, a context
+   * restore. Clearing the samples matters as much as the hold — frames already in the window were
+   * measured during the expensive thing, and a hold alone would leave them there to be judged the
+   * moment it lifted.
+   */
+  forgetWindow(ms: number): void {
+    this.hold(ms);
     this.stepSamples = [];
     this.gapSamples = [];
     this.windowGapMs = 0;
+  }
+
+  markSceneStart(): void {
+    this.forgetWindow(1500);
   }
 
   /** A scene that wants its own pacing cap (the front page idles at 30). */
