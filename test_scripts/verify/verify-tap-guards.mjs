@@ -157,7 +157,8 @@ const out = await page.evaluate(async () => {
     const host = state.armies.find((a) => a.kingdomId === 'dai-viet' && !a.isLevy);
     if (host) host.generalHeroId = undefined;
 
-    const readLane = async (lane) => {
+    const readLane = async (lane, expand = false) => {
+      ui.dockExpanded = expand;
       ui.openLane(lane);
       await new Promise((done) => setTimeout(done, 500));
       const texts = [];
@@ -168,45 +169,54 @@ const out = await page.evaluate(async () => {
         }
       };
       walk(ui.modalLayer, 0);
-      const head = texts.find((x) => /đang chờ|awaits you|Awaiting you/i.test(x.t));
+      // The dock is titled like a phone's bottom bar now — one title on every lane.
+      const head = texts.find((x) => /việc cần làm|actions ·/i.test(x.t));
       // Only what sits *below the heading* is the dock. The body carries rows with the same words
       // in them — a host row also says "chưa có tướng" — and counting those made the dock look
       // like it held one more item than it drew.
       const rows = texts.filter((x) => head && x.y > head.y
         && /trống|chưa có ai|Đang có trận|chưa dùng|stands empty|nobody over it|no host in the field/i.test(x.t));
-      const more = texts.some((x) => head && Math.abs(x.y - head.y) < 8 && /^(còn|\+)\s*\d/.test(x.t.trim()));
+      const more = texts.some((x) => head && Math.abs(x.y - head.y) < 8 && /^\+?\s*\d/.test(x.t.trim()));
+      // An anchor in the scrolling body, well above the sheet. Its position is the proof that
+      // raising the sheet floats it *over* the page rather than taking height off the page: a
+      // dock laid out in the footer would push this line, an overlay cannot touch it.
+      const anchor = texts.find((x) => /ổn định|stability/i.test(x.t));
       ui.closeLane();
       await new Promise((done) => setTimeout(done, 300));
       return {
         more,
         head: head ? { t: head.t, y: Math.round(head.y) } : null,
         rows: rows.map((x) => Math.round(x.y)),
+        anchor: anchor ? Math.round(anchor.y) : null,
       };
     };
 
     const half = (window.__phaserGame.scale.height ?? 844) / 2;
     const court = await readLane('court');
+    const courtOpen = await readLane('court', true);
     const army = await readLane('army');
     // The first number in the heading is the count of what is waiting; a folded heading carries a
     // second one ("+2 more"), so anchoring on the end of the string reads the wrong figure.
     const counted = (head) => Number((head?.t ?? '').match(/(\d+)/)?.[1] ?? -1);
     r.dock = {
       court, army, half: Math.round(half),
-      courtHasDock: Boolean(court.head) && court.rows.length > 0,
+      courtHasDock: Boolean(court.head) && counted(court.head) > 0,
       armyHasDock: Boolean(army.head) && army.rows.length > 0,
       // Every waiting row below the halfway line — the band a resting thumb covers.
       inReach: [...court.rows, ...army.rows].every((y) => y > half),
       // And the heading counts what is actually on screen, not what was offered before the cap.
       counts: { court: counted(court.head), army: counted(army.head) },
-      // Collapsed by default: one row on screen, and the heading says how many more there are.
-      // The court has three things waiting on a fresh run and must fold; the war has one and must
-      // not bother.
-      // The "+n more" marker is its own right-aligned chip inside the panel now, not a tail on the
-      // heading, so it is looked for beside the heading rather than inside it.
-      collapsed: court.rows.length === 1 && court.more === true,
-      warUnfolded: army.rows.length <= 1,
-      // The heading still counts everything waiting, folded or not.
+      // **Shut by default, like any bottom sheet.** The court has three things waiting on a fresh
+      // run: shut, it shows none of them — one title line and the count — and the count beside the
+      // title is the handle that raises it. A lane with a single thing waiting never folds.
+      shutByDefault: court.rows.length === 0 && court.more === true,
+      opensOnAsk: courtOpen.rows.length === 3,
+      warUnfolded: army.rows.length === 1,
+      // The title counts everything waiting whether the sheet is up or down.
       countsMatch: counted(court.head) === 3 && counted(army.head) === army.rows.length,
+      // **And raising it costs the page nothing.** Same body, same place, both ways.
+      anchors: { shut: court.anchor, open: courtOpen.anchor },
+      bodyUnmoved: court.anchor !== null && court.anchor === courtOpen.anchor,
     };
   }
 
@@ -279,6 +289,8 @@ await page.evaluate(() => {
   window.__st.isStrategyPause = true;
   const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
   ui.closeLane();
+  // The sheet is shut by default now; a player raises it before pressing a row, so this does too.
+  ui.dockExpanded = true;
   ui.openLane('court');
 });
 await page.waitForTimeout(700);
@@ -369,7 +381,9 @@ const checks = out.fatal ? { [out.fatal]: false } : {
   'so does the war lane': out.dock.armyHasDock,
   'and every waiting row is in the thumb band, not the top third': out.dock.inReach,
   'the heading still counts everything waiting': out.dock.countsMatch,
-  'but only the most urgent row is shown until asked': out.dock.collapsed,
+  'the sheet is shut until asked — no rows, just the handle': out.dock.shutByDefault,
+  'and every waiting row is there when it is raised': out.dock.opensOnAsk,
+  'raising it floats over the body instead of shrinking it': out.dock.bodyUnmoved,
   'and a lane with one thing waiting does not fold': out.dock.warUnfolded,
   'the name plate holds its size under the thumb when zoomed out': out.plate.holdsUp,
   'because the padding is screen pixels, not world units': out.plate.padHeldConstant,

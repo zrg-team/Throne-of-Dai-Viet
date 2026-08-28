@@ -94,7 +94,6 @@ export function showArmyScreen(self: ConquestUIScene): void {
     }),
     {
       dock: {
-        label: (n) => t('ascent.lane.waitingWar', { n }),
         items: waiting,
         rebuild: () => showArmyScreen(self),
       },

@@ -26,10 +26,14 @@ import type { ConquestUIScene } from '../../ConquestUIScene';
 
 /** The ghost "back" button a lane sub-page shows above its footer button. */
 const LANE_BACK_BUTTON_HEIGHT = 34;
-/** One waiting decision, as a row. Tall enough to be a comfortable target on its own. */
-const LANE_DOCK_ROW_HEIGHT = 30;
-/** The "Đang chờ · n" line above them. */
-const LANE_DOCK_LABEL_HEIGHT = 15;
+/**
+ * One waiting decision, as a row. Twenty-four points is the short side of a phone list row: still
+ * a comfortable thumb target, but small enough that three of them read as a strip rather than a
+ * page. Reported as *"each items must smaller"* — thirty took as much height as the picker below.
+ */
+const LANE_DOCK_ROW_HEIGHT = 24;
+/** The "Việc cần làm · n" title line above them, with the fold arrow at its right. */
+const LANE_DOCK_LABEL_HEIGHT = 16;
 /** Never more than three, whatever the lane offers. */
 const LANE_DOCK_MAX_ITEMS = 3;
 /**
@@ -176,7 +180,7 @@ export function laneList(self: ConquestUIScene,
      * places and behaviour.
      */
     dock?: {
-        label: (shown: number) => string;
+        label?: (shown: number) => string;
         items: Array<{ label: string; hint?: string; onPress: () => void }>;
         /** Redraws this page, so the dock can open and close without the lane knowing how. */
         rebuild?: () => void;
@@ -206,31 +210,37 @@ export function laneList(self: ConquestUIScene,
   // point of it is to be the short answer to "what now" — the lane itself is where everything else
   // lives.
   const dockItems = (laneOpts.dock?.items ?? []).slice(0, LANE_DOCK_MAX_ITEMS);
-  // **One row unless the player asks for the rest.**
+  // **A bottom sheet: shut by default, and it opens *over* the page.**
   //
-  // Reported: *the centre has too little space.* On the court page the foot already carries the
-  // doctrine picker and the close button, and three dock rows on top of those left the scrolling
-  // body a couple of lines tall — the dock had stopped being a summary and become a second page
-  // pinned over the first.
+  // Three passes got this wrong the same way — the dock was laid out as part of the footer, so
+  // every row it showed was a row taken off the body, and opening it sliced the page in half.
+  // That is a panel, not a sheet. A phone's bottom sheet is shut to a single handle, and pulling
+  // it up floats it over what is behind; the page underneath never resizes and never reflows.
   //
-  // Collapsed it shows the label and the most urgent item, which is the one the player would have
-  // acted on anyway; the label is the control that opens the rest. Two lines instead of four gives
-  // sixty points back to the body, and the thing the dock exists to say is still said.
+  // Two heights, and the difference between them is the whole fix:
+  //
+  // - `dockLayoutHeight` is what the scrolling body gives up. It is the **shut** height, always —
+  //   one title line — so the body is sized once and opening the sheet cannot take another point
+  //   from it.
+  // - `dockDrawHeight` is what is painted, which grows with the rows on show. The extra is drawn
+  //   upward over the body, with a scrim behind it, and taken back when the sheet shuts.
   const dockOpen = dockItems.length <= 1 || self.dockExpanded === true;
-  const dockShown = dockOpen ? dockItems.length : 1;
-  // Header band, the rows, and a little air inside the border — then the gap to whatever the
-  // footer stacks beneath. Written out rather than folded into one number so the panel drawn in
-  // `finish` and the space reserved here cannot drift apart.
-  const dockPanelHeight = dockItems.length > 0
-    ? LANE_DOCK_LABEL_HEIGHT + 4 + dockShown * LANE_DOCK_ROW_HEIGHT + 6
+  const dockShown = dockOpen ? dockItems.length : 0;
+  // Air on both sides: eight below, to the footer stack, and eight above so the scrolling list
+  // stops short of the sheet's edge rather than being sliced off against it.
+  const dockAir = 18;
+  const dockDrawHeight = dockItems.length > 0
+    ? LANE_DOCK_LABEL_HEIGHT + dockShown * LANE_DOCK_ROW_HEIGHT + 2 + dockAir
     : 0;
-  // Air on both sides of the panel: eight below, to the footer stack, and eight above so the
-  // scrolling list stops short of the border rather than being sliced off against it.
-  const dockHeight = dockItems.length > 0 ? dockPanelHeight + 16 : 0;
+  // A lane with a single thing waiting never folds, so for that one the sheet *is* its shut
+  // height and there is nothing to float.
+  const dockLayoutHeight = dockItems.length > 1
+    ? LANE_DOCK_LABEL_HEIGHT + 2 + dockAir
+    : dockDrawHeight;
   const footerExtra = (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
     + (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
     + (laneOpts.footerPicker ? LANE_PICKER_HEIGHT + 8 : 0)
-    + dockHeight;
+    + dockLayoutHeight;
   const tabsExtra = laneOpts.tabs ? LANE_TABS_HEIGHT + LANE_TABS_GAP : 0;
   const scroll = self.ui.scrollArea({
     x: content.x,
@@ -424,7 +434,29 @@ export function laneList(self: ConquestUIScene,
       - (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
       - (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
       - (laneOpts.footerPicker ? LANE_PICKER_HEIGHT + 8 : 0)
-      - dockHeight;
+      - dockDrawHeight;
+
+    // The scrim, only while the sheet is up over the body. It is what makes an overlay read as an
+    // overlay rather than as the page having lost half its height, and it is the second way to
+    // shut the sheet — tapping off a sheet closes it, on a phone, always.
+    if (dockDrawHeight > dockLayoutHeight) {
+      const scrim = self.add.rectangle(
+        0, 0, GAME_WIDTH, stackTop, INK_UI.brush, 0.13,
+      ).setOrigin(0, 0).setInteractive();
+      scrim.on('pointerdown', (
+        _pointer: Phaser.Input.Pointer,
+        _localX: number,
+        _localY: number,
+        event: Phaser.Types.Input.EventData,
+      ) => {
+        event.stopPropagation();
+        self.dockExpanded = false;
+        const redraw = laneOpts.dock?.rebuild;
+        if (redraw) self.replaceLanePage(redraw);
+      });
+      self.modalLayer.add(scrim);
+    }
+
     const band = self.add.graphics();
     band.fillStyle(INK_UI.parchment, 0.97);
     band.fillRect(0, stackTop, GAME_WIDTH, GAME_HEIGHT - stackTop);
@@ -442,50 +474,41 @@ export function laneList(self: ConquestUIScene,
         - (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
         - (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
         - (laneOpts.footerPicker ? LANE_PICKER_HEIGHT + 8 : 0)
-        - dockHeight + 8;
+        - dockDrawHeight + 9;
 
-      // **One panel, not a caption and a pile of outlines.**
+      // **A bottom bar, not a card: a title, a fold arrow, and small rows.**
       //
-      // Reported: *it does not look like a panel and is very messy.* Drawn as a loose red caption
-      // above separately-outlined rows, the dock had no edges of its own — it read as three
-      // unrelated things stacked against the doctrine picker below it, all shouting in the same
-      // cinnabar as the close button. Three accents at the foot of a page is no accent at all.
+      // Reported through three passes. A bordered cinnabar panel sitting on the band was still a
+      // card — the border made it a thing *on* the bar rather than part of it, and at thirty points
+      // a row it took as much height as the doctrine picker below it. A phone's bottom bar is a
+      // titled strip with tight rows and one control to fold it away; that is what this is now.
       //
-      // So: one bounded surface carries the whole thing, its border is the only red on it, and the
-      // rows inside are quiet — a label, a hairline between them, a chevron. The panel says "this
-      // is a group and it wants you"; the rows inside just say what.
+      // No border and no fill of its own. The band underneath is the surface; the title carries the
+      // colour, and a hairline under it does the separating a border was doing badly.
       const more = dockItems.length - dockShown;
-      const heading = laneOpts.dock?.label?.(dockItems.length)
-        ?? t('ascent.lane.waiting', { n: dockItems.length });
-      const panelHeight = dockPanelHeight;
-      self.modalLayer.add(self.ui.panel(
-        { x: content.x, y: dockTop, width: content.width, height: panelHeight },
-        { fill: INK_UI.cinnabar, fillAlpha: 0.06, border: INK_UI.cinnabar, borderWidth: 1.5 },
-      ));
-
-      // The header line, inside the panel: what is waiting on the left, how to see the rest on
-      // the right. Split in two so the count stays readable when the disclosure is long.
+      const title = laneOpts.dock?.label?.(dockItems.length)
+        ?? t('ascent.lane.actions', { n: dockItems.length });
       self.modalLayer.add(self.add.text(
-        content.x + 10, dockTop + LANE_DOCK_LABEL_HEIGHT / 2 + 3, heading,
+        content.x, dockTop + LANE_DOCK_LABEL_HEIGHT / 2, title.toUpperCase(),
         {
           color: cssHex(INK_UI.cinnabarDark), fontFamily: UI_FONT,
           fontSize: '9px', fontStyle: '700',
         },
       ).setOrigin(0, 0.5));
-      if (more > 0) {
+
+      if (dockItems.length > 1) {
+        // The fold arrow, and the whole title line is its target — a glyph this size is not
+        // something a thumb should have to hit exactly.
         self.modalLayer.add(self.add.text(
-          content.x + content.width - 10, dockTop + LANE_DOCK_LABEL_HEIGHT / 2 + 3,
-          t('ascent.lane.waitingMore', { n: more }),
+          content.x + content.width, dockTop + LANE_DOCK_LABEL_HEIGHT / 2,
+          dockOpen ? '▾' : `${more}  ▴`,
           {
             color: cssHex(INK_UI.cinnabar), fontFamily: UI_FONT,
-            fontSize: '9px', fontStyle: '700',
+            fontSize: dockOpen ? '13px' : '10px', fontStyle: '700',
           },
         ).setOrigin(1, 0.5));
-      }
-      if (dockItems.length > 1) {
-        // The header line is the disclosure. A row of its own would cost the line this is saving.
         const headHit = self.add.rectangle(
-          content.x, dockTop, content.width, LANE_DOCK_LABEL_HEIGHT + 6, INK_UI.brush, 0.001,
+          content.x, dockTop, content.width, LANE_DOCK_LABEL_HEIGHT, INK_UI.brush, 0.001,
         ).setOrigin(0, 0).setInteractive({ useHandCursor: true });
         headHit.on('pointerdown', (
           _pointer: Phaser.Input.Pointer,
@@ -501,35 +524,43 @@ export function laneList(self: ConquestUIScene,
         self.modalLayer.add(headHit);
       }
 
+      // The hairline the title sits on, running the width of the content — the separation a border
+      // was doing, without enclosing anything.
+      const underline = self.add.graphics();
+      underline.lineStyle(1, INK_UI.cinnabar, 0.3);
+      underline.lineBetween(
+        content.x, dockTop + LANE_DOCK_LABEL_HEIGHT,
+        content.x + content.width, dockTop + LANE_DOCK_LABEL_HEIGHT,
+      );
+      self.modalLayer.add(underline);
+
       dockItems.slice(0, dockShown).forEach((item, index) => {
-        const rowY = dockTop + LANE_DOCK_LABEL_HEIGHT + 4 + index * LANE_DOCK_ROW_HEIGHT;
-        // A hairline between rows rather than a box around each: inside a panel the separation is
-        // all the structure a row needs, and a second border only competes with the first.
+        const rowY = dockTop + LANE_DOCK_LABEL_HEIGHT + index * LANE_DOCK_ROW_HEIGHT;
+        const mid = rowY + LANE_DOCK_ROW_HEIGHT / 2;
         if (index > 0) {
           const rule = self.add.graphics();
-          rule.lineStyle(1, INK_UI.cinnabar, 0.22);
-          rule.lineBetween(content.x + 8, rowY - 1, content.x + content.width - 8, rowY - 1);
+          rule.lineStyle(1, INK_UI.cinnabar, 0.16);
+          rule.lineBetween(content.x, rowY, content.x + content.width, rowY);
           self.modalLayer.add(rule);
         }
-        const mid = rowY + (LANE_DOCK_ROW_HEIGHT - 4) / 2;
         self.modalLayer.add(self.add.text(
-          content.x + 12, mid, item.label,
+          content.x + 2, mid, item.label,
           {
             color: cssHex(INK_UI.cinnabarDark), fontFamily: UI_FONT,
-            fontSize: '11px', fontStyle: '600',
-            wordWrap: { width: content.width - 40 },
+            fontSize: '10.5px', fontStyle: '600',
+            wordWrap: { width: content.width - 26 },
           },
         ).setOrigin(0, 0.5));
         self.modalLayer.add(self.add.text(
-          content.x + content.width - 12, mid, '›',
-          { color: cssHex(INK_UI.cinnabar), fontFamily: UI_FONT, fontSize: '15px' },
+          content.x + content.width, mid, '›',
+          { color: cssHex(INK_UI.cinnabar), fontFamily: UI_FONT, fontSize: '13px' },
         ).setOrigin(1, 0.5));
 
         // The whole row, and on the press — the same as every other control in this mode. The
         // teardown that follows swallows the rest of the gesture (see `clearLanePage`), so the
         // release cannot go on to press whatever the new page puts under the finger.
         const hit = self.add.rectangle(
-          content.x, rowY, content.width, LANE_DOCK_ROW_HEIGHT - 2, INK_UI.brush, 0.001,
+          content.x, rowY, content.width, LANE_DOCK_ROW_HEIGHT, INK_UI.brush, 0.001,
         ).setOrigin(0, 0).setInteractive({ useHandCursor: true });
         hit.on('pointerdown', (
           _pointer: Phaser.Input.Pointer,
@@ -616,6 +647,9 @@ export function laneList(self: ConquestUIScene,
       ));
     }
     if (laneOpts.footer) {
+      // A page that brings its own action keeps its own footer, untouched. The sheet above is an
+      // overlay and owns nothing down here — a child page must look exactly as it did before the
+      // sheet existed, and the way out of one is the "back" it already had.
       const footer = laneOpts.footer;
       self.modalLayer.add(self.ui.button(
         {

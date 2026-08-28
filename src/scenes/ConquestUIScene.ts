@@ -719,7 +719,7 @@ export class ConquestUIScene extends Phaser.Scene {
        * note on `laneOpts.dock` in `lanes/frame` for why it is at the bottom rather than the top.
        */
       dock?: {
-        label: (shown: number) => string;
+        label?: (shown: number) => string;
         items: Array<{ label: string; hint?: string; onPress: () => void }>;
         /** Redraws this page, so the dock can open and close without the lane knowing how. */
         rebuild?: () => void;

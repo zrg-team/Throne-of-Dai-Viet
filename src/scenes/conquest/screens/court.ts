@@ -138,7 +138,6 @@ export function showCourtScreen(self: ConquestUIScene): void {
     }),
     {
       dock: {
-        label: (n) => t('ascent.lane.waitingCourt', { n }),
         items: waiting,
         rebuild: () => showCourtScreen(self),
       },
