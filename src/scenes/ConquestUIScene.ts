@@ -705,6 +705,11 @@ export class ConquestUIScene extends Phaser.Scene {
         active: number;
         onSelect: (index: number) => void;
       };
+      /**
+       * What this lane is waiting on, listed at the foot in the thumb's own band. See the full
+       * note on `laneOpts.dock` in `lanes/frame` for why it is at the bottom rather than the top.
+       */
+      dock?: { label: (shown: number) => string; items: Array<{ label: string; hint?: string; onPress: () => void }> };
       /** A ghost "back" above the footer button, for pages one step inside a lane. */
       back?: () => void;
     } = {},

@@ -26,6 +26,12 @@ import type { ConquestUIScene } from '../../ConquestUIScene';
 
 /** The ghost "back" button a lane sub-page shows above its footer button. */
 const LANE_BACK_BUTTON_HEIGHT = 34;
+/** One waiting decision, as a row. Tall enough to be a comfortable target on its own. */
+const LANE_DOCK_ROW_HEIGHT = 30;
+/** The "Đang chờ · n" line above them. */
+const LANE_DOCK_LABEL_HEIGHT = 15;
+/** Never more than three, whatever the lane offers. */
+const LANE_DOCK_MAX_ITEMS = 3;
 /**
  * A checkbox strip pinned above the footer button: box, label, and a hint under it.
  *
@@ -155,6 +161,21 @@ export function laneList(self: ConquestUIScene,
       active: number;
       onSelect: (index: number) => void;
     };
+    /**
+     * **What this lane is waiting on, listed at the foot where a thumb already is.**
+     *
+     * The lane pages read top-down and act bottom-up. A page opens on its title and its numbers —
+     * things you read, and reading needs no reach — while everything that answers the player sits
+     * in the band a one-handed grip can actually get to. Measured against the live surface (390
+     * wide, 620–1040 tall), the top third of a lane is about a thousand units from a resting
+     * thumb: putting the important decision *first* put it exactly where it could not be pressed.
+     *
+     * So the decisions waiting on the player are listed here, each one a row that goes straight to
+     * the thing that answers it, and the dock is absent entirely when nothing is waiting. Drawn
+     * above the close button and the rest of the footer stack, all of which keep their existing
+     * places and behaviour.
+     */
+    dock?: { label: (shown: number) => string; items: Array<{ label: string; hint?: string; onPress: () => void }> };
     /** A ghost "back" above the footer button, for pages one step inside a lane. */
     back?: () => void;
   } = {},
@@ -176,9 +197,17 @@ export function laneList(self: ConquestUIScene,
   // use for the between-decisions numbers, and forty-eight points is the difference between four
   // rows and five on a 620-high screen.
   const content = self.promptFrame(title, subtitle, { coverReadout: true });
+  // At most three. A dock that grows without limit is a second page pinned over the first, and the
+  // point of it is to be the short answer to "what now" — the lane itself is where everything else
+  // lives.
+  const dockItems = (laneOpts.dock?.items ?? []).slice(0, LANE_DOCK_MAX_ITEMS);
+  const dockHeight = dockItems.length > 0
+    ? LANE_DOCK_LABEL_HEIGHT + dockItems.length * LANE_DOCK_ROW_HEIGHT + 8
+    : 0;
   const footerExtra = (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
     + (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
-    + (laneOpts.footerPicker ? LANE_PICKER_HEIGHT + 8 : 0);
+    + (laneOpts.footerPicker ? LANE_PICKER_HEIGHT + 8 : 0)
+    + dockHeight;
   const tabsExtra = laneOpts.tabs ? LANE_TABS_HEIGHT + LANE_TABS_GAP : 0;
   const scroll = self.ui.scrollArea({
     x: content.x,
@@ -352,6 +381,67 @@ export function laneList(self: ConquestUIScene,
 
   const finish = () => {
     scroll.setContentHeight(Math.max(content.height - LANE_FOOTER_HEIGHT - footerExtra - tabsExtra, y));
+
+    if (dockItems.length > 0) {
+      // Top of the footer stack, so everything already down there keeps the offset it had — the
+      // close button, the back, the toggle and the picker are all measured from the bottom edge
+      // and none of them move.
+      const dockTop = GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET
+        - (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
+        - (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
+        - (laneOpts.footerPicker ? LANE_PICKER_HEIGHT + 8 : 0)
+        - dockHeight;
+
+      self.modalLayer.add(self.add.text(
+        content.x + 2, dockTop,
+        // Composed from the *shown* count, not the caller's. The list is capped at
+        // `LANE_DOCK_MAX_ITEMS`, and a heading that says four above three rows is a heading the
+        // player has to reconcile.
+        laneOpts.dock?.label?.(dockItems.length) ?? t('ascent.lane.waiting', { n: dockItems.length }),
+        {
+          color: cssHex(INK_UI.cinnabarDark), fontFamily: UI_FONT,
+          fontSize: '9px', fontStyle: '700',
+        },
+      ).setOrigin(0, 0));
+
+      dockItems.forEach((item, index) => {
+        const rowY = dockTop + LANE_DOCK_LABEL_HEIGHT + index * LANE_DOCK_ROW_HEIGHT;
+        self.modalLayer.add(self.ui.panel(
+          { x: content.x, y: rowY, width: content.width, height: LANE_DOCK_ROW_HEIGHT - 3 },
+          { fill: INK_UI.parchment, fillAlpha: 0.5, border: INK_UI.cinnabar, borderWidth: 1.4 },
+        ));
+        self.modalLayer.add(self.add.text(
+          content.x + 9, rowY + (LANE_DOCK_ROW_HEIGHT - 3) / 2, item.label,
+          {
+            color: cssHex(INK_UI.cinnabarDark), fontFamily: UI_FONT,
+            fontSize: '11px', fontStyle: '600',
+            wordWrap: { width: content.width - 32 },
+          },
+        ).setOrigin(0, 0.5));
+        self.modalLayer.add(self.add.text(
+          content.x + content.width - 10, rowY + (LANE_DOCK_ROW_HEIGHT - 3) / 2, '›',
+          { color: cssHex(INK_UI.cinnabar), fontFamily: UI_FONT, fontSize: '15px' },
+        ).setOrigin(1, 0.5));
+
+        // The whole row, and on the press — the same as every other control in this mode. The
+        // teardown that follows swallows the rest of the gesture (see `clearLanePage`), so the
+        // release cannot go on to press whatever the new page puts under the finger.
+        const hit = self.add.rectangle(
+          content.x, rowY, content.width, LANE_DOCK_ROW_HEIGHT - 3, INK_UI.brush, 0.001,
+        ).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        hit.on('pointerdown', (
+          _pointer: Phaser.Input.Pointer,
+          _localX: number,
+          _localY: number,
+          event: Phaser.Types.Input.EventData,
+        ) => {
+          event.stopPropagation();
+          item.onPress();
+        });
+        self.modalLayer.add(hit);
+      });
+    }
+
     if (laneOpts.footerPicker) {
       const cfg = laneOpts.footerPicker;
       // Stacked above whatever else the footer band holds: close at the bottom, then back,

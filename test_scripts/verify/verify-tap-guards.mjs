@@ -31,6 +31,7 @@ const out = await page.evaluate(async () => {
   // Boot the mode for real: the guard reads live scene state, so a synthetic scene would prove
   // nothing about the thing that was broken.
   const state = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
+  window.__st = state;
   game.scene.stop('MenuScene');
   game.scene.start('ConquestScene', { state });
   await new Promise((done) => setTimeout(done, 1200));
@@ -145,7 +146,59 @@ const out = await page.evaluate(async () => {
     };
   }
 
-  // ── 6. The name plate is the same size under the thumb at any zoom ───────
+  // ── 6. The lane dock: what is waiting, where a thumb can reach it ────────
+  //
+  // The lanes read top-down and act bottom-up. The top of a 620-1040 surface is where a one-handed
+  // grip cannot go without shifting, so what the lane is waiting on is listed at the *foot* — and
+  // this asserts it is genuinely down there rather than merely present.
+  {
+    const state = window.__st ?? map.state;
+    // Give the war something to wait on, so the dock has a reason to exist.
+    const host = state.armies.find((a) => a.kingdomId === 'dai-viet' && !a.isLevy);
+    if (host) host.generalHeroId = undefined;
+
+    const readLane = async (lane) => {
+      ui.openLane(lane);
+      await new Promise((done) => setTimeout(done, 500));
+      const texts = [];
+      const walk = (c, d) => {
+        for (const o of c.list ?? []) {
+          if (o.type === 'Text') texts.push({ t: o.text, y: o.getWorldTransformMatrix().ty });
+          if (o.list && d < 5) walk(o, d + 1);
+        }
+      };
+      walk(ui.modalLayer, 0);
+      const head = texts.find((x) => /đang chờ|awaits you|Awaiting you/i.test(x.t));
+      // Only what sits *below the heading* is the dock. The body carries rows with the same words
+      // in them — a host row also says "chưa có tướng" — and counting those made the dock look
+      // like it held one more item than it drew.
+      const rows = texts.filter((x) => head && x.y > head.y
+        && /trống|chưa có ai|Đang có trận|chưa dùng|stands empty|nobody over it|no host in the field/i.test(x.t));
+      ui.closeLane();
+      await new Promise((done) => setTimeout(done, 300));
+      return {
+        head: head ? { t: head.t, y: Math.round(head.y) } : null,
+        rows: rows.map((x) => Math.round(x.y)),
+      };
+    };
+
+    const half = (window.__phaserGame.scale.height ?? 844) / 2;
+    const court = await readLane('court');
+    const army = await readLane('army');
+    const counted = (head) => Number((head?.t ?? '').match(/(\d+)\s*$/)?.[1] ?? -1);
+    r.dock = {
+      court, army, half: Math.round(half),
+      courtHasDock: Boolean(court.head) && court.rows.length > 0,
+      armyHasDock: Boolean(army.head) && army.rows.length > 0,
+      // Every waiting row below the halfway line — the band a resting thumb covers.
+      inReach: [...court.rows, ...army.rows].every((y) => y > half),
+      // And the heading counts what is actually on screen, not what was offered before the cap.
+      counts: { court: counted(court.head), army: counted(army.head) },
+      countsMatch: counted(court.head) === court.rows.length && counted(army.head) === army.rows.length,
+    };
+  }
+
+  // ── 7. The name plate is the same size under the thumb at any zoom ───────
   const landId = [...map.landLabels.keys()].find((id) => map.hasVisibleLabel(id));
   if (landId) {
     // `mapZoom` is a getter over `cameras.main.zoom`; assigning to it is a silent no-op, which is
@@ -185,6 +238,10 @@ const checks = out.fatal ? { [out.fatal]: false } : {
   'the bottom bar is pressable with the map showing': out.chrome.liveWithMap,
   'and every one of its hit areas is DEAD under a sheet': out.chrome.deadUnderSheet,
   'and live again once the sheet closes': out.chrome.liveAgainAfter,
+  'the court lane lists what it is waiting on': out.dock.courtHasDock,
+  'so does the war lane': out.dock.armyHasDock,
+  'and every waiting row is in the thumb band, not the top third': out.dock.inReach,
+  'and the count says what is actually on screen': out.dock.countsMatch,
   'the name plate holds its size under the thumb when zoomed out': out.plate.holdsUp,
   'because the padding is screen pixels, not world units': out.plate.padHeldConstant,
   'no console errors': errors.length === 0,

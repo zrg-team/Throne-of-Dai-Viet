@@ -57,6 +57,35 @@ export function showArmyScreen(self: ConquestUIScene): void {
   const state = self.state;
   const ascent = state.ascent;
   const mine = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID);
+  // What the war is waiting on, most urgent first.
+  //
+  // A fight already on the ground outranks everything: it is happening whether or not the player
+  // looks, and it is the one item here with a clock on it. A host standing without a general is
+  // next — it fights at a penalty every round until somebody is put over it — and raising one at
+  // all is last, because that is a plan rather than a debt. See the `dock` note in `lanes/frame`.
+  const waiting: Array<{ label: string; onPress: () => void }> = [];
+  const live = liveBattles(state).filter((battle) => !battle.over);
+  if (live.length > 0) {
+    const land = state.lands.find((candidate) => candidate.id === live[0].landId);
+    waiting.push({
+      label: t('ascent.lane.waitBattle', { land: land?.name ?? '' }),
+      onPress: () => self.replaceLanePage(() => self.showBattle()),
+    });
+  }
+  const leaderless = mine.find((army) => !army.isLevy && !army.patron && !army.generalHeroId);
+  if (leaderless) {
+    waiting.push({
+      label: t('ascent.lane.waitGeneral', { host: leaderless.name }),
+      onPress: () => showArmyDetail(self, leaderless.id),
+    });
+  }
+  if (mine.filter((army) => !army.isLevy && !army.patron).length === 0 && findFreeCommander(state)) {
+    waiting.push({
+      label: t('ascent.lane.waitHost'),
+      onPress: () => self.showRaiseHostForm(),
+    });
+  }
+
   const { addRow, addHeading, addNote, addWidget, finish } = self.laneList(
     t('action.army'),
     t('ascent.screen.armyBody', {
@@ -64,6 +93,7 @@ export function showArmyScreen(self: ConquestUIScene): void {
       threat: Math.round(ascent?.threat ?? 0),
     }),
     {
+      dock: { label: (n) => t('ascent.lane.waitingWar', { n }), items: waiting },
       footerToggle: {
         label: t('ascent.sys.musterAsked'),
         hint: t((ascent?.autoMusterSilently ?? false)

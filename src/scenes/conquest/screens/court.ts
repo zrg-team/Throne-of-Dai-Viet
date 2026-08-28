@@ -105,6 +105,30 @@ export function showCourtScreen(self: ConquestUIScene): void {
   const state = self.state;
   const mandate = state.mandate;
   const doctrine = state.ascent?.doctrine;
+  // What the throne is waiting on, in the order it costs the realm most to ignore.
+  //
+  // An empty seat is first because it is the only one of these that is losing the realm something
+  // every single season it stands; an unspent edict point keeps until it is spent. Each row goes
+  // straight to the page that answers it — see the `dock` note in `lanes/frame`.
+  const waiting: Array<{ label: string; onPress: () => void }> = [];
+  for (const seat of ALL_COURT_POSITIONS) {
+    if (!state.court.unlockedSeats.includes(seat)) continue;
+    if (state.court.seats[seat]) continue;
+    waiting.push({
+      label: t('ascent.lane.waitSeat', { seat: getCourtPositionLabel(seat) }),
+      onPress: () => showSeatPicker(self, seat),
+    });
+  }
+  if ((state.mandate?.edictPoints ?? 0) > 0) {
+    waiting.push({
+      label: t('ascent.lane.waitEdict', { n: state.mandate?.edictPoints ?? 0 }),
+      onPress: () => {
+        self.closeLane();
+        self.events.emit('ui:ascent-law');
+      },
+    });
+  }
+
   const { addRow, addHeading, addNote, addWidget, finish } = self.laneList(
     t('action.court'),
     t('ascent.lane.courtBody', {
@@ -113,6 +137,7 @@ export function showCourtScreen(self: ConquestUIScene): void {
       points: mandate?.edictPoints ?? 0,
     }),
     {
+      dock: { label: (n) => t('ascent.lane.waitingCourt', { n }), items: waiting },
       // The realm's standing course, in the same footer slot the other lanes keep their
       // standing setting. The era card still asks on its own clock; this is the king turning
       // to the ministers whenever he is already reading their page — same `adoptDoctrine`
