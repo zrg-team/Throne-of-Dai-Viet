@@ -30,8 +30,13 @@ const press = (source) => page.evaluate((pattern) => {
   for (const child of scene.children.list) {
     const label = child.list?.find?.((k) => k.type === 'Text' && re.test(k.text));
     if (label) {
-      child.list.find((k) => k.type === 'Rectangle')
-        ?.emit('pointerup', { id: 3, downTime: 0 }, 0, 0, { stopPropagation() {} });
+        // Both halves of the press. `InkUI.button` acts on `pointerdown` now — waiting for the
+        // release read as lag on a phone — so a synthetic `pointerup` alone activates nothing it
+        // draws. The Copilot's own controls still answer the release, which is why this file
+        // could dismiss a tour and then fail every check that needed a menu button.
+      const hit = child.list.find((k) => k.type === 'Rectangle');
+      hit?.emit('pointerdown', { id: 3, downTime: 0 }, 0, 0, { stopPropagation() {} });
+      hit?.emit('pointerup', { id: 3, downTime: 0 }, 0, 0, { stopPropagation() {} });
       return true;
     }
   }
@@ -48,8 +53,17 @@ await page.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'
 await page.waitForTimeout(1400);
 
 // Get the front page's tour out of the way the way a player would.
-for (let card = 0; card < 6; card += 1) {
-  if (!(await press('^(Next|Close)$'))) break;
+// Dismissed by its own exit, never by walking to the end.
+//
+// Two traps here, and this file fell into both. The last card of the front tour is labelled
+// "Start playing", not "Next" — so a Next-or-Close matcher walked five cards and stalled on the
+// sixth with the tour still up. Adding "Start playing" to the matcher is worse: that button
+// *starts a run*, which takes `MenuScene` off the screen entirely and left every check below
+// reading an empty scene. Skip and Close leave the page where it is, which is what this file is
+// here to look at.
+for (let card = 0; card < 8; card += 1) {
+  if (await press('^(Skip|Close)$')) { await page.waitForTimeout(260); break; }
+  if (!(await press('^Next$'))) break;
   await page.waitForTimeout(260);
 }
 check('the front-page tour can be dismissed',
@@ -58,20 +72,39 @@ check('the front-page tour can be dismissed',
 check('Classic Modes opens', await press('Classic Modes'));
 await page.waitForTimeout(900);
 
-// ── The order of the three cards ────────────────────────────────────────────
+// ── What the page offers ────────────────────────────────────────────────────
+//
+// One card, not three. Campaign and Throne of Empires were deliberately taken off this page —
+// `MenuScene` keeps the list and the reasoning — leaving the Skirmish, which is the only place the
+// battle system can be learned without a run around it. This file asserted the old three-card
+// shape and failed on a change that was intended, which is a test measuring history rather than
+// the design.
+
 const cards = await page.evaluate(() => {
   const scene = window.__phaserGame.scene.getScene('MenuScene');
   const found = [];
+  // Recursive: `InkUI.card` nests its title inside an inner container, so a one-level scan of the
+  // card's own children finds nothing and reads as "the page offers no modes".
+  const titleIn = (node) => {
+    for (const kid of node.list ?? []) {
+      if (kid.type === 'Text' && /Skirmish|Throne of Empires|Start Campaign|Giao Tranh/.test(kid.text)) {
+        return kid.text;
+      }
+      const deeper = kid.list ? titleIn(kid) : undefined;
+      if (deeper) return deeper;
+    }
+    return undefined;
+  };
   for (const child of scene.children.list) {
-    const label = child.list?.find?.((k) => k.type === 'Text'
-      && /Skirmish|Throne of Empires|Start Campaign|Giao Tranh/.test(k.text));
-    if (label) found.push({ text: label.text, y: child.y });
+    const text = child.list ? titleIn(child) : undefined;
+    if (text) found.push({ text, y: child.y });
   }
   return found.sort((a, b) => a.y - b.y).map((c) => c.text);
 });
-check('the page still offers all three modes', cards.length === 3, JSON.stringify(cards));
-check('Skirmish is the first of them', /Skirmish|Giao Tranh/.test(cards[0] ?? ''),
+check('the page offers the Skirmish', cards.length >= 1, JSON.stringify(cards));
+check('and the Skirmish leads it', /Skirmish|Giao Tranh/.test(cards[0] ?? ''),
   JSON.stringify(cards));
+check('and nothing else is offered beside it', cards.length === 1, JSON.stringify(cards));
 check('and it is no longer called The Field',
   !cards.some((text) => /The Field/.test(text)), JSON.stringify(cards));
 

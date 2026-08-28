@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH } from '../../game/constants';
 import type { GameEvent, GameState } from '../../state/types';
-import { markControlBorn, pressPredatesControl } from '../inputGeneration';
+import { markControlBorn, releaseNotOwnedBy, setContainerInputEnabled } from '../inputGeneration';
 import { INK_UI } from '../InkUI';
 import { PIGMENT } from '../ink/palette';
 import { UI_FONT } from '../fonts';
@@ -90,7 +90,7 @@ export class WhisperLine {
       event: Phaser.Types.Input.EventData,
     ) => {
       event.stopPropagation();
-      if (pressPredatesControl(this.hit)) return;
+      if (releaseNotOwnedBy(this.hit)) return;
       const ref = this.showing?.ref;
       if (!ref) return;
       // Taken down on the way out. Coming back from the story page to a line still counting down
@@ -115,6 +115,9 @@ export class WhisperLine {
     // Deliberately not cleared: a whisper that arrived while a card was up is still worth saying
     // once the card is answered. It waits rather than being lost.
     this.root.setVisible(visible);
+    // Hiding a Phaser container leaves its hit areas live — see `setContainerInputEnabled`.
+    setContainerInputEnabled(this.root, visible);
+    if (this.hit?.input) this.hit.input.enabled = visible;
   }
 
   /**

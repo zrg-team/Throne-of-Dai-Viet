@@ -25,7 +25,9 @@ import { refreshAscentLaneState } from '../../systems/ascent/ConquestSystem';
 import { countOpenDoors } from '../../systems/story/StorySystem';
 import { contestedFronts, realmUnderAttack } from '../../systems/ascent/battleReport';
 import { INK_UI, InkUI } from '../../ui/InkUI';
-import { bumpInputGeneration } from '../../ui/inputGeneration';
+import {
+  bumpInputGeneration, forgetSheet, registerSheet, swallowRestOfPress,
+} from '../../ui/inputGeneration';
 import { playWaveBanner } from '../../ui/ascent/waveBanner';
 import { AscentHud } from '../../ui/ascent/AscentHud';
 import { AdvisorStrip } from '../../ui/ascent/AdvisorStrip';
@@ -115,6 +117,8 @@ export function create(self: ConquestUIScene): void {
   // may survive the scene that owns them.
   self.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
     self.stopBattleClock();
+    // A dead scene must not answer the input guard for a live one.
+    forgetSheet();
     window.__hudTapBounds = [];
     self.advisor.destroy();
     self.whispers.destroy();
@@ -132,6 +136,14 @@ export function create(self: ConquestUIScene): void {
   });
 
   self.modalLayer = self.add.container(0, 0).setDepth(500);
+  // How the input guard sees a sheet: whether one is up, and which container holds its controls.
+  // Everything outside that container refuses the release of a press that began while it was up —
+  // which is the whole of *"when in the modal must not click anything behind"*. See
+  // `ui/inputGeneration`.
+  registerSheet(
+    () => self.openPromptKey !== '' && self.modalLayer.length > 0,
+    self.modalLayer,
+  );
 
   self.events.on('state-changed', self.onStateChanged);
   refresh(self);
@@ -626,6 +638,7 @@ export function setMapVisible(self: ConquestUIScene, visible: boolean): void {
 }
 
 export function beginOverlay(self: ConquestUIScene, key: string): void {
+  swallowRestOfPress(self);
   // Everything built from here belongs to a newer interface than any press already in flight.
   //
   // This is the whole of the *"click Close, also click the menu behind"* fix. A sheet opens and
@@ -664,7 +677,10 @@ function releaseOverlay(self: ConquestUIScene): void {
 
 /** Closes a chrome overlay (Codex / menu / quit) without touching the prompt queue. */
 export function closeOverlay(self: ConquestUIScene): void {
-  // Same boundary on the way out, and this is the direction the report is about.
+  // The direction the report is about: the press that closed this sheet must not go on to press
+  // the bar it has just revealed.
+  swallowRestOfPress(self);
+  // Same boundary on the way out.
   bumpInputGeneration();
   // The close rebuilds the map chrome in one frame — held for the same reason as the open.
   qualityLadder()?.hold(800);

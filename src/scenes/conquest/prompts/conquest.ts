@@ -12,7 +12,8 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, PLAYER_KINGDOM_ID } from '../../../game/constants';
 import { powerCardView, skipRefundAmount } from '../../../systems/ascent/PowerDraftSystem';
-import { methodActorLine, methodHasActor } from '../../../systems/ascent/ConquestSystem';
+import { buildAllConquestTargets, methodActorLine, methodHasActor }
+  from '../../../systems/ascent/ConquestSystem';
 import { buildHeroPickerRows, buildHostPickerRows } from '../../../ui/heroPickerRows';
 import { INK_UI, type UIBounds } from '../../../ui/InkUI';
 import { iconForOption } from '../../../ui/CardIcons';
@@ -20,6 +21,7 @@ import { staggerIn } from '../../../ui/animations';
 import { formatResourceList, heroName, t } from '../../../i18n';
 import type { AscentPrompt, ConquestMethodOption, ConquestTarget } from '../../../state/types';
 import { PROMPT_FOOTER_HEIGHT, RARITY_COLOR } from '../constants';
+import { promptFoot } from './frame';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
 
@@ -140,12 +142,9 @@ export function showConquerTarget(self: ConquestUIScene, prompt: Extract<AscentP
   staggerIn(self, cards);
   finish(prompt.targets.length * (rowHeight + 10));
 
-  self.modalLayer.add(self.ui.button(
-    { x: content.x, y: GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8, width: content.width, height: 40 },
-    t('ascent.march.hold'),
-    () => self.choose('hold'),
-    { variant: 'ghost', fontSize: '12px' },
-  ));
+  promptFoot(self, content, {
+    close: { label: t('ascent.march.hold'), onTap: () => self.choose('hold') },
+  });
 }
 
 /**
@@ -231,12 +230,21 @@ export function showConquerMethod(self: ConquestUIScene, target: ConquestTarget,
   staggerIn(self, cards);
   finish(used);
 
-  self.modalLayer.add(self.ui.button(
-    { x: content.x, y: GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8, width: content.width, height: 40 },
-    t('ascent.conquer.back'),
-    () => self.choose('back'),
-    { variant: 'ghost', fontSize: '12px' },
-  ));
+  promptFoot(self, content, {
+    back: {
+      label: t('ascent.conquer.back'),
+      onTap: () => {
+        // Genuinely back to the list, rebuilt against the world as it stands. The button was
+        // labelled "choose another province" and did not do that: it dismissed the whole sheet.
+        self.state.pendingAscentPrompt = {
+          kind: 'conquer-target',
+          targets: buildAllConquestTargets(self.state),
+        };
+        self.refresh();
+      },
+    },
+    close: { label: t('ascent.lane.close'), onTap: () => self.choose('back') },
+  });
 }
 
 /** Who carries a method out: an envoy for diplomacy, a host for the military methods. */

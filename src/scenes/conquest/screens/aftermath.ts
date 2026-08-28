@@ -168,7 +168,15 @@ function showAftermathScreen(self: ConquestUIScene): void {
     record.rounds > 0
       ? t('ascent.aftermath.subtitle', { land: record.landName, rounds: record.rounds })
       : t('ascent.aftermath.subtitleDispatch', { land: record.landName }),
-    { footer: { label: t('ascent.aftermath.continue'), onTap: () => dismissAftermath(self) } },
+    {
+      footer: {
+        label: t('ascent.aftermath.continue'),
+        onTap: () => dismissAftermath(self),
+        // Continuing *is* the dismissal here — it clears `pendingAftermath`. A plain close beside
+        // it would leave the report pending and raise this screen again.
+        soleAction: true,
+      },
+    },
   );
 
   // The verdict: the province, named, and what became of it. The one thing the player opened

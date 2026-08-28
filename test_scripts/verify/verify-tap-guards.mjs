@@ -24,12 +24,14 @@ await page.waitForFunction(
 
 const out = await page.evaluate(async () => {
   const { createAscentGameState } = await import('/src/state/GameState.ts');
+  const { renderActionBar } = await import('/src/scenes/conquest/shell.ts');
   const game = window.__phaserGame;
   const r = {};
 
   // Boot the mode for real: the guard reads live scene state, so a synthetic scene would prove
   // nothing about the thing that was broken.
   const state = createAscentGameState({ seaSides: 1, difficulty: 'normal' });
+  window.__st = state;
   game.scene.stop('MenuScene');
   game.scene.start('ConquestScene', { state });
   await new Promise((done) => setTimeout(done, 1200));
@@ -108,35 +110,126 @@ const out = await page.evaluate(async () => {
   // same press is then delivered to whatever the close has just built underneath, and rows, lanes
   // and strips all act on the release. Nothing about it is a hit-test fault — at the moment of
   // the release the sheet is gone.
-  const IG = await import('/src/ui/inputGeneration.ts');
+  // ── 5. Chrome hidden under a sheet is switched off, not merely invisible ─
+  //
+  // The mechanical root cause of *"click Close in the modal, also click the bottom bar"*. Phaser 4
+  // sets a container child's `displayList` to null and `willRender` never consults
+  // `parentContainer`, so `setVisible(false)` on a container hides it and leaves every hit area
+  // live. Measured before the fix, with a lane open: the action bar reported `visible: false` and
+  // **8 of 8 hit areas still enabled**, directly under where the sheet draws its footer.
   {
-    const older = ui.add.rectangle(0, 0, 4, 4, 0, 0);
-    IG.markControlBorn(older);          // existed before the press
-    IG.notePressStarted();              // the finger goes down
-    IG.bumpInputGeneration();           // the sheet closes and rebuilds underneath
-    const newer = ui.add.rectangle(0, 0, 4, 4, 0, 0);
-    IG.markControlBorn(newer);          // built under a finger already down
-    r.generation = {
-      olderStillActs: IG.pressPredatesControl(older) === false,
-      newerRefuses: IG.pressPredatesControl(newer) === true,
-      // A fresh press afterwards reaches the new control normally.
-      newerActsOnItsOwnPress: (() => { IG.notePressStarted(); return IG.pressPredatesControl(newer) === false; })(),
+    const liveIn = (root) => {
+      let live = 0; let total = 0;
+      const walk = (c) => {
+        for (const o of c.list ?? []) {
+          if (o.input) { total += 1; if (o.input.enabled) live += 1; }
+          if (o.list) walk(o);
+        }
+      };
+      walk(root);
+      return { live, total };
     };
-    older.destroy(); newer.destroy();
-  }
-
-  // ...and the boundary is actually stamped where sheets open and close.
-  {
-    const before = IG.currentGeneration();
-    ui.beginOverlay('probe-gen');
-    const afterOpen = IG.currentGeneration();
+    const openMap = liveIn(ui.actionBar);
+    ui.beginOverlay('probe-chrome');
+    ui.modalLayer.add(ui.add.rectangle(0, 0, 10, 10, 0x000000, 0));
+    renderActionBar(ui);
+    const underSheet = liveIn(ui.actionBar);
     ui.closeOverlay();
-    const afterClose = IG.currentGeneration();
-    r.wiring = { bumpsOnOpen: afterOpen > before, bumpsOnClose: afterClose > afterOpen };
-    await new Promise((done) => setTimeout(done, 150));
+    await new Promise((done) => setTimeout(done, 200));
+    renderActionBar(ui);
+    const afterwards = liveIn(ui.actionBar);
+    r.chrome = {
+      openMap, underSheet, afterwards,
+      liveWithMap: openMap.total > 0 && openMap.live === openMap.total,
+      deadUnderSheet: underSheet.live === 0,
+      liveAgainAfter: afterwards.live === afterwards.total,
+    };
   }
 
-  // ── 5. The name plate is the same size under the thumb at any zoom ───────
+  // ── 6. The lane dock: what is waiting, where a thumb can reach it ────────
+  //
+  // The lanes read top-down and act bottom-up. The top of a 620-1040 surface is where a one-handed
+  // grip cannot go without shifting, so what the lane is waiting on is listed at the *foot* — and
+  // this asserts it is genuinely down there rather than merely present.
+  {
+    const state = window.__st ?? map.state;
+    // Give the war something to wait on, so the dock has a reason to exist.
+    const host = state.armies.find((a) => a.kingdomId === 'dai-viet' && !a.isLevy);
+    if (host) host.generalHeroId = undefined;
+
+    const readLane = async (lane, expand = false) => {
+      ui.dockExpanded = expand;
+      ui.openLane(lane);
+      await new Promise((done) => setTimeout(done, 500));
+      const texts = [];
+      const walk = (c, d) => {
+        for (const o of c.list ?? []) {
+          if (o.type === 'Text') texts.push({ t: o.text, y: o.getWorldTransformMatrix().ty });
+          if (o.list && d < 5) walk(o, d + 1);
+        }
+      };
+      walk(ui.modalLayer, 0);
+      // The dock is titled like a phone's bottom bar now — one title on every lane.
+      const head = texts.find((x) => /việc cần làm|actions ·/i.test(x.t));
+      // Only what sits *below the heading* is the dock. The body carries rows with the same words
+      // in them — a host row also says "chưa có tướng" — and counting those made the dock look
+      // like it held one more item than it drew.
+      const rows = texts.filter((x) => head && x.y > head.y
+        && /trống|chưa có ai|Đang có trận|chưa dùng|stands empty|nobody over it|no host in the field/i.test(x.t));
+      const more = texts.some((x) => head && Math.abs(x.y - head.y) < 8 && /^\+?\s*\d/.test(x.t.trim()));
+      // An anchor in the scrolling body, well above the sheet. Its position is the proof that
+      // raising the sheet floats it *over* the page rather than taking height off the page: a
+      // dock laid out in the footer would push this line, an overlay cannot touch it.
+      const anchor = texts.find((x) => /ổn định|stability/i.test(x.t));
+      // The lane's own selects are the sheet's contents too — the picker's heading and the
+      // checkbox's label. Folded, neither may be on screen: a sheet that folds its list but
+      // keeps its picker is the thing this was reported for four times.
+      const selects = texts.some((x) => head && x.y > head.y
+        && /đường lối trị quốc|lập quân|standing course|muster/i.test(x.t));
+      ui.closeLane();
+      await new Promise((done) => setTimeout(done, 300));
+      return {
+        more,
+        head: head ? { t: head.t, y: Math.round(head.y) } : null,
+        rows: rows.map((x) => Math.round(x.y)),
+        anchor: anchor ? Math.round(anchor.y) : null,
+        selects,
+      };
+    };
+
+    const half = (window.__phaserGame.scale.height ?? 844) / 2;
+    const court = await readLane('court');
+    const courtOpen = await readLane('court', true);
+    const army = await readLane('army');
+    const armyOpen = await readLane('army', true);
+    // The first number in the heading is the count of what is waiting; a folded heading carries a
+    // second one ("+2 more"), so anchoring on the end of the string reads the wrong figure.
+    const counted = (head) => Number((head?.t ?? '').match(/(\d+)/)?.[1] ?? -1);
+    r.dock = {
+      court, army, half: Math.round(half),
+      courtHasDock: Boolean(court.head) && counted(court.head) > 0,
+      armyHasDock: Boolean(army.head) && counted(army.head) > 0,
+      // Every waiting row below the halfway line — the band a resting thumb covers.
+      inReach: [...courtOpen.rows, ...armyOpen.rows].every((y) => y > half),
+      // And the heading counts what is actually on screen, not what was offered before the cap.
+      counts: { court: counted(court.head), army: counted(army.head) },
+      // **Shut by default, like any bottom sheet.** Folded, a lane shows its header and nothing
+      // else: no rows, and — the part four rounds of this kept getting wrong — none of the lane's
+      // own selects either. The whole foot of the page is one panel that folds as a unit.
+      shutByDefault: court.rows.length === 0 && army.rows.length === 0,
+      selectsFold: court.selects === false && army.selects === false,
+      opensOnAsk: courtOpen.rows.length === 3 && armyOpen.rows.length === 1,
+      selectsOpen: courtOpen.selects === true && armyOpen.selects === true,
+      // The header counts everything waiting whether the sheet is up or down.
+      countsMatch: counted(court.head) === 3 && counted(army.head) === 1
+        && counted(courtOpen.head) === 3,
+      // **And raising it costs the page nothing.** Same body, same place, both ways.
+      anchors: { shut: court.anchor, open: courtOpen.anchor },
+      bodyUnmoved: court.anchor !== null && court.anchor === courtOpen.anchor,
+    };
+  }
+
+  // ── 7. The name plate is the same size under the thumb at any zoom ───────
   const landId = [...map.landLabels.keys()].find((id) => map.hasVisibleLabel(id));
   if (landId) {
     // `mapZoom` is a getter over `cameras.main.zoom`; assigning to it is a silent no-op, which is
@@ -165,6 +258,123 @@ const out = await page.evaluate(async () => {
   return r;
 });
 
+/**
+ * One press, one outcome — driven with real mouse input through a real three-page flow.
+ *
+ * Everything above measures a mechanism. This measures the thing the player reported: a press on
+ * one page acting on the page it opens. The flow is the court dock -> the seat picker -> the
+ * confirm sheet, which is three teardowns in a row and the shape every report of this arrived in.
+ *
+ * The failure it guards is specific and was live until the release was deferred: `Xác nhận` acts on
+ * `pointerdown`, the confirm seats the minister and turns the page, and the release of that same
+ * press then landed on whatever the parent page had put underneath — seating somebody else, or
+ * moving the minister already seated.
+ */
+const tap = async (y, hold = 90) => {
+  await page.mouse.move(195, y);
+  await page.mouse.down();
+  await page.waitForTimeout(hold);
+  await page.mouse.up();
+  await page.waitForTimeout(700);
+};
+const laneTexts = () => page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  const found = [];
+  const walk = (c, d) => {
+    for (const o of c.list ?? []) {
+      if (o.type === 'Text') found.push({ t: o.text, y: Math.round(o.getWorldTransformMatrix().ty) });
+      if (o.list && d < 5) walk(o, d + 1);
+    }
+  };
+  walk(ui.modalLayer, 0);
+  return found;
+});
+const seatCount = () => page.evaluate(() => Object.keys(window.__st.court.seats).length);
+
+// The world stops, or the court autopilot seats a minister behind the probe's back and the count
+// moves for a reason that has nothing to do with the press being measured.
+await page.evaluate(() => {
+  window.__st.isPaused = true;
+  window.__st.isStrategyPause = true;
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  ui.closeLane();
+  // The sheet is shut by default now; a player raises it before pressing a row, so this does too.
+  ui.dockExpanded = true;
+  ui.openLane('court');
+});
+await page.waitForTimeout(700);
+
+const flow = { ok: false, reason: 'not run' };
+const dockRow = (await laneTexts()).find((x) => /đang trống|stands empty/i.test(x.t));
+if (!dockRow) {
+  flow.reason = 'no empty seat to work with';
+} else {
+  const before = await seatCount();
+  await tap(dockRow.y);
+  const picked = (await laneTexts()).find((x) => x.y > 140 && /·/.test(x.t) && !/Chạm|Tap /.test(x.t));
+  if (!picked) {
+    flow.reason = 'the picker offered nobody';
+  } else {
+    await tap(picked.y);
+    const confirm = (await laneTexts()).find((x) => /^(Xác nhận|Confirm)$/.test(x.t));
+    if (!confirm) {
+      flow.reason = 'no confirm button on the sheet';
+    } else {
+      const midway = await seatCount();
+      await tap(confirm.y);
+      const after = await seatCount();
+      const key = await page.evaluate(() => window.__phaserGame.scene.getScene('ConquestUIScene').openPromptKey);
+      flow.ok = midway === before && after === before + 1 && key === 'lane:court';
+      flow.reason = JSON.stringify({ before, midway, after, key });
+    }
+  }
+}
+console.log(`${flow.ok ? 'PASS' : 'FAIL'}  one press seats exactly one minister and stops there  — ${flow.reason}`);
+
+// And the mechanism underneath it, measured rather than inferred.
+//
+// Phaser does not act on DOM input as it arrives: `InputManager` queues the event and drains the
+// queue inside the game step. So a swallow that re-enables input *on* the `pointerup` — in the
+// capture phase, earlier still — hands the release straight back to the game and swallows nothing.
+// This presses a control that tears the page down, then samples `input.enabled` at the instant of
+// the release and a frame later, which is exactly the window that was leaking.
+const swallow = { during: null, atRelease: null, nextFrame: null, after: null, reason: 'not run' };
+await page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  ui.closeLane(); ui.openLane('court');
+});
+await page.waitForTimeout(700);
+const seatRow = (await laneTexts()).find((x) => /đang trống|stands empty/i.test(x.t));
+if (!seatRow) {
+  swallow.reason = 'no empty seat to work with';
+} else {
+  await page.evaluate(() => { window.__samples = []; });
+  await page.mouse.move(195, seatRow.y);
+  await page.mouse.down();
+  await page.waitForTimeout(120);
+  swallow.during = await page.evaluate(() => window.__phaserGame.scene.getScene('ConquestUIScene').input.enabled);
+  await page.evaluate(() => {
+    const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+    window.addEventListener('pointerup', () => window.__samples.push(ui.input.enabled), true);
+    requestAnimationFrame(() => window.__samples.push(ui.input.enabled));
+  });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  const samples = await page.evaluate(() => window.__samples);
+  // Both samples: at the release itself, and one animation frame later. The second is the one
+  // that matters — a frame later is when Phaser drains its input queue, so input being back on by
+  // then means the release was delivered after all. Measured with the old capture-phase restore:
+  // `[false, true]`. With the deferral: `[false, false]`.
+  swallow.atRelease = samples[0] ?? null;
+  swallow.nextFrame = samples[1] ?? null;
+  swallow.after = await page.evaluate(() => window.__phaserGame.scene.getScene('ConquestUIScene').input.enabled);
+  swallow.reason = JSON.stringify({ during: swallow.during, samples, after: swallow.after });
+}
+const swallowOk = swallow.during === false && swallow.atRelease === false
+  && swallow.nextFrame === false && swallow.after === true;
+console.log(`${swallowOk ? 'PASS' : 'FAIL'}  input stays off through the release, and comes back after  — ${swallow.reason}`);
+if (!flow.ok) errors.push('FLOW: ' + flow.reason);
+
 const checks = out.fatal ? { [out.fatal]: false } : {
   'the map hears an ordinary tap': out.overlay.quietBefore,
   'a sheet over the map makes it deaf': out.overlay.deafDuring,
@@ -173,14 +383,23 @@ const checks = out.fatal ? { [out.fatal]: false } : {
   'a stale key with nothing drawn cannot lock the map': out.stuckKey.stillHears,
   'a tap on open ground clears the selection': out.dismiss.clearedByEmptyTap,
   'and an idle tap repaints nothing': out.dismiss.idleIsCheap,
-  'a control that predates the press still acts on it': out.generation.olderStillActs,
-  'one built by that same press refuses its release': out.generation.newerRefuses,
-  'and answers the next press normally': out.generation.newerActsOnItsOwnPress,
-  'opening a sheet marks the boundary': out.wiring.bumpsOnOpen,
-  'and so does closing one': out.wiring.bumpsOnClose,
+  'the bottom bar is pressable with the map showing': out.chrome.liveWithMap,
+  'and every one of its hit areas is DEAD under a sheet': out.chrome.deadUnderSheet,
+  'and live again once the sheet closes': out.chrome.liveAgainAfter,
+  'the court lane lists what it is waiting on': out.dock.courtHasDock,
+  'so does the war lane': out.dock.armyHasDock,
+  'and every waiting row is in the thumb band, not the top third': out.dock.inReach,
+  'the heading still counts everything waiting': out.dock.countsMatch,
+  'the sheet is shut until asked — just the header': out.dock.shutByDefault,
+  'and the picker folds away with it, not only the list': out.dock.selectsFold,
+  'every waiting row is there when it is raised': out.dock.opensOnAsk,
+  'and so is the picker — one panel, one fold': out.dock.selectsOpen,
+  'raising it floats over the body instead of shrinking it': out.dock.bodyUnmoved,
   'the name plate holds its size under the thumb when zoomed out': out.plate.holdsUp,
   'because the padding is screen pixels, not world units': out.plate.padHeldConstant,
-  'no console errors': errors.length === 0,
+  'one press seats one minister, and the release goes nowhere': flow.ok,
+  'and input stays off through that release, not just up to it': swallowOk,
+  'no console errors': errors.filter((e) => !e.startsWith('FLOW:')).length === 0,
 };
 
 const fails = [];

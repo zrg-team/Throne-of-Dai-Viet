@@ -76,9 +76,14 @@ export function actionTiles(self: ConquestUIScene,
   parent: Phaser.GameObjects.Container,
   width: number,
   tiles: Array<{ title: string; note?: string; border: number; muted?: boolean; onTap?: () => void }>,
+  opts: { columns?: 1 | 2 } = {},
 ): number {
   const GAP = 6;
-  const COLUMNS = 2;
+  // Two by default — a grid is how you compare eight buildable lands or six orders at a glance.
+  // One when the tiles are a *list* of a few things rather than a field to scan: the four
+  // neighbours carry a name, a number and one line each, and paired off they wrapped their titles
+  // onto three lines to save a scroll nobody was doing.
+  const COLUMNS = opts.columns ?? 2;
   const tileWidth = (width - GAP * (COLUMNS - 1)) / COLUMNS;
   const inner = tileWidth - 18;
   let y = 0;

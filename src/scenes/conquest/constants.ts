@@ -121,7 +121,40 @@ export function battleFieldBox(content: UIBounds, fieldHeight: number): UIBounds
  * One 40px button, plus breathing space above and below. Prompts that pin buttons below their list
  * pass this to `promptScrollBody` and place them at `GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8`.
  */
-export const PROMPT_FOOTER_HEIGHT = 56;
+/**
+ * The band a prompt keeps clear at its foot, measured **up from the bottom of the screen**: a
+ * 40pt button row, the "hold to choose" line above it, and eight points under it.
+ *
+ * Up from the screen, not down from the content box, because those are two different bottoms —
+ * the box stops about twenty points short — and reserving against one while pinning the buttons
+ * to the other left a band of nothing between the hint and the buttons. Reported as exactly that.
+ */
+export const PROMPT_FOOTER_HEIGHT = 64;
+/** Of that band, the room above the buttons the hold hint is printed in. */
+export const PROMPT_HINT_ROOM = 16;
+
+/**
+ * **One shape for a two-button foot, everywhere in the mode.**
+ *
+ * Lanes stacked the way back above the way out; prompts set them side by side; a page with its own
+ * action did something else again — so the same pair of controls moved depending on which file
+ * drew it. Reported as exactly that. This is the rule now, and both frames call it:
+ *
+ *   left = the way back (ghost) · right = the way out (accent)
+ *
+ * The right side is sized to its label, because "close" and "keep the point for later" are both
+ * dismissals and only one of them fits in a third of the width.
+ */
+export function footerSplit(
+  x: number,
+  width: number,
+  rightLabel: string,
+): { leftX: number; leftWidth: number; rightX: number; rightWidth: number } {
+  const gap = 8;
+  const rightWidth = Math.round(width * (rightLabel.length > 12 ? 0.42 : 0.34));
+  const leftWidth = width - rightWidth - gap;
+  return { leftX: x, leftWidth, rightX: x + leftWidth + gap, rightWidth };
+}
 
 /**
  * Enemy hosts the player can actually see, and so can act on.

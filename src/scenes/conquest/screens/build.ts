@@ -177,7 +177,9 @@ export function showClaimTargets(self: ConquestUIScene): void {
   // The whole border, not the card prompt's short hand: a province left off this list did not
   // exist to the player. Open provinces first, then by odds — the same order as before.
   const targets = buildAllConquestTargets(state);
-  const { addRow, finish } = self.laneList(t('ascent.claim.start'), `${t('ascent.claim.headingHint')}\n${t('ascent.claim.count', { n: targets.length })}`);
+  const { addRow, finish } = self.laneList(t('ascent.claim.start'), `${t('ascent.claim.headingHint')}\n${t('ascent.claim.count', { n: targets.length })}`,
+    { back: () => self.replaceLanePage(() => showBuildScreen(self)) },
+  );
 
   for (const target of targets) {
     const open = target.methods.filter((method) => !method.blockedReason);
@@ -230,6 +232,7 @@ function showClaimDetail(self: ConquestUIScene, landId: string): void {
       progress: Math.round(order.progress),
       required: Math.round(order.required),
     }),
+    { back: () => self.replaceLanePage(() => showClaimTargets(self)) },
   );
 
   const refund = getClaimRefund(state, order);
@@ -269,6 +272,7 @@ export function showBuildOptions(self: ConquestUIScene, landId: string): void {
     // has taken an interest here. It says nothing at all about what that something wants.
     isMarked(state, 'land', land.id) ? `${land.name} ◈` : land.name,
     t('ascent.screen.slots', { used: land.buildings.length, cap: land.buildingCapacity, defense: land.defense }),
+    { back: () => self.replaceLanePage(() => showBuildScreen(self)) },
   );
 
   // Closing re-runs `refresh`, which repaints the resource bar and the bar's status dots

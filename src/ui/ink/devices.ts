@@ -6,7 +6,8 @@ import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import type { Army, ArmyComposition, ArmyWardrobe, GameState } from '../../state/types';
 import {
   blockShares, compositionOfUnits, DOCTRINE, FORMATION_ORDER, FORMATION_PLAN, HOST_MARK_CAP,
-  MEN_PER_MARK, type BattleFormation, type FormationKey,
+  MARCH_PLAN, MEN_PER_MARK, marchPlanFacing, type BattleFormation, type FormationKey,
+  type FormationTweak,
 } from '../../data/ascent/formations';
 
 /**
@@ -61,6 +62,13 @@ export { HOST_MARK_CAP, MEN_PER_MARK };
  */
 const FILE_PITCH = (16 / 9.46) * UNIT.figure;
 const RANK_PITCH = (12 / 9.46) * UNIT.figure;
+/**
+ * A rank's depth as a multiple of a file's width.
+ *
+ * The one number a turn of the formation has to correct for: `dx` is counted in file pitches and
+ * `dy` in rank pitches, so rotating them against each other without it shears the column.
+ */
+export const RANK_PER_FILE = RANK_PITCH / FILE_PITCH;
 const RANK_SHEAR = (3.6 / 9.46) * UNIT.figure;
 
 export interface HostShape {
@@ -679,6 +687,21 @@ function drawArm(
 export interface HostKit {
   theme?: FigureTheme;
   /**
+   * Whether this host is on the road right now.
+   *
+   * Drawn in column when it is — see `MARCH_PLAN`. Part of the kit rather than a separate argument
+   * because the kit is already what the marker's redraw signature is built from, and a host that
+   * falls in or breaks ranks has to redraw exactly once.
+   */
+  marching?: boolean;
+  /**
+   * Which way it is walking, in radians, when it is marching at all.
+   *
+   * Quantised by the caller to a handful of directions — a column that redrew every time the road
+   * curved a degree would rebuild its marker every frame.
+   */
+  marchHeading?: number;
+  /**
    * How far apart the men stand, as a multiple of the formation's own pitch.
    *
    * Not a size — the figures keep the measured size `proportion.ts` gives them, which is the whole
@@ -970,6 +993,14 @@ export function compositionFor(kit: HostKit): ArmyComposition {
 export function armyShape(
   men: number, composition: ArmyComposition, s = 1, mustered?: number, spread = 1,
   shape?: BattleFormation, markCap?: number,
+  /**
+   * An arrangement passed straight in, rather than looked up from a battle shape.
+   *
+   * The map marker uses this for `MARCH_PLAN`: a host on the road is drawn in column, which is a
+   * drawing and not a battle shape — nothing resolves a fight against it and it is not on the
+   * counter ring. Everything downstream treats it exactly like one of the five.
+   */
+  planOverride?: Partial<Record<FormationKey, FormationTweak>>,
 ): ArmyShape {
   // The allocation — shares by doctrine, casualties spent in formation order — is `blockShares`,
   // which the fight resolver reads too. One table, one arithmetic, so the dock can never offer a
@@ -979,7 +1010,7 @@ export function armyShape(
   // The five shapes, when a host is standing in one. Absent — every caller that is not the fight
   // screen — the base table draws exactly what it always has, which is what keeps the map marker
   // and the History plate out of this entirely.
-  const tweaks = shape ? FORMATION_PLAN[shape] : undefined;
+  const tweaks = planOverride ?? (shape ? FORMATION_PLAN[shape] : undefined);
 
   /**
    * The silhouette must survive the doctrine.
@@ -1096,7 +1127,17 @@ export function planArmy(
   s = 1,
   kit: HostKit = {},
 ): ArmyPlan {
-  const shape = armyShape(men, compositionFor(kit), s, kit.mustered, kit.spread ?? 1, kit.shape, kit.markCap);
+  // **The men have to be laid out on the same plan as the ground under them.**
+  //
+  // This recomputed the shape from the kit alone, so a caller that had already worked one out with
+  // an arrangement of its own got the ground, the shadow, the standard and the anchor from *its*
+  // shape and the actual figures from *this* one. On the map that read as a host whose banner and
+  // footprint closed into column while every man stayed exactly where he had been standing.
+  // `marching` lives on the kit precisely so it survives the second call.
+  const shape = armyShape(
+    men, compositionFor(kit), s, kit.mustered, kit.spread ?? 1, kit.shape, kit.markCap,
+    kit.marching ? marchPlanFacing(kit.marchHeading ?? 0, RANK_PER_FILE) : undefined,
+  );
   const figures: FigurePlacement[] = [];
   let index = 0;
   for (const block of shape.blocks) {

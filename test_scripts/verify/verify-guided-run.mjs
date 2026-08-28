@@ -57,6 +57,10 @@ const buttonAt = (sceneKey, pattern) => page.evaluate(([key, source]) => {
   return walk(scene?.children?.list);
 }, [sceneKey, pattern]);
 
+// English, explicitly. This file asserts its labels in English and Vietnamese is the product
+// default now, so without this it hunts for "How to Play" while the button reads "Cách chơi" and
+// reports the door as missing. `verify-classic-page` pins the language for the same reason.
+await page.addInitScript(() => localStorage.setItem('mandate:language:v1', 'en'));
 await page.goto(`${BASE}/?capture=1`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
 await page.waitForTimeout(1200);
@@ -117,8 +121,11 @@ const closeTour = async () => {
           // somewhere to send the player ends on "Play now".
           && /^(Next|Got it|Start playing|Play now|Tiếp|Đã rõ|Vào chơi|Chơi ngay)$/.test(k.text));
         if (label) {
-          child.list.find((k) => k.type === 'Rectangle')
-            ?.emit('pointerup', { id: 7, downTime: 0 }, 0, 0, { stopPropagation() {} });
+          // Both halves: `InkUI.button` acts on the press, the Copilot's own controls on the
+          // release, and this loop has to drive whichever kind the card is carrying.
+          const hit = child.list.find((k) => k.type === 'Rectangle');
+          hit?.emit('pointerdown', { id: 7, downTime: 0 }, 0, 0, { stopPropagation() {} });
+          hit?.emit('pointerup', { id: 7, downTime: 0 }, 0, 0, { stopPropagation() {} });
           return false;
         }
       }
@@ -415,11 +422,19 @@ const reach = await first.evaluate(() => {
   // not about a card. The run has been ticking through this whole file, so one may well be up.
   scene.state.pendingAscentPrompt = undefined;
   scene.renderActionBar();
+  // Recursive, and measured in world units. The tour's buttons are nested a container deeper than
+  // a one-level scan reaches, so this read 0 — "the buttons are at the very top of the screen" —
+  // and failed a check about thumb reach on a card whose buttons were never found at all.
   let buttonTop = 0;
-  for (const child of scene.children.list) {
-    const label = child.list?.find?.((k) => k.type === 'Text' && /^(Next|Skip)$/.test(k.text));
-    if (label) buttonTop = Math.max(buttonTop, child.y || 0);
-  }
+  const seek = (list, depth) => {
+    for (const child of list ?? []) {
+      if (child.type === 'Text' && /^(Next|Skip|Got it|Tiếp|Bỏ qua|Đã rõ)$/.test(child.text)) {
+        buttonTop = Math.max(buttonTop, child.getWorldTransformMatrix().ty);
+      }
+      if (child.list && depth < 5) seek(child.list, depth + 1);
+    }
+  };
+  seek(scene.children.list, 0);
   const target = scene.runTour ? 'up' : 'none';
   return {
     buttonTop,
@@ -445,6 +460,13 @@ const handoff = await browser.newPage({ viewport: { width: 390, height: 844 }, d
 const handoffErrors = [];
 handoff.on('pageerror', (e) => handoffErrors.push(e.message));
 handoff.on('console', (m) => { if (m.type() === 'error') handoffErrors.push(m.text()); });
+// English first, so that picking Tiếng Việt below is a real switch.
+//
+// `Copilot` only makes the *other* language pressable — `if (option.id !== current)` — so on a page
+// that already opened in Vietnamese, which is the product default, this section asked the card to
+// switch to the language it was in, found a label with no handler on it, and reported that nothing
+// was stored. Nothing was: nothing had been asked for.
+await handoff.addInitScript(() => localStorage.setItem('mandate:language:v1', 'en'));
 await handoff.goto(`${BASE}/?capture=1&tour=1`, { waitUntil: 'domcontentloaded' });
 await handoff.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
 await handoff.waitForTimeout(1400);
@@ -455,8 +477,9 @@ const pressOnMenu = (pattern) => handoff.evaluate((source) => {
   for (const child of scene.children.list) {
     const label = child.list?.find?.((k) => k.type === 'Text' && re.test(k.text));
     if (label) {
-      child.list.find((k) => k.type === 'Rectangle')
-        ?.emit('pointerup', { id: 11, downTime: 0 }, 0, 0, { stopPropagation() {} });
+      const hit = child.list.find((k) => k.type === 'Rectangle');
+      hit?.emit('pointerdown', { id: 11, downTime: 0 }, 0, 0, { stopPropagation() {} });
+      hit?.emit('pointerup', { id: 11, downTime: 0 }, 0, 0, { stopPropagation() {} });
       return true;
     }
   }
@@ -475,6 +498,7 @@ const pickLanguage = (label) => handoff.evaluate((want) => {
   const semanticHit = scene.children.list.find((child) => child.getData?.('languageOption') === languageId
     && child.depth >= 900);
   if (semanticHit) {
+    semanticHit.emit('pointerdown', { id: 21, downTime: 0 }, 0, 0, { stopPropagation() {} });
     semanticHit.emit('pointerup', { id: 21, downTime: 0 }, 0, 0, { stopPropagation() {} });
     return true;
   }
@@ -484,6 +508,7 @@ const pickLanguage = (label) => handoff.evaluate((want) => {
     const hit = scene.children.list.find((r) => r.type === 'Rectangle' && r.depth >= 900
       && Math.abs(r.x - (m.tx + child.width / 2)) < 4);
     if (hit) {
+      hit.emit('pointerdown', { id: 21, downTime: 0 }, 0, 0, { stopPropagation() {} });
       hit.emit('pointerup', { id: 21, downTime: 0 }, 0, 0, { stopPropagation() {} });
       return true;
     }

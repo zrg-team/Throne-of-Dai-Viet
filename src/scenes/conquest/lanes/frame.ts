@@ -11,7 +11,7 @@
  * listeners off again.
  */
 import Phaser from 'phaser';
-import { GAME_HEIGHT } from '../../../game/constants';
+import { GAME_HEIGHT, GAME_WIDTH } from '../../../game/constants';
 import { renderHeroFaceInBox } from '../../../ui/FaceRenderer';
 import { openingFor, takeOpening } from '../../../systems/story/StorySystem';
 import { contestedFronts } from '../../../systems/ascent/battleReport';
@@ -20,12 +20,29 @@ import { INK_UI, INK_UI_HEX, scrollGestureConsumedTap, type UIBounds } from '../
 import { UI_FONT } from '../../../ui/fonts';
 import { t } from '../../../i18n';
 import type { AscentLane, Hero } from '../../../state/types';
-import { LANE_CLOSE_BUTTON_HEIGHT, LANE_CLOSE_BUTTON_OFFSET, LANE_FOOTER_HEIGHT, cssHex } from '../constants';
+import {
+  LANE_CLOSE_BUTTON_HEIGHT, LANE_CLOSE_BUTTON_OFFSET, LANE_FOOTER_HEIGHT, cssHex, footerSplit,
+} from '../constants';
 import { clearLanePage } from '../layers';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
 /** The ghost "back" button a lane sub-page shows above its footer button. */
 const LANE_BACK_BUTTON_HEIGHT = 34;
+/**
+ * One waiting decision, as a row. Twenty-four points is the short side of a phone list row: still
+ * a comfortable thumb target, but small enough that three of them read as a strip rather than a
+ * page. Reported as *"each items must smaller"* — thirty took as much height as the picker below.
+ */
+const LANE_DOCK_ROW_HEIGHT = 24;
+/**
+ * The sheet's header: a grab handle, the title, and the round chevron that folds it.
+ *
+ * This is the only part of the sheet that is ever in the layout — everything else floats over the
+ * page when the sheet is up, and is simply not there when it is down.
+ */
+const LANE_SHEET_HEADER_HEIGHT = 34;
+/** Never more than three, whatever the lane offers. */
+const LANE_DOCK_MAX_ITEMS = 3;
 /**
  * A checkbox strip pinned above the footer button: box, label, and a hint under it.
  *
@@ -134,7 +151,30 @@ export function laneList(self: ConquestUIScene,
   subtitle: string,
   laneOpts: {
     /** A primary action in the close button's slot, in place of Close. */
-    footer?: { label: string; onTap: () => void; disabled?: boolean };
+    footer?: {
+      label: string;
+      onTap: () => void;
+      disabled?: boolean;
+      /**
+       * This button *is* the way out — do not pair a close beside it.
+       *
+       * Only true where closing the lane any other way would leave state behind: the aftermath
+       * report clears `pendingAftermath` as it dismisses, so a plain close there would put the
+       * same screen straight back on the player.
+       */
+      soleAction?: boolean;
+    };
+    /**
+     * A free-form control the sheet carries, built the way `addWidget` builds one.
+     *
+     * The court's tax dial is the case this exists for: a standing policy the player changes
+     * while reading the page, which belongs in the same place every other standing choice on
+     * the page now lives.
+     */
+    footerWidget?: {
+      height: number;
+      build: (parent: Phaser.GameObjects.Container, width: number) => void;
+    };
     /**
      * A checkbox pinned just above the footer button, in the same thumb reach.
      *
@@ -155,6 +195,26 @@ export function laneList(self: ConquestUIScene,
       active: number;
       onSelect: (index: number) => void;
     };
+    /**
+     * **What this lane is waiting on, listed at the foot where a thumb already is.**
+     *
+     * The lane pages read top-down and act bottom-up. A page opens on its title and its numbers —
+     * things you read, and reading needs no reach — while everything that answers the player sits
+     * in the band a one-handed grip can actually get to. Measured against the live surface (390
+     * wide, 620–1040 tall), the top third of a lane is about a thousand units from a resting
+     * thumb: putting the important decision *first* put it exactly where it could not be pressed.
+     *
+     * So the decisions waiting on the player are listed here, each one a row that goes straight to
+     * the thing that answers it, and the dock is absent entirely when nothing is waiting. Drawn
+     * above the close button and the rest of the footer stack, all of which keep their existing
+     * places and behaviour.
+     */
+    dock?: {
+        label?: (shown: number) => string;
+        items: Array<{ label: string; hint?: string; onPress: () => void }>;
+        /** Redraws this page, so the dock can open and close without the lane knowing how. */
+        rebuild?: () => void;
+      };
     /** A ghost "back" above the footer button, for pages one step inside a lane. */
     back?: () => void;
   } = {},
@@ -176,9 +236,66 @@ export function laneList(self: ConquestUIScene,
   // use for the between-decisions numbers, and forty-eight points is the difference between four
   // rows and five on a 620-high screen.
   const content = self.promptFrame(title, subtitle, { coverReadout: true });
-  const footerExtra = (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
-    + (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
-    + (laneOpts.footerPicker ? LANE_PICKER_HEIGHT + 8 : 0);
+  // At most three. A dock that grows without limit is a second page pinned over the first, and the
+  // point of it is to be the short answer to "what now" — the lane itself is where everything else
+  // lives.
+  const dockItems = (laneOpts.dock?.items ?? []).slice(0, LANE_DOCK_MAX_ITEMS);
+  // **One bottom sheet, and everything the foot of the page holds is inside it.**
+  //
+  // Four passes got this wrong the same way. The pieces at the foot — what the lane is waiting on,
+  // its segmented picker, its checkbox — were three separate strips, each laid out in the footer
+  // and each taking its height off the scrolling body. "Folding" folded one of the three, so the
+  // page stayed just as full and the fold did nothing anyone could see.
+  //
+  // A sheet is one panel. It has a header — a grab handle, a title, and a chevron — and it holds
+  // the whole of the foot: the action list *and* the lane's own selects. It folds as a unit, down
+  // to that header alone, and only the header is ever in the layout:
+  //
+  // - `sheetLayoutHeight` — what the scrolling body gives up. The **shut** height, always, so the
+  //   body is sized once and raising the sheet cannot take another point from it.
+  // - `sheetDrawHeight` — what is painted. Raised, the extra is drawn upward over the body behind
+  //   a scrim, and it is all taken back the moment the sheet folds.
+  //
+  // **A page has a sheet if it has anything to put in one**, not only if something is waiting.
+  //
+  // It was gated on the action list alone, so the sheet came and went: the war page had one on a
+  // fresh run and none an hour later once its host had a commander, and the host detail — the page
+  // a run is actually spent in — showed none at all whenever nothing was urgent, which is most of
+  // the time. Reported as the sheet being on the wrong page and missing from the right one.
+  //
+  // The rule is the contents: any waiting action, any standing select, any dial. That is every one
+  // of the five pages that carry such a thing, and they all now fold the same way.
+  const hasSheet = dockItems.length > 0
+    || Boolean(laneOpts.footerPicker)
+    || Boolean(laneOpts.footerToggle)
+    || Boolean(laneOpts.footerWidget);
+  const sheetOpen = hasSheet && self.dockExpanded === true;
+  const sheetPicker = hasSheet && Boolean(laneOpts.footerPicker);
+  const sheetToggle = hasSheet && Boolean(laneOpts.footerToggle);
+  const sheetWidget = hasSheet ? laneOpts.footerWidget : undefined;
+  // What the sheet's body measures when it is up. Computed in both states, because the fold
+  // needs the distance whichever way it is going.
+  const sheetOpenBodyHeight = dockItems.length * LANE_DOCK_ROW_HEIGHT
+    + (sheetWidget ? sheetWidget.height + 8 : 0)
+    + (sheetPicker ? LANE_PICKER_HEIGHT + 8 : 0)
+    + (sheetToggle ? LANE_TOGGLE_HEIGHT + 8 : 0);
+  const sheetBodyHeight = sheetOpen ? sheetOpenBodyHeight : 0;
+  const sheetDrawHeight = hasSheet ? LANE_SHEET_HEADER_HEIGHT + sheetBodyHeight + 8 : 0;
+  const sheetLayoutHeight = hasSheet ? LANE_SHEET_HEADER_HEIGHT + 8 : 0;
+  // **Two buttons sit side by side; only a third one starts a second row.**
+  //
+  // A lane's "back" was a full-width button stacked above the close, while a prompt put the same
+  // pair left and right — the same two controls in two different arrangements depending on which
+  // frame drew the page. A page with a back and nothing else now puts it beside the close, in the
+  // one row, and gives the thirty-four points back to the body. A page that also carries its own
+  // action genuinely has three, and that one keeps the row above.
+  const backSharesRow = Boolean(laneOpts.back) && !laneOpts.footer;
+  const backExtra = laneOpts.back && !backSharesRow ? LANE_BACK_BUTTON_HEIGHT + 8 : 0;
+  const footerExtra = backExtra
+    + (hasSheet
+      ? sheetLayoutHeight
+      : (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
+        + (laneOpts.footerPicker ? LANE_PICKER_HEIGHT + 8 : 0));
   const tabsExtra = laneOpts.tabs ? LANE_TABS_HEIGHT + LANE_TABS_GAP : 0;
   const scroll = self.ui.scrollArea({
     x: content.x,
@@ -352,15 +469,229 @@ export function laneList(self: ConquestUIScene,
 
   const finish = () => {
     scroll.setContentHeight(Math.max(content.height - LANE_FOOTER_HEIGHT - footerExtra - tabsExtra, y));
-    if (laneOpts.footerPicker) {
-      const cfg = laneOpts.footerPicker;
-      // Stacked above whatever else the footer band holds: close at the bottom, then back,
-      // then the toggle, then this — the same order the heights were spent in.
-      const py = GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET
-        - (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
+
+    // **The whole foot is one panel, edge to edge, and everything else sits on it.**
+    //
+    // Reported twice: *it doesn't feel like a panel*, and *the UI is mixed with the other things*.
+    // Both were the same fault. The dock was a card floating in the middle of a stack — the
+    // waiting rows, then the doctrine picker, then the close button, three surfaces at three
+    // widths with the page showing between them. Nothing said where the page stopped and the
+    // controls began, so the eye read the bottom third as debris.
+    //
+    // A single full-bleed band fixes that without moving a single control: it runs from the top of
+    // the footer stack to the bottom edge of the screen, so the picker, the toggle and the close
+    // are *on* it rather than beside it. Drawn first, so everything already down there paints over
+    // it and keeps the position it had.
+    //
+    // Full width on purpose. A band with side margins is another card; a band that reaches both
+    // edges is the bottom of the screen, which is what it is.
+    const belowStack = backExtra;
+    // Where the foot of the page begins. With a sheet this is the sheet's own top edge and it
+    // moves as the sheet folds; without one it is the top of the fixed footer chrome.
+    const stackTop = GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET - belowStack
+      - (hasSheet
+        ? sheetDrawHeight
+        : (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
+          + (laneOpts.footerPicker ? LANE_PICKER_HEIGHT + 8 : 0));
+
+    // The scrim, only while the sheet is up over the body. It is what makes an overlay read as an
+    // overlay rather than as the page having lost half its height, and it is the second way to
+    // fold it — tapping off a sheet closes it, on a phone, always.
+    if (sheetOpen) {
+      // Down past the sheet's top edge, not to it. The corners are cut, so a scrim that stops on
+      // the line leaves two bright notches beside them where the page shows through undimmed —
+      // reported exactly that way. The sheet is drawn over this, so the overlap never shows.
+      const scrim = self.add.rectangle(
+        0, 0, GAME_WIDTH, stackTop + 14, INK_UI.brush, 0.16,
+      ).setOrigin(0, 0).setInteractive();
+      if (self.dockSlideFrom) {
+        scrim.setAlpha(0);
+        const fade = self.tweens.add({ targets: scrim, alpha: 1, duration: 190 });
+        scrim.once('destroy', () => fade.remove());
+      }
+      scrim.on('pointerdown', (
+        _pointer: Phaser.Input.Pointer,
+        _localX: number,
+        _localY: number,
+        event: Phaser.Types.Input.EventData,
+      ) => {
+        event.stopPropagation();
+        self.dockExpanded = false;
+        self.dockSlideFrom = -sheetOpenBodyHeight;
+        const redraw = laneOpts.dock?.rebuild ?? self.lanePageBuild;
+        if (redraw) self.replaceLanePage(redraw);
+      });
+      self.modalLayer.add(scrim);
+    }
+
+    // **One layer for the whole sheet, so one tween moves all of it.**
+    //
+    // The panel, its header and its contents are drawn at their final coordinates and the layer
+    // is offset by the distance the fold has to cover; the tween takes that offset back out. The
+    // close button is deliberately NOT in here — it is the page's, not the sheet's, and it must
+    // sit still while the sheet moves past it.
+    const sheetLayer = self.add.container(0, self.dockSlideFrom ?? 0);
+    self.modalLayer.add(sheetLayer);
+    if (self.dockSlideFrom) {
+      const slide = self.tweens.add({
+        targets: sheetLayer, y: 0, duration: 190, ease: 'Cubic.easeOut',
+      });
+      // A lane torn down mid-slide would leave the tween writing to a destroyed container.
+      sheetLayer.once('destroy', () => slide.remove());
+    }
+    self.dockSlideFrom = undefined;
+    const sheetHost = hasSheet ? sheetLayer : self.modalLayer;
+
+    // **The sheet is a printed sheet, drawn the way every other surface in the game is drawn.**
+    //
+    // It had a geometric rounded rectangle with a flat 1.5px stroke, which is the one border in
+    // the game that is not hand-drawn — reported as not following the style at all. `InkUI.panel`
+    // is the same surface the cards, the tax dial and the stat blocks stand on: a washed parchment
+    // fill, cut corners, a wobbly ink outline and a second rule just inside it.
+    //
+    // Drawn taller than the screen so its bottom edge and cut corners fall off it: this is the
+    // bottom of the display, not a card floating above it, and sliding it down can never open a
+    // gap underneath.
+    //
+    // A page with no sheet gets no surface at all. The band was for a *lane* — one ground under
+    // the sheet, its picker and its close. On a page that has none of that it was a lighter
+    // rectangle behind two buttons, and the strip left below the close read as a stray white band
+    // at the foot of the screen.
+    if (hasSheet) {
+      sheetHost.add(self.ui.panel(
+        {
+          x: 0,
+          y: stackTop,
+          width: GAME_WIDTH,
+          height: GAME_HEIGHT + sheetOpenBodyHeight + 60 - stackTop,
+        },
+        { borderWidth: 1.6, borderAlpha: 0.7 },
+      ));
+    }
+
+    if (hasSheet) {
+      // ── The header ────────────────────────────────────────────────────────
+      //
+      // A grab handle, the title with its count, and a round chevron at the right. The whole bar
+      // is the target: a chevron this size is not something a thumb should have to hit exactly,
+      // and on a sheet the header is the fold control whether or not you aim at the glyph.
+      const handle = self.add.graphics();
+      handle.fillStyle(INK_UI.softBrush, 0.75);
+      handle.fillRoundedRect(GAME_WIDTH / 2 - 17, stackTop + 6, 34, 4, 2);
+      sheetHost.add(handle);
+
+      const headMid = stackTop + 22;
+      // With something waiting the header counts it; with nothing waiting the sheet is still the
+      // home of the page's standing settings, and calling that "0 things to do" would be a lie
+      // about an otherwise useful panel.
+      const title = laneOpts.dock?.label?.(dockItems.length)
+        ?? (dockItems.length > 0
+          ? t('ascent.lane.actions', { n: dockItems.length })
+          : t('ascent.lane.options'));
+      sheetHost.add(self.add.text(
+        content.x, headMid, title,
+        {
+          color: INK_UI.inkText, fontFamily: UI_FONT,
+          fontSize: '12px', fontStyle: '700',
+        },
+      ).setOrigin(0, 0.5));
+
+      // The chevron, and only the chevron. It had a grey disc behind it, which put a second
+      // button-shaped thing on a header whose whole width is already the button.
+      sheetHost.add(self.add.text(
+        content.x + content.width, headMid, sheetOpen ? '▾' : '▴',
+        { color: INK_UI.mutedText, fontFamily: UI_FONT, fontSize: '15px', fontStyle: '700' },
+      ).setOrigin(1, 0.5));
+
+      const headHit = self.add.rectangle(
+        0, stackTop, GAME_WIDTH, LANE_SHEET_HEADER_HEIGHT, INK_UI.brush, 0.001,
+      ).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      headHit.on('pointerdown', (
+        _pointer: Phaser.Input.Pointer,
+        _localX: number,
+        _localY: number,
+        event: Phaser.Types.Input.EventData,
+      ) => {
+        event.stopPropagation();
+        self.dockExpanded = !sheetOpen;
+        // Up when it is opening, down when it is folding — the new sheet starts that far out of
+        // place and tweens home, so the movement is the sheet's own.
+        self.dockSlideFrom = sheetOpen ? -sheetOpenBodyHeight : sheetOpenBodyHeight;
+        const redraw = laneOpts.dock?.rebuild ?? self.lanePageBuild;
+        if (redraw) self.replaceLanePage(redraw);
+      });
+      sheetHost.add(headHit);
+    }
+
+    // ── The action rows, inside the sheet ───────────────────────────────────
+    if (sheetOpen) {
+      const rowsTop = stackTop + LANE_SHEET_HEADER_HEIGHT;
+      dockItems.forEach((item, index) => {
+        const rowY = rowsTop + index * LANE_DOCK_ROW_HEIGHT;
+        const mid = rowY + LANE_DOCK_ROW_HEIGHT / 2;
+        const rule = self.add.graphics();
+        rule.lineStyle(1, INK_UI.softBrush, 0.5);
+        rule.lineBetween(content.x, rowY, content.x + content.width, rowY);
+        sheetHost.add(rule);
+
+        sheetHost.add(self.add.text(
+          content.x + 2, mid, item.label,
+          {
+            color: cssHex(INK_UI.cinnabarDark), fontFamily: UI_FONT,
+            fontSize: '10.5px', fontStyle: '600',
+            wordWrap: { width: content.width - 26 },
+          },
+        ).setOrigin(0, 0.5));
+        sheetHost.add(self.add.text(
+          content.x + content.width, mid, '›',
+          { color: cssHex(INK_UI.cinnabar), fontFamily: UI_FONT, fontSize: '13px' },
+        ).setOrigin(1, 0.5));
+
+        // The whole row, and on the press — the same as every other control in this mode. The
+        // teardown that follows swallows the rest of the gesture (see `clearLanePage`), so the
+        // release cannot go on to press whatever the new page puts under the finger.
+        const hit = self.add.rectangle(
+          content.x, rowY, content.width, LANE_DOCK_ROW_HEIGHT, INK_UI.brush, 0.001,
+        ).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        hit.on('pointerdown', (
+          _pointer: Phaser.Input.Pointer,
+          _localX: number,
+          _localY: number,
+          event: Phaser.Types.Input.EventData,
+        ) => {
+          event.stopPropagation();
+          item.onPress();
+        });
+        sheetHost.add(hit);
+      });
+    }
+
+    // Where the picker and the toggle sit: stacked under the rows when they are in the sheet,
+    // and in the fixed footer band when the lane has no sheet to put them in.
+    const sheetRowsBottom = stackTop + LANE_SHEET_HEADER_HEIGHT
+      + dockItems.length * LANE_DOCK_ROW_HEIGHT;
+    const widgetY = sheetRowsBottom + 8;
+    const pickerY = sheetOpen
+      ? sheetRowsBottom + (sheetWidget ? sheetWidget.height + 8 : 0) + 8
+      : GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET - belowStack
         - (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
         - LANE_PICKER_HEIGHT - 8;
-      const holder = self.add.container(content.x, py);
+    const toggleY = sheetOpen
+      ? sheetRowsBottom + (sheetWidget ? sheetWidget.height + 8 : 0)
+        + (sheetPicker ? LANE_PICKER_HEIGHT + 8 : 0) + 8
+      : GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET - belowStack - LANE_TOGGLE_HEIGHT - 8;
+    // Folded, they are not drawn at all — they are the sheet's contents, and a sheet that folds
+    // its title but keeps its body is the thing four rounds of this were reported for.
+    const drawFooterControls = !hasSheet || sheetOpen;
+
+    if (sheetWidget && sheetOpen) {
+      const holder = self.add.container(content.x, widgetY);
+      sheetWidget.build(holder, content.width);
+      sheetHost.add(holder);
+    }
+    if (laneOpts.footerPicker && drawFooterControls) {
+      const cfg = laneOpts.footerPicker;
+      const holder = self.add.container(content.x, pickerY);
       self.segmentedRow(holder, content.width, {
         label: cfg.label,
         options: cfg.options,
@@ -368,19 +699,17 @@ export function laneList(self: ConquestUIScene,
         selected: cfg.selected,
         onPick: cfg.onPick,
       });
-      self.modalLayer.add(holder);
+      sheetHost.add(holder);
     }
-    if (laneOpts.footerToggle) {
+    if (laneOpts.footerToggle && drawFooterControls) {
       const cfg = laneOpts.footerToggle;
-      const ty = GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET
-        - (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
-        - LANE_TOGGLE_HEIGHT - 8;
+      const ty = toggleY;
       // The whole strip is the target, not the 13px box: a checkbox you have to hit exactly is
       // a checkbox on a phone that misses.
       const hit = self.add.rectangle(content.x, ty, content.width, LANE_TOGGLE_HEIGHT,
         INK_UI.brush, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
       hit.on('pointerup', cfg.onToggle);
-      self.modalLayer.add(hit);
+      sheetHost.add(hit);
 
       const box = self.add.graphics();
       box.lineStyle(1.2, cfg.checked ? INK_UI.gold : INK_UI.softBrush, 1);
@@ -393,24 +722,25 @@ export function laneList(self: ConquestUIScene,
         box.lineTo(content.x + 14, ty + 8);
         box.strokePath();
       }
-      self.modalLayer.add(box);
+      sheetHost.add(box);
 
       // No `color: undefined` here. `InkUI.label` spreads these over the variant style, so an
       // undefined colour erases the ink and Phaser falls back to white — invisible on parchment.
       const style: Record<string, unknown> = { fontSize: '12px' };
       if (cfg.checked) style.fontStyle = '700';
       else style.color = INK_UI_HEX.mutedText;
-      self.modalLayer.add(self.ui.label(content.x + 24, ty + 4, cfg.label, 'body', style));
+      sheetHost.add(self.ui.label(content.x + 24, ty + 4, cfg.label, 'body', style));
 
       if (cfg.hint) {
-        self.modalLayer.add(self.ui.label(content.x + 24, ty + 20, cfg.hint, 'caption', {
+        sheetHost.add(self.ui.label(content.x + 24, ty + 20, cfg.hint, 'caption', {
           fontSize: '10px',
           wordWrap: { width: content.width - 26 },
         }));
       }
     }
 
-    if (laneOpts.back) {
+    // Three controls: the back keeps a row of its own above the action and the close.
+    if (laneOpts.back && !backSharesRow) {
       self.modalLayer.add(self.ui.button(
         {
           x: content.x,
@@ -424,17 +754,51 @@ export function laneList(self: ConquestUIScene,
       ));
     }
     if (laneOpts.footer) {
+      // **Every child page ends with a way back and a way out.**
+      //
+      // A page that brings its own action used to *replace* the close with it, so a muster or a
+      // confirm offered only the ghost "back" above — one step up a stack the player may be three
+      // deep in. They share the row rather than stacking, so no page grows and nothing below
+      // moves: the page's own action keeps the emphasis and about two thirds of the width, and a
+      // quiet close sits beside it. Commit on the left, dismiss on the right, both under a thumb.
       const footer = laneOpts.footer;
+      const y = GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET;
+      if (footer.soleAction) {
+        self.modalLayer.add(self.ui.button(
+          { x: content.x, y, width: content.width, height: LANE_CLOSE_BUTTON_HEIGHT },
+          footer.label,
+          () => { if (!footer.disabled) footer.onTap(); },
+          { variant: footer.disabled ? 'disabled' : 'primary', fontSize: '13px' },
+        ));
+      } else {
+        const split = footerSplit(content.x, content.width, t('ascent.lane.close'));
+        self.modalLayer.add(self.ui.button(
+          { x: split.leftX, y, width: split.leftWidth, height: LANE_CLOSE_BUTTON_HEIGHT },
+          footer.label,
+          () => { if (!footer.disabled) footer.onTap(); },
+          { variant: footer.disabled ? 'disabled' : 'primary', fontSize: '13px' },
+        ));
+        self.modalLayer.add(self.ui.button(
+          { x: split.rightX, y, width: split.rightWidth, height: LANE_CLOSE_BUTTON_HEIGHT },
+          t('ascent.lane.close'),
+          () => closeLane(self),
+          { variant: 'ghost', fontSize: '12px' },
+        ));
+      }
+    } else if (backSharesRow && laneOpts.back) {
+      const y = GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET;
+      const split = footerSplit(content.x, content.width, t('ascent.lane.close'));
       self.modalLayer.add(self.ui.button(
-        {
-          x: content.x,
-          y: GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET,
-          width: content.width,
-          height: LANE_CLOSE_BUTTON_HEIGHT,
-        },
-        footer.label,
-        () => { if (!footer.disabled) footer.onTap(); },
-        { variant: footer.disabled ? 'disabled' : 'primary', fontSize: '13px' },
+        { x: split.leftX, y, width: split.leftWidth, height: LANE_CLOSE_BUTTON_HEIGHT },
+        t('ascent.pick.back'),
+        laneOpts.back,
+        { variant: 'ghost', fontSize: '12px' },
+      ));
+      self.modalLayer.add(self.ui.button(
+        { x: split.rightX, y, width: split.rightWidth, height: LANE_CLOSE_BUTTON_HEIGHT },
+        t('ascent.lane.close'),
+        () => closeLane(self),
+        { variant: 'primary', fontSize: '13px' },
       ));
     } else {
       laneCloseButton(self, content);
@@ -512,8 +876,26 @@ export function addStoryOpening(self: ConquestUIScene,
   );
 }
 
-/** Replaces the current lane page with another, keeping the lane (and its pause) open. */
+/**
+ * Replaces the current lane page with another, keeping the lane (and its pause) open.
+ *
+ * **The press that turned the page does not get to press the page it turned to.**
+ *
+ * Reported with a screenshot: *Lập quân -> Quay lại -> it also clicks the checkbox "Lập quân:
+ * tướng hỏi trước" on the Quân đội page.* Both pages live on the modal layer, so the sheet rule in
+ * `ui/inputGeneration` — which asks whether the press began *behind* a sheet — cannot see this at
+ * all: the press began on a sheet and the release landed on a sheet. What changed underneath the
+ * finger was the page.
+ *
+ * The Back button acts on `pointerdown` (`InkUI.button`); `clearLanePage` destroys the form and
+ * `build` draws the parent page in its place, all before the finger lifts. The parent's checkbox is
+ * then sitting under the pointer, and it acts on the release.
+ *
+ * A page turn is a teardown like any other, so it swallows the rest of the gesture the same way an
+ * overlay transition does.
+ */
 export function replaceLanePage(self: ConquestUIScene, build: () => void): void {
+  // `clearLanePage` swallows the rest of the gesture — see the note there.
   clearLanePage(self);
   buildLanePage(self, build);
 }
@@ -533,6 +915,17 @@ export function replaceLanePage(self: ConquestUIScene, build: () => void): void 
  * it and it gets fixed properly — this is a floor under the player, not a way of not knowing.
  */
 function buildLanePage(self: ConquestUIScene, build: () => void): void {
+  // **Remember how this page was made, so it can be made again.**
+  //
+  // The sheet folds by rebuilding the page under it. It used to ask the caller for a `rebuild`
+  // through the `dock` option — which the two pages that have a sheet but no action list never
+  // pass, so on Build and Chronicle the fold flipped a flag and redrew nothing: the sheet could
+  // not be opened, could not be closed, and if it was left open by a page that *could* fold it,
+  // its scrim sat over the whole page swallowing every tap. Reported as both pages being
+  // completely dead.
+  //
+  // Every lane page arrives through here, so here is where the answer is.
+  self.lanePageBuild = build;
   try {
     build();
     return;

@@ -48,6 +48,7 @@ import { formatResourceList, heroName, t } from '../../../i18n';
 import type { ArmyOrders, InvasionRecord } from '../../../state/types';
 import { ARMY_RATION_USE_PER_100 } from '../../../game/gameplayConfig';
 import { cssHex, hostSize, visibleHostileHosts } from '../constants';
+import { showHunters } from './armyTargets';
 import { clearLanePage } from '../layers';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
@@ -57,6 +58,35 @@ export function showArmyScreen(self: ConquestUIScene): void {
   const state = self.state;
   const ascent = state.ascent;
   const mine = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID);
+  // What the war is waiting on, most urgent first.
+  //
+  // A fight already on the ground outranks everything: it is happening whether or not the player
+  // looks, and it is the one item here with a clock on it. A host standing without a general is
+  // next — it fights at a penalty every round until somebody is put over it — and raising one at
+  // all is last, because that is a plan rather than a debt. See the `dock` note in `lanes/frame`.
+  const waiting: Array<{ label: string; onPress: () => void }> = [];
+  const live = liveBattles(state).filter((battle) => !battle.over);
+  if (live.length > 0) {
+    const land = state.lands.find((candidate) => candidate.id === live[0].landId);
+    waiting.push({
+      label: t('ascent.lane.waitBattle', { land: land?.name ?? '' }),
+      onPress: () => self.replaceLanePage(() => self.showBattle()),
+    });
+  }
+  const leaderless = mine.find((army) => !army.isLevy && !army.patron && !army.generalHeroId);
+  if (leaderless) {
+    waiting.push({
+      label: t('ascent.lane.waitGeneral', { host: leaderless.name }),
+      onPress: () => showArmyDetail(self, leaderless.id),
+    });
+  }
+  if (mine.filter((army) => !army.isLevy && !army.patron).length === 0 && findFreeCommander(state)) {
+    waiting.push({
+      label: t('ascent.lane.waitHost'),
+      onPress: () => self.showRaiseHostForm(),
+    });
+  }
+
   const { addRow, addHeading, addNote, addWidget, finish } = self.laneList(
     t('action.army'),
     t('ascent.screen.armyBody', {
@@ -64,6 +94,10 @@ export function showArmyScreen(self: ConquestUIScene): void {
       threat: Math.round(ascent?.threat ?? 0),
     }),
     {
+      dock: {
+        items: waiting,
+        rebuild: () => showArmyScreen(self),
+      },
       footerToggle: {
         label: t('ascent.sys.musterAsked'),
         hint: t((ascent?.autoMusterSilently ?? false)
@@ -204,19 +238,35 @@ export function showArmyScreen(self: ConquestUIScene): void {
         )
       : 0;
     const withdrawing = record.plan === 'withdrawing';
-    addRow({
-      title:
-        (record.great ? t('ascent.war.great') : '') +
-        t('ascent.war.invaderRow', { kingdom: kingdom?.name ?? '—', size }),
-      subtitle: t('ascent.war.invaderBody', {
-        plan: planLabel[record.plan ?? 'spearhead'],
-        target: target?.name ?? at.name,
-        attack,
-        defence: holding,
-      }),
-      border: withdrawing ? INK_UI.softBrush : INK_UI.cinnabar,
-      muted: withdrawing,
-    });
+    // **And every one of them is a door.**
+    //
+    // These rows were the one part of the war section you could only look at: an invader marching
+    // on a province of yours, its strength and the garrison's, and no way to answer it without
+    // leaving, guessing which host to open, and finding the hunt list from the other end. A host
+    // already fighting opens its field; every other one asks who marches on it.
+    const fighting = fields.find((field) => field.landId === invader.landId);
+    addRow(
+      {
+        title:
+          (record.great ? t('ascent.war.great') : '') +
+          t('ascent.war.invaderRow', { kingdom: kingdom?.name ?? '—', size }),
+        subtitle: t('ascent.war.invaderBody', {
+          plan: planLabel[record.plan ?? 'spearhead'],
+          target: target?.name ?? at.name,
+          attack,
+          defence: holding,
+        }),
+        border: withdrawing ? INK_UI.softBrush : INK_UI.cinnabar,
+        muted: withdrawing,
+      },
+      withdrawing ? undefined : fighting
+        ? () => {
+          if (fighting.landId !== commandedLand) focusBattle(state, fighting.landId);
+          self.closeLane();
+          self.openLane('battle');
+        }
+        : () => showHunters(self, invader.id),
+    );
   }
   if (unseen > 0) {
     addNote(t('ascent.war.unseenCount', { n: unseen }));
@@ -352,6 +402,13 @@ export function showArmyDetail(self: ConquestUIScene, armyId: string): void {
   const general = state.heroes.find((candidate) => candidate.id === army.generalHeroId);
   const land = state.lands.find((candidate) => candidate.id === army.landId);
 
+  // A host mid-refit takes no orders at all: every order surface on the page goes quiet together,
+  // with the one sentence that says why, rather than each tile inventing its own excuse.
+  const locked = Boolean(army.refit);
+
+  // A host detail is a page you read top to bottom and leave, not a page you steer a run from:
+  // the whole of it is already a list of orders, so a sheet over it would be a list over a list.
+  // It gets the footer every other sub-page has — the way back, and the way out.
   const { addRow, addHeading, addWidget, finish } = self.laneList(
     army.name,
     t('ascent.army.detailBody', {
@@ -360,6 +417,7 @@ export function showArmyDetail(self: ConquestUIScene, armyId: string): void {
       morale: Math.round(army.morale),
       supply: Math.round(army.supply),
     }),
+    { back: () => self.replaceLanePage(() => showArmyScreen(self)) },
   );
 
   // ── The host ──
@@ -417,9 +475,6 @@ export function showArmyDetail(self: ConquestUIScene, armyId: string): void {
   // its contract for one caller, the host block is laid out as a row with a portrait — the one
   // shape in the list that already carries a face — and the figures above it are given their own
   // pass. The commander row keeps `addRow` because a face IS the row here.
-  // A host mid-refit takes no orders at all: every order surface below goes quiet together,
-  // with the one sentence that says why, rather than each tile inventing its own excuse.
-  const locked = Boolean(army.refit);
   addRow(
     {
       title: general ? heroName(general) : t('ascent.army.noCommander'),
@@ -561,19 +616,18 @@ export function showArmyDetail(self: ConquestUIScene, armyId: string): void {
   // Who fights this host's battles. The run-wide switch in Settings answers it for every host at
   // once, which is the wrong grain: a border garrison should be left to its general and the royal
   // host should not be.
-  addWidget(0, (parent, width) => {
-    const height = self.segmentedRow(parent, width, {
-      label: t('ascent.battle.whoCommands'),
-      options: [t('ascent.battle.commandMine'), t('ascent.battle.commandGeneral')],
-      note: army.autoResolve ? t('ascent.battle.commandGeneralBody') : t('ascent.battle.commandMineBody'),
-      selected: army.autoResolve ? 1 : 0,
-      onPick: (index) => {
-        army.autoResolve = index === 1;
-        showArmyDetail(self, armyId);
-      },
-    });
-    return height;
-  });
+  addWidget(0, (parent, width) => self.segmentedRow(parent, width, {
+    label: t('ascent.battle.whoCommands'),
+    options: [t('ascent.battle.commandMine'), t('ascent.battle.commandGeneral')],
+    note: army.autoResolve
+      ? t('ascent.battle.commandGeneralBody')
+      : t('ascent.battle.commandMineBody'),
+    selected: army.autoResolve ? 1 : 0,
+    onPick: (index) => {
+      army.autoResolve = index === 1;
+      showArmyDetail(self, armyId);
+    },
+  }));
 
   // Recall: out of the fight, off the siege, home. Confirmed, because it can abandon both.
   const siege = state.siegeOrders.find((order) => order.armyId === army.id);

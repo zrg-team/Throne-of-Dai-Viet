@@ -1,13 +1,11 @@
 import Phaser from 'phaser';
+import { marchPlanFacing } from '../data/ascent/formations';
 import { InkMapItemRenderer } from './InkMapItemRenderer';
 import type { ProgressBadgeVariant } from './MapItemRenderer';
 import type { LandBuildingType } from '../state/types';
 import { UI_FONT } from './fonts';
 import { PIGMENT } from './ink/palette';
-import {
-  armyAnchor, armyFootprint, armyShape, clashDevice, compositionFor, drawArmy, figure, marchInPlace, seal,
-  type HostKit,
-} from './ink/devices';
+import { armyAnchor, armyFootprint, armyShape, clashDevice, compositionFor, drawArmy, figure, marchInPlace, seal, type HostKit, RANK_PER_FILE } from './ink/devices';
 import { drawFieldPlot } from './ink/settlements';
 import { citadel, drawnEra, GroundSpacer, hamlet, village } from './ink/settlements';
 import { hatchPoly, inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './ink/stroke';
@@ -198,6 +196,10 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     const shape = armyShape(
       Math.max(1, total), compositionFor(mapKit), scale, kit?.mustered, mapKit.spread ?? 1,
       mapKit.shape, mapKit.markCap,
+      // **Hành quân.** A host between provinces closes up and files one block behind another;
+      // standing, it keeps the doctrine's own spread arrangement. Same drawing either way — only
+      // the geometry the blocks are laid out on changes.
+      kit?.marching ? marchPlanFacing(kit.marchHeading ?? 0, RANK_PER_FILE) : undefined,
     );
     const at = armyAnchor(shape);
 

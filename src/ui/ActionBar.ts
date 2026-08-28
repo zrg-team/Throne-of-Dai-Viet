@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, isCampaignMode } from '../game/constants';
 import type { GameState } from '../state/types';
-import { markControlBorn, pressPredatesControl } from './inputGeneration';
+import { markControlBorn, releaseNotOwnedBy, setContainerInputEnabled } from './inputGeneration';
 import { InkUI, INK_UI, INK_UI_HEX } from './InkUI';
 import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from './CardIcons';
 import { sawtoothBand } from './ink/devices';
@@ -276,6 +276,28 @@ export function actionSlotAt(gameMode: string, x: number, context: ActionBarCont
 }
 
 export class ActionBar extends Phaser.GameObjects.Container {
+  /**
+   * **Hiding this bar has to switch its buttons off, because Phaser will not.**
+   *
+   * `setVisible(false)` stops the bar being drawn and leaves every one of its hit areas live. That
+   * is not a quirk of this class, it is how Phaser 4 works: adding a child to a Container sets the
+   * child's `displayList` to `null` (`Container.addHandler` -> `removeFromDisplayList`), and
+   * `GameObject.willRender` only ever consults `displayList` — never `parentContainer`. So the
+   * input manager hit-tests a hidden container's children exactly as if they were on screen.
+   *
+   * `renderActionBar` hides this bar under every sheet and prompt. Its eight lane buttons therefore
+   * stayed pressable underneath, directly beneath the footer of whatever sheet was open — and the
+   * footer is where a sheet puts its Close. One press, two controls: the sheet closed on the press
+   * and the lane under it fired on the release.
+   *
+   * Reported three times as *"click close button in modal -> also click on behind bottom bar"*.
+   */
+  setVisible(value: boolean): this {
+    super.setVisible(value);
+    setContainerInputEnabled(this, value);
+    return this;
+  }
+
   private readonly gameMode: string;
   private readonly ui: InkUI;
   private buttonObjects: Phaser.GameObjects.GameObject[] = [];
@@ -561,7 +583,7 @@ export class ActionBar extends Phaser.GameObjects.Container {
       // The bar is rebuilt the instant a sheet closes, and a sheet closes on the *press*. Without
       // this the release of that same press lands on a lane that was not on screen when the
       // player decided to press anything — reported as *click Close, also click the menu behind*.
-      if (pressPredatesControl(hit)) return;
+      if (releaseNotOwnedBy(hit)) return;
       onClick();
     });
     markControlBorn(hit);

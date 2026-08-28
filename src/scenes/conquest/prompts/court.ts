@@ -34,6 +34,7 @@ import {
 } from '../../../i18n';
 import type { AscentPrompt, Hero } from '../../../state/types';
 import { PROMPT_FOOTER_HEIGHT, heroStatLine } from '../constants';
+import { promptFoot } from './frame';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
 /**
@@ -282,12 +283,10 @@ export function showLawChoice(self: ConquestUIScene, prompt: Extract<AscentPromp
   staggerIn(self, cards);
   finish(cursor);
 
-  self.modalLayer.add(self.ui.button(
-    { x: content.x, y: GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8, width: content.width, height: 40 },
-    t('ascent.law.hold'),
-    () => self.choose('hold'),
-    { variant: 'ghost', fontSize: '12px' },
-  ));
+  promptFoot(self, content, {
+    back: { onTap: () => { self.choose('hold'); self.openLane('court'); } },
+    close: { label: t('ascent.law.hold'), onTap: () => self.choose('hold') },
+  });
 }
 
 /**
@@ -330,12 +329,13 @@ export function showDoctrine(self: ConquestUIScene, prompt: Extract<AscentPrompt
   staggerIn(self, cards);
   finish(cursor);
 
-  self.modalLayer.add(self.ui.button(
-    { x: content.x, y: GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8, width: content.width, height: 40 },
-    standing ? t('ascent.doctrine.keep') : t('ascent.doctrine.none'),
-    () => self.choose('hold'),
-    { variant: 'ghost', fontSize: '12px' },
-  ));
+  promptFoot(self, content, {
+    back: { onTap: () => { self.choose('hold'); self.openLane('court'); } },
+    close: {
+      label: standing ? t('ascent.doctrine.keep') : t('ascent.doctrine.none'),
+      onTap: () => self.choose('hold'),
+    },
+  });
 }
 
 /** The court speaks. Two choices, both real, drawn from the shared politics deck. */
@@ -381,10 +381,8 @@ export function showParliament(self: ConquestUIScene, prompt: Extract<AscentProm
   staggerIn(self, cards);
   finish(used);
 
-  self.modalLayer.add(self.ui.button(
-    { x: content.x, y: GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8, width: content.width, height: 40 },
-    t('ascent.parliament.decline'),
-    () => self.choose('decline'),
-    { variant: 'ghost', fontSize: '12px' },
-  ));
+  promptFoot(self, content, {
+    back: { onTap: () => { self.choose('decline'); self.openLane('court'); } },
+    close: { label: t('ascent.parliament.decline'), onTap: () => self.choose('decline') },
+  });
 }

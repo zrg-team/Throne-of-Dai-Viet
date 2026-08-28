@@ -1886,7 +1886,16 @@ export class MapScene extends Phaser.Scene {
   }
 
   private updateArmyHighlight(): void {
-    if (this.state.selectedArmyId) {
+    // **A host that is already marching is not being asked where to go.**
+    //
+    // The wash answers one question — where can I send this one? — and giving the order answers
+    // it. But the order does not deselect the host, so every reachable province stayed lit for
+    // the whole journey and after the arrival, until the player happened to tap open ground.
+    // Reported as the highlight never going away.
+    const marching = this.state.selectedArmyId
+      ? this.state.movementOrders.some((order) => order.armyId === this.state.selectedArmyId)
+      : false;
+    if (this.state.selectedArmyId && !marching) {
       this.overlays.highlightReachableLands(
         this.state,
         this.hexTileMap,

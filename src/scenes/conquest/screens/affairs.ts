@@ -25,9 +25,10 @@ export function showAffairsScreen(self: ConquestUIScene): void {
   );
   const { addWidget, addHeading, addRow, finish } = self.laneList(t('action.affairs'), t('ascent.lane.worldBody'));
 
-  // Four neighbours, each a name, a temperature and two figures — a grid. As full-width cards
-  // they filled the screen and the player still had to scroll to see the fourth realm, which on
-  // a page whose whole job is *comparing* them is the one thing it must not do.
+  // Four neighbours, one under the other. They were paired into a grid to keep all four above the
+  // fold, but half the width is not enough for a realm's name and its standing: every title wrapped
+  // to two or three lines, so the grid was taller than the list it was avoiding *and* harder to
+  // read. There is not enough on this page to need columns — reported exactly that way.
   addWidget(0, (parent, width) => self.actionTiles(parent, width, rivals.map((kingdom) => {
     const relations = Math.round(kingdom.relations ?? 50);
     // Who they feud with, and whether one of their hosts is standing on our ground right now.
@@ -60,7 +61,7 @@ export function showAffairsScreen(self: ConquestUIScene): void {
         self.events.emit('ui:ascent-envoy', kingdom.id);
       },
     };
-  })));
+  }), { columns: 1 }));
   // The rival a story has taken an interest in, on the screen where rivals live.
   self.addStoryOpening('rival', undefined, addHeading, addRow);
 
