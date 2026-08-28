@@ -269,14 +269,34 @@ export function swallowRestOfPress(scene: Phaser.Scene): void {
 
   scene.input.enabled = false;
   let done = false;
+
+  /**
+   * Re-enables input **two animation frames after** the release, never on the event itself.
+   *
+   * This is the whole correctness of the swallow and the first version got it wrong. Phaser does
+   * not act on DOM input as it arrives: `InputManager` queues the event and drains the queue during
+   * the game step. A listener that flips `input.enabled` back to true when the `pointerup` fires —
+   * in the capture phase, which is *earlier still* — therefore restores input **before** Phaser has
+   * processed that very release, and the release is delivered exactly as if nothing had been
+   * swallowed. Measured: pressing a confirm button seated a minister and the release went on to
+   * open the next seat's picker and pick from it.
+   *
+   * Two frames rather than one because the queue is drained inside the step, and a release arriving
+   * mid-step is held to the next one. Two is past both.
+   */
+  const enableSoon = (): void => {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      // The scene may have been torn down while the finger was still down.
+      if (scene.scene?.isActive?.()) scene.input.enabled = true;
+    }));
+  };
   const release = (): void => {
     if (done) return;
     done = true;
     window.removeEventListener('pointerup', release, true);
     window.removeEventListener('pointercancel', release, true);
     window.removeEventListener('mouseup', release, true);
-    // The scene may have been torn down while the finger was still down.
-    if (scene.scene?.isActive?.()) scene.input.enabled = true;
+    enableSoon();
   };
   window.addEventListener('pointerup', release, true);
   window.addEventListener('pointercancel', release, true);

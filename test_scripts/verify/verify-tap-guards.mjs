@@ -227,6 +227,121 @@ const out = await page.evaluate(async () => {
   return r;
 });
 
+/**
+ * One press, one outcome — driven with real mouse input through a real three-page flow.
+ *
+ * Everything above measures a mechanism. This measures the thing the player reported: a press on
+ * one page acting on the page it opens. The flow is the court dock -> the seat picker -> the
+ * confirm sheet, which is three teardowns in a row and the shape every report of this arrived in.
+ *
+ * The failure it guards is specific and was live until the release was deferred: `Xác nhận` acts on
+ * `pointerdown`, the confirm seats the minister and turns the page, and the release of that same
+ * press then landed on whatever the parent page had put underneath — seating somebody else, or
+ * moving the minister already seated.
+ */
+const tap = async (y, hold = 90) => {
+  await page.mouse.move(195, y);
+  await page.mouse.down();
+  await page.waitForTimeout(hold);
+  await page.mouse.up();
+  await page.waitForTimeout(700);
+};
+const laneTexts = () => page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  const found = [];
+  const walk = (c, d) => {
+    for (const o of c.list ?? []) {
+      if (o.type === 'Text') found.push({ t: o.text, y: Math.round(o.getWorldTransformMatrix().ty) });
+      if (o.list && d < 5) walk(o, d + 1);
+    }
+  };
+  walk(ui.modalLayer, 0);
+  return found;
+});
+const seatCount = () => page.evaluate(() => Object.keys(window.__st.court.seats).length);
+
+// The world stops, or the court autopilot seats a minister behind the probe's back and the count
+// moves for a reason that has nothing to do with the press being measured.
+await page.evaluate(() => {
+  window.__st.isPaused = true;
+  window.__st.isStrategyPause = true;
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  ui.closeLane();
+  ui.openLane('court');
+});
+await page.waitForTimeout(700);
+
+const flow = { ok: false, reason: 'not run' };
+const dockRow = (await laneTexts()).find((x) => /đang trống|stands empty/i.test(x.t));
+if (!dockRow) {
+  flow.reason = 'no empty seat to work with';
+} else {
+  const before = await seatCount();
+  await tap(dockRow.y);
+  const picked = (await laneTexts()).find((x) => x.y > 140 && /·/.test(x.t) && !/Chạm|Tap /.test(x.t));
+  if (!picked) {
+    flow.reason = 'the picker offered nobody';
+  } else {
+    await tap(picked.y);
+    const confirm = (await laneTexts()).find((x) => /^(Xác nhận|Confirm)$/.test(x.t));
+    if (!confirm) {
+      flow.reason = 'no confirm button on the sheet';
+    } else {
+      const midway = await seatCount();
+      await tap(confirm.y);
+      const after = await seatCount();
+      const key = await page.evaluate(() => window.__phaserGame.scene.getScene('ConquestUIScene').openPromptKey);
+      flow.ok = midway === before && after === before + 1 && key === 'lane:court';
+      flow.reason = JSON.stringify({ before, midway, after, key });
+    }
+  }
+}
+console.log(`${flow.ok ? 'PASS' : 'FAIL'}  one press seats exactly one minister and stops there  — ${flow.reason}`);
+
+// And the mechanism underneath it, measured rather than inferred.
+//
+// Phaser does not act on DOM input as it arrives: `InputManager` queues the event and drains the
+// queue inside the game step. So a swallow that re-enables input *on* the `pointerup` — in the
+// capture phase, earlier still — hands the release straight back to the game and swallows nothing.
+// This presses a control that tears the page down, then samples `input.enabled` at the instant of
+// the release and a frame later, which is exactly the window that was leaking.
+const swallow = { during: null, atRelease: null, nextFrame: null, after: null, reason: 'not run' };
+await page.evaluate(() => {
+  const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+  ui.closeLane(); ui.openLane('court');
+});
+await page.waitForTimeout(700);
+const seatRow = (await laneTexts()).find((x) => /đang trống|stands empty/i.test(x.t));
+if (!seatRow) {
+  swallow.reason = 'no empty seat to work with';
+} else {
+  await page.evaluate(() => { window.__samples = []; });
+  await page.mouse.move(195, seatRow.y);
+  await page.mouse.down();
+  await page.waitForTimeout(120);
+  swallow.during = await page.evaluate(() => window.__phaserGame.scene.getScene('ConquestUIScene').input.enabled);
+  await page.evaluate(() => {
+    const ui = window.__phaserGame.scene.getScene('ConquestUIScene');
+    window.addEventListener('pointerup', () => window.__samples.push(ui.input.enabled), true);
+    requestAnimationFrame(() => window.__samples.push(ui.input.enabled));
+  });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  const samples = await page.evaluate(() => window.__samples);
+  // Both samples: at the release itself, and one animation frame later. The second is the one
+  // that matters — a frame later is when Phaser drains its input queue, so input being back on by
+  // then means the release was delivered after all. Measured with the old capture-phase restore:
+  // `[false, true]`. With the deferral: `[false, false]`.
+  swallow.atRelease = samples[0] ?? null;
+  swallow.nextFrame = samples[1] ?? null;
+  swallow.after = await page.evaluate(() => window.__phaserGame.scene.getScene('ConquestUIScene').input.enabled);
+  swallow.reason = JSON.stringify({ during: swallow.during, samples, after: swallow.after });
+}
+const swallowOk = swallow.during === false && swallow.atRelease === false
+  && swallow.nextFrame === false && swallow.after === true;
+console.log(`${swallowOk ? 'PASS' : 'FAIL'}  input stays off through the release, and comes back after  — ${swallow.reason}`);
+if (!flow.ok) errors.push('FLOW: ' + flow.reason);
+
 const checks = out.fatal ? { [out.fatal]: false } : {
   'the map hears an ordinary tap': out.overlay.quietBefore,
   'a sheet over the map makes it deaf': out.overlay.deafDuring,
@@ -244,7 +359,9 @@ const checks = out.fatal ? { [out.fatal]: false } : {
   'and the count says what is actually on screen': out.dock.countsMatch,
   'the name plate holds its size under the thumb when zoomed out': out.plate.holdsUp,
   'because the padding is screen pixels, not world units': out.plate.padHeldConstant,
-  'no console errors': errors.length === 0,
+  'one press seats one minister, and the release goes nowhere': flow.ok,
+  'and input stays off through that release, not just up to it': swallowOk,
+  'no console errors': errors.filter((e) => !e.startsWith('FLOW:')).length === 0,
 };
 
 const fails = [];
