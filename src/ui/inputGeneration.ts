@@ -245,3 +245,44 @@ export function releaseNotOwnedBy(target: Phaser.GameObjects.GameObject): boolea
 
 /** @deprecated Kept for the call sites converted before the sheet rule existed. */
 export const pressPredatesControl = releaseNotOwnedBy;
+
+/**
+ * **Swallows the rest of a press whose front half tore the interface down.**
+ *
+ * The complete form of the fix, and the reason it is here rather than in each control: a sheet
+ * closes on `pointerdown` (`InkUI.button` acts on the press, deliberately), and the `pointerup`
+ * that follows is delivered by Phaser to whatever the close has just revealed. Every per-control
+ * guard has to be added one control at a time, and the report came back three times because the
+ * bottom bar was not one of the ones converted.
+ *
+ * Turning the scene's input off for the remainder of the gesture needs no cooperation from
+ * anything. Nothing behind can act, and nothing in the sheet needs to — it is already gone. The
+ * release is consumed by a one-shot listener on the window, not through Phaser, precisely because
+ * Phaser's input is what has been switched off.
+ *
+ * Belt and braces: `pointercancel` releases it too, and a timer releases it if no release ever
+ * arrives. A stuck input plugin would be a far worse bug than the one being fixed.
+ */
+export function swallowRestOfPress(scene: Phaser.Scene): void {
+  const anyDown = scene.input.manager.pointers.some((pointer) => pointer.isDown);
+  if (!anyDown || !scene.input.enabled) return;
+
+  scene.input.enabled = false;
+  let done = false;
+  const release = (): void => {
+    if (done) return;
+    done = true;
+    window.removeEventListener('pointerup', release, true);
+    window.removeEventListener('pointercancel', release, true);
+    window.removeEventListener('mouseup', release, true);
+    // The scene may have been torn down while the finger was still down.
+    if (scene.scene?.isActive?.()) scene.input.enabled = true;
+  };
+  window.addEventListener('pointerup', release, true);
+  window.addEventListener('pointercancel', release, true);
+  window.addEventListener('mouseup', release, true);
+  // Never longer than a gesture. If the release is lost — a WebView backgrounding mid-press, a
+  // pointer captured elsewhere — the interface must come back on its own.
+  scene.time.delayedCall(1200, release);
+}
+

@@ -57,6 +57,10 @@ const buttonAt = (sceneKey, pattern) => page.evaluate(([key, source]) => {
   return walk(scene?.children?.list);
 }, [sceneKey, pattern]);
 
+// English, explicitly. This file asserts its labels in English and Vietnamese is the product
+// default now, so without this it hunts for "How to Play" while the button reads "Cách chơi" and
+// reports the door as missing. `verify-classic-page` pins the language for the same reason.
+await page.addInitScript(() => localStorage.setItem('mandate:language:v1', 'en'));
 await page.goto(`${BASE}/?capture=1`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
 await page.waitForTimeout(1200);
@@ -117,8 +121,11 @@ const closeTour = async () => {
           // somewhere to send the player ends on "Play now".
           && /^(Next|Got it|Start playing|Play now|Tiếp|Đã rõ|Vào chơi|Chơi ngay)$/.test(k.text));
         if (label) {
-          child.list.find((k) => k.type === 'Rectangle')
-            ?.emit('pointerup', { id: 7, downTime: 0 }, 0, 0, { stopPropagation() {} });
+          // Both halves: `InkUI.button` acts on the press, the Copilot's own controls on the
+          // release, and this loop has to drive whichever kind the card is carrying.
+          const hit = child.list.find((k) => k.type === 'Rectangle');
+          hit?.emit('pointerdown', { id: 7, downTime: 0 }, 0, 0, { stopPropagation() {} });
+          hit?.emit('pointerup', { id: 7, downTime: 0 }, 0, 0, { stopPropagation() {} });
           return false;
         }
       }
@@ -455,8 +462,9 @@ const pressOnMenu = (pattern) => handoff.evaluate((source) => {
   for (const child of scene.children.list) {
     const label = child.list?.find?.((k) => k.type === 'Text' && re.test(k.text));
     if (label) {
-      child.list.find((k) => k.type === 'Rectangle')
-        ?.emit('pointerup', { id: 11, downTime: 0 }, 0, 0, { stopPropagation() {} });
+      const hit = child.list.find((k) => k.type === 'Rectangle');
+      hit?.emit('pointerdown', { id: 11, downTime: 0 }, 0, 0, { stopPropagation() {} });
+      hit?.emit('pointerup', { id: 11, downTime: 0 }, 0, 0, { stopPropagation() {} });
       return true;
     }
   }
@@ -475,6 +483,7 @@ const pickLanguage = (label) => handoff.evaluate((want) => {
   const semanticHit = scene.children.list.find((child) => child.getData?.('languageOption') === languageId
     && child.depth >= 900);
   if (semanticHit) {
+    semanticHit.emit('pointerdown', { id: 21, downTime: 0 }, 0, 0, { stopPropagation() {} });
     semanticHit.emit('pointerup', { id: 21, downTime: 0 }, 0, 0, { stopPropagation() {} });
     return true;
   }
@@ -484,6 +493,7 @@ const pickLanguage = (label) => handoff.evaluate((want) => {
     const hit = scene.children.list.find((r) => r.type === 'Rectangle' && r.depth >= 900
       && Math.abs(r.x - (m.tx + child.width / 2)) < 4);
     if (hit) {
+      hit.emit('pointerdown', { id: 21, downTime: 0 }, 0, 0, { stopPropagation() {} });
       hit.emit('pointerup', { id: 21, downTime: 0 }, 0, 0, { stopPropagation() {} });
       return true;
     }

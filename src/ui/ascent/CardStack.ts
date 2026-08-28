@@ -148,9 +148,17 @@ export class CardStack {
     }
     if (Math.abs(dx) >= SIDE_THRESHOLD && this.holders.length > 1) {
       const direction = dx > 0 ? 1 : -1;
-      // Flicking left throws the card away and brings the next one up, the way every deck of
-      // cards in a phone works; flicking right walks back to the one before it.
-      this.flyOut(direction, () => this.advance(direction > 0 ? -1 : 1));
+      // **Either flick brings up the card you can see behind this one.**
+      //
+      // It used to walk backwards on a right flick, on the reasoning that a deck browses both
+      // ways. The fan does not: `layout` always peeks `index + 1` and `index + 2`, so a right
+      // flick showed you card B under your thumb and then dealt you card C. Reported exactly that
+      // way — *hold card A, bottom shows card B, swipe and it shows card C.*
+      //
+      // A peek that lies about what the gesture will do is worse than losing one direction of
+      // travel, and the arrows either side of the dots still walk the deck both ways for anyone
+      // who wants to go back. So both flicks advance, and what you saw is what you get.
+      this.flyOut(direction, () => this.advance(1));
       return;
     }
     this.settle();

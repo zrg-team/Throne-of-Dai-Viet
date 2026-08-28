@@ -512,8 +512,26 @@ export function addStoryOpening(self: ConquestUIScene,
   );
 }
 
-/** Replaces the current lane page with another, keeping the lane (and its pause) open. */
+/**
+ * Replaces the current lane page with another, keeping the lane (and its pause) open.
+ *
+ * **The press that turned the page does not get to press the page it turned to.**
+ *
+ * Reported with a screenshot: *Lập quân -> Quay lại -> it also clicks the checkbox "Lập quân:
+ * tướng hỏi trước" on the Quân đội page.* Both pages live on the modal layer, so the sheet rule in
+ * `ui/inputGeneration` — which asks whether the press began *behind* a sheet — cannot see this at
+ * all: the press began on a sheet and the release landed on a sheet. What changed underneath the
+ * finger was the page.
+ *
+ * The Back button acts on `pointerdown` (`InkUI.button`); `clearLanePage` destroys the form and
+ * `build` draws the parent page in its place, all before the finger lifts. The parent's checkbox is
+ * then sitting under the pointer, and it acts on the release.
+ *
+ * A page turn is a teardown like any other, so it swallows the rest of the gesture the same way an
+ * overlay transition does.
+ */
 export function replaceLanePage(self: ConquestUIScene, build: () => void): void {
+  // `clearLanePage` swallows the rest of the gesture — see the note there.
   clearLanePage(self);
   buildLanePage(self, build);
 }

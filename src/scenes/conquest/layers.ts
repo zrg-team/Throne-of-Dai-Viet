@@ -11,6 +11,7 @@
  * `clearLanePage` is the lane's equivalent, and lives here for the same reason.
  */
 import Phaser from 'phaser';
+import { swallowRestOfPress } from '../../ui/inputGeneration';
 import type { ConquestUIScene } from '../ConquestUIScene';
 
 /**
@@ -75,6 +76,17 @@ export function killTweensDeep(self: ConquestUIScene, object: Phaser.GameObjects
  * endless tweens, and paying a deep tween sweep on every page turn is not free.
  */
 export function clearLanePage(self: ConquestUIScene): void {
+  // **The press that tore this page down does not get to press what replaces it.**
+  //
+  // Reported with a screenshot: *Lập quân -> Quay lại -> it also ticks the checkbox on the Quân đội
+  // page underneath.* Back acts on `pointerdown` (`InkUI.button`), this destroys the form, the
+  // parent page is drawn in its place, and the parent's checkbox is under the pointer by the time
+  // the finger lifts.
+  //
+  // Here rather than in `replaceLanePage` because this is the single funnel every lane teardown
+  // passes through — the page turn, the close, and the broken-page recovery — and the same gesture
+  // straddles all three.
+  swallowRestOfPress(self);
   self.stopBattleClock();
   self.battleUi = undefined;
   // Only the war board sets this again, on its way in — so every other page of the lane is
