@@ -181,6 +181,11 @@ const out = await page.evaluate(async () => {
       // raising the sheet floats it *over* the page rather than taking height off the page: a
       // dock laid out in the footer would push this line, an overlay cannot touch it.
       const anchor = texts.find((x) => /ổn định|stability/i.test(x.t));
+      // The lane's own selects are the sheet's contents too — the picker's heading and the
+      // checkbox's label. Folded, neither may be on screen: a sheet that folds its list but
+      // keeps its picker is the thing this was reported for four times.
+      const selects = texts.some((x) => head && x.y > head.y
+        && /đường lối trị quốc|lập quân|standing course|muster/i.test(x.t));
       ui.closeLane();
       await new Promise((done) => setTimeout(done, 300));
       return {
@@ -188,6 +193,7 @@ const out = await page.evaluate(async () => {
         head: head ? { t: head.t, y: Math.round(head.y) } : null,
         rows: rows.map((x) => Math.round(x.y)),
         anchor: anchor ? Math.round(anchor.y) : null,
+        selects,
       };
     };
 
@@ -195,25 +201,28 @@ const out = await page.evaluate(async () => {
     const court = await readLane('court');
     const courtOpen = await readLane('court', true);
     const army = await readLane('army');
+    const armyOpen = await readLane('army', true);
     // The first number in the heading is the count of what is waiting; a folded heading carries a
     // second one ("+2 more"), so anchoring on the end of the string reads the wrong figure.
     const counted = (head) => Number((head?.t ?? '').match(/(\d+)/)?.[1] ?? -1);
     r.dock = {
       court, army, half: Math.round(half),
       courtHasDock: Boolean(court.head) && counted(court.head) > 0,
-      armyHasDock: Boolean(army.head) && army.rows.length > 0,
+      armyHasDock: Boolean(army.head) && counted(army.head) > 0,
       // Every waiting row below the halfway line — the band a resting thumb covers.
-      inReach: [...court.rows, ...army.rows].every((y) => y > half),
+      inReach: [...courtOpen.rows, ...armyOpen.rows].every((y) => y > half),
       // And the heading counts what is actually on screen, not what was offered before the cap.
       counts: { court: counted(court.head), army: counted(army.head) },
-      // **Shut by default, like any bottom sheet.** The court has three things waiting on a fresh
-      // run: shut, it shows none of them — one title line and the count — and the count beside the
-      // title is the handle that raises it. A lane with a single thing waiting never folds.
-      shutByDefault: court.rows.length === 0 && court.more === true,
-      opensOnAsk: courtOpen.rows.length === 3,
-      warUnfolded: army.rows.length === 1,
-      // The title counts everything waiting whether the sheet is up or down.
-      countsMatch: counted(court.head) === 3 && counted(army.head) === army.rows.length,
+      // **Shut by default, like any bottom sheet.** Folded, a lane shows its header and nothing
+      // else: no rows, and — the part four rounds of this kept getting wrong — none of the lane's
+      // own selects either. The whole foot of the page is one panel that folds as a unit.
+      shutByDefault: court.rows.length === 0 && army.rows.length === 0,
+      selectsFold: court.selects === false && army.selects === false,
+      opensOnAsk: courtOpen.rows.length === 3 && armyOpen.rows.length === 1,
+      selectsOpen: courtOpen.selects === true && armyOpen.selects === true,
+      // The header counts everything waiting whether the sheet is up or down.
+      countsMatch: counted(court.head) === 3 && counted(army.head) === 1
+        && counted(courtOpen.head) === 3,
       // **And raising it costs the page nothing.** Same body, same place, both ways.
       anchors: { shut: court.anchor, open: courtOpen.anchor },
       bodyUnmoved: court.anchor !== null && court.anchor === courtOpen.anchor,
@@ -381,10 +390,11 @@ const checks = out.fatal ? { [out.fatal]: false } : {
   'so does the war lane': out.dock.armyHasDock,
   'and every waiting row is in the thumb band, not the top third': out.dock.inReach,
   'the heading still counts everything waiting': out.dock.countsMatch,
-  'the sheet is shut until asked — no rows, just the handle': out.dock.shutByDefault,
-  'and every waiting row is there when it is raised': out.dock.opensOnAsk,
+  'the sheet is shut until asked — just the header': out.dock.shutByDefault,
+  'and the picker folds away with it, not only the list': out.dock.selectsFold,
+  'every waiting row is there when it is raised': out.dock.opensOnAsk,
+  'and so is the picker — one panel, one fold': out.dock.selectsOpen,
   'raising it floats over the body instead of shrinking it': out.dock.bodyUnmoved,
-  'and a lane with one thing waiting does not fold': out.dock.warUnfolded,
   'the name plate holds its size under the thumb when zoomed out': out.plate.holdsUp,
   'because the padding is screen pixels, not world units': out.plate.padHeldConstant,
   'one press seats one minister, and the release goes nowhere': flow.ok,
