@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, HEADER_HEIGHT } from '../../game/constants';
 import { t } from '../../i18n';
-import { markControlBorn, pressPredatesControl } from '../inputGeneration';
+import { markControlBorn, releaseNotOwnedBy, setContainerInputEnabled } from '../inputGeneration';
 import type { GameState } from '../../state/types';
 import { adviseAscent, type Advice, type AdviceTone } from '../../systems/ascent/Advisor';
 import { InkUI, INK_UI } from '../InkUI';
@@ -100,7 +100,7 @@ export class AdvisorStrip {
       event: Phaser.Types.Input.EventData,
     ) => {
       event.stopPropagation();
-      if (pressPredatesControl(this.hit)) return;
+      if (releaseNotOwnedBy(this.hit)) return;
       this.open = !this.open;
       this.draw();
     });
@@ -139,6 +139,10 @@ export class AdvisorStrip {
 
   setVisible(visible: boolean): void {
     this.root.setVisible(visible);
+    // Hiding a Phaser container leaves its hit areas live — see `setContainerInputEnabled`. This
+    // strip is hidden under every sheet, so without this it stays pressable through one.
+    setContainerInputEnabled(this.root, visible);
+    if (this.hit) this.hit.input && (this.hit.input.enabled = visible);
     // An open sheet does not survive being hidden. A prompt takes the screen, and coming back to
     // a panel the player opened four decisions ago — about a situation the decision has since
     // changed — is worse than coming back to the line.

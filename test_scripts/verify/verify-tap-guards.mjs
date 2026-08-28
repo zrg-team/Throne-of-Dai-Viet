@@ -24,6 +24,7 @@ await page.waitForFunction(
 
 const out = await page.evaluate(async () => {
   const { createAscentGameState } = await import('/src/state/GameState.ts');
+  const { renderActionBar } = await import('/src/scenes/conquest/shell.ts');
   const game = window.__phaserGame;
   const r = {};
 
@@ -108,35 +109,43 @@ const out = await page.evaluate(async () => {
   // same press is then delivered to whatever the close has just built underneath, and rows, lanes
   // and strips all act on the release. Nothing about it is a hit-test fault — at the moment of
   // the release the sheet is gone.
-  const IG = await import('/src/ui/inputGeneration.ts');
+  // ── 5. Chrome hidden under a sheet is switched off, not merely invisible ─
+  //
+  // The mechanical root cause of *"click Close in the modal, also click the bottom bar"*. Phaser 4
+  // sets a container child's `displayList` to null and `willRender` never consults
+  // `parentContainer`, so `setVisible(false)` on a container hides it and leaves every hit area
+  // live. Measured before the fix, with a lane open: the action bar reported `visible: false` and
+  // **8 of 8 hit areas still enabled**, directly under where the sheet draws its footer.
   {
-    const older = ui.add.rectangle(0, 0, 4, 4, 0, 0);
-    IG.markControlBorn(older);          // existed before the press
-    IG.notePressStarted();              // the finger goes down
-    IG.bumpInputGeneration();           // the sheet closes and rebuilds underneath
-    const newer = ui.add.rectangle(0, 0, 4, 4, 0, 0);
-    IG.markControlBorn(newer);          // built under a finger already down
-    r.generation = {
-      olderStillActs: IG.pressPredatesControl(older) === false,
-      newerRefuses: IG.pressPredatesControl(newer) === true,
-      // A fresh press afterwards reaches the new control normally.
-      newerActsOnItsOwnPress: (() => { IG.notePressStarted(); return IG.pressPredatesControl(newer) === false; })(),
+    const liveIn = (root) => {
+      let live = 0; let total = 0;
+      const walk = (c) => {
+        for (const o of c.list ?? []) {
+          if (o.input) { total += 1; if (o.input.enabled) live += 1; }
+          if (o.list) walk(o);
+        }
+      };
+      walk(root);
+      return { live, total };
     };
-    older.destroy(); newer.destroy();
-  }
-
-  // ...and the boundary is actually stamped where sheets open and close.
-  {
-    const before = IG.currentGeneration();
-    ui.beginOverlay('probe-gen');
-    const afterOpen = IG.currentGeneration();
+    const openMap = liveIn(ui.actionBar);
+    ui.beginOverlay('probe-chrome');
+    ui.modalLayer.add(ui.add.rectangle(0, 0, 10, 10, 0x000000, 0));
+    renderActionBar(ui);
+    const underSheet = liveIn(ui.actionBar);
     ui.closeOverlay();
-    const afterClose = IG.currentGeneration();
-    r.wiring = { bumpsOnOpen: afterOpen > before, bumpsOnClose: afterClose > afterOpen };
-    await new Promise((done) => setTimeout(done, 150));
+    await new Promise((done) => setTimeout(done, 200));
+    renderActionBar(ui);
+    const afterwards = liveIn(ui.actionBar);
+    r.chrome = {
+      openMap, underSheet, afterwards,
+      liveWithMap: openMap.total > 0 && openMap.live === openMap.total,
+      deadUnderSheet: underSheet.live === 0,
+      liveAgainAfter: afterwards.live === afterwards.total,
+    };
   }
 
-  // ── 5. The name plate is the same size under the thumb at any zoom ───────
+  // ── 6. The name plate is the same size under the thumb at any zoom ───────
   const landId = [...map.landLabels.keys()].find((id) => map.hasVisibleLabel(id));
   if (landId) {
     // `mapZoom` is a getter over `cameras.main.zoom`; assigning to it is a silent no-op, which is
@@ -173,11 +182,9 @@ const checks = out.fatal ? { [out.fatal]: false } : {
   'a stale key with nothing drawn cannot lock the map': out.stuckKey.stillHears,
   'a tap on open ground clears the selection': out.dismiss.clearedByEmptyTap,
   'and an idle tap repaints nothing': out.dismiss.idleIsCheap,
-  'a control that predates the press still acts on it': out.generation.olderStillActs,
-  'one built by that same press refuses its release': out.generation.newerRefuses,
-  'and answers the next press normally': out.generation.newerActsOnItsOwnPress,
-  'opening a sheet marks the boundary': out.wiring.bumpsOnOpen,
-  'and so does closing one': out.wiring.bumpsOnClose,
+  'the bottom bar is pressable with the map showing': out.chrome.liveWithMap,
+  'and every one of its hit areas is DEAD under a sheet': out.chrome.deadUnderSheet,
+  'and live again once the sheet closes': out.chrome.liveAgainAfter,
   'the name plate holds its size under the thumb when zoomed out': out.plate.holdsUp,
   'because the padding is screen pixels, not world units': out.plate.padHeldConstant,
   'no console errors': errors.length === 0,

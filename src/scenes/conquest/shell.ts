@@ -25,7 +25,7 @@ import { refreshAscentLaneState } from '../../systems/ascent/ConquestSystem';
 import { countOpenDoors } from '../../systems/story/StorySystem';
 import { contestedFronts, realmUnderAttack } from '../../systems/ascent/battleReport';
 import { INK_UI, InkUI } from '../../ui/InkUI';
-import { bumpInputGeneration } from '../../ui/inputGeneration';
+import { bumpInputGeneration, forgetSheet, registerSheet } from '../../ui/inputGeneration';
 import { playWaveBanner } from '../../ui/ascent/waveBanner';
 import { AscentHud } from '../../ui/ascent/AscentHud';
 import { AdvisorStrip } from '../../ui/ascent/AdvisorStrip';
@@ -115,6 +115,8 @@ export function create(self: ConquestUIScene): void {
   // may survive the scene that owns them.
   self.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
     self.stopBattleClock();
+    // A dead scene must not answer the input guard for a live one.
+    forgetSheet();
     window.__hudTapBounds = [];
     self.advisor.destroy();
     self.whispers.destroy();
@@ -132,6 +134,14 @@ export function create(self: ConquestUIScene): void {
   });
 
   self.modalLayer = self.add.container(0, 0).setDepth(500);
+  // How the input guard sees a sheet: whether one is up, and which container holds its controls.
+  // Everything outside that container refuses the release of a press that began while it was up —
+  // which is the whole of *"when in the modal must not click anything behind"*. See
+  // `ui/inputGeneration`.
+  registerSheet(
+    () => self.openPromptKey !== '' && self.modalLayer.length > 0,
+    self.modalLayer,
+  );
 
   self.events.on('state-changed', self.onStateChanged);
   refresh(self);
@@ -625,7 +635,48 @@ export function setMapVisible(self: ConquestUIScene, visible: boolean): void {
   }
 }
 
+/**
+ * **Swallows the rest of a press whose front half tore the interface down.**
+ *
+ * The complete form of the fix, and the reason it is here rather than in each control: a sheet
+ * closes on `pointerdown` (`InkUI.button` acts on the press, deliberately), and the `pointerup`
+ * that follows is delivered by Phaser to whatever the close has just revealed. Every per-control
+ * guard has to be added one control at a time, and the report came back three times because the
+ * bottom bar was not one of the ones converted.
+ *
+ * Turning the scene's input off for the remainder of the gesture needs no cooperation from
+ * anything. Nothing behind can act, and nothing in the sheet needs to — it is already gone. The
+ * release is consumed by a one-shot listener on the window, not through Phaser, precisely because
+ * Phaser's input is what has been switched off.
+ *
+ * Belt and braces: `pointercancel` releases it too, and a timer releases it if no release ever
+ * arrives. A stuck input plugin would be a far worse bug than the one being fixed.
+ */
+function swallowRestOfPress(self: ConquestUIScene): void {
+  const anyDown = self.input.manager.pointers.some((pointer) => pointer.isDown);
+  if (!anyDown || !self.input.enabled) return;
+
+  self.input.enabled = false;
+  let done = false;
+  const release = (): void => {
+    if (done) return;
+    done = true;
+    window.removeEventListener('pointerup', release, true);
+    window.removeEventListener('pointercancel', release, true);
+    window.removeEventListener('mouseup', release, true);
+    // The scene may have been torn down while the finger was still down.
+    if (self.scene?.isActive?.()) self.input.enabled = true;
+  };
+  window.addEventListener('pointerup', release, true);
+  window.addEventListener('pointercancel', release, true);
+  window.addEventListener('mouseup', release, true);
+  // Never longer than a gesture. If the release is lost — a WebView backgrounding mid-press, a
+  // pointer captured elsewhere — the interface must come back on its own.
+  self.time.delayedCall(1200, release);
+}
+
 export function beginOverlay(self: ConquestUIScene, key: string): void {
+  swallowRestOfPress(self);
   // Everything built from here belongs to a newer interface than any press already in flight.
   //
   // This is the whole of the *"click Close, also click the menu behind"* fix. A sheet opens and
@@ -664,7 +715,10 @@ function releaseOverlay(self: ConquestUIScene): void {
 
 /** Closes a chrome overlay (Codex / menu / quit) without touching the prompt queue. */
 export function closeOverlay(self: ConquestUIScene): void {
-  // Same boundary on the way out, and this is the direction the report is about.
+  // The direction the report is about: the press that closed this sheet must not go on to press
+  // the bar it has just revealed.
+  swallowRestOfPress(self);
+  // Same boundary on the way out.
   bumpInputGeneration();
   // The close rebuilds the map chrome in one frame — held for the same reason as the open.
   qualityLadder()?.hold(800);
