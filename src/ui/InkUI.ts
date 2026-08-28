@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { addPressFeedback } from './animations';
+import { markControlBorn, notePressStarted, pressPredatesControl } from './inputGeneration';
 import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from './CardIcons';
 import { UI_FONT } from './fonts';
 import { RectClip } from './ink/clipRect';
@@ -423,6 +424,10 @@ export class InkScrollArea {
       this.velocity *= Math.pow(SCROLL_FRICTION, delta / (1000 / 60));
     };
     scene.events.on(Phaser.Scenes.Events.UPDATE, this.glideHandler);
+    // The press-start note, installed wherever this UI is. It records nothing about *where* the
+    // press landed — only which generation of the interface was on screen when it began, which is
+    // what every release-driven control below is judged against.
+    scene.input.on('pointerdown', notePressStarted);
     scene.input.on('pointerdown', this.downHandler);
     scene.input.on('pointermove', this.moveHandler);
     scene.input.on('pointerup', this.upHandler);
@@ -804,6 +809,7 @@ export class InkUI {
      * one, so it costs nothing and covers a button that ever does end up inside a list.
      */
     let firedAt = 0;
+    markControlBorn(hitArea);
     hitArea.on('pointerdown', (
       pointer: Phaser.Input.Pointer,
       localX: number,
@@ -934,8 +940,15 @@ export class InkUI {
       if (scrollGestureConsumedTap(pointer)) {
         return;
       }
+      // And this control has to have existed when the press began — see `inputGeneration`. A sheet
+      // closing on `pointerdown` builds this row under a finger that is still down, and without
+      // this the release of that same press picks it.
+      if (pressPredatesControl(hitArea)) {
+        return;
+      }
       onClick();
     });
+    markControlBorn(hitArea);
 
     container.add(hitArea);
     container.setData('linkWidth', width);
