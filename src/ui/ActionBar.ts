@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, isCampaignMode } from '../game/constants';
 import type { GameState } from '../state/types';
+import { markControlBorn, pressPredatesControl } from './inputGeneration';
 import { InkUI, INK_UI, INK_UI_HEX } from './InkUI';
 import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from './CardIcons';
 import { sawtoothBand } from './ink/devices';
@@ -557,8 +558,13 @@ export class ActionBar extends Phaser.GameObjects.Container {
     hit.on('pointerup', (p: Phaser.Input.Pointer, lx: number, ly: number, e: Phaser.Types.Input.EventData) => {
       stop(p, lx, ly, e);
       settle();
+      // The bar is rebuilt the instant a sheet closes, and a sheet closes on the *press*. Without
+      // this the release of that same press lands on a lane that was not on screen when the
+      // player decided to press anything — reported as *click Close, also click the menu behind*.
+      if (pressPredatesControl(hit)) return;
       onClick();
     });
+    markControlBorn(hit);
   }
 
   /**

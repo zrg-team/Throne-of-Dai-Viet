@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, HEADER_HEIGHT } from '../../game/constants';
 import { t } from '../../i18n';
+import { markControlBorn, pressPredatesControl } from '../inputGeneration';
 import type { GameState } from '../../state/types';
 import { adviseAscent, type Advice, type AdviceTone } from '../../systems/ascent/Advisor';
 import { InkUI, INK_UI } from '../InkUI';
@@ -99,9 +100,11 @@ export class AdvisorStrip {
       event: Phaser.Types.Input.EventData,
     ) => {
       event.stopPropagation();
+      if (pressPredatesControl(this.hit)) return;
       this.open = !this.open;
       this.draw();
     });
+    markControlBorn(this.hit);
     this.root.add([this.skin, this.mark, this.line, this.hit]);
   }
 

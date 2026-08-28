@@ -101,7 +101,42 @@ const out = await page.evaluate(async () => {
     })(),
   };
 
-  // ── 4. The name plate is the same size under the thumb at any zoom ───────
+  // ── 4. One press may not act on a control built by that same press ──────
+  //
+  // The critical report: *modal has a Close button — click it — also clicks the menu behind.*
+  // `InkUI.button` acts on the press, so closing happens on `pointerdown`; the release of that
+  // same press is then delivered to whatever the close has just built underneath, and rows, lanes
+  // and strips all act on the release. Nothing about it is a hit-test fault — at the moment of
+  // the release the sheet is gone.
+  const IG = await import('/src/ui/inputGeneration.ts');
+  {
+    const older = ui.add.rectangle(0, 0, 4, 4, 0, 0);
+    IG.markControlBorn(older);          // existed before the press
+    IG.notePressStarted();              // the finger goes down
+    IG.bumpInputGeneration();           // the sheet closes and rebuilds underneath
+    const newer = ui.add.rectangle(0, 0, 4, 4, 0, 0);
+    IG.markControlBorn(newer);          // built under a finger already down
+    r.generation = {
+      olderStillActs: IG.pressPredatesControl(older) === false,
+      newerRefuses: IG.pressPredatesControl(newer) === true,
+      // A fresh press afterwards reaches the new control normally.
+      newerActsOnItsOwnPress: (() => { IG.notePressStarted(); return IG.pressPredatesControl(newer) === false; })(),
+    };
+    older.destroy(); newer.destroy();
+  }
+
+  // ...and the boundary is actually stamped where sheets open and close.
+  {
+    const before = IG.currentGeneration();
+    ui.beginOverlay('probe-gen');
+    const afterOpen = IG.currentGeneration();
+    ui.closeOverlay();
+    const afterClose = IG.currentGeneration();
+    r.wiring = { bumpsOnOpen: afterOpen > before, bumpsOnClose: afterClose > afterOpen };
+    await new Promise((done) => setTimeout(done, 150));
+  }
+
+  // ── 5. The name plate is the same size under the thumb at any zoom ───────
   const landId = [...map.landLabels.keys()].find((id) => map.hasVisibleLabel(id));
   if (landId) {
     // `mapZoom` is a getter over `cameras.main.zoom`; assigning to it is a silent no-op, which is
@@ -138,6 +173,11 @@ const checks = out.fatal ? { [out.fatal]: false } : {
   'a stale key with nothing drawn cannot lock the map': out.stuckKey.stillHears,
   'a tap on open ground clears the selection': out.dismiss.clearedByEmptyTap,
   'and an idle tap repaints nothing': out.dismiss.idleIsCheap,
+  'a control that predates the press still acts on it': out.generation.olderStillActs,
+  'one built by that same press refuses its release': out.generation.newerRefuses,
+  'and answers the next press normally': out.generation.newerActsOnItsOwnPress,
+  'opening a sheet marks the boundary': out.wiring.bumpsOnOpen,
+  'and so does closing one': out.wiring.bumpsOnClose,
   'the name plate holds its size under the thumb when zoomed out': out.plate.holdsUp,
   'because the padding is screen pixels, not world units': out.plate.padHeldConstant,
   'no console errors': errors.length === 0,

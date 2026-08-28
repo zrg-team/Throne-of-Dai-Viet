@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH } from '../../game/constants';
 import type { GameEvent, GameState } from '../../state/types';
+import { markControlBorn, pressPredatesControl } from '../inputGeneration';
 import { INK_UI } from '../InkUI';
 import { PIGMENT } from '../ink/palette';
 import { UI_FONT } from '../fonts';
@@ -81,6 +82,7 @@ export class WhisperLine {
     this.hit = scene.add.rectangle(SIDE, 0, WIDTH, this.height, 0x000000, 0.001)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
+    markControlBorn(this.hit);
     this.hit.on('pointerup', (
       _pointer: Phaser.Input.Pointer,
       _localX: number,
@@ -88,6 +90,7 @@ export class WhisperLine {
       event: Phaser.Types.Input.EventData,
     ) => {
       event.stopPropagation();
+      if (pressPredatesControl(this.hit)) return;
       const ref = this.showing?.ref;
       if (!ref) return;
       // Taken down on the way out. Coming back from the story page to a line still counting down

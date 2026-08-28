@@ -25,6 +25,7 @@ import { refreshAscentLaneState } from '../../systems/ascent/ConquestSystem';
 import { countOpenDoors } from '../../systems/story/StorySystem';
 import { contestedFronts, realmUnderAttack } from '../../systems/ascent/battleReport';
 import { INK_UI, InkUI } from '../../ui/InkUI';
+import { bumpInputGeneration } from '../../ui/inputGeneration';
 import { playWaveBanner } from '../../ui/ascent/waveBanner';
 import { AscentHud } from '../../ui/ascent/AscentHud';
 import { AdvisorStrip } from '../../ui/ascent/AdvisorStrip';
@@ -625,6 +626,14 @@ export function setMapVisible(self: ConquestUIScene, visible: boolean): void {
 }
 
 export function beginOverlay(self: ConquestUIScene, key: string): void {
+  // Everything built from here belongs to a newer interface than any press already in flight.
+  //
+  // This is the whole of the *"click Close, also click the menu behind"* fix. A sheet opens and
+  // closes on the **press** — `InkUI.button` acts on `pointerdown` — so the release of that same
+  // press is delivered to whatever the transition has just built underneath. Marking the boundary
+  // here lets every release-driven control refuse a press it was not on screen for; see
+  // `ui/inputGeneration`.
+  bumpInputGeneration();
   // Building a full-screen overlay costs a burst of heavy frames; the ladder must not read
   // that burst as the device failing — a step down here is what blurred iPhones at high.
   qualityLadder()?.hold(800);
@@ -655,6 +664,8 @@ function releaseOverlay(self: ConquestUIScene): void {
 
 /** Closes a chrome overlay (Codex / menu / quit) without touching the prompt queue. */
 export function closeOverlay(self: ConquestUIScene): void {
+  // Same boundary on the way out, and this is the direction the report is about.
+  bumpInputGeneration();
   // The close rebuilds the map chrome in one frame — held for the same reason as the open.
   qualityLadder()?.hold(800);
   releaseOverlay(self);
