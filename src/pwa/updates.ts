@@ -11,6 +11,7 @@
  */
 
 import { getLanguage, t } from '../i18n';
+import { applyShellUpdate, isShell } from '../platform/shell';
 
 export type UpdateStatus =
   /** Dev build, or a browser without service workers. Nothing to show. */
@@ -130,6 +131,23 @@ function askIncomingVersion(worker: ServiceWorker | null): void {
   }
 }
 
+/**
+ * A native shell reporting that it has a newer game downloaded and waiting.
+ *
+ * The shell has no service worker — it cannot have one, the game is served from a loopback origin
+ * inside the app — but it has exactly the same thing to say, and the player has exactly the same
+ * decision to make. So it says it here rather than drawing a second update prompt of its own over
+ * the top of the game: one notice, in the version line at the foot of the front page, whether the
+ * new bundle arrived from a service worker or from the store.
+ *
+ * Called from the shell through `window.__shell` before it would otherwise have shown a bar.
+ */
+export function noteShellUpdate(version?: string): void {
+  if (typeof version === 'string' && version.length > 0) {
+    incomingVersion = version;
+  }
+  setStatus('ready');
+}
 export function subscribeUpdateStatus(listener: (status: UpdateStatus) => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -259,6 +277,14 @@ export function checkForUpdate(force = false): void {
  */
 export function applyUpdate(): void {
   if (applying) {
+    return;
+  }
+  // In a shell there is no waiting worker to tell to stop waiting, and reloading the page would
+  // only re-serve the same files from the same loopback origin. The shell restarts itself onto
+  // the bundle it downloaded; the game only has to ask.
+  if (isShell()) {
+    applying = true;
+    applyShellUpdate();
     return;
   }
   const waiting = registration?.waiting;

@@ -4,7 +4,7 @@ import { createInitialGameState, createCampaignGameState, createEmpireGameState,
 import { scheduleCampaignEvents } from './systems/CampaignEventSystem';
 import type { GameState } from './state/types';
 import { getLanguage, heroName, politicsTitle, seasonLabel, t } from './i18n';
-import { registerServiceWorker } from './pwa/updates';
+import { noteShellUpdate, registerServiceWorker } from './pwa/updates';
 import { watchInstall } from './pwa/install';
 import { usesServiceWorker } from './platform/shell';
 import { getMapTheme } from './ui/mapTheme';
@@ -16,6 +16,8 @@ declare global {
   interface Window {
     __mandateState?: GameState;
     /** Live census of the ink-stamp registry - backend, count, bytes, pools. */
+    /** How a native shell tells the game it has a newer bundle waiting. See below. */
+    __gameUpdateReady?: (version?: string) => void;
     __inkStamps?: typeof stampStats;
     /** The quality ladder: state(), force(id), hold(ms) — see qualityLadder.ts. */
     __ladder?: ReturnType<typeof installQualityLadder>;
@@ -56,6 +58,17 @@ declare global {
 if (usesServiceWorker()) {
   registerServiceWorker();
 }
+
+/**
+ * The one hook a native shell needs to reach, hung on `window` because that is the only surface a
+ * shell has: it injects a line of script into the page, and a module export is not addressable from
+ * there. Everything else in the shell contract runs the other way — the shell declares itself on
+ * `window.__shell` and the game reads it — but an update arrives long after load, so this one has
+ * to be a door rather than a value.
+ *
+ * Named for what it does rather than after the shell, because the next cabinet will call it too.
+ */
+window.__gameUpdateReady = noteShellUpdate;
 
 // Before Phaser for a second reason: `beforeinstallprompt` is fired at the window the moment
 // Chromium decides the site is installable, and a listener attached after that never hears it.

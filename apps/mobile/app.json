@@ -15,7 +15,7 @@
       "supportsTablet": true,
       "requireFullScreen": true,
       "infoPlist": {
-        "NSAllowsLocalNetworking": true,
+        "NSAppTransportSecurity": { "NSAllowsLocalNetworking": true },
         "ITSAppUsesNonExemptEncryption": false
       },
       "buildNumber": "419"
@@ -67,6 +67,9 @@
       "policy": "appVersion"
     },
     "updates": {
+      "enabled": true,
+      "checkAutomatically": "NEVER",
+      "fallbackToCacheTimeout": 0,
       "url": "https://u.expo.dev/dc75f332-8091-4337-a308-7f82a51aee13"
     }
   }
