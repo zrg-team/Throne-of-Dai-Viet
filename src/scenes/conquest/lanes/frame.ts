@@ -11,7 +11,7 @@
  * listeners off again.
  */
 import Phaser from 'phaser';
-import { GAME_HEIGHT } from '../../../game/constants';
+import { GAME_HEIGHT, GAME_WIDTH } from '../../../game/constants';
 import { renderHeroFaceInBox } from '../../../ui/FaceRenderer';
 import { openingFor, takeOpening } from '../../../systems/story/StorySystem';
 import { contestedFronts } from '../../../systems/ascent/battleReport';
@@ -404,6 +404,35 @@ export function laneList(self: ConquestUIScene,
 
   const finish = () => {
     scroll.setContentHeight(Math.max(content.height - LANE_FOOTER_HEIGHT - footerExtra - tabsExtra, y));
+
+    // **The whole foot is one panel, edge to edge, and everything else sits on it.**
+    //
+    // Reported twice: *it doesn't feel like a panel*, and *the UI is mixed with the other things*.
+    // Both were the same fault. The dock was a card floating in the middle of a stack — the
+    // waiting rows, then the doctrine picker, then the close button, three surfaces at three
+    // widths with the page showing between them. Nothing said where the page stopped and the
+    // controls began, so the eye read the bottom third as debris.
+    //
+    // A single full-bleed band fixes that without moving a single control: it runs from the top of
+    // the footer stack to the bottom edge of the screen, so the picker, the toggle and the close
+    // are *on* it rather than beside it. Drawn first, so everything already down there paints over
+    // it and keeps the position it had.
+    //
+    // Full width on purpose. A band with side margins is another card; a band that reaches both
+    // edges is the bottom of the screen, which is what it is.
+    const stackTop = GAME_HEIGHT - LANE_CLOSE_BUTTON_OFFSET
+      - (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
+      - (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
+      - (laneOpts.footerPicker ? LANE_PICKER_HEIGHT + 8 : 0)
+      - dockHeight;
+    const band = self.add.graphics();
+    band.fillStyle(INK_UI.parchment, 0.97);
+    band.fillRect(0, stackTop, GAME_WIDTH, GAME_HEIGHT - stackTop);
+    // One hairline where the page ends. The band's own edge is the separation; a heavier rule
+    // would read as a third border competing with the controls standing on it.
+    band.lineStyle(1.5, INK_UI.softBrush, 0.75);
+    band.lineBetween(0, stackTop, GAME_WIDTH, stackTop);
+    self.modalLayer.add(band);
 
     if (dockItems.length > 0) {
       // Top of the footer stack, so everything already down there keeps the offset it had — the
