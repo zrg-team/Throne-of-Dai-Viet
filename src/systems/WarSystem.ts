@@ -23,6 +23,8 @@ import {
   getBarracksLevel,
   getFocusDefenseMult,
   getFocusGarrisonMult,
+  homeSupplyTarget,
+  isHomeSupplied,
   refreshAllLandOutputs,
 } from './ResourceSystem';
 import { getCourtBonuses } from './CourtSystem';
@@ -1068,6 +1070,17 @@ export function progressArmyLogistics(state: GameState): boolean {
 
     const rationUse = Math.max(1, Math.ceil(total / 100) * ARMY_RATION_USE_PER_100);
     const provisionUse = Math.max(1, Math.ceil(total / 150) * ARMY_PROVISION_USE_PER_150);
+
+    // The supply line (Throne of Empires). A host on its own ground has its baggage topped back
+    // up from the realm's stores before it eats — see `isHomeSupplied` for why this rule had to
+    // exist at all. The realm has already been billed for it on the rate side
+    // (`homeSupplyFood`), so nothing is spent here; if the granary is empty there is nothing to
+    // send and the host starves exactly as it did before.
+    if (isHomeSupplied(state, army)) {
+      const target = homeSupplyTarget(army);
+      if (state.resources.food > 0) army.rations = Math.max(army.rations, target.rations);
+      if (state.resources.supplies > 0) army.provisions = Math.max(army.provisions, target.provisions);
+    }
 
     army.rations = Math.max(0, army.rations - rationUse);
     army.provisions = Math.max(0, army.provisions - provisionUse);

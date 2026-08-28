@@ -2904,26 +2904,40 @@ export class UIScene extends Phaser.Scene {
     const odds = battle.defenderPower > 0 ? battle.attackerPower / battle.defenderPower : 9;
     const oddsLabel = odds >= 1.15 ? t('battleDec.odds.bad') : odds <= 0.85 ? t('battleDec.odds.good') : t('battleDec.odds.even');
     const oddsColor = odds >= 1.15 ? INK_UI.cinnabar : odds <= 0.85 ? INK_UI.jade : INK_UI.gold;
+    // A province defending itself is a different sheet, because the same three verbs mean
+    // different things: there is no general standing here to delegate to and no host to withdraw,
+    // so the screen would be describing an army that is not on the field.
+    const garrison = battle.garrisonOnly === true;
+    const forces = t('battleDec.forces', { atk: Math.round(battle.attackerPower), def: Math.round(battle.defenderPower), odds: oddsLabel });
     this.modalLayer.add(this.ui.card({ x: content.x, y: content.y, width: content.width, height: 120 }, {
       title: t('battleDec.enemy', { kingdom: battle.kingdomName }),
-      body: t('battleDec.forces', { atk: Math.round(battle.attackerPower), def: Math.round(battle.defenderPower), odds: oddsLabel }),
+      body: garrison
+        ? `${forces}\n${t('battleDec.garrison', { land: battle.landName, men: battle.militia ?? 0 })}`
+        : forces,
       border: oddsColor,
     }));
 
-    const opts: Array<{ id: 'attack' | 'delegate' | 'retreat'; variant: 'primary' | 'secondary' | 'danger' }> = [
-      { id: 'attack', variant: 'primary' },
-      { id: 'delegate', variant: 'secondary' },
-      { id: 'retreat', variant: 'danger' },
-    ];
+    // `id` is the decision the systems take; `key` is what the sheet calls it.
+    const opts: Array<{ id: 'attack' | 'delegate' | 'retreat'; key: string; variant: 'primary' | 'secondary' | 'danger' }> = garrison
+      ? [
+        { id: 'attack', key: 'sally', variant: 'primary' },
+        { id: 'delegate', key: 'hold', variant: 'secondary' },
+        { id: 'retreat', key: 'yield', variant: 'danger' },
+      ]
+      : [
+        { id: 'attack', key: 'attack', variant: 'primary' },
+        { id: 'delegate', key: 'delegate', variant: 'secondary' },
+        { id: 'retreat', key: 'retreat', variant: 'danger' },
+      ];
     let y = content.y + 134;
     for (const opt of opts) {
       this.modalLayer.add(this.ui.card({ x: content.x, y, width: content.width, height: 82 }, {
-        title: t(`battleDec.${opt.id}` as Parameters<typeof t>[0]),
-        subtitle: t(`battleDec.${opt.id}.d` as Parameters<typeof t>[0]),
+        title: t(`battleDec.${opt.key}` as Parameters<typeof t>[0]),
+        subtitle: t(`battleDec.${opt.key}.d` as Parameters<typeof t>[0]),
         border: opt.variant === 'danger' ? INK_UI.cinnabar : opt.variant === 'primary' ? INK_UI.gold : INK_UI.softBrush,
         actionPlacement: 'right',
         action: {
-          label: t(`battleDec.act.${opt.id}` as Parameters<typeof t>[0]),
+          label: t(`battleDec.act.${opt.key}` as Parameters<typeof t>[0]),
           variant: opt.variant,
           onClick: () => {
             this.events.emit('ui:battle-decision', opt.id);

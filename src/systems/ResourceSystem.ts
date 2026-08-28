@@ -1,4 +1,4 @@
-import { PLAYER_KINGDOM_ID } from '../game/constants';
+import { isEndlessMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import {
   ARMY_CAMPAIGN_FOOD_MULT,
   ARMY_FOOD_PER_SOLDIER,
@@ -37,6 +37,7 @@ import {
   WALL_REPAIR_SEASONS,
   demandDifficultyScale,
 } from '../game/ascentConfig';
+import { ARMY_PROVISION_USE_PER_150, ARMY_RATION_USE_PER_100 } from '../game/gameplayConfig';
 import { palisadeMilitiaBonus } from './ascent/DoctrineSystem';
 import { doctrineMilitiaMult } from './ascent/RealmDoctrineSystem';
 import { eraIndex, eraLabel, getBuildingLevelCap } from './empire/MandateSystem';
@@ -61,7 +62,7 @@ import {
   VILLAGE_WATCH_MILITIA,
 } from './decree/rules';
 import { currentTaxRate, taxGoldMult, taxGrowthDelta, taxStabilityBase } from './TaxSystem';
-import type { BuildOrder, EraId, GameState, Land, LandBuildingType, LandSpecialization, ResourceBag, ResourceKey, Season } from '../state/types';
+import type { Army, BuildOrder, EraId, GameState, Land, LandBuildingType, LandSpecialization, ResourceBag, ResourceKey, Season } from '../state/types';
 import { buildingLabel, buildBuildingLabel, formatResourceList, resourceLabel, t } from '../i18n';
 
 export type BuildingCategory = 'production' | 'military' | 'public';
@@ -408,6 +409,22 @@ export function realmPopulationFill(state: GameState): number {
   return state.resources.humans / capacity;
 }
 
+/**
+ * What the realm's institutions are worth to a province's watch (Throne of Empires).
+ *
+ * The mode's whole progression — Mandate points, eras, the seats and edicts they unlock — bought
+ * the player nothing at the only place a realm is actually tested, which is a province with a host
+ * outside it. An empire in the Mandate era has registers, granaries, a militia law and a road to
+ * march reinforcements down; a realm still in its founding has a village headman and a ditch.
+ * This is where that difference is spent.
+ *
+ * 1 everywhere else, so Dragon Ascent's tuned garrison numbers do not move.
+ */
+function eraMilitiaMult(state: GameState): number {
+  if (state.gameMode !== 'empire') return 1;
+  return [1, 1.35, 1.75, 2.15][eraIndex(state.mandate?.era ?? 'founding')] ?? 1;
+}
+
 export function militiaCapacity(state: GameState, land: Land): number {
   const built = land.buildings.reduce((sum, building) => sum + 1 + building.level * 0.5, 0);
   const base = land.defense * 2.2 + built * 16 + land.population * 0.12;
@@ -417,10 +434,59 @@ export function militiaCapacity(state: GameState, land: Land): number {
     * getFocusGarrisonMult(state, land)
     * (1 + palisadeMilitiaBonus(state))
     * doctrineMilitiaMult(state)
+    * eraMilitiaMult(state)
     // Lệ giáp binh ratified: every commune keeps its own watch. Paid for with a claim slot —
     // men guarding their own village are not men marching to claim another.
     * (villageWatch(state) ? VILLAGE_WATCH_MILITIA : 1),
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Supply lines (Throne of Empires)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Seasons of baggage the realm keeps packed for a host standing on its own ground.
+ *
+ * Ten is deliberately a campaign's worth and not more: a supplied host can march out and fight
+ * abroad for two and a half years on what it carries, and after that it is living off whatever
+ * it can take — which is the difference the whole rule is drawing.
+ */
+export const HOME_SUPPLY_SEASONS = 10;
+
+/**
+ * Whether the realm is feeding this host, rather than the host feeding itself out of the baggage
+ * it left the capital with.
+ *
+ * **Throne of Empires had no resupply of any kind.** `resupplyHost` exists, but it is wired into
+ * `ConquestScene` and nothing else, so a host's `rations` were set once by `queueRecruitment` and
+ * from that moment only ever fell. Measured on a played 64-turn run: the realm's one army left the
+ * capital with twenty-one seasons of food, was at 45% of its opening battle power by the time the
+ * first real wave landed, and was **dead of starvation by turn 29** — year four, with no fight and
+ * no way for the player to prevent it. `progressArmyLogistics` skips invaders outright, so the
+ * hosts marching at that realm ate nothing at all. That asymmetry is most of the reported
+ * complaint, and it is not a number that needed tuning: it was a missing rule.
+ *
+ * The rule is the ordinary one. On your own ground you are supplied from your own granaries and
+ * the realm pays the bill on the resource strip (see `armyRealmFoodPressure`). Off it — besieging
+ * a province, or standing on ground nobody owns — you eat what you carried. Which is exactly what
+ * makes taking ground matter, and what keeps a march abroad a decision with a clock on it.
+ */
+export function isHomeSupplied(state: GameState, army: Army): boolean {
+  if (state.gameMode !== 'empire') return false;
+  if (army.kingdomId !== PLAYER_KINGDOM_ID || army.isLevy || army.patron) return false;
+  // A host in the siege lines is outside the walls it is reducing, not billeted behind its own.
+  if (state.siegeOrders.some((order) => order.armyId === army.id)) return false;
+  return state.lands.some((land) => land.id === army.landId && land.ownerId === PLAYER_KINGDOM_ID);
+}
+
+/** The baggage a supplied host is kept topped up to, in rations and in provisions. */
+export function homeSupplyTarget(army: Army): { rations: number; provisions: number } {
+  const total = army.units.spearmen + army.units.archers + army.units.heavyInfantry;
+  return {
+    rations: Math.max(1, Math.ceil(total / 100) * ARMY_RATION_USE_PER_100) * HOME_SUPPLY_SEASONS,
+    provisions: Math.max(1, Math.ceil(total / 150) * ARMY_PROVISION_USE_PER_150) * HOME_SUPPLY_SEASONS,
+  };
 }
 
 /** Seasons a province takes to raise its militia from nothing to full. */
@@ -430,12 +496,26 @@ const MILITIA_SEASONS_TO_FULL = 22;
  * Grows every owned province's militia toward what it can support, and lets an over-strength
  * one settle back down.
  *
- * Called once per Ascent tick. Growth is deliberately slow enough that a freshly-taken province is
- * not a fortress next season — the militia arriving *is* the province becoming yours — and fast
- * enough that a garrison spent holding a wave is back before the wave after next.
+ * Called once per Ascent tick, and once per economy tick in Throne of Empires. Growth is
+ * deliberately slow enough that a freshly-taken province is not a fortress next season — the
+ * militia arriving *is* the province becoming yours — and fast enough that a garrison spent
+ * holding a wave is back before the wave after next.
+ *
+ * **Throne of Empires needed this more than Ascent did, and never had it.** `createCampaignLands`
+ * forces the player's seat to `defense >= 52` and forces nothing else, so every province a realm
+ * claims keeps the defence the map generated for it: measured over seed 1337, median 17, range
+ * 4-29, with `localSoldiers = floor(defense * 0.7) + rand(6)` — about fifteen men. Nothing in that
+ * mode ever moved either number again. Against a turn-32 wave (450 battle power, measured) that is
+ * a defence of ~355 and a **100% chance the province falls**, against 0% at the seat, at every turn
+ * and every realm size tested. The reported shape of it: four years of expansion, then every
+ * province taken back one a season while the capital stands untouched.
+ *
+ * Letting the militia grow is what makes ground held for years different from ground taken last
+ * season — a claim starts at ~15 men and a province kept, walled and loyal reaches ~100, which is
+ * the difference between 355 and 740 battle power, i.e. between certainly falling and holding.
  */
 export function growProvincialMilitia(state: GameState): void {
-  if (state.gameMode !== 'ascent') return;
+  if (!isEndlessMode(state.gameMode)) return;
   for (const land of state.lands) {
     if (land.ownerId !== PLAYER_KINGDOM_ID) continue;
     // A district the war has just walked over is not raising a fresh watch the same afternoon.
@@ -1288,8 +1368,30 @@ export function calculatePlayerResourceRates(state: GameState): ResourceBag {
     : 1;
   const foodPerHead = baseFoodPerHead / crowding;
   const populationFoodUpkeep = Math.ceil((state.resources.humans / foodPerHead) * getPopulationFoodMultiplier(state.season));
-  const armyRealmFoodPressure = Math.ceil(playerTroops / 300);
-  const suppliesUpkeep = Math.ceil(playerTroops / 650);
+  /**
+   * What the realm's own granaries send to the hosts standing on its ground (Throne of Empires).
+   *
+   * The counterpart to `isHomeSupplied`: the baggage is topped up in `progressArmyLogistics`, and
+   * this is where it is paid for, so the strip says what is actually happening rather than showing
+   * a surplus while the granary empties. A soldier billeted at home costs the realm about twice
+   * what he cost it as a farmer — `queueRecruitment` already took him out of `humans`, so
+   * `populationFoodUpkeep` fell by `n / 200` when he was raised and this charges `n / 100` back.
+   * That difference is the price of a standing army, and it is meant to be felt.
+   *
+   * Zero in every other mode, where `isHomeSupplied` is false for every host.
+   */
+  const homeSupplyFood = state.armies.reduce((sum, army) => (
+    isHomeSupplied(state, army)
+      ? sum + Math.max(1, Math.ceil((army.units.spearmen + army.units.archers + army.units.heavyInfantry) / 100) * ARMY_RATION_USE_PER_100)
+      : sum
+  ), 0);
+  const homeSupplySupplies = state.armies.reduce((sum, army) => (
+    isHomeSupplied(state, army)
+      ? sum + Math.max(1, Math.ceil((army.units.spearmen + army.units.archers + army.units.heavyInfantry) / 150) * ARMY_PROVISION_USE_PER_150)
+      : sum
+  ), 0);
+  const armyRealmFoodPressure = Math.ceil(playerTroops / 300) + homeSupplyFood;
+  const suppliesUpkeep = Math.ceil(playerTroops / 650) + homeSupplySupplies;
   const armyGoldUpkeep = Math.ceil(getTotalArmyGoldUpkeep(state) * courtBonuses.armyGoldUpkeepMult);
 
   // Dragon Ascent charges armies what they are actually worth to keep.

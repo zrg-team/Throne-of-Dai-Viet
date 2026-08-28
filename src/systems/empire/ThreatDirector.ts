@@ -22,6 +22,24 @@ const TELEGRAPH_LEAD = 3;
 const GREAT_LEAD = 5;
 /** Don't stage the first Great Invasion before this turn. */
 const GREAT_MIN_TURN = 24;
+/**
+ * Hosts that may stand on the realm at once.
+ *
+ * A ceiling on the *board*, not on the wave — the clamp in `launchOffMapInvasion` sizes each wave
+ * on its own and nothing subtracted what was already there, so waves stacked. Measured over four
+ * played 64-turn runs before the campaign clock: 3 live hosts at turn 32 and 9 by turn 56, which
+ * is a permanent occupation rather than an invasion. Four is a coalition plus a raider — enough
+ * for two fronts, which is as many as a realm with one or two field hosts can answer.
+ */
+const MAX_LIVE_HOSTS = 4;
+/**
+ * And a ceiling on what the director may bank while it waits for room.
+ *
+ * Without it, clearing the map after a long siege would cash a dozen banked seasons into one
+ * impossible wave — the same "unfair spike" the whole pass exists to remove, arriving from the
+ * other direction. Two waves' worth is a real reward for holding, and nothing worse.
+ */
+const MAX_BANKED_BUDGET = 58 * 2;
 
 const ERA_REGEN_MULT: Record<EraId, number> = {
   founding: 0.55,
@@ -48,6 +66,11 @@ const WARLORD_NAMES = [
 
 function activeEmpires(state: GameState): Kingdom[] {
   return state.kingdoms.filter((k) => k.id !== PLAYER_KINGDOM_ID && !k.isDefeated);
+}
+
+/** Invading hosts standing on the map right now, whatever crown sent them. */
+function liveHosts(state: GameState): number {
+  return (state.invasions ?? []).length;
 }
 
 /**
@@ -229,8 +252,12 @@ export function tickThreatDirector(state: GameState): void {
     return;
   }
 
-  // 2) Regenerate pressure.
+  // 2) Regenerate pressure — banked, not spent, while the board is already full.
   state.threatBudget += regenPerTick(state, era);
+  if (liveHosts(state) >= MAX_LIVE_HOSTS) {
+    state.threatBudget = Math.min(state.threatBudget, MAX_BANKED_BUDGET);
+    return;
+  }
 
   // 3) Once per era (from Rivalry on), stage a telegraphed Great Invasion.
   if (

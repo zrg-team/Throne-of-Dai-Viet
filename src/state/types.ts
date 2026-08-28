@@ -173,6 +173,16 @@ export interface PendingBattle {
   /** Pre-computed odds so the decision screen can show the stakes. */
   attackerPower: number;
   defenderPower: number;
+  /**
+   * No field host stands here — the province is defending itself (Throne of Empires).
+   *
+   * The decision is the same three verbs, but they mean different things and the screen says so:
+   * there is no general to delegate to and no army to withdraw, so "charge / delegate / retreat"
+   * would be describing a host that is not on the field. Sally, hold, or open the gates.
+   */
+  garrisonOnly?: boolean;
+  /** Men of the province's own watch, for the screen to name. */
+  militia?: number;
 }
 
 /** An off-map empire's army marching on the realm (empire mode). Keyed to an `Army.id`. */
@@ -221,6 +231,24 @@ export interface InvasionRecord {
    * first tick rather than being treated as already spent.
    */
   campaignTicks?: number;
+  /**
+   * Men this host mustered with, so "how spent is it" can be asked without guessing.
+   *
+   * Read by the regroup rule below and by the withdrawal check: a host reduced to a fraction of
+   * what it marched with has been beaten, whatever its orders say, and grinding on against the
+   * same walls every single season is not a war — it was measured as six consecutive assaults on
+   * one province at 796, 387, 178, 74, 25 and 14 battle power, each one of them a separate
+   * decision put to the player.
+   */
+  mustered?: number;
+  /**
+   * Turn from which this host may attack again after being thrown back.
+   *
+   * A repulsed host does not re-form and charge the same gate the following morning. Two seasons
+   * of hysteresis, which is also what stops one lost battle becoming a prompt every tick until
+   * the host is annihilated.
+   */
+  regroupUntil?: number;
 }
 
 export interface KingdomKing {
