@@ -41,6 +41,14 @@ export interface ShellDescriptor {
   /** The shell's own version string, printed beside the game's on the settings page. */
   version?: string;
   /**
+   * Restart the shell onto an update it has already downloaded.
+   *
+   * The shell's half of the same conversation `ready` starts. Optional, because a shell that
+   * cannot update itself simply never calls `noteShellUpdate`, and the game never offers.
+   */
+  applyUpdate?: () => void;
+
+  /**
    * Called once, on the first frame the menu is actually on the glass.
    *
    * The shell supplies the callback rather than the game reaching for a known channel, because
@@ -121,6 +129,20 @@ export function usesServiceWorker(): boolean {
  */
 export function allowsDonationLinks(): boolean {
   return shellKind() !== 'mobile';
+}
+
+/**
+ * Ask the shell to restart onto the update it told us about.
+ *
+ * Safe everywhere: on the web there is no shell and nothing happens, which is why `applyUpdate`
+ * in `pwa/updates.ts` checks `isShell()` before calling rather than relying on this to no-op.
+ */
+export function applyShellUpdate(): void {
+  try {
+    window.__shell?.applyUpdate?.();
+  } catch {
+    // A shell that throws on its own callback is not something the game can do anything about.
+  }
 }
 
 /**

@@ -11,7 +11,8 @@ import { Platform } from 'react-native';
  * early. A message sent on `onLoadEnd` arrives several hundred milliseconds too late, and the
  * symptom is a service worker registering inside the app.
  *
- * `ready` posts the bare string `boot:ready`. `App.tsx` compares against exactly that.
+ * `ready` posts the bare string `boot:ready`, and `applyUpdate` the bare string
+ * `update:apply`. `App.tsx` compares against exactly those.
  */
 export function shellDescriptorScript(): string {
   const descriptor = {
@@ -31,6 +32,11 @@ export function shellDescriptorScript(): string {
   // from a file and an apostrophe in it would end the statement early and white-screen the game.
   return `
     window.__shell = Object.assign(${JSON.stringify(descriptor)}, {
+      applyUpdate: function () {
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage('update:apply');
+        }
+      },
       ready: function () {
         if (window.ReactNativeWebView) {
           window.ReactNativeWebView.postMessage('boot:ready');

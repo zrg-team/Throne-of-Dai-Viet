@@ -9,6 +9,7 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { Asset } from 'expo-asset';
 import { Directory, File, Paths } from 'expo-file-system';
 import { unzip } from 'react-native-zip-archive';
+import * as Updates from 'expo-updates';
 import Server, { ERROR_LOG_FILE, STATES } from '@dr.pogodin/react-native-static-server';
 
 import { shellDescriptorScript } from './src/descriptor';
@@ -103,6 +104,7 @@ function Shell() {
   const insets = useSafeAreaInsets();
   // React 19 requires the initial value spelled out; `useRef<T>()` no longer implies undefined.
   const server = useRef<Server | undefined>(undefined);
+  const web = useRef<WebView>(null);
 
   const note = useCallback((line: string) => {
     setDiary((prior) => [...prior, line]);
@@ -130,16 +132,42 @@ function Shell() {
     const boot = async () => {
       await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
 
-      // One directory per build of the game. Present means it was already unpacked; a store update
-      // brings a new build number, lands on a new name, and unpacks exactly once.
-      const root = new Directory(Paths.document, `web-${version.build}`);
+      // The archive first. Its hash is the identity of the game actually inside this binary, and
+      // the only thing guaranteed to change when the game does.
+      const [asset] = await Asset.loadAsync(require('./assets/web.zip'));
+      if (!asset?.localUri) {
+        throw new Error('web.zip did not resolve — run `npm run sync`');
+      }
+
+      /**
+       * One directory per *archive*, not per build number.
+       *
+       * It used to be `web-${version.build}`, a number imported from a JSON file and therefore only
+       * ever as fresh as the JS bundle carrying it. When a store update shipped a new game under a
+       * stale bundle, the name did not move: the directory was already there, the unpack was
+       * skipped, and a brand new binary served last week's game with nothing anywhere saying so.
+       * It reproduced exactly — install 427, update to 446, still 427; delete and reinstall 446,
+       * correct. The hash is computed from the file being unpacked, so the name and the contents
+       * cannot disagree no matter what the bundle believes.
+       */
+      const stamp = asset.hash ?? `build-${version.build}`;
+      const root = new Directory(Paths.document, `web-${stamp}`);
       if (!root.exists) {
         note(`unpacking build ${version.build}…`);
-        const [asset] = await Asset.loadAsync(require('./assets/web.zip'));
-        if (!asset?.localUri) {
-          throw new Error('web.zip did not resolve — run `npm run sync`');
-        }
         await unzip(asPath(asset.localUri), asPath(root.uri));
+      }
+
+      /**
+       * Every previously unpacked game goes with it. They are 17 MB each, nothing reads them once
+       * the name above has moved, and keeping them fills a device one release at a time.
+       */
+      const keep = asPath(root.uri);
+      for (const entry of new Directory(Paths.document).list()) {
+        const path = asPath(entry.uri);
+        const name = path.slice(path.lastIndexOf('/') + 1);
+        if (!name.startsWith('web-') || path === keep) continue;
+        // A stale copy that refuses to go is wasted space, never a reason to fail the boot.
+        try { entry.delete(); } catch { /* ignored */ }
       }
 
       // Trust the unpack no further than a directory listing. An empty folder starts a server
@@ -235,6 +263,46 @@ function Shell() {
   }, [giveUp, ready]);
 
   /**
+   * Content updates, offered rather than applied.
+   *
+   * `checkAutomatically` is NEVER and nothing here calls `reloadAsync` on its own, which is the
+   * whole design: the game that launches is always the one already on the device, so a cold start
+   * costs no network and cannot be changed underneath a player mid-reign. A newer bundle is
+   * downloaded quietly and then *offered*, the way a PWA offers one, and it is applied only when
+   * the player says so.
+   *
+   * Deliberately after `ready`. A check that raced the boot would compete with the unpack and the
+   * server for a device's attention at the one moment the app has none to spare.
+   */
+  useEffect(() => {
+    if (!ready || !Updates.isEnabled) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const found = await Updates.checkForUpdateAsync();
+        if (cancelled || !found.isAvailable) return;
+        await Updates.fetchUpdateAsync();
+        if (cancelled) return;
+        /**
+         * The game owns the notice, not the shell.
+         *
+         * It already has one — the version line at the foot of the front page, which says the same
+         * thing for a waiting service worker on the web. Drawing a second bar over the canvas would
+         * put two update prompts in one product and land this one in the only place the art
+         * direction forbids: floating over the game. So the shell says its piece through
+         * `window.__gameUpdateReady` and lets the menu render it in both languages, in the right
+         * place, in ink.
+         */
+        web.current?.injectJavaScript('window.__gameUpdateReady && window.__gameUpdateReady(); true;');
+      } catch {
+        // No network, no update server, a malformed manifest: all of them mean the player keeps
+        // playing what they have. An update is never worth an error in front of somebody.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [ready]);
+
+  /**
    * Nothing may navigate away from the game — that is what makes this an app rather than a browser
    * pointed at one, and it is the first thing App Store review looks for under guideline 4.2.
    *
@@ -288,8 +356,9 @@ function Shell() {
         },
       ]}
     >
-      {origin ? (
+    {origin ? (
         <WebView
+          ref={web}
           source={{ uri: origin }}
           style={[styles.web, { opacity: ready ? 1 : 0 }]}
           originWhitelist={[`http://127.0.0.1:${PORT}*`, `http://localhost:${PORT}*`]}
@@ -299,6 +368,10 @@ function Shell() {
           onMessage={(event) => {
             if (event.nativeEvent.data === 'boot:ready') {
               reveal();
+            }
+            // The player tapped Reload on the version line. Restart onto the bundle already down.
+            if (event.nativeEvent.data === 'update:apply') {
+              void Updates.reloadAsync();
             }
           }}
           // A refused connection is the shell's fault, not the player's. Say so, rather than

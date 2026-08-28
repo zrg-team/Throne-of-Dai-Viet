@@ -46,3 +46,6 @@ test_scripts/perf-results/
 # clear. Machine-specific and secret on both counts — it is written by hand on each machine that
 # builds, and never travels.
 credentials.json
+
+# The promo film's output — frames and cuts are large and rebuildable (scripts/promo).
+scripts/promo/out/
