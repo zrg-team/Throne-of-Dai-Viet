@@ -174,9 +174,11 @@ const out = await page.evaluate(async () => {
       // like it held one more item than it drew.
       const rows = texts.filter((x) => head && x.y > head.y
         && /trống|chưa có ai|Đang có trận|chưa dùng|stands empty|nobody over it|no host in the field/i.test(x.t));
+      const more = texts.some((x) => head && Math.abs(x.y - head.y) < 8 && /^(còn|\+)\s*\d/.test(x.t.trim()));
       ui.closeLane();
       await new Promise((done) => setTimeout(done, 300));
       return {
+        more,
         head: head ? { t: head.t, y: Math.round(head.y) } : null,
         rows: rows.map((x) => Math.round(x.y)),
       };
@@ -199,7 +201,9 @@ const out = await page.evaluate(async () => {
       // Collapsed by default: one row on screen, and the heading says how many more there are.
       // The court has three things waiting on a fresh run and must fold; the war has one and must
       // not bother.
-      collapsed: court.rows.length === 1 && /còn 2|2 more/.test(court.head?.t ?? ''),
+      // The "+n more" marker is its own right-aligned chip inside the panel now, not a tail on the
+      // heading, so it is looked for beside the heading rather than inside it.
+      collapsed: court.rows.length === 1 && court.more === true,
       warUnfolded: army.rows.length <= 1,
       // The heading still counts everything waiting, folded or not.
       countsMatch: counted(court.head) === 3 && counted(army.head) === army.rows.length,

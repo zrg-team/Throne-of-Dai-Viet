@@ -218,9 +218,15 @@ export function laneList(self: ConquestUIScene,
   // sixty points back to the body, and the thing the dock exists to say is still said.
   const dockOpen = dockItems.length <= 1 || self.dockExpanded === true;
   const dockShown = dockOpen ? dockItems.length : 1;
-  const dockHeight = dockItems.length > 0
-    ? LANE_DOCK_LABEL_HEIGHT + dockShown * LANE_DOCK_ROW_HEIGHT + 8
+  // Header band, the rows, and a little air inside the border — then the gap to whatever the
+  // footer stacks beneath. Written out rather than folded into one number so the panel drawn in
+  // `finish` and the space reserved here cannot drift apart.
+  const dockPanelHeight = dockItems.length > 0
+    ? LANE_DOCK_LABEL_HEIGHT + 4 + dockShown * LANE_DOCK_ROW_HEIGHT + 6
     : 0;
+  // Air on both sides of the panel: eight below, to the footer stack, and eight above so the
+  // scrolling list stops short of the border rather than being sliced off against it.
+  const dockHeight = dockItems.length > 0 ? dockPanelHeight + 16 : 0;
   const footerExtra = (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
     + (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
     + (laneOpts.footerPicker ? LANE_PICKER_HEIGHT + 8 : 0)
@@ -407,25 +413,50 @@ export function laneList(self: ConquestUIScene,
         - (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
         - (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
         - (laneOpts.footerPicker ? LANE_PICKER_HEIGHT + 8 : 0)
-        - dockHeight;
+        - dockHeight + 8;
 
-      // The heading counts everything waiting, and says how to see the rest. The count is the
-      // caller's — collapsed or not, three things are waiting and the player should know it.
+      // **One panel, not a caption and a pile of outlines.**
+      //
+      // Reported: *it does not look like a panel and is very messy.* Drawn as a loose red caption
+      // above separately-outlined rows, the dock had no edges of its own — it read as three
+      // unrelated things stacked against the doctrine picker below it, all shouting in the same
+      // cinnabar as the close button. Three accents at the foot of a page is no accent at all.
+      //
+      // So: one bounded surface carries the whole thing, its border is the only red on it, and the
+      // rows inside are quiet — a label, a hairline between them, a chevron. The panel says "this
+      // is a group and it wants you"; the rows inside just say what.
       const more = dockItems.length - dockShown;
       const heading = laneOpts.dock?.label?.(dockItems.length)
         ?? t('ascent.lane.waiting', { n: dockItems.length });
+      const panelHeight = dockPanelHeight;
+      self.modalLayer.add(self.ui.panel(
+        { x: content.x, y: dockTop, width: content.width, height: panelHeight },
+        { fill: INK_UI.cinnabar, fillAlpha: 0.06, border: INK_UI.cinnabar, borderWidth: 1.5 },
+      ));
+
+      // The header line, inside the panel: what is waiting on the left, how to see the rest on
+      // the right. Split in two so the count stays readable when the disclosure is long.
       self.modalLayer.add(self.add.text(
-        content.x + 2, dockTop,
-        more > 0 ? t('ascent.lane.waitingMore', { label: heading, n: more }) : heading,
+        content.x + 10, dockTop + LANE_DOCK_LABEL_HEIGHT / 2 + 3, heading,
         {
           color: cssHex(INK_UI.cinnabarDark), fontFamily: UI_FONT,
           fontSize: '9px', fontStyle: '700',
         },
-      ).setOrigin(0, 0));
+      ).setOrigin(0, 0.5));
+      if (more > 0) {
+        self.modalLayer.add(self.add.text(
+          content.x + content.width - 10, dockTop + LANE_DOCK_LABEL_HEIGHT / 2 + 3,
+          t('ascent.lane.waitingMore', { n: more }),
+          {
+            color: cssHex(INK_UI.cinnabar), fontFamily: UI_FONT,
+            fontSize: '9px', fontStyle: '700',
+          },
+        ).setOrigin(1, 0.5));
+      }
       if (dockItems.length > 1) {
-        // The heading is the disclosure. A row of its own would cost the line this is saving.
+        // The header line is the disclosure. A row of its own would cost the line this is saving.
         const headHit = self.add.rectangle(
-          content.x, dockTop - 3, content.width, LANE_DOCK_LABEL_HEIGHT + 3, INK_UI.brush, 0.001,
+          content.x, dockTop, content.width, LANE_DOCK_LABEL_HEIGHT + 6, INK_UI.brush, 0.001,
         ).setOrigin(0, 0).setInteractive({ useHandCursor: true });
         headHit.on('pointerdown', (
           _pointer: Phaser.Input.Pointer,
@@ -442,21 +473,26 @@ export function laneList(self: ConquestUIScene,
       }
 
       dockItems.slice(0, dockShown).forEach((item, index) => {
-        const rowY = dockTop + LANE_DOCK_LABEL_HEIGHT + index * LANE_DOCK_ROW_HEIGHT;
-        self.modalLayer.add(self.ui.panel(
-          { x: content.x, y: rowY, width: content.width, height: LANE_DOCK_ROW_HEIGHT - 3 },
-          { fill: INK_UI.parchment, fillAlpha: 0.5, border: INK_UI.cinnabar, borderWidth: 1.4 },
-        ));
+        const rowY = dockTop + LANE_DOCK_LABEL_HEIGHT + 4 + index * LANE_DOCK_ROW_HEIGHT;
+        // A hairline between rows rather than a box around each: inside a panel the separation is
+        // all the structure a row needs, and a second border only competes with the first.
+        if (index > 0) {
+          const rule = self.add.graphics();
+          rule.lineStyle(1, INK_UI.cinnabar, 0.22);
+          rule.lineBetween(content.x + 8, rowY - 1, content.x + content.width - 8, rowY - 1);
+          self.modalLayer.add(rule);
+        }
+        const mid = rowY + (LANE_DOCK_ROW_HEIGHT - 4) / 2;
         self.modalLayer.add(self.add.text(
-          content.x + 9, rowY + (LANE_DOCK_ROW_HEIGHT - 3) / 2, item.label,
+          content.x + 12, mid, item.label,
           {
             color: cssHex(INK_UI.cinnabarDark), fontFamily: UI_FONT,
             fontSize: '11px', fontStyle: '600',
-            wordWrap: { width: content.width - 32 },
+            wordWrap: { width: content.width - 40 },
           },
         ).setOrigin(0, 0.5));
         self.modalLayer.add(self.add.text(
-          content.x + content.width - 10, rowY + (LANE_DOCK_ROW_HEIGHT - 3) / 2, '›',
+          content.x + content.width - 12, mid, '›',
           { color: cssHex(INK_UI.cinnabar), fontFamily: UI_FONT, fontSize: '15px' },
         ).setOrigin(1, 0.5));
 
@@ -464,7 +500,7 @@ export function laneList(self: ConquestUIScene,
         // teardown that follows swallows the rest of the gesture (see `clearLanePage`), so the
         // release cannot go on to press whatever the new page puts under the finger.
         const hit = self.add.rectangle(
-          content.x, rowY, content.width, LANE_DOCK_ROW_HEIGHT - 3, INK_UI.brush, 0.001,
+          content.x, rowY, content.width, LANE_DOCK_ROW_HEIGHT - 2, INK_UI.brush, 0.001,
         ).setOrigin(0, 0).setInteractive({ useHandCursor: true });
         hit.on('pointerdown', (
           _pointer: Phaser.Input.Pointer,
