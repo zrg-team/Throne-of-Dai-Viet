@@ -210,7 +210,15 @@ export class MapScene extends Phaser.Scene {
       return;
     }
 
-    if (!point || !this.domDown || this.domDragDistance > 14 || this.isScreenPointOverFixedUi(point.x, point.y)) {
+    // Twenty, not fourteen, and measured in **Manhattan** distance — the second half is why the
+    // old number was tighter than it looked. A thumb travelling four points right and eleven down
+    // has moved twelve points as the eye sees it and fifteen as this sum counts it, so a perfectly
+    // still-looking press on a name plate was being thrown away as a drag. That is the other half
+    // of *click to name of land ... it not work sometime*; the first half was the zoom.
+    //
+    // Still well under a deliberate pan: the camera only starts moving in `handleDomMove` once the
+    // gesture is a drag, and twenty points on a 390-wide surface is about a fifth of an inch.
+    if (!point || !this.domDown || this.domDragDistance > 20 || this.isScreenPointOverFixedUi(point.x, point.y)) {
       this.domDown = undefined;
       return;
     }
@@ -221,8 +229,36 @@ export class MapScene extends Phaser.Scene {
     );
     if (landId) {
       this.selectLand(landId);
+    } else {
+      // **Tapping the open map puts the card away.**
+      //
+      // Reported: *cannot close land detail after select*. There was no way to — the card has no
+      // dismiss of its own, and a tap that resolved to no province simply did nothing, so once a
+      // province was selected the only way out was selecting a different one. Tapping away from a
+      // thing to dismiss it is the gesture every sheet on a phone answers to, and this one was
+      // silently ignoring it.
+      //
+      // Only ever a *dismissal*: `isScreenPointOverFixedUi` has already refused every tap that
+      // landed on the card itself, the action bar, the HUD or an open overlay, so what reaches
+      // here is genuinely a tap on the map with nothing under it.
+      this.deselectLand();
     }
     this.domDown = undefined;
+  }
+
+  /**
+   * Clears the current selection, if there is one. Overridden where a mode keeps more with it.
+   *
+   * Guarded so an idle tap on empty country does not re-render the map for nothing: `refresh` is
+   * the whole scene's repaint and it runs the settlement, marker and label passes with it.
+   */
+  protected deselectLand(): void {
+    if (!this.state.selectedLandId && !this.state.latestBattlePreview) return;
+    this.state.selectedLandId = undefined;
+    this.state.selectedArmyId = undefined;
+    this.state.latestBattlePreview = undefined;
+    this.refresh();
+    this.scene.get(this.uiSceneKey()).events.emit('state-changed');
   }
 
   /**
@@ -1778,8 +1814,16 @@ export class MapScene extends Phaser.Scene {
     const label = this.landLabels.get(landId);
     const node = this.landNodes.get(landId);
     if (!label || !node) return undefined;
-    const padX = 14;
-    const padY = 16;
+    // The padding is **screen** pixels, converted into world units at the current zoom.
+    //
+    // Reported: *click to name of land ... it not work sometime*, and the "sometime" was the zoom.
+    // A flat 14x16 of world padding is 14x16 of thumb only at 1:1; zoomed out to 0.6 it is nine by
+    // ten, which is smaller than the fingertip aiming at it, and the tap lands on nothing. The
+    // plate itself shrinks with the map — that is correct, it is drawn on the map — but the
+    // forgiveness around it has to stay the same size as the finger.
+    const zoom = Math.max(0.2, this.mapZoom || 1);
+    const padX = 14 / zoom;
+    const padY = 16 / zoom;
     const cx = node.x + label.x;
     const cy = node.y + label.y;
     const w = (label.width || 60) + padX * 2;

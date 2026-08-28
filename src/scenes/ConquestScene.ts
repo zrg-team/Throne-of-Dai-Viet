@@ -527,6 +527,27 @@ export class ConquestScene extends MapScene {
     return beneath && !this.hasVisibleLabel(beneath) ? beneath : undefined;
   }
 
+  /**
+   * Whether the HUD scene currently has a sheet over the map.
+   *
+   * `openPromptKey` is the one field every overlay passes through — `beginOverlay` sets it and
+   * `releaseOverlay` clears it — so prompts, lanes and the battle screen are all covered by asking
+   * it once, and a new kind of sheet is covered the day it is written.
+   */
+  private overlayIsOpen(): boolean {
+    const ui = this.scene.get(this.uiSceneKey()) as Phaser.Scene & {
+      openPromptKey?: string;
+      modalLayer?: Phaser.GameObjects.Container;
+    };
+    if (!ui?.scene?.isActive()) return false;
+    // Both, and the second one is the safety net. `openPromptKey` is reconciled by `refresh` — a
+    // card leaving the screen sets it back to `''` on the next pass — but a deaf map is a far
+    // worse failure than a stray selection, so the key is only believed while there is actually
+    // furniture on the modal layer to justify it. A key left set with nothing drawn cannot lock
+    // the player out of their own map.
+    return Boolean(ui.openPromptKey) && (ui.modalLayer?.length ?? 0) > 0;
+  }
+
   protected selectLand(landId: string): void {
     this.state.selectedLandId = this.state.selectedLandId === landId ? undefined : landId;
     this.state.selectedArmyId = undefined;
@@ -540,6 +561,21 @@ export class ConquestScene extends MapScene {
    * action bar, minimap) which ConquestUIScene lays out differently.
    */
   protected isScreenPointOverFixedUi(x: number, y: number): boolean {
+    // **An open sheet takes the whole screen, and the map hears nothing.**
+    //
+    // Reported: *click/tap on popup also tap/click on the buttons behind — easy to wrong click.*
+    // Every band below is a *rectangle*, and the modal layer is not one: a prompt, a lane or the
+    // battle screen covers the map completely, and none of these bands knew that. So a tap meant
+    // for a card also reached the map underneath, selected whatever province was there, and the
+    // player closed the sheet to find a different district selected — or worse, tapped twice
+    // because the first press appeared to do nothing.
+    //
+    // It cannot be fixed on the modal's own side. `MapScene` listens on the **canvas element**
+    // (`this.game.canvas.addEventListener('pointerdown', …)`), not through Phaser's display list,
+    // so no amount of interactive furniture drawn over it in another scene can consume the event.
+    // The sheet has to be asked about here instead.
+    if (this.overlayIsOpen()) return true;
+
     // `performance.now`, matching what writes it. Compared against `Date.now` this was a
     // thirteen-digit number against a five-digit one, so the suppression window never once
     // applied and a tap that dismissed a marker also selected the land beneath it.
