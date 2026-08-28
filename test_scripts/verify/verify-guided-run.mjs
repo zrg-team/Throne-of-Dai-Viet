@@ -422,11 +422,19 @@ const reach = await first.evaluate(() => {
   // not about a card. The run has been ticking through this whole file, so one may well be up.
   scene.state.pendingAscentPrompt = undefined;
   scene.renderActionBar();
+  // Recursive, and measured in world units. The tour's buttons are nested a container deeper than
+  // a one-level scan reaches, so this read 0 — "the buttons are at the very top of the screen" —
+  // and failed a check about thumb reach on a card whose buttons were never found at all.
   let buttonTop = 0;
-  for (const child of scene.children.list) {
-    const label = child.list?.find?.((k) => k.type === 'Text' && /^(Next|Skip)$/.test(k.text));
-    if (label) buttonTop = Math.max(buttonTop, child.y || 0);
-  }
+  const seek = (list, depth) => {
+    for (const child of list ?? []) {
+      if (child.type === 'Text' && /^(Next|Skip|Got it|Tiếp|Bỏ qua|Đã rõ)$/.test(child.text)) {
+        buttonTop = Math.max(buttonTop, child.getWorldTransformMatrix().ty);
+      }
+      if (child.list && depth < 5) seek(child.list, depth + 1);
+    }
+  };
+  seek(scene.children.list, 0);
   const target = scene.runTour ? 'up' : 'none';
   return {
     buttonTop,
@@ -452,6 +460,13 @@ const handoff = await browser.newPage({ viewport: { width: 390, height: 844 }, d
 const handoffErrors = [];
 handoff.on('pageerror', (e) => handoffErrors.push(e.message));
 handoff.on('console', (m) => { if (m.type() === 'error') handoffErrors.push(m.text()); });
+// English first, so that picking Tiếng Việt below is a real switch.
+//
+// `Copilot` only makes the *other* language pressable — `if (option.id !== current)` — so on a page
+// that already opened in Vietnamese, which is the product default, this section asked the card to
+// switch to the language it was in, found a label with no handler on it, and reported that nothing
+// was stored. Nothing was: nothing had been asked for.
+await handoff.addInitScript(() => localStorage.setItem('mandate:language:v1', 'en'));
 await handoff.goto(`${BASE}/?capture=1&tour=1`, { waitUntil: 'domcontentloaded' });
 await handoff.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
 await handoff.waitForTimeout(1400);
