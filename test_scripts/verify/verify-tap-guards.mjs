@@ -185,7 +185,9 @@ const out = await page.evaluate(async () => {
     const half = (window.__phaserGame.scale.height ?? 844) / 2;
     const court = await readLane('court');
     const army = await readLane('army');
-    const counted = (head) => Number((head?.t ?? '').match(/(\d+)\s*$/)?.[1] ?? -1);
+    // The first number in the heading is the count of what is waiting; a folded heading carries a
+    // second one ("+2 more"), so anchoring on the end of the string reads the wrong figure.
+    const counted = (head) => Number((head?.t ?? '').match(/(\d+)/)?.[1] ?? -1);
     r.dock = {
       court, army, half: Math.round(half),
       courtHasDock: Boolean(court.head) && court.rows.length > 0,
@@ -194,7 +196,13 @@ const out = await page.evaluate(async () => {
       inReach: [...court.rows, ...army.rows].every((y) => y > half),
       // And the heading counts what is actually on screen, not what was offered before the cap.
       counts: { court: counted(court.head), army: counted(army.head) },
-      countsMatch: counted(court.head) === court.rows.length && counted(army.head) === army.rows.length,
+      // Collapsed by default: one row on screen, and the heading says how many more there are.
+      // The court has three things waiting on a fresh run and must fold; the war has one and must
+      // not bother.
+      collapsed: court.rows.length === 1 && /còn 2|2 more/.test(court.head?.t ?? ''),
+      warUnfolded: army.rows.length <= 1,
+      // The heading still counts everything waiting, folded or not.
+      countsMatch: counted(court.head) === 3 && counted(army.head) === army.rows.length,
     };
   }
 
@@ -356,7 +364,9 @@ const checks = out.fatal ? { [out.fatal]: false } : {
   'the court lane lists what it is waiting on': out.dock.courtHasDock,
   'so does the war lane': out.dock.armyHasDock,
   'and every waiting row is in the thumb band, not the top third': out.dock.inReach,
-  'and the count says what is actually on screen': out.dock.countsMatch,
+  'the heading still counts everything waiting': out.dock.countsMatch,
+  'but only the most urgent row is shown until asked': out.dock.collapsed,
+  'and a lane with one thing waiting does not fold': out.dock.warUnfolded,
   'the name plate holds its size under the thumb when zoomed out': out.plate.holdsUp,
   'because the padding is screen pixels, not world units': out.plate.padHeldConstant,
   'one press seats one minister, and the release goes nowhere': flow.ok,

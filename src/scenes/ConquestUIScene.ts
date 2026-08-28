@@ -137,6 +137,15 @@ export class ConquestUIScene extends Phaser.Scene {
 
   openPromptKey = '';
 
+  /**
+   * Whether the lane dock is showing everything it is waiting on, or only the most urgent.
+   *
+   * Collapsed by default and remembered for the session rather than the page: a player who opens
+   * it once is telling you they want the whole list, and being made to say so again on every lane
+   * is the kind of forgetting that reads as the interface not listening.
+   */
+  dockExpanded = false;
+
   /** Test-only: skip the ground bake so a harness can diff the baked field against a live one. */
   skipGroundBake = false;
 
@@ -709,7 +718,12 @@ export class ConquestUIScene extends Phaser.Scene {
        * What this lane is waiting on, listed at the foot in the thumb's own band. See the full
        * note on `laneOpts.dock` in `lanes/frame` for why it is at the bottom rather than the top.
        */
-      dock?: { label: (shown: number) => string; items: Array<{ label: string; hint?: string; onPress: () => void }> };
+      dock?: {
+        label: (shown: number) => string;
+        items: Array<{ label: string; hint?: string; onPress: () => void }>;
+        /** Redraws this page, so the dock can open and close without the lane knowing how. */
+        rebuild?: () => void;
+      };
       /** A ghost "back" above the footer button, for pages one step inside a lane. */
       back?: () => void;
     } = {},

@@ -93,7 +93,11 @@ export function showArmyScreen(self: ConquestUIScene): void {
       threat: Math.round(ascent?.threat ?? 0),
     }),
     {
-      dock: { label: (n) => t('ascent.lane.waitingWar', { n }), items: waiting },
+      dock: {
+        label: (n) => t('ascent.lane.waitingWar', { n }),
+        items: waiting,
+        rebuild: () => showArmyScreen(self),
+      },
       footerToggle: {
         label: t('ascent.sys.musterAsked'),
         hint: t((ascent?.autoMusterSilently ?? false)

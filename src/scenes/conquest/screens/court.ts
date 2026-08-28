@@ -137,7 +137,11 @@ export function showCourtScreen(self: ConquestUIScene): void {
       points: mandate?.edictPoints ?? 0,
     }),
     {
-      dock: { label: (n) => t('ascent.lane.waitingCourt', { n }), items: waiting },
+      dock: {
+        label: (n) => t('ascent.lane.waitingCourt', { n }),
+        items: waiting,
+        rebuild: () => showCourtScreen(self),
+      },
       // The realm's standing course, in the same footer slot the other lanes keep their
       // standing setting. The era card still asks on its own clock; this is the king turning
       // to the ministers whenever he is already reading their page — same `adoptDoctrine`

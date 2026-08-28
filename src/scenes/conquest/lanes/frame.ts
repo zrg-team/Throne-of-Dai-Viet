@@ -175,7 +175,12 @@ export function laneList(self: ConquestUIScene,
      * above the close button and the rest of the footer stack, all of which keep their existing
      * places and behaviour.
      */
-    dock?: { label: (shown: number) => string; items: Array<{ label: string; hint?: string; onPress: () => void }> };
+    dock?: {
+        label: (shown: number) => string;
+        items: Array<{ label: string; hint?: string; onPress: () => void }>;
+        /** Redraws this page, so the dock can open and close without the lane knowing how. */
+        rebuild?: () => void;
+      };
     /** A ghost "back" above the footer button, for pages one step inside a lane. */
     back?: () => void;
   } = {},
@@ -201,8 +206,20 @@ export function laneList(self: ConquestUIScene,
   // point of it is to be the short answer to "what now" — the lane itself is where everything else
   // lives.
   const dockItems = (laneOpts.dock?.items ?? []).slice(0, LANE_DOCK_MAX_ITEMS);
+  // **One row unless the player asks for the rest.**
+  //
+  // Reported: *the centre has too little space.* On the court page the foot already carries the
+  // doctrine picker and the close button, and three dock rows on top of those left the scrolling
+  // body a couple of lines tall — the dock had stopped being a summary and become a second page
+  // pinned over the first.
+  //
+  // Collapsed it shows the label and the most urgent item, which is the one the player would have
+  // acted on anyway; the label is the control that opens the rest. Two lines instead of four gives
+  // sixty points back to the body, and the thing the dock exists to say is still said.
+  const dockOpen = dockItems.length <= 1 || self.dockExpanded === true;
+  const dockShown = dockOpen ? dockItems.length : 1;
   const dockHeight = dockItems.length > 0
-    ? LANE_DOCK_LABEL_HEIGHT + dockItems.length * LANE_DOCK_ROW_HEIGHT + 8
+    ? LANE_DOCK_LABEL_HEIGHT + dockShown * LANE_DOCK_ROW_HEIGHT + 8
     : 0;
   const footerExtra = (laneOpts.back ? LANE_BACK_BUTTON_HEIGHT + 8 : 0)
     + (laneOpts.footerToggle ? LANE_TOGGLE_HEIGHT + 8 : 0)
@@ -392,19 +409,39 @@ export function laneList(self: ConquestUIScene,
         - (laneOpts.footerPicker ? LANE_PICKER_HEIGHT + 8 : 0)
         - dockHeight;
 
+      // The heading counts everything waiting, and says how to see the rest. The count is the
+      // caller's — collapsed or not, three things are waiting and the player should know it.
+      const more = dockItems.length - dockShown;
+      const heading = laneOpts.dock?.label?.(dockItems.length)
+        ?? t('ascent.lane.waiting', { n: dockItems.length });
       self.modalLayer.add(self.add.text(
         content.x + 2, dockTop,
-        // Composed from the *shown* count, not the caller's. The list is capped at
-        // `LANE_DOCK_MAX_ITEMS`, and a heading that says four above three rows is a heading the
-        // player has to reconcile.
-        laneOpts.dock?.label?.(dockItems.length) ?? t('ascent.lane.waiting', { n: dockItems.length }),
+        more > 0 ? t('ascent.lane.waitingMore', { label: heading, n: more }) : heading,
         {
           color: cssHex(INK_UI.cinnabarDark), fontFamily: UI_FONT,
           fontSize: '9px', fontStyle: '700',
         },
       ).setOrigin(0, 0));
+      if (dockItems.length > 1) {
+        // The heading is the disclosure. A row of its own would cost the line this is saving.
+        const headHit = self.add.rectangle(
+          content.x, dockTop - 3, content.width, LANE_DOCK_LABEL_HEIGHT + 3, INK_UI.brush, 0.001,
+        ).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        headHit.on('pointerdown', (
+          _pointer: Phaser.Input.Pointer,
+          _localX: number,
+          _localY: number,
+          event: Phaser.Types.Input.EventData,
+        ) => {
+          event.stopPropagation();
+          self.dockExpanded = !dockOpen;
+          const redraw = laneOpts.dock?.rebuild;
+          if (redraw) self.replaceLanePage(redraw);
+        });
+        self.modalLayer.add(headHit);
+      }
 
-      dockItems.forEach((item, index) => {
+      dockItems.slice(0, dockShown).forEach((item, index) => {
         const rowY = dockTop + LANE_DOCK_LABEL_HEIGHT + index * LANE_DOCK_ROW_HEIGHT;
         self.modalLayer.add(self.ui.panel(
           { x: content.x, y: rowY, width: content.width, height: LANE_DOCK_ROW_HEIGHT - 3 },
