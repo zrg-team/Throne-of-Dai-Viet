@@ -36,6 +36,7 @@ import {
   COALITION_JOIN_DRAW,
   COALITION_JOIN_RATIO,
   COALITION_JOIN_SHARE,
+  EARLY_WAVE_GRACE,
 } from '../../game/ascentConfig';
 import { launchOffMapInvasion } from '../empire/InvasionSystem';
 import { pushToast } from '../empire/notifications';
@@ -134,14 +135,26 @@ function maybeLaunch(state: GameState): void {
   const ascent = state.ascent;
   if (!ascent) return;
 
-  // The ceiling, and deliberately stricter than the wave director's.
-  //
-  // `WaveDirector` still runs its own metronome, so this director is a second source of hosts on
-  // the same map. Letting it fill to `MAX_LIVE_INVADER_HOSTS` on its own put seven hosts in the
-  // field at once and turned the run into one unbroken siege — which is a different failure from
-  // the one being fixed, not a cure for it. Half the cap leaves room for the wave director's
-  // scheduled pressure on top.
-  if ((state.invasions?.length ?? 0) >= Math.ceil(MAX_LIVE_INVADER_HOSTS / 2)) return;
+  /**
+   * The ceiling, and it is now a queue rather than a quota.
+   *
+   * `WaveDirector` runs its own metronome, so this director is a *second* source of hosts on the
+   * same map, and its ceiling used to be "half of `MAX_LIVE_INVADER_HOSTS`" — three. Which is
+   * three unscheduled hosts on top of whatever the schedule had already sent. Measured on seed
+   * 20080: the wave-1 host landed at tick 11 with 864 men, and at tick 19 the northern rival put
+   * **three more** on the map, 254 + 221 + 261, against a realm whose field army was 460 men.
+   * Four hosts from two crowns, in the first wave. On seed 12161 the same thing at tick 12.
+   *
+   * That is the reported "it makes multiple invasions at the same time", and the answer the raid
+   * path has always used is the right one for this too — `maybeRaid` opens with
+   * `if ((state.invasions?.length ?? 0) > 0) return;`. Weather waits for the last front to
+   * finish. What arrives *on top* of a live invasion should only ever be the schedule's own
+   * wave, a coalition the player was warned about, or a story's answer to something they did.
+   *
+   * The peace floor is unaffected in the only sense that matters: a host standing on the map
+   * already *is* contact, so the guarantee this director exists for is being met while it waits.
+   */
+  if ((state.invasions?.length ?? 0) > 0) return;
 
   const candidates = aggressors(state);
   if (candidates.length === 0) return;
@@ -284,7 +297,11 @@ function storyStrikes(state: GameState): void {
   // than the default weather.
   // An undefended seat is an invitation. Checked against a flag so it fires once per exposure
   // rather than every tick the capital happens to be empty.
-  const capital = state.lands.find((land) => land.id === ascent.capitalLandId);
+  // Same grace as the war-joiner above: an empty seat in wave one is a player who has not yet
+  // been taught that the seat wants a garrison, not a player taking a risk.
+  const capital = ascent.wave > EARLY_WAVE_GRACE
+    ? state.lands.find((land) => land.id === ascent.capitalLandId)
+    : undefined;
   if (capital && capital.ownerId === PLAYER_KINGDOM_ID) {
     const garrisoned = state.armies.some(
       (army) => army.kingdomId === PLAYER_KINGDOM_ID && army.landId === capital.id,
@@ -317,6 +334,11 @@ function storyStrikes(state: GameState): void {
 function maybeJoinTheWar(state: GameState): void {
   const ascent = state.ascent;
   if (!ascent) return;
+
+  // Not in the opening. A second crown piling onto a war is the mode working as asked ("war can
+  // happen by 1 or many kingdom at the time") and it is the wrong lesson for a player's first two
+  // waves, which are the only ones that have to teach what a single fight is.
+  if (ascent.wave <= EARLY_WAVE_GRACE) return;
 
   const live = state.invasions ?? [];
   if (live.length === 0) return;

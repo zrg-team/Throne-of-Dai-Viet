@@ -2,6 +2,7 @@ import { hasCapstone } from '../decree/SchoolSystem';
 import { proclamationInForce, tattooedArms, SAT_THAT_ROUT_FLOOR } from '../decree/rules';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
+  EARLY_WAVE_GRACE,
   BATTLE_ADVANCE_PER_TICK,
   BATTLE_APPROACH_MAX_BEATS,
   BATTLE_BASE_ROUNDS,
@@ -272,6 +273,21 @@ function worthWatching(state: GameState, landId: string, isGreat: boolean, asSid
   // Below that mark the seat queues up with everywhere else.
   const isCapital = ascent?.capitalLandId === landId;
   if (isCapital && (ratio >= CAPITAL_AT_RISK_RATIO || (ascent?.capitalLostTicks ?? 0) > 0)) return true;
+
+  /**
+   * The opening is not rationed. Every fight in it opens.
+   *
+   * The rules below are a *budget*: being worth watching and being worth stopping the game for are
+   * different questions, and only the second is bounded. Both answers are wrong for a player's
+   * first two waves, because they have not yet been shown what commanding a fight does — and
+   * measured over three seeded runs, the first three waves produced sixteen engagements of which
+   * **six** were fought on the field; the other ten were dispatches about a dice roll. Reported as
+   * "let users handle fight", and the ration is what was stopping them.
+   *
+   * Ground of ours only, and `hasRoomForAnotherFront` still bounds how many fields run at once —
+   * so this opens the fights the player has, not an unbounded number of them.
+   */
+  if (ascent && ascent.wave <= EARLY_WAVE_GRACE) return true;
 
   // A defence is rationed, not merely filtered.
   //

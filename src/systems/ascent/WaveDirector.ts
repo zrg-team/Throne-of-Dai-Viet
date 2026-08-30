@@ -7,6 +7,8 @@ import {
   BOSS_TELEGRAPH_TICKS,
   INVADER_POWER_PER_SOLDIER,
   MAX_HOSTS_PER_KINGDOM,
+  EARLY_WAVE_FIELD_SHARE,
+  EARLY_WAVE_GRACE,
   MAX_LIVE_INVADER_HOSTS,
   MIN_WAVE_SOLDIERS,
   PEACE_FLOOR_EARLY,
@@ -284,7 +286,43 @@ export function waveTargetPower(
   // capped, because a mirror that outgrows the thing it reflects was never a mirror.
   const ceiling = Math.max(target, computeFieldDefencePower(state) * WAVE_FIELD_CEILING);
 
-  return Math.min(Math.max(curve, shadow), Math.max(curve, ceiling));
+  const sized = Math.min(Math.max(curve, shadow), Math.max(curve, ceiling));
+
+  /**
+   * The opening is sized against the army, not against the realm.
+   *
+   * Everything above is the right arithmetic for a run in flight and the wrong one for wave one.
+   * `contestedDefencePower` at the opening board is mostly the capital's masonry, so
+   * `waveMatchFactor` sits on its 1.7 cap from the first tick and the first host the player ever
+   * meets is quoted ~900 power against a field army of 460 men — before they have been shown what
+   * commanding a battle does. Measured across three seeded runs, wave 1 landed 864 to 993 men.
+   *
+   * For `EARLY_WAVE_GRACE` waves the wave may not outweigh a share of what the realm can actually
+   * march. Floored at half the baseline so it is still a war and not a formality, and only ever a
+   * *reduction* — a realm that has already lost its host does not get a smaller wave than the
+   * calendar's own floor, or losing the opening would be the way to make the opening easier.
+   */
+  // The sizing ramp runs longer than the spawner grace: `EARLY_WAVE_GRACE` decides who may
+  // pile on and what opens on screen, this decides how heavy the wave is, and the second has to
+  // hand back gradually or wave three is a wall.
+  if (wave >= 1 && wave <= EARLY_WAVE_FIELD_SHARE.length) {
+    // **Marchable power, not `computeFieldDefencePower`.** That helper adds the capital's garrison
+    // to the field hosts, and at the opening board the seat is ~1,000 of a ~1,650 total — so
+    // capping against it quoted wave 2 at 1,433 men, *larger* than the 1,364 it replaced. The
+    // question this cap is asking is "what can the player put in front of it", and walls do not
+    // march.
+    const marchable = state.armies.reduce((sum, army) => (
+      army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && !army.patron
+        ? sum + armyPower(state, army)
+        : sum
+    ), 0);
+    const share = EARLY_WAVE_FIELD_SHARE[Math.min(EARLY_WAVE_FIELD_SHARE.length - 1, wave - 1)];
+    if (marchable > 0) {
+      return Math.max(WAVE_BASELINE_POWER * 0.5, Math.min(sized, marchable * share));
+    }
+  }
+
+  return sized;
 }
 
 /** The multiplier the wave on the map was sized with, for everything that must match its quote. */

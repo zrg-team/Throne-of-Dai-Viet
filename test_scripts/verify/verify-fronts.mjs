@@ -59,6 +59,21 @@ const out = await page.evaluate(async () => {
   for (let i = 0; i < 40; i += 1) { advanceAscentTick(st); settle(); if (st.ascent.pendingAftermath) st.ascent.pendingAftermath = undefined; }
   st.ascent.activeBattle = undefined;
   st.ascent.sideBattles = [];
+  // And the board the warm-up left behind goes with them.
+  //
+  // These forty seasons are scenery: the probes below stage their own hosts on their own
+  // provinces and open their own fields. Whatever the warm-up happened to leave marching is a
+  // *third* party in a file testing how two fields hand over to each other — it can open a field
+  // of its own, and it can re-contact a province the instant a probe's fight is ended, which is
+  // the promotion probe's whole question answered by the wrong host. Measured: the same forty
+  // ticks left 1 invasion and 0 live battles before the opening-wave pass and 2 invasions with a
+  // battle already running after it, and this file failed on the difference rather than on
+  // anything it is meant to be checking. (Its own note above records the last time that happened,
+  // when the wave curve moved.) Clearing them makes the probes the only war on the map.
+  st.invasions = [];
+  st.armies = st.armies.filter((army) => army.kingdomId === 'dai-viet');
+  st.siegeOrders = [];
+  st.pendingBattle = undefined;
   // One watched engagement per province per wave is a ration on *screens*, and the forty seasons
   // above spend it wherever they like. This is testing the multi-field machinery, not the ration,
   // so the stamp is cleared before the probes go in — left standing, a probe whose province the

@@ -167,6 +167,42 @@ export const WAVE_BASELINE_POWER = 420;
  */
 export const WAVE_BASELINE_GROWTH = 1.11;
 
+// ── The opening: the first war a player ever sees ────────────────────────────
+/**
+ * Waves that get the realm's benefit of the doubt.
+ *
+ * The mode's pressure machinery is built for a run in flight — a wave metronome, an enemy command
+ * director that marches on its own draws, courts that pile onto a war going badly, an opportunist
+ * that punishes an empty seat. All of it is correct at wave six and all of it lands *at once* at
+ * wave one, when the player has a single host of 460 men and has not yet been shown what a battle
+ * even looks like. Measured over three seeded runs before this: the first three waves put five to
+ * nine hosts on the map, peaking at four hosts from two crowns during **wave one**, and of the
+ * sixteen engagements they produced only six were fought on the field — the other ten were
+ * decided by a hidden roll the player never saw.
+ *
+ * Two waves, not more. The grace is there to teach the shape of a fight, not to make the opening
+ * safe: by wave three every director is back on.
+ */
+export const EARLY_WAVE_GRACE = 2;
+/**
+ * What an opening wave may weigh, as a share of the field army the player can actually march.
+ *
+ * The wave curve's own denominator is `contestedDefencePower`, which is right for *odds* — a host
+ * really does have to pass walls and reinforcements — but the opening board's contested defence is
+ * three-quarters capital masonry, so `waveMatchFactor` pinned at its 1.7 cap on the first tick and
+ * the first wave arrived at ~900 power against 460 field soldiers. Under two-thirds of the field
+ * army the first wave is a fight the realm's one host can win by being commanded well, which is
+ * the only thing wave one has to teach.
+ *
+ * **A ramp, not a cliff.** Two entries were tried first, matching `EARLY_WAVE_GRACE`, and the
+ * result was worse than the problem: waves 1 and 2 landed at ~410 men and wave 3 at **2,970**,
+ * because the curve had been suppressed rather than slowed and the whole of it arrived at once.
+ * Five entries climbing past 1 hand the run back to its own arithmetic over about a minute of
+ * play. Each is a `min` against the real curve, so this only ever *reduces* — a realm that has
+ * outgrown the ramp never notices it, and the ramp lapses entirely after the last entry.
+ */
+export const EARLY_WAVE_FIELD_SHARE = [0.62, 0.85, 1.15, 1.5, 1.9];
+
 // ── The realm's shadow: the wave never falls far behind what it attacks ──────
 //
 // The baseline curve alone lost to arithmetic: an economy that compounds at ~9% a wave laps a
