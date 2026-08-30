@@ -108,6 +108,30 @@ const muster = await page.evaluate(async () => {
     War.queueRecruitment(st, st.heroes[1].id, 400, 200, 120, 'balanced');
     AS.drainAscentPrompts(st);
     r.withdrawnWhileOnScreen = !shown(st);
+
+    /**
+     * A muster that is offered must be one that can be accepted.
+     *
+     * Reported as "Lập quân never works", with the board in the screenshot: 17 food, 320-man plan,
+     * "0 lương, 89 vật tư". `musterBlockedReason` checked `plan.rations` alone and ignored the
+     * muster's own `MUSTER_FOOD_PER_SOLDIER` bill, which the supplies check beside it has always
+     * included — so the card was offered, Chuẩn y ran `queueRecruitment`, `canSpend` refused, and
+     * the card was consumed with no army. Swept across granaries rather than pinned to the one
+     * board, because the defect is the missing term and not the number 17.
+     */
+    const M = await import('/src/systems/ascent/MusterSystem.ts');
+    r.offeredButUnacceptable = [];
+    for (const food of [0, 8, 17, 30, 43, 44, 60, 120, 400]) {
+      const t = build();
+      t.resources.food = food; t.resources.gold = 1300; t.resources.supplies = 113; t.resources.humans = 714;
+      const plan = M.defaultMusterPlan(t);
+      if (M.musterBlockedReason(t, plan)) continue;      // withheld, and told the player why
+      const before = t.recruitmentOrders.length;
+      const res = M.raiseHostWithPlan(t, plan);
+      if (!res.ok || t.recruitmentOrders.length === before) {
+        r.offeredButUnacceptable.push({ food, reason: res.reason ?? 'queued nothing' });
+      }
+    }
     return r;
   } finally { Math.random = orig; }
 });
@@ -120,6 +144,10 @@ check('and withdrawn when its champion already leads a host', muster.heroAlready
 check('a standing army is NOT a reason to stop asking', muster.standingHostIdleYard === true,
   'a second host is a real decision when the yard is free');
 check('a card already on screen is withdrawn, not left up', muster.withdrawnWhileOnScreen === true);
+check('every muster it offers can actually be accepted', muster.offeredButUnacceptable.length === 0,
+  muster.offeredButUnacceptable.length
+    ? muster.offeredButUnacceptable.map((x) => `${x.food} food -> ${x.reason}`).join(' | ')
+    : 'swept 0-400 food');
 
 // ── The opening, played ─────────────────────────────────────────────────────────────────────
 const runs = await page.evaluate(async ([seeds, ticks]) => {
