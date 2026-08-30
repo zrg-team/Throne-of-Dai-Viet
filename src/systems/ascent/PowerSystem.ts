@@ -124,6 +124,37 @@ export function contestedDefencePower(state: GameState): number {
   return Math.round(field + (total - field) * REALM_DEFENCE_SHARE);
 }
 
+/**
+ * What a wave has to get through, as distinct from what the realm is worth.
+ *
+ * `contestedDefencePower` blends in `REALM_DEFENCE_SHARE` of *every* province's walls, and that is
+ * the right figure for the response card, for raids and for mercenary pricing — it answers "how
+ * much realm is there". It is the wrong figure to size a wave against, because a wave arrives at
+ * one province: summing the realm means each province the player takes raises the host that comes
+ * for them while defending none of the ground it lands on. The same category error that made
+ * Throne of Empires punish expansion, in the mode's other half.
+ *
+ * It matters here because it is the one term in the difficulty curve that is *asymmetric between
+ * policies*. Sweeps of the shadow floor and of `waveMatchFactor` both moved a declining run as
+ * much as an engaged one — they scale with power, and the declining realm has power too, in its
+ * walls. Only this term scales with **expansion**, which is the thing engaging actually does.
+ *
+ * So: the field hosts and the seat (what can be brought to the fight), plus the *median* province
+ * garrison (the ground a host will actually have to stand on). Median rather than sum, for the
+ * same reason the empire pass took the median there — one heavily-walled seat must not speak for
+ * a dozen frontier villages.
+ */
+export function waveFacingDefencePower(state: GameState): number {
+  const field = computeFieldDefencePower(state);
+  const capitalId = state.ascent?.capitalLandId;
+  const garrisons = state.lands
+    .filter((land) => land.ownerId === PLAYER_KINGDOM_ID && land.id !== capitalId)
+    .map((land) => landGarrisonPower(state, land))
+    .sort((a, b) => a - b);
+  const median = garrisons.length > 0 ? garrisons[Math.floor(garrisons.length / 2)] : 0;
+  return Math.round(field + median);
+}
+
 /** Provinces the player currently holds. */
 export function ownedLandCount(state: GameState): number {
   return state.lands.filter((land) => land.ownerId === PLAYER_KINGDOM_ID).length;

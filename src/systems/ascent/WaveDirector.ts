@@ -61,7 +61,7 @@ import {
 } from './AmbitionSystem';
 import { waveDelayTicks, warPurchaseDiscount } from './DoctrineSystem';
 import {
-  addAscentXp, computeFieldDefencePower, contestedDefencePower, ownedLandCount,
+  addAscentXp, computeFieldDefencePower, contestedDefencePower, ownedLandCount, waveFacingDefencePower,
 } from './PowerSystem';
 import { heroName, t } from '../../i18n';
 import type {
@@ -260,7 +260,10 @@ export function waveTargetPower(
   // ratio is about 3.9, so the factor pinned to its `cap: 1.7` on the first tick and stayed
   // there for the whole run. The `threshold: 1.15` grace, which exists so a small lead is free,
   // never engaged once — every wave in every run was quoted 70% larger than the curve intended.
-  const curve = target * waveMatchFactor(contestedDefencePower(state), target);
+  // `waveFacingDefencePower`, not `contestedDefencePower`: what a host has to get through,
+  // not what the realm is worth. See the note on that function — the difference is a term that
+  // grows with province count, and it was the only part of the curve that punished expanding.
+  const curve = target * waveMatchFactor(waveFacingDefencePower(state), target);
 
   // The realm's shadow (see the WAVE_SHADOW_* block in ascentConfig): the curve above still
   // owns the floor for a realm that has done nothing, but a compounding economy laps any
