@@ -10,6 +10,7 @@ import { ASCENT_TICK_MS } from '../../game/ascentConfig';
 import { INK } from '../../ui/inkTheme';
 import { buildRoadCurve } from '../../map/roadCurve';
 import { findLand } from '../../systems/LandSystem';
+import { marchEntersLand } from '../../systems/WarSystem';
 import { heroFaceTextureKey } from '../../ui/FaceRenderer';
 import type { GameState, Land } from '../../state/types';
 import { hostKitFor } from '../../ui/ink/devices';
@@ -50,8 +51,34 @@ const DUST_INK = 0x2a2118;
  * trail stretched ninety points behind the men and every puff in it was most of the way faded:
  * a long grey smear detached from the host rather than dust at its heels. Measured, not guessed
  * (`shot-march-map.mjs` prints the distance from the marker to each live puff).
+ *
+ * Cut again with the march column. At 300 ms the live puffs measured 12 to 50 points behind the
+ * marker and 20 to 52 points across on screen — a chain of five dark ellipses, each about as wide
+ * as the host, strung out on the bare road behind it. That chain is the "shadow of the moving army"
+ * players report: a shadow belongs *under* a thing, and these were beside it with nobody on them.
+ * At 200 ms the trail is a third as long, and the puffs now rise along the column's own length
+ * rather than from one point at its head — so they read as ground under marching men.
  */
-const DUST_LIFE_MS = 300;
+const DUST_LIFE_MS = 200;
+
+/**
+ * How far a marker paints around its own anchor, for the view index.
+ *
+ * A host is drawn from its feet up and out: the column, the standards beside it, the general's
+ * portrait badge above the shoulder, and the dust behind. Generous rather than tight — the cost of
+ * over-reaching is one marker drawn just off-screen.
+ */
+const MARKER_REACH = 90;
+
+/**
+ * How far along a leg a host walks when it will not enter the province at the other end.
+ *
+ * The road runs seat to seat, so the province line sits near the middle of it — and the middle is
+ * where a host that has come to fight for a place stands: on the edge of its own ground, with the
+ * target's fields in front of it. Not 1: at 1 the marker arrives somewhere the army never goes,
+ * and the walk back from there is the jump this replaces.
+ */
+const FRONTIER_T = 0.5;
 
 /** The economy clock the current mode runs on — marches are paced against it. */
 function tickMs(state: GameState): number {
@@ -83,6 +110,17 @@ export class ArmyRenderer {
    * column* kicks up dust, so it belongs to the column.
    */
   private lastDustAt = new Map<string, number>();
+  /**
+   * The leg each marching host is walking, end to end — so the view index can cover the whole
+   * road rather than the point the marker happened to occupy when it was last indexed.
+   */
+  private legSpans = new Map<string, { x1: number; y1: number; x2: number; y2: number }>();
+  /** How far back along the road each marching host reaches — the length its dust rises along. */
+  private columnReach = new Map<string, number>();
+  /** Milliseconds per world unit for each host's current march, so nothing else has to guess. */
+  private paceMs = new Map<string, number>();
+  /** Whether the world's clock is stopped. A stopped clock stops the marches with it. */
+  private paused = false;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -90,14 +128,54 @@ export class ArmyRenderer {
   ) {}
 
   /**
+   * Holds or releases every march.
+   *
+   * A march is a tween, and a tween owes nothing to the economy tick — so the player stopped the
+   * clock for a card and the hosts kept walking, ran out their legs against a tick that was not
+   * coming, and stood frozen wherever they happened to finish. Dragon Ascent stops the clock
+   * constantly, so that was most of the stop-start in a march. Carts, birds and weather already
+   * follow the clock (`TrafficRenderer.setPaused`); armies now do too, and a paused column stops
+   * kicking up dust because the tween that spawns it is no longer running.
+   */
+  setPaused(paused: boolean): void {
+    if (paused === this.paused) return;
+    this.paused = paused;
+    for (const tween of this.moveTweens.values()) {
+      if (paused) tween.pause();
+      else tween.resume();
+    }
+  }
+
+  /**
    * The army markers, for the view index.
    *
    * Re-read on every `drawArmies`, because a host moves. Between refreshes a marker tweens along
-   * its leg, so the caller gives it a generous reach rather than re-indexing it every frame — a
-   * marker is one object, and chasing it across cells would cost more than drawing it.
+   * its whole leg, so a marching host is indexed by **the road it is walking** — the leg's midpoint
+   * and half its length — exactly as `TrafficRenderer` indexes a cart. Chasing the marker across
+   * cells every frame would cost more than drawing it, and the pose-gated `syncViewCulling` would
+   * not re-run for it anyway while the camera sits still.
+   *
+   * A fixed 200-unit reach around the last indexed point was the previous answer, and it was one
+   * province-hop from being wrong: measured on a normal Ascent map (`_marchwatch`), a marker drifts
+   * up to 193 units from where it was indexed inside a single leg. A longer leg — a bigger map, a
+   * wider province — would have taken a visible host off the screen with it.
    */
-  cullTargets(): Array<{ id: string; object: Phaser.GameObjects.Container }> {
-    return [...this.markers.entries()].map(([id, object]) => ({ id, object }));
+  cullTargets(): Array<{
+    id: string; object: Phaser.GameObjects.Container; x: number; y: number; radius: number;
+  }> {
+    return [...this.markers.entries()].map(([id, object]) => {
+      const span = this.legSpans.get(id);
+      if (!span) {
+        return { id, object, x: object.x, y: object.y, radius: MARKER_REACH };
+      }
+      return {
+        id,
+        object,
+        x: (span.x1 + span.x2) / 2,
+        y: (span.y1 + span.y2) / 2,
+        radius: Math.hypot(span.x2 - span.x1, span.y2 - span.y1) / 2 + MARKER_REACH,
+      };
+    });
   }
 
   /**
@@ -260,36 +338,74 @@ export class ArmyRenderer {
           wy,
         );
         const legKey = `${army.id}|${land.id}|${order.path[0]}`;
+        // **How much of this road the host will actually walk.**
+        //
+        // A leg onto ground the host will not enter — a rival's province, a village, wilderness
+        // with a hostile camped on it — ends in a fight picked from where the host stands, and
+        // `progressMovementOrders` leaves `army.landId` alone. Walking the column the whole way
+        // and then discovering it never moved is what produced the flight home; it now marches to
+        // the frontier and holds there, which is the thing the rule describes.
+        const legEnd = nextLand && !marchEntersLand(state, army, nextLand) ? FRONTIER_T : 1;
 
         if (this.moveLegs.get(army.id) !== legKey) {
+          const continuing = this.moveLegs.has(army.id);
           this.moveLegs.set(army.id, legKey);
           this.stopMarch(army.id);
           this.scene.tweens.killTweensOf(marker);
 
           const start = curve.getPoint(0);
           marker.setPosition(start.x + MARKER_OFFSET_X, start.y + MARKER_OFFSET_Y);
+          // The whole road this leg covers, so the view index can hold the marker for all of it.
+          const finish = curve.getPoint(legEnd);
+          this.legSpans.set(army.id, {
+            x1: start.x + MARKER_OFFSET_X, y1: start.y + MARKER_OFFSET_Y,
+            x2: finish.x + MARKER_OFFSET_X, y2: finish.y + MARKER_OFFSET_Y,
+          });
+
+          // How far back along the road this host reaches, so its dust rises along the whole column
+          // rather than from the single point at its head. Measured once per leg from what was
+          // actually drawn: `MARCH_PLAN` files the blocks front-to-back, so a host's length depends
+          // on how many men it has, and a fixed offset is right for exactly one army size. The AABB
+          // diagonal stands in for the long axis — a column reads the same length whether it runs
+          // down the sheet (8 x 52) or across it on the diagonal (37 x 37).
+          const body = marker.list[0] as Phaser.GameObjects.Container | undefined;
+          const drawn = body?.getBounds ? body.getBounds() : undefined;
+          this.columnReach.set(
+            army.id,
+            drawn ? Math.min(70, Math.hypot(drawn.width, drawn.height) * 0.5) : 0,
+          );
 
           const activeMarker = marker;
           const progress = { t: 0 };
+          // Timed to the clock this mode actually ticks on. Dragon Ascent runs at ASCENT_TICK_MS,
+          // so pacing every march against the classic REALTIME_TICK_MS made the marker finish its
+          // slide well before the leg resolved and then sit frozen on the road.
+          const duration = Math.max(1, order.legRequired - order.progress) * tickMs(state);
+          // How long this host takes to cover one world unit, so anything else that has to move it
+          // — the walk home when an order ends — moves it at the pace it marches at rather than at
+          // a flat time that becomes a teleport over any real distance.
+          const legLength = Math.max(1, curve.getLength() * legEnd);
+          this.paceMs.set(army.id, duration / legLength);
+          // **A column sets off once and pulls up once — not at every waypoint.**
+          //
+          // Every leg used to ease in *and* out, so a host crossing four provinces came to a dead
+          // stop and started again three times on the way. Easing *in* on every leg but the last
+          // was no better: `easeIn` ends at full speed and the next leg starts from nothing, so
+          // the stop simply moved to the far side of the boundary. A leg accelerates only if the
+          // host is setting off, decelerates only if it is pulling up here, and otherwise holds
+          // its pace straight through the province line.
+          const stopsHere = order.path.length === 1 || legEnd < 1;
+          const ease = continuing
+            ? (stopsHere ? 'Sine.easeOut' : 'Linear')
+            : (stopsHere ? 'Sine.easeInOut' : 'Sine.easeIn');
           const marchTween = this.scene.tweens.add({
             targets: progress,
             t: 1,
-            // Timed to the clock this mode actually ticks on. Dragon Ascent runs at
-            // ASCENT_TICK_MS, so pacing every march against the classic REALTIME_TICK_MS made
-            // the marker finish its slide well before the leg resolved and then sit frozen on
-            // the road — which is most of why movement "looked bad", and it was a wrong number
-            // rather than a missing effect.
-            duration: Math.max(1, order.legRequired - order.progress) * tickMs(state),
-            // **A column sets off once and pulls up once — not at every waypoint.**
-            //
-            // Every leg eased in *and* out, so a host crossing four provinces came to a dead stop
-            // and started again three times on the way. That stutter is most of what made a march
-            // read as a series of hops rather than a journey. Only the last leg of a path has
-            // somewhere to stop.
-            ease: order.path.length > 1 ? 'Sine.easeIn' : 'Sine.easeOut',
+            duration,
+            ease,
             onUpdate: () => {
               if (!activeMarker.active) return;
-              const point = curve.getPoint(progress.t);
+              const point = curve.getPoint(progress.t * legEnd);
               activeMarker.setPosition(point.x + MARKER_OFFSET_X, point.y + MARKER_OFFSET_Y);
               // Dust, rather than making the marker itself jiggle.
               //
@@ -313,17 +429,28 @@ export class ArmyRenderer {
               // here.
               //
               // So: the marker's own position, walked back along the direction of travel.
-              const ahead = curve.getPoint(Math.min(1, progress.t + 0.02));
+              const ahead = curve.getPoint(Math.min(1, (progress.t + 0.02) * legEnd));
               const hx = ahead.x - point.x;
               const hy = ahead.y - point.y;
               const len = Math.hypot(hx, hy) || 1;
+              //
+              // **Along the column, not off the front of it.** The marker's origin is the block's
+              // ground line, which since the march plan became a real column is the *leading*
+              // rank's feet — every man is behind it. Dropping every puff four points off that
+              // point put the dust in front of the host and left it there as the host walked away.
+              // Each puff now rises somewhere along the host's own length.
+              const back = 4 + Math.random() * (this.columnReach.get(army.id) ?? 0);
               this.spawnDust(
                 army.id,
-                point.x + MARKER_OFFSET_X - (hx / len) * 8,
-                point.y + MARKER_OFFSET_Y - (hy / len) * 8,
+                point.x + MARKER_OFFSET_X - (hx / len) * back,
+                point.y + MARKER_OFFSET_Y - (hy / len) * back,
               );
             },
           });
+          // Born stopped if the world is stopped: `refresh()` can hand a new leg out while a
+          // prompt holds the clock, and a tween created mid-pause would be the one thing still
+          // walking.
+          if (this.paused) marchTween.pause();
           this.moveTweens.set(army.id, marchTween);
         }
 
@@ -388,12 +515,17 @@ export class ArmyRenderer {
           this.destinationMarkers.push(arrow);
         }
       } else {
-        // Arriving, not teleporting.
+        // **Coming to rest — at walking pace, whatever the distance.**
         //
-        // This used to kill the march tween and snap the marker to the settlement anchor in the
-        // same frame, so every journey ended in a jump — the single ugliest moment in the map's
-        // animation and exactly what "looks bad after finished" describes. Now the column eases
-        // the last short distance into place and settles upright.
+        // This used to snap, then it eased over a flat 320 ms. A fixed time is a walk over a few
+        // points and a teleport over a few hundred, and a few hundred is the normal case: an
+        // attack order ends with the order deleted and the host still standing in its own
+        // province, so the marker had a whole leg to cover. Measured at up to 1,500 units/second
+        // against a marching 100–170 — the ten-fold spike a player reads as the army snapping.
+        //
+        // The frontier clamp above means there is usually only the walk back from the border left
+        // to do, and this covers it at the pace the host was marching at, so the return is a march
+        // rather than a jump. `paceMs` is milliseconds per world unit, recorded when the leg began.
         const center = getAnchor(land);
         const restX = wx(center.x) + MARKER_OFFSET_X;
         const restY = wy(center.y) + MARKER_OFFSET_Y;
@@ -401,20 +533,28 @@ export class ArmyRenderer {
         this.moveLegs.delete(army.id);
         this.stopMarch(army.id);
 
-        const far = Math.abs(marker.x - restX) > 1 || Math.abs(marker.y - restY) > 1;
-        if (wasMarching && far) {
+        const away = Math.hypot(marker.x - restX, marker.y - restY);
+        if (wasMarching && away > 1) {
           this.scene.tweens.killTweensOf(marker);
-          this.scene.tweens.add({
+          const pace = this.paceMs.get(army.id) ?? (ARRIVE_MS / 40);
+          // Held in `moveTweens` like a march, because that is what it is: it moves the host
+          // across the map for seconds, and it has to stop when the world's clock does.
+          const settle = this.scene.tweens.add({
             targets: marker,
             x: restX,
             y: restY,
             rotation: 0,
-            duration: ARRIVE_MS,
+            // Capped so a host that somehow has half the map to cross does not walk for a minute,
+            // and floored so a step of two points is still a step rather than an instant.
+            duration: Phaser.Math.Clamp(away * pace, ARRIVE_MS, 4000),
             // Settles rather than springing. `Back.easeOut` overshoots and snaps back, which on
             // a container full of individually-bobbing soldiers reads as a stumble on arrival.
             ease: 'Sine.easeOut',
+            onComplete: () => this.moveTweens.delete(army.id),
           });
-        } else if (!far) {
+          if (this.paused) settle.pause();
+          this.moveTweens.set(army.id, settle);
+        } else if (away <= 1) {
           marker.setRotation(0);
         } else {
           this.scene.tweens.killTweensOf(marker);
@@ -456,12 +596,16 @@ export class ArmyRenderer {
     // beside the men rather than dust behind them. A boot lifts a little dust, and there is more
     // of it than there is of any one puff: these are a third the size, half as dark, live a third
     // as long, and come twice as often.
+    //
+    // Cut again with the trail (see `DUST_LIFE_MS`): on screen these measured 20 to 52 points
+    // across against a column eight points wide, which is not dust — it is a row of puddles. A
+    // puff is now about a third of a man wide and half as dark as it was.
     const puff = this.scene.add.ellipse(
       x - 2 + Math.random() * 4,
       // Kept low. Dust hangs at the ankles for a moment before it lifts.
       y - 0.5 + Math.random() * 2,
-      4.5 + Math.random() * 3,
-      2.2 + Math.random() * 1.4,
+      3 + Math.random() * 2,
+      1.6 + Math.random() * 1,
       // **Ink, not mountain.**
       //
       // `INK.mountain` is a muted sage (0x8a9883) laid over a cream map: correcting a puff that
@@ -470,7 +614,7 @@ export class ArmyRenderer {
       // so dust is the same pigment at rather more than double — a warm smudge that reads on
       // parchment without becoming a blot.
       DUST_INK,
-      0.28,
+      0.18,
     );
     puff.setDepth(69);
     this.dust.push(puff);
@@ -479,8 +623,8 @@ export class ArmyRenderer {
       targets: puff,
       alpha: 0,
       // Spreads as it settles rather than billowing: a marching column is not a cavalry charge.
-      scaleX: 1.9,
-      scaleY: 1.45,
+      scaleX: 1.6,
+      scaleY: 1.3,
       y: puff.y - 2.8,
       duration: DUST_LIFE_MS,
       ease: 'Quad.easeOut',
@@ -494,6 +638,9 @@ export class ArmyRenderer {
   /** Clears every live puff — used when the map is torn down or redrawn wholesale. */
   /** Removes an army's march tween — the `{t}` counter tween no marker-keyed kill can reach. */
   private stopMarch(armyId: string): void {
+    // The leg it was walking goes with it: a host that has stopped is indexed where it stands.
+    this.legSpans.delete(armyId);
+    this.columnReach.delete(armyId);
     const tween = this.moveTweens.get(armyId);
     if (tween) {
       tween.remove();

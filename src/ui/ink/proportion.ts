@@ -324,3 +324,42 @@ export function unitScale(prop: keyof typeof UNIT, scale: number): number {
   }
   return s;
 }
+
+/**
+ * **Where a thing standing on the ground sits in the paint order.**
+ *
+ * One band, one rule: whatever stands *lower on the sheet* is nearer the viewer and draws last.
+ * That is the whole of a painter's algorithm on an oblique map, and every mark that stands on the
+ * ground has to be inside it or the illusion breaks at the first overlap.
+ *
+ * It was not. The landscape — massifs, karst, trees, grass — was placed at `1.01 + footY * 1e-6`,
+ * a band **three thousandths of a depth unit wide**, correctly sorted within itself. Settlements
+ * were harvested to a separate band at [1.40, 1.50). Two bands, and the settlements' floor is 130
+ * times further from the ground than the landscape's whole range — so a town drew over every
+ * mountain on the map whether it stood in front of it or half a province behind it. A limestone
+ * range at the bottom of the screen went *behind* the houses above it, which is exactly backwards
+ * and is what a player sees.
+ *
+ * `PER_UNIT` is sized against the tallest world the generator makes (3030 design units): 3030 x
+ * 0.00014 = 0.42, so the band runs [1.02, 1.44] and stays clear of the `depth <= 1.5` sweep that
+ * `bakeStaticTerrain` uses to find its sources.
+ */
+const GROUND_DEPTH_BASE = 1.02;
+const GROUND_DEPTH_PER_UNIT = 0.00014;
+/** Kept below the bake sweep's 1.5 ceiling however tall a world gets. */
+const GROUND_DEPTH_CEILING = 1.46;
+
+export function groundDepth(footY: number): number {
+  const y = Number.isFinite(footY) ? Math.max(0, footY) : 0;
+  return Math.min(GROUND_DEPTH_CEILING, GROUND_DEPTH_BASE + y * GROUND_DEPTH_PER_UNIT);
+}
+
+/**
+ * How much depth one composite (a town, a compound) may spend on its own internal paint order.
+ *
+ * Small on purpose: a settlement's pieces were ordered by `paintByGround` before they were
+ * harvested and that order must survive, but the cluster still has to sort against the mountain
+ * standing next to it. At 0.00002 a forty-piece town occupies 0.0008 — about six world units of
+ * ground — so it stays effectively atomic against anything more than a stride away.
+ */
+export const GROUND_DEPTH_PIECE_STEP = 0.00002;

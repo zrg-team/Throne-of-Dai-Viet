@@ -8,8 +8,10 @@ import { mkdirSync } from 'node:fs';
 
 // Dev server port. Defaults to Vite's, overridable when 5173 is taken by something else.
 const BASE = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
+const option = (name) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
+const MAP_ART = option('mapart');
 
-const OUT = process.env.SHOT_OUT ?? 'output/playtest';
+const OUT = option('out') ?? process.env.SHOT_OUT ?? 'output/playtest';
 mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch();
@@ -18,7 +20,9 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(`PAGEERROR ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE ${m.text()}`); });
 
-await page.goto(`${BASE}/?capture=1`, { waitUntil: 'domcontentloaded' });
+const query = new URLSearchParams({ capture: '1' });
+if (MAP_ART) query.set('mapart', MAP_ART);
+await page.goto(`${BASE}/?${query}`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 30000 });
 await page.evaluate(() => localStorage.setItem('mandate:map-theme:v1', 'dong-ho'));
 await page.evaluate(() => window.__startBenchGame(1337, 'campaign'));

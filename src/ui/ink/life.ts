@@ -42,6 +42,24 @@ export const NATIVE_FACING_KEY = 'nativeFacing';
 /** Data key carrying a grazing animal's home patch, for verification. */
 export const GRAZING_KEY = 'grazing';
 
+/** Data key carrying an independent settlement walker's bounded home patch. */
+export const WANDERING_KEY = 'settlementWandering';
+
+/** Data key for the tiny travel-only gait applied to a moving sprite's visual child. */
+export const NATURAL_MOTION_KEY = 'naturalTravelMotion';
+
+export type NaturalMotionKind = 'person' | 'buffalo' | 'cart';
+
+interface NaturalMotionState {
+  kind: NaturalMotionKind;
+  tween: Phaser.Tweens.Tween;
+  target: Phaser.GameObjects.GameObject;
+  visualProperty: 'displayOriginY' | 'y';
+  baseVisualY: number;
+  baseAngle: number;
+  bob: number;
+}
+
 /** Marks a container with the direction its art faces, for `faceTravel`. */
 export function setNativeFacing(object: Phaser.GameObjects.Container, facing: NativeFacing): void {
   object.setData(NATIVE_FACING_KEY, facing);
@@ -89,6 +107,84 @@ export function livingSprite(
 }
 
 /**
+ * Gives a rigid stamp a restrained walk cycle without competing with its path tween.
+ *
+ * The road/grazing tween owns world x/y. This moves only the rendered child (or an Image's display
+ * origin) and angle, so the sprite keeps its exact route, home radius, depth and facing scale. The
+ * cycle is paused by default and callers enable it only while the object is actually travelling.
+ */
+export function addNaturalTravelMotion(
+  scene: Phaser.Scene,
+  object: Walkable,
+  kind: NaturalMotionKind,
+  seed: number,
+): void {
+  if (object.getData(NATURAL_MOTION_KEY)) return;
+
+  const child = object instanceof Phaser.GameObjects.Container
+    ? object.list.find((candidate) => (
+      candidate instanceof Phaser.GameObjects.Image || candidate instanceof Phaser.GameObjects.Graphics
+    ))
+    : undefined;
+  const targetIsRoot = child === undefined;
+  const target = (child ?? object) as Phaser.GameObjects.GameObject & {
+    y: number;
+    angle: number;
+    scaleY?: number;
+    displayOriginY?: number;
+  };
+  const profile = kind === 'person'
+    ? { bob: 0.32, angle: 1.1, duration: 420 }
+    : kind === 'buffalo'
+      ? { bob: 0.22, angle: 0.55, duration: 520 }
+      : { bob: 0.16, angle: 0.35, duration: 600 };
+  const imageTarget = target instanceof Phaser.GameObjects.Image;
+  const rootScaleY = targetIsRoot
+    ? 1
+    : Math.max(0.0001, Math.abs((object as unknown as { scaleY?: number }).scaleY ?? 1));
+  const targetScaleY = Math.max(0.0001, Math.abs(target.scaleY ?? 1));
+  const baseVisualY = imageTarget ? target.displayOriginY! : target.y;
+  const visualProperty: NaturalMotionState['visualProperty'] = imageTarget ? 'displayOriginY' : 'y';
+  // `displayOriginY` is measured in source pixels; convert the desired world bob back through the
+  // stamp and container scales. Graphics children can use local y directly.
+  const bob = imageTarget ? profile.bob / (targetScaleY * rootScaleY) : profile.bob;
+  const baseAngle = target.angle;
+  const tween = scene.tweens.add({
+    targets: target,
+    [visualProperty]: baseVisualY + (imageTarget ? bob : -bob),
+    angle: baseAngle + profile.angle,
+    duration: profile.duration + (Math.abs(Math.round(seed)) % 5) * 24,
+    ease: 'Sine.easeInOut',
+    yoyo: true,
+    repeat: -1,
+    paused: true,
+  });
+  const state: NaturalMotionState = {
+    kind, tween, target, visualProperty, baseVisualY, baseAngle, bob: profile.bob,
+  };
+  object.setData(NATURAL_MOTION_KEY, state);
+  object.once(Phaser.GameObjects.Events.DESTROY, () => tween.remove());
+}
+
+/** Starts or settles a previously installed natural travel cycle. */
+export function setNaturalTravelMotionActive(object: Walkable, moving: boolean): void {
+  const motion = object.getData(NATURAL_MOTION_KEY) as NaturalMotionState | undefined;
+  if (!motion) return;
+  if (moving) {
+    motion.tween.resume();
+    return;
+  }
+  motion.tween.pause();
+  const target = motion.target as Phaser.GameObjects.GameObject & {
+    y: number;
+    angle: number;
+    displayOriginY?: number;
+  };
+  target[motion.visualProperty] = motion.baseVisualY;
+  target.angle = motion.baseAngle;
+}
+
+/**
  * Sends an animal wandering inside a small patch around its home: a few steps, a pause to crop the
  * grass, a few steps back. Bounded by `radius`, so a grazing beast never drifts off its own field
  * and never has to be cleaned up from somewhere unexpected.
@@ -110,6 +206,8 @@ export function grazeInSmallArea(
   // Findable from a driver script, so "the herd is not standing still" can be a check rather than
   // something somebody has to notice in a screenshot.
   animal.setData(GRAZING_KEY, { homeX, homeY, radius });
+  animal.setData(NATIVE_FACING_KEY, nativeFacing);
+  addNaturalTravelMotion(scene, animal, 'buffalo', seed);
 
   const next = (): void => {
     if (!animal.active) return;
@@ -120,13 +218,18 @@ export function grazeInSmallArea(
     const targetY = homeY + Math.sin(angle) * distance * 0.45;
 
     const heading = targetX - animal.x;
-    if (Math.abs(heading) > 0.4) {
+    // A nearly vertical graze can still accumulate visible horizontal travel over its several
+    // seconds. Only ignore true sub-pixel noise; otherwise the animal keeps its previous facing
+    // and appears to slide backwards for the whole step.
+    if (Math.abs(heading) > 0.01) {
       const direction = heading < 0 ? -1 : 1;
       if (direction !== facing) {
         facing = direction;
         applyFacing(animal, direction * nativeFacing);
       }
     }
+
+    setNaturalTravelMotionActive(animal, true);
 
     scene.tweens.add({
       targets: animal,
@@ -136,12 +239,65 @@ export function grazeInSmallArea(
       ease: 'Sine.easeInOut',
       onComplete: () => {
         if (!animal.active) return;
+        setNaturalTravelMotionActive(animal, false);
         scene.time.delayedCall(900 + noise(step * 13.9 + seed) * 3000, next);
       },
     });
   };
 
   scene.time.delayedCall(300 + (Math.abs(Math.round(seed)) % 2400), next);
+}
+
+/**
+ * Keeps a person walking around one settlement without baking them into its architecture.
+ * The path is deliberately compact and vertically compressed to match the isometric ground plane.
+ */
+export function wanderInSmallArea(
+  scene: Phaser.Scene,
+  walker: Walkable,
+  homeX: number,
+  homeY: number,
+  radius: number,
+  seed: number,
+  nativeFacing: NativeFacing = 1,
+): void {
+  let step = Math.abs(Math.round(seed)) % 991;
+  let facing = 0;
+  walker.setData(WANDERING_KEY, { homeX, homeY, radius });
+  walker.setData(NATIVE_FACING_KEY, nativeFacing);
+  addNaturalTravelMotion(scene, walker, 'person', seed);
+
+  const next = (): void => {
+    if (!walker.active) return;
+    step += 1;
+    const angle = noise(step * 5.3 + seed) * Math.PI * 2;
+    const distance = radius * (0.3 + noise(step * 8.7 + seed) * 0.7);
+    const targetX = homeX + Math.cos(angle) * distance;
+    const targetY = homeY + Math.sin(angle) * distance * 0.42;
+    const heading = targetX - walker.x;
+    if (Math.abs(heading) > 0.01) {
+      const direction = heading < 0 ? -1 : 1;
+      if (direction !== facing) {
+        facing = direction;
+        applyFacing(walker, direction * nativeFacing);
+      }
+    }
+    setNaturalTravelMotionActive(walker, true);
+    scene.tweens.add({
+      targets: walker,
+      x: targetX,
+      y: targetY,
+      duration: 2200 + noise(step * 9.9 + seed) * 2600,
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        if (!walker.active) return;
+        setNaturalTravelMotionActive(walker, false);
+        scene.time.delayedCall(500 + noise(step * 14.1 + seed) * 1800, next);
+      },
+    });
+  };
+
+  scene.time.delayedCall(180 + (Math.abs(Math.round(seed)) % 1300), next);
 }
 
 function noise(seed: number): number {

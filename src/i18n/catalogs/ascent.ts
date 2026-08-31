@@ -568,6 +568,7 @@ export const enAscent = {
   "ascent.war.frontBody": "Chance to carry it: {pct}%",
 
   "ascent.enemy.marchForced": "{kingdom} has grown tired of waiting. Their host is on the road.",
+  "ascent.enemy.settles": "{kingdom} settles {land} — ground you did not take, taken.",
   "ascent.enemy.capitalExposed": "{kingdom} sees the seat of the dynasty standing unguarded.",
   "ascent.enemy.spotted": "A {kingdom} host is sighted marching on {land}.",
   "ascent.enemy.powerVacuum": "With a throne fallen, {kingdom} moves to take what it can — from us.",
@@ -2271,6 +2272,7 @@ export const viAscent = {
   "ascent.war.frontBody": "Cơ thắng: {pct}%",
 
   "ascent.enemy.marchForced": "{kingdom} đã hết kiên nhẫn. Đại quân của họ đã lên đường.",
+  "ascent.enemy.settles": "{kingdom} chiếm {land} — đất ta chưa lấy thì họ lấy.",
   "ascent.enemy.capitalExposed": "{kingdom} thấy kinh đô đang bỏ trống không người giữ.",
   "ascent.enemy.spotted": "Phát hiện một đạo quân {kingdom} đang tiến về {land}.",
   "ascent.enemy.powerVacuum": "Một ngai vàng vừa sụp, {kingdom} thừa cơ ra tay — nhắm cả vào ta.",

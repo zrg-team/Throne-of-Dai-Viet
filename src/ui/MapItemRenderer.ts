@@ -77,7 +77,16 @@ export interface MapItemRenderer {
   ): Phaser.GameObjects.Container;
   createSelectionFlag(): Phaser.GameObjects.Container;
   createPlayerLandFlag(isCapital?: boolean, styleSeed?: number): Phaser.GameObjects.Container;
-  createCapitalHighlight(): Phaser.GameObjects.Graphics;
+  /**
+   * The mark under the player's own seat.
+   *
+   * `width`/`height` are the ground the settlement standing on it actually covers. They are a
+   * request, not a promise — a theme may draw something of its own size — but a ring sized to a
+   * fixed 92 x 48 stopped being a ring the day the settlements were drawn bigger than that: it
+   * became an ellipse arc cutting across the citadel's yard with the two ends poking out either
+   * side of it, which is what it looks like on the map today.
+   */
+  createCapitalHighlight(width?: number, height?: number): Phaser.GameObjects.Graphics;
   createDestinationArrow(): Phaser.GameObjects.Container;
   /**
    * Work in progress over a district: a siege, a purchase, a build, a muster.

@@ -197,14 +197,14 @@ export class InkMapItemRenderer implements MapItemRenderer {
   }
 
   /** Gold ink-wash base behind the player capital so it reads as the seat of power. */
-  createCapitalHighlight(): Phaser.GameObjects.Graphics {
+  createCapitalHighlight(width = 88, height = 44): Phaser.GameObjects.Graphics {
     const graphics = this.scene.add.graphics();
     graphics.fillStyle(0xf4cf27, 0.18);
-    graphics.fillEllipse(0, 4, 88, 44);
+    graphics.fillEllipse(0, 4, width, height);
     graphics.lineStyle(2, 0xf4cf27, 0.65);
-    graphics.strokeEllipse(0, 4, 92, 48);
+    graphics.strokeEllipse(0, 4, width * 1.045, height * 1.09);
     graphics.lineStyle(1.2, INK.sealRed, 0.45);
-    graphics.strokeEllipse(0, 4, 72, 34);
+    graphics.strokeEllipse(0, 4, width * 0.82, height * 0.77);
     return graphics;
   }
 

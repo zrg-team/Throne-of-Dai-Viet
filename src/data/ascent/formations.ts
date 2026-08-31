@@ -284,15 +284,27 @@ export const FORMATION_PLAN: Record<BattleFormation, Partial<Record<FormationKey
  * banked behind, the horse off the flank — which is a wide, loose thing that reads as men holding
  * ground. A host on the march is the opposite: the blocks close up and fall in one behind another,
  * narrow at the front and long from front to back. Every `aspect` here is below one, which is what
- * makes each block deeper than it is wide, and every `pitch` is under one, which closes the ranks.
- * The `dy` values file the blocks in marching order: screen out ahead, then the line, the bows,
- * and the horse bringing up the rear.
+ * makes each block deeper than it is wide, and the `dy` values file the blocks in marching order:
+ * screen out ahead, then the line, the bows, and the horse bringing up the rear.
+ *
+ * **The numbers here are the whole difference between a column and a smudge.** They used to read
+ * `pitch: 0.5, aspect: 2.6`, which is the opposite of both sentences above: `aspect` above one
+ * makes a block *wider* than it is deep (`fullRows = √(full / aspect)`), and halving the pitch
+ * pulled the files in under half a figure's width. Together with `dy` steps of barely one rank
+ * they collapsed the four blocks into each other. Measured on a 460-man host at map scale
+ * (`_shapeprobe`): standing, its eight marks covered 80 × 37 px; marching, the same eight covered
+ * 10 × 15 — less ground than ONE figure, which is drawn 9.3 × 8.3. That is the host that "looked
+ * unreal and disappeared" on the road: it was eight men stacked on one spot.
+ *
+ * So: `pitch` near one (the files keep a standing host's spacing, only slightly closed up),
+ * `aspect` genuinely below one, and `dy` steps of four rank pitches — about a block's own depth
+ * plus a gap — so each block clears the one ahead of it instead of standing inside it.
  */
 export const MARCH_PLAN: Partial<Record<FormationKey, FormationTweak>> = {
-  screen: { dx: 0.5, dy: -1.3, pitch: 0.5, aspect: 2.6 },
-  line: { dx: 0, dy: 0, pitch: 0.5, aspect: 2.6 },
-  bows: { dx: -0.5, dy: 1.2, pitch: 0.5, aspect: 2.6 },
-  horse: { dx: -1.0, dy: 2.3, pitch: 0.55, aspect: 2.2 },
+  screen: { dx: 0.35, dy: -4.0, pitch: 0.95, aspect: 0.5 },
+  line: { dx: 0, dy: 0, pitch: 0.95, aspect: 0.5 },
+  bows: { dx: -0.35, dy: 4.0, pitch: 0.95, aspect: 0.5 },
+  horse: { dx: 0.2, dy: 8.4, pitch: 1, aspect: 0.55 },
 };
 
 /**
@@ -300,24 +312,47 @@ export const MARCH_PLAN: Partial<Record<FormationKey, FormationTweak>> = {
  *
  * `MARCH_PLAN` files its blocks front-to-back along one axis, which is right for a host walking
  * that way and wrong for every other heading — a column marching east that is drawn stacked
- * north-to-south is a queue standing side-on to its own road. The block offsets rotate; the blocks
- * themselves stay square, which at a host drawn ten points wide is all the eye can resolve anyway.
+ * north-to-south is a queue standing side-on to its own road.
+ *
+ * **And that is what it did.** The rotation was applied as if the plan's base column pointed along
+ * +x, but `MARCH_PLAN` files its blocks on `dy` — it points along **+y**, due south. So the turn
+ * was a quarter circle out, and the only headings that came out right were the two that happen to
+ * be symmetric about it. Measured on a host ordered due west (`_colcheck`): standing it covered
+ * 49.8 x 32.9, marching 6.1 x 41.3 — still 41 units long north to south while walking west. A
+ * player reads that as the host never forming column at all, which is exactly what was reported.
+ * The base points south, so the turn is `heading - π/2`.
  *
  * `dx` is counted in file pitches and `dy` in rank pitches, and those are not the same distance —
  * so the depth is converted to file pitches before the turn and back afterwards. Without that a
  * column heading north-east comes out sheared.
+ *
+ * **The blocks turn too, as far as an axis-aligned block can.** Each one is built `cols` across by
+ * `rows` deep in screen axes, so a block that is deeper than it is wide reads as a column only
+ * while the road runs up and down the sheet. On an east-west road the same block is a bar standing
+ * across its own line of march. `aspect` therefore follows the heading: elongated along x when the
+ * road runs across the sheet, along y when it runs up it, and square on the diagonals where
+ * neither reads as either.
  */
 export function marchPlanFacing(radians: number, rankPerFile: number): Partial<Record<FormationKey, FormationTweak>> {
-  const cos = Math.cos(radians);
-  const sin = Math.sin(radians);
+  // The plan's own blocks are filed south (`dy`), so the base heading is +y, not +x.
+  const turn = radians - Math.PI / 2;
+  const cos = Math.cos(turn);
+  const sin = Math.sin(turn);
+  // How much of the road runs across the sheet. 1 = due east or west, 0 = due north or south.
+  const across = Math.abs(Math.cos(radians));
   const out: Partial<Record<FormationKey, FormationTweak>> = {};
   for (const key of Object.keys(MARCH_PLAN) as FormationKey[]) {
     const tweak = MARCH_PLAN[key];
     if (!tweak) continue;
     const dx = tweak.dx ?? 0;
     const dy = (tweak.dy ?? 0) * rankPerFile;
+    const deep = tweak.aspect ?? 0.5;
     out[key] = {
       ...tweak,
+      // `aspect` is width against depth, so the reciprocal is the same block laid the other way.
+      // Interpolated rather than switched, so the four diagonals get a square block instead of
+      // snapping between two extremes on either side of 45°.
+      aspect: deep * (1 - across) + (1 / deep) * across,
       dx: dx * cos - dy * sin,
       dy: (dx * sin + dy * cos) / rankPerFile,
     };

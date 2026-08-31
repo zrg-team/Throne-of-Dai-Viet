@@ -59,7 +59,11 @@ const skip = (rel) =>
   rel === 'sw.js' || rel.startsWith('share/') || rel.split('/').some((part) => part.startsWith('.'));
 
 /** The art: fetched by the Phaser loader at runtime, and survivable if one is missing. */
-const isOptional = (rel) => rel.startsWith('faces/') || rel.startsWith('support/');
+const isOptional = (rel) => rel.startsWith('faces/')
+  || rel.startsWith('support/')
+  // Generated conquest sprites always have procedural fallbacks. Keeping them out of the
+  // install-critical shell prevents the optional pack from delaying first offline readiness.
+  || rel.startsWith('art/conquest-dongho/');
 
 const walk = (dir) => {
   const out = [];

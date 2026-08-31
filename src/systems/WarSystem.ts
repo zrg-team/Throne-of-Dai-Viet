@@ -683,6 +683,31 @@ function repathPursuit(state: GameState, army: Army, order: MovementOrder): bool
   return true;
 }
 
+/**
+ * Does finishing this leg actually put the host **inside** that province?
+ *
+ * Only ground it already holds, or empty wilderness with nobody on it, is walked into. Everything
+ * else — a village, a rival's province, wilderness with a hostile host camped on it — is a fight,
+ * and a fight is picked from where the host stands: `progressMovementOrders` calls `attackLand`
+ * and *leaves `army.landId` alone*.
+ *
+ * Exported because the map has to draw the same rule. It did not: `ArmyRenderer` slid the column
+ * all the way onto the target province over the whole leg, and then — the order being gone and the
+ * army still at home — flew it back to its own seat in 320 ms. Measured on an ordinary attack
+ * order, that return was 180–250 world units at up to 1,500 units/second against a marching 100–170:
+ * a ten-fold spike, and the single worst thing in the way an army moved. A host that will not enter
+ * marches to the frontier and stops there, which is what the rule already says happens.
+ */
+export function marchEntersLand(state: GameState, army: Army, land: Land): boolean {
+  if (land.ownerId === army.kingdomId) {
+    return true;
+  }
+  const hostilesHere = state.armies.some(
+    (candidate) => candidate.kingdomId !== army.kingdomId && candidate.landId === land.id,
+  );
+  return land.ownerId === 'neutral' && !land.hasVillage && !hostilesHere;
+}
+
 /** Advances every in-progress march by one tick, moving armies and resolving arrivals/battles. */
 export function progressMovementOrders(state: GameState): boolean {
   let changed = false;
@@ -728,8 +753,7 @@ export function progressMovementOrders(state: GameState): boolean {
       // Empty wilderness with nobody on it is walked into. Anything else — a village, a rival's
       // province, or wilderness with a hostile host camped on it — is a fight, and in Dragon
       // Ascent a fight the player's own host picks is one the player is asked to command.
-      const hostilesHere = state.armies.some((candidate) => candidate.kingdomId !== PLAYER_KINGDOM_ID && candidate.landId === nextLandId);
-      const walkIn = nextLand.ownerId === 'neutral' && !nextLand.hasVillage && !hostilesHere;
+      const walkIn = marchEntersLand(state, army, nextLand);
       const staged = walkIn ? 'no' : stageWatchedAssault(state, army, nextLand);
       if (staged === 'wait') {
         // Hold at the border this season; the leg completes again next tick.

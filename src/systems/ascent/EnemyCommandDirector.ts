@@ -22,7 +22,7 @@
  * was given its orders.
  */
 import { isVassal } from './VassalSystem';
-import { PLAYER_KINGDOM_ID } from '../../game/constants';
+import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   ENEMY_LAUNCH_DRAW,
   ENEMY_PRESSURE_DIVISOR,
@@ -36,6 +36,9 @@ import {
   COALITION_JOIN_DRAW,
   COALITION_JOIN_RATIO,
   COALITION_JOIN_SHARE,
+  EARLY_WAVE_GRACE,
+  RIVAL_CLAIM_INTERVAL_TICKS,
+  RIVAL_CLAIM_MAX_SHARE,
 } from '../../game/ascentConfig';
 import { launchOffMapInvasion } from '../empire/InvasionSystem';
 import { pushToast } from '../empire/notifications';
@@ -134,14 +137,26 @@ function maybeLaunch(state: GameState): void {
   const ascent = state.ascent;
   if (!ascent) return;
 
-  // The ceiling, and deliberately stricter than the wave director's.
-  //
-  // `WaveDirector` still runs its own metronome, so this director is a second source of hosts on
-  // the same map. Letting it fill to `MAX_LIVE_INVADER_HOSTS` on its own put seven hosts in the
-  // field at once and turned the run into one unbroken siege — which is a different failure from
-  // the one being fixed, not a cure for it. Half the cap leaves room for the wave director's
-  // scheduled pressure on top.
-  if ((state.invasions?.length ?? 0) >= Math.ceil(MAX_LIVE_INVADER_HOSTS / 2)) return;
+  /**
+   * The ceiling, and it is now a queue rather than a quota.
+   *
+   * `WaveDirector` runs its own metronome, so this director is a *second* source of hosts on the
+   * same map, and its ceiling used to be "half of `MAX_LIVE_INVADER_HOSTS`" — three. Which is
+   * three unscheduled hosts on top of whatever the schedule had already sent. Measured on seed
+   * 20080: the wave-1 host landed at tick 11 with 864 men, and at tick 19 the northern rival put
+   * **three more** on the map, 254 + 221 + 261, against a realm whose field army was 460 men.
+   * Four hosts from two crowns, in the first wave. On seed 12161 the same thing at tick 12.
+   *
+   * That is the reported "it makes multiple invasions at the same time", and the answer the raid
+   * path has always used is the right one for this too — `maybeRaid` opens with
+   * `if ((state.invasions?.length ?? 0) > 0) return;`. Weather waits for the last front to
+   * finish. What arrives *on top* of a live invasion should only ever be the schedule's own
+   * wave, a coalition the player was warned about, or a story's answer to something they did.
+   *
+   * The peace floor is unaffected in the only sense that matters: a host standing on the map
+   * already *is* contact, so the guarantee this director exists for is being met while it waits.
+   */
+  if ((state.invasions?.length ?? 0) > 0) return;
 
   const candidates = aggressors(state);
   if (candidates.length === 0) return;
@@ -184,7 +199,18 @@ function maybeLaunch(state: GameState): void {
   // is contact: it is a real battle, it is survivable, and it resets the clock — which is all the
   // guarantee was ever for.
   const budget = Math.round(laggedDefencePower(state) * RAID_POWER_SHARE / INVADER_POWER_PER_SOLDIER);
-  launchOffMapInvasion(state, chosen.id, { totalSoldiers: Math.max(MIN_RAID_SOLDIERS, budget) });
+  // One host in the opening, not a rolled coalition.
+  //
+  // Without `forceCoalition` the spawner rolls `armyCount` off relations and sends up to three at
+  // once — so the map-is-clear rule above still let a single cold-relations march put three hosts
+  // on the board. It only started showing once conquered ground began sticking: a realm that keeps
+  // its provinces crosses `RAID_MIN_LANDS` in the first waves, and `verify-ascent-opening` caught
+  // seed 12161 at four hosts from two crowns during wave 2, defeated by wave 5. The grace has to
+  // bound the *shape* of what arrives, not only how often.
+  launchOffMapInvasion(state, chosen.id, {
+    totalSoldiers: Math.max(MIN_RAID_SOLDIERS, budget),
+    ...(ascent.wave <= EARLY_WAVE_GRACE ? { forceCoalition: 1 } : {}),
+  });
   ascent.lastContactTurn = state.turn;
   if (forced) {
     pushToast(state, t('ascent.enemy.marchForced', { kingdom: chosen.name }), 'threat');
@@ -284,7 +310,11 @@ function storyStrikes(state: GameState): void {
   // than the default weather.
   // An undefended seat is an invitation. Checked against a flag so it fires once per exposure
   // rather than every tick the capital happens to be empty.
-  const capital = state.lands.find((land) => land.id === ascent.capitalLandId);
+  // Same grace as the war-joiner above: an empty seat in wave one is a player who has not yet
+  // been taught that the seat wants a garrison, not a player taking a risk.
+  const capital = ascent.wave > EARLY_WAVE_GRACE
+    ? state.lands.find((land) => land.id === ascent.capitalLandId)
+    : undefined;
   if (capital && capital.ownerId === PLAYER_KINGDOM_ID) {
     const garrisoned = state.armies.some(
       (army) => army.kingdomId === PLAYER_KINGDOM_ID && army.landId === capital.id,
@@ -317,6 +347,11 @@ function storyStrikes(state: GameState): void {
 function maybeJoinTheWar(state: GameState): void {
   const ascent = state.ascent;
   if (!ascent) return;
+
+  // Not in the opening. A second crown piling onto a war is the mode working as asked ("war can
+  // happen by 1 or many kingdom at the time") and it is the wrong lesson for a player's first two
+  // waves, which are the only ones that have to teach what a single fight is.
+  if (ascent.wave <= EARLY_WAVE_GRACE) return;
 
   const live = state.invasions ?? [];
   if (live.length === 0) return;
@@ -509,6 +544,63 @@ function reconsider(state: GameState): void {
  *  - **Fear becomes an army.** Appetite topping out launches a real punitive host, sized by
  *    the gap — and stamps the coalition clock, because frightened courts talk to each other.
  */
+/**
+ * The rivals take the ground the player leaves.
+ *
+ * See `RIVAL_CLAIM_INTERVAL_TICKS`. One crown settles one neutral district at a time, working
+ * outward from what it already holds so the map fills as coherent realms rather than confetti,
+ * and never past `RIVAL_CLAIM_MAX_SHARE` — there has to be ground left to contest and for
+ * `launchOffMapInvasion` to muster on.
+ *
+ * Deliberately slow and deliberately visible: a district changing hands shows on the map and in
+ * the World lane, where `getEmpirePower` has always read `state.lands` and until now found
+ * nothing to read. The crowns the player has been ignoring become the crowns that own the map.
+ */
+function tickRivalExpansion(state: GameState): void {
+  const ascent = state.ascent;
+  if (!ascent || state.turn % RIVAL_CLAIM_INTERVAL_TICKS !== 0) return;
+  // Not while the player is still learning what a wave is.
+  if (ascent.wave <= EARLY_WAVE_GRACE) return;
+
+  const neutral = state.lands.filter((land) => land.ownerId === NEUTRAL_OWNER_ID);
+  if (neutral.length === 0) return;
+  const held = state.lands.filter(
+    (land) => land.ownerId !== NEUTRAL_OWNER_ID && land.ownerId !== PLAYER_KINGDOM_ID,
+  ).length;
+  if (held >= state.lands.length * RIVAL_CLAIM_MAX_SHARE) return;
+
+  // The hungriest crown that is not sworn to the player.
+  const candidates = aggressors(state);
+  if (candidates.length === 0) return;
+  const taker = candidates.reduce((best, kingdom) => (
+    aggressionPressure(state, kingdom) > aggressionPressure(state, best) ? kingdom : best
+  ), candidates[0]);
+
+  // Outward from its own ground where it has any; otherwise the district furthest from the
+  // player's seat, so a crown's first holding is never on the player's doorstep.
+  const mine = state.lands.filter((land) => land.ownerId === taker.id);
+  let target: Land | undefined;
+  if (mine.length > 0) {
+    const frontier = new Set<string>();
+    for (const land of mine) for (const id of land.neighbors) frontier.add(id);
+    target = neutral.find((land) => frontier.has(land.id));
+  }
+  if (!target) {
+    const seat = state.lands.find((land) => land.id === ascent.capitalLandId)
+      ?? state.lands.find((land) => land.ownerId === PLAYER_KINGDOM_ID);
+    target = seat
+      ? neutral.reduce((far, land) => (
+        (land.x - seat.x) ** 2 + (land.y - seat.y) ** 2 > (far.x - seat.x) ** 2 + (far.y - seat.y) ** 2 ? land : far
+      ), neutral[0])
+      : neutral[0];
+  }
+  if (!target) return;
+
+  target.ownerId = taker.id;
+  target.loyalty = 80;
+  pushToast(state, t('ascent.enemy.settles', { kingdom: taker.name, land: target.name }), 'threat');
+}
+
 function tickRivalRealms(state: GameState): void {
   const ascent = state.ascent;
   if (!ascent || state.turn % 4 !== 0) return;
@@ -587,6 +679,7 @@ export function tickEnemyCommand(state: GameState): void {
     state.ascent.lastContactTurn = state.turn;
   }
 
+  tickRivalExpansion(state);
   tickRivalRealms(state);
   storyStrikes(state);
   maybeJoinTheWar(state);

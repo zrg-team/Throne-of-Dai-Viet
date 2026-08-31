@@ -5,6 +5,7 @@ import {
   CAMPAIGN_TICKS_MAX,
   CAMPAIGN_TICKS_ON_SACK,
   CAMPAIGN_TICKS_ON_WIN,
+  EARLY_WAVE_GRACE,
   GARRISON_LEVY_FLOOR,
   LEVY_POWER_PER_MAN,
   MAX_HOSTS_PER_KINGDOM,
@@ -294,7 +295,11 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
   // The far edge is still the muster (see the note below on why the approach march matters); it
   // is now the far edge of the ground that connects to the realm.
   const reach = reachableFrom(state, capital.id);
-  const allNeutral = state.lands.filter((l) => l.ownerId === 'neutral');
+  // A crown musters on its own ground as readily as on nobody's. Ascent's rivals hold territory
+  // now (`tickRivalExpansion`), and staging only from neutral districts would mean a world the
+  // rivals had largely settled could not send a wave at all — the map would fill up and the war
+  // would quietly stop.
+  const allNeutral = state.lands.filter((l) => l.ownerId === 'neutral' || l.ownerId === kingdomId);
   const connected = allNeutral.filter((l) => reach.has(l.id));
   const neutralEdges = (connected.length > 0 ? connected : allNeutral)
     .sort((a, b) => ((b.x - capital.x) ** 2 + (b.y - capital.y) ** 2) - ((a.x - capital.x) ** 2 + (a.y - capital.y) ** 2));
@@ -340,6 +345,23 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
     const committed = (state.invasions ?? []).filter((record) => record.kingdomId === kingdomId).length;
     armyCount = Math.min(armyCount, Math.max(0, MAX_HOSTS_PER_KINGDOM - committed));
     if (armyCount <= 0) return;
+    /**
+     * One host per march while the opening grace runs, whoever is asking.
+     *
+     * `EARLY_WAVE_GRACE` bounds how *often* a host arrives — the wave director's schedule, the
+     * enemy director's marches and the raid path all wait for a clear map. It did not bound the
+     * *shape*: `armyCount` is rolled off relations a few lines above, so any caller that does not
+     * pass `forceCoalition` sends up to three at once on cold relations, and the callers that do
+     * pass one can have it inflated by a coalition or the relations dial. Gating each of the six
+     * spawners separately is how the first three leaks were missed.
+     *
+     * It surfaced when conquered ground began sticking (`CONQUEST_GARRISON_SHARE`): a realm that
+     * keeps its provinces reaches `RAID_MIN_LANDS` in the first waves, and `verify-ascent-opening`
+     * caught seed 12161 at four hosts from two crowns in wave 2 — defeated by wave 5 — and seed
+     * 27999 at three hosts from a single crown. `waveHostCount` is 1 for waves 1 and 2 anyway, so
+     * this takes nothing the schedule was entitled to.
+     */
+    if ((state.ascent?.wave ?? 0) <= EARLY_WAVE_GRACE) armyCount = 1;
   }
 
   const scale = difficultyArmyScale(state.campaignConfig?.difficulty) * personalityWeight(kingdom) * (opts.sizeMult ?? 1);

@@ -30,6 +30,7 @@ import { SeasonRenderer, type SeasonScape } from './map/SeasonRenderer';
 import { SettlementRenderer } from './map/SettlementRenderer';
 import { BirdRenderer } from './map/BirdRenderer';
 import { TrafficRenderer } from './map/TrafficRenderer';
+import type { StructureRect } from './map/settlementLayout';
 import { ViewIndex, type CullKind } from './map/ViewIndex';
 import { BAKE_SEASON, foliagePalette, seasonVisualsEnabled, setFoliageSeason, setRenderSeason } from '../ui/ink/season';
 import { UI_FONT } from '../ui/fonts';
@@ -39,6 +40,7 @@ import { applyPendingRenderScale, bakeScale, designPointer, liveSettlementInk, l
 import { qualityLadder } from '../game/qualityLadder';
 import { fitBakeScale } from '../ui/ink/textureLimits';
 import { figureEraFor } from '../ui/ink/devices';
+import { GROUND_DEPTH_PIECE_STEP, groundDepth } from '../ui/ink/proportion';
 import { liveBattles } from '../systems/ascent/fronts';
 
 /** How big a province's standard is drawn against the ground it stands on. See `drawFlags`. */
@@ -71,15 +73,15 @@ const CAMERA_ZOOM_STEP = 0.16;
 const WORLD_PADDING = 300;
 
 /**
- * The settlement band: harvested town ink, the capital ring, name plates, seasonal accents —
- * depths [1.40, 1.50), under the `depth <= 1.5` bake sweep. On tiers with `liveSettlementInk()`
- * these render live (vector-crisp at any zoom) and the sweep must leave them alone; the floor
- * sits just under 1.40 so the exact-1.40 capital ring is included.
- *
  * `bakeScale()` is read at each bake, not once: the quality ladder can change the rung mid-run,
  * and the bake must follow it (the RT is rebuilt when its size stops matching).
+ *
+ * There is no longer a *settlement band*. Harvested town ink used to have a storey of its own at
+ * [1.40, 1.50), above the entire landscape, which is why a town drew over every mountain on the
+ * map. Everything that stands on the ground now shares one foot-line-ordered band — see
+ * `groundDepth` — and the layers a live-ink tier holds back from the bake are identified by the
+ * `conquestGroundOrder` flag rather than by where they sit in it.
  */
-const SETTLEMENT_BAND_FLOOR = 1.395;
 
 export class MapScene extends Phaser.Scene {
   protected state!: GameState;
@@ -89,8 +91,10 @@ export class MapScene extends Phaser.Scene {
   private foreignHazeGraphics?: Phaser.GameObjects.Graphics;
   /** Each node's name plate, held separately so the zoom LOD can drop type without dropping towns. */
   private landLabels = new Map<string, Phaser.GameObjects.Container>();
+  /** Exact world rectangles of authored compounds and constructed satellites. */
+  private landStructureBounds = new Map<string, StructureRect>();
   /** Settlement ink harvested out of each node into the static-bake band; dies with its node. */
-  private landInk = new Map<string, Phaser.GameObjects.Graphics[]>();
+  private landInk = new Map<string, Array<Phaser.GameObjects.Graphics | Phaser.GameObjects.Image>>();
   private flagMarkers = new Map<string, Phaser.GameObjects.Container>();
   private acquisitionMarkers: Phaser.GameObjects.GameObject[] = [];
   private buildMarkers: Phaser.GameObjects.GameObject[] = [];
@@ -283,7 +287,8 @@ export class MapScene extends Phaser.Scene {
   private resetRuntimeState(): void {
     this.landNodes = new Map<string, Phaser.GameObjects.Container>();
     this.landLabels = new Map<string, Phaser.GameObjects.Container>();
-    this.landInk = new Map<string, Phaser.GameObjects.Graphics[]>();
+    this.landStructureBounds = new Map<string, StructureRect>();
+    this.landInk = new Map<string, Array<Phaser.GameObjects.Graphics | Phaser.GameObjects.Image>>();
     this.flagMarkers = new Map<string, Phaser.GameObjects.Container>();
     this.acquisitionMarkers = [];
     this.buildMarkers = [];
@@ -351,6 +356,7 @@ export class MapScene extends Phaser.Scene {
     // this scene needs no pass of its own. (?fx=shader restores the old filter, UI-side.)
     this.settlements = new SettlementRenderer(this, this.mapItems, this.mapRenderer.palette);
     this.traffic = new TrafficRenderer(this, this.mapRenderer, this.mapItems);
+    this.traffic.setObscuredTest((x, y) => this.isInsideVisibleLabelInk(x, y));
     this.birds = new BirdRenderer(this);
     this.overlays = new OverlayRenderer(this, this.mapRenderer);
     this.armies = new ArmyRenderer(this, this.mapItems);
@@ -557,6 +563,9 @@ export class MapScene extends Phaser.Scene {
     this.traffic.setPaused(halted);
     this.birds.setPaused(halted);
     this.seasons.setPaused(halted);
+    // The hosts belong to the clock too. Their march is a tween, so it used to run straight
+    // through a card prompt, finish its leg against a tick that was not coming, and freeze.
+    this.armies.setPaused(halted);
   }
 
   /**
@@ -610,8 +619,8 @@ export class MapScene extends Phaser.Scene {
       live.add(id);
       this.viewIndex.set(id, {
         kind: 'label',
-        x: label.x + (this.landNodes.get(landId)?.x ?? 0),
-        y: label.y + (this.landNodes.get(landId)?.y ?? 0),
+        x: label.x,
+        y: label.y,
         radius: 80,
         setCulled: (culled) => label.setVisible(!culled),
       });
@@ -629,17 +638,18 @@ export class MapScene extends Phaser.Scene {
       });
     }
 
-    for (const { id: armyId, object } of this.armies.cullTargets()) {
-      const id = `army::${armyId}`;
+    for (const target of this.armies.cullTargets()) {
+      const id = `army::${target.id}`;
       live.add(id);
-      // Wider than the marker: between refreshes it tweens along a whole leg of its march, and
-      // re-indexing it every frame would cost more than the one object it saves.
+      // Anchored on the leg the host is walking, not on where it stood when it was indexed — see
+      // `ArmyRenderer.cullTargets`. Re-indexing it every frame would cost more than the one object
+      // it saves, and `syncViewCulling` would not re-run for it anyway under a still camera.
       this.viewIndex.set(id, {
         kind: 'army',
-        x: object.x,
-        y: object.y,
-        radius: 200,
-        setCulled: (culled) => object.setVisible(!culled),
+        x: target.x,
+        y: target.y,
+        radius: target.radius,
+        setCulled: (culled) => target.object.setVisible(!culled),
       });
     }
 
@@ -737,23 +747,7 @@ export class MapScene extends Phaser.Scene {
       // Carry the remainder (capped at one tick) instead of zeroing: dropped slack made the
       // month clock drift behind wall time by up to a tick's worth on every slow frame.
       this.realtimeAccumulator = Math.min(this.realtimeAccumulator - REALTIME_TICK_MS, REALTIME_TICK_MS);
-      const arrivals = this.state.movementOrders
-        .filter((order) => order.progress + 1 >= order.legRequired)
-        .map((order) => {
-          const army = this.state.armies.find((candidate) => candidate.id === order.armyId);
-          return army ? { fromLandId: army.landId, toLandId: order.path[0], isPlayer: army.kingdomId === PLAYER_KINGDOM_ID } : undefined;
-        })
-        .filter((arrival): arrival is { fromLandId: string; toLandId: string; isPlayer: boolean } => Boolean(arrival));
-
       advanceRealtimeMonth(this.state);
-
-      for (const arrival of arrivals) {
-        const fromLand = findLand(this.state, arrival.fromLandId);
-        const toLand = findLand(this.state, arrival.toLandId);
-        if (fromLand && toLand) {
-          this.animateSoldierColumn(this.wx(fromLand.x), this.wy(fromLand.y), this.wx(toLand.x), this.wy(toLand.y), arrival.isPlayer);
-        }
-      }
 
       this.refresh();
     }
@@ -1291,10 +1285,20 @@ export class MapScene extends Phaser.Scene {
 
     const settlementsLive = liveSettlementInk();
     type BandLayer = Phaser.GameObjects.GameObject & { depth: number; visible: boolean; setVisible(v: boolean): unknown };
+    // **What stays live on a tier that keeps settlement ink vector-crisp.**
+    //
+    // This used to be a depth test — `depth >= 1.395` — which stopped meaning anything the moment
+    // towns joined the landscape's own ground band. It is now the flag the harvest and the relief
+    // set. The relief is held back with the towns rather than baked behind them: a massif that
+    // stands in front of a town has to draw over it, and it cannot do that from inside the raster
+    // the town is drawn on top of. It is a few dozen `Image`s — the bake exists for the thousands
+    // of live `Graphics` path segments, which is the scatter, and the scatter still bakes.
+    const heldBack = (obj: Phaser.GameObjects.GameObject): boolean => settlementsLive
+      && ((obj as unknown as { getData?(k: string): unknown }).getData?.('conquestGroundOrder') !== undefined);
     const band = this.children.list.filter((obj): obj is BandLayer => {
       const depth = (obj as unknown as { depth?: unknown }).depth;
       return obj !== this.staticBakeRT && typeof depth === 'number' && depth <= 1.5
-        && !(settlementsLive && depth >= SETTLEMENT_BAND_FLOOR);
+        && !heldBack(obj);
     });
 
     // Show every candidate source, then hide the layers that belong to the inactive
@@ -1304,9 +1308,7 @@ export class MapScene extends Phaser.Scene {
     // and a rung that just stepped UP into live ink inherits pieces a previous bake hid.
     if (settlementsLive) {
       for (const obj of this.children.list) {
-        const depth = (obj as unknown as { depth?: unknown }).depth;
-        if (obj !== this.staticBakeRT && typeof depth === 'number'
-          && depth >= SETTLEMENT_BAND_FLOOR && depth <= 1.5) {
+        if (obj !== this.staticBakeRT && heldBack(obj)) {
           (obj as unknown as { setVisible(v: boolean): unknown }).setVisible(true);
         }
       }
@@ -1330,16 +1332,22 @@ export class MapScene extends Phaser.Scene {
     // settlement ink is *positioned*, and `RenderTexture.draw` on WebGL offsets by the object's
     // own x/y — so a positioned source must also stand at its scaled position for the draw, and
     // be put back afterwards whatever happens.
-    const scalable = visible as unknown as Array<{ x: number; y: number; setScale(v: number): unknown; setPosition(x: number, y: number): unknown }>;
-    const homes = scalable.map((source) => ({ x: source.x, y: source.y }));
+    const scalable = visible as unknown as Array<{
+      x: number; y: number; scaleX: number; scaleY: number;
+      setScale(x: number, y?: number): unknown; setPosition(x: number, y: number): unknown;
+    }>;
+    const homes = scalable.map((source) => ({
+      x: source.x, y: source.y, scaleX: source.scaleX, scaleY: source.scaleY,
+    }));
     const restore = (): void => {
       for (let i = 0; i < scalable.length; i += 1) {
-        scalable[i].setScale(1);
+        scalable[i].setScale(homes[i].scaleX, homes[i].scaleY);
         scalable[i].setPosition(homes[i].x, homes[i].y);
       }
     };
-    for (const source of scalable) {
-      source.setScale(bake);
+    for (let i = 0; i < scalable.length; i += 1) {
+      const source = scalable[i];
+      source.setScale(homes[i].scaleX * bake, homes[i].scaleY * bake);
       if (source.x !== 0 || source.y !== 0) source.setPosition(source.x * bake, source.y * bake);
     }
     try {
@@ -1543,7 +1551,12 @@ export class MapScene extends Phaser.Scene {
   /** Draws dirt roads connecting each land's settlement (village/city/castle/mine) to its neighbors. */
   private drawConnections(): void {
     this.connectionGraphics?.destroy();
-    this.connectionGraphics = this.traffic.drawConnections(this.state, (value) => this.wx(value), (value) => this.wy(value), (land) => this.getSettlementAnchor(land));
+    this.connectionGraphics = this.traffic.drawConnections(
+      this.state,
+      (value) => this.wx(value),
+      (value) => this.wy(value),
+      (land, toward) => this.settlements.getRoadEntrance(this.state, land, toward),
+    );
   }
 
   /**
@@ -1564,14 +1577,19 @@ export class MapScene extends Phaser.Scene {
       this.state,
       (value) => this.wx(value),
       (value) => this.wy(value),
-      (land) => this.getSettlementAnchor(land),
+      (land, toward) => this.settlements.getRoadEntrance(this.state, land, toward),
       (land) => this.getCityCenter(land),
     );
   }
 
   /** Slow-walking ink travelers wandering every road between connected settlements, for a livelier map. */
   private drawTravelers(): void {
-    this.traffic.drawTravelers(this.state, (value) => this.wx(value), (value) => this.wy(value), (land) => this.getSettlementAnchor(land));
+    this.traffic.drawTravelers(
+      this.state,
+      (value) => this.wx(value),
+      (value) => this.wy(value),
+      (land, toward) => this.settlements.getRoadEntrance(this.state, land, toward),
+    );
   }
 
   /**
@@ -1588,14 +1606,18 @@ export class MapScene extends Phaser.Scene {
    * `getSettlementAnchor` is the same source the label, the capital ring and the player's banner
    * already use, so the ground the scatter avoids is exactly the ground the town is drawn on.
    */
-  private settlementAnchors(): Array<{ x: number; y: number }> {
-    const anchors: Array<{ x: number; y: number }> = [];
+  private settlementAnchors(): Array<{ x: number; y: number; r: number }> {
+    const anchors: Array<{ x: number; y: number; r: number }> = [];
     for (const land of this.state.lands) {
       if (!land.isVisible || !land.hasVillage) {
         continue;
       }
       const anchor = this.getSettlementAnchor(land);
-      anchors.push({ x: this.wx(anchor.x), y: this.wy(anchor.y) });
+      anchors.push({
+        x: this.wx(anchor.x),
+        y: this.wy(anchor.y),
+        r: this.settlements.getVisualClearance(this.state, land),
+      });
     }
     return anchors;
   }
@@ -1630,24 +1652,53 @@ export class MapScene extends Phaser.Scene {
       .setDepth(2 + Phaser.Math.Clamp(worldY / Math.max(1, this.worldHeight), 0, 1) * 0.8);
     const isPlayerLand = land.ownerId === PLAYER_KINGDOM_ID;
     const isPlayerCapital = isPlayerLand && land.type === 'castle';
-    if (isPlayerCapital) {
-      const capitalHighlight = this.mapItems.createCapitalHighlight();
-      capitalHighlight.setDepth(-1);
-      const ringAt = this.settlementNodeOffset(land);
-      capitalHighlight.setPosition(ringAt.x, ringAt.y);
-      container.add(capitalHighlight);
-    }
-
     const settlement = this.settlements.createSettlementCluster(this.state, land);
     container.add(settlement);
-
-    const label = this.createLandLabel(land, isPlayerCapital);
-    container.add(label);
+    const localStructureBounds = settlement.getData('conquestStructureBounds') as StructureRect | undefined;
+    // **After the settlement, because it has to be sized to it.**
+    //
+    // The ring used to be built first, at a fixed 88 x 44 that predates the authored settlement
+    // art — so under a citadel drawn 116 wide it stopped being a ring around the seat and became a
+    // stray ellipse across it. Built here it can read the compound's real footprint, and
+    // `addAt(0)` keeps it exactly where it was in the paint order: under everything.
+    if (isPlayerCapital) {
+      const ringAt = this.settlementNodeOffset(land);
+      const ground = localStructureBounds
+        ? {
+          width: Phaser.Math.Clamp((localStructureBounds.right - localStructureBounds.left) * 1.3, 88, 210),
+          // A settlement's box is tall — roofs and towers — and the ground it stands on is not.
+          // Two fifths of the height keeps the wash a footprint rather than a halo.
+          height: Phaser.Math.Clamp((localStructureBounds.bottom - localStructureBounds.top) * 0.55, 40, 96),
+        }
+        : { width: 88, height: 44 };
+      const capitalHighlight = this.mapItems.createCapitalHighlight(ground.width, ground.height);
+      capitalHighlight.setDepth(-1);
+      capitalHighlight.setPosition(ringAt.x, ringAt.y);
+      container.addAt(capitalHighlight, 0);
+    }
+    if (localStructureBounds) {
+      this.landStructureBounds.set(land.id, {
+        left: container.x + localStructureBounds.left,
+        right: container.x + localStructureBounds.right,
+        top: container.y + localStructureBounds.top,
+        bottom: container.y + localStructureBounds.bottom,
+      });
+    }
+    const labelOffset = settlement.getData('conquestLabelOffset') as number | undefined;
+    const label = this.createLandLabel(land, isPlayerCapital, labelOffset);
+    // Nameplates are scene-level so they can sit above traffic and living sprites. Container
+    // child depth is ignored by Phaser, which is why carts and buffalo used to be printed across
+    // the words despite every label child carrying its own depth value.
+    label.setPosition(container.x + label.x, container.y + label.y).setDepth(73);
+    label.setData('conquestLabelAnchor', {
+      x: container.x + this.settlementNodeOffset(land).x,
+      y: container.y + this.settlementNodeOffset(land).y,
+    });
     // Kept by hand as well as in the container, because the zoom LOD drops the name plates on the
     // lowest tier without dropping the town under them — each is a `Text` carrying its own canvas.
     this.landLabels.set(land.id, label);
     this.landNodes.set(land.id, container);
-    this.harvestSettlementInk(land, container, label);
+    this.harvestSettlementInk(land, container);
   }
 
   /**
@@ -1668,18 +1719,26 @@ export class MapScene extends Phaser.Scene {
   private harvestSettlementInk(
     land: Land,
     node: Phaser.GameObjects.Container,
-    label: Phaser.GameObjects.Container,
   ): void {
     // The rollback switch: live settlement nodes exactly as before the harvest existed.
     if (typeof window !== 'undefined' && window.location.search.indexOf('noharvest=1') >= 0) {
       return;
     }
-    const ink: Phaser.GameObjects.Graphics[] = [];
-    const base = 1.41 + Phaser.Math.Clamp(node.y / Math.max(1, this.worldHeight), 0, 1) * 0.08;
+    const ink: Array<Phaser.GameObjects.Graphics | Phaser.GameObjects.Image> = [];
+    // **A town takes its place in the ground order like everything else standing on the ground.**
+    //
+    // This band used to be [1.41, 1.49) — its own storey, above the whole landscape — so a town
+    // drew over every mountain on the map regardless of which stood in front. See `groundDepth`.
+    // The foot line is the compound's own bottom edge where the art declares one, not the province
+    // centre: a citadel is drawn eighty units tall and hanging its depth off the middle of the
+    // province put it half a compound behind where its walls actually meet the ground.
+    const structure = this.landStructureBounds.get(land.id);
+    const base = groundDepth(structure ? structure.bottom : node.y);
     let step = 0;
     const walk = (root: Phaser.GameObjects.Container, ox: number, oy: number, depth: () => number): void => {
       for (const child of [...root.list]) {
-        if (child instanceof Phaser.GameObjects.Graphics) {
+        if (child instanceof Phaser.GameObjects.Graphics
+          || (child instanceof Phaser.GameObjects.Image && child.getData('conquestSettlementArt') === true)) {
           root.remove(child);
           child.setPosition(ox + child.x, oy + child.y);
           child.setDepth(depth());
@@ -1692,27 +1751,33 @@ export class MapScene extends Phaser.Scene {
       }
     };
     for (const child of [...node.list]) {
-      if (child === label) continue;
       if (child instanceof Phaser.GameObjects.Graphics) {
         // The capital ring and any directly-held ink open the band.
         node.remove(child);
         child.setPosition(node.x + child.x, node.y + child.y);
-        child.setDepth(1.4 + (step += 1) * 0.0001);
+        child.setDepth(base + (step += 1) * GROUND_DEPTH_PIECE_STEP);
+        child.setData('conquestGroundOrder', 'settlement');
         this.add.existing(child);
         ink.push(child);
       } else if (child instanceof Phaser.GameObjects.Container) {
-        walk(child, node.x + child.x, node.y + child.y, () => base + (step += 1) * 0.0001);
+        walk(child, node.x + child.x, node.y + child.y, () => base + (step += 1) * GROUND_DEPTH_PIECE_STEP);
       }
     }
-    if (!lodDropsLabels()) {
-      walk(label, node.x + label.x, node.y + label.y, () => 1.495 + (step += 1) * 0.0001);
+    for (const piece of ink) {
+      // What the bake's live-ink carve-out keys off. It used to key off a depth threshold, which
+      // stopped meaning anything the moment settlements shared a band with the landscape.
+      piece.setData('conquestGroundOrder', 'settlement');
     }
     if (ink.length > 0) {
       this.landInk.set(land.id, ink);
     }
   }
 
-  private createLandLabel(land: Land, isPlayerCapital: boolean): Phaser.GameObjects.Container {
+  private createLandLabel(
+    land: Land,
+    isPlayerCapital: boolean,
+    plannedOffset?: number,
+  ): Phaser.GameObjects.Container {
     const labelText = isPlayerCapital ? `${this.shortName(land)} ${t('common.capital')}` : this.shortName(land);
     const label = this.add.text(0, 0, labelText, {
       // Lettered in the season now in play — `foliagePalette()` is the live half of the pair, the
@@ -1739,12 +1804,14 @@ export class MapScene extends Phaser.Scene {
     // about as often as not. Below the herd it labels the settlement instead of sitting in it, and
     // `LABEL_KEEP_OUT` in the item renderer keeps the cluster's own props off the same strip.
     const isSeat = land.type === 'castle' || land.type === 'enemyCastle';
-    const labelY = isSeat ? 58 : LABEL_KEEP_OUT.y;
+    const labelY = Math.max(isSeat ? 58 : LABEL_KEEP_OUT.y, plannedOffset ?? 0);
     const anchor = this.settlementNodeOffset(land);
     const container = this.add.container(anchor.x, anchor.y + labelY);
     const backing = this.add.graphics();
 
-    backing.fillStyle(0xf0dfae, 0.78);
+    // Nearly opaque because traffic and herds legitimately pass behind the plate. At 0.78 their
+    // silhouettes remained readable through the name and still looked like an overlap.
+    backing.fillStyle(0xf0dfae, 0.92);
     backing.fillRoundedRect(-width / 2, -height / 2, width, height, 4);
     backing.lineStyle(1, 0x4f3a20, 0.58);
     backing.strokeRoundedRect(-width / 2, -height / 2, width, height, 4);
@@ -1830,11 +1897,111 @@ export class MapScene extends Phaser.Scene {
     const zoom = Math.max(0.2, this.mapZoom || 1);
     const padX = 14 / zoom;
     const padY = 16 / zoom;
-    const cx = node.x + label.x;
-    const cy = node.y + label.y;
+    const cx = label.x;
+    const cy = label.y;
     const w = (label.width || 60) + padX * 2;
     const h = (label.height || 18) + padY * 2;
     return new Phaser.Geom.Rectangle(cx - w / 2, cy - h / 2, w, h);
+  }
+
+  /** Exact printed plate, without the touch padding used by `labelWorldRect`. */
+  private isInsideVisibleLabelInk(worldX: number, worldY: number): boolean {
+    for (const landId of this.landLabels.keys()) {
+      if (!this.hasVisibleLabel(landId)) continue;
+      const label = this.landLabels.get(landId);
+      const node = this.landNodes.get(landId);
+      if (!label || !node) continue;
+      const width = label.width || 60;
+      const height = label.height || 18;
+      const rect = new Phaser.Geom.Rectangle(
+        label.x - width / 2 - 2,
+        label.y - height / 2 - 2,
+        width + 4,
+        height + 4,
+      );
+      if (Phaser.Geom.Rectangle.Contains(rect, worldX, worldY)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Places every nameplate near its own seat without printing across another settlement or label.
+   * This runs after all land nodes exist; a local renderer cannot solve a cross-province overlap.
+   */
+  private resolveLandLabelOverlaps(): void {
+    const occupied: StructureRect[] = [...this.landStructureBounds.values()].map((rect) => ({
+      left: rect.left - 5,
+      right: rect.right + 5,
+      top: rect.top - 5,
+      bottom: rect.bottom + 5,
+    }));
+    const labels = [...this.landLabels.entries()].sort(([a], [b]) => {
+      const landA = this.landAt(a);
+      const landB = this.landAt(b);
+      const priority = (land?: Land): number => land?.type === 'castle' || land?.type === 'enemyCastle' ? 0 : 1;
+      return priority(landA) - priority(landB) || a.localeCompare(b);
+    });
+
+    for (const [landId, label] of labels) {
+      const anchor = label.getData('conquestLabelAnchor') as { x: number; y: number } | undefined;
+      if (!anchor) continue;
+      const width = label.width || 60;
+      const height = label.height || 18;
+      const own = this.landStructureBounds.get(landId);
+      const structure = own ?? {
+        left: anchor.x - 32, right: anchor.x + 32,
+        top: anchor.y - 40, bottom: anchor.y + 4,
+      };
+      const candidates = [
+        { x: anchor.x, y: structure.bottom + height / 2 + 13 },
+        { x: anchor.x - width * 0.62, y: structure.bottom + height / 2 + 18 },
+        { x: anchor.x + width * 0.62, y: structure.bottom + height / 2 + 18 },
+        { x: structure.left - width / 2 - 10, y: (structure.top + structure.bottom) / 2 },
+        { x: structure.right + width / 2 + 10, y: (structure.top + structure.bottom) / 2 },
+        { x: anchor.x - width * 0.58, y: structure.top - height / 2 - 10 },
+        { x: anchor.x + width * 0.58, y: structure.top - height / 2 - 10 },
+        { x: anchor.x, y: structure.top - height / 2 - 14 },
+      ];
+      const isFree = ({ x, y }: { x: number; y: number }): boolean => {
+        const rect = {
+          left: x - width / 2 - 3,
+          right: x + width / 2 + 3,
+          top: y - height / 2 - 3,
+          bottom: y + height / 2 + 3,
+        };
+        return !occupied.some((other) => (
+          rect.left < other.right && rect.right > other.left
+            && rect.top < other.bottom && rect.bottom > other.top
+        ));
+      };
+      let chosen = candidates.find(isFree);
+      // Dense maps can exhaust the preferred positions. Expand deterministically instead of
+      // accepting an overlapping fallback, so new settlement art cannot regress nameplates.
+      let ring = 1;
+      while (!chosen) {
+        const radiusX = width * (0.7 + ring * 0.45);
+        const radiusY = height * (1.2 + ring * 0.8);
+        const ringCandidates = [
+          { x: anchor.x, y: structure.bottom + radiusY },
+          { x: anchor.x - radiusX, y: structure.bottom + radiusY * 0.72 },
+          { x: anchor.x + radiusX, y: structure.bottom + radiusY * 0.72 },
+          { x: structure.left - radiusX, y: anchor.y },
+          { x: structure.right + radiusX, y: anchor.y },
+          { x: anchor.x - radiusX, y: structure.top - radiusY * 0.72 },
+          { x: anchor.x + radiusX, y: structure.top - radiusY * 0.72 },
+          { x: anchor.x, y: structure.top - radiusY },
+        ];
+        chosen = ringCandidates.find(isFree);
+        ring += 1;
+      }
+      label.setPosition(chosen.x, chosen.y);
+      occupied.push({
+        left: chosen.x - width / 2 - 4,
+        right: chosen.x + width / 2 + 4,
+        top: chosen.y - height / 2 - 4,
+        bottom: chosen.y + height / 2 + 4,
+      });
+    }
   }
 
   /** Average pixel position of a land's city/shrine hexes, or undefined if it has none. */
@@ -1917,13 +2084,11 @@ export class MapScene extends Phaser.Scene {
   /**
    * Whether the five progress-badge layers need rebuilding.
    *
-   * They are destroyed and recreated wholesale on every `refresh()`, which on a quiet tick throws
-   * away and rebuilds badges identical to the ones just discarded. The camera is part of the
-   * signature because `getVisibleLandMarkerPoint` clamps a badge to stay on screen, so a pan moves
-   * it even when no order changed — quantised to 8 units so a drag does not rebuild every frame.
+   * They are destroyed and recreated wholesale only when their orders change. Camera movement is
+   * intentionally absent: badges now occupy stable world coordinates and must not be rebuilt or
+   * repositioned merely because the player pans or zooms.
    */
   private getBadgeSignature(): string {
-    const camera = this.cameras.main;
     const orders = [
       this.state.acquisitionOrders,
       this.state.buildOrders,
@@ -1939,8 +2104,7 @@ export class MapScene extends Phaser.Scene {
     // draws the same mark, and its round advances on the same beat clock.
     const battle = liveBattles(this.state)
       .map((fight) => `${fight.landId}:${fight.round}/${fight.totalRounds}`).join(',');
-    const view = `${Math.round(camera.scrollX / 8)}:${Math.round(camera.scrollY / 8)}:${camera.zoom.toFixed(2)}`;
-    return `${orders}|${battle}|${view}|${this.state.selectedLandId ?? ''}`;
+    return `${orders}|${battle}|${this.state.selectedLandId ?? ''}`;
   }
 
   private drawAcquisitionMarkers(): void {
@@ -2065,85 +2229,32 @@ export class MapScene extends Phaser.Scene {
   }
 
   private getVisibleLandMarkerPoint(land: Land): { x: number; y: number } {
-    const camera = this.cameras.main;
-    const hexSize = this.state.mapConfig.hexSize;
-    const bottomSheetTop = GAME_HEIGHT - ACTION_BAR_HEIGHT - 250;
-    const maxScreenY = land.id === this.state.selectedLandId ? bottomSheetTop - 42 : GAME_HEIGHT - ACTION_BAR_HEIGHT - 28;
-    const visibleCenters: Array<{ x: number; y: number }> = [];
-
-    for (const tile of this.state.hexTiles) {
-      if (tile.landId !== land.id) {
-        continue;
-      }
-
-      const pixel = axialToPixel(tile.coord, hexSize);
-      const worldX = this.wx(pixel.x);
-      const worldY = this.wy(pixel.y);
-      const screenX = (worldX - camera.scrollX) * this.mapZoom;
-      const screenY = (worldY - camera.scrollY) * this.mapZoom;
-      if (screenX < 24 || screenX > GAME_WIDTH - 76 || screenY < HEADER_HEIGHT + 36 || screenY > maxScreenY) {
-        continue;
-      }
-      visibleCenters.push({ x: worldX, y: worldY });
-    }
-
-    if (visibleCenters.length > 0) {
-      const sum = visibleCenters.reduce((acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }), { x: 0, y: 0 });
-      return { x: sum.x / visibleCenters.length, y: sum.y / visibleCenters.length };
-    }
-
-    const fallbackScreenX = Phaser.Math.Clamp((this.wx(land.x) - camera.scrollX) * this.mapZoom, 34, GAME_WIDTH - 86);
-    const fallbackScreenY = Phaser.Math.Clamp((this.wy(land.y) - camera.scrollY) * this.mapZoom, HEADER_HEIGHT + 46, maxScreenY);
+    // A world marker must stay attached to one world point. The old implementation averaged only
+    // the province hexes currently inside the camera and clamped the fallback to the viewport;
+    // every pan therefore made the icon walk across its own province. Pin it just above the
+    // settlement instead. Off-screen markers are naturally culled and return at the same point.
+    const seat = this.getSettlementAnchor(land);
+    const clearance = this.settlements.getVisualClearance(this.state, land);
     return {
-      x: camera.scrollX + fallbackScreenX / this.mapZoom,
-      y: camera.scrollY + fallbackScreenY / this.mapZoom,
+      x: this.wx(seat.x),
+      y: this.wy(seat.y) - Phaser.Math.Clamp(clearance * 0.62, 38, 62),
     };
   }
 
-  protected animateSoldierColumn(
-    fromX: number,
-    fromY: number,
-    toX: number,
-    toY: number,
-    isPlayer = true,
-  ): void {
-    const color = isPlayer ? 0x0b5f39 : 0x7d2d2d;
-    const route = this.add.graphics();
-    route.setDepth(68);
-    route.lineStyle(5, 0xffde72, 0.75);
-    route.lineBetween(fromX, fromY, toX, toY);
-    this.tweens.add({
-      targets: route,
-      alpha: 0,
-      duration: 1400,
-      onComplete: () => route.destroy(),
-    });
-
-    for (let index = 0; index < 42; index += 1) {
-      const lane = (index % 7) * 4 - 12;
-      const rank = Math.floor(index / 7) * 4 - 10;
-      const startT = Math.min(0.72, index / 58);
-      const endT = Math.min(1, startT + 0.42);
-      const startX = Phaser.Math.Linear(fromX, toX, startT) + lane;
-      const startY = Phaser.Math.Linear(fromY, toY, startT) + rank;
-      const endX = Phaser.Math.Linear(fromX, toX, endT) + lane;
-      const endY = Phaser.Math.Linear(fromY, toY, endT) + rank;
-      const soldier = this.add.container(startX, startY);
-      soldier.setDepth(70);
-      soldier.add(this.add.circle(0, 2, 2.8, color, 0.95));
-      soldier.add(this.add.circle(0, -2, 1.8, 0xf1d1a8, 0.95));
-      this.tweens.add({
-        targets: soldier,
-        x: endX,
-        y: endY,
-        alpha: { from: 1, to: 0.15 },
-        duration: 980,
-        delay: (index % 7) * 25,
-        ease: 'Sine.easeInOut',
-        onComplete: () => soldier.destroy(),
-      });
-    }
-  }
+  /**
+   * **Deleted: the arrival flourish.**
+   *
+   * When a host finished a leg, the map used to fire forty-two green dots — a filled circle for the
+   * body and a smaller pale one for the head — straight down a yellow rule from one land centre to
+   * the next, over the top of the marker that had just walked the same road properly. Three things
+   * were wrong with it and none was fixable by tuning: it ran between *land centres* while the real
+   * marker walks between settlement anchors along `roadCurve`, so the dots crossed their own host
+   * diagonally; the dots are the only pure-saturated green on a map drawn in ink and pigment; and
+   * it fired on arrival, which is to say it animated a march that had already happened.
+   *
+   * The march itself is the animation — `ArmyRenderer` slides the marker along the road curve for
+   * the whole leg. Nothing replaces this.
+   */
 
   protected refresh(): void {
     // The baked terrain/control/coast/fog/zone layers depend only on ownership and
@@ -2372,15 +2483,17 @@ export class MapScene extends Phaser.Scene {
       if (existing) {
         existing.destroy(true);
         this.landNodes.delete(land.id);
-        // The plate is a child of the node and dies with it; the separate handle must go too, or
-        // the LOD would keep toggling a destroyed object.
+        // The plate is scene-level so it can occlude traffic; destroy its separate handle too.
+        this.landLabels.get(land.id)?.destroy(true);
         this.landLabels.delete(land.id);
+        this.landStructureBounds.delete(land.id);
       }
       // The harvested ink is scene-level now, so the node's destroy cannot reach it.
       for (const g of this.landInk.get(land.id) ?? []) g.destroy();
       this.landInk.delete(land.id);
       this.createLandNode(land);
     }
+    if (changed) this.resolveLandLabelOverlaps();
     return changed;
   }
 

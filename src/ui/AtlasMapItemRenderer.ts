@@ -164,12 +164,12 @@ export class AtlasMapItemRenderer implements MapItemRenderer {
     return createPlayerLandFlag(this.scene, isCapital, styleSeed);
   }
 
-  createCapitalHighlight(): Phaser.GameObjects.Graphics {
+  createCapitalHighlight(width = 90, height = 42): Phaser.GameObjects.Graphics {
     const graphics = this.scene.add.graphics();
     graphics.fillStyle(this.colors.mapObjects.selected, 0.18);
-    graphics.fillEllipse(0, 4, 90, 42);
+    graphics.fillEllipse(0, 4, width, height);
     graphics.lineStyle(1.5, this.colors.ink, 0.42);
-    graphics.strokeEllipse(0, 4, 90, 42);
+    graphics.strokeEllipse(0, 4, width, height);
     return graphics;
   }
 

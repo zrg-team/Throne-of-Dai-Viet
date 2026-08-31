@@ -108,6 +108,8 @@ const runs = await page.evaluate(async ({ seeds, ticks, rules }) => {
   const out = [];
   for (const seed of seeds) {
     const state = await window.__ptBoot(seed);
+    // The seed stays installed for the whole run, not just world generation — see `__ptBoot`.
+    // Restored below so one policy's run cannot inherit the previous one's stream.
     const chosen = {};
     const unmatched = {};
     const passedOver = {};
@@ -140,6 +142,7 @@ const runs = await page.evaluate(async ({ seeds, ticks, rules }) => {
       state.isPaused = false;
     }
 
+    window.__ptRestoreRandom();
     out.push({
       seed,
       waves: state.ascent.wavesSurvived,

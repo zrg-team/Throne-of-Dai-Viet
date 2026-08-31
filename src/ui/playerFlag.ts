@@ -6,6 +6,8 @@
 import Phaser from 'phaser';
 import { INK } from './inkTheme';
 import { PIGMENT, mutePigment } from './ink/palette';
+import { conquestArtStamp } from './conquestMapArt';
+import { placeStamp } from './ink/stamp';
 
 /**
  * The five standards keep their geometry — the waving cloth, the scalloped fringe, the nested
@@ -71,10 +73,20 @@ export const PLAYER_FLAG_STYLES: PlayerFlagStyle[] = [
 /** Seeded dynastic standard marking land owned by the player. */
 export function createPlayerLandFlag(scene: Phaser.Scene, isCapital = false, styleSeed = 0, muted = false): Phaser.GameObjects.Container {
   const container = scene.add.container(0, 0);
+  const style = pickFlagStyle(styleSeed);
+  const artStyle = style === 'yellow-red-medallion' ? 'yellow-medallion' : style;
+  const artId = isCapital
+    ? 'marker.capital-standard'
+    : `marker.${muted ? 'rival-' : ''}flag-${artStyle}`;
+  const authored = conquestArtStamp(scene, artId, { left: -18, right: 18, top: -48, bottom: 10 });
+  if (authored) {
+    container.add(placeStamp(scene, authored, 0, 0));
+    if (isCapital) container.setScale(1.22);
+    return container;
+  }
   const pole = scene.add.graphics();
   const cloth = scene.add.graphics();
   const scale = isCapital ? 1.22 : 1;
-  const style = pickFlagStyle(styleSeed);
   const poleX = 0;
   const poleTop = -46 * scale;
   const poleBottom = 8 * scale;

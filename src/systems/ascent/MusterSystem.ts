@@ -131,8 +131,29 @@ export function musterBlockedReason(state: GameState, plan: MusterPlan): string 
   if (plan.soldiers > state.resources.humans - RECRUIT_HUMAN_RESERVE) {
     return t('ascent.raise.blocked.people', { have: Math.floor(state.resources.humans), need: plan.soldiers + RECRUIT_HUMAN_RESERVE, reserve: RECRUIT_HUMAN_RESERVE });
   }
-  if (plan.rations > limits.foodHeld) {
-    return t('ascent.raise.blocked.food', { have: limits.foodHeld, need: plan.rations });
+  /**
+   * Food, counted the way supplies already are: the muster's own bill **plus** the baggage the
+   * plan carries.
+   *
+   * This checked `plan.rations` alone and ignored `estimate.foodCost` — the `MUSTER_FOOD_PER_SOLDIER`
+   * charge `queueRecruitment` makes for arming the host — while the supplies check two lines below
+   * has always added its equivalent. That asymmetry is the reported *"Lập quân never works"*.
+   *
+   * Reproduced from the screenshot's own board (Năm 6: 17 food, 1.3k gold, 113 supplies, 714
+   * people): `defaultMusterPlan` floors the host at `MIN_ARMY_SOLDIERS` (320) whatever the
+   * granary says, and sets `rations` to `min(want, foodSpare)` — which is **0**, because
+   * `foodSpare` is `17 - SUPPLY_FOOD_RESERVE(40)` clamped up. So the card offered 320 men with
+   * "0 lương, 89 vật tư", `0 > 17` was false, nothing blocked it, and pressing Chuẩn y ran
+   * `queueRecruitment`, which needs `ceil(320 x 0.10 x (1 + 320/900)) = 44` food, fails
+   * `canSpend`, and returns false. Card consumed, toast flashed, no army — every time the realm
+   * is short of grain.
+   *
+   * Counting the real bill means the card is not offered at all in that state, and the raise-host
+   * form says why instead of failing on submit.
+   */
+  const foodNeed = estimate.foodCost + plan.rations;
+  if (foodNeed > limits.foodHeld) {
+    return t('ascent.raise.blocked.food', { have: limits.foodHeld, need: foodNeed });
   }
   const suppliesNeed = estimate.suppliesCost + plan.provisions;
   if (suppliesNeed > limits.suppliesHeld) {

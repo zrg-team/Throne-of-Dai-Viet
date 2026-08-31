@@ -13,6 +13,7 @@ import { areca, bamboo, banyan, buffalo, farmer, groundShadow, hayStack, house, 
 import { grazeInSmallArea, livingSprite, setNativeFacing } from './ink/life';
 import { bakedBuffalo } from './ink/sprites';
 import { GROUND_SCALE } from './ink/proportion';
+import { BASE_SCALE_KEY } from './ink/stamp';
 
 /**
  * How much room the map gives a formation, against the plate geometry it inherits.
@@ -29,6 +30,7 @@ import { LABEL_KEEP_OUT } from './MapItemRenderer';
 import { createPlayerLandFlag } from './playerFlag';
 import { stampedArmy } from './ink/figureStamps';
 import { placeStamp, stamp, stampsEnabled } from './ink/stamp';
+import { conquestArtStamp } from './conquestMapArt';
 
 /**
  * Chains loose segments back into the loops they were cut from.
@@ -285,6 +287,13 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
   override createSelectionFlag(): Phaser.GameObjects.Container {
     const scene = this.scene as Phaser.Scene;
     const container = scene.add.container(0, 0);
+    const generated = conquestArtStamp(scene, 'marker.selection-seal', {
+      left: -18, right: 18, top: -38, bottom: 2,
+    });
+    if (generated) {
+      container.add(placeStamp(scene, generated, 0, -10));
+      return container;
+    }
     const graphics = scene.add.graphics();
     seal(graphics, 0, -20, 18, 'star');
     container.add(graphics);
@@ -442,14 +451,20 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
    * the variants are deliberately few so the copies batch into one draw call rather than flushing
    * per object.
    *
-   * `buffalo` is drawn facing left, so the wander is told that: an animal that walks right has to
-   * be mirrored, and one that mirrors on the wrong leg walks backwards.
+   * The procedural buffalo faces left; the authored sprite faces right. The stamp declares which
+   * convention it uses so either one can turn toward its next grazing step.
    */
   private grazingBuffalo(x: number, y: number, scale: number, seed: number, rider: boolean): Phaser.GameObjects.Image {
     const scene = this.scene as Phaser.Scene;
-    const animal = livingSprite(scene, bakedBuffalo(scene, seed, rider), x, y, scale);
+    const calf = !rider && scale < GROUND_SCALE * 0.7
+      ? conquestArtStamp(scene, 'life.calf')
+      : undefined;
+    const baked = calf
+      ? { ...calf, nativeFacing: 1 as const }
+      : bakedBuffalo(scene, seed, rider);
+    const animal = livingSprite(scene, baked, x, y, scale);
     // A ridden animal is being taken somewhere and keeps closer to its herder; a loose one drifts.
-    grazeInSmallArea(scene, animal, x, y, rider ? 9 : 14, seed, -1);
+    grazeInSmallArea(scene, animal, x, y, rider ? 9 : 14, seed, baked.nativeFacing);
     return animal;
   }
 
@@ -475,13 +490,21 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
    * The capital's ring, in ink rather than in gold. A stamped seal says whose it is; the ring only
    * has to say "this one", so it is the quietest mark on the map that still reads.
    */
-  override createCapitalHighlight(): Phaser.GameObjects.Graphics {
+  override createCapitalHighlight(width = 88, height = 44): Phaser.GameObjects.Graphics {
     const graphics = (this.scene as Phaser.Scene).add.graphics();
+    // **The ground the seat stands on, not a fixed oval it has outgrown.**
+    //
+    // This drew 88 x 44 whatever was standing on it. A citadel is drawn up to 116 wide and 86 tall,
+    // so the ring stopped enclosing the settlement and started *crossing* it: a hard grey ellipse
+    // arc through the middle of the compound with its two ends sticking out either side, sitting in
+    // the static bake where nothing on the map explains it. Reported, correctly, as a random line
+    // behind the castle.
     graphics.fillStyle(PIGMENT.hoePale, 0.1);
-    graphics.fillEllipse(0, 4, 88, 44);
-    graphics.lineStyle(1.2, PIGMENT.mucSoft, 0.32);
-    graphics.strokeEllipse(0, 4, 92, 48);
-    seal(graphics, 40, -12, 15, 'star');
+    graphics.fillEllipse(0, 4, width, height);
+    // No hard contour any more. The wash alone says "this seat is the realm's"; a 1.2-wide ellipse
+    // outline around an ink-drawn town is the one mark on this map with a perfect geometric edge,
+    // and at any size that is what makes it read as a rendering artefact rather than as paper.
+    seal(graphics, width * 0.45, -height * 0.27, 15, 'star');
     return graphics;
   }
 
@@ -738,6 +761,15 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
    * beside a temple beside a barracks reads as three buildings and not three icons.
    */
   override createBuildingGlyph(building: LandBuildingType, x: number, y: number): Phaser.GameObjects.GameObject[] {
+    const generatedId = `building.improvement-${building === 'communalHall' ? 'communal-hall' : building}`;
+    const generated = conquestArtStamp(
+      this.scene as Phaser.Scene,
+      generatedId,
+      { left: -19, right: 19, top: -28, bottom: 6 },
+    );
+    if (generated) {
+      return [placeStamp(this.scene as Phaser.Scene, generated, x, y)];
+    }
     const g = (this.scene as Phaser.Scene).add.graphics();
     const seed = Math.round(x * 11 + y * 5);
     switch (building) {
@@ -787,7 +819,8 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     const container = scene.add.container(0, 0);
     // Stamped: the roads keep a dozen of these walking, and as live Graphics each was ~80 path
     // segments re-tessellated per frame for a figure that never changes shape.
-    const st = stamp(scene, 'world:traveler', { left: -10, right: 8, top: -14, bottom: 6 },
+    const box = { left: -10, right: 8, top: -14, bottom: 6 };
+    const st = conquestArtStamp(scene, 'life.traveler', box) ?? stamp(scene, 'world:traveler', box,
       (g, x, y, raster) => {
         farmer(g, x + -2 * raster, y + 4 * raster, GROUND_SCALE * raster, 4711);
       }, { raster: 'super', pool: 'world', pad: 2 });
@@ -798,10 +831,9 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
   /**
    * A xe trâu: the animal, the shafts it is yoked into, and the cart behind it.
    *
-   * Drawn facing left, which it now *declares* with `setNativeFacing`. It used to only say so in
-   * this comment, while `TrafficRenderer` flipped every mover as though it faced right — so the rig
-   * was pointed backwards on both legs of its round trip, pushing the cart on the way out and
-   * dragging it in reverse on the way home.
+   * The procedural drawing faces left, while the reviewed authored sprite faces right. The chosen
+   * stamp declares its own convention so both the generated path and the rollback path turn toward
+   * their direction of travel.
    *
    * The buffalo was small enough to be a smudge and floated a body-length ahead of the shafts with
    * nothing joining them; at this size the whole rig is about twelve pixels, so the one thing that
@@ -816,10 +848,12 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
   override createCart(): Phaser.GameObjects.Container {
     const scene = this.scene as Phaser.Scene;
     const container = scene.add.container(0, 0);
-    setNativeFacing(container, -1);
     // The rig is baked whole - animal, yoke, shafts, bed and wheel - because no part of it ever
     // moves relative to another; TrafficRenderer moves and flips the container exactly as before.
-    const st = stamp(scene, 'world:cart', { left: -14, right: 10, top: -14, bottom: 6 },
+    const box = { left: -14, right: 10, top: -14, bottom: 6 };
+    const authored = conquestArtStamp(scene, 'life.ox-cart', box);
+    setNativeFacing(container, authored ? 1 : -1);
+    const st = authored ?? stamp(scene, 'world:cart', box,
       (g, x, y, raster) => {
         g.translateCanvas(x, y);
         const s = GROUND_SCALE * raster;
@@ -893,6 +927,14 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
   override createDestinationArrow(): Phaser.GameObjects.Container {
     const scene = this.scene as Phaser.Scene;
     const container = scene.add.container(0, 0);
+    const generated = conquestArtStamp(scene, 'marker.destination-standard', {
+      left: -14, right: 14, top: -42, bottom: 7,
+    });
+    if (generated) {
+      container.add(placeStamp(scene, generated, 0, 0));
+      container.setScale(0.8);
+      return container;
+    }
     container.add(createPlayerLandFlag(scene, false, 3));
     container.setScale(0.8);
     return container;
@@ -993,21 +1035,28 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
    */
   private animateOrderGlyph(
     container: Phaser.GameObjects.Container,
-    mark: Phaser.GameObjects.Graphics,
+    mark: Phaser.GameObjects.Graphics | Phaser.GameObjects.Image,
     variant: ProgressBadgeVariant,
   ): void {
     const scene = this.scene as Phaser.Scene;
+    // Authored markers arrive with a small fitted scale (normally ~0.1). Tweening to an absolute
+    // `scale: 1.09` discarded that fit and expanded a 20 px battle seal back to its 180 px source
+    // size. Every scale animation is relative to the placed stamp's own scale. The glyph's world
+    // position is deliberately never animated: progress badges are map pins, not wandering life.
+    const base = mark instanceof Phaser.GameObjects.Image
+      ? (mark.getData(BASE_SCALE_KEY) as number | undefined) ?? mark.scaleY
+      : 1;
     const spec = variant === 'acquisition'
       // A cash coin hung on its string, turning edge-on and back.
-      ? { scaleX: 0.24, duration: 1500, ease: 'Sine.easeInOut' }
+      ? { scaleX: base * 0.30, duration: 1500, ease: 'Sine.easeInOut' }
       : variant === 'build'
-        // The hammer falls. `Back.easeIn` on the way down is the wind-up; the yoyo lifts it again.
-        ? { y: GLYPH_Y + 5, angle: 14, duration: 460, ease: 'Back.easeIn' }
+        // A hammer can tilt without leaving the land point it identifies.
+        ? { angle: 12, duration: 520, ease: 'Sine.easeInOut' }
         : variant === 'recruit'
           // The standard stirs. Small: a flag that swings reads as a windsock.
           ? { angle: 6, duration: 1100, ease: 'Sine.easeInOut' }
           // Both fights breathe, on the burst's own clock.
-          : { scale: 1.09, duration: 820, ease: 'Sine.easeInOut' };
+          : { scaleX: base * 1.06, scaleY: base * 1.06, duration: 820, ease: 'Sine.easeInOut' };
 
     const tween = scene.tweens.add({ targets: mark, yoyo: true, repeat: -1, ...spec });
     container.once(Phaser.GameObjects.Events.DESTROY, () => tween.remove());
@@ -1042,8 +1091,13 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // Drawn at its own origin and *placed*, rather than drawn at an offset. A glyph that carries
     // its own y cannot be tweened: rotating or bobbing it would swing it about the badge's centre
     // twenty-seven points below, which is a wheel and not a hammer falling.
-    const mark = scene.add.graphics().setPosition(0, GLYPH_Y);
-    this.orderGlyph(mark, variant, 0);
+    const generated = conquestArtStamp(scene, `marker.${variant}`, {
+      left: -12, right: 12, top: -12, bottom: 12,
+    });
+    const mark = generated
+      ? placeStamp(scene, generated, 0, GLYPH_Y)
+      : scene.add.graphics().setPosition(0, GLYPH_Y);
+    if (mark instanceof Phaser.GameObjects.Graphics) this.orderGlyph(mark, variant, 0);
     container.add(mark);
     this.animateOrderGlyph(container, mark, variant);
 

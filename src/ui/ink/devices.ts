@@ -1060,8 +1060,24 @@ export function armyShape(
     const full = Math.max(1, shares[key].full) || standingMarks;
     const aspect = tweak?.aspect ?? plan[key].aspect;
     const fullRows = Math.max(1, Math.round(Math.sqrt(full / aspect)));
-    const cols = Math.max(1, Math.ceil(full / fullRows));
-    const rows = Math.max(1, Math.ceil(standingMarks / cols));
+    let cols = Math.max(1, Math.ceil(full / fullRows));
+    let rows = Math.max(1, Math.ceil(standingMarks / cols));
+    // **A wedge is not `marks / cols` ranks deep.**
+    //
+    // `planArmy` lays a wedge out in ranks of one, two, three — so `n` marks need the triangular
+    // row count, not the rectangular one, and the point of the wedge stands further forward than
+    // `rows` accounts for. Everything derived from `rows` inherited the error: the block's `feet`
+    // (which decides paint order), its share of the shape's bounds, and above all its ground —
+    // measured on the map, the wedge's men stood **half a figure's width in front of their own
+    // shadow**, the one case in the whole formation table where a host was not standing on it.
+    if (tweak?.wedge) {
+      // Ranks of 1, 2, 3, … so `r(r + 1) / 2 >= n` — the same walk `planArmy` makes.
+      const wedgeRows = Math.max(1, Math.ceil((Math.sqrt(8 * standingMarks + 1) - 1) / 2));
+      rows = wedgeRows;
+      // The widest rank of a wedge holds `rows` men, and `planArmy` centres every rank on
+      // `(cols - 1) / 2` — so the files it actually occupies are the wider of the two.
+      cols = Math.max(cols, wedgeRows);
+    }
     const marks = standingMarks;
     // Centre-anchored: the offset places the middle of the block, and the files grow either side.
     const bx = slot.dx * pitch - ((cols - 1) * bp) / 2;
@@ -1201,6 +1217,29 @@ export function drawArmy(
 }
 
 /**
+ * **How much ground a rank of men covers beyond the men themselves.**
+ *
+ * All three are in figure units, so they hold at every drawing scale. A figure is 8.57 units wide
+ * at any `s`, which is what these were measured against (`_footfit` prints the overhang per block
+ * as a fraction of one figure).
+ *
+ * They used to be 9 / 6 / 1.1, and the depth was wrong twice over: 6 made the ellipse's half-depth
+ * three units — a third of a figure's width past the boots — and the 1.1 lead pushed all of that
+ * to the *front*, so a line's shadow reached 0.46 of a figure ahead of the front rank against 0.19
+ * behind the back one. On the map at `GROUND_SCALE` that is 3 px and invisible; at
+ * `BATTLE_HOST_SCALE` it is 8.5 px of grey apron laid in front of every rank on the field, which
+ * is what a player sees and calls a wrong shadow.
+ *
+ * Width is deliberately left alone: 9 units puts the ellipse's edge under the outermost man's own
+ * silhouette (a figure is drawn 8.57 wide), which is where the ground under a man ends.
+ */
+const FOOT_WIDTH = 9;
+/** Shallow, as a shadow at midday is: about a fifth of a figure past the front and back ranks. */
+const FOOT_DEPTH = 3.4;
+/** A hair forward, so the light reads as coming from behind the host rather than from nowhere. */
+const FOOT_LEAD = 0.35;
+
+/**
  * The ground a host stands on. Takes the **same `x, y` and `s` as the `drawHost` call it belongs
  * to** — one anchoring convention, because two is how the shadow drifted off the men twice.
  *
@@ -1244,8 +1283,8 @@ export function armyFootprint(g: G, x: number, y: number, shape: ArmyShape, s = 
     const spanX = (block.cols - 1) * block.pitch + (block.rows - 1) * block.shear;
     const spanY = (block.rows - 1) * block.rankPitch;
     g.fillEllipse(
-      x + block.x + spanX / 2, y + block.y + spanY / 2 + 1.1 * s,
-      spanX + 9 * s, spanY + 6 * s,
+      x + block.x + spanX / 2, y + block.y + spanY / 2 + FOOT_LEAD * s,
+      spanX + FOOT_WIDTH * s, spanY + FOOT_DEPTH * s,
     );
   }
 }

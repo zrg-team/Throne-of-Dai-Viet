@@ -133,7 +133,7 @@ export const AMBITION_DECAY_PER_WAVE = 0.45;
  * and the ratio fell rather than rose. Ambition is a price on growth; it has to be re-priced when
  * the amount of growth available changes.
  */
-export const AMBITION_PRESSURE_PER_POINT = 0.03;
+export const AMBITION_PRESSURE_PER_POINT = 0.015;
 /**
  * Ceiling on the multiplier, so a player who spends everything at once faces a monster rather
  * than an instant loss — the run has to stay recoverable enough to be worth finishing.
@@ -166,6 +166,77 @@ export const WAVE_BASELINE_POWER = 420;
  * low twenties. Doing nothing is now a losing strategy that takes a while to lose.
  */
 export const WAVE_BASELINE_GROWTH = 1.11;
+
+// ── The opening: the first war a player ever sees ────────────────────────────
+/**
+ * Waves that get the realm's benefit of the doubt.
+ *
+ * The mode's pressure machinery is built for a run in flight — a wave metronome, an enemy command
+ * director that marches on its own draws, courts that pile onto a war going badly, an opportunist
+ * that punishes an empty seat. All of it is correct at wave six and all of it lands *at once* at
+ * wave one, when the player has a single host of 460 men and has not yet been shown what a battle
+ * even looks like. Measured over three seeded runs before this: the first three waves put five to
+ * nine hosts on the map, peaking at four hosts from two crowns during **wave one**, and of the
+ * sixteen engagements they produced only six were fought on the field — the other ten were
+ * decided by a hidden roll the player never saw.
+ *
+ * Two waves, not more. The grace is there to teach the shape of a fight, not to make the opening
+ * safe: by wave three every director is back on.
+ */
+/**
+ * Share of a province's militia capacity that a newly-taken province arrives holding.
+ *
+ * See `detectConquests` for why this exists: without it, ground taken was soft for the two waves
+ * it takes `growProvincialMilitia` to raise a watch, and the realm gained and lost provinces at
+ * the same rate for a whole run. 0.45 is a garrison that can turn back an ordinary raid and lose
+ * to a wave that is answered properly — not a fortress, which is what Đồn điền is for.
+ */
+// ── The world you do not take ────────────────────────────────────────────────
+/**
+ * Ticks between one rival crown settling a neutral district.
+ *
+ * Ascent's rivals hold **no ground at all** — the mode builds from `createEmpireGameState`, where
+ * they are off-map Great Powers — so the map outside the player's realm is a permanent vacuum that
+ * nobody competes for. That is the deepest reason refusing to play works: every danger in the mode
+ * is sized off what the player *holds*, so holding nothing is safe. Measured over twelve tuning
+ * attempts, a realm that declined every offer outlived one that took every offer in all of them,
+ * and with the defence mirror removed it ran 103 waves against 84.
+ *
+ * A turtle needs a threat that is not its own reflection. Rivals now take the ground the player
+ * leaves, and the ground they hold is what the wave is measured against — so sitting still is no
+ * longer a way of staying small, it is a way of letting the world get large.
+ */
+export const RIVAL_CLAIM_INTERVAL_TICKS = 5;
+/**
+ * How hard the wave answers the share of the settled map the rivals hold. Asymmetric by
+ * construction: every province the player takes is one the rivals do not, so expanding moves this
+ * term down. See `rivalMapShare` for why a share beats a count here.
+ */
+export const RIVAL_LAND_PRESSURE = 0.8;
+/** Rivals never take more of the map than this, so there is always ground left to contest and to stage on. */
+export const RIVAL_CLAIM_MAX_SHARE = 0.55;
+
+export const CONQUEST_GARRISON_SHARE = 0.45;
+
+export const EARLY_WAVE_GRACE = 2;
+/**
+ * What an opening wave may weigh, as a share of the field army the player can actually march.
+ *
+ * The wave curve's own denominator is `contestedDefencePower`, which is right for *odds* — a host
+ * really does have to pass walls and reinforcements — but the opening board's contested defence is
+ * three-quarters capital masonry, so `waveMatchFactor` pinned at its 1.7 cap on the first tick and
+ * the first wave arrived at ~900 power against 460 field soldiers. Under two-thirds of the field
+ * army the first wave is a fight the realm's one host can win by being commanded well, which is
+ * the only thing wave one has to teach.
+ *
+ * **A ramp, not a cliff.** Two entries were tried first, matching `EARLY_WAVE_GRACE`, and the
+ * result was worse than the problem: waves 1 and 2 landed at ~410 men and wave 3 at **2,970**,
+ * because the curve had been suppressed rather than slowed and the whole of it arrived at once.
+ * Five entries climbing past 1 hand the run back to its own arithmetic over about a minute of
+ * play. Each is a `min` against the real curve, so this only ever *reduces* — a realm that has
+ * outgrown the ramp never notices it, and the ramp lapses entirely after the last entry.
+ */
+export const EARLY_WAVE_FIELD_SHARE = [0.62, 0.85, 1.15, 1.5, 1.9];
 
 // ── The realm's shadow: the wave never falls far behind what it attacks ──────
 //

@@ -49,3 +49,7 @@ credentials.json
 
 # The promo film's output — frames and cuts are large and rebuildable (scripts/promo).
 scripts/promo/out/
+
+# Python bytecode from the art tooling in scripts/conquest-art.
+__pycache__/
+*.pyc

@@ -36,6 +36,21 @@ window.__ptOptions = (forState) => {
     case 'parliament': return (st.politicsDeck.find((c) => c.id === p.cardId)?.choices ?? []).map((c) => c.id);
     case 'envoy': case 'famine': case 'rival-demand': return p.options.filter((o) => o.affordable).map((o) => o.id);
     case 'empire-response': return p.options.map((o) => o.id);
+    // **The kinds below fell through to ['ok'], which nothing accepts.**
+    //
+    // Same defect the game-harness notes record for describeAscentPromptOptions and famine
+    // ("561 times in six minutes"), in a second file and on a card that decides the run.
+    // muster-proposal is the only way a realm raises a host — autoRecruit proposes rather
+    // than mustering unless autoMusterSilently is set, and AscentResolver increments
+    // autopilotStats.recruits only on 'accept'. So every playtest driver has been declining
+    // every muster since the card existed, and every measured run was of a realm that never
+    // fields an army: ourMen reads 0 from wave 4 onward, hosts at end 0, recruits 0 across
+    // every seed. The agency dimension in particular was scoring a driver that could not play.
+    case 'muster-proposal': return ['accept', 'adjust', 'decline'];
+    case 'mandate': return p.options;
+    case 'decree-offer': return [...p.projectIds, 'decline'];
+    case 'story-beat': return p.options.filter((o) => o.affordable).map((o) => o.id);
+    case 'world-event': return p.options.filter((o) => o.affordable).map((o) => o.id);
     default: return ['ok'];
   }
 };
@@ -57,9 +72,7 @@ export const DECLINE = {
 
 /** Boots a headless Dragon Ascent run on a fixed seed, inside the page. */
 export const ENGINE_BOOT = `
-window.__ptBoot = async (seed) => {
-  const { createAscentGameState } = await import('/src/state/GameState.ts');
-  const original = Math.random;
+window.__ptSeedRandom = (seed) => {
   let g = (seed >>> 0) || 1;
   Math.random = () => {
     g |= 0; g = (g + 0x6d2b79f5) | 0;
@@ -67,8 +80,28 @@ window.__ptBoot = async (seed) => {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-  try { return createAscentGameState({ seaSides: 1, difficulty: 'normal' }); }
-  finally { Math.random = original; }
+};
+
+/**
+ * Builds a seeded run **and leaves the seed installed**.
+ *
+ * It used to restore Math.random in a finally, so only world *generation* was deterministic and
+ * the six hundred ticks that follow ran on the browser's real RNG. Gameplay calls bare
+ * Math.random() in scores of places, so every invocation was a different run and the score this
+ * file exists to produce was not reproducible: measured, three identical --seeds 16 invocations
+ * returned agency ratios of 0.95, 1.08 and 1.21 and objective scores of 47.9, 49.7 and 57.6. A
+ * balance change cannot be judged against a number that moves nine points on its own, and every
+ * conclusion drawn from this harness -- including "engaged barely beats declining" -- was drawn
+ * from noise.
+ *
+ * The caller owns the restore; __ptRestoreRandom puts the browser's own back.
+ */
+const __ptRealRandom = Math.random;
+window.__ptRestoreRandom = () => { Math.random = __ptRealRandom; };
+window.__ptBoot = async (seed) => {
+  const { createAscentGameState } = await import('/src/state/GameState.ts');
+  window.__ptSeedRandom(seed);
+  return createAscentGameState({ seaSides: 1, difficulty: 'normal' });
 };
 `;
 

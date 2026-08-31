@@ -29,7 +29,11 @@ const host = await page.evaluate(async () => {
   await new Promise((d) => setTimeout(d, 1600));
   const st = window.__mandateState ?? state;
   st.pendingAscentPrompt = undefined;
-  st.isPaused = true; st.isStrategyPause = true;
+  // **The clock stays running.** This used to stop the world to keep a card prompt off the shot,
+  // and got a marching column anyway because the march tween ignored the pause — which was itself
+  // the bug (`ArmyRenderer.setPaused`). A stopped world now stops its hosts, so a paused run
+  // photographs a column standing still. The prompt is cleared on every poll instead.
+  st.isPaused = false; st.isStrategyPause = false;
   game.scene.getScene('ConquestUIScene').refresh();
   await new Promise((d) => setTimeout(d, 400));
   return st.armies.find((a) => a.kingdomId === 'dai-viet' && !a.isLevy).id;
@@ -37,7 +41,9 @@ const host = await page.evaluate(async () => {
 
 const where = () => page.evaluate(({ id }) => {
   const game = window.__phaserGame;
-  window.__mandateState.pendingAscentPrompt = undefined;
+  const st = window.__mandateState;
+  st.pendingAscentPrompt = undefined;
+  st.isPaused = false; st.isStrategyPause = false;
   const map = game.scene.getScene('ConquestScene');
   const m = map.armies.markers.get(id);
   if (!m) return null;

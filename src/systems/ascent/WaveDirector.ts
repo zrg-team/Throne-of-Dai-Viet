@@ -1,5 +1,5 @@
 import { isVassal } from './VassalSystem';
-import { PLAYER_KINGDOM_ID } from '../../game/constants';
+import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   BOSS_EVERY_N_WAVES,
   BOSS_PRESSURE_MULT,
@@ -7,6 +7,9 @@ import {
   BOSS_TELEGRAPH_TICKS,
   INVADER_POWER_PER_SOLDIER,
   MAX_HOSTS_PER_KINGDOM,
+  EARLY_WAVE_FIELD_SHARE,
+  EARLY_WAVE_GRACE,
+  RIVAL_LAND_PRESSURE,
   MAX_LIVE_INVADER_HOSTS,
   MIN_WAVE_SOLDIERS,
   PEACE_FLOOR_EARLY,
@@ -59,7 +62,7 @@ import {
 } from './AmbitionSystem';
 import { waveDelayTicks, warPurchaseDiscount } from './DoctrineSystem';
 import {
-  addAscentXp, computeFieldDefencePower, contestedDefencePower, ownedLandCount,
+  addAscentXp, computeFieldDefencePower, contestedDefencePower, ownedLandCount, waveFacingDefencePower,
 } from './PowerSystem';
 import { heroName, t } from '../../i18n';
 import type {
@@ -258,7 +261,21 @@ export function waveTargetPower(
   // ratio is about 3.9, so the factor pinned to its `cap: 1.7` on the first tick and stayed
   // there for the whole run. The `threshold: 1.15` grace, which exists so a small lead is free,
   // never engaged once — every wave in every run was quoted 70% larger than the curve intended.
-  const curve = target * waveMatchFactor(contestedDefencePower(state), target);
+  // `waveFacingDefencePower`, not `contestedDefencePower`: what a host has to get through,
+  // not what the realm is worth. See the note on that function — the difference is a term that
+  // grows with province count, and it was the only part of the curve that punished expanding.
+  const curve = target * waveMatchFactor(waveFacingDefencePower(state), target)
+    /**
+     * ...and the world the player left to the rivals.
+     *
+     * Every other term here is measured off what the player *holds*, which is why holding nothing
+     * was the strongest line in the mode: twelve tuning attempts could not make engaging beat
+     * refusing, and removing the mirror only made refusing better still (103 waves against 84).
+     * This term runs the other way. Rivals now settle the neutral map (`tickRivalExpansion`), and
+     * every district they end up holding is a district the player did not take — so a realm that
+     * sits still does not stay small, it faces a world that grew instead of it.
+     */
+    * (1 + rivalMapShare(state) * RIVAL_LAND_PRESSURE);
 
   // The realm's shadow (see the WAVE_SHADOW_* block in ascentConfig): the curve above still
   // owns the floor for a realm that has done nothing, but a compounding economy laps any
@@ -284,7 +301,64 @@ export function waveTargetPower(
   // capped, because a mirror that outgrows the thing it reflects was never a mirror.
   const ceiling = Math.max(target, computeFieldDefencePower(state) * WAVE_FIELD_CEILING);
 
-  return Math.min(Math.max(curve, shadow), Math.max(curve, ceiling));
+  const sized = Math.min(Math.max(curve, shadow), Math.max(curve, ceiling));
+
+  /**
+   * The opening is sized against the army, not against the realm.
+   *
+   * Everything above is the right arithmetic for a run in flight and the wrong one for wave one.
+   * `contestedDefencePower` at the opening board is mostly the capital's masonry, so
+   * `waveMatchFactor` sits on its 1.7 cap from the first tick and the first host the player ever
+   * meets is quoted ~900 power against a field army of 460 men — before they have been shown what
+   * commanding a battle does. Measured across three seeded runs, wave 1 landed 864 to 993 men.
+   *
+   * For `EARLY_WAVE_GRACE` waves the wave may not outweigh a share of what the realm can actually
+   * march. Floored at half the baseline so it is still a war and not a formality, and only ever a
+   * *reduction* — a realm that has already lost its host does not get a smaller wave than the
+   * calendar's own floor, or losing the opening would be the way to make the opening easier.
+   */
+  // The sizing ramp runs longer than the spawner grace: `EARLY_WAVE_GRACE` decides who may
+  // pile on and what opens on screen, this decides how heavy the wave is, and the second has to
+  // hand back gradually or wave three is a wall.
+  if (wave >= 1 && wave <= EARLY_WAVE_FIELD_SHARE.length) {
+    // **Marchable power, not `computeFieldDefencePower`.** That helper adds the capital's garrison
+    // to the field hosts, and at the opening board the seat is ~1,000 of a ~1,650 total — so
+    // capping against it quoted wave 2 at 1,433 men, *larger* than the 1,364 it replaced. The
+    // question this cap is asking is "what can the player put in front of it", and walls do not
+    // march.
+    const marchable = state.armies.reduce((sum, army) => (
+      army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && !army.patron
+        ? sum + armyPower(state, army)
+        : sum
+    ), 0);
+    const share = EARLY_WAVE_FIELD_SHARE[Math.min(EARLY_WAVE_FIELD_SHARE.length - 1, wave - 1)];
+    if (marchable > 0) {
+      return Math.max(WAVE_BASELINE_POWER * 0.5, Math.min(sized, marchable * share));
+    }
+  }
+
+  return sized;
+}
+
+/**
+ * How much of the settled map belongs to somebody else — a share, not a count.
+ *
+ * The count was tried first and is not asymmetric enough to matter: rivals reach
+ * `RIVAL_CLAIM_MAX_SHARE` whether or not the player expands, so both lines paid nearly the same
+ * surcharge and the whole mode simply got harder (measured, engaged fell 37.1 waves to 31.7 for a
+ * ratio gain of 0.15). As a share of settled ground, taking a province moves the term *down* —
+ * which is the point. A realm holding one district beside twenty rival ones reads 0.95; one
+ * holding twelve reads 0.62, and that gap is the reward for having gone out and contested it.
+ */
+function rivalMapShare(state: GameState): number {
+  let rival = 0;
+  let mine = 0;
+  for (const land of state.lands) {
+    if (land.ownerId === PLAYER_KINGDOM_ID) mine += 1;
+    else if (land.ownerId !== NEUTRAL_OWNER_ID) rival += 1;
+  }
+  const settled = rival + mine;
+  return settled > 0 ? rival / settled : 0;
 }
 
 /** The multiplier the wave on the map was sized with, for everything that must match its quote. */

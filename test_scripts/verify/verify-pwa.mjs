@@ -16,7 +16,7 @@
  * three-way race between `updatefound`, `statechange` and `controllerchange`, which is the only
  * part of this that is hard.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 
 const BASE = process.env.PREVIEW_URL ?? 'http://127.0.0.1:4173/ten-thousand-victories/';
@@ -43,7 +43,13 @@ const has = (pattern) => precached.filter((url) => pattern.test(url)).length;
 check('the shell is precached', has(/index\.html$/) === 1 && has(/\/$/) >= 1);
 check('the bundle is precached', has(/assets\/.*\.js$/) === 1, `${has(/assets\//)} asset files`);
 check('every font is precached', has(/fonts\/.*\.woff2$/) === 15, `${has(/fonts\/.*\.woff2$/)} of 15`);
-check('every portrait part is precached', has(/faces\/.*\.svg$/) === 267, `${has(/faces\/.*\.svg$/)} of 267`);
+const portraitCount = readdirSync('dist/faces', { recursive: true, withFileTypes: true })
+  .filter((entry) => entry.isFile() && entry.name.endsWith('.svg')).length;
+check(
+  'every portrait part is precached',
+  has(/faces\/.*\.svg$/) === portraitCount,
+  `${has(/faces\/.*\.svg$/)} of ${portraitCount}`,
+);
 check('the manifest is precached', has(/manifest\.webmanifest$/) === 1);
 check('the worker does not cache itself', has(/sw\.js$/) === 0);
 

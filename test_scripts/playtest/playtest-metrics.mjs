@@ -53,6 +53,8 @@ const raw = await page.evaluate(async ({ seeds, ticks, decline }) => {
    */
   const play = async (seed, policy) => {
     const state = await window.__ptBoot(seed);
+    // The seed stays installed for the whole run, not just world generation — see `__ptBoot`.
+    // Restored below so one policy's run cannot inherit the previous one's stream.
     let rnd = ((seed * 2654435761) >>> 0) || 1;
     const random = () => { rnd = (rnd * 1103515245 + 12345) & 0x7fffffff; return rnd / 0x7fffffff; };
 
@@ -127,6 +129,7 @@ const raw = await page.evaluate(async ({ seeds, ticks, decline }) => {
     const gaps = [];
     for (let i = 1; i < moments.length; i += 1) gaps.push(moments[i] - moments[i - 1]);
 
+    window.__ptRestoreRandom();
     return {
       seed,
       waves: state.ascent.wavesSurvived,

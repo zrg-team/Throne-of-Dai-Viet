@@ -212,20 +212,44 @@ export function enqueueAscentPrompt(state: GameState, prompt: AscentPrompt): voi
 }
 
 /**
- * True when a muster card names a champion the world has since given something else to do.
+ * A muster card the world has answered for itself: there is nobody left for it to name.
  *
- * Only the muster so far, and it is the one that matters: the plan names a *free* commander,
- * chosen when the card was queued, but the card is answered later — and by then that champion may
- * already be at the head of a host or mid-muster with another. Reading it is a question the game
- * has no business asking; answering it was worse, because `raiseHostWithPlan` releases the
- * commander, so accepting quietly took the general off the host he was already leading.
+ * The plan names a free commander chosen when the card was queued, and the card is answered some
+ * seasons later. By then that champion may already be at the head of a host. Reading it is a
+ * question the game has no business asking, and answering it was worse — `raiseHostWithPlan`
+ * releases the commander, so accepting quietly took the general off the host he was leading.
+ *
+ * Dead, not merely early: there is no later moment at which this card becomes answerable, so it
+ * is dropped.
  */
-function musterCommanderBusy(state: GameState, prompt: AscentPrompt): boolean {
+function musterCardDead(state: GameState, prompt: AscentPrompt): boolean {
   if (prompt.kind !== 'muster-proposal') return false;
   const hero = state.heroes.find((candidate) => candidate.id === prompt.heroId);
-  return !hero
-    || state.armies.some((army) => army.generalHeroId === hero.id)
-    || state.recruitmentOrders.some((order) => order.heroId === hero.id);
+  return !hero || state.armies.some((army) => army.generalHeroId === hero.id);
+}
+
+/**
+ * A muster card that is merely *early*: the recruiting yard is busy this season.
+ *
+ * `autoRecruit` will not propose while any province is recruiting, but nothing re-checked it
+ * afterwards — and the player raising a host by hand from the Army lane is the ordinary thing to
+ * do while a card waits its turn in the queue. So the card arrived asking to raise an army on the
+ * season the yard was already full: the reported *"the Lập quân popup shows up even when an army
+ * is being gathered"*.
+ *
+ * **Held, not dropped, and that distinction is the whole of it.** Dropping was tried first and it
+ * silently switched the autopilot off: measured on `verify-ascent`'s long run, autopilot recruits
+ * went 1 → 0 and the realm finished with **no hosts at all**, because a proposal thrown away is a
+ * proposal that has to be re-earned through `musterDeclinedUntil`, the court gap and the priority
+ * queue. Held, the question survives its own bad timing and is asked the season the yard frees up.
+ *
+ * Deliberately *not* "the realm already has a host". A standing army with a bigger enemy in front
+ * of it is exactly when a second muster is worth asking about; what is never worth asking is one
+ * the realm cannot act on this season.
+ */
+function musterCardEarly(state: GameState, prompt: AscentPrompt): boolean {
+  if (prompt.kind !== 'muster-proposal') return false;
+  return state.recruitmentOrders.length > 0;
 }
 
 /**
@@ -245,8 +269,14 @@ export function drainAscentPrompts(state: GameState): void {
   // two, because the card holds the run until it is answered. The player then reads "the king asks
   // to raise a host" about a king standing with his army.
   if (state.pendingAscentPrompt) {
-    if (musterCommanderBusy(state, state.pendingAscentPrompt)) {
+    const up = state.pendingAscentPrompt;
+    if (musterCardDead(state, up)) {
       state.pendingAscentPrompt = undefined;
+    } else if (musterCardEarly(state, up)) {
+      // Off the screen, back into the queue: a muster begun while this card stood is not a reason
+      // to lose the question, only a reason to stop asking it this season.
+      state.pendingAscentPrompt = undefined;
+      ascent.promptQueue.push(up);
     } else {
       state.isPaused = true;
       return;
@@ -259,16 +289,16 @@ export function drainAscentPrompts(state: GameState): void {
   }
 
   ascent.promptQueue.sort((a, b) => PROMPT_PRIORITY[a.kind] - PROMPT_PRIORITY[b.kind]);
-  // A card is dropped if the world has already answered it.
-  while (ascent.promptQueue.length > 0) {
-    if (!musterCommanderBusy(state, ascent.promptQueue[0])) break;
-    ascent.promptQueue.shift();
-  }
-  if (ascent.promptQueue.length === 0) {
+  // Dead cards leave; early ones stay where they are and are stepped over.
+  const deadDropped = ascent.promptQueue.filter((queued) => !musterCardDead(state, queued));
+  ascent.promptQueue.length = 0;
+  ascent.promptQueue.push(...deadDropped);
+  const nextIndex = ascent.promptQueue.findIndex((queued) => !musterCardEarly(state, queued));
+  if (nextIndex < 0) {
     state.isPaused = false;
     return;
   }
-  state.pendingAscentPrompt = ascent.promptQueue.shift();
+  state.pendingAscentPrompt = ascent.promptQueue.splice(nextIndex, 1)[0];
   state.isPaused = true;
   // Stamped here rather than in the decision director, because this is the one place *every*
   // prompt passes through. Stamping it only where the director raises one lets a wave response
