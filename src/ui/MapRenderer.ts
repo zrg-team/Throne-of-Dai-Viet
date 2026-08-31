@@ -47,7 +47,7 @@ export interface LandscapeContext {
    * These are the ones that do not: farms, mines and plain villages, which render through
    * `addResourceCluster` on ordinary ground and had trees planted straight through their roofs.
    */
-  settlementAnchors: PixelPoint[];
+  settlementAnchors: Array<PixelPoint & { r?: number }>;
 }
 
 export interface MapRenderer {
@@ -118,6 +118,23 @@ export interface MapRenderer {
     loops: Array<Array<{ x: number; y: number }>>,
     isPlayer: boolean,
     isNeutral: boolean,
+  ): void;
+
+  /**
+   * A land's frontier as the closed loops it actually is, rather than as a pile of loose edges.
+   *
+   * Offered because a theme that draws with a *wobble* cannot draw a contour edge by edge. Each
+   * `inkPath` call jitters its own first vertex and leaves its last one exactly on the corner, so
+   * two edges meeting at a hex corner start and finish up to two wobble amplitudes apart: at the
+   * Đông Hồ renderer's 5.5 that is an 11-unit step at every one of a province's corners, and the
+   * frontier reads as a scatter of disconnected sticks around the town rather than as a border.
+   * Given the loop, the wobble runs continuously and the corners close.
+   */
+  drawZoneContour?(
+    graphics: Phaser.GameObjects.Graphics,
+    loops: Array<Array<{ x: number; y: number }>>,
+    color: number,
+    alpha?: number,
   ): void;
 
   /**

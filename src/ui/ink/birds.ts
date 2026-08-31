@@ -30,6 +30,7 @@ import Phaser from 'phaser';
 import { PIGMENT } from './palette';
 import { inkPath, mulberry32, washFill, type Pt } from './stroke';
 import { bakeProp, type BakedProp } from './sprites';
+import { conquestArtStamp } from '../conquestMapArt';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -157,7 +158,9 @@ export function bakeLacBirds(scene: Phaser.Scene): Record<WingBeat, BakedProp> {
   // the upstroke's wing tip above.
   const box = { left: -S * 1.5, right: S * 1.3, top: -S * 1.0, bottom: S * 0.75 };
   return {
-    down: bakeProp(scene, 'lac:down', box, (g, x, y, raster) => lacBird(g, x, y, S * raster, 913, 'down')),
-    up: bakeProp(scene, 'lac:up', box, (g, x, y, raster) => lacBird(g, x, y, S * raster, 913, 'up')),
+    down: conquestArtStamp(scene, 'life.egret-down', box)
+      ?? bakeProp(scene, 'lac:down', box, (g, x, y, raster) => lacBird(g, x, y, S * raster, 913, 'down')),
+    up: conquestArtStamp(scene, 'life.egret-up', box)
+      ?? bakeProp(scene, 'lac:up', box, (g, x, y, raster) => lacBird(g, x, y, S * raster, 913, 'up')),
   };
 }

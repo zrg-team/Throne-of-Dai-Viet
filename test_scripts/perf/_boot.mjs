@@ -78,7 +78,7 @@ export async function startWorld(page, { mode = 'rival', seed = 1337, settle = 8
   const worldScene = mode === 'ascent' ? 'ConquestScene' : 'MapScene';
   await page.evaluate(([s, m]) => window.__startBenchGame(s, m), [seed, mode]);
   await page.waitForFunction(
-    (scene) => window.__phaserGame.scene.isActive(scene) && !!window.__mandateState,
+    (scene) => window.__phaserGame?.scene?.isActive(scene) === true && !!window.__mandateState,
     worldScene, { timeout: 40000 },
   );
   if (settle > 0) await page.waitForTimeout(settle);

@@ -10,9 +10,13 @@ import {
   type ReliefPlan,
 } from './ink/props';
 import { drawFieldPlot, paddyLattice } from './ink/settlements';
-import { worldScale } from './ink/proportion';
-import { groundCast, mixPigment, seasonPalette } from './ink/season';
+import { groundDepth, unitScale, worldScale } from './ink/proportion';
+import { getFoliageSeason, groundCast, mixPigment, seasonalStage, seasonPalette } from './ink/season';
 import { scatterDensity } from '../game/graphicsQuality';
+import {
+  conquestArtStamp, conquestKarstArtId, conquestTreeArtId, hasConquestMapArt,
+} from './conquestMapArt';
+import { placeStamp } from './ink/stamp';
 
 /**
  * Đông Hồ landscape rendering — the whole map drawn in one pass instead of tile by tile.
@@ -135,6 +139,73 @@ interface ScatterItem {
 /** Width of one relief lookup bucket, in world pixels. About two tiles. */
 const RELIEF_BUCKET = 64;
 
+/** A karst is a terrain landmark, not a house-sized prop. Values are in map tile radii. */
+export const KARST_SCALE = Object.freeze({
+  baseHeight: 2.55,
+  depthHeight: 0.46,
+  minimumPlateAspect: 1.55,
+});
+
+const PADDY_SYSTEM_STATES = ['flooded', 'fallow', 'transplanted', 'ripe', 'nursery'] as const;
+type PaddySystemState = (typeof PADDY_SYSTEM_STATES)[number];
+
+interface PaddySystemCell {
+  x: number;
+  y: number;
+  q: number;
+  r: number;
+}
+
+export interface PaddySystemPlan {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  seed: number;
+  stage: number;
+}
+
+/**
+ * Thins paddy cells into field *systems*, preferring well-supported interior cells.
+ *
+ * One ImageGen compound already contains ten joined parcels. Stamping it once per old procedural
+ * plot turns it straight back into hundreds of disconnected cards, so the grouping and its scale
+ * are part of the art contract rather than a renderer afterthought.
+ */
+export function planPaddySystems(cells: readonly PaddySystemCell[], tileSize: number): PaddySystemPlan[] {
+  const occupied = new Set(cells.map((cell) => `${cell.q},${cell.r}`));
+  const neighbours = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]] as const;
+  const candidates = cells.map((cell) => {
+    const support = neighbours.reduce(
+      (count, [dq, dr]) => count + Number(occupied.has(`${cell.q + dq},${cell.r + dr}`)),
+      0,
+    );
+    const seed = ((Math.imul(cell.q, 73856093) ^ Math.imul(cell.r, 19349663)) >>> 0);
+    return { ...cell, support, seed };
+  }).sort((a, b) => b.support - a.support || a.seed - b.seed);
+
+  const plans: PaddySystemPlan[] = [];
+  const spacing = tileSize * 2.65;
+  for (const candidate of candidates) {
+    if (plans.some((plan) => (plan.x - candidate.x) ** 2 + (plan.y - candidate.y) ** 2 < spacing ** 2)) {
+      continue;
+    }
+    const widthTiles = candidate.support >= 5 ? 2.9
+      : candidate.support >= 3 ? 2.45
+        : candidate.support >= 1 ? 1.9 : 1.5;
+    const width = tileSize * widthTiles;
+    plans.push({
+      x: candidate.x,
+      y: candidate.y,
+      width,
+      height: width * 0.5,
+      seed: candidate.seed,
+      stage: (candidate.seed % 1009) / 1009,
+    });
+  }
+  return plans.sort((a, b) => a.y - b.y || a.x - b.x);
+}
+
 /** One visible cell, kept so the seasonal ground cast can be re-laid without re-walking the map. */
 interface GroundCell {
   x: number;
@@ -142,16 +213,26 @@ interface GroundCell {
   terrain: HexTerrainType;
 }
 
+interface PlannedRelief extends ReliefPlan {
+  artId: string;
+}
+
 export class DongHoMapRenderer implements MapRenderer {
   /** Where every scattered prop stands, kept so a season change can repaint without replanting. */
   private scatterPlan?: ScatterItem[];
   /** Where every massif and ridge stands. Sorted in with the props, not under them. */
-  private reliefPlan?: ReliefPlan[];
+  private reliefPlan?: PlannedRelief[];
   /** The same ranges bucketed by x, for the occlusion question live objects have to ask. */
-  private readonly reliefIndex = new Map<number, ReliefPlan[]>();
+  private readonly reliefIndex = new Map<number, PlannedRelief[]>();
+  /** Relief plans whose authored texture was unavailable when the landscape plan was built. */
+  private readonly proceduralRelief = new Set<PlannedRelief>();
   /** The cells the cast is laid on, in draw order. Same lifetime as the plan. */
   private groundPlan?: GroundCell[];
   private scatterTileSize = 0;
+  /** Authored scatter is scene-level so it can retain alpha and be flattened by the existing bake. */
+  private generatedDecoration: Phaser.GameObjects.Image[] = [];
+  /** Low-alpha authored texture plates under the procedural coast and bund geometry. */
+  private generatedTerrain: Phaser.GameObjects.Image[] = [];
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -170,6 +251,8 @@ export class DongHoMapRenderer implements MapRenderer {
     if (visible.length === 0) {
       return;
     }
+    for (const image of this.generatedTerrain) image.destroy();
+    this.generatedTerrain = [];
 
     // Flat ground only, in the terrain layer: tone, water, and the paddy, which IS the ground.
     //
@@ -219,6 +302,8 @@ export class DongHoMapRenderer implements MapRenderer {
    * sit without washing over the roofs and the water like the full-screen filter this replaced.
    */
   private paintDecoration(decoration: Phaser.GameObjects.Graphics): void {
+    for (const image of this.generatedDecoration) image.destroy();
+    this.generatedDecoration = [];
     decoration.clear();
     const size = this.scatterTileSize;
     for (const cell of this.groundPlan ?? []) {
@@ -260,14 +345,62 @@ export class DongHoMapRenderer implements MapRenderer {
     let next = 0;
     for (const plan of relief) {
       while (next < props.length && props[next].y <= plan.footY) {
-        this.drawProp(decoration, props[next], unit);
+        if (!this.drawAuthoredProp(props[next], unit)) this.drawProp(decoration, props[next], unit);
         next += 1;
       }
-      plan.draw(decoration);
+      if (!this.drawAuthoredRelief(plan)) plan.draw(decoration);
     }
     for (; next < props.length; next += 1) {
-      this.drawProp(decoration, props[next], unit);
+      if (!this.drawAuthoredProp(props[next], unit)) this.drawProp(decoration, props[next], unit);
     }
+  }
+
+  private drawAuthoredRelief(plan: PlannedRelief): boolean {
+    const width = Math.max(12, plan.bounds.x1 - plan.bounds.x0);
+    const height = Math.max(8, plan.bounds.footY - plan.bounds.topY);
+    const stamp = conquestArtStamp(this.scene, plan.artId, {
+      left: -width / 2, right: width / 2, top: -height, bottom: 0,
+    });
+    if (!stamp) return false;
+    const image = placeStamp(
+      this.scene,
+      stamp,
+      (plan.bounds.x0 + plan.bounds.x1) / 2,
+      plan.footY,
+    ).setDepth(groundDepth(plan.footY))
+      .setData('conquestReliefArt', plan.artId)
+      // A massif sorts against the towns as well as against the trees — see `groundDepth`. The
+      // flag is what keeps it live alongside them on a tier that does not bake settlement ink.
+      .setData('conquestGroundOrder', 'relief');
+    this.generatedDecoration.push(image);
+    return true;
+  }
+
+  /** Keeps the old scatter plan and foot sorting; only the final mark changes from paths to PNG. */
+  private drawAuthoredProp(item: ScatterItem, unit: number): boolean {
+    // Authored relief is a scene-level Image too, so its foot-line depth interleaves correctly with
+    // authored plants: a tree behind a PNG massif is baked first and the massif covers it. Only a
+    // genuinely missing/corrupt relief texture still draws into the shared procedural Graphics;
+    // an authored Image cannot sit behind that one indivisible buffer, so retain the old mark for
+    // that exceptional fallback instead of mixing procedural trees into the normal authored map.
+    if (this.isBehindProceduralRelief(item.x, item.y)) return false;
+    const season = getFoliageSeason().toLowerCase();
+    const id = item.kind === 'farmer'
+      ? 'life.farmer'
+      : item.kind === 'tree'
+        ? conquestTreeArtId(season as 'spring' | 'summer' | 'autumn' | 'winter', item.seed)
+        : `flora.${item.kind === 'tuft' ? 'grass' : item.kind}.${season}`;
+    const stamp = conquestArtStamp(this.scene, id);
+    if (!stamp) return false;
+    const scaleKind = item.kind === 'tuft' ? 'grassTuft' : item.kind;
+    void unitScale(scaleKind, item.scale * unit);
+    const image = placeStamp(this.scene, stamp, item.x, item.y, item.scale * unit)
+      .setDepth(groundDepth(item.y))
+      .setAlpha(0.96)
+      .setFlipX((item.seed & 1) === 1)
+      .setData('conquestScatterArt', id);
+    this.generatedDecoration.push(image);
+    return true;
   }
 
   /**
@@ -363,8 +496,8 @@ export class DongHoMapRenderer implements MapRenderer {
    * Resolves geometry only, and hands back the ranges sorted by their foot line, so they can be
    * merged into the same far-to-near order as the props — see `drawStanding`.
    */
-  private planRanges(tiles: LandscapeContext['tiles'], ctx: LandscapeContext): ReliefPlan[] {
-    const plans: ReliefPlan[] = [];
+  private planRanges(tiles: LandscapeContext['tiles'], ctx: LandscapeContext): PlannedRelief[] {
+    const plans: PlannedRelief[] = [];
     const relief = new Map<string, HexTerrainType>();
     const wet = new Set<string>();
     for (const tile of tiles) {
@@ -389,6 +522,39 @@ export class DongHoMapRenderer implements MapRenderer {
         depth += 1;
       }
       return depth;
+    };
+
+    /**
+     * Keeps a range from painting through a settlement in the neighbouring cell.
+     *
+     * Relief and settlements are rendered in different layers and cannot truly depth-sort. The
+     * old range therefore bled straight through a capital flag or mine machinery. Split the
+     * authored plate around the measured settlement clearance instead. Mountain cells remain on
+     * both sides; only the impossible overlap is omitted.
+     */
+    const safeSegments = (
+      x0: number,
+      x1: number,
+      baseY: number,
+      height: number,
+    ): Array<[number, number]> => {
+      let segments: Array<[number, number]> = [[x0, x1]];
+      for (const anchor of ctx.settlementAnchors) {
+        const radius = anchor.r ?? ctx.tileSize * 1.2;
+        const overlapsVertically = anchor.y + radius * 0.42 >= baseY - height * 1.18
+          && anchor.y - radius * 0.42 <= baseY + height * 0.18;
+        if (!overlapsVertically) continue;
+        const cutLeft = anchor.x - radius * 0.72;
+        const cutRight = anchor.x + radius * 0.72;
+        segments = segments.flatMap(([left, right]) => {
+          if (cutRight <= left || cutLeft >= right) return [[left, right]];
+          const pieces: Array<[number, number]> = [];
+          if (cutLeft - left >= ctx.tileSize * 0.72) pieces.push([left, cutLeft]);
+          if (right - cutRight >= ctx.tileSize * 0.72) pieces.push([cutRight, right]);
+          return pieces;
+        });
+      }
+      return segments;
     };
 
     const byRow = new Map<number, Array<{ q: number; terrain: HexTerrainType }>>();
@@ -436,19 +602,39 @@ export class DongHoMapRenderer implements MapRenderer {
         }
         const headroom = risesOverWater ? 0.45 : 1;
 
+        const baseY = from.y + ctx.tileSize * (terrain === 'mountains' ? 0.8 : 0.7);
+        const height = ctx.tileSize * (terrain === 'mountains'
+          ? (KARST_SCALE.baseHeight + depth * KARST_SCALE.depthHeight) * headroom
+          : (0.42 + depth * 0.12) * headroom);
+        let x0 = from.x - ctx.tileSize * bleedLeft;
+        let x1 = to.x + ctx.tileSize * bleedRight;
         if (terrain === 'mountains') {
-          // 1.0 nominal, not 0.8: landforms sit outside the prop proportion system, and at 0.8
-          // a front-row tower came out barely taller than the 18 px trees beside it — limestone
-          // reading as shrubbery was the other half of "the mountains look unreal".
-          plans.push(planKarstRange(
-            from.x - ctx.tileSize * bleedLeft, to.x + ctx.tileSize * bleedRight,
-            from.y + ctx.tileSize * 0.8, ctx.tileSize * (1.0 + depth * 0.38) * headroom, seed,
-          ));
-        } else {
-          plans.push(planSoftRidge(
-            from.x - ctx.tileSize * bleedLeft, to.x + ctx.tileSize * bleedRight,
-            from.y + ctx.tileSize * 0.7, ctx.tileSize * (0.26 + depth * 0.1) * headroom, seed,
-          ));
+          // `conquestArtStamp` preserves aspect ratio. The old single-cell box was only 2.2 tiles
+          // wide, so width won the fit and silently reduced a requested 1.78-tile mountain to
+          // 1.47 tiles high. Give the planned/occluding bounds the same minimum aspect as the PNG;
+          // the image, culling box and live-object occluder now grow together.
+          const missing = Math.max(0, height * KARST_SCALE.minimumPlateAspect - (x1 - x0));
+          const dryLeft = bleedLeft > 0.2;
+          const dryRight = bleedRight > 0.2;
+          if (dryLeft && dryRight) {
+            x0 -= missing / 2;
+            x1 += missing / 2;
+          } else if (dryLeft) {
+            x0 -= missing;
+          } else if (dryRight) {
+            x1 += missing;
+          }
+        }
+        for (const [segmentStart, segmentEnd] of safeSegments(x0, x1, baseY, height)) {
+          if (terrain === 'mountains') {
+            plans.push(Object.assign(planKarstRange(
+              segmentStart, segmentEnd, baseY, height, seed + Math.round(segmentStart),
+            ), { artId: conquestKarstArtId(seed + Math.round(segmentStart)) }));
+          } else {
+            plans.push(Object.assign(planSoftRidge(
+              segmentStart, segmentEnd, baseY, height, seed + Math.round(segmentStart),
+            ), { artId: 'terrain.soft-ridge' as const }));
+          }
         }
         index = end + 1;
       }
@@ -464,9 +650,13 @@ export class DongHoMapRenderer implements MapRenderer {
    * Buckets the relief by x so `isBehindRelief` is a couple of box tests rather than a walk of
    * every massif on the map. Asked once per moving thing per frame, so it has to be cheap.
    */
-  private indexRelief(plans: ReliefPlan[]): void {
+  private indexRelief(plans: PlannedRelief[]): void {
     this.reliefIndex.clear();
+    this.proceduralRelief.clear();
     for (const plan of plans) {
+      // Resolve once per range, not once per scattered prop. The asset check includes the rollback
+      // switch and texture lookup, while this index is consulted thousands of times per repaint.
+      if (!hasConquestMapArt(this.scene, plan.artId)) this.proceduralRelief.add(plan);
       const first = Math.floor(plan.bounds.x0 / RELIEF_BUCKET);
       const last = Math.floor(plan.bounds.x1 / RELIEF_BUCKET);
       for (let bucket = first; bucket <= last; bucket += 1) {
@@ -496,6 +686,17 @@ export class DongHoMapRenderer implements MapRenderer {
     return plans.some((plan) => plan.occludes(x, y));
   }
 
+  /** True only when the occluding relief itself must use the shared procedural Graphics layer. */
+  private isBehindProceduralRelief(x: number, y: number): boolean {
+    const plans = this.reliefIndex.get(Math.floor(x / RELIEF_BUCKET));
+    if (!plans) {
+      return false;
+    }
+    return plans.some((plan) => (
+      this.proceduralRelief.has(plan) && plan.occludes(x, y)
+    ));
+  }
+
   /**
    * One wandering lattice across the whole map; a plot is kept only where the land beneath it is
    * paddy. Neighbouring cells therefore share their bunds and the field system ends raggedly —
@@ -505,6 +706,45 @@ export class DongHoMapRenderer implements MapRenderer {
     const paddy = tiles.filter((tile) => tile.terrain === 'riceFields' || tile.terrain === 'fields');
     if (paddy.length === 0) {
       return;
+    }
+
+    const cells = paddy.map((tile) => {
+      const centre = ctx.centreOf(tile);
+      return { ...centre, q: tile.coord.q, r: tile.coord.r };
+    });
+    const systems = planPaddySystems(cells, ctx.tileSize);
+    const familyLoaded = PADDY_SYSTEM_STATES.every((state) => (
+      hasConquestMapArt(this.scene, `terrain.paddy-system-${state}`)
+    ));
+    if (familyLoaded) {
+      const firstImage = this.generatedTerrain.length;
+      let complete = true;
+      for (const system of systems) {
+        const stage = seasonalStage(system.stage);
+        const state: PaddySystemState = stage < 0.28 ? 'flooded'
+          : stage < 0.4 ? 'fallow'
+            : stage > 0.9 ? 'nursery'
+              : stage > 0.68 ? 'ripe' : 'transplanted';
+        if (!this.placeTerrainPlate(
+          `terrain.paddy-system-${state}`,
+          system.x,
+          system.y,
+          system.width,
+          system.height,
+          0.82,
+          system.seed,
+        )) {
+          complete = false;
+          break;
+        }
+      }
+      if (complete) return;
+
+      // Treat the connected plate family atomically. A corrupt state must not leave half authored,
+      // half procedural field systems or muddy the fallback by drawing both in the same place.
+      while (this.generatedTerrain.length > firstImage) {
+        this.generatedTerrain.pop()?.destroy();
+      }
     }
 
     let minX = Infinity;
@@ -563,16 +803,36 @@ export class DongHoMapRenderer implements MapRenderer {
     };
     const keepPlot = (x: number, y: number): boolean => nearPaddy(x, y) && !overWater(x, y);
 
-    // The lattice itself is shared with the menu's far bank — same country, same hand.
-    //
-    // Plots a little larger than they were (0.5 -> 0.58 of a tile): the paddy's density of inked
-    // bunds is what made it the loudest thing on the sheet, and fewer, bigger plots quiet it
-    // without taking the field system apart.
+    // Missing, corrupt, unloaded, or explicitly disabled authored art falls back to the existing
+    // shared procedural lattice. It is never drawn under a successfully authored compound.
     for (const plot of paddyLattice({
       x0: minX, x1: maxX, y0: minY, y1: maxY, cell: ctx.tileSize * 0.58, seed: 7777, keep: keepPlot,
     })) {
       drawFieldPlot(graphics, plot);
     }
+  }
+
+  /** Places a texture inside an existing procedural patch; geometry and boundaries remain drawn. */
+  private placeTerrainPlate(
+    id: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    alpha: number,
+    seed: number,
+  ): boolean {
+    const stamp = conquestArtStamp(this.scene, id, {
+      left: -width / 2, right: width / 2, top: -height / 2, bottom: height / 2,
+    });
+    if (!stamp) return false;
+    const image = placeStamp(this.scene, stamp, x, y)
+      .setDepth(0.15)
+      .setAlpha(alpha)
+      .setFlipX((seed & 1) === 1)
+      .setData('conquestTerrainPlate', id);
+    this.generatedTerrain.push(image);
+    return true;
   }
 
   /**
@@ -601,7 +861,7 @@ export class DongHoMapRenderer implements MapRenderer {
     // depth band above this baked layer, those trees can only ever draw *behind* the houses, even
     // the ones standing in front. Two layers that cannot share a sort must not share ground.
     for (const anchor of ctx.settlementAnchors) {
-      keepClear.push({ x: anchor.x, y: anchor.y, r: tileSize * 1.2 });
+      keepClear.push({ x: anchor.x, y: anchor.y, r: anchor.r ?? tileSize * 1.2 });
     }
 
     for (const tile of tiles) {
@@ -783,9 +1043,48 @@ export class DongHoMapRenderer implements MapRenderer {
     // The passed colour is the kingdom's hue, and this theme deliberately refuses it: a frontier is
     // drawn in ink like everything else, and WHOSE it is comes from the hatch angle and the seal.
     void _color;
+    // Kept only for callers that have loose edges and no loops — `drawZoneContour` below is what
+    // the map actually uses, and it is the one that closes the corners. Drawn dead straight here:
+    // a wobble applied per edge cannot join up (see `MapRenderer.drawZoneContour`), so an
+    // edge-at-a-time frontier is better off ruled than jittered.
     for (const [x1, y1, x2, y2] of edges) {
       inkPath(graphics, [{ x: x1, y: y1 }, { x: x2, y: y2 }], Math.round(x1 + y1 * 3 + x2 * 7), {
-        width: 1.0, alpha: Math.min(0.34, alpha * 0.38), colour: PIGMENT.mucSoft, wobble: 5.5, step: 30,
+        width: 1.0, alpha: Math.min(0.34, alpha * 0.38), colour: PIGMENT.mucSoft, wobble: 0,
+      });
+    }
+  }
+
+  /**
+   * The frontier, pulled as one continuous line per loop.
+   *
+   * The wobble is the point of the thing and it is also why this cannot be done edge by edge:
+   * `wobblePath` displaces every node *except* the path's last, so each separately-inked hex edge
+   * ended on its corner and the next one started as much as 5.5 units off it. Around a one-hex
+   * province that is six visible steps — the "random lines behind the village" a player sees, and
+   * the notch in the middle of an otherwise straight run.
+   *
+   * A shorter `step` than the old 30 as well: a hex edge is about 50 units, so at 30 the whole
+   * frontier had one wobble node per side and came out a hard polygon anyway. At 12 the line
+   * actually bends, which is what stops a border reading as a CAD outline dropped on a painting.
+   */
+  drawZoneContour(
+    graphics: Phaser.GameObjects.Graphics,
+    loops: Array<Array<Pt>>,
+    _color: number,
+    alpha = 0.95,
+  ): void {
+    void _color;
+    for (const loop of loops) {
+      if (loop.length < 3) {
+        continue;
+      }
+      inkPath(graphics, loop, Math.round(loop[0].x + loop[0].y * 3), {
+        width: 1.0,
+        alpha: Math.min(0.34, alpha * 0.38),
+        colour: PIGMENT.mucSoft,
+        wobble: 2.2,
+        step: 12,
+        closed: true,
       });
     }
   }

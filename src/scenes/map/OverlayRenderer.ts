@@ -100,8 +100,11 @@ export class OverlayRenderer {
     // A theme may prefer to carry ownership as something other than a saturated fill — the Đông Hồ
     // renderer hatches the merged region, with the angle standing for the faction. Painted before
     // the contour so the border still reads as the region's edge.
+    const wantsLoops = Boolean(this.mapRenderer.drawZoneFill || this.mapRenderer.drawZoneContour);
+    const loops = wantsLoops
+      ? traceLandBoundaryLoops(state, hexTileMap, wx, wy, this.boundaryLoopCache, land.id)
+      : [];
     if (this.mapRenderer.drawZoneFill) {
-      const loops = traceLandBoundaryLoops(state, hexTileMap, wx, wy, this.boundaryLoopCache, land.id);
       this.mapRenderer.drawZoneFill(
         graphics,
         loops,
@@ -109,7 +112,13 @@ export class OverlayRenderer {
         land.ownerId === NEUTRAL_OWNER_ID || color === COLORS.neutral,
       );
     }
-    this.mapRenderer.drawZoneBorder(graphics, edges, color, alpha);
+    // The frontier as loops where the theme can take them — an inked contour has to be pulled in
+    // one stroke per loop or its corners do not meet. See `MapRenderer.drawZoneContour`.
+    if (this.mapRenderer.drawZoneContour) {
+      this.mapRenderer.drawZoneContour(graphics, loops, color, alpha);
+    } else {
+      this.mapRenderer.drawZoneBorder(graphics, edges, color, alpha);
+    }
   }
 
   createSelectionLayer(): void {

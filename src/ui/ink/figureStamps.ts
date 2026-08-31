@@ -27,6 +27,8 @@ import {
 import { unitScale } from './proportion';
 import { placeStamp, stamp, type Stamp, type StampBox } from './stamp';
 import { GROUND_SCALE } from './proportion';
+import { conquestArtAsset, conquestArtStamp } from '../conquestMapArt';
+import { faceTravel, NATIVE_FACING_KEY, type NativeFacing } from './life';
 
 /** The two canonical rasters: map ground scale, battlefield host scale. */
 export type FigureBucket = 'm' | 'f';
@@ -79,10 +81,44 @@ export function figureStamp(scene: Phaser.Scene, kind: FigureKind): Stamp {
     left: reach.left * u, right: reach.right * u,
     top: reach.top * u, bottom: reach.bottom * u,
   };
+  const tier = ['levy', 'trained', 'royal'][kind.tier];
+  const generated = conquestArtStamp(
+    scene,
+    `figure.${kind.theme}.${tier}.${kind.arm ?? 'spear'}`,
+    box,
+  );
+  if (generated) return generated;
   return stamp(scene, figureKindKey(kind), box, (g, x, y, raster) => {
     // Deferred import shape: figure() lives in devices.ts, which imports nothing from here.
     drawFigure(g, x, y, s * raster, kind);
   }, { raster: 'super', pool: 'figure' });
+}
+
+function figureAssetId(kind: Pick<FigureKind, 'theme' | 'tier' | 'arm'>): string {
+  const tier = ['levy', 'trained', 'royal'][kind.tier];
+  return `figure.${kind.theme}.${tier}.${kind.arm ?? 'spear'}`;
+}
+
+/**
+ * Normalises a stamped soldier to the direction the formation asks for.
+ *
+ * Generated sheets use viewer-right as their native pose. Keeping that fact on the image makes a
+ * side change explicit instead of relying on whichever direction an individual source drawing
+ * happened to use. It also leaves room for a future reviewed left-native asset without another
+ * renderer special case.
+ */
+export function faceStampedFigure(
+  image: Phaser.GameObjects.Image,
+  kind: Pick<FigureKind, 'theme' | 'tier' | 'arm'>,
+  direction: NativeFacing,
+): Phaser.GameObjects.Image {
+  const assetId = figureAssetId(kind);
+  const nativeFacing = conquestArtAsset(assetId)?.nativeFacing ?? 1;
+  image.setData(NATIVE_FACING_KEY, nativeFacing);
+  image.setData('conquestFigureAssetId', assetId);
+  image.setData('conquestFigureDirection', direction);
+  faceTravel(image, direction);
+  return image;
 }
 
 // A local indirection so the draw closure above stays readable; devices.figure's own signature.
@@ -124,6 +160,20 @@ export function stampedArmy(
   const ranks: Phaser.GameObjects.Container[] = [];
   const placeScale = s / BUCKET_SCALE[bucket];
 
+  /**
+   * **Which way the men are looking.**
+   *
+   * Every stamped soldier was placed facing viewer-right, whatever the host was doing. A column
+   * marching west was therefore drawn walking backwards down its own road — half of all marches,
+   * and the single most obviously wrong thing about a host in motion. A host at rest keeps the
+   * native pose (there is nothing to face); a marching one turns with `marchHeading`, the same
+   * angle `MARCH_PLAN` files its blocks along, so the men and the column agree.
+   *
+   * Per figure rather than by mirroring the marker: flipping the container would mirror the
+   * formation too, and a screen thrown forward would end up behind the line.
+   */
+  const facing: NativeFacing = kit.marching && Math.cos(kit.marchHeading ?? 0) < 0 ? -1 : 1;
+
   const perRank: Phaser.GameObjects.Image[][] = [];
   plan.figures.forEach((man, index) => {
     const kind: FigureKind = {
@@ -131,7 +181,7 @@ export function stampedArmy(
       variant: (seed + index) % FIGURE_VARIANTS, bucket,
     };
     const st = figureStamp(scene, kind);
-    const image = placeStamp(scene, st, man.x, man.y, placeScale);
+    const image = faceStampedFigure(placeStamp(scene, st, man.x, man.y, placeScale), kind, facing);
     while (perRank.length <= man.rank) perRank.push([]);
     perRank[man.rank].push(image);
   });

@@ -29,6 +29,7 @@ import type Phaser from 'phaser';
 import { placeStamp, stamp, type Stamp, type StampBox } from './stamp';
 import { buffalo } from './props';
 import { UNIT } from './proportion';
+import { conquestArtStamp } from '../conquestMapArt';
 
 export { BASE_SCALE_KEY } from './stamp';
 
@@ -84,7 +85,9 @@ const BUFFALO_LOOKS = 4;
  */
 const BUFFALO_REACH = { left: -36, right: 22, top: -36, riderTop: -45, bottom: 6 };
 
-export function bakedBuffalo(scene: Phaser.Scene, seed: number, rider: boolean): BakedProp {
+export type DirectionalBakedProp = BakedProp & { nativeFacing: -1 | 1 };
+
+export function bakedBuffalo(scene: Phaser.Scene, seed: number, rider: boolean): DirectionalBakedProp {
   const look = Math.abs(Math.round(seed)) % BUFFALO_LOOKS;
   const key = `prop:buffalo:${look}:${rider ? 'r' : 'x'}`;
   // Derived from `UNIT.buffalo` rather than written out, because a `PropBox` is in **corrected**
@@ -101,7 +104,12 @@ export function bakedBuffalo(scene: Phaser.Scene, seed: number, rider: boolean):
     top: (rider ? BUFFALO_REACH.riderTop : BUFFALO_REACH.top) * UNIT.buffalo,
     bottom: BUFFALO_REACH.bottom * UNIT.buffalo,
   };
-  return bakeProp(scene, key, box, (g, x, y, raster) => buffalo(g, x, y, raster, look * 977 + 13, rider));
+  const generated = conquestArtStamp(scene, rider ? 'life.buffalo-rider' : 'life.buffalo', box);
+  if (generated) return { ...generated, key, nativeFacing: 1 };
+  return {
+    ...bakeProp(scene, key, box, (g, x, y, raster) => buffalo(g, x, y, raster, look * 977 + 13, rider)),
+    nativeFacing: -1,
+  };
 }
 
 /**

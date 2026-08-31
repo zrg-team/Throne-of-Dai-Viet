@@ -12,9 +12,8 @@ import {
 } from '../ui/InkUI';
 import { createLabel } from '../ui/theme';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
-import { bucketFor, figureStamp } from '../ui/ink/figureStamps';
+import { bucketFor, faceStampedFigure, figureStamp } from '../ui/ink/figureStamps';
 import { placeStamp } from '../ui/ink/stamp';
-import { faceTravel } from '../ui/ink/life';
 import { PIGMENT } from '../ui/ink/palette';
 import { BATTLE_HOST_SCALE } from '../game/ascentConfig';
 import type { FigureArm } from '../ui/ink/devices';
@@ -821,15 +820,19 @@ export class BattleArenaScene extends Phaser.Scene {
     const previewArms: FigureArm[] = ['spear', 'sword', 'bow', 'mounted'];
     const slot = width / previewArms.length;
     previewArms.forEach((arm, index) => {
-      const stampRef = figureStamp(this, {
+      const kind = {
         theme: chosenStyle, tier: 1, arm,
         colour: ours ? PIGMENT.muc : PIGMENT.mucSoft,
         accent: ours ? PIGMENT.son : PIGMENT.mucSoft,
         variant: index % 3, bucket: bucketFor(PREVIEW_SCALE),
-      });
-      const image = placeStamp(this, stampRef, x + slot * (index + 0.5), feetY,
-        PREVIEW_SCALE / BATTLE_HOST_SCALE);
-      if (!ours) faceTravel(image, -1);
+      } as const;
+      const stampRef = figureStamp(this, kind);
+      const image = faceStampedFigure(
+        placeStamp(this, stampRef, x + slot * (index + 0.5), feetY,
+          PREVIEW_SCALE / BATTLE_HOST_SCALE),
+        kind,
+        ours ? 1 : -1,
+      ).setData('arenaArmySide', ours ? 'ours' : 'theirs');
       parent.add(image);
     });
 

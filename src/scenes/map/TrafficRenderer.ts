@@ -5,7 +5,13 @@
 import Phaser from 'phaser';
 import { buildRoadCurve } from '../../map/roadCurve';
 import { axialToPixel } from '../../map/hex';
-import { faceTravel, type Walkable } from '../../ui/ink/life';
+import {
+  addNaturalTravelMotion,
+  faceTravel,
+  setNaturalTravelMotionActive,
+  type NaturalMotionKind,
+  type Walkable,
+} from '../../ui/ink/life';
 import { hashString } from '../../utils/math';
 import { trafficPerRoad } from '../../game/lifeSettings';
 import type { GameState, Land } from '../../state/types';
@@ -13,7 +19,7 @@ import type { MapRenderer } from '../../ui/MapRenderer';
 import type { MapItemRenderer } from '../../ui/MapItemRenderer';
 
 type WorldTransform = (value: number) => number;
-type SettlementAnchor = (land: Land) => { x: number; y: number };
+type SettlementAnchor = (land: Land, toward?: Land) => { x: number; y: number };
 
 /** A wanderer and the looping tween that walks it, so the loop can be stopped and restarted. */
 interface TrafficMover {
@@ -30,12 +36,18 @@ export class TrafficRenderer {
   private paused = false;
   /** Movers held back by the view index because their road is off-screen. */
   private culled = new Set<string>();
+  /** Cross-layer keep-out such as a live nameplate; evaluated at the mover's current world point. */
+  private obscured?: (x: number, y: number) => boolean;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly mapRenderer: MapRenderer,
     private readonly mapItems: MapItemRenderer,
   ) {}
+
+  setObscuredTest(test: ((x: number, y: number) => boolean) | undefined): void {
+    this.obscured = test;
+  }
 
   /**
    * Holds or releases every cart and traveler on the map.
@@ -50,6 +62,7 @@ export class TrafficRenderer {
     if (paused) {
       for (const mover of this.movers()) {
         mover.tween.pause();
+        setNaturalTravelMotionActive(mover.object as unknown as Walkable, false);
       }
       return;
     }
@@ -59,7 +72,9 @@ export class TrafficRenderer {
       if (this.culled.has(target.id)) {
         continue;
       }
-      this.moverById(target.id)?.tween.resume();
+      const mover = this.moverById(target.id);
+      mover?.tween.resume();
+      if (mover) setNaturalTravelMotionActive(mover.object as unknown as Walkable, true);
     }
   }
 
@@ -108,10 +123,12 @@ export class TrafficRenderer {
     if (culled) {
       this.culled.add(id);
       mover.tween.pause();
+      setNaturalTravelMotionActive(mover.object as unknown as Walkable, false);
     } else {
       this.culled.delete(id);
       if (!this.paused) {
         mover.tween.resume();
+        setNaturalTravelMotionActive(mover.object as unknown as Walkable, true);
       }
     }
     (mover.object as unknown as { setVisible(v: boolean): unknown }).setVisible(!culled);
@@ -139,6 +156,7 @@ export class TrafficRenderer {
     curve: Phaser.Curves.Spline,
     seed: number,
     duration: number,
+    motion: NaturalMotionKind,
   ): TrafficMover {
     const progress = { t: (seed % 100) / 100 };
     let facing = 0;
@@ -151,11 +169,13 @@ export class TrafficRenderer {
       // screen the eye is already following.
       //
       // `faceTravel` multiplies the step's direction by the direction the glyph was *drawn* in.
-      // Flipping on travel alone assumes every glyph faces +x, and the Đông Hồ xe trâu is drawn
-      // facing left — so under that assumption it was pointed the wrong way on BOTH legs: mirrored
-      // when it went left, unmirrored when it went right.
+      // The authored Đông Hồ cart faces right while the procedural fallback faces left, so each
+      // renderer declares its own native direction instead of this loop guessing from the subject.
+      // Keep the dead zone tiny: a spline can have a long, almost vertical stretch whose x travel
+      // is subtle but still visible over time, and retaining the old direction there reads as the
+      // ox pushing its cart backwards.
       const heading = point.x - (mover as unknown as { x: number }).x;
-      if (Math.abs(heading) > 0.05) {
+      if (Math.abs(heading) > 0.001) {
         const next = heading < 0 ? -1 : 1;
         if (next !== facing) {
           facing = next;
@@ -171,12 +191,14 @@ export class TrafficRenderer {
       // limestone cliff — so it asks the same question directly and stops drawing itself while the
       // rock is in the way. It keeps walking; the road still runs where it ran. You just cannot see
       // through a mountain.
-      const shown = !(this.mapRenderer.isBehindRelief?.(point.x, point.y) ?? false);
+      const shown = !(this.mapRenderer.isBehindRelief?.(point.x, point.y) ?? false)
+        && !(this.obscured?.(point.x, point.y) ?? false);
       const view = mover as unknown as { visible: boolean; setVisible(value: boolean): unknown };
       if (view.visible !== shown) {
         view.setVisible(shown);
       }
     };
+    addNaturalTravelMotion(this.scene, mover as unknown as Walkable, motion, seed);
     step();
     const tween = this.scene.tweens.add({
       targets: progress,
@@ -188,6 +210,7 @@ export class TrafficRenderer {
       paused: this.paused,
       onUpdate: step,
     });
+    setNaturalTravelMotionActive(mover as unknown as Walkable, !this.paused);
     return { object: mover, tween };
   }
 
@@ -368,9 +391,9 @@ export class TrafficRenderer {
           continue;
         }
 
-        const from = getAnchor(land);
-        const to = getAnchor(neighbor);
-        const curve = buildRoadCurve(state, from, to, `${land.id}|${neighbor.id}`, wx, wy);
+        const from = getAnchor(land, neighbor);
+        const to = getAnchor(neighbor, land);
+        const curve = buildRoadCurve(state, from, to, `${land.id}|${neighbor.id}`, wx, wy, 11);
         this.drawRoad(graphics, curve, this.roadWidth(land), this.roadWidth(neighbor));
         crossings.push({ curve, width: Math.max(this.roadWidth(land), this.roadWidth(neighbor)) });
       }
@@ -418,16 +441,16 @@ export class TrafficRenderer {
           continue;
         }
 
-        const from = getAnchor(land);
-        const to = getAnchor(neighbor);
-        const curve = buildRoadCurve(state, from, to, key, wx, wy);
+        const from = getAnchor(land, neighbor);
+        const to = getAnchor(neighbor, land);
+        const curve = buildRoadCurve(state, from, to, key, wx, wy, 11);
         this.recordSpan(key, curve);
 
         const cart = this.mapItems.createCart();
         cart.setDepth(69);
 
         const seed = hashString(`cart|${key}`);
-        this.cartMarkers.set(key, this.walk(cart, curve, seed, 16000 + (seed % 11) * 1200));
+        this.cartMarkers.set(key, this.walk(cart, curve, seed, 16000 + (seed % 11) * 1200, 'cart'));
       }
     }
 
@@ -463,9 +486,9 @@ export class TrafficRenderer {
           continue;
         }
 
-        const from = getAnchor(land);
-        const to = getAnchor(neighbor);
-        const curve = buildRoadCurve(state, from, to, key, wx, wy);
+        const from = getAnchor(land, neighbor);
+        const to = getAnchor(neighbor, land);
+        const curve = buildRoadCurve(state, from, to, key, wx, wy, 11);
         this.recordSpan(key, curve);
         const travelers: TrafficMover[] = [];
 
@@ -473,7 +496,7 @@ export class TrafficRenderer {
           const traveler = this.mapItems.createTraveler();
           traveler.setDepth(69);
           const seed = hashString(`traveler|${key}|${index}`);
-          travelers.push(this.walk(traveler, curve, seed, 20000 + (seed % 13) * 1500));
+          travelers.push(this.walk(traveler, curve, seed, 20000 + (seed % 13) * 1500, 'person'));
         }
 
         this.travelerMarkers.set(key, travelers);

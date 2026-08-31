@@ -100,31 +100,11 @@ export class ConquestScene extends MapScene {
     // late by the accumulated slack, and the season clock drifted behind wall time on slow frames.
     this.ascentAccumulator = Math.min(this.ascentAccumulator - ASCENT_TICK_MS, ASCENT_TICK_MS);
 
-    // Snapshot where each host stands so arrivals can be animated after the tick, matching
-    // the marching-column effect MapScene plays for the classic modes.
-    const before = new Map(
-      this.state.armies
-        .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID)
-        .map((army) => [army.id, army.landId] as const),
-    );
-
     advanceAscentTick(this.state);
 
-    for (const army of this.state.armies) {
-      if (army.kingdomId !== PLAYER_KINGDOM_ID) continue;
-      const fromId = before.get(army.id);
-      if (!fromId || fromId === army.landId) continue;
-      const fromLand = this.state.lands.find((land) => land.id === fromId);
-      const toLand = this.state.lands.find((land) => land.id === army.landId);
-      if (!fromLand || !toLand) continue;
-      this.animateSoldierColumn(
-        this.wx(fromLand.x),
-        this.wy(fromLand.y),
-        this.wx(toLand.x),
-        this.wy(toLand.y),
-        true,
-      );
-    }
+    // No arrival flourish here either — see `MapScene`'s note where the green-dot column used to
+    // live. A host arriving is drawn by the marker that walked the road, not by a second army of
+    // dots laid over it a beat later.
 
     // An arena fight is the whole session: once it resolves, hand the result back to the setup
     // screen rather than leaving the player on a map with one province and nothing to do. The

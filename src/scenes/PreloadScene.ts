@@ -4,6 +4,7 @@ import { RESOURCE_ICONS, RESOURCE_ICON_SIZE } from '../ui/theme';
 import { applyRenderScale } from '../game/graphicsQuality';
 import { configuredSupportChannels, supportQrTextureKey } from '../data/support';
 import { allowsDonationLinks } from '../platform/shell';
+import { preloadConquestMapArt } from '../ui/conquestMapArt';
 
 export class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -13,6 +14,8 @@ export class PreloadScene extends Phaser.Scene {
   preload(): void {
     const size = { width: RESOURCE_ICON_SIZE, height: RESOURCE_ICON_SIZE };
     const baseUrl = import.meta.env.BASE_URL;
+    // Optional authored world art. Every call site retains its procedural draw as a fallback.
+    preloadConquestMapArt(this, baseUrl);
     // The front-page landscape is a registered four-plate illustration. Mountains, bamboo and
     // lotus retain a shared 1536x1024 frame so MenuScene can move them independently without the
     // perspective drift that comes from rebuilding the scene out of map tokens.
