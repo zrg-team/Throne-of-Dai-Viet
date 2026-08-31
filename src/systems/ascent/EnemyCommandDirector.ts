@@ -197,7 +197,18 @@ function maybeLaunch(state: GameState): void {
   // is contact: it is a real battle, it is survivable, and it resets the clock — which is all the
   // guarantee was ever for.
   const budget = Math.round(laggedDefencePower(state) * RAID_POWER_SHARE / INVADER_POWER_PER_SOLDIER);
-  launchOffMapInvasion(state, chosen.id, { totalSoldiers: Math.max(MIN_RAID_SOLDIERS, budget) });
+  // One host in the opening, not a rolled coalition.
+  //
+  // Without `forceCoalition` the spawner rolls `armyCount` off relations and sends up to three at
+  // once — so the map-is-clear rule above still let a single cold-relations march put three hosts
+  // on the board. It only started showing once conquered ground began sticking: a realm that keeps
+  // its provinces crosses `RAID_MIN_LANDS` in the first waves, and `verify-ascent-opening` caught
+  // seed 12161 at four hosts from two crowns during wave 2, defeated by wave 5. The grace has to
+  // bound the *shape* of what arrives, not only how often.
+  launchOffMapInvasion(state, chosen.id, {
+    totalSoldiers: Math.max(MIN_RAID_SOLDIERS, budget),
+    ...(ascent.wave <= EARLY_WAVE_GRACE ? { forceCoalition: 1 } : {}),
+  });
   ascent.lastContactTurn = state.turn;
   if (forced) {
     pushToast(state, t('ascent.enemy.marchForced', { kingdom: chosen.name }), 'threat');

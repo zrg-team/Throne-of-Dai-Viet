@@ -5,6 +5,7 @@ import {
   CAMPAIGN_TICKS_MAX,
   CAMPAIGN_TICKS_ON_SACK,
   CAMPAIGN_TICKS_ON_WIN,
+  EARLY_WAVE_GRACE,
   GARRISON_LEVY_FLOOR,
   LEVY_POWER_PER_MAN,
   MAX_HOSTS_PER_KINGDOM,
@@ -340,6 +341,23 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
     const committed = (state.invasions ?? []).filter((record) => record.kingdomId === kingdomId).length;
     armyCount = Math.min(armyCount, Math.max(0, MAX_HOSTS_PER_KINGDOM - committed));
     if (armyCount <= 0) return;
+    /**
+     * One host per march while the opening grace runs, whoever is asking.
+     *
+     * `EARLY_WAVE_GRACE` bounds how *often* a host arrives — the wave director's schedule, the
+     * enemy director's marches and the raid path all wait for a clear map. It did not bound the
+     * *shape*: `armyCount` is rolled off relations a few lines above, so any caller that does not
+     * pass `forceCoalition` sends up to three at once on cold relations, and the callers that do
+     * pass one can have it inflated by a coalition or the relations dial. Gating each of the six
+     * spawners separately is how the first three leaks were missed.
+     *
+     * It surfaced when conquered ground began sticking (`CONQUEST_GARRISON_SHARE`): a realm that
+     * keeps its provinces reaches `RAID_MIN_LANDS` in the first waves, and `verify-ascent-opening`
+     * caught seed 12161 at four hosts from two crowns in wave 2 — defeated by wave 5 — and seed
+     * 27999 at three hosts from a single crown. `waveHostCount` is 1 for waves 1 and 2 anyway, so
+     * this takes nothing the schedule was entitled to.
+     */
+    if ((state.ascent?.wave ?? 0) <= EARLY_WAVE_GRACE) armyCount = 1;
   }
 
   const scale = difficultyArmyScale(state.campaignConfig?.difficulty) * personalityWeight(kingdom) * (opts.sizeMult ?? 1);

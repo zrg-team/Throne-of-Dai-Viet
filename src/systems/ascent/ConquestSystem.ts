@@ -1,5 +1,6 @@
 import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
+  CONQUEST_GARRISON_SHARE,
   CLAIM_DECLINE_TICKS,
   MARCH_HOLD_TICKS,
   MARCH_REPROMPT_TICKS,
@@ -29,7 +30,7 @@ import { isAutoHost } from './armyOrders';
 import { setArmyOrders } from './StandingOrders';
 import { releaseHeroAssignment } from '../CourtSystem';
 import { pushToast } from '../empire/notifications';
-import { applyResourceDelta, refreshAllLandOutputs } from '../ResourceSystem';
+import { applyResourceDelta, militiaCapacity, refreshAllLandOutputs } from '../ResourceSystem';
 import { addAscentXp, landGarrisonPower } from './PowerSystem';
 import { heroName, t } from '../../i18n';
 import type {
@@ -538,6 +539,32 @@ export function detectConquests(state: GameState, ownedBefore: Set<string>): voi
     if (land.ownerId !== PLAYER_KINGDOM_ID || ownedBefore.has(land.id)) continue;
     gained += 1;
     addAscentXp(state, XP_PER_LAND_TAKEN);
+    /**
+     * The men who took it hold it.
+     *
+     * A province joined the realm carrying whatever watch its previous owner had left — for
+     * neutral ground the handful the map generated, and for ground retaken after a loss the
+     * quarter that survived the line below. `growProvincialMilitia` then needs
+     * `MILITIA_SEASONS_TO_FULL` (22) seasons to raise a real garrison, and a wave lands every
+     * `WAVE_INTERVAL_TICKS` (12). So new ground was soft for two waves after it was taken, and
+     * measured over five seeded runs the realm **gained 8, 5, 14, 9 and 16 provinces and lost 9,
+     * 5, 15, 7 and 17** — a treadmill that peaked at four to eight provinces and ended on nought
+     * to three.
+     *
+     * That is the mode's agency problem stated in territory: expanding is what engaging *does*,
+     * and it bought nothing that lasted, so every policy converged (measured, an 8% spread across
+     * four of them) and declining survived as long as playing. Every symmetric lever tried against
+     * it — the wave's shadow floor, the match factor, an unconditional first host — moved the
+     * declining run as much as the engaged one, because a passive realm has walls too. Ground is
+     * the one term that only moves for the player who goes and takes it.
+     *
+     * Deliberately a *share* of what the province can support rather than a full garrison, and
+     * with no loyalty or masonry attached: Đồn điền — the military colony decree — grants exactly
+     * that (loyalty 100, defence x1.5, full militia) and has to stay clearly the better thing to
+     * have bought. Never lowers a garrison, so retaking well-held ground is not a punishment.
+     */
+    const arriving = Math.round(militiaCapacity(state, land) * CONQUEST_GARRISON_SHARE);
+    if (arriving > land.localSoldiers) land.localSoldiers = arriving;
     if (ascent.frontLandId === land.id) {
       ascent.frontLandId = undefined;
       ascent.frontBlocked = false;

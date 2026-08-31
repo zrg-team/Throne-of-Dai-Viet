@@ -133,7 +133,7 @@ export const AMBITION_DECAY_PER_WAVE = 0.45;
  * and the ratio fell rather than rose. Ambition is a price on growth; it has to be re-priced when
  * the amount of growth available changes.
  */
-export const AMBITION_PRESSURE_PER_POINT = 0.03;
+export const AMBITION_PRESSURE_PER_POINT = 0.015;
 /**
  * Ceiling on the multiplier, so a player who spends everything at once faces a monster rather
  * than an instant loss — the run has to stay recoverable enough to be worth finishing.
@@ -183,6 +183,16 @@ export const WAVE_BASELINE_GROWTH = 1.11;
  * Two waves, not more. The grace is there to teach the shape of a fight, not to make the opening
  * safe: by wave three every director is back on.
  */
+/**
+ * Share of a province's militia capacity that a newly-taken province arrives holding.
+ *
+ * See `detectConquests` for why this exists: without it, ground taken was soft for the two waves
+ * it takes `growProvincialMilitia` to raise a watch, and the realm gained and lost provinces at
+ * the same rate for a whole run. 0.45 is a garrison that can turn back an ordinary raid and lose
+ * to a wave that is answered properly — not a fortress, which is what Đồn điền is for.
+ */
+export const CONQUEST_GARRISON_SHARE = 0.45;
+
 export const EARLY_WAVE_GRACE = 2;
 /**
  * What an opening wave may weigh, as a share of the field army the player can actually march.
