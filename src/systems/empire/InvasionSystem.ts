@@ -295,7 +295,11 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
   // The far edge is still the muster (see the note below on why the approach march matters); it
   // is now the far edge of the ground that connects to the realm.
   const reach = reachableFrom(state, capital.id);
-  const allNeutral = state.lands.filter((l) => l.ownerId === 'neutral');
+  // A crown musters on its own ground as readily as on nobody's. Ascent's rivals hold territory
+  // now (`tickRivalExpansion`), and staging only from neutral districts would mean a world the
+  // rivals had largely settled could not send a wave at all — the map would fill up and the war
+  // would quietly stop.
+  const allNeutral = state.lands.filter((l) => l.ownerId === 'neutral' || l.ownerId === kingdomId);
   const connected = allNeutral.filter((l) => reach.has(l.id));
   const neutralEdges = (connected.length > 0 ? connected : allNeutral)
     .sort((a, b) => ((b.x - capital.x) ** 2 + (b.y - capital.y) ** 2) - ((a.x - capital.x) ** 2 + (a.y - capital.y) ** 2));

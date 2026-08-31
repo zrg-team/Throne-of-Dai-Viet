@@ -22,7 +22,7 @@
  * was given its orders.
  */
 import { isVassal } from './VassalSystem';
-import { PLAYER_KINGDOM_ID } from '../../game/constants';
+import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   ENEMY_LAUNCH_DRAW,
   ENEMY_PRESSURE_DIVISOR,
@@ -37,6 +37,8 @@ import {
   COALITION_JOIN_RATIO,
   COALITION_JOIN_SHARE,
   EARLY_WAVE_GRACE,
+  RIVAL_CLAIM_INTERVAL_TICKS,
+  RIVAL_CLAIM_MAX_SHARE,
 } from '../../game/ascentConfig';
 import { launchOffMapInvasion } from '../empire/InvasionSystem';
 import { pushToast } from '../empire/notifications';
@@ -542,6 +544,63 @@ function reconsider(state: GameState): void {
  *  - **Fear becomes an army.** Appetite topping out launches a real punitive host, sized by
  *    the gap — and stamps the coalition clock, because frightened courts talk to each other.
  */
+/**
+ * The rivals take the ground the player leaves.
+ *
+ * See `RIVAL_CLAIM_INTERVAL_TICKS`. One crown settles one neutral district at a time, working
+ * outward from what it already holds so the map fills as coherent realms rather than confetti,
+ * and never past `RIVAL_CLAIM_MAX_SHARE` — there has to be ground left to contest and for
+ * `launchOffMapInvasion` to muster on.
+ *
+ * Deliberately slow and deliberately visible: a district changing hands shows on the map and in
+ * the World lane, where `getEmpirePower` has always read `state.lands` and until now found
+ * nothing to read. The crowns the player has been ignoring become the crowns that own the map.
+ */
+function tickRivalExpansion(state: GameState): void {
+  const ascent = state.ascent;
+  if (!ascent || state.turn % RIVAL_CLAIM_INTERVAL_TICKS !== 0) return;
+  // Not while the player is still learning what a wave is.
+  if (ascent.wave <= EARLY_WAVE_GRACE) return;
+
+  const neutral = state.lands.filter((land) => land.ownerId === NEUTRAL_OWNER_ID);
+  if (neutral.length === 0) return;
+  const held = state.lands.filter(
+    (land) => land.ownerId !== NEUTRAL_OWNER_ID && land.ownerId !== PLAYER_KINGDOM_ID,
+  ).length;
+  if (held >= state.lands.length * RIVAL_CLAIM_MAX_SHARE) return;
+
+  // The hungriest crown that is not sworn to the player.
+  const candidates = aggressors(state);
+  if (candidates.length === 0) return;
+  const taker = candidates.reduce((best, kingdom) => (
+    aggressionPressure(state, kingdom) > aggressionPressure(state, best) ? kingdom : best
+  ), candidates[0]);
+
+  // Outward from its own ground where it has any; otherwise the district furthest from the
+  // player's seat, so a crown's first holding is never on the player's doorstep.
+  const mine = state.lands.filter((land) => land.ownerId === taker.id);
+  let target: Land | undefined;
+  if (mine.length > 0) {
+    const frontier = new Set<string>();
+    for (const land of mine) for (const id of land.neighbors) frontier.add(id);
+    target = neutral.find((land) => frontier.has(land.id));
+  }
+  if (!target) {
+    const seat = state.lands.find((land) => land.id === ascent.capitalLandId)
+      ?? state.lands.find((land) => land.ownerId === PLAYER_KINGDOM_ID);
+    target = seat
+      ? neutral.reduce((far, land) => (
+        (land.x - seat.x) ** 2 + (land.y - seat.y) ** 2 > (far.x - seat.x) ** 2 + (far.y - seat.y) ** 2 ? land : far
+      ), neutral[0])
+      : neutral[0];
+  }
+  if (!target) return;
+
+  target.ownerId = taker.id;
+  target.loyalty = 80;
+  pushToast(state, t('ascent.enemy.settles', { kingdom: taker.name, land: target.name }), 'threat');
+}
+
 function tickRivalRealms(state: GameState): void {
   const ascent = state.ascent;
   if (!ascent || state.turn % 4 !== 0) return;
@@ -620,6 +679,7 @@ export function tickEnemyCommand(state: GameState): void {
     state.ascent.lastContactTurn = state.turn;
   }
 
+  tickRivalExpansion(state);
   tickRivalRealms(state);
   storyStrikes(state);
   maybeJoinTheWar(state);

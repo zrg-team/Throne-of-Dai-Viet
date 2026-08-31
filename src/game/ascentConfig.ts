@@ -191,6 +191,31 @@ export const WAVE_BASELINE_GROWTH = 1.11;
  * the same rate for a whole run. 0.45 is a garrison that can turn back an ordinary raid and lose
  * to a wave that is answered properly — not a fortress, which is what Đồn điền is for.
  */
+// ── The world you do not take ────────────────────────────────────────────────
+/**
+ * Ticks between one rival crown settling a neutral district.
+ *
+ * Ascent's rivals hold **no ground at all** — the mode builds from `createEmpireGameState`, where
+ * they are off-map Great Powers — so the map outside the player's realm is a permanent vacuum that
+ * nobody competes for. That is the deepest reason refusing to play works: every danger in the mode
+ * is sized off what the player *holds*, so holding nothing is safe. Measured over twelve tuning
+ * attempts, a realm that declined every offer outlived one that took every offer in all of them,
+ * and with the defence mirror removed it ran 103 waves against 84.
+ *
+ * A turtle needs a threat that is not its own reflection. Rivals now take the ground the player
+ * leaves, and the ground they hold is what the wave is measured against — so sitting still is no
+ * longer a way of staying small, it is a way of letting the world get large.
+ */
+export const RIVAL_CLAIM_INTERVAL_TICKS = 5;
+/**
+ * How hard the wave answers the share of the settled map the rivals hold. Asymmetric by
+ * construction: every province the player takes is one the rivals do not, so expanding moves this
+ * term down. See `rivalMapShare` for why a share beats a count here.
+ */
+export const RIVAL_LAND_PRESSURE = 0.8;
+/** Rivals never take more of the map than this, so there is always ground left to contest and to stage on. */
+export const RIVAL_CLAIM_MAX_SHARE = 0.55;
+
 export const CONQUEST_GARRISON_SHARE = 0.45;
 
 export const EARLY_WAVE_GRACE = 2;
