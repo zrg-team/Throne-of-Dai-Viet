@@ -164,7 +164,16 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
       // An attempt that was made and refused still answers the prompt — the gold is gone either
       // way — but it must not vanish. Re-raise the sheet against the world as it now stands,
       // carrying the reason, so the player learns what their tap bought them.
-      if (attempt.attempted && !attempt.ok) {
+      //
+      // **Once per reason, though.** The re-raise is only worth making when it tells the player
+      // something they have not just been told: a refusal that changes nothing about the world
+      // rebuilds the identical sheet, and a player pressing the same row again gets it back for
+      // ever with the run's clock stopped the whole time — measured at 58 re-raises inside one
+      // tick before the sheet stopped offering hosts that would refuse. The notice already on
+      // screen is the record of having said it, so matching it is the end of the exchange: the
+      // reason stands in `state.message`, and the lane's own cadence will offer the province
+      // again when something has actually moved.
+      if (attempt.attempted && !attempt.ok && attempt.reason !== prompt.notice) {
         const land = findLand(state, prompt.target.landId);
         if (land) {
           enqueueAscentPrompt(state, {
