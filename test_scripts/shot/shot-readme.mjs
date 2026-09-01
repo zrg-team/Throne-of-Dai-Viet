@@ -75,8 +75,20 @@ async function save(name, buffers, opts) {
 
 // ── driving the game ────────────────────────────────────────────────────────────────────────────
 
+/**
+ * A page of its own browser, closed with it.
+ *
+ * Every section opens one, and a dozen live WebGL contexts in a single Chromium is over the limit:
+ * the late sections start losing the context silently — a half-drawn strip of faces, then a boot
+ * whose `__mandateState` never arrives and a run that dies on `st.kingdoms`. Sections are
+ * independent, so the cheapest fix is to give each one a browser and let `page.close()` take it
+ * down. The codec page stays on the shared browser: it never touches WebGL.
+ */
 async function newPage(viewport = { width: 390, height: 844 }) {
-  const page = await browser.newPage({ viewport, deviceScaleFactor: 2 });
+  const own = await chromium.launch();
+  const page = await own.newPage({ viewport, deviceScaleFactor: 2 });
+  const closePage = page.close.bind(page);
+  page.close = async () => { await closePage(); await own.close(); };
   page.on('pageerror', (e) => errors.push(`PAGEERROR ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE ${m.text().slice(0, 200)}`); });
   await page.addInitScript(() => {
@@ -96,11 +108,28 @@ async function toMenu(page) {
   await page.waitForTimeout(1200);
 }
 
+/**
+ * Boots a mode and **stops its clock on the spot**.
+ *
+ * `__startBenchGame` seeds the world's construction; the run that follows is pinned by the loop in
+ * `advanceAscent`. Between the two, the scene is live — and the second and a half this function
+ * used to spend waiting for the first frame is a second and a half of real ticks on the browser's
+ * own RNG, a different number of them every time the machine is busier or quieter. That drift is
+ * what made the map shot unreproducible: the same seeds, the same code and the same script
+ * photographed a nine-province realm one afternoon and a one-province realm the next. Frozen here,
+ * the pinned ticks are the only ticks the run ever takes.
+ */
 async function boot(page, seed, mode) {
   await toMenu(page);
   await page.evaluate(([s, m]) => window.__startBenchGame(s, m), [seed, mode]);
   const key = mode === 'ascent' ? 'ConquestScene' : 'MapScene';
   await page.waitForFunction((k) => window.__phaserGame.scene.isActive(k), key, { timeout: 30000 });
+  await page.evaluate((k) => {
+    window.__mandateState.isPaused = true;
+    const world = window.__phaserGame.scene.getScene(k);
+    // Belt and braces: the flag stops the clock, the sunk accumulator stops a queued catch-up.
+    if (world) world.ascentAccumulator = -1e9;
+  }, key);
   await page.waitForTimeout(1500);
 }
 
@@ -135,13 +164,10 @@ window.__firstChoice = (p, retry) => {
       return open[Math.max(0, (retry ?? 1) - 1)]?.method ?? 'back';
     }
     case 'hero-choice': return p.heroIds[0] ?? 'pass';
-    // A champion at the head of a host, where one is leaderless, before a seat at court: the
-    // options are scored for the realm and the best-scored is usually a ministry, which is why
-    // every fight this script photographed opened over a host captioned 'The host, unled'.
-    case 'court-appointment':
-      return (p.options.find((o) => o.id.startsWith('general:'))
-        ?? p.options.find((o) => o.id.startsWith('governor:'))
-        ?? p.options[0]).id;
+    // Left as the card scores it. Preferring a host command changes nothing about this run, and
+    // preferring a governorship changes everything — the same seeds then hold two provinces at
+    // turn 148 instead of nine at turn 110 — so the picture takes the court's own advice.
+    case 'court-appointment': return p.options[0].id;
     case 'law-choice': return p.projectIds[0] ? 'edict:' + p.projectIds[0] : 'hold';
     case 'parliament': return 'decline';
     // A doctrine briefs the autopilot rather than overruling it, and the picture wants a realm
@@ -239,6 +265,7 @@ async function advanceAscent(page, ticks, { stopOnBattle = false, battleAfter = 
         resolveAscentPrompt(st, window.__firstChoice(st.pendingAscentPrompt, g));
       }
       st.ascent.promptQueue = st.ascent.promptQueue.filter((p) => p.kind === 'run-over');
+      st.isPaused = false;
       st.isStrategyPause = true;
     }
     // Answering a story beat *publishes* its ledger — the "what changed · Noted" card — into
@@ -367,16 +394,17 @@ if (want('menu')) {
 if (want('ascent')) {
   console.log('dragon ascent');
   const page = await newPage();
-  // Seeds by audition, not accident, and re-auditioned whenever the balance moves: driven over a
-  // grid of boot/tick pairs, this one is the only realm that both grows and survives — nine
-  // provinces from turn 100 to 125, three hosts, the capital never threatened. It is photographed
-  // at its peak rather than at a round number: the same run is down to five provinces by turn 150
-  // and one by turn 175, because the rivals take back what a realm stops defending.
-  await boot(page, 20260825, 'ascent');
+  // Seeds by audition, not accident, and re-auditioned whenever the balance moves — on the frozen
+  // clock, or the audition is of a different run than the camera will see. Driven over a grid of
+  // boot/tick pairs, this one is the realm that both grows and survives: eight provinces from tick
+  // 50 to 75, three hosts, the capital never lost. It is photographed at that peak rather than at a
+  // round number — the same run is down to two provinces by tick 125, because the rivals take back
+  // what a realm stops defending.
+  await boot(page, 20260901, 'ascent');
   founderPng = await shot(page);
   await save('founder', [founderPng]);
 
-  const progress = await advanceAscent(page, 110, { seed: 31337 });
+  const progress = await advanceAscent(page, 65, { seed: 20260901 });
   console.log('   run:', JSON.stringify(progress));
   const ascentFrame = await frameCapital(page, 'ConquestScene', { zoom: 1.2, season: 'Autumn', yNudge: 40 });
   console.log('   framed on', ascentFrame.name, `at sheet ${Math.round(ascentFrame.sx)},${Math.round(ascentFrame.sy)}`);
@@ -447,11 +475,13 @@ if (want('ascent')) {
 if (want('battle')) {
   console.log('battle');
   const page = await newPage();
-  await boot(page, 20260825, 'ascent');
-  // The same run the map is photographed on, stopped at its first fight past tick 80: a summer
-  // field, six provinces behind it, five thousand of ours against two. `battleAfter` lets the
-  // early scuffles — two unled militias in a bare winter — resolve themselves.
-  const battle = await advanceAscent(page, 400, { stopOnBattle: true, battleAfter: 80, seed: 31337 });
+  await boot(page, 20260901, 'ascent');
+  // The same run the map is photographed on, carried past its peak to the first fight that opens
+  // after tick 130 — chosen from a contact sheet of every opening this run offers, because most of
+  // them are a province levy defending itself and a levy has no commander to put in the corner of
+  // the screen. This one is a champion of the realm, Chu Văn An, holding the field against a host
+  // that outnumbers his by two hundred men.
+  const battle = await advanceAscent(page, 400, { stopOnBattle: true, battleAfter: 130, seed: 20260901 });
   console.log('   run:', JSON.stringify(battle));
   await page.waitForTimeout(1200);
   battlePng = await shot(page);

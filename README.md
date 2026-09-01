@@ -114,7 +114,7 @@ Four resources — **food, supplies, gold, humans** — flow from provinces whos
 
 <table>
   <tr>
-    <td width="38%"><img src="docs/readme/summon.webp" alt="Summon a Champion: three answer the call, one will serve — a portrait, six stats, a character line, wages" width="100%"></td>
+    <td width="38%"><img src="docs/readme/summon.webp" alt="The Court Presents: a champion offered to the throne — portrait, stats, a character line and the wage, one of three to swipe through" width="100%"></td>
     <td valign="top">
 
 Champions arrive by **summon** — a gacha with pity, *three answer the call, one will serve* — or are drafted from your court's Favor. Each carries six stats (martial, logistics, administration, diplomacy, loyalty, renown), a wage the treasury feels every season, a character line worth reading, and a portrait; a first meeting is recorded in the Codex for good.
@@ -154,7 +154,7 @@ The enemy telegraphs what they hold and what they are re-forming into, in words 
 
 Nothing on the field is a sprite sheet. A host is drawn as ranked figures standing in the shape it is actually holding — spears two deep, horse gathered at the point, shields locked — under its own banner, with its camp behind it, from the same procedural ink that draws the paddies and the citadels. What you can read at a glance — *their line is still forming, ours is a set hedge* — **is** the state of the fight:
 
-<img src="docs/readme/armies.webp" alt="Both hosts drawn on the field: ranked figures in their shapes, banners, camps, speech bubbles" width="100%">
+<img src="docs/readme/armies.webp" alt="Both hosts drawn on the field: ranked figures in their shapes, horse at the flank, banners, camps, arrows in flight" width="100%">
 
 ## 📜 The Chronicle — the stories are the engine
 
@@ -162,7 +162,7 @@ The stories are not cutscenes. They are **forty-nine templates** that bind thems
 
 <table>
   <tr>
-    <td width="40%"><img src="docs/readme/chronicle.webp" alt="A story card in play: a rival lord's offer, three answers with real costs, and an advisor's counsel beneath" width="100%"></td>
+    <td width="40%"><img src="docs/readme/chronicle.webp" alt="A story card in play: a beat from the Chronicle, each answer carrying a real cost" width="100%"></td>
     <td valign="top">
 
 **A few of the pages**
