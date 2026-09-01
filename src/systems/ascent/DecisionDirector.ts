@@ -116,6 +116,38 @@ const STARVATION_TICKS = 4;
  */
 const KIND_STARVATION_TICKS = 18;
 
+/**
+ * Kinds that age faster than that, and why each one does.
+ *
+ * `power-draft` is the only entry, and it is here because it is the only kind in the list that
+ * is not the game asking the player for something — it is the game *owing* them something. A
+ * level-up is already earned and already banked (`pendingLevelUps`); the card is only where it
+ * gets spent. Ranked seventh and aged at eighteen it lost every slot to the realm's own
+ * business: measured across six seeds, a banked draft waited **twenty-two seasons** before it
+ * was offered, and two rendered runs of three minutes reached level 3 holding two unspent
+ * drafts having been offered neither — in a mode whose whole identity is picking powers.
+ *
+ * Six, and the two numbers either side of it are both worse for reasons worth recording.
+ *
+ * At **four** the draft is offered promptly (a flat four-season wait on every seed) and it
+ * starts taking Court slots from the cards that arm the realm: `verify-ascent-opening` fell
+ * from 12/12 to 10/12, with the first three waves fought on the field dropping to 3 of 12. A
+ * reward that arrives by pushing the army aside is not a better opening.
+ *
+ * At **eight and above** the wait stops being a wait and becomes a lottery. The cycle is
+ * `WAVE_INTERVAL_TICKS` = 12 and only its Court stretch raises anything, so a threshold that
+ * lands near the end of one window is not served until the next: measured worst-case waits were
+ * 20 at eight, 16 at ten, and 20 again at twelve, against a uniform 6 here. The dial is not
+ * smooth, and six is the last value on the tight side of that cliff.
+ */
+const KIND_STARVATION_OVERRIDE: Partial<Record<AscentPromptKind, number>> = {
+  'power-draft': 6,
+};
+
+function starvationTicksFor(kind: AscentPromptKind): number {
+  return KIND_STARVATION_OVERRIDE[kind] ?? KIND_STARVATION_TICKS;
+}
+
 const CONSIDER_ORDER: AscentPromptKind[] = [
   // First among the scheduled kinds. It fires four times in a whole run — once per era — and it
   // sets what the autopilot does with every season after it, so making it wait behind a card
@@ -413,7 +445,7 @@ export function tickDecisionDirector(state: GameState): void {
   if (!starving && state.turn - ascent.lastPromptTurn < COURT_GAP_TICKS) return;
 
   const overdue = ready
-    .filter((kind) => (ascent.promptWaiting?.[kind] ?? 0) >= KIND_STARVATION_TICKS)
+    .filter((kind) => (ascent.promptWaiting?.[kind] ?? 0) >= starvationTicksFor(kind))
     .sort((a, b) => (ascent.promptWaiting?.[b] ?? 0) - (ascent.promptWaiting?.[a] ?? 0));
 
   // **An event fills a slot nobody else wanted, or it does not happen.**

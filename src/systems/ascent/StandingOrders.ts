@@ -81,6 +81,31 @@ function stagingFor(state: GameState, army: Army, landId: string): string | unde
 }
 
 /**
+ * Why this host will refuse an order, phrased for the player — or undefined when it will take one.
+ *
+ * The one place that answers the question, because three places were answering it differently and
+ * the player paid for the disagreement. `setArmyOrders` refused a host in refit and an auxiliary;
+ * `buildHostPickerRows` offered both as tappable rows; and `executeConquestMethod` then reported
+ * the refusal as "every host is busy elsewhere", which is not what happened. Measured on the real
+ * tap path: a host mid-refit was offered on the siege sheet, the first tap gave the wrong reason,
+ * and the second gave none at all — the sheet re-raised itself with "that came to nothing" for as
+ * long as the player kept pressing, with the world clock stopped throughout.
+ *
+ * A missing or foreign host returns undefined rather than a reason: there is nothing to say to the
+ * player about a host that is not theirs and was never on the sheet. `setArmyOrders` still refuses
+ * it; this function is about the ones worth explaining.
+ */
+export function hostOrderRefusal(state: GameState, armyId: string): string | undefined {
+  const army = state.armies.find((candidate) => candidate.id === armyId && candidate.kingdomId === PLAYER_KINGDOM_ID);
+  if (!army) return undefined;
+  // An auxiliary is nobody's to command — the same line `isAutoHost` draws, for the same reason.
+  if (army.patron) return t('ascent.pick.blocked.auxiliary');
+  if (army.isLevy) return t('ascent.pick.blocked.levy');
+  if (army.refit) return t('ascent.army.refitBusy');
+  return undefined;
+}
+
+/**
  * Gives a host its standing order and acts on it at once, so a march or a hunt starts on the tap
  * rather than a season later. Returns false when the order names nothing.
  */

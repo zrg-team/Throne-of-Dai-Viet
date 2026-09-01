@@ -22,15 +22,11 @@
 
 <br>
 
-**…và nếu muốn game này còn đi tiếp, mua một lần trên điện thoại**
-
-[![Tải trên Google Play](https://img.shields.io/badge/Google%20Play-%E1%BB%A7ng%20h%E1%BB%99%20b%E1%BA%A3n%20build-2a2118?style=for-the-badge&logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=zrg.team.vanthang)
+[![Tải trên Google Play](https://img.shields.io/badge/Google%20Play-2a2118?style=flat-square&logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=zrg.team.vanthang)
 &nbsp;
-[![Tải trên App Store](https://img.shields.io/badge/App%20Store-%E1%BB%A7ng%20h%E1%BB%99%20b%E1%BA%A3n%20build-2a2118?style=for-the-badge&logo=appstore&logoColor=white)](https://apps.apple.com/app/id6805950974)
+[![Tải trên App Store](https://img.shields.io/badge/App%20Store-2a2118?style=flat-square&logo=appstore&logoColor=white)](https://apps.apple.com/app/id6805950974)
 
-**Khoảng 50.000₫, trả đúng một lần.**
-
-<sub>Vẫn đúng game ấy — vẫn không quảng cáo, không đồng hồ chờ năng lượng, bên trong không bán thêm thứ gì.<br>Chỉ khác là nó cài vào máy như một app thật và chơi được khi không có mạng, còn tiền ấy là để nuôi việc làm game.<br>Bản trên trình duyệt không phải bản dùng thử hay bản rút gọn: nó là nguyên con, mãi mãi.<br>Mua app chỉ là cách bạn mời mình ly cà phê, tiện thể có thêm cái icon ngoài màn hình chính.</sub>
+<sub>Muốn có icon ngoài màn hình chính? Vẫn game ấy, trên hai chợ app, khoảng 50.000₫ trả đúng một lần — là mời ly cà phê, không phải bức tường thu phí.</sub>
 
 <br>
 
@@ -296,22 +292,13 @@ Issue với pull request đều mở cửa. Những thứ quý nhất bạn có 
 
 Trước khi mở pull request: `yarn build` phải qua, và `node test_scripts/gate/smoke.mjs` nên xanh trên dev server của bạn.
 
-Có một điều nên biết trước khi gửi: vì quyền thương mại được giữ lại (xem mục dưới), khi bạn mở pull request là bạn cấp phép phần đóng góp ấy theo đúng những điều khoản này, **kèm** quyền cho người giữ repo đưa nó vào bản phát hành chính thức, kể cả bản có tính tiền. Bản quyền phần bạn viết vẫn là của bạn. Nếu bạn không muốn vậy, cứ nói thẳng trong pull request — mở một issue mô tả thay đổi vẫn quý như thường.
+Có một điều nên biết trước khi gửi: bản chính thức có bán trên các store, mà riêng giấy phép này thì không cho phép bản ấy mang theo phần bạn viết — nên khi bạn mở pull request là bạn cấp phép phần đóng góp ấy theo đúng những điều khoản này, **kèm** quyền cho người giữ repo đưa nó vào bản phát hành chính thức, kể cả bản có tính tiền. Bản quyền phần bạn viết vẫn là của bạn. Nếu bạn không muốn vậy, cứ nói thẳng trong pull request — mở một issue mô tả thay đổi vẫn quý như thường.
 
 ## 📄 Giấy phép
 
-**Mã nguồn mở ra để đọc, nhưng không phải open source.** Game dùng [PolyForm Noncommercial License 1.0.0](LICENSE); **quyền thương mại thuộc về zrg-team**.
+**[PolyForm Noncommercial 1.0.0](LICENSE)** — làm gì với nó cũng được, trừ việc kiếm tiền từ nó. Muốn dùng có tính thương mại thì phải xin phép trước; [cứ hỏi](https://github.com/zrg-team).
 
-|  | |
-| --- | --- |
-| ✅ **Thoải mái, không cần xin** | Chơi. Đọc mã nguồn và học từ nó. Fork, mod, tự chạy. Đăng một bản fork miễn phí, không quảng cáo, miễn là giữ dòng bản quyền và nói rõ đấy không phải bản chính thức. Đem đi dạy — lớp học, đại học, bảo tàng, thư viện. Stream, quay video, viết bài, chụp màn hình. |
-| ⛔ **Phải xin phép trước** | Bán game, bán bản fork, bán bản reskin. Đưa lên store bằng tài khoản nhà phát triển của bạn. Gắn quảng cáo, mua trong ứng dụng, thuê bao, tường thu phí. Gộp vào một sản phẩm hay dịch vụ có thu tiền. Lấy phần mã vẽ nét, 277 mảnh chân dung, danh sách tướng hay các khuôn chuyện đi làm việc thương mại. Bán đồ lưu niệm. Huấn luyện mô hình thương mại. |
-
-Bản Vạn Thắng thương mại duy nhất là bản chính thức phát hành từ repo này. Chính điều đó giữ được lời hứa ghi ngoài bìa — miễn phí, không quảng cáo, và không ai được đem lịch sử này gói vào quảng cáo rồi bán lại cho người Việt như thể đó là hàng thật.
-
-Bạn muốn làm gì đó có tính thương mại với nó? **Cứ hỏi — phần nhiều là được.** [COMMERCIAL.md](COMMERCIAL.md) ghi rõ thế nào là thương mại, hỏi ở đâu, và trong lời hỏi nên có những gì. Trường học, bảo tàng và các tổ chức phi lợi nhuận ở Việt Nam: giấy phép phi thương mại gần như chắc chắn đã bao trọn phần của bạn rồi, không phải hỏi gì cả.
-
-Phaser, Vite, TypeScript, Playwright và hai bộ phông giữ giấy phép riêng của họ — liệt kê ở cuối [LICENSE](LICENSE). Còn lịch sử là của chung tất cả mọi người; chỉ riêng cách kể này mới là của ai đó.
+Phaser, Vite, TypeScript, Playwright và hai bộ phông giữ giấy phép riêng — xem [LICENSE](LICENSE).
 
 ## ☕ Ủng hộ
 

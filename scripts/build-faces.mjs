@@ -1,6 +1,7 @@
 /**
- * Generates the hero-portrait part library: one SVG per part in `public/faces/`, plus the
- * manifest `src/ui/faces/parts.generated.ts` that tells the renderer where each part sits.
+ * Generates the hero-portrait part library: one editable SVG per part in `public/faces/`, a
+ * single runtime atlas, and the manifest `src/ui/faces/parts.generated.ts` that tells the
+ * renderer where each part sits.
  *
  * Why a generator rather than 55 hand-written files: the parts have to agree with each other
  * to the pixel — an eye drawn against one head shape and composited onto another is the whole
@@ -12,8 +13,11 @@
  * and tinted at runtime, so six skin tones cost one file rather than six. Parts whose colour is
  * fixed (gold coronet, black lacquer turban) are drawn in their own colour and never tinted.
  *
- * Output is committed. Re-run with `node scripts/build-faces.mjs` after editing a path; an
- * artist can also replace any single SVG by hand as long as its footprint does not move.
+ * The runtime atlas clips two generated neutral material studies into cloth and lacquered
+ * headwear. Silhouette and colour remain deterministic vectors; the generated art contributes
+ * surface character only, where it cannot invent or misdate a garment.
+ *
+ * Output is committed. Re-run with `node scripts/build-faces.mjs` after editing a path.
  *
  * Usage: node scripts/build-faces.mjs [--check]
  *   --check  verify the committed output matches what this script would emit, and fail if not
@@ -24,7 +28,14 @@ import { join } from 'node:path';
 
 const OUT_SVG = 'public/faces';
 const OUT_MANIFEST = 'src/ui/faces/parts.generated.ts';
+const OUT_ATLAS_SVG = join(OUT_SVG, 'atlas.svg');
+const OUT_ATLAS_JSON = join(OUT_SVG, 'atlas.json');
+const CLOTH_SOURCE = 'scripts/faces/materials/handwoven-cloth.png';
+const GAUZE_SOURCE = 'scripts/faces/materials/lacquered-gauze.png';
 const CHECK = process.argv.includes('--check');
+const RASTER_SCALE = 2;
+const ATLAS_WIDTH = 2048;
+const ATLAS_GAP = 2;
 
 // ── design space ────────────────────────────────────────────────────────────
 // Every part is authored in this one coordinate system, origin at the portrait's centre.
@@ -115,9 +126,19 @@ for (const [name, ground, edge, weight] of [
 // 20 · robe bodies. White, so the realm's colour tints them. `spread` widens the shoulder,
 // `slope` drops it — a general in armour needs a square shoulder and a scholar a sloping one,
 // and at portrait scale the shoulder line carries more of the read than the collar does.
+//
+// **The control point beside the neckline is what decides whether the clothes have anything to
+// sit on.** At `-20 ${NECK + 2}` the curve left the throat horizontally and then plunged: the
+// body was ±9 wide at y 40 and did not pass x 30 until y 51, while collar after collar is drawn
+// out at x 24 to 34 around y 33 to 43. Measured across the wardrobe, eleven parts reached ten to
+// twenty-eight units past any body beneath them, and on a plain robe they are visibly hanging on
+// the paper. Carrying it out to `-30 ${NECK + 4}` gives the shoulder a real slope from the
+// throat — three to five units higher at x 27 to 34 — which is where most of that overhang was.
+// It is not the whole fix: a lapel tip drawn at jaw height cannot be met by any shoulder, and
+// those came down to meet this one.
 const shouldersPath = (spread, slope) =>
-  `M ${-46 - spread} ${SHY + 26} C ${-44 - spread} ${SHY - 14 + slope}, -20 ${NECK + 2}, 0 ${NECK + 2}
-   C 20 ${NECK + 2}, ${44 + spread} ${SHY - 14 + slope}, ${46 + spread} ${SHY + 26} Z`;
+  `M ${-46 - spread} ${SHY + 26} C ${-44 - spread} ${SHY - 14 + slope}, -30 ${NECK + 4}, 0 ${NECK + 2}
+   C 30 ${NECK + 4}, ${44 + spread} ${SHY - 14 + slope}, ${46 + spread} ${SHY + 26} Z`;
 for (const [name, spread, slope] of [
   ['body', 0, 0], ['broad', 6, -4], ['slim', -6, 5], ['sloped', -2, 8], ['square', 4, -8],
 ]) {
@@ -200,9 +221,26 @@ const beastMaskHalf =
    <path d="M -45.5 ${SHY + 13.4} l 3 -2.2 l 3 1.8 l 3 -2.2 l 3 1.8 l 3 -2.2" stroke="#2b2318" stroke-width="1.25" fill="none" stroke-linejoin="round"/>`;
 part('guard-beastmask', 24, 'none', beastMaskHalf + `<g transform="scale(-1,1)">${beastMaskHalf}</g>`);
 
-// 25 · neck
-part('neck', 25, 'skinShadow', `<rect x="-9" y="${NECK - 12}" width="18" height="22" fill="#ffffff"/>`);
-part('neck-slim', 25, 'skinShadow', `<rect x="-7.5" y="${NECK - 12}" width="15" height="22" fill="#ffffff"/>`);
+// 25 · neck. Every neck begins above the shortest jaw (`head-round` ends at y=23.5), so the
+// head can never float on paper. A very slight flare replaces the old ruler-straight rectangle;
+// width is coupled to the selected head family in `neckForHead`, not rolled independently.
+//
+// **Widths are a fraction of the jaw they hang from, and the first pass set them too thin.**
+// Measured across the roster: a `neck-slim` drew 14 design units under heads 52 to 58 wide —
+// a quarter of the jaw, where a person's neck is about a third of it. It reads on paper exactly
+// as it measures: a head resting on a post, with the jaw overhanging both sides in one step and
+// nothing carrying the eye from one to the other. Reported as the head and body not looking
+// joined, and worst on the women, because five of the seven head shapes in their pool select the
+// slim neck. Each is now ~0.32 of its head family's width, which is the anatomy, and the flare
+// to the shoulders is a little stronger for the same reason.
+const neckShape = (topHalf, bottomHalf) =>
+  `<path d="M ${-topHalf} ${NECK - 17}
+     C ${-topHalf} ${NECK - 8}, ${-topHalf + 0.6} ${NECK + 2}, ${-bottomHalf} ${NECK + 10}
+     L ${bottomHalf} ${NECK + 10}
+     C ${topHalf - 0.6} ${NECK + 2}, ${topHalf} ${NECK - 8}, ${topHalf} ${NECK - 17} Z" fill="#ffffff"/>`;
+part('neck', 25, 'skinShadow', neckShape(10.5, 12));
+part('neck-slim', 25, 'skinShadow', neckShape(8.5, 10));
+part('neck-broad', 25, 'skinShadow', neckShape(12, 13.5));
 
 // 28 · ears. The long lobe is not a style axis — it is the iconographic mark of a Buddhist
 // teacher, and the wardrobe hands it only to monastics.
@@ -242,30 +280,43 @@ for (const [name, wide, tall, jaw, temple] of [
 // áo viên lĩnh closes in a ring at the throat, áo đối khâm hangs open in two parallel bands,
 // áo tứ thân ties in front. Getting the collar right is most of getting the century right, so
 // each is two tinted halves — dark under, light over — rather than one flat shape.
-const lapel = (reach, drop, spread) =>
-  `M ${-reach} ${NECK - 4} L 2 ${NECK + drop} L 2 ${NECK + drop + 18} L ${-reach - 8} ${NECK + spread} Z`;
-part('collar-giaolinh', 35, 'robeDark', `<path d="${lapel(26, 22, 10)}" fill="#ffffff"/>`);
+//
+// **A lapel starts on the shoulder, not at the jaw.** Both tips used to be authored at
+// `NECK - 4` — level with the chin — where no shoulder in the set reaches and none can: the
+// widest robe does not pass x 26 until y 46. So each flap's whole upper half hung on bare paper,
+// joined to nothing, and on a plain robe it read as two planks laid against the throat. Measured
+// at 21 units past the body for the plain cut and 28 for the wide, the worst in the wardrobe —
+// and the most worn collar in the game, so it is the one that mattered most.
+//
+// The tip is now given as a point rather than a reach, and both of them land on the shoulder the
+// robe actually draws: (24, `NECK + 10`) and (28, `NECK + 14`), against a `robe-slim` shoulder
+// that passes those two x at y 47 and 50. The V is lower and shallower than it was, which is the
+// price of it resting on something; crossing left over right, which is what names the garment,
+// is untouched.
+const lapel = (tipX, tipY, dropY, outX, outY) =>
+  `M ${-tipX} ${NECK + tipY} L 2 ${NECK + dropY} L 2 ${NECK + dropY + 18} L ${-outX} ${NECK + outY} Z`;
+part('collar-giaolinh', 35, 'robeDark', `<path d="${lapel(24, 10, 24, 32, 21)}" fill="#ffffff"/>`);
 part('collar-giaolinh-over', 36, 'robeLight',
-  `<path d="M 26 ${NECK - 4} L -2 ${NECK + 22} L -2 ${NECK + 40} L 34 ${NECK + 10} Z" fill="#ffffff"/>`);
-part('collar-giaolinh-wide', 35, 'robeDark', `<path d="${lapel(34, 26, 14)}" fill="#ffffff"/>`);
+  `<path d="M 24 ${NECK + 10} L -2 ${NECK + 24} L -2 ${NECK + 42} L 32 ${NECK + 21} Z" fill="#ffffff"/>`);
+part('collar-giaolinh-wide', 35, 'robeDark', `<path d="${lapel(28, 14, 28, 36, 27)}" fill="#ffffff"/>`);
 part('collar-giaolinh-wide-over', 36, 'robeLight',
-  `<path d="M 34 ${NECK - 4} L -2 ${NECK + 26} L -2 ${NECK + 44} L 42 ${NECK + 14} Z" fill="#ffffff"/>`);
+  `<path d="M 28 ${NECK + 14} L -2 ${NECK + 28} L -2 ${NECK + 46} L 36 ${NECK + 27} Z" fill="#ffffff"/>`);
 part('collar-giaolinh-trim', 37, 'none',
-  `<path d="M 26 ${NECK - 4} L -2 ${NECK + 22} L -2 ${NECK + 40}" stroke="${CREAM}" stroke-width="1.6" fill="none" opacity=".85"/>`);
+  `<path d="M 24 ${NECK + 10} L -2 ${NECK + 24} L -2 ${NECK + 42}" stroke="${CREAM}" stroke-width="1.6" fill="none" opacity=".85"/>`);
 part('collar-twoflap', 35, 'robeDark',
-  `<path d="M -30 ${NECK + 2} L 0 ${NECK + 26} L 0 ${NECK + 40} L -34 ${NECK + 14} Z" fill="#ffffff"/>`);
+  `<path d="M -26 ${NECK + 12} L 0 ${NECK + 26} L 0 ${NECK + 40} L -32 ${NECK + 21} Z" fill="#ffffff"/>`);
 part('collar-twoflap-over', 36, 'robeLight',
-  `<path d="M 30 ${NECK + 2} L 0 ${NECK + 26} L 0 ${NECK + 40} L 34 ${NECK + 14} Z" fill="#ffffff"/>`);
+  `<path d="M 26 ${NECK + 12} L 0 ${NECK + 26} L 0 ${NECK + 40} L 32 ${NECK + 21} Z" fill="#ffffff"/>`);
 // The broad brocade band laid down the leading edge of a wrap. Before the courts wrote rank
 // into a cap or a badge, this is where it was carried — the band is wide, contrasting and
 // full-length, which is the one garment mark that still reads when the head is too small to
 // see. Sits over either the giao lĩnh or the two-flap, so it is one part rather than two.
 part('collar-band-brocade', 37, 'none',
-  `<path d="M 27 ${NECK - 5} L -2 ${NECK + 22} L -2 ${NECK + 33} L 32 ${NECK + 3} Z" fill="${GOLD}" opacity=".92"/>
-   <path d="M 25 ${NECK - 1} L 0 ${NECK + 22}" stroke="${GOLD_DEEP}" stroke-width="1.1" fill="none" opacity=".8"/>`);
+  `<path d="M 23 ${NECK + 9} L -2 ${NECK + 24} L -2 ${NECK + 35} L 30 ${NECK + 17} Z" fill="${GOLD}" opacity=".92"/>
+   <path d="M 21 ${NECK + 13} L 0 ${NECK + 24}" stroke="${GOLD_DEEP}" stroke-width="1.1" fill="none" opacity=".8"/>`);
 part('collar-band-oxblood', 37, 'none',
-  `<path d="M 27 ${NECK - 5} L -2 ${NECK + 22} L -2 ${NECK + 33} L 32 ${NECK + 3} Z" fill="#7d4a52"/>
-   <path d="M 25 ${NECK - 1} L 0 ${NECK + 22}" stroke="${GOLD_DEEP}" stroke-width="1.1" fill="none" opacity=".7"/>`);
+  `<path d="M 23 ${NECK + 9} L -2 ${NECK + 24} L -2 ${NECK + 35} L 30 ${NECK + 17} Z" fill="#7d4a52"/>
+   <path d="M 21 ${NECK + 13} L 0 ${NECK + 24}" stroke="${GOLD_DEEP}" stroke-width="1.1" fill="none" opacity=".7"/>`);
 // The placket of square medallions that runs between the two parallel bands of an áo đối khâm.
 // Three ô vuông and no more: a fourth pushes the lowest one off the bottom of the bust, and at
 // portrait scale four small squares stop being countable anyway.
@@ -277,10 +328,10 @@ part('collar-placket-square', 37, 'none',
 // Áo viên lĩnh — the round-collar court robe of the Lý and Trần. A ring at the throat, which
 // is precisely what leaves the chest clear for a rank badge.
 part('collar-vienlinh', 35, 'robeDark',
-  `<path d="M -19 ${NECK - 6} C -19 ${NECK + 12}, 19 ${NECK + 12}, 19 ${NECK - 6}
-     C 19 ${NECK + 20}, -19 ${NECK + 20}, -19 ${NECK - 6} Z" fill="#ffffff"/>`);
+  `<path d="M -15 ${NECK - 2} C -15 ${NECK + 15}, 15 ${NECK + 15}, 15 ${NECK - 2}
+     C 15 ${NECK + 23}, -15 ${NECK + 23}, -15 ${NECK - 2} Z" fill="#ffffff"/>`);
 part('collar-vienlinh-trim', 36, 'none',
-  `<path d="M -19 ${NECK - 6} C -19 ${NECK + 12}, 19 ${NECK + 12}, 19 ${NECK - 6}" stroke="${GOLD}" stroke-width="1.6" fill="none"/>`);
+  `<path d="M -15 ${NECK - 2} C -15 ${NECK + 15}, 15 ${NECK + 15}, 15 ${NECK - 2}" stroke="${GOLD}" stroke-width="1.6" fill="none"/>`);
 
 // Áo đối khâm — two parallel bands hanging straight, never crossed.
 part('collar-doikham', 35, 'robeDark',
@@ -291,15 +342,22 @@ part('collar-doikham-over', 36, 'robeLight',
 // Áo tứ thân — the four-panel dress of the northern delta, its two front panels knotted at
 // the waist and the yếm showing between them.
 part('collar-tuthan', 35, 'robeDark',
-  `<path d="M -24 ${NECK - 4} C -18 ${NECK + 16}, -10 ${NECK + 28}, -6 ${NECK + 42} L -26 ${NECK + 42} Z" fill="#ffffff"/>`);
+  `<path d="M -22 ${NECK + 9} C -18 ${NECK + 22}, -10 ${NECK + 32}, -6 ${NECK + 42} L -26 ${NECK + 42} Z" fill="#ffffff"/>`);
 part('collar-tuthan-over', 36, 'robeLight',
-  `<path d="M 24 ${NECK - 4} C 18 ${NECK + 16}, 10 ${NECK + 28}, 6 ${NECK + 42} L 26 ${NECK + 42} Z" fill="#ffffff"/>`);
+  `<path d="M 22 ${NECK + 9} C 18 ${NECK + 22}, 10 ${NECK + 32}, 6 ${NECK + 42} L 26 ${NECK + 42} Z" fill="#ffffff"/>`);
 part('collar-tuthan-knot', 37, 'none',
   `<path d="M -7 ${NECK + 34} q 7 -6 14 0 q -7 8 -14 0 Z" fill="${CREAM}" opacity=".85"/>`);
 
 // Áo bà ba — the southern working blouse: a plain standing band and a straight front opening.
+// **A standing band is a collar, not a plank.** These three were axis-aligned rectangles wider
+// than any neck, and they stopped in mid-air: the robe's neckline is at `NECK + 2` and the bands
+// ended above it, so six or seven units at each end hung over bare paper with nothing behind
+// them. On the page that is a slab laid across the throat with the head above it and the body
+// below — reported as the head, neck and body not looking joined, and it was the clearest case
+// of it. Each is now a trapezoid: it hugs the throat where it meets the neck, and widens into
+// the shoulders, with its base carried below the neckline so it is standing on the body.
 part('collar-baba', 35, 'robeLight',
-  `<path d="M -14 ${NECK - 5} L 14 ${NECK - 5} L 14 ${NECK + 2} L -14 ${NECK + 2} Z" fill="#ffffff"/>`);
+  `<path d="M -11 ${NECK - 5} L 11 ${NECK - 5} L 15.5 ${NECK + 6} L -15.5 ${NECK + 6} Z" fill="#ffffff"/>`);
 part('collar-baba-front', 36, 'robeDark',
   `<path d="M -2.5 ${NECK + 2} L 2.5 ${NECK + 2} L 2.5 ${NECK + 42} L -2.5 ${NECK + 42} Z" fill="#ffffff"/>`);
 
@@ -335,11 +393,11 @@ part('belt-rope-coil', 38, 'none',
 
 // Áo ngũ thân — the 1744 reform: a standing collar closing to the right, five buttons.
 part('collar-nguthan', 35, 'robeLight',
-  `<path d="M -16 ${NECK - 6} L 16 ${NECK - 6} L 16 ${NECK + 4} L -16 ${NECK + 4} Z" fill="#ffffff"/>`);
+  `<path d="M -11.5 ${NECK - 6} L 11.5 ${NECK - 6} L 17 ${NECK + 7} L -17 ${NECK + 7} Z" fill="#ffffff"/>`);
 part('collar-nguthan-body', 36, 'robe',
   `<path d="M -16 ${NECK + 2} C -6 ${NECK + 12}, 10 ${NECK + 10}, 20 ${NECK + 4} L 24 ${NECK + 40} L -20 ${NECK + 40} Z" fill="#ffffff"/>`);
 part('collar-nguthan-tall', 35, 'robeLight',
-  `<path d="M -15 ${NECK - 11} L 15 ${NECK - 11} L 15 ${NECK + 4} L -15 ${NECK + 4} Z" fill="#ffffff"/>`);
+  `<path d="M -11 ${NECK - 11} L 11 ${NECK - 11} L 16.5 ${NECK + 7} L -16.5 ${NECK + 7} Z" fill="#ffffff"/>`);
 part('buttons-five', 39, 'none',
   [0, 1, 2, 3, 4].map((i) => `<circle cx="19" cy="${NECK + 8 + i * 7}" r="1.7" fill="${GOLD}"/>`).join(''));
 part('buttons-jade', 39, 'none',
@@ -349,7 +407,7 @@ part('buttons-knot', 39, 'none',
 
 // Áo yếm — the diamond bodice, tied at neck and back; worn by every class.
 part('collar-yem-wrap', 35, 'robeLight',
-  `<path d="M -20 ${NECK - 2} C -10 ${NECK + 16}, 10 ${NECK + 16}, 20 ${NECK - 2} L 26 ${NECK + 6} C 12 ${NECK + 28}, -12 ${NECK + 28}, -26 ${NECK + 6} Z" fill="#ffffff"/>`);
+  `<path d="M -15 ${NECK + 4} C -8 ${NECK + 18}, 8 ${NECK + 18}, 15 ${NECK + 4} L 23 ${NECK + 13} C 11 ${NECK + 32}, -11 ${NECK + 32}, -23 ${NECK + 13} Z" fill="#ffffff"/>`);
 // Outlined in cream: on a nâu robe the red separates on its own, but on a vermilion one —
 // which is what a Legendary woman wears — red on red is mud without an edge.
 const yemArt = (fill) =>
@@ -364,21 +422,36 @@ part('yem-jade', 36, 'none', yemArt('#6f8f64'));
 // A yoke that wraps the throat and runs down the front, not a panel laid on the chest — the
 // rectangular *collar* is what names the garment, and a plain filled rectangle reads as a
 // signboard hung round the neck.
-const NHAT_BINH_YOKE = `M -32 ${NECK - 8} L 32 ${NECK - 8} L 32 ${NECK + 24} L 13 ${NECK + 24}
-  L 13 ${NECK + 1} C 13 ${NECK - 3}, -13 ${NECK - 3}, -13 ${NECK + 1}
-  L -13 ${NECK + 24} L -32 ${NECK + 24} Z`;
+//
+// **The panel can only be as wide as the body underneath it.** The first cut of this shape kept
+// the notch but not that rule: it ran a flat top edge at `NECK - 8` out to x ±32, while the
+// robe's own neckline is at `NECK + 2` and its shoulder does not reach x 32 until y ≈ 51. So
+// twenty-two units at each end of the top band hung over bare paper — the signboard the note
+// above says it is not, arrived at from the other direction. Reported as the head, neck and body
+// not looking joined, and on this garment it was the largest instance of it.
+//
+// So the top edge now falls from the throat to the shoulder instead of running straight across.
+// The band over the throat is the width of a neck (±12 against necks 17 to 24 wide); from there
+// each side slopes out and down to a corner at (±29, `NECK + 19`), which sits inside the shoulder
+// of every robe body in the set — the narrowest, `robe-slim`, passes x 29 at y ≈ 56. It is also
+// what a nhật bình looks like worn: the square collar sits on the chest, below the shoulder line,
+// not floating level with the jaw.
+const NHAT_BINH_YOKE = `M -12 ${NECK - 7} L 12 ${NECK - 7}
+  L 29 ${NECK + 19} L 29 ${NECK + 26} L 12 ${NECK + 26}
+  L 12 ${NECK + 1} C 12 ${NECK - 3}, -12 ${NECK - 3}, -12 ${NECK + 1}
+  L -12 ${NECK + 26} L -29 ${NECK + 26} L -29 ${NECK + 19} Z`;
 part('collar-nhatbinh', 35, 'robeDark', `<path d="${NHAT_BINH_YOKE}" fill="#ffffff"/>`);
 part('collar-nhatbinh-trim', 36, 'none',
   `<path d="${NHAT_BINH_YOKE}" fill="none" stroke="${GOLD}" stroke-width="1.8" stroke-linejoin="round"/>
-   <path d="M -27 ${NECK + 14} q 4 -7 8.5 -1.5 q 4 -6.5 8.5 0.5" stroke="${GOLD}" stroke-width="1.3" fill="none" opacity=".95"/>
-   <path d="M 18.5 ${NECK + 14} q 4 -7 8.5 -1.5" stroke="${GOLD}" stroke-width="1.3" fill="none" opacity=".95"/>`);
+   <path d="M -26 ${NECK + 21} q 4.5 -6 9 -1" stroke="${GOLD}" stroke-width="1.3" fill="none" opacity=".95"/>
+   <path d="M 17 ${NECK + 21} q 4.5 -6 9 -1" stroke="${GOLD}" stroke-width="1.3" fill="none" opacity=".95"/>`);
 part('collar-nhatbinh-phoenix', 37, 'none',
   `<path d="M -6 ${NECK + 30} q 6 -8 12 0 q -6 3 -12 0 Z" fill="${SON}" opacity=".9"/>
    <path d="M 0 ${NECK + 30} l 0 8 M -4 ${NECK + 36} l 8 0" stroke="${GOLD}" stroke-width="1.2"/>`);
 
 // Kesa — the monk's, and nobody else's. Ochre is the Trúc Lâm colour; the patched field is the
 // older form, sewn from discarded cloth, which is what the word originally meant.
-const KESA_PATH = `M -30 ${NECK + 4} L 0 ${NECK + 30} L 30 ${NECK + 4} L 34 ${NECK + 14} L 0 ${NECK + 42} L -34 ${NECK + 14} Z`;
+const KESA_PATH = `M -25 ${NECK + 12} L 0 ${NECK + 34} L 25 ${NECK + 12} L 30 ${NECK + 22} L 0 ${NECK + 46} L -30 ${NECK + 22} Z`;
 part('kesa', 35, 'none', `<path d="${KESA_PATH}" fill="#b07a24"/>`);
 part('kesa-red', 35, 'none', `<path d="${KESA_PATH}" fill="#9c4a2e"/>`);
 part('kesa-grey', 35, 'none', `<path d="${KESA_PATH}" fill="#6f6a5e"/>`);
@@ -497,6 +570,73 @@ part('bun-tall-fore', 41, 'hair',
   `<ellipse cx="0.5" cy="${TOP - 13}" rx="9.5" ry="13" fill="#ffffff"/>
    <path d="M -9 ${TOP - 1} q 9.5 5 19 -1 Z" fill="#ffffff"/>`);
 
+// Women's historical styles are complete silhouettes rather than a loose fringe randomly
+// combined with a bun. The earlier system did exactly that and produced two black curtains
+// beside the cheeks with an unrelated ellipse balanced on top. These fronts and backs are
+// deliberately paired by `womanHairStylesFor`; rear masses sit below the head (layer 29),
+// while the hairline and face-framing locks sit above it (layer 40).
+const womanCentreCrown = () =>
+  `<path d="M -30 -16 C -31 -39, -20 -52, 0 -53 C 20 -52, 31 -39, 30 -16
+     C 24 -26, 13 -31, 0 -24 C -13 -31, -24 -26, -30 -16 Z" fill="#ffffff"/>
+   <path d="M 0 -50 C -2 -40, -1 -30, 0 -24" stroke="#c9c9c9" stroke-width="1.2" fill="none" opacity=".62"/>`;
+
+part('hair-woman-center', 40, 'hair', womanCentreCrown());
+part('hair-woman-temple', 40, 'hair',
+  womanCentreCrown()
+  + `<path d="M -27 -27 C -35 -15, -35 5, -28 17 C -23 14, -20 7, -22 -2 C -24 -11, -21 -21, -17 -29 Z" fill="#ffffff"/>
+     <path d="M 27 -27 C 35 -15, 35 5, 28 17 C 23 14, 20 7, 22 -2 C 24 -11, 21 -21, 17 -29 Z" fill="#ffffff"/>`);
+part('hair-woman-short', 40, 'hair',
+  womanCentreCrown()
+  + `<path d="M -26 -29 C -37 -11, -36 14, -27 26 C -21 21, -19 12, -22 1 C -25 -11, -21 -23, -16 -30 Z" fill="#ffffff"/>
+     <path d="M 26 -29 C 37 -11, 36 14, 27 26 C 21 21, 19 12, 22 1 C 25 -11, 21 -23, 16 -30 Z" fill="#ffffff"/>
+     <path d="M -29 18 q 4 6 9 1 M 29 18 q -4 6 -9 1" stroke="#c7c7c7" stroke-width="1.2" fill="none" opacity=".58"/>`);
+part('hair-woman-loose', 40, 'hair',
+  womanCentreCrown()
+  + `<path d="M -26 -30 C -39 -9, -38 22, -28 42 C -21 40, -18 31, -21 20 C -26 5, -23 -17, -16 -31 Z" fill="#ffffff"/>
+     <path d="M 26 -30 C 39 -9, 38 22, 28 42 C 21 40, 18 31, 21 20 C 26 5, 23 -17, 16 -31 Z" fill="#ffffff"/>
+     <path d="M -29 -8 C -32 8, -30 25, -25 35 M 29 -8 C 32 8, 30 25, 25 35" stroke="#c7c7c7" stroke-width="1.25" fill="none" opacity=".62"/>`);
+part('hair-woman-wrapped', 40, 'hair',
+  womanCentreCrown()
+  + `<path d="M -29 -36 Q 0 -53 29 -36 M -30 -31 Q 0 -47 30 -31 M -28 -26 Q 0 -40 28 -26"
+       stroke="#bdbdbd" stroke-width="2" fill="none" opacity=".72"/>`);
+// The short Trần crown leaves neither long temple locks nor a nape fall. It is the base for the
+// crown-tied brush described by Trần Cương Trung and preserved by Lê Quý Đôn.
+part('hair-woman-tran-short', 40, 'hair',
+  `<path d="M -29 -18 C -30 -39, -18 -51, 0 -52 C 18 -51, 30 -39, 29 -18
+     C 18 -25, -18 -25, -29 -18 Z" fill="#ffffff"/>
+   <path d="M -22 -24 Q 0 -33 22 -24" stroke="#c7c7c7" stroke-width="1.2" fill="none" opacity=".58"/>`);
+
+// Artifact-derived Lý–Trần masses. The fan and spiral are reconstructed from surviving heads,
+// so the paths preserve the strong silhouette without inventing individual strands.
+part('bun-fan-high', 29, 'hair',
+  `<path d="M -11 ${TOP - 1} L -22 ${TOP - 25} Q 0 ${TOP - 37} 22 ${TOP - 25} L 11 ${TOP - 1}
+     Q 0 ${TOP - 7} -11 ${TOP - 1} Z" fill="#ffffff"/>
+   <path d="M -14 ${TOP - 22} Q 0 ${TOP - 29} 14 ${TOP - 22} M -10 ${TOP - 13} Q 0 ${TOP - 19} 10 ${TOP - 13}"
+     stroke="#c4c4c4" stroke-width="1.4" fill="none" opacity=".64"/>`);
+part('bun-snail-coil', 29, 'hair',
+  `<path d="M -12 ${TOP + 5} C -20 ${TOP - 10}, -14 ${TOP - 22}, -4 ${TOP - 21}
+     C -8 ${TOP - 29}, 3 ${TOP - 34}, 8 ${TOP - 25} C 19 ${TOP - 20}, 19 ${TOP - 7}, 11 ${TOP + 5} Z" fill="#ffffff"/>
+   <path d="M -5 ${TOP - 18} C 8 ${TOP - 26}, 14 ${TOP - 15}, 7 ${TOP - 8} C 2 ${TOP - 3}, -5 ${TOP - 7}, -2 ${TOP - 12}"
+     stroke="#c1c1c1" stroke-width="1.5" fill="none" opacity=".72"/>`);
+part('bun-side-loops', 29, 'hair',
+  `<path d="M -24 -26 C -38 -25, -41 -10, -31 -3 C -23 0, -17 -9, -20 -18 Z" fill="#ffffff"/>
+   <path d="M 24 -26 C 38 -25, 41 -10, 31 -3 C 23 0, 17 -9, 20 -18 Z" fill="#ffffff"/>
+   <path d="M -32 -19 q -5 7 1 12 M 32 -19 q 5 7 -1 12" stroke="#c4c4c4" stroke-width="1.3" fill="none" opacity=".65"/>`);
+part('bun-tran-brush', 29, 'hair',
+  `<path d="M -8 ${TOP + 4} C -8 ${TOP - 5}, -5 ${TOP - 14}, 0 ${TOP - 19}
+     C 8 ${TOP - 18}, 16 ${TOP - 13}, 18 ${TOP - 8} C 16 ${TOP - 3}, 10 ${TOP}, 4 ${TOP + 1}
+     L -8 ${TOP + 4} Z" fill="#ffffff"/>
+   <path d="M -5 ${TOP - 3} Q 4 ${TOP - 7} 14 ${TOP - 5}" stroke="#bdbdbd" stroke-width="2" fill="none" opacity=".72"/>`);
+// A nape chignon is mostly hidden in a frontal portrait; showing only one outer crescent keeps
+// it behind the jaw instead of turning it into a beard. Two mirrors keep the seeded roster from
+// leaning in the same direction.
+part('bun-nape-right', 29, 'hair',
+  `<ellipse cx="21" cy="${CHIN - 12}" rx="7.5" ry="8.5" fill="#ffffff"/>
+   <path d="M 18 ${CHIN - 17} q 6 3 4 10" stroke="#c3c3c3" stroke-width="1.2" fill="none" opacity=".68"/>`);
+part('bun-nape-left', 29, 'hair',
+  `<ellipse cx="-21" cy="${CHIN - 12}" rx="7.5" ry="8.5" fill="#ffffff"/>
+   <path d="M -18 ${CHIN - 17} q -6 3 -4 10" stroke="#c3c3c3" stroke-width="1.2" fill="none" opacity=".68"/>`);
+
 // 42 · what goes into the hair. Trâm cài — the pin — is the one piece of jewellery a woman of
 // any class might own, so it is the ornament that carries rank least and character most.
 part('hairpin', 42, 'none', `<rect x="-3" y="${TOP - 20}" width="6" height="12" rx="2" fill="#b07a24"/>`);
@@ -525,6 +665,15 @@ part('hair-ribbon', 42, 'none',
   `<path d="M -18 ${TOP + 4} q 18 -8 36 0" stroke="${SON}" stroke-width="3" fill="none"/>
    <path d="M 16 ${TOP + 3} q 8 6 3 14" stroke="${SON}" stroke-width="2.4" fill="none"/>`);
 part('hair-cord', 42, 'none', `<path d="M -16 ${TOP - 2} q 16 -6 32 0" stroke="${CREAM}" stroke-width="2.2" fill="none" opacity=".9"/>`);
+const napePin = (side, jewel = false) => {
+  const startX = side * 18, endX = side * 31;
+  return `<path d="M ${startX} ${CHIN - 17} L ${endX} ${CHIN - 11}" stroke="${jewel ? GOLD_DEEP : GOLD}" stroke-width="1.7" stroke-linecap="round"/>
+    <circle cx="${side * 32}" cy="${CHIN - 10.5}" r="${jewel ? 2.5 : 1.8}" fill="${jewel ? JADE : GOLD}"/>`;
+};
+part('hairpin-nape-right', 42, 'none', napePin(1));
+part('hairpin-nape-right-jade', 42, 'none', napePin(1, true));
+part('hairpin-nape-left', 42, 'none', napePin(-1));
+part('hairpin-nape-left-jade', 42, 'none', napePin(-1, true));
 
 // 50 · headwear. This is the silhouette that has to survive at 42 px, so it is the richest
 // group in the library — and the one that does the most work, because in Đại Việt the hat was
@@ -557,11 +706,36 @@ part('hat-khandong-gold', 50, 'none', khanDong(GOLD));
 part('hat-khanxep', 50, 'none',
   `<path d="M ${-W / 2 - 4} ${TOP + 14} C ${-W / 2 - 5} ${TOP - 10}, ${W / 2 + 5} ${TOP - 10}, ${W / 2 + 4} ${TOP + 14} Z" fill="${LACQUER}"/>
    ${[0, 1, 2, 3].map((i) => `<path d="M ${-W / 2 - 2} ${TOP + 10 - i * 5} q ${W / 2 + 2} -4 ${W + 4} 0" stroke="${LACQUER_EDGE}" stroke-width="0.9" fill="none" opacity=".7"/>`).join('')}`);
-// Khăn vuông — a plain square of cloth knotted behind, which is what most men actually wore.
+// Khăn vuông — a plain square of cloth knotted behind. This also supplies the closed-crown
+// hair wrapping described for ordinary Lý wear; it is deliberately not the later open-crown
+// Nguyễn khăn vấn.
 part('hat-khanvuong', 50, 'none',
   `<path d="M ${-W / 2 - 3} ${TOP + 16} C ${-W / 2 - 3} ${TOP - 4}, ${W / 2 + 3} ${TOP - 4}, ${W / 2 + 3} ${TOP + 16}
      C ${W / 2 - 6} ${TOP + 8}, ${-W / 2 + 6} ${TOP + 8}, ${-W / 2 - 3} ${TOP + 16} Z" fill="#4a4238"/>
    <path d="M ${W / 2 - 2} ${TOP + 12} q 9 6 5 16" stroke="#4a4238" stroke-width="3.4" fill="none"/>`);
+
+// Mũ Đinh Tự — the defining Trần civil cap. A 1293 description records dark blue lacquered
+// silk held by wire at the brow, rising high in front and bending back to the nape; officials
+// added coloured streamers at the rear. The three-quarter lean and rear tail keep that unusual
+// profile legible even though the portrait itself is frontal.
+const dinhTu = (streamers) =>
+  `<path d="M -25 ${TOP + 12} L -24 ${TOP - 1}
+     C -23 ${TOP - 14}, -13 ${TOP - 24}, 1 ${TOP - 26}
+     C 15 ${TOP - 28}, 25 ${TOP - 17}, 23 ${TOP - 4}
+     C 21 ${TOP + 3}, 25 ${TOP + 7}, 25 ${TOP + 12} Z" fill="#1d2a35"/>
+   <rect x="-29" y="${TOP + 6}" width="58" height="7" rx="1.5" fill="#17232c"/>
+   <path d="M -24 ${TOP + 6} C -9 ${TOP + 1}, 10 ${TOP + 1}, 24 ${TOP + 6}"
+     stroke="#59636b" stroke-width="1.5" fill="none" opacity=".9"/>
+   <path d="M -19 ${TOP - 5} C -8 ${TOP - 17}, 8 ${TOP - 20}, 19 ${TOP - 11}"
+     stroke="#344553" stroke-width="1.2" fill="none" opacity=".8"/>
+   <path d="M 22 ${TOP + 4} q 11 7 6 27" stroke="#1d2a35" stroke-width="4" fill="none"/>`
+  + (streamers
+    ? `<path d="M 25 ${TOP + 10} q 8 8 3 25" stroke="#76506b" stroke-width="2.3" fill="none"/>
+       <path d="M 21 ${TOP + 11} q 4 10 -1 27" stroke="#3f6470" stroke-width="2.1" fill="none"/>
+       <path d="M -22 ${TOP + 10} q -5 8 -1 21" stroke="#76506b" stroke-width="1.8" fill="none" opacity=".85"/>`
+    : '');
+part('hat-dinhtu', 50, 'none', dinhTu(false));
+part('hat-dinhtu-streamers', 50, 'none', dinhTu(true));
 
 // Phốc đầu / mũ cánh chuồn. Wing length carried rank in the 1499 regulations, so it is three
 // parts rather than one — plus the upturned mũ xung thiên, which only a king wears.
@@ -968,23 +1142,53 @@ const boxes = await page.evaluate((keys) => {
   }
   return out;
 }, PARTS.map((p) => p.key));
+
+// The generated studies are build inputs, not literal costume references. Downsample them to a
+// small neutral tile before embedding so the committed atlas stays light and every portrait
+// sees the same restrained frequency of weave at roster scale.
+async function materialTile(path) {
+  if (!existsSync(path)) throw new Error(`missing generated face material: ${path}`);
+  const source = `data:image/png;base64,${readFileSync(path).toString('base64')}`;
+  return page.evaluate(async (src) => {
+    const image = new Image();
+    image.src = src;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const context = canvas.getContext('2d');
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(image, 0, 0, 128, 128);
+    return canvas.toDataURL('image/png');
+  }, source);
+}
+const materialTextures = {
+  cloth: await materialTile(CLOTH_SOURCE),
+  gauze: await materialTile(GAUZE_SOURCE),
+};
 await browser.close();
 
 mkdirSync(OUT_SVG, { recursive: true });
 const PAD = 2;                    // room for stroke caps, which getBBox does not include
 const manifest = [];
 const written = new Set();
-
-for (const p of PARTS) {
+const prepared = PARTS.map((p) => {
   const b = boxes[p.key];
   if (!b || (b.w === 0 && b.h === 0)) throw new Error(`part "${p.key}" measured empty — check its paths`);
+  return {
+    part: p,
+    view: {
+      x: Math.floor(b.x - PAD), y: Math.floor(b.y - PAD),
+      w: Math.max(4, Math.ceil(b.w + PAD * 2)), h: Math.max(4, Math.ceil(b.h + PAD * 2)),
+    },
+  };
+});
+
+for (const { part: p, view } of prepared) {
   // `getBBox` measures geometry, not ink: a stroked path extends half its width past the box
   // on every side, and a flat one measures zero in the thin axis. Both are handled by padding
   // and a floor, or strokes get clipped at the crop.
-  const view = {
-    x: Math.floor(b.x - PAD), y: Math.floor(b.y - PAD),
-    w: Math.max(4, Math.ceil(b.w + PAD * 2)), h: Math.max(4, Math.ceil(b.h + PAD * 2)),
-  };
   const file = join(OUT_SVG, `${p.key}.svg`);
   const svg = svgDoc(p.body, view) + '\n';
   if (CHECK) {
@@ -999,6 +1203,90 @@ for (const p of PARTS) {
   // Centre of the part in design space — what the renderer positions the Image at.
   manifest.push({ key: p.key, layer: p.layer, tint: p.tint, cx: view.x + view.w / 2, cy: view.y + view.h / 2, w: view.w, h: view.h });
 }
+
+function materialFor(key) {
+  if (/^(robe-(body|slim|sloped|broad|square)|collar-|sash-|yem|kesa)/.test(key)) return 'cloth';
+  if (/^hat-(khan|phocdau|xungthien|osa|binhdinh|tamson|duongcan|dinhtu|moqua|vanhday|band|veil|muni)/.test(key)) return 'gauze';
+  return undefined;
+}
+
+// Height-sorted shelf packing keeps the transparent atlas compact while leaving a two-pixel
+// moat around every frame, so linear filtering cannot bleed a gold crown into a black cap.
+const packed = [...prepared]
+  .map((entry) => ({
+    ...entry,
+    w: entry.view.w * RASTER_SCALE,
+    h: entry.view.h * RASTER_SCALE,
+  }))
+  .sort((a, b) => b.h - a.h || b.w - a.w || a.part.key.localeCompare(b.part.key));
+let shelfX = ATLAS_GAP;
+let shelfY = ATLAS_GAP;
+let shelfH = 0;
+for (const entry of packed) {
+  if (shelfX + entry.w + ATLAS_GAP > ATLAS_WIDTH) {
+    shelfX = ATLAS_GAP;
+    shelfY += shelfH + ATLAS_GAP;
+    shelfH = 0;
+  }
+  entry.x = shelfX;
+  entry.y = shelfY;
+  shelfX += entry.w + ATLAS_GAP;
+  shelfH = Math.max(shelfH, entry.h);
+}
+const usedHeight = shelfY + shelfH + ATLAS_GAP;
+const atlasHeight = 2 ** Math.ceil(Math.log2(usedHeight));
+
+const atlasDefs = [
+  `<pattern id="material-cloth" width="128" height="128" patternUnits="userSpaceOnUse"><image href="${materialTextures.cloth}" width="128" height="128"/></pattern>`,
+  `<pattern id="material-gauze" width="128" height="128" patternUnits="userSpaceOnUse"><image href="${materialTextures.gauze}" width="128" height="128"/></pattern>`,
+  ...packed.flatMap((entry, index) => materialFor(entry.part.key)
+    ? [`<clipPath id="part-clip-${index}" clipPathUnits="userSpaceOnUse">${entry.part.body}</clipPath>`]
+    : []),
+].join('');
+const atlasBody = packed.map((entry, index) => {
+  const { part: p, view, x, y } = entry;
+  const transform = `translate(${x - view.x * RASTER_SCALE} ${y - view.y * RASTER_SCALE}) scale(${RASTER_SCALE})`;
+  const material = materialFor(p.key);
+  const texture = material
+    ? `<rect x="${view.x}" y="${view.y}" width="${view.w}" height="${view.h}" fill="url(#material-${material})"
+        clip-path="url(#part-clip-${index})" opacity="${material === 'cloth' ? '.14' : '.11'}" style="mix-blend-mode:multiply"/>`
+    : '';
+  return `<g transform="${transform}">${p.body}${texture}</g>`;
+}).join('');
+const atlasSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${ATLAS_WIDTH}" height="${atlasHeight}" viewBox="0 0 ${ATLAS_WIDTH} ${atlasHeight}"><defs>${atlasDefs}</defs>${atlasBody}</svg>\n`;
+
+const frames = Object.fromEntries(packed
+  .sort((a, b) => a.part.key.localeCompare(b.part.key))
+  .map((entry) => [entry.part.key, {
+    frame: { x: entry.x, y: entry.y, w: entry.w, h: entry.h },
+    rotated: false,
+    trimmed: false,
+    spriteSourceSize: { x: 0, y: 0, w: entry.w, h: entry.h },
+    sourceSize: { w: entry.w, h: entry.h },
+  }]));
+const atlasJson = `${JSON.stringify({
+  frames,
+  meta: {
+    app: 'Vạn Thắng face atlas generator',
+    version: '1.0',
+    image: 'atlas.svg',
+    format: 'RGBA8888',
+    size: { w: ATLAS_WIDTH, h: atlasHeight },
+    scale: '1',
+  },
+}, null, 2)}\n`;
+
+for (const [file, content] of [[OUT_ATLAS_SVG, atlasSvg], [OUT_ATLAS_JSON, atlasJson]]) {
+  if (CHECK) {
+    if (!existsSync(file) || readFileSync(file, 'utf8') !== content) {
+      console.error(`stale: ${file}`);
+      process.exitCode = 1;
+    }
+  } else {
+    writeFileSync(file, content);
+  }
+}
+written.add('atlas.svg');
 
 // Sweep files the library no longer defines, so a renamed part cannot linger and get loaded.
 if (!CHECK) {
@@ -1038,9 +1326,9 @@ if (CHECK) {
     console.error(`stale: ${OUT_MANIFEST}`);
     process.exitCode = 1;
   }
-  if (!process.exitCode) console.log(`faces up to date — ${PARTS.length} parts`);
+  if (!process.exitCode) console.log(`faces up to date — ${PARTS.length} parts, ${ATLAS_WIDTH}×${atlasHeight} atlas`);
 } else {
   mkdirSync('src/ui/faces', { recursive: true });
   writeFileSync(OUT_MANIFEST, ts);
-  console.log(`wrote ${PARTS.length} parts → ${OUT_SVG}/  and  ${OUT_MANIFEST}`);
+  console.log(`wrote ${PARTS.length} parts → ${OUT_SVG}/, ${ATLAS_WIDTH}×${atlasHeight} atlas, and ${OUT_MANIFEST}`);
 }

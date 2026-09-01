@@ -5,6 +5,20 @@ import { ensureAscentLaneState } from '../systems/ascent/ConquestSystem';
 export const SAVE_SNAPSHOT_VERSION = 1;
 export const SAVE_SNAPSHOT_KEY = 'mandate:snapshot:v1';
 
+/**
+ * Where the game puts a run down by itself — when the player leaves the screen, and on the way
+ * out of the page.
+ *
+ * A slot of its own rather than the one above, because the two are written by different people.
+ * `SAVE_SNAPSHOT_KEY` holds a save the *player* asked for; a phone reclaiming memory from a
+ * backgrounded tab is not a request to overwrite it. Sharing one key meant glancing at a message
+ * during a fresh run silently destroyed the run saved deliberately the night before.
+ *
+ * `loadSnapshot` reads whichever of the two is newer, so Continue still means "where I was" and
+ * neither slot can hide the other.
+ */
+export const AUTOSAVE_SNAPSHOT_KEY = 'mandate:autosave:v1';
+
 export interface SaveSnapshot {
   version: typeof SAVE_SNAPSHOT_VERSION;
   savedAt: string;
@@ -12,6 +26,21 @@ export interface SaveSnapshot {
 }
 
 export function saveSnapshot(state: GameState): SaveSnapshot | undefined {
+  return writeSnapshot(state, SAVE_SNAPSHOT_KEY);
+}
+
+/**
+ * Puts the run down without being asked. Same shape, its own slot.
+ *
+ * Returns undefined when the write could not happen at all — a full or refused quota, which is
+ * a real state on a phone and not an error worth taking the run down over. The caller reports
+ * it; nothing retries, because the next time the player leaves the screen is the retry.
+ */
+export function autosaveSnapshot(state: GameState): SaveSnapshot | undefined {
+  return writeSnapshot(state, AUTOSAVE_SNAPSHOT_KEY);
+}
+
+function writeSnapshot(state: GameState, key: string): SaveSnapshot | undefined {
   if (!canUseLocalStorage()) {
     return undefined;
   }
@@ -22,23 +51,52 @@ export function saveSnapshot(state: GameState): SaveSnapshot | undefined {
     state: normalizeSnapshotState(state),
   };
 
-  localStorage.setItem(SAVE_SNAPSHOT_KEY, JSON.stringify(snapshot));
+  try {
+    localStorage.setItem(key, JSON.stringify(snapshot));
+  } catch {
+    return undefined;
+  }
   return snapshot;
 }
 
+/**
+ * Forgets the automatic slot.
+ *
+ * Called when the player leaves a run deliberately. The automatic save exists to answer "the
+ * device took my run away"; a run the player walked out of has already been answered, by them,
+ * and leaving it behind would let Continue offer back the thing they just declined to save.
+ */
+export function clearAutosave(): void {
+  if (!canUseLocalStorage()) return;
+  try {
+    localStorage.removeItem(AUTOSAVE_SNAPSHOT_KEY);
+  } catch {
+    // A refused write is not worth taking the exit down over.
+  }
+}
+
+/** The newer of the two slots — the player's own save, and the one the game took for them. */
 export function loadSnapshot(): SaveSnapshot | undefined {
+  const manual = readSlot(SAVE_SNAPSHOT_KEY);
+  const automatic = readSlot(AUTOSAVE_SNAPSHOT_KEY);
+  if (!manual) return automatic;
+  if (!automatic) return manual;
+  return Date.parse(automatic.savedAt) > Date.parse(manual.savedAt) ? automatic : manual;
+}
+
+function readSlot(key: string): SaveSnapshot | undefined {
   if (!canUseLocalStorage()) {
     return undefined;
   }
 
-  const raw = localStorage.getItem(SAVE_SNAPSHOT_KEY);
+  const raw = localStorage.getItem(key);
   if (!raw) {
     return undefined;
   }
 
   try {
     const parsed = JSON.parse(raw) as SaveSnapshot;
-    if (!isValidSnapshot(parsed)) {
+    if (!isValidSnapshot(parsed) || Number.isNaN(Date.parse(parsed.savedAt))) {
       return undefined;
     }
     parsed.state = normalizeSnapshotState(parsed.state);
@@ -100,6 +158,9 @@ function normalizeSnapshotState(state: GameState): GameState {
     }
   }
   clone.isPaused = false;
+  // The away pause is owned by `game/awayPause.ts` and cleared by the player coming back. A run
+  // stored while the player was away would restore into a halt nothing is left to lift.
+  clone.isAwayPause = undefined;
   clone.latestBattleResult = undefined;
   clone.lastStoryOutcome = undefined;
   // The map now paints itself from the season, so an absent one would leave the world with no

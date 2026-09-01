@@ -44,24 +44,31 @@ export function headwearFor(era: HeroEra, type: Hero['type'], woman: boolean, ra
     return ['', '', 'hat-khanvan-low', 'hat-khanvuong', 'hat-band-cloth', 'hat-non'];
   }
   if (era === 'ly') {
-    if (type === 'general') return ['hat-helm', 'hat-helm-plume', 'hat-helm-daumau', 'hat-khanvan', 'hat-band-warrior'];
-    if (type === 'minister') return ['hat-phocdau-short', 'hat-khanvan', 'hat-duongcan', 'hat-osa', rank >= 3 ? 'hat-xungthien' : 'hat-binhdinh'];
-    if (type === 'governor') return ['hat-khanvan', 'hat-osa', 'hat-khanvuong', 'hat-non'];
-    return ['hat-khanvan', 'hat-non', 'hat-khanvuong', 'hat-non-chop'];
+    if (type === 'general') return ['hat-helm', 'hat-helm-plume', 'hat-helm-daumau', 'hat-khanvuong', 'hat-band-warrior'];
+    // Phốc Đầu entered court regulation in 1059. Outside court the stronger evidence is for a
+    // topknot, sometimes enclosed by a closed hair cloth — not the later open-crown khăn vấn.
+    if (type === 'minister') return ['hat-phocdau-short', 'hat-phocdau-short', 'hat-duongcan', 'hat-osa', rank >= 3 ? 'hat-xungthien' : 'hat-khanvuong'];
+    if (type === 'governor') return ['hat-khanvuong', 'hat-osa', '', 'hat-non'];
+    return ['', '', 'hat-khanvuong', 'hat-non', 'hat-non-chop'];
   }
   if (era === 'tran') {
-    if (type === 'general') return ['hat-helm', 'hat-helm-lamellar', 'hat-helm-cheeks', 'hat-helm-daumau', ''];
-    if (type === 'minister') return ['hat-phocdau-short', 'hat-duongcan', 'hat-osa', 'hat-tamson', ''];
-    if (type === 'governor') return ['hat-khanvan', 'hat-osa', '', 'hat-non-chop'];
-    return ['hat-khanvan-low', '', 'hat-non', 'hat-non-dau'];
+    if (type === 'general') return ['hat-helm', 'hat-helm-lamellar', 'hat-helm-cheeks', 'hat-dinhtu', 'scalp-shaven', ''];
+    // In 1301 the Đinh Tự replaced the Lý Phốc Đầu for civil and military officials. Higher
+    // office added purple-and-blue rear streamers, so rank changes the cap without inventing
+    // another silhouette.
+    if (type === 'minister') return rank >= 2
+      ? ['hat-dinhtu-streamers', 'hat-dinhtu-streamers', 'hat-dinhtu', 'hat-osa', '']
+      : ['hat-dinhtu', 'hat-dinhtu', 'hat-osa', 'scalp-shaven', ''];
+    if (type === 'governor') return ['hat-dinhtu', 'hat-osa', 'scalp-shaven', '', 'hat-non-chop'];
+    return ['scalp-shaven', 'scalp-shaven', '', '', 'hat-non', 'hat-non-dau'];
   }
   if (era === 'le') {
     if (type === 'general') return ['hat-helm', 'hat-helm-crest', 'hat-helm-horned', 'hat-helm-lamellar', 'hat-khanvan'];
     // 1499: the court wrote wing length into the regulations, so a Lê minister wears the
     // dragonfly cap more often than anything else and the wings say how senior he is.
     if (type === 'minister') return ['hat-phocdau-short', 'hat-phocdau-short', 'hat-osa', 'hat-binhdinh', 'hat-tamson'];
-    if (type === 'governor') return ['hat-khanvan', 'hat-osa', 'hat-khanvuong', 'hat-non', 'hat-binhdinh'];
-    return ['hat-khanvan', 'hat-non', 'hat-khanvuong', 'hat-non-dau', 'hat-band-cloth'];
+    if (type === 'governor') return ['hat-dinhtu', 'hat-osa', 'hat-khanvuong', 'hat-non', 'hat-binhdinh'];
+    return ['hat-dinhtu', '', 'hat-non', 'hat-khanvuong', 'hat-non-dau', 'hat-band-cloth'];
   }
   if (era === 'tayson') {
     if (type === 'general') return ['hat-helm-crest', 'hat-helm-plume', 'hat-band-warrior', 'hat-helm-leather', 'hat-band'];
@@ -94,6 +101,13 @@ function womenHeadwear(era: HeroEra, rank: number): string[] {
       ? ['hat-coronet', 'hat-crown-phoenix', 'hat-coronet-jade', 'hat-non-quaithao', 'hat-moqua']
       : ['hat-moqua', 'hat-non-quaithao', 'hat-moqua-brown', 'hat-non-batam', ''];
   }
+  // The mỏ quạ and great festival hats are later northern-delta forms. Lý–Trần portraits are
+  // better served by visible hair, a simple band or a restrained court coronet.
+  if (era === 'ly' || era === 'tran' || era === 'dinh') {
+    return rank >= 2
+      ? ['hat-coronet', 'hat-coronet-jade', 'hat-crown-seven', '', 'hat-band-gold']
+      : ['', '', 'hat-band', 'hat-band-cloth', 'hat-non'];
+  }
   return rank >= 2
     ? ['hat-coronet', 'hat-coronet-jade', 'hat-crown-seven', '', 'hat-band-gold']
     : ['', 'hat-band', 'hat-moqua-brown', 'hat-non', 'hat-band-cloth'];
@@ -123,33 +137,136 @@ export function manKnotFor(era: HeroEra): string[] {
   return ['topknot', 'topknot-small', 'topknot-wrapped', 'topknot-side'];
 }
 
-/** A woman's hair. Under a covering hat only the crown shows, so the caller narrows this. */
-export function womanHairFor(era: HeroEra, covered: boolean): string[] {
-  if (covered) return ['hair-crown', 'hair-low', 'hair-parted', 'hair-thick'];
-  if (era === 'nguyen') return ['hair-long', 'hair-long-full', 'hair-braid', 'hair-tail', 'hair-wavy'];
-  return ['hair-long', 'hair-long-short', 'hair-braid', 'hair-long-full', 'hair-tail'];
+export type WomanHairOrnamentPlacement = 'none' | 'crown' | 'brush' | 'band' | 'nape-left' | 'nape-right';
+
+export interface WomanHairStyle {
+  /** A reviewed front and, when needed, its compatible rear mass. */
+  parts: readonly string[];
+  /** Pins have physical locations; a crown pin must never float beside a nape chignon. */
+  ornament: WomanHairOrnamentPlacement;
 }
+
+const womanStyle = (
+  parts: readonly string[],
+  ornament: WomanHairOrnamentPlacement,
+): WomanHairStyle => ({ parts, ornament });
 
 /**
- * A woman's knot. The coil and the wrapped knot are the delta forms; twin buns read young.
+ * Complete Vietnamese women's hairstyles, gated by period.
  *
- * Era gates the tall forward knot, which is the older courts' and not the delta's — the same
- * rule the hats are under, for the same reason. Before this the four hundred years between
- * Hoa Lư and Thăng Long had one hairstyle between them.
+ * These must stay as whole styles. Independently rolling “long hair” and “bun” was the visual
+ * defect this function replaces: it made straight side curtains and then balanced an unrelated
+ * oval on the crown. The pools below instead follow the surviving silhouette evidence:
+ *
+ * - Lý–Trần artifact heads: face-framing locks, tall fans, spiral coils and restrained side loops;
+ * - Trần textual description: short hair tied at the crown and bent like a writing brush;
+ * - Lê accounts: neck-length cropped hair, with loose long hair returning later in the period;
+ * - Nguyễn visual record: smooth centre parts, northern wrapped crowns and southern nape buns.
  */
-export function womanKnotFor(era: HeroEra, age: 'young' | 'prime' | 'elder'): string[] {
-  const early = era === 'dinh' || era === 'ly';
-  if (age === 'young') return early ? ['bun-tall-fore', 'bun-high', 'bun-double', 'bun-coil'] : ['bun-high', 'bun-double', 'bun-low', 'bun-coil'];
-  if (age === 'elder') return early ? ['bun-tall-fore', 'bun-low', 'bun-wrapped', 'bun-coil'] : ['bun-low', 'bun-wrapped', 'bun-wide', 'bun-coil'];
-  if (early) return ['bun-tall-fore', 'bun-tall-fore', 'bun-high', 'bun-coil', 'bun-wrapped'];
-  return ['bun-high', 'bun-low', 'bun-coil', 'bun-wrapped', 'bun-wide'];
+export function womanHairStylesFor(
+  era: HeroEra,
+  age: 'young' | 'prime' | 'elder',
+  covered: boolean,
+): WomanHairStyle[] {
+  // A scarf or great wrap leaves only a quiet hairline visible. No bun or pin is allowed to
+  // protrude through it.
+  if (covered) {
+    return era === 'tran'
+      ? [womanStyle(['hair-woman-tran-short'], 'none')]
+      : [womanStyle(['hair-woman-center'], 'none'), womanStyle(['hair-woman-short'], 'none')];
+  }
+
+  if (era === 'dinh') {
+    // Evidence before Lý is sparse; keep a conservative compact early-Vietnamese pool instead
+    // of projecting either the rich Lý court fans or the late Nguyễn wrap backward as fact.
+    return [
+      womanStyle(['bun-snail-coil', 'hair-woman-center'], 'crown'),
+      womanStyle(['bun-nape-right', 'hair-woman-temple'], 'nape-right'),
+      womanStyle(['bun-nape-left', 'hair-woman-temple'], 'nape-left'),
+    ];
+  }
+
+  if (era === 'ly') {
+    const court = [
+      womanStyle(['bun-fan-high', 'hair-woman-center'], 'crown'),
+      womanStyle(['bun-snail-coil', 'hair-woman-temple'], 'crown'),
+      womanStyle(['bun-fan-high', 'hair-woman-temple'], 'band'),
+    ];
+    // Two side loops occur on Lý–Trần heads, but the best reconstruction treats them as a
+    // young attendant/low-status possibility rather than a generic woman's style.
+    if (age === 'young') court.push(womanStyle(['bun-side-loops', 'hair-woman-center'], 'band'));
+    if (age === 'elder') court.push(womanStyle(['bun-nape-right', 'hair-woman-temple'], 'nape-right'));
+    return court;
+  }
+
+  if (era === 'tran') {
+    return [
+      womanStyle(['bun-tran-brush', 'hair-woman-tran-short'], 'brush'),
+      womanStyle(['bun-tran-brush', 'hair-woman-tran-short'], 'brush'),
+      womanStyle(['hair-woman-wrapped'], 'band'),
+      womanStyle(['bun-snail-coil', 'hair-woman-center'], 'crown'),
+    ];
+  }
+
+  if (era === 'le') {
+    return [
+      womanStyle(['hair-woman-short'], 'band'),
+      womanStyle(['hair-woman-short'], 'none'),
+      womanStyle(['hair-woman-loose'], 'none'),
+      womanStyle(['hair-woman-wrapped'], 'band'),
+      womanStyle(
+        [age === 'young' ? 'bun-nape-left' : 'bun-nape-right', 'hair-woman-center'],
+        age === 'young' ? 'nape-left' : 'nape-right',
+      ),
+    ];
+  }
+
+  if (era === 'tayson') {
+    return [
+      womanStyle(['hair-woman-loose'], 'none'),
+      womanStyle(['hair-woman-wrapped'], 'band'),
+      womanStyle(['bun-nape-right', 'hair-woman-center'], 'nape-right'),
+      womanStyle(['bun-nape-left', 'hair-woman-center'], 'nape-left'),
+    ];
+  }
+
+  // Nguyễn spans northern hair wrapped smoothly around the head and the low rear chignon seen
+  // especially in the south. Loose long hair remains a younger/private option, not the default.
+  const nguyen = [
+    womanStyle(['hair-woman-wrapped'], 'band'),
+    womanStyle(['hair-woman-wrapped'], 'band'),
+    womanStyle(['bun-nape-right', 'hair-woman-center'], 'nape-right'),
+    womanStyle(['bun-nape-left', 'hair-woman-center'], 'nape-left'),
+  ];
+  if (age === 'young') nguyen.push(womanStyle(['hair-woman-loose'], 'none'));
+  return nguyen;
 }
 
-/** What may be pinned into it. An empty entry means nothing at all, which is most people. */
-export function hairOrnamentFor(rank: number): string[] {
+/** What may be pinned into a specific style. Empty entries keep most working hair unadorned. */
+export function hairOrnamentFor(
+  rank: number,
+  placement: WomanHairOrnamentPlacement = 'crown',
+): string[] {
+  if (placement === 'none') return [''];
+  if (placement === 'band') {
+    return rank >= 2
+      ? ['hair-ribbon', 'hair-cord', 'hair-ribbon', '']
+      : ['', '', 'hair-cord', 'hair-ribbon'];
+  }
+  if (placement === 'brush') {
+    return rank >= 2
+      ? ['hairpin-plain', 'hairpin-long', 'hair-cord', '']
+      : ['hairpin-plain', '', '', 'hair-cord'];
+  }
+  if (placement === 'nape-left' || placement === 'nape-right') {
+    const side = placement === 'nape-left' ? 'left' : 'right';
+    return rank >= 2
+      ? [`hairpin-nape-${side}-jade`, `hairpin-nape-${side}`, `hairpin-nape-${side}-jade`, '']
+      : ['', '', `hairpin-nape-${side}`];
+  }
   if (rank >= 3) return ['hairpin-jade', 'hairpin-long', 'hair-comb', 'hair-flower', 'hairpin-plain'];
-  if (rank >= 1) return ['hairpin', 'hairpin-jade', 'hairpin-plain', 'hair-ribbon', '', 'hair-cord'];
-  return ['', '', 'hairpin', 'hairpin-plain', 'hair-cord', 'hair-ribbon'];
+  if (rank >= 1) return ['', 'hairpin', 'hairpin-jade', 'hairpin-plain', 'hair-ribbon', 'hair-cord'];
+  return ['', '', '', 'hairpin-plain', 'hair-cord'];
 }
 
 /** The robe, its collar, and whatever fastens it — one coherent set per era and sex. */
@@ -233,15 +350,21 @@ export function garmentsFor(
     return dinh;
   }
 
-  // Lý · Trần · Lê · Tây Sơn. A court officer of standing wears the round-collar áo viên lĩnh
-  // — which is what leaves the chest clear for the bổ tử — and everyone else the crossed lapel.
+  // Lý · Trần · Lê · Tây Sơn. The round-collar four-panel robe is especially strong in the
+  // Trần descriptions. Bổ tử do not appear until Lê regulations, so an earlier round collar
+  // remains clear rather than carrying an anachronistic rank square.
   const courtly = (type === 'minister' || type === 'governor') && rank >= 1 && era !== 'tayson';
-  if (courtly && pick([true, true, false])) {
+  const roundCollar = courtly
+    ? pick([true, true, false])
+    : era === 'tran'
+      ? pick([true, true, true, false])
+      : era === 'ly' && pick([true, false, false]);
+  if (roundCollar) {
     return [
       ...body,
       { key: 'collar-vienlinh', tint: 'robeDark' },
       { key: 'collar-vienlinh-trim', tint: 'none' },
-      ...(rank >= 1 ? [{ key: badgeFor(type, rank, pick), tint: 'none' } as HeroLookPart] : []),
+      ...(era === 'le' && rank >= 1 ? [{ key: badgeFor(type, rank, pick), tint: 'none' } as HeroLookPart] : []),
       ...beltFor(rank, era, pick),
     ];
   }
@@ -289,6 +412,14 @@ function womenGarments(era: HeroEra, rank: number, pick: Pick): HeroLookPart[] {
       { key: 'collar-giaolinh-over', tint: 'robeLight' },
       { key: pick(['collar-band-oxblood', 'collar-band-brocade']), tint: 'none' },
       { key: pick(['sash-silk', 'sash-waist']), tint: 'none' },
+    ];
+  }
+  if (era === 'tran' && rank >= 1 && pick([true, true, false])) {
+    return [
+      ...body,
+      { key: 'collar-vienlinh', tint: 'robeDark' },
+      { key: 'collar-vienlinh-trim', tint: 'none' },
+      ...beltFor(rank, era, pick),
     ];
   }
   const yem = pick(['yem', 'yem', 'yem-cream', 'yem-indigo', 'yem-jade']);

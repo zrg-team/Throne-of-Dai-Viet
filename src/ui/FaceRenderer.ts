@@ -16,8 +16,8 @@ import { placeStamp, stamp } from './ink/stamp';
  * detail on an identical outline, and at the sizes portraits are actually drawn (five call
  * sites, from 0.32× to 1.16×) most of that detail was sub-pixel.
  *
- * Now each part is a real drawing shipped as an SVG in `public/faces/`, rasterised once at
- * load, and stacked as tinted Images. Three consequences worth knowing:
+ * Now each part is a real drawing shipped as an SVG source in `public/faces/`, packed into one
+ * textured runtime atlas, and composed once per hero. Three consequences worth knowing:
  *
  *  - **Parts that carry a run-chosen colour are drawn white and tinted.** Six skin tones cost
  *    one file. Parts with a fixed colour — the black lacquer of a khăn vấn, a gold coronet —
@@ -25,24 +25,15 @@ import { placeStamp, stamp } from './ink/stamp';
  *  - **Positions come from the generator, not from here.** `scripts/build-faces.mjs` measures
  *    each part's real bounding box and writes its centre into `parts.generated.ts`, so a part
  *    can be redrawn or replaced by hand without anything in this file changing.
- *  - **An artist can take over incrementally.** Any single SVG can be replaced with better art
- *    as long as its footprint stays put; nothing here knows what a part looks like.
+ *  - **Runtime work is bounded.** The loader fetches one atlas instead of hundreds of SVGs and
+ *    a composed hero becomes one cached Image instead of a dozen live clothing/hat layers.
  *
  * The public surface is unchanged: `renderHeroFace`, `renderHeroFaceInBox`, and
  * `HERO_FACE_EXTENT` behave exactly as before, so the four calling scenes needed no edits.
  */
 
-/** Texture key namespace, so face parts cannot collide with icons or map art. */
-const TEXTURE_PREFIX = 'face:';
-
-/**
- * Rasterisation size, as a multiple of design space.
- *
- * Portraits are drawn at up to 1.16×, so 2× leaves headroom for a retina backing store without
- * paying for texture memory nobody looks at. `load.svg` rasterises once at this size; Phaser
- * then scales the Image down, which is a GPU operation and free.
- */
-const RASTER_SCALE = 2;
+/** One loader request and one GPU texture for the complete part library. */
+const FACE_ATLAS_TEXTURE_KEY = 'face:atlas';
 
 const PART_BY_KEY = new Map<string, FacePartDef>(FACE_PART_DEFS.map((part) => [part.key, part]));
 
@@ -119,23 +110,20 @@ function cartoucheInk(g: Phaser.GameObjects.Graphics, rank: number, k = 1): void
  */
 export function preloadHeroFaces(scene: Phaser.Scene): void {
   const baseUrl = import.meta.env.BASE_URL;
-  for (const part of FACE_PART_DEFS) {
-    const key = TEXTURE_PREFIX + part.key;
-    if (scene.textures.exists(key)) continue;
-    scene.load.svg(key, `${baseUrl}faces/${part.key}.svg`, {
-      width: Math.max(1, Math.round(part.w * RASTER_SCALE)),
-      height: Math.max(1, Math.round(part.h * RASTER_SCALE)),
-    });
-  }
+  if (scene.textures.exists(FACE_ATLAS_TEXTURE_KEY)) return;
+  scene.load.atlas(FACE_ATLAS_TEXTURE_KEY, `${baseUrl}faces/atlas.svg`, `${baseUrl}faces/atlas.json`);
 }
 
 /** True once the parts are in the texture manager — the portrait needs them to draw anything. */
 export function heroFacesReady(scene: Phaser.Scene): boolean {
-  return scene.textures.exists(TEXTURE_PREFIX + FACE_PART_DEFS[0].key);
+  if (!scene.textures.exists(FACE_ATLAS_TEXTURE_KEY)) return false;
+  return scene.textures.get(FACE_ATLAS_TEXTURE_KEY).has(FACE_PART_DEFS[0].key);
 }
 
 const BADGE_TEXTURE_PREFIX = 'hero-face:';
-const BADGE_RASTER = 2;
+// 1.5× is crisp above the largest in-game portrait scale while cutting the full-roster cache
+// to 56% of its former 2× area. Source parts remain 2× inside the atlas.
+const BADGE_RASTER = 1.5;
 /** Render textures kept alive for as long as their saved texture is: destroying one destroys the other. */
 const badgeTextures = new Map<string, Phaser.GameObjects.RenderTexture>();
 
@@ -148,7 +136,14 @@ const badgeTextures = new Map<string, Phaser.GameObjects.RenderTexture>();
  * own bake guards against). Callers fall back to `renderHeroFaceInBox` or draw nothing.
  */
 export function heroFaceTextureKey(scene: Phaser.Scene, hero: Hero): string | undefined {
-  const key = BADGE_TEXTURE_PREFIX + hero.id;
+  const theme = getActiveMapTheme().id;
+  const identity = `${hero.id}|${hero.name}|${hero.era ?? ''}|${hero.sex ?? ''}|${hero.type}|${hero.rarity}|${hero.monastic === true}`;
+  let hash = 2166136261;
+  for (let i = 0; i < identity.length; i += 1) {
+    hash ^= identity.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  const key = `${BADGE_TEXTURE_PREFIX}${theme}:${hero.id}:${(hash >>> 0).toString(36)}`;
   if (scene.textures.exists(key)) return key;
   if (!heroFacesReady(scene)) return undefined;
   const renderer = scene.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
@@ -159,7 +154,9 @@ export function heroFaceTextureKey(scene: Phaser.Scene, hero: Hero): string | un
   const target = scene.make.renderTexture({ width, height }, false);
   // The face is drawn about its own origin, with parts reaching left of and above it; shift so
   // the whole extent lands inside the texture.
-  const face = renderHeroFace(scene, hero, -HERO_FACE_EXTENT.left * BADGE_RASTER, -HERO_FACE_EXTENT.top * BADGE_RASTER, BADGE_RASTER);
+  const face = buildHeroFaceLayers(scene, hero);
+  face.setPosition(-HERO_FACE_EXTENT.left * BADGE_RASTER, -HERO_FACE_EXTENT.top * BADGE_RASTER);
+  face.setScale(BADGE_RASTER);
   target.draw(face);
   // Phaser 4 buffers the draw and executes it in `render`. This has to run before the face is
   // destroyed on the next line, or the buffer flushes against a dead game object and the badge
@@ -202,6 +199,23 @@ export function renderHeroFace(
   scale: number,
 ): Phaser.GameObjects.Container {
   const root = scene.add.container(x, y).setScale(scale);
+  const textureKey = heroFaceTextureKey(scene, hero);
+  if (textureKey) {
+    const centreX = (HERO_FACE_EXTENT.left + HERO_FACE_EXTENT.right) / 2;
+    const centreY = (HERO_FACE_EXTENT.top + HERO_FACE_EXTENT.bottom) / 2;
+    root.add(scene.add.image(centreX, centreY, textureKey).setDisplaySize(HERO_FACE_W, HERO_FACE_H));
+    return root;
+  }
+
+  // Loading/context-loss fallback: keep the old direct composition path so a portrait can
+  // never disappear merely because its cache could not be created.
+  root.add(buildHeroFaceLayers(scene, hero));
+  return root;
+}
+
+/** Builds the editable part stack once; callers normally see its baked one-Image result. */
+function buildHeroFaceLayers(scene: Phaser.Scene, hero: Hero): Phaser.GameObjects.Container {
+  const root = scene.add.container(0, 0);
   const look = resolveHeroLook(hero);
 
   // Under the woodblock treatment the rarity plate — a dark lacquered slab with a gold rim — is
@@ -224,12 +238,11 @@ export function renderHeroFace(
     .sort((a, b) => a.def.layer - b.def.layer);
 
   for (const { wanted, def } of stack) {
-    const textureKey = TEXTURE_PREFIX + def.key;
-    // A missing texture means the scene did not preload; draw what we can rather than throwing
-    // in the middle of a roster list.
-    if (!scene.textures.exists(textureKey)) continue;
+    // A missing frame means the committed atlas is stale; draw what we can rather than throwing
+    // in the middle of a roster list. The verification suite catches the mismatch.
+    if (!scene.textures.get(FACE_ATLAS_TEXTURE_KEY).has(def.key)) continue;
 
-    const image = scene.add.image(def.cx, def.cy, textureKey);
+    const image = scene.add.image(def.cx, def.cy, FACE_ATLAS_TEXTURE_KEY, def.key);
     image.setDisplaySize(def.w, def.h);
     if (wanted.tint !== 'none') image.setTint(look.palette[wanted.tint]);
     root.add(image);

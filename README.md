@@ -22,15 +22,11 @@
 
 <br>
 
-**…and if you'd like it to keep going, buy it once on your phone**
-
-[![Get it on Google Play](https://img.shields.io/badge/Google%20Play-support%20the%20build-2a2118?style=for-the-badge&logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=zrg.team.vanthang)
+[![Get it on Google Play](https://img.shields.io/badge/Google%20Play-2a2118?style=flat-square&logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=zrg.team.vanthang)
 &nbsp;
-[![Download on the App Store](https://img.shields.io/badge/App%20Store-support%20the%20build-2a2118?style=for-the-badge&logo=appstore&logoColor=white)](https://apps.apple.com/app/id6805950974)
+[![Download on the App Store](https://img.shields.io/badge/App%20Store-2a2118?style=flat-square&logo=appstore&logoColor=white)](https://apps.apple.com/app/id6805950974)
 
-**About 50,000₫ (≈ US$2), paid once.**
-
-<sub>The same game — still no ads, no energy timers, nothing to buy inside it. It installs like a real app and plays offline,<br>and the price is simply how the work gets paid for. The browser version is not a demo or a trial: it is the whole thing, forever.<br>Buying is a tip that happens to come with a home-screen icon.</sub>
+<sub>Want a home-screen icon? The same game is on the stores for about 50,000₫ (≈ US$2), paid once — a tip, not a paywall.</sub>
 
 <br>
 
@@ -118,7 +114,7 @@ Four resources — **food, supplies, gold, humans** — flow from provinces whos
 
 <table>
   <tr>
-    <td width="38%"><img src="docs/readme/summon.webp" alt="Summon a Champion: three answer the call, one will serve — a portrait, six stats, a character line, wages" width="100%"></td>
+    <td width="38%"><img src="docs/readme/summon.webp" alt="The Court Presents: a champion offered to the throne — portrait, stats, a character line and the wage, one of three to swipe through" width="100%"></td>
     <td valign="top">
 
 Champions arrive by **summon** — a gacha with pity, *three answer the call, one will serve* — or are drafted from your court's Favor. Each carries six stats (martial, logistics, administration, diplomacy, loyalty, renown), a wage the treasury feels every season, a character line worth reading, and a portrait; a first meeting is recorded in the Codex for good.
@@ -158,7 +154,7 @@ The enemy telegraphs what they hold and what they are re-forming into, in words 
 
 Nothing on the field is a sprite sheet. A host is drawn as ranked figures standing in the shape it is actually holding — spears two deep, horse gathered at the point, shields locked — under its own banner, with its camp behind it, from the same procedural ink that draws the paddies and the citadels. What you can read at a glance — *their line is still forming, ours is a set hedge* — **is** the state of the fight:
 
-<img src="docs/readme/armies.webp" alt="Both hosts drawn on the field: ranked figures in their shapes, banners, camps, speech bubbles" width="100%">
+<img src="docs/readme/armies.webp" alt="Both hosts drawn on the field: ranked figures in their shapes, horse at the flank, banners, camps, arrows in flight" width="100%">
 
 ## 📜 The Chronicle — the stories are the engine
 
@@ -166,7 +162,7 @@ The stories are not cutscenes. They are **forty-nine templates** that bind thems
 
 <table>
   <tr>
-    <td width="40%"><img src="docs/readme/chronicle.webp" alt="A story card in play: a rival lord's offer, three answers with real costs, and an advisor's counsel beneath" width="100%"></td>
+    <td width="40%"><img src="docs/readme/chronicle.webp" alt="A story card in play: a beat from the Chronicle, each answer carrying a real cost" width="100%"></td>
     <td valign="top">
 
 **A few of the pages**
@@ -296,22 +292,13 @@ Issues and pull requests are open. The most useful things you can bring, in orde
 
 Before opening a pull request: `yarn build` must pass, and `node test_scripts/gate/smoke.mjs` should be green against your dev server.
 
-One thing to know before you send one: because the commercial rights are reserved (below), opening a pull request licenses your contribution under the same terms **and** grants the maintainer the right to ship it commercially as part of the official game. You keep the copyright in what you wrote. If you would rather not grant that, say so in the pull request — an issue describing the change is still genuinely useful.
+One thing to know before you send one: the official builds are sold in the app stores, and this licence alone would not let them carry your work — so opening a pull request licenses your contribution under the same terms **and** grants the maintainer the right to ship it commercially as part of the official game. You keep the copyright in what you wrote. If you would rather not grant that, say so in the pull request — an issue describing the change is still genuinely useful.
 
 ## 📄 License
 
-**Source-available, not open source.** The game is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE); **commercial rights are reserved** to zrg-team.
+**[PolyForm Noncommercial 1.0.0](LICENSE)** — do anything you like with this, except make money from it. Commercial use needs permission first; [just ask](https://github.com/zrg-team).
 
-|  | |
-| --- | --- |
-| ✅ **Free, without asking** | Play it. Read the source and learn from it. Fork it, mod it, run it. Publish a free, ad-free fork that keeps the notice and says it is not the official game. Use it to teach — classrooms, universities, museums, libraries. Stream it, record it, write about it. |
-| ⛔ **Needs a licence first** | Selling it, a fork, or a reskin. Publishing it to a store under your own account. Ads, in-app purchases, subscriptions, paywalls. Bundling it into a commercial product or service. Reusing the ink code, the 277 portrait parts, the roster or the stories commercially. Merchandise. Commercial model training. |
-
-The only commercial builds of Vạn Thắng are the official ones published from this repository. That is what keeps the promise on the tin — free, ad-free, nobody wrapping this history in advertising and shipping it to Vietnamese players as though it were the real thing.
-
-Want to do something commercial with it? **Ask — the answer is often yes.** [COMMERCIAL.md](COMMERCIAL.md) says what counts as commercial, how to ask, and what to put in the request. Vietnamese schools, museums and non-profits: the noncommercial licence almost certainly already covers you, and you need not ask at all.
-
-Phaser, Vite, TypeScript, Playwright and the fonts keep their own licences — listed at the foot of [LICENSE](LICENSE). The history itself belongs to everyone; only this telling of it is anyone's.
+Phaser, Vite, TypeScript, Playwright and the fonts keep their own licences — see [LICENSE](LICENSE).
 
 ## ☕ Support
 

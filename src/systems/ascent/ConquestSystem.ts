@@ -27,7 +27,7 @@ import { armyPower, createBattlePreview, findLandPath, issueMoveOrder } from '..
 import { enqueueAscentPrompt } from './AscentState';
 import { chargeAmbition } from './AmbitionSystem';
 import { isAutoHost } from './armyOrders';
-import { setArmyOrders } from './StandingOrders';
+import { hostOrderRefusal, setArmyOrders } from './StandingOrders';
 import { releaseHeroAssignment } from '../CourtSystem';
 import { pushToast } from '../empire/notifications';
 import { applyResourceDelta, militiaCapacity, refreshAllLandOutputs } from '../ResourceSystem';
@@ -342,7 +342,7 @@ function occupyOption(state: GameState, land: Land): ConquestMethodOption {
     loyalty: 55,
     chance: 100,
     armyId: army?.id,
-    blockedReason: army ? undefined : t('ascent.conquer.needHost'),
+    blockedReason: army ? undefined : noHostReason(state),
   };
 }
 
@@ -354,8 +354,21 @@ function siegeOption(state: GameState, land: Land): ConquestMethodOption {
     loyalty: 45,
     chance,
     armyId,
-    blockedReason: !armyId ? t('ascent.conquer.needHost') : undefined,
+    blockedReason: !armyId ? noHostReason(state) : undefined,
   };
+}
+
+/**
+ * Why no host can carry a military method out — told apart from *having* no host.
+ *
+ * "The realm needs a host" is the wrong sentence to a player who is looking at two of them, and
+ * it was the one the sheet used whenever the ones they had were busy: an auxiliary answering its
+ * patron, a levy on its own walls, a column mid-refit. The distinction is the whole difference
+ * between "go and raise an army" and "wait four seasons".
+ */
+function noHostReason(state: GameState): string {
+  const owned = state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID);
+  return owned.length > 0 ? t('ascent.conquer.noHostFree') : t('ascent.conquer.needHost');
 }
 
 // ── Execution ───────────────────────────────────────────────────────────────
@@ -417,6 +430,17 @@ export function executeConquestMethod(
   // from one that did, instead of serving last season's news as this attempt's reason.
   const messageBefore = state.message;
   let ok = false;
+  /**
+   * The refusal this attempt knows about, named by the branch that hit it.
+   *
+   * The fallback below reads `state.message` and compares it with what was there before, which
+   * cannot tell "wrote the same thing again" from "wrote nothing". A host that refuses twice
+   * writes the identical message twice, so the second tap fell through to "that came to nothing"
+   * — measured on the real sheet: the true reason once, then nothing useful for as long as the
+   * player kept pressing. A branch that knows why says so here instead of leaving it to be
+   * inferred.
+   */
+  let refusal: string | undefined;
   switch (method) {
     case 'bribe':
       ok = bribeLand(state, landId);
@@ -449,22 +473,28 @@ export function executeConquestMethod(
       if (actor?.armyId) {
         // The player named the host: it takes the standing order to attack, which marches it
         // (through owned ground) and storms once the odds clear — or at once, when forced.
-        ok = setArmyOrders(state, actor.armyId, { kind: 'attack', landId, force: actor.force });
+        //
+        // Asked before the order is given, not inferred from the message afterwards. This is the
+        // same question `buildHostPickerRows` greys the row on, so the two cannot disagree about
+        // whether the tap was ever going to work.
+        refusal = hostOrderRefusal(state, actor.armyId);
+        ok = !refusal && setArmyOrders(state, actor.armyId, { kind: 'attack', landId, force: actor.force });
       } else {
         ok = marchBestHostToTarget(state, landId);
       }
       // The sheet offered this because *some* host could reach the province; the march declines
       // when every one of them is already committed elsewhere. Two different questions, so the
       // option's own `blockedReason` cannot answer this one.
-      if (!ok) state.message = t('ascent.conquer.noHostFree');
+      if (!ok) refusal ??= t('ascent.conquer.noHostFree');
       break;
   }
 
   const reason = ok
     ? undefined
-    : state.message && state.message !== messageBefore
-      ? state.message
-      : t('ascent.conquer.cameToNothing');
+    : refusal
+      ?? (state.message && state.message !== messageBefore
+        ? state.message
+        : t('ascent.conquer.cameToNothing'));
 
   ascent.conquestPlans.push({
     id: `asc-conquest-${state.turn}-${landId}-${method}`,

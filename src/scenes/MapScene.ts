@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { ACTION_BAR_HEIGHT, COLORS, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID, REALTIME_TICK_MS } from '../game/constants';
 import { TouchController } from '../input/TouchController';
 import { createInitialGameState } from '../state/GameState';
-import { saveSnapshot } from '../state/save';
+import { clearAutosave, saveSnapshot } from '../state/save';
+import { installAwayPause, type AwayPauseHandle } from '../game/awayPause';
 import { bribeLand, startDiplomaticClaim, startIntimidation, settleLand } from '../systems/AcquisitionSystem';
 import { findLand, isAdjacent } from '../systems/LandSystem';
 import { advanceRealtimeMonth } from '../systems/RealtimeSystem';
@@ -276,6 +277,13 @@ export class MapScene extends Phaser.Scene {
   }
 
   /** HUD scene launched alongside this one. Overridden by subclasses with their own HUD. */
+  /**
+   * Halts the run while the player is away and writes it down before the device can take it.
+   * Installed here because this scene owns the live state; disposed with everything else in
+   * `cleanup`, or the listeners outlive the run they were halting.
+   */
+  private awayPause?: AwayPauseHandle;
+
   protected uiSceneKey(): string {
     return 'UIScene';
   }
@@ -381,6 +389,7 @@ export class MapScene extends Phaser.Scene {
     this.game.canvas.addEventListener('mousemove', this.domMouseMove);
     this.game.canvas.addEventListener('mouseup', this.domMouseUp);
     this.game.canvas.addEventListener('webglcontextrestored', this.onContextRestored);
+    this.awayPause = installAwayPause(this.state, () => this.events.emit('state-changed'));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.cleanup());
 
     this.drawMap();
@@ -393,6 +402,8 @@ export class MapScene extends Phaser.Scene {
   private cleanup(): void {
     // First, before anything else: the handlers this scene hung on the UI scene's emitter.
     this.offUi();
+    this.awayPause?.dispose();
+    this.awayPause = undefined;
     this.game.canvas.removeEventListener('pointerdown', this.domPointerDown);
     this.game.canvas.removeEventListener('pointermove', this.domPointerMove);
     this.game.canvas.removeEventListener('pointerup', this.domPointerUp);
@@ -517,6 +528,10 @@ export class MapScene extends Phaser.Scene {
       if (saveFirst) {
         saveSnapshot(this.state);
       }
+      // Either way the run has been left on purpose, so the slot that answers "the device took
+      // it from me" no longer describes anything: without this, declining to save and then
+      // pressing Continue handed back the run just walked out of.
+      clearAutosave();
       this.scene.stop(this.uiSceneKey());
       this.scene.start('MenuScene');
     });
@@ -547,7 +562,8 @@ export class MapScene extends Phaser.Scene {
    * and a mode with its own ending condition overrides just this.
    */
   protected isWorldHalted(): boolean {
-    return this.state.victory || this.state.isPaused || this.state.isStrategyPause;
+    return this.state.victory || this.state.isPaused || this.state.isStrategyPause
+      || Boolean(this.state.isAwayPause);
   }
 
   /**

@@ -2732,6 +2732,19 @@ export interface GameState {
   pendingCourtRequest?: PoliticsCard;
   isPaused: boolean;
   isStrategyPause: boolean;
+  /**
+   * The player is not here. Set when the tab is hidden or the window loses focus, cleared when
+   * it comes back — see `game/awayPause.ts`.
+   *
+   * A third pause rather than a reuse of `isPaused`, because the two are cleared by different
+   * things: `drainAscentPrompts`, the lane frame, the war board and the battle shell all clear
+   * `isPaused` on their own schedule, and any of them firing while the player was away would
+   * have started the war up again in an empty room. This one is owned by exactly one module and
+   * is never written from the run's own logic.
+   *
+   * Never saved: a snapshot taken while away must not restore into a pause nothing will clear.
+   */
+  isAwayPause?: boolean;
   selectedLandId?: string;
   selectedArmyId?: string;
   latestBattlePreview?: BattlePreview;

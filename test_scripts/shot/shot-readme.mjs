@@ -75,8 +75,20 @@ async function save(name, buffers, opts) {
 
 // ── driving the game ────────────────────────────────────────────────────────────────────────────
 
+/**
+ * A page of its own browser, closed with it.
+ *
+ * Every section opens one, and a dozen live WebGL contexts in a single Chromium is over the limit:
+ * the late sections start losing the context silently — a half-drawn strip of faces, then a boot
+ * whose `__mandateState` never arrives and a run that dies on `st.kingdoms`. Sections are
+ * independent, so the cheapest fix is to give each one a browser and let `page.close()` take it
+ * down. The codec page stays on the shared browser: it never touches WebGL.
+ */
 async function newPage(viewport = { width: 390, height: 844 }) {
-  const page = await browser.newPage({ viewport, deviceScaleFactor: 2 });
+  const own = await chromium.launch();
+  const page = await own.newPage({ viewport, deviceScaleFactor: 2 });
+  const closePage = page.close.bind(page);
+  page.close = async () => { await closePage(); await own.close(); };
   page.on('pageerror', (e) => errors.push(`PAGEERROR ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE ${m.text().slice(0, 200)}`); });
   await page.addInitScript(() => {
@@ -96,28 +108,79 @@ async function toMenu(page) {
   await page.waitForTimeout(1200);
 }
 
+/**
+ * Boots a mode and **stops its clock on the spot**.
+ *
+ * `__startBenchGame` seeds the world's construction; the run that follows is pinned by the loop in
+ * `advanceAscent`. Between the two, the scene is live — and the second and a half this function
+ * used to spend waiting for the first frame is a second and a half of real ticks on the browser's
+ * own RNG, a different number of them every time the machine is busier or quieter. That drift is
+ * what made the map shot unreproducible: the same seeds, the same code and the same script
+ * photographed a nine-province realm one afternoon and a one-province realm the next. Frozen here,
+ * the pinned ticks are the only ticks the run ever takes.
+ */
 async function boot(page, seed, mode) {
   await toMenu(page);
   await page.evaluate(([s, m]) => window.__startBenchGame(s, m), [seed, mode]);
   const key = mode === 'ascent' ? 'ConquestScene' : 'MapScene';
   await page.waitForFunction((k) => window.__phaserGame.scene.isActive(k), key, { timeout: 30000 });
+  await page.evaluate((k) => {
+    window.__mandateState.isPaused = true;
+    const world = window.__phaserGame.scene.getScene(k);
+    // Belt and braces: the flag stops the clock, the sunk accumulator stops a queued catch-up.
+    if (world) world.ascentAccumulator = -1e9;
+  }, key);
   await page.waitForTimeout(1500);
 }
 
-/** An engaged player: takes the first real option of every card. Installed in-page as `window.__firstChoice`. */
+/**
+ * An engaged player: takes the first real option of every card. Installed in-page as
+ * `window.__firstChoice`.
+ *
+ * Every kind the resolver knows is listed, and the list is the whole point. The fall-through used
+ * to answer `ok`, an id nothing accepts — so the cards that arrived after this script was written
+ * were never answered at all. A `muster-proposal` in particular is the only way a realm raises a
+ * host: unanswered, it sat in the slot while the guard loop spun on it, and 150 ticks later the
+ * photographed realm had no army, no champion and one province, because the autopilot had been
+ * declining to play since the card existed. Same defect `playtest/playtest-lib.mjs` records for
+ * its own driver; keep both in step with `AscentResolver.resolveAscentPrompt`.
+ */
 const FIRST_CHOICE = `
-window.__firstChoice = (p) => {
+window.__firstChoice = (p, retry) => {
+  const affordable = () => (p.options?.find((o) => o.affordable) ?? p.options?.[0])?.id;
   switch (p.kind) {
     case 'founder': return p.options[0];
     case 'power-draft': return p.cards[0] ?? 'skip';
     case 'conquer-target': return p.targets[0]?.landId ?? 'hold';
-    case 'conquer-method': return p.target.methods.find((m) => !m.blockedReason)?.method ?? 'back';
+    case 'conquer-method': {
+      // Best odds first, then the next best each time the sheet comes back — a refused attempt
+      // re-raises the same card carrying its refusal notice, and answering it with the method that
+      // just failed is how one run answered this card 778 times and took nothing. Leaving instead
+      // ('back') is no better: it sets a decline cooldown, and a run that declines every claim
+      // photographs a realm of one province. So: work down the open methods, leave when they run out.
+      const open = [...p.target.methods]
+        .filter((m) => !m.blockedReason)
+        .sort((a, b) => (b.chance ?? 0) - (a.chance ?? 0));
+      return open[Math.max(0, (retry ?? 1) - 1)]?.method ?? 'back';
+    }
     case 'hero-choice': return p.heroIds[0] ?? 'pass';
+    // Left as the card scores it. Preferring a host command changes nothing about this run, and
+    // preferring a governorship changes everything — the same seeds then hold two provinces at
+    // turn 148 instead of nine at turn 110 — so the picture takes the court's own advice.
     case 'court-appointment': return p.options[0].id;
     case 'law-choice': return p.projectIds[0] ? 'edict:' + p.projectIds[0] : 'hold';
     case 'parliament': return 'decline';
-    case 'doctrine': return p.options[1] ?? p.options[0] ?? 'hold';
-    default: return (p.options?.find((o) => o.affordable) ?? p.options?.[0])?.id ?? 'ok';
+    // A doctrine briefs the autopilot rather than overruling it, and the picture wants a realm
+    // that grew: 'expand' where it is on the table.
+    case 'doctrine': return (p.options.includes('expand') ? 'expand' : p.options[0]) ?? 'hold';
+    // A realm that never musters is a realm with nothing to photograph.
+    case 'muster-proposal': return 'accept';
+    case 'mandate': return p.options[0];
+    case 'decree-offer': return p.projectIds?.[0] ?? 'decline';
+    case 'empire-response': return p.options[0].id;
+    case 'envoy': case 'famine': case 'rival-demand':
+    case 'story-beat': case 'world-event': return affordable();
+    default: return affordable() ?? 'ok';
   }
 };`;
 
@@ -143,6 +206,13 @@ async function advanceAscent(page, ticks, { stopOnBattle = false, battleAfter = 
     // A map picture wants the map, not the battle screen a fight opens over it. The battle shot
     // is the one run that wants that screen; every other run lets its generals fight.
     st.ascent.autoResolveBattles = !stopOnBattle || battleAfter > 0;
+    // Both are real settings the game offers — silent muster from Settings, silent claim from the
+    // Build screen, where the slots it spends are already on show. Left off, every claim and every
+    // muster arrives as a card, and a card answered in a headless loop costs the realm the season
+    // it was proposed for: measured over 18 seed pairs, a realm that asks holds one province at
+    // turn 150 and a realm that acts holds nine at turn 110.
+    st.ascent.autoClaimSilently = true;
+    st.ascent.autoMusterSilently = true;
     let s = seed >>> 0;
     Math.random = () => {
       s = (s + 0x6d2b79f5) | 0;
@@ -157,7 +227,7 @@ async function advanceAscent(page, ticks, { stopOnBattle = false, battleAfter = 
       let guard = 0;
       while (st.pendingAscentPrompt && guard++ < 10) {
         if (st.pendingAscentPrompt.kind === 'run-over') break;
-        resolveAscentPrompt(st, window.__firstChoice(st.pendingAscentPrompt));
+        resolveAscentPrompt(st, window.__firstChoice(st.pendingAscentPrompt, guard));
       }
       if (stopOnBattle && st.ascent.activeBattle) break;
     }
@@ -175,6 +245,10 @@ async function advanceAscent(page, ticks, { stopOnBattle = false, battleAfter = 
         ui.waveBanner = undefined;
       }
       try { ui.closeOverlay?.(); ui.closeLane?.(); } catch { /* nothing open */ }
+      // The Chronicle out loud: a whisper holds for 4.5 s and fades over 0.4, so a picture taken
+      // while one is leaving catches half a sentence under whatever notice is over it. Silenced
+      // for the photograph — the strip is in the video, not in the still.
+      try { ui.whispers?.setVisible(false); } catch { /* not built yet */ }
       // Whatever held the world during the run — a banner's end-plate, a system prompt, a lane
       // closer restoring the hold it remembered — the photograph wants a running realm: both
       // pause flags off (each prints a PAUSED plate and swaps the action bar to Resume), and the
@@ -188,9 +262,10 @@ async function advanceAscent(page, ticks, { stopOnBattle = false, battleAfter = 
       // screen covers the map HUD, so no plate shows.
       let g = 0;
       while (st.pendingAscentPrompt && st.pendingAscentPrompt.kind !== 'run-over' && g++ < 12) {
-        resolveAscentPrompt(st, window.__firstChoice(st.pendingAscentPrompt));
+        resolveAscentPrompt(st, window.__firstChoice(st.pendingAscentPrompt, g));
       }
       st.ascent.promptQueue = st.ascent.promptQueue.filter((p) => p.kind === 'run-over');
+      st.isPaused = false;
       st.isStrategyPause = true;
     }
     // Answering a story beat *publishes* its ledger — the "what changed · Noted" card — into
@@ -198,6 +273,11 @@ async function advanceAscent(page, ticks, { stopOnBattle = false, battleAfter = 
     // regenerations in a row photographed The Reed Banner's receipts instead of the country
     // before this line existed.
     st.lastStoryOutcome = undefined;
+    // A fight that ends while the autopilot runs leaves its Reckoning standing in
+    // `ascent.pendingAftermath`, and the shell raises that over everything on the next refresh —
+    // the map, the draft, the conquest card and the summon were all photographed as one battle
+    // report before this line existed. It is its own slot; no prompt clearing touches it.
+    if (st.ascent) st.ascent.pendingAftermath = undefined;
     world.refresh();
     ui.events.emit('state-changed');
     const capital = st.lands.find((l) => l.type === 'castle' && l.ownerId === 'dai-viet');
@@ -314,14 +394,17 @@ if (want('menu')) {
 if (want('ascent')) {
   console.log('dragon ascent');
   const page = await newPage();
-  // Seeds by audition, not accident: on boot 1337 the autopilot stalls at two provinces however
-  // long it runs, and a roguelite about expansion should be photographed expanding. This pair
-  // holds twenty-odd provinces by turn 150 with the capital still standing.
-  await boot(page, 20260825, 'ascent');
+  // Seeds by audition, not accident, and re-auditioned whenever the balance moves — on the frozen
+  // clock, or the audition is of a different run than the camera will see. Driven over a grid of
+  // boot/tick pairs, this one is the realm that both grows and survives: eight provinces from tick
+  // 50 to 75, three hosts, the capital never lost. It is photographed at that peak rather than at a
+  // round number — the same run is down to two provinces by tick 125, because the rivals take back
+  // what a realm stops defending.
+  await boot(page, 20260901, 'ascent');
   founderPng = await shot(page);
   await save('founder', [founderPng]);
 
-  const progress = await advanceAscent(page, 150, { seed: 31337 });
+  const progress = await advanceAscent(page, 65, { seed: 20260901 });
   console.log('   run:', JSON.stringify(progress));
   const ascentFrame = await frameCapital(page, 'ConquestScene', { zoom: 1.2, season: 'Autumn', yNudge: 40 });
   console.log('   framed on', ascentFrame.name, `at sheet ${Math.round(ascentFrame.sx)},${Math.round(ascentFrame.sy)}`);
@@ -392,10 +475,13 @@ if (want('ascent')) {
 if (want('battle')) {
   console.log('battle');
   const page = await newPage();
-  await boot(page, 1337, 'ascent');
-  // Not the first fight of the run: `battleAfter` lets the early scuffles resolve themselves and
-  // takes the one that opens past turn 120 — a led host, a reserve to commit, a summer field.
-  const battle = await advanceAscent(page, 400, { stopOnBattle: true, battleAfter: 120, seed: 20260825 });
+  await boot(page, 20260901, 'ascent');
+  // The same run the map is photographed on, carried past its peak to the first fight that opens
+  // after tick 130 — chosen from a contact sheet of every opening this run offers, because most of
+  // them are a province levy defending itself and a levy has no commander to put in the corner of
+  // the screen. This one is a champion of the realm, Chu Văn An, holding the field against a host
+  // that outnumbers his by two hundred men.
+  const battle = await advanceAscent(page, 400, { stopOnBattle: true, battleAfter: 130, seed: 20260901 });
   console.log('   run:', JSON.stringify(battle));
   await page.waitForTimeout(1200);
   battlePng = await shot(page);
@@ -433,7 +519,7 @@ if (want('chronicle')) {
         const p = st.pendingAscentPrompt;
         if (p.kind === 'story-beat') { found = { templateId: p.templateId, fragmentId: p.fragmentId }; break; }
         if (p.kind === 'run-over') break;
-        resolveAscentPrompt(st, window.__firstChoice(p));
+        resolveAscentPrompt(st, window.__firstChoice(p, guard));
       }
     }
     window.__shotState = st;
@@ -467,8 +553,15 @@ if (want('empire')) {
       st.pendingHeroEvent = undefined; st.pendingThreatAlert = undefined; st.pendingBattle = undefined; st.isPaused = false;
       advanceRealtimeMonth(st);
     }
+    // The slots are cleared at the head of each month, but the *last* month raises its own:
+    // the first cut of this photographed an envoy's Call to Arms sitting over the whole country.
+    st.pendingCourtRequest = undefined; st.activePoliticsCard = undefined; st.pendingForeignCard = undefined;
+    st.pendingHeroEvent = undefined; st.pendingThreatAlert = undefined; st.pendingBattle = undefined;
+    st.isPaused = false;
+    const ui = window.__phaserGame.scene.getScene('UIScene');
+    try { ui.closeModal?.(); } catch { /* nothing open */ }
     window.__phaserGame.scene.getScene('MapScene').refresh();
-    window.__phaserGame.scene.getScene('UIScene').refresh?.();
+    ui.refresh?.();
   });
   const empireFrame = await frameCapital(page, 'MapScene', { zoom: 1.15, season: 'Summer', yNudge: 40, revealAll: true });
   console.log('   framed on', empireFrame.name, `at sheet ${Math.round(empireFrame.sx)},${Math.round(empireFrame.sy)}`);
@@ -520,7 +613,37 @@ if (want('skirmish')) {
   await page.waitForTimeout(1200);
   await save('skirmish', [await shot(page)]);
   // The counter ring the muster form teaches — cropped out as the fight section's diagram.
-  await save('shapes-ring', [await shot(page, { x: 40, y: 608, width: 310, height: 134 })]);
+  // The ring folds shut by default (`ringOpen`), and the first regeneration after it learned to
+  // fold photographed 310x134 of blank paper under a collapsed heading. Opened here, and the crop
+  // is read off the toggle zone the scene draws over it rather than guessed: the ring's height is
+  // five labels tall and those change with the language.
+  const ringAt = await page.evaluate(() => {
+    const scene = window.__phaserGame.scene.getScene('BattleArenaScene');
+    scene.ringOpen = true;
+    scene.render();
+    // The scene draws an invisible toggle zone over the heading *and* the ring, exactly the
+    // rectangle this crop wants — but the page holds several wide zones (the scroll area is one),
+    // and taking the last of them photographed the host controls. The ring's zone is the one whose
+    // top sits on the heading, so the heading is what finds it.
+    const all = scene.children.list.concat(...scene.children.list.map((c) => c.list ?? []));
+    const heading = all.find((c) => c.type === 'Text' && /BEATS WHICH/i.test(c.text ?? ''));
+    if (!heading) return null;
+    const head = heading.getBounds();
+    const zone = all
+      .filter((c) => c.type === 'Zone' && c.width > 300 && c.height > 40)
+      .find((c) => Math.abs(c.getBounds().y - head.y) < 8);
+    if (!zone) return null;
+    // World bounds, not the object's own x/y: everything the arena draws is added to a layer
+    // container, so its coordinates are that container's, not the page's.
+    const b = zone.getBounds();
+    return { x: b.x, y: b.y, width: b.width, height: b.height, headHeight: head.height };
+  });
+  await page.waitForTimeout(500);
+  if (!ringAt) throw new Error('shapes-ring: the counter ring did not open');
+  await save('shapes-ring', [await shot(page, {
+    x: ringAt.x, y: ringAt.y + ringAt.headHeight + 4, width: ringAt.width,
+    height: ringAt.height - ringAt.headHeight - 4,
+  })]);
   await page.close();
 }
 

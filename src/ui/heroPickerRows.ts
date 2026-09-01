@@ -5,7 +5,7 @@ import { seatPrimaryStat } from '../systems/ascent/CourtLaneSystem';
 import { getDiplomacyThreshold, getLandTrust } from '../systems/AcquisitionSystem';
 import { armyPower, createBattlePreview, findLandPath } from '../systems/WarSystem';
 import { hostOrderLabel } from '../systems/ascent/armyOrders';
-import { hostOddsAgainst } from '../systems/ascent/StandingOrders';
+import { hostOddsAgainst, hostOrderRefusal } from '../systems/ascent/StandingOrders';
 import { buildGovernorRows } from './governorPanel';
 import { heroEffect, heroName, rarityLabel, heroTypeLabel, t } from '../i18n';
 import type { Army, CourtPositionId, GameState, Hero, HeroStats } from '../state/types';
@@ -241,8 +241,13 @@ export function buildHostPickerRows(
     const at = state.lands.find((candidate) => candidate.id === army.landId);
     let chance: number | undefined;
     let legs: number | undefined;
-    let blockedReason: string | undefined;
-    if (land) {
+    // First, whether this host takes orders at all. `setArmyOrders` refuses an auxiliary and a
+    // host mid-refit, and this list used to offer both as tappable rows — so the tap was spent,
+    // the order was refused, and the sheet came back saying something that had not happened.
+    // Asked before the target-specific reasons below, because "it is refitting" is true of this
+    // host wherever it is being sent.
+    let blockedReason: string | undefined = hostOrderRefusal(state, army.id);
+    if (land && !blockedReason) {
       const adjacentOwned = Boolean(at && at.ownerId === PLAYER_KINGDOM_ID && at.neighbors.includes(land.id));
       if (target.kind === 'intimidation') {
         if (!adjacentOwned) blockedReason = t('ascent.pick.blocked.notBorder', { land: land.name });

@@ -1,6 +1,6 @@
 import {
   garmentsFor, hairOrnamentFor, headwearFor, manHairFor, manKnotFor,
-  rankWings, robeColour, womanHairFor, womanKnotFor,
+  rankWings, robeColour, womanHairStylesFor,
 } from './wardrobe';
 import { HAIRS, ROBES, SKINS, shade, type FacePalette } from './palette';
 import type { Hero, HeroEra } from '../../state/types';
@@ -86,6 +86,20 @@ const COVERING_HATS = new Set([
   'hat-moqua', 'hat-moqua-brown', 'hat-moqua-tied', 'hat-vanhday', 'hat-khanxep', 'hat-veil',
 ]);
 
+const SLIM_NECK_HEADS = new Set([
+  'head-narrow', 'head-soft', 'head-heart', 'head-tapered', 'head-fine', 'head-slim', 'head-long',
+]);
+const BROAD_NECK_HEADS = new Set([
+  'head-broad', 'head-square', 'head-angular', 'head-wide', 'head-full', 'head-blunt', 'head-stern',
+]);
+
+/** A neck is anatomy, not an independent style roll: its width follows the jaw family. */
+export function neckForHead(headKey: string): 'neck-slim' | 'neck' | 'neck-broad' {
+  if (SLIM_NECK_HEADS.has(headKey)) return 'neck-slim';
+  if (BROAD_NECK_HEADS.has(headKey)) return 'neck-broad';
+  return 'neck';
+}
+
 // Feature pools. These carry no historical claim — unlike a hat, a nose is not an office — so
 // they are the widest lists in the wardrobe and are shared across every era.
 const BROWS_MAN = [
@@ -146,9 +160,10 @@ export function resolveHeroLook(hero: Hero): HeroLook {
 
   const parts: HeroLookPart[] = [{ key: PLATE[rank], tint: 'none' }];
   parts.push(...garmentsFor(era, woman, monastic, hero.type, rank, pick2));
-  parts.push({ key: pick(['neck', 'neck', 'neck-slim'] as const, next), tint: 'skinShadow' });
-  // The long lobe is iconography, not a face shape: it marks a Buddhist teacher and nobody else.
-  parts.push({ key: monastic ? 'ears-long' : pick(['ears', 'ears', 'ears-small'] as const, next), tint: 'skinShadow' });
+  // Preserve the old neck roll's random slot so correcting anatomy does not reshuffle every
+  // downstream eye, mouth, hat and hairstyle in already-authored portraits.
+  next();
+  const ears = monastic ? 'ears-long' : pick(['ears', 'ears', 'ears-small'] as const, next);
 
   // Head shape carries sex and age before any feature does — a narrower jaw on a woman, a
   // slighter one on an elder — which is what stops a roster reading as one man in many hats.
@@ -157,7 +172,11 @@ export function resolveHeroLook(hero: Hero): HeroLook {
     : age === 'elder'
       ? (['head-narrow', 'head-oval', 'head-soft', 'head-long', 'head-slim', 'head-fine'] as const)
       : (['head-oval', 'head-broad', 'head-square', 'head-angular', 'head-wide', 'head-full', 'head-blunt', 'head-stern', 'head-round', 'head-long'] as const);
-  parts.push({ key: pick(headPool, next), tint: 'skin' });
+  const head = pick(headPool, next);
+  parts.push({ key: neckForHead(head), tint: 'skinShadow' });
+  // The long lobe is iconography, not a face shape: it marks a Buddhist teacher and nobody else.
+  parts.push({ key: ears, tint: 'skinShadow' });
+  parts.push({ key: head, tint: 'skin' });
 
   // Hair, then whatever goes over it. A covering hat hides everything but the crown, so the
   // hair is chosen *after* the hat rather than before it — otherwise a woman in a khăn mỏ quạ
@@ -170,21 +189,33 @@ export function resolveHeroLook(hero: Hero): HeroLook {
     parts.push({ key: rank >= 2 ? 'scalp-dots-nine' : 'scalp-dots', tint: 'skinShadow' });
   } else if (woman) {
     const covered = COVERING_HATS.has(hat);
-    parts.push({ key: pick(womanHairFor(era, covered), next), tint: 'hair' });
-    if (!covered) {
-      parts.push({ key: pick(womanKnotFor(era, age), next), tint: 'hair' });
-      const ornament = pick(hairOrnamentFor(rank), next);
+    // Hair is selected as a complete historical style. A front, rear mass and pin are a single
+    // physical arrangement; rolling them independently created the old curtain-plus-ellipse
+    // combinations and could place a crown comb beside a nape bun.
+    const hairStyle = pick(womanHairStylesFor(era, age, covered), next);
+    for (const key of hairStyle.parts) parts.push({ key, tint: 'hair' });
+    // A crown, coronet or nón already fixes and ornaments the hair. A second free-standing pin
+    // behind it creates collisions, while a simple cloth band can still coexist with a cord.
+    if (!hat || hat.startsWith('hat-band')) {
+      const ornament = pick(hairOrnamentFor(rank, hairStyle.ornament), next);
       if (ornament) parts.push({ key: ornament, tint: 'none' });
     }
   } else {
-    parts.push({ key: pick(manHairFor(era, age), next), tint: 'hair' });
-    // The búi tó only shows under a wound turban or no hat at all; a lacquered cap covers it.
-    if (hat === '' || hat.startsWith('hat-khanvan') || hat === 'hat-khandong' || hat === 'hat-khanvuong') {
-      parts.push({ key: pick(manKnotFor(era), next), tint: 'hair' });
-      if (era === 'dinh') parts.push({ key: 'hairpin', tint: 'none' });
+    if (hat === 'scalp-shaven') {
+      // Trần visitors repeatedly described shaven men; this is a period marker, not monastic
+      // identity, so it carries no urna dots and wears the ordinary skin palette.
+      parts.push({ key: 'scalp-shaven', tint: 'skinLight' });
+    } else {
+      parts.push({ key: pick(manHairFor(era, age), next), tint: 'hair' });
+      // The búi tó only shows under a wound/closed cloth or no hat at all; lacquered court caps
+      // cover it. Lý closed wrapping is represented by khăn vuông, not Nguyễn khăn vấn.
+      if (hat === '' || hat.startsWith('hat-khanvan') || hat === 'hat-khandong' || hat === 'hat-khanvuong') {
+        parts.push({ key: pick(manKnotFor(era), next), tint: 'hair' });
+        if (era === 'dinh') parts.push({ key: 'hairpin', tint: 'none' });
+      }
     }
   }
-  if (hat && hat !== 'scalp') parts.push({ key: hat, tint: 'none' });
+  if (hat && hat !== 'scalp' && hat !== 'scalp-shaven') parts.push({ key: hat, tint: 'none' });
 
   // Khuyên tai were worn by both sexes in the older centuries and narrowed to women under the
   // Nguyễn, so the era gates them before the seed does.

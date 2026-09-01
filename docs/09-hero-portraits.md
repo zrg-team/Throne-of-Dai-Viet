@@ -126,9 +126,11 @@ wings are the useful find: by the 1499 regulations, officials of the third rank 
 wings *longer and larger* than everyone else's, so wing length already encoded rank
 before we asked it to.
 
-- **Khăn vấn (khăn đóng)** — a long black cloth coiled in pleats
-  around the head, crown left bare. Rose to prominence under the Lý and Trần, exactly the
-  period this game sits in. Worn by everyone from farmer to court.
+- **Khăn vấn (khăn đóng)** — a long dark cloth wound or folded around
+  the head. The later open-crown form belongs chiefly to Nguyễn-era pools; Lý portraits instead
+  use the documented topknot or a closed hair cloth, while Trần portraits favor cropped/shaven
+  hair and the mũ Đinh Tự. See the later evidence correction in
+  `docs/research/vietnamese-hero-wardrobe.md`.
 - **Áo giao lĩnh** — *giao* = crossed, *lĩnh* =
   collar. The robe of Lý–Trần court and folk life alike, worn with the khăn đóng. Its crossed
   lapel is the single most legible line in the whole costume.
@@ -208,7 +210,9 @@ A path, not an ellipse — jaw width and cheek hollow carry age and sex without 
 
 ##### Hair & topknot
 
-Búi tó showing through the open crown of the turban; a coiled bun for women; bare for a monk.
+Búi tó beneath an appropriate cloth or bare head; complete period-gated women's styles rather
+than one generic coil; bare for a monk. The implemented women's evidence and chronology are
+recorded in `docs/research/vietnamese-hero-wardrobe.md`.
 
 06
 
