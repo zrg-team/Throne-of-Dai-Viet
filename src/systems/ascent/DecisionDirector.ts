@@ -116,6 +116,27 @@ const STARVATION_TICKS = 4;
  */
 const KIND_STARVATION_TICKS = 18;
 
+/**
+ * Kinds that age faster than that, and why each one does.
+ *
+ * `power-draft` is the only entry, and it is here because it is the only kind in the list that
+ * is not the game asking the player for something — it is the game *owing* them something. A
+ * level-up is already earned and already banked (`pendingLevelUps`); the card is only where it
+ * gets spent. Ranked seventh and aged at eighteen it lost every slot to the realm's own
+ * business: measured across three seeds, a new player reached level 3 holding two unspent
+ * drafts and had been offered neither after three minutes at the wheel — in a mode whose whole
+ * identity is picking powers. Four seasons is long enough that a draft still cannot chain off a
+ * level-up gained mid-Court, and short enough that the reward arrives in the cycle it was
+ * earned in.
+ */
+const KIND_STARVATION_OVERRIDE: Partial<Record<AscentPromptKind, number>> = {
+  'power-draft': 4,
+};
+
+function starvationTicksFor(kind: AscentPromptKind): number {
+  return KIND_STARVATION_OVERRIDE[kind] ?? KIND_STARVATION_TICKS;
+}
+
 const CONSIDER_ORDER: AscentPromptKind[] = [
   // First among the scheduled kinds. It fires four times in a whole run — once per era — and it
   // sets what the autopilot does with every season after it, so making it wait behind a card
@@ -413,7 +434,7 @@ export function tickDecisionDirector(state: GameState): void {
   if (!starving && state.turn - ascent.lastPromptTurn < COURT_GAP_TICKS) return;
 
   const overdue = ready
-    .filter((kind) => (ascent.promptWaiting?.[kind] ?? 0) >= KIND_STARVATION_TICKS)
+    .filter((kind) => (ascent.promptWaiting?.[kind] ?? 0) >= starvationTicksFor(kind))
     .sort((a, b) => (ascent.promptWaiting?.[b] ?? 0) - (ascent.promptWaiting?.[a] ?? 0));
 
   // **An event fills a slot nobody else wanted, or it does not happen.**
