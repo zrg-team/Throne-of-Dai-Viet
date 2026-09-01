@@ -20,15 +20,21 @@
  * The fix is in layers, and this checks each one, because the outer layer is what makes the rest
  * survive a case nobody thought of:
  *
- *   1. `hostOrderRefusal` is the one place that answers the question. The picker greys on it, the
- *      sheet's `bestBattle`/`bestReachableArmy` skip on it, and the execution asks it before
- *      giving the order rather than guessing afterwards.
- *   2. A blocked method reports why in the realm's own terms — "no host is free" when the realm
- *      has hosts and none can go, "we need a host" only when it truly has none.
- *   3. The resolver re-raises the sheet at most once per reason. A host under the player's own
- *      standing order is deliberately *not* in layer 1 — naming it directly is a legitimate way
- *      to redirect it — so a refusal from that direction is still possible, and this is what
- *      stops it becoming a loop.
+ *   1. `hostOrderRefusal` is the one place that answers "will this host take an order?". The host
+ *      picker greys its row on it and `executeConquestMethod` asks it before giving the order,
+ *      rather than inferring the answer from `state.message` afterwards.
+ *   2. A method blocked for want of a host says which kind of want it is — "no host is free" when
+ *      the realm has hosts and none can go, "we need a host" only when it truly has none.
+ *   3. The resolver re-raises the sheet at most once per reason, which is what stops any refusal
+ *      it has not thought of from becoming an endless card.
+ *
+ * **The method itself stays on the sheet, and that is deliberate.** The sheet serves two paths
+ * with different rules: naming a host goes through `setArmyOrders`, which refuses a refit and an
+ * auxiliary, while leaving it to the sheet goes through `marchBestHostToTarget` → `issueMoveOrder`,
+ * which refuses neither. Blocking the method on the stricter of the two was tried and measured:
+ * `verify-auto-claim` fell from 11/11 to a crash, because a realm whose hosts were refitting
+ * stopped being offered ground it could in fact have taken. So the method is offered, and the
+ * picker is where the player learns that this particular host cannot go, and why.
  *
  * Usage: node test_scripts/verify/verify-conquest-offer.mjs
  */
@@ -53,6 +59,7 @@ await page.waitForFunction(() => typeof window.__startBenchGame === 'function'
 
 const out = await page.evaluate(async () => {
   const GS = await import('/src/state/GameState.ts');
+  const { NEUTRAL_OWNER_ID: NEUTRAL } = await import('/src/game/constants.ts');
   const CQ = await import('/src/systems/ascent/ConquestSystem.ts');
   const RES = await import('/src/systems/ascent/AscentResolver.ts');
   const ROWS = await import('/src/ui/heroPickerRows.ts');
@@ -69,8 +76,12 @@ const out = await page.evaluate(async () => {
     st.ascent.promptQueue = [];
     st.resources.gold = 5000;
     const capital = st.lands.find((l) => l.ownerId === 'dai-viet');
-    const target = st.lands.find((l) => l.ownerId !== 'dai-viet' && capital.neighbors.includes(l.id))
-      ?? st.lands.find((l) => l.ownerId !== 'dai-viet');
+    // A province that actually admits a siege. `buildMethodOptions` only offers one for settled
+    // ground (`!neutral || land.hasVillage`), and empty wilderness next door would have this
+    // reading "siege is not blocked" when the truth is that siege was never on the sheet.
+    const admitsSiege = (l) => l.ownerId !== 'dai-viet' && (l.ownerId !== NEUTRAL || l.hasVillage);
+    const target = st.lands.find((l) => admitsSiege(l) && capital.neighbors.includes(l.id))
+      ?? st.lands.find(admitsSiege);
     st.armies = st.armies.filter((a) => a.kingdomId !== 'dai-viet');
     const host = {
       id: 'the-host', kingdomId: 'dai-viet', name: 'Host', landId: capital.id,
@@ -92,7 +103,8 @@ const out = await page.evaluate(async () => {
     return {
       label,
       landName: target.name,
-      sheetBlocked: siege?.blockedReason ?? null,
+      // Absent and open are different answers and this used to collapse them into one.
+      sheetSiege: siege ? (siege.blockedReason ?? 'OPEN') : 'ABSENT',
       rowBlocked: mine?.blockedReason ?? null,
       first: { attempted: first.attempted, ok: first.ok, reason: first.reason ?? null },
       second: { attempted: second.attempted, ok: second.ok, reason: second.reason ?? null },
@@ -127,6 +139,8 @@ const out = await page.evaluate(async () => {
     refit: look('mid-refit', (host) => { host.refit = { kind: 'reinforce', ticksLeft: 4, total: 6, gain: 200 }; }),
     auxiliary: look('auxiliary', (host) => { host.patron = 'ally-kingdom'; }),
     free: look('free', () => {}),
+    // Hosts, but none of them a host: the message must be "none is free", not "raise one".
+    noHost: look('only levies', (host) => { host.isLevy = true; }),
     loop,
     words: {
       refitBusy: I18N.t('ascent.army.refitBusy'),
@@ -138,7 +152,7 @@ const out = await page.evaluate(async () => {
   };
 });
 
-const { refit, auxiliary, free, loop, words } = out;
+const { refit, auxiliary, free, noHost, loop, words } = out;
 
 // ── Layer 1: what cannot be commanded is not offered ─────────────────────────────────────────
 check('a host mid-refit is not offered as a live row',
@@ -147,20 +161,24 @@ check('a host mid-refit is not offered as a live row',
 check('an allied auxiliary is not offered as a live row',
   auxiliary.rowBlocked === words.auxiliary,
   `row says "${auxiliary.rowBlocked}"`);
-check('and the sheet does not offer the method behind them either',
-  refit.sheetBlocked !== null && auxiliary.sheetBlocked !== null,
-  `refit: ${refit.sheetBlocked ?? 'OPEN'} · auxiliary: ${auxiliary.sheetBlocked ?? 'OPEN'}`);
+check('the method stays on the sheet — the other path may still carry it',
+  refit.sheetSiege === 'OPEN' && auxiliary.sheetSiege === 'OPEN',
+  `refit: ${refit.sheetSiege} · auxiliary: ${auxiliary.sheetSiege}`);
 check('a host that can go is still offered, and the order takes',
-  free.sheetBlocked === null && free.rowBlocked === null && free.first.ok,
-  `sheet ${free.sheetBlocked ?? 'OPEN'}, row ${free.rowBlocked ?? 'tappable'}, order ok=${free.first.ok}`);
+  free.sheetSiege === 'OPEN' && free.rowBlocked === null && free.first.ok,
+  `sheet ${free.sheetSiege}, row ${free.rowBlocked ?? 'tappable'}, order ok=${free.first.ok}`);
 
 // ── Layer 2: the reason is the realm's own, and it does not decay ─────────────────────────────
-check('"no host is free" rather than "we have no host", with a host standing there',
-  refit.sheetBlocked === words.noHostFree && refit.sheetBlocked !== words.needHost,
-  `sheet says "${refit.sheetBlocked}"`);
+check("the refusal is the host's own reason, not 'every host is busy elsewhere'",
+  refit.first.reason === words.refitBusy && auxiliary.first.reason === words.auxiliary,
+  `refit: "${refit.first.reason}" · auxiliary: "${auxiliary.first.reason}"`);
+check('"no host is free" rather than "we have no host", when the realm has one',
+  noHost.sheetSiege === words.noHostFree,
+  `with every host levied the sheet says "${noHost.sheetSiege}"`);
 check('the second refusal says as much as the first',
-  refit.second.reason === refit.first.reason && refit.second.reason !== words.cameToNothing
-    && auxiliary.second.reason === auxiliary.first.reason,
+  refit.first.reason !== null && refit.second.reason === refit.first.reason
+    && refit.second.reason !== words.cameToNothing
+    && auxiliary.first.reason !== null && auxiliary.second.reason === auxiliary.first.reason,
   `refit: "${refit.first.reason}" then "${refit.second.reason}"`);
 
 // ── Layer 3: a refusal is a card once, not a card for ever ────────────────────────────────────

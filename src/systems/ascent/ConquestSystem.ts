@@ -655,11 +655,7 @@ function marchBestHostToTarget(state: GameState, landId: string): boolean {
 
 function bestReachableArmy(state: GameState, land: Land): Army | undefined {
   return state.armies
-    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && !army.patron
-      // A host that will refuse the order is not a host this method has. The sheet used to count
-      // one, offer the method, and let the refusal arrive as a notice after the tap was spent.
-      && !hostOrderRefusal(state, army.id)
-      && Boolean(findLandPath(state, army.landId, land.id)))
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy && !army.patron && Boolean(findLandPath(state, army.landId, land.id)))
     .sort((a, b) => armyPower(state, b) - armyPower(state, a))[0];
 }
 
@@ -705,8 +701,7 @@ function bestBattle(state: GameState, land: Land): { chance: number; armyId?: st
   let best = 0;
   let armyId: string | undefined;
 
-  for (const army of state.armies.filter((candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID
-    && !candidate.isLevy && !hostOrderRefusal(state, candidate.id))) {
+  for (const army of state.armies.filter((candidate) => candidate.kingdomId === PLAYER_KINGDOM_ID && !candidate.isLevy)) {
     const preview = createBattlePreview(state, army.id, land.id);
     let chance: number;
     if (preview) {
