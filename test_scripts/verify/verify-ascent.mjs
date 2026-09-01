@@ -64,6 +64,9 @@ const result = await page.evaluate(async () => {
       // must always resolve — a prompt this policy cannot answer stalls the whole run.
       // Fight it out rather than retreating, so the assertions see engagements resolve.
       case 'battle': return 'hold';
+      // The province card: take the free, permanent lever where there is one —
+      // posting a champion spends the one person the court has.
+      case 'province-order': return (p.options.find((o) => o.role === 'focus') ?? p.options[0]).id;
       case 'famine': return (p.options.find((o) => o.affordable) ?? p.options[p.options.length - 1]).id;
       case 'rival-demand': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
       // The Chronicle. A blow carries no options at all — acknowledging it is the only move.

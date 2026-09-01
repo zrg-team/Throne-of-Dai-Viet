@@ -36,7 +36,17 @@ export const ASCENT_AUTO_DELEGATE_BEATS = 10;
 export const MAX_LIVE_BATTLES = 3;
 
 // ── Waves ───────────────────────────────────────────────────────────────────
-export const WAVE_INTERVAL_TICKS = 12;
+/**
+ * Seasons between invasions.
+ *
+ * **Fourteen, up from twelve.** Twelve was set when a wave in six never actually landed — the
+ * response card deleted the invasions it asked about, and a wave whose map was still occupied
+ * skipped its spawn. Both are fixed, so the same twelve seasons now carry six real invasions
+ * where they used to carry four and a half, and eight of eight seeded runs ended in defeat
+ * against a baseline of 38%. The war is meant to be harder than it was; a mode nobody outlives
+ * has no late game left to be surprised by.
+ */
+export const WAVE_INTERVAL_TICKS = 14;
 /**
  * Ticks of quiet before the first wave. The opening minute is for walking into empty
  * districts and raising a first host — a run that is under attack from tick one never gets
@@ -59,6 +69,89 @@ export const BOSS_TELEGRAPH_TICKS = 2;
 // to nothing is worse than no curve at all — it is the first thing anyone would reach for to make
 // the game harder, and turning it would have done exactly nothing.
 
+/**
+ * **What kind of invasion this one is.**
+ *
+ * The wave curve escalated by exactly one axis — more men, then more hosts — so the fourth
+ * invasion was the first invasion with a bigger number on it, and the twelfth was the fourth
+ * again. Measured over six seeds, every wave that landed did the same thing: mustered on the far
+ * edge, walked the whole map, and went for whichever province scored best. A player learns that
+ * in two waves and then has nothing left to read.
+ *
+ * A shape is the wave's *character*, and it is deliberately not its difficulty — the budget curve
+ * still owns that. What a shape decides is where they come from, how many columns, and what they
+ * are marching at, so the answer the player has to find is a different answer each time:
+ *
+ *   probe       one column, small, at the nearest border province — the opening, twice
+ *   hunt        one column that marches at *your host*, not at your ground
+ *   decapitate  one column, straight down the road to the capital
+ *   twin        two columns, spread, so the realm cannot meet both
+ *   landing     they do not walk in — they are simply inland, one march from somewhere
+ *   hammer      one host carrying the whole wave's budget
+ *   coalition   two crowns, one season
+ *
+ * The opening pair is deliberately short as well as small: `inland` staging with a 0.75 budget.
+ * The far-edge muster is the window a realm uses to raise its first host, and shortening it alone
+ * collapsed two of three measured runs — so it is shortened *and* the wave is made lighter in the
+ * same table, which is the pairing that note in `launchOffMapInvasion` asks for.
+ */
+export type WaveShapeId = 'probe' | 'hunt' | 'decapitate' | 'twin' | 'landing' | 'hammer' | 'coalition';
+
+export interface WaveShape {
+  id: WaveShapeId;
+  /** Columns this wave commits, before the relations dial adds or takes one. */
+  hosts: number;
+  /** Multiplier on the wave's soldier budget. A hammer is one big host; a probe is a column. */
+  sizeMult: number;
+  /** The far edge (a long approach the realm can use) or inland (they are already here). */
+  staging: 'edge' | 'inland';
+  /** What they march at, once they exist. */
+  aim: 'border' | 'host' | 'capital' | 'spread';
+  /** Crowns marching in the same season. */
+  kingdoms: number;
+}
+
+const WAVE_SHAPES: Record<WaveShapeId, WaveShape> = {
+  probe: { id: 'probe', hosts: 1, sizeMult: 0.75, staging: 'inland', aim: 'border', kingdoms: 1 },
+  hunt: { id: 'hunt', hosts: 1, sizeMult: 0.9, staging: 'edge', aim: 'host', kingdoms: 1 },
+  decapitate: { id: 'decapitate', hosts: 1, sizeMult: 1, staging: 'edge', aim: 'capital', kingdoms: 1 },
+  twin: { id: 'twin', hosts: 2, sizeMult: 1, staging: 'edge', aim: 'spread', kingdoms: 1 },
+  landing: { id: 'landing', hosts: 1, sizeMult: 1.05, staging: 'inland', aim: 'border', kingdoms: 1 },
+  hammer: { id: 'hammer', hosts: 1, sizeMult: 1.3, staging: 'edge', aim: 'capital', kingdoms: 1 },
+  coalition: { id: 'coalition', hosts: 1, sizeMult: 1, staging: 'edge', aim: 'spread', kingdoms: 2 },
+};
+
+/**
+ * The order they are met in. Eight long, so a player who has seen the cycle once meets it again
+ * with the budget curve underneath it grown — the same character, a harder version of it.
+ */
+const SHAPE_CYCLE: WaveShapeId[] = [
+  'probe', 'probe', 'hunt', 'decapitate', 'twin', 'landing', 'hammer', 'coalition',
+];
+
+/**
+ * Share of a wave's budget that reaches the hosts already standing, when the map has no room for
+ * a fresh landing.
+ *
+ * Half, and the half is load-bearing. Measured at 0.3 the declining policy survived 15.4 waves
+ * against the engaged policy's 18.0 — agency 1.17, barely above the 1.07 this round set out to
+ * fix. At 0.5 the same pair reads 10.1 against 18.6 — **1.84** — because a realm that answers
+ * nothing is the realm the standing hosts grow on. The extra pressure of every wave now being
+ * real is paid for on the clock instead (`WAVE_INTERVAL_TICKS`), which buys the realm time to
+ * clear the map rather than making each invasion weaker.
+ */
+export const REINFORCE_SHARE = 0.5;
+
+export function waveShapeFor(wave: number, boss: boolean): WaveShape {
+  // A Great Invasion is always one of the two shapes that read as an event: the single hammer
+  // early, two crowns once the realm is big enough for that to be survivable.
+  const id: WaveShapeId = boss
+    ? (wave >= 12 ? 'coalition' : 'hammer')
+    : SHAPE_CYCLE[(Math.max(1, wave) - 1) % SHAPE_CYCLE.length];
+  const shape = WAVE_SHAPES[id];
+  // Character first, escalation on top: the same shape brings another column every eighth wave.
+  return { ...shape, hosts: Math.min(MAX_HOSTS_PER_KINGDOM, shape.hosts + Math.floor(wave / 8)) };
+}
 /**
  * Hosts spawned per wave. `launchOffMapInvasion` clamps a wave's *total* size to a multiple
  * of the player's own military — a deliberate anti-snowball guard in empire mode, but it

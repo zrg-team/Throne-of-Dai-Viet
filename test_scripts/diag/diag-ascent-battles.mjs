@@ -57,6 +57,9 @@ const out = await page.evaluate(async (ticks) => {
       }
       case 'envoy': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
       case 'battle': return 'hold';
+      // The province card: take the free, permanent lever where there is one —
+      // posting a champion spends the one person the court has.
+      case 'province-order': return (p.options.find((o) => o.role === 'focus') ?? p.options[0]).id;
       case 'famine': return (p.options.find((o) => o.affordable) ?? p.options[p.options.length - 1]).id;
       case 'rival-demand': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
       case 'story-beat':

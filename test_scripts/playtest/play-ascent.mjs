@@ -105,6 +105,9 @@ await page.evaluate(async () => {
           opts: ['press', 'hold', 'retreat', 'auto'].map((id) => ({ id, label: id, ok: true })),
         };
       }
+      // The province card: take the free, permanent lever where there is one —
+      // posting a champion spends the one person the court has.
+      case 'province-order': return (p.options.find((o) => o.role === 'focus') ?? p.options[0]).id;
       case 'famine': return {
         title: `Famine — short ${Math.round(p.shortfall)} food/season`,
         opts: p.options.map((o) => ({ id: o.id, label: `${o.id}${o.food ? ` +${Math.round(o.food)}f` : ''}${o.affordable ? '' : ' (unaffordable)'}`, ok: o.affordable })),
