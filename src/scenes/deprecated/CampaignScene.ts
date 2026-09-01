@@ -1,14 +1,21 @@
+/**
+ * **Deprecated.** The setup screen the `rival`, `campaign` and `empire` modes start from. Dragon
+ * Ascent opens from the menu directly into `ConquestScene`.
+ *
+ * Still registered and still reachable; see `./README.md` for what is in this folder, what looks
+ * like it belongs here and does not, and what has to change before any of it can go.
+ */
 import Phaser from 'phaser';
-import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
-import { createCampaignGameState, createEmpireGameState } from '../state/GameState';
-import { scheduleCampaignEvents } from '../systems/CampaignEventSystem';
-import type { CampaignConfig, Difficulty, GameMode } from '../state/types';
-import { BACK_BAR_HEIGHT, InkUI, INK_UI } from '../ui/InkUI';
-import { createLabel } from '../ui/theme';
-import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
-import { FOUNDER_IDS, heroTemplates } from '../data/heroes';
-import { heroEffect, heroName, heroTypeLabel, t } from '../i18n';
-import { applyRenderScale } from '../game/graphicsQuality';
+import { GAME_HEIGHT, GAME_WIDTH } from '../../game/constants';
+import { createCampaignGameState, createEmpireGameState } from '../../state/GameState';
+import { scheduleCampaignEvents } from '../../systems/CampaignEventSystem';
+import type { CampaignConfig, Difficulty, GameMode } from '../../state/types';
+import { BACK_BAR_HEIGHT, InkUI, INK_UI } from '../../ui/InkUI';
+import { createLabel } from '../../ui/theme';
+import { createMapRenderer, type MapRenderer } from '../../ui/MapRenderer';
+import { FOUNDER_IDS, heroTemplates } from '../../data/heroes';
+import { heroEffect, heroName, heroTypeLabel, t } from '../../i18n';
+import { applyRenderScale } from '../../game/graphicsQuality';
 
 type SeaSides = CampaignConfig['seaSides'];
 

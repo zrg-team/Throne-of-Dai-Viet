@@ -477,6 +477,8 @@ export interface Army {
   experience: number;
   experienceToNextLevel: number;
   unpaidTicks?: number;
+  /** Consecutive seasons this host has been out of rations — what the starvation warning counts. */
+  starvingTicks?: number;
   /** Elite tier (0 = levy, 1 = trained, 2 = royal guard); each tier adds battle power. */
   elite?: number;
   /**
@@ -1794,6 +1796,22 @@ export type AscentPrompt =
       options: EmpireResponseOption[];
     }
   | { kind: 'wave-result'; wave: number; survived: boolean; lines: string[] }
+  /**
+   * A host of the realm's own is gone, and it was the ledger that took it.
+   *
+   * Tells rather than asks. A toast is the right weight for "this host is in trouble"; it is the
+   * wrong weight for "this host no longer exists", which a player can miss entirely and then spend
+   * the rest of the run wondering what happened to their army. The card names the host, says which
+   * bill went unpaid, and says how many men walked home — so the loss is an event with a cause
+   * rather than an absence.
+   */
+  | {
+      kind: 'host-lost';
+      armyName: string;
+      reason: 'unpaid' | 'starved' | 'broken';
+      /** Men still on their feet when it dissolved — the same number that goes home. */
+      men: number;
+    }
   | {
       kind: 'run-over';
       score: number;

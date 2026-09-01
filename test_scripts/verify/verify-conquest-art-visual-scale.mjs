@@ -74,7 +74,9 @@ const measured = await page.evaluate(async () => {
     ].map((state) => [state, authored(state, `settlement.${state}`, worldBox)])),
     paddies: Object.fromEntries([
       'flooded', 'fallow', 'transplanted', 'ripe', 'nursery',
-    ].map((state) => [state, authored(state, `terrain.paddy-${state}`, paddyBox)])),
+          // The single rectangular plates were retired in favour of the connected shared-bund field
+      // systems (`rejectedTerrain` in conquestMapArt); this measures the family that actually ships.
+    ].map((state) => [state, authored(state, `terrain.paddy-system-${state}`, paddyBox)])),
   };
 
   return {

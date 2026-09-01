@@ -23,6 +23,7 @@ import { grazeInSmallArea, livingSprite, wanderInSmallArea } from '../../ui/ink/
 import { GROUND_SCALE, unitScale } from '../../ui/ink/proportion';
 import {
   footprintRect,
+  planSettlementLane,
   planSettlementSatellites,
   type StructureFootprint,
   type StructureRect,
@@ -388,7 +389,9 @@ export class SettlementRenderer {
       const side = index === 0 ? 1 : -1;
       const homeX = at.x + side * (22 + index * 9) * authoredScale;
       const homeY = at.y + (21 + index * 7) * authoredScale;
-      const person = placeStamp(this.scene, personStamp, homeX, homeY, GROUND_SCALE)
+      // `livingSprite` selects the matching authored four-frame farmer/traveller sheet. A
+      // procedural fallback still resolves to the same single stamped image as before.
+      const person = livingSprite(this.scene, personStamp, homeX, homeY, GROUND_SCALE)
         .setData('conquestLivingPerson', true);
       wanderInSmallArea(
         this.scene,
@@ -520,20 +523,13 @@ export class SettlementRenderer {
     );
 
     placed.forEach((building, index) => {
-      // Every lane leaves the real front entrance, then runs around the compound if its satellite
-      // is behind or beside it. The previous straight segment began inside the courtyard and cut
-      // directly through the authored building, which read as translucent geometry left behind.
-      const gate = { x: at.x, y: layoutCore.bottom + 3 };
-      const end = { x: building.x, y: building.y + 2 };
-      const path = [gate];
-      if (end.y < gate.y + 2) {
-        const side = end.x < at.x ? -1 : 1;
-        const sideX = side < 0 ? layoutCore.left - 7 : layoutCore.right + 7;
-        path.push({ x: at.x + side * 7, y: gate.y + 7 });
-        path.push({ x: sideX, y: gate.y + 7 });
-        path.push({ x: sideX, y: end.y + 4 });
-      }
-      path.push(end);
+      // The route, its mouth and its corners are all `planSettlementLane`'s — see there for why a
+      // lane bends and why no two of them leave from the same brick.
+      const path = planSettlementLane(
+        layoutCore,
+        { x: building.x, y: building.y },
+        { frontY: layoutCore.bottom + 3 },
+      );
       brushStroke(lanes, path, 2.0, this.palette.cityRoad.bed, 0.18, seed + index * 31);
       brushStroke(lanes, path, 0.72, this.palette.cityRoad.track, 0.20, seed + index * 31 + 7);
     });

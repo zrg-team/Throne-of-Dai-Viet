@@ -13,9 +13,7 @@
 import Phaser from 'phaser';
 import { RectClip } from '../../../ui/ink/clipRect';
 import { GAME_WIDTH } from '../../../game/constants';
-import { figureEraFor } from '../../../ui/ink/devices';
 import { areca, bamboo, grassTuft, hayStack, softRidge, tree } from '../../../ui/ink/props';
-import { citadel, hamlet, village } from '../../../ui/ink/settlements';
 import { groundTone, inkPath, mulberry32 } from '../../../ui/ink/stroke';
 import { PIGMENT } from '../../../ui/ink/palette';
 import { findLand } from '../../../systems/LandSystem';
@@ -25,6 +23,44 @@ import { battleLines, battleRearY, battleScaleAt } from './geometry';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 import { maxTextureSize } from '../../../ui/ink/textureLimits';
 import { renderScale } from '../../../game/graphicsQuality';
+import { conquestArtStamp, conquestTreeArtId, type ConquestArtSeason } from '../../../ui/conquestMapArt';
+import { placeStamp } from '../../../ui/ink/stamp';
+import { getFoliageSeason } from '../../../ui/ink/season';
+
+/**
+ * One piece of authored scenery on the field, at the same caller scale the ink version takes.
+ *
+ * **The map was given reviewed art and this screen was not.** Every tree, hedge, hayrick and
+ * village on the battlefield was still the procedural ink the map used before the Đông Hồ pack
+ * landed, so the one screen a player looks at closely was the one drawing the oldest marks in the
+ * game — reported as exactly that.
+ *
+ * The multiplier is the same number the procedural call is handed (`battleScaleAt`), which is the
+ * same equivalence the map keeps between `drawProp` and `drawAuthoredProp`: a stamp fitted to the
+ * prop's design bounds and placed at `scale` lands where the inked one did, at the size it did.
+ *
+ * Returns false when the asset is missing, corrupt or switched off with `?mapart=procedural`, and
+ * every caller falls straight through to the ink it always drew. That is the contract
+ * `verify-conquest-art-fallback` holds the map to, and this screen now keeps it too.
+ */
+function artProp(
+  self: ConquestUIScene,
+  layer: Phaser.GameObjects.Container,
+  id: string,
+  x: number,
+  y: number,
+  scale: number,
+): boolean {
+  const stamp = conquestArtStamp(self, id);
+  if (!stamp) return false;
+  layer.add(placeStamp(self, stamp, x, y, scale));
+  return true;
+}
+
+/** The season the field's plants are drawn in — the same one the map's scatter reads. */
+function fieldSeason(): ConquestArtSeason {
+  return getFoliageSeason().toLowerCase() as ConquestArtSeason;
+}
 
 /**
  * The fight's own account used to be printed along the foot of the field, on a plate over the
@@ -124,6 +160,13 @@ export function buildBattleGround(self: ConquestUIScene, battle: AscentBattle): 
   g.setAlpha(0.5);
   field.add(g);
   clip.apply(g);
+  // The authored scenery rides above the ink of its own band, at the ink's own weight, and inside
+  // the same clip and the same bake. A container rather than loose children so paint order inside
+  // the band stays the order these are called in.
+  const props = self.add.container(0, 0).setAlpha(0.5);
+  field.add(props);
+  clip.apply(props);
+  const season = fieldSeason();
   // Closes the bracket: everything added to `field` after this — the fallen, the camps, the
   // hosts — is outside the clip, exactly as it was under the three-mask version.
   clip.end(field);
@@ -274,19 +317,10 @@ export function buildBattleGround(self: ConquestUIScene, battle: AscentBattle): 
   // metres apiece put evenly spaced canopies across the skyline, which read as boulders rather
   // than as woodland and reached back over the hills.
 
-  // ── 3. the province being defended ─────────────────────────────────────
+  // ── 3. the ground we are fighting from ─────────────────────────────────
   //
-  // Drawn from the province's own record: the seat gets its citadel, a settled district gets a
-  // village, and bare ground gets a hamlet. The stake of the fight, stated as a picture.
-  //
-  // Behind our own line and to the left of it — not on it. Drawn beside the camp it belongs to,
-  // the settlement sat exactly where our block stands and where an advancing enemy comes to meet
-  // it, so at contact the village, our host and theirs were one unreadable clump.
-  const era = figureEraFor(self.state);
-  // Set back the same distance as their camp, and for the same reason: a settlement drawn on the
-  // line the armies stand on is a settlement our own front rank is standing inside. `village()`
-  // is a composite — houses, a pond, its own cây đa — so at the field's scale it reaches a
-  // hundred units to the right of its anchor, which put our block in the middle of it.
+  // Set back the same distance as the camps, and for the same reason: anything drawn on the line
+  // the armies stand on is something our own front rank is standing inside.
   const homeX = SETTLEMENT_X;
   const homeY = battleRearY(self);
   /**
@@ -298,15 +332,21 @@ export function buildBattleGround(self: ConquestUIScene, battle: AscentBattle): 
    * than as a big battle. When the men have taken the field, the field is what the screen shows.
    */
   const roomForScenery = !ui.sceneryHidden;
-  if (roomForScenery) {
-    if (land && self.state.ascent?.capitalLandId === land.id) citadel(g, homeX, homeY, scale(homeY), era, seed + 3);
-    else if (land?.hasVillage) village(g, homeX, homeY, scale(homeY), seed + 3);
-    else hamlet(g, homeX, homeY, scale(homeY), seed + 3, 4);
-  }
+  /**
+   * **No settlement on the field.** Ours is a camp now, drawn beside theirs in `buildBattleField`.
+   *
+   * A citadel or a village here was the wrong object twice over. It is drawn for a map — seen from
+   * above, sized against a province — so at the field's own scale it arrived either as a doll's
+   * house or, fitted to the field, as a compound wide enough to hang off the left border; and it
+   * put the two sides of the picture out of step, a walled town facing a row of tents. Two hosts
+   * that have marched to meet each other are camped, both of them. The province is named in the
+   * header and its terrain is under their feet; it does not also need its town in the shot.
+   */
 
-  // The bamboo hedge that is a delta village's real boundary — not a palisade, which this
-  // screen had no business drawing. It runs along the village's own edge, between it and the
-  // fight.
+  // Bamboo along our own edge of the field. It was the village's boundary when there was a
+  // village; with the camp there instead it is simply what grows at the edge of a delta field,
+  // and it still does the one job the composition needs — something standing between the frame
+  // and the fight on the side the eye enters from.
   //
   // No paddy plots: `drawFieldPlot` is drawn for map scale, where a plot is a few pixels of
   // texture. Blown up to a close-up they are big pale rectangles that read as scraps of paper
@@ -315,20 +355,26 @@ export function buildBattleGround(self: ConquestUIScene, battle: AscentBattle): 
   for (let i = 0; roomForScenery && i < 4; i += 1) {
     // Along the village's own edge, between it and the fight.
     const hedgeY = homeY + 10 + (i % 2) * 3;
-    bamboo(g, x0 + 4 + i * 9, hedgeY, scale(hedgeY), seed + 11 + i);
+    const hedgeX = x0 + 4 + i * 9;
+    if (!artProp(self, props, `flora.bamboo.${season}`, hedgeX, hedgeY, scale(hedgeY))) {
+      bamboo(g, hedgeX, hedgeY, scale(hedgeY), seed + 11 + i);
+    }
   }
   // No buffalo. It is the right animal for a province at peace and the wrong one for the near
   // edge of a battlefield: drawn at the ground scale it is the largest single object on the
   // field, it stands between the player and the fight, and it is grazing through a battle.
-  if (roomForScenery) hayStack(g, homeX + 26, homeY + 6, scale(homeY + 6), seed + 19);
+  if (roomForScenery && !artProp(self, props, 'building.haystack', homeX + 26, homeY + 6, scale(homeY + 6))) {
+    hayStack(g, homeX + 26, homeY + 6, scale(homeY + 6), seed + 19);
+  }
 
   // ── 4. what came for it ────────────────────────────────────────────────
   //
   // The tents themselves are `battleCamp`; this is the baggage behind them. Drawing a hamlet on
   // top of the camp put two settlements in the same place.
   if (roomForScenery) {
-    hayStack(g, x1 - 26, groundY - 6, scale(groundY - 6), seed + 21);
-    hayStack(g, x1 - 46, groundY - 2, scale(groundY - 2), seed + 23);
+    for (const [bx, by, s] of [[x1 - 26, groundY - 6, seed + 21], [x1 - 46, groundY - 2, seed + 23]] as const) {
+      if (!artProp(self, props, 'building.haystack', bx, by, scale(by))) hayStack(g, bx, by, scale(by), s);
+    }
   }
 
   // ── 5. the killing floor ───────────────────────────────────────────────
@@ -390,7 +436,14 @@ export function buildBattleForeground(self: ConquestUIScene, battle: AscentBattl
   g.setAlpha(0.5);
   field.add(g);
   clip.apply(g);
+  const props = self.add.container(0, 0).setAlpha(0.5);
+  field.add(props);
+  clip.apply(props);
   clip.end(field);
+  const season = fieldSeason();
+  // The tree a province plants is the tree the map plants there — same picker, same seed, so the
+  // wood a player fights in is the wood they were looking at a moment ago.
+  const treeId = (s: number): string => conquestTreeArtId(season, s);
 
   /**
    * Two corner pieces, and they are rooted *below* the frame on purpose.
@@ -407,14 +460,21 @@ export function buildBattleForeground(self: ConquestUIScene, battle: AscentBattl
    */
   const rooted = bottom - 2;
   if (wet > wooded) {
-    areca(g, x0 + 14, rooted, scale(rooted), seed + 61);
-    areca(g, x0 + 30, rooted + 4, scale(rooted + 4), seed + 63);
-  } else {
+    if (!artProp(self, props, `flora.areca.${season}`, x0 + 14, rooted, scale(rooted))) {
+      areca(g, x0 + 14, rooted, scale(rooted), seed + 61);
+    }
+    if (!artProp(self, props, `flora.areca.${season}`, x0 + 30, rooted + 4, scale(rooted + 4))) {
+      areca(g, x0 + 30, rooted + 4, scale(rooted + 4), seed + 63);
+    }
+  } else if (!artProp(self, props, treeId(seed + 61), x0 + 20, rooted, scale(rooted))) {
     tree(g, x0 + 20, rooted, scale(rooted), seed + 61);
   }
   for (let i = 0; i < 3; i += 1) {
     const py = rooted + 4 - i * 3;
-    bamboo(g, x1 - 10 - i * 11, py, scale(py), seed + 65 + i);
+    const px = x1 - 10 - i * 11;
+    if (!artProp(self, props, `flora.bamboo.${season}`, px, py, scale(py))) {
+      bamboo(g, px, py, scale(py), seed + 65 + i);
+    }
   }
 
   /**
@@ -432,12 +492,15 @@ export function buildBattleForeground(self: ConquestUIScene, battle: AscentBattl
    * legible, so the overlap is bought at the flanks and nowhere near the middle.
    */
   const amongY = groundY + 10;
-  if (wooded >= wet) {
-    tree(g, x0 + 6, amongY, scale(amongY), seed + 71);
-    tree(g, x1 - 4, amongY + 14, scale(amongY + 14), seed + 73);
-  } else {
-    areca(g, x0 + 6, amongY, scale(amongY), seed + 71);
-    areca(g, x1 - 4, amongY + 14, scale(amongY + 14), seed + 73);
+  const flank: Array<[number, number, number]> = [
+    [x0 + 6, amongY, seed + 71],
+    [x1 - 4, amongY + 14, seed + 73],
+  ];
+  for (const [px, py, s] of flank) {
+    const id = wooded >= wet ? treeId(s) : `flora.areca.${season}`;
+    if (artProp(self, props, id, px, py, scale(py))) continue;
+    if (wooded >= wet) tree(g, px, py, scale(py), s);
+    else areca(g, px, py, scale(py), s);
   }
 
   // And the rest scattered across the near ground. Below the line rather than beside it: the two
@@ -449,6 +512,10 @@ export function buildBattleForeground(self: ConquestUIScene, battle: AscentBattl
   for (let i = 0; i < 11; i += 1) {
     const px = x0 + 16 + rand() * (x1 - x0 - 32);
     const py = nearTop + rand() * nearDepth;
+    const id = wooded > wet && i < 2 ? treeId(seed + 33 + i)
+      : wet > wooded && i === 0 ? `flora.areca.${season}`
+        : `flora.grass.${season}`;
+    if (artProp(self, props, id, px, py, scale(py))) continue;
     if (wooded > wet && i < 2) tree(g, px, py, scale(py), seed + 33 + i);
     else if (wet > wooded && i === 0) areca(g, px, py, scale(py), seed + 39);
     else grassTuft(g, px, py, scale(py), seed + 41 + i);

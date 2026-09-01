@@ -14,7 +14,7 @@ import { groundDepth, unitScale, worldScale } from './ink/proportion';
 import { getFoliageSeason, groundCast, mixPigment, seasonalStage, seasonPalette } from './ink/season';
 import { scatterDensity } from '../game/graphicsQuality';
 import {
-  conquestArtStamp, conquestKarstArtId, conquestTreeArtId, hasConquestMapArt,
+  conquestArtStamp, conquestKarstArtId, conquestTreeArtId, hasConquestMapArt, stampFootY,
 } from './conquestMapArt';
 import { placeStamp } from './ink/stamp';
 
@@ -367,11 +367,16 @@ export class DongHoMapRenderer implements MapRenderer {
       stamp,
       (plan.bounds.x0 + plan.bounds.x1) / 2,
       plan.footY,
-    ).setDepth(groundDepth(plan.footY))
-      .setData('conquestReliefArt', plan.artId)
+    ).setData('conquestReliefArt', plan.artId)
       // A massif sorts against the towns as well as against the trees — see `groundDepth`. The
       // flag is what keeps it live alongside them on a tier that does not bake settlement ink.
       .setData('conquestGroundOrder', 'relief');
+    // **Sorted on its ink, not on the box it was fitted into.** `plan.footY` is where the range
+    // was *planned* to stand; where the drawing's feet actually land is a property of the PNG.
+    // A soft ridge's ink ends a median 13 units below its plan and a seven-spire karst's 9 above
+    // it, so half the relief on the map was sorting a stride away from its own base. See
+    // `inkFoot` for the measurements.
+    image.setDepth(groundDepth(stampFootY(image)));
     this.generatedDecoration.push(image);
     return true;
   }
@@ -395,6 +400,9 @@ export class DongHoMapRenderer implements MapRenderer {
     const scaleKind = item.kind === 'tuft' ? 'grassTuft' : item.kind;
     void unitScale(scaleKind, item.scale * unit);
     const image = placeStamp(this.scene, stamp, item.x, item.y, item.scale * unit)
+      // Measured at zero drift for every tree, grass tuft and banana on the map — the plants were
+      // already sorting on their own feet. Read the same way as the relief so the two cannot drift
+      // apart if a plant is ever reauthored with padding under it.
       .setDepth(groundDepth(item.y))
       .setAlpha(0.96)
       .setFlipX((item.seed & 1) === 1)

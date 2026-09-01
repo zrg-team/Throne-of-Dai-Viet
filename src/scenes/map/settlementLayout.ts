@@ -154,3 +154,87 @@ export function planSettlementSatellites<T>(
 
   return placements;
 }
+
+export interface LanePoint {
+  x: number;
+  y: number;
+}
+
+/**
+ * One pass of Chaikin's corner cutting on an open path, with both ends pinned.
+ *
+ * Every interior corner is replaced by the two points a quarter and three quarters along its
+ * arms, which is what turns a run of straight segments into a curve without needing a spline or
+ * a tangent. Open rather than closed: a lane has a mouth and a door, and both have to stay put.
+ */
+function roundOnce(path: ReadonlyArray<LanePoint>): LanePoint[] {
+  if (path.length < 3) return [...path];
+  const out: LanePoint[] = [path[0]];
+  for (let index = 0; index < path.length - 1; index += 1) {
+    const a = path[index];
+    const b = path[index + 1];
+    out.push({ x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25 });
+    out.push({ x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75 });
+  }
+  out.push(path[path.length - 1]);
+  return out;
+}
+
+/**
+ * The lane from a settlement's frontage to one of the structures standing around it.
+ *
+ * **Two things make a village lane read as a lane rather than as plumbing.**
+ *
+ * It has to *bend*. This was a staircase of right angles — out of the gate, a step sideways, a
+ * run down the flank, a step in — and a right angle is the one shape a footpath worn by people
+ * never has. Measured on a real compound before this, the worst corner on a lane was 90° and the
+ * mean was 68°; nothing about that reads as ground anybody walks.
+ *
+ * And the lanes must not all leave from the same brick. Every one of them started at the exact
+ * centre of the frontage, so a settlement with four outbuildings drew four lanes radiating from
+ * one point — the same starburst the province roads had at their gates. The mouth now slides
+ * along the frontage toward whatever the lane is going to, so the lanes leave the compound the
+ * way they arrive at it: spread along its front.
+ *
+ * The waypoints still route around the compound rather than through it — a lane that cut across
+ * the authored courtyard read as translucent geometry left behind — and the rounding is applied
+ * afterwards, so the route is unchanged and only its corners are gone.
+ */
+export function planSettlementLane(
+  core: StructureRect,
+  target: LanePoint,
+  options: { frontY: number; spread?: number } = { frontY: 0 },
+): LanePoint[] {
+  const centreX = (core.left + core.right) / 2;
+  const halfWidth = Math.max(1, (core.right - core.left) / 2);
+  const gateY = options.frontY;
+  // The mouth, slid along the frontage toward the target. Kept inside the compound's own front so
+  // a lane never appears to leave from open ground beside it.
+  const lean = Math.max(-1, Math.min(1, (target.x - centreX) / halfWidth));
+  const gateX = centreX + lean * halfWidth * (options.spread ?? 0.45);
+  const gate: LanePoint = { x: gateX, y: gateY };
+  const end: LanePoint = { x: target.x, y: target.y + 2 };
+
+  const route: LanePoint[] = [gate];
+  if (end.y < gateY + 2) {
+    // Behind or beside: swing out in front of the compound, up its flank, and in at the door.
+    //
+    // The waypoints are deliberately far apart. A route whose corners are five units from each
+    // other cannot be rounded — corner cutting can only work with the room between the points it
+    // is given — and the first version of this had exactly that, which is where the last of the
+    // sharp turns lived. Each leg is now a real leg: out past the compound's shoulder, a long run
+    // up the flank, then in.
+    const side = end.x < centreX ? -1 : 1;
+    const sideX = side < 0 ? core.left - 7 : core.right + 7;
+    route.push({ x: gateX + side * halfWidth * 0.4, y: gateY + 9 });
+    route.push({ x: sideX, y: gateY + (end.y - gateY) * 0.35 });
+    route.push({ x: sideX, y: end.y + 6 });
+  } else {
+    // In front: one waypoint short of the door, so the lane leans out of the gate before it turns.
+    route.push({ x: (gateX + end.x) / 2, y: gateY + (end.y - gateY) * 0.45 });
+  }
+  route.push(end);
+
+  // Three passes, not two: two left the flank turn at fifty degrees, which still reads as a corner.
+  return roundOnce(roundOnce(roundOnce(route)));
+}

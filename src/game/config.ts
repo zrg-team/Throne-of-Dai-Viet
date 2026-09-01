@@ -4,13 +4,13 @@ import { BootScene } from '../scenes/BootScene';
 import { MenuScene } from '../scenes/MenuScene';
 import { GuideScene } from '../scenes/GuideScene';
 import { HistoryScene } from '../scenes/HistoryScene';
-import { CampaignScene } from '../scenes/CampaignScene';
+import { CampaignScene } from '../scenes/deprecated/CampaignScene';
 import { BattleArenaScene } from '../scenes/BattleArenaScene';
 import { ConquestScene } from '../scenes/ConquestScene';
 import { ConquestUIScene } from '../scenes/ConquestUIScene';
 import { MapScene } from '../scenes/MapScene';
 import { PreloadScene } from '../scenes/PreloadScene';
-import { UIScene } from '../scenes/UIScene';
+import { UIScene } from '../scenes/deprecated/UIScene';
 import { renderScale } from './graphicsQuality';
 
 // The scale the buffer BOOTS at. The quality ladder can change the live scale later through

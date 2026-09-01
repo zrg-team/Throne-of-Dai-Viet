@@ -3,6 +3,7 @@ import { PLAYER_KINGDOM_ID } from '../game/constants';
 import { getLegTicks } from '../game/movementConfig';
 import {
   ARMY_LOW_RATION_TICKS,
+  ARMY_MORALE_BREAKING,
   ARMY_MORALE_LOSS_LOW_RATIONS,
   ARMY_MORALE_LOSS_NO_PROVISIONS,
   ARMY_MORALE_LOSS_NO_RATIONS,
@@ -68,6 +69,7 @@ import type {
 } from '../state/types';
 import { heroName, t, tickLabel } from '../i18n';
 import { pushToast } from './empire/notifications';
+import { enqueueAscentPrompt } from './ascent/AscentState';
 import { isEngagedHost } from './ascent/armyOrders';
 import { liveBattles } from './ascent/fronts';
 
@@ -1091,6 +1093,9 @@ export function progressArmyLogistics(state: GameState): boolean {
       disbanded.push(army);
       continue;
     }
+    // Where its spirit stood before this season's rations, wages and rest were counted, so the
+    // warning below can fire on the crossing rather than every season after it.
+    const moraleBefore = army.morale;
 
     const rationUse = Math.max(1, Math.ceil(total / 100) * ARMY_RATION_USE_PER_100);
     const provisionUse = Math.max(1, Math.ceil(total / 150) * ARMY_PROVISION_USE_PER_150);
@@ -1110,12 +1115,26 @@ export function progressArmyLogistics(state: GameState): boolean {
     army.provisions = Math.max(0, army.provisions - provisionUse);
 
     if (army.rations <= 0) {
+      // Said out loud, exactly as arrears is. A host out of rations loses 8 morale and 5% of its
+      // men every season and then the bookkeeping deletes it — and until now it did all of that in
+      // silence, so the only thing the player ever saw was the host's absence. Arrears was given
+      // its warning for precisely this reason; starvation, which kills a host faster, never got
+      // one. Once, on the season the food runs out, and again with two seasons of morale left.
+      const starvingTicks = (army.starvingTicks ?? 0) + 1;
+      army.starvingTicks = starvingTicks;
+      // The season it runs out. How near breaking it then gets is the other warning's job.
+      if (state.gameMode === 'ascent' && starvingTicks === 1) {
+        pushToast(state, t('ascent.army.starving', { army: army.name }), 'threat');
+      }
       army.morale -= ARMY_MORALE_LOSS_NO_RATIONS;
       army.units.spearmen = Math.floor(army.units.spearmen * (1 - ARMY_STARVATION_ATTRITION));
       army.units.archers = Math.floor(army.units.archers * (1 - ARMY_STARVATION_ATTRITION));
       army.units.heavyInfantry = Math.floor(army.units.heavyInfantry * (1 - ARMY_STARVATION_ATTRITION));
     } else if (army.rations < rationUse * ARMY_LOW_RATION_TICKS) {
+      army.starvingTicks = 0;
       army.morale -= ARMY_MORALE_LOSS_LOW_RATIONS;
+    } else {
+      army.starvingTicks = 0;
     }
 
     if (army.provisions <= 0) {
@@ -1127,8 +1146,22 @@ export function progressArmyLogistics(state: GameState): boolean {
       army.morale -= 8;
       // Said out loud (Dragon Ascent): a host that dissolves for arrears used to be a host that
       // simply vanished, and "why did my army disappear" was the question every run raised.
-      if (state.gameMode === 'ascent' && (army.unpaidTicks === 1 || army.unpaidTicks === 3)) {
-        pushToast(state, t('ascent.army.arrears', { army: army.name, ticks: 5 - army.unpaidTicks }), 'threat');
+      //
+      // **And it was still the question, because the warning stopped three seasons before the
+      // event.** It fired on seasons one and three and then went quiet, while dissolution needs
+      // five — and a host held ripe by being in the line waits longer still. Measured over four
+      // played runs: two lost a host to arrears, one of them at **350 men, 68 morale and a full
+      // baggage train**, and the other after sitting at *twelve* consecutive unpaid seasons. Nine
+      // seasons of silence stood between the last warning and the loss, which is no warning at all.
+      //
+      // So it speaks on the first season, the third, and then every season it is inside one of
+      // going — including every season it is only still here because it is fighting.
+      const ripeSoon = army.unpaidTicks >= 4;
+      if (state.gameMode === 'ascent' && (army.unpaidTicks === 1 || army.unpaidTicks === 3 || ripeSoon)) {
+        pushToast(state, t('ascent.army.arrears', {
+          army: army.name,
+          ticks: Math.max(1, 5 - army.unpaidTicks),
+        }), 'threat');
       }
       if (army.unpaidTicks === 3) {
         army.units.spearmen = Math.floor(army.units.spearmen * 0.85);
@@ -1161,6 +1194,18 @@ export function progressArmyLogistics(state: GameState): boolean {
     // spent morale both used to delete a host mid-exchange, and a staged assault whose attacker
     // vanished here left `beginAssault` with nobody to open the fight for — the player's order
     // went in, the army was gone, and no battle screen ever came up.
+    // **The last silent way to lose a host.**
+    //
+    // Arrears warns, and starvation warns now — but a host ground down in the field loses its
+    // morale to neither, and the bookkeeping deletes it at zero with men still on their feet.
+    // Measured over five played runs: three hosts went that way, at 45, 105 and 5 men, with full
+    // baggage, no arrears, and **not one word of warning** in the season it happened. Two seasons'
+    // worth of morale is the crossing, and it is announced once as it is crossed rather than every
+    // season below it.
+    if (state.gameMode === 'ascent' && remaining > 0
+      && army.morale <= ARMY_MORALE_BREAKING && moraleBefore > ARMY_MORALE_BREAKING) {
+      pushToast(state, t('ascent.army.breaking', { army: army.name }), 'threat');
+    }
     if ((remaining <= 0 || army.morale <= 0) && !(remaining > 0 && isEngagedHost(state, army.id))) {
       disbanded.push(army);
     }
@@ -1213,6 +1258,21 @@ export function progressArmyLogistics(state: GameState): boolean {
       ? t('msg.unpaidDisbanded', { army: army.name, humans: returnedHumans })
       : t('msg.starvedDisbanded', { army: army.name, humans: returnedHumans });
     state.message = said;
+    // **And a card, not only a line.**
+    //
+    // A toast is the right weight for "this host is in trouble" and the wrong weight for "this
+    // host no longer exists" — a player can miss the strip entirely and spend the rest of the run
+    // wondering where their army went, which is the report this answers. The card stops the world
+    // once, names the host, says which bill went unpaid and how many men walked home. Raised only
+    // for a host that still had men: a remnant of nobody dissolving needs no ceremony.
+    if (state.gameMode === 'ascent' && returnedHumans > 0) {
+      enqueueAscentPrompt(state, {
+        kind: 'host-lost',
+        armyName: army.name,
+        reason: unpaidDisbanded.has(army.id) ? 'unpaid' : (army.starvingTicks ?? 0) > 0 ? 'starved' : 'broken',
+        men: returnedHumans,
+      });
+    }
     // And on the strip, where it survives the rest of the tick. `state.message` is written a
     // dozen more times before this tick ends — measured, the line on screen when a host dissolved
     // read "the raiders withdrew across the border" — so the one event the player most needs

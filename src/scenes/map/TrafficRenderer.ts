@@ -7,11 +7,13 @@ import { buildRoadCurve } from '../../map/roadCurve';
 import { axialToPixel } from '../../map/hex';
 import {
   addNaturalTravelMotion,
+  advanceNaturalTravelMotion,
   faceTravel,
   setNaturalTravelMotionActive,
   type NaturalMotionKind,
   type Walkable,
 } from '../../ui/ink/life';
+import { LIVING_PX_PER_M } from '../../ui/ink/proportion';
 import { hashString } from '../../utils/math';
 import { trafficPerRoad } from '../../game/lifeSettings';
 import type { GameState, Land } from '../../state/types';
@@ -148,6 +150,28 @@ export class TrafficRenderer {
    * Created already held when the world is paused, so a settlement revealed while the clock is
    * stopped does not arrive with its traffic already moving.
    */
+  /**
+   * How long a road takes to walk, from how long the road is.
+   *
+   * Every wanderer used to get a duration picked by hand -- 20 to 38 seconds for a traveller, 16
+   * to 29 for a cart -- over a curve whose length is set by where two settlements happen to sit.
+   * The same figure therefore ambled down a short road and sprinted a long one, and measured on
+   * the map the traveller was covering ground at about **1.8 m/s**: a jog, not a walk. Now that
+   * the walk cycle is driven by distance (see `walkStrideFor`), that speed came straight out in
+   * the legs, which is what "the animation is too fast" was actually describing.
+   *
+   * Pacing by length instead gives one honest speed across the whole map, and the seed only
+   * varies it a little -- some people walk faster than others; nobody walks four times faster.
+   */
+  private roadDuration(curve: Phaser.Curves.Spline, seed: number, metresPerSecond: number): number {
+    const length = Math.max(1, curve.getLength());
+    const spread = 0.88 + ((seed % 25) / 100);
+    const pace = metresPerSecond * spread * LIVING_PX_PER_M;
+    // A yoyo tween's `duration` is one direction, and the ease spends the middle of each leg
+    // faster than the ends; the mean over a leg is still `length / pace`.
+    return Phaser.Math.Clamp((length / pace) * 1000, 4000, 120000);
+  }
+
   private walk(
     mover: Phaser.GameObjects.GameObject & {
       setPosition(x: number, y: number): unknown;
@@ -158,11 +182,20 @@ export class TrafficRenderer {
     duration: number,
     motion: NaturalMotionKind,
   ): TrafficMover {
-    const progress = { t: (seed % 100) / 100 };
+    // Starts at the road head, always. The seed used to be dropped straight into `t`, which looks
+    // like a stagger and is not one: a tween interpolates from *its start value* to 1 over the
+    // whole duration, so a traveller seeded at t = 0.8 spent that entire duration shuffling across
+    // the last fifth of his road -- a fifth of the intended speed, over a fifth of the road, and a
+    // different fifth for every traveller. That is where the 63-fold spread in measured gait came
+    // from. The stagger is applied to the *tween* below instead, where it costs no speed.
+    const progress = { t: 0 };
     let facing = 0;
+    let positioned = false;
     const step = () => {
       if (!mover.active) return;
       const point = curve.getPoint(progress.t);
+      const previousX = (mover as unknown as { x: number }).x;
+      const previousY = (mover as unknown as { y: number }).y;
       // Face the way you are going. These tweens yoyo, so half of every round trip is spent
       // travelling backwards down the same road — and a cart drawn with its ox in front becomes an
       // ox being pushed along behind it. Nothing else on the map moves, so it is the one thing on
@@ -183,6 +216,13 @@ export class TrafficRenderer {
         }
       }
       mover.setPosition(point.x, point.y);
+      if (positioned) {
+        advanceNaturalTravelMotion(
+          mover as unknown as Walkable,
+          Math.hypot(point.x - previousX, point.y - previousY),
+        );
+      }
+      positioned = true;
       // Step behind a massif and you are behind it.
       //
       // Everything drawn into the map's cached image takes its turn in one back-to-front order, so
@@ -206,10 +246,22 @@ export class TrafficRenderer {
       duration,
       yoyo: true,
       repeat: -1,
-      ease: 'Sine.easeInOut',
+      // Linear, because the pace is now a speed rather than a duration and an ease would undo it:
+      // `Sine.easeInOut` runs the middle of every leg at pi/2 -- over half again -- the mean, so a
+      // 1.25 m/s walk peaked at 1.96 m/s mid-road while crawling at both ends. Distance drives the
+      // legs, so that swing was visible as the gait speeding up and slowing down for no reason.
+      // The yoyo turn is now abrupt, but it happens at a settlement gate, where turning round is
+      // what the figure is doing anyway.
+      ease: 'Linear',
       paused: this.paused,
       onUpdate: step,
     });
+    // Spread the road's walkers along it without touching their pace. `seek` is in milliseconds
+    // into the tween and a yoyo cycle is two legs; the coarse delta is deliberate -- this only has
+    // to look unsynchronised, and a 16ms step would iterate thousands of times per traveller.
+    const cycle = duration * 2;
+    tween.seek(((seed % 100) / 100) * cycle, 500);
+    step();
     setNaturalTravelMotionActive(mover as unknown as Walkable, !this.paused);
     return { object: mover, tween };
   }
@@ -450,7 +502,7 @@ export class TrafficRenderer {
         cart.setDepth(69);
 
         const seed = hashString(`cart|${key}`);
-        this.cartMarkers.set(key, this.walk(cart, curve, seed, 16000 + (seed % 11) * 1200, 'cart'));
+        this.cartMarkers.set(key, this.walk(cart, curve, seed, this.roadDuration(curve, seed, 0.95), 'cart'));
       }
     }
 
@@ -496,7 +548,7 @@ export class TrafficRenderer {
           const traveler = this.mapItems.createTraveler();
           traveler.setDepth(69);
           const seed = hashString(`traveler|${key}|${index}`);
-          travelers.push(this.walk(traveler, curve, seed, 20000 + (seed % 13) * 1500, 'person'));
+          travelers.push(this.walk(traveler, curve, seed, this.roadDuration(curve, seed, 1.25), 'person'));
         }
 
         this.travelerMarkers.set(key, travelers);

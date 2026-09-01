@@ -13,7 +13,8 @@ import { findLand } from '../../systems/LandSystem';
 import { marchEntersLand } from '../../systems/WarSystem';
 import { heroFaceTextureKey } from '../../ui/FaceRenderer';
 import type { GameState, Land } from '../../state/types';
-import { hostKitFor } from '../../ui/ink/devices';
+import { hostKitFor, setHostStepping } from '../../ui/ink/devices';
+import { setConquestArmyStepping } from '../../ui/ink/figureStamps';
 import type { MapItemRenderer } from '../../ui/MapItemRenderer';
 
 type WorldTransform = (value: number) => number;
@@ -144,6 +145,14 @@ export class ArmyRenderer {
       if (paused) tween.pause();
       else tween.resume();
     }
+    // And the feet with them: a host frozen on the road must not keep stepping on the spot.
+    for (const [armyId, marker] of this.markers) {
+      if (!this.moveLegs.has(armyId)) continue;
+      const body = marker.list[0];
+      if (!body) continue;
+      setConquestArmyStepping(body, !paused);
+      setHostStepping(body as unknown as { getData(key: string): unknown }, !paused);
+    }
   }
 
   /**
@@ -270,17 +279,16 @@ export class ArmyRenderer {
           total, isPlayer, kingdomColor, flagSeed, kit,
         );
         marker.add(body);
-        // **The tread.**
-        //
-        // The men themselves cannot move: a Đông Hồ host is drawn into one Graphics, so there are
-        // no individual figures to animate. What can move is the block, and a column on the road
-        // rises and falls at a step's tempo. Applied to the host's own container rather than to
-        // the marker, because the marker's position is written every frame by the march tween and
-        // a second tween on the same property would fight it.
-        //
-        // Small on purpose — under a point. An earlier pass bounced the whole marker and it read
-        // as hopping rather than marching.
-        if (marching) {
+        // The authored Conquest host now carries real four-frame leg/hoof motion, so its route
+        // container stays geometrically stable. Legacy modes and procedural rollback do not carry
+        // that data key and retain their previous whole-block tread unchanged.
+        // **Feet move when the host does.** Both cadences — the authored four-frame legs
+        // and the procedural rank tread — are built stopped and started here, from the one
+        // place that knows whether this host has somewhere to be. Every garrison on the map
+        // used to march on the spot for the whole game.
+        setConquestArmyStepping(body, marching);
+        setHostStepping(body, marching);
+        if (marching && !body.getData('conquestArmyFrameAnimation')) {
           this.scene.tweens.add({
             targets: body,
             y: MARCH_TREAD,

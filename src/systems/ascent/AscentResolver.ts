@@ -289,6 +289,12 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
       break;
     }
 
+    case 'host-lost': {
+      // Nothing to decide — the host is already gone. Acknowledging clears it.
+      handled = true;
+      break;
+    }
+
     case 'run-over': {
       // Terminal: the scene takes over from here (summary screen → menu).
       return true;

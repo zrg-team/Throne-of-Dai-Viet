@@ -83,7 +83,8 @@ export interface BlockShare {
   standing: number;
 }
 
-function marksFor(men: number, cap = HOST_MARK_CAP): number {
+/** How many marks a host of this many men is drawn with — the column's length scales off it. */
+export function marksFor(men: number, cap = HOST_MARK_CAP): number {
   return Math.max(4, Math.min(cap, Math.round(men / MEN_PER_MARK)));
 }
 
@@ -333,26 +334,56 @@ export const MARCH_PLAN: Partial<Record<FormationKey, FormationTweak>> = {
  * road runs across the sheet, along y when it runs up it, and square on the diagonals where
  * neither reads as either.
  */
-export function marchPlanFacing(radians: number, rankPerFile: number): Partial<Record<FormationKey, FormationTweak>> {
+/**
+ * Marks a host is drawn with before the column has to lengthen to hold them.
+ *
+ * `MARCH_PLAN` files its blocks at fixed offsets — four rank pitches apart — which is a column for
+ * a host of eight marks and a *crowd* for one of four hundred: the gaps stay put while each block
+ * grows with the men in it. Swept over every size, doctrine and heading, a 24,000-man host came
+ * out **109 units long and 132 across** — wider than it was deep, which is the opposite of a
+ * column and exactly the "sometimes it does not form up" a player sees, because it only happens
+ * to the big hosts. Below 1,800 men nothing failed; above it, 87 of 360 cases did.
+ *
+ * A block's depth grows with the square root of its marks (rows = √(marks / aspect)), so the
+ * spacing between blocks is scaled the same way and the column stays a column at any size.
+ */
+const MARCH_REFERENCE_MARKS = 8;
+/** A very large host makes a very long column, but not one that crosses a province. */
+const MARCH_MAX_STRETCH = 5;
+
+export function marchPlanFacing(
+  radians: number,
+  rankPerFile: number,
+  marks = MARCH_REFERENCE_MARKS,
+): Partial<Record<FormationKey, FormationTweak>> {
   // The plan's own blocks are filed south (`dy`), so the base heading is +y, not +x.
   const turn = radians - Math.PI / 2;
   const cos = Math.cos(turn);
   const sin = Math.sin(turn);
-  // How much of the road runs across the sheet. 1 = due east or west, 0 = due north or south.
-  const across = Math.abs(Math.cos(radians));
+  const stretch = Math.min(
+    MARCH_MAX_STRETCH,
+    Math.sqrt(Math.max(1, marks) / MARCH_REFERENCE_MARKS),
+  );
+  /**
+   * Which way each block is laid out, as a function of the road's own angle.
+   *
+   * `cos(2θ)` is +1 due east or west, −1 due north or south, and 0 on all four diagonals — so
+   * raising the plan's depth-wise aspect to `-cos(2θ)` gives the block laid along the road at the
+   * axes and a square block on the diagonals, with no seam in between. Interpolating on `|cos θ|`
+   * instead put the diagonals at 1.56 — wide blocks on the one heading that can least afford them,
+   * which is why the diagonals were where this failed most.
+   */
+  const lay = -Math.cos(2 * radians);
   const out: Partial<Record<FormationKey, FormationTweak>> = {};
   for (const key of Object.keys(MARCH_PLAN) as FormationKey[]) {
     const tweak = MARCH_PLAN[key];
     if (!tweak) continue;
-    const dx = tweak.dx ?? 0;
-    const dy = (tweak.dy ?? 0) * rankPerFile;
+    const dx = (tweak.dx ?? 0) * stretch;
+    const dy = (tweak.dy ?? 0) * stretch * rankPerFile;
     const deep = tweak.aspect ?? 0.5;
     out[key] = {
       ...tweak,
-      // `aspect` is width against depth, so the reciprocal is the same block laid the other way.
-      // Interpolated rather than switched, so the four diagonals get a square block instead of
-      // snapping between two extremes on either side of 45°.
-      aspect: deep * (1 - across) + (1 / deep) * across,
+      aspect: Math.pow(deep, lay),
       dx: dx * cos - dy * sin,
       dy: (dx * sin + dy * cos) / rankPerFile,
     };

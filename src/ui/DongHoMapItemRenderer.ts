@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
-import { marchPlanFacing } from '../data/ascent/formations';
+import { marchPlanFacing, marksFor } from '../data/ascent/formations';
 import { InkMapItemRenderer } from './InkMapItemRenderer';
 import type { ProgressBadgeVariant } from './MapItemRenderer';
 import type { LandBuildingType } from '../state/types';
 import { UI_FONT } from './fonts';
 import { PIGMENT } from './ink/palette';
-import { armyAnchor, armyFootprint, armyShape, clashDevice, compositionFor, drawArmy, figure, marchInPlace, seal, type HostKit, RANK_PER_FILE } from './ink/devices';
+import { armyAnchor, armyFootprint, armyShape, clashDevice, compositionFor, drawArmy, figure, marchInPlace, seal, HOST_STEP_KEY, type HostKit, RANK_PER_FILE } from './ink/devices';
 import { drawFieldPlot } from './ink/settlements';
 import { citadel, drawnEra, GroundSpacer, hamlet, village } from './ink/settlements';
 import { hatchPoly, inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './ink/stroke';
@@ -201,7 +201,9 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
       // **Hành quân.** A host between provinces closes up and files one block behind another;
       // standing, it keeps the doctrine's own spread arrangement. Same drawing either way — only
       // the geometry the blocks are laid out on changes.
-      kit?.marching ? marchPlanFacing(kit.marchHeading ?? 0, RANK_PER_FILE) : undefined,
+      kit?.marching
+        ? marchPlanFacing(kit.marchHeading ?? 0, RANK_PER_FILE, marksFor(Math.max(1, total), kit.markCap))
+        : undefined,
     );
     const at = armyAnchor(shape);
 
@@ -217,11 +219,18 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     // Phaser 4 re-triangulates every frame the marker stands. `?nostamp=1` keeps the live-ink
     // path below alive for A/B — the two draw the same men from the same `planArmy` walk.
     if (stampsEnabled()) {
+      // This request is explicitly for Conquest gameplay. The same map-item renderer can also be
+      // selected by classic/campaign modes, so scene identity—not the art theme—is the boundary.
+      // Those legacy scenes keep their existing one-image stamps and rank cadence unchanged.
+      const conquestArmyFrames = scene.scene.key === 'ConquestScene'
+        || scene.scene.key === 'ConquestUIScene';
       const army = stampedArmy(
         scene, at.x, at.y, Math.max(1, total), Math.round(total) + 17, colour, scale, mapKit,
+        conquestArmyFrames,
       );
       container.add(army.container);
-      marchInPlace(scene, army.ranks, scale);
+      if (army.animation) container.setData('conquestArmyFrameAnimation', army.animation);
+      else container.setData(HOST_STEP_KEY, marchInPlace(scene, army.ranks, scale));
     } else {
       const ranks: Phaser.GameObjects.Graphics[] = [];
       drawArmy(
@@ -236,7 +245,7 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
           return ranks[index];
         },
       );
-      marchInPlace(scene, ranks, scale);
+      container.setData(HOST_STEP_KEY, marchInPlace(scene, ranks, scale));
     }
 
     // The standard rides with the host and multiplies with it, so size reads twice over.
@@ -819,12 +828,33 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
     const container = scene.add.container(0, 0);
     // Stamped: the roads keep a dozen of these walking, and as live Graphics each was ~80 path
     // segments re-tessellated per frame for a figure that never changes shape.
-    const box = { left: -10, right: 8, top: -14, bottom: 6 };
-    const st = conquestArtStamp(scene, 'life.traveler', box) ?? stamp(scene, 'world:traveler', box,
+    // The earlier 18x20 fit reduced the authored traveller to roughly eight world pixels tall,
+    // below the point where its alternating feet survive texture filtering. This remains a small
+    // road figure, but gives its 13px silhouette enough resolution for the walk frames to read.
+    // The procedural fallback still needs a box to raster into; the authored plate does not,
+    // and must not be handed one. A settlement traveller is stamped from `life.traveler`'s own
+    // declared bounds while this call site gave it a box of its own — so the same asset came out
+    // 8.22 px on a road and 6.47 in a village. Same asset, same bounds, same caller scale now.
+    const box = { left: -13, right: 13, top: -24, bottom: 8 };
+    const st = conquestArtStamp(scene, 'life.traveler') ?? stamp(scene, 'world:traveler', box,
       (g, x, y, raster) => {
         farmer(g, x + -2 * raster, y + 4 * raster, GROUND_SCALE * raster, 4711);
       }, { raster: 'super', pool: 'world', pad: 2 });
-    container.add(placeStamp(scene, st, 0, 0));
+    // The authored plate faces viewer-right and has a real four-frame foot/arm cycle. The
+    // procedural fallback keeps the old rigid stamp and restrained whole-figure motion.
+    setNativeFacing(container, 1);
+    // **One size for every person on the map.**
+    //
+    // This carried a hardcoded 1.5x, so that a road traveller's alternating feet would survive
+    // texture filtering. It bought that at the cost of the one rule the map is built on: a
+    // traveller stood **1.5x a soldier and a farmer**, and because only this call site had the
+    // multiplier the same asset was drawn at two sizes depending on which path made it —
+    // measured on a revealed map, 12.32 px on the roads against 6.4 in the settlements, a 1.9x
+    // spread inside a single asset.
+    //
+    // The road role keeps the shared human scale. Its authored sheet now carries wider readable
+    // silhouettes, measured torso registration, and no independent bob/tilt competing with them.
+    container.add(livingSprite(scene, st, 0, 0, GROUND_SCALE));
     return container;
   }
 
@@ -919,7 +949,9 @@ export class DongHoMapItemRenderer extends InkMapItemRenderer {
         buffalo(g, oxAnchor, 3.4 * s, s, 90, false);
         g.translateCanvas(-x, -y);
       }, { raster: 'super', pool: 'world', pad: 2 });
-    container.add(placeStamp(scene, st, 0, 0));
+    // Authored rigs select the four-frame hoof/wheel sheet; the procedural fallback remains the
+    // same static stamp and receives the restrained motion fallback in TrafficRenderer.
+    container.add(livingSprite(scene, st, 0, 0));
     return container;
   }
 

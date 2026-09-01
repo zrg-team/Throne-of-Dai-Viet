@@ -12,6 +12,10 @@
  */
 import Phaser from 'phaser';
 import { BASE_SCALE_KEY, propImage, type BakedProp } from './sprites';
+import {
+  conquestWalkSheetForTexture, ensureConquestWalkSheetSmall, inkExtent, walkStrideFor,
+  WALK_CELL_SIZE, type ConquestWalkSheet,
+} from '../conquestMapArt';
 
 /** Anything that can be walked around: a `Graphics` prop or a baked `Image` one. */
 export type Walkable = Phaser.GameObjects.GameObject & {
@@ -48,16 +52,30 @@ export const WANDERING_KEY = 'settlementWandering';
 /** Data key for the tiny travel-only gait applied to a moving sprite's visual child. */
 export const NATURAL_MOTION_KEY = 'naturalTravelMotion';
 
+/** Data key for the real four-frame limb/wheel cycle carried by an authored moving image. */
+export const WALK_FRAME_KEY = 'walkFrameAnimation';
+
 export type NaturalMotionKind = 'person' | 'buffalo' | 'cart';
 
 interface NaturalMotionState {
   kind: NaturalMotionKind;
-  tween: Phaser.Tweens.Tween;
+  tween?: Phaser.Tweens.Tween;
   target: Phaser.GameObjects.GameObject;
   visualProperty: 'displayOriginY' | 'y';
   baseVisualY: number;
   baseAngle: number;
   bob: number;
+  moving: boolean;
+  frames?: WalkFrameState;
+}
+
+interface WalkFrameState {
+  target: Phaser.GameObjects.Image;
+  sheet: ConquestWalkSheet;
+  index: number;
+  distance: number;
+  /** World distance between pose changes, derived from this sprite's drawn height. */
+  stride: number;
 }
 
 /** Marks a container with the direction its art faces, for `faceTravel`. */
@@ -103,7 +121,101 @@ export function livingSprite(
   y: number,
   scale = 1,
 ): Phaser.GameObjects.Image {
-  return propImage(scene, baked, x, y, scale);
+  const sheet = conquestWalkSheetForTexture(baked.texture);
+  if (!sheet || !scene.textures.exists(sheet.textureKey)) {
+    return propImage(scene, baked, x, y, scale);
+  }
+
+  // Match the still asset's reviewed visible height, not the generated sheet's 627px cell. The
+  // four sheet cells have generous transparent padding, so scaling by the full cell would shrink
+  // the farmer/animal/cart compared with the original it replaces.
+  //
+  // **Measured, not declared.** `sheet.contentHeight` is a number written down when the sheet was
+  // cut, and every one of them was a little off its own art: on a real map the walking traveller
+  // stood 1.73x a soldier, the ox-cart 1.31x and the buffalo 1.26x, against a contract that says
+  // every living thing on the ground shares one rate. Reading frame zero's opaque rows at runtime
+  // costs a fraction of a millisecond once per sheet and cannot drift from the PNG it describes.
+  // Ink against ink, on both sides of the swap.
+  //
+  // `baked.height` is the raster's cell, and a rasterised prop carries margin of its own — so
+  // targeting it made the walking subject as tall as the still one's *padding*, not as tall as the
+  // still one. That is the whole of why a walking traveller stood 1.8x a soldier while the standing
+  // farmer beside him was exactly right: the still art had already been corrected to its ink and
+  // this path had not.
+  const stillInk = inkExtent(scene, baked.texture).y;
+  const targetVisibleHeight = baked.height * baked.scale * scale * stillInk;
+  //
+  // Drawn from the reduced sheet, not the authored one. A map walker stands about nine world
+  // pixels and the authored cell is 627, so the GPU was minifying 68:1 through a plain LINEAR
+  // filter with no mipmaps: four texels out of a 68x68 footprint, which spread the figure over
+  // nearly twice its own area and let the sampler straddle the 2x2 cell boundary into the next
+  // pose. See `ensureConquestWalkSheetSmall`.
+  const smallKey = ensureConquestWalkSheetSmall(scene, sheet);
+  const key = smallKey ?? sheet.textureKey;
+  const cell = smallKey ? WALK_CELL_SIZE : sheet.frameHeight;
+  const inkRows = inkExtent(scene, key, 0).y * cell;
+  const size = targetVisibleHeight / Math.max(1, inkRows);
+  const image = scene.add.image(x, y, key, 0)
+    .setScale(size)
+    .setData(BASE_SCALE_KEY, size)
+    .setData('walkCell', cell)
+    .setData('stampKey', `walk:${sheet.kind}`);
+  const frames: WalkFrameState = {
+    target: image,
+    sheet,
+    index: 0,
+    distance: 0,
+    // The gait belongs to this sprite's drawn size, not to the sheet: the same art is placed at
+    // several scales across the map, and one shared constant can only be right at one of them.
+    stride: walkStrideFor(sheet, targetVisibleHeight),
+  };
+  image.setData(WALK_FRAME_KEY, frames);
+  applyWalkFrame(frames, 0);
+  return image;
+}
+
+function frameState(object: Walkable): WalkFrameState | undefined {
+  const own = object.getData(WALK_FRAME_KEY) as WalkFrameState | undefined;
+  if (own) return own;
+  if (object instanceof Phaser.GameObjects.Container) {
+    for (const child of object.list) {
+      const state = child.getData?.(WALK_FRAME_KEY) as WalkFrameState | undefined;
+      if (state) return state;
+    }
+  }
+  return undefined;
+}
+
+function applyWalkFrame(state: WalkFrameState, index: number): void {
+  state.index = index;
+  state.target.setFrame(index);
+  // Pin every pose to the same anatomical point: torso horizontally, planted-foot line vertically.
+  // Cell centre is not an anatomical anchor—generated figures can sit tens of source pixels apart
+  // inside equal cells, which becomes a visible side-to-side pop at map scale.
+  //
+  // Both are declared against the source's 627-pixel cell. Whatever cell the sprite is actually
+  // drawn from — the reduced sheet is smaller, see `ensureConquestWalkSheetSmall` — the anchor
+  // sits at the same *fraction* of it, so carry them across rather than keeping two tables that
+  // can disagree.
+  const cell = (state.target.getData('walkCell') as number | undefined) ?? state.sheet.frameHeight;
+  const k = cell / state.sheet.frameHeight;
+  state.target.setDisplayOrigin(
+    (state.sheet.anchorsX?.[index] ?? state.sheet.frameWidth / 2) * k,
+    state.sheet.baselines[index] * k,
+  );
+}
+
+/** Advances an authored limb/wheel cycle by travelled world distance, not wall-clock time. */
+export function advanceNaturalTravelMotion(object: Walkable, distance: number): void {
+  if (!Number.isFinite(distance) || distance <= 0) return;
+  const motion = object.getData(NATURAL_MOTION_KEY) as NaturalMotionState | undefined;
+  const frames = motion?.frames ?? frameState(object);
+  if (!motion?.moving || !frames) return;
+  frames.distance += distance;
+  while (frames.distance >= frames.stride) {
+    frames.distance -= frames.stride;
+    applyWalkFrame(frames, (frames.index + 1) % 4);
+  }
 }
 
 /**
@@ -133,7 +245,14 @@ export function addNaturalTravelMotion(
     scaleY?: number;
     displayOriginY?: number;
   };
-  const profile = kind === 'person'
+  const frames = frameState(object);
+  // The road traveller already has four articulated poses large enough to read. Running the old
+  // rigid-stamp bob and tilt on top of those distance-driven frames creates two unrelated clocks:
+  // the torso rocks while the feet change elsewhere, which looks like jitter rather than gait.
+  const stableRoadTraveler = frames?.sheet.sourceTextureKey === 'conquest-art:life.traveler';
+  const profile = stableRoadTraveler
+    ? { bob: 0, angle: 0, duration: 420 }
+    : kind === 'person'
     ? { bob: 0.32, angle: 1.1, duration: 420 }
     : kind === 'buffalo'
       ? { bob: 0.22, angle: 0.55, duration: 520 }
@@ -149,32 +268,36 @@ export function addNaturalTravelMotion(
   // stamp and container scales. Graphics children can use local y directly.
   const bob = imageTarget ? profile.bob / (targetScaleY * rootScaleY) : profile.bob;
   const baseAngle = target.angle;
-  const tween = scene.tweens.add({
-    targets: target,
-    [visualProperty]: baseVisualY + (imageTarget ? bob : -bob),
-    angle: baseAngle + profile.angle,
-    duration: profile.duration + (Math.abs(Math.round(seed)) % 5) * 24,
-    ease: 'Sine.easeInOut',
-    yoyo: true,
-    repeat: -1,
-    paused: true,
-  });
+  const tween = profile.bob !== 0 || profile.angle !== 0
+    ? scene.tweens.add({
+      targets: target,
+      [visualProperty]: baseVisualY + (imageTarget ? bob : -bob),
+      angle: baseAngle + profile.angle,
+      duration: profile.duration + (Math.abs(Math.round(seed)) % 5) * 24,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1,
+      paused: true,
+    })
+    : undefined;
   const state: NaturalMotionState = {
     kind, tween, target, visualProperty, baseVisualY, baseAngle, bob: profile.bob,
+    moving: false, frames,
   };
   object.setData(NATURAL_MOTION_KEY, state);
-  object.once(Phaser.GameObjects.Events.DESTROY, () => tween.remove());
+  if (tween) object.once(Phaser.GameObjects.Events.DESTROY, () => tween.remove());
 }
 
 /** Starts or settles a previously installed natural travel cycle. */
 export function setNaturalTravelMotionActive(object: Walkable, moving: boolean): void {
   const motion = object.getData(NATURAL_MOTION_KEY) as NaturalMotionState | undefined;
   if (!motion) return;
+  motion.moving = moving;
   if (moving) {
-    motion.tween.resume();
+    motion.tween?.resume();
     return;
   }
-  motion.tween.pause();
+  motion.tween?.pause();
   const target = motion.target as Phaser.GameObjects.GameObject & {
     y: number;
     angle: number;
@@ -182,6 +305,16 @@ export function setNaturalTravelMotionActive(object: Walkable, moving: boolean):
   };
   target[motion.visualProperty] = motion.baseVisualY;
   target.angle = motion.baseAngle;
+  if (motion.frames) {
+    // The accumulator resets; the pose does not.
+    //
+    // This used to snap back to frame zero every time a walker paused — and `wanderInSmallArea`
+    // pauses between every leg, so a farmer's legs jumped position four or five times a minute in
+    // full view. Measured over 22 s of one farmer: 5 of its 38 pose changes were this reset rather
+    // than a step. Freezing mid-stride is what a person who stops walking actually looks like, and
+    // the next leg then carries on from the pose the last one ended in.
+    motion.frames.distance = 0;
+  }
 }
 
 /**
@@ -231,12 +364,20 @@ export function grazeInSmallArea(
 
     setNaturalTravelMotionActive(animal, true);
 
+    let lastX = animal.x;
+    let lastY = animal.y;
     scene.tweens.add({
       targets: animal,
       x: targetX,
       y: targetY,
       duration: 2600 + noise(step * 11.3 + seed) * 2800,
       ease: 'Sine.easeInOut',
+      onUpdate: () => {
+        const distanceTravelled = Math.hypot(animal.x - lastX, animal.y - lastY);
+        advanceNaturalTravelMotion(animal, distanceTravelled);
+        lastX = animal.x;
+        lastY = animal.y;
+      },
       onComplete: () => {
         if (!animal.active) return;
         setNaturalTravelMotionActive(animal, false);
@@ -283,12 +424,20 @@ export function wanderInSmallArea(
       }
     }
     setNaturalTravelMotionActive(walker, true);
+    let lastX = walker.x;
+    let lastY = walker.y;
     scene.tweens.add({
       targets: walker,
       x: targetX,
       y: targetY,
       duration: 2200 + noise(step * 9.9 + seed) * 2600,
       ease: 'Sine.easeInOut',
+      onUpdate: () => {
+        const distanceTravelled = Math.hypot(walker.x - lastX, walker.y - lastY);
+        advanceNaturalTravelMotion(walker, distanceTravelled);
+        lastX = walker.x;
+        lastY = walker.y;
+      },
       onComplete: () => {
         if (!walker.active) return;
         setNaturalTravelMotionActive(walker, false);
