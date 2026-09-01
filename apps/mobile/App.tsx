@@ -36,7 +36,15 @@ const WATCHDOG_MS = 20_000;
 void SplashScreen.preventAutoHideAsync();
 
 /** `file:///a/b` → `/a/b`. Both the unzipper and the server want paths, not URLs. */
-const asPath = (uri: string): string => uri.replace(/^file:\/\//, '').replace(/\/$/, '');
+const asPath = (uri: string): string => {
+  const withoutScheme = uri.replace(/^file:\/\//, '').replace(/\/$/, '');
+  try {
+    return decodeURIComponent(withoutScheme);
+  } catch {
+    // A stray `%` that is not an escape sequence. A raw path beats no path at all.
+    return withoutScheme;
+  }
+};
 
 /** How many times to try the origin before calling it dead, and how long to wait between. */
 const KNOCKS = 10;
@@ -150,11 +158,35 @@ function Shell() {
        * correct. The hash is computed from the file being unpacked, so the name and the contents
        * cannot disagree no matter what the bundle believes.
        */
+      /**
+       * Opened before it is trusted.
+       *
+       * `failed to open zip file` is what SSZipArchive says about a path that does not exist and
+       * about a file that is not an archive alike, and those have completely different causes.
+       * Separating them here means the diary names which one it was.
+       */
+      const source = new File(asset.localUri);
+      if (!source.exists) {
+        throw new Error(`archive not on disk at ${asPath(asset.localUri)} — from ${asset.localUri}`);
+      }
+      // The smallest possible zip is 22 bytes. Anything near that is a failed download, not a game.
+      if (source.size < 1024) {
+        throw new Error(`archive is ${source.size} bytes at ${asPath(asset.localUri)}`);
+      }
+
       const stamp = asset.hash ?? `build-${version.build}`;
       const root = new Directory(Paths.document, `web-${stamp}`);
       if (!root.exists) {
         note(`unpacking build ${version.build}…`);
-        await unzip(asPath(asset.localUri), asPath(root.uri));
+        try {
+          await unzip(asPath(asset.localUri), asPath(root.uri));
+        } catch (error) {
+          // A half-written directory would be taken for a finished one on the next launch and the
+          // unpack skipped, so a failure takes its own leavings with it.
+          try { if (root.exists) root.delete(); } catch { /* nothing to undo */ }
+          const reason = error instanceof Error ? error.message : String(error);
+          throw new Error(`${reason} — ${source.size} bytes at ${asPath(asset.localUri)}`);
+        }
       }
 
       /**
@@ -293,6 +325,20 @@ function Shell() {
          * `window.__gameUpdateReady` and lets the menu render it in both languages, in the right
          * place, in ink.
          */
+        /**
+         * **A shell showing an error has nothing to interrupt, so it applies the update itself.**
+         *
+         * Everything below this offers a new bundle to the game and lets the player choose. There
+         * is no game here to offer it to: the web view was never created, so the injection lands
+         * nowhere and the newer build — the one carrying the fix for whatever wedged this launch —
+         * is downloaded, stored, and never run. A device broken by a bad archive would stay broken
+         * through every release until it was deleted and reinstalled.
+         */
+        if (failed) {
+          note('a newer build arrived — restarting into it');
+          await Updates.reloadAsync();
+          return;
+        }
         web.current?.injectJavaScript('window.__gameUpdateReady && window.__gameUpdateReady(); true;');
       } catch {
         // No network, no update server, a malformed manifest: all of them mean the player keeps
@@ -300,7 +346,7 @@ function Shell() {
       }
     })();
     return () => { cancelled = true; };
-  }, [ready]);
+  }, [failed, note, ready]);
 
   /**
    * Nothing may navigate away from the game — that is what makes this an app rather than a browser
