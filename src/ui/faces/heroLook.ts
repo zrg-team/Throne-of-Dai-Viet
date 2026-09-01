@@ -177,14 +177,21 @@ export function resolveHeroLook(hero: Hero): HeroLook {
       if (ornament) parts.push({ key: ornament, tint: 'none' });
     }
   } else {
-    parts.push({ key: pick(manHairFor(era, age), next), tint: 'hair' });
-    // The búi tó only shows under a wound turban or no hat at all; a lacquered cap covers it.
-    if (hat === '' || hat.startsWith('hat-khanvan') || hat === 'hat-khandong' || hat === 'hat-khanvuong') {
-      parts.push({ key: pick(manKnotFor(era), next), tint: 'hair' });
-      if (era === 'dinh') parts.push({ key: 'hairpin', tint: 'none' });
+    if (hat === 'scalp-shaven') {
+      // Trần visitors repeatedly described shaven men; this is a period marker, not monastic
+      // identity, so it carries no urna dots and wears the ordinary skin palette.
+      parts.push({ key: 'scalp-shaven', tint: 'skinLight' });
+    } else {
+      parts.push({ key: pick(manHairFor(era, age), next), tint: 'hair' });
+      // The búi tó only shows under a wound/closed cloth or no hat at all; lacquered court caps
+      // cover it. Lý closed wrapping is represented by khăn vuông, not Nguyễn khăn vấn.
+      if (hat === '' || hat.startsWith('hat-khanvan') || hat === 'hat-khandong' || hat === 'hat-khanvuong') {
+        parts.push({ key: pick(manKnotFor(era), next), tint: 'hair' });
+        if (era === 'dinh') parts.push({ key: 'hairpin', tint: 'none' });
+      }
     }
   }
-  if (hat && hat !== 'scalp') parts.push({ key: hat, tint: 'none' });
+  if (hat && hat !== 'scalp' && hat !== 'scalp-shaven') parts.push({ key: hat, tint: 'none' });
 
   // Khuyên tai were worn by both sexes in the older centuries and narrowed to women under the
   // Nguyễn, so the era gates them before the seed does.

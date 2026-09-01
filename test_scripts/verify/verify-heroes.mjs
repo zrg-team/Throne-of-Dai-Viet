@@ -9,8 +9,13 @@ const URL = process.env.DEV_URL ?? process.env.PLAYTEST_URL ?? 'http://127.0.0.1
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const errors = [];
+const faceRequests = [];
 page.on('pageerror', (e) => errors.push(`PAGEERROR ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`CONSOLE ${m.text()}`); });
+page.on('request', (request) => {
+  const path = new globalThis.URL(request.url()).pathname;
+  if (path.startsWith('/faces/')) faceRequests.push(path.slice(1));
+});
 await page.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => typeof window.__startBenchGame === 'function' && window.__phaserGame.scene.isActive('MenuScene'), null, { timeout: 30000 });
 
@@ -22,6 +27,8 @@ const r = await page.evaluate(async () => {
   const { createAscentGameState } = await import('/src/state/GameState.ts');
   const { resolveAscentPrompt } = await import('/src/systems/ascent/AscentResolver.ts');
   const { resolveHeroLook } = await import('/src/ui/faces/heroLook.ts');
+  const { garmentsFor, headwearFor } = await import('/src/ui/faces/wardrobe.ts');
+  const { renderHeroFace } = await import('/src/ui/FaceRenderer.ts');
   const { FACE_PART_DEFS } = await import('/src/ui/faces/parts.generated.ts');
   const { heroBio, heroName, heroDescription } = await import('/src/i18n/index.ts');
 
@@ -39,6 +46,29 @@ const r = await page.evaluate(async () => {
   out.missingParts = [...missing];
   out.distinctLooks = stacks.size;
   out.sampleSize = sample.length;
+
+  // ── the runtime library is one atlas and each visible hero is one baked image ──
+  const menu = window.__phaserGame.scene.getScene('MenuScene');
+  const portrait = renderHeroFace(menu, heroTemplates[0], 0, 0, 0.5);
+  out.runtimePortraitChildren = portrait.list.length;
+  out.atlasFrames = menu.textures.get('face:atlas').frameTotal - 1; // omit __BASE
+  portrait.destroy(true);
+
+  // ── era signals must not leak later hats and insignia backward in time ──
+  const first = (items) => items[0];
+  const keys = (parts) => parts.map((part) => part.key);
+  const lyCommonHats = headwearFor('ly', 'agent', false, 0);
+  const tranMinisterHats = headwearFor('tran', 'minister', false, 3);
+  const lyCourt = keys(garmentsFor('ly', false, false, 'minister', 3, first));
+  const tranCourt = keys(garmentsFor('tran', false, false, 'minister', 3, first));
+  const leCourt = keys(garmentsFor('le', false, false, 'minister', 3, first));
+  out.historicalWardrobe = {
+    lyAvoidsOpenCrownNguyenWrap: lyCommonHats.every((hat) => !hat.startsWith('hat-khanvan')),
+    tranUsesDinhTu: tranMinisterHats.some((hat) => hat.startsWith('hat-dinhtu')),
+    tranAvoidsLyPhocDau: tranMinisterHats.every((hat) => !hat.startsWith('hat-phocdau')),
+    preLeAvoidsRankBadges: [...lyCourt, ...tranCourt].every((key) => !key.startsWith('badge-')),
+    leCarriesRankBadge: leCourt.some((key) => key.startsWith('badge-')),
+  };
 
   // ── the throne is the player: never a person out of the record ──
   const king = generateKingHero();
@@ -127,11 +157,17 @@ const r = await page.evaluate(async () => {
   out.foundersExist = FOUNDER_IDS.every((id) => heroTemplates.some((h) => h.id === id));
   return out;
 });
+r.faceRequests = [...new Set(faceRequests)];
 
 const checks = {
   'the deck is a hundred champions deep': r.deck >= 100,
   'the wardrobe ships every part it asks for': r.missingParts.length === 0,
   'portraits are not one face in many hats': r.distinctLooks > r.sampleSize * 0.9,
+  'the runtime loads one face atlas, not hundreds of SVGs': r.faceRequests.length === 2
+    && r.faceRequests.every((path) => /faces\/atlas\.(svg|json)$/.test(path)),
+  'every authored part has one atlas frame': r.atlasFrames === r.parts,
+  'a rendered portrait is one baked image': r.runtimePortraitChildren === 1,
+  'wardrobe chronology holds': Object.values(r.historicalWardrobe).every(Boolean),
   'the king is the player, never a historical person': r.kingIsAnonymous,
   "the king's line is a real string, not a key": r.kingEffectTranslates,
   'every champion has name, effect, description and bio': r.blankText.length === 0,

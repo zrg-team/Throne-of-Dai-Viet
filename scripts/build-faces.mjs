@@ -1,6 +1,7 @@
 /**
- * Generates the hero-portrait part library: one SVG per part in `public/faces/`, plus the
- * manifest `src/ui/faces/parts.generated.ts` that tells the renderer where each part sits.
+ * Generates the hero-portrait part library: one editable SVG per part in `public/faces/`, a
+ * single runtime atlas, and the manifest `src/ui/faces/parts.generated.ts` that tells the
+ * renderer where each part sits.
  *
  * Why a generator rather than 55 hand-written files: the parts have to agree with each other
  * to the pixel — an eye drawn against one head shape and composited onto another is the whole
@@ -12,8 +13,11 @@
  * and tinted at runtime, so six skin tones cost one file rather than six. Parts whose colour is
  * fixed (gold coronet, black lacquer turban) are drawn in their own colour and never tinted.
  *
- * Output is committed. Re-run with `node scripts/build-faces.mjs` after editing a path; an
- * artist can also replace any single SVG by hand as long as its footprint does not move.
+ * The runtime atlas clips two generated neutral material studies into cloth and lacquered
+ * headwear. Silhouette and colour remain deterministic vectors; the generated art contributes
+ * surface character only, where it cannot invent or misdate a garment.
+ *
+ * Output is committed. Re-run with `node scripts/build-faces.mjs` after editing a path.
  *
  * Usage: node scripts/build-faces.mjs [--check]
  *   --check  verify the committed output matches what this script would emit, and fail if not
@@ -24,7 +28,14 @@ import { join } from 'node:path';
 
 const OUT_SVG = 'public/faces';
 const OUT_MANIFEST = 'src/ui/faces/parts.generated.ts';
+const OUT_ATLAS_SVG = join(OUT_SVG, 'atlas.svg');
+const OUT_ATLAS_JSON = join(OUT_SVG, 'atlas.json');
+const CLOTH_SOURCE = 'art_sources/faces/materials/handwoven-cloth.png';
+const GAUZE_SOURCE = 'art_sources/faces/materials/lacquered-gauze.png';
 const CHECK = process.argv.includes('--check');
+const RASTER_SCALE = 2;
+const ATLAS_WIDTH = 2048;
+const ATLAS_GAP = 2;
 
 // ── design space ────────────────────────────────────────────────────────────
 // Every part is authored in this one coordinate system, origin at the portrait's centre.
@@ -557,11 +568,36 @@ part('hat-khandong-gold', 50, 'none', khanDong(GOLD));
 part('hat-khanxep', 50, 'none',
   `<path d="M ${-W / 2 - 4} ${TOP + 14} C ${-W / 2 - 5} ${TOP - 10}, ${W / 2 + 5} ${TOP - 10}, ${W / 2 + 4} ${TOP + 14} Z" fill="${LACQUER}"/>
    ${[0, 1, 2, 3].map((i) => `<path d="M ${-W / 2 - 2} ${TOP + 10 - i * 5} q ${W / 2 + 2} -4 ${W + 4} 0" stroke="${LACQUER_EDGE}" stroke-width="0.9" fill="none" opacity=".7"/>`).join('')}`);
-// Khăn vuông — a plain square of cloth knotted behind, which is what most men actually wore.
+// Khăn vuông — a plain square of cloth knotted behind. This also supplies the closed-crown
+// hair wrapping described for ordinary Lý wear; it is deliberately not the later open-crown
+// Nguyễn khăn vấn.
 part('hat-khanvuong', 50, 'none',
   `<path d="M ${-W / 2 - 3} ${TOP + 16} C ${-W / 2 - 3} ${TOP - 4}, ${W / 2 + 3} ${TOP - 4}, ${W / 2 + 3} ${TOP + 16}
      C ${W / 2 - 6} ${TOP + 8}, ${-W / 2 + 6} ${TOP + 8}, ${-W / 2 - 3} ${TOP + 16} Z" fill="#4a4238"/>
    <path d="M ${W / 2 - 2} ${TOP + 12} q 9 6 5 16" stroke="#4a4238" stroke-width="3.4" fill="none"/>`);
+
+// Mũ Đinh Tự — the defining Trần civil cap. A 1293 description records dark blue lacquered
+// silk held by wire at the brow, rising high in front and bending back to the nape; officials
+// added coloured streamers at the rear. The three-quarter lean and rear tail keep that unusual
+// profile legible even though the portrait itself is frontal.
+const dinhTu = (streamers) =>
+  `<path d="M -25 ${TOP + 12} L -24 ${TOP - 1}
+     C -23 ${TOP - 14}, -13 ${TOP - 24}, 1 ${TOP - 26}
+     C 15 ${TOP - 28}, 25 ${TOP - 17}, 23 ${TOP - 4}
+     C 21 ${TOP + 3}, 25 ${TOP + 7}, 25 ${TOP + 12} Z" fill="#1d2a35"/>
+   <rect x="-29" y="${TOP + 6}" width="58" height="7" rx="1.5" fill="#17232c"/>
+   <path d="M -24 ${TOP + 6} C -9 ${TOP + 1}, 10 ${TOP + 1}, 24 ${TOP + 6}"
+     stroke="#59636b" stroke-width="1.5" fill="none" opacity=".9"/>
+   <path d="M -19 ${TOP - 5} C -8 ${TOP - 17}, 8 ${TOP - 20}, 19 ${TOP - 11}"
+     stroke="#344553" stroke-width="1.2" fill="none" opacity=".8"/>
+   <path d="M 22 ${TOP + 4} q 11 7 6 27" stroke="#1d2a35" stroke-width="4" fill="none"/>`
+  + (streamers
+    ? `<path d="M 25 ${TOP + 10} q 8 8 3 25" stroke="#76506b" stroke-width="2.3" fill="none"/>
+       <path d="M 21 ${TOP + 11} q 4 10 -1 27" stroke="#3f6470" stroke-width="2.1" fill="none"/>
+       <path d="M -22 ${TOP + 10} q -5 8 -1 21" stroke="#76506b" stroke-width="1.8" fill="none" opacity=".85"/>`
+    : '');
+part('hat-dinhtu', 50, 'none', dinhTu(false));
+part('hat-dinhtu-streamers', 50, 'none', dinhTu(true));
 
 // Phốc đầu / mũ cánh chuồn. Wing length carried rank in the 1499 regulations, so it is three
 // parts rather than one — plus the upturned mũ xung thiên, which only a king wears.
@@ -968,23 +1004,53 @@ const boxes = await page.evaluate((keys) => {
   }
   return out;
 }, PARTS.map((p) => p.key));
+
+// The generated studies are build inputs, not literal costume references. Downsample them to a
+// small neutral tile before embedding so the committed atlas stays light and every portrait
+// sees the same restrained frequency of weave at roster scale.
+async function materialTile(path) {
+  if (!existsSync(path)) throw new Error(`missing generated face material: ${path}`);
+  const source = `data:image/png;base64,${readFileSync(path).toString('base64')}`;
+  return page.evaluate(async (src) => {
+    const image = new Image();
+    image.src = src;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const context = canvas.getContext('2d');
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(image, 0, 0, 128, 128);
+    return canvas.toDataURL('image/png');
+  }, source);
+}
+const materialTextures = {
+  cloth: await materialTile(CLOTH_SOURCE),
+  gauze: await materialTile(GAUZE_SOURCE),
+};
 await browser.close();
 
 mkdirSync(OUT_SVG, { recursive: true });
 const PAD = 2;                    // room for stroke caps, which getBBox does not include
 const manifest = [];
 const written = new Set();
-
-for (const p of PARTS) {
+const prepared = PARTS.map((p) => {
   const b = boxes[p.key];
   if (!b || (b.w === 0 && b.h === 0)) throw new Error(`part "${p.key}" measured empty — check its paths`);
+  return {
+    part: p,
+    view: {
+      x: Math.floor(b.x - PAD), y: Math.floor(b.y - PAD),
+      w: Math.max(4, Math.ceil(b.w + PAD * 2)), h: Math.max(4, Math.ceil(b.h + PAD * 2)),
+    },
+  };
+});
+
+for (const { part: p, view } of prepared) {
   // `getBBox` measures geometry, not ink: a stroked path extends half its width past the box
   // on every side, and a flat one measures zero in the thin axis. Both are handled by padding
   // and a floor, or strokes get clipped at the crop.
-  const view = {
-    x: Math.floor(b.x - PAD), y: Math.floor(b.y - PAD),
-    w: Math.max(4, Math.ceil(b.w + PAD * 2)), h: Math.max(4, Math.ceil(b.h + PAD * 2)),
-  };
   const file = join(OUT_SVG, `${p.key}.svg`);
   const svg = svgDoc(p.body, view) + '\n';
   if (CHECK) {
@@ -999,6 +1065,90 @@ for (const p of PARTS) {
   // Centre of the part in design space — what the renderer positions the Image at.
   manifest.push({ key: p.key, layer: p.layer, tint: p.tint, cx: view.x + view.w / 2, cy: view.y + view.h / 2, w: view.w, h: view.h });
 }
+
+function materialFor(key) {
+  if (/^(robe-(body|slim|sloped|broad|square)|collar-|sash-|yem|kesa)/.test(key)) return 'cloth';
+  if (/^hat-(khan|phocdau|xungthien|osa|binhdinh|tamson|duongcan|dinhtu|moqua|vanhday|band|veil|muni)/.test(key)) return 'gauze';
+  return undefined;
+}
+
+// Height-sorted shelf packing keeps the transparent atlas compact while leaving a two-pixel
+// moat around every frame, so linear filtering cannot bleed a gold crown into a black cap.
+const packed = [...prepared]
+  .map((entry) => ({
+    ...entry,
+    w: entry.view.w * RASTER_SCALE,
+    h: entry.view.h * RASTER_SCALE,
+  }))
+  .sort((a, b) => b.h - a.h || b.w - a.w || a.part.key.localeCompare(b.part.key));
+let shelfX = ATLAS_GAP;
+let shelfY = ATLAS_GAP;
+let shelfH = 0;
+for (const entry of packed) {
+  if (shelfX + entry.w + ATLAS_GAP > ATLAS_WIDTH) {
+    shelfX = ATLAS_GAP;
+    shelfY += shelfH + ATLAS_GAP;
+    shelfH = 0;
+  }
+  entry.x = shelfX;
+  entry.y = shelfY;
+  shelfX += entry.w + ATLAS_GAP;
+  shelfH = Math.max(shelfH, entry.h);
+}
+const usedHeight = shelfY + shelfH + ATLAS_GAP;
+const atlasHeight = 2 ** Math.ceil(Math.log2(usedHeight));
+
+const atlasDefs = [
+  `<pattern id="material-cloth" width="128" height="128" patternUnits="userSpaceOnUse"><image href="${materialTextures.cloth}" width="128" height="128"/></pattern>`,
+  `<pattern id="material-gauze" width="128" height="128" patternUnits="userSpaceOnUse"><image href="${materialTextures.gauze}" width="128" height="128"/></pattern>`,
+  ...packed.flatMap((entry, index) => materialFor(entry.part.key)
+    ? [`<clipPath id="part-clip-${index}" clipPathUnits="userSpaceOnUse">${entry.part.body}</clipPath>`]
+    : []),
+].join('');
+const atlasBody = packed.map((entry, index) => {
+  const { part: p, view, x, y } = entry;
+  const transform = `translate(${x - view.x * RASTER_SCALE} ${y - view.y * RASTER_SCALE}) scale(${RASTER_SCALE})`;
+  const material = materialFor(p.key);
+  const texture = material
+    ? `<rect x="${view.x}" y="${view.y}" width="${view.w}" height="${view.h}" fill="url(#material-${material})"
+        clip-path="url(#part-clip-${index})" opacity="${material === 'cloth' ? '.14' : '.11'}" style="mix-blend-mode:multiply"/>`
+    : '';
+  return `<g transform="${transform}">${p.body}${texture}</g>`;
+}).join('');
+const atlasSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${ATLAS_WIDTH}" height="${atlasHeight}" viewBox="0 0 ${ATLAS_WIDTH} ${atlasHeight}"><defs>${atlasDefs}</defs>${atlasBody}</svg>\n`;
+
+const frames = Object.fromEntries(packed
+  .sort((a, b) => a.part.key.localeCompare(b.part.key))
+  .map((entry) => [entry.part.key, {
+    frame: { x: entry.x, y: entry.y, w: entry.w, h: entry.h },
+    rotated: false,
+    trimmed: false,
+    spriteSourceSize: { x: 0, y: 0, w: entry.w, h: entry.h },
+    sourceSize: { w: entry.w, h: entry.h },
+  }]));
+const atlasJson = `${JSON.stringify({
+  frames,
+  meta: {
+    app: 'Vạn Thắng face atlas generator',
+    version: '1.0',
+    image: 'atlas.svg',
+    format: 'RGBA8888',
+    size: { w: ATLAS_WIDTH, h: atlasHeight },
+    scale: '1',
+  },
+}, null, 2)}\n`;
+
+for (const [file, content] of [[OUT_ATLAS_SVG, atlasSvg], [OUT_ATLAS_JSON, atlasJson]]) {
+  if (CHECK) {
+    if (!existsSync(file) || readFileSync(file, 'utf8') !== content) {
+      console.error(`stale: ${file}`);
+      process.exitCode = 1;
+    }
+  } else {
+    writeFileSync(file, content);
+  }
+}
+written.add('atlas.svg');
 
 // Sweep files the library no longer defines, so a renamed part cannot linger and get loaded.
 if (!CHECK) {
@@ -1038,9 +1188,9 @@ if (CHECK) {
     console.error(`stale: ${OUT_MANIFEST}`);
     process.exitCode = 1;
   }
-  if (!process.exitCode) console.log(`faces up to date — ${PARTS.length} parts`);
+  if (!process.exitCode) console.log(`faces up to date — ${PARTS.length} parts, ${ATLAS_WIDTH}×${atlasHeight} atlas`);
 } else {
   mkdirSync('src/ui/faces', { recursive: true });
   writeFileSync(OUT_MANIFEST, ts);
-  console.log(`wrote ${PARTS.length} parts → ${OUT_SVG}/  and  ${OUT_MANIFEST}`);
+  console.log(`wrote ${PARTS.length} parts → ${OUT_SVG}/, ${ATLAS_WIDTH}×${atlasHeight} atlas, and ${OUT_MANIFEST}`);
 }

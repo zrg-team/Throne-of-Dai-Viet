@@ -1316,6 +1316,24 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 31
   },
   {
+    "key": "hat-dinhtu",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0.5,
+    "cy": -49,
+    "w": 63,
+    "h": 62
+  },
+  {
+    "key": "hat-dinhtu-streamers",
+    "layer": 50,
+    "tint": "none",
+    "cx": 0.5,
+    "cy": -45.5,
+    "w": 63,
+    "h": 69
+  },
+  {
     "key": "hat-phocdau-short",
     "layer": 50,
     "tint": "none",

@@ -44,24 +44,31 @@ export function headwearFor(era: HeroEra, type: Hero['type'], woman: boolean, ra
     return ['', '', 'hat-khanvan-low', 'hat-khanvuong', 'hat-band-cloth', 'hat-non'];
   }
   if (era === 'ly') {
-    if (type === 'general') return ['hat-helm', 'hat-helm-plume', 'hat-helm-daumau', 'hat-khanvan', 'hat-band-warrior'];
-    if (type === 'minister') return ['hat-phocdau-short', 'hat-khanvan', 'hat-duongcan', 'hat-osa', rank >= 3 ? 'hat-xungthien' : 'hat-binhdinh'];
-    if (type === 'governor') return ['hat-khanvan', 'hat-osa', 'hat-khanvuong', 'hat-non'];
-    return ['hat-khanvan', 'hat-non', 'hat-khanvuong', 'hat-non-chop'];
+    if (type === 'general') return ['hat-helm', 'hat-helm-plume', 'hat-helm-daumau', 'hat-khanvuong', 'hat-band-warrior'];
+    // Phốc Đầu entered court regulation in 1059. Outside court the stronger evidence is for a
+    // topknot, sometimes enclosed by a closed hair cloth — not the later open-crown khăn vấn.
+    if (type === 'minister') return ['hat-phocdau-short', 'hat-phocdau-short', 'hat-duongcan', 'hat-osa', rank >= 3 ? 'hat-xungthien' : 'hat-khanvuong'];
+    if (type === 'governor') return ['hat-khanvuong', 'hat-osa', '', 'hat-non'];
+    return ['', '', 'hat-khanvuong', 'hat-non', 'hat-non-chop'];
   }
   if (era === 'tran') {
-    if (type === 'general') return ['hat-helm', 'hat-helm-lamellar', 'hat-helm-cheeks', 'hat-helm-daumau', ''];
-    if (type === 'minister') return ['hat-phocdau-short', 'hat-duongcan', 'hat-osa', 'hat-tamson', ''];
-    if (type === 'governor') return ['hat-khanvan', 'hat-osa', '', 'hat-non-chop'];
-    return ['hat-khanvan-low', '', 'hat-non', 'hat-non-dau'];
+    if (type === 'general') return ['hat-helm', 'hat-helm-lamellar', 'hat-helm-cheeks', 'hat-dinhtu', 'scalp-shaven', ''];
+    // In 1301 the Đinh Tự replaced the Lý Phốc Đầu for civil and military officials. Higher
+    // office added purple-and-blue rear streamers, so rank changes the cap without inventing
+    // another silhouette.
+    if (type === 'minister') return rank >= 2
+      ? ['hat-dinhtu-streamers', 'hat-dinhtu-streamers', 'hat-dinhtu', 'hat-osa', '']
+      : ['hat-dinhtu', 'hat-dinhtu', 'hat-osa', 'scalp-shaven', ''];
+    if (type === 'governor') return ['hat-dinhtu', 'hat-osa', 'scalp-shaven', '', 'hat-non-chop'];
+    return ['scalp-shaven', 'scalp-shaven', '', '', 'hat-non', 'hat-non-dau'];
   }
   if (era === 'le') {
     if (type === 'general') return ['hat-helm', 'hat-helm-crest', 'hat-helm-horned', 'hat-helm-lamellar', 'hat-khanvan'];
     // 1499: the court wrote wing length into the regulations, so a Lê minister wears the
     // dragonfly cap more often than anything else and the wings say how senior he is.
     if (type === 'minister') return ['hat-phocdau-short', 'hat-phocdau-short', 'hat-osa', 'hat-binhdinh', 'hat-tamson'];
-    if (type === 'governor') return ['hat-khanvan', 'hat-osa', 'hat-khanvuong', 'hat-non', 'hat-binhdinh'];
-    return ['hat-khanvan', 'hat-non', 'hat-khanvuong', 'hat-non-dau', 'hat-band-cloth'];
+    if (type === 'governor') return ['hat-dinhtu', 'hat-osa', 'hat-khanvuong', 'hat-non', 'hat-binhdinh'];
+    return ['hat-dinhtu', '', 'hat-non', 'hat-khanvuong', 'hat-non-dau', 'hat-band-cloth'];
   }
   if (era === 'tayson') {
     if (type === 'general') return ['hat-helm-crest', 'hat-helm-plume', 'hat-band-warrior', 'hat-helm-leather', 'hat-band'];
@@ -93,6 +100,13 @@ function womenHeadwear(era: HeroEra, rank: number): string[] {
     return rank >= 2
       ? ['hat-coronet', 'hat-crown-phoenix', 'hat-coronet-jade', 'hat-non-quaithao', 'hat-moqua']
       : ['hat-moqua', 'hat-non-quaithao', 'hat-moqua-brown', 'hat-non-batam', ''];
+  }
+  // The mỏ quạ and great festival hats are later northern-delta forms. Lý–Trần portraits are
+  // better served by visible hair, a simple band or a restrained court coronet.
+  if (era === 'ly' || era === 'tran' || era === 'dinh') {
+    return rank >= 2
+      ? ['hat-coronet', 'hat-coronet-jade', 'hat-crown-seven', '', 'hat-band-gold']
+      : ['', '', 'hat-band', 'hat-band-cloth', 'hat-non'];
   }
   return rank >= 2
     ? ['hat-coronet', 'hat-coronet-jade', 'hat-crown-seven', '', 'hat-band-gold']
@@ -233,15 +247,21 @@ export function garmentsFor(
     return dinh;
   }
 
-  // Lý · Trần · Lê · Tây Sơn. A court officer of standing wears the round-collar áo viên lĩnh
-  // — which is what leaves the chest clear for the bổ tử — and everyone else the crossed lapel.
+  // Lý · Trần · Lê · Tây Sơn. The round-collar four-panel robe is especially strong in the
+  // Trần descriptions. Bổ tử do not appear until Lê regulations, so an earlier round collar
+  // remains clear rather than carrying an anachronistic rank square.
   const courtly = (type === 'minister' || type === 'governor') && rank >= 1 && era !== 'tayson';
-  if (courtly && pick([true, true, false])) {
+  const roundCollar = courtly
+    ? pick([true, true, false])
+    : era === 'tran'
+      ? pick([true, true, true, false])
+      : era === 'ly' && pick([true, false, false]);
+  if (roundCollar) {
     return [
       ...body,
       { key: 'collar-vienlinh', tint: 'robeDark' },
       { key: 'collar-vienlinh-trim', tint: 'none' },
-      ...(rank >= 1 ? [{ key: badgeFor(type, rank, pick), tint: 'none' } as HeroLookPart] : []),
+      ...(era === 'le' && rank >= 1 ? [{ key: badgeFor(type, rank, pick), tint: 'none' } as HeroLookPart] : []),
       ...beltFor(rank, era, pick),
     ];
   }
@@ -289,6 +309,14 @@ function womenGarments(era: HeroEra, rank: number, pick: Pick): HeroLookPart[] {
       { key: 'collar-giaolinh-over', tint: 'robeLight' },
       { key: pick(['collar-band-oxblood', 'collar-band-brocade']), tint: 'none' },
       { key: pick(['sash-silk', 'sash-waist']), tint: 'none' },
+    ];
+  }
+  if (era === 'tran' && rank >= 1 && pick([true, true, false])) {
+    return [
+      ...body,
+      { key: 'collar-vienlinh', tint: 'robeDark' },
+      { key: 'collar-vienlinh-trim', tint: 'none' },
+      ...beltFor(rank, era, pick),
     ];
   }
   const yem = pick(['yem', 'yem', 'yem-cream', 'yem-indigo', 'yem-jade']);
