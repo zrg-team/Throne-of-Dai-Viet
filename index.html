@@ -170,10 +170,21 @@
          Insets are subtracted rather than the box being positioned inside them, because
          `viewport-fit=cover` is what lets the điệp paper reach the screen edges in the first
          place: `body` keeps its background under both strips, and only the canvas moves. */
+      /* The insets go through two custom properties rather than being written into the rules
+         below, because an installed iOS app sometimes lays this page out before WebKit knows what
+         they are and every `env(safe-area-inset-*)` answers `0px` for the rest of the session.
+         The script at the foot of the body substitutes the device's real numbers when — and only
+         when — that has happened; see `applyInsets` there. In every other case these resolve to
+         exactly what they always did. */
+      :root {
+        --sa-top: env(safe-area-inset-top, 0px);
+        --sa-bottom: env(safe-area-inset-bottom, 0px);
+      }
+
       #game-root {
-        height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
-        height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
-        margin-top: env(safe-area-inset-top, 0px);
+        height: calc(100vh - var(--sa-top) - var(--sa-bottom));
+        height: calc(100dvh - var(--sa-top) - var(--sa-bottom));
+        margin-top: var(--sa-top);
         box-sizing: border-box;
       }
 
@@ -415,6 +426,94 @@
       (function () {
         'use strict';
 
+        // ── the notch, when iOS forgets it ───────────────────────────────────────────────────
+        /**
+         * Why the insets are read in script at all, when the stylesheet already asks for them.
+         *
+         * Launched from the home screen, WebKit sometimes lays this page out before it knows the
+         * window's safe-area insets, and every `env(safe-area-inset-*)` resolves to `0px` — for
+         * the whole session, because nothing invalidates the style again afterwards. Reported
+         * from an iPhone 16 Pro: the seal printed under the Dynamic Island and the support links
+         * under the home indicator, and reopening the app fixed it, which is the signature of a
+         * first-layout race rather than a wrong rule. Phaser is not the stuck part —
+         * `ScaleManager.step` re-reads the parent box every 500 ms, so an inset that arrived
+         * *late* would have corrected itself without any of this.
+         *
+         * So the two values the page uses go through custom properties, and this substitutes the
+         * device's own numbers only when they are both absent *and* impossible: an installed iOS
+         * web app, in portrait, on a screen whose point size belongs to a phone that certainly
+         * has a notch. Anything else — Safari with a toolbar, a shell that pads its own WebView,
+         * an iPad, a launch where `env` answered — keeps exactly what CSS resolved.
+         *
+         * This runs before the module below, so `designHeight()` in `src/game/constants.ts` takes
+         * the design aspect off a root box that is already the right height.
+         */
+        // Portrait point size -> [top, bottom], as `env` reports them on that device in
+        // standalone portrait. The 375x812 row takes the 12 mini's 50 over the X's 44: too much
+        // prints a strip of empty paper, too little prints under a notch.
+        var IOS_INSETS = {
+          '375x812': [50, 34], '390x844': [47, 34], '393x852': [59, 34],
+          '402x874': [62, 34], '414x896': [48, 34], '428x926': [47, 34],
+          '430x932': [59, 34], '440x956': [62, 34]
+        };
+
+        // Read through an element rather than off `document.documentElement`'s own style: `env()`
+        // inside a custom property is not resolved by `getPropertyValue`, but a padding is.
+        var probe = document.createElement('div');
+        probe.style.cssText =
+          'position:fixed;left:-9999px;top:0;width:0;height:0;visibility:hidden;' +
+          'padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)';
+        document.documentElement.appendChild(probe);
+
+        function guessInsets() {
+          // A native shell pads its own WebView (see `apps/mobile/App.tsx`) and reports zero here
+          // deliberately; adding to that would inset the game twice.
+          if (window.__shell) return null;
+          var standalone = window.navigator.standalone === true ||
+            (!!window.matchMedia && (window.matchMedia('(display-mode: standalone)').matches ||
+              window.matchMedia('(display-mode: fullscreen)').matches));
+          if (!standalone) return null;
+          var ios = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+          if (!ios) return null;
+          var short = Math.min(screen.width, screen.height);
+          var tall = Math.max(screen.width, screen.height);
+          var known = IOS_INSETS[short + 'x' + tall];
+          // An unlisted screen is only guessed at when it is phone-shaped and longer than any
+          // phone without a notch (the 8 Plus is 1.78); every iPad is nearer 1.4.
+          if (!known && short > 0 && tall / short >= 1.95) known = [59, 34];
+          if (!known) return null;
+          // Rotated, the insets are the sides: the top goes to zero and the pill gets slimmer.
+          if (window.innerWidth > window.innerHeight) return [0, 21];
+          return known;
+        }
+
+        var applied = null;
+        /** Returns true when the root box just changed height, so callers can re-fit. */
+        function applyInsets() {
+          var style = getComputedStyle(probe);
+          var top = parseFloat(style.paddingTop) || 0;
+          var bottom = parseFloat(style.paddingBottom) || 0;
+          // Only a launch that reports *nothing* is disbelieved. A notched phone in landscape
+          // still reports a bottom inset, so the sideways case is never mistaken for the bug.
+          var guess = (top === 0 && bottom === 0) ? guessInsets() : null;
+          var chosen = guess || [top, bottom];
+          if (applied && chosen[0] === applied[0] && chosen[1] === applied[1]) return false;
+          applied = chosen;
+          if (guess) {
+            document.documentElement.style.setProperty('--sa-top', guess[0] + 'px');
+            document.documentElement.style.setProperty('--sa-bottom', guess[1] + 'px');
+          } else {
+            // `env` is answering, so hand the rules back to it.
+            document.documentElement.style.removeProperty('--sa-top');
+            document.documentElement.style.removeProperty('--sa-bottom');
+          }
+          window.__safeArea = { top: chosen[0], bottom: chosen[1], measured: !guess };
+          return true;
+        }
+
+        applyInsets();
+
         // ── the sheet ────────────────────────────────────────────────────────────────────────
         /**
          * Put this page in exactly the box the canvas will occupy.
@@ -471,6 +570,36 @@
 
         fitSheet();
         window.addEventListener('resize', fitSheet);
+
+        /**
+         * The insets can also arrive, or change, after this line: a rotation, a launch where
+         * WebKit answers a beat late, an app coming back from the background. Re-asking costs one
+         * computed style, and only a value that actually moved re-fits anything.
+         *
+         * The poll runs only while the page is on substituted numbers, and stops the moment `env`
+         * answers: with no substitution in place the stylesheet is live and there is nothing left
+         * to catch, and with one in place this is the only thing that can hand the rules back.
+         */
+        function recheckInsets() {
+          if (!applyInsets()) return;
+          fitSheet();
+          // The canvas is fitted to `#game-root`, whose height just changed. Phaser finds this
+          // itself within `resizeInterval` (500 ms); there is no reason to make the player watch.
+          if (window.__phaserGame && window.__phaserGame.scale) window.__phaserGame.scale.refresh();
+        }
+        ['resize', 'orientationchange', 'pageshow', 'focus'].forEach(function (name) {
+          window.addEventListener(name, recheckInsets);
+        });
+        document.addEventListener('visibilitychange', recheckInsets);
+        var polls = 0;
+        (function pollInsets() {
+          recheckInsets();
+          polls += 1;
+          if (polls < 12 && window.__safeArea && !window.__safeArea.measured) {
+            setTimeout(pollInsets, polls < 4 ? 200 : 1000);
+          }
+        })();
+
         /**
          * Until the canvas exists the box above is a prediction; once it exists it is a copy, so
          * this waits for one and re-fits exactly once.
