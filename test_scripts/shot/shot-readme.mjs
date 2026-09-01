@@ -178,6 +178,9 @@ window.__firstChoice = (p, retry) => {
     case 'mandate': return p.options[0];
     case 'decree-offer': return p.projectIds?.[0] ?? 'decline';
     case 'empire-response': return p.options[0].id;
+    case 'envoy': // The province card: take the free, permanent lever where there is one —
+    case 'envoy': // posting a champion spends the one person the court has.
+    case 'envoy': case 'province-order': return (p.options.find((o) => o.role === 'focus') ?? p.options[0]).id;
     case 'envoy': case 'famine': case 'rival-demand':
     case 'story-beat': case 'world-event': return affordable();
     default: return affordable() ?? 'ok';

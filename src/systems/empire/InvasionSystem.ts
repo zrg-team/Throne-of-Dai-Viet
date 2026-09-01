@@ -261,6 +261,17 @@ export interface InvasionSpawnOptions {
    * has computed the budget from real defensive power, it must be honoured verbatim.
    */
   totalSoldiers?: number;
+  /**
+   * Where the hosts muster. `edge` is the far frontier and a long approach march — the window
+   * the realm uses to raise and move a host, which is why it is the default and why shortening
+   * it needs the wave budget softened in the same change. `inland` musters them a third of the
+   * way in: they are simply *there*, which is what makes a landing feel like a landing.
+   */
+  staging?: 'edge' | 'inland';
+  /** Plan stamped on every host of this wave, instead of the one `assignPlans` would infer. */
+  plan?: InvasionRecord['plan'];
+  /** Province every host of this wave marches at, when the wave's shape names one. */
+  aimLandId?: string;
 }
 
 /** Replaces the on-map `launchDynastyAttack` for empire mode: spawns one or more off-map hosts at the frontier. */
@@ -314,7 +325,12 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
   // three pinned-RNG seeds it collapsed two of the three runs to a single province: the approach
   // march is not padding, it is the window the realm uses to raise and move a host. Shortening it
   // needs the wave *budget* softened in the same change, which is a balance pass of its own.
-  const staging = neutralEdges;
+  // `neutralEdges` is sorted far-to-near, so the far edge is the head of it. An inland landing
+  // takes from a third of the way down that same list: still ground the crown can muster on and
+  // still connected to the realm, but one or two marches out rather than a walk across the map.
+  const staging = opts.staging === 'inland' && neutralEdges.length > 2
+    ? neutralEdges.slice(Math.floor(neutralEdges.length * 0.62))
+    : neutralEdges;
 
   const relations = kingdom.relations ?? 50;
   const conquestChance =
@@ -452,7 +468,17 @@ export function launchOffMapInvasion(state: GameState, kingdomId: string | undef
       experienceToNextLevel: 160,
     };
     state.armies.push(army);
-    state.invasions.push({ armyId: army.id, kingdomId, intent, great: Boolean(opts.warlordName), mustered: size });
+    state.invasions.push({
+      armyId: army.id,
+      kingdomId,
+      intent,
+      great: Boolean(opts.warlordName),
+      mustered: size,
+      // A wave with a shape has already decided what its hosts are for; without one they are
+      // left blank and `assignPlans` reads the board for them, exactly as before.
+      plan: opts.plan,
+      targetLandId: opts.aimLandId,
+    });
   }
 
   state.message = t('empire.invade.muster', { kingdom: kingdom.name, armies: armyCount });

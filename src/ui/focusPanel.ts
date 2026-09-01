@@ -67,7 +67,7 @@ function orderFor(state: GameState): LandSpecialization[] {
  * and it must not inherit `focus.fortress`'s "War Economy", which describes a tilt that mode does
  * not use.
  */
-function titleOf(state: GameState, focus: LandSpecialization): string {
+export function focusTitle(state: GameState, focus: LandSpecialization): string {
   const key = state.gameMode === 'ascent' ? `focus.ascent.${focus}` : `focus.${focus}`;
   return t(key as Parameters<typeof t>[0]);
 }
@@ -132,7 +132,7 @@ export function buildFocusRows(state: GameState, land: Land): FocusRow[] {
 
     return {
       focus,
-      title: titleOf(state, focus),
+      title: focusTitle(state, focus),
       effect,
       extra,
       suitLine,

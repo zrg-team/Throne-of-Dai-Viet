@@ -1,4 +1,5 @@
 import type { HexTile, MapGenConfig } from '../map/hexMapGenerator';
+import type { WaveShapeId } from '../game/ascentConfig';
 // Type-only both ways — `formations.ts` imports `ArmyComposition` from here — so the cycle is
 // erased at compile and there is no runtime edge in either direction.
 import type { BattleFormation } from '../data/ascent/formations';
@@ -197,6 +198,8 @@ export interface InvasionRecord {
    * What this host is trying to do, assigned when it spawns (Dragon Ascent).
    *
    * `spearhead` goes for the most valuable province, `flanker` for the weakest-held one — and each
+   * `hunter` marches at the player's largest field host instead of at any province, re-reading
+   * where it stands every tick, which is the one shape a realm cannot answer by garrisoning.
    * flanker picks a different target so a coalition genuinely spreads out rather than queueing
    * down one road. `raider` pillages a border province and withdraws. `withdrawing` is the state a
    * host enters when it decides it cannot win the fight in front of it.
@@ -204,7 +207,7 @@ export interface InvasionRecord {
    * Optional so it round-trips through the save with no migration; hosts without one fall back to
    * the original capital-or-nearest behaviour.
    */
-  plan?: 'spearhead' | 'flanker' | 'raider' | 'withdrawing';
+  plan?: 'spearhead' | 'flanker' | 'raider' | 'hunter' | 'withdrawing';
   /** Ticks the host has wanted to withdraw. Hysteresis, so a host does not oscillate. */
   retreatTicks?: number;
   /** Set once a raider has pillaged; it then turns for the map edge and despawns. */
@@ -1621,6 +1624,30 @@ export interface FamineOption {
   affordable: boolean;
 }
 
+/**
+ * One answer to what a province is for, or who holds it.
+ *
+ * `effect` is the difference the order makes, already worked out against this province rather
+ * than promised in the abstract: seasonal output for a focus, the defence multiplier for the
+ * walls, the commander's martial for a posting. A card that says *+9 food a season from Bạch
+ * Trại* is a decision; one that says *improves food* is a slogan.
+ */
+export interface ProvinceOrderOption {
+  /** `focus:<specialization>` · `governor:<heroId>` · `hold`. */
+  id: string;
+  role: 'focus' | 'governor' | 'hold';
+  focus?: LandSpecialization;
+  heroId?: string;
+  heroName?: string;
+  /** The court seat this champion would be taken from, when there is no idle one to send. */
+  fromSeat?: string;
+  /** The stat this posting is judged on — the province's focus decides which. */
+  keyStat?: keyof HeroStats;
+  /** What it changes, in the unit the card is about. */
+  effect?: number;
+  affordable: boolean;
+}
+
 /** One posting offered on the Appointment prompt. */
 export interface AppointmentOption {
   /** `court:<positionId>` · `governor:<landId>` · `general:<armyId>` · `reserve` · `dismiss`. */
@@ -1727,6 +1754,26 @@ export type AscentPrompt =
   | { kind: 'parliament'; cardId: string }
   /** The granary is empty and still draining. What the realm does about it. */
   | { kind: 'famine'; shortfall: number; options: FamineOption[] }
+  /**
+   * What a province is for, and who holds it — asked when the realm is visibly short of
+   * something, or a province is standing open.
+   *
+   * One kind rather than two, for the same budget reason `decree-offer` gives: the director
+   * already weighs ten kinds, and *tell this district to grow rice* and *post this champion to
+   * it* are two answers to one question, not two questions. Offering them on one card is also
+   * what makes it a decision — the focus is free and permanent, the champion is a person you
+   * only have one of.
+   */
+  | {
+    kind: 'province-order';
+    landId: string;
+    landName: string;
+    /** What raised it: the resource the realm is bleeding, or ground left open. */
+    reason: 'food' | 'supplies' | 'gold' | 'undefended';
+    /** The realm's net rate for that resource, so the card can show what it is answering. */
+    rate?: number;
+    options: ProvinceOrderOption[];
+  }
   /**
    * The autopilot asks before it musters.
    *
@@ -2650,6 +2697,8 @@ export interface AscentState {
    */
   waveDialBudget?: number;
   waveDialHosts?: number;
+  /** The shape the wave in flight is wearing — see `waveShapeFor`. */
+  waveShape?: WaveShapeId;
   /** The court that sent the wave now in flight, so the dial and the World lane agree on who. */
   waveAggressorId?: string;
   /** Turn each court last sent us a relief column, for the ask's cooldown. Keyed by kingdom id. */

@@ -936,6 +936,10 @@ export class ConquestUIScene extends Phaser.Scene {
 
   showFamine(prompt: Extract<AscentPrompt, { kind: 'famine' }>): void { promptsRealm.showFamine(this, prompt); }
 
+  showProvinceOrder(prompt: Extract<AscentPrompt, { kind: 'province-order' }>): void {
+    promptsRealm.showProvinceOrder(this, prompt);
+  }
+
   showRivalDemand(prompt: Extract<AscentPrompt, { kind: 'rival-demand' }>): void { promptsRealm.showRivalDemand(this, prompt); }
 
   showEmpireResponse(prompt: Extract<AscentPrompt, { kind: 'empire-response' }>): void { promptsRealm.showEmpireResponse(this, prompt); }

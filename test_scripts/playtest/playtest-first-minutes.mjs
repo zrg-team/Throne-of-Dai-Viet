@@ -54,6 +54,9 @@ window.__fmOptions = (p) => {
     case 'muster-proposal': return ['accept', 'adjust', 'decline'];
     case 'decree-offer': return [...p.projectIds, 'decline'];
     case 'empire-response': return p.options.map((o) => o.id);
+    case 'envoy': // The province card: take the free, permanent lever where there is one —
+    case 'envoy': // posting a champion spends the one person the court has.
+    case 'envoy': case 'province-order': return (p.options.find((o) => o.role === 'focus') ?? p.options[0]).id;
     case 'envoy': case 'famine': case 'rival-demand': case 'story-beat': case 'world-event':
       return (p.options ?? []).filter((o) => o.affordable !== false).map((o) => o.id);
     default: return ['ok'];

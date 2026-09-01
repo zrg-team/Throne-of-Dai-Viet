@@ -18,6 +18,7 @@ import { resolveDecreeOffer } from '../decree/OfferSystem';
 import { reignName, reignSummary } from '../decree/SchoolSystem';
 import { resolveDoctrine } from './RealmDoctrineSystem';
 import { resolveEnvoy } from './EnvoySystem';
+import { resolveProvinceOrder } from './ProvinceOrderSystem';
 import { resolveFamine } from './FamineSystem';
 import { raiseHostWithPlan } from './MusterSystem';
 import { CLAIM_DECLINE_TICKS, MUSTER_DECLINE_TICKS } from '../../game/ascentConfig';
@@ -249,6 +250,11 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
       handled = resolveWorldEvent(
         state, prompt.eventId, prompt.kingdomId, prompt.otherKingdomId, choiceId,
       );
+      break;
+    }
+
+    case 'province-order': {
+      handled = resolveProvinceOrder(state, prompt.landId, choiceId);
       break;
     }
 
