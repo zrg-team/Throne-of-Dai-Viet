@@ -292,22 +292,13 @@ Issues and pull requests are open. The most useful things you can bring, in orde
 
 Before opening a pull request: `yarn build` must pass, and `node test_scripts/gate/smoke.mjs` should be green against your dev server.
 
-One thing to know before you send one: because the commercial rights are reserved (below), opening a pull request licenses your contribution under the same terms **and** grants the maintainer the right to ship it commercially as part of the official game. You keep the copyright in what you wrote. If you would rather not grant that, say so in the pull request — an issue describing the change is still genuinely useful.
+One thing to know before you send one: the official builds are sold in the app stores, and this licence alone would not let them carry your work — so opening a pull request licenses your contribution under the same terms **and** grants the maintainer the right to ship it commercially as part of the official game. You keep the copyright in what you wrote. If you would rather not grant that, say so in the pull request — an issue describing the change is still genuinely useful.
 
 ## 📄 License
 
-**Source-available, not open source.** The game is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE); **commercial rights are reserved** to zrg-team.
+**[PolyForm Noncommercial 1.0.0](LICENSE)** — do anything you like with this, except make money from it. Commercial use needs permission first; [just ask](https://github.com/zrg-team).
 
-|  | |
-| --- | --- |
-| ✅ **Free, without asking** | Play it. Read the source and learn from it. Fork it, mod it, run it. Publish a free, ad-free fork that keeps the notice and says it is not the official game. Use it to teach — classrooms, universities, museums, libraries. Stream it, record it, write about it. |
-| ⛔ **Needs a licence first** | Selling it, a fork, or a reskin. Publishing it to a store under your own account. Ads, in-app purchases, subscriptions, paywalls. Bundling it into a commercial product or service. Reusing the ink code, the 277 portrait parts, the roster or the stories commercially. Merchandise. Commercial model training. |
-
-The only commercial builds of Vạn Thắng are the official ones published from this repository. That is what keeps the promise on the tin — free, ad-free, nobody wrapping this history in advertising and shipping it to Vietnamese players as though it were the real thing.
-
-Want to do something commercial with it? **Ask — the answer is often yes.** [COMMERCIAL.md](COMMERCIAL.md) says what counts as commercial, how to ask, and what to put in the request. Vietnamese schools, museums and non-profits: the noncommercial licence almost certainly already covers you, and you need not ask at all.
-
-Phaser, Vite, TypeScript, Playwright and the fonts keep their own licences — listed at the foot of [LICENSE](LICENSE). The history itself belongs to everyone; only this telling of it is anyone's.
+Phaser, Vite, TypeScript, Playwright and the fonts keep their own licences — see [LICENSE](LICENSE).
 
 ## ☕ Support
 

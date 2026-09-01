@@ -1,45 +1,28 @@
 Vạn Thắng — Ten Thousand Victories
 Copyright (c) 2026 zrg-team
+https://github.com/zrg-team/ten-thousand-victories
 
 Required Notice: Copyright (c) 2026 zrg-team
 (https://github.com/zrg-team/ten-thousand-victories)
 
-===============================================================================
-  SUMMARY — this is source-available, not open source
-===============================================================================
-
-  You may play, read, fork, modify, share and build on this project freely,
-  for any NONCOMMERCIAL purpose, under the PolyForm Noncommercial License
-  1.0.0, whose full and unmodified text follows below.
-
-  COMMERCIAL RIGHTS ARE RESERVED to the licensor, zrg-team. Selling the game
-  or a derivative of it, putting ads or in-app purchases in it, listing it on
-  a store for money, or bundling it into a commercial product or service is
-  NOT permitted by this licence. The only commercial builds of Vạn Thắng are
-  the official ones published from this repository.
-
-  If you want to do something commercial with it, ask — see COMMERCIAL.md.
-  The licensor grants such licences separately and in writing.
-
-  This summary is a plain-language description, provided for convenience.
-  The licence terms are the text below.
+Licensed under the PolyForm Noncommercial License 1.0.0.
 
 ===============================================================================
-  WHAT IS COVERED
+  IN SHORT
 ===============================================================================
 
-  Everything in this repository authored by the licensor: the TypeScript
-  source, the procedural Đông Hồ drawing code and the images it produces,
-  the portrait parts under public/faces/, the game data (heroes, cards,
-  edicts, stories, provinces), the Vietnamese and English text, the design
-  documents under docs/, and the verification harnesses under test_scripts/.
+  Clone it, run it, read it, learn from it, modify it, share it, teach with
+  it, build on it, send a pull request. Any noncommercial purpose is a
+  permitted purpose, and you do not have to ask anyone.
 
-  Third-party components keep their own licences and are not covered by
-  these terms — see "Third-party components" at the end of this file.
+  The one line is money: making money from this, or from anything built out
+  of it, needs written permission first. Ask — open an issue titled
+  "Commercial licence request", or reach the maintainer through
+  https://github.com/zrg-team. The answer is often yes.
 
-  The historical events, figures and folk tales this game draws on are not
-  anyone's property. Nothing here claims rights over the history itself;
-  only over this particular telling of it.
+  This summary is a plain-language description, for convenience only. The
+  licence text below is the terms. Third-party components and a note for
+  contributors follow it.
 
 ===============================================================================
   LICENCE TEXT — the unmodified PolyForm Noncommercial License 1.0.0
@@ -120,12 +103,12 @@ The **licensor** is the individual or entity offering these terms, and the **sof
 **Use** means anything you do with the software requiring one of your licenses.
 
 ===============================================================================
-  END OF THE POLYFORM LICENCE TEXT
+  END OF THE LICENCE TEXT
 ===============================================================================
 
-  Everything between the two "LICENCE TEXT" markers above is the verbatim,
-  unmodified PolyForm Noncommercial License 1.0.0. The notes below are the
-  licensor's own; they add information and do not change those terms.
+  Everything above between the markers is the verbatim, unmodified PolyForm
+  Noncommercial License 1.0.0. The notes below are the licensor's own; they
+  add information and do not change those terms.
 
 ===============================================================================
   THIRD-PARTY COMPONENTS
@@ -150,12 +133,25 @@ The **licensor** is the individual or entity offering these terms, and the **sof
 ===============================================================================
 
   Contributions are very welcome, and this is the one thing to know before
-  sending one: because commercial rights are reserved to the licensor, by
-  opening a pull request you license your contribution to the licensor under
-  these same terms AND additionally grant the licensor a perpetual, worldwide,
-  irrevocable, royalty-free right to use, modify, relicense and commercially
-  exploit it as part of Vạn Thắng — including in the official store-published
-  builds. You keep the copyright in what you wrote.
+  sending one: the official builds of Vạn Thắng are sold in the app stores,
+  and this licence alone would not let them carry your work. So by opening a
+  pull request you license your contribution under these same terms AND
+  additionally grant the licensor a perpetual, worldwide, irrevocable,
+  royalty-free right to use, modify, relicense and commercially exploit it as
+  part of Vạn Thắng — including in those official builds. You keep the
+  copyright in what you wrote.
 
   If you are not able or willing to grant that, say so in the pull request and
   it will not be merged; an issue describing the change is still welcome.
+
+  Please do not paste code into this repository that you do not have the right
+  to license this way — including code copied from projects under a different
+  licence.
+
+===============================================================================
+  THE HISTORY
+===============================================================================
+
+  Nothing here claims any right over the events, the people or the folk tales
+  this game draws on. They belong to everyone; only this telling of them is
+  anyone's.
