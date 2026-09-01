@@ -211,9 +211,17 @@ const beastMaskHalf =
    <path d="M -45.5 ${SHY + 13.4} l 3 -2.2 l 3 1.8 l 3 -2.2 l 3 1.8 l 3 -2.2" stroke="#2b2318" stroke-width="1.25" fill="none" stroke-linejoin="round"/>`;
 part('guard-beastmask', 24, 'none', beastMaskHalf + `<g transform="scale(-1,1)">${beastMaskHalf}</g>`);
 
-// 25 · neck
-part('neck', 25, 'skinShadow', `<rect x="-9" y="${NECK - 12}" width="18" height="22" fill="#ffffff"/>`);
-part('neck-slim', 25, 'skinShadow', `<rect x="-7.5" y="${NECK - 12}" width="15" height="22" fill="#ffffff"/>`);
+// 25 · neck. Every neck begins above the shortest jaw (`head-round` ends at y=23.5), so the
+// head can never float on paper. A very slight flare replaces the old ruler-straight rectangle;
+// width is coupled to the selected head family in `neckForHead`, not rolled independently.
+const neckShape = (topHalf, bottomHalf) =>
+  `<path d="M ${-topHalf} ${NECK - 17}
+     C ${-topHalf} ${NECK - 8}, ${-topHalf + 0.6} ${NECK + 2}, ${-bottomHalf} ${NECK + 10}
+     L ${bottomHalf} ${NECK + 10}
+     C ${topHalf - 0.6} ${NECK + 2}, ${topHalf} ${NECK - 8}, ${topHalf} ${NECK - 17} Z" fill="#ffffff"/>`;
+part('neck', 25, 'skinShadow', neckShape(9, 10));
+part('neck-slim', 25, 'skinShadow', neckShape(7, 8));
+part('neck-broad', 25, 'skinShadow', neckShape(10.5, 12));
 
 // 28 · ears. The long lobe is not a style axis — it is the iconographic mark of a Buddhist
 // teacher, and the wardrobe hands it only to monastics.
@@ -508,6 +516,73 @@ part('bun-tall-fore', 41, 'hair',
   `<ellipse cx="0.5" cy="${TOP - 13}" rx="9.5" ry="13" fill="#ffffff"/>
    <path d="M -9 ${TOP - 1} q 9.5 5 19 -1 Z" fill="#ffffff"/>`);
 
+// Women's historical styles are complete silhouettes rather than a loose fringe randomly
+// combined with a bun. The earlier system did exactly that and produced two black curtains
+// beside the cheeks with an unrelated ellipse balanced on top. These fronts and backs are
+// deliberately paired by `womanHairStylesFor`; rear masses sit below the head (layer 29),
+// while the hairline and face-framing locks sit above it (layer 40).
+const womanCentreCrown = () =>
+  `<path d="M -30 -16 C -31 -39, -20 -52, 0 -53 C 20 -52, 31 -39, 30 -16
+     C 24 -26, 13 -31, 0 -24 C -13 -31, -24 -26, -30 -16 Z" fill="#ffffff"/>
+   <path d="M 0 -50 C -2 -40, -1 -30, 0 -24" stroke="#c9c9c9" stroke-width="1.2" fill="none" opacity=".62"/>`;
+
+part('hair-woman-center', 40, 'hair', womanCentreCrown());
+part('hair-woman-temple', 40, 'hair',
+  womanCentreCrown()
+  + `<path d="M -27 -27 C -35 -15, -35 5, -28 17 C -23 14, -20 7, -22 -2 C -24 -11, -21 -21, -17 -29 Z" fill="#ffffff"/>
+     <path d="M 27 -27 C 35 -15, 35 5, 28 17 C 23 14, 20 7, 22 -2 C 24 -11, 21 -21, 17 -29 Z" fill="#ffffff"/>`);
+part('hair-woman-short', 40, 'hair',
+  womanCentreCrown()
+  + `<path d="M -26 -29 C -37 -11, -36 14, -27 26 C -21 21, -19 12, -22 1 C -25 -11, -21 -23, -16 -30 Z" fill="#ffffff"/>
+     <path d="M 26 -29 C 37 -11, 36 14, 27 26 C 21 21, 19 12, 22 1 C 25 -11, 21 -23, 16 -30 Z" fill="#ffffff"/>
+     <path d="M -29 18 q 4 6 9 1 M 29 18 q -4 6 -9 1" stroke="#c7c7c7" stroke-width="1.2" fill="none" opacity=".58"/>`);
+part('hair-woman-loose', 40, 'hair',
+  womanCentreCrown()
+  + `<path d="M -26 -30 C -39 -9, -38 22, -28 42 C -21 40, -18 31, -21 20 C -26 5, -23 -17, -16 -31 Z" fill="#ffffff"/>
+     <path d="M 26 -30 C 39 -9, 38 22, 28 42 C 21 40, 18 31, 21 20 C 26 5, 23 -17, 16 -31 Z" fill="#ffffff"/>
+     <path d="M -29 -8 C -32 8, -30 25, -25 35 M 29 -8 C 32 8, 30 25, 25 35" stroke="#c7c7c7" stroke-width="1.25" fill="none" opacity=".62"/>`);
+part('hair-woman-wrapped', 40, 'hair',
+  womanCentreCrown()
+  + `<path d="M -29 -36 Q 0 -53 29 -36 M -30 -31 Q 0 -47 30 -31 M -28 -26 Q 0 -40 28 -26"
+       stroke="#bdbdbd" stroke-width="2" fill="none" opacity=".72"/>`);
+// The short Trần crown leaves neither long temple locks nor a nape fall. It is the base for the
+// crown-tied brush described by Trần Cương Trung and preserved by Lê Quý Đôn.
+part('hair-woman-tran-short', 40, 'hair',
+  `<path d="M -29 -18 C -30 -39, -18 -51, 0 -52 C 18 -51, 30 -39, 29 -18
+     C 18 -25, -18 -25, -29 -18 Z" fill="#ffffff"/>
+   <path d="M -22 -24 Q 0 -33 22 -24" stroke="#c7c7c7" stroke-width="1.2" fill="none" opacity=".58"/>`);
+
+// Artifact-derived Lý–Trần masses. The fan and spiral are reconstructed from surviving heads,
+// so the paths preserve the strong silhouette without inventing individual strands.
+part('bun-fan-high', 29, 'hair',
+  `<path d="M -11 ${TOP - 1} L -22 ${TOP - 25} Q 0 ${TOP - 37} 22 ${TOP - 25} L 11 ${TOP - 1}
+     Q 0 ${TOP - 7} -11 ${TOP - 1} Z" fill="#ffffff"/>
+   <path d="M -14 ${TOP - 22} Q 0 ${TOP - 29} 14 ${TOP - 22} M -10 ${TOP - 13} Q 0 ${TOP - 19} 10 ${TOP - 13}"
+     stroke="#c4c4c4" stroke-width="1.4" fill="none" opacity=".64"/>`);
+part('bun-snail-coil', 29, 'hair',
+  `<path d="M -12 ${TOP + 5} C -20 ${TOP - 10}, -14 ${TOP - 22}, -4 ${TOP - 21}
+     C -8 ${TOP - 29}, 3 ${TOP - 34}, 8 ${TOP - 25} C 19 ${TOP - 20}, 19 ${TOP - 7}, 11 ${TOP + 5} Z" fill="#ffffff"/>
+   <path d="M -5 ${TOP - 18} C 8 ${TOP - 26}, 14 ${TOP - 15}, 7 ${TOP - 8} C 2 ${TOP - 3}, -5 ${TOP - 7}, -2 ${TOP - 12}"
+     stroke="#c1c1c1" stroke-width="1.5" fill="none" opacity=".72"/>`);
+part('bun-side-loops', 29, 'hair',
+  `<path d="M -24 -26 C -38 -25, -41 -10, -31 -3 C -23 0, -17 -9, -20 -18 Z" fill="#ffffff"/>
+   <path d="M 24 -26 C 38 -25, 41 -10, 31 -3 C 23 0, 17 -9, 20 -18 Z" fill="#ffffff"/>
+   <path d="M -32 -19 q -5 7 1 12 M 32 -19 q 5 7 -1 12" stroke="#c4c4c4" stroke-width="1.3" fill="none" opacity=".65"/>`);
+part('bun-tran-brush', 29, 'hair',
+  `<path d="M -8 ${TOP + 4} C -8 ${TOP - 5}, -5 ${TOP - 14}, 0 ${TOP - 19}
+     C 8 ${TOP - 18}, 16 ${TOP - 13}, 18 ${TOP - 8} C 16 ${TOP - 3}, 10 ${TOP}, 4 ${TOP + 1}
+     L -8 ${TOP + 4} Z" fill="#ffffff"/>
+   <path d="M -5 ${TOP - 3} Q 4 ${TOP - 7} 14 ${TOP - 5}" stroke="#bdbdbd" stroke-width="2" fill="none" opacity=".72"/>`);
+// A nape chignon is mostly hidden in a frontal portrait; showing only one outer crescent keeps
+// it behind the jaw instead of turning it into a beard. Two mirrors keep the seeded roster from
+// leaning in the same direction.
+part('bun-nape-right', 29, 'hair',
+  `<ellipse cx="21" cy="${CHIN - 12}" rx="7.5" ry="8.5" fill="#ffffff"/>
+   <path d="M 18 ${CHIN - 17} q 6 3 4 10" stroke="#c3c3c3" stroke-width="1.2" fill="none" opacity=".68"/>`);
+part('bun-nape-left', 29, 'hair',
+  `<ellipse cx="-21" cy="${CHIN - 12}" rx="7.5" ry="8.5" fill="#ffffff"/>
+   <path d="M -18 ${CHIN - 17} q -6 3 -4 10" stroke="#c3c3c3" stroke-width="1.2" fill="none" opacity=".68"/>`);
+
 // 42 · what goes into the hair. Trâm cài — the pin — is the one piece of jewellery a woman of
 // any class might own, so it is the ornament that carries rank least and character most.
 part('hairpin', 42, 'none', `<rect x="-3" y="${TOP - 20}" width="6" height="12" rx="2" fill="#b07a24"/>`);
@@ -536,6 +611,15 @@ part('hair-ribbon', 42, 'none',
   `<path d="M -18 ${TOP + 4} q 18 -8 36 0" stroke="${SON}" stroke-width="3" fill="none"/>
    <path d="M 16 ${TOP + 3} q 8 6 3 14" stroke="${SON}" stroke-width="2.4" fill="none"/>`);
 part('hair-cord', 42, 'none', `<path d="M -16 ${TOP - 2} q 16 -6 32 0" stroke="${CREAM}" stroke-width="2.2" fill="none" opacity=".9"/>`);
+const napePin = (side, jewel = false) => {
+  const startX = side * 18, endX = side * 31;
+  return `<path d="M ${startX} ${CHIN - 17} L ${endX} ${CHIN - 11}" stroke="${jewel ? GOLD_DEEP : GOLD}" stroke-width="1.7" stroke-linecap="round"/>
+    <circle cx="${side * 32}" cy="${CHIN - 10.5}" r="${jewel ? 2.5 : 1.8}" fill="${jewel ? JADE : GOLD}"/>`;
+};
+part('hairpin-nape-right', 42, 'none', napePin(1));
+part('hairpin-nape-right-jade', 42, 'none', napePin(1, true));
+part('hairpin-nape-left', 42, 'none', napePin(-1));
+part('hairpin-nape-left-jade', 42, 'none', napePin(-1, true));
 
 // 50 · headwear. This is the silhouette that has to survive at 42 px, so it is the richest
 // group in the library — and the one that does the most work, because in Đại Việt the hat was

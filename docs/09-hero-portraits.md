@@ -210,7 +210,9 @@ A path, not an ellipse — jaw width and cheek hollow carry age and sex without 
 
 ##### Hair & topknot
 
-Búi tó showing through the open crown of the turban; a coiled bun for women; bare for a monk.
+Búi tó beneath an appropriate cloth or bare head; complete period-gated women's styles rather
+than one generic coil; bare for a monk. The implemented women's evidence and chronology are
+recorded in `docs/research/vietnamese-hero-wardrobe.md`.
 
 06
 

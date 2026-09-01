@@ -94,6 +94,46 @@ occasion, and court status. The portrait rules therefore make visible hair and s
 early default, introduce northern-delta `mỏ quạ` and broad festival hats only in later pools,
 and reserve the largest court wraps and Nhật Bình ensemble for Nguyễn rank.
 
+### Women's hair
+
+Hair cannot be reconstructed as one timeless “Vietnamese bun.” The surviving record changes in
+both form and quality by period, so the renderer uses complete hairstyles rather than randomly
+combining a fringe, a loose fall, and a bun.
+
+- **Đinh and earlier figures — low confidence:** surviving period-specific evidence is too thin
+  to justify court fantasy. The portrait pool stays compact: a small coil, smooth centre part,
+  face-framing hair, or a restrained nape knot. Trưng-era figures use this as an explicitly
+  conservative bridge, not as a claim that tenth-century Đinh fashion describes the first century.
+- **Lý — artifact-led:** decorated bricks, glazed amulet heads, and sculpted heads associated
+  with Lý–Trần contexts preserve tall fan-shaped masses, large spiral/“snail” coils, hair hugging
+  the sides of the face, and several centre-parted side-loop arrangements. The two-side form is
+  kept to young portraits because the best reconstruction treats it as a possible attendant,
+  servant, or child style rather than a universal adult fashion. See the artifact catalogue and
+  reconstruction notes in [Đại Việt Phong Hoa's Lý–Trần survey](https://daivietphonghoa.wordpress.com/2021/02/06/cac-kieu-toc-cua-phu-nu-thoi-ly-tran/).
+- **Trần — text-led:** Trần Cương Trung described women cutting the hair, retaining roughly three
+  *thốn*, tying it at the crown, bending the end backward, binding it like a writing brush, and
+  leaving no temple or nape fall. The game therefore weights a compact crown-tied brush and also
+  allows the older coil or a braid wrapped around the head. The description and citations are
+  reproduced in [*Ngàn năm áo mũ*, p. 73](https://dilib.vn/img/pdf/10952-ngan-nam-ao-mu-thuviensach.vn.pdf)
+  and summarized against archaeological material by [Đại Việt Cổ Phong](https://daivietcophong.com/trang-phuc-va-trang-suc-thoi-ly-tran-qua-tu-lieu-khao-hoc/).
+- **Lê — mixed short and long evidence:** a 1513 account describes hair slightly covering the
+  forehead and reaching the nape, and post-Ming Lê policy explicitly restored short local hair.
+  Later Lê–Trịnh images also support loose long hair. The pool consequently mixes a tapered
+  neck-length cut, smooth nape knot, wrapped crown, and a restrained long centre-parted fall.
+- **Tây Sơn — medium/low confidence:** the short reign does not support a precise court hair
+  system. Late-eighteenth-century portraits share only conservative long, wrapped, and low-nape
+  forms with the adjacent Lê and Nguyễn evidence.
+- **Nguyễn — regional/photographic evidence:** northern women commonly smoothed and wrapped long
+  hair around the head beneath silk or velvet cloth, while the low rear chignon remained a strong
+  southern form. Early twentieth-century Hanoi photographs confirm the wrapped head treatment
+  with traditional dress ([Hanoi Museum](https://baotanghanoi.com.vn/en/phu-nu-ha-noi-trong-trang-phuc-truyen-thong-dau-the-ki-20-ve-dep-cua-su-giao-thoi/));
+  the game offers a wrapped crown, subtle nape bun, and occasional loose hair for younger/private
+  portraits rather than one generic long curtain.
+
+Rendering rule: rear coils and nape buns are painted behind the head, hairlines and face-framing
+locks in front, and pins are anchored to the matching crown, band, brush, or left/right nape
+location. A crown, coronet, or `nón` suppresses the extra pin so two ornaments cannot collide.
+
 ## What the generated images contribute
 
 The two generated files are material studies, not costume evidence:
@@ -112,7 +152,7 @@ texts usually do not preserve.
 
 ## Runtime contract
 
-- Editable source: 279 measured SVG parts in `public/faces/`.
+- Editable source: 295 measured SVG parts in `public/faces/`.
 - Runtime source: `public/faces/atlas.svg` plus `atlas.json` — two requests, one GPU texture.
 - Composition: `resolveHeroLook` chooses a documented pool, then the hero seed chooses within it.
 - Display: the first composition is baked to one hero texture; subsequent render sites use one

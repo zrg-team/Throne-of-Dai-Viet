@@ -26,8 +26,8 @@ const r = await page.evaluate(async () => {
   const { REAL_FIGURES } = await import('/src/data/heroNames.ts');
   const { createAscentGameState } = await import('/src/state/GameState.ts');
   const { resolveAscentPrompt } = await import('/src/systems/ascent/AscentResolver.ts');
-  const { resolveHeroLook } = await import('/src/ui/faces/heroLook.ts');
-  const { garmentsFor, headwearFor } = await import('/src/ui/faces/wardrobe.ts');
+  const { neckForHead, resolveHeroLook } = await import('/src/ui/faces/heroLook.ts');
+  const { garmentsFor, hairOrnamentFor, headwearFor, womanHairStylesFor } = await import('/src/ui/faces/wardrobe.ts');
   const { renderHeroFace } = await import('/src/ui/FaceRenderer.ts');
   const { FACE_PART_DEFS } = await import('/src/ui/faces/parts.generated.ts');
   const { heroBio, heroName, heroDescription } = await import('/src/i18n/index.ts');
@@ -43,9 +43,46 @@ const r = await page.evaluate(async () => {
     for (const part of look.parts) if (!known.has(part.key)) missing.add(part.key);
     stacks.add(look.parts.map((p) => p.key).join(','));
   }
+  const eras = ['dinh', 'ly', 'tran', 'le', 'tayson', 'nguyen'];
+  const ages = ['young', 'prime', 'elder'];
+  const womanStylePools = eras.flatMap((era) => ages.flatMap((age) => [
+    ...womanHairStylesFor(era, age, false),
+    ...womanHairStylesFor(era, age, true),
+  ]));
+  for (const style of womanStylePools) {
+    for (const part of style.parts) if (!known.has(part)) missing.add(part);
+  }
+  for (const rank of [0, 1, 2, 3]) {
+    for (const placement of ['none', 'crown', 'brush', 'band', 'nape-left', 'nape-right']) {
+      for (const part of hairOrnamentFor(rank, placement)) if (part && !known.has(part)) missing.add(part);
+    }
+  }
   out.missingParts = [...missing];
   out.distinctLooks = stacks.size;
   out.sampleSize = sample.length;
+
+  // ── anatomy is a contract: every jaw must overlap its coupled neck ──
+  // The generated crop includes two transparent design units of padding on each edge. Remove
+  // that padding to compare the actual opaque bounds rather than the atlas frames.
+  const byKey = new Map(FACE_PART_DEFS.map((part) => [part.key, part]));
+  const headKeys = FACE_PART_DEFS.map((part) => part.key).filter((key) => key.startsWith('head-'));
+  const attachment = headKeys.map((head) => {
+    const neck = neckForHead(head);
+    const headDef = byKey.get(head);
+    const neckDef = byKey.get(neck);
+    const headBottom = headDef.cy + headDef.h / 2 - 2;
+    const neckTop = neckDef.cy - neckDef.h / 2 + 2;
+    return { head, neck, overlap: Number((headBottom - neckTop).toFixed(2)) };
+  });
+  out.headNeck = {
+    pairs: attachment,
+    minOverlap: Math.min(...attachment.map((pair) => pair.overlap)),
+    detached: attachment.filter((pair) => pair.overlap <= 0).map((pair) => pair.head),
+    slimHeadsUseSlimNecks: ['head-narrow', 'head-soft', 'head-heart', 'head-tapered', 'head-fine', 'head-slim', 'head-long']
+      .every((head) => neckForHead(head) === 'neck-slim'),
+    broadHeadsUseBroadNecks: ['head-broad', 'head-square', 'head-angular', 'head-wide', 'head-full', 'head-blunt', 'head-stern']
+      .every((head) => neckForHead(head) === 'neck-broad'),
+  };
 
   // ── the runtime library is one atlas and each visible hero is one baked image ──
   const menu = window.__phaserGame.scene.getScene('MenuScene');
@@ -62,12 +99,32 @@ const r = await page.evaluate(async () => {
   const lyCourt = keys(garmentsFor('ly', false, false, 'minister', 3, first));
   const tranCourt = keys(garmentsFor('tran', false, false, 'minister', 3, first));
   const leCourt = keys(garmentsFor('le', false, false, 'minister', 3, first));
+  const lyWomanStyles = womanHairStylesFor('ly', 'young', false);
+  const tranWomanStyles = womanHairStylesFor('tran', 'prime', false);
+  const leWomanStyles = womanHairStylesFor('le', 'prime', false);
+  const nguyenWomanStyles = womanHairStylesFor('nguyen', 'prime', false);
+  const styleHas = (styles, key) => styles.some((style) => style.parts.includes(key));
+  const styleParts = womanStylePools.flatMap((style) => style.parts);
   out.historicalWardrobe = {
     lyAvoidsOpenCrownNguyenWrap: lyCommonHats.every((hat) => !hat.startsWith('hat-khanvan')),
     tranUsesDinhTu: tranMinisterHats.some((hat) => hat.startsWith('hat-dinhtu')),
     tranAvoidsLyPhocDau: tranMinisterHats.every((hat) => !hat.startsWith('hat-phocdau')),
     preLeAvoidsRankBadges: [...lyCourt, ...tranCourt].every((key) => !key.startsWith('badge-')),
     leCarriesRankBadge: leCourt.some((key) => key.startsWith('badge-')),
+    lyWomenOfferArtifactFanAndSideLoops: styleHas(lyWomanStyles, 'bun-fan-high')
+      && styleHas(lyWomanStyles, 'bun-side-loops'),
+    tranWomenWeightCrownBrushAndAvoidLongFall: tranWomanStyles.filter((style) => style.parts.includes('bun-tran-brush')).length >= 2
+      && tranWomanStyles.every((style) => !style.parts.includes('hair-woman-loose')),
+    leWomenOfferShortAndLooseHair: styleHas(leWomanStyles, 'hair-woman-short')
+      && styleHas(leWomanStyles, 'hair-woman-loose'),
+    nguyenWomenOfferWrappedAndNapeHair: styleHas(nguyenWomanStyles, 'hair-woman-wrapped')
+      && nguyenWomanStyles.some((style) => style.parts.some((part) => part.startsWith('bun-nape-'))),
+    womenAvoidLegacyCurtainAndRandomBunParts: styleParts.every((part) => !/^hair-(long|braid|tail)|^bun-(high|low|double|coil|wide|wrapped|tall-fore)$/.test(part)),
+    napePinsStayOnTheirBunSide: womanStylePools.every((style) =>
+      (!style.parts.includes('bun-nape-left') || style.ornament === 'nape-left')
+      && (!style.parts.includes('bun-nape-right') || style.ornament === 'nape-right')),
+    coveredHairNeverProtrudes: eras.every((era) => ages.every((age) =>
+      womanHairStylesFor(era, age, true).every((style) => style.parts.length === 1 && style.ornament === 'none'))),
   };
 
   // ── the throne is the player: never a person out of the record ──
@@ -167,6 +224,10 @@ const checks = {
     && r.faceRequests.every((path) => /faces\/atlas\.(svg|json)$/.test(path)),
   'every authored part has one atlas frame': r.atlasFrames === r.parts,
   'a rendered portrait is one baked image': r.runtimePortraitChildren === 1,
+  'every head overlaps a neck matched to its jaw': r.headNeck.detached.length === 0
+    && r.headNeck.minOverlap >= 3
+    && r.headNeck.slimHeadsUseSlimNecks
+    && r.headNeck.broadHeadsUseBroadNecks,
   'wardrobe chronology holds': Object.values(r.historicalWardrobe).every(Boolean),
   'the king is the player, never a historical person': r.kingIsAnonymous,
   "the king's line is a real string, not a key": r.kingEffectTranslates,

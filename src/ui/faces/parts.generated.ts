@@ -222,18 +222,27 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "layer": 25,
     "tint": "skinShadow",
     "cx": 0,
-    "cy": 36,
-    "w": 22,
-    "h": 26
+    "cy": 33.5,
+    "w": 24,
+    "h": 31
   },
   {
     "key": "neck-slim",
     "layer": 25,
     "tint": "skinShadow",
-    "cx": -0.5,
-    "cy": 36,
-    "w": 19,
-    "h": 26
+    "cx": 0,
+    "cy": 33.5,
+    "w": 20,
+    "h": 31
+  },
+  {
+    "key": "neck-broad",
+    "layer": 25,
+    "tint": "skinShadow",
+    "cx": 0,
+    "cy": 33.5,
+    "w": 28,
+    "h": 31
   },
   {
     "key": "ears",
@@ -1154,6 +1163,114 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "h": 32
   },
   {
+    "key": "hair-woman-center",
+    "layer": 40,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -34.5,
+    "w": 65,
+    "h": 41
+  },
+  {
+    "key": "hair-woman-temple",
+    "layer": 40,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -18,
+    "w": 71,
+    "h": 74
+  },
+  {
+    "key": "hair-woman-short",
+    "layer": 40,
+    "tint": "hair",
+    "cx": 0,
+    "cy": -13.5,
+    "w": 72,
+    "h": 83
+  },
+  {
+    "key": "hair-woman-loose",
+    "layer": 40,
+    "tint": "hair",
+    "cx": 0,
+    "cy": -5.5,
+    "w": 76,
+    "h": 99
+  },
+  {
+    "key": "hair-woman-wrapped",
+    "layer": 40,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -34.5,
+    "w": 65,
+    "h": 41
+  },
+  {
+    "key": "hair-woman-tran-short",
+    "layer": 40,
+    "tint": "hair",
+    "cx": -0.5,
+    "cy": -35,
+    "w": 63,
+    "h": 38
+  },
+  {
+    "key": "bun-fan-high",
+    "layer": 29,
+    "tint": "hair",
+    "cx": 0,
+    "cy": -67,
+    "w": 48,
+    "h": 34
+  },
+  {
+    "key": "bun-snail-coil",
+    "layer": 29,
+    "tint": "hair",
+    "cx": 0.5,
+    "cy": -63.5,
+    "w": 37,
+    "h": 39
+  },
+  {
+    "key": "bun-side-loops",
+    "layer": 29,
+    "tint": "hair",
+    "cx": 0,
+    "cy": -14,
+    "w": 78,
+    "h": 28
+  },
+  {
+    "key": "bun-tran-brush",
+    "layer": 29,
+    "tint": "hair",
+    "cx": 5,
+    "cy": -58.5,
+    "w": 30,
+    "h": 27
+  },
+  {
+    "key": "bun-nape-right",
+    "layer": 29,
+    "tint": "hair",
+    "cx": 20.5,
+    "cy": 14.5,
+    "w": 19,
+    "h": 21
+  },
+  {
+    "key": "bun-nape-left",
+    "layer": 29,
+    "tint": "hair",
+    "cx": -21.5,
+    "cy": 14.5,
+    "w": 19,
+    "h": 21
+  },
+  {
     "key": "hairpin",
     "layer": 42,
     "tint": "none",
@@ -1224,6 +1341,42 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "cy": -54.5,
     "w": 36,
     "h": 7
+  },
+  {
+    "key": "hairpin-nape-right",
+    "layer": 42,
+    "tint": "none",
+    "cx": 26,
+    "cy": 14.5,
+    "w": 20,
+    "h": 13
+  },
+  {
+    "key": "hairpin-nape-right-jade",
+    "layer": 42,
+    "tint": "none",
+    "cx": 26.5,
+    "cy": 14.5,
+    "w": 21,
+    "h": 13
+  },
+  {
+    "key": "hairpin-nape-left",
+    "layer": 42,
+    "tint": "none",
+    "cx": -26,
+    "cy": 14.5,
+    "w": 20,
+    "h": 13
+  },
+  {
+    "key": "hairpin-nape-left-jade",
+    "layer": 42,
+    "tint": "none",
+    "cx": -26.5,
+    "cy": 14.5,
+    "w": 21,
+    "h": 13
   },
   {
     "key": "hat-khanvan",
