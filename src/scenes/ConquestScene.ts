@@ -74,7 +74,8 @@ export class ConquestScene extends MapScene {
 
   /** This mode ends in defeat rather than victory; otherwise the clock stops for the same reasons. */
   protected isWorldHalted(): boolean {
-    return this.state.isDefeated || this.state.isPaused || this.state.isStrategyPause;
+    return this.state.isDefeated || this.state.isPaused || this.state.isStrategyPause
+      || Boolean(this.state.isAwayPause);
   }
 
   update(time: number, delta: number): void {
