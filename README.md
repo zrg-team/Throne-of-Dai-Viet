@@ -14,19 +14,13 @@
 
 <br>
 
-### ▶ Play it right now — free, and no ads
+[![Play the full game, free](https://img.shields.io/badge/▶%20%20PLAY%20THE%20FULL%20GAME-free%20·%20no%20ads-b33a26?style=for-the-badge&labelColor=7d2417)](https://zrg-team.github.io/ten-thousand-victories/)
 
-[![Play free in your browser](https://img.shields.io/badge/▶%20%20PLAY%20FREE%20IN%20YOUR%20BROWSER-no%20install%20·%20no%20account%20·%20no%20ads-b33a26?style=for-the-badge&labelColor=7d2417)](https://zrg-team.github.io/ten-thousand-victories/)
+<sub>Or support the developer — the same game on the stores, 50,000₫ (≈ US$2), once.</sub>
 
-**The whole game — every mode, both languages, nothing held back and nothing to pay.**
-
-<br>
-
-[![Get it on Google Play](https://img.shields.io/badge/Google%20Play-2a2118?style=flat-square&logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=zrg.team.vanthang)
+[![Google Play](https://img.shields.io/badge/Google%20Play-2a2118?style=flat-square&logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=zrg.team.vanthang)
 &nbsp;
-[![Download on the App Store](https://img.shields.io/badge/App%20Store-2a2118?style=flat-square&logo=appstore&logoColor=white)](https://apps.apple.com/app/id6805950974)
-
-<sub>Want a home-screen icon? The same game is on the stores for about 50,000₫ (≈ US$2), paid once — a tip, not a paywall.</sub>
+[![App Store](https://img.shields.io/badge/App%20Store-2a2118?style=flat-square&logo=appstore&logoColor=white)](https://apps.apple.com/app/id6805950974)
 
 <br>
 
@@ -114,7 +108,7 @@ Four resources — **food, supplies, gold, humans** — flow from provinces whos
 
 <table>
   <tr>
-    <td width="38%"><img src="docs/readme/summon.webp" alt="The Court Presents: a champion offered to the throne — portrait, stats, a character line and the wage, one of three to swipe through" width="100%"></td>
+    <td width="38%"><img src="docs/readme/summon.webp" alt="Summon a Champion: three answer the call, one will serve — a portrait, stats, a character line and the wage, swiped through one at a time" width="100%"></td>
     <td valign="top">
 
 Champions arrive by **summon** — a gacha with pity, *three answer the call, one will serve* — or are drafted from your court's Favor. Each carries six stats (martial, logistics, administration, diplomacy, loyalty, renown), a wage the treasury feels every season, a character line worth reading, and a portrait; a first meeting is recorded in the Codex for good.
@@ -146,7 +140,7 @@ The enemy telegraphs what they hold and what they are re-forming into, in words 
 **Why it is built this way.** No unit micromanagement survives a phone held in one hand. The fight is instead one legible question — *what are they holding, and what answers it?* — asked under a clock, with everything readable at arm's length. And it is never separate from the run: the hosts are the ones your economy raised, the commander is the hero you paid, and the outcome moves the ground held, the momentum, and the heat of the next wave.
 
 </td>
-    <td width="38%"><img src="docs/readme/battle.webp" alt="A battle at the drum: a named commander, speech bubbles over both hosts, the five shapes, the tempo dial" width="100%"></td>
+    <td width="38%"><img src="docs/readme/battle.webp" alt="A battle at the drum: both hosts ranked in their shapes, orders spoken over each line, the five shapes and the tempo dial beneath" width="100%"></td>
   </tr>
 </table>
 

@@ -479,8 +479,8 @@ if (want('battle')) {
   // The same run the map is photographed on, carried past its peak to the first fight that opens
   // after tick 130 — chosen from a contact sheet of every opening this run offers, because most of
   // them are a province levy defending itself and a levy has no commander to put in the corner of
-  // the screen. This one is a champion of the realm, Chu Văn An, holding the field against a host
-  // that outnumbers his by two hundred men.
+  // the screen. Past 130 the hosts are big enough to fill the field, which is what this picture is
+  // for; whether one of them is led depends on the run, and the caption must not promise it.
   const battle = await advanceAscent(page, 400, { stopOnBattle: true, battleAfter: 130, seed: 20260901 });
   console.log('   run:', JSON.stringify(battle));
   await page.waitForTimeout(1200);
