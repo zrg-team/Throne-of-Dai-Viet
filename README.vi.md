@@ -14,19 +14,13 @@
 
 <br>
 
-### ▶ Chơi ngay được luôn — miễn phí, không quảng cáo
+[![Chơi trọn game, miễn phí](https://img.shields.io/badge/▶%20%20CH%C6%A0I%20TR%E1%BB%8CN%20GAME-mi%E1%BB%85n%20ph%C3%AD%20·%20kh%C3%B4ng%20qu%E1%BA%A3ng%20c%C3%A1o-b33a26?style=for-the-badge&labelColor=7d2417)](https://zrg-team.github.io/ten-thousand-victories/)
 
-[![Chơi miễn phí trên trình duyệt](https://img.shields.io/badge/▶%20%20CH%C6%A0I%20MI%E1%BB%84N%20PH%C3%8D%20TR%C3%8AN%20TR%C3%8CNH%20DUY%E1%BB%86T-kh%C3%B4ng%20c%C3%A0i%20%C4%91%E1%BA%B7t%20·%20kh%C3%B4ng%20t%C3%A0i%20kho%E1%BA%A3n%20·%20kh%C3%B4ng%20qu%E1%BA%A3ng%20c%C3%A1o-b33a26?style=for-the-badge&labelColor=7d2417)](https://zrg-team.github.io/ten-thousand-victories/)
+<sub>Hoặc ủng hộ tác giả — vẫn game ấy, trên hai chợ app, 50.000₫ (≈ 2$), trả một lần.</sub>
 
-**Nguyên vẹn cả game — đủ mọi chế độ, đủ hai thứ tiếng, không giấu phần nào, không tốn đồng nào.**
-
-<br>
-
-[![Tải trên Google Play](https://img.shields.io/badge/Google%20Play-2a2118?style=flat-square&logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=zrg.team.vanthang)
+[![Google Play](https://img.shields.io/badge/Google%20Play-2a2118?style=flat-square&logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=zrg.team.vanthang)
 &nbsp;
-[![Tải trên App Store](https://img.shields.io/badge/App%20Store-2a2118?style=flat-square&logo=appstore&logoColor=white)](https://apps.apple.com/app/id6805950974)
-
-<sub>Muốn có icon ngoài màn hình chính? Vẫn game ấy, trên hai chợ app, khoảng 50.000₫ trả đúng một lần — là mời ly cà phê, không phải bức tường thu phí.</sub>
+[![App Store](https://img.shields.io/badge/App%20Store-2a2118?style=flat-square&logo=appstore&logoColor=white)](https://apps.apple.com/app/id6805950974)
 
 <br>
 
@@ -146,7 +140,7 @@ Trận nào đáng xem là tự nó mở ra: hai bên dàn quân, trống điể
 Sao trận đánh lại gọn vậy? Vì cầm điện thoại một tay thì đừng mơ vi quản từng tốp lính. Nên cả trận rút về một câu hỏi duy nhất, nhìn xa vẫn đọc được: *chúng đang giữ gì, và cái gì trị được nó?* — hỏi dưới áp lực đồng hồ. Và trận không bao giờ tách rời ván chơi: quân là quân bạn nuôi, tướng là người bạn trả lương, thắng thua đổi luôn đất đai, khí thế, và độ hung của đợt giặc sau.
 
 </td>
-    <td width="38%"><img src="docs/readme/battle.webp" alt="Một trận đánh theo nhịp trống: chủ tướng có tên tuổi, lời trận trên cả hai đạo quân, năm thế, núm nhịp độ" width="100%"></td>
+    <td width="38%"><img src="docs/readme/battle.webp" alt="Một trận đánh theo nhịp trống: hai đạo quân dàn theo thế của mình, lời trận trên mỗi hàng, năm thế và núm nhịp độ ở dưới" width="100%"></td>
   </tr>
 </table>
 

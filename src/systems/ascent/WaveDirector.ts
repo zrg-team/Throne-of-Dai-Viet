@@ -45,7 +45,8 @@ import {
  waveMatchFactor,
 } from '../../game/ascentConfig';
 import {
-  EMERGENCY_LEVY_CAP, MIN_ARMY_SOLDIERS, recruitSoldiers, SUPPLY_TICKS_HELD, waveHostCount,
+  EMERGENCY_LEVY_CAP, MIN_ARMY_SOLDIERS, recruitSoldiers, SUPPLY_TICKS_HELD,
+  REINFORCE_SHARE, waveShapeFor, type WaveShape,
 } from '../../game/ascentConfig';
 import { weightedPick } from '../../utils/math';
 import { difficultyArmyScale, launchOffMapInvasion } from '../empire/InvasionSystem';
@@ -73,6 +74,7 @@ import type {
   EmpireResponseOption,
   GameState,
   Hero,
+  Army,
   Kingdom,
   Land,
 } from '../../state/types';
@@ -939,19 +941,92 @@ function startWave(state: GameState): void {
   });
 }
 
+/**
+ * The province a shape is marching at, or nothing when it is marching at whatever it finds.
+ *
+ * `host` returns the ground the player's largest field army is standing on — the aim is the army,
+ * and `EnemyCommandDirector` re-reads it every tick as that army moves.
+ */
+const headcount = (army: Army): number =>
+  army.units.spearmen + army.units.archers + army.units.heavyInfantry;
+
+function aimLandFor(state: GameState, aim: WaveShape['aim']): string | undefined {
+  if (aim === 'capital') return state.ascent?.capitalLandId;
+  if (aim !== 'host') return undefined;
+  const host = state.armies
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy)
+    .sort((a, b) => headcount(b) - headcount(a))[0];
+  return host?.landId ?? state.ascent?.capitalLandId;
+}
+
+/**
+ * A second crown for a coalition shape: the angriest court that is not the one already marching.
+ *
+ * Two hosts from one kingdom read as a bigger wave; two hosts from two kingdoms read as the world
+ * agreeing about you, which is the whole point of the shape.
+ */
+function secondCrown(state: GameState, firstId: string): Kingdom | undefined {
+  return state.kingdoms
+    .filter((kingdom) => kingdom.id !== firstId
+      && kingdom.id !== PLAYER_KINGDOM_ID
+      && !kingdom.isDefeated
+      && !isVassal(kingdom))
+    .sort((a, b) => (a.relations ?? 50) - (b.relations ?? 50))[0];
+}
+
 /** Spawns the hosts for a wave through the existing invasion pipeline. */
 function launchWave(state: GameState, kingdomId: string, warlordName?: string): void {
   const ascent = state.ascent;
   if (!ascent) return;
 
   const boss = ascent.lastWaveBoss;
+  const shape = waveShapeFor(ascent.wave, boss);
+  // Stored so the banner, the war board and the harnesses all name the same thing.
+  ascent.waveShape = shape.id;
   // Counted before the spawn so hosts added by *this* wave can be told from whatever a raid or
   // an overlapping wave already had walking in.
   const hostsBefore = state.invasions?.length ?? 0;
   // The map is already carrying this wave's worth of pressure — adding to it would stack
   // hosts the realm has no way to answer. The wave counter still advanced, so the curve keeps
   // rising; what is skipped is the spawn, not the escalation.
+  // **A wave the map has no room for reinforces the war instead of not happening.**
+  //
+  // The old behaviour returned here: the counter advanced, the HUD went on reading INVASION 4 ·
+  // LIVE, and nothing arrived. Measured across six seeds, invasion 4 landed in **zero** of them —
+  // because a host is nearly always still standing (mean 1.0 to 3.5 per wave turnover) and one
+  // standing host is enough to spend the budget. From the throne that is not mercy, it is the
+  // mode quietly skipping its own event while the number climbs.
+  //
+  // The men are sent to the hosts already in the field instead: half the wave's budget, because
+  // the other half is the part that would have been spent walking here. The invasion is late and
+  // it is the same army as last season — which is exactly what a war looks like when the last
+  // wave was never finished off.
   if (waveBudgetSpent(state, ascent.wave, boss)) {
+    const standing = (state.invasions ?? [])
+      .map((record) => state.armies.find((army) => army.id === record.armyId))
+      .filter((army): army is Army => Boolean(army));
+    const reinforcement = Math.round(
+      waveSoldierBudget(state, ascent.wave, boss) * shape.sizeMult * REINFORCE_SHARE * (ascent.waveDialBudget ?? 1),
+    );
+    if (standing.length > 0 && reinforcement > 0) {
+      const each = Math.max(40, Math.round(reinforcement / standing.length));
+      for (const army of standing) {
+        army.units.spearmen += Math.floor(each * 0.6);
+        army.units.archers += Math.floor(each * 0.28);
+        army.units.heavyInfantry += Math.floor(each * 0.12);
+        // Men arriving with orders and rations lift a host that has been in the field a while.
+        army.morale = Math.min(100, army.morale + 6);
+        army.supply = Math.min(100, army.supply + 10);
+      }
+      const snapshot = ascent.pendingWave;
+      if (snapshot && snapshot.wave === ascent.wave) {
+        snapshot.hosts = standing.length;
+        snapshot.power = liveInvaderPower(state);
+        snapshot.kingdomName = state.kingdoms.find((k) => k.id === standing[0]?.kingdomId)?.name;
+      }
+      ascent.threat = liveInvaderPower(state);
+      pushToast(state, t('ascent.wave.reinforced', { n: standing.length }), 'threat');
+    }
     ascent.waveInFlight = (state.invasions?.length ?? 0) > 0;
     ascent.threat = liveInvaderPower(state);
     return;
@@ -967,11 +1042,14 @@ function launchWave(state: GameState, kingdomId: string, warlordName?: string): 
   // Locked at `startWave`, not re-read here. The response card can stand for a whole season and
   // relations move while it does — a wave must land at the size it was quoted at, or the card is
   // lying about what it is asking the player to pay for.
+
+  // Stored so the banner, the war board and the harnesses can all name the same thing.
+  ascent.waveShape = shape.id;
   const dialHosts = ascent.waveDialHosts ?? 0;
   const dialBudget = ascent.waveDialBudget ?? 1;
   const hosts = Math.max(1, Math.min(
     MAX_HOSTS_PER_KINGDOM,
-    waveHostCount(ascent.wave, boss) + (coalition ? 2 : 0) + dialHosts,
+    shape.hosts + (coalition ? 2 : 0) + dialHosts,
   ));
   // Difficulty is applied once, centrally, inside `launchOffMapInvasion` — it used to be
   // compensated for here because the normalisation there divided it back out, which left every
@@ -983,13 +1061,40 @@ function launchWave(state: GameState, kingdomId: string, warlordName?: string): 
     // spawn is clamped against `getPlayerMilitary` — a headcount blind to every multiplier
     // the Power Draft stacks — and the wave arrives a fraction of the size it should be.
     totalSoldiers: Math.round(
-      waveSoldierBudget(state, ascent.wave, boss) * (coalition ? COALITION_WAVE_MULT : 1) * dialBudget,
+      waveSoldierBudget(state, ascent.wave, boss)
+      * shape.sizeMult
+      // Two crowns split one wave's budget rather than each bringing their own — a coalition is
+      // the same war arriving from two directions, not twice the war.
+      / (shape.kingdoms > 1 ? shape.kingdoms : 1)
+      * (coalition ? COALITION_WAVE_MULT : 1) * dialBudget,
     ),
-    forceConquest: boss || coalition,
+    // A hunt is a march on an army, which is a campaign, not a raid — a raider pillages the
+    // nearest village and turns for the edge, which is not what this shape was sent to do.
+    forceConquest: boss || coalition || shape.aim === 'capital' || shape.aim === 'host',
+    staging: shape.staging,
+    // A shape that names what it is marching at stamps it on every host; the others leave the
+    // board to `assignPlans`, which reads value, softness and distance exactly as before.
+    plan: shape.aim === 'host' ? 'hunter' : shape.aim === 'capital' ? 'spearhead' : undefined,
+    aimLandId: aimLandFor(state, shape.aim),
     // A named warlord is what flags the record as `great`, which drives the harder siege
     // maths in resolveInvaderBattle and the Great Invasion presentation.
     warlordName: boss ? warlordName : undefined,
   });
+  // Two crowns, one season. The second comes from its own frontier with its own half of the
+  // budget, so the wave arrives from two directions — which is the difference between a
+  // coalition and a wave that merely counted higher.
+  const ally = shape.kingdoms > 1 ? secondCrown(state, kingdomId) : undefined;
+  if (ally) {
+    launchOffMapInvasion(state, ally.id, {
+      forceCoalition: 1,
+      totalSoldiers: Math.round(
+        waveSoldierBudget(state, ascent.wave, boss) * shape.sizeMult / shape.kingdoms * dialBudget,
+      ),
+      forceConquest: true,
+      staging: shape.staging,
+      aimLandId: aimLandFor(state, shape.aim),
+    });
+  }
   ascent.waveInFlight = true;
   // Now that the hosts exist, replace the projection with what is actually marching.
   ascent.threat = liveInvaderPower(state);
@@ -1070,7 +1175,20 @@ export function resolveEmpireResponse(state: GameState, prompt: AscentPrompt, op
   if (!ascent || prompt.kind !== 'empire-response') return;
 
   const option = prompt.options.find((candidate) => candidate.id === optionId);
-  if (!option || !option.affordable) return;
+  /**
+   * **The wave lands whatever the answer was.** Only the preparation is conditional.
+   *
+   * This used to return here when the chosen option could not be paid for — and returning skips
+   * `launchWave` at the bottom, so the invasion the card had just announced simply never arrived.
+   * The counter had already advanced, so the HUD went on reading INVASION 4 · LIVE against a map
+   * with nothing on it. Measured over six seeds: invasion 4 landed in **zero** of them, because
+   * the response card is only raised when the odds are in doubt, and a realm whose odds are in
+   * doubt is usually a realm that cannot afford the first row on the sheet.
+   *
+   * A player cannot tap a greyed row, so this was never reachable from the screen — it was
+   * reachable from every other door into the resolver, which is most of them.
+   */
+  if (option?.affordable) {
 
   switch (option.id) {
     case 'send-host': {
@@ -1117,6 +1235,7 @@ export function resolveEmpireResponse(state: GameState, prompt: AscentPrompt, op
     case 'endure': {
       addAscentXp(state, ENDURE_MOMENTUM);
       break;
+    }
     }
   }
 

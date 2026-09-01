@@ -211,6 +211,7 @@ export function showArmyScreen(self: ConquestUIScene): void {
     spearhead: t('ascent.war.planSpearhead'),
     flanker: t('ascent.war.planFlanker'),
     raider: t('ascent.war.planRaider'),
+    hunter: t('ascent.war.planHunter'),
     withdrawing: t('ascent.war.planWithdrawing'),
   };
   let unseen = 0;

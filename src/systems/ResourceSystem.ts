@@ -306,6 +306,18 @@ const ASCENT_FOCUS_MULT: Partial<Record<LandSpecialization, { food: number; supp
   garrison: { food: 0.78, supplies: 1.15, gold: 0.8 },
 };
 
+/**
+ * The output tilt a focus promises, for a screen that must state it before it is chosen.
+ *
+ * The same table the economy reads, so a card cannot quote a number the next tick disagrees with.
+ */
+export function getSpecializationMult(
+  state: GameState,
+  focus: LandSpecialization,
+): { food: number; supplies: number; gold: number } {
+  return specializationMult(state, focus);
+}
+
 /** The output tilt a focus promises on this land, in this mode. */
 function specializationMult(state: GameState, focus: LandSpecialization): { food: number; supplies: number; gold: number } {
   if (state.gameMode === 'ascent') {
@@ -322,8 +334,14 @@ function specializationMult(state: GameState, focus: LandSpecialization): { food
  * is not. Read wherever garrison strength is computed — `landDefencePower`, the siege garrison, and
  * the levy muster — rather than written into `land.defense`, which would compound every tick.
  */
-export function getFocusDefenseMult(state: GameState, land: Land): number {
-  if (state.gameMode !== 'ascent' || getLandSpecialization(land) !== 'fortress') {
+export function getFocusDefenseMult(
+  state: GameState,
+  land: Land,
+  // Defaults to what the province is set to; passed explicitly by the card that offers to change
+  // it, which has to quote the answer before the answer exists.
+  focus: LandSpecialization = getLandSpecialization(land),
+): number {
+  if (state.gameMode !== 'ascent' || focus !== 'fortress') {
     return 1;
   }
   return 1 + 0.45 + getLandAptitude(land).fortress * 0.5;

@@ -121,6 +121,10 @@ const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   // Between the parliament and the envoy: a host is worth more than a letter and less than a law,
   // and a muster the player has been asked about must not queue behind a draft.
   'muster-proposal': 8.5,
+  // Under the muster, over the envoy. A province bleeding food costs the realm something every
+  // tick it waits, the way a famine does — but unlike a famine it is a standing condition, not
+  // an emergency, so it must not push a host or a law out of the way to be heard.
+  'province-order': 8.7,
   envoy: 9,
   // **Last of everything.** An event is the world *reporting*; every other card is the realm being
   // asked to act, and an act outranks a report every time.

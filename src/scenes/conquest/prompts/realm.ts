@@ -19,7 +19,8 @@ import { PROMPT_FOOTER_HEIGHT } from '../constants';
 import { promptFoot } from './frame';
 import { iconForOption, type CardIconId } from '../../../ui/CardIcons';
 import { staggerIn } from '../../../ui/animations';
-import { formatResourceList, heroName, t } from '../../../i18n';
+import { formatResourceList, heroName, resourceLabel, t } from '../../../i18n';
+import { focusTitle } from '../../../ui/focusPanel';
 import type { AscentPrompt } from '../../../state/types';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
@@ -222,6 +223,72 @@ export function showMusterProposal(self: ConquestUIScene, prompt: Extract<Ascent
     );
     used += ((card.getData('cardHeight') as number) ?? rowHeight) + 10;
   }
+  finish(used);
+}
+
+/**
+ * What a province is for, and who holds it.
+ *
+ * Three answers that differ in kind rather than in degree: change what the ground is worked for
+ * (free, permanent, reversible), spend the one champion who is free on it (not free at all — a
+ * governor is a minister you are not seating), or leave it and take the shortage. Every figure
+ * on the card is this province's own projection, computed in `ProvinceOrderSystem` from the same
+ * functions the economy tick reads.
+ */
+export function showProvinceOrder(
+  self: ConquestUIScene,
+  prompt: Extract<AscentPrompt, { kind: 'province-order' }>,
+): void {
+  const subtitle = prompt.reason === 'undefended'
+    ? t('ascent.province.openBody')
+    : t('ascent.province.shortBody', {
+      resource: resourceLabel(prompt.reason),
+      rate: Math.abs(prompt.rate ?? 0),
+    });
+  const { body, bodyWidth, finish } = self.promptScrollBody(
+    t('ascent.province.title', { land: prompt.landName }),
+    subtitle,
+    0,
+  );
+
+  const rowHeight = 80;
+  let used = 0;
+  prompt.options.forEach((option) => {
+    const detail = option.role === 'focus'
+      ? (prompt.reason === 'undefended'
+        ? t('ascent.province.focusWalls', { n: option.effect ?? 0 })
+        : t('ascent.province.focusGain', {
+          n: option.effect ?? 0,
+          resource: resourceLabel(prompt.reason),
+        }))
+      : option.role === 'governor'
+        ? (prompt.reason === 'undefended'
+          ? t('ascent.province.governorWalls', { hero: option.heroName ?? '', n: option.effect ?? 0 })
+          : t('ascent.province.governorGain', { hero: option.heroName ?? '', n: option.effect ?? 0 }))
+        : t('ascent.province.holdBody');
+
+    const card = self.optionCard(
+      { x: 0, y: used, width: bodyWidth, height: rowHeight },
+      {
+        title: option.role === 'focus'
+          ? t('ascent.province.setFocus', { focus: focusTitle(self.state, option.focus ?? 'balanced') })
+          : option.role === 'governor'
+            ? t('ascent.province.postHero', { hero: option.heroName ?? '' })
+            : t('ascent.province.hold'),
+        body: detail,
+        // The champion is the costly answer — there is one of them and a seat at court wants
+        // them too — so it carries the gold accent and leaving carries the red one.
+        note: option.fromSeat ? t('ascent.province.fromSeat') : undefined,
+        noteColor: option.fromSeat ? '#a4402c' : undefined,
+        accent: option.role === 'governor'
+          ? INK_UI.gold
+          : option.role === 'hold' ? INK_UI.cinnabar : INK_UI.jade,
+        parent: body,
+        onTap: () => self.choose(option.id),
+      },
+    );
+    used += ((card.getData('cardHeight') as number) ?? rowHeight) + 10;
+  });
   finish(used);
 }
 

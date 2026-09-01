@@ -410,6 +410,23 @@ function assignPlans(state: GameState): void {
     records.map((record) => record.targetLandId).filter((id): id is string => Boolean(id)),
   );
 
+  // **A hunter is the one plan that cannot be assigned once.** Its target is an army, and an
+  // army moves — so this runs before the assignment loop below and re-points every hunter at
+  // wherever the player's largest field host is standing now. Left to `assignPlans` it would be
+  // stamped with the province the host happened to occupy when the wave landed, and would then
+  // besiege empty ground while the host it was sent for marched away.
+  const quarry = state.armies
+    .filter((army) => army.kingdomId === PLAYER_KINGDOM_ID && !army.isLevy
+      && army.units.spearmen + army.units.archers + army.units.heavyInfantry > 0)
+    .sort((a, b) => (b.units.spearmen + b.units.archers + b.units.heavyInfantry)
+      - (a.units.spearmen + a.units.archers + a.units.heavyInfantry))[0];
+  for (const record of records) {
+    if (record.plan !== 'hunter') continue;
+    // No host left to hunt: it turns on the ground instead, which is what an army does when the
+    // field army it came for has been destroyed.
+    record.targetLandId = quarry?.landId ?? state.ascent?.capitalLandId ?? record.targetLandId;
+  }
+
   for (const record of records) {
     if (record.plan && record.targetLandId) continue;
 

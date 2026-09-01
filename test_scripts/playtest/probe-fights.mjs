@@ -68,6 +68,9 @@ const out = await page.evaluate(async ({ ticks, runs }) => {
         case 'law-choice': return p.projectIds[0] ? `edict:${p.projectIds[0]}` : 'hold';
         case 'parliament': return 'decline';
         case 'envoy': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
+        // The province card: take the free, permanent lever where there is one —
+        // posting a champion spends the one person the court has.
+        case 'province-order': return (p.options.find((o) => o.role === 'focus') ?? p.options[0]).id;
         case 'famine': return (p.options.find((o) => o.affordable) ?? p.options[p.options.length - 1]).id;
         case 'rival-demand': return (p.options.find((o) => o.affordable) ?? p.options[0]).id;
         case 'story-beat': return p.options.length ? (p.options.find((o) => o.affordable) ?? p.options[0]).id : 'ok';

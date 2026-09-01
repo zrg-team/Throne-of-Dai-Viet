@@ -19,6 +19,7 @@ import {
 } from './CourtLaneSystem';
 import { offerEnvoy, pickEnvoyTarget } from './EnvoySystem';
 import { maybeOfferWorldEvent } from './WorldEventSystem';
+import { offerProvinceOrder, provinceOrderReady } from './ProvinceOrderSystem';
 import { famineReady, offerFamine, tickFamineCooldown } from './FamineSystem';
 import { offerRivalDemand, rivalDemandReady, tickRivalCooldowns } from './RivalDirector';
 import { offerHeroSummon } from './SummonSystem';
@@ -76,6 +77,10 @@ const PROMPT_COOLDOWN: Partial<Record<AscentPromptKind, number>> = {
   // to stop the world are rationed here so a story can never turn the run into a reading task.
   'story-beat': 4,
   'court-appointment': 5,
+  // Long on purpose. A shortage is a standing condition, and a card that re-offered the same
+  // province every third season would be nagging rather than advising — the lever it proposes
+  // is permanent, so once the realm has answered it should be left alone to see the answer work.
+  'province-order': 9,
   'law-choice': 8,
   // The four raised instruments share one cooldown because they share one slot. Long, so a
   // village asking about its market days cannot crowd out the court — but shorter than the
@@ -160,6 +165,9 @@ const CONSIDER_ORDER: AscentPromptKind[] = [
   // card draft is not, and it is the pressure that was missing from the run entirely.
   'rival-demand',
   'court-appointment',
+  // Below the rival's demand, above the conquest card. A province bleeding food costs the realm
+  // every tick it waits and the answer is cheap — but a demand expires and a shortage does not.
+  'province-order',
   'conquer-target',
   // Above the card draft: a hich exists only in the two seasons before a Great Invasion
   // lands, and a du answers something costing the realm every tick it waits. A power card
@@ -302,6 +310,9 @@ function isReady(state: GameState, kind: AscentPromptKind): boolean {
     case 'famine':
       return famineReady(state);
 
+    case 'province-order':
+      return provinceOrderReady(state);
+
     case 'rival-demand':
       return rivalDemandReady(state);
 
@@ -353,6 +364,9 @@ function raise(state: GameState, kind: AscentPromptKind): boolean {
 
     case 'famine':
       return offerFamine(state);
+
+    case 'province-order':
+      return offerProvinceOrder(state);
     case 'story-beat':
       return offerStoryBeat(state);
 
