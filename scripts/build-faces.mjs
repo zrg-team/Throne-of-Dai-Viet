@@ -126,9 +126,19 @@ for (const [name, ground, edge, weight] of [
 // 20 · robe bodies. White, so the realm's colour tints them. `spread` widens the shoulder,
 // `slope` drops it — a general in armour needs a square shoulder and a scholar a sloping one,
 // and at portrait scale the shoulder line carries more of the read than the collar does.
+//
+// **The control point beside the neckline is what decides whether the clothes have anything to
+// sit on.** At `-20 ${NECK + 2}` the curve left the throat horizontally and then plunged: the
+// body was ±9 wide at y 40 and did not pass x 30 until y 51, while collar after collar is drawn
+// out at x 24 to 34 around y 33 to 43. Measured across the wardrobe, eleven parts reached ten to
+// twenty-eight units past any body beneath them, and on a plain robe they are visibly hanging on
+// the paper. Carrying it out to `-30 ${NECK + 4}` gives the shoulder a real slope from the
+// throat — three to five units higher at x 27 to 34 — which is where most of that overhang was.
+// It is not the whole fix: a lapel tip drawn at jaw height cannot be met by any shoulder, and
+// those came down to meet this one.
 const shouldersPath = (spread, slope) =>
-  `M ${-46 - spread} ${SHY + 26} C ${-44 - spread} ${SHY - 14 + slope}, -20 ${NECK + 2}, 0 ${NECK + 2}
-   C 20 ${NECK + 2}, ${44 + spread} ${SHY - 14 + slope}, ${46 + spread} ${SHY + 26} Z`;
+  `M ${-46 - spread} ${SHY + 26} C ${-44 - spread} ${SHY - 14 + slope}, -30 ${NECK + 4}, 0 ${NECK + 2}
+   C 30 ${NECK + 4}, ${44 + spread} ${SHY - 14 + slope}, ${46 + spread} ${SHY + 26} Z`;
 for (const [name, spread, slope] of [
   ['body', 0, 0], ['broad', 6, -4], ['slim', -6, 5], ['sloped', -2, 8], ['square', 4, -8],
 ]) {
@@ -270,30 +280,43 @@ for (const [name, wide, tall, jaw, temple] of [
 // áo viên lĩnh closes in a ring at the throat, áo đối khâm hangs open in two parallel bands,
 // áo tứ thân ties in front. Getting the collar right is most of getting the century right, so
 // each is two tinted halves — dark under, light over — rather than one flat shape.
-const lapel = (reach, drop, spread) =>
-  `M ${-reach} ${NECK - 4} L 2 ${NECK + drop} L 2 ${NECK + drop + 18} L ${-reach - 8} ${NECK + spread} Z`;
-part('collar-giaolinh', 35, 'robeDark', `<path d="${lapel(26, 22, 10)}" fill="#ffffff"/>`);
+//
+// **A lapel starts on the shoulder, not at the jaw.** Both tips used to be authored at
+// `NECK - 4` — level with the chin — where no shoulder in the set reaches and none can: the
+// widest robe does not pass x 26 until y 46. So each flap's whole upper half hung on bare paper,
+// joined to nothing, and on a plain robe it read as two planks laid against the throat. Measured
+// at 21 units past the body for the plain cut and 28 for the wide, the worst in the wardrobe —
+// and the most worn collar in the game, so it is the one that mattered most.
+//
+// The tip is now given as a point rather than a reach, and both of them land on the shoulder the
+// robe actually draws: (24, `NECK + 10`) and (28, `NECK + 14`), against a `robe-slim` shoulder
+// that passes those two x at y 47 and 50. The V is lower and shallower than it was, which is the
+// price of it resting on something; crossing left over right, which is what names the garment,
+// is untouched.
+const lapel = (tipX, tipY, dropY, outX, outY) =>
+  `M ${-tipX} ${NECK + tipY} L 2 ${NECK + dropY} L 2 ${NECK + dropY + 18} L ${-outX} ${NECK + outY} Z`;
+part('collar-giaolinh', 35, 'robeDark', `<path d="${lapel(24, 10, 24, 32, 21)}" fill="#ffffff"/>`);
 part('collar-giaolinh-over', 36, 'robeLight',
-  `<path d="M 26 ${NECK - 4} L -2 ${NECK + 22} L -2 ${NECK + 40} L 34 ${NECK + 10} Z" fill="#ffffff"/>`);
-part('collar-giaolinh-wide', 35, 'robeDark', `<path d="${lapel(34, 26, 14)}" fill="#ffffff"/>`);
+  `<path d="M 24 ${NECK + 10} L -2 ${NECK + 24} L -2 ${NECK + 42} L 32 ${NECK + 21} Z" fill="#ffffff"/>`);
+part('collar-giaolinh-wide', 35, 'robeDark', `<path d="${lapel(28, 14, 28, 36, 27)}" fill="#ffffff"/>`);
 part('collar-giaolinh-wide-over', 36, 'robeLight',
-  `<path d="M 34 ${NECK - 4} L -2 ${NECK + 26} L -2 ${NECK + 44} L 42 ${NECK + 14} Z" fill="#ffffff"/>`);
+  `<path d="M 28 ${NECK + 14} L -2 ${NECK + 28} L -2 ${NECK + 46} L 36 ${NECK + 27} Z" fill="#ffffff"/>`);
 part('collar-giaolinh-trim', 37, 'none',
-  `<path d="M 26 ${NECK - 4} L -2 ${NECK + 22} L -2 ${NECK + 40}" stroke="${CREAM}" stroke-width="1.6" fill="none" opacity=".85"/>`);
+  `<path d="M 24 ${NECK + 10} L -2 ${NECK + 24} L -2 ${NECK + 42}" stroke="${CREAM}" stroke-width="1.6" fill="none" opacity=".85"/>`);
 part('collar-twoflap', 35, 'robeDark',
-  `<path d="M -30 ${NECK + 2} L 0 ${NECK + 26} L 0 ${NECK + 40} L -34 ${NECK + 14} Z" fill="#ffffff"/>`);
+  `<path d="M -26 ${NECK + 12} L 0 ${NECK + 26} L 0 ${NECK + 40} L -32 ${NECK + 21} Z" fill="#ffffff"/>`);
 part('collar-twoflap-over', 36, 'robeLight',
-  `<path d="M 30 ${NECK + 2} L 0 ${NECK + 26} L 0 ${NECK + 40} L 34 ${NECK + 14} Z" fill="#ffffff"/>`);
+  `<path d="M 26 ${NECK + 12} L 0 ${NECK + 26} L 0 ${NECK + 40} L 32 ${NECK + 21} Z" fill="#ffffff"/>`);
 // The broad brocade band laid down the leading edge of a wrap. Before the courts wrote rank
 // into a cap or a badge, this is where it was carried — the band is wide, contrasting and
 // full-length, which is the one garment mark that still reads when the head is too small to
 // see. Sits over either the giao lĩnh or the two-flap, so it is one part rather than two.
 part('collar-band-brocade', 37, 'none',
-  `<path d="M 27 ${NECK - 5} L -2 ${NECK + 22} L -2 ${NECK + 33} L 32 ${NECK + 3} Z" fill="${GOLD}" opacity=".92"/>
-   <path d="M 25 ${NECK - 1} L 0 ${NECK + 22}" stroke="${GOLD_DEEP}" stroke-width="1.1" fill="none" opacity=".8"/>`);
+  `<path d="M 23 ${NECK + 9} L -2 ${NECK + 24} L -2 ${NECK + 35} L 30 ${NECK + 17} Z" fill="${GOLD}" opacity=".92"/>
+   <path d="M 21 ${NECK + 13} L 0 ${NECK + 24}" stroke="${GOLD_DEEP}" stroke-width="1.1" fill="none" opacity=".8"/>`);
 part('collar-band-oxblood', 37, 'none',
-  `<path d="M 27 ${NECK - 5} L -2 ${NECK + 22} L -2 ${NECK + 33} L 32 ${NECK + 3} Z" fill="#7d4a52"/>
-   <path d="M 25 ${NECK - 1} L 0 ${NECK + 22}" stroke="${GOLD_DEEP}" stroke-width="1.1" fill="none" opacity=".7"/>`);
+  `<path d="M 23 ${NECK + 9} L -2 ${NECK + 24} L -2 ${NECK + 35} L 30 ${NECK + 17} Z" fill="#7d4a52"/>
+   <path d="M 21 ${NECK + 13} L 0 ${NECK + 24}" stroke="${GOLD_DEEP}" stroke-width="1.1" fill="none" opacity=".7"/>`);
 // The placket of square medallions that runs between the two parallel bands of an áo đối khâm.
 // Three ô vuông and no more: a fourth pushes the lowest one off the bottom of the bust, and at
 // portrait scale four small squares stop being countable anyway.
@@ -305,10 +328,10 @@ part('collar-placket-square', 37, 'none',
 // Áo viên lĩnh — the round-collar court robe of the Lý and Trần. A ring at the throat, which
 // is precisely what leaves the chest clear for a rank badge.
 part('collar-vienlinh', 35, 'robeDark',
-  `<path d="M -19 ${NECK - 6} C -19 ${NECK + 12}, 19 ${NECK + 12}, 19 ${NECK - 6}
-     C 19 ${NECK + 20}, -19 ${NECK + 20}, -19 ${NECK - 6} Z" fill="#ffffff"/>`);
+  `<path d="M -15 ${NECK - 2} C -15 ${NECK + 15}, 15 ${NECK + 15}, 15 ${NECK - 2}
+     C 15 ${NECK + 23}, -15 ${NECK + 23}, -15 ${NECK - 2} Z" fill="#ffffff"/>`);
 part('collar-vienlinh-trim', 36, 'none',
-  `<path d="M -19 ${NECK - 6} C -19 ${NECK + 12}, 19 ${NECK + 12}, 19 ${NECK - 6}" stroke="${GOLD}" stroke-width="1.6" fill="none"/>`);
+  `<path d="M -15 ${NECK - 2} C -15 ${NECK + 15}, 15 ${NECK + 15}, 15 ${NECK - 2}" stroke="${GOLD}" stroke-width="1.6" fill="none"/>`);
 
 // Áo đối khâm — two parallel bands hanging straight, never crossed.
 part('collar-doikham', 35, 'robeDark',
@@ -319,9 +342,9 @@ part('collar-doikham-over', 36, 'robeLight',
 // Áo tứ thân — the four-panel dress of the northern delta, its two front panels knotted at
 // the waist and the yếm showing between them.
 part('collar-tuthan', 35, 'robeDark',
-  `<path d="M -24 ${NECK - 4} C -18 ${NECK + 16}, -10 ${NECK + 28}, -6 ${NECK + 42} L -26 ${NECK + 42} Z" fill="#ffffff"/>`);
+  `<path d="M -22 ${NECK + 9} C -18 ${NECK + 22}, -10 ${NECK + 32}, -6 ${NECK + 42} L -26 ${NECK + 42} Z" fill="#ffffff"/>`);
 part('collar-tuthan-over', 36, 'robeLight',
-  `<path d="M 24 ${NECK - 4} C 18 ${NECK + 16}, 10 ${NECK + 28}, 6 ${NECK + 42} L 26 ${NECK + 42} Z" fill="#ffffff"/>`);
+  `<path d="M 22 ${NECK + 9} C 18 ${NECK + 22}, 10 ${NECK + 32}, 6 ${NECK + 42} L 26 ${NECK + 42} Z" fill="#ffffff"/>`);
 part('collar-tuthan-knot', 37, 'none',
   `<path d="M -7 ${NECK + 34} q 7 -6 14 0 q -7 8 -14 0 Z" fill="${CREAM}" opacity=".85"/>`);
 
@@ -384,7 +407,7 @@ part('buttons-knot', 39, 'none',
 
 // Áo yếm — the diamond bodice, tied at neck and back; worn by every class.
 part('collar-yem-wrap', 35, 'robeLight',
-  `<path d="M -20 ${NECK - 2} C -10 ${NECK + 16}, 10 ${NECK + 16}, 20 ${NECK - 2} L 26 ${NECK + 6} C 12 ${NECK + 28}, -12 ${NECK + 28}, -26 ${NECK + 6} Z" fill="#ffffff"/>`);
+  `<path d="M -15 ${NECK + 4} C -8 ${NECK + 18}, 8 ${NECK + 18}, 15 ${NECK + 4} L 23 ${NECK + 13} C 11 ${NECK + 32}, -11 ${NECK + 32}, -23 ${NECK + 13} Z" fill="#ffffff"/>`);
 // Outlined in cream: on a nâu robe the red separates on its own, but on a vermilion one —
 // which is what a Legendary woman wears — red on red is mud without an edge.
 const yemArt = (fill) =>
@@ -428,7 +451,7 @@ part('collar-nhatbinh-phoenix', 37, 'none',
 
 // Kesa — the monk's, and nobody else's. Ochre is the Trúc Lâm colour; the patched field is the
 // older form, sewn from discarded cloth, which is what the word originally meant.
-const KESA_PATH = `M -30 ${NECK + 4} L 0 ${NECK + 30} L 30 ${NECK + 4} L 34 ${NECK + 14} L 0 ${NECK + 42} L -34 ${NECK + 14} Z`;
+const KESA_PATH = `M -25 ${NECK + 12} L 0 ${NECK + 34} L 25 ${NECK + 12} L 30 ${NECK + 22} L 0 ${NECK + 46} L -30 ${NECK + 22} Z`;
 part('kesa', 35, 'none', `<path d="${KESA_PATH}" fill="#b07a24"/>`);
 part('kesa-red', 35, 'none', `<path d="${KESA_PATH}" fill="#9c4a2e"/>`);
 part('kesa-grey', 35, 'none', `<path d="${KESA_PATH}" fill="#6f6a5e"/>`);

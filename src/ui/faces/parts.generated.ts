@@ -419,82 +419,82 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "key": "collar-giaolinh",
     "layer": 35,
     "tint": "robeDark",
-    "cx": -16,
-    "cy": 55,
-    "w": 40,
-    "h": 48
+    "cx": -15,
+    "cy": 63,
+    "w": 38,
+    "h": 36
   },
   {
     "key": "collar-giaolinh-over",
     "layer": 36,
     "tint": "robeLight",
-    "cx": 16,
-    "cy": 55,
-    "w": 40,
-    "h": 48
+    "cx": 15,
+    "cy": 63,
+    "w": 38,
+    "h": 36
   },
   {
     "key": "collar-giaolinh-wide",
     "layer": 35,
     "tint": "robeDark",
-    "cx": -20,
-    "cy": 57,
-    "w": 48,
-    "h": 52
+    "cx": -17,
+    "cy": 67,
+    "w": 42,
+    "h": 36
   },
   {
     "key": "collar-giaolinh-wide-over",
     "layer": 36,
     "tint": "robeLight",
-    "cx": 20,
-    "cy": 57,
-    "w": 48,
-    "h": 52
+    "cx": 17,
+    "cy": 67,
+    "w": 42,
+    "h": 36
   },
   {
     "key": "collar-giaolinh-trim",
     "layer": 37,
     "tint": "none",
-    "cx": 12,
-    "cy": 55,
-    "w": 32,
-    "h": 48
+    "cx": 11,
+    "cy": 63,
+    "w": 30,
+    "h": 36
   },
   {
     "key": "collar-twoflap",
     "layer": 35,
     "tint": "robeDark",
-    "cx": -17,
-    "cy": 58,
-    "w": 38,
-    "h": 42
+    "cx": -16,
+    "cy": 63,
+    "w": 36,
+    "h": 32
   },
   {
     "key": "collar-twoflap-over",
     "layer": 36,
     "tint": "robeLight",
-    "cx": 17,
-    "cy": 58,
-    "w": 38,
-    "h": 42
+    "cx": 16,
+    "cy": 63,
+    "w": 36,
+    "h": 32
   },
   {
     "key": "collar-band-brocade",
     "layer": 37,
     "tint": "none",
-    "cx": 15,
-    "cy": 51,
-    "w": 38,
-    "h": 42
+    "cx": 14,
+    "cy": 59,
+    "w": 36,
+    "h": 30
   },
   {
     "key": "collar-band-oxblood",
     "layer": 37,
     "tint": "none",
-    "cx": 15,
-    "cy": 51,
-    "w": 38,
-    "h": 42
+    "cx": 14,
+    "cy": 59,
+    "w": 36,
+    "h": 30
   },
   {
     "key": "collar-placket-square",
@@ -510,18 +510,18 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "layer": 35,
     "tint": "robeDark",
     "cx": 0,
-    "cy": 41,
-    "w": 42,
-    "h": 24
+    "cy": 44.5,
+    "w": 34,
+    "h": 23
   },
   {
     "key": "collar-vienlinh-trim",
     "layer": 36,
     "tint": "none",
     "cx": 0,
-    "cy": 38,
-    "w": 42,
-    "h": 18
+    "cy": 41.5,
+    "w": 34,
+    "h": 17
   },
   {
     "key": "collar-doikham",
@@ -546,18 +546,18 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "layer": 35,
     "tint": "robeDark",
     "cx": -16,
-    "cy": 56,
+    "cy": 62.5,
     "w": 24,
-    "h": 50
+    "h": 37
   },
   {
     "key": "collar-tuthan-over",
     "layer": 36,
     "tint": "robeLight",
     "cx": 16,
-    "cy": 56,
+    "cy": 62.5,
     "w": 24,
-    "h": 50
+    "h": 37
   },
   {
     "key": "collar-tuthan-knot",
@@ -735,9 +735,9 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "layer": 35,
     "tint": "robeLight",
     "cx": 0,
-    "cy": 47.5,
-    "w": 56,
-    "h": 29
+    "cy": 53,
+    "w": 50,
+    "h": 28
   },
   {
     "key": "yem",
@@ -807,27 +807,27 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "layer": 35,
     "tint": "none",
     "cx": 0,
-    "cy": 60,
-    "w": 72,
-    "h": 42
+    "cy": 66,
+    "w": 64,
+    "h": 38
   },
   {
     "key": "kesa-red",
     "layer": 35,
     "tint": "none",
     "cx": 0,
-    "cy": 60,
-    "w": 72,
-    "h": 42
+    "cy": 66,
+    "w": 64,
+    "h": 38
   },
   {
     "key": "kesa-grey",
     "layer": 35,
     "tint": "none",
     "cx": 0,
-    "cy": 60,
-    "w": 72,
-    "h": 42
+    "cy": 66,
+    "w": 64,
+    "h": 38
   },
   {
     "key": "kesa-patches",
