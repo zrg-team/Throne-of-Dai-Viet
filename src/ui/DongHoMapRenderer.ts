@@ -6,12 +6,14 @@ import type { MapThemeDefinition, MapThemePalette } from './mapTheme';
 import { PIGMENT } from './ink/palette';
 import { groundTone, hatchPoly, inkPath, mulberry32, printedShape, washFill, type Pt } from './ink/stroke';
 import {
-  areca, bamboo, banana, banyan, farmer, grassTuft, planKarstRange, planSoftRidge, tree,
+  areca, bamboo, banana, banyan, bush, farmer, grassTuft, planKarstRange, planSoftRidge, tree,
   type ReliefPlan,
 } from './ink/props';
 import { drawFieldPlot, paddyLattice } from './ink/settlements';
 import { groundDepth, unitScale, worldScale } from './ink/proportion';
-import { getFoliageSeason, groundCast, mixPigment, seasonalStage, seasonPalette } from './ink/season';
+import {
+  getFoliageSeason, groundCast, mixPigment, mountainWeatherTint, seasonalStage, seasonPalette,
+} from './ink/season';
 import { scatterDensity } from '../game/graphicsQuality';
 import {
   conquestArtStamp, conquestKarstArtId, conquestTreeArtId, hasConquestMapArt, stampFootY,
@@ -74,7 +76,7 @@ function groundFor(terrain: HexTerrainType): number | null {
   }
 }
 
-type PropKind = 'tree' | 'tuft' | 'bamboo' | 'banana' | 'areca' | 'banyan' | 'farmer';
+type PropKind = 'tree' | 'bush' | 'tuft' | 'bamboo' | 'banana' | 'areca' | 'banyan' | 'farmer';
 
 interface ScatterSpec {
   count: [number, number];
@@ -114,12 +116,15 @@ const SCATTER: Partial<Record<HexTerrainType, ScatterSpec>> = {
   riceFields: { count: [0, 1], kinds: ['tree', 'tuft'], scale: [0.9, 1.05] },
   forest: { count: [4, 7], kinds: ['tree', 'tree', 'tree', 'bamboo', 'banana'], scale: [0.85, 1.2] },
   hills: { count: [2, 4], kinds: ['tree', 'tree', 'tuft'], scale: [0.85, 1.1] },
-  mountains: { count: [0, 1], kinds: ['tree', 'tuft'], scale: [0.75, 0.95] },
+  // Bushes only. A full tree becomes an accidental ruler beside a range and breaks the illusion
+  // as soon as the plate is scaled; low scrub keeps the foot alive without competing with it.
+  mountains: { count: [1, 2], kinds: ['bush'], scale: [0.8, 1.05] },
 };
 
 /** Roughly how much ground each scattered thing needs to itself, in units of the world scale. */
 const FOOTPRINT: Record<PropKind, number> = {
   tree: 11,
+  bush: 4,
   banyan: 20,
   bamboo: 9,
   banana: 7,
@@ -128,12 +133,29 @@ const FOOTPRINT: Record<PropKind, number> = {
   tuft: 3,
 };
 
+/** Plants tall enough to read as a tree line rather than low ground texture. */
+const TALL_VEGETATION = new Set<PropKind>(['tree', 'banyan', 'bamboo', 'banana', 'areca']);
+
+/**
+ * Conservative visible boxes in map-tile units. These include the authored canvas padding and
+ * procedural lean, so a crown cannot hang into a mountain even when its trunk is outside it.
+ */
+const TALL_VEGETATION_BOX: Partial<Record<PropKind, { halfWidth: number; height: number }>> = {
+  tree: { halfWidth: 0.34, height: 0.72 },
+  bamboo: { halfWidth: 0.5, height: 0.86 },
+  banana: { halfWidth: 0.42, height: 0.56 },
+  areca: { halfWidth: 0.34, height: 0.9 },
+  banyan: { halfWidth: 0.8, height: 1.08 },
+};
+
 interface ScatterItem {
   x: number;
   y: number;
   kind: PropKind;
   scale: number;
   seed: number;
+  /** Terrain that planted the item, retained for scale/content audits. */
+  terrain: HexTerrainType;
 }
 
 /** Width of one relief lookup bucket, in world pixels. About two tiles. */
@@ -141,8 +163,11 @@ const RELIEF_BUCKET = 64;
 
 /** A karst is a terrain landmark, not a house-sized prop. Values are in map tile radii. */
 export const KARST_SCALE = Object.freeze({
-  baseHeight: 2.55,
-  depthHeight: 0.46,
+  // The former 2.55 + 0.46 per back row could reach 4.39 tiles high: one deep mountain band
+  // occupied most of a portrait screen. Depth still matters, but it now saturates as a range.
+  baseHeight: 1.72,
+  depthHeight: 0.2,
+  maxHeight: 2.32,
   minimumPlateAspect: 1.55,
 });
 
@@ -215,6 +240,24 @@ interface GroundCell {
 
 interface PlannedRelief extends ReliefPlan {
   artId: string;
+  terrain: 'mountains' | 'hills';
+}
+
+/** True when any tall part of a plant would enter an authored mountain plate. */
+function touchesMountainRelief(
+  item: ScatterItem,
+  tileSize: number,
+  relief: readonly PlannedRelief[],
+): boolean {
+  const box = TALL_VEGETATION_BOX[item.kind];
+  if (!box) return false;
+  const halfWidth = tileSize * box.halfWidth * item.scale;
+  const topY = item.y - tileSize * box.height * item.scale;
+  return relief.some((plan) => plan.terrain === 'mountains'
+    && item.x + halfWidth >= plan.bounds.x0
+    && item.x - halfWidth <= plan.bounds.x1
+    && item.y >= plan.bounds.topY
+    && topY <= plan.bounds.footY);
 }
 
 export class DongHoMapRenderer implements MapRenderer {
@@ -371,6 +414,12 @@ export class DongHoMapRenderer implements MapRenderer {
       // A massif sorts against the towns as well as against the trees — see `groundDepth`. The
       // flag is what keeps it live alongside them on a tier that does not bake settlement ink.
       .setData('conquestGroundOrder', 'relief');
+    if (plan.artId.startsWith('terrain.karst-')) {
+      const tint = mountainWeatherTint();
+      image.setTint(tint)
+        .setData('conquestMountainWeather', getFoliageSeason())
+        .setData('conquestMountainTint', tint);
+    }
     // **Sorted on its ink, not on the box it was fitted into.** `plan.footY` is where the range
     // was *planned* to stand; where the drawing's feet actually land is a property of the PNG.
     // A soft ridge's ink ends a median 13 units below its plan and a seven-spire karst's 9 above
@@ -389,6 +438,9 @@ export class DongHoMapRenderer implements MapRenderer {
     // an authored Image cannot sit behind that one indivisible buffer, so retain the old mark for
     // that exceptional fallback instead of mixing procedural trees into the normal authored map.
     if (this.isBehindProceduralRelief(item.x, item.y)) return false;
+    // Mountain scrub is code-native so it remains crisp across the plate's whole scale range and
+    // can take winter snow. It must never fall through to a missing `flora.bush.*` lookup.
+    if (item.kind === 'bush') return false;
     const season = getFoliageSeason().toLowerCase();
     const id = item.kind === 'farmer'
       ? 'life.farmer'
@@ -612,7 +664,10 @@ export class DongHoMapRenderer implements MapRenderer {
 
         const baseY = from.y + ctx.tileSize * (terrain === 'mountains' ? 0.8 : 0.7);
         const height = ctx.tileSize * (terrain === 'mountains'
-          ? (KARST_SCALE.baseHeight + depth * KARST_SCALE.depthHeight) * headroom
+          ? Math.min(
+            KARST_SCALE.maxHeight,
+            KARST_SCALE.baseHeight + depth * KARST_SCALE.depthHeight,
+          ) * headroom
           : (0.42 + depth * 0.12) * headroom);
         let x0 = from.x - ctx.tileSize * bleedLeft;
         let x1 = to.x + ctx.tileSize * bleedRight;
@@ -637,11 +692,14 @@ export class DongHoMapRenderer implements MapRenderer {
           if (terrain === 'mountains') {
             plans.push(Object.assign(planKarstRange(
               segmentStart, segmentEnd, baseY, height, seed + Math.round(segmentStart),
-            ), { artId: conquestKarstArtId(seed + Math.round(segmentStart)) }));
+            ), {
+              artId: conquestKarstArtId(seed + Math.round(segmentStart)),
+              terrain: 'mountains' as const,
+            }));
           } else {
             plans.push(Object.assign(planSoftRidge(
               segmentStart, segmentEnd, baseY, height, seed + Math.round(segmentStart),
-            ), { artId: 'terrain.soft-ridge' as const }));
+            ), { artId: 'terrain.soft-ridge' as const, terrain: 'hills' as const }));
           }
         }
         index = end + 1;
@@ -861,7 +919,9 @@ export class DongHoMapRenderer implements MapRenderer {
 
     // Ground the scatter must leave alone: the seats, which draw their own groves and roofs, and
     // the limestone, whose faces are the drawing and not a place for trees to stand on.
-    const keepClear: Array<{ x: number; y: number; r: number; padByItem?: boolean }> = [];
+    const keepClear: Array<{
+      x: number; y: number; r: number; padByItem?: boolean; tallOnly?: boolean;
+    }> = [];
 
     // Every settlement, not just the ones the generator happened to give fortress terrain. A farm,
     // a mine or a plain village renders through `addResourceCluster` on ordinary ground and was
@@ -879,9 +939,12 @@ export class DongHoMapRenderer implements MapRenderer {
       } else if (tile.terrain === 'mountains') {
         // The limestone is drawn as whole massifs spanning several cells, and a scatter point may
         // drift a full tile past its own cell — so trees from the hills next door were standing
-        // halfway up a cliff face. The rock keeps its own ground.
+        // halfway up a cliff face. Pad by the complete plant reach, but only for tall vegetation:
+        // the low mountain bushes are meant to remain at the foot.
         const centre = ctx.centreOf(tile);
-        keepClear.push({ x: centre.x, y: centre.y, r: tileSize * 0.95 });
+        keepClear.push({
+          x: centre.x, y: centre.y, r: tileSize * 0.95, padByItem: true, tallOnly: true,
+        });
       } else if (tile.terrain === 'water') {
         // Water keeps its own surface, for exactly the reason the rock does. A scatter point is
         // thrown up to 1.12 tile radii from its own centre against an inradius of 0.87, so about
@@ -917,6 +980,7 @@ export class DongHoMapRenderer implements MapRenderer {
           kind: spec.kinds[Math.floor(rand() * spec.kinds.length)],
           scale: spec.scale[0] + rand() * (spec.scale[1] - spec.scale[0]),
           seed: (tile.coord.q * 7919 + tile.coord.r * 104729 + index * 3167) % 100000,
+          terrain: tile.terrain,
         });
       }
     }
@@ -934,7 +998,15 @@ export class DongHoMapRenderer implements MapRenderer {
     );
     for (const item of bySize) {
       const reach = FOOTPRINT[item.kind] * item.scale * unit * 0.5;
-      if (keepClear.some((zone) => Math.hypot(item.x - zone.x, item.y - zone.y) < zone.r + (zone.padByItem ? reach : 0))) {
+      const isTallVegetation = TALL_VEGETATION.has(item.kind);
+      if (keepClear.some((zone) => (!zone.tallOnly || isTallVegetation)
+        && Math.hypot(item.x - zone.x, item.y - zone.y) < zone.r + (zone.padByItem ? reach : 0))) {
+        continue;
+      }
+      // A neighbouring forest or hill may throw a point more than one cell from its source. Test
+      // the whole visible crown against the final (possibly multi-cell) mountain plate, not just
+      // the point at its feet. This is the rule that makes the visible result genuinely bush-only.
+      if (isTallVegetation && touchesMountainRelief(item, tileSize, this.reliefPlan ?? [])) {
         continue;
       }
       let blocked = false;
@@ -982,6 +1054,7 @@ export class DongHoMapRenderer implements MapRenderer {
         graphics.fillEllipse(item.x, item.y, 14 * s, 4.2 * s);
         tree(graphics, item.x, item.y, s, item.seed);
         break;
+      case 'bush': bush(graphics, item.x, item.y, s, item.seed); break;
       case 'tuft': grassTuft(graphics, item.x, item.y, s, item.seed); break;
       case 'bamboo': bamboo(graphics, item.x, item.y, s, item.seed); break;
       case 'banana': banana(graphics, item.x, item.y, s, item.seed); break;

@@ -85,7 +85,8 @@ await browser.close();
 
 const PX_PER_M = 3.1;
 const METRES = {
-  house: 5, dinh: 8, thap: 16, hayStack: 3, tree: 8, bamboo: 8, banana: 4, areca: 10, banyan: 14,
+  house: 5, dinh: 8, thap: 16, hayStack: 3, tree: 8, bush: 1.4,
+  bamboo: 8, banana: 4, areca: 10, banyan: 14,
   grassTuft: 0.9, figure: 1.7, farmer: 1.7, buffalo: 1.5,
 };
 console.log('prop        drawn    max   wide    metres   UNIT should be');

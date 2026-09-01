@@ -11,6 +11,7 @@
  * | prop      | drawn | is                        | m  | UNIT  | at GROUND_SCALE |
  * |-----------|-------|---------------------------|----|-------|-----------------|
  * | grassTuft |   5.6 | a tuft of grass           |0.9 | 0.498 |   2.0 px        |
+ * | bush      |   5.0 | low mountain scrub        |1.4 | 0.868 |   3.1 px        |
  * | buffalo   |  30.1 | a trâu at the shoulder    |1.5 | 0.332 |   7.2 px        |
  * | figure    |   6.7 | a soldier                 |1.7 | 0.786 |   6.8 px        |
  * | farmer    |  16.2 | a farmer                  |1.7 | 0.325 |   8.2 px        |
@@ -114,6 +115,9 @@ export const UNIT = {
   // is why a village tree stood 11% short of its own eight metres and the lũy tre beside it — the
   // same declared height — came out 16% taller.
   tree: 1.610,
+  // Low karst scrub: 1.4 m against a 5-unit scalloped silhouette. It deliberately carries no
+  // living-thing exaggeration; a bush is texture at a mountain's foot, never a second landmark.
+  bush: 0.868,
   bamboo: 0.537,
   banana: 0.639,
   // 0.779, not 0.909: measured at 39.8 drawn against a recorded 34.1, so a cau was standing
@@ -254,7 +258,7 @@ const METRES: Record<keyof typeof UNIT, number> = {
    * If a width column is ever added here, this is the entry that should move to it.
    */
   gieng: 1.26,
-  tree: 8, bamboo: 8, banana: 4, areca: 10, banyan: 14,
+  tree: 8, bush: 1.4, bamboo: 8, banana: 4, areca: 10, banyan: 14,
   grassTuft: 0.9, figure: 1.7, farmer: 1.7, buffalo: 1.5,
 };
 
@@ -262,7 +266,7 @@ const METRES: Record<keyof typeof UNIT, number> = {
 const DRAWN: Record<keyof typeof UNIT, number> = {
   house: 19.3, dinh: 30.4, thap: 50.4, hayStack: 27,
   bep: 12, chuongTrau: 11.1, boThoc: 12.3, gieng: 6.9,
-  tree: 15.4, bamboo: 46.2, banana: 19.4, areca: 39.8, banyan: 33.3,
+  tree: 15.4, bush: 5, bamboo: 46.2, banana: 19.4, areca: 39.8, banyan: 33.3,
   grassTuft: 5.6, figure: 6.7, farmer: 16.2, buffalo: 30.1,
 };
 
