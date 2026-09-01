@@ -6,8 +6,12 @@
 //     cut from a full-bleed page to a letterboxed one;
 //   · a splash that outlives the menu, or leaves before it, either of which shows the player a
 //     frame of empty paper;
-//   · a splash whose march is animated through layout or paint, which freezes solid for the eight
-//     seconds the main thread spends parsing Phaser — the one thing it exists to cover.
+//   · a splash animated through layout or paint, which freezes solid for the eight seconds the
+//     main thread spends parsing Phaser — the one thing it exists to cover;
+//   · a splash that has grown a drawing again. This screen is a seal, a name and a bar. It used
+//     to print a marching host built from `docs/12-armies-of-dai-viet.html`'s `soldier()`, which
+//     went stale the moment the game's own armies were redrawn and cost 32 kB of the document
+//     that has to arrive before anything else.
 import { chromium } from 'playwright';
 
 const BASE = process.env.DEV_URL ?? 'http://127.0.0.1:5179';
@@ -35,7 +39,7 @@ for (const size of SIZES) {
 
     // 1. It is on screen before anything from the bundle is — the whole point. Sampled at the
     //    first commit, when no module has run: the drum and the wordmark are in the document that
-    //    just arrived, and the band is one frame behind them by design.
+    //    just arrived, and there is nothing else for the page to build.
     const early = await page.evaluate(() => ({
       splash: !!document.getElementById('splash'),
       name: document.querySelector('.sp-name')?.textContent,
@@ -49,26 +53,18 @@ for (const size of SIZES) {
     const paintedEarly = early.splash && early.mark && early.name === 'VẠN THẮNG'
       && !early.phaser && captionOk;
 
-    // The band, one frame later: six drawings of the same road, each a data-URI image rather than
-    // live SVG, and the country behind them. Every one has to carry real ink — an empty
-    // background is what a thrown builder leaves behind, and it looks exactly like a plain page.
-    await page.waitForFunction(() => document.querySelectorAll('.sp-frame').length > 0, null, { timeout: 15000 });
-    const band = await page.evaluate(() => {
-      const frames = [...document.querySelectorAll('.sp-frame')];
-      const url = (el) => getComputedStyle(el).backgroundImage;
-      return {
-        frames: frames.length,
-        // Every frame is a different drawing: identical ones mean the gait never advanced.
-        distinct: new Set(frames.map(url)).size,
-        // A size floor. Four hosts of forty-odd marks each is a few hundred thousand characters
-        // of path data; a builder that fell over half way still leaves a valid, tiny image behind,
-        // and a tiny image looks exactly like an empty band.
-        smallest: Math.min(...frames.map((el) => url(el).length)),
-        land: url(document.getElementById('sp-far')).slice(0, 30),
-      };
-    });
-    const bandOk = band.frames === 4 && band.distinct === 4 && band.smallest > 100000
-      && band.land.startsWith('url(');
+    // Still bare a moment later. The band is gone on purpose and nothing is allowed to grow one
+    // back: no walk frames, no travelling layers, and no script building either. What must be
+    // there instead is the whole design — the seal, the wordmark, the rule and the bar.
+    await page.waitForTimeout(300);
+    const bare = await page.evaluate(() => ({
+      frames: document.querySelectorAll('.sp-frame').length,
+      far: !!document.getElementById('sp-far'),
+      host: !!document.getElementById('sp-host'),
+      rule: !!document.querySelector('.sp-rule'),
+      bar: !!document.querySelector('.sp-bar i'),
+    }));
+    const bareOk = bare.frames === 0 && !bare.far && !bare.host && bare.rule && bare.bar;
 
     // 2. Nothing it animates may cost layout or paint. `transform` and `opacity` are the only two
     //    properties the compositor can run on its own while the main thread is blocked.
@@ -86,11 +82,10 @@ for (const size of SIZES) {
     });
     const cheap = props.props.every((p) => p === 'transform' || p === 'opacity');
     // A layer per animated element. One loading screen is not worth a hundred of them: an early
-    // cut animated every man separately and asked the compositor for 184, and the one after it
-    // still wanted fifteen. Two travelling layers and four flipbook frames is six, plus the
-    // progress sweep — and the whole march is baked images, so none of them touches the main
-    // thread again after the first raster.
-    const fewLayers = props.count <= 10;
+    // cut animated every man separately and asked the compositor for 184, and the marching band
+    // that replaced it still wanted seven. With the band gone the only thing moving is the
+    // progress sweep, so anything above a couple means a drawing has crept back on.
+    const fewLayers = props.count <= 3;
 
     await page.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'), null, { timeout: 45000 });
 
@@ -121,18 +116,18 @@ for (const size of SIZES) {
     await page.waitForTimeout(1400);
     const gone = await page.evaluate(() => !document.getElementById('splash'));
 
-    const ok = paintedEarly && bandOk && cheap && fewLayers && fits && gone && errors.length === 0;
+    const ok = paintedEarly && bareOk && cheap && fewLayers && fits && gone && errors.length === 0;
     if (!ok) bad += 1;
     const why = [
       paintedEarly ? '' : `painted(${JSON.stringify(early)})`,
-      bandOk ? '' : `band(${JSON.stringify(band)})`,
+      bareOk ? '' : `bare(${JSON.stringify(bare)})`,
       cheap ? '' : `props(${props.props.join(',')})`,
       fewLayers ? '' : `layers(${props.count})`,
       fits ? '' : `drift(${drift.toFixed(2)}px ${JSON.stringify(boxes)})`,
       gone ? '' : 'stillUp',
       errors.length ? errors[0] : '',
     ].filter(Boolean).join(' ');
-    console.log(`${ok ? 'PASS' : 'FAIL'}  ${size.label.padEnd(8)} ${size.w}x${size.h} ${lang}  frames=${band.frames} anims=${props.count} drift=${Number.isFinite(drift) ? drift.toFixed(2) : '?'}px  ${why}`);
+    console.log(`${ok ? 'PASS' : 'FAIL'}  ${size.label.padEnd(8)} ${size.w}x${size.h} ${lang}  anims=${props.count} drift=${Number.isFinite(drift) ? drift.toFixed(2) : '?'}px  ${why}`);
     await page.close();
   }
 }
