@@ -138,8 +138,8 @@ location. A crown, coronet, or `nón` suppresses the extra pin so two ornaments 
 
 The two generated files are material studies, not costume evidence:
 
-- `art_sources/faces/materials/handwoven-cloth.png` — neutral ramie/hemp/plain-silk weave.
-- `art_sources/faces/materials/lacquered-gauze.png` — neutral tight gauze and brushed lacquer.
+- `scripts/faces/materials/handwoven-cloth.png` — neutral ramie/hemp/plain-silk weave.
+- `scripts/faces/materials/lacquered-gauze.png` — neutral tight gauze and brushed lacquer.
 
 They were created with the built-in image generator as seamless, grayscale, object-free textures.
 `scripts/build-faces.mjs` downsamples them, clips them into reviewed vector silhouettes, and
