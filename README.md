@@ -22,15 +22,11 @@
 
 <br>
 
-**…and if you'd like it to keep going, buy it once on your phone**
-
-[![Get it on Google Play](https://img.shields.io/badge/Google%20Play-support%20the%20build-2a2118?style=for-the-badge&logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=zrg.team.vanthang)
+[![Get it on Google Play](https://img.shields.io/badge/Google%20Play-2a2118?style=flat-square&logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=zrg.team.vanthang)
 &nbsp;
-[![Download on the App Store](https://img.shields.io/badge/App%20Store-support%20the%20build-2a2118?style=for-the-badge&logo=appstore&logoColor=white)](https://apps.apple.com/app/id6805950974)
+[![Download on the App Store](https://img.shields.io/badge/App%20Store-2a2118?style=flat-square&logo=appstore&logoColor=white)](https://apps.apple.com/app/id6805950974)
 
-**About 50,000₫ (≈ US$2), paid once.**
-
-<sub>The same game — still no ads, no energy timers, nothing to buy inside it. It installs like a real app and plays offline,<br>and the price is simply how the work gets paid for. The browser version is not a demo or a trial: it is the whole thing, forever.<br>Buying is a tip that happens to come with a home-screen icon.</sub>
+<sub>Want a home-screen icon? The same game is on the stores for about 50,000₫ (≈ US$2), paid once — a tip, not a paywall.</sub>
 
 <br>
 

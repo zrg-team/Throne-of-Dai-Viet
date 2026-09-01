@@ -22,15 +22,11 @@
 
 <br>
 
-**…và nếu muốn game này còn đi tiếp, mua một lần trên điện thoại**
-
-[![Tải trên Google Play](https://img.shields.io/badge/Google%20Play-%E1%BB%A7ng%20h%E1%BB%99%20b%E1%BA%A3n%20build-2a2118?style=for-the-badge&logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=zrg.team.vanthang)
+[![Tải trên Google Play](https://img.shields.io/badge/Google%20Play-2a2118?style=flat-square&logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=zrg.team.vanthang)
 &nbsp;
-[![Tải trên App Store](https://img.shields.io/badge/App%20Store-%E1%BB%A7ng%20h%E1%BB%99%20b%E1%BA%A3n%20build-2a2118?style=for-the-badge&logo=appstore&logoColor=white)](https://apps.apple.com/app/id6805950974)
+[![Tải trên App Store](https://img.shields.io/badge/App%20Store-2a2118?style=flat-square&logo=appstore&logoColor=white)](https://apps.apple.com/app/id6805950974)
 
-**Khoảng 50.000₫, trả đúng một lần.**
-
-<sub>Vẫn đúng game ấy — vẫn không quảng cáo, không đồng hồ chờ năng lượng, bên trong không bán thêm thứ gì.<br>Chỉ khác là nó cài vào máy như một app thật và chơi được khi không có mạng, còn tiền ấy là để nuôi việc làm game.<br>Bản trên trình duyệt không phải bản dùng thử hay bản rút gọn: nó là nguyên con, mãi mãi.<br>Mua app chỉ là cách bạn mời mình ly cà phê, tiện thể có thêm cái icon ngoài màn hình chính.</sub>
+<sub>Muốn có icon ngoài màn hình chính? Vẫn game ấy, trên hai chợ app, khoảng 50.000₫ trả đúng một lần — là mời ly cà phê, không phải bức tường thu phí.</sub>
 
 <br>
 
