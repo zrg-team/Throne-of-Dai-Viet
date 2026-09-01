@@ -446,6 +446,29 @@ export function showEmpireResponse(self: ConquestUIScene, prompt: Extract<Ascent
   finish(used);
 }
 
+/**
+ * A host of the realm's own has dissolved, and the ledger is why.
+ *
+ * Built like the wave result next to it: a frame, the reason in plain words, and one button. It
+ * tells rather than asks, because by the time this is raised there is nothing left to decide.
+ */
+export function showHostLost(self: ConquestUIScene, prompt: Extract<AscentPrompt, { kind: 'host-lost' }>): void {
+  const content = self.promptFrame(
+    t('ascent.hostLost.title', { army: prompt.armyName }),
+    [
+      t(`ascent.hostLost.${prompt.reason}`, { army: prompt.armyName, men: prompt.men }),
+      t('ascent.hostLost.returned', { humans: prompt.men }),
+    ].join('\n'),
+  );
+
+  self.modalLayer.add(self.ui.button(
+    { x: content.x, y: content.y + 40, width: content.width, height: 46 },
+    t('ascent.hostLost.continue'),
+    () => self.choose('ok'),
+    { variant: 'primary', fontSize: '14px' },
+  ));
+}
+
 export function showWaveResult(self: ConquestUIScene, prompt: Extract<AscentPrompt, { kind: 'wave-result' }>): void {
   const content = self.promptFrame(
     prompt.survived ? t('ascent.wave.bossTitle', { wave: prompt.wave }) : t('ascent.wave.bossTitleLost'),

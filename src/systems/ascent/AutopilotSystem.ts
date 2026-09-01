@@ -729,6 +729,14 @@ function autoResupply(state: GameState): void {
     if (foodShort <= 0 && suppliesShort <= 0) continue;
 
     // Never resupply into famine: the realm's own stores come first.
+    //
+    // Deliberately flat, and deliberately *not* waived for a host that has run out. Feeding a
+    // starving host out of the last of the granary was tried and it is the wrong shape: the
+    // reserve is the autopilot's discipline, and dipping below it is the player's own lever —
+    // `resupplyHost`, which `verify-ascent` pins in as many words ("resupply reaches below the
+    // autopilot reserve"). Taking that decision automatically removes the one move a player has
+    // when the stores are low, so what a starving host needs is not a quiet top-up but to be
+    // *told* — see the warning in `progressArmyLogistics`.
     const food = Math.min(foodShort, Math.max(0, state.resources.food - SUPPLY_FOOD_RESERVE));
     const supplies = Math.min(suppliesShort, Math.max(0, state.resources.supplies - SUPPLY_STORE_RESERVE));
     if (food <= 0 && supplies <= 0) continue;

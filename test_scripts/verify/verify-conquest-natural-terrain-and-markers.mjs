@@ -64,9 +64,46 @@ const result = await page.evaluate(async () => {
     child.getData?.('conquestScatterArt')?.startsWith('flora.tree')
   ));
   const plannedTrees = scene.mapRenderer.scatterPlan.filter((item) => item.kind === 'tree');
-  const authoredTreesBehindRelief = authoredTrees.filter((tree) => (
-    scene.mapRenderer.reliefPlan.some((plan) => plan.occludes(tree.x, tree.y))
-  ));
+  const mountainScatter = scene.mapRenderer.scatterPlan.filter((item) => item.terrain === 'mountains');
+  const tallVegetationBox = {
+    tree: { halfWidth: 0.34, height: 0.72 },
+    bamboo: { halfWidth: 0.5, height: 0.86 },
+    banana: { halfWidth: 0.42, height: 0.56 },
+    areca: { halfWidth: 0.34, height: 0.9 },
+    banyan: { halfWidth: 0.8, height: 1.08 },
+  };
+  const tallVegetationTouchingMountains = scene.mapRenderer.scatterPlan.filter((item) => {
+    const box = tallVegetationBox[item.kind];
+    if (!box) return false;
+    const halfWidth = scene.mapRenderer.scatterTileSize * box.halfWidth * item.scale;
+    const topY = item.y - scene.mapRenderer.scatterTileSize * box.height * item.scale;
+    return scene.mapRenderer.reliefPlan.some((plan) => plan.terrain === 'mountains'
+      && item.x + halfWidth >= plan.bounds.x0
+      && item.x - halfWidth <= plan.bounds.x1
+      && item.y >= plan.bounds.topY
+      && topY <= plan.bounds.footY);
+  });
+
+  // The four seasons share the same mountain textures. Verify the live objects are actually
+  // re-created with four different weather tints rather than merely exposing a palette constant.
+  const mountainWeather = {};
+  for (const season of ['Spring', 'Summer', 'Autumn', 'Winter']) {
+    scene.state.season = season;
+    scene.refresh();
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    const relief = scene.children.list.filter((child) => (
+      child.getData?.('conquestReliefArt')?.startsWith('terrain.karst-')
+    ));
+    mountainWeather[season] = {
+      count: relief.length,
+      tints: [...new Set(relief.map((mountain) => mountain.getData('conquestMountainTint')))],
+      seasons: [...new Set(relief.map((mountain) => mountain.getData('conquestMountainWeather')))],
+      maxInkHeightTiles: Math.max(0, ...relief.map((mountain) => (
+        art.inkExtent(scene, mountain.texture.key, mountain.frame?.name).y
+        * mountain.displayHeight / scene.mapRenderer.scatterTileSize
+      ))),
+    };
+  }
 
   const badges = {};
   for (const variant of ['acquisition', 'build', 'recruit', 'siege', 'battle']) {
@@ -98,7 +135,14 @@ const result = await page.evaluate(async () => {
     terrainPlateCount: terrainPlates.length,
     plannedTreeCount: plannedTrees.length,
     authoredTreeCount: authoredTrees.length,
-    authoredTreesBehindRelief: authoredTreesBehindRelief.length,
+    tallVegetationTouchingMountains: tallVegetationTouchingMountains.map((item) => ({
+      kind: item.kind, terrain: item.terrain, x: Math.round(item.x), y: Math.round(item.y),
+    })),
+    mountainScatter: {
+      count: mountainScatter.length,
+      kinds: [...new Set(mountainScatter.map(({ kind }) => kind))],
+    },
+    mountainWeather,
     badges,
     stableWorldAnchor: before.x === after.x && before.y === after.y,
   };
@@ -120,11 +164,26 @@ check('all connected rice states share one 768x384 canvas', Object.entries(resul
 check('all normalized images retain empty crop padding', result.touching.length === 0, result.touching.join(', '));
 check('tree selector reaches five deterministic silhouettes', result.selectedTrees.length === 5, result.selectedTrees.join(', '));
 check('mountain selector reaches five deterministic silhouettes', result.selectedMountains.length === 5, result.selectedMountains.join(', '));
+check('mountain scatter is low bush only, with no full tree', result.mountainScatter.count > 0
+  && result.mountainScatter.kinds.length === 1
+  && result.mountainScatter.kinds[0] === 'bush', JSON.stringify(result.mountainScatter));
+const mountainWeather = Object.entries(result.mountainWeather);
+check('authored mountains take four distinct weather colours', mountainWeather.every(([, state]) => (
+  state.count > 0 && state.tints.length === 1
+)) && new Set(mountainWeather.map(([, state]) => state.tints[0])).size === 4,
+JSON.stringify(result.mountainWeather));
+check('mountain weather metadata follows the active season', mountainWeather.every(([season, state]) => (
+  state.seasons.length === 1 && state.seasons[0] === season
+)), JSON.stringify(result.mountainWeather));
+check('deep karst ranges stay below four map tiles of visible ink', mountainWeather.every(([, state]) => (
+  state.maxInkHeightTiles > 1 && state.maxInkHeightTiles < 4
+)), mountainWeather.map(([season, state]) => `${season} ${state.maxInkHeightTiles.toFixed(2)}`).join(', '));
 check('every planned tree uses authored art when the asset family is loaded',
   result.plannedTreeCount > 0 && result.authoredTreeCount === result.plannedTreeCount,
   `${result.authoredTreeCount}/${result.plannedTreeCount}`);
-check('trees behind authored relief remain authored and depth-sort with it',
-  result.authoredTreesBehindRelief > 0, `${result.authoredTreesBehindRelief} trees`);
+check('no neighbouring tall vegetation touches the mountain artwork',
+  result.tallVegetationTouchingMountains.length === 0,
+  JSON.stringify(result.tallVegetationTouchingMountains));
 check('generated rice plates replace canvas plots on the live map', result.terrainPlateCount > 0, `${result.terrainPlateCount} plates`);
 check('all five progress glyphs stay within the 26px visual class', Object.values(result.badges)
   .every(({ maxWidth, maxHeight }) => maxWidth <= 26 && maxHeight <= 26), JSON.stringify(result.badges));

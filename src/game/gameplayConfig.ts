@@ -59,6 +59,14 @@ export const ARMY_LOW_RATION_TICKS = 3;
 export const ARMY_MORALE_LOSS_LOW_RATIONS = 2;
 export const ARMY_MORALE_LOSS_NO_RATIONS = 8;
 export const ARMY_MORALE_LOSS_NO_PROVISIONS = 3;
+/**
+ * Where a host is close enough to breaking that the player is told.
+ *
+ * Two seasons of the worst drain there is (no rations, 8 a season), so the warning arrives
+ * with time to answer it — feed the host, pay it, or pull it out of the line — rather than on
+ * the season it dissolves.
+ */
+export const ARMY_MORALE_BREAKING = ARMY_MORALE_LOSS_NO_RATIONS * 2;
 /** Fraction of each unit type lost per tick while starving (no rations). */
 export const ARMY_STARVATION_ATTRITION = 0.05;
 /** March-speed multiplier applied while an army has 0 provisions. */

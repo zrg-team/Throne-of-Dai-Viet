@@ -108,6 +108,14 @@ export interface SeasonPalette {
   litter: number;
   /** Snow caps on branches, roofs of grass tufts, and the weather overhead. */
   snow: boolean;
+  /**
+   * Multiplicative weather colour for authored limestone plates.
+   *
+   * The mountain drawings are shared between all four seasons instead of shipping four copies of
+   * five large transparent textures. The live scenery repaint applies this pigment to the authored
+   * image, while procedural fallback rock runs its colours through the same multiplier.
+   */
+  mountainTint: number;
   /** The crop standing in the paddy: young green, full green, ripe gold, or bare mud. */
   paddy: number;
   paddyAlpha: number;
@@ -152,6 +160,7 @@ export const SEASON_PALETTES: Record<Season, SeasonPalette> = {
     blossomAlt: PIGMENT.diepHi,
     litter: PIGMENT.hoePale,
     snow: false,
+    mountainTint: 0xffffff,
     paddy: PIGMENT.tramPale,
     paddyAlpha: 0.5,
     labelInk: '#241407',
@@ -173,6 +182,7 @@ export const SEASON_PALETTES: Record<Season, SeasonPalette> = {
     blossomAlt: PIGMENT.diepHi,
     litter: PIGMENT.hoePale,
     snow: false,
+    mountainTint: mixPigment(0xffffff, PIGMENT.tram, 0.35),
     paddy: PIGMENT.tram,
     paddyAlpha: 0.62,
     labelInk: '#1f2a16',
@@ -196,6 +206,7 @@ export const SEASON_PALETTES: Record<Season, SeasonPalette> = {
     blossomAlt: PIGMENT.hoe,
     litter: mixPigment(PIGMENT.hoe, PIGMENT.nau, 0.3),
     snow: false,
+    mountainTint: mixPigment(0xffffff, PIGMENT.hoe, 0.35),
     paddy: PIGMENT.hoe,
     paddyAlpha: 0.7,
     labelInk: '#5c3a10',
@@ -222,6 +233,7 @@ export const SEASON_PALETTES: Record<Season, SeasonPalette> = {
     blossomAlt: PIGMENT.diepHi,
     litter: PIGMENT.mucFaint,
     snow: true,
+    mountainTint: mixPigment(0xffffff, PIGMENT.chamPale, 0.35),
     paddy: PIGMENT.diepDeep,
     paddyAlpha: 0.5,
     labelInk: '#3d4348',
@@ -296,6 +308,20 @@ export function seasonPalette(): SeasonPalette {
 /** The palette every growing thing reads: canopies, culms, fronds, blades. Follows the calendar. */
 export function foliagePalette(): SeasonPalette {
   return SEASON_PALETTES[foliageSeason];
+}
+
+/** The tint worn by authored mountain plates in the weather currently over the map. */
+export function mountainWeatherTint(): number {
+  return foliagePalette().mountainTint;
+}
+
+/** Applies the authored-image mountain tint to one procedural pigment channel-for-channel. */
+export function tintForMountainWeather(colour: number): number {
+  const tint = mountainWeatherTint();
+  const channel = (shift: number): number => Math.round(
+    (((colour >> shift) & 0xff) * ((tint >> shift) & 0xff)) / 255,
+  );
+  return (channel(16) << 16) | (channel(8) << 8) | channel(0);
 }
 
 /**

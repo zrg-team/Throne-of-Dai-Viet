@@ -19,10 +19,7 @@ import { faceTravel } from '../../../ui/ink/life';
 import { armyShape, compositionFor, hostKitFor, hostShapeAt } from '../../../ui/ink/devices';
 import { type BattleFormation } from '../../../data/ascent/formations';
 import { inkPath } from '../../../ui/ink/stroke';
-import { keepForegroundOnTop, SETTLEMENT_X } from './ground';
-import { citadelStandardAnchor } from '../../../ui/ink/settlements';
-import { figureEraFor } from '../../../ui/ink/devices';
-import { findLand } from '../../../systems/LandSystem';
+import { keepForegroundOnTop } from './ground';
 import { createPlayerLandFlag } from '../../../ui/playerFlag';
 import { GROUND_SCALE } from '../../../ui/ink/proportion';
 import type { Army, AscentBattle } from '../../../state/types';
@@ -32,8 +29,19 @@ import {
   battleBaseScale, battleHostsCrowdField, battleLines, battleRearY, battleScaleAt,
 } from './geometry';
 import type { ConquestUIScene } from '../../ConquestUIScene';
-import { warmFigureStamps } from '../../../ui/ink/figureStamps';
+import { setConquestArmyStepping, warmFigureStamps } from '../../../ui/ink/figureStamps';
 import { PIGMENT } from '../../../ui/ink/palette';
+
+/**
+ * How far a block must be given to cross before its men are shown walking.
+ *
+ * A beat runs whether or not either line gives way, so a held line is handed a tween to the `x` it
+ * already stands on. Half a world pixel is well under a single stride and well over the rounding
+ * in a line position, so it separates "holding" from "advancing" without a magic number pretending
+ * to be a distance.
+ */
+const BATTLE_STEP_MIN = 0.5;
+
 
 /** Pairs a drawn marker with its host, finding the strength label to keep current. */
 function trackMarker(hostId: string, marker: Phaser.GameObjects.Container, mustered?: number): BattleMarker {
@@ -130,7 +138,23 @@ export function buildBattleField(self: ConquestUIScene, battle: AscentBattle): v
   // everything else and the men occlude it, which is what "behind" looks like.
   const campY = battleRearY(self);
   if (!ui.sceneryHidden) {
-    field.add(self.battleCamp(rightX - 4, campY, rivalColor, 23, battleScaleAt(self, campY)));
+    /**
+     * **Both sides camp.** Ours on the left, theirs on the right, the same object mirrored.
+     *
+     * Our side used to be the province itself — a citadel or a village, drawn from map art at map
+     * scale. It never sat right: a walled town facing a row of tents puts the two halves of the
+     * picture out of step, and fitted to the field it was wide enough to hang off the border.
+     * Two hosts that have marched to meet each other are both camped, and a picture that says so
+     * reads at a glance — which side is which is then the banner's job and the banner's only job.
+     *
+     * Mirrored rather than drawn twice: `battleCamp` faces its gate one way, and two camps facing
+     * the same way read as one army's baggage train strung across the field.
+     */
+    const campScale = battleScaleAt(self, campY);
+    const ourCamp = self.battleCamp(leftX + 4, campY, PIGMENT.muc, 5, campScale);
+    ourCamp.setScale(-1, 1);
+    field.add(ourCamp);
+    field.add(self.battleCamp(rightX - 4, campY, rivalColor, 23, campScale));
   }
 
   // The standards stand their ground (user report, 2026-08-25: the flag walked with the block,
@@ -177,16 +201,15 @@ export function buildBattleField(self: ConquestUIScene, battle: AscentBattle): v
     plant(leftX - 18, footY, self.state.mapConfig.seed, false);
     plant(rightX + 6, footY, rivalSeed, true);
   } else {
-    // Over the seat's own gate where there is a citadel to hang it from — `citadelStandardAnchor`
-    // has existed for this since the citadel was drawn and had never once been called — and over
-    // the settlement's roofline otherwise.
+    // Over our own camp, the way theirs flies over theirs. It used to hang off the citadel's gate
+    // — `citadelStandardAnchor` — and there is no citadel on this field any more.
+    //
+    // The realm's own standard rather than the camp's đại kỳ: the camp draws its banner in ink,
+    // and the one mark on this screen that says *whose* army this is is the flag the player's
+    // provinces fly. Planted on the camp's own ground so it reads as standing in it — a pole
+    // floating a hand's breadth above the tents is the thing this offset is for.
     const homeY = battleRearY(self);
-    const land = findLand(self.state, battle.landId);
-    const capital = Boolean(land && self.state.ascent?.capitalLandId === land.id);
-    const anchor = capital
-      ? citadelStandardAnchor(SETTLEMENT_X, homeY, rearScale, figureEraFor(self.state))
-      : { x: SETTLEMENT_X + 18 * rearScale, y: homeY - 12 * rearScale };
-    plant(anchor.x, anchor.y, self.state.mapConfig.seed, false);
+    plant(leftX + 6, homeY - 4 * rearScale, self.state.mapConfig.seed, false);
     // Theirs is the camp's own đại kỳ (`battleCamp` draws it over the gate), so nothing is planted
     // for them at all — a second enemy standard beside it was the duplicate nobody asked for.
   }
@@ -334,20 +357,44 @@ export function slideMarkers(self: ConquestUIScene,
     // because the tween was never running on the thing being drawn.
     const marker = entry.marker;
     // Previous beat's tween is abandoned rather than left to fight this one for the same x.
+    //
+    // The feet are stopped here rather than in the tween's `onComplete`, because a killed tween
+    // never runs one: the next beat cut the previous tween down, its completion never fired, and
+    // the block kept stepping for the rest of the fight — including through a decision card, with
+    // the whole field otherwise still. Stopped at the top of every beat and started again below
+    // only for a block that is given ground to cross.
     self.tweens.killTweensOf(marker);
+    setConquestArmyStepping(marker, false);
     if (shove === 0) {
       // The whole interval, and linear. It used to be `BATTLE_TICK_MS * 0.45` on an ease-out,
       // so a host crossed its ground in a quarter of a second and then stood perfectly still
       // for the remaining three tenths — a hop, a freeze, a hop. Measured against the beat, the
       // block was stationary for 55% of the time it was supposedly marching. Linear because a
       // column on the move does not accelerate and brake between each pair of steps.
-      self.tweens.add({ targets: marker, x, duration: BATTLE_TICK_MS, ease: 'Linear' });
+      // **Feet only when there is ground to cross.**
+      //
+      // A beat still runs when neither line gives way, and then this tween is handed the `x` the
+      // marker is already standing on — a no-op that fills the interval. Starting the gait on it
+      // put both hosts marching on the spot in front of a stationary line of battle, which is the
+      // opening of most fights and exactly what a player sees first. The tween is still added
+      // (harmless, and it keeps one code path), but the men only step if the block moves.
+      const crossing = Math.abs(x - marker.x) > BATTLE_STEP_MIN;
+      if (crossing) setConquestArmyStepping(marker, true);
+      self.tweens.add({
+        targets: marker,
+        x,
+        duration: BATTLE_TICK_MS,
+        ease: 'Linear',
+        onComplete: () => setConquestArmyStepping(marker, false),
+      });
       continue;
     }
     // In contact: lean in, lean back, and let the two halves fill the beat between them, so
     // there is never a moment where nothing on the field is moving.
+    setConquestArmyStepping(marker, true);
     self.tweens.chain({
       targets: marker,
+      onComplete: () => setConquestArmyStepping(marker, false),
       tweens: [
         { x: x + shove, duration: BATTLE_TICK_MS * 0.46, ease: 'Sine.easeInOut' },
         { x, duration: BATTLE_TICK_MS * 0.54, ease: 'Sine.easeInOut' },

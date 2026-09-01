@@ -941,6 +941,7 @@ export class ConquestUIScene extends Phaser.Scene {
   showEmpireResponse(prompt: Extract<AscentPrompt, { kind: 'empire-response' }>): void { promptsRealm.showEmpireResponse(this, prompt); }
 
   showWaveResult(prompt: Extract<AscentPrompt, { kind: 'wave-result' }>): void { promptsRealm.showWaveResult(this, prompt); }
+  showHostLost(prompt: Extract<AscentPrompt, { kind: 'host-lost' }>): void { promptsRealm.showHostLost(this, prompt); }
 
   /* ------------------------------------------------------------ prompts router */
 

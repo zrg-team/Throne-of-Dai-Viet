@@ -35,6 +35,7 @@ export function renderPrompt(self: ConquestUIScene, prompt: AscentPrompt): void 
     case 'story-beat': self.showStoryBeat(prompt); break;
     case 'empire-response': self.showEmpireResponse(prompt); break;
     case 'wave-result': self.showWaveResult(prompt); break;
+    case 'host-lost': self.showHostLost(prompt); break;
     case 'run-over': self.showRunOver(prompt); break;
   }
 }

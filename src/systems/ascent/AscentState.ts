@@ -101,6 +101,9 @@ const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   mandate: 0.5,
   founder: 1,
   'wave-result': 2,
+  // Closure on what just happened, beside the wave result: the player has lost a host and needs
+  // to know before they are asked to plan the next season with an army that is no longer there.
+  'host-lost': 2.5,
   'empire-response': 3,
   'conquer-method': 4,
   'court-appointment': 5,

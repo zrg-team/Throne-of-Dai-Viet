@@ -11,6 +11,7 @@
  * | prop      | drawn | is                        | m  | UNIT  | at GROUND_SCALE |
  * |-----------|-------|---------------------------|----|-------|-----------------|
  * | grassTuft |   5.6 | a tuft of grass           |0.9 | 0.498 |   2.0 px        |
+ * | bush      |   5.0 | low mountain scrub        |1.4 | 0.868 |   3.1 px        |
  * | buffalo   |  30.1 | a trâu at the shoulder    |1.5 | 0.332 |   7.2 px        |
  * | figure    |   6.7 | a soldier                 |1.7 | 0.786 |   6.8 px        |
  * | farmer    |  16.2 | a farmer                  |1.7 | 0.325 |   8.2 px        |
@@ -114,6 +115,9 @@ export const UNIT = {
   // is why a village tree stood 11% short of its own eight metres and the lũy tre beside it — the
   // same declared height — came out 16% taller.
   tree: 1.610,
+  // Low karst scrub: 1.4 m against a 5-unit scalloped silhouette. It deliberately carries no
+  // living-thing exaggeration; a bush is texture at a mountain's foot, never a second landmark.
+  bush: 0.868,
   bamboo: 0.537,
   banana: 0.639,
   // 0.779, not 0.909: measured at 39.8 drawn against a recorded 34.1, so a cau was standing
@@ -188,6 +192,17 @@ export const UNIT = {
 export const GROUND_SCALE = 0.72;
 
 /**
+ * World pixels one metre of ground covers, for a living subject drawn at `GROUND_SCALE`.
+ *
+ * This is the algebra above with the ground caller scale substituted in, and it is what lets
+ * anything on the map be given a **speed in metres per second** instead of a duration tuned by
+ * eye. A road traveller was crossing at roughly 1.8 m/s — a jog — because his tween was a fixed
+ * 20-38 seconds regardless of how long the road was, so short roads were strolled and long ones
+ * sprinted by the same figure.
+ */
+export const LIVING_PX_PER_M = GROUND_SCALE * PX_PER_M * LIVING;
+
+/**
  * The tile size the world was tuned at: `hexSize` 18 × `MAP_SCALE` 1.72.
  *
  * `worldScale` is written against this so that a change to either one moves the whole map
@@ -243,7 +258,7 @@ const METRES: Record<keyof typeof UNIT, number> = {
    * If a width column is ever added here, this is the entry that should move to it.
    */
   gieng: 1.26,
-  tree: 8, bamboo: 8, banana: 4, areca: 10, banyan: 14,
+  tree: 8, bush: 1.4, bamboo: 8, banana: 4, areca: 10, banyan: 14,
   grassTuft: 0.9, figure: 1.7, farmer: 1.7, buffalo: 1.5,
 };
 
@@ -251,7 +266,7 @@ const METRES: Record<keyof typeof UNIT, number> = {
 const DRAWN: Record<keyof typeof UNIT, number> = {
   house: 19.3, dinh: 30.4, thap: 50.4, hayStack: 27,
   bep: 12, chuongTrau: 11.1, boThoc: 12.3, gieng: 6.9,
-  tree: 15.4, bamboo: 46.2, banana: 19.4, areca: 39.8, banyan: 33.3,
+  tree: 15.4, bush: 5, bamboo: 46.2, banana: 19.4, areca: 39.8, banyan: 33.3,
   grassTuft: 5.6, figure: 6.7, farmer: 16.2, buffalo: 30.1,
 };
 
@@ -345,6 +360,20 @@ export function unitScale(prop: keyof typeof UNIT, scale: number): number {
  * `bakeStaticTerrain` uses to find its sources.
  */
 const GROUND_DEPTH_BASE = 1.02;
+/**
+ * Where the static terrain bake sits: **under the whole ground band, never inside it.**
+ *
+ * It used to sit at 1.3, which was under the old settlement storey at [1.40, 1.50) and
+ * therefore fine. Once towns joined the landscape's band the same 1.3 landed in the *middle*
+ * of it, and the bake is an opaque world-sized texture — so on the one tier that keeps its ink
+ * live, every settlement and massif whose foot line fell below y 2,000 was painted over by the
+ * ground it stands on. Measured on `high`: eleven live ink pieces on the display list and not
+ * one settlement visible on the map.
+ *
+ * Nothing is lost by going under: every layer the bake contains is hidden immediately after
+ * it is drawn, so the texture only ever has to be above the layers it replaced.
+ */
+export const STATIC_BAKE_DEPTH = 1.015;
 const GROUND_DEPTH_PER_UNIT = 0.00014;
 /** Kept below the bake sweep's 1.5 ceiling however tall a world gets. */
 const GROUND_DEPTH_CEILING = 1.46;

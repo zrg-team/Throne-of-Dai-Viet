@@ -186,8 +186,8 @@
              first ink       6,400 ms  ->  350 ms
              menu drawn     14,500 ms  ->  12,900 ms   (noise; the splash costs nothing)
 
-         The second row is the one worth stating plainly: the march below is four flat images and
-         seven compositor animations, and it does not slow the boot it is covering.
+         The second row is the one worth stating plainly: this screen costs the boot it is
+         covering nothing at all.
 
          The first screen is therefore not the game's. It is this, and it obeys four rules:
 
@@ -207,9 +207,13 @@
               neither the splash nor the menu on it.
 
          The look is the front page's — điệp paper, mực soot, sỏi son for the player's own colour,
-         hoa hòe for gold, values from `src/ui/ink/palette.ts` — the seal is the same 44-unit drum
-         face at the same radii as `MenuScene.drawDaiVietDrumSeal`, and the host is
-         `docs/12-armies-of-dai-viet.html`'s own `soldier()`. */
+         hoa hòe for gold, values from `src/ui/ink/palette.ts` — and the seal is the same 44-unit
+         drum face at the same radii as `MenuScene.drawDaiVietDrumSeal`.
+
+         It is a seal, a name and a bar, and that is the whole design. A loading screen that draws
+         the game's own subject competes with the game: it goes stale the moment the thing it
+         imitates is redrawn, and it spends the main thread on the one screen that cannot afford
+         it. What stays here is the identity and the fact that something is happening. */
       #splash {
         position: fixed;
         inset: 0;
@@ -311,116 +315,9 @@
         );
       }
 
-      /* ── the host on the march ──────────────────────────────────────────────────────────
-         Not a file of men. Formations: screen, line, bows and horse, each block standing where
-         that arm actually stood, four of them to a host and four hosts to the band — which is what
-         `docs/12-armies-of-dai-viet.html` means by "what a host looks like when it moves". A single
-         file, which is what the first cut drew, throws away the one thing the arm slot is good for
-         and reads as a fence.
-
-         Every frame of it is a **background image**, not live SVG, and that is the load-bearing
-         decision here. Drawn as live SVG this band is a couple of thousand nodes under a dozen
-         animated layers, and every one of them is style, layout and paint-record work charged
-         against the one thread a megabyte of Phaser is parsing on. As six flat images the browser
-         rasterises each once and then does nothing but move a texture — which is the compositor's
-         entire job, and it is why the walk cycle below is affordable at all.
-
-         Three motions, and all three are the reference sheet's own: the host travels, the ranks
-         bob out of phase (`marchInPlace`), and the men's legs walk. */
-      .sp-march {
-        position: relative;
-        width: 100%;
-        height: 164px;
-        margin-top: 14px;
-        flex: none;
-        overflow: hidden;
-      }
-
-      /* Each travelling layer is one tile wider than the box it shows through and carries a
-         background that repeats every tile, so travelling exactly one tile lands on a frame
-         identical to the one it started from. That is the whole loop: no measurement, no
-         JavaScript, and nothing to resynchronise when the sheet changes width. */
-      .sp-far,
-      .sp-host {
-        position: absolute;
-        right: 0;
-        will-change: transform;
-      }
-
-      /* The country they are crossing, at a fifth of the column's speed. The mass is bounded top
-         and bottom by drawn edges and neither of them is ruled: closed off at its own base with a
-         straight line it printed as a band of colour laid across the sheet — a hard edge in mid-air
-         with bare paper under it — so the base is a shallow wave the screen block walks over and
-         interrupts. Flat, with no fade at either edge: the sheet under the ink may have tone, the
-         ink may not. */
-      /* Raised until the hills' base sits eighteen units above the nearest block's feet. Hung any
-         lower the screen block's men stand on the ridge line, and a host walking along the top of a
-         karst range is the first thing anybody notices about this band. */
-      .sp-far {
-        left: -300px;
-        bottom: 120px;
-        height: 40px;
-        background-repeat: repeat-x;
-        background-position: left top;
-        background-size: 300px 40px;
-        animation: sp-drift-far 96s linear infinite;
-      }
-
-      @keyframes sp-drift-far {
-        from {
-          transform: translate3d(0, 0, 0);
-        }
-        to {
-          transform: translate3d(300px, 0, 0);
-        }
-      }
-
-      .sp-host {
-        left: -1200px;
-        top: 0;
-        height: 164px;
-        animation: sp-drift-host 30s linear infinite;
-      }
-
-      @keyframes sp-drift-host {
-        from {
-          transform: translate3d(0, 0, 0);
-        }
-        to {
-          transform: translate3d(1200px, 0, 0);
-        }
-      }
-
-      /* One frame of the walk. Four of them stacked, each showing for a quarter of the beat on a
-         hard cut — a flipbook, which is what a woodblock animation would be if it were one. `step-end`
-         so the cut is a cut: eased, the two drawings ghost through each other and the column comes
-         out looking doubled rather than walking. */
-      .sp-frame {
-        position: absolute;
-        inset: 0;
-        background-repeat: repeat-x;
-        background-position: left top;
-        background-size: 1200px 164px;
-        opacity: 0;
-        animation: sp-flip 0.96s step-end infinite;
-        will-change: opacity;
-      }
-
-      @keyframes sp-flip {
-        0% {
-          opacity: 1;
-        }
-        25% {
-          opacity: 0;
-        }
-        100% {
-          opacity: 0;
-        }
-      }
-
       /* ── what it is doing ───────────────────────────────────────────────────────────────── */
       .sp-status {
-        margin-top: 20px;
+        margin-top: 34px;
         flex: none;
         display: flex;
         flex-direction: column;
@@ -460,22 +357,11 @@
         }
       }
 
-      /* A still print, for anyone who asked not to be moved. The host stays on the page — it
-         simply stands there. */
+      /* A still print, for anyone who asked not to be moved. The bar stops sweeping and simply
+         states that work is under way. */
       @media (prefers-reduced-motion: reduce) {
-        .sp-far,
-        .sp-host,
-        .sp-frame,
         .sp-bar i {
           animation: none;
-        }
-
-        /* One drawing, standing. The flipbook is what would otherwise strobe. */
-        .sp-frame:first-child {
-          opacity: 1;
-        }
-
-        .sp-bar i {
           width: 100%;
           opacity: 0.45;
         }
@@ -512,11 +398,6 @@
           <p class="sp-gloss">TEN THOUSAND VICTORIES</p>
           <div class="sp-rule"></div>
 
-          <div class="sp-march" aria-hidden="true">
-            <div class="sp-far" id="sp-far"></div>
-            <div class="sp-host" id="sp-host"></div>
-          </div>
-
           <div class="sp-status">
             <p class="sp-caption" id="sp-caption">Đang tập hợp quân…</p>
             <div class="sp-bar"><i></i></div>
@@ -525,468 +406,14 @@
       </div>
     </div>
 
-    <!-- ══ the host, and the sheet it is printed on ═══════════════════════════════════════════
+    <!-- ══ the sheet this page is printed on ═══════════════════════════════════════════════
          Everything below runs from a *synchronous* script in the body: the parser has not yielded
-         yet, so the column is in the DOM and the sheet is sized before the document's first paint.
-         Nothing here waits on a network or a module.
-
-         The soldiers are `docs/12-armies-of-dai-viet.html`'s own `soldier()`, ported rather than
-         re-drawn — same slot table, same document units (a man 42 units from the road to the crown
-         of his head, hem at −12, shoulders at −30, skull centred at −36 with r 6), same three
-         passes in the same order: wash, one open ink group at a single weight, then the few filled
-         marks that sit on top. What is *not* here is the eleven wardrobes this column does not
-         wear and the plate furniture that document needs and a loading screen does not.
-
-         Two things are added, and both are marked where they appear: a two-frame stride, because
-         the reference sheet draws men standing still, and a standard, because the reference sheet
-         says a host has one — "a prop drawn once per host, behind the block, like a standard" —
-         and does not draw it. Both are cut in the same idiom. ════════════════════════════════ -->
+         yet, so the sheet is sized before the document's first paint. Nothing here waits on a
+         network or a module, and nothing here draws — the seal and the wordmark above are already
+         in the document that arrived. ════════════════════════════════════════════════════════ -->
     <script>
       (function () {
         'use strict';
-
-        // ── the game's pigments, as they appear in src/ui/ink/palette.ts ──────────────────────
-        var P = {
-          paper: '#f3ecd8', dark: '#d8c9a4',
-          ink: '#2a2118', inkSoft: '#5a4c39', inkFaint: '#8c7e67',
-          son: '#b33a26', tram: '#7b9271', tramPale: '#a7b98d',
-          hoe: '#c08a2e', hoePale: '#dcbe7e',
-          nau: '#7a5636', horn: '#dccfae'
-        };
-
-        // ── the slot table ───────────────────────────────────────────────────────────────────
-        // One wardrobe, not twelve: this is one host on one road, and a column in four different
-        // dynasties' kit is not a column. Trần — nâu robe, hoa hòe helm, and the century before
-        // the hand-gun, so its skirmishers throw.
-        //
-        // The reference sheet's Later Lê row was the first cut and it is the game's own default,
-        // but its helm is dyed sỏi son: eleven red helmets on a 390-unit sheet next to a red
-        // standard and thirteen red sashes is the whole page shouting in the one colour the
-        // palette is built around reserving. Gold on brown leaves the red to the standard and the
-        // sash, which is exactly what the scarcity law says it is for.
-        var T = { robe: P.nau, crown: P.hoe, gun: false };
-        // Body geometry. hem = where the robe stops, top = where it starts, hw/sw = half-widths.
-        // Shoulders sit at -30 because shoulders are anatomy and not costume.
-        var G = { hem: -12, top: -30, hw: 7, sw: 6, leg: -12 };
-        var SHOULDER = -30;
-
-        // ── tiny SVG builders ────────────────────────────────────────────────────────────────
-        function d(spec, attrs) { return '<path d="' + spec + '"' + (attrs ? ' ' + attrs : '') + '/>'; }
-        function ln(x1, y1, x2, y2, attrs) {
-          return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '"' +
-            (attrs ? ' ' + attrs : '') + '/>';
-        }
-        function ci(cx, cy, r, attrs) {
-          return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '"' + (attrs ? ' ' + attrs : '') + '/>';
-        }
-
-        // One continuous ink line, the way every living thing on this map is drawn. Three passes,
-        // in this order: wash (offset colour blocks, the printed underlay), ink (a single stroked
-        // group at one weight, fill:none), over (the few filled marks that sit on top).
-        var INK_OPEN = '<g fill="none" stroke="' + P.ink +
-          '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">';
-
-        // ── slot 1 · the crown ───────────────────────────────────────────────────────────────
-        // The brow sits at -39, which is *inside* the head circle (centre -36, r 6). That overlap
-        // is the whole point — it is what joins the hat to the man. A hat lifted clear of the
-        // skull reads as a lid resting on a ball.
-        function crown(tier) {
-          var w = [], k = [], o = [];
-          // Hair, a filled cap over the top of the skull. Every bare-headed figure gets it.
-          var hair = d('M-6,-38.6 q6,-5.4 12,0 Z', 'fill="' + P.ink + '" stroke="none"');
-          if (tier === 0) {
-            // What a man pulled off his fields is wearing: his hair, and the búi tóc.
-            o.push(hair);
-            o.push(ci(0, -43.6, 2.5, 'fill="' + P.ink + '" stroke="none"'));
-          } else {
-            // A dome with a finial, and cheek flaps hanging past the jaw.
-            w.push(d('M-7,-39 A7,8.5 0 0 1 7,-39 Z', 'fill="' + T.crown + '"'));
-            k.push(d('M-7,-39 A7,8.5 0 0 1 7,-39 Z'));
-            k.push(ci(0, -49.2, 1.9, 'fill="' + P.ink + '"'));
-            k.push(d('M-6.9,-39 q-1.4,3.4 -0.9,6.6', 'stroke-width="1.3"'));
-            k.push(d('M6.9,-39 q1.4,3.4 0.9,6.6', 'stroke-width="1.3"'));
-          }
-          return { wash: w.join(''), ink: k.join(''), over: o.join('') };
-        }
-
-        // ── slot 3 · the chest ───────────────────────────────────────────────────────────────
-        // Trần's is a disc rather than the rectangular hộ tâm kính the other Việt eras wear.
-        // Levies have none at all — that is what tier 0 means.
-        function chest(tier) {
-          if (tier < 1) return '';
-          return ci(0, -24, 4.6, 'fill="' + P.horn + '" stroke-width="1.2"');
-        }
-
-        // ── slot 5 · the arm ─────────────────────────────────────────────────────────────────
-        // Every weapon is held by an arm that starts at the shoulder. That is the difference
-        // between a man carrying a spear and a spear floating beside a man, and it costs one
-        // stroke.
-        function armMarks(arm, tier) {
-          var w = [], k = [], o = [];
-
-          if (arm === 'sword' || arm === 'mounted') {
-            var hand = arm === 'mounted' ? -20 : -16.5;
-            k.push(ln(5.6, SHOULDER + 1.4, 8.4, hand + 1.5, 'stroke-width="1.5"'));       // the arm
-            k.push(d('M8.4,' + hand + ' Q11.4,' + (hand - 10) + ' 11.8,' + (hand - 19))); // đao
-            k.push(ln(6.6, hand - 1.2, 10.2, hand + 0.2, 'stroke-width="1.3"'));          // the guard
-            if (arm === 'sword') {
-              // cái khiên: wood with a rattan-bound edge, and a boss at the centre
-              w.push(ci(-11.2, -22, 5.2, 'fill="' + P.tramPale + '"'));
-              k.push(ln(-5.8, SHOULDER + 1.4, -8.6, -23.6, 'stroke-width="1.5"'));        // shield arm
-              k.push(ci(-11.2, -22, 5.2));
-              o.push(ci(-11.2, -22, 1.4, 'fill="' + P.ink + '" stroke="none"'));          // the umbo
-            }
-          } else if (arm === 'skirmish') {
-            // lao — the javelin, cocked to throw, and a spare at the belt. The hand-gun reaches
-            // this row under the Later Lê; before that a skirmisher throws.
-            k.push(ln(5.6, SHOULDER + 1.4, 8.6, -31, 'stroke-width="1.5"'));
-            k.push(ln(-8.6, -26.2, 12.4, -32.2, 'stroke-width="1.5"'));
-            o.push(d('M12.4,-32.2 L16.8,-33.8 L13.2,-29.8 Z', 'fill="' + P.ink + '" stroke="none"'));
-            k.push(ln(-8.2, -14, -4.6, -21.2, 'stroke-width="1.1"'));
-          } else if (arm === 'bow') {
-            k.push(ln(5.6, SHOULDER + 1.4, 8.8, -24, 'stroke-width="1.5"'));              // the bow arm
-            k.push(d('M9,-32.6 Q15.4,-23 9,-13.4'));
-            k.push(ln(9, -32.6, 9, -13.4, 'stroke-width="0.7"'));                         // the string
-            k.push(ln(3.2, -23, 13.8, -23, 'stroke-width="0.8"'));                        // the arrow
-            if (tier > 0) k.push(d('M-9.2,-24 q-2.6,4 -1.4,7.8', 'stroke-width="1.6"'));  // the quiver
-          }
-
-          return { wash: w.join(''), ink: k.join(''), over: o.join('') };
-        }
-
-        // ── the soldier ──────────────────────────────────────────────────────────────────────
-        // The reference figure, with one thing added: his feet are where `gaitAt` puts them. The
-        // sheet draws men standing, which is the right call for a specification plate and the
-        // wrong one for a host on the march — and because the frames are baked images rather than
-        // live SVG, six drawings of him cost no more to keep on screen than one.
-        function soldier(arm, tier, gait) {
-          var seated = arm === 'mounted';
-          var wash = [], k = [], over = [];
-          var bodyPath = 'M' + (-G.hw) + ',' + G.hem + ' L' + G.hw + ',' + G.hem +
-            ' L' + G.sw + ',' + G.top + ' L' + (-G.sw) + ',' + G.top + ' Z';
-          wash.push(d(bodyPath, 'fill="' + T.robe + '"'));
-
-          var c = crown(tier);
-          var a = armMarks(arm, tier);
-          wash.push(c.wash, a.wash);
-
-          // legs — or one leg bent over the flank, if this man is on a horse
-          if (seated) {
-            k.push(d('M-0.4,-13 L6.6,-15 L7.8,-5.6', 'stroke-width="1.7"'));
-          } else if (gait) {
-            k.push(ln(gait.lx, gait.ly, -3, G.leg));
-            k.push(ln(gait.rx, gait.ry, 3, G.leg));
-          } else {
-            k.push(ln(-4, 0, -3, G.leg));
-            k.push(ln(4, 0, 3, G.leg));
-          }
-
-          k.push(d(bodyPath));
-          k.push(chest(tier));
-          k.push(ci(0, -36, 6));                 // the skull — an outline, never a fill
-          k.push(c.ink, a.ink);
-          over.push(c.over, a.over);
-          // The sash: the realm, in one diagonal stroke, and the only place on a soldier the
-          // scarcity law touches.
-          over.push(ln(-6.4, -16, 6.4, -22, 'stroke="' + P.son + '" stroke-width="2.2" stroke-linecap="round"'));
-
-          return '<g transform="translate(-1.5,1.4)">' + wash.join('') + '</g>' +
-            INK_OPEN + k.join('') + '</g>' + over.join('');
-        }
-
-        // ── slot 6 · the mount ───────────────────────────────────────────────────────────────
-        // A southern pony: 1.25 m at the withers, which at the drawn rate of 24.7 units per metre
-        // puts its back at y = -31. Built off that one measurement, the way a horse actually is —
-        // body length point-of-shoulder to point-of-buttock is also H, barrel depth 0.45 H, the
-        // head 0.4 H long. Guess those three and you get a donkey. Outlined like everything else:
-        // a horse drawn as filled masses is a shadow, not an animal.
-        function pony() {
-          var bodyLine = 'M5.4,-31 Q-6,-31.8 -13.2,-29.6 Q-16.2,-28.4 -16.6,-25.6 ' +
-            'Q-18.2,-21.6 -15.2,-19.2 Q-12.8,-17.6 -9.8,-18.2 L-2,-18 ' +
-            'Q5,-17.6 9.4,-19.2 Q13,-21.2 13.2,-25.6';
-          var body = bodyLine + ' Q12.4,-30 5.4,-31 Z';
-          // Neck and head, one tapering outline. Open, not closed: a closed neck leaves its base
-          // edge drawn across the shoulder, which reads as a collar strap — so the fill and the
-          // outline are two different paths here.
-          var neckLine = 'M5.6,-30.6 Q9.4,-36.4 14.2,-39.2 Q16.6,-40.6 18.8,-39.6 ' +
-            'Q21.4,-38.2 23.4,-35 L25.6,-31.6 Q26.2,-29.6 24,-29.8 L20.6,-30.8 ' +
-            'Q17,-31.8 14.6,-29 Q12.6,-26.8 12.8,-25.4';
-          var w = [], k = [], o = [];
-          o.push('<ellipse cx="-1" cy="-1" rx="18" ry="2.6" fill="' + P.dark + '" opacity="0.5"/>');
-          w.push(d(neckLine + ' Z', 'fill="' + P.nau + '"'));
-          w.push(d(body, 'fill="' + P.nau + '"'));
-          // Legs, drawn with their joints. A horse's hind leg bends backwards at the hock, and
-          // putting that one bend in is most of what separates a pony from a table.
-          k.push(d('M-12.4,-18.6 Q-14.6,-12.4 -11.4,-8.2 L-12.4,-1.2', 'stroke-width="1.8"'));
-          k.push(d('M-9.2,-18.6 Q-11.2,-12.6 -8.2,-8.6 L-9,-1.2', 'stroke-width="1.5"'));
-          k.push(d('M9.2,-19 Q10.2,-10.4 10.8,-1.2', 'stroke-width="1.8"'));
-          k.push(d('M12,-19.6 Q13.2,-10.6 13.8,-1.2', 'stroke-width="1.5"'));
-          k.push(d(bodyLine));
-          k.push(d(neckLine));
-          k.push(d('M8.4,-31.6 q2.2,-3.4 4.2,-5.4', 'stroke-width="1.2"'));           // the mane
-          k.push(d('M12,-35 q2,-2.6 3.6,-3.8', 'stroke-width="1"'));
-          k.push(d('M15.6,-37.6 q1.8,-1.8 3,-2.4', 'stroke-width="1"'));
-          k.push(d('M-16.8,-26.4 q-4.2,5.4 -3.4,12.4', 'stroke-width="1.8"'));        // the tail
-          k.push(d('M-16.6,-23 q-3.4,4.4 -2.8,9.6', 'stroke-width="1.2"'));
-          o.push(d('M17.2,-40 L16.6,-43.6 L19,-40.4 Z', 'fill="' + P.ink + '" stroke="none"'));
-          o.push(d('M19.6,-39.6 L19.6,-42.8 L21.2,-39.2 Z', 'fill="' + P.ink + '" stroke="none"'));
-          o.push(ci(20.4, -36, 0.8, 'fill="' + P.ink + '"'));                          // the eye
-          o.push(ci(24.4, -31.2, 0.6, 'fill="' + P.ink + '"'));                        // the nostril
-          return '<g transform="translate(-1.5,1.4)">' + w.join('') + '</g>' +
-            INK_OPEN + k.join('') + '</g>' + o.join('');
-        }
-
-        function mounted(tier) {
-          return pony() +
-            '<g transform="translate(-1,-17)">' +
-            '<rect x="-9" y="-14.5" width="18" height="4.6" fill="' + P.son + '"/>' +
-            soldier('mounted', tier) + '</g>';
-        }
-
-        /** One figure, at the block's own origin: feet at 0,0 and the man drawn up from there. */
-        function fig(arm, tier, gait) {
-          return arm === 'mounted' ? mounted(tier) : soldier(arm, tier, gait);
-        }
-
-        // ── an army ──────────────────────────────────────────────────────────────────────────
-        // Not one block with the weapon types sprinkled through it. Several blocks, one per arm,
-        // standing where that arm actually stood: a loose screen out in front to take the first
-        // volley and fall back through the line, the shield wall as the main body, the bows behind
-        // it shooting over, and the horse as a wing off the near flank.
-        //
-        // `dx` runs toward the enemy and `dy` toward the viewer, so "behind the line" is one
-        // description rather than two. Offsets are to each block's **centre**, in the same unscaled
-        // units as the blocks themselves, and they have to clear them: a seven-file line is 96 wide
-        // before anything else is placed. Anchored at the centre, a block that gets wider gets
-        // wider in both directions and the formation still holds.
-        var FORMATION = {
-          screen: { arm: 'skirmish', dx: 112, dy: -20, pitch: 23 },
-          line: { arm: 'sword', dx: 0, dy: 0 },
-          bows: { arm: 'bow', dx: -106, dy: 30 },
-          horse: { arm: 'mounted', dx: 18, dy: 86, pitch: 30, rank: 16 }
-        };
-        // The reference sheet's doctrines, mark for mark. Each is the same army spent differently,
-        // and the point is that it changes the formation's *shape* and not just its texture: the
-        // spear wall is everything in the line, the archer host keeps its main body at the back,
-        // the shock host has no screen at all. One mark is fifty-five men, so these run from about
-        // 2,250 to 2,600 apiece.
-        var DOCTRINE = {
-          balanced: [{ of: 'screen', cols: 5, rows: 1 }, { of: 'line', cols: 7, rows: 3 },
-            { of: 'bows', cols: 6, rows: 2 }, { of: 'horse', cols: 3, rows: 2 }],
-          spears: [{ of: 'screen', cols: 3, rows: 1 }, { of: 'line', cols: 9, rows: 4 },
-            { of: 'bows', cols: 4, rows: 2 }],
-          archers: [{ of: 'screen', cols: 4, rows: 1 }, { of: 'line', cols: 5, rows: 2 },
-            { of: 'bows', cols: 9, rows: 3 }],
-          shock: [{ of: 'line', cols: 8, rows: 4 }, { of: 'bows', cols: 3, rows: 1 },
-            { of: 'horse', cols: 5, rows: 2 }],
-          horse: [{ of: 'screen', cols: 4, rows: 1 }, { of: 'line', cols: 5, rows: 2 },
-            { of: 'bows', cols: 4, rows: 2 }, { of: 'horse', cols: 6, rows: 3 }]
-        };
-
-        /**
-         * The walk, as one angle.
-         *
-         * `phase` runs 0..1 over a full two-step cycle. The forward foot swings by `cos`, so 0 and
-         * 0.5 are the contacts with both feet down and 0.25 and 0.75 are the passes with one foot
-         * off the road; the body rises on the passes, which is `|sin|`, and that is the same bob
-         * `marchInPlace` tweens a rank by — 0.29 of a rank pitch.
-         *
-         * Every rank gets its own phase, so the ranks are out of step with each other. That is the
-         * reference sheet's whole answer to how a host moves: "the ranks bob out of phase
-         * throughout — that is `marchInPlace`, and it is the reason every rank is its own
-         * `Graphics` object."
-         */
-        function gaitAt(phase) {
-          var th = phase * Math.PI * 2;
-          var swing = Math.cos(th);
-          var rise = Math.sin(th);
-          return {
-            // Feet, in document units either side of centre.
-            rx: 4 + 4.6 * swing,
-            lx: -4 - 4.6 * swing,
-            ry: -3.2 * Math.max(0, rise),
-            ly: -3.2 * Math.max(0, -rise),
-            bob: -3.5 * Math.abs(rise)
-          };
-        }
-
-        /**
-         * One block of marks, drawn a rank at a time so each rank can carry its own phase.
-         *
-         * The jitter is what stops a block reading as a grid. It is deterministic, off the mark's
-         * index, so the same host comes out the same host on every load and in every frame.
-         */
-        function hostBlock(key, spec, anchor, scale, phase0, tier) {
-          var F = FORMATION[key];
-          var pitch = (F.pitch || 16) * scale;
-          var rank = (F.rank || 12) * scale;
-          var shear = 3.6 * scale;
-          var wide = (spec.cols - 1) * pitch + (spec.rows - 1) * shear;
-          var deep = (spec.rows - 1) * rank;
-          // Centred on the offset, never hung off its left edge: a block anchored by its edge grows
-          // rightwards straight through whatever it was meant to be standing behind.
-          var x0 = anchor.x + F.dx * scale - wide / 2;
-          var y0 = anchor.y + F.dy * scale - deep / 2;
-          // The ground the block stands on, under its own men.
-          var out = '<ellipse cx="' + (x0 + wide / 2).toFixed(1) + '" cy="' + (y0 + deep + 2).toFixed(1) +
-            '" rx="' + (wide / 2 + 13 * scale).toFixed(1) + '" ry="' + (4 + 8 * scale).toFixed(1) +
-            '" fill="' + P.dark + '" opacity="0.4"/>';
-          var n = 0;
-          for (var r = 0; r < spec.rows; r += 1) {
-            var gait = gaitAt(phase0 + r * 0.17);
-            var men = '';
-            for (var c = 0; c < spec.cols; c += 1) {
-              var jx = ((n * 37) % 7 - 3) * 0.5;
-              var jy = ((n * 53) % 5 - 2) * 0.4;
-              men += '<g transform="translate(' + (x0 + c * pitch + r * shear + jx).toFixed(1) + ',' +
-                (y0 + r * rank + jy).toFixed(1) + ') scale(' + scale.toFixed(3) + ')">' +
-                fig(F.arm, tier, gait) + '</g>';
-              n += 1;
-            }
-            // The whole rank lifts together, which is what a rank in step does.
-            out += '<g transform="translate(0,' + (gait.bob * scale).toFixed(2) + ')">' + men + '</g>';
-          }
-          return { svg: out, feet: y0 + deep };
-        }
-
-        /**
-         * The host's standard.
-         *
-         * The reference sheet says a host has one — "a prop drawn once per host, behind the block,
-         * like a standard" — and never draws it, so this is the one device on this screen cut for
-         * it rather than copied from it. Sỏi son, and the scarcity law is the reason for that
-         * rather than an exception to it: the red is spent on the player's banner, the player's
-         * seal and the player's losses, and this is the first of the three.
-         */
-        function standard(x, y, scale, phase) {
-          // Two units of flap off the same clock that walks the men underneath it.
-          var f = Math.sin(phase * Math.PI * 2) * 2;
-          var cloth = 'M0,-62 L' + (20 + f) + ',-57 L' + (15 - f) + ',-51 L' + (20 + f) + ',-45 L0,-40 Z';
-          return '<g transform="translate(' + x.toFixed(1) + ',' + y.toFixed(1) + ') scale(' +
-            scale.toFixed(3) + ')">' +
-            '<g transform="translate(-1.5,1.4)">' + d(cloth, 'fill="' + P.son + '"') + '</g>' +
-            INK_OPEN + ln(0, 0, 0, -64, 'stroke="' + P.nau + '" stroke-width="1.8"') +
-            d(cloth, 'stroke-width="1.4"') + '</g></g>';
-        }
-
-        /**
-         * One host in formation, painted bottom-up by ascending feet: whatever stands nearer the
-         * viewer is drawn last, or the rear ranks come out on top of the front line.
-         */
-        function host(plan, anchor, scale, phase, tier) {
-          var blocks = [];
-          for (var i = 0; i < plan.length; i += 1) {
-            if (!plan[i].cols || !plan[i].rows) continue;
-            blocks.push(hostBlock(plan[i].of, plan[i], anchor, scale, phase, tier));
-          }
-          blocks.sort(function (a, b) { return a.feet - b.feet; });
-          var svg = standard(anchor.x - 44 * scale, anchor.y - 14 * scale, scale, phase);
-          for (var b = 0; b < blocks.length; b += 1) svg += blocks[b].svg;
-          return svg;
-        }
-
-        // ── the band ─────────────────────────────────────────────────────────────────────────
-        // 1,200 units of road, repeated. Four hosts on it, every one at the same scale on the same
-        // ground — sixteen blocks and some nine thousand men — so the band is a column of armies
-        // rather than one army with scenery around it. Four doctrines rather than four copies of
-        // one, because a host the same shape as the one in front of it reads as a repeat.
-        var TILE_W = 1200, TILE_H = 164;
-        var FRAMES = 4;
-        var HOST_SCALE = 0.8;
-        // Anchors are the *line* block's centre, 300 apart.
-        //
-        // `GROUND` is the line's own feet, and 90 is what has to be left under it: the horse block
-        // stands 86 units further toward the viewer, half its rank depth past that, and carries a
-        // ground shadow ten units deep under its hooves. Set any lower and the cavalry wing walks
-        // off the bottom of the band — set higher and the screen block ends up standing on the
-        // hills behind it.
-        var GROUND = TILE_H - 90;
-        var COLUMN = [
-          { plan: DOCTRINE.balanced, x: 150 },
-          { plan: DOCTRINE.spears, x: 450 },
-          { plan: DOCTRINE.archers, x: 750 },
-          { plan: DOCTRINE.shock, x: 1050 }
-        ];
-
-        /**
-         * One frame of the whole band, as an SVG image.
-         *
-         * A *background image*, not live SVG. The first cut put every man in the document — a
-         * couple of thousand SVG nodes carrying twelve animated layers — and that is a style,
-         * layout and paint-record bill charged against the one thread the bundle is parsing on.
-         * As six flat images the browser rasterises each once and then does nothing but move a
-         * texture, which is the compositor's whole job, and the walk cycle becomes free: six
-         * drawings of the same host at six points of the stride, cross-faded on a hard cut.
-         */
-        function frame(index) {
-          var phase = index / FRAMES;
-          var svg = '';
-          for (var i = 0; i < COLUMN.length; i += 1) {
-            // A quarter cycle between one host and the next, so no two are in step: a road full of
-            // armies is many bodies of men, each keeping its own time.
-            svg += host(COLUMN[i].plan, { x: COLUMN[i].x, y: GROUND }, HOST_SCALE, phase + i * 0.23, 1);
-          }
-          return 'url("data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
-            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + TILE_W + ' ' + TILE_H + '">' +
-            svg + '</svg>') + '")';
-        }
-
-        // ── the country ──────────────────────────────────────────────────────────────────────
-        // One 300-unit tile that begins and ends at the same two heights, so it tiles: rolling
-        // ground with two karst towers standing out of it. The mass is bounded top and bottom by
-        // drawn edges and neither is ruled — see `.sp-far`.
-        var RIDGE = 'M0 33Q16 33 24 24Q32 16 42 21Q50 25 58 18Q66 11 76 20Q84 27 96 27Q108 27 116 18' +
-          'Q124 10 134 16Q142 21 152 14Q162 7 172 17Q180 25 192 26Q206 26 214 17Q222 9 232 15' +
-          'Q240 20 250 13Q260 6 270 16Q278 24 290 28Q296 30 300 33';
-        var BASE = 'L300 47Q286 51 272 47Q258 43 244 47Q230 51 216 47Q202 43 188 47Q174 51 160 47' +
-          'Q146 43 132 47Q118 51 104 47Q90 43 76 47Q62 51 48 47Q34 43 20 47Q10 49 0 47Z';
-        var KARST = 'M62 30L66 6L70 2L75 8L79 30ZM206 30L210 9L215 4L219 11L223 30Z';
-        var LAND = 'url("data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
-          // `preserveAspectRatio="none"`, and it is load-bearing. The tile is authored 300x52 and
-          // laid down at 300x40; left to letterbox itself the drawing comes out 231 wide inside a
-          // 300-wide slot, so every tile has 35 units of blank paper down each side and the range
-          // reads as a row of hills chopped off at both ends. Stretching is the correct answer for
-          // a landscape band — this *is* the horizon, and it should fill the width it is given.
-          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 52" preserveAspectRatio="none">' +
-          '<path d="' + RIDGE + BASE + '" fill="' + P.inkFaint + '" fill-opacity="0.34"/>' +
-          '<path d="' + KARST + '" fill="' + P.inkFaint + '" fill-opacity="0.4"/>' +
-          '<path d="' + RIDGE + '" fill="none" stroke="#7a6b53" stroke-opacity="0.5" ' +
-          'stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round" ' +
-          'vector-effect="non-scaling-stroke"/></svg>') + '")';
-
-        /**
-         * Hanging the band on the page.
-         *
-         * Deferred past the first paint, deliberately. The mark and the wordmark are in the
-         * document the parser is already reading and print on its first frame; the band is four
-         * SVG images of sixteen blocks each, about 1.6 MB of path data to build, and doing that
-         * first spends the one thing this screen exists to protect.
-         *
-         * `requestAnimationFrame` alone is not the deferral it looks like: its callbacks run
-         * *before* the paint of the frame they are registered for, so building the band in one put
-         * the first ink at 900 ms instead of 400. The `setTimeout` inside it is what actually
-         * lands after the paint. By then the bundle is still on the wire, so drawing the army
-         * there costs the player nothing at all.
-         */
-        // `hostEl`, not `host`: the element and the function that draws a host are two different
-        // things, and a `var` at this scope shadows the function declaration above it.
-        var farEl = document.getElementById('sp-far');
-        var hostEl = document.getElementById('sp-host');
-        function raise() {
-          if (!farEl || !hostEl) return;
-          farEl.style.backgroundImage = LAND;
-          // Built as elements rather than as a string of HTML: a data URI goes inside
-          // `url("…")`, and those quotes close the `style="…"` attribute they would be written in.
-          for (var f = 0; f < FRAMES; f += 1) {
-            var el = document.createElement('div');
-            el.className = 'sp-frame';
-            el.style.backgroundImage = frame(f);
-            // Each frame runs on the same clock, entered a sixth of a beat after the one before.
-            el.style.animationDelay = '-' + (f * 0.24).toFixed(2) + 's';
-            hostEl.appendChild(el);
-          }
-        }
-        requestAnimationFrame(function () { setTimeout(raise, 0); });
 
         // ── the sheet ────────────────────────────────────────────────────────────────────────
         /**

@@ -7,7 +7,7 @@ import type { Army, ArmyComposition, ArmyWardrobe, GameState } from '../../state
 import {
   blockShares, compositionOfUnits, DOCTRINE, FORMATION_ORDER, FORMATION_PLAN, HOST_MARK_CAP,
   MARCH_PLAN, MEN_PER_MARK, marchPlanFacing, type BattleFormation, type FormationKey,
-  type FormationTweak,
+  type FormationTweak, marksFor,
 } from '../../data/ascent/formations';
 
 /**
@@ -1152,7 +1152,9 @@ export function planArmy(
   // `marching` lives on the kit precisely so it survives the second call.
   const shape = armyShape(
     men, compositionFor(kit), s, kit.mustered, kit.spread ?? 1, kit.shape, kit.markCap,
-    kit.marching ? marchPlanFacing(kit.marchHeading ?? 0, RANK_PER_FILE) : undefined,
+    kit.marching
+      ? marchPlanFacing(kit.marchHeading ?? 0, RANK_PER_FILE, marksFor(men, kit.markCap))
+      : undefined,
   );
   const figures: FigurePlacement[] = [];
   let index = 0;
@@ -1314,18 +1316,53 @@ export function hostSpan(shape: HostShape, s = 1): { spanX: number; spanY: numbe
  * Per *rank* rather than per figure on purpose. A busy map carries dozens of these markers, and four
  * tweens per host instead of forty is the difference between free and a frame budget.
  */
-export function marchInPlace(scene: Phaser.Scene, ranks: ReadonlyArray<{ y: number }>, s = 1): void {
-  ranks.forEach((rank, index) => {
-    scene.tweens.add({
-      targets: rank,
-      y: rank.y - 0.29 * RANK_PITCH * s,
-      duration: 900 + index * 80,
-      delay: index * 200,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    });
-  });
+export function marchInPlace(
+  scene: Phaser.Scene,
+  ranks: ReadonlyArray<{ y: number }>,
+  s = 1,
+): Phaser.Tweens.Tween[] {
+  // **Created stopped.** A host that is standing still is standing still: men holding ground do
+  // not rise and fall on the spot, and every marker on the map doing it at once read as the whole
+  // country breathing. The caller starts the cadence when the host is actually moving — see
+  // `setHostStepping` — and stops it when it halts.
+  return ranks.map((rank, index) => scene.tweens.add({
+    targets: rank,
+    y: rank.y - 0.29 * RANK_PITCH * s,
+    duration: 900 + index * 80,
+    delay: index * 200,
+    yoyo: true,
+    repeat: -1,
+    ease: 'Sine.easeInOut',
+    paused: true,
+  }));
+}
+
+/** Where a marker keeps the cadence tweens its ranks step to, so anything holding the marker can stop them. */
+export const HOST_STEP_KEY = 'hostStepTweens';
+
+/**
+ * Starts or stops a host's stepping cadence.
+ *
+ * The rank tweens are `yoyo`/`repeat: -1` and own the ranks' `y`, so stopping one mid-swing would
+ * leave that rank standing a third of a rank-pitch out of line with its neighbours. Stopping
+ * therefore also puts every rank back on the line it was built on, which is what `restart` +
+ * `pause` does in one step: the tween seeks its start value and holds there.
+ */
+export function setHostStepping(
+  holder: { getData(key: string): unknown },
+  stepping: boolean,
+): void {
+  const tweens = holder.getData(HOST_STEP_KEY) as Phaser.Tweens.Tween[] | undefined;
+  if (!tweens) return;
+  for (const tween of tweens) {
+    if (!tween || (tween as unknown as { pendingRemove?: boolean }).pendingRemove) continue;
+    if (stepping) {
+      tween.resume();
+    } else {
+      tween.restart();
+      tween.pause();
+    }
+  }
 }
 
 // ── seals ─────────────────────────────────────────────────────────────────────

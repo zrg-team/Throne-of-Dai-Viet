@@ -1,0 +1,161 @@
+Vạn Thắng — Ten Thousand Victories
+Copyright (c) 2026 zrg-team
+
+Required Notice: Copyright (c) 2026 zrg-team
+(https://github.com/zrg-team/ten-thousand-victories)
+
+===============================================================================
+  SUMMARY — this is source-available, not open source
+===============================================================================
+
+  You may play, read, fork, modify, share and build on this project freely,
+  for any NONCOMMERCIAL purpose, under the PolyForm Noncommercial License
+  1.0.0, whose full and unmodified text follows below.
+
+  COMMERCIAL RIGHTS ARE RESERVED to the licensor, zrg-team. Selling the game
+  or a derivative of it, putting ads or in-app purchases in it, listing it on
+  a store for money, or bundling it into a commercial product or service is
+  NOT permitted by this licence. The only commercial builds of Vạn Thắng are
+  the official ones published from this repository.
+
+  If you want to do something commercial with it, ask — see COMMERCIAL.md.
+  The licensor grants such licences separately and in writing.
+
+  This summary is a plain-language description, provided for convenience.
+  The licence terms are the text below.
+
+===============================================================================
+  WHAT IS COVERED
+===============================================================================
+
+  Everything in this repository authored by the licensor: the TypeScript
+  source, the procedural Đông Hồ drawing code and the images it produces,
+  the portrait parts under public/faces/, the game data (heroes, cards,
+  edicts, stories, provinces), the Vietnamese and English text, the design
+  documents under docs/, and the verification harnesses under test_scripts/.
+
+  Third-party components keep their own licences and are not covered by
+  these terms — see "Third-party components" at the end of this file.
+
+  The historical events, figures and folk tales this game draws on are not
+  anyone's property. Nothing here claims rights over the history itself;
+  only over this particular telling of it.
+
+===============================================================================
+  LICENCE TEXT — the unmodified PolyForm Noncommercial License 1.0.0
+===============================================================================
+
+# PolyForm Noncommercial License 1.0.0
+
+<https://polyformproject.org/licenses/noncommercial/1.0.0>
+
+## Acceptance
+
+In order to get any license under these terms, you must agree to them as both strict obligations and conditions to all your licenses.
+
+## Copyright License
+
+The licensor grants you a copyright license for the software to do everything you might do with the software that would otherwise infringe the licensor's copyright in it for any permitted purpose.  However, you may only distribute the software according to [Distribution License](#distribution-license) and make changes or new works based on the software according to [Changes and New Works License](#changes-and-new-works-license).
+
+## Distribution License
+
+The licensor grants you an additional copyright license to distribute copies of the software.  Your license to distribute covers distributing the software with changes and new works permitted by [Changes and New Works License](#changes-and-new-works-license).
+
+## Notices
+
+You must ensure that anyone who gets a copy of any part of the software from you also gets a copy of these terms or the URL for them above, as well as copies of any plain-text lines beginning with `Required Notice:` that the licensor provided with the software.  For example:
+
+> Required Notice: Copyright Yoyodyne, Inc. (http://example.com)
+
+## Changes and New Works License
+
+The licensor grants you an additional copyright license to make changes and new works based on the software for any permitted purpose.
+
+## Patent License
+
+The licensor grants you a patent license for the software that covers patent claims the licensor can license, or becomes able to license, that you would infringe by using the software.
+
+## Noncommercial Purposes
+
+Any noncommercial purpose is a permitted purpose.
+
+## Personal Uses
+
+Personal use for research, experiment, and testing for the benefit of public knowledge, personal study, private entertainment, hobby projects, amateur pursuits, or religious observance, without any anticipated commercial application, is use for a permitted purpose.
+
+## Noncommercial Organizations
+
+Use by any charitable organization, educational institution, public research organization, public safety or health organization, environmental protection organization, or government institution is use for a permitted purpose regardless of the source of funding or obligations resulting from the funding.
+
+## Fair Use
+
+You may have "fair use" rights for the software under the law. These terms do not limit them.
+
+## No Other Rights
+
+These terms do not allow you to sublicense or transfer any of your licenses to anyone else, or prevent the licensor from granting licenses to anyone else.  These terms do not imply any other licenses.
+
+## Patent Defense
+
+If you make any written claim that the software infringes or contributes to infringement of any patent, your patent license for the software granted under these terms ends immediately. If your company makes such a claim, your patent license ends immediately for work on behalf of your company.
+
+## Violations
+
+The first time you are notified in writing that you have violated any of these terms, or done anything with the software not covered by your licenses, your licenses can nonetheless continue if you come into full compliance with these terms, and take practical steps to correct past violations, within 32 days of receiving notice.  Otherwise, all your licenses end immediately.
+
+## No Liability
+
+***As far as the law allows, the software comes as is, without any warranty or condition, and the licensor will not be liable to you for any damages arising out of these terms or the use or nature of the software, under any kind of legal claim.***
+
+## Definitions
+
+The **licensor** is the individual or entity offering these terms, and the **software** is the software the licensor makes available under these terms.
+
+**You** refers to the individual or entity agreeing to these terms.
+
+**Your company** is any legal entity, sole proprietorship, or other kind of organization that you work for, plus all organizations that have control over, are under the control of, or are under common control with that organization.  **Control** means ownership of substantially all the assets of an entity, or the power to direct its management and policies by vote, contract, or otherwise.  Control can be direct or indirect.
+
+**Your licenses** are all the licenses granted to you for the software under these terms.
+
+**Use** means anything you do with the software requiring one of your licenses.
+
+===============================================================================
+  END OF THE POLYFORM LICENCE TEXT
+===============================================================================
+
+  Everything between the two "LICENCE TEXT" markers above is the verbatim,
+  unmodified PolyForm Noncommercial License 1.0.0. The notes below are the
+  licensor's own; they add information and do not change those terms.
+
+===============================================================================
+  THIRD-PARTY COMPONENTS
+===============================================================================
+
+  These are used by the game and are licensed by their own authors, under
+  their own terms, not under this file:
+
+    Phaser 4 ............ MIT ....... https://phaser.io
+    Vite ................ MIT ....... https://vite.dev
+    TypeScript .......... Apache-2.0  https://www.typescriptlang.org
+    Playwright .......... Apache-2.0  https://playwright.dev
+    jsQR ................ Apache-2.0  https://github.com/cozmo/jsQR
+    Be Vietnam Pro ...... SIL OFL 1.1 https://fonts.google.com/specimen/Be+Vietnam+Pro
+    Source Serif 4 ...... SIL OFL 1.1 https://fonts.google.com/specimen/Source+Serif+4
+
+  The mobile and desktop shells under apps/ pull in further dependencies
+  (Expo, Tauri and their transitive packages), each under its own licence.
+
+===============================================================================
+  CONTRIBUTIONS
+===============================================================================
+
+  Contributions are very welcome, and this is the one thing to know before
+  sending one: because commercial rights are reserved to the licensor, by
+  opening a pull request you license your contribution to the licensor under
+  these same terms AND additionally grant the licensor a perpetual, worldwide,
+  irrevocable, royalty-free right to use, modify, relicense and commercially
+  exploit it as part of Vạn Thắng — including in the official store-published
+  builds. You keep the copyright in what you wrote.
+
+  If you are not able or willing to grant that, say so in the pull request and
+  it will not be merged; an issue describing the change is still welcome.

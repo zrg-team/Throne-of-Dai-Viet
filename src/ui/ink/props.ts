@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { PIGMENT, shadePigment } from './palette';
 import { inkPath, mulberry32, printedShape, thickPath, washFill, type Pt } from './stroke';
 import { unitScale } from './proportion';
-import { foliagePalette, type SeasonPalette } from './season';
+import { foliagePalette, tintForMountainWeather, type SeasonPalette } from './season';
 
 /**
  * The vocabulary — every silhouette that makes a landscape read as Đại Việt rather than as nowhere.
@@ -325,6 +325,49 @@ export function grassTuft(g: G, x: number, y: number, scale: number, seed: numbe
   if (palette.snow) {
     g.fillStyle(PIGMENT.diepHi, 0.7);
     g.fillEllipse(x, y - 0.4 * s, 4.4 * s, 1.5 * s);
+  }
+}
+
+/**
+ * Bụi — low evergreen scrub for the skirts of a mountain.
+ *
+ * There is deliberately no trunk and no tall crown. A full tree beside a scalable mountain plate
+ * becomes the scale reference and makes the range look house-sized when it is small or swallows
+ * the range when it is large. This low, wide mark can follow the same plate across zoom levels
+ * without changing what the mountain means.
+ */
+export function bush(g: G, x: number, y: number, scale: number, seed: number): void {
+  const s = unitScale('bush', scale);
+  const rand = mulberry32(seed);
+  const palette = foliagePalette();
+  const half = (4.2 + rand() * 1.1) * s;
+  const height = (3.8 + rand() * 1.0) * s;
+  const lobes = 4 + Math.floor(rand() * 3);
+  const outline: Pt[] = [{ x: x - half, y }];
+  for (let lobe = 0; lobe <= lobes * 3; lobe += 1) {
+    const t = lobe / (lobes * 3);
+    const angle = Math.PI + t * Math.PI;
+    const scallop = 0.88 + Math.cos(t * Math.PI * 2 * lobes) * 0.1;
+    outline.push({
+      x: x + Math.cos(angle) * half * scallop,
+      y: y + Math.sin(angle) * height * scallop,
+    });
+  }
+  outline.push({ x: x + half, y });
+  printedShape(g, outline, palette.evergreen, seed + 1, {
+    width: 0.55 * s,
+    alpha: 0.58,
+    wobble: 0.12 * s,
+    step: 3,
+    fillAlpha: 0.78,
+  });
+
+  // One shaded lower lobe gives the tiny mark volume without growing it into a canopy.
+  g.fillStyle(shadePigment(palette.evergreen, 0.76), 0.42);
+  g.fillEllipse(x + half * 0.12, y - height * 0.24, half * 1.25, height * 0.42);
+  if (palette.snow) {
+    g.fillStyle(PIGMENT.diepHi, 0.72);
+    g.fillEllipse(x - half * 0.12, y - height * 0.72, half * 1.28, height * 0.26);
   }
 }
 
@@ -1225,6 +1268,7 @@ export function karst(
   depth = 0.5,
 ): void {
   const rand = mulberry32(seed);
+  const mountainColour = tintForMountainWeather;
   const half = w / 2;
   // The crown sits near the middle — a cone is not a tilted wedge — but never dead centre.
   const apexX = x + (rand() - 0.5) * w * 0.26;
@@ -1287,14 +1331,14 @@ export function karst(
     // edge hanging in the air is a torn strip of paper; buried under the near rank and the mist,
     // it is a mountain standing behind something.
     const skirt = baseY + (depth < 0.45 ? h * 0.34 : 5);
-    washFill(g, [...outline, { x: x + half, y: skirt }, { x: x - half, y: skirt }], PIGMENT.diepLo, seed, 1);
+    washFill(g, [...outline, { x: x + half, y: skirt }, { x: x - half, y: skirt }], mountainColour(PIGMENT.diepLo), seed, 1);
     // One body for every rank, and distance taken off the top of it — never a lighter pigment than
     // the paper. Filling the back rank toward `diepHi` made it BRIGHTER than the sheet it stands
     // on, and a mountain lighter than the sky does not recede: it cuts out and jumps forward,
     // which is what the pale cones in the last pass were doing.
-    washFill(g, outline, PIGMENT.diepHi, seed + 61, 0.3 * (1 - depth), 0);
+    washFill(g, outline, mountainColour(PIGMENT.diepHi), seed + 61, 0.3 * (1 - depth), 0);
     if (depth > 0.3) {
-      washFill(g, outline, PIGMENT.diepDeep, seed + 62, 0.32 * depth, 0);
+      washFill(g, outline, mountainColour(PIGMENT.diepDeep), seed + 62, 0.32 * depth, 0);
     }
   }
   // Contour weight and darkness follow the rank forward, across a wide range. The old range carried
@@ -1328,7 +1372,7 @@ export function karst(
   washFill(
     g,
     [...spine, { x: shadedFlank[0].x, y: baseY }, ...shadedFlank],
-    PIGMENT.diepDeep,
+    mountainColour(PIGMENT.diepDeep),
     seed + 7,
     0.1 + depth * 0.24,
   );

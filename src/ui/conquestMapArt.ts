@@ -189,10 +189,12 @@ const lifeBounds: Record<(typeof life)[number], StampBox> = {
 };
 
 const floraRuntimeScale: Record<(typeof flora)[number], number> = {
-  tree: 0.86,
+  // Every number below was re-measured off a rendered map once sizing followed the ink rather
+  // than the cell (`inkExtent`); the old values were compensating for padding that is now gone.
+  tree: 0.896,
   grass: 0.72,
-  bamboo: 0.90,
-  banana: 0.85,
+  bamboo: 0.826,
+  banana: 0.79,
   areca: 0.92,
   banyan: 0.94,
 };
@@ -251,11 +253,21 @@ const SETTLEMENT_SCALE: Record<(typeof settlements)[number], ConquestArtScaleCon
 
 const lifeRuntimeScale: Record<(typeof life)[number], number> = {
   farmer: 0.82,
-  traveler: 0.42,
-  buffalo: 0.90,
+  // 0.323. The number has come off the map twice.
+  //
+  // It was 0.42, which drew a walking traveller at 1.64x a soldier against a contract that gives
+  // every person on the ground one rate; cutting it to 0.256 fixed the median but was really
+  // cancelling a hardcoded 1.5x that only the *road* call site applied — so villages and roads
+  // still drew the same asset 1.9x apart. With that multiplier gone and both paths stamping from
+  // these bounds, the compensation has to go too: 0.256 left the traveller 21% short of the
+  // soldier walking beside him.
+  traveler: 0.323,
+  // 0.76: the walked buffalo measured 1.18x the living rate.
+  buffalo: 0.76,
   'buffalo-rider': 0.88,
   calf: 0.72,
-  'ox-cart': 0.70,
+  // 0.54: the walked rig measured 1.29x.
+  'ox-cart': 0.54,
   'egret-up': 0.90,
   'egret-down': 0.90,
   'spring-petal': 0.55,
@@ -323,7 +335,11 @@ export const CONQUEST_MAP_ART: readonly ConquestArtAsset[] = [
       state: `${tier}.${arm}`, theme, projection: 'character-facing',
       // Mounted sprites use a 432-unit normalization board instead of the nominal 384-unit cell
       // so the full pony fits. This reciprocal compensation preserves rider/body height.
-      runtimeScale: arm === 'mounted' ? 1.33 : 1.51,
+      // Halved against the old cell-fitted numbers because a figure's box is a *reach* box — a
+      // raised spear tops out near 60 above the feet — while the PNG's ink is the whole drawing,
+      // spear included. Fitting ink to reach made every soldier 1.76x the rate the farmer beside
+      // him stands at; measured on a map with hosts on it, and corrected by that factor.
+      runtimeScale: arm === 'mounted' ? 0.754 : 0.856,
     },
   )))),
 ] as const;
@@ -343,6 +359,184 @@ export function conquestKarstArtId(seed: number): string {
 }
 
 const byId = new Map(CONQUEST_MAP_ART.map((asset) => [asset.id, asset] as const));
+
+/**
+ * Reviewed 2x2 walk sheets for the authored living-map subjects that visibly travel.
+ *
+ * The still PNGs remain the source/fallback. Each sheet has four equal 627px cells and was audited
+ * for real alpha and four distinct poses. `contentHeight`, `baselines`, and optional torso
+ * `anchorsX` come from the opaque-pixel audit so changing frames does not make the subject jump
+ * merely because ImageGen placed one pose differently inside its cell.
+ */
+export interface ConquestWalkSheet {
+  kind: 'person' | 'buffalo' | 'cart';
+  sourceTextureKey: string;
+  textureKey: string;
+  path: string;
+  frameWidth: 627;
+  frameHeight: 627;
+  contentHeight: number;
+  baselines: readonly [number, number, number, number];
+  anchorsX?: readonly [number, number, number, number];
+  /** Real-world height, in metres, that the sprite's drawn ink height stands for. */
+  subjectMetres: number;
+  /** Ground distance, in metres, that the four poses together cover — one full gait cycle. */
+  cycleMetres: number;
+}
+
+/**
+ * World distance between pose changes for a walker drawn `visibleHeight` pixels tall.
+ *
+ * The gait used to be a hand-tuned constant per sheet, which is a number with no way to be right:
+ * it silently encodes a drawn size, so any change to the art scale desynchronises the legs from
+ * the ground. Measured on the road, the traveller's 0.45 came out at **0.083 m per pose** against
+ * a real 0.35 — the legs cycled about four and a half times faster than the ground it covered,
+ * which is exactly the sewing-machine trot a player reads as "too fast".
+ *
+ * Deriving it from the sprite's own drawn height instead makes the cadence a consequence of the
+ * scale contract rather than a second opinion about it.
+ */
+export function walkStrideFor(sheet: ConquestWalkSheet, visibleHeight: number): number {
+  const pixelsPerMetre = Math.max(0.001, visibleHeight) / sheet.subjectMetres;
+  return (sheet.cycleMetres / 4) * pixelsPerMetre;
+}
+
+export const CONQUEST_WALK_SHEETS: readonly ConquestWalkSheet[] = [
+  {
+    kind: 'person',
+    sourceTextureKey: 'conquest-art:life.farmer',
+    textureKey: 'conquest-art:life.farmer-walk',
+    path: 'art/conquest-dongho/life/farmer-walk.png',
+    frameWidth: 627,
+    frameHeight: 627,
+    contentHeight: 579,
+    baselines: [589, 590, 595, 594],
+    subjectMetres: 1.62,
+    cycleMetres: 1.35,
+  },
+  {
+    kind: 'person',
+    sourceTextureKey: 'conquest-art:life.traveler',
+    textureKey: 'conquest-art:life.traveler-walk',
+    path: 'art/conquest-dongho/life/traveler-walk.png',
+    frameWidth: 627,
+    frameHeight: 627,
+    contentHeight: 549,
+    // Contact A, rear-foot lift, contact B, front-foot lift. The two passing
+    // frames deliberately plant opposite feet; otherwise the tiny map figure
+    // reads as the same leg pose sliding along the road.
+    baselines: [569, 575, 553, 559],
+    // Median torso centres, not whole-silhouette centres. The pole, bag, and
+    // changing feet make the four cell bounds differ by over 60 source pixels;
+    // a shared 313.5px origin turned that into visible left/right jitter.
+    anchorsX: [347, 284, 358, 288],
+    subjectMetres: 1.68,
+    // A shade longer than the farmer's: someone crossing provinces walks out, someone working a
+    // field shuffles between rows.
+    cycleMetres: 1.45,
+  },
+  {
+    kind: 'buffalo',
+    sourceTextureKey: 'conquest-art:life.buffalo',
+    textureKey: 'conquest-art:life.buffalo-walk',
+    path: 'art/conquest-dongho/life/buffalo-walk.png',
+    frameWidth: 627,
+    frameHeight: 627,
+    contentHeight: 350,
+    baselines: [515, 514, 488, 488],
+    // Drawn height is withers plus head, not shoulder height.
+    subjectMetres: 1.55,
+    cycleMetres: 1.7,
+  },
+  {
+    kind: 'cart',
+    sourceTextureKey: 'conquest-art:life.ox-cart',
+    textureKey: 'conquest-art:life.ox-cart-walk',
+    path: 'art/conquest-dongho/life/ox-cart-walk.png',
+    frameWidth: 627,
+    frameHeight: 627,
+    contentHeight: 363,
+    baselines: [499, 499, 487, 485],
+    // The rig's drawn height is the ox and the cart's rail, and the four poses carry both the
+    // hooves and the wheel; an ox in draught walks shorter than one at liberty.
+    subjectMetres: 1.7,
+    cycleMetres: 1.5,
+  },
+] as const;
+
+const walkSheetBySourceTexture = new Map(
+  CONQUEST_WALK_SHEETS.map((sheet) => [sheet.sourceTextureKey, sheet] as const),
+);
+
+export function conquestWalkSheetForTexture(textureKey: string): ConquestWalkSheet | undefined {
+  return walkSheetBySourceTexture.get(textureKey);
+}
+
+/**
+ * Side of one cell in the reduced sheet a walker is actually drawn from.
+ *
+ * The authored sheets are 627-pixel cells and a map walker stands about nine world pixels, so the
+ * GPU was minifying them **68 to 1** through a plain `LINEAR` filter with no mipmaps. Four texels
+ * out of a 68x68 footprint is not a sample of the pose, it is four arbitrary points inside it, and
+ * two things follow. The figure spreads: measured against the reduced sheet at the same drawn size,
+ * the same traveller laid down **228 units of ink instead of 120** — a smear across nearly twice
+ * his own area rather than a person with legs. And at the edges of a 2x2 sheet the sampler
+ * straddles the cell boundary, so a drawn pixel of pose 0 blends in pose 1. That is "sometimes it
+ * overlaps multiple frames", and it was the sampling, never the pose cycle.
+ *
+ * 64 keeps a cell at or above the size it is ever drawn at (nine world pixels at zoom 2 on a DPR-3
+ * panel is about 55 device pixels), so minification is gentle and the browser's own canvas
+ * resampling — a proper box filter, unlike the GPU's four-tap — does the reduction once at load.
+ */
+const WALK_CELL = 64;
+
+/** Reduced-sheet key for a walk sheet, and the frames laid out in one row so no cell can bleed. */
+export function conquestWalkSheetSmallKey(sheet: ConquestWalkSheet): string {
+  return `${sheet.textureKey}:x${WALK_CELL}`;
+}
+
+/**
+ * Builds the reduced sheet once per walk sheet, if it is not there already.
+ *
+ * Laid out as one row of four rather than the source's 2x2, because a row means every cell has a
+ * transparent neighbour above and below it — nothing to bleed in even if a future filter change
+ * starts sampling wider.
+ */
+export function ensureConquestWalkSheetSmall(
+  scene: Phaser.Scene,
+  sheet: ConquestWalkSheet,
+): string | undefined {
+  const key = conquestWalkSheetSmallKey(sheet);
+  if (scene.textures.exists(key)) return key;
+  if (!scene.textures.exists(sheet.textureKey)) return undefined;
+  try {
+    const source = scene.textures.get(sheet.textureKey).getSourceImage() as CanvasImageSource;
+    const canvas = document.createElement('canvas');
+    canvas.width = WALK_CELL * 4;
+    canvas.height = WALK_CELL;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return undefined;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    for (let i = 0; i < 4; i += 1) {
+      ctx.drawImage(
+        source,
+        (i % 2) * sheet.frameWidth, Math.floor(i / 2) * sheet.frameHeight,
+        sheet.frameWidth, sheet.frameHeight,
+        i * WALK_CELL, 0, WALK_CELL, WALK_CELL,
+      );
+    }
+    scene.textures.addSpriteSheet(key, canvas as unknown as HTMLImageElement, {
+      frameWidth: WALK_CELL, frameHeight: WALK_CELL, endFrame: 3,
+    });
+    return key;
+  } catch {
+    return undefined;
+  }
+}
+
+/** How many source pixels one reduced cell stands for, so baselines carry across unchanged. */
+export const WALK_CELL_SIZE = WALK_CELL;
 
 export function conquestArtAsset(id: string): ConquestArtAsset | undefined {
   return byId.get(id);
@@ -365,6 +559,13 @@ export function preloadConquestMapArt(scene: Phaser.Scene, baseUrl: string): voi
     if (asset.accepted && asset.path && asset.textureKey) {
       scene.load.image(asset.textureKey, `${baseUrl}${asset.path}`);
     }
+  }
+  for (const sheet of CONQUEST_WALK_SHEETS) {
+    scene.load.spritesheet(sheet.textureKey, `${baseUrl}${sheet.path}`, {
+      frameWidth: sheet.frameWidth,
+      frameHeight: sheet.frameHeight,
+      endFrame: 3,
+    });
   }
 }
 
@@ -391,23 +592,186 @@ export interface ConquestArtStampOptions {
   sizing?: 'contract' | 'fit-bounds';
 }
 
+/**
+ * How much of an authored cell is actually ink, measured once per texture.
+ *
+ * **This is what a declared height has to be measured against.** Every size in this file — a
+ * `scaleContract`'s `worldHeight`, a prop's `designBounds` — is a statement about how tall the
+ * *thing* stands. The scale was computed against the PNG's full cell instead, so each asset came
+ * out short by however much transparent margin its generator happened to leave, and every asset
+ * left a different amount.
+ *
+ * Measured on a real map: five tree variants that all declare eight metres and share one box came
+ * out at **1.20, 1.39, 1.68, 1.81 and 1.86 px per metre** — a 1.55x spread between trees standing
+ * in the same field — while the contract for everything on the ground is one rate, 2.23. The
+ * living things were worse: a traveller stood **1.58x** a soldier, an ox-cart 1.29x, a buffalo
+ * 1.17x, and the still farmer 0.84x. That is the "sizes are inconsistent" a player sees, and it
+ * was never a tuning problem — it was measuring the cell instead of the drawing inside it.
+ *
+ * Read from a downscaled copy: 128 rows is +/-0.8% of the height, far finer than the fault, and it
+ * costs a few tenths of a millisecond per texture instead of reading 393,000 pixels.
+ */
+/** How far past its declared footprint a prop may spread before the width rail pulls it in. */
+const WIDTH_RAIL = 1.8;
+
+const inkExtentCache = new Map<string, { x: number; y: number }>();
+
+export function inkExtent(
+  scene: Phaser.Scene,
+  textureKey: string,
+  frameName?: string | number,
+): { x: number; y: number } {
+  const cacheKey = `${textureKey}|${frameName ?? ''}`;
+  const cached = inkExtentCache.get(cacheKey);
+  if (cached) return cached;
+  // A cell that cannot be read is treated as all ink, which is exactly the old behaviour.
+  let extent = { x: 1, y: 1 };
+  try {
+    const source = scene.textures.get(textureKey).getSourceImage() as CanvasImageSource & {
+      width: number; height: number;
+    };
+    // One frame of a sheet, or the whole image when there is no sheet.
+    const frame = frameName === undefined ? undefined : scene.textures.getFrame(textureKey, frameName);
+    const cutX = frame ? frame.cutX : 0;
+    const cutY = frame ? frame.cutY : 0;
+    const cutW = frame ? frame.cutWidth : source.width;
+    const cutH = frame ? frame.cutHeight : source.height;
+    const SAMPLE = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = SAMPLE;
+    canvas.height = SAMPLE;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (ctx && cutW > 0 && cutH > 0) {
+      ctx.drawImage(source, cutX, cutY, cutW, cutH, 0, 0, SAMPLE, SAMPLE);
+      const { data } = ctx.getImageData(0, 0, SAMPLE, SAMPLE);
+      let top = -1; let bottom = -1; let left = -1; let right = -1;
+      for (let y = 0; y < SAMPLE; y += 1) {
+        for (let x = 0; x < SAMPLE; x += 1) {
+          if (data[(y * SAMPLE + x) * 4 + 3] <= 16) continue;
+          if (top < 0) top = y;
+          bottom = y;
+          if (left < 0 || x < left) left = x;
+          if (x > right) right = x;
+        }
+      }
+      if (top >= 0) {
+        extent = {
+          x: Math.max(0.05, (right - left + 1) / SAMPLE),
+          y: Math.max(0.05, (bottom - top + 1) / SAMPLE),
+        };
+      }
+    }
+  } catch {
+    extent = { x: 1, y: 1 };
+  }
+  inkExtentCache.set(cacheKey, extent);
+  return extent;
+}
+
+const inkFootCache = new Map<string, number>();
+
+/**
+ * Where a texture's ink ends, as a fraction of its cell height.
+ *
+ * The ground band's whole rule is "a thing is in front of another thing when its feet are lower
+ * down the sheet" — so the band is only as honest as its idea of where a thing's feet are, and
+ * that has to be the drawn ink, not the box the art was fitted into. Measured across a real map,
+ * the two disagreed badly and in *both* directions:
+ *
+ * | asset | ink foot vs the line it sorted on |
+ * |---|---|
+ * | `terrain.soft-ridge` (half the relief on the map) | 13 units low, up to 20, on art 31 tall |
+ * | `terrain.karst-seven-spire` | 9 units high, up to 17 |
+ * | every settlement compound | 6 to 7 units high |
+ * | every tree, grass and bamboo | 0 — these were always right |
+ *
+ * A ridge sorting 13 units behind its own feet and a town sorting 6 in front of its own is 19
+ * units of error pointing the same way, so a town won against any ridge standing up to a stride
+ * in front of it: the house drew over the mountain.
+ */
+export function inkFoot(
+  scene: Phaser.Scene,
+  textureKey: string,
+  frameName?: string | number,
+): number {
+  const cacheKey = `${textureKey}|${frameName ?? ''}`;
+  const cached = inkFootCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  // Unreadable art is treated as filling its cell, which is what the code did before measuring.
+  let foot = 1;
+  try {
+    const source = scene.textures.get(textureKey).getSourceImage() as CanvasImageSource & {
+      width: number; height: number;
+    };
+    const frame = frameName === undefined ? undefined : scene.textures.getFrame(textureKey, frameName);
+    const cutX = frame ? frame.cutX : 0;
+    const cutY = frame ? frame.cutY : 0;
+    const cutW = frame ? frame.cutWidth : source.width;
+    const cutH = frame ? frame.cutHeight : source.height;
+    const SAMPLE = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = SAMPLE;
+    canvas.height = SAMPLE;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (ctx && cutW > 0 && cutH > 0) {
+      ctx.drawImage(source, cutX, cutY, cutW, cutH, 0, 0, SAMPLE, SAMPLE);
+      const { data } = ctx.getImageData(0, 0, SAMPLE, SAMPLE);
+      for (let y = SAMPLE - 1; y >= 0; y -= 1) {
+        let opaque = false;
+        for (let x = 0; x < SAMPLE; x += 1) {
+          if (data[(y * SAMPLE + x) * 4 + 3] > 16) { opaque = true; break; }
+        }
+        if (opaque) { foot = (y + 1) / SAMPLE; break; }
+      }
+    }
+  } catch {
+    foot = 1;
+  }
+  inkFootCache.set(cacheKey, foot);
+  return foot;
+}
+
+/**
+ * The world y at which a placed stamp's ink meets the ground — what it should sort on.
+ *
+ * Reads the image's own origin and drawn height, so it stays correct however the caller placed or
+ * scaled it, and it costs one cached texture measurement per art asset.
+ */
+export function stampFootY(image: Phaser.GameObjects.Image): number {
+  const foot = inkFoot(image.scene, image.texture.key, image.frame?.name);
+  return image.y + (foot - image.originY) * image.displayHeight;
+}
+
 function displayScale(
+  scene: Phaser.Scene,
   asset: ConquestArtAsset,
   source: { width: number; height: number },
   bounds: StampBox,
   options: ConquestArtStampOptions,
 ): number {
+  // The ink, not the cell — see `inkExtent`. Both branches below declare how tall the *thing*
+  // stands, so both divide the cell back down to the drawing inside it.
+  const ink = asset.textureKey ? inkExtent(scene, asset.textureKey) : { x: 1, y: 1 };
+  const inkHeight = source.height * ink.y;
+  const inkWidth = source.width * ink.x;
   const contract = options.sizing === 'fit-bounds' ? undefined : asset.scaleContract;
   if (contract) {
-    let scale = contract.worldHeight / source.height;
+    let scale = contract.worldHeight / inkHeight;
     if (contract.maxWorldWidth !== undefined) {
-      scale = Math.min(scale, contract.maxWorldWidth / source.width);
+      scale = Math.min(scale, contract.maxWorldWidth / inkWidth);
     }
     return scale * asset.runtimeScale;
   }
+  // **Height governs.** Every declared number in the proportion contract is a height — eight
+  // metres of tree, 1.7 of a person — so a wide canopy must not make a tree short. Fitting by
+  // `min(width, height)` did exactly that: the five eight-metre tree variants came out at 0.72 to
+  // 0.96 of their rate purely according to how broad each one was drawn. Width stays as a rail so
+  // a freak master cannot sprawl across the province, but it is a long way out of the way.
   const width = bounds.right - bounds.left;
   const height = bounds.bottom - bounds.top;
-  return Math.min(width / source.width, height / source.height) * asset.runtimeScale;
+  const byHeight = height / inkHeight;
+  const widthRail = (width * WIDTH_RAIL) / inkWidth;
+  return Math.min(byHeight, widthRail) * asset.runtimeScale;
 }
 
 /** Adapts one authored PNG to the existing stamp contract without changing any caller geometry. */
@@ -422,7 +786,7 @@ export function conquestArtStamp(
   const source = scene.textures.get(asset.textureKey).getSourceImage() as { width: number; height: number };
   if (!source?.width || !source?.height) return undefined;
   const bounds = box ?? asset.designBounds;
-  const scale = displayScale(asset, source, bounds, options);
+  const scale = displayScale(scene, asset, source, bounds, options);
   return {
     key: `generated:${id}`,
     texture: asset.textureKey,

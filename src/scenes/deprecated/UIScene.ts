@@ -1,18 +1,25 @@
-import { attachPaperSheet } from '../ui/ink/paperSheet';
+/**
+ * **Deprecated.** The HUD of the three modes the game is no longer built around — `rival`,
+ * `campaign` and `empire`. Dragon Ascent has its own (`ConquestUIScene`) and shares none of this.
+ *
+ * Still registered and still reachable; see `./README.md` for what is in this folder, what looks
+ * like it belongs here and does not, and what has to change before any of it can go.
+ */
+import { attachPaperSheet } from '../../ui/ink/paperSheet';
 import Phaser from 'phaser';
-import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, isCampaignMode, PLAYER_KINGDOM_ID } from '../game/constants';
+import { ACTION_BAR_HEIGHT, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, isCampaignMode, PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   ACTION_BUTTON_HEIGHT,
   ACTION_BUTTON_Y,
   ActionBar,
   actionSlotAt,
-} from '../ui/ActionBar';
-import { BattlePreviewPanel } from '../ui/BattlePreviewPanel';
-import { BottomSheet, SHEET_TOP } from '../ui/BottomSheet';
-import { CampaignScorePanel } from '../ui/CampaignScorePanel';
-import { ForeignAffairsPanel, stanceLabel } from '../ui/ForeignAffairsPanel';
-import { demandTribute, proposeTrade, sendGift } from '../systems/ForeignAffairsSystem';
-import { ambassadorHero, fomentUnrest, inciteWar, postAmbassador, recallAmbassador } from '../systems/empire/EspionageSystem';
+} from '../../ui/ActionBar';
+import { BattlePreviewPanel } from '../../ui/BattlePreviewPanel';
+import { BottomSheet, SHEET_TOP } from '../../ui/BottomSheet';
+import { CampaignScorePanel } from '../../ui/CampaignScorePanel';
+import { ForeignAffairsPanel, stanceLabel } from '../../ui/ForeignAffairsPanel';
+import { demandTribute, proposeTrade, sendGift } from '../../systems/ForeignAffairsSystem';
+import { ambassadorHero, fomentUnrest, inciteWar, postAmbassador, recallAmbassador } from '../../systems/empire/EspionageSystem';
 import {
   evaluatePactOffer,
   getFear,
@@ -23,11 +30,11 @@ import {
   hasPact,
   naturalBaseline,
   proposePact,
-} from '../systems/DiplomacySystem';
-import { foreignChoiceEnabled } from '../systems/ForeignEventSystem';
-import { directiveTitle } from '../systems/empire/DirectiveSystem';
-import { eraLabel, eraProgress, pointsToNextEra } from '../systems/empire/MandateSystem';
-import { allProjects, enactProject, isProjectEnacted, projectBlockedReason, projectDescription, projectEffectSummary, projectTitle, repealProject } from '../systems/empire/EdictSystem';
+} from '../../systems/DiplomacySystem';
+import { foreignChoiceEnabled } from '../../systems/ForeignEventSystem';
+import { directiveTitle } from '../../systems/empire/DirectiveSystem';
+import { eraLabel, eraProgress, pointsToNextEra } from '../../systems/empire/MandateSystem';
+import { allProjects, enactProject, isProjectEnacted, projectBlockedReason, projectDescription, projectEffectSummary, projectTitle, repealProject } from '../../systems/empire/EdictSystem';
 import {
   authorityCap,
   averageCompliance,
@@ -37,8 +44,8 @@ import {
   realisedFactor,
   repealTerms,
   standingWeight,
-} from '../systems/DecreeSystem';
-import { ABILITIES, abilityBlockedReason, abilityCooldown, abilityLabel, useAbility } from '../systems/empire/AbilitySystem';
+} from '../../systems/DecreeSystem';
+import { ABILITIES, abilityBlockedReason, abilityCooldown, abilityLabel, useAbility } from '../../systems/empire/AbilitySystem';
 import {
   activeHeroMission,
   getHeroEnergy,
@@ -49,19 +56,19 @@ import {
   heroMissionDef,
   heroMissionTargets,
   missionLabel,
-} from '../systems/empire/HeroActionSystem';
-import { heroEventView } from '../systems/empire/HeroEventSystem';
-import { bankLegacy, getLegacy, rankForScore } from '../state/legacy';
-import { MINIMAP_H, MINIMAP_W, renderMinimap, type MinimapWorldInfo } from '../ui/MinimapRenderer';
-import { renderHeroFace } from '../ui/FaceRenderer';
-import { COMPACT_CARD_Y, LandPanel } from '../ui/LandPanel';
-import { ResourceBar } from '../ui/ResourceBar';
-import { createLabel, createPanel, createWoodButton, PARCHMENT } from '../ui/theme';
-import { InkScrollArea, InkUI, INK_UI, type InkCardOptions, type UIBounds } from '../ui/InkUI';
-import { UI_FONT } from '../ui/fonts';
-import { makeSwipeableCard, popInModal, staggerIn } from '../ui/animations';
-import { formatEconomyLine, getArmyGoldUpkeep, getBuildOptions, getLaborStatus, getTaxEffects, getUpgradeOptions, refreshAllLandOutputs } from '../systems/ResourceSystem';
-import { buildFocusRows } from '../ui/focusPanel';
+} from '../../systems/empire/HeroActionSystem';
+import { heroEventView } from '../../systems/empire/HeroEventSystem';
+import { bankLegacy, getLegacy, rankForScore } from '../../state/legacy';
+import { MINIMAP_H, MINIMAP_W, renderMinimap, type MinimapWorldInfo } from '../../ui/MinimapRenderer';
+import { renderHeroFace } from '../../ui/FaceRenderer';
+import { COMPACT_CARD_Y, LandPanel } from '../../ui/LandPanel';
+import { ResourceBar } from '../../ui/ResourceBar';
+import { createLabel, createPanel, createWoodButton, PARCHMENT } from '../../ui/theme';
+import { InkScrollArea, InkUI, INK_UI, type InkCardOptions, type UIBounds } from '../../ui/InkUI';
+import { UI_FONT } from '../../ui/fonts';
+import { makeSwipeableCard, popInModal, staggerIn } from '../../ui/animations';
+import { formatEconomyLine, getArmyGoldUpkeep, getBuildOptions, getLaborStatus, getTaxEffects, getUpgradeOptions, refreshAllLandOutputs } from '../../systems/ResourceSystem';
+import { buildFocusRows } from '../../ui/focusPanel';
 import {
   ALL_COURT_POSITIONS,
   assignHeroToLand,
@@ -70,12 +77,12 @@ import {
   formatGovernorEffect,
   getCourtPositionLabel,
   removeHeroFromPosition,
-} from '../systems/CourtSystem';
-import { ARMY_DEFAULT_PROVISIONS, ARMY_DEFAULT_RATIONS, ARMY_LOGISTICS_STEP } from '../game/gameplayConfig';
-import { applyPaperFX } from '../ui/ink/PaperFX';
-import { applyRenderScale, designPointer } from '../game/graphicsQuality';
-import type { CourtPositionId, GameState, Hero, Land, PoliticsCard, TaxPolicy } from '../state/types';
-import { ESTATE_IDS } from '../state/types';
+} from '../../systems/CourtSystem';
+import { ARMY_DEFAULT_PROVISIONS, ARMY_DEFAULT_RATIONS, ARMY_LOGISTICS_STEP } from '../../game/gameplayConfig';
+import { applyPaperFX } from '../../ui/ink/PaperFX';
+import { applyRenderScale, designPointer } from '../../game/graphicsQuality';
+import type { CourtPositionId, GameState, Hero, Land, PoliticsCard, TaxPolicy } from '../../state/types';
+import { ESTATE_IDS } from '../../state/types';
 import {
   buildingLabel,
   formatResourceList,
@@ -92,7 +99,7 @@ import {
   seasonLabel,
   t,
   tickLabel,
-} from '../i18n';
+} from '../../i18n';
 
 type CourtPicker =
   | { kind: 'position'; positionId: CourtPositionId }

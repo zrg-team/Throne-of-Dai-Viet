@@ -30,7 +30,7 @@ import type { ConquestUIScene } from '../ConquestUIScene';
  * file did, reporting the gold-card glow in `prompts/run.ts` as a live leak. It is not.
  *
  * What the pair still buys is the *tick before* that, and depth. The layers here are rebuilt on
- * every beat — the clash mark over the seam, `marchInPlace` on every rank of every host block —
+ * every beat — the clash mark over the seam, the four-frame clock inside every host block —
  * so "retires itself a tick later" is a frame of tweens writing to dead objects, sixty times a
  * second, for the length of a siege. Killing them first costs one walk of a container that is
  * about to be destroyed anyway.
@@ -43,9 +43,9 @@ export function clearLayer(self: ConquestUIScene, target: Phaser.GameObjects.Con
 /**
  * Kills every tween pointing at an object *or at anything inside it*.
  *
- * The depth is the whole point. `marchInPlace` tweens each rank of a host block, and a rank is a
- * `Graphics` child of the marker container — so `killTweensOf(marker)` finds nothing at all and
- * every rebuilt block left its old ranks stepping in place forever, invisible and still costing.
+ * The depth is the whole point. An authored host's frame clock targets its nested stamped-army
+ * container (and the procedural rollback targets its ranks), so `killTweensOf(marker)` finds
+ * nothing at all and every rebuilt block would leave an invisible clock behind.
  */
 export function killTweensDeep(self: ConquestUIScene, object: Phaser.GameObjects.GameObject): void {
   self.tweens.killTweensOf(object);
