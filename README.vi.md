@@ -12,8 +12,28 @@
 
 **[🇬🇧 Read this page in English](README.md)**
 
-[![Chơi ngay trên trình duyệt](https://img.shields.io/badge/▶%20%20Ch%C6%A1i%20ngay-zrg--team.github.io-b33a26?style=for-the-badge)](https://zrg-team.github.io/ten-thousand-victories/)
+<br>
+
+### ▶ Chơi ngay được luôn — miễn phí, không quảng cáo
+
+[![Chơi miễn phí trên trình duyệt](https://img.shields.io/badge/▶%20%20CH%C6%A0I%20MI%E1%BB%84N%20PH%C3%8D%20TR%C3%8AN%20TR%C3%8CNH%20DUY%E1%BB%86T-kh%C3%B4ng%20c%C3%A0i%20%C4%91%E1%BA%B7t%20·%20kh%C3%B4ng%20t%C3%A0i%20kho%E1%BA%A3n%20·%20kh%C3%B4ng%20qu%E1%BA%A3ng%20c%C3%A1o-b33a26?style=for-the-badge&labelColor=7d2417)](https://zrg-team.github.io/ten-thousand-victories/)
+
+**Nguyên vẹn cả game — đủ mọi chế độ, đủ hai thứ tiếng, không giấu phần nào, không tốn đồng nào.**
+
+<br>
+
+**…và nếu muốn game này còn đi tiếp, mua một lần trên điện thoại**
+
+[![Tải trên Google Play](https://img.shields.io/badge/Google%20Play-%E1%BB%A7ng%20h%E1%BB%99%20b%E1%BA%A3n%20build-2a2118?style=for-the-badge&logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=zrg.team.vanthang)
 &nbsp;
+[![Tải trên App Store](https://img.shields.io/badge/App%20Store-%E1%BB%A7ng%20h%E1%BB%99%20b%E1%BA%A3n%20build-2a2118?style=for-the-badge&logo=appstore&logoColor=white)](https://apps.apple.com/app/id6805950974)
+
+**Khoảng 50.000₫, trả đúng một lần.**
+
+<sub>Vẫn đúng game ấy — vẫn không quảng cáo, không đồng hồ chờ năng lượng, bên trong không bán thêm thứ gì.<br>Chỉ khác là nó cài vào máy như một app thật và chơi được khi không có mạng, còn tiền ấy là để nuôi việc làm game.<br>Bản trên trình duyệt không phải bản dùng thử hay bản rút gọn: nó là nguyên con, mãi mãi.<br>Mua app chỉ là cách bạn mời mình ly cà phê, tiện thể có thêm cái icon ngoài màn hình chính.</sub>
+
+<br>
+
 [![Deploy](https://github.com/zrg-team/ten-thousand-victories/actions/workflows/deploy-github-pages.yml/badge.svg)](https://github.com/zrg-team/ten-thousand-victories/actions/workflows/deploy-github-pages.yml)
 
 ![Phaser 4](https://img.shields.io/badge/Phaser-4-2a2118?style=flat-square)
@@ -22,10 +42,32 @@
 ![Ngôn ngữ](https://img.shields.io/badge/ng%C3%B4n%20ng%E1%BB%AF-Ti%E1%BA%BFng%20Vi%E1%BB%87t%20·%20English-c08a2e?style=flat-square)
 ![Không backend](https://img.shields.io/badge/backend-kh%C3%B4ng%20·%20l%C6%B0u%20ngay%20tr%C3%AAn%20m%C3%A1y%20b%E1%BA%A1n-8c7e67?style=flat-square)
 ![Ngoại tuyến](https://img.shields.io/badge/ngo%E1%BA%A1i%20tuy%E1%BA%BFn-c%C3%A0i%20t%E1%BB%AB%20tr%C3%ACnh%20duy%E1%BB%87t-6f6250?style=flat-square)
+[![Giấy phép](https://img.shields.io/badge/gi%E1%BA%A5y%20ph%C3%A9p-PolyForm%20Noncommercial%201.0.0-8c6f3a?style=flat-square)](LICENSE)
 
 </div>
 
 ---
+
+## 📑 Mục lục
+
+- [🎯 Vì sao có game này](#-vì-sao-có-game-này)
+- [🐉 Chơi thế nào — Rồng Thăng Long · Dragon Ascent](#-chơi-thế-nào--rồng-thăng-long--dragon-ascent)
+- [🌾 Kinh tế — giang sơn sống bằng gì](#-kinh-tế--giang-sơn-sống-bằng-gì)
+- [🎎 Danh tướng — một triều đình đáng đồng lương](#-danh-tướng--một-triều-đình-đáng-đồng-lương)
+- [🥁 Trận mạc — năm thế và một hồi trống](#-trận-mạc--năm-thế-và-một-hồi-trống)
+  - [Những đạo quân trên chiến trường](#những-đạo-quân-trên-chiến-trường)
+- [📜 Sử Ký — chuyện kể chính là cỗ máy](#-sử-ký--chuyện-kể-chính-là-cỗ-máy)
+- [🏮 Lịch sử thật, chạm một cái là tới](#-lịch-sử-thật-chạm-một-cái-là-tới)
+- [🖌️ Chuyện vẽ vời](#️-chuyện-vẽ-vời)
+  - [Danh tướng](#danh-tướng)
+  - [Quân đội các vương quốc](#quân-đội-các-vương-quốc)
+  - [Đông Hồ](#đông-hồ)
+- [📱 Chơi](#-chơi)
+- [🛠️ Phát triển](#️-phát-triển)
+- [🤝 Cùng làm game hay hơn](#-cùng-làm-game-hay-hơn)
+- [📄 Giấy phép](#-giấy-phép)
+- [☕ Ủng hộ](#-ủng-hộ)
+- [🙏 Tri ân](#-tri-ân)
 
 ## 🎯 Vì sao có game này
 
@@ -53,7 +95,7 @@ Bạn là một tiểu vương với vỏn vẹn một tòa kinh thành, giữa 
   </tr>
 </table>
 
-Đỡ bên dưới vòng lặp ấy là bốn hệ thống: kinh tế, triều đình, trận mạc, và chuyện kể. Phần còn lại của trang này kể về từng thứ — và lý do mình làm nó như thế. *(Ba chế độ cổ điển — Giao Tranh, Ngai Vàng Các Đế Quốc, Chiến dịch — vẫn có đủ, nhưng món chính là Rồng Thăng Long.)*
+Đỡ bên dưới vòng lặp ấy là bốn hệ thống: kinh tế, triều đình, trận mạc, và chuyện kể. Phần còn lại của trang này kể về từng thứ — và lý do mình làm nó như thế.
 
 ## 🌾 Kinh tế — giang sơn sống bằng gì
 
@@ -89,7 +131,7 @@ Sao phải cầu kỳ vậy? Vì thứ lịch sử game này quý nhất là con
   </tr>
 </table>
 
-Chân dung không phải ảnh mua sẵn. Mỗi khuôn mặt ghép từ **267 mảnh vẽ tay** — đầu, tóc, mũ mão, cổ áo, y phục — và chọn mảnh nào là do **thân phận** quyết trước: sống thời nào, giữ chức gì, phẩm hàm nào, nam hay nữ, có xuất gia không. Xong xuôi mới tới lượt random chọn trong đúng tủ áo ấy. Nhờ vậy quan nhà Lê không mặc nhầm cổ áo nhà Nguyễn, tướng ngoài trận không đội mũ nhà nho. Danh sách có 127 danh tướng, phần nhiều là người thật:
+Chân dung không phải ảnh mua sẵn. Mỗi khuôn mặt ghép từ **277 mảnh vẽ tay** — đầu, tóc, mũ mão, cổ áo, y phục — và chọn mảnh nào là do **thân phận** quyết trước: sống thời nào, giữ chức gì, phẩm hàm nào, nam hay nữ, có xuất gia không. Xong xuôi mới tới lượt random chọn trong đúng tủ áo ấy. Nhờ vậy quan nhà Lê không mặc nhầm cổ áo nhà Nguyễn, tướng ngoài trận không đội mũ nhà nho. Danh sách có 127 danh tướng, phần nhiều là người thật:
 
 <img src="docs/readme/portraits.webp" alt="Mười danh tướng trong danh sách, từ Ngô Quyền tới Lê Quý Đôn — thời đại, chức phận và giới tính quyết định y phục" width="100%">
 
@@ -120,7 +162,7 @@ Ngoài chiến trường không có sprite sheet nào hết. Mỗi đạo quân 
 
 ## 📜 Sử Ký — chuyện kể chính là cỗ máy
 
-Chuyện trong game không phải cutscene. Có **bốn mươi tám khuôn chuyện** nằm chờ sẵn; gặp đúng thời cơ, chuyện tự tìm đến tướng *của bạn*, đất *của bạn* — khi là lời xì xào trên bản đồ, khi là lá bài dúi vào tay, khi là một cú xoay cả ván. Mỗi chuyện là một mảnh sử hay truyền thuyết Việt, kể vừa gọn trong nhịp thở của một ván chơi.
+Chuyện trong game không phải cutscene. Có **bốn mươi chín khuôn chuyện** nằm chờ sẵn; gặp đúng thời cơ, chuyện tự tìm đến tướng *của bạn*, đất *của bạn* — khi là lời xì xào trên bản đồ, khi là lá bài dúi vào tay, khi là một cú xoay cả ván. Mỗi chuyện là một mảnh sử hay truyền thuyết Việt, kể vừa gọn trong nhịp thở của một ván chơi.
 
 <table>
   <tr>
@@ -170,7 +212,7 @@ Game gần như không mang theo sprite nào. Người, quân, sông núi — t�
 
 ### Danh tướng
 
-Mười vị tướng này không nằm trong danh sách nào: máy tự nghĩ ra con người — tên, thời đại, chức phận — rồi tủ áo cứ theo thân phận ấy mà mặc, từ đúng bộ **267 mảnh vẽ tay** đã mặc cho các nhân vật thật phía trên. Không có hai triều đình nào giống nhau:
+Mười vị tướng này không nằm trong danh sách nào: máy tự nghĩ ra con người — tên, thời đại, chức phận — rồi tủ áo cứ theo thân phận ấy mà mặc, từ đúng bộ **277 mảnh vẽ tay** đã mặc cho các nhân vật thật phía trên. Không có hai triều đình nào giống nhau:
 
 <img src="docs/readme/faces-generated.webp" alt="Mười danh tướng sinh tự động — giáp trụ, triều phục, mũ nho sĩ, mũ miện — không ai trong số họ có trong danh sách" width="100%">
 
@@ -196,6 +238,8 @@ Và chính bức tranh: giấy điệp quét vỏ sò, bản màu in trước, b
 - **Tiếng Việt / English** đổi trong Thiết lập, cùng chỗ với chất lượng đồ họa và kiểu bản đồ.
 - Một ô lưu, nằm ngay trong trình duyệt của bạn.
 
+**Hoặc tải từ store.** Vẫn đúng game ấy, đóng gói thành app thật — [**Google Play**](https://play.google.com/store/apps/details?id=zrg.team.vanthang) và [**App Store**](https://apps.apple.com/app/id6805950974), khoảng 50.000₫, trả một lần. Vẫn không quảng cáo, không bán thêm gì bên trong, không cần tài khoản, tắt mạng vẫn chơi. Bản store không có thêm thứ gì mà bản trình duyệt thiếu — mua là để đỡ cho công làm game thôi.
+
 ## 🛠️ Phát triển
 
 ```bash
@@ -207,7 +251,7 @@ yarn build               # tsc && vite build + service worker — cổng CI
 
 Vite + TypeScript (strict) + Phaser 4. Không backend, không framework nào khác. Nội dung là dữ liệu: quân, tướng, lá bài, chiếu chỉ, trấn đất và toàn bộ câu chuyện nằm dưới `src/data/`; hệ thống là hàm thuần trên một `GameState` duy nhất; và câu chữ nào người chơi nhìn thấy cũng phải có đủ bản Việt lẫn bản Anh — thiếu một bên là game dỗi, không chịu khởi động.
 
-Không có framework test. Game được kiểm chứng bằng cách **lái nó trong trình duyệt thật**: `test_scripts/` có khoảng 140 harness Playwright, xếp theo câu hỏi chúng trả lời — `verify/` khẳng định, `shot/` chụp ảnh, `perf/` đo, `playtest/` chấm điểm, `diag/` điều tra. Chúng khởi động đủ mọi chế độ, quay kinh tế hàng trăm mùa qua nhiều seed, bấm những nút thật, chụp từng màn hình, và chấm xem một bản build *vui* được bao nhiêu trên 100 — trước và sau mỗi lần chỉnh cân bằng.
+Không có framework test. Game được kiểm chứng bằng cách **lái nó trong trình duyệt thật**: `test_scripts/` có hơn 180 harness Playwright, xếp theo câu hỏi chúng trả lời — `verify/` khẳng định, `shot/` chụp ảnh, `perf/` đo, `playtest/` chấm điểm, `diag/` điều tra. Chúng khởi động đủ mọi chế độ, quay kinh tế hàng trăm mùa qua nhiều seed, bấm những nút thật, chụp từng màn hình, và chấm xem một bản build *vui* được bao nhiêu trên 100 — trước và sau mỗi lần chỉnh cân bằng.
 
 ```bash
 node test_scripts/gate/smoke.mjs              # mọi chế độ khởi động, chạy, vẽ hình — ~40 giây
@@ -220,12 +264,13 @@ Repo còn kèm một bộ skill và slash-command cho [Claude Code](https://clau
 
 ```
 src/
-├── data/        nội dung — tướng, lá bài, chiếu chỉ, trấn đất, 48 câu chuyện
+├── data/        nội dung — tướng, lá bài, chiếu chỉ, trấn đất, 49 câu chuyện
 ├── systems/     luật chơi — nhịp tick, kinh tế, chiến trận, ascent/, empire/, story/
 ├── state/       GameState, lưu, di sản, codex
 ├── map/         toán lục giác, sinh bản đồ, địa hình, biên giới, đường sá
 ├── ui/          bộ vẽ và bảng điều khiển; ui/ink/ là bộ từ vựng nét vẽ Đông Hồ
-├── scenes/      Boot → Preload → Menu · Guide · History · Skirmish → Map+UI · Conquest+ConquestUI
+├── scenes/      Boot → Preload → Menu · Guide · History → Conquest+ConquestUI · BattleArena
+│   └── deprecated/  các màn cổ điển đã gác lại — vẫn chạy, nhưng không ai làm tiếp
 └── i18n/        các catalog — vi và en, sát cánh nhau
 apps/            vỏ nền tảng; game build một lần, mỗi vỏ tự phục vụ
 ├── mobile/      Expo — iOS và Android
@@ -251,9 +296,30 @@ Issue với pull request đều mở cửa. Những thứ quý nhất bạn có 
 
 Trước khi mở pull request: `yarn build` phải qua, và `node test_scripts/gate/smoke.mjs` nên xanh trên dev server của bạn.
 
+Có một điều nên biết trước khi gửi: vì quyền thương mại được giữ lại (xem mục dưới), khi bạn mở pull request là bạn cấp phép phần đóng góp ấy theo đúng những điều khoản này, **kèm** quyền cho người giữ repo đưa nó vào bản phát hành chính thức, kể cả bản có tính tiền. Bản quyền phần bạn viết vẫn là của bạn. Nếu bạn không muốn vậy, cứ nói thẳng trong pull request — mở một issue mô tả thay đổi vẫn quý như thường.
+
+## 📄 Giấy phép
+
+**Mã nguồn mở ra để đọc, nhưng không phải open source.** Game dùng [PolyForm Noncommercial License 1.0.0](LICENSE); **quyền thương mại thuộc về zrg-team**.
+
+|  | |
+| --- | --- |
+| ✅ **Thoải mái, không cần xin** | Chơi. Đọc mã nguồn và học từ nó. Fork, mod, tự chạy. Đăng một bản fork miễn phí, không quảng cáo, miễn là giữ dòng bản quyền và nói rõ đấy không phải bản chính thức. Đem đi dạy — lớp học, đại học, bảo tàng, thư viện. Stream, quay video, viết bài, chụp màn hình. |
+| ⛔ **Phải xin phép trước** | Bán game, bán bản fork, bán bản reskin. Đưa lên store bằng tài khoản nhà phát triển của bạn. Gắn quảng cáo, mua trong ứng dụng, thuê bao, tường thu phí. Gộp vào một sản phẩm hay dịch vụ có thu tiền. Lấy phần mã vẽ nét, 277 mảnh chân dung, danh sách tướng hay các khuôn chuyện đi làm việc thương mại. Bán đồ lưu niệm. Huấn luyện mô hình thương mại. |
+
+Bản Vạn Thắng thương mại duy nhất là bản chính thức phát hành từ repo này. Chính điều đó giữ được lời hứa ghi ngoài bìa — miễn phí, không quảng cáo, và không ai được đem lịch sử này gói vào quảng cáo rồi bán lại cho người Việt như thể đó là hàng thật.
+
+Bạn muốn làm gì đó có tính thương mại với nó? **Cứ hỏi — phần nhiều là được.** [COMMERCIAL.md](COMMERCIAL.md) ghi rõ thế nào là thương mại, hỏi ở đâu, và trong lời hỏi nên có những gì. Trường học, bảo tàng và các tổ chức phi lợi nhuận ở Việt Nam: giấy phép phi thương mại gần như chắc chắn đã bao trọn phần của bạn rồi, không phải hỏi gì cả.
+
+Phaser, Vite, TypeScript, Playwright và hai bộ phông giữ giấy phép riêng của họ — liệt kê ở cuối [LICENSE](LICENSE). Còn lịch sử là của chung tất cả mọi người; chỉ riêng cách kể này mới là của ai đó.
+
 ## ☕ Ủng hộ
 
-Game miễn phí, và sẽ mãi miễn phí. Nếu nó cho bạn được một buổi tối vui, mời mình ly cà phê — quét mã bằng điện thoại, hoặc bấm vào link:
+Game miễn phí, và sẽ mãi miễn phí — chuyện đó thì không đổi. Nếu nó cho bạn được một buổi tối vui, có ba cách để nói lời ấy.
+
+**Cách hay nhất: mua app.** [Google Play](https://play.google.com/store/apps/details?id=zrg.team.vanthang) · [App Store](https://apps.apple.com/app/id6805950974) — khoảng 50.000₫, trả một lần. Bạn được đúng game ấy, thêm cái icon ngoài màn hình chính và chơi được lúc không mạng; mà đây cũng là con đường duy nhất đưa game tới tay những người sẽ chẳng bao giờ bấm vào một cái link GitHub.
+
+**Hoặc gửi thẳng cho mình** — mời mình ly cà phê, quét mã bằng điện thoại hoặc bấm vào link:
 
 <table>
   <tr>

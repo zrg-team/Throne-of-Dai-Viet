@@ -12,8 +12,28 @@
 
 **[🇻🇳 Đọc trang này bằng tiếng Việt](README.vi.md)**
 
-[![Play in the browser](https://img.shields.io/badge/▶%20%20Play%20now-zrg--team.github.io-b33a26?style=for-the-badge)](https://zrg-team.github.io/ten-thousand-victories/)
+<br>
+
+### ▶ Play it right now — free, and no ads
+
+[![Play free in your browser](https://img.shields.io/badge/▶%20%20PLAY%20FREE%20IN%20YOUR%20BROWSER-no%20install%20·%20no%20account%20·%20no%20ads-b33a26?style=for-the-badge&labelColor=7d2417)](https://zrg-team.github.io/ten-thousand-victories/)
+
+**The whole game — every mode, both languages, nothing held back and nothing to pay.**
+
+<br>
+
+**…and if you'd like it to keep going, buy it once on your phone**
+
+[![Get it on Google Play](https://img.shields.io/badge/Google%20Play-support%20the%20build-2a2118?style=for-the-badge&logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=zrg.team.vanthang)
 &nbsp;
+[![Download on the App Store](https://img.shields.io/badge/App%20Store-support%20the%20build-2a2118?style=for-the-badge&logo=appstore&logoColor=white)](https://apps.apple.com/app/id6805950974)
+
+**About 50,000₫ (≈ US$2), paid once.**
+
+<sub>The same game — still no ads, no energy timers, nothing to buy inside it. It installs like a real app and plays offline,<br>and the price is simply how the work gets paid for. The browser version is not a demo or a trial: it is the whole thing, forever.<br>Buying is a tip that happens to come with a home-screen icon.</sub>
+
+<br>
+
 [![Deploy](https://github.com/zrg-team/ten-thousand-victories/actions/workflows/deploy-github-pages.yml/badge.svg)](https://github.com/zrg-team/ten-thousand-victories/actions/workflows/deploy-github-pages.yml)
 
 ![Phaser 4](https://img.shields.io/badge/Phaser-4-2a2118?style=flat-square)
@@ -22,10 +42,32 @@
 ![Languages](https://img.shields.io/badge/languages-English%20·%20Tiếng%20Việt-c08a2e?style=flat-square)
 ![No backend](https://img.shields.io/badge/backend-none%20·%20saves%20in%20your%20browser-8c7e67?style=flat-square)
 ![Offline](https://img.shields.io/badge/offline-installs%20from%20the%20browser-6f6250?style=flat-square)
+[![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-8c6f3a?style=flat-square)](LICENSE)
 
 </div>
 
 ---
+
+## 📑 Contents
+
+- [🎯 Why this exists](#-why-this-exists)
+- [🐉 How it plays — Dragon Ascent · Rồng Thăng Long](#-how-it-plays--dragon-ascent--rồng-thăng-long)
+- [🌾 The economy — what the realm runs on](#-the-economy--what-the-realm-runs-on)
+- [🎎 The heroes — a court worth paying](#-the-heroes--a-court-worth-paying)
+- [🥁 The fight screen — five shapes and a drum](#-the-fight-screen--five-shapes-and-a-drum)
+  - [The armies on the field](#the-armies-on-the-field)
+- [📜 The Chronicle — the stories are the engine](#-the-chronicle--the-stories-are-the-engine)
+- [🏮 The real history, one tap deep](#-the-real-history-one-tap-deep)
+- [🖌️ A graphic perspective](#️-a-graphic-perspective)
+  - [The heroes](#the-heroes)
+  - [The armies of the kingdoms](#the-armies-of-the-kingdoms)
+  - [Đông Hồ](#đông-hồ)
+- [📱 Play](#-play)
+- [🛠️ Develop](#️-develop)
+- [🤝 Help improve the game](#-help-improve-the-game)
+- [📄 License](#-license)
+- [☕ Support](#-support)
+- [🙏 Credits](#-credits)
 
 ## 🎯 Why this exists
 
@@ -53,7 +95,7 @@ You are a small lord with one citadel on a map of forty-two provinces, generated
   </tr>
 </table>
 
-Underneath that loop the game runs on four systems — an economy, a court of heroes, a battle screen, and a story engine — and the rest of this page is what they are and why. *(Three classic modes — Skirmish, Throne of Empires, Campaign — ship alongside; Dragon Ascent is the game.)*
+Underneath that loop the game runs on four systems — an economy, a court of heroes, a battle screen, and a story engine — and the rest of this page is what they are and why.
 
 ## 🌾 The economy — what the realm runs on
 
@@ -89,7 +131,7 @@ Champions arrive by **summon** — a gacha with pity, *three answer the call, on
   </tr>
 </table>
 
-The portraits are not stock art. They are composed from a library of **267 drawn parts** — heads, hair, hats, collars, robes, marks — chosen by **who the person is** (era, office, rank, sex, vows) before a seed picks within that wardrobe, so an official of the Lê court does not wear a Nguyễn collar and a general in the field does not wear a scholar's cap. The roster runs to 127 champions, and many of them are real:
+The portraits are not stock art. They are composed from a library of **277 drawn parts** — heads, hair, hats, collars, robes, marks — chosen by **who the person is** (era, office, rank, sex, vows) before a seed picks within that wardrobe, so an official of the Lê court does not wear a Nguyễn collar and a general in the field does not wear a scholar's cap. The roster runs to 127 champions, and many of them are real:
 
 <img src="docs/readme/portraits.webp" alt="Ten champions from the roster, Ngô Quyền to Lê Quý Đôn — era, office and sex decide the clothes" width="100%">
 
@@ -120,7 +162,7 @@ Nothing on the field is a sprite sheet. A host is drawn as ranked figures standi
 
 ## 📜 The Chronicle — the stories are the engine
 
-The stories are not cutscenes. They are **forty-eight templates** that bind themselves to *your* heroes and *your* provinces when the moment fits — a whisper on the map between decisions, a card in your hand, or a blow that changes the run — and each one is a piece of Vietnamese history or legend, told at the length a run has room for.
+The stories are not cutscenes. They are **forty-nine templates** that bind themselves to *your* heroes and *your* provinces when the moment fits — a whisper on the map between decisions, a card in your hand, or a blow that changes the run — and each one is a piece of Vietnamese history or legend, told at the length a run has room for.
 
 <table>
   <tr>
@@ -170,7 +212,7 @@ The game ships almost no sprites. The people, the hosts and the country are proc
 
 ### The heroes
 
-Ten champions who exist in no roster: the generator invents the person — name, era, office — and the wardrobe dresses them by who they are, from the same **267 drawn parts** that dress the real figures above. No two courts look alike:
+Ten champions who exist in no roster: the generator invents the person — name, era, office — and the wardrobe dresses them by who they are, from the same **277 drawn parts** that dress the real figures above. No two courts look alike:
 
 <img src="docs/readme/faces-generated.webp" alt="Ten generated champions — armor, court robes, scholar's caps, coronets — none of whom exist in the roster" width="100%">
 
@@ -196,6 +238,8 @@ The print itself: shell-coated điệp paper, a colour block pulled first and a 
 - **English / Tiếng Việt** in Settings, along with graphics quality and the map theme.
 - One save slot, kept in your browser.
 
+**Or get it from a store.** The same game, packaged as a real app — [**Google Play**](https://play.google.com/store/apps/details?id=zrg.team.vanthang) and the [**App Store**](https://apps.apple.com/app/id6805950974), about 50,000₫ (≈ US$2), paid once. Still no ads, no in-app purchases, no account, and it plays with the network off. Nothing there is missing from the browser version — buying it is how you back the work.
+
 ## 🛠️ Develop
 
 ```bash
@@ -207,7 +251,7 @@ yarn build               # tsc && vite build + the service worker — the CI gat
 
 Vite + TypeScript (strict) + Phaser 4, no backend, no framework beyond that. Content is data: units, heroes, cards, edicts, provinces and every story live under `src/data/`, systems are plain functions over one `GameState`, and every player-facing string has an English and a Vietnamese entry — the game refuses to boot if one is missing.
 
-There is no test framework. The game is proven by **driving it in a real headless browser**: `test_scripts/` holds some 140 Playwright harnesses — filed by the question they answer: `verify/` asserts, `shot/` photographs, `perf/` measures, `playtest/` judges, `diag/` investigates — that boot every mode, tick the economy for hundreds of seasons across many seeds, tap the real buttons, screenshot every screen, and score how *fun* a build is out of 100 before and after a balance change.
+There is no test framework. The game is proven by **driving it in a real headless browser**: `test_scripts/` holds over 180 Playwright harnesses — filed by the question they answer: `verify/` asserts, `shot/` photographs, `perf/` measures, `playtest/` judges, `diag/` investigates — that boot every mode, tick the economy for hundreds of seasons across many seeds, tap the real buttons, screenshot every screen, and score how *fun* a build is out of 100 before and after a balance change.
 
 ```bash
 node test_scripts/gate/smoke.mjs              # every mode boots, ticks, draws — ~40 s
@@ -220,12 +264,13 @@ The repository also carries a set of [Claude Code](https://claude.com/claude-cod
 
 ```
 src/
-├── data/        content — heroes, cards, edicts, provinces, 48 stories
+├── data/        content — heroes, cards, edicts, provinces, 49 stories
 ├── systems/     rules — the tick, economy, combat, ascent/, empire/, story/
 ├── state/       GameState, save, legacy, codex
 ├── map/         hex maths, generation, terrain, boundaries, roads
 ├── ui/          renderers and panels; ui/ink/ is the Đông Hồ drawing vocabulary
-├── scenes/      Boot → Preload → Menu · Guide · History · Skirmish → Map+UI · Conquest+ConquestUI
+├── scenes/      Boot → Preload → Menu · Guide · History → Conquest+ConquestUI · BattleArena
+│   └── deprecated/  the retired classic screens — they still boot, nobody works on them
 └── i18n/        catalogs — en and vi, side by side
 apps/            platform shells; the game is built once and served by each
 ├── mobile/      Expo — iOS and Android
@@ -251,9 +296,30 @@ Issues and pull requests are open. The most useful things you can bring, in orde
 
 Before opening a pull request: `yarn build` must pass, and `node test_scripts/gate/smoke.mjs` should be green against your dev server.
 
+One thing to know before you send one: because the commercial rights are reserved (below), opening a pull request licenses your contribution under the same terms **and** grants the maintainer the right to ship it commercially as part of the official game. You keep the copyright in what you wrote. If you would rather not grant that, say so in the pull request — an issue describing the change is still genuinely useful.
+
+## 📄 License
+
+**Source-available, not open source.** The game is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE); **commercial rights are reserved** to zrg-team.
+
+|  | |
+| --- | --- |
+| ✅ **Free, without asking** | Play it. Read the source and learn from it. Fork it, mod it, run it. Publish a free, ad-free fork that keeps the notice and says it is not the official game. Use it to teach — classrooms, universities, museums, libraries. Stream it, record it, write about it. |
+| ⛔ **Needs a licence first** | Selling it, a fork, or a reskin. Publishing it to a store under your own account. Ads, in-app purchases, subscriptions, paywalls. Bundling it into a commercial product or service. Reusing the ink code, the 277 portrait parts, the roster or the stories commercially. Merchandise. Commercial model training. |
+
+The only commercial builds of Vạn Thắng are the official ones published from this repository. That is what keeps the promise on the tin — free, ad-free, nobody wrapping this history in advertising and shipping it to Vietnamese players as though it were the real thing.
+
+Want to do something commercial with it? **Ask — the answer is often yes.** [COMMERCIAL.md](COMMERCIAL.md) says what counts as commercial, how to ask, and what to put in the request. Vietnamese schools, museums and non-profits: the noncommercial licence almost certainly already covers you, and you need not ask at all.
+
+Phaser, Vite, TypeScript, Playwright and the fonts keep their own licences — listed at the foot of [LICENSE](LICENSE). The history itself belongs to everyone; only this telling of it is anyone's.
+
 ## ☕ Support
 
-The game is free and stays free. If it gave you an evening — scan with your phone, or tap the link.
+The game is free and stays free — that part is not going to change. If it gave you an evening, there are three ways to say so.
+
+**The best one: buy the app.** [Google Play](https://play.google.com/store/apps/details?id=zrg.team.vanthang) · [App Store](https://apps.apple.com/app/id6805950974) — about 50,000₫ (≈ US$2), once. You get the same game with a home-screen icon and offline play, and it is the only channel that also carries the game to people who would never find a GitHub link.
+
+**Or send it directly** — scan with your phone, or tap the link.
 
 <table>
   <tr>
