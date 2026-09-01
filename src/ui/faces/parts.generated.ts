@@ -223,7 +223,7 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "tint": "skinShadow",
     "cx": 0,
     "cy": 33.5,
-    "w": 24,
+    "w": 28,
     "h": 31
   },
   {
@@ -232,16 +232,16 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "tint": "skinShadow",
     "cx": 0,
     "cy": 33.5,
-    "w": 20,
+    "w": 24,
     "h": 31
   },
   {
     "key": "neck-broad",
     "layer": 25,
     "tint": "skinShadow",
-    "cx": 0,
+    "cx": -0.5,
     "cy": 33.5,
-    "w": 28,
+    "w": 31,
     "h": 31
   },
   {
@@ -572,10 +572,10 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "key": "collar-baba",
     "layer": 35,
     "tint": "robeLight",
-    "cx": 0,
-    "cy": 35.5,
-    "w": 32,
-    "h": 11
+    "cx": -0.5,
+    "cy": 37.5,
+    "w": 35,
+    "h": 15
   },
   {
     "key": "collar-baba-front",
@@ -681,9 +681,9 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "layer": 35,
     "tint": "robeLight",
     "cx": 0,
-    "cy": 36,
-    "w": 36,
-    "h": 14
+    "cy": 37.5,
+    "w": 38,
+    "h": 17
   },
   {
     "key": "collar-nguthan-body",
@@ -698,10 +698,10 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "key": "collar-nguthan-tall",
     "layer": 35,
     "tint": "robeLight",
-    "cx": 0,
-    "cy": 33.5,
-    "w": 34,
-    "h": 19
+    "cx": -0.5,
+    "cy": 35,
+    "w": 37,
+    "h": 22
   },
   {
     "key": "buttons-five",
@@ -780,18 +780,18 @@ export const FACE_PART_DEFS: readonly FacePartDef[] = [
     "layer": 35,
     "tint": "robeDark",
     "cx": 0,
-    "cy": 45,
-    "w": 68,
-    "h": 36
+    "cy": 46.5,
+    "w": 62,
+    "h": 37
   },
   {
     "key": "collar-nhatbinh-trim",
     "layer": 36,
     "tint": "none",
     "cx": 0,
-    "cy": 45,
-    "w": 68,
-    "h": 36
+    "cy": 46.5,
+    "w": 62,
+    "h": 37
   },
   {
     "key": "collar-nhatbinh-phoenix",

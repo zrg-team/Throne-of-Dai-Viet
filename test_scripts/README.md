@@ -37,6 +37,7 @@ node test_scripts/verify/verify-button-press.mjs         # a button acts on the 
 node test_scripts/verify/verify-empire-fairness.mjs      # Throne of Empires is a war the realm can fight: supply, agency, waves that end, ground worth holding
 node test_scripts/verify/verify-away-pause.mjs           # leaving the screen is not a move: the world halts, the run is written down, Continue brings it back
 node test_scripts/verify/verify-first-minutes.mjs        # a new player is asked something at once and offered a power draft inside three minutes
+node test_scripts/verify/verify-conquest-offer.mjs       # a host that will refuse the order is greyed, the refusal says why, and the sheet does not come back for ever
 node test_scripts/playtest/playtest-metrics.mjs     # six measured preconditions of fun, /85
 node test_scripts/playtest/playtest-first-minutes.mjs  # what the first three minutes actually contain, on the player's clock
 node test_scripts/perf/perf-bench.mjs --label wip   # auto-diffs against perf-results/baseline.json

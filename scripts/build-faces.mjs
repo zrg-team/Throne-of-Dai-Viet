@@ -214,14 +214,23 @@ part('guard-beastmask', 24, 'none', beastMaskHalf + `<g transform="scale(-1,1)">
 // 25 · neck. Every neck begins above the shortest jaw (`head-round` ends at y=23.5), so the
 // head can never float on paper. A very slight flare replaces the old ruler-straight rectangle;
 // width is coupled to the selected head family in `neckForHead`, not rolled independently.
+//
+// **Widths are a fraction of the jaw they hang from, and the first pass set them too thin.**
+// Measured across the roster: a `neck-slim` drew 14 design units under heads 52 to 58 wide —
+// a quarter of the jaw, where a person's neck is about a third of it. It reads on paper exactly
+// as it measures: a head resting on a post, with the jaw overhanging both sides in one step and
+// nothing carrying the eye from one to the other. Reported as the head and body not looking
+// joined, and worst on the women, because five of the seven head shapes in their pool select the
+// slim neck. Each is now ~0.32 of its head family's width, which is the anatomy, and the flare
+// to the shoulders is a little stronger for the same reason.
 const neckShape = (topHalf, bottomHalf) =>
   `<path d="M ${-topHalf} ${NECK - 17}
      C ${-topHalf} ${NECK - 8}, ${-topHalf + 0.6} ${NECK + 2}, ${-bottomHalf} ${NECK + 10}
      L ${bottomHalf} ${NECK + 10}
      C ${topHalf - 0.6} ${NECK + 2}, ${topHalf} ${NECK - 8}, ${topHalf} ${NECK - 17} Z" fill="#ffffff"/>`;
-part('neck', 25, 'skinShadow', neckShape(9, 10));
-part('neck-slim', 25, 'skinShadow', neckShape(7, 8));
-part('neck-broad', 25, 'skinShadow', neckShape(10.5, 12));
+part('neck', 25, 'skinShadow', neckShape(10.5, 12));
+part('neck-slim', 25, 'skinShadow', neckShape(8.5, 10));
+part('neck-broad', 25, 'skinShadow', neckShape(12, 13.5));
 
 // 28 · ears. The long lobe is not a style axis — it is the iconographic mark of a Buddhist
 // teacher, and the wardrobe hands it only to monastics.
@@ -317,8 +326,15 @@ part('collar-tuthan-knot', 37, 'none',
   `<path d="M -7 ${NECK + 34} q 7 -6 14 0 q -7 8 -14 0 Z" fill="${CREAM}" opacity=".85"/>`);
 
 // Áo bà ba — the southern working blouse: a plain standing band and a straight front opening.
+// **A standing band is a collar, not a plank.** These three were axis-aligned rectangles wider
+// than any neck, and they stopped in mid-air: the robe's neckline is at `NECK + 2` and the bands
+// ended above it, so six or seven units at each end hung over bare paper with nothing behind
+// them. On the page that is a slab laid across the throat with the head above it and the body
+// below — reported as the head, neck and body not looking joined, and it was the clearest case
+// of it. Each is now a trapezoid: it hugs the throat where it meets the neck, and widens into
+// the shoulders, with its base carried below the neckline so it is standing on the body.
 part('collar-baba', 35, 'robeLight',
-  `<path d="M -14 ${NECK - 5} L 14 ${NECK - 5} L 14 ${NECK + 2} L -14 ${NECK + 2} Z" fill="#ffffff"/>`);
+  `<path d="M -11 ${NECK - 5} L 11 ${NECK - 5} L 15.5 ${NECK + 6} L -15.5 ${NECK + 6} Z" fill="#ffffff"/>`);
 part('collar-baba-front', 36, 'robeDark',
   `<path d="M -2.5 ${NECK + 2} L 2.5 ${NECK + 2} L 2.5 ${NECK + 42} L -2.5 ${NECK + 42} Z" fill="#ffffff"/>`);
 
@@ -354,11 +370,11 @@ part('belt-rope-coil', 38, 'none',
 
 // Áo ngũ thân — the 1744 reform: a standing collar closing to the right, five buttons.
 part('collar-nguthan', 35, 'robeLight',
-  `<path d="M -16 ${NECK - 6} L 16 ${NECK - 6} L 16 ${NECK + 4} L -16 ${NECK + 4} Z" fill="#ffffff"/>`);
+  `<path d="M -11.5 ${NECK - 6} L 11.5 ${NECK - 6} L 17 ${NECK + 7} L -17 ${NECK + 7} Z" fill="#ffffff"/>`);
 part('collar-nguthan-body', 36, 'robe',
   `<path d="M -16 ${NECK + 2} C -6 ${NECK + 12}, 10 ${NECK + 10}, 20 ${NECK + 4} L 24 ${NECK + 40} L -20 ${NECK + 40} Z" fill="#ffffff"/>`);
 part('collar-nguthan-tall', 35, 'robeLight',
-  `<path d="M -15 ${NECK - 11} L 15 ${NECK - 11} L 15 ${NECK + 4} L -15 ${NECK + 4} Z" fill="#ffffff"/>`);
+  `<path d="M -11 ${NECK - 11} L 11 ${NECK - 11} L 16.5 ${NECK + 7} L -16.5 ${NECK + 7} Z" fill="#ffffff"/>`);
 part('buttons-five', 39, 'none',
   [0, 1, 2, 3, 4].map((i) => `<circle cx="19" cy="${NECK + 8 + i * 7}" r="1.7" fill="${GOLD}"/>`).join(''));
 part('buttons-jade', 39, 'none',
@@ -383,14 +399,29 @@ part('yem-jade', 36, 'none', yemArt('#6f8f64'));
 // A yoke that wraps the throat and runs down the front, not a panel laid on the chest — the
 // rectangular *collar* is what names the garment, and a plain filled rectangle reads as a
 // signboard hung round the neck.
-const NHAT_BINH_YOKE = `M -32 ${NECK - 8} L 32 ${NECK - 8} L 32 ${NECK + 24} L 13 ${NECK + 24}
-  L 13 ${NECK + 1} C 13 ${NECK - 3}, -13 ${NECK - 3}, -13 ${NECK + 1}
-  L -13 ${NECK + 24} L -32 ${NECK + 24} Z`;
+//
+// **The panel can only be as wide as the body underneath it.** The first cut of this shape kept
+// the notch but not that rule: it ran a flat top edge at `NECK - 8` out to x ±32, while the
+// robe's own neckline is at `NECK + 2` and its shoulder does not reach x 32 until y ≈ 51. So
+// twenty-two units at each end of the top band hung over bare paper — the signboard the note
+// above says it is not, arrived at from the other direction. Reported as the head, neck and body
+// not looking joined, and on this garment it was the largest instance of it.
+//
+// So the top edge now falls from the throat to the shoulder instead of running straight across.
+// The band over the throat is the width of a neck (±12 against necks 17 to 24 wide); from there
+// each side slopes out and down to a corner at (±29, `NECK + 19`), which sits inside the shoulder
+// of every robe body in the set — the narrowest, `robe-slim`, passes x 29 at y ≈ 56. It is also
+// what a nhật bình looks like worn: the square collar sits on the chest, below the shoulder line,
+// not floating level with the jaw.
+const NHAT_BINH_YOKE = `M -12 ${NECK - 7} L 12 ${NECK - 7}
+  L 29 ${NECK + 19} L 29 ${NECK + 26} L 12 ${NECK + 26}
+  L 12 ${NECK + 1} C 12 ${NECK - 3}, -12 ${NECK - 3}, -12 ${NECK + 1}
+  L -12 ${NECK + 26} L -29 ${NECK + 26} L -29 ${NECK + 19} Z`;
 part('collar-nhatbinh', 35, 'robeDark', `<path d="${NHAT_BINH_YOKE}" fill="#ffffff"/>`);
 part('collar-nhatbinh-trim', 36, 'none',
   `<path d="${NHAT_BINH_YOKE}" fill="none" stroke="${GOLD}" stroke-width="1.8" stroke-linejoin="round"/>
-   <path d="M -27 ${NECK + 14} q 4 -7 8.5 -1.5 q 4 -6.5 8.5 0.5" stroke="${GOLD}" stroke-width="1.3" fill="none" opacity=".95"/>
-   <path d="M 18.5 ${NECK + 14} q 4 -7 8.5 -1.5" stroke="${GOLD}" stroke-width="1.3" fill="none" opacity=".95"/>`);
+   <path d="M -26 ${NECK + 21} q 4.5 -6 9 -1" stroke="${GOLD}" stroke-width="1.3" fill="none" opacity=".95"/>
+   <path d="M 17 ${NECK + 21} q 4.5 -6 9 -1" stroke="${GOLD}" stroke-width="1.3" fill="none" opacity=".95"/>`);
 part('collar-nhatbinh-phoenix', 37, 'none',
   `<path d="M -6 ${NECK + 30} q 6 -8 12 0 q -6 3 -12 0 Z" fill="${SON}" opacity=".9"/>
    <path d="M 0 ${NECK + 30} l 0 8 M -4 ${NECK + 36} l 8 0" stroke="${GOLD}" stroke-width="1.2"/>`);
