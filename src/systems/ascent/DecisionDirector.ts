@@ -123,14 +123,25 @@ const KIND_STARVATION_TICKS = 18;
  * is not the game asking the player for something — it is the game *owing* them something. A
  * level-up is already earned and already banked (`pendingLevelUps`); the card is only where it
  * gets spent. Ranked seventh and aged at eighteen it lost every slot to the realm's own
- * business: measured across three seeds, a new player reached level 3 holding two unspent
- * drafts and had been offered neither after three minutes at the wheel — in a mode whose whole
- * identity is picking powers. Four seasons is long enough that a draft still cannot chain off a
- * level-up gained mid-Court, and short enough that the reward arrives in the cycle it was
- * earned in.
+ * business: measured across six seeds, a banked draft waited **twenty-two seasons** before it
+ * was offered, and two rendered runs of three minutes reached level 3 holding two unspent
+ * drafts having been offered neither — in a mode whose whole identity is picking powers.
+ *
+ * Six, and the two numbers either side of it are both worse for reasons worth recording.
+ *
+ * At **four** the draft is offered promptly (a flat four-season wait on every seed) and it
+ * starts taking Court slots from the cards that arm the realm: `verify-ascent-opening` fell
+ * from 12/12 to 10/12, with the first three waves fought on the field dropping to 3 of 12. A
+ * reward that arrives by pushing the army aside is not a better opening.
+ *
+ * At **eight and above** the wait stops being a wait and becomes a lottery. The cycle is
+ * `WAVE_INTERVAL_TICKS` = 12 and only its Court stretch raises anything, so a threshold that
+ * lands near the end of one window is not served until the next: measured worst-case waits were
+ * 20 at eight, 16 at ten, and 20 again at twelve, against a uniform 6 here. The dial is not
+ * smooth, and six is the last value on the tight side of that cliff.
  */
 const KIND_STARVATION_OVERRIDE: Partial<Record<AscentPromptKind, number>> = {
-  'power-draft': 4,
+  'power-draft': 6,
 };
 
 function starvationTicksFor(kind: AscentPromptKind): number {

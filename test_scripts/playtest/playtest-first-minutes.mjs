@@ -61,6 +61,15 @@ window.__fmOptions = (p) => {
 };
 `;
 
+/**
+ * A reload wipes the run.
+ *
+ * Vite's dev server watches the whole repository, so writing *any* file while a harness is
+ * mid-flight full-reloads the page under it and `window.__mandateState` goes undefined. That
+ * used to surface as an uncaught TypeError several frames later with nothing pointing at the
+ * cause. Named, and bailed on, so the reading is discarded rather than reported as a game that
+ * suddenly had no state.
+ */
 async function playOneRun(browser, seed) {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const errors = [];
@@ -83,6 +92,7 @@ async function playOneRun(browser, seed) {
 
   const read = () => page.evaluate(() => {
     const st = window.__mandateState;
+    if (!st) return null;
     const a = st.ascent ?? {};
     const p = st.pendingAscentPrompt;
     return {
@@ -110,6 +120,7 @@ async function playOneRun(browser, seed) {
 
   while (Date.now() - t0 < WINDOW_MS) {
     const now = await read();
+    if (!now) { timeline.push({ at: at(), what: 'the page reloaded — reading abandoned' }); break; }
     if (now.defeated) { timeline.push({ at: at(), what: 'defeated' }); break; }
     if (now.chronicleLines > 0) mark('first chronicle line', at());
     if (now.inBattle) mark('first fight', at());
@@ -140,7 +151,7 @@ async function playOneRun(browser, seed) {
     await page.waitForTimeout(250);
   }
 
-  const end = await read();
+  const end = (await read()) ?? { seconds: 0, turn: 0, level: 0, levelUps: 0, lands: 0, ambition: 0 };
   await page.close();
   return { seed, menuAt, runAt, marks, timeline, cards, end, errors };
 }
