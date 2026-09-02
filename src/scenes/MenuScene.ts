@@ -2533,16 +2533,31 @@ export class MenuScene extends Phaser.Scene {
      *
      * A fresh install therefore opens on three rows: play, the house, the way out.
      */
-    // `textLink` sets its own 30-unit floor for the hit area and centres the type on its baseline.
-    const CONTINUE_LINE_ROW = saved ? 30 : 0;
+
     /**
-     * The tablet's own height, and the one row on this page that is not a plate.
+     * The tablet takes what the other rows leave, between 44 and 68.
      *
-     * 58 at the 620 clamp and 68 above it. Below 58 the portrait recess and four lines of type stop
-     * being a board and start being a squeezed button; above 68 it competes with the play control,
-     * which is the one thing on the sheet allowed to be the largest.
+     * Bracketing it by `GAME_HEIGHT` was wrong because the binding case is not the sheet's height,
+     * it is whether there is a **save**: at the 620 clamp the lane is 154 and play + Continue +
+     * a 58-unit tablet + Classic Modes is exactly 154, so every gap collapsed to its floor and the
+     * column printed twenty units through the footer. Measured, not guessed — the numbers are the
+     * page's own.
+     *
+     * 68 is the ceiling: past it the tablet competes with the play control, which is the one thing
+     * on this sheet allowed to be the largest. 44 is the floor, where it goes to its compact form
+     * (below) and still carries the name, the score and the bar.
      */
-    const LEDGER_ROW = GAME_HEIGHT <= 660 ? 58 : 68;
+    const GAP_FLOOR = 4;
+    const GAP_WANTED = 6;
+    const LANE_ROOM = SETTINGS_TOP - this.vy(520);
+    // `textLink` keeps its own 44-unit hit area whatever the row is given; this is only the space
+    // the line occupies in the column.
+    const CONTINUE_LINE_ROW = saved ? 26 : 0;
+    const LEDGER_ROW = Phaser.Math.Clamp(
+      LANE_ROOM - (this.vh(58) + CONTINUE_LINE_ROW + ROW) - GAP_WANTED * (saved ? 5 : 4),
+      44,
+      68,
+    );
 
     /**
      * The tagline is what gives way when the lane cannot hold the column.
@@ -2554,8 +2569,6 @@ export class MenuScene extends Phaser.Scene {
      * sentence is added only where the room is genuinely there. It returns at 620 in English and
      * at every height above the clamp in both.
      */
-    const GAP_FLOOR = 4;
-    const LANE_ROOM = SETTINGS_TOP - this.vy(520);
     const controls = this.vh(58) + CONTINUE_LINE_ROW + LEDGER_ROW + ROW;
     // One fewer row means one fewer gap between them.
     const innerRows = saved ? 4 : 3;
@@ -3194,10 +3207,19 @@ export class MenuScene extends Phaser.Scene {
      * wrap width rather than hoped around: the first pass let the stats line run under the seal and
      * "cao nhất 5,510" printed straight through it.
      */
-    const founder = opened ? dynastyFounderHero(store) : undefined;
+    const merged = height < 52;
+    /**
+     * The portrait is what gives way when the board is squeezed, not the type.
+     *
+     * Shrinking everything produced a 44-unit tablet whose house name wrapped into its own reign
+     * line: the face was taking 35 units of width the words needed. It is the most decorative thing
+     * here and it is still on the sheet one tap away, so below 52 it goes and the words get the
+     * whole board. The name, the level, the score, the seal and the bar all stay.
+     */
+    const founder = opened && !merged ? dynastyFounderHero(store) : undefined;
     const PORTRAIT = Math.min(46, height - 20);
     const textX = 14 + (founder ? PORTRAIT + 11 : 0);
-    const rightReserve = owed ? 52 : 20;
+    const rightReserve = owed ? (merged ? 34 : 52) : 20;
     const textWidth = width - textX - rightReserve;
 
     if (founder) {
@@ -3224,20 +3246,29 @@ export class MenuScene extends Phaser.Scene {
      * measured back from the bottom edge where the bar already is.
      */
     const tight = height < 64;
+    /**
+     * Below 52 the eyebrow stops being a row of its own: three stacked lines plus a bar need about
+     * that much, and squeezed under it the name printed through the reign line. At the floor the
+     * feature's name joins the house's on one line — `TÔNG PHẢ · Nhà Lê Duyệt` — which keeps the
+     * word on the page while spending one row instead of two.
+     */
     const eyebrowY = tight ? 8 : 12;
-    const nameY = eyebrowY + 11;
+    const nameY = merged ? eyebrowY : eyebrowY + 11;
     const statsY = height - 22;
-    const eyebrow = this.ui.label(textX, eyebrowY, t('dynasty.title'), 'caption', {
-      fontSize: '8px', color: ink(owed ? INK_UI.cinnabar : INK_UI.gold),
-    });
-    eyebrow.setLetterSpacing?.(2.2);
-    tablet.add(eyebrow);
+    if (!merged) {
+      const eyebrow = this.ui.label(textX, eyebrowY, t('dynasty.title'), 'caption', {
+        fontSize: '8px', color: ink(owed ? INK_UI.cinnabar : INK_UI.gold),
+      });
+      eyebrow.setLetterSpacing?.(2.2);
+      tablet.add(eyebrow);
+    }
 
+    const houseLine = opened
+      ? (store.house ? t('dynasty.house', { name: store.house }) : t('dynasty.houseUnnamed'))
+      : t('dynasty.tabletName');
     tablet.add(this.ui.label(textX, nameY,
-      opened
-        ? (store.house ? t('dynasty.house', { name: store.house }) : t('dynasty.houseUnnamed'))
-        : t('dynasty.tabletName'),
-      'label', { fontSize: tight ? '12px' : '13px', wordWrap: { width: textWidth } }));
+      merged ? `${t('dynasty.title')} · ${houseLine}` : houseLine,
+      'label', { fontSize: merged ? '11px' : tight ? '12px' : '13px', wordWrap: { width: textWidth } }));
 
     /**
      * The line says the most it has room for, and never wraps.
@@ -3260,7 +3291,7 @@ export class MenuScene extends Phaser.Scene {
 
     // The bar rides the foot of the board, inside the hairline — a rule that fills, not a widget.
     if (opened) {
-      const barY = height - 9;
+      const barY = height - 8;
       const barW = width - 28;
       const bar = this.add.graphics();
       bar.fillStyle(INK_UI.softBrush, 0.3);
@@ -3283,7 +3314,7 @@ export class MenuScene extends Phaser.Scene {
       const stamp = this.add.graphics();
       // Top corner, the way a seal is pressed onto a document — and clear of the line beneath it,
       // which is where the first pass put the two on top of each other.
-      seal(stamp, width - 29, tight ? 19 : 22, tight ? 22 : 24, 'lotus');
+      seal(stamp, width - 26, merged ? 15 : tight ? 19 : 22, merged ? 18 : tight ? 22 : 24, 'lotus');
       tablet.add(stamp);
       this.dynastyPulse?.remove();
       this.dynastyPulse = this.tweens.add({
@@ -3294,9 +3325,12 @@ export class MenuScene extends Phaser.Scene {
         repeat: -1,
         ease: 'Sine.easeInOut',
       });
-      tablet.add(this.ui.label(width - 14, statsY,
-        t('dynasty.tabletWaiting', { n: store.pendingPicks }), 'caption',
-        { fontSize: '9px', color: ink(INK_UI.cinnabar), align: 'right' }).setOrigin(1, 0));
+      // On the compact board the seal says it alone — a chip beside it would sit under it.
+      if (!merged) {
+        tablet.add(this.ui.label(width - 14, statsY,
+          t('dynasty.tabletWaiting', { n: store.pendingPicks }), 'caption',
+          { fontSize: '9px', color: ink(INK_UI.cinnabar), align: 'right' }).setOrigin(1, 0));
+      }
     } else {
       // The way in, at the edge the eye leaves by. Replaced by the seal when one is pressed.
       tablet.add(this.ui.label(width - 15, Math.round(height / 2) - 9, '›', 'label',
