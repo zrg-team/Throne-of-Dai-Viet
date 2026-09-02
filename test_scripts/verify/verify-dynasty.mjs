@@ -515,12 +515,16 @@ console.log('\n=== RESPEC ===');
   await goto('dynasty');
   await seat.waitForTimeout(400);
 
-  // Game coordinates to page pixels, read off the ScaleManager: the canvas can be letterboxed as
-  // well as scaled, and only `canvasBounds` knows about the first.
-  const frame = await seat.evaluate(() => {
-    const s = window.__phaserGame.scale;
-    return { ox: s.canvasBounds.x, oy: s.canvasBounds.y, k: s.displaySize.width / s.gameSize.width };
-  });
+  // Game coordinates to page pixels, measured off the DOM rather than off the ScaleManager.
+  //
+  // `page.mouse` works in CSS pixels and neither ScaleManager rectangle reliably reports them:
+  // `displaySize` is the backing store (double under a deviceScaleFactor of 2) and `canvasBounds`
+  // came back at *half* the sheet under that same setting. Either way the derived coordinate lands
+  // somewhere the button is not, the click hits nothing, and the check passes vacuously. The canvas
+  // element's own bounding box is the space the mouse is actually in.
+  const box = await seat.locator('canvas').boundingBox();
+  const sheet = await seat.evaluate(() => window.__phaserGame.scale.gameSize.width);
+  const frame = { ox: box.x, oy: box.y, k: box.width / sheet };
   const tap = async (point) => {
     await seat.mouse.click(frame.ox + point.x * frame.k, frame.oy + point.y * frame.k);
     await seat.waitForTimeout(400);

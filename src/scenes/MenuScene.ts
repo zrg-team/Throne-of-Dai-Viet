@@ -2426,7 +2426,53 @@ export class MenuScene extends Phaser.Scene {
     // returning player reaches for was somewhere different on their first visit from where it is
     // on every visit after. A greyed row with the reason printed under it says what the missing
     // row could not, and it says it in the place the answer will later appear.
-    const rows = this.vh(58) + tagline.height + ROW + ROW;
+    /**
+     * The progression row — rank, the Legacy shop, the Tông Phả — is **budgeted**, not squeezed in
+     * afterwards.
+     *
+     * It used to be appended after `renderVersionLine()` behind
+     * `cursor + vh(30) + 18 < SETTINGS_TOP`, and the column above it is *centred* in a fixed lane,
+     * so the only room it could ever find was the half-slack the centring happened to leave. On a
+     * 390x620, x740 and x844 sheet there is none: measured, the row rendered **only** at
+     * GAME_HEIGHT 1040. The Legacy shop has therefore been unreachable from the front page on
+     * every phone since that check was written, and the dynasty sheet inherited it — reported as
+     * "where is the screen, did you really implement it".
+     *
+     * Counted into `rows` like every other row, so `gap` pays for it and the column makes room.
+     */
+    const legacy = getLegacy();
+    const dynasty = getDynasty();
+    const showsProgress = legacy.points > 0 || legacy.bestScore > 0;
+    // Measured, not guessed: the rank line is one 11px row in English and can wrap in Vietnamese.
+    const rankLine = showsProgress
+      ? t('empire.legacy.rank', { rank: rankForScore(legacy.bestScore), total: legacy.points })
+      : '';
+    let rankHeight = 0;
+    if (showsProgress) {
+      const probe = this.add.text(0, -9999, rankLine, {
+        fontFamily: UI_FONT, fontSize: '11px', align: 'center', padding: { x: 6, y: 3 },
+      });
+      rankHeight = probe.height;
+      probe.destroy();
+    }
+    /**
+     * The rank line is the half of the row that gives way.
+     *
+     * At the 620 clamp the lane between the art and the settings block is about 168 units and the
+     * four rows plus their minimum gaps already spend nearly all of it — adding a text line *and*
+     * a button row printed both straight through the footer (measured: `Di Sản Thăng Thiên` and
+     * `Tông Phả` over `Cách chơi / Lịch sử / Thiết lập`, Vietnamese, 390x620). The doors are the
+     * function and the rank is decoration, so the decoration is what goes: the two buttons are
+     * budgeted first, and the line is added only if the room is genuinely there.
+     */
+    const GAP_FLOOR = 4;
+    const LANE_ROOM = SETTINGS_TOP - this.vy(520);
+    const doorsRow = this.vh(30);
+    const baseRows = this.vh(58) + tagline.height + ROW + ROW;
+    const showRank = showsProgress
+      && baseRows + doorsRow + GAP_FLOOR * 6 + rankHeight + 4 <= LANE_ROOM;
+    const PROGRESS_ROW = showsProgress ? doorsRow + (showRank ? rankHeight + 4 : 0) : 0;
+    const rows = baseRows + PROGRESS_ROW;
     // TWICE the gap for the break, not three times it. Three left an obvious hole between the last
     // row and Settings while the art above the column was being crowded — the page had its slack
     // in the one place nothing needed it. Doubling is still an unmissable break (the gaps inside
@@ -2437,7 +2483,7 @@ export class MenuScene extends Phaser.Scene {
     // the column has 184. The rows come to 36 + 28 (the tagline wraps to two lines in Vietnamese)
     // + 30 + 30 = 124, and five gaps land at the 9-unit ceiling for 45. The smaller secondary tier
     // leaves enough air for its hierarchy to read without pushing the primary action into the art.
-    const inner = 3;
+    const inner = showsProgress ? 4 : 3;
     const GAPS = inner + 2;
     // The floor the column may not climb above: the rear host's feet stand at 488 in the design,
     // and the pair of them are the busiest thing on the page. At 844 the bottom-anchored column
@@ -2499,24 +2545,19 @@ export class MenuScene extends Phaser.Scene {
       .setData('menuSecondary', 'continue')
       .setData('visualBounds', { width: SECONDARY_WIDTH, height: ROW }));
     cursor += ROW + gap;
-    // The group break, and the reason the footer reads as a different kind of thing from the
-    // buttons above it.
-    cursor += gap * 2;
 
-    this.renderLanguageSwitch();
-    this.renderFooterPair();
-
-    this.renderSupportRow();
-    this.renderVersionLine();
-
-    // Lifetime standing across all Throne of Empires runs (hidden until earned).
-    // Tapping it opens the Ascension Legacy shop, where banked points buy permanent perks.
-    const legacy = getLegacy();
-    if ((legacy.points > 0 || legacy.bestScore > 0) && cursor + this.vh(30) + 18 < SETTINGS_TOP) {
-      const rankLabel = this.add.text(GAME_WIDTH / 2, cursor, t('empire.legacy.rank', {
-        rank: rankForScore(legacy.bestScore),
-        total: legacy.points,
-      }), {
+    /**
+     * What the house has, under what the house can play.
+     *
+     * Two doors where the Legacy button used to stand alone: what a dynasty *spends* (Ascension
+     * Legacy) and what a dynasty *is* (Tông Phả). Both are progression rather than utility, so they
+     * belong in the button column and not beside Settings — and inside the group, above the break,
+     * because they are things you came here to press.
+     *
+     * Hidden until earned: with no banked score there is nothing on either page but zeroes.
+     */
+    if (showsProgress && showRank) {
+      const rankLabel = this.add.text(GAME_WIDTH / 2, cursor, rankLine, {
         color: '#2a2118',
         fontFamily: UI_FONT,
         fontSize: '11px',
@@ -2526,28 +2567,45 @@ export class MenuScene extends Phaser.Scene {
       }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
       rankLabel.on('pointerup', () => { this.mode = 'legacy'; this.render(); });
       this.content.push(rankLabel);
-      cursor += rankLabel.height + Math.round(gap * 0.5);
-      // Two doors, side by side, in the row the Legacy button used to have alone: what the house
-      // *spends* and what the house *is*. The ledger only appears once a reign has ended — a page
-      // whose every number is zero is a page that teaches the player it is not for them.
-      const dynasty = getDynasty();
-      if (dynasty.reigns > 0) {
-        const half = Math.floor((334 - 8) / 2);
-        this.content.push(this.ui.button({ x: 28, y: cursor, width: half, height: this.vh(30) },
-          t('empire.legacy.openShop'), () => { this.mode = 'legacy'; this.render(); },
-          { variant: 'ghost', fontSize: '12px' }));
-        this.content.push(this.ui.button({ x: 28 + half + 8, y: cursor, width: half, height: this.vh(30) },
-          t('dynasty.menu'), () => { this.mode = 'dynasty'; this.render(); },
-          // Gold rather than ghost: a pending trait choice is the one thing on this page the
-          // player is actually owed, and it must not read as a third utility link.
-          { variant: dynasty.pendingPicks > 0 ? 'primary' : 'ghost', fontSize: '12px' }));
-      } else {
-        this.content.push(this.ui.button({ x: 108, y: cursor, width: 174, height: this.vh(30) }, t('empire.legacy.openShop'), () => {
-          this.mode = 'legacy';
-          this.render();
-        }, { variant: 'ghost', fontSize: '12px' }));
-      }
+      cursor += rankHeight + 4;
     }
+    if (showsProgress) {
+      // The ledger appears once a reign has ended — a page whose every number is zero teaches the
+      // player it is not for them. Until then the shop keeps the full width it always had.
+      // At the 620 clamp these rows are 19 units tall, which is a target no thumb can find. The
+      // same padding the secondary tier already uses puts the hit area back to 44 without the
+      // drawn row growing — see `SECONDARY_HIT_PADDING`.
+      const doorPad = Math.max(0, 44 - doorsRow);
+      if (dynasty.reigns > 0) {
+        const half = Math.floor((SECONDARY_WIDTH - 8) / 2);
+        this.content.push(this.ui.button({ x: SECONDARY_X, y: cursor, width: half, height: doorsRow },
+          t('empire.legacy.openShop'), () => { this.mode = 'legacy'; this.render(); },
+          { variant: 'ghost', fontSize: '11px', extraHitPadding: doorPad })
+          .setData('visualBounds', { width: half, height: doorsRow }));
+        this.content.push(this.ui.button({ x: SECONDARY_X + half + 8, y: cursor, width: half, height: doorsRow },
+          t('dynasty.menu'), () => { this.mode = 'dynasty'; this.render(); },
+          // Gold rather than ghost when a trait is waiting to be chosen: that is the one thing on
+          // this page the player is actually owed, and it must not read as a third utility link.
+          { variant: dynasty.pendingPicks > 0 ? 'primary' : 'ghost', fontSize: '11px', extraHitPadding: doorPad })
+          .setData('visualBounds', { width: half, height: doorsRow }));
+      } else {
+        this.content.push(this.ui.button({ x: SECONDARY_X, y: cursor, width: SECONDARY_WIDTH, height: doorsRow },
+          t('empire.legacy.openShop'), () => { this.mode = 'legacy'; this.render(); },
+          { variant: 'ghost', fontSize: '11px', extraHitPadding: doorPad })
+          .setData('visualBounds', { width: SECONDARY_WIDTH, height: doorsRow }));
+      }
+      cursor += this.vh(30) + gap;
+    }
+
+    // The group break, and the reason the footer reads as a different kind of thing from the
+    // buttons above it.
+    cursor += gap * 2;
+
+    this.renderLanguageSwitch();
+    this.renderFooterPair();
+
+    this.renderSupportRow();
+    this.renderVersionLine();
   }
 
   /**
