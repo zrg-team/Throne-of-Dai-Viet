@@ -3196,8 +3196,14 @@ export class MenuScene extends Phaser.Scene {
     board.lineStyle(0.7, INK_UI.brush, 0.32);
     board.strokeRoundedRect(3.5, 3.5, width - 7, height - 7, 3);
     tablet.add(board);
-    // The drum's register across the head, the same band the Reckoning and the lane frames wear.
-    sawtoothBand(board, 8, 8, width - 16, 4, 0.4);
+    /**
+     * No sawtooth band across the head.
+     *
+     * The drum's register is the right idiom and the wrong size for this board: drawn full width it
+     * crossed the portrait recess, and on the compact form it printed straight through the house
+     * name — the head is four units it does not have. The doubled rule already does the work the
+     * band was there for, which is to say *document* rather than *control*.
+     */
 
     /**
      * Three columns, and the middle one is told how much room the other two leave it.
@@ -3231,8 +3237,10 @@ export class MenuScene extends Phaser.Scene {
       recess.lineStyle(0.8, INK_UI.brush, 0.5);
       recess.strokeRect(14, top, PORTRAIT, PORTRAIT);
       tablet.add(recess);
+      // Inset by two: `renderHeroFaceInBox` fits the face's own extent, and a topknot pin drawn at
+      // the very top of it lands on the recess rule rather than inside the frame.
       tablet.add(renderHeroFaceInBox(this, founder,
-        { x: 14, y: top, width: PORTRAIT, height: PORTRAIT }));
+        { x: 16, y: top + 2, width: PORTRAIT - 4, height: PORTRAIT - 4 }));
     }
 
     // The words. The name of the feature leads in both states — a player who has never opened it
@@ -3252,9 +3260,11 @@ export class MenuScene extends Phaser.Scene {
      * feature's name joins the house's on one line — `TÔNG PHẢ · Nhà Lê Duyệt` — which keeps the
      * word on the page while spending one row instead of two.
      */
-    const eyebrowY = tight ? 8 : 12;
-    const nameY = merged ? eyebrowY : eyebrowY + 11;
-    const statsY = height - 22;
+    const eyebrowY = tight ? 9 : 11;
+    const nameY = merged ? 8 : eyebrowY + 11;
+    // Two more units off the foot than the bar needs, so the reign line sits above the rule
+    // rather than on it — at `height - 22` the 9.5px type ended exactly where the bar begins.
+    const statsY = merged ? 24 : height - 25;
     if (!merged) {
       const eyebrow = this.ui.label(textX, eyebrowY, t('dynasty.title'), 'caption', {
         fontSize: '8px', color: ink(owed ? INK_UI.cinnabar : INK_UI.gold),
@@ -3289,15 +3299,24 @@ export class MenuScene extends Phaser.Scene {
         : t('dynasty.tabletInvite'),
       'caption', { fontSize: '9.5px', wordWrap: { width: textWidth } }));
 
-    // The bar rides the foot of the board, inside the hairline — a rule that fills, not a widget.
-    if (opened) {
-      const barY = height - 8;
-      const barW = width - 28;
+    /**
+     * The bar rides the foot of the board, inside the hairline — a rule that fills, not a widget.
+     *
+     * It is the third thing to give way, after the portrait and the eyebrow. On a 44-unit board two
+     * lines of type and a bar do not fit without the stats sitting on the rule, and the level the
+     * bar is a picture of is printed in words two lines above it.
+     */
+    if (opened && !merged) {
+      // It starts where the words start, not at the board's edge: run full width it passes under
+      // the portrait recess and reads as a rule cutting the frame off rather than as the text
+      // column's own measure.
+      const barY = height - 9;
+      const barW = width - textX - 14;
       const bar = this.add.graphics();
       bar.fillStyle(INK_UI.softBrush, 0.3);
-      bar.fillRoundedRect(14, barY, barW, 4, 2);
+      bar.fillRoundedRect(textX, barY, barW, 4, 2);
       bar.fillStyle(owed ? INK_UI.cinnabar : INK_UI.gold, 0.92);
-      bar.fillRoundedRect(14, barY,
+      bar.fillRoundedRect(textX, barY,
         Math.max(4, barW * Math.min(1, progress.into / Math.max(1, progress.need))), 4, 2);
       tablet.add(bar);
     }
@@ -3314,7 +3333,9 @@ export class MenuScene extends Phaser.Scene {
       const stamp = this.add.graphics();
       // Top corner, the way a seal is pressed onto a document — and clear of the line beneath it,
       // which is where the first pass put the two on top of each other.
-      seal(stamp, width - 26, merged ? 15 : tight ? 19 : 22, merged ? 18 : tight ? 22 : 24, 'lotus');
+      // Centred on a compact board — at 15 it was pressed into the top rule and clipped by it.
+      seal(stamp, width - 26, merged ? Math.round(height / 2) : tight ? 19 : 21,
+        merged ? 20 : tight ? 22 : 24, 'lotus');
       tablet.add(stamp);
       this.dynastyPulse?.remove();
       this.dynastyPulse = this.tweens.add({
