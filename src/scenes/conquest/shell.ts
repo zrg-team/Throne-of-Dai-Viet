@@ -46,6 +46,7 @@ import { clearLanePage } from './layers';
 import { showWarBoard, warBoardSignature } from './screens/warBoard';
 import type { ConquestUIScene } from '../ConquestUIScene';
 import { attachPaperSheet } from '../../ui/ink/paperSheet';
+import { stopBattleMusic } from './battle/music';
 
 
 /** The three map controls stacked at the right edge, matching the classic modes. */
@@ -676,6 +677,8 @@ export function beginOverlay(self: ConquestUIScene, key: string): void {
 function releaseOverlay(self: ConquestUIScene): void {
   setMapVisible(self, true);
   self.stopBattleClock();
+  // Nulled before `clearLanePage` runs, so the funnel cannot see it — this door pays its own way.
+  if (self.battleUi) stopBattleMusic();
   self.battleUi = undefined;
   clearLanePage(self);
 }

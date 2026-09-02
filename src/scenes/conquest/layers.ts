@@ -13,6 +13,7 @@
 import Phaser from 'phaser';
 import { swallowRestOfPress } from '../../ui/inputGeneration';
 import type { ConquestUIScene } from '../ConquestUIScene';
+import { stopBattleMusic } from './battle/music';
 
 /**
  * Empties a layer, and takes its tweens with it.
@@ -88,6 +89,8 @@ export function clearLanePage(self: ConquestUIScene): void {
   // straddles all three.
   swallowRestOfPress(self);
   self.stopBattleClock();
+  // *"stop if users leave"* — every battle teardown funnels through here.
+  if (self.battleUi) stopBattleMusic();
   self.battleUi = undefined;
   // Only the war board sets this again, on its way in — so every other page of the lane is
   // automatically one that `refresh` will not redraw under the player.

@@ -44,6 +44,7 @@ import { figureEraFor } from '../ui/ink/devices';
 import { GROUND_DEPTH_PIECE_STEP, STATIC_BAKE_DEPTH, groundDepth } from '../ui/ink/proportion';
 import { stampFootY } from '../ui/conquestMapArt';
 import { liveBattles } from '../systems/ascent/fronts';
+import { soundDirector } from '../ui/sound/SoundDirector';
 
 /** How big a province's standard is drawn against the ground it stands on. See `drawFlags`. */
 const MAP_LAND_FLAG_SCALE = 0.55;
@@ -347,6 +348,9 @@ export class MapScene extends Phaser.Scene {
   create(): void {
     // A pending ladder step lands here, at the scene boundary, before any camera is set up.
     applyPendingRenderScale(this.game);
+    // The map's own bed, drawn from the Hanoi recordings. A fight silences it and hands it back
+    // (see `duckAmbient`), so the two never play together.
+    soundDirector.ambientMusic('map');
     // The map build and its bakes take real frames; the ladder must not read them as the
     // device failing to keep up — that misread is what stepped iPhones off an explicit high.
     qualityLadder()?.markSceneStart();

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/constants';
 import { addPressFeedback } from './animations';
-import { installPressWatch, markControlBorn, releaseNotOwnedBy } from './inputGeneration';
+import { installPressWatch, liftForInput, markControlBorn, releaseNotOwnedBy } from './inputGeneration';
 import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from './CardIcons';
 import { UI_FONT } from './fonts';
 import { RectClip } from './ink/clipRect';
@@ -10,6 +10,7 @@ import { inkPath, mulberry32, washFill, type Pt } from './ink/stroke';
 import { designLength, designPointer } from '../game/graphicsQuality';
 import { t } from '../i18n';
 import { applyStamp, placeStamp, stampDesign, type Stamp } from './ink/stamp';
+import { soundDirector } from './sound/SoundDirector';
 
 /**
  * A printed surface: a sheet of paper with a hand-pulled contour round it.
@@ -824,6 +825,9 @@ export class InkUI {
       const now = pointer.downTime || performance.now();
       if (now - firedAt < 120) return;
       firedAt = now;
+      // The court's paper, under every press. This is also the gesture that unlocks the audio
+      // context on first touch — see SoundDirector.tap.
+      soundDirector.tap();
       onClick();
     });
     hitArea.on('pointerup', (
@@ -944,6 +948,7 @@ export class InkUI {
       if (releaseNotOwnedBy(hitArea)) {
         return;
       }
+      soundDirector.tap();
       onClick();
     });
     markControlBorn(hitArea);
@@ -967,15 +972,18 @@ export class InkUI {
       .rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, INK_UI.overlay, 0.88)
       .setOrigin(0, 0)
       .setInteractive();
-    blocker.on(
-      'pointerdown',
-      (
-        _pointer: Phaser.Input.Pointer,
-        _localX: number,
-        _localY: number,
-        event: Phaser.Types.Input.EventData,
-      ) => event.stopPropagation(),
-    );
+    // Both halves of a press. The release used to fall through to the scene-level `pointerup`,
+    // which is harmless only for as long as nothing listens there.
+    const swallow = (
+      _pointer: Phaser.Input.Pointer,
+      _localX: number,
+      _localY: number,
+      event: Phaser.Types.Input.EventData,
+    ) => event.stopPropagation();
+    blocker.on('pointerdown', swallow);
+    blocker.on('pointerup', swallow);
+    // Above everything drawn last frame, before this one is drawn — see `liftForInput`.
+    liftForInput(this.scene, [blocker]);
 
     const frame = this.panel({ x, y, width, height }, {
       fill: INK_UI.parchment,
@@ -1062,6 +1070,7 @@ export class InkUI {
         event: Phaser.Types.Input.EventData,
       ) => {
         event.stopPropagation();
+        soundDirector.tap();
         onClick();
       },
     );

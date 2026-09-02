@@ -51,6 +51,10 @@ import { copyToClipboard, openExternalLink } from '../utils/browser';
 import { encodeQr, type QrMatrix } from '../utils/qr';
 import { attachPaperSheet } from '../ui/ink/paperSheet';
 import { qualityLadder } from '../game/qualityLadder';
+import {
+  bumpInputGeneration, forgetSheet, liftForInput, quietUntilNextFrame, registerSheet, swallowRestOfPress,
+} from '../ui/inputGeneration';
+import { soundDirector } from '../ui/sound/SoundDirector';
 import { rungForTier } from '../game/qualityRungs';
 
 type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy' | 'dynasty' | 'temple' | 'settings';
@@ -283,6 +287,9 @@ export class MenuScene extends Phaser.Scene {
     // A scene build is not the frame rate: without this hold the ladder counted the menu's own
     // construction as the device running hot and stepped an explicit tier down for it.
     qualityLadder()?.markSceneStart();
+    // The peaceful bed. Asked for here and started by the first press — there is no audio
+    // context before a gesture, and the menu is where the gesture happens.
+    soundDirector.ambientMusic('menu');
     // No scene cap here: the front page carries live animation now, and a 30-fps pin made it
     // visibly chop against a 60–120 Hz panel. Battery pacing, if it returns, must come from a
     // real idle detector — not from capping the first thing the player sees.
@@ -3852,6 +3859,19 @@ export class MenuScene extends Phaser.Scene {
         ),
       },
       {
+        name: t('menu.sounds'),
+        build: (y) => this.renderSettingRow(
+          { x: contentX, y, width: contentWidth, height: ROW_HEIGHT },
+          t('menu.sounds'),
+          onOff,
+          soundDirector.isEnabled() ? 'on' : 'off',
+          (id) => {
+            soundDirector.setEnabled(id === 'on');
+            this.render();
+          },
+        ),
+      },
+      {
         name: t('menu.seasons'),
         build: (y) => this.renderSettingRow(
           { x: contentX, y, width: contentWidth, height: ROW_HEIGHT },
@@ -3903,9 +3923,17 @@ export class MenuScene extends Phaser.Scene {
     const updateHeight = status === 'unsupported'
       ? 0
       : 14 + VERSION_LINE + 4 + STATUS_LINE + (updateButtonHeight > 0 ? 8 + updateButtonHeight : 0);
+    /**
+     * The music credit is not decoration: the battle tracks are CC-BY 4.0, and the licence is
+     * only satisfied while the credit is *in the work a player uses*. A line in the repo's
+     * LICENSE is invisible to somebody who installed the game from a store, so it lives here,
+     * and the plate is measured with it.
+     */
+    const CREDIT_LINE = 26;
     const plateHeight = PAD + title.height + 20
       + settings.length * ROW_HEIGHT + (settings.length - 1) * ROW_GAP
       + updateHeight
+      + CREDIT_LINE
       + 22 + backHeight + PAD;
     const plateTop = Math.max(this.vy(150), Math.min(this.vy(232), GAME_HEIGHT - 24 - plateHeight));
 
@@ -3927,6 +3955,16 @@ export class MenuScene extends Phaser.Scene {
       cursor += ROW_HEIGHT + ROW_GAP;
     }
     cursor -= ROW_GAP;
+
+    // The credit the battle music is licensed on. Wrapped to the plate and printed small — it is
+    // an obligation, not a feature, and it belongs under the switch that governs the sound.
+    cursor += 10;
+    this.content.push(this.ui.label(contentX, cursor, t('menu.musicCredit'), 'caption', {
+      fontSize: '8.5px',
+      align: 'left',
+      wordWrap: { width: contentWidth },
+    }));
+    cursor += CREDIT_LINE - 10;
 
     // ── Which build this is, and whether there is a better one ──
     //

@@ -23,6 +23,7 @@ import { hostSize } from '../constants';
 import { battleFrame, battleLines, battleRailsSignature } from './geometry';
 import { clearLayer } from '../layers';
 import type { ConquestUIScene } from '../../ConquestUIScene';
+import { startBattleMusic, updateBattleMusic } from './music';
 
 /**
  * Takes the input off a container and everything under it, leaving the picture alone.
@@ -58,6 +59,8 @@ export function updateBattle(self: ConquestUIScene): void {
   }
 
   const frame = battleFrame(self, battle);
+  // The bed follows the field: as men fall the music thins with them.
+  updateBattleMusic(self, battle);
 
   if (self.battleFieldSignature(battle) !== ui.fieldSignature) {
     self.buildBattleField(battle);

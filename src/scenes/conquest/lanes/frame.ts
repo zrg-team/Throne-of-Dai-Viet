@@ -26,6 +26,7 @@ import {
 import { clearLanePage } from '../layers';
 import { delegateBattle } from '../../../systems/ascent/BattleSystem';
 import type { ConquestUIScene } from '../../ConquestUIScene';
+import { soundDirector } from '../../../ui/sound/SoundDirector';
 
 /** The ghost "back" button a lane sub-page shows above its footer button. */
 const LANE_BACK_BUTTON_HEIGHT = 34;
@@ -342,7 +343,7 @@ export function laneList(self: ConquestUIScene,
         const hit = self.add.rectangle(x, content.y, width, LANE_TABS_HEIGHT, INK_UI.brush, 0.001)
           .setOrigin(0, 0)
           .setInteractive({ useHandCursor: true });
-        hit.on('pointerup', () => cfg.onSelect(index));
+        hit.on('pointerup', () => { soundDirector.tap(); cfg.onSelect(index); });
         self.modalLayer.add(hit);
       }
     });
@@ -709,7 +710,7 @@ export function laneList(self: ConquestUIScene,
       // a checkbox on a phone that misses.
       const hit = self.add.rectangle(content.x, ty, content.width, LANE_TOGGLE_HEIGHT,
         INK_UI.brush, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-      hit.on('pointerup', cfg.onToggle);
+      hit.on('pointerup', () => { soundDirector.tap(); cfg.onToggle(); });
       sheetHost.add(hit);
 
       const box = self.add.graphics();

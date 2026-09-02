@@ -17,6 +17,7 @@
  */
 import Phaser from 'phaser';
 import { designPointer } from '../../game/graphicsQuality';
+import { soundDirector } from '../sound/SoundDirector';
 import { PIGMENT } from '../ink/palette';
 
 export interface CardStackOptions {
@@ -143,6 +144,9 @@ export class CardStack {
 
   private release(dx: number, dy: number): void {
     if (-dy >= LIFT_THRESHOLD && -dy >= Math.abs(dx)) {
+      // At the lift, not at the callback: the sound belongs to the card leaving the deck, which
+      // is what the player just did, and `lift` runs an animation before it reports.
+      soundDirector.card();
       this.lift(() => this.opts.onSelect(this.index));
       return;
     }

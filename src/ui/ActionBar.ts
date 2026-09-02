@@ -7,6 +7,7 @@ import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from './CardIcons';
 import { sawtoothBand } from './ink/devices';
 import { t } from '../i18n';
 import { placeStamp, stampDesign } from './ink/stamp';
+import { soundDirector } from './sound/SoundDirector';
 
 const EMPIRE_KEYS = ['build', 'heroes', 'court', 'army', 'affairs', 'directives', 'pause'] as const;
 const CAMPAIGN_KEYS = ['build', 'heroes', 'court', 'army', 'affairs', 'pause'] as const;
@@ -528,7 +529,13 @@ export class ActionBar extends Phaser.GameObjects.Container {
     const hit = this.scene.add
       .rectangle(0, 0, bounds.width, bounds.height + 8, 0xffffff, 0.001)
       .setInteractive({ useHandCursor: true });
-    this.wirePress(hit, container, () => this.onAction(slot.action));
+    // The bar draws its own buttons (the glyph sits above the label, which `InkUI.button`
+    // cannot do), so it does not inherit InkUI's press sound and was silent. Each lane has
+    // its own paper — see `SoundDirector.lane`.
+    this.wirePress(hit, container, () => {
+      soundDirector.lane(slot.action);
+      this.onAction(slot.action);
+    });
 
     container.add([icon, text, hit]);
     this.add(container);
@@ -656,7 +663,13 @@ export class ActionBar extends Phaser.GameObjects.Container {
     const hit = this.scene.add
       .rectangle(0, 0, bounds.width + 16, bounds.height + 8, 0xffffff, 0.001)
       .setInteractive({ useHandCursor: true });
-    this.wirePress(hit, container, () => this.onAction(slot.action));
+    // The bar draws its own buttons (the glyph sits above the label, which `InkUI.button`
+    // cannot do), so it does not inherit InkUI's press sound and was silent. Each lane has
+    // its own paper — see `SoundDirector.lane`.
+    this.wirePress(hit, container, () => {
+      soundDirector.lane(slot.action);
+      this.onAction(slot.action);
+    });
 
     container.add([glyph, hit]);
     this.add(container);
