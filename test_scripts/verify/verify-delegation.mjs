@@ -81,6 +81,75 @@ await page.evaluate(() => {
 await page.waitForTimeout(900);
 const back = await read();
 
+/**
+ * **And it has to still be theirs a season later.**
+ *
+ * Headless, and it has to be. The battle lane holds the economy clock while the player is
+ * standing on the field, so waiting on the rendered screen advances *beats* and never calls
+ * `advanceAscentTick` — which is where the auto-delegate rule lives. That is also precisely why
+ * the bug was reported the way it was: the field is handed back on the first tick that runs after
+ * the player leaves, so it looks like *closing* the screen is what did it. Reported as *i take
+ * control -> game back to auto -> it only automatically move to auto mode if i move to other
+ * fight or click close button.*
+ *
+ * The rule counted its grace window from the opening beat, so a take-back — which happens past
+ * beat ten by definition — was undone on the very next season unless the player also moved a dial
+ * in the same breath. Both entry points are checked: the take-back chip, and walking onto a side
+ * fight with `focusBattle`.
+ */
+const survives = await page.evaluate(async (beatsNeeded) => {
+  const { createAscentGameState } = await import('/src/state/GameState.ts');
+  const { advanceAscentTick } = await import('/src/systems/ascent/AscentTick.ts');
+  const { resolveAscentPrompt } = await import('/src/systems/ascent/AscentResolver.ts');
+  const BS = await import('/src/systems/ascent/BattleSystem.ts');
+
+  let s = 20260902 >>> 0;
+  Math.random = () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const pick = (p) => {
+    const o = p.options ?? [];
+    switch (p.kind) {
+      case 'founder': return p.options[0];
+      case 'power-draft': return p.cards?.[0] ?? 'skip';
+      case 'conquer-target': return p.targets?.[0]?.landId ?? 'hold';
+      case 'conquer-method': return p.target.methods.find((m) => !m.blockedReason)?.method ?? 'back';
+      case 'hero-choice': return p.heroIds?.[0] ?? 'pass';
+      case 'court-appointment': return p.options[0].id;
+      case 'law-choice': return p.projectIds?.[0] ? `edict:${p.projectIds[0]}` : 'hold';
+      case 'muster-proposal': return 'accept';
+      case 'doctrine': return p.options?.[0] ?? 'hold';
+      default: return o.length ? (o.find((x) => x.affordable) ?? o[0]).id : 'ok';
+    }
+  };
+  const drain = (st) => { let g = 0; while (st.pendingAscentPrompt && g++ < 40) resolveAscentPrompt(st, pick(st.pendingAscentPrompt)); };
+
+  const st = createAscentGameState({ difficulty: 'normal' });
+  drain(st);
+  // Run on until a field is live and has beaten past the grace window under its general.
+  let ready = false;
+  for (let i = 0; i < 400; i += 1) {
+    advanceAscentTick(st);
+    drain(st);
+    st.isDefeated = false;
+    const b = st.ascent.activeBattle;
+    if (b && !b.over && (b.approachBeats ?? 0) + b.round >= beatsNeeded) { ready = true; break; }
+  }
+  if (!ready) return { reached: false };
+  const opened = st.ascent.activeBattle;
+  const atBeat = (opened.approachBeats ?? 0) + opened.round;
+
+  BS.delegateBattle(st, false);
+  const tapped = st.ascent.activeBattle?.delegated;
+  advanceAscentTick(st);
+  const afterOneSeason = st.ascent.activeBattle?.delegated;
+  const gone = !st.ascent.activeBattle || st.ascent.activeBattle.over;
+  return { reached: true, atBeat, tapped, afterOneSeason, gone };
+}, 10);
+
 await browser.close();
 
 const line = (ok, label, detail) => console.log(`${ok ? 'PASS' : 'FAIL'}  ${label.padEnd(48)} ${detail}`);
@@ -104,6 +173,11 @@ line(later.labels.some((s) => /Take back|Cầm quân lại/.test(s)), 'the chip 
   later.labels.filter((s) => s.length < 24).join(' | '));
 line(back.delegated === false, 'taking the field back works', `delegated=${back.delegated}`);
 line(!back.gone && !back.over, 'and the fight is still there afterwards', `round ${back.round}`);
+line(survives.reached && (survives.gone || survives.afterOneSeason === false),
+  'and the command survives the next season',
+  !survives.reached ? 'no field reached the grace window'
+    : survives.gone ? 'the fight ended first'
+      : `took the field at beat ${survives.atBeat}: delegated ${survives.tapped} -> ${survives.afterOneSeason}`);
 console.log(`\nlog at hand-over: ${handed.log.join(' / ')}`);
 console.log(`fights: handed ${handed.key}@${handed.beat}  later ${later.key}@${later.beat}  back ${back.key}@${back.beat}`);
 console.log(`clocks: handed ${JSON.stringify({ p: handed.paused, s: handed.strat, a: handed.awaiting, t: handed.turn })}`

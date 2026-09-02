@@ -2089,6 +2089,23 @@ export interface AscentBattle {
    */
   steeredFormation?: boolean;
   steeredStance?: boolean;
+  /**
+   * The beat at which this field last became the player's.
+   *
+   * The grace window before a general assumes an uncommanded field is counted from *here*, not
+   * from the opening beat — see the auto-delegate rule in `AscentTick`.
+   *
+   * **The reported bug.** Taking the field back from a general mid-fight set `delegated = false`
+   * and nothing else, so on the very next season the rule read "undelegated, no dial touched, and
+   * well past beat ten" and handed it straight back. Reproduced: a fight at beat 12, take the
+   * field, one tick, delegated again — with only a line in the log to say so. *i take control ->
+   * game back to auto.* The window has to restart when command changes hands, or "take the field"
+   * is a button that undoes itself unless the player also happens to move a dial that same season.
+   *
+   * Unset on a fresh field, which reads as 0 and leaves the opening grace window exactly as it
+   * was.
+   */
+  commandedFromBeat?: number;
 
   /**
    * The shape each side is standing in — the fast dial, and the whole rock-paper-scissors.

@@ -2089,6 +2089,9 @@ export function delegateBattle(state: GameState, delegated: boolean, standing = 
   // from one fight has not told the realm anything about the next one.
   if (standing && state.ascent) state.ascent.handToGenerals = delegated;
   if (!delegated) {
+    // The grace window restarts here. Without this the field is handed back on the next season —
+    // see `commandedFromBeat`.
+    battle.commandedFromBeat = (battle.approachBeats ?? 0) + battle.round;
     battle.log.push(t('ascent.battle.tookBack'));
     return;
   }

@@ -136,7 +136,13 @@ export function focusBattle(state: GameState, landId: string): boolean {
   ascent.activeBattle = taking;
   // Taken back by the hand that asked for it. The take-back chip says so on the screen this
   // opens, so a focused fight is never one the player has to hand *back* to themselves.
+  //
+  // And the grace window restarts with it. A side fight is being held by a general and is past
+  // beat ten by definition, so without this the auto-delegate rule in `AscentTick` handed it
+  // straight back on the next season — walking onto a field took command for less than one
+  // season. Same defect as the take-back chip had; see `commandedFromBeat`.
   taking.delegated = false;
+  taking.commandedFromBeat = (taking.approachBeats ?? 0) + taking.round;
   ascent.sideBattles = sides;
   return true;
 }

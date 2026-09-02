@@ -285,9 +285,15 @@ export function advanceAscentTick(state: GameState): void {
   // the practice yard, and an unclaimed fight losing there is the lesson.
   // Only the field the player is standing on can be *un*commanded — the side fights open
   // delegated, because there is nobody to grant a grace window to on a field nobody is watching.
+  //
+  // Counted from `commandedFromBeat` — the beat the field last became the player's — rather than
+  // from the opening beat. Taking the field back from a general happens *past* the window by
+  // definition, so measuring from the start handed it straight back on the following season and
+  // "take the field" only stuck if the player moved a dial in the same breath.
   const live = state.ascent.activeBattle;
+  const beat = (live?.approachBeats ?? 0) + (live?.round ?? 0);
   if (live && !live.delegated && !live.steeredFormation && !live.steeredStance
-    && (live.approachBeats ?? 0) + live.round >= ASCENT_AUTO_DELEGATE_BEATS) {
+    && beat - (live.commandedFromBeat ?? 0) >= ASCENT_AUTO_DELEGATE_BEATS) {
     delegateBattle(state, true, false);
   }
   // Before the beat clock touches anything: `progressSiegeOrders` flipped owners back at the
