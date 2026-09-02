@@ -162,6 +162,7 @@ export const enCore = {
    */
   "menu.back": "\u2039 Back",
   "menu.continue": "Continue",
+  "menu.continueLine": "Continue · {note} ›",
   "menu.savedSnapshotKept": "The saved snapshot remains until you save again.",
   "menu.startCampaign": "Start Campaign",
   "menu.startNewCampaign": "Start New Campaign",
@@ -705,6 +706,7 @@ export const viCore = {
   "language.vi": "VN",
   "menu.back": "\u2039 Quay lại",
   "menu.continue": "Tiếp tục",
+  "menu.continueLine": "Tiếp tục · {note} ›",
   "menu.savedSnapshotKept": "Bản lưu vẫn được giữ cho đến khi bạn lưu lại.",
   "menu.startCampaign": "Bắt đầu chiến dịch",
   "menu.startNewCampaign": "Chiến dịch mới",

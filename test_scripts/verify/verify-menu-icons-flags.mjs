@@ -123,12 +123,16 @@ const utilityGaps = structure.utilities.slice(1).map((button, index) => button.x
 check(structure.utilities.find((button) => button.id === 'history')?.icon === 'book'
     && utilityGaps.every((gap) => gap <= 90),
   'History uses a book icon and the utility row is compact', JSON.stringify({ utilityGaps, utilities: structure.utilities }));
-check(structure.secondary.length === 2
+// A row that carries a second line needs the units for it — the dynasty plate prints its level
+// under its name — so the ceiling is 32 for a one-line plate and 40 for a two-line one. Everything
+// else about the tier holds either way: 240 wide, 44 of touch, and type no larger than the label
+// size the primary is deliberately bigger than.
+check(structure.secondary.length >= 2
     && structure.secondary.every((button) => button.bounds.width === 240
-      && button.bounds.height <= 32
+      && button.bounds.height <= (button.fontSizes.length > 1 ? 40 : 32)
       && button.hitHeight >= 44
       && Math.max(...button.fontSizes) <= 12),
-  'Classic Modes and Continue use short plates and small type with full touch heights', JSON.stringify(structure.secondary));
+  'the secondary tier keeps short plates, small type and full touch heights', JSON.stringify(structure.secondary));
 check(structure.flags.length === 2
     && structure.flags.every((flag) => flag.drawn)
     && structure.flags.find((flag) => flag.id === 'vi').x < structure.flags.find((flag) => flag.id === 'en').x,

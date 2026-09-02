@@ -658,6 +658,101 @@ console.log('\n=== VIETNAMESE ===');
   await vi.close();
 }
 
+
+// ── 9. Reachability at every design height ──────────────────────────────────
+//
+// The regression this locks (`4a67460`): the rank line and both progression doors were appended
+// after the footer behind `cursor + vh(30) + 18 < SETTINGS_TOP`, and the column above them is
+// centred in a fixed lane — so the only room that check could find was whatever half-slack the
+// centring happened to leave. Measured at the time, the row rendered at GAME_HEIGHT 1040 and
+// nowhere else, which had made the Ascension Legacy shop unreachable on every phone since the
+// check was written. A page that draws its own doors only on a desktop-tall sheet fails silently:
+// nothing errors, nothing overlaps, the feature is simply not there.
+//
+// So the assertion is existence, at every height the design clamps to, against the data condition
+// that is supposed to produce each row — never "does it fit".
+console.log('\n=== REACHABILITY ===');
+{
+  const HEIGHTS = [620, 660, 844, 926, 1040];
+  const seeded = {
+    legacy: { points: 551, bestScore: 5510, ascensions: 1, perks: [], codes: ['confucian'] },
+    dynasty: {
+      xp: 5510, level: 2, traits: ['quartermaster'], pendingPicks: 1,
+      reigns: 1, bestScore: 5510, respecs: 0,
+    },
+  };
+
+  for (const lang of ['en', 'vi']) {
+    for (const height of HEIGHTS) {
+      for (const played of [false, true]) {
+        const sheet = await browser.newPage({ viewport: { width: 390, height } });
+        const sheetErrors = [];
+        sheet.on('pageerror', (e) => sheetErrors.push(e.message));
+        await sheet.addInitScript(([code, store]) => {
+          localStorage.clear();
+          localStorage.setItem('mandate:language:v1', code);
+          if (store) {
+            localStorage.setItem('mandate:legacy:v1', JSON.stringify(store.legacy));
+            localStorage.setItem('mandate:dynasty:v1', JSON.stringify(store.dynasty));
+          }
+        }, [lang, played ? seeded : null]);
+        await sheet.goto(`${URL}/?capture=1`, { waitUntil: 'domcontentloaded' });
+        await sheet.waitForFunction(() => window.__phaserGame?.scene.isActive('MenuScene'),
+          null, { timeout: 30000 });
+        await sheet.waitForTimeout(900);
+
+        const found = await sheet.evaluate(() => {
+          const menu = window.__phaserGame.scene.getScene('MenuScene');
+          const H = window.__phaserGame.scale.gameSize.height;
+          const labels = [];
+          let lowest = 0;
+          for (const obj of menu.content) {
+            const box = obj.getBounds?.();
+            if (box && box.height > 0 && box.height < 120) lowest = Math.max(lowest, box.bottom);
+            const text = obj.list
+              ? obj.list.filter((part) => part.type === 'Text').map((part) => part.text).join(' ')
+              : obj.text;
+            if (text) labels.push(text.replace(/\n/g, ' '));
+          }
+          const has = (rx) => labels.some((text) => rx.test(text));
+          return {
+            H,
+            ledger: has(/Dynasty Ledger|Tông Phả/i),
+            // The sheet the door opens is where the shop lives now.
+            play: has(/Dragon Ascent|Rồng Thăng/i),
+            classic: has(/Classic Modes|Chế độ cổ điển/i),
+            lowest: Math.round(lowest),
+          };
+        });
+
+        // Then open the sheet and look for the shop, which only exists once a score is banked.
+        const shop = await sheet.evaluate(() => {
+          const menu = window.__phaserGame.scene.getScene('MenuScene');
+          menu.mode = 'dynasty';
+          menu.render();
+          return menu.content.some((obj) => {
+            const text = obj.list
+              ? obj.list.filter((part) => part.type === 'Text').map((part) => part.text).join(' ')
+              : obj.text;
+            return text ? /Ascension Legacy|Di Sản Thăng Thiên/i.test(text) : false;
+          });
+        });
+
+        const label = `${lang} h=${height} ${played ? 'played ' : 'fresh  '}`;
+        check(`${label} — the play button, the ledger door and the way out all render`,
+          found.play && found.ledger && found.classic,
+          `play ${found.play}, ledger ${found.ledger}, classic ${found.classic}`);
+        check(`${label} — the column stays on the sheet`,
+          found.lowest <= found.H, `lowest ${found.lowest} of ${found.H}`);
+        check(`${label} — the shop is on the ledger page exactly when it is earned`,
+          shop === played, `shop ${shop}, earned ${played}`);
+        check(`${label} — no error`, sheetErrors.length === 0, sheetErrors[0] ?? '');
+        await sheet.close();
+      }
+    }
+  }
+}
+
 check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 
 await browser.close();
