@@ -5,7 +5,7 @@
     "orientation": "portrait",
     "scheme": "vanthang",
     "userInterfaceStyle": "automatic",
-    "backgroundColor": "#201a12",
+    "backgroundColor": "#e9dfc2",
     "assetBundlePatterns": [
       "assets/**/*"
     ],
@@ -24,7 +24,7 @@
       "package": "zrg.team.vanthang",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#201a12"
+        "backgroundColor": "#e9dfc2"
       },
       "versionCode": 419
     },
@@ -32,11 +32,11 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#201a12",
+          "backgroundColor": "#e9dfc2",
           "image": "./assets/splash.png",
           "imageWidth": 220,
           "dark": {
-            "backgroundColor": "#201a12"
+            "backgroundColor": "#e9dfc2"
           }
         }
       ],
