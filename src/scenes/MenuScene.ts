@@ -22,6 +22,7 @@ import {
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
 import { BACK_BAR_BAND, BACK_BAR_HEIGHT, InkUI, INK_UI, INK_UI_HEX, type InkScrollArea, type UIBounds } from '../ui/InkUI';
+import { sawtoothBand, seal } from '../ui/ink/devices';
 import {
   BATTLE_DIFFICULTIES, BATTLE_SPEEDS, getBattleDifficulty, getBattleSpeed,
   setBattleDifficulty, setBattleSpeed,
@@ -166,6 +167,8 @@ export class MenuScene extends Phaser.Scene {
    * which destroys the objects but not the listener.
    */
   private pageScroll?: InkScrollArea;
+  /** The dynasty tablet's seal pulse, killed with the page it is stamped on. */
+  private dynastyPulse?: Phaser.Tweens.Tween;
   /**
    * The page currently drawn, which is not always the page `render` is about to draw.
    *
@@ -2532,9 +2535,14 @@ export class MenuScene extends Phaser.Scene {
      */
     // `textLink` sets its own 30-unit floor for the hit area and centres the type on its baseline.
     const CONTINUE_LINE_ROW = saved ? 30 : 0;
-    // 38, not `ROW`: the ledger carries a second line and a 30-unit button leaves 22 units of room
-    // for 25 units of type, which is what trimmed the note to an ellipsis on the last pass.
-    const LEDGER_ROW = 38;
+    /**
+     * The tablet's own height, and the one row on this page that is not a plate.
+     *
+     * 58 at the 620 clamp and 68 above it. Below 58 the portrait recess and four lines of type stop
+     * being a board and start being a squeezed button; above 68 it competes with the play control,
+     * which is the one thing on the sheet allowed to be the largest.
+     */
+    const LEDGER_ROW = GAME_HEIGHT <= 660 ? 58 : 68;
 
     /**
      * The tagline is what gives way when the lane cannot hold the column.
@@ -2644,31 +2652,7 @@ export class MenuScene extends Phaser.Scene {
       cursor += CONTINUE_LINE_ROW + gap;
     }
 
-    /**
-     * The house: your level, and whether it owes you a choice.
-     *
-     * One primary per page. The house was drawn in the cinnabar the play button wears, which put
-     * two identical calls to action on a sheet whose whole job is to point at one — so it takes the
-     * gold and Classic Modes steps down to ghost. Three weights, one per row, in the order the
-     * player wants them: play, the house, the way out.
-     *
-     * A waiting choice is said in the sub-label rather than in a louder colour. "Cấp 2 · còn 1
-     * lượt" is more specific than a red border and does not cost the page its single accent.
-     *
-     * The Ascension Legacy shop lives on the sheet this opens; two near-identical doors side by
-     * side only made the reader choose between two words whose meaning they did not yet have.
-     */
-    this.content.push(this.ui.button(
-      { x: SECONDARY_X, y: cursor, width: SECONDARY_WIDTH, height: LEDGER_ROW },
-      t('dynasty.menu'), () => { this.mode = 'dynasty'; this.render(); },
-      {
-        variant: 'secondary',
-        fontSize: '12px',
-        subLabel: ledgerSub,
-        extraHitPadding: Math.max(0, 44 - LEDGER_ROW),
-      })
-      .setData('menuSecondary', 'dynasty')
-      .setData('visualBounds', { width: SECONDARY_WIDTH, height: LEDGER_ROW }));
+    this.renderDynastyTablet(SECONDARY_X, cursor, SECONDARY_WIDTH, LEDGER_ROW);
     cursor += LEDGER_ROW + gap;
 
     this.tourTargets.classic = { x: SECONDARY_X, y: cursor, width: SECONDARY_WIDTH, height: ROW };
@@ -3149,6 +3133,183 @@ export class MenuScene extends Phaser.Scene {
 
     area.setContentHeight(Math.max(viewport, y + 8));
     this.footBackBar();
+  }
+
+  /**
+   * The house, drawn as a **bài vị** — the ancestral tablet a household keeps on its altar.
+   *
+   * A button said "Tông Phả ›" and a sub-label said "Cấp 2". Correct, and it taught nobody what the
+   * feature was: a row of three plates where one of them happened to be the only thing on the page
+   * that survives a run. The ask was that the front page *sell* it — show the score, say the words,
+   * and light up when the house is owed something.
+   *
+   * So it is not a plate. A tablet is the object this feature already is in the culture the game is
+   * drawn from: the lineage board with the house name on it, kept where the family can see it. It
+   * carries the founder's own face (the wardrobe system, at the dynasty's rank, so the king ages),
+   * the house name, the reign count, the level, the best score, and the XP bar along its foot. That
+   * is the whole feature legible without a tap — which is what "users know about the dynasty score"
+   * asks for — and it reads as a different *kind* of thing from the buttons above and below it,
+   * which is what stops the column being a wall.
+   *
+   * **Unplayed it is an invitation, not a row of zeroes.** The frame is empty, the words say what
+   * will fill it, and the border stays quiet. A page that shows a new player `Cấp 0 · 0 điểm` has
+   * told them the feature is not for them.
+   *
+   * **Owed a choice it is stamped.** The border turns cinnabar, a seal is pressed into the corner
+   * and breathes — one slow yoyo, the only motion in the column. That is the game's own vocabulary
+   * for "this is signed and waiting": the Reckoning presses the same seal. A badge or a dot would
+   * have been a notification; a seal is the object saying something about itself.
+   */
+  private renderDynastyTablet(x: number, y: number, width: number, height: number): void {
+    // `cssHex` lives in the conquest chrome, which the menu does not import — one line rather
+    // than a dependency on the run's UI barrel.
+    const ink = (colour: number): string => `#${colour.toString(16).padStart(6, '0')}`;
+    const store = getDynasty();
+    const progress = dynastyProgress(store);
+    const opened = store.reigns > 0;
+    const owed = store.pendingPicks > 0;
+    const accent = owed ? INK_UI.cinnabar : opened ? INK_UI.gold : INK_UI.softBrush;
+
+    const tablet = this.add.container(x, y);
+    this.content.push(tablet);
+
+    // The board: parchment, a heavy outer rule and a hairline inside it. The doubled rule is what
+    // makes a panel read as a *document* rather than a control — see the Reckoning's edict plate.
+    const board = this.add.graphics();
+    board.fillStyle(INK_UI.parchment, opened ? 0.97 : 0.8);
+    board.fillRoundedRect(0, 0, width, height, 5);
+    board.lineStyle(owed ? 2 : 1.5, accent, owed ? 0.95 : 0.75);
+    board.strokeRoundedRect(0, 0, width, height, 5);
+    board.lineStyle(0.7, INK_UI.brush, 0.32);
+    board.strokeRoundedRect(3.5, 3.5, width - 7, height - 7, 3);
+    tablet.add(board);
+    // The drum's register across the head, the same band the Reckoning and the lane frames wear.
+    sawtoothBand(board, 8, 8, width - 16, 4, 0.4);
+
+    /**
+     * Three columns, and the middle one is told how much room the other two leave it.
+     *
+     * The portrait only exists once a reign has ended — an empty recess is a blank box, not a
+     * promise — and the seal only exists while a choice is owed. Both are measured into the text's
+     * wrap width rather than hoped around: the first pass let the stats line run under the seal and
+     * "cao nhất 5,510" printed straight through it.
+     */
+    const founder = opened ? dynastyFounderHero(store) : undefined;
+    const PORTRAIT = Math.min(46, height - 20);
+    const textX = 14 + (founder ? PORTRAIT + 11 : 0);
+    const rightReserve = owed ? 52 : 20;
+    const textWidth = width - textX - rightReserve;
+
+    if (founder) {
+      // A ruled recess, so the face sits *in* the tablet rather than on it.
+      const top = Math.round((height - PORTRAIT) / 2);
+      const recess = this.add.graphics();
+      recess.fillStyle(INK_UI.parchmentShade, 0.8);
+      recess.fillRect(14, top, PORTRAIT, PORTRAIT);
+      recess.lineStyle(0.8, INK_UI.brush, 0.5);
+      recess.strokeRect(14, top, PORTRAIT, PORTRAIT);
+      tablet.add(recess);
+      tablet.add(renderHeroFaceInBox(this, founder,
+        { x: 14, y: top, width: PORTRAIT, height: PORTRAIT }));
+    }
+
+    // The words. The name of the feature leads in both states — a player who has never opened it
+    // has to learn what it is called before a house name can mean anything.
+    /**
+     * The rows are measured off the board, not written into it.
+     *
+     * The tablet is 58 at the 620 clamp and 68 above it, and at fixed offsets the 68-unit layout
+     * printed the house name straight through the reign line on the short one. Ten units is the
+     * whole difference, so the eyebrow moves up, the name drops a point, and the foot rows are
+     * measured back from the bottom edge where the bar already is.
+     */
+    const tight = height < 64;
+    const eyebrowY = tight ? 8 : 12;
+    const nameY = eyebrowY + 11;
+    const statsY = height - 22;
+    const eyebrow = this.ui.label(textX, eyebrowY, t('dynasty.title'), 'caption', {
+      fontSize: '8px', color: ink(owed ? INK_UI.cinnabar : INK_UI.gold),
+    });
+    eyebrow.setLetterSpacing?.(2.2);
+    tablet.add(eyebrow);
+
+    tablet.add(this.ui.label(textX, nameY,
+      opened
+        ? (store.house ? t('dynasty.house', { name: store.house }) : t('dynasty.houseUnnamed'))
+        : t('dynasty.tabletName'),
+      'label', { fontSize: tight ? '12px' : '13px', wordWrap: { width: textWidth } }));
+
+    /**
+     * The line says the most it has room for, and never wraps.
+     *
+     * With the portrait on the left and the seal on the right there are about 159 units left, and
+     * "Đời 1 · Cấp 2 · cao nhất 5,510" needs more — it wrapped, and the second line fell out of the
+     * bottom of the board and over the bar. The best score is the part that gives way, because
+     * while a choice is owed the seal is already carrying the more urgent number, and the score is
+     * on the sheet one tap away either way.
+     */
+    tablet.add(this.ui.label(textX, statsY,
+      opened
+        ? t(owed ? 'dynasty.tabletStatsShort' : 'dynasty.tabletStats', {
+          n: store.reigns,
+          level: store.level,
+          score: store.bestScore.toLocaleString('en-US'),
+        })
+        : t('dynasty.tabletInvite'),
+      'caption', { fontSize: '9.5px', wordWrap: { width: textWidth } }));
+
+    // The bar rides the foot of the board, inside the hairline — a rule that fills, not a widget.
+    if (opened) {
+      const barY = height - 9;
+      const barW = width - 28;
+      const bar = this.add.graphics();
+      bar.fillStyle(INK_UI.softBrush, 0.3);
+      bar.fillRoundedRect(14, barY, barW, 4, 2);
+      bar.fillStyle(owed ? INK_UI.cinnabar : INK_UI.gold, 0.92);
+      bar.fillRoundedRect(14, barY,
+        Math.max(4, barW * Math.min(1, progress.into / Math.max(1, progress.need))), 4, 2);
+      tablet.add(bar);
+    }
+
+    if (owed) {
+      /**
+       * Pressed, and breathing.
+       *
+       * One slow yoyo on the seal alone — not the tablet, which would make the type swim. It is the
+       * only motion in the column, so it reads as *this one thing wants you* rather than as a page
+       * that fidgets. Killed in `clearContent`: a repeating tween left running against a destroyed
+       * graphic either throws or lands an alpha on a recycled object.
+       */
+      const stamp = this.add.graphics();
+      // Top corner, the way a seal is pressed onto a document — and clear of the line beneath it,
+      // which is where the first pass put the two on top of each other.
+      seal(stamp, width - 29, tight ? 19 : 22, tight ? 22 : 24, 'lotus');
+      tablet.add(stamp);
+      this.dynastyPulse?.remove();
+      this.dynastyPulse = this.tweens.add({
+        targets: stamp,
+        alpha: { from: 1, to: 0.42 },
+        duration: 1100,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+      tablet.add(this.ui.label(width - 14, statsY,
+        t('dynasty.tabletWaiting', { n: store.pendingPicks }), 'caption',
+        { fontSize: '9px', color: ink(INK_UI.cinnabar), align: 'right' }).setOrigin(1, 0));
+    } else {
+      // The way in, at the edge the eye leaves by. Replaced by the seal when one is pressed.
+      tablet.add(this.ui.label(width - 15, Math.round(height / 2) - 9, '›', 'label',
+        { fontSize: '16px', color: ink(accent) }).setOrigin(0.5, 0));
+    }
+
+    const hit = this.add.rectangle(width / 2, height / 2, width, Math.max(height, 44), 0xffffff, 0.001)
+      .setInteractive({ useHandCursor: true });
+    hit.on('pointerup', () => { this.mode = 'dynasty'; this.render(); });
+    tablet.add(hit);
+    // Not `menuSecondary`: that key means a stamped plate of the secondary tier, and
+    // `verify-menu-icons-flags` measures everything wearing it against that tier's rules.
+    tablet.setData('menuTablet', 'dynasty');
   }
 
   private renderLegacyShop(): void {
@@ -4383,6 +4544,8 @@ export class MenuScene extends Phaser.Scene {
     this.closeModal();
     this.pageScroll?.destroy();
     this.pageScroll = undefined;
+    this.dynastyPulse?.remove();
+    this.dynastyPulse = undefined;
     for (const item of this.content) {
       item.destroy();
     }
