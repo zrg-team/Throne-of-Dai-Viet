@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { pressBeganUnderSheet } from '../ui/inputGeneration';
 import { ACTION_BAR_HEIGHT, COLORS, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID, REALTIME_TICK_MS } from '../game/constants';
 import { TouchController } from '../input/TouchController';
 import { createInitialGameState } from '../state/GameState';
@@ -191,7 +192,17 @@ export class MapScene extends Phaser.Scene {
 
   private handleDomDown(event: PointerEvent | MouseEvent): void {
     const point = this.toGamePoint(event);
-    if (!point || this.isScreenPointOverFixedUi(point.x, point.y)) {
+    /**
+     * **A press that began under a sheet belongs to the sheet.**
+     *
+     * `isScreenPointOverFixedUi` asks whether a sheet is up *now*, and now is too late: Phaser's own
+     * canvas listener runs before this one and handles the press synchronously, so a Close button
+     * has already torn the sheet down by the time this reads the screen. It saw open map, armed
+     * `domDown`, and the release selected the province under the button. Reported as *click on a
+     * modal also clicks the bottom item covered by it*. The question that decides it is the one
+     * `ui/inputGeneration` answers at the first event of the press and holds until it ends.
+     */
+    if (pressBeganUnderSheet() || !point || this.isScreenPointOverFixedUi(point.x, point.y)) {
       this.domDown = undefined;
       return;
     }
@@ -225,7 +236,8 @@ export class MapScene extends Phaser.Scene {
     //
     // Still well under a deliberate pan: the camera only starts moving in `handleDomMove` once the
     // gesture is a drag, and twenty points on a 390-wide surface is about a fifth of an inch.
-    if (!point || !this.domDown || this.domDragDistance > 20 || this.isScreenPointOverFixedUi(point.x, point.y)) {
+    if (pressBeganUnderSheet() || !point || !this.domDown || this.domDragDistance > 20
+      || this.isScreenPointOverFixedUi(point.x, point.y)) {
       this.domDown = undefined;
       return;
     }
@@ -817,7 +829,9 @@ export class MapScene extends Phaser.Scene {
         return;
       }
 
-      if (this.isPointerOverFixedUi(pointer)) {
+      // Same rule as the DOM path: the release of a press that began under a sheet is the
+      // sheet's, whatever the screen looks like by the time it arrives.
+      if (pressBeganUnderSheet() || this.isPointerOverFixedUi(pointer)) {
         return;
       }
 

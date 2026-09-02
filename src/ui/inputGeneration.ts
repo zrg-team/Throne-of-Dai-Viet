@@ -80,8 +80,15 @@ export function registerSheet(probe: () => boolean, layer: Phaser.GameObjects.Co
   sheetLayer = layer;
 }
 
-/** Forgets the registration. Called on scene shutdown so a dead scene cannot answer for a live one. */
-export function forgetSheet(): void {
+/**
+ * Forgets the registration. Called on scene shutdown so a dead scene cannot answer for a live one.
+ *
+ * With a `layer`, only if that layer is the one registered: two scenes now register (the front
+ * page and the run's HUD), and a shutdown that arrives after the next scene has already registered
+ * must not wipe the live one.
+ */
+export function forgetSheet(layer?: Phaser.GameObjects.Container): void {
+  if (layer && sheetLayer !== layer) return;
   sheetProbe = undefined;
   sheetLayer = undefined;
   // Without this a session that ends while a sheet is up leaves every later release refused.
@@ -96,8 +103,26 @@ export function forgetSheet(): void {
  * release stricter, which fails safe.
  */
 export function notePressStarted(): void {
+  /**
+   * One press, however many events the platform delivers for it.
+   *
+   * A browser sends `pointerdown` and then `mousedown` for the same finger, and a WebView can send
+   * both twice. Phaser handles the first one synchronously — a Close button fires, the sheet is torn
+   * down — so by the time the duplicate arrives there is no sheet, and re-answering the question
+   * here flipped `pressUnderSheet` back to false for the release that follows. The map's DOM tap
+   * path then read "no sheet" and selected the province under Back. The answer is taken once, at
+   * the first event of the press, and held until the press ends.
+   */
+  if (pressActive) return;
+  pressActive = true;
   pressGeneration = generation;
   pressUnderSheet = Boolean(sheetProbe?.());
+}
+
+/** Whether a press is in flight, by the window's own account. Cleared on the first release event. */
+let pressActive = false;
+function notePressEnded(): void {
+  pressActive = false;
 }
 
 /** Scenes that already have the watch, so a scene with six `InkUI`s installs one listener. */
@@ -142,9 +167,14 @@ function installWindowWatch(): void {
   if (windowWatchInstalled || typeof window === 'undefined') return;
   windowWatchInstalled = true;
   window.addEventListener('pointerdown', notePressStarted, true);
-  // Some WebViews deliver only the mouse pair; a duplicate note is harmless — it recomputes the
-  // same two values from the same state.
+  // Some WebViews deliver only the mouse pair. The note latches on the first of whichever arrives.
   window.addEventListener('mousedown', notePressStarted, true);
+  // The press ends on the first release event; a duplicate release simply finds it already over.
+  // In the bubble phase, so every capture-phase reader of `pressBeganUnderSheet` on the same
+  // release — the map's DOM tap path among them — still sees the press it belonged to.
+  window.addEventListener('pointerup', notePressEnded, false);
+  window.addEventListener('mouseup', notePressEnded, false);
+  window.addEventListener('pointercancel', notePressEnded, false);
 }
 
 /**
@@ -246,6 +276,58 @@ export function releaseNotOwnedBy(target: Phaser.GameObjects.GameObject): boolea
 /** @deprecated Kept for the call sites converted before the sheet rule existed. */
 export const pressPredatesControl = releaseNotOwnedBy;
 
+/** Every live scene's input plugin. `scene.input` and `sys.input` are the same object. */
+function activePlugins(scene: Phaser.Scene): Phaser.Input.InputPlugin[] {
+  return scene.input.manager.game.scene.getScenes(true)
+    .map((live) => live.input)
+    .filter((plugin): plugin is Phaser.Input.InputPlugin => Boolean(plugin));
+}
+
+/**
+ * **Nothing built this frame may be pressed this frame.**
+ *
+ * The other half of the render-order race, and the half a press-in-flight swallow cannot reach.
+ * `InputPlugin.sortGameObjects` ranks hits by the camera's render list from the *last* render, so
+ * an object created since then sorts to the bottom — a sheet that has just been opened loses a
+ * release delivered in the same task to whatever was rendered beneath it. The realistic shape is a
+ * WebView's duplicated `mouseup` arriving on the heels of the `pointerup` that opened the sheet;
+ * reproduced on the front page's dynasty tablet.
+ *
+ * So the interface goes quiet until the frame after next, by which time everything it built has
+ * been rendered once and sorts where it is drawn. Two frames is the same margin `swallowRestOfPress`
+ * uses and for the same reason; no human can tap inside it.
+ */
+export function quietUntilNextFrame(scene: Phaser.Scene): void {
+  const silenced = activePlugins(scene).filter((plugin) => plugin.enabled);
+  if (silenced.length === 0) return;
+  for (const plugin of silenced) plugin.enabled = false;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    for (const plugin of silenced) {
+      if (plugin.scene?.sys?.isActive?.()) plugin.enabled = true;
+    }
+  }));
+}
+
+/**
+ * **Puts freshly built sheet furniture at the top of the input order before it has been drawn.**
+ *
+ * The camera's render list is what `sortGameObjects` ranks by, and it is rebuilt from scratch every
+ * render — so appending here is harmless (the next render starts over) and decisive (until then,
+ * these sort above everything drawn last frame instead of below it). A sheet is on top from the
+ * moment it exists, not from its first frame.
+ */
+export function liftForInput(scene: Phaser.Scene, objects: Iterable<Phaser.GameObjects.GameObject>): void {
+  const camera = scene.cameras?.main as (Phaser.Cameras.Scene2D.Camera & {
+    addToRenderList?: (child: Phaser.GameObjects.GameObject) => void;
+  }) | undefined;
+  if (!camera?.addToRenderList) return;
+  for (const object of objects) {
+    camera.addToRenderList(object);
+    const nested = (object as Phaser.GameObjects.GameObject & { list?: Phaser.GameObjects.GameObject[] }).list;
+    if (nested) for (const child of nested) camera.addToRenderList(child);
+  }
+}
+
 /**
  * **Swallows the rest of a press whose front half tore the interface down.**
  *
@@ -264,10 +346,31 @@ export const pressPredatesControl = releaseNotOwnedBy;
  * arrives. A stuck input plugin would be a far worse bug than the one being fixed.
  */
 export function swallowRestOfPress(scene: Phaser.Scene): void {
-  const anyDown = scene.input.manager.pointers.some((pointer) => pointer.isDown);
-  if (!anyDown || !scene.input.enabled) return;
+  const manager = scene.input.manager;
+  const anyDown = manager.pointers.some((pointer) => pointer.isDown);
+  if (!anyDown) return;
 
-  scene.input.enabled = false;
+  /**
+   * **Every scene, not the one that asked.**
+   *
+   * This switched off `scene.input.enabled` — one scene's plugin — and that is the whole of the
+   * pause-sheet report. `InputManager.updateInputPlugins` walks every scene, top first, and only
+   * stops when a scene *captures* the event. A scene whose plugin is disabled captures nothing, so
+   * the release was simply carried on to the world scene underneath, whose scene-level
+   * `pointerup` (`enableMapDrag`) looked up, found the sheet already closed by the press, and
+   * selected the province under Back. Reported as *click on a modal also clicks the bottom
+   * clickable item covered by the modal*.
+   *
+   * **And not the manager either.** `InputManager.enabled` was the obvious single switch, and it
+   * is wrong: `MouseManager` and `TouchManager` check it *before* forwarding the DOM event, so
+   * the release itself was dropped, `pointer.isDown` never cleared, and every overlay opened
+   * afterwards found a phantom press and went deaf for the length of the fallback timer.
+   * Measured: the pause sheet's Back stopped answering at all. Each plugin is silenced instead,
+   * and the manager keeps its pointers honest.
+   */
+  const silenced = activePlugins(scene).filter((plugin) => plugin.enabled);
+  if (silenced.length === 0) return;
+  for (const plugin of silenced) plugin.enabled = false;
   let done = false;
 
   /**
@@ -286,8 +389,12 @@ export function swallowRestOfPress(scene: Phaser.Scene): void {
    */
   const enableSoon = (): void => {
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      // The scene may have been torn down while the finger was still down.
-      if (scene.scene?.isActive?.()) scene.input.enabled = true;
+      // Exactly the plugins this call silenced, and only those still attached to a live scene: a
+      // press that ends a run must not leave the front page deaf, nor wake a plugin somebody
+      // else turned off on purpose.
+      for (const plugin of silenced) {
+        if (plugin.scene?.sys?.isActive?.()) plugin.enabled = true;
+      }
     }));
   };
   const release = (): void => {
@@ -302,7 +409,9 @@ export function swallowRestOfPress(scene: Phaser.Scene): void {
   window.addEventListener('pointercancel', release, true);
   window.addEventListener('mouseup', release, true);
   // Never longer than a gesture. If the release is lost — a WebView backgrounding mid-press, a
-  // pointer captured elsewhere — the interface must come back on its own.
+  // pointer captured elsewhere — the interface must come back on its own. On the window clock as
+  // well as the scene's: a scene stopped by the very press being swallowed takes its clock with it.
   scene.time.delayedCall(1200, release);
+  window.setTimeout(release, 1400);
 }
 
