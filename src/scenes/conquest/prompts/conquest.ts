@@ -58,12 +58,16 @@ export function showPowerDraft(self: ConquestUIScene, prompt: Extract<AscentProm
   // The bottom third holds the hand; the readout takes what is left above it. Both are measured
   // back from the pinned footer, so the sheet holds together at the 620 clamp.
   const footerY = GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8;
-  const HINT = 16;
+  // Between the readout and the fan there are two fixed lanes: the floating take-pill's
+  // (~30 units around fanTop−40) and, above it, the gesture hint's. Sized apart or the pill
+  // prints straight over the hint whenever the raised card sits mid-screen.
+  const HINT_Y_ABOVE_FAN = 70;
+  const LANES = HINT_Y_ABOVE_FAN + 8;
   const fanHeight = Phaser.Math.Clamp(Math.round(content.height * 0.48), 180, 232);
   const fanTop = footerY - 10 - fanHeight;
   // Capped: on a tall sheet the leftover space above the fan runs past 400 units, and a readout
   // stretched to fill it is a page of blank paper with four lines in its corner.
-  const infoHeight = Math.min(fanTop - content.y - HINT - 10, 214);
+  const infoHeight = Math.min(fanTop - content.y - LANES, 214);
 
   const info = self.add.container(content.x, content.y);
   self.modalLayer.add(info);
@@ -117,21 +121,25 @@ export function showPowerDraft(self: ConquestUIScene, prompt: Extract<AscentProm
     }
   };
 
-  // The evolution-ready card sits raised by default — the fan opens on the headline.
-  const initial = Math.max(0, views.findIndex((view) => view.evolutionReady));
+  // An evolution-ready card sits raised by default — the fan opens on the headline. With no
+  // headline it opens on the centre card, which is what keeps the resting hand symmetric.
+  const evo = views.findIndex((view) => view.evolutionReady);
+  const initial = evo >= 0 ? evo : Math.floor((views.length - 1) / 2);
   const fan = new CardFan(self, {
     x: content.x, y: fanTop, width: content.width, height: fanHeight,
     cards: views.map((view) => ({ id: view.id })),
     initial,
     onRaise: describe,
     onTake: (index) => self.choose(views[index].id),
+    takeLabel: t('ascent.fan.take'),
   });
   self.modalLayer.add(fan.view);
 
-  // The gesture, said once, between the readout and the hand.
-  self.modalLayer.add(self.add.text(content.x + content.width / 2, fanTop - HINT + 2,
+  // The gesture, said once, in its own lane above the take-pill's.
+  self.modalLayer.add(self.add.text(content.x + content.width / 2, fanTop - HINT_Y_ABOVE_FAN,
     t('ascent.draft.fanHint'), {
       color: '#6f6250', fontFamily: UI_FONT, fontSize: '10px', align: 'center',
+      wordWrap: { width: content.width - 8 },
     }).setOrigin(0.5, 0));
   const affordable = self.state.resources.gold >= prompt.rerollCost;
   self.modalLayer.add(self.ui.button(

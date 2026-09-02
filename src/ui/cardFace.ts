@@ -145,22 +145,56 @@ function buildCardFace(scene: Phaser.Scene, cardId: string, level: 1 | 2 | 3): P
 }
 
 /**
- * The face as a texture key, baked on first ask and cached per `(cardId, level, language)`.
- * Returns undefined when the GL context is lost — callers draw nothing this frame and ask
- * again on the next render, exactly as the portrait bake does.
+ * The face as a texture key, baked on first ask and cached per
+ * `(cardId, level, language, tilt)`. Returns undefined when the GL context is lost — callers
+ * draw nothing this frame and ask again on the next render, exactly as the portrait bake does.
+ *
+ * **Why a tilt is baked rather than set on the Image.** Rotating an RT-backed Image on the
+ * display list corrupts the sprite batch the moment certain Text objects share the frame:
+ * bisected on the draft fan, a rotated stamp plus the readout's title label made every tilted
+ * card render fragments of its neighbours, while panel and rail Graphics beside the same text
+ * were harmless and axis-aligned stamps never break anywhere (the cabinet grid, the combine
+ * ceremony). So the fan's hand-held tilt goes *into* the texture — every quad on screen stays
+ * axis-aligned — and a raised card straightens by cross-fading to the untilted bake, not by
+ * tweening `angle` through the broken path.
  */
-export function cardFaceTextureKey(scene: Phaser.Scene, cardId: string, level?: 1 | 2 | 3): string | undefined {
+export function cardFaceTextureKey(
+  scene: Phaser.Scene,
+  cardId: string,
+  level?: 1 | 2 | 3,
+  tiltDeg = 0,
+): string | undefined {
   const lv = level ?? cabinetLevel(cardId);
-  const key = `${FACE_TEXTURE_PREFIX}${cardId}:${lv}:${getLanguage()}`;
+  const tilt = Math.round(tiltDeg * 10) / 10;
+  const key = `${FACE_TEXTURE_PREFIX}${cardId}:${lv}:${getLanguage()}:${tilt}`;
   if (scene.textures.exists(key)) return key;
   const renderer = scene.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
   if (renderer?.contextLost) return undefined;
 
-  const width = Math.ceil(CARD_FACE_W * FACE_RASTER);
-  const height = Math.ceil(CARD_FACE_H * FACE_RASTER);
+  // The rotated face's bounding box, so a tilted bake keeps its corners.
+  const rad = Phaser.Math.DegToRad(Math.abs(tilt));
+  const boundsW = CARD_FACE_W * Math.cos(rad) + CARD_FACE_H * Math.sin(rad);
+  const boundsH = CARD_FACE_H * Math.cos(rad) + CARD_FACE_W * Math.sin(rad);
+  const width = Math.ceil(boundsW * FACE_RASTER);
+  const height = Math.ceil(boundsH * FACE_RASTER);
   const target = scene.make.renderTexture({ width, height }, false);
   const face = buildCardFace(scene, cardId, lv);
   face.setScale(FACE_RASTER);
+  if (tilt !== 0) {
+    // Rotated about the card's centre: place the top-left corner where the rotation of the
+    // centred card puts it. (Rotating an object *into a bake* is fine — the broken path is a
+    // rotated quad on the live display list.)
+    const a = Phaser.Math.DegToRad(tilt);
+    const cx = (width / 2) / FACE_RASTER;
+    const cy = (height / 2) / FACE_RASTER;
+    const ox = -CARD_FACE_W / 2;
+    const oy = -CARD_FACE_H / 2;
+    face.setRotation(a);
+    face.setPosition(
+      (cx + ox * Math.cos(a) - oy * Math.sin(a)) * FACE_RASTER,
+      (cy + ox * Math.sin(a) + oy * Math.cos(a)) * FACE_RASTER,
+    );
+  }
   target.draw(face);
   // Flush the buffered draw before the source dies — see the file comment.
   target.render();
@@ -171,18 +205,23 @@ export function cardFaceTextureKey(scene: Phaser.Scene, cardId: string, level?: 
 }
 
 /**
- * Stamps a face into a box, preserving aspect. The image is a single texture — a whole fan of
- * these costs the renderer five quads, which is the flat frame cost the gate measures.
+ * Stamps a face into a box, preserving aspect; a `tiltDeg` stamps the pre-tilted bake, whose
+ * corners spill past the card box exactly as a live rotation's would. The image is a single
+ * axis-aligned texture — a whole fan of these costs the renderer five quads, which is the flat
+ * frame cost the gate measures.
  */
 export function stampCardFace(
   scene: Phaser.Scene,
   cardId: string,
   box: { x: number; y: number; width: number; height: number },
   level?: 1 | 2 | 3,
+  tiltDeg = 0,
 ): Phaser.GameObjects.Image | undefined {
-  const key = cardFaceTextureKey(scene, cardId, level);
+  const key = cardFaceTextureKey(scene, cardId, level, tiltDeg);
   if (!key) return undefined;
   const image = scene.add.image(box.x + box.width / 2, box.y + box.height / 2, key);
+  // Scaled off the CARD's own dimensions, not the tilted bounds — the card must render at the
+  // same size at every angle, with the rotated corners overhanging the box.
   const scale = Math.min(box.width / (CARD_FACE_W * FACE_RASTER), box.height / (CARD_FACE_H * FACE_RASTER));
   image.setScale(scale);
   return image;

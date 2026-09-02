@@ -1830,7 +1830,8 @@ export const enAscent = {
 
   // ── Tàng Ấn Các — the Cabinet of Seals (Phase 3) ─────────────────────────
   "ascent.draft.recipeHint": "Forged pair: with {partner} → {result}",
-  "ascent.draft.fanHint": "Tap a card to raise it · tap the raised card to take it",
+  "ascent.draft.fanHint": "Slide across the hand to browse · double-tap, flick up, or press the button to take",
+  "ascent.fan.take": "Take this",
   "ascent.cabinet.rubbingEarned": "Wave {wave} held — a rubbing joins the Cabinet of Seals.",
   "ascent.cabinet.deedRelief": "Deed done: the first relief march. +1 rubbing in the Cabinet.",
   "ascent.bind.title": "BIND A SEAL",
@@ -3684,7 +3685,8 @@ export const viAscent = {
 
   // ── Tàng Ấn Các (Giai đoạn 3) ────────────────────────────────────────────
   "ascent.draft.recipeHint": "Cặp đã rèn: cùng {partner} → {result}",
-  "ascent.draft.fanHint": "Chạm để nâng lá bài · chạm lá đang nâng để lấy",
+  "ascent.draft.fanHint": "Lướt ngang tay bài để xem · chạm đúp, hất lên, hoặc bấm nút để lấy",
+  "ascent.fan.take": "Lấy lá này",
   "ascent.cabinet.rubbingEarned": "Giữ vững đợt {wave} — một thác bản về Tàng Ấn Các.",
   "ascent.cabinet.deedRelief": "Công trạng: lần giải vây đầu tiên. +1 thác bản.",
   "ascent.bind.title": "ĐÓNG ẤN",
