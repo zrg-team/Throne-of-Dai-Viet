@@ -1,5 +1,12 @@
 // Localization for "Dragon Ascent" — the endless auto-conquest run.
 // Every key here must have a Vietnamese twin below or validateCatalogs() throws at import.
+//
+// The Vietnamese is *written*, not translated. Going through the English clause by clause
+// produces strings that parse and nobody says: "Nước mở đầu đã có phần giao thương mà hai
+// huyện nữa sẽ mang lại" for what a player calls "chợ búa lời hơn ngay từ đầu ván", or "Giá
+// Sách Sâu" for Deep Shelf. Say the thing the way it is said, keep it short, and where a real
+// term exists use it — quan quân nhu, not quan coi kho. The whole dynasty block was rewritten
+// once for exactly this, reported as "your translate very bad please make it simple".
 
 export const enAscent = {
   // ── The Chronicle (Sử Ký) ────────────────────────────────────────────────
@@ -956,6 +963,16 @@ export const enAscent = {
   "ascent.war.ourMen": "Our men",
   "ascent.war.theirMen": "Their men",
   "ascent.war.siegeClock": "The walls hold for {ticks} more season(s). After that the province is theirs, fight or no fight.",
+  // ── the walls as a clock: a host at the gates, and the march that can still reach it ──
+  "ascent.siege.opened": "{kingdom} is at the walls of {land}. {ticks} season(s) before they storm them.",
+  "ascent.siege.relieved": "Relief has reached {land}. The province takes heart, and the war chest is {gold} gold the better for it.",
+  "ascent.siege.lifted": "The siege of {land} is broken. The host at its walls has gone.",
+  "ascent.war.standingAssault": "they storm the walls in {ticks} season(s)",
+  "ascent.war.assaultClock": "The walls hold {ticks} more season(s) before the assault. A host that reaches {land} first fights in the line.",
+  "ascent.war.reliefInTime": "{n} host(s) on the road — about {eta} season(s) out, and the walls hold {ticks}. They arrive before the assault.",
+  "ascent.war.reliefTooSlow": "{n} host(s) on the road, about {eta} season(s) out. The walls hold {ticks}. Send someone closer.",
+  "ascent.land.underSiege": "Under siege — {ticks} season(s) before the assault",
+  "ascent.land.retakeWindow": "Lost ground, freshly held — our hosts fight at +{pct}% to take it back",
   "ascent.war.ordersHeading": "What you may order",
   "ascent.war.noEnemyHere": "No host of theirs stands close enough to be brought to battle here.",
   "ascent.war.takeField": "Take the field here",
@@ -2750,6 +2767,16 @@ export const viAscent = {
   "ascent.war.ourMen": "Quân ta",
   "ascent.war.theirMen": "Quân địch",
   "ascent.war.siegeClock": "Thành còn giữ được {ticks} mùa nữa. Quá hạn ấy thì mất trấn, đánh hay không cũng vậy.",
+  // ── tường thành là một đồng hồ: giặc đã tới chân thành, viện binh vẫn còn kịp ──
+  "ascent.siege.opened": "{kingdom} đã tới chân thành {land}. Còn {ticks} mùa nữa là chúng công thành.",
+  "ascent.siege.relieved": "Viện binh đã tới {land}. Lòng dân phấn chấn, quốc khố cũng dày thêm {gold} vàng.",
+  "ascent.siege.lifted": "Vòng vây {land} đã phá. Đạo quân dưới chân thành đã rút.",
+  "ascent.war.standingAssault": "còn {ticks} mùa là chúng công thành",
+  "ascent.war.assaultClock": "Thành còn giữ được {ticks} mùa nữa mới bị công. Đạo quân nào về kịp {land} sẽ đứng chung hàng ngũ.",
+  "ascent.war.reliefInTime": "{n} đạo quân đang trên đường — còn chừng {eta} mùa, mà thành giữ được {ticks} mùa. Về kịp trước lúc chúng công thành.",
+  "ascent.war.reliefTooSlow": "{n} đạo quân đang trên đường, còn chừng {eta} mùa. Thành chỉ giữ được {ticks} mùa. Hãy điều đạo nào gần hơn.",
+  "ascent.land.underSiege": "Đang bị vây — còn {ticks} mùa là chúng công thành",
+  "ascent.land.retakeWindow": "Đất vừa mất, dân còn nhớ triều — quân ta đánh chiếm lại mạnh hơn {pct}%",
   "ascent.war.ordersHeading": "Bạn có thể ra lệnh",
   "ascent.war.noEnemyHere": "Không có đạo quân giặc nào đủ gần để kéo ra giao chiến ở đây.",
   "ascent.war.takeField": "Đích thân cầm quân tại đây",

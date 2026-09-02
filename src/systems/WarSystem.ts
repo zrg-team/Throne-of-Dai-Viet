@@ -14,7 +14,18 @@ import {
   RECRUIT_BARRACKS_BONUS,
 } from '../game/gameplayConfig';
 import { occupyEmptyLand } from './AcquisitionSystem';
-import { CAMPAIGN_TICKS_ON_CAPTURE } from '../game/ascentConfig';
+import {
+  ASCENT_MASONRY_POWER_PER_DEFENSE,
+  ASCENT_MILITIA_POWER_PER_MAN,
+  CAMPAIGN_TICKS_ON_CAPTURE,
+  MASONRY_POWER_PER_DEFENSE,
+  MILITIA_POWER_PER_MAN,
+  MASONRY_SHARE_CAP,
+  MIN_HOST_CREDIT,
+  MUSTER_SUPPLY_COST_MULT,
+  RETAKE_BONUS_WAVES,
+  RETAKE_POWER_BONUS,
+} from '../game/ascentConfig';
 import { extendCampaign } from './empire/InvasionSystem';
 import { checkVictory, findLand, getAcquisitionTicksRequired, getSiegeOrder, isAdjacent, refreshPlayerVisibility } from './LandSystem';
 import {
@@ -211,6 +222,84 @@ export function terrainDefenseMultiplier(land: Land): number {
   return 1 + Math.min(0.35, rugged * 0.5);
 }
 
+/**
+ * What one point of `land.defense` is worth in battle power.
+ *
+ * Sixteen in the classic modes, eight in Dragon Ascent — see `MASONRY_POWER_PER_DEFENSE`. Every
+ * reader of the figure goes through here so the odds roll, the HUD's holding power, the levy that
+ * turns the walls out and the enemy director's retreat test can never disagree about a wall.
+ */
+export function masonryPowerPerDefense(state: GameState): number {
+  return state.gameMode === 'ascent'
+    ? ASCENT_MASONRY_POWER_PER_DEFENSE
+    : MASONRY_POWER_PER_DEFENSE;
+}
+
+/**
+ * What one militiaman is worth holding his own province.
+ *
+ * The other half of the static garrison, and by wave 5 much the larger half — see
+ * `MILITIA_POWER_PER_MAN`. Same shape as `masonryPowerPerDefense` and for the same reason: the
+ * levy that turns the watch out is sized off this figure, so every reader must go through here.
+ */
+export function militiaPowerPerMan(state: GameState): number {
+  return state.gameMode === 'ascent'
+    ? ASCENT_MILITIA_POWER_PER_MAN
+    : MILITIA_POWER_PER_MAN;
+}
+
+/**
+ * Masonry and field hosts added up, with the walls held to a minority share (Dragon Ascent).
+ *
+ * The one rule the whole "army saves the land" pass turns on: **the host is the deciding term of
+ * any defence that has a host in it.** Walls alone still hold a province — the floor below is what
+ * says so — but the moment a field army stands on the ground, the masonry is clamped to
+ * `MASONRY_SHARE_CAP` of the total.
+ *
+ * The `Math.max` is not decoration. Capping in isolation would mean marching a small host into a
+ * fortress *lowered* its defence — walls 1,800 and a 400-power column clamp to 890 — so the player
+ * would be punished for relieving the exact province the mode wants relieved, by an order the war
+ * board itself offers them. The other branch is the garrison plus `MIN_HOST_CREDIT` of the men,
+ * and taking the larger of the two makes the figure continuous and monotonically increasing in
+ * host power: adding men never subtracts defence.
+ *
+ * Where the two branches cross — a host worth about half the garrison — the cap takes over and the
+ * static share sits at exactly `MASONRY_SHARE_CAP` and falls from there. Below it the walls still
+ * dominate, which is the honest reading: a token company does not make the ground contested.
+ *
+ * Inert outside Ascent — the classic modes get a plain sum.
+ */
+export function combinedDefencePower(state: GameState, masonry: number, hostPower: number): number {
+  if (state.gameMode !== 'ascent') return masonry + hostPower;
+  const ceiling = hostPower * (MASONRY_SHARE_CAP / (1 - MASONRY_SHARE_CAP));
+  return Math.max(
+    masonry + hostPower * MIN_HOST_CREDIT,
+    Math.min(masonry, ceiling) + hostPower,
+  );
+}
+
+/**
+ * The attacker's edge when the player is retaking ground the realm lost (Dragon Ascent).
+ *
+ * `RETAKE_POWER_BONUS` at the wave the province fell, decaying linearly to nothing over
+ * `RETAKE_BONUS_WAVES`. The people of a district lost last season are still yours in every way
+ * but the flag, and the walls are still down (`wallsBreached`, land-consequences round) — this is
+ * the term that completes *lose -> muster -> take it back* rather than leaving the loss permanent.
+ *
+ * Multiplies the attacker's power inside `createBattlePreview`, so it moves the quoted odds and
+ * the roll that settles the assault together.
+ */
+export function retakeBonus(state: GameState, army: Army, targetLand: Land): number {
+  const ascent = state.ascent;
+  if (!ascent || state.gameMode !== 'ascent') return 1;
+  if (army.kingdomId !== PLAYER_KINGDOM_ID) return 1;
+  const lostAt = targetLand.lostAtWave;
+  if (lostAt === undefined) return 1;
+  const elapsed = ascent.wave - lostAt;
+  if (elapsed < 0 || elapsed >= RETAKE_BONUS_WAVES) return 1;
+  return 1 + RETAKE_POWER_BONUS * (1 - elapsed / RETAKE_BONUS_WAVES);
+}
+
 function defenderPower(state: GameState, targetLand: Land): number {
   // A garrison levy *is* the walls turned out (Dragon Ascent); the walls are counted below, so
   // the levy is not counted again as an army. Inert elsewhere: no other mode raises one.
@@ -223,12 +312,37 @@ function defenderPower(state: GameState, targetLand: Land): number {
   // turtling behind walls is no longer a win button (see WarSystem rebalance).
   // A province set to defend holds harder than its wall count says — the whole point of that focus
   // in Ascent. `getFocusDefenseMult` returns 1 in every other mode and for every other focus.
-  // A story's auxiliary standing on the ground fights too.
-  //
-  // Only ONE host has ever counted here — `.find`, not `filter` — because the roll was written
-  // when a province held at most one field army. That is a real defect, and fixing it in general
-  // would move battle odds in every mode and the conquest pace in this one, so it is deliberately
-  // left alone and gets its own measured pass. What is fixed is the single case the feature
+  const garrison = (targetLand.defense * masonryPowerPerDefense(state)
+    + targetLand.localSoldiers * militiaPowerPerMan(state))
+    * terrainDefenseMultiplier(targetLand)
+    * getFocusDefenseMult(state, targetLand);
+
+  /**
+   * **Every host present, in Dragon Ascent.**
+   *
+   * Only ONE ever counted here — `.find`, not `.filter` — because the roll was written when a
+   * province held at most one field army. The comment that stood here called it a real defect and
+   * deferred it to "its own measured pass"; this is that pass, and it is gated to Ascent because
+   * the classic modes are balanced against the single-host roll and `verify-modes-regression` has
+   * to stay byte-identical for them.
+   *
+   * It is the term the relief march hangs off: a host that marches into a besieged province and
+   * then contributes nothing to the roll is an order the game invited and then ignored. Story
+   * auxiliaries (`army.patron`) are inside this sum rather than beside it now — they were the one
+   * case the old `.find` had already been patched for.
+   *
+   * The levy stays excluded — it *is* the walls, and they are counted above.
+   */
+  if (state.gameMode === 'ascent') {
+    const hosts = state.armies.reduce((sum, army) => (
+      army.kingdomId === targetLand.ownerId && army.landId === targetLand.id && !army.isLevy
+        ? sum + armyPower(state, army)
+        : sum
+    ), 0);
+    return combinedDefencePower(state, garrison, hosts);
+  }
+
+  // A story's auxiliary standing on the ground fights too. It fixes the single case the feature
   // cannot survive: a watched battle enrols every host present, so an ally that visibly stands
   // beside your line and then contributes nothing to the hidden roll is one fight told two
   // different ways. Empty in every other mode and in any run with no auxiliary, so it needs no
@@ -242,9 +356,6 @@ function defenderPower(state: GameState, targetLand: Land): number {
       : sum
   ), 0);
 
-  const garrison = (targetLand.defense * 16 + targetLand.localSoldiers * 2.5)
-    * terrainDefenseMultiplier(targetLand)
-    * getFocusDefenseMult(state, targetLand);
   return garrison + (defendingArmy ? armyPower(state, defendingArmy) : 0) + auxiliary;
 }
 
@@ -261,7 +372,11 @@ export function createBattlePreview(
   }
 
   const defArmy = state.armies.find((a) => a.kingdomId === land.ownerId && a.landId === land.id && !a.isLevy);
-  const attackerPower = armyPower(state, army) * compositionMatchup(army.units, defArmy);
+  // `retakeBonus` is 1 for every attack that is not the player walking back onto ground they have
+  // just lost, so it is inert in the classic modes and in most Ascent assaults.
+  const attackerPower = armyPower(state, army)
+    * compositionMatchup(army.units, defArmy)
+    * retakeBonus(state, army, land);
   const targetPower = defenderPower(state, land);
   const winChance = Math.round((attackerPower / Math.max(1, attackerPower + targetPower)) * 100);
 
@@ -819,7 +934,9 @@ export function musterCost(state: GameState, soldiers: number): { gold: number; 
   return {
     gold: Math.ceil(n * MUSTER_GOLD_PER_SOLDIER * scale),
     food: Math.ceil(n * MUSTER_FOOD_PER_SOLDIER * scale),
-    supplies: Math.ceil(n * MUSTER_SUPPLIES_PER_SOLDIER * scale),
+    // `MUSTER_SUPPLY_COST_MULT`: raising a host has to be the cheaper answer to "how do I
+    // defend?" than another course of wall, which now buys half the power it used to.
+    supplies: Math.ceil(n * MUSTER_SUPPLIES_PER_SOLDIER * scale * MUSTER_SUPPLY_COST_MULT),
   };
 }
 

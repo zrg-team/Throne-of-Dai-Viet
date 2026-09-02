@@ -1,7 +1,9 @@
 import { vassalPowerTerm } from './VassalSystem';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { REALM_DEFENCE_SHARE, XP_PER_OWNED_LAND, XP_PER_TICK_BASE, xpToNextLevel } from '../../game/ascentConfig';
-import { armyPower, terrainDefenseMultiplier } from '../WarSystem';
+import {
+  armyPower, masonryPowerPerDefense, militiaPowerPerMan, terrainDefenseMultiplier,
+} from '../WarSystem';
 import { getFocusDefenseMult } from '../ResourceSystem';
 import { ambitionHeat } from './AmbitionSystem';
 import type { GameState, Land } from '../../state/types';
@@ -11,7 +13,7 @@ import type { GameState, Land } from '../../state/types';
  * matches what an attacker actually has to beat.
  */
 export function landGarrisonPower(state: GameState, land: Land): number {
-  return (land.defense * 16 + land.localSoldiers * 2.5)
+  return (land.defense * masonryPowerPerDefense(state) + land.localSoldiers * militiaPowerPerMan(state))
     * terrainDefenseMultiplier(land)
     * getFocusDefenseMult(state, land);
 }

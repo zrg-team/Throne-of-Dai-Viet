@@ -135,6 +135,41 @@ export function adviseAscent(state: GameState): Advice[] {
     });
   }
 
+  /**
+   * ── A host is at the walls and has not tried them yet ────────────────────
+   *
+   * The one piece of advice in this list that names an action with a *deadline the player can
+   * still beat*. `land.siege` exists precisely so that "march a host to the province under
+   * attack" is an order that can arrive in time, and an advisor that did not say the clock was
+   * running would have left the window shut for exactly the players it was built for.
+   *
+   * Above `front` and below the seat's own troubles: it is more urgent than a contested border
+   * (something is about to happen there) and less urgent than the dynasty ending.
+   */
+  const atTheWalls = state.lands.filter((land) => (
+    land.ownerId === PLAYER_KINGDOM_ID && land.siege !== undefined && land.siege.ticksLeft > 0));
+  if (atTheWalls.length > 0) {
+    // Fewest seasons left first — the one that can still be reached and is about to stop being
+    // reachable. The seat jumps the queue for the same reason it does everywhere else.
+    const worst = atTheWalls.slice().sort((a, b) => (
+      (Number(b.id === ascent.capitalLandId) - Number(a.id === ascent.capitalLandId))
+      || ((a.siege?.ticksLeft ?? 0) - (b.siege?.ticksLeft ?? 0))))[0];
+    add({
+      id: 'walls',
+      tone: 'urgent',
+      priority: 98,
+      line: 'advice.walls.line',
+      body: 'advice.walls.body',
+      params: {
+        land: worst.name,
+        kingdom: worst.siege?.kingdomName ?? '',
+        ticks: worst.siege?.ticksLeft ?? 0,
+        n: atTheWalls.length,
+      },
+      lane: 'army',
+    });
+  }
+
   // ── A fight is happening ─────────────────────────────────────────────────
   // Above everything, and it is the one piece of advice with a deadline: the beats run on the
   // world's clock whether or not anybody is watching, so a player reading this later has already

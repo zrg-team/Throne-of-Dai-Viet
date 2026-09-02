@@ -892,6 +892,136 @@ export const WALL_REPAIR_SEASONS = 6;
  */
 export const MILITIA_REGROW_DELAY = 2;
 
+// ── The army saves the land ─────────────────────────────────────────────────
+/**
+ * Battle power one point of `defense` is worth.
+ *
+ * Sixteen everywhere the classic modes were balanced against, and **eight in Dragon Ascent**.
+ *
+ * The figure is not a flavour term: with masonry at 16, the opening board reads
+ * *"three-quarters capital masonry"* by its own comment, and a capital garrison came to
+ * `defense * 16` against a first host in the low hundreds of power. So the honest answer to
+ * "how do I defend?" was *buy another course of wall*, and a field host — the thing the mode is
+ * about raising, marching and commanding — was a rounding error beside it.
+ *
+ * Halved rather than removed, because walls still have to do the one job walls do: cap the
+ * damage a raid can inflict on ground nobody could reach in time. What they must not do is
+ * decide the fight, which is what `MASONRY_SHARE_CAP` is for.
+ *
+ * Read it through `masonryPowerPerDefense()` (WarSystem), never as a literal — the levy that
+ * turns the walls out (`raiseGarrisonLevy`) is sized off the same number, and the fought battle
+ * and the hidden roll must not disagree about what a wall is worth.
+ */
+export const MASONRY_POWER_PER_DEFENSE = 16;
+/** Dragon Ascent's value. See `MASONRY_POWER_PER_DEFENSE`. */
+export const ASCENT_MASONRY_POWER_PER_DEFENSE = 8;
+/**
+ * Battle power one militiaman is worth standing on his own province's walls.
+ *
+ * Two and a half everywhere, and **one and a quarter in Dragon Ascent** — the same halving the
+ * masonry took, for the same reason and, it turns out, more urgently.
+ *
+ * Measured, and this is why the number exists at all: halving masonry alone moved the army's share
+ * of a contested defence at wave 5 from 5% to only 24%, because by wave 5 **masonry is no longer
+ * the big term — the militia is.** A typical province at that point carries 200–500 militiamen
+ * (~500–1,250 power) against masonry of ~90–175. The plan's premise, *three-quarters capital
+ * masonry*, is true of the opening board and decays over the first few waves as
+ * `growProvincialMilitia` fills every district; what replaces it is a static garrison that the
+ * field army is still a rounding error beside.
+ *
+ * It is the same static defence either way — `raiseGarrisonLevy` turns walls and militia out as
+ * one levy — so it takes the same treatment. Read it through `militiaPowerPerMan()` (WarSystem),
+ * never as a literal: the levy is sized off this figure too, and the fought battle and the hidden
+ * roll must not disagree about what a militiaman is worth.
+ *
+ * The difficulty coupling is deliberate and self-correcting: waves are sized against
+ * `waveFacingDefencePower`, which is mostly garrison, so a softer garrison also softens the wave.
+ * The plan anticipated exactly this ("halving masonry also softens the threat curve").
+ */
+export const MILITIA_POWER_PER_MAN = 2.5;
+/** Dragon Ascent's value. See `MILITIA_POWER_PER_MAN`. */
+export const ASCENT_MILITIA_POWER_PER_MAN = 1.25;
+/**
+ * The most of a contested defence the masonry may ever be (Dragon Ascent).
+ *
+ * Halving the per-point value moves the whole curve down but does not change its *shape*: a
+ * province with thirty courses of wall and no host on it still wins its fights by arithmetic
+ * alone. This clamps the share instead — once a field host stands on the ground, the walls
+ * contribute at most 55% of what the attacker has to beat, so the army is the deciding term of
+ * every defence that has an army in it.
+ *
+ * Applied through `combinedDefencePower()`, which floors the result at the walls' own value: a
+ * garrison standing alone keeps everything it has, and marching a small host in can never make a
+ * province *weaker* than leaving it empty.
+ */
+export const MASONRY_SHARE_CAP = 0.55;
+/**
+ * The least of its own power a host always adds to a defence, whatever the cap says.
+ *
+ * Without it the cap is player-hostile in exactly the case this whole round is about: a fortress
+ * garrisoned at 1,800 with a 400-power column marched into it would clamp to 400 x 1.22 + 400 =
+ * 890 — **relieving a province would halve its defence**, and the war board would be inviting an
+ * order that makes things worse.
+ *
+ * With it, `combinedDefencePower` is the larger of "garrison plus a token credit for the men" and
+ * "capped garrison plus the men", which is continuous, monotonically increasing in host power, and
+ * still hits the 55% ceiling exactly once the host is worth about half the garrison — the point at
+ * which the ground is genuinely contested rather than merely occupied.
+ */
+export const MIN_HOST_CREDIT = 0.35;
+/**
+ * Points of `defense` a besieging host needs one season to get through (Dragon Ascent).
+ *
+ * The siege clock, and the reason the relief march is a verb at all. An invader used to arrive
+ * and resolve the assault on the same tick, so "march a host to the province under attack" was
+ * an order that could never arrive in time — the fight was over before the muster screen closed.
+ * Now the walls hold for `ceil(defense / 12)` seasons and the player has a real window.
+ *
+ * Twelve: a capital around 48 defence buys four seasons, a frontier village at 12 buys one.
+ * Capped by `SIEGE_MAX_TICKS` so a heavily-walled seat cannot simply outwait a war.
+ */
+export const SIEGE_DEFENSE_PER_TICK = 12;
+/** The longest a siege clock may run, however thick the walls. */
+export const SIEGE_MAX_TICKS = 6;
+/**
+ * The shortest, however thin they are — **two, not one.**
+ *
+ * A one-season clock is the instant resolve wearing a countdown: nothing can be ordered, marched
+ * and arrive inside a single season, so a frontier village at 12 defence got the whole of the old
+ * behaviour back. And the frontier is where most sieges land — a wave walks in from the edge, so
+ * the thinnest-walled provinces in the realm are the ones it reaches first and the ones the relief
+ * march most needs a window on. Two seasons is the least that can contain an order and a leg.
+ */
+export const SIEGE_MIN_TICKS = 2;
+/**
+ * Seasons a besieger waits before trying the walls *again*, as a share of the first clock.
+ *
+ * A repelled assault does not send the host home — it digs back in. Half the opening clock, so a
+ * province that held once is not free for another four seasons, and the war keeps a rhythm.
+ */
+export const SIEGE_RENEW_SHARE = 0.5;
+/** Loyalty a province gains when a relief column reaches it before the walls are tried. */
+export const RELIEF_LOYALTY_REWARD = 8;
+/** Gold the treasury pays out for a siege broken by a march rather than by masonry. */
+export const RELIEF_GOLD_REWARD = 40;
+/**
+ * Attacker's edge when retaking ground the realm lost, and the waves it decays over.
+ *
+ * The other half of `lose -> muster -> take it back`. Walls staying down after a loss already
+ * shipped (the land-consequences round); this is the part that says the people of a province
+ * lost last season are still yours in every way but the flag. Linear to zero over three waves,
+ * so it is a window to act in rather than a permanent claim.
+ */
+export const RETAKE_POWER_BONUS = 0.25;
+export const RETAKE_BONUS_WAVES = 3;
+/**
+ * Multiplier on a muster's arming supplies (Dragon Ascent).
+ *
+ * The spreadsheet answer to "how do I defend?" has to be *raise a host*. Walls already escalate
+ * in price per purchase and now buy less; this tips the other side of the same choice by 15%.
+ */
+export const MUSTER_SUPPLY_COST_MULT = 0.85;
+
 // ── An empty treasury: pressure, not a trapdoor ─────────────────────────────
 /**
  * Share of its gold output an unpaid province still sends on. It used to withhold *all* of it,
@@ -1883,6 +2013,18 @@ export const MIN_ARMY_SOLDIERS = 320;
  * asked again within a wave.
  */
 export const MUSTER_DECLINE_TICKS = 16;
+/**
+ * The longest the court will stand its own business down so a hostless realm can be asked for a
+ * muster first (see `tickDecisionDirector`).
+ *
+ * Twelve — one wave interval. The yield is a priority rule, not a mute button: it gives the muster
+ * the next window rather than a shorter gap, which is what lets it exist at all without putting
+ * `muster-proposal` back into `verify-ascent`'s `backToBackKinds`. But a realm too poor to pay
+ * for a host can stay that way for a long time, and unbounded the rule ran to a measured 54
+ * seasons with no card of any kind. A wave's worth of quiet is a quiet stretch; four is a game
+ * that looks broken.
+ */
+export const MUSTER_YIELD_MAX_TICKS = 12;
 /** Below this share of a full host an army is a remnant: disbanded and recycled into manpower. */
 export const REMNANT_SHARE = 0.45;
 /**

@@ -1,9 +1,11 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
+import { hasStandingHost } from './AscentState';
 import {
   AFTERMATH_TICKS,
   COURT_GAP_TICKS,
   FAMINE_MIN_GAP_TICKS,
   MUSTER_TICKS,
+  MUSTER_YIELD_MAX_TICKS,
   SUMMON_EVERY_N_WAVES,
   WAVE_INTERVAL_TICKS,
 } from '../../game/ascentConfig';
@@ -410,6 +412,42 @@ export function tickDecisionDirector(state: GameState): void {
 
   // Something is already waiting: do not stack a second decision behind it.
   if (state.pendingAscentPrompt || ascent.promptQueue.length > 0) return;
+
+  /**
+   * **A realm with no host in the field yields its next window to the muster.**
+   *
+   * Not a shorter gap — the same gap, given to a different card. `proposeMuster` needs two clear
+   * seasons since the last prompt, and in the middle of a run the court raises something most
+   * seasons, so the muster never found one: measured across eight seeded runs, the gap alone
+   * blocked 23 of 28 hostless ticks on the worst seed and the realm reached wave 5 with nothing in
+   * the field. Shortening it to one season fixed the coverage and put `muster-proposal` straight
+   * back into `verify-ascent`'s `backToBackKinds` — which is the assertion the gap exists for.
+   *
+   * So the pacing is left exactly alone and the *priority* changes instead. A realm with no army
+   * cannot relieve a siege, take ground or answer a wave, and every scheduled decision the court
+   * has to offer is downstream of having one. Yielding costs the court nothing permanent: kinds
+   * age through `KIND_STARVATION_TICKS` while they wait, and the yield ends the moment a host
+   * musters.
+   *
+   * Deliberately narrow. It reads only state — no import of the muster path, which would make a
+   * cycle of `AutopilotSystem` -> `MusterSystem` -> here — and it requires a free champion,
+   * because a realm with nobody to command a host is not about to raise one and standing the court
+   * down for a card that cannot be raised is a deadlock rather than a priority.
+   *
+   * `MUSTER_YIELD_MAX_TICKS` bounds the silence. A poor realm may be unable to pay for a host for
+   * a long time, and the first bound tried here was `autoRecruit`'s own runway gates — which
+   * removed the whole benefit (funscore 84.7 -> 80.6, host coverage at wave 3 from seven seeds in
+   * eight down to three), because a poor realm is exactly the one that needs its next card to be
+   * the muster. Bounding the *silence* instead keeps that and still guarantees the court comes
+   * back: without it the yield ran to a 54-season gap between decisions, which the pacing metric
+   * scores as a quiet stretch and a player would read as the game having stopped.
+   */
+  const hasHost = hasStandingHost(state);
+  const mustering = state.recruitmentOrders.length > 0;
+  const commanderFree = state.heroes.some((hero) => !hero.assignedTo);
+  const stoodDownTooLong = state.turn - ascent.lastPromptTurn >= MUSTER_YIELD_MAX_TICKS;
+  if (!hasHost && !mustering && commanderFree && !stoodDownTooLong
+    && state.turn >= (ascent.musterDeclinedUntil ?? 0)) return;
 
   // Famine bypasses the gap rule, like a wave landing does.
   //

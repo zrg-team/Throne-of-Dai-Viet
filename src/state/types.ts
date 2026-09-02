@@ -134,6 +134,53 @@ export interface Land {
    * fought over is not raising a fresh watch the same afternoon.
    */
   levyReturnedTurn?: number;
+  /**
+   * A host is at the walls and has not tried them yet (ascent only).
+   *
+   * The siege clock, and the reason a relief march is a verb. An invader used to arrive and
+   * resolve the assault on the same tick, so "march a host to the province under attack" was an
+   * order that could never arrive in time — the fight was over before the muster screen closed.
+   * Now the walls hold for `ceil(defense / SIEGE_DEFENSE_PER_TICK)` seasons and the player has a
+   * window to muster, march and be counted in the roll.
+   *
+   * Distinct from `state.siegeOrders`, which is the clock that runs *after* an assault is won and
+   * flips the flag. This one runs *before* the assault. Optional so saves written before it need
+   * no migration; see `tickSieges` in InvasionSystem, which is the only writer.
+   */
+  siege?: LandSiege;
+  /**
+   * The invasion wave during which this province was last lost (ascent only).
+   *
+   * Stamped by `detectConquests` and read by `retakeBonus` — the attacker's edge that makes
+   * `lose -> muster -> take it back` a loop rather than a one-way ratchet. Cleared on retake.
+   */
+  lostAtWave?: number;
+}
+
+/** A host standing at a province's walls, waiting out the siege clock before it assaults. */
+export interface LandSiege {
+  /** The invader that opened the clock. Other hosts arriving later wait out the same one. */
+  attackerId: string;
+  kingdomId: string;
+  kingdomName: string;
+  /** Seasons the walls still hold. At zero the assault resolves on the next invasion step. */
+  ticksLeft: number;
+  /** What the clock was set to, so a badge can draw progress rather than a bare countdown. */
+  ticks: number;
+  /** The turn the walls were invested, so an arrival can be told from a host that never left. */
+  openedTurn?: number;
+  /**
+   * Ids of our hosts already standing here when the clock opened.
+   *
+   * The relief reward is for a march that arrived. Without this a garrison that never moved was
+   * paid for being where it already was, once per assault cycle, for as long as the siege ran.
+   */
+  presentAtOpen?: string[];
+  /**
+   * Set once a field host of ours *arrives* after the walls were invested — the relief reward is
+   * paid on that edge, once per siege, and is deliberately not cleared when the clock renews.
+   */
+  relieved?: boolean;
 }
 
 /** Authored land data before hex-map generation fills in position/adjacency. */

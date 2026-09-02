@@ -120,6 +120,11 @@ export interface AscentFront {
   theirMen: number;
   ourMen: number;
   besieged: boolean;
+  /**
+   * Seasons the walls hold before the host at them storms (`land.siege`), when one is standing
+   * there. Distinct from `besieged`, which is the clock that runs *after* an assault is won.
+   */
+  assaultTicks?: number;
   /** True when a battle is actually being fought here, watched or held by a general. */
   live: boolean;
   /** True for the one live front the player is standing on — `ascent.activeBattle`. */
@@ -239,6 +244,7 @@ export function contestedFronts(state: GameState): AscentFront[] {
       theirMen: entry.theirMen,
       ourMen,
       besieged: state.siegeOrders.some((order) => order.landId === landId),
+      ...(land?.siege ? { assaultTicks: land.siege.ticksLeft } : {}),
       live: fighting.has(landId),
       commanded: landId === commandedLand,
     };

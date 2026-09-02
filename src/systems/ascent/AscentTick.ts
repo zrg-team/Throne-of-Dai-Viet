@@ -23,7 +23,9 @@ import { progressCourt } from '../CourtSystem';
 import { tickDiplomacy } from '../DiplomacySystem';
 import { tickAllyColumns } from './AllySupport';
 import { refreshPlayerVisibility } from '../LandSystem';
-import { dissolveGarrisonLevies, tickAutoDefend, tickInvasions, resolvePendingBattle } from '../empire/InvasionSystem';
+import {
+  dissolveGarrisonLevies, resolvePendingBattle, tickAutoDefend, tickInvasions, tickSieges,
+} from '../empire/InvasionSystem';
 import { reconcileFronts } from './BattleSystem';
 import { addMandate } from '../empire/MandateSystem';
 import { tickGreatPowersYear } from '../empire/GreatPowersSystem';
@@ -235,6 +237,10 @@ export function advanceAscentTick(state: GameState): void {
   // Before `tickInvasions`, so a host spawned this tick marches on the tick it was given orders,
   // and so a host that decided to withdraw does not spend one more tick advancing first.
   tickEnemyCommand(state);
+  // The walls' own clock, immediately before the hosts standing under them are asked what they
+  // are doing: a siege that runs out this season is stormed this season, so the last tick the
+  // player could have acted on it is the last tick they are shown it.
+  tickSieges(state);
   tickInvasions(state);
 
   // A field battle is now something the player watches and steers.

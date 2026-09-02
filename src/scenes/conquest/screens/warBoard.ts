@@ -63,6 +63,18 @@ function siegeLeft(self: ConquestUIScene, landId: string): number | undefined {
 }
 
 /**
+ * Seasons before the host standing at this province storms it.
+ *
+ * The *other* clock, and the only one the player can still beat: `siegeLeft` counts down a
+ * province already carried, this one counts down to the fight. A row that showed neither was the
+ * row that made the relief order look decorative.
+ */
+function assaultLeft(self: ConquestUIScene, landId: string): number | undefined {
+  const land = self.state.lands.find((candidate) => candidate.id === landId);
+  return land?.siege ? Math.max(0, land.siege.ticksLeft) : undefined;
+}
+
+/**
  * Walks the player onto a field that is already being fought.
  *
  * **In place, not out and back in.** `closeLane` runs `refresh`, which is allowed to re-enter
@@ -100,7 +112,7 @@ export function warBoardSignature(self: ConquestUIScene): string {
   const state = self.state;
   const commanded = state.ascent?.activeBattle?.over === false ? state.ascent.activeBattle.landId : '';
   return `${commanded}|${contestedFronts(state)
-    .map((front) => `${front.landId}${front.live ? '!' : ''}${front.besieged ? '#' : ''}`)
+    .map((front) => `${front.landId}${front.live ? '!' : ''}${front.besieged ? '#' : ''}${front.assaultTicks ?? ''}`)
     .join(',')}`;
 }
 
@@ -197,6 +209,7 @@ export function showWarBoard(self: ConquestUIScene): void {
     addHeading(t('ascent.war.pressedHeading'), t('ascent.war.pressedHint'));
     for (const front of pressed) {
       const left = siegeLeft(self, front.landId);
+      const assault = assaultLeft(self, front.landId);
       addRow(
         {
           title: front.landName,
@@ -204,9 +217,13 @@ export function showWarBoard(self: ConquestUIScene): void {
             kingdom: front.kingdomName,
             theirs: Math.round(front.theirMen),
             ours: Math.round(front.ourMen),
+            // The province already carried first — it is the worse news of the two — then the
+            // walls' own clock, then the plain standing.
             standing: left !== undefined
               ? t('ascent.war.standingSiege', { ticks: left })
-              : t(`ascent.war.standing.${standingOf(front)}` as Parameters<typeof t>[0]),
+              : assault !== undefined
+                ? t('ascent.war.standingAssault', { ticks: assault })
+                : t(`ascent.war.standing.${standingOf(front)}` as Parameters<typeof t>[0]),
           }),
           border: frontInk(front),
         },
@@ -279,6 +296,10 @@ export function showFrontSheet(self: ConquestUIScene, landId: string): void {
   });
 
   if (left !== undefined) addNote(t('ascent.war.siegeClock', { ticks: left }), INK_UI.cinnabar);
+  const assault = assaultLeft(self, landId);
+  if (left === undefined && assault !== undefined) {
+    addNote(t('ascent.war.assaultClock', { ticks: assault, land: front.landName }), INK_UI.gold);
+  }
 
   addHeading(t('ascent.war.ordersHeading'));
 
@@ -313,16 +334,34 @@ export function showFrontSheet(self: ConquestUIScene, landId: string): void {
   // How many hosts are already on the road here. An order with no visible consequence is an
   // order the player presses twice and then stops trusting, and `summonAdjacentRelief` is
   // silent by design — it writes movement orders and a toast this mode does not render.
-  const marching = state.movementOrders.filter((order) => {
+  const columns = state.movementOrders.filter((order) => {
     if (order.path[order.path.length - 1] !== landId) return false;
     const army = state.armies.find((candidate) => candidate.id === order.armyId);
     return army?.kingdomId === PLAYER_KINGDOM_ID;
-  }).length;
+  });
+  const marching = columns.length;
+  /**
+   * Seasons the nearest column still needs, against the seasons the walls still have.
+   *
+   * The only question a relief order actually raises — *does it get there in time* — and the row
+   * used to answer neither half of it. One leg is `legRequired - progress` seasons and every leg
+   * after it is at least one, which is the floor rather than the figure: terrain can make a leg
+   * longer, so a column this says will arrive may still be late, and one this says will be late
+   * certainly is.
+   */
+  const eta = columns.reduce((best, order) => {
+    const legs = Math.max(0, order.legRequired - order.progress) + Math.max(0, order.path.length - 1);
+    return Math.min(best, legs);
+  }, Number.POSITIVE_INFINITY);
   addRow(
     {
       title: t('ascent.war.relief'),
       subtitle: marching > 0
-        ? t('ascent.war.reliefMarching', { n: marching, land: front.landName })
+        ? assault !== undefined && Number.isFinite(eta)
+          ? t(eta <= assault ? 'ascent.war.reliefInTime' : 'ascent.war.reliefTooSlow', {
+            n: marching, land: front.landName, eta, ticks: assault,
+          })
+          : t('ascent.war.reliefMarching', { n: marching, land: front.landName })
         : t('ascent.war.reliefNote', { land: front.landName }),
       border: marching > 0 ? INK_UI.jade : INK_UI.gold,
     },

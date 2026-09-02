@@ -39,6 +39,7 @@ import { UI_FONT } from '../../ui/fonts';
 import { heroName, t } from '../../i18n';
 import { buildFocusRows } from '../../ui/focusPanel';
 import { getLandSpecialization } from '../../systems/ResourceSystem';
+import { masonryPowerPerDefense, militiaPowerPerMan } from '../../systems/WarSystem';
 import type { AscentLane } from '../../state/types';
 import { promptSignature } from './constants';
 import { clearLanePage } from './layers';
@@ -747,7 +748,8 @@ function renderInspect(self: ConquestUIScene): void {
   const key = !land || self.state.pendingAscentPrompt || self.openPromptKey !== ''
     ? ''
     : [land.id, land.ownerId, Math.round(land.outputs.gold), Math.round(land.outputs.food),
-      Math.round(land.defense * 16 + land.localSoldiers * 2.5),
+      Math.round(land.defense * masonryPowerPerDefense(self.state)
+        + land.localSoldiers * militiaPowerPerMan(self.state)),
       // Both are printed now, so both have to be in the key or the card goes stale the moment the
       // player changes either from the very buttons it draws.
       governor?.id ?? '-', getLandSpecialization(land)].join(':');
@@ -766,7 +768,10 @@ function renderInspect(self: ConquestUIScene): void {
     { x: 14, y: 0, width: GAME_WIDTH - 28, height: 0 },
     {
       title: land.name,
-      subtitle: `${t('ascent.march.garrison', { value: Math.round(land.defense * 16 + land.localSoldiers * 2.5) })}`,
+      subtitle: `${t('ascent.march.garrison', {
+        value: Math.round(land.defense * masonryPowerPerDefense(self.state)
+          + land.localSoldiers * militiaPowerPerMan(self.state)),
+      })}`,
       rows: mine
         ? [
             // All three stores, not the two that happened to fit. A focus is chosen against what

@@ -3,6 +3,7 @@ import {
   MAX_ARMY_SOLDIERS,
   MIN_ARMY_SOLDIERS,
   MIN_MUSTER_SUPPLY_SHARE,
+  MUSTER_FOOD_PER_SOLDIER,
   RECRUIT_HUMAN_RESERVE,
   SUPPLY_FOOD_RESERVE,
   SUPPLY_STORE_RESERVE,
@@ -89,18 +90,34 @@ export function baggageSeasons(soldiers: number, rations: number, provisions: nu
  */
 export function defaultMusterPlan(state: GameState, heroId?: string): MusterPlan {
   const limits = musterLimits(state);
+  /**
+   * **The arming bill comes out of the granary before the baggage does.**
+   *
+   * `queueRecruitment` charges `musterCost().food` for arming the host and `rations` for its
+   * baggage, and `musterBlockedReason` refuses on the sum. This plan set `rations` to the whole of
+   * `foodSpare` and left nothing for the arming bill, so it proposed musters that were unaffordable
+   * by a hair and were then refused: measured across eight seeded runs, hostless realms hit
+   * *"Không đủ lương cho hậu cần: 45/49"*, 140/148, 141/154 — short by four, eight, thirteen. A
+   * proposal the realm cannot pay for is a card whose only honest answer is no, and every one of
+   * them also bought four seasons of `musterDeclinedUntil` silence.
+   *
+   * Both stores are now reserved the same way, and the host is sized against food that has to
+   * cover both charges rather than only the baggage.
+   */
   const rationsPerSoldier = (SUPPLY_TICKS_HELD / 100) * MIN_MUSTER_SUPPLY_SHARE;
-  const soldiersTheFarmsCanFeed = Math.floor(limits.foodSpare / rationsPerSoldier);
+  const foodPerSoldier = rationsPerSoldier + MUSTER_FOOD_PER_SOLDIER;
+  const soldiersTheFarmsCanFeed = Math.floor(limits.foodSpare / foodPerSoldier);
   const soldiers = Math.max(
     limits.minSoldiers,
     Math.min(recruitSoldiers(Math.max(0, state.resources.humans - RECRUIT_HUMAN_RESERVE)), soldiersTheFarmsCanFeed, limits.maxSoldiers),
   );
   const want = fullBaggage(soldiers);
+  const bill = getMusterEstimate(state, soldiers);
   return {
     heroId: heroId ?? findFreeCommander(state),
     soldiers,
-    rations: Math.min(want.rations, limits.foodSpare),
-    provisions: Math.min(want.provisions, limits.suppliesSpare),
+    rations: Math.max(0, Math.min(want.rations, limits.foodSpare - bill.foodCost)),
+    provisions: Math.max(0, Math.min(want.provisions, limits.suppliesSpare - bill.suppliesCost)),
     composition: 'balanced',
     orders: { kind: 'defend', landId: limits.land?.id ?? '' },
   };

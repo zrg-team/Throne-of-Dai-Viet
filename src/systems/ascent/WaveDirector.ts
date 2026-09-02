@@ -781,6 +781,7 @@ function resolveWaveResult(state: GameState): void {
   const capital = state.lands.find((land) => land.id === ascent.capitalLandId);
   const heldCapital = !capital || capital.ownerId === PLAYER_KINGDOM_ID;
 
+
   // Reported, not modal.
   //
   // A Great Invasion surviving deserves acknowledgement, but a full-screen pause whose only
@@ -1026,6 +1027,29 @@ function launchWave(state: GameState, kingdomId: string, warlordName?: string): 
       }
       ascent.threat = liveInvaderPower(state);
       pushToast(state, t('ascent.wave.reinforced', { n: standing.length }), 'threat');
+      /**
+       * A reinforcement is still a landing, and it has to announce itself as one.
+       *
+       * This branch writes `snapshot.hosts`, which is the flag that says a result is owed — so
+       * `resolveWaveResult` raises an *end* cue for this wave when the map clears. Without a start
+       * cue beside it the banner pairing is broken: an invasion is reported as concluded that was
+       * never reported as arriving.
+       *
+       * Latent until the siege clock shipped. It fires when the previous wave's hosts are still on
+       * the map, which used to be rare because an invader resolved its assault the tick it arrived;
+       * now a host spends `ceil(defense / SIEGE_DEFENSE_PER_TICK)` seasons at the walls and outlives
+       * its own wave routinely. Measured on the seeded run behind `verify-invasion-lifecycle`:
+       * four of eighteen waves — 9, 13, 14 and 17, each following a Great Invasion — closed a
+       * landing that had never been announced.
+       */
+      raiseWaveCue(state, {
+        phase: 'start',
+        wave: ascent.wave,
+        boss,
+        kingdomName: snapshot?.kingdomName,
+        hosts: standing.length,
+        power: ascent.threat,
+      });
     }
     ascent.waveInFlight = (state.invasions?.length ?? 0) > 0;
     ascent.threat = liveInvaderPower(state);

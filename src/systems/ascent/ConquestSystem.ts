@@ -595,6 +595,10 @@ export function detectConquests(state: GameState, ownedBefore: Set<string>): voi
      */
     const arriving = Math.round(militiaCapacity(state, land) * CONQUEST_GARRISON_SHARE);
     if (arriving > land.localSoldiers) land.localSoldiers = arriving;
+    // The retake window closes because it was used. Left standing, a province taken back would
+    // keep granting `retakeBonus` against its *next* owner for another two waves.
+    land.lostAtWave = undefined;
+    land.siege = undefined;
     if (ascent.frontLandId === land.id) {
       ascent.frontLandId = undefined;
       ascent.frontBlocked = false;
@@ -617,6 +621,17 @@ export function detectConquests(state: GameState, ownedBefore: Set<string>): voi
     if (stayed > 0) applyResourceDelta(state, { humans: -stayed });
     // The watch it kept belongs to the new owner, bar the few who walked out with everyone else.
     land.localSoldiers = Math.round(land.localSoldiers * 0.25);
+    /**
+     * The retake window opens here.
+     *
+     * `retakeBonus` reads this: for `RETAKE_BONUS_WAVES` waves the throne's own people are still
+     * on this ground, and a host marched back in fights at up to +25%. Together with walls that
+     * stay down after a loss (`wallsBreached`, land-consequences round), it is what turns a
+     * province lost into *lose -> muster -> take it back* rather than a one-way ratchet.
+     */
+    land.lostAtWave = ascent.wave;
+    // Whatever was at its walls is the new owner's problem now.
+    land.siege = undefined;
     // Said out loud. Two fifths of a province's people vanishing in silence is indistinguishable
     // from a bug, and being able to feel this is the entire point of charging for it.
     pushToast(state, t('ascent.land.lost', { land: land.name, people: stayed }), 'threat');
