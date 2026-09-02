@@ -2442,13 +2442,22 @@ export class MenuScene extends Phaser.Scene {
      */
     const legacy = getLegacy();
     const dynasty = getDynasty();
-    const showsProgress = legacy.points > 0 || legacy.bestScore > 0;
+    /**
+     * The Tông Phả door is **always** on the page; the Legacy shop still waits to be earned.
+     *
+     * "Hidden until earned" is right for the shop — it is a list of things to buy with points you
+     * do not have. It is wrong for the ledger, which has an empty state that says what the page is
+     * for and what fills it. Hiding a page that explains itself only hides the feature, and the
+     * first thing asked of this build was *where is the screen*.
+     */
+    const earned = legacy.points > 0 || legacy.bestScore > 0;
+    const showsProgress = true;
     // Measured, not guessed: the rank line is one 11px row in English and can wrap in Vietnamese.
-    const rankLine = showsProgress
+    const rankLine = earned
       ? t('empire.legacy.rank', { rank: rankForScore(legacy.bestScore), total: legacy.points })
       : '';
     let rankHeight = 0;
-    if (showsProgress) {
+    if (earned) {
       const probe = this.add.text(0, -9999, rankLine, {
         fontFamily: UI_FONT, fontSize: '11px', align: 'center', padding: { x: 6, y: 3 },
       });
@@ -2469,7 +2478,7 @@ export class MenuScene extends Phaser.Scene {
     const LANE_ROOM = SETTINGS_TOP - this.vy(520);
     const doorsRow = this.vh(30);
     const baseRows = this.vh(58) + tagline.height + ROW + ROW;
-    const showRank = showsProgress
+    const showRank = earned
       && baseRows + doorsRow + GAP_FLOOR * 6 + rankHeight + 4 <= LANE_ROOM;
     const PROGRESS_ROW = showsProgress ? doorsRow + (showRank ? rankHeight + 4 : 0) : 0;
     const rows = baseRows + PROGRESS_ROW;
@@ -2556,7 +2565,7 @@ export class MenuScene extends Phaser.Scene {
      *
      * Hidden until earned: with no banked score there is nothing on either page but zeroes.
      */
-    if (showsProgress && showRank) {
+    if (showRank) {
       const rankLabel = this.add.text(GAME_WIDTH / 2, cursor, rankLine, {
         color: '#2a2118',
         fontFamily: UI_FONT,
@@ -2576,7 +2585,10 @@ export class MenuScene extends Phaser.Scene {
       // same padding the secondary tier already uses puts the hit area back to 44 without the
       // drawn row growing — see `SECONDARY_HIT_PADDING`.
       const doorPad = Math.max(0, 44 - doorsRow);
-      if (dynasty.reigns > 0) {
+      // Gold rather than ghost when a trait is waiting to be chosen: that is the one thing on this
+      // page the player is actually owed, and it must not read as a third utility link.
+      const ledgerVariant = dynasty.pendingPicks > 0 ? 'primary' : 'ghost';
+      if (earned) {
         const half = Math.floor((SECONDARY_WIDTH - 8) / 2);
         this.content.push(this.ui.button({ x: SECONDARY_X, y: cursor, width: half, height: doorsRow },
           t('empire.legacy.openShop'), () => { this.mode = 'legacy'; this.render(); },
@@ -2584,14 +2596,12 @@ export class MenuScene extends Phaser.Scene {
           .setData('visualBounds', { width: half, height: doorsRow }));
         this.content.push(this.ui.button({ x: SECONDARY_X + half + 8, y: cursor, width: half, height: doorsRow },
           t('dynasty.menu'), () => { this.mode = 'dynasty'; this.render(); },
-          // Gold rather than ghost when a trait is waiting to be chosen: that is the one thing on
-          // this page the player is actually owed, and it must not read as a third utility link.
-          { variant: dynasty.pendingPicks > 0 ? 'primary' : 'ghost', fontSize: '11px', extraHitPadding: doorPad })
+          { variant: ledgerVariant, fontSize: '11px', extraHitPadding: doorPad })
           .setData('visualBounds', { width: half, height: doorsRow }));
       } else {
         this.content.push(this.ui.button({ x: SECONDARY_X, y: cursor, width: SECONDARY_WIDTH, height: doorsRow },
-          t('empire.legacy.openShop'), () => { this.mode = 'legacy'; this.render(); },
-          { variant: 'ghost', fontSize: '11px', extraHitPadding: doorPad })
+          t('dynasty.menu'), () => { this.mode = 'dynasty'; this.render(); },
+          { variant: ledgerVariant, fontSize: '11px', extraHitPadding: doorPad })
           .setData('visualBounds', { width: SECONDARY_WIDTH, height: doorsRow }));
       }
       cursor += this.vh(30) + gap;
@@ -2775,15 +2785,28 @@ export class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5));
 
     // Never played: the page says what it would hold rather than a column of zeroes.
+    //
+    // On parchment like every other band. The front page's landscape is still painted behind this
+    // mode, and two lines of 11px type laid straight onto mountains and a lotus is the same
+    // unreadable page the populated sheet had on its first pass.
     if (store.reigns === 0) {
-      this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(272), t('dynasty.emptyTitle'), {
+      const bodyText = this.ui.label(0, -9999, t('dynasty.emptyBody'), 'caption',
+        { fontSize: '11.5px', align: 'center', wordWrap: { width: W - 28 } });
+      const bodyHeight = bodyText.height;
+      bodyText.destroy();
+
+      const panelTop = this.vy(268);
+      const panelHeight = 16 + 18 + 8 + bodyHeight + 16;
+      this.content.push(this.ui.panel({ x: PAD, y: panelTop, width: W, height: panelHeight },
+        { border: INK_UI.softBrush, fillAlpha: 0.92 }));
+      this.content.push(this.add.text(GAME_WIDTH / 2, panelTop + 16, t('dynasty.emptyTitle'), {
         color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '13px', align: 'center',
-      }).setOrigin(0.5));
-      this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(300), t('dynasty.emptyBody'), {
-        color: '#6b5a44', fontFamily: UI_FONT, fontSize: '11px', align: 'center',
-        wordWrap: { width: GAME_WIDTH - 72 },
       }).setOrigin(0.5, 0));
-      this.content.push(this.ui.backBar(this.vy(440), () => { this.mode = 'main'; this.render(); }));
+      this.content.push(this.ui.label(GAME_WIDTH / 2, panelTop + 16 + 18 + 8, t('dynasty.emptyBody'),
+        'caption', { fontSize: '11.5px', align: 'center', wordWrap: { width: W - 28 } })
+        .setOrigin(0.5, 0));
+      this.content.push(this.ui.backBar(panelTop + panelHeight + 14,
+        () => { this.mode = 'main'; this.render(); }));
       return;
     }
 
