@@ -2081,6 +2081,9 @@ export function delegateBattle(state: GameState, delegated: boolean, standing = 
   const battle = state.ascent?.activeBattle;
   if (!battle || battle.over) return;
   battle.delegated = delegated;
+  // Handing the field over is one of the three ways a claim ends. The others are leaving the
+  // screen (`closeLane`) and moving to another fight (`focusBattle`).
+  if (delegated) battle.claimed = false;
   // And it is a *standing* order: the next field opens the way the last one was left. Handing
   // the war over once and having to hand it over again every fight is the thing the report
   // "by default fight will automatically control" is about.
@@ -2089,9 +2092,8 @@ export function delegateBattle(state: GameState, delegated: boolean, standing = 
   // from one fight has not told the realm anything about the next one.
   if (standing && state.ascent) state.ascent.handToGenerals = delegated;
   if (!delegated) {
-    // The grace window restarts here. Without this the field is handed back on the next season —
-    // see `commandedFromBeat`.
-    battle.commandedFromBeat = (battle.approachBeats ?? 0) + battle.round;
+    // Claimed by hand, and the auto-delegate rule does not touch a claimed field — see `claimed`.
+    battle.claimed = true;
     battle.log.push(t('ascent.battle.tookBack'));
     return;
   }

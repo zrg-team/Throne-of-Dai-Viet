@@ -141,13 +141,33 @@ const survives = await page.evaluate(async (beatsNeeded) => {
   if (!ready) return { reached: false };
   const opened = st.ascent.activeBattle;
   const atBeat = (opened.approachBeats ?? 0) + opened.round;
+  // Nobody has touched this field and it is past beat ten, so the grace window should already
+  // have handed it to a general. That safety net is what `claimed` must not have gutted: its
+  // note records that without it, fights the officers used to hold became routs.
+  const graceFired = opened.delegated === true && !opened.claimed
+    && !opened.steeredFormation && !opened.steeredStance;
 
   BS.delegateBattle(st, false);
   const tapped = st.ascent.activeBattle?.delegated;
-  advanceAscentTick(st);
-  const afterOneSeason = st.ascent.activeBattle?.delegated;
-  const gone = !st.ascent.activeBattle || st.ascent.activeBattle.over;
-  return { reached: true, atBeat, tapped, afterOneSeason, gone };
+  // Five seasons, not one. The claim is meant to hold until the player gives the field up, so a
+  // single tick would pass on a rule that merely delayed the hand-back by a season.
+  let seasons = 0;
+  for (let i = 0; i < 5; i += 1) {
+    advanceAscentTick(st);
+    seasons += 1;
+    const b = st.ascent.activeBattle;
+    if (!b || b.over || b.delegated) break;
+  }
+  const liveNow = st.ascent.activeBattle;
+  const afterOneSeason = liveNow?.delegated;
+  const gone = !liveNow || liveNow.over;
+  // And handing it over on purpose still works, which is the other half of the contract.
+  let releases = null;
+  if (!gone) {
+    BS.delegateBattle(st, true, false);
+    releases = { delegated: liveNow.delegated, claimed: liveNow.claimed ?? false };
+  }
+  return { reached: true, atBeat, tapped, afterOneSeason, gone, seasons, releases, graceFired };
 }, 10);
 
 await browser.close();
@@ -173,11 +193,18 @@ line(later.labels.some((s) => /Take back|Cầm quân lại/.test(s)), 'the chip 
   later.labels.filter((s) => s.length < 24).join(' | '));
 line(back.delegated === false, 'taking the field back works', `delegated=${back.delegated}`);
 line(!back.gone && !back.over, 'and the fight is still there afterwards', `round ${back.round}`);
+line(survives.reached && survives.graceFired,
+  'an ignored field still goes to its general',
+  survives.reached ? `unclaimed and delegated by beat ${survives.atBeat}` : 'no field reached the window');
 line(survives.reached && (survives.gone || survives.afterOneSeason === false),
-  'and the command survives the next season',
+  'the command holds until the player gives it up',
   !survives.reached ? 'no field reached the grace window'
     : survives.gone ? 'the fight ended first'
-      : `took the field at beat ${survives.atBeat}: delegated ${survives.tapped} -> ${survives.afterOneSeason}`);
+      : `took the field at beat ${survives.atBeat}, still ours ${survives.seasons} season(s) later`);
+line(!survives.releases || (survives.releases.delegated === true && survives.releases.claimed === false),
+  'and handing it over on purpose still works',
+  survives.releases ? `delegated=${survives.releases.delegated} claimed=${survives.releases.claimed}`
+    : 'the fight ended first');
 console.log(`\nlog at hand-over: ${handed.log.join(' / ')}`);
 console.log(`fights: handed ${handed.key}@${handed.beat}  later ${later.key}@${later.beat}  back ${back.key}@${back.beat}`);
 console.log(`clocks: handed ${JSON.stringify({ p: handed.paused, s: handed.strat, a: handed.awaiting, t: handed.turn })}`

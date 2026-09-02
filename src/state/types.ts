@@ -2090,22 +2090,23 @@ export interface AscentBattle {
   steeredFormation?: boolean;
   steeredStance?: boolean;
   /**
-   * The beat at which this field last became the player's.
+   * The player has taken this field by hand, and holds it until they give it up.
    *
-   * The grace window before a general assumes an uncommanded field is counted from *here*, not
-   * from the opening beat — see the auto-delegate rule in `AscentTick`.
+   * **The grace window does not apply to a field somebody claimed.** `ASCENT_AUTO_DELEGATE_BEATS`
+   * exists for a field that *opens* under the player and is then ignored — the code's own words,
+   * "an uncommanded field is an implicitly delegated one". Tapping *Cầm quân lại* is the opposite
+   * of ignoring it, and a take-back happens past beat ten by definition, so the rule used to hand
+   * the field straight back on the next season. Reported as *i take control -> game back to auto*,
+   * and it looked like closing the screen caused it because the battle lane holds the economy
+   * clock: no tick runs while you are standing on the field, so the hand-back fires on the first
+   * one after you leave.
    *
-   * **The reported bug.** Taking the field back from a general mid-fight set `delegated = false`
-   * and nothing else, so on the very next season the rule read "undelegated, no dial touched, and
-   * well past beat ten" and handed it straight back. Reproduced: a fight at beat 12, take the
-   * field, one tick, delegated again — with only a line in the log to say so. *i take control ->
-   * game back to auto.* The window has to restart when command changes hands, or "take the field"
-   * is a button that undoes itself unless the player also happens to move a dial that same season.
-   *
-   * Unset on a fresh field, which reads as 0 and leaves the opening grace window exactly as it
-   * was.
+   * Set by an explicit claim — the take-back chip, or walking onto a side fight with
+   * `focusBattle`. Cleared by the three ways a player gives the field up, and only those:
+   * handing it to the general (*auto* / *Rời trận*), leaving the screen (`closeLane`), or moving
+   * to another fight (the field left behind). Nothing else takes it away.
    */
-  commandedFromBeat?: number;
+  claimed?: boolean;
 
   /**
    * The shape each side is standing in — the fast dial, and the whole rock-paper-scissors.
