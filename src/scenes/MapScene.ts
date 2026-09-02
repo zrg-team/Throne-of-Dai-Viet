@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { pressBeganUnderSheet } from '../ui/inputGeneration';
 import { ACTION_BAR_HEIGHT, COLORS, GAME_HEIGHT, GAME_WIDTH, HEADER_HEIGHT, PLAYER_KINGDOM_ID, REALTIME_TICK_MS } from '../game/constants';
 import { TouchController } from '../input/TouchController';
 import { createInitialGameState } from '../state/GameState';
@@ -44,6 +45,7 @@ import { figureEraFor } from '../ui/ink/devices';
 import { GROUND_DEPTH_PIECE_STEP, STATIC_BAKE_DEPTH, groundDepth } from '../ui/ink/proportion';
 import { stampFootY } from '../ui/conquestMapArt';
 import { liveBattles } from '../systems/ascent/fronts';
+import { soundDirector } from '../ui/sound/SoundDirector';
 
 /** How big a province's standard is drawn against the ground it stands on. See `drawFlags`. */
 const MAP_LAND_FLAG_SCALE = 0.55;
@@ -190,7 +192,17 @@ export class MapScene extends Phaser.Scene {
 
   private handleDomDown(event: PointerEvent | MouseEvent): void {
     const point = this.toGamePoint(event);
-    if (!point || this.isScreenPointOverFixedUi(point.x, point.y)) {
+    /**
+     * **A press that began under a sheet belongs to the sheet.**
+     *
+     * `isScreenPointOverFixedUi` asks whether a sheet is up *now*, and now is too late: Phaser's own
+     * canvas listener runs before this one and handles the press synchronously, so a Close button
+     * has already torn the sheet down by the time this reads the screen. It saw open map, armed
+     * `domDown`, and the release selected the province under the button. Reported as *click on a
+     * modal also clicks the bottom item covered by it*. The question that decides it is the one
+     * `ui/inputGeneration` answers at the first event of the press and holds until it ends.
+     */
+    if (pressBeganUnderSheet() || !point || this.isScreenPointOverFixedUi(point.x, point.y)) {
       this.domDown = undefined;
       return;
     }
@@ -224,7 +236,8 @@ export class MapScene extends Phaser.Scene {
     //
     // Still well under a deliberate pan: the camera only starts moving in `handleDomMove` once the
     // gesture is a drag, and twenty points on a 390-wide surface is about a fifth of an inch.
-    if (!point || !this.domDown || this.domDragDistance > 20 || this.isScreenPointOverFixedUi(point.x, point.y)) {
+    if (pressBeganUnderSheet() || !point || !this.domDown || this.domDragDistance > 20
+      || this.isScreenPointOverFixedUi(point.x, point.y)) {
       this.domDown = undefined;
       return;
     }
@@ -347,6 +360,9 @@ export class MapScene extends Phaser.Scene {
   create(): void {
     // A pending ladder step lands here, at the scene boundary, before any camera is set up.
     applyPendingRenderScale(this.game);
+    // The map's own bed, drawn from the Hanoi recordings. A fight silences it and hands it back
+    // (see `duckAmbient`), so the two never play together.
+    soundDirector.ambientMusic('map');
     // The map build and its bakes take real frames; the ladder must not read them as the
     // device failing to keep up — that misread is what stepped iPhones off an explicit high.
     qualityLadder()?.markSceneStart();
@@ -813,7 +829,9 @@ export class MapScene extends Phaser.Scene {
         return;
       }
 
-      if (this.isPointerOverFixedUi(pointer)) {
+      // Same rule as the DOM path: the release of a press that began under a sheet is the
+      // sheet's, whatever the screen looks like by the time it arrives.
+      if (pressBeganUnderSheet() || this.isPointerOverFixedUi(pointer)) {
         return;
       }
 

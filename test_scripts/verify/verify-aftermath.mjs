@@ -48,6 +48,11 @@ const found = await page.evaluate(async () => {
     while (st.pendingAscentPrompt && g++ < 12) resolveAscentPrompt(st, first(st.pendingAscentPrompt));
     if (st.ascent.pendingAftermath) {
       st.pendingAscentPrompt = undefined;
+      // The war spreading to a second front takes the screen *ahead* of the Reckoning by design
+      // (`refresh`: the decision does not wait behind the news). This harness is about the card,
+      // so an announcement that happens to land on the same tick is stood down first — otherwise
+      // whether the card is seen depends on which tick this seed's first fight ends on.
+      st.ascent.frontsOpened = undefined;
       ui.events.emit('state-changed');
       return true;
     }

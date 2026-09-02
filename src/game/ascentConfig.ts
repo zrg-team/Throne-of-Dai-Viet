@@ -1388,10 +1388,64 @@ export const BATTLE_MAX_ROUNDS = 72;
  * worst case is bounded by the arithmetic rather than by a timer, and the bound is reached by men
  * breaking rather than by the screen giving up on them.
  *
- * Applied to both sides equally on purpose. A pressure that favoured either would decide fights
- * the shapes and the tempo are supposed to decide.
+ * **No longer applied to both sides equally.** It was, on purpose — "a pressure that favoured
+ * either would decide fights the shapes and the tempo are supposed to decide" — and the measured
+ * consequence was the opposite: past the reference length the grind dwarfs the casualty term, so
+ * who breaks became a coin-flip on morale that ignored that one side had ten times the men.
+ * Reproduced: a capital defence of 6,497 against 13,000 ran to round 84 and *won* with 528 men
+ * standing against 3,412, because the enemy's morale crossed the line one beat earlier. Reported
+ * with three screenshots, the worst of them 170 men "repelling" 8,814.
+ *
+ * The drain is now weighted by the men still in the line — see `BATTLE_OVERTIME_WEIGHT_CAP` —
+ * so the side that is winning on the ground is the side the exhaustion favours. Termination is
+ * kept: the weaker side drains at *least* the base rate, so the bound above still holds for it.
  */
 export const BATTLE_OVERTIME_MORALE = 0.6;
+/**
+ * How far the overtime drain may be tilted by the ratio of men in the two lines.
+ *
+ * The weaker side's drain is multiplied by `min(cap, theirs / ours)` and the stronger side's by
+ * the inverse, floored at `1 / cap`. At 3 a line outnumbered three to one loses heart three times
+ * as fast as its opponent once overtime begins — and a line outnumbered ten to one is already gone
+ * to `BATTLE_NUMBERS_FLOOR` below.
+ */
+export const BATTLE_OVERTIME_WEIGHT_CAP = 3;
+/**
+ * A side whose men in the line fall below this share of the other side's breaks outright.
+ *
+ * The line-breaks-on-morale rule had no numbers in it at all: a host was beaten when its heart
+ * went, never when its men did, and a side was beaten only when it had no host left in the line.
+ * So 170 men could hold a line against 8,814 for as long as their morale held — and with the
+ * *Sát Thát* capstone or the proclamation, their morale held for ever. A fifteenth of the enemy's
+ * strength is not a line, whatever it has sworn; it is destroyed or it scatters.
+ *
+ * Checked only once the lines have met and both sides brought something to the field, so an
+ * approach march or a token company against nobody is not a rout.
+ */
+export const BATTLE_NUMBERS_FLOOR = 0.15;
+/**
+ * Seasons a province's turnout takes to recover after a fought defence (Dragon Ascent).
+ *
+ * The walls are conjured into men at the start of a fight and deleted at the end, and the only
+ * thing the fight ever cost them was `WALL_ATTRITION_SHARE` of a breach — so a province that had
+ * just lost 62% of its turnout fielded 92% of it again on the very next contact. Reported as
+ * *my point 12k -> end 5k -> next fight immediately 12k, it should take some time to recover*.
+ *
+ * `garrisonExhaustion` is the men behind the walls being spent — wounded, scattered, burying the
+ * dead — and it recovers on this clock, separately from the masonry, which `WALL_REPAIR_SEASONS`
+ * still governs. Eight: under one wave cycle, so a province that held is thin for the next
+ * contact and whole again by the one after, which is the shape the wall-attrition note asked for.
+ */
+export const GARRISON_RECOVER_SEASONS = 8;
+/**
+ * Share of a levy's dead militia that is taken from the province's people.
+ *
+ * A militiaman is drawn from `land.population` through `militiaCapacity`, and his death used to
+ * cost the province nothing — `localSoldiers` fell and the population it was drawn from did not,
+ * so the watch regrew out of the same people who had supposedly died. A won defence that killed
+ * six thousand of ours left the province's population untouched and the realm's *up*, on spoils.
+ */
+export const LEVY_DEAD_POPULATION_SHARE = 1;
 /**
  * Milliseconds a single beat is held on screen.
  *

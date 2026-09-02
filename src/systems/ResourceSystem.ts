@@ -1,5 +1,6 @@
 import { isEndlessMode, PLAYER_KINGDOM_ID } from '../game/constants';
 import {
+  GARRISON_RECOVER_SEASONS,
   ARMY_CAMPAIGN_FOOD_MULT,
   ARMY_FOOD_PER_SOLDIER,
   ARMY_GOLD_PER_SOLDIER,
@@ -603,6 +604,25 @@ export function growProvincialPopulation(state: GameState): void {
  *
  * Called once per Ascent tick, beside the militia.
  */
+/**
+ * The men behind the walls come back, a season at a time. See `garrisonExhaustion`.
+ *
+ * Linear over `GARRISON_RECOVER_SEASONS` from wherever the last fight left it, so a province that
+ * held is thin for the next contact and whole by the one after. Only ours: a spent province that
+ * changed hands is the new owner's problem, and its exhaustion is cleared with the flag.
+ */
+export function recoverGarrison(state: GameState): void {
+  if (state.gameMode !== 'ascent') return;
+  for (const land of state.lands) {
+    const spent = land.garrisonExhaustion ?? 0;
+    if (spent <= 0) continue;
+    if (land.ownerId !== PLAYER_KINGDOM_ID) { land.garrisonExhaustion = undefined; continue; }
+    const step = 1 / GARRISON_RECOVER_SEASONS;
+    const left = spent - step;
+    land.garrisonExhaustion = left > 0.005 ? left : undefined;
+  }
+}
+
 export function repairProvincialDefence(state: GameState): void {
   if (state.gameMode !== 'ascent') return;
   for (const land of state.lands) {

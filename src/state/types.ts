@@ -155,6 +155,16 @@ export interface Land {
    * `lose -> muster -> take it back` a loop rather than a one-way ratchet. Cleared on retake.
    */
   lostAtWave?: number;
+  /**
+   * How spent the province's turnout is, 0..1 (ascent only).
+   *
+   * The men behind the walls after a fought defence: wounded, scattered, burying the dead. Raised
+   * by `dissolveGarrisonLevies` by the share of the turnout that fell and worked back to zero over
+   * `GARRISON_RECOVER_SEASONS` by `recoverGarrison`. Scales the walls' term of the next turnout and
+   * of the hidden roll alike (`raiseGarrisonLevy`, `landGarrisonPower`), so the fought fight and
+   * the roll keep agreeing. Separate from `wallsBreached`, which is the masonry and heals slower.
+   */
+  garrisonExhaustion?: number;
 }
 
 /** A host standing at a province's walls, waiting out the siege clock before it assaults. */

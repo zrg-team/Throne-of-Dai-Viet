@@ -3,6 +3,7 @@ import { CARD_FACE_H, CARD_FACE_W, stampCardFace } from '../cardFace';
 import { INK_UI, INK_UI_HEX } from '../InkUI';
 import { UI_FONT } from '../fonts';
 import { designLength } from '../../game/graphicsQuality';
+import { soundDirector } from '../sound/SoundDirector';
 
 /**
  * A hand of baked card faces fanned across the bottom of a sheet, held the way a hand holds
@@ -180,7 +181,7 @@ export class CardFan {
     const dt = this.scene.time.now - pressed.at;
     if (rose > FLICK_UP && drifted < 70 && dt < FLICK_WINDOW_MS) {
       this.raise(pressed.index);
-      this.opts.onTake(pressed.index);
+      this.takeAt(pressed.index);
       return;
     }
     // Anything that travelled is a browse or an abandoned flick, not a tap.
@@ -192,10 +193,22 @@ export class CardFan {
       && now - this.lastTap.at < DOUBLE_TAP_MS;
     this.lastTap = { index: pressed.index, at: now };
     if (doubled) {
-      this.opts.onTake(pressed.index);
+      this.takeAt(pressed.index);
       return;
     }
     if (this.raised !== pressed.index) this.raise(pressed.index);
+  }
+
+  /**
+   * A card is taken — by flick, by double-tap, by the pill, or by the page's own footer.
+   *
+   * All four gestures come through here so the sound cannot end up on three of them, which is
+   * exactly how the mode ended up with silent cards in the first place. The card voice, not the
+   * button's: a card leaving a hand is stiffer paper than a sheet on a desk.
+   */
+  private takeAt(index: number): void {
+    soundDirector.card();
+    this.opts.onTake(index);
   }
 
   /** The pill that floats over the raised card — the gesture said as a button. */
@@ -216,7 +229,7 @@ export class CardFan {
     button.add(text);
     const zone = this.scene.add.zone(-w / 2, -h / 2, w, h).setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
-    zone.on('pointerup', () => this.opts.onTake(this.raised));
+    zone.on('pointerup', () => this.takeAt(this.raised));
     button.add(zone);
     this.view.add(button);
     this.takeButton = button;
@@ -306,6 +319,6 @@ export class CardFan {
 
   /** Takes whatever is raised — a footer confirm button routes here. */
   take(): void {
-    this.opts.onTake(this.raised);
+    this.takeAt(this.raised);
   }
 }

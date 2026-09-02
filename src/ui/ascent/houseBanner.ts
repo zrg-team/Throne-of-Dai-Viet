@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from '../CardIcons';
 import { INK_UI } from '../InkUI';
+import { shade } from '../faces/palette';
 import { getDynasty, type DynastyBanner } from '../../state/dynasty';
 import { BANNER_EMBLEMS, ROYAL_HOUSES } from '../faces/kingLook';
 
@@ -26,6 +27,7 @@ export function drawHouseBanner(
 ): Phaser.GameObjects.Container {
   const root = scene.add.container(0, 0);
   const g = scene.add.graphics();
+  const trim = readableTrim(banner.field, banner.trim);
 
   // A silk hung from a pole: square shoulders, a swallowtail at the foot. The tail is what makes
   // it read as a banner rather than as a coloured rectangle at 40 units wide.
@@ -43,16 +45,41 @@ export function drawHouseBanner(
   g.strokePoints(body, true);
   // The trim is a band inside the edge, not a second outline: an outline in a second colour at
   // this size reads as a rendering error rather than as a border.
-  g.lineStyle(2.4, banner.trim, 0.95);
+  g.lineStyle(2.4, trim, 0.95);
   g.strokeRect(3.5, 3.5, width - 7, height - tail - 3.5);
   root.add(g);
 
-  const emblem = drawCardIcon(scene, emblemIcon(banner.emblem), banner.trim);
+  const emblem = drawCardIcon(scene, emblemIcon(banner.emblem), trim);
   const scale = Math.min((width - 14) / CARD_ICON_SIZE, (height - tail - 14) / CARD_ICON_SIZE, 1.6);
   emblem.setPosition(width / 2, (height - tail) / 2);
   emblem.setScale(scale);
   root.add(emblem);
   return root;
+}
+
+/**
+ * A trim that can actually be seen against its own field.
+ *
+ * The house colours and the trim list overlap — cinnabar is both a field a dynasty flies and a
+ * trim the picker offers — so a rolled banner could land on vermilion-on-vermilion, and did:
+ * Nhà Nguyễn's default came out as a plain red silk with no border and no emblem on it at all.
+ * A mark nobody can read is worse than no mark, and the player has not made a mistake here, the
+ * roll has. Rather than forbid the pair, the *drawing* steps the trim away from the field far
+ * enough to read, which also covers a hand-edited save and any colour added to either list later.
+ *
+ * Rec. 601 luma, and 46 is the smallest separation at which the 2.4-unit border still reads at
+ * the 26-unit size the dynasty sheet draws this at.
+ */
+function luma(colour: number): number {
+  return 0.299 * ((colour >> 16) & 255) + 0.587 * ((colour >> 8) & 255) + 0.114 * (colour & 255);
+}
+
+export function readableTrim(field: number, trim: number): number {
+  const gap = luma(trim) - luma(field);
+  if (Math.abs(gap) >= 46) return trim;
+  // Away from the field, never toward it: a dark field takes a lightened trim and a light one a
+  // darkened trim, so the step can never walk a mid-tone into the ground it is sitting on.
+  return shade(trim, luma(field) > 128 ? -80 : 80);
 }
 
 /** An emblem id the glyph table actually knows; anything stale falls back to the crown. */

@@ -11,6 +11,7 @@ import {
   growProvincialMilitia,
   growProvincialPopulation,
   progressBuildOrders,
+  recoverGarrison,
   repairProvincialDefence,
 } from '../ResourceSystem';
 import {
@@ -323,6 +324,8 @@ export function advanceAscentTick(state: GameState): void {
   // because they are the two halves of the same recovery: a province that held a wave is short of
   // both men and walls until it has had the seasons to make them good.
   repairProvincialDefence(state);
+  // And the turnout the last fight spent — the third half of the same recovery, on its own clock.
+  recoverGarrison(state);
   detectConquests(state, ownedBefore);
   tickAscentProgress(state);
 

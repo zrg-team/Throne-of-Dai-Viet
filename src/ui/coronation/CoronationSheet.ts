@@ -16,6 +16,7 @@ import {
 import type { HeroLook, HeroLookPart } from '../faces/heroLook';
 import { t } from '../../i18n';
 import type { HeroEra } from '../../state/types';
+import { soundDirector } from '../sound/SoundDirector';
 
 /**
  * Lễ Đăng Quang — the four screens, drawn once and hosted twice.
@@ -572,6 +573,8 @@ export class CoronationSheet {
         .setInteractive({ useHandCursor: true });
       zone.on('pointerup', (pointer: Phaser.Input.Pointer) => {
         if (scrollGestureConsumedTap(pointer)) return;
+        // Choosing a part off the grid is a pick, not a nudge — the card voice.
+        soundDirector.card();
         this.choice[field] = index;
         this.grid = undefined;
         this.host.redraw();
@@ -655,6 +658,7 @@ export class CoronationSheet {
         .setInteractive({ useHandCursor: true });
       zone.on('pointerup', (pointer: Phaser.Input.Pointer) => {
         if (scrollGestureConsumedTap(pointer)) return;
+        soundDirector.tap();
         this.grid = field;
         this.host.redraw();
       });
@@ -669,6 +673,7 @@ export class CoronationSheet {
         .setInteractive({ useHandCursor: true });
       zone.on('pointerup', (pointer: Phaser.Input.Pointer) => {
         if (scrollGestureConsumedTap(pointer)) return;
+        soundDirector.tap();
         onStep(delta);
       });
       body.add(zone);
@@ -724,6 +729,7 @@ export class CoronationSheet {
         .setInteractive({ useHandCursor: true });
       zone.on('pointerup', (pointer: Phaser.Input.Pointer) => {
         if (scrollGestureConsumedTap(pointer)) return;
+        soundDirector.tap();
         chip.tap();
       });
       body.add(zone);
@@ -758,6 +764,7 @@ export class CoronationSheet {
         .setInteractive({ useHandCursor: true });
       zone.on('pointerup', (pointer: Phaser.Input.Pointer) => {
         if (scrollGestureConsumedTap(pointer)) return;
+        soundDirector.tap();
         onPick(index);
       });
       body.add(zone);

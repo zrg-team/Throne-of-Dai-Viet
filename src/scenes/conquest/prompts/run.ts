@@ -34,6 +34,7 @@ import { dynastyFounderHero } from '../../../ui/dynastyPortrait';
 import type { AscentPrompt, Hero } from '../../../state/types';
 import { PROMPT_FOOTER_HEIGHT, PROMPT_HINT_ROOM, RARITY_COLOR, RARITY_WASH, cssHex, heroStatLine } from '../constants';
 import type { ConquestUIScene } from '../../ConquestUIScene';
+import { soundDirector } from '../../../ui/sound/SoundDirector';
 
 /**
  * The founding: the champion who raises the dynasty you rule, dealt as a hand you hold.
@@ -155,6 +156,9 @@ export function showMandate(self: ConquestUIScene, prompt: Extract<AscentPrompt,
     const zone = self.add.zone(0, 0, column, height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
     zone.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       if (scrollGestureConsumedTap(pointer)) return;
+      // The opening boons are cards and are drawn here rather than by `optionCard`, so they
+      // need the voice said out loud — this is the surface the silent-cards report opened on.
+      soundDirector.card();
       self.choose(cardId);
     });
     card.add(zone);

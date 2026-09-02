@@ -8,6 +8,38 @@ Required Notice: Copyright (c) 2026 zrg-team
 Licensed under the PolyForm Noncommercial License 1.0.0.
 
 ===============================================================================
+  THIRD-PARTY ASSETS
+===============================================================================
+
+  Peaceful music (menu and map) — public/audio/ambient/*.mp3
+
+    "BR_045_VN_HanoiTheater" by kevp888 — a field recording of traditional
+    music made in Hanoi, released under CC-BY 4.0.
+    https://freesound.org/people/kevp888/
+
+    "RPG - Misty Mountains" and "Views From Atop the Jade King's Throne" by
+    hitctrl, and "Bamboo Forest" by marcelofg55, released under CC-BY 3.0.
+    https://opengameart.org
+
+    Trimmed to ~100 s with fades baked in, levelled, and re-encoded to mono
+    32 kHz 40 kbps. CC-BY permits adaptation; the credits above and on the
+    game's settings page are the condition of use.
+
+  Battle music — public/audio/battle/*.mp3
+
+    "Legionnaire", "Juggernaut", "Vanguard", "Song Of The Forge" and "Terminus"
+    by Scott Buckley, released under Creative Commons Attribution 4.0
+    International (CC-BY 4.0). https://www.scottbuckley.com.au
+
+    Free for commercial use *provided the credit ships with the work*, which is
+    why it is also printed on the game's settings page. If those files are ever
+    removed, remove the credit with them; if others are added, add theirs.
+
+    The files here are re-encoded (mono, 32 kHz, 48 kbps) from the composer's
+    320 kbps masters — CC-BY permits adaptation, and the originals would be
+    43 MB for music that plays at five percent volume.
+
+===============================================================================
   IN SHORT
 ===============================================================================
 

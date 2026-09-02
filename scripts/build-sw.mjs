@@ -61,6 +61,10 @@ const skip = (rel) =>
 /** The art: fetched by the Phaser loader at runtime, and survivable if one is missing. */
 const isOptional = (rel) => rel.startsWith('faces/')
   || rel.startsWith('support/')
+  // The battle music: 6.3 MB of it, fetched only when a fight opens and silent-by-design if it
+  // never arrives. Install-critical it would be two thirds of everything a player waits for
+  // before the game will boot offline, to hear a bed that plays at five percent volume.
+  || rel.startsWith('audio/')
   // Generated conquest sprites always have procedural fallbacks. Keeping them out of the
   // install-critical shell prevents the optional pack from delaying first offline readiness.
   || rel.startsWith('art/conquest-dongho/');

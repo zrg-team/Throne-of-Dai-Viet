@@ -37,6 +37,7 @@ import { setMapVisible } from '../shell';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 import { setBattleBubbleOverride, setBattleEscalationWave } from '../../../game/battleOptions';
 import { liveBattleCount, promoteNextFront } from '../../../systems/ascent/fronts';
+import { startBattleMusic } from './music';
 
 /**
  * How far the two lines stand in from the edge of the sheet.
@@ -499,6 +500,9 @@ export function showBattle(self: ConquestUIScene): void {
   }
   // ...and the field *is* a sheet instead of it: full-bleed parchment with nothing behind it.
   setMapVisible(self, false);
+  // The bed under the fight, and the only music in the game. Sized to the field: the epic pair
+  // is held for ten thousand a side, which is the tier the mode already draws.
+  startBattleMusic(self, battle);
   // Read here, whichever page was drawn. It is an announcement about a moment, and a flag that
   // outlives the screen it was raised for re-raises that screen every frame — `shell.ts`'s
   // refresh opens this lane while it stands.

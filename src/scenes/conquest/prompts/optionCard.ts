@@ -13,6 +13,7 @@ import Phaser from 'phaser';
 import { INK_UI, INK_UI_HEX, scrollGestureConsumedTap, type UIBounds } from '../../../ui/InkUI';
 import { CARD_ICON_SIZE, drawCardIcon, type CardIconId } from '../../../ui/CardIcons';
 import { UI_FONT } from '../../../ui/fonts';
+import { soundDirector } from '../../../ui/sound/SoundDirector';
 import { BADGE_CLEARANCE, ICON_GUTTER, cssHex } from '../constants';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
@@ -252,6 +253,10 @@ export function optionCard(self: ConquestUIScene,
         });
         return;
       }
+      // The card, not the button: `optionCard` never went through `InkUI`, so every prompt card
+      // in the mode was silent. Fired here rather than on the press, because here is where the
+      // hold has actually been paid and the card is taken — a refused press stays quiet.
+      soundDirector.card();
       opts.onTap();
     });
     container.add(hit);

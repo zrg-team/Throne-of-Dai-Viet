@@ -19,6 +19,7 @@ import { t } from '../../../i18n';
 import type { Hero } from '../../../state/types';
 import { cssHex } from '../constants';
 import type { ConquestUIScene } from '../../ConquestUIScene';
+import { soundDirector } from '../../../ui/sound/SoundDirector';
 
 
 /**
@@ -124,6 +125,7 @@ export function actionTiles(self: ConquestUIScene,
           .setInteractive({ useHandCursor: true });
         hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
           if (scrollGestureConsumedTap(pointer)) return;
+          soundDirector.tap();
           tile.onTap?.();
         });
         holder.add(hit);
@@ -183,6 +185,7 @@ export function segmentedRow(self: ConquestUIScene,
         .setInteractive({ useHandCursor: true });
       hit.on('pointerup', (pointer: Phaser.Input.Pointer) => {
         if (scrollGestureConsumedTap(pointer)) return;
+        soundDirector.tap();
         opts.onPick(index);
       });
       parent.add(hit);

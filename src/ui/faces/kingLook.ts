@@ -460,7 +460,12 @@ export function rollFounder(level: number, next: () => number = Math.random): Dy
     givenName: rollGivenName(choice.sex, next),
     banner: {
       field: house.field,
-      trim: at(BANNER_TRIMS, Math.floor(next() * BANNER_TRIMS.length)),
+      // Never the house's own colour: the trim list and the house fields share cinnabar, and a
+      // rolled vermilion-on-vermilion banner has no visible border and no visible emblem. The
+      // drawing guards this too (`readableTrim`), but a skip should not lean on that guard —
+      // what it writes is what the Temple reopens on, and it should open on something good.
+      trim: at(BANNER_TRIMS.filter((colour) => colour !== house.field),
+        Math.floor(next() * BANNER_TRIMS.length)),
       emblem: at(emblems.length > 0 ? emblems : BANNER_EMBLEMS, Math.floor(next() * 6)),
     },
     level,
