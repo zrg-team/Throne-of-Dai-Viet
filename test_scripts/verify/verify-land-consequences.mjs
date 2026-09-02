@@ -172,6 +172,34 @@ const out = await page.evaluate(async () => {
     drain(st);
     for (let i = 0; i < 20; i += 1) { advanceAscentTick(st); drain(st); }
     const land = st.lands.find((l) => l.id === st.ascent.capitalLandId);
+    /**
+     * Send home anything already standing, before the measurement starts.
+     *
+     * This section raises a levy, mauls it, dissolves it and raises a second one — and the
+     * dissolve at the middle of that dissolves **every** levy on the map, not only ours. A fight
+     * already live at the seat on tick 20 leaves its own levy standing, holding that province's
+     * militia; the mid-measurement dissolve then pours that militia back in at full strength and
+     * the *second* turnout is raised from a province with more men than the first one had.
+     *
+     * Observed exactly that way: militia 56 before the first levy and 371 after the dissolve, so
+     * the second turnout came out larger than the first and this section reported a mauled
+     * defence getting stronger. It is a precondition the harness never controlled, and whether it
+     * bites depends on nothing more than whether tick 20 happens to have a battle running.
+     */
+    IS.dissolveGarrisonLevies(st);
+    /**
+     * And nobody standing on it either — the same isolation section 4 does, for the same reason.
+     *
+     * What this section is about is the *province's own* defence: raise its watch, maul it, and
+     * meet a thinner one next time. Since the share cap shipped (`combinedDefencePower`), a field
+     * host standing on the ground is deliberately the deciding term of the defence and the walls
+     * are clamped to a minority of it — so with the royal host parked on the seat the turnout is
+     * pinned to what the host is worth and stops tracking the masonry at all. That is the new rule
+     * working, not the consequence failing, but it means the walls cannot be measured through it.
+     */
+    for (const army of st.armies) {
+      if (army.landId === land.id && !army.isLevy) army.landId = '__away__';
+    }
     const defBefore = land.defense;
     const levy = IS.raiseGarrisonLevy(st, land);
     const mustered = levy.units.spearmen + levy.units.archers + levy.units.heavyInfantry;

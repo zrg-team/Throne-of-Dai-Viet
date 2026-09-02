@@ -1,4 +1,7 @@
 import { bankLegacy, computeRunScore, getLegacy } from '../../state/legacy';
+import { addRunXp, chooseTrait } from '../../state/dynasty';
+import { addCabinetCard, addRubbings, learnRecipe } from '../../state/cabinet';
+import { advanceCeremony } from './Ceremony';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { resolveWorldEvent } from './WorldEventSystem';
 import { findPowerCard } from '../../data/ascentCards';
@@ -311,7 +314,42 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
     }
 
     case 'run-over': {
-      // Terminal: the scene takes over from here (summary screen → menu).
+      // Terminal: the scene takes over from here. The Reckoning's "go again" walks the ceremony
+      // (`ui:ascent-ceremony`) rather than restarting, so the run does not end until the house
+      // has grown and the next reign has been shown what it carries.
+      return true;
+    }
+
+    case 'dynasty-level': {
+      // A choice the player did not make is not silently dropped: `chooseTrait` refuses an id
+      // that is not on offer, and an unhandled prompt is re-raised by the block below — which is
+      // exactly right here, because this card is the reason the ceremony has stopped.
+      if (!chooseTrait(choiceId)) break;
+      // Straight into the next step, without unpausing: `drainAscentPrompts` at the foot of this
+      // function sees the card `advanceCeremony` has just set and holds the screen.
+      advanceCeremony(state);
+      handled = true;
+      break;
+    }
+
+    case 'bind-card': {
+      // Only a card that was actually on the fan binds — a driver answering with a stray id
+      // must not mint cabinet property out of nothing.
+      if (!prompt.options.includes(choiceId)) break;
+      const bound = addCabinetCard(choiceId);
+      if (!bound) break;
+      // Binding the evolution also teaches the forge its recipe — the other way a recipe is
+      // learned besides completing it mid-run.
+      const boundCard = findPowerCard(choiceId);
+      if (boundCard?.evolutionOnly) learnRecipe(choiceId);
+      // Straight into the closing screen, without unpausing — same shape as `dynasty-level`.
+      advanceCeremony(state);
+      handled = true;
+      break;
+    }
+
+    case 'next-reign': {
+      // Terminal, like the Reckoning: the button on it starts the run rather than answering it.
       return true;
     }
   }
@@ -372,6 +410,33 @@ export function endAscentRun(state: GameState): void {
   // would always report the player as having tied their own record.
   const previousBest = getLegacy().bestScore;
   const legacyEarned = bankLegacy(state, false);
+  /**
+   * The house takes its share, inside the same guard.
+   *
+   * `legacyBanked` is what stops a re-entrant tick paying Legacy twice; dynasty XP is banked here
+   * rather than in the ceremony for exactly that reason — a level handed out twice is a free trait,
+   * and the ceremony can be re-entered (a reload, a second `advanceCeremony`) while this cannot.
+   */
+  const founder = state.heroes.find((hero) => hero.id === ascent.founderHeroId);
+  addRunXp(score, founder
+    ? {
+      founder: {
+        id: founder.id,
+        name: founder.name,
+        type: founder.type,
+        sex: founder.sex,
+        ...(founder.era ? { era: founder.era } : {}),
+        ...(founder.monastic ? { monastic: true as const } : {}),
+      },
+      // The house is the founder's family name — the sheet says "House of Lê", which is what a
+      // dynasty is called, rather than the country's name, which never changes between reigns.
+      house: founder.name.trim().split(/\s+/)[0],
+    }
+    : undefined);
+  // The cabinet's always-faucet: +1 rubbing, every run, however it ended. Inside the same
+  // `legacyBanked` guard for the same reason the XP is — a re-entrant tick must not pay twice.
+  addRubbings(1);
+  ascent.ceremonyStage = 'reckoning';
 
   state.pendingAscentPrompt = {
     kind: 'run-over',

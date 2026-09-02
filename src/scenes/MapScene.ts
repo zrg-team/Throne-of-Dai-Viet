@@ -2123,7 +2123,11 @@ export class MapScene extends Phaser.Scene {
     // draws the same mark, and its round advances on the same beat clock.
     const battle = liveBattles(this.state)
       .map((fight) => `${fight.landId}:${fight.round}/${fight.totalRounds}`).join(',');
-    return `${orders}|${battle}|${this.state.selectedLandId ?? ''}`;
+    // Nor is the wall clock an order. It draws the same badge and counts down every tick.
+    const walls = this.state.lands
+      .filter((land) => land.siege)
+      .map((land) => `${land.id}:${land.siege?.ticksLeft}/${land.siege?.ticks}`).join(',');
+    return `${orders}|${battle}|${walls}|${this.state.selectedLandId ?? ''}`;
   }
 
   private drawAcquisitionMarkers(): void {
@@ -2165,14 +2169,28 @@ export class MapScene extends Phaser.Scene {
     }
   }
 
-  /** Shows a crossed-swords progress badge over any district currently under siege. */
+  /**
+   * Shows a crossed-swords progress badge over any district currently under siege.
+   *
+   * Two clocks wear this badge, and both of them are "a province with a host at it that the map
+   * would otherwise draw as two armies standing still":
+   *
+   *  - `siegeOrders` — the province is already carried and is being counted away from its owner.
+   *  - `land.siege` — the walls are still holding and the assault has not come yet. This is the
+   *    one the player can still do something about, and it had no mark at all: an invader arrived,
+   *    sat down, and the map said nothing until the province changed colour.
+   *
+   * The carried clock wins where a province somehow has both, being the more final of the two.
+   */
   private drawSiegeMarkers(): void {
     for (const marker of this.siegeMarkers) {
       marker.destroy();
     }
     this.siegeMarkers = [];
 
+    const carried = new Set<string>();
     for (const order of this.state.siegeOrders) {
+      carried.add(order.landId);
       const land = findLand(this.state, order.landId);
       if (!land?.isVisible) {
         continue;
@@ -2180,6 +2198,21 @@ export class MapScene extends Phaser.Scene {
 
       const { x, y } = this.getVisibleLandMarkerPoint(land);
       const marker = this.mapItems.createProgressBadge(x, y, order.progress, order.required, 'siege');
+      marker.setDepth(72);
+      this.siegeMarkers.push(marker);
+    }
+
+    for (const land of this.state.lands) {
+      const siege = land.siege;
+      if (!siege || carried.has(land.id) || !land.isVisible) {
+        continue;
+      }
+      const { x, y } = this.getVisibleLandMarkerPoint(land);
+      // Seasons spent against seasons bought, so the badge fills as the walls run out — the same
+      // "how far through is this" the other five badges carry.
+      const marker = this.mapItems.createProgressBadge(
+        x, y, Math.max(0, siege.ticks - siege.ticksLeft), Math.max(1, siege.ticks), 'siege',
+      );
       marker.setDepth(72);
       this.siegeMarkers.push(marker);
     }

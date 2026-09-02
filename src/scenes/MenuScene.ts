@@ -6,6 +6,11 @@ import {
   hasSeenClassicTour, hasSeenTour, markClassicTourSeen, markTourSeen, requestGuidedRun,
 } from '../state/tour';
 import { getLegacy, LEGACY_PERKS, purchaseLegacyPerk, rankForScore } from '../state/legacy';
+import { DYNASTY_TRAITS, DYNASTY_TRAITS_PENDING } from '../data/dynastyTraits';
+import { dynastyProgress, getDynasty, respecDynasty, respecsAvailable } from '../state/dynasty';
+import { cabinetProgress, getCabinet } from '../state/cabinet';
+import { dynastyFounderHero } from '../ui/dynastyPortrait';
+import { renderHeroFaceInBox } from '../ui/FaceRenderer';
 import { getLanguage, setLanguage, t, type LanguageCode } from '../i18n';
 import {
   applyUpdate, BUILD_VERSION, buildStamp, checkForUpdate, getIncomingVersion, getUpdateStatus,
@@ -16,7 +21,7 @@ import {
 } from '../pwa/install';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
-import { BACK_BAR_HEIGHT, InkUI, INK_UI, INK_UI_HEX, type UIBounds } from '../ui/InkUI';
+import { BACK_BAR_BAND, BACK_BAR_HEIGHT, InkUI, INK_UI, INK_UI_HEX, type InkScrollArea, type UIBounds } from '../ui/InkUI';
 import {
   BATTLE_DIFFICULTIES, BATTLE_SPEEDS, getBattleDifficulty, getBattleSpeed,
   setBattleDifficulty, setBattleSpeed,
@@ -45,7 +50,7 @@ import { attachPaperSheet } from '../ui/ink/paperSheet';
 import { qualityLadder } from '../game/qualityLadder';
 import { rungForTier } from '../game/qualityRungs';
 
-type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy' | 'settings';
+type MenuMode = 'main' | 'classic' | 'confirm-new' | 'legacy' | 'dynasty' | 'settings';
 
 /**
  * The front page's footer, measured up from the bottom edge.
@@ -144,6 +149,23 @@ export class MenuScene extends Phaser.Scene {
   /** Set while the install sheet is up, so the tip does not re-arm underneath it. */
   private installModalOpen = false;
   private mode: MenuMode = 'main';
+  /**
+   * The respec row, armed but not yet fired.
+   *
+   * Renouncing is the one destructive control on the menu — it hands a biography back to the table
+   * — and it sat behind a single tap. Armed in place rather than behind a `confirm-*` page on
+   * purpose: the chips the player is about to give up stay on screen while they decide, which is
+   * precisely the information the decision needs. Cleared by anything that leaves the page.
+   */
+  private respecArmed = false;
+  /**
+   * The scrolling body of whichever sub-page has one, so `clearContent` can dispose it.
+   *
+   * An `InkScrollArea` that is never destroyed leaves its global wheel handler hooked to a dead
+   * scene — the same trap the prompt frames document. `this.content` holds the layer it draws into,
+   * which destroys the objects but not the listener.
+   */
+  private pageScroll?: InkScrollArea;
   /**
    * The page currently drawn, which is not always the page `render` is about to draw.
    *
@@ -2263,7 +2285,34 @@ export class MenuScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * The way back, at the foot of the sheet — the same place on every page that has one.
+   *
+   * Each sub-page used to place it wherever its own content happened to stop: `cursor + 6` on the
+   * classic page, `y + 6` on the shop, a clamped `vy(726)` on the ledger, a hardcoded `vy(690)` on
+   * the confirm. On a short page that parks the control halfway up the sheet with a third of a
+   * screen of nothing under it — reported as *"back button should not show in that place"* — and it
+   * moves between pages, so the one control that is on all of them is the one that never sits still.
+   *
+   * `GuideScene` and `HistoryScene` already do this: *"The way back sits at the foot; the list gives
+   * up `BACK_BAR_BAND` to clear it."* This is that rule, for the menu's own pages.
+   */
+  private footBackBar(): void {
+    this.content.push(this.ui.backBar(GAME_HEIGHT - BACK_BAR_BAND, () => {
+      this.mode = 'main';
+      this.render();
+    }));
+  }
+
+  /** The band a menu sub-page may draw in: under the wordmark, above the way back. */
+  private pageFloor(): number {
+    return GAME_HEIGHT - BACK_BAR_BAND - 12;
+  }
+
   private renderPage(): void {
+    // Leaving the dynasty sheet disarms the respec — an armed destructive control must never
+    // survive a navigation and be waiting, already half-pressed, when the player comes back.
+    if (this.mode !== 'dynasty') this.respecArmed = false;
     if (this.mode === 'settings') {
       this.renderSettings();
       return;
@@ -2272,6 +2321,8 @@ export class MenuScene extends Phaser.Scene {
       this.renderConfirmNew();
     } else if (this.mode === 'legacy') {
       this.renderLegacyShop();
+    } else if (this.mode === 'dynasty') {
+      this.renderDynastySheet();
     } else if (this.mode === 'classic') {
       this.renderClassic();
     } else {
@@ -2408,7 +2459,101 @@ export class MenuScene extends Phaser.Scene {
     // returning player reaches for was somewhere different on their first visit from where it is
     // on every visit after. A greyed row with the reason printed under it says what the missing
     // row could not, and it says it in the place the answer will later appear.
-    const rows = this.vh(58) + tagline.height + ROW + ROW;
+    /**
+     * The progression row — rank, the Legacy shop, the Tông Phả — is **budgeted**, not squeezed in
+     * afterwards.
+     *
+     * It used to be appended after `renderVersionLine()` behind
+     * `cursor + vh(30) + 18 < SETTINGS_TOP`, and the column above it is *centred* in a fixed lane,
+     * so the only room it could ever find was the half-slack the centring happened to leave. On a
+     * 390x620, x740 and x844 sheet there is none: measured, the row rendered **only** at
+     * GAME_HEIGHT 1040. The Legacy shop has therefore been unreachable from the front page on
+     * every phone since that check was written, and the dynasty sheet inherited it — reported as
+     * "where is the screen, did you really implement it".
+     *
+     * Counted into `rows` like every other row, so `gap` pays for it and the column makes room.
+     */
+    const legacy = getLegacy();
+    const dynasty = getDynasty();
+    /**
+     * The Tông Phả line is **always** on the page.
+     *
+     * "Hidden until earned" is right for the Legacy shop — it is a list of things to buy with
+     * points you do not have — and wrong for the ledger, which has an empty state that says what
+     * the page is for and what fills it. Hiding a page that explains itself hides only the feature,
+     * and the first thing asked of this build was *where is the screen*.
+     */
+    /**
+     * Every row says its own state, so the column needs no status line above it.
+     *
+     * The rank used to be a text row of its own between Continue and the doors: a line that cost a
+     * gap above, a gap below and a whole row of a 620-tall sheet to print something neither button
+     * under it was going to repeat. Folded in as sub-labels — the same trick Continue already uses
+     * for "no saved campaign" — it costs the few units the buttons grow by, greys out with them,
+     * and each door now answers the question it raises. *What is behind Tông Phả?* Your level, and
+     * whether the house is owed a choice.
+     */
+    const ledgerSub = dynasty.reigns === 0
+      ? t('dynasty.subEmpty')
+      : dynasty.pendingPicks > 0
+        ? t('dynasty.subWaiting', { level: dynasty.level, n: dynasty.pendingPicks })
+        : t('dynasty.subLevel', { level: dynasty.level, n: dynasty.reigns });
+
+    /**
+     * The house is a **line**, not a fourth button.
+     *
+     * Play, Continue, Tông Phả and Classic Modes as four stamped rows of the same width read as a
+     * wall — reported as *"all same buttons look weird"* — and the hierarchy went backwards, with
+     * Classic Modes drawn in gold above a ghost-grey ledger. A line breaks the stack, and it is the
+     * honest shape for the thing: it carries a number you read (your level, and whether a choice is
+     * waiting) rather than an action you take. Same device as the rank line it replaces, printed on
+     * its own chip of paper so it is legible over the landscape.
+     */
+    /**
+     * Continue is the line; the house is the button.
+     *
+     * Straight swap of the two treatments, and the right way round: Tông Phả is the reason to start
+     * another reign and it was the quiet row, while Continue — which resumes a *classic* campaign
+     * most players never start — was the biggest control on the page after Play. Weight should
+     * follow how often a thing is wanted, so the house takes the button and the resume takes the
+     * line. Reported as exactly that: *"Dynasty is important... but continue can just be text"*.
+     */
+    /**
+     * Continue exists only when there is something to continue.
+     *
+     * It held its row greyed for years on the argument that a page whose shape changes under the
+     * player is worse than a dead control — which was true of a *button*, because dropping one left
+     * an obvious hole where it had been. It is not true here: the column is centred in its lane and
+     * simply closes up. And the greyed link was the worse half of the trade anyway — underlined,
+     * chevroned, and inert. Reported as *"why it need clickable and feel clickable when it not have
+     * any data?"*.
+     *
+     * A fresh install therefore opens on three rows: play, the house, the way out.
+     */
+    // `textLink` sets its own 30-unit floor for the hit area and centres the type on its baseline.
+    const CONTINUE_LINE_ROW = saved ? 30 : 0;
+    // 38, not `ROW`: the ledger carries a second line and a 30-unit button leaves 22 units of room
+    // for 25 units of type, which is what trimmed the note to an ellipsis on the last pass.
+    const LEDGER_ROW = 38;
+
+    /**
+     * The tagline is what gives way when the lane cannot hold the column.
+     *
+     * At the 620 clamp the lane between the art and the settings block is about 168 units, and four
+     * rows at their minimum gaps already spend nearly all of it — in Vietnamese the tagline wraps
+     * to two lines and the column printed straight through the footer. It is the one thing in the
+     * group that is prose rather than a control: the four buttons are budgeted first and the
+     * sentence is added only where the room is genuinely there. It returns at 620 in English and
+     * at every height above the clamp in both.
+     */
+    const GAP_FLOOR = 4;
+    const LANE_ROOM = SETTINGS_TOP - this.vy(520);
+    const controls = this.vh(58) + CONTINUE_LINE_ROW + LEDGER_ROW + ROW;
+    // One fewer row means one fewer gap between them.
+    const innerRows = saved ? 4 : 3;
+    const showTagline = controls + tagline.height + GAP_FLOOR * 6 <= LANE_ROOM;
+    if (!showTagline) tagline.destroy();
+    const rows = controls + (showTagline ? tagline.height : 0);
     // TWICE the gap for the break, not three times it. Three left an obvious hole between the last
     // row and Settings while the art above the column was being crowded — the page had its slack
     // in the one place nothing needed it. Doubling is still an unmissable break (the gaps inside
@@ -2419,7 +2564,8 @@ export class MenuScene extends Phaser.Scene {
     // the column has 184. The rows come to 36 + 28 (the tagline wraps to two lines in Vietnamese)
     // + 30 + 30 = 124, and five gaps land at the 9-unit ceiling for 45. The smaller secondary tier
     // leaves enough air for its hierarchy to read without pushing the primary action into the art.
-    const inner = 3;
+    // Four rows and, where it fits, the sentence between the first two.
+    const inner = showTagline ? innerRows : innerRows - 1;
     const GAPS = inner + 2;
     // The floor the column may not climb above: the rear host's feet stand at 488 in the design,
     // and the pair of them are the busiest thing on the page. At 844 the bottom-anchored column
@@ -2451,36 +2597,89 @@ export class MenuScene extends Phaser.Scene {
     }, { variant: 'primary', fontSize: '17px' }));
     cursor += this.vh(58) + gap;
 
-    tagline.setY(cursor);
-    this.content.push(tagline);
-    cursor += tagline.height + gap;
+    if (showTagline) {
+      tagline.setY(cursor);
+      this.content.push(tagline);
+      cursor += tagline.height + gap;
+    }
+
+    /**
+     * Resume, then the house, then the other modes.
+     *
+     * The order is the player's own: the thing you press most is nearest the thing you pressed to
+     * get here. Continue is a link rather than a control — it resumes a classic campaign, which is
+     * not what this page is for, and when there is nothing to resume it is only a sentence saying
+     * so. Tông Phả is the door the mode's own loop leads back to. Classic Modes sits at the foot of
+     * the group where a door out of the mode belongs.
+     */
+    /**
+     * Drawn as a **link**, not as a line of text that happens to answer a tap.
+     *
+     * `textLink` is the game's own affordance and it is already on this page under the support
+     * row: a hand-inked rule under the words, cinnabar under the finger, and a hit rectangle grown
+     * past the type on every side. A plain caption gives a player nothing to say it can be pressed,
+     * and inventing a second link style for one row would leave the page with two.
+     *
+     * **No glyph.** The one that fitted — the scroll — is already the How to Play mark six rows
+     * below, and two different doors under one icon is worse than no icon at all. There is no mark
+     * that means *resume*; the rule and the chevron carry it.
+     */
+    if (saved) {
+      const continueLink = this.ui.textLink(
+        0, 0, t('menu.continueLine', { note: snapshotLabel() }),
+        () => {
+          const snapshot = loadSnapshot();
+          if (snapshot) this.startGame(snapshot.state);
+        },
+        { fontSize: '11px' },
+        // `menuLink`, not `menuSecondary`: the latter means a stamped plate with `visualBounds`,
+        // and `verify-menu-icons-flags` reads that data key to measure the secondary tier.
+      ).setData('menuLink', 'continue');
+      const linkWidth = continueLink.getData('linkWidth') as number;
+      continueLink.setPosition(
+        Math.round((GAME_WIDTH - linkWidth) / 2),
+        cursor + CONTINUE_LINE_ROW / 2,
+      );
+      this.content.push(continueLink);
+      cursor += CONTINUE_LINE_ROW + gap;
+    }
+
+    /**
+     * The house: your level, and whether it owes you a choice.
+     *
+     * One primary per page. The house was drawn in the cinnabar the play button wears, which put
+     * two identical calls to action on a sheet whose whole job is to point at one — so it takes the
+     * gold and Classic Modes steps down to ghost. Three weights, one per row, in the order the
+     * player wants them: play, the house, the way out.
+     *
+     * A waiting choice is said in the sub-label rather than in a louder colour. "Cấp 2 · còn 1
+     * lượt" is more specific than a red border and does not cost the page its single accent.
+     *
+     * The Ascension Legacy shop lives on the sheet this opens; two near-identical doors side by
+     * side only made the reader choose between two words whose meaning they did not yet have.
+     */
+    this.content.push(this.ui.button(
+      { x: SECONDARY_X, y: cursor, width: SECONDARY_WIDTH, height: LEDGER_ROW },
+      t('dynasty.menu'), () => { this.mode = 'dynasty'; this.render(); },
+      {
+        variant: 'secondary',
+        fontSize: '12px',
+        subLabel: ledgerSub,
+        extraHitPadding: Math.max(0, 44 - LEDGER_ROW),
+      })
+      .setData('menuSecondary', 'dynasty')
+      .setData('visualBounds', { width: SECONDARY_WIDTH, height: LEDGER_ROW }));
+    cursor += LEDGER_ROW + gap;
 
     this.tourTargets.classic = { x: SECONDARY_X, y: cursor, width: SECONDARY_WIDTH, height: ROW };
     this.content.push(this.ui.button(this.tourTargets.classic, t('ascent.menu.classic'), () => {
       this.mode = 'classic';
       this.render();
-    }, { variant: 'secondary', fontSize: '12px', extraHitPadding: SECONDARY_HIT_PADDING })
+    }, { variant: 'ghost', fontSize: '12px', extraHitPadding: SECONDARY_HIT_PADDING })
       .setData('menuSecondary', 'classic')
       .setData('visualBounds', { width: SECONDARY_WIDTH, height: ROW }));
     cursor += ROW + gap;
 
-    // `snapshotLabel()` already answers both cases — the save's date, or "no saved campaign" — and
-    // the disabled variant greys the sub-label along with the label, so the row reads as one
-    // unavailable thing rather than as a live button with a warning under it.
-    this.content.push(this.ui.button({ x: SECONDARY_X, y: cursor, width: SECONDARY_WIDTH, height: ROW }, t('menu.continue'), () => {
-      const snapshot = loadSnapshot();
-      if (snapshot) {
-        this.startGame(snapshot.state);
-      }
-    }, {
-      variant: saved ? 'ghost' : 'disabled',
-      fontSize: '11px',
-      subLabel: snapshotLabel(),
-      extraHitPadding: SECONDARY_HIT_PADDING,
-    })
-      .setData('menuSecondary', 'continue')
-      .setData('visualBounds', { width: SECONDARY_WIDTH, height: ROW }));
-    cursor += ROW + gap;
     // The group break, and the reason the footer reads as a different kind of thing from the
     // buttons above it.
     cursor += gap * 2;
@@ -2490,30 +2689,6 @@ export class MenuScene extends Phaser.Scene {
 
     this.renderSupportRow();
     this.renderVersionLine();
-
-    // Lifetime standing across all Throne of Empires runs (hidden until earned).
-    // Tapping it opens the Ascension Legacy shop, where banked points buy permanent perks.
-    const legacy = getLegacy();
-    if ((legacy.points > 0 || legacy.bestScore > 0) && cursor + this.vh(30) + 18 < SETTINGS_TOP) {
-      const rankLabel = this.add.text(GAME_WIDTH / 2, cursor, t('empire.legacy.rank', {
-        rank: rankForScore(legacy.bestScore),
-        total: legacy.points,
-      }), {
-        color: '#2a2118',
-        fontFamily: UI_FONT,
-        fontSize: '11px',
-        align: 'center',
-        backgroundColor: 'rgba(243,230,196,0.72)',
-        padding: { x: 6, y: 3 },
-      }).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
-      rankLabel.on('pointerup', () => { this.mode = 'legacy'; this.render(); });
-      this.content.push(rankLabel);
-      cursor += rankLabel.height + Math.round(gap * 0.5);
-      this.content.push(this.ui.button({ x: 108, y: cursor, width: 174, height: this.vh(30) }, t('empire.legacy.openShop'), () => {
-        this.mode = 'legacy';
-        this.render();
-      }, { variant: 'ghost', fontSize: '12px' }));
-    }
   }
 
   /**
@@ -2525,7 +2700,9 @@ export class MenuScene extends Phaser.Scene {
    * climbed on top of each other. Each one now starts below the last one actually ended.
    */
   private renderClassic(): void {
-    let cursor = this.vy(250);
+    const bandTop = this.vy(250);
+    let cursor = bandTop;
+    const built: Phaser.GameObjects.Container[] = [];
     const title = this.add.text(GAME_WIDTH / 2, cursor, t('ascent.menu.classicTitle'), {
       color: '#2a2118',
       fontFamily: TITLE_FONT,
@@ -2587,15 +2764,30 @@ export class MenuScene extends Phaser.Scene {
         };
       }
       cursor += (card.getData('cardHeight') as number) + 14;
+      built.push(card);
+    }
+
+    /**
+     * Centred in the band between the wordmark and the way back.
+     *
+     * The page offers one card. Laid out from the top it sat under the title with half a screen of
+     * nothing beneath it, which reads as a page that failed to finish loading rather than a page
+     * with one thing on it. Shifted after the fact rather than placed there, because `InkUI.card`
+     * grows to whatever its body wraps to — a line longer in Vietnamese — and only the card knows
+     * how tall it ended up.
+     */
+    const blockHeight = cursor - 14 - bandTop;
+    const shift = Math.max(0, Math.round((this.pageFloor() - bandTop - blockHeight) / 2));
+    if (shift > 0) {
+      title.setY(title.y + shift);
+      for (const card of built) card.setY(card.y + shift);
+      if (this.tourTargets.skirmish) this.tourTargets.skirmish.y += shift;
     }
 
     // First time on this page, once: what a skirmish is and how one is won.
     this.startClassicTour();
 
-    this.content.push(this.ui.backBar(cursor + 6, () => {
-      this.mode = 'main';
-      this.render();
-    }));
+    this.footBackBar();
   }
 
   /**
@@ -2651,6 +2843,314 @@ export class MenuScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Tông Phả — the dynasty sheet.
+   *
+   * Beside the Legacy shop and deliberately unlike it. The shop is a list of things to buy; this
+   * is a *record*: who founded the last reign, how many reigns there have been, what the house has
+   * learned, and — for the first time anywhere in the game — **the ancestral code, said out loud**.
+   * The code has been silently applied to every founding since `applyAncestralCodes` shipped: the
+   * best-earned carry-over in the game, and the player had no way to know it existed.
+   *
+   * The portrait is the wardrobe system, drawn at the *dynasty's* rank rather than the founder's,
+   * so the badge steps up as the ledger fills and thirty reigns look like thirty reigns.
+   *
+   * Chips rather than cards. Eight trait cards at the card's own height do not fit the menu band
+   * at the 620 clamp, and a page that has to scroll to show what you own is a page that hides it.
+   *
+   * **Everything sits on parchment.** The front page's landscape is still painted behind this
+   * mode, and 10px captions laid straight onto mountains and a lotus are unreadable — measured by
+   * eye on the first pass, where four lines of the page vanished into the art. Each band gets its
+   * own panel, which is also what makes the chip grid read as a grid.
+   */
+  private renderDynastySheet(): void {
+    const store = getDynasty();
+    const legacy = getLegacy();
+    const progress = dynastyProgress(store);
+    const PAD = 28;
+    const W = GAME_WIDTH - PAD * 2;
+
+    this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(236), t('dynasty.title'), {
+      color: '#2a2118', fontFamily: TITLE_FONT, fontSize: '20px', fontStyle: '700', align: 'center',
+    }).setOrigin(0.5));
+
+    // Never played: the page says what it would hold rather than a column of zeroes.
+    //
+    // On parchment like every other band. The front page's landscape is still painted behind this
+    // mode, and two lines of 11px type laid straight onto mountains and a lotus is the same
+    // unreadable page the populated sheet had on its first pass.
+    if (store.reigns === 0) {
+      const bodyText = this.ui.label(0, -9999, t('dynasty.emptyBody'), 'caption',
+        { fontSize: '11.5px', align: 'center', wordWrap: { width: W - 28 } });
+      const bodyHeight = bodyText.height;
+      bodyText.destroy();
+
+      const panelHeight = 16 + 18 + 8 + bodyHeight + 16;
+      // Centred in the band between the title and the way back. Pinned under the title it left a
+      // third of a screen of nothing below it, which reads as a page that failed to load rather
+      // than as a page with little to say.
+      const bandTop = this.vy(268);
+      const panelTop = bandTop + Math.max(0, Math.round((this.pageFloor() - bandTop - panelHeight) / 2));
+      this.content.push(this.ui.panel({ x: PAD, y: panelTop, width: W, height: panelHeight },
+        { border: INK_UI.softBrush, fillAlpha: 0.92 }));
+      this.content.push(this.add.text(GAME_WIDTH / 2, panelTop + 16, t('dynasty.emptyTitle'), {
+        color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '13px', align: 'center',
+      }).setOrigin(0.5, 0));
+      this.content.push(this.ui.label(GAME_WIDTH / 2, panelTop + 16 + 18 + 8, t('dynasty.emptyBody'),
+        'caption', { fontSize: '11.5px', align: 'center', wordWrap: { width: W - 28 } })
+        .setOrigin(0.5, 0));
+      this.footBackBar();
+      return;
+    }
+
+    /**
+     * A wrapped line's height, before anything is drawn.
+     *
+     * Phaser measures a Text on creation and the display list is depth-ordered by creation, so a
+     * panel built after the text it backs would cover it. Measured on a throwaway and destroyed:
+     * the alternative is a guessed stride, which is exactly how a Vietnamese caption ends up
+     * printed through the row below it.
+     */
+    const measure = (text: string, size: string, width: number): number => {
+      const probe = this.ui.label(0, -9999, text, 'caption', { fontSize: size, wordWrap: { width } });
+      const height = probe.height;
+      probe.destroy();
+      return height;
+    };
+
+    /**
+     * The body scrolls; the way back does not.
+     *
+     * At the 620 clamp the record does not fit and cannot be made to — the portrait, the bar, eight
+     * chips, the reign line, the ancestral code, the shop and the respec came to 94 units past the
+     * foot, and every one of them is the page's subject rather than its chrome. Shrinking them all
+     * to fit produces a sheet nobody can read, and hiding one by height is the `4a67460` bug again.
+     *
+     * So it scrolls, the way the manual and the history page do, and it keeps fitting as Phases 3
+     * and 4 add their rows. `addTo` order is not a convenience: it parents the area's swallow-zone
+     * before its content, and reversed the zone lands on top and eats every tap the rows were
+     * supposed to get.
+     */
+    const bodyTop = this.vy(268);
+    const viewport = this.pageFloor() - bodyTop;
+    const area = this.ui.scrollArea({ x: 0, y: bodyTop, width: GAME_WIDTH, height: viewport });
+    this.pageScroll = area;
+    const layer = this.add.container(0, 0);
+    area.addTo(layer);
+    this.content.push(layer);
+    const body = area.content;
+    // Rows are laid out from the top of the scrolled content, not from the top of the sheet.
+    let y = 0;
+
+    // ── The house ───────────────────────────────────────────────────────────
+    const pendingLine = store.pendingPicks > 0
+      ? t('dynasty.pending', { n: store.pendingPicks })
+      : '';
+    const pendingH = pendingLine ? measure(pendingLine, '10.5px', W - 20) + 6 : 0;
+    const headerH = 64 + 10 + 14 + 7 + 10 + pendingH;
+
+    /**
+     * The chip grid is what *fills* the page, so its row height is derived from the room left
+     * rather than picked and then padded around — the same rule the Reckoning's tile grid follows.
+     *
+     * Everything else on this page has a height nothing can bound (two wrapped captions in a
+     * language that runs a line longer than English) or a height that must not move (the portrait,
+     * the controls). At the 620 clamp a fixed 26-point chip pushed the foot past the sheet and the
+     * back bar printed straight through "Renounce every trait". Clamped both ways: below 20 the
+     * label does not fit its box, above 28 eight chips stop reading as a list.
+     */
+    const reignsLineText = t('dynasty.reignsValue', {
+      n: store.reigns,
+      score: store.bestScore.toLocaleString('en-US'),
+      rank: rankForScore(legacy.bestScore),
+    });
+    const codeCount = (legacy.codes ?? []).length;
+    const codeLineText = codeCount > 0
+      ? t('dynasty.codeSome', { n: codeCount })
+      : t('dynasty.codeNone');
+    const recordHeight = 8 + 13 + measure(reignsLineText, '10.5px', W - 20) + 10
+      + 13 + measure(codeLineText, '10.5px', W - 20) + 8;
+    // Measured against the *tallest* the respec note can be — the armed warning runs two lines
+    // where the resting line runs one. Sizing the grid to the resting height would reflow the
+    // whole page the instant a destructive control is armed, which is the worst possible moment
+    // for everything under the finger to move.
+    const respecHeight = store.traits.length > 0
+      ? 34 + Math.max(
+        measure(respecsAvailable(legacy.ascensions) > 0
+          ? t('dynasty.respecLeft', { n: respecsAvailable(legacy.ascensions) })
+          : t('dynasty.respecNone'), '9.5px', W),
+        measure(t('dynasty.respecWarn', { n: store.traits.length }), '9.5px', W),
+      ) + 10
+      : 0;
+    const CHIP_ROWS = Math.ceil(DYNASTY_TRAITS.length / 2);
+    const CHIP_GAP = 6;
+    // The shop row is budgeted with everything else, or the chip grid takes room it has to give
+    // back and the back bar lands on the last control.
+    // 38 for the row, 8 below it. A `subLabel` needs about 25 units of type and a 30-unit button
+    // leaves 22, so at 30 the note trims itself to "640…" and says nothing.
+    const shopHeight = legacy.points > 0 || legacy.bestScore > 0 ? 46 : 0;
+    // The Cabinet of Seals door — always shown, because the empty cabinet page is itself the
+    // pitch: fifty dashed silhouettes and the faucet list is what tells a player the hunt exists.
+    const cabinetHeight = 46;
+    const fixedBelow = 12 + 15 + 5 + 6 + recordHeight + 12 + shopHeight + cabinetHeight + respecHeight + 8 + BACK_BAR_HEIGHT;
+    const gridRoom = this.pageFloor() - (y + headerH) - fixedBelow;
+    const CHIP_H = Math.max(20, Math.min(28, Math.floor(gridRoom / CHIP_ROWS) - CHIP_GAP));
+    body.add(this.ui.panel({ x: PAD, y, width: W, height: headerH },
+      { border: INK_UI.softBrush, fillAlpha: 0.92 }));
+
+    const founder = dynastyFounderHero(store);
+    if (founder) {
+      body.add(renderHeroFaceInBox(this, founder, { x: PAD + 8, y: y + 6, width: 58, height: 58 }));
+    }
+    body.add(this.ui.label(PAD + 76, y + 8,
+      store.house ? t('dynasty.house', { name: store.house }) : t('dynasty.houseUnnamed'),
+      'label', { fontSize: '15px', wordWrap: { width: W - 90 } }));
+    body.add(this.ui.label(PAD + 76, y + 30, t('dynasty.reignOrdinal', { n: store.reigns }),
+      'caption', { fontSize: '11px' }));
+    body.add(this.ui.label(PAD + 76, y + 46, t('dynasty.level', { level: store.level }),
+      'caption', { fontSize: '11px' }));
+
+    let inner = y + 64 + 10;
+    body.add(this.ui.label(PAD + 10, inner - 2, t('dynasty.xp', {
+      into: progress.into.toLocaleString('en-US'),
+      need: progress.need.toLocaleString('en-US'),
+    }), 'caption', { fontSize: '10px' }));
+    inner += 14;
+    const bar = this.add.graphics();
+    bar.fillStyle(INK_UI.softBrush, 0.3);
+    bar.fillRoundedRect(PAD + 10, inner, W - 20, 7, 3.5);
+    bar.fillStyle(INK_UI.gold, 0.95);
+    bar.fillRoundedRect(PAD + 10, inner, Math.max(4, (W - 20)
+      * Math.min(1, progress.into / Math.max(1, progress.need))), 7, 3.5);
+    body.add(bar);
+    inner += 13;
+    if (pendingLine) {
+      body.add(this.ui.label(PAD + 10, inner, pendingLine, 'caption',
+        { fontSize: '10.5px', color: '#8a5f1c', wordWrap: { width: W - 20 } }));
+    }
+    y += headerH + 12;
+
+    // ── What the house has learned, as chips ────────────────────────────────
+    const traitsHdr = this.ui.label(PAD, y, t('dynasty.traitsLabel'), 'caption',
+      { fontSize: '10px', backgroundColor: 'rgba(243,230,196,0.82)', padding: { x: 4, y: 1 } });
+    body.add(traitsHdr);
+    y += traitsHdr.height + 5;
+
+    const CHIP_W = Math.floor((W - 8) / 2);
+    DYNASTY_TRAITS.forEach((trait, index) => {
+      const owned = store.traits.includes(trait.id);
+      const pending = DYNASTY_TRAITS_PENDING.has(trait.id);
+      const x = PAD + (index % 2) * (CHIP_W + 8);
+      const chipY = y + Math.floor(index / 2) * (CHIP_H + CHIP_GAP);
+      body.add(this.ui.panel({ x, y: chipY, width: CHIP_W, height: CHIP_H }, {
+        border: owned ? INK_UI.jade : INK_UI.softBrush,
+        fillAlpha: owned ? 0.94 : 0.8,
+      }));
+      // An un-owned trait is not disabled, it is simply not taken yet — drawn quieter, never
+      // struck through, because every one of them is still on the table. The colour override is
+      // *omitted* rather than passed as undefined: `InkUI.label` spreads overrides over the
+      // variant's own style, so an explicit `color: undefined` erases the variant's colour and
+      // the chip prints white on parchment — which is how four owned traits rendered blank.
+      body.add(this.ui.label(x + 8, chipY + Math.max(4, Math.round((CHIP_H - 14) / 2)),
+        `${t(`dynasty.trait.${trait.id}` as Parameters<typeof t>[0])}${owned ? ' ✓' : ''}`,
+        owned ? 'label' : 'caption',
+        {
+          fontSize: '10.5px',
+          ...(owned ? {} : { color: pending ? '#8a7a60' : '#6b5a44' }),
+        }));
+    });
+    y += CHIP_ROWS * (CHIP_H + CHIP_GAP) + 6;
+
+    // ── The record, and the thing nobody was ever told ──────────────────────
+    const reignsLine = reignsLineText;
+    const codes = codeCount;
+    const codeLine = codeLineText;
+    body.add(this.ui.panel({ x: PAD, y, width: W, height: recordHeight },
+      { border: INK_UI.softBrush, fillAlpha: 0.92 }));
+
+    let row = y + 8;
+    body.add(this.ui.label(PAD + 10, row, t('dynasty.reignsLabel'), 'caption', { fontSize: '10px' }));
+    row += 13;
+    const reignsText = this.ui.label(PAD + 10, row, reignsLine, 'caption',
+      { fontSize: '10.5px', wordWrap: { width: W - 20 } });
+    body.add(reignsText);
+    row += reignsText.height + 10;
+    body.add(this.ui.label(PAD + 10, row, t('dynasty.codeLabel'), 'caption',
+      { fontSize: '10px', ...(codes > 0 ? { color: '#1c6b58' } : {}) }));
+    row += 13;
+    body.add(this.ui.label(PAD + 10, row, codeLine, 'caption',
+      { fontSize: '10.5px', wordWrap: { width: W - 20 } }));
+    y += recordHeight + 12;
+
+    // ── The other half of the inheritance ───────────────────────────────────
+    // The Ascension Legacy shop, off the front page and onto the sheet a player is already reading
+    // about their dynasty on. Both are cross-run progression; only one of them is a shop.
+    if (legacy.points > 0 || legacy.bestScore > 0) {
+      body.add(this.ui.button({ x: PAD, y, width: W, height: 38 },
+        t('dynasty.openShop'), () => { this.mode = 'legacy'; this.render(); },
+        {
+          variant: 'secondary',
+          fontSize: '12px',
+          subLabel: t('dynasty.shopSub', { total: legacy.points }),
+        }));
+      y += 46;
+    }
+
+    // Tàng Ấn Các — the collection page the ceremony's bind step and the rubbings feed.
+    const cabinet = getCabinet();
+    const seals = cabinetProgress();
+    body.add(this.ui.button({ x: PAD, y, width: W, height: 38 },
+      t('dynasty.openCabinet'), () => this.scene.start('CabinetScene'),
+      {
+        variant: 'secondary',
+        fontSize: '12px',
+        subLabel: cabinet.rubbings > 0
+          ? t('cabinet.subRubbings', { found: seals.found, total: seals.total, n: cabinet.rubbings })
+          : t('cabinet.subCount', { found: seals.found, total: seals.total }),
+      }));
+    y += 46;
+
+    // ── The one way back ────────────────────────────────────────────────────
+    // Traits are a biography, not a loadout, so a respec is earned by ascending and never
+    // offered casually. The row says what it costs even when there is nothing to spend.
+    const respecs = respecsAvailable(legacy.ascensions);
+    if (store.traits.length > 0) {
+      const armed = this.respecArmed && respecs > 0;
+      body.add(this.ui.button({ x: PAD, y, width: W, height: 30 },
+        armed ? t('dynasty.respecArm', { n: store.traits.length }) : t('dynasty.respec'),
+        () => {
+          if (respecs <= 0) return;
+          if (!armed) {
+            this.respecArmed = true;
+            this.render();
+            return;
+          }
+          this.respecArmed = false;
+          respecDynasty(legacy.ascensions);
+          this.render();
+        },
+        // Danger only once armed. Drawn red from the start it would read as forbidden rather than
+        // as consequential, and this is a legitimate thing to do with an ascension.
+        { variant: respecs <= 0 ? 'disabled' : armed ? 'danger' : 'secondary', fontSize: '12px' }));
+      y += 34;
+      const note = armed
+        ? t('dynasty.respecWarn', { n: store.traits.length })
+        : respecs > 0 ? t('dynasty.respecLeft', { n: respecs }) : t('dynasty.respecNone');
+      body.add(this.ui.label(GAME_WIDTH / 2, y, note, 'caption', {
+        fontSize: '9.5px',
+        align: 'center',
+        wordWrap: { width: W },
+        ...(armed ? { color: '#a4402c' } : {}),
+        backgroundColor: 'rgba(243,230,196,0.82)',
+        padding: { x: 4, y: 1 },
+      }).setOrigin(0.5, 0));
+      y += 24;
+    }
+
+    area.setContentHeight(Math.max(viewport, y + 8));
+    this.footBackBar();
+  }
+
   private renderLegacyShop(): void {
     const legacy = getLegacy();
     this.content.push(this.add.text(GAME_WIDTH / 2, this.vy(236), t('empire.legacy.shopTitle'), {
@@ -2660,11 +3160,25 @@ export class MenuScene extends Phaser.Scene {
       color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '13px', align: 'center',
     }).setOrigin(0.5));
 
-    let y = 290;
+    /**
+     * Five cards do not fit a 620 sheet, and never did — the last one printed through the way back
+     * long before this phase. Same scrolling body as the ledger it now opens from; `addTo` parents
+     * the swallow-zone before the content, or the zone lands on top and eats every Buy.
+     */
+    const bodyTop = this.vy(288);
+    const viewport = this.pageFloor() - bodyTop;
+    const area = this.ui.scrollArea({ x: 0, y: bodyTop, width: GAME_WIDTH, height: viewport });
+    this.pageScroll = area;
+    const layer = this.add.container(0, 0);
+    area.addTo(layer);
+    this.content.push(layer);
+    const body = area.content;
+
+    let y = 0;
     for (const perk of LEGACY_PERKS) {
       const owned = legacy.perks.includes(perk.id);
       const affordable = legacy.points >= perk.cost;
-      this.content.push(this.ui.card({ x: 28, y, width: GAME_WIDTH - 56, height: 74 }, {
+      body.add(this.ui.card({ x: 28, y, width: GAME_WIDTH - 56, height: 74 }, {
         title: t(`empire.legacy.perk.${perk.id}` as Parameters<typeof t>[0]),
         subtitle: owned ? t('empire.legacy.owned') : t('empire.legacy.cost', { cost: perk.cost }),
         body: t(`empire.legacy.perk.${perk.id}.d` as Parameters<typeof t>[0]),
@@ -2682,11 +3196,9 @@ export class MenuScene extends Phaser.Scene {
       }));
       y += 82;
     }
+    area.setContentHeight(Math.max(viewport, y + 8));
 
-    this.content.push(this.ui.backBar(Math.min(y + 6, this.vy(726)), () => {
-      this.mode = 'main';
-      this.render();
-    }));
+    this.footBackBar();
   }
 
   /**
@@ -3099,10 +3611,7 @@ export class MenuScene extends Phaser.Scene {
     }
     cursor += 22;
 
-    this.content.push(this.ui.backBar(cursor, () => {
-      this.mode = 'main';
-      this.render();
-    }));
+    this.footBackBar();
   }
 
   private renderConfirmNew(): void {
@@ -3118,10 +3627,7 @@ export class MenuScene extends Phaser.Scene {
       this.startGame(createInitialGameState());
       // Note: full campaign setup is via "Start Campaign" → CampaignScene
     }, { variant: 'danger', fontSize: '14px' }));
-    this.content.push(this.ui.backBar(this.vy(690), () => {
-      this.mode = 'main';
-      this.render();
-    }));
+    this.footBackBar();
   }
 
   /**
@@ -3875,6 +4381,8 @@ export class MenuScene extends Phaser.Scene {
   private clearContent(): void {
     // A re-render underneath an open modal would put fresh buttons on top of its blocker.
     this.closeModal();
+    this.pageScroll?.destroy();
+    this.pageScroll = undefined;
     for (const item of this.content) {
       item.destroy();
     }

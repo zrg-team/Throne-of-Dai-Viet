@@ -134,6 +134,53 @@ export interface Land {
    * fought over is not raising a fresh watch the same afternoon.
    */
   levyReturnedTurn?: number;
+  /**
+   * A host is at the walls and has not tried them yet (ascent only).
+   *
+   * The siege clock, and the reason a relief march is a verb. An invader used to arrive and
+   * resolve the assault on the same tick, so "march a host to the province under attack" was an
+   * order that could never arrive in time — the fight was over before the muster screen closed.
+   * Now the walls hold for `ceil(defense / SIEGE_DEFENSE_PER_TICK)` seasons and the player has a
+   * window to muster, march and be counted in the roll.
+   *
+   * Distinct from `state.siegeOrders`, which is the clock that runs *after* an assault is won and
+   * flips the flag. This one runs *before* the assault. Optional so saves written before it need
+   * no migration; see `tickSieges` in InvasionSystem, which is the only writer.
+   */
+  siege?: LandSiege;
+  /**
+   * The invasion wave during which this province was last lost (ascent only).
+   *
+   * Stamped by `detectConquests` and read by `retakeBonus` — the attacker's edge that makes
+   * `lose -> muster -> take it back` a loop rather than a one-way ratchet. Cleared on retake.
+   */
+  lostAtWave?: number;
+}
+
+/** A host standing at a province's walls, waiting out the siege clock before it assaults. */
+export interface LandSiege {
+  /** The invader that opened the clock. Other hosts arriving later wait out the same one. */
+  attackerId: string;
+  kingdomId: string;
+  kingdomName: string;
+  /** Seasons the walls still hold. At zero the assault resolves on the next invasion step. */
+  ticksLeft: number;
+  /** What the clock was set to, so a badge can draw progress rather than a bare countdown. */
+  ticks: number;
+  /** The turn the walls were invested, so an arrival can be told from a host that never left. */
+  openedTurn?: number;
+  /**
+   * Ids of our hosts already standing here when the clock opened.
+   *
+   * The relief reward is for a march that arrived. Without this a garrison that never moved was
+   * paid for being where it already was, once per assault cycle, for as long as the siege ran.
+   */
+  presentAtOpen?: string[];
+  /**
+   * Set once a field host of ours *arrives* after the walls were invested — the relief reward is
+   * paid on that edge, once per siege, and is deliberately not cleared when the clock renews.
+   */
+  relieved?: boolean;
 }
 
 /** Authored land data before hex-map generation fills in position/adjacency. */
@@ -1881,6 +1928,56 @@ export type AscentPrompt =
       reignDetail?: string;
     }
   /**
+   * The house grows: one dynasty level, two traits, one pick.
+   *
+   * Step two of the run-over **ceremony**, raised on the terminal path after the Reckoning and
+   * never through the decision director — its per-kind cooldowns and court-phase window would
+   * happily swallow or delay a card the player must answer before the run can end.
+   *
+   * Two options and no reroll, on purpose: a pick has to be a fork, not a menu. The un-taken six
+   * wait for later levels.
+   */
+  | {
+      kind: 'dynasty-level';
+      level: number;
+      /** The run score that bought this level — the card is shown while the run is still warm. */
+      score: number;
+      /** Trait ids, exactly two (fewer only when the table is nearly exhausted). */
+      options: string[];
+      /** Picks still queued behind this one, so the card can say a second is coming. */
+      remaining: number;
+    }
+  /**
+   * Bind a seal — step three of the ceremony, between the house growing and the closing screen.
+   *
+   * The three offered are cards this run actually **played**, not random loot: the one the
+   * player binds is the one they have a story about. The chosen card lands in the Cabinet of
+   * Seals as copy-or-new, and binding an evolution also teaches the forge its recipe. `options`
+   * may be shorter than three when the reign played fewer distinct cards; a reign that played
+   * none skips the step entirely (`advanceCeremony` never raises an unanswerable card).
+   */
+  | {
+      kind: 'bind-card';
+      /** Card ids played this run, best-rarity first, at most three. */
+      options: string[];
+    }
+  /**
+   * The last step of the ceremony: what the next reign opens holding.
+   *
+   * A summary, not a decision — "go again" has to visibly mean "go again *with*". The empty
+   * opening-hand and companion rows are deliberate: the screen teaches the shape of what Phases
+   * 3 and 4 will put in them before either exists.
+   */
+  | {
+      kind: 'next-reign';
+      /** Champions the founding card will deal — 5 with Second Founder, otherwise 3. */
+      founderCount: number;
+      traits: string[];
+      level: number;
+      /** Ancestral-code articles already law at the founding. */
+      codes: number;
+    }
+  /**
    * One fragment of a running story, speaking loudly enough to stop the world.
    *
    * Carries no beat number and no total, on purpose: the player must not be able to tell
@@ -2740,8 +2837,23 @@ export interface AscentState {
   knownEdictIds?: string[];
   /** What kind of realm the player has told the autopilot to build. Unset until the first choice. */
   doctrine?: AscentDoctrine;
+  /**
+   * The second course, held beside the first (Twin Doctrine, `dynastyTraits`).
+   *
+   * Composed with `doctrine` rather than replacing it: the multiplicative terms multiply and the
+   * additive host count adds, so every existing reader — output, defence, claim interval, militia,
+   * draft lean — keeps working with no knowledge that a second slot exists.
+   */
+  doctrine2?: AscentDoctrine;
   /** Eras whose doctrine card has already been offered, so each era asks exactly once. */
   doctrineErasAsked?: EraId[];
+  /**
+   * How far through the run-over ceremony this state has walked.
+   *
+   * On `AscentState` and not on the store, because it is about *this* run ending, not about the
+   * house: a reload lands on the menu and the ceremony is over regardless.
+   */
+  ceremonyStage?: 'reckoning' | 'levels' | 'bind' | 'reign' | 'done';
   /** Champions whose `arrival` has already fired, by hero id. Not a flag on the Hero: a hero
    *  re-cloned out of the deck would lose it, and this is also what the run summary counts. */
   arrivalsFired?: string[];

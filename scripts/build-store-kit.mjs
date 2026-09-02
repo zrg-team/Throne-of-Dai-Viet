@@ -842,7 +842,11 @@ Nothing to answer. \`ITSAppUsesNonExemptEncryption: false\` in \`app.json\` sett
 ### Still to do by hand
 
 - **EU trader status** (Business & Compliance). Without it the app is pulled from sale in the EU.
-- Pricing: free, no in-app purchases.
+- **The Paid Apps Agreement must be Active before any price can be set.** Business → Agreements
+  needs all five contact roles filled, a bank account in the account holder's legal name, and the
+  US tax forms (W-8BEN for an individual). Until all three exist the agreement sits at *Pending
+  User Info* and the app cannot go on sale at any price.
+- Pricing: one-time paid download, no in-app purchases. Pick the tier once the agreement is Active.
 `,
   'utf8',
 );
@@ -887,7 +891,9 @@ ${meta.android.dataSafety}
 - **The first release must be uploaded manually.** Play's API cannot create the initial release,
   so \`eas submit\` only works from the second release onward.
 - Target audience and content settings; ads declaration (none).
-- Countries and pricing: free.
+- Countries and pricing: one-time paid download, no in-app purchases. Needs a Google payments
+  merchant account, and it must be set up **before the app is first published** — Play cannot turn
+  an already-published free app into a paid one.
 - Personal Play accounts created after 13 Nov 2023 need **12 testers opted in for 14 continuous
   days** before production. Start that early.
 `,

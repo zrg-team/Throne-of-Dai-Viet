@@ -1,4 +1,6 @@
 import {
+  MIN_ARMY_SOLDIERS,
+  REMNANT_SHARE,
   BASE_DRAFT_WEIGHTS,
   COALITION_COOLDOWN_TICKS,
   RAID_INTERVAL_TICKS,
@@ -8,7 +10,54 @@ import {
   WAVE_GRACE_TICKS,
   xpToNextLevel,
 } from '../../game/ascentConfig';
+import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import type { AscentConquestMethod, AscentLaneStats, AscentPrompt, AscentPromptKind, AscentState, GameState } from '../../state/types';
+
+/**
+ * Hosts the realm can actually fight with.
+ *
+ * Three readers had this inline and had to agree: `autoRecruit` (against its target),
+ * `tickDecisionDirector` (whether to yield its window to the muster) and `advanceAscentTick`
+ * (whether the last one has just died). They must use one definition or the court stands down for
+ * a muster the autopilot does not think it needs.
+ *
+ * A garrison levy is not a host — it is dissolved the moment its battle ends. Nor is a story's
+ * auxiliary: accepting help must not tell the realm it already has the army it needs. And a
+ * remnant under `REMNANT_SHARE` of a minimum host is a rout's leftovers rather than a line.
+ */
+export function standingHostCount(state: GameState): number {
+  return state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID
+    && !army.isLevy
+    && !army.patron
+    && army.units.spearmen + army.units.archers + army.units.heavyInfantry
+      >= MIN_ARMY_SOLDIERS * REMNANT_SHARE).length;
+}
+
+/** True while the realm has at least one host it could put in a line. */
+export function hasStandingHost(state: GameState): boolean {
+  return standingHostCount(state) > 0;
+}
+
+/**
+ * **Rejected: clearing `musterDeclinedUntil` when the realm's last host dies.**
+ *
+ * The idea is sound in the abstract — a decline penalty arguably should not outlive the situation
+ * it was declined in — and it was tried here. Two measurements killed it.
+ *
+ * It buys nothing: across sixteen seeded runs there were twelve host deaths and **not one** of them
+ * happened with a decline silence standing, so the clause was a no-op and every downstream number
+ * (host coverage, relief rate, army share) came back byte-identical.
+ *
+ * And it costs two regressions. `verify-ascent` went from one failure to three — *battles do not
+ * swallow the run* and *autopilot recruited* — stable over three runs each way. The mechanism is
+ * the same one that made shortening the failed-accept silence worse: a muster card that re-raises
+ * after being refused is answered the same way again, and every re-raise spends a slot out of the
+ * pacing budget that battles and the rest of the court are drawing on.
+ *
+ * If it is tried again, it needs to be paired with something that stops the re-raise loop — and it
+ * needs a run where the silence is actually standing at the moment of death, which is not a state
+ * these seeds reach.
+ */
 
 function createLaneStats(): AscentLaneStats {
   const methods: AscentConquestMethod[] = ['bribe', 'diplomacy', 'intimidation', 'settle', 'occupy', 'siege'];
@@ -98,6 +147,12 @@ export function createAscentState(): AscentState {
  */
 const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   'run-over': 0,
+  // The ceremony, in the order it is walked. Both are raised by hand on the terminal path rather
+  // than queued behind anything, so these numbers only ever decide a tie against a card the run
+  // had already banked — and the ceremony wins it, because there is nothing left to answer.
+  'dynasty-level': 0.1,
+  'bind-card': 0.15,
+  'next-reign': 0.2,
   mandate: 0.5,
   founder: 1,
   'wave-result': 2,

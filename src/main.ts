@@ -290,6 +290,10 @@ function describeAscentPromptOptions(state: GameState, prompt: NonNullable<GameS
     case 'envoy': return prompt.options.filter((option) => option.affordable).map((option) => option.id);
     case 'rival-demand': return prompt.options.filter((option) => option.affordable).map((option) => option.id);
     case 'empire-response': return prompt.options.map((option) => option.id);
+    // The ceremony. `dynasty-level` takes a trait id and nothing else — a driver that answered it
+    // with 'ok' would leave the run's last card standing for ever, which is the exact failure the
+    // famine case is annotated for further up the harness notes.
+    case 'dynasty-level': return prompt.options;
     default: return ['ok'];
   }
 }

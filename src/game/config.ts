@@ -4,6 +4,7 @@ import { BootScene } from '../scenes/BootScene';
 import { MenuScene } from '../scenes/MenuScene';
 import { GuideScene } from '../scenes/GuideScene';
 import { HistoryScene } from '../scenes/HistoryScene';
+import { CabinetScene } from '../scenes/CabinetScene';
 import { CampaignScene } from '../scenes/deprecated/CampaignScene';
 import { BattleArenaScene } from '../scenes/BattleArenaScene';
 import { ConquestScene } from '../scenes/ConquestScene';
@@ -68,5 +69,5 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   // Registering it here as well (`render.renderNodes`) would be a second source of truth for a
   // thing that must not exist twice.
   // Only index 0 auto-starts; the rest are registered-but-stopped until started by name.
-  scene: [BootScene, PreloadScene, MenuScene, GuideScene, HistoryScene, CampaignScene, BattleArenaScene, MapScene, UIScene, ConquestScene, ConquestUIScene],
+  scene: [BootScene, PreloadScene, MenuScene, GuideScene, HistoryScene, CabinetScene, CampaignScene, BattleArenaScene, MapScene, UIScene, ConquestScene, ConquestUIScene],
 };

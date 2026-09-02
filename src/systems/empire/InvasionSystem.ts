@@ -9,12 +9,28 @@ import {
   GARRISON_LEVY_FLOOR,
   LEVY_POWER_PER_MAN,
   MAX_HOSTS_PER_KINGDOM,
+  RELIEF_GOLD_REWARD,
+  RELIEF_LOYALTY_REWARD,
+  SIEGE_DEFENSE_PER_TICK,
+  SIEGE_MAX_TICKS,
+  SIEGE_MIN_TICKS,
+  SIEGE_RENEW_SHARE,
   WALL_ATTRITION_SHARE,
   WALL_DEFENCE_FLOOR,
   waveMatchFactor,
 } from '../../game/ascentConfig';
 import { findLand, getAcquisitionTicksRequired } from '../LandSystem';
-import { armyPower, attackLand, createBattlePreview, grantGeneralExperience, issueMoveOrder, terrainDefenseMultiplier } from '../WarSystem';
+import {
+  armyPower,
+  attackLand,
+  combinedDefencePower,
+  createBattlePreview,
+  grantGeneralExperience,
+  issueMoveOrder,
+  masonryPowerPerDefense,
+  militiaPowerPerMan,
+  terrainDefenseMultiplier,
+} from '../WarSystem';
 import {
   applyResourceDelta,
   getFocusDefenseMult,
@@ -34,6 +50,7 @@ import {
   tryReformBrokenHost,
 } from '../ascent/DoctrineSystem';
 import { pushToast } from './notifications';
+import { grantDeed } from '../../state/cabinet';
 import type {
   Army, AscentBattleRecord, Difficulty, EraId, GameState, InvasionRecord, Kingdom, Land, PendingBattle,
 } from '../../state/types';
@@ -92,7 +109,8 @@ function defensibleStrength(state: GameState): number {
   // against the one province a host cannot take.
   const sample = held.length > 1 ? held.filter((land) => land.type !== 'castle') : held;
   const garrisons = (sample.length > 0 ? sample : held)
-    .map((land) => (land.defense * 16 + land.localSoldiers * 2.5) * terrainDefenseMultiplier(land))
+    .map((land) => (land.defense * masonryPowerPerDefense(state) + land.localSoldiers * militiaPowerPerMan(state))
+      * terrainDefenseMultiplier(land))
     .sort((a, b) => a - b);
   const median = garrisons.length > 0 ? garrisons[Math.floor(garrisons.length / 2)] : 0;
   return field + median;
@@ -524,7 +542,11 @@ export function tickAutoDefend(state: GameState): void {
     }
     const invLand = nearestInv ? findLand(state, nearestInv.landId) : undefined;
     if (!invLand) continue;
-    const threatened = nearestLand(invLand, owned);
+    // A province with a host already sat down at its walls outranks "nearest to the invader":
+    // it is the one with a deadline, and the siege clock exists so a march can beat it. Only for
+    // a host that is otherwise idle — interrupting marches was measured and collapsed the runs.
+    const besieged = owned.filter((land) => land.siege && land.siege.ticksLeft > 0);
+    const threatened = besieged.length > 0 ? nearestLand(here, besieged) : nearestLand(invLand, owned);
     if (threatened && threatened.id !== army.landId) {
       issueMoveOrder(state, army.id, threatened.id);
     }
@@ -683,6 +705,8 @@ export function tickInvasions(state: GameState): void {
 
     if (target.ownerId === PLAYER_KINGDOM_ID && adjacentToTarget) {
       clearInvaderMarch(state, army.id);
+      // The walls first. Until the clock runs out this host is at the gates and not through them.
+      if (holdAtTheWalls(state, army, record, target)) continue;
       if (maybeRequestBattleDecision(state, army, record, target)) continue;
       resolveInvaderBattle(state, army, record, target);
       continue;
@@ -719,11 +743,153 @@ export function tickInvasions(state: GameState): void {
     const stepLand = findLand(state, step);
     if (stepLand?.ownerId === PLAYER_KINGDOM_ID) {
       clearInvaderMarch(state, army.id);
+      if (holdAtTheWalls(state, army, record, stepLand)) continue;
       if (maybeRequestBattleDecision(state, army, record, stepLand)) continue;
       resolveInvaderBattle(state, army, record, stepLand);
     } else {
       advanceInvader(state, army, step);
     }
+  }
+}
+
+/**
+ * Seasons the walls of `land` hold a host at bay before it storms them.
+ *
+ * `ceil(defense / SIEGE_DEFENSE_PER_TICK)`, clamped to [`SIEGE_MIN_TICKS`, `SIEGE_MAX_TICKS`]: a
+ * capital around 48 defence buys four seasons — a real window to muster and march — and a frontier
+ * village buys the floor of two. The floor is the load-bearing end of that range; see
+ * `SIEGE_MIN_TICKS`.
+ */
+export function siegeTicksFor(land: Land): number {
+  return Math.max(
+    SIEGE_MIN_TICKS,
+    Math.min(SIEGE_MAX_TICKS, Math.ceil(Math.max(0, land.defense) / SIEGE_DEFENSE_PER_TICK)),
+  );
+}
+
+/**
+ * An arrival at the walls opens a clock instead of resolving on the spot (Dragon Ascent).
+ *
+ * Returns true when this host must wait rather than assault this tick — the caller then leaves it
+ * standing where it is, exactly as it does for a host already mid-siege.
+ *
+ * **The defect it was written for.** An invader that reached a player province resolved the fight
+ * in the same tick it arrived, so the mode's own advice — *march a host to the province under
+ * attack* — named an order that could never arrive in time. The relief march existed in the UI
+ * (`summonAdjacentRelief`, the war board's relief row) and could not exist in the simulation.
+ *
+ * One clock per province, not per host: a second column arriving waits out the first's clock
+ * rather than opening its own, or a wave of three would assault on three separate seasons and the
+ * window would mean nothing.
+ */
+function holdAtTheWalls(state: GameState, army: Army, record: InvasionRecord, land: Land): boolean {
+  if (state.gameMode !== 'ascent' || land.ownerId !== PLAYER_KINGDOM_ID) return false;
+  // The arena is one matchup and nothing else; a siege clock there is four seasons of an empty
+  // screen. Raids are a smash-and-run by definition and keep their old immediacy.
+  if (state.ascent?.arena || record.intent === 'raid') return false;
+
+  if (!land.siege) {
+    const ticks = siegeTicksFor(land);
+    land.siege = {
+      attackerId: army.id,
+      kingdomId: record.kingdomId,
+      kingdomName: kingdomName(state, record.kingdomId),
+      ticksLeft: ticks,
+      ticks,
+      openedTurn: state.turn,
+      /**
+       * Who was already standing here when the walls were invested.
+       *
+       * The relief reward is for a march that *arrived*, and without this list a host that simply
+       * never left was paid for being where it already was — every renewal of the clock, for as
+       * long as the siege ran. See `tickSieges`.
+       */
+      presentAtOpen: state.armies
+        .filter((other) => other.kingdomId === PLAYER_KINGDOM_ID
+          && other.landId === land.id && !other.isLevy)
+        .map((other) => other.id),
+    };
+    pushToast(
+      state,
+      t('ascent.siege.opened', { land: land.name, kingdom: kingdomName(state, record.kingdomId), ticks }),
+      'threat',
+    );
+  }
+  return land.siege.ticksLeft > 0;
+}
+
+/**
+ * Runs every wall clock down a season, pays for relief that arrived, and clears the ones the war
+ * has moved past. Called from `advanceAscentTick` immediately before `tickInvasions`, so a clock
+ * that reaches zero is stormed on the same tick the player last had to act on it.
+ *
+ * The relief reward is deliberately paid *here* rather than at the assault: the thing being
+ * rewarded is the march arriving in time, and a relief that arrives and then loses the fight it
+ * turned up for still did the thing the mode is asking for.
+ */
+export function tickSieges(state: GameState): void {
+  if (state.gameMode !== 'ascent') return;
+  for (const land of state.lands) {
+    const siege = land.siege;
+    if (!siege) continue;
+
+    /**
+     * Is anybody still actually besieging this place?
+     *
+     * **Not "is there an enemy nearby".** The first cut asked whether any hostile host stood on the
+     * province or on any neighbour of it, and a province has five or six neighbours — so a column
+     * marching past on its way somewhere else kept a clock alive on ground its besieger had walked
+     * away from, and the province sat "under siege" with nobody at its walls.
+     *
+     * The honest test is the host this clock was opened by, or another invader that has actually
+     * been sent at *this* province. A passer-by with orders for somewhere else is not a siege.
+     */
+    const besieger = (army: Army): boolean => {
+      if (army.kingdomId === PLAYER_KINGDOM_ID || army.isLevy || totalUnits(army) <= 0) return false;
+      if (army.landId !== land.id && !land.neighbors.includes(army.landId)) return false;
+      if (army.id === siege.attackerId) return true;
+      const order = (state.invasions ?? []).find((entry) => entry.armyId === army.id);
+      return Boolean(order) && order?.targetLandId === land.id;
+    };
+    const stillPressed = land.ownerId === PLAYER_KINGDOM_ID && state.armies.some(besieger);
+    if (!stillPressed) {
+      // Lifted with a host of ours standing on it: the march got there and the besieger left.
+      if (siege.relieved && land.ownerId === PLAYER_KINGDOM_ID) {
+        pushToast(state, t('ascent.siege.lifted', { land: land.name }), 'reward');
+      }
+      land.siege = undefined;
+      continue;
+    }
+
+    /**
+     * A field host of ours has *arrived* since the walls were invested.
+     *
+     * Two guards, and both are load-bearing. `relieved` is never cleared — not by a renewal after
+     * a repelled assault — so the reward is once per siege, not once per assault cycle. And the
+     * host has to be one that was not already standing here when the clock opened, or a garrison
+     * that never moved collected +40 gold and +8 loyalty every time the besiegers were thrown
+     * back and dug in again. Both together are the difference between paying for a relief march
+     * and paying for a province having a host parked on it.
+     */
+    const arrived = state.armies.some((army) => (
+      army.kingdomId === PLAYER_KINGDOM_ID
+      && army.landId === land.id
+      && !army.isLevy
+      && totalUnits(army) > 0
+      && !(siege.presentAtOpen ?? []).includes(army.id)
+    ));
+    if (!siege.relieved && arrived) {
+      siege.relieved = true;
+      land.loyalty = Math.min(100, land.loyalty + RELIEF_LOYALTY_REWARD);
+      applyResourceDelta(state, { gold: RELIEF_GOLD_REWARD });
+      pushToast(state, t('ascent.siege.relieved', { land: land.name, gold: RELIEF_GOLD_REWARD }), 'reward');
+      // The cabinet's deed: the first relief march the account ever completes pays a rubbing.
+      if (grantDeed('first-relief')) {
+        pushToast(state, t('ascent.cabinet.deedRelief'), 'milestone');
+      }
+    }
+
+    if (siege.ticksLeft > 0) siege.ticksLeft -= 1;
   }
 }
 
@@ -868,11 +1034,21 @@ export function raiseGarrisonLevy(state: GameState, land: Land): Army | undefine
   // A province set to raise soldiers turns out more of them; one set to defend turns out its walls.
   // Both multipliers are 1 for every other focus, and outside Ascent this whole function returns
   // early anyway.
-  const drawn = Math.floor(
-    ((land.localSoldiers * 2.5 + land.defense * 16) / LEVY_POWER_PER_MAN)
+  const masonry = (land.localSoldiers * militiaPowerPerMan(state) + land.defense * masonryPowerPerDefense(state))
     * getFocusGarrisonMult(state, land)
-    * getFocusDefenseMult(state, land),
-  );
+    * getFocusDefenseMult(state, land);
+  // And the same share cap the hidden roll applies. `combinedDefencePower` is what `defenderPower`
+  // returns for this province, so subtracting the field hosts back out leaves exactly what the roll
+  // credits the walls with — which is what the levy has to be worth, or the fought battle and the
+  // roll are two different fights again. With no host on the ground it is the full masonry, as
+  // before.
+  const hosts = state.armies.reduce((sum, other) => (
+    other.kingdomId === PLAYER_KINGDOM_ID && other.landId === land.id && !other.isLevy
+      ? sum + armyPower(state, other)
+      : sum
+  ), 0);
+  const wallsShare = Math.max(0, combinedDefencePower(state, masonry, hosts) - hosts);
+  const drawn = Math.floor(wallsShare / LEVY_POWER_PER_MAN);
   // Below a company there is nothing to form a line with — but the province is still ours, and
   // whose ground it is turns out to be the honest test of what is worth watching. A thin
   // garrison turns out a token company rather than surrendering the fight to a hidden roll;
@@ -917,7 +1093,11 @@ export function raiseGarrisonLevy(state: GameState, land: Land): Army | undefine
  */
 export function raiseEnemyGarrisonLevy(state: GameState, land: Land): Army | undefined {
   if (state.gameMode !== 'ascent') return undefined;
-  const men = Math.max(GARRISON_LEVY_FLOOR, Math.floor((land.localSoldiers * 2.5 + land.defense * 16) / LEVY_POWER_PER_MAN));
+  const men = Math.max(
+    GARRISON_LEVY_FLOOR,
+    Math.floor((land.localSoldiers * militiaPowerPerMan(state)
+      + land.defense * masonryPowerPerDefense(state)) / LEVY_POWER_PER_MAN),
+  );
   const levy: Army = {
     id: `garrison-${land.id}-${state.turn}`,
     kingdomId: land.ownerId,
@@ -1189,6 +1369,23 @@ function resolveInvaderBattle(
   if (!preview) {
     return;
   }
+  /**
+   * The clock is spent whatever happens next.
+   *
+   * Cleared on a fall (the province is theirs and `siegeOrders` takes over), and re-set to
+   * `SIEGE_RENEW_SHARE` of the opening clock when the walls hold — a repelled host digs back in
+   * rather than going home, so the province that held once is not free for another four seasons
+   * and the war keeps a rhythm the player can plan a second relief against.
+   */
+  if (land.siege) {
+    // `relieved` and `presentAtOpen` deliberately carry over: the reward is once per siege, and a
+    // renewal is the same siege having another go at the same walls. Resetting them paid a host
+    // that never moved every time the besiegers were thrown back — see `tickSieges`.
+    land.siege = {
+      ...land.siege,
+      ticksLeft: Math.max(SIEGE_MIN_TICKS, Math.round(land.siege.ticks * SIEGE_RENEW_SHARE)),
+    };
+  }
   const preTotal = totalUnits(army);
   // Walls give the defender a slight edge, but big/Great hosts bring siege and negate
   // much of it — you must meet them in the field. A small ±10% fuzz lets close fights
@@ -1277,6 +1474,7 @@ function resolveInvaderBattle(
   retreatDefenders(state, land);
 
   if (record.intent === 'raid') {
+    land.siege = undefined;
     pillage(state, land);
     extendCampaign(record, CAMPAIGN_TICKS_ON_SACK);
     record.pillaged = true;
@@ -1285,6 +1483,9 @@ function resolveInvaderBattle(
     filed('we-rout');
     return;
   }
+
+  // The walls are carried: the assault clock has nothing left to count.
+  land.siege = undefined;
 
   // Conquest: occupy and lay siege; progressSiegeOrders flips ownership.
   const fromLandId = army.landId;

@@ -24,7 +24,20 @@ import version from './assets/web-version.json';
  */
 const PORT = 39217;
 
-/** The ink the HTML body paints. Splash, shell and first frame all agree on it. */
+/**
+ * The two inks the shell paints, and which surface each belongs to.
+ *
+ * `INK` used to be described here as *the ink the HTML body paints — splash, shell and first
+ * frame all agree on it*, and that stopped being true when the game's own launch splash moved to
+ * the điệp sheet. `index.html` paints `#e9dfc2` on `body`, `#splash` and `#game-root`; the shell
+ * went on painting `#201a12` behind it and under the safe-area insets. So a launch went dark
+ * brown (native splash) → dark brown (shell) → cream (game), with a hard flash at the join and a
+ * dark border around the game on any phone with insets — and `assets/splash.png` is itself drawn
+ * on paper, so the native splash showed a cream square floating on a brown field.
+ *
+ * Paper is now what every surface the *game* occupies paints. Ink is kept for the one screen
+ * that is not the game: the diagnostic, which is the shell speaking as itself.
+ */
 const INK = '#201a12';
 const PAPER = '#e9dfc2';
 
@@ -372,7 +385,8 @@ function Shell() {
 
   if (failed) {
     return (
-      <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View style={[styles.fault, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        <StatusBar style="light" />
         <ScrollView contentContainerStyle={styles.diag}>
           <Text style={styles.heading}>Vạn Thắng could not start</Text>
           <Text style={styles.body}>
@@ -402,6 +416,8 @@ function Shell() {
         },
       ]}
     >
+      {/* Dark glyphs: the bar is transparent and what shows through is paper now. */}
+      <StatusBar style="dark" />
     {origin ? (
         <WebView
           ref={web}
@@ -451,17 +467,19 @@ function Shell() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      {/* Light glyphs. No backgroundColor — edge-to-edge keeps the bar transparent in SDK 57,
-          and the ink padding behind it is what the glyphs actually sit on. */}
-      <StatusBar style="light" />
+      {/* Each branch of `Shell` mounts its own: the game sits on paper and wants dark glyphs,
+          the diagnostic sits on ink and wants light ones. */}
       <Shell />
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: INK },
-  web: { flex: 1, backgroundColor: INK },
+  // The game's own sheet, all the way down: native splash, shell, inset padding and web view.
+  root: { flex: 1, backgroundColor: PAPER },
+  web: { flex: 1, backgroundColor: PAPER },
+  // The diagnostic is the shell talking, not the game. It keeps the ink it was written for.
+  fault: { flex: 1, backgroundColor: INK },
   diag: { padding: 28 },
   heading: { color: PAPER, fontSize: 20, fontWeight: '700', marginBottom: 12 },
   body: { color: '#bcb29e', fontSize: 14, lineHeight: 21, marginBottom: 18 },

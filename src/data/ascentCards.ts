@@ -4,6 +4,20 @@ import type { PowerCardDef } from '../state/types';
 /**
  * The Dragon Ascent Power Draft pool.
  *
+ * **Card ids are append-only save contracts from this commit** — exactly like story fragment
+ * ids. The Cabinet of Seals (`state/cabinet.ts`, localStorage `mandate:cabinet:v1`) keys a
+ * player's permanent collection by these ids, so renaming one silently deletes what they own.
+ * Renames become migrations; retirements leave the id resolvable or get filtered by the
+ * cabinet's defensive parse, which drops ids `findPowerCard` no longer knows.
+ *
+ * `levels[]` is the cabinet ladder: index 0 is Lv1 (the card as first found), 1 and 2 are the
+ * combined Lv2/Lv3. The step is ≈ +30% of each card's *own* delta — deliberately shallow,
+ * inside the master dossier's §03 power budget, because a level mostly buys draft weight
+ * (`cabinetWeightMult`), not raw effect. A card is *always* applied at its cabinet level, not
+ * its stack index: stacking pushes more copies of the same level, levelling deepens each copy.
+ * Rule cards (empty effects) level in their rule's own number through `cabinetRuleMult`;
+ * story-only and evolution-only cards are landmarks and do not level.
+ *
  * Each card's payload is an ordinary `CourtEffect`, so `applyCourtEffect` does all the
  * work and stacking comes free: every take pushes another permanent `CourtModifier`, and
  * `getCourtBonuses` sums them. Taking Iron Levy three times really is +33% army power.
@@ -26,7 +40,11 @@ export const POWER_CARDS: PowerCardDef[] = [
     maxStacks: 3,
     evolvesWith: 'royal-guard',
     evolvesInto: 'bach-dang-stakes',
-    levels: [{ effect: { permanent: true, armyPowerModifier: 0.11 }, display: { pct: 11 } }],
+    levels: [
+      { effect: { permanent: true, armyPowerModifier: 0.11 }, display: { pct: 11 } },
+      { effect: { permanent: true, armyPowerModifier: 0.14 }, display: { pct: 14 } },
+      { effect: { permanent: true, armyPowerModifier: 0.18 }, display: { pct: 18 } },
+    ],
   },
   {
     id: 'rice-tribute',
@@ -34,7 +52,11 @@ export const POWER_CARDS: PowerCardDef[] = [
     maxStacks: 3,
     evolvesWith: 'granary-edict',
     evolvesInto: 'celestial-granary',
-    levels: [{ effect: { permanent: true, resourceRateModifier: { food: 9, gold: 5 } }, display: { food: 9, gold: 5 } }],
+    levels: [
+      { effect: { permanent: true, resourceRateModifier: { food: 9, gold: 5 } }, display: { food: 9, gold: 5 } },
+      { effect: { permanent: true, resourceRateModifier: { food: 11, gold: 6 } }, display: { food: 11, gold: 6 } },
+      { effect: { permanent: true, resourceRateModifier: { food: 14, gold: 8 } }, display: { food: 14, gold: 8 } },
+    ],
   },
   /**
    * Rewritten from `marketGoldOutputModifier: 0.14`.
@@ -51,7 +73,13 @@ export const POWER_CARDS: PowerCardDef[] = [
     weight: 2.4,
     rarity: 'bronze',
     maxStacks: 2,
-    levels: [{ effect: { permanent: true }, display: { pct: 22 } }],
+    // Rule cards level in the rule's own number: the per-stack constant in `DoctrineSystem` is
+    // scaled by `cabinetRuleMult`, and these displays must quote the same arithmetic.
+    levels: [
+      { effect: { permanent: true }, display: { pct: 22 } },
+      { effect: { permanent: true }, display: { pct: 27 } },
+      { effect: { permanent: true }, display: { pct: 33 } },
+    ],
   },
   {
     id: 'feigned-retreat',
@@ -60,7 +88,11 @@ export const POWER_CARDS: PowerCardDef[] = [
     weight: 2.4,
     rarity: 'bronze',
     maxStacks: 3,
-    levels: [{ effect: { permanent: true }, display: { pct: 7 } }],
+    levels: [
+      { effect: { permanent: true }, display: { pct: 7 } },
+      { effect: { permanent: true }, display: { pct: 9 } },
+      { effect: { permanent: true }, display: { pct: 11 } },
+    ],
   },
   {
     id: 'village-muster',
@@ -73,6 +105,14 @@ export const POWER_CARDS: PowerCardDef[] = [
         effect: { permanent: true, recruitSpeedModifier: 0.4, recruitmentSupplyCostModifier: -0.08 },
         display: { pct: 8 },
       },
+      {
+        effect: { permanent: true, recruitSpeedModifier: 0.5, recruitmentSupplyCostModifier: -0.1 },
+        display: { pct: 10 },
+      },
+      {
+        effect: { permanent: true, recruitSpeedModifier: 0.62, recruitmentSupplyCostModifier: -0.13 },
+        display: { pct: 13 },
+      },
     ],
   },
 
@@ -83,6 +123,8 @@ export const POWER_CARDS: PowerCardDef[] = [
     maxStacks: 3,
     levels: [
       { effect: { permanent: true, armyPowerModifier: 0.12, armyXpModifier: 0.15 }, display: { pct: 12, xp: 15 } },
+      { effect: { permanent: true, armyPowerModifier: 0.14, armyXpModifier: 0.18 }, display: { pct: 14, xp: 18 } },
+      { effect: { permanent: true, armyPowerModifier: 0.17, armyXpModifier: 0.23 }, display: { pct: 17, xp: 23 } },
     ],
   },
   {
@@ -91,6 +133,8 @@ export const POWER_CARDS: PowerCardDef[] = [
     maxStacks: 3,
     levels: [
       { effect: { permanent: true, buildSpeedBonus: 1, buildingCostModifier: -0.1 }, display: { pct: 10 } },
+      { effect: { permanent: true, buildSpeedBonus: 1, buildingCostModifier: -0.13 }, display: { pct: 13 } },
+      { effect: { permanent: true, buildSpeedBonus: 1, buildingCostModifier: -0.16 }, display: { pct: 16 } },
     ],
   },
   {
@@ -108,13 +152,33 @@ export const POWER_CARDS: PowerCardDef[] = [
         },
         display: { food: 12, supplies: 6 },
       },
+      {
+        effect: {
+          permanent: true,
+          resourceRateModifier: { food: 15, supplies: 8 },
+          buildingSuppliesUpkeepModifier: -0.12,
+        },
+        display: { food: 15, supplies: 8 },
+      },
+      {
+        effect: {
+          permanent: true,
+          resourceRateModifier: { food: 19, supplies: 10 },
+          buildingSuppliesUpkeepModifier: -0.15,
+        },
+        display: { food: 19, supplies: 10 },
+      },
     ],
   },
   {
     id: 'earthen-ramparts',
     rarity: 'silver',
     maxStacks: 3,
-    levels: [{ effect: { defenseBoost: 8 }, display: { defense: 8 } }],
+    levels: [
+      { effect: { defenseBoost: 8 }, display: { defense: 8 } },
+      { effect: { defenseBoost: 10 }, display: { defense: 10 } },
+      { effect: { defenseBoost: 13 }, display: { defense: 13 } },
+    ],
   },
   {
     id: 'bamboo-palisade',
@@ -123,7 +187,14 @@ export const POWER_CARDS: PowerCardDef[] = [
     weight: 2.4,
     rarity: 'silver',
     maxStacks: 1,
-    levels: [{ effect: { permanent: true }, display: {} }],
+    // Verb and slot rules have no number to deepen — their levels buy draft weight only, which
+    // is the ladder's steep step anyway. The duplicate entries keep the cabinet arithmetic
+    // (`levels[cabinetLevel - 1]`) uniform across the table.
+    levels: [
+      { effect: { permanent: true }, display: {} },
+      { effect: { permanent: true }, display: {} },
+      { effect: { permanent: true }, display: {} },
+    ],
   },
   {
     id: 'mountain-pass',
@@ -132,7 +203,11 @@ export const POWER_CARDS: PowerCardDef[] = [
     weight: 2.4,
     rarity: 'silver',
     maxStacks: 2,
-    levels: [{ effect: { permanent: true }, display: { ticks: 1 } }],
+    levels: [
+      { effect: { permanent: true }, display: { ticks: 1 } },
+      { effect: { permanent: true }, display: { ticks: 1 } },
+      { effect: { permanent: true }, display: { ticks: 1 } },
+    ],
   },
   {
     id: 'surveyors-corps',
@@ -143,7 +218,11 @@ export const POWER_CARDS: PowerCardDef[] = [
     // Two stacks takes the realm from one claim at a time to three, which is as far as the pacing
     // this cap exists to create will stretch before expansion stops being a choice again.
     maxStacks: 2,
-    levels: [{ effect: { permanent: true }, display: { slots: 1 } }],
+    levels: [
+      { effect: { permanent: true }, display: { slots: 1 } },
+      { effect: { permanent: true }, display: { slots: 1 } },
+      { effect: { permanent: true }, display: { slots: 1 } },
+    ],
   },
   {
     id: 'bronze-drum',
@@ -154,7 +233,11 @@ export const POWER_CARDS: PowerCardDef[] = [
     maxStacks: 2,
     // Pointless with nothing else in the field to steady.
     requires: (state) => state.armies.filter((army) => army.kingdomId === PLAYER_KINGDOM_ID).length > 1,
-    levels: [{ effect: { permanent: true }, display: { morale: 7 } }],
+    levels: [
+      { effect: { permanent: true }, display: { morale: 7 } },
+      { effect: { permanent: true }, display: { morale: 9 } },
+      { effect: { permanent: true }, display: { morale: 11 } },
+    ],
   },
 
   // ── Gold ──────────────────────────────────────────────────────────────────
@@ -168,6 +251,8 @@ export const POWER_CARDS: PowerCardDef[] = [
     evolvesInto: 'bach-dang-stakes',
     levels: [
       { effect: { permanent: true, armyPowerModifier: 0.09, armyLevelCapBonus: 1 }, display: { pct: 9, cap: 1 } },
+      { effect: { permanent: true, armyPowerModifier: 0.11, armyLevelCapBonus: 1 }, display: { pct: 11, cap: 1 } },
+      { effect: { permanent: true, armyPowerModifier: 0.14, armyLevelCapBonus: 1 }, display: { pct: 14, cap: 1 } },
     ],
   },
   {
@@ -177,7 +262,11 @@ export const POWER_CARDS: PowerCardDef[] = [
     weight: 2.4,
     rarity: 'gold',
     maxStacks: 3,
-    levels: [{ effect: { permanent: true }, display: { pct: 9 } }],
+    levels: [
+      { effect: { permanent: true }, display: { pct: 9 } },
+      { effect: { permanent: true }, display: { pct: 11 } },
+      { effect: { permanent: true }, display: { pct: 14 } },
+    ],
   },
   {
     id: 'twice-born',
@@ -187,7 +276,11 @@ export const POWER_CARDS: PowerCardDef[] = [
     rarity: 'gold',
     maxStacks: 1,
     requires: (state) => state.armies.some((army) => army.kingdomId === PLAYER_KINGDOM_ID),
-    levels: [{ effect: { permanent: true }, display: {} }],
+    levels: [
+      { effect: { permanent: true }, display: {} },
+      { effect: { permanent: true }, display: {} },
+      { effect: { permanent: true }, display: {} },
+    ],
   },
   {
     id: 'mandarin-academy',
@@ -203,6 +296,24 @@ export const POWER_CARDS: PowerCardDef[] = [
         },
         display: { gold: 14, pct: 15 },
       },
+      {
+        effect: {
+          permanent: true,
+          resourceRateModifier: { gold: 18 },
+          marketGoldOutputModifier: 0.19,
+          buildingGoldUpkeepModifier: -0.15,
+        },
+        display: { gold: 18, pct: 19 },
+      },
+      {
+        effect: {
+          permanent: true,
+          resourceRateModifier: { gold: 22 },
+          marketGoldOutputModifier: 0.24,
+          buildingGoldUpkeepModifier: -0.19,
+        },
+        display: { gold: 22, pct: 24 },
+      },
     ],
   },
   {
@@ -216,6 +327,14 @@ export const POWER_CARDS: PowerCardDef[] = [
         effect: { permanent: true, recruitSpeedModifier: 1, battleSupplyCostModifier: -0.15 },
         display: { pct: 15 },
       },
+      {
+        effect: { permanent: true, recruitSpeedModifier: 1.25, battleSupplyCostModifier: -0.19 },
+        display: { pct: 19 },
+      },
+      {
+        effect: { permanent: true, recruitSpeedModifier: 1.55, battleSupplyCostModifier: -0.24 },
+        display: { pct: 24 },
+      },
     ],
   },
   {
@@ -224,6 +343,8 @@ export const POWER_CARDS: PowerCardDef[] = [
     maxStacks: 2,
     levels: [
       { effect: { permanent: true, armyPowerModifier: 0.15, armyXpModifier: 0.3 }, display: { pct: 15, xp: 30 } },
+      { effect: { permanent: true, armyPowerModifier: 0.19, armyXpModifier: 0.38 }, display: { pct: 19, xp: 38 } },
+      { effect: { permanent: true, armyPowerModifier: 0.24, armyXpModifier: 0.48 }, display: { pct: 24, xp: 48 } },
     ],
   },
 
@@ -241,6 +362,24 @@ export const POWER_CARDS: PowerCardDef[] = [
           buildSpeedBonus: 1,
         },
         display: { all: 10, pct: 10 },
+      },
+      {
+        effect: {
+          permanent: true,
+          resourceRateModifier: { food: 12, supplies: 12, gold: 12 },
+          armyPowerModifier: 0.12,
+          buildSpeedBonus: 1,
+        },
+        display: { all: 12, pct: 12 },
+      },
+      {
+        effect: {
+          permanent: true,
+          resourceRateModifier: { food: 16, supplies: 16, gold: 16 },
+          armyPowerModifier: 0.16,
+          buildSpeedBonus: 1,
+        },
+        display: { all: 16, pct: 16 },
       },
     ],
   },
@@ -496,77 +635,142 @@ export const POWER_CARDS: PowerCardDef[] = [
     rarity: 'silver',
     maxStacks: 1,
     openingOnly: true,
-    levels: [{ effect: { permanent: true, armyPowerModifier: 0.14 }, display: { pct: 14 } }],
+    levels: [
+      { effect: { permanent: true, armyPowerModifier: 0.14 }, display: { pct: 14 } },
+      { effect: { permanent: true, armyPowerModifier: 0.18 }, display: { pct: 18 } },
+      { effect: { permanent: true, armyPowerModifier: 0.22 }, display: { pct: 22 } },
+    ],
   },
   {
     id: 'kho-lam',
     rarity: 'silver',
     maxStacks: 1,
     openingOnly: true,
-    levels: [{
-      effect: { permanent: true, resourceRateModifier: { food: 11, supplies: 5 }, freeBuilding: 'farm' },
-      display: { food: 11, supplies: 5 },
-    }],
+    levels: [
+      {
+        effect: { permanent: true, resourceRateModifier: { food: 11, supplies: 5 }, freeBuilding: 'farm' },
+        display: { food: 11, supplies: 5 },
+      },
+      {
+        effect: { permanent: true, resourceRateModifier: { food: 14, supplies: 6 }, freeBuilding: 'farm' },
+        display: { food: 14, supplies: 6 },
+      },
+      {
+        effect: { permanent: true, resourceRateModifier: { food: 18, supplies: 8 }, freeBuilding: 'farm' },
+        display: { food: 18, supplies: 8 },
+      },
+    ],
   },
   {
     id: 'duc-tien',
     rarity: 'silver',
     maxStacks: 1,
     openingOnly: true,
-    levels: [{
-      effect: { permanent: true, marketGoldOutputModifier: 0.35, resourceDelta: { gold: 260 } },
-      display: { pct: 35, gold: 260 },
-    }],
+    levels: [
+      {
+        effect: { permanent: true, marketGoldOutputModifier: 0.35, resourceDelta: { gold: 260 } },
+        display: { pct: 35, gold: 260 },
+      },
+      {
+        effect: { permanent: true, marketGoldOutputModifier: 0.44, resourceDelta: { gold: 325 } },
+        display: { pct: 44, gold: 325 },
+      },
+      {
+        effect: { permanent: true, marketGoldOutputModifier: 0.55, resourceDelta: { gold: 410 } },
+        display: { pct: 55, gold: 410 },
+      },
+    ],
   },
   {
     id: 'long-dan',
     rarity: 'silver',
     maxStacks: 1,
     openingOnly: true,
-    levels: [{
-      effect: { permanent: true, resourceRateModifier: { humans: 4 }, influenceDelta: 30, stabilityDelta: 12 },
-      display: { humans: 4, influence: 30 },
-    }],
+    levels: [
+      {
+        effect: { permanent: true, resourceRateModifier: { humans: 4 }, influenceDelta: 30, stabilityDelta: 12 },
+        display: { humans: 4, influence: 30 },
+      },
+      {
+        effect: { permanent: true, resourceRateModifier: { humans: 5 }, influenceDelta: 38, stabilityDelta: 15 },
+        display: { humans: 5, influence: 38 },
+      },
+      {
+        effect: { permanent: true, resourceRateModifier: { humans: 6 }, influenceDelta: 48, stabilityDelta: 19 },
+        display: { humans: 6, influence: 48 },
+      },
+    ],
   },
   {
     id: 'tho-ca',
     rarity: 'silver',
     maxStacks: 1,
     openingOnly: true,
-    levels: [{
-      effect: { permanent: true, buildSpeedBonus: 1, upgradeSpeedBonus: 1, buildingCostModifier: -0.18 },
-      display: { pct: 18 },
-    }],
+    levels: [
+      {
+        effect: { permanent: true, buildSpeedBonus: 1, upgradeSpeedBonus: 1, buildingCostModifier: -0.18 },
+        display: { pct: 18 },
+      },
+      {
+        effect: { permanent: true, buildSpeedBonus: 1, upgradeSpeedBonus: 1, buildingCostModifier: -0.23 },
+        display: { pct: 23 },
+      },
+      {
+        effect: { permanent: true, buildSpeedBonus: 1, upgradeSpeedBonus: 1, buildingCostModifier: -0.28 },
+        display: { pct: 28 },
+      },
+    ],
   },
   {
     id: 'cua-ai',
     rarity: 'silver',
     maxStacks: 1,
     openingOnly: true,
-    levels: [{
-      effect: { permanent: true, defenseBoost: 22, claimSlotBonus: 1 },
-      display: { defense: 22 },
-    }],
+    levels: [
+      { effect: { permanent: true, defenseBoost: 22, claimSlotBonus: 1 }, display: { defense: 22 } },
+      { effect: { permanent: true, defenseBoost: 28, claimSlotBonus: 1 }, display: { defense: 28 } },
+      { effect: { permanent: true, defenseBoost: 35, claimSlotBonus: 1 }, display: { defense: 35 } },
+    ],
   },
   {
     id: 'quan-so',
     rarity: 'silver',
     maxStacks: 1,
     openingOnly: true,
-    levels: [{
-      effect: { permanent: true, recruitSpeedModifier: 0.3, recruitmentSupplyCostModifier: -0.2 },
-      display: { pct: 30 },
-    }],
+    levels: [
+      {
+        effect: { permanent: true, recruitSpeedModifier: 0.3, recruitmentSupplyCostModifier: -0.2 },
+        display: { pct: 30 },
+      },
+      {
+        effect: { permanent: true, recruitSpeedModifier: 0.38, recruitmentSupplyCostModifier: -0.25 },
+        display: { pct: 38 },
+      },
+      {
+        effect: { permanent: true, recruitSpeedModifier: 0.47, recruitmentSupplyCostModifier: -0.31 },
+        display: { pct: 47 },
+      },
+    ],
   },
   {
     id: 'chieu-hien',
     rarity: 'silver',
     maxStacks: 1,
     openingOnly: true,
-    levels: [{
-      effect: { permanent: true, courtCardSpeedModifier: 0.25, favorDelta: 40, freeHeroDraft: true },
-      display: { pct: 25 },
-    }],
+    levels: [
+      {
+        effect: { permanent: true, courtCardSpeedModifier: 0.25, favorDelta: 40, freeHeroDraft: true },
+        display: { pct: 25 },
+      },
+      {
+        effect: { permanent: true, courtCardSpeedModifier: 0.31, favorDelta: 50, freeHeroDraft: true },
+        display: { pct: 31 },
+      },
+      {
+        effect: { permanent: true, courtCardSpeedModifier: 0.39, favorDelta: 63, freeHeroDraft: true },
+        display: { pct: 39 },
+      },
+    ],
   },
 ];
 

@@ -62,7 +62,7 @@ import {
 } from './RealmDoctrineSystem';
 import { pushToast } from '../empire/notifications';
 import { t } from '../../i18n';
-import { enqueueAscentPrompt } from './AscentState';
+import { enqueueAscentPrompt, standingHostCount } from './AscentState';
 import { defaultMusterPlan, musterBlockedReason } from './MusterSystem';
 import { getMusterEstimate } from '../WarSystem';
 import type { GameState, Land, LandBuildingType } from '../../state/types';
@@ -354,12 +354,7 @@ function autoRecruit(state: GameState): boolean {
   // The same trap as the levy below it, and a worse one: a well-fed auxiliary counted here would
   // tell the autopilot the realm already has the hosts it needs, and the realm would quietly stop
   // raising its own. Accepting help must not cost the player their army.
-  const standing = state.armies.filter(
-    (army) => army.kingdomId === PLAYER_KINGDOM_ID
-      && !army.isLevy
-      && !army.patron
-      && armySize(army) >= MIN_ARMY_SOLDIERS * REMNANT_SHARE,
-  ).length;
+  const standing = standingHostCount(state);
   // The doctrine the player set moves the target: a realm at arms keeps more hosts standing, a
   // counting house keeps fewer and spends the manpower on itself. Never below one — a realm with
   // no host at all cannot answer anything.
@@ -397,6 +392,21 @@ export function proposeMuster(state: GameState, purpose: 'target' | 'pressure'):
   // consecutive ticks and named exactly one offender — `backToBackKinds: ["muster-proposal"]` — for
   // as long as the card has existed. Two decisions on two consecutive seasons is the thing the
   // whole gap rule exists to stop; a muster is in no more of a hurry than a law is.
+  /**
+   * **The gap is not negotiable, even for a realm with no host at all.**
+   *
+   * Tried and reverted: a one-season gap while hostless. It is the largest single cause of a
+   * hostless realm staying hostless — 23 of 28 blocked ticks on one seeded run, 15 of 23 on
+   * another — and relaxing it did lift host coverage at wave 3 from six seeds in eight to eight in
+   * eight. It also put `muster-proposal` straight back into `verify-ascent`'s
+   * `backToBackKinds`, which is the assertion this very clause was added to satisfy, and the
+   * slideshow it describes is a reported complaint rather than a theoretical one.
+   *
+   * `COURT_GAP_TICKS` is already only two, so there is nothing to shave: two is the least that
+   * can mean "not on consecutive ticks". The muster has to win its window the same way every other
+   * card does. What was changed instead is everything that *wasted* the windows it did get — an
+   * unaffordable plan, and a treasury spent out from under the card after it was quoted.
+   */
   if (state.turn - ascent.lastPromptTurn < COURT_GAP_TICKS) return false;
   const plan = defaultMusterPlan(state);
   if (!plan.heroId || musterBlockedReason(state, plan)) return false;
@@ -799,7 +809,26 @@ export function tickAscentAutopilot(state: GameState): void {
   // spent the treasury on mines while the royal host went unpaid and dissolved at turn twenty.
   const wageBill = heroPayroll(state) + ascentArmyUpkeep(state).gold + getTotalArmyGoldUpkeepAscent(state);
   const buildReserve = Math.max(AUTOBUILD_GOLD_RESERVE, -state.resourceRates.gold * 8, wageBill * 4);
-  if (state.resources.gold > buildReserve) {
+  /**
+   * **Nothing is bought while a muster card is standing.**
+   *
+   * `autoRecruit` runs first and *proposes* — the card is queued, and it quotes a price. Building
+   * runs next, in the same tick, and spends whatever is above the reserve. So the autopilot was
+   * routinely pricing a host, spending the treasury on a granary, and then failing the muster on
+   * accept — which also bought four seasons of `musterDeclinedUntil` silence for a card the player
+   * had said yes to.
+   *
+   * Measured across eight seeded runs: after the plan itself was made affordable, this was the
+   * remaining cause of a hostless realm staying hostless — twelve to fourteen of the blocked ticks
+   * on the two worst seeds were that silence.
+   *
+   * A quoted price the realm can no longer pay is the worst of both: the card was a lie and the
+   * seasons are gone. The host is the more important purchase in every case where both are
+   * possible, so the buildings wait a season.
+   */
+  const musterStanding = state.pendingAscentPrompt?.kind === 'muster-proposal'
+    || ascent.promptQueue.some((prompt) => prompt.kind === 'muster-proposal');
+  if (!musterStanding && state.resources.gold > buildReserve) {
     if (autoBuild(state)) {
       ascent.autopilotStats.builds += 1;
     } else if (autoUpgrade(state)) {
@@ -815,7 +844,10 @@ export function tickAscentAutopilot(state: GameState): void {
   }
 
   // Routine purchases need no host, so they are not part of the march chain above.
-  autoPurchaseVillage(state);
+  // A village is bought with the same gold the standing muster card was priced against — see
+  // the note on `musterStanding` above. Buying one out from under a quoted host is the same
+  // fault as building one, and costs the same four seasons of silence when the muster then fails.
+  if (!musterStanding) autoPurchaseVillage(state);
 
   autoDefend(state);
 }

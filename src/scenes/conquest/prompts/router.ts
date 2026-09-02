@@ -38,5 +38,8 @@ export function renderPrompt(self: ConquestUIScene, prompt: AscentPrompt): void 
     case 'wave-result': self.showWaveResult(prompt); break;
     case 'host-lost': self.showHostLost(prompt); break;
     case 'run-over': self.showRunOver(prompt); break;
+    case 'dynasty-level': self.showDynastyLevel(prompt); break;
+    case 'bind-card': self.showBindCard(prompt); break;
+    case 'next-reign': self.showNextReign(prompt); break;
   }
 }

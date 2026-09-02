@@ -1,4 +1,5 @@
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
+import { cabinetRuleMult } from '../../state/cabinet';
 import type { Army, GameState, Land } from '../../state/types';
 
 /**
@@ -34,12 +35,14 @@ export function doctrine(state: GameState, cardId: string): number {
  * that pays out on a battle you lose.
  */
 export function openingVolleyShare(state: GameState): number {
-  return Math.min(0.3, doctrine(state, 'fire-arrows') * 0.09);
+  // Rule cards level in their rule's own number: the cabinet's ×1.25/×1.5 deepens the per-stack
+  // constant, and `ascentCards.ts` quotes the same arithmetic on the card face (9 → 11 → 14).
+  return Math.min(0.3, doctrine(state, 'fire-arrows') * 0.09 * cabinetRuleMult('fire-arrows'));
 }
 
 /** Feigned Retreat — extra share lost by an attacker that pursues a defence which gave ground. */
 export function pursuitLossShare(state: GameState): number {
-  return Math.min(0.3, doctrine(state, 'feigned-retreat') * 0.07);
+  return Math.min(0.3, doctrine(state, 'feigned-retreat') * 0.07 * cabinetRuleMult('feigned-retreat'));
 }
 
 
@@ -79,7 +82,9 @@ export function extraClaimSlots(state: GameState): number {
 
 /** Salt Roads — share off every wall and company bought on the response card. */
 export function warPurchaseDiscount(state: GameState): number {
-  return Math.min(0.6, doctrine(state, 'salt-roads') * 0.22);
+  // The dossier's worked example: 22% → 27% → 33% per stack. The cap keeps a Lv3 double stack
+  // from making war purchases near-free — 0.66 uncapped is past "discount" and into "exploit".
+  return Math.min(0.6, doctrine(state, 'salt-roads') * 0.22 * cabinetRuleMult('salt-roads'));
 }
 
 /**
@@ -119,6 +124,6 @@ export function soundTheBronzeDrum(state: GameState, brokenArmyId: string): void
 
   for (const army of state.armies) {
     if (army.kingdomId !== PLAYER_KINGDOM_ID || army.id === brokenArmyId) continue;
-    army.morale = Math.min(100, army.morale + stacks * 7);
+    army.morale = Math.min(100, army.morale + Math.round(stacks * 7 * cabinetRuleMult('bronze-drum')));
   }
 }
