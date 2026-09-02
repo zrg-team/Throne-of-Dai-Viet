@@ -391,11 +391,11 @@ await page.waitForTimeout(500);
 
   check('a real fight was reached', music.reached === true);
   check('a fight plays a bed', music.small?.music !== 'none', JSON.stringify(music.small));
-  check('and it is quiet', music.small?.musicGain > 0 && music.small?.musicGain <= 0.22,
+  check('and it is quiet', music.small?.musicGain > 0 && music.small?.musicGain <= 0.17,
     `gain ${music.small?.musicGain}`);
   check('a bigger field is louder', music.large?.musicGain > music.small?.musicGain,
     `${music.small?.musicGain} -> ${music.large?.musicGain}`);
-  check('but never loud', music.large?.musicGain <= 0.30, `gain ${music.large?.musicGain}`);
+  check('but never loud', music.large?.musicGain <= 0.19, `gain ${music.large?.musicGain}`);
   check('leaving the screen stops it', music.after?.music === 'none', JSON.stringify(music.after));
   check('an epic field draws a different track', Boolean(music.epicTrack)
     && music.epicTrack !== music.ordinaryTrack, `${music.ordinaryTrack} vs ${music.epicTrack}`);
@@ -431,8 +431,8 @@ await page.waitForTimeout(500);
 
   check('the map plays a peaceful bed', quiet.onMap.ambient === 'map'
     && quiet.onMap.ambientGain > 0.005, JSON.stringify(quiet.onMap));
-  check('and it stays well under the battle floor', quiet.onMap.ambientGain < 0.18,
-    `ambient ${quiet.onMap.ambientGain} vs battle floor 0.18`);
+  check('and it stays well under the battle floor', quiet.onMap.ambientGain < 0.15,
+    `ambient ${quiet.onMap.ambientGain} vs battle floor 0.15`);
   check('a fight silences it — never two beds at once',
     quiet.duringFight.music !== 'none' && quiet.duringFight.ambientGain < 0.005,
     JSON.stringify(quiet.duringFight));

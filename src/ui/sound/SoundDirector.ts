@@ -112,8 +112,8 @@ export const LANE_VOICES: Record<string, LaneVoice> = {
  * judged by ear, and were: *"battle sound a bit higher"*. 18–30% against the map's 8.5% makes
  * walking into a fight an audible change of room, which is the whole job of a battle bed.
  */
-const MUSIC_MIN = 0.18;
-const MUSIC_MAX = 0.30;
+const MUSIC_MIN = 0.15;
+const MUSIC_MAX = 0.19;
 
 /**
  * The five battle tracks, split by what the field deserves.
