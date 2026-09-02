@@ -1948,6 +1948,20 @@ export type AscentPrompt =
       remaining: number;
     }
   /**
+   * Bind a seal — step three of the ceremony, between the house growing and the closing screen.
+   *
+   * The three offered are cards this run actually **played**, not random loot: the one the
+   * player binds is the one they have a story about. The chosen card lands in the Cabinet of
+   * Seals as copy-or-new, and binding an evolution also teaches the forge its recipe. `options`
+   * may be shorter than three when the reign played fewer distinct cards; a reign that played
+   * none skips the step entirely (`advanceCeremony` never raises an unanswerable card).
+   */
+  | {
+      kind: 'bind-card';
+      /** Card ids played this run, best-rarity first, at most three. */
+      options: string[];
+    }
+  /**
    * The last step of the ceremony: what the next reign opens holding.
    *
    * A summary, not a decision — "go again" has to visibly mean "go again *with*". The empty
@@ -2839,7 +2853,7 @@ export interface AscentState {
    * On `AscentState` and not on the store, because it is about *this* run ending, not about the
    * house: a reload lands on the menu and the ceremony is over regardless.
    */
-  ceremonyStage?: 'reckoning' | 'levels' | 'reign' | 'done';
+  ceremonyStage?: 'reckoning' | 'levels' | 'bind' | 'reign' | 'done';
   /** Champions whose `arrival` has already fired, by hero id. Not a flag on the Hero: a hero
    *  re-cloned out of the deck would lose it, and this is also what the run summary counts. */
   arrivalsFired?: string[];

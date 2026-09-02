@@ -15,6 +15,8 @@ import { powerCardView, skipRefundAmount } from '../../../systems/ascent/PowerDr
 import { buildAllConquestTargets, methodActorLine, methodHasActor }
   from '../../../systems/ascent/ConquestSystem';
 import { buildHeroPickerRows, buildHostPickerRows } from '../../../ui/heroPickerRows';
+import { CardFan } from '../../../ui/ascent/CardFan';
+import { UI_FONT } from '../../../ui/fonts';
 import { INK_UI, type UIBounds } from '../../../ui/InkUI';
 import { iconForOption } from '../../../ui/CardIcons';
 import { staggerIn } from '../../../ui/animations';
@@ -27,48 +29,110 @@ import type { ConquestUIScene } from '../../ConquestUIScene';
 
 // ── Prompts ───────────────────────────────────────────────────────────────
 
+/**
+ * The Power Draft as a fanned hand — cards get a **body**.
+ *
+ * The old sheet was a scrolling list of `optionCard` rows: correct, and indistinguishable from
+ * every administrative prompt in the mode. This is the run's central reward moment, so the
+ * cards are now real card faces (baked once per `(id, level)` — see `cardFace.ts`, and the perf
+ * ledger's warning about live Graphics), held across the bottom third the way a hand is held:
+ * tap to raise, tap the raised card to take. The reroll and skip stay in the footer, and the
+ * prompt bus and resolver are untouched — a reroll re-renders through `promptSignature` exactly
+ * as before.
+ *
+ * Everything the row used to print — description, stack, the power preview, the evolution
+ * call-out — moves to a readout above the fan describing the *raised* card, which is also what
+ * makes four faces legible at 390 wide: the fan carries identity, the readout carries numbers.
+ */
 export function showPowerDraft(self: ConquestUIScene, prompt: Extract<AscentPrompt, { kind: 'power-draft' }>): void {
-  // The two footer buttons are pinned below a scrolling card list, so a reroll stays reachable
-  // however many cards the draft offers and however short the viewport is.
-  const { content, body, bodyWidth, finish } = self.promptScrollBody(
+  const content = self.promptFrame(
     t('ascent.draft.title', { level: prompt.level }),
     t('ascent.draft.subtitle'),
-    PROMPT_FOOTER_HEIGHT,
   );
 
-  const cards: Phaser.GameObjects.Container[] = [];
-  let used = 0;
-  prompt.cards.forEach((cardId) => {
-    const view = powerCardView(self.state, cardId);
-    if (!view) return;
-    // The evolution call-out outranks the power preview: completing a pair is the
-    // headline reward, and a bare percentage would undersell it.
+  const views = prompt.cards
+    .map((cardId) => powerCardView(self.state, cardId))
+    .filter((view): view is NonNullable<typeof view> => Boolean(view));
+  if (views.length === 0) return;
+
+  // The bottom third holds the hand; the readout takes what is left above it. Both are measured
+  // back from the pinned footer, so the sheet holds together at the 620 clamp.
+  const footerY = GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8;
+  const HINT = 16;
+  const fanHeight = Phaser.Math.Clamp(Math.round(content.height * 0.48), 180, 232);
+  const fanTop = footerY - 10 - fanHeight;
+  // Capped: on a tall sheet the leftover space above the fan runs past 400 units, and a readout
+  // stretched to fill it is a page of blank paper with four lines in its corner.
+  const infoHeight = Math.min(fanTop - content.y - HINT - 10, 214);
+
+  const info = self.add.container(content.x, content.y);
+  self.modalLayer.add(info);
+
+  const describe = (index: number): void => {
+    info.removeAll(true);
+    const view = views[index];
+    info.add(self.ui.panel({ x: 0, y: 0, width: content.width, height: infoHeight },
+      { border: view.evolutionReady ? INK_UI.gold : RARITY_COLOR[view.rarity], borderWidth: 1.4, fillAlpha: 0.55 }));
+    const rail = self.add.graphics();
+    rail.fillStyle(RARITY_COLOR[view.rarity], 1);
+    rail.fillRect(1.5, 6, 4, infoHeight - 12);
+    info.add(rail);
+
+    let cursor = 10;
+    const title = self.ui.label(14, cursor, `${view.name}  ·  ${view.stackLabel}`, 'label',
+      { fontSize: '13px', wordWrap: { width: content.width - 28 } });
+    info.add(title);
+    cursor += title.height + 4;
+    info.add(self.ui.label(14, cursor,
+      `${t(`ascent.rarity.${view.rarity}` as Parameters<typeof t>[0])}  ${view.stackCount}`,
+      'caption', { fontSize: '10px' }));
+    cursor += 18;
+    const body = self.add.text(14, cursor, view.description, {
+      color: '#4a3a28', fontFamily: 'Georgia, serif', fontSize: '11.5px',
+      wordWrap: { width: content.width - 28 }, lineSpacing: 2,
+    });
+    info.add(body);
+    cursor += body.height + 6;
+
+    // The evolution call-out outranks the power preview: completing a pair is the headline
+    // reward, and a bare percentage would undersell it.
     const note = view.evolutionReady
       ? t('ascent.draft.evoReady')
       : view.powerGainPct > 0
         ? t('ascent.draft.powerPreview', { pct: view.powerGainPct })
         : undefined;
+    if (note && cursor < infoHeight - 14) {
+      info.add(self.add.text(14, cursor, note, {
+        color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '11px', fontStyle: '700',
+        wordWrap: { width: content.width - 28 },
+      }));
+      cursor += 16;
+    }
+    // The forge remembers: a learned recipe names the partner from run one.
+    if (view.recipeHint && cursor < infoHeight - 14) {
+      info.add(self.add.text(14, cursor, view.recipeHint, {
+        color: '#4a6a55', fontFamily: UI_FONT, fontSize: '10px',
+        wordWrap: { width: content.width - 28 },
+      }));
+    }
+  };
 
-    const card = self.optionCard(
-      { x: 0, y: used, width: bodyWidth, height: 118 },
-      {
-        title: `${view.name}  ·  ${view.stackLabel}`,
-        body: view.description,
-        note,
-        noteColor: view.evolutionReady ? '#8a5f1c' : undefined,
-        badge: `${t(`ascent.rarity.${view.rarity}` as Parameters<typeof t>[0])}  ${view.stackCount}`,
-        accent: view.evolutionReady ? INK_UI.gold : RARITY_COLOR[view.rarity],
-        parent: body,
-        onTap: () => self.choose(cardId),
-      },
-    );
-    cards.push(card);
-    used += ((card.getData('cardHeight') as number) ?? 118) + 12;
+  // The evolution-ready card sits raised by default — the fan opens on the headline.
+  const initial = Math.max(0, views.findIndex((view) => view.evolutionReady));
+  const fan = new CardFan(self, {
+    x: content.x, y: fanTop, width: content.width, height: fanHeight,
+    cards: views.map((view) => ({ id: view.id })),
+    initial,
+    onRaise: describe,
+    onTake: (index) => self.choose(views[index].id),
   });
-  staggerIn(self, cards);
-  finish(used);
+  self.modalLayer.add(fan.view);
 
-  const footerY = GAME_HEIGHT - PROMPT_FOOTER_HEIGHT + 8;
+  // The gesture, said once, between the readout and the hand.
+  self.modalLayer.add(self.add.text(content.x + content.width / 2, fanTop - HINT + 2,
+    t('ascent.draft.fanHint'), {
+      color: '#6f6250', fontFamily: UI_FONT, fontSize: '10px', align: 'center',
+    }).setOrigin(0.5, 0));
   const affordable = self.state.resources.gold >= prompt.rerollCost;
   self.modalLayer.add(self.ui.button(
     { x: content.x, y: footerY, width: content.width / 2 - 6, height: 40 },

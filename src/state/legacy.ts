@@ -82,6 +82,23 @@ export function ownsPerk(id: string): boolean {
   return getLegacy().perks.includes(id);
 }
 
+/** Banks points outside a run's own payout — a cabinet copy past Lv3 melting, for one. */
+export function addLegacyPoints(points: number): void {
+  if (points <= 0) return;
+  const store = getLegacy();
+  store.points += Math.round(points);
+  writeLegacy(store);
+}
+
+/** Spends banked points on something that is not a perk (the cabinet's rubbing pack). */
+export function spendLegacyPoints(points: number): boolean {
+  const store = getLegacy();
+  if (points <= 0 || store.points < points) return false;
+  store.points -= Math.round(points);
+  writeLegacy(store);
+  return true;
+}
+
 /** Attempts to buy a perk with banked points. Returns true if purchased. */
 export function purchaseLegacyPerk(id: string): boolean {
   const perk = getLegacyPerk(id);

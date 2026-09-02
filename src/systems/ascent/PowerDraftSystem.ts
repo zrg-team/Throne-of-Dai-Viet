@@ -14,8 +14,20 @@ import { chargeAmbition } from './AmbitionSystem';
 import { doctrineDraftBonus } from './RealmDoctrineSystem';
 import { enqueueAscentPrompt } from './AscentState';
 import { hasTrait } from '../../state/dynasty';
+import { cabinetLevel, cabinetWeightMult, grantDeed, learnRecipe, openingHand, recipeLearned } from '../../state/cabinet';
 import { t } from '../../i18n';
 import type { AscentState, CourtModifier, GameState, PowerCardDef } from '../../state/types';
+
+/**
+ * The rung of `levels[]` this card plays at — its **cabinet** level, never its stack index.
+ *
+ * Stacking pushes more copies of the same rung; the ladder is climbed only by combining copies
+ * in the Cabinet of Seals between runs. Indexing `levels[]` by stack instead would hand every
+ * third copy a free Lv3, which is a meta-progression paid out by nothing.
+ */
+export function cardLevelEntry(card: PowerCardDef): PowerCardDef['levels'][number] {
+  return card.levels[Math.min(cabinetLevel(card.id) - 1, card.levels.length - 1)];
+}
 
 /** Opening reroll price for a draft at this level. Doubles again on each use within it. */
 export function rerollPriceFor(level: number): number {
@@ -108,7 +120,10 @@ export function rollPowerDraftCards(state: GameState): string[] {
         return rarityWeight
           * (card.weight ?? 1)
           * focusBonus(cardStack(ascent, card.id))
-          * doctrineDraftBonus(state, card.rarity);
+          * doctrineDraftBonus(state, card.rarity)
+          // The cabinet's steep step: a levelled seal mostly buys *showing up* (×1.3 / ×1.6).
+          // The pool itself is untouched — ownership never gates what can be offered.
+          * cabinetWeightMult(cabinetLevel(card.id));
       }),
     );
     if (index < 0) break;
@@ -116,6 +131,24 @@ export function rollPowerDraftCards(state: GameState): string[] {
   }
 
   return picks;
+}
+
+/**
+ * Deals the opening hand: the seals slotted in the Cabinet arrive at one stack each, and each
+ * slot charges `AMBITION_PER_POWER_CARD` (+2) at the founding — the wave director answers the
+ * head start honestly, which is the snowball guard the whole feature stands on. Slots are
+ * optional; an empty hand starts at zero extra ambition, and the choice is the strategy.
+ */
+export function applyOpeningHand(state: GameState): void {
+  const ascent = state.ascent;
+  if (!ascent) return;
+  for (const cardId of openingHand()) {
+    const card = findPowerCard(cardId);
+    if (!card || cardStack(ascent, cardId) > 0) continue;
+    applyPowerCardEffect(state, card, 0);
+    ascent.cardStacks[cardId] = 1;
+    chargeAmbition(state, 'card');
+  }
 }
 
 /** Opens a Power Draft for one banked level-up. */
@@ -193,13 +226,18 @@ function maybeEvolve(state: GameState, ascent: AscentState, taken: PowerCardDef)
   applyPowerCardEffect(state, result, 0);
   ascent.cardStacks[result.id] = 1;
 
+  // The forge learns the recipe the moment it is completed in a run: from now on the parents
+  // call each other out in every draft, from run one. The first forging is also a deed.
+  learnRecipe(result.id);
+  grantDeed('first-evolution');
+
   // pushToast already records the event in the persistent log.
   const name = t(`ascent.card.${result.id}` as Parameters<typeof t>[0]);
   pushToast(state, t('ascent.draft.evolved', { name }), 'reward');
 }
 
 function applyPowerCardEffect(state: GameState, card: PowerCardDef, stackIndex: number): void {
-  const level = card.levels[Math.min(stackIndex, card.levels.length - 1)];
+  const level = cardLevelEntry(card);
   applyCourtEffect(state, `asc:${card.id}:${stackIndex + 1}`, level.effect);
 }
 
@@ -218,6 +256,7 @@ export function takePowerCard(state: GameState, cardId: string): boolean {
 
   applyPowerCardEffect(state, card, stack);
   ascent.cardStacks[cardId] = stack + 1;
+  if (card.rarity === 'jade') grantDeed('first-jade');
   ascent.pendingLevelUps = Math.max(0, ascent.pendingLevelUps - 1);
   ascent.rerollCost = rerollPriceFor(ascent.level);
   // Power draws attention. Skipping the draft is now a real option rather than a strictly
@@ -253,11 +292,11 @@ export function skipRefundAmount(state: GameState): number {
  * promise "▲ POWER +7%" and have the HUD then move by that much — the honesty of that badge
  * is the thing that makes the draft feel like it matters.
  */
-export function estimatePowerGainPct(state: GameState, card: PowerCardDef, stackIndex: number): number {
+export function estimatePowerGainPct(state: GameState, card: PowerCardDef): number {
   const before = computeAscentPower(state);
   if (before <= 0) return 0;
 
-  const level = card.levels[Math.min(stackIndex, card.levels.length - 1)];
+  const level = cardLevelEntry(card);
   const preview: CourtModifier = { id: 'ascent-preview', label: 'ascent-preview', ...level.effect };
 
   state.activeCourtModifiers.push(preview);
@@ -297,6 +336,14 @@ export interface PowerCardView {
   maxed: boolean;
   /** Taking this to max completes an evolution — called out on the card. */
   evolutionReady: boolean;
+  /** The card's cabinet level — 2 and 3 wear stars on the face. */
+  cabinetLevel: 1 | 2 | 3;
+  /**
+   * The forge remembers: this card's evolution partner, named on the face from run one once
+   * some past run has completed the recipe. Empty until the recipe is learned — a hunt the
+   * player has not made yet must stay a hunt.
+   */
+  recipeHint?: string;
 }
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
@@ -312,8 +359,14 @@ export function powerCardView(state: GameState, cardId: string): PowerCardView |
   if (!ascent || !card) return undefined;
 
   const stack = cardStack(ascent, cardId);
-  const level = card.levels[Math.min(stack, card.levels.length - 1)];
+  const level = cardLevelEntry(card);
   const maxed = stack >= card.maxStacks;
+  const knownRecipe = card.evolvesWith && card.evolvesInto && recipeLearned(card.evolvesInto)
+    ? t('ascent.draft.recipeHint', {
+      partner: t(`ascent.card.${card.evolvesWith}` as Parameters<typeof t>[0]),
+      result: t(`ascent.card.${card.evolvesInto}` as Parameters<typeof t>[0]),
+    })
+    : undefined;
 
   return {
     id: card.id,
@@ -326,9 +379,11 @@ export function powerCardView(state: GameState, cardId: string): PowerCardView |
         ? t('ascent.draft.new')
         : t('ascent.draft.stack', { from: roman(stack), to: roman(stack + 1) }),
     stackCount: t('ascent.draft.stackCount', { n: Math.min(stack + 1, card.maxStacks), max: card.maxStacks }),
-    powerGainPct: estimatePowerGainPct(state, card, stack),
+    powerGainPct: estimatePowerGainPct(state, card),
     maxed,
     // Only worth shouting about when this take is the one that completes the pair.
     evolutionReady: isEvolutionReady(ascent, card) && stack + 1 >= card.maxStacks,
+    cabinetLevel: cabinetLevel(card.id),
+    ...(knownRecipe ? { recipeHint: knownRecipe } : {}),
   };
 }

@@ -54,6 +54,9 @@ window.__ptOptions = (forState) => {
     // The run-over ceremony: a trait id, and no skip. 'next-reign' and 'run-over' are terminal —
     // the scene's own buttons walk past them, so they stay on the ['ok'] fallthrough.
     case 'dynasty-level': return p.options;
+    // Bind a seal: one of the cards the reign played, and no skip — the resolver refuses a
+    // stray id, so ['ok'] here would spin the ceremony forever.
+    case 'bind-card': return p.options;
     case 'decree-offer': return [...p.projectIds, 'decline'];
     case 'story-beat': return p.options.filter((o) => o.affordable).map((o) => o.id);
     case 'world-event': return p.options.filter((o) => o.affordable).map((o) => o.id);

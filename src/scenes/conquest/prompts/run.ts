@@ -27,6 +27,9 @@ import { TITLE_FONT, UI_FONT } from '../../../ui/fonts';
 import { heroBio, heroName, heroTypeLabel, rarityLabel, t } from '../../../i18n';
 import { DYNASTY_TRAITS, DYNASTY_TRAITS_PENDING } from '../../../data/dynastyTraits';
 import { getDynasty } from '../../../state/dynasty';
+import { cabinetCard, combineCost, meltValue, openingHand, recipeLearned } from '../../../state/cabinet';
+import { findPowerCard } from '../../../data/ascentCards';
+import { CardFan } from '../../../ui/ascent/CardFan';
 import { dynastyFounderHero } from '../../../ui/dynastyPortrait';
 import type { AscentPrompt, Hero } from '../../../state/types';
 import { PROMPT_FOOTER_HEIGHT, PROMPT_HINT_ROOM, RARITY_COLOR, RARITY_WASH, cssHex, heroStatLine } from '../constants';
@@ -788,6 +791,92 @@ export function showDynastyLevel(
 }
 
 /**
+ * Bind a seal — step three of the ceremony, between the house growing and the closing screen.
+ *
+ * The three cards fanned out are cards this reign actually **played**, not random loot: the one
+ * the player binds is the one they have a story about. The chosen card lands in the Cabinet of
+ * Seals as copy-or-new; binding the evolution also teaches the forge its recipe. Like the
+ * dynasty-level card there is no way past it — a ceremony step that can be dismissed is a step
+ * that gets dismissed by accident and cannot be found again.
+ */
+export function showBindCard(
+  self: ConquestUIScene,
+  prompt: Extract<AscentPrompt, { kind: 'bind-card' }>,
+): void {
+  const content = self.promptFrame(t('ascent.bind.title'), t('ascent.bind.subtitle'));
+
+  const BUTTON = 46;
+  const buttonY = content.y + content.height - BUTTON - 2;
+  const HINT = 16;
+  const fanHeight = Phaser.Math.Clamp(Math.round(content.height * 0.52), 180, 240);
+  const fanTop = buttonY - 10 - fanHeight;
+  // Capped for the same reason the draft's readout is: the outcome is three lines, not a page.
+  const infoHeight = Math.min(fanTop - content.y - HINT - 10, 150);
+
+  const info = self.add.container(content.x, content.y);
+  self.modalLayer.add(info);
+
+  // What binding this card does to the cabinet, previewed without making the add.
+  const describe = (index: number): void => {
+    info.removeAll(true);
+    const cardId = prompt.options[index];
+    const card = findPowerCard(cardId);
+    const view = powerCardView(self.state, cardId);
+    const held = cabinetCard(cardId);
+    const rarity = card?.rarity ?? 'bronze';
+
+    info.add(self.ui.panel({ x: 0, y: 0, width: content.width, height: infoHeight },
+      { border: RARITY_COLOR[rarity], borderWidth: 1.4, fillAlpha: 0.55 }));
+    let cursor = 10;
+    const title = self.ui.label(14, cursor, view?.name ?? cardId, 'label',
+      { fontSize: '13px', wordWrap: { width: content.width - 28 } });
+    info.add(title);
+    cursor += title.height + 4;
+
+    const outcome = !held
+      ? t('ascent.bind.new')
+      : held.level >= 3
+        ? t('ascent.bind.melted', { n: meltValue(rarity) })
+        : held.copies + 1 >= combineCost(held.level)
+          ? t('ascent.bind.ready', { n: held.copies + 1 })
+          : t('ascent.bind.copy', { n: held.copies + 1, need: combineCost(held.level) });
+    info.add(self.add.text(14, cursor, outcome, {
+      color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '11px', fontStyle: '700',
+      wordWrap: { width: content.width - 28 },
+    }));
+    cursor += 18;
+
+    if (card?.evolutionOnly && !recipeLearned(cardId) && cursor < infoHeight - 14) {
+      info.add(self.add.text(14, cursor, t('ascent.bind.recipe'), {
+        color: '#4a6a55', fontFamily: UI_FONT, fontSize: '10px',
+        wordWrap: { width: content.width - 28 },
+      }));
+    }
+  };
+
+  const fan = new CardFan(self, {
+    x: content.x, y: fanTop, width: content.width, height: fanHeight,
+    cards: prompt.options.map((id) => ({ id })),
+    initial: 0,
+    onRaise: describe,
+    onTake: (index) => self.choose(prompt.options[index]),
+  });
+  self.modalLayer.add(fan.view);
+
+  self.modalLayer.add(self.add.text(content.x + content.width / 2, fanTop - HINT + 2,
+    t('ascent.draft.fanHint'), {
+      color: INK_UI_HEX.mutedText, fontFamily: UI_FONT, fontSize: '10px', align: 'center',
+    }).setOrigin(0.5, 0));
+
+  self.modalLayer.add(self.ui.button(
+    { x: content.x, y: buttonY, width: content.width, height: BUTTON },
+    t('ascent.bind.confirm'),
+    () => fan.take(),
+    { variant: 'primary', fontSize: '15px' },
+  ));
+}
+
+/**
  * The last step: what the next reign opens holding.
  *
  * The reworked exit. "Go again" used to restart the mode; it now goes through a page that says
@@ -828,9 +917,15 @@ export function showNextReign(
     },
     {
       label: t('dynasty.next.hand'),
-      detail: t('dynasty.next.handSoon'),
-      accent: INK_UI.softBrush,
-      muted: true,
+      // The row Phase 3 was built to fill: the slotted seals, with the honest price printed.
+      detail: openingHand().length > 0
+        ? t('dynasty.next.handSome', {
+          cards: openingHand().map((id) => t(`ascent.card.${id}` as Parameters<typeof t>[0])).join(' · '),
+          n: openingHand().length * 2,
+        })
+        : t('dynasty.next.handSoon'),
+      accent: openingHand().length > 0 ? INK_UI.jade : INK_UI.softBrush,
+      muted: openingHand().length === 0,
     },
     {
       label: t('dynasty.next.companions'),

@@ -13,6 +13,7 @@ import { recomputeOpinion } from '../systems/DiplomacySystem';
 import { createInitialMandate } from '../systems/empire/MandateSystem';
 import { initDirectives } from '../systems/empire/DirectiveSystem';
 import { createAscentState, enqueueAscentPrompt } from '../systems/ascent/AscentState';
+import { applyOpeningHand } from '../systems/ascent/PowerDraftSystem';
 import { computeAscentPower, contestedDefencePower } from '../systems/ascent/PowerSystem';
 import { projectedWaveThreat } from '../systems/ascent/WaveDirector';
 import { getFounderPool } from './codex';
@@ -679,6 +680,9 @@ export function createAscentGameState(config: CampaignConfig): GameState {
   state.directiveDeckCursor = undefined;
 
   seedAscentOpening(state);
+  // The Cabinet's opening hand, before the mandate card: the seals the house slotted arrive at
+  // one stack each and pre-pay the mode's own threat counter (+2 ambition per slot).
+  applyOpeningHand(state);
   offerMandateChoice(state);
   offerFounderChoice(state);
 

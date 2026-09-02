@@ -1,5 +1,6 @@
 import { bankLegacy, computeRunScore, getLegacy } from '../../state/legacy';
 import { addRunXp, chooseTrait } from '../../state/dynasty';
+import { addCabinetCard, addRubbings, learnRecipe } from '../../state/cabinet';
 import { advanceCeremony } from './Ceremony';
 import { PLAYER_KINGDOM_ID } from '../../game/constants';
 import { resolveWorldEvent } from './WorldEventSystem';
@@ -331,6 +332,22 @@ export function resolveAscentPrompt(state: GameState, choiceId: string): boolean
       break;
     }
 
+    case 'bind-card': {
+      // Only a card that was actually on the fan binds — a driver answering with a stray id
+      // must not mint cabinet property out of nothing.
+      if (!prompt.options.includes(choiceId)) break;
+      const bound = addCabinetCard(choiceId);
+      if (!bound) break;
+      // Binding the evolution also teaches the forge its recipe — the other way a recipe is
+      // learned besides completing it mid-run.
+      const boundCard = findPowerCard(choiceId);
+      if (boundCard?.evolutionOnly) learnRecipe(choiceId);
+      // Straight into the closing screen, without unpausing — same shape as `dynasty-level`.
+      advanceCeremony(state);
+      handled = true;
+      break;
+    }
+
     case 'next-reign': {
       // Terminal, like the Reckoning: the button on it starts the run rather than answering it.
       return true;
@@ -416,6 +433,9 @@ export function endAscentRun(state: GameState): void {
       house: founder.name.trim().split(/\s+/)[0],
     }
     : undefined);
+  // The cabinet's always-faucet: +1 rubbing, every run, however it ended. Inside the same
+  // `legacyBanked` guard for the same reason the XP is — a re-entrant tick must not pay twice.
+  addRubbings(1);
   ascent.ceremonyStage = 'reckoning';
 
   state.pendingAscentPrompt = {

@@ -50,6 +50,7 @@ import {
   tryReformBrokenHost,
 } from '../ascent/DoctrineSystem';
 import { pushToast } from './notifications';
+import { grantDeed } from '../../state/cabinet';
 import type {
   Army, AscentBattleRecord, Difficulty, EraId, GameState, InvasionRecord, Kingdom, Land, PendingBattle,
 } from '../../state/types';
@@ -882,6 +883,10 @@ export function tickSieges(state: GameState): void {
       land.loyalty = Math.min(100, land.loyalty + RELIEF_LOYALTY_REWARD);
       applyResourceDelta(state, { gold: RELIEF_GOLD_REWARD });
       pushToast(state, t('ascent.siege.relieved', { land: land.name, gold: RELIEF_GOLD_REWARD }), 'reward');
+      // The cabinet's deed: the first relief march the account ever completes pays a rubbing.
+      if (grantDeed('first-relief')) {
+        pushToast(state, t('ascent.cabinet.deedRelief'), 'milestone');
+      }
     }
 
     if (siege.ticksLeft > 0) siege.ticksLeft -= 1;

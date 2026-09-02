@@ -1,4 +1,5 @@
 import { isVassal } from './VassalSystem';
+import { addRubbings } from '../../state/cabinet';
 import { NEUTRAL_OWNER_ID, PLAYER_KINGDOM_ID } from '../../game/constants';
 import {
   BOSS_EVERY_N_WAVES,
@@ -781,6 +782,12 @@ function resolveWaveResult(state: GameState): void {
   const capital = state.lands.find((land) => land.id === ascent.capitalLandId);
   const heldCapital = !capital || capital.ownerId === PLAYER_KINGDOM_ID;
 
+  // The cabinet's milestone faucet: every 10th wave held pays a rubbing (thác bản). Held, not
+  // merely survived — a decade of waves that ends with the seat in enemy hands is not a deed.
+  if (heldCapital && ascent.wavesSurvived % 10 === 0) {
+    addRubbings(1);
+    pushToast(state, t('ascent.cabinet.rubbingEarned', { wave: ascent.wavesSurvived }), 'reward');
+  }
 
   // Reported, not modal.
   //
