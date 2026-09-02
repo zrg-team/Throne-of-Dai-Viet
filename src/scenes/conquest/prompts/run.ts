@@ -25,8 +25,11 @@ import { staggerIn } from '../../../ui/animations';
 import { captureScreen } from '../../../ui/captureScreen';
 import { TITLE_FONT, UI_FONT } from '../../../ui/fonts';
 import { heroBio, heroName, heroTypeLabel, rarityLabel, t } from '../../../i18n';
+import { DYNASTY_TRAITS, DYNASTY_TRAITS_PENDING } from '../../../data/dynastyTraits';
+import { getDynasty } from '../../../state/dynasty';
+import { dynastyFounderHero } from '../../../ui/dynastyPortrait';
 import type { AscentPrompt, Hero } from '../../../state/types';
-import { PROMPT_FOOTER_HEIGHT, RARITY_COLOR, RARITY_WASH, cssHex, heroStatLine } from '../constants';
+import { PROMPT_FOOTER_HEIGHT, PROMPT_HINT_ROOM, RARITY_COLOR, RARITY_WASH, cssHex, heroStatLine } from '../constants';
 import type { ConquestUIScene } from '../../ConquestUIScene';
 
 /**
@@ -609,10 +612,16 @@ ${fall}` : fall,
   );
   self.modalLayer.add(keep);
 
+  // "Go again" walks the ceremony rather than restarting.
+  //
+  // The Reckoning is step one of a chain — the house grows, then the next reign is shown what it
+  // carries — and the scene decides how far along that chain it has got. When nothing is left to
+  // show (no level earned, the closing screen already seen) the same event starts the run, so a
+  // player who has never levelled sees exactly the button they saw before.
   self.modalLayer.add(self.ui.button(
     { x: content.x, y: buttonY + 48, width: content.width, height: 46 },
     t('ascent.over.again'),
-    () => self.events.emit('ui:restart-ascent'),
+    () => self.events.emit('ui:ascent-ceremony'),
     { variant: 'primary', fontSize: '15px' },
   ));
   // The way out, said quietly. `ghost` rather than a second panelled button: leaving is not one of
@@ -620,6 +629,251 @@ ${fall}` : fall,
   self.modalLayer.add(self.ui.button(
     { x: content.x, y: buttonY + 102, width: content.width, height: 28 },
     t('ascent.over.return'),
+    () => self.events.emit('ui:exit-to-menu'),
+    { variant: 'ghost', fontSize: '12px' },
+  ));
+}
+
+/**
+ * A level's progress, drawn as one filled rule.
+ *
+ * Deliberately not a component: it is two rectangles, it exists on exactly the two ceremony
+ * screens, and an `InkUI` bar would have to grow a variant for the one place that wants the
+ * gold fill full rather than proportional.
+ */
+function xpBar(
+  self: ConquestUIScene,
+  parent: Phaser.GameObjects.Container,
+  x: number,
+  y: number,
+  width: number,
+  fill: number,
+): void {
+  const bar = self.add.graphics();
+  bar.fillStyle(INK_UI.softBrush, 0.28);
+  bar.fillRoundedRect(x, y, width, 7, 3.5);
+  bar.fillStyle(INK_UI.gold, 0.92);
+  bar.fillRoundedRect(x, y, Math.max(4, width * Math.min(1, Math.max(0, fill))), 7, 3.5);
+  parent.add(bar);
+}
+
+/**
+ * The house grows: one level, two traits, one pick.
+ *
+ * Step two of the ceremony, and it fires **while the run's memory is still warm** — that is the
+ * whole reason it sits here rather than on the menu. A meta-progression screen reached from a
+ * title page is a shop; the same screen reached ten seconds after a dynasty fell is the answer to
+ * "what did that reign teach us".
+ *
+ * No footer and no way past it, exactly like the mandate card: a level-up the player can dismiss
+ * is a level-up they will dismiss by accident and then be unable to find again. The bar is drawn
+ * full because the level has already been earned — this is the moment *after* the fill, not a
+ * progress meter.
+ */
+export function showDynastyLevel(
+  self: ConquestUIScene,
+  prompt: Extract<AscentPrompt, { kind: 'dynasty-level' }>,
+): void {
+  // A footer of exactly the hint lane, and no buttons in it.
+  //
+  // `promptFrame` ends its content box 20 points above the sheet, and `drawHoldHint` refuses to
+  // print within 10 of that — so any footer under about 34 puts the line inside the refusal band
+  // and the page silently loses it. These are `optionCard`s: they want the press *held*, with
+  // nothing else on the page saying so, and a card that refuses a tap reads as broken rather than
+  // as careful. 36 is the smallest footer that actually prints it.
+  const { content, body, bodyWidth, finish } = self.promptScrollBody(
+    t('dynasty.grows.title'),
+    t('dynasty.grows.subtitle', { score: prompt.score.toLocaleString('en-US') }),
+    PROMPT_HINT_ROOM + 20,
+  );
+
+  let cursor = 4;
+  const store = getDynasty();
+
+  // The king the reign was raised by, at thumbnail size. The house is what just grew, so it is
+  // the house's face that heads the card — and the rank badge it is drawn with steps up with the
+  // dynasty level, so thirty reigns visibly *look* like thirty reigns.
+  const founder = dynastyFounderHero(store);
+  if (founder) {
+    const portrait = renderHeroFaceInBox(self, founder, { x: 0, y: cursor, width: 46, height: 46 });
+    body.add(portrait);
+    body.add(self.ui.label(56, cursor + 4, store.house
+      ? t('dynasty.house', { name: store.house })
+      : t('dynasty.houseUnnamed'), 'label', { fontSize: '13px' }));
+    body.add(self.ui.label(56, cursor + 22, t('dynasty.reignOrdinal', { n: store.reigns }), 'caption',
+      { fontSize: '10px' }));
+    cursor += 54;
+  }
+
+  xpBar(self, body, 0, cursor, bodyWidth, 1);
+  cursor += 14;
+  body.add(self.ui.label(0, cursor, t('dynasty.grows.level', { level: prompt.level }), 'label',
+    { fontSize: '12px', color: cssHex(INK_UI.gold) }));
+  cursor += 20;
+
+  /**
+   * The two cards *fill* the page rather than sitting at a fixed 72 with a drift of blank paper
+   * under them.
+   *
+   * `optionCard`'s height is a minimum — it grows to whatever its text wraps to — so the room left
+   * after the head and the notes is simply divided between them. This is the fork; it should look
+   * like the only thing on the page, which at the 844 sheet a pair of 72-point rows did not.
+   * Clamped both ways: 72 is the floor at the 620 clamp, and past 150 a card stops reading as a
+   * row and starts reading as a poster.
+   */
+  const NOTES = 62 + (prompt.remaining > 0 ? 18 : 0) + (store.traits.length > 0 ? 30 : 0);
+  const cardRoom = content.height - cursor - 20 - NOTES;
+  const cardHeight = Math.max(72, Math.min(118,
+    Math.floor(cardRoom / Math.max(1, prompt.options.length + 1)) - 9));
+
+  const cards: Phaser.GameObjects.Container[] = [];
+  prompt.options.forEach((traitId) => {
+    const pending = DYNASTY_TRAITS_PENDING.has(traitId);
+    const card = self.optionCard(
+      { x: 0, y: cursor, width: bodyWidth, height: cardHeight },
+      {
+        title: t(`dynasty.trait.${traitId}` as Parameters<typeof t>[0]),
+        body: t(`dynasty.trait.${traitId}.d` as Parameters<typeof t>[0]),
+        // A trait whose phase has not shipped says so on its own row rather than quietly doing
+        // nothing. Choosing a future is still a choice — but it must be an informed one.
+        note: pending ? t('dynasty.soon') : undefined,
+        accent: INK_UI.gold,
+        washAlpha: 0.08,
+        parent: body,
+        onTap: () => self.choose(traitId),
+      },
+    );
+    cards.push(card);
+    cursor += ((card.getData('cardHeight') as number) ?? cardHeight) + 9;
+  });
+  staggerIn(self, cards);
+
+  /**
+   * The row that is not an offer.
+   *
+   * Why there are two and not eight, drawn as a third row in the same stack and greyed — a plain
+   * caption under the cards reads as small print, and this is not small print: it is the reason
+   * the choice is worth anything. A `panel`, never an `optionCard`, because a card the player can
+   * hold and that then does nothing is worse than no row at all.
+   */
+  const untaken = DYNASTY_TRAITS.length - store.traits.length - prompt.options.length;
+  if (untaken > 0) {
+    const noteHeight = Math.max(52, Math.min(cardHeight, 72));
+    const dim = self.ui.panel({ x: 0, y: cursor, width: bodyWidth, height: noteHeight },
+      { border: INK_UI.softBrush, fillAlpha: 0.3 });
+    body.add(dim);
+    body.add(self.ui.label(16, cursor + 10, t('dynasty.grows.notOffered'), 'label',
+      { fontSize: '12px', color: cssHex(INK_UI.softBrush) }));
+    body.add(self.ui.label(16, cursor + 28, t('dynasty.grows.scarce', { n: untaken }), 'caption',
+      { fontSize: '9.5px', wordWrap: { width: bodyWidth - 32 } }));
+    cursor += noteHeight + 10;
+  }
+  if (prompt.remaining > 0) {
+    body.add(self.ui.label(0, cursor, t('dynasty.grows.more', { n: prompt.remaining }), 'caption',
+      { fontSize: '10px', color: cssHex(INK_UI.jade), wordWrap: { width: bodyWidth } }));
+    cursor += 18;
+  }
+
+  // What the house already holds, so the fork is read against the build rather than in isolation —
+  // Twin Doctrine against a house that already took Wide Draft is a different question.
+  if (store.traits.length > 0) {
+    body.add(self.ui.label(0, cursor, t('dynasty.next.traits'), 'caption', { fontSize: '9.5px' }));
+    body.add(self.ui.label(0, cursor + 12,
+      store.traits.map((id) => t(`dynasty.trait.${id}` as Parameters<typeof t>[0])).join(' · '),
+      'caption', { fontSize: '10px', wordWrap: { width: bodyWidth } }));
+    cursor += 30;
+  }
+
+  finish(cursor);
+}
+
+/**
+ * The last step: what the next reign opens holding.
+ *
+ * The reworked exit. "Go again" used to restart the mode; it now goes through a page that says
+ * what is different this time, because a roguelite whose return is indistinguishable from its
+ * first run has no return at all.
+ *
+ * **The two empty rows are deliberate.** The opening hand and the companions are Phases 3 and 4,
+ * and they are drawn now, greyed, saying what will fill them — the player learns the shape of what
+ * the house will one day carry before any of it exists. A screen that hides its unfinished halves
+ * teaches nothing and then changes shape under the player later.
+ *
+ * Fixed rather than scrolling, like the Reckoning it follows: five rows and two controls fit the
+ * 620 clamp, and a closing page that scrolls is a closing page that shows half of itself.
+ */
+export function showNextReign(
+  self: ConquestUIScene,
+  prompt: Extract<AscentPrompt, { kind: 'next-reign' }>,
+): void {
+  const content = self.promptFrame(t('dynasty.next.title'), t('dynasty.next.subtitle'));
+
+  // The controls take the foot and never move; the rows are measured back from them, so the page
+  // holds together at both ends of the `GAME_HEIGHT` clamp.
+  const BUTTONS = 46 + 8 + 28;
+  const buttonY = content.y + content.height - BUTTONS - 2;
+  const rows: Array<{ label: string; detail: string; accent: number; muted?: boolean }> = [
+    {
+      label: t('dynasty.next.founder', { n: prompt.founderCount }),
+      detail: t('dynasty.next.founderD'),
+      accent: INK_UI.gold,
+    },
+    {
+      label: t('dynasty.next.traits'),
+      detail: prompt.traits.length > 0
+        ? prompt.traits.map((id) => t(`dynasty.trait.${id}` as Parameters<typeof t>[0])).join(' · ')
+        : t('dynasty.next.traitsNone'),
+      accent: prompt.traits.length > 0 ? INK_UI.jade : INK_UI.softBrush,
+      muted: prompt.traits.length === 0,
+    },
+    {
+      label: t('dynasty.next.hand'),
+      detail: t('dynasty.next.handSoon'),
+      accent: INK_UI.softBrush,
+      muted: true,
+    },
+    {
+      label: t('dynasty.next.companions'),
+      detail: t('dynasty.next.companionsSoon'),
+      accent: INK_UI.softBrush,
+      muted: true,
+    },
+    {
+      label: t('dynasty.next.code'),
+      detail: prompt.codes > 0
+        ? t('dynasty.next.codeSome', { n: prompt.codes })
+        : t('dynasty.next.codeNone'),
+      accent: prompt.codes > 0 ? INK_UI.jade : INK_UI.softBrush,
+      muted: prompt.codes === 0,
+    },
+  ];
+
+  const room = buttonY - content.y - 8;
+  const rowH = Math.max(40, Math.min(64, Math.floor((room - (rows.length - 1) * 8) / rows.length)));
+  let y = content.y + Math.max(0, Math.round((room - (rowH * rows.length + (rows.length - 1) * 8)) / 2));
+
+  rows.forEach((row) => {
+    self.modalLayer.add(self.ui.panel({ x: content.x, y, width: content.width, height: rowH },
+      { border: INK_UI.softBrush, fillAlpha: row.muted ? 0.28 : 0.5 }));
+    const edge = self.add.graphics();
+    edge.fillStyle(row.accent, row.muted ? 0.5 : 0.9);
+    edge.fillRect(content.x + 1.5, y + 5, 2.5, rowH - 10);
+    self.modalLayer.add(edge);
+    self.modalLayer.add(self.ui.label(content.x + 12, y + 7, row.label, 'label', { fontSize: '12px' }));
+    self.modalLayer.add(self.ui.label(content.x + 12, y + 24, row.detail, 'caption',
+      { fontSize: '9.5px', wordWrap: { width: content.width - 24 } }));
+    y += rowH + 8;
+  });
+
+  self.modalLayer.add(self.ui.button(
+    { x: content.x, y: buttonY, width: content.width, height: 46 },
+    t('dynasty.next.begin'),
+    () => self.events.emit('ui:restart-ascent'),
+    { variant: 'primary', fontSize: '15px' },
+  ));
+  self.modalLayer.add(self.ui.button(
+    { x: content.x, y: buttonY + 54, width: content.width, height: 28 },
+    t('dynasty.next.leave'),
     () => self.events.emit('ui:exit-to-menu'),
     { variant: 'ghost', fontSize: '12px' },
   ));

@@ -304,6 +304,10 @@ export function promptSignature(prompt: AscentPrompt): string {
     case 'mandate': return `mandate:${prompt.options.join(',')}`;
     case 'founder': return prompt.options.join(',');
     case 'run-over': return `${prompt.score}`;
+    // The offer is the identity: the two rolled traits are what the player is deciding between,
+    // and a second pick at the same level is a different card with the same level number on it.
+    case 'dynasty-level': return `${prompt.level}:${prompt.options.join(',')}:${prompt.remaining}`;
+    case 'next-reign': return `${prompt.level}:${prompt.founderCount}:${prompt.traits.join(',')}`;
   }
 }
 

@@ -8,7 +8,7 @@ import { OPENING_BOONS } from '../data/ascentCards';
 import { computeCentroid, computeNeighbors, generateHexMap, type MapGenConfig } from '../map/hexMapGenerator';
 import { refreshAllLandOutputs } from '../systems/ResourceSystem';
 import { refreshPlayerVisibility } from '../systems/LandSystem';
-import { createInitialCourtState } from '../systems/CourtSystem';
+import { addCourtModifier, createInitialCourtState } from '../systems/CourtSystem';
 import { recomputeOpinion } from '../systems/DiplomacySystem';
 import { createInitialMandate } from '../systems/empire/MandateSystem';
 import { initDirectives } from '../systems/empire/DirectiveSystem';
@@ -17,6 +17,7 @@ import { computeAscentPower, contestedDefencePower } from '../systems/ascent/Pow
 import { projectedWaveThreat } from '../systems/ascent/WaveDirector';
 import { getFounderPool } from './codex';
 import { applyLegacyPerks } from './legacy';
+import { founderOptionCount, hasTrait } from './dynasty';
 import { initEmpireSim } from '../systems/empire/GreatPowersSystem';
 import type { Army, CampaignConfig, GameState, Hero, Kingdom, Land, LandTemplate, ResourceBag, TerrainSummary } from './types';
 import { landTypeLabel, t } from '../i18n';
@@ -688,8 +689,7 @@ export function createAscentGameState(config: CampaignConfig): GameState {
   return state;
 }
 
-/** Champions offered on the founding card, and advantages on the card before it. */
-const FOUNDER_OPTION_COUNT = 3;
+/** Advantages offered on the card before the founding. */
 const MANDATE_OPTION_COUNT = 3;
 
 /**
@@ -725,7 +725,7 @@ const FOUNDER_RECORDED_CAP = 1;
  * are what the player is actually choosing between. Thirty-two of them are generals, so an
  * unfiltered draw serves three interchangeable ones often enough to matter.
  */
-function pickFounderOptions(candidates: Hero[]): string[] {
+function pickFounderOptions(candidates: Hero[], wanted: number): string[] {
   const picked: Hero[] = [];
   const roles = new Set<Hero['type']>();
   const ranks = new Set<Hero['rarity']>();
@@ -736,17 +736,17 @@ function pickFounderOptions(candidates: Hero[]): string[] {
     ranks.add(hero.rarity);
   };
   for (const hero of candidates) {
-    if (picked.length >= FOUNDER_OPTION_COUNT) break;
+    if (picked.length >= wanted) break;
     if (roles.has(hero.type) || ranks.has(hero.rarity)) continue;
     take(hero);
   }
   for (const hero of candidates) {
-    if (picked.length >= FOUNDER_OPTION_COUNT) break;
+    if (picked.length >= wanted) break;
     if (picked.includes(hero) || roles.has(hero.type)) continue;
     take(hero);
   }
   for (const hero of candidates) {
-    if (picked.length >= FOUNDER_OPTION_COUNT) break;
+    if (picked.length >= wanted) break;
     if (!picked.includes(hero)) take(hero);
   }
 
@@ -776,7 +776,10 @@ function offerFounderChoice(state: GameState): void {
   const candidates = fresh.length > 0
     ? [...known.slice(0, FOUNDER_RECORDED_CAP), ...shuffled([...known.slice(FOUNDER_RECORDED_CAP), ...fresh])]
     : known;
-  const options = pickFounderOptions(candidates);
+  // Three, or five when the house has learned Second Founder (`dynastyTraits`). Read off the
+  // dynasty store rather than off `GameState`, because a trait chosen in the ceremony has to be
+  // true for the very run the ceremony is about to start.
+  const options = pickFounderOptions(candidates, founderOptionCount());
 
   if (options.length > 0) {
     enqueueAscentPrompt(state, { kind: 'founder', options });
@@ -902,6 +905,28 @@ function seedAscentOpening(state: GameState): void {
     { type: 'market', level: 2 },
     { type: 'farm', level: 2 },
   ];
+
+  /**
+   * Old Roads (`dynastyTraits`): the realm opens holding the trade two more districts would have
+   * brought.
+   *
+   * Expressed as a market-output modifier through the ordinary court pipeline rather than as a
+   * pile of starting gold, because a lump sum is spent in the first two seasons and then the trait
+   * is over. +12% of the *market's* gold is roughly two more districts' counting houses against
+   * the seat's own two levels — measured against the opening's stated +5..+9 a tick, it is worth
+   * about a gold a season at the founding and scales with what the player actually builds.
+   *
+   * Inside the trait budget: this is the only compounding term in the table, it touches gold and
+   * nothing that fights, and `EARLY_WAVE_FIELD_SHARE` caps what waves 1-5 may field against the
+   * head start it buys.
+   */
+  if (hasTrait('old-roads')) {
+    addCourtModifier(state, {
+      id: 'dynasty-old-roads',
+      label: t('dynasty.trait.old-roads'),
+      marketGoldOutputModifier: 0.12,
+    });
+  }
 
   const king = state.heroes[0];
   const soldiers = 460;

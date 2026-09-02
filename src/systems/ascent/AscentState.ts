@@ -98,6 +98,11 @@ export function createAscentState(): AscentState {
  */
 const PROMPT_PRIORITY: Record<AscentPromptKind, number> = {
   'run-over': 0,
+  // The ceremony, in the order it is walked. Both are raised by hand on the terminal path rather
+  // than queued behind anything, so these numbers only ever decide a tie against a card the run
+  // had already banked — and the ceremony wins it, because there is nothing left to answer.
+  'dynasty-level': 0.1,
+  'next-reign': 0.2,
   mandate: 0.5,
   founder: 1,
   'wave-result': 2,

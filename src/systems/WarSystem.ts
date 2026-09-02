@@ -29,6 +29,7 @@ import {
   refreshAllLandOutputs,
 } from './ResourceSystem';
 import { getCourtBonuses } from './CourtSystem';
+import { hasTrait } from '../state/dynasty';
 import { eraIndex } from './empire/MandateSystem';
 import {
   ARMY_DRILL_FOOD_BASE,
@@ -910,9 +911,7 @@ export function queueRecruitment(
     return false;
   }
 
-  const barracksLevel = getBarracksLevel(capital);
-  const perTick = RECRUIT_BASE_PER_TICK * (1 + barracksLevel * RECRUIT_BARRACKS_BONUS) * courtBonuses.recruitSpeedMult;
-  const required = Math.max(1, Math.ceil(total / perTick));
+  const required = musterTicks(state, total, getBarracksLevel(capital), courtBonuses.recruitSpeedMult);
 
   applyResourceDelta(state, {
     humans: -total, food: -rationsCost, supplies: -(suppliesCost + provisionsCost), gold: -goldCost,
@@ -937,6 +936,23 @@ export function queueRecruitment(
   refreshAllLandOutputs(state);
   state.message = t('msg.recruitingArmy', { total, land: capital.name, ticks: required, tickLabel: tickLabel(required) });
   return true;
+}
+
+/**
+ * Seasons a muster of `total` men takes at this province.
+ *
+ * One arithmetic, called by both `queueRecruitment` and `getMusterEstimate`, so the form can never
+ * quote a number the muster then disagrees with — the two used to carry identical copies of it,
+ * which is exactly the shape a divergence hides in.
+ *
+ * Quartermaster (`dynastyTraits`) takes a season off, floored at one. Tempo, not power: the men
+ * are the same men and cost the same, they simply stand up sooner — which is the difference
+ * between answering the wave that is coming and answering the one after it.
+ */
+function musterTicks(state: GameState, total: number, barracksLevel: number, speedMult: number): number {
+  const perTick = RECRUIT_BASE_PER_TICK * (1 + barracksLevel * RECRUIT_BARRACKS_BONUS) * speedMult;
+  const base = Math.ceil(total / perTick);
+  return Math.max(1, base - (state.gameMode === 'ascent' && hasTrait('quartermaster') ? 1 : 0));
 }
 
 /** The province a new host would muster at — the same choice `queueRecruitment` makes. */
@@ -967,9 +983,7 @@ export function getMusterEstimate(state: GameState, soldiers: number): {
   const suppliesCost = state.gameMode === 'ascent'
     ? Math.ceil(priced.supplies * courtBonuses.recruitmentSupplyCostMult)
     : Math.max(5, Math.ceil((total / 130) * courtBonuses.recruitmentSupplyCostMult));
-  const barracksLevel = land ? getBarracksLevel(land) : 0;
-  const perTick = RECRUIT_BASE_PER_TICK * (1 + barracksLevel * RECRUIT_BARRACKS_BONUS) * courtBonuses.recruitSpeedMult;
-  const ticks = Math.max(1, Math.ceil(total / perTick));
+  const ticks = musterTicks(state, total, land ? getBarracksLevel(land) : 0, courtBonuses.recruitSpeedMult);
   const training = land ? getRecruitmentOrder(state, land.id) : undefined;
   return {
     land,

@@ -214,7 +214,11 @@ export function refresh(self: ConquestUIScene): void {
   // straight from the battlefield to the end of the run, which is exactly what "it doesn't show
   // any results, it jumps immediately to the last page" describes. Every other card can wait its
   // turn behind the Reckoning; this one cannot wait behind anything, because nothing follows it.
-  const runEnding = prompt?.kind === 'run-over';
+  // The whole ceremony counts, not only the Reckoning: a story outcome or a war board that
+  // pushed in front of the dynasty card would strand the player mid-chain with no way back to it.
+  const runEnding = prompt?.kind === 'run-over'
+    || prompt?.kind === 'dynasty-level'
+    || prompt?.kind === 'next-reign';
   if (runEnding && self.state.ascent?.pendingAftermath && !overlayOpen) {
     self.openAftermath();
     return;

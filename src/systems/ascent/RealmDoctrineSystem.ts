@@ -1,6 +1,7 @@
 import { eraIndex } from '../empire/MandateSystem';
 import { pushToast } from '../empire/notifications';
 import { enqueueAscentPrompt } from './AscentState';
+import { hasTrait } from '../../state/dynasty';
 import { t } from '../../i18n';
 import type { AscentDoctrine, AscentRarity, EraId, GameState } from '../../state/types';
 
@@ -59,9 +60,44 @@ const PROFILES: Record<AscentDoctrine, DoctrineProfile> = {
   arm: { gold: 0.85, food: 1.3, supplies: 1.4, defence: 0.7, hosts: 2, claimInterval: 1.2, militia: 0.9, draftLean: 'jade' },
 };
 
+/**
+ * The realm's standing course, as one profile.
+ *
+ * With Twin Doctrine (`dynastyTraits`) the realm may hold two at once, and they are *composed*
+ * here rather than read separately: the multiplicative terms multiply and the additive host count
+ * adds, so every reader below — output, defence, claim interval, militia — keeps working with no
+ * knowledge that a second slot exists. That is the whole of the trait's cost.
+ *
+ * Two lopsided profiles multiplied are deliberately not two profiles' worth of strength: `fortify`
+ * with `enrich` runs 1.44 gold and 1.76 defence but also 1.2 claim interval and −1 host, so a pair
+ * is a sharper realm rather than a strictly better one. Nothing here touches battle power, which
+ * is what keeps the trait inside the table's budget.
+ */
 function profile(state: GameState): DoctrineProfile | undefined {
-  const doctrine = state.ascent?.doctrine;
-  return doctrine ? PROFILES[doctrine] : undefined;
+  const first = state.ascent?.doctrine;
+  if (!first) return undefined;
+  const second = state.ascent?.doctrine2;
+  if (!second || second === first) return PROFILES[first];
+  const a = PROFILES[first];
+  const b = PROFILES[second];
+  return {
+    gold: a.gold * b.gold,
+    food: a.food * b.food,
+    supplies: a.supplies * b.supplies,
+    defence: a.defence * b.defence,
+    hosts: a.hosts + b.hosts,
+    claimInterval: a.claimInterval * b.claimInterval,
+    militia: a.militia * b.militia,
+    // The first course still names the lean: two leans at once is no lean at all, and the draft
+    // table is the one place a doctrine has to stay legible.
+    draftLean: a.draftLean,
+  };
+}
+
+/** True when a second course may stand beside the first — the trait, from the second era on. */
+export function twinDoctrineOpen(state: GameState): boolean {
+  const era = state.mandate?.era;
+  return hasTrait('twin-doctrine') && era !== undefined && eraIndex(era) >= 1;
 }
 
 /** Multiplier this doctrine puts on one resource's build value. 1 when none is set. */
@@ -165,7 +201,15 @@ export function resolveDoctrine(state: GameState, choiceId: string): boolean {
  */
 export function adoptDoctrine(state: GameState, doctrine: AscentDoctrine): void {
   const ascent = state.ascent;
-  if (!ascent || ascent.doctrine === doctrine) return;
+  if (!ascent || ascent.doctrine === doctrine || ascent.doctrine2 === doctrine) return;
+  // Twin Doctrine fills the empty second slot rather than overwriting the first; once both stand,
+  // a further choice replaces the second, so the founding course is the one the house keeps.
+  if (ascent.doctrine && twinDoctrineOpen(state)) {
+    ascent.doctrine2 = doctrine;
+    ascent.laneState.lastDecisionTurn.court = state.turn;
+    pushToast(state, t('ascent.doctrine.set', { name: doctrineName(doctrine) }), 'milestone');
+    return;
+  }
   ascent.doctrine = doctrine;
   ascent.laneState.lastDecisionTurn.court = state.turn;
   pushToast(state, t('ascent.doctrine.set', { name: doctrineName(doctrine) }), 'milestone');

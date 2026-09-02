@@ -13,6 +13,7 @@ import { addAscentXp, computeAscentPower, engineTerm } from './PowerSystem';
 import { chargeAmbition } from './AmbitionSystem';
 import { doctrineDraftBonus } from './RealmDoctrineSystem';
 import { enqueueAscentPrompt } from './AscentState';
+import { hasTrait } from '../../state/dynasty';
 import { t } from '../../i18n';
 import type { AscentState, CourtModifier, GameState, PowerCardDef } from '../../state/types';
 
@@ -91,7 +92,11 @@ export function rollPowerDraftCards(state: GameState): string[] {
   const ready = pool.find((card) => isEvolutionReady(ascent, card));
   if (ready) picks.push(ready.id);
 
-  while (picks.length < DRAFT_CARD_COUNT && picks.length < pool.length) {
+  // Wide Draft (`dynastyTraits`) lays out one card more. An option count, not a power increase:
+  // a fifth card cannot make the realm stronger than the fourth already could, it only makes the
+  // build the player was reaching for reachable more often.
+  const wanted = DRAFT_CARD_COUNT + (hasTrait('wide-draft') ? 1 : 0);
+  while (picks.length < wanted && picks.length < pool.length) {
     const candidates = pool.filter((card) => !picks.includes(card.id));
     const index = weightedPickIndex(
       candidates.map((card) => {
@@ -128,7 +133,12 @@ export function offerPowerDraft(state: GameState): void {
 
   // Priced off the run's progress, not flat: gold income compounds steeply, and a fixed
   // 40g reroll is free money by the time the realm holds a dozen provinces.
-  ascent.rerollCost = rerollPriceFor(ascent.level);
+  //
+  // First Reroll Free (`dynastyTraits`) opens each draft at nothing. Priced rather than counted:
+  // there is no per-draft "free reroll used" flag to keep in step with supersede, reload and the
+  // level-up that opens a second draft — the zero *is* the state, and `rerollPowerDraft` puts the
+  // real price back the moment it is spent.
+  ascent.rerollCost = hasTrait('first-reroll-free') ? 0 : rerollPriceFor(ascent.level);
   enqueueAscentPrompt(state, {
     kind: 'power-draft',
     cards,
@@ -147,7 +157,10 @@ export function rerollPowerDraft(state: GameState): boolean {
   if (!canSpend(state, cost)) return false;
 
   applyResourceDelta(state, { gold: -ascent.rerollCost });
-  ascent.rerollCost = Math.round(ascent.rerollCost * REROLL_COST_MULT);
+  // A free first reroll returns to the ordinary opening price, not to zero doubled.
+  ascent.rerollCost = ascent.rerollCost <= 0
+    ? rerollPriceFor(ascent.level)
+    : Math.round(ascent.rerollCost * REROLL_COST_MULT);
 
   const cards = rollPowerDraftCards(state);
   if (cards.length > 0) {

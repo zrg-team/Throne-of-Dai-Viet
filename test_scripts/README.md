@@ -24,6 +24,7 @@ A dev server must already be running — **no harness starts one** — and every
 ```bash
 node test_scripts/gate/smoke.mjs                    # every mode boots, ticks, draws — ~40 s
 node test_scripts/verify/verify-ascent.mjs          # the Dragon Ascent loop end to end
+node test_scripts/verify/verify-dynasty.mjs         # the Tong Pha ledger: XP banks once, the ceremony walks, every trait is read
 node test_scripts/verify/verify-invasion-lifecycle.mjs  # every invasion announces its start and its end
 node test_scripts/verify/verify-invasion-reach.mjs      # a wave that is sent can walk to the realm, and does
 node test_scripts/verify/verify-war-visibility.mjs      # the war reaches the bar, the map and the advisor — nothing falls silently

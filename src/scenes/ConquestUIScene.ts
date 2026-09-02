@@ -972,6 +972,8 @@ export class ConquestUIScene extends Phaser.Scene {
   }
 
   showRunOver(prompt: Extract<AscentPrompt, { kind: 'run-over' }>): void { promptsRun.showRunOver(this, prompt); }
+  showDynastyLevel(prompt: Extract<AscentPrompt, { kind: 'dynasty-level' }>): void { promptsRun.showDynastyLevel(this, prompt); }
+  showNextReign(prompt: Extract<AscentPrompt, { kind: 'next-reign' }>): void { promptsRun.showNextReign(this, prompt); }
 
   /* ------------------------------------------------------------- prompts story */
 

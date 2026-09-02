@@ -1881,6 +1881,42 @@ export type AscentPrompt =
       reignDetail?: string;
     }
   /**
+   * The house grows: one dynasty level, two traits, one pick.
+   *
+   * Step two of the run-over **ceremony**, raised on the terminal path after the Reckoning and
+   * never through the decision director — its per-kind cooldowns and court-phase window would
+   * happily swallow or delay a card the player must answer before the run can end.
+   *
+   * Two options and no reroll, on purpose: a pick has to be a fork, not a menu. The un-taken six
+   * wait for later levels.
+   */
+  | {
+      kind: 'dynasty-level';
+      level: number;
+      /** The run score that bought this level — the card is shown while the run is still warm. */
+      score: number;
+      /** Trait ids, exactly two (fewer only when the table is nearly exhausted). */
+      options: string[];
+      /** Picks still queued behind this one, so the card can say a second is coming. */
+      remaining: number;
+    }
+  /**
+   * The last step of the ceremony: what the next reign opens holding.
+   *
+   * A summary, not a decision — "go again" has to visibly mean "go again *with*". The empty
+   * opening-hand and companion rows are deliberate: the screen teaches the shape of what Phases
+   * 3 and 4 will put in them before either exists.
+   */
+  | {
+      kind: 'next-reign';
+      /** Champions the founding card will deal — 5 with Second Founder, otherwise 3. */
+      founderCount: number;
+      traits: string[];
+      level: number;
+      /** Ancestral-code articles already law at the founding. */
+      codes: number;
+    }
+  /**
    * One fragment of a running story, speaking loudly enough to stop the world.
    *
    * Carries no beat number and no total, on purpose: the player must not be able to tell
@@ -2740,8 +2776,23 @@ export interface AscentState {
   knownEdictIds?: string[];
   /** What kind of realm the player has told the autopilot to build. Unset until the first choice. */
   doctrine?: AscentDoctrine;
+  /**
+   * The second course, held beside the first (Twin Doctrine, `dynastyTraits`).
+   *
+   * Composed with `doctrine` rather than replacing it: the multiplicative terms multiply and the
+   * additive host count adds, so every existing reader — output, defence, claim interval, militia,
+   * draft lean — keeps working with no knowledge that a second slot exists.
+   */
+  doctrine2?: AscentDoctrine;
   /** Eras whose doctrine card has already been offered, so each era asks exactly once. */
   doctrineErasAsked?: EraId[];
+  /**
+   * How far through the run-over ceremony this state has walked.
+   *
+   * On `AscentState` and not on the store, because it is about *this* run ending, not about the
+   * house: a reload lands on the menu and the ceremony is over regardless.
+   */
+  ceremonyStage?: 'reckoning' | 'levels' | 'reign' | 'done';
   /** Champions whose `arrival` has already fired, by hero id. Not a flag on the Hero: a hero
    *  re-cloned out of the deck would lose it, and this is also what the run summary counts. */
   arrivalsFired?: string[];

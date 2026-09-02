@@ -7,6 +7,7 @@ import { traceLandBoundaryLoops } from '../map/boundary';
 import { advanceAscentTick } from '../systems/ascent/AscentTick';
 import { rerollAscentDraft, resolveAscentPrompt } from '../systems/ascent/AscentResolver';
 import { drainAscentPrompts } from '../systems/ascent/AscentState';
+import { advanceCeremony } from '../systems/ascent/Ceremony';
 import { offerConquestMethods } from '../systems/ascent/ConquestSystem';
 import { offerEnvoyTo } from '../systems/ascent/EnvoySystem';
 import { applyAppointment, offerAppointment, offerLawChoice } from '../systems/ascent/CourtLaneSystem';
@@ -316,6 +317,28 @@ export class ConquestScene extends MapScene {
       this.scene.start('ConquestScene', {
         state: createAscentGameState({ seaSides: 1, difficulty: 'normal' }),
       });
+    });
+
+    /**
+     * The run-over ceremony, one step per press of "go again".
+     *
+     * The Reckoning's primary button lands here rather than on `ui:restart-ascent`, and only the
+     * *last* step of the chain restarts. A run that earned no level still gets the closing screen:
+     * "go again" has to visibly mean "go again *with*", and a page that appears only on the runs
+     * that levelled would teach the player nothing on the runs that did not. `advanceCeremony`
+     * returns false only once every step has been walked, and then the run restarts.
+     *
+     * Deliberately not driven from a tick: the run is over, the state is terminal and paused, and
+     * routing these cards through the decision director would let its cooldowns delay a step the
+     * player is standing in front of.
+     */
+    this.onUi('ui:ascent-ceremony', () => {
+      if (advanceCeremony(this.state)) {
+        this.refresh();
+        ui.events.emit('state-changed');
+        return;
+      }
+      ui.events.emit('ui:restart-ascent');
     });
 
     this.onUi('ui:ascent-choice', (choiceId: string) => {
