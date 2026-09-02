@@ -103,6 +103,7 @@ export const enCoronation = {
 
   'coronation.temple': 'The Temple',
   'coronation.temple.note': 'Re-dress your king any time. Looks change freely; the reign’s record never does.',
+  'coronation.temple.sub': 'Re-dress your king',
   'coronation.temple.save': 'Keep this dress',
   'coronation.temple.discard': 'Discard',
   'coronation.temple.uncrowned': 'No king has been crowned yet. The Coronation opens with your next Dragon Ascent run.',
@@ -248,6 +249,7 @@ export const viCoronation: Record<keyof typeof enCoronation, string> = {
 
   'coronation.temple': 'Thái Miếu',
   'coronation.temple.note': 'Thay y phục cho đức vua bất cứ lúc nào. Dung mạo đổi được; sử sách thì không.',
+  'coronation.temple.sub': 'Thay y phục cho đức vua',
   'coronation.temple.save': 'Giữ y phục này',
   'coronation.temple.discard': 'Bỏ thay đổi',
   'coronation.temple.uncrowned': 'Chưa có vua nào lên ngôi. Lễ Đăng Quang sẽ mở ở ván Rồng Thăng kế tiếp.',

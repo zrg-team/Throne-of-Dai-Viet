@@ -144,6 +144,19 @@ export class MenuScene extends Phaser.Scene {
   /** The coffee modal, when open. Kept apart from `content` so a re-render underneath cannot orphan it. */
   private modalObjects: Phaser.GameObjects.GameObject[] = [];
   /**
+   * The one container a sheet's furniture lives in, at a depth above everything the page draws.
+   *
+   * Two jobs. It is what the input guard is told a sheet *is* (`registerSheet`), so a release from
+   * a press that began under a sheet is refused by every control outside it — the same rule the
+   * run's HUD has carried since the third *click Close, also click the menu behind* report, and
+   * which this page never had. And its depth puts the sheet's objects at the top of the camera's
+   * render list from their first frame, which is what `InputPlugin.sortGameObjects` ranks hits by:
+   * an object not yet rendered sorts to the *bottom*, so a modal built inside a press handler lost
+   * the same gesture's release to whatever was rendered beneath it. Reproduced on the dynasty
+   * tablet: open the support sheet, release over the tablet under it, and the page changed.
+   */
+  private modalLayer!: Phaser.GameObjects.Container;
+  /**
    * Whether the install hint has already had its turn this visit.
    *
    * Once per page load, not once ever: somebody who has not installed after four visits has said
@@ -305,6 +318,13 @@ export class MenuScene extends Phaser.Scene {
     this.previewFlagSeed = loadSnapshot()?.state.mapConfig.seed ?? Math.floor(Math.random() * 1_000_000);
     this.drawBackground();
     this.drawDriftingLeaves();
+    // Above every page object (they sit at depth <= 0), and registered as the sheet before the
+    // first page is drawn, so nothing this scene builds can predate the guard.
+    this.modalLayer = this.add.container(0, 0).setDepth(900);
+    registerSheet(() => this.modalObjects.length > 0, this.modalLayer);
+    // A sheet's pieces are pushed onto `modalObjects` from a dozen sites; rather than teach each of
+    // them about the layer, anything still loose is adopted before the frame it first appears in.
+    this.events.on(Phaser.Scenes.Events.PRE_RENDER, this.adoptModal, this);
     this.render();
     // The service worker finishes caching, or a new build lands, minutes after this page was
     // drawn. Redrawing on the change is what lets the front page raise its notice and the settings
@@ -323,6 +343,9 @@ export class MenuScene extends Phaser.Scene {
       this.lotusIdleWaveTimer = undefined;
       this.copilot?.destroy();
       this.copilot = undefined;
+      this.events.off(Phaser.Scenes.Events.PRE_RENDER, this.adoptModal, this);
+      // Only this scene's registration — the run's HUD may already have registered its own.
+      forgetSheet(this.modalLayer);
     });
     // After the page, never before it: every rectangle the tour points at is a measured one.
     if (this.mode === 'main' && !hasSeenTour()) {
@@ -2207,6 +2230,19 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private render(): void {
+    /**
+     * **A page rebuilt under a finger must not be pressed by that finger.**
+     *
+     * Every button on this page acts on the press and most of them rebuild the page — Back, the
+     * doors, Classic. Phaser hands the release of that same press to whatever it now finds under
+     * the pointer, and it ranks candidates by *last frame's* render list, so a control built here
+     * is not merely a candidate: it sorts below everything, and a tile, link or tablet that fires
+     * on the release will take it. This is the boundary the run's HUD draws in `beginOverlay`, and
+     * the front page never drew it. See `ui/inputGeneration`.
+     */
+    swallowRestOfPress(this);
+    quietUntilNextFrame(this);
+    bumpInputGeneration();
     // The tour ends when the page it is touring does.
     //
     // `startTour` only runs from `create`, and only on the front page — but `render` changes
@@ -2913,21 +2949,24 @@ export class MenuScene extends Phaser.Scene {
       backgroundColor: 'rgba(243,230,196,0.86)', padding: { x: 4, y: 1 },
     }).setOrigin(0.5, 0);
     this.content.push(note);
-    y += note.height + 8;
+    // 12, not 8: the note carries its own parchment background, and at 8 that band's lower edge
+    // sat on the sheet's top border below it — two pieces of paper touching, which reads as one
+    // torn one.
+    y += note.height + 12;
 
     // The foot is measured before the body so the scroll viewport stops short of it — the rule
     // `promptScrollBody` follows, and the reason a stepper never lands under a button. 58 rather
     // than 46: the row under the fold was touching the buttons at the 620 clamp.
     const foot = sheet.foot();
-    const footHeight = 58;
+    // 72, and the number is the sheet's edge plus a hand-drawn margin. The plate behind the
+    // picker ends six units below the scroll viewport, and both it and the buttons are inked with
+    // wobbling outlines that overshoot their nominal bounds by two or three units each — so a
+    // nominal gap of two is a visible collision, which is what was photographed: the Discard
+    // button's corner sitting inside the sheet's own border. `FOOT_GAP` is that clearance,
+    // measured against the panel rather than against the viewport.
+    const FOOT_GAP = 18;
+    const footHeight = FOOT_GAP + 38 + 16;
     const viewport = Math.max(120, this.pageFloor() - y - footHeight);
-
-    // One sheet of paper behind the whole picker. Every portrait, chip and swatch on it is drawn
-    // for a parchment ground; over the landscape the swatch rows in particular vanish.
-    // Opaque, not near-opaque: at 0.94 the front page's own wordmark showed through the sheet
-    // behind the swatch rows, which is the one place on this page colour has to be judged.
-    this.content.push(this.ui.panel({ x: PAD - 6, y: y - 6, width: W + 12, height: viewport + 12 },
-      { border: INK_UI.softBrush, fillAlpha: 1 }));
 
     const area = this.ui.scrollArea({ x: PAD, y, width: W, height: viewport });
     this.pageScroll = area;
@@ -2936,9 +2975,29 @@ export class MenuScene extends Phaser.Scene {
     // reversed the zone lands on top and eats every tap the steppers were supposed to get.
     area.addTo(layer);
     this.content.push(layer);
-    area.setContentHeight(Math.max(viewport, sheet.draw(area.content, W - 6)));
+    // A little further than the content needs, so the last row can be scrolled clear of the
+    // plate's bottom border instead of ending flush against it.
+    const used = sheet.draw(area.content, W - 6) + 10;
+    area.setContentHeight(Math.max(viewport, used));
 
-    const footY = y + viewport + 8;
+    // One sheet of paper behind the whole picker. Every portrait, chip and swatch on it is drawn
+    // for a parchment ground; over the landscape the swatch rows in particular vanish.
+    // Opaque, not near-opaque: at 0.94 the front page's own wordmark showed through the sheet
+    // behind the swatch rows, which is the one place on this page colour has to be judged.
+    //
+    // **Cut to the content, not to the viewport.** The banner step is a third of the King step's
+    // height, and a full-viewport plate under it left two thirds of a blank page with the buttons
+    // stranded at the bottom of it. Which means the plate can only be sized *after* the content is
+    // drawn — and Phaser's display list is creation-ordered, so a panel built later paints over
+    // the rows it is meant to back. `moveBelow` is the one honest way to have both.
+    const plate = this.ui.panel(
+      { x: PAD - 6, y: y - 6, width: W + 12, height: Math.min(viewport, used) + 12 },
+      { border: INK_UI.softBrush, fillAlpha: 1 },
+    );
+    this.children.moveBelow(plate, layer);
+    this.content.push(plate);
+
+    const footY = y + viewport + FOOT_GAP;
     if (foot.back) {
       this.content.push(this.ui.button({ x: PAD, y: footY, width: Math.round(W * 0.44), height: 38 },
         foot.back.label, foot.back.onTap, { variant: 'ghost', fontSize: '11.5px' }));
@@ -3001,7 +3060,10 @@ export class MenuScene extends Phaser.Scene {
       // The king, his mark, the house line and the Temple door, when there is one — budgeted into
       // the centring rather than appended under it, or the door prints through the back bar on
       // the 620 clamp. 74 for the portrait band, 24 for the house line, 38 + 14 for the button.
-      const crownedBlock = isCrowned(store) ? 74 + 24 + 38 + 14 : 0;
+      // The plate, the gap and the door, budgeted into the centring rather than appended under
+      // it — a control added below a block that has already claimed the room prints through the
+      // back bar on the 620 clamp. Generous by a line: the house line may wrap.
+      const crownedBlock = isCrowned(store) ? 14 + 10 + 68 + 6 + 40 + 12 + 12 + 40 : 0;
       const panelTop = bandTop
         + Math.max(0, Math.round((this.pageFloor() - bandTop - panelHeight - crownedBlock) / 2));
       this.content.push(this.ui.panel({ x: PAD, y: panelTop, width: W, height: panelHeight },
@@ -3021,27 +3083,49 @@ export class MenuScene extends Phaser.Scene {
       // look at the person they just made, which is the whole reason the rite is worth a screen.
       if (isCrowned(store)) {
         const founder = dynastyFounderHero(store);
-        let row = panelTop + panelHeight + 14;
+        const top = panelTop + panelHeight + 14;
+        const houseText = store.house
+          ? t('dynasty.house', { name: store.house })
+          : t('dynasty.houseUnnamed');
+        const houseStyle = { fontSize: '14px', align: 'center', wordWrap: { width: W - 24 } } as const;
+        // **Measured on a throwaway, then destroyed — never on the object that is kept.**
+        //
+        // Two rules meet here and only one order satisfies both. The plate has to be sized to the
+        // house line, because a name that wraps to two lines in Vietnamese pushed it out through
+        // a fixed-height plate and onto the Temple button below. And Phaser's display list is
+        // creation-ordered, so the label has to be *created after* the panel that backs it or the
+        // panel paints straight over it — which is exactly what happened when the measurement and
+        // the drawing were the same object: the house name came out as a ghost under its own
+        // parchment. Both photographed on a 1206x2622 phone.
+        const rule = this.ui.label(0, -9999, houseText, 'label', houseStyle);
+        const houseHeight = rule.height;
+        rule.destroy();
+
+        const plateHeight = 10 + 68 + 6 + houseHeight + 12;
         // On parchment like every other band on this page: the front page's landscape is painted
         // behind this mode, and a portrait and a 14px house name laid straight onto mountains is
         // the same unreadable page the populated sheet had on its first pass.
-        this.content.push(this.ui.panel({ x: PAD, y: row - 6, width: W, height: 74 + 24 + 4 },
+        this.content.push(this.ui.panel({ x: PAD, y: top, width: W, height: plateHeight },
           { border: INK_UI.softBrush, fillAlpha: 0.92 }));
         if (founder) {
           this.content.push(renderHeroFaceInBox(this, founder,
-            { x: GAME_WIDTH / 2 - 34, y: row, width: 68, height: 68 }));
+            { x: GAME_WIDTH / 2 - 38, y: top + 10, width: 68, height: 68 }));
         }
-        const mark = drawHouseBanner(this, houseBanner(), 26, 34);
-        mark.setPosition(GAME_WIDTH / 2 + 44, row + 16);
+        // 34x44 rather than 26x34: below about thirty units the emblem inside the silk averages
+        // to a smudge and the mark reads as a plain coloured shield, which is the one thing a
+        // house mark must not be — the whole point of it is that the player recognises theirs.
+        const mark = drawHouseBanner(this, houseBanner(), 34, 44);
+        mark.setPosition(GAME_WIDTH / 2 + 42, top + 20);
         this.content.push(mark);
-        row += 74;
-        this.content.push(this.ui.label(GAME_WIDTH / 2, row,
-          store.house ? t('dynasty.house', { name: store.house }) : t('dynasty.houseUnnamed'),
-          'label', { fontSize: '14px', align: 'center', wordWrap: { width: W } }).setOrigin(0.5, 0));
-        row += 24;
-        this.content.push(this.ui.button({ x: PAD, y: row, width: W, height: 38 },
+        this.content.push(this.ui.label(GAME_WIDTH / 2, top + 10 + 68 + 6, houseText, 'label', houseStyle)
+          .setOrigin(0.5, 0));
+        // 12 clear of the plate. Buttons on this page sit on their own ground, never against the
+        // edge of the panel above them.
+        this.content.push(this.ui.button({ x: PAD, y: top + plateHeight + 12, width: W, height: 40 },
           t('coronation.temple'), () => { this.mode = 'temple'; this.render(); },
-          { variant: 'secondary', fontSize: '12px', subLabel: t('coronation.temple.note') }));
+          // The short line, not the page's prose: a 40-unit button's second row holds about
+          // twenty-five units of type, and the full note squeezed itself edge to edge.
+          { variant: 'secondary', fontSize: '12px', subLabel: t('coronation.temple.sub') }));
       }
       this.footBackBar();
       return;
@@ -3282,7 +3366,7 @@ export class MenuScene extends Phaser.Scene {
       {
         variant: crowned ? 'secondary' : 'disabled',
         fontSize: '12px',
-        subLabel: crowned ? t('coronation.temple.note') : t('coronation.temple.uncrowned'),
+        subLabel: crowned ? t('coronation.temple.sub') : t('coronation.temple.uncrowned'),
       }));
     y += 46;
 
@@ -4508,6 +4592,7 @@ export class MenuScene extends Phaser.Scene {
     if (arriving) {
       this.revealPage(this.modalObjects);
     }
+    this.adoptModal();
   }
 
   /** A small "Copied ✓" that rises off the button and fades. */
@@ -4523,7 +4608,30 @@ export class MenuScene extends Phaser.Scene {
     });
   }
 
+  /** Moves any sheet furniture still on the page into the sheet's own layer. See `modalLayer`. */
+  private adoptModal(): void {
+    if (this.modalObjects.length === 0) return;
+    let adopted = false;
+    for (const item of this.modalObjects) {
+      const node = item as Phaser.GameObjects.GameObject & { parentContainer?: unknown };
+      if (!node.parentContainer && node.active) {
+        this.modalLayer.add(item);
+        adopted = true;
+      }
+    }
+    if (!adopted) return;
+    // Two guards for the frame the sheet is built in, before it has been drawn: it sorts on top
+    // of the page for input, and nothing is pressable until it has actually been drawn once.
+    liftForInput(this, this.modalObjects);
+    quietUntilNextFrame(this);
+  }
+
   private closeModal(): void {
+    // Same boundary on the way out: the press that closed the sheet does not get to press what
+    // the sheet was covering.
+    swallowRestOfPress(this);
+    quietUntilNextFrame(this);
+    bumpInputGeneration();
     for (const item of this.modalObjects) {
       item.destroy();
     }
@@ -4795,6 +4903,7 @@ export class MenuScene extends Phaser.Scene {
       this.modalObjects.push(numeral, body);
       cursor += stepHeights[index];
     });
+    this.adoptModal();
   }
 
 
