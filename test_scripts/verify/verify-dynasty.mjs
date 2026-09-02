@@ -380,7 +380,8 @@ const sheet = await page.evaluate(() => {
       try {
         menu.mode = 'dynasty';
         menu.render();
-        resolve({ objects: menu.content.length, ok: true });
+        // A title, a scrolling body and the way back; the rows are inside the body.
+        resolve({ objects: menu.content.length + (menu.pageScroll?.content.list.length ?? 0), ok: true });
       } catch (err) {
         resolve({ ok: false, message: String(err && err.message) });
       }
@@ -490,9 +491,14 @@ console.log('\n=== RESPEC ===');
   await seat.waitForTimeout(1200);
 
   // Read the display list for the row's own bounds; a fixed offset taps the gap between two rows.
+  //
+  // The sheet's rows live inside its scrolling body rather than directly on the page — see the note
+  // on `renderDynastySheet` — so both are walked. Their `getBounds()` are world coordinates either
+  // way, which is what the tap needs.
   const findRespec = () => seat.evaluate(() => {
     const menu = window.__phaserGame.scene.getScene('MenuScene');
-    for (const obj of menu.content) {
+    const rows = [...menu.content, ...(menu.pageScroll?.content.list ?? [])];
+    for (const obj of rows) {
       if (!obj.list) continue;
       const text = obj.list.find((part) => part.type === 'Text');
       if (text && /Renounce/i.test(text.text)) {
@@ -502,9 +508,12 @@ console.log('\n=== RESPEC ===');
     }
     return null;
   });
-  const noteText = () => seat.evaluate(() => window.__phaserGame.scene.getScene('MenuScene').content
-    .filter((o) => o.type === 'Text' && /ascension|table|biography/i.test(o.text))
-    .map((o) => o.text).join(' | '));
+  const noteText = () => seat.evaluate(() => {
+    const menu = window.__phaserGame.scene.getScene('MenuScene');
+    return [...menu.content, ...(menu.pageScroll?.content.list ?? [])]
+      .filter((o) => o.type === 'Text' && /ascension|table|biography/i.test(o.text))
+      .map((o) => o.text).join(' | ');
+  });
   const goto = (mode) => seat.evaluate((m) => {
     const menu = window.__phaserGame.scene.getScene('MenuScene');
     menu.mode = m;
@@ -632,7 +641,8 @@ console.log('\n=== VIETNAMESE ===');
     try {
       menu.mode = 'dynasty';
       menu.render();
-      return menu.content.length;
+      // Title, scrolling body and the way back on the page; the rows are inside the body.
+      return menu.content.length + (menu.pageScroll?.content.list.length ?? 0);
     } catch {
       return -1;
     }
@@ -706,7 +716,8 @@ console.log('\n=== REACHABILITY ===');
           const H = window.__phaserGame.scale.gameSize.height;
           const labels = [];
           let lowest = 0;
-          for (const obj of menu.content) {
+          const rows = [...menu.content, ...(menu.pageScroll?.content.list ?? [])];
+          for (const obj of rows) {
             const box = obj.getBounds?.();
             if (box && box.height > 0 && box.height < 120) lowest = Math.max(lowest, box.bottom);
             const text = obj.list
@@ -730,7 +741,8 @@ console.log('\n=== REACHABILITY ===');
           const menu = window.__phaserGame.scene.getScene('MenuScene');
           menu.mode = 'dynasty';
           menu.render();
-          return menu.content.some((obj) => {
+          const rows = [...menu.content, ...(menu.pageScroll?.content.list ?? [])];
+          return rows.some((obj) => {
             const text = obj.list
               ? obj.list.filter((part) => part.type === 'Text').map((part) => part.text).join(' ')
               : obj.text;

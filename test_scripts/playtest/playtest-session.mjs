@@ -36,9 +36,23 @@ await startRenderedRun(page, SEED);
 
 /** The live state, plus everything that is legible on screen right now. */
 const look = () => page.evaluate(() => {
+  // Trap 2 from the harness notes: the resident MenuScene nulls `__mandateState` mid-run, and a
+  // probe trusting the global loses the run and reads the world as zeros. Recover it from the
+  // scene's own `.state` and put the global back, which also heals `render_game_to_text` and
+  // `__ptOptions` in the same move.
+  if (!window.__mandateState) {
+    const conquest = window.__phaserGame.scene.getScene('ConquestScene');
+    if (conquest?.state) window.__mandateState = conquest.state;
+  }
   const state = window.__mandateState;
-  const text = JSON.parse(window.render_game_to_text());
   const scene = window.__phaserGame.scene.getScene('ConquestUIScene');
+  // The UI scene rebuilds between the founding prompts, and for a frame `modalLayer` (or the
+  // state itself) is not there — a look() in that frame must read as "nothing on screen", not
+  // crash the session or report a run of zeros as a defeat.
+  if (!state?.ascent || !scene?.modalLayer?.list) {
+    return { kind: null, options: null, onCard: [], power: 0, threat: 0, defence: 0, wave: 0, level: 0, gold: 0, food: 0, lands: 0, armies: 0, heroes: 0, battleOpen: false, message: null, defeated: false, barVisible: false, modalObjects: 0 };
+  }
+  const text = JSON.parse(window.render_game_to_text());
   // Every string the player can actually read on the open card.
   const onCard = scene.modalLayer.list
     .flatMap((o) => (o.type === 'Text' ? [o] : (o.list ?? []).filter((c) => c.type === 'Text')))
@@ -61,7 +75,7 @@ const look = () => page.evaluate(() => {
     battleOpen: !!state.ascent.activeBattle,
     message: text.message,
     defeated: !!state.isDefeated,
-    barVisible: scene.actionBar.visible,
+    barVisible: scene.actionBar?.visible ?? false,
     modalObjects: scene.modalLayer.list.length,
   };
 });
@@ -90,7 +104,7 @@ const targets = () => page.evaluate(() => {
       if (child.list) walk(child);
     }
   };
-  walk(scene.modalLayer);
+  if (scene?.modalLayer) walk(scene.modalLayer);
   // Top to bottom, so "the first option" means the one a player reads first.
   return out.sort((a, b) => a.y - b.y);
 });
@@ -138,7 +152,11 @@ while (Date.now() < deadline) {
     }
     const target = hits[Math.min(index, hits.length - 1)];
     if (target) {
-      await page.mouse.click(target.x, target.y);
+      // Held, not clicked: `optionCard` refuses a press shorter than CARD_HOLD_MS (70ms), and
+      // `mouse.click`'s zero-length press is exactly the brush that guard exists to ignore. A
+      // zero-delay driver looped on the first appointment card 375 times in eight minutes while
+      // reporting 377 "decisions". 120ms is where a deliberate human tap rests.
+      await page.mouse.click(target.x, target.y, { delay: 120 });
       await page.waitForTimeout(420);
     } else {
       // Nothing tappable on an open card is a bug worth failing loudly for.

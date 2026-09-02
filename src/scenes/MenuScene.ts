@@ -21,7 +21,7 @@ import {
 } from '../pwa/install';
 import { createMapItemRenderer, type MapItemRenderer } from '../ui/MapItemRenderer';
 import { createMapRenderer, type MapRenderer } from '../ui/MapRenderer';
-import { BACK_BAR_HEIGHT, InkUI, INK_UI, INK_UI_HEX, type UIBounds } from '../ui/InkUI';
+import { BACK_BAR_BAND, BACK_BAR_HEIGHT, InkUI, INK_UI, INK_UI_HEX, type InkScrollArea, type UIBounds } from '../ui/InkUI';
 import {
   BATTLE_DIFFICULTIES, BATTLE_SPEEDS, getBattleDifficulty, getBattleSpeed,
   setBattleDifficulty, setBattleSpeed,
@@ -158,6 +158,14 @@ export class MenuScene extends Phaser.Scene {
    * precisely the information the decision needs. Cleared by anything that leaves the page.
    */
   private respecArmed = false;
+  /**
+   * The scrolling body of whichever sub-page has one, so `clearContent` can dispose it.
+   *
+   * An `InkScrollArea` that is never destroyed leaves its global wheel handler hooked to a dead
+   * scene — the same trap the prompt frames document. `this.content` holds the layer it draws into,
+   * which destroys the objects but not the listener.
+   */
+  private pageScroll?: InkScrollArea;
   /**
    * The page currently drawn, which is not always the page `render` is about to draw.
    *
@@ -2277,6 +2285,30 @@ export class MenuScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * The way back, at the foot of the sheet — the same place on every page that has one.
+   *
+   * Each sub-page used to place it wherever its own content happened to stop: `cursor + 6` on the
+   * classic page, `y + 6` on the shop, a clamped `vy(726)` on the ledger, a hardcoded `vy(690)` on
+   * the confirm. On a short page that parks the control halfway up the sheet with a third of a
+   * screen of nothing under it — reported as *"back button should not show in that place"* — and it
+   * moves between pages, so the one control that is on all of them is the one that never sits still.
+   *
+   * `GuideScene` and `HistoryScene` already do this: *"The way back sits at the foot; the list gives
+   * up `BACK_BAR_BAND` to clear it."* This is that rule, for the menu's own pages.
+   */
+  private footBackBar(): void {
+    this.content.push(this.ui.backBar(GAME_HEIGHT - BACK_BAR_BAND, () => {
+      this.mode = 'main';
+      this.render();
+    }));
+  }
+
+  /** The band a menu sub-page may draw in: under the wordmark, above the way back. */
+  private pageFloor(): number {
+    return GAME_HEIGHT - BACK_BAR_BAND - 12;
+  }
+
   private renderPage(): void {
     // Leaving the dynasty sheet disarms the respec — an armed destructive control must never
     // survive a navigation and be waiting, already half-pressed, when the player comes back.
@@ -2668,7 +2700,9 @@ export class MenuScene extends Phaser.Scene {
    * climbed on top of each other. Each one now starts below the last one actually ended.
    */
   private renderClassic(): void {
-    let cursor = this.vy(250);
+    const bandTop = this.vy(250);
+    let cursor = bandTop;
+    const built: Phaser.GameObjects.Container[] = [];
     const title = this.add.text(GAME_WIDTH / 2, cursor, t('ascent.menu.classicTitle'), {
       color: '#2a2118',
       fontFamily: TITLE_FONT,
@@ -2730,15 +2764,30 @@ export class MenuScene extends Phaser.Scene {
         };
       }
       cursor += (card.getData('cardHeight') as number) + 14;
+      built.push(card);
+    }
+
+    /**
+     * Centred in the band between the wordmark and the way back.
+     *
+     * The page offers one card. Laid out from the top it sat under the title with half a screen of
+     * nothing beneath it, which reads as a page that failed to finish loading rather than a page
+     * with one thing on it. Shifted after the fact rather than placed there, because `InkUI.card`
+     * grows to whatever its body wraps to — a line longer in Vietnamese — and only the card knows
+     * how tall it ended up.
+     */
+    const blockHeight = cursor - 14 - bandTop;
+    const shift = Math.max(0, Math.round((this.pageFloor() - bandTop - blockHeight) / 2));
+    if (shift > 0) {
+      title.setY(title.y + shift);
+      for (const card of built) card.setY(card.y + shift);
+      if (this.tourTargets.skirmish) this.tourTargets.skirmish.y += shift;
     }
 
     // First time on this page, once: what a skirmish is and how one is won.
     this.startClassicTour();
 
-    this.content.push(this.ui.backBar(cursor + 6, () => {
-      this.mode = 'main';
-      this.render();
-    }));
+    this.footBackBar();
   }
 
   /**
@@ -2836,8 +2885,12 @@ export class MenuScene extends Phaser.Scene {
       const bodyHeight = bodyText.height;
       bodyText.destroy();
 
-      const panelTop = this.vy(268);
       const panelHeight = 16 + 18 + 8 + bodyHeight + 16;
+      // Centred in the band between the title and the way back. Pinned under the title it left a
+      // third of a screen of nothing below it, which reads as a page that failed to load rather
+      // than as a page with little to say.
+      const bandTop = this.vy(268);
+      const panelTop = bandTop + Math.max(0, Math.round((this.pageFloor() - bandTop - panelHeight) / 2));
       this.content.push(this.ui.panel({ x: PAD, y: panelTop, width: W, height: panelHeight },
         { border: INK_UI.softBrush, fillAlpha: 0.92 }));
       this.content.push(this.add.text(GAME_WIDTH / 2, panelTop + 16, t('dynasty.emptyTitle'), {
@@ -2846,8 +2899,7 @@ export class MenuScene extends Phaser.Scene {
       this.content.push(this.ui.label(GAME_WIDTH / 2, panelTop + 16 + 18 + 8, t('dynasty.emptyBody'),
         'caption', { fontSize: '11.5px', align: 'center', wordWrap: { width: W - 28 } })
         .setOrigin(0.5, 0));
-      this.content.push(this.ui.backBar(panelTop + panelHeight + 14,
-        () => { this.mode = 'main'; this.render(); }));
+      this.footBackBar();
       return;
     }
 
@@ -2866,7 +2918,29 @@ export class MenuScene extends Phaser.Scene {
       return height;
     };
 
-    let y = this.vy(268);
+    /**
+     * The body scrolls; the way back does not.
+     *
+     * At the 620 clamp the record does not fit and cannot be made to — the portrait, the bar, eight
+     * chips, the reign line, the ancestral code, the shop and the respec came to 94 units past the
+     * foot, and every one of them is the page's subject rather than its chrome. Shrinking them all
+     * to fit produces a sheet nobody can read, and hiding one by height is the `4a67460` bug again.
+     *
+     * So it scrolls, the way the manual and the history page do, and it keeps fitting as Phases 3
+     * and 4 add their rows. `addTo` order is not a convenience: it parents the area's swallow-zone
+     * before its content, and reversed the zone lands on top and eats every tap the rows were
+     * supposed to get.
+     */
+    const bodyTop = this.vy(268);
+    const viewport = this.pageFloor() - bodyTop;
+    const area = this.ui.scrollArea({ x: 0, y: bodyTop, width: GAME_WIDTH, height: viewport });
+    this.pageScroll = area;
+    const layer = this.add.container(0, 0);
+    area.addTo(layer);
+    this.content.push(layer);
+    const body = area.content;
+    // Rows are laid out from the top of the scrolled content, not from the top of the sheet.
+    let y = 0;
 
     // ── The house ───────────────────────────────────────────────────────────
     const pendingLine = store.pendingPicks > 0
@@ -2919,25 +2993,25 @@ export class MenuScene extends Phaser.Scene {
     // pitch: fifty dashed silhouettes and the faucet list is what tells a player the hunt exists.
     const cabinetHeight = 46;
     const fixedBelow = 12 + 15 + 5 + 6 + recordHeight + 12 + shopHeight + cabinetHeight + respecHeight + 8 + BACK_BAR_HEIGHT;
-    const gridRoom = this.vy(778) - (y + headerH) - fixedBelow;
+    const gridRoom = this.pageFloor() - (y + headerH) - fixedBelow;
     const CHIP_H = Math.max(20, Math.min(28, Math.floor(gridRoom / CHIP_ROWS) - CHIP_GAP));
-    this.content.push(this.ui.panel({ x: PAD, y, width: W, height: headerH },
+    body.add(this.ui.panel({ x: PAD, y, width: W, height: headerH },
       { border: INK_UI.softBrush, fillAlpha: 0.92 }));
 
     const founder = dynastyFounderHero(store);
     if (founder) {
-      this.content.push(renderHeroFaceInBox(this, founder, { x: PAD + 8, y: y + 6, width: 58, height: 58 }));
+      body.add(renderHeroFaceInBox(this, founder, { x: PAD + 8, y: y + 6, width: 58, height: 58 }));
     }
-    this.content.push(this.ui.label(PAD + 76, y + 8,
+    body.add(this.ui.label(PAD + 76, y + 8,
       store.house ? t('dynasty.house', { name: store.house }) : t('dynasty.houseUnnamed'),
       'label', { fontSize: '15px', wordWrap: { width: W - 90 } }));
-    this.content.push(this.ui.label(PAD + 76, y + 30, t('dynasty.reignOrdinal', { n: store.reigns }),
+    body.add(this.ui.label(PAD + 76, y + 30, t('dynasty.reignOrdinal', { n: store.reigns }),
       'caption', { fontSize: '11px' }));
-    this.content.push(this.ui.label(PAD + 76, y + 46, t('dynasty.level', { level: store.level }),
+    body.add(this.ui.label(PAD + 76, y + 46, t('dynasty.level', { level: store.level }),
       'caption', { fontSize: '11px' }));
 
     let inner = y + 64 + 10;
-    this.content.push(this.ui.label(PAD + 10, inner - 2, t('dynasty.xp', {
+    body.add(this.ui.label(PAD + 10, inner - 2, t('dynasty.xp', {
       into: progress.into.toLocaleString('en-US'),
       need: progress.need.toLocaleString('en-US'),
     }), 'caption', { fontSize: '10px' }));
@@ -2948,10 +3022,10 @@ export class MenuScene extends Phaser.Scene {
     bar.fillStyle(INK_UI.gold, 0.95);
     bar.fillRoundedRect(PAD + 10, inner, Math.max(4, (W - 20)
       * Math.min(1, progress.into / Math.max(1, progress.need))), 7, 3.5);
-    this.content.push(bar);
+    body.add(bar);
     inner += 13;
     if (pendingLine) {
-      this.content.push(this.ui.label(PAD + 10, inner, pendingLine, 'caption',
+      body.add(this.ui.label(PAD + 10, inner, pendingLine, 'caption',
         { fontSize: '10.5px', color: '#8a5f1c', wordWrap: { width: W - 20 } }));
     }
     y += headerH + 12;
@@ -2959,7 +3033,7 @@ export class MenuScene extends Phaser.Scene {
     // ── What the house has learned, as chips ────────────────────────────────
     const traitsHdr = this.ui.label(PAD, y, t('dynasty.traitsLabel'), 'caption',
       { fontSize: '10px', backgroundColor: 'rgba(243,230,196,0.82)', padding: { x: 4, y: 1 } });
-    this.content.push(traitsHdr);
+    body.add(traitsHdr);
     y += traitsHdr.height + 5;
 
     const CHIP_W = Math.floor((W - 8) / 2);
@@ -2968,7 +3042,7 @@ export class MenuScene extends Phaser.Scene {
       const pending = DYNASTY_TRAITS_PENDING.has(trait.id);
       const x = PAD + (index % 2) * (CHIP_W + 8);
       const chipY = y + Math.floor(index / 2) * (CHIP_H + CHIP_GAP);
-      this.content.push(this.ui.panel({ x, y: chipY, width: CHIP_W, height: CHIP_H }, {
+      body.add(this.ui.panel({ x, y: chipY, width: CHIP_W, height: CHIP_H }, {
         border: owned ? INK_UI.jade : INK_UI.softBrush,
         fillAlpha: owned ? 0.94 : 0.8,
       }));
@@ -2977,7 +3051,7 @@ export class MenuScene extends Phaser.Scene {
       // *omitted* rather than passed as undefined: `InkUI.label` spreads overrides over the
       // variant's own style, so an explicit `color: undefined` erases the variant's colour and
       // the chip prints white on parchment — which is how four owned traits rendered blank.
-      this.content.push(this.ui.label(x + 8, chipY + Math.max(4, Math.round((CHIP_H - 14) / 2)),
+      body.add(this.ui.label(x + 8, chipY + Math.max(4, Math.round((CHIP_H - 14) / 2)),
         `${t(`dynasty.trait.${trait.id}` as Parameters<typeof t>[0])}${owned ? ' ✓' : ''}`,
         owned ? 'label' : 'caption',
         {
@@ -2991,20 +3065,20 @@ export class MenuScene extends Phaser.Scene {
     const reignsLine = reignsLineText;
     const codes = codeCount;
     const codeLine = codeLineText;
-    this.content.push(this.ui.panel({ x: PAD, y, width: W, height: recordHeight },
+    body.add(this.ui.panel({ x: PAD, y, width: W, height: recordHeight },
       { border: INK_UI.softBrush, fillAlpha: 0.92 }));
 
     let row = y + 8;
-    this.content.push(this.ui.label(PAD + 10, row, t('dynasty.reignsLabel'), 'caption', { fontSize: '10px' }));
+    body.add(this.ui.label(PAD + 10, row, t('dynasty.reignsLabel'), 'caption', { fontSize: '10px' }));
     row += 13;
     const reignsText = this.ui.label(PAD + 10, row, reignsLine, 'caption',
       { fontSize: '10.5px', wordWrap: { width: W - 20 } });
-    this.content.push(reignsText);
+    body.add(reignsText);
     row += reignsText.height + 10;
-    this.content.push(this.ui.label(PAD + 10, row, t('dynasty.codeLabel'), 'caption',
+    body.add(this.ui.label(PAD + 10, row, t('dynasty.codeLabel'), 'caption',
       { fontSize: '10px', ...(codes > 0 ? { color: '#1c6b58' } : {}) }));
     row += 13;
-    this.content.push(this.ui.label(PAD + 10, row, codeLine, 'caption',
+    body.add(this.ui.label(PAD + 10, row, codeLine, 'caption',
       { fontSize: '10.5px', wordWrap: { width: W - 20 } }));
     y += recordHeight + 12;
 
@@ -3012,7 +3086,7 @@ export class MenuScene extends Phaser.Scene {
     // The Ascension Legacy shop, off the front page and onto the sheet a player is already reading
     // about their dynasty on. Both are cross-run progression; only one of them is a shop.
     if (legacy.points > 0 || legacy.bestScore > 0) {
-      this.content.push(this.ui.button({ x: PAD, y, width: W, height: 38 },
+      body.add(this.ui.button({ x: PAD, y, width: W, height: 38 },
         t('dynasty.openShop'), () => { this.mode = 'legacy'; this.render(); },
         {
           variant: 'secondary',
@@ -3025,7 +3099,7 @@ export class MenuScene extends Phaser.Scene {
     // Tàng Ấn Các — the collection page the ceremony's bind step and the rubbings feed.
     const cabinet = getCabinet();
     const seals = cabinetProgress();
-    this.content.push(this.ui.button({ x: PAD, y, width: W, height: 38 },
+    body.add(this.ui.button({ x: PAD, y, width: W, height: 38 },
       t('dynasty.openCabinet'), () => this.scene.start('CabinetScene'),
       {
         variant: 'secondary',
@@ -3042,7 +3116,7 @@ export class MenuScene extends Phaser.Scene {
     const respecs = respecsAvailable(legacy.ascensions);
     if (store.traits.length > 0) {
       const armed = this.respecArmed && respecs > 0;
-      this.content.push(this.ui.button({ x: PAD, y, width: W, height: 30 },
+      body.add(this.ui.button({ x: PAD, y, width: W, height: 30 },
         armed ? t('dynasty.respecArm', { n: store.traits.length }) : t('dynasty.respec'),
         () => {
           if (respecs <= 0) return;
@@ -3062,7 +3136,7 @@ export class MenuScene extends Phaser.Scene {
       const note = armed
         ? t('dynasty.respecWarn', { n: store.traits.length })
         : respecs > 0 ? t('dynasty.respecLeft', { n: respecs }) : t('dynasty.respecNone');
-      this.content.push(this.ui.label(GAME_WIDTH / 2, y, note, 'caption', {
+      body.add(this.ui.label(GAME_WIDTH / 2, y, note, 'caption', {
         fontSize: '9.5px',
         align: 'center',
         wordWrap: { width: W },
@@ -3073,10 +3147,8 @@ export class MenuScene extends Phaser.Scene {
       y += 24;
     }
 
-    this.content.push(this.ui.backBar(y + 6, () => {
-      this.mode = 'main';
-      this.render();
-    }));
+    area.setContentHeight(Math.max(viewport, y + 8));
+    this.footBackBar();
   }
 
   private renderLegacyShop(): void {
@@ -3088,11 +3160,25 @@ export class MenuScene extends Phaser.Scene {
       color: '#8a5f1c', fontFamily: UI_FONT, fontSize: '13px', align: 'center',
     }).setOrigin(0.5));
 
-    let y = 290;
+    /**
+     * Five cards do not fit a 620 sheet, and never did — the last one printed through the way back
+     * long before this phase. Same scrolling body as the ledger it now opens from; `addTo` parents
+     * the swallow-zone before the content, or the zone lands on top and eats every Buy.
+     */
+    const bodyTop = this.vy(288);
+    const viewport = this.pageFloor() - bodyTop;
+    const area = this.ui.scrollArea({ x: 0, y: bodyTop, width: GAME_WIDTH, height: viewport });
+    this.pageScroll = area;
+    const layer = this.add.container(0, 0);
+    area.addTo(layer);
+    this.content.push(layer);
+    const body = area.content;
+
+    let y = 0;
     for (const perk of LEGACY_PERKS) {
       const owned = legacy.perks.includes(perk.id);
       const affordable = legacy.points >= perk.cost;
-      this.content.push(this.ui.card({ x: 28, y, width: GAME_WIDTH - 56, height: 74 }, {
+      body.add(this.ui.card({ x: 28, y, width: GAME_WIDTH - 56, height: 74 }, {
         title: t(`empire.legacy.perk.${perk.id}` as Parameters<typeof t>[0]),
         subtitle: owned ? t('empire.legacy.owned') : t('empire.legacy.cost', { cost: perk.cost }),
         body: t(`empire.legacy.perk.${perk.id}.d` as Parameters<typeof t>[0]),
@@ -3110,11 +3196,9 @@ export class MenuScene extends Phaser.Scene {
       }));
       y += 82;
     }
+    area.setContentHeight(Math.max(viewport, y + 8));
 
-    this.content.push(this.ui.backBar(Math.min(y + 6, this.vy(726)), () => {
-      this.mode = 'main';
-      this.render();
-    }));
+    this.footBackBar();
   }
 
   /**
@@ -3527,10 +3611,7 @@ export class MenuScene extends Phaser.Scene {
     }
     cursor += 22;
 
-    this.content.push(this.ui.backBar(cursor, () => {
-      this.mode = 'main';
-      this.render();
-    }));
+    this.footBackBar();
   }
 
   private renderConfirmNew(): void {
@@ -3546,10 +3627,7 @@ export class MenuScene extends Phaser.Scene {
       this.startGame(createInitialGameState());
       // Note: full campaign setup is via "Start Campaign" → CampaignScene
     }, { variant: 'danger', fontSize: '14px' }));
-    this.content.push(this.ui.backBar(this.vy(690), () => {
-      this.mode = 'main';
-      this.render();
-    }));
+    this.footBackBar();
   }
 
   /**
@@ -4303,6 +4381,8 @@ export class MenuScene extends Phaser.Scene {
   private clearContent(): void {
     // A re-render underneath an open modal would put fresh buttons on top of its blocker.
     this.closeModal();
+    this.pageScroll?.destroy();
+    this.pageScroll = undefined;
     for (const item of this.content) {
       item.destroy();
     }
